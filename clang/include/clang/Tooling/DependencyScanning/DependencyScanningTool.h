@@ -37,6 +37,7 @@ public:
   llvm::Expected<std::string> getDependencyFile(const std::string &Input, StringRef CWD);
 
 private:
+  const ScanningOutputFormat Format;
   DependencyScanningWorker Worker;
   const tooling::CompilationDatabase &Compilations;
 };
