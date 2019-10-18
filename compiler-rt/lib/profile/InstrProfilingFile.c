@@ -366,6 +366,18 @@ static void exitSignalHandler(int sig) {
   exit(0);
 }
 
+#if defined(_WIN32)
+// sigaction isn't available on Windows, so just use signal.
+static void installExitSignalHandlers(void) {
+  unsigned I;
+  for (I = 0; I < lprofCurFilename.NumExitSignals; ++I) {
+    if (signal(lprofCurFilename.ExitOnSignals[I], exitSignalHandler) == SIG_ERR)
+      PROF_WARN(
+          "Unable to install an exit signal handler for %d (errno = %d).\n",
+          lprofCurFilename.ExitOnSignals[I], errno);
+  }
+}
+#else
 static void installExitSignalHandlers(void) {
   unsigned I;
   struct sigaction sigact;
@@ -380,6 +392,7 @@ static void installExitSignalHandlers(void) {
           lprofCurFilename.ExitOnSignals[I], err);
   }
 }
+#endif
 
 static const char *DefaultProfileName = "default.profraw";
 static void resetFilenameToDefault(void) {
