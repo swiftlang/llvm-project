@@ -255,6 +255,21 @@ public:
     return DefaultConstrainedRounding;
   }
 
+  void setConstrainedFPFunctionAttr() {
+    assert(BB && "Must have a basic block to set any function attributes!");
+
+    Function *F = BB->getParent();
+    if (!F->hasFnAttribute(Attribute::StrictFP)) {
+      F->addFnAttr(Attribute::StrictFP);
+    }
+  }
+
+  void setConstrainedFPCallAttr(CallInst *I) {
+    if (!I->hasFnAttr(Attribute::StrictFP))
+      I->addAttribute(AttributeList::FunctionIndex, Attribute::StrictFP);
+    setConstrainedFPFunctionAttr();
+  }
+
   //===--------------------------------------------------------------------===//
   // RAII helpers.
   //===--------------------------------------------------------------------===//
@@ -1461,7 +1476,7 @@ public:
     if (Value *V = foldConstant(Opc, LHS, RHS, Name)) return V;
     Instruction *BinOp = BinaryOperator::Create(Opc, LHS, RHS);
     if (isa<FPMathOperator>(BinOp))
-      BinOp = setFPAttrs(BinOp, FPMathTag, FMF);
+      setFPAttrs(BinOp, FPMathTag, FMF);
     return Insert(BinOp, Name);
   }
 
@@ -1479,7 +1494,9 @@ public:
 
     CallInst *C = CreateIntrinsic(ID, {L->getType()},
                                   {L, R, RoundingV, ExceptV}, nullptr, Name);
-    return cast<CallInst>(setFPAttrs(C, FPMathTag, UseFMF));
+    setConstrainedFPCallAttr(C);
+    setFPAttrs(C, FPMathTag, UseFMF);
+    return C;
   }
 
   Value *CreateNeg(Value *V, const Twine &Name = "",
@@ -1532,7 +1549,7 @@ public:
       return Insert(Folder.CreateUnOp(Opc, VC), Name);
     Instruction *UnOp = UnaryOperator::Create(Opc, V);
     if (isa<FPMathOperator>(UnOp))
-      UnOp = setFPAttrs(UnOp, FPMathTag, FMF);
+      setFPAttrs(UnOp, FPMathTag, FMF);
     return Insert(UnOp, Name);
   }
 
@@ -2083,8 +2100,10 @@ public:
                           Name);
       break;
     }
+    setConstrainedFPCallAttr(C);
+
     if (isa<FPMathOperator>(C))
-      C = cast<CallInst>(setFPAttrs(C, FPMathTag, UseFMF));
+      setFPAttrs(C, FPMathTag, UseFMF);
     return C;
   }
 
@@ -2231,7 +2250,7 @@ public:
                      const Twine &Name = "") {
     PHINode *Phi = PHINode::Create(Ty, NumReservedValues);
     if (isa<FPMathOperator>(Phi))
-      Phi = cast<PHINode>(setFPAttrs(Phi, nullptr /* MDNode* */, FMF));
+      setFPAttrs(Phi, nullptr /* MDNode* */, FMF);
     return Insert(Phi, Name);
   }
 
@@ -2239,8 +2258,10 @@ public:
                        ArrayRef<Value *> Args = None, const Twine &Name = "",
                        MDNode *FPMathTag = nullptr) {
     CallInst *CI = CallInst::Create(FTy, Callee, Args, DefaultOperandBundles);
+    if (IsFPConstrained)
+      setConstrainedFPCallAttr(CI);
     if (isa<FPMathOperator>(CI))
-      CI = cast<CallInst>(setFPAttrs(CI, FPMathTag, FMF));
+      setFPAttrs(CI, FPMathTag, FMF);
     return Insert(CI, Name);
   }
 
@@ -2248,8 +2269,10 @@ public:
                        ArrayRef<OperandBundleDef> OpBundles,
                        const Twine &Name = "", MDNode *FPMathTag = nullptr) {
     CallInst *CI = CallInst::Create(FTy, Callee, Args, OpBundles);
+    if (IsFPConstrained)
+      setConstrainedFPCallAttr(CI);
     if (isa<FPMathOperator>(CI))
-      CI = cast<CallInst>(setFPAttrs(CI, FPMathTag, FMF));
+      setFPAttrs(CI, FPMathTag, FMF);
     return Insert(CI, Name);
   }
 
@@ -2297,7 +2320,7 @@ public:
       Sel = addBranchMetadata(Sel, Prof, Unpred);
     }
     if (isa<FPMathOperator>(Sel))
-      Sel = cast<SelectInst>(setFPAttrs(Sel, nullptr /* MDNode* */, FMF));
+      setFPAttrs(Sel, nullptr /* MDNode* */, FMF);
     return Insert(Sel, Name);
   }
 

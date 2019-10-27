@@ -24,6 +24,8 @@ FileHeader:
   Data:    ELFDATA2LSB
   Type:    ET_DYN
   Machine: EM_X86_64
+## Needed to force the creation of the .symtab.
+Symbols: []
 ## Needed to force the creation of the .dynsym and .dynstr.
 DynamicSymbols:
   - Name:    foo
@@ -61,6 +63,7 @@ Sections:
     Type: SHT_PROGBITS
   - Name: .dynsym
     Type: SHT_NOTE
+    Size: 0
   - Name: .dynstr
     Type: SHT_NOBITS
 ## Needed to set the proper content size for .symtab, so

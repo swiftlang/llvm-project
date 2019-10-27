@@ -179,8 +179,10 @@ public:
   Status GenerateFunction(const char *signature,
                           const StringList &input) override;
 
-  Status GenerateBreakpointCommandCallbackData(StringList &input,
-                                               std::string &output) override;
+  Status GenerateBreakpointCommandCallbackData(
+      StringList &input,
+      std::string &output,
+      bool has_extra_args) override;
 
   bool GenerateWatchpointCommandCallbackData(StringList &input,
                                              std::string &output) override;
@@ -244,13 +246,21 @@ public:
   Status SetBreakpointCommandCallback(BreakpointOptions *bp_options,
                                       const char *callback_body) override;
 
-  void SetBreakpointCommandCallbackFunction(BreakpointOptions *bp_options,
-                                            const char *function_name) override;
+  Status SetBreakpointCommandCallbackFunction(
+      BreakpointOptions *bp_options,
+      const char *function_name,
+      StructuredData::ObjectSP extra_args_sp) override;
 
   /// This one is for deserialization:
   Status SetBreakpointCommandCallback(
       BreakpointOptions *bp_options,
       std::unique_ptr<BreakpointOptions::CommandData> &data_up) override;
+
+  Status SetBreakpointCommandCallback(
+      BreakpointOptions *bp_options, 
+       const char *command_body_text,
+       StructuredData::ObjectSP extra_args_sp,
+       bool uses_extra_args);
 
   /// Set a one-liner as the callback for the watchpoint.
   void SetWatchpointCommandCallback(WatchpointOptions *wp_options,
@@ -363,25 +373,29 @@ public:
     eIOHandlerWatchpoint
   };
 
-  PythonObject &GetMainModule();
+  python::PythonModule &GetMainModule();
 
-  PythonDictionary &GetSessionDictionary();
+  python::PythonDictionary &GetSessionDictionary();
 
-  PythonDictionary &GetSysModuleDictionary();
+  python::PythonDictionary &GetSysModuleDictionary();
+  
+  llvm::Expected<size_t> 
+  GetNumFixedArgumentsForCallable(const llvm::StringRef &callable_name) 
+      override;
 
   bool GetEmbeddedInterpreterModuleObjects();
 
   bool SetStdHandle(lldb::FileSP file, const char *py_name,
-                    PythonObject &save_file, const char *mode);
+                    python::PythonObject &save_file, const char *mode);
 
-  PythonObject m_saved_stdin;
-  PythonObject m_saved_stdout;
-  PythonObject m_saved_stderr;
-  PythonObject m_main_module;
-  PythonDictionary m_session_dict;
-  PythonDictionary m_sys_module_dict;
-  PythonObject m_run_one_line_function;
-  PythonObject m_run_one_line_str_global;
+  python::PythonObject m_saved_stdin;
+  python::PythonObject m_saved_stdout;
+  python::PythonObject m_saved_stderr;
+  python::PythonModule m_main_module;
+  python::PythonDictionary m_session_dict;
+  python::PythonDictionary m_sys_module_dict;
+  python::PythonObject m_run_one_line_function;
+  python::PythonObject m_run_one_line_str_global;
   std::string m_dictionary_name;
   ActiveIOHandler m_active_io_handler;
   bool m_session_is_active;

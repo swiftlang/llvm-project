@@ -128,7 +128,6 @@ static cl::opt<bool>
 LoopPredication("indvars-predicate-loops", cl::Hidden, cl::init(false),
                 cl::desc("Predicate conditions in read only loops"));
 
-
 namespace {
 
 struct RewritePhi;
@@ -2268,8 +2267,8 @@ static PHINode *FindLoopCounter(Loop *L, BasicBlock *ExitingBB,
     if (BECount->getType()->isPointerTy() && !Phi->getType()->isPointerTy())
       continue;
 
-    const auto *AR = dyn_cast<SCEVAddRecExpr>(SE->getSCEV(Phi));
-    
+    const auto *AR = cast<SCEVAddRecExpr>(SE->getSCEV(Phi));
+
     // AR may be a pointer type, while BECount is an integer type.
     // AR may be wider than BECount. With eq/ne tests overflow is immaterial.
     // AR may not be a narrower type, or we may never exit.
@@ -2663,11 +2662,11 @@ static const SCEV* getMaxBackedgeTakenCount(ScalarEvolution &SE,
   // merge the max and exact information to approximate a version of
   // getConstantMaxBackedgeTakenCount which isn't restricted to just constants.
   SmallVector<const SCEV*, 4> ExitCounts;
-  const SCEV *MaxConstEC = SE.getConstantMaxBackedgeTakenCount(L);
-  if (!isa<SCEVCouldNotCompute>(MaxConstEC))
-    ExitCounts.push_back(MaxConstEC);
   for (BasicBlock *ExitingBB : ExitingBlocks) {
     const SCEV *ExitCount = SE.getExitCount(L, ExitingBB);
+    if (isa<SCEVCouldNotCompute>(ExitCount))
+      ExitCount = SE.getExitCount(L, ExitingBB,
+                                  ScalarEvolution::ConstantMaximum);
     if (!isa<SCEVCouldNotCompute>(ExitCount)) {
       assert(DT.dominates(ExitingBB, L->getLoopLatch()) &&
              "We should only have known counts for exiting blocks that "
@@ -2717,6 +2716,24 @@ bool IndVarSimplify::optimizeLoopExits(Loop *L, SCEVExpander &Rewriter) {
   if (isa<SCEVCouldNotCompute>(MaxExitCount))
     return false;
 
+  // Visit our exit blocks in order of dominance.  We know from the fact that
+  // all exits (left) are analyzeable that the must be a total dominance order
+  // between them as each must dominate the latch.  The visit order only
+  // matters for the provably equal case.  
+  llvm::sort(ExitingBlocks,
+             [&](BasicBlock *A, BasicBlock *B) {
+               // std::sort sorts in ascending order, so we want the inverse of
+               // the normal dominance relation.
+               if (DT->properlyDominates(A, B)) return true;
+               if (DT->properlyDominates(B, A)) return false;
+               llvm_unreachable("expected total dominance order!");
+             });
+#ifdef ASSERT
+  for (unsigned i = 1; i < ExitingBlocks.size(); i++) {
+    assert(DT->dominates(ExitingBlocks[i-1], ExitingBlocks[i]));
+  }
+#endif
+  
   auto FoldExit = [&](BasicBlock *ExitingBB, bool IsTaken) {
     BranchInst *BI = cast<BranchInst>(ExitingBB->getTerminator());
     bool ExitIfTrue = !L->contains(*succ_begin(ExitingBB));
@@ -2729,6 +2746,7 @@ bool IndVarSimplify::optimizeLoopExits(Loop *L, SCEVExpander &Rewriter) {
   };
 
   bool Changed = false;
+  SmallSet<const SCEV*, 8> DominatingExitCounts;
   for (BasicBlock *ExitingBB : ExitingBlocks) {
     const SCEV *ExitCount = SE->getExitCount(L, ExitingBB);
     assert(!isa<SCEVCouldNotCompute>(ExitCount) && "checked above");
@@ -2766,10 +2784,22 @@ bool IndVarSimplify::optimizeLoopExits(Loop *L, SCEVExpander &Rewriter) {
       continue;
     }
 
-    // TODO: If we can prove that the exiting iteration is equal to the exit
-    // count for this exit and that no previous exit oppurtunities exist within
-    // the loop, then we can discharge all other exits.  (May fall out of
-    // previous TODO.)
+    // As we run, keep track of which exit counts we've encountered.  If we
+    // find a duplicate, we've found an exit which would have exited on the
+    // exiting iteration, but (from the visit order) strictly follows another
+    // which does the same and is thus dead. 
+    if (!DominatingExitCounts.insert(ExitCount).second) {
+      FoldExit(ExitingBB, false);
+      Changed = true;
+      continue;
+    }
+
+    // TODO: There might be another oppurtunity to leverage SCEV's reasoning
+    // here.  If we kept track of the min of dominanting exits so far, we could
+    // discharge exits with EC >= MDEC. This is less powerful than the existing
+    // transform (since later exits aren't considered), but potentially more
+    // powerful for any case where SCEV can prove a >=u b, but neither a == b
+    // or a >u b.  Such a case is not currently known.
   }
   return Changed;
 }

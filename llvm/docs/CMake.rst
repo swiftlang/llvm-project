@@ -204,6 +204,17 @@ CMake manual, or execute ``cmake --help-variable VARIABLE_NAME``.
 **CMAKE_CXX_FLAGS**:STRING
   Extra flags to use when compiling C++ source files.
 
+Rarely-used CMake variables
+---------------------------
+
+Here are some of the CMake variables that are rarely used, along with a brief
+explanation and LLVM-specific notes.  For full documentation, consult the CMake
+manual, or execute ``cmake --help-variable VARIABLE_NAME``.
+
+**CMAKE_CXX_STANDARD**:STRING
+  Sets the C++ standard to conform to when building LLVM.  Possible values are
+  14, 17, 20.  LLVM Requires C++ 14 or higher.  This defaults to 14.
+
 .. _LLVM-specific variables:
 
 LLVM-specific variables
@@ -273,9 +284,6 @@ LLVM-specific variables
 **LLVM_ENABLE_UNWIND_TABLES**:BOOL
   Enable unwind tables in the binary.  Disabling unwind tables can reduce the
   size of the libraries.  Defaults to ON.
-
-**LLVM_CXX_STD**:STRING
-  Build with the specified C++ standard. Defaults to "c++11".
 
 **LLVM_ENABLE_ASSERTIONS**:BOOL
   Enables code assertions. Defaults to ON if and only if ``CMAKE_BUILD_TYPE``
@@ -369,11 +377,13 @@ LLVM-specific variables
 
 **LLVM_ENABLE_PROJECTS**:STRING
   Semicolon-separated list of projects to build, or *all* for building all
-  (clang, libcxx, libcxxabi, lldb, compiler-rt, lld, polly) projects.
+  (clang, libcxx, libcxxabi, lldb, compiler-rt, lld, polly, etc) projects.
   This flag assumes that projects are checked out side-by-side and not nested,
   i.e. clang needs to be in parallel of llvm instead of nested in `llvm/tools`.
   This feature allows to have one build for only LLVM and another for clang+llvm
   using the same source checkout.
+  The full list is:
+  ``clang;clang-tools-extra;compiler-rt;debuginfo-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;llgo;openmp;parallel-libs;polly;pstl``
 
 **LLVM_EXTERNAL_PROJECTS**:STRING
   Semicolon-separated list of additional external projects to build as part of
@@ -517,7 +527,7 @@ LLVM-specific variables
 **SPHINX_EXECUTABLE**:STRING
   The path to the ``sphinx-build`` executable detected by CMake.
   For installation instructions, see
-  http://www.sphinx-doc.org/en/latest/install.html
+  http://www.sphinx-doc.org/en/latest/usage/installation.html
 
 **SPHINX_OUTPUT_HTML**:BOOL
   If enabled (and ``LLVM_ENABLE_SPHINX`` is enabled) then the targets for

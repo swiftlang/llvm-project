@@ -1826,6 +1826,9 @@ namespace serialization {
       /// A CXXMemberCallExpr record.
       EXPR_CXX_MEMBER_CALL,
 
+      /// A CXXRewrittenBinaryOperator record.
+      EXPR_CXX_REWRITTEN_BINARY_OPERATOR,
+
       /// A CXXConstructExpr record.
       EXPR_CXX_CONSTRUCT,
 
@@ -1947,6 +1950,7 @@ namespace serialization {
       STMT_OMP_TASKLOOP_DIRECTIVE,
       STMT_OMP_TASKLOOP_SIMD_DIRECTIVE,
       STMT_OMP_MASTER_TASKLOOP_DIRECTIVE,
+      STMT_OMP_MASTER_TASKLOOP_SIMD_DIRECTIVE,
       STMT_OMP_PARALLEL_MASTER_TASKLOOP_DIRECTIVE,
       STMT_OMP_DISTRIBUTE_DIRECTIVE,
       STMT_OMP_TARGET_UPDATE_DIRECTIVE,

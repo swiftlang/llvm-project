@@ -3538,16 +3538,31 @@ void SelectionDAGBuilder::visitExtractElement(const User &I) {
 void SelectionDAGBuilder::visitShuffleVector(const User &I) {
   SDValue Src1 = getValue(I.getOperand(0));
   SDValue Src2 = getValue(I.getOperand(1));
+  Constant *MaskV = cast<Constant>(I.getOperand(2));
   SDLoc DL = getCurSDLoc();
-
-  SmallVector<int, 8> Mask;
-  ShuffleVectorInst::getShuffleMask(cast<Constant>(I.getOperand(2)), Mask);
-  unsigned MaskNumElts = Mask.size();
-
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   EVT VT = TLI.getValueType(DAG.getDataLayout(), I.getType());
   EVT SrcVT = Src1.getValueType();
   unsigned SrcNumElts = SrcVT.getVectorNumElements();
+
+  if (MaskV->isNullValue() && VT.isScalableVector()) {
+    // Canonical splat form of first element of first input vector.
+    SDValue FirstElt = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL,
+                                   SrcVT.getScalarType(), Src1,
+                                   DAG.getConstant(0, DL, 
+                                   TLI.getVectorIdxTy(DAG.getDataLayout())));
+    setValue(&I, DAG.getNode(ISD::SPLAT_VECTOR, DL, VT, FirstElt));
+    return;
+  }
+
+  // For now, we only handle splats for scalable vectors.
+  // The DAGCombiner will perform a BUILD_VECTOR -> SPLAT_VECTOR transformation
+  // for targets that support a SPLAT_VECTOR for non-scalable vector types.
+  assert(!VT.isScalableVector() && "Unsupported scalable vector shuffle");
+
+  SmallVector<int, 8> Mask;
+  ShuffleVectorInst::getShuffleMask(MaskV, Mask);
+  unsigned MaskNumElts = Mask.size();
 
   if (SrcNumElts == MaskNumElts) {
     setValue(&I, DAG.getVectorShuffle(VT, DL, Src1, Src2, Mask));
@@ -9094,7 +9109,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
       // Certain targets (such as MIPS), may have a different ABI alignment
       // for a type depending on the context. Give the target a chance to
       // specify the alignment it wants.
-      unsigned OriginalAlignment = getABIAlignmentForCallingConv(ArgTy, DL);
+      const Align OriginalAlignment(getABIAlignmentForCallingConv(ArgTy, DL));
 
       if (Args[i].Ty->isPointerTy()) {
         Flags.setPointer();
@@ -9149,7 +9164,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
           FrameAlign = Args[i].Alignment;
         else
           FrameAlign = getByValTypeAlignment(ElementTy, DL);
-        Flags.setByValAlign(FrameAlign);
+        Flags.setByValAlign(Align(FrameAlign));
       }
       if (Args[i].IsNest)
         Flags.setNest();
@@ -9205,7 +9220,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
         if (NumParts > 1 && j == 0)
           MyFlags.Flags.setSplit();
         else if (j != 0) {
-          MyFlags.Flags.setOrigAlign(1);
+          MyFlags.Flags.setOrigAlign(Align::None());
           if (j == NumParts - 1)
             MyFlags.Flags.setSplitEnd();
         }
@@ -9592,8 +9607,8 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
       // Certain targets (such as MIPS), may have a different ABI alignment
       // for a type depending on the context. Give the target a chance to
       // specify the alignment it wants.
-      unsigned OriginalAlignment =
-          TLI->getABIAlignmentForCallingConv(ArgTy, DL);
+      const Align OriginalAlignment(
+          TLI->getABIAlignmentForCallingConv(ArgTy, DL));
 
       if (Arg.getType()->isPointerTy()) {
         Flags.setPointer();
@@ -9653,7 +9668,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
           FrameAlign = Arg.getParamAlignment();
         else
           FrameAlign = TLI->getByValTypeAlignment(ElementTy, DL);
-        Flags.setByValAlign(FrameAlign);
+        Flags.setByValAlign(Align(FrameAlign));
       }
       if (Arg.hasAttribute(Attribute::Nest))
         Flags.setNest();
@@ -9676,7 +9691,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
           MyFlags.Flags.setSplit();
         // if it isn't first piece, alignment must be 1
         else if (i > 0) {
-          MyFlags.Flags.setOrigAlign(1);
+          MyFlags.Flags.setOrigAlign(Align::None());
           if (i == NumRegs - 1)
             MyFlags.Flags.setSplitEnd();
         }

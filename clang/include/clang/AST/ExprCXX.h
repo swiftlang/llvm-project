@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_AST_EXPRCXX_H
 #define LLVM_CLANG_AST_EXPRCXX_H
 
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
@@ -251,6 +252,96 @@ public:
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CUDAKernelCallExprClass;
+  }
+};
+
+/// A rewritten comparison expression that was originally written using
+/// operator syntax.
+///
+/// In C++20, the following rewrites are performed:
+/// - <tt>a == b</tt> -> <tt>b == a</tt>
+/// - <tt>a != b</tt> -> <tt>!(a == b)</tt>
+/// - <tt>a != b</tt> -> <tt>!(b == a)</tt>
+/// - For \c \@ in \c <, \c <=, \c >, \c >=, \c <=>:
+///   - <tt>a @ b</tt> -> <tt>(a <=> b) @ 0</tt>
+///   - <tt>a @ b</tt> -> <tt>0 @ (b <=> a)</tt>
+///
+/// This expression provides access to both the original syntax and the
+/// rewritten expression.
+///
+/// Note that the rewritten calls to \c ==, \c <=>, and \c \@ are typically
+/// \c CXXOperatorCallExprs, but could theoretically be \c BinaryOperators.
+class CXXRewrittenBinaryOperator : public Expr {
+  friend class ASTStmtReader;
+
+  /// The rewritten semantic form.
+  Stmt *SemanticForm;
+
+public:
+  CXXRewrittenBinaryOperator(Expr *SemanticForm, bool IsReversed)
+      : Expr(CXXRewrittenBinaryOperatorClass, SemanticForm->getType(),
+             SemanticForm->getValueKind(), SemanticForm->getObjectKind(),
+             SemanticForm->isTypeDependent(), SemanticForm->isValueDependent(),
+             SemanticForm->isInstantiationDependent(),
+             SemanticForm->containsUnexpandedParameterPack()),
+        SemanticForm(SemanticForm) {
+    CXXRewrittenBinaryOperatorBits.IsReversed = IsReversed;
+  }
+  CXXRewrittenBinaryOperator(EmptyShell Empty)
+      : Expr(CXXRewrittenBinaryOperatorClass, Empty), SemanticForm() {}
+
+  /// Get an equivalent semantic form for this expression.
+  Expr *getSemanticForm() { return cast<Expr>(SemanticForm); }
+  const Expr *getSemanticForm() const { return cast<Expr>(SemanticForm); }
+
+  struct DecomposedForm {
+    /// The original opcode, prior to rewriting.
+    BinaryOperatorKind Opcode;
+    /// The original left-hand side.
+    const Expr *LHS;
+    /// The original right-hand side.
+    const Expr *RHS;
+    /// The inner \c == or \c <=> operator expression.
+    const Expr *InnerBinOp;
+  };
+
+  /// Decompose this operator into its syntactic form.
+  DecomposedForm getDecomposedForm() const LLVM_READONLY;
+
+  /// Determine whether this expression was rewritten in reverse form.
+  bool isReversed() const { return CXXRewrittenBinaryOperatorBits.IsReversed; }
+
+  BinaryOperatorKind getOperator() const { return getDecomposedForm().Opcode; }
+  const Expr *getLHS() const { return getDecomposedForm().LHS; }
+  const Expr *getRHS() const { return getDecomposedForm().RHS; }
+
+  SourceLocation getOperatorLoc() const LLVM_READONLY {
+    return getDecomposedForm().InnerBinOp->getExprLoc();
+  }
+  SourceLocation getExprLoc() const LLVM_READONLY { return getOperatorLoc(); }
+
+  /// Compute the begin and end locations from the decomposed form.
+  /// The locations of the semantic form are not reliable if this is
+  /// a reversed expression.
+  //@{
+  SourceLocation getBeginLoc() const LLVM_READONLY {
+    return getDecomposedForm().LHS->getBeginLoc();
+  }
+  SourceLocation getEndLoc() const LLVM_READONLY {
+    return getDecomposedForm().RHS->getEndLoc();
+  }
+  SourceRange getSourceRange() const LLVM_READONLY {
+    DecomposedForm DF = getDecomposedForm();
+    return SourceRange(DF.LHS->getBeginLoc(), DF.RHS->getEndLoc());
+  }
+  //@}
+
+  child_range children() {
+    return child_range(&SemanticForm, &SemanticForm + 1);
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXRewrittenBinaryOperatorClass;
   }
 };
 
@@ -4761,6 +4852,10 @@ class ConceptSpecializationExpr final : public Expr,
                                     TemplateArgument> {
   friend class ASTStmtReader;
   friend TrailingObjects;
+public:
+  using SubstitutionDiagnostic = std::pair<SourceLocation, std::string>;
+
+protected:
 
   // \brief The optional nested name specifier used when naming the concept.
   NestedNameSpecifierLoc NestedNameSpec;
@@ -4778,11 +4873,8 @@ class ConceptSpecializationExpr final : public Expr,
   /// through a UsingShadowDecl.
   NamedDecl *FoundDecl;
 
-  /// \brief The concept named, and whether or not the concept with the given
-  /// arguments was satisfied when the expression was created.
-  /// If any of the template arguments are dependent (this expr would then be
-  /// isValueDependent()), this bit is to be ignored.
-  llvm::PointerIntPair<ConceptDecl *, 1, bool> NamedConcept;
+  /// \brief The concept named.
+  ConceptDecl *NamedConcept;
 
   /// \brief The template argument list source info used to specialize the
   /// concept.
@@ -4792,13 +4884,18 @@ class ConceptSpecializationExpr final : public Expr,
   /// converted template arguments.
   unsigned NumTemplateArgs;
 
+  /// \brief Information about the satisfaction of the named concept with the
+  /// given arguments. If this expression is value dependent, this is to be
+  /// ignored.
+  ASTConstraintSatisfaction *Satisfaction;
+
   ConceptSpecializationExpr(ASTContext &C, NestedNameSpecifierLoc NNS,
                             SourceLocation TemplateKWLoc,
                             SourceLocation ConceptNameLoc, NamedDecl *FoundDecl,
                             ConceptDecl *NamedConcept,
                             const ASTTemplateArgumentListInfo *ArgsAsWritten,
                             ArrayRef<TemplateArgument> ConvertedArgs,
-                            Optional<bool> IsSatisfied);
+                            const ConstraintSatisfaction *Satisfaction);
 
   ConceptSpecializationExpr(EmptyShell Empty, unsigned NumTemplateArgs);
 
@@ -4809,7 +4906,8 @@ public:
          SourceLocation TemplateKWLoc, SourceLocation ConceptNameLoc,
          NamedDecl *FoundDecl, ConceptDecl *NamedConcept,
          const ASTTemplateArgumentListInfo *ArgsAsWritten,
-         ArrayRef<TemplateArgument> ConvertedArgs, Optional<bool> IsSatisfied);
+         ArrayRef<TemplateArgument> ConvertedArgs,
+         const ConstraintSatisfaction *Satisfaction);
 
   static ConceptSpecializationExpr *
   Create(ASTContext &C, EmptyShell Empty, unsigned NumTemplateArgs);
@@ -4823,7 +4921,7 @@ public:
   }
 
   ConceptDecl *getNamedConcept() const {
-    return NamedConcept.getPointer();
+    return NamedConcept;
   }
 
   ArrayRef<TemplateArgument> getTemplateArguments() const {
@@ -4840,12 +4938,21 @@ public:
                             ArrayRef<TemplateArgument> Converted);
 
   /// \brief Whether or not the concept with the given arguments was satisfied
-  /// when the expression was created. This method assumes that the expression
-  /// is not dependent!
+  /// when the expression was created.
+  /// The expression must not be dependent.
   bool isSatisfied() const {
     assert(!isValueDependent()
            && "isSatisfied called on a dependent ConceptSpecializationExpr");
-    return NamedConcept.getInt();
+    return Satisfaction->IsSatisfied;
+  }
+
+  /// \brief Get elaborated satisfaction info about the template arguments'
+  /// satisfaction of the named concept.
+  /// The expression must not be dependent.
+  const ASTConstraintSatisfaction &getSatisfaction() const {
+    assert(!isValueDependent()
+           && "getSatisfaction called on dependent ConceptSpecializationExpr");
+    return *Satisfaction;
   }
 
   SourceLocation getConceptNameLoc() const { return ConceptNameLoc; }

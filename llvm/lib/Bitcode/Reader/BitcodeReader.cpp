@@ -4761,7 +4761,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       const DataLayout &DL = TheModule->getDataLayout();
       unsigned AS = DL.getAllocaAddrSpace();
 
-      AllocaInst *AI = new AllocaInst(Ty, AS, Size, Align ? Align->value() : 0);
+      AllocaInst *AI = new AllocaInst(Ty, AS, Size, Align);
       AI->setUsedWithInAlloca(InAlloca);
       AI->setSwiftError(SwiftError);
       I = AI;
@@ -4792,8 +4792,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       MaybeAlign Align;
       if (Error Err = parseAlignmentValue(Record[OpNum], Align))
         return Err;
-      I = new LoadInst(Ty, Op, "", Record[OpNum + 1],
-                       Align ? Align->value() : 0);
+      I = new LoadInst(Ty, Op, "", Record[OpNum + 1], Align);
       InstructionList.push_back(I);
       break;
     }
@@ -4830,8 +4829,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       MaybeAlign Align;
       if (Error Err = parseAlignmentValue(Record[OpNum], Align))
         return Err;
-      I = new LoadInst(Ty, Op, "", Record[OpNum + 1],
-                       Align ? Align->value() : 0, Ordering, SSID);
+      I = new LoadInst(Ty, Op, "", Record[OpNum + 1], Align, Ordering, SSID);
       InstructionList.push_back(I);
       break;
     }
@@ -4853,8 +4851,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       MaybeAlign Align;
       if (Error Err = parseAlignmentValue(Record[OpNum], Align))
         return Err;
-      I = new StoreInst(Val, Ptr, Record[OpNum + 1],
-                        Align ? Align->value() : 0);
+      I = new StoreInst(Val, Ptr, Record[OpNum + 1], Align);
       InstructionList.push_back(I);
       break;
     }
@@ -4887,8 +4884,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       MaybeAlign Align;
       if (Error Err = parseAlignmentValue(Record[OpNum], Align))
         return Err;
-      I = new StoreInst(Val, Ptr, Record[OpNum + 1], Align ? Align->value() : 0,
-                        Ordering, SSID);
+      I = new StoreInst(Val, Ptr, Record[OpNum + 1], Align, Ordering, SSID);
       InstructionList.push_back(I);
       break;
     }

@@ -2048,6 +2048,8 @@ public:
   void VisitOMPTaskLoopDirective(const OMPTaskLoopDirective *D);
   void VisitOMPTaskLoopSimdDirective(const OMPTaskLoopSimdDirective *D);
   void VisitOMPMasterTaskLoopDirective(const OMPMasterTaskLoopDirective *D);
+  void
+  VisitOMPMasterTaskLoopSimdDirective(const OMPMasterTaskLoopSimdDirective *D);
   void VisitOMPParallelMasterTaskLoopDirective(
       const OMPParallelMasterTaskLoopDirective *D);
   void VisitOMPDistributeDirective(const OMPDistributeDirective *D);
@@ -2896,6 +2898,11 @@ void EnqueueVisitor::VisitOMPTaskLoopSimdDirective(
 
 void EnqueueVisitor::VisitOMPMasterTaskLoopDirective(
     const OMPMasterTaskLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+}
+
+void EnqueueVisitor::VisitOMPMasterTaskLoopSimdDirective(
+    const OMPMasterTaskLoopSimdDirective *D) {
   VisitOMPLoopDirective(D);
 }
 
@@ -5478,6 +5485,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("OMPTaskLoopSimdDirective");
   case CXCursor_OMPMasterTaskLoopDirective:
     return cxstring::createRef("OMPMasterTaskLoopDirective");
+  case CXCursor_OMPMasterTaskLoopSimdDirective:
+    return cxstring::createRef("OMPMasterTaskLoopSimdDirective");
   case CXCursor_OMPParallelMasterTaskLoopDirective:
     return cxstring::createRef("OMPParallelMasterTaskLoopDirective");
   case CXCursor_OMPDistributeDirective:
@@ -6598,7 +6607,9 @@ void clang_enableStackTraces(void) {
 
 void clang_executeOnThread(void (*fn)(void*), void *user_data,
                            unsigned stack_size) {
-  llvm::llvm_execute_on_thread(fn, user_data, stack_size);
+  llvm::llvm_execute_on_thread(
+      fn, user_data,
+      stack_size == 0 ? llvm::None : llvm::Optional<unsigned>(stack_size));
 }
 
 //===----------------------------------------------------------------------===//

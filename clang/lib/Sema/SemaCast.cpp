@@ -423,7 +423,7 @@ static bool tryDiagnoseOverloadedCast(Sema &S, CastType CT,
 
   case OR_Ambiguous:
     msg = diag::err_ovl_ambiguous_conversion_in_cast;
-    howManyCandidates = OCD_ViableCandidates;
+    howManyCandidates = OCD_AmbiguousCandidates;
     break;
 
   case OR_Deleted:
@@ -1304,6 +1304,7 @@ TryCastResult TryLValueToRValueCast(Sema &Self, Expr *SrcExpr,
   bool DerivedToBase;
   bool ObjCConversion;
   bool ObjCLifetimeConversion;
+  bool FunctionConversion;
   QualType FromType = SrcExpr->getType();
   QualType ToType = R->getPointeeType();
   if (CStyle) {
@@ -1313,7 +1314,7 @@ TryCastResult TryLValueToRValueCast(Sema &Self, Expr *SrcExpr,
 
   Sema::ReferenceCompareResult RefResult = Self.CompareReferenceRelationship(
       SrcExpr->getBeginLoc(), ToType, FromType, DerivedToBase, ObjCConversion,
-      ObjCLifetimeConversion);
+      ObjCLifetimeConversion, FunctionConversion);
   if (RefResult != Sema::Ref_Compatible) {
     if (CStyle || RefResult == Sema::Ref_Incompatible)
       return TC_NotApplicable;

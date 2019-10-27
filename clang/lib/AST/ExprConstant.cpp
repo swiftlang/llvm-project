@@ -5333,9 +5333,16 @@ static bool HandleUnionActiveMemberChange(EvalInfo &Info, const Expr *LHSExpr,
       if (!FD || FD->getType()->isReferenceType())
         break;
 
-      //    ... and also contains A.B if B names a union member
-      if (FD->getParent()->isUnion())
-        UnionPathLengths.push_back({PathLength - 1, FD});
+      //    ... and also contains A.B if B names a union member ...
+      if (FD->getParent()->isUnion()) {
+        //    ... of a non-class, non-array type, or of a class type with a
+        //    trivial default constructor that is not deleted, or an array of
+        //    such types.
+        auto *RD =
+            FD->getType()->getBaseElementTypeUnsafe()->getAsCXXRecordDecl();
+        if (!RD || RD->hasTrivialDefaultConstructor())
+          UnionPathLengths.push_back({PathLength - 1, FD});
+      }
 
       E = ME->getBase();
       --PathLength;
@@ -6763,6 +6770,10 @@ public:
       return DerivedSuccess(Result, E);
     }
     }
+  }
+
+  bool VisitCXXRewrittenBinaryOperator(const CXXRewrittenBinaryOperator *E) {
+    return StmtVisitorTy::Visit(E->getSemanticForm());
   }
 
   bool VisitBinaryConditionalOperator(const BinaryConditionalOperator *E) {
@@ -13945,6 +13956,9 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
       return CheckEvalInICE(E, Ctx);
     return ICEDiag(IK_NotICE, E->getBeginLoc());
   }
+  case Expr::CXXRewrittenBinaryOperatorClass:
+    return CheckICE(cast<CXXRewrittenBinaryOperator>(E)->getSemanticForm(),
+                    Ctx);
   case Expr::DeclRefExprClass: {
     if (isa<EnumConstantDecl>(cast<DeclRefExpr>(E)->getDecl()))
       return NoDiag();

@@ -9921,6 +9921,18 @@ SDValue DAGCombiner::visitZERO_EXTEND(SDNode *N) {
   if (SDValue NewVSel = matchVSelectOpSizesWithSetCC(N))
     return NewVSel;
 
+  // If the target does not support a pop-count in the narrow source type but
+  // does support it in the destination type, widen the pop-count to this type:
+  // zext (ctpop X) --> ctpop (zext X)
+  // TODO: Generalize this to handle starting from anyext.
+  if (N0.getOpcode() == ISD::CTPOP && N0.hasOneUse() &&
+      !TLI.isOperationLegalOrCustom(ISD::CTPOP, N0.getValueType()) &&
+      TLI.isOperationLegalOrCustom(ISD::CTPOP, VT)) {
+    SDLoc DL(N);
+    SDValue NewZext = DAG.getZExtOrTrunc(N0.getOperand(0), DL, VT);
+    return DAG.getNode(ISD::CTPOP, DL, VT, NewZext);
+  }
+
   return SDValue();
 }
 
@@ -10735,16 +10747,16 @@ SDValue DAGCombiner::visitTRUNCATE(SDNode *N) {
   // e.g. trunc (i64 (bitcast v2i32:x)) -> extract_vector_elt v2i32:x, idx
   if (N0.getOpcode() == ISD::BITCAST && !VT.isVector()) {
     SDValue VecSrc = N0.getOperand(0);
-    EVT SrcVT = VecSrc.getValueType();
-    if (SrcVT.isVector() && SrcVT.getScalarType() == VT &&
+    EVT VecSrcVT = VecSrc.getValueType();
+    if (VecSrcVT.isVector() && VecSrcVT.getScalarType() == VT &&
         (!LegalOperations ||
-         TLI.isOperationLegal(ISD::EXTRACT_VECTOR_ELT, SrcVT))) {
+         TLI.isOperationLegal(ISD::EXTRACT_VECTOR_ELT, VecSrcVT))) {
       SDLoc SL(N);
 
       EVT IdxVT = TLI.getVectorIdxTy(DAG.getDataLayout());
-      unsigned Idx = isLE ? 0 : SrcVT.getVectorNumElements() - 1;
-      return DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SL, VT,
-                         VecSrc, DAG.getConstant(Idx, SL, IdxVT));
+      unsigned Idx = isLE ? 0 : VecSrcVT.getVectorNumElements() - 1;
+      return DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SL, VT, VecSrc,
+                         DAG.getConstant(Idx, SL, IdxVT));
     }
   }
 
@@ -16562,10 +16574,6 @@ SDValue DAGCombiner::visitINSERT_VECTOR_ELT(SDNode *N) {
   SDValue EltNo = N->getOperand(2);
   SDLoc DL(N);
 
-  // If the inserted element is an UNDEF, just use the input vector.
-  if (InVal.isUndef())
-    return InVec;
-
   EVT VT = InVec.getValueType();
   unsigned NumElts = VT.getVectorNumElements();
 
@@ -17626,6 +17634,13 @@ SDValue DAGCombiner::visitBUILD_VECTOR(SDNode *N) {
       }
     }
   }
+
+  // A splat of a single element is a SPLAT_VECTOR if supported on the target.
+  if (TLI.getOperationAction(ISD::SPLAT_VECTOR, VT) != TargetLowering::Expand)
+    if (SDValue V = cast<BuildVectorSDNode>(N)->getSplatValue()) {
+      assert(!V.isUndef() && "Splat of undef should have been handled earlier");
+      return DAG.getNode(ISD::SPLAT_VECTOR, SDLoc(N), VT, V);
+    }
 
   // Check if we can express BUILD VECTOR via subvector extract.
   if (!LegalTypes && (N->getNumOperands() > 1)) {

@@ -17,7 +17,6 @@
 #include "lld/Common/Memory.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/Analysis.h"
-#include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/LTO/LTO.h"
@@ -265,57 +264,8 @@ std::string InputFile::getSrcMsg(const Symbol &sym, InputSectionBase &sec,
 }
 
 template <class ELFT> void ObjFile<ELFT>::initializeDwarf() {
-  dwarf = std::make_unique<DWARFContext>(std::make_unique<LLDDwarfObj<ELFT>>(this));
-  for (std::unique_ptr<DWARFUnit> &cu : dwarf->compile_units()) {
-    auto report = [](Error err) {
-      handleAllErrors(std::move(err),
-                      [](ErrorInfoBase &info) { warn(info.message()); });
-    };
-    Expected<const DWARFDebugLine::LineTable *> expectedLT =
-        dwarf->getLineTableForUnit(cu.get(), report);
-    const DWARFDebugLine::LineTable *lt = nullptr;
-    if (expectedLT)
-      lt = *expectedLT;
-    else
-      report(expectedLT.takeError());
-    if (!lt)
-      continue;
-    lineTables.push_back(lt);
-
-    // Loop over variable records and insert them to variableLoc.
-    for (const auto &entry : cu->dies()) {
-      DWARFDie die(cu.get(), &entry);
-      // Skip all tags that are not variables.
-      if (die.getTag() != dwarf::DW_TAG_variable)
-        continue;
-
-      // Skip if a local variable because we don't need them for generating
-      // error messages. In general, only non-local symbols can fail to be
-      // linked.
-      if (!dwarf::toUnsigned(die.find(dwarf::DW_AT_external), 0))
-        continue;
-
-      // Get the source filename index for the variable.
-      unsigned file = dwarf::toUnsigned(die.find(dwarf::DW_AT_decl_file), 0);
-      if (!lt->hasFileAtIndex(file))
-        continue;
-
-      // Get the line number on which the variable is declared.
-      unsigned line = dwarf::toUnsigned(die.find(dwarf::DW_AT_decl_line), 0);
-
-      // Here we want to take the variable name to add it into variableLoc.
-      // Variable can have regular and linkage name associated. At first, we try
-      // to get linkage name as it can be different, for example when we have
-      // two variables in different namespaces of the same object. Use common
-      // name otherwise, but handle the case when it also absent in case if the
-      // input object file lacks some debug info.
-      StringRef name =
-          dwarf::toString(die.find(dwarf::DW_AT_linkage_name),
-                          dwarf::toString(die.find(dwarf::DW_AT_name), ""));
-      if (!name.empty())
-        variableLoc.insert({name, {lt, file, line}});
-    }
-  }
+  dwarf = make<DWARFCache>(std::make_unique<DWARFContext>(
+      std::make_unique<LLDDwarfObj<ELFT>>(this)));
 }
 
 // Returns the pair of file name and line number describing location of data
@@ -325,19 +275,7 @@ Optional<std::pair<std::string, unsigned>>
 ObjFile<ELFT>::getVariableLoc(StringRef name) {
   llvm::call_once(initDwarfLine, [this]() { initializeDwarf(); });
 
-  // Return if we have no debug information about data object.
-  auto it = variableLoc.find(name);
-  if (it == variableLoc.end())
-    return None;
-
-  // Take file name string from line table.
-  std::string fileName;
-  if (!it->second.lt->getFileNameByIndex(
-          it->second.file, {},
-          DILineInfoSpecifier::FileLineInfoKind::AbsoluteFilePath, fileName))
-    return None;
-
-  return std::make_pair(fileName, it->second.line);
+  return dwarf->getVariableLoc(name);
 }
 
 // Returns source line information for a given offset
@@ -359,14 +297,7 @@ Optional<DILineInfo> ObjFile<ELFT>::getDILineInfo(InputSectionBase *s,
 
   // Use fake address calcuated by adding section file offset and offset in
   // section. See comments for ObjectInfo class.
-  DILineInfo info;
-  for (const llvm::DWARFDebugLine::LineTable *lt : lineTables) {
-    if (lt->getFileLineInfoForAddress(
-            {s->getOffsetInFile() + offset, sectionIndex}, nullptr,
-            DILineInfoSpecifier::FileLineInfoKind::AbsoluteFilePath, info))
-      return info;
-  }
-  return None;
+  return dwarf->getDILineInfo(s->getOffsetInFile() + offset, sectionIndex);
 }
 
 ELFFileBase::ELFFileBase(Kind k, MemoryBufferRef mb) : InputFile(k, mb) {
@@ -907,6 +838,16 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
     if (!target)
       return nullptr;
 
+    // ELF spec allows mergeable sections with relocations, but they are
+    // rare, and it is in practice hard to merge such sections by contents,
+    // because applying relocations at end of linking changes section
+    // contents. So, we simply handle such sections as non-mergeable ones.
+    // Degrading like this is acceptable because section merging is optional.
+    if (auto *ms = dyn_cast<MergeInputSection>(target)) {
+      target = toRegularSection(ms);
+      this->sections[sec.sh_info] = target;
+    }
+
     // This section contains relocation information.
     // If -r is given, we do not interpret or apply relocation
     // but just copy relocation sections to output.
@@ -924,16 +865,6 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
     if (target->firstRelocation)
       fatal(toString(this) +
             ": multiple relocation sections to one section are not supported");
-
-    // ELF spec allows mergeable sections with relocations, but they are
-    // rare, and it is in practice hard to merge such sections by contents,
-    // because applying relocations at end of linking changes section
-    // contents. So, we simply handle such sections as non-mergeable ones.
-    // Degrading like this is acceptable because section merging is optional.
-    if (auto *ms = dyn_cast<MergeInputSection>(target)) {
-      target = toRegularSection(ms);
-      this->sections[sec.sh_info] = target;
-    }
 
     if (sec.sh_type == SHT_RELA) {
       ArrayRef<Elf_Rela> rels = CHECK(getObj().relas(&sec), this);

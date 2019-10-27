@@ -401,7 +401,25 @@ void ASTStmtWriter::VisitConceptSpecializationExpr(
   Record.AddASTTemplateArgumentListInfo(E->getTemplateArgsAsWritten());
   for (const TemplateArgument &Arg : TemplateArgs)
     Record.AddTemplateArgument(Arg);
-  Record.push_back(E->isSatisfied());
+  const ASTConstraintSatisfaction &Satisfaction = E->getSatisfaction();
+  Record.push_back(Satisfaction.IsSatisfied);
+  if (!Satisfaction.IsSatisfied) {
+    Record.push_back(Satisfaction.NumRecords);
+    for (const auto &DetailRecord : Satisfaction) {
+      Record.AddStmt(const_cast<Expr *>(DetailRecord.first));
+      auto *E = DetailRecord.second.dyn_cast<Expr *>();
+      Record.push_back(E == nullptr);
+      if (E)
+        Record.AddStmt(E);
+      else {
+        auto *Diag = DetailRecord.second.get<std::pair<SourceLocation,
+                                                       StringRef> *>();
+        Record.AddSourceLocation(Diag->first);
+        Record.AddString(Diag->second);
+      }
+    }
+  }
+
   Code = serialization::EXPR_CONCEPT_SPECIALIZATION;
 }
 
@@ -1375,6 +1393,14 @@ void ASTStmtWriter::VisitCXXMemberCallExpr(CXXMemberCallExpr *E) {
   Code = serialization::EXPR_CXX_MEMBER_CALL;
 }
 
+void ASTStmtWriter::VisitCXXRewrittenBinaryOperator(
+    CXXRewrittenBinaryOperator *E) {
+  VisitExpr(E);
+  Record.push_back(E->isReversed());
+  Record.AddStmt(E->getSemanticForm());
+  Code = serialization::EXPR_CXX_REWRITTEN_BINARY_OPERATOR;
+}
+
 void ASTStmtWriter::VisitCXXConstructExpr(CXXConstructExpr *E) {
   VisitExpr(E);
 
@@ -2245,6 +2271,12 @@ void ASTStmtWriter::VisitOMPMasterTaskLoopDirective(
     OMPMasterTaskLoopDirective *D) {
   VisitOMPLoopDirective(D);
   Code = serialization::STMT_OMP_MASTER_TASKLOOP_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPMasterTaskLoopSimdDirective(
+    OMPMasterTaskLoopSimdDirective *D) {
+  VisitOMPLoopDirective(D);
+  Code = serialization::STMT_OMP_MASTER_TASKLOOP_SIMD_DIRECTIVE;
 }
 
 void ASTStmtWriter::VisitOMPParallelMasterTaskLoopDirective(

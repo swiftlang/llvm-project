@@ -30,6 +30,7 @@
 #include "BPFTargetMachine.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 
@@ -123,11 +124,16 @@ bool BPFMISimplifyPatchable::removeLD() {
       if (!IsCandidate)
         continue;
 
-      auto Begin = MRI->use_begin(DstReg), End = MRI->use_end();
-      decltype(End) NextI;
-      for (auto I = Begin; I != End; I = NextI) {
-        NextI = std::next(I);
-        I->setReg(SrcReg);
+      if (MRI->getRegClass(DstReg) == &BPF::GPR32RegClass) {
+        BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(BPF::COPY), DstReg)
+            .addReg(SrcReg, 0, BPF::sub_32);
+      } else {
+        auto Begin = MRI->use_begin(DstReg), End = MRI->use_end();
+        decltype(End) NextI;
+        for (auto I = Begin; I != End; I = NextI) {
+          NextI = std::next(I);
+          I->setReg(SrcReg);
+        }
       }
 
       ToErase = &MI;

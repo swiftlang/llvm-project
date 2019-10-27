@@ -206,6 +206,7 @@ bool Sema::CodeSynthesisContext::isInstantiationRecord() const {
   case DefiningSynthesizedFunction:
   case ExceptionSpecEvaluation:
   case ConstraintSubstitution:
+  case RewritingOperatorAsSpaceship:
     return false;
 
   // This function should never be called when Kind's value is Memoization.
@@ -362,7 +363,7 @@ Sema::InstantiatingTemplate::InstantiatingTemplate(
 
 Sema::InstantiatingTemplate::InstantiatingTemplate(
     Sema &SemaRef, SourceLocation PointOfInstantiation,
-    ConstraintsCheck, TemplateDecl *Template,
+    ConstraintsCheck, NamedDecl *Template,
     ArrayRef<TemplateArgument> TemplateArgs, SourceRange InstantiationRange)
     : InstantiatingTemplate(
           SemaRef, CodeSynthesisContext::ConstraintsCheck,
@@ -371,7 +372,7 @@ Sema::InstantiatingTemplate::InstantiatingTemplate(
 
 Sema::InstantiatingTemplate::InstantiatingTemplate(
     Sema &SemaRef, SourceLocation PointOfInstantiation,
-    ConstraintSubstitution, TemplateDecl *Template,
+    ConstraintSubstitution, NamedDecl *Template,
     sema::TemplateDeductionInfo &DeductionInfo, SourceRange InstantiationRange)
     : InstantiatingTemplate(
           SemaRef, CodeSynthesisContext::ConstraintSubstitution,
@@ -682,27 +683,35 @@ void Sema::PrintInstantiationStack() {
       break;
     }
 
+    case CodeSynthesisContext::RewritingOperatorAsSpaceship:
+      Diags.Report(Active->Entity->getLocation(),
+                   diag::note_rewriting_operator_as_spaceship);
+      break;
+
     case CodeSynthesisContext::Memoization:
       break;
     
-    case CodeSynthesisContext::ConstraintsCheck:
-      if (auto *CD = dyn_cast<ConceptDecl>(Active->Entity)) {
-        SmallVector<char, 128> TemplateArgsStr;
-        llvm::raw_svector_ostream OS(TemplateArgsStr);
-        CD->printName(OS);
-        printTemplateArgumentList(OS, Active->template_arguments(),
-                                  getPrintingPolicy());
-        Diags.Report(Active->PointOfInstantiation,
-                     diag::note_concept_specialization_here)
-          << OS.str()
-          << Active->InstantiationRange;
-        break;
+    case CodeSynthesisContext::ConstraintsCheck: {
+      unsigned DiagID = 0;
+      if (isa<ConceptDecl>(Active->Entity))
+        DiagID = diag::note_concept_specialization_here;
+      else if (isa<TemplateDecl>(Active->Entity))
+        DiagID = diag::note_checking_constraints_for_template_id_here;
+      else if (isa<VarTemplatePartialSpecializationDecl>(Active->Entity))
+        DiagID = diag::note_checking_constraints_for_var_spec_id_here;
+      else {
+        assert(isa<ClassTemplatePartialSpecializationDecl>(Active->Entity));
+        DiagID = diag::note_checking_constraints_for_class_spec_id_here;
       }
-      // TODO: Concepts - implement this for constrained templates and partial
-      // specializations.
-      llvm_unreachable("only concept constraints are supported right now");
+      SmallVector<char, 128> TemplateArgsStr;
+      llvm::raw_svector_ostream OS(TemplateArgsStr);
+      cast<NamedDecl>(Active->Entity)->printName(OS);
+      printTemplateArgumentList(OS, Active->template_arguments(),
+                                getPrintingPolicy());
+      Diags.Report(Active->PointOfInstantiation, DiagID) << OS.str()
+        << Active->InstantiationRange;
       break;
-      
+    }
     case CodeSynthesisContext::ConstraintSubstitution:
       Diags.Report(Active->PointOfInstantiation,
                    diag::note_constraint_substitution_here)
@@ -754,6 +763,7 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
 
     case CodeSynthesisContext::DeclaringSpecialMember:
     case CodeSynthesisContext::DefiningSynthesizedFunction:
+    case CodeSynthesisContext::RewritingOperatorAsSpaceship:
       // This happens in a context unrelated to template instantiation, so
       // there is no SFINAE.
       return None;

@@ -517,6 +517,13 @@ public:
   /// \return The newly created instruction.
   MachineInstrBuilder buildSExt(const DstOp &Res, const SrcOp &Op);
 
+  /// Build and insert \p Res = G_FPEXT \p Op
+  MachineInstrBuilder buildFPExt(const DstOp &Res, const SrcOp &Op,
+                                 Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FPEXT, {Res}, {Op}, Flags);
+  }
+
+
   /// Build and insert a G_PTRTOINT instruction.
   MachineInstrBuilder buildPtrToInt(const DstOp &Dst, const SrcOp &Src) {
     return buildInstr(TargetOpcode::G_PTRTOINT, {Dst}, {Src});
@@ -867,7 +874,8 @@ public:
   /// \pre \p Res must be smaller than \p Op
   ///
   /// \return The newly created instruction.
-  MachineInstrBuilder buildFPTrunc(const DstOp &Res, const SrcOp &Op);
+  MachineInstrBuilder buildFPTrunc(const DstOp &Res, const SrcOp &Op,
+                                   Optional<unsigned> FLags = None);
 
   /// Build and insert \p Res = G_TRUNC \p Op
   ///
@@ -1386,8 +1394,9 @@ public:
   }
 
   /// Build and insert \p Res = G_FNEG \p Op0
-  MachineInstrBuilder buildFNeg(const DstOp &Dst, const SrcOp &Src0) {
-    return buildInstr(TargetOpcode::G_FNEG, {Dst}, {Src0});
+  MachineInstrBuilder buildFNeg(const DstOp &Dst, const SrcOp &Src0,
+                                Optional<unsigned> Flags = None) {
+    return buildInstr(TargetOpcode::G_FNEG, {Dst}, {Src0}, Flags);
   }
 
   /// Build and insert \p Res = G_FABS \p Op0
