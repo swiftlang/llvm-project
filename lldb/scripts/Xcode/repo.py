@@ -16,6 +16,7 @@ def identifier():
 		git_remote = git_remote_and_branch.split("/")[0]
 		git_branch = "/".join(git_remote_and_branch.split("/")[1:])
 		git_url = subprocess.check_output(["git", "remote", "get-url", git_remote]).rstrip()
+                print("DEBUG: repo.py::identifier(): git_remote is %s git_branch is %s git_url is %s" % (git_remote, git_branch, git_url))
 		return git_url + ":" + git_branch
 	except:
 		pass
@@ -33,6 +34,7 @@ def get_override():
 		return None
 
 def find(identifier):
+        print("DEBUG: repo.py::find() searching for identifier match %s" % identifier)
 	dir = os.path.dirname(os.path.realpath(__file__))
 	repos_dir = os.path.join(dir, "repos")
 	json_regex = re.compile(r"^.*.json$")
