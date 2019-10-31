@@ -1360,7 +1360,7 @@ ParseAndImport(SwiftASTContext *swift_ast_context, Expression &expr,
     stack_frame_sp.reset();
   }
 
-  swift::performNameBinding(*source_file);
+  swift::resolveImportsAndOperators(*source_file);
 
   if (swift_ast_context->HasErrors())
     return make_error<SwiftASTContextError>();
