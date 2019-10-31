@@ -555,10 +555,9 @@ ConstString ClangASTContext::GetPluginName() {
 
 uint32_t ClangASTContext::GetPluginVersion() { return 1; }
 
-lldb::TypeSystemSP
-ClangASTContext::CreateInstance(lldb::LanguageType language,
-                                lldb_private::Module *module, Target *target,
-                                const char *compiler_options) {
+lldb::TypeSystemSP ClangASTContext::CreateInstance(lldb::LanguageType language,
+                                                   lldb_private::Module *module,
+                                                   Target *target) {
   if (ClangASTContextSupportsLanguage(language)) {
     ArchSpec arch;
     if (module)
