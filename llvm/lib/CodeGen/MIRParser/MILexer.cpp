@@ -358,10 +358,10 @@ static Cursor maybeLexConstantPoolItem(Cursor C, MIToken &Token) {
 static Cursor maybeLexSubRegisterIndex(Cursor C, MIToken &Token,
                                        ErrorCallbackType ErrorCallback) {
   const StringRef Rule = "%subreg.";
-  if (!C.remaining().startswith(Rule))
-    return None;
-  return lexName(C, Token, MIToken::SubRegisterIndex, Rule.size(),
+  if (C.remaining().startswith(Rule))
+    return lexName(C, Token, MIToken::SubRegisterIndex, Rule.size(),
                  ErrorCallback);
+  return None;
 }
 
 static Cursor maybeLexIRBlock(Cursor C, MIToken &Token,
@@ -386,10 +386,10 @@ static Cursor maybeLexIRValue(Cursor C, MIToken &Token,
 
 static Cursor maybeLexStringConstant(Cursor C, MIToken &Token,
                                      ErrorCallbackType ErrorCallback) {
-  if (C.peek() != '"')
-    return None;
-  return lexName(C, Token, MIToken::StringConstant, /*PrefixLength=*/0,
-                 ErrorCallback);
+  if (C.peek() == '"')
+    return lexName(C, Token, MIToken::StringConstant, /*PrefixLength=*/0,
+                   ErrorCallback);
+  return None;
 }
 
 static Cursor lexVirtualRegister(Cursor C, MIToken &Token) {
@@ -462,10 +462,10 @@ static Cursor maybeLexGlobalValue(Cursor C, MIToken &Token,
 
 static Cursor maybeLexExternalSymbol(Cursor C, MIToken &Token,
                                      ErrorCallbackType ErrorCallback) {
-  if (C.peek() != '&')
-    return None;
-  return lexName(C, Token, MIToken::ExternalSymbol, /*PrefixLength=*/1,
-                 ErrorCallback);
+  if (C.peek() == '&')
+    return lexName(C, Token, MIToken::ExternalSymbol, /*PrefixLength=*/1,
+                   ErrorCallback);
+  return None;
 }
 
 static Cursor maybeLexMCSymbol(Cursor C, MIToken &Token,
