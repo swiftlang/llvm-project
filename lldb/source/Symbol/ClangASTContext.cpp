@@ -533,15 +533,6 @@ ClangASTContext::ClangASTContext(const char *target_triple)
     SetTargetTriple(target_triple);
 }
 
-ClangASTContext::ClangASTContext(clang::ASTContext *ast_ctx)
-    : TypeSystem(TypeSystem::eKindClang), m_target_triple(), m_ast_up(ast_ctx),
-      m_language_options_up(), m_source_manager_up(), m_diagnostics_engine_up(),
-      m_target_options_rp(), m_target_info_up(), m_identifier_table_up(),
-      m_selector_table_up(), m_builtins_up(), m_callback_tag_decl(nullptr),
-      m_callback_objc_decl(nullptr), m_callback_baton(nullptr),
-      m_pointer_byte_size(0), m_ast_owned(false) {}
-
-//----------------------------------------------------------------------
 // Destructor
 ClangASTContext::~ClangASTContext() { Finalize(); }
 
@@ -766,7 +757,7 @@ ASTContext *ClangASTContext::getASTContext() {
 ClangASTContext *ClangASTContext::GetASTContext(clang::ASTContext *ast) {
   ClangASTContext *clang_ast = GetASTMap().Lookup(ast);
   if (!clang_ast)
-    clang_ast = new ClangASTContext(ast);
+    clang_ast = new ClangASTContext(*ast);
   return clang_ast;
 }
 

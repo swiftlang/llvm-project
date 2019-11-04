@@ -54,8 +54,6 @@ public:
   // Constructors and Destructors
   ClangASTContext(const char *triple = nullptr);
 
-  ClangASTContext(clang::ASTContext *ast_ctx);
-
   ~ClangASTContext() override;
 
   void Finalize() override;
