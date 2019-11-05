@@ -3473,9 +3473,6 @@ swift::ASTContext *SwiftASTContext::GetASTContext() {
   registerParseRequestFunctions(m_ast_context_ap->evaluator);
   registerTypeCheckerRequestFunctions(m_ast_context_ap->evaluator);
 
-  // SWIFT_ENABLE_TENSORFLOW
-  registerIDERequestFunctions(m_ast_context_ap->evaluator);
-
   GetASTMap().Insert(m_ast_context_ap.get(), this);
 
   VALID_OR_RETURN(nullptr);
