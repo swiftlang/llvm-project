@@ -4,6 +4,22 @@ if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
   set(PLATFORM_SOURCES LocateSymbolFileMacOSX.cpp)
 endif()
 
+if (LLDB_ENABLE_SWIFT_SUPPORT)
+  set(LLDB_SYMBOL_SWIFT_LIBS
+    swiftAST
+    swiftASTSectionImporter
+    swiftBasic
+    swiftClangImporter
+    swiftFrontend
+    swiftSIL
+    swiftSerialization
+    lldbPluginExpressionParserSwift
+  )
+  set(LLDB_SYMBOL_SWIFT_SOURCES
+    SwiftASTContext.cpp
+  )
+endif()
+
 add_lldb_library(lldbSymbol
   ArmUnwindInfo.cpp
   Block.cpp
@@ -28,7 +44,7 @@ add_lldb_library(lldbSymbol
   LocateSymbolFile.cpp
   ObjectFile.cpp
   PostfixExpression.cpp
-  SwiftASTContext.cpp
+  ${LLDB_SYMBOL_SWIFT_SOURCES}
   Symbol.cpp
   SymbolContext.cpp
   SymbolFile.cpp
@@ -46,20 +62,13 @@ add_lldb_library(lldbSymbol
   ${PLATFORM_SOURCES}
 
   LINK_LIBS
-    swiftAST
-    swiftASTSectionImporter
-    swiftBasic
-    swiftClangImporter
-    swiftFrontend
-    swiftSIL
-    swiftSerialization
+    ${LLDB_SYMBOL_SWIFT_LIBS}
     lldbCore
     lldbExpression
     lldbHost
     lldbTarget
     lldbUtility
     lldbPluginExpressionParserClang
-    lldbPluginExpressionParserSwift
     lldbPluginSymbolFileDWARF
     lldbPluginSymbolFilePDB
     lldbPluginObjCLanguage
