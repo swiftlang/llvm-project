@@ -10,7 +10,9 @@
 
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/StreamFile.h"
+#ifdef LLDB_ENABLE_SWIFT
 #include "lldb/Symbol/SwiftASTContext.h"
+#endif
 #include "lldb/Symbol/Type.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
@@ -24,8 +26,10 @@
 #include <iterator>
 #include <mutex>
 
+#ifdef LLDB_ENABLE_SWIFT
 #include "swift/AST/Type.h"
 #include "swift/AST/Types.h"
+#endif
 
 using namespace lldb;
 using namespace lldb_private;
@@ -33,11 +37,12 @@ using namespace lldb_private;
 CompilerType::CompilerType(TypeSystem *type_system,
                            lldb::opaque_compiler_type_t type)
     : m_type(type), m_type_system(type_system) {}
-
+#ifdef LLDB_ENABLE_SWIFT
 CompilerType::CompilerType(swift::Type qual_type)
     : m_type(qual_type.getPointer()),
       m_type_system(
           SwiftASTContext::GetSwiftASTContext(&qual_type->getASTContext())) {}
+#endif
 
 CompilerType::~CompilerType() {}
 

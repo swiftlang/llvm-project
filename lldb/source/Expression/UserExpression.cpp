@@ -412,9 +412,11 @@ UserExpression::Execute(DiagnosticManager &diagnostic_manager,
   Target *target = exe_ctx.GetTargetPtr();
   if (options.GetResultIsInternal() && result_var && target) {
     if (m_language == lldb::eLanguageTypeSwift) {
+#ifdef LLDB_ENABLE_SWIFT
       if (auto *exe_scope = exe_ctx.GetBestExecutionContextScope())
         target->GetSwiftPersistentExpressionState(*exe_scope)
           ->RemovePersistentVariable(result_var);
+#endif
     } else
       target->GetPersistentExpressionStateForLanguage(m_language)
           ->RemovePersistentVariable(result_var);

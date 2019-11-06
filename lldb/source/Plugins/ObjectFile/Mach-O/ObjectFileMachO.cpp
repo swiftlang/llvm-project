@@ -27,7 +27,9 @@
 #include "lldb/Target/Platform.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
+#ifdef LLDB_ENABLE_SWIFT
 #include "lldb/Target/SwiftLanguageRuntime.h"
+#endif
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadList.h"

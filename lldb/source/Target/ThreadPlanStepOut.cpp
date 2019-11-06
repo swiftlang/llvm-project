@@ -20,7 +20,9 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StopInfo.h"
+#ifdef LLDB_ENABLE_SWIFT
 #include "lldb/Target/SwiftLanguageRuntime.h"
+#endif
 #include "lldb/Target/Target.h"
 #include "lldb/Target/ThreadPlanStepOverRange.h"
 #include "lldb/Target/ThreadPlanStepThrough.h"
@@ -162,6 +164,7 @@ ThreadPlanStepOut::ThreadPlanStepOut(
   // capture the error return pointer, then
   // step out.  That's more than I have time to do right now.
 
+#ifdef LLDB_ENABLE_SWIFT
   if (frame_idx == 0) {
     StackFrameSP frame_sp = m_thread.GetStackFrameAtIndex(0);
     if (frame_sp->GuessLanguage() == eLanguageTypeSwift) {
@@ -174,6 +177,7 @@ ThreadPlanStepOut::ThreadPlanStepOut(
       }
     }
   }
+#endif
 }
 
 void ThreadPlanStepOut::SetupAvoidNoDebug(
@@ -526,6 +530,7 @@ void ThreadPlanStepOut::CalculateReturnValue() {
     return;
   // First check if we have an error return address, and if that pointer
   // contains a valid error return, grab it:
+#ifdef LLDB_ENABLE_SWIFT
   SwiftLanguageRuntime *swift_runtime =
       SwiftLanguageRuntime::Get(*m_thread.GetProcess());
 
@@ -568,6 +573,7 @@ void ThreadPlanStepOut::CalculateReturnValue() {
             abi_sp->GetReturnValueObject(m_thread, return_compiler_type);
     }
   }
+#endif
 }
 
 bool ThreadPlanStepOut::IsPlanStale() {

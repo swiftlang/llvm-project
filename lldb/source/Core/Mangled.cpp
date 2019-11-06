@@ -25,9 +25,11 @@
 #include "llvm/Support/Compiler.h"
 
 // BEGIN SWIFT
+#include "lldb/Core/ThreadSafeDenseMap.h"
+#ifdef LLDB_ENABLE_SWIFT
 #include "lldb/Target/SwiftLanguageRuntime.h"
-#include "llvm/ADT/DenseMap.h"
 #include "swift/Demangling/Demangle.h"
+#endif
 // END SWIFT
 
 #include <mutex>
@@ -51,8 +53,12 @@ static inline Mangled::ManglingScheme cstring_mangling_scheme(const char *s) {
 static inline bool cstring_is_mangled(const char *s) {
   return cstring_mangling_scheme(s) != Mangled::eManglingSchemeNone
     // BEGIN SWIFT
-    || SwiftLanguageRuntime::IsSwiftMangledName(s);
+#ifdef LLDB_ENABLE_SWIFT
+    || SwiftLanguageRuntime::IsSwiftMangledName(s)
+#endif
+;
     // END SWIFT
+
 }
 
 static ConstString 
@@ -103,6 +109,7 @@ get_demangled_name_without_arguments(ConstString mangled,
       }
     }
     // BEGIN SWIFT
+#ifdef LLDB_ENABLE_SWIFT
     else if (SwiftLanguageRuntime::IsSwiftMangledName(demangled_name_cstr)) {
       lldb_private::ConstString basename;
       bool is_method = false;
@@ -115,6 +122,7 @@ get_demangled_name_without_arguments(ConstString mangled,
         }
       }
     }
+#endif
     // END SWIFT
   }
 
@@ -374,6 +382,7 @@ ConstString Mangled::GetDemangledName(lldb::LanguageType language,
       }
     }
     // BEGIN SWIFT
+#ifdef LLDB_ENABLE_SWIFT
     else if (mangling_scheme == eManglingSchemeNone &&
                !m_mangled.GetMangledCounterpart(m_demangled) &&
                SwiftLanguageRuntime::IsSwiftMangledName(mangled_name)) {
@@ -397,6 +406,7 @@ ConstString Mangled::GetDemangledName(lldb::LanguageType language,
                       mangled_name);
       }
     }
+#endif
     // END SWIFT
     if (m_demangled.IsNull()) {
       // Set the demangled string to the empty string to indicate we tried to
@@ -412,6 +422,7 @@ ConstString Mangled::GetDisplayDemangledName(lldb::LanguageType language,
 // BEGIN SWIFT
                                              const SymbolContext *sc) const {
   ConstString demangled;
+#ifdef LLDB_ENABLE_SWIFT
   if (m_mangled) {
     do {
       const char *mangled = m_mangled.GetCString();
@@ -435,6 +446,7 @@ ConstString Mangled::GetDisplayDemangledName(lldb::LanguageType language,
       }
     } while (0);
   }
+#endif
   if (!demangled)
     demangled = GetDemangledName(language);
   return demangled ? demangled : m_mangled;
@@ -523,8 +535,10 @@ lldb::LanguageType Mangled::GuessLanguage() const {
     else if (ObjCLanguage::IsPossibleObjCMethodName(mangled_name))
       return lldb::eLanguageTypeObjC;
     // BEGIN SWIFT
+#ifdef LLDB_ENABLE_SWIFT
     else if (SwiftLanguageRuntime::IsSwiftMangledName(mangled_name))
       return lldb::eLanguageTypeSwift;
+#endif
     // END SWIFT
   } else {
     // ObjC names aren't really mangled, so they won't necessarily be in the

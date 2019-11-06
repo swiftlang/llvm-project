@@ -30,7 +30,9 @@
 #include "lldb/Interpreter/OptionValueBoolean.h"
 #include "lldb/Interpreter/OptionValueEnumeration.h"
 #include "lldb/Interpreter/OptionValueFileSpec.h"
+#ifdef LLDB_ENABLE_SWIFT
 #include "lldb/Symbol/SwiftASTContext.h"
+#endif
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Target/ABI.h"
@@ -139,6 +141,7 @@ public:
 
   FileSpecList GetClangModuleSearchPaths();
 
+#ifdef LLDB_ENABLE_SWIFT
   FileSpecList GetSwiftFrameworkSearchPaths();
 
   FileSpecList GetSwiftModuleSearchPaths();
@@ -146,6 +149,7 @@ public:
   llvm::StringRef GetSwiftExtraClangFlags() const;
 
   bool GetSwiftCreateModuleContextsInParallel() const;
+#endif
 
   bool GetEnableAutoImportClangModules() const;
 
@@ -1075,8 +1079,10 @@ public:
   PersistentExpressionState *
   GetPersistentExpressionStateForLanguage(lldb::LanguageType language);
 
+#ifdef LLDB_ENABLE_SWIFT
   SwiftPersistentExpressionState *
   GetSwiftPersistentExpressionState(ExecutionContextScope &exe_scope);
+#endif
 
   const TypeSystemMap &GetTypeSystemMap();
 
@@ -1130,6 +1136,7 @@ public:
 
   lldb::ClangASTImporterSP GetClangASTImporter();
 
+#ifdef LLDB_ENABLE_SWIFT
   /// Get the lock guarding the scratch typesystem from being re-initialized.
   SharedMutex &GetSwiftScratchContextLock() {
     return m_scratch_typesystem_lock;
@@ -1141,6 +1148,7 @@ public:
 
 private:
   void DisplayFallbackSwiftContextErrors(SwiftASTContext *swift_ast_ctx);
+#endif
 public:
   
   // Install any files through the platform that need be to installed prior to
@@ -1435,8 +1443,10 @@ protected:
   llvm::DenseMap<ModuleLanguage, lldb::TypeSystemSP>
       m_scratch_typesystem_for_module;
 
+#ifdef LLDB_ENABLE_SWIFT
   /// Guards the scratch typesystem from being re-initialized.
   SharedMutex m_scratch_typesystem_lock;
+#endif
 
   static void ImageSearchPathsChanged(const PathMappingList &path_list,
                                       void *baton);

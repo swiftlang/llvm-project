@@ -18,7 +18,9 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StopInfo.h"
+#ifdef LLDB_ENABLE_SWIFT
 #include "lldb/Target/SwiftLanguageRuntime.h"
+#endif
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlanRunToAddress.h"
@@ -422,6 +424,7 @@ void ThreadPlanCallFunction::SetBreakpoints() {
         m_objc_language_runtime->SetExceptionBreakpoints();
       }
     }
+#ifdef LLDB_ENABLE_SWIFT
     if (GetExpressionLanguage() == eLanguageTypeSwift) {
       SwiftLanguageRuntime *swift_runtime =
           SwiftLanguageRuntime::Get(*process_sp);
@@ -441,6 +444,7 @@ void ThreadPlanCallFunction::SetBreakpoints() {
         }
       }
     }
+#endif
   }
 }
 
@@ -503,6 +507,7 @@ bool ThreadPlanCallFunction::BreakpointsExplainStop() {
         ConstString persistent_variable_name(
             persistent_state->GetNextPersistentVariableName(GetTarget(),
                                                             prefix));
+#ifdef LLDB_ENABLE_SWIFT
         if (m_return_valobj_sp = SwiftLanguageRuntime::CalculateErrorValue(
                 frame_sp, persistent_variable_name)) {
 
@@ -522,6 +527,7 @@ bool ThreadPlanCallFunction::BreakpointsExplainStop() {
           m_hit_error_backstop = true;
           return true;
         }
+#endif
       }
     }
   }

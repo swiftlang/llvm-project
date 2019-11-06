@@ -118,11 +118,13 @@
 #endif
 
 // BEGIN SWIFT
+#ifdef LLDB_ENABLE_SWIFT
 #include "Plugins/ExpressionParser/Swift/SwiftREPL.h"
 #include "Plugins/InstrumentationRuntime/SwiftRuntimeReporting/SwiftRuntimeReporting.h"
 #include "Plugins/Language/Swift/SwiftLanguage.h"
 #include "lldb/Symbol/SwiftASTContext.h"
 #include "lldb/Target/SwiftLanguageRuntime.h"
+#endif
 // END SWIFT
 
 #include "llvm/Support/TargetSelect.h"
@@ -142,18 +144,22 @@ SystemInitializerFull::~SystemInitializerFull() {}
 
 // BEGIN SWIFT
 static void SwiftInitialize() {
+#ifdef LLDB_ENABLE_SWIFT
 #if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
   SwiftLanguage::Initialize();
   SwiftLanguageRuntime::Initialize();
   SwiftREPL::Initialize();
 #endif
+#endif
 }
 
 static void SwiftTerminate() {
+#ifdef LLDB_ENABLE_SWIFT
 #if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
   SwiftLanguage::Terminate();
   SwiftLanguageRuntime::Terminate();
   SwiftREPL::Terminate();
+#endif
 #endif
 }
 // END SWIFT
@@ -234,7 +240,9 @@ llvm::Error SystemInitializerFull::Initialize() {
 
   ClangASTContext::Initialize();
   // BEGIN SWIFT
+#ifdef LLDB_ENABLE_SWIFT
   SwiftASTContext::Initialize();
+#endif
   // END SWIFT
 
 #define LLVM_TARGET(t) LLDB_PROCESS_ ## t(Initialize)
@@ -256,7 +264,9 @@ llvm::Error SystemInitializerFull::Initialize() {
   UndefinedBehaviorSanitizerRuntime::Initialize();
   MainThreadCheckerRuntime::Initialize();
   // BEGIN SWIFT
+#ifdef LLDB_ENABLE_SWIFT
   SwiftRuntimeReporting::Initialize();
+#endif
   // END SWIFT
 
   SymbolVendorELF::Initialize();
@@ -341,7 +351,9 @@ void SystemInitializerFull::Terminate() {
 
   ClangASTContext::Terminate();
   // BEGIN SWIFT
+#ifdef LLDB_ENABLE_SWIFT
   SwiftASTContext::Terminate();
+#endif
   // END SWIFT
 
   ArchitectureArm::Terminate();
@@ -363,7 +375,9 @@ void SystemInitializerFull::Terminate() {
   UndefinedBehaviorSanitizerRuntime::Terminate();
   MainThreadCheckerRuntime::Terminate();
   // BEGIN SWIFT
+#ifdef LLDB_ENABLE_SWIFT
   SwiftRuntimeReporting::Terminate();
+#endif
   // END SWIFT
   SymbolVendorELF::Terminate();
   breakpad::SymbolFileBreakpad::Terminate();

@@ -53,7 +53,9 @@
 #include "lldb/lldb-private-types.h"
 
 // BEGIN SWIFT
+#ifdef LLDB_ENABLE_SWIFT
 #include "lldb/Symbol/SwiftASTContext.h"
+#endif
 // END SWIFT
 
 #include "llvm/Support/Compiler.h"
@@ -1767,6 +1769,7 @@ LanguageType ValueObject::GetObjectRuntimeLanguage() {
   return lldb::eLanguageTypeUnknown;
 }
 
+#ifdef LLDB_ENABLE_SWFIT
 SwiftASTContextReader ValueObject::GetScratchSwiftASTContext() {
   lldb::TargetSP target_sp(GetTargetSP());
   if (!target_sp)
@@ -1776,6 +1779,7 @@ SwiftASTContextReader ValueObject::GetScratchSwiftASTContext() {
   auto *exe_scope = ctx.GetBestExecutionContextScope();
   return target_sp->GetScratchSwiftASTContext(error, *exe_scope);
 }
+#endif
 
 void ValueObject::AddSyntheticChild(ConstString key,
                                     ValueObject *valobj) {
@@ -2859,7 +2863,9 @@ void ValueObject::LogValueObject(Log *log,
 void ValueObject::Dump(Stream &s) { Dump(s, DumpValueObjectOptions(*this)); }
 
 void ValueObject::Dump(Stream &s, const DumpValueObjectOptions &options) {
+#ifdef LLDB_ENABLE_SWIFT
   auto swift_scratch_ctx_lock = SwiftASTContextLock(GetSwiftExeCtx(*this));
+#endif
   ValueObjectPrinter printer(this, &s, options);
   printer.PrintValueObject();
 }
@@ -3407,7 +3413,9 @@ ValueObjectSP ValueObject::Persist() {
     auto *exe_scope = ctx.GetBestExecutionContextScope();
     if (!exe_scope)
       return nullptr;
+#ifdef LLDB_ENABLE_SWIFT
     persistent_state = target_sp->GetSwiftPersistentExpressionState(*exe_scope);
+#endif
   } else
     persistent_state = target_sp->GetPersistentExpressionStateForLanguage(
         GetPreferredDisplayLanguage());

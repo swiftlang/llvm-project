@@ -1535,6 +1535,7 @@ bool ClangExpressionDeclMap::GetVariableValue(VariableSP &var,
     return false;
   }
 
+#ifdef LLDB_ENABLE_SWIFT
   if (llvm::isa<SwiftASTContext>(var_clang_type.GetTypeSystem())) {
 #ifdef CAN_IMPORT_SWIFT_CLANG_TYPES // <rdar://problem/16102770> ASTImporter
                                     // can't import Swift-generated types
@@ -1550,6 +1551,7 @@ bool ClangExpressionDeclMap::GetVariableValue(VariableSP &var,
     return false;
 #endif
   }
+#endif
 
   ClangASTContext *clang_ast = llvm::dyn_cast_or_null<ClangASTContext>(
       var_type->GetForwardCompilerType().GetTypeSystem());

@@ -9,7 +9,9 @@
 #ifndef liblldb_ValueObject_h_
 #define liblldb_ValueObject_h_
 
+#ifdef LLDB_ENABLE_SWIFT
 #include "lldb/Core/SwiftASTContextReader.h"
+#endif
 #include "lldb/Core/Value.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/Type.h"
@@ -587,7 +589,9 @@ public:
 
   virtual bool HasSyntheticValue();
 
+#ifdef LLDB_ENABLE_SWIFT
   SwiftASTContextReader GetScratchSwiftASTContext();
+#endif
 
   virtual bool IsSynthetic() { return false; }
 

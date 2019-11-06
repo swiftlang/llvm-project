@@ -16,11 +16,15 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 
+#ifdef LLDB_ENABLE_SWIFT
 #include "lldb/Symbol/SwiftASTContext.h" // Needed for llvm::isa<SwiftASTContext>(...)
+#endif
 #include "lldb/Symbol/TypeSystem.h"
 
+#ifdef LLDB_ENABLE_SWIFT
 #include "swift/AST/Decl.h"
 #include "swift/AST/Pattern.h"
+#endif
 #include "clang/AST/Decl.h"
 
 #include "llvm/ADT/StringMap.h"
@@ -59,6 +63,7 @@ void ClangPersistentVariables::RemovePersistentVariable(
 
   bool is_error = false;
 
+#ifdef LLDB_ENABLE_SWIFT
   if (llvm::isa<SwiftASTContext>(variable->GetCompilerType().GetTypeSystem())) {
     switch (*name) {
     case 'R':
@@ -71,6 +76,7 @@ void ClangPersistentVariables::RemovePersistentVariable(
     }
     name++;
   }
+#endif LLDB_ENABLE_SWIFT
 
   uint32_t value = strtoul(name, nullptr, 0);
   if (is_error) {
