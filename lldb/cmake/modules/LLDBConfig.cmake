@@ -58,6 +58,9 @@ option(LLDB_SKIP_STRIP "Whether to skip stripping of binaries when installing ll
 option(LLDB_ENABLE_SWIFT_SUPPORT "Enable swift support" ON)
 option(LLDB_ALLOW_STATIC_BINDINGS "Enable using static/baked language bindings if swig is not present." OFF)
 option(LLDB_ENABLE_WERROR "Fail and stop if a warning is triggered." ${LLVM_ENABLE_WERROR})
+if(LLDB_ENABLE_SWIFT_SUPPORT)
+  add_definitions( -DLLDB_ENABLE_SWIFT )
+endif()
 # END SWIFT CODE
 
 if (LLDB_USE_SYSTEM_DEBUGSERVER)
