@@ -198,24 +198,6 @@ class TestSwiftCompletions(TestBase):
             }
             Base().""",
             ["replacedFunc()", "self"])
-        # Asking for completions multiple times when an extension is defined in
-        # your cell causes the extenion's function to appear multiple times in
-        # the completion.
-        self.assertCompletions(
-            """
-            extension Base {
-              func replacedFunc () {}
-            }
-            Base().""",
-            ["replacedFunc", "replacedFunc()", "self"])
-        self.evaluate("""
-                      extension Base {
-                        func replacedFunc() {}
-                      }
-                      """)
-        self.assertCompletions(
-            """Base().""",
-            ["replacedFunc", "replacedFunc()", "self"])
 
         # === Redefining a func in an extension ===
 
