@@ -6,13 +6,19 @@ lldb_tablegen(SymbolFileDWARFPropertiesEnum.inc -gen-lldb-property-enum-defs
   SOURCE SymbolFileDWARFProperties.td
   TARGET LLDBPluginSymbolFileDWARFPropertiesEnumGen)
 
+if (LLDB_ENABLE_SWIFT_SUPPORT)
+  set(LLDB_PLUGIN_DWARF_SWIFT_SOURCES
+    DWARFASTParserSwift.cpp
+  )
+endif()
+
 add_lldb_library(lldbPluginSymbolFileDWARF PLUGIN
   AppleDWARFIndex.cpp
   DebugNamesDWARFIndex.cpp
   DIERef.cpp
   DWARFAbbreviationDeclaration.cpp
   DWARFASTParserClang.cpp
-  DWARFASTParserSwift.cpp
+  ${LLDB_PLUGIN_DWARF_SWIFT_SOURCES}
   DWARFAttribute.cpp
   DWARFBaseDIE.cpp
   DWARFCompileUnit.cpp
