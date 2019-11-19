@@ -284,9 +284,9 @@ void IRExecutionUnit::GetRunnableInfo(Status &error, lldb::addr_t &func_addr,
 
   builder.setEngineKind(llvm::EngineKind::JIT)
       .setErrorStr(&error_string)
-      .setRelocationModel(triple.isOSBinFormatMachO()
-                              ? llvm::Reloc::PIC_
-                              : llvm::Reloc::Static)
+      // SWIFT_ENABLE_TENSORFLOW
+      // See TF-965.
+      .setRelocationModel(llvm::Reloc::PIC_)
       .setMCJITMemoryManager(
           std::unique_ptr<MemoryManager>(new MemoryManager(*this)))
       .setOptLevel(llvm::CodeGenOpt::Less);
