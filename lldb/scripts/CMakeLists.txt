@@ -63,11 +63,16 @@ if(NOT LLDB_BUILD_FRAMEWORK)
   set(SWIG_INSTALL_DIR lib${LLVM_LIBDIR_SUFFIX})
 
   # Install the LLDB python module
-  install(DIRECTORY ${SWIG_PYTHON_DIR} DESTINATION ${SWIG_INSTALL_DIR})
+  # SWIFT_ENABLE_TENSORFLOW: Install in liblldb component so that it gets included in the toolchain.
+  # TODO: There are some upstream changes that install python in a "lldb-python-scripts" component.
+  #       (f6bedd81cca5c1a60ef5faa5a5e9cb3d5737ffdd, 61f471a705a5df3d581ba4905337f433bac3ba1f, and more).
+  #       When merging those changes, we should delete the tensorflow-branch changes, and add
+  #       "lldb-python-scripts" to "lldb/cmake/caches/Apple-lldb-Linux.cmake".
+  install(DIRECTORY ${SWIG_PYTHON_DIR} DESTINATION ${SWIG_INSTALL_DIR} COMPONENT liblldb)
   
   # SWIFT_ENABLE_TENSORFLOW
   # The build might have generated some "python3.x" symlinks. See the comment in
   # "finishSwigPythonLLDB.py" for more information. Install them, if they exist.
-  install(DIRECTORY "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/python3.6" DESTINATION ${SWIG_INSTALL_DIR} OPTIONAL)
-  install(DIRECTORY "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/python3.7" DESTINATION ${SWIG_INSTALL_DIR} OPTIONAL)
+  install(DIRECTORY "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/python3.6" DESTINATION ${SWIG_INSTALL_DIR} OPTIONAL COMPONENT liblldb)
+  install(DIRECTORY "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/python3.7" DESTINATION ${SWIG_INSTALL_DIR} OPTIONAL COMPONENT liblldb)
 endif()
