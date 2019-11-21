@@ -1809,9 +1809,8 @@ TypeNode *Demangler::demangleType(StringView &MangledName,
     Ty = demanglePrimitiveType(MangledName);
   }
 
-  if (!Ty || Error)
-    return Ty;
-  Ty->Quals = Qualifiers(Ty->Quals | Quals);
+  if (Ty && !Error)
+    Ty->Quals = Qualifiers(Ty->Quals | Quals);
   return Ty;
 }
 
