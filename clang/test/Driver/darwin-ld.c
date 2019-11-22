@@ -315,6 +315,20 @@
 // PASS_REMARKS_OUTPUT: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml"
 // PASS_REMARKS_OUTPUT-NOT: -lto-pass-remarks-with-hotness
 
+// Check that when -object_path_lto is used, we're passing the right path to -lto-pass-remarks-output.
+// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -### -o foo/bar.out -Wl,-object_path_lto,foo/bar_lto.o 2> %t.log
+// RUN: FileCheck -check-prefix=REMARKS_OBJECT_PATH_LTO_WL %s < %t.log
+// REMARKS_OBJECT_PATH_LTO_WL: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar_lto.o.opt.yaml"
+// Also check for -Xlinker.
+// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -### -o foo/bar.out -Xlinker -object_path_lto -Xlinker foo/bar_lto.o 2> %t.log
+// RUN: FileCheck -check-prefix=REMARKS_OBJECT_PATH_LTO_XLINKER %s < %t.log
+// REMARKS_OBJECT_PATH_LTO_XLINKER: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar_lto.o.opt.yaml"
+// Make sure that we pick the path based on -o if there is no second -Xlinker
+// with the path after -object_path_lto.
+// RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -### -o foo/bar.out -Xlinker -object_path_lto 2> %t.log
+// RUN: FileCheck -check-prefix=REMARKS_OBJECT_PATH_LTO_XLINKER_MISSING %s < %t.log
+// REMARKS_OBJECT_PATH_LTO_XLINKER_MISSING: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "foo/bar.out.opt.yaml"
+
 // RUN: %clang -target x86_64-apple-darwin12 %t.o -fsave-optimization-record -### 2> %t.log
 // RUN: FileCheck -check-prefix=PASS_REMARKS_OUTPUT_NO_O %s < %t.log
 // PASS_REMARKS_OUTPUT_NO_O: "-mllvm" "-lto-pass-remarks-output" "-mllvm" "a.out.opt.yaml"

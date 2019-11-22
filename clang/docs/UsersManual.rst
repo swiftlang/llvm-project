@@ -405,6 +405,11 @@ output format of the diagnostics that it generates.
     On Darwin platforms, this is incompatible with passing multiple
     ``-arch <arch>`` options.
 
+   On Darwin platforms, if ``-flto`` is used and the file path is not provided,
+   the output file will be chosen according to the linker argument
+   ``-object_path_lto`` if present, or according to the output file specified
+   through ``-o`` otherwise.
+
 .. _opt_foptimization-record-passes:
 
 **-foptimization-record-passes**

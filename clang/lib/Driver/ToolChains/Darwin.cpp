@@ -429,6 +429,40 @@ static bool isObjCRuntimeLinked(const ArgList &Args) {
   return Args.hasArg(options::OPT_fobjc_link_runtime);
 }
 
+/// Check if the link command contains a path for the lto'd object file.
+static Optional<StringRef> getObjectPathLTO(const ArgList &Args) {
+  bool ExpectPathNext = false;
+  for (Arg *A : Args) {
+    if (ExpectPathNext) {
+      // Expecting -Xlinker <path>, but it's not there.
+      if (!A->getOption().matches(options::OPT_Xlinker))
+        return None;
+      return StringRef(A->getValue(0));
+    }
+
+    bool isWl = A->getOption().matches(options::OPT_Wl_COMMA);
+    bool isXlinker = A->getOption().matches(options::OPT_Xlinker);
+    // We're looking for either:
+    // * -Wl,-object_path_lto,<path>
+    // or
+    // * -Xlinker -object_path_lto -Xlinker <path>
+    if (!isWl && !isXlinker)
+      continue;
+
+    if (!A->containsValue("-object_path_lto"))
+      continue;
+
+    // In case of -Wl, the path is in the same argument.
+    if (isWl)
+      return StringRef(A->getValue(1));
+
+    // In case of -Xlinker, we need to catch the next -Xlinker option and get
+    // the path from there.
+    ExpectPathNext = true;
+  }
+  return None;
+}
+
 void darwin::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -477,7 +511,11 @@ void darwin::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-mllvm");
 
     SmallString<128> F;
-    F = Output.getFilename();
+    if (Optional<StringRef> Filename = getObjectPathLTO(Args))
+      F = *Filename;
+    else
+      F = Output.getFilename();
+
     F += ".opt.";
     if (const Arg *A =
             Args.getLastArg(options::OPT_fsave_optimization_record_EQ))
