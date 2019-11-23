@@ -71,9 +71,8 @@ void ModuleDepCollectorPP::EndOfMainFile() {
   for (auto &&I : MDC.Deps)
     MDC.Consumer.handleModuleDependency(I.second);
 
-  DependencyOutputOptions Opts;
   for (auto &&I : MDC.MainDeps)
-    MDC.Consumer.handleFileDependency(Opts, I);
+    MDC.Consumer.handleFileDependency(*MDC.Opts, I);
 }
 
 void ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
@@ -124,10 +123,12 @@ void ModuleDepCollectorPP::addModuleDep(const Module *M, ModuleDeps &MD) {
   }
 }
 
-ModuleDepCollector::ModuleDepCollector(CompilerInstance &I,
-                                       DependencyConsumer &C)
-    : Instance(I), Consumer(C), ContextHash(I.getInvocation().getModuleHash()) {
-}
+ModuleDepCollector::ModuleDepCollector(
+    std::unique_ptr<DependencyOutputOptions> Opts, CompilerInstance &I,
+    DependencyConsumer &C)
+    : Instance(I), Consumer(C),
+      ContextHash(I.getInvocation().getModuleHash(I.getDiagnostics())),
+      Opts(std::move(Opts)) {}
 
 void ModuleDepCollector::attachToPreprocessor(Preprocessor &PP) {
   PP.addPPCallbacks(std::make_unique<ModuleDepCollectorPP>(Instance, *this));

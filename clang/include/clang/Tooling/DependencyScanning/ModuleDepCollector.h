@@ -71,7 +71,8 @@ private:
 
 class ModuleDepCollector final : public DependencyCollector {
 public:
-  ModuleDepCollector(CompilerInstance &I, DependencyConsumer &C);
+  ModuleDepCollector(std::unique_ptr<DependencyOutputOptions> Opts,
+                     CompilerInstance &I, DependencyConsumer &C);
 
   void attachToPreprocessor(Preprocessor &PP) override;
   void attachToASTReader(ASTReader &R) override;
@@ -85,6 +86,7 @@ private:
   std::string ContextHash;
   std::vector<std::string> MainDeps;
   std::unordered_map<std::string, ModuleDeps> Deps;
+  std::unique_ptr<DependencyOutputOptions> Opts;
 };
 
 } // end namespace dependencies
