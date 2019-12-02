@@ -354,6 +354,12 @@ CLANG_MODULE_CACHE_DIR := $(BUILDDIR)/module-cache
 $(warning failed to set the shared clang module cache dir)
 endif
 
+ifeq "$(USE_PRIVATE_MODULE_CACHE)" "YES"
+THE_CLANG_MODULE_CACHE_DIR := $(BUILDDIR)/private-module-cache
+else
+THE_CLANG_MODULE_CACHE_DIR := $(CLANG_MODULE_CACHE_DIR)
+endif
+
 SWIFT_MODULE_CACHE_FLAGS ?= -module-cache-path $(THE_CLANG_MODULE_CACHE_DIR)
 SWIFTFLAGS += $(SWIFT_MODULE_CACHE_FLAGS)
 
