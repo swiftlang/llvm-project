@@ -56,7 +56,6 @@ static llvm::StringRef GetTypedefName(const DWARFDIE &die) {
 
 lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
                                                      const DWARFDIE &die,
-                                                     Log *log,
                                                      bool *type_is_new_ptr) {
   lldb::TypeSP type_sp;
   CompilerType compiler_type;
@@ -104,7 +103,7 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
             // This is how let bindings are represented. This doesn't
             // change the underlying Swift type.
             return ParseTypeFromDWARF(sc, die.GetReferencedDIE(attr),
-                                      log, type_is_new_ptr);
+                                      type_is_new_ptr);
           break;
         default:
           break;
@@ -117,7 +116,7 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
     DWARFDIE type_die =
       die.GetFirstChild().GetAttributeValueAsReferenceDIE(DW_AT_type);
     // This is a sized container for a bound generic.
-    return ParseTypeFromDWARF(sc, type_die, log, type_is_new_ptr);
+    return ParseTypeFromDWARF(sc, type_die, type_is_new_ptr);
   }
 
   if (!mangled_name && name) {
@@ -125,7 +124,7 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
       DWARFDIE type_die =
           die.GetFirstChild().GetAttributeValueAsReferenceDIE(DW_AT_type);
       if (auto wrapped_type =
-          ParseTypeFromDWARF(sc, type_die, log, type_is_new_ptr)) {
+          ParseTypeFromDWARF(sc, type_die, type_is_new_ptr)) {
         // Create a unique pointer for the type + fixed buffer flag.
         type_sp.reset(new Type(*wrapped_type));
         type_sp->SetSwiftFixedValueBuffer(true);
@@ -200,6 +199,8 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
     if (GetTypedefName(die).startswith("$sBp")) {
       swift::ASTContext *swift_ast_ctx = m_ast.GetASTContext();
       if (!swift_ast_ctx) {
+        Log *log(LogChannelDWARF::GetLogIfAny(DWARF_LOG_TYPE_COMPLETION |
+                                              DWARF_LOG_LOOKUPS));
         if (log)
           log->Printf("Empty Swift AST context while looking up %s.",
                       name.AsCString());
@@ -232,7 +233,7 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
         is_clang_type ? dwarf_byte_size
                       : compiler_type.GetByteSize(nullptr),
         NULL, LLDB_INVALID_UID, Type::eEncodingIsUID, &decl, compiler_type,
-        is_clang_type ? Type::eResolveStateForward : Type::eResolveStateFull));
+        is_clang_type ? Type::ResolveState::Forward : Type::ResolveState::Full));
     // FIXME: This ought to work lazily, too.
     if (is_clang_type)
       type_sp->GetFullCompilerType();
@@ -290,18 +291,20 @@ void DWARFASTParserSwift::GetClangType(const DWARFDIE &die,
   decl_context.back().kind = CompilerContextKind::AnyType;
   LanguageSet clang_languages = ClangASTContext::GetSupportedLanguagesForTypes();
   // Search any modules referenced by DWARF.
+  llvm::DenseSet<SymbolFile *> searched_symbol_files;
+  // Well-formed clang modules never form cycles; guard against corrupted ones.
+  searched_symbol_files.insert(&sym_file);
   auto old_size = clang_types.GetSize();
-  for (const auto &name_module : sym_file.getExternalTypeModules()) {
-    if (!name_module.second)
-      continue;
-    name_module.second->GetSymbolFile()->FindTypes(
-        decl_context, clang_languages, clang_types);
-    if (clang_types.GetSize() > old_size)
-      return;
-  }
+  sym_file.ForEachExternalModule(
+      comp_unit, searched_symbol_files, [&](Module &module) -> bool {
+        module.GetSymbolFile()->FindTypes(decl_context, clang_languages,
+                                          searched_symbol_files, clang_types);
+        return (clang_types.GetSize() > old_size);
+      });
 
   // Next search the .dSYM the DIE came from, if applicable.
-  sym_file.FindTypes(decl_context, clang_languages, clang_types);
+  sym_file.FindTypes(decl_context, clang_languages, searched_symbol_files,
+                     clang_types);
 }
 
 Function *DWARFASTParserSwift::ParseFunctionFromDWARF(
