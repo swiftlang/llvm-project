@@ -54,6 +54,9 @@ public:
                           StringRef SearchPath, StringRef RelativePath,
                           const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
+  void moduleImport(SourceLocation ImportLoc,
+                    ModuleIdPath Path,
+                    const Module *Imported) override;
 
   void EndOfMainFile() override;
 
@@ -62,6 +65,7 @@ private:
   ModuleDepCollector &MDC;
   llvm::DenseSet<const Module *> DirectDeps;
 
+  void handleImport(const Module *Imported);
   void handleTopLevelModule(const Module *M);
   void addAllSubmoduleDeps(const Module *M, ModuleDeps &MD);
   void addModuleDep(const Module *M, ModuleDeps &MD);

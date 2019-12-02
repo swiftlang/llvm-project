@@ -51,6 +51,16 @@ void ModuleDepCollectorPP::InclusionDirective(
     MDC.MainDeps.push_back(FileName);
   }
 
+  handleImport(Imported);
+}
+
+void ModuleDepCollectorPP::moduleImport(SourceLocation ImportLoc,
+                                        ModuleIdPath Path,
+                                        const Module *Imported) {
+  handleImport(Imported);
+}
+
+void ModuleDepCollectorPP::handleImport(const Module *Imported) {
   if (!Imported)
     return;
 
