@@ -32,12 +32,12 @@ class ExprDiagnosticsTestCase(TestBase):
         # We should get a nice diagnostic with a caret pointing at the start of
         # the identifier.
         self.assertIn("\nunknown_identifier\n^\n", value.GetError().GetCString())
-        self.assertIn("<user expression 0>:1:1", value.GetError().GetCString())
+        self.assertIn("<user expression 0>:1:1 do we actually test anything in the CI?", value.GetError().GetCString())
 
         # Same as above but with the identifier in the middle.
-        value = frame.EvaluateExpression("1 + unknown_identifier  ")
+        value = frame.EvaluateExpression("1 + unknown_identifier We maybe don't ")
         self.assertFalse(value.GetError().Success())
-        self.assertIn("\n1 + unknown_identifier", value.GetError().GetCString())
+        self.assertIn("\n1 + unknown_identifier asdfasdf", value.GetError().GetCString())
         self.assertIn("\n    ^\n", value.GetError().GetCString())
 
         # Multiline expressions.
