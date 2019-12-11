@@ -222,6 +222,8 @@ bool IsRegularFile(const FileSpec &spec) {
 }
 } // namespace
 
+char SwiftASTContext::ID;
+
 llvm::LLVMContext &SwiftASTContext::GetGlobalLLVMContext() {
   static llvm::LLVMContext s_global_context;
   return s_global_context;
@@ -844,8 +846,7 @@ static std::string GetClangModulesCacheProperty() {
 
 SwiftASTContext::SwiftASTContext(std::string description, llvm::Triple triple,
                                  Target *target)
-    : TypeSystem(TypeSystem::eKindSwift),
-      m_compiler_invocation_ap(new swift::CompilerInvocation()),
+    : m_compiler_invocation_ap(new swift::CompilerInvocation()),
       m_description(description) {
   // Set the dependency tracker.
   if (auto g = repro::Reproducer::Instance().GetGenerator()) {

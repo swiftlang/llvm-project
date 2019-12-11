@@ -70,6 +70,8 @@ struct SourceModule;
 CompilerType ToCompilerType(swift::Type qual_type);
 
 class SwiftASTContext : public TypeSystem {
+  // LLVM RTTI support.
+  static char ID;
 public:
   typedef lldb_utility::Either<CompilerType, swift::Decl *> TypeOrDecl;
 
@@ -113,9 +115,8 @@ public:
   };
 
   // llvm casting support
-  static bool classof(const TypeSystem *ts) {
-    return ts->getKind() == TypeSystem::eKindSwift;
-  }
+  bool isA(const void *ClassID) const override { return ClassID == &ID; }
+  static bool classof(const TypeSystem *ts) { return ts->isA(&ID); }
 
   /// Provide the global LLVMContext.
   static llvm::LLVMContext &GetGlobalLLVMContext();

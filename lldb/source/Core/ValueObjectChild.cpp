@@ -10,6 +10,7 @@
 
 #include "lldb/Core/Value.h"
 #include "lldb/Symbol/CompilerType.h"
+#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Process.h"
@@ -168,12 +169,17 @@ bool ValueObjectChild::UpdateValue() {
             else
               m_value.SetValueType(Value::eValueTypeFileAddress);
           } break;
-          case eAddressTypeLoad:
+          case eAddressTypeLoad: {
             // BEGIN SWIFT MOD
             // We need to detect when we cross TypeSystem boundaries,
             // e.g. when we try to print Obj-C fields of a Swift object.
-            if (parent->GetCompilerType().GetTypeSystem()->getKind() ==
-                GetCompilerType().GetTypeSystem()->getKind())
+            bool same_type_system = llvm::isa<ClangASTContext>(parent->GetCompilerType().GetTypeSystem()) &&
+                                    llvm::isa<ClangASTContext>(GetCompilerType().GetTypeSystem());
+            if (!same_type_system)
+              same_type_system = llvm::isa<SwiftASTContext>(parent->GetCompilerType().GetTypeSystem()) &&
+                                 llvm::isa<SwiftASTContext>(GetCompilerType().GetTypeSystem());
+
+            if (same_type_system)
                 m_value.SetValueType(is_instance_ptr_base
                                     ? Value::eValueTypeScalar
                                     : Value::eValueTypeLoadAddress);
@@ -181,6 +187,7 @@ bool ValueObjectChild::UpdateValue() {
               m_value.SetValueType(Value::eValueTypeLoadAddress);
             // END SWIFT MOD
             break;
+          }
           case eAddressTypeHost:
             m_value.SetValueType(Value::eValueTypeHostAddress);
             break;
