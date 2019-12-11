@@ -981,7 +981,7 @@ static StringRef GetXcodeContentsPath() {
       const char *command = "xcrun -sdk macosx --show-sdk-path";
       lldb_private::Status error = Host::RunShellCommand(
           command, // shell command to run
-          NULL,    // current working directory
+          FileSpec(),    // current working directory
           &status, // Put the exit status of the process in here
           &signo,  // Put the signal that caused the process to exit in here
           &output, // Get the output from the command and place it in this
@@ -1628,11 +1628,11 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
 
   if (lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_TYPES) &&
       main_compile_unit_sp &&
-      !FileSystem::Instance().Exists(*main_compile_unit_sp)) {
+      !FileSystem::Instance().Exists(main_compile_unit_sp->GetPrimaryFile())) {
     LOG_PRINTF(LIBLLDB_LOG_TYPES,
                "Corresponding source not found for %s, loading module "
                "is unlikely to succeed",
-               main_compile_unit_sp->GetCString());
+               main_compile_unit_sp->GetPrimaryFile().GetCString());
   }
 
   llvm::Triple triple = arch.GetTriple();
