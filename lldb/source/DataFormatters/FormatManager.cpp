@@ -731,7 +731,9 @@ FormatManager::FormatManager()
   EnableCategory(m_vectortypes_category_name, TypeCategoryMap::Last,
                  lldb::eLanguageTypeObjC_plus_plus);
   EnableCategory(m_runtime_synths_category_name, TypeCategoryMap::Last,
-                 {lldb::eLanguageTypeObjC_plus_plus, lldb::eLanguageTypeSwift});
+                 lldb::eLanguageTypeObjC_plus_plus);
+  EnableCategory(m_runtime_synths_category_name, TypeCategoryMap::Last,
+                 lldb::eLanguageTypeSwift);
   EnableCategory(m_system_category_name, TypeCategoryMap::Last,
                  lldb::eLanguageTypeObjC_plus_plus);
 }
