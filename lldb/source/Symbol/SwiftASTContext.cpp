@@ -1609,7 +1609,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
   if (fallback)
     ss << "ForExpressions";
   ss << '(' << '"';
-  module.GetDescription(&ss, eDescriptionLevelBrief);
+  module.GetDescription(ss.AsRawOstream(), eDescriptionLevelBrief);
   ss << '"' << ')';
   ss.Flush();
   std::string m_description(ss.GetString().str());
@@ -1955,7 +1955,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
           target.RegisterSwiftContextMessageKey(module_uuid.GetAsString());
       if (unique_message) {
         StreamString ss;
-        module_sp->GetDescription(&ss, eDescriptionLevelBrief);
+        module_sp->GetDescription(ss.AsRawOstream(), eDescriptionLevelBrief);
         if (module_swift_ast && module_swift_ast->HasFatalErrors())
           ss << ": "
              << module_swift_ast->GetFatalErrors().AsCString("unknown error");
@@ -4154,7 +4154,7 @@ void SwiftASTContext::LoadExtraDylibs(Process &process, Status &error) {
 
 static std::string GetBriefModuleName(Module &module) {
   StreamString ss;
-  module.GetDescription(&ss, eDescriptionLevelBrief);
+  module.GetDescription(ss.AsRawOstream(), eDescriptionLevelBrief);
   ss.Flush();
   return ss.GetString().str();
 }
