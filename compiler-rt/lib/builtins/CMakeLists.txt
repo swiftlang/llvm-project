@@ -569,7 +569,7 @@ if (APPLE)
   add_subdirectory(macho_embedded)
   darwin_add_builtin_libraries(${BUILTIN_SUPPORTED_OS})
 else ()
-  set(BUILTIN_CFLAGS "")
+  set(BUILTIN_CFLAGS "-D_DEFAULT_SOURCE")
 
   append_list_if(COMPILER_RT_HAS_STD_C11_FLAG -std=c11 BUILTIN_CFLAGS)
 
