@@ -8,7 +8,11 @@
   "upstream": "apple/master"
 },
 {
-  "target": "swift/master",
+  "target": "swift/swift-5.2-branch",
   "upstream": "apple/stable/20190619"
+},
+{
+  "target": "swift/master",
+  "upstream": "swift/swift-5.2-branch"
 }
 ]
