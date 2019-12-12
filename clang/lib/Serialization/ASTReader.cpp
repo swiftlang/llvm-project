@@ -18,6 +18,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTMutationListener.h"
 #include "clang/AST/ASTUnresolvedSet.h"
+#include "clang/AST/ASTStructuralEquivalence.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
@@ -9265,6 +9266,30 @@ void ASTReader::finishPendingActions() {
   PendingMergedDefinitionsToDeduplicate.clear();
 }
 
+void ASTReader::diagnoseStructuralMismatches() {
+  if (PendingStructuralMismatches.empty())
+    return;
+
+  // Updates while doing structural equivalence checks may in turn find and
+  // diagnose other failures, so take ownership of it first.
+  auto StructuralMismatches = std::move(PendingStructuralMismatches);
+  PendingStructuralMismatches.clear();
+
+  for (auto &Mismatches : StructuralMismatches) {
+    auto *Canon = Mismatches.first;
+    for (auto *D : Mismatches.second) {
+      llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls;
+
+      StructuralEquivalenceContext Ctx(
+        D->getASTContext(), Canon->getASTContext(), NonEquivalentDecls,
+        StructuralEquivalenceKind::Default,
+        false /*StrictTypeSpelling*/, true /*Complain*/,
+        true /*ErrorOnTagTypeMismatch*/, false /*UseCanonicalDecls*/);
+      (void)Ctx.IsEquivalent(D, Canon);
+    }
+  }
+}
+
 void ASTReader::diagnoseOdrViolations() {
   if (PendingOdrMergeFailures.empty() && PendingOdrMergeChecks.empty() &&
       PendingFunctionOdrMergeFailures.empty() &&
@@ -11383,6 +11408,7 @@ void ASTReader::FinishedDeserializing() {
       ReadTimer->stopTimer();
 
     diagnoseOdrViolations();
+    diagnoseStructuralMismatches();
 
     // We are not in recursive loading, so it's safe to pass the "interesting"
     // decls to the consumer.

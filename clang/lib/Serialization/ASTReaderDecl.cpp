@@ -14,6 +14,7 @@
 #include "ASTCommon.h"
 #include "ASTReaderInternals.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTStructuralEquivalence.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/AttrIterator.h"
 #include "clang/AST/Decl.h"
@@ -723,8 +724,22 @@ ASTDeclReader::RedeclarableResult ASTDeclReader::VisitTagDecl(TagDecl *TD) {
     llvm_unreachable("unexpected tag info kind");
   }
 
-  if (!isa<CXXRecordDecl>(TD))
-    mergeRedeclarable(TD, Redecl);
+  if (isa<CXXRecordDecl>(TD))
+    return Redecl;
+
+  mergeRedeclarable(TD, Redecl);
+  // Handle merging in C/Objective-C
+  if (!Reader.getContext().getLangOpts().CPlusPlus) {
+    auto *Canon = TD->getCanonicalDecl();
+    if (TD == Canon)
+      return Redecl;
+
+    // Only check decls loaded from different external sources and
+    // delay the actual checking using PendingStructuralMismatches.
+    if (TD->getGlobalID() != Canon->getGlobalID())
+      Reader.PendingStructuralMismatches[Canon].push_back(TD);
+  }
+
   return Redecl;
 }
 

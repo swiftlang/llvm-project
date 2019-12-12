@@ -69,15 +69,20 @@ struct StructuralEquivalenceContext {
   /// \c true if the last diagnostic came from ToCtx.
   bool LastDiagFromC2 = false;
 
+  /// \c true if canonical types should be used for each Decl before
+  /// comparing for structural equivalnce
+  bool UseCanonicalDecls;
+
   StructuralEquivalenceContext(
       ASTContext &FromCtx, ASTContext &ToCtx,
       llvm::DenseSet<std::pair<Decl *, Decl *>> &NonEquivalentDecls,
       StructuralEquivalenceKind EqKind,
       bool StrictTypeSpelling = false, bool Complain = true,
-      bool ErrorOnTagTypeMismatch = false)
+      bool ErrorOnTagTypeMismatch = false, bool UseCanonicalDecls = true)
       : FromCtx(FromCtx), ToCtx(ToCtx), NonEquivalentDecls(NonEquivalentDecls),
         EqKind(EqKind), StrictTypeSpelling(StrictTypeSpelling),
-        ErrorOnTagTypeMismatch(ErrorOnTagTypeMismatch), Complain(Complain) {}
+        ErrorOnTagTypeMismatch(ErrorOnTagTypeMismatch), Complain(Complain),
+        UseCanonicalDecls(UseCanonicalDecls) {}
 
   DiagnosticBuilder Diag1(SourceLocation Loc, unsigned DiagID);
   DiagnosticBuilder Diag2(SourceLocation Loc, unsigned DiagID);

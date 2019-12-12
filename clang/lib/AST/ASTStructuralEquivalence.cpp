@@ -1574,8 +1574,10 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      Decl *D1, Decl *D2) {
   // FIXME: Check for known structural equivalences via a callback of some sort.
 
-  D1 = D1->getCanonicalDecl();
-  D2 = D2->getCanonicalDecl();
+  if (Context.UseCanonicalDecls) {
+    D1 = D1->getCanonicalDecl();
+    D2 = D2->getCanonicalDecl();
+  }
   std::pair<Decl *, Decl *> P{D1, D2};
 
   // Check whether we already know that these two declarations are not

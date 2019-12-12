@@ -1077,6 +1077,10 @@ private:
   /// been completed.
   std::deque<PendingDeclContextInfo> PendingDeclContextInfos;
 
+  /// C/ObjC definitions in which the structural equivalence check fails
+  llvm::SmallDenseMap<NamedDecl *, llvm::SmallVector<NamedDecl *, 2>, 2>
+      PendingStructuralMismatches;
+
   /// The set of NamedDecls that have been loaded, but are members of a
   /// context that has been merged into another context where the corresponding
   /// declaration is either missing or has not yet been loaded.
@@ -1407,6 +1411,7 @@ private:
 
   void finishPendingActions();
   void diagnoseOdrViolations();
+  void diagnoseStructuralMismatches();
 
   void pushExternalDeclIntoScope(NamedDecl *D, DeclarationName Name);
 
