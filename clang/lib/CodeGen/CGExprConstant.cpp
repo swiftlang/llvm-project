@@ -1759,7 +1759,7 @@ struct ConstantLValue {
   /*implicit*/ ConstantLValue(llvm::Constant *value,
                               bool hasOffsetApplied = false,
                               bool hasDestPointerAuth = false)
-    : Value(value), HasOffsetApplied(false),
+    : Value(value), HasOffsetApplied(hasOffsetApplied),
       HasDestPointerAuth(hasDestPointerAuth) {}
 
   /*implicit*/ ConstantLValue(ConstantAddress address)
