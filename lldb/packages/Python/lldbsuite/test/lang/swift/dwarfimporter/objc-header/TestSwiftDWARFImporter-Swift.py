@@ -35,7 +35,7 @@ class TestSwiftDWARFImporter_Swift(lldbtest.TestBase):
         log = self.getBuildArtifact("types.log")
         self.runCmd('log enable lldb types -f "%s"' % log)
 
-        self.expect("target var -d run myobj", substrs=["(ObjCClass)"])
+        self.expect("frame var -d run myobj", substrs=["(ObjCClass)"])
 
         found = 0
         response = 0
