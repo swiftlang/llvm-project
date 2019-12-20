@@ -17,6 +17,7 @@
 #include "RuntimeDyldMachO.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ELFObjectFile.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MSVCErrorWorkarounds.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MathExtras.h"
@@ -178,6 +179,16 @@ static Error getOffset(const SymbolRef &Sym, SectionRef Sec,
 Expected<RuntimeDyldImpl::ObjSectionToIDMap>
 RuntimeDyldImpl::loadObjectImpl(const object::ObjectFile &Obj) {
   MutexGuard locked(lock);
+
+  {
+    MostRecentDumpPath.clear();
+    sys::fs::createUniquePath("jit-%%%%%%.o", MostRecentDumpPath, false);
+    std::error_code EC;
+    raw_fd_ostream ObjFile(MostRecentDumpPath.data(), EC);
+    if (EC)
+      report_fatal_error("Error dumping object " + EC.message());
+    ObjFile.write(Obj.getData().data(), Obj.getData().size());
+  }
 
   // Save information about our target
   Arch = (Triple::ArchType)Obj.getArch();
@@ -850,6 +861,9 @@ RuntimeDyldImpl::emitSection(const ObjectFile &Obj,
                       << " new addr: " << format("%p", Addr) << " DataSize: "
                       << DataSize << " StubBufSize: " << StubBufSize
                       << " Allocate: " << Allocate << "\n");
+
+    dbgs() << formatv("[{0:x16} -- {1:x16}]", Addr, Addr + DataSize)
+           << " " << MostRecentDumpPath.data() << " " << Name << "\n";
   } else {
     // Even if we didn't load the section, we need to record an entry for it
     // to handle later processing (and by 'handle' I mean don't do anything

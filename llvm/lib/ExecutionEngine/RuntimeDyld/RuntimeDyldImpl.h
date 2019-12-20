@@ -296,6 +296,8 @@ protected:
   // sections containing relocations should be. Defaults to 'false'.
   bool ProcessAllSections;
 
+  SmallVector<char, 256> MostRecentDumpPath;
+
   // This mutex prevents simultaneously loading objects from two different
   // threads.  This keeps us from having to protect individual data structures
   // and guarantees that section allocation requests to the memory manager
