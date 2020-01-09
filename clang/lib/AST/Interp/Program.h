@@ -13,8 +13,6 @@
 #ifndef LLVM_CLANG_AST_INTERP_PROGRAM_H
 #define LLVM_CLANG_AST_INTERP_PROGRAM_H
 
-#include <map>
-#include <vector>
 #include "Function.h"
 #include "Pointer.h"
 #include "PrimType.h"
@@ -24,6 +22,8 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
+#include <map>
+#include <vector>
 
 namespace clang {
 class RecordDecl;
@@ -38,38 +38,61 @@ class Context;
 class State;
 class Record;
 class Scope;
+class Program;
+
+/// Type used to reference a global.
+class GlobalLocation {
+public:
+  GlobalLocation() : Index(static_cast<unsigned>(-1)) {}
+  GlobalLocation(unsigned Index) : Index(Index) {}
+
+  void print(llvm::raw_ostream &OS) { OS << "{" << Index << "}"; }
+
+private:
+  friend class Program;
+  unsigned Index;
+};
+
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, GlobalLocation G) {
+  G.print(OS);
+  return OS;
+}
 
 /// The program contains and links the bytecode for all functions.
 class Program {
 public:
   Program(Context &Ctx) : Ctx(Ctx) {}
 
-  /// Emits a string literal among global data.
-  unsigned createGlobalString(const StringLiteral *S);
+  /// Emits a string literal as a global block.
+  unsigned createGlobalString(const Expr *E, const StringLiteral *S);
+  /// Emits a string literal as a global block.
+  unsigned createGlobalString(StringRef Str);
 
   /// Returns a pointer to a global.
-  Pointer getPtrGlobal(unsigned Idx);
+  Pointer getPtrGlobal(GlobalLocation Idx) { return getGlobal(Idx); }
+  /// Returns  a pointer to a global by index.
+  Pointer getPtrGlobal(const VarDecl *VD);
 
   /// Returns the value of a global.
-  Block *getGlobal(unsigned Idx) {
-    assert(Idx < Globals.size());
-    return Globals[Idx]->block();
-  }
+  Block *getGlobal(GlobalLocation Idx);
 
-  /// Finds a global's index.
-  llvm::Optional<unsigned> getGlobal(const ValueDecl *VD);
-
-  /// Returns or creates a global an creates an index to it.
-  llvm::Optional<unsigned> getOrCreateGlobal(const ValueDecl *VD);
-
-  /// Returns or creates a dummy value for parameters.
-  llvm::Optional<unsigned> getOrCreateDummy(const ParmVarDecl *PD);
+  /// Returns a global if it was created.
+  llvm::Optional<GlobalLocation> getGlobal(const VarDecl *VD);
 
   /// Creates a global and returns its index.
-  llvm::Optional<unsigned> createGlobal(const ValueDecl *VD);
+  llvm::Optional<GlobalLocation> createGlobal(const VarDecl *VD);
+  /// Prepares a global, but does not allocate storage.
+  llvm::Optional<GlobalLocation> prepareGlobal(const VarDecl *VD);
 
-  /// Creates a global from a lifetime-extended temporary.
-  llvm::Optional<unsigned> createGlobal(const Expr *E);
+  /// Creates a global from a lifetime-extended temporary with a different type.
+  llvm::Optional<GlobalLocation> createGlobal(const Expr *E, QualType Ty);
+  /// Creates a global with a specific type.
+  llvm::Optional<GlobalLocation> createGlobal(const Expr *E) {
+    return createGlobal(E, E->getType());
+  }
+
+  /// Removes a global whose evaluation failed.
+  void removeGlobal(const VarDecl *VD);
 
   /// Creates a new function from a code range.
   template <typename... Ts>
@@ -79,8 +102,7 @@ public:
     return Func;
   }
   /// Creates an anonymous function.
-  template <typename... Ts>
-  Function *createFunction(Ts &&... Args) {
+  template <typename... Ts> Function *createFunction(Ts &&... Args) {
     auto *Func = new Function(*this, std::forward<Ts>(Args)...);
     AnonFuncs.emplace_back(Func);
     return Func;
@@ -92,23 +114,24 @@ public:
   /// Returns a pointer to a function if it exists and can be compiled.
   /// If a function couldn't be compiled, an error is returned.
   /// If a function was not yet defined, a null pointer is returned.
-  llvm::Expected<Function *> getOrCreateFunction(const FunctionDecl *F);
+  llvm::Expected<Function *> getOrCreateFunction(State &S,
+                                                 const FunctionDecl *F);
 
   /// Returns a record or creates one if it does not exist.
   Record *getOrCreateRecord(const RecordDecl *RD);
 
   /// Creates a descriptor for a primitive type.
-  Descriptor *createDescriptor(const DeclTy &D, PrimType Type,
-                               bool IsConst = false,
-                               bool IsTemporary = false,
-                               bool IsMutable = false) {
-    return allocateDescriptor(D, Type, IsConst, IsTemporary, IsMutable);
-  }
+  Descriptor *createDescriptor(const DeclTy &D, const Type *Ty, PrimType Type,
+                               bool IsConst = false, bool IsTemporary = false,
+                               bool IsMutable = false);
 
   /// Creates a descriptor for a composite type.
   Descriptor *createDescriptor(const DeclTy &D, const Type *Ty,
                                bool IsConst = false, bool IsTemporary = false,
                                bool IsMutable = false);
+
+  /// Creates a descriptor for a composite or primitive type.
+  Descriptor *createDescriptor(const DeclTy &D, QualType Ty);
 
   /// Context to manage declaration lifetimes.
   class DeclScope {
@@ -129,9 +152,6 @@ public:
 
 private:
   friend class DeclScope;
-
-  llvm::Optional<unsigned> createGlobal(const DeclTy &D, QualType Ty,
-                                        bool IsStatic, bool IsExtern);
 
   /// Reference to the VM context.
   Context &Ctx;
@@ -170,23 +190,27 @@ private:
     Block B;
   };
 
+  llvm::Optional<GlobalLocation> createGlobal(const DeclTy &D, QualType Ty,
+                                              bool IsStatic);
+
+  Global *allocateGlobal(const DeclTy &D, QualType Ty, bool IsStatic);
+
+  /// Returns an initialised global block.
+  Block *getGlobalBlock(GlobalLocation Loc);
+
   /// Allocator for globals.
   PoolAllocTy Allocator;
 
   /// Global objects.
-  std::vector<Global *> Globals;
+  std::vector<llvm::PointerUnion<Global *, const VarDecl *>> Globals;
   /// Cached global indices.
   llvm::DenseMap<const void *, unsigned> GlobalIndices;
 
   /// Mapping from decls to record metadata.
   llvm::DenseMap<const RecordDecl *, Record *> Records;
 
-  /// Dummy parameter to generate pointers from.
-  llvm::DenseMap<const ParmVarDecl *, unsigned> DummyParams;
-
   /// Creates a new descriptor.
-  template <typename... Ts>
-  Descriptor *allocateDescriptor(Ts &&... Args) {
+  template <typename... Ts> Descriptor *allocateDescriptor(Ts &&... Args) {
     return new (Allocator) Descriptor(std::forward<Ts>(Args)...);
   }
 
@@ -204,9 +228,7 @@ private:
   }
 
   /// Ends a global declaration.
-  void endDeclaration() {
-    CurrentDeclaration = NoDeclaration;
-  }
+  void endDeclaration() { CurrentDeclaration = NoDeclaration; }
 
 public:
   /// Dumps the disassembled bytecode to \c llvm::errs().

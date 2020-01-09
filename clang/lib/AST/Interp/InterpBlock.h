@@ -17,7 +17,6 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
-#include "clang/AST/ComparisonCategories.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -27,7 +26,7 @@ class Block;
 class DeadBlock;
 class Context;
 class InterpState;
-class Pointer;
+class BlockPointer;
 class Function;
 enum PrimType : unsigned;
 
@@ -38,25 +37,26 @@ class Block {
 public:
   // Creates a new block.
   Block(const llvm::Optional<unsigned> &DeclID, Descriptor *Desc,
-        bool IsStatic = false, bool IsExtern = false)
-      : DeclID(DeclID), IsStatic(IsStatic), IsExtern(IsExtern), Desc(Desc) {}
+        bool IsStatic = false)
+      : DeclID(DeclID), IsStatic(IsStatic), Desc(Desc) {}
 
-  Block(Descriptor *Desc, bool IsStatic = false, bool IsExtern = false)
-      : DeclID((unsigned)-1), IsStatic(IsStatic), IsExtern(IsExtern),
-        Desc(Desc) {}
+  Block(Descriptor *Desc, bool IsStatic = false)
+      : DeclID((unsigned)-1), IsStatic(IsStatic), Desc(Desc) {}
 
   /// Returns the block's descriptor.
   Descriptor *getDescriptor() const { return Desc; }
   /// Checks if the block has any live pointers.
   bool hasPointers() const { return Pointers; }
-  /// Checks if the block is extern.
-  bool isExtern() const { return IsExtern; }
   /// Checks if the block has static storage duration.
   bool isStatic() const { return IsStatic; }
   /// Checks if the block is temporary.
   bool isTemporary() const { return Desc->IsTemporary; }
+  /// Checks if the block is constant.
+  bool isConst() const { return Desc->IsConst; }
+  /// Checks if the block is dead.
+  bool isDead() const { return IsDead; }
   /// Returns the size of the block.
-  InterpSize getSize() const { return Desc->getAllocSize(); }
+  InterpUnits getSize() const { return Desc->getAllocSize(); }
   /// Returns the declaration ID.
   llvm::Optional<unsigned> getDeclID() const { return DeclID; }
 
@@ -80,25 +80,23 @@ protected:
   friend class DeadBlock;
   friend class InterpState;
 
-  Block(Descriptor *Desc, bool IsExtern, bool IsStatic, bool IsDead)
-    : IsStatic(IsStatic), IsExtern(IsExtern), IsDead(true), Desc(Desc) {}
+  Block(Descriptor *Desc, bool IsStatic, bool IsDead)
+    : IsStatic(IsStatic), IsDead(IsDead), Desc(Desc) {}
 
   // Deletes a dead block at the end of its lifetime.
   void cleanup();
 
   // Pointer chain management.
-  void addPointer(Pointer *P);
-  void removePointer(Pointer *P);
-  void movePointer(Pointer *From, Pointer *To);
+  void addPointer(BlockPointer *P);
+  void removePointer(BlockPointer *P);
+  void movePointer(BlockPointer *From, BlockPointer *To);
 
   /// Start of the chain of pointers.
-  Pointer *Pointers = nullptr;
+  BlockPointer *Pointers = nullptr;
   /// Unique identifier of the declaration.
   llvm::Optional<unsigned> DeclID;
   /// Flag indicating if the block has static storage duration.
   bool IsStatic = false;
-  /// Flag indicating if the block is an extern.
-  bool IsExtern = false;
   /// Flag indicating if the pointer is dead.
   bool IsDead = false;
   /// Pointer to the stack slot descriptor.

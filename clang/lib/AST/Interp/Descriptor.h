@@ -45,7 +45,7 @@ using BlockMoveFn = void (*)(Block *Storage, char *SrcFieldPtr,
                              char *DstFieldPtr, Descriptor *FieldDesc);
 
 /// Object size as used by the interpreter.
-using InterpSize = unsigned;
+using InterpUnits = unsigned;
 
 /// Describes a memory block created by an allocation site.
 struct Descriptor {
@@ -53,11 +53,14 @@ private:
   /// Original declaration, used to emit the error message.
   const DeclTy Source;
   /// Size of an element, in host bytes.
-  const InterpSize ElemSize;
+  const InterpUnits ElemSize;
   /// Size of the storage, in host bytes.
-  const InterpSize Size;
+  const InterpUnits Size;
   /// Size of the allocation (storage + metadata), in host bytes.
-  const InterpSize AllocSize;
+  const InterpUnits AllocSize;
+
+  /// Descriptor of the array element.
+  Descriptor *const ElemDesc = nullptr;
 
   /// Value to denote arrays of unknown size.
   static constexpr unsigned UnknownSizeMark = (unsigned)-1;
@@ -68,8 +71,8 @@ public:
 
   /// Pointer to the record, if block contains records.
   Record *const ElemRecord = nullptr;
-  /// Descriptor of the array element.
-  Descriptor *const ElemDesc = nullptr;
+  /// Type of primitive elements.
+  llvm::Optional<PrimType> ElemTy = {};
   /// Flag indicating if the block is mutable.
   const bool IsConst = false;
   /// Flag indicating if a field is mutable.
@@ -78,6 +81,9 @@ public:
   const bool IsTemporary = false;
   /// Flag indicating if the block is an array.
   const bool IsArray = false;
+  /// Size of the structure.
+  /// For unknown size arrays, this is equal to the size of an element.
+  CharUnits TargetSize;
 
   /// Storage management methods.
   const BlockCtorFn CtorFn = nullptr;
@@ -86,25 +92,27 @@ public:
 
   /// Allocates a descriptor for a primitive.
   Descriptor(const DeclTy &D, PrimType Type, bool IsConst, bool IsTemporary,
-             bool IsMutable);
+             bool IsMutable, CharUnits TargetSize);
 
   /// Allocates a descriptor for an array of primitives.
   Descriptor(const DeclTy &D, PrimType Type, size_t NumElems, bool IsConst,
-             bool IsTemporary, bool IsMutable);
+             bool IsTemporary, bool IsMutable, CharUnits TargetSize);
 
   /// Allocates a descriptor for an array of primitives of unknown size.
-  Descriptor(const DeclTy &D, PrimType Type, bool IsTemporary, UnknownSize);
+  Descriptor(const DeclTy &D, PrimType Type, bool IsTemporary, UnknownSize,
+             CharUnits TargetSize);
 
   /// Allocates a descriptor for an array of composites.
   Descriptor(const DeclTy &D, Descriptor *Elem, unsigned NumElems, bool IsConst,
-             bool IsTemporary, bool IsMutable);
+             bool IsTemporary, bool IsMutable, CharUnits TargetSize);
 
   /// Allocates a descriptor for an array of composites of unknown size.
-  Descriptor(const DeclTy &D, Descriptor *Elem, bool IsTemporary, UnknownSize);
+  Descriptor(const DeclTy &D, Descriptor *Elem, bool IsTemporary, UnknownSize,
+             CharUnits TargetSize);
 
   /// Allocates a descriptor for a record.
   Descriptor(const DeclTy &D, Record *R, bool IsConst, bool IsTemporary,
-             bool IsMutable);
+             bool IsMutable, CharUnits TargetSize);
 
   QualType getType() const;
   SourceLocation getLocation() const;
@@ -125,15 +133,27 @@ public:
   }
 
   /// Returns the size of the object without metadata.
-  unsigned getSize() const {
-    assert(!isUnknownSizeArray() && "Array of unknown size");
+  InterpUnits getSize() const {
+    assert(!isUnknownSize() && "Array of unknown size");
     return Size;
   }
 
   /// Returns the allocated size, including metadata.
-  unsigned getAllocSize() const { return AllocSize; }
+  InterpUnits getAllocSize() const { return AllocSize; }
   /// returns the size of an element when the structure is viewed as an array.
-  unsigned getElemSize()  const { return ElemSize; }
+  InterpUnits getElemSize()  const { return ElemSize; }
+
+  /// Returns the size of an element for array descriptors.
+  CharUnits getTargetElementSize() const {
+    if (isUnknownSize())
+      return TargetSize;
+    return TargetSize / getNumElems();
+  }
+  /// Returns the size of the whole object.
+  CharUnits getTargetSize() const { return TargetSize; }
+
+  /// Returns the descriptor for an element.
+  Descriptor *getElemDesc() { return ElemDesc; }
 
   /// Returns the number of elements stored in the block.
   unsigned getNumElems() const {
@@ -145,13 +165,20 @@ public:
   /// Checks if the descriptor is of an array of zero size.
   bool isZeroSizeArray() const { return Size == 0; }
   /// Checks if the descriptor is of an array of unknown size.
-  bool isUnknownSizeArray() const { return Size == UnknownSizeMark; }
+  bool isUnknownSize() const { return Size == UnknownSizeMark; }
 
   /// Checks if the descriptor is of a primitive.
   bool isPrimitive() const { return !IsArray && !ElemRecord; }
 
   /// Checks if the descriptor is of an array.
   bool isArray() const { return IsArray; }
+
+  /// Returns the primitive element type.
+  llvm::Optional<PrimType> elementType() const {
+    if (IsArray || !ElemTy)
+      return {};
+    return ElemTy;
+  }
 };
 
 /// Inline descriptor embedded in structures and arrays.

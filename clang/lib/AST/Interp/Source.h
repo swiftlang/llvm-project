@@ -20,6 +20,7 @@
 namespace clang {
 namespace interp {
 class Function;
+class GlobalLocation;
 
 /// Pointer into the code segment.
 class CodePtr {
@@ -45,30 +46,15 @@ public:
 
   /// Reads data and advances the pointer.
   template <typename T> T read() {
-    T Value = ReadHelper<T>(Ptr);
+    T Result;
+    memcpy(&Result, Ptr, sizeof(T));
     Ptr += sizeof(T);
-    return Value;
+    return Result;
   }
 
 private:
   /// Constructor used by Function to generate pointers.
   CodePtr(const char *Ptr) : Ptr(Ptr) {}
-
-  /// Helper to decode a value or a pointer.
-  template <typename T>
-  static std::enable_if_t<!std::is_pointer<T>::value, T>
-  ReadHelper(const char *Ptr) {
-    using namespace llvm::support;
-    return endian::read<T, endianness::native, 1>(Ptr);
-  }
-
-  template <typename T>
-  static std::enable_if_t<std::is_pointer<T>::value, T>
-  ReadHelper(const char *Ptr) {
-    using namespace llvm::support;
-    auto Punned = endian::read<uintptr_t, endianness::native, 1>(Ptr);
-    return reinterpret_cast<T>(Punned);
-  }
 
 private:
   friend class Function;
@@ -105,11 +91,6 @@ public:
 
   /// Returns source information for a given PC in a function.
   virtual SourceInfo getSource(Function *F, CodePtr PC) const = 0;
-
-  /// Returns the expression if an opcode belongs to one, null otherwise.
-  const Expr *getExpr(Function *F, CodePtr PC) const;
-  /// Returns the location from which an opcode originates.
-  SourceLocation getLocation(Function *F, CodePtr PC) const;
 };
 
 } // namespace interp

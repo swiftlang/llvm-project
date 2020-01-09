@@ -19,6 +19,7 @@
 #include "Context.h"
 #include "InterpStack.h"
 #include "clang/AST/APValue.h"
+#include "clang/Basic/LangOptions.h"
 #include "llvm/ADT/PointerIntPair.h"
 
 namespace clang {
@@ -46,9 +47,10 @@ public:
   /// Checks if a function is a potential constant expression.
   bool isPotentialConstantExpr(State &Parent, const FunctionDecl *FnDecl);
 
+  /// Evaluates a toplevel value.
+  bool evaluate(State &Parent, const Expr *E, APValue &Result);
   /// Evaluates a toplevel expression as an rvalue.
   bool evaluateAsRValue(State &Parent, const Expr *E, APValue &Result);
-
   /// Evaluates a toplevel initializer.
   bool evaluateAsInitializer(State &Parent, const VarDecl *VD, APValue &Result);
 
@@ -61,8 +63,45 @@ public:
   /// Returns CHAR_BIT.
   unsigned getCharBit() const;
 
+  /// Checks is language mode is OpenCL.
+  bool isOpenCL() { return getLangOpts().OpenCL; }
+  /// Checks if the language mode is C++.
+  bool isCPlusPlus() { return getLangOpts().CPlusPlus; }
+  /// Checks is language mode is C++11.
+  bool isCPlusPlus11() { return getLangOpts().CPlusPlus11; }
+  /// Checks is language mode is C++14.
+  bool isCPlusPlus14() { return getLangOpts().CPlusPlus14; }
+  /// Checks is language mode is C++20.
+  bool isCPlusPlus2a() { return getLangOpts().CPlusPlus2a; }
+  /// Checks if the language mode is OpenMP.
+  bool isOpenMP() {
+    return getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice;
+  }
+
   /// Classifies an expression.
   llvm::Optional<PrimType> classify(QualType T);
+
+  /// Returns the type implementing int.
+  PrimType getShortType();
+  /// Returns the type implementing int.
+  PrimType getIntType();
+  /// Returns the type implementing int.
+  PrimType getLongType();
+  /// Returns the type implementing unsigned long.
+  PrimType getUnsignedLongType();
+  /// Returns the type implementing int.
+  PrimType getLongLongType();
+
+  /// Returns the bit width of short.
+  uint64_t getShortWidth();
+  /// Returns the bit width of int.
+  uint64_t getIntWidth();
+  /// Returns the bit width of long.
+  uint64_t getLongWidth();
+  /// returns the bit width of unsigned longs.
+  uint64_t getUnsignedLongWidth();
+  /// returns the bit width of unsigned longs.
+  uint64_t getLongLongWidth();
 
 private:
   /// Runs a function.

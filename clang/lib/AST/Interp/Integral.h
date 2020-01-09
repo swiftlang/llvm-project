@@ -13,7 +13,9 @@
 #ifndef LLVM_CLANG_AST_INTERP_INTEGRAL_H
 #define LLVM_CLANG_AST_INTERP_INTEGRAL_H
 
-#include "clang/AST/ComparisonCategories.h"
+#include "Boolean.h"
+#include "CmpResult.h"
+#include "FixedIntegral.h"
 #include "clang/AST/APValue.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/Support/MathExtras.h"
@@ -29,46 +31,72 @@ using APSInt = llvm::APSInt;
 
 /// Helper to compare two comparable types.
 template <typename T>
-ComparisonCategoryResult Compare(const T &X, const T &Y) {
-  if (X < Y)
-    return ComparisonCategoryResult::Less;
-  if (X > Y)
-    return ComparisonCategoryResult::Greater;
-  return ComparisonCategoryResult::Equal;
+CmpResult Compare(const T &X, const T &Y) {
+  if (X < Y) return CmpResult::Less;
+  if (X > Y) return CmpResult::Greater;
+  return CmpResult::Equal;
 }
 
 // Helper structure to select the representation.
-template <unsigned Bits, bool Signed> struct Repr;
-template <> struct Repr<8, false> { using Type = uint8_t; };
-template <> struct Repr<16, false> { using Type = uint16_t; };
-template <> struct Repr<32, false> { using Type = uint32_t; };
-template <> struct Repr<64, false> { using Type = uint64_t; };
-template <> struct Repr<8, true> { using Type = int8_t; };
-template <> struct Repr<16, true> { using Type = int16_t; };
-template <> struct Repr<32, true> { using Type = int32_t; };
-template <> struct Repr<64, true> { using Type = int64_t; };
+template <unsigned Bits, bool Signed>
+struct Repr;
+template <>
+struct Repr<8, false> {
+  using Type = uint8_t;
+};
+template <>
+struct Repr<16, false> {
+  using Type = uint16_t;
+};
+template <>
+struct Repr<32, false> {
+  using Type = uint32_t;
+};
+template <>
+struct Repr<64, false> {
+  using Type = uint64_t;
+};
+template <>
+struct Repr<8, true> {
+  using Type = int8_t;
+};
+template <>
+struct Repr<16, true> {
+  using Type = int16_t;
+};
+template <>
+struct Repr<32, true> {
+  using Type = int32_t;
+};
+template <>
+struct Repr<64, true> {
+  using Type = int64_t;
+};
 
 /// Wrapper around numeric types.
 ///
 /// These wrappers are required to shared an interface between APSint and
 /// builtin primitive numeral types, while optimising for storage and
 /// allowing methods operating on primitive type to compile to fast code.
-template <unsigned Bits, bool Signed> class Integral {
-private:
-  template <unsigned OtherBits, bool OtherSigned> friend class Integral;
+template <unsigned Bits, bool Signed>
+class Integral {
+ private:
+  template <unsigned OtherBits, bool OtherSigned>
+  friend class Integral;
 
   // The primitive representing the integral.
   using T = typename Repr<Bits, Signed>::Type;
   T V;
 
   /// Primitive representing limits.
-  static const auto Min = std::numeric_limits<T>::min();
-  static const auto Max = std::numeric_limits<T>::max();
+  static constexpr auto Min = std::numeric_limits<T>::min();
+  static constexpr auto Max = std::numeric_limits<T>::max();
 
   /// Construct an integral from anything that is convertible to storage.
-  template <typename T> explicit Integral(T V) : V(V) {}
+  template <typename T>
+  explicit Integral(T V) : V(V) {}
 
-public:
+ public:
   /// Zero-initializes an integral.
   Integral() : V(0) {}
 
@@ -91,8 +119,20 @@ public:
     return V >= 0 && static_cast<unsigned>(V) > RHS;
   }
 
+  Integral operator+(Integral RHS) const { return Integral(V + RHS.V); }
+  Integral operator-(Integral RHS) const { return Integral(V - RHS.V); }
+  Integral operator*(Integral RHS) const { return Integral(V * RHS.V); }
+  Integral operator/(Integral RHS) const { return Integral(V / RHS.V); }
+  Integral operator%(Integral RHS) const { return Integral(V % RHS.V); }
+  Integral operator&(Integral RHS) const { return Integral(V & RHS.V); }
+  Integral operator|(Integral RHS) const { return Integral(V | RHS.V); }
+  Integral operator^(Integral RHS) const { return Integral(V ^ RHS.V); }
+
   Integral operator-() const { return Integral(-V); }
   Integral operator~() const { return Integral(~V); }
+
+  Integral operator>>(unsigned RHS) const { return Integral(V >> RHS); }
+  Integral operator<<(unsigned RHS) const { return Integral(V << RHS); }
 
   template <unsigned DstBits, bool DstSign>
   explicit operator Integral<DstBits, DstSign>() const {
@@ -112,7 +152,11 @@ public:
     else
       return APSInt(toAPSInt().zextOrTrunc(NumBits), !Signed);
   }
-  APValue toAPValue() const { return APValue(toAPSInt()); }
+
+  bool toAPValue(const ASTContext &Ctx, APValue &Result) const {
+    Result = APValue(toAPSInt());
+    return true;
+  }
 
   Integral<Bits, false> toUnsigned() const {
     return Integral<Bits, false>(*this);
@@ -121,6 +165,8 @@ public:
   constexpr static unsigned bitWidth() { return Bits; }
 
   bool isZero() const { return !V; }
+  bool isNonZero() const { return V; }
+  bool convertsToBool() const { return true; }
 
   bool isMin() const { return *this == min(bitWidth()); }
 
@@ -131,15 +177,16 @@ public:
   bool isNegative() const { return V < T(0); }
   bool isPositive() const { return !isNegative(); }
 
-  ComparisonCategoryResult compare(const Integral &RHS) const {
+  CmpResult compare(const Integral &RHS) const {
     return Compare(V, RHS.V);
   }
 
-  unsigned countLeadingZeros() const { return llvm::countLeadingZeros<T>(V); }
+  unsigned countLeadingZeros() const {
+    return llvm::countLeadingZeros(toUnsigned().V);
+  }
 
   Integral truncate(unsigned TruncBits) const {
-    if (TruncBits >= Bits)
-      return *this;
+    if (TruncBits >= Bits) return *this;
     const T BitMask = (T(1) << T(TruncBits)) - 1;
     const T SignBit = T(1) << (TruncBits - 1);
     const T ExtMask = ~BitMask;
@@ -148,12 +195,8 @@ public:
 
   void print(llvm::raw_ostream &OS) const { OS << V; }
 
-  static Integral min(unsigned NumBits) {
-    return Integral(Min);
-  }
-  static Integral max(unsigned NumBits) {
-    return Integral(Max);
-  }
+  static Integral min(unsigned NumBits) { return Integral(Min); }
+  static Integral max(unsigned NumBits) { return Integral(Max); }
 
   template <typename T>
   static std::enable_if_t<std::is_integral<T>::value, Integral> from(T Value) {
@@ -161,21 +204,29 @@ public:
   }
 
   template <unsigned SrcBits, bool SrcSign>
-  static std::enable_if_t<SrcBits != 0, Integral>
-  from(Integral<SrcBits, SrcSign> Value) {
+  static Integral from(const Integral<SrcBits, SrcSign> &Value) {
     return Integral(Value.V);
   }
 
-  template <bool SrcSign> static Integral from(Integral<0, SrcSign> Value) {
+  template <bool SrcSign>
+  static Integral from(const FixedIntegral<SrcSign> &Value) {
+    return Integral(Value.toAPSInt().getExtValue());
+  }
+
+  template <bool SrcSign>
+  static Integral from(Integral<0, SrcSign> Value) {
     if (SrcSign)
       return Integral(Value.V.getSExtValue());
     else
       return Integral(Value.V.getZExtValue());
   }
 
+  static Integral from(Boolean Value) { return Integral(!Value.isZero()); }
+
   static Integral zero() { return from(0); }
 
-  template <typename T> static Integral from(T Value, unsigned NumBits) {
+  template <typename T>
+  static Integral from(T Value, unsigned NumBits) {
     return Integral(Value);
   }
 
@@ -203,7 +254,7 @@ public:
     return CheckMulUB(A.V, B.V, R->V);
   }
 
-private:
+ private:
   template <typename T>
   static std::enable_if_t<std::is_signed<T>::value, bool> CheckAddUB(T A, T B,
                                                                      T &R) {
@@ -262,7 +313,24 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, Integral<Bits, Signed> I) {
   return OS;
 }
 
-} // namespace interp
-} // namespace clang
+template <unsigned Bits, bool Signed>
+Boolean Boolean::from(const Integral<Bits, Signed> &V) {
+  return Boolean(!V.isZero());
+}
+
+template <bool Signed>
+Boolean Boolean::from(const FixedIntegral<Signed> &V) {
+  return Boolean(!V.isZero());
+}
+
+template <bool DstSigned>
+template <unsigned Bits, bool SrcSigned>
+FixedIntegral<DstSigned> FixedIntegral<DstSigned>::from(
+    const Integral<Bits, SrcSigned> &I, unsigned NumBits) {
+  return FixedIntegral(I.toAPSInt().extOrTrunc(NumBits));
+}
+
+}  // namespace interp
+}  // namespace clang
 
 #endif

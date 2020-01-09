@@ -56,6 +56,8 @@ add_clang_library(clangAST
   ExternalASTSource.cpp
   FormatString.cpp
   InheritViz.cpp
+  Interp/Boolean.cpp
+  Interp/Builtin.cpp
   Interp/ByteCodeEmitter.cpp
   Interp/ByteCodeExprGen.cpp
   Interp/ByteCodeGenError.cpp
@@ -64,19 +66,25 @@ add_clang_library(clangAST
   Interp/Descriptor.cpp
   Interp/Disasm.cpp
   Interp/EvalEmitter.cpp
+  Interp/FnPointer.cpp
   Interp/Frame.cpp
   Interp/Function.cpp
-  Interp/Interp.cpp
   Interp/InterpBlock.cpp
   Interp/InterpFrame.cpp
+  Interp/InterpHelper.cpp
+  Interp/InterpLoop.cpp
   Interp/InterpStack.cpp
   Interp/InterpState.cpp
+  Interp/MemberPointer.cpp
+  Interp/ObjCBlockPointer.cpp
   Interp/Pointer.cpp
   Interp/PrimType.cpp
   Interp/Program.cpp
   Interp/Record.cpp
   Interp/Source.cpp
   Interp/State.cpp
+  Interp/TypeHelper.cpp
+  Interp/VoidPointer.cpp
   ItaniumCXXABI.cpp
   ItaniumMangle.cpp
   JSONNodeDumper.cpp

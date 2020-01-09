@@ -59,6 +59,7 @@ public:
   virtual bool checkingForUndefinedBehavior() const = 0;
   virtual bool checkingPotentialConstantExpression() const = 0;
   virtual bool noteUndefinedBehavior() = 0;
+  virtual bool noteFailure() = 0;
   virtual bool keepEvaluatingAfterFailure() const = 0;
   virtual Frame *getCurrentFrame() = 0;
   virtual const Frame *getBottomFrame() const = 0;
@@ -66,7 +67,9 @@ public:
   virtual void setActiveDiagnostic(bool Flag) = 0;
   virtual void setFoldFailureDiagnostic(bool Flag) = 0;
   virtual Expr::EvalStatus &getEvalStatus() const = 0;
-  virtual ASTContext &getCtx() const = 0;
+  virtual ASTContext &getASTCtx() const = 0;
+  virtual bool hasDiagnostics() const = 0;
+  virtual bool inConstantContext() const = 0;
   virtual bool hasPriorDiagnostic() = 0;
   virtual unsigned getCallStackDepth() = 0;
 

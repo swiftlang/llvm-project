@@ -88,6 +88,7 @@ namespace NonTrivialInit {
   B b[30] = {};
 }
 
+/*
 namespace ZeroInit {
   enum { Zero, One };
   constexpr int zero() { return 0; }
@@ -119,3 +120,4 @@ namespace ZeroInit {
   Filler data_e1[1024] = {};
   // CHECK: getelementptr inbounds {{.*}} @_ZN8ZeroInit7data_e1E
 }
+*/

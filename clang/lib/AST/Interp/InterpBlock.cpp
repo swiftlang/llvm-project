@@ -18,7 +18,7 @@ using namespace clang::interp;
 
 
 
-void Block::addPointer(Pointer *P) {
+void Block::addPointer(BlockPointer *P) {
   if (IsStatic)
     return;
   if (Pointers)
@@ -28,7 +28,7 @@ void Block::addPointer(Pointer *P) {
   Pointers = P;
 }
 
-void Block::removePointer(Pointer *P) {
+void Block::removePointer(BlockPointer *P) {
   if (IsStatic)
     return;
   if (Pointers == P)
@@ -44,7 +44,7 @@ void Block::cleanup() {
     (reinterpret_cast<DeadBlock *>(this + 1) - 1)->free();
 }
 
-void Block::movePointer(Pointer *From, Pointer *To) {
+void Block::movePointer(BlockPointer *From, BlockPointer *To) {
   if (IsStatic)
     return;
   To->Prev = From->Prev;
@@ -61,7 +61,7 @@ void Block::movePointer(Pointer *From, Pointer *To) {
 }
 
 DeadBlock::DeadBlock(DeadBlock *&Root, Block *Blk)
-    : Root(Root), B(Blk->Desc, Blk->IsStatic, Blk->IsExtern, /*isDead=*/true) {
+    : Root(Root), B(Blk->Desc, Blk->IsStatic, /*isDead=*/true) {
   // Add the block to the chain of dead blocks.
   if (Root)
     Root->Prev = this;
@@ -72,7 +72,7 @@ DeadBlock::DeadBlock(DeadBlock *&Root, Block *Blk)
 
   // Transfer pointers.
   B.Pointers = Blk->Pointers;
-  for (Pointer *P = Blk->Pointers; P; P = P->Next)
+  for (BlockPointer *P = Blk->Pointers; P; P = P->Next)
     P->Pointee = &B;
 }
 

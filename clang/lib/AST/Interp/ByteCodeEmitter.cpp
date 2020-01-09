@@ -30,27 +30,31 @@ Expected<Function *> ByteCodeEmitter::compileFunc(const FunctionDecl *F) {
 
   // If the return is not a primitive, a pointer to the storage where the value
   // is initialized in is passed as the first argument.
-  QualType Ty = F->getReturnType();
-  if (!Ty->isVoidType() && !Ctx.classify(Ty)) {
-    ParamTypes.push_back(PT_Ptr);
-    ParamOffset += align(primSize(PT_Ptr));
+  {
+    QualType Ty = F->getReturnType();
+    if (!Ty->isVoidType() && !Ctx.classify(Ty)) {
+      ParamTypes.push_back(PT_Ptr);
+      ParamOffset += align(primSize(PT_Ptr));
+    }
   }
 
   // Assign descriptors to all parameters.
   // Composite objects are lowered to pointers.
   for (const ParmVarDecl *PD : F->parameters()) {
-    PrimType Ty;
-    if (llvm::Optional<PrimType> T = Ctx.classify(PD->getType())) {
-      Ty = *T;
+    QualType Ty = PD->getType();
+
+    PrimType PrimTy;
+    if (llvm::Optional<PrimType> T = Ctx.classify(Ty)) {
+      PrimTy = *T;
     } else {
-      Ty = PT_Ptr;
+      PrimTy = PT_Ptr;
     }
 
-    Descriptor *Desc = P.createDescriptor(PD, Ty);
-    ParamDescriptors.insert({ParamOffset, {Ty, Desc}});
+    Descriptor *Desc = P.createDescriptor(PD, Ty.getTypePtr(), PrimTy);
+    ParamDescriptors.insert({ParamOffset, {PrimTy, Desc}});
     Params.insert({PD, ParamOffset});
-    ParamOffset += align(primSize(Ty));
-    ParamTypes.push_back(Ty);
+    ParamOffset += align(primSize(PrimTy));
+    ParamTypes.push_back(PrimTy);
   }
 
   // Create a handle over the emitted code.
@@ -61,8 +65,6 @@ Expected<Function *> ByteCodeEmitter::compileFunc(const FunctionDecl *F) {
     // Return a dummy function if compilation failed.
     if (BailLocation)
       return llvm::make_error<ByteCodeGenError>(*BailLocation);
-    else
-      return Func;
   } else {
     // Create scopes from descriptors.
     llvm::SmallVector<Scope, 2> Scopes;
@@ -73,8 +75,8 @@ Expected<Function *> ByteCodeEmitter::compileFunc(const FunctionDecl *F) {
     // Set the function's code.
     Func->setCode(NextLocalOffset, std::move(Code), std::move(SrcMap),
                   std::move(Scopes));
-    return Func;
   }
+  return Func;
 }
 
 Scope::Local ByteCodeEmitter::createLocal(Descriptor *D) {

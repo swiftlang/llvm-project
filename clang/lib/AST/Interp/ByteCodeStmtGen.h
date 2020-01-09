@@ -16,9 +16,7 @@
 #include "ByteCodeEmitter.h"
 #include "ByteCodeExprGen.h"
 #include "EvalEmitter.h"
-#include "Pointer.h"
 #include "PrimType.h"
-#include "Record.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/StmtVisitor.h"
@@ -30,6 +28,7 @@ class QualType;
 namespace interp {
 class Function;
 class State;
+class Record;
 
 template <class Emitter> class LoopScope;
 template <class Emitter> class SwitchScope;
@@ -60,15 +59,29 @@ private:
   bool visitStmt(const Stmt *S);
   bool visitCompoundStmt(const CompoundStmt *S);
   bool visitDeclStmt(const DeclStmt *DS);
+  bool visitForStmt(const ForStmt *FS);
+  bool visitWhileStmt(const WhileStmt *DS);
+  bool visitDoStmt(const DoStmt *DS);
   bool visitReturnStmt(const ReturnStmt *RS);
   bool visitIfStmt(const IfStmt *IS);
+  bool visitBreakStmt(const BreakStmt *BS);
+  bool visitContinueStmt(const ContinueStmt *CS);
+  bool visitSwitchStmt(const SwitchStmt *SS);
+  bool visitCaseStmt(const SwitchCase *CS);
+  bool visitCXXForRangeStmt(const CXXForRangeStmt *FS);
+  bool visitAttributedStmt(const AttributedStmt *AS);
 
   /// Compiles a variable declaration.
   bool visitVarDecl(const VarDecl *VD);
 
+  /// Visits a field initializer.
+  bool visitCtorInit(Record *This, const CXXCtorInitializer *Init);
+
 private:
+  /// Function to compile.
+  const FunctionDecl *FD;
   /// Type of the expression returned by the function.
-  llvm::Optional<PrimType> ReturnType;
+  QualType ReturnType;
 
   /// Switch case mapping.
   CaseMap CaseLabels;

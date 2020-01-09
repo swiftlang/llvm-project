@@ -40,6 +40,7 @@ public:
   using Local = Scope::Local;
 
   llvm::Expected<bool> interpretExpr(const Expr *E);
+  llvm::Expected<bool> interpretRValue(const Expr *E);
   llvm::Expected<bool> interpretDecl(const VarDecl *VD);
 
 protected:
@@ -55,6 +56,7 @@ protected:
 
   /// Methods implemented by the compiler.
   virtual bool visitExpr(const Expr *E) = 0;
+  virtual bool visitRValue(const Expr *E) = 0;
   virtual bool visitDecl(const VarDecl *VD) = 0;
 
   bool bail(const Stmt *S) { return bail(S->getBeginLoc()); }
@@ -113,9 +115,12 @@ private:
   bool isActive() { return CurrentLabel == ActiveLabel; }
 
   /// Helper to invoke a method.
-  bool ExecuteCall(Function *F, Pointer &&This, const SourceInfo &Info);
+  bool executeCall(Function *F, Pointer &&This, const SourceInfo &Info);
   /// Helper to emit a diagnostic on a missing method.
-  bool ExecuteNoCall(const FunctionDecl *F, const SourceInfo &Info);
+  bool executeNoCall(const FunctionDecl *F, const SourceInfo &Info);
+
+  /// Checks if a value can be returned.
+  bool checkValue(QualType Ty, const SourceInfo &Info);
 
 protected:
 #define GET_EVAL_PROTO

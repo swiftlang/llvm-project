@@ -96,17 +96,26 @@ public:
   /// Returns a specific scope.
   Scope &getScope(unsigned Idx) { return Scopes[Idx]; }
 
+  /// Solves a call relocation.
+  void relocateCall(CodePtr Loc, Function *Callee);
+
+  /// Solves an invoke relocation.
+  void relocateInvoke(CodePtr Loc, Function *Callee);
+
   /// Returns the source information at a given PC.
   SourceInfo getSource(CodePtr PC) const;
 
   /// Checks if the function is valid to call in constexpr.
   bool isConstexpr() const { return IsValid; }
 
-  /// Checks if the function is virtual.
-  bool isVirtual() const;
-
   /// Checks if the function is a constructor.
   bool isConstructor() const { return isa<CXXConstructorDecl>(F); }
+
+  /// Checks if the function was default.
+  bool isDefaulted() const { return F->isDefaulted(); }
+
+  /// Returns the size of the bytecode.
+  size_t getSize() const { return Code.size(); }
 
 private:
   /// Construct a function representing an actual function.

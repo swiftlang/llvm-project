@@ -57,14 +57,14 @@ static void ctorArrayDesc(Block *B, char *Ptr, bool IsConst, bool IsMutable,
                           bool IsActive, Descriptor *D) {
   const unsigned NumElems = D->getNumElems();
   const unsigned ElemSize =
-      D->ElemDesc->getAllocSize() + sizeof(InlineDescriptor);
+      D->getElemDesc()->getAllocSize() + sizeof(InlineDescriptor);
 
   unsigned ElemOffset = 0;
   for (unsigned I = 0; I < NumElems; ++I, ElemOffset += ElemSize) {
     auto *ElemPtr = Ptr + ElemOffset;
     auto *Desc = reinterpret_cast<InlineDescriptor *>(ElemPtr);
     auto *ElemLoc = reinterpret_cast<char *>(Desc + 1);
-    auto *SD = D->ElemDesc;
+    auto *SD = D->getElemDesc();
 
     Desc->Offset = ElemOffset + sizeof(InlineDescriptor);
     Desc->Desc = SD;
@@ -73,30 +73,30 @@ static void ctorArrayDesc(Block *B, char *Ptr, bool IsConst, bool IsMutable,
     Desc->IsActive = IsActive;
     Desc->IsConst = IsConst || D->IsConst;
     Desc->IsMutable = IsMutable || D->IsMutable;
-    if (auto Fn = D->ElemDesc->CtorFn)
-      Fn(B, ElemLoc, Desc->IsConst, Desc->IsMutable, IsActive, D->ElemDesc);
+    if (auto Fn = D->getElemDesc()->CtorFn)
+      Fn(B, ElemLoc, Desc->IsConst, Desc->IsMutable, IsActive, D->getElemDesc());
   }
 }
 
 static void dtorArrayDesc(Block *B, char *Ptr, Descriptor *D) {
   const unsigned NumElems = D->getNumElems();
   const unsigned ElemSize =
-      D->ElemDesc->getAllocSize() + sizeof(InlineDescriptor);
+      D->getElemDesc()->getAllocSize() + sizeof(InlineDescriptor);
 
   unsigned ElemOffset = 0;
   for (unsigned I = 0; I < NumElems; ++I, ElemOffset += ElemSize) {
     auto *ElemPtr = Ptr + ElemOffset;
     auto *Desc = reinterpret_cast<InlineDescriptor *>(ElemPtr);
     auto *ElemLoc = reinterpret_cast<char *>(Desc + 1);
-    if (auto Fn = D->ElemDesc->DtorFn)
-      Fn(B, ElemLoc, D->ElemDesc);
+    if (auto Fn = D->getElemDesc()->DtorFn)
+      Fn(B, ElemLoc, D->getElemDesc());
   }
 }
 
 static void moveArrayDesc(Block *B, char *Src, char *Dst, Descriptor *D) {
   const unsigned NumElems = D->getNumElems();
   const unsigned ElemSize =
-      D->ElemDesc->getAllocSize() + sizeof(InlineDescriptor);
+      D->getElemDesc()->getAllocSize() + sizeof(InlineDescriptor);
 
   unsigned ElemOffset = 0;
   for (unsigned I = 0; I < NumElems; ++I, ElemOffset += ElemSize) {
@@ -109,8 +109,8 @@ static void moveArrayDesc(Block *B, char *Src, char *Dst, Descriptor *D) {
     auto *DstElemLoc = reinterpret_cast<char *>(DstDesc + 1);
 
     *DstDesc = *SrcDesc;
-    if (auto Fn = D->ElemDesc->MoveFn)
-      Fn(B, SrcElemLoc, DstElemLoc, D->ElemDesc);
+    if (auto Fn = D->getElemDesc()->MoveFn)
+      Fn(B, SrcElemLoc, DstElemLoc, D->getElemDesc());
   }
 }
 
@@ -130,11 +130,11 @@ static void ctorRecord(Block *B, char *Ptr, bool IsConst, bool IsMutable,
       Fn(B, Ptr + SubOff, Desc->IsConst, Desc->IsMutable, Desc->IsActive, F);
   };
   for (const auto &B : D->ElemRecord->bases())
-    CtorSub(B.Offset, B.Desc, /*isBase=*/true);
+    CtorSub(B.getOffset(), B.getDesc(), /*isBase=*/true);
   for (const auto &F : D->ElemRecord->fields())
-    CtorSub(F.Offset, F.Desc, /*isBase=*/false);
+    CtorSub(F.getOffset(), F.getDesc(), /*isBase=*/false);
   for (const auto &V : D->ElemRecord->virtual_bases())
-    CtorSub(V.Offset, V.Desc, /*isBase=*/true);
+    CtorSub(V.getOffset(), V.getDesc(), /*isBase=*/true);
 }
 
 static void dtorRecord(Block *B, char *Ptr, Descriptor *D) {
@@ -143,22 +143,35 @@ static void dtorRecord(Block *B, char *Ptr, Descriptor *D) {
       Fn(B, Ptr + SubOff, F);
   };
   for (const auto &F : D->ElemRecord->bases())
-    DtorSub(F.Offset, F.Desc);
+    DtorSub(F.getOffset(), F.getDesc());
   for (const auto &F : D->ElemRecord->fields())
-    DtorSub(F.Offset, F.Desc);
+    DtorSub(F.getOffset(), F.getDesc());
   for (const auto &F : D->ElemRecord->virtual_bases())
-    DtorSub(F.Offset, F.Desc);
+    DtorSub(F.getOffset(), F.getDesc());
 }
 
 static void moveRecord(Block *B, char *Src, char *Dst, Descriptor *D) {
-  for (const auto &F : D->ElemRecord->fields()) {
-    auto FieldOff = F.Offset;
-    auto FieldDesc = F.Desc;
+  auto MoveSub = [=](unsigned SubOff, Descriptor *F) {
+    auto *SrcDesc = reinterpret_cast<InlineDescriptor *>(Src + SubOff) - 1;
+    auto *DstDesc = reinterpret_cast<InlineDescriptor *>(Dst + SubOff) - 1;
 
-    *(reinterpret_cast<Descriptor **>(Dst + FieldOff) - 1) = FieldDesc;
-    if (auto Fn = FieldDesc->MoveFn)
-      Fn(B, Src + FieldOff, Dst + FieldOff, FieldDesc);
-  }
+    DstDesc->Offset = SrcDesc->Offset;
+    DstDesc->Desc = SrcDesc->Desc;
+    DstDesc->IsInitialized = SrcDesc->IsInitialized;
+    DstDesc->IsBase = SrcDesc->IsBase;
+    DstDesc->IsActive = SrcDesc->IsActive;
+    DstDesc->IsConst = SrcDesc->IsConst;
+    DstDesc->IsMutable = SrcDesc->IsMutable;
+
+    if (auto Fn = F->MoveFn)
+      Fn(B, Src + SubOff, Dst + SubOff, F);
+  };
+  for (const auto &B : D->ElemRecord->bases())
+    MoveSub(B.getOffset(), B.getDesc());
+  for (const auto &F : D->ElemRecord->fields())
+    MoveSub(F.getOffset(), F.getDesc());
+  for (const auto &V : D->ElemRecord->virtual_bases())
+    MoveSub(V.getOffset(), V.getDesc());
 }
 
 static BlockCtorFn getCtorPrim(PrimType Type) {
@@ -186,61 +199,54 @@ static BlockMoveFn getMoveArrayPrim(PrimType Type) {
 }
 
 Descriptor::Descriptor(const DeclTy &D, PrimType Type, bool IsConst,
-                       bool IsTemporary, bool IsMutable)
+                       bool IsTemporary, bool IsMutable, CharUnits TargetSize)
     : Source(D), ElemSize(primSize(Type)), Size(ElemSize), AllocSize(Size),
-      IsConst(IsConst), IsMutable(IsMutable), IsTemporary(IsTemporary),
+      ElemTy(Type), IsConst(IsConst), IsMutable(IsMutable),
+      IsTemporary(IsTemporary), TargetSize(TargetSize),
       CtorFn(getCtorPrim(Type)), DtorFn(getDtorPrim(Type)),
-      MoveFn(getMovePrim(Type)) {
-  assert(Source && "Missing source");
-}
+      MoveFn(getMovePrim(Type)) {}
 
 Descriptor::Descriptor(const DeclTy &D, PrimType Type, size_t NumElems,
-                       bool IsConst, bool IsTemporary, bool IsMutable)
+                       bool IsConst, bool IsTemporary, bool IsMutable,
+                       CharUnits TargetSize)
     : Source(D), ElemSize(primSize(Type)), Size(ElemSize * NumElems),
-      AllocSize(align(Size) + sizeof(InitMap *)), IsConst(IsConst),
-      IsMutable(IsMutable), IsTemporary(IsTemporary), IsArray(true),
-      CtorFn(getCtorArrayPrim(Type)), DtorFn(getDtorArrayPrim(Type)),
-      MoveFn(getMoveArrayPrim(Type)) {
-  assert(Source && "Missing source");
-}
+      AllocSize(align(Size) + sizeof(InitMap *)), ElemTy(Type),
+      IsConst(IsConst), IsMutable(IsMutable), IsTemporary(IsTemporary),
+      IsArray(true), TargetSize(TargetSize), CtorFn(getCtorArrayPrim(Type)),
+      DtorFn(getDtorArrayPrim(Type)), MoveFn(getMoveArrayPrim(Type)) {}
 
 Descriptor::Descriptor(const DeclTy &D, PrimType Type, bool IsTemporary,
-                       UnknownSize)
+                       UnknownSize, CharUnits TargetSize)
     : Source(D), ElemSize(primSize(Type)), Size(UnknownSizeMark),
-      AllocSize(alignof(void *)), IsConst(true), IsMutable(false),
-      IsTemporary(IsTemporary), IsArray(true), CtorFn(getCtorArrayPrim(Type)),
-      DtorFn(getDtorArrayPrim(Type)), MoveFn(getMoveArrayPrim(Type)) {
-  assert(Source && "Missing source");
-}
+      AllocSize(alignof(void *)), ElemTy(Type), IsConst(true), IsMutable(false),
+      IsTemporary(IsTemporary), IsArray(true), TargetSize(TargetSize),
+      CtorFn(getCtorArrayPrim(Type)), DtorFn(getDtorArrayPrim(Type)),
+      MoveFn(getMoveArrayPrim(Type)) {}
 
 Descriptor::Descriptor(const DeclTy &D, Descriptor *Elem, unsigned NumElems,
-                       bool IsConst, bool IsTemporary, bool IsMutable)
+                       bool IsConst, bool IsTemporary, bool IsMutable,
+                       CharUnits TargetSize)
     : Source(D), ElemSize(Elem->getAllocSize() + sizeof(InlineDescriptor)),
       Size(ElemSize * NumElems),
       AllocSize(std::max<size_t>(alignof(void *), Size)), ElemDesc(Elem),
       IsConst(IsConst), IsMutable(IsMutable), IsTemporary(IsTemporary),
-      IsArray(true), CtorFn(ctorArrayDesc), DtorFn(dtorArrayDesc),
-      MoveFn(moveArrayDesc) {
-  assert(Source && "Missing source");
-}
+      IsArray(true), TargetSize(TargetSize), CtorFn(ctorArrayDesc),
+      DtorFn(dtorArrayDesc), MoveFn(moveArrayDesc) {}
 
 Descriptor::Descriptor(const DeclTy &D, Descriptor *Elem, bool IsTemporary,
-                       UnknownSize)
+                       UnknownSize, CharUnits TargetSize)
     : Source(D), ElemSize(Elem->getAllocSize() + sizeof(InlineDescriptor)),
       Size(UnknownSizeMark), AllocSize(alignof(void *)), ElemDesc(Elem),
       IsConst(true), IsMutable(false), IsTemporary(IsTemporary), IsArray(true),
-      CtorFn(ctorArrayDesc), DtorFn(dtorArrayDesc), MoveFn(moveArrayDesc) {
-  assert(Source && "Missing source");
-}
+      TargetSize(TargetSize), CtorFn(ctorArrayDesc),
+      DtorFn(dtorArrayDesc), MoveFn(moveArrayDesc) {}
 
 Descriptor::Descriptor(const DeclTy &D, Record *R, bool IsConst,
-                       bool IsTemporary, bool IsMutable)
+                       bool IsTemporary, bool IsMutable, CharUnits TargetSize)
     : Source(D), ElemSize(std::max<size_t>(alignof(void *), R->getFullSize())),
       Size(ElemSize), AllocSize(Size), ElemRecord(R), IsConst(IsConst),
-      IsMutable(IsMutable), IsTemporary(IsTemporary), CtorFn(ctorRecord),
-      DtorFn(dtorRecord), MoveFn(moveRecord) {
-  assert(Source && "Missing source");
-}
+      IsMutable(IsMutable), IsTemporary(IsTemporary), TargetSize(TargetSize),
+      CtorFn(ctorRecord), DtorFn(dtorRecord), MoveFn(moveRecord) {}
 
 QualType Descriptor::getType() const {
   if (auto *E = asExpr())
@@ -259,7 +265,7 @@ SourceLocation Descriptor::getLocation() const {
 }
 
 InitMap::InitMap(unsigned N) : UninitFields(N) {
-  for (unsigned I = 0; I < N / PER_FIELD; ++I) {
+  for (unsigned I = 0; I < (N + PER_FIELD - 1) / PER_FIELD; ++I) {
     data()[I] = 0;
   }
 }

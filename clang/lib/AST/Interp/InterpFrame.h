@@ -38,6 +38,9 @@ public:
   /// Destroys the frame, killing all live pointers to stack slots.
   ~InterpFrame();
 
+  /// On return from a constructor, initialises the object.
+  void construct();
+
   /// Invokes the destructors for a scope.
   void destroy(unsigned Idx);
 
@@ -49,6 +52,9 @@ public:
 
   /// Returns the parent frame object.
   Frame *getCaller() const;
+
+  /// Returns the interp caller object.
+  InterpFrame *getInterpCaller() { return Caller; }
 
   /// Returns the location of the call to the frame.
   SourceLocation getCallLocation() const;
@@ -81,17 +87,19 @@ public:
     if (Pt == Params.end()) {
       return stackRef<T>(Offset);
     } else {
-      return Pointer(reinterpret_cast<Block *>(Pt->second.get())).deref<T>();
+      return reinterpret_cast<Block *>(Pt->second.get())->deref<T>();
     }
   }
 
   /// Mutates a local copy of a parameter.
   template <typename T> void setParam(unsigned Offset, const T &Value) {
-     getParamPointer(Offset).deref<T>() = Value;
+     getParamBlock(Offset)->deref<T>() = Value;
   }
 
   /// Returns a pointer to an argument - lazily creates a block.
-  Pointer getParamPointer(unsigned Offset);
+  Pointer getParamPointer(unsigned Offset) {
+    return Pointer(getParamBlock(Offset));
+  }
 
   /// Returns the 'this' pointer.
   const Pointer &getThis() const { return This; }
@@ -105,10 +113,8 @@ public:
   /// Returns the return address of the frame.
   CodePtr getRetPC() const { return RetPC; }
 
-  /// Map a location to a source.
-  virtual SourceInfo getSource(CodePtr PC) const;
-  const Expr *getExpr(CodePtr PC) const;
-  SourceLocation getLocation(CodePtr PC) const;
+  /// Returns the return address for diagnostics.
+  CodePtr getRetPCDiag() const;
 
 private:
   /// Returns an original argument from the stack.
@@ -125,6 +131,9 @@ private:
   void *localBlock(unsigned Offset) {
     return Locals.get() + Offset - sizeof(Block);
   }
+
+  /// Returns a pointer to an argument block - lazily creates a block.
+  Block *getParamBlock(unsigned Offset);
 
 private:
   /// Reference to the interpreter state.

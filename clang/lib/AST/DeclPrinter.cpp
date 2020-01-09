@@ -824,7 +824,6 @@ void DeclPrinter::VisitFieldDecl(FieldDecl *D) {
     Out << " : ";
     D->getBitWidth()->printPretty(Out, nullptr, Policy, Indentation);
   }
-
   Expr *Init = D->getInClassInitializer();
   if (!Policy.SuppressInitializers && Init) {
     if (D->getInClassInitStyle() == ICIS_ListInit)

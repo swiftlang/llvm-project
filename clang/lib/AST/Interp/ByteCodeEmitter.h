@@ -40,7 +40,7 @@ public:
   llvm::Expected<Function *> compileFunc(const FunctionDecl *F);
 
 protected:
-  ByteCodeEmitter(Context &Ctx, Program &P) : Ctx(Ctx), P(P) {}
+  ByteCodeEmitter(Context &Ctx, Program &P, State &S) : Ctx(Ctx), P(P) {}
 
   virtual ~ByteCodeEmitter() {}
 
@@ -52,6 +52,7 @@ protected:
   /// Methods implemented by the compiler.
   virtual bool visitFunc(const FunctionDecl *E) = 0;
   virtual bool visitExpr(const Expr *E) = 0;
+  virtual bool visitRValue(const Expr *E) = 0;
   virtual bool visitDecl(const VarDecl *E) = 0;
 
   /// Bails out if a given node cannot be compiled.

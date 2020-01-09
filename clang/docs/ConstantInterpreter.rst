@@ -44,21 +44,28 @@ Primitive Types
 
 * ``PT_Ptr``
 
-  Pointer type, defined in ``"Pointer.h"``.
+  Pointer type, defined in ``"Pointer.h"``. A pointer can be either null, reference interpreter-allocated memory (``BlockPointer``) or point to an address which can be derived, but not accessed (``ExternPointer``).
 
 * ``PT_FnPtr``
 
-  Function pointer type, can also be a null function pointer. Defined in ``"Pointer.h"``.
+  Function pointer type, can also be a null function pointer. Defined in ``"FnPointer.h"``.
 
 * ``PT_MemPtr``
 
-  Member pointer type, can also be a null member pointer. Defined in ``"Pointer.h"``
+  Member pointer type, can also be a null member pointer. Defined in ``"MemberPointer.h"``
+
+* ``PT_VoidPtr``
+
+  Void pointer type, can be used for rount-trip casts. Represented as the union of all pointers which can be cast to void. Defined in ``"VoidPointer.h"``.
+
+* ``PT_ObjCBlockPtr``
+
+  Pointer type for ObjC blocks. Defined in ``"ObjCBlockPointer.h"``.
 
 Composite types
 ---------------
 
-The interpreter distinguishes two kinds of composite types: arrays and records. Unions are represented as records, except a single field can be marked as active. The contents of inactive fields are kept until they
-are reactivated and overwritten.
+The interpreter distinguishes two kinds of composite types: arrays and records. Unions are represented as records, except at most a single field can be marked as active. The contents of inactive fields are kept until they are reactivated and overwritten. Complex numbers (``_Complex``) and vectors (``__attribute((vector_size(16)))``) are treated as arrays.
 
 
 Bytecode Execution
@@ -85,8 +92,6 @@ allocation, along with a few additional attributes:
 
 * ``IsStatic`` indicates whether the block has static duration in the interpreter, i.e. it is not a local in a frame.
 
-* ``IsExtern`` indicates that the block was created for an extern and the storage cannot be read or written.
-
 * ``DeclID`` identifies each global declaration (it is set to an invalid and irrelevant value for locals) in order to prevent illegal writes and reads involving globals and temporaries with static storage duration.
 
 Static blocks are never deallocated, but local ones might be deallocated even when there are live pointers to them. Pointers are only valid as long as the blocks they point to are valid, so a block with pointers to it whose lifetime ends is kept alive until all pointers to it go out of scope. Since the frame is destroyed on function exit, such blocks are turned into a ``DeadBlock`` and copied to storage managed by the interpreter itself, not the frame. Reads and writes to these blocks are illegal and cause an appropriate diagnostic to be emitted. When the last pointer goes out of scope, dead blocks are also deallocated.
@@ -97,7 +102,7 @@ The lifetime of blocks is managed through 3 methods stored in the descriptor of 
 * **DtorFn**: invokes the destructors of non-trivial objects.
 * **MoveFn**: moves a block to dead storage.
 
-Non-static blocks track all the pointers into them through an intrusive doubly-linked list, this is required in order to adjust all pointers when transforming a block into a dead block.
+Non-static blocks track all the pointers into them through an intrusive doubly-linked list, required to adjust all pointers when transforming a block into a dead block.
 
 Descriptors
 -----------
@@ -110,13 +115,13 @@ Descriptor are generated at bytecode compilation time and contain information re
 
 * **Arrays of primitives**
 
-  An array of primitives contains a pointer to an ``InitMap`` storage as its first field: the initialisation map is a bit map indicating all elements of the array which were initialised. If the pointer is null, no elements were initialised, while a value of ``(InitMap)-1`` indicates that the object was fully initialised. when all fields are initialised, the map is deallocated and replaced with that token.
+  An array of primitives contains a pointer to an ``InitMap`` storage as its first field: the initialisation map is a bit map indicating all elements of the array which were initialised. If the pointer is null, no elements were initialised, while a value of ``(InitMap*)-1`` indicates that the object was fully initialised. when all fields are initialised, the map is deallocated and replaced with that token.
 
   Array elements are stored sequentially, without padding, after the pointer to the map.
 
 * **Arrays of composites and records**
 
-  Each element in an array of composites is preceded by an ``InlineDescriptor``. Descriptors and elements are stored sequentially in the block. Records are laid out identically to arrays of composites: each field and base class is preceded by an inline descriptor. The ``InlineDescriptor`` has the following field:
+  Each element in an array of composites is preceded by an ``InlineDescriptor`` which stores the attributes specific to the field and not the whole allocation site. Descriptors and elements are stored sequentially in the block. Records are laid out identically to arrays of composites: each field and base class is preceded by an inline descriptor. The ``InlineDescriptor`` has the following field:
 
  * **Offset**: byte offset into the array or record, used to step back to the parent array or record.
  * **IsConst**: flag indicating if the field is const-qualified.
@@ -130,7 +135,12 @@ Inline descriptors are filled in by the `CtorFn` of blocks, which leaves storage
 Pointers
 --------
 
-Pointers track a ``Pointee``, the block to which they point or ``nullptr`` for null pointers, along with a ``Base`` and an ``Offset``. The base identifies the innermost field, while the offset points to an array element relative to the base (including one-past-end pointers). Most subobject the pointer points to in block, while the offset identifies the array element the pointer points to. These two fields allow all pointers to be uniquely identified and disambiguated.
+Pointers are represented as a union of ``BlockPointer``, ``ExternPointer`` and ``NullPointer``. ``BlockPointer`` is used to reference memory allocated and managed by the interpreter, being the only pointer kind which supports dereferencing. Null pointers cannot be dereferenced, but pointer arithmetic is allowed in them in a non-constexpr context, turning them into ``ExternPointer``. Extern pointers are almost identical to ``APValue``, tracking a declaration and a path of fields and indices into that allocation. All pointers are convertible to ``APValue``.
+
+BlockPointer
+~~~~~~~~~~~~
+
+Block pointers track a ``Pointee``, the block to which they point, along with a ``Base`` and an ``Offset``. The base identifies the innermost field, while the offset points to an array element relative to the base (including one-past-end pointers). The offset identifies the array element or field which is referenced, while the base points to the outer object or array which contains the field. These two fields allow all pointers to be uniquely identified, disambiguated and characterised.
 
 As an example, consider the following structure:
 
@@ -164,9 +174,27 @@ In the interpreter, the object would require 240 bytes of storage and would have
       a   |&a.b.x   &a.y    &a.c  |&a.c[0].a          |&a.c[1].a          |
         &a.b                   &a.c[0]            &a.c[1]               &a.z
 
-The ``Base`` offset of all pointers points to the start of a field or an array and is preceded by an inline descriptor (unless ``Base == 0``, pointing to the root). All the relevant attributes can be read from either the inline descriptor or the descriptor of the block.
+The ``Base`` offset of all pointers points to the start of a field or an array and is preceded by an inline descriptor (unless ``Base`` is zero, pointing to the root). All the relevant attributes can be read from either the inline descriptor or the descriptor of the block.
 
-Array elements are identified by the ``Offset`` field of pointers, pointing to past the inline descriptors for composites and before the actual data in the case of primitive arrays. The ``Offset`` points to the offset where primitives can be read from. As an example, ``a.c + 1`` would have the same base as ``a.c`` since it is an element of ``a.c``, but its offset would point to ``&a.c[1]``. The ``*`` operation narrows the scope of the pointer, adjusting the base to ``&a.c[1]``. The reverse operator, ``&``, expands the scope of ``&a.c[1]``, turning it into ``a.c + 1``. When a one-past-end pointer is narrowed, its offset is set to ``-1`` to indicate that it is an invalid value (expanding returns the past-the-end pointer). As a special case, narrowing ``&a.c`` results in ``&a.c[0]``. The `narrow` and `expand` methods can be used to follow the chain of equivalent pointers.
+
+Array elements are identified by the ``Offset`` field of pointers, pointing to past the inline descriptors for composites and before the actual data in the case of primitive arrays. The ``Offset`` points to the offset where primitives can be read from. As an example, ``a.c + 1`` would have the same base as ``a.c`` since it is an element of ``a.c``, but its offset would point to ``&a.c[1]``. The array-to-pointer decay operation adjusts a pointer to an array (where the offset is equal to the base) to a pointer to the first element.
+
+ExternPointer
+~~~~~~~~~~~~~
+
+Extern pointers can be derived, pointing into symbols which are not readable from constexpr. An external pointer consists of a base declaration, along with a path designating a subobject, similar to the ``LValuePath`` of an APValue. Extern pointers can be converted to block pointers if the underlying variable is defined after the pointer is created, as is the case in the following example:
+
+.. code-block:: c
+
+  extern const int a;
+  constexpr const int *p = &a;
+  const int a = 5;
+  static_assert(*p == 5, "x");
+
+Null Pointers
+~~~~~~~~~~~~~
+
+While null pointer arithmetic is banned in constexpr, some expressions on null constants must be folded, replicating the behavious of the ``offsetof`` builtin. Null pointers are characterised by two offsets: a field offset and an array offset, along with a descriptor specifying the type the pointer is supposed to refer to. Array indexing ajusts the array offset, while the field offset is adjusted when a pointer to a member is created.
 
 TODO
 ====
@@ -174,20 +202,26 @@ TODO
 Missing Language Features
 -------------------------
 
-* Definition of externs must override previous declaration
 * Changing the active field of unions
-* Union copy constructors
+* Pointer-Integer-Pointer round trips
 * ``typeid``
 * ``volatile``
+* ``mutable``
 * ``__builtin_constant_p``
-* ``std::initializer_list``
-* lambdas
-* range-based for loops
-* ``vector_size``
 * ``dynamic_cast``
+* ``new`` and ``delete``
+* Complex and vector arithmetic
+* GCC statement expressions
+
+Performance Improvements
+------------------------
+
+* Initialisation of very large arrays: currently instructions are emitted for
+  each element of ``ArrayInitLoopExpr``, a for loop should be generated instead
+* Zero-initialisation still sets most elements to 0 through individual
+  instructions, this should be achieved in the ``Descriptor``'s ``InitFn``
 
 Known Bugs
 ----------
 
-* Pointer comparison for equality needs to narrow/expand pointers
 * If execution fails, memory storing APInts and APFloats is leaked when the stack is cleared

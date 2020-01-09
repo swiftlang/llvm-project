@@ -8,8 +8,8 @@
 
 #include "InterpFrame.h"
 #include "Function.h"
-#include "Interp.h"
 #include "InterpStack.h"
+#include "InterpState.h"
 #include "PrimType.h"
 #include "Program.h"
 #include "clang/AST/DeclCXX.h"
@@ -23,6 +23,7 @@ InterpFrame::InterpFrame(InterpState &S, Function *Func, InterpFrame *Caller,
       ArgSize(Func ? Func->getArgSize() : 0),
       Args(static_cast<char *>(S.Stk.top())), FrameOffset(S.Stk.size()) {
   if (Func) {
+    assert(Func->getSize() != 0 && "empty function");
     if (unsigned FrameSize = Func->getFrameSize()) {
       Locals = std::make_unique<char[]>(FrameSize);
       for (auto &Scope : Func->scopes()) {
@@ -36,10 +37,27 @@ InterpFrame::InterpFrame(InterpState &S, Function *Func, InterpFrame *Caller,
 }
 
 InterpFrame::~InterpFrame() {
-  if (Func && Func->isConstructor() && This.isBaseClass())
-    This.initialize();
   for (auto &Param : Params)
     S.deallocate(reinterpret_cast<Block *>(Param.second.get()));
+}
+
+void InterpFrame::construct() {
+  assert(Func && Func->isConstructor() && "not a constructor");
+
+  if (auto *ThisBlock = This.asBlock()) {
+    if (ThisBlock->isBaseClass()) {
+      // Base classes must set their initialised flag.
+      ThisBlock->initialize();
+    } else if (!ThisBlock->isRoot() && !ThisBlock->inArray()) {
+      // Records in unions must be activated.
+      if (auto *R = ThisBlock->getBase().getRecord()) {
+        if (R->isUnion())
+          ThisBlock->activate();
+      }
+    }
+  } else if (!S.checkingPotentialConstantExpression()) {
+    llvm_unreachable("invalid pointer");
+  }
 }
 
 void InterpFrame::destroy(unsigned Idx) {
@@ -61,59 +79,39 @@ static void print(llvm::raw_ostream &OS, const T &V, ASTContext &, QualType) {
 template <>
 void print(llvm::raw_ostream &OS, const Pointer &P, ASTContext &Ctx,
            QualType Ty) {
-  if (P.isZero()) {
+  P.print(OS, Ctx, Ty);
+}
+
+template <>
+void print(llvm::raw_ostream &OS, const FnPointer &P, ASTContext &,
+           QualType Ty) {
+  if (const ValueDecl *Decl = P.asValueDecl()) {
+    if (Ty->isReferenceType()) {
+      OS << Decl->getName();
+    } else {
+      OS << "&" << Decl->getName();
+    }
+  } else {
     OS << "nullptr";
     return;
   }
+}
 
-  auto printDesc = [&OS, &Ctx](Descriptor *Desc) {
-    if (auto *D = Desc->asDecl()) {
-      // Subfields or named values.
-      if (auto *VD = dyn_cast<ValueDecl>(D)) {
-        OS << *VD;
-        return;
-      }
-      // Base classes.
-      if (isa<RecordDecl>(D)) {
-        return;
-      }
-    }
-    // Temporary expression.
-    if (auto *E = Desc->asExpr()) {
-      E->printPretty(OS, nullptr, Ctx.getPrintingPolicy());
-      return;
-    }
-    llvm_unreachable("Invalid descriptor type");
-  };
-
-  if (!Ty->isReferenceType())
-    OS << "&";
-  llvm::SmallVector<Pointer, 2> Levels;
-  for (Pointer F = P; !F.isRoot(); ) {
-    Levels.push_back(F);
-    F = F.isArrayElement() ? F.getArray().expand() : F.getBase();
-  }
-
-  printDesc(P.getDeclDesc());
-  for (auto It = Levels.rbegin(); It != Levels.rend(); ++It) {
-    if (It->inArray()) {
-      OS << "[" << It->expand().getIndex() << "]";
-      continue;
-    }
-    if (auto Index = It->getIndex()) {
-      OS << " + " << Index;
-      continue;
-    }
-    OS << ".";
-    printDesc(It->getFieldDesc());
-  }
+template <>
+void print(llvm::raw_ostream &OS, const MemberPointer &P, ASTContext &,
+           QualType) {
+  if (const ValueDecl *VD = P.getDecl())
+    OS << '&' << *cast<CXXRecordDecl>(VD->getDeclContext()) << "::" << *VD;
+  else
+    OS << "0";
+  return;
 }
 
 void InterpFrame::describe(llvm::raw_ostream &OS) {
   const FunctionDecl *F = getCallee();
   auto *M = dyn_cast<CXXMethodDecl>(F);
   if (M && M->isInstance() && !isa<CXXConstructorDecl>(F)) {
-    print(OS, This, S.getCtx(), S.getCtx().getRecordType(M->getParent()));
+    print(OS, This, S.getASTCtx(), S.getASTCtx().getRecordType(M->getParent()));
     OS << "->";
   }
   OS << *F << "(";
@@ -128,7 +126,7 @@ void InterpFrame::describe(llvm::raw_ostream &OS) {
       PrimTy = PT_Ptr;
     }
 
-    TYPE_SWITCH(PrimTy, print(OS, stackRef<T>(Off), S.getCtx(), Ty));
+    TYPE_SWITCH(PrimTy, print(OS, stackRef<T>(Off), S.getASTCtx(), Ty));
     Off += align(primSize(PrimTy));
     if (I + 1 != N)
       OS << ", ";
@@ -144,25 +142,31 @@ Frame *InterpFrame::getCaller() const {
 
 SourceLocation InterpFrame::getCallLocation() const {
   if (!Caller->Func)
-    return S.getLocation(nullptr, {});
-  return S.getLocation(Caller->Func, RetPC - sizeof(uintptr_t));
+    return S.getSource(nullptr, {}).getLoc();
+  return S.getSource(Caller->Func, RetPC - sizeof(uintptr_t)).getLoc();
+}
+
+CodePtr InterpFrame::getRetPCDiag() const {
+  if (!Caller->Func)
+    return {};
+  return RetPC - sizeof(uintptr_t);
 }
 
 const FunctionDecl *InterpFrame::getCallee() const {
-  return Func->getDecl();
+  return Func ? Func->getDecl() : nullptr;
 }
 
 Pointer InterpFrame::getLocalPointer(unsigned Offset) {
   assert(Offset < Func->getFrameSize() && "Invalid local offset.");
-  return Pointer(
-      reinterpret_cast<Block *>(Locals.get() + Offset - sizeof(Block)));
+  char *Addr = Locals.get() + Offset - sizeof(Block);
+  return Pointer(reinterpret_cast<Block *>(Addr));
 }
 
-Pointer InterpFrame::getParamPointer(unsigned Off) {
+Block *InterpFrame::getParamBlock(unsigned Off) {
   // Return the block if it was created previously.
   auto Pt = Params.find(Off);
   if (Pt != Params.end()) {
-    return Pointer(reinterpret_cast<Block *>(Pt->second.get()));
+    return reinterpret_cast<Block *>(Pt->second.get());
   }
 
   // Allocate memory to store the parameter and the block metadata.
@@ -176,18 +180,5 @@ Pointer InterpFrame::getParamPointer(unsigned Off) {
 
   // Record the param.
   Params.insert({Off, std::move(Memory)});
-  return Pointer(B);
+  return B;
 }
-
-SourceInfo InterpFrame::getSource(CodePtr PC) const {
-  return S.getSource(Func, PC);
-}
-
-const Expr *InterpFrame::getExpr(CodePtr PC) const {
-  return S.getExpr(Func, PC);
-}
-
-SourceLocation InterpFrame::getLocation(CodePtr PC) const {
-  return S.getLocation(Func, PC);
-}
-

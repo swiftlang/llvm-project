@@ -1662,6 +1662,16 @@ const llvm::fltSemantics &ASTContext::getFloatTypeSemantics(QualType T) const {
   }
 }
 
+const llvm::fltSemantics &ASTContext::getLongDoubleSemantics() const {
+  if (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice)
+    return AuxTarget->getLongDoubleFormat();
+  return Target->getLongDoubleFormat();
+}
+
+bool ASTContext::isNan2008() const {
+  return Target->isNan2008();
+}
+
 CharUnits ASTContext::getDeclAlign(const Decl *D, bool ForAlignof) const {
   unsigned Align = Target->getCharWidth();
 

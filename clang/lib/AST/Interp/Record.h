@@ -23,18 +23,60 @@ class Program;
 class Record {
 public:
   /// Describes a record field.
-  struct Field {
+  class Field {
+  public:
+    Field(const FieldDecl *Decl, InterpUnits Offset, const RecordDecl *RD,
+          const ASTContext *Ctx, Descriptor *Desc)
+        : Decl(Decl), Offset(Offset), RD(RD), Ctx(Ctx), Desc(Desc) {}
+
+    const FieldDecl *getDecl() const { return Decl; }
+
+    InterpUnits getOffset() const { return Offset; }
+
+    CharUnits getTargetOffset() const;
+
+    Descriptor *getDesc() const { return Desc; }
+
+  private:
+    friend class Record;
+
     const FieldDecl *Decl;
-    unsigned Offset;
+    InterpUnits Offset;
+    const RecordDecl *RD;
+    const ASTContext *Ctx;
     Descriptor *Desc;
   };
 
   /// Describes a base class.
-  struct Base {
-    const RecordDecl *Decl;
-    unsigned Offset;
-    Descriptor *Desc;
+  class Base {
+  public:
+    Base(const CXXRecordDecl *Decl, InterpUnits Offset, const RecordDecl *RD,
+         const ASTContext *Ctx, Record *R, Descriptor *Desc, bool IsVirtual)
+        : Decl(Decl), Offset(Offset), RD(RD), Ctx(Ctx), R(R), Desc(Desc),
+          IsVirtual(IsVirtual) {}
+
+    const CXXRecordDecl *getDecl() const { return Decl; }
+
+    InterpUnits getOffset() const { return Offset; }
+
+    CharUnits getTargetOffset() const;
+
+    Descriptor *getDesc() const { return Desc; }
+
+    Record *getRecord() const { return R; }
+
+    bool isVirtual() const { return IsVirtual; }
+
+  private:
+    friend class Record;
+
+    const CXXRecordDecl *Decl;
+    InterpUnits Offset;
+    const RecordDecl *RD;
+    const ASTContext *Ctx;
     Record *R;
+    Descriptor *Desc;
+    bool IsVirtual;
   };
 
   /// Mapping from identifiers to field descriptors.
@@ -50,13 +92,17 @@ public:
   /// Checks if the record is a union.
   bool isUnion() const { return getDecl()->isUnion(); }
   /// Returns the size of the record.
-  unsigned getSize() const { return BaseSize; }
+  InterpUnits getSize() const { return BaseSize; }
   /// Returns the full size of the record, including records.
-  unsigned getFullSize() const { return BaseSize + VirtualSize; }
+  InterpUnits getFullSize() const { return BaseSize + VirtualSize; }
   /// Returns a field.
   const Field *getField(const FieldDecl *FD) const;
+  /// Returns a field by its offset.
+  const Field *getFieldByOffset(InterpUnits Offset) const;
   /// Returns a base descriptor.
   const Base *getBase(const RecordDecl *FD) const;
+  /// Returns a base by its offset.
+  const Base *getBaseByOffset(InterpUnits Offset) const;
   /// Returns a virtual base descriptor.
   const Base *getVirtualBase(const RecordDecl *RD) const;
 
@@ -108,11 +154,16 @@ private:
   llvm::DenseMap<const FieldDecl *, Field *> FieldMap;
   /// Mapping from declarations to virtual bases.
   llvm::DenseMap<const RecordDecl *, Base *> VirtualBaseMap;
-  /// Mapping from
+
+  /// Mapping from field offsets to bases.
+  llvm::DenseMap<unsigned, Base *> BaseOffsets;
+  /// Mapping from field offsets to fields.
+  llvm::DenseMap<unsigned, Field *> FieldOffsets;
+
   /// Size of the structure.
-  unsigned BaseSize;
+  InterpUnits BaseSize;
   /// Size of all virtual bases.
-  unsigned VirtualSize;
+  InterpUnits VirtualSize;
 };
 
 } // namespace interp

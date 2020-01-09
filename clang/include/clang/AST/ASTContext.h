@@ -2002,6 +2002,11 @@ public:
   /// Return the APFloat 'semantics' for the specified scalar floating
   /// point type.
   const llvm::fltSemantics &getFloatTypeSemantics(QualType T) const;
+  
+  /// Return the semantics for long double.
+  const llvm::fltSemantics &getLongDoubleSemantics() const;
+  /// Returns true if NaN encoding is IEEE 754-2008.
+  bool isNan2008() const;
 
   /// Get the size and alignment of the specified complete type in bits.
   TypeInfo getTypeInfo(const Type *T) const;
@@ -2018,6 +2023,17 @@ public:
   uint64_t getCharWidth() const {
     return getTypeSize(CharTy);
   }
+
+  /// Returns the size of short in bits.
+  uint64_t getShortWidth() const { return getTypeSize(ShortTy); }
+  /// Returns the size of int in bits.
+  uint64_t getIntWidth() const { return getTypeSize(IntTy); }
+  /// Returns the size of long in bits.
+  uint64_t getLongWidth() const { return getTypeSize(LongTy); }
+  /// Returns the size of unsigned long in bits.
+  uint64_t getUnsignedLongWidth() const { return getTypeSize(UnsignedLongTy); }
+  /// Returns the size of long long in bits.
+  uint64_t getLongLongWidth() const { return getTypeSize(LongLongTy); }
 
   /// Convert a size in bits to a size in characters.
   CharUnits toCharUnitsFromBits(int64_t BitSize) const;

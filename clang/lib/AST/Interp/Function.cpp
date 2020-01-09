@@ -31,18 +31,31 @@ Function::ParamDescriptor Function::getParamDescriptor(unsigned Offset) const {
   return It->second;
 }
 
+void Function::relocateCall(CodePtr Loc, Function *Callee) {
+  using namespace llvm::support;
+
+  char *Ptr = Code.data() + (Loc - getCodeBegin());
+  const auto Addr = reinterpret_cast<uintptr_t>(Callee);
+  *(reinterpret_cast<Opcode *>(Ptr) - 1) = OP_Call;
+
+  endian::write<uintptr_t, endianness::native, 1>(Ptr, Addr);
+}
+
+void Function::relocateInvoke(CodePtr Loc, Function *Callee) {
+  using namespace llvm::support;
+
+  char *Ptr = Code.data() + (Loc - getCodeBegin());
+  const auto Addr = reinterpret_cast<uintptr_t>(Callee);
+  *(reinterpret_cast<Opcode *>(Ptr) - 1) = OP_Invoke;
+
+  endian::write<uintptr_t, endianness::native, 1>(Ptr, Addr);
+}
+
 SourceInfo Function::getSource(CodePtr PC) const {
   unsigned Offset = PC - getCodeBegin();
   using Elem = std::pair<unsigned, SourceInfo>;
   auto It = std::lower_bound(SrcMap.begin(), SrcMap.end(), Elem{Offset, {}},
                              [](Elem A, Elem B) { return A.first < B.first; });
-  if (It == SrcMap.end() || It->first != Offset)
-    llvm::report_fatal_error("missing source location");
+  assert(It != SrcMap.end() && It->first == Offset);
   return It->second;
-}
-
-bool Function::isVirtual() const {
-  if (auto *M = dyn_cast<CXXMethodDecl>(F))
-    return M->isVirtual();
-  return false;
 }

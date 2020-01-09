@@ -9,30 +9,37 @@
 #ifndef LLVM_CLANG_AST_INTERP_BOOLEAN_H
 #define LLVM_CLANG_AST_INTERP_BOOLEAN_H
 
-#include <cstddef>
-#include <cstdint>
-#include "Integral.h"
+#include "CmpResult.h"
 #include "clang/AST/APValue.h"
-#include "clang/AST/ComparisonCategories.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include <cstddef>
+#include <cstdint>
 
 namespace clang {
 namespace interp {
+class State;
+class CodePtr;
+
+template <unsigned Bits, bool Signed> class Integral;
+template <bool Signed> class FixedIntegral;
 
 /// Wrapper around boolean types.
 class Boolean {
- private:
+private:
   /// Underlying boolean.
   bool V;
 
   /// Construct a wrapper from a boolean.
   explicit Boolean(bool V) : V(V) {}
 
- public:
+public:
   /// Zero-initializes a boolean.
   Boolean() : V(false) {}
+
+  /// Initializes a boolean from an APSInt.
+  explicit Boolean(const llvm::APSInt &V) : V(V != 0) {}
 
   bool operator<(Boolean RHS) const { return V < RHS.V; }
   bool operator>(Boolean RHS) const { return V > RHS.V; }
@@ -43,25 +50,46 @@ class Boolean {
 
   bool operator>(unsigned RHS) const { return static_cast<unsigned>(V) > RHS; }
 
-  Boolean operator-() const { return Boolean(V); }
+  Boolean operator+(Boolean RHS) const { return Boolean(V | RHS.V); }
+  Boolean operator-(Boolean RHS) const { return Boolean(V ^ RHS.V); }
+  Boolean operator*(Boolean RHS) const { return Boolean(V & RHS.V); }
+  Boolean operator/(Boolean RHS) const { return Boolean(V); }
+  Boolean operator%(Boolean RHS) const { return Boolean(V % RHS.V); }
+  Boolean operator&(Boolean RHS) const { return Boolean(V & RHS.V); }
+  Boolean operator|(Boolean RHS) const { return Boolean(V | RHS.V); }
+  Boolean operator^(Boolean RHS) const { return Boolean(V ^ RHS.V); }
+
+  Boolean operator-() const { return *this; }
   Boolean operator~() const { return Boolean(true); }
+
+  Boolean operator>>(unsigned RHS) const { return Boolean(V && RHS == 0); }
+  Boolean operator<<(unsigned RHS) const { return *this; }
 
   explicit operator unsigned() const { return V; }
   explicit operator int64_t() const { return V; }
   explicit operator uint64_t() const { return V; }
 
-  APSInt toAPSInt() const {
-    return APSInt(APInt(1, static_cast<uint64_t>(V), false), true);
+  llvm::APSInt toAPSInt() const {
+    return llvm::APSInt(llvm::APInt(1, static_cast<uint64_t>(V), false), true);
   }
-  APSInt toAPSInt(unsigned NumBits) const {
-    return APSInt(toAPSInt().zextOrTrunc(NumBits), true);
+  llvm::APSInt toAPSInt(unsigned NumBits) const {
+    return llvm::APSInt(toAPSInt().zextOrTrunc(NumBits), true);
   }
-  APValue toAPValue() const { return APValue(toAPSInt()); }
+
+  bool toAPValue(const ASTContext &Ctx, APValue &Result) const {
+    Result = APValue(toAPSInt());
+    return true;
+  }
 
   Boolean toUnsigned() const { return *this; }
 
   constexpr static unsigned bitWidth() { return true; }
   bool isZero() const { return !V; }
+  bool isNonZero() const { return V; }
+  bool convertsToBool() const { return true; }
+
+  bool isTrue() const { return !isZero(); }
+  bool isFalse() const { return isZero(); }
   bool isMin() const { return isZero(); }
 
   constexpr static bool isMinusOne() { return false; }
@@ -71,8 +99,12 @@ class Boolean {
   constexpr static bool isNegative() { return false; }
   constexpr static bool isPositive() { return !isNegative(); }
 
-  ComparisonCategoryResult compare(const Boolean &RHS) const {
-    return Compare(V, RHS.V);
+  CmpResult compare(const Boolean &RHS) const {
+    if (!V && RHS.V)
+      return CmpResult::Less;
+    if (V && !RHS.V)
+      return CmpResult::Greater;
+    return CmpResult::Equal;
   }
 
   unsigned countLeadingZeros() const { return V ? 0 : 1; }
@@ -90,20 +122,15 @@ class Boolean {
   }
 
   template <unsigned SrcBits, bool SrcSign>
-  static std::enable_if_t<SrcBits != 0, Boolean>
-  from(Integral<SrcBits, SrcSign> Value) {
-    return Boolean(!Value.isZero());
-  }
+  static Boolean from(const Integral<SrcBits, SrcSign> &Value);
 
-  template <bool SrcSign>
-  static Boolean from(Integral<0, SrcSign> Value) {
-    return Boolean(!Value.isZero());
-  }
+  template <bool SrcSign> static Boolean from(const FixedIntegral<SrcSign> &I);
 
-  static Boolean zero() { return from(false); }
+  static Boolean from(Boolean Value) { return Value; }
 
-  template <typename T>
-  static Boolean from(T Value, unsigned NumBits) {
+  static Boolean zero() { return Boolean(false); }
+
+  template <typename T> static Boolean from(T Value, unsigned NumBits) {
     return Boolean(Value);
   }
 
@@ -121,7 +148,7 @@ class Boolean {
   }
 
   static bool add(Boolean A, Boolean B, unsigned OpBits, Boolean *R) {
-    *R = Boolean(A.V || B.V);
+    *R = Boolean(A.V | B.V);
     return false;
   }
 
@@ -131,7 +158,7 @@ class Boolean {
   }
 
   static bool mul(Boolean A, Boolean B, unsigned OpBits, Boolean *R) {
-    *R = Boolean(A.V && B.V);
+    *R = Boolean(A.V & B.V);
     return false;
   }
 };
@@ -141,7 +168,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Boolean &B) {
   return OS;
 }
 
-}  // namespace interp
-}  // namespace clang
+} // namespace interp
+} // namespace clang
 
 #endif
