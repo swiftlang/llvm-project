@@ -14,5 +14,9 @@
 {
   "target": "swift/master",
   "upstream": "swift/swift-5.2-branch"
+},
+{
+  "target": "swift/master-rebranch",
+  "upstream": "apple/stable/20200108"
 }
 ]
