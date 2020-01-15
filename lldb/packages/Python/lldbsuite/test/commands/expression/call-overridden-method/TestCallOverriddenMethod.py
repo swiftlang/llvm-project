@@ -46,7 +46,7 @@ class ExprCommandCallOverriddenMethod(TestBase):
         self.expect("expr realbase.foo()", substrs=["= 1"])
 
     @skipIfLinux # Returns wrong result code on some platforms.
-    @expectedFailureAll(archs=['arm64', 'arm64e'], bugnumber="<rdar://problem/56828233>")
+    @expectedFailureAll(bugnumber="<rdar://problem/56828233>")
     def test_call_on_derived(self):
         """Test calls to overridden methods in derived classes."""
         self.build()
