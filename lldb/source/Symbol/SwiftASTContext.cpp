@@ -4853,10 +4853,11 @@ swift::irgen::IRGenModule &SwiftASTContext::GetIRGenModule() {
 
         std::lock_guard<std::recursive_mutex> global_context_locker(
             IRExecutionUnit::GetLLVMGlobalContextMutex());
+        llvm::StringRef PrivateDiscriminator = "";
         m_ir_gen_module_ap.reset(new swift::irgen::IRGenModule(
             ir_generator, ir_generator.createTargetMachine(), nullptr,
             GetGlobalLLVMContext(), ir_gen_opts.ModuleName, PSPs.OutputFilename,
-            PSPs.MainInputFilenameForDebugInfo));
+            PSPs.MainInputFilenameForDebugInfo, PrivateDiscriminator));
         llvm::Module *llvm_module = m_ir_gen_module_ap->getModule();
         llvm_module->setDataLayout(data_layout.getStringRepresentation());
         llvm_module->setTargetTriple(llvm_triple.str());
