@@ -190,14 +190,20 @@ void t15() {
 // CHECK: mov eax, $1
   __asm mov eax, offset gvar ; eax = address of gvar
 // CHECK: mov eax, $2
-// CHECK: "*m,r,r,~{eax},~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}}, i32* %{{.*}}, i32* @{{.*}})
+  __asm mov eax, offset gvar+1 ; eax = 1 + address of gvar
+// CHECK: mov eax, $3 + $$1
+  __asm mov eax, 1+offset gvar ; eax = 1 + address of gvar
+// CHECK: mov eax, $4 + $$1
+  __asm mov eax, 1+offset gvar+1 ; eax = 2 + address of gvar
+// CHECK: mov eax, $5 + $$2
+// CHECK: "*m,r,i,i,i,i,~{eax},~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}}, i32* %{{.*}}, i32* @{{.*}}, i32* @{{.*}}, i32* @{{.*}}, i32* @{{.*}})
 }
 
 void t16() {
   int var = 10;
-  __asm mov [eax], offset var
+  __asm mov dword ptr [eax], offset var
 // CHECK: t16
-// CHECK: call void asm sideeffect inteldialect "mov [eax], $0", "r,~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}})
+// CHECK: call void asm sideeffect inteldialect "mov dword ptr [eax], $0", "r,~{dirflag},~{fpsr},~{flags}"(i32* %{{.*}})
 }
 
 void t17() {
@@ -306,7 +312,7 @@ void t24_helper(void) {}
 void t24() {
   __asm call t24_helper
 // CHECK: t24
-// CHECK: call void asm sideeffect inteldialect "call dword ptr $0", "*m,~{dirflag},~{fpsr},~{flags}"(void ()* @t24_helper)
+// CHECK: call void asm sideeffect inteldialect "call dword ptr ${0:P}", "*m,~{dirflag},~{fpsr},~{flags}"(void ()* @t24_helper)
 }
 
 void t25() {
@@ -689,7 +695,7 @@ void dot_operator(){
 void call_clobber() {
   __asm call t41
   // CHECK-LABEL: define void @call_clobber
-  // CHECK: call void asm sideeffect inteldialect "call dword ptr $0", "*m,~{dirflag},~{fpsr},~{flags}"(void (i16)* @t41)
+  // CHECK: call void asm sideeffect inteldialect "call dword ptr ${0:P}", "*m,~{dirflag},~{fpsr},~{flags}"(void (i16)* @t41)
 }
 
 void xgetbv() {

@@ -47,6 +47,12 @@
 #define TEST_HAS_EXTENSION(X) 0
 #endif
 
+#ifdef __has_warning
+#define TEST_HAS_WARNING(X) __has_warning(X)
+#else
+#define TEST_HAS_WARNING(X) 0
+#endif
+
 #ifdef __has_builtin
 #define TEST_HAS_BUILTIN(X) __has_builtin(X)
 #else
@@ -163,7 +169,7 @@
 #    if __ANDROID_API__ >= 29
 #      define TEST_HAS_TIMESPEC_GET
 #    endif
-#  elif defined(__Fuchsia__) || defined(__wasi__)
+#  elif defined(__Fuchsia__) || defined(__wasi__) || defined(__NetBSD__)
 #    define TEST_HAS_ALIGNED_ALLOC
 #    define TEST_HAS_C11_FEATURES
 #    define TEST_HAS_TIMESPEC_GET

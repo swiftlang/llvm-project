@@ -47,7 +47,10 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsGenMap = {
     Generic,  // opencl_generic
     Global,   // cuda_device
     Constant, // cuda_constant
-    Local     // cuda_shared
+    Local,    // cuda_shared
+    Generic,  // ptr32_sptr
+    Generic,  // ptr32_uptr
+    Generic   // ptr64
 };
 
 const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
@@ -59,7 +62,11 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
     Generic,  // opencl_generic
     Global,   // cuda_device
     Constant, // cuda_constant
-    Local     // cuda_shared
+    Local,    // cuda_shared
+    Generic,  // ptr32_sptr
+    Generic,  // ptr32_uptr
+    Generic   // ptr64
+
 };
 } // namespace targets
 } // namespace clang
@@ -238,7 +245,8 @@ void AMDGPUTargetInfo::adjustTargetOptions(const CodeGenOptions &CGOpts,
   }
   if (!hasFP32Denormals)
     TargetOpts.Features.push_back(
-      (Twine(hasFastFMAF() && hasFullRateDenormalsF32() && !CGOpts.FlushDenorm
+      (Twine(hasFastFMAF() && hasFullRateDenormalsF32() &&
+             CGOpts.FP32DenormalMode == llvm::DenormalMode::IEEE
              ? '+' : '-') + Twine("fp32-denormals"))
             .str());
   // Always do not flush fp64 or fp16 denorms.

@@ -88,9 +88,11 @@ void AArch64Subtarget::initializeProperties() {
   case CortexA76:
     PrefFunctionLogAlignment = 4;
     break;
-  case Cyclone:
-  case Vortex:
-  case Lightning:
+  case AppleA7:
+  case AppleA10:
+  case AppleA11:
+  case AppleA12:
+  case AppleA13:
     CacheLineSize = 64;
     PrefetchDistance = 280;
     MinPrefetchStride = 2048;
@@ -252,6 +254,10 @@ unsigned AArch64Subtarget::classifyGlobalFunctionReference(
   if (UseNonLazyBind && F && F->hasFnAttribute(Attribute::NonLazyBind) &&
       !TM.shouldAssumeDSOLocal(*GV->getParent(), GV))
     return AArch64II::MO_GOT;
+
+  // Use ClassifyGlobalReference for setting MO_DLLIMPORT/MO_COFFSTUB.
+  if (getTargetTriple().isOSWindows())
+    return ClassifyGlobalReference(GV, TM);
 
   return AArch64II::MO_NO_FLAG;
 }

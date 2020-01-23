@@ -1112,11 +1112,16 @@ def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
         s = s.replace('&', '\&')
         return s
     substitutions.extend([
-            ('%{/s:regex_replacement}', regex_escape(sourcepath.replace('\\', '/'))),
-            ('%{/S:regex_replacement}', regex_escape(sourcedir.replace('\\', '/'))),
-            ('%{/p:regex_replacement}', regex_escape(sourcedir.replace('\\', '/'))),
-            ('%{/t:regex_replacement}', regex_escape(tmpBase.replace('\\', '/')) + '.tmp'),
-            ('%{/T:regex_replacement}', regex_escape(tmpDir.replace('\\', '/'))),
+            ('%{/s:regex_replacement}',
+             regex_escape(sourcepath.replace('\\', '/'))),
+            ('%{/S:regex_replacement}',
+             regex_escape(sourcedir.replace('\\', '/'))),
+            ('%{/p:regex_replacement}',
+             regex_escape(sourcedir.replace('\\', '/'))),
+            ('%{/t:regex_replacement}',
+             regex_escape(tmpBase.replace('\\', '/')) + '.tmp'),
+            ('%{/T:regex_replacement}',
+             regex_escape(tmpDir.replace('\\', '/'))),
             ])
 
     # "%:[STpst]" are normalized paths without colons and without a leading
@@ -1130,6 +1135,18 @@ def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
             ])
     return substitutions
 
+def _memoize(f):
+    cache = {}  # Intentionally unbounded, see applySubstitutions()
+    def memoized(x):
+        if x not in cache:
+            cache[x] = f(x)
+        return cache[x]
+    return memoized
+
+@_memoize
+def _caching_re_compile(r):
+    return re.compile(r)
+
 def applySubstitutions(script, substitutions):
     """Apply substitutions to the script.  Allow full regular expression syntax.
     Replace each matching occurrence of regular expression pattern a with
@@ -1139,7 +1156,14 @@ def applySubstitutions(script, substitutions):
         for a,b in substitutions:
             if kIsWindows:
                 b = b.replace("\\","\\\\")
-            ln = re.sub(a, b, ln)
+            # re.compile() has a built-in LRU cache with 512 entries. In some
+            # test suites lit ends up thrashing that cache, which made e.g.
+            # check-llvm run 50% slower.  Use an explicit, unbounded cache
+            # to prevent that from happening.  Since lit is fairly
+            # short-lived, since the set of substitutions is fairly small, and
+            # since thrashing has such bad consequences, not bounding the cache
+            # seems reasonable.
+            ln = _caching_re_compile(a).sub(b, ln)
 
         # Strip the trailing newline and any extra whitespace.
         return ln.strip()
@@ -1304,20 +1328,6 @@ class IntegratedTestKeywordParser(object):
                 BooleanExpression.evaluate(s, [])
         return output
 
-    @staticmethod
-    def _handleRequiresAny(line_number, line, output):
-        """A custom parser to transform REQUIRES-ANY: into REQUIRES:"""
-
-        # Extract the conditions specified in REQUIRES-ANY: as written.
-        conditions = []
-        IntegratedTestKeywordParser._handleList(line_number, line, conditions)
-
-        # Output a `REQUIRES: a || b || c` expression in its place.
-        expression = ' || '.join(conditions)
-        IntegratedTestKeywordParser._handleBooleanExpr(line_number,
-                                                       expression, output)
-        return output
-
 def parseIntegratedTestScript(test, additional_parsers=[],
                               require_script=True):
     """parseIntegratedTestScript - Scan an LLVM/Clang style integrated test
@@ -1341,9 +1351,6 @@ def parseIntegratedTestScript(test, additional_parsers=[],
                                     initial_value=test.xfails),
         IntegratedTestKeywordParser('REQUIRES:', ParserKind.BOOLEAN_EXPR,
                                     initial_value=test.requires),
-        IntegratedTestKeywordParser('REQUIRES-ANY:', ParserKind.CUSTOM,
-                                    IntegratedTestKeywordParser._handleRequiresAny, 
-                                    initial_value=test.requires), 
         IntegratedTestKeywordParser('UNSUPPORTED:', ParserKind.BOOLEAN_EXPR,
                                     initial_value=test.unsupported),
         IntegratedTestKeywordParser('END.', ParserKind.TAG)

@@ -54,29 +54,6 @@ ReadAddressFromDebugAddrSection(const DWARFUnit *dwarf_cu,
   return LLDB_INVALID_ADDRESS;
 }
 
-/// Return the location list parser for the given format.
-static std::unique_ptr<llvm::DWARFLocationTable>
-GetLocationTable(DWARFExpression::LocationListFormat format, const DataExtractor &data) {
-  llvm::DWARFDataExtractor llvm_data(
-      toStringRef(data.GetData()),
-      data.GetByteOrder() == lldb::eByteOrderLittle, data.GetAddressByteSize());
-
-  switch (format) {
-  case DWARFExpression::NonLocationList:
-    return nullptr;
-  // DWARF<=4 .debug_loc
-  case DWARFExpression::RegularLocationList:
-    return std::make_unique<llvm::DWARFDebugLoc>(llvm_data);
-  // Non-standard DWARF 4 extension (fission) .debug_loc.dwo
-  case DWARFExpression::SplitDwarfLocationList:
-  // DWARF 5 .debug_loclists(.dwo)
-  case DWARFExpression::LocLists:
-    return std::make_unique<llvm::DWARFDebugLoclists>(
-        llvm_data, format == DWARFExpression::LocLists ? 5 : 4);
-  }
-  llvm_unreachable("Invalid LocationListFormat!");
-}
-
 // DWARFExpression constructor
 DWARFExpression::DWARFExpression()
     : m_module_wp(), m_data(), m_dwarf_cu(nullptr),
@@ -157,10 +134,8 @@ void DWARFExpression::GetDescription(Stream *s, lldb::DescriptionLevel level,
   if (IsLocationList()) {
     // We have a location list
     lldb::offset_t offset = 0;
-    std::unique_ptr<llvm::DWARFLocationTable> loctable_up = GetLocationTable(
-        m_dwarf_cu->GetSymbolFileDWARF().GetLocationListFormat(), m_data);
-    if (!loctable_up)
-      return;
+    std::unique_ptr<llvm::DWARFLocationTable> loctable_up =
+        m_dwarf_cu->GetLocationTable(m_data);
 
     llvm::MCRegisterInfo *MRI = abi ? &abi->GetMCRegisterInfo() : nullptr;
 
@@ -958,7 +933,7 @@ bool DWARFExpression::Evaluate(
   Value tmp;
   uint32_t reg_num;
 
-  /// Insertion point for evaluating multi-piece expression.
+  /// Insertion point for evaluating multi-piece expression.
   uint64_t op_piece_offset = 0;
   Value pieces; // Used for DW_OP_piece
 
@@ -2096,6 +2071,10 @@ bool DWARFExpression::Evaluate(
           // not available. Fill with zeros for now by resizing the data and
           // appending it
           curr_piece.ResizeData(piece_byte_size);
+          // Note that "0" is not a correct value for the unknown bits.
+          // It would be better to also return a mask of valid bits together
+          // with the expression result, so the debugger can print missing
+          // members as "<optimized out>" or something.
           ::memset(curr_piece.GetBuffer().GetBytes(), 0, piece_byte_size);
           pieces.AppendDataToHostBuffer(curr_piece);
         } else {
@@ -2153,7 +2132,8 @@ bool DWARFExpression::Evaluate(
           case Value::eValueTypeScalar: {
             uint32_t bit_size = piece_byte_size * 8;
             uint32_t bit_offset = 0;
-            if (!curr_piece_source_value.GetScalar().ExtractBitfield(
+            Scalar &scalar = curr_piece_source_value.GetScalar();
+            if (!scalar.ExtractBitfield(
                     bit_size, bit_offset)) {
               if (error_ptr)
                 error_ptr->SetErrorStringWithFormat(
@@ -2164,7 +2144,14 @@ bool DWARFExpression::Evaluate(
                         .GetByteSize());
               return false;
             }
-            curr_piece = curr_piece_source_value;
+            // Create curr_piece with bit_size. By default Scalar
+            // grows to the nearest host integer type.
+            llvm::APInt fail_value(1, 0, false);
+            llvm::APInt ap_int = scalar.UInt128(fail_value);
+            assert(ap_int.getBitWidth() >= bit_size);
+            llvm::ArrayRef<uint64_t> buf{ap_int.getRawData(),
+                                         ap_int.getNumWords()};
+            curr_piece.GetScalar() = Scalar(llvm::APInt(bit_size, buf));
           } break;
 
           case Value::eValueTypeVector: {
@@ -2186,7 +2173,7 @@ bool DWARFExpression::Evaluate(
           if (op_piece_offset == 0) {
             // This is the first piece, we should push it back onto the stack
             // so subsequent pieces will be able to access this piece and add
-            // to it
+            // to it.
             if (pieces.AppendDataToHostBuffer(curr_piece) == 0) {
               if (error_ptr)
                 error_ptr->SetErrorString("failed to append piece data");
@@ -2194,7 +2181,7 @@ bool DWARFExpression::Evaluate(
             }
           } else {
             // If this is the second or later piece there should be a value on
-            // the stack
+            // the stack.
             if (pieces.GetBuffer().GetByteSize() != op_piece_offset) {
               if (error_ptr)
                 error_ptr->SetErrorStringWithFormat(
@@ -2210,8 +2197,8 @@ bool DWARFExpression::Evaluate(
               return false;
             }
           }
-          op_piece_offset += piece_byte_size;
         }
+        op_piece_offset += piece_byte_size;
       }
     } break;
 
@@ -2812,10 +2799,8 @@ DWARFExpression::GetLocationExpression(addr_t load_function_start,
                                        addr_t addr) const {
   Log *log = GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
 
-  std::unique_ptr<llvm::DWARFLocationTable> loctable_up = GetLocationTable(
-      m_dwarf_cu->GetSymbolFileDWARF().GetLocationListFormat(), m_data);
-  if (!loctable_up)
-    return llvm::None;
+  std::unique_ptr<llvm::DWARFLocationTable> loctable_up =
+      m_dwarf_cu->GetLocationTable(m_data);
   llvm::Optional<DataExtractor> result;
   uint64_t offset = 0;
   auto lookup_addr =

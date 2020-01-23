@@ -34,7 +34,7 @@ static bool isUsedToInitializeAConstant(const MatchFinder::MatchResult &Result,
     return AsDecl->isImplicit();
   }
 
-  if (Node.get<EnumConstantDecl>() != nullptr)
+  if (Node.get<EnumConstantDecl>())
     return true;
 
   return llvm::any_of(Result.Context->getParents(Node),
@@ -86,11 +86,17 @@ MagicNumbersCheck::MagicNumbersCheck(StringRef Name, ClangTidyContext *Context)
     IgnoredDoublePointValues.reserve(IgnoredFloatingPointValuesInput.size());
     for (const auto &InputValue : IgnoredFloatingPointValuesInput) {
       llvm::APFloat FloatValue(llvm::APFloat::IEEEsingle());
-      FloatValue.convertFromString(InputValue, DefaultRoundingMode);
+      auto StatusOrErr =
+          FloatValue.convertFromString(InputValue, DefaultRoundingMode);
+      assert(StatusOrErr && "Invalid floating point representation");
+      consumeError(StatusOrErr.takeError());
       IgnoredFloatingPointValues.push_back(FloatValue.convertToFloat());
 
       llvm::APFloat DoubleValue(llvm::APFloat::IEEEdouble());
-      DoubleValue.convertFromString(InputValue, DefaultRoundingMode);
+      StatusOrErr =
+          DoubleValue.convertFromString(InputValue, DefaultRoundingMode);
+      assert(StatusOrErr && "Invalid floating point representation");
+      consumeError(StatusOrErr.takeError());
       IgnoredDoublePointValues.push_back(DoubleValue.convertToDouble());
     }
     llvm::sort(IgnoredFloatingPointValues.begin(),
@@ -125,8 +131,20 @@ bool MagicNumbersCheck::isConstant(const MatchFinder::MatchResult &Result,
         if (isUsedToInitializeAConstant(Result, Parent))
           return true;
 
-        // Ignore this instance, because this match reports the location
-        // where the template is defined, not where it is instantiated.
+        // Ignore this instance, because this matches an
+        // expanded class enumeration value.
+        if (Parent.get<CStyleCastExpr>() &&
+            llvm::any_of(
+                Result.Context->getParents(Parent),
+                [](const DynTypedNode &GrandParent) {
+                  return GrandParent.get<SubstNonTypeTemplateParmExpr>() !=
+                         nullptr;
+                }))
+          return true;
+
+        // Ignore this instance, because this match reports the
+        // location where the template is defined, not where it
+        // is instantiated.
         if (Parent.get<SubstNonTypeTemplateParmExpr>())
           return true;
 

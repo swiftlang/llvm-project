@@ -154,7 +154,7 @@ static cl::opt<bool>
                         cl::desc("Enable the AAcrh64 branch target pass"),
                         cl::init(true));
 
-extern "C" void LLVMInitializeAArch64Target() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAArch64Target() {
   // Register the target.
   RegisterTargetMachine<AArch64leTargetMachine> X(getTheAArch64leTarget());
   RegisterTargetMachine<AArch64beTargetMachine> Y(getTheAArch64beTarget());
@@ -295,6 +295,17 @@ AArch64TargetMachine::AArch64TargetMachine(const Target &T, const Triple &TT,
     // the same region anyway.
     this->Options.TrapUnreachable = true;
   }
+
+  if (this->Options.TLSSize == 0) // default
+    this->Options.TLSSize = 24;
+  if ((getCodeModel() == CodeModel::Small ||
+       getCodeModel() == CodeModel::Kernel) &&
+      this->Options.TLSSize > 32)
+    // for the small (and kernel) code model, the maximum TLS size is 4GiB
+    this->Options.TLSSize = 32;
+  else if (getCodeModel() == CodeModel::Tiny && this->Options.TLSSize > 24)
+    // for the tiny code model, the maximum TLS size is 1MiB (< 16MiB)
+    this->Options.TLSSize = 24;
 
   // Enable GlobalISel at or below EnableGlobalISelAt0, unless this is
   // MachO/CodeModel::Large, which GlobalISel does not support.
@@ -581,7 +592,7 @@ void AArch64PassConfig::addPreRegAlloc() {
   if (TM->getOptLevel() != CodeGenOpt::None && EnableAdvSIMDScalar) {
     addPass(createAArch64AdvSIMDScalar());
     // The AdvSIMD pass may produce copies that can be rewritten to
-    // be register coaleascer friendly.
+    // be register coalescer friendly.
     addPass(&PeepholeOptimizerID);
   }
 }

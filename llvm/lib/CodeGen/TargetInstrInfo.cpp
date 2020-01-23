@@ -15,6 +15,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/CodeGen/ScoreboardHazardRecognizer.h"
 #include "llvm/CodeGen/StackMaps.h"
@@ -1015,19 +1016,28 @@ CreateTargetHazardRecognizer(const TargetSubtargetInfo *STI,
 }
 
 // Default implementation of CreateTargetMIHazardRecognizer.
-ScheduleHazardRecognizer *TargetInstrInfo::
-CreateTargetMIHazardRecognizer(const InstrItineraryData *II,
-                               const ScheduleDAG *DAG) const {
-  return (ScheduleHazardRecognizer *)
-    new ScoreboardHazardRecognizer(II, DAG, "machine-scheduler");
+ScheduleHazardRecognizer *TargetInstrInfo::CreateTargetMIHazardRecognizer(
+    const InstrItineraryData *II, const ScheduleDAGMI *DAG) const {
+  return new ScoreboardHazardRecognizer(II, DAG, "machine-scheduler");
 }
 
 // Default implementation of CreateTargetPostRAHazardRecognizer.
 ScheduleHazardRecognizer *TargetInstrInfo::
 CreateTargetPostRAHazardRecognizer(const InstrItineraryData *II,
                                    const ScheduleDAG *DAG) const {
-  return (ScheduleHazardRecognizer *)
-    new ScoreboardHazardRecognizer(II, DAG, "post-RA-sched");
+  return new ScoreboardHazardRecognizer(II, DAG, "post-RA-sched");
+}
+
+// Default implementation of getMemOperandWithOffset.
+bool TargetInstrInfo::getMemOperandWithOffset(
+    const MachineInstr &MI, const MachineOperand *&BaseOp, int64_t &Offset,
+    const TargetRegisterInfo *TRI) const {
+  SmallVector<const MachineOperand *, 4> BaseOps;
+  if (!getMemOperandsWithOffset(MI, BaseOps, Offset, TRI) ||
+      BaseOps.size() != 1)
+    return false;
+  BaseOp = BaseOps.front();
+  return true;
 }
 
 //===----------------------------------------------------------------------===//

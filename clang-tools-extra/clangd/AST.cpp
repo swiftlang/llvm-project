@@ -8,10 +8,13 @@
 
 #include "AST.h"
 
+#include "FindTarget.h"
 #include "SourceCode.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/NestedNameSpecifier.h"
@@ -222,8 +225,11 @@ std::string printName(const ASTContext &Ctx, const NamedDecl &ND) {
     // Come up with a presentation for an anonymous entity.
     if (isa<NamespaceDecl>(ND))
       return "(anonymous namespace)";
-    if (auto *Cls = llvm::dyn_cast<RecordDecl>(&ND))
+    if (auto *Cls = llvm::dyn_cast<RecordDecl>(&ND)) {
+      if (Cls->isLambda())
+        return "(lambda)";
       return ("(anonymous " + Cls->getKindName() + ")").str();
+    }
     if (isa<EnumDecl>(ND))
       return "(anonymous enum)";
     return "(anonymous)";
@@ -295,32 +301,21 @@ llvm::Optional<SymbolID> getSymbolID(const llvm::StringRef MacroName,
   return SymbolID(USR);
 }
 
-std::string shortenNamespace(const llvm::StringRef OriginalName,
-                             const llvm::StringRef CurrentNamespace) {
-  llvm::SmallVector<llvm::StringRef, 8> OriginalParts;
-  llvm::SmallVector<llvm::StringRef, 8> CurrentParts;
-  llvm::SmallVector<llvm::StringRef, 8> Result;
-  OriginalName.split(OriginalParts, "::");
-  CurrentNamespace.split(CurrentParts, "::");
-  auto MinLength = std::min(CurrentParts.size(), OriginalParts.size());
-
-  unsigned DifferentAt = 0;
-  while (DifferentAt < MinLength &&
-         CurrentParts[DifferentAt] == OriginalParts[DifferentAt]) {
-    DifferentAt++;
-  }
-
-  for (unsigned i = DifferentAt; i < OriginalParts.size(); ++i) {
-    Result.push_back(OriginalParts[i]);
-  }
-  return join(Result, "::");
-}
-
-std::string printType(const QualType QT, const DeclContext &Context) {
-  PrintingPolicy PP(Context.getParentASTContext().getPrintingPolicy());
-  PP.SuppressUnwrittenScope = 1;
-  PP.SuppressTagKeyword = 1;
-  return shortenNamespace(QT.getAsString(PP), printNamespaceScope(Context));
+// FIXME: This should be handled while printing underlying decls instead.
+std::string printType(const QualType QT, const DeclContext &CurContext) {
+  std::string Result;
+  llvm::raw_string_ostream OS(Result);
+  auto Decls = explicitReferenceTargets(
+      ast_type_traits::DynTypedNode::create(QT), DeclRelation::Alias);
+  if (!Decls.empty())
+    OS << getQualification(CurContext.getParentASTContext(), &CurContext,
+                           Decls.front(),
+                           /*VisibleNamespaces=*/llvm::ArrayRef<std::string>{});
+  PrintingPolicy PP(CurContext.getParentASTContext().getPrintingPolicy());
+  PP.SuppressScope = true;
+  PP.SuppressTagKeyword = true;
+  QT.print(OS, PP);
+  return OS.str();
 }
 
 QualType declaredType(const TypeDecl *D) {
@@ -377,7 +372,7 @@ public:
     // Loc of "auto" in operator auto()
     if (CurLoc.isInvalid() && dyn_cast<CXXConversionDecl>(D))
       CurLoc = D->getTypeSourceInfo()->getTypeLoc().getBeginLoc();
-    // Loc of "auto" in function with traling return type (c++11).
+    // Loc of "auto" in function with trailing return type (c++11).
     if (CurLoc.isInvalid())
       CurLoc = D->getSourceRange().getBegin();
     if (CurLoc != SearchedLocation)
@@ -460,7 +455,7 @@ std::string getQualification(ASTContext &Context,
 
 std::string getQualification(ASTContext &Context,
                              const DeclContext *DestContext,
-                             SourceLocation InsertionPoint, const NamedDecl *ND,
+                             const NamedDecl *ND,
                              llvm::ArrayRef<std::string> VisibleNamespaces) {
   for (llvm::StringRef NS : VisibleNamespaces) {
     assert(NS.endswith("::"));

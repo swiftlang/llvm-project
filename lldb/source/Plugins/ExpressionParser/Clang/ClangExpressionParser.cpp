@@ -75,7 +75,7 @@
 #include "lldb/Expression/IRInterpreter.h"
 #include "lldb/Host/File.h"
 #include "lldb/Host/HostInfo.h"
-#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/TypeSystemClang.h"
 #include "lldb/Symbol/SymbolVendor.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Language.h"
@@ -253,7 +253,7 @@ static void SetupModuleHeaderPaths(CompilerInstance *compiler,
   }
 
   llvm::SmallString<128> module_cache;
-  auto props = ModuleList::GetGlobalModuleListProperties();
+  const auto &props = ModuleList::GetGlobalModuleListProperties();
   props.GetClangModulesCachePath().GetPath(module_cache);
   search_opts.ModuleCachePath = module_cache.str();
   LLDB_LOG(log, "Using module cache path: {0}", module_cache.c_str());
@@ -583,15 +583,16 @@ ClangExpressionParser::ClangExpressionParser(
 
   if (ClangModulesDeclVendor *decl_vendor =
           target_sp->GetClangModulesDeclVendor()) {
-    ClangPersistentVariables *clang_persistent_vars =
-        llvm::cast<ClangPersistentVariables>(
+    if (auto *clang_persistent_vars = llvm::cast<ClangPersistentVariables>(
             target_sp->GetPersistentExpressionStateForLanguage(
-                lldb::eLanguageTypeC));
-    std::unique_ptr<PPCallbacks> pp_callbacks(new LLDBPreprocessorCallbacks(
-        *decl_vendor, *clang_persistent_vars, m_compiler->getSourceManager()));
-    m_pp_callbacks =
-        static_cast<LLDBPreprocessorCallbacks *>(pp_callbacks.get());
-    m_compiler->getPreprocessor().addPPCallbacks(std::move(pp_callbacks));
+                lldb::eLanguageTypeC))) {
+      std::unique_ptr<PPCallbacks> pp_callbacks(
+          new LLDBPreprocessorCallbacks(*decl_vendor, *clang_persistent_vars,
+                                        m_compiler->getSourceManager()));
+      m_pp_callbacks =
+          static_cast<LLDBPreprocessorCallbacks *>(pp_callbacks.get());
+      m_compiler->getPreprocessor().addPPCallbacks(std::move(pp_callbacks));
+    }
   }
 
   // 8. Most of this we get from the CompilerInstance, but we also want to give
@@ -605,7 +606,8 @@ ClangExpressionParser::ClangExpressionParser(
   m_compiler->createASTContext();
   clang::ASTContext &ast_context = m_compiler->getASTContext();
 
-  m_ast_context.reset(new ClangASTContext(ast_context));
+  m_ast_context.reset(new TypeSystemClang(
+      "Expression ASTContext for '" + m_filename + "'", ast_context));
 
   std::string module_name("$__lldb_module");
 
@@ -997,7 +999,7 @@ ClangExpressionParser::ParseInternal(DiagnosticManager &diagnostic_manager,
     } else {
       ast_context.setExternalSource(ast_source);
     }
-    decl_map->InstallASTContext(*m_ast_context, m_compiler->getFileManager());
+    decl_map->InstallASTContext(*m_ast_context);
   }
 
   // Check that the ASTReader is properly attached to ASTContext and Sema.
@@ -1257,8 +1259,9 @@ lldb_private::Status ClangExpressionParser::PrepareForExecution(
           interpret_error, interpret_function_calls);
 
       if (!can_interpret && execution_policy == eExecutionPolicyNever) {
-        err.SetErrorStringWithFormat("Can't run the expression locally: %s",
-                                     interpret_error.AsCString());
+        err.SetErrorStringWithFormat(
+            "Can't evaluate the expression without a running target due to: %s",
+            interpret_error.AsCString());
         return err;
       }
     }

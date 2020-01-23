@@ -194,7 +194,7 @@ static std::vector<unsigned> getOpcodesOrDie(const MCInstrInfo &MCInstrInfo) {
   StringRef(OpcodeNames.getValue())
       .split(Pieces, ",", /* MaxSplit */ -1, /* KeepEmpty */ false);
   std::vector<unsigned> Result;
-  for (const StringRef OpcodeName : Pieces) {
+  for (const StringRef &OpcodeName : Pieces) {
     if (unsigned Opcode = ResolveName(OpcodeName))
       Result.push_back(Opcode);
     else
@@ -208,7 +208,7 @@ static Expected<std::vector<BenchmarkCode>>
 generateSnippets(const LLVMState &State, unsigned Opcode,
                  const BitVector &ForbiddenRegs) {
   const Instruction &Instr = State.getIC().getInstr(Opcode);
-  const MCInstrDesc &InstrDesc = *Instr.Description;
+  const MCInstrDesc &InstrDesc = Instr.Description;
   // Ignore instructions that we cannot run.
   if (InstrDesc.isPseudo())
     return make_error<Failure>("Unsupported opcode: isPseudo");
@@ -242,6 +242,13 @@ void benchmarkMain() {
   InitializeNativeExegesisTarget();
 
   const LLVMState State(CpuName);
+
+  const std::unique_ptr<BenchmarkRunner> Runner =
+      State.getExegesisTarget().createBenchmarkRunner(BenchmarkMode, State);
+  if (!Runner) {
+    report_fatal_error("cannot create benchmark runner");
+  }
+
   const auto Opcodes = getOpcodesOrDie(State.getInstrInfo());
 
   const auto Repetitor = SnippetRepetitor::Create(RepetitionMode, State);
@@ -270,12 +277,6 @@ void benchmarkMain() {
     }
   } else {
     Configurations = ExitOnErr(readSnippets(State, SnippetsFile));
-  }
-
-  const std::unique_ptr<BenchmarkRunner> Runner =
-      State.getExegesisTarget().createBenchmarkRunner(BenchmarkMode, State);
-  if (!Runner) {
-    report_fatal_error("cannot create benchmark runner");
   }
 
   if (NumRepetitions == 0)

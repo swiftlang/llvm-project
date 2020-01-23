@@ -19,6 +19,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   CastValueChecker.cpp
   CheckObjCDealloc.cpp
   CheckObjCInstMethSignature.cpp
+  CheckPlacementNew.cpp
   CheckSecuritySyntaxOnly.cpp
   CheckSizeofPointer.cpp
   CheckerDocumentation.cpp
@@ -38,6 +39,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   EnumCastOutOfRangeChecker.cpp
   ExprInspectionChecker.cpp
   FixedAddressChecker.cpp
+  FuchsiaHandleChecker.cpp
   GCDAntipatternChecker.cpp
   GenericTaintChecker.cpp
   GTestChecker.cpp

@@ -37,6 +37,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
 #include <list>
 #include <map>
 #include <string>
@@ -1266,7 +1267,7 @@ void ResultBuilder::AddResult(Result R, DeclContext *CurContext,
         /// Motivating case is const_iterator begin() const vs iterator begin().
         auto &OverloadSet = OverloadMap[std::make_pair(
             CurContext, Method->getDeclName().getAsOpaqueInteger())];
-        for (const DeclIndexPair& Entry : OverloadSet) {
+        for (const DeclIndexPair Entry : OverloadSet) {
           Result &Incumbent = Results[Entry.second];
           switch (compareOverloads(*Method,
                                    *cast<CXXMethodDecl>(Incumbent.Declaration),
@@ -2269,6 +2270,13 @@ static void AddOrdinaryNameResults(Sema::ParserCompletionContext CCC, Scope *S,
         Builder.AddChunk(CodeCompletionString::CK_SemiColon);
         Results.AddResult(Result(Builder.TakeString()));
       }
+      // For pointers, suggest 'return nullptr' in C++.
+      if (SemaRef.getLangOpts().CPlusPlus11 &&
+          (ReturnType->isPointerType() || ReturnType->isMemberPointerType())) {
+        Builder.AddTypedTextChunk("return nullptr");
+        Builder.AddChunk(CodeCompletionString::CK_SemiColon);
+        Results.AddResult(Result(Builder.TakeString()));
+      }
     }
 
     // goto identifier ;
@@ -2936,7 +2944,11 @@ static void AddTemplateParameterChunks(
     if (TemplateTypeParmDecl *TTP = dyn_cast<TemplateTypeParmDecl>(*P)) {
       if (TTP->wasDeclaredWithTypename())
         PlaceholderStr = "typename";
-      else
+      else if (const auto *TC = TTP->getTypeConstraint()) {
+        llvm::raw_string_ostream OS(PlaceholderStr);
+        TC->print(OS, Policy);
+        OS.flush();
+      } else
         PlaceholderStr = "class";
 
       if (TTP->getIdentifier()) {
@@ -3651,8 +3663,11 @@ CodeCompleteConsumer::OverloadCandidate::CreateSignatureString(
         Result.addBriefComment(RC->getBriefText(S.getASTContext()));
     }
     AddResultTypeChunk(S.Context, Policy, FDecl, QualType(), Result);
-    Result.AddTextChunk(
-        Result.getAllocator().CopyString(FDecl->getNameAsString()));
+
+    std::string Name;
+    llvm::raw_string_ostream OS(Name);
+    FDecl->getDeclName().print(OS, Policy);
+    Result.AddTextChunk(Result.getAllocator().CopyString(OS.str()));
   } else {
     Result.AddResultTypeChunk(Result.getAllocator().CopyString(
         Proto->getReturnType().getAsString(Policy)));
@@ -4757,7 +4772,7 @@ void Sema::CodeCompleteMemberReferenceExpr(Scope *S, Expr *Base,
       }
 
       // Add properties from the protocols in a qualified interface.
-      for (auto *I : BaseType->getAs<ObjCObjectPointerType>()->quals())
+      for (auto *I : BaseType->castAs<ObjCObjectPointerType>()->quals())
         AddObjCProperties(CCContext, I, true, /*AllowNullaryMethods=*/true,
                           CurContext, AddedProperties, Results,
                           IsBaseExprStatement, /*IsClassProperty*/ false,
@@ -4770,7 +4785,7 @@ void Sema::CodeCompleteMemberReferenceExpr(Scope *S, Expr *Base,
               BaseType->getAs<ObjCObjectPointerType>())
         Class = ObjCPtr->getInterfaceDecl();
       else
-        Class = BaseType->getAs<ObjCObjectType>()->getInterface();
+        Class = BaseType->castAs<ObjCObjectType>()->getInterface();
 
       // Add all ivars from this class and its superclasses.
       if (Class) {
@@ -7694,8 +7709,8 @@ static void AddObjCKeyValueCompletions(ObjCPropertyDecl *Property,
   if (IsInstanceMethod &&
       (ReturnType.isNull() ||
        (ReturnType->isObjCObjectPointerType() &&
-        ReturnType->getAs<ObjCObjectPointerType>()->getInterfaceDecl() &&
-        ReturnType->getAs<ObjCObjectPointerType>()
+        ReturnType->castAs<ObjCObjectPointerType>()->getInterfaceDecl() &&
+        ReturnType->castAs<ObjCObjectPointerType>()
                 ->getInterfaceDecl()
                 ->getName() == "NSArray"))) {
     std::string SelectorName = (Twine(Property->getName()) + "AtIndexes").str();
@@ -8081,8 +8096,8 @@ static void AddObjCKeyValueCompletions(ObjCPropertyDecl *Property,
   if (!IsInstanceMethod &&
       (ReturnType.isNull() ||
        (ReturnType->isObjCObjectPointerType() &&
-        ReturnType->getAs<ObjCObjectPointerType>()->getInterfaceDecl() &&
-        ReturnType->getAs<ObjCObjectPointerType>()
+        ReturnType->castAs<ObjCObjectPointerType>()->getInterfaceDecl() &&
+        ReturnType->castAs<ObjCObjectPointerType>()
                 ->getInterfaceDecl()
                 ->getName() == "NSSet"))) {
     std::string SelectorName =

@@ -177,7 +177,9 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
     return 1;
   }
 
-  bool canRelax = config->emachine != EM_ARM && config->emachine != EM_RISCV;
+  bool canRelax = config->emachine != EM_ARM &&
+                  config->emachine != EM_HEXAGON &&
+                  config->emachine != EM_RISCV;
 
   // If we are producing an executable and the symbol is non-preemptable, it
   // must be defined and the code sequence can be relaxed to use Local-Exec.
@@ -375,8 +377,8 @@ static bool isStaticLinkTimeConstant(RelExpr e, RelType type, const Symbol &sym,
             R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTONLY_PC, R_GOTPLTONLY_PC,
             R_PLT_PC, R_TLSGD_GOT, R_TLSGD_GOTPLT, R_TLSGD_PC, R_PPC32_PLTREL,
             R_PPC64_CALL_PLT, R_PPC64_RELAX_TOC, R_RISCV_ADD, R_TLSDESC_CALL,
-            R_TLSDESC_PC, R_AARCH64_TLSDESC_PAGE, R_HINT, R_TLSLD_HINT,
-            R_TLSIE_HINT>(e))
+            R_TLSDESC_PC, R_AARCH64_TLSDESC_PAGE, R_TLSLD_HINT, R_TLSIE_HINT>(
+          e))
     return true;
 
   // These never do, except if the entire file is position dependent or if
@@ -404,15 +406,13 @@ static bool isStaticLinkTimeConstant(RelExpr e, RelType type, const Symbol &sym,
   if (!absVal && !relE)
     return target->usesOnlyLowPageBits(type);
 
-  // Relative relocation to an absolute value. This is normally unrepresentable,
-  // but if the relocation refers to a weak undefined symbol, we allow it to
-  // resolve to the image base. This is a little strange, but it allows us to
-  // link function calls to such symbols. Normally such a call will be guarded
-  // with a comparison, which will load a zero from the GOT.
-  // Another special case is MIPS _gp_disp symbol which represents offset
-  // between start of a function and '_gp' value and defined as absolute just
-  // to simplify the code.
   assert(absVal && relE);
+
+  // Allow R_PLT_PC (optimized to R_PC here) to a hidden undefined weak symbol
+  // in PIC mode. This is a little strange, but it allows us to link function
+  // calls to such symbols (e.g. glibc/stdlib/exit.c:__run_exit_handlers).
+  // Normally such a call will be guarded with a comparison, which will load a
+  // zero from the GOT.
   if (sym.isUndefWeak())
     return true;
 
@@ -714,12 +714,19 @@ static bool canSuggestExternCForCXX(StringRef ref, StringRef def) {
 // Suggest an alternative spelling of an "undefined symbol" diagnostic. Returns
 // the suggested symbol, which is either in the symbol table, or in the same
 // file of sym.
+template <class ELFT>
 static const Symbol *getAlternativeSpelling(const Undefined &sym,
                                             std::string &pre_hint,
                                             std::string &post_hint) {
-  // Build a map of local defined symbols.
   DenseMap<StringRef, const Symbol *> map;
-  if (sym.file && !isa<SharedFile>(sym.file)) {
+  if (auto *file = dyn_cast_or_null<ObjFile<ELFT>>(sym.file)) {
+    // If sym is a symbol defined in a discarded section, maybeReportDiscarded()
+    // will give an error. Don't suggest an alternative spelling.
+    if (file && sym.discardedSecIdx != 0 &&
+        file->getSections()[sym.discardedSecIdx] == &InputSection::discarded)
+      return nullptr;
+
+    // Build a map of local defined symbols.
     for (const Symbol *s : sym.file->getSymbols())
       if (s->isLocal() && s->isDefined())
         map.try_emplace(s->getName(), s);
@@ -865,8 +872,8 @@ static void reportUndefinedSymbol(const UndefinedDiag &undef,
 
   if (correctSpelling) {
     std::string pre_hint = ": ", post_hint;
-    if (const Symbol *corrected =
-            getAlternativeSpelling(cast<Undefined>(sym), pre_hint, post_hint)) {
+    if (const Symbol *corrected = getAlternativeSpelling<ELFT>(
+            cast<Undefined>(sym), pre_hint, post_hint)) {
       msg += "\n>>> did you mean" + pre_hint + toString(*corrected) + post_hint;
       if (corrected->file)
         msg += "\n>>> defined in: " + toString(corrected->file);
@@ -1011,10 +1018,10 @@ static void addRelativeReloc(InputSectionBase *isec, uint64_t offsetInSec,
                          expr, type);
 }
 
-template <class ELFT, class GotPltSection>
+template <class PltSection, class GotPltSection>
 static void addPltEntry(PltSection *plt, GotPltSection *gotPlt,
                         RelocationBaseSection *rel, RelType type, Symbol &sym) {
-  plt->addEntry<ELFT>(sym);
+  plt->addEntry(sym);
   gotPlt->addEntry(sym);
   rel->addReloc(
       {type, gotPlt, sym.getGotPltOffset(), !sym.isPreemptible, &sym, 0});
@@ -1190,7 +1197,7 @@ static void processRelocAux(InputSectionBase &sec, RelExpr expr, RelType type,
                     "' cannot be preempted; recompile with -fPIE" +
                     getLocation(sec, sym, offset));
       if (!sym.isInPlt())
-        addPltEntry<ELFT>(in.plt, in.gotPlt, in.relaPlt, target->pltRel, sym);
+        addPltEntry(in.plt, in.gotPlt, in.relaPlt, target->pltRel, sym);
       if (!sym.isDefined())
         replaceWithDefined(
             sym, in.plt,
@@ -1251,8 +1258,8 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
   const uint8_t *relocatedAddr = sec.data().begin() + rel.r_offset;
   RelExpr expr = target->getRelExpr(type, sym, relocatedAddr);
 
-  // Ignore "hint" relocations because they are only markers for relaxation.
-  if (oneof<R_HINT, R_NONE>(expr))
+  // Ignore R_*_NONE and other marker relocations.
+  if (expr == R_NONE)
     return;
 
   // We can separate the small code model relocations into 2 categories:
@@ -1331,7 +1338,7 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
   if (!sym.isGnuIFunc() || sym.isPreemptible) {
     // If a relocation needs PLT, we create PLT and GOTPLT slots for the symbol.
     if (needsPlt(expr) && !sym.isInPlt())
-      addPltEntry<ELFT>(in.plt, in.gotPlt, in.relaPlt, target->pltRel, sym);
+      addPltEntry(in.plt, in.gotPlt, in.relaPlt, target->pltRel, sym);
 
     // Create a GOT slot if a relocation needs GOT.
     if (needsGot(expr)) {
@@ -1401,8 +1408,8 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
       // that's really needed to create the IRELATIVE is the section and value,
       // so ideally we should just need to copy those.
       auto *directSym = make<Defined>(cast<Defined>(sym));
-      addPltEntry<ELFT>(in.iplt, in.igotPlt, in.relaIplt, target->iRelativeRel,
-                        *directSym);
+      addPltEntry(in.iplt, in.igotPlt, in.relaIplt, target->iRelativeRel,
+                  *directSym);
       sym.pltIndex = directSym->pltIndex;
     }
     if (needsGot(expr)) {
@@ -1415,13 +1422,9 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
     } else if (!needsPlt(expr)) {
       // Make the ifunc's PLT entry canonical by changing the value of its
       // symbol to redirect all references to point to it.
-      unsigned entryOffset = sym.pltIndex * target->pltEntrySize;
-      if (config->zRetpolineplt)
-        entryOffset += target->pltHeaderSize;
-
       auto &d = cast<Defined>(sym);
       d.section = in.iplt;
-      d.value = entryOffset;
+      d.value = sym.pltIndex * target->ipltEntrySize;
       d.size = 0;
       // It's important to set the symbol type here so that dynamic loaders
       // don't try to call the PLT as if it were an ifunc resolver.
@@ -1616,7 +1619,7 @@ void ThunkCreator::mergeThunks(ArrayRef<OutputSection *> outputSections) {
         // those inserted in previous passes. Extract the Thunks created this
         // pass and order them in ascending outSecOff.
         std::vector<ThunkSection *> newThunks;
-        for (const std::pair<ThunkSection *, uint32_t> ts : isd->thunkSections)
+        for (std::pair<ThunkSection *, uint32_t> ts : isd->thunkSections)
           if (ts.second == pass)
             newThunks.push_back(ts.first);
         llvm::stable_sort(newThunks,
@@ -1749,6 +1752,37 @@ ThunkSection *ThunkCreator::addThunkSection(OutputSection *os,
                                             uint64_t off) {
   auto *ts = make<ThunkSection>(os, off);
   ts->partition = os->partition;
+  if ((config->fixCortexA53Errata843419 || config->fixCortexA8) &&
+      !isd->sections.empty()) {
+    // The errata fixes are sensitive to addresses modulo 4 KiB. When we add
+    // thunks we disturb the base addresses of sections placed after the thunks
+    // this makes patches we have generated redundant, and may cause us to
+    // generate more patches as different instructions are now in sensitive
+    // locations. When we generate more patches we may force more branches to
+    // go out of range, causing more thunks to be generated. In pathological
+    // cases this can cause the address dependent content pass not to converge.
+    // We fix this by rounding up the size of the ThunkSection to 4KiB, this
+    // limits the insertion of a ThunkSection on the addresses modulo 4 KiB,
+    // which means that adding Thunks to the section does not invalidate
+    // errata patches for following code.
+    // Rounding up the size to 4KiB has consequences for code-size and can
+    // trip up linker script defined assertions. For example the linux kernel
+    // has an assertion that what LLD represents as an InputSectionDescription
+    // does not exceed 4 KiB even if the overall OutputSection is > 128 Mib.
+    // We use the heuristic of rounding up the size when both of the following
+    // conditions are true:
+    // 1.) The OutputSection is larger than the ThunkSectionSpacing. This
+    //     accounts for the case where no single InputSectionDescription is
+    //     larger than the OutputSection size. This is conservative but simple.
+    // 2.) The InputSectionDescription is larger than 4 KiB. This will prevent
+    //     any assertion failures that an InputSectionDescription is < 4 KiB
+    //     in size.
+    uint64_t isdSize = isd->sections.back()->outSecOff +
+                       isd->sections.back()->getSize() -
+                       isd->sections.front()->outSecOff;
+    if (os->size > target->getThunkSectionSpacing() && isdSize > 4096)
+      ts->roundUpSizeForErrata = true;
+  }
   isd->thunkSections.push_back({ts, pass});
   return ts;
 }

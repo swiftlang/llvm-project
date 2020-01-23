@@ -24,20 +24,16 @@
 #include "lldb/Interpreter/Options.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/Language.h"
-#include "lldb/Target/Process.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
-#include "lldb/Target/ThreadList.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/RegularExpression.h"
-#include "lldb/Utility/State.h"
 #include "lldb/Utility/StringList.h"
 
 #include "llvm/ADT/STLExtras.h"
 
 #include <algorithm>
-#include <cctype>
 #include <functional>
 #include <memory>
 
@@ -163,7 +159,7 @@ public:
                               std::string &data) override {
     StreamFileSP error_sp = io_handler.GetErrorStreamFileSP();
 
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
     ScriptInterpreter *interpreter = GetDebugger().GetScriptInterpreter();
     if (interpreter) {
       StringList lines;
@@ -256,7 +252,7 @@ public:
           "error: script interpreter missing, didn't add python command.\n");
       error_sp->Flush();
     }
-#endif // LLDB_DISABLE_PYTHON
+#endif
     io_handler.SetIsDone(true);
   }
 
@@ -395,7 +391,7 @@ protected:
                               std::string &data) override {
     StreamFileSP error_sp = io_handler.GetErrorStreamFileSP();
 
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
     ScriptInterpreter *interpreter = GetDebugger().GetScriptInterpreter();
     if (interpreter) {
       StringList lines;
@@ -475,7 +471,7 @@ protected:
       error_sp->Flush();
     }
 
-#endif // LLDB_DISABLE_PYTHON
+#endif
     io_handler.SetIsDone(true);
   }
 
@@ -1168,12 +1164,6 @@ public:
                                        "Show a list of current formats.") {}
 };
 
-#ifndef LLDB_DISABLE_PYTHON
-
-// CommandObjectTypeSummaryAdd
-
-#endif // LLDB_DISABLE_PYTHON
-
 Status CommandObjectTypeSummaryAdd::CommandOptions::SetOptionValue(
     uint32_t option_idx, llvm::StringRef option_arg,
     ExecutionContext *execution_context) {
@@ -1256,7 +1246,7 @@ void CommandObjectTypeSummaryAdd::CommandOptions::OptionParsingStarting(
   m_category = "default";
 }
 
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
 
 bool CommandObjectTypeSummaryAdd::Execute_ScriptSummary(
     Args &command, CommandReturnObject &result) {
@@ -1342,7 +1332,6 @@ bool CommandObjectTypeSummaryAdd::Execute_ScriptSummary(
     m_interpreter.GetPythonCommandsFromIOHandler(
         "    ",   // Prompt
         *this,    // IOHandlerDelegate
-        true,     // Run IOHandler in async mode
         options); // Baton for the "io_handler" that will be passed back into
                   // our IOHandlerDelegate functions
     result.SetStatus(eReturnStatusSuccessFinishNoResult);
@@ -1381,7 +1370,7 @@ bool CommandObjectTypeSummaryAdd::Execute_ScriptSummary(
   return result.Succeeded();
 }
 
-#endif // LLDB_DISABLE_PYTHON
+#endif
 
 bool CommandObjectTypeSummaryAdd::Execute_StringSummary(
     Args &command, CommandReturnObject &result) {
@@ -1579,13 +1568,13 @@ bool CommandObjectTypeSummaryAdd::DoExecute(Args &command,
   WarnOnPotentialUnquotedUnsignedType(command, result);
 
   if (m_options.m_is_add_script) {
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
     return Execute_ScriptSummary(command, result);
 #else
     result.AppendError("python is disabled");
     result.SetStatus(eReturnStatusFailed);
     return false;
-#endif // LLDB_DISABLE_PYTHON
+#endif
   }
 
   return Execute_StringSummary(command, result);
@@ -2153,7 +2142,7 @@ public:
                                        "Show a list of current filters.") {}
 };
 
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
 
 // CommandObjectTypeSynthList
 
@@ -2166,7 +2155,7 @@ public:
             "Show a list of current synthetic providers.") {}
 };
 
-#endif // LLDB_DISABLE_PYTHON
+#endif
 
 // CommandObjectTypeFilterDelete
 
@@ -2181,7 +2170,7 @@ public:
   ~CommandObjectTypeFilterDelete() override = default;
 };
 
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
 
 // CommandObjectTypeSynthDelete
 
@@ -2197,7 +2186,7 @@ public:
   ~CommandObjectTypeSynthDelete() override = default;
 };
 
-#endif // LLDB_DISABLE_PYTHON
+#endif
 
 // CommandObjectTypeFilterClear
 
@@ -2210,7 +2199,7 @@ public:
             "type filter clear", "Delete all existing filter.") {}
 };
 
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
 // CommandObjectTypeSynthClear
 
 class CommandObjectTypeSynthClear : public CommandObjectTypeFormatterClear {
@@ -2242,7 +2231,6 @@ bool CommandObjectTypeSynthAdd::Execute_HandwritePython(
   m_interpreter.GetPythonCommandsFromIOHandler(
       "    ",   // Prompt
       *this,    // IOHandlerDelegate
-      true,     // Run IOHandler in async mode
       options); // Baton for the "io_handler" that will be passed back into our
                 // IOHandlerDelegate functions
   result.SetStatus(eReturnStatusSuccessFinishNoResult);
@@ -2374,7 +2362,7 @@ bool CommandObjectTypeSynthAdd::AddSynth(ConstString type_name,
   }
 }
 
-#endif // LLDB_DISABLE_PYTHON
+#endif
 #define LLDB_OPTIONS_type_filter_add
 #include "CommandOptions.inc"
 
@@ -2924,7 +2912,7 @@ public:
   ~CommandObjectTypeFormat() override = default;
 };
 
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
 
 class CommandObjectTypeSynth : public CommandObjectMultiword {
 public:
@@ -2953,7 +2941,7 @@ public:
   ~CommandObjectTypeSynth() override = default;
 };
 
-#endif // LLDB_DISABLE_PYTHON
+#endif
 
 class CommandObjectTypeFilter : public CommandObjectMultiword {
 public:
@@ -3039,10 +3027,10 @@ CommandObjectType::CommandObjectType(CommandInterpreter &interpreter)
                  CommandObjectSP(new CommandObjectTypeFormat(interpreter)));
   LoadSubCommand("summary",
                  CommandObjectSP(new CommandObjectTypeSummary(interpreter)));
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
   LoadSubCommand("synthetic",
                  CommandObjectSP(new CommandObjectTypeSynth(interpreter)));
-#endif // LLDB_DISABLE_PYTHON
+#endif
   LoadSubCommand("lookup",
                  CommandObjectSP(new CommandObjectTypeLookup(interpreter)));
 }

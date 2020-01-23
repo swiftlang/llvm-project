@@ -46,6 +46,9 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // handled somewhere else.
   Args.ClaimAllArgs(options::OPT_w);
 
+  CmdArgs.push_back("-z");
+  CmdArgs.push_back("now");
+
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
   if (llvm::sys::path::filename(Exec).equals_lower("ld.lld") ||
       llvm::sys::path::stem(Exec).equals_lower("ld.lld")) {
@@ -258,9 +261,9 @@ Fuchsia::GetCXXStdlibType(const ArgList &Args) const {
 void Fuchsia::addClangTargetOptions(const ArgList &DriverArgs,
                                     ArgStringList &CC1Args,
                                     Action::OffloadKind) const {
-  if (DriverArgs.hasFlag(options::OPT_fuse_init_array,
-                         options::OPT_fno_use_init_array, true))
-    CC1Args.push_back("-fuse-init-array");
+  if (!DriverArgs.hasFlag(options::OPT_fuse_init_array,
+                          options::OPT_fno_use_init_array, true))
+    CC1Args.push_back("-fno-use-init-array");
 }
 
 void Fuchsia::AddClangSystemIncludeArgs(const ArgList &DriverArgs,

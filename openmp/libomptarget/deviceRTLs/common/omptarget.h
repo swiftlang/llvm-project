@@ -17,7 +17,6 @@
 // std includes
 #include <inttypes.h>
 #include <math.h>
-#include <stdlib.h>
 
 // local includes
 #include "target_impl.h"
@@ -215,7 +214,7 @@ public:
     // If this is invoked by the master thread of the master warp then intialize
     // it with a smaller slot.
     if (IsMasterThread) {
-      // Do not initalize this slot again if it has already been initalized.
+      // Do not initialize this slot again if it has already been initalized.
       if (master_rootS[0].DataEnd == &master_rootS[0].Data[0] + DS_Slot_Size)
         return 0;
       // Initialize the pointer to the end of the slot given the size of the
@@ -227,7 +226,7 @@ public:
       master_rootS[0].PrevSlotStackPtr = 0;
       return (__kmpc_data_sharing_slot *)&master_rootS[0];
     }
-    // Do not initalize this slot again if it has already been initalized.
+    // Do not initialize this slot again if it has already been initalized.
     if (worker_rootS[wid].DataEnd ==
         &worker_rootS[wid].Data[0] + DS_Worker_Warp_Slot_Size)
       return 0;
@@ -302,7 +301,7 @@ public:
 private:
   // team context for this team
   omptarget_nvptx_TeamDescr teamContext;
-  // task ICV for implict threads in the only parallel region
+  // task ICV for implicit threads in the only parallel region
   omptarget_nvptx_TaskDescr levelOneTaskDescr[MAX_THREADS_PER_TEAM];
   // pointer where to find the current task ICV (top of the stack)
   omptarget_nvptx_TaskDescr *topTaskDescr[MAX_THREADS_PER_TEAM];

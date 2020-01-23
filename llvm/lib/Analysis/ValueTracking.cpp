@@ -90,7 +90,7 @@ static unsigned getBitWidth(Type *Ty, const DataLayout &DL) {
   if (unsigned BitWidth = Ty->getScalarSizeInBits())
     return BitWidth;
 
-  return DL.getIndexTypeSizeInBits(Ty);
+  return DL.getPointerTypeSizeInBits(Ty);
 }
 
 namespace {
@@ -566,15 +566,77 @@ bool llvm::isValidAssumeForContext(const Instruction *Inv,
   if (Inv == CxtI)
     return false;
 
-  // The context comes first, but they're both in the same block. Make sure
-  // there is nothing in between that might interrupt the control flow.
-  for (BasicBlock::const_iterator I =
-         std::next(BasicBlock::const_iterator(CxtI)), IE(Inv);
-       I != IE; ++I)
+  // The context comes first, but they're both in the same block.
+  // Make sure there is nothing in between that might interrupt
+  // the control flow, not even CxtI itself.
+  for (BasicBlock::const_iterator I(CxtI), IE(Inv); I != IE; ++I)
     if (!isGuaranteedToTransferExecutionToSuccessor(&*I))
       return false;
 
   return !isEphemeralValueOf(Inv, CxtI);
+}
+
+static bool isKnownNonZeroFromAssume(const Value *V, const Query &Q) {
+  // Use of assumptions is context-sensitive. If we don't have a context, we
+  // cannot use them!
+  if (!Q.AC || !Q.CxtI)
+    return false;
+
+  // Note that the patterns below need to be kept in sync with the code
+  // in AssumptionCache::updateAffectedValues.
+
+  auto CmpExcludesZero = [V](ICmpInst *Cmp) {
+    auto m_V = m_CombineOr(m_Specific(V), m_PtrToInt(m_Specific(V)));
+
+    Value *RHS;
+    CmpInst::Predicate Pred;
+    if (!match(Cmp, m_c_ICmp(Pred, m_V, m_Value(RHS))))
+      return false;
+    // assume(v u> y) -> assume(v != 0)
+    if (Pred == ICmpInst::ICMP_UGT)
+      return true;
+
+    // assume(v != 0)
+    // We special-case this one to ensure that we handle `assume(v != null)`.
+    if (Pred == ICmpInst::ICMP_NE)
+      return match(RHS, m_Zero());
+
+    // All other predicates - rely on generic ConstantRange handling.
+    ConstantInt *CI;
+    if (!match(RHS, m_ConstantInt(CI)))
+      return false;
+    ConstantRange RHSRange(CI->getValue());
+    ConstantRange TrueValues =
+        ConstantRange::makeAllowedICmpRegion(Pred, RHSRange);
+    return !TrueValues.contains(APInt::getNullValue(CI->getBitWidth()));
+  };
+
+  for (auto &AssumeVH : Q.AC->assumptionsFor(V)) {
+    if (!AssumeVH)
+      continue;
+    CallInst *I = cast<CallInst>(AssumeVH);
+    assert(I->getFunction() == Q.CxtI->getFunction() &&
+           "Got assumption for the wrong function!");
+    if (Q.isExcluded(I))
+      continue;
+
+    // Warning: This loop can end up being somewhat performance sensitive.
+    // We're running this loop for once for each value queried resulting in a
+    // runtime of ~O(#assumes * #values).
+
+    assert(I->getCalledFunction()->getIntrinsicID() == Intrinsic::assume &&
+           "must be an assume intrinsic");
+
+    Value *Arg = I->getArgOperand(0);
+    ICmpInst *Cmp = dyn_cast<ICmpInst>(Arg);
+    if (!Cmp)
+      continue;
+
+    if (CmpExcludesZero(Cmp) && isValidAssumeForContext(I, Q.CxtI, Q.DT))
+      return true;
+  }
+
+  return false;
 }
 
 static void computeKnownBitsFromAssume(const Value *V, KnownBits &Known,
@@ -1137,7 +1199,7 @@ static void computeKnownBitsFromOperator(const Operator *I, KnownBits &Known,
     // which fall through here.
     Type *ScalarTy = SrcTy->getScalarType();
     SrcBitWidth = ScalarTy->isPointerTy() ?
-      Q.DL.getIndexTypeSizeInBits(ScalarTy) :
+      Q.DL.getPointerTypeSizeInBits(ScalarTy) :
       Q.DL.getTypeSizeInBits(ScalarTy);
 
     assert(SrcBitWidth && "SrcBitWidth can't be zero");
@@ -1664,7 +1726,7 @@ void computeKnownBits(const Value *V, KnownBits &Known, unsigned Depth,
 
   Type *ScalarTy = V->getType()->getScalarType();
   unsigned ExpectedWidth = ScalarTy->isPointerTy() ?
-    Q.DL.getIndexTypeSizeInBits(ScalarTy) : Q.DL.getTypeSizeInBits(ScalarTy);
+    Q.DL.getPointerTypeSizeInBits(ScalarTy) : Q.DL.getTypeSizeInBits(ScalarTy);
   assert(ExpectedWidth == BitWidth && "V and Known should have same BitWidth");
   (void)BitWidth;
   (void)ExpectedWidth;
@@ -2080,6 +2142,9 @@ bool isKnownNonZero(const Value *V, unsigned Depth, const Query &Q) {
     }
   }
 
+  if (isKnownNonZeroFromAssume(V, Q))
+    return true;
+
   // Some of the tests below are recursive, so bail out if we hit the limit.
   if (Depth++ >= MaxDepth)
     return false;
@@ -2409,7 +2474,7 @@ static unsigned ComputeNumSignBitsImpl(const Value *V, unsigned Depth,
 
   Type *ScalarTy = V->getType()->getScalarType();
   unsigned TyBits = ScalarTy->isPointerTy() ?
-    Q.DL.getIndexTypeSizeInBits(ScalarTy) :
+    Q.DL.getPointerTypeSizeInBits(ScalarTy) :
     Q.DL.getTypeSizeInBits(ScalarTy);
 
   unsigned Tmp, Tmp2;

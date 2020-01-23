@@ -29,7 +29,10 @@ MCObjectStreamer::MCObjectStreamer(MCContext &Context,
     : MCStreamer(Context),
       Assembler(std::make_unique<MCAssembler>(
           Context, std::move(TAB), std::move(Emitter), std::move(OW))),
-      EmitEHFrame(true), EmitDebugFrame(false) {}
+      EmitEHFrame(true), EmitDebugFrame(false) {
+  if (Assembler->getBackendPtr())
+    setAllowAutoPadding(Assembler->getBackend().allowAutoPadding());
+}
 
 MCObjectStreamer::~MCObjectStreamer() {}
 
@@ -42,20 +45,64 @@ MCAssembler *MCObjectStreamer::getAssemblerPtr() {
   return nullptr;
 }
 
+void MCObjectStreamer::addPendingLabel(MCSymbol* S) {
+  MCSection *CurSection = getCurrentSectionOnly();
+  if (CurSection) {
+    // Register labels that have not yet been assigned to a Section.
+    if (!PendingLabels.empty()) {
+      for (MCSymbol* Sym : PendingLabels)
+        CurSection->addPendingLabel(Sym);
+      PendingLabels.clear();
+    }
+
+    // Add this label to the current Section / Subsection.
+    CurSection->addPendingLabel(S, CurSubsectionIdx);
+
+    // Add this Section to the list of PendingLabelSections.
+    auto SecIt = std::find(PendingLabelSections.begin(),
+                           PendingLabelSections.end(), CurSection);
+    if (SecIt == PendingLabelSections.end())
+      PendingLabelSections.push_back(CurSection);
+  }
+  else
+    // There is no Section / Subsection for this label yet.
+    PendingLabels.push_back(S);
+}
+
 void MCObjectStreamer::flushPendingLabels(MCFragment *F, uint64_t FOffset) {
-  if (PendingLabels.empty())
+  MCSection *CurSection = getCurrentSectionOnly();
+  if (!CurSection) {
+    assert(PendingLabels.empty());
     return;
-  if (!F) {
-    F = new MCDataFragment();
+  }
+  // Register labels that have not yet been assigned to a Section.
+  if (!PendingLabels.empty()) {
+    for (MCSymbol* Sym : PendingLabels)
+      CurSection->addPendingLabel(Sym, CurSubsectionIdx);
+    PendingLabels.clear();
+  }
+
+  // Associate a fragment with this label, either the supplied fragment
+  // or an empty data fragment.
+  if (F)
+    CurSection->flushPendingLabels(F, FOffset, CurSubsectionIdx);
+  else
+    CurSection->flushPendingLabels(nullptr, 0, CurSubsectionIdx);
+}
+
+void MCObjectStreamer::flushPendingLabels() {
+  // Register labels that have not yet been assigned to a Section.
+  if (!PendingLabels.empty()) {
     MCSection *CurSection = getCurrentSectionOnly();
-    CurSection->getFragmentList().insert(CurInsertionPoint, F);
-    F->setParent(CurSection);
+    assert(CurSection);
+    for (MCSymbol* Sym : PendingLabels)
+      CurSection->addPendingLabel(Sym, CurSubsectionIdx);
+    PendingLabels.clear();
   }
-  for (MCSymbol *Sym : PendingLabels) {
-    Sym->setFragment(F);
-    Sym->setOffset(FOffset);
-  }
-  PendingLabels.clear();
+
+  // Assign an empty data fragment to all remaining pending labels.
+  for (MCSection* Section : PendingLabelSections)
+    Section->flushPendingLabels();
 }
 
 // When fixup's offset is a forward declared label, e.g.:
@@ -120,6 +167,7 @@ void MCObjectStreamer::reset() {
   EmitEHFrame = true;
   EmitDebugFrame = false;
   PendingLabels.clear();
+  PendingLabelSections.clear();
   MCStreamer::reset();
 }
 
@@ -237,7 +285,7 @@ void MCObjectStreamer::EmitLabel(MCSymbol *Symbol, SMLoc Loc) {
     // fragment. (They will all be reassigned to a real fragment in
     // flushPendingLabels())
     Symbol->setOffset(0);
-    PendingLabels.push_back(Symbol);
+    addPendingLabel(Symbol);
   }
 }
 
@@ -257,7 +305,7 @@ void MCObjectStreamer::EmitLabelAtPos(MCSymbol *Symbol, SMLoc Loc,
     assert(isa<MCDummyFragment>(F) &&
            "F must either be an MCDataFragment or the pending MCDummyFragment");
     assert(Offset == 0);
-    PendingLabels.push_back(Symbol);
+    addPendingLabel(Symbol);
   }
 }
 
@@ -292,7 +340,6 @@ void MCObjectStreamer::ChangeSection(MCSection *Section,
 bool MCObjectStreamer::changeSectionImpl(MCSection *Section,
                                          const MCExpr *Subsection) {
   assert(Section && "Cannot switch to a null section!");
-  flushPendingLabels(nullptr);
   getContext().clearDwarfLocSeen();
 
   bool Created = getAssembler().registerSection(*Section);
@@ -303,8 +350,9 @@ bool MCObjectStreamer::changeSectionImpl(MCSection *Section,
     report_fatal_error("Cannot evaluate subsection number");
   if (IntSubsection < 0 || IntSubsection > 8192)
     report_fatal_error("Subsection number out of range");
+  CurSubsectionIdx = unsigned(IntSubsection);
   CurInsertionPoint =
-      Section->getSubsectionInsertionPoint(unsigned(IntSubsection));
+      Section->getSubsectionInsertionPoint(CurSubsectionIdx);
   return Created;
 }
 
@@ -319,6 +367,13 @@ bool MCObjectStreamer::mayHaveInstructions(MCSection &Sec) const {
 
 void MCObjectStreamer::EmitInstruction(const MCInst &Inst,
                                        const MCSubtargetInfo &STI) {
+  getAssembler().getBackend().alignBranchesBegin(*this, Inst);
+  EmitInstructionImpl(Inst, STI);
+  getAssembler().getBackend().alignBranchesEnd(*this, Inst);
+}
+
+void MCObjectStreamer::EmitInstructionImpl(const MCInst &Inst,
+                                           const MCSubtargetInfo &STI) {
   MCStreamer::EmitInstruction(Inst, STI);
 
   MCSection *Sec = getCurrentSectionOnly();
@@ -517,12 +572,6 @@ void MCObjectStreamer::EmitBytes(StringRef Data) {
   MCDataFragment *DF = getOrCreateDataFragment();
   flushPendingLabels(DF, DF->getContents().size());
   DF->getContents().append(Data.begin(), Data.end());
-
-  // EmitBytes might not cover all possible ways we emit data (or could be used
-  // to emit executable code in some cases), but is the best method we have
-  // right now for checking this.
-  MCSection *Sec = getCurrentSectionOnly();
-  Sec->setHasData(true);
 }
 
 void MCObjectStreamer::EmitValueToAlignment(unsigned ByteAlignment,
@@ -712,7 +761,9 @@ void MCObjectStreamer::FinishImpl() {
   // Dump out the dwarf file & directory tables and line tables.
   MCDwarfLineTable::Emit(this, getAssembler().getDWARFLinetableParams());
 
+  // Update any remaining pending labels with empty data fragments.
   flushPendingLabels();
+
   resolvePendingFixups();
   getAssembler().Finish();
 }

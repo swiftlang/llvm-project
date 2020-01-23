@@ -140,7 +140,7 @@ GeneratePCHAction::CreateOutputFile(CompilerInstance &CI, StringRef InFile,
   std::unique_ptr<raw_pwrite_stream> OS =
       CI.createOutputFile(CI.getFrontendOpts().OutputFile, /*Binary=*/true,
                           /*RemoveFileOnSignal=*/false, InFile,
-                          /*Extension=*/"", /*UseTemporary=*/true);
+                          /*Extension=*/"", CI.getFrontendOpts().UseTemporary);
   if (!OS)
     return nullptr;
 
@@ -425,6 +425,14 @@ private:
       return "ConstraintsCheck";
     case CodeSynthesisContext::ConstraintSubstitution:
       return "ConstraintSubstitution";
+    case CodeSynthesisContext::ConstraintNormalization:
+      return "ConstraintNormalization";
+    case CodeSynthesisContext::ParameterMappingSubstitution:
+      return "ParameterMappingSubstitution";
+    case CodeSynthesisContext::RequirementInstantiation:
+      return "RequirementInstantiation";
+    case CodeSynthesisContext::NestedRequirementConstraintsCheck:
+      return "NestedRequirementConstraintsCheck";
     }
     return "";
   }

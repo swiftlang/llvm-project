@@ -2051,6 +2051,9 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     return nullptr;
   }
 
+  if (Tok.is(tok::kw_requires))
+    ParseTrailingRequiresClause(D);
+
   // Save late-parsed attributes for now; they need to be parsed in the
   // appropriate function scope after the function Decl has been constructed.
   // These will be parsed in ParseFunctionDefinition or ParseLexedAttrList.
@@ -2202,6 +2205,12 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
 
     ParseDeclarator(D);
     if (!D.isInvalidType()) {
+      // C++2a [dcl.decl]p1
+      //    init-declarator:
+      //	      declarator initializer[opt]
+      //        declarator requires-clause
+      if (Tok.is(tok::kw_requires))
+        ParseTrailingRequiresClause(D);
       Decl *ThisDecl = ParseDeclarationAfterDeclarator(D);
       D.complete(ThisDecl);
       if (ThisDecl)
@@ -2234,7 +2243,7 @@ bool Parser::ParseAsmAttributesAfterDeclarator(Declarator &D) {
   // If a simple-asm-expr is present, parse it.
   if (Tok.is(tok::kw_asm)) {
     SourceLocation Loc;
-    ExprResult AsmLabel(ParseSimpleAsm(&Loc));
+    ExprResult AsmLabel(ParseSimpleAsm(/*ForAsmLabel*/ true, &Loc));
     if (AsmLabel.isInvalid()) {
       SkipUntil(tok::semi, StopBeforeMatch);
       return true;
@@ -3238,7 +3247,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
              DSContext == DeclSpecContext::DSC_class) &&
             TemplateId->Name &&
             Actions.isCurrentClassName(*TemplateId->Name, getCurScope(), &SS) &&
-            isConstructorDeclarator(/*Unqualified*/ false)) {
+            isConstructorDeclarator(/*Unqualified=*/false)) {
           // The user meant this to be an out-of-line constructor
           // definition, but template arguments are not allowed
           // there.  Just allow this as a constructor; we'll
@@ -3250,7 +3259,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         ConsumeAnnotationToken(); // The C++ scope.
         assert(Tok.is(tok::annot_template_id) &&
                "ParseOptionalCXXScopeSpecifier not working");
-        AnnotateTemplateIdTokenAsType();
+        AnnotateTemplateIdTokenAsType(SS);
         continue;
       }
 
@@ -3509,12 +3518,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       // constructor declaration.
       if (getLangOpts().CPlusPlus && DSContext == DeclSpecContext::DSC_class &&
           Actions.isCurrentClassName(*TemplateId->Name, getCurScope()) &&
-          isConstructorDeclarator(TemplateId->SS.isEmpty()))
+          isConstructorDeclarator(/*Unqualified=*/true))
         goto DoneWithDeclSpec;
 
       // Turn the template-id annotation token into a type annotation
       // token, then try again to parse it as a type-specifier.
-      AnnotateTemplateIdTokenAsType();
+      CXXScopeSpec SS;
+      AnnotateTemplateIdTokenAsType(SS);
       continue;
     }
 
@@ -3683,7 +3693,11 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       ConsumedEnd = ExplicitLoc;
       ConsumeToken(); // kw_explicit
       if (Tok.is(tok::l_paren)) {
-        if (getLangOpts().CPlusPlus2a) {
+        if (getLangOpts().CPlusPlus2a || isExplicitBool() == TPResult::True) {
+          Diag(Tok.getLocation(), getLangOpts().CPlusPlus2a
+                                      ? diag::warn_cxx17_compat_explicit_bool
+                                      : diag::ext_explicit_bool);
+
           ExprResult ExplicitExpr(static_cast<Expr *>(nullptr));
           BalancedDelimiterTracker Tracker(*this, tok::l_paren);
           Tracker.consumeOpen();
@@ -3696,8 +3710,9 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                 Actions.ActOnExplicitBoolSpecifier(ExplicitExpr.get());
           } else
             Tracker.skipToEnd();
-        } else
+        } else {
           Diag(Tok.getLocation(), diag::warn_cxx2a_compat_explicit_bool);
+        }
       }
       isInvalid = DS.setFunctionSpecExplicit(ExplicitLoc, PrevSpec, DiagID,
                                              ExplicitSpec, CloseParenLoc);
@@ -5188,6 +5203,13 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
     return !DisambiguatingWithExpression ||
            !isStartOfObjCClassMessageMissingOpenBracket();
 
+    // placeholder-type-specifier
+  case tok::annot_template_id: {
+    TemplateIdAnnotation *TemplateId = takeTemplateIdAnnotation(Tok);
+    return TemplateId->Kind == TNK_Concept_template &&
+        (NextToken().is(tok::kw_auto) || NextToken().is(tok::kw_decltype));
+  }
+
   case tok::kw___declspec:
   case tok::kw___cdecl:
   case tok::kw___stdcall:
@@ -6115,6 +6137,22 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       PrototypeScope.Exit();
     } else if (Tok.is(tok::l_square)) {
       ParseBracketDeclarator(D);
+    } else if (Tok.is(tok::kw_requires) && D.hasGroupingParens()) {
+      // This declarator is declaring a function, but the requires clause is
+      // in the wrong place:
+      //   void (f() requires true);
+      // instead of
+      //   void f() requires true;
+      // or
+      //   void (f()) requires true;
+      Diag(Tok, diag::err_requires_clause_inside_parens);
+      ConsumeToken();
+      ExprResult TrailingRequiresClause = Actions.CorrectDelayedTyposInExpr(
+         ParseConstraintLogicalOrExpression(/*IsTrailingRequiresClause=*/true));
+      if (TrailingRequiresClause.isUsable() && D.isFunctionDeclarator() &&
+          !D.hasTrailingRequiresClause())
+        // We're already ill-formed if we got here but we'll accept it anyway.
+        D.setTrailingRequiresClause(TrailingRequiresClause.get());
     } else {
       break;
     }
@@ -6295,6 +6333,47 @@ void Parser::ParseParenDeclarator(Declarator &D) {
   PrototypeScope.Exit();
 }
 
+void Parser::InitCXXThisScopeForDeclaratorIfRelevant(
+    const Declarator &D, const DeclSpec &DS,
+    llvm::Optional<Sema::CXXThisScopeRAII> &ThisScope) {
+  // C++11 [expr.prim.general]p3:
+  //   If a declaration declares a member function or member function
+  //   template of a class X, the expression this is a prvalue of type
+  //   "pointer to cv-qualifier-seq X" between the optional cv-qualifer-seq
+  //   and the end of the function-definition, member-declarator, or
+  //   declarator.
+  // FIXME: currently, "static" case isn't handled correctly.
+  bool IsCXX11MemberFunction = getLangOpts().CPlusPlus11 &&
+        D.getDeclSpec().getStorageClassSpec() != DeclSpec::SCS_typedef &&
+        (D.getContext() == DeclaratorContext::MemberContext
+         ? !D.getDeclSpec().isFriendSpecified()
+         : D.getContext() == DeclaratorContext::FileContext &&
+           D.getCXXScopeSpec().isValid() &&
+           Actions.CurContext->isRecord());
+  if (!IsCXX11MemberFunction)
+    return;
+
+  Qualifiers Q = Qualifiers::fromCVRUMask(DS.getTypeQualifiers());
+  if (D.getDeclSpec().hasConstexprSpecifier() && !getLangOpts().CPlusPlus14)
+    Q.addConst();
+  // FIXME: Collect C++ address spaces.
+  // If there are multiple different address spaces, the source is invalid.
+  // Carry on using the first addr space for the qualifiers of 'this'.
+  // The diagnostic will be given later while creating the function
+  // prototype for the method.
+  if (getLangOpts().OpenCLCPlusPlus) {
+    for (ParsedAttr &attr : DS.getAttributes()) {
+      LangAS ASIdx = attr.asOpenCLLangAS();
+      if (ASIdx != LangAS::Default) {
+        Q.addAddressSpace(ASIdx);
+        break;
+      }
+    }
+  }
+  ThisScope.emplace(Actions, dyn_cast<CXXRecordDecl>(Actions.CurContext), Q,
+                    IsCXX11MemberFunction);
+}
+
 /// ParseFunctionDeclarator - We are after the identifier and have parsed the
 /// declarator D up to a paren, which indicates that we are parsing function
 /// arguments.
@@ -6308,7 +6387,8 @@ void Parser::ParseParenDeclarator(Declarator &D) {
 ///
 /// For C++, after the parameter-list, it also parses the cv-qualifier-seq[opt],
 /// (C++11) ref-qualifier[opt], exception-specification[opt],
-/// (C++11) attribute-specifier-seq[opt], and (C++11) trailing-return-type[opt].
+/// (C++11) attribute-specifier-seq[opt], (C++11) trailing-return-type[opt] and
+/// (C++2a) the trailing requires-clause.
 ///
 /// [C++11] exception-specification:
 ///           dynamic-exception-specification
@@ -6369,7 +6449,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     ProhibitAttributes(FnAttrs);
   } else {
     if (Tok.isNot(tok::r_paren))
-      ParseParameterDeclarationClause(D, FirstArgAttrs, ParamInfo,
+      ParseParameterDeclarationClause(D.getContext(), FirstArgAttrs, ParamInfo,
                                       EllipsisLoc);
     else if (RequiresArg)
       Diag(Tok, diag::err_argument_required_after_attribute);
@@ -6403,43 +6483,8 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
       if (ParseRefQualifier(RefQualifierIsLValueRef, RefQualifierLoc))
         EndLoc = RefQualifierLoc;
 
-      // C++11 [expr.prim.general]p3:
-      //   If a declaration declares a member function or member function
-      //   template of a class X, the expression this is a prvalue of type
-      //   "pointer to cv-qualifier-seq X" between the optional cv-qualifer-seq
-      //   and the end of the function-definition, member-declarator, or
-      //   declarator.
-      // FIXME: currently, "static" case isn't handled correctly.
-      bool IsCXX11MemberFunction =
-        getLangOpts().CPlusPlus11 &&
-        D.getDeclSpec().getStorageClassSpec() != DeclSpec::SCS_typedef &&
-        (D.getContext() == DeclaratorContext::MemberContext
-         ? !D.getDeclSpec().isFriendSpecified()
-         : D.getContext() == DeclaratorContext::FileContext &&
-           D.getCXXScopeSpec().isValid() &&
-           Actions.CurContext->isRecord());
-
-      Qualifiers Q = Qualifiers::fromCVRUMask(DS.getTypeQualifiers());
-      if (D.getDeclSpec().hasConstexprSpecifier() && !getLangOpts().CPlusPlus14)
-        Q.addConst();
-      // FIXME: Collect C++ address spaces.
-      // If there are multiple different address spaces, the source is invalid.
-      // Carry on using the first addr space for the qualifiers of 'this'.
-      // The diagnostic will be given later while creating the function
-      // prototype for the method.
-      if (getLangOpts().OpenCLCPlusPlus) {
-        for (ParsedAttr &attr : DS.getAttributes()) {
-          LangAS ASIdx = attr.asOpenCLLangAS();
-          if (ASIdx != LangAS::Default) {
-            Q.addAddressSpace(ASIdx);
-            break;
-          }
-        }
-      }
-
-      Sema::CXXThisScopeRAII ThisScope(
-          Actions, dyn_cast<CXXRecordDecl>(Actions.CurContext), Q,
-          IsCXX11MemberFunction);
+      llvm::Optional<Sema::CXXThisScopeRAII> ThisScope;
+      InitCXXThisScopeForDeclaratorIfRelevant(D, DS, ThisScope);
 
       // Parse exception-specification[opt].
       bool Delayed = D.isFirstDeclarationOfMember() &&
@@ -6622,9 +6667,9 @@ void Parser::ParseFunctionDeclaratorIdentifierList(
 /// after the opening parenthesis. This function will not parse a K&R-style
 /// identifier list.
 ///
-/// D is the declarator being parsed.  If FirstArgAttrs is non-null, then the
-/// caller parsed those arguments immediately after the open paren - they should
-/// be considered to be part of the first parameter.
+/// DeclContext is the context of the declarator being parsed.  If FirstArgAttrs
+/// is non-null, then the caller parsed those attributes immediately after the
+/// open paren - they should be considered to be part of the first parameter.
 ///
 /// After returning, ParamInfo will hold the parsed parameters. EllipsisLoc will
 /// be the location of the ellipsis, if any was parsed.
@@ -6650,7 +6695,7 @@ void Parser::ParseFunctionDeclaratorIdentifierList(
 /// [C++11] attribute-specifier-seq parameter-declaration
 ///
 void Parser::ParseParameterDeclarationClause(
-       Declarator &D,
+       DeclaratorContext DeclaratorCtx,
        ParsedAttributes &FirstArgAttrs,
        SmallVectorImpl<DeclaratorChunk::ParamInfo> &ParamInfo,
        SourceLocation &EllipsisLoc) {
@@ -6699,13 +6744,26 @@ void Parser::ParseParameterDeclarationClause(
     // "LambdaExprParameterContext", because we must accept either
     // 'declarator' or 'abstract-declarator' here.
     Declarator ParmDeclarator(
-        DS, D.getContext() == DeclaratorContext::LambdaExprContext
-                ? DeclaratorContext::LambdaExprParameterContext
-                : DeclaratorContext::PrototypeContext);
+        DS, DeclaratorCtx == DeclaratorContext::RequiresExprContext
+                ? DeclaratorContext::RequiresExprContext
+                : DeclaratorCtx == DeclaratorContext::LambdaExprContext
+                      ? DeclaratorContext::LambdaExprParameterContext
+                      : DeclaratorContext::PrototypeContext);
     ParseDeclarator(ParmDeclarator);
 
     // Parse GNU attributes, if present.
     MaybeParseGNUAttributes(ParmDeclarator);
+
+    if (Tok.is(tok::kw_requires)) {
+      // User tried to define a requires clause in a parameter declaration,
+      // which is surely not a function declaration.
+      // void f(int (*g)(int, int) requires true);
+      Diag(Tok,
+           diag::err_requires_clause_on_declarator_not_declaring_a_function);
+      ConsumeToken();
+      Actions.CorrectDelayedTyposInExpr(
+         ParseConstraintLogicalOrExpression(/*IsTrailingRequiresClause=*/true));
+    }
 
     // Remember this parsed parameter in ParamInfo.
     IdentifierInfo *ParmII = ParmDeclarator.getIdentifier();
@@ -6744,7 +6802,7 @@ void Parser::ParseParameterDeclarationClause(
         SourceLocation EqualLoc = Tok.getLocation();
 
         // Parse the default argument
-        if (D.getContext() == DeclaratorContext::MemberContext) {
+        if (DeclaratorCtx == DeclaratorContext::MemberContext) {
           // If we're inside a class definition, cache the tokens
           // corresponding to the default argument. We'll actually parse
           // them when we see the end of the class definition.

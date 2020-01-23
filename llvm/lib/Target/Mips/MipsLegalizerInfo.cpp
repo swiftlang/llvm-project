@@ -185,6 +185,23 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
   getActionDefinitionsBuilder(G_VASTART)
      .legalFor({p0});
 
+  getActionDefinitionsBuilder(G_BSWAP)
+      .legalIf([=, &ST](const LegalityQuery &Query) {
+        if (ST.hasMips32r2() && CheckTyN(0, Query, {s32}))
+          return true;
+        return false;
+      })
+      .lowerIf([=, &ST](const LegalityQuery &Query) {
+        if (!ST.hasMips32r2() && CheckTyN(0, Query, {s32}))
+          return true;
+        return false;
+      })
+      .maxScalar(0, s32);
+
+  getActionDefinitionsBuilder(G_BITREVERSE)
+      .lowerFor({s32})
+      .maxScalar(0, s32);
+
   // FP instructions
   getActionDefinitionsBuilder(G_FCONSTANT)
       .legalFor({s32, s64});
@@ -324,9 +341,9 @@ static bool MSA3OpIntrinsicToGeneric(MachineInstr &MI, unsigned Opcode,
   return true;
 }
 
-bool MSA2OpIntrinsicToGeneric(MachineInstr &MI, unsigned Opcode,
-                              MachineIRBuilder &MIRBuilder,
-                              const MipsSubtarget &ST) {
+static bool MSA2OpIntrinsicToGeneric(MachineInstr &MI, unsigned Opcode,
+                                     MachineIRBuilder &MIRBuilder,
+                                     const MipsSubtarget &ST) {
   assert(ST.hasMSA() && "MSA intrinsic not supported on target without MSA.");
   MIRBuilder.buildInstr(Opcode)
       .add(MI.getOperand(0))

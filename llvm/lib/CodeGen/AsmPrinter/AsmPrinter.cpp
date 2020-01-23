@@ -716,16 +716,6 @@ void AsmPrinter::EmitFunctionHeader() {
   // their wild and crazy things as required.
   EmitFunctionEntryLabel();
 
-  // If the function had address-taken blocks that got deleted, then we have
-  // references to the dangling symbols.  Emit them at the start of the function
-  // so that we don't get references to undefined symbols.
-  std::vector<MCSymbol*> DeadBlockSyms;
-  MMI->takeDeletedSymbolsForFunction(&F, DeadBlockSyms);
-  for (unsigned i = 0, e = DeadBlockSyms.size(); i != e; ++i) {
-    OutStreamer->AddComment("Address taken block that was later removed");
-    OutStreamer->EmitLabel(DeadBlockSyms[i]);
-  }
-
   if (CurrentFnBegin) {
     if (MAI->useAssignmentForEHBegin()) {
       MCSymbol *CurPos = OutContext.createTempSymbol();
@@ -880,6 +870,10 @@ static bool emitDebugValueComment(const MachineInstr *MI, AsmPrinter &AP) {
     OS << MI->getOperand(0).getImm();
   } else if (MI->getOperand(0).isCImm()) {
     MI->getOperand(0).getCImm()->getValue().print(OS, false /*isSigned*/);
+  } else if (MI->getOperand(0).isTargetIndex()) {
+    auto Op = MI->getOperand(0);
+    OS << "!target-index(" << Op.getIndex() << "," << Op.getOffset() << ")";
+    return true;
   } else {
     unsigned Reg;
     if (MI->getOperand(0).isReg()) {
@@ -1218,6 +1212,8 @@ void AsmPrinter::EmitFunctionBody() {
 
   // Emit section containing stack size metadata.
   emitStackSizeSection(*MF);
+
+  emitPatchableFunctionEntries();
 
   if (isVerbose())
     OutStreamer->GetCommentOS() << "-- End function\n";
@@ -1657,6 +1653,7 @@ MCSymbol *AsmPrinter::getCurExceptionSym() {
 
 void AsmPrinter::SetupMachineFunction(MachineFunction &MF) {
   this->MF = &MF;
+  const Function &F = MF.getFunction();
 
   // Get the function symbol.
   if (MAI->needsFunctionDescriptors()) {
@@ -1669,7 +1666,6 @@ void AsmPrinter::SetupMachineFunction(MachineFunction &MF) {
     CurrentFnSym =
         OutContext.getOrCreateSymbol("." + CurrentFnDescSym->getName());
 
-    const Function &F = MF.getFunction();
     MCSectionXCOFF *FnEntryPointSec =
         cast<MCSectionXCOFF>(getObjFileLowering().SectionForGlobal(&F, TM));
     // Set the containing csect.
@@ -1682,7 +1678,8 @@ void AsmPrinter::SetupMachineFunction(MachineFunction &MF) {
   CurrentFnBegin = nullptr;
   CurExceptionSym = nullptr;
   bool NeedsLocalForSize = MAI->needsLocalForSize();
-  if (needFuncLabelsForEHOrDebugInfo(MF, MMI) || NeedsLocalForSize ||
+  if (F.hasFnAttribute("patchable-function-entry") ||
+      needFuncLabelsForEHOrDebugInfo(MF, MMI) || NeedsLocalForSize ||
       MF.getTarget().Options.EmitStackSizeSection) {
     CurrentFnBegin = createTempSymbol("func_begin");
     if (NeedsLocalForSize)
@@ -3289,6 +3286,45 @@ void AsmPrinter::recordSled(MCSymbol *Sled, const MachineInstr &MI,
     Kind = SledKind::LOG_ARGS_ENTER;
   Sleds.emplace_back(XRayFunctionEntry{Sled, CurrentFnSym, Kind,
                                        AlwaysInstrument, &F, Version});
+}
+
+void AsmPrinter::emitPatchableFunctionEntries() {
+  const Function &F = MF->getFunction();
+  unsigned PatchableFunctionEntry = 0;
+  (void)F.getFnAttribute("patchable-function-entry")
+      .getValueAsString()
+      .getAsInteger(10, PatchableFunctionEntry);
+  if (!PatchableFunctionEntry)
+    return;
+  const unsigned PointerSize = getPointerSize();
+  if (TM.getTargetTriple().isOSBinFormatELF()) {
+    auto Flags = ELF::SHF_WRITE | ELF::SHF_ALLOC;
+
+    // As of binutils 2.33, GNU as does not support section flag "o" or linkage
+    // field "unique". Use SHF_LINK_ORDER if we are using the integrated
+    // assembler.
+    if (MAI->useIntegratedAssembler()) {
+      Flags |= ELF::SHF_LINK_ORDER;
+      std::string GroupName;
+      if (F.hasComdat()) {
+        Flags |= ELF::SHF_GROUP;
+        GroupName = F.getComdat()->getName();
+      }
+      MCSection *Section = getObjFileLowering().SectionForGlobal(&F, TM);
+      unsigned UniqueID =
+          PatchableFunctionEntryID
+              .try_emplace(Section, PatchableFunctionEntryID.size())
+              .first->second;
+      OutStreamer->SwitchSection(OutContext.getELFSection(
+          "__patchable_function_entries", ELF::SHT_PROGBITS, Flags, 0,
+          GroupName, UniqueID, cast<MCSymbolELF>(CurrentFnSym)));
+    } else {
+      OutStreamer->SwitchSection(OutContext.getELFSection(
+          "__patchable_function_entries", ELF::SHT_PROGBITS, Flags));
+    }
+    EmitAlignment(Align(PointerSize));
+    OutStreamer->EmitSymbolValue(CurrentFnBegin, PointerSize);
+  }
 }
 
 uint16_t AsmPrinter::getDwarfVersion() const {

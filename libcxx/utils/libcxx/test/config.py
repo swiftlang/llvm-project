@@ -194,7 +194,7 @@ class Configuration(object):
                 # ValgrindExecutor is supposed to go. It is likely
                 # that the user wants it at the end, but we have no
                 # way of getting at that easily.
-                selt.lit_config.fatal("Cannot infer how to create a Valgrind "
+                self.lit_config.fatal("Cannot infer how to create a Valgrind "
                                       " executor.")
         else:
             te = LocalExecutor()
@@ -202,6 +202,7 @@ class Configuration(object):
                 te = ValgrindExecutor(self.lit_config.valgrindArgs, te)
 
         te.target_info = self.target_info
+        self.target_info.executor = te
 
         self.executor = te
 
@@ -917,8 +918,6 @@ class Configuration(object):
         self.cxx.addWarningFlagIfSupported('-Wshadow')
         self.cxx.addWarningFlagIfSupported('-Wno-unused-command-line-argument')
         self.cxx.addWarningFlagIfSupported('-Wno-attributes')
-        self.cxx.addWarningFlagIfSupported('-Wno-deprecated-copy')
-        self.cxx.addWarningFlagIfSupported('-Wno-constant-evaluated')
         self.cxx.addWarningFlagIfSupported('-Wno-pessimizing-move')
         self.cxx.addWarningFlagIfSupported('-Wno-c++11-extensions')
         self.cxx.addWarningFlagIfSupported('-Wno-user-defined-literals')

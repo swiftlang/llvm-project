@@ -69,15 +69,15 @@ class ARMTTIImpl : public BasicTTIImplBase<ARMTTIImpl> {
       ARM::FeatureDontWidenVMOVS, ARM::FeatureExpandMLx,
       ARM::FeatureHasVMLxHazards, ARM::FeatureNEONForFPMovs,
       ARM::FeatureNEONForFP, ARM::FeatureCheckVLDnAlign,
-      ARM::FeatureHasSlowFPVMLx, ARM::FeatureVMLxForwarding,
-      ARM::FeaturePref32BitThumb, ARM::FeatureAvoidPartialCPSR,
-      ARM::FeatureCheapPredicableCPSR, ARM::FeatureAvoidMOVsShOp,
-      ARM::FeatureHasRetAddrStack, ARM::FeatureHasNoBranchPredictor,
-      ARM::FeatureDSP, ARM::FeatureMP, ARM::FeatureVirtualization,
-      ARM::FeatureMClass, ARM::FeatureRClass, ARM::FeatureAClass,
-      ARM::FeatureNaClTrap, ARM::FeatureStrictAlign, ARM::FeatureLongCalls,
-      ARM::FeatureExecuteOnly, ARM::FeatureReserveR9, ARM::FeatureNoMovt,
-      ARM::FeatureNoNegativeImmediates
+      ARM::FeatureHasSlowFPVMLx, ARM::FeatureHasSlowFPVFMx,
+      ARM::FeatureVMLxForwarding, ARM::FeaturePref32BitThumb,
+      ARM::FeatureAvoidPartialCPSR, ARM::FeatureCheapPredicableCPSR,
+      ARM::FeatureAvoidMOVsShOp, ARM::FeatureHasRetAddrStack,
+      ARM::FeatureHasNoBranchPredictor, ARM::FeatureDSP, ARM::FeatureMP,
+      ARM::FeatureVirtualization, ARM::FeatureMClass, ARM::FeatureRClass,
+      ARM::FeatureAClass, ARM::FeatureNaClTrap, ARM::FeatureStrictAlign,
+      ARM::FeatureLongCalls, ARM::FeatureExecuteOnly, ARM::FeatureReserveR9,
+      ARM::FeatureNoMovt, ARM::FeatureNoNegativeImmediates
   };
 
   const ARMSubtarget *getST() const { return ST; }
@@ -93,11 +93,8 @@ public:
 
   bool enableInterleavedAccessVectorization() { return true; }
 
-  bool shouldFavorBackedgeIndex(const Loop *L) const {
-    if (L->getHeader()->getParent()->hasOptSize())
-      return false;
-    return ST->isMClass() && ST->isThumb2() && L->getNumBlocks() == 1;
-  }
+  bool shouldFavorBackedgeIndex(const Loop *L) const;
+  bool shouldFavorPostInc() const;
 
   /// Floating-point computation using ARMv8 AArch32 Advanced
   /// SIMD instructions remains unchanged from ARMv7. Only AArch64 SIMD
@@ -159,6 +156,12 @@ public:
     return isLegalMaskedLoad(DataTy, Alignment);
   }
 
+  bool isLegalMaskedGather(Type *Ty, MaybeAlign Alignment);
+
+  bool isLegalMaskedScatter(Type *Ty, MaybeAlign Alignment) {
+    return isLegalMaskedGather(Ty, Alignment);
+  }
+
   int getMemcpyCost(const Instruction *I);
 
   int getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index, Type *SubTp);
@@ -198,6 +201,9 @@ public:
                                  unsigned AddressSpace,
                                  bool UseMaskForCond = false,
                                  bool UseMaskForGaps = false);
+
+  unsigned getGatherScatterOpCost(unsigned Opcode, Type *DataTy, Value *Ptr,
+                                  bool VariableMask, unsigned Alignment);
 
   bool isLoweredToCall(const Function *F);
   bool isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,

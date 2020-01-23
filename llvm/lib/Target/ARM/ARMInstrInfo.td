@@ -243,6 +243,12 @@ def ARMqsub8b       : SDNode<"ARMISD::QSUB8b", SDT_ARMAnd, []>;
 def ARMqadd16b      : SDNode<"ARMISD::QADD16b", SDT_ARMAnd, []>;
 def ARMqsub16b      : SDNode<"ARMISD::QSUB16b", SDT_ARMAnd, []>;
 
+def SDT_ARMldrd     : SDTypeProfile<2, 1, [SDTCisVT<0, i32>, SDTCisSameAs<0, 1>, SDTCisPtrTy<2>]>;
+def ARMldrd         : SDNode<"ARMISD::LDRD", SDT_ARMldrd, [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
+
+def SDT_ARMstrd     : SDTypeProfile<0, 3, [SDTCisVT<0, i32>, SDTCisSameAs<0, 1>, SDTCisPtrTy<2>]>;
+def ARMstrd         : SDNode<"ARMISD::STRD", SDT_ARMstrd, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+
 // Vector operations shared between NEON and MVE
 
 def ARMvdup      : SDNode<"ARMISD::VDUP", SDTypeProfile<1, 1, [SDTCisVec<0>]>>;
@@ -268,6 +274,10 @@ def ARMvmovImm   : SDNode<"ARMISD::VMOVIMM", SDTARMVMOVIMM>;
 def ARMvmvnImm   : SDNode<"ARMISD::VMVNIMM", SDTARMVMOVIMM>;
 def ARMvmovFPImm : SDNode<"ARMISD::VMOVFPIMM", SDTARMVMOVIMM>;
 
+def SDTARMVORRIMM : SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisSameAs<0, 1>,
+                                           SDTCisVT<2, i32>]>;
+def ARMvorrImm   : SDNode<"ARMISD::VORRIMM", SDTARMVORRIMM>;
+def ARMvbicImm   : SDNode<"ARMISD::VBICIMM", SDTARMVORRIMM>;
 
 def SDTARMVSHIMM : SDTypeProfile<1, 2, [SDTCisInt<0>, SDTCisSameAs<0, 1>,
                                         SDTCisVT<2, i32>]>;
@@ -935,7 +945,10 @@ def MVEShiftImm1_7AsmOperand: ImmAsmOperand<1,7> {
   // encodings allow.
   let DiagnosticString = "operand must be an immediate in the range [1,8]";
 }
-def mve_shift_imm1_7 : Operand<i32> {
+def mve_shift_imm1_7 : Operand<i32>,
+    // SelectImmediateInRange / isScaledConstantInRange uses a
+    // half-open interval, so the parameters <1,8> mean 1-7 inclusive
+    ComplexPattern<i32, 1, "SelectImmediateInRange<1,8>", [], []> {
   let ParserMatchClass = MVEShiftImm1_7AsmOperand;
   let EncoderMethod = "getMVEShiftImmOpValue";
 }
@@ -948,7 +961,10 @@ def MVEShiftImm1_15AsmOperand: ImmAsmOperand<1,15> {
   // encodings allow.
   let DiagnosticString = "operand must be an immediate in the range [1,16]";
 }
-def mve_shift_imm1_15 : Operand<i32> {
+def mve_shift_imm1_15 : Operand<i32>,
+    // SelectImmediateInRange / isScaledConstantInRange uses a
+    // half-open interval, so the parameters <1,16> mean 1-15 inclusive
+    ComplexPattern<i32, 1, "SelectImmediateInRange<1,16>", [], []> {
   let ParserMatchClass = MVEShiftImm1_15AsmOperand;
   let EncoderMethod = "getMVEShiftImmOpValue";
 }
@@ -2689,6 +2705,14 @@ let mayLoad = 1, hasSideEffects = 0, hasExtraDefRegAllocReq = 1 in {
              Requires<[IsARM, HasV5TE]>;
 }
 
+let mayLoad = 1, hasSideEffects = 0, hasNoSchedulingInfo = 1 in {
+def LOADDUAL : ARMPseudoInst<(outs GPRPairOp:$Rt), (ins addrmode3:$addr),
+                             64, IIC_iLoad_d_r, []>,
+               Requires<[IsARM, HasV5TE]> {
+  let AM = AddrMode3;
+}
+}
+
 def LDA : AIldracq<0b00, (outs GPR:$Rt), (ins addr_offset_none:$addr),
                     NoItinerary, "lda", "\t$Rt, $addr", []>;
 def LDAB : AIldracq<0b10, (outs GPR:$Rt), (ins addr_offset_none:$addr),
@@ -2962,6 +2986,19 @@ let mayStore = 1, hasSideEffects = 0, hasExtraSrcRegAllocReq = 1 in {
              Requires<[IsARM, HasV5TE]> {
     let Inst{21} = 0;
   }
+}
+
+let mayStore = 1, hasSideEffects = 0, hasNoSchedulingInfo = 1 in {
+def STOREDUAL : ARMPseudoInst<(outs), (ins GPRPairOp:$Rt, addrmode3:$addr),
+                              64, IIC_iStore_d_r, []>,
+                Requires<[IsARM, HasV5TE]> {
+  let AM = AddrMode3;
+}
+}
+
+let Predicates = [IsARM, HasV5TE] in {
+def : Pat<(ARMstrd GPR:$Rt, GPR:$Rt2, addrmode3:$addr),
+          (STOREDUAL (REG_SEQUENCE GPRPair, GPR:$Rt, gsub_0, GPR:$Rt2, gsub_1), addrmode3:$addr)>;
 }
 
 // Indexed stores
@@ -6236,7 +6273,7 @@ def CMP_SWAP_64 : PseudoInst<(outs GPRPair:$Rd, GPR:$temp),
 }
 
 def CompilerBarrier : PseudoInst<(outs), (ins i32imm:$ordering), NoItinerary,
-                                 [(atomic_fence imm:$ordering, 0)]> {
+                                 [(atomic_fence timm:$ordering, 0)]> {
   let hasSideEffects = 1;
   let Size = 0;
   let AsmString = "@ COMPILER BARRIER";

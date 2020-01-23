@@ -124,10 +124,7 @@ void ArchiveFile::addMember(const Archive::Symbol &sym) {
 std::vector<MemoryBufferRef> getArchiveMembers(Archive *file) {
   std::vector<MemoryBufferRef> v;
   Error err = Error::success();
-  for (const ErrorOr<Archive::Child> &cOrErr : file->children(err)) {
-    Archive::Child c =
-        CHECK(cOrErr,
-              file->getFileName() + ": could not get the child of the archive");
+  for (const Archive::Child &c : file->children(err)) {
     MemoryBufferRef mbref =
         CHECK(c.getMemoryBufferRef(),
               file->getFileName() +
@@ -501,6 +498,17 @@ void ObjFile::handleComdatSelection(COFFSymbolRef sym, COMDATType &selection,
     // "largest" when building with /GR. To be able to link object files
     // compiled with each flag, "any" and "largest" are merged as "largest".
     leaderSelection = selection = IMAGE_COMDAT_SELECT_LARGEST;
+  }
+
+  // GCCs __declspec(selectany) doesn't actually pick "any" but "same size as".
+  // Clang on the other hand picks "any". To be able to link two object files
+  // with a __declspec(selectany) declaration, one compiled with gcc and the
+  // other with clang, we merge them as proper "same size as"
+  if (config->mingw && ((selection == IMAGE_COMDAT_SELECT_ANY &&
+                         leaderSelection == IMAGE_COMDAT_SELECT_SAME_SIZE) ||
+                        (selection == IMAGE_COMDAT_SELECT_SAME_SIZE &&
+                         leaderSelection == IMAGE_COMDAT_SELECT_ANY))) {
+    leaderSelection = selection = IMAGE_COMDAT_SELECT_SAME_SIZE;
   }
 
   // Other than that, comdat selections must match.  This is a bit more

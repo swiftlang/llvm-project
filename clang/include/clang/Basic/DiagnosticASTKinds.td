@@ -70,6 +70,8 @@ def note_constexpr_pointer_subtraction_not_same_array : Note<
   "subtracted pointers are not elements of the same array">;
 def note_constexpr_pointer_subtraction_zero_size : Note<
   "subtraction of pointers to type %0 of zero size">;
+def note_constexpr_pointer_comparison_unspecified : Note<
+  "comparison has unspecified value">;
 def note_constexpr_pointer_comparison_base_classes : Note<
   "comparison of addresses of subobjects of different base classes "
   "has unspecified value">;
@@ -216,6 +218,14 @@ def note_constexpr_baa_insufficient_alignment : Note<
 def note_constexpr_baa_value_insufficient_alignment : Note<
   "value of the aligned pointer (%0) is not a multiple of the asserted %1 "
   "%plural{1:byte|:bytes}1">;
+def note_constexpr_invalid_alignment : Note<
+  "requested alignment %0 is not a positive power of two">;
+def note_constexpr_alignment_too_big : Note<
+  "requested alignment must be %0 or less for type %1; %2 is invalid">;
+def note_constexpr_alignment_compute : Note<
+  "cannot constant evaluate whether run-time alignment is at least %0">;
+def note_constexpr_alignment_adjust : Note<
+  "cannot constant evaluate the result of adjusting alignment to %0">;
 def note_constexpr_destroy_out_of_lifetime : Note<
   "destroying object '%0' whose lifetime has already ended">;
 def note_constexpr_unsupported_destruction : Note<

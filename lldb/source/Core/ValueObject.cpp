@@ -25,7 +25,7 @@
 #include "lldb/DataFormatters/ValueObjectPrinter.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Host/Config.h"
-#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/TypeSystemClang.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/Declaration.h"
@@ -303,7 +303,7 @@ bool ValueObject::UpdateFormatsIfNeeded() {
     SetValueFormat(DataVisualization::GetFormat(*this, eNoDynamicValues));
     SetSummaryFormat(
         DataVisualization::GetSummaryFormat(*this, GetDynamicValueType()));
-#ifndef LLDB_DISABLE_PYTHON
+#if LLDB_ENABLE_PYTHON
     SetSyntheticChildren(
         DataVisualization::GetSyntheticChildren(*this, GetDynamicValueType()));
 #endif
@@ -2019,7 +2019,7 @@ bool ValueObject::GetBaseClassPath(Stream &s) {
         GetParent() && GetParent()->GetBaseClassPath(s);
     CompilerType compiler_type = GetCompilerType();
     llvm::Optional<std::string> cxx_class_name =
-        ClangASTContext::GetCXXClassName(compiler_type);
+        TypeSystemClang::GetCXXClassName(compiler_type);
     if (cxx_class_name) {
       if (parent_had_base_class)
         s.PutCString("::");
@@ -2859,6 +2859,9 @@ ValueObjectSP ValueObject::Dereference(Status &error) {
         GetSyntheticValue()
             ->GetChildMemberWithName(ConstString("$$dereference$$"), true)
             .get();
+  } else if (IsSynthetic()) {
+    m_deref_valobj =
+        GetChildMemberWithName(ConstString("$$dereference$$"), true).get();
   }
 
   if (m_deref_valobj) {

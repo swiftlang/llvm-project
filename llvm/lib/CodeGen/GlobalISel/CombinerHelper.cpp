@@ -239,8 +239,7 @@ bool CombinerHelper::matchCombineShuffleVector(MachineInstr &MI,
   // vectors.
   unsigned NumConcat = DstNumElts / SrcNumElts;
   SmallVector<int, 8> ConcatSrcs(NumConcat, -1);
-  SmallVector<int, 8> Mask;
-  ShuffleVectorInst::getShuffleMask(MI.getOperand(3).getShuffleMask(), Mask);
+  ArrayRef<int> Mask = MI.getOperand(3).getShuffleMask();
   for (unsigned i = 0; i != DstNumElts; ++i) {
     int Idx = Mask[i];
     // Undef value.
@@ -711,18 +710,36 @@ bool CombinerHelper::findPreIndexCandidate(MachineInstr &MI, Register &Addr,
 }
 
 bool CombinerHelper::tryCombineIndexedLoadStore(MachineInstr &MI) {
+  IndexedLoadStoreMatchInfo MatchInfo;
+  if (matchCombineIndexedLoadStore(MI, MatchInfo)) {
+    applyCombineIndexedLoadStore(MI, MatchInfo);
+    return true;
+  }
+  return false;
+}
+
+bool CombinerHelper::matchCombineIndexedLoadStore(MachineInstr &MI, IndexedLoadStoreMatchInfo &MatchInfo) {
   unsigned Opcode = MI.getOpcode();
   if (Opcode != TargetOpcode::G_LOAD && Opcode != TargetOpcode::G_SEXTLOAD &&
       Opcode != TargetOpcode::G_ZEXTLOAD && Opcode != TargetOpcode::G_STORE)
     return false;
 
-  bool IsStore = Opcode == TargetOpcode::G_STORE;
-  Register Addr, Base, Offset;
-  bool IsPre = findPreIndexCandidate(MI, Addr, Base, Offset);
-  if (!IsPre && !findPostIndexCandidate(MI, Addr, Base, Offset))
+  MatchInfo.IsPre = findPreIndexCandidate(MI, MatchInfo.Addr, MatchInfo.Base,
+                                          MatchInfo.Offset);
+  if (!MatchInfo.IsPre &&
+      !findPostIndexCandidate(MI, MatchInfo.Addr, MatchInfo.Base,
+                              MatchInfo.Offset))
     return false;
 
+  return true;
+}
 
+void CombinerHelper::applyCombineIndexedLoadStore(
+    MachineInstr &MI, IndexedLoadStoreMatchInfo &MatchInfo) {
+  MachineInstr &AddrDef = *MRI.getUniqueVRegDef(MatchInfo.Addr);
+  MachineIRBuilder MIRBuilder(MI);
+  unsigned Opcode = MI.getOpcode();
+  bool IsStore = Opcode == TargetOpcode::G_STORE;
   unsigned NewOpcode;
   switch (Opcode) {
   case TargetOpcode::G_LOAD:
@@ -741,25 +758,22 @@ bool CombinerHelper::tryCombineIndexedLoadStore(MachineInstr &MI) {
     llvm_unreachable("Unknown load/store opcode");
   }
 
-  MachineInstr &AddrDef = *MRI.getUniqueVRegDef(Addr);
-  MachineIRBuilder MIRBuilder(MI);
   auto MIB = MIRBuilder.buildInstr(NewOpcode);
   if (IsStore) {
-    MIB.addDef(Addr);
+    MIB.addDef(MatchInfo.Addr);
     MIB.addUse(MI.getOperand(0).getReg());
   } else {
     MIB.addDef(MI.getOperand(0).getReg());
-    MIB.addDef(Addr);
+    MIB.addDef(MatchInfo.Addr);
   }
 
-  MIB.addUse(Base);
-  MIB.addUse(Offset);
-  MIB.addImm(IsPre);
+  MIB.addUse(MatchInfo.Base);
+  MIB.addUse(MatchInfo.Offset);
+  MIB.addImm(MatchInfo.IsPre);
   MI.eraseFromParent();
   AddrDef.eraseFromParent();
 
   LLVM_DEBUG(dbgs() << "    Combinined to indexed operation");
-  return true;
 }
 
 bool CombinerHelper::matchElideBrByInvertingCond(MachineInstr &MI) {
@@ -1323,6 +1337,52 @@ bool CombinerHelper::tryCombineMemCpyFamily(MachineInstr &MI, unsigned MaxLen) {
   if (ID == Intrinsic::memset)
     return optimizeMemset(MI, Dst, Src, KnownLen, DstAlign, IsVolatile);
   return false;
+}
+
+bool CombinerHelper::matchPtrAddImmedChain(MachineInstr &MI,
+                                           PtrAddChain &MatchInfo) {
+  // We're trying to match the following pattern:
+  //   %t1 = G_PTR_ADD %base, G_CONSTANT imm1
+  //   %root = G_PTR_ADD %t1, G_CONSTANT imm2
+  // -->
+  //   %root = G_PTR_ADD %base, G_CONSTANT (imm1 + imm2)
+
+  if (MI.getOpcode() != TargetOpcode::G_PTR_ADD)
+    return false;
+
+  Register Add2 = MI.getOperand(1).getReg();
+  Register Imm1 = MI.getOperand(2).getReg();
+  auto MaybeImmVal = getConstantVRegValWithLookThrough(Imm1, MRI);
+  if (!MaybeImmVal)
+    return false;
+
+  MachineInstr *Add2Def = MRI.getUniqueVRegDef(Add2);
+  if (!Add2Def || Add2Def->getOpcode() != TargetOpcode::G_PTR_ADD)
+    return false;
+
+  Register Base = Add2Def->getOperand(1).getReg();
+  Register Imm2 = Add2Def->getOperand(2).getReg();
+  auto MaybeImm2Val = getConstantVRegValWithLookThrough(Imm2, MRI);
+  if (!MaybeImm2Val)
+    return false;
+
+  // Pass the combined immediate to the apply function.
+  MatchInfo.Imm = MaybeImmVal->Value + MaybeImm2Val->Value;
+  MatchInfo.Base = Base;
+  return true;
+}
+
+bool CombinerHelper::applyPtrAddImmedChain(MachineInstr &MI,
+                                           PtrAddChain &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD && "Expected G_PTR_ADD");
+  MachineIRBuilder MIB(MI);
+  LLT OffsetTy = MRI.getType(MI.getOperand(2).getReg());
+  auto NewOffset = MIB.buildConstant(OffsetTy, MatchInfo.Imm);
+  Observer.changingInstr(MI);
+  MI.getOperand(1).setReg(MatchInfo.Base);
+  MI.getOperand(2).setReg(NewOffset.getReg(0));
+  Observer.changedInstr(MI);
+  return true;
 }
 
 bool CombinerHelper::tryCombine(MachineInstr &MI) {

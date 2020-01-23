@@ -1747,9 +1747,16 @@ void CodeGenModule::ConstructDefaultFnAttrList(StringRef Name, bool HasOptnone,
 
     if (CodeGenOpts.NullPointerIsValid)
       FuncAttrs.addAttribute("null-pointer-is-valid", "true");
+
+    // TODO: Omit attribute when the default is IEEE.
     if (CodeGenOpts.FPDenormalMode != llvm::DenormalMode::Invalid)
       FuncAttrs.addAttribute("denormal-fp-math",
                              llvm::denormalModeName(CodeGenOpts.FPDenormalMode));
+
+    if (CodeGenOpts.FP32DenormalMode != llvm::DenormalMode::Invalid)
+      FuncAttrs.addAttribute(
+          "denormal-fp-math-f32",
+          llvm::denormalModeName(CodeGenOpts.FP32DenormalMode));
 
     FuncAttrs.addAttribute("no-trapping-math",
                            llvm::toStringRef(CodeGenOpts.NoTrappingMath));
@@ -1776,10 +1783,6 @@ void CodeGenModule::ConstructDefaultFnAttrList(StringRef Name, bool HasOptnone,
     FuncAttrs.addAttribute(
         "correctly-rounded-divide-sqrt-fp-math",
         llvm::toStringRef(CodeGenOpts.CorrectlyRoundedDivSqrt));
-
-    if (getLangOpts().OpenCL)
-      FuncAttrs.addAttribute("denorms-are-zero",
-                             llvm::toStringRef(CodeGenOpts.FlushDenorm));
 
     // TODO: Reciprocal estimate codegen options should apply to instructions?
     const std::vector<std::string> &Recips = CodeGenOpts.Reciprocals;
@@ -1821,10 +1824,6 @@ void CodeGenModule::ConstructDefaultFnAttrList(StringRef Name, bool HasOptnone,
   if (getLangOpts().CUDA && getLangOpts().CUDAIsDevice) {
     // Exceptions aren't supported in CUDA device code.
     FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
-
-    // Respect -fcuda-flush-denormals-to-zero.
-    if (CodeGenOpts.FlushDenorm)
-      FuncAttrs.addAttribute("nvptx-f32ftz", "true");
   }
 
   for (StringRef Attr : CodeGenOpts.DefaultFunctionAttrs) {
@@ -1885,17 +1884,20 @@ void CodeGenModule::ConstructAttributeList(
         if (Fn->isNoReturn())
           FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
 
-        if (const auto *NBA = TargetDecl->getAttr<NoBuiltinAttr>()) {
-          bool HasWildcard = llvm::is_contained(NBA->builtinNames(), "*");
-          if (HasWildcard)
-            FuncAttrs.addAttribute("no-builtins");
-          else
-            for (StringRef BuiltinName : NBA->builtinNames()) {
-              SmallString<32> AttributeName;
-              AttributeName += "no-builtin-";
-              AttributeName += BuiltinName;
-              FuncAttrs.addAttribute(AttributeName);
-            }
+        const auto *NBA = Fn->getAttr<NoBuiltinAttr>();
+        bool HasWildcard = NBA && llvm::is_contained(NBA->builtinNames(), "*");
+        if (getLangOpts().NoBuiltin || HasWildcard)
+          FuncAttrs.addAttribute("no-builtins");
+        else {
+          auto AddNoBuiltinAttr = [&FuncAttrs](StringRef BuiltinName) {
+            SmallString<32> AttributeName;
+            AttributeName += "no-builtin-";
+            AttributeName += BuiltinName;
+            FuncAttrs.addAttribute(AttributeName);
+          };
+          llvm::for_each(getLangOpts().NoBuiltinFuncs, AddNoBuiltinAttr);
+          if (NBA)
+            llvm::for_each(NBA->builtinNames(), AddNoBuiltinAttr);
         }
       }
     }
@@ -2446,9 +2448,8 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
               EmitScalarExpr(AVAttr->getAlignment());
             llvm::ConstantInt *AlignmentCI =
               cast<llvm::ConstantInt>(AlignmentValue);
-            unsigned Alignment = std::min((unsigned)AlignmentCI->getZExtValue(),
-                                          +llvm::Value::MaximumAlignment);
-            AI->addAttrs(llvm::AttrBuilder().addAlignmentAttr(Alignment));
+            AI->addAttrs(llvm::AttrBuilder().addAlignmentAttr(llvm::MaybeAlign(
+                AlignmentCI->getLimitedValue(llvm::Value::MaximumAlignment))));
           }
         }
 
@@ -4428,6 +4429,17 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   if (callOrInvoke)
     *callOrInvoke = CI;
 
+  // If this is within a function that has the guard(nocf) attribute and is an
+  // indirect call, add the "guard_nocf" attribute to this call to indicate that
+  // Control Flow Guard checks should not be added, even if the call is inlined.
+  if (const auto *FD = dyn_cast_or_null<FunctionDecl>(CurFuncDecl)) {
+    if (const auto *A = FD->getAttr<CFGuardAttr>()) {
+      if (A->getGuard() == CFGuardAttr::GuardArg::nocf && !CI->getCalledFunction())
+        Attrs = Attrs.addAttribute(
+            getLLVMContext(), llvm::AttributeList::FunctionIndex, "guard_nocf");
+    }
+  }
+
   // Apply the attributes and calling convention.
   CI->setAttributes(Attrs);
   CI->setCallingConv(static_cast<llvm::CallingConv::ID>(CallingConv));
@@ -4638,7 +4650,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       llvm::ConstantInt *AlignmentCI = cast<llvm::ConstantInt>(Alignment);
       EmitAlignmentAssumption(Ret.getScalarVal(), RetTy, Loc, AA->getLocation(),
                               AlignmentCI, OffsetValue);
-    } else if (const auto *AA = TargetDecl->getAttr<AllocAlignAttr>()) {
+    }
+    if (const auto *AA = TargetDecl->getAttr<AllocAlignAttr>()) {
       llvm::Value *AlignmentVal = CallArgs[AA->getParamIndex().getLLVMIndex()]
                                       .getRValue(*this)
                                       .getScalarVal();

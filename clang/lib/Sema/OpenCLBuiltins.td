@@ -40,6 +40,30 @@ def ConstantAS   : AddressSpace<"clang::LangAS::opencl_constant">;
 def LocalAS      : AddressSpace<"clang::LangAS::opencl_local">;
 def GenericAS    : AddressSpace<"clang::LangAS::opencl_generic">;
 
+// OpenCL language extension.
+class AbstractExtension<string _Ext> {
+  // One or more OpenCL extensions, space separated.  Each extension must be
+  // a valid extension name for the opencl extension pragma.
+  string ExtName = _Ext;
+}
+
+// Extension associated to a builtin function.
+class FunctionExtension<string _Ext> : AbstractExtension<_Ext>;
+
+// FunctionExtension definitions.
+def FuncExtNone                          : FunctionExtension<"">;
+def FuncExtKhrSubgroups                  : FunctionExtension<"cl_khr_subgroups">;
+def FuncExtKhrGlobalInt32BaseAtomics     : FunctionExtension<"cl_khr_global_int32_base_atomics">;
+def FuncExtKhrGlobalInt32ExtendedAtomics : FunctionExtension<"cl_khr_global_int32_extended_atomics">;
+def FuncExtKhrLocalInt32BaseAtomics      : FunctionExtension<"cl_khr_local_int32_base_atomics">;
+def FuncExtKhrLocalInt32ExtendedAtomics  : FunctionExtension<"cl_khr_local_int32_extended_atomics">;
+def FuncExtKhrInt64BaseAtomics           : FunctionExtension<"cl_khr_int64_base_atomics">;
+def FuncExtKhrInt64ExtendedAtomics       : FunctionExtension<"cl_khr_int64_extended_atomics">;
+def FuncExtKhrMipmapImage                : FunctionExtension<"cl_khr_mipmap_image">;
+def FuncExtKhrGlMsaaSharing              : FunctionExtension<"cl_khr_gl_msaa_sharing">;
+
+// Multiple extensions
+def FuncExtKhrMipmapAndWrite3d           : FunctionExtension<"cl_khr_mipmap_image cl_khr_3d_image_writes">;
 
 // Qualified Type.  These map to ASTContext::QualType.
 class QualType<string _Name, bit _IsAbstract=0> {
@@ -198,14 +222,14 @@ class Builtin<string _Name, list<Type> _Signature, list<bit> _Attributes = Attr.
   // the following are the arguments. The list must have at least one element
   // (the return type).
   list<Type> Signature = _Signature;
-  // OpenCL Extension to which the function belongs (cl_khr_subgroups, ...)
-  string Extension = "";
   // Function attribute __attribute__((pure))
   bit IsPure = _Attributes[0];
   // Function attribute __attribute__((const))
   bit IsConst = _Attributes[1];
   // Function attribute __attribute__((convergent))
   bit IsConv = _Attributes[2];
+  // OpenCL extensions to which the function belongs.
+  FunctionExtension Extension = FuncExtNone;
   // Version of OpenCL from which the function is available (e.g.: CL10).
   // MinVersion is inclusive.
   Version MinVersion = CL10;
@@ -862,42 +886,115 @@ foreach name = ["prefetch"] in {
 // Functions that use memory_order and cl_mem_fence_flags enums are not
 // declared here as the TableGen backend does not handle enums.
 
-// OpenCL v1.0 s9.5, s9.6, s9.7 - Atomic Functions for 32-bit integers.
+// OpenCL v1.0 s9.5, s9.6, s9.7 - Atomic Functions for 32-bit integers
 // --- Table 9.1 ---
-foreach Type = [Int, UInt] in {
-  foreach name = ["atom_add", "atom_sub", "atom_xchg"] in {
-    def : Builtin<name, [Type, PointerType<VolatileType<Type>, GlobalAS>, Type]>;
+let Extension = FuncExtKhrGlobalInt32BaseAtomics in {
+  foreach Type = [Int, UInt] in {
+    foreach name = ["atom_add", "atom_sub", "atom_xchg"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, GlobalAS>, Type]>;
+    }
+    foreach name = ["atom_inc", "atom_dec"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, GlobalAS>]>;
+    }
+    foreach name = ["atom_cmpxchg"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, GlobalAS>, Type, Type]>;
+    }
   }
-  foreach name = ["atom_inc", "atom_dec"] in {
-    def : Builtin<name, [Type, PointerType<VolatileType<Type>, GlobalAS>]>;
+}
+// --- Table 9.3 ---
+let Extension = FuncExtKhrLocalInt32BaseAtomics in {
+  foreach Type = [Int, UInt] in {
+    foreach name = ["atom_add", "atom_sub", "atom_xchg"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, LocalAS>, Type]>;
+    }
+    foreach name = ["atom_inc", "atom_dec"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, LocalAS>]>;
+    }
+    foreach name = ["atom_cmpxchg"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, LocalAS>, Type, Type]>;
+    }
   }
-  foreach name = ["atom_cmpxchg"] in {
-    def : Builtin<name, [Type, PointerType<VolatileType<Type>, GlobalAS>, Type, Type]>;
+}
+// --- Table 9.5 ---
+let Extension = FuncExtKhrInt64BaseAtomics in {
+  foreach AS = [GlobalAS, LocalAS] in {
+    foreach Type = [Long, ULong] in {
+      foreach name = ["atom_add", "atom_sub", "atom_xchg"] in {
+        def : Builtin<name, [Type, PointerType<VolatileType<Type>, AS>, Type]>;
+      }
+      foreach name = ["atom_inc", "atom_dec"] in {
+        def : Builtin<name, [Type, PointerType<VolatileType<Type>, AS>]>;
+      }
+      foreach name = ["atom_cmpxchg"] in {
+        def : Builtin<name, [Type, PointerType<VolatileType<Type>, AS>, Type, Type]>;
+      }
+    }
+  }
+}
+// --- Table 9.2 ---
+let Extension = FuncExtKhrGlobalInt32ExtendedAtomics in {
+  foreach Type = [Int, UInt] in {
+    foreach name = ["atom_min", "atom_max", "atom_and",
+                    "atom_or", "atom_xor"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, GlobalAS>, Type]>;
+    }
+  }
+}
+// --- Table 9.4 ---
+let Extension = FuncExtKhrLocalInt32ExtendedAtomics in {
+  foreach Type = [Int, UInt] in {
+    foreach name = ["atom_min", "atom_max", "atom_and",
+                    "atom_or", "atom_xor"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, LocalAS>, Type]>;
+    }
+  }
+}
+// --- Table 9.6 ---
+let Extension = FuncExtKhrInt64ExtendedAtomics in {
+  foreach AS = [GlobalAS, LocalAS] in {
+    foreach Type = [Long, ULong] in {
+      foreach name = ["atom_min", "atom_max", "atom_and",
+                      "atom_or", "atom_xor"] in {
+        def : Builtin<name, [Type, PointerType<VolatileType<Type>, AS>, Type]>;
+      }
+    }
+  }
+}
+// OpenCL v1.1 s6.11.1, v1.2 s6.12.11 - Atomic Functions
+foreach AS = [GlobalAS, LocalAS] in {
+  foreach Type = [Int, UInt] in {
+    foreach name = ["atomic_add", "atomic_sub", "atomic_xchg",
+                    "atomic_min", "atomic_max", "atomic_and",
+                    "atomic_or", "atomic_xor"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, AS>, Type]>;
+    }
+    foreach name = ["atomic_inc", "atomic_dec"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, AS>]>;
+    }
+    foreach name = ["atomic_cmpxchg"] in {
+      def : Builtin<name, [Type, PointerType<VolatileType<Type>, AS>, Type, Type]>;
+    }
   }
 }
 
 //--------------------------------------------------------------------
 // OpenCL v1.1 s6.11.12, v1.2 s6.12.12, v2.0 s6.13.12 - Miscellaneous Vector Functions
 // --- Table 19 ---
-foreach name = ["shuffle"] in {
-  foreach VSize1 = [Vec2, Vec4, Vec8, Vec16] in {
-    foreach VSize2 = [Vec2, Vec4, Vec8, Vec16] in {
-      def : Builtin<name, [GenericType<"TLAll" # VSize1.Name, TLAll, VSize1>,
-                           GenericType<"TLAll" # VSize2.Name, TLAll, VSize2>,
-                           GenericType<"TLAllUnsigned" # VSize1.Name, TLAllUnsigned, VSize1>],
-                          Attr.Const>;
-    }
+foreach VSize1 = [Vec2, Vec4, Vec8, Vec16] in {
+  foreach VSize2 = [Vec2, Vec4, Vec8, Vec16] in {
+    def : Builtin<"shuffle", [GenericType<"TLAll" # VSize1.Name, TLAll, VSize1>,
+                              GenericType<"TLAll" # VSize2.Name, TLAll, VSize2>,
+                              GenericType<"TLAllUnsigned" # VSize1.Name, TLAllUnsigned, VSize1>],
+                  Attr.Const>;
   }
 }
-foreach name = ["shuffle2"] in {
-  foreach VSize1 = [Vec2, Vec4, Vec8, Vec16] in {
-    foreach VSize2 = [Vec2, Vec4, Vec8, Vec16] in {
-      def : Builtin<name, [GenericType<"TLAll" # VSize1.Name, TLAll, VSize1>,
-                           GenericType<"TLAll" # VSize2.Name, TLAll, VSize2>,
-                           GenericType<"TLAll" # VSize2.Name, TLAll, VSize2>,
-                           GenericType<"TLAllUnsigned" # VSize1.Name, TLAllUnsigned, VSize1>],
-                          Attr.Const>;
-    }
+foreach VSize1 = [Vec2, Vec4, Vec8, Vec16] in {
+  foreach VSize2 = [Vec2, Vec4, Vec8, Vec16] in {
+    def : Builtin<"shuffle2", [GenericType<"TLAll" # VSize1.Name, TLAll, VSize1>,
+                               GenericType<"TLAll" # VSize2.Name, TLAll, VSize2>,
+                               GenericType<"TLAll" # VSize2.Name, TLAll, VSize2>,
+                               GenericType<"TLAllUnsigned" # VSize1.Name, TLAllUnsigned, VSize1>],
+                  Attr.Const>;
   }
 }
 
@@ -1077,9 +1174,178 @@ let MinVersion = CL20 in {
 
 // OpenCL v2.0 s9.17.3: Additions to section 6.13.1: Work-Item Functions
 let MinVersion = CL20 in {
-  let Extension = "cl_khr_subgroups" in {
+  let Extension = FuncExtKhrSubgroups in {
     def get_sub_group_size : Builtin<"get_sub_group_size", [UInt]>;
     def get_max_sub_group_size : Builtin<"get_max_sub_group_size", [UInt]>;
     def get_num_sub_groups : Builtin<"get_num_sub_groups", [UInt]>;
+  }
+}
+
+//--------------------------------------------------------------------
+// End of the builtin functions defined in the OpenCL C specification.
+// Builtin functions defined in the OpenCL C Extension are below.
+//--------------------------------------------------------------------
+
+
+// OpenCL Extension v2.0 s9.18 - Mipmaps
+let Extension = FuncExtKhrMipmapImage in {
+  // Added to section 6.13.14.2.
+  foreach aQual = ["RO"] in {
+    foreach imgTy = [Image2d] in {
+      foreach name = ["read_imagef"] in {
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
+      }
+      foreach name = ["read_imagei"] in {
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
+      }
+      foreach name = ["read_imageui"] in {
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
+      }
+    }
+    foreach imgTy = [Image2dDepth] in {
+      foreach name = ["read_imagef"] in {
+        def : Builtin<name, [Float, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float], Attr.Pure>;
+        def : Builtin<name, [Float, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
+      }
+    }
+    foreach imgTy = [Image1d] in {
+      foreach name = ["read_imagef"] in {
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, Float, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, Float, Float, Float], Attr.Pure>;
+      }
+      foreach name = ["read_imagei"] in {
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, Float, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, Float, Float, Float], Attr.Pure>;
+      }
+      foreach name = ["read_imageui"] in {
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, Float, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, Float, Float, Float], Attr.Pure>;
+      }
+    }
+    foreach imgTy = [Image3d] in {
+      foreach name = ["read_imagef"] in {
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 4>, VectorType<Float, 4>], Attr.Pure>;
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+      }
+      foreach name = ["read_imagei"] in {
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 4>, VectorType<Float, 4>], Attr.Pure>;
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+      }
+      foreach name = ["read_imageui"] in {
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 4>, VectorType<Float, 4>], Attr.Pure>;
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+      }
+    }
+    foreach imgTy = [Image1dArray] in {
+      foreach name = ["read_imagef"] in {
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float, Float], Attr.Pure>;
+      }
+      foreach name = ["read_imagei"] in {
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float, Float], Attr.Pure>;
+      }
+      foreach name = ["read_imageui"] in {
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 2>, Float, Float], Attr.Pure>;
+      }
+    }
+    foreach imgTy = [Image2dArray] in {
+      foreach name = ["read_imagef"] in {
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<Float, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
+      }
+      foreach name = ["read_imagei"] in {
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<Int, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
+      }
+      foreach name = ["read_imageui"] in {
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
+      }
+    }
+    foreach imgTy = [Image2dArrayDepth] in {
+      foreach name = ["read_imagef"] in {
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, Float], Attr.Pure>;
+        def : Builtin<name, [VectorType<UInt, 4>, ImageType<imgTy, aQual>, Sampler, VectorType<Float, 4>, VectorType<Float, 2>, VectorType<Float, 2>], Attr.Pure>;
+      }
+    }
+  }
+  // Added to section 6.13.14.4.
+  foreach aQual = ["WO"] in {
+    foreach imgTy = [Image2d] in {
+      def : Builtin<"write_imagef", [Void, ImageType<imgTy, aQual>, VectorType<Int, 2>, Int, VectorType<Float, 4>]>;
+      def : Builtin<"write_imagei", [Void, ImageType<imgTy, aQual>, VectorType<Int, 2>, Int, VectorType<Int, 4>]>;
+      def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 2>, Int, VectorType<UInt, 4>]>;
+    }
+    def : Builtin<"write_imagef", [Void, ImageType<Image2dDepth, aQual>, VectorType<Int, 2>, Int, Float]>;
+    foreach imgTy = [Image1d] in {
+      def : Builtin<"write_imagef", [Void, ImageType<imgTy, aQual>, Int, Int, VectorType<Float, 4>]>;
+      def : Builtin<"write_imagei", [Void, ImageType<imgTy, aQual>, Int, Int, VectorType<Int, 4>]>;
+      def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, Int, Int, VectorType<UInt, 4>]>;
+    }
+    foreach imgTy = [Image1dArray] in {
+      def : Builtin<"write_imagef", [Void, ImageType<imgTy, aQual>, VectorType<Int, 2>, Int, VectorType<Float, 4>]>;
+      def : Builtin<"write_imagei", [Void, ImageType<imgTy, aQual>, VectorType<Int, 2>, Int, VectorType<Int, 4>]>;
+      def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 2>, Int, VectorType<UInt, 4>]>;
+    }
+    foreach imgTy = [Image2dArray] in {
+      def : Builtin<"write_imagef", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Float, 4>]>;
+      def : Builtin<"write_imagei", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Int, 4>]>;
+      def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<UInt, 4>]>;
+    }
+    def : Builtin<"write_imagef", [Void, ImageType<Image2dArrayDepth, aQual>, VectorType<Int, 4>, Int, Float]>;
+    let Extension = FuncExtKhrMipmapAndWrite3d in {
+      foreach imgTy = [Image3d] in {
+        def : Builtin<"write_imagef", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Float, 4>]>;
+        def : Builtin<"write_imagei", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Int, 4>]>;
+        def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<UInt, 4>]>;
+      }
+    }
+  }
+  // Added to section 6.13.14.5
+  foreach aQual = ["RO", "WO", "RW"] in {
+    foreach imgTy = [Image1d, Image2d, Image3d, Image1dArray, Image2dArray, Image2dDepth, Image2dArrayDepth] in {
+      def : Builtin<"get_image_num_mip_levels", [Int, ImageType<imgTy, aQual>]>;
+    }
+  }
+}
+
+
+//--------------------------------------------------------------------
+// OpenCL Extension v2.0 s18.3 - Creating OpenCL Memory Objects from OpenGL MSAA Textures
+let Extension = FuncExtKhrGlMsaaSharing in {
+  // --- Table 6.13.14.3 ---
+  foreach aQual = ["RO", "RW"] in {
+    foreach imgTy = [Image2dMsaa] in {
+      def : Builtin<"read_imagef", [VectorType<Float, 4>, ImageType<imgTy, aQual>, VectorType<Int, 2>, Int], Attr.Pure>;
+      def : Builtin<"read_imagei", [VectorType<Int, 4>, ImageType<imgTy, aQual>, VectorType<Int, 2>, Int], Attr.Pure>;
+      def : Builtin<"read_imageui", [VectorType<UInt, 4>, ImageType<imgTy, aQual>, VectorType<Int, 2>, Int], Attr.Pure>;
+    }
+    foreach imgTy = [Image2dArrayMsaa] in {
+      def : Builtin<"read_imagef", [VectorType<Float, 4>, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int], Attr.Pure>;
+      def : Builtin<"read_imagei", [VectorType<Int, 4>, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int], Attr.Pure>;
+      def : Builtin<"read_imageui", [VectorType<UInt, 4>, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int], Attr.Pure>;
+    }
+    foreach name = ["read_imagef"] in {
+      def : Builtin<name, [Float, ImageType<Image2dMsaaDepth, aQual>, VectorType<Int, 2>, Int], Attr.Pure>;
+      def : Builtin<name, [Float, ImageType<Image2dArrayMsaaDepth, aQual>, VectorType<Int, 4>, Int], Attr.Pure>;
+    }
+  }
+
+  // --- Table 6.13.14.5 ---
+  foreach aQual = ["RO", "WO", "RW"] in {
+    foreach imgTy = [Image2dMsaa, Image2dArrayMsaa, Image2dMsaaDepth, Image2dArrayMsaaDepth] in {
+      foreach name = ["get_image_width", "get_image_height",
+                      "get_image_channel_data_type", "get_image_channel_order",
+                      "get_image_num_samples"] in {
+        def : Builtin<name, [Int, ImageType<imgTy, aQual>], Attr.Const>;
+      }
+      def : Builtin<"get_image_dim", [VectorType<Int, 2>, ImageType<imgTy, aQual>], Attr.Const>;
+    }
+    def : Builtin<"get_image_array_size", [Size, ImageType<Image2dArrayMsaaDepth, aQual>], Attr.Const>;
   }
 }

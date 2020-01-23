@@ -279,8 +279,6 @@ class MicrosoftCXXNameMangler {
 
   ASTContext &getASTContext() const { return Context.getASTContext(); }
 
-  // FIXME: If we add support for __ptr32/64 qualifiers, then we should push
-  // this check into mangleQualifiers().
   const bool PointersAre64Bit;
 
 public:
@@ -333,6 +331,13 @@ public:
 private:
   bool isStructorDecl(const NamedDecl *ND) const {
     return ND == Structor || getStructor(ND) == Structor;
+  }
+
+  bool is64BitPointer(Qualifiers Quals) const {
+    LangAS AddrSpace = Quals.getAddressSpace();
+    return AddrSpace == LangAS::ptr64 ||
+           (PointersAre64Bit && !(AddrSpace == LangAS::ptr32_sptr ||
+                                  AddrSpace == LangAS::ptr32_uptr));
   }
 
   void mangleUnqualifiedName(const NamedDecl *ND) {
@@ -705,7 +710,7 @@ void MicrosoftCXXNameMangler::mangleVirtualMemPtrThunk(
   Out << "$B";
   mangleNumber(OffsetInVFTable);
   Out << 'A';
-  mangleCallingConvention(MD->getType()->getAs<FunctionProtoType>());
+  mangleCallingConvention(MD->getType()->castAs<FunctionProtoType>());
 }
 
 void MicrosoftCXXNameMangler::mangleName(const NamedDecl *ND) {
@@ -1703,8 +1708,10 @@ MicrosoftCXXNameMangler::mangleRefQualifier(RefQualifierKind RefQualifier) {
 
 void MicrosoftCXXNameMangler::manglePointerExtQualifiers(Qualifiers Quals,
                                                          QualType PointeeType) {
-  if (PointersAre64Bit &&
-      (PointeeType.isNull() || !PointeeType->isFunctionType()))
+  // Check if this is a default 64-bit pointer or has __ptr64 qualifier.
+  bool is64Bit = PointeeType.isNull() ? PointersAre64Bit :
+      is64BitPointer(PointeeType.getQualifiers());
+  if (is64Bit && (PointeeType.isNull() || !PointeeType->isFunctionType()))
     Out << 'E';
 
   if (Quals.hasRestrict())
@@ -1864,6 +1871,10 @@ void MicrosoftCXXNameMangler::mangleAddressSpaceType(QualType T,
     case LangAS::cuda_shared:
       Extra.mangleSourceName("_ASCUshared");
       break;
+    case LangAS::ptr32_sptr:
+    case LangAS::ptr32_uptr:
+    case LangAS::ptr64:
+      llvm_unreachable("don't mangle ptr address spaces with _AS");
     }
   }
 
@@ -2597,10 +2608,13 @@ void MicrosoftCXXNameMangler::mangleType(const PointerType *T, Qualifiers Quals,
   manglePointerCVQualifiers(Quals);
   manglePointerExtQualifiers(Quals, PointeeType);
 
-  if (PointeeType.getQualifiers().hasAddressSpace())
-    mangleAddressSpaceType(PointeeType, PointeeType.getQualifiers(), Range);
-  else
+  // For pointer size address spaces, go down the same type mangling path as
+  // non address space types.
+  LangAS AddrSpace = PointeeType.getQualifiers().getAddressSpace();
+  if (isPtrSizeAddressSpace(AddrSpace) || AddrSpace == LangAS::Default)
     mangleType(PointeeType, Range);
+  else
+    mangleAddressSpaceType(PointeeType, PointeeType.getQualifiers(), Range);
 }
 
 void MicrosoftCXXNameMangler::mangleType(const ObjCObjectPointerType *T,
@@ -2687,9 +2701,7 @@ void MicrosoftCXXNameMangler::mangleType(const VectorType *T, Qualifiers Quals,
   // doesn't match the Intel types uses a custom mangling below.
   size_t OutSizeBefore = Out.tell();
   if (!isa<ExtVectorType>(T)) {
-    llvm::Triple::ArchType AT =
-        getASTContext().getTargetInfo().getTriple().getArch();
-    if (AT == llvm::Triple::x86 || AT == llvm::Triple::x86_64) {
+    if (getASTContext().getTargetInfo().getTriple().isX86()) {
       if (Width == 64 && ET->getKind() == BuiltinType::LongLong) {
         mangleArtificialTagType(TTK_Union, "__m64");
       } else if (Width >= 128) {

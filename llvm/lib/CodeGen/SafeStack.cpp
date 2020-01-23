@@ -563,7 +563,7 @@ Value *SafeStack::moveStaticAllocasToUnsafeStack(
 
   for (Argument *Arg : ByValArguments) {
     unsigned Offset = SSL.getObjectOffset(Arg);
-    unsigned Align = SSL.getObjectAlignment(Arg);
+    MaybeAlign Align(SSL.getObjectAlignment(Arg));
     Type *Ty = Arg->getType()->getPointerElementType();
 
     uint64_t Size = DL.getTypeStoreSize(Ty);
@@ -580,7 +580,7 @@ Value *SafeStack::moveStaticAllocasToUnsafeStack(
                       DIExpression::ApplyOffset, -Offset);
     Arg->replaceAllUsesWith(NewArg);
     IRB.SetInsertPoint(cast<Instruction>(NewArg)->getNextNode());
-    IRB.CreateMemCpy(Off, Align, Arg, Arg->getParamAlignment(), Size);
+    IRB.CreateMemCpy(Off, Align, Arg, Arg->getParamAlign(), Size);
   }
 
   // Allocate space for every unsafe static AllocaInst on the unsafe stack.
@@ -708,7 +708,8 @@ void SafeStack::moveDynamicAllocasToUnsafeStack(
 
 bool SafeStack::ShouldInlinePointerAddress(CallSite &CS) {
   Function *Callee = CS.getCalledFunction();
-  if (CS.hasFnAttr(Attribute::AlwaysInline) && isInlineViable(*Callee))
+  if (CS.hasFnAttr(Attribute::AlwaysInline) &&
+      isInlineViable(*Callee).isSuccess())
     return true;
   if (Callee->isInterposable() || Callee->hasFnAttribute(Attribute::NoInline) ||
       CS.isNoInline())

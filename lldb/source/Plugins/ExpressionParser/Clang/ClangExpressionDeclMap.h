@@ -67,8 +67,11 @@ public:
   ///     If non-NULL, use this delegate to report result values.  This
   ///     allows the client ClangUserExpression to report a result.
   ///
-  /// \param[in] exe_ctx
-  ///     The execution context to use when parsing.
+  /// \param[in] target
+  ///     The target to use when parsing.
+  ///
+  /// \param[in] importer
+  ///     The ClangASTImporter to use when parsing.
   ///
   /// \param[in] ctx_obj
   ///     If not empty, then expression is evaluated in context of this object.
@@ -76,7 +79,7 @@ public:
   ClangExpressionDeclMap(
       bool keep_result_in_memory,
       Materializer::PersistentVariableDelegate *result_delegate,
-      ExecutionContext &exe_ctx,
+      const lldb::TargetSP &target, const lldb::ClangASTImporterSP &importer,
       ValueObject *ctx_obj);
 
   /// Destructor
@@ -279,6 +282,14 @@ public:
                                 lldb::ModuleSP module,
                                 CompilerDeclContext &namespace_decl,
                                 unsigned int current_id);
+
+protected:
+  /// Retrieves the declaration with the given name from the storage of
+  /// persistent declarations.
+  ///
+  /// \return
+  ///     A persistent decl with the given name or a nullptr.
+  virtual clang::NamedDecl *GetPersistentDecl(ConstString name);
 
 private:
   ExpressionVariableList
@@ -510,17 +521,11 @@ private:
   /// \param[in] namespace_decl
   ///     If non-NULL and module is non-NULL, the parent namespace.
   ///
-  /// \param[in] type
-  ///     The required type for the variable.  This function may be called
-  ///     during parsing, in which case we don't know its type; hence the
-  ///     default.
-  ///
   /// \return
   ///     The LLDB Variable found, or NULL if none was found.
   lldb::VariableSP FindGlobalVariable(Target &target, lldb::ModuleSP &module,
                                       ConstString name,
-                                      CompilerDeclContext *namespace_decl,
-                                      TypeFromUser *type = nullptr);
+                                      CompilerDeclContext *namespace_decl);
 
   /// Get the value of a variable in a given execution context and return the
   /// associated Types if needed.
@@ -636,18 +641,18 @@ private:
   /// export all components of the type also.
   ///
   /// \param[in] target
-  ///     The ClangASTContext to move to.
+  ///     The TypeSystemClang to move to.
   /// \param[in] source
-  ///     The ClangASTContext to move from.  This is assumed to be going away.
+  ///     The TypeSystemClang to move from.  This is assumed to be going away.
   /// \param[in] parser_type
   ///     The type as it appears in the source context.
   ///
   /// \return
   ///     Returns the moved type, or an empty type if there was a problem.
-  TypeFromUser DeportType(ClangASTContext &target, ClangASTContext &source,
+  TypeFromUser DeportType(TypeSystemClang &target, TypeSystemClang &source,
                           TypeFromParser parser_type);
 
-  ClangASTContext *GetClangASTContext();
+  TypeSystemClang *GetTypeSystemClang();
 };
 
 } // namespace lldb_private

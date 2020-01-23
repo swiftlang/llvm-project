@@ -1390,6 +1390,7 @@ int X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
     { ISD::UINT_TO_FP,  MVT::v4f64,  MVT::v4i64,  5 },
     { ISD::UINT_TO_FP,  MVT::v8f64,  MVT::v8i64,  5 },
 
+    { ISD::UINT_TO_FP,  MVT::f32,    MVT::i64,    1 },
     { ISD::UINT_TO_FP,  MVT::f64,    MVT::i64,    1 },
     { ISD::FP_TO_UINT,  MVT::i64,    MVT::f32,    1 },
     { ISD::FP_TO_UINT,  MVT::i64,    MVT::f64,    1 },
@@ -1398,6 +1399,7 @@ int X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
     { ISD::FP_TO_UINT,  MVT::v4i32,  MVT::v4f32,  1 },
     { ISD::FP_TO_UINT,  MVT::v4i32,  MVT::v4f64,  1 },
     { ISD::FP_TO_UINT,  MVT::v8i32,  MVT::v8f32,  1 },
+    { ISD::FP_TO_UINT,  MVT::v8i32,  MVT::v8f64,  1 },
     { ISD::FP_TO_UINT,  MVT::v8i16,  MVT::v8f64,  2 },
     { ISD::FP_TO_UINT,  MVT::v8i8,   MVT::v8f64,  2 },
     { ISD::FP_TO_UINT,  MVT::v16i32, MVT::v16f32, 1 },
@@ -1551,6 +1553,7 @@ int X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
     { ISD::TRUNCATE,    MVT::v16i16, MVT::v16i32, 6 },
     { ISD::TRUNCATE,    MVT::v2i8,   MVT::v2i64,  1 }, // PSHUFB
 
+    { ISD::UINT_TO_FP,  MVT::f32,    MVT::i64,    4 },
     { ISD::UINT_TO_FP,  MVT::f64,    MVT::i64,    4 },
   };
 
@@ -1582,7 +1585,9 @@ int X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
 
     { ISD::FP_TO_SINT,  MVT::v2i32,  MVT::v2f64,  3 },
 
+    { ISD::UINT_TO_FP,  MVT::f32,    MVT::i64,    6 },
     { ISD::UINT_TO_FP,  MVT::f64,    MVT::i64,    6 },
+
     { ISD::FP_TO_UINT,  MVT::i64,    MVT::f32,    4 },
     { ISD::FP_TO_UINT,  MVT::i64,    MVT::f64,    4 },
 
@@ -3296,8 +3301,10 @@ int X86TTIImpl::getGatherScatterOpCost(unsigned Opcode, Type *SrcVTy,
   unsigned AddressSpace = PtrTy->getAddressSpace();
 
   bool Scalarize = false;
-  if ((Opcode == Instruction::Load && !isLegalMaskedGather(SrcVTy)) ||
-      (Opcode == Instruction::Store && !isLegalMaskedScatter(SrcVTy)))
+  if ((Opcode == Instruction::Load &&
+       !isLegalMaskedGather(SrcVTy, MaybeAlign(Alignment))) ||
+      (Opcode == Instruction::Store &&
+       !isLegalMaskedScatter(SrcVTy, MaybeAlign(Alignment))))
     Scalarize = true;
   // Gather / Scatter for vector 2 is not profitable on KNL / SKX
   // Vector-4 of gather/scatter instruction does not exist on KNL.
@@ -3420,7 +3427,7 @@ bool X86TTIImpl::isLegalMaskedCompressStore(Type *DataTy) {
   return isLegalMaskedExpandLoad(DataTy);
 }
 
-bool X86TTIImpl::isLegalMaskedGather(Type *DataTy) {
+bool X86TTIImpl::isLegalMaskedGather(Type *DataTy, MaybeAlign Alignment) {
   // Some CPUs have better gather performance than others.
   // TODO: Remove the explicit ST->hasAVX512()?, That would mean we would only
   // enable gather with a -march.
@@ -3458,11 +3465,11 @@ bool X86TTIImpl::isLegalMaskedGather(Type *DataTy) {
   return IntWidth == 32 || IntWidth == 64;
 }
 
-bool X86TTIImpl::isLegalMaskedScatter(Type *DataType) {
+bool X86TTIImpl::isLegalMaskedScatter(Type *DataType, MaybeAlign Alignment) {
   // AVX2 doesn't support scatter
   if (!ST->hasAVX512())
     return false;
-  return isLegalMaskedGather(DataType);
+  return isLegalMaskedGather(DataType, Alignment);
 }
 
 bool X86TTIImpl::hasDivRemOp(Type *DataType, bool IsSigned) {

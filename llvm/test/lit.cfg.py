@@ -197,6 +197,18 @@ else:
 if config.has_plugins:
     config.available_features.add('plugins')
 
+if config.build_examples:
+    config.available_features.add('examples')
+
+if config.linked_bye_extension:
+    config.substitutions.append(('%llvmcheckext', 'CHECK-EXT'))
+    config.substitutions.append(('%loadbye', ''))
+else:
+    config.substitutions.append(('%llvmcheckext', 'CHECK-NOEXT'))
+    config.substitutions.append(('%loadbye',
+                                 '-load={}/Bye{}'.format(config.llvm_shlib_dir,
+                                                                  config.llvm_shlib_ext)))
+
 # Static libraries are not built if BUILD_SHARED_LIBS is ON.
 if not config.build_shared_libs and not config.link_llvm_dylib:
     config.available_features.add('static-libs')
@@ -315,15 +327,18 @@ llvm_config.feature_config(
      ('--has-global-isel', {'ON': 'global-isel'})])
 
 if lit.util.isMacOSTriple(config.target_triple):
-    try:
-        sysctl_cmd = subprocess.Popen(['sysctl', 'hw.optional.fma'],
-                                      stdout=subprocess.PIPE)
-    except OSError:
-        print('Could not exec sysctl')
-    result = sysctl_cmd.stdout.read().decode('ascii')
-    if -1 != result.find('hw.optional.fma: 1'):
-        config.available_features.add('fma3')
-    sysctl_cmd.wait()
+    cmd = ['sysctl', 'hw.optional.fma']
+    sysctl_cmd = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+
+    # Non zero return, probably a permission issue
+    if sysctl_cmd.wait():
+        print(
+          "Warning: sysctl exists but calling \"{}\" failed, defaulting to no fma3.".format(
+          " ".join(cmd)))
+    else:
+        result = sysctl_cmd.stdout.read().decode('ascii')
+        if 'hw.optional.fma: 1' in result:
+            config.available_features.add('fma3')
 
 # .debug_frame is not emitted for targeting Windows x64.
 if not re.match(r'^x86_64.*-(windows-gnu|windows-msvc)', config.target_triple):

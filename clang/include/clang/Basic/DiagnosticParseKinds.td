@@ -33,10 +33,6 @@ def err_asm_goto_cannot_have_output : Error<
 
 let CategoryName = "Parse Issue" in {
 
-def warn_cxx2a_compat_explicit_bool : Warning<
-  "this expression will be parsed as explicit(bool) in C++2a">,
-  InGroup<CXX2aCompat>, DefaultIgnore;
-
 def ext_empty_translation_unit : Extension<
   "ISO C requires a translation unit to contain at least one declaration">,
   InGroup<DiagGroup<"empty-translation-unit">>;
@@ -181,6 +177,13 @@ def err_function_declared_typedef : Error<
 def err_at_defs_cxx : Error<"@defs is not supported in Objective-C++">;
 def err_at_in_class : Error<"unexpected '@' in member specification">;
 def err_unexpected_semi : Error<"unexpected ';' before %0">;
+def err_unparenthesized_non_primary_expr_in_requires_clause : Error<
+  "parentheses are required around this expression in a requires clause">;
+def note_unparenthesized_non_primary_expr_in_requires_clause : Note<
+  "parentheses are required around this expression in a requires clause">;
+def err_potential_function_call_in_constraint_logical_or : Error<
+  "function call must be parenthesized to be considered part of the requires "
+  "clause">;
 
 def err_expected_fn_body : Error<
   "expected function body after function declarator">;
@@ -265,7 +268,7 @@ def err_label_end_of_compound_statement : Error<
 def err_address_of_label_outside_fn : Error<
   "use of address-of-label extension outside of a function body">;
 def err_asm_operand_wide_string_literal : Error<
-  "cannot use %select{unicode|wide}0 string literal in 'asm'">;
+  "cannot use %select{unicode|wide|an empty}0 string literal in 'asm'">;
 def err_expected_selector_for_method : Error<
   "expected selector for Objective-C method">;
 def err_expected_property_name : Error<"expected property name">;
@@ -309,6 +312,12 @@ def err_init_list_bin_op : Error<"initializer list cannot be used on the "
 def warn_cxx98_compat_trailing_return_type : Warning<
   "trailing return types are incompatible with C++98">,
   InGroup<CXX98Compat>, DefaultIgnore;
+def err_requires_clause_must_appear_after_trailing_return : Error<
+  "trailing return type must appear before trailing requires clause">;
+def err_requires_clause_on_declarator_not_declaring_a_function : Error<
+  "trailing requires clause can only be used when declaring a function">;
+def err_requires_clause_inside_parens : Error<
+  "trailing requires clause should be placed outside parentheses">;
 def ext_auto_storage_class : ExtWarn<
   "'auto' storage class specifier is not permitted in C++11, and will not "
   "be supported in future releases">, InGroup<DiagGroup<"auto-storage-class">>;
@@ -671,6 +680,15 @@ def err_ms_property_expected_comma_or_rparen : Error<
 def err_ms_property_initializer : Error<
   "property declaration cannot have an in-class initializer">;
 
+def warn_cxx2a_compat_explicit_bool : Warning<
+  "this expression will be parsed as explicit(bool) in C++2a">,
+  InGroup<CXX2aCompat>, DefaultIgnore;
+def warn_cxx17_compat_explicit_bool : Warning<
+  "explicit(bool) is incompatible with C++ standards before C++2a">,
+  InGroup<CXXPre2aCompat>, DefaultIgnore;
+def ext_explicit_bool : ExtWarn<"explicit(bool) is a C++2a extension">,
+  InGroup<CXX2a>;
+
 /// C++ Templates
 def err_expected_template : Error<"expected template">;
 def err_unknown_template_name : Error<
@@ -726,6 +744,33 @@ def err_friend_explicit_instantiation : Error<
 def err_explicit_instantiation_enum : Error<
   "enumerations cannot be explicitly instantiated">;
 def err_expected_template_parameter : Error<"expected template parameter">;
+def note_ill_formed_requires_expression_outside_template : Note<
+  "requires expression outside a template declaration may not contain invalid "
+  "types or expressions">;
+def err_empty_requires_expr : Error<
+  "a requires expression must contain at least one requirement">;
+def err_requires_expr_parameter_list_ellipsis : Error<
+  "varargs not allowed in requires expression">;
+def err_requires_expr_type_req_illegal_identifier : Error<
+  "expected identifier or template-id in type requirement">;
+def err_requires_expr_type_req_template_args_on_non_template : Error<
+  "template arguments provided for non-template '%0'">;
+def err_expected_semi_requirement : Error<
+  "expected ';' at end of requirement">;
+def err_requires_expr_missing_arrow : Error<
+  "expected '->' before expression type requirement">;
+def err_requires_expr_expected_type_constraint : Error<
+  "expected concept name with optional arguments">;
+def err_requires_expr_simple_requirement_noexcept : Error<
+  "'noexcept' can only be used in a compound requirement (with '{' '}' around "
+  "the expression)">;
+def err_requires_expr_simple_requirement_unexpected_tok : Error<
+  "unexpected %0 after expression; did you intend to use a compound "
+  "requirement (with '{' '}' around the expression)?">;
+def warn_requires_expr_in_simple_requirement : Warning<
+  "this requires expression will only be checked for syntactic validity; did "
+  "you intend to place it in a nested requirement? (add another 'requires' "
+  "before the expression)">, InGroup<DiagGroup<"requires-expression">>;
 
 def err_missing_dependent_template_keyword : Error<
   "use 'template' keyword to treat '%0' as a dependent template name">;
@@ -880,7 +925,7 @@ def warn_cxx98_compat_lambda : Warning<
   InGroup<CXX98Compat>, DefaultIgnore;
 def err_lambda_missing_parens : Error<
   "lambda requires '()' before %select{'mutable'|return type|"
-  "attribute specifier|'constexpr'|'consteval'}0">;
+  "attribute specifier|'constexpr'|'consteval'|'requires' clause}0">;
 def err_lambda_decl_specifier_repeated : Error<
   "%select{'mutable'|'constexpr'|'consteval'}0 cannot appear multiple times in a lambda declarator">;
 def err_lambda_capture_misplaced_ellipsis : Error<

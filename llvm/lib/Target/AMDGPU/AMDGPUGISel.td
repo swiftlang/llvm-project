@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 include "AMDGPU.td"
+include "AMDGPUCombine.td"
 
 def sd_vsrc0 : ComplexPattern<i32, 1, "">;
 def gi_vsrc0 :
@@ -30,13 +31,13 @@ def gi_vop3mods :
     GIComplexOperandMatcher<s32, "selectVOP3Mods">,
     GIComplexPatternEquiv<VOP3Mods>;
 
+def gi_vop3mods_nnan :
+    GIComplexOperandMatcher<s32, "selectVOP3Mods_nnan">,
+    GIComplexPatternEquiv<VOP3Mods_nnan>;
+
 def gi_vop3omods :
     GIComplexOperandMatcher<s32, "selectVOP3OMods">,
     GIComplexPatternEquiv<VOP3OMods>;
-
-def gi_vop3omods0clamp0omod :
-    GIComplexOperandMatcher<s32, "selectVOP3Mods0Clamp0OMod">,
-    GIComplexPatternEquiv<VOP3Mods0Clamp0OMod>;
 
 def gi_vop3opselmods0 :
     GIComplexOperandMatcher<s32, "selectVOP3OpSelMods0">,
@@ -119,6 +120,12 @@ def : GINodeEquiv<G_ATOMICRMW_FADD, atomic_load_fadd_glue>;
 def : GINodeEquiv<G_AMDGPU_FFBH_U32, AMDGPUffbh_u32>;
 def : GINodeEquiv<G_AMDGPU_ATOMIC_CMPXCHG, AMDGPUatomic_cmp_swap>;
 
+// FIXME: Check MMO is atomic
+def : GINodeEquiv<G_AMDGPU_ATOMIC_INC, SIatomic_inc>;
+def : GINodeEquiv<G_AMDGPU_ATOMIC_DEC, SIatomic_dec>;
+def : GINodeEquiv<G_AMDGPU_ATOMIC_INC, atomic_inc_glue>;
+def : GINodeEquiv<G_AMDGPU_ATOMIC_DEC, atomic_dec_glue>;
+
 
 class GISelSop2Pat <
   SDPatternOperator node,
@@ -195,9 +202,6 @@ multiclass GISelVop2IntrPat <
   def : GISelVop2CommutePat <node, inst, dst_vt, src_vt>;
 }
 
-def : GISelSop2Pat <or, S_OR_B32, i32>;
-def : GISelVop2Pat <or, V_OR_B32_e32, i32>;
-
 // Since GlobalISel is more flexible then SelectionDAG, I think we can get
 // away with adding patterns for integer types and not legalizing all
 // loads and stores to vector types.  This should help simplify the load/store
@@ -206,5 +210,20 @@ foreach Ty = [i64, p0, p1, p4] in {
   defm : SMRD_Pattern <"S_LOAD_DWORDX2",  Ty>;
 }
 
-def gi_as_i32timm : GICustomOperandRenderer<"renderTruncImm32">,
+def gi_as_i32timm : GICustomOperandRenderer<"renderTruncTImm32">,
   GISDNodeXFormEquiv<as_i32timm>;
+
+def gi_as_i16timm : GICustomOperandRenderer<"renderTruncTImm16">,
+  GISDNodeXFormEquiv<as_i16timm>;
+
+def gi_as_i1timm : GICustomOperandRenderer<"renderTruncTImm1">,
+  GISDNodeXFormEquiv<as_i1timm>;
+
+def gi_NegateImm : GICustomOperandRenderer<"renderNegateImm">,
+  GISDNodeXFormEquiv<NegateImm>;
+
+def gi_bitcast_fpimm_to_i32 : GICustomOperandRenderer<"renderBitcastImm">,
+  GISDNodeXFormEquiv<bitcast_fpimm_to_i32>;
+
+def gi_IMMPopCount : GICustomOperandRenderer<"renderPopcntImm">,
+  GISDNodeXFormEquiv<IMMPopCount>;

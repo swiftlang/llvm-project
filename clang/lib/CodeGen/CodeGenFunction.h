@@ -2983,7 +2983,8 @@ public:
   llvm::Function *EmitCapturedStmt(const CapturedStmt &S, CapturedRegionKind K);
   llvm::Function *GenerateCapturedStmtFunction(const CapturedStmt &S);
   Address GenerateCapturedStmtArgument(const CapturedStmt &S);
-  llvm::Function *GenerateOpenMPCapturedStmtFunction(const CapturedStmt &S);
+  llvm::Function *GenerateOpenMPCapturedStmtFunction(const CapturedStmt &S,
+                                                     SourceLocation Loc);
   void GenerateOpenMPCapturedVars(const CapturedStmt &S,
                                   SmallVectorImpl<llvm::Value *> &CapturedVars);
   void emitOMPSimpleStore(LValue LVal, RValue RVal, QualType RValTy,
@@ -3768,6 +3769,8 @@ public:
 
   RValue EmitNVPTXDevicePrintfCallExpr(const CallExpr *E,
                                        ReturnValueSlot ReturnValue);
+  RValue EmitAMDGPUDevicePrintfCallExpr(const CallExpr *E,
+                                        ReturnValueSlot ReturnValue);
 
   RValue EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
                          const CallExpr *E, ReturnValueSlot ReturnValue);
@@ -3776,6 +3779,11 @@ public:
 
   /// Emit IR for __builtin_os_log_format.
   RValue emitBuiltinOSLogFormat(const CallExpr &E);
+
+  /// Emit IR for __builtin_is_aligned.
+  RValue EmitBuiltinIsAligned(const CallExpr *E);
+  /// Emit IR for __builtin_align_up/__builtin_align_down.
+  RValue EmitBuiltinAlignTo(const CallExpr *E, bool AlignUp);
 
   llvm::Function *generateBuiltinOSLogHelperFunction(
       const analyze_os_log::OSLogBufferLayout &Layout,

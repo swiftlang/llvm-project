@@ -253,6 +253,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_ELFOSABI>::enumeration(
   ECase(ELFOSABI_HPUX);
   ECase(ELFOSABI_NETBSD);
   ECase(ELFOSABI_GNU);
+  ECase(ELFOSABI_LINUX);
   ECase(ELFOSABI_HURD);
   ECase(ELFOSABI_SOLARIS);
   ECase(ELFOSABI_AIX);
@@ -274,6 +275,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_ELFOSABI>::enumeration(
   ECase(ELFOSABI_C6000_LINUX);
   ECase(ELFOSABI_STANDALONE);
 #undef ECase
+  IO.enumFallback<Hex8>(Value);
 }
 
 void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
@@ -347,6 +349,9 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCase(EF_HEXAGON_MACH_V60);
     BCase(EF_HEXAGON_MACH_V62);
     BCase(EF_HEXAGON_MACH_V65);
+    BCase(EF_HEXAGON_MACH_V66);
+    BCase(EF_HEXAGON_MACH_V67);
+    BCase(EF_HEXAGON_MACH_V67T);
     BCase(EF_HEXAGON_ISA_V2);
     BCase(EF_HEXAGON_ISA_V3);
     BCase(EF_HEXAGON_ISA_V4);
@@ -355,6 +360,8 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCase(EF_HEXAGON_ISA_V60);
     BCase(EF_HEXAGON_ISA_V62);
     BCase(EF_HEXAGON_ISA_V65);
+    BCase(EF_HEXAGON_ISA_V66);
+    BCase(EF_HEXAGON_ISA_V67);
     break;
   case ELF::EM_AVR:
     BCase(EF_AVR_ARCH_AVR1);
@@ -1017,10 +1024,12 @@ static void commonSectionMapping(IO &IO, ELFYAML::Section &Section) {
   // are producing YAML, because yaml2obj sets appropriate values for them
   // automatically when they are not explicitly defined.
   assert(!IO.outputting() ||
-         (!Section.ShOffset.hasValue() && !Section.ShSize.hasValue()));
+         (!Section.ShOffset.hasValue() && !Section.ShSize.hasValue() &&
+          !Section.ShName.hasValue() && !Section.ShFlags.hasValue()));
   IO.mapOptional("ShName", Section.ShName);
   IO.mapOptional("ShOffset", Section.ShOffset);
   IO.mapOptional("ShSize", Section.ShSize);
+  IO.mapOptional("ShFlags", Section.ShFlags);
 }
 
 static void sectionMapping(IO &IO, ELFYAML::DynamicSection &Section) {
@@ -1095,6 +1104,12 @@ static void sectionMapping(IO &IO, ELFYAML::RelocationSection &Section) {
   commonSectionMapping(IO, Section);
   IO.mapOptional("Info", Section.RelocatableSec, StringRef());
   IO.mapOptional("Relocations", Section.Relocations);
+}
+
+static void sectionMapping(IO &IO, ELFYAML::RelrSection &Section) {
+  commonSectionMapping(IO, Section);
+  IO.mapOptional("Entries", Section.Entries);
+  IO.mapOptional("Content", Section.Content);
 }
 
 static void groupSectionMapping(IO &IO, ELFYAML::Group &Group) {
@@ -1196,6 +1211,11 @@ void MappingTraits<std::unique_ptr<ELFYAML::Chunk>>::mapping(
       Section.reset(new ELFYAML::RelocationSection());
     sectionMapping(IO, *cast<ELFYAML::RelocationSection>(Section.get()));
     break;
+  case ELF::SHT_RELR:
+    if (!IO.outputting())
+      Section.reset(new ELFYAML::RelrSection());
+    sectionMapping(IO, *cast<ELFYAML::RelrSection>(Section.get()));
+    break;
   case ELF::SHT_GROUP:
     if (!IO.outputting())
       Section.reset(new ELFYAML::Group());
@@ -1283,11 +1303,12 @@ void MappingTraits<std::unique_ptr<ELFYAML::Chunk>>::mapping(
 
 StringRef MappingTraits<std::unique_ptr<ELFYAML::Chunk>>::validate(
     IO &io, std::unique_ptr<ELFYAML::Chunk> &C) {
-  if (const auto *RawSection =
-          dyn_cast<ELFYAML::RawContentSection>(C.get())) {
+  if (const auto *RawSection = dyn_cast<ELFYAML::RawContentSection>(C.get())) {
     if (RawSection->Size && RawSection->Content &&
         (uint64_t)(*RawSection->Size) < RawSection->Content->binary_size())
       return "Section size must be greater than or equal to the content size";
+    if (RawSection->Flags && RawSection->ShFlags)
+      return "ShFlags and Flags cannot be used together";
     return {};
   }
 
@@ -1433,6 +1454,12 @@ StringRef MappingTraits<std::unique_ptr<ELFYAML::Chunk>>::validate(
     if (VD->VerneedV && VD->Content)
       return "SHT_GNU_verneed: \"Dependencies\" and \"Content\" can't be used "
              "together";
+    return {};
+  }
+
+  if (const auto *RS = dyn_cast<ELFYAML::RelrSection>(C.get())) {
+    if (RS->Entries && RS->Content)
+      return "\"Entries\" and \"Content\" can't be used together";
     return {};
   }
 

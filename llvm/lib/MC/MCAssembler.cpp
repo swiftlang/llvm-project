@@ -163,10 +163,6 @@ bool MCAssembler::isSymbolLinkerVisible(const MCSymbol &Symbol) const {
   if (!Symbol.isTemporary())
     return true;
 
-  // Absolute temporary labels are never visible.
-  if (!Symbol.isInSection())
-    return false;
-
   if (Symbol.isUsedInReloc())
     return true;
 
@@ -221,6 +217,13 @@ bool MCAssembler::evaluateFixup(const MCAsmLayout &Layout,
   }
 
   assert(getBackendPtr() && "Expected assembler backend");
+  bool IsTarget = getBackendPtr()->getFixupKindInfo(Fixup.getKind()).Flags &
+                  MCFixupKindInfo::FKF_IsTarget;
+
+  if (IsTarget)
+    return getBackend().evaluateTargetFixup(*this, Layout, Fixup, DF, Target,
+                                            Value, WasForced);
+
   bool IsPCRel = getBackendPtr()->getFixupKindInfo(Fixup.getKind()).Flags &
                  MCFixupKindInfo::FKF_IsPCRel;
 
@@ -308,6 +311,9 @@ uint64_t MCAssembler::computeFragmentSize(const MCAsmLayout &Layout,
 
   case MCFragment::FT_LEB:
     return cast<MCLEBFragment>(F).getContents().size();
+
+  case MCFragment::FT_BoundaryAlign:
+    return cast<MCBoundaryAlignFragment>(F).getSize();
 
   case MCFragment::FT_SymbolId:
     return 4;
@@ -573,6 +579,7 @@ static void writeFragment(raw_ostream &OS, const MCAssembler &Asm,
     unsigned VSize = FF.getValueSize();
     const unsigned MaxChunkSize = 16;
     char Data[MaxChunkSize];
+    assert(0 < VSize && VSize <= MaxChunkSize && "Illegal fragment fill size");
     // Duplicate V into Data as byte vector to reduce number of
     // writes done. As such, do endian conversion here.
     for (unsigned I = 0; I != VSize; ++I) {
@@ -602,6 +609,13 @@ static void writeFragment(raw_ostream &OS, const MCAssembler &Asm,
   case MCFragment::FT_LEB: {
     const MCLEBFragment &LF = cast<MCLEBFragment>(F);
     OS << LF.getContents();
+    break;
+  }
+
+  case MCFragment::FT_BoundaryAlign: {
+    if (!Asm.getBackend().writeNopData(OS, FragmentSize))
+      report_fatal_error("unable to write nop sequence of " +
+                         Twine(FragmentSize) + " bytes");
     break;
   }
 
@@ -941,6 +955,72 @@ bool MCAssembler::relaxLEB(MCAsmLayout &Layout, MCLEBFragment &LF) {
   return OldSize != LF.getContents().size();
 }
 
+/// Check if the branch crosses the boundary.
+///
+/// \param StartAddr start address of the fused/unfused branch.
+/// \param Size size of the fused/unfused branch.
+/// \param BoundaryAlignment alignment requirement of the branch.
+/// \returns true if the branch cross the boundary.
+static bool mayCrossBoundary(uint64_t StartAddr, uint64_t Size,
+                             Align BoundaryAlignment) {
+  uint64_t EndAddr = StartAddr + Size;
+  return (StartAddr >> Log2(BoundaryAlignment)) !=
+         ((EndAddr - 1) >> Log2(BoundaryAlignment));
+}
+
+/// Check if the branch is against the boundary.
+///
+/// \param StartAddr start address of the fused/unfused branch.
+/// \param Size size of the fused/unfused branch.
+/// \param BoundaryAlignment alignment requirement of the branch.
+/// \returns true if the branch is against the boundary.
+static bool isAgainstBoundary(uint64_t StartAddr, uint64_t Size,
+                              Align BoundaryAlignment) {
+  uint64_t EndAddr = StartAddr + Size;
+  return (EndAddr & (BoundaryAlignment.value() - 1)) == 0;
+}
+
+/// Check if the branch needs padding.
+///
+/// \param StartAddr start address of the fused/unfused branch.
+/// \param Size size of the fused/unfused branch.
+/// \param BoundaryAlignment alignment requirement of the branch.
+/// \returns true if the branch needs padding.
+static bool needPadding(uint64_t StartAddr, uint64_t Size,
+                        Align BoundaryAlignment) {
+  return mayCrossBoundary(StartAddr, Size, BoundaryAlignment) ||
+         isAgainstBoundary(StartAddr, Size, BoundaryAlignment);
+}
+
+bool MCAssembler::relaxBoundaryAlign(MCAsmLayout &Layout,
+                                     MCBoundaryAlignFragment &BF) {
+  // The MCBoundaryAlignFragment that doesn't emit NOP should not be relaxed.
+  if (!BF.canEmitNops())
+    return false;
+
+  uint64_t AlignedOffset = Layout.getFragmentOffset(BF.getNextNode());
+  uint64_t AlignedSize = 0;
+  const MCFragment *F = BF.getNextNode();
+  // If the branch is unfused, it is emitted into one fragment, otherwise it is
+  // emitted into two fragments at most, the next MCBoundaryAlignFragment(if
+  // exists) also marks the end of the branch.
+  for (auto i = 0, N = BF.isFused() ? 2 : 1;
+       i != N && !isa<MCBoundaryAlignFragment>(F); ++i, F = F->getNextNode()) {
+    AlignedSize += computeFragmentSize(Layout, *F);
+  }
+  uint64_t OldSize = BF.getSize();
+  AlignedOffset -= OldSize;
+  Align BoundaryAlignment = BF.getAlignment();
+  uint64_t NewSize = needPadding(AlignedOffset, AlignedSize, BoundaryAlignment)
+                         ? offsetToAlignment(AlignedOffset, BoundaryAlignment)
+                         : 0U;
+  if (NewSize == OldSize)
+    return false;
+  BF.setSize(NewSize);
+  Layout.invalidateFragmentsFrom(&BF);
+  return true;
+}
+
 bool MCAssembler::relaxDwarfLineAddr(MCAsmLayout &Layout,
                                      MCDwarfLineAddrFragment &DF) {
   MCContext &Context = Layout.getAssembler().getContext();
@@ -1057,6 +1137,10 @@ bool MCAssembler::layoutSectionOnce(MCAsmLayout &Layout, MCSection &Sec) {
     case MCFragment::FT_LEB:
       RelaxedFrag = relaxLEB(Layout, *cast<MCLEBFragment>(I));
       break;
+    case MCFragment::FT_BoundaryAlign:
+      RelaxedFrag =
+          relaxBoundaryAlign(Layout, *cast<MCBoundaryAlignFragment>(I));
+      break;
     case MCFragment::FT_CVInlineLines:
       RelaxedFrag =
           relaxCVInlineLineTable(Layout, *cast<MCCVInlineLineTableFragment>(I));
@@ -1093,8 +1177,8 @@ void MCAssembler::finishLayout(MCAsmLayout &Layout) {
   // The layout is done. Mark every fragment as valid.
   for (unsigned int i = 0, n = Layout.getSectionOrder().size(); i != n; ++i) {
     MCSection &Section = *Layout.getSectionOrder()[i];
-    Layout.getFragmentOffset(&*Section.rbegin());
-    computeFragmentSize(Layout, *Section.rbegin());
+    Layout.getFragmentOffset(&*Section.getFragmentList().rbegin());
+    computeFragmentSize(Layout, *Section.getFragmentList().rbegin());
   }
   getBackend().finishLayout(*this, Layout);
 }

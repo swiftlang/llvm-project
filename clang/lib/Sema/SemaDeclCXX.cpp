@@ -217,8 +217,8 @@ Sema::ImplicitExceptionSpecification::CalledDecl(SourceLocation CallLoc,
       Exceptions.push_back(E);
 }
 
-void Sema::ImplicitExceptionSpecification::CalledExpr(Expr *E) {
-  if (!E || ComputedEST == EST_MSAny)
+void Sema::ImplicitExceptionSpecification::CalledStmt(Stmt *S) {
+  if (!S || ComputedEST == EST_MSAny)
     return;
 
   // FIXME:
@@ -242,7 +242,7 @@ void Sema::ImplicitExceptionSpecification::CalledExpr(Expr *E) {
   // implicit definition. For now, we assume that any non-nothrow expression can
   // throw any exception.
 
-  if (Self->canThrow(E))
+  if (Self->canThrow(S))
     ComputedEST = EST_None;
 }
 
@@ -1501,13 +1501,13 @@ void Sema::MergeVarDeclExceptionSpecs(VarDecl *New, VarDecl *Old) {
   // as pointers to member functions.
   if (const ReferenceType *R = NewType->getAs<ReferenceType>()) {
     NewType = R->getPointeeType();
-    OldType = OldType->getAs<ReferenceType>()->getPointeeType();
+    OldType = OldType->castAs<ReferenceType>()->getPointeeType();
   } else if (const PointerType *P = NewType->getAs<PointerType>()) {
     NewType = P->getPointeeType();
-    OldType = OldType->getAs<PointerType>()->getPointeeType();
+    OldType = OldType->castAs<PointerType>()->getPointeeType();
   } else if (const MemberPointerType *M = NewType->getAs<MemberPointerType>()) {
     NewType = M->getPointeeType();
-    OldType = OldType->getAs<MemberPointerType>()->getPointeeType();
+    OldType = OldType->castAs<MemberPointerType>()->getPointeeType();
   }
 
   if (!NewType->isFunctionProtoType())
@@ -1633,7 +1633,7 @@ static bool CheckConstexprParameterTypes(Sema &SemaRef,
                                          const FunctionDecl *FD,
                                          Sema::CheckConstexprKind Kind) {
   unsigned ArgIndex = 0;
-  const FunctionProtoType *FT = FD->getType()->getAs<FunctionProtoType>();
+  const auto *FT = FD->getType()->castAs<FunctionProtoType>();
   for (FunctionProtoType::param_type_iterator i = FT->param_type_begin(),
                                               e = FT->param_type_end();
        i != e; ++i, ++ArgIndex) {
@@ -3866,6 +3866,26 @@ void Sema::ActOnStartCXXInClassMemberInitializer() {
   // Create a synthetic function scope to represent the call to the constructor
   // that notionally surrounds a use of this initializer.
   PushFunctionScope();
+}
+
+void Sema::ActOnStartTrailingRequiresClause(Scope *S, Declarator &D) {
+  if (!D.isFunctionDeclarator())
+    return;
+  auto &FTI = D.getFunctionTypeInfo();
+  if (!FTI.Params)
+    return;
+  for (auto &Param : ArrayRef<DeclaratorChunk::ParamInfo>(FTI.Params,
+                                                          FTI.NumParams)) {
+    auto *ParamDecl = cast<NamedDecl>(Param.Param);
+    if (ParamDecl->getDeclName())
+      PushOnScopeChains(ParamDecl, S, /*AddToContext=*/false);
+  }
+}
+
+ExprResult Sema::ActOnFinishTrailingRequiresClause(ExprResult ConstraintExpr) {
+  if (ConstraintExpr.isInvalid())
+    return ExprError();
+  return CorrectDelayedTyposInExpr(ConstraintExpr);
 }
 
 /// This is invoked after parsing an in-class initializer for a
@@ -6814,20 +6834,50 @@ static bool defaultedSpecialMemberIsConstexpr(
   return true;
 }
 
+namespace {
+/// RAII object to register a defaulted function as having its exception
+/// specification computed.
+struct ComputingExceptionSpec {
+  Sema &S;
+
+  ComputingExceptionSpec(Sema &S, FunctionDecl *FD, SourceLocation Loc)
+      : S(S) {
+    Sema::CodeSynthesisContext Ctx;
+    Ctx.Kind = Sema::CodeSynthesisContext::ExceptionSpecEvaluation;
+    Ctx.PointOfInstantiation = Loc;
+    Ctx.Entity = FD;
+    S.pushCodeSynthesisContext(Ctx);
+  }
+  ~ComputingExceptionSpec() {
+    S.popCodeSynthesisContext();
+  }
+};
+}
+
 static Sema::ImplicitExceptionSpecification
 ComputeDefaultedSpecialMemberExceptionSpec(
     Sema &S, SourceLocation Loc, CXXMethodDecl *MD, Sema::CXXSpecialMember CSM,
     Sema::InheritedConstructorInfo *ICI);
 
 static Sema::ImplicitExceptionSpecification
-computeImplicitExceptionSpec(Sema &S, SourceLocation Loc, CXXMethodDecl *MD) {
-  auto CSM = S.getSpecialMember(MD);
-  if (CSM != Sema::CXXInvalid)
-    return ComputeDefaultedSpecialMemberExceptionSpec(S, Loc, MD, CSM, nullptr);
+ComputeDefaultedComparisonExceptionSpec(Sema &S, SourceLocation Loc,
+                                        FunctionDecl *FD,
+                                        Sema::DefaultedComparisonKind DCK);
 
-  auto *CD = cast<CXXConstructorDecl>(MD);
+static Sema::ImplicitExceptionSpecification
+computeImplicitExceptionSpec(Sema &S, SourceLocation Loc, FunctionDecl *FD) {
+  auto DFK = S.getDefaultedFunctionKind(FD);
+  if (DFK.isSpecialMember())
+    return ComputeDefaultedSpecialMemberExceptionSpec(
+        S, Loc, cast<CXXMethodDecl>(FD), DFK.asSpecialMember(), nullptr);
+  if (DFK.isComparison())
+    return ComputeDefaultedComparisonExceptionSpec(S, Loc, FD,
+                                                   DFK.asComparison());
+
+  auto *CD = cast<CXXConstructorDecl>(FD);
   assert(CD->getInheritedConstructor() &&
-         "only special members have implicit exception specs");
+         "only defaulted functions and inherited constructors have implicit "
+         "exception specs");
   Sema::InheritedConstructorInfo ICI(
       S, Loc, CD->getInheritedConstructor().getShadowDecl());
   return ComputeDefaultedSpecialMemberExceptionSpec(
@@ -6849,25 +6899,17 @@ static FunctionProtoType::ExtProtoInfo getImplicitMethodEPI(Sema &S,
   return EPI;
 }
 
-void Sema::EvaluateImplicitExceptionSpec(SourceLocation Loc, CXXMethodDecl *MD) {
-  const FunctionProtoType *FPT = MD->getType()->castAs<FunctionProtoType>();
+void Sema::EvaluateImplicitExceptionSpec(SourceLocation Loc, FunctionDecl *FD) {
+  const FunctionProtoType *FPT = FD->getType()->castAs<FunctionProtoType>();
   if (FPT->getExceptionSpecType() != EST_Unevaluated)
     return;
 
   // Evaluate the exception specification.
-  auto IES = computeImplicitExceptionSpec(*this, Loc, MD);
+  auto IES = computeImplicitExceptionSpec(*this, Loc, FD);
   auto ESI = IES.getExceptionSpec();
 
   // Update the type of the special member to use it.
-  UpdateExceptionSpec(MD, ESI);
-
-  // A user-provided destructor can be defined outside the class. When that
-  // happens, be sure to update the exception specification on both
-  // declarations.
-  const FunctionProtoType *CanonicalFPT =
-    MD->getCanonicalDecl()->getType()->castAs<FunctionProtoType>();
-  if (CanonicalFPT->getExceptionSpecType() == EST_Unevaluated)
-    UpdateExceptionSpec(MD->getCanonicalDecl(), ESI);
+  UpdateExceptionSpec(FD, ESI);
 }
 
 void Sema::CheckExplicitlyDefaultedFunction(Scope *S, FunctionDecl *FD) {
@@ -7599,7 +7641,8 @@ public:
       // Per C++2a [class.spaceship]p3, as a fallback add:
       // return static_cast<R>(std::strong_ordering::equal);
       QualType StrongOrdering = S.CheckComparisonCategoryType(
-          ComparisonCategoryType::StrongOrdering, Loc);
+          ComparisonCategoryType::StrongOrdering, Loc,
+          Sema::ComparisonCategoryUsage::DefaultedOperator);
       if (StrongOrdering.isNull())
         return StmtError();
       VarDecl *EqualVD = S.Context.CompCategories.getInfoForType(StrongOrdering)
@@ -8057,7 +8100,8 @@ bool Sema::CheckExplicitlyDefaultedComparison(Scope *S, FunctionDecl *FD,
       RetLoc = FD->getBeginLoc();
     // FIXME: Should we really care whether we have the complete type and the
     // 'enumerator' constants here? A forward declaration seems sufficient.
-    QualType Cat = CheckComparisonCategoryType(Info.Category, RetLoc);
+    QualType Cat = CheckComparisonCategoryType(
+        Info.Category, RetLoc, ComparisonCategoryUsage::DefaultedOperator);
     if (Cat.isNull())
       return true;
     Context.adjustDeducedFunctionResultType(
@@ -8090,12 +8134,20 @@ bool Sema::CheckExplicitlyDefaultedComparison(Scope *S, FunctionDecl *FD,
   //   declaration, it is implicitly considered to be constexpr.
   // FIXME: Only applying this to the first declaration seems problematic, as
   // simple reorderings can affect the meaning of the program.
-  if (First) {
-    if (!FD->isConstexpr() && Info.Constexpr)
-      FD->setConstexprKind(CSK_constexpr);
+  if (First && !FD->isConstexpr() && Info.Constexpr)
+    FD->setConstexprKind(CSK_constexpr);
 
-    // FIXME: Set up an implicit exception specification, or if given an
-    // explicit one, check that it matches.
+  // C++2a [except.spec]p3:
+  //   If a declaration of a function does not have a noexcept-specifier
+  //   [and] is defaulted on its first declaration, [...] the exception
+  //   specification is as specified below
+  if (FD->getExceptionSpecType() == EST_None) {
+    auto *FPT = FD->getType()->castAs<FunctionProtoType>();
+    FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+    EPI.ExceptionSpec.Type = EST_Unevaluated;
+    EPI.ExceptionSpec.SourceDecl = FD;
+    FD->setType(Context.getFunctionType(FPT->getReturnType(),
+                                        FPT->getParamTypes(), EPI));
   }
 
   return false;
@@ -8124,17 +8176,11 @@ void Sema::DefineDefaultedComparison(SourceLocation UseLoc, FunctionDecl *FD,
 
   SynthesizedFunctionScope Scope(*this, FD);
 
-  // The exception specification is needed because we are defining the
-  // function.
-  // FIXME: Handle this better. Computing the exception specification will
-  // eventually need the function body.
-  ResolveExceptionSpec(UseLoc, FD->getType()->castAs<FunctionProtoType>());
-
   // Add a context note for diagnostics produced after this point.
   Scope.addContextNote(UseLoc);
 
-  // Build and set up the function body.
   {
+    // Build and set up the function body.
     CXXRecordDecl *RD = cast<CXXRecordDecl>(FD->getLexicalParent());
     SourceLocation BodyLoc =
         FD->getEndLoc().isValid() ? FD->getEndLoc() : FD->getLocation();
@@ -8148,8 +8194,56 @@ void Sema::DefineDefaultedComparison(SourceLocation UseLoc, FunctionDecl *FD,
     FD->markUsed(Context);
   }
 
+  // The exception specification is needed because we are defining the
+  // function. Note that this will reuse the body we just built.
+  ResolveExceptionSpec(UseLoc, FD->getType()->castAs<FunctionProtoType>());
+
   if (ASTMutationListener *L = getASTMutationListener())
     L->CompletedImplicitDefinition(FD);
+}
+
+static Sema::ImplicitExceptionSpecification
+ComputeDefaultedComparisonExceptionSpec(Sema &S, SourceLocation Loc,
+                                        FunctionDecl *FD,
+                                        Sema::DefaultedComparisonKind DCK) {
+  ComputingExceptionSpec CES(S, FD, Loc);
+  Sema::ImplicitExceptionSpecification ExceptSpec(S);
+
+  if (FD->isInvalidDecl())
+    return ExceptSpec;
+
+  // The common case is that we just defined the comparison function. In that
+  // case, just look at whether the body can throw.
+  if (FD->hasBody()) {
+    ExceptSpec.CalledStmt(FD->getBody());
+  } else {
+    // Otherwise, build a body so we can check it. This should ideally only
+    // happen when we're not actually marking the function referenced. (This is
+    // only really important for efficiency: we don't want to build and throw
+    // away bodies for comparison functions more than we strictly need to.)
+
+    // Pretend to synthesize the function body in an unevaluated context.
+    // Note that we can't actually just go ahead and define the function here:
+    // we are not permitted to mark its callees as referenced.
+    Sema::SynthesizedFunctionScope Scope(S, FD);
+    EnterExpressionEvaluationContext Context(
+        S, Sema::ExpressionEvaluationContext::Unevaluated);
+
+    CXXRecordDecl *RD = cast<CXXRecordDecl>(FD->getLexicalParent());
+    SourceLocation BodyLoc =
+        FD->getEndLoc().isValid() ? FD->getEndLoc() : FD->getLocation();
+    StmtResult Body =
+        DefaultedComparisonSynthesizer(S, RD, FD, DCK, BodyLoc).build();
+    if (!Body.isInvalid())
+      ExceptSpec.CalledStmt(Body.get());
+
+    // FIXME: Can we hold onto this body and just transform it to potentially
+    // evaluated when we're asked to define the function rather than rebuilding
+    // it? Either that, or we should only build the bits of the body that we
+    // need (the expressions, not the statements).
+  }
+
+  return ExceptSpec;
 }
 
 void Sema::CheckDelayedMemberExceptionSpecs() {
@@ -9773,7 +9867,7 @@ QualType Sema::CheckConstructorDeclarator(Declarator &D, QualType R,
   // Rebuild the function type "R" without any type qualifiers (in
   // case any of the errors above fired) and with "void" as the
   // return type, since constructors don't have return types.
-  const FunctionProtoType *Proto = R->getAs<FunctionProtoType>();
+  const FunctionProtoType *Proto = R->castAs<FunctionProtoType>();
   if (Proto->getReturnType() == Context.VoidTy && !D.isInvalidType())
     return R;
 
@@ -9971,7 +10065,7 @@ QualType Sema::CheckDestructorDeclarator(Declarator &D, QualType R,
   if (!D.isInvalidType())
     return R;
 
-  const FunctionProtoType *Proto = R->getAs<FunctionProtoType>();
+  const FunctionProtoType *Proto = R->castAs<FunctionProtoType>();
   FunctionProtoType::ExtProtoInfo EPI = Proto->getExtProtoInfo();
   EPI.Variadic = false;
   EPI.TypeQuals = Qualifiers();
@@ -10045,7 +10139,7 @@ void Sema::CheckConversionDeclarator(Declarator &D, QualType &R,
     D.setInvalidType();
   }
 
-  const FunctionProtoType *Proto = R->getAs<FunctionProtoType>();
+  const auto *Proto = R->castAs<FunctionProtoType>();
 
   // Make sure we don't have any parameters.
   if (Proto->getNumParams() > 0) {
@@ -10630,7 +10724,8 @@ struct InvalidSTLDiagnoser {
 } // namespace
 
 QualType Sema::CheckComparisonCategoryType(ComparisonCategoryType Kind,
-                                           SourceLocation Loc) {
+                                           SourceLocation Loc,
+                                           ComparisonCategoryUsage Usage) {
   assert(getLangOpts().CPlusPlus &&
          "Looking for comparison category type outside of C++.");
 
@@ -10659,7 +10754,7 @@ QualType Sema::CheckComparisonCategoryType(ComparisonCategoryType Kind,
     std::string NameForDiags = "std::";
     NameForDiags += ComparisonCategories::getCategoryString(Kind);
     Diag(Loc, diag::err_implied_comparison_category_type_not_found)
-        << NameForDiags;
+        << NameForDiags << (int)Usage;
     return QualType();
   }
 
@@ -12374,25 +12469,6 @@ void SpecialMemberExceptionSpecInfo::visitSubobjectCall(
     ExceptSpec.CalledDecl(getSubobjectLoc(Subobj), MD);
 }
 
-namespace {
-/// RAII object to register a special member as being currently declared.
-struct ComputingExceptionSpec {
-  Sema &S;
-
-  ComputingExceptionSpec(Sema &S, CXXMethodDecl *MD, SourceLocation Loc)
-      : S(S) {
-    Sema::CodeSynthesisContext Ctx;
-    Ctx.Kind = Sema::CodeSynthesisContext::ExceptionSpecEvaluation;
-    Ctx.PointOfInstantiation = Loc;
-    Ctx.Entity = MD;
-    S.pushCodeSynthesisContext(Ctx);
-  }
-  ~ComputingExceptionSpec() {
-    S.popCodeSynthesisContext();
-  }
-};
-}
-
 bool Sema::tryResolveExplicitSpecifier(ExplicitSpecifier &ExplicitSpec) {
   llvm::APSInt Result;
   ExprResult Converted = CheckConvertedConstantExpression(
@@ -12687,7 +12763,8 @@ Sema::findInheritingConstructor(SourceLocation Loc,
       BaseCtor->getExplicitSpecifier(), /*isInline=*/true,
       /*isImplicitlyDeclared=*/true,
       Constexpr ? BaseCtor->getConstexprKind() : CSK_unspecified,
-      InheritedConstructor(Shadow, BaseCtor));
+      InheritedConstructor(Shadow, BaseCtor),
+      BaseCtor->getTrailingRequiresClause());
   if (Shadow->isInvalidDecl())
     DerivedCtor->setInvalidDecl();
 
@@ -12979,8 +13056,7 @@ void Sema::AdjustDestructorExceptionSpec(CXXDestructorDecl *Destructor) {
   //   A declaration of a destructor that does not have an exception-
   //   specification is implicitly considered to have the same exception-
   //   specification as an implicit declaration.
-  const FunctionProtoType *DtorType = Destructor->getType()->
-                                        getAs<FunctionProtoType>();
+  const auto *DtorType = Destructor->getType()->castAs<FunctionProtoType>();
   if (DtorType->hasExceptionSpec())
     return;
 
@@ -13960,8 +14036,8 @@ void Sema::DefineImplicitMoveAssignment(SourceLocation CurrentLocation,
 
   // The parameter for the "other" object, which we are move from.
   ParmVarDecl *Other = MoveAssignOperator->getParamDecl(0);
-  QualType OtherRefType = Other->getType()->
-      getAs<RValueReferenceType>()->getPointeeType();
+  QualType OtherRefType =
+      Other->getType()->castAs<RValueReferenceType>()->getPointeeType();
 
   // Our location for everything implicitly-generated.
   SourceLocation Loc = MoveAssignOperator->getEndLoc().isValid()
@@ -14755,9 +14831,7 @@ Sema::CompleteConstructorCall(CXXConstructorDecl *Constructor,
   unsigned NumArgs = ArgsPtr.size();
   Expr **Args = ArgsPtr.data();
 
-  const FunctionProtoType *Proto
-    = Constructor->getType()->getAs<FunctionProtoType>();
-  assert(Proto && "Constructor without a prototype?");
+  const auto *Proto = Constructor->getType()->castAs<FunctionProtoType>();
   unsigned NumParams = Proto->getNumParams();
 
   // If too few arguments are available, we'll fill in the rest with defaults.
@@ -14820,7 +14894,7 @@ CheckOperatorNewDeleteTypes(Sema &SemaRef, const FunctionDecl *FnDecl,
                             unsigned DependentParamTypeDiag,
                             unsigned InvalidParamTypeDiag) {
   QualType ResultType =
-      FnDecl->getType()->getAs<FunctionType>()->getReturnType();
+      FnDecl->getType()->castAs<FunctionType>()->getReturnType();
 
   // Check that the result type is not dependent.
   if (ResultType->isDependentType())
@@ -15049,7 +15123,7 @@ bool Sema::CheckOverloadedOperatorDeclaration(FunctionDecl *FnDecl) {
 
   // Overloaded operators other than operator() cannot be variadic.
   if (Op != OO_Call &&
-      FnDecl->getType()->getAs<FunctionProtoType>()->isVariadic()) {
+      FnDecl->getType()->castAs<FunctionProtoType>()->isVariadic()) {
     return Diag(FnDecl->getLocation(), diag::err_operator_overload_variadic)
       << FnDecl->getDeclName();
   }
@@ -16422,8 +16496,8 @@ void Sema::DiagnoseReturnInConstructorExceptionHandler(CXXTryStmt *TryBlock) {
 
 bool Sema::CheckOverridingFunctionAttributes(const CXXMethodDecl *New,
                                              const CXXMethodDecl *Old) {
-  const auto *NewFT = New->getType()->getAs<FunctionProtoType>();
-  const auto *OldFT = Old->getType()->getAs<FunctionProtoType>();
+  const auto *NewFT = New->getType()->castAs<FunctionProtoType>();
+  const auto *OldFT = Old->getType()->castAs<FunctionProtoType>();
 
   if (OldFT->hasExtParameterInfos()) {
     for (unsigned I = 0, E = OldFT->getNumParams(); I != E; ++I)
@@ -16470,8 +16544,8 @@ bool Sema::CheckOverridingFunctionAttributes(const CXXMethodDecl *New,
 
 bool Sema::CheckOverridingFunctionReturnType(const CXXMethodDecl *New,
                                              const CXXMethodDecl *Old) {
-  QualType NewTy = New->getType()->getAs<FunctionType>()->getReturnType();
-  QualType OldTy = Old->getType()->getAs<FunctionType>()->getReturnType();
+  QualType NewTy = New->getType()->castAs<FunctionType>()->getReturnType();
+  QualType OldTy = Old->getType()->castAs<FunctionType>()->getReturnType();
 
   if (Context.hasSameType(NewTy, OldTy) ||
       NewTy->isDependentType() || OldTy->isDependentType())
@@ -16710,7 +16784,7 @@ void Sema::MarkVTableUsed(SourceLocation Loc, CXXRecordDecl *Class,
     return;
   // Do not mark as used if compiling for the device outside of the target
   // region.
-  if (LangOpts.OpenMP && LangOpts.OpenMPIsDevice &&
+  if (TUKind != TU_Prefix && LangOpts.OpenMP && LangOpts.OpenMPIsDevice &&
       !isInOpenMPDeclareTargetContext() &&
       !isInOpenMPTargetExecutionDirective()) {
     if (!DefinitionRequired)
@@ -17076,6 +17150,11 @@ bool Sema::checkThisInStaticMemberFunctionType(CXXMethodDecl *Method) {
   // Check the exception specification.
   if (checkThisInStaticMemberFunctionExceptionSpec(Method))
     return true;
+
+  // Check the trailing requires clause
+  if (Expr *E = Method->getTrailingRequiresClause())
+    if (!Finder.TraverseStmt(E))
+      return true;
 
   return checkThisInStaticMemberFunctionAttributes(Method);
 }

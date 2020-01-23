@@ -22,6 +22,7 @@
 #include "clang/AST/DeclOpenMP.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/TypeLoc.h"
@@ -2301,6 +2302,16 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
       case LangAS::cuda_device:     ASString = "CUdevice";   break;
       case LangAS::cuda_constant:   ASString = "CUconstant"; break;
       case LangAS::cuda_shared:     ASString = "CUshared";   break;
+      //  <ptrsize-addrspace> ::= [ "ptr32_sptr" | "ptr32_uptr" | "ptr64" ]
+      case LangAS::ptr32_sptr:
+        ASString = "ptr32_sptr";
+        break;
+      case LangAS::ptr32_uptr:
+        ASString = "ptr32_uptr";
+        break;
+      case LangAS::ptr64:
+        ASString = "ptr64";
+        break;
       }
     }
     if (!ASString.empty())
@@ -3661,6 +3672,7 @@ recurse:
   case Expr::ConvertVectorExprClass:
   case Expr::StmtExprClass:
   case Expr::TypeTraitExprClass:
+  case Expr::RequiresExprClass:
   case Expr::ArrayTypeTraitExprClass:
   case Expr::ExpressionTraitExprClass:
   case Expr::VAArgExprClass:

@@ -2,7 +2,6 @@
 Test 'watchpoint command'.
 """
 
-from __future__ import print_function
 
 
 import os
@@ -15,6 +14,7 @@ from lldbsuite.test import lldbutil
 class WatchpointPythonCommandTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
         # Call super's setUp().

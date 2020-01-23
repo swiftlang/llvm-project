@@ -14,6 +14,7 @@
 #include "CGCleanup.h"
 #include "CGDebugInfo.h"
 #include "CGObjCRuntime.h"
+#include "CGOpenMPRuntime.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
 #include "ConstantEmitter.h"
@@ -679,6 +680,10 @@ public:
     return Builder.getInt1(E->isSatisfied());
   }
 
+  Value *VisitRequiresExpr(const RequiresExpr *E) {
+    return Builder.getInt1(E->isSatisfied());
+  }
+
   Value *VisitArrayTypeTraitExpr(const ArrayTypeTraitExpr *E) {
     return llvm::ConstantInt::get(Builder.getInt32Ty(), E->getValue());
   }
@@ -797,17 +802,17 @@ public:
   // Comparisons.
   Value *EmitCompare(const BinaryOperator *E, llvm::CmpInst::Predicate UICmpOpc,
                      llvm::CmpInst::Predicate SICmpOpc,
-                     llvm::CmpInst::Predicate FCmpOpc);
-#define VISITCOMP(CODE, UI, SI, FP) \
+                     llvm::CmpInst::Predicate FCmpOpc, bool IsSignaling);
+#define VISITCOMP(CODE, UI, SI, FP, SIG) \
     Value *VisitBin##CODE(const BinaryOperator *E) { \
       return EmitCompare(E, llvm::ICmpInst::UI, llvm::ICmpInst::SI, \
-                         llvm::FCmpInst::FP); }
-  VISITCOMP(LT, ICMP_ULT, ICMP_SLT, FCMP_OLT)
-  VISITCOMP(GT, ICMP_UGT, ICMP_SGT, FCMP_OGT)
-  VISITCOMP(LE, ICMP_ULE, ICMP_SLE, FCMP_OLE)
-  VISITCOMP(GE, ICMP_UGE, ICMP_SGE, FCMP_OGE)
-  VISITCOMP(EQ, ICMP_EQ , ICMP_EQ , FCMP_OEQ)
-  VISITCOMP(NE, ICMP_NE , ICMP_NE , FCMP_UNE)
+                         llvm::FCmpInst::FP, SIG); }
+  VISITCOMP(LT, ICMP_ULT, ICMP_SLT, FCMP_OLT, true)
+  VISITCOMP(GT, ICMP_UGT, ICMP_SGT, FCMP_OGT, true)
+  VISITCOMP(LE, ICMP_ULE, ICMP_SLE, FCMP_OLE, true)
+  VISITCOMP(GE, ICMP_UGE, ICMP_SGE, FCMP_OGE, true)
+  VISITCOMP(EQ, ICMP_EQ , ICMP_EQ , FCMP_OEQ, false)
+  VISITCOMP(NE, ICMP_NE , ICMP_NE , FCMP_UNE, false)
 #undef VISITCOMP
 
   Value *VisitBinAssign     (const BinaryOperator *E);
@@ -2407,10 +2412,29 @@ llvm::Value *ScalarExprEmitter::EmitIncDecConsiderOverflowBehavior(
   llvm_unreachable("Unknown SignedOverflowBehaviorTy");
 }
 
+namespace {
+/// Handles check and update for lastprivate conditional variables.
+class OMPLastprivateConditionalUpdateRAII {
+private:
+  CodeGenFunction &CGF;
+  const UnaryOperator *E;
+
+public:
+  OMPLastprivateConditionalUpdateRAII(CodeGenFunction &CGF,
+                                      const UnaryOperator *E)
+      : CGF(CGF), E(E) {}
+  ~OMPLastprivateConditionalUpdateRAII() {
+    if (CGF.getLangOpts().OpenMP)
+      CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(
+          CGF, E->getSubExpr());
+  }
+};
+} // namespace
+
 llvm::Value *
 ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
                                            bool isInc, bool isPre) {
-
+  OMPLastprivateConditionalUpdateRAII OMPRegion(CGF, E);
   QualType type = E->getSubExpr()->getType();
   llvm::PHINode *atomicPHI = nullptr;
   llvm::Value *value;
@@ -3049,6 +3073,9 @@ LValue ScalarExprEmitter::EmitCompoundAssignLValue(
   else
     CGF.EmitStoreThroughLValue(RValue::get(Result), LHSLV);
 
+  if (CGF.getLangOpts().OpenMP)
+    CGF.CGM.getOpenMPRuntime().checkAndEmitLastprivateConditional(CGF,
+                                                                  E->getLHS());
   return LHSLV;
 }
 
@@ -3316,10 +3343,10 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
                                                        expr->getRHS()))
     return CGF.Builder.CreateIntToPtr(index, pointer->getType());
 
-  if (width != DL.getTypeSizeInBits(PtrTy)) {
+  if (width != DL.getIndexTypeSizeInBits(PtrTy)) {
     // Zero-extend or sign-extend the pointer value according to
     // whether the index is signed or not.
-    index = CGF.Builder.CreateIntCast(index, DL.getIntPtrType(PtrTy), isSigned,
+    index = CGF.Builder.CreateIntCast(index, DL.getIndexType(PtrTy), isSigned,
                                       "idx.ext");
   }
 
@@ -3397,17 +3424,10 @@ static Value* buildFMulAdd(llvm::BinaryOperator *MulOp, Value *Addend,
 
   Value *MulOp0 = MulOp->getOperand(0);
   Value *MulOp1 = MulOp->getOperand(1);
-  if (negMul) {
-    MulOp0 =
-      Builder.CreateFSub(
-        llvm::ConstantFP::getZeroValueForNegation(MulOp0->getType()), MulOp0,
-        "neg");
-  } else if (negAdd) {
-    Addend =
-      Builder.CreateFSub(
-        llvm::ConstantFP::getZeroValueForNegation(Addend->getType()), Addend,
-        "neg");
-  }
+  if (negMul)
+    MulOp0 = Builder.CreateFNeg(MulOp0, "neg");
+  if (negAdd)
+    Addend = Builder.CreateFNeg(Addend, "neg");
 
   Value *FMulAdd = Builder.CreateCall(
       CGF.CGM.getIntrinsic(llvm::Intrinsic::fmuladd, Addend->getType()),
@@ -3840,7 +3860,8 @@ static llvm::Intrinsic::ID GetIntrinsic(IntrinsicType IT,
 Value *ScalarExprEmitter::EmitCompare(const BinaryOperator *E,
                                       llvm::CmpInst::Predicate UICmpOpc,
                                       llvm::CmpInst::Predicate SICmpOpc,
-                                      llvm::CmpInst::Predicate FCmpOpc) {
+                                      llvm::CmpInst::Predicate FCmpOpc,
+                                      bool IsSignaling) {
   TestAndClearIgnoreResultAssign();
   Value *Result;
   QualType LHSTy = E->getLHS()->getType();
@@ -3870,8 +3891,7 @@ Value *ScalarExprEmitter::EmitCompare(const BinaryOperator *E,
             *SecondVecArg = RHS;
 
       QualType ElTy = LHSTy->castAs<VectorType>()->getElementType();
-      const BuiltinType *BTy = ElTy->getAs<BuiltinType>();
-      BuiltinType::Kind ElementKind = BTy->getKind();
+      BuiltinType::Kind ElementKind = ElTy->castAs<BuiltinType>()->getKind();
 
       switch(E->getOpcode()) {
       default: llvm_unreachable("is not a comparison operation");
@@ -3936,7 +3956,10 @@ Value *ScalarExprEmitter::EmitCompare(const BinaryOperator *E,
     if (BOInfo.isFixedPointBinOp()) {
       Result = EmitFixedPointBinOp(BOInfo);
     } else if (LHS->getType()->isFPOrFPVectorTy()) {
-      Result = Builder.CreateFCmp(FCmpOpc, LHS, RHS, "cmp");
+      if (!IsSignaling)
+        Result = Builder.CreateFCmp(FCmpOpc, LHS, RHS, "cmp");
+      else
+        Result = Builder.CreateFCmpS(FCmpOpc, LHS, RHS, "cmp");
     } else if (LHSTy->hasSignedIntegerRepresentation()) {
       Result = Builder.CreateICmp(SICmpOpc, LHS, RHS, "cmp");
     } else {
@@ -3993,6 +4016,8 @@ Value *ScalarExprEmitter::EmitCompare(const BinaryOperator *E,
 
     Value *ResultR, *ResultI;
     if (CETy->isRealFloatingType()) {
+      // As complex comparisons can only be equality comparisons, they
+      // are never signaling comparisons.
       ResultR = Builder.CreateFCmp(FCmpOpc, LHS.first, RHS.first, "cmp.r");
       ResultI = Builder.CreateFCmp(FCmpOpc, LHS.second, RHS.second, "cmp.i");
     } else {
@@ -4354,6 +4379,21 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
       tmp5 = Builder.CreateBitCast(tmp5, RHS->getType());
 
     return tmp5;
+  }
+
+  if (condExpr->getType()->isVectorType()) {
+    CGF.incrementProfileCounter(E);
+
+    llvm::Value *CondV = CGF.EmitScalarExpr(condExpr);
+    llvm::Value *LHS = Visit(lhsExpr);
+    llvm::Value *RHS = Visit(rhsExpr);
+
+    llvm::Type *CondType = ConvertType(condExpr->getType());
+    auto *VecTy = cast<llvm::VectorType>(CondType);
+    llvm::Value *ZeroVec = llvm::Constant::getNullValue(VecTy);
+
+    CondV = Builder.CreateICmpNE(CondV, ZeroVec, "vector_cond");
+    return Builder.CreateSelect(CondV, LHS, RHS, "vector_select");
   }
 
   // If this is a really simple expression (like x ? 4 : 5), emit this as a

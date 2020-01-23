@@ -669,12 +669,12 @@ MachineVerifier::visitMachineBasicBlockBefore(const MachineBasicBlock *MBB) {
       !isScopedEHPersonality(classifyEHPersonality(F.getPersonalityFn())))
     report("MBB has more than one landing pad successor", MBB);
 
-  // Call AnalyzeBranch. If it succeeds, there several more conditions to check.
+  // Call analyzeBranch. If it succeeds, there several more conditions to check.
   MachineBasicBlock *TBB = nullptr, *FBB = nullptr;
   SmallVector<MachineOperand, 4> Cond;
   if (!TII->analyzeBranch(*const_cast<MachineBasicBlock *>(MBB), TBB, FBB,
                           Cond)) {
-    // Ok, AnalyzeBranch thinks it knows what's going on with this block. Let's
+    // Ok, analyzeBranch thinks it knows what's going on with this block. Let's
     // check whether its answers match up with reality.
     if (!TBB && !FBB) {
       // Block falls through to its successor.
@@ -791,7 +791,7 @@ MachineVerifier::visitMachineBasicBlockBefore(const MachineBasicBlock *MBB) {
                "condition!", MBB);
       }
     } else {
-      report("AnalyzeBranch returned invalid data!", MBB);
+      report("analyzeBranch returned invalid data!", MBB);
     }
   }
 
@@ -1407,18 +1407,6 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
       break;
     }
 
-    const Constant *Mask = MaskOp.getShuffleMask();
-    auto *MaskVT = dyn_cast<VectorType>(Mask->getType());
-    if (!MaskVT || !MaskVT->getElementType()->isIntegerTy(32)) {
-      report("Invalid shufflemask constant type", MI);
-      break;
-    }
-
-    if (!Mask->getAggregateElement(0u)) {
-      report("Invalid shufflemask constant type", MI);
-      break;
-    }
-
     LLT DstTy = MRI->getType(MI->getOperand(0).getReg());
     LLT Src0Ty = MRI->getType(MI->getOperand(1).getReg());
     LLT Src1Ty = MRI->getType(MI->getOperand(2).getReg());
@@ -1434,8 +1422,7 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
     int SrcNumElts = Src0Ty.isVector() ? Src0Ty.getNumElements() : 1;
     int DstNumElts = DstTy.isVector() ? DstTy.getNumElements() : 1;
 
-    SmallVector<int, 32> MaskIdxes;
-    ShuffleVectorInst::getShuffleMask(Mask, MaskIdxes);
+    ArrayRef<int> MaskIdxes = MaskOp.getShuffleMask();
 
     if (static_cast<int>(MaskIdxes.size()) != DstNumElts)
       report("Wrong result type for shufflemask", MI);
@@ -2311,6 +2298,32 @@ void MachineVerifier::visitMachineFunctionAfter() {
     verifyLiveVariables();
   if (LiveInts)
     verifyLiveIntervals();
+
+  // Check live-in list of each MBB. If a register is live into MBB, check
+  // that the register is in regsLiveOut of each predecessor block. Since
+  // this must come from a definition in the predecesssor or its live-in
+  // list, this will catch a live-through case where the predecessor does not
+  // have the register in its live-in list.  This currently only checks
+  // registers that have no aliases, are not allocatable and are not
+  // reserved, which could mean a condition code register for instance.
+  if (MRI->tracksLiveness())
+    for (const auto &MBB : *MF)
+      for (MachineBasicBlock::RegisterMaskPair P : MBB.liveins()) {
+        MCPhysReg LiveInReg = P.PhysReg;
+        bool hasAliases = MCRegAliasIterator(LiveInReg, TRI, false).isValid();
+        if (hasAliases || isAllocatable(LiveInReg) || isReserved(LiveInReg))
+          continue;
+        for (const MachineBasicBlock *Pred : MBB.predecessors()) {
+          BBInfo &PInfo = MBBInfoMap[Pred];
+          if (!PInfo.regsLiveOut.count(LiveInReg)) {
+            report("Live in register not found to be live out from predecessor.",
+                   &MBB);
+            errs() << TRI->getName(LiveInReg)
+                   << " not found to be live out from "
+                   << printMBBReference(*Pred) << "\n";
+          }
+        }
+      }
 
   for (auto CSInfo : MF->getCallSitesInfo())
     if (!CSInfo.first->isCall())

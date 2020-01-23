@@ -135,6 +135,7 @@ namespace llvm {
     ///                              profile collection.
     /// \param NameTableKind  Whether to emit .debug_gnu_pubnames,
     ///                      .debug_pubnames, or no pubnames at all.
+    /// \param SysRoot       The clang system root (value of -isysroot).
     DICompileUnit *
     createCompileUnit(unsigned Lang, DIFile *File, StringRef Producer,
                       bool isOptimized, StringRef Flags, unsigned RV,
@@ -145,7 +146,7 @@ namespace llvm {
                       bool DebugInfoForProfiling = false,
                       DICompileUnit::DebugNameTableKind NameTableKind =
                           DICompileUnit::DebugNameTableKind::Default,
-                      bool RangesBaseAddress = false);
+                      bool RangesBaseAddress = false, StringRef SysRoot = {});
 
     /// Create a file descriptor to hold debugging information for a file.
     /// \param Filename  File name.
@@ -577,7 +578,7 @@ namespace llvm {
     /// \param File        File where this variable is defined.
     /// \param LineNo      Line number.
     /// \param Ty          Variable Type.
-    /// \param isLocalToUnit Boolean flag indicate whether this variable is
+    /// \param IsLocalToUnit Boolean flag indicate whether this variable is
     ///                      externally visible or not.
     /// \param Expr        The location of the global relative to the attached
     ///                    GlobalVariable.
@@ -586,16 +587,16 @@ namespace llvm {
     ///                    specified)
     DIGlobalVariableExpression *createGlobalVariableExpression(
         DIScope *Context, StringRef Name, StringRef LinkageName, DIFile *File,
-        unsigned LineNo, DIType *Ty, bool isLocalToUnit, bool isDefined = true,
+        unsigned LineNo, DIType *Ty, bool IsLocalToUnit, bool isDefined = true,
         DIExpression *Expr = nullptr, MDNode *Decl = nullptr,
-        MDTuple *templateParams = nullptr, uint32_t AlignInBits = 0);
+        MDTuple *TemplateParams = nullptr, uint32_t AlignInBits = 0);
 
     /// Identical to createGlobalVariable
     /// except that the resulting DbgNode is temporary and meant to be RAUWed.
     DIGlobalVariable *createTempGlobalVariableFwdDecl(
         DIScope *Context, StringRef Name, StringRef LinkageName, DIFile *File,
-        unsigned LineNo, DIType *Ty, bool isLocalToUnit, MDNode *Decl = nullptr,
-        MDTuple *templateParams = nullptr, uint32_t AlignInBits = 0);
+        unsigned LineNo, DIType *Ty, bool IsLocalToUnit, MDNode *Decl = nullptr,
+        MDTuple *TemplateParams= nullptr, uint32_t AlignInBits = 0);
 
     /// Create a new descriptor for an auto variable.  This is a local variable
     /// that is not a subprogram parameter.
@@ -737,11 +738,9 @@ namespace llvm {
     ///                    A space-separated shell-quoted list of -D macro
     ///                    definitions as they would appear on a command line.
     /// \param IncludePath The path to the module map file.
-    /// \param ISysRoot    The clang system root (value of -isysroot).
     DIModule *createModule(DIScope *Scope, StringRef Name,
                            StringRef ConfigurationMacros,
-                           StringRef IncludePath,
-                           StringRef ISysRoot);
+                           StringRef IncludePath);
 
     /// This creates a descriptor for a lexical block with a new file
     /// attached. This merely extends the existing

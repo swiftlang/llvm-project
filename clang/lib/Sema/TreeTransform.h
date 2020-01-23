@@ -19,9 +19,11 @@
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
+#include "clang/AST/OpenMPClause.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
@@ -507,6 +509,15 @@ public:
   /// override this function to provide alternate behavior.
   DeclarationNameInfo
   TransformDeclarationNameInfo(const DeclarationNameInfo &NameInfo);
+
+  bool TransformRequiresExprRequirements(ArrayRef<concepts::Requirement *> Reqs,
+      llvm::SmallVectorImpl<concepts::Requirement *> &Transformed);
+  concepts::TypeRequirement *
+  TransformTypeRequirement(concepts::TypeRequirement *Req);
+  concepts::ExprRequirement *
+  TransformExprRequirement(concepts::ExprRequirement *Req);
+  concepts::NestedRequirement *
+  TransformNestedRequirement(concepts::NestedRequirement *Req);
 
   /// Transform the given template name.
   ///
@@ -1055,23 +1066,8 @@ public:
     }
 
     if (Keyword == ETK_None || Keyword == ETK_Typename) {
-      QualType T = SemaRef.CheckTypenameType(Keyword, KeywordLoc, QualifierLoc,
-                                             *Id, IdLoc);
-      // If a dependent name resolves to a deduced template specialization type,
-      // check that we're in one of the syntactic contexts permitting it.
-      if (!DeducedTSTContext) {
-        if (auto *Deduced = dyn_cast_or_null<DeducedTemplateSpecializationType>(
-                T.isNull() ? nullptr : T->getContainedDeducedType())) {
-          SemaRef.Diag(IdLoc, diag::err_dependent_deduced_tst)
-            << (int)SemaRef.getTemplateNameKindForDiagnostics(
-                   Deduced->getTemplateName())
-            << QualType(QualifierLoc.getNestedNameSpecifier()->getAsType(), 0);
-          if (auto *TD = Deduced->getTemplateName().getAsTemplateDecl())
-            SemaRef.Diag(TD->getLocation(), diag::note_template_decl_here);
-          return QualType();
-        }
-      }
-      return T;
+      return SemaRef.CheckTypenameType(Keyword, KeywordLoc, QualifierLoc,
+                                       *Id, IdLoc, DeducedTSTContext);
     }
 
     TagTypeKind Kind = TypeWithKeyword::getTagTypeKindForKeyword(Keyword);
@@ -1615,7 +1611,7 @@ public:
   ///
   /// By default, performs semantic analysis to build the new OpenMP clause.
   /// Subclasses may override this routine to provide different behavior.
-  OMPClause *RebuildOMPProcBindClause(OpenMPProcBindClauseKind Kind,
+  OMPClause *RebuildOMPProcBindClause(ProcBindKind Kind,
                                       SourceLocation KindKwLoc,
                                       SourceLocation StartLoc,
                                       SourceLocation LParenLoc,
@@ -1677,11 +1673,14 @@ public:
   /// By default, performs semantic analysis to build the new OpenMP clause.
   /// Subclasses may override this routine to provide different behavior.
   OMPClause *RebuildOMPLastprivateClause(ArrayRef<Expr *> VarList,
+                                         OpenMPLastprivateModifier LPKind,
+                                         SourceLocation LPKindLoc,
+                                         SourceLocation ColonLoc,
                                          SourceLocation StartLoc,
                                          SourceLocation LParenLoc,
                                          SourceLocation EndLoc) {
-    return getSema().ActOnOpenMPLastprivateClause(VarList, StartLoc, LParenLoc,
-                                                  EndLoc);
+    return getSema().ActOnOpenMPLastprivateClause(
+        VarList, LPKind, LPKindLoc, ColonLoc, StartLoc, LParenLoc, EndLoc);
   }
 
   /// Build a new OpenMP 'shared' clause.
@@ -1999,6 +1998,18 @@ public:
                                         SourceLocation EndLoc) {
     return getSema().ActOnOpenMPDefaultmapClause(M, Kind, StartLoc, LParenLoc,
                                                  MLoc, KindLoc, EndLoc);
+  }
+
+  /// Build a new OpenMP 'nontemporal' clause.
+  ///
+  /// By default, performs semantic analysis to build the new OpenMP clause.
+  /// Subclasses may override this routine to provide different behavior.
+  OMPClause *RebuildOMPNontemporalClause(ArrayRef<Expr *> VarList,
+                                         SourceLocation StartLoc,
+                                         SourceLocation LParenLoc,
+                                         SourceLocation EndLoc) {
+    return getSema().ActOnOpenMPNontemporalClause(VarList, StartLoc, LParenLoc,
+                                                  EndLoc);
   }
 
   /// Rebuild the operand to an Objective-C \@synchronized statement.
@@ -3048,13 +3059,13 @@ public:
   /// By default, performs semantic analysis to build the new expression.
   /// Subclasses may override this routine to provide different behavior.
   ExprResult RebuildConceptSpecializationExpr(NestedNameSpecifierLoc NNS,
-      SourceLocation TemplateKWLoc, SourceLocation ConceptNameLoc,
+      SourceLocation TemplateKWLoc, DeclarationNameInfo ConceptNameInfo,
       NamedDecl *FoundDecl, ConceptDecl *NamedConcept,
       TemplateArgumentListInfo *TALI) {
     CXXScopeSpec SS;
     SS.Adopt(NNS);
     ExprResult Result = getSema().CheckConceptTemplateId(SS, TemplateKWLoc,
-                                                         ConceptNameLoc,
+                                                         ConceptNameInfo,
                                                          FoundDecl,
                                                          NamedConcept, TALI);
     if (Result.isInvalid())
@@ -3062,7 +3073,56 @@ public:
     return Result;
   }
 
-    /// \brief Build a new Objective-C boxed expression.
+  /// \brief Build a new requires expression.
+  ///
+  /// By default, performs semantic analysis to build the new expression.
+  /// Subclasses may override this routine to provide different behavior.
+  ExprResult RebuildRequiresExpr(SourceLocation RequiresKWLoc,
+                                 RequiresExprBodyDecl *Body,
+                                 ArrayRef<ParmVarDecl *> LocalParameters,
+                                 ArrayRef<concepts::Requirement *> Requirements,
+                                 SourceLocation ClosingBraceLoc) {
+    return RequiresExpr::Create(SemaRef.Context, RequiresKWLoc, Body,
+                                LocalParameters, Requirements, ClosingBraceLoc);
+  }
+
+  concepts::TypeRequirement *
+  RebuildTypeRequirement(
+      concepts::Requirement::SubstitutionDiagnostic *SubstDiag) {
+    return SemaRef.BuildTypeRequirement(SubstDiag);
+  }
+
+  concepts::TypeRequirement *RebuildTypeRequirement(TypeSourceInfo *T) {
+    return SemaRef.BuildTypeRequirement(T);
+  }
+
+  concepts::ExprRequirement *
+  RebuildExprRequirement(
+      concepts::Requirement::SubstitutionDiagnostic *SubstDiag, bool IsSimple,
+      SourceLocation NoexceptLoc,
+      concepts::ExprRequirement::ReturnTypeRequirement Ret) {
+    return SemaRef.BuildExprRequirement(SubstDiag, IsSimple, NoexceptLoc,
+                                        std::move(Ret));
+  }
+
+  concepts::ExprRequirement *
+  RebuildExprRequirement(Expr *E, bool IsSimple, SourceLocation NoexceptLoc,
+                         concepts::ExprRequirement::ReturnTypeRequirement Ret) {
+    return SemaRef.BuildExprRequirement(E, IsSimple, NoexceptLoc,
+                                        std::move(Ret));
+  }
+
+  concepts::NestedRequirement *
+  RebuildNestedRequirement(
+      concepts::Requirement::SubstitutionDiagnostic *SubstDiag) {
+    return SemaRef.BuildNestedRequirement(SubstDiag);
+  }
+
+  concepts::NestedRequirement *RebuildNestedRequirement(Expr *Constraint) {
+    return SemaRef.BuildNestedRequirement(Constraint);
+  }
+
+  /// \brief Build a new Objective-C boxed expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
   /// Subclasses may override this routine to provide different behavior.
@@ -7190,8 +7250,12 @@ TreeTransform<Derived>::TransformCoroutineBodyStmt(CoroutineBodyStmt *S) {
   // that may fail.
   ScopeInfo->setNeedsCoroutineSuspends(false);
 
-  // The new CoroutinePromise object needs to be built and put into the current
-  // FunctionScopeInfo before any transformations or rebuilding occurs.
+  // We re-build the coroutine promise object (and the coroutine parameters its
+  // type and constructor depend on) based on the types used in our current
+  // function. We must do so, and set it on the current FunctionScopeInfo,
+  // before attempting to transform the other parts of the coroutine body
+  // statement, such as the implicit suspend statements (because those
+  // statements reference the FunctionScopeInfo::CoroutinePromise).
   if (!SemaRef.buildCoroutineParameterMoves(FD->getLocation()))
     return StmtError();
   auto *Promise = SemaRef.buildCoroutinePromise(FD->getLocation());
@@ -7200,8 +7264,9 @@ TreeTransform<Derived>::TransformCoroutineBodyStmt(CoroutineBodyStmt *S) {
   getDerived().transformedLocalDecl(S->getPromiseDecl(), {Promise});
   ScopeInfo->CoroutinePromise = Promise;
 
-  // Transform the implicit coroutine statements we built during the initial
-  // parse.
+  // Transform the implicit coroutine statements constructed using dependent
+  // types during the previous parse: initial and final suspensions, the return
+  // object, and others. We also transform the coroutine function's body.
   StmtResult InitSuspend = getDerived().TransformStmt(S->getInitSuspendStmt());
   if (InitSuspend.isInvalid())
     return StmtError();
@@ -7228,17 +7293,13 @@ TreeTransform<Derived>::TransformCoroutineBodyStmt(CoroutineBodyStmt *S) {
     return StmtError();
   Builder.ReturnValue = Res.get();
 
+  // If during the previous parse the coroutine still had a dependent promise
+  // statement, we may need to build some implicit coroutine statements
+  // (such as exception and fallthrough handlers) for the first time.
   if (S->hasDependentPromiseType()) {
-    // PR41909: We may find a generic coroutine lambda definition within a
-    // template function that is being instantiated. In this case, the lambda
-    // will have a dependent promise type, until it is used in an expression
-    // that creates an instantiation with a non-dependent promise type. We
-    // should not assert or build coroutine dependent statements for such a
-    // generic lambda.
-    auto *MD = dyn_cast_or_null<CXXMethodDecl>(FD);
-    if (!MD || !MD->getParent()->isGenericLambda()) {
-      assert(!Promise->getType()->isDependentType() &&
-             "the promise type must no longer be dependent");
+    // We can only build these statements, however, if the current promise type
+    // is not dependent.
+    if (!Promise->getType()->isDependentType()) {
       assert(!S->getFallthroughHandler() && !S->getExceptionHandler() &&
              !S->getReturnStmtOnAllocFailure() && !S->getDeallocate() &&
              "these nodes should not have been built yet");
@@ -8768,7 +8829,8 @@ TreeTransform<Derived>::TransformOMPLastprivateClause(OMPLastprivateClause *C) {
     Vars.push_back(EVar.get());
   }
   return getDerived().RebuildOMPLastprivateClause(
-      Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc());
+      Vars, C->getKind(), C->getKindLoc(), C->getColonLoc(), C->getBeginLoc(),
+      C->getLParenLoc(), C->getEndLoc());
 }
 
 template <typename Derived>
@@ -9263,6 +9325,21 @@ TreeTransform<Derived>::TransformOMPIsDevicePtrClause(OMPIsDevicePtrClause *C) {
   }
   OMPVarListLocTy Locs(C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc());
   return getDerived().RebuildOMPIsDevicePtrClause(Vars, Locs);
+}
+
+template <typename Derived>
+OMPClause *
+TreeTransform<Derived>::TransformOMPNontemporalClause(OMPNontemporalClause *C) {
+  llvm::SmallVector<Expr *, 16> Vars;
+  Vars.reserve(C->varlist_size());
+  for (auto *VE : C->varlists()) {
+    ExprResult EVar = getDerived().TransformExpr(cast<Expr>(VE));
+    if (EVar.isInvalid())
+      return nullptr;
+    Vars.push_back(EVar.get());
+  }
+  return getDerived().RebuildOMPNontemporalClause(
+      Vars, C->getBeginLoc(), C->getLParenLoc(), C->getEndLoc());
 }
 
 //===----------------------------------------------------------------------===//
@@ -11142,10 +11219,150 @@ TreeTransform<Derived>::TransformConceptSpecializationExpr(
 
   return getDerived().RebuildConceptSpecializationExpr(
       E->getNestedNameSpecifierLoc(), E->getTemplateKWLoc(),
-      E->getConceptNameLoc(), E->getFoundDecl(), E->getNamedConcept(),
+      E->getConceptNameInfo(), E->getFoundDecl(), E->getNamedConcept(),
       &TransArgs);
 }
 
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformRequiresExpr(RequiresExpr *E) {
+  SmallVector<ParmVarDecl*, 4> TransParams;
+  SmallVector<QualType, 4> TransParamTypes;
+  Sema::ExtParameterInfoBuilder ExtParamInfos;
+
+  // C++2a [expr.prim.req]p2
+  // Expressions appearing within a requirement-body are unevaluated operands.
+  EnterExpressionEvaluationContext Ctx(
+      SemaRef, Sema::ExpressionEvaluationContext::Unevaluated);
+
+  RequiresExprBodyDecl *Body = RequiresExprBodyDecl::Create(
+      getSema().Context, E->getBody()->getDeclContext(),
+      E->getBody()->getBeginLoc());
+
+  Sema::ContextRAII SavedContext(getSema(), Body, /*NewThisContext*/false);
+
+  if (getDerived().TransformFunctionTypeParams(E->getRequiresKWLoc(),
+                                               E->getLocalParameters(),
+                                               /*ParamTypes=*/nullptr,
+                                               /*ParamInfos=*/nullptr,
+                                               TransParamTypes, &TransParams,
+                                               ExtParamInfos))
+    return ExprError();
+
+  for (ParmVarDecl *Param : TransParams)
+    Param->setDeclContext(Body);
+
+  SmallVector<concepts::Requirement *, 4> TransReqs;
+  if (getDerived().TransformRequiresExprRequirements(E->getRequirements(),
+                                                     TransReqs))
+    return ExprError();
+
+  for (concepts::Requirement *Req : TransReqs) {
+    if (auto *ER = dyn_cast<concepts::ExprRequirement>(Req)) {
+      if (ER->getReturnTypeRequirement().isTypeConstraint()) {
+        ER->getReturnTypeRequirement()
+                .getTypeConstraintTemplateParameterList()->getParam(0)
+                ->setDeclContext(Body);
+      }
+    }
+  }
+
+  return getDerived().RebuildRequiresExpr(E->getRequiresKWLoc(), Body,
+                                          TransParams, TransReqs,
+                                          E->getRBraceLoc());
+}
+
+template<typename Derived>
+bool TreeTransform<Derived>::TransformRequiresExprRequirements(
+    ArrayRef<concepts::Requirement *> Reqs,
+    SmallVectorImpl<concepts::Requirement *> &Transformed) {
+  for (concepts::Requirement *Req : Reqs) {
+    concepts::Requirement *TransReq = nullptr;
+    if (auto *TypeReq = dyn_cast<concepts::TypeRequirement>(Req))
+      TransReq = getDerived().TransformTypeRequirement(TypeReq);
+    else if (auto *ExprReq = dyn_cast<concepts::ExprRequirement>(Req))
+      TransReq = getDerived().TransformExprRequirement(ExprReq);
+    else
+      TransReq = getDerived().TransformNestedRequirement(
+                     cast<concepts::NestedRequirement>(Req));
+    if (!TransReq)
+      return true;
+    Transformed.push_back(TransReq);
+  }
+  return false;
+}
+
+template<typename Derived>
+concepts::TypeRequirement *
+TreeTransform<Derived>::TransformTypeRequirement(
+    concepts::TypeRequirement *Req) {
+  if (Req->isSubstitutionFailure()) {
+    if (getDerived().AlwaysRebuild())
+      return getDerived().RebuildTypeRequirement(
+              Req->getSubstitutionDiagnostic());
+    return Req;
+  }
+  TypeSourceInfo *TransType = getDerived().TransformType(Req->getType());
+  if (!TransType)
+    return nullptr;
+  return getDerived().RebuildTypeRequirement(TransType);
+}
+
+template<typename Derived>
+concepts::ExprRequirement *
+TreeTransform<Derived>::TransformExprRequirement(concepts::ExprRequirement *Req) {
+  llvm::PointerUnion<Expr *, concepts::Requirement::SubstitutionDiagnostic *> TransExpr;
+  if (Req->isExprSubstitutionFailure())
+    TransExpr = Req->getExprSubstitutionDiagnostic();
+  else {
+    ExprResult TransExprRes = getDerived().TransformExpr(Req->getExpr());
+    if (TransExprRes.isInvalid())
+      return nullptr;
+    TransExpr = TransExprRes.get();
+  }
+
+  llvm::Optional<concepts::ExprRequirement::ReturnTypeRequirement> TransRetReq;
+  const auto &RetReq = Req->getReturnTypeRequirement();
+  if (RetReq.isEmpty())
+    TransRetReq.emplace();
+  else if (RetReq.isSubstitutionFailure())
+    TransRetReq.emplace(RetReq.getSubstitutionDiagnostic());
+  else if (RetReq.isTypeConstraint()) {
+    TemplateParameterList *OrigTPL =
+        RetReq.getTypeConstraintTemplateParameterList();
+    TemplateParameterList *TPL =
+        getDerived().TransformTemplateParameterList(OrigTPL);
+    if (!TPL)
+      return nullptr;
+    TransRetReq.emplace(TPL);
+  }
+  assert(TransRetReq.hasValue() &&
+         "All code paths leading here must set TransRetReq");
+  if (Expr *E = TransExpr.dyn_cast<Expr *>())
+    return getDerived().RebuildExprRequirement(E, Req->isSimple(),
+                                               Req->getNoexceptLoc(),
+                                               std::move(*TransRetReq));
+  return getDerived().RebuildExprRequirement(
+      TransExpr.get<concepts::Requirement::SubstitutionDiagnostic *>(),
+      Req->isSimple(), Req->getNoexceptLoc(), std::move(*TransRetReq));
+}
+
+template<typename Derived>
+concepts::NestedRequirement *
+TreeTransform<Derived>::TransformNestedRequirement(
+    concepts::NestedRequirement *Req) {
+  if (Req->isSubstitutionFailure()) {
+    if (getDerived().AlwaysRebuild())
+      return getDerived().RebuildNestedRequirement(
+          Req->getSubstitutionDiagnostic());
+    return Req;
+  }
+  ExprResult TransConstraint =
+      getDerived().TransformExpr(Req->getConstraintExpr());
+  if (TransConstraint.isInvalid())
+    return nullptr;
+  return getDerived().RebuildNestedRequirement(TransConstraint.get());
+}
 
 template<typename Derived>
 ExprResult
@@ -11519,6 +11736,13 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
                                                         NewCallOpType);
   }
 
+  // Transform the trailing requires clause
+  ExprResult NewTrailingRequiresClause;
+  if (Expr *TRC = E->getCallOperator()->getTrailingRequiresClause())
+    // FIXME: Concepts: Substitution into requires clause should only happen
+    //                  when checking satisfaction.
+    NewTrailingRequiresClause = getDerived().TransformExpr(TRC);
+
   // Create the local class that will describe the lambda.
   CXXRecordDecl *OldClass = E->getLambdaClass();
   CXXRecordDecl *Class
@@ -11539,7 +11763,8 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
       Class, E->getIntroducerRange(), NewCallOpTSI,
       E->getCallOperator()->getEndLoc(),
       NewCallOpTSI->getTypeLoc().castAs<FunctionProtoTypeLoc>().getParams(),
-      E->getCallOperator()->getConstexprKind());
+      E->getCallOperator()->getConstexprKind(),
+      NewTrailingRequiresClause.get());
 
   LSI->CallOperator = NewCallOperator;
 

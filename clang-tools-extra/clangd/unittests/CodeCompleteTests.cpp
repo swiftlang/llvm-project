@@ -676,7 +676,7 @@ TEST(CompletionTest, IncludeInsertionPreprocessorIntegrationTests) {
   Symbol Sym = cls("ns::X");
   Sym.CanonicalDeclaration.FileURI = BarURI.c_str();
   Sym.IncludeHeaders.emplace_back(BarURI, 1);
-  // Shoten include path based on search dirctory and insert.
+  // Shoten include path based on search directory and insert.
   auto Results = completions(Server,
                              R"cpp(
           int main() { ns::^ }
@@ -719,7 +719,7 @@ TEST(CompletionTest, NoIncludeInsertionWhenDeclFoundInFile) {
   SymY.CanonicalDeclaration.FileURI = BarURI.c_str();
   SymX.IncludeHeaders.emplace_back("<bar>", 1);
   SymY.IncludeHeaders.emplace_back("<bar>", 1);
-  // Shoten include path based on search dirctory and insert.
+  // Shoten include path based on search directory and insert.
   auto Results = completions(Server,
                              R"cpp(
           namespace ns {
@@ -2295,6 +2295,15 @@ TEST(CompletionTest, DeprecatedResults) {
       completions(Body + "int main() { TestClang^ }").Completions,
       UnorderedElementsAre(AllOf(Named("TestClangd"), Not(Deprecated())),
                            AllOf(Named("TestClangc"), Deprecated())));
+}
+
+TEST(SignatureHelpTest, PartialSpec) {
+  const auto Results = signatures(R"cpp(
+      template <typename T> struct Foo {};
+      template <typename T> struct Foo<T*> { Foo(T); };
+      Foo<int*> F(^);)cpp");
+  EXPECT_THAT(Results.signatures, Contains(Sig("Foo([[T]])")));
+  EXPECT_EQ(0, Results.activeParameter);
 }
 
 TEST(SignatureHelpTest, InsideArgument) {

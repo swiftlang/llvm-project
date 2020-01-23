@@ -204,6 +204,13 @@ public:
   /// Whether the driver is generating diagnostics for debugging purposes.
   unsigned CCGenDiagnostics : 1;
 
+  /// Pointer to the ExecuteCC1Tool function, if available.
+  /// When the clangDriver lib is used through clang.exe, this provides a
+  /// shortcut for executing the -cc1 command-line directly, in the same
+  /// process.
+  typedef int (*CC1ToolFunc)(SmallVectorImpl<const char *> &ArgV);
+  CC1ToolFunc CC1Main = nullptr;
+
 private:
   /// Raw target triple.
   std::string TargetTriple;
@@ -619,6 +626,9 @@ public:
 /// \return True if the last defined optimization level is -Ofast.
 /// And False otherwise.
 bool isOptimizationLevelFast(const llvm::opt::ArgList &Args);
+
+/// \return True if the argument combination will end up generating remarks.
+bool willEmitRemarks(const llvm::opt::ArgList &Args);
 
 } // end namespace driver
 } // end namespace clang

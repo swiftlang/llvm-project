@@ -1177,24 +1177,24 @@ multiclass MUBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
   def : GCNPat<
     (vt (name v4i32:$rsrc, 0, 0, i32:$soffset, timm:$offset,
               timm:$auxiliary, 0)),
-    (!cast<MUBUF_Pseudo>(opcode # _OFFSET) $rsrc, $soffset, (as_i16imm $offset),
-      (extract_glc $auxiliary), (extract_slc $auxiliary), 0,  (extract_dlc $auxiliary),
+    (!cast<MUBUF_Pseudo>(opcode # _OFFSET) SReg_128:$rsrc, SCSrc_b32:$soffset, (as_i16timm $offset),
+      (extract_glc $auxiliary), (extract_slc $auxiliary), 0, (extract_dlc $auxiliary),
       (extract_swz $auxiliary))
   >;
 
   def : GCNPat<
     (vt (name v4i32:$rsrc, 0, i32:$voffset, i32:$soffset, timm:$offset,
               timm:$auxiliary, 0)),
-    (!cast<MUBUF_Pseudo>(opcode # _OFFEN) $voffset, $rsrc, $soffset, (as_i16imm $offset),
-      (extract_glc $auxiliary), (extract_slc $auxiliary), 0,  (extract_dlc $auxiliary),
+    (!cast<MUBUF_Pseudo>(opcode # _OFFEN) VGPR_32:$voffset, SReg_128:$rsrc, SCSrc_b32:$soffset, (as_i16timm $offset),
+      (extract_glc $auxiliary), (extract_slc $auxiliary), 0, (extract_dlc $auxiliary),
       (extract_swz $auxiliary))
   >;
 
   def : GCNPat<
     (vt (name v4i32:$rsrc, i32:$vindex, 0, i32:$soffset, timm:$offset,
               timm:$auxiliary, timm)),
-    (!cast<MUBUF_Pseudo>(opcode # _IDXEN) $vindex, $rsrc, $soffset, (as_i16imm $offset),
-      (extract_glc $auxiliary), (extract_slc $auxiliary), 0,  (extract_dlc $auxiliary),
+    (!cast<MUBUF_Pseudo>(opcode # _IDXEN) VGPR_32:$vindex, SReg_128:$rsrc, SCSrc_b32:$soffset, (as_i16timm $offset),
+      (extract_glc $auxiliary), (extract_slc $auxiliary), 0, (extract_dlc $auxiliary),
       (extract_swz $auxiliary))
   >;
 
@@ -1202,9 +1202,9 @@ multiclass MUBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
     (vt (name v4i32:$rsrc, i32:$vindex, i32:$voffset, i32:$soffset, timm:$offset,
               timm:$auxiliary, timm)),
     (!cast<MUBUF_Pseudo>(opcode # _BOTHEN)
-      (REG_SEQUENCE VReg_64, $vindex, sub0, $voffset, sub1),
-      $rsrc, $soffset, (as_i16imm $offset),
-      (extract_glc $auxiliary), (extract_slc $auxiliary), 0,  (extract_dlc $auxiliary),
+      (REG_SEQUENCE VReg_64, VGPR_32:$vindex, sub0, VGPR_32:$voffset, sub1),
+      SReg_128:$rsrc, SCSrc_b32:$soffset, (as_i16timm $offset),
+      (extract_glc $auxiliary), (extract_slc $auxiliary), 0, (extract_dlc $auxiliary),
       (extract_swz $auxiliary))
   >;
 }
@@ -1621,8 +1621,8 @@ multiclass MUBUFStore_Atomic_Pattern <MUBUF_Pseudo Instr_ADDR64, MUBUF_Pseudo In
   >;
 }
 let SubtargetPredicate = isGFX6GFX7 in {
-defm : MUBUFStore_Atomic_Pattern <BUFFER_STORE_DWORD_ADDR64, BUFFER_STORE_DWORD_OFFSET, i32, store_atomic_global>;
-defm : MUBUFStore_Atomic_Pattern <BUFFER_STORE_DWORDX2_ADDR64, BUFFER_STORE_DWORDX2_OFFSET, i64, store_atomic_global>;
+defm : MUBUFStore_Atomic_Pattern <BUFFER_STORE_DWORD_ADDR64, BUFFER_STORE_DWORD_OFFSET, i32, atomic_store_global_32>;
+defm : MUBUFStore_Atomic_Pattern <BUFFER_STORE_DWORDX2_ADDR64, BUFFER_STORE_DWORDX2_OFFSET, i64, atomic_store_global_64>;
 } // End Predicates = isGFX6GFX7
 
 

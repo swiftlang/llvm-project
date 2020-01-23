@@ -346,36 +346,55 @@ output format of the diagnostics that it generates.
       ``-fsave-optimization-record=bitstream``: A binary format based on LLVM
       Bitstream.
 
-    The output file is controlled by :ref:`-foptimization-record-file <opt_foptimization-record-file>`.
+   The output file is controlled by :ref:`-foptimization-record-file <opt_foptimization-record-file>`.
 
-    In the absence of an explicit output file, the file is chosen using the
-    following scheme:
+   In the absence of an explicit output file, the file is chosen using the
+   following scheme:
 
-    ``<base>.opt.<format>``
+   ``<base>.opt.<format>``
 
-    where ``<base>`` is based on the output file of the compilation (whether
-    it's explicitly specified through `-o` or not) when used with `-c` or `-S`.
-    In other cases, it's based on the input file's stem. For example:
+   where ``<base>`` is based on the output file of the compilation (whether
+   it's explicitly specified through `-o` or not) when used with `-c` or `-S`.
+   For example:
 
-    * ``clang -fsave-optimization-record -c in.c -o out.o`` will generate
-      ``out.opt.yaml``
+   * ``clang -fsave-optimization-record -c in.c -o out.o`` will generate
+     ``out.opt.yaml``
 
-    * ``clang -fsave-optimization-record in.c -o out`` will generate
-      ``in.opt.yaml``
+   * ``clang -fsave-optimization-record -c in.c `` will generate
+     ``in.opt.yaml``
 
-    Compiling for multiple architectures will use the following scheme:
+   When targeting (Thin)LTO, the base is derived from the output filename, and
+   the extension is not dropped.
 
-    ``<base>-<arch>.opt.<format>``
+   When targeting ThinLTO, the following scheme is used:
 
-    Note that this is only allowed on Darwin platforms and is incompatible with
-    passing multiple ``-arch <arch>`` options.
+   ``<base>.opt.<format>.thin.<num>.<format>``
 
-    When targeting (Thin)LTO, the base is derived from the output filename, and
-    the extension is not dropped.
+   Darwin-only: when used for generating a linked binary from a source file
+   (through an intermediate object file), the driver will invoke `cc1` to
+   generate a temporary object file. The temporary remark file will be emitted
+   next to the object file, which will then be picked up by `dsymutil` and
+   emitted in the .dSYM bundle. This is available for all formats except YAML.
 
-    When targeting ThinLTO, the following scheme is used:
+   For example:
 
-    ``<base>.opt.<format>.thin.<num>.<format>``
+   ``clang -fsave-optimization-record=bitstream in.c -o out`` will generate
+
+   * ``/var/folders/43/9y164hh52tv_2nrdxrj31nyw0000gn/T/a-9be59b.o``
+
+   * ``/var/folders/43/9y164hh52tv_2nrdxrj31nyw0000gn/T/a-9be59b.opt.bitstream``
+
+   * ``out``
+
+   * ``out.dSYM/Contents/Resources/Remarks/out``
+
+   Darwin-only: compiling for multiple architectures will use the following
+   scheme:
+
+   ``<base>-<arch>.opt.<format>``
+
+   Note that this is incompatible with passing the
+   :ref:`-foptimization-record-file <opt_foptimization-record-file>` option.
 
 .. _opt_foptimization-record-file:
 
@@ -2642,7 +2661,8 @@ This will produce a generic test.bc file that can be used in vendor toolchains
 to perform machine code generation.
 
 Clang currently supports OpenCL C language standards up to v2.0. Starting from
-clang 9 a C++ mode is available for OpenCL (see :ref:`C++ for OpenCL <opencl_cpp>`).
+clang 9 a C++ mode is available for OpenCL (see
+:ref:`C++ for OpenCL <cxx_for_opencl>`).
 
 OpenCL Specific Options
 -----------------------
@@ -2837,6 +2857,10 @@ function to the custom ``my_ext`` extension.
 
 Declaring the same types in different vendor extensions is disallowed.
 
+Clang also supports language extensions documented in `The OpenCL C Language
+Extensions Documentation
+<https://github.com/KhronosGroup/Khronosdotorg/blob/master/api/opencl/assets/OpenCL_LangExt.pdf>`_.
+
 OpenCL Metadata
 ---------------
 
@@ -3001,7 +3025,7 @@ There are some standard OpenCL functions that are implemented as Clang builtins:
   enqueue query functions from `section 6.13.17.5
   <https://www.khronos.org/registry/cl/specs/opencl-2.0-openclc.pdf#171>`_.
 
-.. _opencl_cpp:
+.. _cxx_for_opencl:
 
 C++ for OpenCL
 --------------
@@ -3012,8 +3036,9 @@ implementation of `OpenCL C++
 <https://www.khronos.org/registry/OpenCL/specs/2.2/pdf/OpenCL_Cxx.pdf>`_ and
 there is no plan to support it in clang in any new releases in the near future.
 
-For detailed information about restrictions to allowed C++ features please
-refer to :doc:`LanguageExtensions`.
+For detailed information about this language refer to `The C++ for OpenCL
+Programming Language Documentation
+<https://github.com/KhronosGroup/Khronosdotorg/blob/master/api/opencl/assets/CXX_for_OpenCL.pdf>`_.
 
 Since C++ features are to be used on top of OpenCL C functionality, all existing
 restrictions from OpenCL C v2.0 will inherently apply. All OpenCL C builtin types
@@ -3040,6 +3065,35 @@ compiling ``.cl`` file ``-cl-std=clc++``, ``-cl-std=CLC++``, ``-std=clc++`` or
    .. code-block:: console
 
      clang -cl-std=clc++ test.cl
+
+Constructing and destroying global objects
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Global objects must be constructed before the first kernel using the global objects
+is executed and destroyed just after the last kernel using the program objects is
+executed. In OpenCL v2.0 drivers there is no specific API for invoking global
+constructors. However, an easy workaround would be to enqueue a constructor
+initialization kernel that has a name ``@_GLOBAL__sub_I_<compiled file name>``.
+This kernel is only present if there are any global objects to be initialized in
+the compiled binary. One way to check this is by passing ``CL_PROGRAM_KERNEL_NAMES``
+to ``clGetProgramInfo`` (OpenCL v2.0 s5.8.7).
+
+Note that if multiple files are compiled and linked into libraries, multiple kernels
+that initialize global objects for multiple modules would have to be invoked.
+
+Applications are currently required to run initialization of global objects manually
+before running any kernels in which the objects are used.
+
+   .. code-block:: console
+
+     clang -cl-std=clc++ test.cl
+
+If there are any global objects to be initialized, the final binary will contain
+the ``@_GLOBAL__sub_I_test.cl`` kernel to be enqueued.
+
+Global destructors can not be invoked in OpenCL v2.0 drivers. However, all memory used
+for program scope objects is released on ``clReleaseProgram``.
+
 
 .. _target_features:
 

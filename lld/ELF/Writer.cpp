@@ -135,8 +135,8 @@ StringRef getOutputSectionName(const InputSectionBase *s) {
 }
 
 static bool needsInterpSection() {
-  return !sharedFiles.empty() && !config->dynamicLinker.empty() &&
-         script->needsInterpSection();
+  return !config->relocatable && !config->shared &&
+         !config->dynamicLinker.empty() && script->needsInterpSection();
 }
 
 template <class ELFT> void writeResult() { Writer<ELFT>().run(); }
@@ -515,9 +515,15 @@ template <class ELFT> void createSyntheticSections() {
       /*sort=*/false);
   add(in.relaIplt);
 
-  in.plt = make<PltSection>(false);
+  if ((config->emachine == EM_386 || config->emachine == EM_X86_64) &&
+      (config->andFeatures & GNU_PROPERTY_X86_FEATURE_1_IBT)) {
+    in.ibtPlt = make<IBTPltSection>();
+    add(in.ibtPlt);
+  }
+
+  in.plt = make<PltSection>();
   add(in.plt);
-  in.iplt = make<PltSection>(true);
+  in.iplt = make<IpltSection>();
   add(in.iplt);
 
   if (config->andFeatures)

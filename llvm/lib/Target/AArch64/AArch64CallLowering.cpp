@@ -178,8 +178,7 @@ struct OutgoingArgHandler : public CallLowering::ValueHandler {
     if (VA.getLocInfo() == CCValAssign::LocInfo::AExt) {
       Size = VA.getLocVT().getSizeInBits() / 8;
       ValVReg = MIRBuilder.buildAnyExt(LLT::scalar(Size * 8), ValVReg)
-                    ->getOperand(0)
-                    .getReg();
+                    .getReg(0);
     }
     auto MMO = MIRBuilder.getMF().getMachineMemOperand(
         MPO, MachineMemOperand::MOStore, Size, 1);
@@ -1000,7 +999,7 @@ bool AArch64CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
         0));
 
   // Finally we can copy the returned value back into its virtual-register. In
-  // symmetry with the arugments, the physical register must be an
+  // symmetry with the arguments, the physical register must be an
   // implicit-define of the call instruction.
   if (!Info.OrigRet.Ty->isVoidTy()) {
     CCAssignFn *RetAssignFn = TLI.CCAssignFnForReturn(Info.CallConv);

@@ -203,34 +203,23 @@ public:
 
   void SetInjectLocalVariables(ExecutionContext *exe_ctx, bool b);
 
-  bool GetUseModernTypeLookup() const;
-
   void SetRequireHardwareBreakpoints(bool b);
 
   bool GetRequireHardwareBreakpoints() const;
 
+  bool GetAutoInstallMainExecutable() const;
+
 private:
   // Callbacks for m_launch_info.
-  static void Arg0ValueChangedCallback(void *target_property_ptr,
-                                       OptionValue *);
-  static void RunArgsValueChangedCallback(void *target_property_ptr,
-                                          OptionValue *);
-  static void EnvVarsValueChangedCallback(void *target_property_ptr,
-                                          OptionValue *);
-  static void InheritEnvValueChangedCallback(void *target_property_ptr,
-                                             OptionValue *);
-  static void InputPathValueChangedCallback(void *target_property_ptr,
-                                            OptionValue *);
-  static void OutputPathValueChangedCallback(void *target_property_ptr,
-                                             OptionValue *);
-  static void ErrorPathValueChangedCallback(void *target_property_ptr,
-                                            OptionValue *);
-  static void DetachOnErrorValueChangedCallback(void *target_property_ptr,
-                                                OptionValue *);
-  static void DisableASLRValueChangedCallback(void *target_property_ptr,
-                                              OptionValue *);
-  static void DisableSTDIOValueChangedCallback(void *target_property_ptr,
-                                               OptionValue *);
+  void Arg0ValueChangedCallback();
+  void RunArgsValueChangedCallback();
+  void EnvVarsValueChangedCallback();
+  void InputPathValueChangedCallback();
+  void OutputPathValueChangedCallback();
+  void ErrorPathValueChangedCallback();
+  void DetachOnErrorValueChangedCallback();
+  void DisableASLRValueChangedCallback();
+  void DisableSTDIOValueChangedCallback();
 
   // Member variables.
   ProcessLaunchInfo m_launch_info;
@@ -1066,8 +1055,6 @@ public:
                                                  lldb::LanguageType language,
                                                  const char *name,
                                                  Status &error);
-
-  ClangASTContext *GetScratchClangASTContext(bool create_on_demand = true);
 
   lldb::ClangASTImporterSP GetClangASTImporter();
 

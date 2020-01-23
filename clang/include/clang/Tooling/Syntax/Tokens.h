@@ -78,6 +78,10 @@ struct FileRange {
   /// Gets the substring that this FileRange refers to.
   llvm::StringRef text(const SourceManager &SM) const;
 
+  /// Convert to the clang range. The returned range is always a char range,
+  /// never a token range.
+  CharSourceRange toCharRange(const SourceManager &SM) const;
+
   friend bool operator==(const FileRange &L, const FileRange &R) {
     return std::tie(L.File, L.Begin, L.End) == std::tie(R.File, R.Begin, R.End);
   }
@@ -236,9 +240,9 @@ public:
   /// Lexed tokens of a file before preprocessing. E.g. for the following input
   ///     #define DECL(name) int name = 10
   ///     DECL(a);
-  /// spelledTokens() returns {"#", "define", "DECL", "(", "name", ")", "eof"}.
-  /// FIXME: we do not yet store tokens of directives, like #include, #define,
-  ///        #pragma, etc.
+  /// spelledTokens() returns
+  ///    {"#", "define", "DECL", "(", "name", ")", "int", "name", "=", "10",
+  ///     "DECL", "(", "a", ")", ";"}
   llvm::ArrayRef<syntax::Token> spelledTokens(FileID FID) const;
 
   /// Get all tokens that expand a macro in \p FID. For the following input

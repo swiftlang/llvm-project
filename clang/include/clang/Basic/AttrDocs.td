@@ -260,6 +260,7 @@ The ``sycl_kernel`` attribute specifies that a function template will be used
 to outline device code and to generate an OpenCL kernel.
 Here is a code example of the SYCL program, which demonstrates the compiler's
 outlining job:
+
 .. code-block:: c++
 
   int foo(int x) { return ++x; }
@@ -282,27 +283,29 @@ compilation of functions for the device part can be found in the SYCL 1.2.1
 specification Section 6.4.
 To show to the compiler entry point to the "device part" of the code, the SYCL
 runtime can use the ``sycl_kernel`` attribute in the following way:
-.. code-block:: c++
-namespace cl {
-namespace sycl {
-class handler {
-  template <typename KernelName, typename KernelType/*, ...*/>
-  __attribute__((sycl_kernel)) void sycl_kernel_function(KernelType KernelFuncObj) {
-    // ...
-    KernelFuncObj();
-  }
 
-  template <typename KernelName, typename KernelType, int Dims>
-  void parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
-#ifdef __SYCL_DEVICE_ONLY__
-    sycl_kernel_function<KernelName, KernelType, Dims>(KernelFunc);
-#else
-    // Host implementation
-#endif
-  }
-};
-} // namespace sycl
-} // namespace cl
+.. code-block:: c++
+
+  namespace cl {
+  namespace sycl {
+  class handler {
+    template <typename KernelName, typename KernelType/*, ...*/>
+    __attribute__((sycl_kernel)) void sycl_kernel_function(KernelType KernelFuncObj) {
+      // ...
+      KernelFuncObj();
+    }
+
+    template <typename KernelName, typename KernelType, int Dims>
+    void parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
+  #ifdef __SYCL_DEVICE_ONLY__
+      sycl_kernel_function<KernelName, KernelType, Dims>(KernelFunc);
+  #else
+      // Host implementation
+  #endif
+    }
+  };
+  } // namespace sycl
+  } // namespace cl
 
 The compiler will also generate an OpenCL kernel using the function marked with
 the ``sycl_kernel`` attribute.
@@ -3298,6 +3301,44 @@ Since it is not widely used and has been removed from OpenCL 2.1, it is ignored
 by Clang.
   }];
 }
+
+def Ptr32Docs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The ``__ptr32`` qualifier represents a native pointer on a 32-bit system. On a
+64-bit system, a pointer with ``__ptr32`` is extended to a 64-bit pointer. The
+``__sptr`` and ``__uptr`` qualifiers can be used to specify whether the pointer
+is sign extended or zero extended. This qualifier is enabled under
+``-fms-extensions``.
+  }];
+}
+
+def Ptr64Docs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The ``__ptr64`` qualifier represents a native pointer on a 64-bit system. On a
+32-bit system, a ``__ptr64`` pointer is truncated to a 32-bit pointer. This
+qualifier is enabled under ``-fms-extensions``.
+  }];
+}
+
+def SPtrDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The ``__sptr`` qualifier specifies that a 32-bit pointer should be sign
+extended when converted to a 64-bit pointer.
+  }];
+}
+
+def UPtrDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The ``__uptr`` qualifier specifies that a 32-bit pointer should be zero
+extended when converted to a 64-bit pointer.
+  }];
+}
+
+
 def NullabilityDocs : DocumentationCategory<"Nullability Attributes"> {
   let Content = [{
 Whether a particular pointer may be "null" is an important concern when working with pointers in the C family of languages. The various nullability attributes indicate whether a particular pointer can be null or not, which makes APIs more expressive and can help static analysis tools identify bugs involving null pointers. Clang supports several kinds of nullability attributes: the ``nonnull`` and ``returns_nonnull`` attributes indicate which function or method parameters and result types can never be null, while nullability type qualifiers indicate which pointer types can be null (``_Nullable``) or cannot be null (``_Nonnull``).
@@ -4175,6 +4216,18 @@ If a function has neither of these attributes, they become subject to the XRay h
   }];
 }
 
+def PatchableFunctionEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+``__attribute__((patchable_function_entry(N,M)))`` is used to generate M NOPs
+before the function entry and N-M NOPs after the function entry. This attribute
+takes precedence over the command line option ``-fpatchable-function-entry=N,M``.
+``M`` defaults to 0 if omitted.
+
+Currently, only M=0 is supported.
+}];
+}
+
 def TransparentUnionDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
@@ -4565,7 +4618,7 @@ below. The explicit attribute annotation indicates that the third parameter
 (`start_routine`) is called zero or more times by the `pthread_create` function,
 and that the fourth parameter (`arg`) is passed along. Note that the callback
 behavior of `pthread_create` is automatically recognized by Clang. In addition,
-the declarations of `__kmpc_fork_teams` and `__kmpc_fork_call`, generated for 
+the declarations of `__kmpc_fork_teams` and `__kmpc_fork_call`, generated for
 `#pragma omp target teams` and `#pragma omp parallel`, respectively, are also
 automatically recognized as broker functions. Further functions might be added
 in the future.
@@ -4745,6 +4798,26 @@ This attribute does not affect optimizations in any way, unlike GCC's
 }];
 }
 
+def CFGuardDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Code can indicate CFG checks are not wanted with the ``__declspec(guard(nocf))``
+attribute. This directs the compiler to not insert any CFG checks for the entire
+function. This approach is typically used only sparingly in specific situations 
+where the programmer has manually inserted "CFG-equivalent" protection. The 
+programmer knows that they are calling through some read-only function table 
+whose address is obtained through read-only memory references and for which the 
+index is masked to the function table limit. This approach may also be applied 
+to small wrapper functions that are not inlined and that do nothing more than 
+make a call through a function pointer. Since incorrect usage of this directive 
+can compromise the security of CFG, the programmer must be very careful using 
+the directive. Typically, this usage is limited to very small functions that 
+only call one function.
+
+`Control Flow Guard documentation <https://docs.microsoft.com/en-us/windows/win32/secbp/pe-metadata>`
+}];
+}
+
 def HIPPinnedShadowDocs : Documentation {
   let Category = DocCatType;
   let Content = [{
@@ -4777,7 +4850,7 @@ object of type ``T``:
 
 The argument ``T`` is optional and is ignored.
 This attribute may be used by analysis tools and has no effect on code
-generation.
+generation. A ``void`` argument means that the class can own any type.
 
 See Pointer_ for an example.
 }];
@@ -4803,7 +4876,7 @@ like pointers to an object of type ``T``:
 
 The argument ``T`` is optional and is ignored.
 This attribute may be used by analysis tools and has no effect on code
-generation.
+generation. A ``void`` argument means that the pointer can point to any type.
 
 Example:
 When constructing an instance of a class annotated like this (a Pointer) from
@@ -4882,4 +4955,107 @@ once.
       data[i] = 0xFE;
   }
   }];
+}
+
+def HandleDocs : DocumentationCategory<"Handle Attributes"> {
+  let Content = [{
+Handles are a way to identify resources like files, sockets, and processes.
+They are more opaque than pointers and widely used in system programming. They
+have similar risks such as never releasing a resource associated with a handle,
+attempting to use a handle that was already released, or trying to release a
+handle twice. Using the annotations below it is possible to make the ownership
+of the handles clear: whose responsibility is to release them. They can also
+aid static analysis tools to find bugs.
+  }];
+}
+
+def AcquireHandleDocs : Documentation {
+  let Category = HandleDocs;
+  let Content = [{
+If this annotation is on a function or a function type it is assumed to return
+a new handle. In case this annotation is on an output parameter,
+the function is assumed to fill the corresponding argument with a new
+handle.
+
+.. code-block:: c++
+
+  // Output arguments from Zircon.
+  zx_status_t zx_socket_create(uint32_t options,
+                               zx_handle_t __attribute__((acquire_handle)) * out0,
+                               zx_handle_t* out1 [[clang::acquire_handle]]);
+
+
+  // Returned handle.
+  [[clang::acquire_handle]] int open(const char *path, int oflag, ... );
+  int open(const char *path, int oflag, ... ) __attribute__((acquire_handle));
+  }];
+}
+
+def UseHandleDocs : Documentation {
+  let Category = HandleDocs;
+  let Content = [{
+A function taking a handle by value might close the handle. If a function
+parameter is annotated with `use_handle` it is assumed to not to change
+the state of the handle. It is also assumed to require an open handle to work with.
+
+.. code-block:: c++
+
+  zx_status_t zx_port_wait(zx_handle_t handle [[clang::use_handle]],
+                           zx_time_t deadline,
+                           zx_port_packet_t* packet);
+  }];
+}
+
+def ReleaseHandleDocs : Documentation {
+  let Category = HandleDocs;
+  let Content = [{
+If a function parameter is annotated with `release_handle` it is assumed to
+close the handle. It is also assumed to require an open handle to work with.
+
+.. code-block:: c++
+
+  zx_status_t zx_handle_close(zx_handle_t handle [[clang::release_handle]]);
+  }];
+}
+
+def ArmMveStrictPolymorphismDocs : Documentation {
+    let Category = DocCatType;
+    let Content = [{
+This attribute is used in the implementation of the ACLE intrinsics for the Arm
+MVE instruction set. It is used to define the vector types used by the MVE
+intrinsics.
+
+Its effect is to modify the behavior of a vector type with respect to function
+overloading. If a candidate function for overload resolution has a parameter
+type with this attribute, then the selection of that candidate function will be
+disallowed if the actual argument can only be converted via a lax vector
+conversion. The aim is to prevent spurious ambiguity in ARM MVE polymorphic
+intrinsics.
+
+.. code-block:: c++
+
+  void overloaded(uint16x8_t vector, uint16_t scalar);
+  void overloaded(int32x4_t vector, int32_t scalar);
+  uint16x8_t myVector;
+  uint16_t myScalar;
+
+  // myScalar is promoted to int32_t as a side effect of the addition,
+  // so if lax vector conversions are considered for myVector, then
+  // the two overloads are equally good (one argument conversion
+  // each). But if the vector has the __clang_arm_mve_strict_polymorphism
+  // attribute, only the uint16x8_t,uint16_t overload will match.
+  overloaded(myVector, myScalar + 1);
+
+However, this attribute does not prohibit lax vector conversions in contexts
+other than overloading.
+
+.. code-block:: c++
+
+  uint16x8_t function();
+
+  // This is still permitted with lax vector conversion enabled, even
+  // if the vector types have __clang_arm_mve_strict_polymorphism
+  int32x4_t result = function();
+
+    }];
 }

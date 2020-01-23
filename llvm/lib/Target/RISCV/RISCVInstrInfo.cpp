@@ -24,10 +24,13 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetRegistry.h"
 
+using namespace llvm;
+
+#define GEN_CHECK_COMPRESS_INSTR
+#include "RISCVGenCompressInstEmitter.inc"
+
 #define GET_INSTRINFO_CTOR_DTOR
 #include "RISCVGenInstrInfo.inc"
-
-using namespace llvm;
 
 RISCVInstrInfo::RISCVInstrInfo(RISCVSubtarget &STI)
     : RISCVGenInstrInfo(RISCV::ADJCALLSTACKDOWN, RISCV::ADJCALLSTACKUP),
@@ -339,7 +342,7 @@ unsigned RISCVInstrInfo::insertBranch(
     *BytesAdded = 0;
 
   // Shouldn't be a fall through.
-  assert(TBB && "InsertBranch must not be told to insert a fallthrough");
+  assert(TBB && "insertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 3 || Cond.size() == 0) &&
          "RISCV branch conditions have two components!");
 
@@ -451,7 +454,18 @@ unsigned RISCVInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   unsigned Opcode = MI.getOpcode();
 
   switch (Opcode) {
-  default: { return get(Opcode).getSize(); }
+  default: {
+    if (MI.getParent() && MI.getParent()->getParent()) {
+      const auto MF = MI.getMF();
+      const auto &TM = static_cast<const RISCVTargetMachine &>(MF->getTarget());
+      const MCRegisterInfo &MRI = *TM.getMCRegisterInfo();
+      const MCSubtargetInfo &STI = *TM.getMCSubtargetInfo();
+      const RISCVSubtarget &ST = MF->getSubtarget<RISCVSubtarget>();
+      if (isCompressibleInst(MI, &ST, MRI, STI))
+        return 2;
+    }
+    return get(Opcode).getSize();
+  }
   case TargetOpcode::EH_LABEL:
   case TargetOpcode::IMPLICIT_DEF:
   case TargetOpcode::KILL:
@@ -548,7 +562,8 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
 bool RISCVInstrInfo::getMemOperandWithOffsetWidth(
     const MachineInstr &LdSt, const MachineOperand *&BaseReg, int64_t &Offset,
     unsigned &Width, const TargetRegisterInfo *TRI) const {
-  assert(LdSt.mayLoadOrStore() && "Expected a memory operation.");
+  if (!LdSt.mayLoadOrStore())
+    return false;
 
   // Here we assume the standard RISC-V ISA, which uses a base+offset
   // addressing mode. You'll need to relax these conditions to support custom
@@ -621,4 +636,162 @@ RISCVInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_TLS_GOT_HI, "riscv-tls-got-hi"},
       {MO_TLS_GD_HI, "riscv-tls-gd-hi"}};
   return makeArrayRef(TargetFlags);
+}
+bool RISCVInstrInfo::isFunctionSafeToOutlineFrom(
+    MachineFunction &MF, bool OutlineFromLinkOnceODRs) const {
+  const Function &F = MF.getFunction();
+
+  // Can F be deduplicated by the linker? If it can, don't outline from it.
+  if (!OutlineFromLinkOnceODRs && F.hasLinkOnceODRLinkage())
+    return false;
+
+  // Don't outline from functions with section markings; the program could
+  // expect that all the code is in the named section.
+  if (F.hasSection())
+    return false;
+
+  // It's safe to outline from MF.
+  return true;
+}
+
+bool RISCVInstrInfo::isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
+                                            unsigned &Flags) const {
+  // More accurate safety checking is done in getOutliningCandidateInfo.
+  return true;
+}
+
+// Enum values indicating how an outlined call should be constructed.
+enum MachineOutlinerConstructionID {
+  MachineOutlinerDefault
+};
+
+outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
+    std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
+
+  // First we need to filter out candidates where the X5 register (IE t0) can't
+  // be used to setup the function call.
+  auto CannotInsertCall = [](outliner::Candidate &C) {
+    const TargetRegisterInfo *TRI = C.getMF()->getSubtarget().getRegisterInfo();
+
+    C.initLRU(*TRI);
+    LiveRegUnits LRU = C.LRU;
+    return !LRU.available(RISCV::X5);
+  };
+
+  RepeatedSequenceLocs.erase(std::remove_if(RepeatedSequenceLocs.begin(),
+                                            RepeatedSequenceLocs.end(),
+                                            CannotInsertCall),
+                             RepeatedSequenceLocs.end());
+
+  // If the sequence doesn't have enough candidates left, then we're done.
+  if (RepeatedSequenceLocs.size() < 2)
+    return outliner::OutlinedFunction();
+
+  unsigned SequenceSize = 0;
+
+  auto I = RepeatedSequenceLocs[0].front();
+  auto E = std::next(RepeatedSequenceLocs[0].back());
+  for (; I != E; ++I)
+    SequenceSize += getInstSizeInBytes(*I);
+
+  // call t0, function = 8 bytes.
+  unsigned CallOverhead = 8;
+  for (auto &C : RepeatedSequenceLocs)
+    C.setCallInfo(MachineOutlinerDefault, CallOverhead);
+
+  // jr t0 = 4 bytes, 2 bytes if compressed instructions are enabled.
+  unsigned FrameOverhead = 4;
+  if (RepeatedSequenceLocs[0].getMF()->getSubtarget()
+          .getFeatureBits()[RISCV::FeatureStdExtC])
+    FrameOverhead = 2;
+
+  return outliner::OutlinedFunction(RepeatedSequenceLocs, SequenceSize,
+                                    FrameOverhead, MachineOutlinerDefault);
+}
+
+outliner::InstrType
+RISCVInstrInfo::getOutliningType(MachineBasicBlock::iterator &MBBI,
+                                 unsigned Flags) const {
+  MachineInstr &MI = *MBBI;
+  MachineBasicBlock *MBB = MI.getParent();
+  const TargetRegisterInfo *TRI =
+      MBB->getParent()->getSubtarget().getRegisterInfo();
+
+  // Positions generally can't safely be outlined.
+  if (MI.isPosition()) {
+    // We can manually strip out CFI instructions later.
+    if (MI.isCFIInstruction())
+      return outliner::InstrType::Invisible;
+
+    return outliner::InstrType::Illegal;
+  }
+
+  // Don't trust the user to write safe inline assembly.
+  if (MI.isInlineAsm())
+    return outliner::InstrType::Illegal;
+
+  // We can't outline branches to other basic blocks.
+  if (MI.isTerminator() && !MBB->succ_empty())
+    return outliner::InstrType::Illegal;
+
+  // We need support for tail calls to outlined functions before return
+  // statements can be allowed.
+  if (MI.isReturn())
+    return outliner::InstrType::Illegal;
+
+  // Don't allow modifying the X5 register which we use for return addresses for
+  // these outlined functions.
+  if (MI.modifiesRegister(RISCV::X5, TRI) ||
+      MI.getDesc().hasImplicitDefOfPhysReg(RISCV::X5))
+    return outliner::InstrType::Illegal;
+
+  // Make sure the operands don't reference something unsafe.
+  for (const auto &MO : MI.operands())
+    if (MO.isMBB() || MO.isBlockAddress() || MO.isCPI())
+      return outliner::InstrType::Illegal;
+
+  // Don't allow instructions which won't be materialized to impact outlining
+  // analysis.
+  if (MI.isMetaInstruction())
+    return outliner::InstrType::Invisible;
+
+  return outliner::InstrType::Legal;
+}
+
+void RISCVInstrInfo::buildOutlinedFrame(
+    MachineBasicBlock &MBB, MachineFunction &MF,
+    const outliner::OutlinedFunction &OF) const {
+
+  // Strip out any CFI instructions
+  bool Changed = true;
+  while (Changed) {
+    Changed = false;
+    auto I = MBB.begin();
+    auto E = MBB.end();
+    for (; I != E; ++I) {
+      if (I->isCFIInstruction()) {
+        I->removeFromParent();
+        Changed = true;
+        break;
+      }
+    }
+  }
+
+  // Add in a return instruction to the end of the outlined frame.
+  MBB.insert(MBB.end(), BuildMI(MF, DebugLoc(), get(RISCV::JALR))
+      .addReg(RISCV::X0, RegState::Define)
+      .addReg(RISCV::X5)
+      .addImm(0));
+}
+
+MachineBasicBlock::iterator RISCVInstrInfo::insertOutlinedCall(
+    Module &M, MachineBasicBlock &MBB, MachineBasicBlock::iterator &It,
+    MachineFunction &MF, const outliner::Candidate &C) const {
+
+  // Add in a call instruction to the outlined function at the given location.
+  It = MBB.insert(It,
+                  BuildMI(MF, DebugLoc(), get(RISCV::PseudoCALLReg), RISCV::X5)
+                      .addGlobalAddress(M.getNamedValue(MF.getName()), 0,
+                                        RISCVII::MO_CALL));
+  return It;
 }

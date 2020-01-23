@@ -125,6 +125,8 @@ void DAGTypeLegalizer::SoftenFloatResult(SDNode *N, unsigned ResNo) {
     case ISD::ATOMIC_SWAP: R = BitcastToInt_ATOMIC_SWAP(N); break;
     case ISD::SELECT:      R = SoftenFloatRes_SELECT(N); break;
     case ISD::SELECT_CC:   R = SoftenFloatRes_SELECT_CC(N); break;
+    case ISD::STRICT_SINT_TO_FP:
+    case ISD::STRICT_UINT_TO_FP:
     case ISD::SINT_TO_FP:
     case ISD::UINT_TO_FP:  R = SoftenFloatRes_XINT_TO_FP(N); break;
     case ISD::UNDEF:       R = SoftenFloatRes_UNDEF(N); break;
@@ -660,8 +662,7 @@ SDValue DAGTypeLegalizer::SoftenFloatRes_LOAD(SDNode *N) {
                        L->getAAInfo());
     // Legalized the chain result - switch anything that used the old chain to
     // use the new one.
-    if (N != NewL.getValue(1).getNode())
-      ReplaceValueWith(SDValue(N, 1), NewL.getValue(1));
+    ReplaceValueWith(SDValue(N, 1), NewL.getValue(1));
     return NewL;
   }
 
@@ -716,8 +717,10 @@ SDValue DAGTypeLegalizer::SoftenFloatRes_VAARG(SDNode *N) {
 }
 
 SDValue DAGTypeLegalizer::SoftenFloatRes_XINT_TO_FP(SDNode *N) {
-  bool Signed = N->getOpcode() == ISD::SINT_TO_FP;
-  EVT SVT = N->getOperand(0).getValueType();
+  bool IsStrict = N->isStrictFPOpcode();
+  bool Signed = N->getOpcode() == ISD::SINT_TO_FP ||
+                N->getOpcode() == ISD::STRICT_SINT_TO_FP;
+  EVT SVT = N->getOperand(IsStrict ? 1 : 0).getValueType();
   EVT RVT = N->getValueType(0);
   EVT NVT = EVT();
   SDLoc dl(N);
@@ -735,16 +738,20 @@ SDValue DAGTypeLegalizer::SoftenFloatRes_XINT_TO_FP(SDNode *N) {
   }
   assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unsupported XINT_TO_FP!");
 
+  SDValue Chain = IsStrict ? N->getOperand(0) : SDValue();
   // Sign/zero extend the argument if the libcall takes a larger type.
   SDValue Op = DAG.getNode(Signed ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND, dl,
-                           NVT, N->getOperand(0));
+                           NVT, N->getOperand(IsStrict ? 1 : 0));
   TargetLowering::MakeLibCallOptions CallOptions;
   CallOptions.setSExt(Signed);
-  EVT OpsVT[1] = { N->getOperand(0).getValueType() };
-  CallOptions.setTypeListBeforeSoften(OpsVT, N->getValueType(0), true);
-  return TLI.makeLibCall(DAG, LC,
-                         TLI.getTypeToTransformTo(*DAG.getContext(), RVT),
-                         Op, CallOptions, dl).first;
+  CallOptions.setTypeListBeforeSoften(SVT, RVT, true);
+  std::pair<SDValue, SDValue> Tmp =
+      TLI.makeLibCall(DAG, LC, TLI.getTypeToTransformTo(*DAG.getContext(), RVT),
+                      Op, CallOptions, dl, Chain);
+
+  if (IsStrict)
+    ReplaceValueWith(SDValue(N, 1), Tmp.second);
+  return Tmp.first;
 }
 
 
@@ -783,6 +790,8 @@ bool DAGTypeLegalizer::SoftenFloatOperand(SDNode *N, unsigned OpNo) {
   case ISD::STRICT_LLRINT:
   case ISD::LLRINT:      Res = SoftenFloatOp_LLRINT(N); break;
   case ISD::SELECT_CC:   Res = SoftenFloatOp_SELECT_CC(N); break;
+  case ISD::STRICT_FSETCC:
+  case ISD::STRICT_FSETCCS:
   case ISD::SETCC:       Res = SoftenFloatOp_SETCC(N); break;
   case ISD::STORE:       Res = SoftenFloatOp_STORE(N, OpNo); break;
   case ISD::FCOPYSIGN:   Res = SoftenFloatOp_FCOPYSIGN(N); break;
@@ -932,26 +941,39 @@ SDValue DAGTypeLegalizer::SoftenFloatOp_SELECT_CC(SDNode *N) {
 }
 
 SDValue DAGTypeLegalizer::SoftenFloatOp_SETCC(SDNode *N) {
-  SDValue NewLHS = N->getOperand(0), NewRHS = N->getOperand(1);
-  ISD::CondCode CCCode = cast<CondCodeSDNode>(N->getOperand(2))->get();
+  bool IsStrict = N->isStrictFPOpcode();
+  SDValue Op0 = N->getOperand(IsStrict ? 1 : 0);
+  SDValue Op1 = N->getOperand(IsStrict ? 2 : 1);
+  SDValue Chain = IsStrict ? N->getOperand(0) : SDValue();
+  ISD::CondCode CCCode =
+      cast<CondCodeSDNode>(N->getOperand(IsStrict ? 3 : 2))->get();
 
-  EVT VT = NewLHS.getValueType();
-  NewLHS = GetSoftenedFloat(NewLHS);
-  NewRHS = GetSoftenedFloat(NewRHS);
-  TLI.softenSetCCOperands(DAG, VT, NewLHS, NewRHS, CCCode, SDLoc(N),
-                          N->getOperand(0), N->getOperand(1));
+  EVT VT = Op0.getValueType();
+  SDValue NewLHS = GetSoftenedFloat(Op0);
+  SDValue NewRHS = GetSoftenedFloat(Op1);
+  TLI.softenSetCCOperands(DAG, VT, NewLHS, NewRHS, CCCode, SDLoc(N), Op0, Op1,
+                          Chain, N->getOpcode() == ISD::STRICT_FSETCCS);
 
-  // If softenSetCCOperands returned a scalar, use it.
-  if (!NewRHS.getNode()) {
-    assert(NewLHS.getValueType() == N->getValueType(0) &&
-           "Unexpected setcc expansion!");
-    return NewLHS;
+  // Update N to have the operands specified.
+  if (NewRHS.getNode()) {
+    if (IsStrict)
+      NewLHS = DAG.getNode(ISD::SETCC, SDLoc(N), N->getValueType(0), NewLHS,
+                           NewRHS, DAG.getCondCode(CCCode));
+    else
+      return SDValue(DAG.UpdateNodeOperands(N, NewLHS, NewRHS,
+                                            DAG.getCondCode(CCCode)), 0);
   }
 
-  // Otherwise, update N to have the operands specified.
-  return SDValue(DAG.UpdateNodeOperands(N, NewLHS, NewRHS,
-                                DAG.getCondCode(CCCode)),
-                 0);
+  // Otherwise, softenSetCCOperands returned a scalar, use it.
+  assert((NewRHS.getNode() || NewLHS.getValueType() == N->getValueType(0)) &&
+         "Unexpected setcc expansion!");
+
+  if (IsStrict) {
+    ReplaceValueWith(SDValue(N, 0), NewLHS);
+    ReplaceValueWith(SDValue(N, 1), Chain);
+    return SDValue();
+  }
+  return NewLHS;
 }
 
 SDValue DAGTypeLegalizer::SoftenFloatOp_STORE(SDNode *N, unsigned OpNo) {
@@ -2020,12 +2042,11 @@ SDValue DAGTypeLegalizer::PromoteFloatOp_SELECT_CC(SDNode *N, unsigned OpNo) {
 // code.
 SDValue DAGTypeLegalizer::PromoteFloatOp_SETCC(SDNode *N, unsigned OpNo) {
   EVT VT = N->getValueType(0);
-  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), VT);
   SDValue Op0 = GetPromotedFloat(N->getOperand(0));
   SDValue Op1 = GetPromotedFloat(N->getOperand(1));
   ISD::CondCode CCCode = cast<CondCodeSDNode>(N->getOperand(2))->get();
 
-  return DAG.getSetCC(SDLoc(N), NVT, Op0, Op1, CCCode);
+  return DAG.getSetCC(SDLoc(N), VT, Op0, Op1, CCCode);
 
 }
 
@@ -2362,7 +2383,6 @@ SDValue DAGTypeLegalizer::PromoteFloatRes_UNDEF(SDNode *N) {
 
 SDValue DAGTypeLegalizer::BitcastToInt_ATOMIC_SWAP(SDNode *N) {
   EVT VT = N->getValueType(0);
-  EVT NFPVT = TLI.getTypeToTransformTo(*DAG.getContext(), VT);
 
   AtomicSDNode *AM = cast<AtomicSDNode>(N);
   SDLoc SL(N);
@@ -2376,13 +2396,19 @@ SDValue DAGTypeLegalizer::BitcastToInt_ATOMIC_SWAP(SDNode *N) {
                     { AM->getChain(), AM->getBasePtr(), CastVal },
                     AM->getMemOperand());
 
-  SDValue ResultCast = DAG.getNode(GetPromotionOpcode(VT, NFPVT), SL, NFPVT,
-                                   NewAtomic);
+  SDValue Result = NewAtomic;
+
+  if (getTypeAction(VT) == TargetLowering::TypePromoteFloat) {
+    EVT NFPVT = TLI.getTypeToTransformTo(*DAG.getContext(), VT);
+    Result = DAG.getNode(GetPromotionOpcode(VT, NFPVT), SL, NFPVT,
+                                     NewAtomic);
+  }
+
   // Legalize the chain result by replacing uses of the old value chain with the
   // new one
   ReplaceValueWith(SDValue(N, 1), NewAtomic.getValue(1));
 
-  return ResultCast;
+  return Result;
 
 }
 

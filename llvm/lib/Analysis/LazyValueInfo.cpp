@@ -136,9 +136,12 @@ namespace {
   /// A callback value handle updates the cache when values are erased.
   class LazyValueInfoCache;
   struct LVIValueHandle final : public CallbackVH {
+    // Needs to access getValPtr(), which is protected.
+    friend struct DenseMapInfo<LVIValueHandle>;
+
     LazyValueInfoCache *Parent;
 
-    LVIValueHandle(Value *V, LazyValueInfoCache *P = nullptr)
+    LVIValueHandle(Value *V, LazyValueInfoCache *P)
       : CallbackVH(V), Parent(P) { }
 
     void deleted() override;
@@ -152,63 +155,89 @@ namespace {
   /// This is the cache kept by LazyValueInfo which
   /// maintains information about queries across the clients' queries.
   class LazyValueInfoCache {
-    /// This is all of the cached information for one basic block. It contains
-    /// the per-value lattice elements, as well as a separate set for
-    /// overdefined values to reduce memory usage.
-    struct BlockCacheEntryTy {
-      SmallDenseMap<AssertingVH<Value>, ValueLatticeElement, 4> LatticeElements;
-      SmallDenseSet<AssertingVH<Value>, 4> OverDefined;
+    /// This is all of the cached block information for exactly one Value*.
+    /// The entries are sorted by the BasicBlock* of the
+    /// entries, allowing us to do a lookup with a binary search.
+    /// Over-defined lattice values are recorded in OverDefinedCache to reduce
+    /// memory overhead.
+    struct ValueCacheEntryTy {
+      ValueCacheEntryTy(Value *V, LazyValueInfoCache *P) : Handle(V, P) {}
+      LVIValueHandle Handle;
+      SmallDenseMap<PoisoningVH<BasicBlock>, ValueLatticeElement, 4> BlockVals;
     };
 
-    /// Cached information per basic block.
-    DenseMap<PoisoningVH<BasicBlock>, BlockCacheEntryTy> BlockCache;
-    /// Set of value handles used to erase values from the cache on deletion.
-    DenseSet<LVIValueHandle, DenseMapInfo<Value *>> ValueHandles;
+    /// This tracks, on a per-block basis, the set of values that are
+    /// over-defined at the end of that block.
+    typedef DenseMap<PoisoningVH<BasicBlock>, SmallPtrSet<Value *, 4>>
+        OverDefinedCacheTy;
+    /// Keep track of all blocks that we have ever seen, so we
+    /// don't spend time removing unused blocks from our caches.
+    DenseSet<PoisoningVH<BasicBlock> > SeenBlocks;
+
+    /// This is all of the cached information for all values,
+    /// mapped from Value* to key information.
+    DenseMap<Value *, std::unique_ptr<ValueCacheEntryTy>> ValueCache;
+    OverDefinedCacheTy OverDefinedCache;
+
 
   public:
     void insertResult(Value *Val, BasicBlock *BB,
                       const ValueLatticeElement &Result) {
-      auto &CacheEntry = BlockCache.try_emplace(BB).first->second;
+      SeenBlocks.insert(BB);
+
       // Insert over-defined values into their own cache to reduce memory
       // overhead.
       if (Result.isOverdefined())
-        CacheEntry.OverDefined.insert(Val);
-      else
-        CacheEntry.LatticeElements.insert({ Val, Result });
+        OverDefinedCache[BB].insert(Val);
+      else {
+        auto It = ValueCache.find_as(Val);
+        if (It == ValueCache.end()) {
+          ValueCache[Val] = std::make_unique<ValueCacheEntryTy>(Val, this);
+          It = ValueCache.find_as(Val);
+          assert(It != ValueCache.end() && "Val was just added to the map!");
+        }
+        It->second->BlockVals[BB] = Result;
+      }
+    }
 
-      auto HandleIt = ValueHandles.find_as(Val);
-      if (HandleIt == ValueHandles.end())
-        ValueHandles.insert({ Val, this });
+    bool isOverdefined(Value *V, BasicBlock *BB) const {
+      auto ODI = OverDefinedCache.find(BB);
+
+      if (ODI == OverDefinedCache.end())
+        return false;
+
+      return ODI->second.count(V);
     }
 
     bool hasCachedValueInfo(Value *V, BasicBlock *BB) const {
-      auto It = BlockCache.find(BB);
-      if (It == BlockCache.end())
+      if (isOverdefined(V, BB))
+        return true;
+
+      auto I = ValueCache.find_as(V);
+      if (I == ValueCache.end())
         return false;
 
-      return It->second.OverDefined.count(V) ||
-             It->second.LatticeElements.count(V);
+      return I->second->BlockVals.count(BB);
     }
 
     ValueLatticeElement getCachedValueInfo(Value *V, BasicBlock *BB) const {
-      auto It = BlockCache.find(BB);
-      if (It == BlockCache.end())
-        return ValueLatticeElement();
-
-      if (It->second.OverDefined.count(V))
+      if (isOverdefined(V, BB))
         return ValueLatticeElement::getOverdefined();
 
-      auto LatticeIt = It->second.LatticeElements.find(V);
-      if (LatticeIt == It->second.LatticeElements.end())
+      auto I = ValueCache.find_as(V);
+      if (I == ValueCache.end())
         return ValueLatticeElement();
-
-      return LatticeIt->second;
+      auto BBI = I->second->BlockVals.find(BB);
+      if (BBI == I->second->BlockVals.end())
+        return ValueLatticeElement();
+      return BBI->second;
     }
 
     /// clear - Empty the cache.
     void clear() {
-      BlockCache.clear();
-      ValueHandles.clear();
+      SeenBlocks.clear();
+      ValueCache.clear();
+      OverDefinedCache.clear();
     }
 
     /// Inform the cache that a given value has been deleted.
@@ -222,18 +251,23 @@ namespace {
     /// OldSucc might have (unless also overdefined in NewSucc).  This just
     /// flushes elements from the cache and does not add any.
     void threadEdgeImpl(BasicBlock *OldSucc,BasicBlock *NewSucc);
+
+    friend struct LVIValueHandle;
   };
 }
 
 void LazyValueInfoCache::eraseValue(Value *V) {
-  for (auto &Pair : BlockCache) {
-    Pair.second.LatticeElements.erase(V);
-    Pair.second.OverDefined.erase(V);
+  for (auto I = OverDefinedCache.begin(), E = OverDefinedCache.end(); I != E;) {
+    // Copy and increment the iterator immediately so we can erase behind
+    // ourselves.
+    auto Iter = I++;
+    SmallPtrSetImpl<Value *> &ValueSet = Iter->second;
+    ValueSet.erase(V);
+    if (ValueSet.empty())
+      OverDefinedCache.erase(Iter);
   }
 
-  auto HandleIt = ValueHandles.find_as(V);
-  if (HandleIt != ValueHandles.end())
-    ValueHandles.erase(HandleIt);
+  ValueCache.erase(V);
 }
 
 void LVIValueHandle::deleted() {
@@ -243,7 +277,18 @@ void LVIValueHandle::deleted() {
 }
 
 void LazyValueInfoCache::eraseBlock(BasicBlock *BB) {
-  BlockCache.erase(BB);
+  // Shortcut if we have never seen this block.
+  DenseSet<PoisoningVH<BasicBlock> >::iterator I = SeenBlocks.find(BB);
+  if (I == SeenBlocks.end())
+    return;
+  SeenBlocks.erase(I);
+
+  auto ODI = OverDefinedCache.find(BB);
+  if (ODI != OverDefinedCache.end())
+    OverDefinedCache.erase(ODI);
+
+  for (auto &I : ValueCache)
+    I.second->BlockVals.erase(BB);
 }
 
 void LazyValueInfoCache::threadEdgeImpl(BasicBlock *OldSucc,
@@ -261,11 +306,10 @@ void LazyValueInfoCache::threadEdgeImpl(BasicBlock *OldSucc,
   std::vector<BasicBlock*> worklist;
   worklist.push_back(OldSucc);
 
-  auto I = BlockCache.find(OldSucc);
-  if (I == BlockCache.end() || I->second.OverDefined.empty())
+  auto I = OverDefinedCache.find(OldSucc);
+  if (I == OverDefinedCache.end())
     return; // Nothing to process here.
-  SmallVector<Value *, 4> ValsToClear(I->second.OverDefined.begin(),
-                                      I->second.OverDefined.end());
+  SmallVector<Value *, 4> ValsToClear(I->second.begin(), I->second.end());
 
   // Use a worklist to perform a depth-first search of OldSucc's successors.
   // NOTE: We do not need a visited list since any blocks we have already
@@ -279,10 +323,10 @@ void LazyValueInfoCache::threadEdgeImpl(BasicBlock *OldSucc,
     if (ToUpdate == NewSucc) continue;
 
     // If a value was marked overdefined in OldSucc, and is here too...
-    auto OI = BlockCache.find(ToUpdate);
-    if (OI == BlockCache.end() || OI->second.OverDefined.empty())
+    auto OI = OverDefinedCache.find(ToUpdate);
+    if (OI == OverDefinedCache.end())
       continue;
-    auto &ValueSet = OI->second.OverDefined;
+    SmallPtrSetImpl<Value *> &ValueSet = OI->second;
 
     bool changed = false;
     for (Value *V : ValsToClear) {
@@ -292,6 +336,11 @@ void LazyValueInfoCache::threadEdgeImpl(BasicBlock *OldSucc,
       // If we removed anything, then we potentially need to update
       // blocks successors too.
       changed = true;
+
+      if (ValueSet.empty()) {
+        OverDefinedCache.erase(OI);
+        break;
+      }
     }
 
     if (!changed) continue;

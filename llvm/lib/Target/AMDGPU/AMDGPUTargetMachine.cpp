@@ -183,7 +183,7 @@ static cl::opt<bool> EnableScalarIRPasses(
   cl::init(true),
   cl::Hidden);
 
-extern "C" void LLVMInitializeAMDGPUTarget() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
   RegisterTargetMachine<R600TargetMachine> X(getTheAMDGPUTarget());
   RegisterTargetMachine<GCNTargetMachine> Y(getTheGCNTarget());
@@ -217,6 +217,7 @@ extern "C" void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPULowerKernelAttributesPass(*PR);
   initializeAMDGPULowerIntrinsicsPass(*PR);
   initializeAMDGPUOpenCLEnqueuedBlockLoweringPass(*PR);
+  initializeAMDGPUPreLegalizerCombinerPass(*PR);
   initializeAMDGPUPromoteAllocaPass(*PR);
   initializeAMDGPUCodeGenPreparePass(*PR);
   initializeAMDGPUPropagateAttributesEarlyPass(*PR);
@@ -228,6 +229,7 @@ extern "C" void LLVMInitializeAMDGPUTarget() {
   initializeSIModeRegisterPass(*PR);
   initializeSIWholeQuadModePass(*PR);
   initializeSILowerControlFlowPass(*PR);
+  initializeSIRemoveShortExecBranchesPass(*PR);
   initializeSIInsertSkipsPass(*PR);
   initializeSIMemoryLegalizerPass(*PR);
   initializeSIOptimizeExecMaskingPass(*PR);
@@ -616,6 +618,7 @@ public:
   bool addILPOpts() override;
   bool addInstSelector() override;
   bool addIRTranslator() override;
+  void addPreLegalizeMachineIR() override;
   bool addLegalizeMachineIR() override;
   bool addRegBankSelect() override;
   bool addGlobalInstructionSelect() override;
@@ -894,6 +897,11 @@ bool GCNPassConfig::addIRTranslator() {
   return false;
 }
 
+void GCNPassConfig::addPreLegalizeMachineIR() {
+  bool IsOptNone = getOptLevel() == CodeGenOpt::None;
+  addPass(createAMDGPUPreLegalizeCombiner(IsOptNone));
+}
+
 bool GCNPassConfig::addLegalizeMachineIR() {
   addPass(new Legalizer());
   return false;
@@ -948,7 +956,7 @@ void GCNPassConfig::addOptimizedRegAlloc() {
   insertPass(&RegisterCoalescerID, &SIPreAllocateWWMRegsID, false);
 
   if (EnableDCEInRA)
-    insertPass(&RenameIndependentSubregsID, &DeadMachineInstructionElimID);
+    insertPass(&DetectDeadLanesID, &DeadMachineInstructionElimID);
 
   TargetPassConfig::addOptimizedRegAlloc();
 }
@@ -993,6 +1001,7 @@ void GCNPassConfig::addPreEmitPass() {
   // be better for it to emit S_NOP <N> when possible.
   addPass(&PostRAHazardRecognizerID);
 
+  addPass(&SIRemoveShortExecBranchesID);
   addPass(&SIInsertSkipsPassID);
   addPass(&BranchRelaxationPassID);
 }

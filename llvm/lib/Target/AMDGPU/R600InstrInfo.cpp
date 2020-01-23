@@ -541,7 +541,7 @@ R600InstrInfo::fitsReadPortLimitations(const std::vector<MachineInstr *> &IG,
 
   std::vector<std::vector<std::pair<int, unsigned>>> IGSrcs;
   ValidSwizzle.clear();
-  unsigned ConstCount;
+  unsigned ConstCount = 0;
   BankSwizzle TransBS = ALU_VEC_012_SCL_210;
   for (unsigned i = 0, e = IG.size(); i < e; ++i) {
     IGSrcs.push_back(ExtractSrcs(*IG[i], PV, ConstCount));
@@ -676,7 +676,7 @@ bool R600InstrInfo::analyzeBranch(MachineBasicBlock &MBB,
                                   MachineBasicBlock *&FBB,
                                   SmallVectorImpl<MachineOperand> &Cond,
                                   bool AllowModify) const {
-  // Most of the following comes from the ARM implementation of AnalyzeBranch
+  // Most of the following comes from the ARM implementation of analyzeBranch
 
   // If the block has no terminators, it just falls into the block after it.
   MachineBasicBlock::iterator I = MBB.getLastNonDebugInstr();

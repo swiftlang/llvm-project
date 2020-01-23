@@ -133,8 +133,6 @@ void ReachingDefAnalysis::processBasicBlock(
 }
 
 bool ReachingDefAnalysis::runOnMachineFunction(MachineFunction &mf) {
-  if (skipFunction(mf.getFunction()))
-    return false;
   MF = &mf;
   TRI = MF->getSubtarget().getRegisterInfo();
 
@@ -171,9 +169,9 @@ void ReachingDefAnalysis::releaseMemory() {
   InstIds.clear();
 }
 
-int ReachingDefAnalysis::getReachingDef(MachineInstr *MI, int PhysReg) {
+int ReachingDefAnalysis::getReachingDef(MachineInstr *MI, int PhysReg) const {
   assert(InstIds.count(MI) && "Unexpected machine instuction.");
-  int InstId = InstIds[MI];
+  int InstId = InstIds.lookup(MI);
   int DefRes = ReachingDefDefaultVal;
   unsigned MBBNumber = MI->getParent()->getNumber();
   assert(MBBNumber < MBBReachingDefs.size() &&
@@ -190,12 +188,13 @@ int ReachingDefAnalysis::getReachingDef(MachineInstr *MI, int PhysReg) {
   return LatestDef;
 }
 
-MachineInstr* ReachingDefAnalysis::getReachingMIDef(MachineInstr *MI, int PhysReg) {
+MachineInstr* ReachingDefAnalysis::getReachingMIDef(MachineInstr *MI,
+                                                    int PhysReg) const {
   return getInstFromId(MI->getParent(), getReachingDef(MI, PhysReg));
 }
 
 bool ReachingDefAnalysis::hasSameReachingDef(MachineInstr *A, MachineInstr *B,
-                                             int PhysReg) {
+                                             int PhysReg) const {
   MachineBasicBlock *ParentA = A->getParent();
   MachineBasicBlock *ParentB = B->getParent();
   if (ParentA != ParentB)
@@ -205,7 +204,7 @@ bool ReachingDefAnalysis::hasSameReachingDef(MachineInstr *A, MachineInstr *B,
 }
 
 MachineInstr *ReachingDefAnalysis::getInstFromId(MachineBasicBlock *MBB,
-                                                 int InstId) {
+                                                 int InstId) const {
   assert(static_cast<size_t>(MBB->getNumber()) < MBBReachingDefs.size() &&
          "Unexpected basic block number.");
   assert(InstId < static_cast<int>(MBB->size()) &&
@@ -215,45 +214,85 @@ MachineInstr *ReachingDefAnalysis::getInstFromId(MachineBasicBlock *MBB,
     return nullptr;
 
   for (auto &MI : *MBB) {
-    if (InstIds.count(&MI) && InstIds[&MI] == InstId)
+    if (InstIds.count(&MI) && InstIds.lookup(&MI) == InstId)
       return &MI;
   }
   return nullptr;
 }
 
-int ReachingDefAnalysis::getClearance(MachineInstr *MI, MCPhysReg PhysReg) {
+int
+ReachingDefAnalysis::getClearance(MachineInstr *MI, MCPhysReg PhysReg) const {
   assert(InstIds.count(MI) && "Unexpected machine instuction.");
-  return InstIds[MI] - getReachingDef(MI, PhysReg);
+  return InstIds.lookup(MI) - getReachingDef(MI, PhysReg);
 }
 
 void ReachingDefAnalysis::getReachingLocalUses(MachineInstr *Def, int PhysReg,
-    SmallVectorImpl<MachineInstr*> &Uses) {
+    SmallPtrSetImpl<MachineInstr*> &Uses) const {
   MachineBasicBlock *MBB = Def->getParent();
   MachineBasicBlock::iterator MI = MachineBasicBlock::iterator(Def);
   while (++MI != MBB->end()) {
+    // If/when we find a new reaching def, we know that there's no more uses
+    // of 'Def'.
+    if (getReachingMIDef(&*MI, PhysReg) != Def)
+      return;
+
     for (auto &MO : MI->operands()) {
       if (!MO.isReg() || !MO.isUse() || MO.getReg() != PhysReg)
         continue;
 
-      // If/when we find a new reaching def, we know that there's no more uses
-      // of 'Def'.
-      if (getReachingMIDef(&*MI, PhysReg) != Def)
-        return;
-
-      Uses.push_back(&*MI);
+      Uses.insert(&*MI);
       if (MO.isKill())
         return;
     }
   }
 }
 
-unsigned ReachingDefAnalysis::getNumUses(MachineInstr *Def, int PhysReg) {
-  SmallVector<MachineInstr*, 4> Uses;
-  getReachingLocalUses(Def, PhysReg, Uses);
-  return Uses.size();
+bool
+ReachingDefAnalysis::getLiveInUses(MachineBasicBlock *MBB, int PhysReg,
+                                   SmallPtrSetImpl<MachineInstr*> &Uses) const {
+  for (auto &MI : *MBB) {
+    for (auto &MO : MI.operands()) {
+      if (!MO.isReg() || !MO.isUse() || MO.getReg() != PhysReg)
+        continue;
+      if (getReachingDef(&MI, PhysReg) >= 0)
+        return false;
+      Uses.insert(&MI);
+    }
+  }
+  return isReachingDefLiveOut(&MBB->back(), PhysReg);
 }
 
-bool ReachingDefAnalysis::isRegUsedAfter(MachineInstr *MI, int PhysReg) {
+void
+ReachingDefAnalysis::getGlobalUses(MachineInstr *MI, int PhysReg,
+                                   SmallPtrSetImpl<MachineInstr*> &Uses) const {
+  MachineBasicBlock *MBB = MI->getParent();
+
+  // Collect the uses that each def touches within the block.
+  getReachingLocalUses(MI, PhysReg, Uses);
+
+  // Handle live-out values.
+  if (auto *LiveOut = getLocalLiveOutMIDef(MI->getParent(), PhysReg)) {
+    if (LiveOut != MI)
+      return;
+
+    SmallVector<MachineBasicBlock*, 4> ToVisit;
+    ToVisit.insert(ToVisit.begin(), MBB->successors().begin(),
+                   MBB->successors().end());
+    SmallPtrSet<MachineBasicBlock*, 4>Visited;
+    while (!ToVisit.empty()) {
+      MachineBasicBlock *MBB = ToVisit.back();
+      ToVisit.pop_back();
+      if (Visited.count(MBB) || !MBB->isLiveIn(PhysReg))
+        continue;
+      if (getLiveInUses(MBB, PhysReg, Uses))
+        ToVisit.insert(ToVisit.end(), MBB->successors().begin(),
+                       MBB->successors().end());
+      Visited.insert(MBB);
+    }
+  }
+}
+
+bool ReachingDefAnalysis::isRegUsedAfter(MachineInstr *MI, int PhysReg) const {
   MachineBasicBlock *MBB = MI->getParent();
   LivePhysRegs LiveRegs(*TRI);
   LiveRegs.addLiveOuts(*MBB);
@@ -267,32 +306,44 @@ bool ReachingDefAnalysis::isRegUsedAfter(MachineInstr *MI, int PhysReg) {
   for (auto Last = MBB->rbegin(), End = MBB->rend(); Last != End; ++Last) {
     LiveRegs.stepBackward(*Last);
     if (LiveRegs.contains(PhysReg))
-      return InstIds[&*Last] > InstIds[MI];
+      return InstIds.lookup(&*Last) > InstIds.lookup(MI);
   }
   return false;
 }
 
-MachineInstr *ReachingDefAnalysis::getInstWithUseBefore(MachineInstr *MI,
-    int PhysReg) {
-  auto I = MachineBasicBlock::reverse_iterator(MI);
-  auto E = MI->getParent()->rend();
-  I++;
+bool
+ReachingDefAnalysis::isReachingDefLiveOut(MachineInstr *MI, int PhysReg) const {
+  MachineBasicBlock *MBB = MI->getParent();
+  LivePhysRegs LiveRegs(*TRI);
+  LiveRegs.addLiveOuts(*MBB);
+  if (!LiveRegs.contains(PhysReg))
+    return false;
 
-  for ( ; I != E; I++)
-    for (auto &MO : I->operands())
-      if (MO.isReg() && MO.isUse() && MO.getReg() == PhysReg)
-        return &*I;
+  MachineInstr *Last = &MBB->back();
+  int Def = getReachingDef(MI, PhysReg);
+  if (getReachingDef(Last, PhysReg) != Def)
+    return false;
 
-  return nullptr;
+  // Finally check that the last instruction doesn't redefine the register.
+  for (auto &MO : Last->operands())
+    if (MO.isReg() && MO.isDef() && MO.getReg() == PhysReg)
+      return false;
+
+  return true;
 }
 
-void ReachingDefAnalysis::getAllInstWithUseBefore(MachineInstr *MI,
-    int PhysReg, SmallVectorImpl<MachineInstr*> &Uses) {
-  MachineInstr *Use = nullptr;
-  MachineInstr *Pos = MI;
+MachineInstr* ReachingDefAnalysis::getLocalLiveOutMIDef(MachineBasicBlock *MBB,
+                                                        int PhysReg) const {
+  LivePhysRegs LiveRegs(*TRI);
+  LiveRegs.addLiveOuts(*MBB);
+  if (!LiveRegs.contains(PhysReg))
+    return nullptr;
 
-  while ((Use = getInstWithUseBefore(Pos, PhysReg))) {
-    Uses.push_back(Use);
-    Pos = Use;
-  }
+  MachineInstr *Last = &MBB->back();
+  int Def = getReachingDef(Last, PhysReg);
+  for (auto &MO : Last->operands())
+    if (MO.isReg() && MO.isDef() && MO.getReg() == PhysReg)
+      return Last;
+
+  return Def < 0 ? nullptr : getInstFromId(MBB, Def);
 }

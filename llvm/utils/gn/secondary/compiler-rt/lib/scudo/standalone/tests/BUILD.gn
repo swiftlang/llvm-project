@@ -1,10 +1,9 @@
+import("//llvm/utils/gn/build/toolchain/compiler.gni")
 import("//llvm/utils/unittest/unittest.gni")
 
 unittest("ScudoUnitTest") {
   configs += [ "//llvm/utils/gn/build:crt_code" ]
-  deps = [
-    "//compiler-rt/lib/scudo/standalone:sources",
-  ]
+  deps = [ "//compiler-rt/lib/scudo/standalone:sources" ]
   sources = [
     "atomic_test.cpp",
     "bytemap_test.cpp",
@@ -54,5 +53,8 @@ unittest("ScudoCxxUnitTest") {
     "scudo_unit_test_main.cpp",
     "wrappers_cpp_test.cpp",
   ]
+  if (is_clang) {
+    cflags = [ "-Wno-mismatched-new-delete" ]
+  }
   has_custom_main = true
 }

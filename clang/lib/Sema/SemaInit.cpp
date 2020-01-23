@@ -3877,9 +3877,6 @@ ResolveConstructorOverload(Sema &S, SourceLocation DeclLoc,
     if (!Info.Constructor || Info.Constructor->isInvalidDecl())
       continue;
 
-    if (!AllowExplicit && Info.Constructor->isExplicit())
-      continue;
-
     if (OnlyListConstructors && !S.isInitListConstructor(Info.Constructor))
       continue;
 
@@ -3951,18 +3948,16 @@ ResolveConstructorOverload(Sema &S, SourceLocation DeclLoc,
         else
           Conv = cast<CXXConversionDecl>(D);
 
-        if (AllowExplicit || !Conv->isExplicit()) {
-          if (ConvTemplate)
-            S.AddTemplateConversionCandidate(
-                ConvTemplate, I.getPair(), ActingDC, Initializer, DestType,
-                CandidateSet, AllowExplicit, AllowExplicit,
-                /*AllowResultConversion*/ false);
-          else
-            S.AddConversionCandidate(Conv, I.getPair(), ActingDC, Initializer,
-                                     DestType, CandidateSet, AllowExplicit,
-                                     AllowExplicit,
-                                     /*AllowResultConversion*/ false);
-        }
+        if (ConvTemplate)
+          S.AddTemplateConversionCandidate(
+              ConvTemplate, I.getPair(), ActingDC, Initializer, DestType,
+              CandidateSet, AllowExplicit, AllowExplicit,
+              /*AllowResultConversion*/ false);
+        else
+          S.AddConversionCandidate(Conv, I.getPair(), ActingDC, Initializer,
+                                   DestType, CandidateSet, AllowExplicit,
+                                   AllowExplicit,
+                                   /*AllowResultConversion*/ false);
       }
     }
   }
@@ -4064,7 +4059,7 @@ static void TryConstructorInitialization(Sema &S,
 
     // If the initializer list has no elements and T has a default constructor,
     // the first phase is omitted.
-    if (!(UnwrappedArgs.empty() && DestRecordDecl->hasDefaultConstructor()))
+    if (!(UnwrappedArgs.empty() && S.LookupDefaultConstructor(DestRecordDecl)))
       Result = ResolveConstructorOverload(S, Kind.getLocation(), Args,
                                           CandidateSet, DestType, Ctors, Best,
                                           CopyInitialization, AllowExplicit,
@@ -4229,10 +4224,8 @@ static void TryReferenceListInitialization(Sema &S,
       return;
 
     SourceLocation DeclLoc = Initializer->getBeginLoc();
-    bool dummy1, dummy2, dummy3, dummy4;
     Sema::ReferenceCompareResult RefRelationship
-      = S.CompareReferenceRelationship(DeclLoc, cv1T1, cv2T2, dummy1,
-                                       dummy2, dummy3, dummy4);
+      = S.CompareReferenceRelationship(DeclLoc, cv1T1, cv2T2);
     if (RefRelationship >= Sema::Ref_Related) {
       // Try to bind the reference here.
       TryReferenceInitializationCore(S, Entity, Kind, Initializer, cv1T1, T1,
@@ -4350,7 +4343,7 @@ static void TryListInitialization(Sema &S,
       //     value-initialized.
       if (InitList->getNumInits() == 0) {
         CXXRecordDecl *RD = DestType->getAsCXXRecordDecl();
-        if (RD->hasDefaultConstructor()) {
+        if (S.LookupDefaultConstructor(RD)) {
           TryValueInitialization(S, Entity, Kind, Sequence, InitList);
           return;
         }
@@ -4469,18 +4462,8 @@ static OverloadingResult TryRefInitWithConversionFunction(
   QualType cv2T2 = Initializer->getType();
   QualType T2 = cv2T2.getUnqualifiedType();
 
-  bool DerivedToBase;
-  bool ObjCConversion;
-  bool ObjCLifetimeConversion;
-  bool FunctionConversion;
-  assert(!S.CompareReferenceRelationship(
-             Initializer->getBeginLoc(), T1, T2, DerivedToBase, ObjCConversion,
-             ObjCLifetimeConversion, FunctionConversion) &&
+  assert(!S.CompareReferenceRelationship(Initializer->getBeginLoc(), T1, T2) &&
          "Must have incompatible references when binding via conversion");
-  (void)DerivedToBase;
-  (void)ObjCConversion;
-  (void)ObjCLifetimeConversion;
-  (void)FunctionConversion;
 
   // Build the candidate set directly in the initialization sequence
   // structure, so that it will persist if we fail.
@@ -4507,7 +4490,7 @@ static OverloadingResult TryRefInitWithConversionFunction(
         continue;
 
       if (!Info.Constructor->isInvalidDecl() &&
-          Info.Constructor->isConvertingConstructor(AllowExplicitCtors)) {
+          Info.Constructor->isConvertingConstructor(/*AllowExplicit*/true)) {
         if (Info.ConstructorTmpl)
           S.AddTemplateOverloadCandidate(
               Info.ConstructorTmpl, Info.FoundDecl,
@@ -4552,8 +4535,7 @@ static OverloadingResult TryRefInitWithConversionFunction(
       // FIXME: Do we need to make sure that we only consider conversion
       // candidates with reference-compatible results? That might be needed to
       // break recursion.
-      if ((AllowExplicitConvs || !Conv->isExplicit()) &&
-          (AllowRValues ||
+      if ((AllowRValues ||
            Conv->getConversionType()->isLValueReferenceType())) {
         if (ConvTemplate)
           S.AddTemplateConversionCandidate(
@@ -4604,14 +4586,9 @@ static OverloadingResult TryRefInitWithConversionFunction(
 
   // Determine whether we'll need to perform derived-to-base adjustments or
   // other conversions.
-  bool NewDerivedToBase = false;
-  bool NewObjCConversion = false;
-  bool NewObjCLifetimeConversion = false;
-  bool NewFunctionConversion = false;
+  Sema::ReferenceConversions RefConv;
   Sema::ReferenceCompareResult NewRefRelationship =
-      S.CompareReferenceRelationship(
-          DeclLoc, T1, cv3T3, NewDerivedToBase, NewObjCConversion,
-          NewObjCLifetimeConversion, NewFunctionConversion);
+      S.CompareReferenceRelationship(DeclLoc, T1, cv3T3, &RefConv);
 
   // Add the final conversion sequence, if necessary.
   if (NewRefRelationship == Sema::Ref_Incompatible) {
@@ -4641,12 +4618,16 @@ static OverloadingResult TryRefInitWithConversionFunction(
   Sequence.AddReferenceBindingStep(cv1T4, VK == VK_RValue);
   VK = IsLValueRef ? VK_LValue : VK_XValue;
 
-  if (NewDerivedToBase)
+  if (RefConv & Sema::ReferenceConversions::DerivedToBase)
     Sequence.AddDerivedToBaseCastStep(cv1T1, VK);
-  else if (NewObjCConversion)
+  else if (RefConv & Sema::ReferenceConversions::ObjC)
     Sequence.AddObjCObjectConversionStep(cv1T1);
-  else if (NewFunctionConversion)
+  else if (RefConv & Sema::ReferenceConversions::Function)
     Sequence.AddQualificationConversionStep(cv1T1, VK);
+  else if (RefConv & Sema::ReferenceConversions::Qualification) {
+    if (!S.Context.hasSameType(cv1T4, cv1T1))
+      Sequence.AddQualificationConversionStep(cv1T1, VK);
+  }
 
   return OR_Success;
 }
@@ -4700,17 +4681,15 @@ static void TryReferenceInitializationCore(Sema &S,
                                            InitializationSequence &Sequence) {
   QualType DestType = Entity.getType();
   SourceLocation DeclLoc = Initializer->getBeginLoc();
+
   // Compute some basic properties of the types and the initializer.
   bool isLValueRef = DestType->isLValueReferenceType();
   bool isRValueRef = !isLValueRef;
-  bool DerivedToBase = false;
-  bool ObjCConversion = false;
-  bool ObjCLifetimeConversion = false;
-  bool FunctionConversion = false;
   Expr::Classification InitCategory = Initializer->Classify(S.Context);
-  Sema::ReferenceCompareResult RefRelationship = S.CompareReferenceRelationship(
-      DeclLoc, cv1T1, cv2T2, DerivedToBase, ObjCConversion,
-      ObjCLifetimeConversion, FunctionConversion);
+
+  Sema::ReferenceConversions RefConv;
+  Sema::ReferenceCompareResult RefRelationship =
+      S.CompareReferenceRelationship(DeclLoc, cv1T1, cv2T2, &RefConv);
 
   // C++0x [dcl.init.ref]p5:
   //   A reference to type "cv1 T1" is initialized by an expression of type
@@ -4730,19 +4709,25 @@ static void TryReferenceInitializationCore(Sema &S,
           RefRelationship == Sema::Ref_Related))) {
       //   - is an lvalue (but is not a bit-field), and "cv1 T1" is
       //     reference-compatible with "cv2 T2," or
-      if (T1Quals != T2Quals)
-        // Convert to cv1 T2. This should only add qualifiers unless this is a
-        // c-style cast. The removal of qualifiers in that case notionally
-        // happens after the reference binding, but that doesn't matter.
-        Sequence.AddQualificationConversionStep(
-            S.Context.getQualifiedType(T2, T1Quals),
-            Initializer->getValueKind());
-      if (DerivedToBase)
-        Sequence.AddDerivedToBaseCastStep(cv1T1, VK_LValue);
-      else if (ObjCConversion)
-        Sequence.AddObjCObjectConversionStep(cv1T1);
-      else if (FunctionConversion)
-        Sequence.AddQualificationConversionStep(cv1T1, VK_LValue);
+      if (RefConv & (Sema::ReferenceConversions::DerivedToBase |
+                     Sema::ReferenceConversions::ObjC)) {
+        // If we're converting the pointee, add any qualifiers first;
+        // these qualifiers must all be top-level, so just convert to "cv1 T2".
+        if (RefConv & (Sema::ReferenceConversions::Qualification))
+          Sequence.AddQualificationConversionStep(
+              S.Context.getQualifiedType(T2, T1Quals),
+              Initializer->getValueKind());
+        if (RefConv & Sema::ReferenceConversions::DerivedToBase)
+          Sequence.AddDerivedToBaseCastStep(cv1T1, VK_LValue);
+        else
+          Sequence.AddObjCObjectConversionStep(cv1T1);
+      } else if (RefConv & (Sema::ReferenceConversions::Qualification |
+                            Sema::ReferenceConversions::Function)) {
+        // Perform a (possibly multi-level) qualification conversion.
+        // FIXME: Should we use a different step kind for function conversions?
+        Sequence.AddQualificationConversionStep(cv1T1,
+                                                Initializer->getValueKind());
+      }
 
       // We only create a temporary here when binding a reference to a
       // bit-field or vector element. Those cases are't supposed to be
@@ -4873,14 +4858,19 @@ static void TryReferenceInitializationCore(Sema &S,
       T4Quals.addAddressSpace(T1Quals.getAddressSpace());
       QualType cv1T4WithAS = S.Context.getQualifiedType(T2, T4Quals);
       Sequence.AddQualificationConversionStep(cv1T4WithAS, ValueKind);
+      cv1T4 = cv1T4WithAS;
     }
 
     //   In any case, the reference is bound to the resulting glvalue (or to
     //   an appropriate base class subobject).
-    if (DerivedToBase)
+    if (RefConv & Sema::ReferenceConversions::DerivedToBase)
       Sequence.AddDerivedToBaseCastStep(cv1T1, ValueKind);
-    else if (ObjCConversion)
+    else if (RefConv & Sema::ReferenceConversions::ObjC)
       Sequence.AddObjCObjectConversionStep(cv1T1);
+    else if (RefConv & Sema::ReferenceConversions::Qualification) {
+      if (!S.Context.hasSameType(cv1T4, cv1T1))
+        Sequence.AddQualificationConversionStep(cv1T1, ValueKind);
+    }
     return;
   }
 
@@ -5157,7 +5147,7 @@ static void TryUserDefinedConversion(Sema &S,
           continue;
 
         if (!Info.Constructor->isInvalidDecl() &&
-            Info.Constructor->isConvertingConstructor(AllowExplicit)) {
+            Info.Constructor->isConvertingConstructor(/*AllowExplicit*/true)) {
           if (Info.ConstructorTmpl)
             S.AddTemplateOverloadCandidate(
                 Info.ConstructorTmpl, Info.FoundDecl,
@@ -5201,16 +5191,14 @@ static void TryUserDefinedConversion(Sema &S,
         else
           Conv = cast<CXXConversionDecl>(D);
 
-        if (AllowExplicit || !Conv->isExplicit()) {
-          if (ConvTemplate)
-            S.AddTemplateConversionCandidate(
-                ConvTemplate, I.getPair(), ActingDC, Initializer, DestType,
-                CandidateSet, AllowExplicit, AllowExplicit);
-          else
-            S.AddConversionCandidate(Conv, I.getPair(), ActingDC, Initializer,
-                                     DestType, CandidateSet, AllowExplicit,
-                                     AllowExplicit);
-        }
+        if (ConvTemplate)
+          S.AddTemplateConversionCandidate(
+              ConvTemplate, I.getPair(), ActingDC, Initializer, DestType,
+              CandidateSet, AllowExplicit, AllowExplicit);
+        else
+          S.AddConversionCandidate(Conv, I.getPair(), ActingDC, Initializer,
+                                   DestType, CandidateSet, AllowExplicit,
+                                   AllowExplicit);
       }
     }
   }
@@ -8923,11 +8911,17 @@ bool InitializationSequence::Diagnose(Sema &S,
       S.Diag(Kind.getLocation(), diag::err_reference_bind_drops_quals)
           << NonRefType << SourceType << 1 /*addr space*/
           << Args[0]->getSourceRange();
-    else
+    else if (DroppedQualifiers.hasQualifiers())
       S.Diag(Kind.getLocation(), diag::err_reference_bind_drops_quals)
           << NonRefType << SourceType << 0 /*cv quals*/
           << Qualifiers::fromCVRMask(DroppedQualifiers.getCVRQualifiers())
           << DroppedQualifiers.getCVRQualifiers() << Args[0]->getSourceRange();
+    else
+      // FIXME: Consider decomposing the type and explaining which qualifiers
+      // were dropped where, or on which level a 'const' is missing, etc.
+      S.Diag(Kind.getLocation(), diag::err_reference_bind_drops_quals)
+          << NonRefType << SourceType << 2 /*incompatible quals*/
+          << Args[0]->getSourceRange();
     break;
   }
 
@@ -9782,9 +9776,8 @@ QualType Sema::DeduceTemplateSpecializationFromInitializer(
       // C++ [over.match.copy]p1: (non-list copy-initialization from class)
       //   The converting constructors of T are candidate functions.
       if (!AllowExplicit) {
-        // Only consider converting constructors.
-        if (GD->isExplicit())
-          continue;
+        // Overload resolution checks whether the deduction guide is declared
+        // explicit for us.
 
         // When looking for a converting constructor, deduction guides that
         // could never be called with one argument are not interesting to

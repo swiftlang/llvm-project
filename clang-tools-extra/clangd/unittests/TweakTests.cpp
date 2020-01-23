@@ -127,7 +127,7 @@ TEST_F(ObjCLocalizeStringLiteralTest, Test) {
   ExtraArgs.push_back("-x");
   ExtraArgs.push_back("objective-c");
 
-  // Ensure the the action can be initiated in the string literal.
+  // Ensure the action can be initiated in the string literal.
   EXPECT_AVAILABLE(R"(id x = ^[[@[[^"^t^est^"]]]];)");
 
   // Ensure that the action can't be initiated in other places.
@@ -270,7 +270,7 @@ TEST_F(ExtractVariableTest, Test) {
         a = [[a + 1]];
       // lambda
       auto lamb = [&[[a]], &[[b]]](int r = [[1]]) {return 1;}
-      // assigment
+      // assignment
       xyz([[a = 5]]);
       xyz([[a *= 5]]);
       // Variable DeclRefExpr
@@ -1862,6 +1862,74 @@ TEST_F(DefineInlineTest, QualifyWithUsingDirectives) {
     using namespace c;
     )cpp";
   EXPECT_EQ(apply(Test), Expected) << Test;
+}
+
+TEST_F(DefineInlineTest, AddInline) {
+  ExtraArgs.push_back("-fno-delayed-template-parsing");
+  llvm::StringMap<std::string> EditedFiles;
+  ExtraFiles["a.h"] = "void foo();";
+  apply(R"cpp(#include "a.h"
+              void fo^o() {})cpp",
+        &EditedFiles);
+  EXPECT_THAT(EditedFiles, testing::ElementsAre(FileWithContents(
+                               testPath("a.h"), "inline void foo(){}")));
+
+  // Check we put inline before cv-qualifiers.
+  ExtraFiles["a.h"] = "const int foo();";
+  apply(R"cpp(#include "a.h"
+              const int fo^o() {})cpp",
+        &EditedFiles);
+  EXPECT_THAT(EditedFiles, testing::ElementsAre(FileWithContents(
+                               testPath("a.h"), "inline const int foo(){}")));
+
+  // No double inline.
+  ExtraFiles["a.h"] = "inline void foo();";
+  apply(R"cpp(#include "a.h"
+              inline void fo^o() {})cpp",
+        &EditedFiles);
+  EXPECT_THAT(EditedFiles, testing::ElementsAre(FileWithContents(
+                               testPath("a.h"), "inline void foo(){}")));
+
+  // Constexprs don't need "inline".
+  ExtraFiles["a.h"] = "constexpr void foo();";
+  apply(R"cpp(#include "a.h"
+              constexpr void fo^o() {})cpp",
+        &EditedFiles);
+  EXPECT_THAT(EditedFiles, testing::ElementsAre(FileWithContents(
+                               testPath("a.h"), "constexpr void foo(){}")));
+
+  // Class members don't need "inline".
+  ExtraFiles["a.h"] = "struct Foo { void foo(); }";
+  apply(R"cpp(#include "a.h"
+              void Foo::fo^o() {})cpp",
+        &EditedFiles);
+  EXPECT_THAT(EditedFiles,
+              testing::ElementsAre(FileWithContents(
+                  testPath("a.h"), "struct Foo { void foo(){} }")));
+
+  // Function template doesn't need to be "inline"d.
+  ExtraFiles["a.h"] = "template <typename T> void foo();";
+  apply(R"cpp(#include "a.h"
+              template <typename T>
+              void fo^o() {})cpp",
+        &EditedFiles);
+  EXPECT_THAT(EditedFiles,
+              testing::ElementsAre(FileWithContents(
+                  testPath("a.h"), "template <typename T> void foo(){}")));
+
+  // Specializations needs to be marked "inline".
+  ExtraFiles["a.h"] = R"cpp(
+                            template <typename T> void foo();
+                            template <> void foo<int>();)cpp";
+  apply(R"cpp(#include "a.h"
+              template <>
+              void fo^o<int>() {})cpp",
+        &EditedFiles);
+  EXPECT_THAT(EditedFiles,
+              testing::ElementsAre(FileWithContents(testPath("a.h"),
+                                                    R"cpp(
+                            template <typename T> void foo();
+                            template <> inline void foo<int>(){})cpp")));
 }
 
 TWEAK_TEST(DefineOutline);

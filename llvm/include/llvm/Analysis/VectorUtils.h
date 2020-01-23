@@ -132,6 +132,13 @@ struct VFInfo {
 namespace VFABI {
 /// LLVM Internal VFABI ISA token for vector functions.
 static constexpr char const *_LLVM_ = "_LLVM_";
+/// Prefix for internal name redirection for vector function that
+/// tells the compiler to scalarize the call using the scalar name
+/// of the function. For example, a mangled name like
+/// `_ZGV_LLVM_N2v_foo(_LLVM_Scalarize_foo)` would tell the
+/// vectorizer to vectorize the scalar call `foo`, and to scalarize
+/// it once vectorization is done.
+static constexpr char const *_LLVM_Scalarize_ = "_LLVM_Scalarize_";
 
 /// Function to contruct a VFInfo out of a mangled names in the
 /// following format:
@@ -233,10 +240,6 @@ public:
         return M->getFunction(Info.VectorName);
 
     return nullptr;
-  }
-  /// Checks if a function is vectorizable with VFShape \p Shape.
-  bool isFunctionVectorizable(const VFShape &Shape) const {
-    return getVectorizedFunction(Shape) != nullptr;
   }
   /// @}
 };
@@ -506,6 +509,7 @@ public:
   bool isReverse() const { return Reverse; }
   uint32_t getFactor() const { return Factor; }
   uint32_t getAlignment() const { return Alignment.value(); }
+  Align getAlign() const { return Alignment; }
   uint32_t getNumMembers() const { return Members.size(); }
 
   /// Try to insert a new member \p Instr with index \p Index and

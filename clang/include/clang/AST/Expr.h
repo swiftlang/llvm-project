@@ -762,6 +762,15 @@ public:
   /// member expression.
   static QualType findBoundMemberType(const Expr *expr);
 
+  /// Skip past any invisble AST nodes which might surround this
+  /// statement, such as ExprWithCleanups or ImplicitCastExpr nodes,
+  /// but also injected CXXMemberExpr and CXXConstructExpr which represent
+  /// implicit conversions.
+  Expr *IgnoreUnlessSpelledInSource();
+  const Expr *IgnoreUnlessSpelledInSource() const {
+    return const_cast<Expr *>(this)->IgnoreUnlessSpelledInSource();
+  }
+
   /// Skip past any implicit casts which might surround this expression until
   /// reaching a fixed point. Skips:
   /// * ImplicitCastExpr
@@ -3727,22 +3736,25 @@ class ConditionalOperator : public AbstractConditionalOperator {
   friend class ASTStmtReader;
 public:
   ConditionalOperator(Expr *cond, SourceLocation QLoc, Expr *lhs,
-                      SourceLocation CLoc, Expr *rhs,
-                      QualType t, ExprValueKind VK, ExprObjectKind OK)
-    : AbstractConditionalOperator(ConditionalOperatorClass, t, VK, OK,
-           // FIXME: the type of the conditional operator doesn't
-           // depend on the type of the conditional, but the standard
-           // seems to imply that it could. File a bug!
-           (lhs->isTypeDependent() || rhs->isTypeDependent()),
-           (cond->isValueDependent() || lhs->isValueDependent() ||
-            rhs->isValueDependent()),
-           (cond->isInstantiationDependent() ||
-            lhs->isInstantiationDependent() ||
-            rhs->isInstantiationDependent()),
-           (cond->containsUnexpandedParameterPack() ||
-            lhs->containsUnexpandedParameterPack() ||
-            rhs->containsUnexpandedParameterPack()),
-                                  QLoc, CLoc) {
+                      SourceLocation CLoc, Expr *rhs, QualType t,
+                      ExprValueKind VK, ExprObjectKind OK)
+      : AbstractConditionalOperator(
+            ConditionalOperatorClass, t, VK, OK,
+            // The type of the conditional operator depends on the type
+            // of the conditional to support the GCC vector conditional
+            // extension. Additionally, [temp.dep.expr] does specify state that
+            // this should be dependent on ALL sub expressions.
+            (cond->isTypeDependent() || lhs->isTypeDependent() ||
+             rhs->isTypeDependent()),
+            (cond->isValueDependent() || lhs->isValueDependent() ||
+             rhs->isValueDependent()),
+            (cond->isInstantiationDependent() ||
+             lhs->isInstantiationDependent() ||
+             rhs->isInstantiationDependent()),
+            (cond->containsUnexpandedParameterPack() ||
+             lhs->containsUnexpandedParameterPack() ||
+             rhs->containsUnexpandedParameterPack()),
+            QLoc, CLoc) {
     SubExprs[COND] = cond;
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;

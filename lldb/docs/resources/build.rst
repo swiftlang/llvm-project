@@ -29,8 +29,41 @@ The following requirements are shared on all platforms.
 
 * `CMake <https://cmake.org>`_
 * `Ninja <https://ninja-build.org>`_ (strongly recommended)
+
+If you want to run the test suite, you'll need to build LLDB with Python
+scripting support.
+
 * `Python <http://www.python.org/>`_
 * `SWIG <http://swig.org/>`_
+
+Optional Dependencies
+*********************
+
+Although the following dependencies are optional, they have a big impact on
+LLDB's functionality. It is strongly encouraged to build LLDB with these
+dependencies enabled.
+
+By default they are auto-detected: if CMake can find the dependency it will be
+used. It is possible to override this behavior by setting the corresponding
+CMake flag to ``On`` or ``Off`` to force the dependency to be enabled or
+disabled. When a dependency is set to ``On`` and can't be found it will cause a
+CMake configuration error.
+
++-------------------+------------------------------------------------------+--------------------------+
+| Feature           | Description                                          | CMake Flag               |
++===================+======================================================+==========================+
+| Editline          | Generic line editing, history, Emacs and Vi bindings | ``LLDB_ENABLE_LIBEDIT``  |
++-------------------+------------------------------------------------------+--------------------------+
+| Curses            | Text user interface                                  | ``LLDB_ENABLE_CURSES``   |
++-------------------+------------------------------------------------------+--------------------------+
+| LZMA              | Lossless data compression                            | ``LLDB_ENABLE_LZMA``     |
++-------------------+------------------------------------------------------+--------------------------+
+| Libxml2           | XML                                                  | ``LLDB_ENABLE_LIBXML2``  |
++-------------------+------------------------------------------------------+--------------------------+
+| Python            | Python scripting                                     | ``LLDB_ENABLE_PYTHON``   |
++-------------------+------------------------------------------------------+--------------------------+
+| Lua               | Lua scripting                                        | ``LLDB_ENABLE_LUA``      |
++-------------------+------------------------------------------------------+--------------------------+
 
 Depending on your platform and package manager, one might run any of the
 commands below.
@@ -74,11 +107,6 @@ Any command prompt from which you build LLDB should have a valid Visual Studio
 environment setup. This means you should run ``vcvarsall.bat`` or open an
 appropriate Visual Studio Command Prompt corresponding to the version you wish
 to use.
-
-Linux
-*****
-
-* `libedit <http://www.thrysoee.dk/editline>`_
 
 macOS
 *****
@@ -263,7 +291,7 @@ NetBSD
 
 Current stable NetBSD release doesn't ship with libpanel(3), therefore it's
 required to disable curses(3) support with the
-``-DLLDB_DISABLE_CURSES:BOOL=TRUE`` option. To make sure check if
+``-DLLDB_ENABLE_CURSES:BOOL=FALSE`` option. To make sure check if
 ``/usr/include/panel.h`` exists in your system.
 
 macOS
@@ -341,7 +369,7 @@ Build LLDB standalone for development with Xcode:
    <https://cmake.org/cmake/help/v3.14/release/3.14.html#command-line>`_
 
 
-Building The Documentation
+Building the Documentation
 --------------------------
 
 If you wish to build the optional (reference) documentation, additional
@@ -365,6 +393,7 @@ To build the documentation, configure with ``LLVM_ENABLE_SPHINX=ON`` and build t
 ::
 
   > ninja docs-lldb-html
+  > ninja docs-lldb-man
   > ninja lldb-cpp-doc
   > ninja lldb-python-doc
 
@@ -401,9 +430,9 @@ further by passing the appropriate cmake options, such as:
 
 ::
 
-  -DLLDB_DISABLE_LIBEDIT=1
-  -DLLDB_DISABLE_CURSES=1
-  -DLLDB_DISABLE_PYTHON=1
+  -DLLDB_ENABLE_PYTHON=0
+  -DLLDB_ENABLE_LIBEDIT=0
+  -DLLDB_ENABLE_CURSES=0
   -DLLVM_ENABLE_TERMINFO=0
 
 In this case you, will often not need anything other than the standard C and
@@ -453,9 +482,9 @@ to prepare the cmake build with the following parameters:
   -DLLVM_HOST_TRIPLE=aarch64-unknown-linux-gnu \
   -DLLVM_TABLEGEN=<path-to-host>/bin/llvm-tblgen \
   -DCLANG_TABLEGEN=<path-to-host>/bin/clang-tblgen \
-  -DLLDB_DISABLE_PYTHON=1 \
-  -DLLDB_DISABLE_LIBEDIT=1 \
-  -DLLDB_DISABLE_CURSES=1
+  -DLLDB_ENABLE_PYTHON=0 \
+  -DLLDB_ENABLE_LIBEDIT=0 \
+  -DLLDB_ENABLE_CURSES=0
 
 An alternative (and recommended) way to compile LLDB is with clang.
 Unfortunately, clang is not able to find all the include paths necessary for a
@@ -471,7 +500,7 @@ options. In my case it was sufficient to add the following arguments to
   -I /usr/aarch64-linux-gnu/include
 
 If you wanted to build a full version of LLDB and avoid passing
-``-DLLDB_DISABLE_PYTHON`` and other options, you would need to obtain the
+``-DLLDB_ENABLE_PYTHON=0`` and other options, you would need to obtain the
 target versions of the respective libraries. The easiest way to achieve this is
 to use the qemu-debootstrap utility, which can prepare a system image using
 qemu and chroot to simulate the target environment. Then you can install the

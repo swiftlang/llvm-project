@@ -219,6 +219,11 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::STRICT_FP_TO_SINT, VT, Legal);
       if (Subtarget.hasFPExtension())
         setOperationAction(ISD::STRICT_FP_TO_UINT, VT, Legal);
+
+      // And similarly for STRICT_[SU]INT_TO_FP.
+      setOperationAction(ISD::STRICT_SINT_TO_FP, VT, Legal);
+      if (Subtarget.hasFPExtension())
+        setOperationAction(ISD::STRICT_UINT_TO_FP, VT, Legal);
     }
   }
 
@@ -258,6 +263,8 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   if (!Subtarget.hasFPExtension()) {
     setOperationAction(ISD::UINT_TO_FP, MVT::i32, Promote);
     setOperationAction(ISD::UINT_TO_FP, MVT::i64, Expand);
+    setOperationAction(ISD::STRICT_UINT_TO_FP, MVT::i32, Promote);
+    setOperationAction(ISD::STRICT_UINT_TO_FP, MVT::i64, Expand);
   }
 
   // We have native support for a 64-bit CTLZ, via FLOGR.
@@ -402,6 +409,10 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::STRICT_FP_TO_SINT, MVT::v2f64, Legal);
     setOperationAction(ISD::STRICT_FP_TO_UINT, MVT::v2i64, Legal);
     setOperationAction(ISD::STRICT_FP_TO_UINT, MVT::v2f64, Legal);
+    setOperationAction(ISD::STRICT_SINT_TO_FP, MVT::v2i64, Legal);
+    setOperationAction(ISD::STRICT_SINT_TO_FP, MVT::v2f64, Legal);
+    setOperationAction(ISD::STRICT_UINT_TO_FP, MVT::v2i64, Legal);
+    setOperationAction(ISD::STRICT_UINT_TO_FP, MVT::v2f64, Legal);
   }
 
   if (Subtarget.hasVectorEnhancements2()) {
@@ -418,6 +429,10 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::STRICT_FP_TO_SINT, MVT::v4f32, Legal);
     setOperationAction(ISD::STRICT_FP_TO_UINT, MVT::v4i32, Legal);
     setOperationAction(ISD::STRICT_FP_TO_UINT, MVT::v4f32, Legal);
+    setOperationAction(ISD::STRICT_SINT_TO_FP, MVT::v4i32, Legal);
+    setOperationAction(ISD::STRICT_SINT_TO_FP, MVT::v4f32, Legal);
+    setOperationAction(ISD::STRICT_UINT_TO_FP, MVT::v4i32, Legal);
+    setOperationAction(ISD::STRICT_UINT_TO_FP, MVT::v4f32, Legal);
   }
 
   // Handle floating-point types.
@@ -568,6 +583,8 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
                      MVT::v4f32, MVT::v2f64 }) {
       setOperationAction(ISD::STRICT_FMAXNUM, VT, Legal);
       setOperationAction(ISD::STRICT_FMINNUM, VT, Legal);
+      setOperationAction(ISD::STRICT_FMAXIMUM, VT, Legal);
+      setOperationAction(ISD::STRICT_FMINIMUM, VT, Legal);
     }
   }
 
@@ -620,7 +637,9 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::VECTOR_SHUFFLE);
   setTargetDAGCombine(ISD::EXTRACT_VECTOR_ELT);
   setTargetDAGCombine(ISD::FP_ROUND);
+  setTargetDAGCombine(ISD::STRICT_FP_ROUND);
   setTargetDAGCombine(ISD::FP_EXTEND);
+  setTargetDAGCombine(ISD::STRICT_FP_EXTEND);
   setTargetDAGCombine(ISD::BSWAP);
   setTargetDAGCombine(ISD::SDIV);
   setTargetDAGCombine(ISD::UDIV);
@@ -1418,7 +1437,7 @@ SDValue SystemZTargetLowering::LowerFormalArguments(
 
     // ...and a similar frame index for the caller-allocated save area
     // that will be used to store the incoming registers.
-    int64_t RegSaveOffset = TFL->getOffsetOfLocalArea();
+    int64_t RegSaveOffset = -SystemZMC::CallFrameSize;
     unsigned RegSaveIndex = MFI.CreateFixedObject(1, RegSaveOffset, true);
     FuncInfo->setRegSaveFrameIndex(RegSaveIndex);
 
@@ -2693,7 +2712,7 @@ static unsigned getVectorComparisonOrInvert(ISD::CondCode CC, CmpMode Mode,
     return Opcode;
   }
 
-  CC = ISD::getSetCCInverse(CC, Mode == CmpMode::Int);
+  CC = ISD::getSetCCInverse(CC, Mode == CmpMode::Int ? MVT::i32 : MVT::f32);
   if (unsigned Opcode = getVectorComparison(CC, Mode)) {
     Invert = true;
     return Opcode;
@@ -3203,14 +3222,10 @@ SDValue SystemZTargetLowering::lowerFRAMEADDR(SDValue Op,
   unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
   EVT PtrVT = getPointerTy(DAG.getDataLayout());
 
-  // If the back chain frame index has not been allocated yet, do so.
-  SystemZMachineFunctionInfo *FI = MF.getInfo<SystemZMachineFunctionInfo>();
-  int BackChainIdx = FI->getFramePointerSaveIndex();
-  if (!BackChainIdx) {
-    // By definition, the frame address is the address of the back chain.
-    BackChainIdx = MFI.CreateFixedObject(8, -SystemZMC::CallFrameSize, false);
-    FI->setFramePointerSaveIndex(BackChainIdx);
-  }
+  // By definition, the frame address is the address of the back chain.
+  auto *TFL =
+      static_cast<const SystemZFrameLowering *>(Subtarget.getFrameLowering());
+  int BackChainIdx = TFL->getOrCreateFramePointerSaveIndex(MF);
   SDValue BackChain = DAG.getFrameIndex(BackChainIdx, PtrVT);
 
   // FIXME The frontend should detect this case.
@@ -3980,7 +3995,7 @@ SDValue SystemZTargetLowering::lowerATOMIC_CMP_SWAP(SDValue Op,
 }
 
 MachineMemOperand::Flags
-SystemZTargetLowering::getMMOFlags(const Instruction &I) const {
+SystemZTargetLowering::getTargetMMOFlags(const Instruction &I) const {
   // Because of how we convert atomic_load and atomic_store to normal loads and
   // stores in the DAG, we need to ensure that the MMOs are marked volatile
   // since DAGCombine hasn't been updated to account for atomic, but non
@@ -5373,6 +5388,7 @@ const char *SystemZTargetLowering::getTargetNodeName(unsigned Opcode) const {
     OPCODE(VEXTEND);
     OPCODE(STRICT_VEXTEND);
     OPCODE(VROUND);
+    OPCODE(STRICT_VROUND);
     OPCODE(VTM);
     OPCODE(VFAE_CC);
     OPCODE(VFAEZ_CC);
@@ -5895,6 +5911,19 @@ SDValue SystemZTargetLowering::combineJOIN_DWORDS(
   return SDValue();
 }
 
+static SDValue MergeInputChains(SDNode *N1, SDNode *N2) {
+  SDValue Chain1 = N1->getOperand(0);
+  SDValue Chain2 = N2->getOperand(0);
+
+  // Trivial case: both nodes take the same chain.
+  if (Chain1 == Chain2)
+    return Chain1;
+
+  // FIXME - we could handle more complex cases via TokenFactor,
+  // assuming we can verify that this would not create a cycle.
+  return SDValue();
+}
+
 SDValue SystemZTargetLowering::combineFP_ROUND(
     SDNode *N, DAGCombinerInfo &DCI) const {
 
@@ -5907,8 +5936,9 @@ SDValue SystemZTargetLowering::combineFP_ROUND(
   // (extract_vector_elt (VROUND X) 2)
   //
   // This is a special case since the target doesn't really support v2f32s.
+  unsigned OpNo = N->isStrictFPOpcode() ? 1 : 0;
   SelectionDAG &DAG = DCI.DAG;
-  SDValue Op0 = N->getOperand(0);
+  SDValue Op0 = N->getOperand(OpNo);
   if (N->getValueType(0) == MVT::f32 &&
       Op0.hasOneUse() &&
       Op0.getOpcode() == ISD::EXTRACT_VECTOR_ELT &&
@@ -5924,20 +5954,34 @@ SDValue SystemZTargetLowering::combineFP_ROUND(
           U->getOperand(1).getOpcode() == ISD::Constant &&
           cast<ConstantSDNode>(U->getOperand(1))->getZExtValue() == 1) {
         SDValue OtherRound = SDValue(*U->use_begin(), 0);
-        if (OtherRound.getOpcode() == ISD::FP_ROUND &&
-            OtherRound.getOperand(0) == SDValue(U, 0) &&
+        if (OtherRound.getOpcode() == N->getOpcode() &&
+            OtherRound.getOperand(OpNo) == SDValue(U, 0) &&
             OtherRound.getValueType() == MVT::f32) {
-          SDValue VRound = DAG.getNode(SystemZISD::VROUND, SDLoc(N),
-                                       MVT::v4f32, Vec);
+          SDValue VRound, Chain;
+          if (N->isStrictFPOpcode()) {
+            Chain = MergeInputChains(N, OtherRound.getNode());
+            if (!Chain)
+              continue;
+            VRound = DAG.getNode(SystemZISD::STRICT_VROUND, SDLoc(N),
+                                 {MVT::v4f32, MVT::Other}, {Chain, Vec});
+            Chain = VRound.getValue(1);
+          } else
+            VRound = DAG.getNode(SystemZISD::VROUND, SDLoc(N),
+                                 MVT::v4f32, Vec);
           DCI.AddToWorklist(VRound.getNode());
           SDValue Extract1 =
             DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SDLoc(U), MVT::f32,
                         VRound, DAG.getConstant(2, SDLoc(U), MVT::i32));
           DCI.AddToWorklist(Extract1.getNode());
           DAG.ReplaceAllUsesOfValueWith(OtherRound, Extract1);
+          if (Chain)
+            DAG.ReplaceAllUsesOfValueWith(OtherRound.getValue(1), Chain);
           SDValue Extract0 =
             DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SDLoc(Op0), MVT::f32,
                         VRound, DAG.getConstant(0, SDLoc(Op0), MVT::i32));
+          if (Chain)
+            return DAG.getNode(ISD::MERGE_VALUES, SDLoc(Op0),
+                               N->getVTList(), Extract0, Chain);
           return Extract0;
         }
       }
@@ -5958,8 +6002,9 @@ SDValue SystemZTargetLowering::combineFP_EXTEND(
   // (extract_vector_elt (VEXTEND X) 1)
   //
   // This is a special case since the target doesn't really support v2f32s.
+  unsigned OpNo = N->isStrictFPOpcode() ? 1 : 0;
   SelectionDAG &DAG = DCI.DAG;
-  SDValue Op0 = N->getOperand(0);
+  SDValue Op0 = N->getOperand(OpNo);
   if (N->getValueType(0) == MVT::f64 &&
       Op0.hasOneUse() &&
       Op0.getOpcode() == ISD::EXTRACT_VECTOR_ELT &&
@@ -5975,20 +6020,34 @@ SDValue SystemZTargetLowering::combineFP_EXTEND(
           U->getOperand(1).getOpcode() == ISD::Constant &&
           cast<ConstantSDNode>(U->getOperand(1))->getZExtValue() == 2) {
         SDValue OtherExtend = SDValue(*U->use_begin(), 0);
-        if (OtherExtend.getOpcode() == ISD::FP_EXTEND &&
-            OtherExtend.getOperand(0) == SDValue(U, 0) &&
+        if (OtherExtend.getOpcode() == N->getOpcode() &&
+            OtherExtend.getOperand(OpNo) == SDValue(U, 0) &&
             OtherExtend.getValueType() == MVT::f64) {
-          SDValue VExtend = DAG.getNode(SystemZISD::VEXTEND, SDLoc(N),
-                                        MVT::v2f64, Vec);
+          SDValue VExtend, Chain;
+          if (N->isStrictFPOpcode()) {
+            Chain = MergeInputChains(N, OtherExtend.getNode());
+            if (!Chain)
+              continue;
+            VExtend = DAG.getNode(SystemZISD::STRICT_VEXTEND, SDLoc(N),
+                                  {MVT::v2f64, MVT::Other}, {Chain, Vec});
+            Chain = VExtend.getValue(1);
+          } else
+            VExtend = DAG.getNode(SystemZISD::VEXTEND, SDLoc(N),
+                                  MVT::v2f64, Vec);
           DCI.AddToWorklist(VExtend.getNode());
           SDValue Extract1 =
             DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SDLoc(U), MVT::f64,
                         VExtend, DAG.getConstant(1, SDLoc(U), MVT::i32));
           DCI.AddToWorklist(Extract1.getNode());
           DAG.ReplaceAllUsesOfValueWith(OtherExtend, Extract1);
+          if (Chain)
+            DAG.ReplaceAllUsesOfValueWith(OtherExtend.getValue(1), Chain);
           SDValue Extract0 =
             DAG.getNode(ISD::EXTRACT_VECTOR_ELT, SDLoc(Op0), MVT::f64,
                         VExtend, DAG.getConstant(0, SDLoc(Op0), MVT::i32));
+          if (Chain)
+            return DAG.getNode(ISD::MERGE_VALUES, SDLoc(Op0),
+                               N->getVTList(), Extract0, Chain);
           return Extract0;
         }
       }
@@ -6328,7 +6387,9 @@ SDValue SystemZTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::VECTOR_SHUFFLE:     return combineVECTOR_SHUFFLE(N, DCI);
   case ISD::EXTRACT_VECTOR_ELT: return combineEXTRACT_VECTOR_ELT(N, DCI);
   case SystemZISD::JOIN_DWORDS: return combineJOIN_DWORDS(N, DCI);
+  case ISD::STRICT_FP_ROUND:
   case ISD::FP_ROUND:           return combineFP_ROUND(N, DCI);
+  case ISD::STRICT_FP_EXTEND:
   case ISD::FP_EXTEND:          return combineFP_EXTEND(N, DCI);
   case ISD::BSWAP:              return combineBSWAP(N, DCI);
   case SystemZISD::BR_CCMASK:   return combineBR_CCMASK(N, DCI);

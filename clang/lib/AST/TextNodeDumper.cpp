@@ -489,6 +489,9 @@ void TextNodeDumper::visitInlineCommandComment(
   case comments::InlineCommandComment::RenderEmphasized:
     OS << " RenderEmphasized";
     break;
+  case comments::InlineCommandComment::RenderAnchor:
+    OS << " RenderAnchor";
+    break;
   }
 
   for (unsigned i = 0, e = C->getNumArgs(); i != e; ++i)
@@ -1694,7 +1697,16 @@ void TextNodeDumper::VisitBuiltinTemplateDecl(const BuiltinTemplateDecl *D) {
 }
 
 void TextNodeDumper::VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *D) {
-  if (D->wasDeclaredWithTypename())
+  if (const auto *TC = D->getTypeConstraint()) {
+    OS << " ";
+    dumpBareDeclRef(TC->getNamedConcept());
+    if (TC->getNamedConcept() != TC->getFoundDecl()) {
+      OS << " (";
+      dumpBareDeclRef(TC->getFoundDecl());
+      OS << ")";
+    }
+    Visit(TC->getImmediatelyDeclaredConstraint());
+  } else if (D->wasDeclaredWithTypename())
     OS << " typename";
   else
     OS << " class";

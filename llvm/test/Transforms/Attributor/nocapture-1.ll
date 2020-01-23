@@ -288,7 +288,7 @@ define i1 @captureICmpRev(i32* %x) {
   ret i1 %1
 }
 
-; ATTRIBUTOR: define i1 @nocaptureInboundsGEPICmp(i32* nocapture nofree nonnull readnone %x)
+; ATTRIBUTOR: define i1 @nocaptureInboundsGEPICmp(i32* nocapture nofree readnone %x)
 define i1 @nocaptureInboundsGEPICmp(i32* %x) {
   %1 = getelementptr inbounds i32, i32* %x, i32 5
   %2 = bitcast i32* %1 to i8*
@@ -296,7 +296,7 @@ define i1 @nocaptureInboundsGEPICmp(i32* %x) {
   ret i1 %3
 }
 
-; ATTRIBUTOR: define i1 @nocaptureInboundsGEPICmpRev(i32* nocapture nofree nonnull readnone %x)
+; ATTRIBUTOR: define i1 @nocaptureInboundsGEPICmpRev(i32* nocapture nofree readnone %x)
 define i1 @nocaptureInboundsGEPICmpRev(i32* %x) {
   %1 = getelementptr inbounds i32, i32* %x, i32 5
   %2 = bitcast i32* %1 to i8*
@@ -322,7 +322,7 @@ declare void @unknown(i8*)
 define void @test_callsite() {
 entry:
 ; We know that 'null' in AS 0 does not alias anything and cannot be captured. Though the latter is not qurried -> derived atm.
-; ATTRIBUTOR: call void @unknown(i8* noalias null)
+; ATTRIBUTOR: call void @unknown(i8* noalias align 536870912 null)
   call void @unknown(i8* null)
   ret void
 }

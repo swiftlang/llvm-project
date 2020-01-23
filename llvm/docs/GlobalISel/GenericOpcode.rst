@@ -143,7 +143,7 @@ Convert an integer to a pointer.
 G_PTRTOINT
 ^^^^^^^^^^
 
-Convert an pointer to an integer.
+Convert a pointer to an integer.
 
 .. code-block:: none
 
@@ -633,7 +633,7 @@ G_INTRINSIC, G_INTRINSIC_W_SIDE_EFFECTS
 Call an intrinsic
 
 The _W_SIDE_EFFECTS version is considered to have unknown side-effects and
-as such cannot be reordered acrosss other side-effecting instructions.
+as such cannot be reordered across other side-effecting instructions.
 
 .. note::
 

@@ -2913,7 +2913,7 @@ static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!ParmType->isExtVectorType() && !ParmType->isFloatingType() &&
       (ParmType->isBooleanType() ||
        !ParmType->isIntegralType(S.getASTContext()))) {
-    S.Diag(AL.getLoc(), diag::err_attribute_invalid_argument) << 3 << AL;
+    S.Diag(AL.getLoc(), diag::err_attribute_invalid_argument) << 2 << AL;
     return;
   }
 
@@ -4473,12 +4473,10 @@ static void handleLifetimeCategoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     ParmType = S.GetTypeFromParser(AL.getTypeArg(), &DerefTypeLoc);
 
     unsigned SelectIdx = ~0U;
-    if (ParmType->isVoidType())
+    if (ParmType->isReferenceType())
       SelectIdx = 0;
-    else if (ParmType->isReferenceType())
-      SelectIdx = 1;
     else if (ParmType->isArrayType())
-      SelectIdx = 2;
+      SelectIdx = 1;
 
     if (SelectIdx != ~0U) {
       S.Diag(AL.getLoc(), diag::err_attribute_invalid_argument)
@@ -4936,14 +4934,29 @@ static void handleXRayLogArgsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
                  XRayLogArgsAttr(S.Context, AL, ArgCount.getSourceIndex()));
 }
 
+static void handlePatchableFunctionEntryAttr(Sema &S, Decl *D,
+                                             const ParsedAttr &AL) {
+  uint32_t Count = 0, Offset = 0;
+  if (!checkUInt32Argument(S, AL, AL.getArgAsExpr(0), Count, 0, true))
+    return;
+  if (AL.getNumArgs() == 2) {
+    Expr *Arg = AL.getArgAsExpr(1);
+    if (!checkUInt32Argument(S, AL, Arg, Offset, 1, true))
+      return;
+    if (Offset) {
+      S.Diag(getAttrLoc(AL), diag::err_attribute_argument_out_of_range)
+          << &AL << 0 << 0 << Arg->getBeginLoc();
+      return;
+    }
+  }
+  D->addAttr(::new (S.Context)
+                 PatchableFunctionEntryAttr(S.Context, AL, Count, Offset));
+}
+
 static bool ArmMveAliasValid(unsigned BuiltinID, StringRef AliasName) {
   if (AliasName.startswith("__arm_"))
     AliasName = AliasName.substr(6);
-  switch (BuiltinID) {
 #include "clang/Basic/arm_mve_builtin_aliases.inc"
-  default:
-    return false;
-  }
 }
 
 static void handleArmMveAliasAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -5854,9 +5867,11 @@ UuidAttr *Sema::mergeUuidAttr(Decl *D, const AttributeCommonInfo &CI,
   if (const auto *UA = D->getAttr<UuidAttr>()) {
     if (UA->getGuid().equals_lower(Uuid))
       return nullptr;
-    Diag(UA->getLocation(), diag::err_mismatched_uuid);
-    Diag(CI.getLoc(), diag::note_previous_uuid);
-    D->dropAttr<UuidAttr>();
+    if (!UA->getGuid().empty()) {
+      Diag(UA->getLocation(), diag::err_mismatched_uuid);
+      Diag(CI.getLoc(), diag::note_previous_uuid);
+      D->dropAttr<UuidAttr>();
+    }
   }
 
   return ::new (Context) UuidAttr(Context, CI, Uuid);
@@ -6232,8 +6247,8 @@ static void handleWebAssemblyExportNameAttr(Sema &S, Decl *D, const ParsedAttr &
   if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, &ArgLoc))
     return;
 
-  FD->addAttr(::new (S.Context)
-                  WebAssemblyExportNameAttr(S.Context, AL, Str));
+  D->addAttr(::new (S.Context) WebAssemblyExportNameAttr(S.Context, AL, Str));
+  D->addAttr(UsedAttr::CreateImplicit(S.Context));
 }
 
 static void handleWebAssemblyImportModuleAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -6639,11 +6654,6 @@ static void handleCapabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (AL.getKind() == ParsedAttr::AT_Capability &&
       !S.checkStringLiteralArgumentAttr(AL, 0, N, &LiteralLoc))
     return;
-
-  // Currently, there are only two names allowed for a capability: role and
-  // mutex (case insensitive). Diagnose other capability names.
-  if (!N.equals_lower("mutex") && !N.equals_lower("role"))
-    S.Diag(LiteralLoc, diag::warn_invalid_capability_name) << N;
 
   D->addAttr(::new (S.Context) CapabilityAttr(S.Context, AL, N));
 }
@@ -7059,6 +7069,50 @@ static void handleMSAllocatorAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   handleSimpleAttribute<MSAllocatorAttr>(S, D, AL);
+}
+
+static void handeAcquireHandleAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (AL.isUsedAsTypeAttr())
+    return;
+  // Warn if the parameter is definitely not an output parameter.
+  if (const auto *PVD = dyn_cast<ParmVarDecl>(D)) {
+    if (PVD->getType()->isIntegerType()) {
+      S.Diag(AL.getLoc(), diag::err_attribute_output_parameter)
+          << AL.getRange();
+      return;
+    }
+  }
+  StringRef Argument;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Argument))
+    return;
+  D->addAttr(AcquireHandleAttr::Create(S.Context, Argument, AL));
+}
+
+template<typename Attr>
+static void handleHandleAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef Argument;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Argument))
+    return;
+  D->addAttr(Attr::Create(S.Context, Argument, AL));
+}
+
+static void handleCFGuardAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // The guard attribute takes a single identifier argument.
+
+  if (!AL.isArgIdent(0)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+        << AL << AANT_ArgumentIdentifier;
+    return;
+  }
+
+  CFGuardAttr::GuardArg Arg;
+  IdentifierInfo *II = AL.getArgAsIdent(0)->Ident;
+  if (!CFGuardAttr::ConvertStrToGuardArg(II->getName(), Arg)) {
+    S.Diag(AL.getLoc(), diag::warn_attribute_type_not_supported) << AL << II;
+    return;
+  }
+
+  D->addAttr(::new (S.Context) CFGuardAttr(S.Context, AL, Arg));
 }
 
 //===----------------------------------------------------------------------===//
@@ -7695,6 +7749,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_AbiTag:
     handleAbiTagAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_CFGuard:
+    handleCFGuardAttr(S, D, AL);
+    break;
 
   // Thread safety attributes:
   case ParsedAttr::AT_AssertExclusiveLock:
@@ -7837,6 +7894,10 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleXRayLogArgsAttr(S, D, AL);
     break;
 
+  case ParsedAttr::AT_PatchableFunctionEntry:
+    handlePatchableFunctionEntryAttr(S, D, AL);
+    break;
+
   // Move semantics attribute.
   case ParsedAttr::AT_Reinitializes:
     handleSimpleAttribute<ReinitializesAttr>(S, D, AL);
@@ -7865,6 +7926,18 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
 
   case ParsedAttr::AT_ArmMveAlias:
     handleArmMveAliasAttr(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_AcquireHandle:
+    handeAcquireHandleAttr(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_ReleaseHandle:
+    handleHandleAttr<ReleaseHandleAttr>(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_UseHandle:
+    handleHandleAttr<UseHandleAttr>(S, D, AL);
     break;
   }
 }
@@ -8020,7 +8093,8 @@ NamedDecl * Sema::DeclClonePragmaWeak(NamedDecl *ND, IdentifierInfo *II,
     NewFD = FunctionDecl::Create(
         FD->getASTContext(), FD->getDeclContext(), Loc, Loc,
         DeclarationName(II), FD->getType(), FD->getTypeSourceInfo(), SC_None,
-        false /*isInlineSpecified*/, FD->hasPrototype(), CSK_unspecified);
+        false /*isInlineSpecified*/, FD->hasPrototype(), CSK_unspecified,
+        FD->getTrailingRequiresClause());
     NewD = NewFD;
 
     if (FD->getQualifier())

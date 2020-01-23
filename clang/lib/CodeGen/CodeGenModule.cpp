@@ -539,6 +539,13 @@ void CodeGenModule::Release() {
     getModule().addModuleFlag(llvm::Module::Error, "min_enum_size", EnumWidth);
   }
 
+  if (Arch == llvm::Triple::riscv32 || Arch == llvm::Triple::riscv64) {
+    StringRef ABIStr = Target.getABI();
+    llvm::LLVMContext &Ctx = TheModule.getContext();
+    getModule().addModuleFlag(llvm::Module::Error, "target-abi",
+                              llvm::MDString::get(Ctx, ABIStr));
+  }
+
   if (CodeGenOpts.SanitizeCfiCrossDso) {
     // Indicate that we want cross-DSO control flow integrity checks.
     getModule().addModuleFlag(llvm::Module::Override, "Cross-DSO CFI", 1);
@@ -569,7 +576,8 @@ void CodeGenModule::Release() {
     // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
     // property.)
     getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-ftz",
-                              CodeGenOpts.FlushDenorm ? 1 : 0);
+                              CodeGenOpts.FP32DenormalMode !=
+                                  llvm::DenormalMode::IEEE);
   }
 
   // Emit OpenCL specific module metadata: OpenCL/SPIR version.
@@ -1359,7 +1367,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
         std::string typeName;
         if (isPipe)
           typeName = ty.getCanonicalType()
-                         ->getAs<PipeType>()
+                         ->castAs<PipeType>()
                          ->getElementType()
                          .getAsString(Policy);
         else
@@ -1373,7 +1381,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
         std::string baseTypeName;
         if (isPipe)
           baseTypeName = ty.getCanonicalType()
-                             ->getAs<PipeType>()
+                             ->castAs<PipeType>()
                              ->getElementType()
                              .getCanonicalType()
                              .getAsString(Policy);
@@ -1678,7 +1686,7 @@ bool CodeGenModule::GetCPUAndFeaturesAttributes(GlobalDecl GD,
   bool AddedAttr = false;
   if (TD || SD) {
     llvm::StringMap<bool> FeatureMap;
-    getFunctionFeatureMap(FeatureMap, GD);
+    getContext().getFunctionFeatureMap(FeatureMap, GD);
 
     // Produce the canonical string for this set of features.
     for (const llvm::StringMap<bool>::value_type &Entry : FeatureMap)
@@ -1841,6 +1849,11 @@ void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
     F->setSection(CSA->getName());
   else if (const auto *SA = FD->getAttr<SectionAttr>())
      F->setSection(SA->getName());
+
+  if (FD->isInlineBuiltinDeclaration()) {
+    F->addAttribute(llvm::AttributeList::FunctionIndex,
+                    llvm::Attribute::NoBuiltin);
+  }
 
   if (FD->isReplaceableGlobalAllocationFunction()) {
     // A replaceable global allocation function does not act like a builtin by
@@ -4115,13 +4128,13 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
 
   // Emit global variable debug information.
   if (CGDebugInfo *DI = getModuleDebugInfo())
-    if (getCodeGenOpts().getDebugInfo() >= codegenoptions::LimitedDebugInfo)
+    if (getCodeGenOpts().hasReducedDebugInfo())
       DI->EmitGlobalVariable(GV, D);
 }
 
 void CodeGenModule::EmitExternalVarDeclaration(const VarDecl *D) {
   if (CGDebugInfo *DI = getModuleDebugInfo())
-    if (getCodeGenOpts().getDebugInfo() >= codegenoptions::LimitedDebugInfo) {
+    if (getCodeGenOpts().hasReducedDebugInfo()) {
       QualType ASTTy = D->getType();
       llvm::Type *Ty = getTypes().ConvertTypeForMem(D->getType());
       llvm::PointerType *PTy =
@@ -5368,7 +5381,7 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
     ObjCRuntime->GenerateClass(OMD);
     // Emit global variable debug information.
     if (CGDebugInfo *DI = getModuleDebugInfo())
-      if (getCodeGenOpts().getDebugInfo() >= codegenoptions::LimitedDebugInfo)
+      if (getCodeGenOpts().hasReducedDebugInfo())
         DI->getOrCreateInterfaceType(getContext().getObjCInterfaceType(
             OMD->getClassInterface()), OMD->getLocation());
     break;
@@ -5764,7 +5777,9 @@ llvm::Constant *CodeGenModule::GetAddrOfRTTIDescriptor(QualType Ty,
   // Return a bogus pointer if RTTI is disabled, unless it's for EH.
   // FIXME: should we even be calling this method if RTTI is disabled
   // and it's not for EH?
-  if ((!ForEH && !getLangOpts().RTTI) || getLangOpts().CUDAIsDevice)
+  if ((!ForEH && !getLangOpts().RTTI) || getLangOpts().CUDAIsDevice ||
+      (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice &&
+       getTriple().isNVPTX()))
     return llvm::Constant::getNullValue(Int8PtrTy);
 
   if (ForEH && Ty->isObjCObjectPointerType() &&
@@ -5889,58 +5904,6 @@ void CodeGenModule::AddVTableTypeMetadata(llvm::GlobalVariable *VTable,
   if (NeedAllVtablesTypeId()) {
     llvm::Metadata *MD = llvm::MDString::get(getLLVMContext(), "all-vtables");
     VTable->addTypeMetadata(Offset.getQuantity(), MD);
-  }
-}
-
-ParsedTargetAttr CodeGenModule::filterFunctionTargetAttrs(const TargetAttr *TD) {
-  assert(TD != nullptr);
-  ParsedTargetAttr ParsedAttr = TD->parse();
-
-  ParsedAttr.Features.erase(
-      llvm::remove_if(ParsedAttr.Features,
-                      [&](const std::string &Feat) {
-                        return !Target.isValidFeatureName(
-                            StringRef{Feat}.substr(1));
-                      }),
-      ParsedAttr.Features.end());
-  return ParsedAttr;
-}
-
-
-// Fills in the supplied string map with the set of target features for the
-// passed in function.
-void CodeGenModule::getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
-                                          GlobalDecl GD) {
-  StringRef TargetCPU = Target.getTargetOpts().CPU;
-  const FunctionDecl *FD = GD.getDecl()->getAsFunction();
-  if (const auto *TD = FD->getAttr<TargetAttr>()) {
-    ParsedTargetAttr ParsedAttr = filterFunctionTargetAttrs(TD);
-
-    // Make a copy of the features as passed on the command line into the
-    // beginning of the additional features from the function to override.
-    ParsedAttr.Features.insert(ParsedAttr.Features.begin(),
-                            Target.getTargetOpts().FeaturesAsWritten.begin(),
-                            Target.getTargetOpts().FeaturesAsWritten.end());
-
-    if (ParsedAttr.Architecture != "" &&
-        Target.isValidCPUName(ParsedAttr.Architecture))
-      TargetCPU = ParsedAttr.Architecture;
-
-    // Now populate the feature map, first with the TargetCPU which is either
-    // the default or a new one from the target attribute string. Then we'll use
-    // the passed in features (FeaturesAsWritten) along with the new ones from
-    // the attribute.
-    Target.initFeatureMap(FeatureMap, getDiags(), TargetCPU,
-                          ParsedAttr.Features);
-  } else if (const auto *SD = FD->getAttr<CPUSpecificAttr>()) {
-    llvm::SmallVector<StringRef, 32> FeaturesTmp;
-    Target.getCPUSpecificCPUDispatchFeatures(
-        SD->getCPUName(GD.getMultiVersionIndex())->getName(), FeaturesTmp);
-    std::vector<std::string> Features(FeaturesTmp.begin(), FeaturesTmp.end());
-    Target.initFeatureMap(FeatureMap, getDiags(), TargetCPU, Features);
-  } else {
-    Target.initFeatureMap(FeatureMap, getDiags(), TargetCPU,
-                          Target.getTargetOpts().Features);
   }
 }
 

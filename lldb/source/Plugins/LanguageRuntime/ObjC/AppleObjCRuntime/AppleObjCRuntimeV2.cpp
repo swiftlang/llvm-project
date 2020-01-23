@@ -35,7 +35,7 @@
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/OptionValueBoolean.h"
-#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/TypeSystemClang.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Symbol/TypeList.h"
@@ -1301,7 +1301,7 @@ AppleObjCRuntimeV2::UpdateISAToDescriptorMapDynamic(
     return DescriptorMapUpdateResult::Fail();
 
   thread_sp->CalculateExecutionContext(exe_ctx);
-  ClangASTContext *ast = process->GetTarget().GetScratchClangASTContext();
+  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
 
   if (!ast)
     return DescriptorMapUpdateResult::Fail();
@@ -1563,7 +1563,7 @@ AppleObjCRuntimeV2::UpdateISAToDescriptorMapSharedCache() {
     return DescriptorMapUpdateResult::Fail();
 
   thread_sp->CalculateExecutionContext(exe_ctx);
-  ClangASTContext *ast = process->GetTarget().GetScratchClangASTContext();
+  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
 
   if (!ast)
     return DescriptorMapUpdateResult::Fail();
@@ -1976,36 +1976,6 @@ void AppleObjCRuntimeV2::WarnIfNoClassesCached(
       break;
     }
   }
-}
-
-ConstString
-AppleObjCRuntimeV2::GetActualTypeName(ObjCLanguageRuntime::ObjCISA isa) {
-  if (isa == g_objc_Tagged_ISA) {
-    static const ConstString g_objc_tagged_isa_name("_lldb_Tagged_ObjC_ISA");
-    return g_objc_tagged_isa_name;
-  }
-  if (isa == g_objc_Tagged_ISA_NSAtom) {
-    static const ConstString g_objc_tagged_isa_nsatom_name("NSAtom");
-    return g_objc_tagged_isa_nsatom_name;
-  }
-  if (isa == g_objc_Tagged_ISA_NSNumber) {
-    static const ConstString g_objc_tagged_isa_nsnumber_name("NSNumber");
-    return g_objc_tagged_isa_nsnumber_name;
-  }
-  if (isa == g_objc_Tagged_ISA_NSDateTS) {
-    static const ConstString g_objc_tagged_isa_nsdatets_name("NSDateTS");
-    return g_objc_tagged_isa_nsdatets_name;
-  }
-  if (isa == g_objc_Tagged_ISA_NSManagedObject) {
-    static const ConstString g_objc_tagged_isa_nsmanagedobject_name(
-        "NSManagedObject");
-    return g_objc_tagged_isa_nsmanagedobject_name;
-  }
-  if (isa == g_objc_Tagged_ISA_NSDate) {
-    static const ConstString g_objc_tagged_isa_nsdate_name("NSDate");
-    return g_objc_tagged_isa_nsdate_name;
-  }
-  return ObjCLanguageRuntime::GetActualTypeName(isa);
 }
 
 DeclVendor *AppleObjCRuntimeV2::GetDeclVendor() {
@@ -2672,10 +2642,12 @@ class ObjCExceptionRecognizedStackFrame : public RecognizedStackFrame {
     const lldb::ABISP &abi = process_sp->GetABI();
     if (!abi) return;
 
-    CompilerType voidstar = process_sp->GetTarget()
-                                .GetScratchClangASTContext()
-                                ->GetBasicType(lldb::eBasicTypeVoid)
-                                .GetPointerType();
+    TypeSystemClang *clang_ast_context =
+        TypeSystemClang::GetScratch(process_sp->GetTarget());
+    if (!clang_ast_context)
+      return;
+    CompilerType voidstar =
+        clang_ast_context->GetBasicType(lldb::eBasicTypeVoid).GetPointerType();
 
     ValueList args;
     Value input_value;
@@ -2693,7 +2665,7 @@ class ObjCExceptionRecognizedStackFrame : public RecognizedStackFrame {
     exception = ValueObjectRecognizerSynthesizedValue::Create(
         *exception, eValueTypeVariableArgument);
     exception = exception->GetDynamicValue(eDynamicDontRunTarget);
-      
+
     m_arguments = ValueObjectListSP(new ValueObjectList());
     m_arguments->Append(exception);
   }

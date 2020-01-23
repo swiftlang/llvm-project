@@ -1072,9 +1072,6 @@ static Value *foldUnsignedUnderflowCheck(ICmpInst *ZeroICmp,
             m_c_ICmp(UnsignedPred, m_Specific(ZeroCmpOp), m_Value(A))) &&
       match(ZeroCmpOp, m_c_Add(m_Specific(A), m_Value(B))) &&
       (ZeroICmp->hasOneUse() || UnsignedICmp->hasOneUse())) {
-    if (UnsignedICmp->getOperand(0) != ZeroCmpOp)
-      UnsignedPred = ICmpInst::getSwappedPredicate(UnsignedPred);
-
     auto GetKnownNonZeroAndOther = [&](Value *&NonZero, Value *&Other) {
       if (!IsKnownNonZero(NonZero))
         std::swap(NonZero, Other);
@@ -1111,8 +1108,6 @@ static Value *foldUnsignedUnderflowCheck(ICmpInst *ZeroICmp,
              m_c_ICmp(UnsignedPred, m_Specific(Base), m_Specific(Offset))) ||
       !ICmpInst::isUnsigned(UnsignedPred))
     return nullptr;
-  if (UnsignedICmp->getOperand(0) != Base)
-    UnsignedPred = ICmpInst::getSwappedPredicate(UnsignedPred);
 
   // Base >=/> Offset && (Base - Offset) != 0  <-->  Base > Offset
   // (no overflow and not null)
@@ -3277,6 +3272,23 @@ Instruction *InstCombiner::visitXor(BinaryOperator &I) {
         return SelectInst::Create(
             Builder.CreateICmp(getInverseMinMaxPred(SPF), NotLHS, NotRHS),
             NotLHS, NotRHS);
+      }
+    }
+
+    // Pull 'not' into operands of select if both operands are one-use compares.
+    // Inverting the predicates eliminates the 'not' operation.
+    // Example:
+    //     not (select ?, (cmp TPred, ?, ?), (cmp FPred, ?, ?) -->
+    //     select ?, (cmp InvTPred, ?, ?), (cmp InvFPred, ?, ?)
+    // TODO: Canonicalize by hoisting 'not' into an arm of the select if only
+    //       1 select operand is a cmp?
+    if (auto *Sel = dyn_cast<SelectInst>(Op0)) {
+      auto *CmpT = dyn_cast<CmpInst>(Sel->getTrueValue());
+      auto *CmpF = dyn_cast<CmpInst>(Sel->getFalseValue());
+      if (CmpT && CmpF && CmpT->hasOneUse() && CmpF->hasOneUse()) {
+        CmpT->setPredicate(CmpT->getInversePredicate());
+        CmpF->setPredicate(CmpF->getInversePredicate());
+        return replaceInstUsesWith(I, Sel);
       }
     }
   }

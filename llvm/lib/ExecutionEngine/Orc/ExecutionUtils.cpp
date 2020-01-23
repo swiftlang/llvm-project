@@ -42,7 +42,7 @@ int runAsMain(int (*Main)(int, char *[]), ArrayRef<std::string> Args,
   }
   ArgV.push_back(nullptr);
 
-  return Main(Args.size(), ArgV.data());
+  return Main(Args.size() + !!ProgramName, ArgV.data());
 }
 
 CtorDtorIterator::CtorDtorIterator(const GlobalVariable *GV, bool End)
@@ -121,7 +121,7 @@ void CtorDtorRunner::add(iterator_range<CtorDtorIterator> CtorDtors) {
       JD.getExecutionSession(),
       (*CtorDtors.begin()).Func->getParent()->getDataLayout());
 
-  for (const auto &CtorDtor : CtorDtors) {
+  for (auto CtorDtor : CtorDtors) {
     assert(CtorDtor.Func && CtorDtor.Func->hasName() &&
            "Ctor/Dtor function must be named to be runnable under the JIT");
 

@@ -257,7 +257,7 @@ private:
   std::pair<const Elf_Phdr *, const Elf_Shdr *>
   findDynamic(const ELFFile<ELFT> *Obj);
   void loadDynamicTable(const ELFFile<ELFT> *Obj);
-  void parseDynamicTable();
+  void parseDynamicTable(const ELFFile<ELFT> *Obj);
 
   Expected<StringRef> getSymbolVersion(const Elf_Sym *symb,
                                        bool &IsDefault) const;
@@ -1434,76 +1434,126 @@ static const char *getGroupType(uint32_t Flag) {
 static const EnumEntry<unsigned> ElfSectionFlags[] = {
   ENUM_ENT(SHF_WRITE,            "W"),
   ENUM_ENT(SHF_ALLOC,            "A"),
-  ENUM_ENT(SHF_EXCLUDE,          "E"),
   ENUM_ENT(SHF_EXECINSTR,        "X"),
   ENUM_ENT(SHF_MERGE,            "M"),
   ENUM_ENT(SHF_STRINGS,          "S"),
   ENUM_ENT(SHF_INFO_LINK,        "I"),
   ENUM_ENT(SHF_LINK_ORDER,       "L"),
-  ENUM_ENT(SHF_OS_NONCONFORMING, "o"),
+  ENUM_ENT(SHF_OS_NONCONFORMING, "O"),
   ENUM_ENT(SHF_GROUP,            "G"),
   ENUM_ENT(SHF_TLS,              "T"),
-  ENUM_ENT(SHF_MASKOS,           "o"),
-  ENUM_ENT(SHF_MASKPROC,         "p"),
-  ENUM_ENT_1(SHF_COMPRESSED),
+  ENUM_ENT(SHF_COMPRESSED,       "C"),
+  ENUM_ENT(SHF_EXCLUDE,          "E"),
 };
 
 static const EnumEntry<unsigned> ElfXCoreSectionFlags[] = {
-  LLVM_READOBJ_ENUM_ENT(ELF, XCORE_SHF_CP_SECTION),
-  LLVM_READOBJ_ENUM_ENT(ELF, XCORE_SHF_DP_SECTION)
+  ENUM_ENT(XCORE_SHF_CP_SECTION, ""),
+  ENUM_ENT(XCORE_SHF_DP_SECTION, "")
 };
 
 static const EnumEntry<unsigned> ElfARMSectionFlags[] = {
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_ARM_PURECODE)
+  ENUM_ENT(SHF_ARM_PURECODE, "y")
 };
 
 static const EnumEntry<unsigned> ElfHexagonSectionFlags[] = {
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_HEX_GPREL)
+  ENUM_ENT(SHF_HEX_GPREL, "")
 };
 
 static const EnumEntry<unsigned> ElfMipsSectionFlags[] = {
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_MIPS_NODUPES),
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_MIPS_NAMES  ),
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_MIPS_LOCAL  ),
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_MIPS_NOSTRIP),
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_MIPS_GPREL  ),
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_MIPS_MERGE  ),
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_MIPS_ADDR   ),
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_MIPS_STRING )
+  ENUM_ENT(SHF_MIPS_NODUPES, ""),
+  ENUM_ENT(SHF_MIPS_NAMES,   ""),
+  ENUM_ENT(SHF_MIPS_LOCAL,   ""),
+  ENUM_ENT(SHF_MIPS_NOSTRIP, ""),
+  ENUM_ENT(SHF_MIPS_GPREL,   ""),
+  ENUM_ENT(SHF_MIPS_MERGE,   ""),
+  ENUM_ENT(SHF_MIPS_ADDR,    ""),
+  ENUM_ENT(SHF_MIPS_STRING,  "")
 };
 
 static const EnumEntry<unsigned> ElfX86_64SectionFlags[] = {
-  LLVM_READOBJ_ENUM_ENT(ELF, SHF_X86_64_LARGE)
+  ENUM_ENT(SHF_X86_64_LARGE, "l")
 };
 
-static std::string getGNUFlags(uint64_t Flags) {
+static std::vector<EnumEntry<unsigned>>
+getSectionFlagsForTarget(unsigned EMachine) {
+  std::vector<EnumEntry<unsigned>> Ret(std::begin(ElfSectionFlags),
+                                       std::end(ElfSectionFlags));
+  switch (EMachine) {
+  case EM_ARM:
+    Ret.insert(Ret.end(), std::begin(ElfARMSectionFlags),
+               std::end(ElfARMSectionFlags));
+    break;
+  case EM_HEXAGON:
+    Ret.insert(Ret.end(), std::begin(ElfHexagonSectionFlags),
+               std::end(ElfHexagonSectionFlags));
+    break;
+  case EM_MIPS:
+    Ret.insert(Ret.end(), std::begin(ElfMipsSectionFlags),
+               std::end(ElfMipsSectionFlags));
+    break;
+  case EM_X86_64:
+    Ret.insert(Ret.end(), std::begin(ElfX86_64SectionFlags),
+               std::end(ElfX86_64SectionFlags));
+    break;
+  case EM_XCORE:
+    Ret.insert(Ret.end(), std::begin(ElfXCoreSectionFlags),
+               std::end(ElfXCoreSectionFlags));
+    break;
+  default:
+    break;
+  }
+  return Ret;
+}
+
+static std::string getGNUFlags(unsigned EMachine, uint64_t Flags) {
+  // Here we are trying to build the flags string in the same way as GNU does.
+  // It is not that straightforward. Imagine we have sh_flags == 0x90000000.
+  // SHF_EXCLUDE ("E") has a value of 0x80000000 and SHF_MASKPROC is 0xf0000000.
+  // GNU readelf will not print "E" or "Ep" in this case, but will print just
+  // "p". It only will print "E" when no other processor flag is set.
   std::string Str;
-  for (auto Entry : ElfSectionFlags) {
-    uint64_t Flag = Entry.Value & Flags;
-    Flags &= ~Entry.Value;
-    switch (Flag) {
-    case ELF::SHF_WRITE:
-    case ELF::SHF_ALLOC:
-    case ELF::SHF_EXECINSTR:
-    case ELF::SHF_MERGE:
-    case ELF::SHF_STRINGS:
-    case ELF::SHF_INFO_LINK:
-    case ELF::SHF_LINK_ORDER:
-    case ELF::SHF_OS_NONCONFORMING:
-    case ELF::SHF_GROUP:
-    case ELF::SHF_TLS:
-    case ELF::SHF_EXCLUDE:
-      Str += Entry.AltName;
-      break;
-    default:
-      if (Flag & ELF::SHF_MASKOS)
-        Str += "o";
-      else if (Flag & ELF::SHF_MASKPROC)
-        Str += "p";
-      else if (Flag)
-        Str += "x";
+  bool HasUnknownFlag = false;
+  bool HasOSFlag = false;
+  bool HasProcFlag = false;
+  std::vector<EnumEntry<unsigned>> FlagsList =
+      getSectionFlagsForTarget(EMachine);
+  while (Flags) {
+    // Take the least significant bit as a flag.
+    uint64_t Flag = Flags & -Flags;
+    Flags -= Flag;
+
+    // Find the flag in the known flags list.
+    auto I = llvm::find_if(FlagsList, [=](const EnumEntry<unsigned> &E) {
+      // Flags with empty names are not printed in GNU style output.
+      return E.Value == Flag && !E.AltName.empty();
+    });
+    if (I != FlagsList.end()) {
+      Str += I->AltName;
+      continue;
+    }
+
+    // If we did not find a matching regular flag, then we deal with an OS
+    // specific flag, processor specific flag or an unknown flag.
+    if (Flag & ELF::SHF_MASKOS) {
+      HasOSFlag = true;
+      Flags &= ~ELF::SHF_MASKOS;
+    } else if (Flag & ELF::SHF_MASKPROC) {
+      HasProcFlag = true;
+      // Mask off all the processor-specific bits. This removes the SHF_EXCLUDE
+      // bit if set so that it doesn't also get printed.
+      Flags &= ~ELF::SHF_MASKPROC;
+    } else {
+      HasUnknownFlag = true;
     }
   }
+
+  // "o", "p" and "x" are printed last.
+  if (HasOSFlag)
+    Str += "o";
+  if (HasProcFlag)
+    Str += "p";
+  if (HasUnknownFlag)
+    Str += "x";
   return Str;
 }
 
@@ -1818,7 +1868,7 @@ void ELFDumper<ELFT>::loadDynamicTable(const ELFFile<ELFT> *Obj) {
   if (!DynamicPhdr || !DynamicSec) {
     if ((DynamicPhdr && IsPhdrTableValid) || (DynamicSec && IsSecTableValid)) {
       DynamicTable = DynamicPhdr ? FromPhdr : FromSec;
-      parseDynamicTable();
+      parseDynamicTable(Obj);
     } else {
       reportWarning(createError("no valid dynamic table was found"),
                     ObjF->getFileName());
@@ -1859,7 +1909,7 @@ void ELFDumper<ELFT>::loadDynamicTable(const ELFFile<ELFT> *Obj) {
     DynamicTable = FromSec;
   }
 
-  parseDynamicTable();
+  parseDynamicTable(Obj);
 }
 
 template <typename ELFT>
@@ -1925,82 +1975,13 @@ ELFDumper<ELFT>::ELFDumper(const object::ELFObjectFile<ELFT> *ObjF,
     ELFDumperStyle.reset(new LLVMStyle<ELFT>(Writer, this));
 }
 
-static const char *getTypeString(unsigned Arch, uint64_t Type) {
-#define DYNAMIC_TAG(n, v)
-  switch (Arch) {
-
-  case EM_AARCH64:
-    switch (Type) {
-#define AARCH64_DYNAMIC_TAG(name, value)                                       \
-    case DT_##name:                                                            \
-      return #name;
-#include "llvm/BinaryFormat/DynamicTags.def"
-#undef AARCH64_DYNAMIC_TAG
-    }
-    break;
-
-  case EM_HEXAGON:
-    switch (Type) {
-#define HEXAGON_DYNAMIC_TAG(name, value)                                       \
-  case DT_##name:                                                              \
-    return #name;
-#include "llvm/BinaryFormat/DynamicTags.def"
-#undef HEXAGON_DYNAMIC_TAG
-    }
-    break;
-
-  case EM_MIPS:
-    switch (Type) {
-#define MIPS_DYNAMIC_TAG(name, value)                                          \
-  case DT_##name:                                                              \
-    return #name;
-#include "llvm/BinaryFormat/DynamicTags.def"
-#undef MIPS_DYNAMIC_TAG
-    }
-    break;
-
-  case EM_PPC64:
-    switch (Type) {
-#define PPC64_DYNAMIC_TAG(name, value)                                         \
-  case DT_##name:                                                              \
-    return #name;
-#include "llvm/BinaryFormat/DynamicTags.def"
-#undef PPC64_DYNAMIC_TAG
-    }
-    break;
-  }
-#undef DYNAMIC_TAG
-  switch (Type) {
-// Now handle all dynamic tags except the architecture specific ones
-#define AARCH64_DYNAMIC_TAG(name, value)
-#define MIPS_DYNAMIC_TAG(name, value)
-#define HEXAGON_DYNAMIC_TAG(name, value)
-#define PPC64_DYNAMIC_TAG(name, value)
-// Also ignore marker tags such as DT_HIOS (maps to DT_VERNEEDNUM), etc.
-#define DYNAMIC_TAG_MARKER(name, value)
-#define DYNAMIC_TAG(name, value)                                               \
-  case DT_##name:                                                              \
-    return #name;
-#include "llvm/BinaryFormat/DynamicTags.def"
-#undef DYNAMIC_TAG
-#undef AARCH64_DYNAMIC_TAG
-#undef MIPS_DYNAMIC_TAG
-#undef HEXAGON_DYNAMIC_TAG
-#undef PPC64_DYNAMIC_TAG
-#undef DYNAMIC_TAG_MARKER
-  default:
-    return "unknown";
-  }
-}
-
-template <typename ELFT> void ELFDumper<ELFT>::parseDynamicTable() {
+template <typename ELFT>
+void ELFDumper<ELFT>::parseDynamicTable(const ELFFile<ELFT> *Obj) {
   auto toMappedAddr = [&](uint64_t Tag, uint64_t VAddr) -> const uint8_t * {
     auto MappedAddrOrError = ObjF->getELFFile()->toMappedAddr(VAddr);
     if (!MappedAddrOrError) {
       Error Err =
-          createError("Unable to parse DT_" +
-                      Twine(getTypeString(
-                          ObjF->getELFFile()->getHeader()->e_machine, Tag)) +
+          createError("Unable to parse DT_" + Obj->getDynamicTagAsString(Tag) +
                       ": " + llvm::toString(MappedAddrOrError.takeError()));
 
       reportWarning(std::move(Err), ObjF->getFileName());
@@ -3080,8 +3061,8 @@ template <class ELFT> void GNUStyle<ELFT>::printFileHeaders(const ELFO *Obj) {
   OS << "\n";
   Str = printEnum(e->e_ident[ELF::EI_OSABI], makeArrayRef(ElfOSABI));
   printFields(OS, "OS/ABI:", Str);
-  Str = "0x" + to_hexString(e->e_ident[ELF::EI_ABIVERSION]);
-  printFields(OS, "ABI Version:", Str);
+  printFields(OS,
+              "ABI Version:", std::to_string(e->e_ident[ELF::EI_ABIVERSION]));
   Str = printEnum(e->e_type, makeArrayRef(ElfObjectFileType));
   printFields(OS, "Type:", Str);
   Str = printEnum(e->e_machine, makeArrayRef(ElfMachineType));
@@ -3497,6 +3478,25 @@ static std::string getSectionTypeString(unsigned Arch, unsigned Type) {
   return "";
 }
 
+static void printSectionDescription(formatted_raw_ostream &OS,
+                                    unsigned EMachine) {
+  OS << "Key to Flags:\n";
+  OS << "  W (write), A (alloc), X (execute), M (merge), S (strings), I "
+        "(info),\n";
+  OS << "  L (link order), O (extra OS processing required), G (group), T "
+        "(TLS),\n";
+  OS << "  C (compressed), x (unknown), o (OS specific), E (exclude),\n";
+
+  if (EMachine == EM_X86_64)
+    OS << "  l (large), ";
+  else if (EMachine == EM_ARM)
+    OS << "  y (purecode), ";
+  else
+    OS << "  ";
+
+  OS << "p (processor specific)\n";
+}
+
 template <class ELFT>
 void GNUStyle<ELFT>::printSectionHeaders(const ELFO *Obj) {
   unsigned Bias = ELFT::Is64Bits ? 0 : 8;
@@ -3527,7 +3527,7 @@ void GNUStyle<ELFT>::printSectionHeaders(const ELFO *Obj) {
     Fields[4].Str = to_string(format_hex_no_prefix(Sec.sh_offset, 6));
     Fields[5].Str = to_string(format_hex_no_prefix(Sec.sh_size, 6));
     Fields[6].Str = to_string(format_hex_no_prefix(Sec.sh_entsize, 2));
-    Fields[7].Str = getGNUFlags(Sec.sh_flags);
+    Fields[7].Str = getGNUFlags(Obj->getHeader()->e_machine, Sec.sh_flags);
     Fields[8].Str = to_string(Sec.sh_link);
     Fields[9].Str = to_string(Sec.sh_info);
     Fields[10].Str = to_string(Sec.sh_addralign);
@@ -3547,13 +3547,7 @@ void GNUStyle<ELFT>::printSectionHeaders(const ELFO *Obj) {
     OS << "\n";
     ++SectionIndex;
   }
-  OS << "Key to Flags:\n"
-     << "  W (write), A (alloc), X (execute), M (merge), S (strings), l "
-        "(large)\n"
-     << "  I (info), L (link order), G (group), T (TLS), E (exclude),\
- x (unknown)\n"
-     << "  O (extra OS processing required) o (OS specific),\
- p (processor specific)\n";
+  printSectionDescription(OS, Obj->getHeader()->e_machine);
 }
 
 template <class ELFT>
@@ -3977,6 +3971,15 @@ void GNUStyle<ELFT>::printDynamicRelocation(const ELFO *Obj, Elf_Rela R,
   printRelocation(Obj, S.Sym, S.Name, R, IsRela);
 }
 
+template <class ELFT>
+static size_t getMaxDynamicTagSize(const ELFFile<ELFT> *Obj,
+                                   typename ELFT::DynRange Tags) {
+  size_t Max = 0;
+  for (const typename ELFT::Dyn &Dyn : Tags)
+    Max = std::max(Max, Obj->getDynamicTagAsString(Dyn.d_tag).size());
+  return Max;
+}
+
 template <class ELFT> void GNUStyle<ELFT>::printDynamic(const ELFO *Obj) {
   Elf_Dyn_Range Table = this->dumper()->dynamic_table();
   if (Table.empty())
@@ -3991,18 +3994,21 @@ template <class ELFT> void GNUStyle<ELFT>::printDynamic(const ELFO *Obj) {
                    1)
      << " contains " << Table.size() << " entries:\n";
 
-  bool Is64 = ELFT::Is64Bits;
-  if (Is64)
-    OS << "  Tag                Type                 Name/Value\n";
-  else
-    OS << "  Tag        Type                 Name/Value\n";
+  // The type name is surrounded with round brackets, hence add 2.
+  size_t MaxTagSize = getMaxDynamicTagSize(Obj, Table) + 2;
+  // The "Name/Value" column should be indented from the "Type" column by N
+  // spaces, where N = MaxTagSize - length of "Type" (4) + trailing
+  // space (1) = 3.
+  OS << "  Tag" + std::string(ELFT::Is64Bits ? 16 : 8, ' ') + "Type"
+     << std::string(MaxTagSize - 3, ' ') << "Name/Value\n";
+
+  std::string ValueFmt = " %-" + std::to_string(MaxTagSize) + "s ";
   for (auto Entry : Table) {
     uintX_t Tag = Entry.getTag();
-    std::string TypeString = std::string("(") +
-                             getTypeString(Obj->getHeader()->e_machine, Tag) +
-                             ")";
-    OS << "  " << format_hex(Tag, Is64 ? 18 : 10)
-       << format(" %-20s ", TypeString.c_str());
+    std::string TypeString =
+        std::string("(") + Obj->getDynamicTagAsString(Tag).c_str() + ")";
+    OS << "  " << format_hex(Tag, ELFT::Is64Bits ? 18 : 10)
+       << format(ValueFmt.c_str(), TypeString.c_str());
     this->dumper()->printDynamicEntry(OS, Tag, Entry.getVal());
     OS << "\n";
   }
@@ -4961,7 +4967,7 @@ void GNUStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
         continue;
       PrintHeader(S.sh_offset, S.sh_size);
       Error Err = Error::success();
-      for (const auto &Note : Obj->notes(S, Err))
+      for (auto Note : Obj->notes(S, Err))
         ProcessNote(Note);
       if (Err)
         reportError(std::move(Err), this->FileName);
@@ -4973,7 +4979,7 @@ void GNUStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
         continue;
       PrintHeader(P.p_offset, P.p_filesz);
       Error Err = Error::success();
-      for (const auto &Note : Obj->notes(P, Err))
+      for (auto Note : Obj->notes(P, Err))
         ProcessNote(Note);
       if (Err)
         reportError(std::move(Err), this->FileName);
@@ -5644,6 +5650,8 @@ void LLVMStyle<ELFT>::printSectionHeaders(const ELFO *Obj) {
   int SectionIndex = -1;
   ArrayRef<Elf_Shdr> Sections = unwrapOrError(this->FileName, Obj->sections());
   const ELFObjectFile<ELFT> *ElfObj = this->dumper()->getElfObject();
+  std::vector<EnumEntry<unsigned>> FlagsList =
+      getSectionFlagsForTarget(Obj->getHeader()->e_machine);
   for (const Elf_Shdr &Sec : Sections) {
     StringRef Name = unwrapOrError(
         ElfObj->getFileName(), Obj->getSectionName(&Sec, this->WarningHandler));
@@ -5654,35 +5662,7 @@ void LLVMStyle<ELFT>::printSectionHeaders(const ELFO *Obj) {
         "Type",
         object::getELFSectionTypeName(Obj->getHeader()->e_machine, Sec.sh_type),
         Sec.sh_type);
-    std::vector<EnumEntry<unsigned>> SectionFlags(std::begin(ElfSectionFlags),
-                                                  std::end(ElfSectionFlags));
-    switch (Obj->getHeader()->e_machine) {
-    case EM_ARM:
-      SectionFlags.insert(SectionFlags.end(), std::begin(ElfARMSectionFlags),
-                          std::end(ElfARMSectionFlags));
-      break;
-    case EM_HEXAGON:
-      SectionFlags.insert(SectionFlags.end(),
-                          std::begin(ElfHexagonSectionFlags),
-                          std::end(ElfHexagonSectionFlags));
-      break;
-    case EM_MIPS:
-      SectionFlags.insert(SectionFlags.end(), std::begin(ElfMipsSectionFlags),
-                          std::end(ElfMipsSectionFlags));
-      break;
-    case EM_X86_64:
-      SectionFlags.insert(SectionFlags.end(), std::begin(ElfX86_64SectionFlags),
-                          std::end(ElfX86_64SectionFlags));
-      break;
-    case EM_XCORE:
-      SectionFlags.insert(SectionFlags.end(), std::begin(ElfXCoreSectionFlags),
-                          std::end(ElfXCoreSectionFlags));
-      break;
-    default:
-      // Nothing to do.
-      break;
-    }
-    W.printFlags("Flags", Sec.sh_flags, makeArrayRef(SectionFlags));
+    W.printFlags("Flags", Sec.sh_flags, makeArrayRef(FlagsList));
     W.printHex("Address", Sec.sh_addr);
     W.printHex("Offset", Sec.sh_offset);
     W.printNumber("Size", Sec.sh_size);
@@ -5821,20 +5801,23 @@ template <class ELFT> void LLVMStyle<ELFT>::printDynamic(const ELFFile<ELFT> *Ob
   raw_ostream &OS = W.getOStream();
   W.startLine() << "DynamicSection [ (" << Table.size() << " entries)\n";
 
-  bool Is64 = ELFT::Is64Bits;
-  if (Is64)
-    W.startLine() << "  Tag                Type                 Name/Value\n";
-  else
-    W.startLine() << "  Tag        Type                 Name/Value\n";
+  size_t MaxTagSize = getMaxDynamicTagSize(Obj, Table);
+  // The "Name/Value" column should be indented from the "Type" column by N
+  // spaces, where N = MaxTagSize - length of "Type" (4) + trailing
+  // space (1) = -3.
+  W.startLine() << "  Tag" << std::string(ELFT::Is64Bits ? 16 : 8, ' ')
+                << "Type" << std::string(MaxTagSize - 3, ' ') << "Name/Value\n";
+
+  std::string ValueFmt = "%-" + std::to_string(MaxTagSize) + "s ";
   for (auto Entry : Table) {
     uintX_t Tag = Entry.getTag();
-    W.startLine() << "  " << format_hex(Tag, Is64 ? 18 : 10, true) << " "
-                  << format("%-21s",
-                            getTypeString(Obj->getHeader()->e_machine, Tag));
+    W.startLine() << "  " << format_hex(Tag, ELFT::Is64Bits ? 18 : 10, true)
+                  << " "
+                  << format(ValueFmt.c_str(),
+                            Obj->getDynamicTagAsString(Tag).c_str());
     this->dumper()->printDynamicEntry(OS, Tag, Entry.getVal());
     OS << "\n";
   }
-
   W.startLine() << "]\n";
 }
 
@@ -6201,7 +6184,7 @@ void LLVMStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
       DictScope D(W, "NoteSection");
       PrintHeader(S.sh_offset, S.sh_size);
       Error Err = Error::success();
-      for (const auto &Note : Obj->notes(S, Err))
+      for (auto Note : Obj->notes(S, Err))
         ProcessNote(Note);
       if (Err)
         reportError(std::move(Err), this->FileName);
@@ -6214,7 +6197,7 @@ void LLVMStyle<ELFT>::printNotes(const ELFFile<ELFT> *Obj) {
       DictScope D(W, "NoteSection");
       PrintHeader(P.p_offset, P.p_filesz);
       Error Err = Error::success();
-      for (const auto &Note : Obj->notes(P, Err))
+      for (auto Note : Obj->notes(P, Err))
         ProcessNote(Note);
       if (Err)
         reportError(std::move(Err), this->FileName);

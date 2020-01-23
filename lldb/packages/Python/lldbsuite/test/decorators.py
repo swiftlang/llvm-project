@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-from __future__ import print_function
 
 # System modules
 from distutils.version import LooseVersion
@@ -808,6 +807,9 @@ def skipIfCursesSupportMissing(func):
 
 def skipIfXmlSupportMissing(func):
     return _get_bool_config_skip_if_decorator("xml")(func)
+
+def skipIfEditlineSupportMissing(func):
+    return _get_bool_config_skip_if_decorator("editline")(func)
 
 def skipIfLLVMTargetMissing(target):
     config = lldb.SBDebugger.GetBuildConfiguration()

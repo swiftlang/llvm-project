@@ -12,15 +12,15 @@
 #include "linux.h" // for getAndroidTlsPtr()
 #include "tsd.h"
 
-#include <pthread.h>
-
 namespace scudo {
 
 template <class Allocator, u32 MaxTSDCount> struct TSDRegistrySharedT {
   void initLinkerInitialized(Allocator *Instance) {
     Instance->initLinkerInitialized();
     CHECK_EQ(pthread_key_create(&PThreadKey, nullptr), 0); // For non-TLS
-    NumberOfTSDs = Min(Max(1U, getNumberOfCPUs()), MaxTSDCount);
+    const u32 NumberOfCPUs = getNumberOfCPUs();
+    NumberOfTSDs =
+        (NumberOfCPUs == 0) ? MaxTSDCount : Min(NumberOfCPUs, MaxTSDCount);
     TSDs = reinterpret_cast<TSD<Allocator> *>(
         map(nullptr, sizeof(TSD<Allocator>) * NumberOfTSDs, "scudo:tsd"));
     for (u32 I = 0; I < NumberOfTSDs; I++)
@@ -72,6 +72,18 @@ template <class Allocator, u32 MaxTSDCount> struct TSDRegistrySharedT {
     return getTSDAndLockSlow(TSD);
   }
 
+  void disable() {
+    Mutex.lock();
+    for (u32 I = 0; I < NumberOfTSDs; I++)
+      TSDs[I].lock();
+  }
+
+  void enable() {
+    for (s32 I = NumberOfTSDs - 1; I >= 0; I--)
+      TSDs[I].unlock();
+    Mutex.unlock();
+  }
+
 private:
   ALWAYS_INLINE void setCurrentTSD(TSD<Allocator> *CurrentTSD) {
 #if _BIONIC
@@ -107,6 +119,7 @@ private:
     // Initial context assignment is done in a plain round-robin fashion.
     const u32 Index = atomic_fetch_add(&CurrentIndex, 1U, memory_order_relaxed);
     setCurrentTSD(&TSDs[Index % NumberOfTSDs]);
+    Instance->callPostInitCallback();
   }
 
   NOINLINE TSD<Allocator> *getTSDAndLockSlow(TSD<Allocator> *CurrentTSD) {

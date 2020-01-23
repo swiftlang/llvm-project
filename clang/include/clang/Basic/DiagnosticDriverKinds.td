@@ -206,6 +206,8 @@ def warn_invalid_ios_deployment_target : Warning<
   "invalid iOS deployment version '%0', iOS 10 is the maximum deployment "
   "target for 32-bit targets">, InGroup<InvalidIOSDeploymentTarget>,
   DefaultError;
+def err_invalid_macos_32bit_deployment_target : Error<
+  "32-bit targets are not supported when building for Mac Catalyst">;
 def err_drv_conflicting_deployment_targets : Error<
   "conflicting deployment targets, both '%0' and '%1' are present in environment">;
 def err_arc_unsupported_on_runtime : Error<
@@ -252,6 +254,9 @@ def err_drv_unsupported_embed_bitcode
     : Error<"%0 is not supported with -fembed-bitcode">;
 def err_drv_bitcode_unsupported_on_toolchain : Error<
   "-fembed-bitcode is not supported on versions of iOS prior to 6.0">;
+
+def err_drv_invalid_malign_branch_EQ : Error<
+  "invalid argument '%0' to -malign-branch=; each element must be one of: %1">;
 
 def warn_O4_is_O3 : Warning<"-O4 is equivalent to -O3">, InGroup<Deprecated>;
 def warn_drv_optimization_value : Warning<"optimization level '%0' is not supported; using '%1%2' instead">,
@@ -407,6 +412,8 @@ def err_drv_unsupported_indirect_jump_opt : Error<
   "'-mindirect-jump=%0' is unsupported with the '%1' architecture">;
 def err_drv_unknown_indirect_jump_opt : Error<
   "unknown '-mindirect-jump=' option '%0'">;
+def err_drv_unsupported_fpatchable_function_entry_argument : Error<
+  "the second argument of '-fpatchable-function-entry' must be 0 or omitted">;
 
 def warn_drv_unable_to_find_directory_expected : Warning<
   "unable to find %0 directory, expected to be in '%1'">,
@@ -443,10 +450,6 @@ def warn_drv_experimental_isel_incomplete : Warning<
 def warn_drv_experimental_isel_incomplete_opt : Warning<
   "-fexperimental-isel support is incomplete for this architecture at the current optimization level">,
   InGroup<ExperimentalISel>;
-
-def warn_drv_experimental_fp_control_incomplete_opt : Warning<
-  "Support for floating point control option %0 is incomplete and experimental">,
-  InGroup<ExperimentalFloatControl>;
 
 def warn_drv_moutline_unsupported_opt : Warning<
   "The '%0' architecture does not support -moutline; flag ignored">,

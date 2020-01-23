@@ -267,12 +267,7 @@ public:
             AssociatedIterator, std::forward_iterator_tag, SectionChunk> {
   public:
     AssociatedIterator() = default;
-    AssociatedIterator(const AssociatedIterator&) = default;
     AssociatedIterator(SectionChunk *head) : cur(head) {}
-    AssociatedIterator &operator=(const AssociatedIterator &r) {
-      cur = r.cur;
-      return *this;
-    }
     bool operator==(const AssociatedIterator &r) const { return cur == r.cur; }
     const SectionChunk &operator*() const { return *cur; }
     SectionChunk &operator*() { return *cur; }
@@ -515,7 +510,7 @@ public:
 
 class RangeExtensionThunkARM64 : public NonSectionChunk {
 public:
-  explicit RangeExtensionThunkARM64(Defined *t) : target(t) {}
+  explicit RangeExtensionThunkARM64(Defined *t) : target(t) { setAlignment(4); }
   size_t getSize() const override;
   void writeTo(uint8_t *buf) const override;
 

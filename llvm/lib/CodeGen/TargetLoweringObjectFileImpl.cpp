@@ -273,7 +273,7 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
 
     Streamer.SwitchSection(S);
 
-    for (const auto &Operand : LinkerOptions->operands()) {
+    for (const auto *Operand : LinkerOptions->operands()) {
       if (cast<MDNode>(Operand)->getNumOperands() != 2)
         report_fatal_error("invalid llvm.linker.options");
       for (const auto &Option : cast<MDNode>(Operand)->operands()) {
@@ -289,7 +289,7 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
 
     Streamer.SwitchSection(S);
 
-    for (const auto &Operand : DependentLibraries->operands()) {
+    for (const auto *Operand : DependentLibraries->operands()) {
       Streamer.EmitBytes(
           cast<MDString>(cast<MDNode>(Operand)->getOperand(0))->getString());
       Streamer.EmitIntValue(0, 1);
@@ -885,7 +885,7 @@ void TargetLoweringObjectFileMachO::emitModuleMetadata(MCStreamer &Streamer,
                                                        Module &M) const {
   // Emit the linker options if present.
   if (auto *LinkerOptions = M.getNamedMetadata("llvm.linker.options")) {
-    for (const auto &Option : LinkerOptions->operands()) {
+    for (const auto *Option : LinkerOptions->operands()) {
       SmallVector<std::string, 4> StrOptions;
       for (const auto &Piece : cast<MDNode>(Option)->operands())
         StrOptions.push_back(cast<MDString>(Piece)->getString());
@@ -1449,7 +1449,7 @@ void TargetLoweringObjectFileCOFF::emitModuleMetadata(MCStreamer &Streamer,
     // linker.
     MCSection *Sec = getDrectveSection();
     Streamer.SwitchSection(Sec);
-    for (const auto &Option : LinkerOptions->operands()) {
+    for (const auto *Option : LinkerOptions->operands()) {
       for (const auto &Piece : cast<MDNode>(Option)->operands()) {
         // Lead with a space for consistency with our dllexport implementation.
         std::string Directive(" ");
@@ -1832,6 +1832,22 @@ MCSection *TargetLoweringObjectFileXCOFF::getExplicitSectionGlobal(
   report_fatal_error("XCOFF explicit sections not yet implemented.");
 }
 
+MCSection *TargetLoweringObjectFileXCOFF::getSectionForExternalReference(
+    const GlobalObject *GO, const TargetMachine &TM) const {
+  assert(GO->isDeclaration() &&
+         "Tried to get ER section for a defined global.");
+
+  SmallString<128> Name;
+  getNameWithPrefix(Name, GO, TM);
+  XCOFF::StorageClass SC =
+      TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(GO);
+
+  // Externals go into a csect of type ER.
+  return getContext().getXCOFFSection(
+      Name, isa<Function>(GO) ? XCOFF::XMC_DS : XCOFF::XMC_UA, XCOFF::XTY_ER,
+      SC, SectionKind::getMetadata());
+}
+
 MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
   assert(!TM.getFunctionSections() && !TM.getDataSections() &&
@@ -1870,7 +1886,10 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
   if (Kind.isText())
     return TextSection;
 
-  if (Kind.isData())
+  if (Kind.isData() || Kind.isReadOnlyWithRel())
+    // TODO: We may put this under option control, because user may want to
+    // have read-only data with relocations placed into a read-only section by
+    // the compiler.
     return DataSection;
 
   // Zero initialized data must be emitted to the .data section because external
@@ -1879,7 +1898,7 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
   if (Kind.isBSS())
     return DataSection;
 
-  if (Kind.isReadOnly() && !Kind.isMergeableConst())
+  if (Kind.isReadOnly())
     return ReadOnlySection;
 
   report_fatal_error("XCOFF other section types not yet implemented.");
@@ -1947,4 +1966,18 @@ XCOFF::StorageClass TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(
     report_fatal_error(
         "Unhandled linkage when mapping linkage to StorageClass.");
   }
+}
+
+MCSection *TargetLoweringObjectFileXCOFF::getSectionForFunctionDescriptor(
+    const MCSymbol *FuncSym) const {
+  return getContext().getXCOFFSection(FuncSym->getName(), XCOFF::XMC_DS,
+                                      XCOFF::XTY_SD, XCOFF::C_HIDEXT,
+                                      SectionKind::getData());
+}
+
+MCSection *TargetLoweringObjectFileXCOFF::getSectionForTOCEntry(
+    const MCSymbol *Sym) const {
+  return getContext().getXCOFFSection(
+      cast<MCSymbolXCOFF>(Sym)->getUnqualifiedName(), XCOFF::XMC_TC,
+      XCOFF::XTY_SD, XCOFF::C_HIDEXT, SectionKind::getData());
 }

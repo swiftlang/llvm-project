@@ -536,7 +536,7 @@ bool Type::ResolveClangType(ResolveState compiler_type_resolve_state) {
         LLDB_LOG_ERROR(
             lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_SYMBOLS),
             std::move(err),
-            "Unable to construct void type from ClangASTContext");
+            "Unable to construct void type from TypeSystemClang");
       } else {
         CompilerType void_compiler_type =
             type_system_or_err->GetBasicTypeFromAST(eBasicTypeVoid);
@@ -654,17 +654,6 @@ CompilerType Type::GetLayoutCompilerType() {
 CompilerType Type::GetForwardCompilerType() {
   ResolveClangType(ResolveState::Forward);
   return m_compiler_type;
-}
-
-int Type::Compare(const Type &a, const Type &b) {
-  // Just compare the UID values for now...
-  lldb::user_id_t a_uid = a.GetID();
-  lldb::user_id_t b_uid = b.GetID();
-  if (a_uid < b_uid)
-    return -1;
-  if (a_uid > b_uid)
-    return 1;
-  return 0;
 }
 
 ConstString Type::GetQualifiedName() {

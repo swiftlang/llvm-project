@@ -335,7 +335,9 @@ bool LinkerScript::shouldKeep(InputSectionBase *s) {
   for (InputSectionDescription *id : keptSections)
     if (id->filePat.match(filename))
       for (SectionPattern &p : id->sectionPatterns)
-        if (p.sectionPat.match(s->name))
+        if (p.sectionPat.match(s->name) &&
+            (s->flags & id->withFlags) == id->withFlags &&
+            (s->flags & id->withoutFlags) == 0)
           return true;
   return false;
 }
@@ -426,10 +428,15 @@ LinkerScript::computeInputSections(const InputSectionDescription *cmd) {
           cast<InputSection>(sec)->getRelocatedSection())
         continue;
 
+      // Check the name early to improve performance in the common case.
+      if (!pat.sectionPat.match(sec->name))
+        continue;
+
       std::string filename = getFilename(sec->file);
       if (!cmd->filePat.match(filename) ||
           pat.excludedFilePat.match(filename) ||
-          !pat.sectionPat.match(sec->name))
+          (sec->flags & cmd->withFlags) != cmd->withFlags ||
+          (sec->flags & cmd->withoutFlags) != 0)
         continue;
 
       ret.push_back(sec);
@@ -946,7 +953,7 @@ void LinkerScript::adjustSectionsBeforeSorting() {
 
     // We do not want to keep any special flags for output section
     // in case it is empty.
-    bool isEmpty = getInputSections(sec).empty();
+    bool isEmpty = (getFirstInputSection(sec) == nullptr);
     if (isEmpty)
       sec->flags = flags & ((sec->nonAlloc ? 0 : (uint64_t)SHF_ALLOC) |
                             SHF_WRITE | SHF_EXECINSTR);
@@ -954,8 +961,6 @@ void LinkerScript::adjustSectionsBeforeSorting() {
     if (isEmpty && isDiscardable(*sec)) {
       sec->markDead();
       cmd = nullptr;
-    } else if (!sec->isLive()) {
-      sec->markLive();
     }
   }
 

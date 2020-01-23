@@ -709,7 +709,8 @@ static SDValue performSELECTCombine(SDNode *N, SelectionDAG &DAG,
     SDValue True = N->getOperand(1);
 
     SetCC = DAG.getSetCC(DL, SetCC.getValueType(), SetCC.getOperand(0),
-                         SetCC.getOperand(1), ISD::getSetCCInverse(CC, true));
+                         SetCC.getOperand(1),
+                         ISD::getSetCCInverse(CC, SetCC.getValueType()));
 
     return DAG.getNode(ISD::SELECT, DL, FalseTy, SetCC, False, True);
   }
@@ -743,7 +744,8 @@ static SDValue performSELECTCombine(SDNode *N, SelectionDAG &DAG,
   if (Diff == -1) {
     ISD::CondCode CC = cast<CondCodeSDNode>(SetCC.getOperand(2))->get();
     SetCC = DAG.getSetCC(DL, SetCC.getValueType(), SetCC.getOperand(0),
-                         SetCC.getOperand(1), ISD::getSetCCInverse(CC, true));
+                         SetCC.getOperand(1),
+                         ISD::getSetCCInverse(CC, SetCC.getValueType()));
     return DAG.getNode(ISD::ADD, DL, SetCC.getValueType(), SetCC, True);
   }
 
@@ -3109,6 +3111,14 @@ void MipsTargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
       StringRef Sym;
       if (const GlobalAddressSDNode *G =
               dyn_cast_or_null<const GlobalAddressSDNode>(TargetAddr)) {
+        // We must not emit the R_MIPS_JALR relocation against data symbols
+        // since this will cause run-time crashes if the linker replaces the
+        // call instruction with a relative branch to the data symbol.
+        if (!isa<Function>(G->getGlobal())) {
+          LLVM_DEBUG(dbgs() << "Not adding R_MIPS_JALR against data symbol "
+                            << G->getGlobal()->getName() << "\n");
+          return;
+        }
         Sym = G->getGlobal()->getName();
       }
       else if (const ExternalSymbolSDNode *ES =
@@ -3121,6 +3131,7 @@ void MipsTargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
 
       MachineFunction *MF = MI.getParent()->getParent();
       MCSymbol *S = MF->getContext().getOrCreateSymbol(Sym);
+      LLVM_DEBUG(dbgs() << "Adding R_MIPS_JALR against " << Sym << "\n");
       MI.addOperand(MachineOperand::CreateMCSymbol(S, MipsII::MO_JALR));
     }
   }
@@ -4687,7 +4698,7 @@ MipsTargetLowering::emitPseudoD_SELECT(MachineInstr &MI,
 // FIXME? Maybe this could be a TableGen attribute on some registers and
 // this table could be generated automatically from RegInfo.
 Register
-MipsTargetLowering::getRegisterByName(const char *RegName, EVT VT,
+MipsTargetLowering::getRegisterByName(const char *RegName, LLT VT,
                                       const MachineFunction &MF) const {
   // Named registers is expected to be fairly rare. For now, just support $28
   // since the linux kernel uses it.

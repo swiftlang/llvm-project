@@ -1211,6 +1211,58 @@ TEST_F(FormatTest, FormatsSwitchStatement) {
                    "  }\n"
                    "}",
                    Style));
+  Style.IndentCaseLabels = false;
+  Style.IndentCaseBlocks = true;
+  EXPECT_EQ("switch (n)\n"
+            "{\n"
+            "case 0:\n"
+            "  {\n"
+            "    return false;\n"
+            "  }\n"
+            "case 1:\n"
+            "  break;\n"
+            "default:\n"
+            "  {\n"
+            "    return true;\n"
+            "  }\n"
+            "}",
+            format("switch (n) {\n"
+                   "case 0: {\n"
+                   "  return false;\n"
+                   "}\n"
+                   "case 1:\n"
+                   "  break;\n"
+                   "default: {\n"
+                   "  return true;\n"
+                   "}\n"
+                   "}",
+                   Style));
+  Style.IndentCaseLabels = true;
+  Style.IndentCaseBlocks = true;
+  EXPECT_EQ("switch (n)\n"
+            "{\n"
+            "  case 0:\n"
+            "    {\n"
+            "      return false;\n"
+            "    }\n"
+            "  case 1:\n"
+            "    break;\n"
+            "  default:\n"
+            "    {\n"
+            "      return true;\n"
+            "    }\n"
+            "}",
+            format("switch (n) {\n"
+                   "case 0: {\n"
+                   "  return false;\n"
+                   "}\n"
+                   "case 1:\n"
+                   "  break;\n"
+                   "default: {\n"
+                   "  return true;\n"
+                   "}\n"
+                   "}",
+                   Style));
 }
 
 TEST_F(FormatTest, CaseRanges) {
@@ -1565,6 +1617,41 @@ TEST_F(FormatTest, MultiLineControlStatements) {
             "  baz();\n"
             "}",
             format("try{foo();}catch(Exception&bar){baz();}", Style));
+  Style.ColumnLimit =
+      40; // to concentrate at brace wrapping, not line wrap due to column limit
+  EXPECT_EQ("try {\n"
+            "  foo();\n"
+            "} catch (Exception &bar) {\n"
+            "  baz();\n"
+            "}",
+            format("try{foo();}catch(Exception&bar){baz();}", Style));
+  Style.ColumnLimit =
+      20; // to concentrate at brace wrapping, not line wrap due to column limit
+
+  Style.BraceWrapping.BeforeElse = true;
+  EXPECT_EQ(
+      "if (foo) {\n"
+      "  bar();\n"
+      "}\n"
+      "else if (baz ||\n"
+      "         quux)\n"
+      "{\n"
+      "  foobar();\n"
+      "}\n"
+      "else {\n"
+      "  barbaz();\n"
+      "}",
+      format("if(foo){bar();}else if(baz||quux){foobar();}else{barbaz();}",
+             Style));
+
+  Style.BraceWrapping.BeforeCatch = true;
+  EXPECT_EQ("try {\n"
+            "  foo();\n"
+            "}\n"
+            "catch (...) {\n"
+            "  baz();\n"
+            "}",
+            format("try{foo();}catch(...){baz();}", Style));
 }
 
 //===----------------------------------------------------------------------===//
@@ -12543,6 +12630,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL_FIELD(DerivePointerAlignment, "DerivePointerBinding");
   CHECK_PARSE_BOOL(DisableFormat);
   CHECK_PARSE_BOOL(IndentCaseLabels);
+  CHECK_PARSE_BOOL(IndentCaseBlocks);
   CHECK_PARSE_BOOL(IndentGotoLabels);
   CHECK_PARSE_BOOL(IndentWrappedFunctionNames);
   CHECK_PARSE_BOOL(KeepEmptyLinesAtTheStartOfBlocks);
@@ -14881,7 +14969,7 @@ TEST_F(FormatTest, AmbersandInLamda) {
   verifyFormat("auto lambda = [&a = a]() { a = 2; };", AlignStyle);
 }
 
- TEST_F(FormatTest, SpacesInConditionalStatement) {
+TEST_F(FormatTest, SpacesInConditionalStatement) {
   FormatStyle Spaces = getLLVMStyle();
   Spaces.SpacesInConditionalStatement = true;
   verifyFormat("for ( int i = 0; i; i++ )\n  continue;", Spaces);
@@ -14892,6 +14980,7 @@ TEST_F(FormatTest, AmbersandInLamda) {
   verifyFormat("while ( a )\n  return;", Spaces);
   verifyFormat("while ( (a && b) )\n  return;", Spaces);
   verifyFormat("do {\n} while ( 1 != 0 );", Spaces);
+  verifyFormat("try {\n} catch ( const std::exception & ) {\n}", Spaces);
   // Check that space on the left of "::" is inserted as expected at beginning
   // of condition.
   verifyFormat("while ( ::func() )\n  return;", Spaces);
@@ -14972,6 +15061,9 @@ TEST_F(FormatTest, OperatorSpacing) {
   Style.PointerAlignment = FormatStyle::PAS_Left;
   verifyFormat("Foo::operator*();", Style);
   verifyFormat("Foo::operator void*();", Style);
+  verifyFormat("Foo::operator/*comment*/ void*();", Style);
+  verifyFormat("Foo::operator/*a*/ const /*b*/ void*();", Style);
+  verifyFormat("Foo::operator/*a*/ volatile /*b*/ void*();", Style);
   verifyFormat("Foo::operator()(void*);", Style);
   verifyFormat("Foo::operator*(void*);", Style);
   verifyFormat("Foo::operator*();", Style);
@@ -14979,6 +15071,9 @@ TEST_F(FormatTest, OperatorSpacing) {
 
   verifyFormat("Foo::operator&();", Style);
   verifyFormat("Foo::operator void&();", Style);
+  verifyFormat("Foo::operator/*comment*/ void&();", Style);
+  verifyFormat("Foo::operator/*a*/ const /*b*/ void&();", Style);
+  verifyFormat("Foo::operator/*a*/ volatile /*b*/ void&();", Style);
   verifyFormat("Foo::operator()(void&);", Style);
   verifyFormat("Foo::operator&(void&);", Style);
   verifyFormat("Foo::operator&();", Style);
@@ -14986,6 +15081,9 @@ TEST_F(FormatTest, OperatorSpacing) {
 
   verifyFormat("Foo::operator&&();", Style);
   verifyFormat("Foo::operator void&&();", Style);
+  verifyFormat("Foo::operator/*comment*/ void&&();", Style);
+  verifyFormat("Foo::operator/*a*/ const /*b*/ void&&();", Style);
+  verifyFormat("Foo::operator/*a*/ volatile /*b*/ void&&();", Style);
   verifyFormat("Foo::operator()(void&&);", Style);
   verifyFormat("Foo::operator&&(void&&);", Style);
   verifyFormat("Foo::operator&&();", Style);

@@ -2900,6 +2900,12 @@ static Expr *IgnoreImplicitAsWrittenSingleStep(Expr *E) {
   return IgnoreImplicitSingleStep(E);
 }
 
+static Expr *IgnoreParensOnlySingleStep(Expr *E) {
+  if (auto *PE = dyn_cast<ParenExpr>(E))
+    return PE->getSubExpr();
+  return E;
+}
+
 static Expr *IgnoreParensSingleStep(Expr *E) {
   if (auto *PE = dyn_cast<ParenExpr>(E))
     return PE->getSubExpr();
@@ -3018,6 +3024,35 @@ Expr *Expr::IgnoreParenNoopCasts(const ASTContext &Ctx) {
   return IgnoreExprNodes(this, IgnoreParensSingleStep, [&Ctx](Expr *E) {
     return IgnoreNoopCastsSingleStep(Ctx, E);
   });
+}
+
+Expr *Expr::IgnoreUnlessSpelledInSource() {
+  Expr *E = this;
+
+  Expr *LastE = nullptr;
+  while (E != LastE) {
+    LastE = E;
+    E = IgnoreExprNodes(E, IgnoreImplicitSingleStep, IgnoreImpCastsSingleStep,
+                        IgnoreParensOnlySingleStep);
+
+    auto SR = E->getSourceRange();
+
+    if (auto *C = dyn_cast<CXXConstructExpr>(E)) {
+      if (C->getNumArgs() == 1) {
+        Expr *A = C->getArg(0);
+        if (A->getSourceRange() == SR || !isa<CXXTemporaryObjectExpr>(C))
+          E = A;
+      }
+    }
+
+    if (auto *C = dyn_cast<CXXMemberCallExpr>(E)) {
+      Expr *ExprNode = C->getImplicitObjectArgument()->IgnoreParenImpCasts();
+      if (ExprNode->getSourceRange() == SR)
+        E = ExprNode;
+    }
+  }
+
+  return E;
 }
 
 bool Expr::isDefaultArgument() const {
@@ -3429,6 +3464,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case OpaqueValueExprClass:
   case SourceLocExprClass:
   case ConceptSpecializationExprClass:
+  case RequiresExprClass:
     // These never have a side-effect.
     return false;
 

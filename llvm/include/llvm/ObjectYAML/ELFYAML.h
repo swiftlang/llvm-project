@@ -138,6 +138,7 @@ struct Chunk {
     Group,
     RawContent,
     Relocation,
+    Relr,
     NoBits,
     Note,
     Hash,
@@ -192,6 +193,9 @@ struct Section : public Chunk {
   // This can be used to override the sh_size field. It does not affect the
   // content written.
   Optional<llvm::yaml::Hex64> ShSize;
+
+  // This can be used to override the sh_flags field.
+  Optional<llvm::yaml::Hex64> ShFlags;
 };
 
 // Fill is a block of data which is placed outside of sections. It is
@@ -434,6 +438,17 @@ struct RelocationSection : Section {
 
   static bool classof(const Chunk *S) {
     return S->Kind == ChunkKind::Relocation;
+  }
+};
+
+struct RelrSection : Section {
+  Optional<std::vector<llvm::yaml::Hex64>> Entries;
+  Optional<yaml::BinaryRef> Content;
+
+  RelrSection() : Section(ChunkKind::Relr) {}
+
+  static bool classof(const Chunk *S) {
+    return S->Kind == ChunkKind::Relr;
   }
 };
 

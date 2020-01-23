@@ -1189,7 +1189,9 @@ Instruction *InstCombiner::visitZExt(ZExtInst &CI) {
       // zext (or icmp, icmp) -> or (zext icmp), (zext icmp)
       Value *LCast = Builder.CreateZExt(LHS, CI.getType(), LHS->getName());
       Value *RCast = Builder.CreateZExt(RHS, CI.getType(), RHS->getName());
-      BinaryOperator *Or = BinaryOperator::Create(Instruction::Or, LCast, RCast);
+      Value *Or = Builder.CreateOr(LCast, RCast, CI.getName());
+      if (auto *OrInst = dyn_cast<Instruction>(Or))
+        Builder.SetInsertPoint(OrInst);
 
       // Perform the elimination.
       if (auto *LZExt = dyn_cast<ZExtInst>(LCast))
@@ -1197,7 +1199,7 @@ Instruction *InstCombiner::visitZExt(ZExtInst &CI) {
       if (auto *RZExt = dyn_cast<ZExtInst>(RCast))
         transformZExtICmp(RHS, *RZExt);
 
-      return Or;
+      return replaceInstUsesWith(CI, Or);
     }
   }
 
@@ -1832,7 +1834,7 @@ Instruction *InstCombiner::visitPtrToInt(PtrToIntInst &CI) {
   Type *Ty = CI.getType();
   unsigned AS = CI.getPointerAddressSpace();
 
-  if (Ty->getScalarSizeInBits() == DL.getIndexSizeInBits(AS))
+  if (Ty->getScalarSizeInBits() == DL.getPointerSizeInBits(AS))
     return commonPointerCastTransforms(CI);
 
   Type *PtrTy = DL.getIntPtrType(CI.getContext(), AS);
@@ -2275,6 +2277,31 @@ Instruction *InstCombiner::optimizeBitCastFromPhi(CastInst &CI, PHINode *PN) {
     }
   }
 
+  // Check that each user of each old PHI node is something that we can
+  // rewrite, so that all of the old PHI nodes can be cleaned up afterwards.
+  for (auto *OldPN : OldPhiNodes) {
+    for (User *V : OldPN->users()) {
+      if (auto *SI = dyn_cast<StoreInst>(V)) {
+        if (!SI->isSimple() || SI->getOperand(0) != OldPN)
+          return nullptr;
+      } else if (auto *BCI = dyn_cast<BitCastInst>(V)) {
+        // Verify it's a B->A cast.
+        Type *TyB = BCI->getOperand(0)->getType();
+        Type *TyA = BCI->getType();
+        if (TyA != DestTy || TyB != SrcTy)
+          return nullptr;
+      } else if (auto *PHI = dyn_cast<PHINode>(V)) {
+        // As long as the user is another old PHI node, then even if we don't
+        // rewrite it, the PHI web we're considering won't have any users
+        // outside itself, so it'll be dead.
+        if (OldPhiNodes.count(PHI) == 0)
+          return nullptr;
+      } else {
+        return nullptr;
+      }
+    }
+  }
+
   // For each old PHI node, create a corresponding new PHI node with a type A.
   SmallDenseMap<PHINode *, PHINode *> NewPNodes;
   for (auto *OldPN : OldPhiNodes) {
@@ -2292,9 +2319,14 @@ Instruction *InstCombiner::optimizeBitCastFromPhi(CastInst &CI, PHINode *PN) {
       if (auto *C = dyn_cast<Constant>(V)) {
         NewV = ConstantExpr::getBitCast(C, DestTy);
       } else if (auto *LI = dyn_cast<LoadInst>(V)) {
-        Builder.SetInsertPoint(LI->getNextNode());
-        NewV = Builder.CreateBitCast(LI, DestTy);
-        Worklist.Add(LI);
+        // Explicitly perform load combine to make sure no opposing transform
+        // can remove the bitcast in the meantime and trigger an infinite loop.
+        Builder.SetInsertPoint(LI);
+        NewV = combineLoadToNewType(*LI, DestTy);
+        // Remove the old load and its use in the old phi, which itself becomes
+        // dead once the whole transform finishes.
+        replaceInstUsesWith(*LI, UndefValue::get(LI->getType()));
+        eraseInstFromFunction(*LI);
       } else if (auto *BCI = dyn_cast<BitCastInst>(V)) {
         NewV = BCI->getOperand(0);
       } else if (auto *PrevPN = dyn_cast<PHINode>(V)) {
@@ -2317,26 +2349,33 @@ Instruction *InstCombiner::optimizeBitCastFromPhi(CastInst &CI, PHINode *PN) {
   Instruction *RetVal = nullptr;
   for (auto *OldPN : OldPhiNodes) {
     PHINode *NewPN = NewPNodes[OldPN];
-    for (User *V : OldPN->users()) {
+    for (auto It = OldPN->user_begin(), End = OldPN->user_end(); It != End; ) {
+      User *V = *It;
+      // We may remove this user, advance to avoid iterator invalidation.
+      ++It;
       if (auto *SI = dyn_cast<StoreInst>(V)) {
-        if (SI->isSimple() && SI->getOperand(0) == OldPN) {
-          Builder.SetInsertPoint(SI);
-          auto *NewBC =
-            cast<BitCastInst>(Builder.CreateBitCast(NewPN, SrcTy));
-          SI->setOperand(0, NewBC);
-          Worklist.Add(SI);
-          assert(hasStoreUsersOnly(*NewBC));
-        }
+        assert(SI->isSimple() && SI->getOperand(0) == OldPN);
+        Builder.SetInsertPoint(SI);
+        auto *NewBC =
+          cast<BitCastInst>(Builder.CreateBitCast(NewPN, SrcTy));
+        SI->setOperand(0, NewBC);
+        Worklist.Add(SI);
+        assert(hasStoreUsersOnly(*NewBC));
       }
       else if (auto *BCI = dyn_cast<BitCastInst>(V)) {
-        // Verify it's a B->A cast.
         Type *TyB = BCI->getOperand(0)->getType();
         Type *TyA = BCI->getType();
-        if (TyA == DestTy && TyB == SrcTy) {
-          Instruction *I = replaceInstUsesWith(*BCI, NewPN);
-          if (BCI == &CI)
-            RetVal = I;
-        }
+        assert(TyA == DestTy && TyB == SrcTy);
+        (void) TyA;
+        (void) TyB;
+        Instruction *I = replaceInstUsesWith(*BCI, NewPN);
+        if (BCI == &CI)
+          RetVal = I;
+      } else if (auto *PHI = dyn_cast<PHINode>(V)) {
+        assert(OldPhiNodes.count(PHI) > 0);
+        (void) PHI;
+      } else {
+        llvm_unreachable("all uses should be handled");
       }
     }
   }

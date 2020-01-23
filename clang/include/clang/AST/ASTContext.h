@@ -95,6 +95,7 @@ class CXXRecordDecl;
 class DiagnosticsEngine;
 class Expr;
 class FixedPointSemantics;
+class GlobalDecl;
 class MangleContext;
 class MangleNumberingContext;
 class MaterializeTemporaryExpr;
@@ -112,9 +113,11 @@ class ObjCPropertyDecl;
 class ObjCPropertyImplDecl;
 class ObjCProtocolDecl;
 class ObjCTypeParamDecl;
+struct ParsedTargetAttr;
 class Preprocessor;
 class Stmt;
 class StoredDeclsMap;
+class TargetAttr;
 class TemplateDecl;
 class TemplateParameterList;
 class TemplateTemplateParmDecl;
@@ -144,6 +147,10 @@ namespace interp {
 class Context;
 
 } // namespace interp
+
+namespace serialization {
+template <class> class AbstractTypeReader;
+} // namespace serialization
 
 struct TypeInfo {
   uint64_t Width = 0;
@@ -276,12 +283,16 @@ class ASTContext : public RefCountedBase<ASTContext> {
 
     TemplateTemplateParmDecl *getParam() const { return Parm; }
 
-    void Profile(llvm::FoldingSetNodeID &ID) { Profile(ID, Parm); }
+    void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &C) {
+      Profile(ID, C, Parm);
+    }
 
     static void Profile(llvm::FoldingSetNodeID &ID,
+                        const ASTContext &C,
                         TemplateTemplateParmDecl *Parm);
   };
-  mutable llvm::FoldingSet<CanonicalTemplateTemplateParm>
+  mutable llvm::ContextualFoldingSet<CanonicalTemplateTemplateParm,
+                                     const ASTContext&>
     CanonTemplateTemplateParms;
 
   TemplateTemplateParmDecl *
@@ -413,6 +424,7 @@ private:
   friend class ASTDeclReader;
   friend class ASTReader;
   friend class ASTWriter;
+  template <class> friend class serialization::AbstractTypeReader;
   friend class CXXRecordDecl;
 
   /// A mapping to contain the template or declaration that
@@ -1153,6 +1165,10 @@ public:
   /// attribute.
   QualType getObjCGCQualType(QualType T, Qualifiers::GC gcAttr) const;
 
+  /// Remove the existing address space on the type if it is a pointer size
+  /// address space and return the type with qualifiers intact.
+  QualType removePtrSizeAddrSpace(QualType T) const;
+
   /// Return the uniqued reference to the type for a \c restrict
   /// qualified type.
   ///
@@ -1206,6 +1222,15 @@ public:
   void adjustExceptionSpec(FunctionDecl *FD,
                            const FunctionProtoType::ExceptionSpecInfo &ESI,
                            bool AsWritten = false);
+
+  /// Get a function type and produce the equivalent function type where
+  /// pointer size address spaces in the return type and parameter tyeps are
+  /// replaced with the default address space.
+  QualType getFunctionTypeWithoutPtrSizes(QualType T);
+
+  /// Determine whether two function types are the same, ignoring pointer sizes
+  /// in the return type and parameter types.
+  bool hasSameFunctionTypeIgnoringPtrSizes(QualType T, QualType U);
 
   /// Return the uniqued reference to the type for a complex
   /// number with the specified element type.
@@ -2832,6 +2857,15 @@ public:
   /// function declaration or file name. Used by SourceLocExpr and
   /// PredefinedExpr to cache evaluated results.
   StringLiteral *getPredefinedStringLiteralFromCache(StringRef Key) const;
+
+  /// Parses the target attributes passed in, and returns only the ones that are
+  /// valid feature names.
+  ParsedTargetAttr filterFunctionTargetAttrs(const TargetAttr *TD) const;
+
+  void getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
+                             const FunctionDecl *) const;
+  void getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
+                             GlobalDecl GD) const;
 
   //===--------------------------------------------------------------------===//
   //                    Statistics

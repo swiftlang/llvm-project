@@ -25,6 +25,7 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/CodeGen/TargetSchedule.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Support/Compiler.h"
 #include <cassert>
@@ -46,6 +47,7 @@ class SIInstrInfo final : public AMDGPUGenInstrInfo {
 private:
   const SIRegisterInfo RI;
   const GCNSubtarget &ST;
+  TargetSchedModel SchedModel;
 
   // The inverse predicate should have the negative value.
   enum BranchPredicate {
@@ -179,13 +181,14 @@ public:
                                int64_t &Offset1,
                                int64_t &Offset2) const override;
 
-  bool getMemOperandWithOffset(const MachineInstr &LdSt,
-                               const MachineOperand *&BaseOp,
-                               int64_t &Offset,
-                               const TargetRegisterInfo *TRI) const final;
+  bool
+  getMemOperandsWithOffset(const MachineInstr &LdSt,
+                           SmallVectorImpl<const MachineOperand *> &BaseOps,
+                           int64_t &Offset,
+                           const TargetRegisterInfo *TRI) const final;
 
-  bool shouldClusterMemOps(const MachineOperand &BaseOp1,
-                           const MachineOperand &BaseOp2,
+  bool shouldClusterMemOps(ArrayRef<const MachineOperand *> BaseOps1,
+                           ArrayRef<const MachineOperand *> BaseOps2,
                            unsigned NumLoads) const override;
 
   bool shouldScheduleLoadsNear(SDNode *Load0, SDNode *Load1, int64_t Offset0,
@@ -242,6 +245,9 @@ public:
   // DstRC, then AMDGPU::COPY is returned.
   unsigned getMovOpcode(const TargetRegisterClass *DstRC) const;
 
+  const MCInstrDesc &getIndirectRegWritePseudo(
+    unsigned VecSize, unsigned EltSize, bool IsSGPR) const;
+
   LLVM_READONLY
   int commuteOpcode(unsigned Opc) const;
 
@@ -291,9 +297,8 @@ public:
     SmallVectorImpl<MachineOperand> &Cond) const override;
 
   bool canInsertSelect(const MachineBasicBlock &MBB,
-                       ArrayRef<MachineOperand> Cond,
-                       unsigned TrueReg, unsigned FalseReg,
-                       int &CondCycles,
+                       ArrayRef<MachineOperand> Cond, unsigned DstReg,
+                       unsigned TrueReg, unsigned FalseReg, int &CondCycles,
                        int &TrueCycles, int &FalseCycles) const override;
 
   void insertSelect(MachineBasicBlock &MBB,
@@ -692,6 +697,10 @@ public:
 
   bool isInlineConstant(const APInt &Imm) const;
 
+  bool isInlineConstant(const APFloat &Imm) const {
+    return isInlineConstant(Imm.bitcastToAPInt());
+  }
+
   bool isInlineConstant(const MachineOperand &MO, uint8_t OperandType) const;
 
   bool isInlineConstant(const MachineOperand &MO,
@@ -977,7 +986,7 @@ public:
   MachineInstr *createPHISourceCopy(MachineBasicBlock &MBB,
                                     MachineBasicBlock::iterator InsPt,
                                     const DebugLoc &DL, Register Src,
-                                    Register SrcSubReg,
+                                    unsigned SrcSubReg,
                                     Register Dst) const override;
 
   bool isWave32() const;
@@ -1038,6 +1047,10 @@ public:
                                       int FrameIndex,
                                       LiveIntervals *LIS = nullptr,
                                       VirtRegMap *VRM = nullptr) const override;
+
+  unsigned getInstrLatency(const InstrItineraryData *ItinData,
+                           const MachineInstr &MI,
+                           unsigned *PredCost = nullptr) const override;
 };
 
 /// \brief Returns true if a reg:subreg pair P has a TRC class

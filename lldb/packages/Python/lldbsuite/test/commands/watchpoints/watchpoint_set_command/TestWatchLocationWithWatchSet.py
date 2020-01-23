@@ -2,7 +2,6 @@
 Test lldb watchpoint that uses 'watchpoint set -w write -s size' to watch a pointed location with size.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -14,6 +13,7 @@ from lldbsuite.test import lldbutil
 class WatchLocationUsingWatchpointSetTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
         # Call super's setUp().
@@ -28,7 +28,7 @@ class WatchLocationUsingWatchpointSetTestCase(TestBase):
         # Build dictionary to have unique executable names for each test
         # method.
 
-    @expectedFailureAll(
+    @skipIf(
         oslist=["linux"],
         archs=[
             'aarch64',

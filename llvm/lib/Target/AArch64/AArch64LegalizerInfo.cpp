@@ -59,7 +59,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST) {
   }
 
   getActionDefinitionsBuilder(G_IMPLICIT_DEF)
-    .legalFor({p0, s1, s8, s16, s32, s64, v4s32, v2s64})
+    .legalFor({p0, s1, s8, s16, s32, s64, v2s32, v4s32, v2s64})
     .clampScalar(0, s1, s64)
     .widenScalarToNextPow2(0, 8)
     .fewerElementsIf(
@@ -143,7 +143,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST) {
   getActionDefinitionsBuilder({G_SMULH, G_UMULH}).legalFor({s32, s64});
 
   getActionDefinitionsBuilder({G_UADDE, G_USUBE, G_SADDO, G_SSUBO, G_UADDO})
-      .legalFor({{s32, s1}, {s64, s1}});
+      .legalFor({{s32, s1}, {s64, s1}})
+      .minScalar(0, s32);
 
   getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FNEG})
     .legalFor({s32, s64, v2s64, v4s32, v2s32});
@@ -709,10 +710,10 @@ bool AArch64LegalizerInfo::legalizeLoadStore(
   auto &MMO = **MI.memoperands_begin();
   if (MI.getOpcode() == TargetOpcode::G_STORE) {
     auto Bitcast = MIRBuilder.buildBitcast({NewTy}, {ValReg});
-    MIRBuilder.buildStore(Bitcast.getReg(0), MI.getOperand(1).getReg(), MMO);
+    MIRBuilder.buildStore(Bitcast.getReg(0), MI.getOperand(1), MMO);
   } else {
     Register NewReg = MRI.createGenericVirtualRegister(NewTy);
-    auto NewLoad = MIRBuilder.buildLoad(NewReg, MI.getOperand(1).getReg(), MMO);
+    auto NewLoad = MIRBuilder.buildLoad(NewReg, MI.getOperand(1), MMO);
     MIRBuilder.buildBitcast({ValReg}, {NewLoad});
   }
   MI.eraseFromParent();

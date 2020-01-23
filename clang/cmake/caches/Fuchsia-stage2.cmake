@@ -24,8 +24,9 @@ if(NOT APPLE)
   set(CLANG_DEFAULT_OBJCOPY llvm-objcopy CACHE STRING "")
 endif()
 set(CLANG_DEFAULT_RTLIB compiler-rt CACHE STRING "")
+set(CLANG_SPAWN_CC1 ON CACHE BOOL "")
 set(CLANG_ENABLE_ARCMT OFF CACHE BOOL "")
-set(CLANG_ENABLE_STATIC_ANALYZER OFF CACHE BOOL "")
+set(CLANG_ENABLE_STATIC_ANALYZER ON CACHE BOOL "")
 set(CLANG_PLUGIN_SUPPORT OFF CACHE BOOL "")
 
 set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER ON CACHE BOOL "")
@@ -220,6 +221,7 @@ set(LLVM_DISTRIBUTION_COMPONENTS
   clang-resource-headers
   clang-include-fixer
   clang-refactor
+  clang-scan-deps
   clang-tidy
   clangd
   builtins

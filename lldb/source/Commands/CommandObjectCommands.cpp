@@ -12,7 +12,6 @@
 #include "CommandObjectHelp.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/IOHandler.h"
-#include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandHistory.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandObjectRegexCommand.h"
@@ -1008,7 +1007,7 @@ protected:
           *this, nullptr));
 
       if (io_handler_sp) {
-        debugger.PushIOHandler(io_handler_sp);
+        debugger.RunIOHandlerAsync(io_handler_sp);
         result.SetStatus(eReturnStatusSuccessFinishNoResult);
       }
     } else {
@@ -1404,7 +1403,7 @@ protected:
 
       switch (short_option) {
       case 'r':
-        m_allow_reload = true;
+        // NO-OP
         break;
       default:
         llvm_unreachable("Unimplemented option");
@@ -1414,26 +1413,14 @@ protected:
     }
 
     void OptionParsingStarting(ExecutionContext *execution_context) override {
-      m_allow_reload = true;
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
       return llvm::makeArrayRef(g_script_import_options);
     }
-
-    // Instance variables to hold the values for command options.
-
-    bool m_allow_reload;
   };
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
-    if (GetDebugger().GetScriptLanguage() != lldb::eScriptLanguagePython) {
-      result.AppendError("only scripting language supported for module "
-                         "importing is currently Python");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
-    }
-
     if (command.empty()) {
       result.AppendError("command script import needs one or more arguments");
       result.SetStatus(eReturnStatusFailed);
@@ -1454,7 +1441,7 @@ protected:
       // more)
       m_exe_ctx.Clear();
       if (GetDebugger().GetScriptInterpreter()->LoadScriptingModule(
-              entry.c_str(), m_options.m_allow_reload, init_session, error)) {
+              entry.c_str(), init_session, error)) {
         result.SetStatus(eReturnStatusSuccessFinishNoResult);
       } else {
         result.AppendErrorWithFormat("module importing failed: %s",
@@ -1663,11 +1650,8 @@ protected:
     if (m_options.m_class_name.empty()) {
       if (m_options.m_funct_name.empty()) {
         m_interpreter.GetPythonCommandsFromIOHandler(
-            "     ",  // Prompt
-            *this,    // IOHandlerDelegate
-            true,     // Run IOHandler in async mode
-            nullptr); // Baton for the "io_handler" that will be passed back
-                      // into our IOHandlerDelegate functions
+            "     ", // Prompt
+            *this);  // IOHandlerDelegate
       } else {
         CommandObjectSP new_cmd(new CommandObjectPythonFunction(
             m_interpreter, m_cmd_name, m_options.m_funct_name,

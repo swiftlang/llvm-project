@@ -21,6 +21,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExternalASTSource.h"
@@ -32,6 +33,7 @@
 #include "clang/AST/TypeLoc.h"
 #include "clang/APINotes/APINotesManager.h"
 #include "clang/AST/TypeOrdering.h"
+#include "clang/Basic/BitmaskEnum.h"
 #include "clang/Basic/ExpressionTraits.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/OpenMPKinds.h"
@@ -47,6 +49,7 @@
 #include "clang/Sema/ObjCMethodList.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/SemaConcept.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "clang/Sema/Weak.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -56,6 +59,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TinyPtrVector.h"
+#include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include <deque>
 #include <functional>
 #include <memory>
@@ -1606,7 +1610,7 @@ public:
   DeclarationNameInfo GetNameFromUnqualifiedId(const UnqualifiedId &Name);
   static QualType GetTypeFromParser(ParsedType Ty,
                                     TypeSourceInfo **TInfo = nullptr);
-  CanThrowResult canThrow(const Expr *E);
+  CanThrowResult canThrow(const Stmt *E);
   const FunctionProtoType *ResolveExceptionSpec(SourceLocation Loc,
                                                 const FunctionProtoType *FPT);
   void UpdateExceptionSpec(FunctionDecl *FD,
@@ -1747,7 +1751,9 @@ private:
 
 public:
   /// Get the module owning an entity.
-  Module *getOwningModule(Decl *Entity) { return Entity->getOwningModule(); }
+  Module *getOwningModule(const Decl *Entity) {
+    return Entity->getOwningModule();
+  }
 
   /// Make a merged definition of an existing hidden definition \p ND
   /// visible at the specified location.
@@ -2329,6 +2335,8 @@ public:
                                 SkipBodyInfo *SkipBody = nullptr);
   Decl *ActOnStartOfFunctionDef(Scope *S, Decl *D,
                                 SkipBodyInfo *SkipBody = nullptr);
+  void ActOnStartTrailingRequiresClause(Scope *S, Declarator &D);
+  ExprResult ActOnFinishTrailingRequiresClause(ExprResult ConstraintExpr);
   void ActOnStartOfObjCMethodDef(Scope *S, Decl *D);
   bool isObjCMethodDecl(Decl *D) {
     return D && isa<ObjCMethodDecl>(D);
@@ -2915,7 +2923,8 @@ public:
                              NamedDecl *&OldDecl,
                              bool IsForUsingDecl);
   bool IsOverload(FunctionDecl *New, FunctionDecl *Old, bool IsForUsingDecl,
-                  bool ConsiderCudaAttrs = true);
+                  bool ConsiderCudaAttrs = true,
+                  bool ConsiderRequiresClauses = true);
 
   ImplicitConversionSequence
   TryImplicitConversion(Expr *From, QualType ToType,
@@ -3280,10 +3289,9 @@ public:
                                      bool *pHadMultipleCandidates = nullptr);
 
   FunctionDecl *
-  resolveAddressOfOnlyViableOverloadCandidate(Expr *E,
-                                              DeclAccessPair &FoundResult);
+  resolveAddressOfSingleOverloadCandidate(Expr *E, DeclAccessPair &FoundResult);
 
-  bool resolveAndFixAddressOfOnlyViableOverloadCandidate(
+  bool resolveAndFixAddressOfSingleOverloadCandidate(
       ExprResult &SrcExpr, bool DoFunctionPointerConversion = false);
 
   FunctionDecl *
@@ -5100,6 +5108,16 @@ private:
                                          IdentifierInfo *MemberOrBase);
 
 public:
+  enum class ComparisonCategoryUsage {
+    /// The '<=>' operator was used in an expression and a builtin operator
+    /// was selected.
+    OperatorInExpression,
+    /// A defaulted 'operator<=>' needed the comparison category. This
+    /// typically only applies to 'std::strong_ordering', due to the implicit
+    /// fallback return value.
+    DefaultedOperator,
+  };
+
   /// Lookup the specified comparison category types in the standard
   ///   library, an check the VarDecls possibly returned by the operator<=>
   ///   builtins for that type.
@@ -5107,7 +5125,8 @@ public:
   /// \return The type of the comparison category type corresponding to the
   ///   specified Kind, or a null type if an error occurs
   QualType CheckComparisonCategoryType(ComparisonCategoryType Kind,
-                                       SourceLocation Loc);
+                                       SourceLocation Loc,
+                                       ComparisonCategoryUsage Usage);
 
   /// Tests whether Ty is an instance of std::initializer_list and, if
   /// it is and Element is not NULL, assigns the element type to Element.
@@ -5283,7 +5302,10 @@ public:
     void CalledDecl(SourceLocation CallLoc, const CXXMethodDecl *Method);
 
     /// Integrate an invoked expression into the collected data.
-    void CalledExpr(Expr *E);
+    void CalledExpr(Expr *E) { CalledStmt(E); }
+
+    /// Integrate an invoked statement into the collected data.
+    void CalledStmt(Stmt *S);
 
     /// Overwrite an EPI's exception specification with this
     /// computed exception specification.
@@ -5345,7 +5367,7 @@ public:
 
   /// Evaluate the implicit exception specification for a defaulted
   /// special member function.
-  void EvaluateImplicitExceptionSpec(SourceLocation Loc, CXXMethodDecl *MD);
+  void EvaluateImplicitExceptionSpec(SourceLocation Loc, FunctionDecl *FD);
 
   /// Check the given noexcept-specifier, convert its expression, and compute
   /// the appropriate ExceptionSpecificationType.
@@ -6081,7 +6103,8 @@ public:
                                        TypeSourceInfo *MethodType,
                                        SourceLocation EndLoc,
                                        ArrayRef<ParmVarDecl *> Params,
-                                       ConstexprSpecKind ConstexprKind);
+                                       ConstexprSpecKind ConstexprKind,
+                                       Expr *TrailingRequiresClause);
 
   /// Number lambda for linkage purposes if necessary.
   void handleLambdaNumbering(
@@ -6215,11 +6238,61 @@ public:
                                            Expr *Src);
 
   /// Check whether the given expression is a valid constraint expression.
-  /// A diagnostic is emitted if it is not, and false is returned.
-  bool CheckConstraintExpression(Expr *CE);
+  /// A diagnostic is emitted if it is not, false is returned, and
+  /// PossibleNonPrimary will be set to true if the failure might be due to a
+  /// non-primary expression being used as an atomic constraint.
+  bool CheckConstraintExpression(Expr *CE, Token NextToken = Token(),
+                                 bool *PossibleNonPrimary = nullptr,
+                                 bool IsTrailingRequiresClause = false);
+
+  /// Check whether the given type-dependent expression will be the name of a
+  /// function or another callable function-like entity (e.g. a function
+  // template or overload set) for any substitution.
+  bool IsDependentFunctionNameExpr(Expr *E);
+
+private:
+  /// Caches pairs of template-like decls whose associated constraints were
+  /// checked for subsumption and whether or not the first's constraints did in
+  /// fact subsume the second's.
+  llvm::DenseMap<std::pair<NamedDecl *, NamedDecl *>, bool> SubsumptionCache;
+  /// Caches the normalized associated constraints of declarations (concepts or
+  /// constrained declarations). If an error occurred while normalizing the
+  /// associated constraints of the template or concept, nullptr will be cached
+  /// here.
+  llvm::DenseMap<NamedDecl *, NormalizedConstraint *>
+      NormalizationCache;
+
+  llvm::ContextualFoldingSet<ConstraintSatisfaction, const ASTContext &>
+      SatisfactionCache;
+
+public:
+  const NormalizedConstraint *
+  getNormalizedAssociatedConstraints(
+      NamedDecl *ConstrainedDecl, ArrayRef<const Expr *> AssociatedConstraints);
+
+  /// \brief Check whether the given declaration's associated constraints are
+  /// at least as constrained than another declaration's according to the
+  /// partial ordering of constraints.
+  ///
+  /// \param Result If no error occurred, receives the result of true if D1 is
+  /// at least constrained than D2, and false otherwise.
+  ///
+  /// \returns true if an error occurred, false otherwise.
+  bool IsAtLeastAsConstrained(NamedDecl *D1, ArrayRef<const Expr *> AC1,
+                              NamedDecl *D2, ArrayRef<const Expr *> AC2,
+                              bool &Result);
+
+  /// If D1 was not at least as constrained as D2, but would've been if a pair
+  /// of atomic constraints involved had been declared in a concept and not
+  /// repeated in two separate places in code.
+  /// \returns true if such a diagnostic was emitted, false otherwise.
+  bool MaybeEmitAmbiguousAtomicConstraintsDiagnostic(NamedDecl *D1,
+      ArrayRef<const Expr *> AC1, NamedDecl *D2, ArrayRef<const Expr *> AC2);
 
   /// \brief Check whether the given list of constraint expressions are
   /// satisfied (as if in a 'conjunction') given template arguments.
+  /// \param Template the template-like entity that triggered the constraints
+  /// check (either a concept or a constrained entity).
   /// \param ConstraintExprs a list of constraint expressions, treated as if
   /// they were 'AND'ed together.
   /// \param TemplateArgs the list of template arguments to substitute into the
@@ -6231,23 +6304,10 @@ public:
   /// expression.
   /// \returns true if an error occurred and satisfaction could not be checked,
   /// false otherwise.
-  bool CheckConstraintSatisfaction(TemplateDecl *Template,
-                                   ArrayRef<const Expr *> ConstraintExprs,
-                                   ArrayRef<TemplateArgument> TemplateArgs,
-                                   SourceRange TemplateIDRange,
-                                   ConstraintSatisfaction &Satisfaction);
-
-  bool CheckConstraintSatisfaction(ClassTemplatePartialSpecializationDecl *TD,
-                                   ArrayRef<const Expr *> ConstraintExprs,
-                                   ArrayRef<TemplateArgument> TemplateArgs,
-                                   SourceRange TemplateIDRange,
-                                   ConstraintSatisfaction &Satisfaction);
-
-  bool CheckConstraintSatisfaction(VarTemplatePartialSpecializationDecl *TD,
-                                   ArrayRef<const Expr *> ConstraintExprs,
-                                   ArrayRef<TemplateArgument> TemplateArgs,
-                                   SourceRange TemplateIDRange,
-                                   ConstraintSatisfaction &Satisfaction);
+  bool CheckConstraintSatisfaction(
+      NamedDecl *Template, ArrayRef<const Expr *> ConstraintExprs,
+      ArrayRef<TemplateArgument> TemplateArgs,
+      SourceRange TemplateIDRange, ConstraintSatisfaction &Satisfaction);
 
   /// \brief Check whether the given non-dependent constraint expression is
   /// satisfied. Returns false and updates Satisfaction with the satisfaction
@@ -6257,12 +6317,6 @@ public:
   /// \returns true if an error occurred, false otherwise.
   bool CheckConstraintSatisfaction(const Expr *ConstraintExpr,
                                    ConstraintSatisfaction &Satisfaction);
-
-  /// Check that the associated constraints of a template declaration match the
-  /// associated constraints of an older declaration of which it is a
-  /// redeclaration.
-  bool CheckRedeclarationConstraintMatch(TemplateParameterList *Old,
-                                         TemplateParameterList *New);
 
   /// \brief Ensure that the given template arguments satisfy the constraints
   /// associated with the given template, emitting a diagnostic if they do not.
@@ -6283,18 +6337,25 @@ public:
 
   /// \brief Emit diagnostics explaining why a constraint expression was deemed
   /// unsatisfied.
+  /// \param First whether this is the first time an unsatisfied constraint is
+  /// diagnosed for this error.
   void
-  DiagnoseUnsatisfiedConstraint(const ConstraintSatisfaction& Satisfaction);
+  DiagnoseUnsatisfiedConstraint(const ConstraintSatisfaction &Satisfaction,
+                                bool First = true);
 
   /// \brief Emit diagnostics explaining why a constraint expression was deemed
   /// unsatisfied.
   void
-  DiagnoseUnsatisfiedConstraint(const ASTConstraintSatisfaction& Satisfaction);
+  DiagnoseUnsatisfiedConstraint(const ASTConstraintSatisfaction &Satisfaction,
+                                bool First = true);
 
   /// \brief Emit diagnostics explaining why a constraint expression was deemed
   /// unsatisfied because it was ill-formed.
   void DiagnoseUnsatisfiedIllFormedConstraint(SourceLocation DiagnosticLocation,
                                               StringRef Diagnostic);
+
+  void DiagnoseRedeclarationConstraintMismatch(SourceLocation Old,
+                                               SourceLocation New);
 
   // ParseObjCStringLiteral - Parse Objective-C string literals.
   ExprResult ParseObjCStringLiteral(SourceLocation *AtLocs,
@@ -6863,13 +6924,25 @@ public:
   TemplateDecl *AdjustDeclIfTemplate(Decl *&Decl);
 
   NamedDecl *ActOnTypeParameter(Scope *S, bool Typename,
-                           SourceLocation EllipsisLoc,
-                           SourceLocation KeyLoc,
-                           IdentifierInfo *ParamName,
-                           SourceLocation ParamNameLoc,
-                           unsigned Depth, unsigned Position,
-                           SourceLocation EqualLoc,
-                           ParsedType DefaultArg);
+                                SourceLocation EllipsisLoc,
+                                SourceLocation KeyLoc,
+                                IdentifierInfo *ParamName,
+                                SourceLocation ParamNameLoc,
+                                unsigned Depth, unsigned Position,
+                                SourceLocation EqualLoc,
+                                ParsedType DefaultArg, bool HasTypeConstraint);
+
+  bool ActOnTypeConstraint(const CXXScopeSpec &SS,
+                           TemplateIdAnnotation *TypeConstraint,
+                           TemplateTypeParmDecl *ConstrainedParameter,
+                           SourceLocation EllipsisLoc);
+
+  bool AttachTypeConstraint(NestedNameSpecifierLoc NS,
+                            DeclarationNameInfo NameInfo,
+                            ConceptDecl *NamedConcept,
+                            const TemplateArgumentListInfo *TemplateArgs,
+                            TemplateTypeParmDecl *ConstrainedParameter,
+                            SourceLocation EllipsisLoc);
 
   QualType CheckNonTypeTemplateParameterType(TypeSourceInfo *&TSI,
                                              SourceLocation Loc);
@@ -6935,6 +7008,12 @@ public:
                                                     QualType NTTPType,
                                                     SourceLocation Loc);
 
+  /// Get a template argument mapping the given template parameter to itself,
+  /// e.g. for X in \c template<int X>, this would return an expression template
+  /// argument referencing X.
+  TemplateArgumentLoc getIdentityTemplateArgumentLoc(Decl *Param,
+                                                     SourceLocation Location);
+
   void translateTemplateArguments(const ASTTemplateArgsPtr &In,
                                   TemplateArgumentListInfo &Out);
 
@@ -6985,8 +7064,8 @@ public:
   ExprResult
   CheckConceptTemplateId(const CXXScopeSpec &SS,
                          SourceLocation TemplateKWLoc,
-                         SourceLocation ConceptNameLoc, NamedDecl *FoundDecl,
-                         ConceptDecl *NamedConcept,
+                         const DeclarationNameInfo &ConceptNameInfo,
+                         NamedDecl *FoundDecl, ConceptDecl *NamedConcept,
                          const TemplateArgumentListInfo *TemplateArgs);
 
   void diagnoseMissingTemplateArguments(TemplateName Name, SourceLocation Loc);
@@ -7009,8 +7088,8 @@ public:
 
   DeclResult ActOnClassTemplateSpecialization(
       Scope *S, unsigned TagSpec, TagUseKind TUK, SourceLocation KWLoc,
-      SourceLocation ModulePrivateLoc, TemplateIdAnnotation &TemplateId,
-      const ParsedAttributesView &Attr,
+      SourceLocation ModulePrivateLoc, CXXScopeSpec &SS,
+      TemplateIdAnnotation &TemplateId, const ParsedAttributesView &Attr,
       MultiTemplateParamsArg TemplateParameterLists,
       SkipBodyInfo *SkipBody = nullptr);
 
@@ -7145,7 +7224,8 @@ public:
                                    QualType InstantiatedParamType, Expr *Arg,
                                    TemplateArgument &Converted,
                                CheckTemplateArgumentKind CTAK = CTAK_Specified);
-  bool CheckTemplateTemplateArgument(TemplateParameterList *Params,
+  bool CheckTemplateTemplateArgument(TemplateTemplateParmDecl *Param,
+                                     TemplateParameterList *Params,
                                      TemplateArgumentLoc &Arg);
 
   ExprResult
@@ -7241,7 +7321,17 @@ public:
                              SourceLocation KeywordLoc,
                              NestedNameSpecifierLoc QualifierLoc,
                              const IdentifierInfo &II,
-                             SourceLocation IILoc);
+                             SourceLocation IILoc,
+                             TypeSourceInfo **TSI,
+                             bool DeducedTSTContext);
+
+  QualType CheckTypenameType(ElaboratedTypeKeyword Keyword,
+                             SourceLocation KeywordLoc,
+                             NestedNameSpecifierLoc QualifierLoc,
+                             const IdentifierInfo &II,
+                             SourceLocation IILoc,
+                             bool DeducedTSTContext = true);
+
 
   TypeSourceInfo *RebuildTypeInCurrentInstantiation(TypeSourceInfo *T,
                                                     SourceLocation Loc,
@@ -7261,10 +7351,51 @@ public:
                                   const TemplateArgument *Args,
                                   unsigned NumArgs);
 
-  // Concepts
+  //===--------------------------------------------------------------------===//
+  // C++ Concepts
+  //===--------------------------------------------------------------------===//
   Decl *ActOnConceptDefinition(
       Scope *S, MultiTemplateParamsArg TemplateParameterLists,
       IdentifierInfo *Name, SourceLocation NameLoc, Expr *ConstraintExpr);
+
+  RequiresExprBodyDecl *
+  ActOnStartRequiresExpr(SourceLocation RequiresKWLoc,
+                         ArrayRef<ParmVarDecl *> LocalParameters,
+                         Scope *BodyScope);
+  void ActOnFinishRequiresExpr();
+  concepts::Requirement *ActOnSimpleRequirement(Expr *E);
+  concepts::Requirement *ActOnTypeRequirement(
+      SourceLocation TypenameKWLoc, CXXScopeSpec &SS, SourceLocation NameLoc,
+      IdentifierInfo *TypeName, TemplateIdAnnotation *TemplateId);
+  concepts::Requirement *ActOnCompoundRequirement(Expr *E,
+                                                  SourceLocation NoexceptLoc);
+  concepts::Requirement *
+  ActOnCompoundRequirement(
+      Expr *E, SourceLocation NoexceptLoc, CXXScopeSpec &SS,
+      TemplateIdAnnotation *TypeConstraint, unsigned Depth);
+  concepts::Requirement *ActOnNestedRequirement(Expr *Constraint);
+  concepts::ExprRequirement *
+  BuildExprRequirement(
+      Expr *E, bool IsSatisfied, SourceLocation NoexceptLoc,
+      concepts::ExprRequirement::ReturnTypeRequirement ReturnTypeRequirement);
+  concepts::ExprRequirement *
+  BuildExprRequirement(
+      concepts::Requirement::SubstitutionDiagnostic *ExprSubstDiag,
+      bool IsSatisfied, SourceLocation NoexceptLoc,
+      concepts::ExprRequirement::ReturnTypeRequirement ReturnTypeRequirement);
+  concepts::TypeRequirement *BuildTypeRequirement(TypeSourceInfo *Type);
+  concepts::TypeRequirement *
+  BuildTypeRequirement(
+      concepts::Requirement::SubstitutionDiagnostic *SubstDiag);
+  concepts::NestedRequirement *BuildNestedRequirement(Expr *E);
+  concepts::NestedRequirement *
+  BuildNestedRequirement(
+      concepts::Requirement::SubstitutionDiagnostic *SubstDiag);
+  ExprResult ActOnRequiresExpr(SourceLocation RequiresKWLoc,
+                               RequiresExprBodyDecl *Body,
+                               ArrayRef<ParmVarDecl *> LocalParameters,
+                               ArrayRef<concepts::Requirement *> Requirements,
+                               SourceLocation ClosingBraceLoc);
 
   //===--------------------------------------------------------------------===//
   // C++ Variadic Templates (C++0x [temp.variadic])
@@ -7338,7 +7469,10 @@ public:
     UPPC_Lambda,
 
     /// Block expression,
-    UPPC_Block
+    UPPC_Block,
+
+    /// A type constraint,
+    UPPC_TypeConstraint
   };
 
   /// Diagnose unexpanded parameter packs.
@@ -7831,7 +7965,10 @@ public:
                                     sema::TemplateDeductionInfo &Info);
 
   bool isTemplateTemplateParameterAtLeastAsSpecializedAs(
-      TemplateParameterList *P, TemplateDecl *AArg, SourceLocation Loc);
+      TemplateParameterList *PParam, TemplateDecl *AArg, SourceLocation Loc);
+
+  void MarkUsedTemplateParameters(const Expr *E, bool OnlyDeduced,
+                                  unsigned Depth, llvm::SmallBitVector &Used);
 
   void MarkUsedTemplateParameters(const TemplateArgumentList &TemplateArgs,
                                   bool OnlyDeduced,
@@ -7906,6 +8043,13 @@ public:
       /// template which was deferred until it was needed.
       ExceptionSpecInstantiation,
 
+      /// We are instantiating a requirement of a requires expression.
+      RequirementInstantiation,
+
+      /// We are checking the satisfaction of a nested requirement of a requires
+      /// expression.
+      NestedRequirementConstraintsCheck,
+
       /// We are declaring an implicit special member function.
       DeclaringSpecialMember,
 
@@ -7925,6 +8069,13 @@ public:
 
       // We are substituting template arguments into a constraint expression.
       ConstraintSubstitution,
+
+      // We are normalizing a constraint expression.
+      ConstraintNormalization,
+
+      // We are substituting into the parameter mapping of an atomic constraint
+      // during normalization.
+      ParameterMappingSubstitution,
 
       /// We are rewriting a comparison operator in terms of an operator<=>.
       RewritingOperatorAsSpaceship,
@@ -8206,6 +8357,32 @@ public:
                           ConstraintSubstitution, NamedDecl *Template,
                           sema::TemplateDeductionInfo &DeductionInfo,
                           SourceRange InstantiationRange);
+
+    struct ConstraintNormalization {};
+    /// \brief Note that we are normalizing a constraint expression.
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          ConstraintNormalization, NamedDecl *Template,
+                          SourceRange InstantiationRange);
+
+    struct ParameterMappingSubstitution {};
+    /// \brief Note that we are subtituting into the parameter mapping of an
+    /// atomic constraint during constraint normalization.
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          ParameterMappingSubstitution, NamedDecl *Template,
+                          SourceRange InstantiationRange);
+
+    /// \brief Note that we are substituting template arguments into a part of
+    /// a requirement of a requires expression.
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          concepts::Requirement *Req,
+                          sema::TemplateDeductionInfo &DeductionInfo,
+                          SourceRange InstantiationRange = SourceRange());
+
+    /// \brief Note that we are checking the satisfaction of the constraint
+    /// expression inside of a nested requirement.
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          concepts::NestedRequirement *Req, ConstraintsCheck,
+                          SourceRange InstantiationRange = SourceRange());
 
     /// Note that we have finished instantiating this template.
     void Clear();
@@ -8540,6 +8717,12 @@ public:
   SubstTemplateParams(TemplateParameterList *Params, DeclContext *Owner,
                       const MultiLevelTemplateArgumentList &TemplateArgs);
 
+  bool
+  SubstTemplateArguments(ArrayRef<TemplateArgumentLoc> Args,
+                         const MultiLevelTemplateArgumentList &TemplateArgs,
+                         TemplateArgumentListInfo &Outputs);
+
+
   Decl *SubstDecl(Decl *D, DeclContext *Owner,
                   const MultiLevelTemplateArgumentList &TemplateArgs);
 
@@ -8632,6 +8815,10 @@ public:
 
   void InstantiateExceptionSpec(SourceLocation PointOfInstantiation,
                                 FunctionDecl *Function);
+  bool CheckInstantiatedFunctionTemplateConstraints(
+      SourceLocation PointOfInstantiation, FunctionDecl *Decl,
+      ArrayRef<TemplateArgument> TemplateArgs,
+      ConstraintSatisfaction &Satisfaction);
   FunctionDecl *InstantiateFunctionDeclaration(FunctionTemplateDecl *FTD,
                                                const TemplateArgumentList *Args,
                                                SourceLocation Loc);
@@ -9554,7 +9741,8 @@ public:
   /// Check if the specified variable is captured  by 'target' directive.
   /// \param Level Relative level of nested OpenMP construct for that the check
   /// is performed.
-  bool isOpenMPTargetCapturedDecl(const ValueDecl *D, unsigned Level) const;
+  bool isOpenMPTargetCapturedDecl(const ValueDecl *D, unsigned Level,
+                                  unsigned CaptureLevel) const;
 
   ExprResult PerformOpenMPImplicitIntegerConversion(SourceLocation OpLoc,
                                                     Expr *Op);
@@ -10061,7 +10249,7 @@ public:
                                       SourceLocation LParenLoc,
                                       SourceLocation EndLoc);
   /// Called on well-formed 'proc_bind' clause.
-  OMPClause *ActOnOpenMPProcBindClause(OpenMPProcBindClauseKind Kind,
+  OMPClause *ActOnOpenMPProcBindClause(llvm::omp::ProcBindKind Kind,
                                        SourceLocation KindLoc,
                                        SourceLocation StartLoc,
                                        SourceLocation LParenLoc,
@@ -10139,11 +10327,10 @@ public:
       OpenMPClauseKind Kind, ArrayRef<Expr *> Vars, Expr *TailExpr,
       const OMPVarListLocTy &Locs, SourceLocation ColonLoc,
       CXXScopeSpec &ReductionOrMapperIdScopeSpec,
-      DeclarationNameInfo &ReductionOrMapperId, OpenMPDependClauseKind DepKind,
-      OpenMPLinearClauseKind LinKind,
+      DeclarationNameInfo &ReductionOrMapperId, int ExtraModifier,
       ArrayRef<OpenMPMapModifierKind> MapTypeModifiers,
-      ArrayRef<SourceLocation> MapTypeModifiersLoc, OpenMPMapClauseKind MapType,
-      bool IsMapTypeImplicit, SourceLocation DepLinMapLoc);
+      ArrayRef<SourceLocation> MapTypeModifiersLoc, bool IsMapTypeImplicit,
+      SourceLocation DepLinMapLastLoc);
   /// Called on well-formed 'allocate' clause.
   OMPClause *
   ActOnOpenMPAllocateClause(Expr *Allocator, ArrayRef<Expr *> VarList,
@@ -10160,10 +10347,10 @@ public:
                                            SourceLocation LParenLoc,
                                            SourceLocation EndLoc);
   /// Called on well-formed 'lastprivate' clause.
-  OMPClause *ActOnOpenMPLastprivateClause(ArrayRef<Expr *> VarList,
-                                          SourceLocation StartLoc,
-                                          SourceLocation LParenLoc,
-                                          SourceLocation EndLoc);
+  OMPClause *ActOnOpenMPLastprivateClause(
+      ArrayRef<Expr *> VarList, OpenMPLastprivateModifier LPKind,
+      SourceLocation LPKindLoc, SourceLocation ColonLoc,
+      SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation EndLoc);
   /// Called on well-formed 'shared' clause.
   OMPClause *ActOnOpenMPSharedClause(ArrayRef<Expr *> VarList,
                                      SourceLocation StartLoc,
@@ -10278,6 +10465,11 @@ public:
   /// Called on well-formed 'is_device_ptr' clause.
   OMPClause *ActOnOpenMPIsDevicePtrClause(ArrayRef<Expr *> VarList,
                                           const OMPVarListLocTy &Locs);
+  /// Called on well-formed 'nontemporal' clause.
+  OMPClause *ActOnOpenMPNontemporalClause(ArrayRef<Expr *> VarList,
+                                          SourceLocation StartLoc,
+                                          SourceLocation LParenLoc,
+                                          SourceLocation EndLoc);
 
   /// The kind of conversion being performed.
   enum CheckedConversionKind {
@@ -10398,13 +10590,27 @@ public:
   ExprResult DefaultVariadicArgumentPromotion(Expr *E, VariadicCallType CT,
                                               FunctionDecl *FDecl);
 
+  /// Context in which we're performing a usual arithmetic conversion.
+  enum ArithConvKind {
+    /// An arithmetic operation.
+    ACK_Arithmetic,
+    /// A bitwise operation.
+    ACK_BitwiseOp,
+    /// A comparison.
+    ACK_Comparison,
+    /// A conditional (?:) operator.
+    ACK_Conditional,
+    /// A compound assignment expression.
+    ACK_CompAssign,
+  };
+
   // UsualArithmeticConversions - performs the UsualUnaryConversions on it's
   // operands and then handles various conversions that are common to binary
   // operators (C99 6.3.1.8). If both operands aren't arithmetic, this
   // routine returns the first non-arithmetic type found. The client is
   // responsible for emitting appropriate error diagnostics.
   QualType UsualArithmeticConversions(ExprResult &LHS, ExprResult &RHS,
-                                      bool IsCompAssign = false);
+                                      SourceLocation Loc, ArithConvKind ACK);
 
   /// AssignConvertType - All of the 'assignment' semantic checks return this
   /// enum to indicate whether the assignment was allowed.  These checks are
@@ -10623,6 +10829,9 @@ public:
   QualType CXXCheckConditionalOperands( // C++ 5.16
     ExprResult &cond, ExprResult &lhs, ExprResult &rhs,
     ExprValueKind &VK, ExprObjectKind &OK, SourceLocation questionLoc);
+  QualType CheckGNUVectorConditionalTypes(ExprResult &Cond, ExprResult &LHS,
+                                          ExprResult &RHS,
+                                          SourceLocation QuestionLoc);
   QualType FindCompositePointerType(SourceLocation Loc, Expr *&E1, Expr *&E2,
                                     bool ConvertArgs = true);
   QualType FindCompositePointerType(SourceLocation Loc,
@@ -10680,11 +10889,27 @@ public:
     Ref_Compatible
   };
 
+  // Fake up a scoped enumeration that still contextually converts to bool.
+  struct ReferenceConversionsScope {
+    /// The conversions that would be performed on an lvalue of type T2 when
+    /// binding a reference of type T1 to it, as determined when evaluating
+    /// whether T1 is reference-compatible with T2.
+    enum ReferenceConversions {
+      Qualification = 0x1,
+      NestedQualification = 0x2,
+      Function = 0x4,
+      DerivedToBase = 0x8,
+      ObjC = 0x10,
+      ObjCLifetime = 0x20,
+
+      LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/ObjCLifetime)
+    };
+  };
+  using ReferenceConversions = ReferenceConversionsScope::ReferenceConversions;
+
   ReferenceCompareResult
   CompareReferenceRelationship(SourceLocation Loc, QualType T1, QualType T2,
-                               bool &DerivedToBase, bool &ObjCConversion,
-                               bool &ObjCLifetimeConversion,
-                               bool &FunctionConversion);
+                               ReferenceConversions *Conv = nullptr);
 
   ExprResult checkUnknownAnyCast(SourceRange TypeRange, QualType CastType,
                                  Expr *CastExpr, CastKind &CastKind,
@@ -11469,7 +11694,6 @@ private:
   bool CheckAArch64BuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckBPFBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckHexagonBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
-  bool CheckHexagonBuiltinCpu(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckHexagonBuiltinArgument(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckMipsBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckMipsBuiltinCpu(unsigned BuiltinID, CallExpr *TheCall);
@@ -11514,8 +11738,10 @@ private:
   bool SemaBuiltinConstantArgMultiple(CallExpr *TheCall, int ArgNum,
                                       unsigned Multiple);
   bool SemaBuiltinConstantArgPower2(CallExpr *TheCall, int ArgNum);
-  bool SemaBuiltinConstantArgShiftedByte(CallExpr *TheCall, int ArgNum);
-  bool SemaBuiltinConstantArgShiftedByteOrXXFF(CallExpr *TheCall, int ArgNum);
+  bool SemaBuiltinConstantArgShiftedByte(CallExpr *TheCall, int ArgNum,
+                                         unsigned ArgBits);
+  bool SemaBuiltinConstantArgShiftedByteOrXXFF(CallExpr *TheCall, int ArgNum,
+                                               unsigned ArgBits);
   bool SemaBuiltinARMSpecialReg(unsigned BuiltinID, CallExpr *TheCall,
                                 int ArgNum, unsigned ExpectedFieldNum,
                                 bool AllowName);
@@ -11581,7 +11807,7 @@ private:
   void CheckImplicitConversions(Expr *E, SourceLocation CC = SourceLocation());
   void CheckBoolLikeConversion(Expr *E, SourceLocation CC);
   void CheckForIntOverflow(Expr *E);
-  void CheckUnsequencedOperations(Expr *E);
+  void CheckUnsequencedOperations(const Expr *E);
 
   /// Perform semantic checks on a completed expression. This will either
   /// be a full-expression or a default argument expression.

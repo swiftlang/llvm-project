@@ -52,6 +52,7 @@ public:
     REPL,
     ProcessIO,
     PythonInterpreter,
+    LuaInterpreter,
     PythonCode,
     Other
   };
@@ -407,7 +408,7 @@ public:
   void PrintAsync(Stream *stream, const char *s, size_t len) override;
 
 private:
-#ifndef LLDB_DISABLE_LIBEDIT
+#if LLDB_ENABLE_LIBEDIT
   static bool IsInputCompleteCallback(Editline *editline, StringList &lines,
                                       void *baton);
 
@@ -418,7 +419,7 @@ private:
 #endif
 
 protected:
-#ifndef LLDB_DISABLE_LIBEDIT
+#if LLDB_ENABLE_LIBEDIT
   std::unique_ptr<Editline> m_editline_up;
 #endif
   IOHandlerDelegate &m_delegate;

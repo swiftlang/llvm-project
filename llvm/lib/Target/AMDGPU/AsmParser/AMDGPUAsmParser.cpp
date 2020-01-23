@@ -45,7 +45,7 @@
 #include "llvm/Support/AMDHSAKernelDescriptor.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SMLoc.h"
@@ -2363,7 +2363,7 @@ AMDGPUAsmParser::parseImm(OperandVector &Operands, bool HasSP3AbsModifier) {
 
     APFloat RealVal(APFloat::IEEEdouble());
     auto roundMode = APFloat::rmNearestTiesToEven;
-    if (RealVal.convertFromString(Num, roundMode) == APFloat::opInvalidOp) {
+    if (errorToBool(RealVal.convertFromString(Num, roundMode).takeError())) {
       return MatchOperand_ParseFail;
     }
     if (Negate)
@@ -6980,7 +6980,7 @@ AMDGPUOperand::Ptr AMDGPUAsmParser::defaultABID() const {
 }
 
 /// Force static initialization.
-extern "C" void LLVMInitializeAMDGPUAsmParser() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUAsmParser() {
   RegisterMCAsmParser<AMDGPUAsmParser> A(getTheAMDGPUTarget());
   RegisterMCAsmParser<AMDGPUAsmParser> B(getTheGCNTarget());
 }

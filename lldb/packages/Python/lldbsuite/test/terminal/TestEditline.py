@@ -2,7 +2,6 @@
 Test that the lldb editline handling is configured correctly.
 """
 
-from __future__ import print_function
 
 
 import lldb
@@ -17,6 +16,7 @@ class EditlineTest(PExpectTest):
     mydir = TestBase.compute_mydir(__file__)
 
     @skipIfAsan
+    @skipIfEditlineSupportMissing
     def test_left_right_arrow(self):
         """Test that ctrl+left/right arrow navigates words correctly.
 

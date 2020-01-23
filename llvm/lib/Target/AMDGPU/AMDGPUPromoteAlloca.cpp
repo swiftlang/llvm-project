@@ -251,10 +251,10 @@ AMDGPUPromoteAlloca::getLocalSizeYZ(IRBuilder<> &Builder) {
   // 32-bit and extract sequence is already present, and it is probably easier
   // to CSE this. The loads should be mergable later anyway.
   Value *GEPXY = Builder.CreateConstInBoundsGEP1_64(I32Ty, CastDispatchPtr, 1);
-  LoadInst *LoadXY = Builder.CreateAlignedLoad(I32Ty, GEPXY, 4);
+  LoadInst *LoadXY = Builder.CreateAlignedLoad(I32Ty, GEPXY, Align(4));
 
   Value *GEPZU = Builder.CreateConstInBoundsGEP1_64(I32Ty, CastDispatchPtr, 2);
-  LoadInst *LoadZU = Builder.CreateAlignedLoad(I32Ty, GEPZU, 4);
+  LoadInst *LoadZU = Builder.CreateAlignedLoad(I32Ty, GEPZU, Align(4));
 
   MDNode *MD = MDNode::get(Mod->getContext(), None);
   LoadXY->setMetadata(LLVMContext::MD_invariant_load, MD);
@@ -274,17 +274,17 @@ Value *AMDGPUPromoteAlloca::getWorkitemID(IRBuilder<> &Builder, unsigned N) {
 
   switch (N) {
   case 0:
-    IntrID = IsAMDGCN ? Intrinsic::amdgcn_workitem_id_x
-      : Intrinsic::r600_read_tidig_x;
+    IntrID = IsAMDGCN ? (Intrinsic::ID)Intrinsic::amdgcn_workitem_id_x
+                      : (Intrinsic::ID)Intrinsic::r600_read_tidig_x;
     break;
   case 1:
-    IntrID = IsAMDGCN ? Intrinsic::amdgcn_workitem_id_y
-      : Intrinsic::r600_read_tidig_y;
+    IntrID = IsAMDGCN ? (Intrinsic::ID)Intrinsic::amdgcn_workitem_id_y
+                      : (Intrinsic::ID)Intrinsic::r600_read_tidig_y;
     break;
 
   case 2:
-    IntrID = IsAMDGCN ? Intrinsic::amdgcn_workitem_id_z
-      : Intrinsic::r600_read_tidig_z;
+    IntrID = IsAMDGCN ? (Intrinsic::ID)Intrinsic::amdgcn_workitem_id_z
+                      : (Intrinsic::ID)Intrinsic::r600_read_tidig_z;
     break;
   default:
     llvm_unreachable("invalid dimension");
@@ -884,16 +884,16 @@ bool AMDGPUPromoteAlloca::handleAlloca(AllocaInst &I, bool SufficientLDS) {
       continue;
     case Intrinsic::memcpy: {
       MemCpyInst *MemCpy = cast<MemCpyInst>(Intr);
-      Builder.CreateMemCpy(MemCpy->getRawDest(), MemCpy->getDestAlignment(),
-                           MemCpy->getRawSource(), MemCpy->getSourceAlignment(),
+      Builder.CreateMemCpy(MemCpy->getRawDest(), MemCpy->getDestAlign(),
+                           MemCpy->getRawSource(), MemCpy->getSourceAlign(),
                            MemCpy->getLength(), MemCpy->isVolatile());
       Intr->eraseFromParent();
       continue;
     }
     case Intrinsic::memmove: {
       MemMoveInst *MemMove = cast<MemMoveInst>(Intr);
-      Builder.CreateMemMove(MemMove->getRawDest(), MemMove->getDestAlignment(),
-                            MemMove->getRawSource(), MemMove->getSourceAlignment(),
+      Builder.CreateMemMove(MemMove->getRawDest(), MemMove->getDestAlign(),
+                            MemMove->getRawSource(), MemMove->getSourceAlign(),
                             MemMove->getLength(), MemMove->isVolatile());
       Intr->eraseFromParent();
       continue;

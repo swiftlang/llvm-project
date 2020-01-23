@@ -277,7 +277,7 @@ Optional<DWARFFormValue>
 AppleAcceleratorTable::Entry::lookup(HeaderData::AtomType Atom) const {
   assert(HdrData && "Dereferencing end iterator?");
   assert(HdrData->Atoms.size() == Values.size());
-  for (const auto &Tuple : zip_first(HdrData->Atoms, Values)) {
+  for (auto Tuple : zip_first(HdrData->Atoms, Values)) {
     if (std::get<0>(Tuple).first == Atom)
       return std::get<1>(Tuple);
   }
@@ -366,7 +366,6 @@ void DWARFDebugNames::Header::dump(ScopedPrinter &W) const {
   DictScope HeaderScope(W, "Header");
   W.printHex("Length", UnitLength);
   W.printNumber("Version", Version);
-  W.printHex("Padding", Padding);
   W.printNumber("CU count", CompUnitCount);
   W.printNumber("Local TU count", LocalTypeUnitCount);
   W.printNumber("Foreign TU count", ForeignTypeUnitCount);
@@ -378,14 +377,27 @@ void DWARFDebugNames::Header::dump(ScopedPrinter &W) const {
 
 Error DWARFDebugNames::Header::extract(const DWARFDataExtractor &AS,
                                              uint64_t *Offset) {
+  // These fields are the same for 32-bit and 64-bit DWARF formats.
+  constexpr unsigned CommonHeaderSize = 2 + // Version
+                                        2 + // Padding
+                                        4 + // CU count
+                                        4 + // Local TU count
+                                        4 + // Foreign TU count
+                                        4 + // Bucket count
+                                        4 + // Name count
+                                        4 + // Abbreviations table size
+                                        4;  // Augmentation string size
+  static const unsigned DWARF32HeaderFixedPartSize =
+      dwarf::getUnitLengthFieldByteSize(dwarf::DWARF32) + CommonHeaderSize;
   // Check that we can read the fixed-size part.
-  if (!AS.isValidOffset(*Offset + sizeof(HeaderPOD) - 1))
+  if (!AS.isValidOffsetForDataOfSize(*Offset, DWARF32HeaderFixedPartSize))
     return createStringError(errc::illegal_byte_sequence,
                              "Section too small: cannot read header.");
 
   UnitLength = AS.getU32(Offset);
   Version = AS.getU16(Offset);
-  Padding = AS.getU16(Offset);
+  // Skip padding
+  *Offset += 2;
   CompUnitCount = AS.getU32(Offset);
   LocalTypeUnitCount = AS.getU32(Offset);
   ForeignTypeUnitCount = AS.getU32(Offset);
@@ -531,7 +543,7 @@ DWARFDebugNames::Entry::Entry(const NameIndex &NameIdx, const Abbrev &Abbr)
 Optional<DWARFFormValue>
 DWARFDebugNames::Entry::lookup(dwarf::Index Index) const {
   assert(Abbr->Attributes.size() == Values.size());
-  for (const auto &Tuple : zip_first(Abbr->Attributes, Values)) {
+  for (auto Tuple : zip_first(Abbr->Attributes, Values)) {
     if (std::get<0>(Tuple).Index == Index)
       return std::get<1>(Tuple);
   }
@@ -565,7 +577,7 @@ void DWARFDebugNames::Entry::dump(ScopedPrinter &W) const {
   W.printHex("Abbrev", Abbr->Code);
   W.startLine() << formatv("Tag: {0}\n", Abbr->Tag);
   assert(Abbr->Attributes.size() == Values.size());
-  for (const auto &Tuple : zip_first(Abbr->Attributes, Values)) {
+  for (auto Tuple : zip_first(Abbr->Attributes, Values)) {
     W.startLine() << formatv("{0}: ", std::get<0>(Tuple).Index);
     std::get<1>(Tuple).dump(W.getOStream());
     W.getOStream() << '\n';

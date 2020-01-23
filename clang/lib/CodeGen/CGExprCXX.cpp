@@ -129,7 +129,7 @@ RValue CodeGenFunction::EmitCXXPseudoDestructorExpr(
     // If this is s.x, emit s as an lvalue. If it is s->x, emit s as a scalar.
     if (E->isArrow()) {
       BaseValue = EmitPointerWithAlignment(BaseExpr);
-      const PointerType *PTy = BaseExpr->getType()->getAs<PointerType>();
+      const auto *PTy = BaseExpr->getType()->castAs<PointerType>();
       BaseQuals = PTy->getPointeeType().getQualifiers();
     } else {
       LValue BaseLV = EmitLValue(BaseExpr);
@@ -241,16 +241,28 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
     }
   }
 
+  bool TrivialForCodegen =
+      MD->isTrivial() || (MD->isDefaulted() && MD->getParent()->isUnion());
+  bool TrivialAssignment =
+      TrivialForCodegen &&
+      (MD->isCopyAssignmentOperator() || MD->isMoveAssignmentOperator()) &&
+      !MD->getParent()->mayInsertExtraPadding();
+
   // C++17 demands that we evaluate the RHS of a (possibly-compound) assignment
   // operator before the LHS.
   CallArgList RtlArgStorage;
   CallArgList *RtlArgs = nullptr;
+  LValue TrivialAssignmentRHS;
   if (auto *OCE = dyn_cast<CXXOperatorCallExpr>(CE)) {
     if (OCE->isAssignmentOp()) {
-      RtlArgs = &RtlArgStorage;
-      EmitCallArgs(*RtlArgs, MD->getType()->castAs<FunctionProtoType>(),
-                   drop_begin(CE->arguments(), 1), CE->getDirectCallee(),
-                   /*ParamsToSkip*/0, EvaluationOrder::ForceRightToLeft);
+      if (TrivialAssignment) {
+        TrivialAssignmentRHS = EmitLValue(CE->getArg(1));
+      } else {
+        RtlArgs = &RtlArgStorage;
+        EmitCallArgs(*RtlArgs, MD->getType()->castAs<FunctionProtoType>(),
+                     drop_begin(CE->arguments(), 1), CE->getDirectCallee(),
+                     /*ParamsToSkip*/0, EvaluationOrder::ForceRightToLeft);
+      }
     }
   }
 
@@ -281,22 +293,25 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
     return RValue::get(nullptr);
   }
 
-  if (MD->isTrivial() || (MD->isDefaulted() && MD->getParent()->isUnion())) {
-    if (isa<CXXDestructorDecl>(MD)) return RValue::get(nullptr);
-    if (!MD->getParent()->mayInsertExtraPadding()) {
-      if (MD->isCopyAssignmentOperator() || MD->isMoveAssignmentOperator()) {
-        // We don't like to generate the trivial copy/move assignment operator
-        // when it isn't necessary; just produce the proper effect here.
-        LValue RHS = isa<CXXOperatorCallExpr>(CE)
-                         ? MakeNaturalAlignAddrLValue(
-                               (*RtlArgs)[0].getRValue(*this).getScalarVal(),
-                               (*(CE->arg_begin() + 1))->getType())
-                         : EmitLValue(*CE->arg_begin());
-        EmitAggregateAssign(This, RHS, CE->getType());
-        return RValue::get(This.getPointer(*this));
-      }
-      llvm_unreachable("unknown trivial member function");
+  if (TrivialForCodegen) {
+    if (isa<CXXDestructorDecl>(MD))
+      return RValue::get(nullptr);
+
+    if (TrivialAssignment) {
+      // We don't like to generate the trivial copy/move assignment operator
+      // when it isn't necessary; just produce the proper effect here.
+      // It's important that we use the result of EmitLValue here rather than
+      // emitting call arguments, in order to preserve TBAA information from
+      // the RHS.
+      LValue RHS = isa<CXXOperatorCallExpr>(CE)
+                       ? TrivialAssignmentRHS
+                       : EmitLValue(*CE->arg_begin());
+      EmitAggregateAssign(This, RHS, CE->getType());
+      return RValue::get(This.getPointer(*this));
     }
+
+    assert(MD->getParent()->mayInsertExtraPadding() &&
+           "unknown trivial member function");
   }
 
   // Compute the function type we're calling.
@@ -1412,8 +1427,7 @@ namespace {
     }
 
     void Emit(CodeGenFunction &CGF, Flags flags) override {
-      const FunctionProtoType *FPT =
-          OperatorDelete->getType()->getAs<FunctionProtoType>();
+      const auto *FPT = OperatorDelete->getType()->castAs<FunctionProtoType>();
       CallArgList DeleteArgs;
 
       // The first argument is always a void* (or C* for a destroying operator
@@ -1755,9 +1769,7 @@ void CodeGenFunction::EmitDeleteCall(const FunctionDecl *DeleteFD,
   assert((!NumElements && CookieSize.isZero()) ||
          DeleteFD->getOverloadedOperator() == OO_Array_Delete);
 
-  const FunctionProtoType *DeleteFTy =
-    DeleteFD->getType()->getAs<FunctionProtoType>();
-
+  const auto *DeleteFTy = DeleteFD->getType()->castAs<FunctionProtoType>();
   CallArgList DeleteArgs;
 
   auto Params = getUsualDeleteParams(DeleteFD);

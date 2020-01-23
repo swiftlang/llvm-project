@@ -64,6 +64,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
+#include "llvm/TableGen/StringToOffsetTable.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -861,6 +862,13 @@ public:
   }
   bool hasCode() const { return Code != nullptr; }
 
+  static std::string signedHexLiteral(const llvm::APInt &iOrig) {
+    llvm::APInt i = iOrig.trunc(64);
+    SmallString<40> s;
+    i.toString(s, 16, true, true);
+    return s.str();
+  }
+
   std::string genSema() const {
     std::vector<std::string> SemaChecks;
 
@@ -875,38 +883,41 @@ public:
         break;
       case ImmediateArg::BoundsType::UInt:
         lo = 0;
-        hi = IA.i1;
+        hi = llvm::APInt::getMaxValue(IA.i1).zext(128);
         break;
-      }
-
-      llvm::APInt typelo, typehi;
-      unsigned Bits = IA.ArgType->sizeInBits();
-      if (cast<ScalarType>(IA.ArgType)->kind() == ScalarTypeKind::SignedInt) {
-        typelo = llvm::APInt::getSignedMinValue(Bits).sext(128);
-        typehi = llvm::APInt::getSignedMaxValue(Bits).sext(128);
-      } else {
-        typelo = llvm::APInt::getMinValue(Bits).zext(128);
-        typehi = llvm::APInt::getMaxValue(Bits).zext(128);
       }
 
       std::string Index = utostr(kv.first);
 
-      if (lo.sle(typelo) && hi.sge(typehi))
-        SemaChecks.push_back("SemaBuiltinConstantArg(TheCall, " + Index + ")");
-      else
+      // Emit a range check if the legal range of values for the
+      // immediate is smaller than the _possible_ range of values for
+      // its type.
+      unsigned ArgTypeBits = IA.ArgType->sizeInBits();
+      llvm::APInt ArgTypeRange = llvm::APInt::getMaxValue(ArgTypeBits).zext(128);
+      llvm::APInt ActualRange = (hi-lo).trunc(64).sext(128);
+      if (ActualRange.ult(ArgTypeRange))
         SemaChecks.push_back("SemaBuiltinConstantArgRange(TheCall, " + Index +
-                             ", 0x" + lo.toString(16, true) + ", 0x" +
-                             hi.toString(16, true) + ")");
+                             ", " + signedHexLiteral(lo) + ", " +
+                             signedHexLiteral(hi) + ")");
 
       if (!IA.ExtraCheckType.empty()) {
         std::string Suffix;
-        if (!IA.ExtraCheckArgs.empty())
-          Suffix = (Twine(", ") + IA.ExtraCheckArgs).str();
+        if (!IA.ExtraCheckArgs.empty()) {
+          std::string tmp;
+          StringRef Arg = IA.ExtraCheckArgs;
+          if (Arg == "!lanesize") {
+            tmp = utostr(IA.ArgType->sizeInBits());
+            Arg = tmp;
+          }
+          Suffix = (Twine(", ") + Arg).str();
+        }
         SemaChecks.push_back((Twine("SemaBuiltinConstantArg") +
                               IA.ExtraCheckType + "(TheCall, " + Index +
                               Suffix + ")")
                                  .str());
       }
+
+      assert(!SemaChecks.empty());
     }
     if (SemaChecks.empty())
       return "";
@@ -1092,14 +1103,16 @@ const Type *MveEmitter::getType(DagInit *D, const Type *Param) {
     PrintFatalError("Cannot find a type to satisfy CopyKind");
   }
 
-  if (Op->getName() == "CTO_DoubleSize") {
+  if (Op->isSubClassOf("CTO_ScaleSize")) {
     const ScalarType *STKind = cast<ScalarType>(getType(D->getArg(0), Param));
+    int Num = Op->getValueAsInt("num"), Denom = Op->getValueAsInt("denom");
+    unsigned DesiredSize = STKind->sizeInBits() * Num / Denom;
     for (const auto &kv : ScalarTypes) {
       const ScalarType *RT = kv.second.get();
-      if (RT->kind() == STKind->kind() && RT->sizeInBits() == 2*STKind->sizeInBits())
+      if (RT->kind() == STKind->kind() && RT->sizeInBits() == DesiredSize)
         return RT;
     }
-    PrintFatalError("Cannot find a type to satisfy DoubleSize");
+    PrintFatalError("Cannot find a type to satisfy ScaleSize");
   }
 
   PrintFatalError("Bad operator in type dag expression");
@@ -1331,7 +1344,8 @@ ACLEIntrinsic::ACLEIntrinsic(MveEmitter &ME, Record *R, const Type *Param)
         } else if (Bounds->isSubClassOf("IB_EltBit")) {
           IA.boundsType = ImmediateArg::BoundsType::ExplicitRange;
           IA.i1 = Bounds->getValueAsInt("base");
-          IA.i2 = IA.i1 + Param->sizeInBits() - 1;
+          const Type *T = ME.getType(Bounds->getValueAsDef("type"), Param);
+          IA.i2 = IA.i1 + T->sizeInBits() - 1;
         } else {
           PrintFatalError("unrecognised ImmediateBounds subclass");
         }
@@ -1444,8 +1458,9 @@ void MveEmitter::EmitHeader(raw_ostream &OS) {
     raw_ostream &OS = parts[ST->requiresFloat() ? Float : 0];
     const VectorType *VT = getVectorType(ST);
 
-    OS << "typedef __attribute__((neon_vector_type(" << VT->lanes() << "))) "
-       << ST->cName() << " " << VT->cName() << ";\n";
+    OS << "typedef __attribute__((__neon_vector_type__(" << VT->lanes()
+       << "), __clang_arm_mve_strict_polymorphism)) " << ST->cName() << " "
+       << VT->cName() << ";\n";
 
     // Every vector type also comes with a pair of multi-vector types for
     // the VLD2 and VLD4 instructions.
@@ -1588,6 +1603,10 @@ void MveEmitter::EmitHeader(raw_ostream &OS) {
         "#endif\n"
         "\n"
         "#include <stdint.h>\n"
+        "\n"
+        "#ifdef __cplusplus\n"
+        "extern \"C\" {\n"
+        "#endif\n"
         "\n";
 
   for (size_t i = 0; i < NumParts; ++i) {
@@ -1606,7 +1625,11 @@ void MveEmitter::EmitHeader(raw_ostream &OS) {
       OS << "#endif /* " << condition << " */\n\n";
   }
 
-  OS << "#endif /* __ARM_MVE_H */\n";
+  OS << "#ifdef __cplusplus\n"
+        "} /* extern \"C\" */\n"
+        "#endif\n"
+        "\n"
+        "#endif /* __ARM_MVE_H */\n";
 }
 
 void MveEmitter::EmitBuiltinDef(raw_ostream &OS) {
@@ -1835,14 +1858,46 @@ void MveEmitter::EmitBuiltinCG(raw_ostream &OS) {
 }
 
 void MveEmitter::EmitBuiltinAliases(raw_ostream &OS) {
+  // Build a sorted table of:
+  // - intrinsic id number
+  // - full name
+  // - polymorphic name or -1
+  StringToOffsetTable StringTable;
+  OS << "struct IntrinToName {\n"
+        "  uint32_t Id;\n"
+        "  int32_t FullName;\n"
+        "  int32_t ShortName;\n"
+        "};\n";
+  OS << "static const IntrinToName Map[] = {\n";
   for (const auto &kv : ACLEIntrinsics) {
     const ACLEIntrinsic &Int = *kv.second;
-    OS << "case ARM::BI__builtin_arm_mve_" << Int.fullName() << ":\n"
-       << "  return AliasName == \"" << Int.fullName() << "\"";
-    if (Int.polymorphic())
-      OS << " || AliasName == \"" << Int.shortName() << "\"";
-    OS << ";\n";
+    int32_t ShortNameOffset =
+        Int.polymorphic() ? StringTable.GetOrAddStringOffset(Int.shortName())
+                          : -1;
+    OS << "  { ARM::BI__builtin_arm_mve_" << Int.fullName() << ", "
+       << StringTable.GetOrAddStringOffset(Int.fullName()) << ", "
+       << ShortNameOffset << "},\n";
   }
+  OS << "};\n\n";
+
+  OS << "static const char IntrinNames[] = {\n";
+  StringTable.EmitString(OS);
+  OS << "};\n\n";
+
+  OS << "auto It = std::lower_bound(std::begin(Map), "
+        "std::end(Map), BuiltinID,\n"
+        "  [](const IntrinToName &L, unsigned Id) {\n"
+        "    return L.Id < Id;\n"
+        "  });\n";
+  OS << "if (It == std::end(Map) || It->Id != BuiltinID)\n"
+        "  return false;\n";
+  OS << "StringRef FullName(&IntrinNames[It->FullName]);\n";
+  OS << "if (AliasName == FullName)\n"
+        "  return true;\n";
+  OS << "if (It->ShortName == -1)\n"
+        "  return false;\n";
+  OS << "StringRef ShortName(&IntrinNames[It->ShortName]);\n";
+  OS << "return AliasName == ShortName;\n";
 }
 
 } // namespace

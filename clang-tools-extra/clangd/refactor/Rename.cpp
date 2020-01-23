@@ -86,15 +86,12 @@ llvm::DenseSet<const Decl *> locateDeclAt(ParsedAST &AST,
     return {};
 
   llvm::DenseSet<const Decl *> Result;
-  for (const auto *D :
+  for (const NamedDecl *D :
        targetDecl(SelectedNode->ASTNode,
                   DeclRelation::Alias | DeclRelation::TemplatePattern)) {
-    const auto *ND = llvm::dyn_cast<NamedDecl>(D);
-    if (!ND)
-      continue;
     // Get to CXXRecordDecl from constructor or destructor.
-    ND = tooling::getCanonicalSymbolDeclaration(ND);
-    Result.insert(ND);
+    D = tooling::getCanonicalSymbolDeclaration(D);
+    Result.insert(D);
   }
   return Result;
 }
@@ -218,7 +215,7 @@ std::vector<SourceLocation> findOccurrencesWithinFile(ParsedAST &AST,
   // getUSRsForDeclaration will find other related symbols, e.g. virtual and its
   // overriddens, primary template and all explicit specializations.
   // FIXME: Get rid of the remaining tooling APIs.
-  const auto RenameDecl =
+  const auto *RenameDecl =
       ND.getDescribedTemplate() ? ND.getDescribedTemplate() : &ND;
   std::vector<std::string> RenameUSRs =
       tooling::getUSRsForDeclaration(RenameDecl, AST.getASTContext());
@@ -338,8 +335,6 @@ findOccurrencesOutsideFile(const NamedDecl &RenameDecl,
 // as the file content we rename on, and fallback to file content on disk if
 // there is no dirty buffer.
 //
-// FIXME: Add range patching heuristics to detect staleness of the index, and
-// report to users.
 // FIXME: Our index may return implicit references, which are not eligible for
 // rename, we should filter out these references.
 llvm::Expected<FileEdits> renameOutsideFile(
@@ -364,7 +359,7 @@ llvm::Expected<FileEdits> renameOutsideFile(
                            std::move(FileAndOccurrences.second),
                            RenameDecl.getASTContext().getLangOpts());
     if (!RenameRanges) {
-      // Our heuristice fails to adjust rename ranges to the current state of
+      // Our heuristics fails to adjust rename ranges to the current state of
       // the file, it is most likely the index is stale, so we give up the
       // entire rename.
       return llvm::make_error<llvm::StringError>(
@@ -387,7 +382,7 @@ llvm::Expected<FileEdits> renameOutsideFile(
   return Results;
 }
 
-// A simple edit is eithor changing line or column, but not both.
+// A simple edit is either changing line or column, but not both.
 bool impliesSimpleEdit(const Position &LHS, const Position &RHS) {
   return LHS.line == RHS.line || LHS.character == RHS.character;
 }
@@ -670,7 +665,7 @@ size_t renameRangeAdjustmentCost(ArrayRef<Range> Indexed, ArrayRef<Range> Lexed,
         Indexed[I].start.character - Lexed[MappedIndex[I]].start.character;
     int Line = Indexed[I].start.line;
     if (Line != LastLine)
-      LastDColumn = 0; // colmun offsets don't carry cross lines.
+      LastDColumn = 0; // column offsets don't carry cross lines.
     Cost += abs(DLine - LastDLine) + abs(DColumn - LastDColumn);
     std::tie(LastLine, LastDLine, LastDColumn) = std::tie(Line, DLine, DColumn);
   }

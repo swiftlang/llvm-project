@@ -109,8 +109,12 @@ public:
 
   /// Return the alignment of the memory that is being allocated by the
   /// instruction.
+  MaybeAlign getAlign() const {
+    return decodeMaybeAlign(getSubclassDataFromInstruction() & 31);
+  }
+  // FIXME: Remove this one transition to Align is over.
   unsigned getAlignment() const {
-    if (const auto MA = decodeMaybeAlign(getSubclassDataFromInstruction() & 31))
+    if (const auto MA = getAlign())
       return MA->value();
     return 0;
   }
@@ -239,14 +243,20 @@ public:
   }
 
   /// Return the alignment of the access that is being performed.
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use getAlign() instead.
   unsigned getAlignment() const {
-    if (const auto MA =
-            decodeMaybeAlign((getSubclassDataFromInstruction() >> 1) & 31))
+    if (const auto MA = getAlign())
       return MA->value();
     return 0;
   }
 
-  void setAlignment(MaybeAlign Align);
+  /// Return the alignment of the access that is being performed.
+  MaybeAlign getAlign() const {
+    return decodeMaybeAlign((getSubclassDataFromInstruction() >> 1) & 31);
+  }
+
+  void setAlignment(MaybeAlign Alignment);
 
   /// Returns the ordering constraint of this load instruction.
   AtomicOrdering getOrdering() const {
@@ -365,14 +375,19 @@ public:
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
 
   /// Return the alignment of the access that is being performed
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use getAlign() instead.
   unsigned getAlignment() const {
-    if (const auto MA =
-            decodeMaybeAlign((getSubclassDataFromInstruction() >> 1) & 31))
+    if (const auto MA = getAlign())
       return MA->value();
     return 0;
   }
 
-  void setAlignment(MaybeAlign Align);
+  MaybeAlign getAlign() const {
+    return decodeMaybeAlign((getSubclassDataFromInstruction() >> 1) & 31);
+  }
+
+  void setAlignment(MaybeAlign Alignment);
 
   /// Returns the ordering constraint of this store instruction.
   AtomicOrdering getOrdering() const {

@@ -7,11 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++98, c++03
+
 #include <cassert>
 #include <cstring> // for strlen
 
-#include "../fuzzing/fuzzing.h"
-#include "../fuzzing/fuzzing.cpp"
+#include "../../../fuzzing/fuzzing.h"
+#include "../../../fuzzing/fuzzing.cpp"
 
 const char* test_cases[] = {"", "s", "bac",
                             "bacasf"

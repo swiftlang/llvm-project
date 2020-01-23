@@ -22,7 +22,7 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/ProcessLaunchInfo.h"
-#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/TypeSystemClang.h"
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
@@ -706,7 +706,9 @@ PlatformPOSIX::MakeLoadImageUtilityFunction(ExecutionContext &exe_ctx,
   FunctionCaller *do_dlopen_function = nullptr;
 
   // Fetch the clang types we will need:
-  ClangASTContext *ast = process->GetTarget().GetScratchClangASTContext();
+  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
+  if (!ast)
+    return nullptr;
 
   CompilerType clang_void_pointer_type
       = ast->GetBasicType(eBasicTypeVoid).GetPointerType();
@@ -948,7 +950,11 @@ uint32_t PlatformPOSIX::DoLoadImage(lldb_private::Process *process,
 
   Value return_value;
   // Fetch the clang types we will need:
-  ClangASTContext *ast = process->GetTarget().GetScratchClangASTContext();
+  TypeSystemClang *ast = TypeSystemClang::GetScratch(process->GetTarget());
+  if (!ast) {
+    error.SetErrorString("dlopen error: Unable to get TypeSystemClang");
+    return LLDB_INVALID_IMAGE_TOKEN;
+  }
 
   CompilerType clang_void_pointer_type
       = ast->GetBasicType(eBasicTypeVoid).GetPointerType();

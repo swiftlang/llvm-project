@@ -848,7 +848,6 @@ entry:
   %maxnum = call ppc_fp128 @llvm.experimental.constrained.maxnum.ppcf128(
                     ppc_fp128 %first,
                     ppc_fp128 %second,
-                    metadata !"round.dynamic",
                     metadata !"fpexcept.strict")
   ret ppc_fp128 %maxnum
 }
@@ -893,7 +892,6 @@ entry:
   %minnum = call ppc_fp128 @llvm.experimental.constrained.minnum.ppcf128(
                     ppc_fp128 %first,
                     ppc_fp128 %second,
-                    metadata !"round.dynamic",
                     metadata !"fpexcept.strict")
   ret ppc_fp128 %minnum
 }
@@ -937,7 +935,6 @@ define ppc_fp128 @test_ceil_ppc_fp128(ppc_fp128 %first) nounwind {
 entry:
   %ceil = call ppc_fp128 @llvm.experimental.constrained.ceil.ppcf128(
                     ppc_fp128 %first,
-                    metadata !"round.dynamic",
                     metadata !"fpexcept.strict")
   ret ppc_fp128 %ceil
 }
@@ -981,7 +978,6 @@ define ppc_fp128 @test_floor_ppc_fp128(ppc_fp128 %first) nounwind {
 entry:
   %floor = call ppc_fp128 @llvm.experimental.constrained.floor.ppcf128(
                     ppc_fp128 %first,
-                    metadata !"round.dynamic",
                     metadata !"fpexcept.strict")
   ret ppc_fp128 %floor
 }
@@ -1025,7 +1021,6 @@ define ppc_fp128 @test_round_ppc_fp128(ppc_fp128 %first) nounwind {
 entry:
   %round = call ppc_fp128 @llvm.experimental.constrained.round.ppcf128(
                     ppc_fp128 %first,
-                    metadata !"round.dynamic",
                     metadata !"fpexcept.strict")
   ret ppc_fp128 %round
 }
@@ -1069,7 +1064,6 @@ define ppc_fp128 @test_trunc_ppc_fp128(ppc_fp128 %first) nounwind {
 entry:
   %trunc = call ppc_fp128 @llvm.experimental.constrained.trunc.ppcf128(
                     ppc_fp128 %first,
-                    metadata !"round.dynamic",
                     metadata !"fpexcept.strict")
   ret ppc_fp128 %trunc
 }
@@ -1364,29 +1358,29 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 ; PC64LE-NEXT:    fmr 4, 2
 ; PC64LE-NEXT:    fmr 30, 1
 ; PC64LE-NEXT:    fmr 29, 2
-; PC64LE-NEXT:    stfd 1, 16(30)
 ; PC64LE-NEXT:    stfd 2, 24(30)
+; PC64LE-NEXT:    stfd 1, 16(30)
 ; PC64LE-NEXT:    bl __gcc_qmul
 ; PC64LE-NEXT:    nop
 ; PC64LE-NEXT:    fmr 1, 31
 ; PC64LE-NEXT:    xxlxor 2, 2, 2
 ; PC64LE-NEXT:    li 5, 2
-; PC64LE-NEXT:    stfd 30, 32(30)
 ; PC64LE-NEXT:    stfd 29, 40(30)
+; PC64LE-NEXT:    stfd 30, 32(30)
 ; PC64LE-NEXT:    bl __powitf2
 ; PC64LE-NEXT:    nop
 ; PC64LE-NEXT:    frsp 0, 1
 ; PC64LE-NEXT:    stfsx 0, 0, 29
-; PC64LE-NEXT:    stfd 2, -8(30)
 ; PC64LE-NEXT:    stfd 1, -16(30)
+; PC64LE-NEXT:    stfd 2, -8(30)
 ; PC64LE-NEXT:    addi 1, 1, 80
 ; PC64LE-NEXT:    ld 0, 16(1)
-; PC64LE-NEXT:    mtlr 0
 ; PC64LE-NEXT:    lfd 31, -8(1) # 8-byte Folded Reload
 ; PC64LE-NEXT:    lfd 30, -16(1) # 8-byte Folded Reload
 ; PC64LE-NEXT:    ld 30, -40(1) # 8-byte Folded Reload
-; PC64LE-NEXT:    ld 29, -48(1) # 8-byte Folded Reload
 ; PC64LE-NEXT:    lfd 29, -24(1) # 8-byte Folded Reload
+; PC64LE-NEXT:    ld 29, -48(1) # 8-byte Folded Reload
+; PC64LE-NEXT:    mtlr 0
 ; PC64LE-NEXT:    blr
 ;
 ; PC64LE9-LABEL: test_constrained_libcall_multichain:
@@ -1415,29 +1409,29 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 ; PC64LE9-NEXT:    fmr 4, 2
 ; PC64LE9-NEXT:    fmr 30, 2
 ; PC64LE9-NEXT:    fmr 29, 1
-; PC64LE9-NEXT:    stfd 1, 16(30)
 ; PC64LE9-NEXT:    stfd 2, 24(30)
+; PC64LE9-NEXT:    stfd 1, 16(30)
 ; PC64LE9-NEXT:    bl __gcc_qmul
 ; PC64LE9-NEXT:    nop
 ; PC64LE9-NEXT:    fmr 1, 31
 ; PC64LE9-NEXT:    xxlxor 2, 2, 2
 ; PC64LE9-NEXT:    li 5, 2
-; PC64LE9-NEXT:    stfd 29, 32(30)
 ; PC64LE9-NEXT:    stfd 30, 40(30)
+; PC64LE9-NEXT:    stfd 29, 32(30)
 ; PC64LE9-NEXT:    bl __powitf2
 ; PC64LE9-NEXT:    nop
 ; PC64LE9-NEXT:    frsp 0, 1
 ; PC64LE9-NEXT:    stfs 0, 0(29)
-; PC64LE9-NEXT:    stfd 2, -8(30)
 ; PC64LE9-NEXT:    stfd 1, -16(30)
+; PC64LE9-NEXT:    stfd 2, -8(30)
 ; PC64LE9-NEXT:    addi 1, 1, 80
 ; PC64LE9-NEXT:    ld 0, 16(1)
-; PC64LE9-NEXT:    mtlr 0
 ; PC64LE9-NEXT:    lfd 31, -8(1) # 8-byte Folded Reload
 ; PC64LE9-NEXT:    lfd 30, -16(1) # 8-byte Folded Reload
-; PC64LE9-NEXT:    lfd 29, -24(1) # 8-byte Folded Reload
 ; PC64LE9-NEXT:    ld 30, -40(1) # 8-byte Folded Reload
 ; PC64LE9-NEXT:    ld 29, -48(1) # 8-byte Folded Reload
+; PC64LE9-NEXT:    mtlr 0
+; PC64LE9-NEXT:    lfd 29, -24(1) # 8-byte Folded Reload
 ; PC64LE9-NEXT:    blr
 ;
 ; PC64-LABEL: test_constrained_libcall_multichain:
@@ -1469,15 +1463,15 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 ; PC64-NEXT:    fmr 4, 2
 ; PC64-NEXT:    fmr 29, 1
 ; PC64-NEXT:    fmr 28, 2
-; PC64-NEXT:    stfd 1, 16(30)
 ; PC64-NEXT:    stfd 2, 24(30)
+; PC64-NEXT:    stfd 1, 16(30)
 ; PC64-NEXT:    bl __gcc_qmul
 ; PC64-NEXT:    nop
 ; PC64-NEXT:    fmr 1, 31
 ; PC64-NEXT:    fmr 2, 30
 ; PC64-NEXT:    li 5, 2
-; PC64-NEXT:    stfd 29, 32(30)
 ; PC64-NEXT:    stfd 28, 40(30)
+; PC64-NEXT:    stfd 29, 32(30)
 ; PC64-NEXT:    bl __powitf2
 ; PC64-NEXT:    nop
 ; PC64-NEXT:    frsp 0, 1
@@ -1487,8 +1481,8 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 ; PC64-NEXT:    lfd 29, 152(1) # 8-byte Folded Reload
 ; PC64-NEXT:    lfd 28, 144(1) # 8-byte Folded Reload
 ; PC64-NEXT:    ld 29, 120(1) # 8-byte Folded Reload
-; PC64-NEXT:    stfd 2, -8(30)
 ; PC64-NEXT:    stfd 1, -16(30)
+; PC64-NEXT:    stfd 2, -8(30)
 ; PC64-NEXT:    ld 30, 128(1) # 8-byte Folded Reload
 ; PC64-NEXT:    addi 1, 1, 176
 ; PC64-NEXT:    ld 0, 16(1)
@@ -1536,12 +1530,12 @@ define void @test_constrained_libcall_multichain(float* %firstptr, ppc_fp128* %r
 }
 
 declare ppc_fp128 @llvm.experimental.constrained.fadd.ppcf128(ppc_fp128, ppc_fp128, metadata, metadata)
-declare ppc_fp128 @llvm.experimental.constrained.ceil.ppcf128(ppc_fp128, metadata, metadata)
+declare ppc_fp128 @llvm.experimental.constrained.ceil.ppcf128(ppc_fp128, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.cos.ppcf128(ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.fdiv.ppcf128(ppc_fp128, ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.exp.ppcf128(ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.exp2.ppcf128(ppc_fp128, metadata, metadata)
-declare ppc_fp128 @llvm.experimental.constrained.floor.ppcf128(ppc_fp128, metadata, metadata)
+declare ppc_fp128 @llvm.experimental.constrained.floor.ppcf128(ppc_fp128, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.fma.ppcf128(ppc_fp128, ppc_fp128, ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.fpext.f32.ppcf128(float, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.fpext.f64.ppcf128(double, metadata)
@@ -1550,19 +1544,19 @@ declare double @llvm.experimental.constrained.fptrunc.ppcf128.f64(ppc_fp128, met
 declare ppc_fp128 @llvm.experimental.constrained.log.ppcf128(ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.log10.ppcf128(ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.log2.ppcf128(ppc_fp128, metadata, metadata)
-declare ppc_fp128 @llvm.experimental.constrained.maxnum.ppcf128(ppc_fp128, ppc_fp128, metadata, metadata)
-declare ppc_fp128 @llvm.experimental.constrained.minnum.ppcf128(ppc_fp128, ppc_fp128, metadata, metadata)
+declare ppc_fp128 @llvm.experimental.constrained.maxnum.ppcf128(ppc_fp128, ppc_fp128, metadata)
+declare ppc_fp128 @llvm.experimental.constrained.minnum.ppcf128(ppc_fp128, ppc_fp128, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.fmul.ppcf128(ppc_fp128, ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.nearbyint.ppcf128(ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.pow.ppcf128(ppc_fp128, ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.powi.ppcf128(ppc_fp128, i32, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.frem.ppcf128(ppc_fp128, ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.rint.ppcf128(ppc_fp128, metadata, metadata)
-declare ppc_fp128 @llvm.experimental.constrained.round.ppcf128(ppc_fp128, metadata, metadata)
+declare ppc_fp128 @llvm.experimental.constrained.round.ppcf128(ppc_fp128, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.sin.ppcf128(ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.sqrt.ppcf128(ppc_fp128, metadata, metadata)
 declare ppc_fp128 @llvm.experimental.constrained.fsub.ppcf128(ppc_fp128, ppc_fp128, metadata, metadata)
-declare ppc_fp128 @llvm.experimental.constrained.trunc.ppcf128(ppc_fp128, metadata, metadata)
+declare ppc_fp128 @llvm.experimental.constrained.trunc.ppcf128(ppc_fp128, metadata)
 declare i64 @llvm.experimental.constrained.fptosi.i64.ppcf128(ppc_fp128, metadata)
 declare i32 @llvm.experimental.constrained.fptosi.i32.ppcf128(ppc_fp128, metadata)
 declare i64 @llvm.experimental.constrained.fptoui.i64.ppcf128(ppc_fp128, metadata)

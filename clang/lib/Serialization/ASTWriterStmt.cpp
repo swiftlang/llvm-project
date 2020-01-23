@@ -11,7 +11,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "clang/Serialization/ASTWriter.h"
+#include "clang/Serialization/ASTRecordWriter.h"
+#include "clang/Sema/DeclSpec.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
@@ -388,20 +389,9 @@ void ASTStmtWriter::VisitDependentCoawaitExpr(DependentCoawaitExpr *E) {
   Code = serialization::EXPR_DEPENDENT_COAWAIT;
 }
 
-void ASTStmtWriter::VisitConceptSpecializationExpr(
-        ConceptSpecializationExpr *E) {
-  VisitExpr(E);
-  ArrayRef<TemplateArgument> TemplateArgs = E->getTemplateArguments();
-  Record.push_back(TemplateArgs.size());
-  Record.AddNestedNameSpecifierLoc(E->getNestedNameSpecifierLoc());
-  Record.AddSourceLocation(E->getTemplateKWLoc());
-  Record.AddSourceLocation(E->getConceptNameLoc());
-  Record.AddDeclRef(E->getFoundDecl());
-  Record.AddDeclRef(E->getNamedConcept());
-  Record.AddASTTemplateArgumentListInfo(E->getTemplateArgsAsWritten());
-  for (const TemplateArgument &Arg : TemplateArgs)
-    Record.AddTemplateArgument(Arg);
-  const ASTConstraintSatisfaction &Satisfaction = E->getSatisfaction();
+static void
+addConstraintSatisfaction(ASTRecordWriter &Record,
+                          const ASTConstraintSatisfaction &Satisfaction) {
   Record.push_back(Satisfaction.IsSatisfied);
   if (!Satisfaction.IsSatisfied) {
     Record.push_back(Satisfaction.NumRecords);
@@ -419,8 +409,96 @@ void ASTStmtWriter::VisitConceptSpecializationExpr(
       }
     }
   }
+}
+
+static void
+addSubstitutionDiagnostic(
+    ASTRecordWriter &Record,
+    const concepts::Requirement::SubstitutionDiagnostic *D) {
+  Record.AddString(D->SubstitutedEntity);
+  Record.AddSourceLocation(D->DiagLoc);
+  Record.AddString(D->DiagMessage);
+}
+
+void ASTStmtWriter::VisitConceptSpecializationExpr(
+        ConceptSpecializationExpr *E) {
+  VisitExpr(E);
+  ArrayRef<TemplateArgument> TemplateArgs = E->getTemplateArguments();
+  Record.push_back(TemplateArgs.size());
+  Record.AddNestedNameSpecifierLoc(E->getNestedNameSpecifierLoc());
+  Record.AddSourceLocation(E->getTemplateKWLoc());
+  Record.AddDeclarationNameInfo(E->getConceptNameInfo());
+  Record.AddDeclRef(E->getNamedConcept());
+  Record.AddASTTemplateArgumentListInfo(E->getTemplateArgsAsWritten());
+  for (const TemplateArgument &Arg : TemplateArgs)
+    Record.AddTemplateArgument(Arg);
+  if (!E->isValueDependent())
+    addConstraintSatisfaction(Record, E->getSatisfaction());
 
   Code = serialization::EXPR_CONCEPT_SPECIALIZATION;
+}
+
+void ASTStmtWriter::VisitRequiresExpr(RequiresExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->getLocalParameters().size());
+  Record.push_back(E->getRequirements().size());
+  Record.AddSourceLocation(E->RequiresExprBits.RequiresKWLoc);
+  Record.push_back(E->RequiresExprBits.IsSatisfied);
+  Record.AddDeclRef(E->getBody());
+  for (ParmVarDecl *P : E->getLocalParameters())
+    Record.AddDeclRef(P);
+  for (concepts::Requirement *R : E->getRequirements()) {
+    if (auto *TypeReq = dyn_cast<concepts::TypeRequirement>(R)) {
+      Record.push_back(concepts::Requirement::RK_Type);
+      Record.push_back(TypeReq->Status);
+      if (TypeReq->Status == concepts::TypeRequirement::SS_SubstitutionFailure)
+        addSubstitutionDiagnostic(Record, TypeReq->getSubstitutionDiagnostic());
+      else
+        Record.AddTypeSourceInfo(TypeReq->getType());
+    } else if (auto *ExprReq = dyn_cast<concepts::ExprRequirement>(R)) {
+      Record.push_back(ExprReq->getKind());
+      Record.push_back(ExprReq->Status);
+      if (ExprReq->isExprSubstitutionFailure()) {
+        addSubstitutionDiagnostic(Record,
+         ExprReq->Value.get<concepts::Requirement::SubstitutionDiagnostic *>());
+      } else
+        Record.AddStmt(ExprReq->Value.get<Expr *>());
+      if (ExprReq->getKind() == concepts::Requirement::RK_Compound) {
+        Record.AddSourceLocation(ExprReq->NoexceptLoc);
+        const auto &RetReq = ExprReq->getReturnTypeRequirement();
+        if (RetReq.isSubstitutionFailure()) {
+          Record.push_back(2);
+          addSubstitutionDiagnostic(Record, RetReq.getSubstitutionDiagnostic());
+        } else if (RetReq.isTypeConstraint()) {
+          Record.push_back(1);
+          Record.AddTemplateParameterList(
+              RetReq.getTypeConstraintTemplateParameterList());
+          if (ExprReq->Status >=
+              concepts::ExprRequirement::SS_ConstraintsNotSatisfied)
+            Record.AddStmt(
+                ExprReq->getReturnTypeRequirementSubstitutedConstraintExpr());
+        } else {
+          assert(RetReq.isEmpty());
+          Record.push_back(0);
+        }
+      }
+    } else {
+      auto *NestedReq = cast<concepts::NestedRequirement>(R);
+      Record.push_back(concepts::Requirement::RK_Nested);
+      Record.push_back(NestedReq->isSubstitutionFailure());
+      if (NestedReq->isSubstitutionFailure()){
+        addSubstitutionDiagnostic(Record,
+                                  NestedReq->getSubstitutionDiagnostic());
+      } else {
+        Record.AddStmt(NestedReq->Value.get<Expr *>());
+        if (!NestedReq->isDependent())
+          addConstraintSatisfaction(Record, *NestedReq->Satisfaction);
+      }
+    }
+  }
+  Record.AddSourceLocation(E->getEndLoc());
+
+  Code = serialization::EXPR_REQUIRES;
 }
 
 
@@ -1978,9 +2056,8 @@ void ASTStmtWriter::VisitSEHLeaveStmt(SEHLeaveStmt *S) {
 void ASTStmtWriter::VisitOMPExecutableDirective(OMPExecutableDirective *E) {
   Record.AddSourceLocation(E->getBeginLoc());
   Record.AddSourceLocation(E->getEndLoc());
-  OMPClauseWriter ClauseWriter(Record);
   for (unsigned i = 0; i < E->getNumClauses(); ++i) {
-    ClauseWriter.writeClause(E->getClause(i));
+    Record.writeOMPClause(E->getClause(i));
   }
   if (E->hasAssociatedStmt())
     Record.AddStmt(E->getAssociatedStmt());

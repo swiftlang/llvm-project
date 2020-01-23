@@ -2584,7 +2584,7 @@ static void emitGlobalDtorWithCXAAtExit(CodeGenFunction &CGF,
 }
 
 void CodeGenModule::registerGlobalDtorsWithAtExit() {
-  for (const auto I : DtorsUsingAtExit) {
+  for (const auto &I : DtorsUsingAtExit) {
     int Priority = I.first;
     const llvm::TinyPtrVector<llvm::Function *> &Dtors = I.second;
 
@@ -2706,6 +2706,9 @@ ItaniumCXXABI::getOrCreateThreadLocalWrapper(const VarDecl *VD,
   llvm::Function *Wrapper =
       llvm::Function::Create(FnTy, getThreadLocalWrapperLinkage(VD, CGM),
                              WrapperName.str(), &CGM.getModule());
+
+  if (CGM.supportsCOMDAT() && Wrapper->isWeakForLinker())
+    Wrapper->setComdat(CGM.getModule().getOrInsertComdat(Wrapper->getName()));
 
   CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, Wrapper);
 
@@ -2845,7 +2848,9 @@ void ItaniumCXXABI::EmitThreadLocalInitFuncs(
 
     if (Init) {
       Init->setVisibility(Var->getVisibility());
-      Init->setDSOLocal(Var->isDSOLocal());
+      // Don't mark an extern_weak function DSO local on windows.
+      if (!CGM.getTriple().isOSWindows() || !Init->hasExternalWeakLinkage())
+        Init->setDSOLocal(Var->isDSOLocal());
     }
 
     llvm::LLVMContext &Context = CGM.getModule().getContext();

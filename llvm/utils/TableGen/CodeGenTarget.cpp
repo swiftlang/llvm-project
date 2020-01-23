@@ -260,7 +260,7 @@ Record *CodeGenTarget::getAsmParser() const {
   return LI[AsmParserNum];
 }
 
-/// getAsmParserVariant - Return the AssmblyParserVariant definition for
+/// getAsmParserVariant - Return the AssemblyParserVariant definition for
 /// this target.
 ///
 Record *CodeGenTarget::getAsmParserVariant(unsigned i) const {
@@ -272,7 +272,7 @@ Record *CodeGenTarget::getAsmParserVariant(unsigned i) const {
   return LI[i];
 }
 
-/// getAsmParserVariantCount - Return the AssmblyParserVariant definition
+/// getAsmParserVariantCount - Return the AssemblyParserVariant definition
 /// available for this target.
 ///
 unsigned CodeGenTarget::getAsmParserVariantCount() const {
@@ -816,4 +816,10 @@ bool CodeGenIntrinsic::isParamAPointer(unsigned ParamIdx) const {
     return false;
   MVT ParamType = MVT(IS.ParamVTs[ParamIdx]);
   return ParamType == MVT::iPTR || ParamType == MVT::iPTRAny;
+}
+
+bool CodeGenIntrinsic::isParamImmArg(unsigned ParamIdx) const {
+  std::pair<unsigned, ArgAttribute> Val = {ParamIdx, ImmArg};
+  return std::binary_search(ArgumentAttributes.begin(),
+                            ArgumentAttributes.end(), Val);
 }

@@ -306,7 +306,7 @@ Compiled to LLVM, this function would be represented like this:
   ; Function Attrs: nounwind readnone
   declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-  attributes #0 = { nounwind ssp uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+  attributes #0 = { nounwind ssp uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
   attributes #1 = { nounwind readnone }
 
   !llvm.dbg.cu = !{!0}
@@ -471,7 +471,7 @@ perhaps, be optimized into the following code:
   }
 
 What ``llvm.dbg.value`` intrinsics should be placed to represent the original variable
-locations in this code? Unfortunately the the second, third and fourth
+locations in this code? Unfortunately the second, third and fourth
 dbg.values for ``!1`` in the source function have had their operands
 (%tval, %fval, %merge) optimized out. Assuming we cannot recover them, we
 might consider this placement of dbg.values:
@@ -1006,13 +1006,13 @@ Given a class declaration with copy constructor declared as deleted:
      foo(const foo&) = deleted;
   };
 
-A C++ frontend would generate follwing:
+A C++ frontend would generate following:
 
 .. code-block:: text
 
   !17 = !DISubprogram(name: "foo", scope: !11, file: !1, line: 5, type: !18, scopeLine: 5, flags: DIFlagPublic | DIFlagPrototyped, spFlags: DISPFlagDeleted)
 
-and this will produce an additional DWARF attibute as:
+and this will produce an additional DWARF attribute as:
 
 .. code-block:: text
 
@@ -2107,7 +2107,7 @@ The most straightforward way to use ``debugify`` is as follows::
 This will inject synthetic DI to ``sample.ll`` run the ``pass-to-test``
 and then check for missing DI.
 
-Some other ways to run debugify are avaliable:
+Some other ways to run debugify are available:
 
 .. code-block:: bash
 

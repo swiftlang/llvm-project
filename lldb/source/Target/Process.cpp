@@ -137,18 +137,11 @@ ProcessProperties::ProcessProperties(lldb_private::Process *process)
         Process::GetGlobalProperties().get());
     m_collection_sp->SetValueChangedCallback(
         ePropertyPythonOSPluginPath,
-        ProcessProperties::OptionValueChangedCallback, this);
+        [this] { m_process->LoadOperatingSystemPlugin(true); });
   }
 }
 
 ProcessProperties::~ProcessProperties() = default;
-
-void ProcessProperties::OptionValueChangedCallback(void *baton,
-                                                   OptionValue *option_value) {
-  ProcessProperties *properties = (ProcessProperties *)baton;
-  if (properties->m_process)
-    properties->m_process->LoadOperatingSystemPlugin(true);
-}
 
 bool ProcessProperties::GetDisableMemoryCache() const {
   const uint32_t idx = ePropertyDisableMemCache;
@@ -4467,7 +4460,8 @@ bool Process::PushProcessIOHandler() {
     // existing IOHandler that potentially provides the user interface (e.g.
     // the IOHandler for Editline).
     bool cancel_top_handler = !m_mod_id.IsRunningUtilityFunction();
-    GetTarget().GetDebugger().PushIOHandler(io_handler_sp, cancel_top_handler);
+    GetTarget().GetDebugger().RunIOHandlerAsync(io_handler_sp,
+                                                cancel_top_handler);
     return true;
   }
   return false;
@@ -4476,7 +4470,7 @@ bool Process::PushProcessIOHandler() {
 bool Process::PopProcessIOHandler() {
   IOHandlerSP io_handler_sp(m_process_input_reader);
   if (io_handler_sp)
-    return GetTarget().GetDebugger().PopIOHandler(io_handler_sp);
+    return GetTarget().GetDebugger().RemoveIOHandler(io_handler_sp);
   return false;
 }
 
@@ -5800,7 +5794,8 @@ Process::AdvanceAddressToNextBranchInstruction(Address default_stop_addr,
 
   uint32_t branch_index =
       insn_list->GetIndexOfNextBranchInstruction(insn_offset, target,
-                                                 false /* ignore_calls*/);
+                                                 false /* ignore_calls*/,
+                                                 nullptr);
   if (branch_index == UINT32_MAX) {
     return retval;
   }

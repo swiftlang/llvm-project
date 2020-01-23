@@ -157,7 +157,7 @@ static void indexPreprocessorMacros(const Preprocessor &PP,
                                     IndexDataConsumer &DataConsumer) {
   for (const auto &M : PP.macros())
     if (MacroDirective *MD = M.second.getLatest())
-      DataConsumer.handleMacroOccurence(
+      DataConsumer.handleMacroOccurrence(
           M.first, MD->getMacroInfo(),
           static_cast<unsigned>(index::SymbolRole::Definition),
           MD->getLocation());
@@ -245,9 +245,9 @@ public:
   bool record_empty() const { return RecordByFile.empty(); }
 
 private:
-  bool handleDeclOccurence(const Decl *D, SymbolRoleSet Roles,
-                           ArrayRef<SymbolRelation> Relations,
-                           SourceLocation Loc, ASTNodeInfo ASTNode) override {
+  bool handleDeclOccurrence(const Decl *D, SymbolRoleSet Roles,
+                            ArrayRef<SymbolRelation> Relations,
+                            SourceLocation Loc, ASTNodeInfo ASTNode) override {
     SourceManager &SM = PP->getSourceManager();
     Loc = SM.getFileLoc(Loc);
     if (Loc.isInvalid())

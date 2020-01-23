@@ -218,7 +218,7 @@ def int_amdgcn_s_waitcnt : GCCBuiltin<"__builtin_amdgcn_s_waitcnt">,
 def int_amdgcn_div_scale : Intrinsic<
   // 1st parameter: Numerator
   // 2nd parameter: Denominator
-  // 3rd parameter: Constant to select select between first and
+  // 3rd parameter: Constant to select between first and
   //                second. (0 = first, 1 = second).
   [llvm_anyfloat_ty, llvm_i1_ty],
   [LLVMMatchType<0>, LLVMMatchType<0>, llvm_i1_ty],
@@ -1156,7 +1156,7 @@ def int_amdgcn_exp : Intrinsic <[], [
   llvm_i1_ty,        // done
   llvm_i1_ty         // vm
   ],
-  [ImmArg<0>, ImmArg<1>, ImmArg<6>, ImmArg<7>, IntrInaccessibleMemOnly]
+  [ImmArg<0>, ImmArg<1>, ImmArg<6>, ImmArg<7>, IntrWriteMem, IntrInaccessibleMemOnly]
 >;
 
 // exp with compr bit set.
@@ -1167,7 +1167,7 @@ def int_amdgcn_exp_compr : Intrinsic <[], [
   LLVMMatchType<0>,  // src1
   llvm_i1_ty,        // done
   llvm_i1_ty],       // vm
-  [ImmArg<0>, ImmArg<1>, ImmArg<4>, ImmArg<5>, IntrInaccessibleMemOnly]
+  [ImmArg<0>, ImmArg<1>, ImmArg<4>, ImmArg<5>, IntrWriteMem, IntrInaccessibleMemOnly]
 >;
 
 def int_amdgcn_buffer_wbinvl1_sc :
@@ -1223,7 +1223,7 @@ def int_amdgcn_interp_mov :
   GCCBuiltin<"__builtin_amdgcn_interp_mov">,
   Intrinsic<[llvm_float_ty],
             [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
-            [IntrNoMem, IntrSpeculatable, ImmArg<1>, ImmArg<2>]>;
+            [IntrNoMem, IntrSpeculatable, ImmArg<0>, ImmArg<1>, ImmArg<2>]>;
 
 // __builtin_amdgcn_interp_p1 <i>, <attr_chan>, <attr>, <m0>
 // This intrinsic reads from lds, but the memory values are constant,

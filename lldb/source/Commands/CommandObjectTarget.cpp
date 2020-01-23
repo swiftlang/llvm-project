@@ -24,7 +24,6 @@
 #include "lldb/Interpreter/OptionGroupBoolean.h"
 #include "lldb/Interpreter/OptionGroupFile.h"
 #include "lldb/Interpreter/OptionGroupFormat.h"
-#include "lldb/Interpreter/OptionGroupPlatform.h"
 #include "lldb/Interpreter/OptionGroupString.h"
 #include "lldb/Interpreter/OptionGroupUInt64.h"
 #include "lldb/Interpreter/OptionGroupUUID.h"
@@ -53,7 +52,6 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
 
-#include <cerrno>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -4688,12 +4686,8 @@ protected:
                                      new_hook_sp->GetID());
     } else {
       m_stop_hook_sp = new_hook_sp;
-      m_interpreter.GetLLDBCommandsFromIOHandler(
-          "> ",     // Prompt
-          *this,    // IOHandlerDelegate
-          true,     // Run IOHandler in async mode
-          nullptr); // Baton for the "io_handler" that will be passed back
-                    // into our IOHandlerDelegate functions
+      m_interpreter.GetLLDBCommandsFromIOHandler("> ",   // Prompt
+                                                 *this); // IOHandlerDelegate
     }
     result.SetStatus(eReturnStatusSuccessFinishNoResult);
 

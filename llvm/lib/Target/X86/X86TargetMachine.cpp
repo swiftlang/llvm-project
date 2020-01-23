@@ -61,7 +61,7 @@ static cl::opt<bool> EnableCondBrFoldingPass("x86-condbr-folding",
                                         "folding pass"),
                                cl::init(false), cl::Hidden);
 
-extern "C" void LLVMInitializeX86Target() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   // Register the target.
   RegisterTargetMachine<X86TargetMachine> X(getTheX86_32Target());
   RegisterTargetMachine<X86TargetMachine> Y(getTheX86_64Target());
@@ -230,9 +230,7 @@ X86TargetMachine::X86TargetMachine(const Target &T, const Triple &TT,
     this->Options.NoTrapAfterNoreturn = TT.isOSBinFormatMachO();
   }
 
-  // Outlining is available for x86-64.
-  if (TT.getArch() == Triple::x86_64)
-    setMachineOutliner(true);
+  setMachineOutliner(true);
 
   initAsmInfo();
 }
@@ -521,6 +519,7 @@ void X86PassConfig::addPreEmitPass() {
   }
   addPass(createX86DiscriminateMemOpsPass());
   addPass(createX86InsertPrefetchPass());
+  addPass(createX86InsertX87waitPass());
 }
 
 void X86PassConfig::addPreEmitPass2() {

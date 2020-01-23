@@ -377,6 +377,18 @@ static Value *isOneOf(const InstructionsState &S, Value *Op) {
   return S.OpValue;
 }
 
+/// \returns true if \p Opcode is allowed as part of of the main/alternate
+/// instruction for SLP vectorization.
+///
+/// Example of unsupported opcode is SDIV that can potentially cause UB if the
+/// "shuffled out" lane would result in division by zero.
+static bool isValidForAlternation(unsigned Opcode) {
+  if (Instruction::isIntDivRem(Opcode))
+    return false;
+
+  return true;
+}
+
 /// \returns analysis of the Instructions in \p VL described in
 /// InstructionsState, the Opcode that we suppose the whole list
 /// could be vectorized even if its structure is diverse.
@@ -399,7 +411,8 @@ static InstructionsState getSameOpcode(ArrayRef<Value *> VL,
     if (IsBinOp && isa<BinaryOperator>(VL[Cnt])) {
       if (InstOpcode == Opcode || InstOpcode == AltOpcode)
         continue;
-      if (Opcode == AltOpcode) {
+      if (Opcode == AltOpcode && isValidForAlternation(InstOpcode) &&
+          isValidForAlternation(Opcode)) {
         AltOpcode = InstOpcode;
         AltIndex = Cnt;
         continue;
@@ -411,6 +424,9 @@ static InstructionsState getSameOpcode(ArrayRef<Value *> VL,
         if (InstOpcode == Opcode || InstOpcode == AltOpcode)
           continue;
         if (Opcode == AltOpcode) {
+          assert(isValidForAlternation(Opcode) &&
+                 isValidForAlternation(InstOpcode) &&
+                 "Cast isn't safe for alternation, logic needs to be updated!");
           AltOpcode = InstOpcode;
           AltIndex = Cnt;
           continue;
@@ -1432,7 +1448,8 @@ private:
     Value *VectorizedValue = nullptr;
 
     /// Do we need to gather this sequence ?
-    bool NeedToGather = false;
+    enum EntryState { Vectorize, NeedToGather };
+    EntryState State;
 
     /// Does this sequence require some shuffling?
     SmallVector<unsigned, 4> ReuseShuffleIndices;
@@ -1574,7 +1591,15 @@ private:
       dbgs() << "Scalars: \n";
       for (Value *V : Scalars)
         dbgs().indent(2) << *V << "\n";
-      dbgs() << "NeedToGather: " << NeedToGather << "\n";
+      dbgs() << "State: ";
+      switch (State) {
+      case Vectorize:
+        dbgs() << "Vectorize\n";
+        break;
+      case NeedToGather:
+        dbgs() << "NeedToGather\n";
+        break;
+      }
       dbgs() << "MainOp: ";
       if (MainOp)
         dbgs() << *MainOp << "\n";
@@ -1620,7 +1645,7 @@ private:
     TreeEntry *Last = VectorizableTree.back().get();
     Last->Idx = VectorizableTree.size() - 1;
     Last->Scalars.insert(Last->Scalars.begin(), VL.begin(), VL.end());
-    Last->NeedToGather = !Vectorized;
+    Last->State = Vectorized ? TreeEntry::Vectorize : TreeEntry::NeedToGather;
     Last->ReuseShuffleIndices.append(ReuseShuffleIndices.begin(),
                                      ReuseShuffleIndices.end());
     Last->ReorderIndices = ReorderIndices;
@@ -2291,7 +2316,7 @@ template <> struct DOTGraphTraits<BoUpSLP *> : public DefaultDOTGraphTraits {
 
   static std::string getNodeAttributes(const TreeEntry *Entry,
                                        const BoUpSLP *) {
-    if (Entry->NeedToGather)
+    if (Entry->State == TreeEntry::NeedToGather)
       return "color=red";
     return "";
   }
@@ -2343,7 +2368,7 @@ void BoUpSLP::buildTree(ArrayRef<Value *> Roots,
     TreeEntry *Entry = TEPtr.get();
 
     // No need to handle users of gathered values.
-    if (Entry->NeedToGather)
+    if (Entry->State == TreeEntry::NeedToGather)
       continue;
 
     // For each lane:
@@ -2380,7 +2405,7 @@ void BoUpSLP::buildTree(ArrayRef<Value *> Roots,
               !InTreeUserNeedToExtract(Scalar, UserInst, TLI)) {
             LLVM_DEBUG(dbgs() << "SLP: \tInternal user will be removed:" << *U
                               << ".\n");
-            assert(!UseEntry->NeedToGather && "Bad state");
+            assert(UseEntry->State != TreeEntry::NeedToGather && "Bad state");
             continue;
           }
         }
@@ -3212,7 +3237,7 @@ int BoUpSLP::getEntryCost(TreeEntry *E) {
     ReuseShuffleCost =
         TTI->getShuffleCost(TargetTransformInfo::SK_PermuteSingleSrc, VecTy);
   }
-  if (E->NeedToGather) {
+  if (E->State == TreeEntry::NeedToGather) {
     if (allConstant(VL))
       return 0;
     if (isSplat(VL)) {
@@ -3280,7 +3305,7 @@ int BoUpSLP::getEntryCost(TreeEntry *E) {
               TTI->getVectorInstrCost(Instruction::ExtractElement, VecTy, Idx);
         }
       }
-      if (!E->NeedToGather) {
+      if (E->State == TreeEntry::Vectorize) {
         int DeadCost = ReuseShuffleCost;
         if (!E->ReorderIndices.empty()) {
           // TODO: Merge this shuffle with the ReuseShuffleCost.
@@ -3566,20 +3591,22 @@ bool BoUpSLP::isFullyVectorizableTinyTree() const {
                     << VectorizableTree.size() << " is fully vectorizable .\n");
 
   // We only handle trees of heights 1 and 2.
-  if (VectorizableTree.size() == 1 && !VectorizableTree[0]->NeedToGather)
+  if (VectorizableTree.size() == 1 &&
+      VectorizableTree[0]->State == TreeEntry::Vectorize)
     return true;
 
   if (VectorizableTree.size() != 2)
     return false;
 
   // Handle splat and all-constants stores.
-  if (!VectorizableTree[0]->NeedToGather &&
+  if (VectorizableTree[0]->State == TreeEntry::Vectorize &&
       (allConstant(VectorizableTree[1]->Scalars) ||
        isSplat(VectorizableTree[1]->Scalars)))
     return true;
 
   // Gathering cost would be too much for tiny trees.
-  if (VectorizableTree[0]->NeedToGather || VectorizableTree[1]->NeedToGather)
+  if (VectorizableTree[0]->State == TreeEntry::NeedToGather ||
+      VectorizableTree[1]->State == TreeEntry::NeedToGather)
     return false;
 
   return true;
@@ -3733,12 +3760,13 @@ int BoUpSLP::getTreeCost() {
     // their uses. Since such an approach results in fewer total entries,
     // existing heuristics based on tree size may yield different results.
     //
-    if (TE.NeedToGather &&
-        std::any_of(
-            std::next(VectorizableTree.begin(), I + 1), VectorizableTree.end(),
-            [TE](const std::unique_ptr<TreeEntry> &EntryPtr) {
-              return EntryPtr->NeedToGather && EntryPtr->isSame(TE.Scalars);
-            }))
+    if (TE.State == TreeEntry::NeedToGather &&
+        std::any_of(std::next(VectorizableTree.begin(), I + 1),
+                    VectorizableTree.end(),
+                    [TE](const std::unique_ptr<TreeEntry> &EntryPtr) {
+                      return EntryPtr->State == TreeEntry::NeedToGather &&
+                             EntryPtr->isSame(TE.Scalars);
+                    }))
       continue;
 
     int C = getEntryCost(&TE);
@@ -4029,7 +4057,7 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
 
   bool NeedToShuffleReuses = !E->ReuseShuffleIndices.empty();
 
-  if (E->NeedToGather) {
+  if (E->State == TreeEntry::NeedToGather) {
     setInsertPointAfterBundle(E);
     auto *V = Gather(E->Scalars, VecTy);
     if (NeedToShuffleReuses) {
@@ -4084,7 +4112,7 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
     }
 
     case Instruction::ExtractElement: {
-      if (!E->NeedToGather) {
+      if (E->State == TreeEntry::Vectorize) {
         Value *V = E->getSingleOperand(0);
         if (!E->ReorderIndices.empty()) {
           OrdersType Mask;
@@ -4117,12 +4145,12 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       return V;
     }
     case Instruction::ExtractValue: {
-      if (!E->NeedToGather) {
+      if (E->State == TreeEntry::Vectorize) {
         LoadInst *LI = cast<LoadInst>(E->getSingleOperand(0));
         Builder.SetInsertPoint(LI);
         PointerType *PtrTy = PointerType::get(VecTy, LI->getPointerAddressSpace());
         Value *Ptr = Builder.CreateBitCast(LI->getOperand(0), PtrTy);
-        LoadInst *V = Builder.CreateAlignedLoad(VecTy, Ptr, LI->getAlignment());
+        LoadInst *V = Builder.CreateAlignedLoad(VecTy, Ptr, LI->getAlign());
         Value *NewV = propagateMetadata(V, E->Scalars);
         if (!E->ReorderIndices.empty()) {
           OrdersType Mask;
@@ -4603,7 +4631,7 @@ BoUpSLP::vectorizeTree(ExtraValueToDebugLocsMap &ExternallyUsedValues) {
       continue;
     TreeEntry *E = getTreeEntry(Scalar);
     assert(E && "Invalid scalar");
-    assert(!E->NeedToGather && "Extracting from a gather list");
+    assert(E->State == TreeEntry::Vectorize && "Extracting from a gather list");
 
     Value *Vec = E->VectorizedValue;
     assert(Vec && "Can't find vectorizable value");
@@ -4676,7 +4704,7 @@ BoUpSLP::vectorizeTree(ExtraValueToDebugLocsMap &ExternallyUsedValues) {
     TreeEntry *Entry = TEPtr.get();
 
     // No need to handle users of gathered values.
-    if (Entry->NeedToGather)
+    if (Entry->State == TreeEntry::NeedToGather)
       continue;
 
     assert(Entry->VectorizedValue && "Can't find vectorizable value");

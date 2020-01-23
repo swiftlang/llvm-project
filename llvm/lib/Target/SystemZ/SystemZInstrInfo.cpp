@@ -532,8 +532,9 @@ bool SystemZInstrInfo::analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
 
 bool SystemZInstrInfo::canInsertSelect(const MachineBasicBlock &MBB,
                                        ArrayRef<MachineOperand> Pred,
-                                       unsigned TrueReg, unsigned FalseReg,
-                                       int &CondCycles, int &TrueCycles,
+                                       unsigned DstReg, unsigned TrueReg,
+                                       unsigned FalseReg, int &CondCycles,
+                                       int &TrueCycles,
                                        int &FalseCycles) const {
   // Not all subtargets have LOCR instructions.
   if (!STI.hasLoadStoreOnCond())
@@ -945,6 +946,12 @@ static void transferDeadCC(MachineInstr *OldMI, MachineInstr *NewMI) {
   }
 }
 
+static void transferMIFlag(MachineInstr *OldMI, MachineInstr *NewMI,
+                           MachineInstr::MIFlag Flag) {
+  if (OldMI->getFlag(Flag))
+    NewMI->setFlag(Flag);
+}
+
 MachineInstr *SystemZInstrInfo::convertToThreeAddress(
     MachineFunction::iterator &MFI, MachineInstr &MI, LiveVariables *LV) const {
   MachineBasicBlock *MBB = MI.getParent();
@@ -1050,6 +1057,7 @@ MachineInstr *SystemZInstrInfo::foldMemoryOperandImpl(
             .addImm(0)
             .addImm(MI.getOperand(2).getImm());
     transferDeadCC(&MI, BuiltMI);
+    transferMIFlag(&MI, BuiltMI, MachineInstr::NoSWrap);
     return BuiltMI;
   }
 
@@ -1200,6 +1208,7 @@ MachineInstr *SystemZInstrInfo::foldMemoryOperandImpl(
       if (MemDesc.TSFlags & SystemZII::HasIndex)
         MIB.addReg(0);
       transferDeadCC(&MI, MIB);
+      transferMIFlag(&MI, MIB, MachineInstr::NoSWrap);
       return MIB;
     }
   }
@@ -1746,6 +1755,28 @@ void SystemZInstrInfo::loadImmediate(MachineBasicBlock &MBB,
     Opcode = SystemZ::LGFI;
   }
   BuildMI(MBB, MBBI, DL, get(Opcode), Reg).addImm(Value);
+}
+
+bool SystemZInstrInfo::verifyInstruction(const MachineInstr &MI,
+                                         StringRef &ErrInfo) const {
+  const MCInstrDesc &MCID = MI.getDesc();
+  for (unsigned I = 0, E = MI.getNumOperands(); I != E; ++I) {
+    if (I >= MCID.getNumOperands())
+      break;
+    const MachineOperand &Op = MI.getOperand(I);
+    const MCOperandInfo &MCOI = MCID.OpInfo[I];
+    // Addressing modes have register and immediate operands. Op should be a
+    // register (or frame index) operand if MCOI.RegClass contains a valid
+    // register class, or an immediate otherwise.
+    if (MCOI.OperandType == MCOI::OPERAND_MEMORY &&
+        ((MCOI.RegClass != -1 && !Op.isReg() && !Op.isFI()) ||
+         (MCOI.RegClass == -1 && !Op.isImm()))) {
+      ErrInfo = "Addressing mode operands corrupt!";
+      return false;
+    }
+  }
+
+  return true;
 }
 
 bool SystemZInstrInfo::

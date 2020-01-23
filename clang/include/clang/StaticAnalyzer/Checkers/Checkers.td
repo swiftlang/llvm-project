@@ -108,6 +108,8 @@ def CloneDetectionAlpha : Package<"clone">, ParentPackage<Alpha>;
 
 def NonDeterminismAlpha : Package<"nondeterminism">, ParentPackage<Alpha>;
 
+def Fuchsia : Package<"fuchsia">;
+
 //===----------------------------------------------------------------------===//
 // Core Checkers.
 //===----------------------------------------------------------------------===//
@@ -468,6 +470,12 @@ def NewDeleteLeaksChecker : Checker<"NewDeleteLeaks">,
   Dependencies<[NewDeleteChecker]>,
   Documentation<HasDocumentation>;
 
+def PlacementNewChecker : Checker<"PlacementNew">,
+  HelpText<"Check if default placement new is provided with pointers to "
+           "sufficient storage capacity">,
+  Dependencies<[NewDeleteChecker]>,
+  Documentation<HasDocumentation>;
+
 def CXXSelfAssignmentChecker : Checker<"SelfAssignment">,
   HelpText<"Checks C++ copy and move assignment operators for self assignment">,
   Documentation<NotDocumented>,
@@ -770,6 +778,11 @@ def DeprecatedOrUnsafeBufferHandling :
   Checker<"DeprecatedOrUnsafeBufferHandling">,
   HelpText<"Warn on uses of unsecure or deprecated buffer manipulating "
            "functions">,
+  Dependencies<[SecuritySyntaxChecker]>,
+  Documentation<HasDocumentation>;
+
+def decodeValueOfObjCType : Checker<"decodeValueOfObjCType">,
+  HelpText<"Warn on uses of the '-decodeValueOfObjCType:at:' method">,
   Dependencies<[SecuritySyntaxChecker]>,
   Documentation<HasDocumentation>;
 
@@ -1418,3 +1431,16 @@ def PointerSortingChecker : Checker<"PointerSorting">,
   Documentation<HasDocumentation>;
 
 } // end alpha.nondeterminism
+
+//===----------------------------------------------------------------------===//
+// Fuchsia checkers.
+//===----------------------------------------------------------------------===//
+
+let ParentPackage = Fuchsia in {
+
+def FuchsiaHandleChecker : Checker<"HandleChecker">,
+  HelpText<"A Checker that detect leaks related to Fuchsia handles">,
+  Documentation<HasDocumentation>;
+
+} // end fuchsia
+

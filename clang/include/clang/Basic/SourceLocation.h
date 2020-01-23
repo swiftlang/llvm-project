@@ -230,6 +230,11 @@ public:
     return B != X.B || E != X.E;
   }
 
+  // Returns true iff other is wholly contained within this range.
+  bool fullyContains(const SourceRange &other) const {
+    return B <= other.B && E >= other.E;
+  }
+
   void print(raw_ostream &OS, const SourceManager &SM) const;
   std::string printToString(const SourceManager &SM) const;
   void dump(const SourceManager &SM) const;
@@ -477,7 +482,7 @@ namespace llvm {
   // Teach SmallPtrSet how to handle SourceLocation.
   template<>
   struct PointerLikeTypeTraits<clang::SourceLocation> {
-    enum { NumLowBitsAvailable = 0 };
+    static constexpr int NumLowBitsAvailable = 0;
 
     static void *getAsVoidPointer(clang::SourceLocation L) {
       return L.getPtrEncoding();

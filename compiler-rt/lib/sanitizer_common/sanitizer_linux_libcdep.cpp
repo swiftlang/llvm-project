@@ -50,6 +50,7 @@
 #if SANITIZER_NETBSD
 #include <sys/sysctl.h>
 #include <sys/tls.h>
+#include <lwp.h>
 #endif
 
 #if SANITIZER_SOLARIS
@@ -399,13 +400,7 @@ uptr ThreadSelf() {
 
 #if SANITIZER_NETBSD
 static struct tls_tcb * ThreadSelfTlsTcb() {
-  struct tls_tcb * tcb;
-# ifdef __HAVE___LWP_GETTCB_FAST
-  tcb = (struct tls_tcb *)__lwp_gettcb_fast();
-# elif defined(__HAVE___LWP_GETPRIVATE_FAST)
-  tcb = (struct tls_tcb *)__lwp_getprivate_fast();
-# endif
-  return tcb;
+  return (struct tls_tcb *)_lwp_getprivate();
 }
 
 uptr ThreadSelf() {
@@ -624,6 +619,10 @@ class DynamicSegment {
     uint32_t last_symbol = 0;
     for (uint32_t i = 0; i < header->bucket_count; i++) {
       last_symbol = Max(buckets[i], last_symbol);
+    }
+
+    if (last_symbol < header->symoffset) {
+      return header->symoffset;
     }
 
     // Walk the bucket's chain to add the chain length to the total.

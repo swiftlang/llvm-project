@@ -79,9 +79,6 @@ namespace llvm {
       /// X86 compare and logical compare instructions.
       CMP, COMI, UCOMI,
 
-      /// X86 strict FP compare instructions.
-      STRICT_FCMP, STRICT_FCMPS,
-
       /// X86 bit-test instructions.
       BT,
 
@@ -601,6 +598,34 @@ namespace llvm {
       // For avx512-vp2intersect
       VP2INTERSECT,
 
+      /// X86 strict FP compare instructions.
+      STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
+      STRICT_FCMPS,
+
+      // Vector packed double/float comparison.
+      STRICT_CMPP,
+
+      /// Vector comparison generating mask bits for fp and
+      /// integer signed and unsigned data types.
+      STRICT_CMPM,
+
+      // Vector float/double to signed/unsigned integer with truncation.
+      STRICT_CVTTP2SI, STRICT_CVTTP2UI,
+
+      // Vector FP extend.
+      STRICT_VFPEXT,
+
+      // Vector FP round.
+      STRICT_VFPROUND,
+
+      // RndScale - Round FP Values To Include A Given Number Of Fraction Bits.
+      // Also used by the legacy (V)ROUND intrinsics where we mask out the
+      // scaling part of the immediate.
+      STRICT_VRNDSCALE,
+
+      // Vector signed/unsigned integer to float/double.
+      STRICT_CVTSI2P, STRICT_CVTUI2P,
+
       // Compare and swap.
       LCMPXCHG_DAG = ISD::FIRST_TARGET_MEMORY_OPCODE,
       LCMPXCHG8_DAG,
@@ -634,10 +659,9 @@ namespace llvm {
       /// This instruction implements SINT_TO_FP with the
       /// integer source in memory and FP reg result.  This corresponds to the
       /// X86::FILD*m instructions. It has two inputs (token chain and address)
-      /// and two outputs (FP value and token chain). FILD_FLAG also produces a
-      /// flag). The integer source type is specified by the memory VT.
+      /// and two outputs (FP value and token chain). The integer source type is
+      /// specified by the memory VT.
       FILD,
-      FILD_FLAG,
 
       /// This instruction implements a fp->int store from FP stack
       /// slots. This corresponds to the fist instruction. It takes a
@@ -972,9 +996,7 @@ namespace llvm {
 
     unsigned
     getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
-      if (ConstraintCode == "i")
-        return InlineAsm::Constraint_i;
-      else if (ConstraintCode == "o")
+      if (ConstraintCode == "o")
         return InlineAsm::Constraint_o;
       else if (ConstraintCode == "v")
         return InlineAsm::Constraint_v;
@@ -1166,7 +1188,7 @@ namespace llvm {
       return nullptr; // nothing to do, move along.
     }
 
-    Register getRegisterByName(const char* RegName, EVT VT,
+    Register getRegisterByName(const char* RegName, LLT VT,
                                const MachineFunction &MF) const override;
 
     /// If a physical register, this returns the register that receives the
@@ -1362,8 +1384,7 @@ namespace llvm {
     SDValue LowerINIT_TRAMPOLINE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFLT_ROUNDS_(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerWin64_i128OP(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerGC_TRANSITION_START(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerGC_TRANSITION_END(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerGC_TRANSITION(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerFaddFsub(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
@@ -1480,12 +1501,6 @@ namespace llvm {
 
     MachineBasicBlock *EmitSjLjDispatchBlock(MachineInstr &MI,
                                              MachineBasicBlock *MBB) const;
-
-    /// Emit nodes that will be selected as "cmp Op0,Op1", or something
-    /// equivalent, for use with the given x86 condition code.
-    SDValue EmitCmp(SDValue Op0, SDValue Op1, unsigned X86CC, const SDLoc &dl,
-                    SelectionDAG &DAG, SDValue Chain = SDValue(),
-                    bool IsSignaling = false) const;
 
     /// Convert a comparison if required by the subtarget.
     SDValue ConvertCmpIfNecessary(SDValue Cmp, SelectionDAG &DAG) const;
@@ -1668,6 +1683,21 @@ namespace llvm {
       int Pos = (i % NumEltsInLane) / 2 + LaneStart;
       Pos += (Unary ? 0 : NumElts * (i % 2));
       Pos += (Lo ? 0 : NumEltsInLane / 2);
+      Mask.push_back(Pos);
+    }
+  }
+
+  /// Similar to unpacklo/unpackhi, but without the 128-bit lane limitation
+  /// imposed by AVX and specific to the unary pattern. Example:
+  /// v8iX Lo --> <0, 0, 1, 1, 2, 2, 3, 3>
+  /// v8iX Hi --> <4, 4, 5, 5, 6, 6, 7, 7>
+  template <typename T = int>
+  void createSplat2ShuffleMask(MVT VT, SmallVectorImpl<T> &Mask, bool Lo) {
+    assert(Mask.empty() && "Expected an empty shuffle mask vector");
+    int NumElts = VT.getVectorNumElements();
+    for (int i = 0; i < NumElts; ++i) {
+      int Pos = i / 2;
+      Pos += (Lo ? 0 : NumElts / 2);
       Mask.push_back(Pos);
     }
   }
