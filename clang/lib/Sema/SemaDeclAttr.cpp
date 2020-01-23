@@ -1663,7 +1663,8 @@ void Sema::AddAllocAlignAttr(Decl *D, const AttributeCommonInfo &CI,
     return;
 
   QualType Ty = getFunctionOrMethodParamType(D, Idx.getASTIndex());
-  if (!Ty->isDependentType() && !Ty->isIntegralType(Context)) {
+  if (!Ty->isDependentType() && !Ty->isIntegralType(Context) &&
+      !Ty->isAlignValT()) {
     Diag(ParamExpr->getBeginLoc(), diag::err_attribute_integers_only)
         << &TmpAttr
         << FuncDecl->getParamDecl(Idx.getASTIndex())->getSourceRange();
@@ -3814,8 +3815,8 @@ void Sema::AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
       Context.getTargetInfo().getTriple().isOSBinFormatCOFF() ? 8192
                                                               : 268435456;
   if (AlignVal > MaxValidAlignment) {
-    Diag(AttrLoc, diag::err_attribute_aligned_too_great) << MaxValidAlignment
-                                                         << E->getSourceRange();
+    Diag(AttrLoc, diag::err_attribute_aligned_too_great)
+        << MaxValidAlignment << E->getSourceRange();
     return;
   }
 
