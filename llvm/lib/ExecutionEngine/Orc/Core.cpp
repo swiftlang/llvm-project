@@ -1790,7 +1790,7 @@ Error JITDylib::defineImpl(MaterializationUnit &MU) {
 
   // If there were any duplicate definitions then bail out.
   if (!Duplicates.empty())
-    return make_error<DuplicateDefinition>(**Duplicates.begin());
+    return make_error<DuplicateDefinition>(std::string(**Duplicates.begin()));
 
   // Discard any overridden defs in this MU.
   for (auto &S : MUDefsOverridden)

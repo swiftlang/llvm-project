@@ -207,7 +207,7 @@ TEST(DiagnosticsTest, DeduplicatedClangTidyDiagnostics) {
       func(2.0);
     }
   )cpp");
-  TU.Code = Test.code();
+  TU.Code = std::string(Test.code());
   // The check doesn't handle template instantiations which ends up emitting
   // duplicated messages, verify that we deduplicate them.
   EXPECT_THAT(
@@ -430,7 +430,7 @@ TEST(DiagnosticsTest, ToLSP) {
   D.InsideMainFile = true;
   D.Severity = DiagnosticsEngine::Error;
   D.File = "foo/bar/main.cpp";
-  D.AbsFile = MainFile.file();
+  D.AbsFile = std::string(MainFile.file());
 
   clangd::Note NoteInMain;
   NoteInMain.Message = "declared somewhere in the main file";
@@ -438,7 +438,7 @@ TEST(DiagnosticsTest, ToLSP) {
   NoteInMain.Severity = DiagnosticsEngine::Remark;
   NoteInMain.File = "../foo/bar/main.cpp";
   NoteInMain.InsideMainFile = true;
-  NoteInMain.AbsFile = MainFile.file();
+  NoteInMain.AbsFile = std::string(MainFile.file());
 
   D.Notes.push_back(NoteInMain);
 
@@ -448,7 +448,7 @@ TEST(DiagnosticsTest, ToLSP) {
   NoteInHeader.Severity = DiagnosticsEngine::Note;
   NoteInHeader.File = "../foo/baz/header.h";
   NoteInHeader.InsideMainFile = false;
-  NoteInHeader.AbsFile = HeaderFile.file();
+  NoteInHeader.AbsFile = std::string(HeaderFile.file());
   D.Notes.push_back(NoteInHeader);
 
   clangd::Fix F;
@@ -735,7 +735,7 @@ $insert[[]]namespace ns {
 void g() {  ns::$[[scope]]::X_Y();  }
   )cpp");
   TestTU TU;
-  TU.Code = Test.code();
+  TU.Code = std::string(Test.code());
   // FIXME: Figure out why this is needed and remove it, PR43662.
   TU.ExtraArgs.push_back("-fno-ms-compatibility");
   auto Index = buildIndexWithSymbol(
@@ -761,7 +761,7 @@ void f() {
 }
   )cpp");
   TestTU TU;
-  TU.Code = Test.code();
+  TU.Code = std::string(Test.code());
   // FIXME: Figure out why this is needed and remove it, PR43662.
   TU.ExtraArgs.push_back("-fno-ms-compatibility");
   auto Index = buildIndexWithSymbol(

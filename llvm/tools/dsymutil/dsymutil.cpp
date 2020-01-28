@@ -305,9 +305,9 @@ static Error createPlistFile(StringRef Bin, StringRef BundleRoot,
   if (BI.IDStr.empty()) {
     StringRef BundleID = *sys::path::rbegin(BundleRoot);
     if (sys::path::extension(BundleRoot) == ".dSYM")
-      BI.IDStr = sys::path::stem(BundleID);
+      BI.IDStr = std::string(sys::path::stem(BundleID));
     else
-      BI.IDStr = BundleID;
+      BI.IDStr = std::string(BundleID);
   }
 
   // Print out information to the plist file.
@@ -411,7 +411,7 @@ getOutputFileName(StringRef InputFile, const DsymutilOptions &Options) {
   // When updating, do in place replacement.
   if (Options.OutputFile.empty() &&
       (Options.LinkOpts.Update || !Options.SymbolMap.empty()))
-    return OutputLocation(InputFile);
+    return OutputLocation(std::string(InputFile));
 
   // If a flat dSYM has been requested, things are pretty simple.
   if (Options.Flat) {
@@ -432,7 +432,8 @@ getOutputFileName(StringRef InputFile, const DsymutilOptions &Options) {
   //          Resources/
   //             DWARF/
   //                <DWARF file(s)>
-  std::string DwarfFile = InputFile == "-" ? StringRef("a.out") : InputFile;
+  std::string DwarfFile =
+      std::string(InputFile == "-" ? StringRef("a.out") : InputFile);
   SmallString<128> Path(Options.OutputFile);
   if (Path.empty())
     Path = DwarfFile + ".dSYM";
@@ -444,9 +445,9 @@ getOutputFileName(StringRef InputFile, const DsymutilOptions &Options) {
   }
 
   sys::path::append(Path, "Contents", "Resources");
-  std::string ResourceDir = Path.str();
+  std::string ResourceDir = std::string(Path.str());
   sys::path::append(Path, "DWARF", sys::path::filename(DwarfFile));
-  return OutputLocation(Path.str(), ResourceDir);
+  return OutputLocation(std::string(Path.str()), ResourceDir);
 }
 
 int main(int argc, char **argv) {
@@ -461,7 +462,7 @@ int main(int argc, char **argv) {
 
   void *P = (void *)(intptr_t)getOutputFileName;
   std::string SDKPath = sys::fs::getMainExecutable(argv[0], P);
-  SDKPath = sys::path::parent_path(SDKPath);
+  SDKPath = std::string(sys::path::parent_path(SDKPath));
 
   for (auto *Arg : Args.filtered(OPT_UNKNOWN)) {
     WithColor::warning() << "ignoring unknown option: " << Arg->getSpelling()

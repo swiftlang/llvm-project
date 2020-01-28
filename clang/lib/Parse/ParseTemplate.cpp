@@ -248,9 +248,9 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
   }
 
   llvm::TimeTraceScope TimeScope("ParseTemplate", [&]() {
-    return DeclaratorInfo.getIdentifier() != nullptr
-               ? DeclaratorInfo.getIdentifier()->getName()
-               : "<unknown>";
+    return std::string(DeclaratorInfo.getIdentifier() != nullptr
+                           ? DeclaratorInfo.getIdentifier()->getName()
+                           : "<unknown>");
   });
 
   LateParsedAttrList LateParsedAttrs(true);

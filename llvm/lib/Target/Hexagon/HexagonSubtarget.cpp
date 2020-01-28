@@ -75,7 +75,6 @@ static cl::opt<bool> EnableCheckBankConflict("hexagon-check-bank-conflict",
   cl::Hidden, cl::ZeroOrMore, cl::init(true),
   cl::desc("Enable checking for cache bank conflicts"));
 
-
 HexagonSubtarget::HexagonSubtarget(const Triple &TT, StringRef CPU,
                                    StringRef FS, const TargetMachine &TM)
     : HexagonGenSubtargetInfo(TT, CPU, FS), OptLevel(TM.getOptLevel()),

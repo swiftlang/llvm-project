@@ -1473,7 +1473,7 @@ static std::string quote(ArrayRef<StringRef> args) {
       a.split(s, '"');
       r.append(join(s, "\"\""));
     } else {
-      r.append(a);
+      r.append(std::string(a));
     }
     if (hasWS || hasQ)
       r.push_back('"');

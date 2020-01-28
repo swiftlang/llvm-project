@@ -1552,7 +1552,7 @@ TEST(IgnoringImplicit, MatchesImplicit) {
 }
 
 TEST(IgnoringImplicit, MatchesNestedImplicit) {
-  StringRef Code = R"(
+  const char *Code = R"(
 
 struct OtherType;
 
@@ -1597,7 +1597,7 @@ TEST(IgnoringImplicit, DoesNotMatchIncorrectly) {
 
 TEST(Traversal, traverseMatcher) {
 
-  StringRef VarDeclCode = R"cpp(
+  const char *VarDeclCode = R"cpp(
 void foo()
 {
   int i = 3.0;
@@ -1713,7 +1713,7 @@ void foo()
 template <typename MatcherT>
 bool matcherTemplateWithBinding(StringRef Code, const MatcherT &M) {
   return matchAndVerifyResultTrue(
-      Code, M.bind("matchedStmt"),
+      std::string(Code), M.bind("matchedStmt"),
       std::make_unique<VerifyIdIsBoundTo<ReturnStmt>>("matchedStmt", 1));
 }
 
@@ -1734,7 +1734,7 @@ int foo()
 
 TEST(Traversal, traverseMatcherNesting) {
 
-  StringRef Code = R"cpp(
+  const char *Code = R"cpp(
 float bar(int i)
 {
   return i;
@@ -1755,7 +1755,7 @@ void foo()
 }
 
 TEST(Traversal, traverseMatcherThroughImplicit) {
-  StringRef Code = R"cpp(
+  const char *Code = R"cpp(
 struct S {
   S(int x);
 };
@@ -1775,7 +1775,7 @@ void constructImplicit() {
 
 TEST(Traversal, traverseMatcherThroughMemoization) {
 
-  StringRef Code = R"cpp(
+  const char *Code = R"cpp(
 void foo()
 {
   int i = 3.0;
@@ -1800,7 +1800,7 @@ void foo()
 
 TEST(Traversal, traverseUnlessSpelledInSource) {
 
-  StringRef Code = R"cpp(
+  const char *Code = R"cpp(
 
 struct A
 {

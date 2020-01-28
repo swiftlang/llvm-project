@@ -3661,7 +3661,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
     // Replace the original call result with the first result of the new call.
     Value *TSC = Builder.CreateExtractValue(NewCall, 0);
 
-    std::string Name = CI->getName();
+    std::string Name = std::string(CI->getName());
     if (!Name.empty()) {
       CI->setName(Name + ".old");
       NewCall->setName(Name);
@@ -3736,7 +3736,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
   }
   assert(NewCall && "Should have either set this variable or returned through "
                     "the default case");
-  std::string Name = CI->getName();
+  std::string Name = std::string(CI->getName());
   if (!Name.empty()) {
     CI->setName(Name + ".old");
     NewCall->setName(Name);
@@ -4078,7 +4078,7 @@ void llvm::UpgradeSectionAttributes(Module &M) {
     for (auto Component : Components)
       OS << ',' << Component.trim();
 
-    return OS.str().substr(1);
+    return std::string(OS.str().substr(1));
   };
 
   for (auto &GV : M.globals()) {
@@ -4164,12 +4164,12 @@ std::string llvm::UpgradeDataLayoutString(StringRef DL, StringRef TT) {
   // If X86, and the datalayout matches the expected format, add pointer size
   // address spaces to the datalayout.
   if (!Triple(TT).isX86() || DL.contains(AddrSpaces))
-    return DL;
+    return std::string(DL);
 
   SmallVector<StringRef, 4> Groups;
   Regex R("(e-m:[a-z](-p:32:32)?)(-[if]64:.*$)");
   if (!R.match(DL, &Groups))
-    return DL;
+    return std::string(DL);
 
   SmallString<1024> Buf;
   std::string Res = (Groups[1] + AddrSpaces + Groups[3]).toStringRef(Buf).str();

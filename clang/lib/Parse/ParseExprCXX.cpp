@@ -2302,7 +2302,7 @@ bool Parser::ParseUnqualifiedIdTemplateId(CXXScopeSpec &SS,
         // before 'getAs' and treat this as a dependent template name.
         std::string Name;
         if (Id.getKind() == UnqualifiedIdKind::IK_Identifier)
-          Name = Id.Identifier->getName();
+          Name = std::string(Id.Identifier->getName());
         else {
           Name = "operator ";
           if (Id.getKind() == UnqualifiedIdKind::IK_OperatorFunctionId)

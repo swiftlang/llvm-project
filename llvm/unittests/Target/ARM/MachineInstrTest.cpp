@@ -30,7 +30,7 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
       return false;
     case MVE_ASRLi:
     case MVE_ASRLr:
-    case MVE_LSRL:	
+    case MVE_LSRL:
     case MVE_SQRSHR:
     case MVE_SQSHL:
     case MVE_SRSHR:
@@ -41,7 +41,7 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VABDf32:
     case MVE_VABDs16:
     case MVE_VABDs32:
-    case MVE_VABDs8:	
+    case MVE_VABDs8:
     case MVE_VABDu16:
     case MVE_VABDu32:
     case MVE_VABDu8:
@@ -239,9 +239,9 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VLDRWU32_rq_u:
     case MVE_VMOVimmf32:
     case MVE_VMOVimmi16:
-    case MVE_VMOVimmi32:	
+    case MVE_VMOVimmi32:
     case MVE_VMOVimmi64:
-    case MVE_VMOVimmi8:	
+    case MVE_VMOVimmi8:
     case MVE_VMULLBp16:
     case MVE_VMULLBp8:
     case MVE_VMULLBs16:
@@ -257,7 +257,7 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VMULLTs8:
     case MVE_VMULLTu16:
     case MVE_VMULLTu32:
-    case MVE_VMULLTu8:	
+    case MVE_VMULLTu8:
     case MVE_VMUL_qr_f16:
     case MVE_VMUL_qr_f32:
     case MVE_VMUL_qr_i16:
@@ -286,7 +286,7 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VORRIZ8v8i16:
     case MVE_VPNOT:
     case MVE_VPSEL:
-    case MVE_VPST:	
+    case MVE_VPST:
     case MVE_VQABSs16:
     case MVE_VQABSs32:
     case MVE_VQABSs8:
@@ -362,7 +362,7 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VRHADDs32:
     case MVE_VRHADDs8:
     case MVE_VRHADDu16:
-    case MVE_VRHADDu32:	
+    case MVE_VRHADDu32:
     case MVE_VRHADDu8:
     case MVE_VRINTf16A:
     case MVE_VRINTf16M:
@@ -373,12 +373,12 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VRINTf32A:
     case MVE_VRINTf32M:
     case MVE_VRINTf32N:
-    case MVE_VRINTf32P:	
-    case MVE_VRINTf32X:	
+    case MVE_VRINTf32P:
+    case MVE_VRINTf32X:
     case MVE_VRINTf32Z:
     case MVE_VRSHL_by_vecs16:
     case MVE_VRSHL_by_vecs32:
-    case MVE_VRSHL_by_vecs8:	
+    case MVE_VRSHL_by_vecs8:
     case MVE_VRSHL_by_vecu16:
     case MVE_VRSHL_by_vecu32:
     case MVE_VRSHL_by_vecu8:
@@ -427,7 +427,7 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VSTRB16_rq:
     case MVE_VSTRB32:
     case MVE_VSTRB32_post:
-    case MVE_VSTRB32_pre:	
+    case MVE_VSTRB32_pre:
     case MVE_VSTRB32_rq:
     case MVE_VSTRB8_rq:
     case MVE_VSTRBU8:
@@ -485,9 +485,9 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     static_cast<LLVMTargetMachine*>(
       T->createTargetMachine(TT, "generic", "", Options, None, None,
                              CodeGenOpt::Default)));
-  ARMSubtarget ST(TM->getTargetTriple(), TM->getTargetCPU(),
-                  TM->getTargetFeatureString(),
-                  *static_cast<const ARMBaseTargetMachine*>(TM.get()), false);
+  ARMSubtarget ST(TM->getTargetTriple(), std::string(TM->getTargetCPU()),
+                  std::string(TM->getTargetFeatureString()),
+                  *static_cast<const ARMBaseTargetMachine *>(TM.get()), false);
   const ARMBaseInstrInfo *TII = ST.getInstrInfo();
   auto MII = TM->getMCInstrInfo();
 

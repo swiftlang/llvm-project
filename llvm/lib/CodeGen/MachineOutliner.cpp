@@ -1379,7 +1379,7 @@ void MachineOutliner::emitInstrCountChangedRemark(
     if (!MF)
       continue;
 
-    std::string Fname = F.getName();
+    std::string Fname = std::string(F.getName());
     unsigned FnCountAfter = MF->getInstructionCount();
     unsigned FnCountBefore = 0;
 

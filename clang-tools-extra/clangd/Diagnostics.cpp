@@ -152,8 +152,8 @@ bool adjustDiagFromHeader(Diag &D, const clang::Diagnostic &Info,
   const auto *FE = SM.getFileEntryForID(SM.getFileID(DiagLoc));
   D.Notes.emplace_back();
   Note &N = D.Notes.back();
-  N.AbsFile = FE->tryGetRealPathName();
-  N.File = FE->getName();
+  N.AbsFile = std::string(FE->tryGetRealPathName());
+  N.File = std::string(FE->getName());
   N.Message = "error occurred here";
   N.Range = diagnosticRange(Info, LangOpts);
 
@@ -318,7 +318,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Diag &D) {
 CodeAction toCodeAction(const Fix &F, const URIForFile &File) {
   CodeAction Action;
   Action.title = F.Message;
-  Action.kind = CodeAction::QUICKFIX_KIND;
+  Action.kind = std::string(CodeAction::QUICKFIX_KIND);
   Action.edit.emplace();
   Action.edit->changes.emplace();
   (*Action.edit->changes)[File.uri()] = {F.Edits.begin(), F.Edits.end()};
@@ -418,7 +418,7 @@ std::vector<Diag> StoreDiags::take(const clang::tidy::ClangTidyContext *Tidy) {
         // Almost always an error, with a name like err_enum_class_reference.
         // Drop the err_ prefix for brevity.
         Name.consume_front("err_");
-        Diag.Name = Name;
+        Diag.Name = std::string(Name);
       }
       Diag.Source = Diag::Clang;
       continue;
@@ -488,7 +488,7 @@ static void fillNonLocationData(DiagnosticsEngine::Level DiagLevel,
   llvm::SmallString<64> Message;
   Info.FormatDiagnostic(Message);
 
-  D.Message = Message.str();
+  D.Message = std::string(Message.str());
   D.Severity = DiagLevel;
   D.Category = DiagnosticIDs::getCategoryNameFromID(
                    DiagnosticIDs::getCategoryNumberForDiag(Info.getID()))
@@ -532,7 +532,7 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
 
     D.InsideMainFile = InsideMainFile;
     D.Range = diagnosticRange(Info, *LangOpts);
-    D.File = SM.getFilename(Info.getLocation());
+    D.File = std::string(SM.getFilename(Info.getLocation()));
     D.AbsFile = getCanonicalPath(
         SM.getFileEntryForID(SM.getFileID(Info.getLocation())), SM);
     return D;
@@ -587,7 +587,8 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
     }
     if (Message.empty()) // either !SytheticMessage, or we failed to make one.
       Info.FormatDiagnostic(Message);
-    LastDiag->Fixes.push_back(Fix{Message.str(), std::move(Edits)});
+    LastDiag->Fixes.push_back(
+        Fix{std::string(Message.str()), std::move(Edits)});
     return true;
   };
 

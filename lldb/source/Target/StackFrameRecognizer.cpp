@@ -76,9 +76,9 @@ public:
         std::string symbol_name;
 
         if (entry.module_regexp)
-          module_name = entry.module_regexp->GetText().str();
+          module_name = std::string(entry.module_regexp->GetText().str());
         if (entry.symbol_regexp)
-          symbol_name = entry.symbol_regexp->GetText().str();
+          symbol_name = std::string(entry.symbol_regexp->GetText().str());
 
         callback(entry.recognizer_id, entry.recognizer->GetName(), module_name,
                  llvm::makeArrayRef(ConstString(symbol_name)), true);

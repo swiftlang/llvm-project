@@ -263,9 +263,7 @@ namespace llvm {
     /// @name Type Conversions
     /// @{
 
-    operator std::string() const {
-      return str();
-    }
+    operator std::string() const { return str(); }
 
     /// @}
     /// @name String Predicates

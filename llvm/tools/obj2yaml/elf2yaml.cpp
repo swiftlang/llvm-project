@@ -113,7 +113,7 @@ ELFDumper<ELFT>::getUniquedSectionName(const Elf_Shdr *Sec) {
   if (!It.second)
     Ret = (Name + " [" + Twine(++It.first->second) + "]").str();
   else
-    Ret = Name;
+    Ret = std::string(Name);
   return Ret;
 }
 
@@ -145,7 +145,7 @@ ELFDumper<ELFT>::getUniquedSymbolName(const Elf_Sym *Sym, StringRef StrTable,
       SymbolNames[Index] =
           (Name + " [" + Twine(++It.first->second) + "]").str();
     else
-      SymbolNames[Index] = Name;
+      SymbolNames[Index] = std::string(Name);
     return SymbolNames[Index];
   }
 

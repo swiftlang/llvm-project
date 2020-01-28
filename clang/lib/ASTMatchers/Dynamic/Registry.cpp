@@ -649,7 +649,7 @@ Registry::getMatcherCompletions(ArrayRef<ArgKind> AcceptedTypes) {
         OS << "...";
       OS << ")";
 
-      std::string TypedText = Name;
+      std::string TypedText = std::string(Name);
       TypedText += "(";
       if (ArgsKinds.empty())
         TypedText += ")";

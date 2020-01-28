@@ -7352,7 +7352,7 @@ static void DisassembleMachO(StringRef Filename, MachOObjectFile *MachOOF,
         SmallString<1024> FullPath(DSYMPath);
         llvm::sys::path::append(FullPath, "Contents", "Resources", "DWARF",
                                 ShortName);
-        DSYMPath = FullPath.str();
+        DSYMPath = std::string(FullPath.str());
       }
 
       // Load the file.

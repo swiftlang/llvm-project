@@ -326,7 +326,7 @@ namespace {
 std::pair<std::string, std::string> selectCPUAndFS(StringRef CPU,
                                                    StringRef FS) {
   std::pair<std::string, std::string> Result;
-  Result.first = Hexagon_MC::selectHexagonCPU(CPU);
+  Result.first = std::string(Hexagon_MC::selectHexagonCPU(CPU));
   Result.second = selectHexagonFS(Result.first, FS);
   return Result;
 }

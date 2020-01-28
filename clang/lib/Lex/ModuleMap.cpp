@@ -1703,7 +1703,8 @@ bool ModuleMapParser::parseModuleId(ModuleId &Id) {
   Id.clear();
   do {
     if (Tok.is(MMToken::Identifier) || Tok.is(MMToken::StringLiteral)) {
-      Id.push_back(std::make_pair(Tok.getString(), Tok.getLocation()));
+      Id.push_back(
+          std::make_pair(std::string(Tok.getString()), Tok.getLocation()));
       consumeToken();
     } else {
       Diags.Report(Tok.getLocation(), diag::err_mmap_expected_module_name);
@@ -2154,7 +2155,7 @@ void ModuleMapParser::parseExternModuleDecl() {
     HadError = true;
     return;
   }
-  std::string FileName = Tok.getString();
+  std::string FileName = std::string(Tok.getString());
   consumeToken(); // filename
 
   StringRef FileNameRef = FileName;
@@ -2234,7 +2235,7 @@ void ModuleMapParser::parseRequiresDecl() {
     }
 
     // Consume the feature name.
-    std::string Feature = Tok.getString();
+    std::string Feature = std::string(Tok.getString());
     consumeToken();
 
     bool IsRequiresExcludedHack = false;
@@ -2308,7 +2309,7 @@ void ModuleMapParser::parseHeaderDecl(MMToken::TokenKind LeadingToken,
     return;
   }
   Module::UnresolvedHeaderDirective Header;
-  Header.FileName = Tok.getString();
+  Header.FileName = std::string(Tok.getString());
   Header.FileNameLoc = consumeToken();
   Header.IsUmbrella = LeadingToken == MMToken::UmbrellaKeyword;
   Header.Kind =
@@ -2405,7 +2406,7 @@ void ModuleMapParser::parseUmbrellaDirDecl(SourceLocation UmbrellaLoc) {
     return;
   }
 
-  std::string DirName = Tok.getString();
+  std::string DirName = std::string(Tok.getString());
   std::string DirNameAsWritten = DirName;
   SourceLocation DirNameLoc = consumeToken();
 
@@ -2491,8 +2492,8 @@ void ModuleMapParser::parseExportDecl() {
   do {
     // FIXME: Support string-literal module names here.
     if (Tok.is(MMToken::Identifier)) {
-      ParsedModuleId.push_back(std::make_pair(Tok.getString(),
-                                              Tok.getLocation()));
+      ParsedModuleId.push_back(
+          std::make_pair(std::string(Tok.getString()), Tok.getLocation()));
       consumeToken();
 
       if (Tok.is(MMToken::Period)) {
@@ -2551,7 +2552,7 @@ void ModuleMapParser::parseExportAsDecl() {
     }
   }
 
-  ActiveModule->ExportAsModule = Tok.getString();
+  ActiveModule->ExportAsModule = std::string(Tok.getString());
   Map.addLinkAsDependency(ActiveModule);
 
   consumeToken();
@@ -2597,7 +2598,7 @@ void ModuleMapParser::parseLinkDecl() {
     return;
   }
 
-  std::string LibraryName = Tok.getString();
+  std::string LibraryName = std::string(Tok.getString());
   consumeToken();
   ActiveModule->LinkLibraries.push_back(Module::LinkLibrary(LibraryName,
                                                             IsFramework));
@@ -2819,8 +2820,8 @@ void ModuleMapParser::parseInferredModuleDecl(bool Framework, bool Explicit) {
         break;
       }
 
-      Map.InferredDirectories[Directory].ExcludedModules
-        .push_back(Tok.getString());
+      Map.InferredDirectories[Directory].ExcludedModules.push_back(
+          std::string(Tok.getString()));
       consumeToken();
       break;
 

@@ -1506,7 +1506,7 @@ void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
     default:
       llvm_unreachable("unsupported sdk");
     }
-    options.push_back(minimum_version_option.GetString());
+    options.push_back(std::string(minimum_version_option.GetString()));
   }
 
   FileSpec sysroot_spec;

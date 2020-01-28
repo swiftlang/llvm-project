@@ -218,8 +218,9 @@ void enhanceFromIndex(HoverInfo &Hover, const NamedDecl &ND,
     return;
   LookupRequest Req;
   Req.IDs.insert(*ID);
-  Index->lookup(
-      Req, [&](const Symbol &S) { Hover.Documentation = S.Documentation; });
+  Index->lookup(Req, [&](const Symbol &S) {
+    Hover.Documentation = std::string(S.Documentation);
+  });
 }
 
 // Populates Type, ReturnType, and Parameters for function-like decls.
@@ -391,7 +392,7 @@ HoverInfo getHoverContents(QualType T, ASTContext &ASTCtx,
 HoverInfo getHoverContents(const DefinedMacro &Macro, ParsedAST &AST) {
   HoverInfo HI;
   SourceManager &SM = AST.getSourceManager();
-  HI.Name = Macro.Name;
+  HI.Name = std::string(Macro.Name);
   HI.Kind = index::SymbolKind::Macro;
   // FIXME: Populate documentation
   // FIXME: Pupulate parameters

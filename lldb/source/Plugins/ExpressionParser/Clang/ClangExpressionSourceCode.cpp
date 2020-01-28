@@ -480,7 +480,7 @@ bool ClangExpressionSourceCode::GetText(
       break;
     }
 
-    text = wrap_stream.GetString();
+    text = std::string(wrap_stream.GetString());
   } else {
     text.append(m_body);
   }
