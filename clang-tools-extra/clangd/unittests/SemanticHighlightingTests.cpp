@@ -111,7 +111,7 @@ void checkHighlightings(llvm::StringRef Code,
   TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
 
   for (auto File : AdditionalFiles)
-    TU.AdditionalFiles.insert({File.first, File.second});
+    TU.AdditionalFiles.insert({File.first, std::string(File.second)});
   auto AST = TU.build();
 
   EXPECT_EQ(Code, annotate(Test.code(), getSemanticHighlightings(AST)));

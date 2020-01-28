@@ -1086,7 +1086,7 @@ TEST(FindReferences, NoQueryForLocalSymbols) {
 TEST(GetNonLocalDeclRefs, All) {
   struct Case {
     llvm::StringRef AnnotatedCode;
-    std::vector<llvm::StringRef> ExpectedDecls;
+    std::vector<std::string> ExpectedDecls;
   } Cases[] = {
       {
           // VarDecl and ParamVarDecl

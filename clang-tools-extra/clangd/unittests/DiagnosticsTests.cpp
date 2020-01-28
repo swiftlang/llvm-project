@@ -843,7 +843,7 @@ TEST(DiagsInHeaders, DiagInsideHeader) {
     void foo() {})cpp");
   Annotations Header("[[no_type_spec]];");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.AdditionalFiles = {{"a.h", Header.code()}};
+  TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
   EXPECT_THAT(TU.build().getDiagnostics(),
               UnorderedElementsAre(AllOf(
                   Diag(Main.range(), "in included file: C++ requires a "
@@ -946,7 +946,7 @@ TEST(DiagsInHeaders, OnlyErrorOrFatal) {
     [[no_type_spec]];
     int x = 5/0;)cpp");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.AdditionalFiles = {{"a.h", Header.code()}};
+  TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
   EXPECT_THAT(TU.build().getDiagnostics(),
               UnorderedElementsAre(AllOf(
                   Diag(Main.range(), "in included file: C++ requires "
@@ -962,7 +962,7 @@ TEST(DiagsInHeaders, FromNonWrittenSources) {
     int x = 5/0;
     int b = [[FOO]];)cpp");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.AdditionalFiles = {{"a.h", Header.code()}};
+  TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
   TU.ExtraArgs = {"-DFOO=NOOO"};
   EXPECT_THAT(TU.build().getDiagnostics(),
               UnorderedElementsAre(AllOf(
@@ -981,7 +981,7 @@ TEST(DiagsInHeaders, ErrorFromMacroExpansion) {
   #define X foo
   X;)cpp");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.AdditionalFiles = {{"a.h", Header.code()}};
+  TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
   EXPECT_THAT(TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Main.range(), "in included file: use of undeclared "
@@ -998,7 +998,7 @@ TEST(DiagsInHeaders, ErrorFromMacroArgument) {
   #define X(arg) arg
   X(foo);)cpp");
   TestTU TU = TestTU::withCode(Main.code());
-  TU.AdditionalFiles = {{"a.h", Header.code()}};
+  TU.AdditionalFiles = {{"a.h", std::string(Header.code())}};
   EXPECT_THAT(TU.build().getDiagnostics(),
               UnorderedElementsAre(
                   Diag(Main.range(), "in included file: use of undeclared "
