@@ -27,7 +27,7 @@ std::string ObjCRuntimeSyntheticProvider::GetDescription() {
               SkipsReferences() ? " (skip references)" : "",
               m_descriptor_sp->GetClassName().AsCString("<unknown>"));
 
-  return sstr.GetString();
+  return std::string(sstr.GetString());
 }
 
 size_t ObjCRuntimeSyntheticProvider::FrontEnd::GetNumBases() {

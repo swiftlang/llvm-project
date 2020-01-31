@@ -136,7 +136,7 @@ void SwiftPersistentExpressionState::SwiftDeclMap::AddDecl(
   std::string name_str;
 
   if (alias.IsEmpty()) {
-    name_str = (value_decl->getBaseName().getIdentifier().str());
+    name_str = std::string((value_decl->getBaseName().getIdentifier().str()));
   } else {
     name_str.assign(alias.GetCString());
   }

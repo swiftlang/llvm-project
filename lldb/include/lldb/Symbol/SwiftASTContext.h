@@ -219,7 +219,7 @@ public:
   }
 
   void SetPlatformSDKPath(llvm::StringRef path) {
-    m_platform_sdk_path = path;
+    m_platform_sdk_path = std::string(path);
   }
 
   const swift::SearchPathOptions *GetSearchPathOptions() const;
@@ -310,7 +310,7 @@ public:
   swift::irgen::IRGenModule &GetIRGenModule();
 
   lldb::TargetWP GetTarget() const { return m_target_wp; }
-  
+
   llvm::Triple GetTriple() const;
 
   bool SetTriple(const llvm::Triple triple,
@@ -408,7 +408,7 @@ public:
                                 lldb::LanguageType *language_ptr,
                                 bool *is_instance_method_ptr,
                                 ConstString *language_object_name_ptr) override;
-                                
+
   bool DeclContextIsContainedInLookup(void *opaque_decl_ctx,
                                       void *other_opaque_decl_ctx) override {
     if (opaque_decl_ctx == other_opaque_decl_ctx)
