@@ -1252,9 +1252,9 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
         return error("Invalid record");
 
       MetadataList.assignValue(
-          GET_OR_DISTINCT(DIModule, (Context, getMDOrNull(Record[4]),
-                                     getMDString(Record[5]), nullptr, nullptr,
-                                     nullptr)),
+          GET_OR_DISTINCT(DIModule,
+                          (Context, getMDOrNull(Record[4]),
+                           getMDString(Record[5]), nullptr, nullptr, nullptr)),
           NextMetadataNo++);
       break;
     }
@@ -1437,14 +1437,15 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
   }
 
   case bitc::METADATA_MODULE: {
-    if (Record.size() < 5 || Record.size() > 6)
+    if (Record.size() < 5 || Record.size() > 7)
       return error("Invalid record");
 
     IsDistinct = Record[0];
     MetadataList.assignValue(
-        GET_OR_DISTINCT(
-            DIModule, (Context, getMDOrNull(Record[1]), getMDString(Record[2]),
-                       getMDString(Record[3]), getMDString(Record[4]))),
+        GET_OR_DISTINCT(DIModule,
+                        (Context, getMDOrNull(Record[1]),
+                         getMDString(Record[2]), getMDString(Record[3]),
+                         getMDString(Record[4]), getMDString(Record[5]))),
         NextMetadataNo);
     NextMetadataNo++;
     break;
