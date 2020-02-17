@@ -1333,11 +1333,8 @@ static bool compileModuleAndReadAST(CompilerInstance &ImportingInstance,
   // is okay because the locks are only necessary for performance, not
   // correctness.
   if (ImportingInstance.getInMemoryOutputFileSystem()) {
-    InputKind IK(getLanguageFromOptions(ImportingInstance.getLangOpts()),
-                 InputKind::ModuleMap);
-    FrontendInputFile Input(ModuleFileName, IK, +Module->IsSystem);
-    if (!compileModuleImpl(ImportingInstance, ImportLoc, Module->Name,
-                           Input, StringRef(), ModuleFileName)) {
+    if (!compileModule(ImportingInstance, ModuleNameLoc, Module,
+                       ModuleFileName)) {
       diagnoseBuildFailure();
       return false;
     }
