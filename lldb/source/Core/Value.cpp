@@ -605,7 +605,11 @@ Scalar &Value::ResolveValue(ExecutionContext *exe_ctx) {
       if (error.Success()) {
         Scalar scalar;
         if (compiler_type.GetValueAsScalar(data, 0, data.GetByteSize(),
-                                           scalar)) {
+                                           scalar,
+                                           // BEGIN SWIFT
+                                           exe_ctx
+                                           // END SWIFT
+                                           )) {
           m_value = scalar;
           m_value_type = eValueTypeScalar;
         } else {

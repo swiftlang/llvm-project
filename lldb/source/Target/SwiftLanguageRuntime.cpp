@@ -193,7 +193,6 @@ public:
     LLDB_LOG(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS |  \
                                                     LIBLLDB_LOG_TYPES),        \
              g_stub_log_message, GetStandardLibraryName(m_process));           \
-    assert(false && "called into swift language runtime stub");                \
   } while (0)
 
   bool GetDynamicTypeAndAddress(ValueObject &in_value,
@@ -1066,8 +1065,8 @@ ValueObjectSP SwiftLanguageRuntime::CalculateErrorValueObjectFromValue(
   if (!type_system_or_err)
     return error_valobj_sp;
 
-  auto *ast_context =
-      llvm::dyn_cast_or_null<SwiftASTContext>(&*type_system_or_err);
+  auto *ast_context = llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(
+      &*type_system_or_err);
   if (!ast_context)
     return error_valobj_sp;
 
@@ -1200,12 +1199,14 @@ void SwiftLanguageRuntime::RegisterGlobalError(Target &target, ConstString name,
       const bool is_static = false;
       const auto introducer = swift::VarDecl::Introducer::Let;
       const bool is_capture_list = false;
+      ProcessSP process_sp(target.GetProcessSP());
 
       swift::VarDecl *var_decl =
           new (*ast_context->GetASTContext()) swift::VarDecl(
               is_static, introducer, is_capture_list, swift::SourceLoc(),
               ast_context->GetIdentifier(name.GetCString()), module_decl);
-      var_decl->setInterfaceType(GetSwiftType(ast_context->GetErrorType()));
+      var_decl->setInterfaceType(
+          GetSwiftType(ast_context->GetErrorType(), process_sp.get()));
       var_decl->setDebuggerVar(true);
 
       persistent_state->RegisterSwiftPersistentDecl(var_decl);
@@ -1220,7 +1221,6 @@ void SwiftLanguageRuntime::RegisterGlobalError(Target &target, ConstString name,
       lldb::addr_t symbol_addr;
 
       {
-        ProcessSP process_sp(target.GetProcessSP());
         Status alloc_error;
 
         symbol_addr = process_sp->AllocateMemory(

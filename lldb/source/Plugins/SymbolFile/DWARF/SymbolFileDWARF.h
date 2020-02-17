@@ -159,6 +159,10 @@ public:
   lldb_private::CompilerDeclContext
   GetDeclContextContainingUID(lldb::user_id_t uid) override;
 
+  void GetDeclContextForUID(
+      llvm::SmallVectorImpl<lldb_private::CompilerContext> &context,
+      lldb::user_id_t uid) override;
+
   void
   ParseDeclsForContext(lldb_private::CompilerDeclContext decl_ctx) override;
 

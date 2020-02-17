@@ -344,9 +344,13 @@ public:
 
   // Lookup a child given a name. This function will match base class names and
   // member member names in "clang_type" only, not descendants.
-  virtual uint32_t GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
-                                           const char *name,
-                                           bool omit_empty_base_classes) = 0;
+  virtual uint32_t
+  GetIndexOfChildWithName(lldb::opaque_compiler_type_t type, const char *name,
+                          bool omit_empty_base_classes,
+                          // BEGIN SWIFT
+                          const ExecutionContext *exe_ctx = nullptr
+                          // END SWIFT
+                          ) = 0;
 
   // Lookup a child member given a name. This function will match member names
   // only and will descend into "clang_type" children in search for the first
@@ -357,7 +361,11 @@ public:
   virtual size_t
   GetIndexOfChildMemberWithName(lldb::opaque_compiler_type_t type,
                                 const char *name, bool omit_empty_base_classes,
-                                std::vector<uint32_t> &child_indexes) = 0;
+                                std::vector<uint32_t> &child_indexes,
+                                // BEGIN SWIFT
+                                const ExecutionContext *exe_ctx = nullptr
+                                // END SWIFT
+                                ) = 0;
 
   virtual size_t GetNumTemplateArguments(lldb::opaque_compiler_type_t type);
 

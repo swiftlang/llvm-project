@@ -53,14 +53,15 @@ class TypeBase;
 
 namespace lldb_private {
 
-/// Statically cast an opaque type to a Swift type.
-swift::Type GetSwiftType(void *opaque_ptr);
 /// Statically cast an opaque type to a Swift type and get its canonical form.
 swift::CanType GetCanonicalSwiftType(void *opaque_ptr);
-/// Statically cast a CompilerType to a Swift type.
-swift::Type GetSwiftType(const CompilerType &type);
-/// Statically cast a CompilerType to a Swift type and get its canonical form.
-swift::CanType GetCanonicalSwiftType(const CompilerType &type);
+/// Statically cast an opaque type to a Swift type.
+swift::Type GetSwiftType(void *opaque_ptr);
+/// Convert CompilerType to a Swift type.
+swift::Type GetSwiftType(const CompilerType &type, Process *process);
+/// Convert CompilerType to a Swift type and get its canonical form.
+swift::CanType GetCanonicalSwiftType(const CompilerType &type,
+                                     Process *process);
 
 class SwiftLanguageRuntimeStub;
 class SwiftLanguageRuntimeImpl;
@@ -195,6 +196,7 @@ public:
   };
   /// \}
 
+  swift::CanType GetCanonicalSwiftType(const CompilerType &type);
   bool GetDynamicTypeAndAddress(ValueObject &in_value,
                                 lldb::DynamicValueType use_dynamic,
                                 TypeAndOrName &class_type_or_name,
@@ -282,7 +284,8 @@ public:
   /// pointer (or a tagged pointer).
   lldb::addr_t MaybeMaskNonTrivialReferencePointer(
       lldb::addr_t,
-      SwiftASTContext::NonTriviallyManagedReferenceStrategy strategy);
+      SwiftASTContextForExpressions::NonTriviallyManagedReferenceStrategy
+          strategy);
 
   /// \return true if this is a Swift tagged pointer (as opposed to an
   /// Objective-C tagged pointer).

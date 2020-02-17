@@ -85,7 +85,7 @@ void SwiftUserExpression::DidFinishExecuting() {
 
 static CompilerType GetConcreteType(ExecutionContext &exe_ctx,
                                     StackFrame *frame, CompilerType type) {
-  auto swift_type = GetSwiftType(type.GetOpaqueQualType());
+  auto swift_type = GetSwiftType(type, exe_ctx.GetProcessPtr());
   StreamString type_name;
   if (SwiftLanguageRuntime::GetAbstractTypeName(type_name, swift_type)) {
     auto *runtime = SwiftLanguageRuntime::Get(exe_ctx.GetProcessPtr());
@@ -145,25 +145,26 @@ void SwiftUserExpression::ScanContext(ExecutionContext &exe_ctx, Status &err) {
 
   // Make sure the target's SwiftASTContext has been setup before
   // doing any Swift name lookups.
-  if (m_target) {
-    auto swift_ast_ctx = m_target->GetScratchSwiftASTContext(err, *frame);
-    if (!swift_ast_ctx) {
-      if (log)
-        log->Printf("  [SUE::SC] NULL Swift AST Context");
-      return;
-    }
+  if (!m_target)
+    return;
 
-    if (!swift_ast_ctx->GetClangImporter()) {
-      if (log)
-        log->Printf("  [SUE::SC] Swift AST Context has no Clang importer");
-      return;
-    }
+  auto swift_ast_ctx = m_target->GetScratchSwiftASTContext(err, *frame);
+  if (!swift_ast_ctx) {
+    if (log)
+      log->Printf("  [SUE::SC] NULL Swift AST Context");
+    return;
+  }
 
-    if (swift_ast_ctx->HasFatalErrors()) {
-      if (log)
-        log->Printf("  [SUE::SC] Swift AST Context has fatal errors");
-      return;
-    }
+  if (!swift_ast_ctx->GetClangImporter()) {
+    if (log)
+      log->Printf("  [SUE::SC] Swift AST Context has no Clang importer");
+    return;
+  }
+
+  if (swift_ast_ctx->HasFatalErrors()) {
+    if (log)
+      log->Printf("  [SUE::SC] Swift AST Context has fatal errors");
+    return;
   }
 
   if (log)
@@ -225,7 +226,9 @@ void SwiftUserExpression::ScanContext(ExecutionContext &exe_ctx, Status &err) {
   Flags self_type_flags(self_type.GetTypeInfo());
 
   if (self_type_flags.AllSet(lldb::eTypeIsSwift | lldb::eTypeIsMetatype)) {
-    self_type = SwiftASTContext::GetInstanceType(self_type);
+    Status error;
+    self_type = swift_ast_ctx->ImportType(self_type, error);
+    self_type = swift_ast_ctx->GetInstanceType(self_type.GetOpaqueQualType());
     self_type_flags = self_type.GetTypeInfo();
     if (self_type_flags.Test(lldb::eTypeIsClass))
       m_is_class = true;
@@ -238,15 +241,15 @@ void SwiftUserExpression::ScanContext(ExecutionContext &exe_ctx, Status &err) {
       m_is_class = true;
   }
 
-  swift::Type object_type = GetSwiftType(self_type);
+  swift::Type object_type = GetSwiftType(self_type, exe_ctx.GetProcessPtr());
   if (object_type.getPointer() &&
       (object_type.getPointer() != self_type.GetOpaqueQualType()))
     self_type =
-        CompilerType(self_type.GetTypeSystem(), object_type.getPointer());
+      CompilerType(swift_ast_ctx.get(), object_type.getPointer());
 
   // Handle weak self.
   if (auto *ref_type = llvm::dyn_cast<swift::ReferenceStorageType>(
-          GetSwiftType(self_type).getPointer())) {
+          GetSwiftType(self_type, exe_ctx.GetProcessPtr()).getPointer())) {
     if (ref_type->getOwnership() == swift::ReferenceOwnership::Weak) {
       m_is_class = true;
       m_is_weak_self = true;

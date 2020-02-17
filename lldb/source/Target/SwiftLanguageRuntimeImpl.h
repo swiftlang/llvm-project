@@ -91,7 +91,7 @@ public:
 
   /// Retrieve the remote AST context for the given Swift AST context.
   swift::remoteAST::RemoteASTContext &
-  GetRemoteASTContext(SwiftASTContext &swift_ast_ctx);
+  GetRemoteASTContext(SwiftASTContextForExpressions &swift_ast_ctx);
 
   /// Release the RemoteASTContext associated with the given swift::ASTContext.
   /// Note that a RemoteASTContext must be destroyed before its associated
@@ -114,8 +114,11 @@ public:
   bool IsABIStable();
 
 protected:
+  swift::CanType GetCanonicalSwiftType(const CompilerType &type);
+
   // Classes that inherit from SwiftLanguageRuntime can see and modify these
-  Value::ValueType GetValueType(Value::ValueType static_value_type,
+  Value::ValueType GetValueType(SwiftASTContextForExpressions &scratch_ctx,
+                                Value::ValueType static_value_type,
                                 const CompilerType &static_type,
                                 const CompilerType &dynamic_type,
                                 bool is_indirect_enum_case);
@@ -186,6 +189,12 @@ protected:
 private:
   using NativeReflectionContext = swift::reflection::ReflectionContext<
       swift::External<swift::RuntimeTarget<sizeof(uintptr_t)>>>;
+
+  /// Remote AST implementation of \p GetMemberVariableOffset().
+  llvm::Optional<uint64_t>
+  GetMemberVariableOffsetRemoteAST(CompilerType instance_type,
+                                   ValueObject *instance,
+                                   ConstString member_name, Status *error);
 
   /// Don't call these directly.
   /// \{

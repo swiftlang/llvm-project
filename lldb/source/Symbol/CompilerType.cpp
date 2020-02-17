@@ -667,10 +667,18 @@ CompilerType CompilerType::GetChildCompilerTypeAtIndex(
 
 size_t CompilerType::GetIndexOfChildMemberWithName(
     const char *name, bool omit_empty_base_classes,
-    std::vector<uint32_t> &child_indexes) const {
+    std::vector<uint32_t> &child_indexes,
+    // BEGIN SWIFT
+    const ExecutionContext *exe_ctx
+    // END SWIFT
+) const {
   if (IsValid() && name && name[0]) {
     return m_type_system->GetIndexOfChildMemberWithName(
-        m_type, name, omit_empty_base_classes, child_indexes);
+        m_type, name, omit_empty_base_classes, child_indexes,
+        // BEGIN SWIFT
+        exe_ctx
+        // END SWIFT
+    );
   }
   return 0;
 }
@@ -726,10 +734,18 @@ bool CompilerType::IsMeaninglessWithoutDynamicResolution() const {
 
 uint32_t
 CompilerType::GetIndexOfChildWithName(const char *name,
-                                      bool omit_empty_base_classes) const {
+                                      bool omit_empty_base_classes,
+                                      // BEGIN SWIFT
+                                      const ExecutionContext *exe_ctx
+                                      // END SWIFT
+                                      ) const {
   if (IsValid() && name && name[0]) {
     return m_type_system->GetIndexOfChildWithName(m_type, name,
-                                                  omit_empty_base_classes);
+                                                  omit_empty_base_classes,
+                                                  // BEGIN SWIFT
+                                                  exe_ctx
+                                                  // END SWIFT
+                                                  );
   }
   return UINT32_MAX;
 }
@@ -797,7 +813,11 @@ LLVM_DUMP_METHOD void CompilerType::dump() const {
 bool CompilerType::GetValueAsScalar(const lldb_private::DataExtractor &data,
                                     lldb::offset_t data_byte_offset,
                                     size_t data_byte_size,
-                                    Scalar &value) const {
+                                    Scalar &value,
+                                    // BEGIN SWIFT
+                                    const ExecutionContext *exe_ctx
+                                    // END SWIFT
+                                    ) const {
   if (!IsValid())
     return false;
 
@@ -810,7 +830,11 @@ bool CompilerType::GetValueAsScalar(const lldb_private::DataExtractor &data,
     if (encoding == lldb::eEncodingInvalid || count != 1)
       return false;
 
-    llvm::Optional<uint64_t> byte_size = GetByteSize(nullptr);
+    llvm::Optional<uint64_t> byte_size = GetByteSize(
+        // BEGIN SWIFT
+        exe_ctx ? exe_ctx->GetBestExecutionContextScope() :
+        // END SWIFT
+        nullptr);
     if (!byte_size)
       return false;
     lldb::offset_t offset = data_byte_offset;

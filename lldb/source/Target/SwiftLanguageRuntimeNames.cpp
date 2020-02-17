@@ -386,6 +386,9 @@ SwiftLanguageRuntime::DemangleSymbolAsString(StringRef symbol, bool simplified,
   if (simplified)
     options = swift::Demangle::DemangleOptions::SimplifiedUIDemangleOptions();
 
+  options.ShowPrivateDiscriminators = false;
+  options.SynthesizeSugarOnTypes = false;
+
   if (sc) {
     options.GenericParameterName = [&](uint64_t depth, uint64_t index) {
       if (!did_init) {

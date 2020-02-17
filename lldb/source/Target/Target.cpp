@@ -1637,7 +1637,7 @@ void Target::ModulesDidLoad(ModuleList &module_list) {
     // Notify all the ASTContext(s).
     auto notify_callback = [&](TypeSystem *type_system) {
       auto *swift_ast_ctx =
-          llvm::dyn_cast_or_null<SwiftASTContext>(type_system);
+          llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(type_system);
       if (!swift_ast_ctx)
         return true;
       swift_ast_ctx->ModulesDidLoad(module_list);
@@ -2454,9 +2454,9 @@ SwiftASTContextReader Target::GetScratchSwiftASTContext(
                 &*type_system_or_err))
       DisplayFallbackSwiftContextErrors(global_scratch_ctx);
 
-    bool fallback = true;
-    auto typesystem_sp = SwiftASTContext::CreateInstance(
-        lldb::eLanguageTypeSwift, *lldb_module, this, fallback);
+    auto typesystem_sp = SwiftASTContextForExpressions::CreateInstance(
+        lldb::eLanguageTypeSwift, *this,
+        nullptr); // FIXME: Where to store the module? *lldb_module, this);
     auto *swift_ast_ctx =
         llvm::cast<SwiftASTContextForExpressions>(typesystem_sp.get());
     m_scratch_typesystem_for_module.insert({idx, typesystem_sp});

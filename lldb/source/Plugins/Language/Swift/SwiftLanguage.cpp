@@ -728,13 +728,23 @@ SwiftLanguage::GetHardcodedSummaries() {
     g_formatters.push_back([](lldb_private::ValueObject &valobj,
                               lldb::DynamicValueType, FormatManager &)
                                -> TypeSummaryImpl::SharedPointer {
-      CompilerType clang_type(valobj.GetCompilerType());
-      if (lldb_private::formatters::swift::SwiftOptionSetSummaryProvider::
-              WouldEvenConsiderFormatting(clang_type)) {
-        TypeSummaryImpl::SharedPointer formatter_sp(
-            new lldb_private::formatters::swift::SwiftOptionSetSummaryProvider(
-                clang_type));
-        return formatter_sp;
+      CompilerType type = valobj.GetCompilerType();
+      auto ts = type.GetTypeSystem();
+      if (auto *swift_ctx = llvm::dyn_cast_or_null<SwiftASTContext>(ts)) {
+        if (swift_ctx->IsImportedType(type.GetOpaqueQualType()))
+          // This is a Clang type. Import it into the scratch context to
+          // get access to the Clang AST.
+          if (auto scratch_ctx = valobj.GetScratchSwiftASTContext()) {
+            Status error;
+            CompilerType ast_type = scratch_ctx->ImportType(type, error);
+            if (lldb_private::formatters::swift::SwiftOptionSetSummaryProvider::
+                    WouldEvenConsiderFormatting(ast_type)) {
+              TypeSummaryImpl::SharedPointer formatter_sp(
+                  new lldb_private::formatters::swift::
+                      SwiftOptionSetSummaryProvider(ast_type));
+              return formatter_sp;
+            }
+          }
       }
       return nullptr;
     });
@@ -756,8 +766,26 @@ SwiftLanguage::GetHardcodedSynthetics() {
       static lldb::SyntheticChildrenSP swift_enum_synth(nullptr);
       CompilerType type(valobj.GetCompilerType());
       Flags type_flags(type.GetTypeInfo());
-      if (type_flags.AllSet(eTypeIsSwift | eTypeIsEnumeration)) {
-        if (!swift_enum_synth)
+
+      bool is_enum = type_flags.AllSet(eTypeIsSwift | eTypeIsEnumeration);
+      auto ts = type.GetTypeSystem();
+      auto *swift_ctx = llvm::dyn_cast_or_null<SwiftASTContext>(ts);
+      if (!is_enum && swift_ctx &&
+          swift_ctx->IsImportedType(type.GetOpaqueQualType())) {
+        // FIXME: See also comment in GetTypeInfo()!
+        //
+        // This is a Clang type. Import it into the scratch context to
+        // get access to the Clang AST.
+        auto scratch_ctx = valobj.GetScratchSwiftASTContext();
+        if (!scratch_ctx)
+          return nullptr;
+        Status error;
+        CompilerType ast_type = scratch_ctx->ImportType(type, error);
+        Flags type_flags(ast_type.GetTypeInfo());
+        is_enum |= type_flags.AllSet(eTypeIsSwift | eTypeIsEnumeration);
+      }
+      if (is_enum) {
+        if (!swift_enum_synth)   
           swift_enum_synth = lldb::SyntheticChildrenSP(new CXXSyntheticChildren(
               SyntheticChildren::Flags()
                   .SetCascades(true)
@@ -777,11 +805,11 @@ SwiftLanguage::GetHardcodedSynthetics() {
               bool is_imported = false;
 
               if (type.IsValid()) {
-                SwiftASTContext *swift_ast_ctx =
-                    llvm::dyn_cast_or_null<SwiftASTContext>(
-                        type.GetTypeSystem());
+                auto ts = type.GetTypeSystem();
+                auto *swift_ast_ctx =
+                    llvm::dyn_cast_or_null<SwiftASTContext>(ts);
                 if (swift_ast_ctx &&
-                    swift_ast_ctx->IsImportedType(type, nullptr))
+                    swift_ast_ctx->IsImportedType(type.GetOpaqueQualType()))
                   is_imported = true;
               }
 
@@ -1233,8 +1261,17 @@ std::unique_ptr<Language::TypeScavenger> SwiftLanguage::GetTypeScavenger() {
                 if (result_sp && result_sp->GetCompilerType().IsValid()) {
                   CompilerType result_type(result_sp->GetCompilerType());
                   if (Flags(result_type.GetTypeInfo())
-                          .AllSet(eTypeIsSwift | eTypeIsMetatype))
-                    result_type = SwiftASTContext::GetInstanceType(result_type);
+                      .AllSet(eTypeIsSwift | eTypeIsMetatype)) {
+                    const bool create_on_demand = false;
+                    Status error;
+                    auto scratch_ctx = target->GetScratchSwiftASTContext(
+                        error, *exe_scope, create_on_demand);
+                    if (scratch_ctx) {
+                      result_type = scratch_ctx->ImportType(result_type, error);
+                      result_type = scratch_ctx->GetInstanceType(
+                          result_type.GetOpaqueQualType());
+                    }
+                  }
                   results.insert(TypeOrDecl(result_type));
                 }
               }
@@ -1458,7 +1495,12 @@ LazyBool SwiftLanguage::IsLogicalTrue(ValueObject &valobj, Status &error) {
 
   Scalar scalar_value;
 
-  auto swift_ty = GetCanonicalSwiftType(valobj.GetCompilerType());
+  ProcessSP process_sp(valobj.GetProcessSP());
+  auto *swift_runtime = SwiftLanguageRuntime::Get(process_sp);
+  if (!swift_runtime)
+    return eLazyBoolCalculate;
+
+  auto swift_ty = swift_runtime->GetCanonicalSwiftType(valobj.GetCompilerType());
   CompilerType valobj_type = ToCompilerType(swift_ty);
   Flags type_flags(valobj_type.GetTypeInfo());
   if (llvm::isa<SwiftASTContext>(valobj_type.GetTypeSystem())) {

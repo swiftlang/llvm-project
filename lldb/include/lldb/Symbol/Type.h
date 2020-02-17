@@ -203,6 +203,8 @@ public:
     m_is_complete_objc_class = is_complete_objc_class;
   }
 
+  // BEGIN SWIFT
+
   /// \return whether this is a Swift fixed-size buffer. Resilient variables in
   /// fixed-size buffers may be indirect depending on the runtime size of the
   /// type. This is more a property of the value than of its type.
@@ -214,6 +216,10 @@ public:
     m_is_swift_fixed_value_buffer = is_swift_fixed_value_buffer;
   }
 
+  void GetDeclContext(
+      llvm::SmallVectorImpl<lldb_private::CompilerContext> &context) const;
+  // END SWIFT
+  
 protected:
   ConstString m_name;
   SymbolFile *m_symbol_file;

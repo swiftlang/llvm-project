@@ -66,11 +66,18 @@ ExtractSomeIfAny(ValueObject *optional,
   auto process_sp = optional->GetProcessSP();
   auto *swift_runtime = SwiftLanguageRuntime::Get(process_sp);
 
-  SwiftASTContext::NonTriviallyManagedReferenceStrategy strategy;
-  if (SwiftASTContext::IsNonTriviallyManagedReferenceType(
-          non_synth_valobj->GetCompilerType(), strategy) &&
-      strategy ==
-          SwiftASTContext::NonTriviallyManagedReferenceStrategy::eWeak) {
+  auto scratch_ctx = non_synth_valobj->GetScratchSwiftASTContext();
+  if (!scratch_ctx)
+    return nullptr;
+  Status error;
+  CompilerType non_synth_valobj_type =
+      scratch_ctx->ImportType(non_synth_valobj->GetCompilerType(), error);
+
+  SwiftASTContextForExpressions::NonTriviallyManagedReferenceStrategy strategy;
+  if (SwiftASTContextForExpressions::IsNonTriviallyManagedReferenceType(
+          non_synth_valobj_type, strategy) &&
+      strategy == SwiftASTContextForExpressions::
+                      NonTriviallyManagedReferenceStrategy::eWeak) {
     if (swift_runtime) {
       lldb::addr_t original_ptr =
           value_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);

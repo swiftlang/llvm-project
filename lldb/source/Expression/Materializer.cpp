@@ -418,7 +418,7 @@ public:
     m_alignment = 8;
     m_is_reference =
         m_variable_sp->GetType()->GetForwardCompilerType().IsReferenceType();
-    m_is_generic = SwiftASTContext::IsGenericType(
+    m_is_generic = SwiftASTContextForExpressions::IsGenericType(
         m_variable_sp->GetType()->GetForwardCompilerType());
   }
 
@@ -662,6 +662,11 @@ public:
 
       if (SwiftASTContext::IsGenericType(valobj_type)) {
         valobj_sp = valobj_sp->GetDynamicValue(lldb::eDynamicDontRunTarget);
+        err.SetErrorStringWithFormat(
+            "couldn't resolve generic type of variable %s",
+            m_variable_sp->GetName().AsCString());
+        if (!valobj_sp)
+          return;
       }
 
       lldb_private::DataExtractor data;

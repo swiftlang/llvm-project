@@ -6261,7 +6261,11 @@ static uint32_t GetIndexForRecordChild(const clang::RecordDecl *record_decl,
 
 size_t TypeSystemClang::GetIndexOfChildMemberWithName(
     lldb::opaque_compiler_type_t type, const char *name,
-    bool omit_empty_base_classes, std::vector<uint32_t> &child_indexes) {
+    bool omit_empty_base_classes, std::vector<uint32_t> &child_indexes,
+    // BEGIN SWIFT
+    const ExecutionContext *exe_ctx
+    // END SWIFT
+                                                      ) {
   if (type && name && name[0]) {
     clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
@@ -6500,7 +6504,11 @@ size_t TypeSystemClang::GetIndexOfChildMemberWithName(
 uint32_t
 TypeSystemClang::GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
                                          const char *name,
-                                         bool omit_empty_base_classes) {
+                                         bool omit_empty_base_classes,
+                                         // BEGIN SWIFT
+                                         const ExecutionContext *exe_ctx
+                                         // END SWIFT
+                                         ) {
   if (type && name && name[0]) {
     clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
 

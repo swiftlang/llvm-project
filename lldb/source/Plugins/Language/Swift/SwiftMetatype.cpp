@@ -28,9 +28,16 @@ bool lldb_private::formatters::swift::SwiftMetatype_SummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
   lldb::addr_t metadata_ptr = valobj.GetPointerValue();
   if (metadata_ptr == LLDB_INVALID_ADDRESS || metadata_ptr == 0) {
-    CompilerType compiler_metatype_type(valobj.GetCompilerType());
+    CompilerType compiler_metatype_type = valobj.GetCompilerType();
+    auto scratch_ctx = valobj.GetScratchSwiftASTContext();
+    if (!scratch_ctx)
+      return false;
+    Status error;
+    CompilerType ast_metatype_type =
+        scratch_ctx->ImportType(compiler_metatype_type, error);
+
     CompilerType instancetype =
-      SwiftASTContext::GetInstanceType(compiler_metatype_type);
+        scratch_ctx->GetInstanceType(ast_metatype_type.GetOpaqueQualType());
 
     const char *ptr = instancetype.GetDisplayTypeName().AsCString(nullptr);
     if (ptr && *ptr) {

@@ -553,19 +553,20 @@ AddRequiredAliases(Block *block, lldb::StackFrameSP &stack_frame_sp,
   // This might be a referenced type, in which case we really want to
   // extend the referent:
   imported_self_type =
-      llvm::cast<SwiftASTContext>(imported_self_type.GetTypeSystem())
+      llvm::cast<SwiftASTContextForExpressions>(imported_self_type.GetTypeSystem())
           ->GetReferentType(imported_self_type);
 
   // If we are extending a generic class it's going to be a metatype,
   // and we have to grab the instance type:
   imported_self_type =
-      llvm::cast<SwiftASTContext>(imported_self_type.GetTypeSystem())
+      llvm::cast<SwiftASTContextForExpressions>(imported_self_type.GetTypeSystem())
           ->GetInstanceType(imported_self_type.GetOpaqueQualType());
 
   Flags imported_self_type_flags(imported_self_type.GetTypeInfo());
 
   swift::Type object_type =
-      GetSwiftType(imported_self_type)->getWithoutSpecifierType();
+      GetSwiftType(imported_self_type, stack_frame->CalculateProcess().get())
+          ->getWithoutSpecifierType();
 
   if (object_type.getPointer() &&
       (object_type.getPointer() != imported_self_type.GetOpaqueQualType()))
@@ -575,7 +576,9 @@ AddRequiredAliases(Block *block, lldb::StackFrameSP &stack_frame_sp,
   // If 'self' is a weak storage type, it must be an optional.  Look
   // through it and unpack the argument of "optional".
   if (swift::WeakStorageType *weak_storage_type =
-          GetSwiftType(imported_self_type)->getAs<swift::WeakStorageType>()) {
+          GetSwiftType(imported_self_type,
+                       stack_frame->CalculateProcess().get())
+              ->getAs<swift::WeakStorageType>()) {
     swift::Type referent_type = weak_storage_type->getReferentType();
 
     swift::BoundGenericEnumType *optional_type =
@@ -686,7 +689,7 @@ static void AddVariableInfo(
   // to get very far making a local out of it, so discard it here.
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_TYPES |
                                                   LIBLLDB_LOG_EXPRESSIONS));
-  if (!SwiftASTContext::IsFullyRealized(target_type)) {
+  if (!SwiftASTContextForExpressions::IsFullyRealized(target_type)) {
     if (log)
       log->Printf("Discarding local %s because we couldn't fully realize it, "
                   "our best attempt was: %s.",
@@ -695,7 +698,10 @@ static void AddVariableInfo(
   }
 
   if (log && is_self)
-    if (swift::Type swift_type = GetSwiftType(target_type)) {
+    if (swift::Type swift_type = GetSwiftType(
+            target_type, stack_frame_sp
+                             ? stack_frame_sp->CalculateProcess().get()
+                             : nullptr)) {
       std::string s;
       llvm::raw_string_ostream ss(s);
       swift_type->dump(ss);
@@ -986,9 +992,12 @@ MaterializeVariable(SwiftASTManipulatorBase::VariableInfo &variable,
     needs_init = true;
 
     Status error;
-
+    lldb::StackFrameSP stack_frame_sp = stack_frame_wp.lock();
     if (repl) {
-      if (swift::Type swift_type = GetSwiftType(variable.GetType())) {
+      if (swift::Type swift_type = GetSwiftType(
+              variable.GetType(),
+              stack_frame_sp ? stack_frame_sp->GetThread()->GetProcess().get()
+                             : nullptr)) {
         if (!swift_type->isVoid()) {
           auto &repl_mat = *llvm::cast<SwiftREPLMaterializer>(&materializer);
           if (is_result)
@@ -1003,10 +1012,12 @@ MaterializeVariable(SwiftASTManipulatorBase::VariableInfo &variable,
       }
     } else {
       CompilerType actual_type(variable.GetType());
-      auto orig_swift_type = GetSwiftType(actual_type);
+      auto orig_swift_type = GetSwiftType(
+          actual_type,
+          stack_frame_sp ? stack_frame_sp->GetThread()->GetProcess().get()
+                         : nullptr);
       auto *swift_type = orig_swift_type->mapTypeOutOfContext().getPointer();
       actual_type.SetCompilerType(actual_type.GetTypeSystem(), swift_type);
-      lldb::StackFrameSP stack_frame_sp = stack_frame_wp.lock();
       if (swift_type->hasTypeParameter()) {
         if (stack_frame_sp && stack_frame_sp->GetThread() &&
             stack_frame_sp->GetThread()->GetProcess()) {
@@ -1020,15 +1031,20 @@ MaterializeVariable(SwiftASTManipulatorBase::VariableInfo &variable,
       }
 
       // Desugar '$lldb_context', etc.
-      auto transformed_type = GetSwiftType(actual_type).transform(
-        [](swift::Type t) -> swift::Type {
-          if (auto *aliasTy = swift::dyn_cast<swift::TypeAliasType>(t.getPointer())) {
-            if (aliasTy && aliasTy->getDecl()->isDebuggerAlias()) {
-              return aliasTy->getSinglyDesugaredType();
+      swift::Type actual_swift_type = GetSwiftType(
+          actual_type, stack_frame_sp
+                           ? stack_frame_sp->GetThread()->GetProcess().get()
+                           : nullptr);
+      auto transformed_type =
+          actual_swift_type.transform([](swift::Type t) -> swift::Type {
+            if (auto *aliasTy =
+                    swift::dyn_cast<swift::TypeAliasType>(t.getPointer())) {
+              if (aliasTy && aliasTy->getDecl()->isDebuggerAlias()) {
+                return aliasTy->getSinglyDesugaredType();
+              }
             }
-          }
-          return t;
-      });
+            return t;
+          });
       actual_type.SetCompilerType(actual_type.GetTypeSystem(),
                                   transformed_type.getPointer());
 
@@ -1243,9 +1259,9 @@ static llvm::Expected<ParsedExpression> ParseAndImport(
   // The Swift stdlib needs to be imported before the
   // SwiftLanguageRuntime can be used.
   Status auto_import_error;
-  if (!SwiftASTContext::PerformAutoImport(*swift_ast_context, sc,
-                                          stack_frame_wp, source_file,
-                                          auto_import_error))
+  if (!SwiftASTContextForExpressions::PerformAutoImport(
+          *swift_ast_context, sc, stack_frame_wp, source_file,
+          auto_import_error))
     return make_error<ModuleImportError>(llvm::Twine("in auto-import:\n") +
                                          auto_import_error.AsCString());
 
@@ -1367,9 +1383,9 @@ static llvm::Expected<ParsedExpression> ParseAndImport(
         IRExecutionUnit::GetLLVMGlobalContextMutex());
 
     Status auto_import_error;
-    if (!SwiftASTContext::PerformUserImport(*swift_ast_context, sc, exe_scope,
-                                            stack_frame_wp, *source_file,
-                                            auto_import_error)) {
+    if (!SwiftASTContextForExpressions::PerformUserImport(
+            *swift_ast_context, sc, exe_scope, stack_frame_wp, *source_file,
+            auto_import_error)) {
       return make_error<ModuleImportError>(llvm::Twine("in user-import:\n") +
                                            auto_import_error.AsCString());
     }

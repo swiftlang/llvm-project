@@ -368,8 +368,13 @@ HashedCollectionConfig::CreateNativeHandler(
   }
   
   if (typeName.startswith(m_nativeStorage_demangledPrefix.GetStringRef())) {
-    auto key_type = SwiftASTContext::GetGenericArgumentType(type, 0);
-    auto value_type = SwiftASTContext::GetGenericArgumentType(type, 1);
+    auto scratch_ctx = dynamic_storage_sp->GetScratchSwiftASTContext();
+    if (!scratch_ctx)
+      return {};
+    Status error;
+    CompilerType ast_type = scratch_ctx->ImportType(type, error);
+    auto key_type = scratch_ctx->GetGenericArgumentType(ast_type.GetOpaqueQualType(), 0);
+    auto value_type = scratch_ctx->GetGenericArgumentType(ast_type.GetOpaqueQualType(), 1);
     if (key_type.IsValid()) {
       return _CreateNativeHandler(dynamic_storage_sp, key_type, value_type);
     }
@@ -379,8 +384,13 @@ HashedCollectionConfig::CreateNativeHandler(
   // is some valid storage class instance, and attempt to get
   // key/value types from value_sp.
   type = value_sp->GetCompilerType();
-  CompilerType key_type = SwiftASTContext::GetGenericArgumentType(type, 0);
-  CompilerType value_type = SwiftASTContext::GetGenericArgumentType(type, 1);
+  auto scratch_ctx = dynamic_storage_sp->GetScratchSwiftASTContext();
+  if (!scratch_ctx)
+    return {};
+  Status error;
+  CompilerType ast_type = scratch_ctx->ImportType(type, error);
+  auto key_type = scratch_ctx->GetGenericArgumentType(ast_type.GetOpaqueQualType(), 0);
+  auto value_type = scratch_ctx->GetGenericArgumentType(ast_type.GetOpaqueQualType(), 1);
   if (key_type.IsValid()) {
     return _CreateNativeHandler(storage_sp, key_type, value_type);
   }
@@ -452,9 +462,9 @@ NativeHashedStorageHandler::NativeHashedStorageHandler(
       auto *runtime = SwiftLanguageRuntime::Get(m_process);
       if (!runtime)
         return;
-      std::vector<SwiftASTContext::TupleElement> tuple_elements{
+      std::vector<SwiftASTContextForExpressions::TupleElement> tuple_elements{
           {g_key, key_type}, {g_value, value_type}};
-      m_element_type = swift_ast->CreateTupleType(tuple_elements);
+      m_element_type = scratch_ctx->CreateTupleType(tuple_elements);
       auto *swift_type = reinterpret_cast<::swift::TypeBase *>(
           m_element_type.GetCanonicalType().GetOpaqueQualType());
       auto element_stride = m_element_type.GetByteStride(m_process);

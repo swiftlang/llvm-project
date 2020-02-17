@@ -31,6 +31,16 @@ using namespace lldb_private;
 using namespace lldb_private::formatters;
 using namespace lldb_private::formatters::swift;
 
+static CompilerType GetArrayElementType(ValueObject &valobj) {
+  // FIXME: remove this and implement GetArrayElementType using TypeRefs!
+  auto scratch_ctx = valobj.GetScratchSwiftASTContext();
+  if (!scratch_ctx)
+    return {};
+  Status error;
+  CompilerType ast_type = scratch_ctx->ImportType(valobj.GetCompilerType(), error);
+  return ast_type.GetArrayElementType();
+}
+
 size_t SwiftArrayNativeBufferHandler::GetCount() { return m_size; }
 
 size_t SwiftArrayNativeBufferHandler::GetCapacity() { return m_capacity; }
@@ -349,7 +359,9 @@ SwiftArrayBufferHandler::CreateBufferHandler(ValueObject &valobj) {
         swift_runtime->GetMetadataPromise(argmetadata_ptr, valobj));
     if (promise_sp)
       if (CompilerType type = promise_sp->FulfillTypePromise())
-        argument_type = SwiftASTContext::GetGenericArgumentType(type, 0);
+        argument_type =
+            llvm::cast<SwiftASTContextForExpressions>(type.GetTypeSystem())
+                ->GetGenericArgumentType(type.GetOpaqueQualType(), 0);
 
     if (!argument_type.IsValid())
       return nullptr;
@@ -374,7 +386,7 @@ SwiftArrayBufferHandler::CreateBufferHandler(ValueObject &valobj) {
     if (!some_sp)
       return nullptr;
 
-    CompilerType elem_type(valobj.GetCompilerType().GetArrayElementType());
+    CompilerType elem_type = GetArrayElementType(valobj);
 
     auto handler = std::unique_ptr<SwiftArrayBufferHandler>(
         new SwiftArrayNativeBufferHandler(
@@ -392,7 +404,7 @@ SwiftArrayBufferHandler::CreateBufferHandler(ValueObject &valobj) {
     if (!buffer_sp)
       return nullptr;
 
-    CompilerType elem_type(valobj.GetCompilerType().GetArrayElementType());
+    CompilerType elem_type = GetArrayElementType(valobj);
 
     auto handler = std::unique_ptr<SwiftArrayBufferHandler>(
         new SwiftArraySliceBufferHandler(*buffer_sp, elem_type));
@@ -431,7 +443,7 @@ SwiftArrayBufferHandler::CreateBufferHandler(ValueObject &valobj) {
 
       std::unique_ptr<SwiftArrayBufferHandler> handler;
       if (masked_storage_location == storage_location) {
-        CompilerType elem_type(valobj.GetCompilerType().GetArrayElementType());
+        CompilerType elem_type = GetArrayElementType(valobj);
         handler.reset(new SwiftArrayNativeBufferHandler(
             valobj, storage_location, elem_type));
       } else {
@@ -443,7 +455,7 @@ SwiftArrayBufferHandler::CreateBufferHandler(ValueObject &valobj) {
         return handler;
       return nullptr;
     } else {
-      CompilerType elem_type(valobj.GetCompilerType().GetArrayElementType());
+      CompilerType elem_type = GetArrayElementType(valobj);
       return std::unique_ptr<SwiftArrayBufferHandler>(
           new SwiftArrayEmptyBufferHandler(elem_type));
     }

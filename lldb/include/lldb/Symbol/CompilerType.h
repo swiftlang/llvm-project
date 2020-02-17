@@ -17,7 +17,7 @@
 #include "llvm/ADT/APSInt.h"
 
 namespace lldb_private {
-
+  void validate(CompilerType);
 class DataExtractor;
 
 /// Represents a generic type in a programming language.
@@ -39,7 +39,7 @@ public:
   ///
   /// \see lldb_private::TypeSystemClang::GetType(clang::QualType)
   CompilerType(TypeSystem *type_system, lldb::opaque_compiler_type_t type)
-      : m_type(type), m_type_system(type_system) {}
+    : m_type(type), m_type_system(type_system) { validate(*this); }
 
   CompilerType(const CompilerType &rhs)
       : m_type(rhs.m_type), m_type_system(rhs.m_type_system) {}
@@ -317,7 +317,11 @@ public:
   // Lookup a child given a name. This function will match base class names and
   // member member names in "clang_type" only, not descendants.
   uint32_t GetIndexOfChildWithName(const char *name,
-                                   bool omit_empty_base_classes) const;
+                                   bool omit_empty_base_classes,
+                                   // BEGIN SWIFT
+                                   const ExecutionContext *exe_ctx = nullptr
+                                   // END SWIFT
+  ) const;
 
   // Lookup a child member given a name. This function will match member names
   // only and will descend into "clang_type" children in search for the first
@@ -325,9 +329,13 @@ public:
   // TODO: Return all matches for a given name by returning a
   // vector<vector<uint32_t>>
   // so we catch all names that match a given child name, not just the first.
-  size_t
-  GetIndexOfChildMemberWithName(const char *name, bool omit_empty_base_classes,
-                                std::vector<uint32_t> &child_indexes) const;
+  size_t GetIndexOfChildMemberWithName(const char *name,
+                                       bool omit_empty_base_classes,
+                                       std::vector<uint32_t> &child_indexes,
+                                       // BEGIN SWIFT
+                                       const ExecutionContext *exe_ctx = nullptr
+                                       // END SWIFT
+  ) const;
 
   size_t GetNumTemplateArguments() const;
 
@@ -372,7 +380,11 @@ public:
   void DumpTypeDescription(Stream *s) const;
 
   bool GetValueAsScalar(const DataExtractor &data, lldb::offset_t data_offset,
-                        size_t data_byte_size, Scalar &value) const;
+                        size_t data_byte_size, Scalar &value,
+                        // BEGIN SWIFT
+                        const ExecutionContext *exe_ctx = nullptr
+                        // END SWIFT
+                        ) const;
 
   void Clear() {
     m_type = nullptr;

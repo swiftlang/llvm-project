@@ -33,13 +33,14 @@ static clang::EnumDecl *GetAsEnumDecl(CompilerType swift_type) {
   if (!swift_type)
     return nullptr;
 
-  SwiftASTContext *swift_ast_ctx =
-      llvm::dyn_cast_or_null<SwiftASTContext>(swift_type.GetTypeSystem());
+  auto *swift_ast_ctx = llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(
+      swift_type.GetTypeSystem());
+  assert(swift_ast_ctx);
   if (!swift_ast_ctx)
     return nullptr;
 
   CompilerType clang_type;
-  if (!swift_ast_ctx->IsImportedType(swift_type, &clang_type))
+  if (!swift_ast_ctx->IsImportedType(swift_type.GetOpaqueQualType(), &clang_type))
     return nullptr;
 
   if (!clang_type.IsValid())
@@ -90,8 +91,8 @@ void lldb_private::formatters::swift::SwiftOptionSetSummaryProvider::
   if (!enum_decl)
     return;
 
-  SwiftASTContext *swift_ast_ctx =
-      llvm::dyn_cast_or_null<SwiftASTContext>(m_type.GetTypeSystem());
+  auto *swift_ast_ctx =
+      llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(m_type.GetTypeSystem());
   ::swift::ClangImporter *clang_importer = swift_ast_ctx->GetClangImporter();
   auto iter = enum_decl->enumerator_begin(), end = enum_decl->enumerator_end();
   for (; iter != end; ++iter) {

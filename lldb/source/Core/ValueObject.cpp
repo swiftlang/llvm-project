@@ -615,9 +615,16 @@ ValueObjectSP ValueObject::GetChildMemberWithName(ConstString name,
   if (!GetCompilerType().IsValid())
     return ValueObjectSP();
 
+  // BEGIN SWIFT
+  ExecutionContext exe_ctx(GetExecutionContextRef());
+  // END SWIFT
   const size_t num_child_indexes =
       GetCompilerType().GetIndexOfChildMemberWithName(
-          name.GetCString(), omit_empty_base_classes, child_indexes);
+          name.GetCString(), omit_empty_base_classes, child_indexes,
+          // BEGIN SWIFT
+          &exe_ctx
+          // END SWIFT
+      );
   if (num_child_indexes > 0) {
     std::vector<uint32_t>::const_iterator pos = child_indexes.begin();
     std::vector<uint32_t>::const_iterator end = child_indexes.end();
