@@ -8061,7 +8061,7 @@ bool SwiftASTContext::IsImportedType(const CompilerType &type,
                                      CompilerType *original_type) {
   bool success = false;
 
-  if (llvm::dyn_cast_or_null<SwiftASTContext>(type.GetTypeSystem())) {
+  if (auto *swift_ast = llvm::dyn_cast_or_null<SwiftASTContext>(type.GetTypeSystem())) {
     do {
       swift::CanType swift_can_type(GetCanonicalSwiftType(type));
       swift::NominalType *nominal_type =
@@ -8077,19 +8077,24 @@ bool SwiftASTContext::IsImportedType(const CompilerType &type,
         if (!original_type)
           break;
 
+        // Lazily initialize the importer type system that we use for the
+        // returned original_type CompilerType.
+        if (!swift_ast->m_importer_type_system) {
+          swift_ast->m_importer_type_system.reset(
+              new TypeSystemClang(clang_decl->getASTContext()));
+        }
+
         // ObjCInterfaceDecl is not a TypeDecl.
         if (const clang::ObjCInterfaceDecl *objc_interface_decl =
                 llvm::dyn_cast<clang::ObjCInterfaceDecl>(clang_decl)) {
           *original_type =
-              CompilerType(TypeSystemClang::GetASTContext(
-                               &objc_interface_decl->getASTContext()),
+              CompilerType(swift_ast->m_importer_type_system.get(),
                            clang::QualType::getFromOpaquePtr(
                                objc_interface_decl->getTypeForDecl())
                                .getAsOpaquePtr());
         } else if (const clang::TypeDecl *type_decl =
                        llvm::dyn_cast<clang::TypeDecl>(clang_decl)) {
-          *original_type = CompilerType(
-              TypeSystemClang::GetASTContext(&type_decl->getASTContext()),
+          *original_type = CompilerType(swift_ast->m_importer_type_system.get(),
               clang::QualType::getFromOpaquePtr(type_decl->getTypeForDecl())
                   .getAsOpaquePtr());
         } else {

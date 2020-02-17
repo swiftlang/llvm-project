@@ -853,6 +853,10 @@ protected:
   typedef ThreadSafeDenseMap<const char *, lldb::TypeSP> SwiftTypeMap;
   SwiftTypeMap m_swift_type_map;
 
+  /// The TypeSystemClang of this swift:ASTContext's ClangImporter.
+  /// Lazily initialized in IsImportedType.
+  std::unique_ptr<TypeSystem> m_importer_type_system;
+
   /// Used in the logs.
   std::string m_description;
   /// @}
