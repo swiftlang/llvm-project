@@ -409,7 +409,7 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
       metadata.SetIsDynamicCXXType(false);
 
       clang_type =
-          m_ast.CreateRecordType(decl_context, access, name, tag_type_kind,
+        m_ast.CreateRecordType(decl_context, {}, access, name, tag_type_kind,
                                  lldb::eLanguageTypeC_plus_plus, &metadata);
       assert(clang_type.IsValid());
 

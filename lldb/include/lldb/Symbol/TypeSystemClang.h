@@ -38,6 +38,11 @@
 class DWARFASTParserClang;
 class PDBASTParser;
 
+namespace clang {
+  class HeaderSearch;
+  class ModuleMap;
+}
+
 namespace lldb_private {
 
 class Declaration;
@@ -247,7 +252,14 @@ public:
   static uint32_t GetNumBaseClasses(const clang::CXXRecordDecl *cxx_record_decl,
                                     bool omit_empty_base_classes);
 
+  /// Synthesize a clang::Module and return its ID or 0.
+  unsigned GetOrCreateClangModule(llvm::StringRef name, unsigned parent,
+                                  llvm::StringRef apinotes,
+                                  bool is_framework = false,
+                                  bool is_explicit = false);
+
   CompilerType CreateRecordType(clang::DeclContext *decl_ctx,
+                                unsigned owning_module,
                                 lldb::AccessType access_type,
                                 llvm::StringRef name, int kind,
                                 lldb::LanguageType language,
@@ -958,6 +970,8 @@ private:
   std::unique_ptr<clang::IdentifierTable> m_identifier_table_up;
   std::unique_ptr<clang::SelectorTable> m_selector_table_up;
   std::unique_ptr<clang::Builtin::Context> m_builtins_up;
+  std::unique_ptr<clang::HeaderSearch> m_header_search_up;
+  std::unique_ptr<clang::ModuleMap> m_module_map_up;
   std::unique_ptr<DWARFASTParserClang> m_dwarf_ast_parser_up;
   std::unique_ptr<PDBASTParser> m_pdb_ast_parser_up;
   std::unique_ptr<clang::MangleContext> m_mangle_ctx_up;

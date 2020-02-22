@@ -13,6 +13,8 @@
 
 using namespace lldb_private;
 
+char ClangExternalASTSourceCallbacks::ID;
+
 void ClangExternalASTSourceCallbacks::CompleteType(clang::TagDecl *tag_decl) {
   m_ast.CompleteTagDecl(tag_decl);
 }
@@ -42,4 +44,22 @@ void ClangExternalASTSourceCallbacks::FindExternalLexicalDecls(
     if (tag_decl)
       CompleteType(tag_decl);
   }
+}
+
+unsigned ClangExternalASTSourceCallbacks::takeOwnership(clang::Module *module) {
+  m_modules.emplace_back(std::unique_ptr<clang::Module>(module));
+  unsigned id = m_modules.size();
+  m_ids.insert({module, id});
+  return id;
+}
+
+llvm::Optional<clang::ExternalASTSource::ASTSourceDescriptor>
+ClangExternalASTSourceCallbacks::getSourceDescriptor(unsigned id) {
+  if (id + 1 < m_modules.size())
+    return {*m_modules[id - 1]};
+  return {};
+}
+
+unsigned ClangExternalASTSourceCallbacks::getIDForModule(clang::Module *module) {
+  return { m_ids[module] };
 }

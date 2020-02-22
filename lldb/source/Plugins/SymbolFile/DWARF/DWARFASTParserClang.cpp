@@ -1616,8 +1616,9 @@ DWARFASTParserClang::ParseStructureLikeDIE(const SymbolContext &sc,
     if (!clang_type_was_created) {
       clang_type_was_created = true;
       clang_type = m_ast.CreateRecordType(
-          decl_ctx, attrs.accessibility, attrs.name.GetCString(), tag_decl_kind,
-          attrs.class_language, &metadata, attrs.exports_symbols);
+          decl_ctx, GetOwningModuleID(die), attrs.accessibility,
+          attrs.name.GetCString(), tag_decl_kind, attrs.class_language,
+          &metadata, attrs.exports_symbols);
     }
   }
 
@@ -3405,6 +3406,32 @@ DWARFASTParserClang::GetClangDeclContextForDIE(const DWARFDIE &die) {
     }
   }
   return nullptr;
+}
+
+unsigned DWARFASTParserClang::GetOwningModuleID(const DWARFDIE &die) {
+  if (!die.IsValid())
+    return 0;
+
+  for (DWARFDIE parent = die.GetParent(); parent.IsValid();
+       parent = parent.GetParent()) {
+    const dw_tag_t tag = parent.Tag();
+    if (tag == DW_TAG_module) {
+      DWARFDIE module_die = parent;
+      auto it = m_die_to_module.find(module_die.GetDIE());
+      if (it != m_die_to_module.end())
+        return it->second;
+      const char *name = module_die.GetAttributeValueAsString(DW_AT_name, 0);
+      if (!name)
+        return 0;
+
+      unsigned id = m_ast.GetOrCreateClangModule(
+          name, GetOwningModuleID(module_die),
+          module_die.GetAttributeValueAsString(DW_AT_APPLE_apinotes, ""));
+      m_die_to_module.insert({module_die.GetDIE(), id});
+      return id;
+    }
+  }
+  return 0;
 }
 
 static bool IsSubroutine(const DWARFDIE &die) {

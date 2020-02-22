@@ -76,6 +76,8 @@ protected:
   typedef llvm::SmallPtrSet<const DWARFDebugInfoEntry *, 4> DIEPointerSet;
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, clang::DeclContext *>
       DIEToDeclContextMap;
+  typedef llvm::DenseMap<const DWARFDebugInfoEntry *, unsigned>
+      DIEToModuleMap;
   typedef std::multimap<const clang::DeclContext *, const DWARFDIE>
       DeclContextToDIEMap;
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, clang::Decl *>
@@ -87,6 +89,7 @@ protected:
   DeclToDIEMap m_decl_to_die;
   DIEToDeclContextMap m_die_to_decl_ctx;
   DeclContextToDIEMap m_decl_ctx_to_die;
+  DIEToModuleMap m_die_to_module;
   std::unique_ptr<lldb_private::ClangASTImporter> m_clang_ast_importer_up;
   /// @}
 
@@ -140,6 +143,8 @@ protected:
 
   clang::DeclContext *GetClangDeclContextContainingDIE(const DWARFDIE &die,
                                                        DWARFDIE *decl_ctx_die);
+
+  unsigned GetOwningModuleID(const DWARFDIE &die);
 
   bool CopyUniqueClassMethodTypes(const DWARFDIE &src_class_die,
                                   const DWARFDIE &dst_class_die,

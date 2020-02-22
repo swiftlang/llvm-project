@@ -626,13 +626,15 @@ protected:
     setModuleOwnershipKind(ModuleOwnershipKind::ModulePrivate);
   }
 
+public:
+  void setFromASTFile() { FromASTFile = true; }
+  
   /// Set the owning module ID.
   void setOwningModuleID(unsigned ID) {
     assert(isFromASTFile() && "Only works on a deserialized declaration");
     *((unsigned*)this - 2) = ID;
   }
 
-public:
   /// Determine the availability of the given declaration.
   ///
   /// This routine will determine the most restrictive availability of

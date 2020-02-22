@@ -17,7 +17,14 @@ namespace lldb_private {
 class TypeSystemClang;
 
 class ClangExternalASTSourceCallbacks : public clang::ExternalASTSource {
+  /// LLVM RTTI support.
+  static char ID;
+
 public:
+  /// LLVM RTTI support.
+  bool isA(const void *ClassID) const override { return ClassID == &ID; }
+  static bool classof(const clang::ExternalASTSource *s) { return s->isA(&ID); }
+
   ClangExternalASTSourceCallbacks(TypeSystemClang &ast) : m_ast(ast) {}
 
   void FindExternalLexicalDecls(
@@ -37,8 +44,14 @@ public:
       llvm::DenseMap<const clang::CXXRecordDecl *, clang::CharUnits>
           &VirtualBaseOffsets) override;
 
+  unsigned takeOwnership(clang::Module *module);
+  llvm::Optional<clang::ExternalASTSource::ASTSourceDescriptor>
+  getSourceDescriptor(unsigned id) override;
+  unsigned getIDForModule(clang::Module *module);
 private:
   TypeSystemClang &m_ast;
+  std::vector<std::unique_ptr<clang::Module>> m_modules;
+  llvm::DenseMap<clang::Module *, unsigned> m_ids;
 };
 
 } // namespace lldb_private

@@ -35,6 +35,9 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Frontend/FrontendOptions.h"
+#include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeaderSearchOptions.h"
+#include "clang/Lex/ModuleMap.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/Support/Signals.h"
@@ -422,6 +425,7 @@ static void ParseLangArgs(LangOptions &Opts, InputKind IK, const char *triple) {
     Opts.AsmPreprocessor = 1;
   } else if (IK.isObjectiveC()) {
     Opts.ObjC = 1;
+    Opts.ModulesLocalVisibility = 1;
   }
 
   LangStandard::Kind LangStd = LangStandard::lang_unspecified;
@@ -1176,12 +1180,47 @@ CompilerType TypeSystemClang::GetTypeForDecl(ObjCInterfaceDecl *decl) {
 
 #pragma mark Structure, Unions, Classes
 
-CompilerType TypeSystemClang::CreateRecordType(DeclContext *decl_ctx,
-                                               AccessType access_type,
-                                               llvm::StringRef name, int kind,
-                                               LanguageType language,
-                                               ClangASTMetadata *metadata,
-                                               bool exports_symbols) {
+unsigned TypeSystemClang::GetOrCreateClangModule(llvm::StringRef name,
+                                                 unsigned parent,
+                                                 llvm::StringRef apinotes,
+                                                 bool is_framework,
+                                                 bool is_explicit) {
+  // Get the external AST source which holds the modules.
+  auto *ast_source = llvm::dyn_cast_or_null<ClangExternalASTSourceCallbacks>(
+      getASTContext().getExternalSource());
+  assert(ast_source && "external ast source was lost");
+  if (!ast_source)
+    return 0;
+
+  // Initialize the module map.
+  if (!m_header_search_up) {
+    auto HSOpts = std::make_shared<clang::HeaderSearchOptions>();
+    m_header_search_up = std::make_unique<clang::HeaderSearch>(
+        HSOpts, *m_source_manager_up, *m_diagnostics_engine_up,
+        *m_language_options_up, m_target_info_up.get());
+    m_module_map_up = std::make_unique<clang::ModuleMap>(
+        *m_source_manager_up, *m_diagnostics_engine_up, *m_language_options_up,
+        m_target_info_up.get(), *m_header_search_up);
+  }
+
+  // Get or create the module context.
+  bool created;
+  clang::Module *module;
+  auto parent_desc = ast_source->getSourceDescriptor(parent);
+  std::tie(module, created) = m_module_map_up->findOrCreateModule(
+      name, parent_desc ? parent_desc->getModuleOrNull() : nullptr,
+      is_framework, is_explicit);
+  if (!created)
+    return ast_source->getIDForModule(module);
+
+  module->APINotesFile = apinotes;
+  return ast_source->takeOwnership(module);
+}
+
+CompilerType TypeSystemClang::CreateRecordType(
+    DeclContext *decl_ctx, unsigned owning_module, AccessType access_type,
+    llvm::StringRef name, int kind, LanguageType language,
+    ClangASTMetadata *metadata, bool exports_symbols) {
   ASTContext &ast = getASTContext();
 
   if (decl_ctx == nullptr)
@@ -1205,6 +1244,10 @@ CompilerType TypeSystemClang::CreateRecordType(DeclContext *decl_ctx,
   CXXRecordDecl *decl = CXXRecordDecl::Create(
       ast, (TagDecl::TagKind)kind, decl_ctx, SourceLocation(), SourceLocation(),
       has_name ? &ast.Idents.get(name) : nullptr);
+  if (owning_module) {
+    decl->setFromASTFile();
+    decl->setOwningModuleID(owning_module);
+  }
 
   if (!has_name) {
     // In C++ a lambda is also represented as an unnamed class. This is
@@ -2001,7 +2044,7 @@ CompilerType TypeSystemClang::CreateStructForIdentifier(
     return type;
   }
 
-  type = CreateRecordType(nullptr, lldb::eAccessPublic, type_name.GetCString(),
+  type = CreateRecordType(nullptr, {}, lldb::eAccessPublic, type_name.GetCString(),
                           clang::TTK_Struct, lldb::eLanguageTypeC);
   StartTagDeclarationDefinition(type);
   for (const auto &field : type_fields)
