@@ -55,7 +55,7 @@ unsigned ClangExternalASTSourceCallbacks::takeOwnership(clang::Module *module) {
 
 llvm::Optional<clang::ExternalASTSource::ASTSourceDescriptor>
 ClangExternalASTSourceCallbacks::getSourceDescriptor(unsigned id) {
-  if (id + 1 < m_modules.size())
+  if (id && id <= m_modules.size())
     return {*m_modules[id - 1]};
   return {};
 }

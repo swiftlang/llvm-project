@@ -776,9 +776,9 @@ clang::QualType PdbAstBuilder::CreateRecordType(PdbTypeSymId id,
   metadata.SetUserID(toOpaqueUid(id));
   metadata.SetIsDynamicCXXType(false);
 
-  CompilerType ct =
-      m_clang.CreateRecordType(context, {}, access, uname, ttk,
-                               lldb::eLanguageTypeC_plus_plus, &metadata);
+  CompilerType ct = m_clang.CreateRecordType(
+      m_clang.CreateDeclContext(context, 0), access, uname, ttk,
+      lldb::eLanguageTypeC_plus_plus, &metadata);
 
   lldbassert(ct.IsValid());
 
@@ -805,7 +805,8 @@ clang::NamespaceDecl *
 PdbAstBuilder::GetOrCreateNamespaceDecl(const char *name,
                                         clang::DeclContext &context) {
   return m_clang.GetUniqueNamespaceDeclaration(
-      IsAnonymousNamespaceName(name) ? nullptr : name, &context);
+      IsAnonymousNamespaceName(name) ? nullptr : name,
+      m_clang.GetAsCompilerDeclContext(&context));
 }
 
 clang::BlockDecl *
@@ -815,7 +816,8 @@ PdbAstBuilder::GetOrCreateBlockDecl(PdbCompilandSymId block_id) {
 
   clang::DeclContext *scope = GetParentDeclContext(block_id);
 
-  clang::BlockDecl *block_decl = m_clang.CreateBlockDeclaration(scope);
+  clang::BlockDecl *block_decl =
+      m_clang.CreateBlockDeclaration(m_clang.GetAsCompilerDeclContext(scope));
   m_uid_to_decl.insert({toOpaqueUid(block_id), block_decl});
 
   DeclStatus status;
@@ -832,7 +834,8 @@ clang::VarDecl *PdbAstBuilder::CreateVariableDecl(PdbSymUid uid, CVSymbol sym,
   clang::QualType qt = GetOrCreateType(var_info.type);
 
   clang::VarDecl *var_decl = m_clang.CreateVariableDeclaration(
-      &scope, var_info.name.str().c_str(), qt);
+      m_clang.GetAsCompilerDeclContext(&scope), var_info.name.str().c_str(),
+      qt);
 
   m_uid_to_decl[toOpaqueUid(uid)] = var_decl;
   DeclStatus status;
@@ -1013,7 +1016,8 @@ PdbAstBuilder::GetOrCreateFunctionDecl(PdbCompilandSymId func_id) {
   proc_name.consume_front("::");
 
   clang::FunctionDecl *function_decl = m_clang.CreateFunctionDeclaration(
-      parent, proc_name.str().c_str(), func_ct, storage, false);
+      m_clang.GetAsCompilerDeclContext(parent), proc_name.str().c_str(),
+      func_ct, storage, false);
 
   lldbassert(m_uid_to_decl.count(toOpaqueUid(func_id)) == 0);
   m_uid_to_decl[toOpaqueUid(func_id)] = function_decl;
@@ -1081,8 +1085,8 @@ void PdbAstBuilder::CreateFunctionParameters(PdbCompilandSymId func_id,
 
     CompilerType param_type_ct = m_clang.GetType(qt);
     clang::ParmVarDecl *param = m_clang.CreateParameterDeclaration(
-        &function_decl, param_name.str().c_str(), param_type_ct,
-        clang::SC_None, true);
+        m_clang.GetAsCompilerDeclContext(&function_decl),
+        param_name.str().c_str(), param_type_ct, clang::SC_None, true);
     lldbassert(m_uid_to_decl.count(toOpaqueUid(param_uid)) == 0);
 
     m_uid_to_decl[toOpaqueUid(param_uid)] = param;
@@ -1103,8 +1107,8 @@ clang::QualType PdbAstBuilder::CreateEnumType(PdbTypeSymId id,
 
   Declaration declaration;
   CompilerType enum_ct = m_clang.CreateEnumerationType(
-      uname.c_str(), decl_context, declaration, ToCompilerType(underlying_type),
-      er.isScoped());
+      uname.c_str(), m_clang.GetAsCompilerDeclContext(decl_context),
+      declaration, ToCompilerType(underlying_type), er.isScoped());
 
   TypeSystemClang::StartTagDeclarationDefinition(enum_ct);
   TypeSystemClang::SetHasExternalStorage(enum_ct.GetOpaqueQualType(), true);
@@ -1344,7 +1348,7 @@ CompilerType PdbAstBuilder::ToCompilerType(clang::QualType qt) {
 
 CompilerDeclContext
 PdbAstBuilder::ToCompilerDeclContext(clang::DeclContext &context) {
-  return m_clang.CreateDeclContext(&context);
+  return m_clang.GetAsCompilerDeclContext(&context);
 }
 
 clang::Decl * PdbAstBuilder::FromCompilerDecl(CompilerDecl decl) {

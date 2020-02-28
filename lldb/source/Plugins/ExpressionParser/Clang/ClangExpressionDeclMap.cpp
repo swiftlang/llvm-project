@@ -674,8 +674,7 @@ void ClangExpressionDeclMap::FindExternalVisibleDecls(
     if (namespace_context->getName().str() ==
         std::string(g_lldb_local_vars_namespace_cstr)) {
       CompilerDeclContext compiler_decl_ctx =
-          m_clang_ast_context->CreateDeclContext(
-              const_cast<clang::DeclContext *>(context.m_decl_context));
+        m_clang_ast_context->GetAsCompilerDeclContext(context.m_decl_context);
       FindExternalVisibleDecls(context, lldb::ModuleSP(), compiler_decl_ctx,
                                current_id);
       return;
@@ -1018,7 +1017,7 @@ void ClangExpressionDeclMap::LookupLocalVarNamespace(
 
   clang::NamespaceDecl *namespace_decl =
       m_clang_ast_context->GetUniqueNamespaceDeclaration(
-          g_lldb_local_vars_namespace_cstr, nullptr);
+          g_lldb_local_vars_namespace_cstr, {});
   if (!namespace_decl)
     return;
 

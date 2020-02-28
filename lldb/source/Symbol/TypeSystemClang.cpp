@@ -1155,12 +1155,6 @@ CompilerType TypeSystemClang::GetTypeForDecl(void *opaque_decl) {
   return CompilerType();
 }
 
-CompilerDeclContext TypeSystemClang::CreateDeclContext(DeclContext *ctx) {
-  // Check that the DeclContext actually belongs to this ASTContext.
-  assert(&ctx->getParentASTContext() == &getASTContext());
-  return CompilerDeclContext(this, ctx);
-}
-
 CompilerType TypeSystemClang::GetTypeForDecl(clang::NamedDecl *decl) {
   if (clang::ObjCInterfaceDecl *interface_decl =
       llvm::dyn_cast<clang::ObjCInterfaceDecl>(decl))
@@ -1213,18 +1207,29 @@ unsigned TypeSystemClang::GetOrCreateClangModule(llvm::StringRef name,
   if (!created)
     return ast_source->getIDForModule(module);
 
+  module->Name = name;
   module->APINotesFile = apinotes;
   return ast_source->takeOwnership(module);
 }
 
-CompilerType TypeSystemClang::CreateRecordType(
-    DeclContext *decl_ctx, unsigned owning_module, AccessType access_type,
-    llvm::StringRef name, int kind, LanguageType language,
-    ClangASTMetadata *metadata, bool exports_symbols) {
+static void SetOwningModule(clang::Decl *decl,
+                            TypeSystemClang::ModuleDeclContext decl_ctx) {
+  if (decl && decl_ctx.owning_module) {
+    decl->setFromASTFile();
+    decl->setOwningModuleID(decl_ctx.owning_module);
+  }
+}
+
+CompilerType TypeSystemClang::CreateRecordType(CompilerDeclContext decl_ctx,
+                                               AccessType access_type,
+                                               llvm::StringRef name, int kind,
+                                               LanguageType language,
+                                               ClangASTMetadata *metadata,
+                                               bool exports_symbols) {
   ASTContext &ast = getASTContext();
 
-  if (decl_ctx == nullptr)
-    decl_ctx = ast.getTranslationUnitDecl();
+  if (!decl_ctx.IsValid())
+    decl_ctx = CreateDeclContext(ast.getTranslationUnitDecl(), 0);
 
   if (language == eLanguageTypeObjC ||
       language == eLanguageTypeObjC_plus_plus) {
@@ -1240,14 +1245,12 @@ CompilerType TypeSystemClang::CreateRecordType(
   // complete definition just in case.
 
   bool has_name = !name.empty();
-
+  auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
   CXXRecordDecl *decl = CXXRecordDecl::Create(
-      ast, (TagDecl::TagKind)kind, decl_ctx, SourceLocation(), SourceLocation(),
+      ast, (TagDecl::TagKind)kind, mod_ctx.decl_context,
+      SourceLocation(), SourceLocation(),
       has_name ? &ast.Idents.get(name) : nullptr);
-  if (owning_module) {
-    decl->setFromASTFile();
-    decl->setOwningModuleID(owning_module);
-  }
+  SetOwningModule(decl, mod_ctx);
 
   if (!has_name) {
     // In C++ a lambda is also represented as an unnamed class. This is
@@ -1274,7 +1277,7 @@ CompilerType TypeSystemClang::CreateRecordType(
     // Anonymous classes is a GNU/MSVC extension that clang supports. It
     // requires the anonymous class be embedded within a class. So the new
     // heuristic verifies this condition.
-    if (isa<CXXRecordDecl>(decl_ctx) && exports_symbols)
+    if (isa<CXXRecordDecl>(mod_ctx.decl_context) && exports_symbols)
       decl->setAnonymousStructOrUnion(true);
   }
 
@@ -1286,7 +1289,7 @@ CompilerType TypeSystemClang::CreateRecordType(
       decl->setAccess(ConvertAccessTypeToAccessSpecifier(access_type));
 
     if (decl_ctx)
-      decl_ctx->addDecl(decl);
+      mod_ctx.decl_context->addDecl(decl);
 
     return GetType(ast.getTagDeclType(decl));
   }
@@ -1356,19 +1359,21 @@ static TemplateParameterList *CreateTemplateParameterList(
 }
 
 clang::FunctionTemplateDecl *TypeSystemClang::CreateFunctionTemplateDecl(
-    clang::DeclContext *decl_ctx, clang::FunctionDecl *func_decl,
+    CompilerDeclContext decl_ctx, clang::FunctionDecl *func_decl,
     const char *name, const TemplateParameterInfos &template_param_infos) {
   //    /// Create a function template node.
   ASTContext &ast = getASTContext();
 
   llvm::SmallVector<NamedDecl *, 8> template_param_decls;
 
+  auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
   TemplateParameterList *template_param_list = CreateTemplateParameterList(
       ast, template_param_infos, template_param_decls);
   FunctionTemplateDecl *func_tmpl_decl = FunctionTemplateDecl::Create(
-      ast, decl_ctx, func_decl->getLocation(), func_decl->getDeclName(),
+      ast, mod_ctx.decl_context, func_decl->getLocation(), func_decl->getDeclName(),
       template_param_list, func_decl);
-
+  SetOwningModule(func_tmpl_decl, mod_ctx);
+  
   for (size_t i = 0, template_param_decl_count = template_param_decls.size();
        i < template_param_decl_count; ++i) {
     // TODO: verify which decl context we should put template_param_decls into..
@@ -1377,7 +1382,7 @@ clang::FunctionTemplateDecl *TypeSystemClang::CreateFunctionTemplateDecl(
   // Function templates inside a record need to have an access specifier.
   // It doesn't matter what access specifier we give the template as LLDB
   // anyway allows accessing everything inside a record.
-  if (decl_ctx->isRecord())
+  if (GetClangDeclContext(decl_ctx)->isRecord())
     func_tmpl_decl->setAccess(clang::AccessSpecifier::AS_public);
 
   return func_tmpl_decl;
@@ -1394,18 +1399,19 @@ void TypeSystemClang::CreateFunctionTemplateSpecializationInfo(
 }
 
 ClassTemplateDecl *TypeSystemClang::CreateClassTemplateDecl(
-    DeclContext *decl_ctx, lldb::AccessType access_type, const char *class_name,
+    CompilerDeclContext decl_ctx, lldb::AccessType access_type, const char *class_name,
     int kind, const TemplateParameterInfos &template_param_infos) {
   ASTContext &ast = getASTContext();
 
   ClassTemplateDecl *class_template_decl = nullptr;
-  if (decl_ctx == nullptr)
-    decl_ctx = ast.getTranslationUnitDecl();
+  if (!decl_ctx)
+    decl_ctx = CreateDeclContext(ast.getTranslationUnitDecl(), 0);
 
   IdentifierInfo &identifier_info = ast.Idents.get(class_name);
   DeclarationName decl_name(&identifier_info);
 
-  clang::DeclContext::lookup_result result = decl_ctx->lookup(decl_name);
+  clang::DeclContext::lookup_result result =
+      GetClangDeclContext(decl_ctx)->lookup(decl_name);
 
   for (NamedDecl *decl : result) {
     class_template_decl = dyn_cast<clang::ClassTemplateDecl>(decl);
@@ -1418,11 +1424,13 @@ ClassTemplateDecl *TypeSystemClang::CreateClassTemplateDecl(
   TemplateParameterList *template_param_list = CreateTemplateParameterList(
       ast, template_param_infos, template_param_decls);
 
+  auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
   CXXRecordDecl *template_cxx_decl = CXXRecordDecl::Create(
       ast, (TagDecl::TagKind)kind,
-      decl_ctx, // What decl context do we use here? TU? The actual decl
-                // context?
+      mod_ctx.decl_context, // What decl context do we use here? TU? The actual
+                            // decl context?
       SourceLocation(), SourceLocation(), &identifier_info);
+  SetOwningModule(template_cxx_decl, mod_ctx);
 
   for (size_t i = 0, template_param_decl_count = template_param_decls.size();
        i < template_param_decl_count; ++i) {
@@ -1436,10 +1444,11 @@ ClassTemplateDecl *TypeSystemClang::CreateClassTemplateDecl(
 
   class_template_decl = ClassTemplateDecl::Create(
       ast,
-      decl_ctx, // What decl context do we use here? TU? The actual decl
-                // context?
+      mod_ctx.decl_context, // What decl context do we use here? TU? The actual
+                            // decl context?
       SourceLocation(), decl_name, template_param_list, template_cxx_decl);
   template_cxx_decl->setDescribedClassTemplate(class_template_decl);
+  SetOwningModule(class_template_decl, mod_ctx);
 
   if (class_template_decl) {
     if (access_type != eAccessNone)
@@ -1449,7 +1458,7 @@ ClassTemplateDecl *TypeSystemClang::CreateClassTemplateDecl(
     // if (TagDecl *ctx_tag_decl = dyn_cast<TagDecl>(decl_ctx))
     //    CompleteTagDeclarationDefinition(GetTypeForDecl(ctx_tag_decl));
 
-    decl_ctx->addDecl(class_template_decl);
+    mod_ctx.decl_context->addDecl(class_template_decl);
 
 #ifdef LLDB_CONFIGURATION_DEBUG
     VerifyDecl(class_template_decl);
@@ -1484,8 +1493,8 @@ TypeSystemClang::CreateTemplateTemplateParmDecl(const char *template_name) {
 
 ClassTemplateSpecializationDecl *
 TypeSystemClang::CreateClassTemplateSpecializationDecl(
-    DeclContext *decl_ctx, ClassTemplateDecl *class_template_decl, int kind,
-    const TemplateParameterInfos &template_param_infos) {
+    CompilerDeclContext decl_ctx, ClassTemplateDecl *class_template_decl,
+    int kind, const TemplateParameterInfos &template_param_infos) {
   ASTContext &ast = getASTContext();
   llvm::SmallVector<clang::TemplateArgument, 2> args(
       template_param_infos.args.size() +
@@ -1496,10 +1505,12 @@ TypeSystemClang::CreateClassTemplateSpecializationDecl(
     args[args.size() - 1] = TemplateArgument::CreatePackCopy(
         ast, template_param_infos.packed_args->args);
   }
+  auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
   ClassTemplateSpecializationDecl *class_template_specialization_decl =
       ClassTemplateSpecializationDecl::Create(
-          ast, (TagDecl::TagKind)kind, decl_ctx, SourceLocation(),
+          ast, (TagDecl::TagKind)kind, mod_ctx.decl_context, SourceLocation(),
           SourceLocation(), class_template_decl, args, nullptr);
+  SetOwningModule(class_template_decl, mod_ctx);
 
   class_template_specialization_decl->setSpecializationKind(
       TSK_ExplicitSpecialization);
@@ -1619,20 +1630,22 @@ bool TypeSystemClang::RecordHasFields(const RecordDecl *record_decl) {
 #pragma mark Objective-C Classes
 
 CompilerType TypeSystemClang::CreateObjCClass(llvm::StringRef name,
-                                              DeclContext *decl_ctx,
+                                              CompilerDeclContext decl_ctx,
                                               bool isForwardDecl,
                                               bool isInternal,
                                               ClangASTMetadata *metadata) {
   ASTContext &ast = getASTContext();
   assert(!name.empty());
-  if (decl_ctx == nullptr)
-    decl_ctx = ast.getTranslationUnitDecl();
+  if (!decl_ctx)
+    decl_ctx = CreateDeclContext(ast.getTranslationUnitDecl(), 0);
 
+  auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
   ObjCInterfaceDecl *decl = ObjCInterfaceDecl::Create(
-      ast, decl_ctx, SourceLocation(), &ast.Idents.get(name), nullptr, nullptr,
+      ast, mod_ctx.decl_context, SourceLocation(), &ast.Idents.get(name), nullptr, nullptr,
       SourceLocation(),
       /*isForwardDecl,*/
       isInternal);
+  SetOwningModule(decl, mod_ctx);
 
   if (decl && metadata)
     SetMetadata(decl, *metadata);
@@ -1670,17 +1683,20 @@ TypeSystemClang::GetNumBaseClasses(const CXXRecordDecl *cxx_record_decl,
 #pragma mark Namespace Declarations
 
 NamespaceDecl *TypeSystemClang::GetUniqueNamespaceDeclaration(
-    const char *name, DeclContext *decl_ctx, bool is_inline) {
+    const char *name, CompilerDeclContext decl_ctx, bool is_inline) {
   NamespaceDecl *namespace_decl = nullptr;
   ASTContext &ast = getASTContext();
   TranslationUnitDecl *translation_unit_decl = ast.getTranslationUnitDecl();
-  if (decl_ctx == nullptr)
-    decl_ctx = translation_unit_decl;
+  if (!decl_ctx)
+    decl_ctx = CreateDeclContext(translation_unit_decl, 0);
+
+  auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
 
   if (name) {
     IdentifierInfo &identifier_info = ast.Idents.get(name);
     DeclarationName decl_name(&identifier_info);
-    clang::DeclContext::lookup_result result = decl_ctx->lookup(decl_name);
+    clang::DeclContext::lookup_result result =
+        GetClangDeclContext(decl_ctx)->lookup(decl_name);
     for (NamedDecl *decl : result) {
       namespace_decl = dyn_cast<clang::NamespaceDecl>(decl);
       if (namespace_decl)
@@ -1688,30 +1704,31 @@ NamespaceDecl *TypeSystemClang::GetUniqueNamespaceDeclaration(
     }
 
     namespace_decl =
-        NamespaceDecl::Create(ast, decl_ctx, is_inline, SourceLocation(),
+        NamespaceDecl::Create(ast, mod_ctx.decl_context, is_inline, SourceLocation(),
                               SourceLocation(), &identifier_info, nullptr);
 
-    decl_ctx->addDecl(namespace_decl);
+    mod_ctx.decl_context->addDecl(namespace_decl);
   } else {
-    if (decl_ctx == translation_unit_decl) {
+    if (GetClangDeclContext(decl_ctx) == translation_unit_decl) {
       namespace_decl = translation_unit_decl->getAnonymousNamespace();
       if (namespace_decl)
         return namespace_decl;
 
       namespace_decl =
-          NamespaceDecl::Create(ast, decl_ctx, false, SourceLocation(),
+          NamespaceDecl::Create(ast, mod_ctx.decl_context, false, SourceLocation(),
                                 SourceLocation(), nullptr, nullptr);
       translation_unit_decl->setAnonymousNamespace(namespace_decl);
       translation_unit_decl->addDecl(namespace_decl);
       assert(namespace_decl == translation_unit_decl->getAnonymousNamespace());
     } else {
-      NamespaceDecl *parent_namespace_decl = cast<NamespaceDecl>(decl_ctx);
+      NamespaceDecl *parent_namespace_decl =
+          cast<NamespaceDecl>(GetClangDeclContext(decl_ctx));
       if (parent_namespace_decl) {
         namespace_decl = parent_namespace_decl->getAnonymousNamespace();
         if (namespace_decl)
           return namespace_decl;
         namespace_decl =
-            NamespaceDecl::Create(ast, decl_ctx, false, SourceLocation(),
+            NamespaceDecl::Create(ast, mod_ctx.decl_context, false, SourceLocation(),
                                   SourceLocation(), nullptr, nullptr);
         parent_namespace_decl->setAnonymousNamespace(namespace_decl);
         parent_namespace_decl->addDecl(namespace_decl);
@@ -1723,6 +1740,9 @@ NamespaceDecl *TypeSystemClang::GetUniqueNamespaceDeclaration(
       }
     }
   }
+  // Note: namespaces can span multiple modules, so perhaps this isn't a good idea.
+  SetOwningModule(namespace_decl, mod_ctx);
+
 #ifdef LLDB_CONFIGURATION_DEBUG
   VerifyDecl(namespace_decl);
 #endif
@@ -1730,11 +1750,13 @@ NamespaceDecl *TypeSystemClang::GetUniqueNamespaceDeclaration(
 }
 
 clang::BlockDecl *
-TypeSystemClang::CreateBlockDeclaration(clang::DeclContext *ctx) {
-  if (ctx != nullptr) {
-    clang::BlockDecl *decl =
-        clang::BlockDecl::Create(getASTContext(), ctx, clang::SourceLocation());
-    ctx->addDecl(decl);
+TypeSystemClang::CreateBlockDeclaration(CompilerDeclContext ctx) {
+  if (ctx) {
+    auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(ctx);
+    clang::BlockDecl *decl = clang::BlockDecl::Create(
+        getASTContext(), mod_ctx.decl_context, clang::SourceLocation());
+    GetClangDeclContext(ctx)->addDecl(decl);
+    SetOwningModule(decl, mod_ctx);
     return decl;
   }
   return nullptr;
@@ -1758,47 +1780,61 @@ clang::DeclContext *FindLCABetweenDecls(clang::DeclContext *left,
 }
 
 clang::UsingDirectiveDecl *TypeSystemClang::CreateUsingDirectiveDeclaration(
-    clang::DeclContext *decl_ctx, clang::NamespaceDecl *ns_decl) {
-  if (decl_ctx != nullptr && ns_decl != nullptr) {
+    CompilerDeclContext decl_ctx, clang::NamespaceDecl *ns_decl) {
+  if (decl_ctx && ns_decl) {
     auto *translation_unit = getASTContext().getTranslationUnitDecl();
-    clang::UsingDirectiveDecl *using_decl = clang::UsingDirectiveDecl::Create(
-        getASTContext(), decl_ctx, clang::SourceLocation(),
-        clang::SourceLocation(), clang::NestedNameSpecifierLoc(),
-        clang::SourceLocation(), ns_decl,
-        FindLCABetweenDecls(decl_ctx, ns_decl, translation_unit));
-    decl_ctx->addDecl(using_decl);
-    return using_decl;
+      auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
+      clang::UsingDirectiveDecl *using_decl = clang::UsingDirectiveDecl::Create(
+          getASTContext(), mod_ctx.decl_context, clang::SourceLocation(),
+          clang::SourceLocation(), clang::NestedNameSpecifierLoc(),
+          clang::SourceLocation(), ns_decl,
+          FindLCABetweenDecls(GetClangDeclContext(decl_ctx), ns_decl,
+                              translation_unit));
+      mod_ctx.decl_context->addDecl(using_decl);
+      SetOwningModule(using_decl, mod_ctx);
+
+      return using_decl;
   }
   return nullptr;
 }
 
 clang::UsingDecl *
-TypeSystemClang::CreateUsingDeclaration(clang::DeclContext *current_decl_ctx,
+TypeSystemClang::CreateUsingDeclaration(CompilerDeclContext current_decl_ctx,
                                         clang::NamedDecl *target) {
-  if (current_decl_ctx != nullptr && target != nullptr) {
+  if (current_decl_ctx && target) {
+    auto mod_ctx =
+        GetModuleDeclContextFromCompilerDeclContext(current_decl_ctx);
     clang::UsingDecl *using_decl = clang::UsingDecl::Create(
-        getASTContext(), current_decl_ctx, clang::SourceLocation(),
+        getASTContext(), mod_ctx.decl_context, clang::SourceLocation(),
         clang::NestedNameSpecifierLoc(), clang::DeclarationNameInfo(), false);
     clang::UsingShadowDecl *shadow_decl = clang::UsingShadowDecl::Create(
-        getASTContext(), current_decl_ctx, clang::SourceLocation(), using_decl,
+        getASTContext(), mod_ctx.decl_context, clang::SourceLocation(), using_decl,
         target);
+    SetOwningModule(using_decl, mod_ctx);
+    SetOwningModule(shadow_decl, mod_ctx);
     using_decl->addShadowDecl(shadow_decl);
-    current_decl_ctx->addDecl(using_decl);
+    GetClangDeclContext(current_decl_ctx)->addDecl(using_decl);
     return using_decl;
   }
   return nullptr;
 }
 
 clang::VarDecl *TypeSystemClang::CreateVariableDeclaration(
-    clang::DeclContext *decl_context, const char *name, clang::QualType type) {
-  if (decl_context != nullptr) {
+    CompilerDeclContext decl_context, const char *name, clang::QualType type) {
+  if (decl_context) {
+    auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_context);
     clang::VarDecl *var_decl = clang::VarDecl::Create(
-        getASTContext(), decl_context, clang::SourceLocation(),
+        getASTContext(), mod_ctx.decl_context, clang::SourceLocation(),
         clang::SourceLocation(),
         name && name[0] ? &getASTContext().Idents.getOwn(name) : nullptr, type,
         nullptr, clang::SC_None);
+    if (mod_ctx.owning_module) {
+      var_decl->setFromASTFile();
+      var_decl->setOwningModuleID(mod_ctx.owning_module);
+    }
+
     var_decl->setAccess(clang::AS_public);
-    decl_context->addDecl(var_decl);
+    GetClangDeclContext(decl_context)->addDecl(var_decl);
     return var_decl;
   }
   return nullptr;
@@ -1908,25 +1944,28 @@ TypeSystemClang::GetDeclarationName(const char *name,
 }
 
 FunctionDecl *TypeSystemClang::CreateFunctionDeclaration(
-    DeclContext *decl_ctx, const char *name,
+    CompilerDeclContext decl_ctx, const char *name,
     const CompilerType &function_clang_type, int storage, bool is_inline) {
   FunctionDecl *func_decl = nullptr;
   ASTContext &ast = getASTContext();
-  if (decl_ctx == nullptr)
-    decl_ctx = ast.getTranslationUnitDecl();
+  if (!decl_ctx)
+    decl_ctx = CreateDeclContext(ast.getTranslationUnitDecl(), 0);
 
   const bool hasWrittenPrototype = true;
   const bool isConstexprSpecified = false;
 
   clang::DeclarationName declarationName =
       GetDeclarationName(name, function_clang_type);
+  auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
   func_decl = FunctionDecl::Create(
-      ast, decl_ctx, SourceLocation(), SourceLocation(), declarationName,
+      ast, mod_ctx.decl_context, SourceLocation(), SourceLocation(), declarationName,
       ClangUtil::GetQualType(function_clang_type), nullptr,
       (clang::StorageClass)storage, is_inline, hasWrittenPrototype,
       isConstexprSpecified ? CSK_constexpr : CSK_unspecified);
-  if (func_decl)
-    decl_ctx->addDecl(func_decl);
+  if (func_decl) {
+    mod_ctx.decl_context->addDecl(func_decl);
+    SetOwningModule(func_decl, mod_ctx);
+  }
 
 #ifdef LLDB_CONFIGURATION_DEBUG
   VerifyDecl(func_decl);
@@ -1975,16 +2014,19 @@ TypeSystemClang::CreateFunctionType(const CompilerType &result_type,
 }
 
 ParmVarDecl *TypeSystemClang::CreateParameterDeclaration(
-    clang::DeclContext *decl_ctx, const char *name,
+    CompilerDeclContext decl_ctx, const char *name,
     const CompilerType &param_type, int storage, bool add_decl) {
   ASTContext &ast = getASTContext();
+  auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
   auto *decl =
-      ParmVarDecl::Create(ast, decl_ctx, SourceLocation(), SourceLocation(),
+      ParmVarDecl::Create(ast, mod_ctx.decl_context, SourceLocation(), SourceLocation(),
                           name && name[0] ? &ast.Idents.get(name) : nullptr,
                           ClangUtil::GetQualType(param_type), nullptr,
                           (clang::StorageClass)storage, nullptr);
+  SetOwningModule(decl, mod_ctx);
+ 
   if (add_decl)
-    decl_ctx->addDecl(decl);
+    mod_ctx.decl_context->addDecl(decl);
 
   return decl;
 }
@@ -2044,7 +2086,7 @@ CompilerType TypeSystemClang::CreateStructForIdentifier(
     return type;
   }
 
-  type = CreateRecordType(nullptr, {}, lldb::eAccessPublic, type_name.GetCString(),
+  type = CreateRecordType({}, lldb::eAccessPublic, type_name.GetCString(),
                           clang::TTK_Struct, lldb::eLanguageTypeC);
   StartTagDeclarationDefinition(type);
   for (const auto &field : type_fields)
@@ -2070,28 +2112,27 @@ CompilerType TypeSystemClang::GetOrCreateStructForIdentifier(
 
 #pragma mark Enumeration Types
 
-CompilerType
-TypeSystemClang::CreateEnumerationType(const char *name, DeclContext *decl_ctx,
-                                       const Declaration &decl,
-                                       const CompilerType &integer_clang_type,
-                                       bool is_scoped) {
+CompilerType TypeSystemClang::CreateEnumerationType(
+    const char *name, CompilerDeclContext decl_ctx, const Declaration &decl,
+    const CompilerType &integer_clang_type, bool is_scoped) {
   // TODO: Do something intelligent with the Declaration object passed in
   // like maybe filling in the SourceLocation with it...
   ASTContext &ast = getASTContext();
 
   // TODO: ask about these...
   //    const bool IsFixed = false;
-
+  auto mod_ctx = GetModuleDeclContextFromCompilerDeclContext(decl_ctx);
   EnumDecl *enum_decl = EnumDecl::Create(
-      ast, decl_ctx, SourceLocation(), SourceLocation(),
+      ast, mod_ctx.decl_context, SourceLocation(), SourceLocation(),
       name && name[0] ? &ast.Idents.get(name) : nullptr, nullptr,
       is_scoped, // IsScoped
       is_scoped, // IsScopedUsingClassTag
       false);    // IsFixed
 
   if (enum_decl) {
+    SetOwningModule(enum_decl, mod_ctx);
     if (decl_ctx)
-      decl_ctx->addDecl(enum_decl);
+      mod_ctx.decl_context->addDecl(enum_decl);
 
     // TODO: check if we should be setting the promotion type too?
     enum_decl->setIntegerType(ClangUtil::GetQualType(integer_clang_type));
@@ -4267,19 +4308,20 @@ CompilerType TypeSystemClang::CreateTypedefType(
     clang::ASTContext &clang_ast = ast->getASTContext();
     clang::QualType qual_type(ClangUtil::GetQualType(type));
 
-    clang::DeclContext *decl_ctx =
-        TypeSystemClang::DeclContextGetAsDeclContext(compiler_decl_ctx);
-    if (decl_ctx == nullptr)
-      decl_ctx = ast->getASTContext().getTranslationUnitDecl();
+    auto mod_ctx =
+        ast->GetModuleDeclContextFromCompilerDeclContext(compiler_decl_ctx);
+    if (!mod_ctx)
+      mod_ctx = {ast->getASTContext().getTranslationUnitDecl(), 0};
 
     clang::TypedefDecl *decl = clang::TypedefDecl::Create(
-        clang_ast, decl_ctx, clang::SourceLocation(), clang::SourceLocation(),
-        &clang_ast.Idents.get(typedef_name),
+        clang_ast, mod_ctx.decl_context, clang::SourceLocation(),
+        clang::SourceLocation(), &clang_ast.Idents.get(typedef_name),
         clang_ast.getTrivialTypeSourceInfo(qual_type));
 
+    SetOwningModule(decl, mod_ctx);
     decl->setAccess(clang::AS_public); // TODO respect proper access specifier
 
-    decl_ctx->addDecl(decl);
+    ast->GetClangDeclContext(compiler_decl_ctx)->addDecl(decl);
 
     // Get a uniqued clang::QualType for the typedef decl type
     return ast->GetType(clang_ast.getTypedefType(decl));
@@ -4373,22 +4415,26 @@ TypeSystemClang::CreateTypedef(lldb::opaque_compiler_type_t type,
     clang::ASTContext &clang_ast = getASTContext();
     clang::QualType qual_type(GetQualType(type));
 
-    clang::DeclContext *decl_ctx =
         TypeSystemClang::DeclContextGetAsDeclContext(compiler_decl_ctx);
-    if (decl_ctx == nullptr)
-      decl_ctx = getASTContext().getTranslationUnitDecl();
+        auto mod_ctx =
+            GetModuleDeclContextFromCompilerDeclContext(compiler_decl_ctx);
+        clang::DeclContext *decl_ctx = mod_ctx.decl_context;
+        if (!decl_ctx)
+          decl_ctx = getASTContext().getTranslationUnitDecl();
 
-    clang::TypedefDecl *decl = clang::TypedefDecl::Create(
-        clang_ast, decl_ctx, clang::SourceLocation(), clang::SourceLocation(),
-        &clang_ast.Idents.get(typedef_name),
-        clang_ast.getTrivialTypeSourceInfo(qual_type));
+        clang::TypedefDecl *decl = clang::TypedefDecl::Create(
+            clang_ast, decl_ctx, clang::SourceLocation(),
+            clang::SourceLocation(), &clang_ast.Idents.get(typedef_name),
+            clang_ast.getTrivialTypeSourceInfo(qual_type));
+        SetOwningModule(decl, mod_ctx);
 
-    clang::TagDecl *tdecl = nullptr;
-    if (!qual_type.isNull()) {
-      if (const clang::RecordType *rt = qual_type->getAs<clang::RecordType>())
-        tdecl = rt->getDecl();
-      if (const clang::EnumType *et = qual_type->getAs<clang::EnumType>())
-        tdecl = et->getDecl();
+        clang::TagDecl *tdecl = nullptr;
+        if (!qual_type.isNull()) {
+          if (const clang::RecordType *rt =
+                  qual_type->getAs<clang::RecordType>())
+            tdecl = rt->getDecl();
+          if (const clang::EnumType *et = qual_type->getAs<clang::EnumType>())
+            tdecl = et->getDecl();
     }
 
     // Check whether this declaration is an anonymous struct, union, or enum,
@@ -6919,6 +6965,15 @@ TypeSystemClang::GetAsObjCInterfaceDecl(const CompilerType &type) {
   return nullptr;
 }
 
+static void SetMemberOwningModule(clang::Decl *member,
+                                  const clang::Decl *parent) {
+  if (member && parent)
+    if (unsigned id = parent->getOwningModuleID()) {
+      member->setFromASTFile();
+      member->setOwningModuleID(id);
+    }
+}
+
 clang::FieldDecl *TypeSystemClang::AddFieldToRecordType(
     const CompilerType &type, llvm::StringRef name,
     const CompilerType &field_clang_type, AccessType access,
@@ -6956,6 +7011,7 @@ clang::FieldDecl *TypeSystemClang::AddFieldToRecordType(
         bit_width,                                // BitWidth
         false,                                    // Mutable
         clang::ICIS_NoInit);                      // HasInit
+    SetMemberOwningModule(field, record_decl);
 
     if (name.empty()) {
       // Determine whether this field corresponds to an anonymous struct or
@@ -6998,6 +7054,7 @@ clang::FieldDecl *TypeSystemClang::AddFieldToRecordType(
           nullptr,                                  // TypeSourceInfo *
           ConvertAccessTypeToObjCIvarAccessControl(access), bit_width,
           is_synthesized);
+      SetMemberOwningModule(field, class_interface_decl);
 
       if (field) {
         class_interface_decl->addDecl(field);
@@ -7061,6 +7118,7 @@ void TypeSystemClang::BuildIndirectFields(const CompilerType &type) {
                   ast->getASTContext(), record_decl, clang::SourceLocation(),
                   nested_field_decl->getIdentifier(),
                   nested_field_decl->getType(), {chain, 2});
+          SetMemberOwningModule(indirect_field, record_decl);
 
           indirect_field->setImplicit();
 
@@ -7091,7 +7149,8 @@ void TypeSystemClang::BuildIndirectFields(const CompilerType &type) {
                   nested_indirect_field_decl->getIdentifier(),
                   nested_indirect_field_decl->getType(),
                   {chain, nested_chain_size + 1});
-
+          SetMemberOwningModule(indirect_field, record_decl);
+ 
           indirect_field->setImplicit();
 
           indirect_field->setAccess(TypeSystemClang::UnifyAccessSpecifiers(
@@ -7161,6 +7220,7 @@ clang::VarDecl *TypeSystemClang::AddVariableToRecordType(
       ClangUtil::GetQualType(var_type), // Variable clang::QualType
       nullptr,                          // TypeSourceInfo *
       clang::SC_Static);                // StorageClass
+  SetMemberOwningModule(var_decl, record_decl);
   if (!var_decl)
     return nullptr;
 
@@ -7289,6 +7349,7 @@ clang::CXXMethodDecl *TypeSystemClang::AddMethodToCXXRecordType(
           SC, is_inline, CSK_unspecified, clang::SourceLocation());
     }
   }
+  SetMemberOwningModule(cxx_method_decl, cxx_record_decl);
 
   clang::AccessSpecifier access_specifier =
       TypeSystemClang::ConvertAccessTypeToAccessSpecifier(access);
@@ -7466,6 +7527,7 @@ bool TypeSystemClang::AddObjCClassProperty(
       ivar_decl ? ivar_decl->getType()
                 : ClangUtil::GetQualType(property_clang_type),
       prop_type_source);
+  SetMemberOwningModule(property_decl, class_interface_decl);
 
   if (!property_decl)
     return false;
@@ -7551,6 +7613,7 @@ bool TypeSystemClang::AddObjCClassProperty(
         class_interface_decl, isInstance, isVariadic, isPropertyAccessor,
         isSynthesizedAccessorStub, isImplicitlyDeclared, isDefined, impControl,
         HasRelatedResultType);
+    SetMemberOwningModule(getter, class_interface_decl);
 
     if (getter) {
       if (metadata)
@@ -7585,6 +7648,7 @@ bool TypeSystemClang::AddObjCClassProperty(
         result_type, nullptr, class_interface_decl, isInstance, isVariadic,
         isPropertyAccessor, isSynthesizedAccessorStub, isImplicitlyDeclared,
         isDefined, impControl, HasRelatedResultType);
+        SetMemberOwningModule(setter, class_interface_decl);
 
     if (setter) {
       if (metadata)
@@ -7710,6 +7774,7 @@ clang::ObjCMethodDecl *TypeSystemClang::AddMethodToObjCObjectType(
       lldb_ast->GetDeclContextForType(ClangUtil::GetQualType(type)), isInstance,
       isVariadic, isPropertyAccessor, isSynthesizedAccessorStub,
       isImplicitlyDeclared, isDefined, impControl, HasRelatedResultType);
+  SetMemberOwningModule(objc_method_decl, class_interface_decl);
 
   if (objc_method_decl == nullptr)
     return nullptr;
@@ -7945,6 +8010,7 @@ clang::EnumConstantDecl *TypeSystemClang::AddEnumerationValueToEnumerationType(
       getASTContext(), enutype->getDecl(), clang::SourceLocation(),
       name ? &getASTContext().Idents.get(name) : nullptr, // Identifier
       clang::QualType(enutype, 0), nullptr, value);
+  SetMemberOwningModule(enumerator_decl, enutype->getDecl());
 
   if (!enumerator_decl)
     return nullptr;
@@ -8849,7 +8915,7 @@ void TypeSystemClang::DumpTypeName(const CompilerType &type) {
 }
 
 clang::ClassTemplateDecl *TypeSystemClang::ParseClassTemplateDecl(
-    clang::DeclContext *decl_ctx, lldb::AccessType access_type,
+    CompilerDeclContext decl_ctx, lldb::AccessType access_type,
     const char *parent_name, int tag_decl_kind,
     const TypeSystemClang::TemplateParameterInfos &template_param_infos) {
   if (template_param_infos.IsValid()) {
@@ -8953,8 +9019,9 @@ ConstString TypeSystemClang::DeclGetMangledName(void *opaque_decl) {
 }
 
 CompilerDeclContext TypeSystemClang::DeclGetDeclContext(void *opaque_decl) {
+  // FIXME: This drops the module information.
   if (opaque_decl)
-    return CreateDeclContext(((clang::Decl *)opaque_decl)->getDeclContext());
+    return GetAsCompilerDeclContext(((clang::Decl *)opaque_decl)->getDeclContext());
   return CompilerDeclContext();
 }
 
@@ -9018,8 +9085,7 @@ std::vector<CompilerDecl> TypeSystemClang::DeclContextFindDeclByName(
            it++) {
         if (!searched.insert(it->second).second)
           continue;
-        symbol_file->ParseDeclsForContext(
-            CreateDeclContext(it->second));
+        symbol_file->ParseDeclsForContext(GetAsCompilerDeclContext(it->second));
 
         for (clang::Decl *child : it->second->decls()) {
           if (clang::UsingDirectiveDecl *ud =
@@ -9133,8 +9199,7 @@ uint32_t TypeSystemClang::CountDeclLevels(clang::DeclContext *frame_decl_ctx,
           continue;
 
         searched.insert(it->second);
-        symbol_file->ParseDeclsForContext(
-            CreateDeclContext(it->second));
+        symbol_file->ParseDeclsForContext(GetAsCompilerDeclContext(it->second));
 
         for (clang::Decl *child : it->second->decls()) {
           if (clang::UsingDirectiveDecl *ud =
@@ -9265,40 +9330,33 @@ static bool IsClangDeclContext(const CompilerDeclContext &dc) {
 clang::DeclContext *
 TypeSystemClang::DeclContextGetAsDeclContext(const CompilerDeclContext &dc) {
   if (IsClangDeclContext(dc))
-    return (clang::DeclContext *)dc.GetOpaqueDeclContext();
+    return llvm::cast<TypeSystemClang>(dc.GetTypeSystem())
+        ->GetClangDeclContext(dc);
   return nullptr;
 }
 
 ObjCMethodDecl *
 TypeSystemClang::DeclContextGetAsObjCMethodDecl(const CompilerDeclContext &dc) {
-  if (IsClangDeclContext(dc))
-    return llvm::dyn_cast<clang::ObjCMethodDecl>(
-        (clang::DeclContext *)dc.GetOpaqueDeclContext());
-  return nullptr;
+  return llvm::dyn_cast_or_null<clang::ObjCMethodDecl>(
+      DeclContextGetAsDeclContext(dc));
 }
 
 CXXMethodDecl *
 TypeSystemClang::DeclContextGetAsCXXMethodDecl(const CompilerDeclContext &dc) {
-  if (IsClangDeclContext(dc))
-    return llvm::dyn_cast<clang::CXXMethodDecl>(
-        (clang::DeclContext *)dc.GetOpaqueDeclContext());
-  return nullptr;
+  return llvm::dyn_cast_or_null<clang::CXXMethodDecl>(
+      DeclContextGetAsDeclContext(dc));
 }
 
 clang::FunctionDecl *
 TypeSystemClang::DeclContextGetAsFunctionDecl(const CompilerDeclContext &dc) {
-  if (IsClangDeclContext(dc))
-    return llvm::dyn_cast<clang::FunctionDecl>(
-        (clang::DeclContext *)dc.GetOpaqueDeclContext());
-  return nullptr;
+  return llvm::dyn_cast_or_null<clang::FunctionDecl>(
+      DeclContextGetAsDeclContext(dc));
 }
 
 clang::NamespaceDecl *
 TypeSystemClang::DeclContextGetAsNamespaceDecl(const CompilerDeclContext &dc) {
-  if (IsClangDeclContext(dc))
-    return llvm::dyn_cast<clang::NamespaceDecl>(
-        (clang::DeclContext *)dc.GetOpaqueDeclContext());
-  return nullptr;
+  return llvm::dyn_cast_or_null<clang::NamespaceDecl>(
+      DeclContextGetAsDeclContext(dc));
 }
 
 ClangASTMetadata *
@@ -9315,6 +9373,52 @@ TypeSystemClang::DeclContextGetTypeSystemClang(const CompilerDeclContext &dc) {
   if (ast)
     return &ast->getASTContext();
   return nullptr;
+}
+
+TypeSystemClang::ModuleDeclContext
+TypeSystemClang::GetModuleDeclContextFromCompilerDeclContext(
+    CompilerDeclContext ctx) {
+  auto ptr = ModuleDeclContext::WrappedPointer::getFromOpaqueValue(
+      ctx.GetOpaqueDeclContext());
+  if (ptr.is<clang::DeclContext *>()) {
+    auto *ctx = ptr.get<clang::DeclContext *>();
+    assert(!ctx || (&ctx->getParentASTContext() == &getASTContext()));
+    return {ctx, 0};
+  }
+
+  size_t idx = ptr.get<ModuleDeclContext::IndexType>();
+  assert(idx > 0);
+  return m_decl_contexts[idx - 1];
+}
+
+clang::DeclContext *
+TypeSystemClang::GetClangDeclContext(CompilerDeclContext ctx) {
+  return GetModuleDeclContextFromCompilerDeclContext(ctx).decl_context;
+}
+
+CompilerDeclContext TypeSystemClang::GetAsCompilerDeclContext(
+    const clang::DeclContext *decl_context) {
+  assert(&decl_context->getParentASTContext() == &getASTContext() &&
+         "decl context belongs to different typesystem");
+  ModuleDeclContext::WrappedPointer ptr =
+      const_cast<clang::DeclContext *>(decl_context);
+  return {this, ptr.getOpaqueValue()};
+}
+
+CompilerDeclContext
+TypeSystemClang::CreateDeclContext(clang::DeclContext *decl_context,
+                                   unsigned owning_module) {
+  // Check that the DeclContext actually belongs to this ASTContext.
+  assert(&decl_context->getParentASTContext() == &getASTContext());
+  ModuleDeclContext::WrappedPointer ptr;
+  if (!owning_module) {
+    ptr = decl_context;
+    assert(ptr.is<clang::DeclContext *>());
+  } else {
+    m_decl_contexts.emplace_back(decl_context, owning_module);
+    ptr = ModuleDeclContext::IndexType(m_decl_contexts.size());
+  }
+  return {this, ptr.getOpaqueValue()};
 }
 
 TypeSystemClangForExpressions::TypeSystemClangForExpressions(

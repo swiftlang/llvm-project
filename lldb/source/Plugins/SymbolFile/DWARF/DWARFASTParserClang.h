@@ -74,12 +74,12 @@ protected:
   typedef std::vector<DelayedAddObjCClassProperty> DelayedPropertyList;
 
   typedef llvm::SmallPtrSet<const DWARFDebugInfoEntry *, 4> DIEPointerSet;
-  typedef llvm::DenseMap<const DWARFDebugInfoEntry *, clang::DeclContext *>
+  typedef llvm::DenseMap<const DWARFDebugInfoEntry *,
+                         lldb_private::CompilerDeclContext>
       DIEToDeclContextMap;
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, unsigned>
       DIEToModuleMap;
-  typedef std::multimap<const clang::DeclContext *, const DWARFDIE>
-      DeclContextToDIEMap;
+  typedef std::multimap<void *, const DWARFDIE> DeclContextToDIEMap;
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, clang::Decl *>
       DIEToDeclMap;
   typedef llvm::DenseMap<const clang::Decl *, DIEPointerSet> DeclToDIEMap;
@@ -93,7 +93,8 @@ protected:
   std::unique_ptr<lldb_private::ClangASTImporter> m_clang_ast_importer_up;
   /// @}
 
-  clang::DeclContext *GetDeclContextForBlock(const DWARFDIE &die);
+  lldb_private::CompilerDeclContext
+  GetDeclContextForBlock(const DWARFDIE &die, unsigned owning_module);
 
   clang::BlockDecl *ResolveBlockDIE(const DWARFDIE &die);
 
@@ -118,7 +119,7 @@ protected:
       lldb_private::ClangASTImporter::LayoutInfo &layout_info);
 
   size_t
-  ParseChildParameters(clang::DeclContext *containing_decl_ctx,
+  ParseChildParameters(lldb_private::CompilerDeclContext containing_decl_ctx,
                        const DWARFDIE &parent_die, bool skip_artificial,
                        bool &is_static, bool &is_variadic,
                        bool &has_template_params,
@@ -139,10 +140,11 @@ protected:
 
   clang::Decl *GetClangDeclForDIE(const DWARFDIE &die);
 
-  clang::DeclContext *GetClangDeclContextForDIE(const DWARFDIE &die);
+  lldb_private::CompilerDeclContext
+  GetClangDeclContextForDIE(const DWARFDIE &die, unsigned owning_module);
 
-  clang::DeclContext *GetClangDeclContextContainingDIE(const DWARFDIE &die,
-                                                       DWARFDIE *decl_ctx_die);
+  lldb_private::CompilerDeclContext
+  GetClangDeclContextContainingDIE(const DWARFDIE &die, DWARFDIE *decl_ctx_die);
 
   unsigned GetOwningModuleID(const DWARFDIE &die);
 
@@ -151,9 +153,11 @@ protected:
                                   lldb_private::Type *class_type,
                                   std::vector<DWARFDIE> &failures);
 
-  clang::DeclContext *GetCachedClangDeclContextForDIE(const DWARFDIE &die);
+  lldb_private::CompilerDeclContext
+  GetCachedClangDeclContextForDIE(const DWARFDIE &die);
 
-  void LinkDeclContextToDIE(clang::DeclContext *decl_ctx, const DWARFDIE &die);
+  void LinkDeclContextToDIE(lldb_private::CompilerDeclContext decl_ctx,
+                            const DWARFDIE &die);
 
   void LinkDeclToDIE(clang::Decl *decl, const DWARFDIE &die);
 

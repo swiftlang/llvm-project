@@ -23,6 +23,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/TemplateBase.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/PointerEmbeddedInt.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include "lldb/Core/ClangForward.h"
@@ -258,8 +259,7 @@ public:
                                   bool is_framework = false,
                                   bool is_explicit = false);
 
-  CompilerType CreateRecordType(clang::DeclContext *decl_ctx,
-                                unsigned owning_module,
+  CompilerType CreateRecordType(CompilerDeclContext decl_ctx,
                                 lldb::AccessType access_type,
                                 llvm::StringRef name, int kind,
                                 lldb::LanguageType language,
@@ -284,7 +284,7 @@ public:
   };
 
   clang::FunctionTemplateDecl *
-  CreateFunctionTemplateDecl(clang::DeclContext *decl_ctx,
+  CreateFunctionTemplateDecl(CompilerDeclContext decl_ctx,
                              clang::FunctionDecl *func_decl, const char *name,
                              const TemplateParameterInfos &infos);
 
@@ -293,7 +293,7 @@ public:
       const TemplateParameterInfos &infos);
 
   clang::ClassTemplateDecl *
-  CreateClassTemplateDecl(clang::DeclContext *decl_ctx,
+  CreateClassTemplateDecl(CompilerDeclContext decl_ctx,
                           lldb::AccessType access_type, const char *class_name,
                           int kind, const TemplateParameterInfos &infos);
 
@@ -301,7 +301,7 @@ public:
   CreateTemplateTemplateParmDecl(const char *template_name);
 
   clang::ClassTemplateSpecializationDecl *CreateClassTemplateSpecializationDecl(
-      clang::DeclContext *decl_ctx,
+      CompilerDeclContext decl_ctx,
       clang::ClassTemplateDecl *class_template_decl, int kind,
       const TemplateParameterInfos &infos);
 
@@ -321,7 +321,7 @@ public:
   static bool RecordHasFields(const clang::RecordDecl *record_decl);
 
   CompilerType CreateObjCClass(llvm::StringRef name,
-                               clang::DeclContext *decl_ctx, bool isForwardDecl,
+                               CompilerDeclContext decl_ctx, bool isForwardDecl,
                                bool isInternal,
                                ClangASTMetadata *metadata = nullptr);
 
@@ -338,13 +338,13 @@ public:
   // Namespace Declarations
 
   clang::NamespaceDecl *
-  GetUniqueNamespaceDeclaration(const char *name, clang::DeclContext *decl_ctx,
+  GetUniqueNamespaceDeclaration(const char *name, CompilerDeclContext decl_ctx,
                                 bool is_inline = false);
 
   // Function Types
 
   clang::FunctionDecl *
-  CreateFunctionDeclaration(clang::DeclContext *decl_ctx, const char *name,
+  CreateFunctionDeclaration(CompilerDeclContext decl_ctx, const char *name,
                             const CompilerType &function_Type, int storage,
                             bool is_inline);
 
@@ -360,7 +360,7 @@ public:
                               type_quals, clang::CC_C);
   }
 
-  clang::ParmVarDecl *CreateParameterDeclaration(clang::DeclContext *decl_ctx,
+  clang::ParmVarDecl *CreateParameterDeclaration(CompilerDeclContext decl_ctx,
                                                  const char *name,
                                                  const CompilerType &param_type,
                                                  int storage,
@@ -378,7 +378,7 @@ public:
 
   // Enumeration Types
   CompilerType CreateEnumerationType(const char *name,
-                                     clang::DeclContext *decl_ctx,
+                                     CompilerDeclContext decl_ctx,
                                      const Declaration &decl,
                                      const CompilerType &integer_qual_type,
                                      bool is_scoped);
@@ -428,12 +428,6 @@ public:
   CompilerType GetTypeForDecl(void *opaque_decl) override;
 
   // CompilerDeclContext override functions
-
-  /// Creates a CompilerDeclContext from the given DeclContext
-  /// with the current TypeSystemClang instance as its typesystem.
-  /// The DeclContext has to come from the ASTContext of this
-  /// TypeSystemClang.
-  CompilerDeclContext CreateDeclContext(clang::DeclContext *ctx);
 
   std::vector<CompilerDecl>
   DeclContextFindDeclByName(void *opaque_decl_ctx, ConstString name,
@@ -917,20 +911,20 @@ public:
   GetAsObjCInterfaceDecl(const CompilerType &type);
 
   clang::ClassTemplateDecl *ParseClassTemplateDecl(
-      clang::DeclContext *decl_ctx, lldb::AccessType access_type,
+      CompilerDeclContext decl_ctx, lldb::AccessType access_type,
       const char *parent_name, int tag_decl_kind,
       const TypeSystemClang::TemplateParameterInfos &template_param_infos);
 
-  clang::BlockDecl *CreateBlockDeclaration(clang::DeclContext *ctx);
+  clang::BlockDecl *CreateBlockDeclaration(CompilerDeclContext ctx);
 
   clang::UsingDirectiveDecl *
-  CreateUsingDirectiveDeclaration(clang::DeclContext *decl_ctx,
+  CreateUsingDirectiveDeclaration(CompilerDeclContext decl_ctx,
                                   clang::NamespaceDecl *ns_decl);
 
-  clang::UsingDecl *CreateUsingDeclaration(clang::DeclContext *current_decl_ctx,
+  clang::UsingDecl *CreateUsingDeclaration(CompilerDeclContext current_decl_ctx,
                                            clang::NamedDecl *target);
 
-  clang::VarDecl *CreateVariableDeclaration(clang::DeclContext *decl_context,
+  clang::VarDecl *CreateVariableDeclaration(CompilerDeclContext decl_context,
                                             const char *name,
                                             clang::QualType type);
 
@@ -952,6 +946,52 @@ public:
 
   clang::DeclarationName
   GetDeclarationName(const char *name, const CompilerType &function_clang_type);
+
+  // BEGIN SWIFT
+  clang::LangOptions *GetLangOpts() const {
+    return m_language_options_up.get();
+  }
+  clang::SourceManager *GetSourceMgr() const {
+    return m_source_manager_up.get();
+  }
+  // END SWIFT
+
+  /// To save memory in the general case, Clang DeclContexts are tagged
+  /// pointers that are either a straight (clang::DeclContext *) or
+  /// an index into m_decl_contexts which holds ModuleDeclContext structs.
+  struct ModuleDeclContext {
+    clang::DeclContext *decl_context = nullptr;
+    unsigned owning_module = 0;
+
+    ModuleDeclContext(clang::DeclContext *dc, unsigned m)
+        : decl_context(dc), owning_module(m) {}
+    operator bool() const { return decl_context; }
+
+    using IndexType =
+        llvm::PointerEmbeddedInt<unsigned,
+                                 sizeof(unsigned) * CHAR_BIT - 8>;
+    using WrappedPointer = llvm::PointerUnion<clang::DeclContext *, IndexType>;
+  };
+
+  ModuleDeclContext
+  GetModuleDeclContextFromCompilerDeclContext(CompilerDeclContext ctx);
+
+  /// Extract the clang::DeclContext from a CompilerDeclContext.
+  clang::DeclContext *GetClangDeclContext(CompilerDeclContext ctx);
+
+  /// Convert into a CompilerDeclContext without attaching module
+  /// information. This should only be used when we are sure that the
+  /// module information isn't needed. It's also used in the PDB
+  /// parser where module info isn't serialized at all.
+  CompilerDeclContext
+  GetAsCompilerDeclContext(const clang::DeclContext *decl_context);
+
+  /// Creates a CompilerDeclContext from the given DeclContext
+  /// with the current TypeSystemClang instance as its typesystem.
+  /// The DeclContext has to come from the ASTContext of this
+  /// TypeSystemClang.
+  CompilerDeclContext CreateDeclContext(clang::DeclContext *decl_context,
+                                        unsigned owning_module);
 
 private:
   const clang::ClassTemplateSpecializationDecl *
@@ -978,6 +1018,7 @@ private:
   uint32_t m_pointer_byte_size = 0;
   bool m_ast_owned = false;
 
+  std::vector<ModuleDeclContext> m_decl_contexts;
   typedef llvm::DenseMap<const clang::Decl *, ClangASTMetadata> DeclMetadataMap;
   /// Maps Decls to their associated ClangASTMetadata.
   DeclMetadataMap m_decl_metadata;
