@@ -48,6 +48,9 @@ public:
   llvm::Optional<clang::ExternalASTSource::ASTSourceDescriptor>
   getSourceDescriptor(unsigned id) override;
   unsigned getIDForModule(clang::Module *module);
+  // BEGIN SWIFT
+  TypeSystemClang &GetTypeSystem() const { return m_ast; }
+  // END SWIFT
 private:
   TypeSystemClang &m_ast;
   std::vector<std::unique_ptr<clang::Module>> m_modules;

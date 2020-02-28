@@ -33,6 +33,12 @@
 #include <map>
 #include <set>
 
+namespace clang {
+  namespace api_notes {
+    class APINotesManager;
+  }
+}
+
 namespace swift {
 enum class IRGenDebugInfoLevel : unsigned;
 class CanType;
@@ -66,6 +72,7 @@ class SwiftEnumDescriptor;
 namespace lldb_private {
 
 struct SourceModule;
+class ClangExternalASTSourceCallbacks;
 
 CompilerType ToCompilerType(swift::Type qual_type);
 
@@ -181,6 +188,9 @@ public:
   swift::ClangImporter *GetClangImporter();
   swift::SourceManager &GetSourceManager();
   swift::DiagnosticEngine &GetDiagnosticEngine();
+  /// Return an APINotes manager for the module with module id \id.
+  clang::api_notes::APINotesManager *
+  GetAPINotesManager(ClangExternalASTSourceCallbacks *source, unsigned id);
 
   bool HasErrors();
   static bool HasFatalErrors(swift::ASTContext *ast_context);
@@ -584,8 +594,10 @@ protected:
   Module *m_module = nullptr;
 
   std::unique_ptr<DWARFASTParser> m_dwarf_ast_parser_ap;
+  llvm::DenseMap<clang::Module *,
+                 std::unique_ptr<clang::api_notes::APINotesManager>>
+      m_apinotes_manager;
 
-  
   bool m_initialized_language_options = false;
   bool m_initialized_search_path_options = false;
   bool m_initialized_clang_importer_options = false;
@@ -600,13 +612,12 @@ protected:
   std::unique_ptr<swift::DiagnosticConsumer> m_diagnostic_consumer_ap;
   std::unique_ptr<swift::DependencyTracker> m_dependency_tracker;
   swift::ClangImporter *m_clang_importer = nullptr; // Owned by the AST.
-
+  
   /// A collection of (not necessarily fatal) error messages that
   /// should be printed by Process::PrintWarningCantLoadSwift().
   std::vector<std::string> m_module_import_warnings;
   Status m_fatal_errors;
   bool m_reported_fatal_error = false;
-
 };
 
 class SwiftASTContextForExpressions : public SwiftASTContext {
