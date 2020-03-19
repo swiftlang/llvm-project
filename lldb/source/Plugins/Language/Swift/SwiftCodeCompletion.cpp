@@ -253,9 +253,8 @@ SwiftCompleteCode(SwiftASTContext &SwiftCtx,
     // `completionCodeFile`, so that declarations that have been re-declared in
     // the user's current code take precedence over persistent declarations.
     DenseMap<Identifier, SmallVector<ValueDecl *, 1>> newDecls;
-    auto topLevelDecls = completionCodeFile.getTopLevelDecls();
-    for (auto it = topLevelDecls.begin(); it != topLevelDecls.end(); it++)
-      if (auto *newValueDecl = dyn_cast<ValueDecl>(*it))
+    for (auto *decl : completionCodeFile.getTopLevelDecls())
+      if (auto *newValueDecl = dyn_cast<ValueDecl>(decl))
         newDecls.FindAndConstruct(newValueDecl->getBaseName().getIdentifier())
             .second.push_back(newValueDecl);
 
