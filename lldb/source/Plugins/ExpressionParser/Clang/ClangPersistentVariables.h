@@ -53,9 +53,7 @@ public:
 
   void RemovePersistentVariable(lldb::ExpressionVariableSP variable) override;
 
-  llvm::StringRef GetPersistentVariablePrefix(bool is_error) const override {
-    return "$";
-  }
+  virtual ConstString GetNextPersistentVariableName(bool is_error = false);
 
   // This just adds this module to the list of hand-loaded modules, it doesn't
   // actually load it.
@@ -96,6 +94,12 @@ public:
 
   const ClangModulesDeclVendor::ModuleVector &GetHandLoadedClangModules() {
     return m_hand_loaded_clang_modules;
+  }
+
+protected:
+  llvm::StringRef
+  GetPersistentVariablePrefix(bool is_error = false) const override {
+    return "$";
   }
 
 private:

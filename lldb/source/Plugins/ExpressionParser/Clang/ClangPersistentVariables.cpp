@@ -118,3 +118,14 @@ clang::NamedDecl *
 ClangPersistentVariables::GetPersistentDecl(ConstString name) {
   return m_persistent_decls.lookup(name.GetCString()).m_decl;
 }
+
+ConstString
+ClangPersistentVariables::GetNextPersistentVariableName(bool is_error) {
+  llvm::SmallString<64> name;
+  {
+    llvm::raw_svector_ostream os(name);
+    os << GetPersistentVariablePrefix(is_error)
+       << m_next_persistent_variable_id++;
+  }
+  return ConstString(name);
+}

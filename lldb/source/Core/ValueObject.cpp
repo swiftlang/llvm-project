@@ -3344,9 +3344,7 @@ ValueObjectSP ValueObject::Persist() {
   if (!persistent_state)
     return nullptr;
 
-  auto prefix = persistent_state->GetPersistentVariablePrefix();
-  ConstString name =
-      persistent_state->GetNextPersistentVariableName(*target_sp, prefix);
+  ConstString name = persistent_state->GetNextPersistentVariableName();
 
   ValueObjectSP const_result_sp =
       ValueObjectConstResult::Create(target_sp.get(), GetValue(), name);
