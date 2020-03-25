@@ -477,6 +477,7 @@ bool ThreadPlanCallFunction::BreakpointsExplainStop() {
     }
   }
   if (m_error_backstop_bp_sp) {
+<<<<<<< HEAD
     uint64_t break_site_id = stop_info_sp->GetValue();
     if (m_process.GetBreakpointSiteList().BreakpointSiteContainsBreakpoint(
             break_site_id, m_error_backstop_bp_sp->GetID())) {
@@ -490,11 +491,8 @@ bool ThreadPlanCallFunction::BreakpointsExplainStop() {
       PersistentExpressionState *persistent_state =
           GetTarget().GetPersistentExpressionStateForLanguage(
               eLanguageTypeSwift);
-      const bool is_error = true;
-      auto prefix = persistent_state->GetPersistentVariablePrefix(is_error);
       ConstString persistent_variable_name(
-          persistent_state->GetNextPersistentVariableName(GetTarget(),
-                                                          prefix));
+              persistent_state->GetNextPersistentVariableName(/*is_error*/ true));
       if (m_return_valobj_sp = SwiftLanguageRuntime::CalculateErrorValue(
               frame_sp, persistent_variable_name)) {
 
