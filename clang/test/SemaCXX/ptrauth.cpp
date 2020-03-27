@@ -1,7 +1,24 @@
-// RUN: %clang_cc1 -triple arm64-apple-ios -std=c++17 -fsyntax-only -verify -fptrauth-intrinsics %s
+// RUN: %clang_cc1 -triple arm64-apple-ios -std=c++17 -fsyntax-only -verify -fptrauth-intrinsics -fptrauth-calls %s
+
+struct Incomplete0; // expected-note {{forward declaration of 'Incomplete0'}}
+
+template <class T>
+struct Incomplete1; // expected-note {{template is declared here}}
+
+struct Complete0 {
+};
+
+template <class T>
+struct Complete1 {
+};
 
 struct S {
   virtual int foo();
+  virtual Incomplete0 virtual0(); // expected-note {{'Incomplete0' is incomplete}}
+  virtual void virtual1(Incomplete1<int>); // expected-note {{'Incomplete1<int>' is incomplete}}
+  virtual Complete0 virtual2();
+  virtual Complete1<int> virtual3();
+  Incomplete0 nonvirtual0();
 };
 
 template <class T>
@@ -30,4 +47,12 @@ void test_builtin_ptrauth_type_discriminator(unsigned s) {
   __builtin_ptrauth_type_discriminator(t); // expected-error {{unknown type name 't'}}
   __builtin_ptrauth_type_discriminator(&t); // expected-error {{expected a type}}
   __builtin_ptrauth_type_discriminator(decltype(vmarray)); // expected-error {{cannot pass variably-modified type 'decltype(vmarray)'}}
+}
+
+void test_incomplete_virtual_member_function_return_arg_type() {
+  (void)&S::virtual0; // expected-error {{incomplete type 'Incomplete0}} expected-note {{cannot take an address of a virtual member function}}
+  (void)&S::virtual1; // expected-error {{implicit instantiation of undefined template 'Incomplete1<int>'}} expected-note {{cannot take an address of a virtual member function}}
+  (void)&S::virtual2;
+  (void)&S::virtual3;
+  (void)&S::nonvirtual0;
 }
