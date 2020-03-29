@@ -470,6 +470,7 @@ StringRef ArrayOrderString(unsigned Order);
 StringRef LNStandardString(unsigned Standard);
 StringRef LNExtendedString(unsigned Encoding);
 StringRef MacinfoString(unsigned Encoding);
+StringRef MacroString(unsigned Encoding);
 StringRef RangeListEncodingString(unsigned Encoding);
 StringRef LocListEncodingString(unsigned Encoding);
 StringRef CallFrameString(unsigned Encoding, Triple::ArchType Arch);
@@ -498,6 +499,7 @@ unsigned getLanguage(StringRef LanguageString);
 unsigned getCallingConvention(StringRef LanguageString);
 unsigned getAttributeEncoding(StringRef EncodingString);
 unsigned getMacinfo(StringRef MacinfoString);
+unsigned getMacro(StringRef MacroString);
 /// @}
 
 /// \defgroup DwarfConstantsVersioning Dwarf version for constants
@@ -672,8 +674,7 @@ template <> struct EnumTraits<LineNumberOps> : public std::true_type {
 /// dumping functions above, these format unknown enumerator values as
 /// DW_TYPE_unknown_1234 (e.g. DW_TAG_unknown_ffff).
 template <typename Enum>
-struct format_provider<
-    Enum, typename std::enable_if<dwarf::EnumTraits<Enum>::value>::type> {
+struct format_provider<Enum, std::enable_if_t<dwarf::EnumTraits<Enum>::value>> {
   static void format(const Enum &E, raw_ostream &OS, StringRef Style) {
     StringRef Str = dwarf::EnumTraits<Enum>::StringFn(E);
     if (Str.empty()) {

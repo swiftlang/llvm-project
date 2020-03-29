@@ -14,6 +14,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
@@ -658,6 +659,16 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
     return false;
 
   case tok::eof:
+    // Check whether -fmax-tokens= was reached.
+    if (PP.getMaxTokens() != 0 && PP.getTokenCount() > PP.getMaxTokens()) {
+      PP.Diag(Tok.getLocation(), diag::warn_max_tokens_total)
+          << PP.getTokenCount() << PP.getMaxTokens();
+      SourceLocation OverrideLoc = PP.getMaxTokensOverrideLoc();
+      if (OverrideLoc.isValid()) {
+        PP.Diag(OverrideLoc, diag::note_max_tokens_total_override);
+      }
+    }
+
     // Late template parsing can begin.
     if (getLangOpts().DelayedTemplateParsing)
       Actions.SetLateTemplateParser(LateTemplateParserCallback,
@@ -1526,13 +1537,13 @@ ExprResult Parser::ParseSimpleAsm(bool ForAsmLabel, SourceLocation *EndLoc) {
   assert(Tok.is(tok::kw_asm) && "Not an asm!");
   SourceLocation Loc = ConsumeToken();
 
-  if (Tok.is(tok::kw_volatile)) {
-    // Remove from the end of 'asm' to the end of 'volatile'.
+  if (isGNUAsmQualifier(Tok)) {
+    // Remove from the end of 'asm' to the end of the asm qualifier.
     SourceRange RemovalRange(PP.getLocForEndOfToken(Loc),
                              PP.getLocForEndOfToken(Tok.getLocation()));
-
-    Diag(Tok, diag::warn_file_asm_volatile)
-      << FixItHint::CreateRemoval(RemovalRange);
+    Diag(Tok, diag::err_global_asm_qualifier_ignored)
+        << GNUAsmQualifiers::getQualifierName(getGNUAsmQualifier(Tok))
+        << FixItHint::CreateRemoval(RemovalRange);
     ConsumeToken();
   }
 
@@ -1602,7 +1613,9 @@ Parser::TryAnnotateName(CorrectionCandidateCallback *CCC) {
 
   CXXScopeSpec SS;
   if (getLangOpts().CPlusPlus &&
-      ParseOptionalCXXScopeSpecifier(SS, nullptr, EnteringContext))
+      ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
+                                     /*ObjectHadErrors=*/false,
+                                     EnteringContext))
     return ANK_Error;
 
   if (Tok.isNot(tok::identifier) || SS.isInvalid()) {
@@ -1839,6 +1852,7 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
     SourceLocation TypenameLoc = ConsumeToken();
     CXXScopeSpec SS;
     if (ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
+                                       /*ObjectHadErrors=*/false,
                                        /*EnteringContext=*/false, nullptr,
                                        /*IsTypename*/ true))
       return true;
@@ -1872,9 +1886,7 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
                                      Tok.getLocation());
     } else if (Tok.is(tok::annot_template_id)) {
       TemplateIdAnnotation *TemplateId = takeTemplateIdAnnotation(Tok);
-      if (TemplateId->Kind != TNK_Type_template &&
-          TemplateId->Kind != TNK_Dependent_template_name &&
-          TemplateId->Kind != TNK_Undeclared_template) {
+      if (!TemplateId->mightBeType()) {
         Diag(Tok, diag::err_typename_refers_to_non_type_template)
           << Tok.getAnnotationRange();
         return true;
@@ -1883,14 +1895,13 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
       ASTTemplateArgsPtr TemplateArgsPtr(TemplateId->getTemplateArgs(),
                                          TemplateId->NumArgs);
 
-      Ty = Actions.ActOnTypenameType(getCurScope(), TypenameLoc, SS,
-                                     TemplateId->TemplateKWLoc,
-                                     TemplateId->Template,
-                                     TemplateId->Name,
-                                     TemplateId->TemplateNameLoc,
-                                     TemplateId->LAngleLoc,
-                                     TemplateArgsPtr,
-                                     TemplateId->RAngleLoc);
+      Ty = TemplateId->isInvalid()
+               ? TypeError()
+               : Actions.ActOnTypenameType(
+                     getCurScope(), TypenameLoc, SS, TemplateId->TemplateKWLoc,
+                     TemplateId->Template, TemplateId->Name,
+                     TemplateId->TemplateNameLoc, TemplateId->LAngleLoc,
+                     TemplateArgsPtr, TemplateId->RAngleLoc);
     } else {
       Diag(Tok, diag::err_expected_type_name_after_typename)
         << SS.getRange();
@@ -1911,7 +1922,9 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
 
   CXXScopeSpec SS;
   if (getLangOpts().CPlusPlus)
-    if (ParseOptionalCXXScopeSpecifier(SS, nullptr, /*EnteringContext*/false))
+    if (ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
+                                       /*ObjectHadErrors=*/false,
+                                       /*EnteringContext*/ false))
       return true;
 
   return TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation);
@@ -2040,7 +2053,9 @@ bool Parser::TryAnnotateCXXScopeToken(bool EnteringContext) {
   assert(MightBeCXXScopeToken() && "Cannot be a type or scope token!");
 
   CXXScopeSpec SS;
-  if (ParseOptionalCXXScopeSpecifier(SS, nullptr, EnteringContext))
+  if (ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
+                                     /*ObjectHadErrors=*/false,
+                                     EnteringContext))
     return true;
   if (SS.isEmpty())
     return false;
@@ -2149,7 +2164,8 @@ bool Parser::ParseMicrosoftIfExistsCondition(IfExistsCondition& Result) {
 
   // Parse nested-name-specifier.
   if (getLangOpts().CPlusPlus)
-    ParseOptionalCXXScopeSpecifier(Result.SS, nullptr,
+    ParseOptionalCXXScopeSpecifier(Result.SS, /*ObjectType=*/nullptr,
+                                   /*ObjectHadErrors=*/false,
                                    /*EnteringContext=*/false);
 
   // Check nested-name specifier.
@@ -2160,10 +2176,12 @@ bool Parser::ParseMicrosoftIfExistsCondition(IfExistsCondition& Result) {
 
   // Parse the unqualified-id.
   SourceLocation TemplateKWLoc; // FIXME: parsed, but unused.
-  if (ParseUnqualifiedId(
-          Result.SS, /*EnteringContext*/false, /*AllowDestructorName*/true,
-          /*AllowConstructorName*/true, /*AllowDeductionGuide*/false, nullptr,
-          &TemplateKWLoc, Result.Name)) {
+  if (ParseUnqualifiedId(Result.SS, /*ObjectType=*/nullptr,
+                         /*ObjectHadErrors=*/false, /*EnteringContext*/ false,
+                         /*AllowDestructorName*/ true,
+                         /*AllowConstructorName*/ true,
+                         /*AllowDeductionGuide*/ false, &TemplateKWLoc,
+                         Result.Name)) {
     T.skipToEnd();
     return true;
   }

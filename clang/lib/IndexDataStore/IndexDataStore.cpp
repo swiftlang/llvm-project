@@ -80,7 +80,7 @@ bool IndexDataStoreImpl::foreachUnitName(bool sorted,
       if (!receiver(unitName))
         return false;
     } else {
-      filenames.push_back(unitName);
+      filenames.push_back(std::string(unitName));
     }
   }
 
@@ -136,6 +136,13 @@ bool IndexDataStoreImpl::startEventListening(bool waitInitialSync, std::string &
       handler(EventNote);
     }
   };
+
+  // Create the unit path if necessary so that the directory watcher can start
+  // even if the data has not been populated yet.
+  if (std::error_code EC = llvm::sys::fs::create_directories(UnitPath)) {
+    Error = EC.message();
+    return true;
+  }
 
   llvm::Expected<std::unique_ptr<DirectoryWatcher>> ExpectedDirWatcher =
       DirectoryWatcher::create(UnitPath.str(), OnUnitsChange, waitInitialSync);

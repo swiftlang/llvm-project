@@ -734,8 +734,8 @@ void HexagonDAGToDAGISel::SelectFrameIndex(SDNode *N) {
   MachineFrameInfo &MFI = MF->getFrameInfo();
   const HexagonFrameLowering *HFI = HST->getFrameLowering();
   int FX = cast<FrameIndexSDNode>(N)->getIndex();
-  unsigned StkA = HFI->getStackAlignment();
-  unsigned MaxA = MFI.getMaxAlignment();
+  Align StkA = HFI->getStackAlign();
+  Align MaxA = MFI.getMaxAlign();
   SDValue FI = CurDAG->getTargetFrameIndex(FX, MVT::i32);
   SDLoc DL(N);
   SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i32);
@@ -1187,7 +1187,7 @@ void HexagonDAGToDAGISel::ppHoistZextI1(std::vector<SDNode*> &&Nodes) {
         Ops[i] = U->getOperand(i);
       EVT BVT = Ops[I1N].getValueType();
 
-      SDLoc dl(U);
+      const SDLoc &dl(U);
       SDValue C0 = DAG.getConstant(0, dl, BVT);
       SDValue C1 = DAG.getConstant(1, dl, BVT);
       SDValue If0, If1;
@@ -1205,8 +1205,15 @@ void HexagonDAGToDAGISel::ppHoistZextI1(std::vector<SDNode*> &&Nodes) {
         Ops[I1N] = C1;
         If1 = DAG.getNode(UseOpc, dl, UVT, Ops);
       }
-      SDValue Sel = DAG.getNode(ISD::SELECT, dl, UVT, OpI1, If1, If0);
-      DAG.ReplaceAllUsesWith(U, Sel.getNode());
+      // We're generating a SELECT way after legalization, so keep the types
+      // simple.
+      unsigned UW = UVT.getSizeInBits();
+      EVT SVT = (UW == 32 || UW == 64) ? MVT::getIntegerVT(UW) : UVT;
+      SDValue Sel = DAG.getNode(ISD::SELECT, dl, SVT, OpI1,
+                                DAG.getBitcast(SVT, If1),
+                                DAG.getBitcast(SVT, If0));
+      SDValue Ret = DAG.getBitcast(UVT, Sel);
+      DAG.ReplaceAllUsesWith(U, Ret.getNode());
     }
   }
 }
@@ -1268,7 +1275,7 @@ void HexagonDAGToDAGISel::PreprocessISelDAG() {
   }
 }
 
-void HexagonDAGToDAGISel::EmitFunctionEntryCode() {
+void HexagonDAGToDAGISel::emitFunctionEntryCode() {
   auto &HST = MF->getSubtarget<HexagonSubtarget>();
   auto &HFI = *HST.getFrameLowering();
   if (!HFI.needsAligna(*MF))
@@ -1277,9 +1284,9 @@ void HexagonDAGToDAGISel::EmitFunctionEntryCode() {
   MachineFrameInfo &MFI = MF->getFrameInfo();
   MachineBasicBlock *EntryBB = &MF->front();
   unsigned AR = FuncInfo->CreateReg(MVT::i32);
-  unsigned EntryMaxA = MFI.getMaxAlignment();
+  Align EntryMaxA = MFI.getMaxAlign();
   BuildMI(EntryBB, DebugLoc(), HII->get(Hexagon::PS_aligna), AR)
-      .addImm(EntryMaxA);
+      .addImm(EntryMaxA.value());
   MF->getInfo<HexagonMachineFunctionInfo>()->setStackAlignBaseVReg(AR);
 }
 
@@ -1289,7 +1296,7 @@ void HexagonDAGToDAGISel::updateAligna() {
     return;
   auto *AlignaI = const_cast<MachineInstr*>(HFI.getAlignaInstr(*MF));
   assert(AlignaI != nullptr);
-  unsigned MaxA = MF->getFrameInfo().getMaxAlignment();
+  unsigned MaxA = MF->getFrameInfo().getMaxAlign().value();
   if (AlignaI->getOperand(1).getImm() < MaxA)
     AlignaI->getOperand(1).setImm(MaxA);
 }

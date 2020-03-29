@@ -12,7 +12,9 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Host.h"
+#include "llvm/Support/SwapByteOrder.h"
 #include "llvm/Support/TargetParser.h"
+#include <cassert>
 #include <cstring>
 using namespace llvm;
 
@@ -629,6 +631,8 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
     return Triple::ARMSubArch_v8_4a;
   case ARM::ArchKind::ARMV8_5A:
     return Triple::ARMSubArch_v8_5a;
+  case ARM::ArchKind::ARMV8_6A:
+    return Triple::ARMSubArch_v8_6a;
   case ARM::ArchKind::ARMV8R:
     return Triple::ARMSubArch_v8r;
   case ARM::ArchKind::ARMV8MBaseline:
@@ -714,9 +718,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
 
   case Triple::ppc64:
   case Triple::ppc:
-    if (T.isOSDarwin())
-      return Triple::MachO;
-    else if (T.isOSAIX())
+    if (T.isOSAIX())
       return Triple::XCOFF;
     return Triple::ELF;
 

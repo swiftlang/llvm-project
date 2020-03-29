@@ -27,7 +27,7 @@ can often be useful to write a quick C program with the semantics you're trying
 to model and see what decisions Clang's IRGen makes about what IR to emit.
 Studying Clang's CodeGen directory can also be a good source of ideas.  Note
 that Clang and LLVM are explicitly version locked so you'll need to make sure
-you're using a Clang built from the same svn revision or release as the LLVM
+you're using a Clang built from the same git revision or release as the LLVM
 library you're using.  As always, it's *strongly* recommended that you track
 tip of tree development, particularly during bring up of a new project.
 
@@ -259,7 +259,7 @@ couple specific suggestions:
    which is tuned for C and C++ applications, may not be sufficient to remove
    all dischargeable checks from loops.
 
-#. If you language uses range checks, consider using the IRCE pass.  It is not
+#. If your language uses range checks, consider using the IRCE pass.  It is not
    currently part of the standard pass order.
 
 #. A useful sanity check to run is to run your optimized IR back through the

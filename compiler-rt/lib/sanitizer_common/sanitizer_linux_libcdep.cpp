@@ -35,6 +35,10 @@
 #include <sys/resource.h>
 #include <syslog.h>
 
+#if !defined(ElfW)
+#define ElfW(type) Elf_##type
+#endif
+
 #if SANITIZER_FREEBSD
 #include <pthread_np.h>
 #include <osreldate.h>
@@ -928,7 +932,7 @@ u64 MonotonicNanoTime() {
 }
 #endif  // SANITIZER_LINUX && !SANITIZER_GO
 
-#if !SANITIZER_OPENBSD
+#if !SANITIZER_OPENBSD && !SANITIZER_GO
 void ReExec() {
   const char *pathname = "/proc/self/exe";
 

@@ -36,14 +36,14 @@ entry:
 ; CHECK: [[SUBSDrr:%[0-9]+]]:fr64 = SUBSDrr [[MOVSDrm_alt]], killed [[PHI]], implicit $mxcsr
 ; CHECK: MOVSDmr %stack.0, 1, $noreg, 0, $noreg, killed [[SUBSDrr]] :: (store 8 into %stack.0)
 ; CHECK: [[SETCCr:%[0-9]+]]:gr8 = SETCCr 6, implicit $eflags
-; CHECK: [[LD_Fp64m:%[0-9]+]]:rfp64 = LD_Fp64m %stack.0, 1, $noreg, 0, $noreg, implicit-def dead $fpsw, implicit $fpcw :: (load 8 from %stack.0)
+; CHECK: [[LD_Fp64m80:%[0-9]+]]:rfp80 = LD_Fp64m80 %stack.0, 1, $noreg, 0, $noreg, implicit-def dead $fpsw, implicit $fpcw :: (load 8 from %stack.0)
 ; CHECK: FNSTCW16m %stack.1, 1, $noreg, 0, $noreg, implicit-def $fpsw, implicit $fpcw :: (store 2 into %stack.1)
 ; CHECK: [[MOVZX32rm16_:%[0-9]+]]:gr32 = MOVZX32rm16 %stack.1, 1, $noreg, 0, $noreg :: (load 2 from %stack.1)
 ; CHECK: [[OR32ri:%[0-9]+]]:gr32 = OR32ri killed [[MOVZX32rm16_]], 3072, implicit-def $eflags
 ; CHECK: [[COPY3:%[0-9]+]]:gr16 = COPY killed [[OR32ri]].sub_16bit
 ; CHECK: MOV16mr %stack.2, 1, $noreg, 0, $noreg, killed [[COPY3]] :: (store 2 into %stack.2)
 ; CHECK: FLDCW16m %stack.2, 1, $noreg, 0, $noreg, implicit-def $fpsw, implicit-def $fpcw :: (load 2 from %stack.2)
-; CHECK: IST_Fp64m64 %stack.0, 1, $noreg, 0, $noreg, [[LD_Fp64m]], implicit-def $fpsw, implicit $fpcw
+; CHECK: IST_Fp64m80 %stack.0, 1, $noreg, 0, $noreg, [[LD_Fp64m80]], implicit-def $fpsw, implicit $fpcw
 ; CHECK: FLDCW16m %stack.1, 1, $noreg, 0, $noreg, implicit-def $fpsw, implicit-def $fpcw :: (load 2 from %stack.1)
 ; CHECK: [[MOVZX32rr8_:%[0-9]+]]:gr32 = MOVZX32rr8 killed [[SETCCr]]
 ; CHECK: [[SHL32ri:%[0-9]+]]:gr32 = SHL32ri [[MOVZX32rr8_]], 31, implicit-def dead $eflags
@@ -100,11 +100,50 @@ entry:
   ret i32 %result
 }
 
+; These 2 divs only differ in their exception behavior and will be CSEd. Make
+; sure the nofpexcept flag is not set on the combined node.
+define void @binop_cse(double %a, double %b, double* %x, double* %y) #0 {
+entry:
+; CHECK-LABEL: name: binop_cse
+; CHECK: [[MOV32rm:%[0-9]+]]:gr32 = MOV32rm %fixed-stack.0, 1, $noreg, 0, $noreg :: (load 4 from %fixed-stack.0)
+; CHECK: [[MOV32rm1:%[0-9]+]]:gr32 = MOV32rm %fixed-stack.1, 1, $noreg, 0, $noreg :: (load 4 from %fixed-stack.1, align 16)
+; CHECK: [[MOVSDrm_alt:%[0-9]+]]:fr64 = MOVSDrm_alt %fixed-stack.3, 1, $noreg, 0, $noreg :: (load 8 from %fixed-stack.3, align 16)
+; CHECK: %3:fr64 = DIVSDrm [[MOVSDrm_alt]], %fixed-stack.2, 1, $noreg, 0, $noreg, implicit $mxcsr :: (load 8 from %fixed-stack.2)
+; CHECK: MOVSDmr killed [[MOV32rm1]], 1, $noreg, 0, $noreg, %3 :: (store 8 into %ir.x, align 4)
+; CHECK: MOVSDmr killed [[MOV32rm]], 1, $noreg, 0, $noreg, %3 :: (store 8 into %ir.y, align 4)
+; CHECK: RET 0
+  %div = call double @llvm.experimental.constrained.fdiv.f64(double %a, double %b, metadata !"round.dynamic", metadata !"fpexcept.strict") #0
+  %div2 = call double @llvm.experimental.constrained.fdiv.f64(double %a, double %b, metadata !"round.dynamic", metadata !"fpexcept.ignore") #0
+  store double %div, double* %x
+  store double %div2, double* %y
+  ret void
+}
+
+; These 2 sitofps only differ in their exception behavior and will be CSEd. Make
+; sure the nofpexcept flag is not set on the combined node.
+define void @sitofp_cse(i32 %a, double* %x, double* %y) #0 {
+entry:
+; CHECK-LABEL: name: sitofp_cse
+; CHECK: [[MOV32rm:%[0-9]+]]:gr32 = MOV32rm %fixed-stack.0, 1, $noreg, 0, $noreg :: (load 4 from %fixed-stack.0, align 8)
+; CHECK: [[MOV32rm1:%[0-9]+]]:gr32 = MOV32rm %fixed-stack.1, 1, $noreg, 0, $noreg :: (load 4 from %fixed-stack.1)
+; CHECK: %2:fr64 = CVTSI2SDrm %fixed-stack.2, 1, $noreg, 0, $noreg :: (load 4 from %fixed-stack.2, align 16)
+; CHECK: MOVSDmr killed [[MOV32rm1]], 1, $noreg, 0, $noreg, %2 :: (store 8 into %ir.x, align 4)
+; CHECK: MOVSDmr killed [[MOV32rm]], 1, $noreg, 0, $noreg, %2 :: (store 8 into %ir.y, align 4)
+; CHECK: RET 0
+  %result = call double @llvm.experimental.constrained.sitofp.f64.i32(i32 %a, metadata !"round.dynamic", metadata !"fpexcept.strict") #0
+  %result2 = call double @llvm.experimental.constrained.sitofp.f64.i32(i32 %a, metadata !"round.dynamic", metadata !"fpexcept.ignore") #0
+  store double %result, double* %x
+  store double %result2, double* %y
+  ret void
+}
+
 attributes #0 = { strictfp }
 
 declare double @llvm.experimental.constrained.sitofp.f64.i8(i8, metadata, metadata)
 declare double @llvm.experimental.constrained.sitofp.f64.i16(i16, metadata, metadata)
+declare double @llvm.experimental.constrained.sitofp.f64.i32(i32, metadata, metadata)
 declare i32 @llvm.experimental.constrained.fptoui.i32.f64(double, metadata)
 declare i64 @llvm.experimental.constrained.fptoui.i64.f64(double, metadata)
 declare i8 @llvm.experimental.constrained.fptosi.i8.f64(double, metadata)
 declare i16 @llvm.experimental.constrained.fptosi.i16.f64(double, metadata)
+declare double @llvm.experimental.constrained.fdiv.f64(double, double, metadata, metadata)

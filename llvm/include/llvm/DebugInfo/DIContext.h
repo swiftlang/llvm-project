@@ -16,6 +16,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cstdint>
@@ -133,13 +134,22 @@ enum class DINameKind { None, ShortName, LinkageName };
 /// Controls which fields of DILineInfo container should be filled
 /// with data.
 struct DILineInfoSpecifier {
-  enum class FileLineInfoKind { None, Default, AbsoluteFilePath };
+  enum class FileLineInfoKind {
+    None,
+    // RawValue is whatever the compiler stored in the filename table.  Could be
+    // a full path, could be something else.
+    RawValue,
+    BaseNameOnly,
+    // Relative to the compilation directory.
+    RelativeFilePath,
+    AbsoluteFilePath
+  };
   using FunctionNameKind = DINameKind;
 
   FileLineInfoKind FLIKind;
   FunctionNameKind FNKind;
 
-  DILineInfoSpecifier(FileLineInfoKind FLIKind = FileLineInfoKind::Default,
+  DILineInfoSpecifier(FileLineInfoKind FLIKind = FileLineInfoKind::RawValue,
                       FunctionNameKind FNKind = FunctionNameKind::None)
       : FLIKind(FLIKind), FNKind(FNKind) {}
 };
@@ -199,6 +209,10 @@ struct DIDumpOptions {
       Opts.ParentRecurseDepth = 0;
     return Opts;
   }
+
+  std::function<void(Error)> RecoverableErrorHandler =
+      WithColor::defaultErrorHandler;
+  std::function<void(Error)> WarningHandler = WithColor::defaultWarningHandler;
 };
 
 class DIContext {

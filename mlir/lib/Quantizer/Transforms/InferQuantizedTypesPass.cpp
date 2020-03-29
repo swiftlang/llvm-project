@@ -1,6 +1,6 @@
 //===- InferQuantizedTypesPass.cpp - Infers quantized types ---------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/QuantOps/QuantOps.h"
-#include "mlir/Dialect/QuantOps/QuantTypes.h"
+#include "mlir/Dialect/Quant/QuantOps.h"
+#include "mlir/Dialect/Quant/QuantTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Quantizer/Configurations/FxpMathConfig.h"
 #include "mlir/Quantizer/Support/Configuration.h"
@@ -141,11 +141,11 @@ void InferQuantizedTypesPass::runWithConfig(SolverContext &solverContext,
   // TODO: Only dump the GraphViz if a flag is set and move to a utility.
   // GraphViz.
   if (!solverContext.getDebugCAGDotPath().empty()) {
-    auto actFileName =
-        llvm::WriteGraph(const_cast<const CAGSlice *>(&cag), "CAG",
-                         /*ShortNames=*/false,
-                         /*Title=*/"CAG",
-                         /*Filename=*/solverContext.getDebugCAGDotPath());
+    auto actFileName = llvm::WriteGraph(
+        const_cast<const CAGSlice *>(&cag), "CAG",
+        /*ShortNames=*/false,
+        /*Title=*/"CAG",
+        /*Filename=*/std::string(solverContext.getDebugCAGDotPath()));
     llvm::errs() << "Wrote graphviz file: " << actFileName << "\n";
   }
 
@@ -281,6 +281,11 @@ std::unique_ptr<OpPassBase<ModuleOp>>
 mlir::quantizer::createInferQuantizedTypesPass(
     SolverContext &solverContext, const TargetConfiguration &config) {
   return std::make_unique<InferQuantizedTypesPass>(solverContext, config);
+}
+void mlir::quantizer::registerInferQuantizedTypesPass() {
+  // Do nothing, this will be enough to force link this file and the static
+  // registration will kick-in. This is temporary while we're refactoring pass
+  // registration to move away from static constructors.
 }
 
 static PassRegistration<InferQuantizedTypesPass>

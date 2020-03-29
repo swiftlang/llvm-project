@@ -108,7 +108,7 @@ private:
   Expr readConstant();
   Expr getPageSize();
 
-  uint64_t readMemoryAssignment(StringRef, StringRef, StringRef);
+  Expr readMemoryAssignment(StringRef, StringRef, StringRef);
   std::pair<uint32_t, uint32_t> readMemoryAttributes();
 
   Expr combine(StringRef op, Expr l, Expr r);
@@ -412,14 +412,14 @@ static std::pair<ELFKind, uint16_t> parseBfdName(StringRef s) {
 void ScriptParser::readOutputFormat() {
   expect("(");
 
-  StringRef name = unquote(next());
-  StringRef s = name;
+  config->bfdname = unquote(next());
+  StringRef s = config->bfdname;
   if (s.consume_back("-freebsd"))
     config->osabi = ELFOSABI_FREEBSD;
 
   std::tie(config->ekind, config->emachine) = parseBfdName(s);
   if (config->emachine == EM_NONE)
-    setError("unknown output format name: " + name);
+    setError("unknown output format name: " + config->bfdname);
   if (s == "elf32-ntradlittlemips" || s == "elf32-ntradbigmips")
     config->mipsN32Abi = true;
 
@@ -523,13 +523,6 @@ std::vector<BaseCommand *> ScriptParser::readOverlay() {
 }
 
 void ScriptParser::readSections() {
-  script->hasSectionsCommand = true;
-
-  // -no-rosegment is used to avoid placing read only non-executable sections in
-  // their own segment. We do the same if SECTIONS command is present in linker
-  // script. See comment for computeFlags().
-  config->singleRoRx = true;
-
   expect("{");
   std::vector<BaseCommand *> v;
   while (!errorCount() && !consume("}")) {
@@ -548,22 +541,23 @@ void ScriptParser::readSections() {
     else
       v.push_back(readOutputSectionDescription(tok));
   }
+  script->sectionCommands.insert(script->sectionCommands.end(), v.begin(),
+                                 v.end());
 
-  if (!atEOF() && consume("INSERT")) {
-    std::vector<BaseCommand *> *dest = nullptr;
-    if (consume("AFTER"))
-      dest = &script->insertAfterCommands[next()];
-    else if (consume("BEFORE"))
-      dest = &script->insertBeforeCommands[next()];
-    else
-      setError("expected AFTER/BEFORE, but got '" + next() + "'");
-    if (dest)
-      dest->insert(dest->end(), v.begin(), v.end());
+  if (atEOF() || !consume("INSERT")) {
+    script->hasSectionsCommand = true;
     return;
   }
 
-  script->sectionCommands.insert(script->sectionCommands.end(), v.begin(),
-                                 v.end());
+  bool isAfter = false;
+  if (consume("AFTER"))
+    isAfter = true;
+  else if (!consume("BEFORE"))
+    setError("expected AFTER/BEFORE, but got '" + next() + "'");
+  StringRef where = next();
+  for (BaseCommand *cmd : v)
+    if (auto *os = dyn_cast<OutputSection>(cmd))
+      script->insertCommands.push_back({os, isAfter, where});
 }
 
 void ScriptParser::readTarget() {
@@ -752,6 +746,7 @@ bool ScriptParser::readSectionDirective(OutputSection *cmd, StringRef tok1, Stri
   expect("(");
   if (consume("NOLOAD")) {
     cmd->noload = true;
+    cmd->type = SHT_NOBITS;
   } else {
     skip(); // This is "COPY", "INFO" or "OVERLAY".
     cmd->nonAlloc = true;
@@ -848,9 +843,9 @@ OutputSection *ScriptParser::readOutputSectionDescription(StringRef outSec) {
       // We handle the FILL command as an alias for =fillexp section attribute,
       // which is different from what GNU linkers do.
       // https://sourceware.org/binutils/docs/ld/Output-Section-Data.html
-      expect("(");
+      if (peek() != "(")
+        setError("( expected, but got " + peek());
       cmd->filler = readFill();
-      expect(")");
     } else if (tok == "SORT") {
       readSort();
     } else if (tok == "INCLUDE") {
@@ -871,11 +866,11 @@ OutputSection *ScriptParser::readOutputSectionDescription(StringRef outSec) {
   }
 
   if (consume(">"))
-    cmd->memoryRegionName = next();
+    cmd->memoryRegionName = std::string(next());
 
   if (consume("AT")) {
     expect(">");
-    cmd->lmaRegionName = next();
+    cmd->lmaRegionName = std::string(next());
   }
 
   if (cmd->lmaExpr && !cmd->lmaRegionName.empty())
@@ -905,8 +900,11 @@ OutputSection *ScriptParser::readOutputSectionDescription(StringRef outSec) {
 // When reading a hexstring, ld.bfd handles it as a blob of arbitrary
 // size, while ld.gold always handles it as a 32-bit big-endian number.
 // We are compatible with ld.gold because it's easier to implement.
+// Also, we require that expressions with operators must be wrapped into
+// round brackets. We did it to resolve the ambiguity when parsing scripts like:
+// SECTIONS { .foo : { ... } =120+3 /DISCARD/ : { ... } }
 std::array<uint8_t, 4> ScriptParser::readFill() {
-  uint64_t value = readExpr()().val;
+  uint64_t value = readPrimary()().val;
   if (value > UINT32_MAX)
     setError("filler expression result does not fit 32-bit: 0x" +
              Twine::utohexstr(value));
@@ -1302,7 +1300,7 @@ Expr ScriptParser::readPrimary() {
       setError("memory region not defined: " + name);
       return [] { return 0; };
     }
-    return [=] { return script->memoryRegions[name]->length; };
+    return script->memoryRegions[name]->length;
   }
   if (tok == "LOADADDR") {
     StringRef name = readParenLiteral();
@@ -1329,7 +1327,7 @@ Expr ScriptParser::readPrimary() {
       setError("memory region not defined: " + name);
       return [] { return 0; };
     }
-    return [=] { return script->memoryRegions[name]->origin; };
+    return script->memoryRegions[name]->origin;
   }
   if (tok == "SEGMENT_START") {
     expect("(");
@@ -1454,9 +1452,8 @@ void ScriptParser::readVersionDeclaration(StringRef verStr) {
   // as a parent. This version hierarchy is, probably against your
   // instinct, purely for hint; the runtime doesn't care about it
   // at all. In LLD, we simply ignore it.
-  if (peek() != ";")
-    skip();
-  expect(";");
+  if (next() != ";")
+    expect(";");
 }
 
 static bool hasWildcard(StringRef s) {
@@ -1520,14 +1517,14 @@ std::vector<SymbolVersion> ScriptParser::readVersionExtern() {
   return ret;
 }
 
-uint64_t ScriptParser::readMemoryAssignment(StringRef s1, StringRef s2,
-                                            StringRef s3) {
+Expr ScriptParser::readMemoryAssignment(StringRef s1, StringRef s2,
+                                        StringRef s3) {
   if (!consume(s1) && !consume(s2) && !consume(s3)) {
     setError("expected one of: " + s1 + ", " + s2 + ", or " + s3);
-    return 0;
+    return [] { return 0; };
   }
   expect("=");
-  return readExpr()().getValue();
+  return readExpr();
 }
 
 // Parse the MEMORY command as specified in:
@@ -1551,9 +1548,9 @@ void ScriptParser::readMemory() {
     }
     expect(":");
 
-    uint64_t origin = readMemoryAssignment("ORIGIN", "org", "o");
+    Expr origin = readMemoryAssignment("ORIGIN", "org", "o");
     expect(",");
-    uint64_t length = readMemoryAssignment("LENGTH", "len", "l");
+    Expr length = readMemoryAssignment("LENGTH", "len", "l");
 
     // Add the memory region to the region map.
     MemoryRegion *mr = make<MemoryRegion>(tok, origin, length, flags, negFlags);

@@ -50,7 +50,7 @@ Module::Module(StringRef Name, SourceLocation DefinitionLoc, Module *Parent,
       // conflicts.
       IsSwiftInferImportAsMember(false),
 
-      NameVisibility(Hidden) {
+      HasUmbrellaDir(false), NameVisibility(Hidden) {
   if (Parent) {
     if (!Parent->isAvailable())
       IsAvailable = false;
@@ -243,9 +243,15 @@ bool Module::fullModuleNameIs(ArrayRef<StringRef> nameParts) const {
 
 Module::DirectoryName Module::getUmbrellaDir() const {
   if (Header U = getUmbrellaHeader())
-    return {"", U.Entry->getDir()};
+    return {"", "", U.Entry->getDir()};
 
-  return {UmbrellaAsWritten, Umbrella.dyn_cast<const DirectoryEntry *>()};
+  return {UmbrellaAsWritten, UmbrellaRelativeToRootModuleDirectory,
+          static_cast<const DirectoryEntry *>(Umbrella)};
+}
+
+void Module::addTopHeader(const FileEntry *File) {
+  assert(File);
+  TopHeaders.insert(File);
 }
 
 ArrayRef<const FileEntry *> Module::getTopHeaders(FileManager &FileMgr) {
@@ -282,7 +288,7 @@ bool Module::directlyUses(const Module *Requested) const {
 void Module::addRequirement(StringRef Feature, bool RequiredState,
                             const LangOptions &LangOpts,
                             const TargetInfo &Target) {
-  Requirements.push_back(Requirement(Feature, RequiredState));
+  Requirements.push_back(Requirement(std::string(Feature), RequiredState));
 
   // If this feature is currently available, we're done.
   if (hasFeature(Feature, LangOpts, Target) == RequiredState)
@@ -660,4 +666,19 @@ void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
     }
   };
   VisitModule({M, nullptr});
+}
+
+ASTSourceDescriptor::ASTSourceDescriptor(const Module &M)
+    : Signature(M.Signature), ClangModule(&M) {
+  if (M.Directory)
+    Path = M.Directory->getName();
+  if (auto *File = M.getASTFile())
+    ASTFile = File->getName();
+}
+
+std::string ASTSourceDescriptor::getModuleName() const {
+  if (ClangModule)
+    return ClangModule->Name;
+  else
+    return std::string(PCHModuleName);
 }

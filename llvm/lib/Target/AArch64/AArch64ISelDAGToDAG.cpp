@@ -162,6 +162,24 @@ public:
     return false;
   }
 
+  bool SelectDupZero(SDValue N) {
+    switch(N->getOpcode()) {
+    case AArch64ISD::DUP:
+    case ISD::SPLAT_VECTOR: {
+      auto Opnd0 = N->getOperand(0);
+      if (auto CN = dyn_cast<ConstantSDNode>(Opnd0))
+        if (CN->isNullValue())
+          return true;
+      if (auto CN = dyn_cast<ConstantFPSDNode>(Opnd0))
+        if (CN->isZero())
+          return true;
+      break;
+    }
+    }
+
+    return false;
+  }
+
   template<MVT::SimpleValueType VT>
   bool SelectSVEAddSubImm(SDValue N, SDValue &Imm, SDValue &Shift) {
     return SelectSVEAddSubImm(N, VT, Imm, Shift);
@@ -170,6 +188,11 @@ public:
   template<MVT::SimpleValueType VT>
   bool SelectSVELogicalImm(SDValue N, SDValue &Imm) {
     return SelectSVELogicalImm(N, VT, Imm);
+  }
+
+  template <unsigned Low, unsigned High>
+  bool SelectSVEShiftImm64(SDValue N, SDValue &Imm) {
+    return SelectSVEShiftImm64(N, Low, High, Imm);
   }
 
   // Returns a suitable CNT/INC/DEC/RDVL multiplier to calculate VSCALE*N.
@@ -200,6 +223,9 @@ public:
   /// unchanged; otherwise a REG_SEQUENCE value is returned.
   SDValue createDTuple(ArrayRef<SDValue> Vecs);
   SDValue createQTuple(ArrayRef<SDValue> Vecs);
+  // Form a sequence of SVE registers for instructions using list of vectors,
+  // e.g. structured loads and stores (ldN, stN).
+  SDValue createZTuple(ArrayRef<SDValue> Vecs);
 
   /// Generic helper for the createDTuple/createQTuple
   /// functions. Those should almost always be called instead.
@@ -223,11 +249,21 @@ public:
   void SelectPostLoadLane(SDNode *N, unsigned NumVecs, unsigned Opc);
 
   bool SelectAddrModeFrameIndexSVE(SDValue N, SDValue &Base, SDValue &OffImm);
+  /// SVE Reg+Imm addressing mode.
+  template <int64_t Min, int64_t Max>
+  bool SelectAddrModeIndexedSVE(SDNode *Root, SDValue N, SDValue &Base,
+                                SDValue &OffImm);
+  /// SVE Reg+Reg address mode.
+  template <unsigned Scale>
+  bool SelectSVERegRegAddrMode(SDValue N, SDValue &Base, SDValue &Offset) {
+    return SelectSVERegRegAddrMode(N, Scale, Base, Offset);
+  }
 
   void SelectStore(SDNode *N, unsigned NumVecs, unsigned Opc);
   void SelectPostStore(SDNode *N, unsigned NumVecs, unsigned Opc);
   void SelectStoreLane(SDNode *N, unsigned NumVecs, unsigned Opc);
   void SelectPostStoreLane(SDNode *N, unsigned NumVecs, unsigned Opc);
+  void SelectPredicatedStore(SDNode *N, unsigned NumVecs, const unsigned Opc);
 
   bool tryBitfieldExtractOp(SDNode *N);
   bool tryBitfieldExtractOpFromSExt(SDNode *N);
@@ -275,13 +311,19 @@ private:
 
   bool SelectCMP_SWAP(SDNode *N);
 
+  bool SelectSVE8BitLslImm(SDValue N, SDValue &Imm, SDValue &Shift);
+
   bool SelectSVEAddSubImm(SDValue N, MVT VT, SDValue &Imm, SDValue &Shift);
 
   bool SelectSVELogicalImm(SDValue N, MVT VT, SDValue &Imm);
 
   bool SelectSVESignedArithImm(SDValue N, SDValue &Imm);
+  bool SelectSVEShiftImm64(SDValue N, uint64_t Low, uint64_t High,
+                           SDValue &Imm);
 
   bool SelectSVEArithImm(SDValue N, SDValue &Imm);
+  bool SelectSVERegRegAddrMode(SDValue N, unsigned Scale, SDValue &Base,
+                               SDValue &Offset);
 };
 } // end anonymous namespace
 
@@ -1156,6 +1198,16 @@ SDValue AArch64DAGToDAGISel::createQTuple(ArrayRef<SDValue> Regs) {
   return createTuple(Regs, RegClassIDs, SubRegs);
 }
 
+SDValue AArch64DAGToDAGISel::createZTuple(ArrayRef<SDValue> Regs) {
+  static const unsigned RegClassIDs[] = {AArch64::ZPR2RegClassID,
+                                         AArch64::ZPR3RegClassID,
+                                         AArch64::ZPR4RegClassID};
+  static const unsigned SubRegs[] = {AArch64::zsub0, AArch64::zsub1,
+                                     AArch64::zsub2, AArch64::zsub3};
+
+  return createTuple(Regs, RegClassIDs, SubRegs);
+}
+
 SDValue AArch64DAGToDAGISel::createTuple(ArrayRef<SDValue> Regs,
                                          const unsigned RegClassIDs[],
                                          const unsigned SubRegs[]) {
@@ -1501,6 +1553,23 @@ void AArch64DAGToDAGISel::SelectStore(SDNode *N, unsigned NumVecs,
   // Transfer memoperands.
   MachineMemOperand *MemOp = cast<MemIntrinsicSDNode>(N)->getMemOperand();
   CurDAG->setNodeMemRefs(cast<MachineSDNode>(St), {MemOp});
+
+  ReplaceNode(N, St);
+}
+
+void AArch64DAGToDAGISel::SelectPredicatedStore(SDNode *N, unsigned NumVecs,
+                                                const unsigned Opc) {
+  SDLoc dl(N);
+
+  // Form a REG_SEQUENCE to force register allocation.
+  SmallVector<SDValue, 4> Regs(N->op_begin() + 2, N->op_begin() + 2 + NumVecs);
+  SDValue RegSeq = createZTuple(Regs);
+
+  SDValue Ops[] = {RegSeq, N->getOperand(NumVecs + 2),         // predicate
+                   N->getOperand(NumVecs + 3),                 // address
+                   CurDAG->getTargetConstant(0, dl, MVT::i64), // offset
+                   N->getOperand(0)};                          // chain
+  SDNode *St = CurDAG->getMachineNode(Opc, dl, N->getValueType(0), Ops);
 
   ReplaceNode(N, St);
 }
@@ -2800,7 +2869,8 @@ bool AArch64DAGToDAGISel::tryShiftAmountMod(SDNode *N) {
     // bits that are implicitly ANDed off by the above opcodes and if so, skip
     // the AND.
     uint64_t MaskImm;
-    if (!isOpcWithIntImmediate(ShiftAmt.getNode(), ISD::AND, MaskImm))
+    if (!isOpcWithIntImmediate(ShiftAmt.getNode(), ISD::AND, MaskImm) &&
+        !isOpcWithIntImmediate(ShiftAmt.getNode(), AArch64ISD::ANDS, MaskImm))
       return false;
 
     if (countTrailingOnes(MaskImm) < Bits)
@@ -3047,6 +3117,32 @@ bool AArch64DAGToDAGISel::SelectCMP_SWAP(SDNode *N) {
   return true;
 }
 
+bool AArch64DAGToDAGISel::SelectSVE8BitLslImm(SDValue N, SDValue &Base,
+                                                  SDValue &Offset) {
+  auto C = dyn_cast<ConstantSDNode>(N);
+  if (!C)
+    return false;
+
+  auto Ty = N->getValueType(0);
+
+  int64_t Imm = C->getSExtValue();
+  SDLoc DL(N);
+
+  if ((Imm >= -128) && (Imm <= 127)) {
+    Base = CurDAG->getTargetConstant(Imm, DL, Ty);
+    Offset = CurDAG->getTargetConstant(0, DL, Ty);
+    return true;
+  }
+
+  if (((Imm % 256) == 0) && (Imm >= -32768) && (Imm <= 32512)) {
+    Base = CurDAG->getTargetConstant(Imm/256, DL, Ty);
+    Offset = CurDAG->getTargetConstant(8, DL, Ty);
+    return true;
+  }
+
+  return false;
+}
+
 bool AArch64DAGToDAGISel::SelectSVEAddSubImm(SDValue N, MVT VT, SDValue &Imm, SDValue &Shift) {
   if (auto CNode = dyn_cast<ConstantSDNode>(N)) {
     const int64_t ImmVal = CNode->getZExtValue();
@@ -3140,6 +3236,24 @@ bool AArch64DAGToDAGISel::SelectSVELogicalImm(SDValue N, MVT VT, SDValue &Imm) {
       return true;
     }
   }
+  return false;
+}
+
+// This method is only needed to "cast" i64s into i32s when the value
+// is a valid shift which has been splatted into a vector with i64 elements.
+// Every other type is fine in tablegen.
+bool AArch64DAGToDAGISel::SelectSVEShiftImm64(SDValue N, uint64_t Low,
+                                              uint64_t High, SDValue &Imm) {
+  if (auto *CN = dyn_cast<ConstantSDNode>(N)) {
+    uint64_t ImmVal = CN->getZExtValue();
+    SDLoc DL(N);
+
+    if (ImmVal >= Low && ImmVal <= High) {
+      Imm = CurDAG->getTargetConstant(ImmVal, DL, MVT::i32);
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -3984,6 +4098,54 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       }
       break;
     }
+    case Intrinsic::aarch64_sve_st2: {
+      if (VT == MVT::nxv16i8) {
+        SelectPredicatedStore(Node, 2, AArch64::ST2B_IMM);
+        return;
+      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16) {
+        SelectPredicatedStore(Node, 2, AArch64::ST2H_IMM);
+        return;
+      } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
+        SelectPredicatedStore(Node, 2, AArch64::ST2W_IMM);
+        return;
+      } else if (VT == MVT::nxv2i64 || VT == MVT::nxv2f64) {
+        SelectPredicatedStore(Node, 2, AArch64::ST2D_IMM);
+        return;
+      }
+      break;
+    }
+    case Intrinsic::aarch64_sve_st3: {
+      if (VT == MVT::nxv16i8) {
+        SelectPredicatedStore(Node, 3, AArch64::ST3B_IMM);
+        return;
+      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16) {
+        SelectPredicatedStore(Node, 3, AArch64::ST3H_IMM);
+        return;
+      } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
+        SelectPredicatedStore(Node, 3, AArch64::ST3W_IMM);
+        return;
+      } else if (VT == MVT::nxv2i64 || VT == MVT::nxv2f64) {
+        SelectPredicatedStore(Node, 3, AArch64::ST3D_IMM);
+        return;
+      }
+      break;
+    }
+    case Intrinsic::aarch64_sve_st4: {
+      if (VT == MVT::nxv16i8) {
+        SelectPredicatedStore(Node, 4, AArch64::ST4B_IMM);
+        return;
+      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16) {
+        SelectPredicatedStore(Node, 4, AArch64::ST4H_IMM);
+        return;
+      } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
+        SelectPredicatedStore(Node, 4, AArch64::ST4W_IMM);
+        return;
+      } else if (VT == MVT::nxv2i64 || VT == MVT::nxv2f64) {
+        SelectPredicatedStore(Node, 4, AArch64::ST4D_IMM);
+        return;
+      }
+      break;
+    }
     }
     break;
   }
@@ -4588,4 +4750,124 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
 FunctionPass *llvm::createAArch64ISelDag(AArch64TargetMachine &TM,
                                          CodeGenOpt::Level OptLevel) {
   return new AArch64DAGToDAGISel(TM, OptLevel);
+}
+
+/// When \p PredVT is a scalable vector predicate in the form
+/// MVT::nx<M>xi1, it builds the correspondent scalable vector of
+/// integers MVT::nx<M>xi<bits> s.t. M x bits = 128. If the input
+/// PredVT is not in the form MVT::nx<M>xi1, it returns an invalid
+/// EVT.
+static EVT getPackedVectorTypeFromPredicateType(LLVMContext &Ctx, EVT PredVT) {
+  if (!PredVT.isScalableVector() || PredVT.getVectorElementType() != MVT::i1)
+    return EVT();
+
+  const unsigned NumElts = PredVT.getVectorNumElements();
+
+  if (NumElts != 2 && NumElts != 4 && NumElts != 8 && NumElts != 16)
+    return EVT();
+
+  EVT ScalarVT = EVT::getIntegerVT(Ctx, AArch64::SVEBitsPerBlock / NumElts);
+  EVT MemVT = EVT::getVectorVT(Ctx, ScalarVT, NumElts, /*IsScalable=*/true);
+  return MemVT;
+}
+
+/// Return the EVT of the data associated to a memory operation in \p
+/// Root. If such EVT cannot be retrived, it returns an invalid EVT.
+static EVT getMemVTFromNode(LLVMContext &Ctx, SDNode *Root) {
+  if (isa<MemSDNode>(Root))
+    return cast<MemSDNode>(Root)->getMemoryVT();
+
+  const unsigned Opcode = Root->getOpcode();
+  // For custom ISD nodes, we have to look at them individually to extract the
+  // type of the data moved to/from memory.
+  switch (Opcode) {
+  case AArch64ISD::LDNF1:
+  case AArch64ISD::LDNF1S:
+    return cast<VTSDNode>(Root->getOperand(3))->getVT();
+  default:
+    break;
+  }
+
+  if (Opcode != ISD::INTRINSIC_VOID)
+    return EVT();
+
+  const unsigned IntNo =
+      cast<ConstantSDNode>(Root->getOperand(1))->getZExtValue();
+  if (IntNo != Intrinsic::aarch64_sve_prf)
+    return EVT();
+
+  // We are using an SVE prefetch intrinsic. Type must be inferred
+  // from the width of the predicate.
+  return getPackedVectorTypeFromPredicateType(
+      Ctx, Root->getOperand(2)->getValueType(0));
+}
+
+/// SelectAddrModeIndexedSVE - Attempt selection of the addressing mode:
+/// Base + OffImm * sizeof(MemVT) for Min >= OffImm <= Max
+/// where Root is the memory access using N for its address.
+template <int64_t Min, int64_t Max>
+bool AArch64DAGToDAGISel::SelectAddrModeIndexedSVE(SDNode *Root, SDValue N,
+                                                   SDValue &Base,
+                                                   SDValue &OffImm) {
+  const EVT MemVT = getMemVTFromNode(*(CurDAG->getContext()), Root);
+
+  if (MemVT == EVT())
+    return false;
+
+  if (N.getOpcode() != ISD::ADD)
+    return false;
+
+  SDValue VScale = N.getOperand(1);
+  if (VScale.getOpcode() != ISD::VSCALE)
+    return false;
+
+  TypeSize TS = MemVT.getSizeInBits();
+  int64_t MemWidthBytes = static_cast<int64_t>(TS.getKnownMinSize()) / 8;
+  int64_t MulImm = cast<ConstantSDNode>(VScale.getOperand(0))->getSExtValue();
+
+  if ((MulImm % MemWidthBytes) != 0)
+    return false;
+
+  int64_t Offset = MulImm / MemWidthBytes;
+  if (Offset < Min || Offset > Max)
+    return false;
+
+  Base = N.getOperand(0);
+  OffImm = CurDAG->getTargetConstant(Offset, SDLoc(N), MVT::i64);
+  return true;
+}
+
+/// Select register plus register addressing mode for SVE, with scaled
+/// offset.
+bool AArch64DAGToDAGISel::SelectSVERegRegAddrMode(SDValue N, unsigned Scale,
+                                                  SDValue &Base,
+                                                  SDValue &Offset) {
+  if (N.getOpcode() != ISD::ADD)
+    return false;
+
+  // Process an ADD node.
+  const SDValue LHS = N.getOperand(0);
+  const SDValue RHS = N.getOperand(1);
+
+  // 8 bit data does not come with the SHL node, so it is treated
+  // separately.
+  if (Scale == 0) {
+    Base = LHS;
+    Offset = RHS;
+    return true;
+  }
+
+  // Check if the RHS is a shift node with a constant.
+  if (RHS.getOpcode() != ISD::SHL)
+    return false;
+
+  const SDValue ShiftRHS = RHS.getOperand(1);
+  if (auto *C = dyn_cast<ConstantSDNode>(ShiftRHS))
+    if (C->getZExtValue() == Scale) {
+      Base = LHS;
+      Offset = RHS.getOperand(0);
+      return true;
+    }
+
+  return false;
 }

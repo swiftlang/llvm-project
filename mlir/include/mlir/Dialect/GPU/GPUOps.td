@@ -1,6 +1,6 @@
 //===-- GPUOps.td - GPU dialect operation definitions ------*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -13,22 +13,19 @@
 #ifndef GPU_OPS
 #define GPU_OPS
 
-include "mlir/IR/OpBase.td"
+include "mlir/Dialect/GPU/GPUBase.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/Interfaces/SideEffects.td"
 
 // Type constraint accepting standard integers, indices and wrapped LLVM integer
 // types.
 def IntLikeOrLLVMInt : TypeConstraint<
-  Or<[AnyInteger.predicate, Index.predicate, LLVMInt.predicate]>,
+  Or<[AnySignlessInteger.predicate, Index.predicate, LLVMInt.predicate]>,
   "integer, index or LLVM dialect equivalent">;
 
 //===----------------------------------------------------------------------===//
 // GPU Dialect operations.
 //===----------------------------------------------------------------------===//
-
-def GPU_Dialect : Dialect {
-  let name = "gpu";
-}
 
 class GPU_Op<string mnemonic, list<OpTrait> traits = []> :
     Op<GPU_Dialect, mnemonic, traits>;
@@ -126,11 +123,6 @@ def GPU_GPUFuncOp : GPU_Op<"func", [FunctionLike, IsolatedFromAbove, Symbol]> {
     bool isKernel() {
       return getAttrOfType<UnitAttr>(GPUDialect::getKernelFuncAttrName()) !=
              nullptr;
-    }
-
-    /// Returns the type of the function this Op defines.
-    FunctionType getType() {
-      return getTypeAttr().getValue().cast<FunctionType>();
     }
 
     /// Change the type of this function in place. This is an extremely
@@ -335,42 +327,32 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func">,
   let verifier = [{ return ::verify(*this); }];
 }
 
-def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
+def GPU_LaunchOp : GPU_Op<"launch">,
     Arguments<(ins Index:$gridSizeX, Index:$gridSizeY, Index:$gridSizeZ,
-               Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ,
-               Variadic<AnyType>:$operands)>,
+               Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)>,
     Results<(outs)> {
   let summary = "GPU kernel launch operation";
 
   let description = [{
     Launch a kernel on the specified grid of thread blocks. The body of the
     kernel is defined by the single region that this operation contains. The
-    operation takes at least six operands, with first three operands being grid
-    sizes along x,y,z dimensions, the following three arguments being block
-    sizes along x,y,z dimension, and the remaining operands are arguments of the
-    kernel. When a lower-dimensional kernel is required, unused sizes must be
-    explicitly set to `1`.
+    operation takes six operands, with first three operands being grid sizes
+    along x,y,z dimensions and the following three arguments being block sizes
+    along x,y,z dimension. When a lower-dimensional kernel is required,
+    unused sizes must be explicitly set to `1`.
 
-    The body region has at least _twelve_ arguments, grouped as follows:
+    The body region has _twelve_ arguments, grouped as follows:
 
     -   three arguments that contain block identifiers along x,y,z dimensions;
     -   three arguments that contain thread identifiers along x,y,z dimensions;
-    -   operands of the `gpu.launch` operation as is, including six leading
-        operands for grid and block sizes.
-
-    Operations inside the body region, and any operations in the nested regions,
-    are _not_ allowed to use values defined outside the _body_ region, as if
-    this region was a function. If necessary, values must be passed as kernel
-    arguments into the body region. Nested regions inside the kernel body are
-    allowed to use values defined in their ancestor regions as long as they
-    don't cross the kernel body region boundary.
+    -   operands of the `gpu.launch` operation as is (i.e. the operands for
+        grid and block sizes).
 
     Syntax:
 
     ```
     operation ::= `gpu.launch` `block` `(` ssa-id-list `)` `in` ssa-reassignment
                              `threads` `(` ssa-id-list `)` `in` ssa-reassignment
-                               (`args` ssa-reassignment `:` type-list)?
                                region attr-dict?
     ssa-reassignment ::= `(` ssa-id `=` ssa-use (`,` ssa-id `=` ssa-use)* `)`
     ```
@@ -379,32 +361,29 @@ def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
 
     ```mlir
     gpu.launch blocks(%bx, %by, %bz) in (%sz_bx = %0, %sz_by = %1, %sz_bz = %2)
-               threads(%tx, %ty, %tz) in (%sz_tx = %3, %sz_ty = %4, %sz_tz = %5)
-               args(%arg0 = %6, %arg1 = 7) : f32, memref<?xf32, 1> {
+               threads(%tx, %ty, %tz) in (%sz_tx = %3, %sz_ty = %4, %sz_tz = %5) {
       // Block and thread identifiers, as well as block/grid sizes are
       // immediately usable inside body region.
       "some_op"(%bx, %tx) : (index, index) -> ()
-      %42 = load %arg1[%bx] : memref<?xf32, 1>
+      // Assuming %val1 is defined outside the gpu.launch region.
+      %42 = load %val1[%bx] : memref<?xf32, 1>
     }
 
     // Generic syntax explains how the pretty syntax maps to the IR structure.
     "gpu.launch"(%cst, %cst, %c1,  // Grid sizes.
-                        %cst, %c1, %c1,   // Block sizes.
-                        %arg0, %arg1)     // Actual arguments.
+                 %cst, %c1, %c1)   // Block sizes.
+
         {/*attributes*/}
         // All sizes and identifiers have "index" size.
-        : (index, index, index, index, index, index, f32, memref<?xf32, 1>)
-            -> () {
+        : (index, index, index, index, index, index) -> () {
     // The operation passes block and thread identifiers, followed by grid and
-    // block sizes, followed by actual arguments to the entry block of the
-    // region.
+    // block sizes.
     ^bb0(%bx : index, %by : index, %bz : index,
          %tx : index, %ty : index, %tz : index,
          %num_bx : index, %num_by : index, %num_bz : index,
-         %num_tx : index, %num_ty : index, %num_tz : index,
-         %arg0 : f32, %arg1 : memref<?xf32, 1>):
+         %num_tx : index, %num_ty : index, %num_tz : index)
       "some_op"(%bx, %tx) : (index, index) -> ()
-      %3 = "std.load"(%arg1, %bx) : (memref<?xf32, 1>, index) -> f32
+      %3 = "std.load"(%val1, %bx) : (memref<?xf32, 1>, index) -> f32
     }
     ```
 
@@ -422,11 +401,8 @@ def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
   let builders = [
     OpBuilder<"Builder *builder, OperationState &result, Value gridSizeX,"
               "Value gridSizeY, Value gridSizeZ, Value blockSizeX,"
-              "Value blockSizeY, Value blockSizeZ,"
-              "ValueRange operands">
+              "Value blockSizeY, Value blockSizeZ">
   ];
-
-  let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
     /// Get the SSA values corresponding to kernel block identifiers.
@@ -437,26 +413,14 @@ def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
     KernelDim3 getGridSize();
     /// Get the SSA values corresponding to kernel block size.
     KernelDim3 getBlockSize();
-    /// Get the operand values passed as kernel arguments.
-    operand_range getKernelOperandValues();
-    /// Get the operand types passed as kernel arguments.
-    operand_type_range getKernelOperandTypes();
 
     /// Get the SSA values passed as operands to specify the grid size.
     KernelDim3 getGridSizeOperandValues();
     /// Get the SSA values passed as operands to specify the block size.
     KernelDim3 getBlockSizeOperandValues();
 
-    /// Get the SSA values of the kernel arguments.
-    iterator_range<Block::args_iterator> getKernelArguments();
-
-    /// Erase the `index`-th kernel argument.  Both the entry block argument and
-    /// the operand will be dropped.  The block argument must not have any uses.
-    void eraseKernelArgument(unsigned index);
-
     static StringRef getBlocksKeyword() { return "blocks"; }
     static StringRef getThreadsKeyword() { return "threads"; }
-    static StringRef getArgsKeyword() { return "args"; }
 
     /// The number of launch configuration operands, placed at the leading
     /// positions of the operand list.
@@ -472,8 +436,26 @@ def GPU_LaunchOp : GPU_Op<"launch", [IsolatedFromAbove]>,
   let verifier = [{ return ::verify(*this); }];
 }
 
-def GPU_ReturnOp : GPU_Op<"return", [Terminator]>, Arguments<(ins)>,
-    Results<(outs)> {
+def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, NoSideEffect,
+                                     Terminator]>,
+    Arguments<(ins Variadic<AnyType>:$operands)>, Results<(outs)> {
+  let summary = "Terminator for GPU functions.";
+  let description = [{
+    A terminator operation for regions that appear in the body of  `gpu.func`
+    functions. The operands to the `gpu.return` are the result values returned
+    by an incovation of the `gpu.func`.
+  }];
+
+  let builders = [OpBuilder<"Builder *builder, OperationState &result", " // empty">];
+
+  let parser = [{ return parseReturnOp(parser, result); }];
+  let printer = [{ p << getOperationName(); }];
+  let verifier = [{ return ::verify(*this); }];
+}
+
+def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">,
+                                             NoSideEffect, Terminator]>,
+    Arguments<(ins)>, Results<(outs)> {
   let summary = "Terminator for GPU launch regions.";
   let description = [{
     A terminator operation for regions that appear in the body of `gpu.launch`
@@ -485,7 +467,7 @@ def GPU_ReturnOp : GPU_Op<"return", [Terminator]>, Arguments<(ins)>,
   let printer = [{ p << getOperationName(); }];
 }
 
-def GPU_YieldOp : GPU_Op<"yield", [Terminator]>,
+def GPU_YieldOp : GPU_Op<"yield", [NoSideEffect, Terminator]>,
     Arguments<(ins Variadic<AnyType>:$values)> {
   let summary = "GPU yield operation";
   let description = [{
@@ -499,15 +481,25 @@ def GPU_YieldOp : GPU_Op<"yield", [Terminator]>,
   }];
 }
 
-// These mirror the XLA ComparisonDirection enum.
+// add, mul mirror the XLA ComparisonDirection enum.
 def GPU_AllReduceOpAdd : StrEnumAttrCase<"add">;
+def GPU_AllReduceOpAnd : StrEnumAttrCase<"and">;
+def GPU_AllReduceOpMax : StrEnumAttrCase<"max">;
+def GPU_AllReduceOpMin : StrEnumAttrCase<"min">;
 def GPU_AllReduceOpMul : StrEnumAttrCase<"mul">;
+def GPU_AllReduceOpOr : StrEnumAttrCase<"or">;
+def GPU_AllReduceOpXor : StrEnumAttrCase<"xor">;
 
 def GPU_AllReduceOperationAttr : StrEnumAttr<"AllReduceOperationAttr",
     "built-in reduction operations supported by gpu.allreduce.",
     [
       GPU_AllReduceOpAdd,
+      GPU_AllReduceOpAnd,
+      GPU_AllReduceOpMax,
+      GPU_AllReduceOpMin,
       GPU_AllReduceOpMul,
+      GPU_AllReduceOpOr,
+      GPU_AllReduceOpXor
     ]>;
 
 def GPU_AllReduceOp : GPU_Op<"all_reduce",
@@ -531,8 +523,8 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
     ```
     compute the sum of each work item's %0 value. The first version specifies
     the accumulation as operation, whereas the second version specifies the
-    accumulation as code region. The accumulation operation must either be
-    `add` or `mul`.
+    accumulation as code region. The accumulation operation must be one of:
+    `add`, `and`, `max`, `min`, `mul`, `or`, `xor`.
 
     Either none or all work items of a workgroup need to execute this op
     in convergence.

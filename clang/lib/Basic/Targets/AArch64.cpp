@@ -29,6 +29,10 @@ const Builtin::Info AArch64TargetInfo::BuiltinInfo[] = {
 
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
    {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+#include "clang/Basic/BuiltinsSVE.def"
+
+#define BUILTIN(ID, TYPE, ATTRS)                                               \
+   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
 #define LANGBUILTIN(ID, TYPE, ATTRS, LANG)                                     \
   {#ID, TYPE, ATTRS, nullptr, LANG, nullptr},
 #define TARGET_HEADER_BUILTIN(ID, TYPE, ATTRS, HEADER, LANGS, FEATURE)         \
@@ -151,6 +155,7 @@ void AArch64TargetInfo::fillValidCPUList(
 
 void AArch64TargetInfo::getTargetDefinesARMV81A(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
+  // FIXME: Armv8.1 makes __ARM_FEATURE_CRC32 mandatory. Handle it here.
   Builder.defineMacro("__ARM_FEATURE_QRDMX", "1");
 }
 
@@ -171,17 +176,26 @@ void AArch64TargetInfo::getTargetDefinesARMV83A(const LangOptions &Opts,
 void AArch64TargetInfo::getTargetDefinesARMV84A(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
   // Also include the Armv8.3 defines
-  // FIXME: Armv8.4 makes some extensions mandatory. Handle them here.
+  // FIXME: Armv8.4 makes __ARM_FEATURE_ATOMICS, defined in GCC, mandatory.
+  // Add and handle it here.
   getTargetDefinesARMV83A(Opts, Builder);
 }
 
 void AArch64TargetInfo::getTargetDefinesARMV85A(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
   // Also include the Armv8.4 defines
-  // FIXME: Armv8.5 makes some extensions mandatory. Handle them here.
   getTargetDefinesARMV84A(Opts, Builder);
 }
 
+void AArch64TargetInfo::getTargetDefinesARMV86A(const LangOptions &Opts,
+                                                MacroBuilder &Builder) const {
+  // Also include the Armv8.5 defines
+  // FIXME: Armv8.6 makes the following extensions mandatory:
+  // - __ARM_FEATURE_BF16
+  // - __ARM_FEATURE_MATMUL_INT8
+  // Handle them here.
+  getTargetDefinesARMV85A(Opts, Builder);
+}
 
 void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
                                          MacroBuilder &Builder) const {
@@ -197,6 +211,13 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("_LP64");
     Builder.defineMacro("__LP64__");
   }
+
+  std::string CodeModel = getTargetOpts().CodeModel;
+  if (CodeModel == "default")
+    CodeModel = "small";
+  for (char &c : CodeModel)
+    c = toupper(c);
+  Builder.defineMacro("__AARCH64_CMODEL_" + CodeModel + "__");
 
   // ACLE predefines. Many can only have one possible value on v8 AArch64.
   Builder.defineMacro("__ARM_ACLE", "200");
@@ -283,6 +304,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   case llvm::AArch64::ArchKind::ARMV8_5A:
     getTargetDefinesARMV85A(Opts, Builder);
     break;
+  case llvm::AArch64::ArchKind::ARMV8_6A:
+    getTargetDefinesARMV86A(Opts, Builder);
+    break;
   }
 
   // All of the __sync_(bool|val)_compare_and_swap_(1|2|4|8) builtins work.
@@ -337,6 +361,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       ArchKind = llvm::AArch64::ArchKind::ARMV8_4A;
     if (Feature == "+v8.5a")
       ArchKind = llvm::AArch64::ArchKind::ARMV8_5A;
+    if (Feature == "+v8.6a")
+      ArchKind = llvm::AArch64::ArchKind::ARMV8_6A;
     if (Feature == "+fullfp16")
       HasFullFP16 = true;
     if (Feature == "+dotprod")
@@ -483,15 +509,27 @@ bool AArch64TargetInfo::validateAsmConstraint(
     Info.setAllowsRegister();
     return true;
   case 'U':
+    if (Name[1] == 'p' && (Name[2] == 'l' || Name[2] == 'a')) {
+      // SVE predicate registers ("Upa"=P0-15, "Upl"=P0-P7)
+      Info.setAllowsRegister();
+      Name += 2;
+      return true;
+    }
     // Ump: A memory address suitable for ldp/stp in SI, DI, SF and DF modes.
     // Utf: A memory address suitable for ldp/stp in TF mode.
     // Usa: An absolute symbolic address.
     // Ush: The high part (bits 32:12) of a pc-relative symbolic address.
-    llvm_unreachable("FIXME: Unimplemented support for U* constraints.");
+
+    // Better to return an error saying that it's an unrecognised constraint
+    // even if this is a valid constraint in gcc.
+    return false;
   case 'z': // Zero register, wzr or xzr
     Info.setAllowsRegister();
     return true;
   case 'x': // Floating point and SIMD registers (V0-V15)
+    Info.setAllowsRegister();
+    return true;
+  case 'y': // SVE registers (V0-V7)
     Info.setAllowsRegister();
     return true;
   }

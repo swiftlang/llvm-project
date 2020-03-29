@@ -59,9 +59,34 @@ class Value;
                         OptimizationRemarkEmitter *ORE = nullptr,
                         bool UseInstrInfo = true);
 
+  /// Determine which bits of V are known to be either zero or one and return
+  /// them in the KnownZero/KnownOne bit sets.
+  ///
+  /// This function is defined on values with integer type, values with pointer
+  /// type, and vectors of integers.  In the case
+  /// where V is a vector, the known zero and known one values are the
+  /// same width as the vector element, and the bit is set only if it is true
+  /// for all of the demanded elements in the vector.
+  void computeKnownBits(const Value *V, const APInt &DemandedElts,
+                        KnownBits &Known, const DataLayout &DL,
+                        unsigned Depth = 0, AssumptionCache *AC = nullptr,
+                        const Instruction *CxtI = nullptr,
+                        const DominatorTree *DT = nullptr,
+                        OptimizationRemarkEmitter *ORE = nullptr,
+                        bool UseInstrInfo = true);
+
   /// Returns the known bits rather than passing by reference.
   KnownBits computeKnownBits(const Value *V, const DataLayout &DL,
                              unsigned Depth = 0, AssumptionCache *AC = nullptr,
+                             const Instruction *CxtI = nullptr,
+                             const DominatorTree *DT = nullptr,
+                             OptimizationRemarkEmitter *ORE = nullptr,
+                             bool UseInstrInfo = true);
+
+  /// Returns the known bits rather than passing by reference.
+  KnownBits computeKnownBits(const Value *V, const APInt &DemandedElts,
+                             const DataLayout &DL, unsigned Depth = 0,
+                             AssumptionCache *AC = nullptr,
                              const Instruction *CxtI = nullptr,
                              const DominatorTree *DT = nullptr,
                              OptimizationRemarkEmitter *ORE = nullptr,
@@ -569,7 +594,13 @@ class Value;
 
   /// Return true if this function can prove that V is never undef value
   /// or poison value.
-  bool isGuaranteedNotToBeUndefOrPoison(const Value *V);
+  //
+  /// If CtxI and DT are specified this method performs flow-sensitive analysis
+  /// and returns true if it is guaranteed to be never undef or poison
+  /// immediately before the CtxI.
+  bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
+                                        const Instruction *CtxI = nullptr,
+                                        const DominatorTree *DT = nullptr);
 
   /// Specific patterns of select instructions we can match.
   enum SelectPatternFlavor {
@@ -673,10 +704,19 @@ class Value;
   Optional<bool> isImpliedCondition(const Value *LHS, const Value *RHS,
                                     const DataLayout &DL, bool LHSIsTrue = true,
                                     unsigned Depth = 0);
+  Optional<bool> isImpliedCondition(const Value *LHS,
+                                    CmpInst::Predicate RHSPred,
+                                    const Value *RHSOp0, const Value *RHSOp1,
+                                    const DataLayout &DL, bool LHSIsTrue = true,
+                                    unsigned Depth = 0);
 
   /// Return the boolean condition value in the context of the given instruction
   /// if it is known based on dominating conditions.
   Optional<bool> isImpliedByDomCondition(const Value *Cond,
+                                         const Instruction *ContextI,
+                                         const DataLayout &DL);
+  Optional<bool> isImpliedByDomCondition(CmpInst::Predicate Pred,
+                                         const Value *LHS, const Value *RHS,
                                          const Instruction *ContextI,
                                          const DataLayout &DL);
 

@@ -30,7 +30,7 @@ using namespace MIPatternMatch;
 
 namespace {
 
-TEST_F(GISelMITest, MatchIntConstant) {
+TEST_F(AArch64GISelMITest, MatchIntConstant) {
   setUp();
   if (!TM)
     return;
@@ -41,10 +41,11 @@ TEST_F(GISelMITest, MatchIntConstant) {
   EXPECT_EQ(Cst, 42);
 }
 
-TEST_F(GISelMITest, MatchBinaryOp) {
+TEST_F(AArch64GISelMITest, MatchBinaryOp) {
   setUp();
   if (!TM)
     return;
+  LLT s32 = LLT::scalar(32);
   LLT s64 = LLT::scalar(64);
   auto MIBAdd = B.buildAdd(s64, Copies[0], Copies[1]);
   // Test case for no bind.
@@ -127,9 +128,68 @@ TEST_F(GISelMITest, MatchBinaryOp) {
   EXPECT_TRUE(match);
   EXPECT_EQ(Src0, Copies[0]);
   EXPECT_EQ(Src1, Copies[1]);
+
+  // Match lshr, and make sure a different shift amount type works.
+  auto TruncCopy1 = B.buildTrunc(s32, Copies[1]);
+  auto LShr = B.buildLShr(s64, Copies[0], TruncCopy1);
+  match = mi_match(LShr.getReg(0), *MRI,
+                   m_GLShr(m_Reg(Src0), m_Reg(Src1)));
+  EXPECT_TRUE(match);
+  EXPECT_EQ(Src0, Copies[0]);
+  EXPECT_EQ(Src1, TruncCopy1.getReg(0));
 }
 
-TEST_F(GISelMITest, MatchFPUnaryOp) {
+TEST_F(AArch64GISelMITest, MatchICmp) {
+  setUp();
+  if (!TM)
+    return;
+
+  const LLT s1 = LLT::scalar(1);
+  auto CmpEq = B.buildICmp(CmpInst::ICMP_EQ, s1, Copies[0], Copies[1]);
+
+  // Check match any predicate.
+  bool match =
+      mi_match(CmpEq.getReg(0), *MRI, m_GICmp(m_Pred(), m_Reg(), m_Reg()));
+  EXPECT_TRUE(match);
+
+  // Check we get the predicate and registers.
+  CmpInst::Predicate Pred;
+  Register Reg0;
+  Register Reg1;
+  match = mi_match(CmpEq.getReg(0), *MRI,
+                   m_GICmp(m_Pred(Pred), m_Reg(Reg0), m_Reg(Reg1)));
+  EXPECT_TRUE(match);
+  EXPECT_EQ(CmpInst::ICMP_EQ, Pred);
+  EXPECT_EQ(Copies[0], Reg0);
+  EXPECT_EQ(Copies[1], Reg1);
+}
+
+TEST_F(AArch64GISelMITest, MatchFCmp) {
+  setUp();
+  if (!TM)
+    return;
+
+  const LLT s1 = LLT::scalar(1);
+  auto CmpEq = B.buildFCmp(CmpInst::FCMP_OEQ, s1, Copies[0], Copies[1]);
+
+  // Check match any predicate.
+  bool match =
+      mi_match(CmpEq.getReg(0), *MRI, m_GFCmp(m_Pred(), m_Reg(), m_Reg()));
+  EXPECT_TRUE(match);
+
+  // Check we get the predicate and registers.
+  CmpInst::Predicate Pred;
+  Register Reg0;
+  Register Reg1;
+  match = mi_match(CmpEq.getReg(0), *MRI,
+                   m_GFCmp(m_Pred(Pred), m_Reg(Reg0), m_Reg(Reg1)));
+  EXPECT_TRUE(match);
+  EXPECT_EQ(CmpInst::FCMP_OEQ, Pred);
+  EXPECT_EQ(Copies[0], Reg0);
+  EXPECT_EQ(Copies[1], Reg1);
+}
+
+TEST_F(AArch64GISelMITest, MatchFPUnaryOp) {
   setUp();
   if (!TM)
     return;
@@ -191,7 +251,7 @@ TEST_F(GISelMITest, MatchFPUnaryOp) {
   EXPECT_NE(TmpFP16, TmpFP);
 }
 
-TEST_F(GISelMITest, MatchExtendsTrunc) {
+TEST_F(AArch64GISelMITest, MatchExtendsTrunc) {
   setUp();
   if (!TM)
     return;
@@ -238,7 +298,7 @@ TEST_F(GISelMITest, MatchExtendsTrunc) {
   EXPECT_EQ(Src0, Copies[0]);
 }
 
-TEST_F(GISelMITest, MatchSpecificType) {
+TEST_F(AArch64GISelMITest, MatchSpecificType) {
   setUp();
   if (!TM)
     return;
@@ -275,7 +335,7 @@ TEST_F(GISelMITest, MatchSpecificType) {
   EXPECT_EQ(Src0, Copies[0]);
 }
 
-TEST_F(GISelMITest, MatchCombinators) {
+TEST_F(AArch64GISelMITest, MatchCombinators) {
   setUp();
   if (!TM)
     return;
@@ -309,7 +369,7 @@ TEST_F(GISelMITest, MatchCombinators) {
   EXPECT_FALSE(match);
 }
 
-TEST_F(GISelMITest, MatchMiscellaneous) {
+TEST_F(AArch64GISelMITest, MatchMiscellaneous) {
   setUp();
   if (!TM)
     return;

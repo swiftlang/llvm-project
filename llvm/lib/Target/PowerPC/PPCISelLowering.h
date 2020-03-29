@@ -85,10 +85,6 @@ namespace llvm {
     /// VSFRC that is sign-extended from ByteWidth to a 64-byte integer.
     VEXTS,
 
-    /// SExtVElems, takes an input vector of a smaller type and sign
-    /// extends to an output vector of a larger type.
-    SExtVElems,
-
     /// Reciprocal estimate instructions (unary FP ops).
     FRE,
     FRSQRTE,
@@ -892,21 +888,10 @@ namespace llvm {
                             MachineFunction &MF,
                             unsigned Intrinsic) const override;
 
-    /// getOptimalMemOpType - Returns the target specific optimal type for load
-    /// and store operations as a result of memset, memcpy, and memmove
-    /// lowering. If DstAlign is zero that means it's safe to destination
-    /// alignment can satisfy any constraint. Similarly if SrcAlign is zero it
-    /// means there isn't a need to check it against alignment requirement,
-    /// probably because the source does not need to be loaded. If 'IsMemset' is
-    /// true, that means it's expanding a memset. If 'ZeroMemset' is true, that
-    /// means it's a memset of zero. 'MemcpyStrSrc' indicates whether the memcpy
-    /// source is constant so it does not need to be loaded.
     /// It returns EVT::Other if the type should be determined using generic
     /// target-independent logic.
-    EVT
-    getOptimalMemOpType(uint64_t Size, unsigned DstAlign, unsigned SrcAlign,
-                        bool IsMemset, bool ZeroMemset, bool MemcpyStrSrc,
-                        const AttributeList &FuncAttributes) const override;
+    EVT getOptimalMemOpType(const MemOp &Op,
+                            const AttributeList &FuncAttributes) const override;
 
     /// Is unaligned memory access allowed for the given type, and is it fast
     /// relative to software emulation.
@@ -921,6 +906,14 @@ namespace llvm {
     /// expanded to fmul + fadd.
     bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
                                     EVT VT) const override;
+
+    bool isFMAFasterThanFMulAndFAdd(const Function &F, Type *Ty) const override;
+
+    /// isProfitableToHoist - Check if it is profitable to hoist instruction
+    /// \p I to its dominator block.
+    /// For example, it is not profitable if \p I and it's only user can form a
+    /// FMA instruction, because Powerpc prefers FMADD.
+    bool isProfitableToHoist(Instruction *I) const override;
 
     const MCPhysReg *getScratchRegisters(CallingConv::ID CC) const override;
 

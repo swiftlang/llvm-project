@@ -226,7 +226,7 @@ set(C_INCLUDE_DIRS "" CACHE STRING
   "Colon separated list of directories clang will search for headers.")
 
 set(GCC_INSTALL_PREFIX "" CACHE PATH "Directory where gcc is installed." )
-set(DEFAULT_SYSROOT "" CACHE PATH
+set(DEFAULT_SYSROOT "" CACHE STRING
   "Default <path> to all compiler invocations for --sysroot=<path>." )
 
 set(ENABLE_LINKER_BUILD_ID OFF CACHE BOOL "pass --build-id to ld")
@@ -588,6 +588,7 @@ if(CLANG_LIBS)
     add_dependencies(clang-libraries ${lib})
     if(NOT LLVM_ENABLE_IDE)
       add_dependencies(install-clang-libraries install-${lib})
+      add_dependencies(install-clang-libraries-stripped install-${lib}-stripped)
     endif()
   endforeach()
 endif()
@@ -864,6 +865,7 @@ add_subdirectory(utils/hmaptool)
 
 if(CLANG_BUILT_STANDALONE)
   llvm_distribution_add_targets()
+  process_llvm_pass_plugins()
 endif()
 
 configure_file(

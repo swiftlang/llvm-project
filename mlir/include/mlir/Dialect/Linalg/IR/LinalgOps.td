@@ -1,6 +1,6 @@
 //===- LinalgOps.td - Linalg dialect ops -------------------*- tablegen -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -13,8 +13,9 @@
 #ifndef LINALG_OPS
 #define LINALG_OPS
 
-include "mlir/Dialect/AffineOps/AffineOpsBase.td"
+include "mlir/Dialect/Affine/IR/AffineOpsBase.td"
 include "mlir/Dialect/Linalg/IR/LinalgBase.td"
+include "mlir/Interfaces/SideEffects.td"
 
 // Base class for Linalg dialect ops that do not correspond to library calls.
 class Linalg_Op<string mnemonic, list<OpTrait> traits = []> :
@@ -56,6 +57,7 @@ def Linalg_RangeOp :
 
   // Fully specified by traits.
   let verifier = ?;
+  let assemblyFormat = "$min `:` $max `:` $step attr-dict `:` type(results)";
 }
 
 def Linalg_ReshapeOp : Linalg_Op<"reshape", [NoSideEffect]>,
@@ -117,6 +119,10 @@ def Linalg_ReshapeOp : Linalg_Op<"reshape", [NoSideEffect]>,
     static StringRef getReassociationAttrName() { return "reassociation"; }
     MemRefType getViewType() { return view().getType().cast<MemRefType>(); }
   }];
+  let assemblyFormat = [{
+    $view $reassociation attr-dict `:` type($view) `into` type(results)
+  }];
+  let hasFolder = 1;
 }
 
 def Linalg_SliceOp : Linalg_Op<"slice", [NoSideEffect]>,
@@ -188,6 +194,8 @@ def Linalg_SliceOp : Linalg_Op<"slice", [NoSideEffect]>,
       return res;
     }
   }];
+
+  let hasFolder = 1;
 }
 
 def Linalg_TransposeOp : Linalg_Op<"transpose", [NoSideEffect]>,
@@ -222,9 +230,11 @@ def Linalg_TransposeOp : Linalg_Op<"transpose", [NoSideEffect]>,
     static StringRef getPermutationAttrName() { return "permutation"; }
     ShapedType getShapedType() { return view().getType().cast<ShapedType>(); }
   }];
+
+  let hasFolder = 1;
 }
 
-def Linalg_YieldOp : Linalg_Op<"yield", [NativeOpTrait<"IsTerminator">]>,
+def Linalg_YieldOp : Linalg_Op<"yield", [NoSideEffect, Terminator]>,
     Arguments<(ins Variadic<AnyType>:$values)> {
   let summary = "Linalg yield operation";
   let description = [{

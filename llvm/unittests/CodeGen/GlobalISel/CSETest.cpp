@@ -11,7 +11,7 @@
 
 namespace {
 
-TEST_F(GISelMITest, TestCSE) {
+TEST_F(AArch64GISelMITest, TestCSE) {
   setUp();
   if (!TM)
     return;
@@ -72,9 +72,14 @@ TEST_F(GISelMITest, TestCSE) {
   auto MIBUnmerge = CSEB.buildUnmerge({s32, s32}, Copies[0]);
   auto MIBUnmerge2 = CSEB.buildUnmerge({s32, s32}, Copies[0]);
   EXPECT_TRUE(&*MIBUnmerge == &*MIBUnmerge2);
+
+  // Check G_IMPLICIT_DEF
+  auto Undef0 = CSEB.buildUndef(s32);
+  auto Undef1 = CSEB.buildUndef(s32);
+  EXPECT_EQ(&*Undef0, &*Undef1);
 }
 
-TEST_F(GISelMITest, TestCSEConstantConfig) {
+TEST_F(AArch64GISelMITest, TestCSEConstantConfig) {
   setUp();
   if (!TM)
     return;
@@ -97,5 +102,10 @@ TEST_F(GISelMITest, TestCSEConstantConfig) {
   // We should CSE constant.
   auto MIBZeroTmp = CSEB.buildConstant(s16, 0);
   EXPECT_TRUE(&*MIBZero == &*MIBZeroTmp);
+
+  // Check G_IMPLICIT_DEF
+  auto Undef0 = CSEB.buildUndef(s16);
+  auto Undef1 = CSEB.buildUndef(s16);
+  EXPECT_EQ(&*Undef0, &*Undef1);
 }
 } // namespace

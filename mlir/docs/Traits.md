@@ -208,12 +208,6 @@ foo.region_op {
 This trait is an important structural property of the IR, and enables operations
 to have [passes](WritingAPass.md) scheduled under them.
 
-### NoSideEffect
-
-*   `OpTrait::HasNoSideEffect` -- `NoSideEffect`
-
-This trait signifies that the operation is pure and has no visible side effects.
-
 ### Single Block with Implicit Terminator
 
 *   `OpTrait::SingleBlockImplicitTerminator<typename TerminatorOpType>` :
@@ -226,17 +220,15 @@ single block that must terminate with `TerminatorOpType`.
 
 *   `OpTrait::Symbol` -- `Symbol`
 
-This trait is used for operations that define a `Symbol`.
-
-TODO(riverriddle) Link to the proper document detailing the design of symbols.
+This trait is used for operations that define a
+[`Symbol`](SymbolsAndSymbolTables.md#symbol).
 
 ### SymbolTable
 
 *   `OpTrait::SymbolTable` -- `SymbolTable`
 
-This trait is used for operations that define a `SymbolTable`.
-
-TODO(riverriddle) Link to the proper document detailing the design of symbols.
+This trait is used for operations that define a
+[`SymbolTable`](SymbolsAndSymbolTables.md#symbol-table).
 
 ### Terminator
 

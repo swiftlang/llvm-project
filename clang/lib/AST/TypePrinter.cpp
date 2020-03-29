@@ -913,6 +913,8 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
 
   if (Info.getNoReturn())
     OS << " __attribute__((noreturn))";
+  if (Info.getCmseNSCall())
+    OS << " __attribute__((cmse_nonsecure_call))";
   if (Info.getProducesResult())
     OS << " __attribute__((ns_returns_retained))";
   if (Info.getRegParm())
@@ -1531,6 +1533,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::UPtr:
   case attr::PointerAuth:
   case attr::AddressSpace:
+  case attr::CmseNSCall:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:
@@ -1731,13 +1734,13 @@ static void printTo(raw_ostream &OS, ArrayRef<TA> Args,
 
     OS << ArgString;
 
-    NeedSpace = (!ArgString.empty() && ArgString.back() == '>');
+    // If the last character of our string is '>', add another space to
+    // keep the two '>''s separate tokens.
+    NeedSpace = Policy.SplitTemplateClosers && !ArgString.empty() &&
+                ArgString.back() == '>';
     FirstArg = false;
   }
 
-  // If the last character of our string is '>', add another space to
-  // keep the two '>''s separate tokens. We don't *have* to do this in
-  // C++0x, but it's still good hygiene.
   if (NeedSpace)
     OS << ' ';
 
@@ -1772,7 +1775,7 @@ std::string PointerAuthQualifier::getAsString(const PrintingPolicy &P) const {
   SmallString<64> Buf;
   llvm::raw_svector_ostream StrOS(Buf);
   print(StrOS, P);
-  return StrOS.str();
+  return std::string(StrOS.str());
 }
 
 bool PointerAuthQualifier::isEmptyWhenPrinted(const PrintingPolicy &P) const {
@@ -1799,7 +1802,7 @@ std::string Qualifiers::getAsString(const PrintingPolicy &Policy) const {
   SmallString<64> Buf;
   llvm::raw_svector_ostream StrOS(Buf);
   print(StrOS, Policy);
-  return StrOS.str();
+  return std::string(StrOS.str());
 }
 
 bool Qualifiers::isEmptyWhenPrinted(const PrintingPolicy &Policy) const {
@@ -1969,6 +1972,6 @@ void QualType::getAsStringInternal(const Type *ty, Qualifiers qs,
   SmallString<256> Buf;
   llvm::raw_svector_ostream StrOS(Buf);
   TypePrinter(policy).print(ty, qs, StrOS, buffer);
-  std::string str = StrOS.str();
+  std::string str = std::string(StrOS.str());
   buffer.swap(str);
 }

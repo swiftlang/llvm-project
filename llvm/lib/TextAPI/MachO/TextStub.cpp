@@ -450,10 +450,8 @@ template <> struct MappingTraits<const InterfaceFile *> {
       if (File->isInstallAPI())
         Flags |= TBDFlags::InstallAPI;
 
-      for (const auto &Iter : File->umbrellas()) {
-        ParentUmbrella = Iter.second;
-        break;
-      }
+      if (!File->umbrellas().empty())
+        ParentUmbrella = File->umbrellas().begin()->second;
 
       std::set<ArchitectureSet> ArchSet;
       for (const auto &Library : File->allowableClients())
@@ -959,7 +957,8 @@ template <> struct MappingTraits<const InterfaceFile *> {
 
           for (auto &sym : CurrentSection.WeakSymbols)
             File->addSymbol(SymbolKind::GlobalSymbol, sym,
-                            CurrentSection.Targets);
+                            CurrentSection.Targets, SymbolFlags::WeakDefined);
+
           for (auto &sym : CurrentSection.TlvSymbols)
             File->addSymbol(SymbolKind::GlobalSymbol, sym,
                             CurrentSection.Targets,
@@ -1107,7 +1106,7 @@ static void DiagHandler(const SMDiagnostic &Diag, void *Context) {
 Expected<std::unique_ptr<InterfaceFile>>
 TextAPIReader::get(MemoryBufferRef InputBuffer) {
   TextAPIContext Ctx;
-  Ctx.Path = InputBuffer.getBufferIdentifier();
+  Ctx.Path = std::string(InputBuffer.getBufferIdentifier());
   yaml::Input YAMLIn(InputBuffer.getBuffer(), &Ctx, DiagHandler, &Ctx);
 
   // Fill vector with interface file objects created by parsing the YAML file.
@@ -1127,7 +1126,7 @@ TextAPIReader::get(MemoryBufferRef InputBuffer) {
 
 Error TextAPIWriter::writeToStream(raw_ostream &OS, const InterfaceFile &File) {
   TextAPIContext Ctx;
-  Ctx.Path = File.getPath();
+  Ctx.Path = std::string(File.getPath());
   Ctx.FileKind = File.getFileType();
   llvm::yaml::Output YAMLOut(OS, &Ctx, /*WrapColumn=*/80);
 

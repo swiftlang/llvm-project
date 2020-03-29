@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __MachThreadList_h__
-#define __MachThreadList_h__
+#ifndef LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHTHREADLIST_H
+#define LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHTHREADLIST_H
 
 #include "MachThread.h"
 #include "ThreadInfo.h"
@@ -86,9 +86,11 @@ protected:
   enum class HardwareBreakpointAction {
     EnableWatchpoint,
     DisableWatchpoint,
+    EnableBreakpoint,
+    DisableBreakpoint,
   };
 
-  uint32_t DoHardwareBreakpointAction(const DNBBreakpoint *wp,
+  uint32_t DoHardwareBreakpointAction(const DNBBreakpoint *bp,
                                       HardwareBreakpointAction action) const;
 
   uint32_t UpdateThreadList(MachProcess *process, bool update,
@@ -101,4 +103,4 @@ protected:
   bool m_is_64_bit;
 };
 
-#endif // #ifndef __MachThreadList_h__
+#endif // LLDB_TOOLS_DEBUGSERVER_SOURCE_MACOSX_MACHTHREADLIST_H

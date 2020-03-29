@@ -612,19 +612,26 @@ void SIFoldOperands::foldOperand(
   if (frameIndexMayFold(TII, *UseMI, UseOpIdx, OpToFold)) {
     // Sanity check that this is a stack access.
     // FIXME: Should probably use stack pseudos before frame lowering.
-    MachineOperand *SOff = TII->getNamedOperand(*UseMI, AMDGPU::OpName::soffset);
-    if (!SOff->isReg() || (SOff->getReg() != MFI->getScratchWaveOffsetReg() &&
-                           SOff->getReg() != MFI->getStackPtrOffsetReg()))
-      return;
 
     if (TII->getNamedOperand(*UseMI, AMDGPU::OpName::srsrc)->getReg() !=
         MFI->getScratchRSrcReg())
       return;
 
+    // Ensure this is either relative to the current frame or the current wave.
+    MachineOperand &SOff =
+        *TII->getNamedOperand(*UseMI, AMDGPU::OpName::soffset);
+    if ((!SOff.isReg() || SOff.getReg() != MFI->getStackPtrOffsetReg()) &&
+        (!SOff.isImm() || SOff.getImm() != 0))
+      return;
+
     // A frame index will resolve to a positive constant, so it should always be
     // safe to fold the addressing mode, even pre-GFX9.
     UseMI->getOperand(UseOpIdx).ChangeToFrameIndex(OpToFold.getIndex());
-    SOff->setReg(MFI->getStackPtrOffsetReg());
+
+    // If this is relative to the current wave, update it to be relative to the
+    // current frame.
+    if (SOff.isImm())
+      SOff.ChangeToRegister(MFI->getStackPtrOffsetReg(), false);
     return;
   }
 
@@ -1381,8 +1388,8 @@ SIFoldOperands::isOMod(const MachineInstr &MI) const {
   case AMDGPU::V_MUL_F32_e64:
   case AMDGPU::V_MUL_F16_e64: {
     // If output denormals are enabled, omod is ignored.
-    if ((Op == AMDGPU::V_MUL_F32_e64 && MFI->getMode().FP32Denormals) ||
-        (Op == AMDGPU::V_MUL_F16_e64 && MFI->getMode().FP64FP16Denormals))
+    if ((Op == AMDGPU::V_MUL_F32_e64 && MFI->getMode().FP32OutputDenormals) ||
+        (Op == AMDGPU::V_MUL_F16_e64 && MFI->getMode().FP64FP16OutputDenormals))
       return std::make_pair(nullptr, SIOutMods::NONE);
 
     const MachineOperand *RegOp = nullptr;
@@ -1411,8 +1418,8 @@ SIFoldOperands::isOMod(const MachineInstr &MI) const {
   case AMDGPU::V_ADD_F32_e64:
   case AMDGPU::V_ADD_F16_e64: {
     // If output denormals are enabled, omod is ignored.
-    if ((Op == AMDGPU::V_ADD_F32_e64 && MFI->getMode().FP32Denormals) ||
-        (Op == AMDGPU::V_ADD_F16_e64 && MFI->getMode().FP64FP16Denormals))
+    if ((Op == AMDGPU::V_ADD_F32_e64 && MFI->getMode().FP32OutputDenormals) ||
+        (Op == AMDGPU::V_ADD_F16_e64 && MFI->getMode().FP64FP16OutputDenormals))
       return std::make_pair(nullptr, SIOutMods::NONE);
 
     // Look through the DAGCombiner canonicalization fmul x, 2 -> fadd x, x

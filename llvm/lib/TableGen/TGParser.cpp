@@ -1180,7 +1180,13 @@ Init *TGParser::ParseOperation(Record *CurRec, RecTy *ItemType) {
       InitList.push_back(ParseValue(CurRec, ArgType));
       if (!InitList.back()) return nullptr;
 
-      RecTy *ListType = cast<TypedInit>(InitList.back())->getType();
+      TypedInit *InitListBack = dyn_cast<TypedInit>(InitList.back());
+      if (!InitListBack) {
+        Error(OpLoc, Twine("expected value to be a typed value, got '" +
+                           InitList.back()->getAsString() + "'"));
+        return nullptr;
+      }
+      RecTy *ListType = InitListBack->getType();
       if (!ArgType) {
         ArgType = ListType;
 
@@ -2640,6 +2646,11 @@ bool TGParser::ParseBodyItem(Record *CurRec) {
     return TokError("Value '" + FieldName->getValue() + "' unknown!");
 
   RecTy *Type = Field->getType();
+  if (!BitList.empty() && isa<BitsRecTy>(Type)) {
+    // When assigning to a subset of a 'bits' object, expect the RHS to have
+    // the type of that subset instead of the type of the whole object.
+    Type = BitsRecTy::get(BitList.size());
+  }
 
   Init *Val = ParseValue(CurRec, Type);
   if (!Val) return true;
@@ -3294,7 +3305,7 @@ bool TGParser::ParseDefm(MultiClass *CurMultiClass) {
     // To instantiate a multiclass, we need to first get the multiclass, then
     // instantiate each def contained in the multiclass with the SubClassRef
     // template parameters.
-    MultiClass *MC = MultiClasses[Ref.Rec->getName()].get();
+    MultiClass *MC = MultiClasses[std::string(Ref.Rec->getName())].get();
     assert(MC && "Didn't lookup multiclass correctly?");
     ArrayRef<Init*> TemplateVals = Ref.TemplateArgs;
 

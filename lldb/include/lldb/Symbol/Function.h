@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Function_h_
-#define liblldb_Function_h_
+#ifndef LLDB_SYMBOL_FUNCTION_H
+#define LLDB_SYMBOL_FUNCTION_H
 
 #include "lldb/Core/AddressRange.h"
 #include "lldb/Core/Mangled.h"
@@ -199,11 +199,11 @@ public:
   ///     The stream to which to dump the object description.
   void Dump(Stream *s, bool show_fullpaths) const;
 
-  void DumpStopContext(Stream *s, lldb::LanguageType language) const;
+  void DumpStopContext(Stream *s) const;
 
-  ConstString GetName(lldb::LanguageType language) const;
+  ConstString GetName() const;
 
-  ConstString GetDisplayName(lldb::LanguageType language) const;
+  ConstString GetDisplayName() const;
 
   /// Get accessor for the call site declaration information.
   ///
@@ -284,18 +284,32 @@ public:
   /// Like \ref GetReturnPCAddress, but returns an unresolved file address.
   lldb::addr_t GetUnresolvedReturnPCAddress() const { return return_pc; }
 
+  /// Get the load PC address of the call instruction (or LLDB_INVALID_ADDRESS).
+  lldb::addr_t GetCallInstPC(Function &caller, Target &target) const;
+
   /// Get the call site parameters available at this call edge.
   llvm::ArrayRef<CallSiteParameter> GetCallSiteParameters() const {
     return parameters;
   }
 
 protected:
-  CallEdge(lldb::addr_t return_pc, CallSiteParameterArray &&parameters)
-      : return_pc(return_pc), parameters(std::move(parameters)) {}
+  CallEdge(lldb::addr_t return_pc, lldb::addr_t call_inst_pc,
+           CallSiteParameterArray &&parameters)
+      : return_pc(return_pc), call_inst_pc(call_inst_pc),
+        parameters(std::move(parameters)) {}
+
+  /// Helper that finds the load address of \p unresolved_pc, a file address
+  /// which refers to an instruction within \p caller.
+  static lldb::addr_t GetLoadAddress(lldb::addr_t unresolved_pc,
+                                     Function &caller, Target &target);
 
   /// An invalid address if this is a tail call. Otherwise, the return PC for
   /// the call. Note that this is a file address which must be resolved.
   lldb::addr_t return_pc;
+
+  /// The address of the call instruction. Usually an invalid address, unless
+  /// this is a tail call.
+  lldb::addr_t call_inst_pc;
 
   CallSiteParameterArray parameters;
 };
@@ -308,8 +322,8 @@ public:
   /// Construct a call edge using a symbol name to identify the callee, and a
   /// return PC within the calling function to identify a specific call site.
   DirectCallEdge(const char *symbol_name, lldb::addr_t return_pc,
-                 CallSiteParameterArray &&parameters)
-      : CallEdge(return_pc, std::move(parameters)) {
+                 lldb::addr_t call_inst_pc, CallSiteParameterArray &&parameters)
+      : CallEdge(return_pc, call_inst_pc, std::move(parameters)) {
     lazy_callee.symbol_name = symbol_name;
   }
 
@@ -339,8 +353,9 @@ public:
   /// Construct a call edge using a DWARFExpression to identify the callee, and
   /// a return PC within the calling function to identify a specific call site.
   IndirectCallEdge(DWARFExpression call_target, lldb::addr_t return_pc,
+                   lldb::addr_t call_inst_pc,
                    CallSiteParameterArray &&parameters)
-      : CallEdge(return_pc, std::move(parameters)),
+      : CallEdge(return_pc, call_inst_pc, std::move(parameters)),
         call_target(std::move(call_target)) {}
 
   Function *GetCallee(ModuleList &images, ExecutionContext &exe_ctx) override;
@@ -630,4 +645,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_Function_h_
+#endif // LLDB_SYMBOL_FUNCTION_H

@@ -38,6 +38,10 @@ def OpC : NS_Op<"three_normal_result_op", []> {
 // CHECK-NEXT:   odsState.addTypes(resultType1)
 // CHECK-NEXT:   odsState.addTypes(z)
 
+// CHECK:      void OpC::build(Builder *odsBuilder, OperationState &odsState, ArrayRef<Type> resultTypes) {
+// CHECK-NEXT:   assert(resultTypes.size() == 3u && "mismatched number of results");
+// CHECK-NEXT:   odsState.addTypes(resultTypes);
+
 def IntegerTypeAttr : TypeAttrBase<"IntegerType", "Integer type attribute">;
 def OpD : NS_Op<"type_attr_as_result_type", [FirstAttrDerivedResultType]> {
   let arguments = (ins I32:$x, IntegerTypeAttr:$attr, F32Attr:$f32);
@@ -45,7 +49,7 @@ def OpD : NS_Op<"type_attr_as_result_type", [FirstAttrDerivedResultType]> {
 }
 
 // CHECK-LABEL: OpD definitions
-// CHECK: void OpD::build(Builder *, OperationState &odsState, ValueRange operands, ArrayRef<NamedAttribute> attributes)
+// CHECK: void OpD::build(Builder *odsBuilder, OperationState &odsState, ValueRange operands, ArrayRef<NamedAttribute> attributes)
 // CHECK: odsState.addTypes({attr.second.cast<TypeAttr>().getValue()});
 
 def OpE : NS_Op<"value_attr_as_result_type", [FirstAttrDerivedResultType]> {
@@ -54,7 +58,7 @@ def OpE : NS_Op<"value_attr_as_result_type", [FirstAttrDerivedResultType]> {
 }
 
 // CHECK-LABEL: OpE definitions
-// CHECK: void OpE::build(Builder *, OperationState &odsState, ValueRange operands, ArrayRef<NamedAttribute> attributes)
+// CHECK: void OpE::build(Builder *odsBuilder, OperationState &odsState, ValueRange operands, ArrayRef<NamedAttribute> attributes)
 // CHECK: odsState.addTypes({attr.second.getType()});
 
 def OpF : NS_Op<"one_variadic_result_op", []> {

@@ -887,6 +887,8 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::ZExt:
       case Attribute::ImmArg:
       case Attribute::EndAttrKinds:
+      case Attribute::EmptyKey:
+      case Attribute::TombstoneKey:
         continue;
       // Those attributes should be safe to propagate to the extracted function.
       case Attribute::AlwaysInline:
@@ -1405,11 +1407,7 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
   DISubprogram *OldSP = OldFunc.getSubprogram();
   LLVMContext &Ctx = OldFunc.getContext();
 
-  // See llvm.org/PR44560, OpenMP passes an invalid subprogram to CodeExtractor.
-  bool NeedWorkaroundForOpenMPIRBuilderBug =
-      OldSP && OldSP->getRetainedNodes()->isTemporary();
-
-  if (!OldSP || NeedWorkaroundForOpenMPIRBuilderBug) {
+  if (!OldSP) {
     // Erase any debug info the new function contains.
     stripDebugInfo(NewFunc);
     // Make sure the old function doesn't contain any non-local metadata refs.
@@ -1531,13 +1529,19 @@ CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC) {
     }
   }
 
-  if (AC) {
-    // Remove @llvm.assume calls that were moved to the new function from the
-    // old function's assumption cache.
-    for (BasicBlock *Block : Blocks)
-      for (auto &I : *Block)
-        if (match(&I, m_Intrinsic<Intrinsic::assume>()))
-          AC->unregisterAssumption(cast<CallInst>(&I));
+  // Remove @llvm.assume calls that will be moved to the new function from the
+  // old function's assumption cache.
+  for (BasicBlock *Block : Blocks) {
+    for (auto It = Block->begin(), End = Block->end(); It != End;) {
+      Instruction *I = &*It;
+      ++It;
+
+      if (match(I, m_Intrinsic<Intrinsic::assume>())) {
+        if (AC)
+          AC->unregisterAssumption(cast<CallInst>(I));
+        I->eraseFromParent();
+      }
+    }
   }
 
   // If we have any return instructions in the region, split those blocks so
@@ -1711,17 +1715,36 @@ CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC) {
   });
   LLVM_DEBUG(if (verifyFunction(*oldFunction))
              report_fatal_error("verification of oldFunction failed!"));
-  LLVM_DEBUG(if (AC && verifyAssumptionCache(*oldFunction, AC))
-             report_fatal_error("Stale Asumption cache for old Function!"));
+  LLVM_DEBUG(if (AC && verifyAssumptionCache(*oldFunction, *newFunction, AC))
+                 report_fatal_error("Stale Asumption cache for old Function!"));
   return newFunction;
 }
 
-bool CodeExtractor::verifyAssumptionCache(const Function& F,
+bool CodeExtractor::verifyAssumptionCache(const Function &OldFunc,
+                                          const Function &NewFunc,
                                           AssumptionCache *AC) {
   for (auto AssumeVH : AC->assumptions()) {
-    CallInst *I = cast<CallInst>(AssumeVH);
-    if (I->getFunction() != &F)
+    CallInst *I = dyn_cast_or_null<CallInst>(AssumeVH);
+    if (!I)
+      continue;
+
+    // There shouldn't be any llvm.assume intrinsics in the new function.
+    if (I->getFunction() != &OldFunc)
       return true;
+
+    // There shouldn't be any stale affected values in the assumption cache
+    // that were previously in the old function, but that have now been moved
+    // to the new function.
+    for (auto AffectedValVH : AC->assumptionsFor(I->getOperand(0))) {
+      CallInst *AffectedCI = dyn_cast_or_null<CallInst>(AffectedValVH);
+      if (!AffectedCI)
+        continue;
+      if (AffectedCI->getFunction() != &OldFunc)
+        return true;
+      auto *AssumedInst = dyn_cast<Instruction>(AffectedCI->getOperand(0));
+      if (AssumedInst->getFunction() != &OldFunc)
+        return true;
+    }
   }
   return false;
 }

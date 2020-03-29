@@ -1,6 +1,6 @@
 //===- Token.h - MLIR Token Interface ---------------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -23,7 +23,6 @@ public:
 #define TOK_IDENTIFIER(NAME) NAME,
 #define TOK_LITERAL(NAME) NAME,
 #define TOK_PUNCTUATION(NAME, SPELLING) NAME,
-#define TOK_OPERATOR(NAME, SPELLING) NAME,
 #define TOK_KEYWORD(SPELLING) kw_##SPELLING,
 #include "TokenKinds.def"
   };
@@ -50,7 +49,8 @@ public:
   bool isNot(Kind k) const { return kind != k; }
 
   /// Return true if this token isn't one of the specified kinds.
-  template <typename... T> bool isNot(Kind k1, Kind k2, T... others) const {
+  template <typename... T>
+  bool isNot(Kind k1, Kind k2, T... others) const {
     return !isAny(k1, k2, others...);
   }
 
@@ -73,6 +73,11 @@ public:
 
   /// For an inttype token, return its bitwidth.
   Optional<unsigned> getIntTypeBitwidth() const;
+
+  /// For an inttype token, return its signedness semantics: llvm::None means no
+  /// signedness semantics; true means signed integer type; false means unsigned
+  /// integer type.
+  Optional<bool> getIntTypeSignedness() const;
 
   /// Given a hash_identifier token like #123, try to parse the number out of
   /// the identifier, returning None if it is a named identifier like #x or

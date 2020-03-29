@@ -34,7 +34,7 @@ std::string toString(const wasm::InputFile *file) {
     return "<internal>";
 
   if (file->archiveName.empty())
-    return file->getName();
+    return std::string(file->getName());
 
   return (file->archiveName + "(" + file->getName() + ")").str();
 }
@@ -168,9 +168,11 @@ uint32_t ObjFile::calcNewValue(const WasmRelocation &reloc) const {
     sym = symbols[reloc.Index];
 
     // We can end up with relocations against non-live symbols.  For example
-    // in debug sections.
+    // in debug sections. We return reloc.Addend because always returning zero
+    // causes the generation of spurious range-list terminators in the
+    // .debug_ranges section.
     if ((isa<FunctionSymbol>(sym) || isa<DataSymbol>(sym)) && !sym->isLive())
-      return 0;
+      return reloc.Addend;
   }
 
   switch (reloc.Type) {
@@ -526,7 +528,7 @@ static Symbol *createBitcodeSymbol(const std::vector<bool> &keptComdats,
   if (objSym.isUndefined() || excludedByComdat) {
     flags |= WASM_SYMBOL_UNDEFINED;
     if (objSym.isExecutable())
-      return symtab->addUndefinedFunction(name, "", "", flags, &f, nullptr,
+      return symtab->addUndefinedFunction(name, None, None, flags, &f, nullptr,
                                           true);
     return symtab->addUndefinedData(name, flags, &f);
   }
@@ -536,7 +538,15 @@ static Symbol *createBitcodeSymbol(const std::vector<bool> &keptComdats,
   return symtab->addDefinedData(name, flags, &f, nullptr, 0, 0);
 }
 
+bool BitcodeFile::doneLTO = false;
+
 void BitcodeFile::parse() {
+  if (doneLTO) {
+    error(toString(mb.getBufferIdentifier()) +
+          ": attempt to add bitcode file after LTO.");
+    return;
+  }
+
   obj = check(lto::InputFile::create(MemoryBufferRef(
       mb.getBuffer(), saver.save(archiveName + mb.getBufferIdentifier()))));
   Triple t(obj->getTargetTriple());

@@ -616,9 +616,7 @@ public:
     return &I->second;
   }
 
-  void addAdditionalModuleMapFile(const Module *M, const FileEntry *ModuleMap) {
-    AdditionalModMaps[M].insert(ModuleMap);
-  }
+  void addAdditionalModuleMapFile(const Module *M, const FileEntry *ModuleMap);
 
   /// Resolve all of the unresolved exports in the given module.
   ///
@@ -653,12 +651,14 @@ public:
   /// Sets the umbrella header of the given module to the given
   /// header.
   void setUmbrellaHeader(Module *Mod, const FileEntry *UmbrellaHeader,
-                         Twine NameAsWritten);
+                         Twine NameAsWritten,
+                         Twine PathRelativeToRootModuleDirectory);
 
   /// Sets the umbrella directory of the given module to the given
   /// directory.
   void setUmbrellaDir(Module *Mod, const DirectoryEntry *UmbrellaDir,
-                      Twine NameAsWritten);
+                      Twine NameAsWritten,
+                      Twine PathRelativeToRootModuleDirectory);
 
   /// Adds this header to the given module.
   /// \param Role The role of the header wrt the module.

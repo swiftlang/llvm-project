@@ -180,6 +180,10 @@ values, including two categories:
    shape of type. This is mostly used for convenience interface generation or
    interaction with other frameworks/translation.
 
+   All derived attributes should be materializable as an Attribute. That is,
+   even though they are not materialized, it should be possible to store as
+   an attribute.
+
 Both operands and attributes are specified inside the `dag`-typed `arguments`,
 led by `ins`:
 
@@ -278,6 +282,24 @@ let results = (outs
 Similar to variadic operands, `Variadic<...>` can also be used for results.
 And similarly, `SameVariadicResultSize` for multiple variadic results in the
 same operation.
+
+### Operation successors
+
+For terminator operations, the successors are specified inside of the
+`dag`-typed `successors`, led by `successor`:
+
+```tablegen
+let successors = (successor
+  <successor-constraint>:$<successor-name>,
+  ...
+);
+```
+
+#### Variadic successors
+
+Similar to the `Variadic` class used for variadic operands and results,
+`VariadicSuccessor<...>` can be used for successors. Variadic successors can
+currently only be specified as the last successor in the successor list.
 
 ### Operation traits and constraints
 
@@ -557,6 +579,159 @@ let verifier = [{
 
 Code placed in `verifier` will be called after the auto-generated verification
 code.
+
+### Declarative Assembly Format
+
+The custom assembly form of the operation may be specified in a declarative
+string that matches the operations operands, attributes, etc. With the ability
+to express additional information that needs to be parsed to build the
+operation:
+
+```tablegen
+def CallOp : Std_Op<"call", ...> {
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$args);
+  let results = (outs Variadic<AnyType>);
+
+  let assemblyFormat = [{
+    $callee `(` $args `)` attr-dict `:` functional-type($args, results)
+  }];
+}
+```
+
+The format is comprised of three components:
+
+#### Directives
+
+A directive is a type of builtin function, with an optional set of arguments.
+The available directives are as follows:
+
+*   `attr-dict`
+
+    -   Represents the attribute dictionary of the operation.
+
+*   `attr-dict-with-keyword`
+
+    -   Represents the attribute dictionary of the operation, but prefixes the
+        dictionary with an `attributes` keyword.
+
+*   `functional-type` ( inputs , results )
+
+    -   Formats the `inputs` and `results` arguments as a
+        [function type](LangRef.md#function-type).
+    -   The constraints on `inputs` and `results` are the same as the `input` of
+        the `type` directive.
+
+*   `operands`
+
+    -   Represents all of the operands of an operation.
+
+*   `results`
+
+    -   Represents all of the results of an operation.
+
+*   `successors`
+
+    -   Represents all of the successors of an operation.
+
+*   `type` ( input )
+
+    -   Represents the type of the given input.
+    -   `input` must be either an operand or result [variable](#variables), the
+        `operands` directive, or the `results` directive.
+
+#### Literals
+
+A literal is either a keyword or punctuation surrounded by \`\`.
+
+The following are the set of valid punctuation:
+  `:`, `,`, `=`, `<`, `>`, `(`, `)`, `[`, `]`, `->`
+
+#### Variables
+
+A variable is an entity that has been registered on the operation itself, i.e.
+an argument(attribute or operand), result, successor, etc. In the `CallOp`
+example above, the variables would be `$callee` and `$args`.
+
+Attribute variables are printed with their respective value type, unless that
+value type is buildable. In those cases, the type of the attribute is elided.
+
+#### Optional Groups
+
+In certain situations operations may have "optional" information, e.g.
+attributes or an empty set of variadic operands. In these situations a section
+of the assembly format can be marked as `optional` based on the presence of this
+information. An optional group is defined by wrapping a set of elements within
+`()` followed by a `?` and has the following requirements:
+
+*   The first element of the group must either be a literal or an operand.
+    -   This is because the first element must be optionally parsable.
+*   Exactly one argument variable within the group must be marked as the anchor
+    of the group.
+    -   The anchor is the element whose presence controls whether the group
+        should be printed/parsed.
+    -   An element is marked as the anchor by adding a trailing `^`.
+    -   The first element is *not* required to be the anchor of the group.
+*   Literals, variables, and type directives are the only valid elements within
+    the group.
+    -   Any attribute variable may be used, but only optional attributes can be
+        marked as the anchor.
+    -   Only variadic, i.e. optional, operand arguments can be used.
+    -   The operands to a type directive must be defined within the optional
+        group.
+
+An example of an operation with an optional group is `std.return`, which has a
+variadic number of operands.
+
+```
+def ReturnOp : ... {
+  let arguments = (ins Variadic<AnyType>:$operands);
+
+  // We only print the operands and types if there are a non-zero number
+  // of operands.
+  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
+}
+```
+
+#### Requirements
+
+The format specification has a certain set of requirements that must be adhered
+to:
+
+1. The output and operation name are never shown as they are fixed and cannot be
+   altered.
+1. All operands within the operation must appear within the format, either
+   individually or with the `operands` directive.
+1. All operand and result types must appear within the format using the various
+   `type` directives, either individually or with the `operands` or `results`
+   directives.
+1. The `attr-dict` directive must always be present.
+1. Must not contain overlapping information; e.g. multiple instances of
+   'attr-dict', types, operands, etc.
+   -  Note that `attr-dict` does not overlap with individual attributes. These
+      attributes will simply be elided when printing the attribute dictionary.
+
+##### Type Inferrence
+
+One requirement of the format is that the types of operands and results must
+always be present. In certain instances, the type of a variable may be deduced
+via type constraints or other information available. In these cases, the type of
+that variable may be elided from the format.
+
+* Buildable Types
+
+Some type constraints may only have one representation, allowing for them to
+be directly buildable; for example the `I32` or `Index` types. Types in `ODS`
+may mark themselves as buildable by setting the `builderCall` field or
+inheriting from the `BuildableType` class.
+
+* Trait Equality Constraints
+
+There are many operations that have known type equality constraints registered
+as traits on the operation; for example the true, false, and result values of a
+`select` operation often have the same type. The assembly format may inspect
+these equal constraints to discern the types of missing variables. The currently
+supported traits are: `AllTypesMatch`, `SameTypeOperands`, and
+`SameOperandsAndResultType`.
 
 ### `hasCanonicalizer`
 
@@ -1051,7 +1226,7 @@ mlir-tblgen --gen-op-decls -I /path/to/mlir/include /path/to/input/td/file
 # To see op C++ class definition
 mlir-tblgen --gen-op-defs -I /path/to/mlir/include /path/to/input/td/file
 # To see op documentation
-mlir-tblgen --gen-op-doc -I /path/to/mlir/include /path/to/input/td/file
+mlir-tblgen --gen-dialect-doc -I /path/to/mlir/include /path/to/input/td/file
 
 # To see op interface C++ class declaration
 mlir-tblgen --gen-op-interface-decls -I /path/to/mlir/include /path/to/input/td/file
@@ -1060,7 +1235,6 @@ mlir-tblgen --gen-op-interface-defs -I /path/to/mlir/include /path/to/input/td/f
 # To see op interface documentation
 mlir-tblgen --gen-op-interface-doc -I /path/to/mlir/include /path/to/input/td/file
 ```
-
 
 ## Appendix
 
@@ -1125,40 +1299,6 @@ requirements that were desirable:
         other reference implementations.
 
     TODO: document expectation if the dependent op's definition changes.
-
-### A proposal for auto-generating printer and parser methods
-
-NOTE: Auto-generating printing/parsing (as explained in the below) has _not_
-been prototyped, and potentially just being able to specify custom printer/
-parser methods are sufficient. This should presumably be influenced by the
-design of the assembler/disassembler logic that LLVM backends get for free
-for machine instructions.
-
-The custom assembly form of the operation is specified using a string with
-matching operation name, operands and attributes. With the ability
-to express additional information that needs to be parsed to build the
-operation:
-
-```tablegen
-tfl.add $lhs, $rhs {fused_activation_function: $fused_activation_function}: ${type(self)}
-```
-
-1. The output is never shown in the "mnemonics" string as that is fixed form
-   and cannot be altered.
-1. Custom parsing of ops may include some punctuation (e.g., parenthesis).
-1. The operands/results are added to the created operation in the order that
-   they are shown in the input and output dags.
-1. The `${type(self)}` operator is used to represent the type of the operator.
-   The type of operands can also be queried.
-1. Attributes names are matched to the placeholders in the mnemonic strings.
-   E.g., attribute axis is matched with `$axis`. Custom parsing for attribute
-   type can be defined along with the attribute definition.
-1. The information in the custom assembly form should be sufficient to invoke
-   the builder generated. That may require being able to propagate information
-   (e.g., the `$lhs` has the same type as the result).
-
-Printing is effectively the inverse of the parsing function generated with the
-mnemonic string serving as a template.
 
 [TableGen]: https://llvm.org/docs/TableGen/index.html
 [TableGenIntro]: https://llvm.org/docs/TableGen/LangIntro.html

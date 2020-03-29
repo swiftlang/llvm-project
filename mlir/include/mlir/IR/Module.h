@@ -1,6 +1,6 @@
 //===- Module.h - MLIR Module Class -----------------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -14,6 +14,7 @@
 #define MLIR_IR_MODULE_H
 
 #include "mlir/IR/SymbolTable.h"
+#include "llvm/Support/PointerLikeTypeTraits.h"
 
 namespace mlir {
 class ModuleTerminatorOp;

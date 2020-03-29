@@ -9,6 +9,8 @@
 // UNSUPPORTED: libcpp-has-no-threads
 // UNSUPPORTED: c++98, c++03
 
+// ALLOW_RETRIES: 2
+
 // <future>
 
 // class shared_future<R>

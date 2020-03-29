@@ -110,19 +110,19 @@ k:
 // its TLS block.
 // #ha(i@dtprel) --> (0x0 -0x8000 + 0x8000) >> 16 = 0
 // #lo(i@dtprel) --> (0x0 -0x8000) = -0x8000 = -32768
-// Dis:     test:
+// Dis:     <test>:
 // Dis:        addis 3, 2, 0
 // Dis-NEXT:   addi 3, 3, -32760
-// Dis-NEXT:   bl .+60
+// Dis-NEXT:   bl 0x10058
 // Dis-NEXT:   ld 2, 24(1)
 // Dis-NEXT:   addis 3, 3, 0
 // Dis-NEXT:   lwa 3, -32768(3)
 
 
 // #hi(j@got@tlsld) --> (0x20108 - 0x28100 ) > 16 = -1
-// Dis: test_hi:
+// Dis: <test_hi>:
 // Dis:   lis 3, -1
 
 // k@got@tlsld --> (0x20108 - 0x28100) = -7ff8 = -32760
-// Dis: test_16:
+// Dis: <test_16>:
 // Dis:   li 3, -32760

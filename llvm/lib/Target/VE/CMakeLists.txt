@@ -14,12 +14,12 @@ add_llvm_target(VECodeGen
   VEISelDAGToDAG.cpp
   VEISelLowering.cpp
   VEInstrInfo.cpp
+  VEMachineFunctionInfo.cpp
   VEMCInstLower.cpp
   VERegisterInfo.cpp
   VESubtarget.cpp
   VETargetMachine.cpp
   )
 
-add_subdirectory(InstPrinter)
 add_subdirectory(TargetInfo)
 add_subdirectory(MCTargetDesc)

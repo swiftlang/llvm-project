@@ -58,7 +58,7 @@ func @constant_wrong_type() {
 func @affine_apply_no_map() {
 ^bb0:
   %i = constant 0 : index
-  %x = "affine.apply" (%i) { } : (index) -> (index) //  expected-error {{'affine.apply' op requires an affine map}}
+  %x = "affine.apply" (%i) { } : (index) -> (index) //  expected-error {{'affine.apply' op requires attribute 'map'}}
   return
 }
 
@@ -186,7 +186,7 @@ func @func_with_ops(f32) {
 
 func @func_with_ops(f32) {
 ^bb0(%a : f32):
-  // expected-error@+1 {{'std.addi' op operand #0 must be integer-like}}
+  // expected-error@+1 {{'std.addi' op operand #0 must be signless-integer-like}}
   %sf = addi %a, %a : f32
 }
 
@@ -201,7 +201,7 @@ func @func_with_ops(i32) {
 
 func @func_with_ops(i32) {
 ^bb0(%a : i32):
-  // expected-error@+1 {{failed to satisfy constraint: allowed 64-bit integer cases: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9}}
+  // expected-error@+1 {{failed to satisfy constraint: allowed 64-bit signless integer cases: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9}}
   %r = "std.cmpi"(%a, %a) {predicate = 42} : (i32, i32) -> i1
 }
 
@@ -226,7 +226,7 @@ func @func_with_ops(i32, i32) {
 // Integer comparisons are not recognized for float types.
 func @func_with_ops(f32, f32) {
 ^bb0(%a : f32, %b : f32):
-  %r = cmpi "eq", %a, %b : f32 // expected-error {{operand #0 must be integer-like}}
+  %r = cmpi "eq", %a, %b : f32 // expected-error {{'lhs' must be signless-integer-like, but got 'f32'}}
 }
 
 // -----
@@ -275,7 +275,7 @@ func @func_with_ops(i32, i32, i32) {
 
 func @func_with_ops(i1, i32, i64) {
 ^bb0(%cond : i1, %t : i32, %f : i64):
-  // expected-error@+1 {{'true' and 'false' arguments to be of the same type}}
+  // expected-error@+1 {{all of {true_value, false_value, result} have same type}}
   %r = "std.select"(%cond, %t, %f) : (i1, i32, i64) -> i32
 }
 
@@ -298,13 +298,13 @@ func @func_with_ops(i1, tensor<42xi32>, tensor<?xi32>) {
 // -----
 
 func @invalid_select_shape(%cond : i1, %idx : () -> ()) {
-  // expected-error@+1 {{expected type with valid i1 shape}}
+  // expected-error@+1 {{'result' must be signless-integer-like or floating-point-like, but got '() -> ()'}}
   %sel = select %cond, %idx, %idx : () -> ()
 
 // -----
 
 func @invalid_cmp_shape(%idx : () -> ()) {
-  // expected-error@+1 {{expected type with valid i1 shape}}
+  // expected-error@+1 {{'lhs' must be signless-integer-like, but got '() -> ()'}}
   %cmp = cmpi "eq", %idx, %idx : () -> ()
 
 // -----
@@ -340,34 +340,34 @@ func @dma_wait_no_tag_memref(%tag : f32, %c0 : index) {
 // -----
 
 func @invalid_cmp_attr(%idx : i32) {
-  // expected-error@+1 {{expected string comparison predicate attribute}}
+  // expected-error@+1 {{invalid kind of attribute specified}}
   %cmp = cmpi i1, %idx, %idx : i32
 
 // -----
 
 func @cmpf_generic_invalid_predicate_value(%a : f32) {
-  // expected-error@+1 {{'predicate' attribute value out of range}}
+  // expected-error@+1 {{attribute 'predicate' failed to satisfy constraint: allowed 64-bit signless integer cases}}
   %r = "std.cmpf"(%a, %a) {predicate = 42} : (f32, f32) -> i1
 }
 
 // -----
 
 func @cmpf_canonical_invalid_predicate_value(%a : f32) {
-  // expected-error@+1 {{unknown comparison predicate "foo"}}
+  // expected-error@+1 {{invalid predicate attribute specification: "foo"}}
   %r = cmpf "foo", %a, %a : f32
 }
 
 // -----
 
 func @cmpf_canonical_invalid_predicate_value_signed(%a : f32) {
-  // expected-error@+1 {{unknown comparison predicate "sge"}}
+  // expected-error@+1 {{invalid predicate attribute specification: "sge"}}
   %r = cmpf "sge", %a, %a : f32
 }
 
 // -----
 
 func @cmpf_canonical_invalid_predicate_value_no_order(%a : f32) {
-  // expected-error@+1 {{unknown comparison predicate "eq"}}
+  // expected-error@+1 {{invalid predicate attribute specification: "eq"}}
   %r = cmpf "eq", %a, %a : f32
 }
 
@@ -380,14 +380,14 @@ func @cmpf_canonical_no_predicate_attr(%a : f32, %b : f32) {
 // -----
 
 func @cmpf_generic_no_predicate_attr(%a : f32, %b : f32) {
-  // expected-error@+1 {{requires an integer attribute named 'predicate'}}
+  // expected-error@+1 {{requires attribute 'predicate'}}
   %r = "std.cmpf"(%a, %b) {foo = 1} : (f32, f32) -> i1
 }
 
 // -----
 
 func @cmpf_wrong_type(%a : i32, %b : i32) {
-  %r = cmpf "oeq", %a, %b : i32 // expected-error {{operand #0 must be floating-point-like}}
+  %r = cmpf "oeq", %a, %b : i32 // expected-error {{must be floating-point-like}}
 }
 
 // -----
@@ -460,7 +460,7 @@ func @extract_element_invalid_index_type(%v : vector<3xf32>, %i : i32) {
 // -----
 
 func @extract_element_element_result_type_mismatch(%v : vector<3xf32>, %i : index) {
-  // expected-error@+1 {{result type must match element type of aggregate}}
+  // expected-error@+1 {{result type matches element type of aggregate}}
   %0 = "std.extract_element"(%v, %i) : (vector<3xf32>, index) -> f64
   return
 }
@@ -563,6 +563,46 @@ func @fpext_f32_to_i32(%arg0 : f32) {
 
 // -----
 
+func @fpext_vec(%arg0 : vector<2xf16>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fpext %arg0 : vector<2xf16> to vector<3xf32>
+  return
+}
+
+// -----
+
+func @fpext_vec_f32_to_f16(%arg0 : vector<2xf32>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fpext %arg0 : vector<2xf32> to vector<2xf16>
+  return
+}
+
+// -----
+
+func @fpext_vec_f16_to_f16(%arg0 : vector<2xf16>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fpext %arg0 : vector<2xf16> to vector<2xf16>
+  return
+}
+
+// -----
+
+func @fpext_vec_i32_to_f32(%arg0 : vector<2xi32>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fpext %arg0 : vector<2xi32> to vector<2xf32>
+  return
+}
+
+// -----
+
+func @fpext_vec_f32_to_i32(%arg0 : vector<2xf32>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fpext %arg0 : vector<2xf32> to vector<2xi32>
+  return
+}
+
+// -----
+
 func @fptrunc_f16_to_f32(%arg0 : f16) {
   // expected-error@+1 {{are cast incompatible}}
   %0 = fptrunc %arg0 : f16 to f32
@@ -590,6 +630,46 @@ func @fptrunc_i32_to_f32(%arg0 : i32) {
 func @fptrunc_f32_to_i32(%arg0 : f32) {
   // expected-error@+1 {{are cast incompatible}}
   %0 = fptrunc %arg0 : f32 to i32
+  return
+}
+
+// -----
+
+func @fptrunc_vec(%arg0 : vector<2xf16>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fptrunc %arg0 : vector<2xf16> to vector<3xf32>
+  return
+}
+
+// -----
+
+func @fptrunc_vec_f16_to_f32(%arg0 : vector<2xf16>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fptrunc %arg0 : vector<2xf16> to vector<2xf32>
+  return
+}
+
+// -----
+
+func @fptrunc_vec_f32_to_f32(%arg0 : vector<2xf32>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fptrunc %arg0 : vector<2xf32> to vector<2xf32>
+  return
+}
+
+// -----
+
+func @fptrunc_vec_i32_to_f32(%arg0 : vector<2xi32>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fptrunc %arg0 : vector<2xi32> to vector<2xf32>
+  return
+}
+
+// -----
+
+func @fptrunc_vec_f32_to_i32(%arg0 : vector<2xf32>) {
+  // expected-error@+1 {{are cast incompatible}}
+  %0 = fptrunc %arg0 : vector<2xf32> to vector<2xi32>
   return
 }
 
@@ -747,7 +827,7 @@ func @invalid_view(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 func @invalid_view(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = alloc() : memref<2048xf32>
-  // expected-error@+1 {{must be 1D memref of 8-bit integer values}}
+  // expected-error@+1 {{must be 1D memref of 8-bit signless integer values}}
   %1 = view %0[][%arg0, %arg1]
     : memref<2048xf32> to memref<?x?xf32, affine_map<(d0, d1)[s0] -> (d0 * 4 + d1 + s0)>>
   return
@@ -1011,7 +1091,7 @@ func @invalid_prefetch_cache_type(%i : index) {
 
 func @invalid_prefetch_locality_hint(%i : index) {
   %0 = alloc() : memref<10xf32>
-  // expected-error@+1 {{32-bit integer attribute whose minimum value is 0 whose maximum value is 3}}
+  // expected-error@+1 {{32-bit signless integer attribute whose minimum value is 0 whose maximum value is 3}}
   prefetch %0[%i], read, locality<5>, data  : memref<10xf32>
   return
 }
@@ -1034,5 +1114,47 @@ func @invalid_memref_cast() {
   %1 = memref_cast %0 : memref<2x5xf32, 0> to memref<*xf32, 0>
   // expected-error@+1 {{operand type 'memref<*xf32>' and result type 'memref<*xf32>' are cast incompatible}}
   %2 = memref_cast %1 : memref<*xf32, 0> to memref<*xf32, 0>
+  return
+}
+
+// -----
+
+func @atomic_rmw_idxs_rank_mismatch(%I: memref<16x10xf32>, %i : index, %val : f32) {
+  // expected-error@+1 {{expects the number of subscripts to be equal to memref rank}}
+  %x = atomic_rmw "addf" %val, %I[%i] : (f32, memref<16x10xf32>) -> f32
+  return
+}
+
+// -----
+
+func @atomic_rmw_expects_float(%I: memref<16x10xi32>, %i : index, %val : i32) {
+  // expected-error@+1 {{expects a floating-point type}}
+  %x = atomic_rmw "addf" %val, %I[%i, %i] : (i32, memref<16x10xi32>) -> i32
+  return
+}
+
+// -----
+
+func @atomic_rmw_expects_int(%I: memref<16x10xf32>, %i : index, %val : f32) {
+  // expected-error@+1 {{expects an integer type}}
+  %x = atomic_rmw "addi" %val, %I[%i, %i] : (f32, memref<16x10xf32>) -> f32
+  return
+}
+
+// -----
+
+// alignment is not power of 2.
+func @assume_alignment(%0: memref<4x4xf16>) {
+  // expected-error@+1 {{alignment must be power of 2}}
+  std.assume_alignment %0, 12 : memref<4x4xf16>
+  return
+}
+
+// -----
+
+// 0 alignment value.
+func @assume_alignment(%0: memref<4x4xf16>) {
+  // expected-error@+1 {{'std.assume_alignment' op attribute 'alignment' failed to satisfy constraint: 32-bit signless integer attribute whose value is positive}}
+  std.assume_alignment %0, 0 : memref<4x4xf16>
   return
 }

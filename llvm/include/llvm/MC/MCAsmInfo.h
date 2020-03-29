@@ -156,6 +156,10 @@ protected:
   /// Defaults to false.
   bool AllowAtInName = false;
 
+  /// This is true if the assembler allows $ @ ? characters at the start of
+  /// symbol names. Defaults to false.
+  bool AllowSymbolAtNameStart = false;
+
   /// If this is true, symbol names with invalid characters will be printed in
   /// quotes.
   bool SupportsQuotedNames = true;
@@ -171,11 +175,16 @@ protected:
 
   //===--- Data Emission Directives -------------------------------------===//
 
-  /// This should be set to the directive used to get some number of zero bytes
-  /// emitted to the current section.  Common cases are "\t.zero\t" and
-  /// "\t.space\t".  If this is set to null, the Data*bitsDirective's will be
-  /// used to emit zero bytes.  Defaults to "\t.zero\t"
+  /// This should be set to the directive used to get some number of zero (and
+  /// non-zero if supported by the directive) bytes emitted to the current
+  /// section. Common cases are "\t.zero\t" and "\t.space\t". Defaults to
+  /// "\t.zero\t"
   const char *ZeroDirective;
+
+  /// This should be set to true if the zero directive supports a value to emit
+  /// other than zero. If this is set to false, the Data*bitsDirective's will be
+  /// used to emit these bytes. Defaults to true.
+  bool ZeroDirectiveSupportsNonZeroValue = true;
 
   /// This directive allows emission of an ascii string with the standard C
   /// escape characters embedded into it.  If a target doesn't support this, it
@@ -313,9 +322,10 @@ protected:
   /// symbol that can be hidden (unexported).  Defaults to false.
   bool HasWeakDefCanBeHiddenDirective = false;
 
-  /// True if we have a .linkonce directive.  This is used on cygwin/mingw.
+  /// True if we should mark symbols as global instead of weak, for
+  /// weak*/linkonce*, if the symbol has a comdat.
   /// Defaults to false.
-  bool HasLinkOnceDirective = false;
+  bool AvoidWeakIfComdat = false;
 
   /// True if we have a .lglobl directive, which is used to emit the information
   /// of a static symbol into the symbol table. Defaults to false.
@@ -532,6 +542,7 @@ public:
   const char *getCode64Directive() const { return Code64Directive; }
   unsigned getAssemblerDialect() const { return AssemblerDialect; }
   bool doesAllowAtInName() const { return AllowAtInName; }
+  bool doesAllowSymbolAtNameStart() const { return AllowSymbolAtNameStart; }
   bool supportsNameQuoting() const { return SupportsQuotedNames; }
 
   bool doesSupportDataRegionDirectives() const {
@@ -543,6 +554,9 @@ public:
   }
 
   const char *getZeroDirective() const { return ZeroDirective; }
+  bool doesZeroDirectiveSupportNonZeroValue() const {
+    return ZeroDirectiveSupportsNonZeroValue;
+  }
   const char *getAsciiDirective() const { return AsciiDirective; }
   const char *getAscizDirective() const { return AscizDirective; }
   bool getAlignmentIsInBytes() const { return AlignmentIsInBytes; }
@@ -577,7 +591,7 @@ public:
     return HasWeakDefCanBeHiddenDirective;
   }
 
-  bool hasLinkOnceDirective() const { return HasLinkOnceDirective; }
+  bool avoidWeakIfComdat() const { return AvoidWeakIfComdat; }
 
   bool hasDotLGloblDirective() const { return HasDotLGloblDirective; }
 

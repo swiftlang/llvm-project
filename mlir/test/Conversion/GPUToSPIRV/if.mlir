@@ -1,6 +1,12 @@
 // RUN: mlir-opt -convert-gpu-to-spirv %s -o - | FileCheck %s
 
-module attributes {gpu.container_module} {
+module attributes {
+  gpu.container_module,
+  spv.target_env = #spv.target_env<
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
+    {max_compute_workgroup_invocations = 128 : i32,
+     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+} {
   func @main(%arg0 : memref<10xf32>, %arg1 : i1) {
     %c0 = constant 1 : index
     "gpu.launch_func"(%c0, %c0, %c0, %c0, %c0, %c0, %arg0, %arg1) { kernel = "kernel_simple_selection", kernel_module = @kernels} : (index, index, index, index, index, index, memref<10xf32>, i1) -> ()
@@ -10,7 +16,7 @@ module attributes {gpu.container_module} {
   gpu.module @kernels {
     // CHECK-LABEL: @kernel_simple_selection
     gpu.func @kernel_simple_selection(%arg2 : memref<10xf32>, %arg3 : i1)
-    attributes {gpu.kernel} {
+    attributes {gpu.kernel, spv.entry_point_abi = {local_size = dense<[16, 1, 1]>: vector<3xi32>}} {
       %value = constant 0.0 : f32
       %i = constant 0 : index
 
@@ -31,7 +37,7 @@ module attributes {gpu.container_module} {
 
     // CHECK-LABEL: @kernel_nested_selection
     gpu.func @kernel_nested_selection(%arg3 : memref<10xf32>, %arg4 : memref<10xf32>, %arg5 : i1, %arg6 : i1)
-    attributes {gpu.kernel} {
+    attributes {gpu.kernel, spv.entry_point_abi = {local_size = dense<[16, 1, 1]>: vector<3xi32>}} {
       %i = constant 0 : index
       %j = constant 9 : index
 

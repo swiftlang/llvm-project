@@ -1,6 +1,6 @@
 //===- ConvertKernelFuncToCubin.cpp - MLIR GPU lowering passes ------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -49,8 +49,7 @@ static constexpr const char *kCubinAnnotation = "nvvm.cubin";
 class GpuKernelToCubinPass
     : public OperationPass<GpuKernelToCubinPass, gpu::GPUModuleOp> {
 public:
-  GpuKernelToCubinPass(
-      CubinGenerator cubinGenerator = compilePtxToCubinForTesting)
+  GpuKernelToCubinPass(CubinGenerator cubinGenerator)
       : cubinGenerator(cubinGenerator) {}
 
   void runOnOperation() override {
@@ -76,9 +75,6 @@ public:
   }
 
 private:
-  static OwnedCubin compilePtxToCubinForTesting(const std::string &ptx,
-                                                Location, StringRef);
-
   std::string translateModuleToPtx(llvm::Module &module,
                                    llvm::TargetMachine &target_machine);
 
@@ -110,13 +106,6 @@ std::string GpuKernelToCubinPass::translateModuleToPtx(
   }
 
   return ptx;
-}
-
-OwnedCubin
-GpuKernelToCubinPass::compilePtxToCubinForTesting(const std::string &ptx,
-                                                  Location, StringRef) {
-  const char data[] = "CUBIN";
-  return std::make_unique<std::vector<char>>(data, data + sizeof(data) - 1);
 }
 
 OwnedCubin GpuKernelToCubinPass::convertModuleToCubin(llvm::Module &llvmModule,
@@ -158,7 +147,3 @@ std::unique_ptr<OpPassBase<gpu::GPUModuleOp>>
 mlir::createConvertGPUKernelToCubinPass(CubinGenerator cubinGenerator) {
   return std::make_unique<GpuKernelToCubinPass>(cubinGenerator);
 }
-
-static PassRegistration<GpuKernelToCubinPass>
-    pass("test-kernel-to-cubin",
-         "Convert all kernel functions to CUDA cubin blobs");

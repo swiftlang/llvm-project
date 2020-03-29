@@ -1,6 +1,6 @@
 //===- Utils.h - General analysis utilities ---------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -289,6 +289,12 @@ Optional<int64_t> getMemoryFootprintBytes(AffineForOp forOp,
 
 /// Returns true if `forOp' is a parallel loop.
 bool isLoopParallel(AffineForOp forOp);
+
+/// Simplify the integer set by simplifying the underlying affine expressions by
+/// flattening and some simple inference. Also, drop any duplicate constraints.
+/// Returns the simplified integer set. This method runs in time linear in the
+/// number of constraints.
+IntegerSet simplifyIntegerSet(IntegerSet set);
 
 } // end namespace mlir
 

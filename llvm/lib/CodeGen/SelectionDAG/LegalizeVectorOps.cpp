@@ -142,7 +142,7 @@ class VectorLegalizer {
   void ExpandUADDSUBO(SDNode *Node, SmallVectorImpl<SDValue> &Results);
   void ExpandSADDSUBO(SDNode *Node, SmallVectorImpl<SDValue> &Results);
   void ExpandMULO(SDNode *Node, SmallVectorImpl<SDValue> &Results);
-  SDValue ExpandFixedPointDiv(SDNode *Node);
+  void ExpandFixedPointDiv(SDNode *Node, SmallVectorImpl<SDValue> &Results);
   SDValue ExpandStrictFPOp(SDNode *Node);
   void ExpandStrictFPOp(SDNode *Node, SmallVectorImpl<SDValue> &Results);
 
@@ -182,9 +182,7 @@ bool VectorLegalizer::Run() {
        E = std::prev(DAG.allnodes_end()); I != std::next(E); ++I) {
     // Check if the values of the nodes contain vectors. We don't need to check
     // the operands because we are going to check their values at some point.
-    for (SDNode::value_iterator J = I->value_begin(), E = I->value_end();
-         J != E; ++J)
-      HasVectors |= J->isVector();
+    HasVectors = llvm::any_of(I->values(), [](EVT T) { return T.isVector(); });
 
     // If we found a vector node we can start the legalization.
     if (HasVectors)
@@ -318,12 +316,10 @@ SDValue VectorLegalizer::LegalizeOp(SDValue Op) {
     }
   }
 
-  bool HasVectorValueOrOp = false;
-  for (auto J = Node->value_begin(), E = Node->value_end(); J != E; ++J)
-    HasVectorValueOrOp |= J->isVector();
-  for (const SDValue &Oper : Node->op_values())
-    HasVectorValueOrOp |= Oper.getValueType().isVector();
-
+  bool HasVectorValueOrOp =
+      llvm::any_of(Node->values(), [](EVT T) { return T.isVector(); }) ||
+      llvm::any_of(Node->op_values(),
+                   [](SDValue O) { return O.getValueType().isVector(); });
   if (!HasVectorValueOrOp)
     return TranslateLegalizeResults(Op, Node);
 
@@ -339,7 +335,7 @@ SDValue VectorLegalizer::LegalizeOp(SDValue Op) {
     if (Action == TargetLowering::Legal)
       Action = TargetLowering::Expand;
     break;
-#define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)                   \
+#define DAG_INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)               \
   case ISD::STRICT_##DAGN:
 #include "llvm/IR/ConstrainedOps.def"
     ValVT = Node->getValueType(0);
@@ -463,7 +459,9 @@ SDValue VectorLegalizer::LegalizeOp(SDValue Op) {
   case ISD::UMULFIX:
   case ISD::UMULFIXSAT:
   case ISD::SDIVFIX:
-  case ISD::UDIVFIX: {
+  case ISD::SDIVFIXSAT:
+  case ISD::UDIVFIX:
+  case ISD::UDIVFIXSAT: {
     unsigned Scale = Node->getConstantOperandVal(2);
     Action = TLI.getFixedPointOperationAction(Node->getOpcode(),
                                               Node->getValueType(0), Scale);
@@ -968,9 +966,12 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
     break;
   case ISD::SDIVFIX:
   case ISD::UDIVFIX:
-    Results.push_back(ExpandFixedPointDiv(Node));
+    ExpandFixedPointDiv(Node, Results);
     return;
-#define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)                   \
+  case ISD::SDIVFIXSAT:
+  case ISD::UDIVFIXSAT:
+    break;
+#define DAG_INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)               \
   case ISD::STRICT_##DAGN:
 #include "llvm/IR/ConstrainedOps.def"
     ExpandStrictFPOp(Node, Results);
@@ -1454,12 +1455,12 @@ void VectorLegalizer::ExpandMULO(SDNode *Node,
   Results.push_back(Overflow);
 }
 
-SDValue VectorLegalizer::ExpandFixedPointDiv(SDNode *Node) {
+void VectorLegalizer::ExpandFixedPointDiv(SDNode *Node,
+                                          SmallVectorImpl<SDValue> &Results) {
   SDNode *N = Node;
   if (SDValue Expanded = TLI.expandFixedPointDiv(N->getOpcode(), SDLoc(N),
           N->getOperand(0), N->getOperand(1), N->getConstantOperandVal(2), DAG))
-    return Expanded;
-  return DAG.UnrollVectorOp(N);
+    Results.push_back(Expanded);
 }
 
 void VectorLegalizer::ExpandStrictFPOp(SDNode *Node,

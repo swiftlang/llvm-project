@@ -225,6 +225,21 @@ static bool isRegUsedByPhiNodes(unsigned DefReg,
   return false;
 }
 
+static bool isTerminatingEHLabel(MachineBasicBlock *MBB, MachineInstr &MI) {
+  // Ignore non-EH labels.
+  if (!MI.isEHLabel())
+    return false;
+
+  // Any EH label outside a landing pad must be for an invoke. Consider it a
+  // terminator.
+  if (!MBB->isEHPad())
+    return true;
+
+  // If this is a landingpad, the first non-phi instruction will be an EH_LABEL.
+  // Don't consider that label to be a terminator.
+  return MI.getIterator() != MBB->getFirstNonPHI();
+}
+
 /// Build a map of instruction orders. Return the first terminator and its
 /// order. Consider EH_LABEL instructions to be terminators as well, since local
 /// values for phis after invokes must be materialized before the call.
@@ -233,7 +248,7 @@ void FastISel::InstOrderMap::initialize(
   unsigned Order = 0;
   for (MachineInstr &I : *MBB) {
     if (!FirstTerminator &&
-        (I.isTerminator() || (I.isEHLabel() && &I != &MBB->front()))) {
+        (I.isTerminator() || isTerminatingEHLabel(MBB, I))) {
       FirstTerminator = &I;
       FirstTerminatorOrder = Order;
     }
@@ -1350,13 +1365,15 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
     const DbgDeclareInst *DI = cast<DbgDeclareInst>(II);
     assert(DI->getVariable() && "Missing variable");
     if (!FuncInfo.MF->getMMI().hasDebugInfo()) {
-      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
+      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI
+                        << " (!hasDebugInfo)\n");
       return true;
     }
 
     const Value *Address = DI->getAddress();
     if (!Address || isa<UndefValue>(Address)) {
-      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
+      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI
+                        << " (bad/undef address)\n");
       return true;
     }
 
@@ -1393,15 +1410,14 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
              "Expected inlined-at fields to agree");
       // A dbg.declare describes the address of a source variable, so lower it
       // into an indirect DBG_VALUE.
-      auto *Expr = DI->getExpression();
-      Expr = DIExpression::append(Expr, {dwarf::DW_OP_deref});
       BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
-              TII.get(TargetOpcode::DBG_VALUE), /*IsIndirect*/ false,
-              *Op, DI->getVariable(), Expr);
+              TII.get(TargetOpcode::DBG_VALUE), /*IsIndirect*/ true,
+              *Op, DI->getVariable(), DI->getExpression());
     } else {
       // We can't yet handle anything else here because it would require
       // generating code, thus altering codegen because of debug info.
-      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
+      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI
+                        << " (no materialized reg for address)\n");
     }
     return true;
   }
@@ -1421,19 +1437,19 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
       if (CI->getBitWidth() > 64)
         BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II)
             .addCImm(CI)
-            .addReg(0U)
+            .addImm(0U)
             .addMetadata(DI->getVariable())
             .addMetadata(DI->getExpression());
       else
         BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II)
             .addImm(CI->getZExtValue())
-            .addReg(0U)
+            .addImm(0U)
             .addMetadata(DI->getVariable())
             .addMetadata(DI->getExpression());
     } else if (const auto *CF = dyn_cast<ConstantFP>(V)) {
       BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II)
           .addFPImm(CF)
-          .addReg(0U)
+          .addImm(0U)
           .addMetadata(DI->getVariable())
           .addMetadata(DI->getExpression());
     } else if (unsigned Reg = lookUpRegForValue(V)) {
@@ -1566,6 +1582,27 @@ bool FastISel::selectBitCast(const User *I) {
 
   if (!ResultReg)
     return false;
+
+  updateValueMap(I, ResultReg);
+  return true;
+}
+
+bool FastISel::selectFreeze(const User *I) {
+  Register Reg = getRegForValue(I->getOperand(0));
+  if (!Reg)
+    // Unhandled operand.
+    return false;
+
+  EVT ETy = TLI.getValueType(DL, I->getOperand(0)->getType());
+  if (ETy == MVT::Other || !TLI.isTypeLegal(ETy))
+    // Unhandled type, bail out.
+    return false;
+
+  MVT Ty = ETy.getSimpleVT();
+  const TargetRegisterClass *TyRegClass = TLI.getRegClassFor(Ty);
+  Register ResultReg = createResultReg(TyRegClass);
+  BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
+          TII.get(TargetOpcode::COPY), ResultReg).addReg(Reg);
 
   updateValueMap(I, ResultReg);
   return true;
@@ -1911,6 +1948,9 @@ bool FastISel::selectOperator(const User *I, unsigned Opcode) {
 
   case Instruction::ExtractValue:
     return selectExtractValue(I);
+
+  case Instruction::Freeze:
+    return selectFreeze(I);
 
   case Instruction::PHI:
     llvm_unreachable("FastISel shouldn't visit PHI nodes!");

@@ -74,7 +74,7 @@ llvm.func @malloc(!llvm.i64) -> !llvm<"i8*">
 // phi nodes, scalar type conversion, arithmetic operations.
 //
 
-// CHECK-LABEL: define void @empty() {
+// CHECK-LABEL: define void @empty()
 // CHECK-NEXT:    ret void
 // CHECK-NEXT:  }
 llvm.func @empty() {
@@ -102,7 +102,7 @@ llvm.func @global_refs() {
 llvm.func @body(!llvm.i64)
 
 
-// CHECK-LABEL: define void @simple_loop() {
+// CHECK-LABEL: define void @simple_loop()
 llvm.func @simple_loop() {
 // CHECK: br label %[[SIMPLE_bb1:[0-9]+]]
   llvm.br ^bb1
@@ -139,7 +139,7 @@ llvm.func @simple_loop() {
   llvm.return
 }
 
-// CHECK-LABEL: define void @simple_caller() {
+// CHECK-LABEL: define void @simple_caller()
 // CHECK-NEXT:   call void @simple_loop()
 // CHECK-NEXT:   ret void
 // CHECK-NEXT: }
@@ -155,7 +155,7 @@ llvm.func @simple_caller() {
 //  return
 //}
 
-// CHECK-LABEL: define void @ml_caller() {
+// CHECK-LABEL: define void @ml_caller()
 // CHECK-NEXT:   call void @simple_loop()
 // CHECK-NEXT:   call void @more_imperfectly_nested_loops()
 // CHECK-NEXT:   ret void
@@ -171,7 +171,7 @@ llvm.func @body_args(!llvm.i64) -> !llvm.i64
 // CHECK-LABEL: declare i32 @other(i64, i32)
 llvm.func @other(!llvm.i64, !llvm.i32) -> !llvm.i32
 
-// CHECK-LABEL: define i32 @func_args(i32 {{%.*}}, i32 {{%.*}}) {
+// CHECK-LABEL: define i32 @func_args(i32 {{%.*}}, i32 {{%.*}})
 // CHECK-NEXT: br label %[[ARGS_bb1:[0-9]+]]
 llvm.func @func_args(%arg0: !llvm.i32, %arg1: !llvm.i32) -> !llvm.i32 {
   %0 = llvm.mlir.constant(0 : i32) : !llvm.i32
@@ -226,7 +226,7 @@ llvm.func @body2(!llvm.i64, !llvm.i64)
 // CHECK: declare void @post(i64)
 llvm.func @post(!llvm.i64)
 
-// CHECK-LABEL: define void @imperfectly_nested_loops() {
+// CHECK-LABEL: define void @imperfectly_nested_loops()
 // CHECK-NEXT:   br label %[[IMPER_bb1:[0-9]+]]
 llvm.func @imperfectly_nested_loops() {
   llvm.br ^bb1
@@ -301,7 +301,7 @@ llvm.func @mid(!llvm.i64)
 llvm.func @body3(!llvm.i64, !llvm.i64)
 
 // A complete function transformation check.
-// CHECK-LABEL: define void @more_imperfectly_nested_loops() {
+// CHECK-LABEL: define void @more_imperfectly_nested_loops()
 // CHECK-NEXT:   br label %1
 // CHECK: 1:                                      ; preds = %0
 // CHECK-NEXT:   br label %2
@@ -638,7 +638,7 @@ llvm.func @store_load_mixed(%arg0: !llvm.i64) {
   llvm.return
 }
 
-// CHECK-LABEL: define { float*, i64 } @memref_args_rets({ float* } {{%.*}}, { float*, i64 } {{%.*}}, { float*, i64 } {{%.*}}) {
+// CHECK-LABEL: define { float*, i64 } @memref_args_rets({ float* } {{%.*}}, { float*, i64 } {{%.*}}, { float*, i64 } {{%.*}})
 llvm.func @memref_args_rets(%arg0: !llvm<"{ float* }">, %arg1: !llvm<"{ float*, i64 }">, %arg2: !llvm<"{ float*, i64 }">) -> !llvm<"{ float*, i64 }"> {
   %0 = llvm.mlir.constant(7 : index) : !llvm.i64
 // CHECK-NEXT: %{{[0-9]+}} = call i64 @get_index()
@@ -718,7 +718,7 @@ llvm.func @get_i64() -> !llvm.i64
 llvm.func @get_f32() -> !llvm.float
 llvm.func @get_memref() -> !llvm<"{ float*, i64, i64 }">
 
-// CHECK-LABEL: define { i64, float, { float*, i64, i64 } } @multireturn() {
+// CHECK-LABEL: define { i64, float, { float*, i64, i64 } } @multireturn()
 llvm.func @multireturn() -> !llvm<"{ i64, float, { float*, i64, i64 } }"> {
   %0 = llvm.call @get_i64() : () -> !llvm.i64
   %1 = llvm.call @get_f32() : () -> !llvm.float
@@ -735,7 +735,7 @@ llvm.func @multireturn() -> !llvm<"{ i64, float, { float*, i64, i64 } }"> {
 }
 
 
-// CHECK-LABEL: define void @multireturn_caller() {
+// CHECK-LABEL: define void @multireturn_caller()
 llvm.func @multireturn_caller() {
 // CHECK-NEXT:   %1 = call { i64, float, { float*, i64, i64 } } @multireturn()
 // CHECK-NEXT:   [[ret0:%[0-9]+]] = extractvalue { i64, float, { float*, i64, i64 } } %1, 0
@@ -769,7 +769,7 @@ llvm.func @multireturn_caller() {
   llvm.return
 }
 
-// CHECK-LABEL: define <4 x float> @vector_ops(<4 x float> {{%.*}}, <4 x i1> {{%.*}}, <4 x i64> {{%.*}}) {
+// CHECK-LABEL: define <4 x float> @vector_ops(<4 x float> {{%.*}}, <4 x i1> {{%.*}}, <4 x i64> {{%.*}})
 llvm.func @vector_ops(%arg0: !llvm<"<4 x float>">, %arg1: !llvm<"<4 x i1>">, %arg2: !llvm<"<4 x i64>">) -> !llvm<"<4 x float>"> {
   %0 = llvm.mlir.constant(dense<4.200000e+01> : vector<4xf32>) : !llvm<"<4 x float>">
 // CHECK-NEXT: %4 = fadd <4 x float> %0, <float 4.200000e+01, float 4.200000e+01, float 4.200000e+01, float 4.200000e+01>
@@ -883,7 +883,7 @@ llvm.func @ops(%arg0: !llvm.float, %arg1: !llvm.float, %arg2: !llvm.i32, %arg3: 
 // Indirect function calls
 //
 
-// CHECK-LABEL: define void @indirect_const_call(i64 {{%.*}}) {
+// CHECK-LABEL: define void @indirect_const_call(i64 {{%.*}})
 llvm.func @indirect_const_call(%arg0: !llvm.i64) {
 // CHECK-NEXT:  call void @body(i64 %0)
   %0 = llvm.mlir.constant(@body) : !llvm<"void (i64)*">
@@ -892,7 +892,7 @@ llvm.func @indirect_const_call(%arg0: !llvm.i64) {
   llvm.return
 }
 
-// CHECK-LABEL: define i32 @indirect_call(i32 (float)* {{%.*}}, float {{%.*}}) {
+// CHECK-LABEL: define i32 @indirect_call(i32 (float)* {{%.*}}, float {{%.*}})
 llvm.func @indirect_call(%arg0: !llvm<"i32 (float)*">, %arg1: !llvm.float) -> !llvm.i32 {
 // CHECK-NEXT:  %3 = call i32 %0(float %1)
   %0 = llvm.call %arg0(%arg1) : (!llvm.float) -> !llvm.i32
@@ -905,7 +905,7 @@ llvm.func @indirect_call(%arg0: !llvm<"i32 (float)*">, %arg1: !llvm.float) -> !l
 // predecessor more than once.
 //
 
-// CHECK-LABEL: define void @cond_br_arguments(i1 {{%.*}}, i1 {{%.*}}) {
+// CHECK-LABEL: define void @cond_br_arguments(i1 {{%.*}}, i1 {{%.*}})
 llvm.func @cond_br_arguments(%arg0: !llvm.i1, %arg1: !llvm.i1) {
 // CHECK-NEXT:   br i1 %0, label %3, label %5
   llvm.cond_br %arg0, ^bb1(%arg0 : !llvm.i1), ^bb2
@@ -922,7 +922,7 @@ llvm.func @cond_br_arguments(%arg0: !llvm.i1, %arg1: !llvm.i1) {
   llvm.br ^bb1(%arg1 : !llvm.i1)
 }
 
-// CHECK-LABEL: define void @llvm_noalias(float* noalias {{%*.}}) {
+// CHECK-LABEL: define void @llvm_noalias(float* noalias {{%*.}})
 llvm.func @llvm_noalias(%arg0: !llvm<"float*"> {llvm.noalias = true}) {
   llvm.return
 }
@@ -1128,5 +1128,76 @@ llvm.func @cmpxchg(%ptr : !llvm<"float*">, %cmp : !llvm.float, %val: !llvm.float
   %1 = llvm.extractvalue %0[0] : !llvm<"{ float, i1 }">
   // CHECK: %{{[0-9]+}} = extractvalue { float, i1 } %{{[0-9]+}}, 1
   %2 = llvm.extractvalue %0[1] : !llvm<"{ float, i1 }">
+  llvm.return
+}
+
+llvm.mlir.global external constant @_ZTIi() : !llvm<"i8*">
+llvm.func @foo(!llvm<"i8*">)
+llvm.func @bar(!llvm<"i8*">) -> !llvm<"i8*">
+llvm.func @__gxx_personality_v0(...) -> !llvm.i32
+
+// CHECK-LABEL: @invokeLandingpad
+llvm.func @invokeLandingpad() -> !llvm.i32 attributes { personality = @__gxx_personality_v0 } {
+// CHECK: %[[a1:[0-9]+]] = alloca i8
+  %0 = llvm.mlir.constant(0 : i32) : !llvm.i32
+  %1 = llvm.mlir.constant("\01") : !llvm<"[1 x i8]">
+  %2 = llvm.mlir.addressof @_ZTIi : !llvm<"i8**">
+  %3 = llvm.bitcast %2 : !llvm<"i8**"> to !llvm<"i8*">
+  %4 = llvm.mlir.null : !llvm<"i8**">
+  %5 = llvm.mlir.constant(1 : i32) : !llvm.i32
+  %6 = llvm.alloca %5 x !llvm.i8 : (!llvm.i32) -> !llvm<"i8*">
+// CHECK: invoke void @foo(i8* %[[a1]])
+// CHECK-NEXT: to label %[[normal:[0-9]+]] unwind label %[[unwind:[0-9]+]]
+  llvm.invoke @foo(%6) to ^bb2 unwind ^bb1 : (!llvm<"i8*">) -> ()
+
+// CHECK: [[unwind]]:
+^bb1:
+// CHECK: %{{[0-9]+}} = landingpad { i8*, i32 }
+// CHECK-NEXT:             catch i8** null
+// CHECK-NEXT:             catch i8* bitcast (i8** @_ZTIi to i8*)
+// CHECK-NEXT:             filter [1 x i8] c"\01"
+  %7 = llvm.landingpad (catch %4 : !llvm<"i8**">) (catch %3 : !llvm<"i8*">) (filter %1 : !llvm<"[1 x i8]">) : !llvm<"{ i8*, i32 }">
+// CHECK: br label %[[final:[0-9]+]]
+  llvm.br ^bb3
+
+// CHECK: [[normal]]:
+// CHECK-NEXT: ret i32 1
+^bb2:	// 2 preds: ^bb0, ^bb3
+  llvm.return %5 : !llvm.i32
+
+// CHECK: [[final]]:
+// CHECK-NEXT: %{{[0-9]+}} = invoke i8* @bar(i8* %[[a1]])
+// CHECK-NEXT:          to label %[[normal]] unwind label %[[unwind]]
+^bb3:	// pred: ^bb1
+  %8 = llvm.invoke @bar(%6) to ^bb2 unwind ^bb1 : (!llvm<"i8*">) -> !llvm<"i8*">
+}
+
+// CHECK-LABEL: @callFreezeOp
+llvm.func @callFreezeOp(%x : !llvm.i32) {
+  // CHECK: freeze i32 %{{[0-9]+}}
+  %0 = llvm.freeze %x : !llvm.i32
+  %1 = llvm.mlir.undef : !llvm.i32
+  // CHECK: freeze i32 undef
+  %2 = llvm.freeze %1 : !llvm.i32
+  llvm.return
+}
+
+// CHECK-LABEL: @boolConstArg
+llvm.func @boolConstArg() -> !llvm.i1 {
+  // CHECK: ret i1 false
+  %0 = llvm.mlir.constant(true) : !llvm.i1
+  %1 = llvm.mlir.constant(false) : !llvm.i1
+  %2 = llvm.and %0, %1 : !llvm.i1
+  llvm.return %2 : !llvm.i1
+}
+
+// CHECK-LABEL: @callFenceInst
+llvm.func @callFenceInst() {
+  // CHECK: fence syncscope("agent") release
+  llvm.fence syncscope("agent") release
+  // CHECK: fence release
+  llvm.fence release
+  // CHECK: fence release
+  llvm.fence syncscope("") release
   llvm.return
 }

@@ -21,6 +21,8 @@ def SDT_VMOVSR : SDTypeProfile<1, 1, [SDTCisVT<0, f32>, SDTCisVT<1, i32>]>;
 def arm_fmstat : SDNode<"ARMISD::FMSTAT",  SDTNone, [SDNPInGlue, SDNPOutGlue]>;
 def arm_cmpfp  : SDNode<"ARMISD::CMPFP",   SDT_ARMCmp, [SDNPOutGlue]>;
 def arm_cmpfp0 : SDNode<"ARMISD::CMPFPw0", SDT_CMPFP0, [SDNPOutGlue]>;
+def arm_cmpfpe : SDNode<"ARMISD::CMPFPE",  SDT_ARMCmp, [SDNPOutGlue]>;
+def arm_cmpfpe0: SDNode<"ARMISD::CMPFPEw0",SDT_CMPFP0, [SDNPOutGlue]>;
 def arm_fmdrr  : SDNode<"ARMISD::VMOVDRR", SDT_VMOVDRR>;
 def arm_fmrrd  : SDNode<"ARMISD::VMOVRRD", SDT_VMOVRRD>;
 def arm_vmovsr  : SDNode<"ARMISD::VMOVSR", SDT_VMOVSR>;
@@ -548,12 +550,12 @@ let Defs = [FPSCR_NZCV] in {
 def VCMPED : ADuI<0b11101, 0b11, 0b0100, 0b11, 0,
                   (outs), (ins DPR:$Dd, DPR:$Dm),
                   IIC_fpCMP64, "vcmpe", ".f64\t$Dd, $Dm",
-                  [/* For disassembly only; pattern left blank */]>;
+                  [(arm_cmpfpe DPR:$Dd, (f64 DPR:$Dm))]>;
 
 def VCMPES : ASuI<0b11101, 0b11, 0b0100, 0b11, 0,
                   (outs), (ins SPR:$Sd, SPR:$Sm),
                   IIC_fpCMP32, "vcmpe", ".f32\t$Sd, $Sm",
-                  [/* For disassembly only; pattern left blank */]> {
+                  [(arm_cmpfpe SPR:$Sd, SPR:$Sm)]> {
   // Some single precision VFP instructions may be executed on both NEON and
   // VFP pipelines on A8.
   let D = VFPNeonA8Domain;
@@ -562,7 +564,7 @@ def VCMPES : ASuI<0b11101, 0b11, 0b0100, 0b11, 0,
 def VCMPEH : AHuI<0b11101, 0b11, 0b0100, 0b11, 0,
                   (outs), (ins HPR:$Sd, HPR:$Sm),
                   IIC_fpCMP16, "vcmpe", ".f16\t$Sd, $Sm",
-                  [/* For disassembly only; pattern left blank */]>;
+                  [(arm_cmpfpe HPR:$Sd, HPR:$Sm)]>;
 
 def VCMPD  : ADuI<0b11101, 0b11, 0b0100, 0b01, 0,
                   (outs), (ins DPR:$Dd, DPR:$Dm),
@@ -611,7 +613,7 @@ let Defs = [FPSCR_NZCV] in {
 def VCMPEZD : ADuI<0b11101, 0b11, 0b0101, 0b11, 0,
                    (outs), (ins DPR:$Dd),
                    IIC_fpCMP64, "vcmpe", ".f64\t$Dd, #0",
-                   [/* For disassembly only; pattern left blank */]> {
+                   [(arm_cmpfpe0 (f64 DPR:$Dd))]> {
   let Inst{3-0} = 0b0000;
   let Inst{5}   = 0;
 }
@@ -619,7 +621,7 @@ def VCMPEZD : ADuI<0b11101, 0b11, 0b0101, 0b11, 0,
 def VCMPEZS : ASuI<0b11101, 0b11, 0b0101, 0b11, 0,
                    (outs), (ins SPR:$Sd),
                    IIC_fpCMP32, "vcmpe", ".f32\t$Sd, #0",
-                   [/* For disassembly only; pattern left blank */]> {
+                   [(arm_cmpfpe0 SPR:$Sd)]> {
   let Inst{3-0} = 0b0000;
   let Inst{5}   = 0;
 
@@ -631,7 +633,7 @@ def VCMPEZS : ASuI<0b11101, 0b11, 0b0101, 0b11, 0,
 def VCMPEZH : AHuI<0b11101, 0b11, 0b0101, 0b11, 0,
                    (outs), (ins HPR:$Sd),
                    IIC_fpCMP16, "vcmpe", ".f16\t$Sd, #0",
-                   [/* For disassembly only; pattern left blank */]> {
+                   [(arm_cmpfpe0 HPR:$Sd)]> {
   let Inst{3-0} = 0b0000;
   let Inst{5}   = 0;
 }
@@ -1864,6 +1866,35 @@ def VULTOD : AVConv1XInsD_Encode<0b11101, 0b11, 0b1011, 0b1011, 1,
              Sched<[WriteFPCVT]>;
 
 } // End of 'let Constraints = "$a = $dst" in'
+
+// BFloat16  - Single precision, unary, predicated
+class BF16_VCVT<string opc, bits<2> op7_6>
+   : VFPAI<(outs SPR:$Sd), (ins SPR:$dst, SPR:$Sm),
+           VFPUnaryFrm, NoItinerary,
+           opc, ".bf16.f32\t$Sd, $Sm", []>,
+      RegConstraint<"$dst = $Sd">,
+      Requires<[HasBF16]>,
+     Sched<[]> {
+  bits<5> Sd;
+  bits<5> Sm;
+
+  // Encode instruction operands.
+  let Inst{3-0}   = Sm{4-1};
+  let Inst{5}     = Sm{0};
+  let Inst{15-12} = Sd{4-1};
+  let Inst{22}    = Sd{0};
+
+  let Inst{27-23} = 0b11101; // opcode1
+  let Inst{21-20} = 0b11;    // opcode2
+  let Inst{19-16} = 0b0011;  // opcode3
+  let Inst{11-8}  = 0b1001;
+  let Inst{7-6}   = op7_6;
+  let Inst{4}     = 0;
+  let DecoderNamespace = "VFPV8";
+}
+
+def BF16_VCVTB : BF16_VCVT<"vcvtb", 0b01>;
+def BF16_VCVTT : BF16_VCVT<"vcvtt", 0b11>;
 
 //===----------------------------------------------------------------------===//
 // FP Multiply-Accumulate Operations.

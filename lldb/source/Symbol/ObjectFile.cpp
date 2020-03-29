@@ -1,4 +1,4 @@
-//===-- ObjectFile.cpp ------------------------------------------*- C++ -*-===//
+//===-- ObjectFile.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -367,6 +367,7 @@ AddressClass ObjectFile::GetAddressClass(addr_t file_addr) {
           case eSectionTypeDWARFDebugStrDwo:
           case eSectionTypeDWARFDebugStrOffsets:
           case eSectionTypeDWARFDebugStrOffsetsDwo:
+          case eSectionTypeDWARFDebugTuIndex:
           case eSectionTypeDWARFDebugTypes:
           case eSectionTypeDWARFDebugTypesDwo:
           case eSectionTypeDWARFAppleNames:

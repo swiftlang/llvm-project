@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -65,6 +66,10 @@ static cl::opt<unsigned> LdStLimit("aarch64-load-store-scan-limit",
 // pre-/post-index instructions.
 static cl::opt<unsigned> UpdateLimit("aarch64-update-scan-limit", cl::init(100),
                                      cl::Hidden);
+
+// Enable register renaming to find additional store pairing opportunities.
+static cl::opt<bool> EnableRenaming("aarch64-load-store-renaming",
+                                    cl::init(true), cl::Hidden);
 
 #define AARCH64_LOAD_STORE_OPT_NAME "AArch64 load / store optimization pass"
 
@@ -1446,6 +1451,9 @@ AArch64LoadStoreOpt::findMatchingInsn(MachineBasicBlock::iterator I,
   bool IsPromotableZeroStore = isPromotableZeroStoreInst(FirstMI);
 
   Optional<bool> MaybeCanRename = None;
+  if (!EnableRenaming)
+    MaybeCanRename = {false};
+
   SmallPtrSet<const TargetRegisterClass *, 5> RequiredClasses;
   LiveRegUnits UsedInBetween;
   UsedInBetween.init(*TRI);
@@ -1773,6 +1781,21 @@ MachineBasicBlock::iterator AArch64LoadStoreOpt::findMatchingUpdateInsnForward(
   ModifiedRegUnits.clear();
   UsedRegUnits.clear();
   ++MBBI;
+
+  // We can't post-increment the stack pointer if any instruction between
+  // the memory access (I) and the increment (MBBI) can access the memory
+  // region defined by [SP, MBBI].
+  const bool BaseRegSP = BaseReg == AArch64::SP;
+  if (BaseRegSP) {
+    // FIXME: For now, we always block the optimization over SP in windows
+    // targets as it requires to adjust the unwind/debug info, messing up
+    // the unwind info can actually cause a miscompile.
+    const MCAsmInfo *MAI = I->getMF()->getTarget().getMCAsmInfo();
+    if (MAI->usesWindowsCFI() &&
+        I->getMF()->getFunction().needsUnwindTableEntry())
+      return E;
+  }
+
   for (unsigned Count = 0; MBBI != E && Count < Limit; ++MBBI) {
     MachineInstr &MI = *MBBI;
 
@@ -1790,8 +1813,11 @@ MachineBasicBlock::iterator AArch64LoadStoreOpt::findMatchingUpdateInsnForward(
 
     // Otherwise, if the base register is used or modified, we have no match, so
     // return early.
+    // If we are optimizing SP, do not allow instructions that may load or store
+    // in between the load and the optimized value update.
     if (!ModifiedRegUnits.available(BaseReg) ||
-        !UsedRegUnits.available(BaseReg))
+        !UsedRegUnits.available(BaseReg) ||
+        (BaseRegSP && MBBI->mayLoadOrStore()))
       return E;
   }
   return E;

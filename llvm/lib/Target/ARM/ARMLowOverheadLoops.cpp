@@ -61,6 +61,8 @@ using namespace llvm;
 
 namespace {
 
+  using InstSet = SmallPtrSetImpl<MachineInstr *>;
+
   class PostOrderLoopTraversal {
     MachineLoop &ML;
     MachineLoopInfo &MLI;
@@ -175,7 +177,10 @@ namespace {
 
   struct LowOverheadLoop {
 
-    MachineLoop *ML = nullptr;
+    MachineLoop &ML;
+    MachineLoopInfo &MLI;
+    ReachingDefAnalysis &RDA;
+    const TargetRegisterInfo &TRI;
     MachineFunction *MF = nullptr;
     MachineInstr *InsertPt = nullptr;
     MachineInstr *Start = nullptr;
@@ -189,8 +194,10 @@ namespace {
     bool Revert = false;
     bool CannotTailPredicate = false;
 
-    LowOverheadLoop(MachineLoop *ML) : ML(ML) {
-      MF = ML->getHeader()->getParent();
+    LowOverheadLoop(MachineLoop &ML, MachineLoopInfo &MLI,
+                    ReachingDefAnalysis &RDA, const TargetRegisterInfo &TRI)
+      : ML(ML), MLI(MLI), RDA(RDA), TRI(TRI) {
+      MF = ML.getHeader()->getParent();
     }
 
     // If this is an MVE instruction, check that we know how to use tail
@@ -206,22 +213,26 @@ namespace {
       // For now, let's keep things really simple and only support a single
       // block for tail predication.
       return !Revert && FoundAllComponents() && VCTP &&
-             !CannotTailPredicate && ML->getNumBlocks() == 1;
+             !CannotTailPredicate && ML.getNumBlocks() == 1;
     }
 
-    bool ValidateTailPredicate(MachineInstr *StartInsertPt,
-                               ReachingDefAnalysis *RDA,
-                               MachineLoopInfo *MLI);
+    // Check that the predication in the loop will be equivalent once we
+    // perform the conversion. Also ensure that we can provide the number
+    // of elements to the loop start instruction.
+    bool ValidateTailPredicate(MachineInstr *StartInsertPt);
+
+    // Check that any values available outside of the loop will be the same
+    // after tail predication conversion.
+    bool ValidateLiveOuts() const;
 
     // Is it safe to define LR with DLS/WLS?
     // LR can be defined if it is the operand to start, because it's the same
     // value, or if it's going to be equivalent to the operand to Start.
-    MachineInstr *IsSafeToDefineLR(ReachingDefAnalysis *RDA);
+    MachineInstr *isSafeToDefineLR();
 
     // Check the branch targets are within range and we satisfy our
     // restrictions.
-    void CheckLegality(ARMBasicBlockUtils *BBUtils, ReachingDefAnalysis *RDA,
-                       MachineLoopInfo *MLI);
+    void CheckLegality(ARMBasicBlockUtils *BBUtils);
 
     bool FoundAllComponents() const {
       return Start && Dec && End;
@@ -296,7 +307,7 @@ namespace {
 
     void RevertWhile(MachineInstr *MI) const;
 
-    bool RevertLoopDec(MachineInstr *MI, bool AllowFlags = false) const;
+    bool RevertLoopDec(MachineInstr *MI) const;
 
     void RevertLoopEnd(MachineInstr *MI, bool SkipCmp = false) const;
 
@@ -306,6 +317,7 @@ namespace {
 
     void Expand(LowOverheadLoop &LoLoop);
 
+    void IterationCountDCE(LowOverheadLoop &LoLoop);
   };
 }
 
@@ -314,7 +326,7 @@ char ARMLowOverheadLoops::ID = 0;
 INITIALIZE_PASS(ARMLowOverheadLoops, DEBUG_TYPE, ARM_LOW_OVERHEAD_LOOPS_NAME,
                 false, false)
 
-MachineInstr *LowOverheadLoop::IsSafeToDefineLR(ReachingDefAnalysis *RDA) {
+MachineInstr *LowOverheadLoop::isSafeToDefineLR() {
   // We can define LR because LR already contains the same value.
   if (Start->getOperand(0).getReg() == ARM::LR)
     return Start;
@@ -332,89 +344,22 @@ MachineInstr *LowOverheadLoop::IsSafeToDefineLR(ReachingDefAnalysis *RDA) {
   // Find an insertion point:
   // - Is there a (mov lr, Count) before Start? If so, and nothing else writes
   //   to Count before Start, we can insert at that mov.
-  if (auto *LRDef = RDA->getReachingMIDef(Start, ARM::LR))
-    if (IsMoveLR(LRDef) && RDA->hasSameReachingDef(Start, LRDef, CountReg))
+  if (auto *LRDef = RDA.getUniqueReachingMIDef(Start, ARM::LR))
+    if (IsMoveLR(LRDef) && RDA.hasSameReachingDef(Start, LRDef, CountReg))
       return LRDef;
 
   // - Is there a (mov lr, Count) after Start? If so, and nothing else writes
   //   to Count after Start, we can insert at that mov.
-  if (auto *LRDef = RDA->getLocalLiveOutMIDef(MBB, ARM::LR))
-    if (IsMoveLR(LRDef) && RDA->hasSameReachingDef(Start, LRDef, CountReg))
+  if (auto *LRDef = RDA.getLocalLiveOutMIDef(MBB, ARM::LR))
+    if (IsMoveLR(LRDef) && RDA.hasSameReachingDef(Start, LRDef, CountReg))
       return LRDef;
 
   // We've found no suitable LR def and Start doesn't use LR directly. Can we
   // just define LR anyway?
-  if (!RDA->isRegUsedAfter(Start, ARM::LR))
-    return Start;
-
-  return nullptr;
+  return RDA.isSafeToDefRegAt(Start, ARM::LR) ? Start : nullptr;
 }
 
-// Can we safely move 'From' to just before 'To'? To satisfy this, 'From' must
-// not define a register that is used by any instructions, after and including,
-// 'To'. These instructions also must not redefine any of Froms operands.
-template<typename Iterator>
-static bool IsSafeToMove(MachineInstr *From, MachineInstr *To, ReachingDefAnalysis *RDA) {
-  SmallSet<int, 2> Defs;
-  // First check that From would compute the same value if moved.
-  for (auto &MO : From->operands()) {
-    if (!MO.isReg() || MO.isUndef() || !MO.getReg())
-      continue;
-    if (MO.isDef())
-      Defs.insert(MO.getReg());
-    else if (!RDA->hasSameReachingDef(From, To, MO.getReg()))
-      return false;
-  }
-
-  // Now walk checking that the rest of the instructions will compute the same
-  // value.
-  for (auto I = ++Iterator(From), E = Iterator(To); I != E; ++I) {
-    for (auto &MO : I->operands())
-      if (MO.isReg() && MO.getReg() && MO.isUse() && Defs.count(MO.getReg()))
-        return false;
-  }
-  return true;
-}
-
-static bool IsSafeToRemove(MachineInstr *MI, ReachingDefAnalysis *RDA,
-                           SmallPtrSetImpl<MachineInstr*> &Visited,
-                           SmallPtrSetImpl<MachineInstr*> &ToRemove,
-                           SmallPtrSetImpl<MachineInstr*> &Ignore) {
-  if (Visited.count(MI) || Ignore.count(MI))
-    return true;
-  else if (MI->mayLoadOrStore() || MI->hasUnmodeledSideEffects() ||
-           MI->isBranch() || MI->isTerminator() || MI->isReturn()) {
-    // Unless told to ignore the instruction, don't remove anything which has
-    // side effects.
-    LLVM_DEBUG(dbgs() << "ARM Loops: Has side effects: " << *MI);
-    return false;
-  }
-
-  Visited.insert(MI);
-  for (auto &MO : MI->operands()) {
-    if (!MO.isReg() || MO.isUse() || MO.getReg() == 0)
-      continue;
-
-    SmallPtrSet<MachineInstr*, 4> Uses;
-    RDA->getGlobalUses(MI, MO.getReg(), Uses);
-
-    for (auto I : Uses) {
-      if (Ignore.count(I) || ToRemove.count(I))
-        continue;
-      if (!IsSafeToRemove(I, RDA, Visited, ToRemove, Ignore)) {
-        LLVM_DEBUG(dbgs() << "ARM Loops: Unable to remove " << *I);
-        return false;
-      }
-    }
-  }
-  ToRemove.insert(MI);
-  LLVM_DEBUG(dbgs() << "ARM Loops: Can remove: " << *MI);
-  return true;
-}
-
-bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
-                                            ReachingDefAnalysis *RDA,
-                                            MachineLoopInfo *MLI) {
+bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt) {
   assert(VCTP && "VCTP instruction expected but is not set");
   // All predication within the loop should be based on vctp. If the block
   // isn't predicated on entry, check whether the vctp is within the block
@@ -439,6 +384,9 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
     }
   }
 
+  if (!ValidateLiveOuts())
+    return false;
+
   // For tail predication, we need to provide the number of elements, instead
   // of the iteration count, to the loop start instruction. The number of
   // elements is provided to the vctp instruction, so we need to check that
@@ -448,7 +396,7 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
   // If the register is defined within loop, then we can't perform TP.
   // TODO: Check whether this is just a mov of a register that would be
   // available.
-  if (RDA->getReachingDef(VCTP, NumElements) >= 0) {
+  if (RDA.hasLocalDefBefore(VCTP, NumElements)) {
     LLVM_DEBUG(dbgs() << "ARM Loops: VCTP operand is defined in the loop.\n");
     return false;
   }
@@ -456,17 +404,17 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
   // The element count register maybe defined after InsertPt, in which case we
   // need to try to move either InsertPt or the def so that the [w|d]lstp can
   // use the value.
+  // TODO: On failing to move an instruction, check if the count is provided by
+  // a mov and whether we can use the mov operand directly.
   MachineBasicBlock *InsertBB = StartInsertPt->getParent();
-  if (!RDA->isReachingDefLiveOut(StartInsertPt, NumElements)) {
-    if (auto *ElemDef = RDA->getLocalLiveOutMIDef(InsertBB, NumElements)) {
-      if (IsSafeToMove<MachineBasicBlock::reverse_iterator>(
-          ElemDef, StartInsertPt, RDA)) {
+  if (!RDA.isReachingDefLiveOut(StartInsertPt, NumElements)) {
+    if (auto *ElemDef = RDA.getLocalLiveOutMIDef(InsertBB, NumElements)) {
+      if (RDA.isSafeToMoveForwards(ElemDef, StartInsertPt)) {
         ElemDef->removeFromParent();
         InsertBB->insert(MachineBasicBlock::iterator(StartInsertPt), ElemDef);
         LLVM_DEBUG(dbgs() << "ARM Loops: Moved element count def: "
                    << *ElemDef);
-      } else if (IsSafeToMove<MachineBasicBlock::iterator>(
-          StartInsertPt, ElemDef, RDA)) {
+      } else if (RDA.isSafeToMoveBackwards(StartInsertPt, ElemDef)) {
         StartInsertPt->removeFromParent();
         InsertBB->insertAfter(MachineBasicBlock::iterator(ElemDef),
                               StartInsertPt);
@@ -482,10 +430,10 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
   // Especially in the case of while loops, InsertBB may not be the
   // preheader, so we need to check that the register isn't redefined
   // before entering the loop.
-  auto CannotProvideElements = [&RDA](MachineBasicBlock *MBB,
+  auto CannotProvideElements = [this](MachineBasicBlock *MBB,
                                       Register NumElements) {
     // NumElements is redefined in this block.
-    if (RDA->getReachingDef(&MBB->back(), NumElements) >= 0)
+    if (RDA.hasLocalDefBefore(&MBB->back(), NumElements))
       return true;
 
     // Don't continue searching up through multiple predecessors.
@@ -496,7 +444,7 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
   };
 
   // First, find the block that looks like the preheader.
-  MachineBasicBlock *MBB = MLI->findLoopPreheader(ML, true);
+  MachineBasicBlock *MBB = MLI.findLoopPreheader(&ML, true);
   if (!MBB) {
     LLVM_DEBUG(dbgs() << "ARM Loops: Didn't find preheader.\n");
     return false;
@@ -533,13 +481,12 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
   };
 
   MBB = VCTP->getParent();
-  if (MachineInstr *Def = RDA->getReachingMIDef(&MBB->back(), NumElements)) {
-    SmallPtrSet<MachineInstr*, 2> Visited;
+  if (auto *Def = RDA.getUniqueReachingMIDef(&MBB->back(), NumElements)) {
     SmallPtrSet<MachineInstr*, 2> ElementChain;
     SmallPtrSet<MachineInstr*, 2> Ignore = { VCTP };
     unsigned ExpectedVectorWidth = getTailPredVectorWidth(VCTP->getOpcode());
 
-    if (IsSafeToRemove(Def, RDA, Visited, ElementChain, Ignore)) {
+    if (RDA.isSafeToRemove(Def, ElementChain, Ignore)) {
       bool FoundSub = false;
 
       for (auto *MI : ElementChain) {
@@ -563,9 +510,198 @@ bool LowOverheadLoop::ValidateTailPredicate(MachineInstr *StartInsertPt,
   return true;
 }
 
-void LowOverheadLoop::CheckLegality(ARMBasicBlockUtils *BBUtils,
-                                    ReachingDefAnalysis *RDA,
-                                    MachineLoopInfo *MLI) {
+static bool isVectorPredicated(MachineInstr *MI) {
+  int PIdx = llvm::findFirstVPTPredOperandIdx(*MI);
+  return PIdx != -1 && MI->getOperand(PIdx + 1).getReg() == ARM::VPR;
+}
+
+static bool isRegInClass(const MachineOperand &MO,
+                         const TargetRegisterClass *Class) {
+  return MO.isReg() && MO.getReg() && Class->contains(MO.getReg());
+}
+
+// MVE 'narrowing' operate on half a lane, reading from half and writing
+// to half, which are referred to has the top and bottom half. The other
+// half retains its previous value.
+static bool retainsPreviousHalfElement(const MachineInstr &MI) {
+  const MCInstrDesc &MCID = MI.getDesc();
+  uint64_t Flags = MCID.TSFlags;
+  return (Flags & ARMII::RetainsPreviousHalfElement) != 0;
+}
+
+// Some MVE instructions read from the top/bottom halves of their operand(s)
+// and generate a vector result with result elements that are double the
+// width of the input.
+static bool producesDoubleWidthResult(const MachineInstr &MI) {
+  const MCInstrDesc &MCID = MI.getDesc();
+  uint64_t Flags = MCID.TSFlags;
+  return (Flags & ARMII::DoubleWidthResult) != 0;
+}
+
+// Can this instruction generate a non-zero result when given only zeroed
+// operands? This allows us to know that, given operands with false bytes
+// zeroed by masked loads, that the result will also contain zeros in those
+// bytes.
+static bool canGenerateNonZeros(const MachineInstr &MI) {
+
+  // Check for instructions which can write into a larger element size,
+  // possibly writing into a previous zero'd lane.
+  if (producesDoubleWidthResult(MI))
+    return true;
+
+  switch (MI.getOpcode()) {
+  default:
+    break;
+  // FIXME: VNEG FP and -0? I think we'll need to handle this once we allow
+  // fp16 -> fp32 vector conversions.
+  // Instructions that perform a NOT will generate 1s from 0s.
+  case ARM::MVE_VMVN:
+  case ARM::MVE_VORN:
+  // Count leading zeros will do just that!
+  case ARM::MVE_VCLZs8:
+  case ARM::MVE_VCLZs16:
+  case ARM::MVE_VCLZs32:
+    return true;
+  }
+  return false;
+}
+
+
+// Look at its register uses to see if it only can only receive zeros
+// into its false lanes which would then produce zeros. Also check that
+// the output register is also defined by an FalseLaneZeros instruction
+// so that if tail-predication happens, the lanes that aren't updated will
+// still be zeros.
+static bool producesFalseLaneZeros(MachineInstr &MI,
+                                   const TargetRegisterClass *QPRs,
+                                   const ReachingDefAnalysis &RDA,
+                                   InstSet &FalseLaneZeros) {
+  if (canGenerateNonZeros(MI))
+    return false;
+  for (auto &MO : MI.operands()) {
+    if (!MO.isReg() || !MO.getReg())
+      continue;
+    if (auto *OpDef = RDA.getMIOperand(&MI, MO))
+      if (FalseLaneZeros.count(OpDef))
+       continue;
+    return false;
+  }
+  LLVM_DEBUG(dbgs() << "ARM Loops: Always False Zeros: " << MI);
+  return true;
+}
+
+bool LowOverheadLoop::ValidateLiveOuts() const {
+  // We want to find out if the tail-predicated version of this loop will
+  // produce the same values as the loop in its original form. For this to
+  // be true, the newly inserted implicit predication must not change the
+  // the (observable) results.
+  // We're doing this because many instructions in the loop will not be
+  // predicated and so the conversion from VPT predication to tail-predication
+  // can result in different values being produced; due to the tail-predication
+  // preventing many instructions from updating their falsely predicated
+  // lanes. This analysis assumes that all the instructions perform lane-wise
+  // operations and don't perform any exchanges.
+  // A masked load, whether through VPT or tail predication, will write zeros
+  // to any of the falsely predicated bytes. So, from the loads, we know that
+  // the false lanes are zeroed and here we're trying to track that those false
+  // lanes remain zero, or where they change, the differences are masked away
+  // by their user(s).
+  // All MVE loads and stores have to be predicated, so we know that any load
+  // operands, or stored results are equivalent already. Other explicitly
+  // predicated instructions will perform the same operation in the original
+  // loop and the tail-predicated form too. Because of this, we can insert
+  // loads, stores and other predicated instructions into our Predicated
+  // set and build from there.
+  const TargetRegisterClass *QPRs = TRI.getRegClass(ARM::MQPRRegClassID);
+  SetVector<MachineInstr *> Unknown;
+  SmallPtrSet<MachineInstr *, 4> FalseLaneZeros;
+  SmallPtrSet<MachineInstr *, 4> Predicated;
+  MachineBasicBlock *MBB = ML.getHeader();
+
+  for (auto &MI : *MBB) {
+    const MCInstrDesc &MCID = MI.getDesc();
+    uint64_t Flags = MCID.TSFlags;
+    if ((Flags & ARMII::DomainMask) != ARMII::DomainMVE)
+      continue;
+
+    if (isVectorPredicated(&MI)) {
+      if (MI.mayLoad())
+        FalseLaneZeros.insert(&MI);
+      Predicated.insert(&MI);
+      continue;
+    }
+
+    if (MI.getNumDefs() == 0)
+      continue;
+
+    if (producesFalseLaneZeros(MI, QPRs, RDA, FalseLaneZeros))
+      FalseLaneZeros.insert(&MI);
+    else if (retainsPreviousHalfElement(MI))
+      return false;
+    else
+      Unknown.insert(&MI);
+  }
+
+  auto HasPredicatedUsers = [this](MachineInstr *MI, const MachineOperand &MO,
+                              SmallPtrSetImpl<MachineInstr *> &Predicated) {
+    SmallPtrSet<MachineInstr *, 2> Uses;
+    RDA.getGlobalUses(MI, MO.getReg(), Uses);
+    for (auto *Use : Uses) {
+      if (Use != MI && !Predicated.count(Use))
+        return false;
+    }
+    return true;
+  };
+
+  // Visit the unknowns in reverse so that we can start at the values being
+  // stored and then we can work towards the leaves, hopefully adding more
+  // instructions to Predicated.
+  for (auto *MI : reverse(Unknown)) {
+    for (auto &MO : MI->operands()) {
+      if (!isRegInClass(MO, QPRs) || !MO.isDef())
+        continue;
+      if (!HasPredicatedUsers(MI, MO, Predicated)) {
+        LLVM_DEBUG(dbgs() << "ARM Loops: Found an unknown def of : "
+                          << TRI.getRegAsmName(MO.getReg()) << " at " << *MI);
+        return false;
+      }
+    }
+    // Any unknown false lanes have been masked away by the user(s).
+    Predicated.insert(MI);
+  }
+
+  // Collect Q-regs that are live in the exit blocks. We don't collect scalars
+  // because they won't be affected by lane predication.
+  SmallSet<Register, 2> LiveOuts;
+  SmallVector<MachineBasicBlock *, 2> ExitBlocks;
+  ML.getExitBlocks(ExitBlocks);
+  for (auto *MBB : ExitBlocks)
+    for (const MachineBasicBlock::RegisterMaskPair &RegMask : MBB->liveins())
+      if (QPRs->contains(RegMask.PhysReg))
+        LiveOuts.insert(RegMask.PhysReg);
+
+  // Collect the instructions in the loop body that define the live-out values.
+  SmallPtrSet<MachineInstr *, 2> LiveMIs;
+  assert(ML.getNumBlocks() == 1 && "Expected single block loop!");
+  for (auto Reg : LiveOuts)
+    if (auto *MI = RDA.getLocalLiveOutMIDef(MBB, Reg))
+      LiveMIs.insert(MI);
+
+  LLVM_DEBUG(dbgs() << "ARM Loops: Found loop live-outs:\n";
+             for (auto *MI : LiveMIs)
+               dbgs() << " - " << *MI);
+  // We've already validated that any VPT predication within the loop will be
+  // equivalent when we perform the predication transformation; so we know that
+  // any VPT predicated instruction is predicated upon VCTP. Any live-out
+  // instruction needs to be predicated, so check this here.
+  for (auto *MI : LiveMIs)
+    if (!isVectorPredicated(MI))
+      return false;
+
+  return true;
+}
+
+void LowOverheadLoop::CheckLegality(ARMBasicBlockUtils *BBUtils) {
   if (Revert)
     return;
 
@@ -574,7 +710,7 @@ void LowOverheadLoop::CheckLegality(ARMBasicBlockUtils *BBUtils,
 
   // TODO Maybe there's cases where the target doesn't have to be the header,
   // but for now be safe and revert.
-  if (End->getOperand(1).getMBB() != ML->getHeader()) {
+  if (End->getOperand(1).getMBB() != ML.getHeader()) {
     LLVM_DEBUG(dbgs() << "ARM Loops: LoopEnd is not targetting header.\n");
     Revert = true;
     return;
@@ -582,8 +718,8 @@ void LowOverheadLoop::CheckLegality(ARMBasicBlockUtils *BBUtils,
 
   // The WLS and LE instructions have 12-bits for the label offset. WLS
   // requires a positive offset, while LE uses negative.
-  if (BBUtils->getOffsetOf(End) < BBUtils->getOffsetOf(ML->getHeader()) ||
-      !BBUtils->isBBInRange(End, ML->getHeader(), 4094)) {
+  if (BBUtils->getOffsetOf(End) < BBUtils->getOffsetOf(ML.getHeader()) ||
+      !BBUtils->isBBInRange(End, ML.getHeader(), 4094)) {
     LLVM_DEBUG(dbgs() << "ARM Loops: LE offset is out-of-range\n");
     Revert = true;
     return;
@@ -598,7 +734,7 @@ void LowOverheadLoop::CheckLegality(ARMBasicBlockUtils *BBUtils,
     return;
   }
 
-  InsertPt = Revert ? nullptr : IsSafeToDefineLR(RDA);
+  InsertPt = Revert ? nullptr : isSafeToDefineLR();
   if (!InsertPt) {
     LLVM_DEBUG(dbgs() << "ARM Loops: Unable to find safe insertion point.\n");
     Revert = true;
@@ -613,9 +749,9 @@ void LowOverheadLoop::CheckLegality(ARMBasicBlockUtils *BBUtils,
     return;
   }
 
-  assert(ML->getBlocks().size() == 1 &&
+  assert(ML.getBlocks().size() == 1 &&
          "Shouldn't be processing a loop with more than one block");
-  CannotTailPredicate = !ValidateTailPredicate(InsertPt, RDA, MLI);
+  CannotTailPredicate = !ValidateTailPredicate(InsertPt);
   LLVM_DEBUG(if (CannotTailPredicate)
              dbgs() << "ARM Loops: Couldn't validate tail predicate.\n");
 }
@@ -688,7 +824,9 @@ bool LowOverheadLoop::ValidateMVEInst(MachineInstr* MI) {
     return false;
   }
 
-  return true;
+  // If the instruction is already explicitly predicated, then the conversion
+  // will be fine, but ensure that all memory operations are predicated.
+  return !IsUse && MI->mayLoadOrStore() ? false : true;
 }
 
 bool ARMLowOverheadLoops::runOnMachineFunction(MachineFunction &mf) {
@@ -750,7 +888,7 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
     return nullptr;
   };
 
-  LowOverheadLoop LoLoop(ML);
+  LowOverheadLoop LoLoop(*ML, *MLI, *RDA, *TRI);
   // Search the preheader for the start intrinsic.
   // FIXME: I don't see why we shouldn't be supporting multiple predecessors
   // with potentially multiple set.loop.iterations, so we need to enable this.
@@ -766,7 +904,9 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
   // whether we can convert that predicate using tail predication.
   for (auto *MBB : reverse(ML->getBlocks())) {
     for (auto &MI : *MBB) {
-      if (MI.getOpcode() == ARM::t2LoopDec)
+      if (MI.isDebugValue())
+        continue;
+      else if (MI.getOpcode() == ARM::t2LoopDec)
         LoLoop.Dec = &MI;
       else if (MI.getOpcode() == ARM::t2LoopEnd)
         LoLoop.End = &MI;
@@ -792,20 +932,15 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
     return false;
   }
 
-  SmallPtrSet<MachineInstr*, 2> Visited;
-  SmallPtrSet<MachineInstr*, 2> Ignore = { LoLoop.End };
-  SmallPtrSet<MachineInstr*, 4> Remove;
-  if (!IsSafeToRemove(LoLoop.Dec, RDA, Visited, Remove, Ignore)) {
-    LLVM_DEBUG(dbgs() << "ARM Loops: Unable to remove loop count chain.\n");
+  // Check that the only instruction using LoopDec is LoopEnd.
+  // TODO: Check for copy chains that really have no effect.
+  SmallPtrSet<MachineInstr*, 2> Uses;
+  RDA->getReachingLocalUses(LoLoop.Dec, ARM::LR, Uses);
+  if (Uses.size() > 1 || !Uses.count(LoLoop.End)) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Unable to remove LoopDec.\n");
     LoLoop.Revert = true;
-  } else {
-    LLVM_DEBUG(dbgs() << "ARM Loops: Will need to remove:\n";
-               for (auto *I : Remove)
-                 dbgs() << " - " << *I);
-    LoLoop.ToRemove.insert(Remove.begin(), Remove.end());
   }
-
-  LoLoop.CheckLegality(BBUtils.get(), RDA, MLI);
+  LoLoop.CheckLegality(BBUtils.get());
   Expand(LoLoop);
   return true;
 }
@@ -835,16 +970,19 @@ void ARMLowOverheadLoops::RevertWhile(MachineInstr *MI) const {
   MI->eraseFromParent();
 }
 
-bool ARMLowOverheadLoops::RevertLoopDec(MachineInstr *MI,
-                                        bool SetFlags) const {
+bool ARMLowOverheadLoops::RevertLoopDec(MachineInstr *MI) const {
   LLVM_DEBUG(dbgs() << "ARM Loops: Reverting to sub: " << *MI);
   MachineBasicBlock *MBB = MI->getParent();
+  SmallPtrSet<MachineInstr*, 1> Ignore;
+  for (auto I = MachineBasicBlock::iterator(MI), E = MBB->end(); I != E; ++I) {
+    if (I->getOpcode() == ARM::t2LoopEnd) {
+      Ignore.insert(&*I);
+      break;
+    }
+  }
 
   // If nothing defines CPSR between LoopDec and LoopEnd, use a t2SUBS.
-  if (SetFlags &&
-      (RDA->isRegUsedAfter(MI, ARM::CPSR) ||
-       !RDA->hasSameReachingDef(MI, &MBB->back(), ARM::CPSR)))
-      SetFlags = false;
+  bool SetFlags = RDA->isSafeToDefRegAt(MI, ARM::CPSR, Ignore);
 
   MachineInstrBuilder MIB = BuildMI(*MBB, MI, MI->getDebugLoc(),
                                     TII->get(ARM::t2SUBri));
@@ -892,37 +1030,101 @@ void ARMLowOverheadLoops::RevertLoopEnd(MachineInstr *MI, bool SkipCmp) const {
   MI->eraseFromParent();
 }
 
+// Perform dead code elimation on the loop iteration count setup expression.
+// If we are tail-predicating, the number of elements to be processed is the
+// operand of the VCTP instruction in the vector body, see getCount(), which is
+// register $r3 in this example:
+//
+//   $lr = big-itercount-expression
+//   ..
+//   t2DoLoopStart renamable $lr
+//   vector.body:
+//     ..
+//     $vpr = MVE_VCTP32 renamable $r3
+//     renamable $lr = t2LoopDec killed renamable $lr, 1
+//     t2LoopEnd renamable $lr, %vector.body
+//     tB %end
+//
+// What we would like achieve here is to replace the do-loop start pseudo
+// instruction t2DoLoopStart with:
+//
+//    $lr = MVE_DLSTP_32 killed renamable $r3
+//
+// Thus, $r3 which defines the number of elements, is written to $lr,
+// and then we want to delete the whole chain that used to define $lr,
+// see the comment below how this chain could look like.
+//
+void ARMLowOverheadLoops::IterationCountDCE(LowOverheadLoop &LoLoop) {
+  if (!LoLoop.IsTailPredicationLegal())
+    return;
+
+  LLVM_DEBUG(dbgs() << "ARM Loops: Trying DCE on loop iteration count.\n");
+
+  MachineInstr *Def = RDA->getMIOperand(LoLoop.Start, 0);
+  if (!Def) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Couldn't find iteration count.\n");
+    return;
+  }
+
+  // Collect and remove the users of iteration count.
+  SmallPtrSet<MachineInstr*, 4> Killed  = { LoLoop.Start, LoLoop.Dec,
+                                            LoLoop.End, LoLoop.InsertPt };
+  SmallPtrSet<MachineInstr*, 2> Remove;
+  if (RDA->isSafeToRemove(Def, Remove, Killed))
+    LoLoop.ToRemove.insert(Remove.begin(), Remove.end());
+  else {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Unsafe to remove loop iteration count.\n");
+    return;
+  }
+
+  // Collect the dead code and the MBBs in which they reside.
+  RDA->collectKilledOperands(Def, Killed);
+  SmallPtrSet<MachineBasicBlock*, 2> BasicBlocks;
+  for (auto *MI : Killed)
+    BasicBlocks.insert(MI->getParent());
+
+  // Collect IT blocks in all affected basic blocks.
+  std::map<MachineInstr *, SmallPtrSet<MachineInstr *, 2>> ITBlocks;
+  for (auto *MBB : BasicBlocks) {
+    for (auto &MI : *MBB) {
+      if (MI.getOpcode() != ARM::t2IT)
+        continue;
+      RDA->getReachingLocalUses(&MI, ARM::ITSTATE, ITBlocks[&MI]);
+    }
+  }
+
+  // If we're removing all of the instructions within an IT block, then
+  // also remove the IT instruction.
+  SmallPtrSet<MachineInstr*, 2> ModifiedITs;
+  for (auto *MI : Killed) {
+    if (MachineOperand *MO = MI->findRegisterUseOperand(ARM::ITSTATE)) {
+      MachineInstr *IT = RDA->getMIOperand(MI, *MO);
+      auto &CurrentBlock = ITBlocks[IT];
+      CurrentBlock.erase(MI);
+      if (CurrentBlock.empty())
+        ModifiedITs.erase(IT);
+      else
+        ModifiedITs.insert(IT);
+    }
+  }
+
+  // Delete the killed instructions only if we don't have any IT blocks that
+  // need to be modified because we need to fixup the mask.
+  // TODO: Handle cases where IT blocks are modified.
+  if (ModifiedITs.empty()) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Will remove iteration count:\n";
+               for (auto *MI : Killed)
+                 dbgs() << " - " << *MI);
+    LoLoop.ToRemove.insert(Killed.begin(), Killed.end());
+  } else
+    LLVM_DEBUG(dbgs() << "ARM Loops: Would need to modify IT block(s).\n");
+}
+
 MachineInstr* ARMLowOverheadLoops::ExpandLoopStart(LowOverheadLoop &LoLoop) {
   LLVM_DEBUG(dbgs() << "ARM Loops: Expanding LoopStart.\n");
   // When using tail-predication, try to delete the dead code that was used to
   // calculate the number of loop iterations.
-  if (LoLoop.IsTailPredicationLegal()) {
-    SmallVector<MachineInstr*, 4> Killed;
-    SmallVector<MachineInstr*, 4> Dead;
-    if (auto *Def = RDA->getReachingMIDef(LoLoop.Start,
-                                      LoLoop.Start->getOperand(0).getReg())) {
-      SmallPtrSet<MachineInstr*, 4> Visited;
-      SmallPtrSet<MachineInstr*, 4> Remove;
-      SmallPtrSet<MachineInstr*, 4> Ignore = { LoLoop.Start, LoLoop.Dec,
-                                               LoLoop.End, LoLoop.VCTP,
-                                               LoLoop.InsertPt };
-      SmallVector<MachineInstr*, 4> Chain = { Def };
-      while (!Chain.empty()) {
-        MachineInstr *MI = Chain.back();
-        Chain.pop_back();
-        if (IsSafeToRemove(MI, RDA, Visited, Remove, Ignore)) {
-          for (auto &MO : MI->operands()) {
-            if (!MO.isReg() || !MO.isUse() || MO.getReg() == 0)
-              continue;
-            if (auto *Op = RDA->getReachingMIDef(MI, MO.getReg()))
-              Chain.push_back(Op);
-          }
-          Ignore.insert(MI);
-        }
-      }
-      LoLoop.ToRemove.insert(Remove.begin(), Remove.end());
-    }
-  }
+  IterationCountDCE(LoLoop);
 
   MachineInstr *InsertPt = LoLoop.InsertPt;
   MachineInstr *Start = LoLoop.Start;
@@ -1039,7 +1241,8 @@ void ARMLowOverheadLoops::Expand(LowOverheadLoop &LoLoop) {
     MIB.add(End->getOperand(0));
     MIB.add(End->getOperand(1));
     LLVM_DEBUG(dbgs() << "ARM Loops: Inserted LE: " << *MIB);
-    End->eraseFromParent();
+    LoLoop.ToRemove.insert(LoLoop.Dec);
+    LoLoop.ToRemove.insert(End);
     return &*MIB;
   };
 
@@ -1065,7 +1268,7 @@ void ARMLowOverheadLoops::Expand(LowOverheadLoop &LoLoop) {
       RevertWhile(LoLoop.Start);
     else
       LoLoop.Start->eraseFromParent();
-    bool FlagsAlreadySet = RevertLoopDec(LoLoop.Dec, true);
+    bool FlagsAlreadySet = RevertLoopDec(LoLoop.Dec);
     RevertLoopEnd(LoLoop.End, FlagsAlreadySet);
   } else {
     LoLoop.Start = ExpandLoopStart(LoLoop);
@@ -1080,7 +1283,7 @@ void ARMLowOverheadLoops::Expand(LowOverheadLoop &LoLoop) {
     }
   }
 
-  PostOrderLoopTraversal DFS(*LoLoop.ML, *MLI);
+  PostOrderLoopTraversal DFS(LoLoop.ML, *MLI);
   DFS.ProcessLoop();
   const SmallVectorImpl<MachineBasicBlock*> &PostOrder = DFS.getOrder();
   for (auto *MBB : PostOrder) {
@@ -1092,6 +1295,9 @@ void ARMLowOverheadLoops::Expand(LowOverheadLoop &LoLoop) {
 
   for (auto *MBB : reverse(PostOrder))
     recomputeLivenessFlags(*MBB);
+
+  // We've moved, removed and inserted new instructions, so update RDA.
+  RDA->reset();
 }
 
 bool ARMLowOverheadLoops::RevertNonLoops() {

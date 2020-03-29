@@ -129,7 +129,7 @@ static const NoteTag *getNoteTag(CheckerContext &C,
         Out << ' ' << (CastSucceeds ? "is a" : "is not a") << " '" << CastToName
             << '\'';
 
-        return Out.str();
+        return std::string(Out.str());
       },
       /*IsPrunable=*/true);
 }
@@ -436,6 +436,6 @@ void ento::registerCastValueChecker(CheckerManager &Mgr) {
   Mgr.registerChecker<CastValueChecker>();
 }
 
-bool ento::shouldRegisterCastValueChecker(const LangOptions &LO) {
+bool ento::shouldRegisterCastValueChecker(const CheckerManager &mgr) {
   return true;
 }

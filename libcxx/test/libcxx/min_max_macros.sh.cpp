@@ -9,7 +9,7 @@
 
 // Test that we can include each header in two TU's and link them together.
 
-// RUN: %compile -fsyntax-only
+// RUN: %{compile} -fsyntax-only
 
 // Prevent <ext/hash_map> from generating deprecated warnings for this test.
 #if defined(__DEPRECATED)
@@ -177,6 +177,8 @@ TEST_MACROS();
 #include <shared_mutex>
 TEST_MACROS();
 #endif
+#include <span>
+TEST_MACROS();
 #include <sstream>
 TEST_MACROS();
 #include <stack>

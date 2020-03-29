@@ -1091,6 +1091,8 @@ TEST_F(PatternMatchTest, VectorUndefFloat) {
   Constant *VectorUndef = UndefValue::get(VectorTy);
   Constant *ScalarZero = Constant::getNullValue(ScalarTy);
   Constant *VectorZero = Constant::getNullValue(VectorTy);
+  Constant *ScalarPosInf = ConstantFP::getInfinity(ScalarTy, false);
+  Constant *ScalarNegInf = ConstantFP::getInfinity(ScalarTy, true);
 
   SmallVector<Constant *, 4> Elems;
   Elems.push_back(ScalarUndef);
@@ -1098,6 +1100,13 @@ TEST_F(PatternMatchTest, VectorUndefFloat) {
   Elems.push_back(ScalarUndef);
   Elems.push_back(ScalarZero);
   Constant *VectorZeroUndef = ConstantVector::get(Elems);
+
+  SmallVector<Constant *, 4> InfElems;
+  InfElems.push_back(ScalarPosInf);
+  InfElems.push_back(ScalarNegInf);
+  InfElems.push_back(ScalarUndef);
+  InfElems.push_back(ScalarPosInf);
+  Constant *VectorInfUndef = ConstantVector::get(InfElems);
 
   EXPECT_TRUE(match(ScalarUndef, m_Undef()));
   EXPECT_TRUE(match(VectorUndef, m_Undef()));
@@ -1110,6 +1119,13 @@ TEST_F(PatternMatchTest, VectorUndefFloat) {
   EXPECT_TRUE(match(ScalarZero, m_AnyZeroFP()));
   EXPECT_TRUE(match(VectorZero, m_AnyZeroFP()));
   EXPECT_TRUE(match(VectorZeroUndef, m_AnyZeroFP()));
+
+  EXPECT_FALSE(match(ScalarUndef, m_Inf()));
+  EXPECT_FALSE(match(VectorUndef, m_Inf()));
+  EXPECT_FALSE(match(VectorZeroUndef, m_Inf()));
+  EXPECT_TRUE(match(ScalarPosInf, m_Inf()));
+  EXPECT_TRUE(match(ScalarNegInf, m_Inf()));
+  EXPECT_TRUE(match(VectorInfUndef, m_Inf()));
 
   const APFloat *C;
   // Regardless of whether undefs are allowed,
@@ -1319,8 +1335,8 @@ TYPED_TEST_CASE(MutableConstTest, MutableConstTestTypes);
 TYPED_TEST(MutableConstTest, ICmp) {
   auto &IRB = PatternMatchTest::IRB;
 
-  typedef typename std::tuple_element<0, TypeParam>::type ValueType;
-  typedef typename std::tuple_element<1, TypeParam>::type InstructionType;
+  typedef std::tuple_element_t<0, TypeParam> ValueType;
+  typedef std::tuple_element_t<1, TypeParam> InstructionType;
 
   Value *L = IRB.getInt32(1);
   Value *R = IRB.getInt32(2);

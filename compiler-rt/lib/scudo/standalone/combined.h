@@ -13,7 +13,6 @@
 #include "common.h"
 #include "flags.h"
 #include "flags_parser.h"
-#include "interface.h"
 #include "local_cache.h"
 #include "memtag.h"
 #include "quarantine.h"
@@ -22,19 +21,19 @@
 #include "string_utils.h"
 #include "tsd.h"
 
+#include "scudo/interface.h"
+
 #ifdef GWP_ASAN_HOOKS
 #include "gwp_asan/guarded_pool_allocator.h"
-// GWP-ASan is declared here in order to avoid indirect call overhead. It's also
-// instantiated outside of the Allocator class, as the allocator is only
-// zero-initialised. GWP-ASan requires constant initialisation, and the Scudo
-// allocator doesn't have a constexpr constructor (see discussion here:
-// https://reviews.llvm.org/D69265#inline-624315).
-static gwp_asan::GuardedPoolAllocator GuardedAlloc;
+#include "gwp_asan/optional/backtrace.h"
+#include "gwp_asan/optional/segv_handler.h"
 #endif // GWP_ASAN_HOOKS
 
 extern "C" inline void EmptyCallback() {}
 
 namespace scudo {
+
+enum class Option { ReleaseInterval };
 
 template <class Params, void (*PostInitCallback)(void) = EmptyCallback>
 class Allocator {
@@ -147,13 +146,18 @@ public:
         static_cast<u32>(getFlags()->quarantine_max_chunk_size);
 
     Stats.initLinkerInitialized();
-    Primary.initLinkerInitialized(getFlags()->release_to_os_interval_ms);
-    Secondary.initLinkerInitialized(&Stats);
+    const s32 ReleaseToOsIntervalMs = getFlags()->release_to_os_interval_ms;
+    Primary.initLinkerInitialized(ReleaseToOsIntervalMs);
+    Secondary.initLinkerInitialized(&Stats, ReleaseToOsIntervalMs);
 
     Quarantine.init(
         static_cast<uptr>(getFlags()->quarantine_size_kb << 10),
         static_cast<uptr>(getFlags()->thread_local_quarantine_size_kb << 10));
+  }
 
+  // Initialize the embedded GWP-ASan instance. Requires the main allocator to
+  // be functional, best called from PostInitCallback.
+  void initGwpAsan() {
 #ifdef GWP_ASAN_HOOKS
     gwp_asan::options::Options Opt;
     Opt.Enabled = getFlags()->GWP_ASAN_Enabled;
@@ -166,8 +170,17 @@ public:
         getFlags()->GWP_ASAN_MaxSimultaneousAllocations;
     Opt.SampleRate = getFlags()->GWP_ASAN_SampleRate;
     Opt.InstallSignalHandlers = getFlags()->GWP_ASAN_InstallSignalHandlers;
-    Opt.Printf = Printf;
+    // Embedded GWP-ASan is locked through the Scudo atfork handler (via
+    // Allocator::disable calling GWPASan.disable). Disable GWP-ASan's atfork
+    // handler.
+    Opt.InstallForkHandlers = false;
+    Opt.Backtrace = gwp_asan::options::getBacktraceFunction();
     GuardedAlloc.init(Opt);
+
+    if (Opt.InstallSignalHandlers)
+      gwp_asan::crash_handler::installSignalHandlers(
+          &GuardedAlloc, Printf, gwp_asan::options::getPrintBacktraceFunction(),
+          Opt.Backtrace);
 #endif // GWP_ASAN_HOOKS
   }
 
@@ -176,6 +189,11 @@ public:
   void unmapTestOnly() {
     TSDRegistry.unmapTestOnly();
     Primary.unmapTestOnly();
+#ifdef GWP_ASAN_HOOKS
+    if (getFlags()->GWP_ASAN_InstallSignalHandlers)
+      gwp_asan::crash_handler::uninstallSignalHandlers();
+    GuardedAlloc.uninitTestOnly();
+#endif // GWP_ASAN_HOOKS
   }
 
   TSDRegistryT *getTSDRegistry() { return &TSDRegistry; }
@@ -243,8 +261,8 @@ public:
     }
     DCHECK_LE(Size, NeededSize);
 
-    void *Block;
-    uptr ClassId;
+    void *Block = nullptr;
+    uptr ClassId = 0;
     uptr SecondaryBlockEnd;
     if (LIKELY(PrimaryT::canAllocate(NeededSize))) {
       ClassId = SizeClassMap::getClassIdBySize(NeededSize);
@@ -252,13 +270,23 @@ public:
       bool UnlockRequired;
       auto *TSD = TSDRegistry.getTSDAndLock(&UnlockRequired);
       Block = TSD->Cache.allocate(ClassId);
+      // If the allocation failed, the most likely reason with a 64-bit primary
+      // is the region being full. In that event, retry once using the
+      // immediately larger class (except if the failing class was already the
+      // largest). This will waste some memory but will allow the application to
+      // not fail. If dealing with the largest class, fallback to the Secondary.
+      if (UNLIKELY(!Block)) {
+        if (ClassId < SizeClassMap::LargestClassId)
+          Block = TSD->Cache.allocate(++ClassId);
+        else
+          ClassId = 0;
+      }
       if (UnlockRequired)
         TSD->unlock();
-    } else {
-      ClassId = 0;
+    }
+    if (UNLIKELY(ClassId == 0))
       Block = Secondary.allocate(NeededSize, Alignment, &SecondaryBlockEnd,
                                  ZeroContents);
-    }
 
     if (UNLIKELY(!Block)) {
       if (Options.MayReturnNull)
@@ -421,6 +449,12 @@ public:
   void *reallocate(void *OldPtr, uptr NewSize, uptr Alignment = MinAlignment) {
     initThreadMaybe();
 
+    if (UNLIKELY(NewSize >= MaxAllowedMallocSize)) {
+      if (Options.MayReturnNull)
+        return nullptr;
+      reportAllocationSizeTooBig(NewSize, 0, MaxAllowedMallocSize);
+    }
+
     void *OldTaggedPtr = OldPtr;
     OldPtr = untagPointerMaybe(OldPtr);
 
@@ -474,9 +508,7 @@ public:
     // reasonable delta), we just keep the old block, and update the chunk
     // header to reflect the size change.
     if (reinterpret_cast<uptr>(OldPtr) + NewSize <= BlockEnd) {
-      const uptr Delta =
-          OldSize < NewSize ? NewSize - OldSize : OldSize - NewSize;
-      if (Delta <= SizeClassMap::MaxSize / 2) {
+      if (NewSize > OldSize || (OldSize - NewSize) < getPageSizeCached()) {
         Chunk::UnpackedHeader NewHeader = OldHeader;
         NewHeader.SizeOrUnusedBytes =
             (ClassId ? NewSize
@@ -509,6 +541,9 @@ public:
   //                this function finishes. We will revisit that later.
   void disable() {
     initThreadMaybe();
+#ifdef GWP_ASAN_HOOKS
+    GuardedAlloc.disable();
+#endif
     TSDRegistry.disable();
     Stats.disable();
     Quarantine.disable();
@@ -523,6 +558,9 @@ public:
     Quarantine.enable();
     Stats.enable();
     TSDRegistry.enable();
+#ifdef GWP_ASAN_HOOKS
+    GuardedAlloc.enable();
+#endif
   }
 
   // The function returns the amount of bytes required to store the statistics,
@@ -555,6 +593,7 @@ public:
   void releaseToOS() {
     initThreadMaybe();
     Primary.releaseToOS();
+    Secondary.releaseToOS();
   }
 
   // Iterate over all chunks and call a callback for all busy chunks located
@@ -581,6 +620,9 @@ public:
     };
     Primary.iterateOverBlocks(Lambda);
     Secondary.iterateOverBlocks(Lambda);
+#ifdef GWP_ASAN_HOOKS
+    GuardedAlloc.iterate(reinterpret_cast<void *>(Base), Size, Callback, Arg);
+#endif
   }
 
   bool canReturnNull() {
@@ -588,8 +630,14 @@ public:
     return Options.MayReturnNull;
   }
 
-  // TODO(kostyak): implement this as a "backend" to mallopt.
-  bool setOption(UNUSED uptr Option, UNUSED uptr Value) { return false; }
+  bool setOption(Option O, sptr Value) {
+    if (O == Option::ReleaseInterval) {
+      Primary.setReleaseToOsIntervalMs(static_cast<s32>(Value));
+      Secondary.setReleaseToOsIntervalMs(static_cast<s32>(Value));
+      return true;
+    }
+    return false;
+  }
 
   // Return the usable size for a given chunk. Technically we lie, as we just
   // report the actual size of a chunk. This is done to counteract code actively
@@ -675,6 +723,10 @@ private:
     u8 DeleteSizeMismatch : 1;  // delete_size_mismatch
     u32 QuarantineMaxChunkSize; // quarantine_max_chunk_size
   } Options;
+
+#ifdef GWP_ASAN_HOOKS
+  gwp_asan::GuardedPoolAllocator GuardedAlloc;
+#endif // GWP_ASAN_HOOKS
 
   // The following might get optimized out by the compiler.
   NOINLINE void performSanityChecks() {

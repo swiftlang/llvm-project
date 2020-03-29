@@ -193,6 +193,10 @@ module weird_objc {
   header "weird_objc.h"
 }
 
+module objc_type_param {
+  header "objc_type_param.h"
+}
+
 module ignored_macros {
   header "ignored_macros.h"
 }
@@ -473,5 +477,10 @@ module template_nontrivial0 {
 
 module template_nontrivial1 {
   header "template-nontrivial1.h"
+  export *
+}
+
+module objc_redef_indirect {
+  header "objc_redef_indirect.h"
   export *
 }

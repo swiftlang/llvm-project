@@ -63,11 +63,10 @@
 
 using namespace llvm;
 using namespace llvm::codeview;
+using namespace lld;
+using namespace lld::coff;
 
 using llvm::object::coff_section;
-
-namespace lld {
-namespace coff {
 
 static ExitOnError exitOnErr;
 
@@ -1386,6 +1385,8 @@ void PDBLinker::printStats() {
       TypeIndex typeIndex;
       uint64_t totalInputSize() const { return uint64_t(dupCount) * typeSize; }
       bool operator<(const TypeSizeInfo &rhs) const {
+        if (totalInputSize() == rhs.totalInputSize())
+          return typeIndex < rhs.typeIndex;
         return totalInputSize() < rhs.totalInputSize();
       }
     };
@@ -1471,7 +1472,7 @@ static std::string quote(ArrayRef<StringRef> args) {
       a.split(s, '"');
       r.append(join(s, "\"\""));
     } else {
-      r.append(a);
+      r.append(std::string(a));
     }
     if (hasWS || hasQ)
       r.push_back('"');
@@ -1679,10 +1680,10 @@ void PDBLinker::addImportFilesToPDB(ArrayRef<OutputSection *> outputSections) {
 }
 
 // Creates a PDB file.
-void createPDB(SymbolTable *symtab,
-                     ArrayRef<OutputSection *> outputSections,
-                     ArrayRef<uint8_t> sectionTable,
-                     llvm::codeview::DebugInfo *buildId) {
+void lld::coff::createPDB(SymbolTable *symtab,
+                          ArrayRef<OutputSection *> outputSections,
+                          ArrayRef<uint8_t> sectionTable,
+                          llvm::codeview::DebugInfo *buildId) {
   ScopedTimer t1(totalPdbLinkTimer);
   PDBLinker pdb(symtab);
 
@@ -1880,7 +1881,7 @@ static bool findLineTable(const SectionChunk *c, uint32_t addr,
 // offset into the given chunk and return them, or None if a line table was
 // not found.
 Optional<std::pair<StringRef, uint32_t>>
-getFileLineCodeView(const SectionChunk *c, uint32_t addr) {
+lld::coff::getFileLineCodeView(const SectionChunk *c, uint32_t addr) {
   ExitOnError exitOnErr;
 
   DebugStringTableSubsectionRef cVStrTab;
@@ -1914,6 +1915,3 @@ getFileLineCodeView(const SectionChunk *c, uint32_t addr) {
   StringRef filename = exitOnErr(getFileName(cVStrTab, checksums, *nameIndex));
   return std::make_pair(filename, *lineNumber);
 }
-
-} // namespace coff
-} // namespace lld

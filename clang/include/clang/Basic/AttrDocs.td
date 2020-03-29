@@ -3598,8 +3598,8 @@ def OMPDeclareVariantDocs : Documentation {
   let Heading = "#pragma omp declare variant";
   let Content = [{
 The `declare variant` directive declares a specialized variant of a base
- function and specifies the context in which that specialized variant is used.
- The declare variant directive is a declarative directive.
+function and specifies the context in which that specialized variant is used.
+The declare variant directive is a declarative directive.
 The syntax of the `declare variant` construct is as follows:
 
   .. code-block:: none
@@ -3616,7 +3616,7 @@ where clause is one of the following:
     match(context-selector-specification)
 
 and where `variant-func-id` is the name of a function variant that is either a
- base language identifier or, for C++, a template-id.
+base language identifier or, for C++, a template-id.
 
   }];
 }
@@ -4223,8 +4223,6 @@ def PatchableFunctionEntryDocs : Documentation {
 before the function entry and N-M NOPs after the function entry. This attribute
 takes precedence over the command line option ``-fpatchable-function-entry=N,M``.
 ``M`` defaults to 0 if omitted.
-
-Currently, only M=0 is supported.
 }];
 }
 
@@ -4303,8 +4301,8 @@ ways:
   including calling the ``+initialize`` method if present.
 
 - The implicit ``_cmd`` parameter containing the method's selector is still defined.
- In order to minimize code-size costs, the implementation will not emit a reference
- to the selector if the parameter is unused within the method.
+  In order to minimize code-size costs, the implementation will not emit a reference
+  to the selector if the parameter is unused within the method.
 
 Symbols for direct method implementations are implicitly given hidden
 visibility, meaning that they can only be called within the same linkage unit.
@@ -4345,7 +4343,7 @@ documentation for more information.
 def ObjCDirectMembersDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
-The ``objc_direct_members`` attribute can be placed on an  Objective-C
+The ``objc_direct_members`` attribute can be placed on an Objective-C
 ``@interface`` or ``@implementation`` to mark that methods declared
 therein should be considered direct by default.  See the documentation
 for ``objc_direct`` for more information about direct methods.
@@ -4354,9 +4352,7 @@ When ``objc_direct_members`` is placed on an ``@interface`` block, every
 method in the block is considered to be declared as direct.  This includes any
 implicit method declarations introduced by property declarations.  If the method
 redeclares a non-direct method, the declaration is ill-formed, exactly as if the
-method was annotated with the ``objc_direct`` attribute.  ``objc_direct_members``
-cannot be placed on the primary interface of a class, only on category or class
-extension interfaces.
+method was annotated with the ``objc_direct`` attribute.
 
 When ``objc_direct_members`` is placed on an ``@implementation`` block,
 methods defined in the block are considered to be declared as direct unless
@@ -4584,6 +4580,29 @@ stack variables are uninitialized. This attribute is used to override the
 command-line parameter, forcing variables to remain uninitialized. It has no
 semantic meaning in that using uninitialized values is undefined behavior,
 it rather documents the programmer's intent.
+  }];
+}
+
+def LoaderUninitializedDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``loader_uninitialized`` attribute can be placed on global variables to
+indicate that the variable does not need to be zero initialized by the loader.
+On most targets, zero-initialization does not incur any additional cost.
+For example, most general purpose operating systems deliberately ensure
+that all memory is properly initialized in order to avoid leaking privileged
+information from the kernel or other programs. However, some targets
+do not make this guarantee, and on these targets, avoiding an unnecessary
+zero-initialization can have a significant impact on load times and/or code
+size.
+
+A declaration with this attribute is a non-tentative definition just as if it
+provided an initializer. Variables with this attribute are considered to be
+uninitialized in the same sense as a local variable, and the programs must
+write to them before reading from them. If the variable's type is a C++ class
+type with a non-trivial default constructor, or an array thereof, this attribute
+only suppresses the static zero-initialization of the variable, not the dynamic
+initialization provided by executing the default constructor.
   }];
 }
 
@@ -4830,6 +4849,28 @@ the initializer on host side.
   }];
 }
 
+def CUDADeviceBuiltinSurfaceTypeDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The ``device_builtin_surface_type`` attribute can be applied to a class
+template when declaring the surface reference. A surface reference variable
+could be accessed on the host side and, on the device side, might be translated
+into an internal surface object, which is established through surface bind and
+unbind runtime APIs.
+  }];
+}
+
+def CUDADeviceBuiltinTextureTypeDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The ``device_builtin_texture_type`` attribute can be applied to a class
+template when declaring the texture reference. A texture reference variable
+could be accessed on the host side and, on the device side, might be translated
+into an internal texture object, which is established through texture bind and
+unbind runtime APIs.
+  }];
+}
+
 def LifetimeOwnerDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
@@ -4839,7 +4880,7 @@ def LifetimeOwnerDocs : Documentation {
 The attribute ``[[gsl::Owner(T)]]`` applies to structs and classes that own an
 object of type ``T``:
 
-.. code-block:: c++
+.. code::
 
   class [[gsl::Owner(int)]] IntOwner {
   private:
@@ -4865,7 +4906,7 @@ def LifetimePointerDocs : Documentation {
 The attribute ``[[gsl::Pointer(T)]]`` applies to structs and classes that behave
 like pointers to an object of type ``T``:
 
-.. code-block:: c++
+.. code::
 
   class [[gsl::Pointer(int)]] IntPointer {
   private:
@@ -4898,11 +4939,11 @@ When the Owner's lifetime ends, it will consider the Pointer to be dangling.
 }];
 }
 
-def ArmMveAliasDocs : Documentation {
+def ArmBuiltinAliasDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-This attribute is used in the implementation of the ACLE intrinsics
-for the Arm MVE instruction set. It allows the intrinsic functions to
+This attribute is used in the implementation of the ACLE intrinsics.
+It allows the intrinsic functions to
 be declared using the names defined in ACLE, and still be recognized
 as clang builtins equivalent to the underlying name. For example,
 ``arm_mve.h`` declares the function ``vaddq_u32`` with
@@ -4913,8 +4954,8 @@ recognized as that clang builtin, and in the latter case, the choice
 of which builtin to identify the function as can be deferred until
 after overload resolution.
 
-This attribute can only be used to set up the aliases for the MVE
-intrinsic functions; it is intended for use only inside ``arm_mve.h``,
+This attribute can only be used to set up the aliases for certain Arm
+intrinsic functions; it is intended for use only inside ``arm_*.h``
 and is not a general mechanism for declaring arbitrary aliases for
 clang builtin functions.
   }];
@@ -4924,7 +4965,7 @@ def NoBuiltinDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
 .. Note:: This attribute is not yet fully implemented, it is validated but has
-no effect on the generated code.
+          no effect on the generated code.
 
 The ``__attribute__((no_builtin))`` is similar to the ``-fno-builtin`` flag
 except it is specific to the body of a function. The attribute may also be
@@ -5058,4 +5099,29 @@ other than overloading.
   int32x4_t result = function();
 
     }];
+}
+
+def ArmCmseNSCallDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+This attribute declares a non-secure function type.  When compiling for secure
+state, a call to such a function would switch from secure to non-secure state.
+All non-secure function calls must happen only through a function pointer, and
+a non-secure function type should only be used as a base type of a pointer.
+See `ARMv8-M Security Extensions: Requirements on Development
+Tools - Engineering Specification Documentation
+<https://developer.arm.com/docs/ecm0359818/latest/>`_ for more information.
+  }];
+}
+
+def ArmCmseNSEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This attribute declares a function that can be called from non-secure state, or
+from secure state. Entering from and returning to non-secure state would switch
+to and from secure state, respectively, and prevent flow of information
+to non-secure state, except via return values. See `ARMv8-M Security Extensions:
+Requirements on Development Tools - Engineering Specification Documentation
+<https://developer.arm.com/docs/ecm0359818/latest/>`_ for more information.
+  }];
 }

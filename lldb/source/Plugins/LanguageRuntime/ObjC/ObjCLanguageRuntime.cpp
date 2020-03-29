@@ -1,4 +1,4 @@
-//===-- ObjCLanguageRuntime.cpp ---------------------------------*- C++ -*-===//
+//===-- ObjCLanguageRuntime.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,11 +9,11 @@
 
 #include "ObjCLanguageRuntime.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/MappedHash.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/ValueObject.h"
-#include "lldb/Symbol/TypeSystemClang.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/Type.h"
@@ -397,7 +397,7 @@ ObjCLanguageRuntime::GetRuntimeType(CompilerType base_type) {
   if (!class_type)
     return llvm::None;
 
-  ConstString class_name(class_type.GetConstTypeName());
+  ConstString class_name(class_type.GetTypeName());
   if (!class_name)
     return llvm::None;
 

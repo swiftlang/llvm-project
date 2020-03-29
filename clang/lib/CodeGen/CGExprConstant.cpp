@@ -1167,9 +1167,7 @@ public:
   }
 
   llvm::Constant *VisitExprWithCleanups(ExprWithCleanups *E, QualType T) {
-    if (!E->cleanupsHaveSideEffects())
-      return Visit(E->getSubExpr(), T);
-    return nullptr;
+    return Visit(E->getSubExpr(), T);
   }
 
   llvm::Constant *VisitMaterializeTemporaryExpr(MaterializeTemporaryExpr *E,
@@ -1269,19 +1267,7 @@ public:
     if (!E->getConstructor()->isTrivial())
       return nullptr;
 
-    // FIXME: We should not have to call getBaseElementType here.
-    const auto *RT =
-        CGM.getContext().getBaseElementType(Ty)->castAs<RecordType>();
-    const CXXRecordDecl *RD = cast<CXXRecordDecl>(RT->getDecl());
-
-    // If the class doesn't have a trivial destructor, we can't emit it as a
-    // constant expr.
-    if (!RD->hasTrivialDestructor())
-      return nullptr;
-
-    // Only copy and default constructors can be trivial.
-
-
+    // Only default and copy/move constructors can be trivial.
     if (E->getNumArgs()) {
       assert(E->getNumArgs() == 1 && "trivial ctor with > 1 argument");
       assert(E->getConstructor()->isCopyOrMoveConstructor() &&
@@ -1917,13 +1903,25 @@ ConstantLValueEmitter::tryEmitBase(const APValue::LValueBase &base) {
       return CGM.GetWeakRefReference(D).getPointer();
 
     if (auto FD = dyn_cast<FunctionDecl>(D)) {
+      llvm::Constant *C = CGM.getRawFunctionPointer(FD);
       if (auto pointerAuth = DestType.getPointerAuth()) {
-        llvm::Constant *C = CGM.getRawFunctionPointer(FD);
         C = applyOffset(C);
         C = tryEmitConstantSignedPointer(C, pointerAuth);
         return ConstantLValue(C, /*applied offset*/ true, /*signed*/ true);
       }
-      return CGM.getFunctionPointer(FD);
+
+      if (CGPointerAuthInfo AuthInfo =
+              CGM.getFunctionPointerAuthInfo(DestType)) {
+        if (hasNonZeroOffset())
+          return ConstantLValue(nullptr);
+        C = CGM.getConstantSignedPointer(
+            C, AuthInfo.getKey(),
+            /*storageAddress=*/nullptr,
+            cast_or_null<llvm::Constant>(AuthInfo.getDiscriminator()));
+        return ConstantLValue(C, /*AppliedOffset=*/true, /*Signed=*/true);
+      }
+
+      return ConstantLValue(C);
     }
 
     if (auto VD = dyn_cast<VarDecl>(D)) {

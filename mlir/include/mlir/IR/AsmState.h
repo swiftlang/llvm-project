@@ -1,6 +1,6 @@
 //===- AsmState.h - State class for AsmPrinter ------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -12,6 +12,8 @@
 
 #ifndef MLIR_IR_ASMSTATE_H_
 #define MLIR_IR_ASMSTATE_H_
+
+#include "mlir/Support/LLVM.h"
 
 #include <memory>
 
@@ -32,8 +34,14 @@ class AsmStateImpl;
 /// parent operation cannot reuse this state.
 class AsmState {
 public:
-  /// Initialize the asm state at the level of the given operation.
-  AsmState(Operation *op);
+  /// This map represents the raw locations of operations within the output
+  /// stream. This maps the original pointer to the operation, to a pair of line
+  /// and column in the output stream.
+  using LocationMap = DenseMap<Operation *, std::pair<unsigned, unsigned>>;
+
+  /// Initialize the asm state at the level of the given operation. A location
+  /// map may optionally be provided to be populated when printing.
+  AsmState(Operation *op, LocationMap *locationMap = nullptr);
   ~AsmState();
 
   /// Return an instance of the internal implementation. Returns nullptr if the

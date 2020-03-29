@@ -1,4 +1,4 @@
-//===-- Materializer.cpp ----------------------------------------*- C++ -*-===//
+//===-- Materializer.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -698,7 +698,7 @@ public:
 
         lldb::offset_t offset;
 
-        ptr = extractor.GetPointer(&offset);
+        ptr = extractor.GetAddress(&offset);
 
         dump_stream.PutChar('\n');
       }
@@ -881,11 +881,9 @@ public:
       return;
     }
 
-    ConstString name =
-        m_delegate
-            ? m_delegate->GetName()
-            : persistent_state->GetNextPersistentVariableName(
-                  *target_sp, persistent_state->GetPersistentVariablePrefix());
+    ConstString name = m_delegate
+                           ? m_delegate->GetName()
+                           : persistent_state->GetNextPersistentVariableName();
 
     lldb::ExpressionVariableSP ret = persistent_state->CreatePersistentVariable(
         exe_scope, name, m_type, map.GetByteOrder(), map.GetAddressByteSize());
@@ -972,7 +970,7 @@ public:
 
         lldb::offset_t offset;
 
-        ptr = extractor.GetPointer(&offset);
+        ptr = extractor.GetAddress(&offset);
 
         dump_stream.PutChar('\n');
       }
@@ -1331,9 +1329,6 @@ uint32_t Materializer::AddRegister(const RegisterInfo &register_info,
   (*iter)->SetOffset(ret);
   return ret;
 }
-
-Materializer::Materializer()
-    : m_dematerializer_wp(), m_current_offset(0), m_struct_alignment(8) {}
 
 Materializer::~Materializer() {
   DematerializerSP dematerializer_sp = m_dematerializer_wp.lock();

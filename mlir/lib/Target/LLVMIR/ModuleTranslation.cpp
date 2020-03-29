@@ -1,6 +1,6 @@
 //===- ModuleTranslation.cpp - MLIR to LLVM conversion --------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -13,13 +13,16 @@
 
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
 
+#include "DebugTranslation.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/SetVector.h"
+#include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -30,6 +33,9 @@
 
 using namespace mlir;
 using namespace mlir::LLVM;
+using namespace mlir::LLVM::detail;
+
+#include "mlir/Dialect/LLVMIR/LLVMConversionEnumsToLLVM.inc"
 
 /// Builds a constant of a sequential LLVM type `type`, potentially containing
 /// other sequential types recursively, from the individual constant values
@@ -86,15 +92,22 @@ llvm::Constant *ModuleTranslation::getLLVMConstant(llvm::Type *llvmType,
     emitError(loc, "struct types are not supported in constants");
     return nullptr;
   }
+  // For integer types, we allow a mismatch in sizes as the index type in
+  // MLIR might have a different size than the index type in the LLVM module.
   if (auto intAttr = attr.dyn_cast<IntegerAttr>())
-    return llvm::ConstantInt::get(llvmType, intAttr.getValue());
+    return llvm::ConstantInt::get(
+        llvmType,
+        intAttr.getValue().sextOrTrunc(llvmType->getIntegerBitWidth()));
+  if (auto boolAttr = attr.dyn_cast<BoolAttr>())
+    return llvm::ConstantInt::get(llvmType, boolAttr.getValue());
   if (auto floatAttr = attr.dyn_cast<FloatAttr>())
     return llvm::ConstantFP::get(llvmType, floatAttr.getValue());
   if (auto funcAttr = attr.dyn_cast<FlatSymbolRefAttr>())
-    return functionMapping.lookup(funcAttr.getValue());
+    return llvm::ConstantExpr::getBitCast(
+        functionMapping.lookup(funcAttr.getValue()), llvmType);
   if (auto splatAttr = attr.dyn_cast<SplatElementsAttr>()) {
     auto *sequentialType = cast<llvm::SequentialType>(llvmType);
-    auto elementType = sequentialType->getElementType();
+    auto *elementType = sequentialType->getElementType();
     uint64_t numElements = sequentialType->getNumElements();
     // Splat value is a scalar. Extract it only if the element type is not
     // another sequence type. The recursion terminates because each step removes
@@ -107,9 +120,10 @@ llvm::Constant *ModuleTranslation::getLLVMConstant(llvm::Type *llvmType,
     if (!child)
       return nullptr;
     if (llvmType->isVectorTy())
-      return llvm::ConstantVector::getSplat(numElements, child);
+      return llvm::ConstantVector::getSplat(
+          llvm::ElementCount(numElements, /*Scalable=*/false), child);
     if (llvmType->isArrayTy()) {
-      auto arrayType = llvm::ArrayType::get(elementType, numElements);
+      auto *arrayType = llvm::ArrayType::get(elementType, numElements);
       SmallVector<llvm::Constant *, 8> constants(numElements, child);
       return llvm::ConstantArray::get(arrayType, constants);
     }
@@ -263,6 +277,18 @@ static llvm::AtomicOrdering getLLVMAtomicOrdering(AtomicOrdering ordering) {
   llvm_unreachable("incorrect atomic ordering");
 }
 
+ModuleTranslation::ModuleTranslation(Operation *module,
+                                     std::unique_ptr<llvm::Module> llvmModule)
+    : mlirModule(module), llvmModule(std::move(llvmModule)),
+      debugTranslation(
+          std::make_unique<DebugTranslation>(module, *this->llvmModule)),
+      ompDialect(
+          module->getContext()->getRegisteredDialect<omp::OpenMPDialect>()) {
+  assert(satisfiesLLVMModule(mlirModule) &&
+         "mlirModule should honor LLVM's module semantics.");
+}
+ModuleTranslation::~ModuleTranslation() {}
+
 /// Given a single MLIR operation, create the corresponding LLVM IR operation
 /// using the `builder`.  LLVM IR Builder does not have a generic interface so
 /// this has to be a long chain of `if`s calling different functions with a
@@ -307,10 +333,39 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
     return success(result->getType()->isVoidTy());
   }
 
+  if (auto invOp = dyn_cast<LLVM::InvokeOp>(opInst)) {
+    auto operands = lookupValues(opInst.getOperands());
+    ArrayRef<llvm::Value *> operandsRef(operands);
+    if (auto attr = opInst.getAttrOfType<FlatSymbolRefAttr>("callee"))
+      builder.CreateInvoke(functionMapping.lookup(attr.getValue()),
+                           blockMapping[invOp.getSuccessor(0)],
+                           blockMapping[invOp.getSuccessor(1)], operandsRef);
+    else
+      builder.CreateInvoke(
+          operandsRef.front(), blockMapping[invOp.getSuccessor(0)],
+          blockMapping[invOp.getSuccessor(1)], operandsRef.drop_front());
+    return success();
+  }
+
+  if (auto lpOp = dyn_cast<LLVM::LandingpadOp>(opInst)) {
+    llvm::Type *ty = lpOp.getType().dyn_cast<LLVMType>().getUnderlyingType();
+    llvm::LandingPadInst *lpi =
+        builder.CreateLandingPad(ty, lpOp.getNumOperands());
+
+    // Add clauses
+    for (auto operand : lookupValues(lpOp.getOperands())) {
+      // All operands should be constant - checked by verifier
+      if (auto constOperand = dyn_cast<llvm::Constant>(operand))
+        lpi->addClause(constOperand);
+    }
+    valueMapping[lpOp.getResult()] = lpi;
+    return success();
+  }
+
   // Emit branches.  We need to look up the remapped blocks and ignore the block
   // arguments that were transformed into PHI nodes.
   if (auto brOp = dyn_cast<LLVM::BrOp>(opInst)) {
-    builder.CreateBr(blockMapping[brOp.getSuccessor(0)]);
+    builder.CreateBr(blockMapping[brOp.getSuccessor()]);
     return success();
   }
   if (auto condbrOp = dyn_cast<LLVM::CondBrOp>(opInst)) {
@@ -332,6 +387,20 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
     return success();
   }
 
+  if (opInst.getDialect() == ompDialect) {
+    if (!ompBuilder) {
+      ompBuilder = std::make_unique<llvm::OpenMPIRBuilder>(*llvmModule);
+      ompBuilder->initialize();
+    }
+
+    if (isa<omp::BarrierOp>(opInst)) {
+      ompBuilder->CreateBarrier(builder.saveIP(), llvm::omp::OMPD_barrier);
+      return success();
+    }
+    return opInst.emitError("unsupported OpenMP operation: ")
+           << opInst.getName();
+  }
+
   return opInst.emitError("unsupported or non-LLVM operation: ")
          << opInst.getName();
 }
@@ -341,6 +410,7 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
 /// are not connected to the source basic blocks, which may not exist yet.
 LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments) {
   llvm::IRBuilder<> builder(blockMapping[&bb]);
+  auto *subprogram = builder.GetInsertBlock()->getParent()->getSubprogram();
 
   // Before traversing operations, make block arguments available through
   // value remapping and PHI nodes, but do not add incoming edges for the PHI
@@ -365,6 +435,10 @@ LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments) {
 
   // Traverse operations.
   for (auto &op : bb) {
+    // Set the current debug location within the builder.
+    builder.SetCurrentDebugLocation(
+        debugTranslation->translateLoc(op.getLoc(), subprogram));
+
     if (failed(convertOperation(op, builder)))
       return failure();
   }
@@ -372,38 +446,9 @@ LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments) {
   return success();
 }
 
-/// Convert the LLVM dialect linkage type to LLVM IR linkage type.
-llvm::GlobalVariable::LinkageTypes convertLinkageType(LLVM::Linkage linkage) {
-  switch (linkage) {
-  case LLVM::Linkage::Private:
-    return llvm::GlobalValue::PrivateLinkage;
-  case LLVM::Linkage::Internal:
-    return llvm::GlobalValue::InternalLinkage;
-  case LLVM::Linkage::AvailableExternally:
-    return llvm::GlobalValue::AvailableExternallyLinkage;
-  case LLVM::Linkage::Linkonce:
-    return llvm::GlobalValue::LinkOnceAnyLinkage;
-  case LLVM::Linkage::Weak:
-    return llvm::GlobalValue::WeakAnyLinkage;
-  case LLVM::Linkage::Common:
-    return llvm::GlobalValue::CommonLinkage;
-  case LLVM::Linkage::Appending:
-    return llvm::GlobalValue::AppendingLinkage;
-  case LLVM::Linkage::ExternWeak:
-    return llvm::GlobalValue::ExternalWeakLinkage;
-  case LLVM::Linkage::LinkonceODR:
-    return llvm::GlobalValue::LinkOnceODRLinkage;
-  case LLVM::Linkage::WeakODR:
-    return llvm::GlobalValue::WeakODRLinkage;
-  case LLVM::Linkage::External:
-    return llvm::GlobalValue::ExternalLinkage;
-  }
-  llvm_unreachable("unknown linkage type");
-}
-
 /// Create named global variables that correspond to llvm.mlir.global
 /// definitions.
-void ModuleTranslation::convertGlobals() {
+LogicalResult ModuleTranslation::convertGlobals() {
   for (auto op : getModuleBody(mlirModule).getOps<LLVM::GlobalOp>()) {
     llvm::Type *type = op.getType().getUnderlyingType();
     llvm::Constant *cst = llvm::UndefValue::get(type);
@@ -414,25 +459,25 @@ void ModuleTranslation::convertGlobals() {
         cst = llvm::ConstantDataArray::getString(
             llvmModule->getContext(), strAttr.getValue(), /*AddNull=*/false);
         type = cst->getType();
-      } else {
-        cst = getLLVMConstant(type, op.getValueOrNull(), op.getLoc());
+      } else if (!(cst = getLLVMConstant(type, op.getValueOrNull(),
+                                         op.getLoc()))) {
+        return failure();
       }
     } else if (Block *initializer = op.getInitializerBlock()) {
       llvm::IRBuilder<> builder(llvmModule->getContext());
       for (auto &op : initializer->without_terminator()) {
         if (failed(convertOperation(op, builder)) ||
-            !isa<llvm::Constant>(valueMapping.lookup(op.getResult(0)))) {
-          emitError(op.getLoc(), "unemittable constant value");
-          return;
-        }
+            !isa<llvm::Constant>(valueMapping.lookup(op.getResult(0))))
+          return emitError(op.getLoc(), "unemittable constant value");
       }
       ReturnOp ret = cast<ReturnOp>(initializer->getTerminator());
       cst = cast<llvm::Constant>(valueMapping.lookup(ret.getOperand(0)));
     }
 
-    auto linkage = convertLinkageType(op.linkage());
+    auto linkage = convertLinkageToLLVM(op.linkage());
     bool anyExternalLinkage =
-        (linkage == llvm::GlobalVariable::ExternalLinkage ||
+        ((linkage == llvm::GlobalVariable::ExternalLinkage &&
+          isa<llvm::UndefValue>(cst)) ||
          linkage == llvm::GlobalVariable::ExternalWeakLinkage);
     auto addrSpace = op.addr_space().getLimitedValue();
     auto *var = new llvm::GlobalVariable(
@@ -442,6 +487,8 @@ void ModuleTranslation::convertGlobals() {
 
     globalsMapping.try_emplace(op, var);
   }
+
+  return success();
 }
 
 /// Get the SSA value passed to the current block from the terminator operation
@@ -464,8 +511,8 @@ static Value getPHISourceValue(Block *current, Block *pred,
          "different blocks");
 
   return condBranchOp.getSuccessor(0) == current
-             ? terminator.getSuccessorOperand(0, index)
-             : terminator.getSuccessorOperand(1, index);
+             ? condBranchOp.trueDestOperands()[index]
+             : condBranchOp.falseDestOperands()[index];
 }
 
 void ModuleTranslation::connectPHINodes(LLVMFuncOp func) {
@@ -519,6 +566,10 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
   blockMapping.clear();
   valueMapping.clear();
   llvm::Function *llvmFunc = functionMapping.lookup(func.getName());
+
+  // Translate the debug information for this function.
+  debugTranslation->translate(func, *llvmFunc);
+
   // Add function arguments to the value remapping table.
   // If there was noalias info then we decorate each argument accordingly.
   unsigned int argIdx = 0;
@@ -538,6 +589,14 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
     }
     valueMapping[mlirArg] = &llvmArg;
     argIdx++;
+  }
+
+  // Check the personality and set it.
+  if (func.personality().hasValue()) {
+    llvm::Type *ty = llvm::Type::getInt8PtrTy(llvmFunc->getContext());
+    if (llvm::Constant *pfunc =
+            getLLVMConstant(ty, func.personalityAttr(), func.getLoc()))
+      llvmFunc->setPersonalityFn(pfunc);
   }
 
   // First, create all blocks so we can jump to them.
@@ -601,8 +660,10 @@ SmallVector<llvm::Value *, 8>
 ModuleTranslation::lookupValues(ValueRange values) {
   SmallVector<llvm::Value *, 8> remapped;
   remapped.reserve(values.size());
-  for (Value v : values)
+  for (Value v : values) {
+    assert(valueMapping.count(v) && "referencing undefined value");
     remapped.push_back(valueMapping.lookup(v));
+  }
   return remapped;
 }
 

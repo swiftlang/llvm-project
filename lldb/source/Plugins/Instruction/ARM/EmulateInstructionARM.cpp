@@ -1,4 +1,4 @@
-//===-- EmulateInstructionARM.cpp -------------------------------*- C++ -*-===//
+//===-- EmulateInstructionARM.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,6 +29,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionARM, InstructionARM)
 
 // Convenient macro definitions.
 #define APSR_C Bit32(m_opcode_cpsr, CPSR_C_POS)
@@ -603,9 +605,6 @@ static uint32_t CountITSize(uint32_t ITMask) {
   // First count the trailing zeros of the IT mask.
   uint32_t TZ = llvm::countTrailingZeros(ITMask);
   if (TZ > 3) {
-#ifdef LLDB_CONFIGURATION_DEBUG
-    printf("Encoding error: IT Mask '0000'\n");
-#endif
     return 0;
   }
   return (4 - TZ);
@@ -620,15 +619,9 @@ bool ITSession::InitIT(uint32_t bits7_0) {
   // A8.6.50 IT
   unsigned short FirstCond = Bits32(bits7_0, 7, 4);
   if (FirstCond == 0xF) {
-#ifdef LLDB_CONFIGURATION_DEBUG
-    printf("Encoding error: IT FirstCond '1111'\n");
-#endif
     return false;
   }
   if (FirstCond == 0xE && ITCounter != 1) {
-#ifdef LLDB_CONFIGURATION_DEBUG
-    printf("Encoding error: IT FirstCond '1110' && Mask != '1000'\n");
-#endif
     return false;
   }
 

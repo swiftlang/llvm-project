@@ -145,7 +145,6 @@
 ; CHECK-NEXT:      Machine Natural Loop Construction
 ; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      If Converter
-; CHECK-NEXT:      ReachingDefAnalysis
 ; CHECK-NEXT:      MVE VPT block insertion pass
 ; CHECK-NEXT:      Thumb IT blocks insertion pass
 ; CHECK-NEXT:      MachineDominator Tree Construction
@@ -162,15 +161,15 @@
 ; CHECK-NEXT:      Thumb2 instruction size reduce pass
 ; CHECK-NEXT:      Unpack machine instruction bundles
 ; CHECK-NEXT:      optimise barriers pass
+; CHECK-NEXT:      Contiguously Lay Out Funclets
+; CHECK-NEXT:      StackMap Liveness Analysis
+; CHECK-NEXT:      Live DEBUG_VALUE analysis
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      ARM constant island placement and branch shortening pass
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      Machine Natural Loop Construction
 ; CHECK-NEXT:      ReachingDefAnalysis
 ; CHECK-NEXT:      ARM Low Overhead Loops pass
-; CHECK-NEXT:      Contiguously Lay Out Funclets
-; CHECK-NEXT:      StackMap Liveness Analysis
-; CHECK-NEXT:      Live DEBUG_VALUE analysis
 ; CHECK-NEXT:      Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:      Machine Optimization Remark Emitter
 ; CHECK-NEXT:      ARM Assembly Printer

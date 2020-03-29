@@ -495,6 +495,24 @@ bool ARMBaseInstrInfo::isPredicated(const MachineInstr &MI) const {
   return PIdx != -1 && MI.getOperand(PIdx).getImm() != ARMCC::AL;
 }
 
+std::string ARMBaseInstrInfo::createMIROperandComment(const MachineInstr &MI,
+                                                      const MachineOperand &Op,
+                                                      unsigned OpIdx) const {
+  // Only support immediates for now.
+  if (Op.getType() != MachineOperand::MO_Immediate)
+    return std::string();
+
+  // And print its corresponding condition code if the immediate is a
+  // predicate.
+  int FirstPredOp = MI.findFirstPredOperandIdx();
+  if (FirstPredOp != (int) OpIdx)
+    return std::string();
+
+  std::string CC = "CC::";
+  CC += ARMCondCodeToString((ARMCC::CondCodes)Op.getImm());
+  return CC;
+}
+
 bool ARMBaseInstrInfo::PredicateInstruction(
     MachineInstr &MI, ArrayRef<MachineOperand> Pred) const {
   unsigned Opc = MI.getOpcode();
@@ -1009,6 +1027,36 @@ ARMBaseInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
 }
 
+Optional<ParamLoadedValue>
+ARMBaseInstrInfo::describeLoadedValue(const MachineInstr &MI,
+                                      Register Reg) const {
+  if (auto DstSrcPair = isCopyInstrImpl(MI)) {
+    Register DstReg = DstSrcPair->Destination->getReg();
+
+    // TODO: We don't handle cases where the forwarding reg is narrower/wider
+    // than the copy registers. Consider for example:
+    //
+    //   s16 = VMOVS s0
+    //   s17 = VMOVS s1
+    //   call @callee(d0)
+    //
+    // We'd like to describe the call site value of d0 as d8, but this requires
+    // gathering and merging the descriptions for the two VMOVS instructions.
+    //
+    // We also don't handle the reverse situation, where the forwarding reg is
+    // narrower than the copy destination:
+    //
+    //   d8 = VMOVD d0
+    //   call @callee(s1)
+    //
+    // We need to produce a fragment description (the call site value of s1 is
+    // /not/ just d8).
+    if (DstReg != Reg)
+      return None;
+  }
+  return TargetInstrInfo::describeLoadedValue(MI, Reg);
+}
+
 const MachineInstrBuilder &
 ARMBaseInstrInfo::AddDReg(MachineInstrBuilder &MIB, unsigned Reg,
                           unsigned SubIdx, unsigned State,
@@ -1023,7 +1071,7 @@ ARMBaseInstrInfo::AddDReg(MachineInstrBuilder &MIB, unsigned Reg,
 
 void ARMBaseInstrInfo::
 storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                    unsigned SrcReg, bool isKill, int FI,
+                    Register SrcReg, bool isKill, int FI,
                     const TargetRegisterClass *RC,
                     const TargetRegisterInfo *TRI) const {
   MachineFunction &MF = *MBB.getParent();
@@ -1264,7 +1312,7 @@ unsigned ARMBaseInstrInfo::isStoreToStackSlotPostFE(const MachineInstr &MI,
 
 void ARMBaseInstrInfo::
 loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                     unsigned DestReg, int FI,
+                     Register DestReg, int FI,
                      const TargetRegisterClass *RC,
                      const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
@@ -3729,7 +3777,7 @@ unsigned ARMBaseInstrInfo::getNumMicroOps(const InstrItineraryData *ItinData,
       // If there are odd number of registers or if it's not 64-bit aligned,
       // then it takes an extra AGU (Address Generation Unit) cycle.
       if ((NumRegs % 2) || !MI.hasOneMemOperand() ||
-          (*MI.memoperands_begin())->getAlignment() < 8)
+          (*MI.memoperands_begin())->getAlign() < Align(8))
         ++UOps;
       return UOps;
       }
@@ -4316,10 +4364,10 @@ int ARMBaseInstrInfo::getOperandLatencyImpl(
     return -1;
 
   unsigned DefAlign = DefMI.hasOneMemOperand()
-                          ? (*DefMI.memoperands_begin())->getAlignment()
+                          ? (*DefMI.memoperands_begin())->getAlign().value()
                           : 0;
   unsigned UseAlign = UseMI.hasOneMemOperand()
-                          ? (*UseMI.memoperands_begin())->getAlignment()
+                          ? (*UseMI.memoperands_begin())->getAlign().value()
                           : 0;
 
   // Get the itinerary's latency if possible, and handle variable_ops.
@@ -4366,10 +4414,12 @@ ARMBaseInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
   const MCInstrDesc &UseMCID = get(UseNode->getMachineOpcode());
   auto *DefMN = cast<MachineSDNode>(DefNode);
   unsigned DefAlign = !DefMN->memoperands_empty()
-    ? (*DefMN->memoperands_begin())->getAlignment() : 0;
+                          ? (*DefMN->memoperands_begin())->getAlign().value()
+                          : 0;
   auto *UseMN = cast<MachineSDNode>(UseNode);
   unsigned UseAlign = !UseMN->memoperands_empty()
-    ? (*UseMN->memoperands_begin())->getAlignment() : 0;
+                          ? (*UseMN->memoperands_begin())->getAlign().value()
+                          : 0;
   int Latency = getOperandLatency(ItinData, DefMCID, DefIdx, DefAlign,
                                   UseMCID, UseIdx, UseAlign);
 
@@ -4660,7 +4710,7 @@ unsigned ARMBaseInstrInfo::getInstrLatency(const InstrItineraryData *ItinData,
 
   // Adjust for dynamic def-side opcode variants not captured by the itinerary.
   unsigned DefAlign =
-      MI.hasOneMemOperand() ? (*MI.memoperands_begin())->getAlignment() : 0;
+      MI.hasOneMemOperand() ? (*MI.memoperands_begin())->getAlign().value() : 0;
   int Adj = adjustDefLatency(Subtarget, MI, MCID, DefAlign);
   if (Adj >= 0 || (int)Latency > -Adj) {
     return Latency + Adj;
@@ -5353,7 +5403,8 @@ Optional<RegImmPair> ARMBaseInstrInfo::isAddImmediate(const MachineInstr &MI,
 
   // TODO: Handle cases where Reg is a super- or sub-register of the
   // destination register.
-  if (Reg != MI.getOperand(0).getReg())
+  const MachineOperand &Op0 = MI.getOperand(0);
+  if (!Op0.isReg() || Reg != Op0.getReg())
     return None;
 
   // We describe SUBri or ADDri instructions.
@@ -5365,8 +5416,7 @@ Optional<RegImmPair> ARMBaseInstrInfo::isAddImmediate(const MachineInstr &MI,
   // TODO: Third operand can be global address (usually some string). Since
   //       strings can be relocated we cannot calculate their offsets for
   //       now.
-  if (!MI.getOperand(0).isReg() || !MI.getOperand(1).isReg() ||
-      !MI.getOperand(2).isImm())
+  if (!MI.getOperand(1).isReg() || !MI.getOperand(2).isImm())
     return None;
 
   Offset = MI.getOperand(2).getImm() * Sign;

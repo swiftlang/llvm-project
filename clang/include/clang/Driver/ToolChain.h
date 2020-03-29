@@ -295,6 +295,22 @@ public:
       const llvm::opt::DerivedArgList &Args, bool SameTripleAsHost,
       SmallVectorImpl<llvm::opt::Arg *> &AllocatedArgs) const;
 
+  /// Append the argument following \p A to \p DAL assuming \p A is an Xarch
+  /// argument. If \p AllocatedArgs is null pointer, synthesized arguments are
+  /// added to \p DAL, otherwise they are appended to \p AllocatedArgs.
+  virtual void TranslateXarchArgs(
+      const llvm::opt::DerivedArgList &Args, llvm::opt::Arg *&A,
+      llvm::opt::DerivedArgList *DAL,
+      SmallVectorImpl<llvm::opt::Arg *> *AllocatedArgs = nullptr) const;
+
+  /// Translate -Xarch_ arguments. If there are no such arguments, return
+  /// a null pointer, otherwise return a DerivedArgList containing the
+  /// translated arguments.
+  virtual llvm::opt::DerivedArgList *
+  TranslateXarchArgs(const llvm::opt::DerivedArgList &Args, StringRef BoundArch,
+                     Action::OffloadKind DeviceOffloadKind,
+                     SmallVectorImpl<llvm::opt::Arg *> *AllocatedArgs) const;
+
   /// Choose a tool to use to handle the action \p JA.
   ///
   /// This can be overridden when a particular ToolChain needs to use
@@ -573,12 +589,19 @@ public:
   virtual void AddCCKextLibArgs(const llvm::opt::ArgList &Args,
                                 llvm::opt::ArgStringList &CmdArgs) const;
 
+  /// If a runtime library exists that sets global flags for unsafe floating
+  /// point math, return true.
+  ///
+  /// This checks for presence of the -Ofast, -ffast-math or -funsafe-math flags.
+  virtual bool isFastMathRuntimeAvailable(
+    const llvm::opt::ArgList &Args, std::string &Path) const;
+
   /// AddFastMathRuntimeIfAvailable - If a runtime library exists that sets
   /// global flags for unsafe floating point math, add it and return true.
   ///
   /// This checks for presence of the -Ofast, -ffast-math or -funsafe-math flags.
-  virtual bool AddFastMathRuntimeIfAvailable(
-      const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const;
+  bool addFastMathRuntimeIfAvailable(
+    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const;
 
   /// addProfileRTLibs - When -fprofile-instr-profile is specified, try to pass
   /// a suitable profile runtime library to the linker.
@@ -616,8 +639,7 @@ public:
       const llvm::opt::ArgList &DriverArgs,
       Action::OffloadKind DeviceOffloadKind,
       const llvm::fltSemantics *FPType = nullptr) const {
-    // FIXME: This should be IEEE when default handling is fixed.
-    return llvm::DenormalMode::Invalid;
+    return llvm::DenormalMode::getIEEE();
   }
 };
 

@@ -105,10 +105,8 @@ void DebugInfoFinder::processCompileUnit(DICompileUnit *CU) {
 
 void DebugInfoFinder::processInstruction(const Module &M,
                                          const Instruction &I) {
-  if (auto *DDI = dyn_cast<DbgDeclareInst>(&I))
-    processDeclare(M, DDI);
-  else if (auto *DVI = dyn_cast<DbgValueInst>(&I))
-    processValue(M, DVI);
+  if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
+    processVariable(M, *DVI);
 
   if (auto DbgLoc = I.getDebugLoc())
     processLocation(M, DbgLoc.get());
@@ -194,24 +192,9 @@ void DebugInfoFinder::processSubprogram(DISubprogram *SP) {
   }
 }
 
-void DebugInfoFinder::processDeclare(const Module &M,
-                                     const DbgDeclareInst *DDI) {
-  auto *N = dyn_cast<MDNode>(DDI->getVariable());
-  if (!N)
-    return;
-
-  auto *DV = dyn_cast<DILocalVariable>(N);
-  if (!DV)
-    return;
-
-  if (!NodesSeen.insert(DV).second)
-    return;
-  processScope(DV->getScope());
-  processType(DV->getType());
-}
-
-void DebugInfoFinder::processValue(const Module &M, const DbgValueInst *DVI) {
-  auto *N = dyn_cast<MDNode>(DVI->getVariable());
+void DebugInfoFinder::processVariable(const Module &M,
+                                      const DbgVariableIntrinsic &DVI) {
+  auto *N = dyn_cast<MDNode>(DVI.getVariable());
   if (!N)
     return;
 
@@ -514,7 +497,7 @@ private:
         RetainedTypes, GlobalVariables, ImportedEntities, CU->getMacros(),
         CU->getDWOId(), CU->getSplitDebugInlining(),
         CU->getDebugInfoForProfiling(), CU->getNameTableKind(),
-        CU->getRangesBaseAddress(), CU->getSysRoot());
+        CU->getRangesBaseAddress(), CU->getSysRoot(), CU->getSDK());
   }
 
   DILocation *getReplacementMDLocation(DILocation *MLD) {
@@ -782,7 +765,8 @@ LLVMMetadataRef LLVMDIBuilderCreateCompileUnit(
     LLVMBool isOptimized, const char *Flags, size_t FlagsLen,
     unsigned RuntimeVer, const char *SplitName, size_t SplitNameLen,
     LLVMDWARFEmissionKind Kind, unsigned DWOId, LLVMBool SplitDebugInlining,
-    LLVMBool DebugInfoForProfiling, const char *SysRoot, size_t SysRootLen) {
+    LLVMBool DebugInfoForProfiling, const char *SysRoot, size_t SysRootLen,
+    const char *SDK, size_t SDKLen) {
   auto File = unwrapDI<DIFile>(FileRef);
 
   return wrap(unwrap(Builder)->createCompileUnit(
@@ -792,7 +776,7 @@ LLVMMetadataRef LLVMDIBuilderCreateCompileUnit(
       static_cast<DICompileUnit::DebugEmissionKind>(Kind), DWOId,
       SplitDebugInlining, DebugInfoForProfiling,
       DICompileUnit::DebugNameTableKind::Default, false,
-      StringRef(SysRoot, SysRootLen)));
+      StringRef(SysRoot, SysRootLen), StringRef(SDK, SDKLen)));
 }
 
 LLVMMetadataRef
@@ -807,11 +791,13 @@ LLVMMetadataRef
 LLVMDIBuilderCreateModule(LLVMDIBuilderRef Builder, LLVMMetadataRef ParentScope,
                           const char *Name, size_t NameLen,
                           const char *ConfigMacros, size_t ConfigMacrosLen,
-                          const char *IncludePath, size_t IncludePathLen) {
+                          const char *IncludePath, size_t IncludePathLen,
+                          const char *APINotesFile, size_t APINotesFileLen) {
   return wrap(unwrap(Builder)->createModule(
       unwrapDI<DIScope>(ParentScope), StringRef(Name, NameLen),
       StringRef(ConfigMacros, ConfigMacrosLen),
-      StringRef(IncludePath, IncludePathLen)));
+      StringRef(IncludePath, IncludePathLen),
+      StringRef(APINotesFile, APINotesFileLen)));
 }
 
 LLVMMetadataRef LLVMDIBuilderCreateNameSpace(LLVMDIBuilderRef Builder,

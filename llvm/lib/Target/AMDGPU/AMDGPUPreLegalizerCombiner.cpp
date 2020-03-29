@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Support/Debug.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 
 #define DEBUG_TYPE "amdgpu-prelegalizer-combiner"
 
@@ -28,12 +29,12 @@ using namespace llvm;
 using namespace MIPatternMatch;
 
 #define AMDGPUPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS
-#include "AMDGPUGenGICombiner.inc"
+#include "AMDGPUGenPreLegalizeGICombiner.inc"
 #undef AMDGPUPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS
 
 namespace {
 #define AMDGPUPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_H
-#include "AMDGPUGenGICombiner.inc"
+#include "AMDGPUGenPreLegalizeGICombiner.inc"
 #undef AMDGPUPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_H
 
 class AMDGPUPreLegalizerCombinerInfo : public CombinerInfo {
@@ -75,7 +76,7 @@ bool AMDGPUPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
 }
 
 #define AMDGPUPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_CPP
-#include "AMDGPUGenGICombiner.inc"
+#include "AMDGPUGenPreLegalizeGICombiner.inc"
 #undef AMDGPUPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_CPP
 
 // Pass boilerplate
@@ -87,7 +88,9 @@ public:
 
   AMDGPUPreLegalizerCombiner(bool IsOptNone = false);
 
-  StringRef getPassName() const override { return "AMDGPUPreLegalizerCombiner"; }
+  StringRef getPassName() const override {
+    return "AMDGPUPreLegalizerCombiner";
+  }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 

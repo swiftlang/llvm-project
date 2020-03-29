@@ -113,8 +113,9 @@ unsigned DwarfCompileUnit::getOrCreateSourceID(const DIFile *File) {
   // extend .file to support this.
   unsigned CUID = Asm->OutStreamer->hasRawTextSupport() ? 0 : getUniqueID();
   if (!File)
-    return Asm->OutStreamer->EmitDwarfFileDirective(0, "", "", None, None, CUID);
-  return Asm->OutStreamer->EmitDwarfFileDirective(
+    return Asm->OutStreamer->emitDwarfFileDirective(0, "", "", None, None,
+                                                    CUID);
+  return Asm->OutStreamer->emitDwarfFileDirective(
       0, File->getDirectory(), File->getFilename(), getMD5AsBytes(File),
       File->getSource(), CUID);
 }
@@ -924,13 +925,12 @@ void DwarfCompileUnit::constructAbstractSubprogramScopeDIE(
     ContextCU->addDIEEntry(*AbsDef, dwarf::DW_AT_object_pointer, *ObjectPointer);
 }
 
-/// Whether to use the GNU analog for a DWARF5 tag, attribute, or location atom.
-static bool useGNUAnalogForDwarf5Feature(DwarfDebug *DD) {
+bool DwarfCompileUnit::useGNUAnalogForDwarf5Feature() const {
   return DD->getDwarfVersion() == 4 && DD->tuneForGDB();
 }
 
 dwarf::Tag DwarfCompileUnit::getDwarf5OrGNUTag(dwarf::Tag Tag) const {
-  if (!useGNUAnalogForDwarf5Feature(DD))
+  if (!useGNUAnalogForDwarf5Feature())
     return Tag;
   switch (Tag) {
   case dwarf::DW_TAG_call_site:
@@ -944,7 +944,7 @@ dwarf::Tag DwarfCompileUnit::getDwarf5OrGNUTag(dwarf::Tag Tag) const {
 
 dwarf::Attribute
 DwarfCompileUnit::getDwarf5OrGNUAttr(dwarf::Attribute Attr) const {
-  if (!useGNUAnalogForDwarf5Feature(DD))
+  if (!useGNUAnalogForDwarf5Feature())
     return Attr;
   switch (Attr) {
   case dwarf::DW_AT_call_all_calls:
@@ -966,7 +966,7 @@ DwarfCompileUnit::getDwarf5OrGNUAttr(dwarf::Attribute Attr) const {
 
 dwarf::LocationAtom
 DwarfCompileUnit::getDwarf5OrGNULocationAtom(dwarf::LocationAtom Loc) const {
-  if (!useGNUAnalogForDwarf5Feature(DD))
+  if (!useGNUAnalogForDwarf5Feature())
     return Loc;
   switch (Loc) {
   case dwarf::DW_OP_entry_value:
@@ -977,9 +977,10 @@ DwarfCompileUnit::getDwarf5OrGNULocationAtom(dwarf::LocationAtom Loc) const {
 }
 
 DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
-                                                 const DISubprogram *CalleeSP,
+                                                 DIE *CalleeDIE,
                                                  bool IsTail,
                                                  const MCSymbol *PCAddr,
+                                                 const MCSymbol *CallAddr,
                                                  unsigned CallReg) {
   // Insert a call site entry DIE within ScopeDIE.
   DIE &CallSiteDIE = createAndAddDIE(getDwarf5OrGNUTag(dwarf::DW_TAG_call_site),
@@ -990,22 +991,38 @@ DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
     addAddress(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
                MachineLocation(CallReg));
   } else {
-    DIE *CalleeDIE = getDIE(CalleeSP);
-    assert(CalleeDIE && "Could not find DIE for call site entry origin");
+    assert(CalleeDIE && "No DIE for call site entry origin");
     addDIEEntry(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_origin),
                 *CalleeDIE);
   }
 
-  if (IsTail)
+  if (IsTail) {
     // Attach DW_AT_call_tail_call to tail calls for standards compliance.
     addFlag(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_tail_call));
+
+    // Attach the address of the branch instruction to allow the debugger to
+    // show where the tail call occurred. This attribute has no GNU analog.
+    //
+    // GDB works backwards from non-standard usage of DW_AT_low_pc (in DWARF4
+    // mode -- equivalently, in DWARF5 mode, DW_AT_call_return_pc) at tail-call
+    // site entries to figure out the PC of tail-calling branch instructions.
+    // This means it doesn't need the compiler to emit DW_AT_call_pc, so we
+    // don't emit it here.
+    //
+    // There's no need to tie non-GDB debuggers to this non-standardness, as it
+    // adds unnecessary complexity to the debugger. For non-GDB debuggers, emit
+    // the standard DW_AT_call_pc info.
+    if (!useGNUAnalogForDwarf5Feature())
+      addLabelAddress(CallSiteDIE, dwarf::DW_AT_call_pc, CallAddr);
+  }
 
   // Attach the return PC to allow the debugger to disambiguate call paths
   // from one function to another.
   //
   // The return PC is only really needed when the call /isn't/ a tail call, but
-  // for some reason GDB always expects it.
-  if (!IsTail || DD->tuneForGDB()) {
+  // GDB expects it in DWARF4 mode, even for tail calls (see the comment above
+  // the DW_AT_call_pc emission logic for an explanation).
+  if (!IsTail || useGNUAnalogForDwarf5Feature()) {
     assert(PCAddr && "Missing return PC information for a call");
     addLabelAddress(CallSiteDIE,
                     getDwarf5OrGNUAttr(dwarf::DW_AT_call_return_pc), PCAddr);
@@ -1131,7 +1148,7 @@ void DwarfCompileUnit::emitHeader(bool UseOffsets) {
   // Don't bother labeling the .dwo unit, as its offset isn't used.
   if (!Skeleton && !DD->useSectionsAsReferences()) {
     LabelBegin = Asm->createTempSymbol("cu_begin");
-    Asm->OutStreamer->EmitLabel(LabelBegin);
+    Asm->OutStreamer->emitLabel(LabelBegin);
   }
 
   dwarf::UnitType UT = Skeleton ? dwarf::DW_UT_split_compile

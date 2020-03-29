@@ -8,12 +8,7 @@ define void @foo(<4 x float> %in, <4 x i8>* %out) {
 ; SSE42-LABEL: foo:
 ; SSE42:       # %bb.0:
 ; SSE42-NEXT:    cvttps2dq %xmm0, %xmm0
-; SSE42-NEXT:    pextrb $8, %xmm0, %eax
-; SSE42-NEXT:    pextrb $4, %xmm0, %ecx
-; SSE42-NEXT:    pextrb $0, %xmm0, %edx
-; SSE42-NEXT:    movd %edx, %xmm0
-; SSE42-NEXT:    pinsrb $1, %ecx, %xmm0
-; SSE42-NEXT:    pinsrb $2, %eax, %xmm0
+; SSE42-NEXT:    pshufb {{.*#+}} xmm0 = xmm0[0,4,8,3,u,u,u,u,u,u,u,u,u,u,u,u]
 ; SSE42-NEXT:    movl $255, %eax
 ; SSE42-NEXT:    pinsrb $3, %eax, %xmm0
 ; SSE42-NEXT:    movd %xmm0, (%rdi)
@@ -22,12 +17,7 @@ define void @foo(<4 x float> %in, <4 x i8>* %out) {
 ; AVX-LABEL: foo:
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    vcvttps2dq %xmm0, %xmm0
-; AVX-NEXT:    vpextrb $8, %xmm0, %eax
-; AVX-NEXT:    vpextrb $4, %xmm0, %ecx
-; AVX-NEXT:    vpextrb $0, %xmm0, %edx
-; AVX-NEXT:    vmovd %edx, %xmm0
-; AVX-NEXT:    vpinsrb $1, %ecx, %xmm0, %xmm0
-; AVX-NEXT:    vpinsrb $2, %eax, %xmm0, %xmm0
+; AVX-NEXT:    vpshufb {{.*#+}} xmm0 = xmm0[0,4,8,3,u,u,u,u,u,u,u,u,u,u,u,u]
 ; AVX-NEXT:    movl $255, %eax
 ; AVX-NEXT:    vpinsrb $3, %eax, %xmm0, %xmm0
 ; AVX-NEXT:    vmovd %xmm0, (%rdi)
@@ -126,11 +116,10 @@ define <16 x i64> @load_catcat(<4 x i64>* %p) {
 ;
 ; AVX2-LABEL: load_catcat:
 ; AVX2:       # %bb.0:
-; AVX2-NEXT:    vmovaps (%rdi), %ymm3
 ; AVX2-NEXT:    vbroadcastsd (%rdi), %ymm0
-; AVX2-NEXT:    vpermpd {{.*#+}} ymm1 = ymm3[1,1,1,1]
-; AVX2-NEXT:    vpermpd {{.*#+}} ymm2 = ymm3[2,2,2,2]
-; AVX2-NEXT:    vpermpd {{.*#+}} ymm3 = ymm3[3,3,3,3]
+; AVX2-NEXT:    vbroadcastsd 8(%rdi), %ymm1
+; AVX2-NEXT:    vbroadcastsd 16(%rdi), %ymm2
+; AVX2-NEXT:    vbroadcastsd 24(%rdi), %ymm3
 ; AVX2-NEXT:    retq
 ;
 ; AVX512F-LABEL: load_catcat:

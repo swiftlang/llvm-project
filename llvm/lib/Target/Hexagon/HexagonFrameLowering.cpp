@@ -261,20 +261,20 @@ static unsigned getMax32BitSubRegister(unsigned Reg,
 }
 
 /// Returns the callee saved register with the largest id in the vector.
-static unsigned getMaxCalleeSavedReg(const std::vector<CalleeSavedInfo> &CSI,
+static unsigned getMaxCalleeSavedReg(ArrayRef<CalleeSavedInfo> CSI,
                                      const TargetRegisterInfo &TRI) {
-    static_assert(Hexagon::R1 > 0,
-                  "Assume physical registers are encoded as positive integers");
-    if (CSI.empty())
-      return 0;
+  static_assert(Hexagon::R1 > 0,
+                "Assume physical registers are encoded as positive integers");
+  if (CSI.empty())
+    return 0;
 
-    unsigned Max = getMax32BitSubRegister(CSI[0].getReg(), TRI);
-    for (unsigned I = 1, E = CSI.size(); I < E; ++I) {
-      unsigned Reg = getMax32BitSubRegister(CSI[I].getReg(), TRI);
-      if (Reg > Max)
-        Max = Reg;
-    }
-    return Max;
+  unsigned Max = getMax32BitSubRegister(CSI[0].getReg(), TRI);
+  for (unsigned I = 1, E = CSI.size(); I < E; ++I) {
+    unsigned Reg = getMax32BitSubRegister(CSI[I].getReg(), TRI);
+    if (Reg > Max)
+      Max = Reg;
+  }
+  return Max;
 }
 
 /// Checks if the basic block contains any instruction that needs a stack
@@ -591,7 +591,7 @@ void HexagonFrameLowering::insertPrologueInBlock(MachineBasicBlock &MBB,
   auto &HII = *HST.getInstrInfo();
   auto &HRI = *HST.getRegisterInfo();
 
-  unsigned MaxAlign = std::max(MFI.getMaxAlignment(), getStackAlignment());
+  Align MaxAlign = std::max(MFI.getMaxAlign(), getStackAlign());
 
   // Calculate the total stack frame size.
   // Get the number of bytes to allocate from the FrameInfo.
@@ -603,7 +603,7 @@ void HexagonFrameLowering::insertPrologueInBlock(MachineBasicBlock &MBB,
   FrameSize = MaxCFA + alignTo(FrameSize, MaxAlign);
   MFI.setStackSize(FrameSize);
 
-  bool AlignStack = (MaxAlign > getStackAlignment());
+  bool AlignStack = (MaxAlign > getStackAlign());
 
   // Get the number of bytes to allocate from the FrameInfo.
   unsigned NumBytes = MFI.getStackSize();
@@ -742,7 +742,7 @@ void HexagonFrameLowering::insertPrologueInBlock(MachineBasicBlock &MBB,
     if (AlignStack) {
       BuildMI(MBB, InsertPt, dl, HII.get(Hexagon::A2_andir), SP)
           .addReg(SP)
-          .addImm(-int64_t(MaxAlign));
+          .addImm(-int64_t(MaxAlign.value()));
     }
     // If the stack-checking is enabled, and we spilled the callee-saved
     // registers inline (i.e. did not use a spill function), then call
@@ -1507,7 +1507,7 @@ void HexagonFrameLowering::processFunctionBeforeFrameFinalized(
   // via AP, which may not be available at the particular place in the program.
   MachineFrameInfo &MFI = MF.getFrameInfo();
   bool HasAlloca = MFI.hasVarSizedObjects();
-  bool NeedsAlign = (MFI.getMaxAlignment() > getStackAlignment());
+  bool NeedsAlign = (MFI.getMaxAlign() > getStackAlign());
 
   if (!HasAlloca || !NeedsAlign)
     return;
@@ -1711,9 +1711,8 @@ bool HexagonFrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF,
     const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(R);
     unsigned Size = TRI->getSpillSize(*RC);
     int Off = MinOffset - Size;
-    unsigned Align = std::min(TRI->getSpillAlignment(*RC), getStackAlignment());
-    assert(isPowerOf2_32(Align));
-    Off &= -Align;
+    Align Alignment = std::min(TRI->getSpillAlign(*RC), getStackAlign());
+    Off &= -Alignment.value();
     int FI = MFI.CreateFixedSpillStackObject(Size, Off);
     MinOffset = std::min(MinOffset, Off);
     CSI.push_back(CalleeSavedInfo(R, FI));

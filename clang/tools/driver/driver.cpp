@@ -30,6 +30,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
+#include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -37,6 +38,7 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Regex.h"
@@ -60,7 +62,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
       if (llvm::ErrorOr<std::string> P =
               llvm::sys::findProgramByName(ExecutablePath))
         ExecutablePath = *P;
-    return ExecutablePath.str();
+    return std::string(ExecutablePath.str());
   }
 
   // This just needs to be some symbol in the binary; C++ doesn't
@@ -71,7 +73,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
 
 static const char *GetStableCStr(std::set<std::string> &SavedStrings,
                                  StringRef S) {
-  return SavedStrings.insert(S).first->c_str();
+  return SavedStrings.insert(std::string(S)).first->c_str();
 }
 
 /// ApplyQAOverride - Apply a list of edits to the input argument lists.
@@ -265,7 +267,7 @@ static void FixupDiagPrefixExeName(TextDiagnosticPrinter *DiagClient,
   StringRef ExeBasename(llvm::sys::path::stem(Path));
   if (ExeBasename.equals_lower("cl"))
     ExeBasename = "clang-cl";
-  DiagClient->setPrefix(ExeBasename);
+  DiagClient->setPrefix(std::string(ExeBasename));
 }
 
 // This lets us create the DiagnosticsEngine with a properly-filled-out
@@ -341,6 +343,9 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
 int main(int argc_, const char **argv_) {
   noteBottomOfStack();
   llvm::InitLLVM X(argc_, argv_);
+  llvm::setBugReportMsg("PLEASE submit a bug report to " BUG_REPORT_URL
+                        " and include the crash backtrace, preprocessed "
+                        "source, and associated run script.\n");
   SmallVector<const char *, 256> argv(argv_, argv_ + argc_);
 
   if (llvm::sys::Process::FixupStandardFileDescriptors())
@@ -491,6 +496,7 @@ int main(int argc_, const char **argv_) {
 
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(argv));
   int Res = 1;
+  bool IsCrash = false;
   if (C && !C->containsError()) {
     SmallVector<std::pair<int, const Command *>, 4> FailingCommands;
     Res = TheDriver.ExecuteCompilation(*C, FailingCommands);
@@ -517,11 +523,11 @@ int main(int argc_, const char **argv_) {
       // If result status is 70, then the driver command reported a fatal error.
       // On Windows, abort will return an exit code of 3.  In these cases,
       // generate additional diagnostic information if possible.
-      bool DiagnoseCrash = CommandRes < 0 || CommandRes == 70;
+      IsCrash = CommandRes < 0 || CommandRes == 70;
 #ifdef _WIN32
-      DiagnoseCrash |= CommandRes == 3;
+      IsCrash |= CommandRes == 3;
 #endif
-      if (DiagnoseCrash) {
+      if (IsCrash) {
         TheDriver.generateCompilationDiagnostics(*C, *FailingCommand);
         break;
       }
@@ -530,10 +536,16 @@ int main(int argc_, const char **argv_) {
 
   Diags.getClient()->finish();
 
-  // If any timers were active but haven't been destroyed yet, print their
-  // results now.  This happens in -disable-free mode.
-  llvm::TimerGroup::printAll(llvm::errs());
-  llvm::TimerGroup::clearAll();
+  if (!UseNewCC1Process && IsCrash) {
+    // When crashing in -fintegrated-cc1 mode, bury the timer pointers, because
+    // the internal linked list might point to already released stack frames.
+    llvm::BuryPointer(llvm::TimerGroup::aquireDefaultGroup());
+  } else {
+    // If any timers were active but haven't been destroyed yet, print their
+    // results now.  This happens in -disable-free mode.
+    llvm::TimerGroup::printAll(llvm::errs());
+    llvm::TimerGroup::clearAll();
+  }
 
 #ifdef _WIN32
   // Exit status should not be negative on Win32, unless abnormal termination.

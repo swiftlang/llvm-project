@@ -101,6 +101,7 @@ public:
     assert(FrameBaseVreg != -1U && "Frame base vreg hasn't been set");
     return FrameBaseVreg;
   }
+  void clearFrameBaseVreg() { FrameBaseVreg = -1U; }
   // Return true if the frame base physreg has been replaced by a virtual reg.
   bool isFrameBaseVirtual() const { return FrameBaseVreg != -1U; }
   void setFrameBaseLocal(unsigned Local) { FrameBaseLocal = Local; }
@@ -158,9 +159,10 @@ void computeLegalValueVTs(const Function &F, const TargetMachine &TM, Type *Ty,
                           SmallVectorImpl<MVT> &ValueVTs);
 
 // Compute the signature for a given FunctionType (Ty). Note that it's not the
-// signature for F (F is just used to get varous context)
-void computeSignatureVTs(const FunctionType *Ty, const Function &F,
-                         const TargetMachine &TM, SmallVectorImpl<MVT> &Params,
+// signature for ContextFunc (ContextFunc is just used to get varous context)
+void computeSignatureVTs(const FunctionType *Ty, const Function *TargetFunc,
+                         const Function &ContextFunc, const TargetMachine &TM,
+                         SmallVectorImpl<MVT> &Params,
                          SmallVectorImpl<MVT> &Results);
 
 void valTypesFromMVTs(const ArrayRef<MVT> &In,

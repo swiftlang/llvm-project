@@ -9,7 +9,6 @@
 //
 //===----------------------------------------------------------------------===/
 
-#include "clang/Sema/SemaInternal.h"
 #include "TreeTransform.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -18,15 +17,18 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
+#include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Stack.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/SemaConcept.h"
+#include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateDeduction.h"
 #include "clang/Sema/TemplateInstCallback.h"
-#include "clang/Sema/SemaConcept.h"
 #include "llvm/Support/TimeProfiler.h"
 
 using namespace clang;
@@ -760,24 +762,33 @@ void Sema::PrintInstantiationStack() {
 
     case CodeSynthesisContext::Memoization:
       break;
-    
+
     case CodeSynthesisContext::ConstraintsCheck: {
       unsigned DiagID = 0;
+      if (!Active->Entity) {
+        Diags.Report(Active->PointOfInstantiation,
+                     diag::note_nested_requirement_here)
+          << Active->InstantiationRange;
+        break;
+      }
       if (isa<ConceptDecl>(Active->Entity))
         DiagID = diag::note_concept_specialization_here;
       else if (isa<TemplateDecl>(Active->Entity))
         DiagID = diag::note_checking_constraints_for_template_id_here;
       else if (isa<VarTemplatePartialSpecializationDecl>(Active->Entity))
         DiagID = diag::note_checking_constraints_for_var_spec_id_here;
-      else {
-        assert(isa<ClassTemplatePartialSpecializationDecl>(Active->Entity));
+      else if (isa<ClassTemplatePartialSpecializationDecl>(Active->Entity))
         DiagID = diag::note_checking_constraints_for_class_spec_id_here;
+      else {
+        assert(isa<FunctionDecl>(Active->Entity));
+        DiagID = diag::note_checking_constraints_for_function_here;
       }
       SmallVector<char, 128> TemplateArgsStr;
       llvm::raw_svector_ostream OS(TemplateArgsStr);
       cast<NamedDecl>(Active->Entity)->printName(OS);
-      printTemplateArgumentList(OS, Active->template_arguments(),
-                                getPrintingPolicy());
+      if (!isa<FunctionDecl>(Active->Entity))
+        printTemplateArgumentList(OS, Active->template_arguments(),
+                                  getPrintingPolicy());
       Diags.Report(Active->PointOfInstantiation, DiagID) << OS.str()
         << Active->InstantiationRange;
       break;
@@ -910,6 +921,10 @@ namespace {
     void setBase(SourceLocation Loc, DeclarationName Entity) {
       this->Loc = Loc;
       this->Entity = Entity;
+    }
+
+    unsigned TransformTemplateDepth(unsigned Depth) {
+      return TemplateArgs.getNewDepth(Depth);
     }
 
     bool TryExpandParameterPacks(SourceLocation EllipsisLoc,
@@ -1048,6 +1063,8 @@ namespace {
                                             NonTypeTemplateParmDecl *D);
     ExprResult TransformSubstNonTypeTemplateParmPackExpr(
                                            SubstNonTypeTemplateParmPackExpr *E);
+    ExprResult TransformSubstNonTypeTemplateParmExpr(
+                                           SubstNonTypeTemplateParmExpr *E);
 
     /// Rebuild a DeclRefExpr for a VarDecl reference.
     ExprResult RebuildVarDeclRefExpr(VarDecl *PD, SourceLocation Loc);
@@ -1368,10 +1385,46 @@ TemplateName TemplateInstantiator::TransformTemplateName(
                                           AllowInjectedClassName);
 }
 
+static ExprResult TransformUniqueStableName(TemplateInstantiator &TI,
+                                            PredefinedExpr *E) {
+  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType) {
+    TypeSourceInfo *Info =
+        TI.getDerived().TransformType(E->getTypeSourceInfo());
+
+    if (!Info)
+      return ExprError();
+
+    if (!TI.getDerived().AlwaysRebuild() && Info == E->getTypeSourceInfo())
+      return E;
+
+    return TI.getSema().BuildUniqueStableName(E->getLocation(), Info);
+  }
+
+  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameExpr) {
+    EnterExpressionEvaluationContext Unevaluated(
+        TI.getSema(), Sema::ExpressionEvaluationContext::Unevaluated);
+    ExprResult SubExpr = TI.getDerived().TransformExpr(E->getExpr());
+
+    if (SubExpr.isInvalid())
+      return ExprError();
+
+    if (!TI.getDerived().AlwaysRebuild() && SubExpr.get() == E->getExpr())
+      return E;
+
+    return TI.getSema().BuildUniqueStableName(E->getLocation(), SubExpr.get());
+  }
+
+  llvm_unreachable("Only valid for UniqueStableNameType/Expr");
+}
+
 ExprResult
 TemplateInstantiator::TransformPredefinedExpr(PredefinedExpr *E) {
   if (!E->isTypeDependent())
     return E;
+
+  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType ||
+      E->getIdentKind() == PredefinedExpr::UniqueStableNameExpr)
+    return TransformUniqueStableName(*this, E);
 
   return getSema().BuildPredefinedExpr(E->getLocation(), E->getIdentKind());
 }
@@ -1524,6 +1577,44 @@ TemplateInstantiator::TransformSubstNonTypeTemplateParmPackExpr(
   return transformNonTypeTemplateParmRef(E->getParameterPack(),
                                          E->getParameterPackLocation(),
                                          Arg);
+}
+
+ExprResult
+TemplateInstantiator::TransformSubstNonTypeTemplateParmExpr(
+                                          SubstNonTypeTemplateParmExpr *E) {
+  ExprResult SubstReplacement = TransformExpr(E->getReplacement());
+  if (SubstReplacement.isInvalid())
+    return true;
+  QualType SubstType = TransformType(E->getType());
+  if (SubstType.isNull())
+    return true;
+  // The type may have been previously dependent and not now, which means we
+  // might have to implicit cast the argument to the new type, for example:
+  // template<auto T, decltype(T) U>
+  // concept C = sizeof(U) == 4;
+  // void foo() requires C<2, 'a'> { }
+  // When normalizing foo(), we first form the normalized constraints of C:
+  // AtomicExpr(sizeof(U) == 4,
+  //            U=SubstNonTypeTemplateParmExpr(Param=U,
+  //                                           Expr=DeclRef(U),
+  //                                           Type=decltype(T)))
+  // Then we substitute T = 2, U = 'a' into the parameter mapping, and need to
+  // produce:
+  // AtomicExpr(sizeof(U) == 4,
+  //            U=SubstNonTypeTemplateParmExpr(Param=U,
+  //                                           Expr=ImpCast(
+  //                                               decltype(2),
+  //                                               SubstNTTPE(Param=U, Expr='a',
+  //                                                          Type=char)),
+  //                                           Type=decltype(2)))
+  // The call to CheckTemplateArgument here produces the ImpCast.
+  TemplateArgument Converted;
+  if (SemaRef.CheckTemplateArgument(E->getParameter(), SubstType,
+                                    SubstReplacement.get(),
+                                    Converted).isInvalid())
+    return true;
+  return transformNonTypeTemplateParmRef(E->getParameter(),
+                                         E->getExprLoc(), Converted);
 }
 
 ExprResult TemplateInstantiator::RebuildVarDeclRefExpr(VarDecl *PD,
@@ -2096,6 +2187,94 @@ void Sema::SubstExceptionSpec(FunctionDecl *New, const FunctionProtoType *Proto,
   UpdateExceptionSpec(New, ESI);
 }
 
+namespace {
+
+  struct GetContainedInventedTypeParmVisitor :
+    public TypeVisitor<GetContainedInventedTypeParmVisitor,
+                       TemplateTypeParmDecl *> {
+    using TypeVisitor<GetContainedInventedTypeParmVisitor,
+                      TemplateTypeParmDecl *>::Visit;
+
+    TemplateTypeParmDecl *Visit(QualType T) {
+      if (T.isNull())
+        return nullptr;
+      return Visit(T.getTypePtr());
+    }
+    // The deduced type itself.
+    TemplateTypeParmDecl *VisitTemplateTypeParmType(
+        const TemplateTypeParmType *T) {
+      if (!T->getDecl() || !T->getDecl()->isImplicit())
+        return nullptr;
+      return T->getDecl();
+    }
+
+    // Only these types can contain 'auto' types, and subsequently be replaced
+    // by references to invented parameters.
+
+    TemplateTypeParmDecl *VisitElaboratedType(const ElaboratedType *T) {
+      return Visit(T->getNamedType());
+    }
+
+    TemplateTypeParmDecl *VisitPointerType(const PointerType *T) {
+      return Visit(T->getPointeeType());
+    }
+
+    TemplateTypeParmDecl *VisitBlockPointerType(const BlockPointerType *T) {
+      return Visit(T->getPointeeType());
+    }
+
+    TemplateTypeParmDecl *VisitReferenceType(const ReferenceType *T) {
+      return Visit(T->getPointeeTypeAsWritten());
+    }
+
+    TemplateTypeParmDecl *VisitMemberPointerType(const MemberPointerType *T) {
+      return Visit(T->getPointeeType());
+    }
+
+    TemplateTypeParmDecl *VisitArrayType(const ArrayType *T) {
+      return Visit(T->getElementType());
+    }
+
+    TemplateTypeParmDecl *VisitDependentSizedExtVectorType(
+      const DependentSizedExtVectorType *T) {
+      return Visit(T->getElementType());
+    }
+
+    TemplateTypeParmDecl *VisitVectorType(const VectorType *T) {
+      return Visit(T->getElementType());
+    }
+
+    TemplateTypeParmDecl *VisitFunctionProtoType(const FunctionProtoType *T) {
+      return VisitFunctionType(T);
+    }
+
+    TemplateTypeParmDecl *VisitFunctionType(const FunctionType *T) {
+      return Visit(T->getReturnType());
+    }
+
+    TemplateTypeParmDecl *VisitParenType(const ParenType *T) {
+      return Visit(T->getInnerType());
+    }
+
+    TemplateTypeParmDecl *VisitAttributedType(const AttributedType *T) {
+      return Visit(T->getModifiedType());
+    }
+
+    TemplateTypeParmDecl *VisitMacroQualifiedType(const MacroQualifiedType *T) {
+      return Visit(T->getUnderlyingType());
+    }
+
+    TemplateTypeParmDecl *VisitAdjustedType(const AdjustedType *T) {
+      return Visit(T->getOriginalType());
+    }
+
+    TemplateTypeParmDecl *VisitPackExpansionType(const PackExpansionType *T) {
+      return Visit(T->getPattern());
+    }
+  };
+
+} // namespace
+
 ParmVarDecl *Sema::SubstParmVarDecl(ParmVarDecl *OldParm,
                             const MultiLevelTemplateArgumentList &TemplateArgs,
                                     int indexAdjustment,
@@ -2141,6 +2320,46 @@ ParmVarDecl *Sema::SubstParmVarDecl(ParmVarDecl *OldParm,
   if (NewDI->getType()->isVoidType()) {
     Diag(OldParm->getLocation(), diag::err_param_with_void_type);
     return nullptr;
+  }
+
+  // In abbreviated templates, TemplateTypeParmDecls with possible
+  // TypeConstraints are created when the parameter list is originally parsed.
+  // The TypeConstraints can therefore reference other functions parameters in
+  // the abbreviated function template, which is why we must instantiate them
+  // here, when the instantiated versions of those referenced parameters are in
+  // scope.
+  if (TemplateTypeParmDecl *TTP =
+          GetContainedInventedTypeParmVisitor().Visit(OldDI->getType())) {
+    if (const TypeConstraint *TC = TTP->getTypeConstraint()) {
+      auto *Inst = cast_or_null<TemplateTypeParmDecl>(
+          FindInstantiatedDecl(TTP->getLocation(), TTP, TemplateArgs));
+      // We will first get here when instantiating the abbreviated function
+      // template's described function, but we might also get here later.
+      // Make sure we do not instantiate the TypeConstraint more than once.
+      if (Inst && !Inst->getTypeConstraint()) {
+        // TODO: Concepts: do not instantiate the constraint (delayed constraint
+        // substitution)
+        const ASTTemplateArgumentListInfo *TemplArgInfo
+          = TC->getTemplateArgsAsWritten();
+        TemplateArgumentListInfo InstArgs;
+
+        if (TemplArgInfo) {
+          InstArgs.setLAngleLoc(TemplArgInfo->LAngleLoc);
+          InstArgs.setRAngleLoc(TemplArgInfo->RAngleLoc);
+          if (Subst(TemplArgInfo->getTemplateArgs(),
+                    TemplArgInfo->NumTemplateArgs, InstArgs, TemplateArgs))
+            return nullptr;
+        }
+        if (AttachTypeConstraint(
+                TC->getNestedNameSpecifierLoc(), TC->getConceptNameInfo(),
+                TC->getNamedConcept(), &InstArgs, Inst,
+                TTP->isParameterPack()
+                    ? cast<CXXFoldExpr>(TC->getImmediatelyDeclaredConstraint())
+                        ->getEllipsisLoc()
+                    : SourceLocation()))
+          return nullptr;
+      }
+    }
   }
 
   ParmVarDecl *NewParm = CheckParameter(Context.getTranslationUnitDecl(),

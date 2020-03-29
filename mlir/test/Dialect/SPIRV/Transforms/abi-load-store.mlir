@@ -1,7 +1,14 @@
 // RUN: mlir-opt -spirv-lower-abi-attrs -verify-diagnostics %s -o - | FileCheck %s
 
+module attributes {
+  spv.target_env = #spv.target_env<
+    #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>,
+    {max_compute_workgroup_invocations = 128 : i32,
+     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+} {
+
 // CHECK-LABEL: spv.module
-spv.module "Logical" "GLSL450" {
+spv.module Logical GLSL450 {
   // CHECK-DAG: spv.globalVariable [[WORKGROUPSIZE:@.*]] built_in("WorkgroupSize")
   spv.globalVariable @__builtin_var_WorkgroupSize__ built_in("WorkgroupSize") : !spv.ptr<vector<3xi32>, Input>
   // CHECK-DAG: spv.globalVariable [[NUMWORKGROUPS:@.*]] built_in("NumWorkgroups")
@@ -17,35 +24,33 @@ spv.module "Logical" "GLSL450" {
   // CHECK-DAG: spv.globalVariable [[VAR4:@.*]] bind(0, 4) : !spv.ptr<!spv.struct<i32 [0]>, StorageBuffer>
   // CHECK-DAG: spv.globalVariable [[VAR5:@.*]] bind(0, 5) : !spv.ptr<!spv.struct<i32 [0]>, StorageBuffer>
   // CHECK-DAG: spv.globalVariable [[VAR6:@.*]] bind(0, 6) : !spv.ptr<!spv.struct<i32 [0]>, StorageBuffer>
-  // CHECK: func [[FN:@.*]]()
-  func @load_store_kernel(%arg0: !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>
-                          {spv.interface_var_abi = {binding = 0 : i32,
-                                                    descriptor_set = 0 : i32,
-                                                    storage_class = 12 : i32}},
-                          %arg1: !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>
-                          {spv.interface_var_abi = {binding = 1 : i32,
-                                                    descriptor_set = 0 : i32,
-                                                    storage_class = 12 : i32}},
-                          %arg2: !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>
-                          {spv.interface_var_abi = {binding = 2 : i32,
-                                                    descriptor_set = 0 : i32,
-                                                    storage_class = 12 : i32}},
-                          %arg3: i32
-                          {spv.interface_var_abi = {binding = 3 : i32,
-                                                    descriptor_set = 0 : i32,
-                                                    storage_class = 12 : i32}},
-                          %arg4: i32
-                          {spv.interface_var_abi = {binding = 4 : i32,
-                                                    descriptor_set = 0 : i32,
-                                                    storage_class = 12 : i32}},
-                          %arg5: i32
-                          {spv.interface_var_abi = {binding = 5 : i32,
-                                                    descriptor_set = 0 : i32,
-                                                    storage_class = 12 : i32}},
-                          %arg6: i32
-                          {spv.interface_var_abi = {binding = 6 : i32,
-                                                    descriptor_set = 0 : i32,
-                                                    storage_class = 12 : i32}})
+  // CHECK: spv.func [[FN:@.*]]()
+  spv.func @load_store_kernel(
+    %arg0: !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>
+    {spv.interface_var_abi = {binding = 0 : i32,
+                              descriptor_set = 0 : i32}},
+    %arg1: !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>
+    {spv.interface_var_abi = {binding = 1 : i32,
+                              descriptor_set = 0 : i32}},
+    %arg2: !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>
+    {spv.interface_var_abi = {binding = 2 : i32,
+                              descriptor_set = 0 : i32}},
+    %arg3: i32
+    {spv.interface_var_abi = {binding = 3 : i32,
+                              descriptor_set = 0 : i32,
+                              storage_class = 12 : i32}},
+    %arg4: i32
+    {spv.interface_var_abi = {binding = 4 : i32,
+                              descriptor_set = 0 : i32,
+                              storage_class = 12 : i32}},
+    %arg5: i32
+    {spv.interface_var_abi = {binding = 5 : i32,
+                              descriptor_set = 0 : i32,
+                              storage_class = 12 : i32}},
+    %arg6: i32
+    {spv.interface_var_abi = {binding = 6 : i32,
+                              descriptor_set = 0 : i32,
+                              storage_class = 12 : i32}}) "None"
   attributes  {spv.entry_point_abi = {local_size = dense<[32, 1, 1]> : vector<3xi32>}} {
     // CHECK: [[ADDRESSARG6:%.*]] = spv._address_of [[VAR6]]
     // CHECK: [[CONST6:%.*]] = spv.constant 0 : i32
@@ -121,4 +126,6 @@ spv.module "Logical" "GLSL450" {
   }
   // CHECK: spv.EntryPoint "GLCompute" [[FN]], [[WORKGROUPID]], [[LOCALINVOCATIONID]], [[NUMWORKGROUPS]], [[WORKGROUPSIZE]]
   // CHECK-NEXT: spv.ExecutionMode [[FN]] "LocalSize", 32, 1, 1
-} attributes {capabilities = ["Shader"], extensions = ["SPV_KHR_storage_buffer_storage_class"]}
+} // end spv.module
+
+} // end module

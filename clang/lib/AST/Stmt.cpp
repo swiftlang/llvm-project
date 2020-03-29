@@ -457,7 +457,7 @@ void GCCAsmStmt::setInputExpr(unsigned i, Expr *E) {
 }
 
 AddrLabelExpr *GCCAsmStmt::getLabelExpr(unsigned i) const {
-  return cast<AddrLabelExpr>(Exprs[i + NumInputs]);
+  return cast<AddrLabelExpr>(Exprs[i + NumOutputs + NumInputs]);
 }
 
 StringRef GCCAsmStmt::getLabelName(unsigned i) const {
@@ -523,7 +523,7 @@ int GCCAsmStmt::getNamedOperand(StringRef SymbolicName) const {
 
   for (unsigned i = 0, e = getNumLabels(); i != e; ++i)
     if (getLabelName(i) == SymbolicName)
-      return i + getNumInputs();
+      return i + getNumOutputs() + getNumInputs();
 
   // Not found.
   return -1;
@@ -732,7 +732,7 @@ std::string GCCAsmStmt::generateAsmString(const ASTContext &C) const {
 /// Assemble final IR asm string (MS-style).
 std::string MSAsmStmt::generateAsmString(const ASTContext &C) const {
   // FIXME: This needs to be translated into the IR string representation.
-  return AsmStr;
+  return std::string(AsmStr);
 }
 
 Expr *MSAsmStmt::getOutputExpr(unsigned i) {

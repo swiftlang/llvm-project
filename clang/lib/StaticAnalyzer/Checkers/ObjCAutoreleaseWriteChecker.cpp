@@ -100,8 +100,7 @@ static inline std::vector<llvm::StringRef> toRefs(std::vector<std::string> V) {
   return std::vector<llvm::StringRef>(V.begin(), V.end());
 }
 
-static auto callsNames(std::vector<std::string> FunctionNames)
-    -> decltype(callee(functionDecl())) {
+static decltype(auto) callsNames(std::vector<std::string> FunctionNames) {
   return callee(functionDecl(hasAnyName(toRefs(FunctionNames))));
 }
 
@@ -207,6 +206,6 @@ void ento::registerAutoreleaseWriteChecker(CheckerManager &Mgr) {
   Mgr.registerChecker<ObjCAutoreleaseWriteChecker>();
 }
 
-bool ento::shouldRegisterAutoreleaseWriteChecker(const LangOptions &LO) {
+bool ento::shouldRegisterAutoreleaseWriteChecker(const CheckerManager &mgr) {
   return true;
 }

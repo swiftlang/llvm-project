@@ -302,10 +302,10 @@ Error WasmObjectFile::parseSection(WasmSection &Sec) {
     return parseTableSection(Ctx);
   case wasm::WASM_SEC_MEMORY:
     return parseMemorySection(Ctx);
-  case wasm::WASM_SEC_GLOBAL:
-    return parseGlobalSection(Ctx);
   case wasm::WASM_SEC_EVENT:
     return parseEventSection(Ctx);
+  case wasm::WASM_SEC_GLOBAL:
+    return parseGlobalSection(Ctx);
   case wasm::WASM_SEC_EXPORT:
     return parseExportSection(Ctx);
   case wasm::WASM_SEC_START:
@@ -508,13 +508,16 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
           Function.SymbolName = Info.Name;
       } else {
         wasm::WasmImport &Import = *ImportedFunctions[Info.ElementIndex];
-        if ((Info.Flags & wasm::WASM_SYMBOL_EXPLICIT_NAME) != 0)
+        if ((Info.Flags & wasm::WASM_SYMBOL_EXPLICIT_NAME) != 0) {
           Info.Name = readString(Ctx);
-        else
+          Info.ImportName = Import.Field;
+        } else {
           Info.Name = Import.Field;
+        }
         Signature = &Signatures[Import.SigIndex];
-        Info.ImportName = Import.Field;
-        Info.ImportModule = Import.Module;
+        if (!Import.Module.empty()) {
+          Info.ImportModule = Import.Module;
+        }
       }
       break;
 
@@ -537,13 +540,17 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
           Global.SymbolName = Info.Name;
       } else {
         wasm::WasmImport &Import = *ImportedGlobals[Info.ElementIndex];
-        if ((Info.Flags & wasm::WASM_SYMBOL_EXPLICIT_NAME) != 0)
+        if ((Info.Flags & wasm::WASM_SYMBOL_EXPLICIT_NAME) != 0) {
           Info.Name = readString(Ctx);
-        else
+          Info.ImportName = Import.Field;
+        } else {
           Info.Name = Import.Field;
+        }
         GlobalType = &Import.Global;
         Info.ImportName = Import.Field;
-        Info.ImportModule = Import.Module;
+        if (!Import.Module.empty()) {
+          Info.ImportModule = Import.Module;
+        }
       }
       break;
 
@@ -597,14 +604,17 @@ Error WasmObjectFile::parseLinkingSectionSymtab(ReadContext &Ctx) {
 
       } else {
         wasm::WasmImport &Import = *ImportedEvents[Info.ElementIndex];
-        if ((Info.Flags & wasm::WASM_SYMBOL_EXPLICIT_NAME) != 0)
+        if ((Info.Flags & wasm::WASM_SYMBOL_EXPLICIT_NAME) != 0) {
           Info.Name = readString(Ctx);
-        else
+          Info.ImportName = Import.Field;
+        } else {
           Info.Name = Import.Field;
+        }
         EventType = &Import.Event;
         Signature = &Signatures[EventType->SigIndex];
-        Info.ImportName = Import.Field;
-        Info.ImportModule = Import.Module;
+        if (!Import.Module.empty()) {
+          Info.ImportModule = Import.Module;
+        }
       }
       break;
     }
@@ -708,7 +718,7 @@ Error WasmObjectFile::parseProducersSection(ReadContext &Ctx) {
             "Producers section contains repeated producer",
             object_error::parse_failed);
       }
-      ProducerVec->emplace_back(Name, Version);
+      ProducerVec->emplace_back(std::string(Name), std::string(Version));
     }
   }
   if (Ctx.Ptr != Ctx.End)
@@ -732,7 +742,7 @@ Error WasmObjectFile::parseTargetFeaturesSection(ReadContext &Ctx) {
       return make_error<GenericBinaryError>("Unknown feature policy prefix",
                                             object_error::parse_failed);
     }
-    Feature.Name = readString(Ctx);
+    Feature.Name = std::string(readString(Ctx));
     if (!FeaturesSeen.insert(Feature.Name).second)
       return make_error<GenericBinaryError>(
           "Target features section contains repeated feature \"" +
@@ -983,6 +993,24 @@ Error WasmObjectFile::parseMemorySection(ReadContext &Ctx) {
   return Error::success();
 }
 
+Error WasmObjectFile::parseEventSection(ReadContext &Ctx) {
+  EventSection = Sections.size();
+  uint32_t Count = readVarint32(Ctx);
+  Events.reserve(Count);
+  while (Count--) {
+    wasm::WasmEvent Event;
+    Event.Index = NumImportedEvents + Events.size();
+    Event.Type.Attribute = readVaruint32(Ctx);
+    Event.Type.SigIndex = readVarint32(Ctx);
+    Events.push_back(Event);
+  }
+
+  if (Ctx.Ptr != Ctx.End)
+    return make_error<GenericBinaryError>("Event section ended prematurely",
+                                          object_error::parse_failed);
+  return Error::success();
+}
+
 Error WasmObjectFile::parseGlobalSection(ReadContext &Ctx) {
   GlobalSection = Sections.size();
   uint32_t Count = readVaruint32(Ctx);
@@ -998,24 +1026,6 @@ Error WasmObjectFile::parseGlobalSection(ReadContext &Ctx) {
   }
   if (Ctx.Ptr != Ctx.End)
     return make_error<GenericBinaryError>("Global section ended prematurely",
-                                          object_error::parse_failed);
-  return Error::success();
-}
-
-Error WasmObjectFile::parseEventSection(ReadContext &Ctx) {
-  EventSection = Sections.size();
-  uint32_t Count = readVarint32(Ctx);
-  Events.reserve(Count);
-  while (Count--) {
-    wasm::WasmEvent Event;
-    Event.Index = NumImportedEvents + Events.size();
-    Event.Type.Attribute = readVaruint32(Ctx);
-    Event.Type.SigIndex = readVarint32(Ctx);
-    Events.push_back(Event);
-  }
-
-  if (Ctx.Ptr != Ctx.End)
-    return make_error<GenericBinaryError>("Event section ended prematurely",
                                           object_error::parse_failed);
   return Error::success();
 }
@@ -1365,26 +1375,30 @@ WasmObjectFile::getSymbolSection(DataRefImpl Symb) const {
     return section_end();
 
   DataRefImpl Ref;
+  Ref.d.a = getSymbolSectionIdImpl(Sym);
+  return section_iterator(SectionRef(Ref, this));
+}
+
+uint32_t WasmObjectFile::getSymbolSectionId(SymbolRef Symb) const {
+  const WasmSymbol &Sym = getWasmSymbol(Symb);
+  return getSymbolSectionIdImpl(Sym);
+}
+
+uint32_t WasmObjectFile::getSymbolSectionIdImpl(const WasmSymbol &Sym) const {
   switch (Sym.Info.Kind) {
   case wasm::WASM_SYMBOL_TYPE_FUNCTION:
-    Ref.d.a = CodeSection;
-    break;
+    return CodeSection;
   case wasm::WASM_SYMBOL_TYPE_GLOBAL:
-    Ref.d.a = GlobalSection;
-    break;
+    return GlobalSection;
   case wasm::WASM_SYMBOL_TYPE_DATA:
-    Ref.d.a = DataSection;
-    break;
+    return DataSection;
   case wasm::WASM_SYMBOL_TYPE_SECTION:
-    Ref.d.a = Sym.Info.ElementIndex;
-    break;
+    return Sym.Info.ElementIndex;
   case wasm::WASM_SYMBOL_TYPE_EVENT:
-    Ref.d.a = EventSection;
-    break;
+    return EventSection;
   default:
     llvm_unreachable("Unknown WasmSymbol::SymbolType");
   }
-  return section_iterator(SectionRef(Ref, this));
 }
 
 void WasmObjectFile::moveSectionNext(DataRefImpl &Sec) const { Sec.d.a++; }
@@ -1608,30 +1622,50 @@ int WasmSectionOrderChecker::getSectionOrder(unsigned ID,
 // Represents the edges in a directed graph where any node B reachable from node
 // A is not allowed to appear before A in the section ordering, but may appear
 // afterward.
-int WasmSectionOrderChecker::DisallowedPredecessors[WASM_NUM_SEC_ORDERS][WASM_NUM_SEC_ORDERS] = {
-  {}, // WASM_SEC_ORDER_NONE
-  {WASM_SEC_ORDER_TYPE, WASM_SEC_ORDER_IMPORT}, // WASM_SEC_ORDER_TYPE,
-  {WASM_SEC_ORDER_IMPORT, WASM_SEC_ORDER_FUNCTION}, // WASM_SEC_ORDER_IMPORT,
-  {WASM_SEC_ORDER_FUNCTION, WASM_SEC_ORDER_TABLE}, // WASM_SEC_ORDER_FUNCTION,
-  {WASM_SEC_ORDER_TABLE, WASM_SEC_ORDER_MEMORY}, // WASM_SEC_ORDER_TABLE,
-  {WASM_SEC_ORDER_MEMORY, WASM_SEC_ORDER_GLOBAL}, // WASM_SEC_ORDER_MEMORY,
-  {WASM_SEC_ORDER_GLOBAL, WASM_SEC_ORDER_EVENT}, // WASM_SEC_ORDER_GLOBAL,
-  {WASM_SEC_ORDER_EVENT, WASM_SEC_ORDER_EXPORT}, // WASM_SEC_ORDER_EVENT,
-  {WASM_SEC_ORDER_EXPORT, WASM_SEC_ORDER_START}, // WASM_SEC_ORDER_EXPORT,
-  {WASM_SEC_ORDER_START, WASM_SEC_ORDER_ELEM}, // WASM_SEC_ORDER_START,
-  {WASM_SEC_ORDER_ELEM, WASM_SEC_ORDER_DATACOUNT}, // WASM_SEC_ORDER_ELEM,
-  {WASM_SEC_ORDER_DATACOUNT, WASM_SEC_ORDER_CODE}, // WASM_SEC_ORDER_DATACOUNT,
-  {WASM_SEC_ORDER_CODE, WASM_SEC_ORDER_DATA}, // WASM_SEC_ORDER_CODE,
-  {WASM_SEC_ORDER_DATA, WASM_SEC_ORDER_LINKING}, // WASM_SEC_ORDER_DATA,
+int WasmSectionOrderChecker::DisallowedPredecessors
+    [WASM_NUM_SEC_ORDERS][WASM_NUM_SEC_ORDERS] = {
+        // WASM_SEC_ORDER_NONE
+        {},
+        // WASM_SEC_ORDER_TYPE
+        {WASM_SEC_ORDER_TYPE, WASM_SEC_ORDER_IMPORT},
+        // WASM_SEC_ORDER_IMPORT
+        {WASM_SEC_ORDER_IMPORT, WASM_SEC_ORDER_FUNCTION},
+        // WASM_SEC_ORDER_FUNCTION
+        {WASM_SEC_ORDER_FUNCTION, WASM_SEC_ORDER_TABLE},
+        // WASM_SEC_ORDER_TABLE
+        {WASM_SEC_ORDER_TABLE, WASM_SEC_ORDER_MEMORY},
+        // WASM_SEC_ORDER_MEMORY
+        {WASM_SEC_ORDER_MEMORY, WASM_SEC_ORDER_EVENT},
+        // WASM_SEC_ORDER_EVENT
+        {WASM_SEC_ORDER_EVENT, WASM_SEC_ORDER_GLOBAL},
+        // WASM_SEC_ORDER_GLOBAL
+        {WASM_SEC_ORDER_GLOBAL, WASM_SEC_ORDER_EXPORT},
+        // WASM_SEC_ORDER_EXPORT
+        {WASM_SEC_ORDER_EXPORT, WASM_SEC_ORDER_START},
+        // WASM_SEC_ORDER_START
+        {WASM_SEC_ORDER_START, WASM_SEC_ORDER_ELEM},
+        // WASM_SEC_ORDER_ELEM
+        {WASM_SEC_ORDER_ELEM, WASM_SEC_ORDER_DATACOUNT},
+        // WASM_SEC_ORDER_DATACOUNT
+        {WASM_SEC_ORDER_DATACOUNT, WASM_SEC_ORDER_CODE},
+        // WASM_SEC_ORDER_CODE
+        {WASM_SEC_ORDER_CODE, WASM_SEC_ORDER_DATA},
+        // WASM_SEC_ORDER_DATA
+        {WASM_SEC_ORDER_DATA, WASM_SEC_ORDER_LINKING},
 
-  // Custom Sections
-  {WASM_SEC_ORDER_DYLINK, WASM_SEC_ORDER_TYPE}, // WASM_SEC_ORDER_DYLINK,
-  {WASM_SEC_ORDER_LINKING, WASM_SEC_ORDER_RELOC, WASM_SEC_ORDER_NAME}, // WASM_SEC_ORDER_LINKING,
-  {}, // WASM_SEC_ORDER_RELOC (can be repeated),
-  {WASM_SEC_ORDER_NAME, WASM_SEC_ORDER_PRODUCERS}, // WASM_SEC_ORDER_NAME,
-  {WASM_SEC_ORDER_PRODUCERS, WASM_SEC_ORDER_TARGET_FEATURES}, // WASM_SEC_ORDER_PRODUCERS,
-  {WASM_SEC_ORDER_TARGET_FEATURES}  // WASM_SEC_ORDER_TARGET_FEATURES
-};
+        // Custom Sections
+        // WASM_SEC_ORDER_DYLINK
+        {WASM_SEC_ORDER_DYLINK, WASM_SEC_ORDER_TYPE},
+        // WASM_SEC_ORDER_LINKING
+        {WASM_SEC_ORDER_LINKING, WASM_SEC_ORDER_RELOC, WASM_SEC_ORDER_NAME},
+        // WASM_SEC_ORDER_RELOC (can be repeated)
+        {},
+        // WASM_SEC_ORDER_NAME
+        {WASM_SEC_ORDER_NAME, WASM_SEC_ORDER_PRODUCERS},
+        // WASM_SEC_ORDER_PRODUCERS
+        {WASM_SEC_ORDER_PRODUCERS, WASM_SEC_ORDER_TARGET_FEATURES},
+        // WASM_SEC_ORDER_TARGET_FEATURES
+        {WASM_SEC_ORDER_TARGET_FEATURES}};
 
 bool WasmSectionOrderChecker::isValidSectionOrder(unsigned ID,
                                                   StringRef CustomSectionName) {

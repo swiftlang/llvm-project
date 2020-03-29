@@ -95,7 +95,7 @@ public:
                              SymbolRoleSet Roles, SourceLocation Loc) override {
     TestSymbol S;
     S.SymInfo = getSymbolInfoForMacro(*MI);
-    S.QName = Name->getName();
+    S.QName = std::string(Name->getName());
     S.WrittenPos = Position::fromSourceLocation(Loc, AST->getSourceManager());
     S.DeclPos = Position::fromSourceLocation(MI->getDefinitionLoc(),
                                              AST->getSourceManager());
@@ -249,8 +249,13 @@ TEST(IndexTest, IndexTypeParmDecls) {
   Index->Symbols.clear();
   tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
   EXPECT_THAT(Index->Symbols,
-              AllOf(Contains(QName("Foo::T")), Contains(QName("Foo::I")),
-                    Contains(QName("Foo::C")), Contains(QName("Foo::NoRef"))));
+              AllOf(Contains(AllOf(QName("Foo::T"),
+                                   Kind(SymbolKind::TemplateTypeParm))),
+                    Contains(AllOf(QName("Foo::I"),
+                                   Kind(SymbolKind::NonTypeTemplateParm))),
+                    Contains(AllOf(QName("Foo::C"),
+                                   Kind(SymbolKind::TemplateTemplateParm))),
+                    Contains(QName("Foo::NoRef"))));
 }
 
 TEST(IndexTest, UsingDecls) {
@@ -312,6 +317,21 @@ TEST(IndexTest, InjecatedNameClass) {
                                    AllOf(QName("Foo"), Kind(SymbolKind::Class),
                                          HasRole(SymbolRole::Reference),
                                          WrittenAt(Position(4, 14)))));
+}
+
+TEST(IndexTest, VisitDefaultArgs) {
+  std::string Code = R"cpp(
+    int var = 0;
+    void f(int s = var) {}
+  )cpp";
+  auto Index = std::make_shared<Indexer>();
+  IndexingOptions Opts;
+  Opts.IndexFunctionLocals = true;
+  Opts.IndexParametersInDeclarations = true;
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
+  EXPECT_THAT(Index->Symbols,
+              Contains(AllOf(QName("var"), HasRole(SymbolRole::Reference),
+                             WrittenAt(Position(3, 20)))));
 }
 
 } // namespace

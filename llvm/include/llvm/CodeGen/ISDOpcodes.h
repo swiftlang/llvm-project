@@ -182,6 +182,11 @@ namespace ISD {
     /// UNDEF - An undefined node.
     UNDEF,
 
+    // FREEZE - FREEZE(VAL) returns an arbitrary value if VAL is UNDEF (or
+    // is evaluated to UNDEF), or returns VAL otherwise. Note that each
+    // read of UNDEF can yield different value, but FREEZE(UNDEF) cannot.
+    FREEZE,
+
     /// EXTRACT_ELEMENT - This is used to get the lower or upper (determined by
     /// a Constant, which is required to be operand #1) half of the integer or
     /// float value specified as operand #0.  This is only for use before
@@ -294,6 +299,11 @@ namespace ISD {
     /// of both operands as fixed point numbers. This SCALE parameter must be a
     /// constant integer.
     SDIVFIX, UDIVFIX,
+
+    /// Same as the corresponding unsaturated fixed point instructions, but the
+    /// result is clamped between the min and max values representable by the
+    /// bits of the first 2 operands.
+    SDIVFIXSAT, UDIVFIXSAT,
 
     /// Simple binary floating point operators.
     FADD, FSUB, FMUL, FDIV, FREM,
@@ -608,6 +618,7 @@ namespace ISD {
     ///  1 Round to nearest
     ///  2 Round to +inf
     ///  3 Round to -inf
+    /// Result is rounding mode and chain. Input is a chain.
     FLT_ROUNDS_,
 
     /// X = FP_EXTEND(Y) - Extend a smaller FP type into a larger FP type.
@@ -637,6 +648,7 @@ namespace ISD {
     /// form a semi-softened interface for dealing with f16 (as an i16), which
     /// is often a storage-only type but has native conversions.
     FP16_TO_FP, FP_TO_FP16,
+    STRICT_FP16_TO_FP, STRICT_FP_TO_FP16,
 
     /// Perform various unary floating-point operations inspired by libm. For
     /// FPOWI, the result is undefined if if the integer operand doesn't fit
@@ -741,9 +753,6 @@ namespace ISD {
     /// with respect to other call instructions, but loads and stores may float
     /// past it.
     ANNOTATION_LABEL,
-
-    /// CATCHPAD - Represents a catchpad instruction.
-    CATCHPAD,
 
     /// CATCHRET - Represents a return from a catch block funclet. Used for
     /// MSVC compatible exception handling. Takes a chain operand and a

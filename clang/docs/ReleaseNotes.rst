@@ -51,15 +51,31 @@ Major New Features
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ...
+- -Wpointer-to-int-cast is a new warning group. This group warns about C-style
+  casts of pointers to a integer type too small to hold all possible values.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
+
+- For the ARM target, C-language intrinsics are now provided for the full Arm
+  v8.1-M MVE instruction set. ``<arm_mve.h>`` supports the complete API defined
+  in the Arm C Language Extensions.
 
 
 New Compiler Flags
 ------------------
 
+
+- -fstack-clash-protection will provide a protection against the stack clash
+  attack for x86 architecture through automatic probing of each page of
+  allocated stack.
+
+- -ffp-exception-behavior={ignore,maytrap,strict} allows the user to specify
+  the floating-point exception behavior.  The default setting is ``ignore``.
+
+- -ffp-model={precise,strict,fast} provides the user an umbrella option to
+  simplify access to the many single purpose floating point options. The default
+  setting is ``precise``.
 
 Deprecated Compiler Flags
 -------------------------
@@ -72,6 +88,20 @@ future versions of Clang.
 Modified Compiler Flags
 -----------------------
 
+- -fno-common has been enabled as the default for all targets.  Therefore, C
+  code that uses tentative definitions as definitions of a variable in multiple
+  translation units will trigger multiple-definition linker errors.  Generally,
+  this occurs when the use of the ``extern`` keyword is neglected in the declaration
+  of a variable in a header file. In some cases, no specific translation unit
+  provides a definition of the variable. The previous behavior can be restored by
+  specifying ``-fcommon``.
+- -Wasm-ignored-qualifier (ex. `asm const ("")`) has been removed and replaced
+  with an error (this matches a recent change in GCC-9).
+- -Wasm-file-asm-volatile (ex. `asm volatile ("")` at global scope) has been
+  removed and replaced with an error (this matches GCC's behavior).
+- Duplicate qualifiers on asm statements (ex. `asm volatile volatile ("")`) no
+  longer produces a warning via -Wduplicate-decl-specifier, but now an error
+  (this matches GCC's behavior).
 
 New Pragmas in Clang
 --------------------
@@ -81,7 +111,9 @@ New Pragmas in Clang
 Attribute Changes in Clang
 --------------------------
 
-- ...
+- Attributes can now be specified by clang plugins. See the
+  `Clang Plugins <ClangPlugins.html#defining-attributes>`_ documentation for
+  details.
 
 Windows Support
 ---------------
@@ -89,16 +121,54 @@ Windows Support
 C Language Changes in Clang
 ---------------------------
 
+- The default C language standard used when `-std=` is not specified has been
+  upgraded from gnu11 to gnu17.
+
+- Clang now supports the GNU C extension `asm inline`; it won't do anything
+  *yet*, but it will be parsed.
+
 - ...
-
-C11 Feature Support
-^^^^^^^^^^^^^^^^^^^
-
-...
 
 C++ Language Changes in Clang
 -----------------------------
 
+- Clang now implements a restriction on giving non-C-compatible anonymous
+  structs a typedef name for linkage purposes, as described in C++ committee
+  paper `P1766R1 <http://wg21.link/p1766r1>`. This paper was adopted by the
+  C++ committee as a Defect Report resolution, so it is applied retroactively
+  to all C++ standard versions. This affects code such as:
+
+  .. code-block:: c++
+
+    typedef struct {
+      int f() { return 0; }
+    } S;
+
+  Previous versions of Clang rejected some constructs of this form
+  (specifically, where the linkage of the type happened to be computed
+  before the parser reached the typedef name); those cases are still rejected
+  in Clang 11.  In addition, cases that previous versions of Clang did not
+  reject now produce an extension warning. This warning can be disabled with
+  the warning flag ``-Wno-non-c-typedef-for-linkage``.
+
+  Affected code should be updated to provide a tag name for the anonymous
+  struct:
+
+  .. code-block:: c++
+
+    struct S {
+      int f() { return 0; }
+    };
+
+  If the code is shared with a C compilation (for example, if the parts that
+  are not C-compatible are guarded with ``#ifdef __cplusplus``), the typedef
+  declaration should be retained, but a tag name should still be provided:
+
+  .. code-block:: c++
+
+    typedef struct S {
+      int f() { return 0; }
+    } S;
 
 C++1z Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -158,8 +228,11 @@ clang-format
   It helps avoid having the closing bracket align with the switch statement's
   closing bracket (when ``IndentCaseLabels`` is ``false``).
 
+- Option ``ObjCBreakBeforeNestedBlockParam`` has been added to optionally apply
+  linebreaks for function arguments declarations before nested blocks.
+
   .. code-block:: c++
-  
+
     switch (fool) {                vs.     switch (fool) {
     case 1:                                case 1: {
       {                                      bar();
@@ -171,6 +244,30 @@ clang-format
         plop();
       }
     }
+
+- Option ``InsertTrailingCommas`` can be set to ``TCS_Wrapped`` to insert
+  trailing commas in container literals (arrays and objects) that wrap across
+  multiple lines. It is currently only available for JavaScript and disabled by
+  default (``TCS_None``).
+
+- Option ``BraceWrapping.BeforeLambdaBody`` has been added to manage lambda
+  line break inside function parameter call in Allman style.
+
+  .. code-block:: c++
+
+      true:
+      connect(
+        []()
+        {
+          foo();
+          bar();
+        });
+
+      false:
+      connect([]() {
+          foo();
+          bar();
+        });
 
 libclang
 --------
@@ -213,7 +310,7 @@ Additional Information
 
 A wide variety of additional information is available on the `Clang web
 page <https://clang.llvm.org/>`_. The web page contains versions of the
-API documentation which are up-to-date with the Subversion version of
+API documentation which are up-to-date with the Git version of
 the source code. You can access versions of these documents specific to
 this release by going into the "``clang/docs/``" directory in the Clang
 tree.

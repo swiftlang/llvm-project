@@ -24,6 +24,7 @@
 #include "clang/FrontendTool/Utils.h"
 #include "clang/Index/IndexingAction.h"
 #include "clang/Rewrite/Frontend/FrontendActions.h"
+#include "clang/StaticAnalyzer/Frontend/AnalyzerHelpFlags.h"
 #include "clang/StaticAnalyzer/Frontend/FrontendActions.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
@@ -81,7 +82,9 @@ CreateFrontendBaseAction(CompilerInstance &CI) {
         std::unique_ptr<PluginASTAction> P(it->instantiate());
         if ((P->getActionType() != PluginASTAction::ReplaceAction &&
              P->getActionType() != PluginASTAction::Cmdline) ||
-            !P->ParseArgs(CI, CI.getFrontendOpts().PluginArgs[it->getName()]))
+            !P->ParseArgs(
+                CI,
+                CI.getFrontendOpts().PluginArgs[std::string(it->getName())]))
           return nullptr;
         return std::move(P);
       }
@@ -224,7 +227,7 @@ bool ExecuteCompilerInvocation(CompilerInstance *Clang) {
     std::unique_ptr<PluginASTAction> P(it->instantiate());
     if (P->getActionType() == PluginASTAction::ReplaceAction) {
       Clang->getFrontendOpts().ProgramAction = clang::frontend::PluginAction;
-      Clang->getFrontendOpts().ActionName = it->getName();
+      Clang->getFrontendOpts().ActionName = std::string(it->getName());
       break;
     }
   }
@@ -247,35 +250,24 @@ bool ExecuteCompilerInvocation(CompilerInstance *Clang) {
   // These should happen AFTER plugins have been loaded!
 
   AnalyzerOptions &AnOpts = *Clang->getAnalyzerOpts();
+
   // Honor -analyzer-checker-help and -analyzer-checker-help-hidden.
   if (AnOpts.ShowCheckerHelp || AnOpts.ShowCheckerHelpAlpha ||
       AnOpts.ShowCheckerHelpDeveloper) {
-    ento::printCheckerHelp(llvm::outs(),
-                           Clang->getFrontendOpts().Plugins,
-                           AnOpts,
-                           Clang->getDiagnostics(),
-                           Clang->getLangOpts());
+    ento::printCheckerHelp(llvm::outs(), *Clang);
     return true;
   }
 
   // Honor -analyzer-checker-option-help.
   if (AnOpts.ShowCheckerOptionList || AnOpts.ShowCheckerOptionAlphaList ||
       AnOpts.ShowCheckerOptionDeveloperList) {
-    ento::printCheckerConfigList(llvm::outs(),
-                                 Clang->getFrontendOpts().Plugins,
-                                 *Clang->getAnalyzerOpts(),
-                                 Clang->getDiagnostics(),
-                                 Clang->getLangOpts());
+    ento::printCheckerConfigList(llvm::outs(), *Clang);
     return true;
   }
 
   // Honor -analyzer-list-enabled-checkers.
   if (AnOpts.ShowEnabledCheckerList) {
-    ento::printEnabledCheckerList(llvm::outs(),
-                                  Clang->getFrontendOpts().Plugins,
-                                  AnOpts,
-                                  Clang->getDiagnostics(),
-                                  Clang->getLangOpts());
+    ento::printEnabledCheckerList(llvm::outs(), *Clang);
     return true;
   }
 

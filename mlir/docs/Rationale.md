@@ -202,27 +202,32 @@ and described in
 interest
 [starts here](https://www.google.com/url?q=https://youtu.be/Ntj8ab-5cvE?t%3D596&sa=D&ust=1529450150971000&usg=AFQjCNFQHEWL7m8q3eO-1DiKw9zqC2v24Q).
 
-### Index type disallowed in vector/tensor/memref types
+### Index type disallowed in vector/memref types
 
-Index types are not allowed as elements of `vector`, `tensor` or `memref` type.
-Index types are intended to be used for platform-specific "size" values and may
-appear in subscripts, sizes of aggregate types and affine expressions. They are
-also tightly coupled with `affine.apply` and affine.load/store operations;
-having `index` type is a necessary precondition of a value to be acceptable by
-these operations. While it may be useful to have `memref<?xindex>` to express
-indirect accesses, e.g. sparse matrix manipulations or lookup tables, it creates
-problems MLIR is not ready to address yet. MLIR needs to internally store
-constants of aggregate types and emit code operating on values of those types,
-which are subject to target-specific size and alignment constraints.  Since MLIR
-does not have a target description mechanism at the moment, it cannot reliably
-emit such code. Moreover, some platforms may not support vectors of type
-equivalent to `index`.
+Index types are not allowed as elements of `vector` and `memref` types. Index
+types are intended to be used for platform-specific "size" values and may appear
+in subscripts, sizes of aggregate types and affine expressions. They are also
+tightly coupled with `affine.apply` and affine.load/store operations; having
+`index` type is a necessary precondition of a value to be acceptable by these
+operations. While it may be useful to have `memref<?xindex>` to express indirect
+accesses, e.g. sparse matrix manipulations or lookup tables, it creates problems
+MLIR is not ready to address yet. MLIR needs to internally store constants of
+aggregate types and emit code operating on values of those types, which are
+subject to target-specific size and alignment constraints. Since MLIR does not
+have a target description mechanism at the moment, it cannot reliably emit such
+code. Moreover, some platforms may not support vectors of type equivalent to
+`index`.
 
 Indirect access use cases can be alternatively supported by providing and
 `index_cast` instruction that allows for conversion between `index` and
 fixed-width integer types, at the SSA value level. It has an additional benefit
 of supporting smaller integer types, e.g. `i8` or `i16`, for small indices
 instead of (presumably larger) `index` type.
+
+Index types are allowed as element types of `tensor` types. The `tensor` type
+specifically abstracts the target-specific aspects that intersect with the
+code-generation-related/lowering-related concerns explained above. In fact, the
+`tensor` type even allows dialect-specific types as element types.
 
 ### Bit width of a non-primitive types and `index` is undefined
 
@@ -244,13 +249,22 @@ introduced.
 The bit width is not defined for dialect-specific types at MLIR level. Dialects
 are free to define their own quantities for type sizes.
 
-### Signless types
+### Integer signedness semantics
 
 Integers in the builtin MLIR type system have a bitwidth (note that the `index`
-type has a symbolic width equal to the machine word size), but they do not have
-an intrinsic sign. This means that the "standard ops" operation set has things
-like `addi` and `muli` which do two's complement arithmetic, but some other
-operations get a sign, e.g. `divis` vs `diviu`.
+type has a symbolic width equal to the machine word size), and they *may*
+additionally have signedness semantics. The purpose is to satisfy the needs of
+different dialects, which can model different levels of abstractions. Certain
+abstraction, especially closer to source language, might want to differentiate
+signedness with integer types; while others, especially closer to machine
+instruction, might want signless integers. Instead of forcing each abstraction
+to adopt the same integer modelling or develop its own one in house, Integer
+types provides this as an option to help code reuse and consistency.
+
+For the standard dialect, the choice is to have signless integer types. An
+integer value does not have an intrinsic sign, and it's up to the specific op
+for interpretation. For example, ops like `addi` and `muli` do two's complement
+arithmetic, but some other operations get a sign, e.g. `divis` vs `diviu`.
 
 LLVM uses the [same design](http://llvm.org/docs/LangRef.html#integer-type),
 which was introduced in a revamp rolled out

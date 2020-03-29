@@ -65,6 +65,15 @@ public:
   MCSection *getSectionForJumpTable(const Function &F,
                                     const TargetMachine &TM) const override;
 
+  MCSection *
+  getSectionForMachineBasicBlock(const Function &F,
+                                 const MachineBasicBlock &MBB,
+                                 const TargetMachine &TM) const override;
+
+  MCSection *getNamedSectionForMachineBasicBlock(
+      const Function &F, const MachineBasicBlock &MBB, const TargetMachine &TM,
+      const char *Suffix) const override;
+
   bool shouldPutJumpTableInFunctionSection(bool UsesLabelDifference,
                                            const Function &F) const override;
 
@@ -244,7 +253,9 @@ public:
 
   static XCOFF::StorageClass getStorageClassForGlobal(const GlobalObject *GO);
 
-  MCSection *getSectionForFunctionDescriptor(const MCSymbol *) const override;
+  MCSection *
+  getSectionForFunctionDescriptor(const Function *F,
+                                  const TargetMachine &TM) const override;
   MCSection *getSectionForTOCEntry(const MCSymbol *Sym) const override;
 
   /// For external functions, this will always return a function descriptor

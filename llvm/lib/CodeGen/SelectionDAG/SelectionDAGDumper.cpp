@@ -65,7 +65,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
       if (G)
         if (const TargetInstrInfo *TII = G->getSubtarget().getInstrInfo())
           if (getMachineOpcode() < TII->getNumOpcodes())
-            return TII->getName(getMachineOpcode());
+            return std::string(TII->getName(getMachineOpcode()));
       return "<<Unknown Machine Node #" + utostr(getOpcode()) + ">>";
     }
     if (G) {
@@ -315,7 +315,9 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::UMULFIXSAT:                 return "umulfixsat";
 
   case ISD::SDIVFIX:                    return "sdivfix";
+  case ISD::SDIVFIXSAT:                 return "sdivfixsat";
   case ISD::UDIVFIX:                    return "udivfix";
+  case ISD::UDIVFIXSAT:                 return "udivfixsat";
 
   // Conversion operators.
   case ISD::SIGN_EXTEND:                return "sign_extend";
@@ -343,7 +345,9 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::BITCAST:                    return "bitcast";
   case ISD::ADDRSPACECAST:              return "addrspacecast";
   case ISD::FP16_TO_FP:                 return "fp16_to_fp";
+  case ISD::STRICT_FP16_TO_FP:          return "strict_fp16_to_fp";
   case ISD::FP_TO_FP16:                 return "fp_to_fp16";
+  case ISD::STRICT_FP_TO_FP16:          return "strict_fp_to_fp16";
   case ISD::LROUND:                     return "lround";
   case ISD::STRICT_LROUND:              return "strict_lround";
   case ISD::LLROUND:                    return "llround";
@@ -389,6 +393,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::GC_TRANSITION_START:        return "gc_transition.start";
   case ISD::GC_TRANSITION_END:          return "gc_transition.end";
   case ISD::GET_DYNAMIC_AREA_OFFSET:    return "get.dynamic.area.offset";
+  case ISD::FREEZE:                     return "freeze";
 
   // Bit manipulation
   case ISD::ABS:                        return "abs";
@@ -548,9 +553,6 @@ void SDNode::print_details(raw_ostream &OS, const SelectionDAG *G) const {
 
   if (getFlags().hasAllowReassociation())
     OS << " reassoc";
-
-  if (getFlags().hasVectorReduction())
-    OS << " vector-reduction";
 
   if (getFlags().hasNoFPExcept())
     OS << " nofpexcept";

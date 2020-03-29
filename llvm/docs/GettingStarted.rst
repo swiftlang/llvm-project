@@ -16,7 +16,7 @@ files needed to process intermediate representations and converts it into
 object files.  Tools include an assembler, disassembler, bitcode analyzer, and
 bitcode optimizer.  It also contains basic regression tests.
 
-C-like languages use the `Clang <http://clang.llvm.org/>`_ front end.  This
+C-like languages use the `Clang <https://clang.llvm.org/>`_ front end.  This
 component compiles C, C++, Objective C, and Objective C++ code into LLVM bitcode
 -- and from there into object files, using LLVM.
 
@@ -28,7 +28,7 @@ Getting the Source Code and Building LLVM
 =========================================
 
 The LLVM Getting Started documentation may be out of date.  The `Clang
-Getting Started <http://clang.llvm.org/get_started.html>`_ page might have more
+Getting Started <https://clang.llvm.org/get_started.html>`_ page might have more
 accurate information.
 
 This is an example workflow and configuration to get and build the LLVM source:
@@ -39,14 +39,14 @@ This is an example workflow and configuration to get and build the LLVM source:
    * Or, on windows, ``git clone --config core.autocrlf=false
      https://github.com/llvm/llvm-project.git``
 
-#. Configure and build LLVM and Clang:.
+#. Configure and build LLVM and Clang:
 
    * ``cd llvm-project``
    * ``mkdir build``
    * ``cd build``
    * ``cmake -G <generator> [options] ../llvm``
 
-     Some common generators are:
+     Some common build system generators are:
 
      * ``Ninja`` --- for generating `Ninja <https://ninja-build.org>`_
        build files. Most llvm developers use Ninja.
@@ -75,9 +75,11 @@ This is an example workflow and configuration to get and build the LLVM source:
      * ``-DLLVM_ENABLE_ASSERTIONS=On`` --- Compile with assertion checks enabled
        (default is Yes for Debug builds, No for all other build types).
 
-   * Run your build tool of choice!
+   * ``cmake --build . [--target <target>]`` or the build system specified
+     above directly.
 
-     * The default target (i.e. ``ninja`` or ``make``) will build all of LLVM.
+     * The default target (i.e. ``cmake --build .`` or ``make``) will build all of
+       LLVM.
 
      * The ``check-all`` target (i.e. ``ninja check-all``) will run the
        regression tests to ensure everything is in working order.
@@ -85,10 +87,10 @@ This is an example workflow and configuration to get and build the LLVM source:
      * CMake will generate build targets for each tool and library, and most
        LLVM sub-projects generate their own ``check-<project>`` target.
 
-     * Running a serial build will be *slow*.  To improve speed, try running a
-       parallel build. That's done by default in Ninja; for ``make``, use
-       ``make -j NNN`` (NNN is the number of parallel jobs, use e.g. number of
-       CPUs you have.)
+     * Running a serial build will be **slow**.  To improve speed, try running a
+       parallel build. That's done by default in Ninja; for ``make``, use the
+       option ``-j NN``, where ``NN`` is the number of parallel jobs, e.g. the
+       number of available CPUs.
 
    * For more information see `CMake <CMake.html>`__
 
@@ -402,10 +404,7 @@ The files are as follows, with *x.y* marking the version number:
 Checkout LLVM from Git
 ----------------------
 
-You can also checkout the source code for LLVM from Git. While the LLVM
-project's official source-code repository is Subversion, we are in the process
-of migrating to git. We currently recommend that all developers use Git for
-day-to-day development.
+You can also checkout the source code for LLVM from Git.
 
 .. note::
 
@@ -501,6 +500,12 @@ LLVM currently has a linear-history policy, which means that merge commits are
 not allowed. The `llvm-project` repo on github is configured to reject pushes
 that include merges, so the `git rebase` step above is required.
 
+Bisecting commits
+^^^^^^^^^^^^^^^^^
+
+See `Bisecting LLVM code <GitBisecting.html>`_ for how to use ``git bisect``
+on LLVM.
+
 Reverting a change
 ^^^^^^^^^^^^^^^^^^
 
@@ -517,7 +522,7 @@ you need to check the code out of SVN rather than git for some reason, you can
 do it like so:
 
 * ``cd where-you-want-llvm-to-live``
-* Read-Only: ``svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm``
+* Read-Only: ``svn co https://llvm.org/svn/llvm-project/llvm/trunk llvm``
 * Read-Write: ``svn co https://user@llvm.org/svn/llvm-project/llvm/trunk llvm``
 
 This will create an '``llvm``' directory in the current directory and fully
@@ -717,7 +722,7 @@ Note: There are some additional flags that need to be passed when building for
 iOS due to limitations in the iOS SDK.
 
 Check :doc:`HowToCrossCompileLLVM` and `Clang docs on how to cross-compile in general
-<http://clang.llvm.org/docs/CrossCompilation.html>`_ for more information
+<https://clang.llvm.org/docs/CrossCompilation.html>`_ for more information
 about cross-compiling.
 
 The Location of LLVM Object Files
@@ -784,7 +789,7 @@ Directory Layout
 
 One useful source of information about the LLVM source base is the LLVM `doxygen
 <http://www.doxygen.org/>`_ documentation available at
-`<http://llvm.org/doxygen/>`_.  The following is a brief introduction to code
+`<https://llvm.org/doxygen/>`_.  The following is a brief introduction to code
 layout:
 
 ``llvm/examples``
@@ -1090,6 +1095,61 @@ If you are having problems building or using LLVM, or if you have any other
 general questions about LLVM, please consult the `Frequently Asked
 Questions <FAQ.html>`_ page.
 
+If you are having problems with limited memory and build time, please try
+building with ninja instead of make. Please consider configuring the
+following options with cmake:
+
+ * -G Ninja
+   Setting this option will allow you to build with ninja instead of make.
+   Building with ninja significantly improves your build time, especially with
+   incremental builds, and improves your memory usage.
+
+ * -DLLVM_USE_LINKER
+   Setting this option to either gold or lld will significantly improve
+   performance. In the case that you are compiling lld, you may wish to use the
+   gold linker as a faster alternative.
+
+ * -DCMAKE_BUILD_TYPE
+   This option defaults to Debug; however, this may consume more memory during
+   the linking phase. So, you may wish to use the build type Release. Another
+   build type you may wish to consider is release-with-asserts which compiles at
+   nearly the same rate as the Release build; however, it may not be as easy
+   to debug. MinSizeRel is another build type you may wish to consider, if you
+   are still having problems with slow build time.
+
+ * -DLLVM_PARALLEL_LINK_JOBS
+   Set this equal to number of jobs you wish to run simultaneously. This is
+   similar to the -j option used with make, but only for link jobs. This option
+   is of course only meaningful if you plan to build with ninja. You may wish to
+   use a very low number of jobs, as this will greatly reduce the amount memory
+   used during the build process. If you have limited memory, you may wish to
+   set this to 1.
+
+ * -DLLVM_TARGETS_TO_BUILD
+   Set this equal to the target you wish to build. You may wish to set this to
+   X86; however, you will find a full list of targets within the
+   llvm-project/llvm/lib/Target directory.
+
+ * -DLLVM_OPTIMIZED_TABLEGEN
+   Set this to ON to generate a fully optimized tablegen during build. This will
+   significantly improve your build time.
+
+ * -DLLVM_ENABLE_PROJECTS
+   Set this equal to the projects you wish to compile (e.g. clang, lld, etc.) If
+   compiling more than one project, deliniate the list with a semicolon. Should
+   you run into issues with the semicolon, try surrounding it with single quotes.
+
+ * -DCLANG_ENABLE_STATIC_ANALYZER
+   Set this option to OFF if you do not require the clang static analyzer. This
+   should improve your build time significantly.
+
+ * -DLLVM_USE_SPLIT_DWARF
+   Consider setting this to ON if you require a debug build, as this will ease
+   memory pressure on the linker. This will make linking much faster, as the
+   binaries will not contain any of the debug information; however, this will
+   generate the debug information in the form of a DWARF object file (with the
+   extension .dwo).
+
 .. _links:
 
 Links
@@ -1100,8 +1160,8 @@ things... there are many more interesting and complicated things that you can do
 that aren't documented here (but we'll gladly accept a patch if you want to
 write something up!).  For more information about LLVM, check out:
 
-* `LLVM Homepage <http://llvm.org/>`_
-* `LLVM Doxygen Tree <http://llvm.org/doxygen/>`_
-* `Starting a Project that Uses LLVM <http://llvm.org/docs/Projects.html>`_
+* `LLVM Homepage <https://llvm.org/>`_
+* `LLVM Doxygen Tree <https://llvm.org/doxygen/>`_
+* `Starting a Project that Uses LLVM <https://llvm.org/docs/Projects.html>`_
 
 .. _installing arcanist: https://secure.phabricator.com/book/phabricator/article/arcanist_quick_start/

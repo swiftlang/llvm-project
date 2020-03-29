@@ -57,6 +57,12 @@ Non-comprehensive list of changes in this release
 Changes to the LLVM IR
 ----------------------
 
+* The callsite attribute `vector-function-abi-variant
+  <https://llvm.org/docs/LangRef.html#call-site-attributes>`_ has been
+  added to describe the mapping between scalar functions and vector
+  functions, to enable vectorization of call sites. The information
+  provided by the attribute is interfaced via the API provided by the
+  ``VFDatabase`` class.
 
 Changes to building LLVM
 ------------------------
@@ -66,6 +72,9 @@ Changes to the ARM Backend
 
 During this release ...
 
+* Implemented C-language intrinsics for the full Arm v8.1-M MVE instruction
+  set. ``<arm_mve.h>`` now supports the complete API defined in the Arm C
+  Language Extensions.
 
 Changes to the MIPS Target
 --------------------------
@@ -84,13 +93,19 @@ Changes to the X86 Target
 During this release ...
 
 
+* Functions with the probe-stack attribute set to "inline-asm" are now protected
+  against stack clash without the need of a third-party probing function and
+  with limited impact on performance.
+
 Changes to the AMDGPU Target
 -----------------------------
 
 Changes to the AVR Target
 -----------------------------
 
-During this release ...
+* Moved from an experimental backend to an official backend. AVR support is now
+  included by default in all LLVM builds and releases and is available under
+  the "avr-unknown-unknown" target triple.
 
 Changes to the WebAssembly Target
 ---------------------------------

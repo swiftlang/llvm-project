@@ -1,6 +1,6 @@
 //===- Function.cpp - MLIR Function Classes -------------------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -9,12 +9,7 @@
 #include "mlir/IR/Function.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Diagnostics.h"
-#include "mlir/IR/Dialect.h"
 #include "mlir/IR/FunctionImplementation.h"
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallString.h"
@@ -137,24 +132,6 @@ void FuncOp::eraseArguments(ArrayRef<unsigned> argIndices) {
   for (int i = 0; i < originalNumArgs; i++)
     if (shouldEraseArg(originalNumArgs - i - 1))
       entry.eraseArgument(originalNumArgs - i - 1);
-}
-
-/// Add an entry block to an empty function, and set up the block arguments
-/// to match the signature of the function.
-Block *FuncOp::addEntryBlock() {
-  assert(empty() && "function already has an entry block");
-  auto *entry = new Block();
-  push_back(entry);
-  entry->addArguments(getType().getInputs());
-  return entry;
-}
-
-/// Add a normal block to the end of the function's block list. The function
-/// should at least already have an entry block.
-Block *FuncOp::addBlock() {
-  assert(!empty() && "function should at least have an entry block");
-  push_back(new Block());
-  return &back();
 }
 
 /// Clone the internal blocks from this function into dest and all attributes

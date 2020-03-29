@@ -12,12 +12,14 @@
 
 __attribute__((objc_root_class))
 @interface Root
+- (void)unavailableInChild;
 - (void)rootRegular;                                  // expected-note {{previous declaration is here}}
 + (void)classRootRegular;                             // expected-note {{previous declaration is here}}
 - (void)rootDirect __attribute__((objc_direct));      // expected-note {{previous declaration is here}};
 + (void)classRootDirect __attribute__((objc_direct)); // expected-note {{previous declaration is here}};
 - (void)otherRootDirect __attribute__((objc_direct)); // expected-note {{direct method 'otherRootDirect' declared here}}
 + (void)otherClassRootDirect __attribute__((objc_direct)); // expected-note {{direct method 'otherClassRootDirect' declared here}}
++ (void)otherOtherClassRootDirect __attribute__((objc_direct)); // expected-note {{direct method 'otherOtherClassRootDirect' declared here}}
 - (void)notDirectInIface;                             // expected-note {{previous declaration is here}}
 + (void)classNotDirectInIface;                        // expected-note {{previous declaration is here}}
 @end
@@ -48,8 +50,10 @@ __attribute__((objc_direct_members))
 + (void)classRootCategoryDirect2 __attribute__((objc_direct)); // expected-note {{previous declaration is here}}
 @end
 
-__attribute__((objc_root_class, objc_direct_members)) // expected-error {{'objc_direct_members' attribute only applies to Objective-C implementation declarations and Objective-C containers}}
-@interface SubDirectFail : Root
+__attribute__((objc_direct_members))
+@interface SubDirectMembers : Root
+@property int foo; // expected-note {{previous declaration is here}}
+- (void)unavailableInChild __attribute__((unavailable)); // should not warn
 - (instancetype)init;
 @end
 
@@ -79,6 +83,8 @@ __attribute__((objc_root_class, objc_direct_members)) // expected-error {{'objc_
 
 __attribute__((objc_direct_members))
 @implementation Root
+- (void)unavailableInChild {
+}
 - (void)rootRegular {
 }
 + (void)classRootRegular {
@@ -89,7 +95,12 @@ __attribute__((objc_direct_members))
 }
 - (void)otherRootDirect {
 }
++ (void)someRootDirectMethod { // expected-note {{direct method 'someRootDirectMethod' declared here}}
+}
 + (void)otherClassRootDirect {
+  [self someRootDirectMethod]; // expected-error {{messaging a Class with a method that is possibly direct}}
+}
++ (void)otherOtherClassRootDirect {
 }
 - (void)rootExtensionDirect {
 }
@@ -131,6 +142,16 @@ __attribute__((objc_direct_members))
 @implementation ValidSub
 - (void)someValidSubMethod {
   [super otherRootDirect]; // expected-error {{messaging super with a direct method}}
+}
++ (void)someValidSubMethod {
+  [super otherOtherClassRootDirect]; // expected-error {{messaging super with a direct method}}
+}
+@end
+
+@implementation SubDirectMembers
+@dynamic foo; // expected-error {{direct property cannot be @dynamic}}
+- (instancetype)init {
+  return self;
 }
 @end
 

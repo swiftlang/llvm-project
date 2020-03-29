@@ -1567,7 +1567,9 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
   for (SUnit *SU : MemOps) {
     SmallVector<const MachineOperand *, 4> BaseOps;
     int64_t Offset;
-    if (TII->getMemOperandsWithOffset(*SU->getInstr(), BaseOps, Offset, TRI))
+    bool OffsetIsScalable;
+    if (TII->getMemOperandsWithOffset(*SU->getInstr(), BaseOps, Offset,
+                                      OffsetIsScalable, TRI))
       MemOpRecords.push_back(MemOpInfo(SU, BaseOps, Offset));
 #ifndef NDEBUG
     for (auto *Op : BaseOps)
@@ -1584,7 +1586,7 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
     SUnit *SUb = MemOpRecords[Idx+1].SU;
     if (TII->shouldClusterMemOps(MemOpRecords[Idx].BaseOps,
                                  MemOpRecords[Idx + 1].BaseOps,
-                                 ClusterLength)) {
+                                 ClusterLength + 1)) {
       if (SUa->NodeNum > SUb->NodeNum)
         std::swap(SUa, SUb);
       if (DAG->addEdge(SUb, SDep(SUa, SDep::Cluster))) {
@@ -1620,7 +1622,7 @@ void BaseMemOpClusterMutation::apply(ScheduleDAGInstrs *DAG) {
 
     unsigned ChainPredID = DAG->SUnits.size();
     for (const SDep &Pred : SU.Preds) {
-      if (Pred.isCtrl()) {
+      if (Pred.isCtrl() && !Pred.isArtificial()) {
         ChainPredID = Pred.getSUnit()->NodeNum;
         break;
       }
@@ -3695,7 +3697,7 @@ struct DOTGraphTraits<ScheduleDAGMI*> : public DefaultDOTGraphTraits {
   DOTGraphTraits(bool isSimple = false) : DefaultDOTGraphTraits(isSimple) {}
 
   static std::string getGraphName(const ScheduleDAG *G) {
-    return G->MF.getName();
+    return std::string(G->MF.getName());
   }
 
   static bool renderGraphFromBottomUp() {

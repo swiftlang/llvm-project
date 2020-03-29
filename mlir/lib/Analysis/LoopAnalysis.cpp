@@ -1,6 +1,6 @@
 //===- LoopAnalysis.cpp - Misc loop analysis routines //-------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -15,7 +15,8 @@
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/NestedMatcher.h"
-#include "mlir/Dialect/AffineOps/AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Support/MathExtras.h"
 
 #include "llvm/ADT/DenseSet.h"
@@ -56,19 +57,17 @@ void mlir::buildTripCountMapAndOperands(
     *tripCountMap = AffineMap();
     return;
   }
-  SmallVector<Value, 4> lbOperands(forOp.getLowerBoundOperands());
-  SmallVector<Value, 4> ubOperands(forOp.getUpperBoundOperands());
 
   // Difference of each upper bound expression from the single lower bound
   // expression (divided by the step) provides the expressions for the trip
   // count map.
-  AffineValueMap ubValueMap(ubMap, ubOperands);
+  AffineValueMap ubValueMap(ubMap, forOp.getUpperBoundOperands());
 
   SmallVector<AffineExpr, 4> lbSplatExpr(ubValueMap.getNumResults(),
                                          lbMap.getResult(0));
   auto lbMapSplat =
       AffineMap::get(lbMap.getNumDims(), lbMap.getNumSymbols(), lbSplatExpr);
-  AffineValueMap lbSplatValueMap(lbMapSplat, lbOperands);
+  AffineValueMap lbSplatValueMap(lbMapSplat, forOp.getLowerBoundOperands());
 
   AffineValueMap tripCountValueMap;
   AffineValueMap::difference(ubValueMap, lbSplatValueMap, &tripCountValueMap);
@@ -185,7 +184,7 @@ static bool isAccessIndexInvariant(Value iv, Value index) {
   auto composeOp = cast<AffineApplyOp>(affineApplyOps[0]);
   // We need yet another level of indirection because the `dim` index of the
   // access may not correspond to the `dim` index of composeOp.
-  return !(AffineValueMap(composeOp).isFunctionOf(0, iv));
+  return !composeOp.getAffineValueMap().isFunctionOf(0, iv);
 }
 
 DenseSet<Value> mlir::getInvariantAccesses(Value iv, ArrayRef<Value> indices) {
@@ -221,9 +220,9 @@ DenseSet<Value> mlir::getInvariantAccesses(Value iv, ArrayRef<Value> indices) {
 template <typename LoadOrStoreOp>
 static bool isContiguousAccess(Value iv, LoadOrStoreOp memoryOp,
                                int *memRefDim) {
-  static_assert(std::is_same<LoadOrStoreOp, AffineLoadOp>::value ||
-                    std::is_same<LoadOrStoreOp, AffineStoreOp>::value,
-                "Must be called on either const LoadOp & or const StoreOp &");
+  static_assert(
+      llvm::is_one_of<LoadOrStoreOp, AffineLoadOp, AffineStoreOp>::value,
+      "Must be called on either LoadOp or StoreOp");
   assert(memRefDim && "memRefDim == nullptr");
   auto memRefType = memoryOp.getMemRefType();
 

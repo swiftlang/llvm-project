@@ -404,13 +404,194 @@ static bool SemaBuiltinCallWithStaticChain(Sema &S, CallExpr *BuiltinCall) {
   return false;
 }
 
+namespace {
+
+class EstimateSizeFormatHandler
+    : public analyze_format_string::FormatStringHandler {
+  size_t Size;
+
+public:
+  EstimateSizeFormatHandler(StringRef Format)
+      : Size(std::min(Format.find(0), Format.size()) +
+             1 /* null byte always written by sprintf */) {}
+
+  bool HandlePrintfSpecifier(const analyze_printf::PrintfSpecifier &FS,
+                             const char *, unsigned SpecifierLen) override {
+
+    const size_t FieldWidth = computeFieldWidth(FS);
+    const size_t Precision = computePrecision(FS);
+
+    // The actual format.
+    switch (FS.getConversionSpecifier().getKind()) {
+    // Just a char.
+    case analyze_format_string::ConversionSpecifier::cArg:
+    case analyze_format_string::ConversionSpecifier::CArg:
+      Size += std::max(FieldWidth, (size_t)1);
+      break;
+    // Just an integer.
+    case analyze_format_string::ConversionSpecifier::dArg:
+    case analyze_format_string::ConversionSpecifier::DArg:
+    case analyze_format_string::ConversionSpecifier::iArg:
+    case analyze_format_string::ConversionSpecifier::oArg:
+    case analyze_format_string::ConversionSpecifier::OArg:
+    case analyze_format_string::ConversionSpecifier::uArg:
+    case analyze_format_string::ConversionSpecifier::UArg:
+    case analyze_format_string::ConversionSpecifier::xArg:
+    case analyze_format_string::ConversionSpecifier::XArg:
+      Size += std::max(FieldWidth, Precision);
+      break;
+
+    // %g style conversion switches between %f or %e style dynamically.
+    // %f always takes less space, so default to it.
+    case analyze_format_string::ConversionSpecifier::gArg:
+    case analyze_format_string::ConversionSpecifier::GArg:
+
+    // Floating point number in the form '[+]ddd.ddd'.
+    case analyze_format_string::ConversionSpecifier::fArg:
+    case analyze_format_string::ConversionSpecifier::FArg:
+      Size += std::max(FieldWidth, 1 /* integer part */ +
+                                       (Precision ? 1 + Precision
+                                                  : 0) /* period + decimal */);
+      break;
+
+    // Floating point number in the form '[-]d.ddde[+-]dd'.
+    case analyze_format_string::ConversionSpecifier::eArg:
+    case analyze_format_string::ConversionSpecifier::EArg:
+      Size +=
+          std::max(FieldWidth,
+                   1 /* integer part */ +
+                       (Precision ? 1 + Precision : 0) /* period + decimal */ +
+                       1 /* e or E letter */ + 2 /* exponent */);
+      break;
+
+    // Floating point number in the form '[-]0xh.hhhhp±dd'.
+    case analyze_format_string::ConversionSpecifier::aArg:
+    case analyze_format_string::ConversionSpecifier::AArg:
+      Size +=
+          std::max(FieldWidth,
+                   2 /* 0x */ + 1 /* integer part */ +
+                       (Precision ? 1 + Precision : 0) /* period + decimal */ +
+                       1 /* p or P letter */ + 1 /* + or - */ + 1 /* value */);
+      break;
+
+    // Just a string.
+    case analyze_format_string::ConversionSpecifier::sArg:
+    case analyze_format_string::ConversionSpecifier::SArg:
+      Size += FieldWidth;
+      break;
+
+    // Just a pointer in the form '0xddd'.
+    case analyze_format_string::ConversionSpecifier::pArg:
+      Size += std::max(FieldWidth, 2 /* leading 0x */ + Precision);
+      break;
+
+    // A plain percent.
+    case analyze_format_string::ConversionSpecifier::PercentArg:
+      Size += 1;
+      break;
+
+    default:
+      break;
+    }
+
+    Size += FS.hasPlusPrefix() || FS.hasSpacePrefix();
+
+    if (FS.hasAlternativeForm()) {
+      switch (FS.getConversionSpecifier().getKind()) {
+      default:
+        break;
+      // Force a leading '0'.
+      case analyze_format_string::ConversionSpecifier::oArg:
+        Size += 1;
+        break;
+      // Force a leading '0x'.
+      case analyze_format_string::ConversionSpecifier::xArg:
+      case analyze_format_string::ConversionSpecifier::XArg:
+        Size += 2;
+        break;
+      // Force a period '.' before decimal, even if precision is 0.
+      case analyze_format_string::ConversionSpecifier::aArg:
+      case analyze_format_string::ConversionSpecifier::AArg:
+      case analyze_format_string::ConversionSpecifier::eArg:
+      case analyze_format_string::ConversionSpecifier::EArg:
+      case analyze_format_string::ConversionSpecifier::fArg:
+      case analyze_format_string::ConversionSpecifier::FArg:
+      case analyze_format_string::ConversionSpecifier::gArg:
+      case analyze_format_string::ConversionSpecifier::GArg:
+        Size += (Precision ? 0 : 1);
+        break;
+      }
+    }
+    assert(SpecifierLen <= Size && "no underflow");
+    Size -= SpecifierLen;
+    return true;
+  }
+
+  size_t getSizeLowerBound() const { return Size; }
+
+private:
+  static size_t computeFieldWidth(const analyze_printf::PrintfSpecifier &FS) {
+    const analyze_format_string::OptionalAmount &FW = FS.getFieldWidth();
+    size_t FieldWidth = 0;
+    if (FW.getHowSpecified() == analyze_format_string::OptionalAmount::Constant)
+      FieldWidth = FW.getConstantAmount();
+    return FieldWidth;
+  }
+
+  static size_t computePrecision(const analyze_printf::PrintfSpecifier &FS) {
+    const analyze_format_string::OptionalAmount &FW = FS.getPrecision();
+    size_t Precision = 0;
+
+    // See man 3 printf for default precision value based on the specifier.
+    switch (FW.getHowSpecified()) {
+    case analyze_format_string::OptionalAmount::NotSpecified:
+      switch (FS.getConversionSpecifier().getKind()) {
+      default:
+        break;
+      case analyze_format_string::ConversionSpecifier::dArg: // %d
+      case analyze_format_string::ConversionSpecifier::DArg: // %D
+      case analyze_format_string::ConversionSpecifier::iArg: // %i
+        Precision = 1;
+        break;
+      case analyze_format_string::ConversionSpecifier::oArg: // %d
+      case analyze_format_string::ConversionSpecifier::OArg: // %D
+      case analyze_format_string::ConversionSpecifier::uArg: // %d
+      case analyze_format_string::ConversionSpecifier::UArg: // %D
+      case analyze_format_string::ConversionSpecifier::xArg: // %d
+      case analyze_format_string::ConversionSpecifier::XArg: // %D
+        Precision = 1;
+        break;
+      case analyze_format_string::ConversionSpecifier::fArg: // %f
+      case analyze_format_string::ConversionSpecifier::FArg: // %F
+      case analyze_format_string::ConversionSpecifier::eArg: // %e
+      case analyze_format_string::ConversionSpecifier::EArg: // %E
+      case analyze_format_string::ConversionSpecifier::gArg: // %g
+      case analyze_format_string::ConversionSpecifier::GArg: // %G
+        Precision = 6;
+        break;
+      case analyze_format_string::ConversionSpecifier::pArg: // %d
+        Precision = 1;
+        break;
+      }
+      break;
+    case analyze_format_string::OptionalAmount::Constant:
+      Precision = FW.getConstantAmount();
+      break;
+    default:
+      break;
+    }
+    return Precision;
+  }
+};
+
+} // namespace
+
 /// Check a call to BuiltinID for buffer overflows. If BuiltinID is a
 /// __builtin_*_chk function, then use the object size argument specified in the
 /// source. Otherwise, infer the object size using __builtin_object_size.
 void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
                                                CallExpr *TheCall) {
   // FIXME: There are some more useful checks we could be doing here:
-  //  - Analyze the format string of sprintf to see how much of buffer is used.
   //  - Evaluate strlen of strcpy arguments, use as object size.
 
   if (TheCall->isValueDependent() || TheCall->isTypeDependent() ||
@@ -421,12 +602,55 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   if (!BuiltinID)
     return;
 
+  const TargetInfo &TI = getASTContext().getTargetInfo();
+  unsigned SizeTypeWidth = TI.getTypeWidth(TI.getSizeType());
+
   unsigned DiagID = 0;
   bool IsChkVariant = false;
+  Optional<llvm::APSInt> UsedSize;
   unsigned SizeIndex, ObjectIndex;
   switch (BuiltinID) {
   default:
     return;
+  case Builtin::BIsprintf:
+  case Builtin::BI__builtin___sprintf_chk: {
+    size_t FormatIndex = BuiltinID == Builtin::BIsprintf ? 1 : 3;
+    auto *FormatExpr = TheCall->getArg(FormatIndex)->IgnoreParenImpCasts();
+
+    if (auto *Format = dyn_cast<StringLiteral>(FormatExpr)) {
+
+      if (!Format->isAscii() && !Format->isUTF8())
+        return;
+
+      StringRef FormatStrRef = Format->getString();
+      EstimateSizeFormatHandler H(FormatStrRef);
+      const char *FormatBytes = FormatStrRef.data();
+      const ConstantArrayType *T =
+          Context.getAsConstantArrayType(Format->getType());
+      assert(T && "String literal not of constant array type!");
+      size_t TypeSize = T->getSize().getZExtValue();
+
+      // In case there's a null byte somewhere.
+      size_t StrLen =
+          std::min(std::max(TypeSize, size_t(1)) - 1, FormatStrRef.find(0));
+      if (!analyze_format_string::ParsePrintfString(
+              H, FormatBytes, FormatBytes + StrLen, getLangOpts(),
+              Context.getTargetInfo(), false)) {
+        DiagID = diag::warn_fortify_source_format_overflow;
+        UsedSize = llvm::APSInt::getUnsigned(H.getSizeLowerBound())
+                       .extOrTrunc(SizeTypeWidth);
+        if (BuiltinID == Builtin::BI__builtin___sprintf_chk) {
+          IsChkVariant = true;
+          ObjectIndex = 2;
+        } else {
+          IsChkVariant = false;
+          ObjectIndex = 0;
+        }
+        break;
+      }
+    }
+    return;
+  }
   case Builtin::BI__builtin___memcpy_chk:
   case Builtin::BI__builtin___memmove_chk:
   case Builtin::BI__builtin___memset_chk:
@@ -519,19 +743,19 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     if (!ObjArg->tryEvaluateObjectSize(Result, getASTContext(), BOSType))
       return;
     // Get the object size in the target's size_t width.
-    const TargetInfo &TI = getASTContext().getTargetInfo();
-    unsigned SizeTypeWidth = TI.getTypeWidth(TI.getSizeType());
     ObjectSize = llvm::APSInt::getUnsigned(Result).extOrTrunc(SizeTypeWidth);
   }
 
   // Evaluate the number of bytes of the object that this call will use.
-  Expr::EvalResult Result;
-  Expr *UsedSizeArg = TheCall->getArg(SizeIndex);
-  if (!UsedSizeArg->EvaluateAsInt(Result, getASTContext()))
-    return;
-  llvm::APSInt UsedSize = Result.Val.getInt();
+  if (!UsedSize) {
+    Expr::EvalResult Result;
+    Expr *UsedSizeArg = TheCall->getArg(SizeIndex);
+    if (!UsedSizeArg->EvaluateAsInt(Result, getASTContext()))
+      return;
+    UsedSize = Result.Val.getInt().extOrTrunc(SizeTypeWidth);
+  }
 
-  if (UsedSize.ule(ObjectSize))
+  if (UsedSize.getValue().ule(ObjectSize))
     return;
 
   StringRef FunctionName = getASTContext().BuiltinInfo.getName(BuiltinID);
@@ -547,7 +771,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   DiagRuntimeBehavior(TheCall->getBeginLoc(), TheCall,
                       PDiag(DiagID)
                           << FunctionName << ObjectSize.toString(/*Radix=*/10)
-                          << UsedSize.toString(/*Radix=*/10));
+                          << UsedSize.getValue().toString(/*Radix=*/10));
 }
 
 static bool SemaBuiltinSEHScopeCheck(Sema &SemaRef, CallExpr *TheCall,
@@ -1459,6 +1683,9 @@ CheckBuiltinTargetSupport(Sema &S, unsigned BuiltinID, CallExpr *TheCall,
   return true;
 }
 
+static void CheckNonNullArgument(Sema &S, const Expr *ArgExpr,
+                                 SourceLocation CallSiteLoc);
+
 ExprResult
 Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
                                CallExpr *TheCall) {
@@ -1728,6 +1955,19 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_nontemporal_load:
   case Builtin::BI__builtin_nontemporal_store:
     return SemaBuiltinNontemporalOverloaded(TheCallResult);
+  case Builtin::BI__builtin_memcpy_inline: {
+    clang::Expr *SizeOp = TheCall->getArg(2);
+    // We warn about copying to or from `nullptr` pointers when `size` is
+    // greater than 0. When `size` is value dependent we cannot evaluate its
+    // value so we bail out.
+    if (SizeOp->isValueDependent())
+      break;
+    if (!SizeOp->EvaluateKnownConstInt(Context).isNullValue()) {
+      CheckNonNullArgument(*this, TheCall->getArg(0), TheCall->getExprLoc());
+      CheckNonNullArgument(*this, TheCall->getArg(1), TheCall->getExprLoc());
+    }
+    break;
+  }
 #define BUILTIN(ID, TYPE, ATTRS)
 #define ATOMIC_BUILTIN(ID, TYPE, ATTRS) \
   case Builtin::BI##ID: \
@@ -1934,9 +2174,27 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     break;
   case Builtin::BI__builtin_os_log_format:
+    Cleanup.setExprNeedsCleanups(true);
+    LLVM_FALLTHROUGH;
   case Builtin::BI__builtin_os_log_format_buffer_size:
     if (SemaBuiltinOSLogFormat(TheCall))
       return ExprError();
+    break;
+  case Builtin::BI__builtin_frame_address:
+  case Builtin::BI__builtin_return_address:
+    if (SemaBuiltinConstantArgRange(TheCall, 0, 0, 0xFFFF))
+      return ExprError();
+
+    // -Wframe-address warning if non-zero passed to builtin
+    // return/frame address.
+    Expr::EvalResult Result;
+    if (TheCall->getArg(0)->EvaluateAsInt(Result, getASTContext()) &&
+        Result.Val.getInt() != 0)
+      Diag(TheCall->getBeginLoc(), diag::warn_frame_address)
+          << ((BuiltinID == Builtin::BI__builtin_return_address)
+                  ? "__builtin_return_address"
+                  : "__builtin_frame_address")
+          << TheCall->getSourceRange();
     break;
   }
 
@@ -2143,6 +2401,45 @@ bool Sema::CheckMVEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   }
 }
 
+bool Sema::CheckCDEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
+  bool Err = false;
+  switch (BuiltinID) {
+  default:
+    return false;
+#include "clang/Basic/arm_cde_builtin_sema.inc"
+  }
+
+  if (Err)
+    return true;
+
+  return CheckARMCoprocessorImmediate(TheCall->getArg(0), /*WantCDE*/ true);
+}
+
+bool Sema::CheckARMCoprocessorImmediate(const Expr *CoprocArg, bool WantCDE) {
+  if (isConstantEvaluated())
+    return false;
+
+  // We can't check the value of a dependent argument.
+  if (CoprocArg->isTypeDependent() || CoprocArg->isValueDependent())
+    return false;
+
+  llvm::APSInt CoprocNoAP;
+  bool IsICE = CoprocArg->isIntegerConstantExpr(CoprocNoAP, Context);
+  (void)IsICE;
+  assert(IsICE && "Coprocossor immediate is not a constant expression");
+  int64_t CoprocNo = CoprocNoAP.getExtValue();
+  assert(CoprocNo >= 0 && "Coprocessor immediate must be non-negative");
+
+  uint32_t CDECoprocMask = Context.getTargetInfo().getARMCDECoprocMask();
+  bool IsCDECoproc = CoprocNo <= 7 && (CDECoprocMask & (1 << CoprocNo));
+
+  if (IsCDECoproc != WantCDE)
+    return Diag(CoprocArg->getBeginLoc(), diag::err_arm_invalid_coproc)
+           << (int)CoprocNo << (int)WantCDE << CoprocArg->getSourceRange();
+
+  return false;
+}
+
 bool Sema::CheckARMBuiltinExclusiveCall(unsigned BuiltinID, CallExpr *TheCall,
                                         unsigned MaxWidth) {
   assert((BuiltinID == ARM::BI__builtin_arm_ldrex ||
@@ -2285,6 +2582,8 @@ bool Sema::CheckARMBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
     return true;
   if (CheckMVEBuiltinFunctionCall(BuiltinID, TheCall))
     return true;
+  if (CheckCDEBuiltinFunctionCall(BuiltinID, TheCall))
+    return true;
 
   // For intrinsics which take an immediate value as part of the instruction,
   // range check them here.
@@ -2307,6 +2606,26 @@ bool Sema::CheckARMBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   case ARM::BI__builtin_arm_isb:
   case ARM::BI__builtin_arm_dbg:
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 15);
+  case ARM::BI__builtin_arm_cdp:
+  case ARM::BI__builtin_arm_cdp2:
+  case ARM::BI__builtin_arm_mcr:
+  case ARM::BI__builtin_arm_mcr2:
+  case ARM::BI__builtin_arm_mrc:
+  case ARM::BI__builtin_arm_mrc2:
+  case ARM::BI__builtin_arm_mcrr:
+  case ARM::BI__builtin_arm_mcrr2:
+  case ARM::BI__builtin_arm_mrrc:
+  case ARM::BI__builtin_arm_mrrc2:
+  case ARM::BI__builtin_arm_ldc:
+  case ARM::BI__builtin_arm_ldcl:
+  case ARM::BI__builtin_arm_ldc2:
+  case ARM::BI__builtin_arm_ldc2l:
+  case ARM::BI__builtin_arm_stc:
+  case ARM::BI__builtin_arm_stcl:
+  case ARM::BI__builtin_arm_stc2:
+  case ARM::BI__builtin_arm_stc2l:
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 15) ||
+           CheckARMCoprocessorImmediate(TheCall->getArg(0), /*WantCDE*/ false);
   }
 }
 
@@ -2846,10 +3165,14 @@ bool Sema::CheckMipsBuiltinArgument(unsigned BuiltinID, CallExpr *TheCall) {
   case Mips::BI__builtin_msa_ld_h: i = 1; l = -1024; u = 1022; m = 2; break;
   case Mips::BI__builtin_msa_ld_w: i = 1; l = -2048; u = 2044; m = 4; break;
   case Mips::BI__builtin_msa_ld_d: i = 1; l = -4096; u = 4088; m = 8; break;
+  case Mips::BI__builtin_msa_ldr_d: i = 1; l = -4096; u = 4088; m = 8; break;
+  case Mips::BI__builtin_msa_ldr_w: i = 1; l = -2048; u = 2044; m = 4; break;
   case Mips::BI__builtin_msa_st_b: i = 2; l = -512; u = 511; m = 1; break;
   case Mips::BI__builtin_msa_st_h: i = 2; l = -1024; u = 1022; m = 2; break;
   case Mips::BI__builtin_msa_st_w: i = 2; l = -2048; u = 2044; m = 4; break;
   case Mips::BI__builtin_msa_st_d: i = 2; l = -4096; u = 4088; m = 8; break;
+  case Mips::BI__builtin_msa_str_d: i = 2; l = -4096; u = 4088; m = 8; break;
+  case Mips::BI__builtin_msa_str_w: i = 2; l = -2048; u = 2044; m = 4; break;
   }
 
   if (!m)
@@ -3976,6 +4299,24 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     if (FDecl) {
       for (const auto *I : FDecl->specific_attrs<ArgumentWithTypeTagAttr>())
         CheckArgumentWithTypeTag(I, Args, Loc);
+    }
+  }
+
+  if (FDecl && FDecl->hasAttr<AllocAlignAttr>()) {
+    auto *AA = FDecl->getAttr<AllocAlignAttr>();
+    const Expr *Arg = Args[AA->getParamIndex().getASTIndex()];
+    if (!Arg->isValueDependent()) {
+      Expr::EvalResult Align;
+      if (Arg->EvaluateAsInt(Align, Context)) {
+        const llvm::APSInt &I = Align.Val.getInt();
+        if (!I.isPowerOf2())
+          Diag(Arg->getExprLoc(), diag::warn_alignment_not_power_of_two)
+              << Arg->getSourceRange();
+
+        if (I > Sema::MaximumAlignment)
+          Diag(Arg->getExprLoc(), diag::warn_assume_aligned_too_great)
+              << Arg->getSourceRange() << Sema::MaximumAlignment;
+      }
     }
   }
 
@@ -5699,11 +6040,9 @@ bool Sema::SemaBuiltinAssumeAligned(CallExpr *TheCall) {
       return Diag(TheCall->getBeginLoc(), diag::err_alignment_not_power_of_two)
              << Arg->getSourceRange();
 
-    // Alignment calculations can wrap around if it's greater than 2**29.
-    unsigned MaximumAlignment = 536870912;
-    if (Result > MaximumAlignment)
+    if (Result > Sema::MaximumAlignment)
       Diag(TheCall->getBeginLoc(), diag::warn_assume_aligned_too_great)
-          << Arg->getSourceRange() << MaximumAlignment;
+          << Arg->getSourceRange() << Sema::MaximumAlignment;
   }
 
   if (NumArgs > 2) {
@@ -11656,7 +11995,16 @@ static void AnalyzeImplicitConversions(Sema &S, Expr *OrigE, SourceLocation CC,
   if (E->isTypeDependent() || E->isValueDependent())
     return;
 
-  if (const auto *UO = dyn_cast<UnaryOperator>(E))
+  Expr *SourceExpr = E;
+  // Examine, but don't traverse into the source expression of an
+  // OpaqueValueExpr, since it may have multiple parents and we don't want to
+  // emit duplicate diagnostics. Its fine to examine the form or attempt to
+  // evaluate it in the context of checking the specific conversion to T though.
+  if (auto *OVE = dyn_cast<OpaqueValueExpr>(E))
+    if (auto *Src = OVE->getSourceExpr())
+      SourceExpr = Src;
+
+  if (const auto *UO = dyn_cast<UnaryOperator>(SourceExpr))
     if (UO->getOpcode() == UO_Not &&
         UO->getSubExpr()->isKnownToHaveBooleanValue())
       S.Diag(UO->getBeginLoc(), diag::warn_bitwise_negation_bool)
@@ -11665,21 +12013,20 @@ static void AnalyzeImplicitConversions(Sema &S, Expr *OrigE, SourceLocation CC,
 
   // For conditional operators, we analyze the arguments as if they
   // were being fed directly into the output.
-  if (isa<ConditionalOperator>(E)) {
-    ConditionalOperator *CO = cast<ConditionalOperator>(E);
+  if (auto *CO = dyn_cast<ConditionalOperator>(SourceExpr)) {
     CheckConditionalOperator(S, CO, CC, T);
     return;
   }
 
   // Check implicit argument conversions for function calls.
-  if (CallExpr *Call = dyn_cast<CallExpr>(E))
+  if (CallExpr *Call = dyn_cast<CallExpr>(SourceExpr))
     CheckImplicitArgumentConversions(S, Call, CC);
 
   // Go ahead and check any implicit conversions we might have skipped.
   // The non-canonical typecheck is just an optimization;
   // CheckImplicitConversion will filter out dead implicit conversions.
-  if (E->getType() != T)
-    CheckImplicitConversion(S, E, T, CC, nullptr, IsListInit);
+  if (SourceExpr->getType() != T)
+    CheckImplicitConversion(S, SourceExpr, T, CC, nullptr, IsListInit);
 
   // Now continue drilling into this expression.
 

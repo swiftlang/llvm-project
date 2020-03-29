@@ -252,21 +252,24 @@ static Error emitRemarks(const LinkOptions &Options, StringRef BinaryPath,
   return Error::success();
 }
 
-ErrorOr<DwarfLinkerObjFile &>
+ErrorOr<DwarfFile &>
 DwarfLinkerForBinary::loadObject(const DebugMapObject &Obj,
                                  const DebugMap &DebugMap,
                                  remarks::RemarkLinker &RL) {
   auto ErrorOrObj = loadObject(Obj, DebugMap.getTriple());
 
   if (ErrorOrObj) {
-    ObjectsForLinking.push_back(
-        std::unique_ptr<DwarfLinkerObjFile>(new DwarfLinkerObjFile(
-            Obj.getObjectFilename(), &*ErrorOrObj, Obj.getWarnings())));
+    ContextForLinking.push_back(
+        std::unique_ptr<DWARFContext>(DWARFContext::create(*ErrorOrObj)));
+    AddressMapForLinking.push_back(
+        std::make_unique<AddressManager>(*this, *ErrorOrObj, Obj));
 
-    ObjectsForLinking.back()->Addresses.reset(
-        new AddressManager(*this, *ErrorOrObj, Obj));
+    ObjectsForLinking.push_back(std::make_unique<DwarfFile>(
+        Obj.getObjectFilename(), ContextForLinking.back().get(),
+        AddressMapForLinking.back().get(),
+        Obj.empty() ? Obj.getWarnings() : EmptyWarnings));
 
-    Error E = RL.link(*ObjectsForLinking.back()->ObjFile);
+    Error E = RL.link(*ErrorOrObj);
     if (Error NewE = handleErrors(
             std::move(E), [&](std::unique_ptr<FileError> EC) -> Error {
               return remarksErrorHandler(Obj, *this, std::move(EC));
@@ -284,15 +287,17 @@ bool DwarfLinkerForBinary::link(const DebugMap &Map) {
     return false;
 
   ObjectsForLinking.clear();
+  ContextForLinking.clear();
+  AddressMapForLinking.clear();
 
   DebugMap DebugMap(Map.getTriple(), Map.getBinaryPath());
 
-  DWARFLinker GeneralLinker(Map.getTriple(), Streamer.get(),
-                            DwarfLinkerClient::Dsymutil);
+  DWARFLinker GeneralLinker(Streamer.get(), DwarfLinkerClient::Dsymutil);
 
   remarks::RemarkLinker RL;
   if (!Options.RemarksPrependPath.empty())
     RL.setExternalFilePrependPath(Options.RemarksPrependPath);
+  GeneralLinker.setObjectPrefixMap(&Options.ObjectPrefixMap);
 
   std::function<StringRef(StringRef)> TranslationLambda = [&](StringRef Input) {
     assert(Options.Translator);
@@ -318,7 +323,7 @@ bool DwarfLinkerForBinary::link(const DebugMap &Map) {
       });
   GeneralLinker.setObjFileLoader(
       [&DebugMap, &RL, this](StringRef ContainerName,
-                             StringRef Path) -> ErrorOr<DwarfLinkerObjFile &> {
+                             StringRef Path) -> ErrorOr<DwarfFile &> {
         auto &Obj = DebugMap.addDebugMapObject(
             Path, sys::TimePoint<std::chrono::seconds>(), MachO::N_OSO);
 
@@ -413,9 +418,9 @@ bool DwarfLinkerForBinary::link(const DebugMap &Map) {
     if (auto ErrorOrObj = loadObject(*Obj, Map, RL))
       GeneralLinker.addObjectFile(*ErrorOrObj);
     else {
-      ObjectsForLinking.push_back(
-          std::unique_ptr<DwarfLinkerObjFile>(new DwarfLinkerObjFile(
-              Obj->getObjectFilename(), nullptr, Obj->getWarnings())));
+      ObjectsForLinking.push_back(std::make_unique<DwarfFile>(
+          Obj->getObjectFilename(), nullptr, nullptr,
+          Obj->empty() ? Obj->getWarnings() : EmptyWarnings));
       GeneralLinker.addObjectFile(*ObjectsForLinking.back());
     }
   }

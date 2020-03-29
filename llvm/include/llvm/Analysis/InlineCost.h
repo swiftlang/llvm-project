@@ -27,6 +27,7 @@ class DataLayout;
 class Function;
 class ProfileSummaryInfo;
 class TargetTransformInfo;
+class TargetLibraryInfo;
 
 namespace InlineConstants {
 // Various thresholds used by inline cost analysis.
@@ -48,7 +49,7 @@ const int ColdccPenalty = 2000;
 /// Do not inline functions which allocate this many bytes on the stack
 /// when the caller is recursive.
 const unsigned TotalAllocaSizeRecursiveCaller = 1024;
-}
+} // namespace InlineConstants
 
 /// Represents the cost of inlining a function.
 ///
@@ -61,16 +62,13 @@ const unsigned TotalAllocaSizeRecursiveCaller = 1024;
 /// directly tested to determine if inlining should occur given the cost and
 /// threshold for this cost metric.
 class InlineCost {
-  enum SentinelValues {
-    AlwaysInlineCost = INT_MIN,
-    NeverInlineCost = INT_MAX
-  };
+  enum SentinelValues { AlwaysInlineCost = INT_MIN, NeverInlineCost = INT_MAX };
 
   /// The estimated cost of inlining this callsite.
-  int Cost;
+  int Cost = 0;
 
   /// The adjusted threshold against which this cost was computed.
-  int Threshold;
+  int Threshold = 0;
 
   /// Must be set for Always and Never instances.
   const char *Reason = nullptr;
@@ -96,9 +94,7 @@ public:
   }
 
   /// Test whether the inline cost is low enough for inlining.
-  explicit operator bool() const {
-    return Cost < Threshold;
-  }
+  explicit operator bool() const { return Cost < Threshold; }
 
   bool isAlways() const { return Cost == AlwaysInlineCost; }
   bool isNever() const { return Cost == NeverInlineCost; }
@@ -160,7 +156,7 @@ public:
 
 struct InlineParams {
   /// The default threshold to start with for a callee.
-  int DefaultThreshold;
+  int DefaultThreshold = -1;
 
   /// Threshold to use for callees with inline hint.
   Optional<int> HintThreshold;
@@ -224,6 +220,7 @@ InlineCost getInlineCost(
     CallBase &Call, const InlineParams &Params, TargetTransformInfo &CalleeTTI,
     std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
     Optional<function_ref<BlockFrequencyInfo &(Function &)>> GetBFI,
+    function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
     ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE = nullptr);
 
 /// Get an InlineCost with the callee explicitly specified.
@@ -236,10 +233,11 @@ getInlineCost(CallBase &Call, Function *Callee, const InlineParams &Params,
               TargetTransformInfo &CalleeTTI,
               std::function<AssumptionCache &(Function &)> &GetAssumptionCache,
               Optional<function_ref<BlockFrequencyInfo &(Function &)>> GetBFI,
+              function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
               ProfileSummaryInfo *PSI, OptimizationRemarkEmitter *ORE);
 
 /// Minimal filter to detect invalid constructs for inlining.
 InlineResult isInlineViable(Function &Callee);
-}
+} // namespace llvm
 
 #endif

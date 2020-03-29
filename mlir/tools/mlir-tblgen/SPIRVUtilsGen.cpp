@@ -1,6 +1,6 @@
 //===- SPIRVSerializationGen.cpp - SPIR-V serialization utility generator -===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -85,6 +85,9 @@ public:
   // Returns the C++ type for an availability instance.
   StringRef getMergeInstanceType() const;
 
+  // Returns the C++ statements for preparing availability instance.
+  StringRef getMergeInstancePreparation() const;
+
   // Returns the concrete availability instance carried in this case.
   StringRef getMergeInstance() const;
 
@@ -135,6 +138,10 @@ StringRef Availability::getMergeInitializer() const {
 
 StringRef Availability::getMergeInstanceType() const {
   return def->getValueAsString("instanceType");
+}
+
+StringRef Availability::getMergeInstancePreparation() const {
+  return def->getValueAsString("instancePreparation");
 }
 
 StringRef Availability::getMergeInstance() const {
@@ -222,7 +229,8 @@ static void emitModelDecl(const Availability &availability, raw_ostream &os) {
 static void emitInterfaceDecl(const Availability &availability,
                               raw_ostream &os) {
   StringRef interfaceName = availability.getInterfaceClassName();
-  std::string interfaceTraitsName = formatv("{0}Traits", interfaceName);
+  std::string interfaceTraitsName =
+      std::string(formatv("{0}Traits", interfaceName));
 
   // Emit the traits struct containing the concept and model declarations.
   os << "namespace detail {\n"
@@ -320,9 +328,9 @@ static void emitAvailabilityQueryForIntEnum(const Record &enumDef,
     for (const auto &caseSpecPair : classCasePair.getValue()) {
       EnumAttrCase enumerant = caseSpecPair.first;
       Availability avail = caseSpecPair.second;
-      os << formatv("  case {0}::{1}: return {2}({3});\n", enumName,
-                    enumerant.getSymbol(), avail.getMergeInstanceType(),
-                    avail.getMergeInstance());
+      os << formatv("  case {0}::{1}: { {2} return {3}({4}); }\n", enumName,
+                    enumerant.getSymbol(), avail.getMergeInstancePreparation(),
+                    avail.getMergeInstanceType(), avail.getMergeInstance());
     }
     // Only emit default if uncovered cases.
     if (classCasePair.getValue().size() < enumAttr.getAllCases().size())
@@ -337,7 +345,7 @@ static void emitAvailabilityQueryForBitEnum(const Record &enumDef,
                                             raw_ostream &os) {
   EnumAttr enumAttr(enumDef);
   StringRef enumName = enumAttr.getEnumClassName();
-  std::string underlyingType = enumAttr.getUnderlyingType();
+  std::string underlyingType = std::string(enumAttr.getUnderlyingType());
   std::vector<EnumAttrCase> enumerants = enumAttr.getAllCases();
 
   // Mapping from availability class name to (enumerant, availability
@@ -367,9 +375,9 @@ static void emitAvailabilityQueryForBitEnum(const Record &enumDef,
     for (const auto &caseSpecPair : classCasePair.getValue()) {
       EnumAttrCase enumerant = caseSpecPair.first;
       Availability avail = caseSpecPair.second;
-      os << formatv("  case {0}::{1}: return {2}({3});\n", enumName,
-                    enumerant.getSymbol(), avail.getMergeInstanceType(),
-                    avail.getMergeInstance());
+      os << formatv("  case {0}::{1}: { {2} return {3}({4}); }\n", enumName,
+                    enumerant.getSymbol(), avail.getMergeInstancePreparation(),
+                    avail.getMergeInstanceType(), avail.getMergeInstance());
     }
     os << "  default: break;\n";
     os << "  }\n"
@@ -1161,7 +1169,7 @@ static mlir::GenRegistration
 
 static void emitAvailabilityImpl(const Operator &srcOp, raw_ostream &os) {
   mlir::tblgen::FmtContext fctx;
-  fctx.addSubst("overall", "overall");
+  fctx.addSubst("overall", "tblgen_overall");
 
   std::vector<Availability> opAvailabilities =
       getAvailabilities(srcOp.getDef());
@@ -1194,16 +1202,23 @@ static void emitAvailabilityImpl(const Operator &srcOp, raw_ostream &os) {
                   srcOp.getCppClassName(), avail.getQueryFnName());
 
     // Create the variable for the final requirement and initialize it.
-    os << formatv("  {0} overall = {1};\n", avail.getQueryFnRetType(),
+    os << formatv("  {0} tblgen_overall = {1};\n", avail.getQueryFnRetType(),
                   avail.getMergeInitializer());
 
     // Update with the op's specific availability spec.
     for (const Availability &avail : opAvailabilities)
-      if (avail.getClass() == availClassName) {
-        os << "  "
-           << tgfmt(avail.getMergeActionCode(),
-                    &fctx.addSubst("instance", avail.getMergeInstance()))
-           << ";\n";
+      if (avail.getClass() == availClassName &&
+          (!avail.getMergeInstancePreparation().empty() ||
+           !avail.getMergeActionCode().empty())) {
+        os << "  {\n    "
+           // Prepare this instance.
+           << avail.getMergeInstancePreparation()
+           << "\n    "
+           // Merge this instance.
+           << std::string(
+                  tgfmt(avail.getMergeActionCode(),
+                        &fctx.addSubst("instance", avail.getMergeInstance())))
+           << ";\n  }\n";
       }
 
     // Update with enum attributes' specific availability spec.
@@ -1234,30 +1249,32 @@ static void emitAvailabilityImpl(const Operator &srcOp, raw_ostream &os) {
         os << formatv("  for (unsigned i = 0; "
                       "i < std::numeric_limits<{0}>::digits; ++i) {{\n",
                       enumAttr->getUnderlyingType());
-        os << formatv("    {0}::{1} attrVal = this->{2}() & "
+        os << formatv("    {0}::{1} tblgen_attrVal = this->{2}() & "
                       "static_cast<{0}::{1}>(1 << i);\n",
                       enumAttr->getCppNamespace(), enumAttr->getEnumClassName(),
                       namedAttr.name);
-        os << formatv("    if (static_cast<{0}>(attrVal) == 0) continue;\n",
-                      enumAttr->getUnderlyingType());
+        os << formatv(
+            "    if (static_cast<{0}>(tblgen_attrVal) == 0) continue;\n",
+            enumAttr->getUnderlyingType());
       } else {
         // For IntEnumAttr, we just need to query the value as a whole.
         os << "  {\n";
-        os << formatv("    auto attrVal = this->{0}();\n", namedAttr.name);
+        os << formatv("    auto tblgen_attrVal = this->{0}();\n",
+                      namedAttr.name);
       }
-      os << formatv("    auto instance = {0}::{1}(attrVal);\n",
+      os << formatv("    auto tblgen_instance = {0}::{1}(tblgen_attrVal);\n",
                     enumAttr->getCppNamespace(), avail.getQueryFnName());
-      os << "    if (instance) "
+      os << "    if (tblgen_instance) "
          // TODO(antiagainst): use `avail.getMergeCode()` here once ODS supports
          // dialect-specific contents so that we can use not implementing the
          // availability interface as indication of no requirements.
-         << tgfmt(caseSpecs.front().second.getMergeActionCode(),
-                  &fctx.addSubst("instance", "*instance"))
+         << std::string(tgfmt(caseSpecs.front().second.getMergeActionCode(),
+                              &fctx.addSubst("instance", "*tblgen_instance")))
          << ";\n";
       os << "  }\n";
     }
 
-    os << "  return overall;\n";
+    os << "  return tblgen_overall;\n";
     os << "}\n";
   }
 }

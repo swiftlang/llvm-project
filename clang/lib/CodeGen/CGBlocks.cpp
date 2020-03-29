@@ -868,13 +868,13 @@ static void enterBlockScope(CodeGenFunction &CGF, BlockDecl *block) {
 }
 
 /// Enter a full-expression with a non-trivial number of objects to
-/// clean up.  This is in this file because, at the moment, the only
-/// kind of cleanup object is a BlockDecl*.
+/// clean up.
 void CodeGenFunction::enterNonTrivialFullExpression(const FullExpr *E) {
   if (const auto EWC = dyn_cast<ExprWithCleanups>(E)) {
     assert(EWC->getNumObjects() != 0);
     for (const ExprWithCleanups::CleanupObject &C : EWC->getObjects())
-      enterBlockScope(*this, C);
+      if (auto *BD = C.dyn_cast<BlockDecl *>())
+        enterBlockScope(*this, BD);
   }
 }
 
@@ -2092,11 +2092,13 @@ CodeGenFunction::GenerateCopyHelperFunction(const CGBlockInfo &blockInfo) {
   FunctionDecl *FD = FunctionDecl::Create(
       C, C.getTranslationUnitDecl(), SourceLocation(), SourceLocation(), II,
       FunctionTy, nullptr, SC_Static, false, false);
-
   setBlockHelperAttributesVisibility(blockInfo.CapturesNonExternalType, Fn, FI,
                                      CGM);
+  // This is necessary to avoid inheriting the previous line number.
+  FD->setImplicit();
   StartFunction(FD, ReturnTy, Fn, FI, args);
-  ApplyDebugLocation NL{*this, blockInfo.getBlockExpr()->getBeginLoc()};
+  auto AL = ApplyDebugLocation::CreateArtificial(*this);
+
   llvm::Type *structPtrTy = blockInfo.StructureType->getPointerTo();
 
   Address src = GetAddrOfLocalVar(&SrcDecl);
@@ -2295,10 +2297,12 @@ CodeGenFunction::GenerateDestroyHelperFunction(const CGBlockInfo &blockInfo) {
 
   setBlockHelperAttributesVisibility(blockInfo.CapturesNonExternalType, Fn, FI,
                                      CGM);
+  // This is necessary to avoid inheriting the previous line number.
+  FD->setImplicit();
   StartFunction(FD, ReturnTy, Fn, FI, args);
   markAsIgnoreThreadCheckingAtRuntime(Fn);
 
-  ApplyDebugLocation NL{*this, blockInfo.getBlockExpr()->getBeginLoc()};
+  auto AL = ApplyDebugLocation::CreateArtificial(*this);
 
   llvm::Type *structPtrTy = blockInfo.StructureType->getPointerTo();
 

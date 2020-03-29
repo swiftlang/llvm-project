@@ -124,13 +124,17 @@ void Parser::CheckForTemplateAndDigraph(Token &Next, ParsedType ObjectType,
 /// the "." or "->" of a member access expression, this parameter provides the
 /// type of the object whose members are being accessed.
 ///
+/// \param ObjectHadErrors if this unqualified-id occurs within a member access
+/// expression, indicates whether the original subexpressions had any errors.
+/// When true, diagnostics for missing 'template' keyword will be supressed.
+///
 /// \param EnteringContext whether we will be entering into the context of
 /// the nested-name-specifier after parsing it.
 ///
 /// \param MayBePseudoDestructor When non-NULL, points to a flag that
 /// indicates whether this nested-name-specifier may be part of a
 /// pseudo-destructor name. In this case, the flag will be set false
-/// if we don't actually end up parsing a destructor name. Moreorover,
+/// if we don't actually end up parsing a destructor name. Moreover,
 /// if we do end up determining that we are parsing a destructor name,
 /// the last component of the nested-name-specifier is not parsed as
 /// part of the scope specifier.
@@ -146,14 +150,10 @@ void Parser::CheckForTemplateAndDigraph(Token &Next, ParsedType ObjectType,
 ///
 ///
 /// \returns true if there was an error parsing a scope specifier
-bool Parser::ParseOptionalCXXScopeSpecifier(CXXScopeSpec &SS,
-                                            ParsedType ObjectType,
-                                            bool EnteringContext,
-                                            bool *MayBePseudoDestructor,
-                                            bool IsTypename,
-                                            IdentifierInfo **LastII,
-                                            bool OnlyNamespace,
-                                            bool InUsingDeclaration) {
+bool Parser::ParseOptionalCXXScopeSpecifier(
+    CXXScopeSpec &SS, ParsedType ObjectType, bool ObjectHadErrors,
+    bool EnteringContext, bool *MayBePseudoDestructor, bool IsTypename,
+    IdentifierInfo **LastII, bool OnlyNamespace, bool InUsingDeclaration) {
   assert(getLangOpts().CPlusPlus &&
          "Call sites of this function should be guarded by checking for C++");
 
@@ -316,13 +316,11 @@ bool Parser::ParseOptionalCXXScopeSpecifier(CXXScopeSpec &SS,
       // Commit to parsing the template-id.
       TPA.Commit();
       TemplateTy Template;
-      if (TemplateNameKind TNK = Actions.ActOnDependentTemplateName(
-              getCurScope(), SS, TemplateKWLoc, TemplateName, ObjectType,
-              EnteringContext, Template, /*AllowInjectedClassName*/ true)) {
-        if (AnnotateTemplateIdToken(Template, TNK, SS, TemplateKWLoc,
-                                    TemplateName, false))
-          return true;
-      } else
+      TemplateNameKind TNK = Actions.ActOnTemplateName(
+          getCurScope(), SS, TemplateKWLoc, TemplateName, ObjectType,
+          EnteringContext, Template, /*AllowInjectedClassName*/ true);
+      if (AnnotateTemplateIdToken(Template, TNK, SS, TemplateKWLoc,
+                                  TemplateName, false))
         return true;
 
       continue;
@@ -356,7 +354,8 @@ bool Parser::ParseOptionalCXXScopeSpecifier(CXXScopeSpec &SS,
       ASTTemplateArgsPtr TemplateArgsPtr(TemplateId->getTemplateArgs(),
                                          TemplateId->NumArgs);
 
-      if (Actions.ActOnCXXNestedNameSpecifier(getCurScope(),
+      if (TemplateId->isInvalid() ||
+          Actions.ActOnCXXNestedNameSpecifier(getCurScope(),
                                               SS,
                                               TemplateId->TemplateKWLoc,
                                               TemplateId->Template,
@@ -418,8 +417,7 @@ bool Parser::ParseOptionalCXXScopeSpecifier(CXXScopeSpec &SS,
     }
 
     if (Next.is(tok::coloncolon)) {
-      if (CheckForDestructor && GetLookAheadToken(2).is(tok::tilde) &&
-          !Actions.isNonTypeNestedNameSpecifier(getCurScope(), SS, IdInfo)) {
+      if (CheckForDestructor && GetLookAheadToken(2).is(tok::tilde)) {
         *MayBePseudoDestructor = true;
         return false;
       }
@@ -512,28 +510,29 @@ bool Parser::ParseOptionalCXXScopeSpecifier(CXXScopeSpec &SS,
 
       if (MemberOfUnknownSpecialization && (ObjectType || SS.isSet()) &&
           (IsTypename || isTemplateArgumentList(1) == TPResult::True)) {
-        // We have something like t::getAs<T>, where getAs is a
-        // member of an unknown specialization. However, this will only
-        // parse correctly as a template, so suggest the keyword 'template'
-        // before 'getAs' and treat this as a dependent template name.
-        unsigned DiagID = diag::err_missing_dependent_template_keyword;
-        if (getLangOpts().MicrosoftExt)
-          DiagID = diag::warn_missing_dependent_template_keyword;
+        // If we had errors before, ObjectType can be dependent even without any
+        // templates. Do not report missing template keyword in that case.
+        if (!ObjectHadErrors) {
+          // We have something like t::getAs<T>, where getAs is a
+          // member of an unknown specialization. However, this will only
+          // parse correctly as a template, so suggest the keyword 'template'
+          // before 'getAs' and treat this as a dependent template name.
+          unsigned DiagID = diag::err_missing_dependent_template_keyword;
+          if (getLangOpts().MicrosoftExt)
+            DiagID = diag::warn_missing_dependent_template_keyword;
 
-        Diag(Tok.getLocation(), DiagID)
-          << II.getName()
-          << FixItHint::CreateInsertion(Tok.getLocation(), "template ");
-
-        if (TemplateNameKind TNK = Actions.ActOnDependentTemplateName(
-                getCurScope(), SS, Tok.getLocation(), TemplateName, ObjectType,
-                EnteringContext, Template, /*AllowInjectedClassName*/ true)) {
-          // Consume the identifier.
-          ConsumeToken();
-          if (AnnotateTemplateIdToken(Template, TNK, SS, SourceLocation(),
-                                      TemplateName, false))
-            return true;
+          Diag(Tok.getLocation(), DiagID)
+              << II.getName()
+              << FixItHint::CreateInsertion(Tok.getLocation(), "template ");
         }
-        else
+
+        SourceLocation TemplateNameLoc = ConsumeToken();
+
+        TemplateNameKind TNK = Actions.ActOnTemplateName(
+            getCurScope(), SS, TemplateNameLoc, TemplateName, ObjectType,
+            EnteringContext, Template, /*AllowInjectedClassName*/ true);
+        if (AnnotateTemplateIdToken(Template, TNK, SS, SourceLocation(),
+                                    TemplateName, false))
           return true;
 
         continue;
@@ -548,7 +547,7 @@ bool Parser::ParseOptionalCXXScopeSpecifier(CXXScopeSpec &SS,
   // Even if we didn't see any pieces of a nested-name-specifier, we
   // still check whether there is a tilde in this position, which
   // indicates a potential pseudo-destructor.
-  if (CheckForDestructor && Tok.is(tok::tilde))
+  if (CheckForDestructor && !HasScopeSpecifier && Tok.is(tok::tilde))
     *MayBePseudoDestructor = true;
 
   return false;
@@ -594,12 +593,12 @@ ExprResult Parser::tryParseCXXIdExpression(CXXScopeSpec &SS,
   default:
     SourceLocation TemplateKWLoc;
     UnqualifiedId Name;
-    if (ParseUnqualifiedId(SS,
+    if (ParseUnqualifiedId(SS, /*ObjectType=*/nullptr,
+                           /*ObjectHadErrors=*/false,
                            /*EnteringContext=*/false,
                            /*AllowDestructorName=*/false,
                            /*AllowConstructorName=*/false,
-                           /*AllowDeductionGuide=*/false,
-                           /*ObjectType=*/nullptr, &TemplateKWLoc, Name))
+                           /*AllowDeductionGuide=*/false, &TemplateKWLoc, Name))
       return ExprError();
 
     // This is only the direct operand of an & operator if it is not
@@ -667,7 +666,9 @@ ExprResult Parser::ParseCXXIdExpression(bool isAddressOfOperand) {
   //   '::' unqualified-id
   //
   CXXScopeSpec SS;
-  ParseOptionalCXXScopeSpecifier(SS, nullptr, /*EnteringContext=*/false);
+  ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
+                                 /*ObjectHadErrors=*/false,
+                                 /*EnteringContext=*/false);
 
   Token Replacement;
   ExprResult Result =
@@ -1303,7 +1304,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
 
       ParseParameterDeclarationClause(D.getContext(), Attr, ParamInfo,
                                       EllipsisLoc);
-      // For a generic lambda, each 'auto' within the parameter declaration 
+      // For a generic lambda, each 'auto' within the parameter declaration
       // clause creates a template type parameter, so increment the depth.
       // If we've parsed any explicit template parameters, then the depth will
       // have already been incremented. So we make sure that at most a single
@@ -1689,31 +1690,42 @@ ExprResult Parser::ParseCXXUuidof() {
 
 /// Parse a C++ pseudo-destructor expression after the base,
 /// . or -> operator, and nested-name-specifier have already been
-/// parsed.
+/// parsed. We're handling this fragment of the grammar:
 ///
-///       postfix-expression: [C++ 5.2]
-///         postfix-expression . pseudo-destructor-name
-///         postfix-expression -> pseudo-destructor-name
+///       postfix-expression: [C++2a expr.post]
+///         postfix-expression . template[opt] id-expression
+///         postfix-expression -> template[opt] id-expression
 ///
-///       pseudo-destructor-name:
-///         ::[opt] nested-name-specifier[opt] type-name :: ~type-name
-///         ::[opt] nested-name-specifier template simple-template-id ::
-///                 ~type-name
-///         ::[opt] nested-name-specifier[opt] ~type-name
+///       id-expression:
+///         qualified-id
+///         unqualified-id
 ///
+///       qualified-id:
+///         nested-name-specifier template[opt] unqualified-id
+///
+///       nested-name-specifier:
+///         type-name ::
+///         decltype-specifier ::    FIXME: not implemented, but probably only
+///                                         allowed in C++ grammar by accident
+///         nested-name-specifier identifier ::
+///         nested-name-specifier template[opt] simple-template-id ::
+///         [...]
+///
+///       unqualified-id:
+///         ~ type-name
+///         ~ decltype-specifier
+///         [...]
+///
+/// ... where the all but the last component of the nested-name-specifier
+/// has already been parsed, and the base expression is not of a non-dependent
+/// class type.
 ExprResult
 Parser::ParseCXXPseudoDestructor(Expr *Base, SourceLocation OpLoc,
                                  tok::TokenKind OpKind,
                                  CXXScopeSpec &SS,
                                  ParsedType ObjectType) {
-  // We're parsing either a pseudo-destructor-name or a dependent
-  // member access that has the same form as a
-  // pseudo-destructor-name. We parse both in the same way and let
-  // the action model sort them out.
-  //
-  // Note that the ::[opt] nested-name-specifier[opt] has already
-  // been parsed, and if there was a simple-template-id, it has
-  // been coalesced into a template-id annotation token.
+  // If the last component of the (optional) nested-name-specifier is
+  // template[opt] simple-template-id, it has already been annotated.
   UnqualifiedId FirstTypeName;
   SourceLocation CCLoc;
   if (Tok.is(tok::identifier)) {
@@ -1722,14 +1734,16 @@ Parser::ParseCXXPseudoDestructor(Expr *Base, SourceLocation OpLoc,
     assert(Tok.is(tok::coloncolon) &&"ParseOptionalCXXScopeSpecifier fail");
     CCLoc = ConsumeToken();
   } else if (Tok.is(tok::annot_template_id)) {
-    // FIXME: retrieve TemplateKWLoc from template-id annotation and
-    // store it in the pseudo-dtor node (to be used when instantiating it).
-    FirstTypeName.setTemplateId(
-                              (TemplateIdAnnotation *)Tok.getAnnotationValue());
+    TemplateIdAnnotation *TemplateId = takeTemplateIdAnnotation(Tok);
+    // FIXME: Carry on and build an AST representation for tooling.
+    if (TemplateId->isInvalid())
+      return ExprError();
+    FirstTypeName.setTemplateId(TemplateId);
     ConsumeAnnotationToken();
     assert(Tok.is(tok::coloncolon) &&"ParseOptionalCXXScopeSpecifier fail");
     CCLoc = ConsumeToken();
   } else {
+    assert(SS.isEmpty() && "missing last component of nested name specifier");
     FirstTypeName.setIdentifier(nullptr, SourceLocation());
   }
 
@@ -1737,7 +1751,7 @@ Parser::ParseCXXPseudoDestructor(Expr *Base, SourceLocation OpLoc,
   assert(Tok.is(tok::tilde) && "ParseOptionalCXXScopeSpecifier fail");
   SourceLocation TildeLoc = ConsumeToken();
 
-  if (Tok.is(tok::kw_decltype) && !FirstTypeName.isValid() && SS.isEmpty()) {
+  if (Tok.is(tok::kw_decltype) && !FirstTypeName.isValid()) {
     DeclSpec DS(AttrFactory);
     ParseDecltypeSpecifier(DS);
     if (DS.getTypeSpecType() == TST_error)
@@ -1759,11 +1773,17 @@ Parser::ParseCXXPseudoDestructor(Expr *Base, SourceLocation OpLoc,
 
   // If there is a '<', the second type name is a template-id. Parse
   // it as such.
+  //
+  // FIXME: This is not a context in which a '<' is assumed to start a template
+  // argument list. This affects examples such as
+  //   void f(auto *p) { p->~X<int>(); }
+  // ... but there's no ambiguity, and nowhere to write 'template' in such an
+  // example, so we accept it anyway.
   if (Tok.is(tok::less) &&
-      ParseUnqualifiedIdTemplateId(SS, SourceLocation(),
-                                   Name, NameLoc,
-                                   false, ObjectType, SecondTypeName,
-                                   /*AssumeTemplateId=*/true))
+      ParseUnqualifiedIdTemplateId(
+          SS, ObjectType, Base && Base->containsErrors(), SourceLocation(),
+          Name, NameLoc, false, SecondTypeName,
+          /*AssumeTemplateId=*/true))
     return ExprError();
 
   return Actions.ActOnPseudoDestructorExpr(getCurScope(), Base, OpLoc, OpKind,
@@ -1857,6 +1877,7 @@ Parser::ParseCXXTypeConstructExpression(const DeclSpec &DS) {
          && "Expected '(' or '{'!");
 
   if (Tok.is(tok::l_brace)) {
+    PreferredType.enterTypeCast(Tok.getLocation(), TypeRep.get());
     ExprResult Init = ParseBraceInitializer();
     if (Init.isInvalid())
       return Init;
@@ -2249,6 +2270,12 @@ bool Parser::ParseCXXTypeSpecifierSeq(DeclSpec &DS) {
 /// \param SS the nested-name-specifier that precedes this template-id, if
 /// we're actually parsing a qualified-id.
 ///
+/// \param ObjectType if this unqualified-id occurs within a member access
+/// expression, the type of the base object whose member is being accessed.
+///
+/// \param ObjectHadErrors this unqualified-id occurs within a member access
+/// expression, indicates whether the original subexpressions had any errors.
+///
 /// \param Name for constructor and destructor names, this is the actual
 /// identifier that may be a template-name.
 ///
@@ -2258,9 +2285,6 @@ bool Parser::ParseCXXTypeSpecifierSeq(DeclSpec &DS) {
 /// \param EnteringContext whether we're entering the scope of the
 /// nested-name-specifier.
 ///
-/// \param ObjectType if this unqualified-id occurs within a member access
-/// expression, the type of the base object whose member is being accessed.
-///
 /// \param Id as input, describes the template-name or operator-function-id
 /// that precedes the '<'. If template arguments were parsed successfully,
 /// will be updated with the template-id.
@@ -2269,14 +2293,10 @@ bool Parser::ParseCXXTypeSpecifierSeq(DeclSpec &DS) {
 /// refers to a template without performing name lookup to verify.
 ///
 /// \returns true if a parse error occurred, false otherwise.
-bool Parser::ParseUnqualifiedIdTemplateId(CXXScopeSpec &SS,
-                                          SourceLocation TemplateKWLoc,
-                                          IdentifierInfo *Name,
-                                          SourceLocation NameLoc,
-                                          bool EnteringContext,
-                                          ParsedType ObjectType,
-                                          UnqualifiedId &Id,
-                                          bool AssumeTemplateId) {
+bool Parser::ParseUnqualifiedIdTemplateId(
+    CXXScopeSpec &SS, ParsedType ObjectType, bool ObjectHadErrors,
+    SourceLocation TemplateKWLoc, IdentifierInfo *Name, SourceLocation NameLoc,
+    bool EnteringContext, UnqualifiedId &Id, bool AssumeTemplateId) {
   assert(Tok.is(tok::less) && "Expected '<' to finish parsing a template-id");
 
   TemplateTy Template;
@@ -2288,11 +2308,9 @@ bool Parser::ParseUnqualifiedIdTemplateId(CXXScopeSpec &SS,
     if (AssumeTemplateId) {
       // We defer the injected-class-name checks until we've found whether
       // this template-id is used to form a nested-name-specifier or not.
-      TNK = Actions.ActOnDependentTemplateName(
-          getCurScope(), SS, TemplateKWLoc, Id, ObjectType, EnteringContext,
-          Template, /*AllowInjectedClassName*/ true);
-      if (TNK == TNK_Non_template)
-        return true;
+      TNK = Actions.ActOnTemplateName(getCurScope(), SS, TemplateKWLoc, Id,
+                                      ObjectType, EnteringContext, Template,
+                                      /*AllowInjectedClassName*/ true);
     } else {
       bool MemberOfUnknownSpecialization;
       TNK = Actions.isTemplateName(getCurScope(), SS,
@@ -2308,28 +2326,32 @@ bool Parser::ParseUnqualifiedIdTemplateId(CXXScopeSpec &SS,
 
       if (TNK == TNK_Non_template && MemberOfUnknownSpecialization &&
           ObjectType && isTemplateArgumentList(0) == TPResult::True) {
-        // We have something like t->getAs<T>(), where getAs is a
-        // member of an unknown specialization. However, this will only
-        // parse correctly as a template, so suggest the keyword 'template'
-        // before 'getAs' and treat this as a dependent template name.
-        std::string Name;
-        if (Id.getKind() == UnqualifiedIdKind::IK_Identifier)
-          Name = Id.Identifier->getName();
-        else {
-          Name = "operator ";
-          if (Id.getKind() == UnqualifiedIdKind::IK_OperatorFunctionId)
-            Name += getOperatorSpelling(Id.OperatorFunctionId.Operator);
-          else
-            Name += Id.Identifier->getName();
+        // If we had errors before, ObjectType can be dependent even without any
+        // templates, do not report missing template keyword in that case.
+        if (!ObjectHadErrors) {
+          // We have something like t->getAs<T>(), where getAs is a
+          // member of an unknown specialization. However, this will only
+          // parse correctly as a template, so suggest the keyword 'template'
+          // before 'getAs' and treat this as a dependent template name.
+          std::string Name;
+          if (Id.getKind() == UnqualifiedIdKind::IK_Identifier)
+            Name = std::string(Id.Identifier->getName());
+          else {
+            Name = "operator ";
+            if (Id.getKind() == UnqualifiedIdKind::IK_OperatorFunctionId)
+              Name += getOperatorSpelling(Id.OperatorFunctionId.Operator);
+            else
+              Name += Id.Identifier->getName();
+          }
+          Diag(Id.StartLocation, diag::err_missing_dependent_template_keyword)
+              << Name
+              << FixItHint::CreateInsertion(Id.StartLocation, "template ");
         }
-        Diag(Id.StartLocation, diag::err_missing_dependent_template_keyword)
-          << Name
-          << FixItHint::CreateInsertion(Id.StartLocation, "template ");
-        TNK = Actions.ActOnDependentTemplateName(
+        TNK = Actions.ActOnTemplateName(
             getCurScope(), SS, TemplateKWLoc, Id, ObjectType, EnteringContext,
             Template, /*AllowInjectedClassName*/ true);
-        if (TNK == TNK_Non_template)
-          return true;
+      } else if (TNK == TNK_Non_template) {
+        return false;
       }
     }
     break;
@@ -2342,6 +2364,8 @@ bool Parser::ParseUnqualifiedIdTemplateId(CXXScopeSpec &SS,
                                  TemplateName, ObjectType,
                                  EnteringContext, Template,
                                  MemberOfUnknownSpecialization);
+    if (TNK == TNK_Non_template)
+      return false;
     break;
   }
 
@@ -2350,11 +2374,9 @@ bool Parser::ParseUnqualifiedIdTemplateId(CXXScopeSpec &SS,
     bool MemberOfUnknownSpecialization;
     TemplateName.setIdentifier(Name, NameLoc);
     if (ObjectType) {
-      TNK = Actions.ActOnDependentTemplateName(
+      TNK = Actions.ActOnTemplateName(
           getCurScope(), SS, TemplateKWLoc, TemplateName, ObjectType,
           EnteringContext, Template, /*AllowInjectedClassName*/ true);
-      if (TNK == TNK_Non_template)
-        return true;
     } else {
       TNK = Actions.isTemplateName(getCurScope(), SS, TemplateKWLoc.isValid(),
                                    TemplateName, ObjectType,
@@ -2364,7 +2386,7 @@ bool Parser::ParseUnqualifiedIdTemplateId(CXXScopeSpec &SS,
       if (TNK == TNK_Non_template && !Id.DestructorName.get()) {
         Diag(NameLoc, diag::err_destructor_template_id)
           << Name << SS.getRange();
-        return true;
+        // Carry on to parse the template arguments before bailing out.
       }
     }
     break;
@@ -2374,14 +2396,15 @@ bool Parser::ParseUnqualifiedIdTemplateId(CXXScopeSpec &SS,
     return false;
   }
 
-  if (TNK == TNK_Non_template)
-    return false;
-
   // Parse the enclosed template argument list.
   SourceLocation LAngleLoc, RAngleLoc;
   TemplateArgList TemplateArgs;
   if (ParseTemplateIdAfterTemplateName(true, LAngleLoc, TemplateArgs,
                                        RAngleLoc))
+    return true;
+
+  // If this is a non-template, we already issued a diagnostic.
+  if (TNK == TNK_Non_template)
     return true;
 
   if (Id.getKind() == UnqualifiedIdKind::IK_Identifier ||
@@ -2401,7 +2424,7 @@ bool Parser::ParseUnqualifiedIdTemplateId(CXXScopeSpec &SS,
 
     TemplateIdAnnotation *TemplateId = TemplateIdAnnotation::Create(
         TemplateKWLoc, Id.StartLocation, TemplateII, OpKind, Template, TNK,
-        LAngleLoc, RAngleLoc, TemplateArgs, TemplateIds);
+        LAngleLoc, RAngleLoc, TemplateArgs, /*ArgsInvalid*/false, TemplateIds);
 
     Id.setTemplateId(TemplateId);
     return false;
@@ -2681,6 +2704,13 @@ bool Parser::ParseUnqualifiedIdOperator(CXXScopeSpec &SS, bool EnteringContext,
 /// \param SS The nested-name-specifier that preceded this unqualified-id. If
 /// non-empty, then we are parsing the unqualified-id of a qualified-id.
 ///
+/// \param ObjectType if this unqualified-id occurs within a member access
+/// expression, the type of the base object whose member is being accessed.
+///
+/// \param ObjectHadErrors if this unqualified-id occurs within a member access
+/// expression, indicates whether the original subexpressions had any errors.
+/// When true, diagnostics for missing 'template' keyword will be supressed.
+///
 /// \param EnteringContext whether we are entering the scope of the
 /// nested-name-specifier.
 ///
@@ -2690,17 +2720,14 @@ bool Parser::ParseUnqualifiedIdOperator(CXXScopeSpec &SS, bool EnteringContext,
 ///
 /// \param AllowDeductionGuide whether we allow parsing a deduction guide name.
 ///
-/// \param ObjectType if this unqualified-id occurs within a member access
-/// expression, the type of the base object whose member is being accessed.
-///
 /// \param Result on a successful parse, contains the parsed unqualified-id.
 ///
 /// \returns true if parsing fails, false otherwise.
-bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
+bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, ParsedType ObjectType,
+                                bool ObjectHadErrors, bool EnteringContext,
                                 bool AllowDestructorName,
                                 bool AllowConstructorName,
                                 bool AllowDeductionGuide,
-                                ParsedType ObjectType,
                                 SourceLocation *TemplateKWLoc,
                                 UnqualifiedId &Result) {
   if (TemplateKWLoc)
@@ -2759,10 +2786,11 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
     TemplateTy Template;
     if (Tok.is(tok::less))
       return ParseUnqualifiedIdTemplateId(
-          SS, TemplateKWLoc ? *TemplateKWLoc : SourceLocation(), Id, IdLoc,
-          EnteringContext, ObjectType, Result, TemplateSpecified);
+          SS, ObjectType, ObjectHadErrors,
+          TemplateKWLoc ? *TemplateKWLoc : SourceLocation(), Id, IdLoc,
+          EnteringContext, Result, TemplateSpecified);
     else if (TemplateSpecified &&
-             Actions.ActOnDependentTemplateName(
+             Actions.ActOnTemplateName(
                  getCurScope(), SS, *TemplateKWLoc, Result, ObjectType,
                  EnteringContext, Template,
                  /*AllowInjectedClassName*/ true) == TNK_Non_template)
@@ -2775,6 +2803,13 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
   //   template-id (already parsed and annotated)
   if (Tok.is(tok::annot_template_id)) {
     TemplateIdAnnotation *TemplateId = takeTemplateIdAnnotation(Tok);
+
+    // FIXME: Consider passing invalid template-ids on to callers; they may
+    // be able to recover better than we can.
+    if (TemplateId->isInvalid()) {
+      ConsumeAnnotationToken();
+      return true;
+    }
 
     // If the template-name names the current class, then this is a constructor
     if (AllowConstructorName && TemplateId->Name &&
@@ -2837,11 +2872,11 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
          Result.getKind() == UnqualifiedIdKind::IK_LiteralOperatorId) &&
         Tok.is(tok::less))
       return ParseUnqualifiedIdTemplateId(
-          SS, TemplateKWLoc ? *TemplateKWLoc : SourceLocation(), nullptr,
-          SourceLocation(), EnteringContext, ObjectType, Result,
-          TemplateSpecified);
+          SS, ObjectType, ObjectHadErrors,
+          TemplateKWLoc ? *TemplateKWLoc : SourceLocation(), nullptr,
+          SourceLocation(), EnteringContext, Result, TemplateSpecified);
     else if (TemplateSpecified &&
-             Actions.ActOnDependentTemplateName(
+             Actions.ActOnTemplateName(
                  getCurScope(), SS, *TemplateKWLoc, Result, ObjectType,
                  EnteringContext, Template,
                  /*AllowInjectedClassName*/ true) == TNK_Non_template)
@@ -2859,6 +2894,22 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
 
     // Parse the '~'.
     SourceLocation TildeLoc = ConsumeToken();
+
+    if (TemplateSpecified) {
+      // C++ [temp.names]p3:
+      //   A name prefixed by the keyword template shall be a template-id [...]
+      //
+      // A template-id cannot begin with a '~' token. This would never work
+      // anyway: x.~A<int>() would specify that the destructor is a template,
+      // not that 'A' is a template.
+      //
+      // FIXME: Suggest replacing the attempted destructor name with a correct
+      // destructor name and recover. (This is not trivial if this would become
+      // a pseudo-destructor name).
+      Diag(*TemplateKWLoc, diag::err_unexpected_template_in_destructor_name)
+        << Tok.getLocation();
+      return true;
+    }
 
     if (SS.isEmpty() && Tok.is(tok::kw_decltype)) {
       DeclSpec DS(AttrFactory);
@@ -2879,7 +2930,7 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
 
     // If the user wrote ~T::T, correct it to T::~T.
     DeclaratorScopeObj DeclScopeObj(*this, SS);
-    if (!TemplateSpecified && NextToken().is(tok::coloncolon)) {
+    if (NextToken().is(tok::coloncolon)) {
       // Don't let ParseOptionalCXXScopeSpecifier() "correct"
       // `int A; struct { ~A::A(); };` to `int A; struct { ~A:A(); };`,
       // it will confuse this recovery logic.
@@ -2889,7 +2940,8 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
         AnnotateScopeToken(SS, /*NewAnnotation*/true);
         SS.clear();
       }
-      if (ParseOptionalCXXScopeSpecifier(SS, ObjectType, EnteringContext))
+      if (ParseOptionalCXXScopeSpecifier(SS, ObjectType, ObjectHadErrors,
+                                         EnteringContext))
         return true;
       if (SS.isNotEmpty())
         ObjectType = nullptr;
@@ -2916,8 +2968,9 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
     if (Tok.is(tok::less)) {
       Result.setDestructorName(TildeLoc, nullptr, ClassNameLoc);
       return ParseUnqualifiedIdTemplateId(
-          SS, TemplateKWLoc ? *TemplateKWLoc : SourceLocation(), ClassName,
-          ClassNameLoc, EnteringContext, ObjectType, Result, TemplateSpecified);
+          SS, ObjectType, ObjectHadErrors,
+          TemplateKWLoc ? *TemplateKWLoc : SourceLocation(), ClassName,
+          ClassNameLoc, EnteringContext, Result, TemplateSpecified);
     }
 
     // Note that this is a destructor name.
@@ -3374,25 +3427,6 @@ ExprResult Parser::ParseRequiresExpression() {
           Diag(Tok, diag::err_requires_expr_missing_arrow)
               << FixItHint::CreateInsertion(Tok.getLocation(), "->");
         // Try to parse a 'type-constraint'
-        CXXScopeSpec SS;
-        if (ParseOptionalCXXScopeSpecifier(SS, ParsedType(),
-                                           /*EnteringContext=*/false,
-                                           /*MayBePseudoDestructor=*/nullptr,
-                                           // If this is not a type-constraint,
-                                           // then this scope-spec is part of
-                                           // the typename of a non-type
-                                           // template parameter
-                                           /*IsTypename=*/true,
-                                           /*LastII=*/nullptr,
-                                           // We won't find concepts in
-                                           // non-namespaces anyway, so might as
-                                           // well parse this correctly for
-                                           // possible type names.
-                                           /*OnlyNamespace=*/false,
-                                           /*SuppressDiagnostic=*/true)) {
-          SkipUntil(tok::semi, tok::r_brace, SkipUntilFlags::StopBeforeMatch);
-          break;
-        }
         if (TryAnnotateTypeConstraint()) {
           SkipUntil(tok::semi, tok::r_brace, SkipUntilFlags::StopBeforeMatch);
           break;
@@ -3402,8 +3436,13 @@ ExprResult Parser::ParseRequiresExpression() {
           SkipUntil(tok::semi, tok::r_brace, SkipUntilFlags::StopBeforeMatch);
           break;
         }
-        if (Tok.is(tok::annot_cxxscope))
+        CXXScopeSpec SS;
+        if (Tok.is(tok::annot_cxxscope)) {
+          Actions.RestoreNestedNameSpecifierAnnotation(Tok.getAnnotationValue(),
+                                                       Tok.getAnnotationRange(),
+                                                       SS);
           ConsumeAnnotationToken();
+        }
 
         Req = Actions.ActOnCompoundRequirement(
             Expression.get(), NoexceptLoc, SS, takeTemplateIdAnnotation(Tok),
@@ -3490,6 +3529,7 @@ ExprResult Parser::ParseRequiresExpression() {
           // We need to consume the typename to allow 'requires { typename a; }'
           SourceLocation TypenameKWLoc = ConsumeToken();
           if (TryAnnotateCXXScopeToken()) {
+            TPA.Commit();
             SkipUntil(tok::semi, tok::r_brace, SkipUntilFlags::StopBeforeMatch);
             break;
           }
@@ -3512,6 +3552,8 @@ ExprResult Parser::ParseRequiresExpression() {
             } else {
               TemplateId = takeTemplateIdAnnotation(Tok);
               ConsumeAnnotationToken();
+              if (TemplateId->isInvalid())
+                break;
             }
 
             if (auto *Req = Actions.ActOnTypeRequirement(TypenameKWLoc, SS,

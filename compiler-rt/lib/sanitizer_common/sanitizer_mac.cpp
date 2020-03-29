@@ -208,6 +208,10 @@ uptr internal_getpid() {
   return getpid();
 }
 
+int internal_dlinfo(void *handle, int request, void *p) {
+  UNIMPLEMENTED();
+}
+
 int internal_sigaction(int signum, const void *act, void *oldact) {
   return sigaction(signum,
                    (const struct sigaction *)act, (struct sigaction *)oldact);
@@ -242,7 +246,8 @@ int internal_sysctlbyname(const char *sname, void *oldp, uptr *oldlenp,
                       (size_t)newlen);
 }
 
-static fd_t internal_spawn_impl(const char *argv[], pid_t *pid) {
+static fd_t internal_spawn_impl(const char *argv[], const char *envp[],
+                                pid_t *pid) {
   fd_t master_fd = kInvalidFd;
   fd_t slave_fd = kInvalidFd;
 
@@ -298,8 +303,8 @@ static fd_t internal_spawn_impl(const char *argv[], pid_t *pid) {
 
   // posix_spawn
   char **argv_casted = const_cast<char **>(argv);
-  char **env = GetEnviron();
-  res = posix_spawn(pid, argv[0], &acts, &attrs, argv_casted, env);
+  char **envp_casted = const_cast<char **>(envp);
+  res = posix_spawn(pid, argv[0], &acts, &attrs, argv_casted, envp_casted);
   if (res != 0) return kInvalidFd;
 
   // Disable echo in the new terminal, disable CR.
@@ -316,7 +321,7 @@ static fd_t internal_spawn_impl(const char *argv[], pid_t *pid) {
   return fd;
 }
 
-fd_t internal_spawn(const char *argv[], pid_t *pid) {
+fd_t internal_spawn(const char *argv[], const char *envp[], pid_t *pid) {
   // The client program may close its stdin and/or stdout and/or stderr thus
   // allowing open/posix_openpt to reuse file descriptors 0, 1 or 2. In this
   // case the communication is broken if either the parent or the child tries to
@@ -331,7 +336,7 @@ fd_t internal_spawn(const char *argv[], pid_t *pid) {
       break;
   }
 
-  fd_t fd = internal_spawn_impl(argv, pid);
+  fd_t fd = internal_spawn_impl(argv, envp, pid);
 
   for (; count > 0; count--) {
     internal_close(low_fds[count]);
@@ -677,13 +682,13 @@ uptr GetRSS() {
   return info.resident_size;
 }
 
-void *internal_start_thread(void(*func)(void *arg), void *arg) {
+void *internal_start_thread(void *(*func)(void *arg), void *arg) {
   // Start the thread with signals blocked, otherwise it can steal user signals.
   __sanitizer_sigset_t set, old;
   internal_sigfillset(&set);
   internal_sigprocmask(SIG_SETMASK, &set, &old);
   pthread_t th;
-  pthread_create(&th, 0, (void*(*)(void *arg))func, arg);
+  pthread_create(&th, 0, func, arg);
   internal_sigprocmask(SIG_SETMASK, &old, 0);
   return th;
 }

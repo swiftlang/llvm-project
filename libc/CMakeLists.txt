@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.4.3)
 
+# Use old version of target_sources command which converts the source
+# file paths to full paths.
+cmake_policy(SET CMP0076 OLD)
 list(APPEND CMAKE_MODULE_PATH  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
 # The top-level source directory of libc.
@@ -18,14 +21,22 @@ set(LIBC_TARGET_MACHINE ${CMAKE_SYSTEM_PROCESSOR})
 
 include(CMakeParseArguments)
 include(LLVMLibCRules)
+include(LLVMLibCCheckCpuFeatures)
 
 add_subdirectory(src)
 add_subdirectory(config)
 add_subdirectory(include)
 add_subdirectory(utils)
 
+# The loader can potentially depend on the library components so add it
+# after the library implementation directories.
+add_subdirectory(loader)
+
 # The lib and test directories are added at the very end as tests
 # and libraries potentially draw from the components present in all
 # of the other directories.
 add_subdirectory(lib)
-add_subdirectory(test)
+if(LLVM_INCLUDE_TESTS)
+  add_subdirectory(test)
+  add_subdirectory(fuzzing)
+endif()

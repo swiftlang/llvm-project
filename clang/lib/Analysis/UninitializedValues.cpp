@@ -475,6 +475,7 @@ public:
   void VisitCallExpr(CallExpr *ce);
   void VisitDeclRefExpr(DeclRefExpr *dr);
   void VisitDeclStmt(DeclStmt *ds);
+  void VisitGCCAsmStmt(GCCAsmStmt *as);
   void VisitObjCForCollectionStmt(ObjCForCollectionStmt *FS);
   void VisitObjCMessageExpr(ObjCMessageExpr *ME);
   void VisitOMPExecutableDirective(OMPExecutableDirective *ED);
@@ -573,6 +574,28 @@ public:
           // and go no further down this path.
           Use.setUninitAfterDecl();
           continue;
+        }
+
+        if (AtPredExit == MayUninitialized) {
+          // If the predecessor's terminator is an "asm goto" that initializes
+          // the variable, then it won't be counted as "initialized" on the
+          // non-fallthrough paths.
+          CFGTerminator term = Pred->getTerminator();
+          if (const auto *as = dyn_cast_or_null<GCCAsmStmt>(term.getStmt())) {
+            const CFGBlock *fallthrough = *Pred->succ_begin();
+            if (as->isAsmGoto() &&
+                llvm::any_of(as->outputs(), [&](const Expr *output) {
+                    return vd == findVar(output).getDecl() &&
+                        llvm::any_of(as->labels(),
+                                     [&](const AddrLabelExpr *label) {
+                          return label->getLabel()->getStmt() == B->Label &&
+                              B != fallthrough;
+                        });
+                })) {
+              Use.setUninitAfterDecl();
+              continue;
+            }
+          }
         }
 
         unsigned &SV = SuccsVisited[Pred->getBlockID()];
@@ -760,6 +783,20 @@ void TransferFunctions::VisitDeclStmt(DeclStmt *DS) {
   }
 }
 
+void TransferFunctions::VisitGCCAsmStmt(GCCAsmStmt *as) {
+  // An "asm goto" statement is a terminator that may initialize some variables.
+  if (!as->isAsmGoto())
+    return;
+
+  for (const Expr *o : as->outputs())
+    if (const VarDecl *VD = findVar(o).getDecl())
+      if (vals[VD] != Initialized)
+        // If the variable isn't initialized by the time we get here, then we
+        // mark it as potentially uninitialized for those cases where it's used
+        // on an indirect path, where it's not guaranteed to be defined.
+        vals[VD] = MayUninitialized;
+}
+
 void TransferFunctions::VisitObjCMessageExpr(ObjCMessageExpr *ME) {
   // If the Objective-C message expression is an implicit no-return that
   // is not modeled in the CFG, set the tracked dataflow values to Unknown.
@@ -797,6 +834,10 @@ static bool runOnBlock(const CFGBlock *block, const CFG &cfg,
     if (Optional<CFGStmt> cs = I.getAs<CFGStmt>())
       tf.Visit(const_cast<Stmt *>(cs->getStmt()));
   }
+  CFGTerminator terminator = block->getTerminator();
+  if (auto *as = dyn_cast_or_null<GCCAsmStmt>(terminator.getStmt()))
+    if (as->isAsmGoto())
+      tf.Visit(as);
   return vals.updateValueVectorWithScratch(block);
 }
 

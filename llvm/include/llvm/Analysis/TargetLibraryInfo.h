@@ -129,7 +129,7 @@ public:
   void setAvailableWithName(LibFunc F, StringRef Name) {
     if (StandardNames[F] != Name) {
       setState(F, CustomName);
-      CustomNames[F] = Name;
+      CustomNames[F] = std::string(Name);
       assert(CustomNames.find(F) != CustomNames.end());
     } else {
       setState(F, StandardName);
@@ -258,6 +258,21 @@ public:
     Impl = TLI.Impl;
     OverrideAsUnavailable = TLI.OverrideAsUnavailable;
     return *this;
+  }
+
+  /// Determine whether a callee with the given TLI can be inlined into
+  /// caller with this TLI, based on 'nobuiltin' attributes. When requested,
+  /// allow inlining into a caller with a superset of the callee's nobuiltin
+  /// attributes, which is conservatively correct.
+  bool areInlineCompatible(const TargetLibraryInfo &CalleeTLI,
+                           bool AllowCallerSuperset) const {
+    if (!AllowCallerSuperset)
+      return OverrideAsUnavailable == CalleeTLI.OverrideAsUnavailable;
+    BitVector B = OverrideAsUnavailable;
+    B |= CalleeTLI.OverrideAsUnavailable;
+    // We can inline if the union of the caller and callee's nobuiltin
+    // attributes is no stricter than the caller's nobuiltin attributes.
+    return B == OverrideAsUnavailable;
   }
 
   /// Searches for a particular function name.

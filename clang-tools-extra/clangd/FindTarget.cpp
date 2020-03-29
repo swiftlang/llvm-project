@@ -31,11 +31,13 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
+#include <iterator>
 #include <utility>
 #include <vector>
 
@@ -46,7 +48,7 @@ using ast_type_traits::DynTypedNode;
 
 LLVM_ATTRIBUTE_UNUSED std::string
 nodeToString(const ast_type_traits::DynTypedNode &N) {
-  std::string S = N.getNodeKind().asStringRef();
+  std::string S = std::string(N.getNodeKind().asStringRef());
   {
     llvm::raw_string_ostream OS(S);
     OS << ": ";
@@ -75,6 +77,11 @@ std::vector<const NamedDecl *> getMembersReferencedViaDependentName(
     bool IsNonstaticMember) {
   if (!T)
     return {};
+  if (auto *ET = T->getAs<EnumType>()) {
+    auto Result =
+        ET->getDecl()->lookup(NameFactory(ET->getDecl()->getASTContext()));
+    return {Result.begin(), Result.end()};
+  }
   if (auto *ICNT = T->getAs<InjectedClassNameType>()) {
     T = ICNT->getInjectedSpecializationType().getTypePtrOrNull();
   }
@@ -139,7 +146,14 @@ const Type *getPointeeType(const Type *T) {
 
 const NamedDecl *getTemplatePattern(const NamedDecl *D) {
   if (const CXXRecordDecl *CRD = dyn_cast<CXXRecordDecl>(D)) {
-    return CRD->getTemplateInstantiationPattern();
+    if (const auto *Result = CRD->getTemplateInstantiationPattern())
+      return Result;
+    // getTemplateInstantiationPattern returns null if the Specialization is
+    // incomplete (e.g. the type didn't need to be complete), fall back to the
+    // primary template.
+    if (CRD->getTemplateSpecializationKind() == TSK_Undeclared)
+      if (const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(CRD))
+        return Spec->getSpecializedTemplate()->getTemplatedDecl();
   } else if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     return FD->getTemplateInstantiationPattern();
   } else if (auto *VD = dyn_cast<VarDecl>(D)) {
@@ -231,7 +245,7 @@ public:
   }
 
   void add(const Decl *Dcl, RelSet Flags) {
-    const NamedDecl *D = llvm::dyn_cast<NamedDecl>(Dcl);
+    const NamedDecl *D = llvm::dyn_cast_or_null<NamedDecl>(Dcl);
     if (!D)
       return;
     debug(*D, Flags);
@@ -377,6 +391,10 @@ public:
 
       void VisitTagType(const TagType *TT) {
         Outer.add(TT->getAsTagDecl(), Flags);
+      }
+
+      void VisitElaboratedType(const ElaboratedType *ET) {
+        Outer.add(ET->desugar(), Flags);
       }
 
       void VisitInjectedClassNameType(const InjectedClassNameType *ICNT) {
@@ -619,7 +637,7 @@ llvm::SmallVector<ReferenceLoc, 2> refInDecl(const Decl *D) {
 
 llvm::SmallVector<ReferenceLoc, 2> refInExpr(const Expr *E) {
   struct Visitor : ConstStmtVisitor<Visitor> {
-    // FIXME: handle more complicated cases, e.g. ObjC, designated initializers.
+    // FIXME: handle more complicated cases: more ObjC, designated initializers.
     llvm::SmallVector<ReferenceLoc, 2> Refs;
 
     void VisitConceptSpecializationExpr(const ConceptSpecializationExpr *E) {
@@ -659,6 +677,25 @@ llvm::SmallVector<ReferenceLoc, 2> refInExpr(const Expr *E) {
                                   E->getPackLoc(),
                                   /*IsDecl=*/false,
                                   {E->getPack()}});
+    }
+
+    void VisitObjCPropertyRefExpr(const ObjCPropertyRefExpr *E) {
+      Refs.push_back(ReferenceLoc{
+          NestedNameSpecifierLoc(), E->getLocation(),
+          /*IsDecl=*/false,
+          // Select the getter, setter, or @property depending on the call.
+          explicitReferenceTargets(DynTypedNode::create(*E), {})});
+    }
+
+    void VisitDesignatedInitExpr(const DesignatedInitExpr *DIE) {
+      for (const DesignatedInitExpr::Designator &D : DIE->designators()) {
+        if (!D.isFieldDesignator())
+          continue;
+        Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                    D.getFieldLoc(),
+                                    /*IsDecl=*/false,
+                                    {D.getField()}});
+      }
     }
   };
 
@@ -778,6 +815,20 @@ public:
   bool VisitExpr(Expr *E) {
     visitNode(DynTypedNode::create(*E));
     return true;
+  }
+
+  bool TraverseOpaqueValueExpr(OpaqueValueExpr *OVE) {
+    visitNode(DynTypedNode::create(*OVE));
+    // Not clear why the source expression is skipped by default...
+    // FIXME: can we just make RecursiveASTVisitor do this?
+    return RecursiveASTVisitor::TraverseStmt(OVE->getSourceExpr());
+  }
+
+  bool TraversePseudoObjectExpr(PseudoObjectExpr *POE) {
+    visitNode(DynTypedNode::create(*POE));
+    // Traverse only the syntactic form to find the *written* references.
+    // (The semantic form also contains lots of duplication)
+    return RecursiveASTVisitor::TraverseStmt(POE->getSyntacticForm());
   }
 
   // We re-define Traverse*, since there's no corresponding Visit*.

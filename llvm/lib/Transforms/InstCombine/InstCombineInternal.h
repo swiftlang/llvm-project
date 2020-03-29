@@ -313,9 +313,6 @@ private:
   // Mode in which we are running the combiner.
   const bool MinimizeSize;
 
-  /// Enable combines that trigger rarely but are costly in compiletime.
-  const bool ExpensiveCombines;
-
   AliasAnalysis *AA;
 
   // Required analyses.
@@ -336,12 +333,12 @@ private:
 
 public:
   InstCombiner(InstCombineWorklist &Worklist, BuilderTy &Builder,
-               bool MinimizeSize, bool ExpensiveCombines, AliasAnalysis *AA,
+               bool MinimizeSize, AliasAnalysis *AA,
                AssumptionCache &AC, TargetLibraryInfo &TLI, DominatorTree &DT,
                OptimizationRemarkEmitter &ORE, BlockFrequencyInfo *BFI,
                ProfileSummaryInfo *PSI, const DataLayout &DL, LoopInfo *LI)
       : Worklist(Worklist), Builder(Builder), MinimizeSize(MinimizeSize),
-        ExpensiveCombines(ExpensiveCombines), AA(AA), AC(AC), TLI(TLI), DT(DT),
+        AA(AA), AC(AC), TLI(TLI), DT(DT),
         DL(DL), SQ(DL, &TLI, &DT, &AC), ORE(ORE), BFI(BFI), PSI(PSI), LI(LI) {}
 
   /// Run the combiner over the entire worklist until it is empty.
@@ -445,8 +442,7 @@ public:
   Instruction *visitShuffleVectorInst(ShuffleVectorInst &SVI);
   Instruction *visitExtractValueInst(ExtractValueInst &EV);
   Instruction *visitLandingPadInst(LandingPadInst &LI);
-  Instruction *visitVAStartInst(VAStartInst &I);
-  Instruction *visitVACopyInst(VACopyInst &I);
+  Instruction *visitVAEndInst(VAEndInst &I);
   Instruction *visitFreeze(FreezeInst &I);
 
   /// Specify what to return for unhandled instructions.
@@ -649,7 +645,7 @@ public:
            "New instruction already inserted into a basic block!");
     BasicBlock *BB = Old.getParent();
     BB->getInstList().insert(Old.getIterator(), New); // Insert inst
-    Worklist.Add(New);
+    Worklist.push(New);
     return New;
   }
 
@@ -670,7 +666,7 @@ public:
     // no changes were made to the program.
     if (I.use_empty()) return nullptr;
 
-    Worklist.AddUsersToWorkList(I); // Add all modified instrs to worklist.
+    Worklist.pushUsersToWorkList(I); // Add all modified instrs to worklist.
 
     // If we are replacing the instruction with itself, this must be in a
     // segment of unreachable code, so just clobber the instruction.
@@ -681,6 +677,13 @@ public:
                       << "    with " << *V << '\n');
 
     I.replaceAllUsesWith(V);
+    return &I;
+  }
+
+  /// Replace operand of instruction and add old operand to the worklist.
+  Instruction *replaceOperand(Instruction &I, unsigned OpNum, Value *V) {
+    Worklist.addValue(I.getOperand(OpNum));
+    I.setOperand(OpNum, V);
     return &I;
   }
 
@@ -719,9 +722,9 @@ public:
     if (I.getNumOperands() < 8) {
       for (Use &Operand : I.operands())
         if (auto *Inst = dyn_cast<Instruction>(Operand))
-          Worklist.Add(Inst);
+          Worklist.add(Inst);
     }
-    Worklist.Remove(&I);
+    Worklist.remove(&I);
     I.eraseFromParent();
     MadeIRChange = true;
     return nullptr; // Don't do anything with FI
@@ -895,11 +898,6 @@ private:
   Instruction *FoldPHIArgGEPIntoPHI(PHINode &PN);
   Instruction *FoldPHIArgLoadIntoPHI(PHINode &PN);
   Instruction *FoldPHIArgZextsIntoPHI(PHINode &PN);
-
-  /// If an integer typed PHI has only one use which is an IntToPtr operation,
-  /// replace the PHI with an existing pointer typed PHI if it exists. Otherwise
-  /// insert a new pointer typed PHI and replace the original one.
-  Instruction *FoldIntegerTypedPHI(PHINode &PN);
 
   /// Helper function for FoldPHIArgXIntoPHI() to set debug location for the
   /// folded operation.

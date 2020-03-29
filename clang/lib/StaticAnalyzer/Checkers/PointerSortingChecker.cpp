@@ -54,7 +54,7 @@ static void emitDiagnostics(const BoundNodes &Match, const Decl *D,
                      OS.str(), Location, Range);
 }
 
-auto callsName(const char *FunctionName) -> decltype(callee(functionDecl())) {
+decltype(auto) callsName(const char *FunctionName) {
   return callee(functionDecl(hasName(FunctionName)));
 }
 
@@ -108,6 +108,7 @@ void ento::registerPointerSortingChecker(CheckerManager &Mgr) {
   Mgr.registerChecker<PointerSortingChecker>();
 }
 
-bool ento::shouldRegisterPointerSortingChecker(const LangOptions &LO) {
+bool ento::shouldRegisterPointerSortingChecker(const CheckerManager &mgr) {
+  const LangOptions &LO = mgr.getLangOpts();
   return LO.CPlusPlus;
 }

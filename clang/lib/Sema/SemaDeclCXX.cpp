@@ -952,7 +952,7 @@ static std::string printTemplateArgs(const PrintingPolicy &PrintingPolicy,
     Arg.getArgument().print(PrintingPolicy, OS);
     First = false;
   }
-  return OS.str();
+  return std::string(OS.str());
 }
 
 static bool lookupStdTypeTraitMember(Sema &S, LookupResult &TraitMemberLookup,
@@ -2306,7 +2306,7 @@ static bool CheckConstexprFunctionBody(Sema &SemaRef, const FunctionDecl *Dcl,
       !Expr::isPotentialConstantExpr(Dcl, Diags)) {
     SemaRef.Diag(Dcl->getLocation(),
                  diag::ext_constexpr_function_never_constant_expr)
-        << isa<CXXConstructorDecl>(Dcl);
+        << isa<CXXConstructorDecl>(Dcl) << Dcl->isConsteval();
     for (size_t I = 0, N = Diags.size(); I != N; ++I)
       SemaRef.Diag(Diags[I].first, Diags[I].second);
     // Don't return false here: we allow this for compatibility in
@@ -5877,6 +5877,123 @@ static void checkForMultipleExportedDefaultConstructors(Sema &S,
   }
 }
 
+static void checkCUDADeviceBuiltinSurfaceClassTemplate(Sema &S,
+                                                       CXXRecordDecl *Class) {
+  bool ErrorReported = false;
+  auto reportIllegalClassTemplate = [&ErrorReported](Sema &S,
+                                                     ClassTemplateDecl *TD) {
+    if (ErrorReported)
+      return;
+    S.Diag(TD->getLocation(),
+           diag::err_cuda_device_builtin_surftex_cls_template)
+        << /*surface*/ 0 << TD;
+    ErrorReported = true;
+  };
+
+  ClassTemplateDecl *TD = Class->getDescribedClassTemplate();
+  if (!TD) {
+    auto *SD = dyn_cast<ClassTemplateSpecializationDecl>(Class);
+    if (!SD) {
+      S.Diag(Class->getLocation(),
+             diag::err_cuda_device_builtin_surftex_ref_decl)
+          << /*surface*/ 0 << Class;
+      S.Diag(Class->getLocation(),
+             diag::note_cuda_device_builtin_surftex_should_be_template_class)
+          << Class;
+      return;
+    }
+    TD = SD->getSpecializedTemplate();
+  }
+
+  TemplateParameterList *Params = TD->getTemplateParameters();
+  unsigned N = Params->size();
+
+  if (N != 2) {
+    reportIllegalClassTemplate(S, TD);
+    S.Diag(TD->getLocation(),
+           diag::note_cuda_device_builtin_surftex_cls_should_have_n_args)
+        << TD << 2;
+  }
+  if (N > 0 && !isa<TemplateTypeParmDecl>(Params->getParam(0))) {
+    reportIllegalClassTemplate(S, TD);
+    S.Diag(TD->getLocation(),
+           diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+        << TD << /*1st*/ 0 << /*type*/ 0;
+  }
+  if (N > 1) {
+    auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(Params->getParam(1));
+    if (!NTTP || !NTTP->getType()->isIntegralOrEnumerationType()) {
+      reportIllegalClassTemplate(S, TD);
+      S.Diag(TD->getLocation(),
+             diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+          << TD << /*2nd*/ 1 << /*integer*/ 1;
+    }
+  }
+}
+
+static void checkCUDADeviceBuiltinTextureClassTemplate(Sema &S,
+                                                       CXXRecordDecl *Class) {
+  bool ErrorReported = false;
+  auto reportIllegalClassTemplate = [&ErrorReported](Sema &S,
+                                                     ClassTemplateDecl *TD) {
+    if (ErrorReported)
+      return;
+    S.Diag(TD->getLocation(),
+           diag::err_cuda_device_builtin_surftex_cls_template)
+        << /*texture*/ 1 << TD;
+    ErrorReported = true;
+  };
+
+  ClassTemplateDecl *TD = Class->getDescribedClassTemplate();
+  if (!TD) {
+    auto *SD = dyn_cast<ClassTemplateSpecializationDecl>(Class);
+    if (!SD) {
+      S.Diag(Class->getLocation(),
+             diag::err_cuda_device_builtin_surftex_ref_decl)
+          << /*texture*/ 1 << Class;
+      S.Diag(Class->getLocation(),
+             diag::note_cuda_device_builtin_surftex_should_be_template_class)
+          << Class;
+      return;
+    }
+    TD = SD->getSpecializedTemplate();
+  }
+
+  TemplateParameterList *Params = TD->getTemplateParameters();
+  unsigned N = Params->size();
+
+  if (N != 3) {
+    reportIllegalClassTemplate(S, TD);
+    S.Diag(TD->getLocation(),
+           diag::note_cuda_device_builtin_surftex_cls_should_have_n_args)
+        << TD << 3;
+  }
+  if (N > 0 && !isa<TemplateTypeParmDecl>(Params->getParam(0))) {
+    reportIllegalClassTemplate(S, TD);
+    S.Diag(TD->getLocation(),
+           diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+        << TD << /*1st*/ 0 << /*type*/ 0;
+  }
+  if (N > 1) {
+    auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(Params->getParam(1));
+    if (!NTTP || !NTTP->getType()->isIntegralOrEnumerationType()) {
+      reportIllegalClassTemplate(S, TD);
+      S.Diag(TD->getLocation(),
+             diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+          << TD << /*2nd*/ 1 << /*integer*/ 1;
+    }
+  }
+  if (N > 2) {
+    auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(Params->getParam(2));
+    if (!NTTP || !NTTP->getType()->isIntegralOrEnumerationType()) {
+      reportIllegalClassTemplate(S, TD);
+      S.Diag(TD->getLocation(),
+             diag::note_cuda_device_builtin_surftex_cls_should_have_match_arg)
+          << TD << /*3rd*/ 2 << /*integer*/ 1;
+    }
+  }
+}
+
 void Sema::checkClassLevelCodeSegAttribute(CXXRecordDecl *Class) {
   // Mark any compiler-generated routines with the implicit code_seg attribute.
   for (auto *Method : Class->methods()) {
@@ -6172,27 +6289,31 @@ Sema::getDefaultedFunctionKind(const FunctionDecl *FD) {
   return DefaultedFunctionKind();
 }
 
-static void DefineImplicitSpecialMember(Sema &S, CXXMethodDecl *MD,
-                                        SourceLocation DefaultLoc) {
-  switch (S.getSpecialMember(MD)) {
+static void DefineDefaultedFunction(Sema &S, FunctionDecl *FD,
+                                    SourceLocation DefaultLoc) {
+  Sema::DefaultedFunctionKind DFK = S.getDefaultedFunctionKind(FD);
+  if (DFK.isComparison())
+    return S.DefineDefaultedComparison(DefaultLoc, FD, DFK.asComparison());
+
+  switch (DFK.asSpecialMember()) {
   case Sema::CXXDefaultConstructor:
     S.DefineImplicitDefaultConstructor(DefaultLoc,
-                                       cast<CXXConstructorDecl>(MD));
+                                       cast<CXXConstructorDecl>(FD));
     break;
   case Sema::CXXCopyConstructor:
-    S.DefineImplicitCopyConstructor(DefaultLoc, cast<CXXConstructorDecl>(MD));
+    S.DefineImplicitCopyConstructor(DefaultLoc, cast<CXXConstructorDecl>(FD));
     break;
   case Sema::CXXCopyAssignment:
-    S.DefineImplicitCopyAssignment(DefaultLoc, MD);
+    S.DefineImplicitCopyAssignment(DefaultLoc, cast<CXXMethodDecl>(FD));
     break;
   case Sema::CXXDestructor:
-    S.DefineImplicitDestructor(DefaultLoc, cast<CXXDestructorDecl>(MD));
+    S.DefineImplicitDestructor(DefaultLoc, cast<CXXDestructorDecl>(FD));
     break;
   case Sema::CXXMoveConstructor:
-    S.DefineImplicitMoveConstructor(DefaultLoc, cast<CXXConstructorDecl>(MD));
+    S.DefineImplicitMoveConstructor(DefaultLoc, cast<CXXConstructorDecl>(FD));
     break;
   case Sema::CXXMoveAssignment:
-    S.DefineImplicitMoveAssignment(DefaultLoc, MD);
+    S.DefineImplicitMoveAssignment(DefaultLoc, cast<CXXMethodDecl>(FD));
     break;
   case Sema::CXXInvalid:
     llvm_unreachable("Invalid special member.");
@@ -6313,6 +6434,27 @@ static bool canPassInRegisters(Sema &S, CXXRecordDecl *D,
   return HasNonDeletedCopyOrMove;
 }
 
+/// Report an error regarding overriding, along with any relevant
+/// overridden methods.
+///
+/// \param DiagID the primary error to report.
+/// \param MD the overriding method.
+static bool
+ReportOverrides(Sema &S, unsigned DiagID, const CXXMethodDecl *MD,
+                llvm::function_ref<bool(const CXXMethodDecl *)> Report) {
+  bool IssuedDiagnostic = false;
+  for (const CXXMethodDecl *O : MD->overridden_methods()) {
+    if (Report(O)) {
+      if (!IssuedDiagnostic) {
+        S.Diag(MD->getLocation(), DiagID) << MD->getDeclName();
+        IssuedDiagnostic = true;
+      }
+      S.Diag(O->getLocation(), diag::note_overridden_virtual_function);
+    }
+  }
+  return IssuedDiagnostic;
+}
+
 /// Perform semantic checks on a class definition that has been
 /// completing, introducing implicitly-declared members, checking for
 /// abstract types, etc.
@@ -6427,21 +6569,64 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
   // primary comparison functions (==, <=>).
   llvm::SmallVector<FunctionDecl*, 5> DefaultedSecondaryComparisons;
 
-  auto CheckForDefaultedFunction = [&](FunctionDecl *FD) {
-    if (!FD || FD->isInvalidDecl() || !FD->isExplicitlyDefaulted())
+  // Perform checks that can't be done until we know all the properties of a
+  // member function (whether it's defaulted, deleted, virtual, overriding,
+  // ...).
+  auto CheckCompletedMemberFunction = [&](CXXMethodDecl *MD) {
+    // A static function cannot override anything.
+    if (MD->getStorageClass() == SC_Static) {
+      if (ReportOverrides(*this, diag::err_static_overrides_virtual, MD,
+                          [](const CXXMethodDecl *) { return true; }))
+        return;
+    }
+
+    // A deleted function cannot override a non-deleted function and vice
+    // versa.
+    if (ReportOverrides(*this,
+                        MD->isDeleted() ? diag::err_deleted_override
+                                        : diag::err_non_deleted_override,
+                        MD, [&](const CXXMethodDecl *V) {
+                          return MD->isDeleted() != V->isDeleted();
+                        })) {
+      if (MD->isDefaulted() && MD->isDeleted())
+        // Explain why this defaulted function was deleted.
+        DiagnoseDeletedDefaultedFunction(MD);
       return;
+    }
+
+    // A consteval function cannot override a non-consteval function and vice
+    // versa.
+    if (ReportOverrides(*this,
+                        MD->isConsteval() ? diag::err_consteval_override
+                                          : diag::err_non_consteval_override,
+                        MD, [&](const CXXMethodDecl *V) {
+                          return MD->isConsteval() != V->isConsteval();
+                        })) {
+      if (MD->isDefaulted() && MD->isDeleted())
+        // Explain why this defaulted function was deleted.
+        DiagnoseDeletedDefaultedFunction(MD);
+      return;
+    }
+  };
+
+  auto CheckForDefaultedFunction = [&](FunctionDecl *FD) -> bool {
+    if (!FD || FD->isInvalidDecl() || !FD->isExplicitlyDefaulted())
+      return false;
 
     DefaultedFunctionKind DFK = getDefaultedFunctionKind(FD);
     if (DFK.asComparison() == DefaultedComparisonKind::NotEqual ||
-        DFK.asComparison() == DefaultedComparisonKind::Relational)
+        DFK.asComparison() == DefaultedComparisonKind::Relational) {
       DefaultedSecondaryComparisons.push_back(FD);
-    else
-      CheckExplicitlyDefaultedFunction(S, FD);
+      return true;
+    }
+
+    CheckExplicitlyDefaultedFunction(S, FD);
+    return false;
   };
 
   auto CompleteMemberFunction = [&](CXXMethodDecl *M) {
     // Check whether the explicitly-defaulted members are valid.
-    CheckForDefaultedFunction(M);
+    bool Incomplete = CheckForDefaultedFunction(M);
 
     // Skip the rest of the checks for a member of a dependent class.
     if (Record->isDependentType())
@@ -6488,7 +6673,10 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
     // function right away.
     // FIXME: We can defer doing this until the vtable is marked as used.
     if (M->isDefaulted() && M->isConstexpr() && M->size_overridden_methods())
-      DefineImplicitSpecialMember(*this, M, M->getLocation());
+      DefineDefaultedFunction(*this, M, M->getLocation());
+
+    if (!Incomplete)
+      CheckCompletedMemberFunction(M);
   };
 
   // Check the destructor before any other member function. We need to
@@ -6534,8 +6722,13 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
   }
 
   // Check the defaulted secondary comparisons after any other member functions.
-  for (FunctionDecl *FD : DefaultedSecondaryComparisons)
+  for (FunctionDecl *FD : DefaultedSecondaryComparisons) {
     CheckExplicitlyDefaultedFunction(S, FD);
+
+    // If this is a member function, we deferred checking it until now.
+    if (auto *MD = dyn_cast<CXXMethodDecl>(FD))
+      CheckCompletedMemberFunction(MD);
+  }
 
   // ms_struct is a request to use the same ABI rules as MSVC.  Check
   // whether this class uses any C++ features that are implemented
@@ -6580,6 +6773,13 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
     // If we want to emit all the vtables, we need to mark it as used.  This
     // is especially required for cases like vtable assumption loads.
     MarkVTableUsed(Record->getInnerLocStart(), Record);
+  }
+
+  if (getLangOpts().CUDA) {
+    if (Record->hasAttr<CUDADeviceBuiltinSurfaceTypeAttr>())
+      checkCUDADeviceBuiltinSurfaceClassTemplate(*this, Record);
+    else if (Record->hasAttr<CUDADeviceBuiltinTextureTypeAttr>())
+      checkCUDADeviceBuiltinTextureClassTemplate(*this, Record);
   }
 }
 
@@ -7083,7 +7283,9 @@ bool Sema::CheckExplicitlyDefaultedSpecialMember(CXXMethodDecl *MD,
     //   If a function is explicitly defaulted on its first declaration, it is
     //   implicitly considered to be constexpr if the implicit declaration
     //   would be.
-    MD->setConstexprKind(Constexpr ? CSK_constexpr : CSK_unspecified);
+    MD->setConstexprKind(
+        Constexpr ? (MD->isConsteval() ? CSK_consteval : CSK_constexpr)
+                  : CSK_unspecified);
 
     if (!Type->hasExceptionSpec()) {
       // C++2a [except.spec]p3:
@@ -7373,7 +7575,14 @@ private:
     ///   resolution [...]
     CandidateSet.exclude(FD);
 
-    S.LookupOverloadedBinOp(CandidateSet, OO, Fns, Args);
+    if (Args[0]->getType()->isOverloadableType())
+      S.LookupOverloadedBinOp(CandidateSet, OO, Fns, Args);
+    else {
+      // FIXME: We determine whether this is a valid expression by checking to
+      // see if there's a viable builtin operator candidate for it. That isn't
+      // really what the rules ask us to do, but should give the right results.
+      S.AddBuiltinOperatorCandidates(OO, FD->getLocation(), Args, CandidateSet);
+    }
 
     Result R;
 
@@ -7438,6 +7647,31 @@ private:
 
       if (OO == OO_Spaceship && FD->getReturnType()->isUndeducedAutoType()) {
         if (auto *BestFD = Best->Function) {
+          // If any callee has an undeduced return type, deduce it now.
+          // FIXME: It's not clear how a failure here should be handled. For
+          // now, we produce an eager diagnostic, because that is forward
+          // compatible with most (all?) other reasonable options.
+          if (BestFD->getReturnType()->isUndeducedType() &&
+              S.DeduceReturnType(BestFD, FD->getLocation(),
+                                 /*Diagnose=*/false)) {
+            // Don't produce a duplicate error when asked to explain why the
+            // comparison is deleted: we diagnosed that when initially checking
+            // the defaulted operator.
+            if (Diagnose == NoDiagnostics) {
+              S.Diag(
+                  FD->getLocation(),
+                  diag::err_defaulted_comparison_cannot_deduce_undeduced_auto)
+                  << Subobj.Kind << Subobj.Decl;
+              S.Diag(
+                  Subobj.Loc,
+                  diag::note_defaulted_comparison_cannot_deduce_undeduced_auto)
+                  << Subobj.Kind << Subobj.Decl;
+              S.Diag(BestFD->getLocation(),
+                     diag::note_defaulted_comparison_cannot_deduce_callee)
+                  << Subobj.Kind << Subobj.Decl;
+            }
+            return Result::deleted();
+          }
           if (auto *Info = S.Context.CompCategories.lookupInfoForType(
               BestFD->getCallResultType())) {
             R.Category = Info->Kind;
@@ -7826,10 +8060,14 @@ private:
       return StmtError();
 
     OverloadedOperatorKind OO = FD->getOverloadedOperator();
-    ExprResult Op = S.CreateOverloadedBinOp(
-        Loc, BinaryOperator::getOverloadedOpcode(OO), Fns,
-        Obj.first.get(), Obj.second.get(), /*PerformADL=*/true,
-        /*AllowRewrittenCandidates=*/true, FD);
+    BinaryOperatorKind Opc = BinaryOperator::getOverloadedOpcode(OO);
+    ExprResult Op;
+    if (Type->isOverloadableType())
+      Op = S.CreateOverloadedBinOp(Loc, Opc, Fns, Obj.first.get(),
+                                   Obj.second.get(), /*PerformADL=*/true,
+                                   /*AllowRewrittenCandidates=*/true, FD);
+    else
+      Op = S.CreateBuiltinBinOp(Loc, Opc, Obj.first.get(), Obj.second.get());
     if (Op.isInvalid())
       return StmtError();
 
@@ -7869,8 +8107,12 @@ private:
       llvm::APInt ZeroVal(S.Context.getIntWidth(S.Context.IntTy), 0);
       Expr *Zero =
           IntegerLiteral::Create(S.Context, ZeroVal, S.Context.IntTy, Loc);
-      ExprResult Comp = S.CreateOverloadedBinOp(Loc, BO_NE, Fns, VDRef.get(),
-                                                Zero, true, true, FD);
+      ExprResult Comp;
+      if (VDRef.get()->getType()->isOverloadableType())
+        Comp = S.CreateOverloadedBinOp(Loc, BO_NE, Fns, VDRef.get(), Zero, true,
+                                       true, FD);
+      else
+        Comp = S.CreateBuiltinBinOp(Loc, BO_NE, VDRef.get(), Zero);
       if (Comp.isInvalid())
         return StmtError();
       Sema::ConditionResult Cond = S.ActOnCondition(
@@ -9982,12 +10224,12 @@ QualType Sema::CheckDestructorDeclarator(Declarator &D, QualType R,
   //   declaration.
   QualType DeclaratorType = GetTypeFromParser(D.getName().DestructorName);
   if (const TypedefType *TT = DeclaratorType->getAs<TypedefType>())
-    Diag(D.getIdentifierLoc(), diag::err_destructor_typedef_name)
+    Diag(D.getIdentifierLoc(), diag::ext_destructor_typedef_name)
       << DeclaratorType << isa<TypeAliasDecl>(TT->getDecl());
   else if (const TemplateSpecializationType *TST =
              DeclaratorType->getAs<TemplateSpecializationType>())
     if (TST->isTypeAlias())
-      Diag(D.getIdentifierLoc(), diag::err_destructor_typedef_name)
+      Diag(D.getIdentifierLoc(), diag::ext_destructor_typedef_name)
         << DeclaratorType << 1;
 
   // C++ [class.dtor]p2:
@@ -13022,7 +13264,7 @@ void Sema::ActOnFinishCXXNonNestedClass() {
     SmallVector<CXXMethodDecl*, 4> WorkList;
     std::swap(DelayedDllExportMemberFunctions, WorkList);
     for (CXXMethodDecl *M : WorkList) {
-      DefineImplicitSpecialMember(*this, M, M->getLocation());
+      DefineDefaultedFunction(*this, M, M->getLocation());
 
       // Pass the method to the consumer to get emitted. This is not necessary
       // for explicit instantiation definitions, as they will get emitted
@@ -14684,12 +14926,14 @@ Sema::BuildCXXConstructExpr(SourceLocation ConstructLoc, QualType DeclInitType,
   if (getLangOpts().CUDA && !CheckCUDACall(ConstructLoc, Constructor))
     return ExprError();
 
-  return CXXConstructExpr::Create(
-      Context, DeclInitType, ConstructLoc, Constructor, Elidable,
-      ExprArgs, HadMultipleCandidates, IsListInitialization,
-      IsStdInitListInitialization, RequiresZeroInit,
-      static_cast<CXXConstructExpr::ConstructionKind>(ConstructKind),
-      ParenRange);
+  return CheckForImmediateInvocation(
+      CXXConstructExpr::Create(
+          Context, DeclInitType, ConstructLoc, Constructor, Elidable, ExprArgs,
+          HadMultipleCandidates, IsListInitialization,
+          IsStdInitListInitialization, RequiresZeroInit,
+          static_cast<CXXConstructExpr::ConstructionKind>(ConstructKind),
+          ParenRange),
+      Constructor);
 }
 
 ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {
@@ -14793,10 +15037,13 @@ void Sema::FinalizeVarWithDestructor(VarDecl *VD, const RecordType *Record) {
 
   // If the destructor is constexpr, check whether the variable has constant
   // destruction now.
-  if (Destructor->isConstexpr() && VD->getInit() &&
-      !VD->getInit()->isValueDependent() && VD->evaluateValue()) {
+  if (Destructor->isConstexpr()) {
+    bool HasConstantInit = false;
+    if (VD->getInit() && !VD->getInit()->isValueDependent())
+      HasConstantInit = VD->evaluateValue();
     SmallVector<PartialDiagnosticAt, 8> Notes;
-    if (!VD->evaluateDestruction(Notes) && VD->isConstexpr()) {
+    if (!VD->evaluateDestruction(Notes) && VD->isConstexpr() &&
+        HasConstantInit) {
       Diag(VD->getLocation(),
            diag::err_constexpr_var_requires_const_destruction) << VD;
       for (unsigned I = 0, N = Notes.size(); I != N; ++I)
@@ -15482,6 +15729,11 @@ VarDecl *Sema::BuildExceptionDeclaration(Scope *S,
   if (!Invalid && (Mode == 0 || !BaseType->isVoidType()) &&
       !BaseType->isDependentType() && RequireCompleteType(Loc, BaseType, DK))
     Invalid = true;
+
+  if (!Invalid && Mode != 1 && BaseType->isSizelessType()) {
+    Diag(Loc, diag::err_catch_sizeless) << (Mode == 2 ? 1 : 0) << BaseType;
+    Invalid = true;
+  }
 
   if (!Invalid && !ExDeclType->isDependentType() &&
       RequireNonAbstractType(Loc, ExDeclType,
@@ -16345,9 +16597,16 @@ void Sema::SetDeclDeleted(Decl *Dcl, SourceLocation DelLoc) {
       Diag(Prev->getLocation().isInvalid() ? DelLoc : Prev->getLocation(),
            Prev->isImplicit() ? diag::note_previous_implicit_declaration
                               : diag::note_previous_declaration);
+      // We can't recover from this; the declaration might have already
+      // been used.
+      Fn->setInvalidDecl();
+      return;
     }
-    // If the declaration wasn't the first, we delete the function anyway for
-    // recovery.
+
+    // To maintain the invariant that functions are only deleted on their first
+    // declaration, mark the implicitly-instantiated declaration of the
+    // explicitly-specialized function as deleted instead of marking the
+    // instantiated redeclaration.
     Fn = Fn->getCanonicalDecl();
   }
 
@@ -16356,9 +16615,6 @@ void Sema::SetDeclDeleted(Decl *Dcl, SourceLocation DelLoc) {
     Diag(Fn->getLocation(), diag::err_attribute_dll_deleted) << DLLAttr;
     Fn->setInvalidDecl();
   }
-
-  if (Fn->isDeleted())
-    return;
 
   // C++11 [basic.start.main]p3:
   //   A program that defines main as deleted [...] is ill-formed.
@@ -16369,25 +16625,6 @@ void Sema::SetDeclDeleted(Decl *Dcl, SourceLocation DelLoc) {
   //  A deleted function is implicitly inline.
   Fn->setImplicitlyInline();
   Fn->setDeletedAsWritten();
-
-  // See if we're deleting a function which is already known to override a
-  // non-deleted virtual function.
-  if (CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(Fn)) {
-    bool IssuedDiagnostic = false;
-    for (const CXXMethodDecl *O : MD->overridden_methods()) {
-      if (!(*MD->begin_overridden_methods())->isDeleted()) {
-        if (!IssuedDiagnostic) {
-          Diag(DelLoc, diag::err_deleted_override) << MD->getDeclName();
-          IssuedDiagnostic = true;
-        }
-        Diag(O->getLocation(), diag::note_overridden_virtual_function);
-      }
-    }
-    // If this function was implicitly deleted because it was defaulted,
-    // explain why it was deleted.
-    if (IssuedDiagnostic && MD->isDefaulted())
-      DiagnoseDeletedDefaultedFunction(MD);
-  }
 }
 
 void Sema::SetDeclDefaulted(Decl *Dcl, SourceLocation DefaultLoc) {
@@ -16469,10 +16706,12 @@ void Sema::SetDeclDefaulted(Decl *Dcl, SourceLocation DefaultLoc) {
   if (Primary->getCanonicalDecl()->isDefaulted())
     return;
 
+  // FIXME: Once we support defining comparisons out of class, check for a
+  // defaulted comparison here.
   if (CheckExplicitlyDefaultedSpecialMember(MD, DefKind.asSpecialMember()))
     MD->setInvalidDecl();
   else
-    DefineImplicitSpecialMember(*this, MD, DefaultLoc);
+    DefineDefaultedFunction(*this, MD, DefaultLoc);
 }
 
 static void SearchForReturnInStmt(Sema &Self, Stmt *S) {

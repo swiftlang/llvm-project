@@ -26,6 +26,7 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SanitizerBlacklist.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/XRayLists.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
@@ -863,13 +864,13 @@ public:
   /// Return a function pointer for a reference to the given function.
   /// This correctly handles weak references, but does not apply a
   /// pointer signature.
-  llvm::Constant *getRawFunctionPointer(const FunctionDecl *FD,
+  llvm::Constant *getRawFunctionPointer(GlobalDecl GD,
                                         llvm::Type *Ty = nullptr);
 
   /// Return the ABI-correct function pointer value for a reference
   /// to the given function.  This will apply a pointer signature if
   /// necessary, caching the result for the given function.
-  llvm::Constant *getFunctionPointer(const FunctionDecl *FD,
+  llvm::Constant *getFunctionPointer(GlobalDecl GD,
                                      llvm::Type *Ty = nullptr);
 
   /// Return the ABI-correct function pointer value for a reference
@@ -877,7 +878,7 @@ public:
   /// necessary, but will only cache the result if \p FD is passed.
   llvm::Constant *getFunctionPointer(llvm::Constant *pointer,
                                      QualType functionType,
-                                     const FunctionDecl *FD = nullptr);
+                                     GlobalDecl GD = GlobalDecl());
 
   llvm::Constant *getMemberFunctionPointer(const FunctionDecl *FD,
                                            llvm::Type *Ty = nullptr);
@@ -920,6 +921,17 @@ public:
 
   /// Returns the assumed alignment of an opaque pointer to the given class.
   CharUnits getClassPointerAlignment(const CXXRecordDecl *CD);
+
+  /// Returns the minimum object size for an object of the given class type
+  /// (or a class derived from it).
+  CharUnits getMinimumClassObjectSize(const CXXRecordDecl *CD);
+
+  /// Returns the minimum object size for an object of the given type.
+  CharUnits getMinimumObjectSize(QualType Ty) {
+    if (CXXRecordDecl *RD = Ty->getAsCXXRecordDecl())
+      return getMinimumClassObjectSize(RD);
+    return getContext().getTypeSizeInChars(Ty);
+  }
 
   /// Returns the assumed alignment of a virtual base of a class.
   CharUnits getVBaseAlignment(CharUnits DerivedAlign,
@@ -1065,6 +1077,9 @@ public:
   /// for the uninstrumented functions.
   void EmitDeferredUnusedCoverageMappings();
 
+  /// Emit an alias for "main" if it has no arguments (needed for wasm).
+  void EmitMainVoidAlias();
+
   /// Tell the consumer that this variable has been instantiated.
   void HandleCXXStaticMemberVarInstantiation(VarDecl *VD);
 
@@ -1075,7 +1090,7 @@ public:
   void MaybeHandleStaticInExternC(const SomeDecl *D, llvm::GlobalValue *GV);
 
   /// Add a global to a list to be added to the llvm.used metadata.
-  void addUsedGlobal(llvm::GlobalValue *GV);
+  void addUsedGlobal(llvm::GlobalValue *GV, bool SkipCheck = false);
 
   /// Add a global to a list to be added to the llvm.compiler.used metadata.
   void addCompilerUsedGlobal(llvm::GlobalValue *GV);
@@ -1335,15 +1350,15 @@ public:
   /// \param D Requires declaration
   void EmitOMPRequiresDecl(const OMPRequiresDecl *D);
 
-  /// Emits the definition of \p OldGD function with body from \p NewGD.
-  /// Required for proper handling of declare variant directive on the GPU.
-  void emitOpenMPDeviceFunctionRedefinition(GlobalDecl OldGD, GlobalDecl NewGD,
-                                            llvm::GlobalValue *GV);
-
   /// Returns whether the given record has hidden LTO visibility and therefore
   /// may participate in (single-module) CFI and whole-program vtable
   /// optimization.
   bool HasHiddenLTOVisibility(const CXXRecordDecl *RD);
+
+  /// Returns whether the given record has public std LTO visibility
+  /// and therefore may not participate in (single-module) CFI and whole-program
+  /// vtable optimization.
+  bool HasLTOVisibilityPublicStd(const CXXRecordDecl *RD);
 
   /// Returns the vcall visibility of the given type. This is the scope in which
   /// a virtual function call could be made which ends up being dispatched to a
@@ -1544,6 +1559,10 @@ private:
 
   /// Emits target specific Metadata for global declarations.
   void EmitTargetMetadata();
+
+  /// Emit the module flag metadata used to pass options controlling the
+  /// the backend to LLVM.
+  void EmitBackendOptionsMetadata(const CodeGenOptions CodeGenOpts);
 
   /// Emits OpenCL specific Metadata e.g. OpenCL version.
   void EmitOpenCLMetadata();

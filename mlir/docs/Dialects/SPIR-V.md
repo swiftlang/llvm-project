@@ -252,12 +252,18 @@ The SPIR-V dialect reuses standard integer, float, and vector types:
 Specification                        | Dialect
 :----------------------------------: | :-------------------------------:
 `OpTypeBool`                         | `i1`
-`OpTypeInt <bitwidth>`               | `i<bitwidth>`
 `OpTypeFloat <bitwidth>`             | `f<bitwidth>`
 `OpTypeVector <scalar-type> <count>` | `vector<<count> x <scalar-type>>`
 
-Similarly, `mlir::NoneType` can be used for SPIR-V `OpTypeVoid`; builtin
-function types can be used for SPIR-V `OpTypeFunction` types.
+For integer types, the SPIR-V dialect supports all signedness semantics
+(signless, signed, unsigned) in order to ease transformations from higher level
+dialects. However, SPIR-V spec only defines two signedness semantics state: 0
+indicates unsigned, or no signedness semantics, 1 indicates signed semantics. So
+both `iN` and `uiN` are serialized into the same `OpTypeInt N 0`. For
+deserialization, we always treat `OpTypeInt N 0` as `iN`.
+
+`mlir::NoneType` is used for SPIR-V `OpTypeVoid`; builtin function types are
+used for SPIR-V `OpTypeFunction` types.
 
 The SPIR-V dialect and defines the following dialect-specific types:
 
@@ -736,16 +742,61 @@ instructions.
 
 SPIR-V compilation should also take into consideration of the execution
 environment, so we generate SPIR-V modules valid for the target environment.
-This is conveyed by the `spv.target_env` attribute. It is a triple of
+This is conveyed by the `spv.target_env` (`spirv::TargetEnvAttr`) attribute. It
+should be of `#spv.target_env` attribute kind, which is defined as:
 
-*   `version`: a 32-bit integer indicating the target SPIR-V version.
-*   `extensions`: a string array attribute containing allowed extensions.
-*   `capabilities`: a 32-bit integer array attribute containing allowed
-    capabilities.
+```
+spirv-version    ::= `v1.0` | `v1.1` | ...
+spirv-extension  ::= `SPV_KHR_16bit_storage` | `SPV_EXT_physical_storage_buffer` | ...
+spirv-capability ::= `Shader` | `Kernel` | `GroupNonUniform` | ...
 
-Dialect conversion framework will utilize the information in `spv.target_env`
-to properly filter out patterns and ops not available in the target execution
-environment.
+spirv-extension-list     ::= `[` (spirv-extension-elements)? `]`
+spirv-extension-elements ::= spirv-extension (`,` spirv-extension)*
+
+spirv-capability-list     ::= `[` (spirv-capability-elements)? `]`
+spirv-capability-elements ::= spirv-capability (`,` spirv-capability)*
+
+spirv-resource-limits ::= dictionary-attribute
+
+spirv-vce-attribute ::= `#` `spv.vce` `<`
+                            spirv-version `,`
+                            spirv-capability-list `,`
+                            spirv-extensions-list `>`
+
+spirv-target-env-attribute ::= `#` `spv.target_env` `<`
+                                  spirv-vce-attribute,
+                                  spirv-resource-limits `>`
+```
+
+The attribute has a few fields:
+
+*   A `#spv.vce` (`spirv::VerCapExtAttr`) attribute:
+    *   The target SPIR-V version.
+    *   A list of SPIR-V extensions for the target.
+    *   A list of SPIR-V capabilities for the target.
+*   A dictionary of target resource limits (see the
+    [Vulkan spec][VulkanResourceLimits] for explanation):
+    *   `max_compute_workgroup_invocations`
+    *   `max_compute_workgroup_size`
+
+For example,
+
+```
+module attributes {
+spv.target_env = #spv.target_env<
+    #spv.vce<v1.3, [Shader, GroupNonUniform], [SPV_KHR_8bit_storage]>,
+    {
+      max_compute_workgroup_invocations = 128 : i32,
+      max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>
+    }>
+} { ... }
+```
+
+Dialect conversion framework will utilize the information in `spv.target_env` to
+properly filter out patterns and ops not available in the target execution
+environment. When targeting SPIR-V, one needs to create a
+[`SPIRVConversionTarget`](#spirvconversiontarget) by providing such an
+attribute.
 
 ## Shader interface (ABI)
 
@@ -881,6 +932,10 @@ The `mlir::spirv::SPIRVConversionTarget` class derives from the
 target satisfying a given [`spv.target_env`](#target-environment). It registers
 proper hooks to check the dynamic legality of SPIR-V ops. Users can further
 register other legality constraints into the returned `SPIRVConversionTarget`.
+
+`spirv::lookupTargetEnvOrDefault()` is a handy utility function to query an
+`spv.target_env` attached in the input IR or use the default to construct a
+`SPIRVConversionTarget`.
 
 ### `SPIRVTypeConverter`
 
@@ -1219,3 +1274,4 @@ dialect.
 [CustomTypeAttrTutorial]: ../DefiningAttributesAndTypes/
 [VulkanSpirv]: https://renderdoc.org/vkspec_chunked/chap40.html#spirvenv
 [VulkanShaderInterface]: https://renderdoc.org/vkspec_chunked/chap14.html#interfaces-resources
+[VulkanResourceLimits]: https://renderdoc.org/vkspec_chunked/chap36.html#limits

@@ -176,6 +176,12 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Token &T);
 class TokenBuffer {
 public:
   TokenBuffer(const SourceManager &SourceMgr) : SourceMgr(&SourceMgr) {}
+
+  TokenBuffer(TokenBuffer &&) = default;
+  TokenBuffer(const TokenBuffer &) = delete;
+  TokenBuffer &operator=(TokenBuffer &&) = default;
+  TokenBuffer &operator=(const TokenBuffer &) = delete;
+
   /// All tokens produced by the preprocessor after all macro replacements,
   /// directives, etc. Source locations found in the clang AST will always
   /// point to one of these tokens.
@@ -191,18 +197,20 @@ public:
   /// token range R.
   llvm::ArrayRef<syntax::Token> expandedTokens(SourceRange R) const;
 
-  /// Find the subrange of spelled tokens that produced the corresponding \p
-  /// Expanded tokens.
+  /// Returns the subrange of spelled tokens corresponding to AST node spanning
+  /// \p Expanded. This is the text that should be replaced if a refactoring
+  /// were to rewrite the node. If \p Expanded is empty, the returned value is
+  /// llvm::None.
   ///
-  /// EXPECTS: \p Expanded is a subrange of expandedTokens().
-  ///
-  /// Will fail if the expanded tokens do not correspond to a
-  /// sequence of spelled tokens. E.g. for the following example:
+  /// Will fail if the expanded tokens do not correspond to a sequence of
+  /// spelled tokens. E.g. for the following example:
   ///
   ///   #define FIRST f1 f2 f3
   ///   #define SECOND s1 s2 s3
+  ///   #define ID2(X, Y) X Y
   ///
   ///   a FIRST b SECOND c // expanded tokens are: a f1 f2 f3 b s1 s2 s3 c
+  ///   d ID2(e f g, h) i  // expanded tokens are: d e f g h i
   ///
   /// the results would be:
   ///   expanded   => spelled
@@ -212,8 +220,10 @@ public:
   ///   a f1 f2 f3 => a FIRST
   ///         a f1 => can't map
   ///        s1 s2 => can't map
+  ///         e f  => e f
+  ///         g h  => can't map
   ///
-  /// If \p Expanded is empty, the returned value is llvm::None.
+  /// EXPECTS: \p Expanded is a subrange of expandedTokens().
   /// Complexity is logarithmic.
   llvm::Optional<llvm::ArrayRef<syntax::Token>>
   spelledForExpanded(llvm::ArrayRef<syntax::Token> Expanded) const;
@@ -244,6 +254,10 @@ public:
   ///    {"#", "define", "DECL", "(", "name", ")", "int", "name", "=", "10",
   ///     "DECL", "(", "a", ")", ";"}
   llvm::ArrayRef<syntax::Token> spelledTokens(FileID FID) const;
+
+  /// Returns the spelled Token starting at Loc, if there are no such tokens
+  /// returns nullptr.
+  const syntax::Token *spelledTokenAt(SourceLocation Loc) const;
 
   /// Get all tokens that expand a macro in \p FID. For the following input
   ///     #define FOO B
@@ -317,9 +331,14 @@ private:
 /// This always returns 0-2 tokens.
 llvm::ArrayRef<syntax::Token>
 spelledTokensTouching(SourceLocation Loc, const syntax::TokenBuffer &Tokens);
+llvm::ArrayRef<syntax::Token>
+spelledTokensTouching(SourceLocation Loc, llvm::ArrayRef<syntax::Token> Tokens);
 
 /// The identifier token that overlaps or touches a spelling location Loc.
 /// If there is none, returns nullptr.
+const syntax::Token *
+spelledIdentifierTouching(SourceLocation Loc,
+                          llvm::ArrayRef<syntax::Token> Tokens);
 const syntax::Token *
 spelledIdentifierTouching(SourceLocation Loc,
                           const syntax::TokenBuffer &Tokens);
@@ -334,6 +353,12 @@ spelledIdentifierTouching(SourceLocation Loc,
 /// The result will *not* have a 'eof' token at the end.
 std::vector<syntax::Token> tokenize(FileID FID, const SourceManager &SM,
                                     const LangOptions &LO);
+/// Similar to one above, instead of whole file tokenizes a part of it. Note
+/// that, the first token might be incomplete if FR.startOffset is not at the
+/// beginning of a token, and the last token returned will start before the
+/// FR.endOffset but might end after it.
+std::vector<syntax::Token>
+tokenize(const FileRange &FR, const SourceManager &SM, const LangOptions &LO);
 
 /// Collects tokens for the main file while running the frontend action. An
 /// instance of this object should be created on

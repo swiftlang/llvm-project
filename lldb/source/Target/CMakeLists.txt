@@ -8,6 +8,7 @@ lldb_tablegen(TargetPropertiesEnum.inc -gen-lldb-property-enum-defs
 
 add_lldb_library(lldbTarget
   ABI.cpp
+  AssertFrameRecognizer.cpp
   ExecutionContext.cpp
   InstrumentationRuntime.cpp
   InstrumentationRuntimeStopInfo.cpp
@@ -27,6 +28,7 @@ add_lldb_library(lldbTarget
   QueueItem.cpp
   QueueList.cpp
   RegisterContext.cpp
+  RegisterContextUnwind.cpp
   RegisterNumber.cpp
   RemoteAwarePlatform.cpp
   SectionLoadHistory.cpp
@@ -64,6 +66,7 @@ add_lldb_library(lldbTarget
   ThreadSpec.cpp
   UnixSignals.cpp
   UnwindAssembly.cpp
+  UnwindLLDB.cpp
 
   LINK_LIBS
     lldbBreakpoint
@@ -78,6 +81,7 @@ add_lldb_library(lldbTarget
 
   LINK_COMPONENTS
     Support
+    MC
   )
 
 add_dependencies(lldbTarget

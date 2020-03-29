@@ -28,7 +28,6 @@ static uint64_t adjustFixupValue(unsigned Kind, uint64_t Value) {
   switch (Kind) {
   default:
     llvm_unreachable("Unknown fixup kind!");
-  case FK_NONE:
   case FK_Data_1:
   case FK_Data_2:
   case FK_Data_4:
@@ -52,8 +51,6 @@ static unsigned getFixupKindNumBytes(unsigned Kind) {
   switch (Kind) {
   default:
     llvm_unreachable("Unknown fixup kind!");
-  case FK_NONE:
-    return 0;
   case FK_Data_1:
     return 1;
   case FK_Data_2:
@@ -109,6 +106,11 @@ public:
       { "fixup_ppc_nofixup",     0,       0,   0 }
     };
 
+    // Fixup kinds from .reloc directive are like R_PPC_NONE/R_PPC64_NONE. They
+    // do not require any extra processing.
+    if (Kind >= FirstLiteralRelocationKind)
+      return MCAsmBackend::getFixupKindInfo(FK_NONE);
+
     if (Kind < FirstTargetFixupKind)
       return MCAsmBackend::getFixupKindInfo(Kind);
 
@@ -123,11 +125,14 @@ public:
                   const MCValue &Target, MutableArrayRef<char> Data,
                   uint64_t Value, bool IsResolved,
                   const MCSubtargetInfo *STI) const override {
-    Value = adjustFixupValue(Fixup.getKind(), Value);
+    MCFixupKind Kind = Fixup.getKind();
+    if (Kind >= FirstLiteralRelocationKind)
+      return;
+    Value = adjustFixupValue(Kind, Value);
     if (!Value) return;           // Doesn't change encoding.
 
     unsigned Offset = Fixup.getOffset();
-    unsigned NumBytes = getFixupKindNumBytes(Fixup.getKind());
+    unsigned NumBytes = getFixupKindNumBytes(Kind);
 
     // For each byte of the fragment that the fixup touches, mask in the bits
     // from the fixup value. The Value has been "split up" into the appropriate
@@ -140,11 +145,10 @@ public:
 
   bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup,
                              const MCValue &Target) override {
-    switch ((unsigned)Fixup.getKind()) {
+    MCFixupKind Kind = Fixup.getKind();
+    switch ((unsigned)Kind) {
     default:
-      return false;
-    case FK_NONE:
-      return true;
+      return Kind >= FirstLiteralRelocationKind;
     case PPC::fixup_ppc_br24:
     case PPC::fixup_ppc_br24abs:
       // If the target symbol has a local entry point we must not attempt
@@ -200,21 +204,6 @@ public:
 // FIXME: This should be in a separate file.
 namespace {
 
-class DarwinPPCAsmBackend : public PPCAsmBackend {
-public:
-  DarwinPPCAsmBackend(const Target &T, const Triple &TT)
-      : PPCAsmBackend(T, TT) {}
-
-  std::unique_ptr<MCObjectTargetWriter>
-  createObjectTargetWriter() const override {
-    bool Is64 = TT.isPPC64();
-    return createPPCMachObjectWriter(
-        /*Is64Bit=*/Is64,
-        (Is64 ? MachO::CPU_TYPE_POWERPC64 : MachO::CPU_TYPE_POWERPC),
-        MachO::CPU_SUBTYPE_POWERPC_ALL);
-  }
-};
-
 class ELFPPCAsmBackend : public PPCAsmBackend {
 public:
   ELFPPCAsmBackend(const Target &T, const Triple &TT) : PPCAsmBackend(T, TT) {}
@@ -243,14 +232,25 @@ public:
 } // end anonymous namespace
 
 Optional<MCFixupKind> ELFPPCAsmBackend::getFixupKind(StringRef Name) const {
-  if (TT.isPPC64()) {
-    if (Name == "R_PPC64_NONE")
-      return FK_NONE;
-  } else {
-    if (Name == "R_PPC_NONE")
-      return FK_NONE;
+  if (TT.isOSBinFormatELF()) {
+    unsigned Type;
+    if (TT.isPPC64()) {
+      Type = llvm::StringSwitch<unsigned>(Name)
+#define ELF_RELOC(X, Y) .Case(#X, Y)
+#include "llvm/BinaryFormat/ELFRelocs/PowerPC64.def"
+#undef ELF_RELOC
+                 .Default(-1u);
+    } else {
+      Type = llvm::StringSwitch<unsigned>(Name)
+#define ELF_RELOC(X, Y) .Case(#X, Y)
+#include "llvm/BinaryFormat/ELFRelocs/PowerPC.def"
+#undef ELF_RELOC
+                 .Default(-1u);
+    }
+    if (Type != -1u)
+      return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
   }
-  return MCAsmBackend::getFixupKind(Name);
+  return None;
 }
 
 MCAsmBackend *llvm::createPPCAsmBackend(const Target &T,
@@ -258,9 +258,6 @@ MCAsmBackend *llvm::createPPCAsmBackend(const Target &T,
                                         const MCRegisterInfo &MRI,
                                         const MCTargetOptions &Options) {
   const Triple &TT = STI.getTargetTriple();
-  if (TT.isOSDarwin())
-    return new DarwinPPCAsmBackend(T, TT);
-
   if (TT.isOSBinFormatXCOFF())
     return new XCOFFPPCAsmBackend(T, TT);
 

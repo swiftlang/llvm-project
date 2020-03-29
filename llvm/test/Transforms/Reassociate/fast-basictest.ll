@@ -4,7 +4,7 @@
 ; With reassociation, constant folding can eliminate the 12 and -12 constants.
 define float @test1(float %arg) {
 ; CHECK-LABEL: @test1(
-; CHECK-NEXT:    [[ARG_NEG:%.*]] = fsub fast float -0.000000e+00, [[ARG:%.*]]
+; CHECK-NEXT:    [[ARG_NEG:%.*]] = fneg fast float [[ARG:%.*]]
 ; CHECK-NEXT:    ret float [[ARG_NEG]]
 ;
   %t1 = fsub fast float -1.200000e+01, %arg
@@ -16,7 +16,7 @@ define float @test1(float %arg) {
 ; Both 'reassoc' and 'nsz' are required.
 define float @test1_minimal(float %arg) {
 ; CHECK-LABEL: @test1_minimal(
-; CHECK-NEXT:    [[TMP1:%.*]] = fsub reassoc nsz float -0.000000e+00, [[ARG:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = fneg reassoc nsz float [[ARG:%.*]]
 ; CHECK-NEXT:    ret float [[TMP1]]
 ;
   %t1 = fsub reassoc nsz float -1.200000e+01, %arg
@@ -671,7 +671,7 @@ define float @test19_reassoc(float %A, float %B) {
 define float @test20(float %a, float %b, float %c) nounwind  {
 ; CHECK-LABEL: @test20(
 ; CHECK-NEXT:    [[TMP1:%.*]] = fadd fast float [[B:%.*]], [[C:%.*]]
-; CHECK-NEXT:    [[T7:%.*]] = fsub fast float -0.000000e+00, [[TMP1]]
+; CHECK-NEXT:    [[T7:%.*]] = fneg fast float [[TMP1]]
 ; CHECK-NEXT:    ret float [[T7]]
 ;
   %t3 = fsub fast float %a, %b

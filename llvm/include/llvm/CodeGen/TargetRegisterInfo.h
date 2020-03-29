@@ -40,6 +40,7 @@ class MachineInstr;
 class RegScavenger;
 class VirtRegMap;
 class LiveIntervals;
+class LiveInterval;
 
 class TargetRegisterClass {
 public:
@@ -282,6 +283,12 @@ public:
   /// a register of this class.
   unsigned getSpillAlignment(const TargetRegisterClass &RC) const {
     return getRegClassInfo(RC).SpillAlignment / 8;
+  }
+
+  /// Return the minimum required alignment in bytes for a spill slot for
+  /// a register of this class.
+  Align getSpillAlign(const TargetRegisterClass &RC) const {
+    return Align(getRegClassInfo(RC).SpillAlignment / 8);
   }
 
   /// Return true if the given TargetRegisterClass has the ValueType T.
@@ -951,6 +958,12 @@ public:
                               const TargetRegisterClass *NewRC,
                               LiveIntervals &LIS) const
   { return true; }
+
+  /// Region split has a high compile time cost especially for large live range.
+  /// This method is used to decide whether or not \p VirtReg should
+  /// go through this expensive splitting heuristic.
+  virtual bool shouldRegionSplitForVirtReg(const MachineFunction &MF,
+                                           const LiveInterval &VirtReg) const;
 
   //===--------------------------------------------------------------------===//
   /// Debug information queries.

@@ -14,6 +14,15 @@ def _get_lldb_init_path(config):
     return os.path.join(config.test_exec_root, 'Shell', 'lit-lldb-init')
 
 
+def _disallow(config, execName):
+  warning = '''
+    echo '*** Do not use \'{0}\' in tests; use \'%''{0}\'. ***' &&
+    exit 1 && echo
+  '''
+  config.substitutions.append((' {0} '.format(execName),
+                               warning.format(execName)))
+
+
 def use_lldb_substitutions(config):
     # Set up substitutions for primary tools.  These tools must come from config.lldb_tools_dir
     # which is basically the build output directory.  We do not want to find these in path or
@@ -53,10 +62,15 @@ def use_lldb_substitutions(config):
                   unresolved='ignore'),
         'lldb-test',
         'lldb-instr',
+        'lldb-vscode',
         ToolSubst('%build',
                   command="'" + sys.executable + "'",
                   extra_args=build_script_args)
         ]
+
+    _disallow(config, 'lldb')
+    _disallow(config, 'debugserver')
+    _disallow(config, 'platformserver')
 
     llvm_config.add_tool_substitutions(primary_tools,
                                        [config.lldb_tools_dir])
@@ -135,12 +149,13 @@ def use_support_substitutions(config):
         config.available_features.add('lld')
 
 
-    support_tools = ['yaml2obj', 'obj2yaml', 'llvm-pdbutil',
+    support_tools = ['yaml2obj', 'obj2yaml', 'llvm-dwp', 'llvm-pdbutil',
                      'llvm-mc', 'llvm-readobj', 'llvm-objdump',
                      'llvm-objcopy', 'lli']
     additional_tool_dirs += [config.lldb_tools_dir, config.llvm_tools_dir]
     llvm_config.add_tool_substitutions(support_tools, additional_tool_dirs)
 
+    _disallow(config, 'clang')
 
 def use_lldb_repro_substitutions(config, mode):
     lldb_init = _get_lldb_init_path(config)

@@ -44,11 +44,11 @@ using namespace llvm::COFF;
 using namespace llvm::codeview;
 using namespace llvm::object;
 using namespace llvm::support::endian;
+using namespace lld;
+using namespace lld::coff;
 
 using llvm::Triple;
 using llvm::support::ulittle32_t;
-
-namespace lld {
 
 // Returns the last element of a path, which is supposed to be a filename.
 static StringRef getBasename(StringRef path) {
@@ -56,18 +56,16 @@ static StringRef getBasename(StringRef path) {
 }
 
 // Returns a string in the format of "foo.obj" or "foo.obj(bar.lib)".
-std::string toString(const coff::InputFile *file) {
+std::string lld::toString(const coff::InputFile *file) {
   if (!file)
     return "<internal>";
   if (file->parentName.empty() || file->kind() == coff::InputFile::ImportKind)
-    return file->getName();
+    return std::string(file->getName());
 
   return (getBasename(file->parentName) + "(" + getBasename(file->getName()) +
           ")")
       .str();
 }
-
-namespace coff {
 
 std::vector<ObjFile *> ObjFile::instances;
 std::vector<ImportFile *> ImportFile::instances;
@@ -121,7 +119,7 @@ void ArchiveFile::addMember(const Archive::Symbol &sym) {
   driver->enqueueArchiveMember(c, sym, getName());
 }
 
-std::vector<MemoryBufferRef> getArchiveMembers(Archive *file) {
+std::vector<MemoryBufferRef> lld::coff::getArchiveMembers(Archive *file) {
   std::vector<MemoryBufferRef> v;
   Error err = Error::success();
   for (const Archive::Child &c : file->children(err)) {
@@ -849,7 +847,7 @@ void ImportFile::parse() {
   StringRef name = saver.save(StringRef(buf + sizeof(*hdr)));
   StringRef impName = saver.save("__imp_" + name);
   const char *nameStart = buf + sizeof(coff_import_header) + name.size() + 1;
-  dllName = StringRef(nameStart);
+  dllName = std::string(StringRef(nameStart));
   StringRef extName;
   switch (hdr->getNameType()) {
   case IMPORT_ORDINAL:
@@ -907,8 +905,9 @@ BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
   // filename unique.
   MemoryBufferRef mbref(
       mb.getBuffer(),
-      saver.save(archiveName + path +
-                 (archiveName.empty() ? "" : utostr(offsetInArchive))));
+      saver.save(archiveName.empty() ? path
+                                     : archiveName + sys::path::filename(path) +
+                                           utostr(offsetInArchive)));
 
   obj = check(lto::InputFile::create(mbref));
 }
@@ -932,7 +931,7 @@ void BitcodeFile::parse() {
     } else if (objSym.isWeak() && objSym.isIndirect()) {
       // Weak external.
       sym = symtab->addUndefined(symName, this, true);
-      std::string fallback = objSym.getCOFFWeakExternalFallback();
+      std::string fallback = std::string(objSym.getCOFFWeakExternalFallback());
       Symbol *alias = symtab->addUndefined(saver.save(fallback));
       checkAndSetWeakAlias(symtab, this, sym, alias);
     } else if (comdatIndex != -1) {
@@ -967,14 +966,11 @@ MachineTypes BitcodeFile::getMachineType() {
   }
 }
 
-std::string replaceThinLTOSuffix(StringRef path) {
+std::string lld::coff::replaceThinLTOSuffix(StringRef path) {
   StringRef suffix = config->thinLTOObjectSuffixReplace.first;
   StringRef repl = config->thinLTOObjectSuffixReplace.second;
 
   if (path.consume_back(suffix))
     return (path + repl).str();
-  return path;
+  return std::string(path);
 }
-
-} // namespace coff
-} // namespace lld

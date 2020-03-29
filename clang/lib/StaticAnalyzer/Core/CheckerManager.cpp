@@ -61,12 +61,12 @@ void CheckerManager::finishedCheckerRegistration() {
 }
 
 void CheckerManager::reportInvalidCheckerOptionValue(
-    const CheckerBase *C, StringRef OptionName, StringRef ExpectedValueDesc) {
+    const CheckerBase *C, StringRef OptionName,
+    StringRef ExpectedValueDesc) const {
 
-  Context.getDiagnostics()
-      .Report(diag::err_analyzer_checker_option_invalid_input)
-          << (llvm::Twine() + C->getTagDescription() + ":" + OptionName).str()
-          << ExpectedValueDesc;
+  getDiagnostics().Report(diag::err_analyzer_checker_option_invalid_input)
+      << (llvm::Twine() + C->getTagDescription() + ":" + OptionName).str()
+      << ExpectedValueDesc;
 }
 
 //===----------------------------------------------------------------------===//
@@ -249,7 +249,7 @@ void CheckerManager::runCheckersForObjCMessage(ObjCMessageVisitKind visitKind,
 }
 
 const std::vector<CheckerManager::CheckObjCMessageFunc> &
-CheckerManager::getObjCMessageCheckers(ObjCMessageVisitKind Kind) {
+CheckerManager::getObjCMessageCheckers(ObjCMessageVisitKind Kind) const {
   switch (Kind) {
   case ObjCMessageVisitKind::Pre:
     return PreObjCMessageCheckers;
@@ -901,9 +901,4 @@ CheckerManager::getCachedStmtCheckersFor(const Stmt *S, bool isPreVisit) {
     if (Info.IsPreVisit == isPreVisit && Info.IsForStmtFn(S))
       Checkers.push_back(Info.CheckFn);
   return Checkers;
-}
-
-CheckerManager::~CheckerManager() {
-  for (const auto &CheckerDtor : CheckerDtors)
-    CheckerDtor();
 }

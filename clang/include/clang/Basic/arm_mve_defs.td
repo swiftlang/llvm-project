@@ -57,6 +57,10 @@ class CGHelperFn<string func> : IRBuilderBase {
   // an argument.
   let prefix = func # "(Builder, ";
 }
+class CGFHelperFn<string func> : IRBuilderBase {
+  // Like CGHelperFn, but also takes the CodeGenFunction itself.
+  let prefix = func # "(Builder, this, ";
+}
 def add: IRBuilder<"CreateAdd">;
 def mul: IRBuilder<"CreateMul">;
 def not: IRBuilder<"CreateNot">;
@@ -89,10 +93,14 @@ def ielt_var: IRBuilder<"CreateInsertElement">;
 def xelt_var: IRBuilder<"CreateExtractElement">;
 def trunc: IRBuilder<"CreateTrunc">;
 def bitcast: IRBuilder<"CreateBitCast">;
+def vreinterpret: CGFHelperFn<"ARMMVEVectorReinterpret">;
 def extend: CGHelperFn<"SignOrZeroExtend"> {
   let special_params = [IRBuilderIntParam<2, "bool">];
 }
 def zeroinit: IRFunction<"llvm::Constant::getNullValue">;
+def int_min: CGHelperFn<"ARMMVEConstantSplat<1,0>">;
+def int_max: CGHelperFn<"ARMMVEConstantSplat<0,1>">;
+def uint_max: CGHelperFn<"ARMMVEConstantSplat<1,1>">;
 def undef: IRFunction<"UndefValue::get">;
 def icmp_eq: IRBuilder<"CreateICmpEQ">;
 def icmp_ne: IRBuilder<"CreateICmpNE">;
@@ -112,6 +120,36 @@ def fcmp_lt: IRBuilder<"CreateFCmpOLT">;
 def fcmp_le: IRBuilder<"CreateFCmpOLE">;
 def splat: CGHelperFn<"ARMMVEVectorSplat">;
 def select: IRBuilder<"CreateSelect">;
+def fneg: IRBuilder<"CreateFNeg">;
+def sitofp: IRBuilder<"CreateSIToFP">;
+def uitofp: IRBuilder<"CreateUIToFP">;
+def fptosi: IRBuilder<"CreateFPToSI">;
+def fptoui: IRBuilder<"CreateFPToUI">;
+def vrev: CGHelperFn<"ARMMVEVectorElementReverse"> {
+  let special_params = [IRBuilderIntParam<1, "unsigned">];
+}
+def unzip: CGHelperFn<"VectorUnzip"> {
+  let special_params = [IRBuilderIntParam<1, "bool">];
+}
+def zip: CGHelperFn<"VectorZip">;
+
+// Trivial 'codegen' function that just returns its argument. Useful
+// for wrapping up a variable name like $foo into a thing you can pass
+// around as type 'dag'.
+def id: IRBuilderBase {
+  // All the other cases of IRBuilderBase use 'prefix' to specify a function
+  // call, including the open parenthesis. MveEmitter puts the closing paren on
+  // the end. So if we _just_ specify an open paren with no function name
+  // before it, then the generated C++ code will simply wrap the input value in
+  // parentheses, returning it unchanged.
+  let prefix = "(";
+}
+
+// Helper for making boolean flags in IR
+def i1: IRBuilderBase {
+  let prefix = "llvm::ConstantInt::get(Builder.getInt1Ty(), ";
+  let special_params = [IRBuilderIntParam<0, "bool">];
+}
 
 // A node that makes an Address out of a pointer-typed Value, by
 // providing an alignment as the second argument.
@@ -161,6 +199,10 @@ def seq;
 // _type_ as an argument, and it expands into 1 for an unsigned type
 // and 0 for a signed (or floating) one.
 def unsignedflag;
+
+// 'bitsize' also takes a scalar type, and expands into an integer
+// constant giving its size in bits.
+def bitsize;
 
 // If you put CustomCodegen<"foo"> in an intrinsic's codegen field, it
 // indicates that the IR generation for that intrinsic is done by handwritten
@@ -288,11 +330,15 @@ def SScalar: Signed<Scalar>;
 def SVector: VecOf<SScalar>;
 
 // DblVector expands to a vector of scalars of size twice the size of Scalar.
+// DblPredicate expands to a predicate corresponding to DblVector
 // HalfVector, similarly, expands to a vector of half-sized scalars. And
 // UHalfVector is a vector of half-sized _unsigned integers_.
 def DblVector: VecOf<DoubleSize<Scalar>>;
-def HalfVector: VecOf<HalfSize<Scalar>>;
-def UHalfVector: VecOf<Unsigned<HalfSize<Scalar>>>;
+def DblPredicate: PredOf<DoubleSize<Scalar>>;
+def HalfScalar: HalfSize<Scalar>;
+def HalfVector: VecOf<HalfScalar>;
+def UHalfScalar: Unsigned<HalfSize<Scalar>>;
+def UHalfVector: VecOf<UHalfScalar>;
 
 // Expands to the 32-bit integer of the same signedness as Scalar.
 def Scalar32: CopyKind<u32, Scalar>;
@@ -359,7 +405,7 @@ def imm_lane : Immediate<sint, IB_LaneIndex>;
 def imm_1to32 : Immediate<sint, IB_ConstRange<1, 32>>;
 
 // imm_1248 can be 1, 2, 4 or 8. (e.g. vidupq)
-def imm_1248 : Immediate<u32, IB_ConstRange<1, 8>> {
+def imm_1248 : Immediate<sint, IB_ConstRange<1, 8>> {
   let extra = "Power2";
 }
 
@@ -442,9 +488,16 @@ class Intrinsic<Type ret_, dag args_, dag codegen_> {
   // True if the builtin has to avoid evaluating its arguments.
   bit nonEvaluating = 0;
 
+  // True if the intrinsic needs only the C header part (no codegen, semantic
+  // checks, etc). Used for redeclaring MVE intrinsics in the arm_cde.h header.
+  bit headerOnly = 0;
+
   // Use to override the suffix letter to make e.g.vfooq_p16
   // with an override suffix letter of "p".
   string overrideKindLetter = "";
+
+  // Name of the architecture extension, used in the Clang builtin name
+  string builtinExtension = "mve";
 }
 
 // Sometimes you have to use two separate Intrinsic declarations to
@@ -474,8 +527,8 @@ multiclass IntrinsicMX<Type rettype, dag arguments, dag cg,
   // provides the input value of the output register, i.e. all the
   // inactive lanes in the predicated operation take their values from
   // this.
-  def "_m" # nameSuffix:
-     Intrinsic<rettype, !con((args rettype:$inactive), arguments), cg> {
+  def : Intrinsic<rettype, !con((args rettype:$inactive), arguments), cg>,
+        NameOverride<NAME # "_m" # nameSuffix> {
     let pnt = pnt_m;
   }
 
@@ -483,12 +536,35 @@ multiclass IntrinsicMX<Type rettype, dag arguments, dag cg,
     // The _x variant leaves off that parameter, and simply uses an
     // undef value of the same type.
 
-    def "_x" # nameSuffix:
-      Intrinsic<rettype, arguments, (seq (undef rettype):$inactive, cg)> {
+    def : Intrinsic<rettype, arguments, (seq (undef rettype):$inactive, cg)>,
+          NameOverride<NAME # "_x" # nameSuffix> {
       let pnt = pnt_x;
     }
   }
 }
+
+// Same as above, but with an additional parameter 'basename' which overrides
+// the C intrinsic base name
+multiclass IntrinsicMXNameOverride<Type rettype, dag arguments, dag cg,
+                                   string basename, int wantXVariant = 1,
+                                   string nameSuffix = "",
+                                   PolymorphicNameType pnt_m = PNT_Type,
+                                   PolymorphicNameType pnt_x = PNT_Type> {
+  def "_m" # nameSuffix:
+     Intrinsic<rettype, !con((args rettype:$inactive), arguments), cg>,
+     NameOverride<basename # "_m" # nameSuffix> {
+    let pnt = pnt_m;
+  }
+
+  foreach unusedVar = !if(!eq(wantXVariant, 1), [1], []<int>) in {
+    def "_x" # nameSuffix:
+      Intrinsic<rettype, arguments, (seq (undef rettype):$inactive, cg)>,
+      NameOverride<basename # "_x" # nameSuffix> {
+      let pnt = pnt_x;
+    }
+  }
+}
+
 
 // -----------------------------------------------------------------------------
 // Convenience lists of parameter types. 'T' is just a container record, so you
@@ -496,6 +572,7 @@ multiclass IntrinsicMX<Type rettype, dag arguments, dag cg,
 // instead of having to repeat a long list every time.
 
 def T {
+  list<Type> None = [Void];
   list<Type> Signed = [s8, s16, s32];
   list<Type> Unsigned = [u8, u16, u32];
   list<Type> Int = Signed # Unsigned;

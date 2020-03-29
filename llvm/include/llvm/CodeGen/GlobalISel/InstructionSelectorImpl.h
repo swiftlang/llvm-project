@@ -429,7 +429,7 @@ bool InstructionSelector::executeMatchTable(
                       dbgs() << CurrentIdx << ": GIM_CheckMemoryAlignment"
                       << "(MIs[" << InsnID << "]->memoperands() + " << MMOIdx
                       << ")->getAlignment() >= " << MinAlign << ")\n");
-      if (MMO->getAlignment() < MinAlign && handleReject() == RejectAndGiveUp)
+      if (MMO->getAlign() < MinAlign && handleReject() == RejectAndGiveUp)
         return false;
 
       break;
@@ -859,16 +859,25 @@ bool InstructionSelector::executeMatchTable(
       break;
     }
 
-    case GIR_AddTempRegister: {
+    case GIR_AddTempRegister:
+    case GIR_AddTempSubRegister: {
       int64_t InsnID = MatchTable[CurrentIdx++];
       int64_t TempRegID = MatchTable[CurrentIdx++];
       uint64_t TempRegFlags = MatchTable[CurrentIdx++];
+      unsigned SubReg = 0;
+      if (MatcherOpcode == GIR_AddTempSubRegister)
+        SubReg = MatchTable[CurrentIdx++];
+
       assert(OutMIs[InsnID] && "Attempted to add to undefined instruction");
-      OutMIs[InsnID].addReg(State.TempRegisters[TempRegID], TempRegFlags);
+
+      OutMIs[InsnID].addReg(State.TempRegisters[TempRegID], TempRegFlags, SubReg);
       DEBUG_WITH_TYPE(TgtInstructionSelector::getName(),
                       dbgs() << CurrentIdx << ": GIR_AddTempRegister(OutMIs["
                              << InsnID << "], TempRegisters[" << TempRegID
-                             << "], " << TempRegFlags << ")\n");
+                             << "]";
+                      if (SubReg)
+                        dbgs() << '.' << TRI.getSubRegIndexName(SubReg);
+                      dbgs() << ", " << TempRegFlags << ")\n");
       break;
     }
 

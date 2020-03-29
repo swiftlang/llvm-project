@@ -1,4 +1,4 @@
-//===-- InstrumentationRuntimeTSan.cpp --------------------------*- C++ -*-===//
+//===-- InstrumentationRuntimeTSan.cpp ------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -34,6 +34,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(InstrumentationRuntimeTSan)
 
 lldb::InstrumentationRuntimeSP
 InstrumentationRuntimeTSan::CreateInstance(const lldb::ProcessSP &process_sp) {
@@ -487,10 +489,10 @@ StructuredData::ObjectSP InstrumentationRuntimeTSan::RetrieveReportData(
 
 std::string
 InstrumentationRuntimeTSan::FormatDescription(StructuredData::ObjectSP report) {
-  std::string description = report->GetAsDictionary()
-                                ->GetValueForKey("issue_type")
-                                ->GetAsString()
-                                ->GetValue();
+  std::string description = std::string(report->GetAsDictionary()
+                                            ->GetValueForKey("issue_type")
+                                            ->GetAsString()
+                                            ->GetValue());
 
   if (description == "data-race") {
     return "Data race";
@@ -536,7 +538,7 @@ static std::string Sprintf(const char *format, ...) {
   va_start(args, format);
   s.PrintfVarArg(format, args);
   va_end(args);
-  return s.GetString();
+  return std::string(s.GetString());
 }
 
 static std::string GetSymbolNameFromAddress(ProcessSP process_sp, addr_t addr) {
@@ -564,15 +566,14 @@ static void GetSymbolDeclarationFromAddress(ProcessSP process_sp, addr_t addr,
   if (!symbol)
     return;
 
-  ConstString sym_name = symbol->GetMangled().GetName(
-      lldb::eLanguageTypeUnknown, Mangled::ePreferMangled);
+  ConstString sym_name = symbol->GetMangled().GetName(Mangled::ePreferMangled);
 
   ModuleSP module = symbol->CalculateSymbolContextModule();
   if (!module)
     return;
 
   VariableList var_list;
-  module->FindGlobalVariables(sym_name, nullptr, 1U, var_list);
+  module->FindGlobalVariables(sym_name, CompilerDeclContext(), 1U, var_list);
   if (var_list.GetSize() < 1)
     return;
 
@@ -612,10 +613,10 @@ std::string
 InstrumentationRuntimeTSan::GenerateSummary(StructuredData::ObjectSP report) {
   ProcessSP process_sp = GetProcessSP();
 
-  std::string summary = report->GetAsDictionary()
-                            ->GetValueForKey("description")
-                            ->GetAsString()
-                            ->GetValue();
+  std::string summary = std::string(report->GetAsDictionary()
+                                        ->GetValueForKey("description")
+                                        ->GetAsString()
+                                        ->GetValue());
   bool skip_one_frame =
       report->GetObjectForDotSeparatedPath("issue_type")->GetStringValue() ==
       "external-race";
@@ -657,10 +658,10 @@ InstrumentationRuntimeTSan::GenerateSummary(StructuredData::ObjectSP report) {
                                        ->GetValueForKey("locs")
                                        ->GetAsArray()
                                        ->GetItemAtIndex(0);
-    std::string object_type = loc->GetAsDictionary()
-                                  ->GetValueForKey("object_type")
-                                  ->GetAsString()
-                                  ->GetValue();
+    std::string object_type = std::string(loc->GetAsDictionary()
+                                              ->GetValueForKey("object_type")
+                                              ->GetAsString()
+                                              ->GetValue());
     if (!object_type.empty()) {
       summary = "Race on " + object_type + " object";
     }
@@ -726,8 +727,8 @@ std::string InstrumentationRuntimeTSan::GetLocationDescription(
                                        ->GetValueForKey("locs")
                                        ->GetAsArray()
                                        ->GetItemAtIndex(0);
-    std::string type =
-        loc->GetAsDictionary()->GetValueForKey("type")->GetStringValue();
+    std::string type = std::string(
+        loc->GetAsDictionary()->GetValueForKey("type")->GetStringValue());
     if (type == "global") {
       global_addr = loc->GetAsDictionary()
                         ->GetValueForKey("address")
@@ -756,10 +757,10 @@ std::string InstrumentationRuntimeTSan::GetLocationDescription(
                       ->GetValueForKey("size")
                       ->GetAsInteger()
                       ->GetValue();
-      std::string object_type = loc->GetAsDictionary()
-                                    ->GetValueForKey("object_type")
-                                    ->GetAsString()
-                                    ->GetValue();
+      std::string object_type = std::string(loc->GetAsDictionary()
+                                                ->GetValueForKey("object_type")
+                                                ->GetAsString()
+                                                ->GetValue());
       if (!object_type.empty()) {
         result = Sprintf("Location is a %ld-byte %s object at 0x%llx", size,
                          object_type.c_str(), addr);
@@ -978,8 +979,8 @@ static std::string GenerateThreadName(const std::string &path,
   }
 
   if (path == "locs") {
-    std::string type =
-        o->GetAsDictionary()->GetValueForKey("type")->GetStringValue();
+    std::string type = std::string(
+        o->GetAsDictionary()->GetValueForKey("type")->GetStringValue());
     int thread_id =
         o->GetObjectForDotSeparatedPath("thread_id")->GetIntegerValue();
     int fd =

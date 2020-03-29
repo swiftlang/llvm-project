@@ -1,6 +1,6 @@
 //===- Attributes.h - MLIR Attribute Classes --------------------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -12,6 +12,7 @@
 #include "mlir/IR/AttributeSupport.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/Sequence.h"
+#include "llvm/Support/PointerLikeTypeTraits.h"
 
 namespace mlir {
 class AffineMap;
@@ -204,6 +205,7 @@ public:
   static ArrayAttr get(ArrayRef<Attribute> value, MLIRContext *context);
 
   ArrayRef<Attribute> getValue() const;
+  Attribute operator[](unsigned idx) const;
 
   /// Support range iteration.
   using iterator = llvm::ArrayRef<Attribute>::iterator;
@@ -329,11 +331,9 @@ public:
   }
 
   /// Verify the construction invariants for a double value.
-  static LogicalResult verifyConstructionInvariants(Optional<Location> loc,
-                                                    MLIRContext *ctx, Type type,
+  static LogicalResult verifyConstructionInvariants(Location loc, Type type,
                                                     double value);
-  static LogicalResult verifyConstructionInvariants(Optional<Location> loc,
-                                                    MLIRContext *ctx, Type type,
+  static LogicalResult verifyConstructionInvariants(Location loc, Type type,
                                                     const APFloat &value);
 };
 
@@ -352,13 +352,26 @@ public:
   static IntegerAttr get(Type type, const APInt &value);
 
   APInt getValue() const;
+  /// Return the integer value as a 64-bit int. The attribute must be a signless
+  /// integer.
   // TODO(jpienaar): Change callers to use getValue instead.
   int64_t getInt() const;
+  /// Return the integer value as a signed 64-bit int. The attribute must be
+  /// a signed integer.
+  int64_t getSInt() const;
+  /// Return the integer value as a unsigned 64-bit int. The attribute must be
+  /// an unsigned integer.
+  uint64_t getUInt() const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool kindof(unsigned kind) {
     return kind == StandardAttributes::Integer;
   }
+
+  static LogicalResult verifyConstructionInvariants(Location loc, Type type,
+                                                    int64_t value);
+  static LogicalResult verifyConstructionInvariants(Location loc, Type type,
+                                                    const APInt &value);
 };
 
 //===----------------------------------------------------------------------===//
@@ -411,8 +424,7 @@ public:
   StringRef getAttrData() const;
 
   /// Verify the construction of an opaque attribute.
-  static LogicalResult verifyConstructionInvariants(Optional<Location> loc,
-                                                    MLIRContext *context,
+  static LogicalResult verifyConstructionInvariants(Location loc,
                                                     Identifier dialect,
                                                     StringRef attrData,
                                                     Type type);
@@ -685,7 +697,7 @@ public:
     const char *data = reinterpret_cast<const char *>(values.data());
     return getRawIntOrFloat(
         type, ArrayRef<char>(data, values.size() * sizeof(T)), sizeof(T),
-        /*isInt=*/std::numeric_limits<T>::is_integer);
+        std::numeric_limits<T>::is_integer, std::numeric_limits<T>::is_signed);
   }
 
   /// Constructs a dense integer elements attribute from a single element.
@@ -719,6 +731,13 @@ public:
                                const std::initializer_list<T> &list) {
     return get(type, ArrayRef<T>(list));
   }
+
+  /// Construct a dense elements attribute from a raw buffer representing the
+  /// data for this attribute. Users should generally not use this methods as
+  /// the expected buffer format may not be a form the user expects.
+  static DenseElementsAttr getFromRawBuffer(ShapedType type,
+                                            ArrayRef<char> rawBuffer,
+                                            bool isSplatBuffer);
 
   //===--------------------------------------------------------------------===//
   // Iterators
@@ -853,7 +872,8 @@ public:
                              std::numeric_limits<T>::is_integer) ||
                             llvm::is_one_of<T, float, double>::value>::type>
   llvm::iterator_range<ElementIterator<T>> getValues() const {
-    assert(isValidIntOrFloat(sizeof(T), std::numeric_limits<T>::is_integer));
+    assert(isValidIntOrFloat(sizeof(T), std::numeric_limits<T>::is_integer,
+                             std::numeric_limits<T>::is_signed));
     auto rawData = getRawData().data();
     bool splat = isSplat();
     return {ElementIterator<T>(rawData, splat, 0),
@@ -915,6 +935,11 @@ public:
   FloatElementIterator float_value_begin() const;
   FloatElementIterator float_value_end() const;
 
+  /// Return the raw storage data held by this attribute. Users should generally
+  /// not use this directly, as the internal storage format is not always in the
+  /// form the user might expect.
+  ArrayRef<char> getRawData() const;
+
   //===--------------------------------------------------------------------===//
   // Mutation Utilities
   //===--------------------------------------------------------------------===//
@@ -938,9 +963,6 @@ public:
             function_ref<APInt(const APFloat &)> mapping) const;
 
 protected:
-  /// Return the raw storage data held by this attribute.
-  ArrayRef<char> getRawData() const;
-
   /// Get iterators to the raw APInt values for each element in this attribute.
   IntElementIterator raw_int_begin() const {
     return IntElementIterator(*this, 0);
@@ -964,12 +986,13 @@ protected:
   /// invariants that the templatized 'get' method cannot.
   static DenseElementsAttr getRawIntOrFloat(ShapedType type,
                                             ArrayRef<char> data,
-                                            int64_t dataEltSize, bool isInt);
+                                            int64_t dataEltSize, bool isInt,
+                                            bool isSigned);
 
-  /// Check the information for a c++ data type, check if this type is valid for
+  /// Check the information for a C++ data type, check if this type is valid for
   /// the current attribute. This method is used to verify specific type
   /// invariants that the templatized 'getValues' method cannot.
-  bool isValidIntOrFloat(int64_t dataEltSize, bool isInt) const;
+  bool isValidIntOrFloat(int64_t dataEltSize, bool isInt, bool isSigned) const;
 };
 
 /// An attribute that represents a reference to a dense float vector or tensor

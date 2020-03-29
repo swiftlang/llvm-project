@@ -61,12 +61,31 @@ MCSymbol *MachineBasicBlock::getSymbol() const {
     const MachineFunction *MF = getParent();
     MCContext &Ctx = MF->getContext();
     auto Prefix = Ctx.getAsmInfo()->getPrivateLabelPrefix();
-    assert(getNumber() >= 0 && "cannot get label for unreachable MBB");
-    CachedMCSymbol = Ctx.getOrCreateSymbol(Twine(Prefix) + "BB" +
-                                           Twine(MF->getFunctionNumber()) +
-                                           "_" + Twine(getNumber()));
-  }
 
+    bool BasicBlockSymbols = MF->hasBBSections() || MF->hasBBLabels();
+    auto Delimiter = BasicBlockSymbols ? "." : "_";
+    assert(getNumber() >= 0 && "cannot get label for unreachable MBB");
+
+    // With Basic Block Sections, we emit a symbol for every basic block. To
+    // keep the size of strtab small, we choose a unary encoding which can
+    // compress the symbol names significantly.  The basic blocks for function
+    // foo are named a.BB.foo, aa.BB.foo, and so on.
+    if (BasicBlockSymbols) {
+      auto Iter = MF->getBBSectionsSymbolPrefix().begin();
+      if (getNumber() < 0 ||
+          getNumber() >= (int)MF->getBBSectionsSymbolPrefix().size())
+        report_fatal_error("Unreachable MBB: " + Twine(getNumber()));
+      std::string Prefix(Iter + 1, Iter + getNumber() + 1);
+      std::reverse(Prefix.begin(), Prefix.end());
+      CachedMCSymbol =
+          Ctx.getOrCreateSymbol(Prefix + Twine(Delimiter) + "BB" +
+                                Twine(Delimiter) + Twine(MF->getName()));
+    } else {
+      CachedMCSymbol = Ctx.getOrCreateSymbol(
+          Twine(Prefix) + "BB" + Twine(MF->getFunctionNumber()) +
+          Twine(Delimiter) + Twine(getNumber()));
+    }
+  }
   return CachedMCSymbol;
 }
 
@@ -326,7 +345,7 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
     OS << "landing-pad";
     HasAttributes = true;
   }
-  if (getAlignment() != Align::None()) {
+  if (getAlignment() != Align(1)) {
     OS << (HasAttributes ? ", " : " (");
     OS << "align " << Log2(getAlignment());
     HasAttributes = true;
@@ -527,6 +546,48 @@ void MachineBasicBlock::moveBefore(MachineBasicBlock *NewAfter) {
 
 void MachineBasicBlock::moveAfter(MachineBasicBlock *NewBefore) {
   getParent()->splice(++NewBefore->getIterator(), getIterator());
+}
+
+// Returns true if this basic block and the Other are in the same section.
+bool MachineBasicBlock::sameSection(const MachineBasicBlock *Other) const {
+  if (this == Other)
+    return true;
+
+  if (this->getSectionType() != Other->getSectionType())
+    return false;
+
+  // If either is in a unique section, return false.
+  if (this->getSectionType() == llvm::MachineBasicBlockSection::MBBS_Unique ||
+      Other->getSectionType() == llvm::MachineBasicBlockSection::MBBS_Unique)
+    return false;
+
+  return true;
+}
+
+const MachineBasicBlock *MachineBasicBlock::getSectionEndMBB() const {
+  if (this->isEndSection())
+    return this;
+  auto I = std::next(this->getIterator());
+  const MachineFunction *MF = getParent();
+  while (I != MF->end()) {
+    const MachineBasicBlock &MBB = *I;
+    if (MBB.isEndSection())
+      return &MBB;
+    I = std::next(I);
+  }
+  llvm_unreachable("No End Basic Block for this section.");
+}
+
+// Returns true if this block begins any section.
+bool MachineBasicBlock::isBeginSection() const {
+  return (SectionType == MBBS_Entry || SectionType == MBBS_Unique ||
+          getParent()->isSectionStartMBB(getNumber()));
+}
+
+// Returns true if this block begins any section.
+bool MachineBasicBlock::isEndSection() const {
+  return (SectionType == MBBS_Entry || SectionType == MBBS_Unique ||
+          getParent()->isSectionEndMBB(getNumber()));
 }
 
 void MachineBasicBlock::updateTerminator() {
@@ -871,8 +932,9 @@ bool MachineBasicBlock::canFallThrough() {
   return getFallThrough() != nullptr;
 }
 
-MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(MachineBasicBlock *Succ,
-                                                        Pass &P) {
+MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(
+    MachineBasicBlock *Succ, Pass &P,
+    std::vector<SparseBitVector<>> *LiveInSets) {
   if (!canSplitCriticalEdge(Succ))
     return nullptr;
 
@@ -1003,7 +1065,10 @@ MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(MachineBasicBlock *Succ,
       }
     }
     // Update relevant live-through information.
-    LV->addNewBlock(NMBB, this, Succ);
+    if (LiveInSets != nullptr)
+      LV->addNewBlock(NMBB, this, Succ, *LiveInSets);
+    else
+      LV->addNewBlock(NMBB, this, Succ);
   }
 
   if (LIS) {
@@ -1109,8 +1174,12 @@ bool MachineBasicBlock::canSplitCriticalEdge(
   if (Succ->isEHPad())
     return false;
 
-  const MachineFunction *MF = getParent();
+  // Splitting the critical edge to a callbr's indirect block isn't advised.
+  // Don't do it in this generic function.
+  if (isInlineAsmBrIndirectTarget(Succ))
+    return false;
 
+  const MachineFunction *MF = getParent();
   // Performance might be harmed on HW that implements branching using exec mask
   // where both sides of the branches are always executed.
   if (MF->getTarget().requiresStructuredCFG())

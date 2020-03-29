@@ -82,6 +82,9 @@ namespace dr406 { // dr406: yes
   typedef struct {
     static int n; // expected-error {{static data member 'n' not allowed in anonymous struct}}
   } A;
+  typedef union {
+    static int n; // expected-error {{static data member 'n' not allowed in anonymous union}}
+  } B;
 }
 
 namespace dr407 { // dr407: 3.8
@@ -294,13 +297,11 @@ namespace dr420 { // dr420: yes
   void test2(T p) {
     p->template Y<int>::~Y<int>();
     p->~Y<int>();
-    // FIXME: This is ill-formed, but this diagnostic is terrible. We should
-    // reject this in the parser.
-    p->template ~Y<int>(); // expected-error 2{{no member named '~typename Y<int>'}}
+    p->template ~Y<int>(); // expected-error {{'template' keyword not permitted in destructor name}}
   }
   template<typename T> struct Y {};
-  template void test2(Y<int>*); // expected-note {{instantiation}}
-  template void test2(ptr<Y<int> >); // expected-note {{instantiation}}
+  template void test2(Y<int>*);
+  template void test2(ptr<Y<int> >);
 
   void test3(int *p, ptr<int> q) {
     typedef int Int;

@@ -20,7 +20,12 @@ namespace llvm {
 namespace XCOFF {
 
 // Constants used in the XCOFF definition.
-enum { FileNamePadSize = 6, NameSize = 8, SymbolTableEntrySize = 18 };
+enum {
+  FileNamePadSize = 6,
+  NameSize = 8,
+  SymbolTableEntrySize = 18,
+  RelocationSerializationSize32 = 10
+};
 
 enum ReservedSectionNum { N_DEBUG = -2, N_ABS = -1, N_UNDEF = 0 };
 
@@ -253,6 +258,7 @@ enum CFileCpuId : uint8_t {
 };
 
 StringRef getMappingClassString(XCOFF::StorageMappingClass SMC);
+StringRef getRelocationTypeString(XCOFF::RelocationType Type);
 
 } // end namespace XCOFF
 } // end namespace llvm

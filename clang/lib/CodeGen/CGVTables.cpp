@@ -364,7 +364,8 @@ void CodeGenFunction::EmitCallAndReturnForThunk(llvm::FunctionCallee Callee,
   ReturnValueSlot Slot;
   if (!ResultType->isVoidType() &&
       CurFnInfo->getReturnInfo().getKind() == ABIArgInfo::Indirect)
-    Slot = ReturnValueSlot(ReturnValue, ResultType.isVolatileQualified());
+    Slot = ReturnValueSlot(ReturnValue, ResultType.isVolatileQualified(),
+                           /*IsUnused=*/false, /*IsExternallyDestructed=*/true);
 
   // Now emit our call.
   llvm::CallBase *CallOrInvoke;
@@ -437,7 +438,8 @@ void CodeGenFunction::EmitMustTailThunk(GlobalDecl GD,
   // Finish the function to maintain CodeGenFunction invariants.
   // FIXME: Don't emit unreachable code.
   EmitBlock(createBasicBlock());
-  FinishFunction();
+
+  FinishThunk();
 }
 
 void CodeGenFunction::generateThunk(llvm::Function *Fn,
@@ -564,7 +566,7 @@ llvm::Constant *CodeGenVTables::maybeEmitThunk(GlobalDecl GD,
   CGM.SetLLVMFunctionAttributesForDefinition(GD.getDecl(), ThunkFn);
 
   // Thunks for variadic methods are special because in general variadic
-  // arguments cannot be perferctly forwarded. In the general case, clang
+  // arguments cannot be perfectly forwarded. In the general case, clang
   // implements such thunks by cloning the original function body. However, for
   // thunks with no return adjustment on targets that support musttail, we can
   // use musttail to perfectly forward the variadic arguments.
@@ -1024,6 +1026,26 @@ void CodeGenModule::EmitDeferredVTables() {
   DeferredVTables.clear();
 }
 
+bool CodeGenModule::HasLTOVisibilityPublicStd(const CXXRecordDecl *RD) {
+  if (!getCodeGenOpts().LTOVisibilityPublicStd)
+    return false;
+
+  const DeclContext *DC = RD;
+  while (1) {
+    auto *D = cast<Decl>(DC);
+    DC = DC->getParent();
+    if (isa<TranslationUnitDecl>(DC->getRedeclContext())) {
+      if (auto *ND = dyn_cast<NamespaceDecl>(D))
+        if (const IdentifierInfo *II = ND->getIdentifier())
+          if (II->isStr("std") || II->isStr("stdext"))
+            return true;
+      break;
+    }
+  }
+
+  return false;
+}
+
 bool CodeGenModule::HasHiddenLTOVisibility(const CXXRecordDecl *RD) {
   LinkageInfo LV = RD->getLinkageAndVisibility();
   if (!isExternallyVisible(LV.getLinkage()))
@@ -1040,22 +1062,7 @@ bool CodeGenModule::HasHiddenLTOVisibility(const CXXRecordDecl *RD) {
       return false;
   }
 
-  if (getCodeGenOpts().LTOVisibilityPublicStd) {
-    const DeclContext *DC = RD;
-    while (1) {
-      auto *D = cast<Decl>(DC);
-      DC = DC->getParent();
-      if (isa<TranslationUnitDecl>(DC->getRedeclContext())) {
-        if (auto *ND = dyn_cast<NamespaceDecl>(D))
-          if (const IdentifierInfo *II = ND->getIdentifier())
-            if (II->isStr("std") || II->isStr("stdext"))
-              return false;
-        break;
-      }
-    }
-  }
-
-  return true;
+  return !HasLTOVisibilityPublicStd(RD);
 }
 
 llvm::GlobalObject::VCallVisibility

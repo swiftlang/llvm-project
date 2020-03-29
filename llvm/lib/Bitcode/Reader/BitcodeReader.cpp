@@ -859,7 +859,7 @@ BitcodeReader::BitcodeReader(BitstreamCursor Stream, StringRef Strtab,
                              LLVMContext &Context)
     : BitcodeReaderBase(std::move(Stream), Strtab), Context(Context),
       ValueList(Context, Stream.SizeInBytes()) {
-  this->ProducerIdentification = ProducerIdentification;
+  this->ProducerIdentification = std::string(ProducerIdentification);
 }
 
 Error BitcodeReader::materializeForwardReferencedFunctions() {
@@ -985,9 +985,10 @@ static GlobalValueSummary::GVFlags getDecodedGVSummaryFlags(uint64_t RawFlags,
 
 // Decode the flags for GlobalVariable in the summary
 static GlobalVarSummary::GVarFlags getDecodedGVarFlags(uint64_t RawFlags) {
-  return GlobalVarSummary::GVarFlags((RawFlags & 0x1) ? true : false,
-                                     (RawFlags & 0x2) ? true : false,
-                                     (RawFlags & 0x4) ? true : false);
+  return GlobalVarSummary::GVarFlags(
+      (RawFlags & 0x1) ? true : false, (RawFlags & 0x2) ? true : false,
+      (RawFlags & 0x4) ? true : false,
+      (GlobalObject::VCallVisibility)(RawFlags >> 3));
 }
 
 static GlobalValue::VisibilityTypes getDecodedVisibility(unsigned Val) {
@@ -1217,6 +1218,8 @@ StructType *BitcodeReader::createIdentifiedStructType(LLVMContext &Context) {
 static uint64_t getRawAttributeMask(Attribute::AttrKind Val) {
   switch (Val) {
   case Attribute::EndAttrKinds:
+  case Attribute::EmptyKey:
+  case Attribute::TombstoneKey:
     llvm_unreachable("Synthetic enumerators which should never get here");
 
   case Attribute::None:            return 0;
@@ -5835,35 +5838,7 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
     default: // Default behavior: ignore.
       break;
     case bitc::FS_FLAGS: {  // [flags]
-      uint64_t Flags = Record[0];
-      // Scan flags.
-      assert(Flags <= 0x3f && "Unexpected bits in flag");
-
-      // 1 bit: WithGlobalValueDeadStripping flag.
-      // Set on combined index only.
-      if (Flags & 0x1)
-        TheIndex.setWithGlobalValueDeadStripping();
-      // 1 bit: SkipModuleByDistributedBackend flag.
-      // Set on combined index only.
-      if (Flags & 0x2)
-        TheIndex.setSkipModuleByDistributedBackend();
-      // 1 bit: HasSyntheticEntryCounts flag.
-      // Set on combined index only.
-      if (Flags & 0x4)
-        TheIndex.setHasSyntheticEntryCounts();
-      // 1 bit: DisableSplitLTOUnit flag.
-      // Set on per module indexes. It is up to the client to validate
-      // the consistency of this flag across modules being linked.
-      if (Flags & 0x8)
-        TheIndex.setEnableSplitLTOUnit();
-      // 1 bit: PartiallySplitLTOUnits flag.
-      // Set on combined index only.
-      if (Flags & 0x10)
-        TheIndex.setPartiallySplitLTOUnits();
-      // 1 bit: WithAttributePropagation flag.
-      // Set on combined index only.
-      if (Flags & 0x20)
-        TheIndex.setWithAttributePropagation();
+      TheIndex.setFlags(Record[0]);
       break;
     }
     case bitc::FS_VALUE_GUID: { // [valueid, refguid]
@@ -5969,7 +5944,8 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
       unsigned RefArrayStart = 2;
       GlobalVarSummary::GVarFlags GVF(/* ReadOnly */ false,
                                       /* WriteOnly */ false,
-                                      /* Constant */ false);
+                                      /* Constant */ false,
+                                      GlobalObject::VCallVisibilityPublic);
       auto Flags = getDecodedGVSummaryFlags(RawFlags, Version);
       if (Version >= 5) {
         GVF = getDecodedGVarFlags(Record[2]);
@@ -6106,7 +6082,8 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
       unsigned RefArrayStart = 3;
       GlobalVarSummary::GVarFlags GVF(/* ReadOnly */ false,
                                       /* WriteOnly */ false,
-                                      /* Constant */ false);
+                                      /* Constant */ false,
+                                      GlobalObject::VCallVisibilityPublic);
       auto Flags = getDecodedGVSummaryFlags(RawFlags, Version);
       if (Version >= 5) {
         GVF = getDecodedGVarFlags(Record[3]);

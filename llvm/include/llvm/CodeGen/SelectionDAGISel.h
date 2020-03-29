@@ -78,7 +78,7 @@ public:
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
-  virtual void EmitFunctionEntryCode() {}
+  virtual void emitFunctionEntryCode() {}
 
   /// PreprocessISelDAG - This hook allows targets to hack on the graph before
   /// instruction selection starts.
@@ -323,6 +323,8 @@ private:
   void Select_WRITE_REGISTER(SDNode *Op);
   void Select_UNDEF(SDNode *N);
   void CannotYetSelect(SDNode *N);
+
+  void Select_FREEZE(SDNode *N);
 
 private:
   void DoInstructionSelection();

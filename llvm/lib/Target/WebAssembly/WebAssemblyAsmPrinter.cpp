@@ -85,7 +85,7 @@ WebAssemblyTargetStreamer *WebAssemblyAsmPrinter::getTargetStreamer() {
 // WebAssemblyAsmPrinter Implementation.
 //===----------------------------------------------------------------------===//
 
-void WebAssemblyAsmPrinter::EmitEndOfAsmFile(Module &M) {
+void WebAssemblyAsmPrinter::emitEndOfAsmFile(Module &M) {
   for (auto &It : OutContext.getSymbols()) {
     // Emit a .globaltype and .eventtype declaration.
     auto Sym = cast<MCSymbolWasm>(It.getValue());
@@ -103,7 +103,7 @@ void WebAssemblyAsmPrinter::EmitEndOfAsmFile(Module &M) {
     if (F.isDeclarationForLinker()) {
       SmallVector<MVT, 4> Results;
       SmallVector<MVT, 4> Params;
-      computeSignatureVTs(F.getFunctionType(), F, TM, Params, Results);
+      computeSignatureVTs(F.getFunctionType(), &F, F, TM, Params, Results);
       auto *Sym = cast<MCSymbolWasm>(getSymbol(&F));
       Sym->setType(wasm::WASM_SYMBOL_TYPE_FUNCTION);
       if (!Sym->getSignature()) {
@@ -167,7 +167,7 @@ void WebAssemblyAsmPrinter::EmitEndOfAsmFile(Module &M) {
       MCSectionWasm *MySection =
           OutContext.getWasmSection(SectionName, SectionKind::getMetadata());
       OutStreamer->SwitchSection(MySection);
-      OutStreamer->EmitBytes(Contents->getString());
+      OutStreamer->emitBytes(Contents->getString());
       OutStreamer->PopSection();
     }
   }
@@ -208,19 +208,19 @@ void WebAssemblyAsmPrinter::EmitProducerInfo(Module &M) {
         ".custom_section.producers", SectionKind::getMetadata());
     OutStreamer->PushSection();
     OutStreamer->SwitchSection(Producers);
-    OutStreamer->EmitULEB128IntValue(FieldCount);
+    OutStreamer->emitULEB128IntValue(FieldCount);
     for (auto &Producers : {std::make_pair("language", &Languages),
             std::make_pair("processed-by", &Tools)}) {
       if (Producers.second->empty())
         continue;
-      OutStreamer->EmitULEB128IntValue(strlen(Producers.first));
-      OutStreamer->EmitBytes(Producers.first);
-      OutStreamer->EmitULEB128IntValue(Producers.second->size());
+      OutStreamer->emitULEB128IntValue(strlen(Producers.first));
+      OutStreamer->emitBytes(Producers.first);
+      OutStreamer->emitULEB128IntValue(Producers.second->size());
       for (auto &Producer : *Producers.second) {
-        OutStreamer->EmitULEB128IntValue(Producer.first.size());
-        OutStreamer->EmitBytes(Producer.first);
-        OutStreamer->EmitULEB128IntValue(Producer.second.size());
-        OutStreamer->EmitBytes(Producer.second);
+        OutStreamer->emitULEB128IntValue(Producer.first.size());
+        OutStreamer->emitBytes(Producer.first);
+        OutStreamer->emitULEB128IntValue(Producer.second.size());
+        OutStreamer->emitBytes(Producer.second);
       }
     }
     OutStreamer->PopSection();
@@ -267,30 +267,31 @@ void WebAssemblyAsmPrinter::EmitTargetFeatures(Module &M) {
   OutStreamer->PushSection();
   OutStreamer->SwitchSection(FeaturesSection);
 
-  OutStreamer->EmitULEB128IntValue(EmittedFeatures.size());
+  OutStreamer->emitULEB128IntValue(EmittedFeatures.size());
   for (auto &F : EmittedFeatures) {
-    OutStreamer->EmitIntValue(F.Prefix, 1);
-    OutStreamer->EmitULEB128IntValue(F.Name.size());
-    OutStreamer->EmitBytes(F.Name);
+    OutStreamer->emitIntValue(F.Prefix, 1);
+    OutStreamer->emitULEB128IntValue(F.Name.size());
+    OutStreamer->emitBytes(F.Name);
   }
 
   OutStreamer->PopSection();
 }
 
-void WebAssemblyAsmPrinter::EmitConstantPool() {
+void WebAssemblyAsmPrinter::emitConstantPool() {
   assert(MF->getConstantPool()->getConstants().empty() &&
          "WebAssembly disables constant pools");
 }
 
-void WebAssemblyAsmPrinter::EmitJumpTableInfo() {
+void WebAssemblyAsmPrinter::emitJumpTableInfo() {
   // Nothing to do; jump tables are incorporated into the instruction stream.
 }
 
-void WebAssemblyAsmPrinter::EmitFunctionBodyStart() {
+void WebAssemblyAsmPrinter::emitFunctionBodyStart() {
   const Function &F = MF->getFunction();
   SmallVector<MVT, 1> ResultVTs;
   SmallVector<MVT, 4> ParamVTs;
-  computeSignatureVTs(F.getFunctionType(), F, TM, ParamVTs, ResultVTs);
+  computeSignatureVTs(F.getFunctionType(), &F, F, TM, ParamVTs, ResultVTs);
+
   auto Signature = signatureFromMVTs(ResultVTs, ParamVTs);
   auto *WasmSym = cast<MCSymbolWasm>(CurrentFnSym);
   WasmSym->setSignature(Signature.get());
@@ -312,10 +313,10 @@ void WebAssemblyAsmPrinter::EmitFunctionBodyStart() {
   valTypesFromMVTs(MFI->getLocals(), Locals);
   getTargetStreamer()->emitLocal(Locals);
 
-  AsmPrinter::EmitFunctionBodyStart();
+  AsmPrinter::emitFunctionBodyStart();
 }
 
-void WebAssemblyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
+void WebAssemblyAsmPrinter::emitInstruction(const MachineInstr *MI) {
   LLVM_DEBUG(dbgs() << "EmitInstruction: " << *MI << '\n');
 
   switch (MI->getOpcode()) {

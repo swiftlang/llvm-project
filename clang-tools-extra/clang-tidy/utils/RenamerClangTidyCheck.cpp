@@ -133,7 +133,7 @@ static void addUsage(RenamerClangTidyCheck::NamingCheckFailureMap &Failures,
                      const RenamerClangTidyCheck::NamingCheckId &Decl,
                      SourceRange Range, SourceManager *SourceMgr = nullptr) {
   // Do nothing if the provided range is invalid.
-  if (Range.getBegin().isInvalid() || Range.getEnd().isInvalid())
+  if (Range.isInvalid())
     return;
 
   // If we have a source manager, use it to convert to the spelling location for
@@ -203,14 +203,15 @@ void RenamerClangTidyCheck::check(const MatchFinder::MatchResult &Result) {
   }
 
   if (const auto *Loc = Result.Nodes.getNodeAs<TypeLoc>("typeLoc")) {
+    UnqualTypeLoc Unqual = Loc->getUnqualifiedLoc();
     NamedDecl *Decl = nullptr;
-    if (const auto &Ref = Loc->getAs<TagTypeLoc>())
+    if (const auto &Ref = Unqual.getAs<TagTypeLoc>())
       Decl = Ref.getDecl();
-    else if (const auto &Ref = Loc->getAs<InjectedClassNameTypeLoc>())
+    else if (const auto &Ref = Unqual.getAs<InjectedClassNameTypeLoc>())
       Decl = Ref.getDecl();
-    else if (const auto &Ref = Loc->getAs<UnresolvedUsingTypeLoc>())
+    else if (const auto &Ref = Unqual.getAs<UnresolvedUsingTypeLoc>())
       Decl = Ref.getDecl();
-    else if (const auto &Ref = Loc->getAs<TemplateTypeParmTypeLoc>())
+    else if (const auto &Ref = Unqual.getAs<TemplateTypeParmTypeLoc>())
       Decl = Ref.getDecl();
     // further TypeLocs handled below
 
@@ -272,6 +273,11 @@ void RenamerClangTidyCheck::check(const MatchFinder::MatchResult &Result) {
   }
 
   if (const auto *Decl = Result.Nodes.getNodeAs<NamedDecl>("decl")) {
+    // Fix using namespace declarations.
+    if (const auto *UsingNS = dyn_cast<UsingDirectiveDecl>(Decl))
+      addUsage(NamingCheckFailures, UsingNS->getNominatedNamespaceAsWritten(),
+               UsingNS->getIdentLocation());
+
     if (!Decl->getIdentifier() || Decl->getName().empty() || Decl->isImplicit())
       return;
 
@@ -290,11 +296,9 @@ void RenamerClangTidyCheck::check(const MatchFinder::MatchResult &Result) {
               Value->getReturnType().getTypePtr()->getAs<TypedefType>())
         addUsage(NamingCheckFailures, Typedef->getDecl(),
                  Value->getSourceRange());
-      for (unsigned i = 0; i < Value->getNumParams(); ++i) {
-        if (const TypedefType *Typedef = Value->parameters()[i]
-                                             ->getType()
-                                             .getTypePtr()
-                                             ->getAs<TypedefType>())
+      for (const ParmVarDecl *Param : Value->parameters()) {
+        if (const TypedefType *Typedef =
+                Param->getType().getTypePtr()->getAs<TypedefType>())
           addUsage(NamingCheckFailures, Typedef->getDecl(),
                    Value->getSourceRange());
       }
@@ -340,7 +344,7 @@ void RenamerClangTidyCheck::checkMacro(SourceManager &SourceMgr,
     return;
   FailureInfo &Info = *MaybeFailure;
   StringRef Name = MacroNameTok.getIdentifierInfo()->getName();
-  NamingCheckId ID(MI->getDefinitionLoc(), Name);
+  NamingCheckId ID(MI->getDefinitionLoc(), std::string(Name));
   NamingCheckFailure &Failure = NamingCheckFailures[ID];
   SourceRange Range(MacroNameTok.getLocation(), MacroNameTok.getEndLoc());
 
@@ -351,7 +355,7 @@ void RenamerClangTidyCheck::checkMacro(SourceManager &SourceMgr,
 void RenamerClangTidyCheck::expandMacro(const Token &MacroNameTok,
                                         const MacroInfo *MI) {
   StringRef Name = MacroNameTok.getIdentifierInfo()->getName();
-  NamingCheckId ID(MI->getDefinitionLoc(), Name);
+  NamingCheckId ID(MI->getDefinitionLoc(), std::string(Name));
 
   auto Failure = NamingCheckFailures.find(ID);
   if (Failure == NamingCheckFailures.end())

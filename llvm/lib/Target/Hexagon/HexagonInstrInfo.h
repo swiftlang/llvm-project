@@ -182,7 +182,7 @@ public:
   /// is true, the register operand is the last use and must be marked kill.
   void storeRegToStackSlot(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MBBI,
-                           unsigned SrcReg, bool isKill, int FrameIndex,
+                           Register SrcReg, bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI) const override;
 
@@ -191,7 +191,7 @@ public:
   /// machine basic block before the specified machine instruction.
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI,
-                            unsigned DestReg, int FrameIndex,
+                            Register DestReg, int FrameIndex,
                             const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
 
@@ -207,7 +207,7 @@ public:
   bool
   getMemOperandsWithOffset(const MachineInstr &LdSt,
                            SmallVectorImpl<const MachineOperand *> &BaseOps,
-                           int64_t &Offset,
+                           int64_t &Offset, bool &OffsetIsScalable,
                            const TargetRegisterInfo *TRI) const override;
 
   /// Reverses the branch condition of the specified condition list,
@@ -465,7 +465,7 @@ public:
   short getRegForm(const MachineInstr &MI) const;
   unsigned getSize(const MachineInstr &MI) const;
   uint64_t getType(const MachineInstr &MI) const;
-  unsigned getUnits(const MachineInstr &MI) const;
+  InstrStage::FuncUnits getUnits(const MachineInstr &MI) const;
 
   MachineBasicBlock::instr_iterator expandVGatherPseudo(MachineInstr &MI) const;
 

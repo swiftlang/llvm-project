@@ -61,6 +61,12 @@ func @missingReturn()
 // CHECK: func @int_types(i1, i2, i4, i7, i87) -> (i1, index, i19)
 func @int_types(i1, i2, i4, i7, i87) -> (i1, index, i19)
 
+// CHECK: func @sint_types(si2, si4) -> (si7, si1023)
+func @sint_types(si2, si4) -> (si7, si1023)
+
+// CHECK: func @uint_types(ui2, ui4) -> (ui7, ui1023)
+func @uint_types(ui2, ui4) -> (ui7, ui1023)
+
 
 // CHECK: func @vectors(vector<1xf32>, vector<2x4xf32>)
 func @vectors(vector<1 x f32>, vector<2x4xf32>)
@@ -132,6 +138,16 @@ func @memrefs_compose_with_id(memref<2x2xi8, affine_map<(d0, d1) -> (d0, d1)>,
 
 // CHECK: func @complex_types(complex<i1>) -> complex<f32>
 func @complex_types(complex<i1>) -> complex<f32>
+
+
+// CHECK: func @memref_with_complex_elems(memref<1x?xcomplex<f32>>)
+func @memref_with_complex_elems(memref<1x?xcomplex<f32>>)
+
+// CHECK: func @memref_with_vector_elems(memref<1x?xvector<10xf32>>)
+func @memref_with_vector_elems(memref<1x?xvector<10xf32>>)
+
+// CHECK: func @unranked_memref_with_complex_elems(memref<*xcomplex<f32>>)
+func @unranked_memref_with_complex_elems(memref<*xcomplex<f32>>)
 
 // CHECK: func @functions((memref<1x?x4x?x?xi32, #map0>, memref<8xi8>) -> (), () -> ())
 func @functions((memref<1x?x4x?x?xi32, #map0, 0>, memref<8xi8, #map1, 0>) -> (), ()->())
@@ -423,11 +439,11 @@ func @bbargs() -> (i16, i8) {
 func @verbose_terminators() -> (i1, i17) {
   %0:2 = "foo"() : () -> (i1, i17)
 // CHECK:  br ^bb1(%{{.*}}#0, %{{.*}}#1 : i1, i17)
-  "std.br"()[^bb1(%0#0, %0#1 : i1, i17)] : () -> ()
+  "std.br"(%0#0, %0#1)[^bb1] : (i1, i17) -> ()
 
 ^bb1(%x : i1, %y : i17):
 // CHECK:  cond_br %{{.*}}, ^bb2(%{{.*}} : i17), ^bb3(%{{.*}}, %{{.*}} : i1, i17)
-  "std.cond_br"(%x)[^bb2(%y : i17), ^bb3(%x, %y : i1, i17)] : (i1) -> ()
+  "std.cond_br"(%x, %y, %x, %y) [^bb2, ^bb3] {operand_segment_sizes = dense<[1, 1, 2]>: vector<3xi32>} : (i1, i17, i1, i17) -> ()
 
 ^bb2(%a : i17):
   %true = constant 1 : i1
@@ -599,6 +615,9 @@ func @splattensorattr() -> () {
 ^bb0:
   // CHECK: "splatBoolTensor"() {bar = dense<false> : tensor<i1>} : () -> ()
   "splatBoolTensor"(){bar = dense<false> : tensor<i1>} : () -> ()
+
+  // CHECK: "splatUIntTensor"() {bar = dense<222> : tensor<2x1x4xui8>} : () -> ()
+  "splatUIntTensor"(){bar = dense<222> : tensor<2x1x4xui8>} : () -> ()
 
   // CHECK: "splatIntTensor"() {bar = dense<5> : tensor<2x1x4xi32>} : () -> ()
   "splatIntTensor"(){bar = dense<5> : tensor<2x1x4xi32>} : () -> ()
@@ -825,8 +844,8 @@ func @terminator_with_regions() {
 
 // CHECK-LABEL: func @unregistered_term
 func @unregistered_term(%arg0 : i1) -> i1 {
-  // CHECK-NEXT: "unregistered_br"()[^bb1(%{{.*}} : i1)] : () -> ()
-  "unregistered_br"()[^bb1(%arg0 : i1)] : () -> ()
+  // CHECK-NEXT: "unregistered_br"(%{{.*}})[^bb1] : (i1) -> ()
+  "unregistered_br"(%arg0)[^bb1] : (i1) -> ()
 
 ^bb1(%arg1 : i1):
   return %arg1 : i1
@@ -1027,6 +1046,11 @@ func @f64_special_values() {
   // CHECK: constant 0xFFF0000000000000 : f64
   %5 = constant 0xFFF0000000000000 : f64
 
+  // Check that values that can't be represented with the default format, use
+  // hex instead.
+  // CHECK: constant 0xC1CDC00000000000 : f64
+  %6 = constant 0xC1CDC00000000000 : f64
+
   return
 }
 
@@ -1139,6 +1163,10 @@ func @"\"_string_symbol_reference\""() {
   return
 }
 
+// CHECK-LABEL: func @string_attr_name
+// CHECK-SAME: {"0 . 0", nested = {"0 . 0"}}
+func @string_attr_name() attributes {"0 . 0", nested = {"0 . 0"}}
+
 // CHECK-LABEL: func @nested_reference
 // CHECK: ref = @some_symbol::@some_nested_symbol
 func @nested_reference() attributes {test.ref = @some_symbol::@some_nested_symbol }
@@ -1156,4 +1184,50 @@ func @custom_asm_names() -> (i32, i32, i32, i32, i32, i32, i32) {
 
   // CHECK: return %[[FIRST]], %[[MIDDLE]]#0, %[[MIDDLE]]#1, %[[LAST]], %[[FIRST_2]], %[[LAST_2]]
   return %0, %1#0, %1#1, %2, %3, %4, %5 : i32, i32, i32, i32, i32, i32, i32
+}
+
+
+// CHECK-LABEL: func @pretty_names
+
+// This tests the behavior
+func @pretty_names() {
+  // Simple case, should parse and print as %x being an implied 'name'
+  // attribute.
+  %x = test.string_attr_pretty_name
+  // CHECK: %x = test.string_attr_pretty_name
+  // CHECK-NOT: attributes
+  
+  // This specifies an explicit name, which should override the result.
+  %YY = test.string_attr_pretty_name attributes { names = ["y"] }
+  // CHECK: %y = test.string_attr_pretty_name
+  // CHECK-NOT: attributes
+  
+  // Conflicts with the 'y' name, so need an explicit attribute.
+  %0 = "test.string_attr_pretty_name"() { names = ["y"]} : () -> i32
+  // CHECK: %y_0 = test.string_attr_pretty_name attributes {names = ["y"]}
+
+  // Name contains a space.
+  %1 = "test.string_attr_pretty_name"() { names = ["space name"]} : () -> i32
+  // CHECK: %space_name = test.string_attr_pretty_name attributes {names = ["space name"]}
+
+  "unknown.use"(%x, %YY, %0, %1) : (i32, i32, i32, i32) -> ()
+
+  // Multi-result support.
+
+  %a, %b, %c = test.string_attr_pretty_name
+  // CHECK: %a, %b, %c = test.string_attr_pretty_name
+  // CHECK-NOT: attributes
+
+  %q:3, %r = test.string_attr_pretty_name
+  // CHECK: %q, %q_1, %q_2, %r = test.string_attr_pretty_name attributes {names = ["q", "q", "q", "r"]}
+
+  // CHECK: return
+  return
+}
+
+// CHECK-LABEL: func @zero_whitespace() {
+// CHECK-NEXT: return
+func @zero_whitespace() {
+     // This is a \0 byte.
+  return
 }

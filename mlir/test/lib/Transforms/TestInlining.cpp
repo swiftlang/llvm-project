@@ -1,6 +1,6 @@
 //===- TestInlining.cpp - Pass to inline calls in the test dialect --------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestDialect.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Function.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -60,5 +60,8 @@ struct Inliner : public FunctionPass<Inliner> {
 };
 } // end anonymous namespace
 
-static PassRegistration<Inliner> pass("test-inline",
-                                      "Test inlining region calls");
+namespace mlir {
+void registerInliner() {
+  PassRegistration<Inliner>("test-inline", "Test inlining region calls");
+}
+} // namespace mlir

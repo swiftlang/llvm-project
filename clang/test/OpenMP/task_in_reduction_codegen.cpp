@@ -44,6 +44,8 @@ int main(int argc, char **argv) {
 #pragma omp task in_reduction(+:a) in_reduction(-:d) allocate(omp_high_bw_mem_alloc: d)
     a += d[a];
   }
+#pragma omp task in_reduction(+:a)
+  ++a;
   return 0;
 }
 
@@ -63,14 +65,10 @@ int main(int argc, char **argv) {
 // CHECK-NEXT:  [[TASK_T_WITH_PRIVS:%.+]] = bitcast i8* [[TASK_T]] to [[T]]*
 // CHECK:       [[PRIVS:%.+]] = getelementptr inbounds [[T]], [[T]]* [[TASK_T_WITH_PRIVS]], i32 0, i32 1
 // CHECK:       [[TD1_REF:%.+]] = getelementptr inbounds [[PRIVATES]], [[PRIVATES]]* [[PRIVS]], i32 0, i32 0
-// CHECK-NEXT:  [[TD1_SHAR:%.+]] = getelementptr inbounds %
-// CHECK-NEXT:  [[TD1_ADDR:%.+]] = load i8**, i8*** [[TD1_SHAR]],
-// CHECK-NEXT:  [[TD1:%.+]] = load i8*, i8** [[TD1_ADDR]],
+// CHECK-NEXT:  [[TD1:%.+]] = load i8*, i8** %{{.+}},
 // CHECK-NEXT:  store i8* [[TD1]], i8** [[TD1_REF]],
 // CHECK-NEXT:  [[TD2_REF:%.+]] = getelementptr inbounds [[PRIVATES]], [[PRIVATES]]* [[PRIVS]], i32 0, i32 1
-// CHECK-NEXT:  [[TD2_SHAR:%.+]] = getelementptr inbounds %
-// CHECK-NEXT:  [[TD2_ADDR:%.+]] = load i8**, i8*** [[TD2_SHAR]],
-// CHECK-NEXT:  [[TD2:%.+]] = load i8*, i8** [[TD2_ADDR]],
+// CHECK-NEXT:  [[TD2:%.+]] = load i8*, i8** %{{.+}},
 // CHECK-NEXT:  store i8* [[TD2]], i8** [[TD2_REF]],
 // CHECK-NEXT:  call i32 @__kmpc_omp_task(%struct.ident_t* @0, i32 [[GTID]], i8* [[TASK_T]])
 // CHECK-NEXT:  ret void
@@ -95,4 +93,10 @@ int main(int argc, char **argv) {
 // CHECK:       add nsw i32
 // CHECK:       store i32 %
 // CHECK-NOT:   call i8* @__kmpc_threadprivate_cached(
+
+// CHECK: [[A_PTR:%.+]] = call i8* @__kmpc_task_reduction_get_th_data(i32 %{{.+}}, i8* null, i8* %{{.+}})
+// CHECK-NEXT: [[A_ADDR:%.+]] = bitcast i8* [[A_PTR]] to i32*
+// CHECK-NEXT: [[A:%.+]] = load i32, i32* [[A_ADDR]],
+// CHECK-NEXT: [[NEW:%.+]] = add nsw i32 [[A]], 1
+// CHECK-NEXT: store i32 [[NEW]], i32* [[A_ADDR]],
 #endif

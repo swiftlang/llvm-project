@@ -241,8 +241,8 @@ Syntax:
 ```
 operation         ::= op-result-list? (generic-operation | custom-operation)
                       trailing-location?
-generic-operation ::= string-literal '(' ssa-use-list? ')' attribute-dict?
-                      `:` function-type
+generic-operation ::= string-literal `(` ssa-use-list? `)`  successor-list?
+                      (`(` region-list `)`)? attribute-dict? `:` function-type
 custom-operation  ::= bare-id custom-operation-format
 op-result-list    ::= op-result (`,` op-result)* `=`
 op-result         ::= ssa-id (`:` integer-literal)
@@ -745,11 +745,16 @@ Syntax:
 
 ```
 // Sized integers like i1, i4, i8, i16, i32.
-integer-type ::= `i` [1-9][0-9]*
+signed-integer-type ::= `si` [1-9][0-9]*
+unsigned-integer-type ::= `ui` [1-9][0-9]*
+signless-integer-type ::= `i` [1-9][0-9]*
+integer-type ::= signed-integer-type |
+                 unsigned-integer-type |
+                 signless-integer-type
 ```
 
-MLIR supports arbitrary precision integer types. Integer types are signless, but
-have a designated width.
+MLIR supports arbitrary precision integer types. Integer types have a designated
+width and may have signedness semantics.
 
 **Rationale:** low precision integers (like `i2`, `i4` etc) are useful for
 low-precision inference chips, and arbitrary precision integers are useful for
@@ -897,7 +902,7 @@ memref<16x32xf32, #identity, memspace0>
 %T = alloc(%M, %N) [%B1, %B2] : memref<?x?xf32, #tiled_dynamic>
 
 // A memref that has a two-element padding at either end. The allocation size
-// will fit 16 * 68 float elements of data.
+// will fit 16 * 64 float elements of data.
 %P = alloc() : memref<16x64xf32, #padded>
 
 // Affine map with symbol 's0' used as offset for the first dimension.
@@ -939,7 +944,7 @@ multidimensional index from one index space to another. For example, the
 following figure shows an index map which maps a 2-dimensional index from a 2x2
 index space to a 3x3 index space, using symbols `S0` and `S1` as offsets.
 
-![Index Map Example](includes/img/index-map.svg)
+![Index Map Example](/includes/img/index-map.svg)
 
 The number of domain dimensions and range dimensions of an index map can be
 different, but must match the number of dimensions of the input and output index
@@ -1151,7 +1156,8 @@ attribute-dict ::= `{` `}`
 attribute-entry ::= dialect-attribute-entry | dependent-attribute-entry
 dialect-attribute-entry ::= dialect-namespace `.` bare-id `=` attribute-value
 dependent-attribute-entry ::= dependent-attribute-name `=` attribute-value
-dependent-attribute-name ::= (letter|[_]) (letter|digit|[_$])*
+dependent-attribute-name ::= ((letter|[_]) (letter|digit|[_$])*)
+                           | string-literal
 ```
 
 Attributes are the mechanism for specifying constant data on operations in
@@ -1457,14 +1463,15 @@ This attribute can only be held internally by
 [array attributes](#array-attribute) and
 [dictionary attributes](#dictionary-attribute)(including the top-level operation
 attribute dictionary), i.e. no other attribute kinds such as Locations or
-extended attribute kinds. If a reference to a symbol is necessary from outside
-of the symbol table that the symbol is defined in, a
-[string attribute](#string-attribute) can be used to refer to the symbol name.
+extended attribute kinds.
 
 **Rationale:** Given that MLIR models global accesses with symbol references, to
 enable efficient multi-threading, it becomes difficult to effectively reason
 about their uses. By restricting the places that can legally hold a symbol
 reference, we can always opaquely reason about a symbols usage characteristics.
+
+See [`Symbols And SymbolTables`](SymbolsAndSymbolTables.md) for more
+information.
 
 #### Type Attribute
 

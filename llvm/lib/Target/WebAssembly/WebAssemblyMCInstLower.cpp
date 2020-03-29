@@ -56,7 +56,8 @@ WebAssemblyMCInstLower::GetGlobalAddressSymbol(const MachineOperand &MO) const {
 
     SmallVector<MVT, 1> ResultMVTs;
     SmallVector<MVT, 4> ParamMVTs;
-    computeSignatureVTs(FuncTy, CurrentFunc, TM, ParamMVTs, ResultMVTs);
+    const auto *const F = dyn_cast<Function>(Global);
+    computeSignatureVTs(FuncTy, F, CurrentFunc, TM, ParamMVTs, ResultMVTs);
 
     auto Signature = signatureFromMVTs(ResultMVTs, ParamMVTs);
     WasmSym->setSignature(Signature.get());
@@ -208,6 +209,7 @@ void WebAssemblyMCInstLower::lower(const MachineInstr *MI,
   OutMI.setOpcode(MI->getOpcode());
 
   const MCInstrDesc &Desc = MI->getDesc();
+  unsigned NumVariadicDefs = MI->getNumExplicitDefs() - Desc.getNumDefs();
   for (unsigned I = 0, E = MI->getNumOperands(); I != E; ++I) {
     const MachineOperand &MO = MI->getOperand(I);
 
@@ -229,9 +231,10 @@ void WebAssemblyMCInstLower::lower(const MachineInstr *MI,
       MCOp = MCOperand::createReg(WAReg);
       break;
     }
-    case MachineOperand::MO_Immediate:
-      if (I < Desc.NumOperands) {
-        const MCOperandInfo &Info = Desc.OpInfo[I];
+    case MachineOperand::MO_Immediate: {
+      unsigned DescIndex = I - NumVariadicDefs;
+      if (DescIndex < Desc.NumOperands) {
+        const MCOperandInfo &Info = Desc.OpInfo[DescIndex];
         if (Info.OperandType == WebAssembly::OPERAND_TYPEINDEX) {
           SmallVector<wasm::ValType, 4> Returns;
           SmallVector<wasm::ValType, 4> Params;
@@ -270,6 +273,7 @@ void WebAssemblyMCInstLower::lower(const MachineInstr *MI,
       }
       MCOp = MCOperand::createImm(MO.getImm());
       break;
+    }
     case MachineOperand::MO_FPImmediate: {
       // TODO: MC converts all floating point immediate operands to double.
       // This is fine for numeric values, but may cause NaNs to change bits.
@@ -306,6 +310,8 @@ void WebAssemblyMCInstLower::lower(const MachineInstr *MI,
 
   if (!WasmKeepRegisters)
     removeRegisterOperands(MI, OutMI);
+  else if (Desc.variadicOpsAreDefs())
+    OutMI.insert(OutMI.begin(), MCOperand::createImm(MI->getNumExplicitDefs()));
 }
 
 static void removeRegisterOperands(const MachineInstr *MI, MCInst &OutMI) {

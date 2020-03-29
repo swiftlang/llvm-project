@@ -1,19 +1,22 @@
 // RUN: %clang_cc1 -triple s390x-linux-gnu \
-// RUN:   -emit-llvm -o - %s | FileCheck %s
+// RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
 // RUN: %clang_cc1 -triple s390x-linux-gnu -target-feature +vector \
-// RUN:   -emit-llvm -o - %s | FileCheck %s
+// RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
 // RUN: %clang_cc1 -triple s390x-linux-gnu -target-cpu z13 \
-// RUN:   -emit-llvm -o - %s | FileCheck %s
+// RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
 // RUN: %clang_cc1 -triple s390x-linux-gnu -target-cpu arch11 \
-// RUN:   -emit-llvm -o - %s | FileCheck %s
+// RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
 // RUN: %clang_cc1 -triple s390x-linux-gnu -target-cpu z14 \
-// RUN:   -emit-llvm -o - %s | FileCheck %s
+// RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
 // RUN: %clang_cc1 -triple s390x-linux-gnu -target-cpu arch12 \
-// RUN:   -emit-llvm -o - %s | FileCheck %s
+// RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
 // RUN: %clang_cc1 -triple s390x-linux-gnu -target-cpu z15 \
-// RUN:   -emit-llvm -o - %s | FileCheck %s
+// RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
 // RUN: %clang_cc1 -triple s390x-linux-gnu -target-cpu arch13 \
-// RUN:   -emit-llvm -o - %s | FileCheck %s
+// RUN:   -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,HARD-FLOAT
+// RUN: %clang_cc1 -triple s390x-linux-gnu -target-cpu arch13 \
+// RUN:   -emit-llvm -o - %s -mfloat-abi soft | FileCheck %s \
+// RUN:   --check-prefixes=CHECK,SOFT-FLOAT
 
 // Scalar types
 
@@ -33,7 +36,7 @@ long long pass_longlong(long long arg) { return arg; }
 // CHECK-LABEL: define i64 @pass_longlong(i64 %{{.*}})
 
 __int128 pass_int128(__int128 arg) { return arg; }
-// CHECK-LABEL: define void @pass_int128(i128* noalias sret %{{.*}}, i128* %0)
+// CHECK-LABEL: define void @pass_int128(i128* noalias sret align 16 %{{.*}}, i128* %0)
 
 float pass_float(float arg) { return arg; }
 // CHECK-LABEL: define float @pass_float(float %{{.*}})
@@ -42,111 +45,114 @@ double pass_double(double arg) { return arg; }
 // CHECK-LABEL: define double @pass_double(double %{{.*}})
 
 long double pass_longdouble(long double arg) { return arg; }
-// CHECK-LABEL: define void @pass_longdouble(fp128* noalias sret %{{.*}}, fp128* %0)
+// CHECK-LABEL: define void @pass_longdouble(fp128* noalias sret align 8 %{{.*}}, fp128* %0)
 
 
 // Complex types
 
 _Complex char pass_complex_char(_Complex char arg) { return arg; }
-// CHECK-LABEL: define void @pass_complex_char({ i8, i8 }* noalias sret %{{.*}}, { i8, i8 }* %{{.*}}arg)
+// CHECK-LABEL: define void @pass_complex_char({ i8, i8 }* noalias sret align 1 %{{.*}}, { i8, i8 }* %{{.*}}arg)
 
 _Complex short pass_complex_short(_Complex short arg) { return arg; }
-// CHECK-LABEL: define void @pass_complex_short({ i16, i16 }* noalias sret %{{.*}}, { i16, i16 }* %{{.*}}arg)
+// CHECK-LABEL: define void @pass_complex_short({ i16, i16 }* noalias sret align 2 %{{.*}}, { i16, i16 }* %{{.*}}arg)
 
 _Complex int pass_complex_int(_Complex int arg) { return arg; }
-// CHECK-LABEL: define void @pass_complex_int({ i32, i32 }* noalias sret %{{.*}}, { i32, i32 }* %{{.*}}arg)
+// CHECK-LABEL: define void @pass_complex_int({ i32, i32 }* noalias sret align 4 %{{.*}}, { i32, i32 }* %{{.*}}arg)
 
 _Complex long pass_complex_long(_Complex long arg) { return arg; }
-// CHECK-LABEL: define void @pass_complex_long({ i64, i64 }* noalias sret %{{.*}}, { i64, i64 }* %{{.*}}arg)
+// CHECK-LABEL: define void @pass_complex_long({ i64, i64 }* noalias sret align 8 %{{.*}}, { i64, i64 }* %{{.*}}arg)
 
 _Complex long long pass_complex_longlong(_Complex long long arg) { return arg; }
-// CHECK-LABEL: define void @pass_complex_longlong({ i64, i64 }* noalias sret %{{.*}}, { i64, i64 }* %{{.*}}arg)
+// CHECK-LABEL: define void @pass_complex_longlong({ i64, i64 }* noalias sret align 8 %{{.*}}, { i64, i64 }* %{{.*}}arg)
 
 _Complex float pass_complex_float(_Complex float arg) { return arg; }
-// CHECK-LABEL: define void @pass_complex_float({ float, float }* noalias sret %{{.*}}, { float, float }* %{{.*}}arg)
+// CHECK-LABEL: define void @pass_complex_float({ float, float }* noalias sret align 4 %{{.*}}, { float, float }* %{{.*}}arg)
 
 _Complex double pass_complex_double(_Complex double arg) { return arg; }
-// CHECK-LABEL: define void @pass_complex_double({ double, double }* noalias sret %{{.*}}, { double, double }* %{{.*}}arg)
+// CHECK-LABEL: define void @pass_complex_double({ double, double }* noalias sret align 8 %{{.*}}, { double, double }* %{{.*}}arg)
 
 _Complex long double pass_complex_longdouble(_Complex long double arg) { return arg; }
-// CHECK-LABEL: define void @pass_complex_longdouble({ fp128, fp128 }* noalias sret %{{.*}}, { fp128, fp128 }* %{{.*}}arg)
+// CHECK-LABEL: define void @pass_complex_longdouble({ fp128, fp128 }* noalias sret align 8 %{{.*}}, { fp128, fp128 }* %{{.*}}arg)
 
 
 // Aggregate types
 
 struct agg_1byte { char a[1]; };
 struct agg_1byte pass_agg_1byte(struct agg_1byte arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_1byte(%struct.agg_1byte* noalias sret %{{.*}}, i8 %{{.*}})
+// CHECK-LABEL: define void @pass_agg_1byte(%struct.agg_1byte* noalias sret align 1 %{{.*}}, i8 %{{.*}})
 
 struct agg_2byte { char a[2]; };
 struct agg_2byte pass_agg_2byte(struct agg_2byte arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_2byte(%struct.agg_2byte* noalias sret %{{.*}}, i16 %{{.*}})
+// CHECK-LABEL: define void @pass_agg_2byte(%struct.agg_2byte* noalias sret align 1 %{{.*}}, i16 %{{.*}})
 
 struct agg_3byte { char a[3]; };
 struct agg_3byte pass_agg_3byte(struct agg_3byte arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_3byte(%struct.agg_3byte* noalias sret %{{.*}}, %struct.agg_3byte* %{{.*}})
+// CHECK-LABEL: define void @pass_agg_3byte(%struct.agg_3byte* noalias sret align 1 %{{.*}}, %struct.agg_3byte* %{{.*}})
 
 struct agg_4byte { char a[4]; };
 struct agg_4byte pass_agg_4byte(struct agg_4byte arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_4byte(%struct.agg_4byte* noalias sret %{{.*}}, i32 %{{.*}})
+// CHECK-LABEL: define void @pass_agg_4byte(%struct.agg_4byte* noalias sret align 1 %{{.*}}, i32 %{{.*}})
 
 struct agg_5byte { char a[5]; };
 struct agg_5byte pass_agg_5byte(struct agg_5byte arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_5byte(%struct.agg_5byte* noalias sret %{{.*}}, %struct.agg_5byte* %{{.*}})
+// CHECK-LABEL: define void @pass_agg_5byte(%struct.agg_5byte* noalias sret align 1 %{{.*}}, %struct.agg_5byte* %{{.*}})
 
 struct agg_6byte { char a[6]; };
 struct agg_6byte pass_agg_6byte(struct agg_6byte arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_6byte(%struct.agg_6byte* noalias sret %{{.*}}, %struct.agg_6byte* %{{.*}})
+// CHECK-LABEL: define void @pass_agg_6byte(%struct.agg_6byte* noalias sret align 1 %{{.*}}, %struct.agg_6byte* %{{.*}})
 
 struct agg_7byte { char a[7]; };
 struct agg_7byte pass_agg_7byte(struct agg_7byte arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_7byte(%struct.agg_7byte* noalias sret %{{.*}}, %struct.agg_7byte* %{{.*}})
+// CHECK-LABEL: define void @pass_agg_7byte(%struct.agg_7byte* noalias sret align 1 %{{.*}}, %struct.agg_7byte* %{{.*}})
 
 struct agg_8byte { char a[8]; };
 struct agg_8byte pass_agg_8byte(struct agg_8byte arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_8byte(%struct.agg_8byte* noalias sret %{{.*}}, i64 %{{.*}})
+// CHECK-LABEL: define void @pass_agg_8byte(%struct.agg_8byte* noalias sret align 1 %{{.*}}, i64 %{{.*}})
 
 struct agg_16byte { char a[16]; };
 struct agg_16byte pass_agg_16byte(struct agg_16byte arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_16byte(%struct.agg_16byte* noalias sret %{{.*}}, %struct.agg_16byte* %{{.*}})
+// CHECK-LABEL: define void @pass_agg_16byte(%struct.agg_16byte* noalias sret align 1 %{{.*}}, %struct.agg_16byte* %{{.*}})
 
 
 // Float-like aggregate types
 
 struct agg_float { float a; };
 struct agg_float pass_agg_float(struct agg_float arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_float(%struct.agg_float* noalias sret %{{.*}}, float %{{.*}})
+// HARD-FLOAT-LABEL: define void @pass_agg_float(%struct.agg_float* noalias sret align 4 %{{.*}}, float %{{.*}})
+// SOFT-FLOAT-LABEL: define void @pass_agg_float(%struct.agg_float* noalias sret align 4 %{{.*}}, i32 %{{.*}})
 
 struct agg_double { double a; };
 struct agg_double pass_agg_double(struct agg_double arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_double(%struct.agg_double* noalias sret %{{.*}}, double %{{.*}})
+// HARD-FLOAT-LABEL: define void @pass_agg_double(%struct.agg_double* noalias sret align 8 %{{.*}}, double %{{.*}})
+// SOFT-FLOAT-LABEL: define void @pass_agg_double(%struct.agg_double* noalias sret align 8 %{{.*}}, i64 %{{.*}})
 
 struct agg_longdouble { long double a; };
 struct agg_longdouble pass_agg_longdouble(struct agg_longdouble arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_longdouble(%struct.agg_longdouble* noalias sret %{{.*}}, %struct.agg_longdouble* %{{.*}})
+// CHECK-LABEL: define void @pass_agg_longdouble(%struct.agg_longdouble* noalias sret align 8 %{{.*}}, %struct.agg_longdouble* %{{.*}})
 
 struct agg_float_a8 { float a __attribute__((aligned (8))); };
 struct agg_float_a8 pass_agg_float_a8(struct agg_float_a8 arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_float_a8(%struct.agg_float_a8* noalias sret %{{.*}}, double %{{.*}})
+// HARD-FLOAT-LABEL: define void @pass_agg_float_a8(%struct.agg_float_a8* noalias sret align 8 %{{.*}}, double %{{.*}})
+// SOFT-FLOAT-LABEL: define void @pass_agg_float_a8(%struct.agg_float_a8* noalias sret align 8 %{{.*}}, i64 %{{.*}})
 
 struct agg_float_a16 { float a __attribute__((aligned (16))); };
 struct agg_float_a16 pass_agg_float_a16(struct agg_float_a16 arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_float_a16(%struct.agg_float_a16* noalias sret %{{.*}}, %struct.agg_float_a16* %{{.*}})
+// CHECK-LABEL: define void @pass_agg_float_a16(%struct.agg_float_a16* noalias sret align 16 %{{.*}}, %struct.agg_float_a16* %{{.*}})
 
 
 // Verify that the following are *not* float-like aggregate types
 
 struct agg_nofloat1 { float a; float b; };
 struct agg_nofloat1 pass_agg_nofloat1(struct agg_nofloat1 arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_nofloat1(%struct.agg_nofloat1* noalias sret %{{.*}}, i64 %{{.*}})
+// CHECK-LABEL: define void @pass_agg_nofloat1(%struct.agg_nofloat1* noalias sret align 4 %{{.*}}, i64 %{{.*}})
 
 struct agg_nofloat2 { float a; int b; };
 struct agg_nofloat2 pass_agg_nofloat2(struct agg_nofloat2 arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_nofloat2(%struct.agg_nofloat2* noalias sret %{{.*}}, i64 %{{.*}})
+// CHECK-LABEL: define void @pass_agg_nofloat2(%struct.agg_nofloat2* noalias sret align 4 %{{.*}}, i64 %{{.*}})
 
 struct agg_nofloat3 { float a; int : 0; };
 struct agg_nofloat3 pass_agg_nofloat3(struct agg_nofloat3 arg) { return arg; }
-// CHECK-LABEL: define void @pass_agg_nofloat3(%struct.agg_nofloat3* noalias sret %{{.*}}, i32 %{{.*}})
+// CHECK-LABEL: define void @pass_agg_nofloat3(%struct.agg_nofloat3* noalias sret align 4 %{{.*}}, i32 %{{.*}})
 
 
 // Accessing variable argument lists
@@ -225,12 +231,15 @@ long long va_longlong(__builtin_va_list l) { return __builtin_va_arg(l, long lon
 
 double va_double(__builtin_va_list l) { return __builtin_va_arg(l, double); }
 // CHECK-LABEL: define double @va_double(%struct.__va_list_tag* %{{.*}})
-// CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 1
+// HARD-FLOAT: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 1
+// SOFT-FLOAT: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
-// CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 4
+// HARD-FLOAT: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 4
+// SOFT-FLOAT: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
 // CHECK: br i1 [[FITS_IN_REGS]],
 // CHECK: [[SCALED_REG_COUNT:%[^ ]+]] = mul i64 [[REG_COUNT]], 8
-// CHECK: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 128
+// HARD-FLOAT: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 128
+// SOFT-FLOAT: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 16
 // CHECK: [[REG_SAVE_AREA_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 3
 // CHECK: [[REG_SAVE_AREA:%[^ ]+]] = load i8*, i8** [[REG_SAVE_AREA_PTR:[^ ]+]]
 // CHECK: [[RAW_REG_ADDR:%[^ ]+]] = getelementptr i8, i8* [[REG_SAVE_AREA]], i64 [[REG_OFFSET]]
@@ -248,7 +257,7 @@ double va_double(__builtin_va_list l) { return __builtin_va_arg(l, double); }
 // CHECK: ret double [[RET]]
 
 long double va_longdouble(__builtin_va_list l) { return __builtin_va_arg(l, long double); }
-// CHECK-LABEL: define void @va_longdouble(fp128* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}})
+// CHECK-LABEL: define void @va_longdouble(fp128* noalias sret align 8 %{{.*}}, %struct.__va_list_tag* %{{.*}})
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -274,7 +283,7 @@ long double va_longdouble(__builtin_va_list l) { return __builtin_va_arg(l, long
 // CHECK: ret void
 
 _Complex char va_complex_char(__builtin_va_list l) { return __builtin_va_arg(l, _Complex char); }
-// CHECK-LABEL: define void @va_complex_char({ i8, i8 }* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_complex_char({ i8, i8 }* noalias sret align 1 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -298,7 +307,7 @@ _Complex char va_complex_char(__builtin_va_list l) { return __builtin_va_arg(l, 
 // CHECK: ret void
 
 struct agg_1byte va_agg_1byte(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_1byte); }
-// CHECK-LABEL: define void @va_agg_1byte(%struct.agg_1byte* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_1byte(%struct.agg_1byte* noalias sret align 1 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -321,7 +330,7 @@ struct agg_1byte va_agg_1byte(__builtin_va_list l) { return __builtin_va_arg(l, 
 // CHECK: ret void
 
 struct agg_2byte va_agg_2byte(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_2byte); }
-// CHECK-LABEL: define void @va_agg_2byte(%struct.agg_2byte* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_2byte(%struct.agg_2byte* noalias sret align 1 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -344,7 +353,7 @@ struct agg_2byte va_agg_2byte(__builtin_va_list l) { return __builtin_va_arg(l, 
 // CHECK: ret void
 
 struct agg_3byte va_agg_3byte(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_3byte); }
-// CHECK-LABEL: define void @va_agg_3byte(%struct.agg_3byte* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_3byte(%struct.agg_3byte* noalias sret align 1 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -368,7 +377,7 @@ struct agg_3byte va_agg_3byte(__builtin_va_list l) { return __builtin_va_arg(l, 
 // CHECK: ret void
 
 struct agg_4byte va_agg_4byte(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_4byte); }
-// CHECK-LABEL: define void @va_agg_4byte(%struct.agg_4byte* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_4byte(%struct.agg_4byte* noalias sret align 1 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -391,7 +400,7 @@ struct agg_4byte va_agg_4byte(__builtin_va_list l) { return __builtin_va_arg(l, 
 // CHECK: ret void
 
 struct agg_8byte va_agg_8byte(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_8byte); }
-// CHECK-LABEL: define void @va_agg_8byte(%struct.agg_8byte* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_8byte(%struct.agg_8byte* noalias sret align 1 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -414,13 +423,16 @@ struct agg_8byte va_agg_8byte(__builtin_va_list l) { return __builtin_va_arg(l, 
 // CHECK: ret void
 
 struct agg_float va_agg_float(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_float); }
-// CHECK-LABEL: define void @va_agg_float(%struct.agg_float* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
-// CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 1
+// CHECK-LABEL: define void @va_agg_float(%struct.agg_float* noalias sret align 4 %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// HARD-FLOAT: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 1
+// SOFT-FLOAT: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
-// CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 4
+// HARD-FLOAT: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 4
+// SOFT-FLOAT: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
 // CHECK: br i1 [[FITS_IN_REGS]],
 // CHECK: [[SCALED_REG_COUNT:%[^ ]+]] = mul i64 [[REG_COUNT]], 8
-// CHECK: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 128
+// HARD-FLOAT: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 128
+// SOFT-FLOAT: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 20
 // CHECK: [[REG_SAVE_AREA_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 3
 // CHECK: [[REG_SAVE_AREA:%[^ ]+]] = load i8*, i8** [[REG_SAVE_AREA_PTR:[^ ]+]]
 // CHECK: [[RAW_REG_ADDR:%[^ ]+]] = getelementptr i8, i8* [[REG_SAVE_AREA]], i64 [[REG_OFFSET]]
@@ -437,13 +449,16 @@ struct agg_float va_agg_float(__builtin_va_list l) { return __builtin_va_arg(l, 
 // CHECK: ret void
 
 struct agg_double va_agg_double(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_double); }
-// CHECK-LABEL: define void @va_agg_double(%struct.agg_double* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
-// CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 1
+// CHECK-LABEL: define void @va_agg_double(%struct.agg_double* noalias sret align 8 %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// HARD-FLOAT: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 1
+// SOFT-FLOAT: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
-// CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 4
+// HARD-FLOAT: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 4
+// SOFT-FLOAT: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
 // CHECK: br i1 [[FITS_IN_REGS]],
 // CHECK: [[SCALED_REG_COUNT:%[^ ]+]] = mul i64 [[REG_COUNT]], 8
-// CHECK: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 128
+// HARD-FLOAT: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 128
+// SOFT-FLOAT: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 16
 // CHECK: [[REG_SAVE_AREA_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 3
 // CHECK: [[REG_SAVE_AREA:%[^ ]+]] = load i8*, i8** [[REG_SAVE_AREA_PTR:[^ ]+]]
 // CHECK: [[RAW_REG_ADDR:%[^ ]+]] = getelementptr i8, i8* [[REG_SAVE_AREA]], i64 [[REG_OFFSET]]
@@ -460,7 +475,7 @@ struct agg_double va_agg_double(__builtin_va_list l) { return __builtin_va_arg(l
 // CHECK: ret void
 
 struct agg_longdouble va_agg_longdouble(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_longdouble); }
-// CHECK-LABEL: define void @va_agg_longdouble(%struct.agg_longdouble* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_longdouble(%struct.agg_longdouble* noalias sret align 8 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -484,13 +499,16 @@ struct agg_longdouble va_agg_longdouble(__builtin_va_list l) { return __builtin_
 // CHECK: ret void
 
 struct agg_float_a8 va_agg_float_a8(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_float_a8); }
-// CHECK-LABEL: define void @va_agg_float_a8(%struct.agg_float_a8* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
-// CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 1
+// CHECK-LABEL: define void @va_agg_float_a8(%struct.agg_float_a8* noalias sret align 8 %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// HARD-FLOAT: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 1
+// SOFT-FLOAT: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
-// CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 4
+// HARD-FLOAT: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 4
+// SOFT-FLOAT: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
 // CHECK: br i1 [[FITS_IN_REGS]],
 // CHECK: [[SCALED_REG_COUNT:%[^ ]+]] = mul i64 [[REG_COUNT]], 8
-// CHECK: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 128
+// HARD-FLOAT: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 128
+// SOFT-FLOAT: [[REG_OFFSET:%[^ ]+]] = add i64 [[SCALED_REG_COUNT]], 16
 // CHECK: [[REG_SAVE_AREA_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 3
 // CHECK: [[REG_SAVE_AREA:%[^ ]+]] = load i8*, i8** [[REG_SAVE_AREA_PTR:[^ ]+]]
 // CHECK: [[RAW_REG_ADDR:%[^ ]+]] = getelementptr i8, i8* [[REG_SAVE_AREA]], i64 [[REG_OFFSET]]
@@ -507,7 +525,7 @@ struct agg_float_a8 va_agg_float_a8(__builtin_va_list l) { return __builtin_va_a
 // CHECK: ret void
 
 struct agg_float_a16 va_agg_float_a16(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_float_a16); }
-// CHECK-LABEL: define void @va_agg_float_a16(%struct.agg_float_a16* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_float_a16(%struct.agg_float_a16* noalias sret align 16 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -531,7 +549,7 @@ struct agg_float_a16 va_agg_float_a16(__builtin_va_list l) { return __builtin_va
 // CHECK: ret void
 
 struct agg_nofloat1 va_agg_nofloat1(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_nofloat1); }
-// CHECK-LABEL: define void @va_agg_nofloat1(%struct.agg_nofloat1* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_nofloat1(%struct.agg_nofloat1* noalias sret align 4 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -554,7 +572,7 @@ struct agg_nofloat1 va_agg_nofloat1(__builtin_va_list l) { return __builtin_va_a
 // CHECK: ret void
 
 struct agg_nofloat2 va_agg_nofloat2(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_nofloat2); }
-// CHECK-LABEL: define void @va_agg_nofloat2(%struct.agg_nofloat2* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_nofloat2(%struct.agg_nofloat2* noalias sret align 4 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5
@@ -577,7 +595,7 @@ struct agg_nofloat2 va_agg_nofloat2(__builtin_va_list l) { return __builtin_va_a
 // CHECK: ret void
 
 struct agg_nofloat3 va_agg_nofloat3(__builtin_va_list l) { return __builtin_va_arg(l, struct agg_nofloat3); }
-// CHECK-LABEL: define void @va_agg_nofloat3(%struct.agg_nofloat3* noalias sret %{{.*}}, %struct.__va_list_tag* %{{.*}}
+// CHECK-LABEL: define void @va_agg_nofloat3(%struct.agg_nofloat3* noalias sret align 4 %{{.*}}, %struct.__va_list_tag* %{{.*}}
 // CHECK: [[REG_COUNT_PTR:%[^ ]+]] = getelementptr inbounds %struct.__va_list_tag, %struct.__va_list_tag* %{{.*}}, i32 0, i32 0
 // CHECK: [[REG_COUNT:%[^ ]+]] = load i64, i64* [[REG_COUNT_PTR]]
 // CHECK: [[FITS_IN_REGS:%[^ ]+]] = icmp ult i64 [[REG_COUNT]], 5

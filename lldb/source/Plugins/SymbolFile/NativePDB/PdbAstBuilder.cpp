@@ -14,11 +14,11 @@
 #include "llvm/DebugInfo/PDB/Native/TpiStream.h"
 #include "llvm/Demangle/MicrosoftDemangle.h"
 
+#include "Plugins/ExpressionParser/Clang/ClangASTMetadata.h"
+#include "Plugins/ExpressionParser/Clang/ClangUtil.h"
 #include "Plugins/Language/CPlusPlus/MSVCUndecoratedNameParser.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Symbol/TypeSystemClang.h"
-#include "lldb/Symbol/ClangASTMetadata.h"
-#include "lldb/Symbol/ClangUtil.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/LLDBAssert.h"
 
@@ -178,7 +178,7 @@ GetNestedTagDefinition(const NestedTypeRecord &Record,
   // single component of a mangled name.  So we can inject it into the parent's
   // mangled name to see if it matches.
   CVTagRecord child = CVTagRecord::create(cvt);
-  std::string qname = parent.asTag().getUniqueName();
+  std::string qname = std::string(parent.asTag().getUniqueName());
   if (qname.size() < 4 || child.asTag().getUniqueName().size() < 4)
     return llvm::None;
 
@@ -221,7 +221,7 @@ PdbAstBuilder::CreateDeclInfoForType(const TagRecord &record, TypeIndex ti) {
   StringView sv(record.UniqueName.begin(), record.UniqueName.size());
   llvm::ms_demangle::TagTypeNode *ttn = demangler.parseTagUniqueName(sv);
   if (demangler.Error)
-    return {m_clang.GetTranslationUnitDecl(), record.UniqueName};
+    return {m_clang.GetTranslationUnitDecl(), std::string(record.UniqueName)};
 
   llvm::ms_demangle::IdentifierNode *idn =
       ttn->QualifiedName->getUnqualifiedIdentifier();
@@ -248,7 +248,7 @@ PdbAstBuilder::CreateDeclInfoForType(const TagRecord &record, TypeIndex ti) {
     // a NamespaceDecl and a CXXRecordDecl, so instead we create a class at
     // global scope with the fully qualified name.
     if (AnyScopesHaveTemplateParams(scopes))
-      return {context, record.Name};
+      return {context, std::string(record.Name)};
 
     for (llvm::ms_demangle::Node *scope : scopes) {
       auto *nii = static_cast<llvm::ms_demangle::NamedIdentifierNode *>(scope);
@@ -507,7 +507,7 @@ PdbAstBuilder::CreateDeclInfoForUndecoratedName(llvm::StringRef name) {
   llvm::StringRef uname = specs.back().GetBaseName();
   specs = specs.drop_back();
   if (specs.empty())
-    return {context, name};
+    return {context, std::string(name)};
 
   llvm::StringRef scope_name = specs.back().GetFullName();
 
@@ -517,7 +517,7 @@ PdbAstBuilder::CreateDeclInfoForUndecoratedName(llvm::StringRef name) {
     clang::QualType qt = GetOrCreateType(types.back());
     clang::TagDecl *tag = qt->getAsTagDecl();
     if (tag)
-      return {clang::TagDecl::castToDeclContext(tag), uname};
+      return {clang::TagDecl::castToDeclContext(tag), std::string(uname)};
     types.pop_back();
   }
 
@@ -526,7 +526,7 @@ PdbAstBuilder::CreateDeclInfoForUndecoratedName(llvm::StringRef name) {
     std::string ns_name = spec.GetBaseName().str();
     context = GetOrCreateNamespaceDecl(ns_name.c_str(), *context);
   }
-  return {context, uname};
+  return {context, std::string(uname)};
 }
 
 clang::DeclContext *
@@ -876,7 +876,7 @@ PdbAstBuilder::GetOrCreateTypedefDecl(PdbGlobalSymId id) {
   PdbTypeSymId real_type_id{udt.Type, false};
   clang::QualType qt = GetOrCreateType(real_type_id);
 
-  std::string uname = DropNameScope(udt.Name);
+  std::string uname = std::string(DropNameScope(udt.Name));
 
   CompilerType ct = m_clang.CreateTypedefType(ToCompilerType(qt), uname.c_str(),
                                               ToCompilerDeclContext(*scope));
@@ -1334,7 +1334,7 @@ void PdbAstBuilder::ParseDeclsForContext(clang::DeclContext &context) {
 }
 
 CompilerDecl PdbAstBuilder::ToCompilerDecl(clang::Decl &decl) {
-  return {&m_clang, &decl};
+  return m_clang.GetCompilerDecl(&decl);
 }
 
 CompilerType PdbAstBuilder::ToCompilerType(clang::QualType qt) {
@@ -1347,7 +1347,7 @@ PdbAstBuilder::ToCompilerDeclContext(clang::DeclContext &context) {
 }
 
 clang::Decl * PdbAstBuilder::FromCompilerDecl(CompilerDecl decl) {
-  return static_cast<clang::Decl *>(decl.GetOpaqueDecl());
+  return ClangUtil::GetDecl(decl);
 }
 
 clang::DeclContext *

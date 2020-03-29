@@ -167,16 +167,11 @@ namespace {
         Expr *&rebuiltExpr = ce->isConditionTrue() ? LHS : RHS;
         rebuiltExpr = rebuild(rebuiltExpr);
 
-        return new (S.Context) ChooseExpr(ce->getBuiltinLoc(),
-                                          ce->getCond(),
-                                          LHS, RHS,
-                                          rebuiltExpr->getType(),
-                                          rebuiltExpr->getValueKind(),
-                                          rebuiltExpr->getObjectKind(),
-                                          ce->getRParenLoc(),
-                                          ce->isConditionTrue(),
-                                          rebuiltExpr->isTypeDependent(),
-                                          rebuiltExpr->isValueDependent());
+        return new (S.Context)
+            ChooseExpr(ce->getBuiltinLoc(), ce->getCond(), LHS, RHS,
+                       rebuiltExpr->getType(), rebuiltExpr->getValueKind(),
+                       rebuiltExpr->getObjectKind(), ce->getRParenLoc(),
+                       ce->isConditionTrue());
       }
 
       llvm_unreachable("bad expression to rebuild!");
@@ -1668,6 +1663,8 @@ Expr *Sema::recreateSyntacticForm(PseudoObjectExpr *E) {
                                         bop->getType(), bop->getValueKind(),
                                         bop->getObjectKind(),
                                         bop->getOperatorLoc(), FPOptions());
+  } else if (isa<CallExpr>(syntax)) {
+    return syntax;
   } else {
     assert(syntax->hasPlaceholderType(BuiltinType::PseudoObject));
     return stripOpaqueValuesFromPseudoObjectRef(*this, syntax);

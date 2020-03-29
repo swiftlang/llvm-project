@@ -12,7 +12,7 @@
 // CHECK-OPTIONS2: -fno-gnu-keywords
 // CHECK-OPTIONS2: -fno-builtin
 // CHECK-OPTIONS2: -fshort-enums
-// CHECK-OPTIONS2: -fno-common
+// CHECK-OPTIONS2-NOT: -fcommon
 // CHECK-OPTIONS2: -fno-show-source-location
 
 // RUN: %clang -### -S -Wwrite-strings %s 2>&1 | FileCheck -check-prefix=WRITE-STRINGS1 %s
@@ -251,7 +251,6 @@
 // RUN:     -fexec-charset=UTF-8                                             \
 // RUN:     -fivopts -fno-ivopts                                              \
 // RUN:     -fnon-call-exceptions -fno-non-call-exceptions                    \
-// RUN:     -fno-semantic-interposition                                       \
 // RUN:     -fpermissive -fno-permissive                                      \
 // RUN:     -fdefer-pop -fno-defer-pop                                        \
 // RUN:     -fprefetch-loop-arrays -fno-prefetch-loop-arrays                  \
@@ -292,9 +291,6 @@
 // RUN:     -frename-registers                                                \
 // RUN:     -fschedule-insns2                                                 \
 // RUN:     -fsingle-precision-constant                                       \
-// RUN:     -ftree_loop_im                                                    \
-// RUN:     -ftree_loop_ivcanon                                               \
-// RUN:     -ftree_loop_linear                                                \
 // RUN:     -funsafe-loop-optimizations                                       \
 // RUN:     -fuse-linker-plugin                                               \
 // RUN:     -fvect-cost-model                                                 \
@@ -308,7 +304,6 @@
 // RUN:     -fno-inline-small-functions -finline-small-functions              \
 // RUN:     -fno-fat-lto-objects -ffat-lto-objects                            \
 // RUN:     -fno-merge-constants -fmerge-constants                            \
-// RUN:     -fno-merge-all-constants -fmerge-all-constants                    \
 // RUN:     -fno-caller-saves -fcaller-saves                                  \
 // RUN:     -fno-reorder-blocks -freorder-blocks                              \
 // RUN:     -fno-schedule-insns2 -fschedule-insns2                            \
@@ -368,9 +363,6 @@
 // RUN: -frename-registers                                                    \
 // RUN: -fschedule-insns2                                                     \
 // RUN: -fsingle-precision-constant                                           \
-// RUN: -ftree_loop_im                                                        \
-// RUN: -ftree_loop_ivcanon                                                   \
-// RUN: -ftree_loop_linear                                                    \
 // RUN: -funsafe-loop-optimizations                                           \
 // RUN: -fuse-linker-plugin                                                   \
 // RUN: -fvect-cost-model                                                     \
@@ -432,9 +424,6 @@
 // CHECK-WARNING-DAG: optimization flag '-frename-registers' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fschedule-insns2' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fsingle-precision-constant' is not supported
-// CHECK-WARNING-DAG: optimization flag '-ftree_loop_im' is not supported
-// CHECK-WARNING-DAG: optimization flag '-ftree_loop_ivcanon' is not supported
-// CHECK-WARNING-DAG: optimization flag '-ftree_loop_linear' is not supported
 // CHECK-WARNING-DAG: optimization flag '-funsafe-loop-optimizations' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fuse-linker-plugin' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fvect-cost-model' is not supported
@@ -554,13 +543,6 @@
 // CHECK-DISCARD-NAMES: "-discard-value-names"
 // CHECK-NO-DISCARD-NAMES-NOT: "-discard-value-names"
 
-// RUN: %clang -### -S -fmerge-all-constants %s 2>&1 | FileCheck -check-prefix=CHECK-MERGE-ALL-CONSTANTS %s
-// RUN: %clang -### -S -fno-merge-all-constants %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MERGE-ALL-CONSTANTS %s
-// RUN: %clang -### -S -fmerge-all-constants -fno-merge-all-constants %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MERGE-ALL-CONSTANTS %s
-// RUN: %clang -### -S -fno-merge-all-constants -fmerge-all-constants %s 2>&1 | FileCheck -check-prefix=CHECK-MERGE-ALL-CONSTANTS %s
-// CHECK-NO-MERGE-ALL-CONSTANTS-NOT: "-fmerge-all-constants"
-// CHECK-MERGE-ALL-CONSTANTS: "-fmerge-all-constants"
-
 // RUN: %clang -### -S -fdelete-null-pointer-checks %s 2>&1 | FileCheck -check-prefix=CHECK-NULL-POINTER-CHECKS %s
 // RUN: %clang -### -S -fno-delete-null-pointer-checks %s 2>&1 | FileCheck -check-prefix=CHECK-NO-NULL-POINTER-CHECKS %s
 // RUN: %clang -### -S -fdelete-null-pointer-checks -fno-delete-null-pointer-checks %s 2>&1 | FileCheck -check-prefix=CHECK-NO-NULL-POINTER-CHECKS %s
@@ -582,6 +564,11 @@
 // CHECK-RECORD-GCC-SWITCHES: "-record-command-line"
 // CHECK-NO-RECORD-GCC-SWITCHES-NOT: "-record-command-line"
 // CHECK-RECORD-GCC-SWITCHES-ERROR: error: unsupported option '-frecord-command-line' for target
+// Test when clang is in a path containing a space.
+// RUN: mkdir -p "%t.r/with spaces"
+// RUN: cp %clang "%t.r/with spaces/clang"
+// RUN: "%t.r/with spaces/clang" -### -S -target x86_64-unknown-linux -frecord-gcc-switches %s 2>&1 | FileCheck -check-prefix=CHECK-RECORD-GCC-SWITCHES-ESCAPED %s
+// CHECK-RECORD-GCC-SWITCHES-ESCAPED: "-record-command-line" "{{.+}}with\\ spaces{{.+}}"
 
 // RUN: %clang -### -S -ftrivial-auto-var-init=uninitialized %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-UNINIT %s
 // RUN: %clang -### -S -ftrivial-auto-var-init=pattern %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-PATTERN %s

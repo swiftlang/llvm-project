@@ -17,7 +17,6 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/CheckedArithmetic.h"
 
 namespace llvm {
@@ -161,7 +160,12 @@ static constexpr char const *_LLVM_Scalarize_ = "_LLVM_Scalarize_";
 ///
 /// \param MangledName -> input string in the format
 /// _ZGV<isa><mask><vlen><parameters>_<scalarname>[(<redirection>)].
-Optional<VFInfo> tryDemangleForVFABI(StringRef MangledName);
+/// \param M -> Module used to retrive informations about the vector
+/// function that are not possible to retrieve from the mangled
+/// name. At the moment, this parameter is needed only to retrive the
+/// Vectorization Factor of scalable vector functions from their
+/// respective IR declarations.
+Optional<VFInfo> tryDemangleForVFABI(StringRef MangledName, const Module &M);
 
 /// Retrieve the `VFParamKind` from a string token.
 VFParamKind getVFParamKindFromString(const StringRef Token);
@@ -200,7 +204,8 @@ class VFDatabase {
     SmallVector<std::string, 8> ListOfStrings;
     VFABI::getVectorVariantNames(CI, ListOfStrings);
     for (const auto &MangledName : ListOfStrings) {
-      const Optional<VFInfo> Shape = VFABI::tryDemangleForVFABI(MangledName);
+      const Optional<VFInfo> Shape =
+          VFABI::tryDemangleForVFABI(MangledName, *(CI.getModule()));
       // A match is found via scalar and vector names, and also by
       // ensuring that the variant described in the attribute has a
       // corresponding definition or declaration of the vector
@@ -248,6 +253,7 @@ template <typename T> class ArrayRef;
 class DemandedBits;
 class GetElementPtrInst;
 template <typename InstTy> class InterleaveGroup;
+class IRBuilderBase;
 class Loop;
 class ScalarEvolution;
 class TargetTransformInfo;
@@ -256,6 +262,15 @@ class Value;
 
 namespace Intrinsic {
 typedef unsigned ID;
+}
+
+/// A helper function for converting Scalar types to vector types.
+/// If the incoming type is void, we return void. If the VF is 1, we return
+/// the scalar type.
+inline Type *ToVectorTy(Type *Scalar, unsigned VF, bool isScalable = false) {
+  if (Scalar->isVoidTy() || VF == 1)
+    return Scalar;
+  return VectorType::get(Scalar, {VF, isScalable});
 }
 
 /// Identify if the intrinsic is trivially vectorizable.
@@ -295,16 +310,51 @@ Value *getStrideFromPointer(Value *Ptr, ScalarEvolution *SE, Loop *Lp);
 /// from the vector.
 Value *findScalarElement(Value *V, unsigned EltNo);
 
+/// If all non-negative \p Mask elements are the same value, return that value.
+/// If all elements are negative (undefined) or \p Mask contains different
+/// non-negative values, return -1.
+int getSplatIndex(ArrayRef<int> Mask);
+
 /// Get splat value if the input is a splat vector or return nullptr.
 /// The value may be extracted from a splat constants vector or from
 /// a sequence of instructions that broadcast a single value into a vector.
 const Value *getSplatValue(const Value *V);
 
-/// Return true if the input value is known to be a vector with all identical
-/// elements (potentially including undefined elements).
+/// Return true if each element of the vector value \p V is poisoned or equal to
+/// every other non-poisoned element. If an index element is specified, either
+/// every element of the vector is poisoned or the element at that index is not
+/// poisoned and equal to every other non-poisoned element.
 /// This may be more powerful than the related getSplatValue() because it is
 /// not limited by finding a scalar source value to a splatted vector.
-bool isSplatValue(const Value *V, unsigned Depth = 0);
+bool isSplatValue(const Value *V, int Index = -1, unsigned Depth = 0);
+
+/// Scale a shuffle or target shuffle mask, replacing each mask index with the
+/// scaled sequential indices for an equivalent mask of narrowed elements.
+/// Mask elements that are less than 0 (sentinel values) are repeated in the
+/// output mask.
+///
+/// Example with Scale = 4:
+///   <4 x i32> <3, 2, 0, -1> -->
+///   <16 x i8> <12, 13, 14, 15, 8, 9, 10, 11, 0, 1, 2, 3, -1, -1, -1, -1>
+///
+/// This is the reverse process of "canWidenShuffleElements", but can always
+/// succeed.
+template <typename T>
+void scaleShuffleMask(size_t Scale, ArrayRef<T> Mask,
+                      SmallVectorImpl<T> &ScaledMask) {
+  assert(Scale > 0 && "Unexpected scaling factor");
+
+  // Fast-path: if no scaling, then it is just a copy.
+  if (Scale == 1) {
+    ScaledMask.assign(Mask.begin(), Mask.end());
+    return;
+  }
+
+  ScaledMask.clear();
+  for (int MaskElt : Mask)
+    for (int ScaleElt = 0; ScaleElt != (int)Scale; ++ScaleElt)
+      ScaledMask.push_back(MaskElt < 0 ? MaskElt : Scale * MaskElt + ScaleElt);
+}
 
 /// Compute a map of integer instructions to their minimum legal type
 /// size.
@@ -381,7 +431,7 @@ Instruction *propagateMetadata(Instruction *I, ArrayRef<Value *> VL);
 /// Note: The result is a mask of 0's and 1's, as opposed to the other
 /// create[*]Mask() utilities which create a shuffle mask (mask that
 /// consists of indices).
-Constant *createBitMaskForGaps(IRBuilder<> &Builder, unsigned VF,
+Constant *createBitMaskForGaps(IRBuilderBase &Builder, unsigned VF,
                                const InterleaveGroup<Instruction> &Group);
 
 /// Create a mask with replicated elements.
@@ -396,8 +446,8 @@ Constant *createBitMaskForGaps(IRBuilder<> &Builder, unsigned VF,
 /// For example, the mask for \p ReplicationFactor=3 and \p VF=4 is:
 ///
 ///   <0,0,0,1,1,1,2,2,2,3,3,3>
-Constant *createReplicatedMask(IRBuilder<> &Builder, unsigned ReplicationFactor,
-                               unsigned VF);
+Constant *createReplicatedMask(IRBuilderBase &Builder,
+                               unsigned ReplicationFactor, unsigned VF);
 
 /// Create an interleave shuffle mask.
 ///
@@ -410,7 +460,7 @@ Constant *createReplicatedMask(IRBuilder<> &Builder, unsigned ReplicationFactor,
 /// For example, the mask for VF = 4 and NumVecs = 2 is:
 ///
 ///   <0, 4, 1, 5, 2, 6, 3, 7>.
-Constant *createInterleaveMask(IRBuilder<> &Builder, unsigned VF,
+Constant *createInterleaveMask(IRBuilderBase &Builder, unsigned VF,
                                unsigned NumVecs);
 
 /// Create a stride shuffle mask.
@@ -425,7 +475,7 @@ Constant *createInterleaveMask(IRBuilder<> &Builder, unsigned VF,
 /// For example, the mask for Start = 0, Stride = 2, and VF = 4 is:
 ///
 ///   <0, 2, 4, 6>
-Constant *createStrideMask(IRBuilder<> &Builder, unsigned Start,
+Constant *createStrideMask(IRBuilderBase &Builder, unsigned Start,
                            unsigned Stride, unsigned VF);
 
 /// Create a sequential shuffle mask.
@@ -439,7 +489,7 @@ Constant *createStrideMask(IRBuilder<> &Builder, unsigned Start,
 /// For example, the mask for Start = 0, NumInsts = 4, and NumUndefs = 4 is:
 ///
 ///   <0, 1, 2, 3, undef, undef, undef, undef>
-Constant *createSequentialMask(IRBuilder<> &Builder, unsigned Start,
+Constant *createSequentialMask(IRBuilderBase &Builder, unsigned Start,
                                unsigned NumInts, unsigned NumUndefs);
 
 /// Concatenate a list of vectors.
@@ -449,7 +499,7 @@ Constant *createSequentialMask(IRBuilder<> &Builder, unsigned Start,
 /// their element types should be the same. The number of elements in the
 /// vectors should also be the same; however, if the last vector has fewer
 /// elements, it will be padded with undefs.
-Value *concatenateVectors(IRBuilder<> &Builder, ArrayRef<Value *> Vecs);
+Value *concatenateVectors(IRBuilderBase &Builder, ArrayRef<Value *> Vecs);
 
 /// Given a mask vector of the form <Y x i1>, Return true if all of the
 /// elements of this predicate mask are false or undef.  That is, return true
@@ -508,7 +558,10 @@ public:
 
   bool isReverse() const { return Reverse; }
   uint32_t getFactor() const { return Factor; }
-  uint32_t getAlignment() const { return Alignment.value(); }
+  LLVM_ATTRIBUTE_DEPRECATED(uint32_t getAlignment() const,
+                            "Use getAlign instead.") {
+    return Alignment.value();
+  }
   Align getAlign() const { return Alignment; }
   uint32_t getNumMembers() const { return Members.size(); }
 

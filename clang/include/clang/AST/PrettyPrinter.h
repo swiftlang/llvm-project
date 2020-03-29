@@ -36,7 +36,9 @@ protected:
 
 public:
   /// Remap a path to a form suitable for printing.
-  virtual std::string remapPath(StringRef Path) const { return Path; }
+  virtual std::string remapPath(StringRef Path) const {
+    return std::string(Path);
+  }
 };
 
 /// Describes how types, statements, expressions, and declarations should be
@@ -56,7 +58,8 @@ struct PrintingPolicy {
         SuppressLifetimeQualifiers(false),
         SuppressTemplateArgsInCXXConstructors(false), Bool(LO.Bool),
         Restrict(LO.C99), Alignof(LO.CPlusPlus11), UnderscoreAlignof(LO.C11),
-        UseVoidForZeroParams(!LO.CPlusPlus), TerseOutput(false),
+        UseVoidForZeroParams(!LO.CPlusPlus),
+        SplitTemplateClosers(!LO.CPlusPlus11), TerseOutput(false),
         PolishForDeclaration(false), Half(LO.Half),
         MSWChar(LO.MicrosoftExt && !LO.WChar), IncludeNewlines(true),
         MSVCFormatting(false), ConstantsAsWritten(false),
@@ -185,6 +188,9 @@ struct PrintingPolicy {
   /// Whether we should use '(void)' rather than '()' for a function prototype
   /// with zero parameters.
   unsigned UseVoidForZeroParams : 1;
+
+  /// Whether nested templates must be closed like a<b<c> > rather than a<b<c>>.
+  unsigned SplitTemplateClosers : 1;
 
   /// Provide a 'terse' output.
   ///

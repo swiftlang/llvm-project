@@ -1,6 +1,6 @@
 //===- Traits.cpp - Common op traits shared by dialects -------------------===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -165,7 +165,8 @@ static bool areCompatibleShapes(ArrayRef<int64_t> shape1,
 static std::string getShapeString(ArrayRef<int64_t> shape) {
   // TODO: should replace with printing shape more uniformly across here and
   // when in type.
-  return formatv("'{0:$[x]}'", llvm::make_range(shape.begin(), shape.end()));
+  return std::string(
+      formatv("'{0:$[x]}'", llvm::make_range(shape.begin(), shape.end())));
 }
 
 LogicalResult OpTrait::impl::verifyCompatibleOperandBroadcast(Operation *op) {
@@ -201,7 +202,7 @@ LogicalResult OpTrait::impl::verifyCompatibleOperandBroadcast(Operation *op) {
   auto rankedResults = make_filter_range(
       op->getResultTypes(), [](Type t) { return t.isa<RankedTensorType>(); });
 
-  // If all of the results are unranked then no further verfication.
+  // If all of the results are unranked then no further verification.
   if (rankedResults.empty())
     return success();
 
