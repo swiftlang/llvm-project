@@ -55,4 +55,5 @@ void test_incomplete_virtual_member_function_return_arg_type() {
   (void)&S::virtual2;
   (void)&S::virtual3;
   (void)&S::nonvirtual0;
+  int s = sizeof(&S::virtual0);
 }

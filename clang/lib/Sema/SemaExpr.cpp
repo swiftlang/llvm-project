@@ -12751,23 +12751,21 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     if (isa<CXXDestructorDecl>(MD))
       Diag(OpLoc, diag::err_typecheck_addrof_dtor) << op->getSourceRange();
 
-    if (getASTContext().getTargetInfo().getTriple().getArch() ==
-            llvm::Triple::aarch64 &&
-        getLangOpts().PointerAuthCalls && MD->isVirtual()) {
-      // Argument and return types must be complete.
+    if (getLangOpts().PointerAuthCalls && MD->isVirtual() &&
+        !isUnevaluatedContext()) {
+      // When pointer authentication is enabled, argument and return types of
+      // vitual member functions must be complete. This is because vitrual
+      // member function pointers are implemented using virtual dispatch
+      // thunks and the thunks cannot be emitted if the argument or return
+      // types are incomplete.
       auto ReturnOrParamTypeIsIncomplete = [&](QualType T,
                                                SourceLocation DeclRefLoc,
-                                               SourceLocation
-                                                   ReturnArgTypeLoc) {
+                                               SourceLocation RetArgTypeLoc) {
         if (RequireCompleteType(DeclRefLoc, T, diag::err_incomplete_type)) {
-          Diag(
-              DeclRefLoc,
-              diag::
-                  note_ptrauth_virtual_member_function_pointer_incomplete_arg_return);
-          Diag(
-              ReturnArgTypeLoc,
-              diag::
-                  note_ptrauth_virtual_member_function_incomplete_arg_return_type)
+          Diag(DeclRefLoc,
+               diag::note_ptrauth_virtual_function_pointer_incomplete_arg_ret);
+          Diag(RetArgTypeLoc,
+               diag::note_ptrauth_virtual_function_incomplete_arg_ret_type)
               << T;
           return true;
         }
