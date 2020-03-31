@@ -12751,8 +12751,11 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     if (isa<CXXDestructorDecl>(MD))
       Diag(OpLoc, diag::err_typecheck_addrof_dtor) << op->getSourceRange();
 
+    QualType MPTy = Context.getMemberPointerType(
+        op->getType(), Context.getTypeDeclType(MD->getParent()).getTypePtr());
+
     if (getLangOpts().PointerAuthCalls && MD->isVirtual() &&
-        !isUnevaluatedContext()) {
+        !isUnevaluatedContext() && !MPTy->isDependentType()) {
       // When pointer authentication is enabled, argument and return types of
       // vitual member functions must be complete. This is because vitrual
       // member function pointers are implemented using virtual dispatch
@@ -12783,8 +12786,6 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
         return QualType();
     }
 
-    QualType MPTy = Context.getMemberPointerType(
-        op->getType(), Context.getTypeDeclType(MD->getParent()).getTypePtr());
     // Under the MS ABI, lock down the inheritance model now.
     if (Context.getTargetInfo().getCXXABI().isMicrosoft())
       (void)isCompleteType(OpLoc, MPTy);
