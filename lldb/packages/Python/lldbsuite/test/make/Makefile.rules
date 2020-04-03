@@ -294,6 +294,9 @@ DEBUG_INFO_FLAG ?= -g
 CFLAGS ?= $(DEBUG_INFO_FLAG) -O0 -fno-builtin
 SWIFTFLAGS ?= $(DEBUG_INFO_FLAG) -Onone -Xfrontend -serialize-debugging-options
 
+# Use the just-built standard library
+SWIFTFLAGS += -I $(dirname $(SWIFTC))/../lib/swift/
+
 ifeq "$(OS)" "Darwin"
 	ifneq "$(SDKROOT)" ""
 		CFLAGS += -isysroot "$(SDKROOT)"
