@@ -203,6 +203,20 @@ SwiftCompleteCode(SwiftASTContext &SwiftCtx,
   const unsigned completionCodeBufferID = ctx.SourceMgr.addMemBufferCopy(
       completionCodeTerminated, "<Completion Input>");
 
+  // Set up an ImplicitImportInfo with a list of modules that have been imported
+  // in previous REPL executions.
+  swift::ImplicitImportInfo importInfo;
+  importInfo.StdlibKind = swift::ImplicitStdlibKind::Stdlib;
+  for (const ConstString moduleName :
+       PersistentExpressionState.GetHandLoadedModules()) {
+    SourceModule moduleInfo;
+    moduleInfo.path.push_back(moduleName);
+    ModuleDecl *module = SwiftCtx.GetModule(moduleInfo, error);
+    if (!module)
+      continue;
+    importInfo.AdditionalModules.emplace_back(module, /*exported*/ false);
+  }
+
   // Set up the following AST:
   //
   //   completionsModule
@@ -211,7 +225,7 @@ SwiftCompleteCode(SwiftASTContext &SwiftCtx,
   //
   // (Persistent declarations are declarations from previous REPL executions).
   auto *completionsModule =
-      ModuleDecl::create(ctx.getIdentifier("CodeCompletion"), ctx);
+      ModuleDecl::create(ctx.getIdentifier("CodeCompletion"), ctx, importInfo);
   auto &completionCodeFile = *new (ctx) SourceFile(
       *completionsModule, SourceFileKind::REPL, completionCodeBufferID);
   completionsModule->addFile(completionCodeFile);
@@ -220,30 +234,13 @@ SwiftCompleteCode(SwiftASTContext &SwiftCtx,
       ctx.SourceMgr.addMemBufferCopy("", "<Persistent Decls>"));
   completionsModule->addFile(persistentDeclFile);
   persistentDeclFile.ASTStage = SourceFile::TypeChecked;
+  swift::performImportResolution(persistentDeclFile);
 
   // Parse `completionCodeFile`. Note that the Swift compiler completion
   // infrastructure requires that we set the code completion point before
   // parsing the file, so we set it now.
   ctx.SourceMgr.setCodeCompletionPoint(completionCodeBufferID,
                                        completionOffset);
-
-  // Accumulate hand imports into `completionCodeFile`. (Hand imports are
-  // imports imported in previous REPL executions).
-  {
-    SmallVector<SourceFile::ImportedModuleDesc, 8> handImports;
-    for (const ConstString moduleName :
-         PersistentExpressionState.GetHandLoadedModules()) {
-      SourceModule moduleInfo;
-      moduleInfo.path.push_back(moduleName);
-      ModuleDecl *module = SwiftCtx.GetModule(moduleInfo, error);
-      if (!module)
-        continue;
-      handImports.push_back(SourceFile::ImportedModuleDesc(
-          std::make_pair(ModuleDecl::AccessPathTy(), module),
-          SourceFile::ImportOptions()));
-    }
-    completionCodeFile.setImports(handImports);
-  }
 
   // Set the decls in `persistentDeclFile` to the persistent declarations.
   {
@@ -295,7 +292,8 @@ SwiftCompleteCode(SwiftASTContext &SwiftCtx,
   // Actually ask for completions.
   {
     DiagnosticTransaction diagTxn(ctx.Diags);
-    performTypeChecking(completionCodeFile);
+    swift::performImportResolution(completionCodeFile);
+    swift::bindExtensions(completionCodeFile);
     performCodeCompletionSecondPass(completionCodeFile,
                                     *completionCallbacksFactory);
   }
