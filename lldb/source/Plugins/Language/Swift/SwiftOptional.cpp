@@ -38,11 +38,46 @@ std::string lldb_private::formatters::swift::SwiftOptionalSummaryProvider::
   return sstr.GetString();
 }
 
+static PointerOrSP
+ExtractSomeIfAnyRuntime(ValueObject *optional) {
+  if (!optional)
+    return nullptr;
+
+  auto process_sp = optional->GetProcessSP();
+  auto *swift_runtime = SwiftLanguageRuntime::Get(process_sp);
+  if (!swift_runtime)
+    return nullptr;
+
+  CompilerType enum_type = optional->GetCompilerType();
+
+  auto name_and_type = swift_runtime->GetEnumCaseNameAndType(*optional, enum_type);
+  if (!name_and_type)
+    return nullptr;
+
+  AddressType address_type;
+  lldb::addr_t enum_addr = optional->GetPointerValue(&address_type);
+
+  DataBufferSP buffer_sp(
+            new DataBufferHeap(&enum_addr, sizeof(enum_addr)));
+  DataExtractor extractor(buffer_sp, process_sp->GetByteOrder(),
+                          process_sp->GetAddressByteSize());
+  ExecutionContext exe_ctx(process_sp);
+  return PointerOrSP(ValueObject::CreateValueObjectFromData(
+      name_and_type->first.c_str(), extractor, exe_ctx, name_and_type->second));
+}
+
 // if this ValueObject is an Optional<T> with the Some(T) case selected,
 // retrieve the value of the Some case..
 static PointerOrSP
 ExtractSomeIfAny(ValueObject *optional,
                  bool synthetic_value = false) {
+
+  PointerOrSP run = ExtractSomeIfAnyRuntime(optional);
+  if (run) {
+    run->SetSyntheticChildrenGenerated(true);
+    return run;
+  }
+
   if (!optional)
     return nullptr;
 

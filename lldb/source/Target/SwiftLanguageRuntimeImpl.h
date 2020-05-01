@@ -76,6 +76,8 @@ public:
   /// Ask Remote mirrors for the alignment of a Swift type.
   llvm::Optional<size_t> GetBitAlignment(CompilerType type);
 
+  llvm::Optional<std::pair<std::string, CompilerType>> GetEnumCaseNameAndType(ValueObject &in_value, CompilerType type);
+
   SwiftLanguageRuntime::MetadataPromiseSP
   GetMetadataPromise(lldb::addr_t addr, ValueObject &for_object);
   llvm::Optional<uint64_t> GetMemberVariableOffset(CompilerType instance_type,

@@ -275,6 +275,11 @@ public:
     return {};
   }
 
+  llvm::Optional<std::pair<std::string, CompilerType>> GetEnumCaseNameAndType(ValueObject &in_value, CompilerType type) {
+    STUB_LOG();
+    return {};
+  }
+
   bool IsValidErrorValue(ValueObject &in_value) {
     STUB_LOG();
     return {};
@@ -2090,6 +2095,11 @@ SwiftLanguageRuntime::GetByteStride(CompilerType type) {
 llvm::Optional<size_t>
 SwiftLanguageRuntime::GetBitAlignment(CompilerType type) {
   FORWARD(GetBitAlignment, type);
+}
+
+
+llvm::Optional<std::pair<std::string, CompilerType>> SwiftLanguageRuntime::GetEnumCaseNameAndType(ValueObject &in_value, CompilerType type) {
+  FORWARD(GetEnumCaseNameAndType, in_value, type);
 }
 
 bool SwiftLanguageRuntime::IsValidErrorValue(ValueObject &in_value) {

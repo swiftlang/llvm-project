@@ -288,6 +288,16 @@ public:
       *result = m_process.GetAddressByteSize(); // FIXME: sizeof(size_t)
       return true;
     }
+    case DLQ_GetObjCReservedLowBits: {
+      uint8_t *result = (uint8_t *)outBuffer;
+      *result = 1;
+      return 1;
+    }
+    case DLQ_GetLeastValidPointerValue: {
+      uint64_t *result = (uint64_t *)outBuffer;
+      *result = 0x100000000;
+      return 1;
+    }
     }
 
     return false;
@@ -1736,6 +1746,70 @@ SwiftLanguageRuntimeImpl::GetBitAlignment(CompilerType type) {
   if (auto *type_info = GetTypeInfo(type))
     return type_info->getAlignment();
   return {};
+}
+
+llvm::Optional<std::pair<std::string, CompilerType>> SwiftLanguageRuntimeImpl::GetEnumCaseNameAndType(ValueObject &in_value, CompilerType type)  {
+  // FIXME: GetTypeRef -- factor this out.
+  auto *reflection_ctx = GetReflectionContext();
+  if (!reflection_ctx)
+    return {};
+
+  swift::CanType swift_can_type(GetCanonicalSwiftType(type));
+  CompilerType can_type = ToCompilerType(swift_can_type);
+  ConstString mangled_name(can_type.GetMangledTypeName());
+  StringRef mangled_no_prefix =
+      swift::Demangle::dropSwiftManglingPrefix(mangled_name.GetStringRef());
+  swift::Demangle::Demangler Dem;
+  auto demangled = Dem.demangleType(mangled_no_prefix);
+  auto *type_ref = swift::Demangle::decodeMangledType(
+      reflection_ctx->getBuilder(), demangled);
+
+  if (!type_ref)
+    return {};
+
+  AddressType address_type;
+  lldb::addr_t addr = in_value.GetPointerValue(&address_type);
+  lldb::addr_t another_addr = in_value.GetAddressOf();
+
+  int case_index;
+  bool success = reflection_ctx->projectEnumValue(swift::remote::RemoteAddress(addr), type_ref, &case_index);
+
+  if (!success)
+    return {};
+
+  auto enum_ti = reflection_ctx->getBuilder().getTypeConverter().getTypeInfo(type_ref);
+  if (!enum_ti)
+    return {};
+
+  auto enum_record_ti = dyn_cast<swift::reflection::EnumTypeInfo>(enum_ti);
+  if (!enum_record_ti)
+    return {};
+
+  auto num_cases = enum_record_ti->getNumCases();
+  if (case_index >= num_cases)
+    return {};
+
+  const auto active_case = enum_record_ti->getCases()[case_index];
+  std::string active_case_name = active_case.Name;
+  const auto *case_tr = active_case.TR;
+  if (!case_tr)
+    return {};
+
+  swift::Demangle::Demangler dem;
+  swift::Demangle::NodePointer node = case_tr->getDemangling(dem);
+
+  std::string prefix_mangled = "$s" + mangleNode(node);
+
+  assert(IsScratchContextLocked(in_value.GetTargetSP()) &&
+         "Swift scratch context not locked ahead of dynamic type resolution");
+  auto scratch_ctx = in_value.GetScratchSwiftASTContext();
+  if (!scratch_ctx)
+    return {};
+
+  CompilerType enum_type =
+      scratch_ctx->GetTypeFromMangledTypename(ConstString(prefix_mangled));
+
+  return std::make_pair(active_case_name, enum_type);
 }
 
 bool SwiftLanguageRuntime::IsWhitelistedRuntimeValue(ConstString name) {
