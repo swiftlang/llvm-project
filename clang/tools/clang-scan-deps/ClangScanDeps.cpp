@@ -12,6 +12,7 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
 #include "clang/Tooling/JSONCompilationDatabase.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/InitLLVM.h"
@@ -20,6 +21,7 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/Threading.h"
+#include "llvm/Support/raw_ostream.h"
 #include <mutex>
 #include <thread>
 
@@ -164,6 +166,13 @@ llvm::cl::opt<bool> Verbose("v", llvm::cl::Optional,
                             llvm::cl::desc("Use verbose output."),
                             llvm::cl::init(false),
                             llvm::cl::cat(DependencyScannerCategory));
+
+llvm::cl::opt<bool> GatherMetrics(
+    "metrics", llvm::cl::Optional,
+    llvm::cl::desc(
+        "Gather metrics during tool operation to measure overhead of modules "
+        "built in explicit mode with respect to implicit modules."),
+    llvm::cl::init(false), llvm::cl::cat(DependencyScannerCategory));
 
 } // end anonymous namespace
 
@@ -325,6 +334,60 @@ public:
     };
 
     OS << llvm::formatv("{0:2}\n", Value(std::move(Output)));
+  }
+
+  void computeAndPrintBuildMetrics(raw_ostream &OS) {
+    std::unordered_map<std::string, std::vector<ContextModulePair>>
+        RelaxedToStrictContextHashModules;
+    for (auto &&M : Modules) {
+      std::string RelaxedHashModule =
+          M.second.ModuleName + '-' + M.second.RelaxedContextHash;
+      auto &StrictContextHashModules =
+          RelaxedToStrictContextHashModules[RelaxedHashModule];
+      StrictContextHashModules.push_back(M.first);
+    }
+
+    size_t TotalStrictContextHashModules = 0;
+    size_t TotalRelaxedHashModules = RelaxedToStrictContextHashModules.size();
+    for (auto &&It : RelaxedToStrictContextHashModules) {
+      auto &Duplicates = It.second;
+      llvm::sort(Duplicates, [](const ContextModulePair &LHS,
+                                const ContextModulePair &RHS) {
+        return std::tie(LHS.ModuleName, LHS.ContextHash) <
+               std::tie(RHS.ModuleName, RHS.ContextHash);
+      });
+
+      auto LastElemIt = std::unique(Duplicates.begin(), Duplicates.end());
+      Duplicates.erase(LastElemIt, Duplicates.end());
+      size_t NumDuplicates = Duplicates.size();
+      TotalStrictContextHashModules += NumDuplicates;
+
+      assert(NumDuplicates > 0 &&
+             "Cannot have a relaxed hash module that doesn't map to a strict"
+             "one!");
+
+      if (NumDuplicates > 1) {
+        TotalStrictContextHashModules += NumDuplicates;
+        OS << "Relaxed hash module: " << It.first << " gets duplicated as "
+           << NumDuplicates << "modules: ";
+
+        auto DuplicatesIt = Duplicates.begin();
+        OS << DuplicatesIt->ModuleName << "-" << DuplicatesIt->ContextHash;
+        ++DuplicatesIt;
+        for (auto End = Duplicates.end(); DuplicatesIt != End; ++DuplicatesIt)
+          OS << "; " << DuplicatesIt->ModuleName << "-"
+             << DuplicatesIt->ContextHash;
+        OS << "\n";
+      }
+    }
+
+    auto PercentageModuleNumberIncrease =
+        100 * ((TotalStrictContextHashModules - TotalRelaxedHashModules) /
+               TotalRelaxedHashModules);
+    OS << "Total implicit modules: " << TotalRelaxedHashModules << "\n";
+    OS << "Total strict context hash modules: " << TotalStrictContextHashModules
+       << "\n";
+    OS << "Module number increase: " << PercentageModuleNumberIncrease << "%\n";
   }
 
 private:
@@ -542,6 +605,9 @@ int main(int argc, const char **argv) {
 
   if (Format == ScanningOutputFormat::Full)
     FD.printFullOutput(llvm::outs());
+
+  if (GatherMetrics)
+    FD.computeAndPrintBuildMetrics(llvm::errs());
 
   return HadErrors;
 }

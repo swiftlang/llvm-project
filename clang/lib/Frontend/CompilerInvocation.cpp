@@ -3816,7 +3816,7 @@ static void removeExplicitModuleBuildIncompatibleOptions(InputArgList &Args) {
   });
   if (REMBIO == Args.end())
     return;
-  
+
   llvm::SmallPtrSet<const Arg *, 32> BeforeREMBIO;
   for (auto I = Args.begin(); I != REMBIO; ++I)
     BeforeREMBIO.insert(*I);
@@ -3868,9 +3868,9 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   unsigned MissingArgIndex, MissingArgCount;
   InputArgList Args = Opts.ParseArgs(CommandLineArgs, MissingArgIndex,
                                      MissingArgCount, IncludedFlagsBitmask);
-  
+
   removeExplicitModuleBuildIncompatibleOptions(Args);
-  
+
   LangOptions &LangOpts = *Res.getLangOpts();
 
   // Check for missing argument error.
@@ -4015,6 +4015,11 @@ static bool isExtHandlingFromDiagsError(DiagnosticsEngine &Diags) {
 }
 
 std::string CompilerInvocation::getModuleHash(DiagnosticsEngine &Diags) const {
+  return getModuleHash(Diags, getHeaderSearchOpts().ModulesStrictContextHash);
+}
+
+std::string CompilerInvocation::getModuleHash(DiagnosticsEngine &Diags,
+                                              bool UseStrictContextHash) const {
   // Note: For QoI reasons, the things we use as a hash here should all be
   // dumped via the -module-info flag.
   using llvm::hash_code;
@@ -4084,7 +4089,7 @@ std::string CompilerInvocation::getModuleHash(DiagnosticsEngine &Diags) const {
                       hsOpts.ModulesValidateDiagnosticOptions);
   code = hash_combine(code, hsOpts.ResourceDir);
 
-  if (hsOpts.ModulesStrictContextHash) {
+  if (UseStrictContextHash) {
     hash_code SHPC = hash_combine_range(hsOpts.SystemHeaderPrefixes.begin(),
                                         hsOpts.SystemHeaderPrefixes.end());
     hash_code UEC = hash_combine_range(hsOpts.UserEntries.begin(),

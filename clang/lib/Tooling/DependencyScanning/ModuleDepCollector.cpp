@@ -62,12 +62,14 @@ void ModuleDepCollectorPP::FileChanged(SourceLocation Loc,
                                        FileID PrevFID) {
   if (Reason != PPCallbacks::EnterFile)
     return;
-  
+
   // This has to be delayed as the context hash can change at the start of
   // `CompilerInstance::ExecuteAction`.
   if (MDC.ContextHash.empty()) {
     MDC.ContextHash =
         Instance.getInvocation().getModuleHash(Instance.getDiagnostics());
+    MDC.RelaxedContextHash = Instance.getInvocation().getModuleHash(
+        Instance.getDiagnostics(), /* UseStrictContextHash */ false);
     MDC.Consumer.handleContextHash(MDC.ContextHash);
   }
 
@@ -151,6 +153,7 @@ void ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
   MD.ModuleName = M->getFullModuleName();
   MD.ImplicitModulePCMPath = std::string(M->getASTFile()->getName());
   MD.ContextHash = MDC.ContextHash;
+  MD.RelaxedContextHash = MDC.RelaxedContextHash;
   serialization::ModuleFile *MF =
       MDC.Instance.getASTReader()->getModuleManager().lookup(M->getASTFile());
   MDC.Instance.getASTReader()->visitInputFiles(
@@ -170,7 +173,7 @@ void ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
     "-remove-preceeding-explicit-module-build-incompatible-options",
     "-fno-implicit-modules", "-emit-module", "-fmodule-name=" + MD.ModuleName,
   };
-  
+
   if (M->IsSystem)
     MD.NonPathCommandLine.push_back("-fsystem-module");
 

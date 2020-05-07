@@ -190,6 +190,9 @@ public:
   /// identifying the conditions under which the module was built.
   std::string getModuleHash(DiagnosticsEngine &Diags) const;
 
+  std::string getModuleHash(DiagnosticsEngine &Diags,
+                            bool UseStrictContextHash) const;
+
   using StringAllocator = llvm::function_ref<const char *(const llvm::Twine &)>;
   /// Generate a cc1-compatible command line arguments from this instance.
   ///
@@ -201,7 +204,6 @@ public:
   /// The returned pointer is what gets appended to Args.
   void generateCC1CommandLine(llvm::SmallVectorImpl<const char *> &Args,
                               StringAllocator SA) const;
-
   /// @}
   /// @name Option Subgroups
   /// @{

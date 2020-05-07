@@ -48,6 +48,7 @@ struct ModuleDeps {
   /// Modules with the same name but a different \c ContextHash should be
   /// treated as separate modules for the purpose of a build.
   std::string ContextHash;
+  std::string RelaxedContextHash;
 
   /// The path to the modulemap file which defines this module.
   ///
@@ -153,6 +154,7 @@ private:
   DependencyConsumer &Consumer;
   std::string MainFile;
   std::string ContextHash;
+  std::string RelaxedContextHash;
   std::vector<std::string> MainDeps;
   std::unordered_map<std::string, ModuleDeps> Deps;
   std::unique_ptr<DependencyOutputOptions> Opts;
