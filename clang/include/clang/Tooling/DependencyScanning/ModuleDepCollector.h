@@ -11,6 +11,7 @@
 #define LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_MODULE_DEP_COLLECTOR_H
 
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/Module.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Lex/HeaderSearch.h"
@@ -48,7 +49,16 @@ struct ModuleDeps {
   /// Modules with the same name but a different \c ContextHash should be
   /// treated as separate modules for the purpose of a build.
   std::string ContextHash;
+
+  /// The relaxed context hash of a module represents the \c ContextHash that
+  /// would have been used with strict context hashing disabled. This is only
+  /// used kept track off in order to compute module aliasing efficency of
+  /// strict context hashing w.r.t relaxed context hashing.
   std::string RelaxedContextHash;
+
+  // This is the hash of the AST represented by the module. This is only used to
+  // keep track of module aliasing efficiency.
+  ASTFileSignature ModuleSignature;
 
   /// The path to the modulemap file which defines this module.
   ///

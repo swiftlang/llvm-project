@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/Module.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
@@ -337,57 +338,58 @@ public:
   }
 
   void computeAndPrintBuildMetrics(raw_ostream &OS) {
-    std::unordered_map<std::string, std::vector<ContextModulePair>>
-        RelaxedToStrictContextHashModules;
+    std::unordered_map<std::string, BuiltModulesEfficiencyInfo>
+        RelaxedHashesEfficiencyInfo;
+    std::set<ASTFileSignature> UniqueModuleSignatures;
     for (auto &&M : Modules) {
       std::string RelaxedHashModule =
           M.second.ModuleName + '-' + M.second.RelaxedContextHash;
-      auto &StrictContextHashModules =
-          RelaxedToStrictContextHashModules[RelaxedHashModule];
-      StrictContextHashModules.push_back(M.first);
+      auto &BuiltModulesInfo = RelaxedHashesEfficiencyInfo[RelaxedHashModule];
+      BuiltModulesInfo.BuiltModules.push_back(&M.second);
+      auto InsertionResult =
+          UniqueModuleSignatures.insert(M.second.ModuleSignature);
+      if (InsertionResult.second)
+        BuiltModulesInfo.UniqueASTFileSignatures++;
     }
 
-    size_t TotalStrictContextHashModules = 0;
-    size_t TotalRelaxedHashModules = RelaxedToStrictContextHashModules.size();
-    for (auto &&It : RelaxedToStrictContextHashModules) {
-      auto &Duplicates = It.second;
-      llvm::sort(Duplicates, [](const ContextModulePair &LHS,
-                                const ContextModulePair &RHS) {
-        return std::tie(LHS.ModuleName, LHS.ContextHash) <
-               std::tie(RHS.ModuleName, RHS.ContextHash);
-      });
+    size_t TotalStrictContextHashModules = Modules.size();
+    size_t TotalRelaxedHashModules = RelaxedHashesEfficiencyInfo.size();
+    auto PercentageModuleNumberIncrease =
+        100 * ((TotalStrictContextHashModules - TotalRelaxedHashModules) /
+               TotalRelaxedHashModules);
 
-      auto LastElemIt = std::unique(Duplicates.begin(), Duplicates.end());
-      Duplicates.erase(LastElemIt, Duplicates.end());
+    OS << "Total relaxed hash modules: " << TotalRelaxedHashModules << "\n";
+    OS << "Total unique AST signatures: " << UniqueModuleSignatures.size()
+       << "\n";
+    OS << "Total strict context hash modules: " << TotalStrictContextHashModules
+       << "\n";
+    OS << "Module number increase: " << PercentageModuleNumberIncrease
+       << "%\n\n";
+
+    OS << "Details:\n";
+    for (auto &&It : RelaxedHashesEfficiencyInfo) {
+      auto &Duplicates = It.second.BuiltModules;
       size_t NumDuplicates = Duplicates.size();
-      TotalStrictContextHashModules += NumDuplicates;
 
       assert(NumDuplicates > 0 &&
              "Cannot have a relaxed hash module that doesn't map to a strict"
              "one!");
 
       if (NumDuplicates > 1) {
-        TotalStrictContextHashModules += NumDuplicates;
-        OS << "Relaxed hash module: " << It.first << " gets duplicated as "
-           << NumDuplicates << "modules: ";
+        OS << "Relaxed hash module: " << It.first << " gets duplicated as ("
+           << It.second.UniqueASTFileSignatures << "/" << NumDuplicates
+           << ") modules: ";
 
         auto DuplicatesIt = Duplicates.begin();
-        OS << DuplicatesIt->ModuleName << "-" << DuplicatesIt->ContextHash;
+        OS << (*DuplicatesIt)->ModuleName << "-"
+           << (*DuplicatesIt)->ContextHash;
         ++DuplicatesIt;
         for (auto End = Duplicates.end(); DuplicatesIt != End; ++DuplicatesIt)
-          OS << "; " << DuplicatesIt->ModuleName << "-"
-             << DuplicatesIt->ContextHash;
+          OS << (*DuplicatesIt)->ModuleName << "-"
+             << (*DuplicatesIt)->ContextHash;
         OS << "\n";
       }
     }
-
-    auto PercentageModuleNumberIncrease =
-        100 * ((TotalStrictContextHashModules - TotalRelaxedHashModules) /
-               TotalRelaxedHashModules);
-    OS << "Total implicit modules: " << TotalRelaxedHashModules << "\n";
-    OS << "Total strict context hash modules: " << TotalStrictContextHashModules
-       << "\n";
-    OS << "Module number increase: " << PercentageModuleNumberIncrease << "%\n";
   }
 
 private:
@@ -401,6 +403,11 @@ private:
         Modules.find(ContextModulePair{CMD.ContextHash, CMD.ModuleName, 0});
     assert(I != Modules.end());
     return I->second;
+  };
+
+  struct BuiltModulesEfficiencyInfo {
+    std::vector<ModuleDeps *> BuiltModules;
+    size_t UniqueASTFileSignatures;
   };
 
   struct ContextModulePair {

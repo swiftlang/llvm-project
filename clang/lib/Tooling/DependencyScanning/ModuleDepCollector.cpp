@@ -156,6 +156,7 @@ void ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
   MD.RelaxedContextHash = MDC.RelaxedContextHash;
   serialization::ModuleFile *MF =
       MDC.Instance.getASTReader()->getModuleManager().lookup(M->getASTFile());
+  MD.ModuleSignature = MF->Signature;
   MDC.Instance.getASTReader()->visitInputFiles(
       *MF, true, true, [&](const serialization::InputFile &IF, bool isSystem) {
         // __inferred_module.map is the result of the way in which an implicit
