@@ -3787,6 +3787,10 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
 
   ParsePointerAuthArgs(LangOpts, Args);
 
+  Success &= ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags,
+                              LangOpts, Res.getTargetOpts(),
+                              Res.getFrontendOpts());
+
   llvm::Triple T(Res.getTargetOpts().Triple);
   if (DashX.getFormat() == InputKind::Precompiled ||
       DashX.getLanguage() == Language::LLVM_IR) {
@@ -3822,9 +3826,6 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   LangOpts.FunctionAlignment =
       getLastArgIntValue(Args, OPT_function_alignment, 0, Diags);
 
-  Success &= ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags,
-                              LangOpts, Res.getTargetOpts(),
-                              Res.getFrontendOpts());
 
   if (LangOpts.CUDA) {
     // During CUDA device-side compilation, the aux triple is the
