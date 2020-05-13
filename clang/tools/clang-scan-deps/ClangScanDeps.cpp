@@ -371,14 +371,14 @@ public:
       auto &Duplicates = It.second.BuiltModules;
       size_t NumDuplicates = Duplicates.size();
 
-      assert(NumDuplicates > 0 &&
-             "Cannot have a relaxed hash module that doesn't map to a strict"
-             "one!");
+      assert(NumDuplicates > 0 && "Cannot have a relaxed hash module that "
+                                  "doesn't map to at least a strict"
+                                  "one!");
 
       if (NumDuplicates > 1) {
         OS << "Relaxed hash module: " << It.first << " gets duplicated as ("
            << It.second.UniqueASTFileSignatures << "/" << NumDuplicates
-           << ") modules: ";
+           << ") modules:\n";
 
         auto DuplicatesIt = Duplicates.begin();
         OS << (*DuplicatesIt)->ModuleName << "-"
@@ -387,7 +387,7 @@ public:
         for (auto End = Duplicates.end(); DuplicatesIt != End; ++DuplicatesIt)
           OS << (*DuplicatesIt)->ModuleName << "-"
              << (*DuplicatesIt)->ContextHash;
-        OS << "\n";
+        OS << "\n\n";
       }
     }
   }
