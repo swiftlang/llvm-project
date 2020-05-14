@@ -378,15 +378,19 @@ public:
       if (NumDuplicates > 1) {
         OS << "Relaxed hash module: " << It.first << " gets duplicated as ("
            << It.second.UniqueASTFileSignatures << "/" << NumDuplicates
-           << ") modules:\n";
+           << ") modules:\n\n";
+
+        auto OutputModuleDep = [](raw_ostream &OS, ModuleDeps *MD) {
+          OS << MD->ModuleName << "-" << MD->ContextHash;
+        };
 
         auto DuplicatesIt = Duplicates.begin();
-        OS << (*DuplicatesIt)->ModuleName << "-"
-           << (*DuplicatesIt)->ContextHash;
+        OutputModuleDep(OS, *DuplicatesIt);
         ++DuplicatesIt;
-        for (auto End = Duplicates.end(); DuplicatesIt != End; ++DuplicatesIt)
-          OS << (*DuplicatesIt)->ModuleName << "-"
-             << (*DuplicatesIt)->ContextHash;
+        for (auto End = Duplicates.end(); DuplicatesIt != End; ++DuplicatesIt) {
+          OS << "; ";
+          OutputModuleDep(OS, *DuplicatesIt);
+        }
         OS << "\n\n";
       }
     }
