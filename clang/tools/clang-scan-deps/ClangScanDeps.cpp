@@ -349,7 +349,7 @@ public:
       auto InsertionResult =
           UniqueModuleSignatures.insert(M.second.ModuleSignature);
       if (InsertionResult.second)
-        BuiltModulesInfo.UniqueASTFileSignatures++;
+        BuiltModulesInfo.RepresentativeASTSignatures.push_back(&M.second);
     }
 
     size_t TotalStrictContextHashModules = Modules.size();
@@ -369,6 +369,7 @@ public:
     OS << "Details:\n";
     for (auto &&It : RelaxedHashesEfficiencyInfo) {
       auto &Duplicates = It.second.BuiltModules;
+      auto &TrueDuplicates = It.second.RepresentativeASTSignatures;
       size_t NumDuplicates = Duplicates.size();
 
       assert(NumDuplicates > 0 && "Cannot have a relaxed hash module that "
@@ -377,19 +378,19 @@ public:
 
       if (NumDuplicates > 1) {
         OS << "Relaxed hash module: " << It.first << " gets duplicated as ("
-           << It.second.UniqueASTFileSignatures << "/" << NumDuplicates
-           << ") modules:\n\n";
+           << TrueDuplicates.size() << "/" << NumDuplicates << ") modules:\n\n";
 
         auto OutputModuleDep = [](raw_ostream &OS, ModuleDeps *MD) {
           OS << MD->ModuleName << "-" << MD->ContextHash;
         };
 
-        auto DuplicatesIt = Duplicates.begin();
-        OutputModuleDep(OS, *DuplicatesIt);
-        ++DuplicatesIt;
-        for (auto End = Duplicates.end(); DuplicatesIt != End; ++DuplicatesIt) {
+        auto TrueDuplicatesIt = TrueDuplicates.begin();
+        OutputModuleDep(OS, *TrueDuplicatesIt);
+        ++TrueDuplicatesIt;
+        for (auto End = TrueDuplicates.end(); TrueDuplicatesIt != End;
+             ++TrueDuplicatesIt) {
           OS << "; ";
-          OutputModuleDep(OS, *DuplicatesIt);
+          OutputModuleDep(OS, *TrueDuplicatesIt);
         }
         OS << "\n\n";
       }
@@ -411,7 +412,7 @@ private:
 
   struct BuiltModulesEfficiencyInfo {
     std::vector<ModuleDeps *> BuiltModules;
-    size_t UniqueASTFileSignatures;
+    std::vector<ModuleDeps *> RepresentativeASTSignatures;
   };
 
   struct ContextModulePair {
