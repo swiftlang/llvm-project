@@ -60,6 +60,43 @@ Error createError(StringRef Message, const Ts &... Vals) {
                            Vals...);
 }
 
+void printHeaderRole(raw_ostream &OS, ModuleMap::ModuleHeaderRole Role) {
+  switch (Role) {
+  case ModuleMap::NormalHeader:
+    OS << "NormalHeader";
+    break;
+  case ModuleMap::PrivateHeader:
+    OS << "PrivateHeader";
+    break;
+  case ModuleMap::TextualHeader:
+    OS << "TextualHeader";
+    break;
+  }
+}
+
+void printModuleKind(raw_ostream &OS, ModuleKind Kind) {
+  switch (Kind) {
+  case clang::serialization::MK_ImplicitModule:
+    OS << "ImplicitModules";
+    break;
+  case clang::serialization::MK_ExplicitModule:
+    OS << "ExplicitModule";
+    break;
+  case clang::serialization::MK_PCH:
+    OS << "PCH";
+    break;
+  case clang::serialization::MK_Preamble:
+    OS << "Preamble";
+    break;
+  case clang::serialization::MK_MainFile:
+    OS << "MainFile";
+    break;
+  case clang::serialization::MK_PrebuiltModule:
+    OS << "PrebuiltModule";
+    break;
+  }
+}
+
 Optional<const char *> getCodeName(unsigned CodeID, unsigned BlockID,
                                    const BitstreamBlockInfo &BlockInfo) {
   // Standard blocks for all bitcode files.
@@ -522,19 +559,8 @@ private:
             for (const auto &ImportedHeader : HFIL.ImportedHeaders) {
               LineOut << " ("
                       << "ID: " << ImportedHeader.first << ", Role: ";
-              switch (static_cast<ModuleMap::ModuleHeaderRole>(
-                  ImportedHeader.second)) {
-              case ModuleMap::NormalHeader:
-                LineOut << "NormalHeader";
-                break;
-              case ModuleMap::PrivateHeader:
-                LineOut << "PrivateHeader";
-                break;
-              case ModuleMap::TextualHeader:
-                LineOut << "TextualHeader";
-                break;
-              }
-            LineOut << ")";
+              printHeaderRole(LineOut, ImportedHeader.second);
+              LineOut << ")";
             }
             LineOut << ")\n";
           }
@@ -666,6 +692,44 @@ private:
 
       case ORIGINAL_PCH_DIR: {
         O.output() << "ORIGINAL_PCH_DIR: " << Blob << "\n";
+        break;
+      }
+
+      case IMPORTS: {
+        unsigned Idx = 0, N = Record.size();
+        if (Idx < N) {
+          O.output() << "IMPORTS:\n";
+          O.increaseIndentation();
+        }
+        while (Idx < N) {
+          ModuleKind ImportedKind = static_cast<ModuleKind>(Record[Idx++]);
+          uint64_t PseudoLocRaw = Record[Idx++];
+          SourceLocation ImportLoc = SourceLocation::getFromRawEncoding(
+              (PseudoLocRaw >> 1) | (PseudoLocRaw << 31));
+          off_t StoredSize = Record[Idx++];
+          time_t StoredModTime = Record[Idx++];
+          ASTFileSignature StoredSignature = {
+              {{(uint32_t)Record[Idx++], (uint32_t)Record[Idx++],
+                (uint32_t)Record[Idx++], (uint32_t)Record[Idx++],
+                (uint32_t)Record[Idx++]}}};
+          std::string ImportedName = readString(Record, Idx);
+          std::string ImportedFile = readString(Record, Idx);
+
+          raw_ostream &LineOut = O.output() << "(ImportedKind: ";
+          printModuleKind(LineOut, ImportedKind);
+          LineOut << ", SourceLocation: " << PseudoLocRaw
+                  << ", Size: " << StoredSize << ", ModTime: " << StoredModTime;
+          LineOut << ", Signature: [ ";
+          auto SignatureIt = StoredSignature.begin();
+          LineOut << *SignatureIt++;
+          for (auto SignatureEnd = StoredSignature.end();
+               SignatureIt != SignatureEnd; SignatureIt++)
+            LineOut << ", " << *SignatureIt;
+          LineOut << "]"
+                  << ", Name: " << ImportedName << ", File: " << ImportedFile
+                  << ")\n";
+        }
+        O.decreaseIndentation();
         break;
       }
 
