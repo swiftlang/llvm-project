@@ -33,14 +33,26 @@ using namespace clang::serialization;
 
 namespace {
 
+cl::OptionCategory ClangPcmAnalyzerCategory("Tool options");
+
 cl::opt<std::string> InputFilename(cl::Positional, cl::desc("<input PCM>"),
-                                   cl::init("-"));
+                                   cl::init("-"),
+                                   llvm::cl::cat(ClangPcmAnalyzerCategory));
 
 cl::opt<bool> ShowBinaryBlobs("show-binary-blobs",
-                              cl::desc("Print binary blobs using hex escapes"));
+                              cl::desc("Print binary blobs using hex escapes"),
+                              cl::init(false),
+                              llvm::cl::cat(ClangPcmAnalyzerCategory));
 
 cl::opt<bool> ShowUnknownRecords("show-unknown-records",
-                                 cl::desc("Print unknown record types"));
+                                 cl::desc("Print unknown record types"),
+                                 cl::init(false),
+                                 llvm::cl::cat(ClangPcmAnalyzerCategory));
+
+cl::opt<bool> DontValidateVCS("no-validate-vcs",
+                              cl::desc("Validate version control information"),
+                              cl::init(false),
+                              llvm::cl::cat(ClangPcmAnalyzerCategory));
 
 template <typename... Ts>
 Error createError(StringRef Message, const Ts &... Vals) {
@@ -596,8 +608,8 @@ private:
       case METADATA: {
         const std::string &CurBranch = getClangFullRepositoryVersion();
         StringRef ASTBranch = Blob;
-        if (StringRef(CurBranch) != ASTBranch)
-          return createError("Incompatible clang versions got %s expected %s",
+        if (!DontValidateVCS && StringRef(CurBranch) != ASTBranch)
+          return createError("Incompatible clang versions got %s expected % s ",
                              ASTBranch.data(), CurBranch.data());
 
         HasTimestamps = Record[5];
@@ -690,8 +702,11 @@ Expected<std::unique_ptr<MemoryBuffer>> openPCMFile(StringRef Path) {
 
 int main(int argc, const char **argv) {
   InitLLVM X(argc, argv);
-  cl::ParseCommandLineOptions(
-      argc, argv, "clang-pcm-analyzer precompiled module analyzer\n");
+  llvm::cl::HideUnrelatedOptions(ClangPcmAnalyzerCategory);
+  if (!cl::ParseCommandLineOptions(
+          argc, argv, "clang-pcm-analyzer precompiled module analyzer\n"))
+    return 1;
+
   ExitOnError ExitOnErr("clang-pcm-analyzer: ");
 
   auto MB = ExitOnErr(openPCMFile(InputFilename));
