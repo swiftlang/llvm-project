@@ -110,9 +110,6 @@ def NonDeterminismAlpha : Package<"nondeterminism">, ParentPackage<Alpha>;
 
 def Fuchsia : Package<"fuchsia">;
 
-def WebKit : Package<"webkit">;
-def WebKitAlpha : Package<"webkit">, ParentPackage<Alpha>;
-
 //===----------------------------------------------------------------------===//
 // Core Checkers.
 //===----------------------------------------------------------------------===//
@@ -1441,13 +1438,3 @@ def FuchsiaHandleChecker : Checker<"HandleChecker">,
 
 } // end fuchsia
 
-//===----------------------------------------------------------------------===//
-// WebKit checkers.
-//===----------------------------------------------------------------------===//
-
-let ParentPackage = WebKit in {
-
-def WebKitRefCntblBaseVirtualDtorChecker : Checker<"WebKitRefCntblBaseVirtualDtor">,
-  HelpText<"Check for any ref-countable base class having virtual destructor.">,
-  Documentation<HasDocumentation>;
-} // end webkit
