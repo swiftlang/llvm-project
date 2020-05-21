@@ -477,7 +477,6 @@ bool ThreadPlanCallFunction::BreakpointsExplainStop() {
     }
   }
   if (m_error_backstop_bp_sp) {
-<<<<<<< HEAD
     uint64_t break_site_id = stop_info_sp->GetValue();
     if (m_process.GetBreakpointSiteList().BreakpointSiteContainsBreakpoint(
             break_site_id, m_error_backstop_bp_sp->GetID())) {
