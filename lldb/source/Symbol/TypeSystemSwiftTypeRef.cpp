@@ -326,7 +326,7 @@ clang::api_notes::APINotesManager *TypeSystemSwiftTypeRef::GetAPINotesManager(
   std::string path;
   for (clang::Module *parent = module; parent; parent = parent->Parent) {
     if (!parent->APINotesFile.empty()) {
-      path = llvm::sys::path::parent_path(parent->APINotesFile);
+      path = llvm::sys::path::parent_path(parent->APINotesFile).str();
       break;
     }
   }
