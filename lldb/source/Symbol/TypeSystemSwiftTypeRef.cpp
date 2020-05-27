@@ -449,7 +449,7 @@ GetNodeForPrinting(const std::string &m_description, lldb_private::Module &M,
       break;
 
     // Read the Swift name from the APINotes.
-    std::string swift_name = ident;
+    std::string swift_name = ident.str();
     if (unsigned id = clang_decl->getOwningModuleID()) {
       auto *clang_typesystem = llvm::dyn_cast_or_null<TypeSystemClang>(
           compiler_type.GetTypeSystem());
