@@ -17,6 +17,7 @@
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Serialization/ASTReader.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/raw_ostream.h"
@@ -152,7 +153,8 @@ private:
 class ModuleDepCollector final : public DependencyCollector {
 public:
   ModuleDepCollector(std::unique_ptr<DependencyOutputOptions> Opts,
-                     CompilerInstance &I, DependencyConsumer &C);
+                     CompilerInstance &I, DependencyConsumer &C,
+                     ArrayRef<std::string> OriginalInvocation);
 
   void attachToPreprocessor(Preprocessor &PP) override;
   void attachToASTReader(ASTReader &R) override;
@@ -162,6 +164,7 @@ private:
 
   CompilerInstance &Instance;
   DependencyConsumer &Consumer;
+  ArrayRef<std::string> OriginalInvocation;
   std::string MainFile;
   std::string ContextHash;
   std::string RelaxedContextHash;

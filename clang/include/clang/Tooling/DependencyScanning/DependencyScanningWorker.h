@@ -20,6 +20,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include <string>
+#include <vector>
 
 namespace clang {
 
@@ -56,12 +57,15 @@ public:
   /// specified for the given Input in the CDB), and report the discovered
   /// dependencies to the provided consumer.
   ///
-  /// \returns A \c StringError with the diagnostic output if clang errors
-  /// occurred, success otherwise.
+  /// \param [out] OriginalInvocation - Contains the CC1 command line
+  /// associated with the compilation database.
+  /// \returns A \c StringError with
+  /// the diagnostic output if clang errors occurred, success otherwise.
   llvm::Error computeDependencies(const std::string &Input,
                                   StringRef WorkingDirectory,
                                   const CompilationDatabase &CDB,
-                                  DependencyConsumer &Consumer);
+                                  DependencyConsumer &Consumer,
+                                  std::vector<std::string> *OriginalInvocation);
 
   llvm::Error
   computeDependenciesForClangInvocation(StringRef WorkingDirectory,

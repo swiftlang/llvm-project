@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/Module.h"
-#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
@@ -299,6 +298,11 @@ public:
     Array OutModules;
     for (auto &&ModName : ModuleNames) {
       auto &MD = Modules[ModName];
+      auto FCL = MD.getFullCommandLine(
+          [&](ClangModuleDep CMD) { return lookupPCMPath(CMD); },
+          [&](ClangModuleDep CMD) -> const ModuleDeps & {
+            return lookupModuleDeps(CMD);
+          });
       Object O{
           {"name", MD.ModuleName},
           {"context-hash", MD.ContextHash},
@@ -307,11 +311,12 @@ public:
           {"clang-modulemap-file", MD.ClangModuleMapFile},
           {"command-line",
            FullCommandLine
-               ? MD.getFullCommandLine(
-                     [&](ClangModuleDep CMD) { return lookupPCMPath(CMD); },
-                     [&](ClangModuleDep CMD) -> const ModuleDeps & {
-                       return lookupModuleDeps(CMD);
-                     })
+               ? FCL
+               // ? MD.getFullCommandLine(
+               //       [&](ClangModuleDep CMD) { return lookupPCMPath(CMD); },
+               //       [&](ClangModuleDep CMD) -> const ModuleDeps & {
+               //         return lookupModuleDeps(CMD);
+               //       })
                : MD.NonPathCommandLine},
       };
       OutModules.push_back(std::move(O));

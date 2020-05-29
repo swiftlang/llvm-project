@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Frontend/Utils.h"
 
 namespace clang{
@@ -86,7 +87,8 @@ llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
   std::string Input = Compilations.getAllCompileCommands().front().Filename;
 
   MakeDependencyPrinterConsumer Consumer;
-  auto Result = Worker.computeDependencies(Input, CWD, Compilations, Consumer);
+  auto Result =
+      Worker.computeDependencies(Input, CWD, Compilations, Consumer, nullptr);
   if (Result)
     return std::move(Result);
   std::string Output;
@@ -116,7 +118,8 @@ DependencyScanningTool::getFullDependencies(
       ContextHash = std::move(Hash);
     }
 
-    FullDependenciesResult getFullDependencies() const {
+    FullDependenciesResult
+    getFullDependencies(std::vector<std::string> &&OriginalInvocation) const {
       FullDependencies FD;
 
       FD.ContextHash = std::move(ContextHash);
@@ -128,11 +131,10 @@ DependencyScanningTool::getFullDependencies(
         if (MD.ImportedByMainFile)
           FD.ClangModuleDeps.push_back({MD.ModuleName, ContextHash});
       }
-      
-      FD.AdditionalNonPathCommandLine = {
-        "-fno-implicit-modules",
-        "-fno-implicit-module-maps",
-      };
+
+      FD.AdditionalNonPathCommandLine = OriginalInvocation;
+      FD.AdditionalNonPathCommandLine.push_back("-fno-implicit-modules");
+      FD.AdditionalNonPathCommandLine.push_back("-fno-implicit-module-maps");
 
       FullDependenciesResult FDR;
 
@@ -166,11 +168,13 @@ DependencyScanningTool::getFullDependencies(
   std::string Input = Compilations.getAllCompileCommands().front().Filename;
 
   FullDependencyPrinterConsumer Consumer(AlreadySeen);
-  llvm::Error Result =
-      Worker.computeDependencies(Input, CWD, Compilations, Consumer);
+
+  std::vector<std::string> OriginalInvocation;
+  llvm::Error Result = Worker.computeDependencies(
+      Input, CWD, Compilations, Consumer, &OriginalInvocation);
   if (Result)
     return std::move(Result);
-  return Consumer.getFullDependencies();
+  return Consumer.getFullDependencies(std::move(OriginalInvocation));
 }
 
 } // end namespace dependencies

@@ -11,6 +11,7 @@
 
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
 
 using namespace clang;
@@ -21,9 +22,6 @@ std::vector<std::string> ModuleDeps::getFullCommandLine(
     std::function<StringRef(ClangModuleDep)> LookupPCMPath,
     std::function<const ModuleDeps &(ClangModuleDep)> LookupModuleDeps) const {
   std::vector<std::string> Ret = NonPathCommandLine;
-
-  // TODO: Build full command line. That also means capturing the original
-  //       command line into NonPathCommandLine.
 
   dependencies::detail::appendCommonModuleArguments(
       ClangModuleDeps, LookupPCMPath, LookupModuleDeps, Ret);
@@ -170,10 +168,14 @@ void ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
         }
         MD.FileDeps.insert(IF.getFile()->getName());
       });
-  MD.NonPathCommandLine = {
-    "-remove-preceeding-explicit-module-build-incompatible-options",
-    "-fno-implicit-modules", "-emit-module", "-fmodule-name=" + MD.ModuleName,
-  };
+  // The compilation databases we use only have a single compile command
+  MD.NonPathCommandLine.assign(MDC.OriginalInvocation.begin(),
+                               MDC.OriginalInvocation.end());
+  MD.NonPathCommandLine.push_back(
+      "-remove-preceeding-explicit-module-build-incompatible-options");
+  MD.NonPathCommandLine.push_back("-fno-implicit-modules");
+  MD.NonPathCommandLine.push_back("-emit-module");
+  MD.NonPathCommandLine.push_back("-fmodule-name=" + MD.ModuleName);
 
   if (M->IsSystem)
     MD.NonPathCommandLine.push_back("-fsystem-module");
@@ -208,8 +210,9 @@ void ModuleDepCollectorPP::addModuleDep(
 
 ModuleDepCollector::ModuleDepCollector(
     std::unique_ptr<DependencyOutputOptions> Opts, CompilerInstance &I,
-    DependencyConsumer &C)
-    : Instance(I), Consumer(C), Opts(std::move(Opts)) {}
+    DependencyConsumer &C, ArrayRef<std::string> OriginalInvocation)
+    : Instance(I), Consumer(C), OriginalInvocation(OriginalInvocation),
+      Opts(std::move(Opts)) {}
 
 void ModuleDepCollector::attachToPreprocessor(Preprocessor &PP) {
   PP.addPPCallbacks(std::make_unique<ModuleDepCollectorPP>(Instance, *this));
