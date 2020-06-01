@@ -12,6 +12,7 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
 #include "clang/Tooling/JSONCompilationDatabase.h"
+#include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
@@ -24,6 +25,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <mutex>
 #include <thread>
+#include <unordered_set>
 
 using namespace clang;
 using namespace tooling::dependencies;
@@ -344,61 +346,38 @@ public:
 
   void computeAndPrintBuildMetrics(raw_ostream &OS) {
     std::unordered_map<std::string, BuiltModulesEfficiencyInfo>
-        RelaxedHashesEfficiencyInfo;
-    std::set<ASTFileSignature> UniqueModuleSignatures;
+        ModulesBuiltStats;
+
+    size_t TotalRelaxedHashModules = 0;
+    size_t TotalStrictContextHashModules = 0;
     for (auto &&M : Modules) {
-      std::string RelaxedHashModule =
-          M.second.ModuleName + '-' + M.second.RelaxedContextHash;
-      auto &BuiltModulesInfo = RelaxedHashesEfficiencyInfo[RelaxedHashModule];
-      BuiltModulesInfo.BuiltModules.push_back(&M.second);
+      auto &Mod = M.second;
+      auto &BMEI = ModulesBuiltStats[Mod.ModuleName];
       auto InsertionResult =
-          UniqueModuleSignatures.insert(M.second.ModuleSignature);
+          BMEI.ImplicitModulesHashes.insert(Mod.RelaxedContextHash);
       if (InsertionResult.second)
-        BuiltModulesInfo.RepresentativeASTSignatures.push_back(&M.second);
+        TotalRelaxedHashModules++;
+      InsertionResult = BMEI.ExplicitModulesHashes.insert(Mod.ContextHash);
+      if (InsertionResult.second)
+        TotalStrictContextHashModules++;
     }
 
-    size_t TotalStrictContextHashModules = Modules.size();
-    size_t TotalRelaxedHashModules = RelaxedHashesEfficiencyInfo.size();
     auto PercentageModuleNumberIncrease =
         100 * ((TotalStrictContextHashModules - TotalRelaxedHashModules) /
                TotalRelaxedHashModules);
 
     OS << "Total relaxed hash modules: " << TotalRelaxedHashModules << "\n";
-    OS << "Total unique AST signatures: " << UniqueModuleSignatures.size()
-       << "\n";
     OS << "Total strict context hash modules: " << TotalStrictContextHashModules
        << "\n";
     OS << "Module number increase: " << PercentageModuleNumberIncrease
        << "%\n\n";
 
     OS << "Details:\n";
-    for (auto &&It : RelaxedHashesEfficiencyInfo) {
-      auto &Duplicates = It.second.BuiltModules;
-      auto &TrueDuplicates = It.second.RepresentativeASTSignatures;
-      size_t NumDuplicates = Duplicates.size();
-
-      assert(NumDuplicates > 0 && "Cannot have a relaxed hash module that "
-                                  "doesn't map to at least a strict"
-                                  "one!");
-
-      if (NumDuplicates > 1) {
-        OS << "Relaxed hash module: " << It.first << " gets duplicated as ("
-           << TrueDuplicates.size() << "/" << NumDuplicates << ") modules:\n\n";
-
-        auto OutputModuleDep = [](raw_ostream &OS, ModuleDeps *MD) {
-          OS << MD->ModuleName << "-" << MD->ContextHash;
-        };
-
-        auto TrueDuplicatesIt = TrueDuplicates.begin();
-        OutputModuleDep(OS, *TrueDuplicatesIt);
-        ++TrueDuplicatesIt;
-        for (auto End = TrueDuplicates.end(); TrueDuplicatesIt != End;
-             ++TrueDuplicatesIt) {
-          OS << "; ";
-          OutputModuleDep(OS, *TrueDuplicatesIt);
-        }
-        OS << "\n\n";
-      }
+    OS << "ModuleName,ImplicitModulesBuilt,ExplicitModulesBuilt\n";
+    for (const auto &ModuleStat : ModulesBuiltStats) {
+      const auto &BMEI = ModuleStat.second;
+      OS << ModuleStat.first << "," << BMEI.ImplicitModulesHashes.size() << ","
+         << BMEI.ExplicitModulesHashes.size() << "\n";
     }
   }
 
@@ -416,8 +395,8 @@ private:
   };
 
   struct BuiltModulesEfficiencyInfo {
-    std::vector<ModuleDeps *> BuiltModules;
-    std::vector<ModuleDeps *> RepresentativeASTSignatures;
+    std::unordered_set<std::string> ImplicitModulesHashes;
+    std::unordered_set<std::string> ExplicitModulesHashes;
   };
 
   struct ContextModulePair {
