@@ -644,8 +644,8 @@ static void AddVariableInfo(
     return;
 
   Status error;
-  CompilerType target_type = ast_context.ImportType(var_type, error);
-
+  CompilerType static_type = ast_context.ImportType(var_type, error);
+  CompilerType target_type = static_type;
   // If the import failed, give up.
   if (!target_type.IsValid())
     return;
@@ -654,7 +654,7 @@ static void AddVariableInfo(
   if (stack_frame_sp)
     if (language_runtime)
       target_type = language_runtime->DoArchetypeBindingForType(*stack_frame_sp,
-                                                                target_type);
+                                                                static_type);
 
   // If we couldn't fully realize the type, then we aren't going
   // to get very far making a local out of it, so discard it here.
@@ -680,7 +680,7 @@ static void AddVariableInfo(
     }
   SwiftASTManipulatorBase::VariableMetadataSP metadata_sp(
       new VariableMetadataVariable(variable_sp));
-  SwiftASTManipulator::VariableInfo variable_info(
+  SwiftASTManipulator::VariableInfo variable_info(static_type,
       target_type, ast_context.GetASTContext()->getIdentifier(overridden_name),
       metadata_sp,
       variable_sp->IsConstant() ? swift::VarDecl::Introducer::Let
@@ -811,7 +811,7 @@ static void ResolveSpecialNames(
                        ->GetIsModifiable()
                    ? swift::VarDecl::Introducer::Var
                    : swift::VarDecl::Introducer::Let;
-    SwiftASTManipulator::VariableInfo variable_info(
+    SwiftASTManipulator::VariableInfo variable_info(target_type,
         target_type, ast_context.GetASTContext()->getIdentifier(name.str()),
         metadata_sp, introducer);
 
@@ -1294,7 +1294,6 @@ static llvm::Expected<ParsedExpression> ParseAndImport(
   if (repl || !playground) {
     code_manipulator =
         std::make_unique<SwiftASTManipulator>(*source_file, repl);
-
     if (!playground) {
       code_manipulator->RewriteResult();
     }
@@ -1435,6 +1434,7 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
     m_sc.target_sp->SetUseScratchTypesystemPerModule(true);
     return 2;
   }
+  parsed_expr->code_manipulator->SetupParametersForInnerFunction();
 
   swift::bindExtensions(parsed_expr->module);
   swift::performTypeChecking(parsed_expr->source_file);
@@ -1457,10 +1457,11 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
     parsed_expr->code_manipulator->MakeDeclarationsPublic();
   }
 
+//  parsed_expr->code_manipulator->FixReturnInner();
+
   Status error;
   if (!playground) {
     parsed_expr->code_manipulator->FixupResultAfterTypeChecking(error);
-
     if (!error.Success()) {
       diagnostic_manager.PutString(eDiagnosticSeverityError, error.AsCString());
       return 1;
@@ -1580,7 +1581,6 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
     // }
 
     if (log) {
-      log->Printf("Variables:");
 
       for (const SwiftASTManipulatorBase::VariableInfo &variable :
            parsed_expr->code_manipulator->GetVariableInfo()) {

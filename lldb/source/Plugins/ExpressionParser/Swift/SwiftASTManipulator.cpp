@@ -199,6 +199,7 @@ __builtin_logger_initialize()
         "      $__lldb_arg\n"
         "    )\n"
         "  }\n"
+
         "}\n",
         optional_extension, availability.c_str(), func_decorator,
         current_counter, wrapped_expr_text.GetData(), availability.c_str(),
@@ -207,11 +208,22 @@ __builtin_logger_initialize()
     first_body_line = 5;
   } else {
     wrapped_stream.Printf(
+        "func $__lldb_inner_expr() throws -> Bool{\n"
+        "%s%s%s\n"
+        "}\n"
         "@LLDBDebuggerFunction %s\n"
         "func $__lldb_expr(_ $__lldb_arg : UnsafeMutablePointer<Any>) {\n"
-        "%s" // This is the expression text (with newlines).
+          "do {\n"
+            "$__lldb_inner_expr()\n"
+          "}\n"
+          "catch (let __lldb_tmp_error)\n"
+          "{\n"
+          "    var %s = __lldb_tmp_error\n"
+          "}\n"
         "}\n",
-        availability.c_str(), wrapped_expr_text.GetData());
+    GetUserCodeStartMarker(), text, GetUserCodeEndMarker(),
+        availability.c_str(), GetErrorName()
+        );
     first_body_line = 4;
   }
 }
@@ -244,6 +256,8 @@ void SwiftASTManipulatorBase::DoInitialization() {
 
   static llvm::StringRef s_wrapped_func_prefix_str("$__lldb_wrapped_expr");
   static llvm::StringRef s_func_prefix_str("$__lldb_expr");
+  static llvm::StringRef s_inner_func_prefix_str("$__lldb_inner_expr");
+
 
   // First pass: find whether we're dealing with a wrapped function or not
 
@@ -293,6 +307,10 @@ void SwiftASTManipulatorBase::DoInitialization() {
       return false;
     }
   };
+
+  FuncAndExtensionFinder func_finder_inner(s_inner_func_prefix_str);
+  m_source_file.walk(func_finder_inner);
+  m_inner_function_decl = func_finder_inner.m_wrapper_decl;
 
   FuncAndExtensionFinder func_finder(s_func_prefix_str);
   m_source_file.walk(func_finder);
@@ -861,6 +879,79 @@ void SwiftASTManipulator::InsertError(swift::VarDecl *error_var,
   m_catch_stmt->setBody(body_stmt);
 }
 
+void SwiftASTManipulator::FixReturnInner() {
+  class UpdateCallToInnerWalker : public swift::ASTWalker {
+  private:
+    swift::ASTContext &m_ast_context;
+    swift::DeclRefExpr *m_inner_decl_ref;
+    swift::Type m_inner_return_type;
+
+  public:
+    UpdateCallToInnerWalker(swift::ASTContext &ast_context,
+                            swift::DeclRefExpr *inner_decl_ref,
+                            swift::Type inner_return_type)
+        : m_ast_context(ast_context),
+          m_inner_decl_ref(inner_decl_ref),
+          m_inner_return_type(inner_return_type)
+          {}
+
+    std::pair<bool, swift::Expr *> walkToExprPre(swift::Expr *E) override {
+      if (auto call_expr = llvm::dyn_cast<swift::CallExpr>(E)) {
+        if (auto tuple = llvm::dyn_cast<swift::TupleExpr>(call_expr->getArg())) {
+          auto new_call = swift::CallExpr::createImplicit(m_ast_context,
+                                                          m_inner_decl_ref,
+                                                          tuple->getElements(),
+                                                          tuple->getElementNames());
+          new_call->setType(m_inner_return_type);
+          return {false, new_call};
+        }
+      }
+      return ASTWalker::walkToExprPre(E);
+    }
+  };
+  auto &ast_context = m_source_file.getASTContext();
+
+
+  auto body = m_inner_function_decl->getBody();
+  swift::Type return_type = nullptr;
+  if (auto last = body->getLastElement().dyn_cast<swift::Expr *>()) {
+    swift::ASTContext &ast_context = m_source_file.getASTContext();
+
+    auto return_stmt = new (ast_context) swift::ReturnStmt (body->getEndLoc(), last);
+    return_stmt->setResult(last);
+
+    if (auto old_signature = llvm::dyn_cast<swift::GenericFunctionType>(m_inner_function_decl->getInterfaceType().getPointer())) {
+      auto new_signature = swift::GenericFunctionType::get(old_signature->getGenericSignature(),
+                                                           old_signature->getParams(),
+                                                           last->getType()->getCanonicalType().getPointer(),
+                                                           old_signature->getExtInfo());
+      return_type = new_signature->getResult();
+      m_inner_function_decl->setInterfaceType(new_signature);
+    }
+
+    llvm::ArrayRef<swift::ASTNode> wrapper_elements =
+        body->getElements();
+
+    llvm::SmallVector<swift::ASTNode, 3> wrapper_elements_copy(
+        wrapper_elements.begin(), wrapper_elements.end());
+    wrapper_elements_copy.push_back(swift::ASTNode(return_stmt));
+
+    m_inner_function_decl->setBody(swift::BraceStmt::create(
+        ast_context, body->getLBraceLoc(),
+        ast_context.AllocateCopy(wrapper_elements_copy),
+        body->getRBraceLoc()));
+    llvm::errs() << "source!!!\n\n\n";
+  }
+  auto inner_decl_ref = new (ast_context) swift::DeclRefExpr(swift::ConcreteDeclRef(m_inner_function_decl),
+                                                             swift::DeclNameLoc(m_inner_function_decl->getFuncLoc()),
+                                                             true,
+                                                             swift::AccessSemantics::Ordinary,
+                                                             m_inner_function_decl->getInterfaceType());
+  UpdateCallToInnerWalker walker(ast_context, inner_decl_ref, return_type);
+  m_function_decl->walk(walker);
+
+  m_source_file.dump();
+}
 bool SwiftASTManipulator::FixupResultAfterTypeChecking(Status &error) {
   if (!IsValid()) {
     error.SetErrorString("Operating on invalid SwiftASTManipulator");
@@ -1171,6 +1262,7 @@ bool SwiftASTManipulator::AddExternalVariables(
       swift::VarDecl *redirected_var_decl = new (ast_context) swift::VarDecl(
           is_static, introducer, is_capture_list, loc, name,
           containing_function);
+
       auto interface_type = var_type;
       if (interface_type->hasArchetype())
         interface_type = interface_type->mapTypeOutOfContext();
@@ -1240,6 +1332,109 @@ bool SwiftASTManipulator::AddExternalVariables(
   }
 
   return true;
+}
+
+
+void SwiftASTManipulator::SetupParametersForInnerFunction() {
+  auto &ast_context = m_source_file.getASTContext();
+  auto swift_ast_context = SwiftASTContext::GetSwiftASTContext(&ast_context);
+  auto l_paren_loc = m_inner_function_decl->getParameters()->getLParenLoc();
+  auto r_paren_loc = m_inner_function_decl->getParameters()->getRParenLoc();
+
+  std::vector<swift::ParamDecl *> param_decls;
+  std::vector<swift::Expr *> decl_refs;
+  std::vector<swift::Identifier> names;
+  std::vector<swift::GenericTypeParamDecl *> generic_param_decls;
+  std::vector<swift::GenericTypeParamType *> generic_param_types;
+  unsigned generic_param_index = 0;
+  for (auto variable: m_variables) {
+    auto name = variable.GetName();
+    swift::ParamDecl *param = new (ast_context) swift::ParamDecl(
+        l_paren_loc,
+        swift::SourceLoc(),
+        name,
+        swift::SourceLoc(),
+        name,
+        m_inner_function_decl->getDeclContext());
+    auto static_type = variable.GetStaticType();
+    auto type = swift_ast_context->ReconstructType(static_type.GetMangledTypeName());
+    param->setInterfaceType(type);
+    param->setSpecifier(swift::ParamSpecifier::Default);
+    param_decls.push_back(param);
+
+    auto resolved_type = swift_ast_context->ReconstructType(variable.GetType().GetMangledTypeName());
+    decl_refs.push_back(new (ast_context)
+                            swift::DeclRefExpr(variable.GetDecl(),
+                                               swift::DeclNameLoc(l_paren_loc),
+                                               true,
+                                               swift::AccessSemantics::Ordinary,
+                                               resolved_type));
+    names.push_back(variable.GetName());
+
+
+    if (swift::GenericTypeParamType *generic_type = llvm::dyn_cast<swift::GenericTypeParamType>(type)) {
+      auto parameter = new (ast_context) swift::GenericTypeParamDecl(m_function_decl,
+                                                                     ast_context.getIdentifier("T" + std::to_string(generic_param_index)),
+                                                                     swift::SourceLoc(),
+                                                                     0,
+                                                                     generic_param_index);
+      generic_param_index++;
+      generic_param_decls.push_back(parameter);
+      auto interface_type = parameter->getInterfaceType()->getMetatypeInstanceType().getPointer();
+      if (auto new_generic = llvm::dyn_cast<swift::GenericTypeParamType>(interface_type)) {
+        generic_param_types.push_back(new_generic);
+      }
+    }
+  }
+  auto inner_parameters = swift::ParameterList::create(ast_context,
+                                                       l_paren_loc,
+                                                       param_decls,
+                                                       r_paren_loc);
+  m_inner_function_decl->setName(swift::DeclName(ast_context,
+                                                 m_inner_function_decl->getBaseName(),
+                                                 inner_parameters));
+  m_inner_function_decl->setParameters(inner_parameters);
+
+  auto signature = swift::GenericSignature::get(
+      generic_param_types, swift::ArrayRef<swift::Requirement>());
+  m_inner_function_decl->setGenericSignature(signature);
+
+  auto generic_param_list = swift::GenericParamList::create(ast_context,
+                                                            l_paren_loc,
+                                                            generic_param_decls,
+                                                            r_paren_loc);
+  m_inner_function_decl->setGenericParams(generic_param_list);
+
+  class UpdateCallToInnerWalker : public swift::ASTWalker {
+  private:
+    swift::ASTContext &m_ast_context;
+    llvm::ArrayRef<swift::Expr *> m_decl_refs;
+    llvm::ArrayRef<swift::Identifier> m_names;
+  public:
+    swift::CallExpr *call = nullptr;
+    UpdateCallToInnerWalker(swift::ASTContext &ast_context,
+             llvm::ArrayRef<swift::Expr *> decl_refs,
+             llvm::ArrayRef<swift::Identifier> names)
+        : m_ast_context(ast_context),
+          m_decl_refs(decl_refs),
+          m_names(names) {}
+
+    std::pair<bool, swift::Expr *> walkToExprPre(swift::Expr *E) override {
+      if (auto call_expr = llvm::dyn_cast<swift::CallExpr>(E)) {
+        auto new_call = swift::CallExpr::createImplicit(m_ast_context,
+                                                        call_expr->getFn(),
+                                                        m_decl_refs,
+                                                        m_names);
+        call = new_call;
+        return {false, new_call};
+      }
+      return ASTWalker::walkToExprPre(E);
+    }
+  };
+  UpdateCallToInnerWalker walker(ast_context,
+                                 decl_refs,
+                                 names);
+  m_function_decl->walk(walker);
 }
 
 static void AppendToCaptures(swift::ASTContext &ast_context,

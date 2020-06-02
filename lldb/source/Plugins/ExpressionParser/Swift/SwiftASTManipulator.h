@@ -31,6 +31,7 @@ class RepeatWhileStmt;
 class ReturnStmt;
 class SourceFile;
 class VarDecl;
+class CallExpr;
 } // namespace swift
 
 namespace lldb_private {
@@ -63,19 +64,20 @@ public:
   typedef std::shared_ptr<VariableMetadata> VariableMetadataSP;
 
   struct VariableInfo {
+    CompilerType GetStaticType() const { return m_static_type; }
     CompilerType GetType() const { return m_type; }
     swift::Identifier GetName() const { return m_name; }
     swift::VarDecl *GetDecl() const { return m_decl; }
     swift::VarDecl::Introducer GetVarIntroducer() const;
     bool GetIsCaptureList() const;
 
-    VariableInfo() : m_type(), m_name(), m_metadata() {}
+    VariableInfo() : m_static_type(), m_type(), m_name(), m_metadata() {}
 
-    VariableInfo(CompilerType &type, swift::Identifier name,
+    VariableInfo(CompilerType &static_type, CompilerType &type, swift::Identifier name,
                  VariableMetadataSP metadata, 
                  swift::VarDecl::Introducer introducer, 
                  bool is_capture_list = false)
-        : m_type(type), m_name(name), m_var_introducer(introducer),
+        : m_static_type(static_type), m_type(type), m_name(name), m_var_introducer(introducer),
           m_is_capture_list(is_capture_list), m_metadata(metadata) {}
 
     template <class T> bool MetadataIs() const {
@@ -89,6 +91,7 @@ public:
     friend class SwiftASTManipulator;
 
   protected:
+    CompilerType m_static_type;
     CompilerType m_type;
     swift::Identifier m_name;
     swift::VarDecl *m_decl = nullptr;
@@ -123,6 +126,7 @@ protected:
 
   bool m_repl = false;
 
+  swift::FuncDecl *m_inner_function_decl = nullptr;
   /// The function containing the expression's code.
   swift::FuncDecl *m_function_decl = nullptr;
   /// The wrapper that invokes the right generic function.
@@ -157,6 +161,15 @@ public:
                                       VariableMetadataSP &metadata_sp);
 
   bool AddExternalVariables(llvm::MutableArrayRef<VariableInfo> variables);
+
+
+  /// Adds all the variables in the current environment as parameters
+  /// to lldb_inner_expr, and updates the call to the inner function
+  /// passing along those variables.
+  void SetupParametersForInnerFunction();
+  // Fixes the return type of lldb_inner_expr and updates the calling
+  // site to receive a value of that type
+  void FixReturnInner();
 
   bool RewriteResult();
 
