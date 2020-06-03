@@ -824,6 +824,7 @@ static void ResolveSpecialNames(
 static swift::ASTContext *
 SetupASTContext(SwiftASTContextForExpressions *swift_ast_context,
                 DiagnosticManager &diagnostic_manager,
+                const Expression &expression,
                 std::function<bool()> disable_objc_runtime, bool repl,
                 bool playground) {
   if (!swift_ast_context) {
@@ -879,6 +880,15 @@ SetupASTContext(SwiftASTContextForExpressions *swift_ast_context,
 
   if (disable_objc_runtime())
     swift_ast_context->GetLanguageOptions().EnableObjCInterop = false;
+
+  switch (expression.Language()) {
+  case lldb::eLanguageTypeC_plus_plus:
+  case lldb::eLanguageTypeObjC_plus_plus:
+  case lldb::eLanguageTypeC_plus_plus_03:
+  case lldb::eLanguageTypeC_plus_plus_11:
+  case lldb::eLanguageTypeC_plus_plus_14:
+    swift_ast_context->GetLanguageOptions().EnableCXXInterop = true;
+  }
 
   swift_ast_context->GetLanguageOptions().Playground = repl || playground;
   swift_ast_context->GetIRGenOptions().Playground = repl || playground;
@@ -1171,7 +1181,7 @@ static llvm::Expected<ParsedExpression> ParseAndImport(
   };
 
   swift::ASTContext *ast_context =
-      SetupASTContext(swift_ast_context, diagnostic_manager,
+      SetupASTContext(swift_ast_context, diagnostic_manager, expr,
                       should_disable_objc_runtime, repl, playground);
   if (!ast_context)
     return make_error<SwiftASTContextError>();
