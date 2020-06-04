@@ -300,11 +300,6 @@ public:
     Array OutModules;
     for (auto &&ModName : ModuleNames) {
       auto &MD = Modules[ModName];
-      auto FCL = MD.getFullCommandLine(
-          [&](ClangModuleDep CMD) { return lookupPCMPath(CMD); },
-          [&](ClangModuleDep CMD) -> const ModuleDeps & {
-            return lookupModuleDeps(CMD);
-          });
       Object O{
           {"name", MD.ModuleName},
           {"context-hash", MD.ContextHash},
@@ -313,12 +308,11 @@ public:
           {"clang-modulemap-file", MD.ClangModuleMapFile},
           {"command-line",
            FullCommandLine
-               ? FCL
-               // ? MD.getFullCommandLine(
-               //       [&](ClangModuleDep CMD) { return lookupPCMPath(CMD); },
-               //       [&](ClangModuleDep CMD) -> const ModuleDeps & {
-               //         return lookupModuleDeps(CMD);
-               //       })
+               ? MD.getFullCommandLine(
+                     [&](ClangModuleDep CMD) { return lookupPCMPath(CMD); },
+                     [&](ClangModuleDep CMD) -> const ModuleDeps & {
+                       return lookupModuleDeps(CMD);
+                     })
                : MD.NonPathCommandLine},
       };
       OutModules.push_back(std::move(O));
