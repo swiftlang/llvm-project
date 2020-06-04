@@ -1457,7 +1457,8 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
     parsed_expr->code_manipulator->MakeDeclarationsPublic();
   }
 
-//  parsed_expr->code_manipulator->FixReturnInner();
+  parsed_expr->code_manipulator->FixReturnInner();
+  swift::performTypeChecking(parsed_expr->source_file);
 
   Status error;
   if (!playground) {

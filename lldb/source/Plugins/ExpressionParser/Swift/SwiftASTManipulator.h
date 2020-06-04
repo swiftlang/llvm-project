@@ -138,6 +138,7 @@ protected:
   /// The body of the catch - we patch the assignment there to capture
   /// any error thrown.
   swift::CaseStmt *m_catch_stmt = nullptr;
+  swift::CallExpr *m_call = nullptr;
 };
 
 class SwiftASTManipulator : public SwiftASTManipulatorBase {

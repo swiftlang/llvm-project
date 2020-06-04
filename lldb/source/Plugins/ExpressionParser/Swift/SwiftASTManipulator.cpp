@@ -208,7 +208,7 @@ __builtin_logger_initialize()
     first_body_line = 5;
   } else {
     wrapped_stream.Printf(
-        "func $__lldb_inner_expr() throws -> Bool{\n"
+        "func $__lldb_inner_expr() throws {\n"
         "%s%s%s\n"
         "}\n"
         "@LLDBDebuggerFunction %s\n"
@@ -885,11 +885,11 @@ void SwiftASTManipulator::FixReturnInner() {
     swift::ASTContext &m_ast_context;
     swift::DeclRefExpr *m_inner_decl_ref;
     swift::Type m_inner_return_type;
-
   public:
     UpdateCallToInnerWalker(swift::ASTContext &ast_context,
                             swift::DeclRefExpr *inner_decl_ref,
-                            swift::Type inner_return_type)
+                            swift::Type inner_return_type
+                            )
         : m_ast_context(ast_context),
           m_inner_decl_ref(inner_decl_ref),
           m_inner_return_type(inner_return_type)
@@ -897,18 +897,31 @@ void SwiftASTManipulator::FixReturnInner() {
 
     std::pair<bool, swift::Expr *> walkToExprPre(swift::Expr *E) override {
       if (auto call_expr = llvm::dyn_cast<swift::CallExpr>(E)) {
-        if (auto tuple = llvm::dyn_cast<swift::TupleExpr>(call_expr->getArg())) {
-          auto new_call = swift::CallExpr::createImplicit(m_ast_context,
-                                                          m_inner_decl_ref,
-                                                          tuple->getElements(),
-                                                          tuple->getElementNames());
-          new_call->setType(m_inner_return_type);
-          return {false, new_call};
+        call_expr->setType(m_inner_return_type);
+//        call_expr->setFn(m_inner_decl_ref);
+      } else if (auto decl_ref = llvm::dyn_cast<swift::DeclRefExpr>(E)) {
+        bool v = false;
+        decl_ref->dump();
+        if (decl_ref->getDeclRef() == m_inner_decl_ref->getDeclRef()) {
+          decl_ref->setType(m_inner_decl_ref->getType());
         }
+        if (v) {
+          decl_ref->setType(m_inner_decl_ref->getType());
+        }
+
+        bool v2 = false;
+        if (v2) {
+          decl_ref->setType(m_inner_return_type);
+        }
+        decl_ref->dump();
+
       }
       return ASTWalker::walkToExprPre(E);
     }
+
   };
+
+
   auto &ast_context = m_source_file.getASTContext();
 
 
@@ -927,6 +940,7 @@ void SwiftASTManipulator::FixReturnInner() {
                                                            old_signature->getExtInfo());
       return_type = new_signature->getResult();
       m_inner_function_decl->setInterfaceType(new_signature);
+
     }
 
     llvm::ArrayRef<swift::ASTNode> wrapper_elements =
@@ -948,8 +962,8 @@ void SwiftASTManipulator::FixReturnInner() {
                                                              swift::AccessSemantics::Ordinary,
                                                              m_inner_function_decl->getInterfaceType());
   UpdateCallToInnerWalker walker(ast_context, inner_decl_ref, return_type);
+  m_source_file.dump();
   m_function_decl->walk(walker);
-
   m_source_file.dump();
 }
 bool SwiftASTManipulator::FixupResultAfterTypeChecking(Status &error) {
@@ -1435,6 +1449,7 @@ void SwiftASTManipulator::SetupParametersForInnerFunction() {
                                  decl_refs,
                                  names);
   m_function_decl->walk(walker);
+  m_call = walker.call;
 }
 
 static void AppendToCaptures(swift::ASTContext &ast_context,
