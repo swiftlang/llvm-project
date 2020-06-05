@@ -1095,8 +1095,8 @@ ASTFileSignature ASTWriter::writeUnhashedControlBlock(Preprocessor &PP,
 
   // Header search paths.
   Record.clear();
-  const HeaderSearchOptions &HSOpts
-    = PP.getHeaderSearchInfo().getHeaderSearchOpts();
+  const HeaderSearch &HeaderSearch = PP.getHeaderSearchInfo();
+  const HeaderSearchOptions &HSOpts = HeaderSearch.getHeaderSearchOpts();
 
   // Include entries.
   Record.push_back(HSOpts.UserEntries.size());
@@ -1106,6 +1106,7 @@ ASTFileSignature ASTWriter::writeUnhashedControlBlock(Preprocessor &PP,
     Record.push_back(static_cast<unsigned>(Entry.Group));
     Record.push_back(Entry.IsFramework);
     Record.push_back(Entry.IgnoreSysRoot);
+    Record.push_back(HeaderSearch.wasSearchPathUsed(Entry.Path));
   }
 
   // System header prefixes.

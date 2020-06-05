@@ -4740,7 +4740,7 @@ ASTReader::ASTReadResult ASTReader::readUnhashedControlBlockImpl(
     case HEADER_SEARCH_PATHS: {
       bool Complain = (ClientLoadCapabilities & ARR_ConfigurationMismatch) == 0;
       if (!AllowCompatibleConfigurationMismatch &&
-          ParseHeaderSearchPaths(Record, Complain, *Listener))
+          ParseHeaderSearchPaths(*F, Record, Complain, *Listener))
         Result = ConfigurationMismatch;
       break;
     }
@@ -5850,7 +5850,7 @@ bool ASTReader::ParseHeaderSearchOptions(const RecordData &Record,
                                           Complain);
 }
 
-bool ASTReader::ParseHeaderSearchPaths(const RecordData &Record,
+bool ASTReader::ParseHeaderSearchPaths(ModuleFile &F, const RecordData &Record,
                                        bool Complain,
                                        ASTReaderListener &Listener) {
   HeaderSearchOptions HSOpts;
@@ -5863,6 +5863,9 @@ bool ASTReader::ParseHeaderSearchPaths(const RecordData &Record,
       = static_cast<frontend::IncludeDirGroup>(Record[Idx++]);
     bool IsFramework = Record[Idx++];
     bool IgnoreSysRoot = Record[Idx++];
+    bool IsUsed = Record[Idx++];
+    if (IsUsed)
+      F.UsedUserHeaderSearchPaths.emplace_back(Path);
     HSOpts.UserEntries.emplace_back(std::move(Path), Group, IsFramework,
                                     IgnoreSysRoot);
   }

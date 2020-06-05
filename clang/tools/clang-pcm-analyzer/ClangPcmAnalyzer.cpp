@@ -9,6 +9,7 @@
 #include "/Users/dang/VersionControlledDocuments/llvm-project/clang/lib/Serialization/ASTReaderInternals.h"
 #include "clang/Basic/Version.h"
 #include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Serialization/ASTBitCodes.h"
 #include "clang/Serialization/ASTRecordReader.h"
 #include "llvm/ADT/Hashing.h"
@@ -333,19 +334,19 @@ public:
 
     {
       SavedStreamPosition SavedPosition(Stream);
-      if (Error Err = skipCursorToBlock(CONTROL_BLOCK_ID))
-        return Err;
-
-      if (Error Err = readControlBlock(O))
-        return Err;
-      }
-
-    {
-      SavedStreamPosition SavedPosition(Stream);
       if (Error Err = skipCursorToBlock(UNHASHED_CONTROL_BLOCK_ID))
         return Err;
 
       if (Error Err = readUnhashedControlBlock(O))
+        return Err;
+    }
+
+    {
+      SavedStreamPosition SavedPosition(Stream);
+      if (Error Err = skipCursorToBlock(CONTROL_BLOCK_ID))
+        return Err;
+
+      if (Error Err = readControlBlock(O))
         return Err;
     }
 
@@ -700,67 +701,160 @@ private:
         if (Idx < N) {
           O.output() << "IMPORTS:\n";
           O.increaseIndentation();
-        }
-        while (Idx < N) {
-          ModuleKind ImportedKind = static_cast<ModuleKind>(Record[Idx++]);
-          uint64_t PseudoLocRaw = Record[Idx++];
-          SourceLocation ImportLoc = SourceLocation::getFromRawEncoding(
-              (PseudoLocRaw >> 1) | (PseudoLocRaw << 31));
-          off_t StoredSize = Record[Idx++];
-          time_t StoredModTime = Record[Idx++];
-          ASTFileSignature StoredSignature = {
-              {{(uint32_t)Record[Idx++], (uint32_t)Record[Idx++],
-                (uint32_t)Record[Idx++], (uint32_t)Record[Idx++],
-                (uint32_t)Record[Idx++]}}};
-          std::string ImportedName = readString(Record, Idx);
-          std::string ImportedFile = readString(Record, Idx);
+          while (Idx < N) {
+            ModuleKind ImportedKind = static_cast<ModuleKind>(Record[Idx++]);
+            uint64_t PseudoLocRaw = Record[Idx++];
+            SourceLocation ImportLoc = SourceLocation::getFromRawEncoding(
+                (PseudoLocRaw >> 1) | (PseudoLocRaw << 31));
+            off_t StoredSize = Record[Idx++];
+            time_t StoredModTime = Record[Idx++];
+            ASTFileSignature StoredSignature = {
+                {{(uint32_t)Record[Idx++], (uint32_t)Record[Idx++],
+                  (uint32_t)Record[Idx++], (uint32_t)Record[Idx++],
+                  (uint32_t)Record[Idx++]}}};
+            std::string ImportedName = readString(Record, Idx);
+            std::string ImportedFile = readString(Record, Idx);
 
-          raw_ostream &LineOut = O.output() << "(ImportedKind: ";
-          printModuleKind(LineOut, ImportedKind);
-          LineOut << ", SourceLocation: " << PseudoLocRaw
-                  << ", Size: " << StoredSize << ", ModTime: " << StoredModTime;
-          LineOut << ", Signature: [ ";
-          auto SignatureIt = StoredSignature.begin();
-          LineOut << *SignatureIt++;
-          for (auto SignatureEnd = StoredSignature.end();
-               SignatureIt != SignatureEnd; SignatureIt++)
-            LineOut << ", " << *SignatureIt;
-          LineOut << "]"
-                  << ", Name: " << ImportedName << ", File: " << ImportedFile
-                  << ")\n";
+            raw_ostream &LineOut = O.output() << "(ImportedKind: ";
+            printModuleKind(LineOut, ImportedKind);
+            LineOut << ", SourceLocation: " << PseudoLocRaw
+                    << ", Size: " << StoredSize
+                    << ", ModTime: " << StoredModTime;
+            LineOut << ", Signature: [ ";
+            auto SignatureIt = StoredSignature.begin();
+            LineOut << *SignatureIt++;
+            for (auto SignatureEnd = StoredSignature.end();
+                 SignatureIt != SignatureEnd; SignatureIt++)
+              LineOut << ", " << *SignatureIt;
+            LineOut << "]"
+                    << ", Name: " << ImportedName << ", File: " << ImportedFile
+                    << ")\n";
+          }
+          O.decreaseIndentation();
         }
-        O.decreaseIndentation();
         break;
       }
 
       default: {
-        if (O.ShowUnknownRecords)
+        if (O.ShowUnknownRecords) {
           if (Error Err = outputUnknownRecord(O, RecordType, CONTROL_BLOCK_ID,
                                               Entry, Record, Blob))
             return Err;
-          break;
+        }
+        break;
       }
       }
     }
   }
 
-  Error readUnhashedControlBlock(PCMDumpOptions &O) { return Error::success(); }
+  Error readUnhashedControlBlock(PCMDumpOptions &O) {
+    if (Error Err = Stream.EnterSubBlock(UNHASHED_CONTROL_BLOCK_ID))
+      return Err;
+
+    O.output() << "<UNHASHED_CONTROL_BLOCK>"
+               << "\n";
+    O.increaseIndentation();
+    RecordData Record;
+
+    while (true) {
+      Expected<BitstreamEntry> EntryOrErr = Stream.advance();
+      if (Error Err = EntryOrErr.takeError())
+        return Err;
+
+      BitstreamEntry Entry = EntryOrErr.get();
+
+      switch (Entry.Kind) {
+      case BitstreamEntry::Error:
+        return createError(
+            "malformed unhashed control block record in PCM file");
+      case BitstreamEntry::EndBlock:
+        O.decreaseIndentation();
+        O.output() << "</UNHASHED_CONTROL_BLOCK>\n";
+        Stream.ReadBlockEnd();
+        return Error::success();
+
+      case BitstreamEntry::SubBlock:
+        switch (Entry.ID) {
+        default:
+          if (Error Err = Stream.SkipBlock())
+            return Err;
+          break;
+        }
+        continue;
+
+      case BitstreamEntry::Record:
+        break;
+      }
+
+      Record.clear();
+      StringRef Blob;
+
+      Expected<unsigned> RecordTypeOrErr =
+          Stream.readRecord(Entry.ID, Record, &Blob);
+      if (auto Err = RecordTypeOrErr.takeError())
+        return Err;
+
+      unsigned RecordType = RecordTypeOrErr.get();
+
+      switch (static_cast<UnhashedControlBlockRecordTypes>(RecordType)) {
+      case HEADER_SEARCH_PATHS: {
+        O.output() << "HEADER_SEARCH_PATHS:\n";
+        O.increaseIndentation();
+        unsigned Idx = 0;
+        O.output() << "USER_ENTRIES:\n";
+        O.increaseIndentation();
+        auto NumUserEntries = Record[Idx++];
+        for (unsigned I = 0; I != NumUserEntries; ++I) {
+          auto Path = readString(Record, Idx);
+          unsigned Group = Record[Idx++];
+          unsigned IsFramework = Record[Idx++];
+          unsigned IgnoredSysroot = Record[Idx++];
+          unsigned IsNeeded = Record[Idx++];
+          O.output() << "path: " << Path << " group: " << Group
+                     << " is_framework: " << IsFramework
+                     << " ignored_sysroot: " << IgnoredSysroot
+                     << " is_needed: " << IsNeeded << "\n";
+        }
+        O.decreaseIndentation();
+        O.output() << "SYSTEM:\n";
+        auto NumSystemEntries = Record[Idx++];
+        for (unsigned I = 0; I != NumSystemEntries; ++I) {
+          auto Prefix = readString(Record, Idx);
+          auto IsSystemHeader = Record[Idx++];
+          O.output() << "prefix: " << Prefix
+                     << " is_system_header: " << IsSystemHeader << "\n";
+        }
+        O.decreaseIndentation();
+        break;
+      }
+      default: {
+        if (O.ShowUnknownRecords)
+          if (Error Err = outputUnknownRecord(O, RecordType, CONTROL_BLOCK_ID,
+                                              Entry, Record, Blob))
+            return Err;
+        break;
+      }
+      }
+    }
+
+    return Error::success();
+  }
 };
 
-Expected<std::unique_ptr<MemoryBuffer>> openPCMFile(StringRef Path) {
-  auto MemBufOrErr = errorOrToExpected(MemoryBuffer::getFileOrSTDIN(Path));
-  if (Error E = MemBufOrErr.takeError())
-    return std::move(E);
+  Expected<std::unique_ptr<MemoryBuffer>> openPCMFile(StringRef Path) {
+    auto MemBufOrErr = errorOrToExpected(MemoryBuffer::getFileOrSTDIN(Path));
+    if (Error E = MemBufOrErr.takeError())
+      return std::move(E);
 
-  auto MemBuf = std::move(*MemBufOrErr);
+    auto MemBuf = std::move(*MemBufOrErr);
 
-  if (MemBuf->getBufferSize() & 3)
-    return createStringError(
-        std::errc::illegal_byte_sequence,
-        "Bitcode streams should ne a multiple of 4 bytes in length");
+    if (MemBuf->getBufferSize() & 3)
+      return createStringError(
+          std::errc::illegal_byte_sequence,
+          "Bitcode streams should ne a multiple of 4 bytes in length");
 
-  return std::move(MemBuf);
-}
+    return std::move(MemBuf);
+  }
 
 } // end anonymous namespace
 

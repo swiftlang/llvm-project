@@ -368,6 +368,10 @@ public:
   /// the header files.
   void *HeaderFileInfoTable = nullptr;
 
+  /// The user header search paths that were used when building this module.
+  /// The StringRefs point directly
+  std::vector<std::string> UsedUserHeaderSearchPaths;
+
   // === Submodule information ===
 
   /// The number of submodules in this module.

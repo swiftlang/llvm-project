@@ -74,6 +74,10 @@ struct ModuleDeps {
   /// on, not including transitive dependencies.
   llvm::StringSet<> FileDeps;
 
+  // The ordered list of user header search paths that were used when reolving
+  // include directives in the module.
+  std::vector<std::string> UsedUserHeaderSearchPaths;
+
   /// A list of modules this module directly depends on, not including
   /// transitive dependencies.
   ///

@@ -968,6 +968,7 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
 
     // Remember this location for the next lookup we do.
     CacheLookup.HitIdx = i;
+    UsedSearchPaths.insert(CurDir->getName());
     return File;
   }
 

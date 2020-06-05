@@ -175,6 +175,8 @@ class HeaderSearch {
   unsigned SystemDirIdx = 0;
   bool NoCurDirSearch = false;
 
+  llvm::StringSet<> UsedSearchPaths;
+
   /// \#include prefixes for which the 'system header' property is
   /// overridden.
   ///
@@ -738,6 +740,10 @@ public:
                                               llvm::StringRef WorkingDir,
                                               llvm::StringRef MainFile,
                                               bool *IsSystem = nullptr);
+
+  bool wasSearchPathUsed(StringRef Path) const {
+    return UsedSearchPaths.count(Path);
+  }
 
   void PrintStats();
 

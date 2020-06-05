@@ -155,6 +155,7 @@ void ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
   serialization::ModuleFile *MF =
       MDC.Instance.getASTReader()->getModuleManager().lookup(M->getASTFile());
   MD.ModuleSignature = MF->ASTSignature;
+  MD.UsedUserHeaderSearchPaths = MF->UsedUserHeaderSearchPaths;
   MDC.Instance.getASTReader()->visitInputFiles(
       *MF, true, true, [&](const serialization::InputFile &IF, bool isSystem) {
         // __inferred_module.map is the result of the way in which an implicit
