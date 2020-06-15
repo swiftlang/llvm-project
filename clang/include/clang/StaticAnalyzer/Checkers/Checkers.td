@@ -1451,7 +1451,7 @@ def RefCntblBaseVirtualDtorChecker : Checker<"RefCntblBaseVirtualDtor">,
   HelpText<"Check for any ref-countable base class having virtual destructor.">,
   Documentation<HasDocumentation>;
 
-def WebKitNoUncountedMemberChecker : Checker<"WebKitNoUncountedMemberChecker">,
+def NoUncountedMemberChecker : Checker<"NoUncountedMemberChecker">,
   HelpText<"Check for no uncounted member variables.">,
   Documentation<HasDocumentation>;
 
