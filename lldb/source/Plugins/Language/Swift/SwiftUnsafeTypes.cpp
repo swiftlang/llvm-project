@@ -15,24 +15,34 @@ namespace {
 
 class SwiftUnsafeType {
 public:
+  enum class UnsafePointerKind {
+    eSwiftUnsafePointer,
+    eSwiftUnsafeRawPointer,
+    eSwiftUnsafeBufferPointer,
+    eSwiftUnsafeRawBufferPointer,
+  };
+
   static std::unique_ptr<SwiftUnsafeType> Create(ValueObject &valobj);
   size_t GetCount() const { return m_count; }
   addr_t GetStartAddress() const { return m_start_addr; }
   CompilerType GetElementType() const { return m_elem_type; }
+  UnsafePointerKind GetKind() const { return m_kind; }
   virtual bool Update() = 0;
 
 protected:
-  SwiftUnsafeType(ValueObject &valobj);
+  SwiftUnsafeType(ValueObject &valobj, UnsafePointerKind kind);
   addr_t GetAddress(llvm::StringRef child_name);
+  SwiftASTContext *GetSwiftASTContextTypeSystem(CompilerType type);
 
   ValueObject &m_valobj;
+  const UnsafePointerKind m_kind;
   size_t m_count;
   addr_t m_start_addr;
   CompilerType m_elem_type;
 };
 
-SwiftUnsafeType::SwiftUnsafeType(ValueObject &valobj)
-    : m_valobj(*valobj.GetNonSyntheticValue().get()) {}
+SwiftUnsafeType::SwiftUnsafeType(ValueObject &valobj, UnsafePointerKind kind)
+    : m_valobj(*valobj.GetNonSyntheticValue().get()), m_kind(kind) {}
 
 lldb::addr_t SwiftUnsafeType::GetAddress(llvm::StringRef child_name) {
   ConstString name(child_name);
@@ -64,11 +74,12 @@ lldb::addr_t SwiftUnsafeType::GetAddress(llvm::StringRef child_name) {
     return false;
   }
 
-  auto type_system = llvm::dyn_cast<SwiftASTContext>(type.GetTypeSystem());
+  SwiftASTContext *type_system = GetSwiftASTContextTypeSystem(type);
   if (!type_system) {
     LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
-             "{0}: Couldn't get {1} type system.", __FUNCTION__,
-             type.GetTypeName());
+             "{0}: Couldn't get SwiftASTContext type system for "
+             "'Swift.UnsafePointer' ValueObject.",
+             __FUNCTION__, type.GetTypeName());
     return false;
   }
 
@@ -90,6 +101,71 @@ lldb::addr_t SwiftUnsafeType::GetAddress(llvm::StringRef child_name) {
   return pointer_value_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
 }
 
+SwiftASTContext *
+SwiftUnsafeType::GetSwiftASTContextTypeSystem(CompilerType type) {
+  // Try to get the SwiftASTContext type system to get ValueObject generic
+  // argument type. This specific type system is required since the SwiftTypeRef
+  // type system cannot provide this information.
+  auto type_system = llvm::dyn_cast<SwiftASTContext>(type.GetTypeSystem());
+  if (!type_system) {
+    LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
+             "{0}: Couldn't get {1} SwiftASTContext type system.", __FUNCTION__,
+             type.GetTypeName());
+
+    // If the type system is not SwiftASTContext, switch to SwiftTypeRef.
+    auto ref_type_system =
+        llvm::dyn_cast<TypeSystemSwiftTypeRef>(type.GetTypeSystem());
+    if (!ref_type_system) {
+      LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
+               "{0}: Couldn't get a valid type system for {1}.", __FUNCTION__,
+               type.GetTypeName());
+      return nullptr;
+    }
+
+    // Get the mangled type name.
+    ConstString mangled_type_name =
+        ref_type_system->GetMangledTypeName(type.GetOpaqueQualType());
+    if (!mangled_type_name) {
+      LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
+               "{0}: Couldn't get the mangled type name for {1}.", __FUNCTION__,
+               type.GetTypeName());
+      return nullptr;
+    }
+
+    // Create a scratch SwiftASTContext to rebuild the type.
+    auto swift_ast_ctx = m_valobj.GetScratchSwiftASTContext();
+    if (!swift_ast_ctx) {
+      LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
+               "{0}: Couldn't get a scratch SwiftASTContext type system.",
+               __FUNCTION__);
+      return nullptr;
+    }
+
+    // Reconstruct the type using the SwiftASTContext type system.
+    CompilerType swift_ast_type =
+        swift_ast_ctx->GetTypeFromMangledTypename(mangled_type_name);
+    if (!swift_ast_type.IsValid()) {
+      LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
+               "{0}: Couldn't get a SwiftASTContext CompilerType for {1}.",
+               __FUNCTION__, type.GetTypeName());
+      return nullptr;
+    }
+
+    // Re-assign the new type system matching the reconstructed SwiftASTContext
+    // type.
+    type_system =
+        llvm::dyn_cast<SwiftASTContext>(swift_ast_type.GetTypeSystem());
+    if (!type_system) {
+      LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
+               "{0}: Couldn't reconstruct {1} SwiftASTContext type system.",
+               __FUNCTION__, type.GetTypeName());
+      return nullptr;
+    }
+  }
+
+  return type_system;
+}
+
 class SwiftUnsafeBufferPointer final : public SwiftUnsafeType {
 public:
   SwiftUnsafeBufferPointer(ValueObject &valobj);
@@ -97,7 +173,7 @@ public:
 };
 
 SwiftUnsafeBufferPointer::SwiftUnsafeBufferPointer(ValueObject &valobj)
-    : SwiftUnsafeType(valobj) {}
+    : SwiftUnsafeType(valobj, UnsafePointerKind::eSwiftUnsafeBufferPointer) {}
 
 bool SwiftUnsafeBufferPointer::Update() {
   if (!m_valobj.GetNumChildren())
@@ -183,7 +259,8 @@ private:
 };
 
 SwiftUnsafeRawBufferPointer::SwiftUnsafeRawBufferPointer(ValueObject &valobj)
-    : SwiftUnsafeType(valobj) {}
+    : SwiftUnsafeType(valobj, UnsafePointerKind::eSwiftUnsafeRawBufferPointer) {
+}
 
 bool SwiftUnsafeRawBufferPointer::Update() {
   if (!m_valobj.GetNumChildren())
@@ -263,6 +340,70 @@ bool SwiftUnsafeRawBufferPointer::Update() {
   return true;
 }
 
+class SwiftUnsafePointer final : public SwiftUnsafeType {
+public:
+  SwiftUnsafePointer(ValueObject &valobj, UnsafePointerKind kind);
+  bool Update() override;
+};
+
+SwiftUnsafePointer::SwiftUnsafePointer(ValueObject &valobj,
+                                       UnsafePointerKind kind)
+    : SwiftUnsafeType(valobj, kind) {}
+
+bool SwiftUnsafePointer::Update() {
+  if (!m_valobj.GetNumChildren())
+    return false;
+
+  // Here is the layout of Swift's Unsafe[Mutable]Pointer.
+  //
+  // ▿ UnsafeRawBufferPointer
+  //   ▿ _rawValue : Int
+  //       - pointerValue : Int
+  //
+
+  CompilerType type = m_valobj.GetCompilerType();
+  if (!type.IsValid()) {
+    LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
+             "{0}: Couldn't get the compiler type for the "
+             "'Swift.UnsafePointer' ValueObject.",
+             __FUNCTION__, type.GetTypeName());
+    return false;
+  }
+
+  SwiftASTContext *type_system = GetSwiftASTContextTypeSystem(type);
+  if (!type_system) {
+    LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
+             "{0}: Couldn't get SwiftASTContext type system for "
+             "'Swift.UnsafePointer' ValueObject.",
+             __FUNCTION__, type.GetTypeName());
+    return false;
+  }
+
+  CompilerType argument_type = type_system->GetGenericArgumentType(type, 0);
+
+  if (argument_type.IsValid())
+    m_elem_type = argument_type;
+
+  ValueObjectSP pointer_value_sp(m_valobj.GetChildAtIndex(0, true));
+  if (!pointer_value_sp) {
+    LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS),
+             "{0}: Couldn't unwrap the 'Swift.Int' ValueObject named "
+             "'pointerValue'.",
+             __FUNCTION__);
+    return false;
+  }
+
+  addr_t addr = pointer_value_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
+
+  if (!addr || addr == LLDB_INVALID_ADDRESS)
+    return false;
+
+  m_start_addr = addr;
+  m_count = (m_elem_type.IsValid()) ? 1 : 0;
+
+  return true;
+}
+
 std::unique_ptr<SwiftUnsafeType> SwiftUnsafeType::Create(ValueObject &valobj) {
   CompilerType type = valobj.GetCompilerType();
   if (!type.IsValid()) {
@@ -303,28 +444,42 @@ std::unique_ptr<SwiftUnsafeType> SwiftUnsafeType::Create(ValueObject &valobj) {
 
   llvm::StringRef valobj_type_name(type.GetTypeName().GetCString());
   bool is_raw = valobj_type_name.contains("Raw");
-  if (is_raw)
+  bool is_buffer_ptr = valobj_type_name.contains("BufferPointer");
+  UnsafePointerKind kind =
+      static_cast<UnsafePointerKind>(is_buffer_ptr << 1 | is_raw);
+
+  switch (kind) {
+  case UnsafePointerKind::eSwiftUnsafePointer:
+  case UnsafePointerKind::eSwiftUnsafeRawPointer:
+    return std::make_unique<SwiftUnsafePointer>(valobj, kind);
+  case UnsafePointerKind::eSwiftUnsafeBufferPointer:
+    return std::make_unique<SwiftUnsafeBufferPointer>(valobj);
+  case UnsafePointerKind::eSwiftUnsafeRawBufferPointer:
     return std::make_unique<SwiftUnsafeRawBufferPointer>(valobj);
-  return std::make_unique<SwiftUnsafeBufferPointer>(valobj);
+  }
 }
 
 } // namespace
 
 bool lldb_private::formatters::swift::UnsafeBufferPointerSummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
-
-  size_t count = 0;
-  addr_t addr = LLDB_INVALID_ADDRESS;
-
   std::unique_ptr<SwiftUnsafeType> unsafe_ptr = SwiftUnsafeType::Create(valobj);
 
   if (!unsafe_ptr || !unsafe_ptr->Update())
     return false;
-  count = unsafe_ptr->GetCount();
-  addr = unsafe_ptr->GetStartAddress();
+  size_t count = unsafe_ptr->GetCount();
+  addr_t addr = unsafe_ptr->GetStartAddress();
 
-  stream.Printf("%zu %s (0x%" PRIx64 ")", count,
-                (count == 1) ? "value" : "values", addr);
+  auto is_buffer_ptr = [](SwiftUnsafeType::UnsafePointerKind kind) {
+    return static_cast<int>(kind) & (1 << 1);
+  };
+
+  // Hide the number of children if not BufferPointer type.
+  if (!is_buffer_ptr(unsafe_ptr->GetKind()))
+    stream.Printf("0x%" PRIx64, addr);
+  else
+    stream.Printf("%zu %s (0x%" PRIx64 ")", count,
+                  (count == 1) ? "value" : "values", addr);
 
   return true;
 }
