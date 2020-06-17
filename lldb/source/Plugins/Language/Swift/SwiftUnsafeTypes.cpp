@@ -461,7 +461,7 @@ std::unique_ptr<SwiftUnsafeType> SwiftUnsafeType::Create(ValueObject &valobj) {
 
 } // namespace
 
-bool lldb_private::formatters::swift::UnsafeBufferPointerSummaryProvider(
+bool lldb_private::formatters::swift::UnsafeTypeSummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
   std::unique_ptr<SwiftUnsafeType> unsafe_ptr = SwiftUnsafeType::Create(valobj);
 
@@ -487,9 +487,9 @@ bool lldb_private::formatters::swift::UnsafeBufferPointerSummaryProvider(
 namespace lldb_private {
 namespace formatters {
 namespace swift {
-class UnsafeBufferPointerSyntheticFrontEnd : public SyntheticChildrenFrontEnd {
+class UnsafeTypeSyntheticFrontEnd : public SyntheticChildrenFrontEnd {
 public:
-  UnsafeBufferPointerSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp);
+  UnsafeTypeSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp);
 
   virtual size_t CalculateNumChildren();
 
@@ -501,7 +501,7 @@ public:
 
   virtual size_t GetIndexOfChildWithName(ConstString name);
 
-  virtual ~UnsafeBufferPointerSyntheticFrontEnd() = default;
+  virtual ~UnsafeTypeSyntheticFrontEnd() = default;
 
 private:
   ExecutionContextRef m_exe_ctx_ref;
@@ -517,8 +517,8 @@ private:
 } // namespace formatters
 } // namespace lldb_private
 
-lldb_private::formatters::swift::UnsafeBufferPointerSyntheticFrontEnd::
-    UnsafeBufferPointerSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
+lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEnd::
+    UnsafeTypeSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
     : SyntheticChildrenFrontEnd(*valobj_sp.get()) {
 
   ProcessSP process_sp = valobj_sp->GetProcessSP();
@@ -537,13 +537,14 @@ lldb_private::formatters::swift::UnsafeBufferPointerSyntheticFrontEnd::
     Update();
 }
 
-size_t lldb_private::formatters::swift::UnsafeBufferPointerSyntheticFrontEnd::
+size_t lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEnd::
     CalculateNumChildren() {
   return m_unsafe_ptr->GetCount();
 }
 
-lldb::ValueObjectSP lldb_private::formatters::swift::
-    UnsafeBufferPointerSyntheticFrontEnd::GetChildAtIndex(size_t idx) {
+lldb::ValueObjectSP
+lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEnd::GetChildAtIndex(
+    size_t idx) {
   const size_t num_children = CalculateNumChildren();
 
   if (idx >= num_children || idx >= m_children.size())
@@ -552,8 +553,7 @@ lldb::ValueObjectSP lldb_private::formatters::swift::
   return m_children[idx];
 }
 
-bool lldb_private::formatters::swift::UnsafeBufferPointerSyntheticFrontEnd::
-    Update() {
+bool lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEnd::Update() {
   m_children.clear();
   ValueObjectSP valobj_sp = m_backend.GetSP();
   if (!valobj_sp)
@@ -602,20 +602,20 @@ bool lldb_private::formatters::swift::UnsafeBufferPointerSyntheticFrontEnd::
   return m_children.size() == num_children;
 }
 
-bool lldb_private::formatters::swift::UnsafeBufferPointerSyntheticFrontEnd::
+bool lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEnd::
     MightHaveChildren() {
   return m_unsafe_ptr->GetCount();
 }
 
-size_t lldb_private::formatters::swift::UnsafeBufferPointerSyntheticFrontEnd::
+size_t lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEnd::
     GetIndexOfChildWithName(ConstString name) {
   return UINT32_MAX;
 }
 
 SyntheticChildrenFrontEnd *
-lldb_private::formatters::swift::UnsafeBufferPointerSyntheticFrontEndCreator(
+lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEndCreator(
     CXXSyntheticChildren *, lldb::ValueObjectSP valobj_sp) {
   if (!valobj_sp)
     return nullptr;
-  return (new UnsafeBufferPointerSyntheticFrontEnd(valobj_sp));
+  return (new UnsafeTypeSyntheticFrontEnd(valobj_sp));
 }

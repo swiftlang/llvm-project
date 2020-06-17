@@ -318,7 +318,7 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
 
   AddCXXSummary(
       swift_category_sp,
-      lldb_private::formatters::swift::UnsafeBufferPointerSummaryProvider,
+      lldb_private::formatters::swift::UnsafeTypeSummaryProvider,
       "Swift.Unsafe[Mutable][Raw][Buffer]Pointer",
       ConstString("^Swift.Unsafe(Mutable)?(Raw)?(Buffer)?Pointer(<.+>)?$"),
       summary_flags, true);
@@ -382,8 +382,7 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
 
   AddCXXSynthetic(
       swift_category_sp,
-      lldb_private::formatters::swift::
-          UnsafeBufferPointerSyntheticFrontEndCreator,
+      lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEndCreator,
       "Swift.Unsafe[Mutable][Raw][Buffer]Pointer",
       ConstString("^Swift.Unsafe(Mutable)?(Raw)?(Buffer)?Pointer(<.+>)?$"),
       synth_flags, true);
