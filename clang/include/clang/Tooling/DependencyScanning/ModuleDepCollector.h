@@ -28,6 +28,8 @@ namespace clang {
 namespace tooling {
 namespace dependencies {
 
+struct DependencyScanningCompilerInvocationCache;
+
 class DependencyConsumer;
 
 /// This is used to refer to a specific module.
@@ -56,6 +58,10 @@ struct ModuleDeps {
   /// used kept track off in order to compute module aliasing efficency of
   /// strict context hashing w.r.t relaxed context hashing.
   std::string RelaxedContextHash;
+
+  /// The canonical context hash obtained after pruning options that are known
+  /// to not affect the module build from the CompilerInvocation.
+  std::string CanonicalContextHash;
 
   // This is the hash of the AST represented by the module. This is only used to
   // keep track of module aliasing efficiency.
@@ -124,8 +130,9 @@ class ModuleDepCollector;
 
 class ModuleDepCollectorPP final : public PPCallbacks {
 public:
-  ModuleDepCollectorPP(CompilerInstance &I, ModuleDepCollector &MDC)
-      : Instance(I), MDC(MDC) {}
+  ModuleDepCollectorPP(CompilerInstance &I, ModuleDepCollector &MDC,
+                       DependencyScanningCompilerInvocationCache &CIC)
+      : Instance(I), MDC(MDC), CIC(CIC) {}
 
   void FileChanged(SourceLocation Loc, FileChangeReason Reason,
                    SrcMgr::CharacteristicKind FileType,
@@ -144,6 +151,7 @@ public:
 private:
   CompilerInstance &Instance;
   ModuleDepCollector &MDC;
+  DependencyScanningCompilerInvocationCache &CIC;
   llvm::DenseSet<const Module *> DirectDeps;
 
   void handleImport(const Module *Imported);
@@ -158,7 +166,8 @@ class ModuleDepCollector final : public DependencyCollector {
 public:
   ModuleDepCollector(std::unique_ptr<DependencyOutputOptions> Opts,
                      CompilerInstance &I, DependencyConsumer &C,
-                     ArrayRef<std::string> OriginalInvocation);
+                     ArrayRef<std::string> OriginalInvocation,
+                     DependencyScanningCompilerInvocationCache &CIC);
 
   void attachToPreprocessor(Preprocessor &PP) override;
   void attachToASTReader(ASTReader &R) override;
@@ -175,6 +184,7 @@ private:
   std::vector<std::string> MainDeps;
   std::unordered_map<std::string, ModuleDeps> Deps;
   std::unique_ptr<DependencyOutputOptions> Opts;
+  DependencyScanningCompilerInvocationCache &CIC;
 };
 
 } // end namespace dependencies

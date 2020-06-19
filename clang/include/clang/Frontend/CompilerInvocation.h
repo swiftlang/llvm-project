@@ -204,6 +204,10 @@ public:
   /// The returned pointer is what gets appended to Args.
   void generateCC1CommandLine(llvm::SmallVectorImpl<const char *> &Args,
                               StringAllocator SA) const;
+  CompilerInvocation
+  duplicateWithSameModuleHash(DiagnosticsEngine &Diags,
+                              bool UseStrictContextHash) const;
+
   /// @}
   /// @name Option Subgroups
   /// @{

@@ -11,6 +11,7 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
+#include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 #include "clang/Tooling/JSONCompilationDatabase.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/STLExtras.h"
@@ -176,6 +177,13 @@ llvm::cl::opt<bool> GatherMetrics(
         "built in explicit mode with respect to implicit modules."),
     llvm::cl::init(false), llvm::cl::cat(DependencyScannerCategory));
 
+llvm::cl::opt<bool>
+    PruneConfigs("prune-configs", llvm::cl::Optional,
+                 llvm::cl::desc("Prune module configurations that can be "
+                                "proven to be equivalent/compatible."),
+                 llvm::cl::init(false),
+                 llvm::cl::cat(DependencyScannerCategory));
+
 } // end anonymous namespace
 
 /// \returns object-file path derived from source-file path.
@@ -261,6 +269,12 @@ public:
 
     std::unique_lock<std::mutex> ul(Lock);
     for (const ModuleDeps &MD : FDR.DiscoveredModules) {
+      auto CI =
+          CanonicalModules.find({MD.CanonicalContextHash, MD.ModuleName, 0});
+      if (CI == CanonicalModules.end())
+        CanonicalModules.insert(
+            CI, {{MD.CanonicalContextHash, MD.ModuleName, InputIndex},
+                 {MD.ContextHash, MD.ModuleName, InputIndex}});
       auto I = Modules.find({MD.ContextHash, MD.ModuleName, 0});
       if (I != Modules.end()) {
         I->first.InputIndex = std::min(I->first.InputIndex, InputIndex);
@@ -280,11 +294,17 @@ public:
     Inputs.push_back(std::move(ID));
   }
 
-  void printFullOutput(raw_ostream &OS) {
+  void printFullOutput(raw_ostream &OS, bool PruneEquivalentConfigs) {
     // Sort the modules by name to get a deterministic order.
     std::vector<ContextModulePair> ModuleNames;
-    for (auto &&M : Modules)
-      ModuleNames.push_back(M.first);
+
+    if (PruneEquivalentConfigs)
+      for (auto &&M : CanonicalModules)
+        ModuleNames.push_back(M.second);
+    else
+      for (auto &&M : Modules)
+        ModuleNames.push_back(M.first);
+
     llvm::sort(ModuleNames,
                [](const ContextModulePair &A, const ContextModulePair &B) {
                  return std::tie(A.ModuleName, A.InputIndex) <
@@ -304,7 +324,10 @@ public:
           {"name", MD.ModuleName},
           {"context-hash", MD.ContextHash},
           {"file-deps", toJSONSorted(MD.FileDeps)},
-          {"clang-module-deps", toJSONSorted(MD.ClangModuleDeps)},
+          {"clang-module-deps",
+           toJSONSorted(PruneEquivalentConfigs
+                            ? getCanonicalClangModuleDeps(MD.ClangModuleDeps)
+                            : MD.ClangModuleDeps)},
           {"clang-modulemap-file", MD.ClangModuleMapFile},
           {"command-line",
            FullCommandLine
@@ -324,7 +347,10 @@ public:
           {"input-file", I.FileName},
           {"clang-context-hash", I.ContextHash},
           {"file-deps", I.FileDeps},
-          {"clang-module-deps", toJSONSorted(I.ModuleDeps)},
+          {"clang-module-deps",
+           toJSONSorted(PruneEquivalentConfigs
+                            ? getCanonicalClangModuleDeps(I.ModuleDeps)
+                            : I.ModuleDeps)},
           {"command-line", I.AdditonalCommandLine},
       };
       TUs.push_back(std::move(O));
@@ -344,6 +370,7 @@ public:
 
     size_t TotalRelaxedHashModules = 0;
     size_t TotalStrictContextHashModules = 0;
+    size_t TotalModulesToBeBuilt = 0;
     for (auto &&M : Modules) {
       auto &Mod = M.second;
       auto &BMEI = ModulesBuiltStats[Mod.ModuleName];
@@ -354,43 +381,59 @@ public:
       InsertionResult = BMEI.ExplicitModulesHashes.insert(Mod.ContextHash);
       if (InsertionResult.second)
         TotalStrictContextHashModules++;
+      InsertionResult =
+          BMEI.ModulesToBuildCanonicalHashes.insert(Mod.CanonicalContextHash);
+      if (InsertionResult.second)
+        TotalModulesToBeBuilt++;
     }
 
-    auto PercentageModuleNumberIncrease =
-        100 * ((TotalStrictContextHashModules - TotalRelaxedHashModules) /
-               TotalRelaxedHashModules);
-
     OS << "Total relaxed hash modules: " << TotalRelaxedHashModules << "\n";
+    OS << "Total modules to be built: " << TotalModulesToBeBuilt << "\n";
     OS << "Total strict context hash modules: " << TotalStrictContextHashModules
        << "\n";
-    OS << "Module number increase: " << PercentageModuleNumberIncrease
-       << "%\n\n";
-
+    OS << "\n";
     OS << "Details:\n";
-    OS << "ModuleName,ImplicitModulesBuilt,ExplicitModulesBuilt\n";
+    OS << "ModuleName,ImplicitModulesBuilt,ExplicitModulesBuilt,"
+          "ExplicitModulesBuiltPruned\n";
     for (const auto &ModuleStat : ModulesBuiltStats) {
       const auto &BMEI = ModuleStat.second;
       OS << ModuleStat.first << "," << BMEI.ImplicitModulesHashes.size() << ","
-         << BMEI.ExplicitModulesHashes.size() << "\n";
+         << BMEI.ExplicitModulesHashes.size() << ","
+         << BMEI.ModulesToBuildCanonicalHashes.size() << "\n";
     }
   }
 
 private:
+  std::vector<ClangModuleDep>
+  getCanonicalClangModuleDeps(const std::vector<ClangModuleDep> &ModuleDeps) {
+    std::unordered_set<ContextModulePair, ContextModulePairHasher>
+        SeenCanonicalDeps;
+    std::vector<ClangModuleDep> Ret;
+    for (const auto &CMD : ModuleDeps) {
+      ContextModulePair CanonicalModuleCtxPair =
+          getCanonicalModule({CMD.ContextHash, CMD.ModuleName, 0});
+      auto I = SeenCanonicalDeps.insert(CanonicalModuleCtxPair);
+      if (!I.second)
+        continue;
+      Ret.push_back({CanonicalModuleCtxPair.ModuleName,
+                     CanonicalModuleCtxPair.ContextHash});
+    }
+    return Ret;
+  }
+
   StringRef lookupPCMPath(ClangModuleDep CMD) {
-    return Modules[ContextModulePair{CMD.ContextHash, CMD.ModuleName, 0}]
-        .ImplicitModulePCMPath;
+    return lookupModuleDeps(CMD).ImplicitModulePCMPath;
   }
 
   const ModuleDeps &lookupModuleDeps(ClangModuleDep CMD) {
-    auto I =
-        Modules.find(ContextModulePair{CMD.ContextHash, CMD.ModuleName, 0});
-    assert(I != Modules.end());
-    return I->second;
+    return Modules[getCanonicalModule(
+        ContextModulePair{CMD.ContextHash, CMD.ModuleName, 0})];
   };
 
   struct BuiltModulesEfficiencyInfo {
     std::unordered_set<std::string> ImplicitModulesHashes;
     std::unordered_set<std::string> ExplicitModulesHashes;
+    std::unordered_set<std::string> ModulesToBuildCanonicalHashes;
   };
 
   struct ContextModulePair {
@@ -411,6 +454,17 @@ private:
     }
   };
 
+  ContextModulePair getCanonicalModule(const ContextModulePair &CMP) {
+    auto I = Modules.find(CMP);
+    assert(I != Modules.end());
+    auto CI = CanonicalModules.find(
+        {I->second.CanonicalContextHash, CMP.ModuleName, 0});
+    assert(CI != CanonicalModules.end());
+    I = Modules.find(CI->second);
+    assert(I != Modules.end());
+    return I->first;
+  }
+
   struct InputDeps {
     std::string FileName;
     std::string ContextHash;
@@ -422,6 +476,9 @@ private:
   std::mutex Lock;
   std::unordered_map<ContextModulePair, ModuleDeps, ContextModulePairHasher>
       Modules;
+  std::unordered_map<ContextModulePair, ContextModulePair,
+                     ContextModulePairHasher>
+      CanonicalModules;
   std::vector<InputDeps> Inputs;
 };
 
@@ -594,7 +651,7 @@ int main(int argc, const char **argv) {
   Pool.wait();
 
   if (Format == ScanningOutputFormat::Full)
-    FD.printFullOutput(llvm::outs());
+    FD.printFullOutput(llvm::outs(), PruneConfigs);
 
   if (GatherMetrics)
     FD.computeAndPrintBuildMetrics(llvm::errs());

@@ -9,17 +9,21 @@
 #ifndef LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_WORKER_H
 #define LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_WORKER_H
 
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/PCHContainerOperations.h"
 #include "clang/Lex/PreprocessorExcludedConditionalDirectiveSkipMapping.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace clang {
@@ -41,6 +45,22 @@ public:
   virtual void handleModuleDependency(ModuleDeps MD) = 0;
 
   virtual void handleContextHash(std::string Hash) = 0;
+};
+
+struct DependencyScanningCompilerInvocationCache {
+  std::unordered_map<std::string, CompilerInvocation> CompilerInvocationMap;
+
+  std::pair<CompilerInvocation *, bool>
+  insert(std::string ContextHash, const CompilerInvocation &Invocation,
+         DiagnosticsEngine &Diags) {
+    auto InsertionRes = CompilerInvocationMap.insert(
+        std::make_pair(std::move(ContextHash),
+                       Invocation.duplicateWithSameModuleHash(Diags, true)));
+    CompilerInvocation &InsertedInvocation = InsertionRes.first->second;
+    return std::make_pair(&InsertedInvocation, InsertionRes.second);
+  }
+
+  std::string getCanonicalHash(const ModuleDeps &MD, DiagnosticsEngine &Diags);
 };
 
 /// An individual dependency scanning worker that is able to run on its own
@@ -75,6 +95,8 @@ public:
   ScanningOutputFormat getFormat() const { return Format; }
 
   llvm::StringSet<> AlreadySeen;
+
+  DependencyScanningCompilerInvocationCache CIC;
 
 private:
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts;

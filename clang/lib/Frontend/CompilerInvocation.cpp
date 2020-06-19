@@ -87,6 +87,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -3825,6 +3826,14 @@ static void removeExplicitModuleBuildIncompatibleOptions(InputArgList &Args) {
     if (!BeforeREMBIO.count(A))
       return false;
     const Option &O = A->getOption();
+    if (O.matches(OPT_D)) {
+      StringRef MacroDef = A->getValue();
+      for (const auto *OtherA : Args.filtered(OPT_fmodules_ignore_macro)) {
+        StringRef OtherMacro = OtherA->getValue();
+        if (MacroDef.split("=").first == OtherMacro.split("=").first)
+          return true;
+      }
+    }
     return O.matches(OPT_INPUT) ||
            O.matches(OPT_Action_Group) ||
            O.matches(OPT__output);
@@ -4187,6 +4196,82 @@ void CompilerInvocation::generateCC1CommandLine(
 #include "clang/Driver/Options.inc"
 #undef OPTION_WITH_MARSHALLING_STRING
 #undef OPTION_WITH_MARSHALLING_FLAG
+}
+
+CompilerInvocation CompilerInvocation::duplicateWithSameModuleHash(
+    DiagnosticsEngine &Diags, bool UseStrictContextHash) const {
+  CompilerInvocation Res;
+#define COPY_FIELD(F) Res.F = F
+#define COPY_ITERABLE_FIELD_PRED(F, P)                                         \
+  std::copy_if(F.begin(), F.end(), std::back_inserter(Res.F), P)
+
+#define LANGOPT(Name, Bits, Default, Description) COPY_FIELD(LangOpts->Name);
+#define ENUM_LANGOPT(Name, Type, Bits, Default, Description)                   \
+  Res.LangOpts->set##Name(LangOpts->get##Name());
+#define BENIGN_LANGOPT(Name, Bits, Default, Description)
+#define BENIGN_ENUM_LANGOPT(Name, Type, Bits, Default, Description)
+#include "clang/Basic/LangOptions.def"
+
+  COPY_FIELD(LangOpts->ModuleFeatures);
+
+  COPY_FIELD(TargetOpts->Triple);
+  COPY_FIELD(TargetOpts->CPU);
+  COPY_FIELD(TargetOpts->ABI);
+  COPY_FIELD(TargetOpts->FeaturesAsWritten);
+
+  COPY_FIELD(getPreprocessorOpts().UsePredefines);
+  COPY_FIELD(getPreprocessorOpts().DetailedRecord);
+
+  COPY_FIELD(getHeaderSearchOpts().ModulesIgnoreMacros);
+  if (!getHeaderSearchOpts().ModulesIgnoreMacros.empty())
+    COPY_ITERABLE_FIELD_PRED(getPreprocessorOpts().Macros, [&](const auto &I) {
+      StringRef MacroDef = I.first;
+      return !getHeaderSearchOpts().ModulesIgnoreMacros.count(
+          llvm::CachedHashString(MacroDef.split('=').first));
+    });
+  else
+    COPY_FIELD(getPreprocessorOpts().Macros);
+
+  COPY_FIELD(getHeaderSearchOpts().Sysroot);
+  COPY_FIELD(getHeaderSearchOpts().ModuleFormat);
+  COPY_FIELD(getHeaderSearchOpts().UseDebugInfo);
+  COPY_FIELD(getHeaderSearchOpts().UseBuiltinIncludes);
+  COPY_FIELD(getHeaderSearchOpts().UseStandardSystemIncludes);
+  COPY_FIELD(getHeaderSearchOpts().UseStandardCXXIncludes);
+  COPY_FIELD(getHeaderSearchOpts().UseLibcxx);
+  COPY_FIELD(getHeaderSearchOpts().ModulesValidateDiagnosticOptions);
+  COPY_FIELD(getHeaderSearchOpts().ResourceDir);
+
+  if (UseStrictContextHash) {
+    COPY_FIELD(getHeaderSearchOpts().SystemHeaderPrefixes);
+    COPY_FIELD(getHeaderSearchOpts().UserEntries);
+
+#define DIAGOPT(Name, Bits, Default) COPY_FIELD(getDiagnosticOpts().Name);
+#define ENUM_DIAGOPT(Name, Type, Bits, Default)                                \
+  Res.getDiagnosticOpts().set##Name(getDiagnosticOpts().get##Name());
+#include "clang/Basic/DiagnosticOptions.def"
+  }
+
+  COPY_FIELD(getHeaderSearchOpts().ModuleUserBuildPath);
+
+  COPY_FIELD(getFrontendOpts().ModuleFileExtensions);
+
+  Res.getAPINotesOpts().SwiftVersion =
+      getAPINotesOpts().SwiftVersion.withoutBuild();
+
+  COPY_FIELD(getCodeGenOpts().DebugTypeExtRefs);
+  if (getCodeGenOpts().DebugTypeExtRefs)
+    COPY_FIELD(getCodeGenOpts().DebugPrefixMap);
+
+  SanitizerSet SanHash = LangOpts->Sanitize;
+  SanHash.clear(getPPTransparentSanitizers());
+  if (!SanHash.empty())
+    Res.LangOpts->Sanitize = SanHash;
+
+  COPY_FIELD(LangOpts->ModulesHashErrorDiags);
+  assert(Res.getModuleHash(Diags, UseStrictContextHash) ==
+         getModuleHash(Diags, UseStrictContextHash));
+  return Res;
 }
 
 namespace clang {

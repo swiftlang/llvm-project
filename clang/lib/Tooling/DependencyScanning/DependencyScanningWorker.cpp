@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
+#include "clang/AST/Type.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/Tool.h"
@@ -20,8 +22,12 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 #include "clang/Tooling/Tooling.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Host.h"
+#include <algorithm>
+#include <iterator>
 
 using namespace clang;
 using namespace tooling;
@@ -80,10 +86,11 @@ public:
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings,
-      ScanningOutputFormat Format, ArrayRef<std::string> OriginalInvocation)
+      ScanningOutputFormat Format, ArrayRef<std::string> OriginalInvocation,
+      DependencyScanningCompilerInvocationCache &CIC)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
         DepFS(std::move(DepFS)), PPSkipMappings(PPSkipMappings), Format(Format),
-        OriginalInvocation(OriginalInvocation) {}
+        OriginalInvocation(OriginalInvocation), CIC(CIC) {}
 
   bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
                      FileManager *FileMgr,
@@ -155,7 +162,7 @@ public:
       break;
     case ScanningOutputFormat::Full:
       Compiler.addDependencyCollector(std::make_shared<ModuleDepCollector>(
-          std::move(Opts), Compiler, Consumer, OriginalInvocation));
+          std::move(Opts), Compiler, Consumer, OriginalInvocation, CIC));
       break;
     }
 
@@ -180,6 +187,7 @@ private:
   ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings;
   ScanningOutputFormat Format;
   ArrayRef<std::string> OriginalInvocation;
+  DependencyScanningCompilerInvocationCache &CIC;
 };
 
 } // end anonymous namespace
@@ -213,6 +221,35 @@ static llvm::Error runWithDiags(
     return llvm::Error::success();
   return llvm::make_error<llvm::StringError>(DiagnosticsOS.str(),
                                              llvm::inconvertibleErrorCode());
+}
+
+std::string DependencyScanningCompilerInvocationCache::getCanonicalHash(
+    const ModuleDeps &MD, DiagnosticsEngine &Diags) {
+  auto It = CompilerInvocationMap.find(MD.ContextHash);
+  if (It == CompilerInvocationMap.end())
+    llvm_unreachable(
+        "Should have seen an invocation with this context hash already");
+
+  CompilerInvocation &Invocation = It->second;
+  auto OldUserEntries = std::move(Invocation.getHeaderSearchOpts().UserEntries);
+  std::vector<HeaderSearchOptions::Entry> NewUserEntries;
+  size_t UsedPathsIndex = 0;
+  auto &UsedPaths = MD.UsedUserHeaderSearchPaths;
+  std::copy_if(OldUserEntries.begin(), OldUserEntries.end(),
+               std::back_inserter(NewUserEntries),
+               [&UsedPaths, &UsedPathsIndex](const auto &Entry) {
+                 if (!UsedPaths.empty() &&
+                     Entry.Path == UsedPaths[UsedPathsIndex]) {
+                   UsedPathsIndex++;
+                   return true;
+                 }
+                 return false;
+               });
+  assert(UsedPathsIndex == UsedPaths.size());
+  Invocation.getHeaderSearchOpts().UserEntries = std::move(NewUserEntries);
+  std::string Result = Invocation.getModuleHash(Diags);
+  Invocation.getHeaderSearchOpts().UserEntries = OldUserEntries;
+  return Result;
 }
 
 llvm::Error DependencyScanningWorker::computeDependencies(
@@ -254,7 +291,7 @@ llvm::Error DependencyScanningWorker::computeDependencies(
     CCArgs.push_back(Args[0]);
     CCArgs.insert(CCArgs.begin() + 1, CmdArgs.begin(), CmdArgs.end());
     DependencyScanningAction Action(WorkingDirectory, Consumer, DepFS,
-                                    PPSkipMappings.get(), Format, CCArgs);
+                                    PPSkipMappings.get(), Format, CCArgs, CIC);
     bool Ret = !Tool.run(&Action);
     if (OriginalInvocation)
       *OriginalInvocation = std::move(CCArgs);
@@ -278,7 +315,8 @@ llvm::Error DependencyScanningWorker::computeDependenciesForClangInvocation(
         newInvocation(&Diags, CC1Args, /*BinaryName=*/nullptr));
 
     DependencyScanningAction Action(WorkingDirectory, Consumer, DepFS,
-                                    PPSkipMappings.get(), Format, Arguments);
+                                    PPSkipMappings.get(), Format, Arguments,
+                                    CIC);
 
     llvm::IntrusiveRefCntPtr<FileManager> FM = Files;
     if (!FM)

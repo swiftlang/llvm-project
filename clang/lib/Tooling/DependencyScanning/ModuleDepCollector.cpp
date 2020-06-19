@@ -69,6 +69,8 @@ void ModuleDepCollectorPP::FileChanged(SourceLocation Loc,
     MDC.RelaxedContextHash = Instance.getInvocation().getModuleHash(
         Instance.getDiagnostics(), /* UseStrictContextHash */ false);
     MDC.Consumer.handleContextHash(MDC.ContextHash);
+    CIC.insert(MDC.ContextHash, Instance.getInvocation(),
+               Instance.getDiagnostics());
   }
 
   SourceManager &SM = Instance.getSourceManager();
@@ -156,7 +158,8 @@ void ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
       MDC.Instance.getASTReader()->getModuleManager().lookup(M->getASTFile());
   MD.ModuleSignature = MF->ASTSignature;
   MD.UsedUserHeaderSearchPaths = MF->UsedUserHeaderSearchPaths;
-  MDC.Instance.getASTReader()->visitInputFiles(
+  MD.CanonicalContextHash = CIC.getCanonicalHash(MD, Instance.getDiagnostics());
+  Instance.getASTReader()->visitInputFiles(
       *MF, true, true, [&](const serialization::InputFile &IF, bool isSystem) {
         // __inferred_module.map is the result of the way in which an implicit
         // module build handles inferred modules. It adds an overlay VFS with
@@ -211,12 +214,14 @@ void ModuleDepCollectorPP::addModuleDep(
 
 ModuleDepCollector::ModuleDepCollector(
     std::unique_ptr<DependencyOutputOptions> Opts, CompilerInstance &I,
-    DependencyConsumer &C, ArrayRef<std::string> OriginalInvocation)
+    DependencyConsumer &C, ArrayRef<std::string> OriginalInvocation,
+    DependencyScanningCompilerInvocationCache &CIC)
     : Instance(I), Consumer(C), OriginalInvocation(OriginalInvocation),
-      Opts(std::move(Opts)) {}
+      Opts(std::move(Opts)), CIC(CIC) {}
 
 void ModuleDepCollector::attachToPreprocessor(Preprocessor &PP) {
-  PP.addPPCallbacks(std::make_unique<ModuleDepCollectorPP>(Instance, *this));
+  PP.addPPCallbacks(
+      std::make_unique<ModuleDepCollectorPP>(Instance, *this, CIC));
 }
 
 void ModuleDepCollector::attachToASTReader(ASTReader &R) {}
