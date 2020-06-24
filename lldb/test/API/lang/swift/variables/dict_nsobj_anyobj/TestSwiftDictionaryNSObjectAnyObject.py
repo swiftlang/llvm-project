@@ -27,7 +27,7 @@ class TestDictionaryNSObjectAnyObject(TestBase):
     def setUp(self):
         TestBase.setUp(self)
 
-    @skipIf(bugnumber="rdar://60396797",
+    @expectedFailureAll(bugnumber="rdar://60396797",
                         setting=('symbols.use-swift-clangimporter', 'false'))
     @skipUnlessDarwin
     @swiftTest
