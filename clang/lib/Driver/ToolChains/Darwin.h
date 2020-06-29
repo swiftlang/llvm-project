@@ -65,10 +65,7 @@ class LLVM_LIBRARY_VISIBILITY Linker : public MachOTool {
                    const InputInfoList &Inputs, unsigned Version[5]) const;
 
 public:
-  Linker(const ToolChain &TC, bool UseAtFile)
-      : MachOTool("darwin::Linker", "linker", TC,
-                  UseAtFile ? RF_Full : RF_FileList, llvm::sys::WEM_UTF8,
-                  UseAtFile ? "@" : "-filelist") {}
+  Linker(const ToolChain &TC) : MachOTool("darwin::Linker", "linker", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool isLinkJob() const override { return true; }
