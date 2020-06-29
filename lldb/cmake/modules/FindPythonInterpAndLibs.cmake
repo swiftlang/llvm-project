@@ -26,8 +26,15 @@ else()
       endif()
     else()
       # SWIFT_ENABLE_TENSORFLOW
-      # Make it so that LLDB can find Python 3.6 or Python 3.7.
-      set(Python_ADDITIONAL_VERSIONS 3.7 3.6 3.5 3.4 3.3 3.2 3.1 3.0 2.7 2.6 2.5)
+      # On non-macOS platforms: find Python 3, required by google/swift-jupyter.
+      # On macOS: find Python 2, which is system-provided. Python 3 paths vary
+      # depending on installation method and are not portable.
+      if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
+        set(Python_ADDITIONAL_VERSIONS 2.7 2.6 2.5)
+      else
+        set(Python_ADDITIONAL_VERSIONS 3.7 3.6 3.5 3.4 3.3 3.2 3.1 3.0 2.7 2.6 2.5)
+      endif()
+      # SWIFT_ENABLE_TENSORFLOW END
 
       find_package(PythonInterp QUIET)
       find_package(PythonLibs QUIET)
