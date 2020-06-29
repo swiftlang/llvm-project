@@ -155,20 +155,35 @@ std::recursive_mutex g_log_mutex;
 
 } // namespace
 
-/// Similar to LLDB_LOG, but with richer contextual information.
-#define LOG_PRINTF(CHANNEL, FMT, ...)                                          \
-  do {                                                                         \
-    if (Log *log = lldb_private::GetLogIfAllCategoriesSet(CHANNEL)) {          \
-      std::lock_guard<std::recursive_mutex> locker(g_log_mutex);               \
-      /* The format string is optimized for code size, not speed. */           \
-      log->Printf("%s::%s%s" FMT, m_description.c_str(),                       \
-                  IsLambda(__FUNCTION__) ? "" : __FUNCTION__,                  \
-                  (FMT && FMT[0] == '(') ? "" : "() -- ", ##__VA_ARGS__);      \
-    }                                                                          \
-  } while (0)
-
 using namespace lldb;
 using namespace lldb_private;
+
+/// Similar to LLDB_LOG, but with richer contextual information.
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((format(printf, 4, 5)))
+#endif
+static void log_printf_helper(uint32_t channel,
+                              const char *m_description,
+                              const char *function,
+                              const char *format, ...) {
+  va_list ap;
+  va_start(ap, format);
+  char buffer[2048];
+  auto result = snprintf(buffer, sizeof(buffer), format, ap);
+  assert(result < sizeof(buffer));
+  va_end(ap);
+
+  if (Log *log = lldb_private::GetLogIfAllCategoriesSet(channel)) {
+    std::lock_guard<std::recursive_mutex> locker(g_log_mutex);
+    /* The format string is optimized for code size, not speed. */
+    log->Printf("%s::%s%s%s", m_description,
+                IsLambda(function) ? "" : function,
+                (format && format[0] == '(') ? "" : "() -- ", buffer);
+  }
+}
+
+#define LOG_PRINTF(CHANNEL, ...) \
+  log_printf_helper(CHANNEL, m_description.c_str(), __FUNCTION__, __VA_ARGS__)
 
 char SwiftASTContext::ID;
 char SwiftASTContextForExpressions::ID;
