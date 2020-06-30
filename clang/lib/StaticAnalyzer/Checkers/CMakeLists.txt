@@ -120,6 +120,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   WebKit/PtrTypesSemantics.cpp
   WebKit/RefCntblBaseVirtualDtorChecker.cpp
   WebKit/UncountedCallArgsChecker.cpp
+  WebKit/UncountedLambdaCapturesChecker.cpp
 
   LINK_LIBS
   clangAST

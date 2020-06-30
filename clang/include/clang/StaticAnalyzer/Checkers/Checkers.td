@@ -1455,6 +1455,10 @@ def NoUncountedMemberChecker : Checker<"NoUncountedMemberChecker">,
   HelpText<"Check for no uncounted member variables.">,
   Documentation<HasDocumentation>;
 
+def UncountedLambdaCapturesChecker : Checker<"UncountedLambdaCapturesChecker">,
+  HelpText<"Check uncounted lambda captures.">,
+  Documentation<HasDocumentation>;
+
 } // end webkit
 
 let ParentPackage = WebKitAlpha in {
