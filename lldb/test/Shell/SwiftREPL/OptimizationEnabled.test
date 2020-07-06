@@ -1,0 +1,14 @@
+// SWIFT_ENABLE_TENSORFLOW
+// Checks that optimization is enabled by default in the REPL.
+
+:log enable lldb expr
+print("Hello World")
+
+// EXCLUDE-FROM-INPUT
+// All lines below this are excluded from the input to the REPL, so that they don't trigger a false
+// positive FileCheck match.
+
+// CHECK: SILOptions OptMode 2
+// CHECK: Running SIL optimization passes
+
+// RUN: sed '/EXCLUDE-FROM-INPUT/Q' %s | %lldb --repl | FileCheck %s

@@ -1615,8 +1615,18 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
       new swift::Lowering::TypeConverter(
           *parsed_expr->source_file.getParentModule()));
 
+  // SWIFT_ENABLE_TENSORFLOW
+  // Set optimization mode to -O for REPL/Playgrounds.
+  auto &options = swift_ast_ctx->GetSILOptions();
+  options.OptMode = swift::OptimizationMode::ForSpeed;
   std::unique_ptr<swift::SILModule> sil_module = swift::performASTLowering(
-      parsed_expr->source_file, *sil_types, swift_ast_ctx->GetSILOptions());
+      parsed_expr->source_file, *sil_types, options);
+
+  // Log optimization level so that we can test that optimizations are enabled.
+  if (log) {
+    log->Printf("SILOptions OptMode %d", options.OptMode);
+  }
+  // SWIFT_ENABLE_TENSORFLOW END
 
   if (log) {
     std::string s;
@@ -1654,6 +1664,10 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
       !runSILOwnershipEliminatorPass(*sil_module)) {
     // Diagnostic and ownership elimination passes succeeded. Run the
     // optimizations.
+
+    if (log) {
+      log->Printf("Running SIL optimization passes");
+    }
 
     // FIXME: we have come to rely on the optimizations in Jupyter notebooks.  We
     // will leave them here even though the upstream does not have them turned on.
