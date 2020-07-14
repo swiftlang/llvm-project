@@ -639,9 +639,8 @@ llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffset(
 
   llvm::Optional<SwiftASTContextReader> scratch_ctx;
   if (instance) {
-    if (SwiftASTContextReader reader = instance->GetScratchSwiftASTContext())
-      scratch_ctx = reader;
-    else
+    scratch_ctx = instance->GetScratchSwiftASTContext();
+    if (!scratch_ctx)
       return llvm::None;
   }
 
