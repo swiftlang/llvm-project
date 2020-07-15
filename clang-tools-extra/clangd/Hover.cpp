@@ -473,11 +473,11 @@ markup::Document HoverInfo::present() const {
     P.appendText("Declared in");
     // Drop trailing "::".
     if (!LocalScope.empty())
-      P.appendCode(llvm::StringRef(LocalScope).drop_back(2));
+      P.appendCode(std::string(llvm::StringRef(LocalScope).drop_back(2)));
     else if (NamespaceScope->empty())
       P.appendCode("global namespace");
     else
-      P.appendCode(llvm::StringRef(*NamespaceScope).drop_back(2));
+      P.appendCode(std::string(llvm::StringRef(*NamespaceScope).drop_back(2)));
   }
 
   if (!Definition.empty()) {

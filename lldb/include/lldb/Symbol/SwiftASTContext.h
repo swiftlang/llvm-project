@@ -677,7 +677,9 @@ public:
     m_platform_sdk_path = sdk_path;
   }
 
-  void SetPlatformSDKPath(llvm::StringRef path) { m_platform_sdk_path = path; }
+  void SetPlatformSDKPath(llvm::StringRef path) {
+    m_platform_sdk_path = std::string(path);
+  }
 
   const swift::SearchPathOptions *GetSearchPathOptions() const;
 

@@ -891,7 +891,7 @@ static std::string GetClangModulesCacheProperty() {
   llvm::SmallString<128> path;
   auto props = ModuleList::GetGlobalModuleListProperties();
   props.GetClangModulesCachePath().GetPath(path);
-  return path.str();
+  return std::string(path.str());
 }
 
 #ifndef NDEBUG
@@ -1013,7 +1013,7 @@ std::string SwiftASTContext::GetSwiftStdlibOSDir(const llvm::Triple &target,
   std::string sdk_name = XcodeSDK::GetCanonicalName(sdk_info);
   if (!sdk_name.empty())
     return sdk_name;
-  return target.getOSName();
+  return std::string(target.getOSName());
 }
 
 StringRef SwiftASTContext::GetResourceDir(const llvm::Triple &triple) {
@@ -1084,7 +1084,7 @@ std::string SwiftASTContext::GetResourceDir(StringRef platform_sdk_path,
                    "found Swift resource dir via "
                    "toolchain path + 'usr/lib/swift': %s",
                    path.c_str());
-        return path.str();
+        return std::string(path.str());
       }
     }
   }
@@ -1105,14 +1105,14 @@ std::string SwiftASTContext::GetResourceDir(StringRef platform_sdk_path,
       if (IsDirectory(FileSpec(path))) {
         StringRef resource_dir = path;
         llvm::sys::path::append(path, swift_stdlib_os_dir);
-        std::string s = path.str();
+        std::string s(path.str());
         if (IsDirectory(FileSpec(path))) {
           LOG_PRINTF(LIBLLDB_LOG_TYPES,
                      "found Swift resource dir via "
                      "Xcode contents path + default toolchain "
                      "relative dir: %s",
                      resource_dir.str().c_str());
-          return resource_dir;
+          return std::string(resource_dir);
         } else {
           // Search the SDK for a matching cross-SDK.
           path = platform_sdk_path;
@@ -1125,7 +1125,7 @@ std::string SwiftASTContext::GetResourceDir(StringRef platform_sdk_path,
                        "Xcode contents path + cross-compilation SDK "
                        "relative dir: %s",
                        resource_dir.str().c_str());
-            return resource_dir;
+            return std::string(resource_dir);
           }
         }
       }
@@ -1149,7 +1149,7 @@ std::string SwiftASTContext::GetResourceDir(StringRef platform_sdk_path,
                    "found Swift resource dir via command-line tools "
                    "path + usr/lib/swift: %s",
                    path.c_str());
-        return path.str();
+        return std::string(path.str());
       }
     }
   }
@@ -1480,7 +1480,7 @@ void SwiftASTContext::AddExtraClangArgs(std::vector<std::string> ExtraArgs) {
     // Otherwise add the argument to the list.
     if (!is_macro)
       ApplyWorkingDir(clang_argument, cur_working_dir);
-    AddClangArgument(clang_argument.str(), unique);
+    AddClangArgument(std::string(clang_argument.str()), unique);
   }
 }
 
@@ -1488,7 +1488,7 @@ void SwiftASTContext::AddUserClangArgs(TargetProperties &props) {
   Args args(props.GetSwiftExtraClangFlags());
   std::vector<std::string> user_clang_flags;
   for (const auto &arg : args.entries())
-    user_clang_flags.push_back(arg.ref());
+    user_clang_flags.push_back(std::string(arg.ref()));
   AddExtraClangArgs(user_clang_flags);
 }
 
@@ -1689,7 +1689,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
                                     got_serialized_options,
                                     found_swift_modules)) {
       // Validation errors are not fatal for the context.
-      swift_ast_sp->m_module_import_warnings.push_back(error.str());
+      swift_ast_sp->m_module_import_warnings.push_back(std::string(error.str()));
     }
 
     // Some of the bits in the compiler options we keep separately, so
@@ -1728,7 +1728,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
           sdk.Merge(
               sym_file->ParseXcodeSDK(*sym_file->GetCompileUnitAtIndex(i)));
 
-      std::string sdk_path = HostInfo::GetXcodeSDKPath(sdk);
+      std::string sdk_path(HostInfo::GetXcodeSDKPath(sdk));
       LOG_PRINTF(LIBLLDB_LOG_TYPES, "Host SDK path is %s.", sdk_path.c_str());
       if (FileSystem::Instance().Exists(sdk_path)) {
         swift_ast_sp->SetPlatformSDKPath(sdk_path);
@@ -1787,7 +1787,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
     bool exists = false;
     llvm::sys::fs::is_directory(path, exists);
     if (exists)
-      module_search_paths.push_back(path.str());
+      module_search_paths.push_back(std::string(path.str()));
   }
 
   swift_ast_sp->InitializeSearchPathOptions(module_search_paths,
@@ -2465,7 +2465,7 @@ swift::ClangImporterOptions &SwiftASTContext::GetClangImporterOptions() {
     llvm::SmallString<128> path;
     auto props = ModuleList::GetGlobalModuleListProperties();
     props.GetClangModulesCachePath().GetPath(path);
-    clang_importer_options.ModuleCachePath = path.str();
+    clang_importer_options.ModuleCachePath = std::string(path.str());
 
     FileSpec clang_dir_spec;
     clang_dir_spec = GetClangResourceDir();
@@ -2509,7 +2509,7 @@ void SwiftASTContext::InitializeSearchPathOptions(
   ConfigureResourceDirs(GetCompilerInvocation(), FileSpec(resource_dir),
                         triple);
 
-  std::string sdk_path = GetPlatformSDKPath();
+  std::string sdk_path(GetPlatformSDKPath());
   if (TargetSP target_sp = m_target_wp.lock())
     if (FileSpec &manual_override_sdk = target_sp->GetSDKPath()) {
       set_sdk = false;
@@ -2523,7 +2523,7 @@ void SwiftASTContext::InitializeSearchPathOptions(
       XcodeSDK::Info info;
       info.type = XcodeSDK::GetSDKTypeForTriple(triple);
       XcodeSDK sdk(info);
-      sdk_path = HostInfo::GetXcodeSDKPath(sdk);
+      sdk_path = std::string(HostInfo::GetXcodeSDKPath(sdk));
     }
     if (sdk_path.empty()) {
       // This fallback is questionable. Perhaps it should be removed.
@@ -2724,19 +2724,20 @@ public:
 
       if (message_ref.empty())
         m_raw_diagnostics.push_back(RawDiagnostic(
-            text.str(), info.Kind, bufferName, bufferID, line_col.first,
-            line_col.second,
+            std::string(text.str()), info.Kind, bufferName, bufferID,
+            line_col.first, line_col.second,
             use_fixits ? info.FixIts
                        : llvm::ArrayRef<swift::Diagnostic::FixIt>()));
       else
         m_raw_diagnostics.push_back(RawDiagnostic(
-            message_ref, info.Kind, bufferName, bufferID, line_col.first,
-            line_col.second,
+            std::string(message_ref), info.Kind, bufferName, bufferID,
+            line_col.first, line_col.second,
             use_fixits ? info.FixIts
                        : llvm::ArrayRef<swift::Diagnostic::FixIt>()));
     } else {
       m_raw_diagnostics.push_back(RawDiagnostic(
-          text.str(), info.Kind, bufferName, bufferID, line_col.first,
+          std::string(text.str()), info.Kind, bufferName, bufferID,
+          line_col.first,
           line_col.second, llvm::ArrayRef<swift::Diagnostic::FixIt>()));
     }
 
@@ -2806,7 +2807,8 @@ public:
           match.Printf("%s:%u:", diagnostic.bufferName.str().c_str(),
                        diagnostic.line);
           const size_t match_len = match.GetString().size();
-          size_t match_pos = diagnostic.description.find(match.GetString());
+          size_t match_pos =
+              StringRef(diagnostic.description).find(match.GetString());
           if (match_pos != std::string::npos) {
             // We have some <file>:<line>:" instances that need to be updated.
             StreamString fixed_description;
@@ -2821,7 +2823,8 @@ public:
                   diagnostic.line - first_line + 1);
               start_pos = match_pos + match_len;
               match_pos =
-                  diagnostic.description.find(match.GetString(), start_pos);
+                  StringRef(diagnostic.description).find(match.GetString(),
+                                                         start_pos);
             } while (match_pos != std::string::npos);
 
             // Append any last remaining text.
@@ -3259,7 +3262,7 @@ swift::ASTContext *SwiftASTContext::GetASTContext() {
       std::error_code ec =
           llvm::sys::fs::createUniqueDirectory("ModuleCache", path);
       if (!ec)
-        moduleCachePath = path.str();
+        moduleCachePath = std::string(path.str());
       else
         moduleCachePath = "/tmp/lldb-ModuleCache";
     }
@@ -3417,8 +3420,8 @@ bool SwiftASTContext::AddClangArgumentPair(StringRef clang_arg_1,
       return false;
   }
 
-  importer_options.ExtraArgs.push_back(clang_arg_1);
-  importer_options.ExtraArgs.push_back(clang_arg_2);
+  importer_options.ExtraArgs.push_back(std::string(clang_arg_1));
+  importer_options.ExtraArgs.push_back(std::string(clang_arg_2));
   return true;
 }
 
@@ -3909,7 +3912,7 @@ bool SwiftASTContext::LoadLibraryUsingPaths(
   {
 #ifdef __APPLE__
     library_fullname = "lib";
-    library_fullname.append(library_name);
+    library_fullname.append(std::string(library_name));
     library_fullname.append(".dylib");
 #else
     return false;
@@ -6523,11 +6526,11 @@ static std::string GetTupleElementName(const swift::TupleType *tuple_type,
 
   // Use the element name if there is one.
   if (!element.getName().empty())
-    return element.getName().str();
+    return std::string(element.getName().str());
 
   // If we know the printed index already, use that.
   if (!printed_index.empty())
-    return printed_index;
+    return std::string(printed_index);
 
   // Print the index and return that.
   std::string str;
@@ -6705,7 +6708,7 @@ CompilerType SwiftASTContext::GetFieldAtIndex(opaque_compiler_type_t type,
       break;
 
     auto property = stored_properties[idx];
-    name = property->getBaseName().userFacingName();
+    name = std::string(property->getBaseName().userFacingName());
 
     // We cannot reliably get layout information without an execution
     // context.
@@ -7101,7 +7104,7 @@ CompilerType SwiftASTContext::GetChildCompilerTypeAtIndex(
 
             CompilerType child_type =
                 ToCompilerType(VD->getType().getPointer());
-            child_name = VD->getNameStr();
+            child_name = std::string(VD->getNameStr());
             if (!get_type_size(child_byte_size, child_type))
               return {};
             child_is_base_class = false;
@@ -7124,7 +7127,7 @@ CompilerType SwiftASTContext::GetChildCompilerTypeAtIndex(
         nominal->getModuleContext(), property, nullptr);
 
     CompilerType child_type = ToCompilerType(child_swift_type.getPointer());
-    child_name = property->getBaseName().userFacingName();
+    child_name = std::string(property->getBaseName().userFacingName());
     if (!get_type_size(child_byte_size, child_type))
       return {};
     child_is_base_class = false;

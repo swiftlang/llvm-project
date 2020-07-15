@@ -258,10 +258,10 @@ bool MainThreadCheckerRuntime::NotifyBreakpointHit(
       instance->RetrieveReportData(context->exe_ctx_ref);
 
   if (report) {
-    std::string description = report->GetAsDictionary()
+    std::string description(report->GetAsDictionary()
                                 ->GetValueForKey("description")
                                 ->GetAsString()
-                                ->GetValue();
+                                ->GetValue());
     thread_sp->SetStopInfo(
         InstrumentationRuntimeStopInfo::CreateStopReasonWithInstrumentationData(
             *thread_sp, description, report));

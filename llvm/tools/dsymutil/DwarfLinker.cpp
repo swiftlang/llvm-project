@@ -337,7 +337,7 @@ static void analyzeImportedModule(
             Twine("Conflicting parseable interfaces for Swift Module ") +
                 *Name + ": " + Entry + " and " + Path,
             DIE);
-      Entry = ResolvedPath.str();
+      Entry = std::string(ResolvedPath.str());
     }
 }
 
@@ -1638,7 +1638,7 @@ void DwarfLinker::DIECloner::addObjCAccelerator(CompileUnit &Unit,
       std::string MethodNameNoCategory(Name.getString().data(), OpenParens + 2);
       // FIXME: The missing space here may be a bug, but
       //        dsymutil-classic also does it this way.
-      MethodNameNoCategory.append(SelectorStart);
+      MethodNameNoCategory.append(std::string(SelectorStart));
       Unit.addNameAccelerator(Die, StringPool.getEntry(MethodNameNoCategory),
                               SkipPubSection);
     }

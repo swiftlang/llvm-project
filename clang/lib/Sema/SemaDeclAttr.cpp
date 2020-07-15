@@ -8584,8 +8584,8 @@ static void DoEmitAvailabilityWarning(Sema &S, AvailabilityResult K,
     unsigned Warning = UseNewWarning ? diag::warn_unguarded_availability_new
                                      : diag::warn_unguarded_availability;
 
-    std::string PlatformName = AvailabilityAttr::getPrettyPlatformName(
-        S.getASTContext().getTargetInfo().getPlatformName());
+    std::string PlatformName(AvailabilityAttr::getPrettyPlatformName(
+        S.getASTContext().getTargetInfo().getPlatformName()));
 
     S.Diag(Loc, Warning) << OffendingDecl << PlatformName
                          << Introduced.getAsString();
@@ -8616,10 +8616,10 @@ static void DoEmitAvailabilityWarning(Sema &S, AvailabilityResult K,
           Enclosing, S.getSourceManager(), S.getLangOpts());
       if (!Insertion)
         return;
-      std::string PlatformName =
+      std::string PlatformName(
           AvailabilityAttr::getPlatformNameSourceSpelling(
               S.getASTContext().getTargetInfo().getPlatformName())
-              .lower();
+              .lower());
       std::string Introduced =
           OffendingDecl->getVersionIntroduced().getAsString();
       FixitNoteDiag << FixItHint::CreateInsertion(
@@ -9047,8 +9047,8 @@ void DiagnoseUnguardedAvailability::DiagnoseDeclAvailability(
             ? diag::warn_unguarded_availability_new
             : diag::warn_unguarded_availability;
 
-    std::string PlatformName = AvailabilityAttr::getPrettyPlatformName(
-        SemaRef.getASTContext().getTargetInfo().getPlatformName());
+    std::string PlatformName(AvailabilityAttr::getPrettyPlatformName(
+        SemaRef.getASTContext().getTargetInfo().getPlatformName()));
 
     SemaRef.Diag(Range.getBegin(), DiagKind)
         << Range << D << PlatformName << Introduced.getAsString();

@@ -189,7 +189,7 @@ static std::string GetStopReasonDescription(StructuredData::ObjectSP report) {
   llvm::StringRef stop_reason_description_ref;
   report->GetAsDictionary()->GetValueForKeyAsString("description",
                                                     stop_reason_description_ref);
-  std::string stop_reason_description = stop_reason_description_ref;
+  std::string stop_reason_description(stop_reason_description_ref);
 
   if (!stop_reason_description.size()) {
     stop_reason_description = "Undefined behavior detected";

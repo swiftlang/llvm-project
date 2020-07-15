@@ -1227,7 +1227,7 @@ void GDBRemoteCommunicationServerCommon::
     if (cpu_subtype != 0)
       response.Printf("cpusubtype:%" PRIx32 ";", cpu_subtype);
 
-    const std::string vendor = proc_triple.getVendorName();
+    const std::string vendor(proc_triple.getVendorName());
     if (!vendor.empty())
       response.Printf("vendor:%s;", vendor.c_str());
 #else

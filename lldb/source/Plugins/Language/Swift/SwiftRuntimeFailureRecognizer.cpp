@@ -18,7 +18,7 @@ SwiftRuntimeFailureRecognizedStackFrame::
     SwiftRuntimeFailureRecognizedStackFrame(StackFrameSP most_relevant_frame_sp,
                                             StringRef stop_desc)
     : m_most_relevant_frame(most_relevant_frame_sp) {
-  m_stop_desc = stop_desc;
+  m_stop_desc = std::string(stop_desc);
 }
 
 lldb::RecognizedStackFrameSP SwiftRuntimeFailureFrameRecognizer::RecognizeFrame(

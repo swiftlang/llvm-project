@@ -1825,7 +1825,7 @@ protected:
     stream.Printf("kind=%s",
                   SwiftDemangleNodeKindToCString(node_ptr->getKind()));
     if (node_ptr->hasText()) {
-      std::string Text = node_ptr->getText();
+      std::string Text(node_ptr->getText());
       stream.Printf(", text=\"%s\"", Text.c_str());
     }
     if (node_ptr->hasIndex())

@@ -496,10 +496,10 @@ ThreadSanitizerRuntime::RetrieveReportData(ExecutionContextRef exe_ctx_ref) {
 
 std::string ThreadSanitizerRuntime::FormatDescription(
     StructuredData::ObjectSP report, bool &is_swift_access_race) {
-  std::string description = report->GetAsDictionary()
-                                ->GetValueForKey("issue_type")
-                                ->GetAsString()
-                                ->GetValue();
+  std::string description(report->GetAsDictionary()
+                              ->GetValueForKey("issue_type")
+                              ->GetAsString()
+                              ->GetValue());
 
   if (description == "data-race") {
     return "Data race";
@@ -555,7 +555,7 @@ static std::string Sprintf(const char *format, ...) {
   va_start(args, format);
   s.PrintfVarArg(format, args);
   va_end(args);
-  return s.GetString();
+  return std::string(s.GetString());
 }
 
 static std::string GetSymbolNameFromAddress(ProcessSP process_sp, addr_t addr) {
@@ -631,10 +631,10 @@ std::string
 ThreadSanitizerRuntime::GenerateSummary(StructuredData::ObjectSP report) {
   ProcessSP process_sp = GetProcessSP();
 
-  std::string summary = report->GetAsDictionary()
-                            ->GetValueForKey("description")
-                            ->GetAsString()
-                            ->GetValue();
+  std::string summary(report->GetAsDictionary()
+                          ->GetValueForKey("description")
+                          ->GetAsString()
+                          ->GetValue());
   bool is_swift_access_race = report->GetAsDictionary()
                                   ->GetValueForKey("is_swift_access_race")
                                   ->GetAsBoolean()
@@ -681,10 +681,10 @@ ThreadSanitizerRuntime::GenerateSummary(StructuredData::ObjectSP report) {
                                        ->GetValueForKey("locs")
                                        ->GetAsArray()
                                        ->GetItemAtIndex(0);
-    std::string object_type = loc->GetAsDictionary()
-                                  ->GetValueForKey("object_type")
-                                  ->GetAsString()
-                                  ->GetValue();
+    std::string object_type(loc->GetAsDictionary()
+                                ->GetValueForKey("object_type")
+                                ->GetAsString()
+                                ->GetValue());
     if (!object_type.empty()) {
       summary = "Race on " + object_type + " object";
     }
@@ -750,8 +750,8 @@ std::string ThreadSanitizerRuntime::GetLocationDescription(
                                        ->GetValueForKey("locs")
                                        ->GetAsArray()
                                        ->GetItemAtIndex(0);
-    std::string type =
-        loc->GetAsDictionary()->GetValueForKey("type")->GetStringValue();
+    std::string type(
+        loc->GetAsDictionary()->GetValueForKey("type")->GetStringValue());
     if (type == "global") {
       global_addr = loc->GetAsDictionary()
                         ->GetValueForKey("address")
@@ -780,10 +780,10 @@ std::string ThreadSanitizerRuntime::GetLocationDescription(
                       ->GetValueForKey("size")
                       ->GetAsInteger()
                       ->GetValue();
-      std::string object_type = loc->GetAsDictionary()
-                                    ->GetValueForKey("object_type")
-                                    ->GetAsString()
-                                    ->GetValue();
+      std::string object_type(loc->GetAsDictionary()
+                                  ->GetValueForKey("object_type")
+                                  ->GetAsString()
+                                  ->GetValue());
       if (!object_type.empty()) {
         result = Sprintf("Location is a %ld-byte %s object at 0x%llx", size,
                          object_type.c_str(), addr);
@@ -1005,8 +1005,8 @@ static std::string GenerateThreadName(const std::string &path,
   }
 
   if (path == "locs") {
-    std::string type =
-        o->GetAsDictionary()->GetValueForKey("type")->GetStringValue();
+    std::string type(
+        o->GetAsDictionary()->GetValueForKey("type")->GetStringValue());
     int thread_id =
         o->GetObjectForDotSeparatedPath("thread_id")->GetIntegerValue();
     int fd =

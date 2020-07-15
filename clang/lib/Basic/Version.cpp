@@ -49,7 +49,7 @@ std::string getClangRepositoryPath() {
   if (Start != StringRef::npos)
     URL = URL.substr(Start + 4);
 
-  return URL;
+  return std::string(URL);
 #endif
 }
 
@@ -67,7 +67,7 @@ std::string getLLVMRepositoryPath() {
   if (Start != StringRef::npos)
     URL = URL.substr(Start);
 
-  return URL;
+  return std::string(URL);
 }
 
 std::string getClangRevision() {

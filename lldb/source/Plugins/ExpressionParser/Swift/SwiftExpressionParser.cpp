@@ -928,7 +928,7 @@ CreateMainFile(SwiftASTContextForExpressions &swift_ast_context,
 
         llvm::SmallString<256> source_dir(temp_source_path);
         llvm::sys::path::remove_filename(source_dir);
-        ir_gen_options.DebugCompilationDir = source_dir.str();
+        ir_gen_options.DebugCompilationDir = std::string(source_dir.str());
 
         return {buffer_id, temp_source_path};
       }
@@ -939,7 +939,7 @@ CreateMainFile(SwiftASTContextForExpressions &swift_ast_context,
       llvm::MemoryBuffer::getMemBufferCopy(text, filename));
   unsigned buffer_id = swift_ast_context.GetSourceManager().addNewSourceBuffer(
       std::move(expr_buffer));
-  return {buffer_id, filename};
+  return {buffer_id, std::string(filename)};
 }
 
 /// Attempt to materialize one variable.

@@ -190,10 +190,10 @@ StructuredData::ObjectSP AddressSanitizerRuntime::RetrieveReportData() {
 
 std::string
 AddressSanitizerRuntime::FormatDescription(StructuredData::ObjectSP report) {
-  std::string description = report->GetAsDictionary()
-                                ->GetValueForKey("description")
-                                ->GetAsString()
-                                ->GetValue();
+  std::string description(report->GetAsDictionary()
+                              ->GetValueForKey("description")
+                              ->GetAsString()
+                              ->GetValue());
   return llvm::StringSwitch<std::string>(description)
       .Case("heap-use-after-free", "Use of deallocated memory")
       .Case("heap-buffer-overflow", "Heap buffer overflow")

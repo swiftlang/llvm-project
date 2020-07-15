@@ -1258,7 +1258,7 @@ OptionalClangModuleID TypeSystemClang::GetOrCreateClangModule(
   if (!created)
     return ast_source->GetIDForModule(module);
 
-  module->APINotesFile = apinotes;
+  module->APINotesFile = std::string(apinotes);
   return ast_source->RegisterModule(module);
 }
 

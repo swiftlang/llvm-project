@@ -243,10 +243,10 @@ void LogDiagnosticPrinter::HandleDiagnostic(DiagnosticsEngine::Level Level,
     unsigned TokSize = 0;
     if (R.isTokenRange())
       TokSize = Lexer::MeasureTokenLength(R.getEnd(), SM, *LangOpts);
-    Der = {{StartFilename, StartPLoc.getLine(), StartPLoc.getColumn(),
-            StartLoc.getFileOffset()},
-           {EndFilename, EndPLoc.getLine(), EndPLoc.getColumn() + TokSize,
-            EndLoc.getFileOffset() + TokSize}};
+    Der = {{std::string(StartFilename), StartPLoc.getLine(),
+            StartPLoc.getColumn(), StartLoc.getFileOffset()},
+           {std::string(EndFilename), EndPLoc.getLine(),
+            EndPLoc.getColumn() + TokSize, EndLoc.getFileOffset() + TokSize}};
     return true;
   };
 

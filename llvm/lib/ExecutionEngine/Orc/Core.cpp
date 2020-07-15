@@ -829,7 +829,7 @@ Error JITDylib::defineMaterializing(const SymbolFlagsMap &SymbolFlags) {
           Symbols.erase(SI);
 
         // FIXME: Return all duplicates.
-        return make_error<DuplicateDefinition>(*KV.first);
+        return make_error<DuplicateDefinition>(std::string(*KV.first));
       }
     }
 

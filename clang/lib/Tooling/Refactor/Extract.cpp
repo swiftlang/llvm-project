@@ -263,14 +263,12 @@ initiateAnyExtractOperation(ASTSlice &Slice, ASTContext &Context,
       FirstCandidateInfo = ExtractOperation::CandidateInfo(
           FirstCandidateRange, "+ ",
           /*AnalyzedStatement=*/BinOp->getRHS());
-      Candidates.push_back(
-          Lexer::getSourceText(
-              CharSourceRange::getTokenRange(FirstCandidateRange),
-              Context.getSourceManager(), Context.getLangOpts())
-              .trim());
-      Candidates.push_back(Lexer::getSourceText(
+      Candidates.push_back(std::string(Lexer::getSourceText(
+          CharSourceRange::getTokenRange(FirstCandidateRange),
+          Context.getSourceManager(), Context.getLangOpts()).trim()));
+      Candidates.push_back(std::string(Lexer::getSourceText(
           CharSourceRange::getTokenRange(BinOp->getSourceRange()),
-          Context.getSourceManager(), Context.getLangOpts()));
+          Context.getSourceManager(), Context.getLangOpts())));
     }
   } else if (const auto *CS = dyn_cast<CompoundStmt>(Selected)) {
     // We want to extract some child statements from a compound statement unless
@@ -1870,7 +1868,7 @@ llvm::Expected<RefactoringResult> ExtractOperation::perform(
     }
     NameOS << ')';
     ReturnType.print(OS, PP, NameOS.str());
-    unsigned NameOffset = OS.str().find(ExtractedName);
+    unsigned NameOffset = StringRef(OS.str()).find(ExtractedName);
     if (isMethodExtraction() && isEnclosingMethodConst(FunctionLikeParentDecl))
       OS << " const";
     return RefactoringReplacement::AssociatedSymbolLocation(
