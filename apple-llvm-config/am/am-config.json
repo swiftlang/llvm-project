@@ -4,8 +4,18 @@
   "upstream": "llvm.org/master"
 },
 {
+  "target": "apple/stable/20200714",
+  "upstream": "llvm.org/release/11.x"
+},
+{
   "target": "swift/master-next",
   "upstream": "apple/master",
+  "test-command": "true"
+},
+{
+  "target": "swift/master-rebranch",
+  "upstream": "apple/stable/20200714",
+  "test_commits_in_bundle": true,
   "test-command": "true"
 },
 {
