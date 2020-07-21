@@ -13856,10 +13856,8 @@ SDValue AArch64TargetLowering::LowerRETURNADDR(SDValue Op,
   // If we're doing LR signing, we need to fixup ReturnAddr: strip it.
   if (Subtarget->isTargetMachO() &&
       MF.getFunction().hasFnAttribute("ptrauth-returns"))
-    return DAG.getNode(ISD::INTRINSIC_WO_CHAIN, DL, VT,
-                       DAG.getConstant(Intrinsic::ptrauth_strip, DL, MVT::i32),
-                       ReturnAddress,
-                       DAG.getConstant(AArch64PACKey::IB, DL, MVT::i32));
+    return SDValue(
+        DAG.getMachineNode(AArch64::XPACIuntied, DL, VT, ReturnAddress), 0);
   // If not, on Darwin, we know we will never seen a frame with a signed LR.
   else if (Subtarget->isTargetDarwin())
     return ReturnAddress;

@@ -2122,8 +2122,8 @@ let Predicates = [HasPAuth] in {
   // mov $dst, $src
   // xpaci $dst
   def XPACIuntied : Pseudo<(outs GPR64:$dst), (ins GPR64:$src), []>, Sched<[]>;
-  def : Pat<(int_ptrauth_strip GPR64:$Rd, 0), (XPACIuntied GPR64:$Rd)>;
-  def : Pat<(int_ptrauth_strip GPR64:$Rd, 1), (XPACIuntied GPR64:$Rd)>;
+  def : Pat<(int_ptrauth_strip GPR64:$Rd, 0), (XPACI GPR64:$Rd)>;
+  def : Pat<(int_ptrauth_strip GPR64:$Rd, 1), (XPACI GPR64:$Rd)>;
 
   def XPACD : ClearAuth<1, "xpacd">;
   def : Pat<(int_ptrauth_strip GPR64:$Rd, 2), (XPACD GPR64:$Rd)>;
