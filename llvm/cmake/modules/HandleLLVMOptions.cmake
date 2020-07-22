@@ -803,21 +803,19 @@ add_definitions( -D__STDC_CONSTANT_MACROS )
 add_definitions( -D__STDC_FORMAT_MACROS )
 add_definitions( -D__STDC_LIMIT_MACROS )
 
-# clang and gcc don't default-print colored diagnostics when invoked from Ninja.
-if (UNIX AND
-    CMAKE_GENERATOR STREQUAL "Ninja" AND
-    (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
-     (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
-      NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9))))
-  append("-fdiagnostics-color" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-endif()
-
 # lld doesn't print colored diagnostics when invoked from Ninja
 if (UNIX AND CMAKE_GENERATOR STREQUAL "Ninja")
-  include(CheckLinkerFlag)
-  check_linker_flag("-Wl,--color-diagnostics" LINKER_SUPPORTS_COLOR_DIAGNOSTICS)
-  append_if(LINKER_SUPPORTS_COLOR_DIAGNOSTICS "-Wl,--color-diagnostics"
-    CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+  # clang and gcc don't default-print colored diagnostics when invoked from Ninja.
+  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
+     (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
+      NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)))
+    append("-fdiagnostics-color" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  else()
+    include(CheckLinkerFlag)
+    check_linker_flag("-Wl,--color-diagnostics" LINKER_SUPPORTS_COLOR_DIAGNOSTICS)
+    append_if(LINKER_SUPPORTS_COLOR_DIAGNOSTICS "-Wl,--color-diagnostics"
+      CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+  endif()
 endif()
 
 # Add flags for add_dead_strip().
