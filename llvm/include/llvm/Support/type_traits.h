@@ -97,7 +97,7 @@ union trivial_helper {
 template <typename T>
 struct is_trivially_copy_constructible
     : std::is_copy_constructible<
-          ::llvm::detail::copy_construction_triviality_helper<T>> {};
+          ::llvm::detail::copy_construction_triviality_helper<T> > {};
 template <typename T>
 struct is_trivially_copy_constructible<T &> : std::true_type {};
 template <typename T>
@@ -108,7 +108,7 @@ struct is_trivially_copy_constructible<T &&> : std::false_type {};
 template <typename T>
 struct is_trivially_move_constructible
     : std::is_move_constructible<
-          ::llvm::detail::move_construction_triviality_helper<T>> {};
+          ::llvm::detail::move_construction_triviality_helper<T> > {};
 template <typename T>
 struct is_trivially_move_constructible<T &> : std::true_type {};
 template <typename T>
