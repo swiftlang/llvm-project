@@ -348,6 +348,7 @@ inline uint64_t get_execution_seed() {
 // support user-defined types which happen to satisfy this property.
 template <typename T> struct is_hashable_data
   : std::integral_constant<bool, ((is_integral_or_enum<T>::value ||
+                                   std::is_same<T, hash_code>::value ||
                                    std::is_pointer<T>::value) &&
                                   64 % sizeof(T) == 0)> {};
 
