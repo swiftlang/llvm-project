@@ -102,12 +102,12 @@ public:
 /// differing argument types even if they would implicit promote to a common
 /// type without changing the value.
 template <typename T>
-std::enable_if_t<is_integral_or_enum<T>::value, hash_code> hash_value(T value);
+std::enable_if_t<is_integral_or_enum<T>::value, hash_code> hash_value(T &value);
 
 /// Compute a hash_code for a pointer's address.
 ///
 /// N.B.: This hashes the *address*. Not the value and not the type.
-template <typename T> hash_code hash_value(const T *ptr);
+template <typename T> hash_code hash_value(const T &ptr);
 
 /// Compute a hash_code for a pair of objects.
 template <typename T, typename U>
@@ -631,7 +631,7 @@ inline hash_code hash_integer_value(uint64_t value) {
 // Declared and documented above, but defined here so that any of the hashing
 // infrastructure is available.
 template <typename T>
-std::enable_if_t<is_integral_or_enum<T>::value, hash_code> hash_value(T value) {
+std::enable_if_t<is_integral_or_enum<T>::value, hash_code> hash_value(T &value) {
   return ::llvm::hashing::detail::hash_integer_value(
       static_cast<uint64_t>(value));
 }
