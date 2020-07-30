@@ -179,6 +179,19 @@ int REPL::IOHandlerFixIndentation(IOHandler &io_handler,
   return (int)desired_indent - actual_indent;
 }
 
+static bool readCode(std::string path, std::string &code) {
+    auto &fs = FileSystem::Instance();
+    uint64_t file_size = fs.GetByteSize(path);
+    if (file_size > 0 && file_size < code.max_size()) {
+      auto data_sp = fs.CreateDataBuffer(path);
+      if (data_sp != nullptr) {
+        code.assign((const char *)data_sp->GetBytes(), data_sp->GetByteSize());
+        return true;
+      }
+    }
+    return false;
+}
+
 void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
   lldb::StreamFileSP output_sp(io_handler.GetOutputStreamFileSP());
   lldb::StreamFileSP error_sp(io_handler.GetErrorStreamFileSP());
@@ -257,6 +270,15 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
         }
       }
     } else {
+      if (code[0] == '<') {
+        // user wants to read code from a file. interpret rest of line as a literal path
+        auto path = llvm::StringRef(code.substr(1)).trim().str();
+        if (!readCode(path, code)) {
+          error_sp->Printf("could not read file at path '%s'\n", path.c_str());
+          return;
+        }
+      }
+
       // Unwind any expression we might have been running in case our REPL
       // expression crashed and the user was looking around
       if (m_dedicated_repl_mode) {
