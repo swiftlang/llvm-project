@@ -179,6 +179,36 @@ int REPL::IOHandlerFixIndentation(IOHandler &io_handler,
   return (int)desired_indent - actual_indent;
 }
 
+static bool ReadCode(const std::string &path, std::string &code,
+                     lldb::StreamFileSP &error_sp) {
+  auto &fs = FileSystem::Instance();
+  llvm::Twine pathTwine(path);
+  if (!fs.Exists(pathTwine)) {
+    error_sp->Printf("no such file at path '%s'\n", path.c_str());
+    return false;
+  }
+  if (!fs.Readable(pathTwine)) {
+    error_sp->Printf("could not read file at path '%s'\n", path.c_str());
+    return false;
+  }
+  const size_t file_size = fs.GetByteSize(pathTwine);
+  const size_t max_size = code.max_size();
+  if (file_size > max_size) {
+    error_sp->Printf("file at path '%s' too large: "
+                     "file_size = %llu, max_size = %llu\n",
+                     path.c_str(), file_size, max_size);
+    return false;
+  }
+  auto data_sp = fs.CreateDataBuffer(pathTwine);
+  if (data_sp == nullptr) {
+    error_sp->Printf("could not create buffer for "
+                     "file at path '%s'\n", path.c_str());
+    return false;
+  }
+  code.assign((const char *)data_sp->GetBytes(), data_sp->GetByteSize());
+  return true;
+}
+
 void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
   lldb::StreamFileSP output_sp(io_handler.GetOutputStreamFileSP());
   lldb::StreamFileSP error_sp(io_handler.GetErrorStreamFileSP());
@@ -257,6 +287,14 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
         }
       }
     } else {
+      if (code[0] == '<') {
+        // user wants to read code from a file. interpret rest of line as a literal path
+        auto path = llvm::StringRef(code.substr(1)).trim().str();
+        if (!ReadCode(path, code, error_sp)) {
+          return;
+        }
+      }
+
       // Unwind any expression we might have been running in case our REPL
       // expression crashed and the user was looking around
       if (m_dedicated_repl_mode) {
