@@ -202,6 +202,28 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
 
     lldb::ProcessSP process_sp(exe_ctx.GetProcessSP());
 
+    if (code[0] == '<') {
+      // user wants to redirect input from a file.
+      bool success = false;
+      auto source_path = code.substr(1);
+      source_path.assign(llvm::StringRef(source_path).trim().str());
+      auto &fs = FileSystem::Instance();
+      uint64_t file_size = fs.GetByteSize(source_path);
+      if (file_size > 0 && file_size < code.max_size()) {
+        auto data_sp = fs.CreateDataBuffer(source_path);
+        if (data_sp != nullptr) {
+          code.assign((const char *)data_sp->GetBytes(), data_sp->GetByteSize());
+          success = true;
+        }
+      }
+      if (!success) {
+        error_sp->PutCString("could not read file at path '");
+        error_sp->PutCString(source_path);
+        error_sp->PutCString("'\n'");
+        return;
+      }
+    }
+
     if (code[0] == ':') {
       // Meta command
       // Strip the ':'
