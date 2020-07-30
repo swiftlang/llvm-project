@@ -51,7 +51,6 @@ set(LIBS
   clangSerialization
   clangTooling
   clangToolingRefactor
-  LLVMOption
   LLVMSupport
 )
 
