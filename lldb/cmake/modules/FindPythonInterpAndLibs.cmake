@@ -26,8 +26,8 @@ else()
       endif()
     else()
       # SWIFT_ENABLE_TENSORFLOW
-      # Make it so that LLDB can find Python 3.6 or Python 3.7.
-      set(Python_ADDITIONAL_VERSIONS 3.7 3.6 3.5 3.4 3.3 3.2 3.1 3.0 2.7 2.6 2.5)
+      # Make it so that LLDB can find Python 3.6+
+      set(Python_ADDITIONAL_VERSIONS 3.8 3.7 3.6 3.5 3.4 3.3 3.2 3.1 3.0 2.7 2.6 2.5)
 
       find_package(PythonInterp QUIET)
       find_package(PythonLibs QUIET)
