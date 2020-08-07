@@ -179,6 +179,19 @@ int REPL::IOHandlerFixIndentation(IOHandler &io_handler,
   return (int)desired_indent - actual_indent;
 }
 
+static bool readCode(std::string path, std::string &code) {
+    auto &fs = FileSystem::Instance();
+    uint64_t file_size = fs.GetByteSize(path);
+    if (file_size > 0 && file_size < code.max_size()) {
+      auto data_sp = fs.CreateDataBuffer(path);
+      if (data_sp != nullptr) {
+        code.assign((const char *)data_sp->GetBytes(), data_sp->GetByteSize());
+        return true;
+      }
+    }
+    return false;
+}
+
 void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
   lldb::StreamFileSP output_sp(io_handler.GetOutputStreamFileSP());
   lldb::StreamFileSP error_sp(io_handler.GetErrorStreamFileSP());
@@ -202,281 +215,290 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
 
     lldb::ProcessSP process_sp(exe_ctx.GetProcessSP());
 
-    if (code[0] == '<') {
-      // user wants to redirect input from a file.
-      bool success = false;
-      auto source_path = code.substr(1);
-      source_path.assign(llvm::StringRef(source_path).trim().str());
-      auto &fs = FileSystem::Instance();
-      uint64_t file_size = fs.GetByteSize(source_path);
-      if (file_size > 0 && file_size < code.max_size()) {
-        auto data_sp = fs.CreateDataBuffer(source_path);
-        if (data_sp != nullptr) {
-          code.assign((const char *)data_sp->GetBytes(), data_sp->GetByteSize());
-          success = true;
-        }
-      }
-      if (!success) {
-        error_sp->PutCString("could not read file at path '");
-        error_sp->PutCString(source_path);
-        error_sp->PutCString("'\n'");
-        return;
-      }
-    }
+    std::vector<std::string> stack{code};
+    while (!stack.empty()) {
+      code = stack.back();
+      stack.pop_back();
+      
+      while (!code.empty()) {
+        auto lines = llvm::StringRef(code).split('\n');
+        auto line = lines.first;
+        auto rest = lines.second.str();
 
-    if (code[0] == ':') {
-      // Meta command
-      // Strip the ':'
-      code.erase(0, 1);
-      if (!llvm::StringRef(code).trim().empty()) {
-        // "lldb" was followed by arguments, so just execute the command dump
-        // the results
-
-        // Turn off prompt on quit in case the user types ":quit"
-        const bool saved_prompt_on_quit = ci.GetPromptOnQuit();
-        if (saved_prompt_on_quit)
-          ci.SetPromptOnQuit(false);
-
-        // Execute the command
-        CommandReturnObject result(debugger.GetUseColor());
-        result.SetImmediateOutputStream(output_sp);
-        result.SetImmediateErrorStream(error_sp);
-        ci.HandleCommand(code.c_str(), eLazyBoolNo, result);
-
-        if (saved_prompt_on_quit)
-          ci.SetPromptOnQuit(true);
-
-        if (result.GetStatus() == lldb::eReturnStatusQuit) {
-          did_quit = true;
-          io_handler.SetIsDone(true);
-          if (debugger.CheckTopIOHandlerTypes(
-                  IOHandler::Type::REPL, IOHandler::Type::CommandInterpreter)) {
-            // We typed "quit" or an alias to quit so we need to check if the
-            // command interpreter is above us and tell it that it is done as
-            // well so we don't drop back into the command interpreter if we
-            // have already quit
-            lldb::IOHandlerSP io_handler_sp(ci.GetIOHandler());
-            if (io_handler_sp)
-              io_handler_sp->SetIsDone(true);
+        if (line.consume_front("<")) {
+          // user wants to redirect input from a file.
+          auto source_path = line.trim().str();
+          if (!readCode(source_path, code)) {
+            error_sp->PutCString("could not read file at path '");
+            error_sp->PutCString(source_path);
+            error_sp->PutCString("'\n'");
+            return;
           }
+          if (!rest.empty()) stack.push_back(rest);
+          continue;
         }
-      } else {
-        // ":" was followed by no arguments, so push the LLDB command prompt
-        if (debugger.CheckTopIOHandlerTypes(
-                IOHandler::Type::REPL, IOHandler::Type::CommandInterpreter)) {
-          // If the user wants to get back to the command interpreter and the
-          // command interpreter is what launched the REPL, then just let the
-          // REPL exit and fall back to the command interpreter.
-          io_handler.SetIsDone(true);
-        } else {
-          // The REPL wasn't launched the by the command interpreter, it is the
-          // base IOHandler, so we need to get the command interpreter and
-          lldb::IOHandlerSP io_handler_sp(ci.GetIOHandler());
-          if (io_handler_sp) {
-            io_handler_sp->SetIsDone(false);
-            debugger.RunIOHandlerAsync(ci.GetIOHandler());
-          }
-        }
-      }
-    } else {
-      // Unwind any expression we might have been running in case our REPL
-      // expression crashed and the user was looking around
-      if (m_dedicated_repl_mode) {
-        Thread *thread = exe_ctx.GetThreadPtr();
-        if (thread && thread->UnwindInnermostExpression().Success()) {
-          thread->SetSelectedFrameByIndex(0, false);
-          exe_ctx.SetFrameSP(thread->GetSelectedFrame());
-        }
-      }
 
-      const bool colorize_err = error_sp->GetFile().GetIsTerminalWithColors();
+        if (line.consume_front(":")) {
+          // Meta command
+          // Strip the ':'
+          auto command = line.trim().str();
+          if (!command.empty()) {
+            // "lldb" was followed by arguments, so just execute the command dump
+            // the results
 
-      EvaluateExpressionOptions expr_options = m_expr_options;
-      expr_options.SetCoerceToId(m_varobj_options.use_objc);
-      expr_options.SetKeepInMemory(true);
-      expr_options.SetUseDynamic(m_varobj_options.use_dynamic);
-      expr_options.SetGenerateDebugInfo(true);
-      expr_options.SetREPLEnabled(true);
-      expr_options.SetTrapExceptions(false);
-      expr_options.SetColorizeErrors(colorize_err);
-      expr_options.SetPoundLine(m_repl_source_path.c_str(),
-                                m_code.GetSize() + 1);
+            // Turn off prompt on quit in case the user types ":quit"
+            const bool saved_prompt_on_quit = ci.GetPromptOnQuit();
+            if (saved_prompt_on_quit)
+              ci.SetPromptOnQuit(false);
 
-      // There is no point in trying to run REPL expressions on just the
-      // current thread of the program, since the REPL tracks the states of
-      // individual threads as you would in a regular debugging session.
-      // Interrupting the process to switch from one thread to many has
-      // observable effects (for instance it causes anything waiting in the
-      // kernel to be interrupted). Since we aren't getting any benefit from
-      // doing this in the REPL, let's not.
-      expr_options.SetStopOthers(false);
+            // Execute the command
+            CommandReturnObject result(debugger.GetUseColor());
+            result.SetImmediateOutputStream(output_sp);
+            result.SetImmediateErrorStream(error_sp);
+            ci.HandleCommand(command.c_str(), eLazyBoolNo, result);
 
-      // Don't time out REPL expressions.
-      expr_options.SetTimeout(llvm::None);
+            if (saved_prompt_on_quit)
+              ci.SetPromptOnQuit(true);
 
-      expr_options.SetLanguage(GetLanguage());
-
-      PersistentExpressionState *persistent_state =
-          m_target.GetPersistentExpressionStateForLanguage(GetLanguage());
-      if (!persistent_state)
-        return;
-
-      if (!persistent_state)
-      {
-        error_sp->PutCString("error getting the expression "
-                             "context for the REPL.\n");
-        io_handler.SetIsDone(true);
-        return;
-      }
-      const size_t var_count_before = persistent_state->GetSize();
-
-      const char *expr_prefix = nullptr;
-      lldb::ValueObjectSP result_valobj_sp;
-      Status error;
-      lldb::ExpressionResults execution_results =
-          UserExpression::Evaluate(exe_ctx, expr_options, code.c_str(),
-                                   expr_prefix, result_valobj_sp, error,
-                                   nullptr); // fixed expression
-
-      // CommandInterpreter &ci = debugger.GetCommandInterpreter();
-
-      if (process_sp && process_sp->IsAlive()) {
-        bool add_to_code = true;
-        bool handled = false;
-        if (result_valobj_sp) {
-          lldb::Format format = m_format_options.GetFormat();
-
-          if (result_valobj_sp->GetError().Success()) {
-            handled |= PrintOneVariable(debugger, output_sp, result_valobj_sp);
-          } else if (result_valobj_sp->GetError().GetError() ==
-                     UserExpression::kNoResult) {
-            if (format != lldb::eFormatVoid && debugger.GetNotifyVoid()) {
-              error_sp->PutCString("(void)\n");
-              handled = true;
+            if (result.GetStatus() == lldb::eReturnStatusQuit) {
+              did_quit = true;
+              io_handler.SetIsDone(true);
+              if (debugger.CheckTopIOHandlerTypes(
+                      IOHandler::Type::REPL, IOHandler::Type::CommandInterpreter)) {
+                // We typed "quit" or an alias to quit so we need to check if the
+                // command interpreter is above us and tell it that it is done as
+                // well so we don't drop back into the command interpreter if we
+                // have already quit
+                lldb::IOHandlerSP io_handler_sp(ci.GetIOHandler());
+                if (io_handler_sp)
+                  io_handler_sp->SetIsDone(true);
+              }
+              goto done;
             }
-          }
-        }
-
-        if (debugger.GetPrintDecls()) {
-          for (size_t vi = var_count_before, ve = persistent_state->GetSize();
-               vi != ve; ++vi) {
-            lldb::ExpressionVariableSP persistent_var_sp =
-                persistent_state->GetVariableAtIndex(vi);
-            lldb::ValueObjectSP valobj_sp = persistent_var_sp->GetValueObject();
-
-            PrintOneVariable(debugger, output_sp, valobj_sp,
-                             persistent_var_sp.get());
-          }
-        }
-
-        if (!handled) {
-          bool useColors = error_sp->GetFile().GetIsTerminalWithColors();
-          switch (execution_results) {
-          case lldb::eExpressionSetupError:
-          case lldb::eExpressionParseError:
-            add_to_code = false;
-            LLVM_FALLTHROUGH;
-          case lldb::eExpressionDiscarded:
-            error_sp->Printf("%s\n", error.AsCString());
-            break;
-
-          case lldb::eExpressionCompleted:
-            break;
-          case lldb::eExpressionInterrupted:
-            if (useColors) {
-              error_sp->Printf(ANSI_ESCAPE1(ANSI_FG_COLOR_RED));
-              error_sp->Printf(ANSI_ESCAPE1(ANSI_CTRL_BOLD));
-            }
-            error_sp->Printf("Execution interrupted. ");
-            if (useColors)
-              error_sp->Printf(ANSI_ESCAPE1(ANSI_CTRL_NORMAL));
-            error_sp->Printf("Enter code to recover and continue.\nEnter LLDB "
-                             "commands to investigate (type :help for "
-                             "assistance.)\n");
-            break;
-
-          case lldb::eExpressionHitBreakpoint:
-            // Breakpoint was hit, drop into LLDB command interpreter
-            if (useColors) {
-              error_sp->Printf(ANSI_ESCAPE1(ANSI_FG_COLOR_RED));
-              error_sp->Printf(ANSI_ESCAPE1(ANSI_CTRL_BOLD));
-            }
-            output_sp->Printf("Execution stopped at breakpoint.  ");
-            if (useColors)
-              error_sp->Printf(ANSI_ESCAPE1(ANSI_CTRL_NORMAL));
-            output_sp->Printf("Enter LLDB commands to investigate (type help "
-                              "for assistance.)\n");
-            {
+          } else {
+            // ":" was followed by no arguments, so push the LLDB command prompt
+            if (debugger.CheckTopIOHandlerTypes(
+                    IOHandler::Type::REPL, IOHandler::Type::CommandInterpreter)) {
+              // If the user wants to get back to the command interpreter and the
+              // command interpreter is what launched the REPL, then just let the
+              // REPL exit and fall back to the command interpreter.
+              io_handler.SetIsDone(true);
+            } else {
+              // The REPL wasn't launched the by the command interpreter, it is the
+              // base IOHandler, so we need to get the command interpreter and
               lldb::IOHandlerSP io_handler_sp(ci.GetIOHandler());
               if (io_handler_sp) {
                 io_handler_sp->SetIsDone(false);
                 debugger.RunIOHandlerAsync(ci.GetIOHandler());
               }
             }
-            break;
-
-          case lldb::eExpressionTimedOut:
-            error_sp->Printf("error: timeout\n");
-            if (error.AsCString())
-              error_sp->Printf("error: %s\n", error.AsCString());
-            break;
-          case lldb::eExpressionResultUnavailable:
-            // Shoulnd't happen???
-            error_sp->Printf("error: could not fetch result -- %s\n",
-                             error.AsCString());
-            break;
-          case lldb::eExpressionStoppedForDebug:
-            // Shoulnd't happen???
-            error_sp->Printf("error: stopped for debug -- %s\n",
-                             error.AsCString());
-            break;
-          case lldb::eExpressionThreadVanished:
-            // Shoulnd't happen???
-            error_sp->Printf("error: expression thread vanished -- %s\n",
-                             error.AsCString());
-            break;
           }
-        }
+        } else {
+          // Unwind any expression we might have been running in case our REPL
+          // expression crashed and the user was looking around
+          if (m_dedicated_repl_mode) {
+            Thread *thread = exe_ctx.GetThreadPtr();
+            if (thread && thread->UnwindInnermostExpression().Success()) {
+              thread->SetSelectedFrameByIndex(0, false);
+              exe_ctx.SetFrameSP(thread->GetSelectedFrame());
+            }
+          }
 
-        if (add_to_code) {
-          const uint32_t new_default_line = m_code.GetSize() + 1;
+          const bool colorize_err = error_sp->GetFile().GetIsTerminalWithColors();
 
-          m_code.SplitIntoLines(code);
+          EvaluateExpressionOptions expr_options = m_expr_options;
+          expr_options.SetCoerceToId(m_varobj_options.use_objc);
+          expr_options.SetKeepInMemory(true);
+          expr_options.SetUseDynamic(m_varobj_options.use_dynamic);
+          expr_options.SetGenerateDebugInfo(true);
+          expr_options.SetREPLEnabled(true);
+          expr_options.SetTrapExceptions(false);
+          expr_options.SetColorizeErrors(colorize_err);
+          expr_options.SetPoundLine(m_repl_source_path.c_str(),
+                                    m_code.GetSize() + 1);
 
-          // Update our code on disk
-          if (!m_repl_source_path.empty()) {
-            auto file = FileSystem::Instance().Open(
-                FileSpec(m_repl_source_path),
-                File::eOpenOptionWrite | File::eOpenOptionTruncate |
-                    File::eOpenOptionCanCreate,
-                lldb::eFilePermissionsFileDefault);
-            if (file) {
-              std::string code(m_code.CopyList());
-              code.append(1, '\n');
-              size_t bytes_written = code.size();
-              file.get()->Write(code.c_str(), bytes_written);
-              file.get()->Close();
-            } else {
-              std::string message = llvm::toString(file.takeError());
-              error_sp->Printf("error: couldn't open %s: %s\n",
-                               m_repl_source_path.c_str(), message.c_str());
+          // There is no point in trying to run REPL expressions on just the
+          // current thread of the program, since the REPL tracks the states of
+          // individual threads as you would in a regular debugging session.
+          // Interrupting the process to switch from one thread to many has
+          // observable effects (for instance it causes anything waiting in the
+          // kernel to be interrupted). Since we aren't getting any benefit from
+          // doing this in the REPL, let's not.
+          expr_options.SetStopOthers(false);
+
+          // Don't time out REPL expressions.
+          expr_options.SetTimeout(llvm::None);
+
+          expr_options.SetLanguage(GetLanguage());
+
+          PersistentExpressionState *persistent_state =
+              m_target.GetPersistentExpressionStateForLanguage(GetLanguage());
+          if (!persistent_state)
+            return;
+
+          if (!persistent_state)
+          {
+            error_sp->PutCString("error getting the expression "
+                                 "context for the REPL.\n");
+            io_handler.SetIsDone(true);
+            return;
+          }
+          const size_t var_count_before = persistent_state->GetSize();
+
+          const char *expr_prefix = nullptr;
+          lldb::ValueObjectSP result_valobj_sp;
+          Status error;
+          lldb::ExpressionResults execution_results =
+              UserExpression::Evaluate(exe_ctx, expr_options, code.c_str(),
+                                       expr_prefix, result_valobj_sp, error,
+                                       nullptr); // fixed expression
+
+          // CommandInterpreter &ci = debugger.GetCommandInterpreter();
+
+          if (process_sp && process_sp->IsAlive()) {
+            bool add_to_code = true;
+            bool handled = false;
+            if (result_valobj_sp) {
+              lldb::Format format = m_format_options.GetFormat();
+
+              if (result_valobj_sp->GetError().Success()) {
+                handled |= PrintOneVariable(debugger, output_sp, result_valobj_sp);
+              } else if (result_valobj_sp->GetError().GetError() ==
+                         UserExpression::kNoResult) {
+                if (format != lldb::eFormatVoid && debugger.GetNotifyVoid()) {
+                  error_sp->PutCString("(void)\n");
+                  handled = true;
+                }
+              }
             }
 
-            // Now set the default file and line to the REPL source file
-            m_target.GetSourceManager().SetDefaultFileAndLine(
-                FileSpec(m_repl_source_path), new_default_line);
+            if (debugger.GetPrintDecls()) {
+              for (size_t vi = var_count_before, ve = persistent_state->GetSize();
+                   vi != ve; ++vi) {
+                lldb::ExpressionVariableSP persistent_var_sp =
+                    persistent_state->GetVariableAtIndex(vi);
+                lldb::ValueObjectSP valobj_sp = persistent_var_sp->GetValueObject();
+
+                PrintOneVariable(debugger, output_sp, valobj_sp,
+                                 persistent_var_sp.get());
+              }
+            }
+
+            if (!handled) {
+              bool useColors = error_sp->GetFile().GetIsTerminalWithColors();
+              switch (execution_results) {
+              case lldb::eExpressionSetupError:
+              case lldb::eExpressionParseError:
+                add_to_code = false;
+                LLVM_FALLTHROUGH;
+              case lldb::eExpressionDiscarded:
+                error_sp->Printf("%s\n", error.AsCString());
+                break;
+
+              case lldb::eExpressionCompleted:
+                break;
+              case lldb::eExpressionInterrupted:
+                if (useColors) {
+                  error_sp->Printf(ANSI_ESCAPE1(ANSI_FG_COLOR_RED));
+                  error_sp->Printf(ANSI_ESCAPE1(ANSI_CTRL_BOLD));
+                }
+                error_sp->Printf("Execution interrupted. ");
+                if (useColors)
+                  error_sp->Printf(ANSI_ESCAPE1(ANSI_CTRL_NORMAL));
+                error_sp->Printf("Enter code to recover and continue.\nEnter LLDB "
+                                 "commands to investigate (type :help for "
+                                 "assistance.)\n");
+                break;
+
+              case lldb::eExpressionHitBreakpoint:
+                // Breakpoint was hit, drop into LLDB command interpreter
+                if (useColors) {
+                  error_sp->Printf(ANSI_ESCAPE1(ANSI_FG_COLOR_RED));
+                  error_sp->Printf(ANSI_ESCAPE1(ANSI_CTRL_BOLD));
+                }
+                output_sp->Printf("Execution stopped at breakpoint.  ");
+                if (useColors)
+                  error_sp->Printf(ANSI_ESCAPE1(ANSI_CTRL_NORMAL));
+                output_sp->Printf("Enter LLDB commands to investigate (type help "
+                                  "for assistance.)\n");
+                {
+                  lldb::IOHandlerSP io_handler_sp(ci.GetIOHandler());
+                  if (io_handler_sp) {
+                    io_handler_sp->SetIsDone(false);
+                    debugger.RunIOHandlerAsync(ci.GetIOHandler());
+                  }
+                }
+                break;
+
+              case lldb::eExpressionTimedOut:
+                error_sp->Printf("error: timeout\n");
+                if (error.AsCString())
+                  error_sp->Printf("error: %s\n", error.AsCString());
+                break;
+              case lldb::eExpressionResultUnavailable:
+                // Shoulnd't happen???
+                error_sp->Printf("error: could not fetch result -- %s\n",
+                                 error.AsCString());
+                break;
+              case lldb::eExpressionStoppedForDebug:
+                // Shoulnd't happen???
+                error_sp->Printf("error: stopped for debug -- %s\n",
+                                 error.AsCString());
+                break;
+              case lldb::eExpressionThreadVanished:
+                // Shoulnd't happen???
+                error_sp->Printf("error: expression thread vanished -- %s\n",
+                                 error.AsCString());
+                break;
+              }
+            }
+
+            if (add_to_code) {
+              const uint32_t new_default_line = m_code.GetSize() + 1;
+
+              m_code.SplitIntoLines(code);
+
+              // Update our code on disk
+              if (!m_repl_source_path.empty()) {
+                auto file = FileSystem::Instance().Open(
+                    FileSpec(m_repl_source_path),
+                    File::eOpenOptionWrite | File::eOpenOptionTruncate |
+                        File::eOpenOptionCanCreate,
+                    lldb::eFilePermissionsFileDefault);
+                if (file) {
+                  std::string code(m_code.CopyList());
+                  code.append(1, '\n');
+                  size_t bytes_written = code.size();
+                  file.get()->Write(code.c_str(), bytes_written);
+                  file.get()->Close();
+                } else {
+                  std::string message = llvm::toString(file.takeError());
+                  error_sp->Printf("error: couldn't open %s: %s\n",
+                                   m_repl_source_path.c_str(), message.c_str());
+                }
+
+                // Now set the default file and line to the REPL source file
+                m_target.GetSourceManager().SetDefaultFileAndLine(
+                    FileSpec(m_repl_source_path), new_default_line);
+              }
+              static_cast<IOHandlerEditline &>(io_handler)
+                  .SetBaseLineNumber(m_code.GetSize() + 1);
+            }
+            if (extra_line) {
+              output_sp->Printf("\n");
+            }
           }
-          static_cast<IOHandlerEditline &>(io_handler)
-              .SetBaseLineNumber(m_code.GetSize() + 1);
+          // code was consumed
+          break;
         }
-        if (extra_line) {
-          output_sp->Printf("\n");
-        }
+        
+        code = rest;
       }
     }
 
     // Don't complain about the REPL process going away if we are in the
     // process of quitting.
+  done:
     if (!did_quit && (!process_sp || !process_sp->IsAlive())) {
       error_sp->Printf(
           "error: REPL process is no longer alive, exiting REPL\n");
