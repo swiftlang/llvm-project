@@ -67,6 +67,7 @@
 #include "lldb/Interpreter/Property.h"
 #include "lldb/Utility/Args.h"
 
+#include "lldb/Target/Language.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StopInfo.h"
 #include "lldb/Target/TargetList.h"
@@ -2098,7 +2099,9 @@ static void GetHomeREPLInitFile(llvm::SmallVectorImpl<char> &init_file,
   std::string init_file_name;
 
   switch (language) {
-  // TODO: Add support for a language used with a REPL.
+  case eLanguageTypeSwift:
+    init_file_name = ".lldbinit-swift-repl";
+    break;
   default:
     return;
   }
@@ -2195,7 +2198,7 @@ void CommandInterpreter::SourceInitFileHome(CommandReturnObject &result,
   llvm::SmallString<128> init_file;
 
   if (is_repl) {
-    LanguageType language = {};
+    LanguageType language = eLanguageTypeSwift;
     TargetSP target_sp = GetDebugger().GetSelectedTarget();
     if (target_sp)
       language = target_sp->GetLanguage();
