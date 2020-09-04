@@ -150,6 +150,6 @@ void ento::registerNoUncountedMemberChecker(CheckerManager &Mgr) {
 }
 
 bool ento::shouldRegisterNoUncountedMemberChecker(
-    const CheckerManager &Mgr) {
+    const LangOptions &) {
   return true;
 }

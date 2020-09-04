@@ -101,6 +101,6 @@ void ento::registerUncountedLambdaCapturesChecker(CheckerManager &Mgr) {
 }
 
 bool ento::shouldRegisterUncountedLambdaCapturesChecker(
-    const CheckerManager &mgr) {
+    const LangOptions &) {
   return true;
 }

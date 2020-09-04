@@ -190,6 +190,6 @@ void ento::registerUncountedCallArgsChecker(CheckerManager &Mgr) {
   Mgr.registerChecker<UncountedCallArgsChecker>();
 }
 
-bool ento::shouldRegisterUncountedCallArgsChecker(const CheckerManager &) {
+bool ento::shouldRegisterUncountedCallArgsChecker(const LangOptions &) {
   return true;
 }

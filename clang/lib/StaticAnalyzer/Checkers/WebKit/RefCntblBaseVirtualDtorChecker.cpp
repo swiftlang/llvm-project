@@ -162,6 +162,6 @@ void ento::registerRefCntblBaseVirtualDtorChecker(CheckerManager &Mgr) {
 }
 
 bool ento::shouldRegisterRefCntblBaseVirtualDtorChecker(
-    const CheckerManager &mgr) {
+    const LangOptions &) {
   return true;
 }
