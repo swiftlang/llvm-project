@@ -45,6 +45,7 @@ public:
 class SBPlatformShellCommand
 {
 public:
+    SBPlatformShellCommand (const char *shell, const char *shell_command);
     SBPlatformShellCommand (const char *shell_command);
 
     SBPlatformShellCommand (const SBPlatformShellCommand &rhs);
@@ -53,6 +54,12 @@ public:
 
     void
     Clear();
+
+    const char *
+    GetShell();
+
+    void
+    SetShell(const char *shell_interpreter);
 
     const char *
     GetCommand();
@@ -114,6 +121,8 @@ public:
     SBPlatform (const char *);
 
     ~SBPlatform();
+
+    static SBPlatform GetHostPlatform();
 
     bool
     IsValid () const;
@@ -191,6 +200,9 @@ public:
 
     lldb::SBUnixSignals
     GetUnixSignals();
+
+    lldb::SBEnvironment
+    GetEnvironment();
 
 };
 

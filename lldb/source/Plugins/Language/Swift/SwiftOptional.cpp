@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "SwiftOptional.h"
+#include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
 #include "lldb/DataFormatters/DataVisualization.h"
 #include "lldb/DataFormatters/TypeSummary.h"
 #include "lldb/DataFormatters/ValueObjectPrinter.h"
-#include "lldb/Symbol/SwiftASTContext.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SwiftLanguageRuntime.h"
 #include "lldb/Utility/DataBufferHeap.h"
@@ -35,7 +35,7 @@ std::string lldb_private::formatters::swift::SwiftOptionalSummaryProvider::
               SkipsPointers() ? " (skip pointers)" : "",
               SkipsReferences() ? " (skip references)" : "",
               HideNames(nullptr) ? " (hide member names)" : "");
-  return sstr.GetString();
+  return sstr.GetString().str();
 }
 
 // if this ValueObject is an Optional<T> with the Some(T) case selected,
@@ -160,7 +160,7 @@ bool lldb_private::formatters::swift::SwiftOptionalSummaryProvider::
 
   bool is_ok =
       SwiftOptional_SummaryProvider_Impl(*target_valobj_sp, stream, options);
-  dest.assign(stream.GetString());
+  dest.assign(stream.GetString().str());
 
   return is_ok;
 }
@@ -221,7 +221,7 @@ lldb::ValueObjectSP lldb_private::formatters::swift::
   if (IsEmpty())
     return nullptr;
   auto child = m_some->GetChildAtIndex(idx, true);
-  if (m_some->IsSyntheticChildrenGenerated())
+  if (child && m_some->IsSyntheticChildrenGenerated())
     child->SetSyntheticChildrenGenerated(true);
   return child;
 }

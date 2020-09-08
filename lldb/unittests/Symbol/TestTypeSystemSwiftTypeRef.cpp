@@ -12,7 +12,8 @@
 
 #include "gtest/gtest.h"
 
-#include "lldb/Symbol/SwiftASTContext.h"
+#include "Plugins/TypeSystem/Swift/TypeSystemSwiftTypeRef.h"
+#include "llvm/ADT/StringRef.h"
 #include "swift/Demangling/Demangle.h"
 #include "swift/Demangling/Demangler.h"
 #include "swift/Strings.h"
@@ -67,6 +68,13 @@ public:
         Node(Node::Kind::Structure,
              Node(Node::Kind::Module, swift::STDLIB_NAME),
              Node(Node::Kind::Identifier, swift::BUILTIN_TYPE_NAME_INT)));
+  }
+  NodePointer FloatType() {
+    return Node(
+        Node::Kind::Type,
+        Node(Node::Kind::Structure,
+             Node(Node::Kind::Module, swift::STDLIB_NAME),
+             Node(Node::Kind::Identifier, swift::BUILTIN_TYPE_NAME_FLOAT)));
   }
   NodePointer GlobalTypeMangling(NodePointer type) {
     assert(type && type->getKind() == Node::Kind::Type);
@@ -197,6 +205,7 @@ TEST_F(TestTypeSystemSwiftTypeRef, Pointer) {
                                         swift::BUILTIN_TYPE_NAME_RAWPOINTER));
     CompilerType p = GetCompilerType(b.Mangle(n));
     ASSERT_TRUE(p.IsPointerType(nullptr));
+    ASSERT_TRUE(p.IsPointerOrReferenceType(nullptr));
   }
   {
     NodePointer n =
@@ -204,18 +213,21 @@ TEST_F(TestTypeSystemSwiftTypeRef, Pointer) {
                             swift::BUILTIN_TYPE_NAME_UNSAFEVALUEBUFFER));
     CompilerType p = GetCompilerType(b.Mangle(n));
     ASSERT_TRUE(p.IsPointerType(nullptr));
+    ASSERT_TRUE(p.IsPointerOrReferenceType(nullptr));
   }
   {
     NodePointer n = b.GlobalType(b.Node(Node::Kind::BuiltinTypeName,
                                         swift::BUILTIN_TYPE_NAME_NATIVEOBJECT));
     CompilerType p = GetCompilerType(b.Mangle(n));
     ASSERT_TRUE(p.IsPointerType(nullptr));
+    ASSERT_TRUE(p.IsPointerOrReferenceType(nullptr));
   }
   {
     NodePointer n = b.GlobalType(b.Node(Node::Kind::BuiltinTypeName,
                                         swift::BUILTIN_TYPE_NAME_BRIDGEOBJECT));
     CompilerType p = GetCompilerType(b.Mangle(n));
     ASSERT_TRUE(p.IsPointerType(nullptr));
+    ASSERT_TRUE(p.IsPointerOrReferenceType(nullptr));
   }
 }
 
@@ -238,9 +250,11 @@ TEST_F(TestTypeSystemSwiftTypeRef, Reference) {
     NodePointer n = b.GlobalType(b.Node(Node::Kind::InOut, b.IntType()));
     CompilerType ref = GetCompilerType(b.Mangle(n));
     ASSERT_TRUE(ref.IsReferenceType(nullptr, nullptr));
+    ASSERT_TRUE(ref.IsPointerOrReferenceType(nullptr));
     CompilerType pointee;
     bool is_rvalue = true;
     ASSERT_TRUE(ref.IsReferenceType(&pointee, &is_rvalue));
+    ASSERT_TRUE(ref.IsPointerOrReferenceType(&pointee));
     NodePointer int_node = b.GlobalTypeMangling(b.IntType());
     CompilerType int_type = GetCompilerType(b.Mangle(int_node));
     ASSERT_EQ(int_type, pointee);
@@ -256,6 +270,7 @@ TEST_F(TestTypeSystemSwiftTypeRef, Aggregate) {
     NodePointer n = b.GlobalType(b.Node(Node::Kind::Tuple));
     CompilerType tuple = GetCompilerType(b.Mangle(n));
     ASSERT_TRUE(tuple.IsAggregateType());
+    ASSERT_FALSE(tuple.IsScalarType());
     // Yes, Int is a struct.
     NodePointer int_node = b.GlobalTypeMangling(b.IntType());
     CompilerType int_type = GetCompilerType(b.Mangle(int_node));
@@ -265,5 +280,179 @@ TEST_F(TestTypeSystemSwiftTypeRef, Aggregate) {
                                         b.NodeWithIndex(Node::Kind::Index, 0)));
     CompilerType tau = GetCompilerType(b.Mangle(t));
     ASSERT_FALSE(tau.IsAggregateType());
+  }
+}
+
+TEST_F(TestTypeSystemSwiftTypeRef, Defined) {
+  using namespace swift::Demangle;
+  Demangler dem;
+  NodeBuilder b(dem);
+  {
+    NodePointer int_node = b.GlobalTypeMangling(b.IntType());
+    CompilerType int_type = GetCompilerType(b.Mangle(int_node));
+    ASSERT_TRUE(int_type.IsDefined());
+    // It's technically not possible to construct such a CompilerType.
+    ASSERT_FALSE(m_swift_ts.IsDefined(nullptr));
+  }
+}
+
+TEST_F(TestTypeSystemSwiftTypeRef, Scalar) {
+  using namespace swift::Demangle;
+  Demangler dem;
+  NodeBuilder b(dem);
+  {
+    NodePointer int_node = b.GlobalTypeMangling(b.IntType());
+    CompilerType int_type = GetCompilerType(b.Mangle(int_node));
+    uint32_t count = 99;
+    bool is_complex = true;
+    ASSERT_FALSE(int_type.IsFloatingPointType(count, is_complex));
+    ASSERT_EQ(count, 0);
+    ASSERT_EQ(is_complex, false);
+    bool is_signed = true;
+    ASSERT_TRUE(int_type.IsIntegerType(is_signed));
+    ASSERT_TRUE(int_type.IsScalarType());
+  }
+  {
+    NodePointer float_node = b.GlobalTypeMangling(b.FloatType());
+    CompilerType float_type = GetCompilerType(b.Mangle(float_node));
+    uint32_t count = 99;
+    bool is_complex = true;
+    ASSERT_TRUE(float_type.IsFloatingPointType(count, is_complex));
+    ASSERT_EQ(count, 1);
+    ASSERT_EQ(is_complex, false);
+    bool is_signed = true;
+    ASSERT_FALSE(float_type.IsIntegerType(is_signed));
+    ASSERT_TRUE(float_type.IsScalarType());
+  }
+}
+
+TEST_F(TestTypeSystemSwiftTypeRef, ScalarAddress) {
+  using namespace swift::Demangle;
+  Demangler dem;
+  NodeBuilder b(dem);
+  {
+    NodePointer int_node = b.GlobalTypeMangling(b.IntType());
+    CompilerType int_type = GetCompilerType(b.Mangle(int_node));
+    ASSERT_FALSE(int_type.ShouldTreatScalarValueAsAddress());
+  }
+  {
+    NodePointer n = b.GlobalType(b.Node(
+        Node::Kind::InOut,
+        b.Node(Node::Kind::Structure,
+               b.Node(Node::Kind::Module, swift::STDLIB_NAME),
+               b.Node(Node::Kind::Identifier, swift::BUILTIN_TYPE_NAME_INT))));
+    CompilerType r = GetCompilerType(b.Mangle(n));
+    ASSERT_TRUE(r.ShouldTreatScalarValueAsAddress());
+  }
+  {
+    NodePointer n =
+        b.GlobalType(b.Node(Node::Kind::Class, b.Node(Node::Kind::Module, "M"),
+                            b.Node(Node::Kind::Identifier, "C")));
+    CompilerType c = GetCompilerType(b.Mangle(n));
+    ASSERT_TRUE(c.ShouldTreatScalarValueAsAddress());
+  }
+}
+
+TEST_F(TestTypeSystemSwiftTypeRef, LanguageVersion) {
+  using namespace swift::Demangle;
+  Demangler dem;
+  NodeBuilder b(dem);
+  {
+    NodePointer int_node = b.GlobalTypeMangling(b.IntType());
+    CompilerType int_type = GetCompilerType(b.Mangle(int_node));
+    ASSERT_EQ(int_type.GetMinimumLanguage(), lldb::eLanguageTypeSwift);
+  }
+}
+
+TEST_F(TestTypeSystemSwiftTypeRef, TypeClass) {
+  using namespace swift::Demangle;
+  Demangler dem;
+  NodeBuilder b(dem);
+  {
+    NodePointer n = b.GlobalTypeMangling(b.IntType());
+    CompilerType t = GetCompilerType(b.Mangle(n));
+    ASSERT_EQ(t.GetTypeClass(), lldb::eTypeClassBuiltin);
+  }
+  {
+    std::string vec = StringRef(swift::BUILTIN_TYPE_NAME_VEC).str() + "4xInt8";
+    NodePointer n =
+        b.GlobalType(b.Node(Node::Kind::BuiltinTypeName, vec.c_str()));
+    CompilerType t = GetCompilerType(b.Mangle(n));
+    ASSERT_EQ(t.GetTypeClass(), lldb::eTypeClassVector);
+  }
+  {
+    NodePointer n = b.GlobalType(b.Node(Node::Kind::Tuple));
+    CompilerType t = GetCompilerType(b.Mangle(n));
+    ASSERT_EQ(t.GetTypeClass(), lldb::eTypeClassArray);
+  }
+  {
+    NodePointer n =
+        b.GlobalType(b.Node(Node::Kind::Enum, b.Node(Node::Kind::Module, "M"),
+                            b.Node(Node::Kind::Identifier, "E")));
+    CompilerType t = GetCompilerType(b.Mangle(n));
+    ASSERT_EQ(t.GetTypeClass(), lldb::eTypeClassUnion);
+  }
+  {
+    NodePointer n = b.GlobalType(b.Node(Node::Kind::Structure,
+                                        b.Node(Node::Kind::Module, "M"),
+                                        b.Node(Node::Kind::Identifier, "S")));
+    CompilerType t = GetCompilerType(b.Mangle(n));
+    ASSERT_EQ(t.GetTypeClass(), lldb::eTypeClassStruct);
+  }
+  {
+    NodePointer n =
+        b.GlobalType(b.Node(Node::Kind::Class, b.Node(Node::Kind::Module, "M"),
+                            b.Node(Node::Kind::Identifier, "C")));
+    CompilerType t = GetCompilerType(b.Mangle(n));
+    ASSERT_EQ(t.GetTypeClass(), lldb::eTypeClassClass);
+  }
+  {
+    NodePointer n = b.GlobalType(b.Node(
+        Node::Kind::InOut,
+        b.Node(Node::Kind::Structure,
+               b.Node(Node::Kind::Module, swift::STDLIB_NAME),
+               b.Node(Node::Kind::Identifier, swift::BUILTIN_TYPE_NAME_INT))));
+    CompilerType t = GetCompilerType(b.Mangle(n));
+    ASSERT_EQ(t.GetTypeClass(), lldb::eTypeClassReference);
+  }
+  {
+    NodePointer n = b.GlobalType(
+        b.Node(Node::Kind::FunctionType,
+               b.Node(Node::Kind::ArgumentTuple,
+                      b.Node(Node::Kind::Type, b.Node(Node::Kind::Tuple))),
+               b.Node(Node::Kind::ReturnType,
+                      b.Node(Node::Kind::Type, b.Node(Node::Kind::Tuple)))));
+    CompilerType t = GetCompilerType(b.Mangle(n));
+    ASSERT_EQ(t.GetTypeClass(), lldb::eTypeClassFunction);
+  }
+  {
+    NodePointer n = b.GlobalType(b.Node(
+        Node::Kind::ProtocolList,
+        b.Node(Node::Kind::TypeList,
+               b.Node(Node::Kind::Type,
+                      b.Node(Node::Kind::Protocol,
+                             b.Node(Node::Kind::Module, swift::STDLIB_NAME),
+                             b.Node(Node::Kind::Identifier, "Error"))))));
+    CompilerType t = GetCompilerType(b.Mangle(n));
+    ASSERT_EQ(t.GetTypeClass(), lldb::eTypeClassOther);
+  }
+}
+
+TEST_F(TestTypeSystemSwiftTypeRef, ImportedType) {
+  using namespace swift::Demangle;
+  Demangler dem;
+  NodeBuilder b(dem);
+  {
+    NodePointer node = b.GlobalTypeMangling(b.IntType());
+    CompilerType type = GetCompilerType(b.Mangle(node));
+    ASSERT_FALSE(m_swift_ts.IsImportedType(type.GetOpaqueQualType(), nullptr));
+  }
+  {
+    NodePointer node = b.GlobalType(
+        b.Node(Node::Kind::Structure,
+               b.Node(Node::Kind::Module, swift::MANGLING_MODULE_OBJC),
+               b.Node(Node::Kind::Identifier, "NSDecimal")));
+    CompilerType type = GetCompilerType(b.Mangle(node));
+    ASSERT_TRUE(m_swift_ts.IsImportedType(type.GetOpaqueQualType(), nullptr));
   }
 }

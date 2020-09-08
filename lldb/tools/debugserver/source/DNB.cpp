@@ -421,7 +421,8 @@ nub_process_t DNBProcessAttachByName(const char *name, struct timespec *timeout,
   if (num_matching_proc_infos == 0) {
     DNBLogError("error: no processes match '%s'\n", name);
     return INVALID_NUB_PROCESS;
-  } else if (num_matching_proc_infos > 1) {
+  }
+  if (num_matching_proc_infos > 1) {
     DNBLogError("error: %llu processes match '%s':\n",
                 (uint64_t)num_matching_proc_infos, name);
     size_t i;
@@ -1384,20 +1385,27 @@ nub_bool_t DNBProcessSharedLibrariesUpdated(nub_process_t pid) {
   return false;
 }
 
-const char *DNBGetDeploymentInfo(nub_process_t pid,
-                                 const struct load_command& lc,
+const char *DNBGetDeploymentInfo(nub_process_t pid, bool is_executable,
+                                 const struct load_command &lc,
                                  uint64_t load_command_address,
-                                 uint32_t& major_version,
-                                 uint32_t& minor_version,
-                                 uint32_t& patch_version) {
+                                 uint32_t &major_version,
+                                 uint32_t &minor_version,
+                                 uint32_t &patch_version) {
   MachProcessSP procSP;
-  if (GetProcessSP(pid, procSP))
-    return procSP->GetDeploymentInfo(lc, load_command_address,
-                                     major_version, minor_version,
-                                     patch_version);
+  if (GetProcessSP(pid, procSP)) {
+    // FIXME: This doesn't return the correct result when xctest (a
+    // macOS binary) is loaded with the macCatalyst dyld platform
+    // override. The image info corrects for this, but qProcessInfo
+    // will return what is in the binary.
+    auto info =
+        procSP->GetDeploymentInfo(lc, load_command_address, is_executable);
+    major_version = info.major_version;
+    minor_version = info.minor_version;
+    patch_version = info.patch_version;
+    return procSP->GetPlatformString(info.platform);
+  }
   return nullptr;
 }
-
 
 // Get the current shared library information for a process. Only return
 // the shared libraries that have changed since the last shared library

@@ -442,9 +442,19 @@ public:
     target.ReadCStringFromMemory(addr, &storage[0], storage.size(), error);
     if (error.Success()) {
       dest.assign(&storage[0]);
-      if (log)
-        log->Printf("[MemoryReader] memory read returned data: %s",
-                    dest.c_str());
+      if (log) {
+        StreamString stream;
+        for (auto c : dest) {
+          if (c >= 32 && c <= 127) {
+            stream << c;
+          } else {
+            stream << "\\0";
+            stream.PutHex8(c);
+          }
+        }
+        log->Printf("[MemoryReader] memory read returned data: \"%s\"",
+                    stream.GetData());
+      }
       return true;
     } else {
       if (log)
@@ -513,18 +523,20 @@ SwiftLanguageRuntime::MetadataPromise::FulfillTypePromise(Status *error) {
   if (m_compiler_type.hasValue())
     return m_compiler_type.getValue();
 
-  auto swift_ast_ctx = m_for_object_sp->GetScratchSwiftASTContext();
-  if (!swift_ast_ctx) {
+  llvm::Optional<SwiftASTContextReader> maybe_swift_ast_ctx =
+      m_for_object_sp->GetScratchSwiftASTContext();
+  if (!maybe_swift_ast_ctx) {
     error->SetErrorString("couldn't get Swift scratch context");
     return CompilerType();
   }
+  SwiftASTContext *swift_ast_ctx = maybe_swift_ast_ctx->get();
   auto &remote_ast = m_swift_runtime.GetRemoteASTContext(*swift_ast_ctx);
   swift::remoteAST::Result<swift::Type> result =
       remote_ast.getTypeForRemoteTypeMetadata(
           swift::remote::RemoteAddress(m_metadata_location));
 
   if (result) {
-    m_compiler_type = {swift_ast_ctx.get(), result.getValue().getPointer()};
+    m_compiler_type = {swift_ast_ctx, result.getValue().getPointer()};
     if (log)
       log->Printf("[MetadataPromise] result is type %s",
                   m_compiler_type->GetTypeName().AsCString());
@@ -543,10 +555,13 @@ SwiftLanguageRuntime::MetadataPromise::FulfillTypePromise(Status *error) {
 SwiftLanguageRuntime::MetadataPromiseSP
 SwiftLanguageRuntimeImpl::GetMetadataPromise(lldb::addr_t addr,
                                              ValueObject &for_object) {
-  auto swift_ast_ctx = for_object.GetScratchSwiftASTContext();
-  if (!swift_ast_ctx || swift_ast_ctx->HasFatalErrors())
+  llvm::Optional<SwiftASTContextReader> maybe_swift_ast_ctx =
+      for_object.GetScratchSwiftASTContext();
+  if (!maybe_swift_ast_ctx)
     return nullptr;
-
+  SwiftASTContext *swift_ast_ctx = maybe_swift_ast_ctx->get();
+  if (swift_ast_ctx->HasFatalErrors())
+    return nullptr;
   if (addr == 0 || addr == LLDB_INVALID_ADDRESS)
     return nullptr;
 
@@ -612,13 +627,100 @@ public:
   }
 };
 
+class LLDBTypeInfoProvider : public swift::remote::TypeInfoProvider {
+  SwiftLanguageRuntimeImpl &m_runtime;
+  TypeSystemSwift &m_typesystem;
+
+public:
+  LLDBTypeInfoProvider(SwiftLanguageRuntimeImpl &runtime,
+                       TypeSystemSwift &typesystem)
+      : m_runtime(runtime), m_typesystem(typesystem) {}
+
+  const swift::reflection::TypeInfo *
+  getTypeInfo(llvm::StringRef mangledName) override {
+    if (auto ti = m_runtime.lookupClangTypeInfo(mangledName))
+      return *ti;
+
+    Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_TYPES));
+    if (log)
+      log->Printf("[LLDBTypeInfoProvider] Looking up debug type info for %s",
+                  mangledName.str().c_str());
+
+    // Materialize a Clang type from the debug info.
+    assert(swift::Demangle::getManglingPrefixLength(mangledName) == 0);
+    std::string wrapped;
+    // The mangled name passed in is bare. Add global prefix ($s) and type (D).
+    llvm::raw_string_ostream(wrapped) << "$s" << mangledName << 'D';
+#ifndef NDEBUG
+    {
+      // Check that our hardcoded mangling wrapper is still up-to-date.
+      swift::Demangle::Context dem;
+      auto node = dem.demangleSymbolAsNode(wrapped);
+      assert(node && node->getKind() == swift::Demangle::Node::Kind::Global);
+      assert(node->getNumChildren() == 1);
+      node = node->getChild(0);
+      assert(node->getKind() == swift::Demangle::Node::Kind::TypeMangling);
+      assert(node->getNumChildren() == 1);
+      node = node->getChild(0);
+      assert(node->getKind() == swift::Demangle::Node::Kind::Type);
+      assert(node->getNumChildren() == 1);
+      node = node->getChild(0);
+      assert(node->getKind() != swift::Demangle::Node::Kind::Type);
+    }
+#endif
+    ConstString mangled(wrapped);
+    CompilerType swift_type = m_typesystem.GetTypeFromMangledTypename(mangled);
+
+    CompilerType clang_type;
+    if (!m_typesystem.IsImportedType(swift_type.GetOpaqueQualType(),
+                                     &clang_type)) {
+      if (log)
+        log->Printf("[LLDBTypeInfoProvider] Could not find clang debug type info for %s",
+                    mangledName.str().c_str());
+      return nullptr;
+    }
+
+    // Build a TypeInfo for the Clang type.
+    auto size = clang_type.GetByteSize(nullptr);
+    auto bit_align = clang_type.GetTypeBitAlign(nullptr);
+    return m_runtime.emplaceClangTypeInfo(mangledName, size, bit_align);
+  }
+};
+
 } // namespace
+
+llvm::Optional<const swift::reflection::TypeInfo *>
+SwiftLanguageRuntimeImpl::lookupClangTypeInfo(llvm::StringRef mangled_name) {
+  std::lock_guard<std::recursive_mutex> locker(m_clang_type_info_mutex);
+  auto it = m_clang_type_info.find(mangled_name);
+  if (it != m_clang_type_info.end()) {
+    if (it->second)
+      return &*it->second;
+    return nullptr;
+  }
+  return {};
+}
+const swift::reflection::TypeInfo *
+SwiftLanguageRuntimeImpl::emplaceClangTypeInfo(
+    llvm::StringRef mangled_name, llvm::Optional<uint64_t> byte_size,
+    llvm::Optional<size_t> bit_align) {
+  std::lock_guard<std::recursive_mutex> locker(m_clang_type_info_mutex);
+  if (!byte_size || !bit_align) {
+    m_clang_type_info.insert({mangled_name, llvm::None});
+    return nullptr;
+  }
+  auto it_b = m_clang_type_info.insert(
+      {mangled_name,
+       swift::reflection::TypeInfo(swift::reflection::TypeInfoKind::Builtin,
+                                   *byte_size, *bit_align * 8, 0, 0, true)});
+  return &*it_b.first->second;
+}
 
 llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffset(
     CompilerType instance_type, ValueObject *instance, ConstString member_name,
     Status *error) {
   if (!instance_type.IsValid())
-    return llvm::None;
+    return {};
 
   Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_TYPES));
   // Using the module context for RemoteAST is cheaper bit only safe
@@ -630,13 +732,13 @@ llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffset(
   auto *module_ctx =
       llvm::dyn_cast_or_null<SwiftASTContext>(instance_type.GetTypeSystem());
   if (!module_ctx || module_ctx->HasFatalErrors())
-    return llvm::None;
+    return {};
 
   llvm::Optional<SwiftASTContextReader> scratch_ctx;
   if (instance) {
     scratch_ctx = instance->GetScratchSwiftASTContext();
     if (!scratch_ctx)
-      return llvm::None;
+      return {};
   }
 
   auto *remote_ast = &GetRemoteASTContext(*module_ctx);
@@ -735,9 +837,10 @@ llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffset(
   }
 
   // Try remote mirrors.
-  const swift::reflection::TypeInfo *type_info = GetTypeInfo(instance_type);
+  const swift::reflection::TypeInfo *type_info =
+      GetTypeInfo(instance_type, nullptr);
   if (!type_info)
-    return llvm::None;
+    return {};
   auto record_type_info =
       llvm::dyn_cast<swift::reflection::RecordTypeInfo>(type_info);
   if (record_type_info) {
@@ -749,7 +852,7 @@ llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffset(
           tuple_idx >= record_type_info->getNumFields()) {
         if (error)
           error->SetErrorString("tuple index out of bounds");
-        return llvm::None;
+        return {};
       }
       return record_type_info->getFields()[tuple_idx].Offset;
     }
@@ -764,9 +867,15 @@ llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffset(
   lldb::addr_t pointer = instance->GetPointerValue();
   auto *reflection_ctx = GetReflectionContext();
   if (!reflection_ctx)
-    return llvm::None;
+    return {};
 
-  auto class_instance_type_info = reflection_ctx->getInstanceTypeInfo(pointer);
+  auto *ts =
+      llvm::dyn_cast_or_null<TypeSystemSwift>(instance_type.GetTypeSystem());
+  if (!ts)
+    return {};
+  LLDBTypeInfoProvider provider(*this, *ts);
+  auto class_instance_type_info =
+      reflection_ctx->getInstanceTypeInfo(pointer, &provider);
   if (class_instance_type_info) {
     auto class_type_info = llvm::dyn_cast<swift::reflection::RecordTypeInfo>(
         class_instance_type_info);
@@ -777,7 +886,7 @@ llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffset(
       }
     }
   }
-  return llvm::None;
+  return {};
 }
 
 bool SwiftLanguageRuntime::IsSelf(Variable &variable) {
@@ -811,7 +920,7 @@ bool SwiftLanguageRuntime::IsSelf(Variable &variable) {
     return false;
   node_ptr = node_ptr->getFirstChild();
   return node_ptr->getKind() == swift::Demangle::Node::Kind::Constructor ||
-    node_ptr->getKind() == swift::Demangle::Node::Kind::Allocator;
+         node_ptr->getKind() == swift::Demangle::Node::Kind::Allocator;
 }
 
 /// Determine whether the scratch SwiftASTContext has been locked.
@@ -996,7 +1105,31 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Protocol(
   return true;
 }
 
-SwiftLanguageRuntime::MetadataPromiseSP
+llvm::Optional<lldb::addr_t>
+SwiftLanguageRuntimeImpl::GetTypeMetadataForTypeNameAndFrame(
+    StringRef mdvar_name, StackFrame &frame) {
+  VariableList *var_list = frame.GetVariableList(false);
+  if (!var_list)
+    return {};
+
+  VariableSP var_sp(var_list->FindVariable(ConstString(mdvar_name)));
+  if (!var_sp)
+    return {};
+
+  ValueObjectSP metadata_ptr_var_sp(
+      frame.GetValueObjectForFrameVariable(var_sp, lldb::eNoDynamicValues));
+  if (!metadata_ptr_var_sp ||
+      metadata_ptr_var_sp->UpdateValueIfNeeded() == false)
+    return {};
+
+  lldb::addr_t metadata_location(metadata_ptr_var_sp->GetValueAsUnsigned(0));
+  if (metadata_location == 0 || metadata_location == LLDB_INVALID_ADDRESS)
+    return {};
+
+  return metadata_location;
+}
+
+  SwiftLanguageRuntime::MetadataPromiseSP
 SwiftLanguageRuntimeImpl::GetPromiseForTypeNameAndFrame(const char *type_name,
                                                         StackFrame *frame) {
   if (!frame || !type_name || !type_name[0])
@@ -1022,25 +1155,136 @@ SwiftLanguageRuntimeImpl::GetPromiseForTypeNameAndFrame(const char *type_name,
   lldb::addr_t metadata_location(metadata_ptr_var_sp->GetValueAsUnsigned(0));
   if (metadata_location == 0 || metadata_location == LLDB_INVALID_ADDRESS)
     return nullptr;
-
   return GetMetadataPromise(metadata_location, *metadata_ptr_var_sp);
+}
+
+static void
+ForEachGenericParameter(swift::Demangle::NodePointer node,
+                        std::function<void(unsigned, unsigned)> callback) {
+  if (!node)
+    return;
+
+  using namespace swift::Demangle;
+  switch (node->getKind()) {
+  case Node::Kind::DependentGenericParamType: {
+    if (node->getNumChildren() != 2)
+      return;
+    NodePointer depth_node = node->getChild(0);
+    NodePointer index_node = node->getChild(1);
+    if (!depth_node || !depth_node->hasIndex() || !index_node ||
+        !index_node->hasIndex())
+      return;
+    callback(depth_node->getIndex(), index_node->getIndex());
+    break;
+  }
+  default:
+    // Visit the child nodes.
+    for (unsigned i = 0; i < node->getNumChildren(); ++i)
+      ForEachGenericParameter(node->getChild(i), callback);
+  }
+}
+
+CompilerType SwiftLanguageRuntimeImpl::DoArchetypeBindingForTypeRef(
+    StackFrame &stack_frame, TypeSystemSwiftTypeRef &ts,
+    ConstString mangled_name) {
+  Status error;
+  auto &target = m_process.GetTarget();
+  auto scratch_ctx = target.GetScratchSwiftASTContext(error, stack_frame);
+  auto *reflection_ctx = GetReflectionContext();
+  if (!scratch_ctx || !reflection_ctx) {
+    LLDB_LOG(
+        GetLogIfAnyCategoriesSet(LIBLLDB_LOG_EXPRESSIONS | LIBLLDB_LOG_TYPES),
+        "No scratch/reflection context available.");
+    return ts.GetTypeFromMangledTypename(mangled_name);
+  }
+
+  swift::Demangle::Demangler Dem;
+  swift::Demangle::NodePointer canonical =
+      TypeSystemSwiftTypeRef::GetCanonicalDemangleTree(
+          ts.GetModule(), Dem, mangled_name.GetStringRef());
+
+  // Build the list of type substitutions.
+  swift::reflection::GenericArgumentMap substitutions;
+  ForEachGenericParameter(canonical, [&](unsigned depth, unsigned index) {
+    if (substitutions.count({depth, index}))
+      return;
+    StreamString mdvar_name;
+    mdvar_name.Printf(u8"$\u03C4_%d_%d", depth, index);
+
+    llvm::Optional<lldb::addr_t> metadata_location =
+        GetTypeMetadataForTypeNameAndFrame(mdvar_name.GetString(), stack_frame);
+    if (!metadata_location)
+      return;
+
+    const swift::reflection::TypeRef *type_ref =
+        reflection_ctx->readTypeFromMetadata(*metadata_location);
+    substitutions.insert({{depth, index}, type_ref});
+  });
+
+  // Nothing to do if there are no type parameters.
+  auto get_canonical = [&]() {
+    return ts.GetTypeFromMangledTypename(ConstString(mangleNode(canonical)));
+  };
+  if (substitutions.empty())
+    return get_canonical();
+
+  // Build a TypeRef from the demangle tree.
+  auto type_ref_or_err =
+    swift::Demangle::decodeMangledType(reflection_ctx->getBuilder(),
+                                       canonical);
+  if (type_ref_or_err.isError()) {
+    LLDB_LOG(
+      GetLogIfAnyCategoriesSet(LIBLLDB_LOG_EXPRESSIONS | LIBLLDB_LOG_TYPES),
+      "Couldn't get TypeRef");
+    return get_canonical();
+  }
+  const swift::reflection::TypeRef *type_ref = type_ref_or_err.getType();
+
+  // Apply the substitutions.
+  const swift::reflection::TypeRef *bound_type_ref =
+      type_ref->subst(reflection_ctx->getBuilder(), substitutions);
+  swift::Demangle::NodePointer node = bound_type_ref->getDemangling(Dem);
+  CompilerType bound_type = ts.RemangleAsType(Dem, node);
+
+  // Import the type into the scratch context. Subsequent conversions
+  // to Swift types must be performed in the scratch context, since
+  // the bound type may combine types from different
+  // lldb::Modules. Contrary to the AstContext variant of this
+  // function, we don't want to do this earlier, because the
+  // canonicalization in GetCanonicalDemangleTree() must be performed in
+  // the original context as to resolve type aliases correctly.
+  bound_type = scratch_ctx->get()->ImportType(bound_type, error);
+  
+  LLDB_LOG(
+      GetLogIfAnyCategoriesSet(LIBLLDB_LOG_EXPRESSIONS | LIBLLDB_LOG_TYPES),
+      "Bound {0} -> {1}.", mangled_name, bound_type.GetMangledTypeName());
+  return bound_type;
 }
 
 CompilerType
 SwiftLanguageRuntimeImpl::DoArchetypeBindingForType(StackFrame &stack_frame,
                                                     CompilerType base_type) {
+  auto &target = m_process.GetTarget();
+  assert(IsScratchContextLocked(target) &&
+         "Swift scratch context not locked ahead of archetype binding");
+
+  // If this is a TypeRef type, bind that.
   auto sc = stack_frame.GetSymbolContext(lldb::eSymbolContextEverything);
+  if (auto *ts = llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(
+          base_type.GetTypeSystem()))
+    return DoArchetypeBindingForTypeRef(stack_frame, *ts,
+                                        base_type.GetMangledTypeName());
+
   Status error;
   // A failing Clang import in a module context permanently damages
   // that module context.  Binding archetypes can trigger an import of
   // another module, so switch to a scratch context where such an
   // operation is safe.
-  auto &target = m_process.GetTarget();
-  assert(IsScratchContextLocked(target) &&
-         "Swift scratch context not locked ahead of archetype binding");
-  auto scratch_ctx = target.GetScratchSwiftASTContext(error, stack_frame);
-  if (!scratch_ctx)
+  llvm::Optional<SwiftASTContextReader> maybe_scratch_ctx =
+      target.GetScratchSwiftASTContext(error, stack_frame);
+  if (!maybe_scratch_ctx)
     return base_type;
+  SwiftASTContext *scratch_ctx = maybe_scratch_ctx->get();
   base_type = scratch_ctx->ImportType(base_type, error);
 
   if (base_type.GetTypeInfo() & lldb::eTypeIsSwift) {
@@ -1425,11 +1669,13 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_ClangType(
   // Import the remangled dynamic name into the scratch context.
   assert(IsScratchContextLocked(in_value.GetTargetSP()) &&
          "Swift scratch context not locked ahead of dynamic type resolution");
-  auto scratch_ctx = in_value.GetScratchSwiftASTContext();
-  if (!scratch_ctx)
+  llvm::Optional<SwiftASTContextReader> maybe_scratch_ctx =
+      in_value.GetScratchSwiftASTContext();
+  if (!maybe_scratch_ctx)
     return false;
   CompilerType swift_type =
-      scratch_ctx->GetTypeFromMangledTypename(ConstString(remangled));
+      maybe_scratch_ctx->get()->GetTypeFromMangledTypename(
+          ConstString(remangled));
 
   // Roll back the ObjC dynamic type resolution.
   if (!swift_type)
@@ -1483,9 +1729,11 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress(
   // use the scratch context where such operations are legal and safe.
   assert(IsScratchContextLocked(in_value.GetTargetSP()) &&
          "Swift scratch context not locked ahead of dynamic type resolution");
-  auto scratch_ctx = in_value.GetScratchSwiftASTContext();
-  if (!scratch_ctx)
+  llvm::Optional<SwiftASTContextReader> maybe_scratch_ctx =
+      in_value.GetScratchSwiftASTContext();
+  if (!maybe_scratch_ctx)
     return false;
+  SwiftASTContextForExpressions *scratch_ctx = maybe_scratch_ctx->get();
 
   auto retry_once = [&]() {
     // Retry exactly once using the per-module fallback scratch context.
@@ -1703,54 +1951,100 @@ lldb::addr_t SwiftLanguageRuntime::FixupAddress(lldb::addr_t addr,
   return addr;
 }
 
-const swift::reflection::TypeInfo *
-SwiftLanguageRuntimeImpl::GetTypeInfo(CompilerType type) {
+const swift::reflection::TypeRef *
+SwiftLanguageRuntimeImpl::GetTypeRef(CompilerType type, Module *module) {
+  // Demangle the mangled name.
+  swift::Demangle::Demangler Dem;
+  ConstString mangled_name = type.GetMangledTypeName();
+  auto *ts = llvm::dyn_cast_or_null<TypeSystemSwift>(type.GetTypeSystem());
+  if (!ts)
+    return nullptr;
+  swift::Demangle::NodePointer node =
+      TypeSystemSwiftTypeRef::GetCanonicalDemangleTree(
+          module ? module : ts->GetModule(), Dem, mangled_name.GetStringRef());
+  if (!node)
+    return nullptr;
+
+  // Build a TypeRef.
   auto *reflection_ctx = GetReflectionContext();
   if (!reflection_ctx)
     return nullptr;
 
-  swift::CanType swift_can_type(GetCanonicalSwiftType(type));
-  CompilerType can_type = ToCompilerType(swift_can_type);
-  ConstString mangled_name(can_type.GetMangledTypeName());
-  StringRef mangled_no_prefix =
-      swift::Demangle::dropSwiftManglingPrefix(mangled_name.GetStringRef());
-  swift::Demangle::Demangler Dem;
-  auto demangled = Dem.demangleType(mangled_no_prefix);
-  auto *type_ref = swift::Demangle::decodeMangledType(
-      reflection_ctx->getBuilder(), demangled);
+  auto type_ref_or_err =
+    swift::Demangle::decodeMangledType(reflection_ctx->getBuilder(), node);
+  if (type_ref_or_err.isError())
+    return nullptr;
+  const swift::reflection::TypeRef *type_ref = type_ref_or_err.getType();
+  return type_ref;
+}
+
+const swift::reflection::TypeInfo *
+SwiftLanguageRuntimeImpl::GetTypeInfo(CompilerType type,
+                                      ExecutionContextScope *exe_scope) {
+  auto *ts = llvm::dyn_cast_or_null<TypeSystemSwift>(type.GetTypeSystem());
+  if (!ts)
+    return nullptr;
+
+  // Resolve all generic type parameters in the type for the current
+  // frame.  Archetype binding has to happen in the scratch context,
+  // so we lock it while we are in this function.
+  std::unique_ptr<SwiftASTContextLock> lock;
+  if (exe_scope)
+    if (StackFrame *frame = exe_scope->CalculateStackFrame().get()) {
+      ExecutionContext exe_ctx;
+      // FIXME: Should be
+      // frame->CalculateExecutionContext(exe_ctx);
+      // but all the other functions currently get this wrong, too!
+      m_process.GetTarget().CalculateExecutionContext(exe_ctx);
+      lock = std::make_unique<SwiftASTContextLock>(&exe_ctx);
+      type = DoArchetypeBindingForType(*frame, type);
+    }
+
+  // DoArchetypeBindingForType imports the type into the scratch
+  // context, but we need to resolve (any DWARF links in) the typeref
+  // in the original module.
+  const swift::reflection::TypeRef *type_ref =
+      GetTypeRef(type, ts->GetModule());
   if (!type_ref)
     return nullptr;
-  return reflection_ctx->getBuilder().getTypeConverter().getTypeInfo(type_ref);
+
+  auto *reflection_ctx = GetReflectionContext();
+  if (!reflection_ctx)
+    return nullptr;
+
+  LLDBTypeInfoProvider provider(*this, *ts);
+  return reflection_ctx->getTypeInfo(type_ref, &provider);
 }
 
 bool SwiftLanguageRuntimeImpl::IsStoredInlineInBuffer(CompilerType type) {
-  if (auto *type_info = GetTypeInfo(type))
+  if (auto *type_info = GetTypeInfo(type, nullptr))
     return type_info->isBitwiseTakable() && type_info->getSize() <= 24;
   return true;
 }
 
 llvm::Optional<uint64_t>
-SwiftLanguageRuntimeImpl::GetBitSize(CompilerType type) {
-  if (auto *type_info = GetTypeInfo(type))
+SwiftLanguageRuntimeImpl::GetBitSize(CompilerType type,
+                                     ExecutionContextScope *exe_scope) {
+  if (auto *type_info = GetTypeInfo(type, exe_scope))
     return type_info->getSize() * 8;
   return {};
 }
 
 llvm::Optional<uint64_t>
 SwiftLanguageRuntimeImpl::GetByteStride(CompilerType type) {
-  if (auto *type_info = GetTypeInfo(type))
+  if (auto *type_info = GetTypeInfo(type, nullptr))
     return type_info->getStride();
   return {};
 }
 
 llvm::Optional<size_t>
 SwiftLanguageRuntimeImpl::GetBitAlignment(CompilerType type) {
-  if (auto *type_info = GetTypeInfo(type))
+  if (auto *type_info = GetTypeInfo(type, nullptr))
     return type_info->getAlignment();
   return {};
 }
 
-bool SwiftLanguageRuntime::IsWhitelistedRuntimeValue(ConstString name) {
+bool SwiftLanguageRuntime::IsAllowedRuntimeValue(ConstString name) {
   return name.GetStringRef() == "self";
 }
 

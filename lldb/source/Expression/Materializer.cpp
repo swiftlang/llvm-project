@@ -1,4 +1,4 @@
-//===-- Materializer.cpp ----------------------------------------*- C++ -*-===//
+//===-- Materializer.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +12,6 @@
 #include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/Symbol.h"
-#include "lldb/Symbol/SwiftASTContext.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/Variable.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -23,6 +22,8 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
+
+#include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
 
 #include <memory>
 
@@ -401,7 +402,8 @@ uint32_t Materializer::AddPersistentVariable(
     lldb::ExpressionVariableSP &persistent_variable_sp,
     PersistentVariableDelegate *delegate, Status &err) {
   EntityVector::iterator iter = m_entities.insert(m_entities.end(), EntityUP());
-  iter->reset(new EntityPersistentVariable(persistent_variable_sp, delegate));
+  *iter = std::make_unique<EntityPersistentVariable>(persistent_variable_sp,
+                                                     delegate);
   uint32_t ret = AddStructMember(**iter);
   (*iter)->SetOffset(ret);
   return ret;
@@ -411,7 +413,7 @@ class EntityVariable : public Materializer::Entity {
 public:
   EntityVariable(lldb::VariableSP &variable_sp)
       : Entity(), m_variable_sp(variable_sp), m_is_reference(false),
-        m_is_generic(false), m_temporary_allocation(LLDB_INVALID_ADDRESS),
+        m_temporary_allocation(LLDB_INVALID_ADDRESS),
         m_temporary_allocation_size(0) {
     // Hard-coding to maximum size of a pointer since all variables are
     // materialized by reference
@@ -419,8 +421,6 @@ public:
     m_alignment = 8;
     m_is_reference =
         m_variable_sp->GetType()->GetForwardCompilerType().IsReferenceType();
-    m_is_generic = SwiftASTContext::IsGenericType(
-        m_variable_sp->GetType()->GetForwardCompilerType());
   }
 
   void Materialize(lldb::StackFrameSP &frame_sp, IRMemoryMap &map,
@@ -489,20 +489,10 @@ public:
       }
     } else {
       AddressType address_type = eAddressTypeInvalid;
-      const bool is_dynamic_class_type =
-          m_is_generic &&
-          (valobj_type.GetTypeClass() == lldb::eTypeClassClass);
-      const bool scalar_is_load_address = m_is_generic; // this is the only
-                                                          // time we're dealing
-                                                          // with dynamic values
-
-      // if the dynamic type is a class, bypass the GetAddressOf() optimization
-      // as it doesn't do the right thing
+      const bool scalar_is_load_address = false;
       lldb::addr_t addr_of_valobj =
-          is_dynamic_class_type
-              ? LLDB_INVALID_ADDRESS
-              : valobj_sp->GetAddressOf(scalar_is_load_address, &address_type);
-
+          valobj_sp->GetAddressOf(scalar_is_load_address, &address_type);
+          
       // BEGIN Swift.
       if (lldb::ProcessSP process_sp =
           map.GetBestExecutionContextScope()->CalculateProcess())
@@ -561,9 +551,7 @@ public:
                 "size of variable %s (%" PRIu64
                 ") is larger than the ValueObject's size (%" PRIu64 ")",
                 m_variable_sp->GetName().AsCString(),
-                m_variable_sp->GetType()
-                    ->GetByteSize(map.GetBestExecutionContextScope())
-                    .getValueOr(0),
+                m_variable_sp->GetType()->GetByteSize(scope).getValueOr(0),
                 data.GetByteSize());
           }
           return;
@@ -661,9 +649,11 @@ public:
 
       CompilerType valobj_type = valobj_sp->GetCompilerType();
 
+#ifdef LLDB_ENABLE_SWIFT
       if (SwiftASTContext::IsGenericType(valobj_type)) {
         valobj_sp = valobj_sp->GetDynamicValue(lldb::eDynamicDontRunTarget);
       }
+#endif // LLDB_ENABLE_SWIFT
 
       lldb_private::DataExtractor data;
 
@@ -755,7 +745,7 @@ public:
 
         lldb::offset_t offset;
 
-        ptr = extractor.GetPointer(&offset);
+        ptr = extractor.GetAddress(&offset);
 
         dump_stream.PutChar('\n');
       }
@@ -802,7 +792,6 @@ public:
 private:
   lldb::VariableSP m_variable_sp;
   bool m_is_reference;
-  bool m_is_generic;
   lldb::addr_t m_temporary_allocation;
   size_t m_temporary_allocation_size;
   lldb::DataBufferSP m_original_data;
@@ -810,7 +799,7 @@ private:
 
 uint32_t Materializer::AddVariable(lldb::VariableSP &variable_sp, Status &err) {
   EntityVector::iterator iter = m_entities.insert(m_entities.end(), EntityUP());
-  iter->reset(new EntityVariable(variable_sp));
+  *iter = std::make_unique<EntityVariable>(variable_sp);
   uint32_t ret = AddStructMember(**iter);
   (*iter)->SetOffset(ret);
   return ret;
@@ -842,7 +831,9 @@ public:
 
       const lldb::addr_t load_addr = process_address + m_offset;
 
-      ExecutionContextScope *exe_scope = map.GetBestExecutionContextScope();
+      ExecutionContextScope *exe_scope = frame_sp.get();
+      if (!exe_scope)
+        exe_scope = map.GetBestExecutionContextScope();
 
       llvm::Optional<uint64_t> byte_size = m_type.GetByteSize(exe_scope);
       if (!byte_size) {
@@ -852,7 +843,7 @@ public:
 
       llvm::Optional<size_t> opt_bit_align = m_type.GetTypeBitAlign(exe_scope);
       if (!opt_bit_align) {
-        err.SetErrorStringWithFormat("can't get the type alignment");
+        err.SetErrorString("can't get the type alignment");
         return;
       }
 
@@ -892,7 +883,9 @@ public:
                      lldb::addr_t frame_bottom, Status &err) override {
     err.Clear();
 
-    ExecutionContextScope *exe_scope = map.GetBestExecutionContextScope();
+    ExecutionContextScope *exe_scope = frame_sp.get();
+    if (!exe_scope)
+      exe_scope = map.GetBestExecutionContextScope();
 
     if (!exe_scope) {
       err.SetErrorString("Couldn't dematerialize a result variable: invalid "
@@ -922,10 +915,11 @@ public:
     PersistentExpressionState *persistent_state = nullptr;
 
     if (m_type.GetMinimumLanguage() == lldb::eLanguageTypeSwift) {
+#ifdef LLDB_ENABLE_SWIFT
       Status status;
-      auto type_system =
-          target_sp->GetScratchSwiftASTContext(status, *exe_scope).get();
-      if (type_system == nullptr) {
+      llvm::Optional<SwiftASTContextReader> maybe_type_system =
+          target_sp->GetScratchSwiftASTContext(status, *exe_scope);
+      if (!maybe_type_system) {
         err.SetErrorStringWithFormat("Couldn't dematerialize a result variable: "
                                      "couldn't get the corresponding type "
                                      "system: %s", status.AsCString());
@@ -933,6 +927,7 @@ public:
       }
       persistent_state =
           target_sp->GetSwiftPersistentExpressionState(*exe_scope);
+#endif // LLDB_ENABLE_SWIFT
     } else {
       auto type_system_or_err =
           target_sp->GetScratchTypeSystemForLanguage(m_type.GetMinimumLanguage());
@@ -954,11 +949,9 @@ public:
       return;
     }
 
-    ConstString name =
-        m_delegate
-            ? m_delegate->GetName()
-            : persistent_state->GetNextPersistentVariableName(
-                  *target_sp, persistent_state->GetPersistentVariablePrefix());
+    ConstString name = m_delegate
+                           ? m_delegate->GetName()
+                           : persistent_state->GetNextPersistentVariableName();
 
     lldb::ExpressionVariableSP ret = persistent_state->CreatePersistentVariable(
         exe_scope, name, m_type, map.GetByteOrder(), map.GetAddressByteSize());
@@ -1045,7 +1038,7 @@ public:
 
         lldb::offset_t offset;
 
-        ptr = extractor.GetPointer(&offset);
+        ptr = extractor.GetAddress(&offset);
 
         dump_stream.PutChar('\n');
       }
@@ -1105,8 +1098,8 @@ uint32_t Materializer::AddResultVariable(const CompilerType &type,
                                          PersistentVariableDelegate *delegate,
                                          Status &err) {
   EntityVector::iterator iter = m_entities.insert(m_entities.end(), EntityUP());
-  iter->reset(new EntityResultVariable(type, is_program_reference,
-                                       keep_in_memory, delegate));
+  *iter = std::make_unique<EntityResultVariable>(type, is_program_reference,
+                                                 keep_in_memory, delegate);
   uint32_t ret = AddStructMember(**iter);
   (*iter)->SetOffset(ret);
   return ret;
@@ -1135,7 +1128,9 @@ public:
 
     const Address sym_address = m_symbol.GetAddress();
 
-    ExecutionContextScope *exe_scope = map.GetBestExecutionContextScope();
+    ExecutionContextScope *exe_scope = frame_sp.get();
+    if (!exe_scope)
+      exe_scope = map.GetBestExecutionContextScope();
 
     lldb::TargetSP target_sp;
 
@@ -1222,7 +1217,7 @@ private:
 
 uint32_t Materializer::AddSymbol(const Symbol &symbol_sp, Status &err) {
   EntityVector::iterator iter = m_entities.insert(m_entities.end(), EntityUP());
-  iter->reset(new EntitySymbol(symbol_sp));
+  *iter = std::make_unique<EntitySymbol>(symbol_sp);
   uint32_t ret = AddStructMember(**iter);
   (*iter)->SetOffset(ret);
   return ret;
@@ -1399,19 +1394,13 @@ private:
 uint32_t Materializer::AddRegister(const RegisterInfo &register_info,
                                    Status &err) {
   EntityVector::iterator iter = m_entities.insert(m_entities.end(), EntityUP());
-  iter->reset(new EntityRegister(register_info));
+  *iter = std::make_unique<EntityRegister>(register_info);
   uint32_t ret = AddStructMember(**iter);
   (*iter)->SetOffset(ret);
   return ret;
 }
 
-Materializer::Materializer(LLVMCastKind kind)
-    : m_kind(kind), m_dematerializer_wp(), m_current_offset(0),
-      m_struct_alignment(8) {}
-
-Materializer::Materializer()
-    : m_kind(eKindBasic), m_dematerializer_wp(), m_current_offset(0),
-      m_struct_alignment(8) {}
+Materializer::Materializer(LLVMCastKind kind) : m_kind(kind) {}
 
 Materializer::~Materializer() {
   DematerializerSP dematerializer_sp = m_dematerializer_wp.lock();
@@ -1424,7 +1413,6 @@ Materializer::DematerializerSP
 Materializer::Materialize(lldb::StackFrameSP &frame_sp, IRMemoryMap &map,
                           lldb::addr_t process_address, Status &error) {
   ExecutionContextScope *exe_scope = frame_sp.get();
-
   if (!exe_scope)
     exe_scope = map.GetBestExecutionContextScope();
 
@@ -1475,7 +1463,9 @@ void Materializer::Dematerializer::Dematerialize(Status &error,
   if (thread_sp)
     frame_sp = thread_sp->GetFrameWithStackID(m_stack_id);
 
-  ExecutionContextScope *exe_scope = m_map->GetBestExecutionContextScope();
+  ExecutionContextScope *exe_scope = frame_sp.get();
+  if (!exe_scope)
+    exe_scope = m_map->GetBestExecutionContextScope();
 
   if (!IsValid()) {
     error.SetErrorToGenericError();

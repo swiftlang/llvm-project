@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ObjectFile_h_
-#define liblldb_ObjectFile_h_
+#ifndef LLDB_SYMBOL_OBJECTFILE_H
+#define LLDB_SYMBOL_OBJECTFILE_H
 
 #include "lldb/Core/FileSpecList.h"
 #include "lldb/Core/ModuleChild.h"
@@ -21,6 +21,10 @@
 #include "lldb/lldb-private.h"
 #include "llvm/Support/VersionTuple.h"
 
+namespace swift {
+class SwiftObjectFileFormat;
+enum ReflectionSectionKind : uint8_t;
+}
 namespace lldb_private {
 
 class ObjectFileJITDelegate {
@@ -172,10 +176,10 @@ public:
                                        lldb::addr_t header_addr,
                                        lldb::DataBufferSP &file_data_sp);
 
-  static size_t GetModuleSpecifications(const FileSpec &file,
-                                        lldb::offset_t file_offset,
-                                        lldb::offset_t file_size,
-                                        ModuleSpecList &specs);
+  static size_t
+  GetModuleSpecifications(const FileSpec &file, lldb::offset_t file_offset,
+                          lldb::offset_t file_size, ModuleSpecList &specs,
+                          lldb::DataBufferSP data_sp = lldb::DataBufferSP());
 
   static size_t GetModuleSpecifications(const lldb_private::FileSpec &file,
                                         lldb::DataBufferSP &data_sp,
@@ -650,6 +654,9 @@ public:
   /// Creates a plugin-specific call frame info
   virtual std::unique_ptr<CallFrameInfo> CreateCallFrameInfo();
 
+  virtual llvm::StringRef
+  GetReflectionSectionIdentifier(swift::ReflectionSectionKind section);
+
 protected:
   // Member variables.
   FileSpec m_file;
@@ -686,7 +693,8 @@ protected:
                                         uint64_t Offset);
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(ObjectFile);
+  ObjectFile(const ObjectFile &) = delete;
+  const ObjectFile &operator=(const ObjectFile &) = delete;
 };
 
 } // namespace lldb_private
@@ -703,4 +711,4 @@ template <> struct format_provider<lldb_private::ObjectFile::Strata> {
 };
 } // namespace llvm
 
-#endif // liblldb_ObjectFile_h_
+#endif // LLDB_SYMBOL_OBJECTFILE_H

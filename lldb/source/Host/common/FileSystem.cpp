@@ -1,4 +1,4 @@
-//===-- FileSystem.cpp ------------------------------------------*- C++ -*-===//
+//===-- FileSystem.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -360,6 +360,18 @@ bool FileSystem::ResolveExecutableLocation(FileSpec &file_spec) {
   return true;
 }
 
+bool FileSystem::GetHomeDirectory(SmallVectorImpl<char> &path) const {
+  return llvm::sys::path::home_directory(path);
+}
+
+bool FileSystem::GetHomeDirectory(FileSpec &file_spec) const {
+  SmallString<128> home_dir;
+  if (!GetHomeDirectory(home_dir))
+    return false;
+  file_spec.SetPath(home_dir);
+  return true;
+}
+
 static int OpenWithFS(const FileSystem &fs, const char *path, int flags,
                       int mode) {
   return const_cast<FileSystem &>(fs).Open(path, flags, mode);
@@ -487,7 +499,11 @@ void FileSystem::Collect(const FileSpec &file_spec) {
 }
 
 void FileSystem::Collect(const llvm::Twine &file) {
-  if (m_collector && !llvm::sys::fs::is_directory(file)) {
+  if (!m_collector)
+    return;
+
+  if (llvm::sys::fs::is_directory(file))
+    m_collector->addDirectory(file);
+  else
     m_collector->addFile(file);
-  }
 }

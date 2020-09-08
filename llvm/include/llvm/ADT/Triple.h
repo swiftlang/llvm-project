@@ -19,6 +19,8 @@
 
 namespace llvm {
 
+class VersionTuple;
+
 /// Triple - Helper class for working with autoconf configuration names. For
 /// historical reasons, we also call these 'triples' (they used to contain
 /// exactly three fields).
@@ -95,11 +97,13 @@ public:
     wasm64,         // WebAssembly with 64-bit pointers
     renderscript32, // 32-bit RenderScript
     renderscript64, // 64-bit RenderScript
-    LastArchType = renderscript64
+    ve,             // NEC SX-Aurora Vector Engine
+    LastArchType = ve
   };
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v8_6a,
     ARMSubArch_v8_5a,
     ARMSubArch_v8_4a,
     ARMSubArch_v8_3a,
@@ -130,7 +134,9 @@ public:
     KalimbaSubArch_v4,
     KalimbaSubArch_v5,
 
-    MipsSubArch_r6
+    MipsSubArch_r6,
+
+    PPCSubArch_spe
   };
   enum VendorType {
     UnknownVendor,
@@ -436,17 +442,7 @@ public:
   /// compatibility, which handles supporting skewed version numbering schemes
   /// used by the "darwin" triples.
   bool isMacOSXVersionLT(unsigned Major, unsigned Minor = 0,
-                         unsigned Micro = 0) const {
-    assert(isMacOSX() && "Not an OS X triple!");
-
-    // If this is OS X, expect a sane version number.
-    if (getOS() == Triple::MacOSX)
-      return isOSVersionLT(Major, Minor, Micro);
-
-    // Otherwise, compare to the "Darwin" number.
-    assert(Major == 10 && "Unexpected major version");
-    return isOSVersionLT(Minor + 4, Micro, 0);
-  }
+                         unsigned Micro = 0) const;
 
   /// isMacOSX - Is this a Mac OS X triple. For legacy reasons, we support both
   /// "darwin" and "osx" as OS X triples.
@@ -690,6 +686,13 @@ public:
     return getArch() == Triple::nvptx || getArch() == Triple::nvptx64;
   }
 
+  /// Tests whether the target is AMDGCN
+  bool isAMDGCN() const { return getArch() == Triple::amdgcn; }
+
+  bool isAMDGPU() const {
+    return getArch() == Triple::r600 || getArch() == Triple::amdgcn;
+  }
+
   /// Tests whether the target is Thumb (little and big endian).
   bool isThumb() const {
     return getArch() == Triple::thumb || getArch() == Triple::thumbeb;
@@ -730,14 +733,29 @@ public:
     return getArch() == Triple::riscv32 || getArch() == Triple::riscv64;
   }
 
+  /// Tests whether the target is SystemZ.
+  bool isSystemZ() const {
+    return getArch() == Triple::systemz;
+  }
+
   /// Tests whether the target is x86 (32- or 64-bit).
   bool isX86() const {
     return getArch() == Triple::x86 || getArch() == Triple::x86_64;
   }
 
+  /// Tests whether the target is VE
+  bool isVE() const {
+    return getArch() == Triple::ve;
+  }
+
+  /// Tests whether the target is wasm (32- and 64-bit).
+  bool isWasm() const {
+    return getArch() == Triple::wasm32 || getArch() == Triple::wasm64;
+  }
+
   /// Tests whether the target supports comdat
   bool supportsCOMDAT() const {
-    return !isOSBinFormatMachO();
+    return !(isOSBinFormatMachO() || isOSBinFormatXCOFF());
   }
 
   /// Tests whether the target uses emulated TLS as default.
@@ -844,6 +862,12 @@ public:
   /// Merge target triples.
   std::string merge(const Triple &Other) const;
 
+  /// Some platforms have different minimum supported OS versions that
+  /// varies by the architecture specified in the triple. This function
+  /// returns the minimum supported OS version for this triple if one an exists,
+  /// or an invalid version tuple if this triple doesn't have one.
+  VersionTuple getMinimumSupportedOSVersion() const;
+
   /// @}
   /// @name Static helpers for IDs.
   /// @{
@@ -878,6 +902,10 @@ public:
   static ArchType getArchTypeForLLVMName(StringRef Str);
 
   /// @}
+
+  /// Returns a canonicalized OS version number for the specified OS.
+  static VersionTuple getCanonicalVersionForOS(OSType OSKind,
+                                               const VersionTuple &Version);
 };
 
 } // End llvm namespace

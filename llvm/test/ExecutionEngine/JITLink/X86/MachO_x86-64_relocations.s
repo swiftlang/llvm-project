@@ -1,6 +1,12 @@
 # RUN: rm -rf %t && mkdir -p %t
 # RUN: llvm-mc -triple=x86_64-apple-macosx10.9 -filetype=obj -o %t/macho_reloc.o %s
-# RUN: llvm-jitlink -noexec -define-abs external_data=0xdeadbeef -define-abs external_func=0xcafef00d -check=%s %t/macho_reloc.o
+# RUN: llvm-jitlink -noexec -slab-allocate 100Kb -slab-address 0xfff00000 \
+# RUN:    -define-abs external_data=0x1 -define-abs external_func=0x2 \
+# RUN:    -check=%s %t/macho_reloc.o
+#
+# Test standard MachO relocations. Simulates slab allocation in the top 1Mb of
+# memory and places external symbols in the lowest page to prevent GOT and stub
+# elimination.
 
         .section        __TEXT,__text,regular,pure_instructions
 
@@ -187,19 +193,19 @@ anon_func_addr_quad:
 
 # X86_64_RELOC_SUBTRACTOR Quad/Long in named storage with anonymous minuend
 #
-# jitlink-check: *{8}anon_minuend_quad1 = section_addr(macho_reloc.o, __data) - anon_minuend_quad1 + 2
+# jitlink-check: *{8}anon_minuend_quad1 = section_addr(macho_reloc.o, __data) - anon_minuend_quad1 - 2
 # Only the form "B: .quad LA - B + C" is tested. The form "B: .quad B - LA + C" is
 # invalid because the subtrahend can not be local.
         .globl  anon_minuend_quad1
         .p2align  3
 anon_minuend_quad1:
-        .quad Lanon_data - anon_minuend_quad1 + 2
+        .quad Lanon_data - anon_minuend_quad1 - 2
 
-# jitlink-check: *{4}anon_minuend_long1 = (section_addr(macho_reloc.o, __data) - anon_minuend_long1 + 2)[31:0]
+# jitlink-check: *{4}anon_minuend_long1 = (section_addr(macho_reloc.o, __data) - anon_minuend_long1 - 2)[31:0]
         .globl  anon_minuend_long1
         .p2align  2
 anon_minuend_long1:
-        .long Lanon_data - anon_minuend_long1 + 2
+        .long Lanon_data - anon_minuend_long1 - 2
 
 # Check X86_64_RELOC_SUBTRACTOR Quad/Long in named storage with minuend and subtrahend.
 # Both forms "A: .quad A - B + C" and "A: .quad B - A + C" are tested.

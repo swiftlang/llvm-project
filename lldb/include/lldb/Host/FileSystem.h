@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Host_FileSystem_h
-#define liblldb_Host_FileSystem_h
+#ifndef LLDB_HOST_FILESYSTEM_H
+#define LLDB_HOST_FILESYSTEM_H
 
 #include "lldb/Host/File.h"
 #include "lldb/Utility/DataBufferLLVM.h"
@@ -153,6 +153,10 @@ public:
 
   /// Call into the Host to see if it can help find the file.
   bool ResolveExecutableLocation(FileSpec &file_spec);
+
+  /// Get the user home directory.
+  bool GetHomeDirectory(llvm::SmallVectorImpl<char> &path) const;
+  bool GetHomeDirectory(FileSpec &file_spec) const;
 
   enum EnumerateDirectoryResult {
     /// Enumerate next entry in the current directory.

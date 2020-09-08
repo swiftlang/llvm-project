@@ -14,6 +14,7 @@
 
 #include "SwiftExpressionVariable.h"
 
+#include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
@@ -25,7 +26,6 @@
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Symbol/ObjectFile.h"
-#include "lldb/Symbol/SwiftASTContext.h"
 #include "lldb/Symbol/SymbolVendor.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
@@ -267,7 +267,10 @@ lldb::REPLSP SwiftREPL::CreateInstanceFromDebugger(Status &err,
   return repl_sp;
 }
 
+LLDB_PLUGIN_DEFINE_ADV(SwiftREPL, ExpressionParserSwift)
+
 void SwiftREPL::Initialize() {
+  SwiftASTContext::Initialize();
   LanguageSet swift;
   swift.Insert(lldb::eLanguageTypeSwift);
   PluginManager::RegisterPlugin(ConstString("swift"), "The Swift REPL",
@@ -276,6 +279,7 @@ void SwiftREPL::Initialize() {
 
 void SwiftREPL::Terminate() {
   PluginManager::UnregisterPlugin(&CreateInstance);
+  SwiftASTContext::Terminate();
 }
 
 SwiftREPL::SwiftREPL(Target &target)
@@ -585,7 +589,7 @@ void SwiftREPL::CompleteCode(const std::string &current_code,
       // the CompletionRequest requires a replacement for the full current
       // token. Fix this by getting the current token here and we attach
       // the suffix we get from Swift.
-      std::string prefix = request.GetCursorArgumentPrefix();
+      std::string prefix = request.GetCursorArgumentPrefix().str();
       llvm::StringRef current_code_ref(current_code);
       completions.populate(repl_source_file, current_code_ref);
 

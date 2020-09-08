@@ -99,8 +99,8 @@ class BreakpointNames(TestBase):
         other_bkpt_name = "_AnotherBreakpoint"
 
         # Add a name and make sure we match it:
-        success = bkpt.AddName(bkpt_name)
-        self.assertTrue(success, "We couldn't add a legal name to a breakpoint.")
+        success = bkpt.AddNameWithErrorHandling(bkpt_name)
+        self.assertSuccess(success, "We couldn't add a legal name to a breakpoint.")
 
         matches = bkpt.MatchesName(bkpt_name)
         self.assertTrue(matches, "We didn't match the name we just set")
@@ -113,7 +113,7 @@ class BreakpointNames(TestBase):
         self.check_name_in_target(bkpt_name)
 
         # Add another name, make sure that works too:
-        bkpt.AddName(other_bkpt_name)
+        bkpt.AddNameWithErrorHandling(other_bkpt_name)
 
         matches = bkpt.MatchesName(bkpt_name)
         self.assertTrue(matches, "Adding a name means we didn't match the name we just set")
@@ -128,10 +128,10 @@ class BreakpointNames(TestBase):
         name_list = lldb.SBStringList()
         bkpt.GetNames(name_list)
         num_names = name_list.GetSize()
-        self.assertTrue(num_names == 1, "Name list has %d items, expected 1."%(num_names))
+        self.assertEquals(num_names, 1, "Name list has %d items, expected 1."%(num_names))
 
         name = name_list.GetStringAtIndex(0)
-        self.assertTrue(name == other_bkpt_name, "Remaining name was: %s expected %s."%(name, other_bkpt_name))
+        self.assertEquals(name, other_bkpt_name, "Remaining name was: %s expected %s."%(name, other_bkpt_name))
 
     def do_check_illegal_names(self):
         """Use Python APIs to check that we reject illegal names."""
@@ -142,8 +142,8 @@ class BreakpointNames(TestBase):
                      "CantHave-ADash",
                      "Cant Have Spaces"]
         for bad_name in bad_names:
-            success = bkpt.AddName(bad_name)
-            self.assertTrue(not success,"We allowed an illegal name: %s"%(bad_name))
+            success = bkpt.AddNameWithErrorHandling(bad_name)
+            self.assertTrue(success.Fail(), "We allowed an illegal name: %s"%(bad_name))
             bp_name = lldb.SBBreakpointName(self.target, bad_name)
             self.assertFalse(bp_name.IsValid(), "We made a breakpoint name with an illegal name: %s"%(bad_name));
 
@@ -157,23 +157,23 @@ class BreakpointNames(TestBase):
         # Create a dummy breakpoint to use up ID 1
         _ = self.target.BreakpointCreateByLocation(self.main_file_spec, 30)
 
-        # Create a breakpiont to test with
+        # Create a breakpoint to test with
         bkpt = self.target.BreakpointCreateByLocation(self.main_file_spec, 10)
         bkpt_name = "ABreakpoint"
         bkpt_id = bkpt.GetID()
         other_bkpt_name= "_AnotherBreakpoint"
 
         # Add a name and make sure we match it:
-        success = bkpt.AddName(bkpt_name)
-        self.assertTrue(success, "We couldn't add a legal name to a breakpoint.")
+        success = bkpt.AddNameWithErrorHandling(bkpt_name)
+        self.assertSuccess(success, "We couldn't add a legal name to a breakpoint.")
 
         bkpts = lldb.SBBreakpointList(self.target)
         self.target.FindBreakpointsByName(bkpt_name, bkpts)
 
-        self.assertTrue(bkpts.GetSize() == 1, "One breakpoint matched.")
+        self.assertEquals(bkpts.GetSize(), 1, "One breakpoint matched.")
         found_bkpt = bkpts.GetBreakpointAtIndex(0)
-        self.assertTrue(bkpt.GetID() == found_bkpt.GetID(),"The right breakpoint.")
-        self.assertTrue(bkpt.GetID() == bkpt_id,"With the same ID as before.")
+        self.assertEquals(bkpt.GetID(), found_bkpt.GetID(),"The right breakpoint.")
+        self.assertEquals(bkpt.GetID(), bkpt_id,"With the same ID as before.")
 
         retval = lldb.SBCommandReturnObject()
         self.dbg.GetCommandInterpreter().HandleCommand("break disable %s"%(bkpt_name), retval)
@@ -243,8 +243,8 @@ class BreakpointNames(TestBase):
 
         # Now add this name to a breakpoint, and make sure it gets configured properly
         bkpt = self.target.BreakpointCreateByLocation(self.main_file_spec, 10)
-        success = bkpt.AddName(self.bp_name_string)
-        self.assertTrue(success, "Couldn't add this name to the breakpoint")
+        success = bkpt.AddNameWithErrorHandling(self.bp_name_string)
+        self.assertSuccess(success, "Couldn't add this name to the breakpoint")
         self.check_option_values(bkpt)
 
         # Now make a name from this breakpoint, and make sure the new name is properly configured:
@@ -317,8 +317,8 @@ class BreakpointNames(TestBase):
         unprotected_bkpt = self.target.BreakpointCreateByLocation(self.main_file_spec, 10)
         unprotected_id = unprotected_bkpt.GetID()
 
-        success = protected_bkpt.AddName(self.bp_name_string)
-        self.assertTrue(success, "Couldn't add this name to the breakpoint")
+        success = protected_bkpt.AddNameWithErrorHandling(self.bp_name_string)
+        self.assertSuccess(success, "Couldn't add this name to the breakpoint")
 
         self.target.DisableAllBreakpoints()
         self.assertEqual(protected_bkpt.IsEnabled(), True, "Didnt' keep breakpoint from being disabled")

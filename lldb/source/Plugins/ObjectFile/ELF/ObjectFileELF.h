@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ObjectFileELF_h_
-#define liblldb_ObjectFileELF_h_
+#ifndef LLDB_SOURCE_PLUGINS_OBJECTFILE_ELF_OBJECTFILEELF_H
+#define LLDB_SOURCE_PLUGINS_OBJECTFILE_ELF_OBJECTFILEELF_H
 
 #include <stdint.h>
 
@@ -328,9 +328,6 @@ private:
   /// section index 0 is never valid).
   lldb::user_id_t GetSectionIndexByName(const char *name);
 
-  // Returns the ID of the first section that has the given type.
-  lldb::user_id_t GetSectionIndexByType(unsigned type);
-
   /// Returns the section header with the given id or NULL.
   const ELFSectionHeaderInfo *GetSectionHeaderByIndex(lldb::user_id_t id);
 
@@ -395,6 +392,9 @@ private:
   /// .gnu_debugdata section or \c nullptr if an error occured or if there's no
   /// section with that name.
   std::shared_ptr<ObjectFileELF> GetGnuDebugDataObjectFile();
+
+  llvm::StringRef
+  GetReflectionSectionIdentifier(swift::ReflectionSectionKind section);
 };
 
-#endif // liblldb_ObjectFileELF_h_
+#endif // LLDB_SOURCE_PLUGINS_OBJECTFILE_ELF_OBJECTFILEELF_H

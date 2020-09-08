@@ -86,9 +86,7 @@ SwiftExpressionParser::SwiftExpressionParser(
     ExecutionContextScope *exe_scope, Expression &expr,
     const EvaluateExpressionOptions &options)
     : ExpressionParser(exe_scope, expr, options.GetGenerateDebugInfo()),
-      m_expr(expr), m_triple(), m_llvm_context(), m_module(),
-      m_execution_unit_sp(), m_sc(), m_exe_scope(exe_scope), m_stack_frame_wp(),
-      m_options(options) {
+      m_expr(expr), m_exe_scope(exe_scope), m_options(options) {
   assert(expr.Language() == lldb::eLanguageTypeSwift);
 
   // TODO: This code is copied from ClangExpressionParser.cpp.
@@ -108,28 +106,13 @@ SwiftExpressionParser::SwiftExpressionParser(
     }
   }
 
-  if (target_sp && target_sp->GetArchitecture().IsValid()) {
-    std::string triple = target_sp->GetArchitecture().GetTriple().str();
-
-    int dash_count = 0;
-    for (size_t i = 0; i < triple.size(); ++i) {
-      if (triple[i] == '-')
-        dash_count++;
-      if (dash_count == 3) {
-        triple.resize(i);
-        break;
-      }
-    }
-
-    m_triple = triple;
-  } else {
-    m_triple = llvm::sys::getDefaultTargetTriple();
-  }
-
   if (target_sp) {
     Status error;
-    m_swift_ast_context = std::make_unique<SwiftASTContextReader>(
-        target_sp->GetScratchSwiftASTContext(error, *exe_scope, true));
+    llvm::Optional<SwiftASTContextReader> scratch_ctx =
+        target_sp->GetScratchSwiftASTContext(error, *exe_scope, true);
+    if (scratch_ctx)
+      m_swift_ast_context =
+          std::make_unique<SwiftASTContextReader>(scratch_ctx.getValue());
   }
 }
 
@@ -251,7 +234,7 @@ public:
       // must be moved to the source-file level to be legal.  But we
       // don't want to register them with lldb unless they are of the
       // kind lldb explicitly wants to globalize.
-      if (shouldGlobalize(value_decl->getBaseIdentifier(),
+      if (shouldGlobalize(value_decl->getBaseName().getIdentifier(),
                           value_decl->getKind()))
         m_staged_decls.AddDecl(value_decl, false, ConstString());
     }
@@ -276,7 +259,7 @@ public:
                                ResultVector &RV) {
     static unsigned counter = 0;
     unsigned count = counter++;
-    
+
     StringRef NameStr = Name.getIdentifier().str();
 
     if (m_log) {
@@ -925,7 +908,7 @@ CreateMainFile(SwiftASTContextForExpressions &swift_ast_context,
 
         llvm::SmallString<256> source_dir(temp_source_path);
         llvm::sys::path::remove_filename(source_dir);
-        ir_gen_options.DebugCompilationDir = source_dir.str();
+        ir_gen_options.DebugCompilationDir = std::string(source_dir);
 
         return {buffer_id, temp_source_path};
       }
@@ -936,7 +919,7 @@ CreateMainFile(SwiftASTContextForExpressions &swift_ast_context,
       llvm::MemoryBuffer::getMemBufferCopy(text, filename));
   unsigned buffer_id = swift_ast_context.GetSourceManager().addNewSourceBuffer(
       std::move(expr_buffer));
-  return {buffer_id, filename};
+  return {buffer_id, filename.str()};
 }
 
 /// Attempt to materialize one variable.
@@ -1131,7 +1114,7 @@ struct ModuleImportError : public llvm::ErrorInfo<ModuleImportError> {
     return inconvertibleErrorCode();
   }
 };
-  
+
 char PropagatedError::ID = 0;
 char SwiftASTContextError::ID = 0;
 char ModuleImportError::ID = 0;
@@ -1615,9 +1598,7 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
   if (log) {
     std::string s;
     llvm::raw_string_ostream ss(s);
-    swift::SILOptions silOpts;
-    silOpts.EmitVerboseSIL = false;
-    sil_module->print(ss, &parsed_expr->module, silOpts);
+    sil_module->print(ss, &parsed_expr->module);
     ss.flush();
 
     log->Printf("SIL module before linking:");
@@ -1632,9 +1613,7 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
   if (log) {
     std::string s;
     llvm::raw_string_ostream ss(s);
-    swift::SILOptions silOpts;
-    silOpts.EmitVerboseSIL = false;
-    sil_module->print(ss, &parsed_expr->module, silOpts);
+    sil_module->print(ss, &parsed_expr->module);
     ss.flush();
 
     log->Printf("Generated SIL module:");
@@ -1647,9 +1626,7 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
   if (log) {
     std::string s;
     llvm::raw_string_ostream ss(s);
-    swift::SILOptions silOpts;
-    silOpts.EmitVerboseSIL = false;
-    sil_module->print(ss, &parsed_expr->module, silOpts);
+    sil_module->print(ss, &parsed_expr->module);
     ss.flush();
 
     log->Printf("SIL module after diagnostic passes:");
@@ -1665,12 +1642,18 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
     std::lock_guard<std::recursive_mutex> global_context_locker(
         IRExecutionUnit::GetLLVMGlobalContextMutex());
 
+    const auto &IRGenOpts = swift_ast_ctx->GetIRGenOptions();
+
     auto GenModule = swift::performIRGeneration(
-        swift_ast_ctx->GetIRGenOptions(), &parsed_expr->module,
+        &parsed_expr->module, IRGenOpts, swift_ast_ctx->GetTBDGenOptions(),
         std::move(sil_module), "lldb_module",
         swift::PrimarySpecificPaths("", parsed_expr->main_filename),
         llvm::ArrayRef<std::string>());
-      
+
+    if (GenModule) {
+      swift::performLLVMOptimizations(IRGenOpts, GenModule.getModule(),
+                                      GenModule.getTargetMachine());
+    }
     auto ContextAndModule = std::move(GenModule).release();
     m_llvm_context.reset(ContextAndModule.first);
     m_module.reset(ContextAndModule.second);

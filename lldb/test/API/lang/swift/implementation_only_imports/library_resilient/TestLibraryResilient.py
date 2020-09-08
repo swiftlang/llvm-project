@@ -27,6 +27,7 @@ class TestLibraryResilient(TestBase):
 
     def launch_info(self):
         info = lldb.SBLaunchInfo([])
+        info.SetLaunchFlags(lldb.eLaunchFlagInheritTCCFromParent)
 
         if self.getPlatform() == "freebsd" or self.getPlatform() == "linux":
             # LD_LIBRARY_PATH must be set so the shared libraries are found on
@@ -41,10 +42,10 @@ class TestLibraryResilient(TestBase):
         return info
 
     @swiftTest
-    @expectedFailureOS(no_match(["macosx"])) # Requires Remote Mirrors support
+    @expectedFailureAll(oslist=["windows"]) # Requires Remote Mirrors support
     def test_implementation_only_import_library(self):
         """Test `@_implementationOnly import` in a resilient library used by the main executable
-        
+
         See the ReadMe.md in the parent directory for more information.
         """
 
@@ -60,13 +61,13 @@ class TestLibraryResilient(TestBase):
             "(SomeLibrary.ContainsTwoInts) container = {\n  wrapped = (first = 2, second = 3)\n  other = 10\n}",
             "(Int) simple = 1"])
         self.expect("e container", substrs=["(SomeLibrary.ContainsTwoInts)", "other = 10"])
-        self.expect("e container.wrapped", error=True, substrs=["value of type 'ContainsTwoInts' has no member 'wrapped'"])
+        self.expect("e container.wrapped", substrs=["(SomeLibraryCore.TwoInts)", "(first = 2, second = 3)"])
 
     @swiftTest
-    @expectedFailureOS(no_match(["macosx"])) # Requires Remote Mirrors support
+    @expectedFailureAll(oslist=["windows"]) # Requires Remote Mirrors support
     def test_implementation_only_import_library_no_library_module(self):
         """Test `@_implementationOnly import` in a resilient library used by the main executable, after removing the implementation-only library's swiftmodule
-        
+
         See the ReadMe.md in the parent directory for more information.
         """
 

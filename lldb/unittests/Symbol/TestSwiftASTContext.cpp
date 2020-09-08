@@ -14,7 +14,7 @@
 
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
-#include "lldb/Symbol/SwiftASTContext.h"
+#include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -122,7 +122,7 @@ TEST_F(TestSwiftASTContext, ResourceDir) {
     SmallString path = m_base_dir.str();
     path::append(path, dir);
     ASSERT_NO_ERROR(fs::create_directories(path));
-    abs_paths.push_back(path.str());
+    abs_paths.push_back(std::string(path));
   }
 
   llvm::StringRef macosx_sdk = path::parent_path(abs_paths[3]);
@@ -151,11 +151,14 @@ TEST_F(TestSwiftASTContext, ResourceDir) {
     llvm::Triple host("x86_64-apple-macosx10.14");
     llvm::Triple target(triple_string);
     return SwiftASTContextTester::GetResourceDir(
-        sdk_path, SwiftASTContextTester::GetSwiftStdlibOSDir(target, host),
-        swift_dir.str(), xcode_contents.str(), toolchain.str(), cl_tools.str());
+        sdk_path,
+        SwiftASTContextTester::GetSwiftStdlibOSDir(target, host),
+        std::string(swift_dir), std::string(xcode_contents),
+        std::string(toolchain), std::string(cl_tools));
   };
 
-  EXPECT_EQ(GetResourceDir({"x86_64-apple-macosx10.14"}, macosx_sdk), tc_rdir);
+  EXPECT_EQ(GetResourceDir({"x86_64-apple-macosx10.14"}, macosx_sdk),
+            tc_rdir.str());
   EXPECT_EQ(GetResourceDir("x86_64-apple-darwin", macosx_sdk), tc_rdir);
   EXPECT_EQ(GetResourceDir("aarch64-apple-ios11.3", ios_sdk), tc_rdir);
   // Old-style simulator triple with missing environment.
@@ -173,13 +176,13 @@ TEST_F(TestSwiftASTContext, ResourceDir) {
   // Custom toolchain.
   toolchain = path::parent_path(
       path::parent_path(path::parent_path(path::parent_path(abs_paths[7]))));
-  std::string custom_tc = path::parent_path(abs_paths[7]);
+  std::string custom_tc = path::parent_path(abs_paths[7]).str();
   EXPECT_EQ(GetResourceDir("x86_64-apple-macosx", macosx_sdk), custom_tc);
 
   // CLTools.
   xcode_contents = "";
   toolchain = "";
-  std::string cl_tools_rd = path::parent_path(abs_paths[8]);
+  std::string cl_tools_rd = path::parent_path(abs_paths[8]).str();
   EXPECT_EQ(GetResourceDir("x86_64-apple-macosx", macosx_sdk), cl_tools_rd);
 
   // Local builds.
@@ -196,4 +199,51 @@ TEST_F(TestSwiftASTContext, IsNonTriviallyManagedReferenceType) {
   EXPECT_FALSE(SwiftASTContext::IsNonTriviallyManagedReferenceType(t, strategy,
                                                                    nullptr));
 #endif
+}
+
+TEST_F(TestSwiftASTContext, SwiftFriendlyTriple) {
+  EXPECT_EQ(SwiftASTContext::GetSwiftFriendlyTriple(
+                llvm::Triple("x86_64-apple-macosx")),
+            llvm::Triple("x86_64-apple-macosx"));
+  EXPECT_EQ(SwiftASTContext::GetSwiftFriendlyTriple(
+                llvm::Triple("x86_64h-apple-macosx")),
+            llvm::Triple("x86_64-apple-macosx"));
+  EXPECT_EQ(SwiftASTContext::GetSwiftFriendlyTriple(
+                llvm::Triple("aarch64-apple-macosx")),
+            llvm::Triple("arm64-apple-macosx"));
+  EXPECT_EQ(SwiftASTContext::GetSwiftFriendlyTriple(
+                llvm::Triple("aarch64_32-apple-watchos")),
+            llvm::Triple("arm64_32-apple-watchos"));
+  EXPECT_EQ(SwiftASTContext::GetSwiftFriendlyTriple(
+                llvm::Triple("aarch64-unknown-linux")),
+            llvm::Triple("aarch64-unknown-linux-gnu"));
+}
+
+namespace {
+  const std::vector<std::string> duplicated_flags = {
+    "-DMACRO1", "-D", "MACRO1", "-UMACRO2", "-U", "MACRO2",
+    "-I/path1", "-I", "/path1", "-F/path2", "-F", "/path2",
+    "-fmodule-map-file=/path3", "-fmodule-map-file=/path3",
+    "-F/path2", "-F", "/path2", "-I/path1", "-I", "/path1",
+    "-UMACRO2", "-U", "MACRO2", "-DMACRO1", "-D", "MACRO1",
+  };
+  const std::vector<std::string> uniqued_flags = {
+    "-DMACRO1", "-UMACRO2", "-I/path1", "-F/path2", "-fmodule-map-file=/path3"
+  };
+} // namespace
+
+TEST(ClangArgs, UniquingCollisionWithExistingFlags) {
+  const std::vector<std::string> source = duplicated_flags;
+  std::vector<std::string> dest = uniqued_flags;
+  SwiftASTContext::AddExtraClangArgs(source, dest);
+
+  EXPECT_EQ(dest, uniqued_flags);
+}
+
+TEST(ClangArgs, UniquingCollisionWithAddedFlags) {
+  const std::vector<std::string> source = duplicated_flags;
+  std::vector<std::string> dest;
+  SwiftASTContext::AddExtraClangArgs(source, dest);
+
+  EXPECT_EQ(dest, uniqued_flags);
 }

@@ -56,6 +56,8 @@ using lldb_private::formatters::AddSummary;
 using lldb_private::formatters::swift::DictionaryConfig;
 using lldb_private::formatters::swift::SetConfig;
 
+LLDB_PLUGIN_DEFINE(SwiftLanguage)
+
 void SwiftLanguage::Initialize() {
   static ConstString g_SwiftSharedStringClass("_TtCs21__SharedStringStorage");
   static ConstString g_SwiftStringStorageClass("_TtCs15__StringStorage");
@@ -127,7 +129,7 @@ SwiftLanguage::GetMethodNameVariants(ConstString method_name) const {
 
   ConstString counterpart;
   if (method_name.GetMangledCounterpart(counterpart))
-    if (SwiftLanguageRuntime::IsSwiftMangledName(counterpart.GetCString()))
+    if (SwiftLanguageRuntime::IsSwiftMangledName(counterpart.GetStringRef()))
       variant_names.emplace_back(counterpart);
   return variant_names;
 }
@@ -259,16 +261,6 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
       swift_category_sp,
       lldb_private::formatters::swift::SwiftBasicTypeSyntheticFrontEndCreator,
       "Swift.UWord", ConstString("Swift.UWord"), basic_synth_flags);
-  AddCXXSynthetic(
-      swift_category_sp,
-      lldb_private::formatters::swift::SwiftBasicTypeSyntheticFrontEndCreator,
-      "Swift.UnsafePointer", ConstString("^Swift.UnsafePointer<.+>$"),
-      basic_synth_flags, true);
-  AddCXXSynthetic(
-      swift_category_sp,
-      lldb_private::formatters::swift::SwiftBasicTypeSyntheticFrontEndCreator,
-      "Swift.UnsafeMutablePointer",
-      ConstString("^Swift.UnsafeMutablePointer<.+>$"), basic_synth_flags, true);
 
   AddFormat(swift_category_sp, lldb::eFormatPointer,
             ConstString("Swift.OpaquePointer"), format_flags, false);
@@ -328,9 +320,9 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
 
   AddCXXSummary(
       swift_category_sp,
-      lldb_private::formatters::swift::UnsafeBufferPointerSummaryProvider,
-      "Swift.Unsafe[Mutable][Raw]BufferPointer",
-      ConstString("^Swift.Unsafe(Mutable)?(Raw)?BufferPointer(<.+>)?$"),
+      lldb_private::formatters::swift::UnsafeTypeSummaryProvider,
+      "Swift.Unsafe[Mutable][Raw][Buffer]Pointer",
+      ConstString("^Swift.Unsafe(Mutable)?(Raw)?(Buffer)?Pointer(<.+>)?$"),
       summary_flags, true);
 
   DictionaryConfig::Get()
@@ -392,10 +384,9 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
 
   AddCXXSynthetic(
       swift_category_sp,
-      lldb_private::formatters::swift::
-          UnsafeBufferPointerSyntheticFrontEndCreator,
-      "Swift.Unsafe[Mutable][Raw]BufferPointer",
-      ConstString("^Swift.Unsafe(Mutable)?(Raw)?BufferPointer(<.+>)?$"),
+      lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEndCreator,
+      "Swift.Unsafe[Mutable][Raw][Buffer]Pointer",
+      ConstString("^Swift.Unsafe(Mutable)?(Raw)?(Buffer)?Pointer(<.+>)?$"),
       synth_flags, true);
 
   DictionaryConfig::Get()
@@ -772,6 +763,10 @@ SwiftLanguage::GetHardcodedSynthetics() {
       CompilerType type(valobj.GetCompilerType());
       Flags type_flags(type.GetTypeInfo());
       if (type_flags.AllSet(eTypeIsSwift | eTypeIsEnumeration)) {
+        // FIXME: The classification of clang-imported enums may
+        // change based on whether a Swift module is present or not.
+        if (!valobj.GetValueAsCString())
+          return nullptr;
         if (!swift_enum_synth)
           swift_enum_synth = lldb::SyntheticChildrenSP(new CXXSyntheticChildren(
               SyntheticChildren::Flags()
@@ -938,6 +933,7 @@ static void SplitDottedName(llvm::StringRef name,
 
 std::unique_ptr<Language::TypeScavenger> SwiftLanguage::GetTypeScavenger() {
   class SwiftTypeScavenger : public Language::TypeScavenger {
+    friend std::unique_ptr<Language::TypeScavenger> SwiftLanguage::GetTypeScavenger();
   private:
     typedef SwiftASTContext::TypeOrDecl TypeOrDecl;
     typedef SwiftASTContext::TypesOrDecls TypesOrDecls;
@@ -1013,9 +1009,11 @@ std::unique_ptr<Language::TypeScavenger> SwiftLanguage::GetTypeScavenger() {
             if (target) {
               const bool create_on_demand = false;
               Status error;
-              auto ast_ctx = target->GetScratchSwiftASTContext(
-                  error, *exe_scope, create_on_demand);
-              if (ast_ctx) {
+              llvm::Optional<SwiftASTContextReader> maybe_ast_ctx =
+                  target->GetScratchSwiftASTContext(error, *exe_scope,
+                                                    create_on_demand);
+              if (maybe_ast_ctx) {
+                SwiftASTContext *ast_ctx = maybe_ast_ctx->get();
                 ConstString cs_input{input};
                 Mangled mangled(cs_input);
                 if (mangled.GuessLanguage() == eLanguageTypeSwift) {
@@ -1071,9 +1069,11 @@ std::unique_ptr<Language::TypeScavenger> SwiftLanguage::GetTypeScavenger() {
             Target *target = exe_scope->CalculateTarget().get();
             const bool create_on_demand = false;
             Status error;
-            auto ast_ctx = target->GetScratchSwiftASTContext(error, *exe_scope,
-                                                             create_on_demand);
-            if (ast_ctx) {
+            llvm::Optional<SwiftASTContextReader> maybe_ast_ctx =
+                target->GetScratchSwiftASTContext(error, *exe_scope,
+                                                  create_on_demand);
+            if (maybe_ast_ctx) {
+              SwiftASTContext *ast_ctx = maybe_ast_ctx->get();
               auto iter = ast_ctx->GetModuleCache().begin(),
                    end = ast_ctx->GetModuleCache().end();
 
@@ -1083,8 +1083,6 @@ std::unique_ptr<Language::TypeScavenger> SwiftLanguage::GetTypeScavenger() {
               std::function<void(swift::ModuleDecl *)> lookup_func =
                   [&ast_ctx, input, name_parts,
                    &results](swift::ModuleDecl *module) -> void {
-
-                swift::ModuleDecl::AccessPathTy access_path;
 
                 for (auto imported_module : swift::namelookup::getAllImports(module)) {
                   auto module = imported_module.importedModule;
@@ -1365,7 +1363,7 @@ bool SwiftLanguage::GetFunctionDisplayName(
             s.PutCString(cstr);
             s.PutCString(" [inlined] ");
             cstr =
-                inline_info->GetName(sc->function->GetLanguage()).GetCString();
+                inline_info->GetName().GetCString();
           }
 
           VariableList args;

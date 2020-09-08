@@ -13,23 +13,20 @@
 #ifndef liblldb_SwiftLanguageRuntime_h_
 #define liblldb_SwiftLanguageRuntime_h_
 
-// C Includes
-// C++ Includes
-#include <mutex>
-#include <tuple>
-#include <vector>
-// Other libraries and framework includes
-// Project includes
 #include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntimeV2.h"
+#include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
 #include "lldb/Breakpoint/BreakpointPrecondition.h"
 #include "lldb/Core/PluginInterface.h"
-#include "lldb/Symbol/SwiftASTContext.h"
 #include "lldb/Target/LanguageRuntime.h"
 #include "lldb/lldb-private.h"
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Casting.h"
+
+#include <mutex>
+#include <tuple>
+#include <vector>
 
 namespace swift {
 namespace remote {
@@ -130,7 +127,7 @@ public:
   /// \{
   /// Use these passthrough functions rather than calling into Swift directly,
   /// since some day we may want to support more than one swift variant.
-  static bool IsSwiftMangledName(const char *name);
+  static bool IsSwiftMangledName(llvm::StringRef name);
 
   enum DemangleMode { eSimplified, eTypeName, eDisplayTypeName };
   static std::string DemangleSymbolAsString(llvm::StringRef symbol,
@@ -200,7 +197,7 @@ public:
                                 Value::ValueType &value_type) override;
   TypeAndOrName FixUpDynamicType(const TypeAndOrName &type_and_or_name,
                                  ValueObject &static_value) override;
-  lldb::BreakpointResolverSP CreateExceptionResolver(Breakpoint *bkpt,
+  lldb::BreakpointResolverSP CreateExceptionResolver(const lldb::BreakpointSP &bkpt,
                                                      bool catch_bp,
                                                      bool throw_bp) override;
   bool CouldHaveDynamicValue(ValueObject &in_value) override;
@@ -252,7 +249,8 @@ public:
                                                    Status *error = nullptr);
 
   /// Ask Remote Mirrors for the size of a Swift type.
-  llvm::Optional<uint64_t> GetBitSize(CompilerType type);
+  llvm::Optional<uint64_t> GetBitSize(CompilerType type,
+                                      ExecutionContextScope *exe_scope);
 
   /// Ask Remote mirrors for the stride of a Swift type.
   llvm::Optional<uint64_t> GetByteStride(CompilerType type);
@@ -333,7 +331,7 @@ public:
   static bool IsSwiftClassName(const char *name);
   /// Determines wether \c variable is the "self" object.
   static bool IsSelf(Variable &variable);
-  bool IsWhitelistedRuntimeValue(ConstString name) override;
+  bool IsAllowedRuntimeValue(ConstString name) override;
 
   lldb::SyntheticChildrenSP
   GetBridgedSyntheticChildProvider(ValueObject &valobj);
@@ -346,7 +344,8 @@ public:
 
   bool IsABIStable();
 
-  DISALLOW_COPY_AND_ASSIGN(SwiftLanguageRuntime);
+  SwiftLanguageRuntime(const SwiftLanguageRuntime &) = delete;
+  const SwiftLanguageRuntime &operator=(const SwiftLanguageRuntime &) = delete;
 
   static AppleObjCRuntimeV2 *GetObjCRuntime(lldb_private::Process &process);
 protected:
