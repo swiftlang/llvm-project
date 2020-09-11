@@ -123,10 +123,11 @@ const char *REPL::IOHandlerGetHelpPrologue() {
          "Valid statements, expressions, and declarations are immediately "
          "compiled and executed.\n\n"
          "The complete set of LLDB debugging commands are also available as "
-         "described below.  Commands "
+         "described below.\n\nCommands "
          "must be prefixed with a colon at the REPL prompt (:quit for "
          "example.)  Typing just a colon "
-         "followed by return will switch to the LLDB prompt.\n\n";
+         "followed by return will switch to the LLDB prompt.\n\n"
+         "Type “< path” to read in Swift code from a text file “path”.\n\n";
 }
 
 bool REPL::IOHandlerIsInputComplete(IOHandler &io_handler, StringList &lines) {
