@@ -1636,9 +1636,14 @@ CompilerType
 TypeSystemSwiftTypeRef::GetPointeeType(opaque_compiler_type_t type) {
   return m_swift_ast_context->GetPointeeType(ReconstructType(type));
 }
+
 CompilerType
 TypeSystemSwiftTypeRef::GetPointerType(opaque_compiler_type_t type) {
-  return m_swift_ast_context->GetPointerType(ReconstructType(type));
+  auto impl = [&]() -> CompilerType {
+    assert(false && "GetPointerType is unimplemented for Swift types");
+    return {};
+  };
+  VALIDATE_AND_RETURN(impl, GetPointerType, type, (ReconstructType(type)));
 }
 
 // Exploring the type
