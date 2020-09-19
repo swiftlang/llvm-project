@@ -28,6 +28,71 @@ XtensaMCInstLower::XtensaMCInstLower(MCContext &ctx,
                                      XtensaAsmPrinter &asmPrinter)
     : Ctx(ctx), Printer(asmPrinter) {}
 
+MCSymbol *
+XtensaMCInstLower::GetExternalSymbolSymbol(const MachineOperand &MO) const {
+  return Printer.GetExternalSymbolSymbol(MO.getSymbolName());
+}
+
+MCSymbol *
+XtensaMCInstLower::GetJumpTableSymbol(const MachineOperand &MO) const {
+  return Printer.GetJTISymbol(MO.getIndex());
+}
+
+MCSymbol *
+XtensaMCInstLower::GetConstantPoolIndexSymbol(const MachineOperand &MO) const {
+  // Create a symbol for the name.
+  return Printer.GetCPISymbol(MO.getIndex());
+}
+
+MCOperand
+XtensaMCInstLower::LowerSymbolOperand(const MachineOperand &MO,
+                                      MachineOperand::MachineOperandType MOTy,
+                                      unsigned Offset) const {
+  const MCSymbol *Symbol;
+  XtensaMCExpr::VariantKind Kind = XtensaMCExpr::VK_Xtensa_None;
+
+  switch (MOTy) {
+  case MachineOperand::MO_MachineBasicBlock:
+    Symbol = MO.getMBB()->getSymbol();
+    break;
+  case MachineOperand::MO_GlobalAddress:
+    Symbol = Printer.getSymbol(MO.getGlobal());
+    Offset += MO.getOffset();
+    break;
+  case MachineOperand::MO_BlockAddress:
+    Symbol = Printer.GetBlockAddressSymbol(MO.getBlockAddress());
+    Offset += MO.getOffset();
+    break;
+  case MachineOperand::MO_ExternalSymbol:
+    Symbol = GetExternalSymbolSymbol(MO);
+    Offset += MO.getOffset();
+    break;
+  case MachineOperand::MO_JumpTableIndex:
+    Symbol = GetJumpTableSymbol(MO);
+    break;
+  case MachineOperand::MO_ConstantPoolIndex:
+    Symbol = GetConstantPoolIndexSymbol(MO);
+    Offset += MO.getOffset();
+    break;
+  default:
+    llvm_unreachable("<unknown operand type>");
+  }
+
+  const MCExpr *ME =
+      MCSymbolRefExpr::create(Symbol, MCSymbolRefExpr::VK_None, Ctx);
+
+  ME = XtensaMCExpr::create(ME, Kind, Ctx);
+
+  if (Offset) {
+    // Assume offset is never negative.
+    assert(Offset > 0);
+
+    const MCConstantExpr *OffsetExpr = MCConstantExpr::create(Offset, Ctx);
+    ME = MCBinaryExpr::createAdd(ME, OffsetExpr, Ctx);
+  }
+
+  return MCOperand::createExpr(ME);
+}
 
 MCOperand XtensaMCInstLower::lowerOperand(const MachineOperand &MO,
                                           unsigned Offset) const {
@@ -43,6 +108,13 @@ MCOperand XtensaMCInstLower::lowerOperand(const MachineOperand &MO,
     return MCOperand::createImm(MO.getImm() + Offset);
   case MachineOperand::MO_RegisterMask:
     break;
+  case MachineOperand::MO_MachineBasicBlock:
+  case MachineOperand::MO_GlobalAddress:
+  case MachineOperand::MO_ExternalSymbol:
+  case MachineOperand::MO_JumpTableIndex:
+  case MachineOperand::MO_ConstantPoolIndex:
+  case MachineOperand::MO_BlockAddress:
+    return LowerSymbolOperand(MO, MOTy, Offset);
   default:
     llvm_unreachable("unknown operand type");
   }

@@ -37,6 +37,17 @@ public:
 
   // Return an MCOperand for MO.  Return an empty operand if MO is implicit.
   MCOperand lowerOperand(const MachineOperand &MO, unsigned Offset = 0) const;
+
+private:
+  MCSymbol *GetExternalSymbolSymbol(const MachineOperand &MO) const;
+
+  MCSymbol *GetJumpTableSymbol(const MachineOperand &MO) const;
+
+  MCSymbol *GetConstantPoolIndexSymbol(const MachineOperand &MO) const;
+
+  MCOperand LowerSymbolOperand(const MachineOperand &MO,
+                               MachineOperand::MachineOperandType MOTy,
+                               unsigned Offset) const;
 };
 } // end namespace llvm
 
