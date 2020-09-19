@@ -40,6 +40,9 @@ public:
   // Override SelectionDAGISel.
   void Select(SDNode *Node) override;
 
+  bool SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
+                                    std::vector<SDValue> &OutOps) override;
+
   bool selectMemRegAddr(SDValue Addr, SDValue &Base, SDValue &Offset,
                         int Scale) {
     EVT ValTy = Addr.getValueType();
@@ -135,4 +138,26 @@ void XtensaDAGToDAGISel::Select(SDNode *Node) {
   }
 
   SelectCode(Node);
+}
+
+bool XtensaDAGToDAGISel::SelectInlineAsmMemoryOperand(
+    const SDValue &Op, unsigned ConstraintID, std::vector<SDValue> &OutOps) {
+  switch (ConstraintID) {
+  default:
+    llvm_unreachable("Unexpected asm memory constraint");
+  case InlineAsm::Constraint_m: {
+    SDValue Base, Offset;
+    // TODO
+    selectMemRegAddr(Op, Base, Offset, 4);
+    OutOps.push_back(Base);
+    OutOps.push_back(Offset);
+    return false;
+  }
+  case InlineAsm::Constraint_i:
+  case InlineAsm::Constraint_R:
+  case InlineAsm::Constraint_ZC:
+    OutOps.push_back(Op);
+    return false;
+  }
+  return false;
 }

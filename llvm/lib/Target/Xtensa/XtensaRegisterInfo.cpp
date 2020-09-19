@@ -106,6 +106,7 @@ void XtensaRegisterInfo::eliminateFI(MachineBasicBlock::iterator II,
 
   bool Valid = false;
   switch (MI.getOpcode()) {
+  case Xtensa::L8I_P:
   case Xtensa::L8UI:
   case Xtensa::S8I:
     Valid = (Offset >= 0 && Offset <= 255);

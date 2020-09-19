@@ -34,6 +34,9 @@ public:
   // Print the given operand.
   static void printOperand(const MCOperand &MO, raw_ostream &O);
 
+  // Print an address
+  static void printAddress(unsigned Base, int64_t Disp, raw_ostream &O);
+
   // Override MCInstPrinter.
   void printRegName(raw_ostream &O, unsigned RegNo) const override;
   void printInst(const MCInst *MI, uint64_t Address, StringRef Annot,

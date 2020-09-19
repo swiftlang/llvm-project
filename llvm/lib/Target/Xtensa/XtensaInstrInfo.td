@@ -112,22 +112,26 @@ def MOVGEZ : RRR_Inst<0x00, 0x03, 0x0B, (outs AR:$r), (ins AR:$s, AR:$t),
 let Uses = [SAR] in
 {
   def SLL: RRR_Inst<0x00, 0x01, 0x0A, (outs AR:$r), (ins AR:$s),
-                   "sll\t$r, $s", []>
+                   "sll\t$r, $s",
+                   [(set AR:$r, (Xtensa_shl AR:$s))]>
   {
     let t = 0x00;
   }
 
   def SRA: RRR_Inst<0x00, 0x01, 0x0B, (outs AR:$r), (ins AR:$t),
-                   "sra\t$r, $t", []>
+                   "sra\t$r, $t",
+                   [(set AR:$r, (Xtensa_sra AR:$t))]>
   {
     let s = 0x00;
   }
 
   def SRC: RRR_Inst<0x00, 0x01, 0x08, (outs AR:$r), (ins AR:$s, AR:$t),
-                   "src\t$r, $s, $t", []>;
+                   "src\t$r, $s, $t",
+                   [(set AR:$r, (Xtensa_src AR:$s, AR:$t))]>;
 
   def SRL: RRR_Inst<0x00, 0x01, 0x09, (outs AR:$r), (ins AR:$t),
-                   "srl\t$r, $t", []>
+                   "srl\t$r, $t",
+                   [(set AR:$r, (Xtensa_srl AR:$t))]>
   {
     let s = 0x00;
   }
@@ -136,14 +140,16 @@ let Uses = [SAR] in
 let Defs = [SAR] in
 {
   def SSL: RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$s),
-                   "ssl\t$s", []>
+                   "ssl\t$s",
+                   [(Xtensa_ssl AR:$s)]>
   {
     let r = 0x01;
     let t = 0x00;
   }
 
   def SSR: RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$s),
-                   "ssr\t$s", []>
+                   "ssr\t$s",
+                   [(Xtensa_ssr AR:$s)]>
   {
     let r = 0x00;
     let t = 0x00;
@@ -209,12 +215,29 @@ def SSAI: RRR_Inst<0x00, 0x00, 0x04, (outs), (ins uimm5:$imm),
   let t{0} = imm{4};
 }
 
+// Shift Pseudo instructions:
+// SSL/SSR + Shift combination
+let usesCustomInserter = 1 in
+{
+  def SLL_P: Pseudo<(outs AR:$r), (ins AR:$s, AR:$sa),
+                       "# SLL_P $r, $s, $sa",
+                       [(set AR:$r, (shl AR:$s, AR:$sa))]>;
+
+  def SRA_P: Pseudo<(outs AR:$r), (ins AR:$t, AR:$sa),
+                       "# SRA_P $r, $t, $sa",
+                       [(set AR:$r, (sra AR:$t, AR:$sa))]>;
+
+  def SRL_P: Pseudo<(outs AR:$r), (ins AR:$t, AR:$sa),
+                       "# SRL_P $r, $t, $sa",
+                       [(set AR:$r, (srl AR:$t, AR:$sa))]>;
+}
+
 //===----------------------------------------------------------------------===//
 // Load and store instructions
 //===----------------------------------------------------------------------===//
 
 // Load instructions
-let mayLoad = 1 in
+let mayLoad = 1, usesCustomInserter = 1 in
 {
 
   class Load_RRI8<bits<4> oper, string instrAsm, SDPatternOperator opNode,
@@ -237,7 +260,7 @@ def L16UI: Load_RRI8<0x01, "l16ui", zextloadi16, addr_ish2, mem16>;
 def L32I: Load_RRI8<0x02, "l32i", load, addr_ish4, mem32>;
 
 // Store instructions
-let mayStore = 1 in
+let mayStore = 1, usesCustomInserter = 1 in
 {
   class Store_II8<bits<4> oper, string instrAsm, SDPatternOperator opNode,
         ComplexPattern addrOp, Operand memOp>
@@ -289,6 +312,18 @@ let isCodeGenOnly = 1, mayLoad = 1 in
    let s{3-0} = addr{3-0};
   }
 }
+
+// Xtensa missed L8I load operation, use pseudo operation
+let usesCustomInserter = 1 in
+def L8I_P: Pseudo<(outs AR:$t), (ins mem8:$addr),
+               "!L8I_P $t, $addr",
+                [(set AR:$t, (sextloadi8
+				addr_ish1:$addr))]>;
+
+//extending loads
+def : Pat<(i32 (extloadi1  addr_ish1:$addr)), (L8UI addr_ish1:$addr)>;
+def : Pat<(i32 (extloadi8  addr_ish1:$addr)), (L8UI addr_ish1:$addr)>;
+def : Pat<(i32 (extloadi16 addr_ish2:$addr)), (L16UI addr_ish2:$addr)>;
 
 //===----------------------------------------------------------------------===//
 // Conditional branch instructions
@@ -549,6 +584,13 @@ def : Pat<(Xtensa_call (i32 texternalsym:$dst)),
           (CALL0 texternalsym:$dst)>;
 def : Pat<(Xtensa_call AR:$dst),
           (CALLX0 AR:$dst)>;
+
+let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1, Size = 3 in
+{
+  def BR_JT: Pseudo<(outs), (ins AR:$s, i32imm:$jt),
+                     "!br_jt_p, $s, $jt",
+                    [(Xtensa_brjt AR:$s, tjumptable:$jt)]>;
+}
 
 //===----------------------------------------------------------------------===//
 // Mem barrier instructions
