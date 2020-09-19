@@ -25,12 +25,34 @@ namespace XtensaISD {
 enum {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
 
+  BR_CC_T,
+  BR_CC_F,
+
   BR_JT,
 
   // Calls a function.  Operand 0 is the chain operand and operand 1
   // is the target address.  The arguments start at operand 2.
   // There is an optional glue operand at the end.
   CALL,
+  // WinABI Call version
+  CALLW,
+
+  // Floating point unordered compare conditions
+  CMPUEQ,
+  CMPULE,
+  CMPULT,
+  CMPUO,
+  // Floating point compare conditions
+  CMPOEQ,
+  CMPOLE,
+  CMPOLT,
+  // FP multipy-add/sub
+  MADD,
+  MSUB,
+  // FP move
+  MOVS,
+
+  MOVSP,
 
   // Wraps a TargetGlobalAddress that should be loaded using PC-relative
   // accesses.  Operand 0 is the address.
@@ -38,6 +60,8 @@ enum {
 
   // Return with a flag operand.  Operand 0 is the chain operand.
   RET_FLAG,
+  // WinABI Return
+  RETW_FLAG,
 
   // Selects between operand 0 and operand 1.  Operand 2 is the
   // mask of condition-code values for which operand 0 should be
@@ -45,6 +69,7 @@ enum {
   // Operand 3 is the flag operand.
   SELECT,
   SELECT_CC,
+  SELECT_CC_FP,
 
   // Shift
   SHL,
@@ -74,6 +99,11 @@ public:
     return VT.changeVectorElementTypeToInteger();
   }
 
+  bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                  EVT VT) const override {
+    return true;
+  }
+
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;
@@ -94,6 +124,8 @@ public:
   void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
                                     std::vector<SDValue> &Ops,
                                     SelectionDAG &DAG) const override;
+
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
   SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
@@ -129,6 +161,7 @@ private:
   SDValue LowerJumpTable(JumpTableSDNode *JT, SelectionDAG &DAG) const;
   SDValue LowerConstantPool(ConstantPoolSDNode *CP, SelectionDAG &DAG) const;
 
+  SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;

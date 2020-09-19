@@ -21,6 +21,37 @@ def FeatureDensity : SubtargetFeature<"density", "HasDensity", "true",
                     "Enable Density instructions">;
 def HasDensity : Predicate<"Subtarget->hasDensity()">,
                      AssemblerPredicate<"FeatureDensity">;
+
+def FeatureSingleFloat      : SubtargetFeature<"fp", "HasSingleFloat", "true",
+                                               "Enable Xtensa Single FP instructions">;
+def HasSingleFloat          : Predicate<"Subtarget->hasSingleFloat()">,
+                                        AssemblerPredicate<"FeatureSingleFloat">;
+
+def FeatureWindowed         : SubtargetFeature<"windowed", "HasWindowed", "true",
+                                               "Enable Xtensa Windowed Register option">;
+def HasWindowed             : Predicate<"Subtarget->hasWindowed()">,
+                                         AssemblerPredicate<"FeatureWindowed">;
+
+def FeatureBoolean          : SubtargetFeature<"bool", "HasBoolean", "true",
+                                               "Enable Xtensa Boolean extension">;
+def HasBoolean              : Predicate<"Subtarget->hasBoolean()">,
+                                         AssemblerPredicate<"FeatureBoolean">;
+
+def FeatureLoop             : SubtargetFeature<"loop", "HasLoop", "true",
+                                               "Enable Xtensa Loop extension">;
+def HasLoop                 : Predicate<"Subtarget->hasLoop()">,
+                                         AssemblerPredicate<"FeatureLoop">;
+
+def FeatureSEXT             : SubtargetFeature<"sext", "HasSEXT", "true",
+                                              "Enable Xtensa Sign Extend option">;
+def HasSEXT                 : Predicate<"Subtarget->hasSEXT()">,
+                                         AssemblerPredicate<"FeatureSEXT">;
+
+def FeatureNSA              : SubtargetFeature<"nsa", "HasNSA", "true",
+                                               "Enable Xtensa NSA option">;
+def HasNSA                  : Predicate<"Subtarget->hasNSA()">,
+                                         AssemblerPredicate<"FeatureNSA">;
+
 //===----------------------------------------------------------------------===//
 // Xtensa supported processors.
 //===----------------------------------------------------------------------===//

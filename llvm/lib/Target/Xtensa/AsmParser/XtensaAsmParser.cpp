@@ -163,6 +163,8 @@ public:
            ((dyn_cast<MCConstantExpr>(getImm())->getValue() & 0x3) == 0);
   }
 
+  bool isentry_imm12() const { return isImm(0, 32760); }
+
   bool isUimm4() const { return isImm(0, 15); }
 
   bool isUimm5() const { return isImm(0, 31); }
@@ -174,6 +176,15 @@ public:
   bool isImm16_31() const { return isImm(16, 31); }
 
   bool isImm1_16() const { return isImm(1, 16); }
+
+  bool isImm1n_15() const { return (isImm(1, 15) || isImm(-1, -1)); }
+
+  bool isImm32n_95() const { return isImm(-32, 95); }
+
+  bool isImm64n_4n() const {
+    return isImm(-64, -4) &&
+           ((dyn_cast<MCConstantExpr>(getImm())->getValue() & 0x3) == 0);
+  }
 
   bool isB4const() const {
     if (Kind != Immediate)
@@ -234,6 +245,8 @@ public:
     }
     return false;
   }
+
+  bool isseimm7_22() const { return isImm(7, 22); }
 
   /// getStartLoc - Gets location of the first token of this operand
   SMLoc getStartLoc() const override { return StartLoc; }
@@ -398,6 +411,18 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidImm1_16:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [1, 16]");
+  case Match_InvalidImm1n_15:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [-1, 15] except 0");
+  case Match_InvalidImm32n_95:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [-32, 95] except 0");
+  case Match_InvalidImm64n_4n:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [-64, -4]");
+  case Match_InvalidImm8n_7:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [-8, 7]");
   case Match_InvalidShimm1_31:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [1, 31]");
@@ -422,6 +447,12 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 60], first 2 bits "
                  "should be zero");
+  case Match_Invalidentry_imm12:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [0, 32760]");
+  case Match_Invalidseimm7_22:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [7, 22]");
   }
 
   llvm_unreachable("Unknown match type detected!");

@@ -92,7 +92,10 @@ bool XtensaPassConfig::addInstSelector() {
   return false;
 }
 
-void XtensaPassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
+void XtensaPassConfig::addPreEmitPass() {
+  addPass(createXtensaSizeReductionPass());
+  addPass(&BranchRelaxationPassID);
+}
 
 TargetPassConfig *XtensaTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new XtensaPassConfig(*this, PM);

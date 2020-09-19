@@ -74,22 +74,41 @@ void XtensaInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
         .addReg(Reg1, RegState::Kill);
   }
 
-  BuildMI(MBB, I, DL, get(Xtensa::OR), SP)
-      .addReg(Reg, RegState::Kill)
-      .addReg(Reg, RegState::Kill);
+  if (STI.isWinABI()) {
+    BuildMI(MBB, I, DL, get(Xtensa::MOVSP), SP).addReg(Reg, RegState::Kill);
+  } else {
+    BuildMI(MBB, I, DL, get(Xtensa::OR), SP)
+        .addReg(Reg, RegState::Kill)
+        .addReg(Reg, RegState::Kill);
+  }
 }
 
 void XtensaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                   MachineBasicBlock::iterator MBBI,
                                   const DebugLoc &DL, MCRegister DestReg,
                                   MCRegister SrcReg, bool KillSrc) const {
+  unsigned Opcode;
+
   // when we are copying a phys reg we want the bits for fp
-  if (Xtensa::ARRegClass.contains(DestReg, SrcReg))
+  if (Xtensa::ARRegClass.contains(DestReg, SrcReg)) {
     BuildMI(MBB, MBBI, DL, get(Xtensa::OR), DestReg)
         .addReg(SrcReg, getKillRegState(KillSrc))
         .addReg(SrcReg, getKillRegState(KillSrc));
+    return;
+  } else if (STI.hasSingleFloat() && Xtensa::FPRRegClass.contains(SrcReg) &&
+             Xtensa::FPRRegClass.contains(DestReg))
+    Opcode = Xtensa::MOV_S;
+  else if (STI.hasSingleFloat() && Xtensa::FPRRegClass.contains(SrcReg) &&
+           Xtensa::ARRegClass.contains(DestReg))
+    Opcode = Xtensa::RFR;
+  else if (STI.hasSingleFloat() && Xtensa::ARRegClass.contains(SrcReg) &&
+           Xtensa::FPRRegClass.contains(DestReg))
+    Opcode = Xtensa::WFR;
   else
     llvm_unreachable("Impossible reg-to-reg copy");
+
+  BuildMI(MBB, MBBI, DL, get(Opcode), DestReg)
+      .addReg(SrcReg, getKillRegState(KillSrc));
 }
 
 void XtensaInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
@@ -123,6 +142,9 @@ void XtensaInstrInfo::getLoadStoreOpcodes(const TargetRegisterClass *RC,
   if (RC == &Xtensa::ARRegClass) {
     LoadOpcode = Xtensa::L32I;
     StoreOpcode = Xtensa::S32I;
+  } else if (RC == &Xtensa::FPRRegClass) {
+    LoadOpcode = Xtensa::L32F;
+    StoreOpcode = Xtensa::S32F;
   } else
     llvm_unreachable("Unsupported regclass to load or store");
 }
@@ -229,6 +251,12 @@ bool XtensaInstrInfo::reverseBranchCondition(
     Cond[0].setImm(Xtensa::BLTZ);
     return false;
 
+  case Xtensa::BF:
+    Cond[0].setImm(Xtensa::BT);
+    return false;
+  case Xtensa::BT:
+    Cond[0].setImm(Xtensa::BF);
+    return false;
   default:
     llvm_unreachable("Invalid branch condition!");
   }
@@ -263,6 +291,10 @@ XtensaInstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
   case Xtensa::BNEZ:
   case Xtensa::BLTZ:
   case Xtensa::BGEZ:
+    return MI.getOperand(1).getMBB();
+
+  case Xtensa::BT:
+  case Xtensa::BF:
     return MI.getOperand(1).getMBB();
 
   default:
@@ -300,6 +332,10 @@ bool XtensaInstrInfo::isBranchOffsetInRange(unsigned BranchOp,
   case Xtensa::BGEZ:
     BrOffset -= 4;
     return isIntN(12, BrOffset);
+  case Xtensa::BT:
+  case Xtensa::BF:
+    BrOffset -= 4;
+    return isIntN(8, BrOffset);
   default:
     llvm_unreachable("Unknown branch opcode");
   }
@@ -524,6 +560,10 @@ unsigned XtensaInstrInfo::InsertConstBranchAtInst(
   case Xtensa::BGEZ:
     MI = BuildMI(MBB, I, DL, get(BR_C)).addImm(offset).addReg(Cond[1].getReg());
     break;
+  case Xtensa::BT:
+  case Xtensa::BF:
+    MI = BuildMI(MBB, I, DL, get(BR_C)).addImm(offset).addReg(Cond[1].getReg());
+    break;
   default:
     llvm_unreachable("Invalid branch type!");
   }
@@ -584,6 +624,10 @@ unsigned XtensaInstrInfo::InsertBranchAtInst(MachineBasicBlock &MBB,
   case Xtensa::BGEZ:
     MI = BuildMI(MBB, I, DL, get(BR_C)).addReg(Cond[1].getReg()).addMBB(TBB);
     break;
+  case Xtensa::BT:
+  case Xtensa::BF:
+    MI = BuildMI(MBB, I, DL, get(BR_C)).addReg(Cond[1].getReg()).addMBB(TBB);
+    break;
   default:
     llvm_unreachable("Invalid branch type!");
   }
@@ -628,6 +672,12 @@ bool XtensaInstrInfo::isBranch(const MachineBasicBlock::iterator &MI,
   case Xtensa::BNEZ:
   case Xtensa::BLTZ:
   case Xtensa::BGEZ:
+    Cond[0].setImm(OpCode);
+    Target = &MI->getOperand(1);
+    return true;
+
+  case Xtensa::BT:
+  case Xtensa::BF:
     Cond[0].setImm(OpCode);
     Target = &MI->getOperand(1);
     return true;
