@@ -47,7 +47,12 @@ def XtensaInstrInfo : InstrInfo;
 // Target Declaration
 //===----------------------------------------------------------------------===//
 
+def XtensaAsmParser : AsmParser {
+  let ShouldEmitMatchRegisterAltName = 1;
+}
+
 def Xtensa : Target
 {
   let InstructionSet = XtensaInstrInfo;
+  let AssemblyParsers = [XtensaAsmParser];
 }
