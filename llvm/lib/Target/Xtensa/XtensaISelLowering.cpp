@@ -45,6 +45,13 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
 
   setMinFunctionAlignment(Align(4));
 
+  // No sign extend instructions for i1
+  for (MVT VT : MVT::integer_valuetypes()) {
+    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
+    setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
+    setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
+  }
+
   // Compute derived properties from the register classes
   computeRegisterProperties(STI.getRegisterInfo());
 }
