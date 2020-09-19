@@ -51,8 +51,15 @@ def XtensaAsmParser : AsmParser {
   let ShouldEmitMatchRegisterAltName = 1;
 }
 
+def XtensaInstPrinter : AsmWriter
+{
+  string AsmWriterClassName  = "InstPrinter";
+  bit isMCAsmWriter = 1;
+}
+
 def Xtensa : Target
 {
   let InstructionSet = XtensaInstrInfo;
+  let AssemblyWriters = [XtensaInstPrinter];
   let AssemblyParsers = [XtensaAsmParser];
 }
