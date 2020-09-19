@@ -1478,7 +1478,6 @@ Triple Triple::getBigEndianArchVariant() const {
   case Triple::renderscript32:
   case Triple::renderscript64:
   case Triple::xtensa:
-  case Triple::xtensa:
 
   // ARM is intentionally unsupported here, changing the architecture would
   // drop any arch suffixes.
