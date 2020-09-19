@@ -10,6 +10,7 @@
 #include "XtensaMCTargetDesc.h"
 #include "XtensaInstPrinter.h"
 #include "XtensaMCAsmInfo.h"
+#include "XtensaTargetStreamer.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -62,6 +63,17 @@ createXtensaMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
   return createXtensaMCSubtargetInfoImpl(TT, CPU, FS);
 }
 
+static MCTargetStreamer *
+createXtensaAsmTargetStreamer(MCStreamer &S, formatted_raw_ostream &OS,
+                              MCInstPrinter *InstPrint, bool isVerboseAsm) {
+  return new XtensaTargetAsmStreamer(S, OS);
+}
+
+static MCTargetStreamer *
+createXtensaObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
+  return new XtensaTargetELFStreamer(S);
+}
+
 extern "C" void LLVMInitializeXtensaTargetMC() {
   // Register the MCAsmInfo.
   TargetRegistry::RegisterMCAsmInfo(TheXtensaTarget, createXtensaMCAsmInfo);
@@ -88,4 +100,12 @@ extern "C" void LLVMInitializeXtensaTargetMC() {
   // Register the MCAsmBackend.
   TargetRegistry::RegisterMCAsmBackend(TheXtensaTarget,
                                        createXtensaMCAsmBackend);
+
+  // Register the asm target streamer.
+  TargetRegistry::RegisterAsmTargetStreamer(TheXtensaTarget,
+                                            createXtensaAsmTargetStreamer);
+
+  // Register the ELF target streamer.
+  TargetRegistry::RegisterObjectTargetStreamer(
+      TheXtensaTarget, createXtensaObjectTargetStreamer);
 }

@@ -671,6 +671,45 @@ def XSR: RSR_Inst<0x00, 0x01, 0x06, (outs AR:$ard, SR:$srd), (ins AR:$t, SR:$sr)
 }
 
 //===----------------------------------------------------------------------===//
+// User Registers read/write instructions
+//===----------------------------------------------------------------------===//
+
+def WUR: RRR_Inst<0x00, 0x03, 0x0F, (outs UR:$ur), (ins AR:$t),
+                 "wur\t$t, $ur", []>
+{
+  bits<8> ur;
+
+  let r = ur{7-4};
+  let s = ur{3-0};
+}
+
+def RUR: RRR_Inst<0x00, 0x03, 0x0E, (outs AR:$r), (ins UR:$ur),
+                 "rur\t$r, $ur", []>
+{
+  bits<8> ur;
+
+  let s = ur{7-4};
+  let t = ur{3-0};
+}
+
+//===----------------------------------------------------------------------===//
+// External Registers read/write instructions
+//===----------------------------------------------------------------------===//
+
+def RER: RRR_Inst<0x00, 0x00, 0x04, (outs AR:$t), (ins AR:$s),
+                 "rer\t$t, $s", []>
+{
+  let r = 0x6;
+}
+
+def WER: RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$t, AR:$s),
+                 "wer\t$t, $s", []>
+{
+  let r = 0x7;
+  let hasSideEffects = 1;
+}
+
+//===----------------------------------------------------------------------===//
 // Stack allocation
 //===----------------------------------------------------------------------===//
 
@@ -1297,3 +1336,155 @@ def NSAU : RRR_Inst<0x00, 0x00, 0x04, (outs AR:$t), (ins AR:$s),
 {
   let r = 0xF;
 }
+
+//===----------------------------------------------------------------------===//
+// Mul32 Instructions
+//===----------------------------------------------------------------------===//
+
+def MULL: ArithLogic_RRR<0x08, 0x02, "mull", mul, 1>, Requires<[HasMul32]>;
+def MULUH: ArithLogic_RRR<0x0A, 0x02, "muluh", mulhu, 1>, Requires<[HasMul32High]>;
+def MULSH: ArithLogic_RRR<0x0B, 0x02, "mulsh", mulhs, 1>, Requires<[HasMul32High]>;
+
+//===----------------------------------------------------------------------===//
+// Div32 Instructions
+//===----------------------------------------------------------------------===//
+
+def QUOS: ArithLogic_RRR<0x0D, 0x02, "quos", sdiv>, Requires<[HasDiv32]>;
+def QUOU: ArithLogic_RRR<0x0C, 0x02, "quou", udiv>, Requires<[HasDiv32]>;
+def REMS: ArithLogic_RRR<0x0F, 0x02, "rems", srem>, Requires<[HasDiv32]>;
+def REMU: ArithLogic_RRR<0x0E, 0x02, "remu", urem>, Requires<[HasDiv32]>;
+
+//===----------------------------------------------------------------------===//
+// S32C1I
+//===----------------------------------------------------------------------===//
+
+let mayStore = 1, mayLoad = 1, Predicates = [HasS32C1I] in
+{
+  def S32C1I: RRI8_Inst<0x02, (outs AR:$a), (ins AR:$t, mem32:$addr),
+                       "s32c1i\t$t, $addr", []>
+  {
+    bits<12> addr;
+
+    let r = 0x0e;
+    let Uses = [SCOMPARE1];
+    let Constraints = "$a = $t";
+    let imm8{7-0} = addr{11-4};
+    let s{3-0} = addr{3-0};
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// Debug instructions
+//===----------------------------------------------------------------------===//
+
+let isBarrier = 1, isTerminator = 1 in
+{
+  def BREAK: RRR_Inst<0x00, 0x00, 0x00, (outs), (ins uimm4:$s, uimm4:$t),
+                     "break\t$s, $t", []>, Requires<[HasDebug]>
+  {
+    let r = 0x04;
+  }
+
+  def BREAK_N: RRRN_Inst<0x0C, (outs), (ins uimm4:$imm),
+                       "break.n\t$imm", []>, Requires<[HasDensity, HasDebug]>
+  {
+    bits<4> imm;
+
+    let r = 0xf;
+	let s = imm;
+    let t = 0x2;
+  }
+}
+
+def: Pat<(trap), (BREAK (i32 1), (i32 15))>;
+
+//===----------------------------------------------------------------------===//
+// Exception feature instructions
+//===----------------------------------------------------------------------===//
+
+def EXCW: RRR_Inst<0x00, 0x00, 0x00, (outs), (ins),
+                 "excw", []>, Requires<[HasException]>
+{
+  let r = 0x2;
+  let s = 0x0;
+  let t = 0x8;
+}
+
+def RFDE: RRR_Inst<0x00, 0x00, 0x00, (outs), (ins),
+                  "rfde", []>, Requires<[HasException]>
+{
+  let r = 0x3;
+  let s = 0x2;
+  let t = 0x0;
+}
+
+
+def RFE: RRR_Inst<0x00, 0x00, 0x00, (outs), (ins),
+                 "rfe", []>, Requires<[HasException]>
+{
+  let r = 0x3;
+  let s = 0x0;
+  let t = 0x0;
+}
+
+def SYSCALL: RRR_Inst<0x00, 0x00, 0x00, (outs), (ins),
+                     "syscall", []>, Requires<[HasException]>
+{
+  let r = 0x5;
+  let s = 0x0;
+  let t = 0x0;
+}
+
+//===----------------------------------------------------------------------===//
+// Interrupt feature instructions
+//===----------------------------------------------------------------------===//
+
+def RSIL: RRR_Inst<0x00, 0x00, 0x00, (outs AR:$t), (ins uimm4:$imm),
+					"rsil\t$t, $imm", []>, Requires<[HasInterrupt]>
+{
+  bits<4> imm;
+
+  let r = 0x6;
+  let s = imm{3-0};
+}
+
+def WAITI: RRR_Inst<0x00, 0x00, 0x00, (outs), (ins uimm4:$imm),
+					"waiti\t$imm", []>, Requires<[HasInterrupt]>
+{
+  bits<4> imm;
+
+  let r = 0x7;
+  let s = imm{3-0};
+  let t = 0;
+}
+
+def RFI: RRR_Inst<0x00, 0x00, 0x00, (outs), (ins uimm4:$imm),
+                 "rfi\t$imm", []>, Requires<[HasInterrupt]>
+{
+  bits<4> imm;
+
+  let r = 0x3;
+  let s = imm{3-0};
+  let t = 0x1;
+}
+
+//===----------------------------------------------------------------------===//
+// Region Protection feature instructions
+//===----------------------------------------------------------------------===//
+
+def WDTLB: RRR_Inst<0x00, 0x00, 0x05, (outs AR:$t), (ins AR:$s),
+					"wdtlb\t$t, $s", []>, Requires<[HasRegionProtection]>
+{
+  let r = 0xE;
+}
+
+def WITLB: RRR_Inst<0x00, 0x00, 0x05, (outs AR:$t), (ins AR:$s),
+					"witlb\t$t, $s", []>, Requires<[HasRegionProtection]>
+{
+  let r = 0x6;
+}
+
+//===----------------------------------------------------------------------===//
+// DSP Instructions
+//===----------------------------------------------------------------------===//
+include "XtensaDSPInstrInfo.td"

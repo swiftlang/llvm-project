@@ -2104,6 +2104,8 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       "s390x-linux-gnu", "s390x-unknown-linux-gnu", "s390x-ibm-linux-gnu",
       "s390x-suse-linux", "s390x-redhat-linux"};
 
+  static const char *const XtensaLibDirs[] = {"/lib"};
+  static const char *const XtensaTriples[] = {"xtensa-unknown-elf"};
 
   using std::begin;
   using std::end;
@@ -2350,6 +2352,10 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   case llvm::Triple::systemz:
     LibDirs.append(begin(SystemZLibDirs), end(SystemZLibDirs));
     TripleAliases.append(begin(SystemZTriples), end(SystemZTriples));
+    break;
+  case llvm::Triple::xtensa:
+    LibDirs.append(begin(XtensaLibDirs), end(XtensaLibDirs));
+    TripleAliases.append(begin(XtensaTriples), end(XtensaTriples));
     break;
   default:
     // By default, just rely on the standard lib directories and the original

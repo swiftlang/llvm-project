@@ -282,6 +282,7 @@ XtensaMCCodeEmitter::getMemRegEncoding(const MCInst &MI, unsigned OpNo,
   case Xtensa::L32I_N:
   case Xtensa::S32F:
   case Xtensa::L32F:
+  case Xtensa::S32C1I:
     if (Res & 0x3) {
       llvm_unreachable("Unexpected operand value!");
     }
