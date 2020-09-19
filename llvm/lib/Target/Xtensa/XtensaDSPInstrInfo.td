@@ -13,31 +13,33 @@
 //===----------------------------------------------------------------------===//
 
 // Multiply
-class UMUL_AA<bits<4> oper1, string instrAsm, bit isComm = 0>
+class UMUL_AA<bits<4> oper1, string instrAsm, SDPatternOperator opNode, bit isComm = 0>
     : RRR_Inst<0x04, oper1, 0x07, (outs), (ins AR:$s, AR:$t),
-               instrAsm#"\t$s, $t", []>, Requires<[HasMAC16]>
+               instrAsm#"\t$s, $t",
+             [(opNode AR:$s, AR:$t)]>, Requires<[HasMAC16]>
 {
   let r = 0;
   let Defs = [M1, M2, ACCLO, ACCHI];
 }
 
-def UMUL_AA_LL: UMUL_AA<0x00, "umul.aa.ll">;
-def UMUL_AA_HL: UMUL_AA<0x01, "umul.aa.hl">;
-def UMUL_AA_LH: UMUL_AA<0x02, "umul.aa.lh">;
-def UMUL_AA_HH: UMUL_AA<0x03, "umul.aa.hh">;
+def UMUL_AA_LL: UMUL_AA<0x00, "umul.aa.ll", int_xtensa_umul_aa_ll>;
+def UMUL_AA_HL: UMUL_AA<0x01, "umul.aa.hl", int_xtensa_umul_aa_hl>;
+def UMUL_AA_LH: UMUL_AA<0x02, "umul.aa.lh", int_xtensa_umul_aa_lh>;
+def UMUL_AA_HH: UMUL_AA<0x03, "umul.aa.hh", int_xtensa_umul_aa_hh>;
 
-class MUL_AA<bits<4> oper1, string instrAsm, bit isComm = 0>
+class MUL_AA<bits<4> oper1, string instrAsm, SDPatternOperator opNode, bit isComm = 0>
     : RRR_Inst<0x04, oper1, 0x07, (outs), (ins AR:$s, AR:$t),
-               instrAsm#"\t$s, $t", []>, Requires<[HasMAC16]>
+               instrAsm#"\t$s, $t",
+              [(opNode AR:$s, AR:$t)]>, Requires<[HasMAC16]>
 {
   let r = 0;
   let Defs = [M1, M2, ACCLO, ACCHI];
 }
 
-def MUL_AA_LL: MUL_AA<0x04, "mul.aa.ll">;
-def MUL_AA_HL: MUL_AA<0x05, "mul.aa.hl">;
-def MUL_AA_LH: MUL_AA<0x06, "mul.aa.lh">;
-def MUL_AA_HH: MUL_AA<0x07, "mul.aa.hh">;
+def MUL_AA_LL: MUL_AA<0x04, "mul.aa.ll", int_xtensa_mul_aa_ll>;
+def MUL_AA_HL: MUL_AA<0x05, "mul.aa.hl", int_xtensa_mul_aa_hl>;
+def MUL_AA_LH: MUL_AA<0x06, "mul.aa.lh", int_xtensa_mul_aa_lh>;
+def MUL_AA_HH: MUL_AA<0x07, "mul.aa.hh", int_xtensa_mul_aa_hh>;
 
 class MUL_AD<bits<4> oper1, string instrAsm, bit isComm = 0>
     : RRR_Inst<0x04, oper1, 0x03, (outs), (ins AR:$s, MR23:$y),
@@ -97,18 +99,19 @@ def MUL_DD_HL: MUL_DD<0x05, "mul.dd.hl">;
 def MUL_DD_LH: MUL_DD<0x06, "mul.dd.lh">;
 def MUL_DD_HH: MUL_DD<0x07, "mul.dd.hh">;
 
-class MULA_AA<bits<4> oper1, string instrAsm, bit isComm = 0>
+class MULA_AA<bits<4> oper1, string instrAsm, SDPatternOperator opNode, bit isComm = 0>
     : RRR_Inst<0x04, oper1, 0x07, (outs), (ins AR:$s, AR:$t),
-               instrAsm#"\t$s, $t", []>, Requires<[HasMAC16]>
+               instrAsm#"\t$s, $t",
+              [(opNode AR:$s, AR:$t)]>, Requires<[HasMAC16]>
 {
   let r = 0;
   let Defs = [M1, M2, ACCLO, ACCHI];
 }
 
-def MULA_AA_LL: MULA_AA<0x08, "mula.aa.ll">;
-def MULA_AA_HL: MULA_AA<0x09, "mula.aa.hl">;
-def MULA_AA_LH: MULA_AA<0x0A, "mula.aa.lh">;
-def MULA_AA_HH: MULA_AA<0x0B, "mula.aa.hh">;
+def MULA_AA_LL: MULA_AA<0x08, "mula.aa.ll", int_xtensa_mula_aa_ll>;
+def MULA_AA_HL: MULA_AA<0x09, "mula.aa.hl", int_xtensa_mula_aa_hl>;
+def MULA_AA_LH: MULA_AA<0x0A, "mula.aa.lh", int_xtensa_mula_aa_lh>;
+def MULA_AA_HH: MULA_AA<0x0B, "mula.aa.hh", int_xtensa_mula_aa_hh>;
 
 class MULA_AD<bits<4> oper1, string instrAsm, bit isComm = 0>
     : RRR_Inst<0x04, oper1, 0x03, (outs), (ins AR:$s, MR23:$y),
@@ -174,19 +177,20 @@ def MULA_DD_HL: MULA_DD<0x09, "mula.dd.hl">;
 def MULA_DD_LH: MULA_DD<0x0A, "mula.dd.lh">;
 def MULA_DD_HH: MULA_DD<0x0B, "mula.dd.hh">;
 
-class MULS_AA<bits<4> oper1, string instrAsm, bit isComm = 0>
+class MULS_AA<bits<4> oper1, string instrAsm, SDPatternOperator opNode, bit isComm = 0>
     : RRR_Inst<0x04, oper1, 0x07, (outs), (ins AR:$s, AR:$t),
-               instrAsm#"\t$s, $t", []>, Requires<[HasMAC16]>
+               instrAsm#"\t$s, $t",
+              [(opNode AR:$s, AR:$t)]>, Requires<[HasMAC16]>
 {
   let r = 0;
   let Uses = [ACCLO, ACCHI];
   let Defs = [M1, M2, ACCLO, ACCHI];
 }
 
-def MULS_AA_LL: MULS_AA<0x0C, "muls.aa.ll">;
-def MULS_AA_HL: MULS_AA<0x0D, "muls.aa.hl">;
-def MULS_AA_LH: MULS_AA<0x0E, "muls.aa.lh">;
-def MULS_AA_HH: MULS_AA<0x0F, "muls.aa.hh">;
+def MULS_AA_LL: MULS_AA<0x0C, "muls.aa.ll", int_xtensa_muls_aa_ll>;
+def MULS_AA_HL: MULS_AA<0x0D, "muls.aa.hl", int_xtensa_muls_aa_hl>;
+def MULS_AA_LH: MULS_AA<0x0E, "muls.aa.lh", int_xtensa_muls_aa_lh>;
+def MULS_AA_HH: MULS_AA<0x0F, "muls.aa.hh", int_xtensa_muls_aa_hh>;
 
 class MULS_AD<bits<4> oper1, string instrAsm, bit isComm = 0>
     : RRR_Inst<0x04, oper1, 0x03, (outs), (ins AR:$s, MR23:$y),
@@ -276,6 +280,22 @@ def MULA_DA_HL_LDDEC: MULA_DA_LDDEC<0x09, "mula.da.hl.lddec">;
 def MULA_DA_LH_LDDEC: MULA_DA_LDDEC<0x0A, "mula.da.lh.lddec">;
 def MULA_DA_HH_LDDEC: MULA_DA_LDDEC<0x0B, "mula.da.hh.lddec">;
 
+let usesCustomInserter = 1, Predicates = [HasMAC16] in
+{
+	def MULA_DA_LL_LDDEC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, AR:$t),
+                                  "!xtensa_mula_da_ll_lddec_p, $mw, $s, $mx, $t",
+                                  [(int_xtensa_mula_da_ll_lddec timm:$mw, AR:$s, timm:$mx, AR:$t)]>;
+	def MULA_DA_HL_LDDEC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, AR:$t),
+                                  "!xtensa_mula_da_hl_lddec_p, $mw, $s, $mx, $t",
+                                  [(int_xtensa_mula_da_hl_lddec timm:$mw, AR:$s, timm:$mx, AR:$t)]>;
+	def MULA_DA_LH_LDDEC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, AR:$t),
+                                  "!xtensa_mula_da_lh_lddec_p, $mw, $s, $mx, $t",
+                                  [(int_xtensa_mula_da_lh_lddec timm:$mw, AR:$s, timm:$mx, AR:$t)]>;
+	def MULA_DA_HH_LDDEC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, AR:$t),
+                                  "!xtensa_mula_da_hh_lddec_p, $mw, $s, $mx, $t",
+                                  [(int_xtensa_mula_da_hh_lddec timm:$mw, AR:$s, timm:$mx, AR:$t)]>;
+}
+
 class MULA_DA_LDINC<bits<4> oper1, string instrAsm, bit isComm = 0>
   : RRR_Inst<0x04, oper1, 0x04, (outs MR:$w, AR:$d), (ins AR:$s, MR:$x, AR:$t),
              instrAsm#"\t $w, $s, $x, $t", []>, Requires<[HasMAC16]>
@@ -296,6 +316,22 @@ def MULA_DA_LL_LDINC: MULA_DA_LDINC<0x08, "mula.da.ll.ldinc">;
 def MULA_DA_HL_LDINC: MULA_DA_LDINC<0x09, "mula.da.hl.ldinc">;
 def MULA_DA_LH_LDINC: MULA_DA_LDINC<0x0A, "mula.da.lh.ldinc">;
 def MULA_DA_HH_LDINC: MULA_DA_LDINC<0x0B, "mula.da.hh.ldinc">;
+
+let usesCustomInserter = 1, Predicates = [HasMAC16] in
+{
+	def MULA_DA_LL_LDINC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, AR:$t),
+                                  "!xtensa_mula_da_ll_ldinc_p, $mw, $s, $mx, $t",
+                                  [(int_xtensa_mula_da_ll_ldinc timm:$mw, AR:$s, timm:$mx, AR:$t)]>;
+	def MULA_DA_HL_LDINC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, AR:$t),
+                                  "!xtensa_mula_da_hl_ldinc_p, $mw, $s, $mx, $t",
+                                  [(int_xtensa_mula_da_hl_ldinc timm:$mw, AR:$s, timm:$mx, AR:$t)]>;
+	def MULA_DA_LH_LDINC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, AR:$t),
+                                  "!xtensa_mula_da_lh_ldinc_p, $mw, $s, $mx, $t",
+                                  [(int_xtensa_mula_da_lh_ldinc timm:$mw, AR:$s, timm:$mx, AR:$t)]>;
+	def MULA_DA_HH_LDINC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, AR:$t),
+                                  "!xtensa_mula_da_hh_ldinc_p, $mw, $s, $mx, $t",
+                                  [(int_xtensa_mula_da_hh_ldinc timm:$mw, AR:$s, timm:$mx, AR:$t)]>;
+}
 
 class MULA_DD_LDDEC<bits<4> oper1, string instrAsm, bit isComm = 0>
     : RRR_Inst<0x04, oper1, 0x01, (outs MR:$w, AR:$d), (ins AR:$s, MR01:$x, MR23:$y),
@@ -322,6 +358,22 @@ def MULA_DD_HL_LDDEC: MULA_DD_LDDEC<0x09, "mula.dd.hl.lddec">;
 def MULA_DD_LH_LDDEC: MULA_DD_LDDEC<0x0A, "mula.dd.lh.lddec">;
 def MULA_DD_HH_LDDEC: MULA_DD_LDDEC<0x0B, "mula.dd.hh.lddec">;
 
+let usesCustomInserter = 1, Predicates = [HasMAC16] in
+{
+	def MULA_DD_LL_LDDEC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, imm8:$my),
+                                  "!xtensa_mula_dd_ll_lddec_p, $mw, $s, $mx, $my",
+                                  [(int_xtensa_mula_dd_ll_lddec timm:$mw, AR:$s, timm:$mx, timm:$my)]>;
+	def MULA_DD_HL_LDDEC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, imm8:$my),
+                                  "!xtensa_mula_dd_hl_lddec_p, $mw, $s, $mx, $my",
+                                  [(int_xtensa_mula_dd_hl_lddec timm:$mw, AR:$s, timm:$mx, timm:$my)]>;
+	def MULA_DD_LH_LDDEC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, imm8:$my),
+                                  "!xtensa_mula_dd_lh_lddec_p, $mw, $s, $mx, $my",
+                                  [(int_xtensa_mula_dd_lh_lddec timm:$mw, AR:$s, timm:$mx, timm:$my)]>;
+	def MULA_DD_HH_LDDEC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, imm8:$my),
+                                  "!xtensa_mula_dd_hh_lddec_p, $mw, $s, $mx, $my",
+                                  [(int_xtensa_mula_dd_hh_lddec timm:$mw, AR:$s, timm:$mx, timm:$my)]>;
+}
+
 class MULA_DD_LDINC<bits<4> oper1, string instrAsm, bit isComm = 0>
     : RRR_Inst<0x04, oper1, 0x00, (outs MR:$w, AR:$d), (ins AR:$s, MR01:$x, MR23:$y),
                instrAsm#"\t $w, $s, $x, $y", []>, Requires<[HasMAC16]>
@@ -347,8 +399,24 @@ def MULA_DD_HL_LDINC: MULA_DD_LDINC<0x09, "mula.dd.hl.ldinc">;
 def MULA_DD_LH_LDINC: MULA_DD_LDINC<0x0A, "mula.dd.lh.ldinc">;
 def MULA_DD_HH_LDINC: MULA_DD_LDINC<0x0B, "mula.dd.hh.ldinc">;
 
+let usesCustomInserter = 1, Predicates = [HasMAC16] in
+{
+	def MULA_DD_LL_LDINC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, imm8:$my),
+                                  "!xtensa_mula_dd_ll_ldinc_p, $mw, $s, $mx, $my",
+                                  [(int_xtensa_mula_dd_ll_ldinc timm:$mw, AR:$s, timm:$mx, timm:$my)]>;
+	def MULA_DD_HL_LDINC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, imm8:$my),
+                                  "!xtensa_mula_dd_hl_ldinc_p, $mw, $s, $mx, $my",
+                                  [(int_xtensa_mula_dd_hl_ldinc timm:$mw, AR:$s, timm:$mx, timm:$my)]>;
+	def MULA_DD_LH_LDINC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, imm8:$my),
+                                  "!xtensa_mula_dd_lh_ldinc_p, $mw, $s, $mx, $my",
+                                  [(int_xtensa_mula_dd_lh_ldinc timm:$mw, AR:$s, timm:$mx, timm:$my)]>;
+	def MULA_DD_HH_LDINC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s, imm8:$mx, imm8:$my),
+                                  "!xtensa_mula_dd_hh_ldinc_p, $mw, $s, $mx, $my",
+                                  [(int_xtensa_mula_dd_hh_ldinc timm:$mw, AR:$s, timm:$mx, timm:$my)]>;
+}
+
 def LDDEC:  RRR_Inst<0x04, 0x00, 0x09, (outs MR:$w, AR:$d), (ins AR:$s),
-                     "lddec\t $w, $s", []>, Requires<[HasMAC16]>
+                    "lddec\t $w, $s", []>, Requires<[HasMAC16]>
 {
   bits<2> w;
 
@@ -360,7 +428,7 @@ def LDDEC:  RRR_Inst<0x04, 0x00, 0x09, (outs MR:$w, AR:$d), (ins AR:$s),
 }
 
 def LDINC:  RRR_Inst<0x04, 0x00, 0x08, (outs MR:$w, AR:$d), (ins AR:$s),
-                     "ldinc\t $w, $s", []>, Requires<[HasMAC16]>
+                    "ldinc\t $w, $s", []>, Requires<[HasMAC16]>
 {
   bits<2> w;
 
@@ -369,4 +437,61 @@ def LDINC:  RRR_Inst<0x04, 0x00, 0x08, (outs MR:$w, AR:$d), (ins AR:$s),
   let r{3-2} = 0;
   let r{1-0} = w{1-0};
   let t = 0;
+}
+
+let usesCustomInserter = 1, Predicates = [HasMAC16] in
+{
+	def LDDEC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s),
+                       "!xtensa_lddec_p, $mw, $s",
+                       [(int_xtensa_lddec timm:$mw, AR:$s)]>;
+	def LDINC_P: Pseudo<(outs), (ins imm8:$mw, AR:$s),
+                       "!xtensa_ldinc_p, $mw, $s",
+                       [(int_xtensa_ldinc timm:$mw, AR:$s)]>;
+}
+
+def : Pat<(i32 (int_xtensa_rsr_acclo)), (RSR ACCLO)>;
+def : Pat<(i32 (int_xtensa_rsr_acchi)), (RSR ACCHI)>;
+def : Pat<(i32 (int_xtensa_rsr_m0)), (RSR M0)>;
+def : Pat<(i32 (int_xtensa_rsr_m1)), (RSR M1)>;
+def : Pat<(i32 (int_xtensa_rsr_m2)), (RSR M2)>;
+def : Pat<(i32 (int_xtensa_rsr_m3)), (RSR M3)>;
+
+let usesCustomInserter = 1, Predicates = [HasMAC16] in
+{
+	def XSR_ACCLO_P: Pseudo<(outs), (ins AR:$s),
+                           "!xtensa_xsr_acclo_p, $s",
+                           [(int_xtensa_xsr_acclo AR:$s)]>;
+	def XSR_ACCHI_P: Pseudo<(outs), (ins AR:$s),
+                           "!xtensa_xsr_acchi_p, $s",
+                           [(int_xtensa_xsr_acchi AR:$s)]>;
+	def XSR_M0_P: Pseudo<(outs), (ins AR:$s),
+                        "!xtensa_xsr_m0_p, $s",
+                        [(int_xtensa_xsr_m0 AR:$s)]>;
+	def XSR_M1_P: Pseudo<(outs), (ins AR:$s),
+                        "!xtensa_xsr_m1_p, $s",
+                        [(int_xtensa_xsr_m1 AR:$s)]>;
+	def XSR_M2_P: Pseudo<(outs), (ins AR:$s),
+                        "!xtensa_xsr_m2_p, $s",
+                        [(int_xtensa_xsr_m2 AR:$s)]>;
+	def XSR_M3_P: Pseudo<(outs), (ins AR:$s),
+                        "!xtensa_xsr_m3_p, $s",
+                        [(int_xtensa_xsr_m3 AR:$s)]>;
+	def WSR_ACCLO_P: Pseudo<(outs), (ins AR:$s),
+                           "!xtensa_wsr_acclo_p, $s",
+                           [(int_xtensa_wsr_acclo AR:$s)]>;
+	def WSR_ACCHI_P: Pseudo<(outs), (ins AR:$s),
+                           "!xtensa_wsr_acchi_p, $s",
+                           [(int_xtensa_wsr_acchi AR:$s)]>;
+	def WSR_M0_P: Pseudo<(outs), (ins AR:$s),
+                        "!xtensa_wsr_m0_p, $s",
+                        [(int_xtensa_wsr_m0 AR:$s)]>;
+	def WSR_M1_P: Pseudo<(outs), (ins AR:$s),
+                        "!xtensa_wsr_m1_p, $s",
+                        [(int_xtensa_wsr_m1 AR:$s)]>;
+	def WSR_M2_P: Pseudo<(outs), (ins AR:$s),
+                        "!xtensa_wsr_m2_p, $s",
+                        [(int_xtensa_wsr_m2 AR:$s)]>;
+	def WSR_M3_P: Pseudo<(outs), (ins AR:$s),
+                        "!xtensa_wsr_m3_p, $s",
+                        [(int_xtensa_wsr_m3 AR:$s)]>;
 }

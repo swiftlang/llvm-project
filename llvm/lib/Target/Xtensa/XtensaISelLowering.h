@@ -52,6 +52,8 @@ enum {
   // FP move
   MOVS,
 
+  MEMW,
+
   MOVSP,
 
   // Wraps a TargetGlobalAddress that should be loaded using PC-relative
@@ -62,6 +64,8 @@ enum {
   RET_FLAG,
   // WinABI Return
   RETW_FLAG,
+
+  RUR,
 
   // Selects between operand 0 and operand 1.  Operand 2 is the
   // mask of condition-code values for which operand 0 should be
@@ -103,6 +107,15 @@ public:
                                   EVT VT) const override {
     return true;
   }
+
+  /// If a physical register, this returns the register that receives the
+  /// exception address on entry to an EH pad.
+  unsigned
+  getExceptionPointerRegister(const Constant *PersonalityFn) const override;
+  /// If a physical register, this returns the register that receives the
+  /// exception typeid on entry to a landing pad.
+  unsigned
+  getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
@@ -146,6 +159,10 @@ public:
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
                       SelectionDAG &DAG) const override;
 
+  bool shouldInsertFencesForAtomic(const Instruction *I) const override {
+    return true;
+  }
+
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
                               MachineBasicBlock *BB) const override;
@@ -157,6 +174,8 @@ private:
   SDValue LowerImmediate(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerImmediateFP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerGlobalTLSAddress(GlobalAddressSDNode *Node,
+                                SelectionDAG &DAG) const;
   SDValue LowerBlockAddress(BlockAddressSDNode *Node, SelectionDAG &DAG) const;
   SDValue LowerJumpTable(JumpTableSDNode *JT, SelectionDAG &DAG) const;
   SDValue LowerConstantPool(ConstantPoolSDNode *CP, SelectionDAG &DAG) const;
@@ -176,6 +195,9 @@ private:
 
   SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
+  SDValue LowerFunnelShift(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerATOMIC_FENCE(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue getAddrPCRel(SDValue Op, SelectionDAG &DAG) const;
 
@@ -184,6 +206,18 @@ private:
   // Implement EmitInstrWithCustomInserter for individual operation types.
   MachineBasicBlock *emitSelectCC(MachineInstr &MI,
                                   MachineBasicBlock *BB) const;
+  MachineBasicBlock *emitAtomicSwap(MachineInstr &MI, MachineBasicBlock *BB,
+                                    int isByteOperand) const;
+  MachineBasicBlock *emitAtomicCmpSwap(MachineInstr &MI, MachineBasicBlock *BB,
+                                       int isByteOperand) const;
+  MachineBasicBlock *emitAtomicSwap(MachineInstr &MI,
+                                    MachineBasicBlock *BB) const;
+  MachineBasicBlock *emitAtomicRMW(MachineInstr &MI, MachineBasicBlock *BB,
+                                   bool isByteOperand, unsigned Opcode,
+                                   bool inv, bool minmax) const;
+  MachineBasicBlock *emitAtomicRMW(MachineInstr &MI, MachineBasicBlock *BB,
+                                   unsigned Opcode, bool inv,
+                                   bool minmax) const;
 
   unsigned getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
     if (ConstraintCode == "R")

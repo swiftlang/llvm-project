@@ -8,7 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MCTargetDesc/XtensaMCExpr.h"
 #include "MCTargetDesc/XtensaMCTargetDesc.h"
+#include "MCTargetDesc/XtensaTargetStreamer.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCContext.h"
@@ -33,6 +35,11 @@ class XtensaAsmParser : public MCTargetAsmParser {
 
   SMLoc getLoc() const { return getParser().getTok().getLoc(); }
 
+  XtensaTargetStreamer &getTargetStreamer() {
+    MCTargetStreamer &TS = *getParser().getStreamer().getTargetStreamer();
+    return static_cast<XtensaTargetStreamer &>(TS);
+  }
+
   // Override MCTargetAsmParser.
   bool ParseDirective(AsmToken DirectiveID) override;
   bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
@@ -44,6 +51,9 @@ class XtensaAsmParser : public MCTargetAsmParser {
                                bool MatchingInlineAsm) override;
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
+
+  bool processInstruction(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
+                          const MCSubtargetInfo *STI);
 
 // Auto-generated instruction matching functions
 #define GET_ASSEMBLER_HEADER
@@ -226,7 +236,8 @@ public:
 
   bool isImm12() const { return isImm(-2048, 2047); }
 
-  bool isImm12m() const { return isImm(-2048, 2047); }
+  // Convert MOVI to literal load, when immediate is not in range (-2048, 2047)
+  bool isImm12m() const { return isImm(LONG_MIN, LONG_MAX); }
 
   bool isOffset4m32() const {
     return isImm(0, 60) &&
@@ -439,6 +450,61 @@ static SMLoc RefineErrorLoc(const SMLoc Loc, const OperandVector &Operands,
   return Loc;
 }
 
+bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
+                                         MCStreamer &Out,
+                                         const MCSubtargetInfo *STI) {
+  Inst.setLoc(IDLoc);
+  const unsigned Opcode = Inst.getOpcode();
+
+  switch (Opcode) {
+  case Xtensa::L32R: {
+    const MCSymbolRefExpr *OpExpr =
+        (const MCSymbolRefExpr *)Inst.getOperand(1).getExpr();
+    XtensaMCExpr::VariantKind Kind = XtensaMCExpr::VK_Xtensa_None;
+    const MCExpr *NewOpExpr = XtensaMCExpr::create(OpExpr, Kind, getContext());
+    Inst.getOperand(1).setExpr(NewOpExpr);
+  } break;
+  case Xtensa::MOVI: {
+    if (!Inst.getOperand(1).isExpr()) {
+      uint64_t ImmOp64 = Inst.getOperand(1).getImm();
+      int32_t Imm = ImmOp64;
+      if ((Imm < -2048) || (Imm > 2047)) {
+        XtensaTargetStreamer &TS = this->getTargetStreamer();
+        MCInst TmpInst;
+        TmpInst.setLoc(IDLoc);
+        TmpInst.setOpcode(Xtensa::L32R);
+        const MCExpr *Value = MCConstantExpr::create(ImmOp64, getContext());
+        MCSymbol *Sym = getContext().createTempSymbol();
+        const MCExpr *Expr = MCSymbolRefExpr::create(
+            Sym, MCSymbolRefExpr::VK_None, getContext());
+        const MCExpr *OpExpr = XtensaMCExpr::create(
+            Expr, XtensaMCExpr::VK_Xtensa_None, getContext());
+        TmpInst.addOperand(Inst.getOperand(0));
+        MCOperand Op1 = MCOperand::createExpr(OpExpr);
+        TmpInst.addOperand(Op1);
+        TS.emitLiteralLabel(Sym, IDLoc);
+        TS.emitLiteral(Value, IDLoc);
+        Inst = TmpInst;
+      }
+    } else {
+      MCInst TmpInst;
+      TmpInst.setLoc(IDLoc);
+      TmpInst.setOpcode(Xtensa::L32R);
+      const MCExpr *Expr = Inst.getOperand(1).getExpr();
+      const MCExpr *OpExpr = XtensaMCExpr::create(
+          Expr, XtensaMCExpr::VK_Xtensa_None, getContext());
+      TmpInst.addOperand(Inst.getOperand(0));
+      MCOperand Op1 = MCOperand::createExpr(OpExpr);
+      TmpInst.addOperand(Op1);
+      Inst = TmpInst;
+    }
+  } break;
+  default:
+    break;
+  }
+  return true;
+}
+
 bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                               OperandVector &Operands,
                                               MCStreamer &Out,
@@ -452,6 +518,7 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   default:
     break;
   case Match_Success:
+    processInstruction(Inst, IDLoc, Out, STI);
     Inst.setLoc(IDLoc);
     Out.EmitInstruction(Inst, getSTI());
     return false;
@@ -485,9 +552,6 @@ bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected b4constu immediate");
   case Match_InvalidImm12:
-    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
-                 "expected immediate in range [-2048, 2047]");
-  case Match_InvalidImm12m:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [-2048, 2047]");
   case Match_InvalidImm1_16:

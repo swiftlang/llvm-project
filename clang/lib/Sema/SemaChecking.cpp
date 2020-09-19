@@ -1901,6 +1901,10 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
         if (CheckPPCBuiltinFunctionCall(BuiltinID, TheCall))
           return ExprError();
         break;
+      case llvm::Triple::xtensa:
+        if (CheckXtensaBuiltinFunctionCall(BuiltinID, TheCall))
+          return ExprError();
+        break;
       default:
         break;
     }
@@ -3718,6 +3722,83 @@ bool Sema::CheckSystemZBuiltinFunctionCall(unsigned BuiltinID,
   case SystemZ::BI__builtin_s390_vfmaxdb: i = 2; l = 0; u = 15; break;
   case SystemZ::BI__builtin_s390_vsld: i = 2; l = 0; u = 7; break;
   case SystemZ::BI__builtin_s390_vsrd: i = 2; l = 0; u = 7; break;
+  }
+  return SemaBuiltinConstantArgRange(TheCall, i, l, u);
+}
+
+bool Sema::CheckXtensaBuiltinFunctionCall(unsigned BuiltinID,
+                                          CallExpr *TheCall) {
+  unsigned i = 0, l = 0, u = 0;
+  switch (BuiltinID) {
+  default:
+    return false;
+  case Xtensa::BI__builtin_xtensa_mul_ad_ll:
+  case Xtensa::BI__builtin_xtensa_mul_ad_lh:
+  case Xtensa::BI__builtin_xtensa_mul_ad_hl:
+  case Xtensa::BI__builtin_xtensa_mul_ad_hh:
+  case Xtensa::BI__builtin_xtensa_mula_ad_ll:
+  case Xtensa::BI__builtin_xtensa_mula_ad_lh:
+  case Xtensa::BI__builtin_xtensa_mula_ad_hl:
+  case Xtensa::BI__builtin_xtensa_mula_ad_hh:
+  case Xtensa::BI__builtin_xtensa_muls_ad_ll:
+  case Xtensa::BI__builtin_xtensa_muls_ad_lh:
+  case Xtensa::BI__builtin_xtensa_muls_ad_hl:
+  case Xtensa::BI__builtin_xtensa_muls_ad_hh:
+    i = 1;
+    l = 2;
+    u = 3;
+    break;
+  case Xtensa::BI__builtin_xtensa_mul_da_ll:
+  case Xtensa::BI__builtin_xtensa_mul_da_lh:
+  case Xtensa::BI__builtin_xtensa_mul_da_hl:
+  case Xtensa::BI__builtin_xtensa_mul_da_hh:
+  case Xtensa::BI__builtin_xtensa_mula_da_ll:
+  case Xtensa::BI__builtin_xtensa_mula_da_lh:
+  case Xtensa::BI__builtin_xtensa_mula_da_hl:
+  case Xtensa::BI__builtin_xtensa_mula_da_hh:
+  case Xtensa::BI__builtin_xtensa_muls_da_ll:
+  case Xtensa::BI__builtin_xtensa_muls_da_lh:
+  case Xtensa::BI__builtin_xtensa_muls_da_hl:
+  case Xtensa::BI__builtin_xtensa_muls_da_hh:
+    i = 0;
+    l = 0;
+    u = 1;
+    break;
+  case Xtensa::BI__builtin_xtensa_mul_dd_ll:
+  case Xtensa::BI__builtin_xtensa_mul_dd_lh:
+  case Xtensa::BI__builtin_xtensa_mul_dd_hl:
+  case Xtensa::BI__builtin_xtensa_mul_dd_hh:
+  case Xtensa::BI__builtin_xtensa_mula_dd_ll:
+  case Xtensa::BI__builtin_xtensa_mula_dd_lh:
+  case Xtensa::BI__builtin_xtensa_mula_dd_hl:
+  case Xtensa::BI__builtin_xtensa_mula_dd_hh:
+  case Xtensa::BI__builtin_xtensa_muls_dd_ll:
+  case Xtensa::BI__builtin_xtensa_muls_dd_lh:
+  case Xtensa::BI__builtin_xtensa_muls_dd_hl:
+  case Xtensa::BI__builtin_xtensa_muls_dd_hh:
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 1) ||
+           SemaBuiltinConstantArgRange(TheCall, 1, 2, 3);
+  case Xtensa::BI__builtin_xtensa_mula_da_ll_lddec:
+  case Xtensa::BI__builtin_xtensa_mula_da_lh_lddec:
+  case Xtensa::BI__builtin_xtensa_mula_da_hl_lddec:
+  case Xtensa::BI__builtin_xtensa_mula_da_hh_lddec:
+  case Xtensa::BI__builtin_xtensa_mula_da_ll_ldinc:
+  case Xtensa::BI__builtin_xtensa_mula_da_lh_ldinc:
+  case Xtensa::BI__builtin_xtensa_mula_da_hl_ldinc:
+  case Xtensa::BI__builtin_xtensa_mula_da_hh_ldinc:
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3) ||
+           SemaBuiltinConstantArgRange(TheCall, 2, 0, 1);
+  case Xtensa::BI__builtin_xtensa_mula_dd_ll_lddec:
+  case Xtensa::BI__builtin_xtensa_mula_dd_lh_lddec:
+  case Xtensa::BI__builtin_xtensa_mula_dd_hl_lddec:
+  case Xtensa::BI__builtin_xtensa_mula_dd_hh_lddec:
+  case Xtensa::BI__builtin_xtensa_mula_dd_ll_ldinc:
+  case Xtensa::BI__builtin_xtensa_mula_dd_lh_ldinc:
+  case Xtensa::BI__builtin_xtensa_mula_dd_hl_ldinc:
+  case Xtensa::BI__builtin_xtensa_mula_dd_hh_ldinc:
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3) ||
+           SemaBuiltinConstantArgRange(TheCall, 2, 0, 1) ||
+           SemaBuiltinConstantArgRange(TheCall, 3, 2, 3);
   }
   return SemaBuiltinConstantArgRange(TheCall, i, l, u);
 }

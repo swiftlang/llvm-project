@@ -40,6 +40,8 @@ def SDT_XtensaSRC                 : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCi
                                                          SDTCisVT<2, i32>]>;
 def SDT_XtensaSSL                 : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
 def SDT_XtensaSSR                 : SDTypeProfile<0, 1, [SDTCisVT<0, i32>]>;
+def SDT_XtensaMEMBARRIER         : SDTypeProfile<0, 0, []>;
+def SDT_XtensaRUR                : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 
 //===----------------------------------------------------------------------===//
 // Node definitions
@@ -97,3 +99,8 @@ def Xtensa_ssr: SDNode<"XtensaISD::SSR", SDT_XtensaSSR, [SDNPOutGlue]>;
 def Xtensa_brjt: SDNode<"XtensaISD::BR_JT", SDT_XtensaBrJT, [SDNPHasChain]>;
 def Xtensa_callw: SDNode<"XtensaISD::CALLW", SDT_XtensaCall,
                         [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
+def Xtensa_mem_barrier: SDNode<"XtensaISD::MEMW", SDT_XtensaMEMBARRIER,
+                              [SDNPHasChain, SDNPSideEffect]>;
+
+def Xtensa_rur: SDNode<"XtensaISD::RUR", SDT_XtensaRUR,
+                      [SDNPInGlue]>;

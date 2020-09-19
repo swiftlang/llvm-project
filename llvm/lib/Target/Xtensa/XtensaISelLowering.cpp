@@ -88,6 +88,7 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
   // Handle the various types of symbolic address.
   setOperationAction(ISD::ConstantPool, PtrVT, Custom);
   setOperationAction(ISD::GlobalAddress, PtrVT, Custom);
+  setOperationAction(ISD::GlobalTLSAddress, PtrVT, Custom);
   setOperationAction(ISD::BlockAddress, PtrVT, Custom);
   setOperationAction(ISD::JumpTable, PtrVT, Custom);
 
@@ -186,6 +187,10 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
   setOperationAction(ISD::SHL_PARTS, MVT::i32, Custom);
   setOperationAction(ISD::SRA_PARTS, MVT::i32, Custom);
   setOperationAction(ISD::SRL_PARTS, MVT::i32, Custom);
+
+  // Funnel shifts
+  setOperationAction(ISD::FSHR, MVT::i32, Custom);
+  setOperationAction(ISD::FSHL, MVT::i32, Custom);
 
   // Bit Manipulation
   setOperationAction(ISD::BSWAP, MVT::i32, Expand);
@@ -303,12 +308,51 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &tm,
 
   setOperationAction(ISD::TRAP, MVT::Other, Legal);
 
+  // to have the best chance and doing something good with fences custom lower
+  // them
+  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Custom);
+
+  if (!Subtarget.hasS32C1I()) {
+    for (unsigned I = MVT::FIRST_INTEGER_VALUETYPE;
+         I <= MVT::LAST_INTEGER_VALUETYPE; ++I) {
+      MVT VT = MVT::SimpleValueType(I);
+      if (isTypeLegal(VT)) {
+        setOperationAction(ISD::ATOMIC_CMP_SWAP, VT, Expand);
+        setOperationAction(ISD::ATOMIC_SWAP, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_ADD, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_SUB, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_AND, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_OR, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_XOR, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_NAND, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_MIN, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_MAX, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_UMIN, VT, Expand);
+        setOperationAction(ISD::ATOMIC_LOAD_UMAX, VT, Expand);
+      }
+    }
+  }
+
   // Compute derived properties from the register classes
   computeRegisterProperties(STI.getRegisterInfo());
 
   if (Subtarget.hasBoolean()) {
     addRegisterClass(MVT::i1, &Xtensa::BRRegClass);
   }
+}
+
+/// If a physical register, this returns the register that receives the
+/// exception address on entry to an EH pad.
+unsigned XtensaTargetLowering::getExceptionPointerRegister(
+    const Constant *PersonalityFn) const {
+  return Xtensa::A2;
+}
+
+/// If a physical register, this returns the register that receives the
+/// exception typeid on entry to a landing pad.
+unsigned XtensaTargetLowering::getExceptionSelectorRegister(
+    const Constant *PersonalityFn) const {
+  return Xtensa::A3;
 }
 
 bool XtensaTargetLowering::isOffsetFoldingLegal(
@@ -1284,6 +1328,44 @@ SDValue XtensaTargetLowering::LowerGlobalAddress(SDValue Op,
   llvm_unreachable("invalid global addresses to lower");
 }
 
+SDValue XtensaTargetLowering::LowerGlobalTLSAddress(GlobalAddressSDNode *GA,
+                                                    SelectionDAG &DAG) const {
+  SDLoc DL(GA);
+  const GlobalValue *GV = GA->getGlobal();
+  EVT PtrVT = getPointerTy(DAG.getDataLayout());
+
+  if (DAG.getTarget().useEmulatedTLS())
+    return LowerToTLSEmulatedModel(GA, DAG);
+
+  TLSModel::Model model = getTargetMachine().getTLSModel(GV);
+
+  if (!Subtarget.hasTHREADPTR()) {
+    llvm_unreachable("only emulated TLS supported");
+  }
+
+  if ((model == TLSModel::LocalExec) || (model == TLSModel::InitialExec)) {
+    auto PtrVt = getPointerTy(DAG.getDataLayout());
+
+    bool Priv = GV->isPrivateLinkage(GV->getLinkage());
+    // Create a constant pool entry for the callee address
+    XtensaConstantPoolValue *CPV = XtensaConstantPoolSymbol::Create(
+        *DAG.getContext(), GV->getName().str().c_str() /* Sym */,
+        0 /* XtensaCLabelIndex */, Priv, XtensaCP::TPOFF);
+
+    // Get the address of the callee into a register
+    SDValue CPAddr = DAG.getTargetConstantPool(CPV, PtrVt, 4);
+    SDValue CPWrap = getAddrPCRel(CPAddr, DAG);
+
+    SDValue TPRegister = DAG.getRegister(Xtensa::THREADPTR, MVT::i32);
+    SDValue ThreadPointer =
+        DAG.getNode(XtensaISD::RUR, DL, MVT::i32, TPRegister);
+    return DAG.getNode(ISD::ADD, DL, PtrVT, ThreadPointer, CPWrap);
+  } else
+    llvm_unreachable("only local-exec and initial-exec TLS mode supported");
+
+  return SDValue();
+}
+
 SDValue XtensaTargetLowering::LowerBlockAddress(BlockAddressSDNode *Node,
                                                 SelectionDAG &DAG) const {
   const BlockAddress *BA = Node->getBlockAddress();
@@ -1596,6 +1678,30 @@ SDValue XtensaTargetLowering::LowerShiftRightParts(SDValue Op,
   return DAG.getMergeValues(Ops, DL);
 }
 
+SDValue XtensaTargetLowering::LowerFunnelShift(SDValue Op,
+                                               SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  SDValue Op0 = Op.getOperand(0);
+  SDValue Op1 = Op.getOperand(1);
+  SDValue Shamt = Op.getOperand(2);
+  MVT VT = Op.getSimpleValueType();
+
+  bool IsFSHR = Op.getOpcode() == ISD::FSHR;
+  assert((VT == MVT::i32) && "Unexpected funnel shift type!");
+
+  SDValue SetSAR = DAG.getNode(IsFSHR ? XtensaISD::SSR : XtensaISD::SSL, DL,
+                               MVT::Glue, Shamt);
+  return DAG.getNode(XtensaISD::SRC, DL, VT, IsFSHR ? Op0 : Op1,
+                     IsFSHR ? Op1 : Op0, SetSAR);
+}
+
+SDValue XtensaTargetLowering::LowerATOMIC_FENCE(SDValue Op,
+                                                SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  SDValue Chain = Op.getOperand(0);
+  return DAG.getNode(XtensaISD::MEMW, DL, MVT::Other, Chain);
+}
+
 SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
                                              SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
@@ -1615,6 +1721,8 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
     return LowerSELECT_CC(Op, DAG);
   case ISD::GlobalAddress:
     return LowerGlobalAddress(Op, DAG);
+  case ISD::GlobalTLSAddress:
+    return LowerGlobalTLSAddress(cast<GlobalAddressSDNode>(Op), DAG);
   case ISD::BlockAddress:
     return LowerBlockAddress(cast<BlockAddressSDNode>(Op), DAG);
   case ISD::JumpTable:
@@ -1633,12 +1741,17 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
     return LowerVASTART(Op, DAG);
   case ISD::VACOPY:
     return LowerVACOPY(Op, DAG);
+  case ISD::ATOMIC_FENCE:
+    return LowerATOMIC_FENCE(Op, DAG);
   case ISD::SHL_PARTS:
     return LowerShiftLeftParts(Op, DAG);
   case ISD::SRA_PARTS:
     return LowerShiftRightParts(Op, DAG, true);
   case ISD::SRL_PARTS:
     return LowerShiftRightParts(Op, DAG, false);
+  case ISD::FSHL:
+  case ISD::FSHR:
+    return LowerFunnelShift(Op, DAG);
   default:
     llvm_unreachable("Unexpected node to lower");
   }
@@ -1670,7 +1783,9 @@ const char *XtensaTargetLowering::getTargetNodeName(unsigned Opcode) const {
     OPCODE(MADD);
     OPCODE(MSUB);
     OPCODE(MOVS);
+    OPCODE(MEMW);
     OPCODE(MOVSP);
+    OPCODE(RUR);
     OPCODE(SHL);
     OPCODE(SRA);
     OPCODE(SRL);
@@ -1879,6 +1994,744 @@ XtensaTargetLowering::emitSelectCC(MachineInstr &MI,
   return BB;
 }
 
+// Emit instructions for atomic_cmp_swap node for 8/16 bit operands
+MachineBasicBlock *
+XtensaTargetLowering::emitAtomicCmpSwap(MachineInstr &MI, MachineBasicBlock *BB,
+                                        int isByteOperand) const {
+  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+
+  const BasicBlock *LLVM_BB = BB->getBasicBlock();
+  MachineFunction::iterator It = ++BB->getIterator();
+
+  MachineBasicBlock *thisBB = BB;
+  MachineFunction *F = BB->getParent();
+  MachineBasicBlock *BBLoop = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *BBExit = F->CreateMachineBasicBlock(LLVM_BB);
+
+  F->insert(It, BBLoop);
+  F->insert(It, BBExit);
+
+  // Transfer the remainder of BB and its successor edges to BBExit.
+  BBExit->splice(BBExit->begin(), BB,
+                 std::next(MachineBasicBlock::iterator(MI)), BB->end());
+  BBExit->transferSuccessorsAndUpdatePHIs(BB);
+
+  BB->addSuccessor(BBLoop);
+
+  MachineOperand &Res = MI.getOperand(0);
+  MachineOperand &AtomValAddr = MI.getOperand(1);
+  MachineOperand &CmpVal = MI.getOperand(2);
+  MachineOperand &SwpVal = MI.getOperand(3);
+
+  MachineFunction *MF = BB->getParent();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+
+  unsigned R1 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), R1).addImm(3);
+
+  unsigned ByteOffs = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::AND), ByteOffs)
+      .addReg(R1)
+      .addReg(AtomValAddr.getReg());
+
+  unsigned AddrAlign = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SUB), AddrAlign)
+      .addReg(AtomValAddr.getReg())
+      .addReg(ByteOffs);
+
+  unsigned BitOffs = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLLI), BitOffs)
+      .addReg(ByteOffs)
+      .addImm(3);
+
+  unsigned Mask1 = MRI.createVirtualRegister(RC);
+  if (isByteOperand) {
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), Mask1).addImm(0xff);
+  } else {
+    unsigned R2 = MRI.createVirtualRegister(RC);
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), R2).addImm(1);
+    unsigned R3 = MRI.createVirtualRegister(RC);
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::SLLI), R3).addReg(R2).addImm(16);
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::ADDI), Mask1).addReg(R3).addImm(-1);
+  }
+
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SSL)).addReg(BitOffs);
+
+  unsigned R2 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), R2).addImm(-1);
+
+  unsigned Mask2 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLL), Mask2).addReg(Mask1);
+
+  unsigned Mask3 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::XOR), Mask3).addReg(Mask2).addReg(R2);
+
+  unsigned R3 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::L32I), R3).addReg(AddrAlign).addImm(0);
+
+  unsigned R4 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::AND), R4).addReg(R3).addReg(Mask3);
+
+  unsigned Cmp1 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLL), Cmp1).addReg(CmpVal.getReg());
+
+  unsigned Swp1 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLL), Swp1).addReg(SwpVal.getReg());
+
+  BB = BBLoop;
+
+  unsigned MaskPhi = MRI.createVirtualRegister(RC);
+  unsigned MaskLoop = MRI.createVirtualRegister(RC);
+
+  BuildMI(*BB, BB->begin(), DL, TII.get(Xtensa::PHI), MaskPhi)
+      .addReg(MaskLoop)
+      .addMBB(BBLoop)
+      .addReg(R4)
+      .addMBB(thisBB);
+
+  unsigned Cmp2 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::OR), Cmp2).addReg(Cmp1).addReg(MaskPhi);
+
+  unsigned Swp2 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::OR), Swp2).addReg(Swp1).addReg(MaskPhi);
+
+  BuildMI(BB, DL, TII.get(Xtensa::WSR), Xtensa::SCOMPARE1).addReg(Cmp2);
+
+  unsigned Swp3 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::S32C1I), Swp3)
+      .addReg(Swp2)
+      .addReg(AddrAlign)
+      .addImm(0);
+
+  BuildMI(BB, DL, TII.get(Xtensa::AND), MaskLoop).addReg(Swp3).addReg(Mask3);
+
+  BuildMI(BB, DL, TII.get(Xtensa::BNE))
+      .addReg(MaskLoop)
+      .addReg(MaskPhi)
+      .addMBB(BBLoop);
+
+  BB->addSuccessor(BBLoop);
+  BB->addSuccessor(BBExit);
+
+  BB = BBExit;
+  auto St = BBExit->begin();
+
+  unsigned R5 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, St, DL, TII.get(Xtensa::SSR)).addReg(BitOffs);
+
+  BuildMI(*BB, St, DL, TII.get(Xtensa::SRL), R5).addReg(Swp3);
+
+  BuildMI(*BB, St, DL, TII.get(Xtensa::AND), Res.getReg())
+      .addReg(R5)
+      .addReg(Mask1);
+
+  MI.eraseFromParent(); // The pseudo instruction is gone now.
+  return BB;
+}
+
+// Emit instructions for atomic_swap node for 8/16 bit operands
+MachineBasicBlock *
+XtensaTargetLowering::emitAtomicSwap(MachineInstr &MI, MachineBasicBlock *BB,
+                                     int isByteOperand) const {
+  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+
+  const BasicBlock *LLVM_BB = BB->getBasicBlock();
+  MachineFunction::iterator It = ++BB->getIterator();
+
+  MachineFunction *F = BB->getParent();
+  MachineBasicBlock *BBLoop1 = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *BBLoop2 = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *BBLoop3 = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *BBLoop4 = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *BBExit = F->CreateMachineBasicBlock(LLVM_BB);
+
+  F->insert(It, BBLoop1);
+  F->insert(It, BBLoop2);
+  F->insert(It, BBLoop3);
+  F->insert(It, BBLoop4);
+  F->insert(It, BBExit);
+
+  // Transfer the remainder of BB and its successor edges to BBExit.
+  BBExit->splice(BBExit->begin(), BB,
+                 std::next(MachineBasicBlock::iterator(MI)), BB->end());
+  BBExit->transferSuccessorsAndUpdatePHIs(BB);
+
+  BB->addSuccessor(BBLoop1);
+  BBLoop1->addSuccessor(BBLoop2);
+  BBLoop2->addSuccessor(BBLoop3);
+  BBLoop2->addSuccessor(BBLoop4);
+  BBLoop3->addSuccessor(BBLoop2);
+  BBLoop3->addSuccessor(BBLoop4);
+  BBLoop4->addSuccessor(BBLoop1);
+  BBLoop4->addSuccessor(BBExit);
+
+  MachineOperand &Res = MI.getOperand(0);
+  MachineOperand &AtomValAddr = MI.getOperand(1);
+  MachineOperand &SwpVal = MI.getOperand(2);
+
+  MachineFunction *MF = BB->getParent();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+
+  unsigned R1 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), R1).addImm(3);
+
+  unsigned ByteOffs = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::AND), ByteOffs)
+      .addReg(R1)
+      .addReg(AtomValAddr.getReg());
+
+  unsigned AddrAlign = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SUB), AddrAlign)
+      .addReg(AtomValAddr.getReg())
+      .addReg(ByteOffs);
+
+  unsigned BitOffs = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLLI), BitOffs)
+      .addReg(ByteOffs)
+      .addImm(3);
+
+  unsigned Mask1 = MRI.createVirtualRegister(RC);
+  if (isByteOperand) {
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), Mask1).addImm(0xff);
+  } else {
+    unsigned R2 = MRI.createVirtualRegister(RC);
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), R2).addImm(1);
+    unsigned R3 = MRI.createVirtualRegister(RC);
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::SLLI), R3).addReg(R2).addImm(16);
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::ADDI), Mask1).addReg(R3).addImm(-1);
+  }
+
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SSL)).addReg(BitOffs);
+
+  unsigned R2 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), R2).addImm(-1);
+
+  unsigned Mask2 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLL), Mask2).addReg(Mask1);
+
+  unsigned Mask3 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::XOR), Mask3).addReg(Mask2).addReg(R2);
+
+  unsigned R3 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::L32I), R3).addReg(AddrAlign).addImm(0);
+
+  unsigned R4 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::AND), R4).addReg(R3).addReg(Mask3);
+
+  unsigned SwpValShifted = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLL), SwpValShifted)
+      .addReg(SwpVal.getReg());
+
+  unsigned R5 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::L32I), R5).addReg(AddrAlign).addImm(0);
+
+  unsigned AtomVal = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::AND), AtomVal).addReg(R5).addReg(Mask2);
+
+  unsigned AtomValPhi = MRI.createVirtualRegister(RC);
+  unsigned AtomValLoop = MRI.createVirtualRegister(RC);
+
+  BuildMI(*BBLoop1, BBLoop1->begin(), DL, TII.get(Xtensa::PHI), AtomValPhi)
+      .addReg(AtomValLoop)
+      .addMBB(BBLoop4)
+      .addReg(AtomVal)
+      .addMBB(BB);
+
+  BB = BBLoop1;
+
+  BuildMI(BB, DL, TII.get(Xtensa::MEMW));
+
+  unsigned R6 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::L32I), R6).addReg(AddrAlign).addImm(0);
+
+  unsigned R7 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::AND), R7).addReg(R6).addReg(Mask3);
+
+  unsigned MaskPhi = MRI.createVirtualRegister(RC);
+  unsigned MaskLoop = MRI.createVirtualRegister(RC);
+
+  BuildMI(*BBLoop2, BBLoop2->begin(), DL, TII.get(Xtensa::PHI), MaskPhi)
+      .addReg(MaskLoop)
+      .addMBB(BBLoop3)
+      .addReg(R7)
+      .addMBB(BBLoop1);
+
+  BB = BBLoop2;
+
+  unsigned Swp1 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::OR), Swp1)
+      .addReg(SwpValShifted)
+      .addReg(MaskPhi);
+
+  unsigned AtomVal1 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::OR), AtomVal1)
+      .addReg(AtomValPhi)
+      .addReg(MaskPhi);
+
+  BuildMI(BB, DL, TII.get(Xtensa::WSR), Xtensa::SCOMPARE1).addReg(AtomVal1);
+
+  unsigned Swp2 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::S32C1I), Swp2)
+      .addReg(Swp1)
+      .addReg(AddrAlign)
+      .addImm(0);
+
+  BuildMI(BB, DL, TII.get(Xtensa::BEQ))
+      .addReg(AtomVal1)
+      .addReg(Swp2)
+      .addMBB(BBLoop4);
+
+  BB = BBLoop3;
+
+  BuildMI(BB, DL, TII.get(Xtensa::AND), MaskLoop).addReg(Swp2).addReg(Mask3);
+
+  BuildMI(BB, DL, TII.get(Xtensa::BNE))
+      .addReg(MaskLoop)
+      .addReg(MaskPhi)
+      .addMBB(BBLoop2);
+
+  BB = BBLoop4;
+
+  BuildMI(BB, DL, TII.get(Xtensa::AND), AtomValLoop).addReg(Swp2).addReg(Mask2);
+
+  BuildMI(BB, DL, TII.get(Xtensa::BNE))
+      .addReg(AtomValLoop)
+      .addReg(AtomValPhi)
+      .addMBB(BBLoop1);
+
+  BB = BBExit;
+
+  auto St = BB->begin();
+
+  unsigned R8 = MRI.createVirtualRegister(RC);
+
+  BuildMI(*BB, St, DL, TII.get(Xtensa::SSR)).addReg(BitOffs);
+  BuildMI(*BB, St, DL, TII.get(Xtensa::SLL), R8).addReg(AtomValLoop);
+
+  if (isByteOperand) {
+    BuildMI(*BB, St, DL, TII.get(Xtensa::SEXT), Res.getReg())
+        .addReg(R8)
+        .addImm(7);
+  } else {
+    BuildMI(*BB, St, DL, TII.get(Xtensa::SEXT), Res.getReg())
+        .addReg(R8)
+        .addImm(15);
+  }
+
+  MI.eraseFromParent(); // The pseudo instruction is gone now.
+  return BB;
+}
+
+// Emit instructions for atomic_swap node for 32 bit operands
+MachineBasicBlock *
+XtensaTargetLowering::emitAtomicSwap(MachineInstr &MI,
+                                     MachineBasicBlock *BB) const {
+  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+
+  const BasicBlock *LLVM_BB = BB->getBasicBlock();
+  MachineFunction::iterator It = ++BB->getIterator();
+
+  MachineFunction *F = BB->getParent();
+  MachineBasicBlock *BBLoop = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *BBExit = F->CreateMachineBasicBlock(LLVM_BB);
+
+  F->insert(It, BBLoop);
+  F->insert(It, BBExit);
+
+  // Transfer the remainder of BB and its successor edges to BBExit.
+  BBExit->splice(BBExit->begin(), BB,
+                 std::next(MachineBasicBlock::iterator(MI)), BB->end());
+  BBExit->transferSuccessorsAndUpdatePHIs(BB);
+
+  BB->addSuccessor(BBLoop);
+  BBLoop->addSuccessor(BBLoop);
+  BBLoop->addSuccessor(BBExit);
+
+  MachineOperand &Res = MI.getOperand(0);
+  MachineOperand &AtomValAddr = MI.getOperand(1);
+  MachineOperand &SwpVal = MI.getOperand(2);
+
+  MachineFunction *MF = BB->getParent();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::MEMW));
+
+  unsigned AtomVal = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::L32I), AtomVal)
+      .addReg(AtomValAddr.getReg())
+      .addImm(0);
+
+  unsigned AtomValLoop = MRI.createVirtualRegister(RC);
+
+  BuildMI(*BBLoop, BBLoop->begin(), DL, TII.get(Xtensa::PHI), Res.getReg())
+      .addReg(AtomValLoop)
+      .addMBB(BBLoop)
+      .addReg(AtomVal)
+      .addMBB(BB);
+
+  BB = BBLoop;
+
+  BuildMI(BB, DL, TII.get(Xtensa::WSR), Xtensa::SCOMPARE1).addReg(Res.getReg());
+
+  BuildMI(BB, DL, TII.get(Xtensa::S32C1I), AtomValLoop)
+      .addReg(SwpVal.getReg())
+      .addReg(AtomValAddr.getReg())
+      .addImm(0);
+
+  BuildMI(BB, DL, TII.get(Xtensa::BNE))
+      .addReg(AtomValLoop)
+      .addReg(Res.getReg())
+      .addMBB(BBLoop);
+
+  MI.eraseFromParent(); // The pseudo instruction is gone now.
+  return BB;
+}
+
+MachineBasicBlock *XtensaTargetLowering::emitAtomicRMW(MachineInstr &MI,
+                                                       MachineBasicBlock *BB,
+                                                       unsigned Opcode,
+                                                       bool inv,
+                                                       bool minmax) const {
+  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+
+  const BasicBlock *LLVM_BB = BB->getBasicBlock();
+  MachineFunction::iterator It = ++BB->getIterator();
+
+  MachineBasicBlock *ThisBB = BB;
+  MachineFunction *F = BB->getParent();
+  MachineBasicBlock *BBLoop = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *BBExit = F->CreateMachineBasicBlock(LLVM_BB);
+
+  F->insert(It, BBLoop);
+  F->insert(It, BBExit);
+
+  // Transfer the remainder of BB and its successor edges to BB2.
+  BBExit->splice(BBExit->begin(), BB,
+                 std::next(MachineBasicBlock::iterator(MI)), BB->end());
+  BBExit->transferSuccessorsAndUpdatePHIs(BB);
+
+  BB->addSuccessor(BBLoop);
+
+  MachineOperand &Res = MI.getOperand(0);
+  MachineOperand &AtomicValAddr = MI.getOperand(1);
+  MachineOperand &Val = MI.getOperand(2);
+  MachineFunction *MF = BB->getParent();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+
+  unsigned R1 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::L32I), R1).add(AtomicValAddr).addImm(0);
+
+  BB = BBLoop;
+
+  unsigned AtomicValPhi = MRI.createVirtualRegister(RC);
+  unsigned AtomicValLoop = MRI.createVirtualRegister(RC);
+
+  BuildMI(*BB, BB->begin(), DL, TII.get(Xtensa::PHI), AtomicValPhi)
+      .addReg(AtomicValLoop)
+      .addMBB(BBLoop)
+      .addReg(R1)
+      .addMBB(ThisBB);
+
+  unsigned R2 = MRI.createVirtualRegister(RC);
+
+  if (minmax) {
+    MachineBasicBlock *BBLoop1 = F->CreateMachineBasicBlock(LLVM_BB);
+    F->insert(It, BBLoop1);
+    BB->addSuccessor(BBLoop1);
+    MachineBasicBlock *BBLoop2 = F->CreateMachineBasicBlock(LLVM_BB);
+    F->insert(It, BBLoop2);
+    BB->addSuccessor(BBLoop2);
+
+    BuildMI(BB, DL, TII.get(Opcode))
+        .addReg(AtomicValPhi)
+        .addReg(Val.getReg())
+        .addMBB(BBLoop1);
+
+    unsigned R7 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::MOV_N), R7).addReg(Val.getReg());
+
+    BB = BBLoop1;
+    unsigned R8 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::MOV_N), R8).addReg(AtomicValPhi);
+    BB->addSuccessor(BBLoop2);
+
+    BB = BBLoop2;
+    unsigned R9 = MRI.createVirtualRegister(RC);
+
+    BuildMI(*BB, BB->begin(), DL, TII.get(Xtensa::PHI), R9)
+        .addReg(R7)
+        .addMBB(BBLoop)
+        .addReg(R8)
+        .addMBB(BBLoop1);
+    BuildMI(BB, DL, TII.get(Xtensa::MOV_N), R2).addReg(R9);
+  } else {
+    BuildMI(BB, DL, TII.get(Opcode), R2)
+        .addReg(AtomicValPhi)
+        .addReg(Val.getReg());
+    if (inv) {
+      unsigned Rtmp1 = MRI.createVirtualRegister(RC);
+      BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), Rtmp1).addImm(-1);
+      unsigned Rtmp2 = MRI.createVirtualRegister(RC);
+      BuildMI(*BB, MI, DL, TII.get(Xtensa::XOR), Rtmp2)
+          .addReg(R2)
+          .addReg(Rtmp1);
+      R2 = Rtmp2;
+    }
+  }
+
+  unsigned R4 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::WSR), Xtensa::SCOMPARE1).addReg(AtomicValPhi);
+  BuildMI(BB, DL, TII.get(Xtensa::S32C1I), R4)
+      .addReg(R2)
+      .addReg(AtomicValAddr.getReg())
+      .addImm(0);
+
+  BuildMI(BB, DL, TII.get(Xtensa::MOV_N), AtomicValLoop).addReg(R4);
+
+  BuildMI(BB, DL, TII.get(Xtensa::BNE))
+      .addReg(AtomicValPhi)
+      .addReg(R4)
+      .addMBB(BBLoop);
+
+  BB->addSuccessor(BBLoop);
+  BB->addSuccessor(BBExit);
+
+  BB = BBExit;
+  auto st = BBExit->begin();
+
+  BuildMI(*BB, st, DL, TII.get(Xtensa::MOV_N), Res.getReg()).addReg(R4);
+
+  MI.eraseFromParent(); // The pseudo instruction is gone now.
+
+  return BB;
+}
+
+MachineBasicBlock *
+XtensaTargetLowering::emitAtomicRMW(MachineInstr &MI, MachineBasicBlock *BB,
+                                    bool isByteOperand, unsigned Opcode,
+                                    bool inv, bool minmax) const {
+  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+
+  const BasicBlock *LLVM_BB = BB->getBasicBlock();
+  MachineFunction::iterator It = ++BB->getIterator();
+
+  MachineBasicBlock *ThisBB = BB;
+  MachineFunction *F = BB->getParent();
+  MachineBasicBlock *BBLoop = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *BBExit = F->CreateMachineBasicBlock(LLVM_BB);
+
+  F->insert(It, BBLoop);
+  F->insert(It, BBExit);
+
+  // Transfer the remainder of BB and its successor edges to BB2.
+  BBExit->splice(BBExit->begin(), BB,
+                 std::next(MachineBasicBlock::iterator(MI)), BB->end());
+  BBExit->transferSuccessorsAndUpdatePHIs(BB);
+
+  BB->addSuccessor(BBLoop);
+
+  MachineOperand &Res = MI.getOperand(0);
+  MachineOperand &AtomValAddr = MI.getOperand(1);
+  MachineOperand &Val = MI.getOperand(2);
+
+  MachineFunction *MF = BB->getParent();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+
+  unsigned R1 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), R1).addImm(3);
+
+  unsigned ByteOffs = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::AND), ByteOffs)
+      .addReg(R1)
+      .addReg(AtomValAddr.getReg());
+
+  unsigned AddrAlign = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SUB), AddrAlign)
+      .addReg(AtomValAddr.getReg())
+      .addReg(ByteOffs);
+
+  unsigned BitOffs = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLLI), BitOffs)
+      .addReg(ByteOffs)
+      .addImm(3);
+
+  unsigned Mask1 = MRI.createVirtualRegister(RC);
+  if (isByteOperand) {
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), Mask1).addImm(0xff);
+  } else {
+    unsigned R2 = MRI.createVirtualRegister(RC);
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), R2).addImm(1);
+    unsigned R3 = MRI.createVirtualRegister(RC);
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::SLLI), R3).addReg(R2).addImm(16);
+    BuildMI(*BB, MI, DL, TII.get(Xtensa::ADDI), Mask1).addReg(R3).addImm(-1);
+  }
+
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SSL)).addReg(BitOffs);
+
+  unsigned R2 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::MOVI), R2).addImm(-1);
+
+  unsigned Mask2 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLL), Mask2).addReg(Mask1);
+
+  unsigned Mask3 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::XOR), Mask3).addReg(Mask2).addReg(R2);
+
+  unsigned R3 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::L32I), R3).addReg(AddrAlign).addImm(0);
+
+  unsigned Val1 = MRI.createVirtualRegister(RC);
+  BuildMI(*BB, MI, DL, TII.get(Xtensa::SLL), Val1).addReg(Val.getReg());
+
+  BB = BBLoop;
+
+  unsigned AtomicValPhi = MRI.createVirtualRegister(RC);
+  unsigned AtomicValLoop = MRI.createVirtualRegister(RC);
+
+  BuildMI(*BB, BB->begin(), DL, TII.get(Xtensa::PHI), AtomicValPhi)
+      .addReg(AtomicValLoop)
+      .addMBB(BBLoop)
+      .addReg(R3)
+      .addMBB(ThisBB);
+
+  unsigned Swp2;
+
+  if (minmax) {
+    MachineBasicBlock *BBLoop1 = F->CreateMachineBasicBlock(LLVM_BB);
+    F->insert(It, BBLoop1);
+    BB->addSuccessor(BBLoop1);
+    MachineBasicBlock *BBLoop2 = F->CreateMachineBasicBlock(LLVM_BB);
+    F->insert(It, BBLoop2);
+    BB->addSuccessor(BBLoop2);
+
+    unsigned R1 = MRI.createVirtualRegister(RC);
+    unsigned R2 = MRI.createVirtualRegister(RC);
+    unsigned R3 = MRI.createVirtualRegister(RC);
+    unsigned R4 = MRI.createVirtualRegister(RC);
+
+    unsigned R5 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::AND), R5)
+        .addReg(AtomicValPhi)
+        .addReg(Mask2);
+
+    BuildMI(BB, DL, TII.get(Xtensa::SRL), R1).addReg(R5);
+    BuildMI(BB, DL, TII.get(Xtensa::SRL), R2).addReg(Val1);
+
+    if ((Opcode == Xtensa::BLT) || (Opcode == Xtensa::BGE)) {
+      if (isByteOperand) {
+        BuildMI(BB, DL, TII.get(Xtensa::SEXT), R3).addReg(R1).addImm(7);
+        BuildMI(BB, DL, TII.get(Xtensa::SEXT), R4).addReg(R2).addImm(7);
+      } else {
+        BuildMI(BB, DL, TII.get(Xtensa::SEXT), R3).addReg(R1).addImm(15);
+        BuildMI(BB, DL, TII.get(Xtensa::SEXT), R4).addReg(R2).addImm(15);
+      }
+    } else {
+      R3 = R1;
+      R4 = R2;
+    }
+
+    BuildMI(BB, DL, TII.get(Opcode)).addReg(R3).addReg(R4).addMBB(BBLoop1);
+
+    unsigned R7 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::MOV_N), R7).addReg(Val1);
+
+    BB = BBLoop1;
+    unsigned R8 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::MOV_N), R8).addReg(AtomicValPhi);
+    BB->addSuccessor(BBLoop2);
+
+    BB = BBLoop2;
+    unsigned R9 = MRI.createVirtualRegister(RC);
+
+    BuildMI(*BB, BB->begin(), DL, TII.get(Xtensa::PHI), R9)
+        .addReg(R7)
+        .addMBB(BBLoop)
+        .addReg(R8)
+        .addMBB(BBLoop1);
+
+    unsigned R10 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::AND), R10)
+        .addReg(AtomicValPhi)
+        .addReg(Mask3);
+
+    unsigned R11 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::AND), R11).addReg(R9).addReg(Mask2);
+
+    Swp2 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::OR), Swp2).addReg(R10).addReg(R11);
+  } else {
+    unsigned R4 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::AND), R4)
+        .addReg(AtomicValPhi)
+        .addReg(Mask2);
+
+    unsigned Res1 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Opcode), Res1).addReg(R4).addReg(Val1);
+
+    unsigned Swp1 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::AND), Swp1).addReg(Res1).addReg(Mask2);
+
+    unsigned R5 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::AND), R5)
+        .addReg(AtomicValPhi)
+        .addReg(Mask3);
+
+    if (inv) {
+      unsigned Rtmp1 = MRI.createVirtualRegister(RC);
+      BuildMI(BB, DL, TII.get(Xtensa::XOR), Rtmp1)
+          .addReg(AtomicValPhi)
+          .addReg(Mask2);
+      R5 = Rtmp1;
+    }
+
+    Swp2 = MRI.createVirtualRegister(RC);
+    BuildMI(BB, DL, TII.get(Xtensa::OR), Swp2).addReg(Swp1).addReg(R5);
+  }
+
+  unsigned Swp3 = MRI.createVirtualRegister(RC);
+  BuildMI(BB, DL, TII.get(Xtensa::WSR), Xtensa::SCOMPARE1).addReg(AtomicValPhi);
+  BuildMI(BB, DL, TII.get(Xtensa::S32C1I), Swp3)
+      .addReg(Swp2)
+      .addReg(AddrAlign)
+      .addImm(0);
+
+  BuildMI(BB, DL, TII.get(Xtensa::MOV_N), AtomicValLoop).addReg(Swp3);
+
+  BuildMI(BB, DL, TII.get(Xtensa::BNE))
+      .addReg(Swp3)
+      .addReg(AtomicValPhi)
+      .addMBB(BBLoop);
+
+  BB->addSuccessor(BBLoop);
+  BB->addSuccessor(BBExit);
+  BB = BBExit;
+  auto St = BBExit->begin();
+
+  unsigned R6 = MRI.createVirtualRegister(RC);
+
+  BuildMI(*BB, St, DL, TII.get(Xtensa::SSR)).addReg(BitOffs);
+
+  BuildMI(*BB, St, DL, TII.get(Xtensa::SRL), R6).addReg(AtomicValLoop);
+
+  BuildMI(*BB, St, DL, TII.get(Xtensa::AND), Res.getReg())
+      .addReg(R6)
+      .addReg(Mask1);
+
+  MI.eraseFromParent(); // The pseudo instruction is gone now.
+
+  return BB;
+}
+
 MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
     MachineInstr &MI, MachineBasicBlock *MBB) const {
   const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
@@ -1887,6 +2740,268 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
   DebugLoc DL = MI.getDebugLoc();
 
   switch (MI.getOpcode()) {
+  case Xtensa::MULA_DA_LL_LDDEC_P:
+  case Xtensa::MULA_DA_LH_LDDEC_P:
+  case Xtensa::MULA_DA_HL_LDDEC_P:
+  case Xtensa::MULA_DA_HH_LDDEC_P:
+  case Xtensa::MULA_DA_LL_LDINC_P:
+  case Xtensa::MULA_DA_LH_LDINC_P:
+  case Xtensa::MULA_DA_HL_LDINC_P:
+  case Xtensa::MULA_DA_HH_LDINC_P: {
+    MachineOperand &MW = MI.getOperand(0);
+    MachineOperand &S = MI.getOperand(1);
+    MachineOperand &MX = MI.getOperand(2);
+    MachineOperand &T = MI.getOperand(3);
+    const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+    unsigned Reg1 = MRI.createVirtualRegister(RC);
+    unsigned Reg2 = MRI.createVirtualRegister(RC);
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::L32I), Reg1)
+        .addReg(S.getReg())
+        .addImm(0);
+
+    unsigned Opc;
+    switch (MI.getOpcode()) {
+    case Xtensa::MULA_DA_LL_LDDEC_P:
+      Opc = Xtensa::MULA_DA_LL_LDDEC;
+      break;
+    case Xtensa::MULA_DA_LH_LDDEC_P:
+      Opc = Xtensa::MULA_DA_LH_LDDEC;
+      break;
+    case Xtensa::MULA_DA_HL_LDDEC_P:
+      Opc = Xtensa::MULA_DA_HL_LDDEC;
+      break;
+    case Xtensa::MULA_DA_HH_LDDEC_P:
+      Opc = Xtensa::MULA_DA_HH_LDDEC;
+      break;
+    case Xtensa::MULA_DA_LL_LDINC_P:
+      Opc = Xtensa::MULA_DA_LL_LDINC;
+      break;
+    case Xtensa::MULA_DA_LH_LDINC_P:
+      Opc = Xtensa::MULA_DA_LH_LDINC;
+      break;
+    case Xtensa::MULA_DA_HL_LDINC_P:
+      Opc = Xtensa::MULA_DA_HL_LDINC;
+      break;
+    case Xtensa::MULA_DA_HH_LDINC_P:
+      Opc = Xtensa::MULA_DA_HH_LDINC;
+      break;
+    }
+
+    unsigned MWVal = MW.getImm();
+    assert((MWVal < 4) && "Unexpected value of mula_da*ld* first argument, it "
+                          "must be from m0..m3");
+    unsigned MXVal = MX.getImm();
+    assert((MXVal < 2) && "Unexpected value of mula_da*ld* third "
+                          "argument, it must be m0 or m1");
+
+    BuildMI(*MBB, MI, DL, TII.get(Opc))
+        .addReg(Xtensa::M0 + MWVal, RegState::Define)
+        .addReg(Reg2, RegState::Define)
+        .addReg(Reg1)
+        .addReg(Xtensa::M0 + MXVal)
+        .addReg(T.getReg());
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::S32I))
+        .addReg(Reg2)
+        .addReg(S.getReg())
+        .addImm(0);
+
+    MI.eraseFromParent();
+    return MBB;
+  }
+  case Xtensa::MULA_DD_LL_LDDEC_P:
+  case Xtensa::MULA_DD_LH_LDDEC_P:
+  case Xtensa::MULA_DD_HL_LDDEC_P:
+  case Xtensa::MULA_DD_HH_LDDEC_P:
+  case Xtensa::MULA_DD_LL_LDINC_P:
+  case Xtensa::MULA_DD_LH_LDINC_P:
+  case Xtensa::MULA_DD_HL_LDINC_P:
+  case Xtensa::MULA_DD_HH_LDINC_P: {
+    MachineOperand &MW = MI.getOperand(0);
+    MachineOperand &S = MI.getOperand(1);
+    MachineOperand &MX = MI.getOperand(2);
+    MachineOperand &MY = MI.getOperand(3);
+    const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+    unsigned Reg1 = MRI.createVirtualRegister(RC);
+    unsigned Reg2 = MRI.createVirtualRegister(RC);
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::L32I), Reg1)
+        .addReg(S.getReg())
+        .addImm(0);
+
+    unsigned Opc;
+    switch (MI.getOpcode()) {
+    case Xtensa::MULA_DD_LL_LDDEC_P:
+      Opc = Xtensa::MULA_DD_LL_LDDEC;
+      break;
+    case Xtensa::MULA_DD_LH_LDDEC_P:
+      Opc = Xtensa::MULA_DD_LH_LDDEC;
+      break;
+    case Xtensa::MULA_DD_HL_LDDEC_P:
+      Opc = Xtensa::MULA_DD_HL_LDDEC;
+      break;
+    case Xtensa::MULA_DD_HH_LDDEC_P:
+      Opc = Xtensa::MULA_DD_HH_LDDEC;
+      break;
+    case Xtensa::MULA_DD_LL_LDINC_P:
+      Opc = Xtensa::MULA_DD_LL_LDINC;
+      break;
+    case Xtensa::MULA_DD_LH_LDINC_P:
+      Opc = Xtensa::MULA_DD_LH_LDINC;
+      break;
+    case Xtensa::MULA_DD_HL_LDINC_P:
+      Opc = Xtensa::MULA_DD_HL_LDINC;
+      break;
+    case Xtensa::MULA_DD_HH_LDINC_P:
+      Opc = Xtensa::MULA_DD_HH_LDINC;
+      break;
+    }
+
+    unsigned MWVal = MW.getImm();
+    assert((MWVal < 4) && "Unexpected value of mula_dd*ld* first argument, "
+                          "it must be from m0..m3");
+    unsigned MXVal = MX.getImm();
+    assert((MXVal < 2) && "Unexpected value of mula_dd*ld* third "
+                          "argument, it must be m0 or m1");
+    unsigned MYVal = MY.getImm();
+    assert(((MYVal > 1) && (MYVal < 4)) &&
+           "Unexpected value of mula_dd*ld* fourth "
+           "argument, it must be m2 or m3");
+
+    BuildMI(*MBB, MI, DL, TII.get(Opc))
+        .addReg(Xtensa::M0 + MWVal, RegState::Define)
+        .addReg(Reg2, RegState::Define)
+        .addReg(Reg1)
+        .addReg(Xtensa::M0 + MXVal)
+        .addReg(Xtensa::M0 + MYVal);
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::S32I))
+        .addReg(Reg2)
+        .addReg(S.getReg())
+        .addImm(0);
+
+    MI.eraseFromParent();
+    return MBB;
+  }
+  case Xtensa::XSR_ACCLO_P:
+  case Xtensa::XSR_ACCHI_P:
+  case Xtensa::XSR_M0_P:
+  case Xtensa::XSR_M1_P:
+  case Xtensa::XSR_M2_P:
+  case Xtensa::XSR_M3_P: {
+    MachineOperand &T = MI.getOperand(0);
+    const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+    unsigned Reg1 = MRI.createVirtualRegister(RC);
+    unsigned Reg2 = MRI.createVirtualRegister(RC);
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::L32I), Reg1)
+        .addReg(T.getReg())
+        .addImm(0);
+
+    unsigned SReg;
+    switch (MI.getOpcode()) {
+    case Xtensa::XSR_ACCLO_P:
+      SReg = Xtensa::ACCLO;
+      break;
+    case Xtensa::XSR_ACCHI_P:
+      SReg = Xtensa::ACCHI;
+      break;
+    case Xtensa::XSR_M0_P:
+      SReg = Xtensa::M0;
+      break;
+    case Xtensa::XSR_M1_P:
+      SReg = Xtensa::M1;
+      break;
+    case Xtensa::XSR_M2_P:
+      SReg = Xtensa::M2;
+      break;
+    case Xtensa::XSR_M3_P:
+      SReg = Xtensa::M3;
+      break;
+    }
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::XSR))
+        .addReg(Reg2, RegState::Define)
+        .addReg(SReg, RegState::Define)
+        .addReg(Reg1)
+        .addReg(SReg);
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::S32I))
+        .addReg(Reg2)
+        .addReg(T.getReg())
+        .addImm(0);
+
+    MI.eraseFromParent();
+    return MBB;
+  }
+  case Xtensa::WSR_ACCLO_P:
+  case Xtensa::WSR_ACCHI_P:
+  case Xtensa::WSR_M0_P:
+  case Xtensa::WSR_M1_P:
+  case Xtensa::WSR_M2_P:
+  case Xtensa::WSR_M3_P: {
+    MachineOperand &T = MI.getOperand(0);
+
+    unsigned SReg;
+    switch (MI.getOpcode()) {
+    case Xtensa::WSR_ACCLO_P:
+      SReg = Xtensa::ACCLO;
+      break;
+    case Xtensa::WSR_ACCHI_P:
+      SReg = Xtensa::ACCHI;
+      break;
+    case Xtensa::WSR_M0_P:
+      SReg = Xtensa::M0;
+      break;
+    case Xtensa::WSR_M1_P:
+      SReg = Xtensa::M1;
+      break;
+    case Xtensa::WSR_M2_P:
+      SReg = Xtensa::M2;
+      break;
+    case Xtensa::WSR_M3_P:
+      SReg = Xtensa::M3;
+      break;
+    }
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::WSR))
+        .addReg(SReg, RegState::Define)
+        .addReg(T.getReg());
+    MI.eraseFromParent();
+    return MBB;
+  }
+  case Xtensa::LDDEC_P:
+  case Xtensa::LDINC_P: {
+    MachineOperand &MW = MI.getOperand(0);
+    MachineOperand &S = MI.getOperand(1);
+    const TargetRegisterClass *RC = getRegClassFor(MVT::i32);
+    unsigned Reg1 = MRI.createVirtualRegister(RC);
+    unsigned Reg2 = MRI.createVirtualRegister(RC);
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::L32I), Reg1)
+        .addReg(S.getReg())
+        .addImm(0);
+
+    unsigned Opc = Xtensa::LDDEC;
+
+    if (MI.getOpcode() == Xtensa::LDINC_P)
+      Opc = Xtensa::LDINC;
+
+    BuildMI(*MBB, MI, DL, TII.get(Opc))
+        .addReg(Xtensa::M0 + MW.getImm(), RegState::Define)
+        .addReg(Reg2, RegState::Define)
+        .addReg(Reg1);
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::S32I))
+        .addReg(Reg2)
+        .addReg(S.getReg())
+        .addImm(0);
+
+    MI.eraseFromParent();
+    return MBB;
+  }
+
   case Xtensa::SELECT_CC_FP_FP:
   case Xtensa::SELECT_CC_FP_INT:
   case Xtensa::SELECT_CC_INT_FP:
@@ -1954,6 +3069,107 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
     MI.eraseFromParent();
     return MBB;
   }
+
+  case Xtensa::ATOMIC_CMP_SWAP_8_P: {
+    return emitAtomicCmpSwap(MI, MBB, 1);
+  }
+
+  case Xtensa::ATOMIC_CMP_SWAP_16_P: {
+    return emitAtomicCmpSwap(MI, MBB, 0);
+  }
+
+  case Xtensa::ATOMIC_CMP_SWAP_32_P: {
+    MachineOperand &R = MI.getOperand(0);
+    MachineOperand &Addr = MI.getOperand(1);
+    MachineOperand &Cmp = MI.getOperand(2);
+    MachineOperand &Swap = MI.getOperand(3);
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::WSR), Xtensa::SCOMPARE1)
+        .addReg(Cmp.getReg());
+
+    BuildMI(*MBB, MI, DL, TII.get(Xtensa::S32C1I), R.getReg())
+        .addReg(Swap.getReg())
+        .addReg(Addr.getReg())
+        .addImm(0);
+
+    MI.eraseFromParent();
+    return MBB;
+  }
+
+  case Xtensa::ATOMIC_SWAP_8_P: {
+    return emitAtomicSwap(MI, MBB, 1);
+  }
+
+  case Xtensa::ATOMIC_SWAP_16_P: {
+    return emitAtomicSwap(MI, MBB, 0);
+  }
+
+  case Xtensa::ATOMIC_SWAP_32_P: {
+    return emitAtomicSwap(MI, MBB);
+  }
+
+  case Xtensa::ATOMIC_LOAD_ADD_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::ADD, false, false);
+  case Xtensa::ATOMIC_LOAD_SUB_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::SUB, false, false);
+  case Xtensa::ATOMIC_LOAD_OR_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::OR, false, false);
+  case Xtensa::ATOMIC_LOAD_XOR_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::XOR, false, false);
+  case Xtensa::ATOMIC_LOAD_AND_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::AND, false, false);
+  case Xtensa::ATOMIC_LOAD_NAND_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::AND, true, false);
+  case Xtensa::ATOMIC_LOAD_MIN_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::BGE, false, true);
+  case Xtensa::ATOMIC_LOAD_MAX_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::BLT, false, true);
+  case Xtensa::ATOMIC_LOAD_UMIN_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::BGEU, false, true);
+  case Xtensa::ATOMIC_LOAD_UMAX_8_P:
+    return emitAtomicRMW(MI, MBB, true, Xtensa::BLTU, false, true);
+
+  case Xtensa::ATOMIC_LOAD_ADD_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::ADD, false, false);
+  case Xtensa::ATOMIC_LOAD_SUB_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::SUB, false, false);
+  case Xtensa::ATOMIC_LOAD_OR_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::OR, false, false);
+  case Xtensa::ATOMIC_LOAD_XOR_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::XOR, false, false);
+  case Xtensa::ATOMIC_LOAD_AND_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::AND, false, false);
+  case Xtensa::ATOMIC_LOAD_NAND_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::AND, true, false);
+  case Xtensa::ATOMIC_LOAD_MIN_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::BGE, false, true);
+  case Xtensa::ATOMIC_LOAD_MAX_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::BLT, false, true);
+  case Xtensa::ATOMIC_LOAD_UMIN_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::BGEU, false, true);
+  case Xtensa::ATOMIC_LOAD_UMAX_16_P:
+    return emitAtomicRMW(MI, MBB, false, Xtensa::BLTU, false, true);
+
+  case Xtensa::ATOMIC_LOAD_ADD_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::ADD, false, false);
+  case Xtensa::ATOMIC_LOAD_SUB_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::SUB, false, false);
+  case Xtensa::ATOMIC_LOAD_OR_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::OR, false, false);
+  case Xtensa::ATOMIC_LOAD_XOR_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::XOR, false, false);
+  case Xtensa::ATOMIC_LOAD_AND_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::AND, false, false);
+  case Xtensa::ATOMIC_LOAD_NAND_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::AND, true, false);
+  case Xtensa::ATOMIC_LOAD_MIN_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::BGE, false, true);
+  case Xtensa::ATOMIC_LOAD_MAX_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::BLT, false, true);
+  case Xtensa::ATOMIC_LOAD_UMIN_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::BGEU, false, true);
+  case Xtensa::ATOMIC_LOAD_UMAX_32_P:
+    return emitAtomicRMW(MI, MBB, Xtensa::BLTU, false, true);
 
   case Xtensa::S8I:
   case Xtensa::S16I:

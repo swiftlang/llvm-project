@@ -14,6 +14,7 @@
 
 #include "Xtensa.h"
 #include "XtensaTargetMachine.h"
+#include "llvm/IR/IntrinsicsXtensa.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
@@ -128,14 +129,258 @@ FunctionPass *llvm::createXtensaISelDag(XtensaTargetMachine &TM,
 }
 
 void XtensaDAGToDAGISel::Select(SDNode *Node) {
+  unsigned Opcode = Node->getOpcode();
   SDLoc DL(Node);
-  // Dump information about the Node being selected
-  LLVM_DEBUG(errs() << "Selecting: "; Node->dump(CurDAG); errs() << "\n");
+  const unsigned MRTable[] = {Xtensa::M0, Xtensa::M1, Xtensa::M2, Xtensa::M3};
 
-  // If we have a custom node, we already have selected!
-  if (Node->isMachineOpcode()) {
-    LLVM_DEBUG(errs() << "== "; Node->dump(CurDAG); errs() << "\n");
-    return;
+  switch (Opcode) {
+  case ISD::INTRINSIC_VOID: {
+    unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
+    switch (IntNo) {
+    default:
+      break;
+    case Intrinsic::xtensa_mul_da_ll:
+    case Intrinsic::xtensa_mul_da_lh:
+    case Intrinsic::xtensa_mul_da_hl:
+    case Intrinsic::xtensa_mul_da_hh:
+    case Intrinsic::xtensa_mula_da_ll:
+    case Intrinsic::xtensa_mula_da_lh:
+    case Intrinsic::xtensa_mula_da_hl:
+    case Intrinsic::xtensa_mula_da_hh:
+    case Intrinsic::xtensa_muls_da_ll:
+    case Intrinsic::xtensa_muls_da_lh:
+    case Intrinsic::xtensa_muls_da_hl:
+    case Intrinsic::xtensa_muls_da_hh: {
+      SDValue ChainIn = Node->getOperand(0);
+      SDValue ValueMX = Node->getOperand(2);
+      SDValue ValueT = Node->getOperand(3);
+      unsigned OpCode;
+
+      switch (IntNo) {
+      case Intrinsic::xtensa_mul_da_ll:
+        OpCode = Xtensa::MUL_DA_LL;
+        break;
+      case Intrinsic::xtensa_mul_da_lh:
+        OpCode = Xtensa::MUL_DA_LH;
+        break;
+      case Intrinsic::xtensa_mul_da_hl:
+        OpCode = Xtensa::MUL_DA_HL;
+        break;
+      case Intrinsic::xtensa_mul_da_hh:
+        OpCode = Xtensa::MUL_DA_HH;
+        break;
+      case Intrinsic::xtensa_mula_da_ll:
+        OpCode = Xtensa::MULA_DA_LL;
+        break;
+      case Intrinsic::xtensa_mula_da_lh:
+        OpCode = Xtensa::MULA_DA_LH;
+        break;
+      case Intrinsic::xtensa_mula_da_hl:
+        OpCode = Xtensa::MULA_DA_HL;
+        break;
+      case Intrinsic::xtensa_mula_da_hh:
+        OpCode = Xtensa::MULA_DA_HH;
+        break;
+      case Intrinsic::xtensa_muls_da_ll:
+        OpCode = Xtensa::MULS_DA_LL;
+        break;
+      case Intrinsic::xtensa_muls_da_lh:
+        OpCode = Xtensa::MULS_DA_LH;
+        break;
+      case Intrinsic::xtensa_muls_da_hl:
+        OpCode = Xtensa::MULS_DA_HL;
+        break;
+      case Intrinsic::xtensa_muls_da_hh:
+        OpCode = Xtensa::MULS_DA_HH;
+        break;
+      }
+
+      uint64_t MXVal = 4;
+      if (ValueMX.getOpcode() == ISD::TargetConstant) {
+        MXVal = cast<ConstantSDNode>(ValueMX)->getZExtValue();
+      }
+
+      assert(
+          (MXVal < 2) &&
+          "Unexpected value of mul*_da* first argument, it must be m0 or m1");
+      unsigned MXReg = MRTable[MXVal];
+
+      const EVT MULAResTys[] = {MVT::Other};
+      SmallVector<SDValue, 2> MULAOps;
+      MULAOps.push_back(CurDAG->getRegister(MXReg, MVT::i32));
+      MULAOps.push_back(ValueT);
+      MULAOps.push_back(ChainIn);
+
+      SDNode *MULA = CurDAG->getMachineNode(OpCode, DL, MULAResTys, MULAOps);
+      ReplaceNode(Node, MULA);
+      return;
+    }
+    case Intrinsic::xtensa_mul_ad_ll:
+    case Intrinsic::xtensa_mul_ad_lh:
+    case Intrinsic::xtensa_mul_ad_hl:
+    case Intrinsic::xtensa_mul_ad_hh:
+    case Intrinsic::xtensa_mula_ad_ll:
+    case Intrinsic::xtensa_mula_ad_lh:
+    case Intrinsic::xtensa_mula_ad_hl:
+    case Intrinsic::xtensa_mula_ad_hh:
+    case Intrinsic::xtensa_muls_ad_ll:
+    case Intrinsic::xtensa_muls_ad_lh:
+    case Intrinsic::xtensa_muls_ad_hl:
+    case Intrinsic::xtensa_muls_ad_hh: {
+      SDValue ChainIn = Node->getOperand(0);
+      SDValue ValueS = Node->getOperand(2);
+      SDValue ValueMY = Node->getOperand(3);
+      unsigned OpCode;
+
+      switch (IntNo) {
+      case Intrinsic::xtensa_mul_ad_ll:
+        OpCode = Xtensa::MUL_AD_LL;
+        break;
+      case Intrinsic::xtensa_mul_ad_lh:
+        OpCode = Xtensa::MUL_AD_LH;
+        break;
+      case Intrinsic::xtensa_mul_ad_hl:
+        OpCode = Xtensa::MUL_AD_HL;
+        break;
+      case Intrinsic::xtensa_mul_ad_hh:
+        OpCode = Xtensa::MUL_AD_HH;
+        break;
+      case Intrinsic::xtensa_mula_ad_ll:
+        OpCode = Xtensa::MULA_AD_LL;
+        break;
+      case Intrinsic::xtensa_mula_ad_lh:
+        OpCode = Xtensa::MULA_AD_LH;
+        break;
+      case Intrinsic::xtensa_mula_ad_hl:
+        OpCode = Xtensa::MULA_AD_HL;
+        break;
+      case Intrinsic::xtensa_mula_ad_hh:
+        OpCode = Xtensa::MULA_AD_HH;
+        break;
+      case Intrinsic::xtensa_muls_ad_ll:
+        OpCode = Xtensa::MULS_AD_LL;
+        break;
+      case Intrinsic::xtensa_muls_ad_lh:
+        OpCode = Xtensa::MULS_AD_LH;
+        break;
+      case Intrinsic::xtensa_muls_ad_hl:
+        OpCode = Xtensa::MULS_AD_HL;
+        break;
+      case Intrinsic::xtensa_muls_ad_hh:
+        OpCode = Xtensa::MULS_AD_HH;
+        break;
+      }
+
+      uint64_t MYVal = 4;
+      if (ValueMY.getOpcode() == ISD::TargetConstant) {
+        MYVal = cast<ConstantSDNode>(ValueMY)->getZExtValue();
+      }
+
+      assert(
+          ((MYVal > 1) && (MYVal < 4)) &&
+          "Unexpected value of mul*_ad* second argument, it must be m2 or m3");
+      unsigned MYReg = MRTable[MYVal];
+
+      const EVT MULAResTys[] = {MVT::Other};
+      SmallVector<SDValue, 2> MULAOps;
+      MULAOps.push_back(ValueS);
+      MULAOps.push_back(CurDAG->getRegister(MYReg, MVT::i32));
+      MULAOps.push_back(ChainIn);
+
+      SDNode *MULA = CurDAG->getMachineNode(OpCode, DL, MULAResTys, MULAOps);
+      ReplaceNode(Node, MULA);
+      return;
+    }
+    case Intrinsic::xtensa_mul_dd_ll:
+    case Intrinsic::xtensa_mul_dd_lh:
+    case Intrinsic::xtensa_mul_dd_hl:
+    case Intrinsic::xtensa_mul_dd_hh:
+    case Intrinsic::xtensa_mula_dd_ll:
+    case Intrinsic::xtensa_mula_dd_lh:
+    case Intrinsic::xtensa_mula_dd_hl:
+    case Intrinsic::xtensa_mula_dd_hh:
+    case Intrinsic::xtensa_muls_dd_ll:
+    case Intrinsic::xtensa_muls_dd_lh:
+    case Intrinsic::xtensa_muls_dd_hl:
+    case Intrinsic::xtensa_muls_dd_hh: {
+      SDValue ChainIn = Node->getOperand(0);
+      SDValue ValueMX = Node->getOperand(2);
+      SDValue ValueMY = Node->getOperand(3);
+      unsigned OpCode;
+
+      switch (IntNo) {
+      case Intrinsic::xtensa_mul_dd_ll:
+        OpCode = Xtensa::MUL_DD_LL;
+        break;
+      case Intrinsic::xtensa_mul_dd_lh:
+        OpCode = Xtensa::MUL_DD_LH;
+        break;
+      case Intrinsic::xtensa_mul_dd_hl:
+        OpCode = Xtensa::MUL_DD_HL;
+        break;
+      case Intrinsic::xtensa_mul_dd_hh:
+        OpCode = Xtensa::MUL_DD_HH;
+        break;
+      case Intrinsic::xtensa_mula_dd_ll:
+        OpCode = Xtensa::MULA_DD_LL;
+        break;
+      case Intrinsic::xtensa_mula_dd_lh:
+        OpCode = Xtensa::MULA_DD_LH;
+        break;
+      case Intrinsic::xtensa_mula_dd_hl:
+        OpCode = Xtensa::MULA_DD_HL;
+        break;
+      case Intrinsic::xtensa_mula_dd_hh:
+        OpCode = Xtensa::MULA_DD_HH;
+        break;
+      case Intrinsic::xtensa_muls_dd_ll:
+        OpCode = Xtensa::MULS_DD_LL;
+        break;
+      case Intrinsic::xtensa_muls_dd_lh:
+        OpCode = Xtensa::MULS_DD_LH;
+        break;
+      case Intrinsic::xtensa_muls_dd_hl:
+        OpCode = Xtensa::MULS_DD_HL;
+        break;
+      case Intrinsic::xtensa_muls_dd_hh:
+        OpCode = Xtensa::MULS_DD_HH;
+        break;
+      }
+      uint64_t MXVal = 4;
+      if (ValueMX.getOpcode() == ISD::TargetConstant) {
+        MXVal = cast<ConstantSDNode>(ValueMX)->getZExtValue();
+      }
+
+      assert(
+          (MXVal < 2) &&
+          "Unexpected value of mul*_dd* first argument, it must be m0 or m1");
+      unsigned MXReg = MRTable[MXVal];
+
+      uint64_t MYVal = 4;
+      if (ValueMY.getOpcode() == ISD::TargetConstant) {
+        MYVal = cast<ConstantSDNode>(ValueMY)->getZExtValue();
+      }
+
+      assert(
+          ((MYVal > 1) && (MYVal < 4)) &&
+          "Unexpected value of mul*_dd* second argument, it must be m2 or m3");
+      unsigned MYReg = MRTable[MYVal];
+
+      const EVT MULAResTys[] = {MVT::Other};
+      SmallVector<SDValue, 2> MULAOps;
+      MULAOps.push_back(CurDAG->getRegister(MXReg, MVT::i32));
+      MULAOps.push_back(CurDAG->getRegister(MYReg, MVT::i32));
+      MULAOps.push_back(ChainIn);
+
+      SDNode *MULA = CurDAG->getMachineNode(OpCode, DL, MULAResTys, MULAOps);
+      ReplaceNode(Node, MULA);
+      return;
+    }
+    }
+    break;
+  }
+  default:
+    break;
   }
 
   SelectCode(Node);

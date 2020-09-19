@@ -157,6 +157,16 @@ tablegen("IntrinsicsXCore") {
   td_file = "Intrinsics.td"
 }
 
+tablegen("IntrinsicsXtensa") {
+  visibility = [ ":public_tablegen" ]
+  output_name = "IntrinsicsXtensa.h"
+  args = [
+    "-gen-intrinsic-enums",
+    "-intrinsic-prefix=xtensa",
+  ]
+  td_file = "Intrinsics.td"
+}
+
 # Groups all tablegen() calls that create .inc files that are included in
 # IR's public headers.  //llvm/lib/IR has this as a public_dep, so targets
 # depending on //llvm/lib/IR don't need to depend on this.  This exists
@@ -185,5 +195,6 @@ group("public_tablegen") {
     ":IntrinsicsWebAssembly",
     ":IntrinsicsX86",
     ":IntrinsicsXCore",
+    ":IntrinsicsXtensa",
   ]
 }

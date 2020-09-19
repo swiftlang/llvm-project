@@ -10,6 +10,7 @@
 #include "XtensaMCTargetDesc.h"
 #include "XtensaInstPrinter.h"
 #include "XtensaMCAsmInfo.h"
+#include "llvm/MC/MCDwarf.h"
 #include "XtensaTargetStreamer.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -35,6 +36,9 @@ static MCAsmInfo *createXtensaMCAsmInfo(const MCRegisterInfo &MRI,
                                         const Triple &TT,
                                         const MCTargetOptions &Options) {
   MCAsmInfo *MAI = new XtensaMCAsmInfo(TT);
+  MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(
+      nullptr, MRI.getDwarfRegNum(Xtensa::SP, true), 0);
+  MAI->addInitialFrameState(Inst);
   return MAI;
 }
 
