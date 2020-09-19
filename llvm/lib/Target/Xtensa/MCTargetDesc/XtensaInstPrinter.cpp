@@ -81,11 +81,11 @@ void XtensaInstPrinter::printOperand(const MCInst *MI, int OpNum,
   printOperand(MI->getOperand(OpNum), O);
 }
 
-void XtensaInstPrinter::printMemOperand(const MCInst *MI, int opNum,
+void XtensaInstPrinter::printMemOperand(const MCInst *MI, int OpNum,
                                         raw_ostream &OS) {
-  OS << getRegisterName(MI->getOperand(opNum).getReg());
+  OS << getRegisterName(MI->getOperand(OpNum).getReg());
   OS << ", ";
-  printOperand(MI, opNum + 1, OS);
+  printOperand(MI, OpNum + 1, OS);
 }
 
 void XtensaInstPrinter::printImm8_AsmOperand(const MCInst *MI, int OpNum,
