@@ -23,7 +23,7 @@
 
 using namespace llvm;
 
-extern "C" void LLVMInitializeXtensaTarget() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTarget() {
   // Register the target.
   RegisterTargetMachine<XtensaTargetMachine> A(TheXtensaTarget);
 }

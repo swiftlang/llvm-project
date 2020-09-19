@@ -78,7 +78,7 @@ createXtensaObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
   return new XtensaTargetELFStreamer(S);
 }
 
-extern "C" void LLVMInitializeXtensaTargetMC() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTargetMC() {
   // Register the MCAsmInfo.
   TargetRegistry::RegisterMCAsmInfo(TheXtensaTarget, createXtensaMCAsmInfo);
 

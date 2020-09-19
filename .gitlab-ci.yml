@@ -1,0 +1,130 @@
+stages:
+  - build
+  - private_deploy
+  - test
+
+image: ${CI_DOCKER_REGISTRY}/llvm-build:1-6ff17268
+
+variables:
+
+  CONF_TARGET: "xtensa-esp32-elf"
+  CLANG_XTENSA_TOOLCHAIN: "${CONF_TARGET}-clang"
+  PLATFORM_NAME: "linux-amd64"
+
+  ARCHIVE_TOOL: "tar cJf"
+  UNARCHIVE_TOOL: "tar xf"
+  ARCHIVE_EXT: "tar.xz"
+
+.use_ci_tools: &use_ci_tools |
+  curl -sSL ${CIT_LOADER_URL} -o cit_loader.sh && sh cit_loader.sh
+  source citools/import_functions
+
+.add_gitlab_key: &add_gitlab_key |
+  cit_add_ssh_key "${GITLAB_KEY}"
+
+before_script:
+  - *use_ci_tools
+  - *add_gitlab_key
+
+# Prepare release name/number
+.get_release_name: &get_release_name |
+  # using annotated tags
+  REL_NUM=$(git describe --abbrev=7)
+  REL_SFX="llvm10_0_1"
+  REL_NAME=${CONF_TARGET}-${REL_SFX}-${REL_NUM}-${PLATFORM_NAME}
+  ARCHIVE_NAME=${REL_NAME}.${ARCHIVE_EXT}
+  echo "CONF_TARGET: $CONF_TARGET"
+  echo "PLATFORM_NAME: $PLATFORM_NAME"
+  echo "REL_NUM: $REL_NUM"
+  echo "REL_NAME: $REL_NAME"
+  echo "ARCHIVE_NAME: $ARCHIVE_NAME"
+
+.build_clang: &build_clang |
+  mkdir build
+  cd build
+  cmake ../llvm -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Xtensa -DCMAKE_BUILD_TYPE=Release -DLLVM_EXTERNAL_CLANG_SOURCE_DIR=../clang
+  cmake --build . -- -j8
+  cmake --build . --target check-llvm
+  cd ..
+
+# Get an existing crosstool-ng build for esp32
+.get_gcc_toolchain: &get_gcc_toolchain |
+  wget https://dl.espressif.com/dl/xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
+  tar -xf xtensa-esp32-elf-gcc8_2_0-esp-2019r2-linux-amd64.tar.gz
+  mv xtensa-esp32-elf ${CLANG_XTENSA_TOOLCHAIN}
+
+.build_clang_wrappers: &build_clang_wrappers |
+  git clone ${GITLAB_SSH_SERVER}/${XTENSA_CLANG_TOOLCHAIN_REPO}
+  cd xtensa-clang-toolchain
+  make build_clang_wrap
+  cd ..
+
+ # Pack the toolchain
+.package_toolchain: &package_toolchain |
+  ${ARCHIVE_TOOL} ${ARCHIVE_NAME} ${CLANG_XTENSA_TOOLCHAIN}/
+  mkdir -p dist
+  mv ${ARCHIVE_NAME} dist/
+  echo "${ARCHIVE_NAME}" > dist/file_${PLATFORM_NAME}_${CONF_TARGET}
+
+build_clang_toolchain:
+  stage: build
+  artifacts:
+    paths:
+      - dist/
+    when: always
+    expire_in: 10 day
+  script:
+    - *get_release_name
+    - *build_clang_wrappers
+    - *build_clang
+    - *get_gcc_toolchain
+    - mv build/bin/clang ${CLANG_XTENSA_TOOLCHAIN}/bin/
+    - mv build/bin/clang++ ${CLANG_XTENSA_TOOLCHAIN}/bin/
+    - mv build/bin/clang-10 ${CLANG_XTENSA_TOOLCHAIN}/bin/
+    - mv build/bin/clang-cl ${CLANG_XTENSA_TOOLCHAIN}/bin/
+    - mv build/bin/clang-cpp ${CLANG_XTENSA_TOOLCHAIN}/bin/
+    - mv build/bin/scan-build ${CLANG_XTENSA_TOOLCHAIN}/bin/
+    - mv build/libexec/* ${CLANG_XTENSA_TOOLCHAIN}/libexec/
+    - mv build/lib/clang ${CLANG_XTENSA_TOOLCHAIN}/lib/
+    - mv xtensa-clang-toolchain/xtensa-esp32-elf-clang* ${CLANG_XTENSA_TOOLCHAIN}/bin/
+    - *package_toolchain
+
+testsuite:
+  stage: test
+  dependencies:
+    - build_clang_toolchain
+  script:
+    - *get_release_name
+    - ${UNARCHIVE_TOOL} dist/${ARCHIVE_NAME}
+
+    # getting testsuit
+    - git clone -b feature/ci_llvm_multitarget --depth 1 $GITLAB_SSH_SERVER/idf/llvm-xtensa-testsuite.git
+
+    # preparing testsuit
+    - export PATH=$PATH:${PWD}/${CLANG_XTENSA_TOOLCHAIN}/bin/
+    - cd llvm-xtensa-testsuite
+
+    # qemu
+    - ./qemu_esp32_install.sh
+
+    # run testsuite for esp32
+    - ./run_esp32_tests.sh
+
+upload_to_http:
+  stage: private_deploy
+  when: manual
+  allow_failure: true
+  tags: [ "deploy", "shiny" ]
+  variables:
+    # force the fetch strategy to clean old archives up in dist/ dir
+    GIT_STRATEGY: fetch
+  before_script:
+    - *use_ci_tools
+  script:
+    - cit_add_ssh_key "${HTTP_UPLOAD_KEY}"
+    # List of archives in dist/
+    - FILES=$(find dist -name file_\* -exec cat {} \+)
+    - cd dist
+    - scp ${FILES} ${HTTP_UPLOAD_DIR}/ct-ng/llvm-builds
+    # Show info
+    - echo -e "\nArchives were published there:\n\n$(for n in ${FILES}; do echo "${HTTP_PUBLIC_DIR}/ct-ng/llvm-builds/${n}"; done)\n"

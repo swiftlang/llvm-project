@@ -271,6 +271,6 @@ void XtensaAsmPrinter::printMemOperand(const MachineInstr *MI, int opNum,
 }
 
 // Force static initialization.
-extern "C" void LLVMInitializeXtensaAsmPrinter() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaAsmPrinter() {
   RegisterAsmPrinter<XtensaAsmPrinter> A(TheXtensaTarget);
 }

@@ -14,7 +14,7 @@ using namespace llvm;
 namespace llvm {
 Target TheXtensaTarget;
 }
-extern "C" void LLVMInitializeXtensaTargetInfo() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTargetInfo() {
   RegisterTarget<Triple::xtensa> X(TheXtensaTarget, "xtensa", "Xtensa 32",
                                    "XTENSA");
 }
