@@ -342,6 +342,14 @@ Changes to the LLVM tools
 * llvm-lib supports adding import library objects in addition to regular
   object files
 
+Changes to Sanitizers
+---------------------
+
+The integer sanitizer `-fsanitize=integer` now has a new sanitizer:
+`-fsanitize=unsigned-shift-base`. It's not undefined behavior for an unsigned
+left shift to overflow (i.e. to shift bits out), but it has been the source of
+bugs and exploits in certain codebases in the past.
+
 Additional Information
 ======================
 
