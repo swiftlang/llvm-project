@@ -26,5 +26,20 @@
   "target": "swift/main",
   "upstream": "apple/stable/20200714",
   "test_commits_in_bundle": true
+},
+{
+  "target": "apple/master",
+  "upstream": "apple/main",
+  "test-command": "true"
+},
+{
+  "target": "swift/master-next",
+  "upstream": "swift/next",
+  "test-command": "true"
+},
+{
+  "target": "swift/master",
+  "upstream": "swift/main",
+  "test-command": "true"
 }
 ]
