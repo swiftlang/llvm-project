@@ -3006,13 +3006,16 @@ void Verifier::visitCallBase(CallBase &Call) {
                "swifterror argument for call has mismatched alloca", AI, Call);
         continue;
       }
-      auto ArgI = dyn_cast<Argument>(SwiftErrorArg);
-      Assert(ArgI,
-             "swifterror argument should come from an alloca or parameter",
-             SwiftErrorArg, Call);
-      Assert(ArgI->hasSwiftErrorAttr(),
-             "swifterror argument for call has mismatched parameter", ArgI,
-             Call);
+      if (auto *ArgI = dyn_cast<Argument>(SwiftErrorArg)) {
+        Assert(ArgI->hasSwiftErrorAttr(),
+               "swifterror argument for call has mismatched parameter", ArgI,
+               Call);
+      } else {
+        auto *GEP = dyn_cast<GetElementPtrInst>(SwiftErrorArg);
+        Assert(GEP,
+               "swifterror argument for call has mismatched parameter", ArgI,
+               Call);
+      }
     }
 
     if (Attrs.hasParamAttribute(i, Attribute::ImmArg)) {
