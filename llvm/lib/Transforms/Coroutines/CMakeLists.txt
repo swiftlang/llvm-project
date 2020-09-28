@@ -8,4 +8,5 @@ add_llvm_component_library(LLVMCoroutines
 
   DEPENDS
   intrinsics_gen
+  LLVMAnalysis
   )
