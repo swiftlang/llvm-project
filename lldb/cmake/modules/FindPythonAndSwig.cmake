@@ -35,6 +35,24 @@ macro(FindPython3)
   endif()
 endmacro()
 
+macro(FindPython2)
+  # Use PYTHON_HOME as a hint to find Python 2.
+  set(Python2_ROOT_DIR "${PYTHON_HOME}")
+  find_package(Python2 COMPONENTS Interpreter Development)
+  if(Python2_FOUND AND Python2_Interpreter_FOUND)
+    set(Python3_LIBRARIES ${Python2_LIBRARIES})
+    set(Python3_INCLUDE_DIRS ${Python2_INCLUDE_DIRS})
+    set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
+
+    set(PYTHON2_FOUND TRUE)
+    mark_as_advanced(
+      Python3_LIBRARIES
+      Python3_INCLUDE_DIRS
+      Python3_EXECUTABLE
+      SWIG_EXECUTABLE)
+  endif()
+endmacro()
+
 if(Python3_LIBRARIES AND Python3_INCLUDE_DIRS AND Python3_EXECUTABLE AND SWIG_EXECUTABLE)
   set(PYTHONANDSWIG_FOUND TRUE)
 else()
@@ -44,6 +62,9 @@ else()
         set(SWIG_EXECUTABLE "/not/found")
       endif()
       FindPython3()
+      if (NOT PYTHON3_FOUND AND NOT CMAKE_SYSTEM_NAME STREQUAL Windows)
+        FindPython2()
+      endif()
   else()
     message(STATUS "SWIG 2 or later is required for Python support in LLDB but could not be found")
   endif()
