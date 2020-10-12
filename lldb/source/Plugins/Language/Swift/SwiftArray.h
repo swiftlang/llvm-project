@@ -46,9 +46,6 @@ public:
   virtual bool IsValid() = 0;
 
   virtual ~SwiftArrayBufferHandler() {}
-
-protected:
-  static bool DoesTypeEntailIndirectBuffer(const CompilerType &element_type);
 };
 
 class SwiftArrayEmptyBufferHandler : public SwiftArrayBufferHandler {
