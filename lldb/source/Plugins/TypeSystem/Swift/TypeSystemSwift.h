@@ -105,6 +105,8 @@ public:
                              const lldb::TypeSP &type_sp) = 0;
   virtual bool IsImportedType(lldb::opaque_compiler_type_t type,
                               CompilerType *original_type) = 0;
+  /// Whether this is the Swift error type.
+  virtual bool IsErrorType(lldb::opaque_compiler_type_t type) = 0;
   virtual CompilerType GetErrorType() = 0;
   virtual CompilerType GetReferentType(lldb::opaque_compiler_type_t type) = 0;
   static CompilerType GetInstanceType(CompilerType ct);

@@ -486,7 +486,7 @@ public:
   static bool IsGenericType(const CompilerType &compiler_type);
 
   /// Whether this is the Swift error type.
-  bool IsErrorType(lldb::opaque_compiler_type_t type);
+  bool IsErrorType(lldb::opaque_compiler_type_t type) override;
 
   static bool IsFullyRealized(const CompilerType &compiler_type);
 

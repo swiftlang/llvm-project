@@ -1918,6 +1918,33 @@ bool TypeSystemSwiftTypeRef::IsImportedType(opaque_compiler_type_t type,
                       (ReconstructType(type), nullptr));
 }
 
+bool TypeSystemSwiftTypeRef::IsErrorType(lldb::opaque_compiler_type_t type) {
+  auto impl = [&]() {
+    using namespace swift::Demangle;
+    Demangler dem;
+    NodePointer node = DemangleCanonicalType(dem, type);
+    if (!node || node->getNumChildren() != 1 ||
+        node->getKind() != Node::Kind::ProtocolList)
+      return false;
+    node = node->getFirstChild();
+    if (node->getNumChildren() != 1 || node->getKind() != Node::Kind::TypeList)
+      return false;
+    node = node->getFirstChild();
+    if (node->getNumChildren() != 1 || node->getKind() != Node::Kind::Type)
+      return false;
+    node = node->getFirstChild();
+    if (node->getNumChildren() != 2 || node->getKind() != Node::Kind::Protocol)
+      return false;
+    NodePointer module = node->getChild(0);
+    NodePointer name = node->getChild(1);
+    return module->getKind() == Node::Kind::Module && module->hasText() &&
+           module->getText() == swift::STDLIB_NAME &&
+           name->getKind() == Node::Kind::Identifier && name->hasText() &&
+           name->getText() == "Error";
+  };
+  VALIDATE_AND_RETURN(impl, IsErrorType, type, (ReconstructType(type)));
+}
+
 CompilerType TypeSystemSwiftTypeRef::GetErrorType() {
   auto impl = [&]() {
     using namespace swift::Demangle;

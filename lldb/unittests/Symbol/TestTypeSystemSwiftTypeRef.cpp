@@ -478,8 +478,10 @@ TEST_F(TestTypeSystemSwiftTypeRef, TypeClass) {
   }
 }
 
-TEST_F(TestTypeSystemSwiftTypeRef, MangledTypeName) {
-  ASSERT_EQ(m_swift_ts.GetErrorType().GetMangledTypeName(), "$ss5Error_pD");
+TEST_F(TestTypeSystemSwiftTypeRef, ErrorType) {
+  CompilerType error_type = m_swift_ts.GetErrorType();
+  ASSERT_EQ(error_type.GetMangledTypeName(), "$ss5Error_pD");
+  ASSERT_TRUE(m_swift_ts.IsErrorType(error_type.GetOpaqueQualType()));
 }
 
 TEST_F(TestTypeSystemSwiftTypeRef, ImportedType) {
