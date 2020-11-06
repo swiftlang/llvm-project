@@ -639,6 +639,8 @@ static llvm::Optional<llvm::Error> AddVariableInfo(
 
   const bool use_dynamic_value = use_dynamic > lldb::eNoDynamicValues;
 
+  CompilerType static_type = GetSwiftTypeForVariableValueObject(
+      valobj_sp, stack_frame_sp, runtime, false);
   CompilerType var_type = GetSwiftTypeForVariableValueObject(
       valobj_sp, stack_frame_sp, runtime, use_dynamic_value);
 
@@ -656,6 +658,7 @@ static llvm::Optional<llvm::Error> AddVariableInfo(
   }
 
   Status error;
+  CompilerType static_target_type = ast_context.ImportType(static_type, error);
   CompilerType target_type = ast_context.ImportType(var_type, error);
 
   // If the import failed, give up.
@@ -715,8 +718,8 @@ static llvm::Optional<llvm::Error> AddVariableInfo(
   SwiftASTManipulatorBase::VariableMetadataSP metadata_sp(
       new VariableMetadataVariable(patched_variable_sp));
   SwiftASTManipulator::VariableInfo variable_info(
-      target_type, ast_context.GetASTContext()->getIdentifier(overridden_name),
-      metadata_sp,
+      static_target_type, target_type,
+      ast_context.GetASTContext()->getIdentifier(overridden_name), metadata_sp,
       variable_sp->IsConstant() ? swift::VarDecl::Introducer::Let
                                 : swift::VarDecl::Introducer::Var);
 
@@ -849,7 +852,7 @@ static void ResolveSpecialNames(
                        ->GetIsModifiable()
                    ? swift::VarDecl::Introducer::Var
                    : swift::VarDecl::Introducer::Let;
-    SwiftASTManipulator::VariableInfo variable_info(
+    SwiftASTManipulator::VariableInfo variable_info(target_type,
         target_type, ast_context.GetASTContext()->getIdentifier(name.str()),
         metadata_sp, introducer);
 
@@ -1499,6 +1502,7 @@ unsigned SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
     return 2;
   }
 
+  parsed_expr->code_manipulator->SetupGenericParameters();
   swift::bindExtensions(parsed_expr->module);
   swift::performTypeChecking(parsed_expr->source_file);
 

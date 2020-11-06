@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SwiftASTManipulator.h"
+#include <swift/Subsystems.h>
 
 #include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
 #include "lldb/Expression/ExpressionParser.h"
@@ -35,6 +36,8 @@
 #include "swift/AST/Stmt.h"
 #include "swift/AST/TypeRepr.h"
 #include "swift/AST/Types.h"
+#include "swift/AST/GenericParamList.h"
+#include "swift/AST/NameLookupRequests.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -219,12 +222,19 @@ func $__lldb_expr(_ $__lldb_arg : UnsafeMutablePointer<Any>) {
 
     first_body_line = 5;
   } else {
-    wrapped_stream.Printf(
-        "@LLDBDebuggerFunction %s\n"
-        "func $__lldb_expr(_ $__lldb_arg : UnsafeMutablePointer<Any>) {\n"
-        "%s" // This is the expression text (with newlines).
-        "}\n",
-        availability.c_str(), wrapped_expr_text.GetData());
+    wrapped_stream.Printf(R"(
+%s
+func $__lldb_expr(_ $__lldb_arg : UnsafeMutablePointer<Any>) {
+  @LLDBDebuggerFunction %s
+  func $__lldb_wrapped_expr(_ $__lldb_arg : UnsafeMutablePointer<Any>) {
+    %s
+  }
+  $__lldb_wrapped_expr(
+    $__lldb_arg
+  )
+}
+)",
+        availability.c_str(), availability.c_str(), wrapped_expr_text.GetData());
     first_body_line = 4;
   }
 }
@@ -302,7 +312,7 @@ void SwiftASTManipulatorBase::DoInitialization() {
 
       // There's nothing buried in a function that we need to find in this
       // search.
-      return false;
+      return true;
     }
   };
 
@@ -986,7 +996,7 @@ SwiftASTManipulator::AddExternalVariable(swift::Identifier name,
   variables[0].m_type = type;
   variables[0].m_metadata = metadata_sp;
 
-  if (!AddExternalVariables(variables))
+  if (!AddExternalVariables(variables, true))
     return nullptr;
 
   return variables[0].m_decl;
@@ -1023,7 +1033,8 @@ GetPatternBindingForVarDecl(swift::VarDecl *var_decl,
 }
 
 bool SwiftASTManipulator::AddExternalVariables(
-    llvm::MutableArrayRef<VariableInfo> variables) {
+    llvm::MutableArrayRef<VariableInfo> variables,
+    bool force_use_wrapped_function) {
   if (!IsValid())
     return false;
 
@@ -1095,7 +1106,12 @@ bool SwiftASTManipulator::AddExternalVariables(
 
     m_variables.push_back(variable);
   } else {
-    swift::BraceStmt *body = m_function_decl->getBody();
+    auto function_decl = m_function_decl;
+    if (m_wrapper_decl && !force_use_wrapped_function) {
+      function_decl = m_wrapper_decl;
+    }
+    swift::BraceStmt *body = function_decl->getBody();
+
     llvm::ArrayRef<swift::ASTNode> body_elements = body->getElements();
 
     llvm::SmallVector<swift::ASTNode, 3> elements(body_elements.begin(),
@@ -1105,8 +1121,8 @@ bool SwiftASTManipulator::AddExternalVariables(
     const bool is_static = false;
 
     for (SwiftASTManipulator::VariableInfo &variable : variables) {
-      swift::SourceLoc loc = m_function_decl->getBody()->getLBraceLoc();
-      swift::FuncDecl *containing_function = m_function_decl;
+      swift::SourceLoc loc = function_decl->getBody()->getLBraceLoc();
+      swift::FuncDecl *containing_function = function_decl;
       swift::Identifier name = variable.m_name;
       auto introducer = variable.GetVarIntroducer();
 
@@ -1232,7 +1248,7 @@ bool SwiftASTManipulator::AddExternalVariables(
     auto *new_function_body = swift::BraceStmt::create(
         ast_context, body->getLBraceLoc(), ast_context.AllocateCopy(elements),
         body->getRBraceLoc());
-    m_function_decl->setBody(new_function_body, m_function_decl->getBodyKind());
+    function_decl->setBody(new_function_body, function_decl->getBodyKind());
   }
 
   return true;
@@ -1358,6 +1374,115 @@ swift::ValueDecl *SwiftASTManipulator::MakeGlobalTypealias(
   }
 
   return type_alias_decl;
+}
+
+void SwiftASTManipulator::SetupGenericParameters() {
+  // Pass in all the generic variables in the environment to $__lldb_expr
+  // as arguments, and update the call site.
+  auto &ast_context = m_source_file.getASTContext();
+  auto *swift_ast_context = SwiftASTContext::GetSwiftASTContext(&ast_context);
+  auto l_paren_loc = m_function_decl->getParameters()->getLParenLoc();
+  auto r_paren_loc = m_function_decl->getParameters()->getRParenLoc();
+
+  unsigned generic_param_index = 0;
+  std::vector<swift::ParamDecl *> param_decls;
+  std::vector<swift::Expr *> decl_refs;
+  std::vector<swift::Identifier> names;
+  std::vector<swift::GenericTypeParamDecl *> generic_param_decls;
+  std::vector<swift::GenericTypeParamType *> generic_param_types;
+
+  //  The wrapped function should have $__lldb_arg as the only parameter,
+  // add it to the new signature and call
+  param_decls.push_back(m_function_decl->getParameters()->get(0));
+  auto *arg = FindArgInFunction(ast_context, m_wrapper_decl);
+  decl_refs.push_back(new (ast_context) swift::DeclRefExpr(
+      arg, swift::DeclNameLoc(l_paren_loc), true,
+      swift::AccessSemantics::Ordinary, arg->getType()));
+  names.push_back(swift::Identifier());
+
+  // Collect all the generic variables.
+  for (auto &variable : m_variables) {
+    auto static_type = variable.GetStaticType();
+    auto type =
+        swift_ast_context->ReconstructType(static_type.GetMangledTypeName());
+
+    if (auto *generic_type =
+            llvm::dyn_cast<swift::GenericTypeParamType>(type)) {
+      swift::ParamDecl *parameter = new (ast_context)
+          swift::ParamDecl(l_paren_loc, swift::SourceLoc(), variable.GetName(),
+                           swift::SourceLoc(), variable.GetName(),
+                           m_function_decl->getDeclContext());
+      parameter->setInterfaceType(type);
+      parameter->setSpecifier(swift::ParamSpecifier::Default);
+      param_decls.push_back(parameter);
+
+      names.push_back(variable.GetName());
+      auto resolved_type = swift_ast_context->ReconstructType(
+          variable.GetType().GetMangledTypeName());
+      decl_refs.push_back(new (ast_context) swift::DeclRefExpr(
+          variable.GetDecl(), swift::DeclNameLoc(l_paren_loc), true,
+          swift::AccessSemantics::Ordinary, resolved_type));
+
+      auto generic_parameter = new (ast_context) swift::GenericTypeParamDecl(
+          m_function_decl, generic_type->getName(), swift::SourceLoc(), 0,
+          generic_param_index);
+      generic_param_index++;
+
+      generic_param_decls.push_back(generic_parameter);
+
+      auto interface_type = generic_parameter->getInterfaceType()
+                                ->getMetatypeInstanceType()
+                                .getPointer();
+      auto new_generic =
+          llvm::cast<swift::GenericTypeParamType>(interface_type);
+      generic_param_types.push_back(new_generic);
+    }
+  }
+
+  // Update the function's signature.
+  auto inner_parameters = swift::ParameterList::create(
+      ast_context, l_paren_loc, param_decls, r_paren_loc);
+  m_function_decl->setName(swift::DeclName(
+      ast_context, m_function_decl->getBaseName(), inner_parameters));
+  m_function_decl->setParameters(inner_parameters);
+
+  auto signature = swift::GenericSignature::get(
+      generic_param_types, swift::ArrayRef<swift::Requirement>());
+  m_function_decl->setGenericSignature(signature);
+
+  auto generic_param_list = swift::GenericParamList::create(
+      ast_context, l_paren_loc, generic_param_decls, r_paren_loc);
+
+  m_function_decl->getASTContext().evaluator.cacheOutput(
+      swift::GenericParamListRequest{m_function_decl},
+      std::move(generic_param_list));
+
+  class UpdateCallToWrappedWalker : public swift::ASTWalker {
+  private:
+    swift::ASTContext &m_ast_context;
+    llvm::ArrayRef<swift::Expr *> m_decl_refs;
+    llvm::ArrayRef<swift::Identifier> m_names;
+
+  public:
+    swift::CallExpr *call = nullptr;
+    UpdateCallToWrappedWalker(swift::ASTContext &ast_context,
+                              llvm::ArrayRef<swift::Expr *> decl_refs,
+                              llvm::ArrayRef<swift::Identifier> names)
+        : m_ast_context(ast_context), m_decl_refs(decl_refs), m_names(names) {}
+
+    std::pair<bool, swift::Expr *> walkToExprPre(swift::Expr *E) override {
+      if (auto call_expr = llvm::dyn_cast<swift::CallExpr>(E)) {
+        auto new_call = swift::CallExpr::createImplicit(
+            m_ast_context, call_expr->getFn(), m_decl_refs, m_names);
+        call = new_call;
+        return {false, new_call};
+      }
+      return ASTWalker::walkToExprPre(E);
+    }
+  };
+  UpdateCallToWrappedWalker walker(ast_context, decl_refs, names);
+  m_wrapper_decl->walk(walker);
+  swift::verify(m_source_file);
 }
 
 bool SwiftASTManipulator::SaveExpressionTextToTempFile(

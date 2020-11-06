@@ -62,19 +62,21 @@ public:
   typedef std::shared_ptr<VariableMetadata> VariableMetadataSP;
 
   struct VariableInfo {
+    CompilerType GetStaticType() const { return m_static_type; }
     CompilerType GetType() const { return m_type; }
     swift::Identifier GetName() const { return m_name; }
     swift::VarDecl *GetDecl() const { return m_decl; }
     swift::VarDecl::Introducer GetVarIntroducer() const;
     bool GetIsCaptureList() const;
 
-    VariableInfo() : m_type(), m_name(), m_metadata() {}
+    VariableInfo() : m_static_type(), m_type(), m_name(), m_metadata() {}
 
-    VariableInfo(CompilerType &type, swift::Identifier name,
+    VariableInfo(CompilerType &static_type,
+                 CompilerType &type, swift::Identifier name,
                  VariableMetadataSP metadata, 
                  swift::VarDecl::Introducer introducer, 
                  bool is_capture_list = false)
-        : m_type(type), m_name(name), m_var_introducer(introducer),
+        : m_static_type(static_type), m_type(type), m_name(name), m_var_introducer(introducer),
           m_is_capture_list(is_capture_list), m_metadata(metadata) {}
 
     template <class T> bool MetadataIs() const {
@@ -88,6 +90,7 @@ public:
     friend class SwiftASTManipulator;
 
   protected:
+    CompilerType m_static_type;
     CompilerType m_type;
     swift::Identifier m_name;
     swift::VarDecl *m_decl = nullptr;
@@ -155,7 +158,8 @@ public:
                                       CompilerType &type,
                                       VariableMetadataSP &metadata_sp);
 
-  bool AddExternalVariables(llvm::MutableArrayRef<VariableInfo> variables);
+  bool AddExternalVariables(
+      llvm::MutableArrayRef<VariableInfo> variables, bool force_use_wrapped_function = false);
 
   bool RewriteResult();
 
@@ -175,6 +179,8 @@ public:
                                         bool make_private = true);
 
   bool FixupResultAfterTypeChecking(Status &error);
+
+  void SetupGenericParameters();
 
   static const char *GetArgumentName() { return "$__lldb_arg"; }
   static const char *GetResultName() { return "$__lldb_result"; }
