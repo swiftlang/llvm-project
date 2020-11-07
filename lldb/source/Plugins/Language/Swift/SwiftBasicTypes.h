@@ -38,4 +38,4 @@ SwiftBasicTypeSyntheticFrontEndCreator(CXXSyntheticChildren *,
 }
 }
 
-#endif // liblldb_SwiftDictionary_h_
+#endif // liblldb_SwiftBasicTypes_h_

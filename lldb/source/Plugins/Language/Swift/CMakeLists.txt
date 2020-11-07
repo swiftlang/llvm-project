@@ -6,6 +6,7 @@ add_lldb_library(lldbPluginSwiftLanguage PLUGIN
   SwiftArray.cpp
   SwiftBasicTypes.cpp
   SwiftDictionary.cpp
+  SwiftEnum.cpp
   SwiftFormatters.cpp
   SwiftHashedContainer.cpp
   SwiftLanguage.cpp

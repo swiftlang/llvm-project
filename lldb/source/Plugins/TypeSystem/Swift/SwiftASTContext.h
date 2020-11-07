@@ -69,12 +69,12 @@ class LLVMContext;
 }
 
 class DWARFASTParser;
-class SwiftEnumDescriptor;
 
 namespace lldb_private {
 
 struct SourceModule;
 class SwiftASTContext;
+class SwiftEnumDescriptor;
 class ClangExternalASTSourceCallbacks;
 
 CompilerType ToCompilerType(swift::Type qual_type);
