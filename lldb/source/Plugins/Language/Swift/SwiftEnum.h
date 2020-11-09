@@ -1,4 +1,5 @@
-//===-- SwiftEnum.h ----------------------------------------------*- C++ -*-===//
+//===-- SwiftEnum.h ----------------------------------------------*- C++
+//-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -57,6 +58,7 @@ public:
   static SwiftEnumDescriptor *
   GetEnumInfoFromEnumDecl(swift::ASTContext *ast, swift::CanType swift_can_type,
                           swift::EnumDecl *enum_decl);
+
 protected:
   static SwiftEnumDescriptor *CreateDescriptor(swift::ASTContext *ast,
                                                swift::CanType swift_can_type,
