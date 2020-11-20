@@ -74,10 +74,12 @@ class CommandParser:
                         current_breakpoint['command'] = current_breakpoint[
                             'command'] + "\n" + command
 
-    def set_breakpoints(self, target):
+    def set_breakpoints(self, target, test_runner):
         for breakpoint in self.breakpoints:
             breakpoint['breakpoint'] = target.BreakpointCreateByLocation(
                 breakpoint['file_name'], breakpoint['line_number'])
+            if breakpoint['breakpoint'].GetNumLocations() == 0:
+                test_runner.fail("Failed to find any locations for test breakpoint at {0}:{1}".format(breakpoint['file_name'],breakpoint['line_number']))
 
     def handle_breakpoint(self, test, breakpoint_id):
         for breakpoint in self.breakpoints:
@@ -143,7 +145,7 @@ class InlineTest(TestBase):
 
         parser = CommandParser()
         parser.parse_source_files(source_files)
-        parser.set_breakpoints(target)
+        parser.set_breakpoints(target, self)
 
         process = target.LaunchSimple(None, None, self.get_process_working_directory())
         self.assertIsNotNone(process, PROCESS_IS_VALID)
