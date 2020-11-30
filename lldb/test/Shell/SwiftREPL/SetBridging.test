@@ -47,7 +47,7 @@ let s_objc2 = NSArray(object: [1] as Set<NSNumber> as NSSet)
 // COM: SET-NEXT:    [0] = 1 value {
 // COM: SET-NEXT:      [0] = Int64(1)
 // COM: SET-NEXT:    }
-// SET-NEXT:  }
+// COM: SET-NEXT:  }
 
 // Non-verbatim bridging
 let s_objc3 = NSArray(object: [1] as Set<Int> as NSSet)
@@ -55,7 +55,7 @@ let s_objc3 = NSArray(object: [1] as Set<Int> as NSSet)
 // COM: SET-NEXT:    [0] = 1 value {
 // COM: SET-NEXT:      [0] = 1
 // COM: SET-NEXT:    }
-// SET-NEXT:  }
+// COM: SET-NEXT:  }
 
 // Verbatim bridging from Swift to Objective-C
 let s2b = s2 as NSSet

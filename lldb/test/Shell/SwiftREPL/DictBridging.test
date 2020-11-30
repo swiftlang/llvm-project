@@ -61,7 +61,7 @@ let d_objc2 = NSArray(object: [1: 2] as [NSNumber: NSNumber] as NSDictionary)
 // COM: DICT-NEXT:        value = Int64(2)
 // COM: DICT-NEXT:      }
 // COM: DICT-NEXT:    }
-// DICT-NEXT:  }
+// COM: DICT-NEXT:  }
 
 // Non-verbatim bridging
 let d_objc3 = NSArray(object: [1: 2] as [Int: Int] as NSDictionary)
@@ -69,7 +69,7 @@ let d_objc3 = NSArray(object: [1: 2] as [Int: Int] as NSDictionary)
 // COM: DICT-NEXT:    [0] = 1 key/value pair {
 // COM: DICT-NEXT:      [0] = (key = 1, value = 2)
 // COM: DICT-NEXT:    }
-// DICT-NEXT:  }
+// COM: DICT-NEXT:  }
 
 // Verbatim bridging from Swift to Objective-C
 let d2b = d2 as NSDictionary
