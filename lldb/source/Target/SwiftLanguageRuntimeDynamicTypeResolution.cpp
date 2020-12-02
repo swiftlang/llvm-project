@@ -1215,6 +1215,30 @@ CompilerType SwiftLanguageRuntimeImpl::GetChildCompilerTypeAtIndex(
     // Try the instance type metadata.
     if (!valobj)
       return {};
+
+    switch (rti->getReferenceKind()) {
+    case swift::reflection::ReferenceKind::Weak:
+    case swift::reflection::ReferenceKind::Unowned:
+    case swift::reflection::ReferenceKind::Unmanaged:
+      // Weak references are implicitly Optionals, so report the one
+      // child of Optional here.
+      if (idx != 0)
+        break; // Maybe assert that type is not an Optional?
+      child_name = "some";
+      child_byte_size = ts->GetPointerByteSize();
+      child_byte_offset = 0;
+      child_bitfield_bit_size = 0;
+      child_bitfield_bit_offset = 0;
+      child_is_base_class = false;
+      child_is_deref_of_parent = false;
+      language_flags = 0;
+      if (CompilerType optional = GetWeakReferent(*ts, type))
+        return optional;
+      break;
+    default:
+      break;
+    }
+
     bool found_start = false;
     swift::Demangle::Demangler dem;
     auto mangled = type.GetMangledTypeName().GetStringRef();
@@ -1246,29 +1270,6 @@ CompilerType SwiftLanguageRuntimeImpl::GetChildCompilerTypeAtIndex(
 
     LLDB_LOGF(GetLogIfAllCategoriesSet(LIBLLDB_LOG_TYPES),
               "using instance type info");
-
-    switch (rti->getReferenceKind()) {
-    case swift::reflection::ReferenceKind::Weak:
-    case swift::reflection::ReferenceKind::Unowned:
-    case swift::reflection::ReferenceKind::Unmanaged:
-      // Weak references are implicitly Optionals, so report the one
-      // child of Optional here.
-      if (idx != 0)
-        break; // Maybe assert that type is not an Optional?
-      child_name = "some";
-      child_byte_size = ts->GetPointerByteSize();
-      child_byte_offset = 0;
-      child_bitfield_bit_size = 0;
-      child_bitfield_bit_offset = 0;
-      child_is_base_class = false;
-      child_is_deref_of_parent = false;
-      language_flags = 0;
-      if (CompilerType optional = GetWeakReferent(*ts, type))
-        return optional;
-      break;
-    default:
-      break;
-    }
 
     // Handle the artificial base class fields.
     unsigned i = 0;
