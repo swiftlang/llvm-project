@@ -1,0 +1,8 @@
+// Test that default arguments work in the REPL
+// REQUIRES: swift
+
+// RUN: %lldb --repl < %s | FileCheck %s
+func foo(arg a: Int = 10) -> Int { return a }
+foo()
+// CHECK: $R0: Int = 10
+
