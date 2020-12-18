@@ -28,8 +28,13 @@
   "test_commits_in_bundle": true
 },
 {
-  "target": "swift/main",
+  "target": "swift/release/5.4",
   "upstream": "apple/stable/20200714",
+  "test_commits_in_bundle": true
+},
+{
+  "target": "swift/main",
+  "upstream": "swift/release/5.4",
   "test_commits_in_bundle": true
 }
 ]
