@@ -703,6 +703,12 @@ else()
 endif()
 option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default})
 
+include(CheckSymbolExists)
+ check_symbol_exists(proc_pid_rusage "libproc.h" HAVE_PROC_PID_RUSAGE)
+ if(HAVE_PROC_PID_RUSAGE)
+   list(APPEND CMAKE_REQUIRED_LIBRARIES proc)
+ endif()
+
 set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
   "Enable the experimental new pass manager by default.")
 
