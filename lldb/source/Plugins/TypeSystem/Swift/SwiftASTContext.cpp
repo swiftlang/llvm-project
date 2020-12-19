@@ -8281,6 +8281,9 @@ static swift::ModuleDecl *LoadOneModule(const SourceModule &module,
     LOG_PRINTF(LIBLLDB_LOG_EXPRESSIONS, "Imported module %s from {%s}",
                module.path.front().AsCString(), ss.GetData());
   }
+  // New types may be available in the just imported module, so clear
+  // the negative type cache.
+  swift_ast_context.ClearModuleDependentCaches();
   return swift_module;
 }
 

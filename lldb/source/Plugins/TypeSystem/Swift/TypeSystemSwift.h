@@ -27,6 +27,7 @@ class Decl;
 
 namespace lldb_private {
 class TypeSystemClang;
+class TypeSystemSwiftTypeRef;
 class SwiftASTContext;
 
 /// The implementation of lldb::Type's m_payload field for TypeSystemSwift.
@@ -109,6 +110,7 @@ public:
 
   static LanguageSet GetSupportedLanguagesForTypes();
   virtual SwiftASTContext *GetSwiftASTContext() = 0;
+  virtual TypeSystemSwiftTypeRef &GetTypeSystemSwiftTypeRef() = 0;
   virtual Module *GetModule() const = 0;
   virtual lldb::TypeSP GetCachedType(ConstString mangled) = 0;
   virtual void SetCachedType(ConstString mangled,

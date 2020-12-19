@@ -2185,6 +2185,12 @@ GetClangTypeTypeNode(TypeSystemSwiftTypeRef &ts,
   return type;
 }
 
+CompilerType TypeSystemSwiftTypeRef::GetSwiftifiedType(CompilerType clang_type) {
+  swift::Demangle::Demangler dem;
+  return RemangleAsType(
+      dem, GetClangTypeTypeNode(*this, dem, clang_type, m_swift_ast_context));
+}
+
 CompilerType TypeSystemSwiftTypeRef::GetChildCompilerTypeAtIndex(
     opaque_compiler_type_t type, ExecutionContext *exe_ctx, size_t idx,
     bool transparent_pointers, bool omit_empty_base_classes,
@@ -2339,11 +2345,13 @@ CompilerType TypeSystemSwiftTypeRef::GetChildCompilerTypeAtIndex(
   bool ast_child_is_deref_of_parent;
   uint64_t ast_language_flags;
   auto defer = llvm::make_scope_exit([&] {
-    llvm::StringRef suffix(ast_child_name);
-    if (suffix.consume_front("__ObjC."))
-      ast_child_name = suffix.str();
-    assert((llvm::StringRef(child_name).contains('.') ||
-            Equivalent(child_name, ast_child_name)));
+    auto get_suffix = [](llvm::StringRef name) -> llvm::StringRef {
+      auto pair = name.split('.');
+      return pair.second.empty() ? pair.first : pair.second;
+    };
+    llvm::StringRef child_name_suffix = get_suffix(child_name);
+    llvm::StringRef ast_child_name_suffix = get_suffix(ast_child_name);
+    assert(Equivalent(child_name_suffix, ast_child_name_suffix));
     assert((Equivalent(llvm::Optional<uint64_t>(child_byte_size),
                        llvm::Optional<uint64_t>(ast_child_byte_size)) ||
             ast_language_flags));

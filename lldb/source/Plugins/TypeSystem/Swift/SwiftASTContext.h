@@ -165,6 +165,9 @@ public:
   bool SupportsLanguage(lldb::LanguageType language) override;
 
   SwiftASTContext *GetSwiftASTContext() override { return this; }
+  TypeSystemSwiftTypeRef &GetTypeSystemSwiftTypeRef() override {
+    return m_typeref_typesystem;
+  }
 
   Status IsCompatible() override;
 

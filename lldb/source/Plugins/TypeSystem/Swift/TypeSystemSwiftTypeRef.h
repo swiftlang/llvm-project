@@ -50,6 +50,7 @@ public:
 
   TypeSystemSwiftTypeRef(SwiftASTContext *swift_ast_context);
   SwiftASTContext *GetSwiftASTContext() override { return m_swift_ast_context; }
+  TypeSystemSwiftTypeRef &GetTypeSystemSwiftTypeRef() override { return *this; }
 
   Module *GetModule() const override;
   swift::CanType GetCanonicalSwiftType(CompilerType compiler_type);
@@ -282,6 +283,9 @@ public:
   /// Use API notes to determine the swiftified name of \p clang_decl.
   std::string GetSwiftName(const clang::Decl *clang_decl,
                            TypeSystemClang &clang_typesystem) override;
+
+  /// Return the Swift that would result from ClangImporting \p clang_type.
+  CompilerType GetSwiftifiedType(CompilerType clang_type);
 
   /// Wrap \p node as \p Global(TypeMangling(node)), remangle the type
   /// and create a CompilerType from it.

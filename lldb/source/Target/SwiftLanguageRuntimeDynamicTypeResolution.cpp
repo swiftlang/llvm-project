@@ -1117,12 +1117,17 @@ static llvm::StringRef GetBaseName(swift::Demangle::NodePointer node) {
     NodePointer ident = node->getChild(1);
     if (ident && ident->hasText())
       return ident->getText();
-    if (ident->getKind() == Node::Kind::PrivateDeclName) {
+    switch(ident->getKind()) {
+    case Node::Kind::PrivateDeclName:
+    case Node::Kind::LocalDeclName:
       if (ident->getNumChildren() != 2)
         return {};
       ident = ident->getChild(1);
       if (ident && ident->hasText())
         return ident->getText();
+      break;
+    default:
+      break;
     }
     return {};
   }
@@ -1446,6 +1451,7 @@ CompilerType SwiftLanguageRuntimeImpl::GetChildCompilerTypeAtIndex(
           CompilerType super_type = GetTypeFromTypeRef(*ts, type_ref);
           child_name = super_type.GetTypeName().GetStringRef().str();
           // FIXME: This should be fixed in GetDisplayTypeName instead!
+          child_name = child_name.substr(0, child_name.find("<"));
           if (child_name == "__C.NSObject")
             child_name = "ObjectiveC.NSObject";
           if (auto *rti = supers[1].get_record_type_info())
@@ -1597,36 +1603,81 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Class(
     return false;
   address.SetRawAddress(class_metadata_ptr);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_TYPES));
-  auto &remote_ast = GetRemoteASTContext(scratch_ctx);
-  swift::remote::RemoteAddress instance_address(class_metadata_ptr);
-  auto metadata_address = remote_ast.getHeapMetadataForObject(instance_address);
-  if (!metadata_address) {
-    if (log) {
-      log->Printf("could not read heap metadata for object at %llu: %s\n",
-                  class_metadata_ptr,
-                  metadata_address.getFailure().render().c_str());
+  CompilerType static_type = in_value.GetCompilerType();
+  auto *tss = llvm::dyn_cast_or_null<TypeSystemSwift>(
+      static_type.GetTypeSystem());
+  if (!tss)
+    return false;
+  auto &ts = tss->GetTypeSystemSwiftTypeRef();
+
+  // Ask the Objective-C runtime about Objective-C types.
+  if (tss->IsImportedType(static_type.GetOpaqueQualType(), nullptr))
+    if (auto *objc_runtime = SwiftLanguageRuntime::GetObjCRuntime(m_process)) {
+      Value::ValueType value_type;
+      if (objc_runtime->GetDynamicTypeAndAddress(
+              in_value, use_dynamic, class_type_or_name, address, value_type)) {
+        class_type_or_name.SetCompilerType(static_type);
+        // FIXME: (or not?)
+        //   It would seem more logical to return
+        //
+        //     ts.GetSwiftifiedType(class_type_or_name.GetCompilerType())
+        //
+        //   but that can return private impl types that are invisible to Swift,
+        //   such as NSTaggedPointerString for a String. This is unintuitive
+        //   in the debugger and dangerous in the expression evaluator.
+        return true;
+      }
+      return false;
     }
 
-    return false;
-  }
-
-  auto instance_type =
-      remote_ast.getTypeForRemoteTypeMetadata(metadata_address.getValue(),
-                                              /*skipArtificial=*/true);
-  if (!instance_type) {
-    if (log) {
-      log->Printf("could not get type metadata from address %" PRIu64 " : %s\n",
-                  metadata_address.getValue().getAddressData(),
-                  instance_type.getFailure().render().c_str());
+  // Ask Remote Mirrors about Swift types.
+  bool found = false;
+  ForEachSuperClassType(in_value, [&](SuperClassType sc) -> bool {
+    if (auto *tr = sc.get_typeref()) {
+      swift::Demangle::Demangler dem;
+      swift::Demangle::NodePointer node = tr->getDemangling(dem);
+      class_type_or_name.SetCompilerType(ts.RemangleAsType(dem, node));
+      found = true;
     }
-    return false;
-  }
+    return true;
+  });
+#ifndef NDEBUG
+  CompilerType ref_type;
+  auto reference_impl =
+      [&]() {
+        auto &remote_ast = GetRemoteASTContext(scratch_ctx);
+        swift::remote::RemoteAddress instance_address(class_metadata_ptr);
+        auto metadata_address =
+            remote_ast.getHeapMetadataForObject(instance_address);
+        if (!metadata_address)
+          return false;
 
-  // The read lock must have been acquired by the caller.
-  class_type_or_name.SetCompilerType(
-      {&scratch_ctx, instance_type.getValue().getPointer()});
-  return true;
+        auto instance_type =
+            remote_ast.getTypeForRemoteTypeMetadata(metadata_address.getValue(),
+                                                    /*skipArtificial=*/true);
+        if (!instance_type)
+          return false;
+
+        // The read lock must have been acquired by the caller.
+        ref_type = {&scratch_ctx, instance_type.getValue().getPointer()};
+        return true;
+      };
+  bool ref_result = reference_impl();
+#endif
+  assert(found >= ref_result && "RemoteAST and runtime diverge");
+  if (found) {
+    ConstString a = class_type_or_name.GetCompilerType().GetMangledTypeName();
+    ConstString b = ref_type.GetMangledTypeName();
+    if (a != b)
+      llvm::dbgs() << "RemoteAST and runtime diverge " << a << " != " << b
+                   << "\n";
+    // Ignore known bugs in RemoteAST.
+    assert((scratch_ctx.IsImportedType(ref_type.GetOpaqueQualType(), nullptr) ||
+            !b || a == b) &&
+           "RemoteAST and runtime diverge");
+  }
+ return found;
+
 }
 
 bool SwiftLanguageRuntimeImpl::IsValidErrorValue(ValueObject &in_value) {
