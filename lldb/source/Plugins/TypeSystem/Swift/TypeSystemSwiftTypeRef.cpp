@@ -2785,10 +2785,14 @@ CompilerType
 TypeSystemSwiftTypeRef::GetTypedefedType(opaque_compiler_type_t type) {
   return m_swift_ast_context->GetTypedefedType(ReconstructType(type));
 }
+
 CompilerType
 TypeSystemSwiftTypeRef::GetFullyUnqualifiedType(opaque_compiler_type_t type) {
-  return m_swift_ast_context->GetFullyUnqualifiedType(ReconstructType(type));
+  auto impl = [&]() -> CompilerType { return {this, type}; };
+  VALIDATE_AND_RETURN(impl, GetFullyUnqualifiedType, type,
+                      (ReconstructType(type)));
 }
+
 CompilerType
 TypeSystemSwiftTypeRef::GetNonReferenceType(opaque_compiler_type_t type) {
   return m_swift_ast_context->GetNonReferenceType(ReconstructType(type));
