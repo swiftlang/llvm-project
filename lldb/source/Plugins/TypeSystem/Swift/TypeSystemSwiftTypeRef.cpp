@@ -24,6 +24,7 @@
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 
 #include "swift/AST/ClangModuleLoader.h"
+#include "swift/Basic/Defer.h"
 #include "swift/Basic/Version.h"
 #include "swift/../../lib/ClangImporter/ClangAdapter.h"
 #include "swift/Demangling/Demangle.h"
