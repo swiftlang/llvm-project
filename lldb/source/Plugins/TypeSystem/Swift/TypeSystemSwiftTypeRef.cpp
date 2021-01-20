@@ -2439,7 +2439,20 @@ TypeSystemSwiftTypeRef::GetNumTemplateArguments(opaque_compiler_type_t type) {
 
 CompilerType
 TypeSystemSwiftTypeRef::GetTypeForFormatters(opaque_compiler_type_t type) {
-  auto impl = [&]() { return GetCanonicalType(type); };
+  auto impl = [&]() -> CompilerType {
+    using namespace swift::Demangle;
+    Demangler dem;
+    auto *node = dem.demangleSymbol(AsMangledName(type));
+    switch (GetType(node)->getKind()) {
+    case Node::Kind::BoundGenericTypeAlias:
+    case Node::Kind::TypeAlias:
+      return {this, type};
+    default:
+      auto *canonical = GetCanonicalNode(m_swift_ast_context, dem, node);
+      ConstString mangled(mangleNode(canonical));
+      return GetTypeFromMangledTypename(mangled);
+    }
+  };
   VALIDATE_AND_RETURN(impl, GetTypeForFormatters, type,
                       (ReconstructType(type)));
 }
@@ -2778,12 +2791,45 @@ TypeSystemSwiftTypeRef::GetTypeBitAlign(opaque_compiler_type_t type,
             AsMangledName(type));
   return {};
 }
+
 bool TypeSystemSwiftTypeRef::IsTypedefType(opaque_compiler_type_t type) {
-  return m_swift_ast_context->IsTypedefType(ReconstructType(type));
+  auto impl = [&] {
+    using namespace swift::Demangle;
+    Demangler dem;
+    auto *node = GetDemangledType(dem, AsMangledName(type));
+    switch (node->getKind()) {
+    case Node::Kind::TypeAlias:
+    case Node::Kind::BoundGenericTypeAlias:
+      return true;
+    default:
+      return false;
+    }
+  };
+  VALIDATE_AND_RETURN(impl, IsTypedefType, type, (ReconstructType(type)));
 }
+
 CompilerType
 TypeSystemSwiftTypeRef::GetTypedefedType(opaque_compiler_type_t type) {
-  return m_swift_ast_context->GetTypedefedType(ReconstructType(type));
+  auto impl = [&]() -> CompilerType {
+    using namespace swift::Demangle;
+    Demangler dem;
+    auto *node = GetDemangledType(dem, AsMangledName(type));
+    switch (node->getKind()) {
+    case Node::Kind::TypeAlias:
+    case Node::Kind::BoundGenericTypeAlias: {
+      auto resolved = ResolveTypeAlias(m_swift_ast_context, dem, node);
+      if (auto *n = std::get<NodePointer>(resolved)) {
+        auto *t = dem.createNode(Node::Kind::Type);
+        t->addChild(n, dem);
+        return RemangleAsType(dem, t);
+      }
+      return {};
+    }
+    default:
+      return {this, type};
+    }
+  };
+  VALIDATE_AND_RETURN(impl, GetTypedefedType, type, (ReconstructType(type)));
 }
 
 CompilerType
