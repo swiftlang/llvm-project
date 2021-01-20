@@ -4551,11 +4551,34 @@ A context parameter must have pointer or reference type.
   }];
 }
 
+def SwiftAsyncCallDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``swiftasynccall`` attribute indicates that a function is
+compatible with the low-level conventions of Swift async functions,
+provided it declares the right formal arguments.
+
+In most respects, this is similar to the ``swiftcall`` attribute, except for
+the following:
+- A parameter may be marked ``swift_async_context``, but the parameter
+  attributes ``swift_context``, ``swift_error_result`` and
+  ``swift_indirect_result`` are not permitted.
+- A ``swiftasynccall`` function must have return type ``void``, and any
+  calls to other ``swiftasynccall`` functions must be in tail position
+  (in all language modes). In particular:
+  - For C, this implies that ``return async_f();`` (``async_f`` is another
+    ``swiftasynccall`` function with return type ``void``) is permitted in
+    the body of a ``swiftasynccall`` function.
+  - For C++, this implies that all parameter types, as well as the types
+    of any temporaries created, must have trivial destructors.
+  }];
+}
+
 def SwiftAsyncContextDocs : Documentation {
   let Category = DocCatVariable;
   let Content = [{
-The ``swift_async_context`` attribute marks a parameter as having the
-special asynchronous context-parameter ABI treatment.
+The ``swift_async_context`` attribute marks a parameter of a ``swiftasynccall``
+function as having the special asynchronous context-parameter ABI treatment.
 
 This treatment generally passes the context value in a special register
 which is normally callee-preserved.
