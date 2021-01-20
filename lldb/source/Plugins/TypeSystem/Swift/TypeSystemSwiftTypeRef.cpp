@@ -2439,7 +2439,7 @@ TypeSystemSwiftTypeRef::GetNumTemplateArguments(opaque_compiler_type_t type) {
 
 CompilerType
 TypeSystemSwiftTypeRef::GetTypeForFormatters(opaque_compiler_type_t type) {
-  auto impl = [&]() { return ReconstructType({this, type}); };
+  auto impl = [&]() { return GetCanonicalType(type); };
   VALIDATE_AND_RETURN(impl, GetTypeForFormatters, type,
                       (ReconstructType(type)));
 }
