@@ -343,7 +343,7 @@ void VerifyPCHAction::ExecuteAction() {
       CI.getPreprocessor(), CI.getModuleCache(), &CI.getASTContext(),
       CI.getPCHContainerReader(), CI.getFrontendOpts().ModuleFileExtensions,
       Sysroot.empty() ? "" : Sysroot.c_str(),
-      /*DisableValidation*/ false,
+      DisableValidationForModuleKind::None,
       /*AllowASTWithCompilerErrors*/ false,
       /*AllowConfigurationMismatch*/ true,
       /*ValidateSystemInputs*/ true));

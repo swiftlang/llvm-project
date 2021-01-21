@@ -3652,7 +3652,8 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
       std::string(Args.getLastArgValue(OPT_pch_through_header_EQ));
   Opts.UsePredefines = !Args.hasArg(OPT_undef);
   Opts.DetailedRecord = Args.hasArg(OPT_detailed_preprocessing_record);
-  Opts.DisablePCHValidation = Args.hasArg(OPT_fno_validate_pch);
+  if (Args.hasArg(OPT_fno_validate_pch))
+    Opts.DisablePCHOrModuleValidation = DisableValidationForModuleKind::All;
   Opts.AllowPCHWithCompilerErrors =
       Args.hasArg(OPT_fallow_pch_with_errors, OPT_fallow_pcm_with_errors);
 
