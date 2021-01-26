@@ -1611,9 +1611,37 @@ bool Equivalent(llvm::Optional<T> l, T r) {
   return IMPL();
 #endif
 
+
+#ifndef NDEBUG
+using DAGCheckSet = llvm::SmallPtrSet<swift::Demangle::NodePointer, 8>;
+static bool ContainsCyclesImpl(DAGCheckSet &visited,
+                               swift::Demangle::NodePointer node) {
+  if (!node)
+    return false;
+  if (!visited.insert(node).second)
+    return true;
+  for (swift::Demangle::NodePointer child : *node) {
+    if (node->getNumChildren() == 1) {
+      if (ContainsCyclesImpl(visited, child))
+        return true;
+    } else {
+      DAGCheckSet visited_copy(visited);
+      if (ContainsCyclesImpl(visited_copy, child))
+        return true;
+    }
+  }
+  return false;
+}
+
+static bool ContainsCycles(swift::Demangle::NodePointer node) {
+  DAGCheckSet visited;
+  return ContainsCyclesImpl(visited, node);
+}
+#endif
+
 CompilerType
 TypeSystemSwiftTypeRef::RemangleAsType(swift::Demangle::Demangler &dem,
-                                       swift::Demangle::NodePointer node) {
+                                       swift::Demangle::NodePointer node) __attribute__((optnone)){
   if (!node)
     return {};
 
@@ -1623,6 +1651,7 @@ TypeSystemSwiftTypeRef::RemangleAsType(swift::Demangle::Demangler &dem,
   auto type_mangling = dem.createNode(Node::Kind::TypeMangling);
   type_mangling->addChild(node, dem);
   global->addChild(type_mangling, dem);
+  assert(!ContainsCycles(global) && "cyclic demangle tree");
   ConstString mangled_element(mangleNode(global));
   return GetTypeFromMangledTypename(mangled_element);
 }
