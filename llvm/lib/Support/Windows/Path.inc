@@ -943,6 +943,16 @@ void mapped_file_region::unmapImpl() {
   }
 }
 
+std::error_code mapped_file_region::sync() const {
+  assert(Mapping && "Mapping failed but used anyway!");
+  assert(Mode == readwrite && "sync only valid for readwrite regions!");
+  if (!::FlushViewOfFile(Mapping, Size))
+    return mapWindowsError(GetLastError());
+  if (!::FlushFileBuffers(FileHandle))
+    return mapWindowsError(GetLastError());
+  return std::error_code();
+}
+
 int mapped_file_region::alignment() {
   SYSTEM_INFO SysInfo;
   ::GetSystemInfo(&SysInfo);
