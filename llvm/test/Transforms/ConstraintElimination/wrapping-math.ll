@@ -22,7 +22,7 @@ define i1 @wrapping_add_known_1(i8 %a) {
 ; CHECK:       then:
 ; CHECK-NEXT:    [[SUB_1:%.*]] = add i8 [[A]], -1
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp eq i8 [[SUB_1]], 0
-; CHECK-NEXT:    ret i1 [[C_1]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
 ; CHECK-NEXT:    [[SUB_2:%.*]] = add i8 [[A]], -1
 ; CHECK-NEXT:    [[C_2:%.*]] = icmp eq i8 [[SUB_2]], 0
