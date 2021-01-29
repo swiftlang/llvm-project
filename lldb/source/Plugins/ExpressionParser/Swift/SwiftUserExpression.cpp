@@ -78,8 +78,12 @@ void SwiftUserExpression::DidFinishExecuting() {
     if (auto swift_runtime = SwiftLanguageRuntime::Get(process))
       swift_runtime->DidFinishExecutingUserExpression(
           m_runs_in_playground_or_repl);
-    else
-      llvm_unreachable("Can't execute a swift expression without a runtime");
+    // The equivalent code in WillStartExecuting calls llvm_unreachable if
+    // there's no runtime.  Don't do that here.  First off, it isn't actually
+    // useful, we would never have gotten here without a runtime at some point.
+    // Also, it is wrong, if you run an expression with "-i 0", then just 
+    // quit lldb, we'll get here while tearing down the process and the
+    // runtime might have been destroyed already.  That's not an error.
   }
 }
 
