@@ -164,7 +164,7 @@ cl::opt<bool> EnableMatrix(
     cl::desc("Enable lowering of the matrix intrinsics"));
 
 cl::opt<bool> EnableConstraintElimination(
-    "enable-constraint-elimination", cl::init(false), cl::Hidden,
+    "enable-constraint-elimination", cl::init(true), cl::Hidden,
     cl::desc(
         "Enable pass to eliminate conditions based on linear constraints."));
 
