@@ -182,25 +182,6 @@ define void @sge_zext(i16 %x, i32 %y) {
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp sge i32 [[X_EXT]], [[Y:%.*]]
 ; CHECK-NEXT:    br i1 [[C_1]], label [[BB1:%.*]], label [[BB2:%.*]]
 ; CHECK:       bb1:
-; CHECK-NEXT:    [[T_1:%.*]] = icmp sge i32 [[X_EXT]], [[Y]]
-; CHECK-NEXT:    call void @use(i1 [[T_1]])
-; CHECK-NEXT:    [[C_2:%.*]] = icmp sge i32 [[X_EXT]], 10
-; CHECK-NEXT:    call void @use(i1 [[C_2]])
-; CHECK-NEXT:    [[C_3:%.*]] = icmp sge i32 [[Y]], [[X_EXT]]
-; CHECK-NEXT:    call void @use(i1 [[C_3]])
-; CHECK-NEXT:    [[C_4:%.*]] = icmp sge i32 10, [[X_EXT]]
-; CHECK-NEXT:    call void @use(i1 [[C_4]])
-; CHECK-NEXT:    ret void
-; CHECK:       bb2:
-; CHECK-NEXT:    [[T_2:%.*]] = icmp sge i32 [[Y]], [[X_EXT]]
-; CHECK-NEXT:    call void @use(i1 [[T_2]])
-; CHECK-NEXT:    [[F_1:%.*]] = icmp sge i32 [[X_EXT]], [[Y]]
-; CHECK-NEXT:    call void @use(i1 [[F_1]])
-; CHECK-NEXT:    [[C_5:%.*]] = icmp sge i32 [[X_EXT]], 10
-; CHECK-NEXT:    call void @use(i1 [[C_5]])
-; CHECK-NEXT:    [[C_6:%.*]] = icmp sge i32 10, [[X_EXT]]
-; CHECK-NEXT:    call void @use(i1 [[C_6]])
-; CHECK-NEXT:    ret void
 ;
 entry:
   %x.ext = zext i16 %x to i32
