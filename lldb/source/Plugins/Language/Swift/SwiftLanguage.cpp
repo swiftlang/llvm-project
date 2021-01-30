@@ -889,8 +889,11 @@ std::vector<ConstString> SwiftLanguage::GetPossibleFormattersMatches(
 
   const bool check_cpp = false;
   const bool check_objc = false;
-  bool canBeSwiftDynamic = compiler_type.IsPossibleDynamicType(
-      nullptr, check_cpp, check_objc);
+  bool canBeSwiftDynamic =
+      compiler_type.IsPossibleDynamicType(nullptr, check_cpp, check_objc) ||
+      // Some CoreFoundation types may be Swift types disguised as ObjC objects.
+      (compiler_type.GetCanonicalType().GetTypeClass() ==
+       eTypeClassObjCObjectPointer);
 
   if (canBeSwiftDynamic) {
     do {
