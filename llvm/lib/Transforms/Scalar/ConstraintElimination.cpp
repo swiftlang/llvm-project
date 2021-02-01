@@ -19,16 +19,22 @@
 #include "llvm/Analysis/ConstraintSystem.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/DebugCounter.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include <string>
 
@@ -40,6 +46,10 @@ using namespace PatternMatch;
 STATISTIC(NumCondsRemoved, "Number of instructions removed");
 DEBUG_COUNTER(EliminatedCounter, "conds-eliminated",
               "Controls which conditions are eliminated");
+
+static cl::opt<bool> DumpReproducers(
+    "constraint-elimination-dump-repros", cl::init(false), cl::Hidden,
+    cl::desc("Dump IR to reproduce successful transformations."));
 
 static int64_t MaxConstraintValue = std::numeric_limits<int64_t>::max();
 
@@ -255,10 +265,141 @@ static void dumpWithNames(ConstraintTy &C,
 }
 #endif
 
-static bool eliminateConstraints(Function &F, DominatorTree &DT) {
+static void generate(Module *M, ArrayRef<StackEntry> Stack, Instruction *C,
+                     DenseMap<Value *, unsigned> &Value2Index,
+                     Instruction *Cond) {
+  if (!M)
+    return;
+
+  LLVMContext &Ctx = Cond->getContext();
+
+  ValueToValueMapTy Old2New;
+  SmallVector<Value *> Args;
+  for (auto &Entry : Stack) {
+    SmallVector<Value *, 4> WorkList;
+    WorkList.push_back(Entry.Condition);
+    while (!WorkList.empty()) {
+      Value *V = WorkList.pop_back_val();
+      if (Old2New.find(V) != Old2New.end())
+        continue;
+
+      if (isa<Constant>(V))
+        continue;
+
+      auto *I = dyn_cast<Instruction>(V);
+      if (Value2Index.find(V) != Value2Index.end() || !I) {
+        Old2New[V] = V;
+        Args.push_back(V);
+      } else {
+        Old2New[V] = V;
+        append_range(WorkList, I->operands());
+      }
+    }
+  }
+
+  SmallVector<Value *, 4> WorkList;
+  append_range(WorkList, Cond->operands());
+  while (!WorkList.empty()) {
+    Value *V = WorkList.pop_back_val();
+    if (Old2New.find(V) != Old2New.end())
+      continue;
+    if (isa<Constant>(V)) {
+      continue;
+    }
+
+    auto *I = dyn_cast<Instruction>(V);
+    if (Value2Index.find(V) != Value2Index.end() || !I) {
+      Old2New[V] = V;
+      Args.push_back(V);
+    } else {
+      Old2New[V] = V;
+      append_range(WorkList, I->operands());
+    }
+  }
+
+  SmallVector<Type *> ParamTys;
+  for (auto *P : Args) {
+    ParamTys.push_back(P->getType());
+  }
+
+  FunctionType *FTy = FunctionType::get(Type::getInt1Ty(Ctx), ParamTys,
+                                        /*isVarArg=*/false);
+  Function *F = Function::Create(
+      FTy, Function::ExternalLinkage,
+      C->getModule()->getName() + C->getFunction()->getName() + "repro", M);
+  for (unsigned I = 0; I < Args.size(); ++I)
+    F->getArg(I)->setName(Args[I]->getName());
+
+  Old2New.clear();
+  for (unsigned i = 0; i < Args.size(); i++) {
+    Old2New[Args[i]] = F->getArg(i);
+  }
+
+  BasicBlock *Current = BasicBlock::Create(Ctx, "entry", F);
+  BasicBlock *Exit = BasicBlock::Create(Ctx, "exit", F);
+  IRBuilder<> Builder(Exit);
+  Builder.CreateRet(Builder.getFalse());
+
+  SmallVector<BasicBlock *, 4> BBs;
+  for (auto &Entry : Stack) {
+    BasicBlock *Next = BasicBlock::Create(Ctx, "", F);
+    Builder.SetInsertPoint(Current);
+
+    BBs.push_back(Current);
+
+    if (Entry.IsNot)
+      Builder.CreateCondBr(Entry.Condition, Exit, Next);
+    else
+      Builder.CreateCondBr(Entry.Condition, Next, Exit);
+
+    SmallVector<Value *, 4> WorkList;
+    WorkList.push_back(Entry.Condition);
+    WorkList.push_back(Cond);
+    while (!WorkList.empty()) {
+      Value *V = WorkList.pop_back_val();
+      if (Old2New.find(V) != Old2New.end())
+        continue;
+
+      auto *I = dyn_cast<Instruction>(V);
+      if (Value2Index.find(V) == Value2Index.end() && I) {
+        Old2New[V] = I->clone();
+        Old2New[V]->setName(I->getName());
+        cast<Instruction>(Old2New[V])
+            ->insertBefore(&*Current->getFirstInsertionPt());
+        cast<Instruction>(Old2New[V])->dropUnknownNonDebugMetadata();
+        cast<Instruction>(Old2New[V])->setDebugLoc({});
+        append_range(WorkList, I->operands());
+      }
+    }
+    Current = Next;
+  }
+
+  Builder.SetInsertPoint(Current);
+
+  BBs.push_back(Current);
+  Builder.CreateRet(Builder.getTrue());
+  auto *I = Cond->clone();
+  I->setName(Cond->getName());
+  I->insertBefore(Current->getTerminator());
+  I->dropUnknownNonDebugMetadata();
+  I->setDebugLoc({});
+
+  Current->getTerminator()->setOperand(0, I);
+
+  remapInstructionsInBlocks(BBs, Old2New);
+}
+
+static bool eliminateConstraints(Function &F, DominatorTree &DT,
+                                 OptimizationRemarkEmitter &ORE) {
   bool Changed = false;
   DT.updateDFSNumbers();
   ConstraintSystem CS;
+
+  LLVMContext &Ctx = F.getContext();
+  std::unique_ptr<Module> M(DumpReproducers ? new Module(F.getName(), Ctx)
+                                            : nullptr);
+  if (M)
+    M->setSourceFileName("");
 
   SmallVector<ConstraintOrBlock, 64> WorkList;
 
@@ -415,6 +556,8 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
           if (!DebugCounter::shouldExecute(EliminatedCounter))
             continue;
 
+          generate(M.get(), DFSInStack, Cmp, Value2Index, Cmp);
+
           LLVM_DEBUG(dbgs() << "Condition " << *Cmp
                             << " implied by dominating constraints\n");
           LLVM_DEBUG({
@@ -436,6 +579,7 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
           if (!DebugCounter::shouldExecute(EliminatedCounter))
             continue;
 
+          generate(M.get(), DFSInStack, Cmp, Value2Index, Cmp);
           LLVM_DEBUG(dbgs() << "Condition !" << *Cmp
                             << " implied by dominating constraints\n");
           LLVM_DEBUG({
@@ -495,13 +639,25 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
 
   assert(CS.size() == DFSInStack.size() &&
          "updates to CS and DFSInStack are out of sync");
+
+  if (M && !llvm::empty(M->functions())) {
+    std::string S;
+    raw_string_ostream StringS(S);
+    M->print(StringS, nullptr);
+    StringS.flush();
+    OptimizationRemark Rem(DEBUG_TYPE, "repro", &F);
+    Rem << ore::NV("module") << S;
+    ORE.emit(Rem);
+  }
+
   return Changed;
 }
 
 PreservedAnalyses ConstraintEliminationPass::run(Function &F,
                                                  FunctionAnalysisManager &AM) {
   auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
-  if (!eliminateConstraints(F, DT))
+  auto &ORE = AM.getResult<OptimizationRemarkEmitterAnalysis>(F);
+  if (!eliminateConstraints(F, DT, ORE))
     return PreservedAnalyses::all();
 
   PreservedAnalyses PA;
@@ -522,13 +678,15 @@ public:
 
   bool runOnFunction(Function &F) override {
     auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-    return eliminateConstraints(F, DT);
+    auto &ORE = getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
+    return eliminateConstraints(F, DT, ORE);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<DominatorTreeWrapperPass>();
     AU.addPreserved<GlobalsAAWrapperPass>();
+    AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
     AU.addPreserved<DominatorTreeWrapperPass>();
   }
 };
@@ -541,6 +699,7 @@ INITIALIZE_PASS_BEGIN(ConstraintElimination, "constraint-elimination",
                       "Constraint Elimination", false, false)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(LazyValueInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
 INITIALIZE_PASS_END(ConstraintElimination, "constraint-elimination",
                     "Constraint Elimination", false, false)
 
