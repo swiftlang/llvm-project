@@ -1684,6 +1684,8 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
                      m_description,
                      target ? target->GetArchitecture().GetTriple() : triple,
                      target)));
+  auto defer_log =
+      llvm::make_scope_exit([&] { swift_ast_sp->LogConfiguration(); });
 
   // This is a module AST context, mark it as such.
   swift_ast_sp->m_is_scratch_context = false;
@@ -1829,7 +1831,6 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
                  static_cast<void *>(&module),
                  module.GetFileSpec().GetFilename().AsCString("<anonymous>"),
                  static_cast<void *>(swift_ast_sp.get()));
-      swift_ast_sp->LogConfiguration();
     }
   }
 
@@ -1916,6 +1917,8 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
   // detect if we have a iOS simulator.
   std::shared_ptr<SwiftASTContextForExpressions> swift_ast_sp(
       new SwiftASTContextForExpressions(m_description, target));
+  auto defer_log =
+      llvm::make_scope_exit([&] { swift_ast_sp->LogConfiguration(); });
 
   LOG_PRINTF(LIBLLDB_LOG_TYPES, "(Target)");
 
@@ -2270,7 +2273,6 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(lldb::LanguageType language,
   LOG_PRINTF(LIBLLDB_LOG_TYPES, "((Target*)%p) = %p",
              static_cast<void *>(&target),
              static_cast<void *>(swift_ast_sp.get()));
-  swift_ast_sp->LogConfiguration();
 
   if (swift_ast_sp->HasFatalErrors()) {
     logError(swift_ast_sp->GetFatalErrors().AsCString());
