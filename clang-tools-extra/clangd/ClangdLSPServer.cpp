@@ -1453,6 +1453,11 @@ void ClangdLSPServer::onMemoryUsage(const NoParams &,
   Reply(std::move(MT));
 }
 
+void ClangdLSPServer::onCrash(const NoParams &) {
+  // We have been requested to crash.
+  exit(1);
+}
+
 void ClangdLSPServer::onAST(const ASTParams &Params,
                             Callback<llvm::Optional<ASTNode>> CB) {
   Server->getAST(Params.textDocument.uri.file(), Params.range, std::move(CB));
@@ -1511,6 +1516,7 @@ ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
   MsgHandler->bind("textDocument/semanticTokens/full", &ClangdLSPServer::onSemanticTokens);
   MsgHandler->bind("textDocument/semanticTokens/full/delta", &ClangdLSPServer::onSemanticTokensDelta);
   MsgHandler->bind("$/memoryUsage", &ClangdLSPServer::onMemoryUsage);
+  MsgHandler->bind("$/crash", &ClangdLSPServer::onCrash);
   if (Opts.FoldingRanges)
     MsgHandler->bind("textDocument/foldingRange", &ClangdLSPServer::onFoldingRange);
   // clang-format on

@@ -160,6 +160,9 @@ private:
   /// This is a clangd extension. Provides a json tree representing memory usage
   /// hierarchy.
   void onMemoryUsage(const NoParams &, Callback<MemoryTree>);
+  /// This is a clangd extension. Makes clangd exit with a non-zero exit code
+  /// for testing purposes.
+  void onCrash(const NoParams &);
 
   std::vector<Fix> getFixes(StringRef File, const clangd::Diagnostic &D);
 
