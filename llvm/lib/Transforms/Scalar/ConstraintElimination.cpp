@@ -270,8 +270,19 @@ static void dumpWithNames(ConstraintTy &C,
 
 // Returns a pair {Value, NeedZExt}, if \p Exp is either a SCEVConstant or a
 // SCEVUnknown. If the value needs to be zero extended, NeedZExt is true.
-static std::pair<Value *, bool> getValueOrConstant(const SCEV *Exp) {
+static std::pair<Value *, bool> getValueOrConstant(const SCEV *Exp, Loop *L, ScalarEvolution &SE) {
   bool NeedZExt = false;
+            bool ULT= false;
+            if (auto *Add = dyn_cast<SCEVAddExpr>(Exp)) {
+              auto *C = dyn_cast<SCEVConstant>(Add->getOperand(0));
+              auto *AddWithGuardInfo = SE.applyLoopGuards(Add->getOperand(1), L);
+              if (C && C->getValue()->getSExtValue() == -1 &&
+                  SE.isKnownPositive(AddWithGuardInfo)) {
+                ULT = true;
+                Exp = Add->getOperand(1);
+              }
+            }
+
   if (isa<SCEVZeroExtendExpr>(Exp)) {
     Exp = cast<SCEVZeroExtendExpr>(Exp)->getOperand(0);
     NeedZExt = true;
@@ -480,7 +491,7 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
 
           bool NeedZExt = false;
           Value *V;
-          std::tie(V, NeedZExt) = getValueOrConstant(IVAtEnd);
+          std::tie(V, NeedZExt) = getValueOrConstant(IVAtEnd, L, SE);
           auto Monotonic = SE.getMonotonicPredicateType(IV, CmpInst::ICMP_UGE);
           bool CanBuildCmp = V && (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
           if (CanBuildCmp && Monotonic && Monotonic == ScalarEvolution::MonotonicallyIncreasing) {
@@ -497,7 +508,7 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
         auto *StartV = IV->getStart();
         bool NeedZExt;
         Value *V;
-        std::tie(V, NeedZExt) = getValueOrConstant(StartV);
+        std::tie(V, NeedZExt) = getValueOrConstant(StartV, L, SE);
         bool CanBuildCmp =
             V && !NeedZExt &&
             (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
