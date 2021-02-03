@@ -463,6 +463,7 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
 
     auto *L = LI.getLoopFor(&BB);
     if (L && &BB == L->getHeader()) {
+      const SCEV *BTC = SE.getSymbolicMaxBackedgeTakenCount(L);
       for (PHINode &PN : BB.phis()) {
         if (!SE.isSCEVable(PN.getType()))
           continue;
@@ -473,6 +474,25 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
         auto *C = dyn_cast<SCEVConstant>(IV->getStart());
         if (!C)
           continue;
+
+        if (!isa<SCEVCouldNotCompute>(BTC)) {
+          auto *IVAtEnd = IV->evaluateAtIteration(BTC, SE);
+
+          bool NeedZExt = false;
+          Value *V;
+          std::tie(V, NeedZExt) = getValueOrConstant(IVAtEnd);
+          auto Monotonic = SE.getMonotonicPredicateType(IV, CmpInst::ICMP_UGE);
+          bool CanBuildCmp = V && (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
+          if (CanBuildCmp && Monotonic && Monotonic == ScalarEvolution::MonotonicallyIncreasing) {
+            if (NeedZExt)
+              V = new ZExtInst(V, PN.getType());
+            auto *Cmp1 = new ICmpInst(nullptr, CmpInst::ICMP_ULE, &PN, V);
+             WorkList.emplace_back(DT.getNode(&BB), Cmp1, false);
+             ExtraCmps.push_back(Cmp1);
+             if (NeedZExt)
+               ExtraCmps.push_back(cast<Instruction>(V));
+          }
+        }
 
         auto *StartV = IV->getStart();
         bool NeedZExt;
