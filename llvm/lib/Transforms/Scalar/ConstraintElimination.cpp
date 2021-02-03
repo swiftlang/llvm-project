@@ -19,7 +19,10 @@
 #include "llvm/Analysis/ConstraintSystem.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
@@ -265,6 +268,22 @@ static void dumpWithNames(ConstraintTy &C,
 }
 #endif
 
+// Returns a pair {Value, NeedZExt}, if \p Exp is either a SCEVConstant or a
+// SCEVUnknown. If the value needs to be zero extended, NeedZExt is true.
+static std::pair<Value *, bool> getValueOrConstant(const SCEV *Exp) {
+  bool NeedZExt = false;
+  if (isa<SCEVZeroExtendExpr>(Exp)) {
+    Exp = cast<SCEVZeroExtendExpr>(Exp)->getOperand(0);
+    NeedZExt = true;
+  }
+  Value *V = nullptr;
+  if (auto *U = dyn_cast<SCEVUnknown>(Exp))
+    V = U->getValue();
+  else if (auto *C = dyn_cast<SCEVConstant>(Exp))
+    V = C->getValue();
+  return {V, NeedZExt};
+}
+
 static void generate(Module *M, ArrayRef<StackEntry> Stack, Instruction *C,
                      DenseMap<Value *, unsigned> &Value2Index,
                      Instruction *Cond) {
@@ -389,7 +408,8 @@ static void generate(Module *M, ArrayRef<StackEntry> Stack, Instruction *C,
   remapInstructionsInBlocks(BBs, Old2New);
 }
 
-static bool eliminateConstraints(Function &F, DominatorTree &DT,
+static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
+                                 ScalarEvolution &SE,
                                  OptimizationRemarkEmitter &ORE) {
   bool Changed = false;
   DT.updateDFSNumbers();
@@ -400,6 +420,8 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT,
                                             : nullptr);
   if (M)
     M->setSourceFileName("");
+
+  SmallVector<Instruction *, 4> ExtraCmps;
 
   SmallVector<ConstraintOrBlock, 64> WorkList;
 
@@ -439,6 +461,39 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT,
     if (!Br || !Br->isConditional())
       continue;
 
+    auto *L = LI.getLoopFor(&BB);
+    if (L && &BB == L->getHeader()) {
+      for (PHINode &PN : BB.phis()) {
+        if (!SE.isSCEVable(PN.getType()))
+          continue;
+        auto *IV = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(&PN));
+        if (!IV)
+          continue;
+
+        auto *C = dyn_cast<SCEVConstant>(IV->getStart());
+        if (!C)
+          continue;
+
+        auto *StartV = IV->getStart();
+        bool NeedZExt;
+        Value *V;
+        std::tie(V, NeedZExt) = getValueOrConstant(StartV);
+        bool CanBuildCmp =
+            V && !NeedZExt &&
+            (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
+        if (CanBuildCmp && SE.isKnownPredicate(CmpInst::ICMP_SGE, IV, StartV)) {
+          auto *Cmp = new ICmpInst(nullptr, CmpInst::ICMP_SGE, &PN, V);
+          WorkList.emplace_back(DT.getNode(&BB), Cmp, false);
+          ExtraCmps.push_back(Cmp);
+        }
+        if (CanBuildCmp && SE.isKnownPredicate(CmpInst::ICMP_UGE, IV, StartV)) {
+          auto *Cmp = new ICmpInst(nullptr, CmpInst::ICMP_UGE, &PN, V);
+          WorkList.emplace_back(DT.getNode(&BB), Cmp, false);
+          ExtraCmps.push_back(Cmp);
+        }
+      }
+    }
+
     // Returns true if we can add a known condition from BB to its successor
     // block Succ. Each predecessor of Succ can either be BB or be dominated by
     // Succ (e.g. the case when adding a condition from a pre-header to a loop
@@ -448,6 +503,7 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT,
         return Pred == &BB || DT.dominates(Succ, Pred);
       });
     };
+
     // If the condition is an OR of 2 compares and the false successor only has
     // the current block as predecessor, queue both negated conditions for the
     // false successor.
@@ -650,6 +706,9 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT,
     ORE.emit(Rem);
   }
 
+  for (Instruction *I : ExtraCmps)
+    I->deleteValue();
+
   return Changed;
 }
 
@@ -657,7 +716,9 @@ PreservedAnalyses ConstraintEliminationPass::run(Function &F,
                                                  FunctionAnalysisManager &AM) {
   auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
   auto &ORE = AM.getResult<OptimizationRemarkEmitterAnalysis>(F);
-  if (!eliminateConstraints(F, DT, ORE))
+  auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
+  auto &LI = AM.getResult<LoopAnalysis>(F);
+  if (!eliminateConstraints(F, DT, LI, SE, ORE))
     return PreservedAnalyses::all();
 
   PreservedAnalyses PA;
@@ -678,8 +739,10 @@ public:
 
   bool runOnFunction(Function &F) override {
     auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+    auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
     auto &ORE = getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
-    return eliminateConstraints(F, DT, ORE);
+    auto &SE = getAnalysis<ScalarEvolutionWrapperPass>().getSE();
+    return eliminateConstraints(F, DT, LI, SE, ORE);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
@@ -688,6 +751,8 @@ public:
     AU.addPreserved<GlobalsAAWrapperPass>();
     AU.addRequired<OptimizationRemarkEmitterWrapperPass>();
     AU.addPreserved<DominatorTreeWrapperPass>();
+    AU.addRequired<LoopInfoWrapperPass>();
+    AU.addRequired<ScalarEvolutionWrapperPass>();
   }
 };
 
@@ -698,6 +763,8 @@ char ConstraintElimination::ID = 0;
 INITIALIZE_PASS_BEGIN(ConstraintElimination, "constraint-elimination",
                       "Constraint Elimination", false, false)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(LazyValueInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(OptimizationRemarkEmitterWrapperPass)
 INITIALIZE_PASS_END(ConstraintElimination, "constraint-elimination",
