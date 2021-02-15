@@ -7,6 +7,7 @@ import lldb
 import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.lldbtest import *
 from textwrap import dedent
+from lldbsuite.test.decorators import *
 
 
 class TestPExpectTestCase(TestBase):
@@ -22,6 +23,7 @@ class TestPExpectTestCase(TestBase):
         else:
             self.fail("expect should have raised AssertionError!")
 
+    @expectedFailure
     def test_expect(self):
         # Test that passing a string to the 'substrs' argument is rejected.
         self.assert_expect_fails_with("settings list prompt",
