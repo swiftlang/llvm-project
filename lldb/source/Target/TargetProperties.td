@@ -175,6 +175,7 @@ let Definition = "target" in {
   def AutoInstallMainExecutable: Property<"auto-install-main-executable", "Boolean">,
     DefaultTrue,
     Desc<"Always install the main executable when connected to a remote platform.">;
+<<<<<<< HEAD
   def SwiftFrameworkSearchPaths: Property<"swift-framework-search-paths", "FileSpecList">,
     DefaultStringValue<"">,
     Desc<"List of directories to be searched when locating frameworks for Swift.">;
@@ -190,6 +191,11 @@ let Definition = "target" in {
   def SDKPath: Property<"sdk-path", "FileSpec">,
     DefaultStringValue<"">,
     Desc<"The path to the SDK used to build the current target.">;
+=======
+  def DebugUtilityExpression: Property<"debug-utility-expression", "Boolean">,
+    DefaultFalse,
+    Desc<"Enable debugging of LLDB-internal utility expressions.">;
+>>>>>>> refs/am/changes/4f12b5f4da6ca5b70bf6d2e26e85855e1e9c0bc6_swift/next
 }
 
 let Definition = "process_experimental" in {
