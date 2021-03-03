@@ -61,6 +61,11 @@ bool lldb_private::operator<(const StackID &lhs, const StackID &rhs) {
   const lldb::addr_t lhs_cfa = lhs.GetCallFrameAddress();
   const lldb::addr_t rhs_cfa = rhs.GetCallFrameAddress();
 
+  // Check for async -> sync comparison. (stack: high, heap: low)
+  if (lhs_cfa - rhs_cfa >= 0x00007ff000000000ULL) {
+    return true;
+  }
+
   // FIXME: We are assuming that the stacks grow downward in memory.  That's not
   // necessary, but true on
   // all the machines we care about at present.  If this changes, we'll have to

@@ -13,8 +13,7 @@
 #include "SwiftLanguageRuntimeImpl.h"
 #include "lldb/Target/SwiftLanguageRuntime.h"
 
-#include "swift/ABI/Task.h"
-#include "swift/Demangling/Demangle.h"
+#include "lldb/Breakpoint/StoppointCallbackContext.h"
 #include "lldb/Symbol/Block.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/VariableList.h"
@@ -23,6 +22,11 @@
 #include "lldb/Target/ThreadPlanStepInRange.h"
 #include "lldb/Target/ThreadPlanStepOverRange.h"
 #include "lldb/Utility/Log.h"
+#include "swift/ABI/Task.h"
+#include "swift/Demangling/Demangle.h"
+
+#include "Plugins/Process/Utility/RegisterContext_x86.h"
+#include "Utility/ARM64_DWARF_Registers.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -192,6 +196,11 @@ static ThunkAction GetThunkAction(ThunkKind kind) {
 class ThreadPlanStepInAsync : public ThreadPlan {
 public:
   static bool NeedsStep(SymbolContext &sc) {
+    if (sc.symbol->GetAddressRef().GetOffset() != 0) {
+      // Async step is only applicable at the start of a function.
+      return false;
+    }
+
     if (sc.line_entry.IsValid() && sc.line_entry.line == 0) {
       // Compiler generated function, need to step in.
       return true;
@@ -204,7 +213,7 @@ public:
     auto fn_start = sc.symbol->GetFileAddress();
     auto fn_end = sc.symbol->GetFileAddress() + sc.symbol->GetByteSize();
     int line_entry_count = 0;
-    if (auto line_table = sc.comp_unit->GetLineTable()) {
+    if (auto *line_table = sc.comp_unit->GetLineTable()) {
       for (uint32_t i = 0; i < line_table->GetSize(); ++i) {
         LineEntry line_entry;
         if (line_table->GetLineEntryAtIndex(i, line_entry)) {
@@ -230,8 +239,6 @@ public:
   ThreadPlanStepInAsync(Thread &thread, SymbolContext &sc)
       : ThreadPlan(eKindGeneric, "step-in-async", thread, eVoteNoOpinion,
                    eVoteNoOpinion) {
-    // Using the absence of line table entries as a heuristic, step into
-    // `swift_task_switch`. Then, a breakpoint can be set on the async function.
     assert(sc.function);
     if (!sc.function) {
       return;
@@ -255,13 +262,34 @@ public:
     s->PutCString("ThreadPlanStepInAsync");
   }
 
-  // Composite thread plans never directly explain a stop.
-  bool DoPlanExplainsStop(Event *event) override { return false; }
+  bool DoPlanExplainsStop(Event *event) override {
+    if (!HasTID()) {
+      return false;
+    }
+    if (!m_async_breakpoint_sp) {
+      return false;
+    }
 
-  // Async stops happen via breakpoint.
-  bool ShouldStop(Event *event) override { return false; }
+    return m_breakpoint_async_context == m_initial_async_context;
+  }
+
+  bool ShouldStop(Event *event) override {
+    if (!m_async_breakpoint_sp) {
+      return false;
+    }
+
+    if (m_breakpoint_async_context == m_initial_async_context) {
+      SetPlanComplete();
+      return true;
+    }
+    return false;
+  }
 
   bool MischiefManaged() override {
+    if (IsPlanComplete()) {
+      return true;
+    }
+
     if (!m_step_in_plan_sp->IsPlanComplete()) {
       return false;
     }
@@ -273,15 +301,14 @@ public:
     }
 
     if (!m_async_breakpoint_sp) {
-      m_async_breakpoint_sp = CreateAsyncBreakpoint(GetThread());
+      auto &thread = GetThread();
+      m_async_breakpoint_sp = CreateAsyncBreakpoint(thread);
+      m_initial_async_context = GetAsyncContext(thread.GetStackFrameAtIndex(1));
+      ClearTID();
     }
 
-    SetPlanComplete();
-    return true;
+    return false;
   }
-
-  // Override ShouldStop of previous step plan.
-  bool ShouldAutoContinue(Event *event) override { return true; }
 
   bool WillStop() override { return false; }
 
@@ -289,53 +316,71 @@ public:
 
   bool StopOthers() override { return false; }
 
+  void WillPop() override {
+    if (m_async_breakpoint_sp)
+      m_async_breakpoint_sp->GetTarget().RemoveBreakpointByID(
+          m_async_breakpoint_sp->GetID());
+  }
+
 private:
-  static constexpr std::ptrdiff_t taskOffsetOfRunJob64 = 8 * 5;
-  static constexpr std::ptrdiff_t taskOffsetOfRunJob32 = 4 * 5;
-#if __POINTER_WIDTH__ == 64
-  static_assert(offsetof(swift::AsyncTask, RunJob) == taskOffsetOfRunJob64,
-                "lldb assumes an incorrect offset of swift::Task::RunJob");
-#elif __POINTER_WIDTH__ == 32
-  static_assert(offsetof(swift::AsyncTask, RunJob) == taskOffsetOfRunJob32,
-                "lldb assumes an incorrect offset of swift::Task::RunJob");
-#endif
-
-  static BreakpointSP CreateAsyncBreakpoint(Thread &thread) {
-    auto frame_sp = thread.GetStackFrameAtIndex(0);
-    auto reg_ctx = frame_sp->GetRegisterContext();
-
-    // swift_task_switch(AsyncTask *, ExecutorRef, ExecutorRef)
-    constexpr auto task_regnum = LLDB_REGNUM_GENERIC_ARG1;
-    auto task_reg = reg_ctx->ConvertRegisterKindToRegisterNumber(
-        RegisterKind::eRegisterKindGeneric, task_regnum);
-    auto task_ptr = reg_ctx->ReadRegisterAsUnsigned(task_reg, 0);
-    if (!task_ptr) {
+  BreakpointSP CreateAsyncBreakpoint(Thread &thread) {
+    // The signature for `swift_task_switch` is as follows:
+    //   SWIFT_CC(swiftasync)
+    //   void swift_task_switch(
+    //     SWIFT_ASYNC_CONTEXT AsyncContext *resumeContext,
+    //     TaskContinuationFunction *resumeFunction,
+    //     ExecutorRef newExecutor);
+    //
+    // The async context given as the first argument is not passed using the
+    // calling convention's first register, it's passed in the platform's async
+    // context register. This means the `resumeFunction` parameter uses the
+    // first ABI register (ex: x86-64: rdi, arm64: x0).
+    auto reg_ctx = thread.GetStackFrameAtIndex(0)->GetRegisterContext();
+    constexpr auto resume_fn_regnum = LLDB_REGNUM_GENERIC_ARG1;
+    auto resume_fn_reg = reg_ctx->ConvertRegisterKindToRegisterNumber(
+        RegisterKind::eRegisterKindGeneric, resume_fn_regnum);
+    auto resume_fn_ptr = reg_ctx->ReadRegisterAsUnsigned(resume_fn_reg, 0);
+    if (!resume_fn_ptr) {
       return {};
     }
 
-    auto process_sp = thread.GetProcess();
-    const auto sizeof_pointer = process_sp->GetAddressByteSize();
-    auto run_job_ptr = task_ptr;
-    if (sizeof_pointer == 8) {
-      run_job_ptr += taskOffsetOfRunJob64;
-    } else if (sizeof_pointer == 4) {
-      run_job_ptr += taskOffsetOfRunJob32;
-    }
-
-    Status status;
-    auto fn_ptr = process_sp->ReadPointerFromMemory(run_job_ptr, status);
-    if (status.Fail()) {
-      return {};
-    }
-
-    auto breakpoint_sp =
-        process_sp->GetTarget().CreateBreakpoint(fn_ptr, true, false);
+    auto &target = thread.GetProcess()->GetTarget();
+    auto breakpoint_sp = target.CreateBreakpoint(resume_fn_ptr, true, false);
     breakpoint_sp->SetBreakpointKind("async-step");
+    breakpoint_sp->SetCallback(AsyncBreakpointHit, this, true);
     return breakpoint_sp;
+  }
+
+  static bool AsyncBreakpointHit(void *baton, StoppointCallbackContext *context,
+                                 lldb::user_id_t break_id,
+                                 lldb::user_id_t break_loc_id) {
+    auto *plan = reinterpret_cast<ThreadPlanStepInAsync *>(baton);
+    plan->SetTID(context->exe_ctx_ref.GetThreadSP()->GetID());
+    plan->m_breakpoint_async_context = GetAsyncContext(context->exe_ctx_ref.GetFrameSP());
+    return true;
+  }
+
+  static uint64_t GetAsyncContext(lldb::StackFrameSP frame_sp) {
+    auto reg_ctx_sp = frame_sp->GetRegisterContext();
+    auto arch = reg_ctx_sp->CalculateTarget()->GetArchitecture();
+    int async_context_regnum = 0;
+    if (arch.GetMachine() == llvm::Triple::x86_64) {
+      async_context_regnum = dwarf_r14_x86_64;
+    } else if (arch.GetMachine() == llvm::Triple::aarch64) {
+      async_context_regnum = arm64_dwarf::x22;
+    } else {
+      assert(false && "swift async supports only x86_64 and arm64");
+    }
+
+    auto async_context_reg = reg_ctx_sp->ConvertRegisterKindToRegisterNumber(
+        RegisterKind::eRegisterKindDWARF, async_context_regnum);
+    return reg_ctx_sp->ReadRegisterAsUnsigned(async_context_reg, 23);
   }
 
   ThreadPlanSP m_step_in_plan_sp;
   BreakpointSP m_async_breakpoint_sp;
+  uint64_t m_initial_async_context = 0;
+  uint64_t m_breakpoint_async_context = 0;
 };
 
 static lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
