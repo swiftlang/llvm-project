@@ -2375,7 +2375,7 @@ SwiftLanguageRuntime::GetRuntimeUnwindPlan(ProcessSP process_sp,
         g_cfa_dwarf_expression_arm64, sizeof(g_cfa_dwarf_expression_arm64));
   }
 
-  row->SetRegisterLocationToAtCFAPlusOffset(async_context_regnum, 0, false);
+  row->SetRegisterLocationToIsCFAPlusOffset(async_context_regnum, 0, false);
   row->SetRegisterLocationToAtCFAPlusOffset(pc_regnum, ptr_size, false);
 
   row->SetUnspecifiedRegistersAreUndefined(true);
@@ -2415,8 +2415,8 @@ GetFollowAsyncContextUnwindPlan(RegisterContext *regctx, ArchSpec &arch,
     return UnwindPlanSP();
   }
 
-  row->GetCFAValue().SetIsRegisterPlusOffset(async_context_regnum, 0);
-  row->SetRegisterLocationToAtCFAPlusOffset(async_context_regnum, 0, false);
+  row->GetCFAValue().SetIsRegisterDereferenced(async_context_regnum);
+  row->SetRegisterLocationToIsCFAPlusOffset(async_context_regnum, 0, false);
   row->SetRegisterLocationToAtCFAPlusOffset(pc_regnum, ptr_size, false);
 
   row->SetUnspecifiedRegistersAreUndefined(true);
