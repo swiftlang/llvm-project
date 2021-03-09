@@ -2784,7 +2784,8 @@ static void checkExtParameterInfos(Sema &S, ArrayRef<QualType> paramTypes,
       continue;
 
     case ParameterABI::SwiftContext:
-      checkForSwiftCC(paramIndex);
+      // Cleanup: Only allowed for swifttailcc and swiftcc.
+      //checkForSwiftCC(paramIndex);
       continue;
 
     // SwiftAsyncContext is not limited to swiftasynccall functions.
