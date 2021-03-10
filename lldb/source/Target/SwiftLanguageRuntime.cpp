@@ -2345,8 +2345,9 @@ SwiftLanguageRuntime::GetRuntimeUnwindPlan(ProcessSP process_sp,
   Address pc;
   pc.SetLoadAddress(regctx->GetPC(), &target);
   SymbolContext sc;
-  if (pc.IsValid() && pc.CalculateSymbolContext(
-                          &sc, eSymbolContextFunction | eSymbolContextSymbol)) {
+  if (pc.IsValid()) {
+    pc.CalculateSymbolContext(&sc,
+                              eSymbolContextFunction | eSymbolContextSymbol);
     if (sc.function) {
       Address func_start_addr = sc.function->GetAddressRange().GetBaseAddress();
       AddressRange prologue_range(func_start_addr,
@@ -2354,9 +2355,7 @@ SwiftLanguageRuntime::GetRuntimeUnwindPlan(ProcessSP process_sp,
       if (prologue_range.ContainsLoadAddress(pc, &target)) {
         return UnwindPlanSP();
       }
-    }
-
-    if (sc.symbol) {
+    } else if (sc.symbol) {
       Address func_start_addr = sc.symbol->GetAddress();
       AddressRange prologue_range(func_start_addr,
                                   sc.symbol->GetPrologueByteSize());
