@@ -576,6 +576,8 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
 
   AddStringSummary(swift_category_sp, "nil", ConstString("Swift._Nil"),
                    nil_summary_flags);
+  AddStringSummary(swift_category_sp, "<deinitialized>",
+                   ConstString("Swift.$deinit"), nil_summary_flags);
 
   AddStringSummary(swift_category_sp, "${var.native}",
                    ConstString("CoreGraphics.CGFloat"), summary_flags);

@@ -1706,6 +1706,17 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Class(
   lldb::addr_t class_metadata_ptr = in_value.GetPointerValue(&address_type);
   if (class_metadata_ptr == LLDB_INVALID_ADDRESS || class_metadata_ptr == 0)
     return false;
+  // The Swift compiler puts this value in class pointers after
+  // calling the class deinitializer. We report the dynamic type name
+  // as a special token that is recognized by a summary provide and
+  // the materializer to produce more meaningful errors.
+  size_t swift_deinitialized_pointer_sentinel_value = 0x880;
+  if (class_metadata_ptr == swift_deinitialized_pointer_sentinel_value) {
+    class_type_or_name.SetCompilerType(in_value.GetCompilerType());
+    class_type_or_name.SetName("Swift.$deinit");
+    address.SetRawAddress(LLDB_INVALID_ADDRESS);
+    return true;
+  }
   address.SetRawAddress(class_metadata_ptr);
 
   Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_TYPES));

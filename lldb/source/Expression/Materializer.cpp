@@ -503,9 +503,23 @@ public:
           map.GetBestExecutionContextScope()->CalculateProcess())
         if (auto runtime = process_sp->GetLanguageRuntime(
                 valobj_type.GetMinimumLanguage())) {
+          TypeAndOrName class_type_or_name;
+          Address dynamic_address;
+          Value::ValueType value_type;
+          if (valobj_type.GetMinimumLanguage() == lldb::eLanguageTypeSwift &&
+              runtime->GetDynamicTypeAndAddress(
+                  *valobj_sp, lldb::eDynamicDontRunTarget, class_type_or_name,
+                  dynamic_address, value_type))
+            if (class_type_or_name.GetName() == ConstString("Swift.$deinit")) {
+              err.SetErrorStringWithFormat(
+                  "variable %s has been deinitialized",
+                  m_variable_sp->GetName().AsCString());
+              return;
+            }
+
           Status read_error;
           addr_of_valobj =
-              runtime->FixupAddress(addr_of_valobj, valobj_type, read_error);
+            runtime->FixupAddress(addr_of_valobj, valobj_type, read_error);
         }
       // END Swift.
 
