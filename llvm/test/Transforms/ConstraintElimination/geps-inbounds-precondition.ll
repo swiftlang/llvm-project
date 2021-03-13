@@ -16,7 +16,7 @@ define i1 @inbounds_poison_is_ub1(i32* %src, i32 %n, i32 %idx) {
 ; CHECK-NEXT:    [[CMP_UPPER_4:%.*]] = icmp ule i32* [[SRC_IDX_4]], [[UPPER]]
 ; CHECK-NEXT:    [[SRC_IDX_5:%.*]] = getelementptr i32, i32* [[SRC]], i64 5
 ; CHECK-NEXT:    [[CMP_UPPER_5:%.*]] = icmp ule i32* [[SRC_IDX_5]], [[UPPER]]
-; CHECK-NEXT:    [[RES_0:%.*]] = xor i1 [[CMP_UPPER_4]], [[CMP_UPPER_5]]
+; CHECK-NEXT:    [[RES_0:%.*]] = xor i1 true, true
 ; CHECK-NEXT:    [[SRC_IDX_6:%.*]] = getelementptr i32, i32* [[SRC]], i64 6
 ; CHECK-NEXT:    [[CMP_UPPER_6:%.*]] = icmp ule i32* [[SRC_IDX_6]], [[UPPER]]
 ; CHECK-NEXT:    [[RES_1:%.*]] = xor i1 [[RES_0]], [[CMP_UPPER_6]]
@@ -60,7 +60,7 @@ define i1 @inbounds_poison_is_ub2(i32* %src, i32 %n, i32 %idx) {
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER]]
-; CHECK-NEXT:    ret i1 [[CMP_UPPER_1]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
 ; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER]]
 ; CHECK-NEXT:    ret i1 [[CMP_UPPER_2]]
@@ -97,7 +97,7 @@ define i1 @inbounds_poison_is_ub3(i32* %src, i32 %n, i32 %idx) {
 ; CHECK-NEXT:    call void @noundef(i32* [[UPPER_1]])
 ; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, i32* [[SRC]], i64 [[IDX_EXT]]
 ; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule i32* [[SRC_IDX_1]], [[UPPER_1]]
-; CHECK-NEXT:    ret i1 [[CMP_UPPER_1]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
 ; CHECK-NEXT:    [[UPPER_2:%.*]] = getelementptr inbounds i32, i32* [[SRC]], i64 [[N_EXT]]
 ; CHECK-NEXT:    call void @noundef(i32* [[UPPER_2]])
@@ -248,7 +248,7 @@ define i1 @multiple_upper_bounds(i32* %src, i32 %n, i32 %idx) {
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER_2]]
-; CHECK-NEXT:    ret i1 [[CMP_UPPER_1]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
 ; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER_2]]
 ; CHECK-NEXT:    ret i1 [[CMP_UPPER_2]]
@@ -283,7 +283,7 @@ define i1 @multiple_upper_bounds2(i32* %src, i32 %n, i32 %idx) {
 ; CHECK-NEXT:    call void @noundef(i32* [[UPPER_2]])
 ; CHECK-NEXT:    [[SRC_IDX:%.*]] = getelementptr i32, i32* [[SRC]], i64 4
 ; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER_2]]
-; CHECK-NEXT:    ret i1 [[CMP_UPPER_1]]
+; CHECK-NEXT:    ret i1 true
 ;
 entry:
   %n.ext = zext i32 %n to i64
@@ -306,7 +306,7 @@ define i1 @multiple_upper_bounds3(i32* %src, i32 %n, i32 %idx) {
 ; CHECK-NEXT:    call void @noundef(i32* [[UPPER_2]])
 ; CHECK-NEXT:    [[SRC_IDX:%.*]] = getelementptr i32, i32* [[SRC]], i64 4
 ; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER_1]]
-; CHECK-NEXT:    ret i1 [[CMP_UPPER_1]]
+; CHECK-NEXT:    ret i1 true
 ;
 entry:
   %n.ext = zext i32 %n to i64

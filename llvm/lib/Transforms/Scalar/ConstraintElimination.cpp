@@ -23,6 +23,7 @@
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
@@ -130,13 +131,29 @@ struct ConstraintListTy {
 
   ConstraintTy &get(unsigned I) { return Constraints[I]; }
 
-  bool isValid(ConstraintInfo &Info) const;
-  bool isValidSingle(ConstraintInfo &Info) const {
+  bool isValid(ConstraintInfo &Info,
+               const DenseMap<Value *, Value *> &PtrKnownSafeBound) const;
+  bool
+  isValidSingle(ConstraintInfo &Info,
+                const DenseMap<Value *, Value *> &PtrKnownSafeBound) const {
     if (size() != 1)
       return false;
-    return isValid(Info);
+    return isValid(Info, PtrKnownSafeBound);
   }
 };
+
+#ifndef NDEBUG
+static void dumpWithNames(ConstraintTy &C,
+                          DenseMap<Value *, unsigned> &Value2Index) {
+  SmallVector<std::string> Names(Value2Index.size(), "");
+  for (auto &KV : Value2Index) {
+    Names[KV.second - 1] = std::string("%") + KV.first->getName().str();
+  }
+  ConstraintSystem CS;
+  CS.addVariableRowFill(C.Coefficients);
+  CS.dump(Names);
+}
+#endif
 
 }; // namespace
 
@@ -146,14 +163,25 @@ struct ConstraintListTy {
 // vector.
 static SmallVector<std::pair<int64_t, Value *>, 4>
 decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
-          bool IsSigned) {
+          bool IsSigned, const DenseMap<Value *, Value *> &PtrKnownSafeBound) {
   if (auto *CI = dyn_cast<ConstantInt>(V)) {
     if (CI->isNegative() || CI->uge(MaxConstraintValue))
       return {};
     return {{CI->getSExtValue(), nullptr}};
   }
   auto *GEP = dyn_cast<GetElementPtrInst>(V);
-  if (GEP && GEP->getNumOperands() == 2 && GEP->isInBounds()) {
+  if (GEP && GEP->getNumOperands() == 2) {
+    if (!GEP->isInBounds()) {
+      // If a GEP is not inbounds, check if we have a known-safe bounds. If we
+      // have, add a precondition to make sure the GEP index is <= the
+      // known-safe bound.
+      auto Iter = PtrKnownSafeBound.find(GEP->getPointerOperand());
+      if (Iter != PtrKnownSafeBound.end()) {
+        Preconditions.emplace_back(CmpInst::ICMP_ULE, GEP->getOperand(1),
+                                   Iter->second);
+      } else
+        return {{0, nullptr}, {1, V}};
+    }
     Value *Op0, *Op1;
     ConstantInt *CI;
 
@@ -231,7 +259,8 @@ decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
 static ConstraintListTy
 getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
               const DenseMap<Value *, unsigned> &Value2Index,
-              DenseMap<Value *, unsigned> &NewIndices) {
+              DenseMap<Value *, unsigned> &NewIndices,
+              const DenseMap<Value *, Value *> &PtrKnownSafeBound) {
   int64_t Offset1 = 0;
   int64_t Offset2 = 0;
 
@@ -253,23 +282,25 @@ getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
   if (Pred == CmpInst::ICMP_UGT || Pred == CmpInst::ICMP_UGE ||
       Pred == CmpInst::ICMP_SGT || Pred == CmpInst::ICMP_SGE)
     return getConstraint(CmpInst::getSwappedPredicate(Pred), Op1, Op0,
-                         Value2Index, NewIndices);
+                         Value2Index, NewIndices, PtrKnownSafeBound);
 
   if (Pred == CmpInst::ICMP_EQ && match(Op1, m_Zero())) {
-    return getConstraint(CmpInst::ICMP_ULE, Op0, Op1, Value2Index, NewIndices);
+    return getConstraint(CmpInst::ICMP_ULE, Op0, Op1, Value2Index, NewIndices,
+                         PtrKnownSafeBound);
   }
 
   if (Pred == CmpInst::ICMP_EQ) {
-    auto A =
-        getConstraint(CmpInst::ICMP_UGE, Op0, Op1, Value2Index, NewIndices);
-    auto B =
-        getConstraint(CmpInst::ICMP_ULE, Op0, Op1, Value2Index, NewIndices);
+    auto A = getConstraint(CmpInst::ICMP_UGE, Op0, Op1, Value2Index, NewIndices,
+                           PtrKnownSafeBound);
+    auto B = getConstraint(CmpInst::ICMP_ULE, Op0, Op1, Value2Index, NewIndices,
+                           PtrKnownSafeBound);
     A.mergeIn(B);
     return A;
   }
 
   if (Pred == CmpInst::ICMP_NE && match(Op1, m_Zero())) {
-    return getConstraint(CmpInst::ICMP_UGT, Op0, Op1, Value2Index, NewIndices);
+    return getConstraint(CmpInst::ICMP_UGT, Op0, Op1, Value2Index, NewIndices,
+                         PtrKnownSafeBound);
   }
 
   // Only ULE and ULT predicates are supported at the moment.
@@ -279,9 +310,9 @@ getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
 
   bool IsSigned = CmpInst::isSigned(Pred);
   auto ADec = decompose(Op0->stripPointerCastsSameRepresentation(),
-                        Preconditions, IsSigned);
+                        Preconditions, IsSigned, PtrKnownSafeBound);
   auto BDec = decompose(Op1->stripPointerCastsSameRepresentation(),
-                        Preconditions, IsSigned);
+                        Preconditions, IsSigned, PtrKnownSafeBound);
   // Skip if decomposing either of the values failed.
   if (ADec.empty() || BDec.empty())
     return {};
@@ -317,27 +348,34 @@ getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
   return {{{R, IsSigned}}, Preconditions};
 }
 
-static ConstraintListTy getConstraint(CmpInst *Cmp, ConstraintInfo &Info,
-                                      DenseMap<Value *, unsigned> &NewIndices) {
+static ConstraintListTy
+getConstraint(CmpInst *Cmp, ConstraintInfo &Info,
+              DenseMap<Value *, unsigned> &NewIndices,
+              const DenseMap<Value *, Value *> &PtrKnownSafeBound) {
   return getConstraint(
       Cmp->getPredicate(), Cmp->getOperand(0), Cmp->getOperand(1),
-      Info.getValue2Index(CmpInst::isSigned(Cmp->getPredicate())), NewIndices);
+      Info.getValue2Index(CmpInst::isSigned(Cmp->getPredicate())), NewIndices,
+      PtrKnownSafeBound);
 }
 
-bool ConstraintListTy::isValid(ConstraintInfo &Info) const {
+bool ConstraintListTy::isValid(
+    ConstraintInfo &Info,
+    const DenseMap<Value *, Value *> &PtrKnownSafeBound) const {
   if (Constraints.empty())
     return false;
 
-  return all_of(Preconditions, [&Info](const PreconditionTy &C) {
-    DenseMap<Value *, unsigned> NewIndices;
-    auto R = getConstraint(C.Pred, C.Op0, C.Op1,
-                           Info.getValue2Index(CmpInst::isSigned(C.Pred)),
-                           NewIndices);
-    // TODO: properly check NewIndices.
-    return NewIndices.empty() && R.Preconditions.empty() && R.size() == 1 &&
-           Info.getCS(CmpInst::isSigned(C.Pred))
-               .isConditionImplied(R.get(0).Coefficients);
-  });
+  return all_of(
+      Preconditions, [&Info, &PtrKnownSafeBound](const PreconditionTy &C) {
+        DenseMap<Value *, unsigned> NewIndices;
+        auto R = getConstraint(C.Pred, C.Op0, C.Op1,
+                               Info.getValue2Index(CmpInst::isSigned(C.Pred)),
+                               NewIndices, PtrKnownSafeBound);
+
+        // TODO: properly check NewIndices.
+        return NewIndices.empty() && R.Preconditions.empty() && R.size() == 1 &&
+               Info.getCS(CmpInst::isSigned(C.Pred))
+                   .isConditionImplied(R.get(0).Coefficients);
+      });
 }
 
 namespace {
@@ -381,30 +419,23 @@ struct State {
   SmallVector<Instruction *, 4> ExtraCmps;
   SmallVector<ConstraintOrBlock, 64> WorkList;
 
+  /// Map containing a value representing a maximum value which is known to not
+  /// overflow a GEP. Any index >= 0 and <= the known safe upper bound is known
+  /// to not overflow. Note that the known safe bound is an artificial IR value
+  /// and known facts are added as conditions restricting the bound.
+  DenseMap<Value *, Value *> PtrKnownSafeBound;
+
   State(DominatorTree &DT, LoopInfo &LI, ScalarEvolution &SE)
       : DT(DT), LI(LI), SE(SE) {}
 
   ~State() {
-    for (Instruction *I : ExtraCmps)
+    for (Instruction *I : reverse(ExtraCmps))
       I->deleteValue();
   }
 
   void addInfoFor(BasicBlock &BB);
 };
 } // namespace
-
-#ifndef NDEBUG
-static void dumpWithNames(ConstraintTy &C,
-                          DenseMap<Value *, unsigned> &Value2Index) {
-  SmallVector<std::string> Names(Value2Index.size(), "");
-  for (auto &KV : Value2Index) {
-    Names[KV.second - 1] = std::string("%") + KV.first->getName().str();
-  }
-  ConstraintSystem CS;
-  CS.addVariableRowFill(C.Coefficients);
-  CS.dump(Names);
-}
-#endif
 
 // Returns a pair {Value, NeedZExt}, if \p Exp is either a SCEVConstant or a
 // SCEVUnknown. If the value needs to be zero extended, NeedZExt is true.
@@ -613,13 +644,13 @@ void State::addInfoFor(BasicBlock &BB) {
             V && (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
         if (CanBuildCmp && Monotonic &&
             Monotonic == ScalarEvolution::MonotonicallyIncreasing) {
-          if (NeedZExt)
+          if (NeedZExt) {
             V = new ZExtInst(V, PN.getType());
+            ExtraCmps.push_back(cast<Instruction>(V));
+          }
           auto *Cmp1 = new ICmpInst(nullptr, CmpInst::ICMP_ULE, &PN, V);
           WorkList.emplace_back(DT.getNode(&BB), Cmp1, false);
           ExtraCmps.push_back(Cmp1);
-          if (NeedZExt)
-            ExtraCmps.push_back(cast<Instruction>(V));
         }
       }
 
@@ -700,6 +731,7 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
   DT.updateDFSNumbers();
   State S(DT, LI, SE);
 
+  const DataLayout &DL = F.getParent()->getDataLayout();
   ConstraintInfo Info;
   LLVMContext &Ctx = F.getContext();
   std::unique_ptr<Module> M(DumpReproducers ? new Module(F.getName(), Ctx)
@@ -715,6 +747,41 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
     S.WorkList.emplace_back(DT.getNode(&BB));
 
     S.addInfoFor(BB);
+
+    // Try to derive known-safe non-overflowing bounds for pointers based on the
+    // instructions in the block.
+    for (Instruction &I : BB) {
+      if (auto *GEP = dyn_cast<GetElementPtrInst>(&I)) {
+        // If the GEP is inbounds, we know that it cannot overflow (and it will
+        // less than its base), if the program is undefined if the GEP is
+        // poison.
+        Value *PtrOp = GEP->getPointerOperand();
+        Value *IdxOp = GEP->getOperand(1);
+        if (!GEP->isInBounds() || GEP->getNumOperands() != 2 ||
+            !programUndefinedIfPoison(GEP, true) ||
+            GEP->getType() != PtrOp->getType() ||
+            !isKnownNonNegative(IdxOp, DL, 2))
+          continue;
+        // We know that IdxOp does not cause an overflow. Now try to add a fact
+        // for UB >= IdxOp.
+        auto I = S.PtrKnownSafeBound.insert({PtrOp, nullptr});
+        if (I.second) {
+          // Create a dummy instruction we can use to compare the bounds
+          // against.
+          I.first->second = new LoadInst(
+              IdxOp->getType(),
+              UndefValue::get(PointerType::get(IdxOp->getType(), 0)), "ub",
+              false, Align(1));
+          S.ExtraCmps.push_back(cast<Instruction>(I.first->second));
+        }
+        if (I.first->second->getType() == IdxOp->getType()) {
+          auto *Cmp1 =
+              new ICmpInst(nullptr, CmpInst::ICMP_UGE, I.first->second, IdxOp);
+          S.WorkList.emplace_back(DT.getNode(&BB), Cmp1, false);
+          S.ExtraCmps.push_back(Cmp1);
+        }
+      }
+    }
   }
 
   // Next, sort worklist by dominance, so that dominating blocks and conditions
@@ -762,8 +829,9 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
           continue;
 
         DenseMap<Value *, unsigned> NewIndices;
-        auto R = getConstraint(Cmp, Info, NewIndices);
-        if (!R.isValidSingle(Info) || R.needsNewIndices(NewIndices))
+        auto R = getConstraint(Cmp, Info, NewIndices, S.PtrKnownSafeBound);
+        if (!R.isValidSingle(Info, S.PtrKnownSafeBound) ||
+            R.needsNewIndices(NewIndices))
           continue;
 
         auto &CSToUse = Info.getCS(R.get(0).IsSigned);
@@ -829,8 +897,8 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
     // Otherwise, add the condition to the system and stack, if we can transform
     // it into a constraint.
     DenseMap<Value *, unsigned> NewIndices;
-    auto R = getConstraint(CB.Condition, Info, NewIndices);
-    if (!R.isValid(Info))
+    auto R = getConstraint(CB.Condition, Info, NewIndices, S.PtrKnownSafeBound);
+    if (!R.isValid(Info, S.PtrKnownSafeBound))
       continue;
 
     for (auto &KV : NewIndices)

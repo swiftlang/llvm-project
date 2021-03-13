@@ -5099,8 +5099,8 @@ bool llvm::impliesPoison(const Value *ValAssumedPoison, const Value *V) {
   return ::impliesPoison(ValAssumedPoison, V, /* Depth */ 0);
 }
 
-static bool programUndefinedIfUndefOrPoison(const Value *V,
-                                            bool PoisonOnly);
+static bool programUndefinedIfUndefOrPoison(const Value *V, bool PoisonOnly,
+                                            bool BranchUB = false);
 
 static bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
                                              AssumptionCache *AC,
@@ -5358,8 +5358,9 @@ bool llvm::propagatesPoison(const Operator *I) {
   }
 }
 
-void llvm::getGuaranteedWellDefinedOps(
-    const Instruction *I, SmallPtrSetImpl<const Value *> &Operands) {
+void llvm::getGuaranteedWellDefinedOps(const Instruction *I,
+                                       SmallPtrSetImpl<const Value *> &Operands,
+                                       bool BranchUB) {
   switch (I->getOpcode()) {
     case Instruction::Store:
       Operands.insert(cast<StoreInst>(I)->getPointerOperand());
@@ -5392,14 +5393,25 @@ void llvm::getGuaranteedWellDefinedOps(
       break;
     }
 
+    case Instruction::Br:
+      if (BranchUB && cast<BranchInst>(I)->isConditional())
+        Operands.insert(cast<BranchInst>(I)->getCondition());
+      break;
+
+    case Instruction::Switch:
+      if (BranchUB)
+        Operands.insert(cast<SwitchInst>(I)->getCondition());
+      break;
+
     default:
       break;
   }
 }
 
 void llvm::getGuaranteedNonPoisonOps(const Instruction *I,
-                                     SmallPtrSetImpl<const Value *> &Operands) {
-  getGuaranteedWellDefinedOps(I, Operands);
+                                     SmallPtrSetImpl<const Value *> &Operands,
+                                     bool BranchUB) {
+  getGuaranteedWellDefinedOps(I, Operands, BranchUB);
   switch (I->getOpcode()) {
   // Divisors of these operations are allowed to be partially undef.
   case Instruction::UDiv:
@@ -5415,9 +5427,10 @@ void llvm::getGuaranteedNonPoisonOps(const Instruction *I,
 }
 
 bool llvm::mustTriggerUB(const Instruction *I,
-                         const SmallSet<const Value *, 16>& KnownPoison) {
+                         const SmallSet<const Value *, 16> &KnownPoison,
+                         bool BranchUB) {
   SmallPtrSet<const Value *, 4> NonPoisonOps;
-  getGuaranteedNonPoisonOps(I, NonPoisonOps);
+  getGuaranteedNonPoisonOps(I, NonPoisonOps, BranchUB);
 
   for (const auto *V : NonPoisonOps)
     if (KnownPoison.count(V))
@@ -5426,8 +5439,8 @@ bool llvm::mustTriggerUB(const Instruction *I,
   return false;
 }
 
-static bool programUndefinedIfUndefOrPoison(const Value *V,
-                                            bool PoisonOnly) {
+static bool programUndefinedIfUndefOrPoison(const Value *V, bool PoisonOnly,
+                                            bool BranchUB) {
   // We currently only look for uses of values within the same basic
   // block, as that makes it easier to guarantee that the uses will be
   // executed given that Inst is executed.
@@ -5494,7 +5507,7 @@ static bool programUndefinedIfUndefOrPoison(const Value *V,
         continue;
       if (--ScanLimit == 0)
         return false;
-      if (mustTriggerUB(&I, YieldsPoison))
+      if (mustTriggerUB(&I, YieldsPoison, BranchUB))
         return true;
       if (!isGuaranteedToTransferExecutionToSuccessor(&I))
         return false;
@@ -5514,12 +5527,13 @@ static bool programUndefinedIfUndefOrPoison(const Value *V,
   return false;
 }
 
-bool llvm::programUndefinedIfUndefOrPoison(const Instruction *Inst) {
-  return ::programUndefinedIfUndefOrPoison(Inst, false);
+bool llvm::programUndefinedIfUndefOrPoison(const Instruction *Inst,
+                                           bool BranchUB) {
+  return ::programUndefinedIfUndefOrPoison(Inst, false, BranchUB);
 }
 
-bool llvm::programUndefinedIfPoison(const Instruction *Inst) {
-  return ::programUndefinedIfUndefOrPoison(Inst, true);
+bool llvm::programUndefinedIfPoison(const Instruction *Inst, bool BranchUB) {
+  return ::programUndefinedIfUndefOrPoison(Inst, true, BranchUB);
 }
 
 static bool isKnownNonNaN(const Value *V, FastMathFlags FMF) {

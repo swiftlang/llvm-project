@@ -594,18 +594,21 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   /// Insert operands of I into Ops such that I will trigger undefined behavior
   /// if I is executed and that operand has a poison value.
   void getGuaranteedNonPoisonOps(const Instruction *I,
-                                 SmallPtrSetImpl<const Value *> &Ops);
+                                 SmallPtrSetImpl<const Value *> &Ops,
+                                 bool BranchUB = false);
   /// Insert operands of I into Ops such that I will trigger undefined behavior
   /// if I is executed and that operand is not a well-defined value
   /// (i.e. has undef bits or poison).
   void getGuaranteedWellDefinedOps(const Instruction *I,
-                                   SmallPtrSetImpl<const Value *> &Ops);
+                                   SmallPtrSetImpl<const Value *> &Ops,
+                                   bool BranchUB = false);
 
   /// Return true if the given instruction must trigger undefined behavior
   /// when I is executed with any operands which appear in KnownPoison holding
   /// a poison value at the point of execution.
   bool mustTriggerUB(const Instruction *I,
-                     const SmallSet<const Value *, 16>& KnownPoison);
+                     const SmallSet<const Value *, 16> &KnownPoison,
+                     bool BranchUB = false);
 
   /// Return true if this function can prove that if Inst is executed
   /// and yields a poison value or undef bits, then that will trigger
@@ -613,8 +616,9 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   ///
   /// Note that this currently only considers the basic block that is
   /// the parent of Inst.
-  bool programUndefinedIfUndefOrPoison(const Instruction *Inst);
-  bool programUndefinedIfPoison(const Instruction *Inst);
+  bool programUndefinedIfUndefOrPoison(const Instruction *Inst,
+                                       bool BranchUB = false);
+  bool programUndefinedIfPoison(const Instruction *Inst, bool BranchUB = false);
 
   /// canCreateUndefOrPoison returns true if Op can create undef or poison from
   /// non-undef & non-poison operands.
