@@ -373,6 +373,24 @@ struct StackEntry {
       : NumIn(NumIn), NumOut(NumOut), Condition(Condition), IsNot(IsNot),
         IsSigned(IsSigned) {}
 };
+
+struct State {
+  DominatorTree &DT;
+  LoopInfo &LI;
+  ScalarEvolution &SE;
+  SmallVector<Instruction *, 4> ExtraCmps;
+  SmallVector<ConstraintOrBlock, 64> WorkList;
+
+  State(DominatorTree &DT, LoopInfo &LI, ScalarEvolution &SE)
+      : DT(DT), LI(LI), SE(SE) {}
+
+  ~State() {
+    for (Instruction *I : ExtraCmps)
+      I->deleteValue();
+  }
+
+  void addInfoFor(BasicBlock &BB);
+};
 } // namespace
 
 #ifndef NDEBUG
@@ -539,11 +557,147 @@ static void generate(Module *M, ArrayRef<StackEntry> Stack, Instruction *C,
   remapInstructionsInBlocks(BBs, Old2New);
 }
 
+void State::addInfoFor(BasicBlock &BB) {
+  // True as long as long as the current instruction is guaranteed to execute.
+  bool GuaranteedToExecute = true;
+  // Scan BB for assume calls.
+  // TODO: also use this scan to queue conditions to simplify, so we can
+  // interleave facts from assumes and conditions to simplify in a single
+  // basic block. And to skip another traversal of each basic block when
+  // simplifying.
+  for (Instruction &I : BB) {
+    Value *Cond;
+    // For now, just handle assumes with a single compare as condition.
+    if (match(&I, m_Intrinsic<Intrinsic::assume>(m_Value(Cond))) &&
+        isa<CmpInst>(Cond)) {
+      if (GuaranteedToExecute) {
+        // The assume is guaranteed to execute when BB is entered, hence Cond
+        // holds on entry to BB.
+        WorkList.emplace_back(DT.getNode(&BB), cast<CmpInst>(Cond), false);
+      } else {
+        // Otherwise the condition only holds in the successors.
+        for (BasicBlock *Succ : successors(&BB))
+          WorkList.emplace_back(DT.getNode(Succ), cast<CmpInst>(Cond), false);
+      }
+    }
+    GuaranteedToExecute &= isGuaranteedToTransferExecutionToSuccessor(&I);
+  }
+
+  auto *Br = dyn_cast<BranchInst>(BB.getTerminator());
+  if (!Br || !Br->isConditional())
+    return;
+
+  auto *L = LI.getLoopFor(&BB);
+  if (L && &BB == L->getHeader()) {
+    const SCEV *BTC = SE.getSymbolicMaxBackedgeTakenCount(L);
+    for (PHINode &PN : BB.phis()) {
+      if (!SE.isSCEVable(PN.getType()))
+        continue;
+      auto *IV = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(&PN));
+      if (!IV)
+        continue;
+
+      auto *C = dyn_cast<SCEVConstant>(IV->getStart());
+      if (!C)
+        continue;
+
+      if (!isa<SCEVCouldNotCompute>(BTC)) {
+        auto *IVAtEnd = IV->evaluateAtIteration(BTC, SE);
+
+        bool NeedZExt = false;
+        Value *V;
+        std::tie(V, NeedZExt) = getValueOrConstant(IVAtEnd, L, SE);
+        auto Monotonic = SE.getMonotonicPredicateType(IV, CmpInst::ICMP_UGE);
+        bool CanBuildCmp =
+            V && (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
+        if (CanBuildCmp && Monotonic &&
+            Monotonic == ScalarEvolution::MonotonicallyIncreasing) {
+          if (NeedZExt)
+            V = new ZExtInst(V, PN.getType());
+          auto *Cmp1 = new ICmpInst(nullptr, CmpInst::ICMP_ULE, &PN, V);
+          WorkList.emplace_back(DT.getNode(&BB), Cmp1, false);
+          ExtraCmps.push_back(Cmp1);
+          if (NeedZExt)
+            ExtraCmps.push_back(cast<Instruction>(V));
+        }
+      }
+
+      auto *StartV = IV->getStart();
+      bool NeedZExt;
+      Value *V;
+      std::tie(V, NeedZExt) = getValueOrConstant(StartV, L, SE);
+      bool CanBuildCmp =
+          V && !NeedZExt &&
+          (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
+      if (CanBuildCmp && SE.isKnownPredicate(CmpInst::ICMP_SGE, IV, StartV)) {
+        auto *Cmp = new ICmpInst(nullptr, CmpInst::ICMP_SGE, &PN, V);
+        WorkList.emplace_back(DT.getNode(&BB), Cmp, false);
+        ExtraCmps.push_back(Cmp);
+      }
+      if (CanBuildCmp && SE.isKnownPredicate(CmpInst::ICMP_UGE, IV, StartV)) {
+        auto *Cmp = new ICmpInst(nullptr, CmpInst::ICMP_UGE, &PN, V);
+        WorkList.emplace_back(DT.getNode(&BB), Cmp, false);
+        ExtraCmps.push_back(Cmp);
+      }
+    }
+  }
+
+  // Returns true if we can add a known condition from BB to its successor
+  // block Succ. Each predecessor of Succ can either be BB or be dominated
+  // by Succ (e.g. the case when adding a condition from a pre-header to a
+  // loop header).
+  auto CanAdd = [&BB, this](BasicBlock *Succ) {
+    return all_of(predecessors(Succ), [&BB, Succ, this](BasicBlock *Pred) {
+      return Pred == &BB || DT.dominates(Succ, Pred);
+    });
+  };
+
+  // If the condition is an OR of 2 compares and the false successor only
+  // has the current block as predecessor, queue both negated conditions for
+  // the false successor.
+  Value *Op0, *Op1;
+  if (match(Br->getCondition(), m_LogicalOr(m_Value(Op0), m_Value(Op1))) &&
+      match(Op0, m_Cmp()) && match(Op1, m_Cmp())) {
+    BasicBlock *FalseSuccessor = Br->getSuccessor(1);
+    if (CanAdd(FalseSuccessor)) {
+      WorkList.emplace_back(DT.getNode(FalseSuccessor), cast<CmpInst>(Op0),
+                            true);
+      WorkList.emplace_back(DT.getNode(FalseSuccessor), cast<CmpInst>(Op1),
+                            true);
+    }
+    return;
+  }
+
+  // If the condition is an AND of 2 compares and the true successor only
+  // has the current block as predecessor, queue both conditions for the
+  // true successor.
+  if (match(Br->getCondition(), m_LogicalAnd(m_Value(Op0), m_Value(Op1))) &&
+      match(Op0, m_Cmp()) && match(Op1, m_Cmp())) {
+    BasicBlock *TrueSuccessor = Br->getSuccessor(0);
+    if (CanAdd(TrueSuccessor)) {
+      WorkList.emplace_back(DT.getNode(TrueSuccessor), cast<CmpInst>(Op0),
+                            false);
+      WorkList.emplace_back(DT.getNode(TrueSuccessor), cast<CmpInst>(Op1),
+                            false);
+    }
+    return;
+  }
+
+  auto *CmpI = dyn_cast<CmpInst>(Br->getCondition());
+  if (!CmpI)
+    return;
+  if (CanAdd(Br->getSuccessor(0)))
+    WorkList.emplace_back(DT.getNode(Br->getSuccessor(0)), CmpI, false);
+  if (CanAdd(Br->getSuccessor(1)))
+    WorkList.emplace_back(DT.getNode(Br->getSuccessor(1)), CmpI, true);
+}
+
 static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
                                  ScalarEvolution &SE,
                                  OptimizationRemarkEmitter &ORE) {
   bool Changed = false;
   DT.updateDFSNumbers();
+  State S(DT, LI, SE);
 
   ConstraintInfo Info;
   LLVMContext &Ctx = F.getContext();
@@ -552,160 +706,27 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
   if (M)
     M->setSourceFileName("");
 
-  SmallVector<Instruction *, 4> ExtraCmps;
-
-  SmallVector<ConstraintOrBlock, 64> WorkList;
-
   // First, collect conditions implied by branches and blocks with their
   // Dominator DFS in and out numbers.
   for (BasicBlock &BB : F) {
     if (!DT.getNode(&BB))
       continue;
-    WorkList.emplace_back(DT.getNode(&BB));
+    S.WorkList.emplace_back(DT.getNode(&BB));
 
-    // True as long as long as the current instruction is guaranteed to execute.
-    bool GuaranteedToExecute = true;
-    // Scan BB for assume calls.
-    // TODO: also use this scan to queue conditions to simplify, so we can
-    // interleave facts from assumes and conditions to simplify in a single
-    // basic block. And to skip another traversal of each basic block when
-    // simplifying.
-    for (Instruction &I : BB) {
-      Value *Cond;
-      // For now, just handle assumes with a single compare as condition.
-      if (match(&I, m_Intrinsic<Intrinsic::assume>(m_Value(Cond))) &&
-          isa<CmpInst>(Cond)) {
-        if (GuaranteedToExecute) {
-          // The assume is guaranteed to execute when BB is entered, hence Cond
-          // holds on entry to BB.
-          WorkList.emplace_back(DT.getNode(&BB), cast<CmpInst>(Cond), false);
-        } else {
-          // Otherwise the condition only holds in the successors.
-          for (BasicBlock *Succ : successors(&BB))
-            WorkList.emplace_back(DT.getNode(Succ), cast<CmpInst>(Cond), false);
-        }
-      }
-      GuaranteedToExecute &= isGuaranteedToTransferExecutionToSuccessor(&I);
-    }
-
-    auto *Br = dyn_cast<BranchInst>(BB.getTerminator());
-    if (!Br || !Br->isConditional())
-      continue;
-
-    auto *L = LI.getLoopFor(&BB);
-    if (L && &BB == L->getHeader()) {
-      const SCEV *BTC = SE.getSymbolicMaxBackedgeTakenCount(L);
-      for (PHINode &PN : BB.phis()) {
-        if (!SE.isSCEVable(PN.getType()))
-          continue;
-        auto *IV = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(&PN));
-        if (!IV)
-          continue;
-
-        auto *C = dyn_cast<SCEVConstant>(IV->getStart());
-        if (!C)
-          continue;
-
-        if (!isa<SCEVCouldNotCompute>(BTC)) {
-          auto *IVAtEnd = IV->evaluateAtIteration(BTC, SE);
-
-          bool NeedZExt = false;
-          Value *V;
-          std::tie(V, NeedZExt) = getValueOrConstant(IVAtEnd, L, SE);
-          auto Monotonic = SE.getMonotonicPredicateType(IV, CmpInst::ICMP_UGE);
-          bool CanBuildCmp = V && (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
-          if (CanBuildCmp && Monotonic && Monotonic == ScalarEvolution::MonotonicallyIncreasing) {
-            if (NeedZExt)
-              V = new ZExtInst(V, PN.getType());
-            auto *Cmp1 = new ICmpInst(nullptr, CmpInst::ICMP_ULE, &PN, V);
-             WorkList.emplace_back(DT.getNode(&BB), Cmp1, false);
-             ExtraCmps.push_back(Cmp1);
-             if (NeedZExt)
-               ExtraCmps.push_back(cast<Instruction>(V));
-          }
-        }
-
-        auto *StartV = IV->getStart();
-        bool NeedZExt;
-        Value *V;
-        std::tie(V, NeedZExt) = getValueOrConstant(StartV, L, SE);
-        bool CanBuildCmp =
-            V && !NeedZExt &&
-            (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
-        if (CanBuildCmp && SE.isKnownPredicate(CmpInst::ICMP_SGE, IV, StartV)) {
-          auto *Cmp = new ICmpInst(nullptr, CmpInst::ICMP_SGE, &PN, V);
-          WorkList.emplace_back(DT.getNode(&BB), Cmp, false);
-          ExtraCmps.push_back(Cmp);
-        }
-        if (CanBuildCmp && SE.isKnownPredicate(CmpInst::ICMP_UGE, IV, StartV)) {
-          auto *Cmp = new ICmpInst(nullptr, CmpInst::ICMP_UGE, &PN, V);
-          WorkList.emplace_back(DT.getNode(&BB), Cmp, false);
-          ExtraCmps.push_back(Cmp);
-        }
-      }
-    }
-
-    // Returns true if we can add a known condition from BB to its successor
-    // block Succ. Each predecessor of Succ can either be BB or be dominated by
-    // Succ (e.g. the case when adding a condition from a pre-header to a loop
-    // header).
-    auto CanAdd = [&BB, &DT](BasicBlock *Succ) {
-      return all_of(predecessors(Succ), [&BB, &DT, Succ](BasicBlock *Pred) {
-        return Pred == &BB || DT.dominates(Succ, Pred);
-      });
-    };
-
-    // If the condition is an OR of 2 compares and the false successor only has
-    // the current block as predecessor, queue both negated conditions for the
-    // false successor.
-    Value *Op0, *Op1;
-    if (match(Br->getCondition(), m_LogicalOr(m_Value(Op0), m_Value(Op1))) &&
-        match(Op0, m_Cmp()) && match(Op1, m_Cmp())) {
-      BasicBlock *FalseSuccessor = Br->getSuccessor(1);
-      if (CanAdd(FalseSuccessor)) {
-        WorkList.emplace_back(DT.getNode(FalseSuccessor), cast<CmpInst>(Op0),
-                              true);
-        WorkList.emplace_back(DT.getNode(FalseSuccessor), cast<CmpInst>(Op1),
-                              true);
-      }
-      continue;
-    }
-
-    // If the condition is an AND of 2 compares and the true successor only has
-    // the current block as predecessor, queue both conditions for the true
-    // successor.
-    if (match(Br->getCondition(), m_LogicalAnd(m_Value(Op0), m_Value(Op1))) &&
-        match(Op0, m_Cmp()) && match(Op1, m_Cmp())) {
-      BasicBlock *TrueSuccessor = Br->getSuccessor(0);
-      if (CanAdd(TrueSuccessor)) {
-        WorkList.emplace_back(DT.getNode(TrueSuccessor), cast<CmpInst>(Op0),
-                              false);
-        WorkList.emplace_back(DT.getNode(TrueSuccessor), cast<CmpInst>(Op1),
-                              false);
-      }
-      continue;
-    }
-
-    auto *CmpI = dyn_cast<CmpInst>(Br->getCondition());
-    if (!CmpI)
-      continue;
-    if (CanAdd(Br->getSuccessor(0)))
-      WorkList.emplace_back(DT.getNode(Br->getSuccessor(0)), CmpI, false);
-    if (CanAdd(Br->getSuccessor(1)))
-      WorkList.emplace_back(DT.getNode(Br->getSuccessor(1)), CmpI, true);
+    S.addInfoFor(BB);
   }
 
   // Next, sort worklist by dominance, so that dominating blocks and conditions
   // come before blocks and conditions dominated by them. If a block and a
   // condition have the same numbers, the condition comes before the block, as
   // it holds on entry to the block.
-  sort(WorkList, [](const ConstraintOrBlock &A, const ConstraintOrBlock &B) {
+  sort(S.WorkList, [](const ConstraintOrBlock &A, const ConstraintOrBlock &B) {
     return std::tie(A.NumIn, A.IsBlock) < std::tie(B.NumIn, B.IsBlock);
   });
 
   // Finally, process ordered worklist and eliminate implied conditions.
   SmallVector<StackEntry, 16> DFSInStack;
-  for (ConstraintOrBlock &CB : WorkList) {
+  for (ConstraintOrBlock &CB : S.WorkList) {
     // First, pop entries from the stack that are out-of-scope for CB. Remove
     // the corresponding entry from the constraint system.
     while (!DFSInStack.empty()) {
@@ -855,9 +876,6 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
   assert(Info.getCS(true).size() == SignedEntries &&
          "updates to CS and DFSInStack are out of sync");
 #endif
-
-  for (Instruction *I : ExtraCmps)
-    I->deleteValue();
 
   return Changed;
 }
