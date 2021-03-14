@@ -13,7 +13,7 @@ define i1 @overflow_check_1(i32* %dst) {
 ; CHECK:       then:
 ; CHECK-NEXT:    [[DST_4:%.*]] = getelementptr i32, i32* [[DST]], i64 4
 ; CHECK-NEXT:    [[TRUE_DST_4_UGE:%.*]] = icmp uge i32* [[DST_4]], [[DST]]
-; CHECK-NEXT:    ret i1 [[TRUE_DST_4_UGE]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
 ; CHECK-NEXT:    ret i1 false
 ;
@@ -41,7 +41,7 @@ define i1 @overflow_check_2_and(i32* %dst) {
 ; CHECK:       then:
 ; CHECK-NEXT:    [[DST_4:%.*]] = getelementptr i32, i32* [[DST]], i64 4
 ; CHECK-NEXT:    [[TRUE_DST_4_UGE:%.*]] = icmp uge i32* [[DST_4]], [[DST]]
-; CHECK-NEXT:    ret i1 [[TRUE_DST_4_UGE]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
 ; CHECK-NEXT:    ret i1 true
 ;
@@ -70,7 +70,7 @@ define i1 @overflow_check_3_and(i32* %dst) {
 ; CHECK:       then:
 ; CHECK-NEXT:    [[DST_4:%.*]] = getelementptr i32, i32* [[DST]], i64 4
 ; CHECK-NEXT:    [[DST_4_UGE:%.*]] = icmp uge i32* [[DST_4]], [[DST]]
-; CHECK-NEXT:    ret i1 [[DST_4_UGE]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
 ; CHECK-NEXT:    [[ELSE_DST_4:%.*]] = getelementptr i32, i32* [[DST]], i64 4
 ; CHECK-NEXT:    [[ELSE_DST_4_UGE:%.*]] = icmp uge i32* [[ELSE_DST_4]], [[DST]]
@@ -105,7 +105,7 @@ define i1 @overflow_check_4_and(i32* %dst) {
 ; CHECK-NEXT:    [[TRUE_DST_4_UGE:%.*]] = icmp uge i32* [[DST_4]], [[DST]]
 ; CHECK-NEXT:    [[DST_5_2:%.*]] = getelementptr i32, i32* [[DST]], i64 5
 ; CHECK-NEXT:    [[TRUE_DST_5_UGE:%.*]] = icmp uge i32* [[DST_5_2]], [[DST]]
-; CHECK-NEXT:    [[RES_0:%.*]] = xor i1 [[TRUE_DST_4_UGE]], [[TRUE_DST_5_UGE]]
+; CHECK-NEXT:    [[RES_0:%.*]] = xor i1 true, true
 ; CHECK-NEXT:    [[DST_6:%.*]] = getelementptr i32, i32* [[DST]], i64 6
 ; CHECK-NEXT:    [[C_DST_6_UGE:%.*]] = icmp uge i32* [[DST_6]], [[DST]]
 ; CHECK-NEXT:    [[RES_1:%.*]] = xor i1 [[RES_0]], [[C_DST_6_UGE]]
@@ -190,7 +190,7 @@ define i1 @upper_and_lower_checks_1(i32* %dst, i32 %n) {
 ; CHECK-NEXT:    [[DST_4:%.*]] = getelementptr i32, i32* [[DST]], i64 4
 ; CHECK-NEXT:    [[TRUE_DST_4_ULT:%.*]] = icmp ult i32* [[DST_4]], [[UPPER]]
 ; CHECK-NEXT:    [[TRUE_DST_4_UGE:%.*]] = icmp uge i32* [[DST_4]], [[DST]]
-; CHECK-NEXT:    [[AND:%.*]] = and i1 [[TRUE_DST_4_ULT]], [[TRUE_DST_4_UGE]]
+; CHECK-NEXT:    [[AND:%.*]] = and i1 true, true
 ; CHECK-NEXT:    ret i1 [[AND]]
 ; CHECK:       else:
 ; CHECK-NEXT:    ret i1 false
@@ -229,7 +229,7 @@ define i1 @upper_and_lower_checks_2_dst6(i32* %dst, i32 %n) {
 ; CHECK-NEXT:    [[DST_6:%.*]] = getelementptr i32, i32* [[DST]], i64 6
 ; CHECK-NEXT:    [[C_DST_6_ULT:%.*]] = icmp ult i32* [[DST_6]], [[UPPER]]
 ; CHECK-NEXT:    [[TRUE_DST_6_UGE:%.*]] = icmp uge i32* [[DST_6]], [[DST]]
-; CHECK-NEXT:    [[RES:%.*]] = and i1 [[C_DST_6_ULT]], [[TRUE_DST_6_UGE]]
+; CHECK-NEXT:    [[RES:%.*]] = and i1 [[C_DST_6_ULT]], true
 ; CHECK-NEXT:    ret i1 [[RES]]
 ; CHECK:       else:
 ; CHECK-NEXT:    ret i1 false
@@ -307,7 +307,7 @@ define i1 @upper_and_lower_checks_lt(i32* %dst, i32 %n) {
 ; CHECK-NEXT:    [[TRUE_DST_3_UGE:%.*]] = icmp uge i32* [[DST_3]], [[DST]]
 ; CHECK-NEXT:    [[DST_4:%.*]] = getelementptr i32, i32* [[DST]], i64 4
 ; CHECK-NEXT:    [[C_DST_4_UGE:%.*]] = icmp uge i32* [[DST_4]], [[DST]]
-; CHECK-NEXT:    [[RES_0:%.*]] = xor i1 [[TRUE_DST_3_UGE]], [[C_DST_4_UGE]]
+; CHECK-NEXT:    [[RES_0:%.*]] = xor i1 true, [[C_DST_4_UGE]]
 ; CHECK-NEXT:    ret i1 [[RES_0]]
 ; CHECK:       else:
 ; CHECK-NEXT:    ret i1 false

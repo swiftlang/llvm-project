@@ -434,6 +434,12 @@ struct State {
   }
 
   void addInfoFor(BasicBlock &BB);
+  void addPointerBoundInfo(Value *PtrOp, Value *IdxOp, DomTreeNode *DTN,
+                           const DataLayout &DL);
+  /// Try to add a known-safe upper bound from \p Op if \p Op is a condition
+  /// checking whether a GEP overflows. \p Op must be true in \p DTN.
+  void addPointerBoundInfoFromOverflowCheck(Value *Op, DomTreeNode *DTN,
+                                            const DataLayout &DL);
 };
 } // namespace
 
@@ -589,6 +595,45 @@ static void generate(Module *M, ArrayRef<StackEntry> Stack, Instruction *C,
   remapInstructionsInBlocks(BBs, Old2New);
 }
 
+void State::addPointerBoundInfo(Value *PtrOp, Value *IdxOp, DomTreeNode *DTN,
+                                const DataLayout &DL) {
+  if (isKnownNonNegative(IdxOp, DL, 2)) {
+    // We know that IdxOp does not cause an overflow. Now try to add a fact
+    // for UB >= IdxOp.
+    auto I = PtrKnownSafeBound.insert({PtrOp, nullptr});
+    if (I.second) {
+      // Create a dummy instruction we can use to compare the bounds
+      // against.
+      I.first->second =
+          new LoadInst(IdxOp->getType(),
+                       UndefValue::get(PointerType::get(IdxOp->getType(), 0)),
+                       "ub", false, Align(1));
+      ExtraCmps.push_back(cast<Instruction>(I.first->second));
+    }
+    if (I.first->second->getType() == IdxOp->getType()) {
+      auto *Cmp1 =
+          new ICmpInst(nullptr, CmpInst::ICMP_UGE, I.first->second, IdxOp);
+      WorkList.emplace_back(DTN, Cmp1, false);
+      ExtraCmps.push_back(Cmp1);
+    }
+  }
+}
+void State::addPointerBoundInfoFromOverflowCheck(Value *Op, DomTreeNode *DTN,
+                                                 const DataLayout &DL) {
+  CmpInst::Predicate Pred;
+  Value *Ptr1;
+  Value *G;
+  if (match(Op, m_Cmp(Pred, m_Value(G), m_Value(Ptr1))) &&
+      Pred == CmpInst::ICMP_UGE) {
+    if (auto *GEP = dyn_cast<GetElementPtrInst>(G)) {
+      if (GEP->getPointerOperand() == Ptr1) {
+        addPointerBoundInfo(GEP->getPointerOperand(), GEP->getOperand(1), DTN,
+                            DL);
+      }
+    }
+  }
+}
+
 void State::addInfoFor(BasicBlock &BB) {
   // True as long as long as the current instruction is guaranteed to execute.
   bool GuaranteedToExecute = true;
@@ -615,6 +660,7 @@ void State::addInfoFor(BasicBlock &BB) {
     GuaranteedToExecute &= isGuaranteedToTransferExecutionToSuccessor(&I);
   }
 
+  const DataLayout &DL = BB.getModule()->getDataLayout();
   auto *Br = dyn_cast<BranchInst>(BB.getTerminator());
   if (!Br || !Br->isConditional())
     return;
@@ -707,6 +753,9 @@ void State::addInfoFor(BasicBlock &BB) {
       match(Op0, m_Cmp()) && match(Op1, m_Cmp())) {
     BasicBlock *TrueSuccessor = Br->getSuccessor(0);
     if (CanAdd(TrueSuccessor)) {
+      addPointerBoundInfoFromOverflowCheck(Op0, DT.getNode(TrueSuccessor), DL);
+      addPointerBoundInfoFromOverflowCheck(Op1, DT.getNode(TrueSuccessor), DL);
+
       WorkList.emplace_back(DT.getNode(TrueSuccessor), cast<CmpInst>(Op0),
                             false);
       WorkList.emplace_back(DT.getNode(TrueSuccessor), cast<CmpInst>(Op1),
@@ -718,8 +767,11 @@ void State::addInfoFor(BasicBlock &BB) {
   auto *CmpI = dyn_cast<CmpInst>(Br->getCondition());
   if (!CmpI)
     return;
-  if (CanAdd(Br->getSuccessor(0)))
+  if (CanAdd(Br->getSuccessor(0))) {
+    addPointerBoundInfoFromOverflowCheck(CmpI, DT.getNode(Br->getSuccessor(0)),
+                                         DL);
     WorkList.emplace_back(DT.getNode(Br->getSuccessor(0)), CmpI, false);
+  }
   if (CanAdd(Br->getSuccessor(1)))
     WorkList.emplace_back(DT.getNode(Br->getSuccessor(1)), CmpI, true);
 }
@@ -755,31 +807,14 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
         // If the GEP is inbounds, we know that it cannot overflow (and it will
         // less than its base), if the program is undefined if the GEP is
         // poison.
+
         Value *PtrOp = GEP->getPointerOperand();
         Value *IdxOp = GEP->getOperand(1);
         if (!GEP->isInBounds() || GEP->getNumOperands() != 2 ||
             !programUndefinedIfPoison(GEP, true) ||
-            GEP->getType() != PtrOp->getType() ||
-            !isKnownNonNegative(IdxOp, DL, 2))
+            GEP->getType() != PtrOp->getType())
           continue;
-        // We know that IdxOp does not cause an overflow. Now try to add a fact
-        // for UB >= IdxOp.
-        auto I = S.PtrKnownSafeBound.insert({PtrOp, nullptr});
-        if (I.second) {
-          // Create a dummy instruction we can use to compare the bounds
-          // against.
-          I.first->second = new LoadInst(
-              IdxOp->getType(),
-              UndefValue::get(PointerType::get(IdxOp->getType(), 0)), "ub",
-              false, Align(1));
-          S.ExtraCmps.push_back(cast<Instruction>(I.first->second));
-        }
-        if (I.first->second->getType() == IdxOp->getType()) {
-          auto *Cmp1 =
-              new ICmpInst(nullptr, CmpInst::ICMP_UGE, I.first->second, IdxOp);
-          S.WorkList.emplace_back(DT.getNode(&BB), Cmp1, false);
-          S.ExtraCmps.push_back(Cmp1);
-        }
+        S.addPointerBoundInfo(PtrOp, IdxOp, DT.getNode(&BB), DL);
       }
     }
   }
