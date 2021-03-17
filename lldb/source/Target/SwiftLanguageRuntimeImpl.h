@@ -70,6 +70,7 @@ public:
   TypeAndOrName FixUpDynamicType(const TypeAndOrName &type_and_or_name,
                                  ValueObject &static_value);
   bool IsTaggedPointer(lldb::addr_t addr, CompilerType type);
+  bool IsSwiftPoisonValue(ValueObject &value);
   std::pair<lldb::addr_t, bool> FixupPointerValue(lldb::addr_t addr,
                                                   CompilerType type);
   /// This allows a language runtime to adjust references depending on the type.

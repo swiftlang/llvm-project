@@ -121,6 +121,8 @@ AddressType Value::GetValueAddressType() const {
     return eAddressTypeFile;
   case eValueTypeHostAddress:
     return eAddressTypeHost;
+  case eValueTypeImplicitPointer:
+    return eAddressTypeLoad;
   }
   return eAddressTypeInvalid;
 }
@@ -144,6 +146,8 @@ size_t Value::AppendDataToHostBuffer(const Value &rhs) {
   size_t curr_size = m_data_buffer.GetByteSize();
   Status error;
   switch (rhs.GetValueType()) {
+  case eValueTypeImplicitPointer:
+    // Is this correct?
   case eValueTypeScalar: {
     const size_t scalar_size = rhs.m_value.GetByteSize();
     if (scalar_size > 0) {
@@ -290,6 +294,8 @@ bool Value::GetData(DataExtractor &data) {
                    data.GetByteOrder());
       return true;
     }
+    break;
+  case eValueTypeImplicitPointer:
     break;
   }
 
@@ -474,6 +480,9 @@ Status Value::GetValueAsData(ExecutionContext *exe_ctx, DataExtractor &data,
     data.SetByteOrder(endian::InlHostByteOrder());
     data.SetAddressByteSize(sizeof(void *));
     break;
+  case eValueTypeImplicitPointer:
+    error.SetErrorString("undereferenced implicit pointer");
+    return error;
   }
 
   // Bail if we encountered any errors
@@ -564,6 +573,7 @@ Scalar &Value::ResolveValue(ExecutionContext *exe_ctx) {
   const CompilerType &compiler_type = GetCompilerType();
   if (compiler_type.IsValid()) {
     switch (m_value_type) {
+    case eValueTypeImplicitPointer: // Is this correct?
     case eValueTypeScalar: // raw scalar value
       break;
 
@@ -625,6 +635,8 @@ const char *Value::GetValueTypeAsCString(ValueType value_type) {
     return "load address";
   case eValueTypeHostAddress:
     return "host address";
+  case eValueTypeImplicitPointer:
+    return "implicit pointer";
   };
   return "???";
 }

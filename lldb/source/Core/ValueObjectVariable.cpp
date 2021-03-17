@@ -254,6 +254,7 @@ bool ValueObjectVariable::UpdateValue() {
         else
           SetAddressTypeOfChildren(eAddressTypeHost);
         break;
+      case Value::eValueTypeImplicitPointer: // Is this correct?
       case Value::eValueTypeLoadAddress:
       case Value::eValueTypeScalar:
         SetAddressTypeOfChildren(eAddressTypeLoad);
@@ -284,6 +285,10 @@ bool ValueObjectVariable::UpdateValue() {
 #endif // LLDB_ENABLE_SWIFT
 
       switch (value_type) {
+      case Value::eValueTypeImplicitPointer:
+        m_error.SetErrorString("undereferenced implicit pointer");
+        break;
+   
       case Value::eValueTypeScalar:
         // The variable value is in the Scalar value inside the m_value. We can
         // point our m_data right to it.
@@ -382,6 +387,8 @@ void ValueObjectVariable::DoUpdateChildrenAddressType(ValueObject &valobj) {
   case Value::eValueTypeLoadAddress:
   case Value::eValueTypeScalar:
     valobj.SetAddressTypeOfChildren(eAddressTypeLoad);
+    break;
+  case Value::eValueTypeImplicitPointer:
     break;
   }
 }

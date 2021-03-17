@@ -172,6 +172,8 @@ bool ValueObjectMemory::UpdateValue() {
     Value::ValueType value_type = m_value.GetValueType();
 
     switch (value_type) {
+    case Value::eValueTypeImplicitPointer:
+      break;
     case Value::eValueTypeScalar:
       // The variable value is in the Scalar value inside the m_value. We can
       // point our m_data right to it.

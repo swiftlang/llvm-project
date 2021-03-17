@@ -105,6 +105,9 @@ public:
     return {addr, false};
   }
 
+  /// This allows detecting a Swift "poison" object.
+  virtual bool IsSwiftPoisonValue(ValueObject &value) { return false; }
+
   /// This allows a language runtime to adjust references depending on the type.
   virtual lldb::addr_t FixupAddress(lldb::addr_t addr, CompilerType type,
                                     Status &error) {

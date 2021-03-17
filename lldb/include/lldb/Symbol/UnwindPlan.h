@@ -345,7 +345,8 @@ public:
     FAValue &GetAFAValue() { return m_afa_value; }
 
     bool SetRegisterLocationToAtCFAPlusOffset(uint32_t reg_num, int32_t offset,
-                                              bool can_replace);
+                                              bool can_replace,
+                                              bool implicit_pointer = false);
 
     bool SetRegisterLocationToIsCFAPlusOffset(uint32_t reg_num, int32_t offset,
                                               bool can_replace);

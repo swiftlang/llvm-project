@@ -131,6 +131,7 @@ ValueObjectSP ABI::GetReturnValueObject(Thread &thread, CompilerType &ast_type,
     const Value &result_value = live_valobj_sp->GetValue();
 
     switch (result_value.GetValueType()) {
+    case Value::eValueTypeImplicitPointer:
     case Value::eValueTypeHostAddress:
     case Value::eValueTypeFileAddress:
       // we don't do anything with these for now

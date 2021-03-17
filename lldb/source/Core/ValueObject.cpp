@@ -433,6 +433,9 @@ const char *ValueObject::GetLocationAsCStringImpl(const Value &value,
           m_location_str = "scalar";
         break;
 
+      case Value::eValueTypeImplicitPointer:
+        m_location_str = "implicit pointer";
+        LLVM_FALLTHROUGH;
       case Value::eValueTypeLoadAddress:
       case Value::eValueTypeFileAddress:
       case Value::eValueTypeHostAddress: {
@@ -970,6 +973,7 @@ bool ValueObject::SetData(DataExtractor &data, Status &error) {
                              byte_size, m_data.GetByteOrder());
     m_value.GetScalar() = (uintptr_t)m_data.GetDataStart();
   } break;
+  case Value::eValueTypeImplicitPointer:
   case Value::eValueTypeFileAddress:
     break;
   }
@@ -1555,6 +1559,8 @@ addr_t ValueObject::GetAddressOf(bool scalar_is_load_address,
       *address_type = m_value.GetValueAddressType();
     return LLDB_INVALID_ADDRESS;
   } break;
+  case Value::eValueTypeImplicitPointer:
+    return LLDB_INVALID_ADDRESS;
   }
   if (address_type)
     *address_type = eAddressTypeInvalid;
@@ -1570,6 +1576,7 @@ addr_t ValueObject::GetPointerValue(AddressType *address_type) {
     return address;
 
   switch (m_value.GetValueType()) {
+  case Value::eValueTypeImplicitPointer:
   case Value::eValueTypeScalar:
     address = m_value.GetScalar().ULongLong(LLDB_INVALID_ADDRESS);
     break;
@@ -1651,6 +1658,7 @@ bool ValueObject::SetValueFromCString(const char *value_str, Status &error) {
         m_value.GetScalar() = (uintptr_t)m_data.GetDataStart();
 
       } break;
+      case Value::eValueTypeImplicitPointer:
       case Value::eValueTypeFileAddress:
       case Value::eValueTypeScalar:
         break;

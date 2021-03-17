@@ -11,9 +11,11 @@ func useInt(_ i: Int) {
 }
 
 public func main() {
-  let b = K()
-  let y = readKRetInt(b)
-  useInt(y) // break here
+  let a = K()
+  let b : K? = K()
+  let x = readKRetInt(a) // break here
+  let y = readKRetInt(b!)
+  useInt(x+y) // break here
 }
 
 main()

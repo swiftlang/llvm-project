@@ -30,6 +30,7 @@
 #include "swift/Reflection/TypeRefBuilder.h"
 #include "swift/Remote/MemoryReader.h"
 #include "swift/RemoteAST/RemoteAST.h"
+#include "swift/../../stdlib/public/SwiftShims/System.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -1698,6 +1699,36 @@ static bool IsScratchContextLocked(TargetSP target) {
   return target ? IsScratchContextLocked(*target) : true;
 }
 
+static bool IsIndirectEnumCase(ValueObject &valobj) {
+  return (valobj.GetLanguageFlags() &
+          SwiftASTContext::LanguageFlags::eIsIndirectEnumCase) ==
+         SwiftASTContext::LanguageFlags::eIsIndirectEnumCase;
+}
+
+static bool IsPoisonAddr(Process &process, lldb::addr_t addr) {
+  lldb::addr_t swift_deinitialized_pointer_sentinel_value =
+      process.GetAddressByteSize() == 64
+          ? SWIFT_ABI_DEFAULT_REFERENCE_POISON_DEBUG_VALUE_64
+          : SWIFT_ABI_DEFAULT_REFERENCE_POISON_DEBUG_VALUE_32;
+  return addr == swift_deinitialized_pointer_sentinel_value;
+}
+
+bool SwiftLanguageRuntimeImpl::IsSwiftPoisonValue(ValueObject &value) {
+  if (IsIndirectEnumCase(value))
+    return false;
+
+  Flags type_info(value.GetCompilerType().GetTypeInfo());
+  if (!type_info.AnySet(eTypeIsSwift))
+    return false;
+
+  if (!type_info.AnySet(eTypeIsClass) && !
+      type_info.AllSet(eTypeIsBuiltIn | eTypeIsPointer | eTypeHasValue))
+    return false;
+
+  AddressType address_type;
+  return IsPoisonAddr(m_process, value.GetPointerValue(&address_type));
+}
+
 bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Class(
     ValueObject &in_value, SwiftASTContextForExpressions &scratch_ctx,
     lldb::DynamicValueType use_dynamic, TypeAndOrName &class_type_or_name,
@@ -1710,9 +1741,9 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Class(
   // calling the class deinitializer. We report the dynamic type name
   // as a special token that is recognized by a summary provide and
   // the materializer to produce more meaningful errors.
-  size_t swift_deinitialized_pointer_sentinel_value = 0x880;
-  if (class_metadata_ptr == swift_deinitialized_pointer_sentinel_value) {
-    class_type_or_name.SetCompilerType(in_value.GetCompilerType());
+  if (IsPoisonAddr(m_process, class_metadata_ptr)) {
+    class_type_or_name.SetCompilerType(
+        {in_value.GetCompilerType().GetTypeSystem(), 0});
     class_type_or_name.SetName("Swift.$deinit");
     address.SetRawAddress(LLDB_INVALID_ADDRESS);
     return true;
@@ -2494,12 +2525,6 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_ClangType(
                             in_value.GetCompilerType(),
                             class_type_or_name.GetCompilerType(), false);
   return true;
-}
-
-static bool IsIndirectEnumCase(ValueObject &valobj) {
-  return (valobj.GetLanguageFlags() &
-          SwiftASTContext::LanguageFlags::eIsIndirectEnumCase) ==
-         SwiftASTContext::LanguageFlags::eIsIndirectEnumCase;
 }
 
 static bool CouldHaveDynamicValue(ValueObject &in_value) {

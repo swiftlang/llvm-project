@@ -319,6 +319,10 @@ public:
   /// \return true if this is a Swift tagged pointer (as opposed to an
   /// Objective-C tagged pointer).
   bool IsTaggedPointer(lldb::addr_t addr, CompilerType type);
+
+  /// This allows detecting a Swift "poison" object.
+  bool IsSwiftPoisonValue(ValueObject &value) override;
+
   std::pair<lldb::addr_t, bool> FixupPointerValue(lldb::addr_t addr,
                                                   CompilerType type) override;
   lldb::addr_t FixupAddress(lldb::addr_t addr, CompilerType type,

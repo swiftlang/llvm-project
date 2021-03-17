@@ -45,8 +45,9 @@ public:
     eValueTypeScalar,      // raw scalar value
     eValueTypeFileAddress, // file address value
     eValueTypeLoadAddress, // load address value
-    eValueTypeHostAddress  // host address value (for memory in the process that
+    eValueTypeHostAddress, // host address value (for memory in the process that
                            // is using liblldb)
+    eValueTypeImplicitPointer
   };
 
   enum ContextType // Type that describes Value::m_context

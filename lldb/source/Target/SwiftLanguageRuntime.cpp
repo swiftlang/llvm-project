@@ -233,6 +233,11 @@ public:
     return {addr, false};
   }
 
+  bool IsSwiftPoisonValue(ValueObject &value) {
+    STUB_LOG();
+    return false;
+  }
+
   lldb::addr_t FixupAddress(lldb::addr_t addr, CompilerType type,
                             Status &error) {
     STUB_LOG();
@@ -2157,6 +2162,10 @@ bool SwiftLanguageRuntime::IsTaggedPointer(lldb::addr_t addr,
 std::pair<lldb::addr_t, bool>
 SwiftLanguageRuntime::FixupPointerValue(lldb::addr_t addr, CompilerType type) {
   FORWARD(FixupPointerValue, addr, type);
+}
+
+bool SwiftLanguageRuntime::IsSwiftPoisonValue(ValueObject &value) {
+  FORWARD(IsSwiftPoisonValue, value);
 }
 
 lldb::addr_t SwiftLanguageRuntime::FixupAddress(lldb::addr_t addr,

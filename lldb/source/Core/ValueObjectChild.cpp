@@ -190,6 +190,9 @@ bool ValueObjectChild::UpdateValue() {
         }
       } else {
         switch (value_type) {
+        case Value::eValueTypeImplicitPointer:
+          m_error.SetErrorString("undereferenced implicit pointer");
+          break;
         case Value::eValueTypeLoadAddress:
         case Value::eValueTypeFileAddress:
         case Value::eValueTypeHostAddress: {

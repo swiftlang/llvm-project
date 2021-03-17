@@ -1136,10 +1136,17 @@ bool DWARFExpression::Evaluate(
             error_ptr->SetErrorString(
                 "NULL execution context for DW_OP_deref.\n");
           return false;
-        }
+        break;
+      case Value::eValueTypeImplicitPointer:
+        // An implicit pointer means that the pointee is known, but
+        // there is no memory or register holding ther pointer. The
+        // only valid operation on an implicit pointer is to
+        // dereference it, which we do by turning the value from an
+        // implicit pointer into a load address.
+        stack.back().SetValueType(Value::eValueTypeLoadAddress);
         break;
       }
-
+    }
     } break;
 
     // OPCODE: DW_OP_deref_size
@@ -2208,6 +2215,10 @@ bool DWARFExpression::Evaluate(
                                          ap_int.getNumWords()};
             curr_piece.GetScalar() = Scalar(llvm::APInt(bit_size, buf));
           } break;
+          case Value::eValueTypeImplicitPointer:
+            if (error_ptr)
+              error_ptr->SetErrorString("implicit pointer inside a piece");
+            return false;
           }
 
           // Check if this is the first piece?
@@ -2275,6 +2286,10 @@ bool DWARFExpression::Evaluate(
                 ", bit_offset = %" PRIu64 ") from an address value.",
                 piece_bit_size, piece_bit_offset);
           }
+          return false;
+        case Value::eValueTypeImplicitPointer:
+          if (error_ptr)
+            error_ptr->SetErrorString("implicit pointer inside a bit_piece");
           return false;
         }
       }
