@@ -1894,6 +1894,7 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
   Opts.IndexUnitOutputPath = std::string(Args.getLastArgValue(OPT_index_unit_output_path));
   Opts.IndexIgnoreSystemSymbols = Args.hasArg(OPT_index_ignore_system_symbols);
   Opts.IndexRecordCodegenName = Args.hasArg(OPT_index_record_codegen_name);
+  Opts.IndexIgnoreMacros = Args.hasArg(OPT_index_ignore_macros);
 
   InputKind DashX(Language::Unknown);
   if (const Arg *A = Args.getLastArg(OPT_x)) {
