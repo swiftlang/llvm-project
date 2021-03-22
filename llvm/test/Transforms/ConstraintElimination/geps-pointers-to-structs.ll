@@ -14,7 +14,7 @@ define i1 @test.ult.true.due.to.first.dimension(%struct.1* %start, i8* %high) {
 ; CHECK-NEXT:    [[START_0:%.*]] = getelementptr inbounds [[STRUCT_1]], %struct.1* [[START]], i64 5, i32 0
 ; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i32* [[START_0]] to i8*
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
-; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret i1 true
 ;
@@ -48,7 +48,7 @@ define i1 @test.ult.true.due.to.first.dimension.var.index.0(%struct.1* %start, i
 ; CHECK-NEXT:    [[START_0:%.*]] = getelementptr inbounds [[STRUCT_1]], %struct.1* [[START]], i64 [[IDX_EXT]], i32 0
 ; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i32* [[START_0]] to i8*
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
-; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret i1 true
 ;
@@ -85,7 +85,7 @@ define i1 @test.ult.true.due.to.first.dimension.var.index.1(%struct.1* %start, i
 ; CHECK-NEXT:    [[START_0:%.*]] = getelementptr inbounds [[STRUCT_1]], %struct.1* [[START]], i64 [[IDX_EXT]], i32 1
 ; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i64* [[START_0]] to i8*
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
-; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret i1 true
 ;
@@ -121,7 +121,7 @@ define i1 @test.ult.true.due.to.first.dimension.var.index.2(%struct.1* %start, i
 ; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[IDX]] to i64
 ; CHECK-NEXT:    [[START_0:%.*]] = getelementptr inbounds [[STRUCT_1]], %struct.1* [[START]], i64 [[IDX_EXT]], i32 2
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0]], [[HIGH]]
-; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret i1 true
 ;
@@ -184,7 +184,7 @@ define i1 @test.ult.true.due.to.second.dimension(%struct.1* %start, i8* %high) {
 ; CHECK-NEXT:    [[START_0:%.*]] = getelementptr inbounds [[STRUCT_1]], %struct.1* [[START]], i64 5, i32 1
 ; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i64* [[START_0]] to i8*
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
-; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret i1 true
 ;
@@ -307,7 +307,7 @@ define i1 @ptr.int.struct.test.ult.true.due.to.first.dimension(%struct.2* %start
 ; CHECK-NEXT:    [[START_0:%.*]] = getelementptr inbounds [[STRUCT_2]], %struct.2* [[START]], i64 6, i32 0
 ; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i32* [[START_0]] to i8*
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
-; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret i1 true
 ;
@@ -341,7 +341,7 @@ define i1 @ptr.int.struct.test.ult.true.due.to.third.dimension.var.index(%struct
 ; CHECK-NEXT:    [[START_0:%.*]] = getelementptr inbounds [[STRUCT_2]], %struct.2* [[START]], i64 6, i32 1, i64 [[IDX_EXT]]
 ; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i64* [[START_0]] to i8*
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
-; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret i1 true
 ;

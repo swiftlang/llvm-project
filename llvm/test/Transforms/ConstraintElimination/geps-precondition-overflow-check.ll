@@ -331,3 +331,181 @@ then:
 else:
   ret i1 0
 }
+
+%struct.1 = type { i32, i64, i8 }
+
+define i1 @struct_gep_dimensions_known_inbounds(%struct.1* %start, i8* %high, i32 %idx) {
+; CHECK-LABEL: @struct_gep_dimensions_known_inbounds(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds [[STRUCT_1:%.*]], %struct.1* [[START:%.*]], i64 6, i32 0
+; CHECK-NEXT:    [[ADD_PTR_CAST:%.*]] = bitcast i32* [[ADD_PTR]] to i8*
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ule i8* [[ADD_PTR_CAST]], [[HIGH:%.*]]
+; CHECK-NEXT:    br i1 [[C_1]], label [[IF_THEN:%.*]], label [[IF_END:%.*]]
+; CHECK:       if.then:
+; CHECK-NEXT:    [[START_0:%.*]] = getelementptr [[STRUCT_1]], %struct.1* [[START]], i64 5, i32 0
+; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i32* [[START_0]] to i8*
+; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
+; CHECK-NEXT:    ret i1 true
+; CHECK:       if.end:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  %add.ptr = getelementptr inbounds %struct.1, %struct.1* %start, i64 6, i32 0
+  %add.ptr.cast = bitcast i32* %add.ptr to i8*
+  %c.1 = icmp ule i8* %add.ptr.cast, %high
+  br i1 %c.1, label %if.then, label %if.end
+
+if.then:                                          ; preds = %entry
+  %start.0 = getelementptr %struct.1, %struct.1* %start, i64 5, i32 0
+  %start.0.cast = bitcast i32* %start.0 to i8*
+  %c.0 = icmp ult i8* %start.0.cast, %high
+  ret i1 %c.0
+
+if.end:                                           ; preds = %entry
+  ret i1 1
+}
+
+define i1 @struct_gep_first_dimension_may_not_be_inbounds(%struct.1* %start, i8* %high, i32 %idx) {
+; CHECK-LABEL: @struct_gep_first_dimension_may_not_be_inbounds(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds [[STRUCT_1:%.*]], %struct.1* [[START:%.*]], i64 6, i32 0
+; CHECK-NEXT:    [[ADD_PTR_CAST:%.*]] = bitcast i32* [[ADD_PTR]] to i8*
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ule i8* [[ADD_PTR_CAST]], [[HIGH:%.*]]
+; CHECK-NEXT:    br i1 [[C_1]], label [[IF_THEN:%.*]], label [[IF_END:%.*]]
+; CHECK:       if.then:
+; CHECK-NEXT:    [[START_0:%.*]] = getelementptr [[STRUCT_1]], %struct.1* [[START]], i64 7, i32 0
+; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i32* [[START_0]] to i8*
+; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
+; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK:       if.end:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  %add.ptr = getelementptr inbounds %struct.1, %struct.1* %start, i64 6, i32 0
+  %add.ptr.cast = bitcast i32* %add.ptr to i8*
+  %c.1 = icmp ule i8* %add.ptr.cast, %high
+  br i1 %c.1, label %if.then, label %if.end
+
+if.then:                                          ; preds = %entry
+  %start.0 = getelementptr %struct.1, %struct.1* %start, i64 7, i32 0
+  %start.0.cast = bitcast i32* %start.0 to i8*
+  %c.0 = icmp ult i8* %start.0.cast, %high
+  ret i1 %c.0
+
+if.end:                                           ; preds = %entry
+  ret i1 1
+}
+
+%struct.2 = type { i32, [20 x i64], i8 }
+
+; TODO: Should keep and use multiple upper bounds.
+define i1 @all_dimension_known_inbounds(%struct.2* %start, i8* %high, i32 %idx) {
+; CHECK-LABEL: @all_dimension_known_inbounds(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[IDX_EXT_PLUS_1:%.*]] = add nuw nsw i32 [[IDX:%.*]], 1
+; CHECK-NEXT:    [[IDX_EXT_PLUS_1_EXT:%.*]] = zext i32 [[IDX_EXT_PLUS_1]] to i64
+; CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds [[STRUCT_2:%.*]], %struct.2* [[START:%.*]], i64 6, i32 1, i64 5
+; CHECK-NEXT:    [[ADD_PTR_CAST:%.*]] = bitcast i64* [[ADD_PTR]] to i8*
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ule i8* [[ADD_PTR_CAST]], [[HIGH:%.*]]
+; CHECK-NEXT:    br i1 [[C_1]], label [[IF_THEN:%.*]], label [[IF_END:%.*]]
+; CHECK:       if.then:
+; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[IDX]] to i64
+; CHECK-NEXT:    [[START_0:%.*]] = getelementptr [[STRUCT_2]], %struct.2* [[START]], i64 5, i32 1, i64 5
+; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i64* [[START_0]] to i8*
+; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
+; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK:       if.end:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  %idx.ext.plus.1 = add nuw nsw i32 %idx, 1
+  %idx.ext.plus.1.ext = zext i32 %idx.ext.plus.1 to i64
+  %add.ptr = getelementptr inbounds %struct.2, %struct.2* %start, i64 6, i32 1, i64 5
+  %add.ptr.cast = bitcast i64* %add.ptr to i8*
+  %c.1 = icmp ule i8* %add.ptr.cast, %high
+  br i1 %c.1, label %if.then, label %if.end
+
+if.then:                                          ; preds = %entry
+  %idx.ext = zext i32 %idx to i64
+  %start.0 = getelementptr %struct.2, %struct.2* %start, i64 5, i32 1, i64 5
+  %start.0.cast = bitcast i64* %start.0 to i8*
+  %c.0 = icmp ult i8* %start.0.cast, %high
+  ret i1 %c.0
+
+if.end:                                           ; preds = %entry
+  ret i1 1
+}
+
+define i1 @first_dimension_may_not_be_inbounds_2(%struct.2* %start, i8* %high, i32 %idx) {
+; CHECK-LABEL: @first_dimension_may_not_be_inbounds_2(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[IDX_EXT_PLUS_1:%.*]] = add nuw nsw i32 [[IDX:%.*]], 1
+; CHECK-NEXT:    [[IDX_EXT_PLUS_1_EXT:%.*]] = zext i32 [[IDX_EXT_PLUS_1]] to i64
+; CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds [[STRUCT_2:%.*]], %struct.2* [[START:%.*]], i64 6, i32 1, i64 5
+; CHECK-NEXT:    [[ADD_PTR_CAST:%.*]] = bitcast i64* [[ADD_PTR]] to i8*
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ule i8* [[ADD_PTR_CAST]], [[HIGH:%.*]]
+; CHECK-NEXT:    br i1 [[C_1]], label [[IF_THEN:%.*]], label [[IF_END:%.*]]
+; CHECK:       if.then:
+; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[IDX]] to i64
+; CHECK-NEXT:    [[START_0:%.*]] = getelementptr [[STRUCT_2]], %struct.2* [[START]], i64 7, i32 1, i64 3
+; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i64* [[START_0]] to i8*
+; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
+; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK:       if.end:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  %idx.ext.plus.1 = add nuw nsw i32 %idx, 1
+  %idx.ext.plus.1.ext = zext i32 %idx.ext.plus.1 to i64
+  %add.ptr = getelementptr inbounds %struct.2, %struct.2* %start, i64 6, i32 1, i64 5
+  %add.ptr.cast = bitcast i64* %add.ptr to i8*
+  %c.1 = icmp ule i8* %add.ptr.cast, %high
+  br i1 %c.1, label %if.then, label %if.end
+
+if.then:                                          ; preds = %entry
+  %idx.ext = zext i32 %idx to i64
+  %start.0 = getelementptr %struct.2, %struct.2* %start, i64 7, i32 1, i64 3
+  %start.0.cast = bitcast i64* %start.0 to i8*
+  %c.0 = icmp ult i8* %start.0.cast, %high
+  ret i1 %c.0
+
+if.end:                                           ; preds = %entry
+  ret i1 1
+}
+
+define i1 @third_dimension_may_not_be_inbounds(%struct.2* %start, i8* %high, i32 %idx) {
+; CHECK-LABEL: @third_dimension_may_not_be_inbounds(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[IDX_EXT_PLUS_1:%.*]] = add nuw nsw i32 [[IDX:%.*]], 1
+; CHECK-NEXT:    [[IDX_EXT_PLUS_1_EXT:%.*]] = zext i32 [[IDX_EXT_PLUS_1]] to i64
+; CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds [[STRUCT_2:%.*]], %struct.2* [[START:%.*]], i64 6, i32 1, i64 5
+; CHECK-NEXT:    [[ADD_PTR_CAST:%.*]] = bitcast i64* [[ADD_PTR]] to i8*
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ule i8* [[ADD_PTR_CAST]], [[HIGH:%.*]]
+; CHECK-NEXT:    br i1 [[C_1]], label [[IF_THEN:%.*]], label [[IF_END:%.*]]
+; CHECK:       if.then:
+; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[IDX]] to i64
+; CHECK-NEXT:    [[START_0:%.*]] = getelementptr [[STRUCT_2]], %struct.2* [[START]], i64 5, i32 1, i64 6
+; CHECK-NEXT:    [[START_0_CAST:%.*]] = bitcast i64* [[START_0]] to i8*
+; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0_CAST]], [[HIGH]]
+; CHECK-NEXT:    ret i1 [[C_0]]
+; CHECK:       if.end:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  %idx.ext.plus.1 = add nuw nsw i32 %idx, 1
+  %idx.ext.plus.1.ext = zext i32 %idx.ext.plus.1 to i64
+  %add.ptr = getelementptr inbounds %struct.2, %struct.2* %start, i64 6, i32 1, i64 5
+  %add.ptr.cast = bitcast i64* %add.ptr to i8*
+  %c.1 = icmp ule i8* %add.ptr.cast, %high
+  br i1 %c.1, label %if.then, label %if.end
+
+if.then:                                          ; preds = %entry
+  %idx.ext = zext i32 %idx to i64
+  %start.0 = getelementptr %struct.2, %struct.2* %start, i64 5, i32 1, i64 6
+  %start.0.cast = bitcast i64* %start.0 to i8*
+  %c.0 = icmp ult i8* %start.0.cast, %high
+  ret i1 %c.0
+
+if.end:                                           ; preds = %entry
+  ret i1 1
+}

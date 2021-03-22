@@ -28,6 +28,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PatternMatch.h"
@@ -132,13 +133,14 @@ struct ConstraintListTy {
   ConstraintTy &get(unsigned I) { return Constraints[I]; }
 
   bool isValid(ConstraintInfo &Info,
-               const DenseMap<Value *, Value *> &PtrKnownSafeBound) const;
-  bool
-  isValidSingle(ConstraintInfo &Info,
-                const DenseMap<Value *, Value *> &PtrKnownSafeBound) const {
+               const DenseMap<Value *, Value *> &PtrKnownSafeBound,
+               const DataLayout &DL) const;
+  bool isValidSingle(ConstraintInfo &Info,
+                     const DenseMap<Value *, Value *> &PtrKnownSafeBound,
+                     const DataLayout &DL) const {
     if (size() != 1)
       return false;
-    return isValid(Info, PtrKnownSafeBound);
+    return isValid(Info, PtrKnownSafeBound, DL);
   }
 };
 
@@ -163,65 +165,86 @@ static void dumpWithNames(ConstraintTy &C,
 // vector.
 static SmallVector<std::pair<int64_t, Value *>, 4>
 decompose(Value *V, SmallVector<PreconditionTy, 4> &Preconditions,
-          bool IsSigned, const DenseMap<Value *, Value *> &PtrKnownSafeBound) {
+          bool IsSigned, const DenseMap<Value *, Value *> &PtrKnownSafeBound,
+          const DataLayout &DL) {
   if (auto *CI = dyn_cast<ConstantInt>(V)) {
     if (CI->isNegative() || CI->uge(MaxConstraintValue))
       return {};
     return {{CI->getSExtValue(), nullptr}};
   }
   auto *GEP = dyn_cast<GetElementPtrInst>(V);
-  if (GEP && GEP->getNumOperands() == 2) {
-    if (!GEP->isInBounds()) {
-      // If a GEP is not inbounds, check if we have a known-safe bounds. If we
-      // have, add a precondition to make sure the GEP index is <= the
-      // known-safe bound.
-      auto Iter = PtrKnownSafeBound.find(GEP->getPointerOperand());
-      if (Iter != PtrKnownSafeBound.end()) {
-        Preconditions.emplace_back(CmpInst::ICMP_ULE, GEP->getOperand(1),
-                                   Iter->second);
-      } else
-        return {{0, nullptr}, {1, V}};
-    }
-    Value *Op0, *Op1;
-    ConstantInt *CI;
+  if (GEP) {
 
-    // If the index is zero-extended, it is guaranteed to be positive.
-    if (match(GEP->getOperand(GEP->getNumOperands() - 1),
-              m_ZExt(m_Value(Op0)))) {
-      if (match(Op0, m_NUWShl(m_Value(Op1), m_ConstantInt(CI))))
-        return {{0, nullptr},
-                {1, GEP->getPointerOperand()},
-                {std::pow(int64_t(2), CI->getSExtValue()), Op1}};
-      if (match(Op0, m_NSWAdd(m_Value(Op1), m_ConstantInt(CI))))
-        return {{CI->getSExtValue(), nullptr},
-                {1, GEP->getPointerOperand()},
-                {1, Op1}};
-      return {{0, nullptr}, {1, GEP->getPointerOperand()}, {1, Op0}};
-    }
+    SmallVector<std::pair<int64_t, Value *>, 4> Result = {{0, nullptr}};
+    Result.emplace_back(1, GEP->getPointerOperand());
 
-    if (match(GEP->getOperand(GEP->getNumOperands() - 1), m_ConstantInt(CI)) &&
-        !CI->isNegative())
-      return {{CI->getSExtValue(), nullptr}, {1, GEP->getPointerOperand()}};
+    gep_type_iterator GTI = gep_type_begin(GEP);
+    for (User::const_op_iterator I = GEP->op_begin() + 1, E = GEP->op_end();
+         I != E; ++I, ++GTI) {
+      Value *Index = *I;
+      if (!GEP->isInBounds() && !GTI.getStructTypeOrNull()) {
+        // If a GEP is not inbounds, check if we have a known-safe bounds. If we
+        // have, add a precondition to make sure the GEP index is <= the
+        // known-safe bound.
+        auto Iter = PtrKnownSafeBound.find(GEP->getPointerOperand());
+        if (Iter != PtrKnownSafeBound.end()) {
+          // TODO not safe.
+          Preconditions.emplace_back(CmpInst::ICMP_ULE, Index, Iter->second);
+        } else
+          return {{0, nullptr}, {1, V}};
+      }
+      if (StructType *STy = GTI.getStructTypeOrNull()) {
+        // For a struct, add the member offset.
+        unsigned FieldNo = cast<ConstantInt>(Index)->getZExtValue();
+        if (FieldNo == 0)
+          continue;
 
-    SmallVector<std::pair<int64_t, Value *>, 4> Result;
-    if (match(GEP->getOperand(GEP->getNumOperands() - 1),
-              m_NUWShl(m_Value(Op0), m_ConstantInt(CI))))
-      Result = {{0, nullptr},
-                {1, GEP->getPointerOperand()},
-                {std::pow(int64_t(2), CI->getSExtValue()), Op0}};
-    else if (match(GEP->getOperand(GEP->getNumOperands() - 1),
-                   m_NSWAdd(m_Value(Op0), m_ConstantInt(CI))))
-      Result = {{CI->getSExtValue(), nullptr},
-                {1, GEP->getPointerOperand()},
-                {1, Op0}};
-    else {
-      Op0 = GEP->getOperand(GEP->getNumOperands() - 1);
-      Result = {{0, nullptr}, {1, GEP->getPointerOperand()}, {1, Op0}};
+        Result[0].first += DL.getStructLayout(STy)->getElementOffset(FieldNo);
+        continue;
+      }
+
+      // For an array/pointer, add the element offset, explicitly scaled.
+      unsigned Scale = DL.getTypeAllocSize(GTI.getIndexedType()).getFixedSize();
+
+      Value *Op0, *Op1;
+      ConstantInt *CI;
+
+      // If the index is zero-extended, it is guaranteed to be positive.
+      if (match(Index, m_ZExt(m_Value(Op0)))) {
+        if (match(Op0, m_NUWShl(m_Value(Op1), m_ConstantInt(CI)))) {
+          Result.emplace_back(Scale * std::pow(int64_t(2), CI->getSExtValue()),
+                              Op1);
+          continue;
+        }
+        if (match(Op0, m_NSWAdd(m_Value(Op1), m_ConstantInt(CI)))) {
+          Result[0].first += Scale * CI->getSExtValue();
+          Result.emplace_back(Scale, Op1);
+          continue;
+        }
+        Result.emplace_back(Scale, Op0);
+        continue;
+      }
+
+      if (match(Index, m_ConstantInt(CI)) && !CI->isNegative()) {
+        Result[0].first += Scale * CI->getSExtValue();
+        continue;
+      }
+
+      if (match(Index, m_NUWShl(m_Value(Op0), m_ConstantInt(CI)))) {
+        Result.emplace_back(Scale * std::pow(int64_t(2), CI->getSExtValue()),
+                            Op0);
+      } else if (match(Index, m_NSWAdd(m_Value(Op0), m_ConstantInt(CI)))) {
+        Result[0].first += Scale * CI->getSExtValue();
+        Result.emplace_back(Scale, Op0);
+      } else {
+        Op0 = Index;
+        Result.emplace_back(Scale, Op0);
+      }
+      // If Op0 is signed non-negative, the GEP is increasing monotonically and
+      // can be de-composed.
+      Preconditions.emplace_back(CmpInst::ICMP_SGE, Op0,
+                                 ConstantInt::get(Op0->getType(), 0));
     }
-    // If Op0 is signed non-negative, the GEP is increasing monotonically and
-    // can be de-composed.
-    Preconditions.emplace_back(CmpInst::ICMP_SGE, Op0,
-                               ConstantInt::get(Op0->getType(), 0));
     return Result;
   }
 
@@ -260,7 +283,8 @@ static ConstraintListTy
 getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
               const DenseMap<Value *, unsigned> &Value2Index,
               DenseMap<Value *, unsigned> &NewIndices,
-              const DenseMap<Value *, Value *> &PtrKnownSafeBound) {
+              const DenseMap<Value *, Value *> &PtrKnownSafeBound,
+              const DataLayout &DL) {
   int64_t Offset1 = 0;
   int64_t Offset2 = 0;
 
@@ -282,25 +306,25 @@ getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
   if (Pred == CmpInst::ICMP_UGT || Pred == CmpInst::ICMP_UGE ||
       Pred == CmpInst::ICMP_SGT || Pred == CmpInst::ICMP_SGE)
     return getConstraint(CmpInst::getSwappedPredicate(Pred), Op1, Op0,
-                         Value2Index, NewIndices, PtrKnownSafeBound);
+                         Value2Index, NewIndices, PtrKnownSafeBound, DL);
 
   if (Pred == CmpInst::ICMP_EQ && match(Op1, m_Zero())) {
     return getConstraint(CmpInst::ICMP_ULE, Op0, Op1, Value2Index, NewIndices,
-                         PtrKnownSafeBound);
+                         PtrKnownSafeBound, DL);
   }
 
   if (Pred == CmpInst::ICMP_EQ) {
     auto A = getConstraint(CmpInst::ICMP_UGE, Op0, Op1, Value2Index, NewIndices,
-                           PtrKnownSafeBound);
+                           PtrKnownSafeBound, DL);
     auto B = getConstraint(CmpInst::ICMP_ULE, Op0, Op1, Value2Index, NewIndices,
-                           PtrKnownSafeBound);
+                           PtrKnownSafeBound, DL);
     A.mergeIn(B);
     return A;
   }
 
   if (Pred == CmpInst::ICMP_NE && match(Op1, m_Zero())) {
     return getConstraint(CmpInst::ICMP_UGT, Op0, Op1, Value2Index, NewIndices,
-                         PtrKnownSafeBound);
+                         PtrKnownSafeBound, DL);
   }
 
   // Only ULE and ULT predicates are supported at the moment.
@@ -310,9 +334,9 @@ getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
 
   bool IsSigned = CmpInst::isSigned(Pred);
   auto ADec = decompose(Op0->stripPointerCastsSameRepresentation(),
-                        Preconditions, IsSigned, PtrKnownSafeBound);
+                        Preconditions, IsSigned, PtrKnownSafeBound, DL);
   auto BDec = decompose(Op1->stripPointerCastsSameRepresentation(),
-                        Preconditions, IsSigned, PtrKnownSafeBound);
+                        Preconditions, IsSigned, PtrKnownSafeBound, DL);
   // Skip if decomposing either of the values failed.
   if (ADec.empty() || BDec.empty())
     return {};
@@ -348,28 +372,27 @@ getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
   return {{{R, IsSigned}}, Preconditions};
 }
 
-static ConstraintListTy
-getConstraint(CmpInst *Cmp, ConstraintInfo &Info,
-              DenseMap<Value *, unsigned> &NewIndices,
-              const DenseMap<Value *, Value *> &PtrKnownSafeBound) {
+static ConstraintListTy getConstraint(
+    CmpInst *Cmp, ConstraintInfo &Info, DenseMap<Value *, unsigned> &NewIndices,
+    const DenseMap<Value *, Value *> &PtrKnownSafeBound, const DataLayout &DL) {
   return getConstraint(
       Cmp->getPredicate(), Cmp->getOperand(0), Cmp->getOperand(1),
       Info.getValue2Index(CmpInst::isSigned(Cmp->getPredicate())), NewIndices,
-      PtrKnownSafeBound);
+      PtrKnownSafeBound, DL);
 }
 
 bool ConstraintListTy::isValid(
-    ConstraintInfo &Info,
-    const DenseMap<Value *, Value *> &PtrKnownSafeBound) const {
+    ConstraintInfo &Info, const DenseMap<Value *, Value *> &PtrKnownSafeBound,
+    const DataLayout &DL) const {
   if (Constraints.empty())
     return false;
 
   return all_of(
-      Preconditions, [&Info, &PtrKnownSafeBound](const PreconditionTy &C) {
+      Preconditions, [&Info, &PtrKnownSafeBound, &DL](const PreconditionTy &C) {
         DenseMap<Value *, unsigned> NewIndices;
         auto R = getConstraint(C.Pred, C.Op0, C.Op1,
                                Info.getValue2Index(CmpInst::isSigned(C.Pred)),
-                               NewIndices, PtrKnownSafeBound);
+                               NewIndices, PtrKnownSafeBound, DL);
 
         // TODO: properly check NewIndices.
         return NewIndices.empty() && R.Preconditions.empty() && R.size() == 1 &&
@@ -810,10 +833,18 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
 
         Value *PtrOp = GEP->getPointerOperand();
         Value *IdxOp = GEP->getOperand(1);
-        if (!GEP->isInBounds() || GEP->getNumOperands() != 2 ||
-            !programUndefinedIfPoison(GEP, true) ||
-            GEP->getType() != PtrOp->getType())
+          if (!GEP->isInBounds() ||
+            !programUndefinedIfPoison(GEP, true))
           continue;
+
+      auto GTI = gep_type_begin(GEP);
+      ++GTI;
+      bool NotStruct = false;
+      for (auto E = gep_type_end(GEP); GTI != E; ++GTI)
+          NotStruct |= !GTI.getStructTypeOrNull();
+      if (NotStruct)
+        continue;
+
         S.addPointerBoundInfo(PtrOp, IdxOp, DT.getNode(&BB), DL);
       }
     }
@@ -864,11 +895,14 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
           continue;
 
         DenseMap<Value *, unsigned> NewIndices;
-        auto R = getConstraint(Cmp, Info, NewIndices, S.PtrKnownSafeBound);
-        if (!R.isValidSingle(Info, S.PtrKnownSafeBound) ||
+        auto R = getConstraint(Cmp, Info, NewIndices, S.PtrKnownSafeBound, DL);
+        if (!R.isValidSingle(Info, S.PtrKnownSafeBound, DL) ||
             R.needsNewIndices(NewIndices))
           continue;
 
+        LLVM_DEBUG(dbgs() << "Checking " << *Cmp << "\n");
+        LLVM_DEBUG(
+            dumpWithNames(R.get(0), Info.getValue2Index(R.get(0).IsSigned)));
         auto &CSToUse = Info.getCS(R.get(0).IsSigned);
         if (CSToUse.isConditionImplied(R.get(0).Coefficients)) {
           if (!DebugCounter::shouldExecute(EliminatedCounter))
@@ -932,8 +966,9 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
     // Otherwise, add the condition to the system and stack, if we can transform
     // it into a constraint.
     DenseMap<Value *, unsigned> NewIndices;
-    auto R = getConstraint(CB.Condition, Info, NewIndices, S.PtrKnownSafeBound);
-    if (!R.isValid(Info, S.PtrKnownSafeBound))
+    auto R =
+        getConstraint(CB.Condition, Info, NewIndices, S.PtrKnownSafeBound, DL);
+    if (!R.isValid(Info, S.PtrKnownSafeBound, DL))
       continue;
 
     for (auto &KV : NewIndices)

@@ -10,7 +10,7 @@ define void @pointer.to.array.test.ult.true.due.to.first.dimension([10 x i8]* %s
 ; CHECK:       if.then:
 ; CHECK-NEXT:    [[START_0:%.*]] = getelementptr inbounds [10 x i8], [10 x i8]* [[START]], i64 5, i64 0
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0]], [[HIGH]]
-; CHECK-NEXT:    call void @use(i1 [[C_0]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    ret void
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret void
@@ -70,7 +70,7 @@ define void @pointer.to.array.test.ult.true.due.to.second.dimension([10 x i8]* %
 ; CHECK:       if.then:
 ; CHECK-NEXT:    [[START_0:%.*]] = getelementptr inbounds [10 x i8], [10 x i8]* [[START]], i64 5, i64 0
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8* [[START_0]], [[HIGH]]
-; CHECK-NEXT:    call void @use(i1 [[C_0]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    ret void
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret void
