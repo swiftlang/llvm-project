@@ -408,18 +408,19 @@ static void dumpWithNames(ConstraintTy &C,
 
 // Returns a pair {Value, NeedZExt}, if \p Exp is either a SCEVConstant or a
 // SCEVUnknown. If the value needs to be zero extended, NeedZExt is true.
-static std::pair<Value *, bool> getValueOrConstant(const SCEV *Exp, Loop *L, ScalarEvolution &SE) {
+static std::pair<Value *, bool> getValueOrConstant(const SCEV *Exp, Loop *L,
+                                                   ScalarEvolution &SE) {
   bool NeedZExt = false;
-            bool ULT= false;
-            if (auto *Add = dyn_cast<SCEVAddExpr>(Exp)) {
-              auto *C = dyn_cast<SCEVConstant>(Add->getOperand(0));
-              auto *AddWithGuardInfo = SE.applyLoopGuards(Add->getOperand(1), L);
-              if (C && C->getValue()->getSExtValue() == -1 &&
-                  SE.isKnownPositive(AddWithGuardInfo)) {
-                ULT = true;
-                Exp = Add->getOperand(1);
-              }
-            }
+  bool ULT = false;
+  if (auto *Add = dyn_cast<SCEVAddExpr>(Exp)) {
+    auto *C = dyn_cast<SCEVConstant>(Add->getOperand(0));
+    auto *AddWithGuardInfo = SE.applyLoopGuards(Add->getOperand(1), L);
+    if (C && C->getValue()->getSExtValue() == -1 &&
+        SE.isKnownPositive(AddWithGuardInfo)) {
+      ULT = true;
+      Exp = Add->getOperand(1);
+    }
+  }
 
   if (isa<SCEVZeroExtendExpr>(Exp)) {
     Exp = cast<SCEVZeroExtendExpr>(Exp)->getOperand(0);
