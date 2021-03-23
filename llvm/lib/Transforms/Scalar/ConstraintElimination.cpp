@@ -892,6 +892,7 @@ PreservedAnalyses ConstraintEliminationPass::run(Function &F,
   PreservedAnalyses PA;
   PA.preserve<DominatorTreeAnalysis>();
   PA.preserveSet<CFGAnalyses>();
+  PA.preserve<ScalarEvolutionAnalysis>();
   return PA;
 }
 
@@ -921,6 +922,7 @@ public:
     AU.addPreserved<DominatorTreeWrapperPass>();
     AU.addRequired<LoopInfoWrapperPass>();
     AU.addRequired<ScalarEvolutionWrapperPass>();
+    AU.addPreserved<ScalarEvolutionWrapperPass>();
   }
 };
 
