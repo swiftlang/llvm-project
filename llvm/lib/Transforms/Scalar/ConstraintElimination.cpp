@@ -620,6 +620,10 @@ static void generate(Module *M, ArrayRef<StackEntry> Stack, Instruction *C,
 
 void State::addPointerBoundInfo(Value *PtrOp, Value *IdxOp, DomTreeNode *DTN,
                                 const DataLayout &DL) {
+  // Bail out if there's no DTN, which means the original block was unreachable.
+  if (!DTN)
+    return;
+
   if (isKnownNonNegative(IdxOp, DL, 2)) {
     // We know that IdxOp does not cause an overflow. Now try to add a fact
     // for UB >= IdxOp.
@@ -833,8 +837,7 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
 
         Value *PtrOp = GEP->getPointerOperand();
         Value *IdxOp = GEP->getOperand(1);
-          if (!GEP->isInBounds() ||
-            !programUndefinedIfPoison(GEP, true))
+          if (!GEP->isInBounds())
           continue;
 
       auto GTI = gep_type_begin(GEP);
@@ -844,8 +847,21 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
           NotStruct |= !GTI.getStructTypeOrNull();
       if (NotStruct)
         continue;
-
+      if (programUndefinedIfPoison(GEP, true)) {
         S.addPointerBoundInfo(PtrOp, IdxOp, DT.getNode(&BB), DL);
+      }
+
+      SmallPtrSet<BasicBlock *, 8> InsertedBounds;
+      for (User *U : GEP->users()) {
+        auto *UserI = dyn_cast<Instruction>(U);
+        if (!UserI)
+          continue;
+        if (!InsertedBounds.insert(UserI->getParent()).second)
+          continue;
+        if (!programUndefinedIfPoison(UserI, true))
+          continue;
+        S.addPointerBoundInfo(PtrOp, IdxOp, DT.getNode(UserI->getParent()), DL);
+      }
       }
     }
   }

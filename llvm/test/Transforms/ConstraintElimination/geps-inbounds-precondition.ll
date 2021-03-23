@@ -4,6 +4,7 @@
 ; Tests for using inbounds information from GEPs.
 
 declare void @noundef(i32* noundef)
+declare void @use(i1)
 
 define i1 @inbounds_poison_is_ub1(i32* %src, i32 %n, i32 %idx) {
 ; CHECK-LABEL: @inbounds_poison_is_ub1(
@@ -341,4 +342,205 @@ entry:
   %src.idx = getelementptr i32, i32* %src, i64 5
   %cmp.upper.1 = icmp ule i32* %src.idx, %upper.2
   ret i1 %cmp.upper.1
+}
+
+; The function may not have UB if %upper is poison, but the use %cmp.upper.1
+; will cause UB if %upper is poison. The 'inbounds' information  from %upper
+; can be used in the block.
+define i1 @uses_of_inbounds_are_ub_on_overflow(i32* %src, i32 %n, i32 %idx) {
+; CHECK-LABEL: @uses_of_inbounds_are_ub_on_overflow(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[N_EXT:%.*]] = zext i32 [[N:%.*]] to i64
+; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, i32* [[SRC:%.*]], i64 [[N_EXT]]
+; CHECK-NEXT:    [[CMP_IDX:%.*]] = icmp ult i32 [[IDX:%.*]], [[N]]
+; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[IDX]] to i64
+; CHECK-NEXT:    [[SRC_IDX:%.*]] = getelementptr i32, i32* [[SRC]], i64 [[IDX_EXT]]
+; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER]]
+; CHECK-NEXT:    br i1 true, label [[EXIT_0:%.*]], label [[EXIT_1:%.*]]
+; CHECK:       else:
+; CHECK-NEXT:    ret i1 false
+; CHECK:       exit.0:
+; CHECK-NEXT:    ret i1 false
+; CHECK:       exit.1:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  %n.ext = zext i32 %n to i64
+  %upper = getelementptr inbounds i32, i32* %src, i64 %n.ext
+  %cmp.idx = icmp ult i32 %idx, %n
+  %idx.ext = zext i32 %idx to i64
+  %src.idx = getelementptr i32, i32* %src, i64 %idx.ext
+  br i1 %cmp.idx, label %then, label %else
+
+then:
+  %cmp.upper.1 = icmp ule i32* %src.idx, %upper
+  br i1 %cmp.upper.1, label %exit.0, label %exit.1
+
+else:
+  ret i1 0
+
+exit.0:
+  ret i1 0
+
+exit.1:
+  ret i1 1
+}
+
+define i1 @uses_of_inbounds_are_ub_on_overflow2(i32* %src, i32 %n, i32 %idx) {
+; CHECK-LABEL: @uses_of_inbounds_are_ub_on_overflow2(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[N_EXT:%.*]] = zext i32 [[N:%.*]] to i64
+; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, i32* [[SRC:%.*]], i64 [[N_EXT]]
+; CHECK-NEXT:    [[CMP_IDX:%.*]] = icmp ult i32 [[IDX:%.*]], [[N]]
+; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[IDX]] to i64
+; CHECK-NEXT:    [[SRC_IDX:%.*]] = getelementptr i32, i32* [[SRC]], i64 [[IDX_EXT]]
+; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER]]
+; CHECK-NEXT:    br i1 true, label [[EXIT_0:%.*]], label [[EXIT_1:%.*]]
+; CHECK:       else:
+; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER]]
+; CHECK-NEXT:    br i1 [[CMP_UPPER_2]], label [[EXIT_1]], label [[EXIT_0]]
+; CHECK:       exit.0:
+; CHECK-NEXT:    ret i1 false
+; CHECK:       exit.1:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  %n.ext = zext i32 %n to i64
+  %upper = getelementptr inbounds i32, i32* %src, i64 %n.ext
+  %cmp.idx = icmp ult i32 %idx, %n
+  %idx.ext = zext i32 %idx to i64
+  %src.idx = getelementptr i32, i32* %src, i64 %idx.ext
+  br i1 %cmp.idx, label %then, label %else
+
+then:
+  %cmp.upper.1 = icmp ule i32* %src.idx, %upper
+  br i1 %cmp.upper.1, label %exit.0, label %exit.1
+
+else:
+  %cmp.upper.2 = icmp ule i32* %src.idx, %upper
+  br i1 %cmp.upper.2, label %exit.1, label %exit.0
+
+exit.0:
+  ret i1 0
+
+exit.1:
+  ret i1 1
+}
+
+define i1 @uses_are_not_ub(i32* %src, i32 %n, i32 %idx) {
+; CHECK-LABEL: @uses_are_not_ub(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[N_EXT:%.*]] = zext i32 [[N:%.*]] to i64
+; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, i32* [[SRC:%.*]], i64 [[N_EXT]]
+; CHECK-NEXT:    [[CMP_IDX:%.*]] = icmp ult i32 [[IDX:%.*]], [[N]]
+; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[IDX]] to i64
+; CHECK-NEXT:    [[SRC_IDX:%.*]] = getelementptr i32, i32* [[SRC]], i64 [[IDX_EXT]]
+; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER]]
+; CHECK-NEXT:    call void @use(i1 [[CMP_UPPER_1]])
+; CHECK-NEXT:    ret i1 false
+; CHECK:       else:
+; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule i32* [[SRC_IDX]], [[UPPER]]
+; CHECK-NEXT:    br i1 [[CMP_UPPER_2]], label [[EXIT_1:%.*]], label [[EXIT_0:%.*]]
+; CHECK:       exit.0:
+; CHECK-NEXT:    ret i1 false
+; CHECK:       exit.1:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  %n.ext = zext i32 %n to i64
+  %upper = getelementptr inbounds i32, i32* %src, i64 %n.ext
+  %cmp.idx = icmp ult i32 %idx, %n
+  %idx.ext = zext i32 %idx to i64
+  %src.idx = getelementptr i32, i32* %src, i64 %idx.ext
+  br i1 %cmp.idx, label %then, label %else
+
+then:
+  %cmp.upper.1 = icmp ule i32* %src.idx, %upper
+  call void @use(i1 %cmp.upper.1)
+  ret i1 0
+
+else:
+  %cmp.upper.2 = icmp ule i32* %src.idx, %upper
+  br i1 %cmp.upper.2, label %exit.1, label %exit.0
+
+exit.0:
+  ret i1 0
+
+exit.1:
+  ret i1 1
+}
+
+define i1 @used_before_ub(i32* %src, i32 %n) {
+; CHECK-LABEL: @used_before_ub(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[N_EXT:%.*]] = zext i32 [[N:%.*]] to i64
+; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, i32* [[SRC:%.*]], i64 [[N_EXT]]
+; CHECK-NEXT:    [[CMP_IDX:%.*]] = icmp ult i32 4, [[N]]
+; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[EXIT_0:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    [[GEP_1:%.*]] = getelementptr i32, i32* [[SRC]], i64 1
+; CHECK-NEXT:    [[GEP_2:%.*]] = getelementptr i32, i32* [[SRC]], i64 2
+; CHECK-NEXT:    [[CMP_GEPS:%.*]] = icmp ule i32* [[GEP_1]], [[GEP_2]]
+; CHECK-NEXT:    call void @use(i1 true)
+; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule i32* [[GEP_2]], [[UPPER]]
+; CHECK-NEXT:    br i1 true, label [[EXIT_1:%.*]], label [[EXIT_0]]
+; CHECK:       exit.0:
+; CHECK-NEXT:    ret i1 false
+; CHECK:       exit.1:
+; CHECK-NEXT:    ret i1 true
+;
+entry:
+  %n.ext = zext i32 %n to i64
+  %upper = getelementptr inbounds i32, i32* %src, i64 %n.ext
+  %cmp.idx = icmp ult i32 4, %n
+  br i1 %cmp.idx, label %then, label %exit.0
+
+then:
+  %gep.1 = getelementptr i32, i32* %src, i64 1
+  %gep.2 = getelementptr i32, i32* %src, i64 2
+  %cmp.geps = icmp ule i32* %gep.1, %gep.2
+  call void @use(i1 %cmp.geps)
+  %cmp.upper.1 = icmp ule i32* %gep.2, %upper
+  br i1 %cmp.upper.1, label %exit.1, label %exit.0
+
+exit.0:
+  ret i1 0
+
+exit.1:
+  ret i1 1
+}
+
+%struct.1 = type {  i64, i64 }
+
+; Make sure the pass does not crash when encountering a user of a GEP in a
+; unreachable block.
+define void @test_unreachable_user(%struct.1* %ptr) {
+; CHECK-LABEL: @test_unreachable_user(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[GEP_0:%.*]] = getelementptr inbounds [[STRUCT_1:%.*]], %struct.1* [[PTR:%.*]], i64 0
+; CHECK-NEXT:    br label [[EXIT:%.*]]
+; CHECK:       unreachable.bb:
+; CHECK-NEXT:    [[GEP_1:%.*]] = getelementptr inbounds [[STRUCT_1]], %struct.1* [[GEP_0]], i64 0, i32 0
+; CHECK-NEXT:    store i64 0, i64* [[GEP_1]], align 8
+; CHECK-NEXT:    ret void
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %gep.0 = getelementptr inbounds %struct.1, %struct.1* %ptr, i64 0
+  br label %exit
+
+unreachable.bb:                                        ; No predecessors!
+  %gep.1 = getelementptr inbounds %struct.1, %struct.1* %gep.0, i64 0, i32 0
+  store i64 0, i64* %gep.1, align 8
+  ret void
+
+exit:
+  ret void
 }
