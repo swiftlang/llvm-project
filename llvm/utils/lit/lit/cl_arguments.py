@@ -1,16 +1,10 @@
 import argparse
-import enum
 import os
 import shlex
 import sys
 
 import lit.reports
 import lit.util
-
-
-class TestOrder(enum.Enum):
-    DEFAULT = enum.auto()
-    RANDOM = enum.auto()
 
 
 def parse_args():
@@ -149,8 +143,8 @@ def parse_args():
     selection_group.add_argument("--shuffle",   # TODO(yln): --order=random
             help="Run tests in random order",   # default or 'by-path' (+ isEarlyTest())
             action="store_true")
-    selection_group.add_argument("-i", "--incremental",
-            help="Run failed tests first (DEPRECATED: now always enabled)",
+    selection_group.add_argument("-i", "--incremental",  # TODO(yln): --order=failing-first
+            help="Run modified and failing tests first (updates mtimes)",
             action="store_true")
     selection_group.add_argument("--filter",
             metavar="REGEX",
@@ -193,13 +187,13 @@ def parse_args():
     if opts.echoAllCommands:
         opts.showOutput = True
 
-    if opts.incremental:
-        print('WARNING: --incremental is deprecated. Failing tests now always run first.')
-
+    # TODO(python3): Could be enum
     if opts.shuffle:
-        opts.order = TestOrder.RANDOM
+        opts.order = 'random'
+    elif opts.incremental:
+        opts.order = 'failing-first'
     else:
-        opts.order = TestOrder.DEFAULT
+        opts.order = 'default'
 
     if opts.numShards or opts.runShard:
         if not opts.numShards or not opts.runShard:
