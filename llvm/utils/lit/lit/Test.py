@@ -214,7 +214,7 @@ class TestSuite:
         if os.path.exists(test_times_file):
             with open(test_times_file, 'r') as time_file:
                 for line in time_file:
-                    time, path = line.split(maxsplit=1)
+                    time, path = line.split(None, 1)
                     self.test_times[path.strip('\n')] = float(time)
 
     def getSourcePath(self, components):
