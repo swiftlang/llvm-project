@@ -346,20 +346,34 @@ private:
 
   static uint64_t GetAsyncContext(lldb::StackFrameSP frame_sp) {
     auto reg_ctx_sp = frame_sp->GetRegisterContext();
+
+    int async_ctx_regnum = 0;
     auto arch = reg_ctx_sp->CalculateTarget()->GetArchitecture();
-    int async_context_regnum = 0;
     if (arch.GetMachine() == llvm::Triple::x86_64) {
-      async_context_regnum = dwarf_r14_x86_64;
+      async_ctx_regnum = dwarf_r14_x86_64;
     } else if (arch.GetMachine() == llvm::Triple::aarch64) {
-      async_context_regnum = arm64_dwarf::x22;
+      async_ctx_regnum = arm64_dwarf::x22;
     } else {
       assert(false && "swift async supports only x86_64 and arm64");
       return 0;
     }
 
-    auto async_context_reg = reg_ctx_sp->ConvertRegisterKindToRegisterNumber(
-        RegisterKind::eRegisterKindDWARF, async_context_regnum);
-    return reg_ctx_sp->ReadRegisterAsUnsigned(async_context_reg, 23);
+    auto async_ctx_reg = reg_ctx_sp->ConvertRegisterKindToRegisterNumber(
+        RegisterKind::eRegisterKindDWARF, async_ctx_regnum);
+    auto async_ctx = reg_ctx_sp->ReadRegisterAsUnsigned(async_ctx_reg, 23);
+
+    auto sc = frame_sp->GetSymbolContext(eSymbolContextSymbol);
+    auto mangled_name = sc.symbol->GetMangled().GetMangledName().GetStringRef();
+    bool indirect_context =
+        SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
+            mangled_name);
+
+    if (!indirect_context)
+      return async_ctx;
+
+    auto process_sp = frame_sp->CalculateProcess();
+    Status error;
+    return process_sp->ReadPointerFromMemory(async_ctx, error);
   }
 
   ThreadPlanSP m_step_in_plan_sp;
