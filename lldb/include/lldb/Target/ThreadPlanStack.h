@@ -166,12 +166,13 @@ public:
 
   // rename to ...?
   std::vector<ThreadPlanStack> CleanUp() {
-    std::vector<lldb::tid_t> invalidated_tids;
+    llvm::SmallVector<lldb::tid_t, 2> invalidated_tids;
     for (auto &pair : m_plans_list)
       if (pair.second.GetTID() != pair.first)
         invalidated_tids.push_back(pair.first);
 
     std::vector<ThreadPlanStack> detached_stacks;
+    detached_stacks.reserve(invalidated_tids.size());
     for (auto tid : invalidated_tids) {
       auto it = m_plans_list.find(tid);
       auto stack = std::move(it->second);
