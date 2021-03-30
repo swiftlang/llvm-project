@@ -354,6 +354,7 @@ private:
       async_context_regnum = arm64_dwarf::x22;
     } else {
       assert(false && "swift async supports only x86_64 and arm64");
+      return 0;
     }
 
     auto async_context_reg = reg_ctx_sp->ConvertRegisterKindToRegisterNumber(
