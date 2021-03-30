@@ -739,10 +739,8 @@ StackFrameSP StackFrameList::GetFrameWithStackID(const StackID &stack_id) {
           std::find_if(begin, end, [&](StackFrameSP frame_sp) {
             return frame_sp->GetStackID() == stack_id;
           });
-      if (pos != end) {
-        if ((*pos)->GetStackID() == stack_id)
-          return *pos;
-      }
+      if (pos != end)
+        return *pos;
     }
     do {
       frame_sp = GetFrameAtIndex(frame_idx);
