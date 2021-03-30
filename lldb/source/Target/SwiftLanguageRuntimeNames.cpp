@@ -198,11 +198,6 @@ static ThunkAction GetThunkAction(ThunkKind kind) {
 class ThreadPlanStepInAsync : public ThreadPlan {
 public:
   static bool NeedsStep(SymbolContext &sc) {
-    if (sc.symbol->GetAddressRef().GetOffset() != 0) {
-      // Async step is only applicable at the start of a function.
-      return false;
-    }
-
     if (sc.line_entry.IsValid() && sc.line_entry.line == 0)
       // Compiler generated function, need to step in.
       return true;
