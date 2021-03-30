@@ -79,6 +79,8 @@ static bool IsSwiftAsyncFunctionSymbol(swift::Demangle::NodePointer node) {
   using namespace swift::Demangle;
   if (!node || node->getKind() != Node::Kind::Global)
     return false;
+  if (hasChild(node, Node::Kind::AsyncSuspendResumePartialFunction))
+    return false;
   return childAtPath(node,
                      {Node::Kind::Function, Node::Kind::Type,
                       Node::Kind::FunctionType, Node::Kind::AsyncAnnotation}) ||
