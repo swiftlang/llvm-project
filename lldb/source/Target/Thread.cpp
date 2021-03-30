@@ -804,13 +804,12 @@ bool Thread::ShouldStop(Event *event_ptr) {
 
   // Call this after ShouldStopSynchronous.
   ThreadPlan *current_plan;
-  if (auto plan = GetProcess()->FindDetachedPlanExplainingStop(event_ptr)) {
+  if (auto plan = GetProcess()->FindDetachedPlanExplainingStop(event_ptr))
     current_plan = plan.get();
-  } else {
+  else
     current_plan = GetCurrentPlan();
-  }
 
-  // The top most plan always gets to do the trace log...
+  // The top most plan always gets to do the trace log…
   current_plan->DoTraceLog();
 
   // If we've already been restarted, don't query the plans since the state

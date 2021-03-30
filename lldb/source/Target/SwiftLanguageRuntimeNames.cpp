@@ -201,15 +201,13 @@ public:
       return false;
     }
 
-    if (sc.line_entry.IsValid() && sc.line_entry.line == 0) {
+    if (sc.line_entry.IsValid() && sc.line_entry.line == 0)
       // Compiler generated function, need to step in.
       return true;
-    }
 
     // TEMPORARY HACK WORKAROUND
-    if (!sc.symbol || !sc.comp_unit) {
+    if (!sc.symbol || !sc.comp_unit)
       return false;
-    }
     auto fn_start = sc.symbol->GetFileAddress();
     auto fn_end = sc.symbol->GetFileAddress() + sc.symbol->GetByteSize();
     int line_entry_count = 0;
@@ -217,18 +215,15 @@ public:
       for (uint32_t i = 0; i < line_table->GetSize(); ++i) {
         LineEntry line_entry;
         if (line_table->GetLineEntryAtIndex(i, line_entry)) {
-          if (!line_entry.IsValid() || line_entry.line == 0) {
+          if (!line_entry.IsValid() || line_entry.line == 0)
             continue;
-          }
 
           auto line_start = line_entry.range.GetBaseAddress().GetFileAddress();
-          if (line_start >= fn_start && line_start < fn_end) {
-            if (++line_entry_count > 1) {
+          if (line_start >= fn_start && line_start < fn_end)
+            if (++line_entry_count > 1)
               // This is an async function with a proper body of code, no step
               // into `swift_task_switch` required.
               return false;
-            }
-          }
         }
       }
     }
@@ -240,9 +235,8 @@ public:
       : ThreadPlan(eKindGeneric, "step-in-async", thread, eVoteNoOpinion,
                    eVoteNoOpinion) {
     assert(sc.function);
-    if (!sc.function) {
+    if (!sc.function)
       return;
-    }
 
     m_step_in_plan_sp = std::make_shared<ThreadPlanStepInRange>(
         thread, sc.function->GetAddressRange(), sc, "swift_task_switch",
@@ -250,9 +244,8 @@ public:
   }
 
   void DidPush() override {
-    if (m_step_in_plan_sp) {
+    if (m_step_in_plan_sp)
       PushPlan(m_step_in_plan_sp);
-    }
   }
 
   bool ValidatePlan(Stream *error) override { return (bool)m_step_in_plan_sp; }
@@ -263,20 +256,17 @@ public:
   }
 
   bool DoPlanExplainsStop(Event *event) override {
-    if (!HasTID()) {
+    if (!HasTID())
       return false;
-    }
-    if (!m_async_breakpoint_sp) {
+    if (!m_async_breakpoint_sp)
       return false;
-    }
 
     return m_breakpoint_async_context == m_initial_async_context;
   }
 
   bool ShouldStop(Event *event) override {
-    if (!m_async_breakpoint_sp) {
+    if (!m_async_breakpoint_sp)
       return false;
-    }
 
     if (m_breakpoint_async_context == m_initial_async_context) {
       SetPlanComplete();
@@ -286,13 +276,11 @@ public:
   }
 
   bool MischiefManaged() override {
-    if (IsPlanComplete()) {
+    if (IsPlanComplete())
       return true;
-    }
 
-    if (!m_step_in_plan_sp->IsPlanComplete()) {
+    if (!m_step_in_plan_sp->IsPlanComplete())
       return false;
-    }
 
     if (!m_step_in_plan_sp->PlanSucceeded()) {
       // If the step in fails, then this plan fails.
@@ -340,9 +328,8 @@ private:
     auto resume_fn_reg = reg_ctx->ConvertRegisterKindToRegisterNumber(
         RegisterKind::eRegisterKindGeneric, resume_fn_regnum);
     auto resume_fn_ptr = reg_ctx->ReadRegisterAsUnsigned(resume_fn_reg, 0);
-    if (!resume_fn_ptr) {
+    if (!resume_fn_ptr)
       return {};
-    }
 
     auto &target = thread.GetProcess()->GetTarget();
     auto breakpoint_sp = target.CreateBreakpoint(resume_fn_ptr, true, false);

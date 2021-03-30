@@ -375,9 +375,8 @@ bool ThreadPlanStack::IsTID(lldb::tid_t tid) {
 lldb::tid_t ThreadPlanStack::GetTID() { return GetCurrentPlan()->GetTID(); }
 
 void ThreadPlanStack::SetTID(lldb::tid_t tid) {
-  for (auto plan_sp : m_plans) {
+  for (auto plan_sp : m_plans)
     plan_sp->SetTID(tid);
-  }
 }
 
 void ThreadPlanStackMap::Update(ThreadList &current_threads,

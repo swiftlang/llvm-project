@@ -158,21 +158,18 @@ public:
 
   // rename to Reactivate?
   void Activate(ThreadPlanStack &&stack) {
-    if (m_plans_list.find(stack.GetTID()) == m_plans_list.end()) {
+    if (m_plans_list.find(stack.GetTID()) == m_plans_list.end())
       m_plans_list.emplace(stack.GetTID(), std::move(stack));
-    } else {
+    else
       m_plans_list.at(stack.GetTID()) = std::move(stack);
-    }
   }
 
   // rename to ...?
   std::vector<ThreadPlanStack> CleanUp() {
     std::vector<lldb::tid_t> invalidated_tids;
-    for (auto &pair : m_plans_list) {
-      if (!pair.second.IsTID(pair.first)) {
+    for (auto &pair : m_plans_list)
+      if (!pair.second.IsTID(pair.first))
         invalidated_tids.push_back(pair.first);
-      }
-    }
 
     std::vector<ThreadPlanStack> detached_stacks;
     for (auto tid : invalidated_tids) {

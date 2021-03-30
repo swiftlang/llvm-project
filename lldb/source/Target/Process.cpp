@@ -1280,9 +1280,8 @@ void Process::UpdateThreadListIfNeeded() {
 }
 
 void Process::SynchronizeThreadPlans() {
-  for (auto &stack : m_thread_plans.CleanUp()) {
+  for (auto &stack : m_thread_plans.CleanUp())
     m_async_thread_plans.emplace_back(std::move(stack));
-  }
 }
 
 ThreadPlanSP Process::FindDetachedPlanExplainingStop(Event *event_ptr) {
