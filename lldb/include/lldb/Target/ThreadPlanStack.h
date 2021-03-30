@@ -168,7 +168,7 @@ public:
   std::vector<ThreadPlanStack> CleanUp() {
     std::vector<lldb::tid_t> invalidated_tids;
     for (auto &pair : m_plans_list)
-      if (!pair.second.IsTID(pair.first))
+      if (pair.second.GetTID() != pair.first)
         invalidated_tids.push_back(pair.first);
 
     std::vector<ThreadPlanStack> detached_stacks;
