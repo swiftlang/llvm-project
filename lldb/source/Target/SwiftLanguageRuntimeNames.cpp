@@ -255,21 +255,22 @@ public:
   bool DoPlanExplainsStop(Event *event) override {
     if (!HasTID())
       return false;
+
     if (!m_async_breakpoint_sp)
       return false;
 
-    return m_breakpoint_async_context == m_initial_async_context;
+    return GetBreakpointAsyncContext() == m_initial_async_ctx;
   }
 
   bool ShouldStop(Event *event) override {
     if (!m_async_breakpoint_sp)
       return false;
 
-    if (m_breakpoint_async_context == m_initial_async_context) {
-      SetPlanComplete();
-      return true;
-    }
-    return false;
+    if (GetBreakpointAsyncContext() != m_initial_async_ctx)
+      return false;
+
+    SetPlanComplete();
+    return true;
   }
 
   bool MischiefManaged() override {
@@ -288,7 +289,7 @@ public:
     if (!m_async_breakpoint_sp) {
       auto &thread = GetThread();
       m_async_breakpoint_sp = CreateAsyncBreakpoint(thread);
-      m_initial_async_context = GetAsyncContext(thread.GetStackFrameAtIndex(1));
+      m_initial_async_ctx = GetAsyncContext(thread.GetStackFrameAtIndex(1));
       ClearTID();
     }
 
@@ -308,6 +309,52 @@ public:
   }
 
 private:
+  bool IsAtAsyncBreakpoint() {
+    auto stop_info_sp = GetPrivateStopInfo();
+    if (!stop_info_sp)
+      return false;
+
+    if (stop_info_sp->GetStopReason() != eStopReasonBreakpoint)
+      return false;
+
+    auto &site_list = m_process.GetBreakpointSiteList();
+    auto site_sp = site_list.FindByID(stop_info_sp->GetValue());
+    if (!site_sp)
+      return false;
+
+   return site_sp->IsBreakpointAtThisSite(m_async_breakpoint_sp->GetID());
+  }
+
+  llvm::Optional<lldb::addr_t> GetBreakpointAsyncContext() {
+    if (m_breakpoint_async_ctx)
+      return m_breakpoint_async_ctx;
+
+    if (!IsAtAsyncBreakpoint())
+      return {};
+
+    auto frame_sp = GetThread().GetStackFrameAtIndex(0);
+    auto async_ctx = GetAsyncContext(frame_sp);
+
+    if (!IsIndirectContext(frame_sp)) {
+      m_breakpoint_async_ctx = async_ctx;
+      return m_breakpoint_async_ctx;
+    }
+
+    // Dereference the indirect async context.
+    auto process_sp = GetThread().GetProcess();
+    Status error;
+    m_breakpoint_async_ctx =
+        process_sp->ReadPointerFromMemory(async_ctx, error);
+    return m_breakpoint_async_ctx;
+  }
+
+  bool IsIndirectContext(lldb::StackFrameSP frame_sp) {
+    auto sc = frame_sp->GetSymbolContext(eSymbolContextSymbol);
+    auto mangled_name = sc.symbol->GetMangled().GetMangledName().GetStringRef();
+    return SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
+        mangled_name);
+  }
+
   BreakpointSP CreateAsyncBreakpoint(Thread &thread) {
     // The signature for `swift_task_switch` is as follows:
     //   SWIFT_CC(swiftasync)
@@ -331,20 +378,10 @@ private:
     auto &target = thread.GetProcess()->GetTarget();
     auto breakpoint_sp = target.CreateBreakpoint(resume_fn_ptr, true, false);
     breakpoint_sp->SetBreakpointKind("async-step");
-    breakpoint_sp->SetCallback(AsyncBreakpointHit, this, true);
     return breakpoint_sp;
   }
 
-  static bool AsyncBreakpointHit(void *baton, StoppointCallbackContext *context,
-                                 lldb::user_id_t break_id,
-                                 lldb::user_id_t break_loc_id) {
-    auto *plan = reinterpret_cast<ThreadPlanStepInAsync *>(baton);
-    plan->SetTID(context->exe_ctx_ref.GetThreadSP()->GetID());
-    plan->m_breakpoint_async_context = GetAsyncContext(context->exe_ctx_ref.GetFrameSP());
-    return true;
-  }
-
-  static uint64_t GetAsyncContext(lldb::StackFrameSP frame_sp) {
+  static lldb::addr_t GetAsyncContext(lldb::StackFrameSP frame_sp) {
     auto reg_ctx_sp = frame_sp->GetRegisterContext();
 
     int async_ctx_regnum = 0;
@@ -360,26 +397,13 @@ private:
 
     auto async_ctx_reg = reg_ctx_sp->ConvertRegisterKindToRegisterNumber(
         RegisterKind::eRegisterKindDWARF, async_ctx_regnum);
-    auto async_ctx = reg_ctx_sp->ReadRegisterAsUnsigned(async_ctx_reg, 23);
-
-    auto sc = frame_sp->GetSymbolContext(eSymbolContextSymbol);
-    auto mangled_name = sc.symbol->GetMangled().GetMangledName().GetStringRef();
-    bool indirect_context =
-        SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
-            mangled_name);
-
-    if (!indirect_context)
-      return async_ctx;
-
-    auto process_sp = frame_sp->CalculateProcess();
-    Status error;
-    return process_sp->ReadPointerFromMemory(async_ctx, error);
+    return reg_ctx_sp->ReadRegisterAsUnsigned(async_ctx_reg, 0);
   }
 
   ThreadPlanSP m_step_in_plan_sp;
   BreakpointSP m_async_breakpoint_sp;
-  uint64_t m_initial_async_context = 0;
-  uint64_t m_breakpoint_async_context = 0;
+  llvm::Optional<lldb::addr_t> m_initial_async_ctx;
+  llvm::Optional<lldb::addr_t> m_breakpoint_async_ctx;
 };
 
 static lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,

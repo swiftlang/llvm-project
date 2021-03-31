@@ -2213,7 +2213,7 @@ void PruneThreadPlans();
 
   void SynchronizeThreadPlans();
 
-  lldb::ThreadPlanSP FindDetachedPlanExplainingStop(Event *event_ptr);
+  lldb::ThreadPlanSP FindDetachedPlanExplainingStop(Thread &thread, Event *event_ptr);
 
   /// Find the thread plan stack associated with thread with \a tid.
   ///

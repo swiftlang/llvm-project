@@ -804,7 +804,7 @@ bool Thread::ShouldStop(Event *event_ptr) {
 
   // Call this after ShouldStopSynchronous.
   ThreadPlan *current_plan;
-  if (auto plan = GetProcess()->FindDetachedPlanExplainingStop(event_ptr))
+  if (auto plan = GetProcess()->FindDetachedPlanExplainingStop(*this, event_ptr))
     current_plan = plan.get();
   else
     current_plan = GetCurrentPlan();
