@@ -2469,8 +2469,8 @@ SwiftLanguageRuntime::GetRuntimeUnwindPlan(ProcessSP process_sp,
     // array minus one. This skips the last deref for this use.
     assert(expr[expr_size - 1] == llvm::dwarf::DW_OP_deref &&
            "Should skip a deref");
-    row->SetRegisterLocationToIsDWARFExpression(regnums->async_ctx_regnum,
-                                                expr, expr_size - 1, false);
+    row->SetRegisterLocationToIsDWARFExpression(regnums->async_ctx_regnum, expr,
+                                                expr_size - 1, false);
   } else {
     // In the first part of a split async function, the context is passed
     // directly, so we can use the CFA value directly.
