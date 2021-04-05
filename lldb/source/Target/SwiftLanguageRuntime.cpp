@@ -2290,18 +2290,21 @@ void SwiftLanguageRuntime::DidFinishExecutingUserExpression(
 
 bool SwiftLanguageRuntime::IsABIStable() { FORWARD(IsABIStable); }
 
-// The target specific register numbers (eh_frame/dwarf) used for async
-// unwinding.
+namespace {
+/// The target specific register numbers used for async unwinding.
+///
+/// For UnwindPlans, these use eh_frame / dwarf register numbering.
 struct AsyncUnwindRegisterNumbers {
   uint32_t async_ctx_regnum;
   uint32_t fp_regnum;
   uint32_t pc_regnum;
-  // A register to use as a marker to indicate how the async context is passed
-  // to the function (indirectly, or not). This needs to be communicated to the
-  // frames below us as they need to react differently. There is no good way to
-  // expose this, so we set another dummy register to communicate this state.
+  /// A register to use as a marker to indicate how the async context is passed
+  /// to the function (indirectly, or not). This needs to be communicated to the
+  /// frames below us as they need to react differently. There is no good way to
+  /// expose this, so we set another dummy register to communicate this state.
   uint32_t dummy_regnum;
 };
+} // namespace
 
 static llvm::Optional<AsyncUnwindRegisterNumbers>
 GetAsyncUnwindRegisterNumbers(llvm::Triple::ArchType triple) {
