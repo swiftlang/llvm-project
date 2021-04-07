@@ -218,6 +218,7 @@ clang_experimental_DependencyScannerWorker_getFileDependencies_v0(
     for (int i = 2; i < argc; ++i)
       Compilation.push_back(argv[i]);
   else {
+    *error = "The dependency scanner requires using -cc1 compilation arguments. See  clang_Driver_getExternalActionsForCommand_v0 in Driver.h for more information."
     return nullptr; // TODO: Run the driver to get -cc1 args.
   }
 
