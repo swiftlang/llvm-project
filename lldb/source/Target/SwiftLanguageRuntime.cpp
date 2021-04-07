@@ -2115,18 +2115,18 @@ static llvm::Optional<AsyncUnwindRegisterNumbers>
 GetAsyncUnwindRegisterNumbers(llvm::Triple::ArchType triple) {
   switch (triple) {
   case llvm::Triple::x86_64:
-    return (AsyncUnwindRegisterNumbers){
-        .async_ctx_regnum = dwarf_r14_x86_64,
-        .fp_regnum = dwarf_rbp_x86_64,
-        .pc_regnum = dwarf_rip_x86_64,
-        .dummy_regnum = dwarf_r15_x86_64,
+    return AsyncUnwindRegisterNumbers{
+        dwarf_r14_x86_64,
+        dwarf_rbp_x86_64,
+        dwarf_rip_x86_64,
+        dwarf_r15_x86_64,
     };
   case llvm::Triple::aarch64:
-    return (AsyncUnwindRegisterNumbers){
-        .async_ctx_regnum = arm64_dwarf::x22,
-        .fp_regnum = arm64_dwarf::fp,
-        .pc_regnum = arm64_dwarf::pc,
-        .dummy_regnum = arm64_dwarf::x23,
+    return AsyncUnwindRegisterNumbers{
+        arm64_dwarf::x22,
+        arm64_dwarf::fp,
+        arm64_dwarf::pc,
+        arm64_dwarf::x23,
     };
   default:
     assert(false && "swift async supports only x86_64 and arm64");
