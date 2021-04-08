@@ -33,6 +33,6 @@ class TestCase(lldbtest.TestBase):
                 b = frame.FindVariable("b")
                 self.assertTrue(b.IsValid())
                 # self.assertGreater(b.unsigned, 0)
-                self.assertEqual(a.unsigned, 0)
+                self.assertEqual(b.unsigned, 0)
 
             process.Continue()
