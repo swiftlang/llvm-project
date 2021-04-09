@@ -2480,6 +2480,7 @@ ObjCLanguageRuntime::ClassDescriptorSP
 AppleObjCRuntimeV2::TaggedPointerVendorRuntimeAssisted::GetClassDescriptor(
     lldb::addr_t ptr) {
   ClassDescriptorSP actual_class_descriptor_sp;
+  uint64_t data_payload;
   uint64_t unobfuscated = (ptr) ^ m_runtime.GetTaggedPointerObfuscator();
 
   if (!IsPossibleTaggedPointer(unobfuscated))
@@ -2507,15 +2508,12 @@ AppleObjCRuntimeV2::TaggedPointerVendorRuntimeAssisted::GetClassDescriptor(
     m_cache[slot] = actual_class_descriptor_sp;
   }
 
-  uint64_t data_payload =
+  data_payload =
       (((uint64_t)unobfuscated << m_objc_debug_taggedpointer_payload_lshift) >>
        m_objc_debug_taggedpointer_payload_rshift);
-  int64_t data_payload_signed =
-      ((int64_t)((int64_t)unobfuscated
-                 << m_objc_debug_taggedpointer_payload_lshift) >>
-       m_objc_debug_taggedpointer_payload_rshift);
-  return ClassDescriptorSP(new ClassDescriptorV2Tagged(
-      actual_class_descriptor_sp, data_payload, data_payload_signed));
+
+  return ClassDescriptorSP(
+      new ClassDescriptorV2Tagged(actual_class_descriptor_sp, data_payload));
 }
 
 AppleObjCRuntimeV2::TaggedPointerVendorExtended::TaggedPointerVendorExtended(
@@ -2567,6 +2565,7 @@ ObjCLanguageRuntime::ClassDescriptorSP
 AppleObjCRuntimeV2::TaggedPointerVendorExtended::GetClassDescriptor(
     lldb::addr_t ptr) {
   ClassDescriptorSP actual_class_descriptor_sp;
+  uint64_t data_payload;
   uint64_t unobfuscated = (ptr) ^ m_runtime.GetTaggedPointerObfuscator();
 
   if (!IsPossibleTaggedPointer(unobfuscated))
@@ -2597,16 +2596,12 @@ AppleObjCRuntimeV2::TaggedPointerVendorExtended::GetClassDescriptor(
     m_ext_cache[slot] = actual_class_descriptor_sp;
   }
 
-  uint64_t data_payload = (((uint64_t)unobfuscated
-                            << m_objc_debug_taggedpointer_ext_payload_lshift) >>
-                           m_objc_debug_taggedpointer_ext_payload_rshift);
-  int64_t data_payload_signed =
-      ((int64_t)((int64_t)unobfuscated
-                 << m_objc_debug_taggedpointer_ext_payload_lshift) >>
-       m_objc_debug_taggedpointer_ext_payload_rshift);
+  data_payload = (((uint64_t)unobfuscated
+                   << m_objc_debug_taggedpointer_ext_payload_lshift) >>
+                  m_objc_debug_taggedpointer_ext_payload_rshift);
 
-  return ClassDescriptorSP(new ClassDescriptorV2Tagged(
-      actual_class_descriptor_sp, data_payload, data_payload_signed));
+  return ClassDescriptorSP(
+      new ClassDescriptorV2Tagged(actual_class_descriptor_sp, data_payload));
 }
 
 AppleObjCRuntimeV2::NonPointerISACache::NonPointerISACache(
