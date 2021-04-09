@@ -18,6 +18,7 @@
 #include "Utils.h"
 #include "lldb/Core/Address.h"
 #include "lldb/Core/StreamFile.h"
+#include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObjectRegister.h"
 #include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/Expression/ExpressionVariable.h"
@@ -44,6 +45,7 @@
 #include "lldb/API/SBDebugger.h"
 #include "lldb/API/SBExpressionOptions.h"
 #include "lldb/API/SBStream.h"
+#include "lldb/API/SBStructuredData.h"
 #include "lldb/API/SBSymbolContext.h"
 #include "lldb/API/SBThread.h"
 #include "lldb/API/SBValue.h"
@@ -53,6 +55,7 @@
 
 // BEGIN SWIFT
 #include "lldb/Target/LanguageRuntime.h"
+#include "lldb/Target/SwiftLanguageRuntime.h"
 // END SWIFT
 
 using namespace lldb;
@@ -1205,6 +1208,24 @@ lldb::LanguageType SBFrame::GuessLanguage() const {
     }
   }
   return eLanguageTypeUnknown;
+}
+
+lldb::SBStructuredData SBFrame::GetLanguageSpecificData() const {
+  auto mangled_name = GetFunction().GetMangledName();
+  if (!mangled_name)
+    return {};
+
+  auto dict_sp = std::make_shared<StructuredData::Dictionary>();
+
+  // BEGIN SWIFT
+  auto is_async =
+      SwiftLanguageRuntime::IsSwiftAsyncFunctionSymbol(mangled_name);
+  dict_sp->AddBooleanItem("IsSwiftAsyncFunction", is_async);
+  // END SWIFT
+
+  auto *data = new StructuredDataImpl;
+  data->SetObjectSP(dict_sp);
+  return {data};
 }
 
 // BEGIN SWIFT

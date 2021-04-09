@@ -285,6 +285,9 @@ public:
     bool
     GetDescription (lldb::SBStream &description);
 
+    lldb::SBStructuredData
+    GetLanguageSpecificData ();
+
     STRING_EXTENSION(SBFrame)
 
 #ifdef SWIGPYTHON
