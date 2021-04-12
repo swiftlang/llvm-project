@@ -1805,6 +1805,12 @@ size_t Target::ReadMemory(const Address &addr, bool prefer_file_cache,
   if (!resolved_addr.IsValid())
     resolved_addr = addr;
 
+  SectionSP section_sp(addr.GetSection());
+  if (section_sp) {
+    auto permissions = section_sp->GetPermissions();
+    prefer_file_cache = (permissions & ePermissionsWritable) == 0 &&
+                        (permissions & ePermissionsReadable) == 1;
+  }
   if (prefer_file_cache) {
     bytes_read = ReadMemoryFromFileCache(resolved_addr, dst, dst_len, error);
     if (bytes_read > 0)
