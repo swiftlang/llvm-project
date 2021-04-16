@@ -55,7 +55,7 @@ class TestCase(lldbtest.TestBase):
                     continue
 
                 # The entry function is missing this prefix dedicating resume functions.
-                prefix = re.compile(r'^\([0-9]+\) await resume partial function for ')
+                prefix = re.compile(r'^\([0-9]+\) (await|suspend) resume partial function for ')
                 self.assertEqual(prefix.sub('', caller_after),
                                  prefix.sub('', caller_before))
                 num_async_steps += 1
