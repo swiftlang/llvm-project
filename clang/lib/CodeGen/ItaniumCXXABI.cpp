@@ -3148,7 +3148,8 @@ ItaniumCXXABI::getOrCreateVirtualFunctionPointerThunk(const CXXMethodDecl *MD) {
                                 : llvm::GlobalValue::InternalLinkage;
   ThunkFn =
       llvm::Function::Create(ThunkTy, Linkage, ThunkName, &CGM.getModule());
-  ThunkFn->setVisibility(llvm::GlobalValue::HiddenVisibility);
+  if (Linkage == llvm::GlobalValue::LinkOnceODRLinkage)
+    ThunkFn->setVisibility(llvm::GlobalValue::HiddenVisibility);
   assert(ThunkFn->getName() == ThunkName && "name was uniqued!");
 
   CGM.SetLLVMFunctionAttributes(MD, FnInfo, ThunkFn);
