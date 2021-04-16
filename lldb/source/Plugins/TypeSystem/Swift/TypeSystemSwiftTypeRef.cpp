@@ -1013,7 +1013,6 @@ static uint32_t collectTypeInfo(SwiftASTContext *module_holder,
     case Node::Kind::BoundGenericFunction:
       swift_flags |= eTypeIsGeneric | eTypeIsBound;
       LLVM_FALLTHROUGH;
-    case Node::Kind::NoEscapeFunctionType:
     case Node::Kind::FunctionType:
       swift_flags |= eTypeIsPointer | eTypeHasValue;
       break;
@@ -1733,7 +1732,6 @@ bool TypeSystemSwiftTypeRef::IsFunctionType(opaque_compiler_type_t type) {
     // Note: There are a number of other candidates, and this list may need
     // updating. Ex: `NoEscapeFunctionType`, `ThinFunctionType`, etc.
     return node && (node->getKind() == Node::Kind::FunctionType ||
-                    node->getKind() == Node::Kind::NoEscapeFunctionType ||
                     node->getKind() == Node::Kind::ImplFunctionType);
   };
   VALIDATE_AND_RETURN(impl, IsFunctionType, type, (ReconstructType(type)),
@@ -1746,7 +1744,6 @@ size_t TypeSystemSwiftTypeRef::GetNumberOfFunctionArguments(
     Demangler dem;
     NodePointer node = DemangleCanonicalType(dem, type);
     if (!node || (node->getKind() != Node::Kind::FunctionType &&
-                  node->getKind() != Node::Kind::NoEscapeFunctionType &&
                   node->getKind() != Node::Kind::ImplFunctionType))
       return 0;
     unsigned num_args = 0;
@@ -1776,7 +1773,6 @@ TypeSystemSwiftTypeRef::GetFunctionArgumentAtIndex(opaque_compiler_type_t type,
     Demangler dem;
     NodePointer node = DemangleCanonicalType(dem, type);
     if (!node || (node->getKind() != Node::Kind::FunctionType &&
-                  node->getKind() != Node::Kind::NoEscapeFunctionType &&
                   node->getKind() != Node::Kind::ImplFunctionType))
       return {};
     unsigned num_args = 0;
@@ -2056,7 +2052,6 @@ TypeSystemSwiftTypeRef::GetFunctionReturnType(opaque_compiler_type_t type) {
     Demangler dem;
     NodePointer node = DemangleCanonicalType(dem, type);
     if (!node || (node->getKind() != Node::Kind::FunctionType &&
-                  node->getKind() != Node::Kind::NoEscapeFunctionType &&
                   node->getKind() != Node::Kind::ImplFunctionType))
       return {};
     for (NodePointer child : *node) {
@@ -2227,7 +2222,6 @@ lldb::Encoding TypeSystemSwiftTypeRef::GetEncoding(opaque_compiler_type_t type,
     case Node::Kind::Class:
     case Node::Kind::BoundGenericClass:
     case Node::Kind::FunctionType:
-    case Node::Kind::NoEscapeFunctionType:
     case Node::Kind::ImplFunctionType:
     case Node::Kind::DependentGenericParamType:
     case Node::Kind::Function:
@@ -2894,7 +2888,6 @@ bool TypeSystemSwiftTypeRef::DumpTypeValue(
     case Node::Kind::BuiltinTypeName:
     case Node::Kind::DependentGenericParamType:
     case Node::Kind::FunctionType:
-    case Node::Kind::NoEscapeFunctionType:
     case Node::Kind::ImplFunctionType: {
       uint32_t item_count = 1;
       // A few formats, we might need to modify our size and count for
