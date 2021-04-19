@@ -1518,6 +1518,48 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
             .setMIFlag(MachineInstr::FrameSetup);
       }
     }
+
+    if (IsWin64Prologue && !IsFunclet) {
+      if (X86FI->hasSwiftAsyncContext()) {
+        // Before we update the live frame pointer we have to ensure there's a
+        // valid (or null) asynchronous context in its slot just before FP in
+        // the frame record, so store it now.
+        const auto &Attrs = MF.getFunction().getAttributes();
+
+        if (Attrs.hasAttrSomewhere(Attribute::SwiftAsync)) {
+          // We have an initial context in r14, store it just before the frame
+          // pointer.
+          BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH64r))
+              .addReg(X86::R14)
+              .setMIFlag(MachineInstr::FrameSetup);
+        } else {
+          // No initial context, store null so that there's no pointer that
+          // could be misused.
+          BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH64i8))
+              .addImm(0)
+              .setMIFlag(MachineInstr::FrameSetup);
+        }
+
+        if (NeedsWinCFI) {
+          HasWinCFI = true;
+          BuildMI(MBB, MBBI, DL, TII.get(X86::SEH_PushReg))
+            .addImm(X86::R14)
+            .setMIFlag(MachineInstr::FrameSetup);
+        }
+
+        BuildMI(MBB, MBBI, DL, TII.get(X86::LEA64r), FramePtr)
+            .addUse(X86::RSP)
+            .addImm(1)
+            .addUse(X86::NoRegister)
+            .addImm(8)
+            .addUse(X86::NoRegister)
+            .setMIFlag(MachineInstr::FrameSetup);
+        BuildMI(MBB, MBBI, DL, TII.get(X86::SUB64ri8), X86::RSP)
+            .addUse(X86::RSP)
+            .addImm(8)
+            .setMIFlag(MachineInstr::FrameSetup);
+      }
+    }
   } else {
     assert(!IsFunclet && "funclets without FPs not yet implemented");
     NumBytes = StackSize - X86FI->getCalleeSavedFrameSize();
