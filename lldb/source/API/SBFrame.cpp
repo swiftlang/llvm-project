@@ -1211,21 +1211,16 @@ lldb::LanguageType SBFrame::GuessLanguage() const {
 }
 
 lldb::SBStructuredData SBFrame::GetLanguageSpecificData() const {
-  auto mangled_name = GetFunction().GetMangledName();
-  if (!mangled_name)
-    return {};
+  std::unique_lock<std::recursive_mutex> lock;
+  ExecutionContext exe_ctx(m_opaque_sp.get(), lock);
+  auto *process = exe_ctx.GetProcessPtr();
+  auto *frame = exe_ctx.GetFramePtr();
+  if (process && frame)
+    if (auto *runtime = process->GetLanguageRuntime(frame->GuessLanguage()))
+      if (auto *data = runtime->GetLanguageSpecificData(*frame))
+        return {data};
 
-  auto dict_sp = std::make_shared<StructuredData::Dictionary>();
-
-  // BEGIN SWIFT
-  auto is_async =
-      SwiftLanguageRuntime::IsSwiftAsyncFunctionSymbol(mangled_name);
-  dict_sp->AddBooleanItem("IsSwiftAsyncFunction", is_async);
-  // END SWIFT
-
-  auto *data = new StructuredDataImpl;
-  data->SetObjectSP(dict_sp);
-  return {data};
+  return nullptr;
 }
 
 // BEGIN SWIFT
