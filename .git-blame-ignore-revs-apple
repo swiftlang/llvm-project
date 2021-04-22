@@ -1,0 +1,7 @@
+# Supplement to .git-blame-ignore-revs for https://github.com/apple/llvm-project.
+#
+# $ git config blame.ignoreRevsFile .git-blame-ignore-revs
+# $ git config --add blame.ignoreRevsFile .git-blame-ignore-revs-apple
+
+# reformat of swift-lldb master-next
+505de57baa751dbb8bbd3019df5105ec70d0f5c3
