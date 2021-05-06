@@ -6026,10 +6026,6 @@ class SBFrame(object):
         r"""GetLanguageSpecificData(SBFrame self) -> SBStructuredData"""
         return _lldb.SBFrame_GetLanguageSpecificData(self)
 
-    def IsSwiftThunk(self):
-        r"""IsSwiftThunk(SBFrame self) -> bool"""
-        return _lldb.SBFrame_IsSwiftThunk(self)
-
     def __str__(self):
         r"""__str__(SBFrame self) -> std::string"""
         return _lldb.SBFrame___str__(self)
