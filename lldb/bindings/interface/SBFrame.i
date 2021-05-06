@@ -296,6 +296,9 @@ public:
     lldb::SBStructuredData
     GetLanguageSpecificData ();
 
+    bool
+    IsSwiftThunk ();
+
     STRING_EXTENSION(SBFrame)
 
 #ifdef SWIGPYTHON
