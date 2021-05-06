@@ -21,10 +21,6 @@
 #include "lldb/lldb-private.h"
 #include "llvm/Support/VersionTuple.h"
 
-namespace swift {
-class SwiftObjectFileFormat;
-enum ReflectionSectionKind : uint8_t;
-}
 namespace lldb_private {
 
 class ObjectFileJITDelegate {
@@ -669,9 +665,6 @@ public:
 
   /// Creates a plugin-specific call frame info
   virtual std::unique_ptr<CallFrameInfo> CreateCallFrameInfo();
-
-  virtual llvm::StringRef
-  GetReflectionSectionIdentifier(swift::ReflectionSectionKind section);
 
 protected:
   // Member variables.

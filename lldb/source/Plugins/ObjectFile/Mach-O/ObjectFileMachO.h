@@ -209,9 +209,6 @@ protected:
 
   bool SectionIsLoadable(const lldb_private::Section *section);
 
-  llvm::StringRef
-  GetReflectionSectionIdentifier(swift::ReflectionSectionKind section) override;
-
   llvm::MachO::mach_header m_header;
   static lldb_private::ConstString GetSegmentNameTEXT();
   static lldb_private::ConstString GetSegmentNameDATA();

@@ -16,4 +16,7 @@ add_lldb_library(lldbPluginSwiftLanguageRuntime PLUGIN
     lldbPluginExpressionParserClang
     lldbPluginProcessUtility
     lldbPluginSwiftLanguage
+    lldbPluginObjectFileELF
+    lldbPluginObjectFileMachO
+    lldbPluginObjectFilePECOFF
 )

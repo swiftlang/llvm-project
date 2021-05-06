@@ -9,6 +9,14 @@ add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
     lldbTarget
     lldbUtility
 
+    swiftAST
+    swiftASTSectionImporter
+    swiftBasic
+    swiftClangImporter
+    swiftFrontend
+    swiftSIL
+    swiftSerialization
+
   LINK_COMPONENTS
     Support
 )

@@ -13,6 +13,9 @@
 #include "SwiftLanguageRuntime.h"
 #include "SwiftLanguageRuntimeImpl.h"
 
+#include "Plugins/ObjectFile/ELF/ObjectFileELF.h"
+#include "Plugins/ObjectFile/Mach-O/ObjectFileMachO.h"
+#include "Plugins/ObjectFile/PECOFF/ObjectFilePECOFF.h"
 #include "Plugins/Process/Utility/RegisterContext_x86.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "Utility/ARM64_DWARF_Registers.h"
@@ -33,6 +36,7 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/OptionParsing.h"
 
+#include "swift/ABI/ObjectFile.h"
 #include "swift/AST/ASTMangler.h"
 #include "swift/AST/Decl.h"
 #include "swift/AST/Module.h"
@@ -387,18 +391,34 @@ static bool HasReflectionInfo(ObjectFile *obj_file) {
     return false;
   };
 
-  StringRef field_md = obj_file->GetReflectionSectionIdentifier(
-      swift::ReflectionSectionKind::fieldmd);
-  StringRef assocty = obj_file->GetReflectionSectionIdentifier(
-      swift::ReflectionSectionKind::assocty);
-  StringRef builtin = obj_file->GetReflectionSectionIdentifier(
-      swift::ReflectionSectionKind::builtin);
-  StringRef capture = obj_file->GetReflectionSectionIdentifier(
-      swift::ReflectionSectionKind::capture);
-  StringRef typeref = obj_file->GetReflectionSectionIdentifier(
-      swift::ReflectionSectionKind::typeref);
-  StringRef reflstr = obj_file->GetReflectionSectionIdentifier(
-      swift::ReflectionSectionKind::reflstr);
+  auto getReflectionSectionIdentifier =
+      [&](ObjectFile *obj_file, swift::ReflectionSectionKind section) {
+        if (llvm::isa<ObjectFileELF>(obj_file)) {
+          swift::SwiftObjectFileFormatELF file_format_elf;
+          return file_format_elf.getSectionName(section);
+        } else if (llvm::isa<ObjectFileMachO>(obj_file)) {
+          swift::SwiftObjectFileFormatMachO file_format_macho;
+          return file_format_macho.getSectionName(section);
+        } else if (llvm::isa<ObjectFilePECOFF>(obj_file)) {
+          swift::SwiftObjectFileFormatCOFF file_format_coff;
+          return file_format_coff.getSectionName(section);
+        } else {
+          llvm_unreachable("Unsupported object file format for swift");
+        }
+      };
+
+  StringRef field_md = getReflectionSectionIdentifier(
+      obj_file, swift::ReflectionSectionKind::fieldmd);
+  StringRef assocty = getReflectionSectionIdentifier(
+      obj_file, swift::ReflectionSectionKind::assocty);
+  StringRef builtin = getReflectionSectionIdentifier(
+      obj_file, swift::ReflectionSectionKind::builtin);
+  StringRef capture = getReflectionSectionIdentifier(
+      obj_file, swift::ReflectionSectionKind::capture);
+  StringRef typeref = getReflectionSectionIdentifier(
+      obj_file, swift::ReflectionSectionKind::typeref);
+  StringRef reflstr = getReflectionSectionIdentifier(
+      obj_file, swift::ReflectionSectionKind::reflstr);
 
   bool hasReflectionSection = false;
   hasReflectionSection |= findSectionInObject(field_md);
