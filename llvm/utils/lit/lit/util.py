@@ -122,8 +122,8 @@ def usable_core_count():
 
     # On Windows, with more than 32 processes, process creation often fails with
     # "Too many open files".  FIXME: Check if there's a better fix.
-    if platform.system() == 'Windows':
-        return min(n, 32)
+    # if platform.system() == 'Windows':
+    #    return min(n, 32)
 
     return n
 
