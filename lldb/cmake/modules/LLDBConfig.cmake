@@ -70,6 +70,8 @@ option(LLDB_SKIP_STRIP "Whether to skip stripping of binaries when installing ll
 option(LLDB_ENABLE_SWIFT_SUPPORT "Enable swift support" ON)
 option(LLDB_USE_STATIC_BINDINGS "Use the static Python bindings." OFF)
 option(LLDB_ENABLE_WERROR "Fail and stop if a warning is triggered." ${LLVM_ENABLE_WERROR})
+check_cxx_compiler_flag("-Wmisleading-indentation" CXX_SUPPORTS_MISLEADING_INDENTATION)
+append_if(CXX_SUPPORTS_MISLEADING_INDENTATION "-Werror=misleading-indentation" CMAKE_CXX_FLAGS)
 if(LLDB_ENABLE_SWIFT_SUPPORT)
   add_definitions( -DLLDB_ENABLE_SWIFT )
 endif()
