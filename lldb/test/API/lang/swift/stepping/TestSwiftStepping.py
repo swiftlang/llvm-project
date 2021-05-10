@@ -25,6 +25,7 @@ class TestSwiftStepping(lldbtest.TestBase):
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
     @swiftTest
+    @expectedFailureAll(oslist=['macosx'], archs=['i386'], bugnumber="rdar://28656408")
     def test_swift_stepping(self):
         """Tests that we can step reliably in swift code."""
         self.build()
