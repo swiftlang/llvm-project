@@ -1,6 +1,7 @@
 add_llvm_component_library(LLVMCAS
   BuiltinCAS.cpp
   CASDB.cpp
+  FileSystemCache.cpp
   HashMappedTrie.cpp
   OnDiskHashMappedTrie.cpp
   PluginCAS.cpp
