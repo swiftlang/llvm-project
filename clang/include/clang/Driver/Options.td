@@ -255,6 +255,7 @@ class PreprocessorOutputOpts<string base>
   : KeyPathAndMacro<"PreprocessorOutputOpts.", base, "PREPROCESSOR_OUTPUT_"> {}
 class DependencyOutputOpts<string base>
   : KeyPathAndMacro<"DependencyOutputOpts.", base, "DEPENDENCY_OUTPUT_"> {}
+class CASOpts<string base> : KeyPathAndMacro<"CASOpts.", base, "CAS_"> {}
 class CodeGenOpts<string base>
   : KeyPathAndMacro<"CodeGenOpts.", base, "CODEGEN_"> {}
 class HeaderSearchOpts<string base>
@@ -5868,6 +5869,60 @@ def fsycl_is_device : Flag<["-"], "fsycl-is-device">,
 def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
   HelpText<"SYCL host compilation">,
   MarshallingInfoFlag<LangOpts<"SYCLIsHost">>;
+
+} // let Flags = [CC1Option, NoDriverOption]
+
+
+//===----------------------------------------------------------------------===//
+// CAS Options
+//===----------------------------------------------------------------------===//
+
+// -cc1 options. These should be available in the driver too, but the driver
+// doesn't currently support most of them. For example, the driver should
+// read only from -fcas-fs if specified.
+let Flags = [CC1Option, NoDriverOption] in {
+
+def fcas : Separate<["-"], "fcas">,
+    Group<f_Group>, MetaVarName<"<none|builtin|plugin>">,
+    HelpText<"Kind of CAS to use during compilation.">,
+    Values<"none,builtin,plugin">, NormalizedValuesScope<"CASOptions">,
+    NormalizedValues<["NoCAS", "BuiltinCAS", "PluginCAS"]>,
+    MarshallingInfoEnum<CASOpts<"Kind">, "NoCAS">;
+
+def fcas_builtin_path : Separate<["-"], "fcas-builtin-path">,
+    Group<f_Group>, MetaVarName<"<dir>">,
+    HelpText<"Path to a persistent on-disk backing store for the builtin CAS.">,
+    ShouldParseIf<!strconcat(fcas.KeyPath," == CASOptions::BuiltinCAS")>,
+    MarshallingInfoString<CASOpts<"BuiltinPath">>;
+
+def fcas_plugin_path : Separate<["-"], "fcas-plugin-path">,
+    Group<f_Group>, MetaVarName<"<dsopath>">,
+    HelpText<"Path to the CAS plugin to load.">,
+    ShouldParseIf<!strconcat(fcas.KeyPath," == CASOptions::PluginCAS")>,
+    MarshallingInfoString<CASOpts<"PluginPath">>;
+
+def fcas_plugin_arg : Joined<["-"], "fcas-plugin-arg">,
+    Group<f_Group>, MetaVarName<"<option>">,
+    HelpText<"Arguments for initializing the CAS plugin.">,
+    ShouldParseIf<!strconcat(fcas.KeyPath," == CASOptions::PluginCAS")>,
+    MarshallingInfoStringVector<CASOpts<"PluginArgs">>;
+
+def fcas_fs : Separate<["-"], "fcas-fs">,
+    Group<f_Group>, MetaVarName<"<tree>">,
+    HelpText<"Configure the filesystem to read from the provided CAS tree.">,
+    ShouldParseIf<!strconcat(fcas.KeyPath, " != CASOptions::NoCAS")>,
+    MarshallingInfoString<CASOpts<"CASFileSystemRootID">>;
+
+def fcas_fs_working_directory : Separate<["-"], "fcas-fs-working-directory">,
+    Group<f_Group>, MetaVarName<"<dir>">,
+    HelpText<"Working directory for -fcas-fs (if not the root).">,
+    ShouldParseIf<!strconcat("!", fcas_fs.KeyPath, ".empty()")>,
+    MarshallingInfoString<CASOpts<"CASFileSystemWorkingDirectory">>;
+
+defm fcas_fs_cache_results : BoolFOption<"cas-fs-result-cache",
+    CASOpts<"CASFileSystemResultCache">, DefaultFalse,
+    PosFlag<SetTrue, [], "When using -fcas-fs, use a result cache.">,
+    NegFlag<SetFalse>>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 

@@ -1306,3 +1306,8 @@ def WebAssemblyExceptionSpec : DiagGroup<"wasm-exception-spec">;
 def RTTI : DiagGroup<"rtti">;
 
 def OpenCLCoreFeaturesDiagGroup : DiagGroup<"pedantic-core-features">;
+// Remarks for cached -cc1.
+def CASFSResultCacheMiss : DiagGroup<"cas-fs-result-cache-miss">;
+def CASFSResultCacheHit : DiagGroup<"cas-fs-result-cache-hit">;
+def CASFSResultCache : DiagGroup<"cas-fs-result-cache", [CASFSResultCacheMiss,
+                                                         CASFSResultCacheHit]>;
