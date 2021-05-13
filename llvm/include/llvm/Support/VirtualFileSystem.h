@@ -303,6 +303,9 @@ public:
   /// \returns success if \a path has been made absolute, otherwise a
   ///          platform-specific error_code.
   virtual std::error_code makeAbsolute(SmallVectorImpl<char> &Path) const;
+
+  /// Check if files are loaded from a CAS.
+  virtual bool isCASFS() const { return false; }
 };
 
 /// Gets an \p vfs::FileSystem for the 'real' file system, as seen by
