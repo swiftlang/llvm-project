@@ -7,4 +7,5 @@ add_llvm_unittest(CASTests
   CASDBTest.cpp
   CASFileSystemTest.cpp
   HashMappedTrieTest.cpp
+  HierarchicalTreeBuilderTest.cpp
   )

@@ -353,6 +353,59 @@ void getDefaultOnDiskCASStableID(SmallVectorImpl<char> &Path);
 std::string getDefaultOnDiskCASPath();
 std::string getDefaultOnDiskCASStableID();
 
+/// Structure to facilitating building full tree hierarchies.
+///
+/// FIXME: likely move to the caller; may not be common.
+class HierarchicalTreeBuilder {
+  struct HierarchicalEntry {
+  public:
+    StringRef getPath() const { return Path; }
+    Optional<CASID> getID() const { return ID; }
+    TreeEntry::EntryKind getKind() const { return Kind; }
+
+    HierarchicalEntry(Optional<CASID> ID, TreeEntry::EntryKind Kind,
+                      StringRef Path)
+        : ID(ID), Kind(Kind), Path(Path.str()) {
+      assert(ID || Kind == TreeEntry::Tree);
+    }
+
+  private:
+    Optional<CASID> ID;
+    TreeEntry::EntryKind Kind;
+    std::string Path;
+  };
+
+  /// Preallocate space for small trees, common when creating cache keys.
+  SmallVector<HierarchicalEntry, 8> Entries;
+
+  void pushImpl(Optional<CASID> ID, TreeEntry::EntryKind Kind,
+                const Twine &Path);
+
+public:
+  /// Add a hierarchical entry at \p Path, which is expected to be from the
+  /// top-level (otherwise, the caller should prepend a working directory).
+  ///
+  /// All ".." components will be squashed by eating the parent. Paths through
+  /// symlinks will not work, and should be resolved ahead of time. Paths must
+  /// be POSIX-style.
+  void push(CASID ID, TreeEntry::EntryKind Kind, const Twine &Path) {
+    return pushImpl(ID, Kind, Path);
+  }
+
+  /// Add a directory. Ensures the directory will exist even if there are no
+  /// files pushed from within it.
+  void pushDirectory(const Twine &Path) {
+    return pushImpl(None, TreeEntry::Tree, Path);
+  }
+
+  /// Drop all entries.
+  void clear() { Entries.clear(); }
+
+  /// Recursively create the trees implied by calls to \a push(), return the
+  /// top-level \a CASID.
+  Expected<TreeRef> create(CASDB &CAS);
+};
+
 } // namespace cas
 
 template <> struct DenseMapInfo<cas::CASID> {
