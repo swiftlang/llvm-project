@@ -1,5 +1,7 @@
 add_llvm_component_library(LLVMCAS
   CASDB.cpp
+  HashMappedTrie.cpp
+  OnDiskHashMappedTrie.cpp
   PluginCAS.cpp
 
   ADDITIONAL_HEADER_DIRS
