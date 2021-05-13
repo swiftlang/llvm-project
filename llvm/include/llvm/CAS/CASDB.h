@@ -1,0 +1,379 @@
+//===- llvm/CAS/CASDB.h ---------------------------------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef LLVM_CAS_CASDB_H
+#define LLVM_CAS_CASDB_H
+
+#include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h" // FIXME: Split out sys::fs::file_status.
+#include "llvm/Support/MemoryBuffer.h"
+#include <cstddef>
+
+namespace llvm {
+namespace cas {
+
+class CASDB;
+
+/// Kind of CAS object.
+enum class ObjectKind {
+  Blob, /// Data, with no references.
+  Tree, /// Filesystem-style tree, with named references and entry types.
+  Node, /// Abstract hierarchical node, with data and references.
+};
+
+/// Wrapper around a raw hash-based identifier for a CAS object.
+class CASID {
+public:
+  ArrayRef<uint8_t> getHash() const { return Hash; }
+
+  friend bool operator==(CASID LHS, CASID RHS) {
+    return LHS.getHash() == RHS.getHash();
+  }
+  friend bool operator!=(CASID LHS, CASID RHS) {
+    return LHS.getHash() != RHS.getHash();
+  }
+
+  CASID() = delete;
+  explicit CASID(ArrayRef<uint8_t> Hash) : Hash(Hash) {}
+  explicit operator ArrayRef<uint8_t>() const { return Hash; }
+
+  friend hash_code hash_value(cas::CASID ID) {
+    return hash_value(ID.getHash());
+  }
+
+private:
+  ArrayRef<uint8_t> Hash;
+};
+
+/// Generic CAS object reference.
+class ObjectRef {
+public:
+  CASID getID() const { return ID; }
+  operator CASID() const { return ID; }
+
+protected:
+  explicit ObjectRef(CASID ID) : ID(ID) {}
+
+private:
+  CASID ID;
+};
+
+/// Reference to a blob in the CAS.
+class BlobRef : public ObjectRef {
+public:
+  /// Get the content of the blob. Valid as long as the CAS is valid.
+  StringRef getData() const { return Data; }
+  ArrayRef<char> getDataArray() const {
+    return makeArrayRef(Data.begin(), Data.size());
+  }
+  StringRef operator*() const { return Data; }
+  const StringRef *operator->() const { return &Data; }
+
+  BlobRef() = delete;
+
+private:
+  BlobRef(CASID ID, StringRef Data) : ObjectRef(ID), Data(Data) {
+    assert(Data.end()[0] == 0 && "Blobs should guarantee null-termination");
+  }
+
+  friend class CASDB;
+  StringRef Data;
+};
+
+class TreeEntry {
+public:
+  enum EntryKind {
+    Regular,    /// A file.
+    Executable, /// A file that's executable.
+    Symlink,    /// A symbolic link.
+    Tree,       /// A filesystem tree.
+  };
+
+  EntryKind getKind() const { return Kind; }
+  bool isRegular() const { return Kind == Regular; }
+  bool isExecutable() const { return Kind == Executable; }
+  bool isSymlink() const { return Kind == Symlink; }
+  bool isTree() const { return Kind == Tree; }
+
+  CASID getID() const { return ID; }
+
+  friend bool operator==(const TreeEntry &LHS, const TreeEntry &RHS) {
+    return LHS.Kind == RHS.Kind && LHS.ID == RHS.ID;
+  }
+
+  TreeEntry(CASID ID, EntryKind Kind) : Kind(Kind), ID(ID) {}
+
+private:
+  EntryKind Kind;
+  CASID ID;
+};
+
+class NamedTreeEntry : public TreeEntry {
+public:
+  StringRef getName() const { return Name; }
+
+  friend bool operator==(const NamedTreeEntry &LHS, const NamedTreeEntry &RHS) {
+    return static_cast<const TreeEntry &>(LHS) == RHS && LHS.Name == RHS.Name;
+  }
+
+  friend bool operator<(const NamedTreeEntry &LHS, const NamedTreeEntry &RHS) {
+    return LHS.Name < RHS.Name;
+  }
+
+  NamedTreeEntry(CASID ID, EntryKind Kind, StringRef Name)
+      : TreeEntry(ID, Kind), Name(Name) {}
+
+private:
+  StringRef Name;
+};
+
+/// Reference to a tree CAS object. Reference is passed by value and is
+/// expected to be valid as long as the \a CASDB is.
+///
+/// TODO: Add an API to expose a range of NamedTreeEntry.
+///
+/// TODO: Consider deferring copying/destruction/etc. to TreeAPI to enable an
+/// implementation of CASDB to use reference counting for tree objects. Not
+/// sure the utility, though, and it would add cost -- seems easier/better to
+/// just make objects valid "forever".
+class TreeRef : public ObjectRef {
+public:
+  bool empty() const { return NumEntries == 0; }
+  size_t size() const { return NumEntries; }
+
+  inline Optional<NamedTreeEntry> lookup(StringRef Name) const;
+  inline NamedTreeEntry get(size_t I) const;
+
+  /// Visit each tree entry in order, returning an error from \p Callback to
+  /// stop early.
+  inline Error
+  forEachEntry(function_ref<Error(const NamedTreeEntry &)> Callback) const;
+
+  TreeRef() = delete;
+
+private:
+  TreeRef(CASID ID, CASDB &CAS, const void *Tree, size_t NumEntries)
+      : ObjectRef(ID), CAS(&CAS), Tree(Tree), NumEntries(NumEntries) {}
+
+  friend class CASDB;
+  CASDB *CAS;
+  const void *Tree;
+  size_t NumEntries;
+};
+
+/// Reference to an abstract hierarchical node, with data and references.
+/// Reference is passed by value and is expected to be valid as long as the \a
+/// CASDB is.
+class NodeRef : public ObjectRef {
+public:
+  CASDB &getCAS() const { return *CAS; }
+
+  size_t getNumReferences() const { return NumReferences; }
+  inline CASID getReference(size_t I) const;
+
+  /// Visit each reference in order, returning an error from \p Callback to
+  /// stop early.
+  inline Error forEachReference(function_ref<Error(CASID)> Callback) const;
+
+  /// Get the content of the node. Valid as long as the CAS is valid.
+  StringRef getData() const { return Data; }
+
+  NodeRef() = delete;
+
+private:
+  NodeRef(CASID ID, CASDB &CAS, const void *Object, size_t NumReferences,
+          StringRef Data)
+      : ObjectRef(ID), CAS(&CAS), Object(Object), NumReferences(NumReferences),
+        Data(Data) {}
+
+  friend class CASDB;
+  CASDB *CAS;
+  const void *Object;
+  size_t NumReferences;
+  StringRef Data;
+};
+
+class CASDB {
+public:
+  /// Get a \p CASID from a \p Reference, which should have been generated by
+  /// \a printCASID(). This succeeds as long as \p Reference is valid
+  /// (correctly formatted); it does not refer to an object that exists, just
+  /// be a reference that has been constructed correctly.
+  virtual Expected<CASID> parseCASID(StringRef Reference) = 0;
+
+  /// Print \p ID to \p OS, returning an error if \p ID is not a valid \p CASID
+  /// for this CAS. If \p ID is valid for the CAS schema but unknown to this
+  /// instance (say, because it was generated by another instance), this should
+  /// not return an error.
+  virtual Error printCASID(raw_ostream &OS, CASID ID) = 0;
+
+  Expected<std::string> convertCASIDToString(CASID ID);
+
+  Error getPrintedCASID(CASID ID, SmallVectorImpl<char> &Reference);
+
+  virtual Expected<BlobRef> createBlob(StringRef Data) = 0;
+
+  virtual Expected<TreeRef>
+  createTree(ArrayRef<NamedTreeEntry> Entries = None) = 0;
+
+  virtual Expected<NodeRef> createNode(ArrayRef<CASID> References,
+                                       StringRef Data) = 0;
+
+  /// Default implementation reads \p FD and calls \a createBlob(). Does not
+  /// take ownership of \p FD; the caller is responsible for closing it.
+  ///
+  /// If \p Status is sent in it is to be treated as a hint. Implementations
+  /// must protect against the file size potentially growing after the status
+  /// was taken (i.e., they cannot assume that an mmap will be null-terminated
+  /// where \p Status implies).
+  ///
+  /// Returns the \a CASID and the size of the file.
+  Expected<BlobRef>
+  createBlobFromOpenFile(sys::fs::file_t FD,
+                         Optional<sys::fs::file_status> Status = None) {
+    return createBlobFromOpenFileImpl(FD, Status);
+  }
+
+protected:
+  virtual Expected<BlobRef>
+  createBlobFromOpenFileImpl(sys::fs::file_t FD,
+                             Optional<sys::fs::file_status> Status);
+
+public:
+  virtual Expected<BlobRef> getBlob(CASID ID) = 0;
+  virtual Expected<TreeRef> getTree(CASID ID) = 0;
+  virtual Expected<NodeRef> getNode(CASID ID) = 0;
+
+  virtual Optional<ObjectKind> getObjectKind(CASID ID) = 0;
+  virtual bool isKnownObject(CASID ID) { return bool(getObjectKind(ID)); }
+
+  virtual Expected<CASID> getCachedResult(CASID InputID) = 0;
+  virtual Error putCachedResult(CASID InputID, CASID OutputID) = 0;
+
+  virtual void print(raw_ostream &) const {}
+  void dump() const;
+
+  virtual ~CASDB() = default;
+
+protected:
+  // Support for TreeRef.
+  friend class TreeRef;
+  virtual Optional<NamedTreeEntry> lookupInTree(const TreeRef &Tree,
+                                                StringRef Name) const = 0;
+  virtual NamedTreeEntry getInTree(const TreeRef &Tree, size_t I) const = 0;
+  virtual Error forEachEntryInTree(
+      const TreeRef &Tree,
+      function_ref<Error(const NamedTreeEntry &)> Callback) const = 0;
+
+  /// Build a \a BlobRef. For use by derived classes to access the private
+  /// constructor of \a BlobRef. Templated as a hack to allow this to be
+  /// declared before \a TreeRef.
+  static BlobRef makeBlobRef(CASID ID, StringRef Data) {
+    return BlobRef(ID, Data);
+  }
+
+  /// Extract the tree pointer from \p Ref. For use by derived classes to
+  /// access the private pointer member. Ensures \p Ref comes from this
+  /// instance.
+  ///
+  const void *getTreePtr(const TreeRef &Ref) const {
+    assert(Ref.CAS == this);
+    assert(Ref.Tree);
+    return Ref.Tree;
+  }
+
+  /// Build a \a TreeRef from a pointer. For use by derived classes to access
+  /// the private constructor of \a TreeRef.
+  TreeRef makeTreeRef(CASID ID, const void *TreePtr, size_t NumEntries) {
+    assert(TreePtr);
+    return TreeRef(ID, *this, TreePtr, NumEntries);
+  }
+
+  // Support for NodeRef.
+  friend class NodeRef;
+  virtual CASID getReferenceInNode(const NodeRef &Ref, size_t I) const = 0;
+  virtual Error
+  forEachReferenceInNode(const NodeRef &Ref,
+                         function_ref<Error(CASID)> Callback) const = 0;
+
+  /// Extract the object pointer from \p Ref. For use by derived classes to
+  /// access the private pointer member. Ensures \p Ref comes from this
+  /// instance.
+  ///
+  const void *getNodePtr(const NodeRef &Ref) const {
+    assert(Ref.CAS == this);
+    assert(Ref.Object);
+    return Ref.Object;
+  }
+
+  /// Build a \a NodeRef from a pointer. For use by derived classes to
+  /// access the private constructor of \a NodeRef.
+  NodeRef makeNodeRef(CASID ID, const void *ObjectPtr, size_t NumReferences,
+                      StringRef Data) {
+    assert(ObjectPtr);
+    return NodeRef(ID, *this, ObjectPtr, NumReferences, Data);
+  }
+};
+
+Optional<NamedTreeEntry> TreeRef::lookup(StringRef Name) const {
+  return CAS->lookupInTree(*this, Name);
+}
+
+NamedTreeEntry TreeRef::get(size_t I) const { return CAS->getInTree(*this, I); }
+
+Error TreeRef::forEachEntry(
+    function_ref<Error(const NamedTreeEntry &)> Callback) const {
+  return CAS->forEachEntryInTree(*this, Callback);
+}
+
+CASID NodeRef::getReference(size_t I) const {
+  return CAS->getReferenceInNode(*this, I);
+}
+
+Error NodeRef::forEachReference(function_ref<Error(CASID)> Callback) const {
+  return CAS->forEachReferenceInNode(*this, Callback);
+}
+
+Expected<std::unique_ptr<CASDB>>
+createPluginCAS(StringRef PluginPath, ArrayRef<std::string> PluginArgs = None);
+std::unique_ptr<CASDB> createInMemoryCAS();
+Expected<std::unique_ptr<CASDB>> createOnDiskCAS(const Twine &Path);
+
+void getDefaultOnDiskCASPath(SmallVectorImpl<char> &Path);
+void getDefaultOnDiskCASStableID(SmallVectorImpl<char> &Path);
+
+std::string getDefaultOnDiskCASPath();
+std::string getDefaultOnDiskCASStableID();
+
+} // namespace cas
+
+template <> struct DenseMapInfo<cas::CASID> {
+  static cas::CASID getEmptyKey() {
+    return cas::CASID(DenseMapInfo<ArrayRef<uint8_t>>::getEmptyKey());
+  }
+
+  static cas::CASID getTombstoneKey() {
+    return cas::CASID(DenseMapInfo<ArrayRef<uint8_t>>::getTombstoneKey());
+  }
+
+  static unsigned getHashValue(cas::CASID ID) {
+    return DenseMapInfo<ArrayRef<uint8_t>>::getHashValue(ID.getHash());
+  }
+
+  static bool isEqual(cas::CASID LHS, cas::CASID RHS) {
+    return DenseMapInfo<ArrayRef<uint8_t>>::isEqual(LHS.getHash(),
+                                                    RHS.getHash());
+  }
+};
+
+} // namespace llvm
+
+#endif // LLVM_CAS_CASDB_H
