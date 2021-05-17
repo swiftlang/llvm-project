@@ -789,9 +789,8 @@ public:
     case CC_Swift:
     case CC_X86RegCall:
     case CC_OpenCLKernel:
-      return CCCR_OK;
     case CC_SwiftAsync:
-      return CCCR_Error;
+      return CCCR_OK;
     default:
       return CCCR_Warning;
     }
