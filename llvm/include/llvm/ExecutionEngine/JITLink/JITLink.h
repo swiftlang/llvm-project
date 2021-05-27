@@ -1234,6 +1234,20 @@ public:
     destroyAddressable(OldBase);
   }
 
+  /// Redefine an already-defined symbol.
+  void redefineSymbol(Symbol &Sym, Block &Content, JITTargetAddress Offset,
+                      JITTargetAddress Size, Linkage L, Scope S, bool IsLive) {
+    assert(Sym.isDefined() && "Sym not already a defined symbol");
+    Sym.getBlock().getSection().removeSymbol(Sym);
+    Sym.setBlock(Content);
+    Sym.setOffset(Offset);
+    Sym.setSize(Size);
+    Sym.setLinkage(L);
+    Sym.setScope(S);
+    Sym.setLive(IsLive);
+    Content.getSection().addSymbol(Sym);
+  }
+
   /// Transfer a defined symbol from one block to another.
   ///
   /// The symbol's offset within DestBlock is set to NewOffset.
