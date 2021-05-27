@@ -391,6 +391,13 @@ Error makeTargetOutOfRangeError(const LinkGraph &G, const Block &B,
   return make_error<JITLinkError>(std::move(ErrMsg));
 }
 
+Expected<LinkGraph::GetEdgeKindNameFunction>
+getGetEdgeKindNameFunction(const Triple &TT) {
+  if (TT.isOSBinFormatMachO())
+    return getGetEdgeKindNameFunctionForMachO(TT);
+  return make_error<JITLinkError>("Unsupported triple");
+}
+
 Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromObject(MemoryBufferRef ObjectBuffer) {
   auto Magic = identify_magic(ObjectBuffer.getBuffer());

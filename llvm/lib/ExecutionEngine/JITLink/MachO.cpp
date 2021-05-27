@@ -16,6 +16,7 @@
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/ExecutionEngine/JITLink/MachO_arm64.h"
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
+#include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SwapByteOrder.h"
@@ -71,6 +72,17 @@ createLinkGraphFromMachOObject(MemoryBufferRef ObjectBuffer) {
     return make_error<JITLinkError>("MachO-64 CPU type not valid");
   } else
     return make_error<JITLinkError>("Unrecognized MachO magic value");
+}
+
+Expected<LinkGraph::GetEdgeKindNameFunction>
+getGetEdgeKindNameFunctionForMachO(const Triple &TT) {
+  assert(TT.isOSBinFormatMachO());
+  if (TT.isAArch64()) // FIXME: Should this check for 64-bit pointers?
+    return getMachOARM64RelocationKindName;
+  if (TT.getArch() == Triple::x86_64)
+    return x86_64::getEdgeKindName;
+
+  return make_error<JITLinkError>("Unsupported mach-o triple");
 }
 
 void link_MachO(std::unique_ptr<LinkGraph> G,
