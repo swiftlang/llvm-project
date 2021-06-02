@@ -390,6 +390,7 @@ private:
     setScope(S);
     setLive(IsLive);
     setCallable(IsCallable);
+    setAutoHide(false);
   }
 
   static Symbol &constructCommon(void *SymStorage, Block &Base, StringRef Name,
@@ -468,6 +469,12 @@ public:
 
   /// Returns true if this symbol has a name.
   bool hasName() const { return !Name.empty(); }
+
+  /// Returns true if this symbol is safe to merge by content.
+  bool isAutoHide() const { return IsAutoHide; }
+
+  /// Change whether this symbol is set to be merged by content.
+  void setAutoHide(bool Val) { IsAutoHide = Val; }
 
   /// Returns the name of this symbol (empty if the symbol is anonymous).
   StringRef getName() const {
@@ -622,11 +629,12 @@ private:
   // FIXME: A char* or SymbolStringPtr may pack better.
   StringRef Name;
   Addressable *Base = nullptr;
-  uint64_t Offset : 59;
+  uint64_t Offset : 58;
   uint64_t L : 1;
   uint64_t S : 2;
   uint64_t IsLive : 1;
   uint64_t IsCallable : 1;
+  uint64_t IsAutoHide : 1;
   JITTargetAddress Size = 0;
 };
 

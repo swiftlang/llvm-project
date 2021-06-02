@@ -60,6 +60,10 @@ void MachOLinkGraphBuilder::addCustomSectionParser(
   CustomSectionParserFunctions[SectionName] = std::move(Parser);
 }
 
+static bool isAutoHideDesc(uint16_t Desc) {
+  return (Desc & MachO::N_WEAK_DEF) && (Desc & MachO::N_WEAK_REF);
+}
+
 Linkage MachOLinkGraphBuilder::getLinkage(uint16_t Desc) {
   if ((Desc & MachO::N_WEAK_DEF) || (Desc & MachO::N_WEAK_REF))
     return Linkage::Weak;
@@ -540,6 +544,9 @@ Error MachOLinkGraphBuilder::graphifyRegularSymbols() {
         auto &Sym = createStandardGraphSymbol(NSym, B, SymEnd - NSym.Value,
                                               SectionIsText, SymLive,
                                               LastCanonicalAddr != NSym.Value);
+
+        if (isAutoHideDesc(NSym.Desc))
+          Sym.setAutoHide(true);
 
         if (LastCanonicalAddr != Sym.getAddress()) {
           if (LastCanonicalAddr)
