@@ -257,29 +257,131 @@ inline bool isInRangeForImmS32(int64_t Value) {
           Value <= std::numeric_limits<int32_t>::max());
 }
 
+/// Write an operand for a fixup expression. Can be used to zero out fixups.
+inline Error writeOperand(const Edge::Kind &K, uint64_t OperandValue,
+                          char *FixupPtr) {
+  using namespace support;
+
+  switch (K) {
+
+  case Pointer64: {
+    *(ulittle64_t *)FixupPtr = OperandValue;
+    break;
+  }
+
+  case Pointer32: {
+    if (LLVM_LIKELY(isInRangeForImmU32(OperandValue))) {
+      *(ulittle32_t *)FixupPtr = OperandValue;
+      break;
+    }
+    return createStringError(inconvertibleErrorCode(), "invalid fixup");
+  }
+  case Pointer32Signed: {
+    if (LLVM_LIKELY(isInRangeForImmS32(OperandValue))) {
+      *(little32_t *)FixupPtr = OperandValue;
+      break;
+    }
+    return createStringError(inconvertibleErrorCode(), "invalid fixup");
+  }
+
+  case RequestGOTAndTransformToPCRel32GOTLoadRelaxable:
+  case RequestGOTAndTransformToPCRel32GOTLoadREXRelaxable:
+  case RequestTLVPAndTransformToPCRel32TLVPLoadREXRelaxable:
+    // FIXME: Whether to error here could be client-dependent. Some clients
+    // just want to zero it out, so no error for now.
+
+  case BranchPCRel32:
+  case BranchPCRel32ToPtrJumpStub:
+  case BranchPCRel32ToPtrJumpStubBypassable:
+  case PCRel32GOTLoadRelaxable:
+  case PCRel32GOTLoadREXRelaxable:
+  case PCRel32TLVPLoadREXRelaxable: {
+    if (LLVM_LIKELY(isInRangeForImmS32(OperandValue))) {
+      *(little32_t *)FixupPtr = OperandValue;
+      break;
+    }
+    return createStringError(inconvertibleErrorCode(), "invalid fixup");
+  }
+
+  case Delta64: {
+    *(little64_t *)FixupPtr = OperandValue;
+    break;
+  }
+
+  case RequestGOTAndTransformToDelta32:
+    // FIXME: Whether to error on this could be client-dependent. Some clients
+    // just want to zero it out though.
+  case Delta32: {
+    if (LLVM_LIKELY(isInRangeForImmS32(OperandValue))) {
+      *(little32_t *)FixupPtr = OperandValue;
+      break;
+    }
+    return createStringError(inconvertibleErrorCode(), "invalid fixup");
+  }
+
+  case NegDelta64: {
+    *(little64_t *)FixupPtr = OperandValue;
+    break;
+  }
+
+  case NegDelta32: {
+    if (LLVM_LIKELY(isInRangeForImmS32(OperandValue))) {
+      *(little32_t *)FixupPtr = OperandValue;
+      break;
+    }
+    return createStringError(inconvertibleErrorCode(), "invalid fixup");
+  }
+
+  case Delta64FromGOT: {
+    *(little64_t *)FixupPtr = OperandValue;
+    break;
+  }
+
+  default: {
+    // If you hit this you should check that *constructor and other non-fixup
+    // edges have been removed prior to applying fixups.
+    llvm_unreachable("Graph contains edge kind with no fixup expression");
+  }
+  }
+
+  return Error::success();
+}
+
+/// Write an operand for a fixup expression. Can be used to zero out fixups.
+inline Error writeOperand(const LinkGraph &G, const Block &B, const Edge &E,
+                          uint64_t OperandValue, char *BlockWorkingMem) {
+  using namespace support;
+
+  char *FixupPtr = BlockWorkingMem + E.getOffset();
+  if (Error Err = writeOperand(E.getKind(), OperandValue, FixupPtr)) {
+    consumeError(std::move(Err));
+    return makeTargetOutOfRangeError(G, B, E);
+  }
+
+  return Error::success();
+}
+
 /// Apply fixup expression for edge to block content.
 inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E) {
   using namespace support;
 
   char *BlockWorkingMem = B.getAlreadyMutableContent().data();
-  char *FixupPtr = BlockWorkingMem + E.getOffset();
   JITTargetAddress FixupAddress = B.getAddress() + E.getOffset();
 
   switch (E.getKind()) {
 
   case Pointer64: {
     uint64_t Value = E.getTarget().getAddress() + E.getAddend();
-    *(ulittle64_t *)FixupPtr = Value;
-    break;
+    return writeOperand(G, B, E, Value, BlockWorkingMem);
   }
 
   case Pointer32: {
     uint64_t Value = E.getTarget().getAddress() + E.getAddend();
-    if (LLVM_LIKELY(isInRangeForImmU32(Value)))
-      *(ulittle32_t *)FixupPtr = Value;
-    else
-      return makeTargetOutOfRangeError(G, B, E);
-    break;
+    return writeOperand(G, B, E, Value, BlockWorkingMem);
+  }
+  case Pointer32Signed: {
+    int64_t Value = E.getTarget().getAddress() + E.getAddend();
+    return writeOperand(G, B, E, Value, BlockWorkingMem);
   }
 
   case BranchPCRel32:
@@ -289,41 +391,33 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E) {
   case PCRel32TLVPLoadRelaxable: {
     int64_t Value =
         E.getTarget().getAddress() - (FixupAddress + 4) + E.getAddend();
-    if (LLVM_LIKELY(isInRangeForImmS32(Value)))
-      *(little32_t *)FixupPtr = Value;
-    else
-      return makeTargetOutOfRangeError(G, B, E);
-    break;
+    return writeOperand(G, B, E, Value, BlockWorkingMem);
   }
 
   case Delta64: {
     int64_t Value = E.getTarget().getAddress() - FixupAddress + E.getAddend();
-    *(little64_t *)FixupPtr = Value;
-    break;
+    return writeOperand(G, B, E, Value, BlockWorkingMem);
   }
 
   case Delta32: {
     int64_t Value = E.getTarget().getAddress() - FixupAddress + E.getAddend();
-    if (LLVM_LIKELY(isInRangeForImmS32(Value)))
-      *(little32_t *)FixupPtr = Value;
-    else
-      return makeTargetOutOfRangeError(G, B, E);
-    break;
+    return writeOperand(G, B, E, Value, BlockWorkingMem);
   }
 
   case NegDelta64: {
     int64_t Value = FixupAddress - E.getTarget().getAddress() + E.getAddend();
-    *(little64_t *)FixupPtr = Value;
-    break;
+    return writeOperand(G, B, E, Value, BlockWorkingMem);
   }
 
   case NegDelta32: {
     int64_t Value = FixupAddress - E.getTarget().getAddress() + E.getAddend();
-    if (LLVM_LIKELY(isInRangeForImmS32(Value)))
-      *(little32_t *)FixupPtr = Value;
-    else
-      return makeTargetOutOfRangeError(G, B, E);
-    break;
+    return writeOperand(G, B, E, Value, BlockWorkingMem);
+  }
+  case Delta64FromGOT: {
+    assert(GOTSymbol && "No GOT section symbol");
+    int64_t Value =
+        E.getTarget().getAddress() - GOTSymbol->getAddress() + E.getAddend();
+    return writeOperand(G, B, E, Value, BlockWorkingMem);
   }
 
   default: {
