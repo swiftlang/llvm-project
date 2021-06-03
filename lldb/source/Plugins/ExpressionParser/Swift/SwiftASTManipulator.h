@@ -18,6 +18,8 @@
 #include "lldb/Symbol/CompilerType.h"
 
 #include "swift/AST/Decl.h"
+#include "swift/AST/SynthesizedFileUnit.h"
+#include "swift/AST/SourceFile.h"
 #include "swift/Basic/SourceLoc.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -112,6 +114,12 @@ public:
   }
 
   swift::BraceStmt *GetUserBody();
+
+  /// Retrieve a file unit into which LLDB can place synthesized declarations
+  /// it needs to be codegened e.g. the result variable for REPL expressions.
+  swift::SynthesizedFileUnit &GetSynthesizedFileUnit() const {
+    return m_source_file.getOrCreateSynthesizedFile();
+  }
 
 private:
   void DoInitialization();

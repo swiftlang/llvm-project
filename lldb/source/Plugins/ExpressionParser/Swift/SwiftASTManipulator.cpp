@@ -290,6 +290,7 @@ void SwiftASTManipulatorBase::DoInitialization() {
   };
 
   FuncAndExtensionFinder func_finder;
+  GetSynthesizedFileUnit().walk(func_finder);
   m_source_file.walk(func_finder);
 
   m_extension_decl = func_finder.extension_decl;
@@ -650,6 +651,7 @@ void SwiftASTManipulator::MakeDeclarationsPublic() {
   };
 
   Publicist p;
+  GetSynthesizedFileUnit().walk(p);
   m_source_file.walk(p);
 }
 
@@ -685,6 +687,14 @@ void SwiftASTManipulator::FindVariableDeclarations(
   };
 
   if (m_repl) {
+    for (swift::Decl *decl : GetSynthesizedFileUnit().getTopLevelDecls()) {
+      if (swift::VarDecl *var_decl = llvm::dyn_cast<swift::VarDecl>(decl)) {
+        if (!var_decl->getName().str().startswith("$")) {
+          register_one_var(var_decl);
+        }
+      }
+    }
+
     for (swift::Decl *decl : m_source_file.getTopLevelDecls()) {
       if (swift::VarDecl *var_decl = llvm::dyn_cast<swift::VarDecl>(decl)) {
         if (!var_decl->getName().str().startswith("$")) {
@@ -727,6 +737,14 @@ void SwiftASTManipulator::FindNonVariableDeclarations(
 
   if (!m_repl)
     return; // we don't do this for non-REPL expressions... yet
+
+  for (swift::Decl *decl : GetSynthesizedFileUnit().getTopLevelDecls()) {
+    if (swift::ValueDecl *value_decl = llvm::dyn_cast<swift::ValueDecl>(decl)) {
+      if (!llvm::isa<swift::VarDecl>(value_decl) && value_decl->hasName()) {
+        non_variables.push_back(value_decl);
+      }
+    }
+  }
 
   for (swift::Decl *decl : m_source_file.getTopLevelDecls()) {
     if (swift::ValueDecl *value_decl = llvm::dyn_cast<swift::ValueDecl>(decl)) {
@@ -1050,8 +1068,8 @@ bool SwiftASTManipulator::AddExternalVariables(
     // SwiftREPL/FoundationTypes.test fails.
     //
     // See rdar://58355191
-    m_source_file.prependTopLevelDecl(top_level_code);
-    m_source_file.prependTopLevelDecl(redirected_var_decl);
+    GetSynthesizedFileUnit().prependTopLevelDecl(top_level_code);
+    GetSynthesizedFileUnit().prependTopLevelDecl(redirected_var_decl);
 
     variable.m_decl = redirected_var_decl;
 
@@ -1327,7 +1345,7 @@ swift::ValueDecl *SwiftASTManipulator::MakeGlobalTypealias(
     if (make_private) {
       type_alias_decl->overwriteAccess(swift::AccessLevel::Private);
     }
-    m_source_file.addTopLevelDecl(type_alias_decl);
+    GetSynthesizedFileUnit().addTopLevelDecl(type_alias_decl);
   }
 
   return type_alias_decl;
