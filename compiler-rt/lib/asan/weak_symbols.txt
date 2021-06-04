@@ -10,3 +10,4 @@ ___asan_set_shadow_f5
 ___asan_set_shadow_f6
 ___asan_set_shadow_f7
 ___asan_set_shadow_f8
+___asan_detect_use_after_return_always
