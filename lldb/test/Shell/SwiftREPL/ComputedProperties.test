@@ -12,7 +12,7 @@ var x : Int {
   }
 }
 
-// CHECK: Welcome to {{.*}}Swift
+// CHECK: You are now in an interactive environment
 // CHECK: Type :help
 // CHECK: {{x}}: Int
 

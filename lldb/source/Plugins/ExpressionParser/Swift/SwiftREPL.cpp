@@ -100,6 +100,7 @@ lldb::REPLSP SwiftREPL::CreateInstanceFromTarget(Status &err, Target &target,
 lldb::REPLSP SwiftREPL::CreateInstanceFromDebugger(Status &err,
                                                    Debugger &debugger,
                                                    const char *repl_options) {
+  printf("Starting the Swift REPL...\n");
   const char *bp_name = "repl_main";
 
   FileSpec repl_executable = HostInfo::GetSupportExeDir();
@@ -262,9 +263,8 @@ lldb::REPLSP SwiftREPL::CreateInstanceFromDebugger(Status &err,
   // Disable the cleanup, since we have a valid repl session now.
   cleanup.release();
 
-  std::string swift_full_version(swift::version::getSwiftFullVersion());
-  printf("Welcome to %s.\nType :help for assistance.\n",
-         swift_full_version.c_str());
+  printf("You are now in an interactive environment powered by the LLDB debugger where you can type, run, and debug Swift code.\n\n");
+  printf("Type \x1B[1m:help\x1B[0m for debugger assistance. Type \x1B[1m:exit\x1B[0m to quit.\n");
 
   return repl_sp;
 }
