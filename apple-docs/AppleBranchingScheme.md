@@ -17,9 +17,9 @@ are read-only, exact copies of the upstream LLVM project's branches.  They are
 forwarded here as a convenience for easy reference, to avoid the need for extra
 remotes.
 
-- [llvm.org/master](https://github.com/apple/llvm-project/tree/llvm.org/master)
+- [llvm.org/main](https://github.com/apple/llvm-project/tree/llvm.org/main)
   is the most important branch here, matching the LLVM project's
-  [master](https://github.com/llvm/llvm-project/tree/master) branch.
+  [main](https://github.com/llvm/llvm-project/tree/main) branch.
 
 ## Downstream branches that are standalone
 
@@ -32,7 +32,7 @@ Critically, however, none of these branches *depend on* the
 Today there are a few non-trivial differences from LLVM, but we are
 actively working on either upstreaming or reverting those differences. The goal
 is to fully eliminate all differences between `apple/main` and
-`llvm.org/master`.
+`llvm.org/main`.
 
 Any LLVM development that does not depend on the Swift repository should happen
 upstream. The only changes that are allowed to be submitted without going
@@ -42,7 +42,7 @@ merge conflicts or fixing build errors).
 
 - [apple/main](https://github.com/apple/llvm-project/tree/apple/main) is
   directly downstream of
-  [llvm.org/master](https://github.com/apple/llvm-project/tree/llvm.org/master).
+  [llvm.org/main](https://github.com/apple/llvm-project/tree/llvm.org/main).
   There is a gated automerger that does testing before merging in.  Most
   changes to this branch should be redirected to <https://reviews.llvm.org/>
   (see also <http://llvm.org/docs/Contributing.html>).
