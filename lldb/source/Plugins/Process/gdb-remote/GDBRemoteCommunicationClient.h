@@ -319,7 +319,8 @@ public:
       GDBStoppointType type, // Type of breakpoint or watchpoint
       bool insert,           // Insert or remove?
       lldb::addr_t addr,     // Address of breakpoint or watchpoint
-      uint32_t length);      // Byte Size of breakpoint or watchpoint
+      uint32_t length,       // Byte Size of breakpoint or watchpoint
+      std::chrono::seconds interrupt_timeout); // Time to wait for an interrupt
 
   bool SetNonStopMode(const bool enable);
 
@@ -506,21 +507,27 @@ public:
                                 const StructuredData::ObjectSP &config_sp);
 
   lldb::user_id_t SendStartTracePacket(const TraceOptions &options,
+                                       std::chrono::seconds interrupt_timeout,
                                        Status &error);
 
-  Status SendStopTracePacket(lldb::user_id_t uid, lldb::tid_t thread_id);
+  Status SendStopTracePacket(lldb::user_id_t uid, lldb::tid_t thread_id,
+                             std::chrono::seconds interrupt_timeout);
 
   Status SendGetDataPacket(lldb::user_id_t uid, lldb::tid_t thread_id,
                            llvm::MutableArrayRef<uint8_t> &buffer,
+                           std::chrono::seconds interrupt_timeout,
                            size_t offset = 0);
 
   Status SendGetMetaDataPacket(lldb::user_id_t uid, lldb::tid_t thread_id,
                                llvm::MutableArrayRef<uint8_t> &buffer,
+                               std::chrono::seconds interrupt_timeout,
                                size_t offset = 0);
 
-  Status SendGetTraceConfigPacket(lldb::user_id_t uid, TraceOptions &options);
+  Status SendGetTraceConfigPacket(lldb::user_id_t uid, TraceOptions &options,
+                                  std::chrono::seconds interrupt_timeout);
 
-  llvm::Expected<TraceTypeInfo> SendGetSupportedTraceType();
+  llvm::Expected<TraceTypeInfo> SendGetSupportedTraceType(
+      std::chrono::seconds interrupt_timeout);
 
 protected:
   LazyBool m_supports_not_sending_acks;
@@ -612,11 +619,12 @@ protected:
 
   PacketResult SendThreadSpecificPacketAndWaitForResponse(
       lldb::tid_t tid, StreamString &&payload,
-      StringExtractorGDBRemote &response, bool send_async);
+      StringExtractorGDBRemote &response);
 
   Status SendGetTraceDataPacket(StreamGDBRemote &packet, lldb::user_id_t uid,
                                 lldb::tid_t thread_id,
                                 llvm::MutableArrayRef<uint8_t> &buffer,
+                                std::chrono::seconds timeout,
                                 size_t offset);
 
   Status LoadQXferMemoryMap();
