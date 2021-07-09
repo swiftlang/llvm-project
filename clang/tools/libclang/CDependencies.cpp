@@ -76,13 +76,6 @@ CXDependencyScannerWorker clang_experimental_DependencyScannerWorker_create_v0(
   return wrap(new DependencyScanningWorker(*unwrap(Service)));
 }
 
-CXDependencyScannerWorker
-clang_experimental_DependencyScannerWorkerByModName_create_v0(
-    CXDependencyScannerService Service, const char *LookedUpModuleName) {
-  return wrap(
-      new DependencyScanningWorker(*unwrap(Service), LookedUpModuleName));
-}
-
 void clang_experimental_DependencyScannerWorker_dispose_v0(
     CXDependencyScannerWorker Worker) {
   delete unwrap(Worker);
@@ -261,19 +254,15 @@ clang_experimental_DependencyScannerWorker_getFileDependencies_v1(
 }
 
 CXFileDependencies *
-clang_experimental_DependencyScannerWorkerByModName_getFileDependencies_v1(
+clang_experimental_DependencyScannerWorkerByModName_getFileDependencies_v0(
     CXDependencyScannerWorker W, int argc, const char *const *argv,
     const char *WorkingDirectory, CXModuleDiscoveredCallback *MDC,
-    void *Context, CXString *error) {
-  llvm::SmallString<64> OutputFile;
-  llvm::sys::fs::createTemporaryFile("lookUpModName", "" /*no-suffix*/,
-                                     OutputFile);
-  llvm::FileRemover OutputRemover(OutputFile.c_str());
-  llvm::SmallVector<const char *, 16> NewArgs(argv, argv + argc);
-  NewArgs.push_back(OutputFile.c_str());
+    void *Context, CXString *error, const char *LookedUpModuleName) {
+  DependencyScanningWorker *Worker = unwrap(W);
+  Worker->setLookedUpModuleName(LookedUpModuleName);
 
   return getFileDependencies(
-      W, NewArgs.size(), NewArgs.data(), WorkingDirectory, MDC, Context, error,
+      W, argc, argv, WorkingDirectory, MDC, Context, error,
       [](const ModuleDeps &MD) {
         return MD.getCanonicalCommandLineWithoutModulePaths();
       });

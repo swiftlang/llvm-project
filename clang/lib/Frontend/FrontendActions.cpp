@@ -77,6 +77,20 @@ void ReadPCHAndPreprocessAction::ExecuteAction() {
   } while (Tok.isNot(tok::eof));
 }
 
+void ReadPCHAndPreprocessByModNameAction::ExecuteAction() {
+  CompilerInstance &CI = getCompilerInstance();
+  Preprocessor &PP = CI.getPreprocessor();
+  SourceManager &SM = PP.getSourceManager();
+  FileID MainFileID = SM.getMainFileID();
+  SourceLocation FileStart = SM.getLocForStartOfFile(MainFileID);
+  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
+  IdentifierInfo *ModuleID = PP.getIdentifierInfo(LookedUpModuleName);
+  Path.push_back(std::make_pair(ModuleID, FileStart));
+  auto ModResult = CI.loadModule(FileStart, Path, Module::Hidden, false);
+  PPCallbacks *CB = PP.getPPCallbacks();
+  CB->moduleImport(SourceLocation(), Path, ModResult);
+}
+
 std::unique_ptr<ASTConsumer>
 ReadPCHAndPreprocessAction::CreateASTConsumer(CompilerInstance &CI,
                                               StringRef InFile) {

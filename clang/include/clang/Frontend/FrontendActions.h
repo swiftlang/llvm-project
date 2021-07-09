@@ -45,6 +45,14 @@ public:
   bool usesPreprocessorOnly() const override { return false; }
 };
 
+class ReadPCHAndPreprocessByModNameAction : public ReadPCHAndPreprocessAction {
+  const char *LookedUpModuleName;
+  void ExecuteAction() override;
+
+public:
+  ReadPCHAndPreprocessByModNameAction(const char *ModName) : LookedUpModuleName(ModName) {}
+};
+
 class DumpCompilerOptionsAction : public FrontendAction {
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override {

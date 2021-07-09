@@ -728,8 +728,7 @@ static int scanDepsByModName(ArrayRef<const char *> Args,
       clang_experimental_DependencyScannerService_create_v0(
           CXDependencyMode_Full);
   CXDependencyScannerWorker Worker =
-      clang_experimental_DependencyScannerWorkerByModName_create_v0(
-          Service, ModName.c_str());
+      clang_experimental_DependencyScannerWorker_create_v0(Service);
   CXString Error;
 
   auto Callback = [&](CXModuleDependencySet *MDS) {
@@ -762,9 +761,9 @@ static int scanDepsByModName(ArrayRef<const char *> Args,
       functionObjectToCCallbackRef<void(CXModuleDependencySet *)>(Callback);
 
   CXFileDependencies *Result =
-      clang_experimental_DependencyScannerWorkerByModName_getFileDependencies_v1(
+      clang_experimental_DependencyScannerWorkerByModName_getFileDependencies_v0(
           Worker, Args.size(), Args.data(), WorkingDirectory.c_str(),
-          CB.Callback, CB.Context, &Error);
+          CB.Callback, CB.Context, &Error, ModName.c_str());
   if (!Result) {
     llvm::errs() << "error: failed to get dependencies\n";
     llvm::errs() << clang_getCString(Error) << "\n";

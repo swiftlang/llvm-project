@@ -194,6 +194,10 @@ llvm::cl::opt<bool> SkipExcludedPPRanges(
         "until reaching the end directive."),
     llvm::cl::init(true), llvm::cl::cat(DependencyScannerCategory));
 
+llvm::cl::opt<std::string> ModuleName("module-name", llvm::cl::Optional,
+                                      llvm::cl::desc("module name"),
+                                      llvm::cl::cat(DependencyScannerCategory));
+
 llvm::cl::opt<bool> Verbose("v", llvm::cl::Optional,
                             llvm::cl::desc("Use verbose output."),
                             llvm::cl::init(false),
@@ -506,7 +510,8 @@ int main(int argc, const char **argv) {
   llvm::ThreadPool Pool(llvm::hardware_concurrency(NumThreads));
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I)
-    WorkerTools.push_back(std::make_unique<DependencyScanningTool>(Service));
+    WorkerTools.push_back(std::make_unique<DependencyScanningTool>(
+        Service, ModuleName.empty() ? nullptr : ModuleName.c_str()));
 
   std::vector<SingleCommandCompilationDatabase> Inputs;
   for (tooling::CompileCommand Cmd :
