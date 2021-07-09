@@ -141,10 +141,10 @@ public:
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings,
-      ScanningOutputFormat Format)
+      ScanningOutputFormat Format, const char *LookedUpModuleName)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
-        DepFS(std::move(DepFS)), PPSkipMappings(PPSkipMappings),
-        Format(Format) {}
+        DepFS(std::move(DepFS)), PPSkipMappings(PPSkipMappings), Format(Format),
+        LookedUpModuleName(LookedUpModuleName) {}
 
   bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
                      FileManager *FileMgr,
@@ -156,6 +156,7 @@ public:
     // Create a compiler instance to handle the actual work.
     CompilerInstance Compiler(std::move(PCHContainerOps));
     Compiler.setInvocation(std::move(Invocation));
+    Compiler.setLookedUpModuleName(LookedUpModuleName);
 
     // Don't print 'X warnings and Y errors generated'.
     Compiler.getDiagnosticOpts().ShowCarets = false;
@@ -262,13 +263,14 @@ private:
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
   ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings;
   ScanningOutputFormat Format;
+  const char *LookedUpModuleName;
 };
 
 } // end anonymous namespace
 
 DependencyScanningWorker::DependencyScanningWorker(
-    DependencyScanningService &Service)
-    : Format(Service.getFormat()) {
+    DependencyScanningService &Service, const char *LookedUpModuleName)
+    : Format(Service.getFormat()), LookedUpModuleName(LookedUpModuleName) {
   DiagOpts = new DiagnosticOptions();
 
   PCHContainerOps = std::make_shared<PCHContainerOperations>();
@@ -319,7 +321,8 @@ llvm::Error DependencyScanningWorker::computeDependencies(
     Tool.setPrintErrorMessage(false);
     Tool.setDiagnosticConsumer(&DC);
     DependencyScanningAction Action(WorkingDirectory, Consumer, DepFS,
-                                    PPSkipMappings.get(), Format);
+                                    PPSkipMappings.get(), Format,
+                                    LookedUpModuleName);
     return !Tool.run(&Action);
   });
 }

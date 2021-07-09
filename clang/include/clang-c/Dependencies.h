@@ -178,6 +178,14 @@ CINDEX_LINKAGE CXDependencyScannerWorker
     clang_experimental_DependencyScannerWorker_create_v0(
         CXDependencyScannerService);
 
+/**
+ * Same as \c clang_experimental_DependencyScannerWorker_create_v0 except that
+ * module name is passed.
+ */
+CINDEX_LINKAGE CXDependencyScannerWorker
+clang_experimental_DependencyScannerWorkerByModName_create_v0(
+    CXDependencyScannerService, const char *LookedUpModuleName);
+
 CINDEX_LINKAGE void clang_experimental_DependencyScannerWorker_dispose_v0(
     CXDependencyScannerWorker);
 
@@ -231,6 +239,19 @@ clang_experimental_DependencyScannerWorker_getFileDependencies_v1(
     CXDependencyScannerWorker Worker, int argc, const char *const *argv,
     const char *WorkingDirectory, CXModuleDiscoveredCallback *MDC,
     void *Context, CXString *error);
+
+/**
+ * Same as \c clang_experimental_DependencyScannerWorker_getFileDependencies_v1,
+ * but \c Worker must have been created with
+ * \c clang_experimental_DependencyScannerWorkerByModName_create_v0 and the
+ * source file name shouldn't be passed in the argument list.
+ */
+CINDEX_LINKAGE CXFileDependencies *
+clang_experimental_DependencyScannerWorkerByModName_getFileDependencies_v1(
+    CXDependencyScannerWorker Worker, int argc, const char *const *argv,
+    const char *WorkingDirectory, CXModuleDiscoveredCallback *MDC,
+    void *Context, CXString *error);
+
 /**
  * @}
  */

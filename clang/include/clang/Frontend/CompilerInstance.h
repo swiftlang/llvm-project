@@ -749,6 +749,8 @@ private:
                        bool RemoveFileOnSignal, bool UseTemporary,
                        bool CreateMissingDirectories);
 
+  const char *LookedUpModuleName = nullptr;
+
 public:
   std::unique_ptr<raw_pwrite_stream> createNullOutputFile();
 
@@ -784,6 +786,8 @@ public:
   void createASTReader();
 
   bool loadModuleFile(StringRef FileName);
+
+  void setLookedUpModuleName(const char *N) { LookedUpModuleName = N; }
 
 private:
   /// Find a module, potentially compiling it, before reading its AST.  This is

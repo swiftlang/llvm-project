@@ -994,8 +994,19 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
       getSourceManager().clearIDTables();
 
     if (Act.BeginSourceFile(*this, FIF)) {
-      if (llvm::Error Err = Act.Execute()) {
-        consumeError(std::move(Err)); // FIXME this drops errors on the floor.
+      if (LookedUpModuleName) {
+        FileID MainFileID = SourceMgr->getMainFileID();
+        SourceLocation FileStart = SourceMgr->getLocForStartOfFile(MainFileID);
+        SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
+        IdentifierInfo *ModuleID = PP->getIdentifierInfo(LookedUpModuleName);
+        Path.push_back(std::make_pair(ModuleID, FileStart));
+        auto ModResult = loadModule(FileStart, Path, Module::Hidden, false);
+        PPCallbacks *CB = PP->getPPCallbacks();
+        CB->moduleImport(SourceLocation(), Path, ModResult);
+      } else {
+        if (llvm::Error Err = Act.Execute()) {
+          consumeError(std::move(Err)); // FIXME this drops errors on the floor.
+        }
       }
       Act.EndSourceFile();
     }
