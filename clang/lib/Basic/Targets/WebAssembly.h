@@ -129,6 +129,8 @@ private:
     case CC_C:
     case CC_Swift:
       return CCCR_OK;
+    case CC_SwiftAsync:
+      return checkSwiftAsyncCCSupported();
     default:
       return CCCR_Warning;
     }
@@ -138,7 +140,7 @@ private:
 
   bool hasProtectedVisibility() const override { return false; }
 
-  void adjust(LangOptions &Opts) override;
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override;
 };
 
 class LLVM_LIBRARY_VISIBILITY WebAssembly32TargetInfo
