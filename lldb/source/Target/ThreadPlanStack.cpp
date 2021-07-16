@@ -39,6 +39,7 @@ ThreadPlanStack::ThreadPlanStack(const Thread &thread, bool make_null) {
 void ThreadPlanStack::DumpThreadPlans(Stream &s,
                                       lldb::DescriptionLevel desc_level,
                                       bool include_internal) const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   s.IndentMore();
   PrintOneStack(s, "Active plan stack", m_plans, desc_level, include_internal);
   PrintOneStack(s, "Completed plan stack", m_completed_plans, desc_level,
@@ -52,6 +53,7 @@ void ThreadPlanStack::PrintOneStack(Stream &s, llvm::StringRef stack_name,
                                     const PlanStack &stack,
                                     lldb::DescriptionLevel desc_level,
                                     bool include_internal) const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   // If the stack is empty, just exit:
   if (stack.empty())
     return;
@@ -80,6 +82,7 @@ void ThreadPlanStack::PrintOneStack(Stream &s, llvm::StringRef stack_name,
 }
 
 size_t ThreadPlanStack::CheckpointCompletedPlans() {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   m_completed_plan_checkpoint++;
   m_completed_plan_store.insert(
       std::make_pair(m_completed_plan_checkpoint, m_completed_plans));
@@ -87,6 +90,7 @@ size_t ThreadPlanStack::CheckpointCompletedPlans() {
 }
 
 void ThreadPlanStack::RestoreCompletedPlanCheckpoint(size_t checkpoint) {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   auto result = m_completed_plan_store.find(checkpoint);
   assert(result != m_completed_plan_store.end() &&
          "Asked for a checkpoint that didn't exist");
@@ -95,11 +99,13 @@ void ThreadPlanStack::RestoreCompletedPlanCheckpoint(size_t checkpoint) {
 }
 
 void ThreadPlanStack::DiscardCompletedPlanCheckpoint(size_t checkpoint) {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   m_completed_plan_store.erase(checkpoint);
 }
 
 void ThreadPlanStack::ThreadDestroyed(Thread *thread) {
   // Tell the plan stacks that this thread is going away:
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   for (ThreadPlanSP plan : m_plans)
     plan->ThreadDestroyed();
 
@@ -142,6 +148,7 @@ void ThreadPlanStack::PushPlan(lldb::ThreadPlanSP new_plan_sp) {
   // If the thread plan doesn't already have a tracer, give it its parent's
   // tracer:
   // The first plan has to be a base plan:
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   assert((m_plans.size() > 0 || new_plan_sp->IsBasePlan()) &&
          "Zeroth plan must be a base plan");
 
@@ -154,6 +161,7 @@ void ThreadPlanStack::PushPlan(lldb::ThreadPlanSP new_plan_sp) {
 }
 
 lldb::ThreadPlanSP ThreadPlanStack::PopPlan() {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   assert(m_plans.size() > 1 && "Can't pop the base thread plan");
 
   // Note that moving the top element of the vector would leave it in an
@@ -167,6 +175,7 @@ lldb::ThreadPlanSP ThreadPlanStack::PopPlan() {
 }
 
 lldb::ThreadPlanSP ThreadPlanStack::DiscardPlan() {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   assert(m_plans.size() > 1 && "Can't discard the base thread plan");
 
   // Note that moving the top element of the vector would leave it in an
@@ -182,6 +191,7 @@ lldb::ThreadPlanSP ThreadPlanStack::DiscardPlan() {
 // If the input plan is nullptr, discard all plans.  Otherwise make sure this
 // plan is in the stack, and if so discard up to and including it.
 void ThreadPlanStack::DiscardPlansUpToPlan(ThreadPlan *up_to_plan_ptr) {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   int stack_size = m_plans.size();
 
   if (up_to_plan_ptr == nullptr) {
@@ -209,6 +219,7 @@ void ThreadPlanStack::DiscardPlansUpToPlan(ThreadPlan *up_to_plan_ptr) {
 }
 
 void ThreadPlanStack::DiscardAllPlans() {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   int stack_size = m_plans.size();
   for (int i = stack_size - 1; i > 0; i--) {
     DiscardPlan();
@@ -217,6 +228,7 @@ void ThreadPlanStack::DiscardAllPlans() {
 }
 
 void ThreadPlanStack::DiscardConsultingMasterPlans() {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   while (true) {
     int master_plan_idx;
     bool discard = true;
@@ -250,11 +262,13 @@ void ThreadPlanStack::DiscardConsultingMasterPlans() {
 }
 
 lldb::ThreadPlanSP ThreadPlanStack::GetCurrentPlan() const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   assert(m_plans.size() != 0 && "There will always be a base plan.");
   return m_plans.back();
 }
 
 lldb::ThreadPlanSP ThreadPlanStack::GetCompletedPlan(bool skip_private) const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   if (m_completed_plans.empty())
     return {};
 
@@ -272,6 +286,7 @@ lldb::ThreadPlanSP ThreadPlanStack::GetCompletedPlan(bool skip_private) const {
 
 lldb::ThreadPlanSP ThreadPlanStack::GetPlanByIndex(uint32_t plan_idx,
                                                    bool skip_private) const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   uint32_t idx = 0;
 
   for (lldb::ThreadPlanSP plan_sp : m_plans) {
@@ -284,8 +299,9 @@ lldb::ThreadPlanSP ThreadPlanStack::GetPlanByIndex(uint32_t plan_idx,
   return {};
 }
 
-lldb::ValueObjectSP 
+lldb::ValueObjectSP
 ThreadPlanStack::GetReturnValueObject(bool &is_error) const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   if (m_completed_plans.empty())
     return {};
 
@@ -301,6 +317,7 @@ ThreadPlanStack::GetReturnValueObject(bool &is_error) const {
 }
 
 lldb::ExpressionVariableSP ThreadPlanStack::GetExpressionVariable() const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   if (m_completed_plans.empty())
     return {};
 
@@ -313,19 +330,23 @@ lldb::ExpressionVariableSP ThreadPlanStack::GetExpressionVariable() const {
   return {};
 }
 bool ThreadPlanStack::AnyPlans() const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   // There is always a base plan...
   return m_plans.size() > 1;
 }
 
 bool ThreadPlanStack::AnyCompletedPlans() const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   return !m_completed_plans.empty();
 }
 
 bool ThreadPlanStack::AnyDiscardedPlans() const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   return !m_discarded_plans.empty();
 }
 
 bool ThreadPlanStack::IsPlanDone(ThreadPlan *in_plan) const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   for (auto plan : m_completed_plans) {
     if (plan.get() == in_plan)
       return true;
@@ -334,6 +355,7 @@ bool ThreadPlanStack::IsPlanDone(ThreadPlan *in_plan) const {
 }
 
 bool ThreadPlanStack::WasPlanDiscarded(ThreadPlan *in_plan) const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   for (auto plan : m_discarded_plans) {
     if (plan.get() == in_plan)
       return true;
@@ -342,6 +364,7 @@ bool ThreadPlanStack::WasPlanDiscarded(ThreadPlan *in_plan) const {
 }
 
 ThreadPlan *ThreadPlanStack::GetPreviousPlan(ThreadPlan *current_plan) const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   if (current_plan == nullptr)
     return nullptr;
 
@@ -369,6 +392,7 @@ ThreadPlan *ThreadPlanStack::GetPreviousPlan(ThreadPlan *current_plan) const {
 }
 
 ThreadPlan *ThreadPlanStack::GetInnermostExpression() const {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   int stack_size = m_plans.size();
 
   for (int i = stack_size - 1; i > 0; i--) {
@@ -379,6 +403,7 @@ ThreadPlan *ThreadPlanStack::GetInnermostExpression() const {
 }
 
 void ThreadPlanStack::WillResume() {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   m_completed_plans.clear();
   m_discarded_plans.clear();
 }
@@ -426,7 +451,7 @@ void ThreadPlanStackMap::Update(ThreadList &current_threads,
   std::vector<lldb::tid_t> missing_threads;
   // If we are going to delete plans from the plan stack,
   // then scan for absent TID's:
-  for (auto thread_plans : m_plans_list) {
+  for (auto &thread_plans : m_plans_list) {
     lldb::tid_t cur_tid = thread_plans.first;
     ThreadSP thread_sp = current_threads.FindThreadByID(cur_tid);
     if (!thread_sp)
@@ -441,7 +466,7 @@ void ThreadPlanStackMap::DumpPlans(Stream &strm,
                                    lldb::DescriptionLevel desc_level,
                                    bool internal, bool condense_if_trivial,
                                    bool skip_unreported) {
-  for (auto elem : m_plans_list) {
+  for (auto &elem : m_plans_list) {
     lldb::tid_t tid = elem.first;
     uint32_t index_id = 0;
     ThreadSP thread_sp = m_process.GetThreadList().FindThreadByID(tid);
