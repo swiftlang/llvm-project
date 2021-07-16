@@ -147,7 +147,7 @@ lldb::user_id_t ThreadPlan::GetNextID() {
 
 void ThreadPlan::DidPush() {}
 
-void ThreadPlan::WillPop() {}
+void ThreadPlan::DidPop() {}
 
 bool ThreadPlan::OkayToDiscard() {
   return IsMasterPlan() ? m_okay_to_discard : true;
