@@ -1,12 +1,7 @@
 [
 {
-  "target": "apple/main",
+  "target": "next",
   "upstream": "llvm.org/main"
-},
-{
-  "target": "swift/next",
-  "upstream": "apple/main",
-  "test-command": "true"
 },
 {
   "target": "swift/rebranch",
