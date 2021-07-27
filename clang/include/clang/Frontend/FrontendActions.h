@@ -45,14 +45,6 @@ public:
   bool usesPreprocessorOnly() const override { return false; }
 };
 
-class ReadPCHAndPreprocessByModNameAction : public ReadPCHAndPreprocessAction {
-  const char *LookedUpModuleName;
-  void ExecuteAction() override;
-
-public:
-  ReadPCHAndPreprocessByModNameAction(const char *ModName) : LookedUpModuleName(ModName) {}
-};
-
 class DumpCompilerOptionsAction : public FrontendAction {
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override {
@@ -305,6 +297,14 @@ protected:
   void ExecuteAction() override;
 
   bool hasPCHSupport() const override { return true; }
+};
+
+class GetDependiciesByModuleNameAction : public PreprocessOnlyAction {
+  const char *ModuleName;
+  void ExecuteAction() override;
+
+public:
+  GetDependiciesByModuleNameAction(const char *ModName) : ModuleName(ModName) {}
 };
 
 }  // end namespace clang

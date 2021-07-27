@@ -141,10 +141,11 @@ public:
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings,
-      ScanningOutputFormat Format, const char *LookedUpModuleName)
+      ScanningOutputFormat Format, const char *ModuleName,
+      const llvm::MemoryBuffer *FakeMemBuffer)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
         DepFS(std::move(DepFS)), PPSkipMappings(PPSkipMappings), Format(Format),
-        LookedUpModuleName(LookedUpModuleName) {}
+        ModuleName(ModuleName), FakeMemBuffer(FakeMemBuffer) {}
 
   bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
                      FileManager *FileMgr,
@@ -214,6 +215,16 @@ public:
             .ExcludedConditionalDirectiveSkipMappings = PPSkipMappings;
     }
 
+    if (ModuleName) {
+      SmallString<128> FullPath(ModuleName);
+      llvm::sys::fs::make_absolute(WorkingDirectory, FullPath);
+      SourceManager &SrcMgr = Compiler.getSourceManager();
+      FileMgr->getVirtualFile(FullPath.c_str(), FakeMemBuffer->getBufferSize(),
+                              0);
+      FileID MainFileID = SrcMgr.createFileID(*FakeMemBuffer);
+      SrcMgr.setMainFileID(MainFileID);
+    }
+
     // Create the dependency collector that will collect the produced
     // dependencies.
     //
@@ -249,11 +260,13 @@ public:
     // the impact of strict context hashing.
     Compiler.getHeaderSearchOpts().ModulesStrictContextHash = true;
 
-    std::unique_ptr<ReadPCHAndPreprocessAction> Action =
-        LookedUpModuleName
-            ? std::make_unique<ReadPCHAndPreprocessByModNameAction>(
-                  LookedUpModuleName)
-            : std::make_unique<ReadPCHAndPreprocessAction>();
+    std::unique_ptr<FrontendAction> Action;
+
+    if (ModuleName)
+      Action = std::make_unique<GetDependiciesByModuleNameAction>(ModuleName);
+    else
+      Action = std::make_unique<ReadPCHAndPreprocessAction>();
+
     const bool Result = Compiler.ExecuteAction(*Action);
     if (!DepFS)
       FileMgr->clearStatCache();
@@ -266,7 +279,8 @@ private:
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
   ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings;
   ScanningOutputFormat Format;
-  const char *LookedUpModuleName;
+  const char *ModuleName;
+  const llvm::MemoryBuffer *FakeMemBuffer;
 };
 
 } // end anonymous namespace
@@ -318,14 +332,30 @@ llvm::Error DependencyScanningWorker::computeDependencies(
     /// Create the tool that uses the underlying file system to ensure that any
     /// file system requests that are made by the driver do not go through the
     /// dependency scanning filesystem.
-    tooling::ClangTool Tool(CDB, Input, PCHContainerOps, RealFS, Files);
+    assert(!!ModuleName == Input.empty());
+    SmallString<128> FullPath;
+    tooling::ClangTool Tool(CDB, ModuleName ? ModuleName : Input,
+                            PCHContainerOps, RealFS, Files);
     Tool.clearArgumentsAdjusters();
     Tool.setRestoreWorkingDir(false);
     Tool.setPrintErrorMessage(false);
     Tool.setDiagnosticConsumer(&DC);
     DependencyScanningAction Action(WorkingDirectory, Consumer, DepFS,
-                                    PPSkipMappings.get(), Format,
-                                    LookedUpModuleName);
+                                    PPSkipMappings.get(), Format, ModuleName,
+                                    FakeMemBuffer.get());
+
+    if (ModuleName) {
+      Tool.mapVirtualFile(ModuleName, FakeMemBuffer->getBuffer());
+      FullPath = ModuleName;
+      llvm::sys::fs::make_absolute(WorkingDirectory, FullPath);
+      Tool.appendArgumentsAdjuster(
+          [&](const tooling::CommandLineArguments &Args, StringRef FileName) {
+            tooling::CommandLineArguments AdjustedArgs(Args);
+            AdjustedArgs.push_back(std::string(FullPath));
+            return AdjustedArgs;
+          });
+    }
+
     return !Tool.run(&Action);
   });
 }
@@ -338,4 +368,9 @@ llvm::Error DependencyScanningWorker::computeDependenciesForClangInvocation(
   SingleCommandCompilationDatabase CDB(
       CompileCommand(WorkingDirectory, Input, Arguments, Output));
   return computeDependencies(Input, WorkingDirectory, CDB, Consumer);
+}
+
+void DependencyScanningWorker::setModuleName(const char *Name) {
+  ModuleName = Name;
+  FakeMemBuffer = llvm::MemoryBuffer::getMemBuffer(" ");
 }

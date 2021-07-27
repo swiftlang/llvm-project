@@ -762,8 +762,8 @@ static int scanDepsByModName(ArrayRef<const char *> Args,
 
   CXFileDependencies *Result =
       clang_experimental_DependencyScannerWorkerByModName_getFileDependencies_v0(
-          Worker, Args.size(), Args.data(), WorkingDirectory.c_str(),
-          CB.Callback, CB.Context, &Error, ModName.c_str());
+          Worker, Args.size(), Args.data(), ModName.c_str(),
+          WorkingDirectory.c_str(), CB.Callback, CB.Context, &Error);
   if (!Result) {
     llvm::errs() << "error: failed to get dependencies\n";
     llvm::errs() << clang_getCString(Error) << "\n";

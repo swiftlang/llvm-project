@@ -239,8 +239,8 @@ clang_experimental_DependencyScannerWorker_getFileDependencies_v1(
 CINDEX_LINKAGE CXFileDependencies *
 clang_experimental_DependencyScannerWorkerByModName_getFileDependencies_v0(
     CXDependencyScannerWorker Worker, int argc, const char *const *argv,
-    const char *WorkingDirectory, CXModuleDiscoveredCallback *MDC,
-    void *Context, CXString *error, const char *LookedUpModuleName);
+    const char *ModuleName, const char *WorkingDirectory,
+    CXModuleDiscoveredCallback *MDC, void *Context, CXString *error);
 
 /**
  * @}

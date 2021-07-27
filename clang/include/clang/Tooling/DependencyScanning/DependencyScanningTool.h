@@ -74,7 +74,7 @@ class DependencyScanningTool {
 public:
   /// Construct a dependency scanning tool.
   DependencyScanningTool(DependencyScanningService &Service,
-                         const char *LookedUpModuleName = nullptr);
+                         const char *ModuleName = nullptr);
 
   /// Print out the dependency information into a string using the dependency
   /// file format that is specified in the options (-MD is the default) and
@@ -103,7 +103,7 @@ public:
 
 private:
   DependencyScanningWorker Worker;
-  const char *LookedUpModuleName;
+  const char *ModuleName;
 };
 
 } // end namespace dependencies

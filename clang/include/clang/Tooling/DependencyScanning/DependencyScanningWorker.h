@@ -97,7 +97,10 @@ public:
 
   ScanningOutputFormat getFormat() const { return Format; }
 
-  void setLookedUpModuleName(const char *Name) { LookedUpModuleName = Name; }
+  const char *getModuleName() const { return ModuleName; }
+
+  /// Set module name and create a memory buffer for the fake source file.
+  void setModuleName(const char *Name);
 
   llvm::StringSet<> AlreadySeen;
 
@@ -116,7 +119,8 @@ private:
   llvm::IntrusiveRefCntPtr<FileManager> Files;
   ScanningOutputFormat Format;
 
-  const char *LookedUpModuleName = nullptr;
+  const char *ModuleName = nullptr;
+  std::unique_ptr<llvm::MemoryBuffer> FakeMemBuffer;
 };
 
 } // end namespace dependencies

@@ -46,8 +46,8 @@ FullDependencies::getAdditionalArgsWithoutModulePaths() const {
 }
 
 DependencyScanningTool::DependencyScanningTool(
-    DependencyScanningService &Service, const char *LookedUpModuleName)
-    : Worker(Service), LookedUpModuleName(LookedUpModuleName) {}
+    DependencyScanningService &Service, const char *ModuleName)
+    : Worker(Service), ModuleName(ModuleName) {}
 
 llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
     const tooling::CompilationDatabase &Compilations, StringRef CWD) {
@@ -196,7 +196,7 @@ DependencyScanningTool::getFullDependencies(
   std::string Input = Compilations.getAllCompileCommands().front().Filename;
 
   FullDependencyPrinterConsumer Consumer(AlreadySeen);
-  Worker.setLookedUpModuleName(LookedUpModuleName);
+  Worker.setModuleName(ModuleName);
   llvm::Error Result =
       Worker.computeDependencies(Input, CWD, Compilations, Consumer);
   if (Result)
