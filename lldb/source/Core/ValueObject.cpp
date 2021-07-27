@@ -313,19 +313,24 @@ CompilerType ValueObject::MaybeCalculateCompleteType() {
 
   // try the modules
   if (TargetSP target_sp = GetTargetSP()) {
-    if (auto clang_modules_decl_vendor =
-            target_sp->GetClangModulesDeclVendor()) {
-      ConstString key_cs(class_name);
-      auto types = clang_modules_decl_vendor->FindTypes(
-          key_cs, /*max_matches*/ UINT32_MAX);
-      if (!types.empty()) {
-        auto module_type = types.front();
-        m_override_type =
-            is_pointer_type ? module_type.GetPointerType() : module_type;
-      }
+    auto *persistent_vars = llvm::cast<ClangPersistentVariables>(
+        target_sp->GetPersistentExpressionStateForLanguage(
+        lldb::eLanguageTypeC));
+    if (persistent_vars) {
+      if (auto clang_modules_decl_vendor =
+            persistent_vars->GetClangModulesDeclVendor()) {
+        ConstString key_cs(class_name);
+        auto types = clang_modules_decl_vendor->FindTypes(
+            key_cs, /*max_matches*/ UINT32_MAX);
+        if (!types.empty()) {
+          auto module_type = types.front();
+          m_override_type =
+              is_pointer_type ? module_type.GetPointerType() : module_type;
+        }
 
-      if (m_override_type.IsValid())
-        return m_override_type;
+        if (m_override_type.IsValid())
+          return m_override_type;
+      }
     }
   }
 
