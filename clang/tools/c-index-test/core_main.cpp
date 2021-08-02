@@ -761,7 +761,7 @@ static int scanDepsByModName(ArrayRef<const char *> Args,
       functionObjectToCCallbackRef<void(CXModuleDependencySet *)>(Callback);
 
   CXFileDependencies *Result =
-      clang_experimental_DependencyScannerWorkerByModName_getFileDependencies_v0(
+      clang_experimental_DependencyScannerWorker_getDependenciesByModName_v0(
           Worker, Args.size(), Args.data(), ModName.c_str(),
           WorkingDirectory.c_str(), CB.Callback, CB.Context, &Error);
   if (!Result) {

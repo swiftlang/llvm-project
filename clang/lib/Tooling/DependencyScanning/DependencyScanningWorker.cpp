@@ -263,7 +263,7 @@ public:
     std::unique_ptr<FrontendAction> Action;
 
     if (ModuleName)
-      Action = std::make_unique<GetDependiciesByModuleNameAction>(ModuleName);
+      Action = std::make_unique<GetDependenciesByModuleNameAction>(ModuleName);
     else
       Action = std::make_unique<ReadPCHAndPreprocessAction>();
 
@@ -332,7 +332,8 @@ llvm::Error DependencyScanningWorker::computeDependencies(
     /// Create the tool that uses the underlying file system to ensure that any
     /// file system requests that are made by the driver do not go through the
     /// dependency scanning filesystem.
-    assert(!!ModuleName == Input.empty());
+    assert((ModuleName != nullptr) == Input.empty() &&
+           "either ModuleName or Input is not empty, but not both");
     SmallString<128> FullPath;
     tooling::ClangTool Tool(CDB, ModuleName ? ModuleName : Input,
                             PCHContainerOps, RealFS, Files);

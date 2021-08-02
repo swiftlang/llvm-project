@@ -994,7 +994,7 @@ void PrintDependencyDirectivesSourceMinimizerAction::ExecuteAction() {
   llvm::outs() << Output;
 }
 
-void GetDependiciesByModuleNameAction::ExecuteAction() {
+void GetDependenciesByModuleNameAction::ExecuteAction() {
   CompilerInstance &CI = getCompilerInstance();
   Preprocessor &PP = CI.getPreprocessor();
   SourceManager &SM = PP.getSourceManager();

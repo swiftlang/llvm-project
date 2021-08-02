@@ -222,6 +222,7 @@ getFileDependencies(CXDependencyScannerWorker W, int argc,
   DependencyScanningWorker *Worker = unwrap(W);
   SmallString<128> FullPath;
 
+  // A helper function to create a fake source file name.
   auto GetFakeSrcFile = [&]() {
     FullPath = Worker->getModuleName();
     llvm::sys::fs::make_absolute(WorkingDirectory, FullPath);
@@ -230,6 +231,9 @@ getFileDependencies(CXDependencyScannerWorker W, int argc,
 
   std::vector<std::string> Compilation{argv, argv + argc};
 
+  // The fake source file has to be added to the argument list here because the
+  // driver will error out and the standard input will be used as the default
+  // input if we don't do so.
   if (Worker->getModuleName())
     Compilation.push_back(GetFakeSrcFile());
 
@@ -263,7 +267,7 @@ clang_experimental_DependencyScannerWorker_getFileDependencies_v1(
 }
 
 CXFileDependencies *
-clang_experimental_DependencyScannerWorkerByModName_getFileDependencies_v0(
+clang_experimental_DependencyScannerWorker_getDependenciesByModName_v0(
     CXDependencyScannerWorker W, int argc, const char *const *argv,
     const char *ModuleName, const char *WorkingDirectory,
     CXModuleDiscoveredCallback *MDC, void *Context, CXString *error) {

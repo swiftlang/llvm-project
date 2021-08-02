@@ -299,12 +299,13 @@ protected:
   bool hasPCHSupport() const override { return true; }
 };
 
-class GetDependiciesByModuleNameAction : public PreprocessOnlyAction {
+class GetDependenciesByModuleNameAction : public PreprocessOnlyAction {
   const char *ModuleName;
   void ExecuteAction() override;
 
 public:
-  GetDependiciesByModuleNameAction(const char *ModName) : ModuleName(ModName) {}
+  GetDependenciesByModuleNameAction(const char *ModName)
+      : ModuleName(ModName) {}
 };
 
 }  // end namespace clang

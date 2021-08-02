@@ -194,9 +194,10 @@ llvm::cl::opt<bool> SkipExcludedPPRanges(
         "until reaching the end directive."),
     llvm::cl::init(true), llvm::cl::cat(DependencyScannerCategory));
 
-llvm::cl::opt<std::string> ModuleName("module-name", llvm::cl::Optional,
-                                      llvm::cl::desc("module name"),
-                                      llvm::cl::cat(DependencyScannerCategory));
+llvm::cl::opt<std::string> ModuleName(
+    "module-name", llvm::cl::Optional,
+    llvm::cl::desc("the module of which the dependencies are to be computed"),
+    llvm::cl::cat(DependencyScannerCategory));
 
 llvm::cl::opt<bool> Verbose("v", llvm::cl::Optional,
                             llvm::cl::desc("Use verbose output."),

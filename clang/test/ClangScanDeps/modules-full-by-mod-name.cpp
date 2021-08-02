@@ -13,17 +13,12 @@
 // RUN: echo %t.dir > %t.result
 // RUN: clang-scan-deps -compilation-database %t.cdb -j 4 -format experimental-full \
 // RUN:   -mode preprocess-minimized-sources -module-name=header1 >> %t.result
-// RUN: cat %t.result | sed 's:\\\\\?:/:g' | FileCheck --check-prefixes=CHECK,CHECK-NO-ABS %s
-//
-// RUN: echo %t.dir > %t.result
-// RUN: clang-scan-deps -compilation-database %t.cdb -j 4 -format experimental-full \
-// RUN:   -mode preprocess-minimized-sources -module-name=header1 >> %t.result
 // RUN: cat %t.result | sed 's:\\\\\?:/:g' | FileCheck --check-prefixes=CHECK %s
 //
 // RUN: echo %t.dir > %t_clangcl.result
 // RUN: clang-scan-deps -compilation-database %t_clangcl.cdb -j 4 -format experimental-full \
 // RUN:   -mode preprocess-minimized-sources -module-name=header1 >> %t_clangcl.result
-// RUN: cat %t_clangcl.result | sed 's:\\\\\?:/:g' | FileCheck --check-prefixes=CHECK,CHECK-NO-ABS %s
+// RUN: cat %t_clangcl.result | sed 's:\\\\\?:/:g' | FileCheck --check-prefixes=CHECK %s
 
 // CHECK: [[PREFIX:.*]]
 // CHECK-NEXT: {
@@ -38,9 +33,7 @@
 // CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/Inputs/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1"
-// CHECK-NO-ABS-NOT:   "-fmodule-map-file={{.*}}"
 // CHECK:              "-emit-module"
-// CHECK-NO-ABS-NOT:   "-fmodule-file={{.*}}"
 // CHECK:              "-fmodule-name=header1"
 // CHECK:              "-fno-implicit-modules"
 // CHECK:            ],
