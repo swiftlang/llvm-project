@@ -63,8 +63,8 @@ define void @func_vscale2_2(<16 x i32>* %a, <16 x i32>* %b) #2 {
 ; CHECK-LABEL: func_vscale2_2:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.s, vl8
-; CHECK-NEXT:    add x8, x0, #32 // =32
-; CHECK-NEXT:    add x9, x1, #32 // =32
+; CHECK-NEXT:    add x8, x0, #32
+; CHECK-NEXT:    add x9, x1, #32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
 ; CHECK-NEXT:    ld1w { z1.s }, p0/z, [x8]
 ; CHECK-NEXT:    ld1w { z2.s }, p0/z, [x1]
@@ -87,8 +87,8 @@ define void @func_vscale2_4(<16 x i32>* %a, <16 x i32>* %b) #3 {
 ; CHECK-LABEL: func_vscale2_4:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.s, vl8
-; CHECK-NEXT:    add x8, x0, #32 // =32
-; CHECK-NEXT:    add x9, x1, #32 // =32
+; CHECK-NEXT:    add x8, x0, #32
+; CHECK-NEXT:    add x9, x1, #32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
 ; CHECK-NEXT:    ld1w { z1.s }, p0/z, [x8]
 ; CHECK-NEXT:    ld1w { z2.s }, p0/z, [x1]

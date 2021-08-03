@@ -23,7 +23,7 @@ define <2 x i16> @test1(<2 x i16>* %v2i16_ptr) {
 ; CHECK-LE-LABEL: test1:
 ; CHECK-LE:       // %bb.0:
 ; CHECK-LE-NEXT:    ld1 { v0.h }[0], [x0]
-; CHECK-LE-NEXT:    add x8, x0, #2 // =2
+; CHECK-LE-NEXT:    add x8, x0, #2
 ; CHECK-LE-NEXT:    ld1 { v0.h }[2], [x8]
 ; CHECK-LE-NEXT:    // kill: def $d0 killed $d0 killed $q0
 ; CHECK-LE-NEXT:    ret
@@ -31,7 +31,7 @@ define <2 x i16> @test1(<2 x i16>* %v2i16_ptr) {
 ; CHECK-BE-LABEL: test1:
 ; CHECK-BE:       // %bb.0:
 ; CHECK-BE-NEXT:    ld1 { v0.h }[0], [x0]
-; CHECK-BE-NEXT:    add x8, x0, #2 // =2
+; CHECK-BE-NEXT:    add x8, x0, #2
 ; CHECK-BE-NEXT:    ld1 { v0.h }[2], [x8]
 ; CHECK-BE-NEXT:    rev64 v0.2s, v0.2s
 ; CHECK-BE-NEXT:    ret
@@ -67,7 +67,7 @@ define <2 x i8> @test3(<2 x i8>* %v2i8_ptr) {
 ; CHECK-LE-LABEL: test3:
 ; CHECK-LE:       // %bb.0:
 ; CHECK-LE-NEXT:    ld1 { v0.b }[0], [x0]
-; CHECK-LE-NEXT:    add x8, x0, #1 // =1
+; CHECK-LE-NEXT:    add x8, x0, #1
 ; CHECK-LE-NEXT:    ld1 { v0.b }[4], [x8]
 ; CHECK-LE-NEXT:    // kill: def $d0 killed $d0 killed $q0
 ; CHECK-LE-NEXT:    ret
@@ -75,7 +75,7 @@ define <2 x i8> @test3(<2 x i8>* %v2i8_ptr) {
 ; CHECK-BE-LABEL: test3:
 ; CHECK-BE:       // %bb.0:
 ; CHECK-BE-NEXT:    ld1 { v0.b }[0], [x0]
-; CHECK-BE-NEXT:    add x8, x0, #1 // =1
+; CHECK-BE-NEXT:    add x8, x0, #1
 ; CHECK-BE-NEXT:    ld1 { v0.b }[4], [x8]
 ; CHECK-BE-NEXT:    rev64 v0.2s, v0.2s
 ; CHECK-BE-NEXT:    ret

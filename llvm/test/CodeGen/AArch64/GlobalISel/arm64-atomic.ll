@@ -325,7 +325,7 @@ define i32 @fetch_and_nand(i32* %p) #0 {
 ;
 ; CHECK-NOLSE-O0-LABEL: fetch_and_nand:
 ; CHECK-NOLSE-O0:       ; %bb.0:
-; CHECK-NOLSE-O0-NEXT:    sub sp, sp, #32 ; =32
+; CHECK-NOLSE-O0-NEXT:    sub sp, sp, #32
 ; CHECK-NOLSE-O0-NEXT:    str x0, [sp, #16] ; 8-byte Folded Spill
 ; CHECK-NOLSE-O0-NEXT:    ldr w8, [x0]
 ; CHECK-NOLSE-O0-NEXT:    str w8, [sp, #28] ; 4-byte Folded Spill
@@ -355,7 +355,7 @@ define i32 @fetch_and_nand(i32* %p) #0 {
 ; CHECK-NOLSE-O0-NEXT:    tbz w8, #0, LBB6_1
 ; CHECK-NOLSE-O0-NEXT:  ; %bb.5: ; %atomicrmw.end
 ; CHECK-NOLSE-O0-NEXT:    ldr w0, [sp, #12] ; 4-byte Folded Reload
-; CHECK-NOLSE-O0-NEXT:    add sp, sp, #32 ; =32
+; CHECK-NOLSE-O0-NEXT:    add sp, sp, #32
 ; CHECK-NOLSE-O0-NEXT:    ret
 ;
 ; CHECK-LSE-O1-LABEL: fetch_and_nand:
@@ -373,7 +373,7 @@ define i32 @fetch_and_nand(i32* %p) #0 {
 ;
 ; CHECK-LSE-O0-LABEL: fetch_and_nand:
 ; CHECK-LSE-O0:       ; %bb.0:
-; CHECK-LSE-O0-NEXT:    sub sp, sp, #32 ; =32
+; CHECK-LSE-O0-NEXT:    sub sp, sp, #32
 ; CHECK-LSE-O0-NEXT:    str x0, [sp, #16] ; 8-byte Folded Spill
 ; CHECK-LSE-O0-NEXT:    ldr w8, [x0]
 ; CHECK-LSE-O0-NEXT:    str w8, [sp, #28] ; 4-byte Folded Spill
@@ -392,7 +392,7 @@ define i32 @fetch_and_nand(i32* %p) #0 {
 ; CHECK-LSE-O0-NEXT:    tbz w8, #0, LBB6_1
 ; CHECK-LSE-O0-NEXT:  ; %bb.2: ; %atomicrmw.end
 ; CHECK-LSE-O0-NEXT:    ldr w0, [sp, #12] ; 4-byte Folded Reload
-; CHECK-LSE-O0-NEXT:    add sp, sp, #32 ; =32
+; CHECK-LSE-O0-NEXT:    add sp, sp, #32
 ; CHECK-LSE-O0-NEXT:    ret
   %val = atomicrmw nand i32* %p, i32 7 release
   ret i32 %val
@@ -414,7 +414,7 @@ define i64 @fetch_and_nand_64(i64* %p) #0 {
 ;
 ; CHECK-NOLSE-O0-LABEL: fetch_and_nand_64:
 ; CHECK-NOLSE-O0:       ; %bb.0:
-; CHECK-NOLSE-O0-NEXT:    sub sp, sp, #32 ; =32
+; CHECK-NOLSE-O0-NEXT:    sub sp, sp, #32
 ; CHECK-NOLSE-O0-NEXT:    str x0, [sp, #16] ; 8-byte Folded Spill
 ; CHECK-NOLSE-O0-NEXT:    ldr x8, [x0]
 ; CHECK-NOLSE-O0-NEXT:    str x8, [sp, #24] ; 8-byte Folded Spill
@@ -444,7 +444,7 @@ define i64 @fetch_and_nand_64(i64* %p) #0 {
 ; CHECK-NOLSE-O0-NEXT:    tbz w8, #0, LBB7_1
 ; CHECK-NOLSE-O0-NEXT:  ; %bb.5: ; %atomicrmw.end
 ; CHECK-NOLSE-O0-NEXT:    ldr x0, [sp, #8] ; 8-byte Folded Reload
-; CHECK-NOLSE-O0-NEXT:    add sp, sp, #32 ; =32
+; CHECK-NOLSE-O0-NEXT:    add sp, sp, #32
 ; CHECK-NOLSE-O0-NEXT:    ret
 ;
 ; CHECK-LSE-O1-LABEL: fetch_and_nand_64:
@@ -462,7 +462,7 @@ define i64 @fetch_and_nand_64(i64* %p) #0 {
 ;
 ; CHECK-LSE-O0-LABEL: fetch_and_nand_64:
 ; CHECK-LSE-O0:       ; %bb.0:
-; CHECK-LSE-O0-NEXT:    sub sp, sp, #32 ; =32
+; CHECK-LSE-O0-NEXT:    sub sp, sp, #32
 ; CHECK-LSE-O0-NEXT:    str x0, [sp, #16] ; 8-byte Folded Spill
 ; CHECK-LSE-O0-NEXT:    ldr x8, [x0]
 ; CHECK-LSE-O0-NEXT:    str x8, [sp, #24] ; 8-byte Folded Spill
@@ -481,7 +481,7 @@ define i64 @fetch_and_nand_64(i64* %p) #0 {
 ; CHECK-LSE-O0-NEXT:    tbz w8, #0, LBB7_1
 ; CHECK-LSE-O0-NEXT:  ; %bb.2: ; %atomicrmw.end
 ; CHECK-LSE-O0-NEXT:    ldr x0, [sp, #8] ; 8-byte Folded Reload
-; CHECK-LSE-O0-NEXT:    add sp, sp, #32 ; =32
+; CHECK-LSE-O0-NEXT:    add sp, sp, #32
 ; CHECK-LSE-O0-NEXT:    ret
   %val = atomicrmw nand i64* %p, i64 7 acq_rel
   ret i64 %val
@@ -503,7 +503,7 @@ define i32 @fetch_and_or(i32* %p) #0 {
 ;
 ; CHECK-NOLSE-O0-LABEL: fetch_and_or:
 ; CHECK-NOLSE-O0:       ; %bb.0:
-; CHECK-NOLSE-O0-NEXT:    sub sp, sp, #32 ; =32
+; CHECK-NOLSE-O0-NEXT:    sub sp, sp, #32
 ; CHECK-NOLSE-O0-NEXT:    str x0, [sp, #16] ; 8-byte Folded Spill
 ; CHECK-NOLSE-O0-NEXT:    ldr w8, [x0]
 ; CHECK-NOLSE-O0-NEXT:    str w8, [sp, #28] ; 4-byte Folded Spill
@@ -533,7 +533,7 @@ define i32 @fetch_and_or(i32* %p) #0 {
 ; CHECK-NOLSE-O0-NEXT:    tbz w8, #0, LBB8_1
 ; CHECK-NOLSE-O0-NEXT:  ; %bb.5: ; %atomicrmw.end
 ; CHECK-NOLSE-O0-NEXT:    ldr w0, [sp, #12] ; 4-byte Folded Reload
-; CHECK-NOLSE-O0-NEXT:    add sp, sp, #32 ; =32
+; CHECK-NOLSE-O0-NEXT:    add sp, sp, #32
 ; CHECK-NOLSE-O0-NEXT:    ret
 ;
 ; CHECK-LSE-O1-LABEL: fetch_and_or:
@@ -566,7 +566,7 @@ define i64 @fetch_and_or_64(i64* %p) #0 {
 ;
 ; CHECK-NOLSE-O0-LABEL: fetch_and_or_64:
 ; CHECK-NOLSE-O0:       ; %bb.0:
-; CHECK-NOLSE-O0-NEXT:    sub sp, sp, #32 ; =32
+; CHECK-NOLSE-O0-NEXT:    sub sp, sp, #32
 ; CHECK-NOLSE-O0-NEXT:    str x0, [sp, #16] ; 8-byte Folded Spill
 ; CHECK-NOLSE-O0-NEXT:    ldr x8, [x0]
 ; CHECK-NOLSE-O0-NEXT:    str x8, [sp, #24] ; 8-byte Folded Spill
@@ -595,7 +595,7 @@ define i64 @fetch_and_or_64(i64* %p) #0 {
 ; CHECK-NOLSE-O0-NEXT:    tbz w8, #0, LBB9_1
 ; CHECK-NOLSE-O0-NEXT:  ; %bb.5: ; %atomicrmw.end
 ; CHECK-NOLSE-O0-NEXT:    ldr x0, [sp, #8] ; 8-byte Folded Reload
-; CHECK-NOLSE-O0-NEXT:    add sp, sp, #32 ; =32
+; CHECK-NOLSE-O0-NEXT:    add sp, sp, #32
 ; CHECK-NOLSE-O0-NEXT:    ret
 ;
 ; CHECK-LSE-O1-LABEL: fetch_and_or_64:
@@ -709,7 +709,7 @@ define i8 @atomic_load_relaxed_8(i8* %p, i32 %off32) #0 {
 ; CHECK-NOLSE-O0-NEXT:    add x8, x0, w1, sxtw
 ; CHECK-NOLSE-O0-NEXT:    ldrb w8, [x8]
 ; CHECK-NOLSE-O0-NEXT:    add w8, w8, w9, uxtb
-; CHECK-NOLSE-O0-NEXT:    subs x9, x0, #256 ; =256
+; CHECK-NOLSE-O0-NEXT:    subs x9, x0, #256
 ; CHECK-NOLSE-O0-NEXT:    ldrb w9, [x9]
 ; CHECK-NOLSE-O0-NEXT:    add w8, w8, w9, uxtb
 ; CHECK-NOLSE-O0-NEXT:    add x9, x0, #291, lsl #12 ; =1191936
@@ -735,7 +735,7 @@ define i8 @atomic_load_relaxed_8(i8* %p, i32 %off32) #0 {
 ; CHECK-LSE-O0-NEXT:    add x8, x0, w1, sxtw
 ; CHECK-LSE-O0-NEXT:    ldrb w8, [x8]
 ; CHECK-LSE-O0-NEXT:    add w8, w8, w9, uxtb
-; CHECK-LSE-O0-NEXT:    subs x9, x0, #256 ; =256
+; CHECK-LSE-O0-NEXT:    subs x9, x0, #256
 ; CHECK-LSE-O0-NEXT:    ldrb w9, [x9]
 ; CHECK-LSE-O0-NEXT:    add w8, w8, w9, uxtb
 ; CHECK-LSE-O0-NEXT:    add x9, x0, #291, lsl #12 ; =1191936
@@ -779,7 +779,7 @@ define i16 @atomic_load_relaxed_16(i16* %p, i32 %off32) #0 {
 ; CHECK-NOLSE-O0-NEXT:    add x8, x0, w1, sxtw #1
 ; CHECK-NOLSE-O0-NEXT:    ldrh w8, [x8]
 ; CHECK-NOLSE-O0-NEXT:    add w8, w8, w9, uxth
-; CHECK-NOLSE-O0-NEXT:    subs x9, x0, #256 ; =256
+; CHECK-NOLSE-O0-NEXT:    subs x9, x0, #256
 ; CHECK-NOLSE-O0-NEXT:    ldrh w9, [x9]
 ; CHECK-NOLSE-O0-NEXT:    add w8, w8, w9, uxth
 ; CHECK-NOLSE-O0-NEXT:    add x9, x0, #291, lsl #12 ; =1191936
@@ -805,7 +805,7 @@ define i16 @atomic_load_relaxed_16(i16* %p, i32 %off32) #0 {
 ; CHECK-LSE-O0-NEXT:    add x8, x0, w1, sxtw #1
 ; CHECK-LSE-O0-NEXT:    ldrh w8, [x8]
 ; CHECK-LSE-O0-NEXT:    add w8, w8, w9, uxth
-; CHECK-LSE-O0-NEXT:    subs x9, x0, #256 ; =256
+; CHECK-LSE-O0-NEXT:    subs x9, x0, #256
 ; CHECK-LSE-O0-NEXT:    ldrh w9, [x9]
 ; CHECK-LSE-O0-NEXT:    add w8, w8, w9, uxth
 ; CHECK-LSE-O0-NEXT:    add x9, x0, #291, lsl #12 ; =1191936
@@ -1322,6 +1322,5 @@ define void @store_trunc(i32 %val, i8* %p8, i16* %p16) {
 
   ret void
 }
-
 
 attributes #0 = { nounwind }
