@@ -310,7 +310,6 @@ void TypePrinter::printBefore(const Type *T,Qualifiers Quals, raw_ostream &OS) {
   SaveAndRestore<bool> PrevPHIsEmpty(HasEmptyPlaceHolder);
 
   // Print qualifiers as appropriate.
-
   bool CanPrefixQualifiers = false;
   bool NeedARCStrongQualifier = false;
   CanPrefixQualifiers = canPrefixQualifiers(T, NeedARCStrongQualifier);
