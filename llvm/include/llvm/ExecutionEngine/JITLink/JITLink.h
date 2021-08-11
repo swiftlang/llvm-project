@@ -1118,6 +1118,11 @@ public:
                       section_iterator(Sections.end()));
   }
 
+  iterator_range<const_section_iterator> sections() const {
+    return make_range(const_section_iterator(Sections.begin()),
+                      const_section_iterator(Sections.end()));
+  }
+
   SectionList::size_type sections_size() const { return Sections.size(); }
 
   /// Returns the section with the given name if it exists, otherwise returns
