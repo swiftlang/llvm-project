@@ -104,6 +104,9 @@ public:
 
   static lldb_private::ConstString GetPluginNameStatic();
 
+  Language::FunctionNameInfo
+  GetFunctionNameInfo(ConstString name) const override;
+
   bool SymbolNameFitsToLanguage(Mangled mangled) const override;
 
   static bool IsCPPMangledName(llvm::StringRef name);
