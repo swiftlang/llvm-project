@@ -53,7 +53,7 @@ enum class ActionType {
   PrintStoreFormatVersion,
   AggregateAsJSON,
   ScanDeps,
-  ScanDepsByModName,
+  ScanDepsByModuleName,
   WatchDir,
 };
 
@@ -76,7 +76,7 @@ Action(cl::desc("Action:"), cl::init(ActionType::None),
                      "aggregate-json", "Aggregate index data in JSON format"),
           clEnumValN(ActionType::ScanDeps, "scan-deps",
                      "Get file dependencies"),
-          clEnumValN(ActionType::ScanDepsByModName, "scan-deps-by-mod-name",
+          clEnumValN(ActionType::ScanDepsByModuleName, "scan-deps-by-mod-name",
                      "Get file dependencies by module name alone"),
           clEnumValN(ActionType::WatchDir,
                      "watch-dir", "Watch directory for file events")),
@@ -721,9 +721,9 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory) {
   return 0;
 }
 
-static int scanDepsByModName(ArrayRef<const char *> Args,
-                             std::string WorkingDirectory,
-                             std::string ModName) {
+static int scanDepsByModuleName(ArrayRef<const char *> Args,
+                                std::string WorkingDirectory,
+                                std::string ModuleName) {
   CXDependencyScannerService Service =
       clang_experimental_DependencyScannerService_create_v0(
           CXDependencyMode_Full);
@@ -761,8 +761,8 @@ static int scanDepsByModName(ArrayRef<const char *> Args,
       functionObjectToCCallbackRef<void(CXModuleDependencySet *)>(Callback);
 
   CXFileDependencies *Result =
-      clang_experimental_DependencyScannerWorker_getDependenciesByModName_v0(
-          Worker, Args.size(), Args.data(), ModName.c_str(),
+      clang_experimental_DependencyScannerWorker_getDependenciesByModuleName_v0(
+          Worker, Args.size(), Args.data(), ModuleName.c_str(),
           WorkingDirectory.c_str(), CB.Callback, CB.Context, &Error);
   if (!Result) {
     llvm::errs() << "error: failed to get dependencies\n";
@@ -1090,7 +1090,8 @@ int indextest_core_main(int argc, const char **argv) {
     return scanDeps(CompArgs, options::InputFiles[0]);
   }
 
-  if (options::Action == ActionType::ScanDepsByModName) {
+  if (options::Action == ActionType::ScanDepsByModuleName) {
+    // InputFiles should be set to the working directory name.
     if (options::InputFiles.empty()) {
       errs() << "error: missing working directory\n";
       return 1;
@@ -1099,8 +1100,8 @@ int indextest_core_main(int argc, const char **argv) {
       errs() << "error: missing module name\n";
       return 1;
     }
-    return scanDepsByModName(CompArgs, options::InputFiles[0],
-                             options::ModuleName);
+    return scanDepsByModuleName(CompArgs, options::InputFiles[0],
+                                options::ModuleName);
   }
 
   if (options::Action == ActionType::WatchDir) {

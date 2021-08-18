@@ -9,14 +9,4 @@
   "command": "clang -E -IInputs -fmodules -fcxx-modules -fmodules-cache-path=DIR/module-cache -fimplicit-modules -fimplicit-module-maps -x c++",
   "file": ""
 },
-{
-  "directory": "DIR",
-  "command": "clang -E -IInputs -fmodules -fcxx-modules -fmodules-cache-path=DIR/module-cache -fimplicit-modules -fimplicit-module-maps -o a.o -x c++",
-  "file": ""
-},
-{
-  "directory": "DIR",
-  "command": "clang -E -IInputs -fmodules -fcxx-modules -fmodules-cache-path=DIR/module-cache -fimplicit-modules -fimplicit-module-maps -o b.o -x c++",
-  "file": ""
-}
 ]

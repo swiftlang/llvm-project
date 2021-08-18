@@ -304,8 +304,8 @@ class GetDependenciesByModuleNameAction : public PreprocessOnlyAction {
   void ExecuteAction() override;
 
 public:
-  GetDependenciesByModuleNameAction(const char *ModName)
-      : ModuleName(ModName) {}
+  GetDependenciesByModuleNameAction(const char *ModuleName)
+      : ModuleName(ModuleName) {}
 };
 
 }  // end namespace clang

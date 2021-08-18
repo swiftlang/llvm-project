@@ -332,8 +332,6 @@ llvm::Error DependencyScanningWorker::computeDependencies(
     /// Create the tool that uses the underlying file system to ensure that any
     /// file system requests that are made by the driver do not go through the
     /// dependency scanning filesystem.
-    assert((ModuleName != nullptr) == Input.empty() &&
-           "either ModuleName or Input is not empty, but not both");
     SmallString<128> FullPath;
     tooling::ClangTool Tool(CDB, ModuleName ? ModuleName : Input,
                             PCHContainerOps, RealFS, Files);
