@@ -973,6 +973,10 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
       continue;
     }
 
+    if (Info.getValue2Index(CmpInst::isSigned(CB.Condition->getPredicate()))
+            .size() > 100)
+      continue;
+
     // Set up a function to restore the predicate at the end of the scope if it
     // has been negated. Negate the predicate in-place, if required.
     auto *CI = dyn_cast<CmpInst>(CB.Condition);
@@ -1047,9 +1051,9 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
 #ifndef NDEBUG
   unsigned SignedEntries =
       count_if(DFSInStack, [](const StackEntry &E) { return E.IsSigned; });
-  assert(Info.getCS(false).size() == DFSInStack.size() - SignedEntries &&
+  assert(Info.getCS(false).getNumRows() == DFSInStack.size() - SignedEntries &&
          "updates to CS and DFSInStack are out of sync");
-  assert(Info.getCS(true).size() == SignedEntries &&
+  assert(Info.getCS(true).getNumRows() == SignedEntries &&
          "updates to CS and DFSInStack are out of sync");
 #endif
 

@@ -88,7 +88,11 @@ public:
   }
 
   /// Returns the number of rows in the constraint system.
-  unsigned size() const { return Constraints.size(); }
+  unsigned totalSize() const {
+    return Constraints.size() > 0 ? Constraints[0].size() * Constraints.size()
+                                  : Constraints.size();
+  }
+  unsigned getNumRows() const { return Constraints.size(); }
 
   /// Print the constraints in the system, using \p Names as variable names.
   void dump(ArrayRef<std::string> Names) const;
