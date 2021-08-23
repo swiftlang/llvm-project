@@ -154,7 +154,7 @@ namespace llvm {
 
     /// size - Get the string size.
     LLVM_NODISCARD
-    size_t size() const { return Length; }
+    constexpr size_t size() const { return Length; }
 
     /// front - Get the first character in the string.
     LLVM_NODISCARD
