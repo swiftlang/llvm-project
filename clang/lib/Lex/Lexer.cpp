@@ -2740,8 +2740,14 @@ bool Lexer::SkipBlockComment(Token &Result, const char *CurPtr,
 /// ReadToEndOfLine - Read the rest of the current preprocessor line as an
 /// uninterpreted string.  This switches the lexer out of directive mode.
 void Lexer::ReadToEndOfLine(SmallVectorImpl<char> *Result) {
-  assert(ParsingPreprocessorDirective && ParsingFilename == false &&
-         "Must be in a preprocessing directive!");
+  // FIXME: Maybe this should have a different entry point.
+  bool IsRawModeForPTH = isLexingRawMode();
+  if (IsRawModeForPTH)
+    assert(!ParsingPreprocessorDirective &&
+           "Raw mode should not be parsing directives");
+  else
+    assert(ParsingPreprocessorDirective && ParsingFilename == false &&
+           "Must be in a preprocessing directive!");
   Token Tmp;
   Tmp.startToken();
 
@@ -2756,7 +2762,7 @@ void Lexer::ReadToEndOfLine(SmallVectorImpl<char> *Result) {
       break;
     case 0:  // Null.
       // Found end of file?
-      if (CurPtr-1 != BufferEnd) {
+      if (!IsRawModeForPTH && CurPtr - 1 != BufferEnd) {
         if (isCodeCompletionPoint(CurPtr-1)) {
           PP->CodeCompleteNaturalLanguage();
           cutOffLexing();
@@ -2775,6 +2781,9 @@ void Lexer::ReadToEndOfLine(SmallVectorImpl<char> *Result) {
       // Okay, we found the end of the line. First, back up past the \0, \r, \n.
       assert(CurPtr[-1] == Char && "Trigraphs for newline?");
       BufferPtr = CurPtr-1;
+
+      if (IsRawModeForPTH)
+        return;
 
       // Next, lex the character, which should handle the EOD transition.
       Lex(Tmp);

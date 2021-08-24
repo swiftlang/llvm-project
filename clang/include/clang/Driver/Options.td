@@ -5954,6 +5954,11 @@ defm fcas_fs_cache_results : BoolFOption<"cas-fs-result-cache",
     PosFlag<SetTrue, [], "When using -fcas-fs, use a result cache.">,
     NegFlag<SetFalse>>;
 
+defm fcas_token_cache : BoolFOption<"cas-token-cache",
+    CASOpts<"CASTokenCache">, DefaultFalse,
+    PosFlag<SetTrue, [], "When reading from a CAS, cache tokens.">,
+    NegFlag<SetFalse>>;
+
 } // let Flags = [CC1Option, NoDriverOption]
 
 def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,

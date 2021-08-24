@@ -40,6 +40,9 @@ public:
   /// Use a result cache when possible, using CASFileSystemRootID.
   bool CASFileSystemResultCache = false;
 
+  /// Transparently enable pre-tokenized files with -fcas.
+  bool CASTokenCache = false;
+
   /// For \a BuiltinCAS, a path on-disk for a persistent backing store. This is
   /// optional, although \a CASFileSystemRootID is unlikely to work.
   std::string BuiltinPath;

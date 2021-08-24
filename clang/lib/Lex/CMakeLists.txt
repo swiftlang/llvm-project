@@ -1,6 +1,6 @@
 # TODO: Add -maltivec when ARCH is PowerPC.
 
-set(LLVM_LINK_COMPONENTS support)
+set(LLVM_LINK_COMPONENTS support CAS)
 
 add_clang_library(clangLex
   DependencyDirectivesSourceMinimizer.cpp
@@ -18,6 +18,7 @@ add_clang_library(clangLex
   PPExpressions.cpp
   PPLexerChange.cpp
   PPMacroExpansion.cpp
+  PTHLexer.cpp
   Pragma.cpp
   PreprocessingRecord.cpp
   Preprocessor.cpp

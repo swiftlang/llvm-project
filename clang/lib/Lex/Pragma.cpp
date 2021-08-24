@@ -29,6 +29,7 @@
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/ModuleLoader.h"
 #include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/PTHLexer.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorLexer.h"
 #include "clang/Lex/PreprocessorOptions.h"
@@ -419,8 +420,14 @@ void Preprocessor::HandlePragmaMark(Token &MarkTok) {
 
   SmallString<64> Buffer;
   CurLexer->ReadToEndOfLine(&Buffer);
-  if (Callbacks)
-    Callbacks->PragmaMark(MarkTok.getLocation(), Buffer);
+  if (CurLexer){
+    CurLexer->ReadToEndOfLine(&Buffer);
+    if (Callbacks)
+      Callbacks->PragmaMark(MarkTok.getLocation(), Buffer);
+  } else {
+    // FIXME: For now, this skips over #pragma mark entirely...
+    CurPTHLexer->DiscardToEndOfLine();
+  }
 }
 
 /// HandlePragmaPoison - Handle \#pragma GCC poison.  PoisonTok is the 'poison'.
@@ -847,6 +854,12 @@ void Preprocessor::HandlePragmaModuleBuild(Token &Tok) {
   if (Tok.isNot(tok::eod)) {
     Diag(Tok, diag::ext_pp_extra_tokens_at_eol) << "pragma";
     DiscardUntilEndOfDirective();
+  }
+
+  if (CurPTHLexer) {
+    // FIXME: Support this somehow?
+    Diag(Loc, diag::err_pp_module_build_pth);
+    return;
   }
 
   CurLexer->LexingRawMode = true;

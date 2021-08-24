@@ -31,6 +31,7 @@
 #include "clang/Frontend/VerifyDiagnosticConsumer.h"
 #include "clang/Index/IndexingAction.h"
 #include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/PTHManager.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
@@ -446,6 +447,7 @@ static void InitializeFileRemapping(DiagnosticsEngine &Diags,
 
 void CompilerInstance::createPreprocessor(TranslationUnitKind TUKind) {
   const PreprocessorOptions &PPOpts = getPreprocessorOpts();
+  const CASOptions &CASOpts = getInvocation().getCASOpts();
 
   // The AST reader holds a reference to the old preprocessor (if any).
   TheASTReader.reset();
@@ -461,6 +463,16 @@ void CompilerInstance::createPreprocessor(TranslationUnitKind TUKind) {
                                       /*OwnsHeaderSearch=*/true, TUKind);
   getTarget().adjust(getDiagnostics(), getLangOpts());
   PP->Initialize(getTarget(), getAuxTarget());
+
+  // Create a PTH manager if we are using some form of a token cache.
+  if (CASOpts.CASTokenCache) {
+    llvm::vfs::FileSystem &FS = getFileManager().getVirtualFileSystem();
+
+    // FIXME: use dyn_cast here.
+    if (FS.isCASFS())
+      PP->setPTHManager(std::make_unique<PTHManager>(
+          &static_cast<llvm::cas::CASFileSystemBase &>(FS), *PP));
+  }
 
   if (PPOpts.DetailedRecord)
     PP->createPreprocessingRecord();

@@ -309,7 +309,11 @@ IdentifierInfo::isReserved(const LangOptions &LangOpts) const {
   return ReservedIdentifierStatus::NotReserved;
 }
 
-tok::PPKeywordKind IdentifierInfo::getPPKeywordID() const {
+namespace clang {
+// FIXME: Expose a class-static version of this, instead of hacking a secret
+// global function into the source file. When exposing, should handle "#if"
+// that isn't null-terminated.
+tok::PPKeywordKind getIdentifierInfoPPKeywordID(StringRef Spelling) {
   // We use a perfect hash function here involving the length of the keyword,
   // the first and third character.  For preprocessor ID's there are no
   // collisions (if there were, the switch below would complain about duplicate
@@ -321,9 +325,9 @@ tok::PPKeywordKind IdentifierInfo::getPPKeywordID() const {
   case HASH(LEN, FIRST, THIRD): \
     return memcmp(Name, #NAME, LEN) ? tok::pp_not_keyword : tok::pp_ ## NAME
 
-  unsigned Len = getLength();
+  unsigned Len = Spelling.size();
   if (Len < 2) return tok::pp_not_keyword;
-  const char *Name = getNameStart();
+  const char *Name = Spelling.begin();
   switch (HASH(Len, Name[0], Name[2])) {
   default: return tok::pp_not_keyword;
   CASE( 2, 'i', '\0', if);
@@ -360,6 +364,11 @@ tok::PPKeywordKind IdentifierInfo::getPPKeywordID() const {
 #undef CASE
 #undef HASH
   }
+}
+}
+
+tok::PPKeywordKind IdentifierInfo::getPPKeywordID() const {
+  return clang::getIdentifierInfoPPKeywordID(getName());
 }
 
 //===----------------------------------------------------------------------===//
