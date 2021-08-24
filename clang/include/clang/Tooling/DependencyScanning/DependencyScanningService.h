@@ -40,16 +40,22 @@ enum class ScanningOutputFormat {
   /// This outputs the full module dependency graph suitable for use for
   /// explicitly building modules.
   Full,
+
+  /// This emits the CAS ID of the scanned files.
+  Tree,
 };
 
 /// The dependency scanning service contains the shared state that is used by
 /// the invidual dependency scanning workers.
 class DependencyScanningService {
 public:
-  DependencyScanningService(ScanningMode Mode, ScanningOutputFormat Format,
-                            bool ReuseFileManager = true,
-                            bool SkipExcludedPPRanges = true,
-                            bool OptimizeArgs = false);
+  DependencyScanningService(
+      ScanningMode Mode, ScanningOutputFormat Format,
+      IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> SharedFS,
+      bool ReuseFileManager = true, bool SkipExcludedPPRanges = true,
+      bool OptimizeArgs = false, bool OverrideCASTokenCache = false);
+
+  ~DependencyScanningService();
 
   ScanningMode getMode() const { return Mode; }
 
@@ -61,9 +67,9 @@ public:
 
   bool canOptimizeArgs() const { return OptimizeArgs; }
 
-  DependencyScanningFilesystemSharedCache &getSharedCache() {
-    return SharedCache;
-  }
+  bool overrideCASTokenCache() const { return OverrideCASTokenCache; }
+
+  llvm::cas::CachingOnDiskFileSystem &getSharedFS() { return *SharedFS; }
 
 private:
   const ScanningMode Mode;
@@ -75,8 +81,9 @@ private:
   const bool SkipExcludedPPRanges;
   /// Whether to optimize the modules' command-line arguments.
   const bool OptimizeArgs;
+  const bool OverrideCASTokenCache;
   /// The global file system cache.
-  DependencyScanningFilesystemSharedCache SharedCache;
+  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> SharedFS;
 };
 
 } // end namespace dependencies

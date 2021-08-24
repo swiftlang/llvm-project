@@ -8,6 +8,7 @@
 
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Frontend/Utils.h"
+#include "llvm/CAS/CachingOnDiskFileSystem.h"
 
 namespace clang{
 namespace tooling{
@@ -111,6 +112,108 @@ llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
   std::string Output;
   Consumer.printDependencies(Output);
   return Output;
+}
+
+namespace {
+/// Returns a CAS tree containing the dependencies.
+class MakeDependencyTree : public DependencyConsumer {
+public:
+  void handleFileDependency(StringRef File) override {
+    // FIXME: Probably we want to delete this class, since we're getting
+    // dependencies more accurately (including directories) by intercepting
+    // filesystem accesses.
+    //
+    // On the other hand, for implicitly-discovered modules, we really want to
+    // drop a bunch of extra dependencies from the directory iteration.
+    //
+    // For now just disable this.
+    //
+    // E = llvm::joinErrors(std::move(E), Builder->push(File));
+  }
+
+  void handleModuleDependency(ModuleDeps) override {}
+  void handlePrebuiltModuleDependency(PrebuiltModuleDep) override {}
+  void handleDependencyOutputOpts(const DependencyOutputOptions &) override {}
+
+  void handleContextHash(std::string) override {}
+
+  Expected<llvm::cas::TreeRef> makeTree() {
+    if (E)
+      return std::move(E);
+    return Builder->create();
+  }
+
+  MakeDependencyTree(llvm::cas::CachingOnDiskFileSystem &FS)
+      : E(llvm::Error::success()), Builder(FS.createTreeBuilder()) {}
+
+  ~MakeDependencyTree() {
+    // Ignore the error if makeTree wasn't called.
+    llvm::consumeError(std::move(E));
+  }
+
+private:
+  llvm::Error E;
+  std::unique_ptr<llvm::cas::CachingOnDiskFileSystem::TreeBuilder> Builder;
+};
+}
+
+llvm::Expected<llvm::cas::TreeRef> DependencyScanningTool::getDependencyTree(
+    const tooling::CompilationDatabase &Compilations, StringRef CWD) {
+  // We expect a single command here because if a source file occurs multiple
+  // times in the original CDB, then `computeDependencies` would run the
+  // `DependencyScanningAction` once for every time the input occured in the
+  // CDB. Instead we split up the CDB into single command chunks to avoid this
+  // behavior.
+  assert(Compilations.getAllCompileCommands().size() == 1 &&
+         "Expected a compilation database with a single command!");
+  std::string Input = Compilations.getAllCompileCommands().front().Filename;
+
+  llvm::cas::CachingOnDiskFileSystem &FS = Worker.getRealFS();
+  FS.trackNewAccesses();
+  MakeDependencyTree Consumer(FS);
+  auto Result = Worker.computeDependencies(Input, CWD, Compilations, Consumer);
+  if (Result)
+    return std::move(Result);
+  // return Consumer.makeTree();
+  //
+  // FIXME: This is needed because the dependency scanner doesn't track
+  // directories are accessed -- in particular, we need the CWD to be included.
+  // However, if we *want* to filter out certain accesses (such as for modules)
+  // this will get in the way.
+  //
+  // The right fix is to add an API for listing directories that are
+  // dependencies, and explicitly add the CWD and other things that matter.
+  // (The 'make' output can ignore directories.)
+  return FS.createTreeFromNewAccesses();
+}
+
+llvm::Expected<llvm::cas::TreeRef>
+DependencyScanningTool::getDependencyTreeFromCompilerInvocation(
+    std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
+    DiagnosticConsumer &DiagsConsumer,
+    llvm::function_ref<StringRef(StringRef)> RemapPath) {
+  llvm::cas::CachingOnDiskFileSystem &FS = Worker.getRealFS();
+  FS.trackNewAccesses();
+  MakeDependencyTree DepsConsumer(FS);
+  Worker.computeDependenciesFromCompilerInvocation(std::move(Invocation), CWD,
+                                                   DepsConsumer, DiagsConsumer);
+  // return DepsConsumer.makeTree();
+  //
+  // FIXME: See FIXME in getDepencyTree().
+  return FS.createTreeFromNewAccesses(RemapPath);
+}
+
+llvm::Expected<llvm::cas::TreeRef>
+DependencyScanningTool::getDependencyTreeFromCC1CommandLine(
+    ArrayRef<const char *> Args, StringRef CWD) {
+  llvm::cas::CachingOnDiskFileSystem &FS = Worker.getRealFS();
+  FS.trackNewAccesses();
+  MakeDependencyTree DepsConsumer(FS);
+  Worker.computeDependenciesFromCC1CommandLine(Args, CWD, DepsConsumer);
+  // return DepsConsumer.makeTree();
+  //
+  // FIXME: See FIXME in getDepencyTree().
+  return FS.createTreeFromNewAccesses();
 }
 
 llvm::Expected<FullDependenciesResult>

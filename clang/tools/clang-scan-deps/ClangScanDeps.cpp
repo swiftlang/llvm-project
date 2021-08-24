@@ -14,6 +14,8 @@
 #include "clang/Tooling/JSONCompilationDatabase.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/InitLLVM.h"
@@ -129,12 +131,15 @@ static llvm::cl::opt<ScanningMode> ScanMode(
 
 static llvm::cl::opt<ScanningOutputFormat> Format(
     "format", llvm::cl::desc("The output format for the dependencies"),
-    llvm::cl::values(clEnumValN(ScanningOutputFormat::Make, "make",
-                                "Makefile compatible dep file"),
-                     clEnumValN(ScanningOutputFormat::Full, "experimental-full",
-                                "Full dependency graph suitable"
-                                " for explicitly building modules. This format "
-                                "is experimental and will change.")),
+    llvm::cl::values(
+        clEnumValN(ScanningOutputFormat::Make, "make",
+                   "Makefile compatible dep file"),
+        clEnumValN(ScanningOutputFormat::Tree, "experimental-tree",
+                   "Write out a CAS tree that contains the dependencies."),
+        clEnumValN(ScanningOutputFormat::Full, "experimental-full",
+                   "Full dependency graph suitable"
+                   " for explicitly building modules. This format "
+                   "is experimental and will change.")),
     llvm::cl::init(ScanningOutputFormat::Make),
     llvm::cl::cat(DependencyScannerCategory));
 
@@ -223,6 +228,16 @@ static llvm::cl::opt<ResourceDirRecipeKind> ResourceDirRecipe(
     llvm::cl::init(RDRK_ModifyCompilerPath),
     llvm::cl::cat(DependencyScannerCategory));
 
+llvm::cl::opt<bool> OverrideCASTokenCache(
+    "override-cas-token-cache",
+    llvm::cl::desc("Override the CAS-based token cache, using it always."),
+    llvm::cl::init(false), llvm::cl::cat(DependencyScannerCategory));
+
+llvm::cl::opt<bool> InMemoryCAS(
+    "in-memory-cas",
+    llvm::cl::desc("Use an in-memory CAS instead of on-disk."),
+    llvm::cl::init(false), llvm::cl::cat(DependencyScannerCategory));
+
 llvm::cl::opt<bool> Verbose("v", llvm::cl::Optional,
                             llvm::cl::desc("Use verbose output."),
                             llvm::cl::init(false),
@@ -249,6 +264,29 @@ handleMakeDependencyToolResult(const std::string &Input,
     return true;
   }
   OS.applyLocked([&](raw_ostream &OS) { OS << *MaybeFile; });
+  return false;
+}
+
+static bool
+handleTreeDependencyToolResult(llvm::cas::CASDB &CAS, const std::string &Input,
+                               llvm::Expected<llvm::cas::TreeRef> &MaybeTree,
+                               SharedStream &OS, SharedStream &Errs) {
+  if (!MaybeTree) {
+    llvm::handleAllErrors(
+        MaybeTree.takeError(), [&Input, &Errs](llvm::StringError &Err) {
+          Errs.applyLocked([&](raw_ostream &OS) {
+            OS << "Error while scanning dependencies for " << Input << ":\n";
+            OS << Err.getMessage();
+            OS << "\n";
+          });
+        });
+    return true;
+  }
+  OS.applyLocked([&](llvm::raw_ostream &OS) {
+    OS << "tree ";
+    llvm::cantFail(CAS.printCASID(OS, *MaybeTree));
+    OS << " for '" << Input << "'\n";
+  });
   return false;
 }
 
@@ -530,8 +568,20 @@ int main(int argc, const char **argv) {
   // Print out the dependency results to STDOUT by default.
   SharedStream DependencyOS(llvm::outs());
 
-  DependencyScanningService Service(ScanMode, Format, ReuseFileManager,
-                                    SkipExcludedPPRanges, OptimizeArgs);
+  std::unique_ptr<llvm::cas::CASDB> CAS;
+  if (InMemoryCAS) {
+    CAS = llvm::cas::createInMemoryCAS();
+  } else {
+    SmallString<128> CASPath;
+    llvm::cas::getDefaultOnDiskCASPath(CASPath);
+    llvm::errs() << "cas-path = '" << CASPath << "'\n";
+    CAS = cantFail(llvm::cas::createOnDiskCAS(CASPath));
+  }
+  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
+      llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
+  DependencyScanningService Service(ScanMode, Format, FS, ReuseFileManager,
+                                    SkipExcludedPPRanges, OptimizeArgs,
+                                    OverrideCASTokenCache);
   llvm::ThreadPool Pool(llvm::hardware_concurrency(NumThreads));
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I)
@@ -551,7 +601,7 @@ int main(int argc, const char **argv) {
   }
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I) {
     Pool.async([I, &Lock, &Index, &Inputs, &HadErrors, &FD, &WorkerTools,
-                &DependencyOS, &Errs]() {
+                &DependencyOS, &Errs, &CAS]() {
       llvm::StringSet<> AlreadySeenModules;
       while (true) {
         const tooling::CompileCommand *Input;
@@ -576,6 +626,11 @@ int main(int argc, const char **argv) {
           auto MaybeFile = WorkerTools[I]->getDependencyFile(
               Input->CommandLine, CWD, MaybeModuleName);
           if (handleMakeDependencyToolResult(Filename, MaybeFile, DependencyOS,
+                                             Errs))
+            HadErrors = true;
+        } else if (Format == ScanningOutputFormat::Tree) {
+          auto MaybeTree = WorkerTools[I]->getDependencyTree(*Input, CWD);
+          if (handleTreeDependencyToolResult(*CAS, Filename, MaybeTree, DependencyOS,
                                              Errs))
             HadErrors = true;
         } else {

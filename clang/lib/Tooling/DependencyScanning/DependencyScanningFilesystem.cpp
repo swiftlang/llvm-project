@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/DependencyScanning/DependencyScanningFilesystem.h"
+#include "clang/Basic/Version.h"
 #include "clang/Lex/DependencyDirectivesSourceMinimizer.h"
+#include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Threading.h"
 
@@ -15,113 +17,189 @@ using namespace clang;
 using namespace tooling;
 using namespace dependencies;
 
-CachedFileSystemEntry CachedFileSystemEntry::createFileEntry(
-    StringRef Filename, llvm::vfs::FileSystem &FS, bool Minimize) {
-  // Load the file and its content from the file system.
-  llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> MaybeFile =
-      FS.openFileForRead(Filename);
-  if (!MaybeFile)
-    return MaybeFile.getError();
-  llvm::ErrorOr<llvm::vfs::Status> Stat = (*MaybeFile)->status();
-  if (!Stat)
-    return Stat.getError();
+template <typename T>
+static T reportAsFatalIfError(Expected<T> ValOrErr) {
+  if (!ValOrErr)
+    llvm::report_fatal_error(ValOrErr.takeError());
+  return std::move(*ValOrErr);
+}
 
-  llvm::vfs::File &F = **MaybeFile;
-  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> MaybeBuffer =
-      F.getBuffer(Stat->getName());
-  if (!MaybeBuffer)
-    return MaybeBuffer.getError();
+static void reportAsFatalIfError(llvm::Error E) {
+  if (E)
+    llvm::report_fatal_error(std::move(E));
+}
 
-  llvm::SmallString<1024> MinimizedFileContents;
-  // Minimize the file down to directives that might affect the dependencies.
-  const auto &Buffer = *MaybeBuffer;
-  SmallVector<minimize_source_to_dependency_directives::Token, 64> Tokens;
-  if (!Minimize || minimizeSourceToDependencyDirectives(
-                       Buffer->getBuffer(), MinimizedFileContents, Tokens)) {
-    // Use the original file unless requested otherwise, or
-    // if the minimization failed.
-    // FIXME: Propage the diagnostic if desired by the client.
-    CachedFileSystemEntry Result;
-    Result.MaybeStat = std::move(*Stat);
-    Result.Contents.reserve(Buffer->getBufferSize() + 1);
-    Result.Contents.append(Buffer->getBufferStart(), Buffer->getBufferEnd());
-    // Implicitly null terminate the contents for Clang's lexer.
-    Result.Contents.push_back('\0');
-    Result.Contents.pop_back();
-    return Result;
+using llvm::Error;
+namespace cas = llvm::cas;
+
+DependencyScanningWorkerFilesystem::DependencyScanningWorkerFilesystem(
+    IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS,
+    ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings)
+    : FS(WorkerFS), Entries(EntryAlloc), CAS(WorkerFS->getCAS()),
+      PPSkipMappings(PPSkipMappings) {}
+
+DependencyScanningWorkerFilesystem::~DependencyScanningWorkerFilesystem() =
+    default;
+
+static void addSkippedRange(llvm::DenseMap<unsigned, unsigned> &Skip,
+                            unsigned Offset, unsigned Length) {
+  // Ignore small ranges as non-profitable.
+  //
+  // FIXME: This is a heuristic, its worth investigating the tradeoffs
+  // when it should be applied.
+  if (Length >= 16)
+    Skip[Offset] = Length;
+}
+
+static Error cacheMinimized(cas::CASID InputID, cas::CASDB &CAS,
+                            cas::CASID OutputDataID,
+                            cas::CASID SkippedRangesID) {
+  cas::HierarchicalTreeBuilder Builder;
+  Builder.push(OutputDataID, cas::TreeEntry::Regular, "data");
+  Builder.push(SkippedRangesID, cas::TreeEntry::Regular, "skipped-ranges");
+  Expected<cas::CASID> OutputID = Builder.create(CAS);
+  if (!OutputID)
+    return OutputID.takeError();
+  return CAS.putCachedResult(InputID, *OutputID);
+}
+
+Expected<StringRef> DependencyScanningWorkerFilesystem::getMinimized(
+    cas::CASID OutputID, StringRef Identifier,
+    Optional<cas::CASID> &MinimizedDataID) {
+  // Extract the blob IDs from the tree.
+  Expected<cas::TreeRef> Tree = CAS.getTree(OutputID);
+  if (!Tree)
+    return Tree.takeError();
+  auto unwrapID =
+      [](Optional<cas::NamedTreeEntry> Entry) -> Optional<cas::CASID> {
+    if (Entry)
+      return Entry->getID();
+    return None;
+  };
+  Optional<cas::CASID> SkippedRangesID =
+      unwrapID(Tree->lookup("skipped-ranges"));
+  MinimizedDataID = unwrapID(Tree->lookup("data"));
+
+  if (!MinimizedDataID)
+    return createStringError(std::make_error_code(std::errc::invalid_argument),
+                             Twine("missing 'data' in result of minimizing '") +
+                                 Identifier + "'");
+  if (!SkippedRangesID)
+    return createStringError(
+        std::make_error_code(std::errc::invalid_argument),
+        Twine("missing 'skipped-ranges' in result of minimizing '") +
+            Identifier + "'");
+
+  StringRef OutputData = **expectedToOptional(CAS.getBlob(*MinimizedDataID));
+
+  if (!PPSkipMappings)
+    return OutputData;
+
+  // Parse the skipped ranges.
+  StringRef Ranges = **expectedToOptional(CAS.getBlob(*SkippedRangesID));
+  if (Ranges.empty())
+    return OutputData;
+
+  PreprocessorSkippedRangeMapping Skip;
+  while (!Ranges.empty()) {
+    unsigned Offset, Length;
+    if (Ranges.consumeInteger(10, Offset) || !Ranges.consume_front(" ") ||
+        Ranges.consumeInteger(10, Length) || !Ranges.consume_front("\n"))
+      return createStringError(
+          std::make_error_code(std::errc::invalid_argument),
+          "invalid skipped ranges '" + Identifier + "'");
+    addSkippedRange(Skip, Offset, Length);
+  }
+  (*PPSkipMappings)[OutputData.begin()] = std::move(Skip);
+  return OutputData;
+}
+
+Expected<StringRef> DependencyScanningWorkerFilesystem::computeMinimized(
+    cas::CASID InputDataID, StringRef Identifier,
+    Optional<llvm::cas::CASID> &MinimizedDataID) {
+  using namespace llvm;
+  using namespace llvm::cas;
+
+  // Get a blob for the clang version string.
+  if (!ClangFullVersionID)
+    ClangFullVersionID =
+        reportAsFatalIfError(CAS.createBlob(getClangFullVersion()));
+
+  // Get a blob for the minimize command.
+  if (!MinimizeID)
+    MinimizeID = reportAsFatalIfError(CAS.createBlob("minimize"));
+
+  // Get an empty blob.
+  if (!EmptyBlobID)
+    EmptyBlobID = reportAsFatalIfError(CAS.createBlob(""));
+
+  // Construct a tree for the input.
+  Optional<CASID> InputID;
+  {
+    HierarchicalTreeBuilder Builder;
+    Builder.push(*ClangFullVersionID, TreeEntry::Regular, "version");
+    Builder.push(*MinimizeID, TreeEntry::Regular, "command");
+    Builder.push(InputDataID, TreeEntry::Regular, "data");
+    InputID = reportAsFatalIfError(Builder.create(CAS));
   }
 
-  CachedFileSystemEntry Result;
-  size_t Size = MinimizedFileContents.size();
-  Result.MaybeStat = llvm::vfs::Status(Stat->getName(), Stat->getUniqueID(),
-                                       Stat->getLastModificationTime(),
-                                       Stat->getUser(), Stat->getGroup(), Size,
-                                       Stat->getType(), Stat->getPermissions());
-  // The contents produced by the minimizer must be null terminated.
-  assert(MinimizedFileContents.data()[MinimizedFileContents.size()] == '\0' &&
-         "not null terminated contents");
-  // Even though there's an implicit null terminator in the minimized contents,
-  // we want to temporarily make it explicit. This will ensure that the
-  // std::move will preserve it even if it needs to do a copy if the
-  // SmallString still has the small capacity.
-  MinimizedFileContents.push_back('\0');
-  Result.Contents = std::move(MinimizedFileContents);
-  // Now make the null terminator implicit again, so that Clang's lexer can find
-  // it right where the buffer ends.
-  Result.Contents.pop_back();
+  // Check the result cache.
+  if (Optional<CASID> OutputID =
+          expectedToOptional(CAS.getCachedResult(*InputID))) {
+    auto Ex = getMinimized(*OutputID, Identifier, MinimizedDataID);
+    return reportAsFatalIfError(std::move(Ex));
+  }
 
-  // Compute the skipped PP ranges that speedup skipping over inactive
-  // preprocessor blocks.
+  StringRef InputData = *reportAsFatalIfError(CAS.getBlob(InputDataID));
+
+  // Try to minimize.
+  llvm::SmallString<1024> Buffer;
+  SmallVector<minimize_source_to_dependency_directives::Token, 64> Tokens;
+  if (minimizeSourceToDependencyDirectives(InputData, Buffer, Tokens)) {
+    // Failure. Cache a self-mapping and return the input data unmodified.
+    reportAsFatalIfError(cacheMinimized(*InputID, CAS, InputDataID, *EmptyBlobID));
+    return InputData;
+  }
+
+  // Success. Add to the CAS and get back persistent output data.
+  BlobRef Minimized = reportAsFatalIfError(CAS.createBlob(Buffer));
+  MinimizedDataID = Minimized;
+  StringRef OutputData = *Minimized;
+
+  // Compute skipped ranges.
   llvm::SmallVector<minimize_source_to_dependency_directives::SkippedRange, 32>
       SkippedRanges;
   minimize_source_to_dependency_directives::computeSkippedRanges(Tokens,
                                                                  SkippedRanges);
-  PreprocessorSkippedRangeMapping Mapping;
-  for (const auto &Range : SkippedRanges) {
-    if (Range.Length < 16) {
-      // Ignore small ranges as non-profitable.
-      // FIXME: This is a heuristic, its worth investigating the tradeoffs
-      // when it should be applied.
-      continue;
+  Optional<DenseMap<unsigned, unsigned>> SkipMappingsResults;
+  Buffer.clear();
+  if (!SkippedRanges.empty()) {
+    if (PPSkipMappings)
+      SkipMappingsResults.emplace();
+
+    raw_svector_ostream OS(Buffer);
+    for (const auto &Range : SkippedRanges) {
+      OS << Range.Offset << " " << Range.Length << "\n";
+      if (SkipMappingsResults)
+        addSkippedRange(*SkipMappingsResults, Range.Offset, Range.Length);
     }
-    Mapping[Range.Offset] = Range.Length;
   }
-  Result.PPSkippedRangeMapping = std::move(Mapping);
 
-  return Result;
+  // Cache the computation.
+  CASID SkippedRangesID = reportAsFatalIfError(CAS.createBlob(Buffer));
+  reportAsFatalIfError(cacheMinimized(*InputID, CAS, *MinimizedDataID, SkippedRangesID));
+
+  if (SkipMappingsResults)
+    (*PPSkipMappings)[OutputData.begin()] = std::move(SkipMappingsResults);
+  return OutputData;
 }
 
-CachedFileSystemEntry
-CachedFileSystemEntry::createDirectoryEntry(llvm::vfs::Status &&Stat) {
-  assert(Stat.isDirectory() && "not a directory!");
-  auto Result = CachedFileSystemEntry();
-  Result.MaybeStat = std::move(Stat);
-  return Result;
-}
-
-DependencyScanningFilesystemSharedCache::SingleCache::SingleCache() {
-  // This heuristic was chosen using a empirical testing on a
-  // reasonably high core machine (iMacPro 18 cores / 36 threads). The cache
-  // sharding gives a performance edge by reducing the lock contention.
-  // FIXME: A better heuristic might also consider the OS to account for
-  // the different cost of lock contention on different OSes.
-  NumShards =
-      std::max(2u, llvm::hardware_concurrency().compute_thread_count() / 4);
-  CacheShards = std::make_unique<CacheShard[]>(NumShards);
-}
-
-DependencyScanningFilesystemSharedCache::SharedFileSystemEntry &
-DependencyScanningFilesystemSharedCache::SingleCache::get(StringRef Key) {
-  CacheShard &Shard = CacheShards[llvm::hash_value(Key) % NumShards];
-  std::unique_lock<std::mutex> LockGuard(Shard.CacheLock);
-  auto It = Shard.Cache.try_emplace(Key);
-  return It.first->getValue();
-}
-
-DependencyScanningFilesystemSharedCache::SharedFileSystemEntry &
-DependencyScanningFilesystemSharedCache::get(StringRef Key, bool Minimized) {
-  SingleCache &Cache = Minimized ? CacheMinimized : CacheOriginal;
-  return Cache.get(Key);
+Expected<StringRef>
+DependencyScanningWorkerFilesystem::getOriginal(cas::CASID InputDataID) {
+  Expected<cas::BlobRef> Blob = CAS.getBlob(InputDataID);
+  if (Blob)
+    return Blob->getData();
+  return Blob.takeError();
 }
 
 /// Whitelist file extensions that should be minimized, treating no extension as
@@ -163,122 +241,131 @@ bool DependencyScanningWorkerFilesystem::shouldIgnoreFile(
   return IgnoredFiles.contains(Filename);
 }
 
-llvm::ErrorOr<const CachedFileSystemEntry *>
-DependencyScanningWorkerFilesystem::getOrCreateFileSystemEntry(
-    const StringRef Filename) {
-  bool ShouldMinimize = !shouldIgnoreFile(Filename) && shouldMinimize(Filename);
+cas::CachingOnDiskFileSystem &
+DependencyScanningWorkerFilesystem::getCachingFS() {
+  return static_cast<cas::CachingOnDiskFileSystem &>(*FS);
+}
 
-  if (const auto *Entry = Cache.getCachedEntry(Filename, ShouldMinimize))
-    return Entry;
+DependencyScanningWorkerFilesystem::LookupPathResult
+DependencyScanningWorkerFilesystem::lookupPath(const Twine &Path) {
+  SmallString<256> PathStorage;
+  StringRef PathRef = Path.toStringRef(PathStorage);
 
-  // FIXME: Handle PCM/PCH files.
-  // FIXME: Handle module map files.
-
-  DependencyScanningFilesystemSharedCache::SharedFileSystemEntry
-      &SharedCacheEntry = SharedCache.get(Filename, ShouldMinimize);
-  const CachedFileSystemEntry *Result;
   {
-    std::unique_lock<std::mutex> LockGuard(SharedCacheEntry.ValueLock);
-    CachedFileSystemEntry &CacheEntry = SharedCacheEntry.Value;
-
-    if (!CacheEntry.isValid()) {
-      llvm::vfs::FileSystem &FS = getUnderlyingFS();
-      auto MaybeStatus = FS.status(Filename);
-      if (!MaybeStatus) {
-        if (!shouldCacheStatFailures(Filename))
-          // HACK: We need to always restat non source files if the stat fails.
-          //   This is because Clang first looks up the module cache and module
-          //   files before building them, and then looks for them again. If we
-          //   cache the stat failure, it won't see them the second time.
-          return MaybeStatus.getError();
-        else
-          CacheEntry = CachedFileSystemEntry(MaybeStatus.getError());
-      } else if (MaybeStatus->isDirectory())
-        CacheEntry = CachedFileSystemEntry::createDirectoryEntry(
-            std::move(*MaybeStatus));
-      else
-        CacheEntry = CachedFileSystemEntry::createFileEntry(Filename, FS,
-                                                            ShouldMinimize);
+    auto I = Entries.find(PathRef);
+    if (I != Entries.end()) {
+      // FIXME: Gross hack to ensure this file gets tracked as part of the
+      // compilation. Instead, we should add an explicit hook somehow /
+      // somewhere.
+      (void)getCachingFS().status(PathRef);
+      return LookupPathResult{&I->second, std::error_code()};
     }
-
-    Result = &CacheEntry;
   }
 
-  // Store the result in the local cache.
-  Cache.setCachedEntry(Filename, ShouldMinimize, Result);
-  return Result;
+  Optional<cas::CASID> FileID;
+  llvm::ErrorOr<llvm::vfs::Status> MaybeStatus =
+      getCachingFS().statusAndFileID(PathRef, FileID);
+  if (!MaybeStatus) {
+    if (shouldCacheStatFailures(PathRef))
+      Entries[PathRef].EC = MaybeStatus.getError();
+    return LookupPathResult{nullptr, MaybeStatus.getError()};
+  }
+
+  // Underlying file system caches directories. No need to duplicate.
+  if (MaybeStatus->isDirectory())
+    return LookupPathResult{nullptr, std::move(MaybeStatus)};
+
+  llvm::ErrorOr<StringRef> Buffer = std::error_code();
+  llvm::Optional<llvm::cas::CASID> EffectiveID;
+  if (!shouldIgnoreFile(PathRef) && shouldMinimize(PathRef)) {
+    Buffer = expectedToErrorOr(computeMinimized(*FileID, PathRef, EffectiveID));
+  } else {
+    Buffer = expectedToErrorOr(getOriginal(*FileID));
+    EffectiveID = *FileID;
+  }
+
+  auto &Entry = Entries[PathRef];
+  if (!Buffer) {
+    // Cache CAS failures. Not going to recover later.
+    Entry.EC = Buffer.getError();
+    return LookupPathResult{&Entry, std::error_code()};
+  }
+  assert(EffectiveID);
+
+  Entry.Buffer = std::move(*Buffer);
+  Entry.Status = llvm::vfs::Status(
+      PathRef, MaybeStatus->getUniqueID(),
+      MaybeStatus->getLastModificationTime(), MaybeStatus->getUser(),
+      MaybeStatus->getGroup(), Entry.Buffer->size(), MaybeStatus->getType(),
+      MaybeStatus->getPermissions());
+  Entry.ID = EffectiveID;
+  return LookupPathResult{&Entry, std::error_code()};
 }
 
 llvm::ErrorOr<llvm::vfs::Status>
 DependencyScanningWorkerFilesystem::status(const Twine &Path) {
-  SmallString<256> OwnedFilename;
-  StringRef Filename = Path.toStringRef(OwnedFilename);
-  const llvm::ErrorOr<const CachedFileSystemEntry *> Result =
-      getOrCreateFileSystemEntry(Filename);
-  if (!Result)
-    return Result.getError();
-  return (*Result)->getStatus();
+  LookupPathResult Result = lookupPath(Path);
+  if (!Result.Entry)
+    return std::move(Result.Status);
+  if (Result.Entry->EC)
+    return Result.Entry->EC;
+  return Result.Entry->Status;
+}
+
+Optional<llvm::cas::CASID>
+DependencyScanningWorkerFilesystem::getFileCASID(const Twine &Path) {
+  LookupPathResult Result = lookupPath(Path);
+  if (!Result.Entry)
+    return None;
+  if (Result.Entry->EC)
+    return None;
+  assert(Result.Entry->ID);
+  return Result.Entry->ID;
+}
+
+IntrusiveRefCntPtr<llvm::cas::ThreadSafeFileSystem>
+DependencyScanningWorkerFilesystem::createThreadSafeProxyFS() {
+  llvm::report_fatal_error("not implemented");
 }
 
 namespace {
 
-/// The VFS that is used by clang consumes the \c CachedFileSystemEntry using
-/// this subclass.
 class MinimizedVFSFile final : public llvm::vfs::File {
 public:
-  MinimizedVFSFile(std::unique_ptr<llvm::MemoryBuffer> Buffer,
-                   llvm::vfs::Status Stat)
-      : Buffer(std::move(Buffer)), Stat(std::move(Stat)) {}
-
-  static llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
-  create(const CachedFileSystemEntry *Entry,
-         ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings);
+  MinimizedVFSFile(StringRef Buffer, llvm::vfs::Status Stat)
+      : Buffer(Buffer), Stat(std::move(Stat)) {}
 
   llvm::ErrorOr<llvm::vfs::Status> status() override { return Stat; }
 
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
   getBuffer(const Twine &Name, int64_t FileSize, bool RequiresNullTerminator,
             bool IsVolatile) override {
-    return std::move(Buffer);
+    SmallString<256> Storage;
+    return llvm::MemoryBuffer::getMemBuffer(Buffer, Name.toStringRef(Storage));
   }
 
   std::error_code close() override { return {}; }
 
 private:
-  std::unique_ptr<llvm::MemoryBuffer> Buffer;
+  StringRef Buffer;
   llvm::vfs::Status Stat;
 };
 
 } // end anonymous namespace
 
-llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> MinimizedVFSFile::create(
-    const CachedFileSystemEntry *Entry,
-    ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings) {
-  if (Entry->isDirectory())
-    return llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>(
-        std::make_error_code(std::errc::is_a_directory));
-  llvm::ErrorOr<StringRef> Contents = Entry->getContents();
-  if (!Contents)
-    return Contents.getError();
-  auto Result = std::make_unique<MinimizedVFSFile>(
-      llvm::MemoryBuffer::getMemBuffer(*Contents, Entry->getName(),
-                                       /*RequiresNullTerminator=*/false),
-      *Entry->getStatus());
-  if (!Entry->getPPSkippedRangeMapping().empty() && PPSkipMappings)
-    (*PPSkipMappings)[Result->Buffer->getBufferStart()] =
-        &Entry->getPPSkippedRangeMapping();
-  return llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>(
-      std::unique_ptr<llvm::vfs::File>(std::move(Result)));
-}
-
 llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
 DependencyScanningWorkerFilesystem::openFileForRead(const Twine &Path) {
-  SmallString<256> OwnedFilename;
-  StringRef Filename = Path.toStringRef(OwnedFilename);
+  LookupPathResult Result = lookupPath(Path);
+  if (!Result.Entry) {
+    if (std::error_code EC = Result.Status.getError())
+      return EC;
+    assert(Result.Status->getType() ==
+           llvm::sys::fs::file_type::directory_file);
+    return std::make_error_code(std::errc::is_a_directory);
+  }
+  if (Result.Entry->EC)
+    return Result.Entry->EC;
 
-  const llvm::ErrorOr<const CachedFileSystemEntry *> Result =
-      getOrCreateFileSystemEntry(Filename);
-  if (!Result)
-    return Result.getError();
-  return MinimizedVFSFile::create(Result.get(), PPSkipMappings);
+  return std::make_unique<MinimizedVFSFile>(*Result.Entry->Buffer,
+                                            Result.Entry->Status);
 }
