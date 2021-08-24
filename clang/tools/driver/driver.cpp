@@ -11,10 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MappingHelper.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/Stack.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/CC1DepScanDClient.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
@@ -24,6 +26,8 @@
 #include "clang/Frontend/SerializedDiagnosticPrinter.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
+#include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
+#include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -205,6 +209,8 @@ static void ApplyQAOverride(SmallVectorImpl<const char*> &Args,
 
 extern int cc1_main(ArrayRef<const char *> Argv, const char *Argv0,
                     void *MainAddr);
+extern int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
+                            void *MainAddr);
 extern int cc1as_main(ArrayRef<const char *> Argv, const char *Argv0,
                       void *MainAddr);
 extern int cc1gen_reproducer_main(ArrayRef<const char *> Argv,
@@ -315,6 +321,9 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   void *GetExecutablePathVP = (void *)(intptr_t)GetExecutablePath;
   if (Tool == "-cc1")
     return cc1_main(makeArrayRef(ArgV).slice(1), ArgV[0], GetExecutablePathVP);
+  if (Tool == "-cc1depscand")
+    return cc1depscand_main(makeArrayRef(ArgV).slice(2), ArgV[0],
+                            GetExecutablePathVP);
   if (Tool == "-cc1as")
     return cc1as_main(makeArrayRef(ArgV).slice(2), ArgV[0],
                       GetExecutablePathVP);
@@ -325,6 +334,125 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   llvm::errs() << "error: unknown integrated tool '" << Tool << "'. "
                << "Valid tools include '-cc1' and '-cc1as'.\n";
   return 1;
+}
+
+static cc1depscand::AutoPrefixMapping
+parseCASFSAutoPrefixMappings(const Driver &D, const ArgList &Args) {
+  cc1depscand::AutoPrefixMapping Mapping;
+  for (const Arg *A : Args.filtered(options::OPT_fcas_fs_auto_prefix_map_EQ)) {
+    StringRef Map = A->getValue();
+    size_t Equals = Map.find('=');
+    if (Equals == StringRef::npos)
+      D.Diag(diag::err_drv_invalid_argument_to_option)
+          << Map << A->getOption().getName();
+    else
+      Mapping.PrefixMap.push_back(Map);
+    A->claim();
+  }
+  if (const Arg *A = Args.getLastArg(options::OPT_fcas_fs_auto_prefix_map_sdk_EQ))
+    Mapping.NewSDKPath = A->getValue();
+  if (const Arg *A = Args.getLastArg(
+          options::OPT_fcas_fs_auto_prefix_map_toolchain_EQ))
+    Mapping.NewToolchainPath = A->getValue();
+
+  return Mapping;
+}
+
+static void reportAsFatalIfError(llvm::Error E) {
+  if (E)
+    llvm::report_fatal_error(std::move(E));
+}
+
+template <typename T> static T reportAsFatalIfError(Expected<T> ValOrErr) {
+  if (!ValOrErr)
+    reportAsFatalIfError(ValOrErr.takeError());
+  return std::move(*ValOrErr);
+}
+
+static void addCC1ScanDepsArgsInline(
+    const char *Exec, SmallVectorImpl<const char *> &CC1Args,
+    const cc1depscand::AutoPrefixMapping &AutoMapping,
+    llvm::function_ref<const char *(const Twine &)> SaveArg) {
+  // FIXME: This is a copy/paste modify from cc1depscand_main. Instead this
+  // functionality should be extracted to a common helper.
+
+
+  // FIXME: Should use user-specified CAS, if any.
+  std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
+      llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
+
+  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
+      llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
+
+  tooling::dependencies::DependencyScanningService Service(
+      tooling::dependencies::ScanningMode::MinimizedSourcePreprocessing,
+      tooling::dependencies::ScanningOutputFormat::Tree, FS,
+      /*ReuseFileManager=*/false,
+      /*SkipExcludedPPRanges=*/true);
+  tooling::dependencies::DependencyScanningTool Tool(Service);
+
+  auto DiagsConsumer = std::make_unique<IgnoringDiagConsumer>();
+  DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
+  Diags.setClient(DiagsConsumer.get(), /*ShouldOwnClient=*/false);
+  auto Invocation = std::make_shared<CompilerInvocation>();
+  if (!CompilerInvocation::CreateFromArgs(*Invocation, CC1Args, Diags,
+                                          Exec))
+    return; // FIXME: Should error or at least warn, not just pretend this didn't happen.
+
+  llvm::BumpPtrAllocator Alloc;
+  llvm::StringSaver Saver(Alloc);
+  SmallVector<std::pair<StringRef, StringRef>> ComputedMapping;
+  if (llvm::Error E = computeFullMapping(Saver, *FS, Exec, *Invocation,
+                                          AutoMapping, ComputedMapping)) {
+    // FIXME: Use D.Diags somehow...
+    logAllUnhandledErrors(std::move(E), llvm::errs());
+    return;
+  }
+
+  SmallString<128> WorkingDirectory;
+  reportAsFatalIfError(
+      llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
+
+  llvm::Expected<llvm::cas::CASID> Root =
+      Tool.getDependencyTreeFromCompilerInvocation(
+          std::make_shared<CompilerInvocation>(*Invocation), WorkingDirectory,
+          *DiagsConsumer, [&](StringRef Path) {
+            return remapPath(Path, Saver, ComputedMapping);
+          });
+  if (!Root) {
+    // FIXME: Use D.Diags somehow...
+    logAllUnhandledErrors(Root.takeError(), llvm::errs());
+    return;
+  }
+  std::string RootID = llvm::cantFail(CAS->convertCASIDToString(*Root));
+  updateCompilerInvocation(*Invocation, Saver, *FS, RootID,
+                            WorkingDirectory, ComputedMapping);
+
+  CC1Args.resize(1);
+  CC1Args[0] = "-cc1";
+  Invocation->generateCC1CommandLine(CC1Args, SaveArg);
+}
+
+static void
+CC1ScanDeps(const Arg &A, const char *Exec,
+            SmallVectorImpl<const char *> &CC1Args, const Driver &D,
+            const ArgList &Args) {
+  StringRef Mode = A.getValue();
+  if (Mode == "off")
+    return;
+
+  if (Mode != "daemon" && Mode != "inline")
+    D.Diag(diag::err_drv_invalid_argument_to_option)
+      << Mode << A.getOption().getName();
+
+  cc1depscand::AutoPrefixMapping AutoMapping =
+      parseCASFSAutoPrefixMappings(D, Args);
+
+  auto SaveArg = [&Args](const Twine &T) { return Args.MakeArgString(T); };
+  if (Mode == "inline")
+    addCC1ScanDepsArgsInline(Exec, CC1Args, AutoMapping, SaveArg);
+  else
+    cc1depscand::addCC1ScanDepsArgs(Exec, CC1Args, AutoMapping, SaveArg);
 }
 
 int main(int Argc, const char **Argv) {
@@ -485,6 +613,9 @@ int main(int Argc, const char **Argv) {
     // Ensure the CC1Command actually catches cc1 crashes
     llvm::CrashRecoveryContext::Enable();
   }
+
+  // Always give a pointer to -cc1scandeps.
+  TheDriver.CC1ScanDeps = &CC1ScanDeps;
 
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(Args));
   int Res = 1;

@@ -5877,9 +5877,39 @@ def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
 // CAS Options
 //===----------------------------------------------------------------------===//
 
+// Driver-only CAS options.
+def fcas_fs_auto_EQ : Joined<["-"], "fcas-fs-auto=">,
+    Group<f_Group>,
+    HelpText<"Automatically scan for and compile against a CAS-based"
+             " filesystem. Values are 'daemon', 'inline', or 'off'.">;
+def fcas_fs_auto : Flag<["-"], "fcas-fs-auto">,
+    Group<f_Group>,
+    HelpText<"Turn on -fcas-fs-auto. Currently uses 'daemon'.">,
+    Alias<fcas_fs_auto_EQ>, AliasArgs<["daemon"]>;
+def fno_cas_fs_auto : Flag<["-"], "fno-cas-fs-auto">,
+    Group<f_Group>,
+    Alias<fcas_fs_auto_EQ>, AliasArgs<["off"]>;
+
+def fcas_fs_auto_prefix_map_EQ : Joined<["-"], "fcas-fs-auto-prefix-map=">,
+    Group<f_Group>, MetaVarName<"<old>=<new>">,
+    HelpText<"With -fcas-fs-auto, seamlessly filter the CAS filesystem to"
+             " apply the given prefix, updating the command-line to match.">;
+def fcas_fs_auto_prefix_map_sdk_EQ :
+    Joined<["-"], "fcas-fs-auto-prefix-map-sdk=">,
+    Group<f_Group>, MetaVarName<"<new>">,
+    HelpText<"With -fcas-fs-auto, auto-detect the SDK path on-disk and remap"
+             " it to the given path (see -fcas-fs-auto-prefix-map=).">;
+def fcas_fs_auto_prefix_map_toolchain_EQ :
+    Joined<["-"], "fcas-fs-auto-prefix-map-toolchain=">,
+    Group<f_Group>, MetaVarName<"<new>">,
+    HelpText<"With -fcas-fs-auto, auto-detect the toolchain path on-disk and"
+             " remap it to the given path (see -fcas-fs-auto-prefix-map=).">;
+
 // -cc1 options. These should be available in the driver too, but the driver
 // doesn't currently support most of them. For example, the driver should
-// read only from -fcas-fs if specified.
+// read only from -fcas-fs if specified, in which case the -fcas-fs-auto
+// should scan to prune the CAS filesystem. Also, -fcas-fs-auto shouldn't
+// override -fcas / etc., it should just add those if not already specified.
 let Flags = [CC1Option, NoDriverOption] in {
 
 def fcas : Separate<["-"], "fcas">,

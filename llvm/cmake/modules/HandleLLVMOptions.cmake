@@ -1234,6 +1234,38 @@ if(LLVM_USE_RELATIVE_PATHS_IN_FILES)
   add_flag_if_supported("-no-canonical-prefixes" NO_CANONICAL_PREFIXES)
 endif()
 
+set(LLVM_ENABLE_EXPERIMENTAL_CAS_FS_AUTO OFF CACHE BOOL
+  "Use the experimental -fcas-fs-auto and related flags")
+set(LLVM_CAS_FS_AUTO_MODE "" CACHE STRING "Mode for -fcas-fs-auto if used")
+if(LLVM_ENABLE_EXPERIMENTAL_CAS_FS_AUTO)
+  check_c_compiler_flag("-fcas-fs-auto" SUPPORTS_CAS_FS_AUTO)
+
+  if(LLVM_CAS_FS_AUTO_MODE)
+    append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto=${LLVM_CAS_FS_AUTO_MODE}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  else()
+    append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  endif()
+
+  if(LLVM_ENABLE_PROJECTS_USED)
+    get_filename_component(source_root "${LLVM_MAIN_SRC_DIR}/.." ABSOLUTE)
+  else()
+    set(source_root "${LLVM_MAIN_SRC_DIR}")
+  endif()
+
+  append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto-prefix-map-sdk=/^sdk" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto-prefix-map-toolchain=/^toolchain" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto-prefix-map=${source_root}=/^source" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto-prefix-map=${CMAKE_BINARY_DIR}=/^build" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+endif()
+
+set(LLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE OFF CACHE BOOL
+    "Cache tokens using -Xclang -fcas-cache-tokens")
+if(LLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE)
+  check_c_compiler_flag("-Xclang -fcas-token-cache" SUPPORTS_CAS_TOKEN_CACHE)
+  append_if(SUPPORTS_CAS_TOKEN_CACHE "-Xclang" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  append_if(SUPPORTS_CAS_TOKEN_CACHE "-fcas-token-cache" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+endif()
+
 if(LLVM_INCLUDE_TESTS)
   # Lit test suite requires at least python 3.6
   set(LLVM_MINIMUM_PYTHON_VERSION 3.6)

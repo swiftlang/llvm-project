@@ -242,6 +242,23 @@ public:
   void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment) override;
 };
 
+/// Automatically cache -cc1 commands when possible.
+class CachingCC1Command : public CC1Command {
+public:
+  CachingCC1Command(const Action &Source, const Tool &Creator,
+             ResponseFileSupport ResponseSupport, const char *Executable,
+             const llvm::opt::ArgStringList &Arguments,
+             ArrayRef<InputInfo> Inputs, ArrayRef<InputInfo> Outputs = None);
+
+  void Print(llvm::raw_ostream &OS, const char *Terminator, bool Quote,
+             CrashReportInfo *CrashInfo = nullptr) const override;
+
+  int Execute(ArrayRef<Optional<StringRef>> Redirects, std::string *ErrMsg,
+              bool *ExecutionFailed) const override;
+
+  void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment) override;
+};
+
 /// Like Command, but always pretends that the wrapped command succeeded.
 class ForceSuccessCommand : public Command {
 public:

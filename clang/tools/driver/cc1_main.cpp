@@ -12,8 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/DiagnosticCAS.h"
 #include "clang/Basic/Stack.h"
 #include "clang/Basic/TargetOptions.h"
+#include "clang/Basic/Version.h"
 #include "clang/CodeGen/ObjectFilePCHContainerOperations.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/DriverDiagnostic.h"
@@ -26,6 +28,9 @@
 #include "clang/Frontend/Utils.h"
 #include "clang/FrontendTool/Utils.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASFileSystem.h"
+#include "llvm/CAS/CASOutputBackend.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LinkAllPasses.h"
 #include "llvm/Option/Arg.h"
@@ -34,6 +39,7 @@
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
@@ -181,6 +187,111 @@ static int PrintSupportedCPUs(std::string TargetStr) {
   return 0;
 }
 
+static Optional<llvm::cas::CASID>
+createResultCacheKey(llvm::cas::CASDB &CAS, DiagnosticsEngine &Diags,
+                     StringRef RootIDString, ArrayRef<const char *> Argv) {
+  // FIXME: currently correct since the main executable is always in the root
+  // from scanning, but we should probably make it explicit here...
+  Expected<llvm::cas::CASID> RootID = CAS.parseCASID(RootIDString);
+  if (!RootID) {
+    llvm::consumeError(RootID.takeError());
+    Diags.Report(diag::err_cas_cannot_parse_root_id) << RootIDString;
+    return None;
+  }
+
+  SmallString<256> CommandLine;
+  for (StringRef Arg : Argv) {
+    CommandLine.append(Arg);
+    CommandLine.push_back(0);
+  }
+
+  llvm::cas::HierarchicalTreeBuilder Builder;
+  Builder.push(*RootID, llvm::cas::TreeEntry::Tree, "filesystem");
+  Builder.push(llvm::cantFail(CAS.createBlob(CommandLine)),
+               llvm::cas::TreeEntry::Regular, "command-line");
+  Builder.push(llvm::cantFail(CAS.createBlob("-cc1")),
+               llvm::cas::TreeEntry::Regular, "computation");
+
+  // FIXME: The version is maybe insufficient...
+  Builder.push(llvm::cantFail(CAS.createBlob(getClangFullVersion())),
+               llvm::cas::TreeEntry::Regular, "version");
+
+  return llvm::cantFail(Builder.create(CAS)).getID();
+}
+
+static int replayResult(llvm::cas::CASDB &CAS, llvm::cas::CASID ResultID) {
+  std::unique_ptr<llvm::vfs::FileSystem> FS;
+  if (Expected<std::unique_ptr<llvm::vfs::FileSystem>> ExpectedFS =
+          llvm::cas::createCASFileSystem(CAS, ResultID))
+    FS = std::move(*ExpectedFS);
+  else
+    llvm::report_fatal_error(ExpectedFS.takeError());
+
+  // FIXME: portable? Maybe, since CASFileSystem maybe will always be posix?
+  std::unique_ptr<llvm::MemoryBuffer> Errs;
+  if (auto ContentOrErr = FS->getBufferForFile("/stderr"))
+    Errs = std::move(*ContentOrErr);
+  else
+    llvm::report_fatal_error(
+        llvm::createStringError(ContentOrErr.getError(), "CAS error accessing stderr"));
+  llvm::errs() << Errs->getBuffer();
+
+  // FIXME: portable? Maybe, since CASFileSystem maybe will always be posix?
+  std::error_code EC;
+  for (llvm::vfs::recursive_directory_iterator I(*FS, "/outputs", EC), E;
+       I != E && !EC; I.increment(EC)) {
+    std::unique_ptr<llvm::MemoryBuffer> Content;
+    StringRef CASPath = I->path();
+    auto ContentOrErr = FS->getBufferForFile(CASPath);
+    if (!ContentOrErr)
+      continue; // Skip over directories.
+    Content = std::move(*ContentOrErr);
+
+    // FIXME: This doesn't seem totally right, but it seems to "work" given
+    // that the outputs are being stored at the root right now (not in a
+    // working directory).
+    StringRef OutputPath = CASPath.drop_front(StringRef("/outputs/").size());
+
+    std::unique_ptr<llvm::FileOutputBuffer> Output;
+    if (Expected<std::unique_ptr<llvm::FileOutputBuffer>> ExpectedOutput =
+            llvm::FileOutputBuffer::create(OutputPath, Content->getBufferSize()))
+      Output = std::move(*ExpectedOutput);
+    else
+      llvm::report_fatal_error(ExpectedOutput.takeError());
+    llvm::copy(Content->getBuffer(), Output->getBufferStart());
+    if (llvm::Error E = Output->commit())
+      llvm::report_fatal_error(std::move(E));
+  }
+  return 0;
+}
+
+namespace {
+class raw_mirroring_ostream : public llvm::raw_ostream {
+  llvm::raw_ostream &Base;
+  std::unique_ptr<llvm::raw_ostream> Reflection;
+
+  void write_impl(const char *Ptr, size_t Size) override {
+    Base.write(Ptr, Size);
+    Reflection->write(Ptr, Size);
+  }
+
+  uint64_t current_pos() const override { return Base.tell(); }
+
+public:
+  raw_mirroring_ostream(llvm::raw_ostream &Base,
+                        std::unique_ptr<llvm::raw_ostream> Reflection)
+      : Base(Base), Reflection(std::move(Reflection)) {
+    // FIXME: Is this right?
+    enable_colors(true);
+    SetUnbuffered();
+  }
+
+  bool is_displayed() const override { return Base.is_displayed(); }
+
+  bool has_colors() const override { return Base.has_colors(); }
+};
+} // namespace
+
 int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
   ensureSufficientStack();
 
@@ -240,6 +351,59 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
   if (!Success)
     return 1;
 
+  // Handle result caching in the CAS.
+  Optional<llvm::cas::CASID> ResultCacheKey;
+  std::shared_ptr<llvm::cas::CASDB> CAS;
+  IntrusiveRefCntPtr<llvm::cas::CASOutputBackend> CASOutputs;
+  SmallString<256> ResultDiags;
+  std::unique_ptr<llvm::raw_ostream> ResultDiagsOS;
+  if (Clang->getInvocation().getCASOpts().CASFileSystemResultCache) {
+    CAS = createCASFromCompilerInvocation(Clang->getInvocation(), Clang->getDiagnostics());
+    if (!CAS)
+      return 1; // Error already emitted.
+
+    // Check the result cache.
+    ResultCacheKey = createResultCacheKey(
+        *CAS, Clang->getDiagnostics(),
+        Clang->getInvocation().getCASOpts().CASFileSystemRootID,
+        Argv);
+    if (!ResultCacheKey)
+      return 1; // Error already emitted.
+    Expected<llvm::cas::CASID> Result = CAS->getCachedResult(*ResultCacheKey);
+    if (Result) {
+      Clang->getDiagnostics().Report(diag::remark_cas_fs_result_cache_hit)
+          << llvm::cantFail(CAS->convertCASIDToString(*ResultCacheKey))
+          << llvm::cantFail(CAS->convertCASIDToString(*Result));
+      int Failed = replayResult(*CAS, std::move(*Result));
+      llvm::remove_fatal_error_handler();
+      return Failed;
+    }
+    Clang->getDiagnostics().Report(diag::remark_cas_fs_result_cache_miss)
+        << llvm::cantFail(CAS->convertCASIDToString(*ResultCacheKey));
+    llvm::consumeError(Result.takeError());
+
+    // Set up the output backend so we can save / cache the result after.
+    CASOutputs = llvm::makeIntrusiveRefCnt<llvm::cas::CASOutputBackend>(*CAS);
+    Clang->setOutputBackend(llvm::vfs::makeMirroringOutputBackend(
+        CASOutputs,
+        llvm::makeIntrusiveRefCnt<llvm::vfs::OnDiskOutputBackend>()));
+    ResultDiagsOS = std::make_unique<raw_mirroring_ostream>(
+        llvm::errs(), std::make_unique<llvm::raw_svector_ostream>(ResultDiags));
+
+    // FIXME: This should be saving/replaying serialized diagnostics, thus
+    // using the current llvm::errs() colour capabilities. We still want to
+    // print errors live during this compilation, just also serialize them.
+    //
+    // However, serialized diagnostics can only be written to a file, not to a
+    // raw_ostream. Need to fix that first. Also, maybe the format doesn't need
+    // to be bitcode... we just want to serialize them faithfully such that we
+    // can decide at output time whether to make the colours pretty.
+    Clang->getDiagnostics().setClient(
+        new TextDiagnosticPrinter(
+            *ResultDiagsOS, &Clang->getInvocation().getDiagnosticOpts()),
+        /*ShouldOwnClient=*/true);
+  }
+
   // Execute the frontend actions.
   {
     llvm::TimeTraceScope TimeScope("ExecuteCompiler");
@@ -263,6 +427,29 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
       llvm::timeTraceProfilerCleanup();
       Clang->clearOutputFiles(false);
     }
+  }
+
+  // Cache the result.
+  //
+  // FIXME: Also cache failed builds?
+  if (Success && ResultCacheKey) {
+    Expected<llvm::cas::CASID> Outputs = CASOutputs->createTree();
+    if (!Outputs)
+      llvm::report_fatal_error(Outputs.takeError());
+
+    // Hack around llvm::errs() not being captured by the output backend yet.
+    Expected<llvm::cas::BlobRef> Errs = CAS->createBlob(ResultDiags);
+    if (!Errs)
+      llvm::report_fatal_error(Errs.takeError());
+
+    llvm::cas::HierarchicalTreeBuilder Builder;
+    Builder.push(*Outputs, llvm::cas::TreeEntry::Tree, "outputs");
+    Builder.push(*Errs, llvm::cas::TreeEntry::Regular, "stderr");
+    Expected<llvm::cas::CASID> Result = Builder.create(*CAS);
+    if (!Result)
+      llvm::report_fatal_error(Result.takeError());
+    if (llvm::Error E = CAS->putCachedResult(*ResultCacheKey, *Result))
+      llvm::report_fatal_error(std::move(E));
   }
 
   // Our error handler depends on the Diagnostics object, which we're

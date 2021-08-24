@@ -27,6 +27,7 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/Version.h"
+#include "clang/Driver/CC1DepScanDClient.h"
 #include "clang/Driver/Distro.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
@@ -6913,6 +6914,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     else
       Input.getInputArg().renderAsInput(Args, CmdArgs);
   }
+
+  // Do this last! This uses the rest of the -cc1 command-line as input.
+  //
+  // FIXME: Instead of scanning now, the driver should be structured to create
+  // two -cc1 actions, the first to scan and the second to run the results of
+  // the scan (somehow). The daemon should be an optimization for running the
+  // first of these actions.
+  if (Arg *A = Args.getLastArg(options::OPT_fcas_fs_auto_EQ))
+    D.CC1ScanDeps(*A, Exec, CmdArgs, D, Args);
 
   if (D.CC1Main && !D.CCGenDiagnostics) {
     // Invoke the CC1 directly in this process
