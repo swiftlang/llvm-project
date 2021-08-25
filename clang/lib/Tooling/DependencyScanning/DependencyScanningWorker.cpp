@@ -141,8 +141,8 @@ public:
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings,
-      ScanningOutputFormat Format, const char *ModuleName,
-      const llvm::MemoryBuffer *FakeMemBuffer)
+      ScanningOutputFormat Format, StringRef ModuleName,
+      const llvm::MemoryBuffer &FakeMemBuffer)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
         DepFS(std::move(DepFS)), PPSkipMappings(PPSkipMappings), Format(Format),
         ModuleName(ModuleName), FakeMemBuffer(FakeMemBuffer) {}
@@ -215,13 +215,13 @@ public:
             .ExcludedConditionalDirectiveSkipMappings = PPSkipMappings;
     }
 
-    if (ModuleName) {
+    if (!ModuleName.empty()) {
       SmallString<128> FullPath(ModuleName);
       llvm::sys::fs::make_absolute(WorkingDirectory, FullPath);
       SourceManager &SrcMgr = Compiler.getSourceManager();
-      FileMgr->getVirtualFile(FullPath.c_str(), FakeMemBuffer->getBufferSize(),
+      FileMgr->getVirtualFile(FullPath.c_str(), FakeMemBuffer.getBufferSize(),
                               0);
-      FileID MainFileID = SrcMgr.createFileID(*FakeMemBuffer);
+      FileID MainFileID = SrcMgr.createFileID(FakeMemBuffer);
       SrcMgr.setMainFileID(MainFileID);
     }
 
@@ -262,7 +262,7 @@ public:
 
     std::unique_ptr<FrontendAction> Action;
 
-    if (ModuleName)
+    if (!ModuleName.empty())
       Action = std::make_unique<GetDependenciesByModuleNameAction>(ModuleName);
     else
       Action = std::make_unique<ReadPCHAndPreprocessAction>();
@@ -279,8 +279,8 @@ private:
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
   ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings;
   ScanningOutputFormat Format;
-  const char *ModuleName;
-  const llvm::MemoryBuffer *FakeMemBuffer;
+  StringRef ModuleName;
+  llvm::MemoryBufferRef FakeMemBuffer;
 };
 
 } // end anonymous namespace
@@ -326,14 +326,17 @@ static llvm::Error runWithDiags(
 
 llvm::Error DependencyScanningWorker::computeDependencies(
     const std::string &Input, StringRef WorkingDirectory,
-    const CompilationDatabase &CDB, DependencyConsumer &Consumer) {
+    const CompilationDatabase &CDB, DependencyConsumer &Consumer,
+    StringRef ModuleName) {
   RealFS->setCurrentWorkingDirectory(WorkingDirectory);
+  std::unique_ptr<llvm::MemoryBuffer> FakeMemBuffer =
+      llvm::MemoryBuffer::getMemBuffer(" ");
   return runWithDiags(DiagOpts.get(), [&](DiagnosticConsumer &DC) {
     /// Create the tool that uses the underlying file system to ensure that any
     /// file system requests that are made by the driver do not go through the
     /// dependency scanning filesystem.
     SmallString<128> FullPath;
-    tooling::ClangTool Tool(CDB, ModuleName ? ModuleName : Input,
+    tooling::ClangTool Tool(CDB, ModuleName.empty() ? Input : ModuleName.str(),
                             PCHContainerOps, RealFS, Files);
     Tool.clearArgumentsAdjusters();
     Tool.setRestoreWorkingDir(false);
@@ -341,9 +344,9 @@ llvm::Error DependencyScanningWorker::computeDependencies(
     Tool.setDiagnosticConsumer(&DC);
     DependencyScanningAction Action(WorkingDirectory, Consumer, DepFS,
                                     PPSkipMappings.get(), Format, ModuleName,
-                                    FakeMemBuffer.get());
+                                    *FakeMemBuffer.get());
 
-    if (ModuleName) {
+    if (!ModuleName.empty()) {
       Tool.mapVirtualFile(ModuleName, FakeMemBuffer->getBuffer());
       FullPath = ModuleName;
       llvm::sys::fs::make_absolute(WorkingDirectory, FullPath);
@@ -361,15 +364,11 @@ llvm::Error DependencyScanningWorker::computeDependencies(
 
 llvm::Error DependencyScanningWorker::computeDependenciesForClangInvocation(
     StringRef WorkingDirectory, ArrayRef<std::string> Arguments,
-    DependencyConsumer &Consumer) {
+    DependencyConsumer &Consumer, StringRef ModuleName) {
   std::string Input("dependency-scanner-fake-input-file");
   StringRef Output("dependency-scanner-fake-output-file");
   SingleCommandCompilationDatabase CDB(
       CompileCommand(WorkingDirectory, Input, Arguments, Output));
-  return computeDependencies(Input, WorkingDirectory, CDB, Consumer);
-}
-
-void DependencyScanningWorker::setModuleName(const char *Name) {
-  ModuleName = Name;
-  FakeMemBuffer = llvm::MemoryBuffer::getMemBuffer(" ");
+  return computeDependencies(Input, WorkingDirectory, CDB, Consumer,
+                             ModuleName);
 }

@@ -511,8 +511,7 @@ int main(int argc, const char **argv) {
   llvm::ThreadPool Pool(llvm::hardware_concurrency(NumThreads));
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I)
-    WorkerTools.push_back(std::make_unique<DependencyScanningTool>(
-        Service, ModuleName.empty() ? nullptr : ModuleName.c_str()));
+    WorkerTools.push_back(std::make_unique<DependencyScanningTool>(Service));
 
   std::vector<SingleCommandCompilationDatabase> Inputs;
   for (tooling::CompileCommand Cmd :
@@ -550,13 +549,15 @@ int main(int argc, const char **argv) {
         }
         // Run the tool on it.
         if (Format == ScanningOutputFormat::Make) {
-          auto MaybeFile = WorkerTools[I]->getDependencyFile(*Input, CWD);
+          auto MaybeFile = WorkerTools[I]->getDependencyFile(
+              *Input, CWD, ModuleName.empty() ? nullptr : ModuleName.c_str());
           if (handleMakeDependencyToolResult(Filename, MaybeFile, DependencyOS,
                                              Errs))
             HadErrors = true;
         } else {
           auto MaybeFullDeps = WorkerTools[I]->getFullDependencies(
-              *Input, CWD, AlreadySeenModules);
+              *Input, CWD, AlreadySeenModules,
+              ModuleName.empty() ? nullptr : ModuleName.c_str());
           if (handleFullDependencyToolResult(Filename, MaybeFullDeps, FD,
                                              LocalIndex, DependencyOS, Errs))
             HadErrors = true;

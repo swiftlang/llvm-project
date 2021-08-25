@@ -46,11 +46,12 @@ FullDependencies::getAdditionalArgsWithoutModulePaths() const {
 }
 
 DependencyScanningTool::DependencyScanningTool(
-    DependencyScanningService &Service, const char *ModuleName)
-    : Worker(Service), ModuleName(ModuleName) {}
+    DependencyScanningService &Service)
+    : Worker(Service) {}
 
 llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
-    const tooling::CompilationDatabase &Compilations, StringRef CWD) {
+    const tooling::CompilationDatabase &Compilations, StringRef CWD,
+    StringRef ModuleName) {
   /// Prints out all of the gathered dependencies into a string.
   class MakeDependencyPrinterConsumer : public DependencyConsumer {
   public:
@@ -112,7 +113,8 @@ llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
   std::string Input = Compilations.getAllCompileCommands().front().Filename;
 
   MakeDependencyPrinterConsumer Consumer;
-  auto Result = Worker.computeDependencies(Input, CWD, Compilations, Consumer);
+  auto Result = Worker.computeDependencies(Input, CWD, Compilations, Consumer,
+                                           ModuleName);
   if (Result)
     return std::move(Result);
   std::string Output;
@@ -123,7 +125,7 @@ llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
 llvm::Expected<FullDependenciesResult>
 DependencyScanningTool::getFullDependencies(
     const tooling::CompilationDatabase &Compilations, StringRef CWD,
-    const llvm::StringSet<> &AlreadySeen) {
+    const llvm::StringSet<> &AlreadySeen, StringRef ModuleName) {
   class FullDependencyPrinterConsumer : public DependencyConsumer {
   public:
     FullDependencyPrinterConsumer(const llvm::StringSet<> &AlreadySeen)
@@ -196,9 +198,8 @@ DependencyScanningTool::getFullDependencies(
   std::string Input = Compilations.getAllCompileCommands().front().Filename;
 
   FullDependencyPrinterConsumer Consumer(AlreadySeen);
-  Worker.setModuleName(ModuleName);
-  llvm::Error Result =
-      Worker.computeDependencies(Input, CWD, Compilations, Consumer);
+  llvm::Error Result = Worker.computeDependencies(Input, CWD, Compilations,
+                                                  Consumer, ModuleName);
   if (Result)
     return std::move(Result);
   return Consumer.getFullDependencies();

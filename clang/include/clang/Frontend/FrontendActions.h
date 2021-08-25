@@ -300,11 +300,11 @@ protected:
 };
 
 class GetDependenciesByModuleNameAction : public PreprocessOnlyAction {
-  const char *ModuleName;
+  StringRef ModuleName;
   void ExecuteAction() override;
 
 public:
-  GetDependenciesByModuleNameAction(const char *ModuleName)
+  GetDependenciesByModuleNameAction(StringRef ModuleName)
       : ModuleName(ModuleName) {}
 };
 

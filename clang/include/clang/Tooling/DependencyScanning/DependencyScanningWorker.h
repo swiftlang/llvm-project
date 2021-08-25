@@ -79,10 +79,9 @@ public:
   ///
   /// \returns A \c StringError with the diagnostic output if clang errors
   /// occurred, success otherwise.
-  llvm::Error
-  computeDependenciesForClangInvocation(StringRef WorkingDirectory,
-                                        ArrayRef<std::string> Arguments,
-                                        DependencyConsumer &Consumer);
+  llvm::Error computeDependenciesForClangInvocation(
+      StringRef WorkingDirectory, ArrayRef<std::string> Arguments,
+      DependencyConsumer &Consumer, StringRef ModuleName);
 
   /// Run the dependency scanning tool for a given clang driver invocation (as
   /// specified for the given Input in the CDB), and report the discovered
@@ -93,14 +92,10 @@ public:
   llvm::Error computeDependencies(const std::string &Input,
                                   StringRef WorkingDirectory,
                                   const CompilationDatabase &CDB,
-                                  DependencyConsumer &Consumer);
+                                  DependencyConsumer &Consumer,
+                                  StringRef ModuleName);
 
   ScanningOutputFormat getFormat() const { return Format; }
-
-  const char *getModuleName() const { return ModuleName; }
-
-  /// Set module name and create a memory buffer for the fake source file.
-  void setModuleName(const char *Name);
 
   llvm::StringSet<> AlreadySeen;
 
@@ -118,9 +113,6 @@ private:
   /// worker. If null, the file manager will not be reused.
   llvm::IntrusiveRefCntPtr<FileManager> Files;
   ScanningOutputFormat Format;
-
-  const char *ModuleName = nullptr;
-  std::unique_ptr<llvm::MemoryBuffer> FakeMemBuffer;
 };
 
 } // end namespace dependencies

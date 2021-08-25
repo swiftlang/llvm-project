@@ -73,8 +73,7 @@ struct FullDependenciesResult {
 class DependencyScanningTool {
 public:
   /// Construct a dependency scanning tool.
-  DependencyScanningTool(DependencyScanningService &Service,
-                         const char *ModuleName = nullptr);
+  DependencyScanningTool(DependencyScanningService &Service);
 
   /// Print out the dependency information into a string using the dependency
   /// file format that is specified in the options (-MD is the default) and
@@ -84,7 +83,7 @@ public:
   /// occurred, dependency file contents otherwise.
   llvm::Expected<std::string>
   getDependencyFile(const tooling::CompilationDatabase &Compilations,
-                    StringRef CWD);
+                    StringRef CWD, StringRef ModuleName);
 
   /// Collect the full module dependency graph for the input, ignoring any
   /// modules which have already been seen.
@@ -99,11 +98,11 @@ public:
   /// occurred, \c FullDependencies otherwise.
   llvm::Expected<FullDependenciesResult>
   getFullDependencies(const tooling::CompilationDatabase &Compilations,
-                      StringRef CWD, const llvm::StringSet<> &AlreadySeen);
+                      StringRef CWD, const llvm::StringSet<> &AlreadySeen,
+                      StringRef ModuleName);
 
 private:
   DependencyScanningWorker Worker;
-  const char *ModuleName;
 };
 
 } // end namespace dependencies
