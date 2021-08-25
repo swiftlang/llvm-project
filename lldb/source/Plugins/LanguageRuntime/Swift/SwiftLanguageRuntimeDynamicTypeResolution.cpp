@@ -1556,7 +1556,7 @@ CompilerType SwiftLanguageRuntimeImpl::GetChildCompilerTypeAtIndex(
             return {};
           }
           CompilerType super_type = GetTypeFromTypeRef(*ts, type_ref);
-          child_name = super_type.GetTypeName().GetStringRef().str();
+          child_name = super_type.GetDisplayTypeName().GetStringRef().str();
           // FIXME: This should be fixed in GetDisplayTypeName instead!
           if (child_name == "__C.NSObject")
             child_name = "ObjectiveC.NSObject";
