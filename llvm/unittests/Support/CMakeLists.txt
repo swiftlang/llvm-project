@@ -59,6 +59,7 @@ add_llvm_unittest(SupportTests
   NativeFormatTests.cpp
   OptimizedStructLayoutTest.cpp
   OutputConfigTest.cpp
+  OutputBackendTest.cpp
   ParallelTest.cpp
   Path.cpp
   ProcessTest.cpp
