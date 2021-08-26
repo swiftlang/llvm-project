@@ -1139,7 +1139,7 @@ void DataFlowSanitizer::addGlobalNameSuffix(GlobalValue *GV) {
     Pos = Asm.find("@");
 
     if (Pos == std::string::npos)
-      report_fatal_error("unsupported .symver: " + Asm);
+      report_fatal_error(Twine("unsupported .symver: ", Asm));
 
     Asm.replace(Pos, 1, Suffix + "@");
     GV->getParent()->setModuleInlineAsm(Asm);

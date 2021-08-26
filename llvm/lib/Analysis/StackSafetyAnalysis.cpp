@@ -588,8 +588,7 @@ void StackSafetyDataFlowAnalysis<CalleeTy>::runDataFlow() {
   updateAllNodes();
 
   while (!WorkList.empty()) {
-    const CalleeTy *Callee = WorkList.back();
-    WorkList.pop_back();
+    const CalleeTy *Callee = WorkList.pop_back_val();
     updateOneNode(Callee);
   }
 }

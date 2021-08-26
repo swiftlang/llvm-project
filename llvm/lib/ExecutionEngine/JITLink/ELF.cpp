@@ -13,6 +13,7 @@
 #include "llvm/ExecutionEngine/JITLink/ELF.h"
 
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/ExecutionEngine/JITLink/ELF_aarch64.h"
 #include "llvm/ExecutionEngine/JITLink/ELF_riscv.h"
 #include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
@@ -65,6 +66,8 @@ createLinkGraphFromELFObject(MemoryBufferRef ObjectBuffer) {
     return TargetMachineArch.takeError();
 
   switch (*TargetMachineArch) {
+  case ELF::EM_AARCH64:
+    return createLinkGraphFromELFObject_aarch64(ObjectBuffer);
   case ELF::EM_RISCV:
     return createLinkGraphFromELFObject_riscv(ObjectBuffer);
   case ELF::EM_X86_64:
@@ -88,6 +91,9 @@ getGetEdgeKindNameFunctionForELF(const Triple &TT) {
 void link_ELF(std::unique_ptr<LinkGraph> G,
               std::unique_ptr<JITLinkContext> Ctx) {
   switch (G->getTargetTriple().getArch()) {
+  case Triple::aarch64:
+    link_ELF_aarch64(std::move(G), std::move(Ctx));
+    return;
   case Triple::riscv32:
   case Triple::riscv64:
     link_ELF_riscv(std::move(G), std::move(Ctx));

@@ -699,7 +699,7 @@ static void reportFastISelFailure(MachineFunction &MF,
     R << (" (in function: " + MF.getName() + ")").str();
 
   if (ShouldAbort)
-    report_fatal_error(R.getMsg());
+    report_fatal_error(Twine(R.getMsg()));
 
   ORE.emit(R);
 }
@@ -3800,7 +3800,7 @@ void SelectionDAGISel::CannotYetSelect(SDNode *N) {
     else
       Msg << "unknown intrinsic #" << iid;
   }
-  report_fatal_error(Msg.str());
+  report_fatal_error(Twine(Msg.str()));
 }
 
 char SelectionDAGISel::ID = 0;
