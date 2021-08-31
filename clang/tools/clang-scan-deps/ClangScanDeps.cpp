@@ -550,14 +550,19 @@ int main(int argc, const char **argv) {
         // Run the tool on it.
         if (Format == ScanningOutputFormat::Make) {
           auto MaybeFile = WorkerTools[I]->getDependencyFile(
-              *Input, CWD, ModuleName.empty() ? nullptr : ModuleName.c_str());
+              *Input, CWD,
+              ModuleName.empty()
+                  ? None
+                  : llvm::Optional<StringRef>(ModuleName.c_str()));
           if (handleMakeDependencyToolResult(Filename, MaybeFile, DependencyOS,
                                              Errs))
             HadErrors = true;
         } else {
           auto MaybeFullDeps = WorkerTools[I]->getFullDependencies(
               *Input, CWD, AlreadySeenModules,
-              ModuleName.empty() ? nullptr : ModuleName.c_str());
+              ModuleName.empty()
+                  ? None
+                  : llvm::Optional<StringRef>(ModuleName.c_str()));
           if (handleFullDependencyToolResult(Filename, MaybeFullDeps, FD,
                                              LocalIndex, DependencyOS, Errs))
             HadErrors = true;

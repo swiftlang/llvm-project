@@ -75,17 +75,21 @@ public:
   DependencyScanningWorker(DependencyScanningService &Service);
 
   /// Run the dependency scanning tool for a given clang driver invocation, and
-  /// report the discovered dependencies to the provided consumer.
+  /// report the discovered dependencies to the provided consumer. If
+  /// \p ModuleName isn't empty, this function reports the dependencies of
+  /// module \p ModuleName.
   ///
   /// \returns A \c StringError with the diagnostic output if clang errors
   /// occurred, success otherwise.
   llvm::Error computeDependenciesForClangInvocation(
       StringRef WorkingDirectory, ArrayRef<std::string> Arguments,
-      DependencyConsumer &Consumer, StringRef ModuleName);
+      DependencyConsumer &Consumer,
+      llvm::Optional<StringRef> ModuleName = None);
 
   /// Run the dependency scanning tool for a given clang driver invocation (as
   /// specified for the given Input in the CDB), and report the discovered
-  /// dependencies to the provided consumer.
+  /// dependencies to the provided consumer. If \p ModuleName isn't empty, this
+  /// function reports the dependencies of module \p ModuleName.
   ///
   /// \returns A \c StringError with the diagnostic output if clang errors
   /// occurred, success otherwise.
@@ -93,7 +97,7 @@ public:
                                   StringRef WorkingDirectory,
                                   const CompilationDatabase &CDB,
                                   DependencyConsumer &Consumer,
-                                  StringRef ModuleName);
+                                  llvm::Optional<StringRef> ModuleName = None);
 
   ScanningOutputFormat getFormat() const { return Format; }
 

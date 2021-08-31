@@ -51,7 +51,7 @@ DependencyScanningTool::DependencyScanningTool(
 
 llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
     const tooling::CompilationDatabase &Compilations, StringRef CWD,
-    StringRef ModuleName) {
+    llvm::Optional<StringRef> ModuleName) {
   /// Prints out all of the gathered dependencies into a string.
   class MakeDependencyPrinterConsumer : public DependencyConsumer {
   public:
@@ -125,7 +125,8 @@ llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
 llvm::Expected<FullDependenciesResult>
 DependencyScanningTool::getFullDependencies(
     const tooling::CompilationDatabase &Compilations, StringRef CWD,
-    const llvm::StringSet<> &AlreadySeen, StringRef ModuleName) {
+    const llvm::StringSet<> &AlreadySeen,
+    llvm::Optional<StringRef> ModuleName) {
   class FullDependencyPrinterConsumer : public DependencyConsumer {
   public:
     FullDependencyPrinterConsumer(const llvm::StringSet<> &AlreadySeen)

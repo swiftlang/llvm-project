@@ -80,9 +80,11 @@ void clang_experimental_DependencyScannerWorker_dispose_v0(
   delete unwrap(Worker);
 }
 
-static CXFileDependencies *getFlatDependencies(
-    DependencyScanningWorker *Worker, ArrayRef<std::string> Compilation,
-    const char *WorkingDirectory, CXString *error, StringRef ModuleName) {
+static CXFileDependencies *
+getFlatDependencies(DependencyScanningWorker *Worker,
+                    ArrayRef<std::string> Compilation,
+                    const char *WorkingDirectory, CXString *error,
+                    llvm::Optional<StringRef> ModuleName = None) {
   // TODO: Implement flat deps.
   return nullptr;
 }
@@ -160,7 +162,7 @@ static CXFileDependencies *getFullDependencies(
     DependencyScanningWorker *Worker, ArrayRef<std::string> Compilation,
     const char *WorkingDirectory, CXModuleDiscoveredCallback *MDC,
     void *Context, CXString *error, BuildArgsFn GetBuildArgs,
-    StringRef ModuleName) {
+    llvm::Optional<StringRef> ModuleName = None) {
   FullDependencyConsumer Consumer(Worker->AlreadySeen);
   llvm::Error Result = Worker->computeDependenciesForClangInvocation(
       WorkingDirectory, Compilation, Consumer, ModuleName);
@@ -214,7 +216,7 @@ getFileDependencies(CXDependencyScannerWorker W, int argc,
                     const char *const *argv, const char *WorkingDirectory,
                     CXModuleDiscoveredCallback *MDC, void *Context,
                     CXString *error, BuildArgsFn GetBuildArgs,
-                    StringRef ModuleName = StringRef()) {
+                    llvm::Optional<StringRef> ModuleName = None) {
   if (!W || argc < 2)
     return nullptr;
   if (error)
@@ -264,5 +266,5 @@ clang_experimental_DependencyScannerWorker_getDependenciesByModuleName_v0(
       [](const ModuleDeps &MD) {
         return MD.getCanonicalCommandLineWithoutModulePaths();
       },
-      ModuleName);
+      StringRef(ModuleName));
 }
