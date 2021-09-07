@@ -71,6 +71,8 @@ llvm::FloatABI::ABIType getFloatABIForCalls();
 
 llvm::FPOpFusion::FPOpFusionMode getFuseFPOps();
 
+SwiftAsyncFramePointerMode getSwiftAsyncFramePointer();
+
 bool getDontPlaceZerosInBSS();
 
 bool getEnableGuaranteedTailCallOpt();
