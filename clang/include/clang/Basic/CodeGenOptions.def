@@ -416,6 +416,11 @@ CODEGENOPT(PassByValueIsNoAlias, 1, 0)
 /// according to the field declaring type width.
 CODEGENOPT(AAPCSBitfieldWidth, 1, 1)
 
+// Whether to emit Swift Async function extended frame information: auto,
+// never, always.
+ENUM_CODEGENOPT(SwiftAsyncFramePointer, SwiftAsyncFramePointerKind, 2,
+                SwiftAsyncFramePointerKind::Auto)
+
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
 #undef VALUE_CODEGENOPT
