@@ -1185,6 +1185,14 @@ defm pseudo_probe_for_profiling : BoolFOption<"pseudo-probe-for-profiling",
 def forder_file_instrumentation : Flag<["-"], "forder-file-instrumentation">,
     Group<f_Group>, Flags<[CC1Option, CoreOption]>,
     HelpText<"Generate instrumented code to collect order file into default.profraw file (overridden by '=' form of option or LLVM_PROFILE_FILE env var)">;
+def fswift_async_fp_EQ : Joined<["-"], "fswift-async-fp=">,
+    Group<f_Group>, Flags<[CC1Option, CC1AsOption, CoreOption]>, MetaVarName<"<option>">,
+    HelpText<"Control emission of Swift async extended frame info (option: auto, always, never)">,
+    Values<"auto,always,never">,
+    NormalizedValuesScope<"CodeGenOptions::SwiftAsyncFramePointerKind">,
+    NormalizedValues<["Auto", "Always", "Never"]>,
+    MarshallingInfoFlag<"CodeGenOpts.SwiftAsyncFramePointer", "Auto">,
+    AutoNormalizeEnum;
 
 def fapinotes : Flag<["-"], "fapinotes">, Group<f_clang_Group>,
   Flags<[CC1Option]>, HelpText<"Enable external API notes support">;
