@@ -37,6 +37,9 @@ public:
   std::vector<Language::MethodNameVariant>
   GetMethodNameVariants(ConstString method_name) const override;
 
+  Language::FunctionNameInfo
+  GetFunctionNameInfo(ConstString name) const override;
+
   lldb::TypeCategoryImplSP GetFormatters() override;
 
   HardcodedFormatters::HardcodedSummaryFinder GetHardcodedSummaries() override;
