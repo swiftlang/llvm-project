@@ -734,7 +734,9 @@ private:
   friend class RedirectingFSDirIterImpl;
   friend class RedirectingFileSystemParser;
 
-  bool shouldUseExternalFS() const { return IsFallthrough; }
+  bool shouldUseExternalFS() const {
+    return ExternalFSValidWD && IsFallthrough;
+  }
 
   /// Canonicalize path by removing ".", "..", "./", components. This is
   /// a VFS request, do not bother about symlinks in the path components
@@ -761,6 +763,9 @@ private:
 
   /// The current working directory of the file system.
   std::string WorkingDirectory;
+
+  /// Whether the current working directory is valid for the external FS.
+  bool ExternalFSValidWD = false;
 
   /// The file system to use for external references.
   IntrusiveRefCntPtr<FileSystem> ExternalFS;
@@ -813,7 +818,7 @@ public:
   /// Looks up \p Path in \c Roots and returns a LookupResult giving the
   /// matched entry and, if the entry was a FileEntry or DirectoryRemapEntry,
   /// the path it redirects to in the external file system.
-  ErrorOr<LookupResult> lookupPath(StringRef Path) const;
+  ErrorOr<LookupResult> lookupPath(const Twine &Path) const;
 
   /// Parses \p Buffer, which is expected to be in YAML format and
   /// returns a virtual file system representing its contents.

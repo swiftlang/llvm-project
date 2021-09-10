@@ -2373,8 +2373,7 @@ TEST_F(VFSFromYAMLTest, WorkingDirectoryFallthroughInvalid) {
   EXPECT_TRUE(Status->exists());
 
   Status = FS->status("foo/a");
-  ASSERT_FALSE(Status.getError());
-  EXPECT_TRUE(Status->exists());
+  ASSERT_TRUE(Status.getError());
 }
 
 TEST_F(VFSFromYAMLTest, VirtualWorkingDirectory) {
