@@ -37,11 +37,7 @@ namespace {
   using llvm::sys::path::Style;
 
   inline Style real_style(Style style) {
-#ifdef _WIN32
-    return (style == Style::posix) ? Style::posix : Style::windows;
-#else
-    return (style == Style::windows) ? Style::windows : Style::posix;
-#endif
+    return style == Style::native ? llvm::sys::path::system_style() : style;
   }
 
   inline const char *separators(Style style) {
