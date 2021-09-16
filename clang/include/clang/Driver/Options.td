@@ -5890,6 +5890,7 @@ def fno_cas_fs_auto : Flag<["-"], "fno-cas-fs-auto">,
     Group<f_Group>,
     Alias<fcas_fs_auto_EQ>, AliasArgs<["off"]>;
 
+// CAS prefix map options.
 def fcas_fs_auto_prefix_map_EQ : Joined<["-"], "fcas-fs-auto-prefix-map=">,
     Group<f_Group>, MetaVarName<"<old>=<new>">,
     HelpText<"With -fcas-fs-auto, seamlessly filter the CAS filesystem to"
@@ -5904,6 +5905,10 @@ def fcas_fs_auto_prefix_map_toolchain_EQ :
     Group<f_Group>, MetaVarName<"<new>">,
     HelpText<"With -fcas-fs-auto, auto-detect the toolchain path on-disk and"
              " remap it to the given path (see -fcas-fs-auto-prefix-map=).">;
+
+// -cc1depscan options.
+def cc1_args : Option<["-"], "cc1-args", KIND_REMAINING_ARGS>,
+    HelpText<"pass cc1 options to depscan afterwards">;
 
 // -cc1 options. These should be available in the driver too, but the driver
 // doesn't currently support most of them. For example, the driver should

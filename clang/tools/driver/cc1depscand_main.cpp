@@ -7,11 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "MappingHelper.h"
+#include "clang/Basic/DiagnosticDriver.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/Stack.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/CodeGen/ObjectFilePCHContainerOperations.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/CC1DepScanDProtocol.h"
+#include "clang/Driver/Options.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/TextDiagnosticBuffer.h"
@@ -24,8 +27,10 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/Option/ArgList.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Path.h"
@@ -128,6 +133,7 @@ static void ensureSufficientStack() {
       return;
   }
 
+
   // We should now have a stack of size at least DesiredStackSize. Ensure
   // that we can actually use that much, if necessary.
   ensureStackAddressSpace();
@@ -184,6 +190,145 @@ private:
   raw_ostream &OS;
 };
 } // namespace
+
+// FIXME: This is a copy of Command::writeResponseFile. Command is too deeply
+// tied with clang::Driver to use directly.
+static void writeResponseFile(raw_ostream &OS,
+                              SmallVectorImpl<const char *> &Arguments) {
+  for (const auto *Arg : Arguments) {
+    OS << '"';
+
+    for (; *Arg != '\0'; Arg++) {
+      if (*Arg == '\"' || *Arg == '\\') {
+        OS << '\\';
+      }
+      OS << *Arg;
+    }
+
+    OS << "\" ";
+  }
+}
+
+int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
+                    void *MainAddr) {
+  // FIXME:: Dedup fixme code.
+  SmallString<128> DiagsBuffer;
+  llvm::raw_svector_ostream DiagsOS(DiagsBuffer);
+  auto DiagsConsumer = std::make_unique<TextDiagnosticPrinter>(
+      DiagsOS, new DiagnosticOptions(), false);
+  DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
+  Diags.setClient(DiagsConsumer.get(), /*ShouldOwnClient=*/false);
+
+  // FIXME: Create a new OptionFlag group for cc1depscan.
+  const OptTable &Opts = clang::driver::getDriverOptTable();
+  unsigned MissingArgIndex, MissingArgCount;
+  auto Args = Opts.ParseArgs(Argv, MissingArgIndex, MissingArgCount);
+  if (MissingArgCount) {
+    Diags.Report(diag::err_drv_missing_argument)
+        << Args.getArgString(MissingArgIndex) << MissingArgCount;
+    return 1;
+  }
+
+  StringRef WorkingDirectory;
+  if (auto *Arg =
+          Args.getLastArg(clang::driver::options::OPT_working_directory))
+    WorkingDirectory = Arg->getValue();
+
+  cc1depscand::AutoPrefixMapping AutoMapping;
+  for (auto &Arg : Args.getAllArgValues(
+           clang::driver::options::OPT_fcas_fs_auto_prefix_map_EQ))
+    AutoMapping.PrefixMap.push_back(Arg);
+  if (auto *Arg = Args.getLastArg(
+          clang::driver::options::OPT_fcas_fs_auto_prefix_map_sdk_EQ))
+    AutoMapping.NewSDKPath = Arg->getValue();
+  if (auto *Arg = Args.getLastArg(
+          clang::driver::options::OPT_fcas_fs_auto_prefix_map_toolchain_EQ))
+    AutoMapping.NewToolchainPath = Arg->getValue();
+
+  // Create the compiler invocation.
+  auto Invocation = std::make_shared<CompilerInvocation>();
+  auto *CC1Args = Args.getLastArg(clang::driver::options::OPT_cc1_args);
+  if (!CC1Args) {
+    llvm::errs() << "missing -cc1-args option\n";
+    return 1;
+  }
+
+  if (!CompilerInvocation::CreateFromArgs(*Invocation, CC1Args->getValues(),
+                                          Diags, Argv0)) {
+    llvm::errs() << "cannot create compiler invocation\n";
+    return 1;
+  }
+
+  llvm::BumpPtrAllocator Alloc;
+  llvm::StringSaver Saver(Alloc);
+
+  std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
+      llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
+  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
+      llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
+  tooling::dependencies::DependencyScanningService Service(
+      tooling::dependencies::ScanningMode::MinimizedSourcePreprocessing,
+      tooling::dependencies::ScanningOutputFormat::Tree, FS,
+      /*ReuseFileManager=*/false,
+      /*SkipExcludedPPRanges=*/true);
+  tooling::dependencies::DependencyScanningTool Tool(Service);
+
+  SmallVector<std::pair<StringRef, StringRef>> ComputedMapping;
+  if (auto E = computeFullMapping(Saver, *FS, Argv0, *Invocation, AutoMapping,
+                                  ComputedMapping)) {
+    llvm::errs() << "failed to compute mapping: "
+                 << llvm::toString(std::move(E)) << "\n";
+    return 1;
+  }
+
+  llvm::Expected<llvm::cas::CASID> Root =
+      Tool.getDependencyTreeFromCompilerInvocation(
+          std::make_shared<CompilerInvocation>(*Invocation), WorkingDirectory,
+          *DiagsConsumer, [&](StringRef Path) {
+            return remapPath(Path, Saver, ComputedMapping);
+          });
+
+  if (!Root) {
+    llvm::errs() << "depscan failed\n";
+    return 1;
+  }
+
+  std::string RootID = llvm::cantFail(CAS->convertCASIDToString(*Root));
+  updateCompilerInvocation(*Invocation, Saver, *FS, RootID, WorkingDirectory,
+                           ComputedMapping);
+
+  SmallVector<const char *> NewArgs;
+  Invocation->generateCC1CommandLine(
+      NewArgs, [&](const llvm::Twine &Arg) { return Saver.save(Arg).begin(); });
+
+  auto *OutputArg = Args.getLastArg(clang::driver::options::OPT_o);
+
+  StringRef OutputPath = OutputArg? OutputArg->getValue() : "-";
+
+  // FIXME: Use OutputBackend to OnDisk only now.
+  auto OutputBackend =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::OnDiskOutputBackend>();
+  auto OutputFile =
+      OutputBackend->createFile(OutputPath, llvm::vfs::OutputConfig()
+                                                .setText(true)
+                                                .setTextWithCRLF(true)
+                                                .setCrashCleanup(false)
+                                                .setAtomicWrite(false));
+  if (!OutputFile) {
+    Diags.Report(diag::err_fe_unable_to_open_output)
+        << OutputArg->getValue() << llvm::toString(OutputFile.takeError());
+    return 1;
+  }
+
+  writeResponseFile(*(*OutputFile)->getOS(), NewArgs);
+
+  if (auto Err = (*OutputFile)->close()) {
+    llvm::errs() << "failed closing outputfile: "
+                 << llvm::toString(std::move(Err)) << "\n";
+    return 1;
+  }
+  return 0;
+}
 
 int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
                      void *MainAddr) {
