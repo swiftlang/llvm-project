@@ -71,8 +71,9 @@ public:
   CASID getReferenceInNode(const NodeRef &Ref, size_t I) const final {
     llvm_unreachable("not implemented");
   }
-  Error forEachReferenceInNode(const NodeRef &Ref,
-                               function_ref<Error(CASID)> Callback) const {
+  Error
+  forEachReferenceInNode(const NodeRef &Ref,
+                         function_ref<Error(CASID)> Callback) const final {
     return createStringError(llvm::inconvertibleErrorCode(), "not implemented");
   }
 
