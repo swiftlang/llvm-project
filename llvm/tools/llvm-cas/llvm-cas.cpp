@@ -42,19 +42,6 @@ int main(int Argc, char **Argv) {
   cl::opt<std::string> CASPath("cas", cl::desc("Path to CAS on disk."));
   cl::opt<std::string> DataPath("data",
                                 cl::desc("Path to data or '-' for stdin."));
-  cl::opt<std::string> CommandName("command",
-                                   cl::desc("Command to run (required)."));
-
-  cl::ParseCommandLineOptions(Argc, Argv, "llvm-cas CAS tool\n");
-  ExitOnError ExitOnErr("llvm-cas: ");
-
-  if (CASPath.empty())
-    ExitOnErr(createStringError(inconvertibleErrorCode(), "missing --path"));
-  std::unique_ptr<CASDB> CAS = ExitOnErr(llvm::cas::createOnDiskCAS(CASPath));
-  assert(CAS);
-
-  if (CommandName.empty())
-    ExitOnErr(createStringError(inconvertibleErrorCode(), "missing --command"));
 
   enum CommandKind {
     Invalid,
@@ -69,24 +56,33 @@ int main(int Argc, char **Argv) {
     ListTreeRecursive,
     ListObjectReferences,
   };
+  cl::opt<CommandKind> Command(
+      cl::desc("choose command action:"),
+      cl::values(
+          clEnumValN(PrintKind, "print-kind", "print kind"),
+          clEnumValN(CatBlob, "cat-blob", "cat blob"),
+          clEnumValN(CatNodeData, "cat-node-data", "cat node data"),
+          clEnumValN(DiffGraphs, "diff-graphs", "diff graphs"),
+          clEnumValN(TraverseGraph, "traverse-graph", "traverse graph"),
+          clEnumValN(MakeBlob, "make-blob", "make blob"),
+          clEnumValN(MakeNode, "make-node", "make node"),
+          clEnumValN(ListTree, "ls-tree", "list tree"),
+          clEnumValN(ListTreeRecursive, "ls-tree-recursive",
+                     "list tree recursive"),
+          clEnumValN(ListObjectReferences, "ls-node-refs", "list node refs")),
+      cl::init(CommandKind::Invalid));
 
-  CommandKind Command = StringSwitch<CommandKind>(CommandName)
-                            .Case("cat-blob", CatBlob)
-                            .Case("cat-node-data", CatNodeData)
-                            .Case("diff-graphs", DiffGraphs)
-                            .Case("traverse-graph", TraverseGraph)
-                            .Case("print-kind", PrintKind)
-                            .Case("make-blob", MakeBlob)
-                            .Case("make-node", MakeNode)
-                            .Case("ls-tree", ListTree)
-                            .Case("ls-tree-recursive", ListTreeRecursive)
-                            .Case("ls-node-refs", ListObjectReferences)
-                            .Default(Invalid);
-  if (Command == Invalid)
+  cl::ParseCommandLineOptions(Argc, Argv, "llvm-cas CAS tool\n");
+  ExitOnError ExitOnErr("llvm-cas: ");
+
+  if (Command == CommandKind::Invalid)
     ExitOnErr(createStringError(inconvertibleErrorCode(),
-                                "unknown command: '" + CommandName + "'"));
+                                "no command action is specified"));
 
-  ExitOnError CommandErr("llvm-cas: " + CommandName + ": ");
+  if (CASPath.empty())
+    ExitOnErr(createStringError(inconvertibleErrorCode(), "missing --path"));
+  std::unique_ptr<CASDB> CAS = ExitOnErr(llvm::cas::createOnDiskCAS(CASPath));
+  assert(CAS);
 
   if (Command == MakeBlob)
     return makeBlob(*CAS, DataPath);
@@ -95,6 +91,8 @@ int main(int Argc, char **Argv) {
     return makeNode(*CAS, Objects, DataPath);
 
   if (Command == DiffGraphs) {
+    ExitOnError CommandErr("llvm-cas: diff-graphs: ");
+
     if (Objects.size() != 2)
       CommandErr(
           createStringError(inconvertibleErrorCode(), "expected 2 objects"));
@@ -106,11 +104,11 @@ int main(int Argc, char **Argv) {
 
   // Remaining commands need exactly one CAS object.
   if (Objects.empty())
-    CommandErr(createStringError(inconvertibleErrorCode(),
-                                 "missing <object> to operate on"));
+    ExitOnErr(createStringError(inconvertibleErrorCode(),
+                                "missing <object> to operate on"));
   if (Objects.size() > 1)
-    CommandErr(createStringError(inconvertibleErrorCode(),
-                                 "too many <object>s, expected 1"));
+    ExitOnErr(createStringError(inconvertibleErrorCode(),
+                                "too many <object>s, expected 1"));
   CASID ID = ExitOnErr(CAS->parseCASID(Objects.front()));
 
   if (Command == TraverseGraph)
@@ -312,7 +310,7 @@ struct GraphInfo {
 } // namespace
 
 static GraphInfo traverseObjectGraph(CASDB &CAS, CASID TopLevel) {
-  ExitOnError ExitOnErr("llvm-cas: traverse-node-graph");
+  ExitOnError ExitOnErr("llvm-cas: traverse-node-graph: ");
   GraphInfo Info;
 
   SmallVector<std::pair<CASID, bool>> Worklist;
@@ -356,7 +354,7 @@ static GraphInfo traverseObjectGraph(CASDB &CAS, CASID TopLevel) {
 
 static void printDiffs(CASDB &CAS, const GraphInfo &Baseline,
                        const GraphInfo &New, StringRef NewName) {
-  ExitOnError ExitOnErr("llvm-cas: diff-graphs");
+  ExitOnError ExitOnErr("llvm-cas: diff-graphs: ");
 
   SmallString<128> PrintedID;
   for (cas::CASID ID : New.PostOrder) {
@@ -390,7 +388,7 @@ int diffGraphs(CASDB &CAS, CASID LHS, CASID RHS) {
   if (LHS == RHS)
     return 0;
 
-  ExitOnError ExitOnErr("llvm-cas: diff-graphs");
+  ExitOnError ExitOnErr("llvm-cas: diff-graphs: ");
   GraphInfo LHSInfo = traverseObjectGraph(CAS, LHS);
   GraphInfo RHSInfo = traverseObjectGraph(CAS, RHS);
 
@@ -400,7 +398,7 @@ int diffGraphs(CASDB &CAS, CASID LHS, CASID RHS) {
 }
 
 int traverseGraph(CASDB &CAS, CASID ID) {
-  ExitOnError ExitOnErr("llvm-cas: traverse-graph");
+  ExitOnError ExitOnErr("llvm-cas: traverse-graph: ");
   GraphInfo Info = traverseObjectGraph(CAS, ID);
   printDiffs(CAS, GraphInfo{}, Info, "");
   return 0;
