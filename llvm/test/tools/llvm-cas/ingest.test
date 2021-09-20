@@ -1,0 +1,17 @@
+RUN: rm -rf %t
+RUN: mkdir %t
+
+RUN: llvm-cas --cas %t/cas --ingest --data %S/Inputs > %t/cas.id
+RUN: llvm-cas --cas %t/cas --ls-tree-recursive @%t/cas.id | FileCheck %s
+
+CHECK: file
+CHECK-SAME: directory/file
+CHECK: syml
+CHECK-SAME: file
+CHECK: file
+CHECK-SAME: oneline
+CHECK: file
+CHECK-SAME: oneline-nonewline
+CHECK: syml
+CHECK-SAME: sym_dir
+

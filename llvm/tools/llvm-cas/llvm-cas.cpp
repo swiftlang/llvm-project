@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -34,6 +35,7 @@ static int makeBlob(CASDB &CAS, StringRef DataPath);
 static int makeNode(CASDB &CAS, ArrayRef<std::string> References, StringRef DataPath);
 static int diffGraphs(CASDB &CAS, CASID LHS, CASID RHS);
 static int traverseGraph(CASDB &CAS, CASID ID);
+static int ingestFileSystem(CASDB &CAS, StringRef Path);
 
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
@@ -55,6 +57,7 @@ int main(int Argc, char **Argv) {
     ListTree,
     ListTreeRecursive,
     ListObjectReferences,
+    IngestFileSystem,
   };
   cl::opt<CommandKind> Command(
       cl::desc("choose command action:"),
@@ -69,7 +72,8 @@ int main(int Argc, char **Argv) {
           clEnumValN(ListTree, "ls-tree", "list tree"),
           clEnumValN(ListTreeRecursive, "ls-tree-recursive",
                      "list tree recursive"),
-          clEnumValN(ListObjectReferences, "ls-node-refs", "list node refs")),
+          clEnumValN(ListObjectReferences, "ls-node-refs", "list node refs"),
+          clEnumValN(IngestFileSystem, "ingest", "ingest file system")),
       cl::init(CommandKind::Invalid));
 
   cl::ParseCommandLineOptions(Argc, Argv, "llvm-cas CAS tool\n");
@@ -91,7 +95,7 @@ int main(int Argc, char **Argv) {
     return makeNode(*CAS, Objects, DataPath);
 
   if (Command == DiffGraphs) {
-    ExitOnError CommandErr("llvm-cas: diff-graphs: ");
+    ExitOnError CommandErr("llvm-cas: diff-graphs");
 
     if (Objects.size() != 2)
       CommandErr(
@@ -101,6 +105,9 @@ int main(int Argc, char **Argv) {
     CASID RHS = ExitOnErr(CAS->parseCASID(Objects[1]));
     return diffGraphs(*CAS, LHS, RHS);
   }
+
+  if (Command == IngestFileSystem)
+    return ingestFileSystem(*CAS, DataPath);
 
   // Remaining commands need exactly one CAS object.
   if (Objects.empty())
@@ -401,5 +408,41 @@ int traverseGraph(CASDB &CAS, CASID ID) {
   ExitOnError ExitOnErr("llvm-cas: traverse-graph: ");
   GraphInfo Info = traverseObjectGraph(CAS, ID);
   printDiffs(CAS, GraphInfo{}, Info, "");
+  return 0;
+}
+
+static Error recursiveAccess(CachingOnDiskFileSystem &FS, StringRef Path) {
+  auto ST = FS.status(Path);
+  if (!ST)
+    return errorCodeToError(ST.getError());
+
+  if (ST->isDirectory()) {
+    std::error_code EC;
+    for (llvm::vfs::directory_iterator I = FS.dir_begin(Path, EC), IE;
+         !EC && I != IE; I.increment(EC)) {
+      auto Err = recursiveAccess(FS, I->path());
+      if (Err)
+        return Err;
+    }
+  }
+
+  return Error::success();
+}
+
+int ingestFileSystem(CASDB &CAS, StringRef Path) {
+  ExitOnError ExitOnErr("llvm-cas: ingest: ");
+  auto FS = createCachingOnDiskFileSystem(CAS);
+  if (!FS)
+    ExitOnErr(FS.takeError());
+
+  (*FS)->trackNewAccesses();
+
+  ExitOnErr(recursiveAccess(**FS, Path));
+
+  auto Ref = (*FS)->createTreeFromAllAccesses();
+  if (!Ref)
+    ExitOnErr(Ref.takeError());
+
+  ExitOnErr(CAS.printCASID(outs(), *Ref));
   return 0;
 }
