@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CAS_CASFILESYSTEM_H
-#define LLVM_CAS_CASFILESYSTEM_H
+#ifndef LLVM_CAS_CACHINGONDISKFILESYSTEM_H
+#define LLVM_CAS_CACHINGONDISKFILESYSTEM_H
 
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/FileSystemCache.h"
@@ -99,4 +99,4 @@ createCachingOnDiskFileSystem(CASDB &DB);
 } // namespace cas
 } // namespace llvm
 
-#endif // LLVM_CAS_CASFILESYSTEM_H
+#endif // LLVM_CAS_CACHINGONDISKFILESYSTEM_H
