@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -18,6 +19,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
+#include <system_error>
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -36,6 +38,7 @@ static int makeNode(CASDB &CAS, ArrayRef<std::string> References, StringRef Data
 static int diffGraphs(CASDB &CAS, CASID LHS, CASID RHS);
 static int traverseGraph(CASDB &CAS, CASID ID);
 static int ingestFileSystem(CASDB &CAS, StringRef Path);
+static int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path);
 
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
@@ -58,6 +61,7 @@ int main(int Argc, char **Argv) {
     ListTreeRecursive,
     ListObjectReferences,
     IngestFileSystem,
+    GetCASIDForFile,
   };
   cl::opt<CommandKind> Command(
       cl::desc("choose command action:"),
@@ -73,7 +77,8 @@ int main(int Argc, char **Argv) {
           clEnumValN(ListTreeRecursive, "ls-tree-recursive",
                      "list tree recursive"),
           clEnumValN(ListObjectReferences, "ls-node-refs", "list node refs"),
-          clEnumValN(IngestFileSystem, "ingest", "ingest file system")),
+          clEnumValN(IngestFileSystem, "ingest", "ingest file system"),
+          clEnumValN(GetCASIDForFile, "get-cas-id", "get cas id for file")),
       cl::init(CommandKind::Invalid));
 
   cl::ParseCommandLineOptions(Argc, Argv, "llvm-cas CAS tool\n");
@@ -135,6 +140,9 @@ int main(int Argc, char **Argv) {
 
   if (Command == PrintKind)
     return printKind(*CAS, ID);
+
+  if (Command == GetCASIDForFile)
+    return getCASIDForFile(*CAS, ID, DataPath);
 
   assert(Command == CatBlob);
   return catBlob(*CAS, ID);
@@ -444,5 +452,20 @@ int ingestFileSystem(CASDB &CAS, StringRef Path) {
     ExitOnErr(Ref.takeError());
 
   ExitOnErr(CAS.printCASID(outs(), *Ref));
+  return 0;
+}
+
+int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path) {
+  ExitOnError ExitOnErr("llvm-cas: get-cas-id: ");
+  auto FS = createCASFileSystem(CAS, ID);
+  if (!FS)
+    ExitOnErr(FS.takeError());
+
+  auto FileID = (*FS)->getFileCASID(Path);
+  if (!FileID)
+    ExitOnErr(errorCodeToError(
+        std::make_error_code(std::errc::no_such_file_or_directory)));
+
+  ExitOnErr(CAS.printCASID(outs(), *FileID));
   return 0;
 }
