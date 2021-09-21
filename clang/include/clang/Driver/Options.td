@@ -5877,6 +5877,35 @@ def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
 // CAS Options
 //===----------------------------------------------------------------------===//
 
+// Example command-lines we expect (not all supported yet):
+//
+// For building against some pre-ingested, CAS-based filesystem using a plugin:
+// ```
+// % clang -fcas=libcas-plugin.dylib \
+//         -fcas-fs=cas://1af12fa2afa1af2a1fa
+// ```
+//
+// For automatically ingesting from the live filesystem into a CAS,
+// canonicalizing the paths, and running the `-cc1` against the CAS tree:
+// ```
+// % clang -fcas=libcas-plugin.dylib \
+//         -fcas-fs-auto \
+//         -fcas-fs-auto-prefix-map=/my/sources=/^src \
+//         -fcas-fs-auto-prefix-map=/my/build/dir=/^build
+// ```
+//
+// For pruning and canonicalizing even when starting from a pre-ingested,
+// CAS-based filesystem:
+// ```
+// % clang -fcas=libcas-plugin.dylib \
+//         -fcas-fs=cas://1af12fa2afa1af2a1fa \
+//         -fcas-fs-auto \
+//         -fcas-fs-auto-prefix-map=/my/sources=/^src \
+//         -fcas-fs-auto-prefix-map=/my/build/dir=/^build
+// ```
+// FIXME: `-fcas-fs-auto*` seems pretty confusing in this example. Consider
+// renaming to `-fdepscan*` or something.
+
 // Driver-only CAS options.
 def fcas_fs_auto_EQ : Joined<["-"], "fcas-fs-auto=">,
     Group<f_Group>,
