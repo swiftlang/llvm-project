@@ -238,7 +238,13 @@ public:
 
     // FIXME: Move the assert before the single decl case when we fix the
     // duplication coming from the ASTReader reading builtin types.
-    assert(!llvm::is_contained(getLookupResult(), D) && "Already exists!");
+    assert((!llvm::is_contained(getLookupResult(), D) ||
+// Swift mod: Work around an issue where the SEL type is also contained twice
+// in the AST constructed by the ASTImporter and SwiftDWARFImporter. See
+// rdar://82037935
+           (D->getIdentifier() && D->getIdentifier()->isStr("SEL")))
+// End Swift mod
+           && "Already exists!");
     // Determine if this declaration is actually a redeclaration.
     for (DeclListNode *N = getAsList(); /*return in loop*/;
          N = N->Rest.dyn_cast<DeclListNode *>()) {
