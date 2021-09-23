@@ -418,9 +418,8 @@ void Preprocessor::HandlePragmaOnce(Token &OnceTok) {
 void Preprocessor::HandlePragmaMark(Token &MarkTok) {
   assert(CurPPLexer && "No current lexer?");
 
-  SmallString<64> Buffer;
-  CurLexer->ReadToEndOfLine(&Buffer);
   if (CurLexer){
+    SmallString<64> Buffer;
     CurLexer->ReadToEndOfLine(&Buffer);
     if (Callbacks)
       Callbacks->PragmaMark(MarkTok.getLocation(), Buffer);
