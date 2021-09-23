@@ -235,14 +235,14 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
     WorkingDirectory = Arg->getValue();
 
   cc1depscand::AutoPrefixMapping AutoMapping;
-  for (auto &Arg : Args.getAllArgValues(
-           clang::driver::options::OPT_fcas_fs_auto_prefix_map_EQ))
+  for (auto &Arg :
+       Args.getAllArgValues(clang::driver::options::OPT_fdepscan_prefix_map_EQ))
     AutoMapping.PrefixMap.push_back(Arg);
   if (auto *Arg = Args.getLastArg(
-          clang::driver::options::OPT_fcas_fs_auto_prefix_map_sdk_EQ))
+          clang::driver::options::OPT_fdepscan_prefix_map_sdk_EQ))
     AutoMapping.NewSDKPath = Arg->getValue();
   if (auto *Arg = Args.getLastArg(
-          clang::driver::options::OPT_fcas_fs_auto_prefix_map_toolchain_EQ))
+          clang::driver::options::OPT_fdepscan_prefix_map_toolchain_EQ))
     AutoMapping.NewToolchainPath = Arg->getValue();
 
   // Create the compiler invocation.

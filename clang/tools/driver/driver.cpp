@@ -344,7 +344,7 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
 static cc1depscand::AutoPrefixMapping
 parseCASFSAutoPrefixMappings(const Driver &D, const ArgList &Args) {
   cc1depscand::AutoPrefixMapping Mapping;
-  for (const Arg *A : Args.filtered(options::OPT_fcas_fs_auto_prefix_map_EQ)) {
+  for (const Arg *A : Args.filtered(options::OPT_fdepscan_prefix_map_EQ)) {
     StringRef Map = A->getValue();
     size_t Equals = Map.find('=');
     if (Equals == StringRef::npos)
@@ -354,10 +354,10 @@ parseCASFSAutoPrefixMappings(const Driver &D, const ArgList &Args) {
       Mapping.PrefixMap.push_back(Map);
     A->claim();
   }
-  if (const Arg *A = Args.getLastArg(options::OPT_fcas_fs_auto_prefix_map_sdk_EQ))
+  if (const Arg *A = Args.getLastArg(options::OPT_fdepscan_prefix_map_sdk_EQ))
     Mapping.NewSDKPath = A->getValue();
-  if (const Arg *A = Args.getLastArg(
-          options::OPT_fcas_fs_auto_prefix_map_toolchain_EQ))
+  if (const Arg *A =
+          Args.getLastArg(options::OPT_fdepscan_prefix_map_toolchain_EQ))
     Mapping.NewToolchainPath = A->getValue();
 
   return Mapping;

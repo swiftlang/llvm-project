@@ -6921,7 +6921,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // two -cc1 actions, the first to scan and the second to run the results of
   // the scan (somehow). The daemon should be an optimization for running the
   // first of these actions.
-  if (Arg *A = Args.getLastArg(options::OPT_fcas_fs_auto_EQ))
+  if (Arg *A = Args.getLastArg(options::OPT_fdepscan_EQ))
     D.CC1ScanDeps(*A, Exec, CmdArgs, D, Args);
 
   if (D.CC1Main && !D.CCGenDiagnostics) {
