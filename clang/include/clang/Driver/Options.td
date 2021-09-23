@@ -5889,9 +5889,9 @@ def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
 // canonicalizing the paths, and running the `-cc1` against the CAS tree:
 // ```
 // % clang -fcas=libcas-plugin.dylib \
-//         -fcas-fs-auto \
-//         -fcas-fs-auto-prefix-map=/my/sources=/^src \
-//         -fcas-fs-auto-prefix-map=/my/build/dir=/^build
+//         -fdepscan \
+//         -fdepscan-prefix-map=/my/sources=/^src \
+//         -fdepscan-prefix-map=/my/build/dir=/^build
 // ```
 //
 // For pruning and canonicalizing even when starting from a pre-ingested,
@@ -5899,41 +5899,40 @@ def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
 // ```
 // % clang -fcas=libcas-plugin.dylib \
 //         -fcas-fs=cas://1af12fa2afa1af2a1fa \
-//         -fcas-fs-auto \
-//         -fcas-fs-auto-prefix-map=/my/sources=/^src \
-//         -fcas-fs-auto-prefix-map=/my/build/dir=/^build
+//         -fdepscan \
+//         -fdepscan-prefix-map=/my/sources=/^src \
+//         -fdepscan-prefix-map=/my/build/dir=/^build
 // ```
-// FIXME: `-fcas-fs-auto*` seems pretty confusing in this example. Consider
-// renaming to `-fdepscan*` or something.
 
 // Driver-only CAS options.
-def fcas_fs_auto_EQ : Joined<["-"], "fcas-fs-auto=">,
+def fdepscan_EQ : Joined<["-"], "fdepscan=">,
     Group<f_Group>,
-    HelpText<"Automatically scan for and compile against a CAS-based"
-             " filesystem. Values are 'daemon', 'inline', or 'off'.">;
-def fcas_fs_auto : Flag<["-"], "fcas-fs-auto">,
+    HelpText<"Scan for dependencies ahead of compiling, generating a"
+             " pruned CAS tree to send to -fcas-fs."
+             " Values are 'daemon', 'inline', or 'off'.">;
+def fdepscan : Flag<["-"], "fdepscan">,
     Group<f_Group>,
-    HelpText<"Turn on -fcas-fs-auto. Currently uses 'daemon'.">,
-    Alias<fcas_fs_auto_EQ>, AliasArgs<["daemon"]>;
-def fno_cas_fs_auto : Flag<["-"], "fno-cas-fs-auto">,
+    HelpText<"Turn on -fdepscan. Currently uses 'daemon'.">,
+    Alias<fdepscan_EQ>, AliasArgs<["daemon"]>;
+def fno_depscan : Flag<["-"], "fno-depscan">,
     Group<f_Group>,
-    Alias<fcas_fs_auto_EQ>, AliasArgs<["off"]>;
+    Alias<fdepscan_EQ>, AliasArgs<["off"]>;
 
 // CAS prefix map options.
-def fcas_fs_auto_prefix_map_EQ : Joined<["-"], "fcas-fs-auto-prefix-map=">,
+def fdepscan_prefix_map_EQ : Joined<["-"], "fdepscan-prefix-map=">,
     Group<f_Group>, MetaVarName<"<old>=<new>">,
-    HelpText<"With -fcas-fs-auto, seamlessly filter the CAS filesystem to"
+    HelpText<"With -fdepscan, seamlessly filter the CAS filesystem to"
              " apply the given prefix, updating the command-line to match.">;
-def fcas_fs_auto_prefix_map_sdk_EQ :
-    Joined<["-"], "fcas-fs-auto-prefix-map-sdk=">,
+def fdepscan_prefix_map_sdk_EQ :
+    Joined<["-"], "fdepscan-prefix-map-sdk=">,
     Group<f_Group>, MetaVarName<"<new>">,
-    HelpText<"With -fcas-fs-auto, auto-detect the SDK path on-disk and remap"
-             " it to the given path (see -fcas-fs-auto-prefix-map=).">;
-def fcas_fs_auto_prefix_map_toolchain_EQ :
-    Joined<["-"], "fcas-fs-auto-prefix-map-toolchain=">,
+    HelpText<"With -fdepscan, auto-detect the SDK path on-disk and remap"
+             " it to the given path (see -fdepscan-prefix-map=).">;
+def fdepscan_prefix_map_toolchain_EQ :
+    Joined<["-"], "fdepscan-prefix-map-toolchain=">,
     Group<f_Group>, MetaVarName<"<new>">,
-    HelpText<"With -fcas-fs-auto, auto-detect the toolchain path on-disk and"
-             " remap it to the given path (see -fcas-fs-auto-prefix-map=).">;
+    HelpText<"With -fdepscan, auto-detect the toolchain path on-disk and"
+             " remap it to the given path (see -fdepscan-prefix-map=).">;
 
 // -cc1depscan options.
 def cc1_args : Option<["-"], "cc1-args", KIND_REMAINING_ARGS>,
@@ -5941,8 +5940,8 @@ def cc1_args : Option<["-"], "cc1-args", KIND_REMAINING_ARGS>,
 
 // -cc1 options. These should be available in the driver too, but the driver
 // doesn't currently support most of them. For example, the driver should
-// read only from -fcas-fs if specified, in which case the -fcas-fs-auto
-// should scan to prune the CAS filesystem. Also, -fcas-fs-auto shouldn't
+// read only from -fcas-fs if specified, in which case the -fdepscan
+// should scan to prune the CAS filesystem. Also, -fdepscan shouldn't
 // override -fcas / etc., it should just add those if not already specified.
 let Flags = [CC1Option, NoDriverOption] in {
 

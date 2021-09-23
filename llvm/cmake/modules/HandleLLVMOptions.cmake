@@ -1234,16 +1234,16 @@ if(LLVM_USE_RELATIVE_PATHS_IN_FILES)
   add_flag_if_supported("-no-canonical-prefixes" NO_CANONICAL_PREFIXES)
 endif()
 
-set(LLVM_ENABLE_EXPERIMENTAL_CAS_FS_AUTO OFF CACHE BOOL
-  "Use the experimental -fcas-fs-auto and related flags")
-set(LLVM_CAS_FS_AUTO_MODE "" CACHE STRING "Mode for -fcas-fs-auto if used")
-if(LLVM_ENABLE_EXPERIMENTAL_CAS_FS_AUTO)
-  check_c_compiler_flag("-fcas-fs-auto" SUPPORTS_CAS_FS_AUTO)
+set(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN OFF CACHE BOOL
+  "Use the experimental -fdepscan and related flags")
+set(LLVM_DEPSCAN_MODE "" CACHE STRING "Mode for -fdepscan if used")
+if(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN)
+  check_c_compiler_flag("-fdepscan" SUPPORTS_DEPSCAN)
 
-  if(LLVM_CAS_FS_AUTO_MODE)
-    append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto=${LLVM_CAS_FS_AUTO_MODE}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  if(LLVM_DEPSCAN_MODE)
+    append_if(SUPPORTS_DEPSCAN "-fdepscan=${LLVM_DEPSCAN_MODE}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   else()
-    append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append_if(SUPPORTS_DEPSCAN "-fdepscan" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   endif()
 
   if(LLVM_ENABLE_PROJECTS_USED)
@@ -1252,10 +1252,10 @@ if(LLVM_ENABLE_EXPERIMENTAL_CAS_FS_AUTO)
     set(source_root "${LLVM_MAIN_SRC_DIR}")
   endif()
 
-  append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto-prefix-map-sdk=/^sdk" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-  append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto-prefix-map-toolchain=/^toolchain" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-  append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto-prefix-map=${source_root}=/^source" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-  append_if(SUPPORTS_CAS_FS_AUTO "-fcas-fs-auto-prefix-map=${CMAKE_BINARY_DIR}=/^build" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  append_if(SUPPORTS_DEPSCAN "-fdepscan-prefix-map-sdk=/^sdk" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  append_if(SUPPORTS_DEPSCAN "-fdepscan-prefix-map-toolchain=/^toolchain" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  append_if(SUPPORTS_DEPSCAN "-fdepscan-prefix-map=${source_root}=/^source" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  append_if(SUPPORTS_DEPSCAN "-fdepscan-prefix-map=${CMAKE_BINARY_DIR}=/^build" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
 endif()
 
 set(LLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE OFF CACHE BOOL
