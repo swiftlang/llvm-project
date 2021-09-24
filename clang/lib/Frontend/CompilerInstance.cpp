@@ -822,6 +822,8 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
   Expected<std::unique_ptr<OutputFile>> O =
       getOrCreateOutputBackend().createFile(
           OutputPath, OutputConfig()
+                          // FIXME: TextWithCTLF should imply Text.
+                          .setText(!Binary)
                           .setTextWithCRLF(!Binary)
                           .setCrashCleanup(RemoveFileOnSignal)
                           .setAtomicWrite(UseTemporary)
