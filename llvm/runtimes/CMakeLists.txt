@@ -428,6 +428,7 @@ ${error} Set RUNTIMES_BUILD_ALLOW_DARWIN to allow a single darwin triple.")
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
                                         ${RUNTIMES_CMAKE_ARGS}
                              PASSTHROUGH_PREFIXES LLVM_ENABLE_RUNTIMES
+                                                  CMAKE_MT
                                                   ${ARG_PREFIXES}
                              EXTRA_TARGETS ${extra_targets}
                                            ${test_targets}
