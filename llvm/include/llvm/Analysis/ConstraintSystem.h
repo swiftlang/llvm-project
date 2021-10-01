@@ -38,7 +38,7 @@ class ConstraintSystem {
 
 public:
   bool addVariableRow(const SmallVector<int64_t, 8> &R) {
-    assert(Constraints.empty() || R.size() == Constraints.back().size());
+    // assert(Constraints.empty() || R.size() == Constraints.back().size());
     // If all variable coefficients are 0, the constraint does not provide any
     // usable information.
     if (all_of(makeArrayRef(R).drop_front(1), [](int64_t C) { return C == 0; }))
@@ -54,11 +54,15 @@ public:
   }
 
   bool addVariableRowFill(const SmallVector<int64_t, 8> &R) {
-    for (auto &CR : Constraints) {
-      while (CR.size() != R.size())
-        CR.push_back(0);
+    if (addVariableRow(R)) {
+      for (unsigned I = 0; I < Constraints.size() - 1; I++) {
+        auto &CR = Constraints[I];
+        while (CR.size() != R.size())
+          CR.push_back(0);
+      }
+      return true;
     }
-    return addVariableRow(R);
+    return false;
   }
 
   /// Returns true if there may be a solution for the constraints in the system.
@@ -76,6 +80,12 @@ public:
   bool isConditionImplied(SmallVector<int64_t, 8> R);
 
   void popLastConstraint() { Constraints.pop_back(); }
+  void popLastNVariables(unsigned N) {
+    for (auto &C : Constraints) {
+      for (unsigned i = 0; i < N; i++)
+        C.pop_back();
+    }
+  }
 
   /// Returns the number of rows in the constraint system.
   unsigned size() const { return Constraints.size(); }

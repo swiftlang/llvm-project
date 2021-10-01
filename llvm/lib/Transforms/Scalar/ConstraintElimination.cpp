@@ -76,6 +76,9 @@ public:
     return Signed ? SignedCS : UnsignedCS;
   }
   void popLastConstraint(bool Signed) { getCS(Signed).popLastConstraint(); }
+  void popLastNVariables(bool Signed, unsigned N) {
+    getCS(Signed).popLastNVariables(N);
+  }
 };
 
 struct PreconditionTy {
@@ -425,14 +428,15 @@ struct ConstraintOrBlock {
 struct StackEntry {
   unsigned NumIn;
   unsigned NumOut;
-  Instruction *Condition;
+  CmpInst *Condition;
   bool IsNot;
   bool IsSigned = false;
+  SmallVector<Value *, 2> ValuesToRelease;
 
-  StackEntry(unsigned NumIn, unsigned NumOut, Instruction *Condition,
-             bool IsNot, bool IsSigned)
+  StackEntry(unsigned NumIn, unsigned NumOut, CmpInst *Condition, bool IsNot,
+             bool IsSigned, SmallVector<Value *, 2> ValuesToRelease)
       : NumIn(NumIn), NumOut(NumOut), Condition(Condition), IsNot(IsNot),
-        IsSigned(IsSigned) {}
+        IsSigned(IsSigned), ValuesToRelease(ValuesToRelease) {}
 };
 
 struct State {
@@ -890,6 +894,12 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
       LLVM_DEBUG(dbgs() << "Removing " << *E.Condition << " " << E.IsNot
                         << "\n");
       Info.popLastConstraint(E.IsSigned);
+      auto &Mapping =
+          Info.getValue2Index(CmpInst::isSigned(E.Condition->getPredicate()));
+
+      for (Value *V : E.ValuesToRelease)
+        Mapping.erase(V);
+      Info.popLastNVariables(E.IsSigned, E.ValuesToRelease.size());
       DFSInStack.pop_back();
     }
 
@@ -987,29 +997,40 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
     if (!R.isValid(Info, S.PtrKnownSafeBound, DL))
       continue;
 
-    for (auto &KV : NewIndices)
-      Info.getValue2Index(CmpInst::isSigned(CB.Condition->getPredicate()))
-          .insert(KV);
 
     LLVM_DEBUG(dbgs() << "Adding " << *CB.Condition << " " << CB.Not << "\n");
     bool Added = false;
+    bool FirstAdded = false;
     for (auto &E : R.Constraints) {
       auto &CSToUse = Info.getCS(E.IsSigned);
       if (E.Coefficients.empty())
         continue;
 
-      LLVM_DEBUG({
-        dbgs() << "  constraint: ";
-        dumpWithNames(E, Info.getValue2Index(E.IsSigned));
-      });
-
       Added |= CSToUse.addVariableRowFill(E.Coefficients);
 
       // If R has been added to the system, queue it for removal once it goes
       // out-of-scope.
-      if (Added)
+      if (Added) {
+        for (auto &KV : NewIndices)
+          Info.getValue2Index(CmpInst::isSigned(CB.Condition->getPredicate()))
+              .insert(KV);
+
+        SmallVector<Value *, 2> ValuesToRelease;
+        if (!FirstAdded) {
+          for (auto &KV : NewIndices) {
+            ValuesToRelease.push_back(KV.first);
+          }
+          FirstAdded = true;
+        }
+
+        LLVM_DEBUG({
+          dbgs() << "  constraint: ";
+          dumpWithNames(E, Info.getValue2Index(E.IsSigned));
+        });
+
         DFSInStack.emplace_back(CB.NumIn, CB.NumOut, CB.Condition, CB.Not,
-                                E.IsSigned);
+                                E.IsSigned, ValuesToRelease);
+      }
     }
   }
 
