@@ -134,9 +134,7 @@ bool ThreadPlanStepOverBreakpoint::WillStop() {
   return true;
 }
 
-void ThreadPlanStepOverBreakpoint::WillPop() {
-  ReenableBreakpointSite();
-}
+void ThreadPlanStepOverBreakpoint::DidPop() { ReenableBreakpointSite(); }
 
 bool ThreadPlanStepOverBreakpoint::MischiefManaged() {
   lldb::addr_t pc_addr = GetThread().GetRegisterContext()->GetPC();
