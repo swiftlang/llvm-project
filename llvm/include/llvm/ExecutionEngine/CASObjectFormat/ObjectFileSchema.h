@@ -235,11 +235,23 @@ private:
                                            uint64_t AlignmentOffset);
 };
 
-/// An array of fixup offsets and kinds.
+/// The kind and offset of a fixup (e.g., for a relocation).
+struct Fixup {
+  jitlink::Edge::Kind Kind;
+  jitlink::Edge::OffsetT Offset;
+
+  bool operator==(const Fixup &RHS) const {
+    return Kind == RHS.Kind && Offset == RHS.Offset;
+  }
+  bool operator!=(const Fixup &RHS) const { return !operator==(RHS); }
+};
+
+/// An encoded list of \a Fixup.
 ///
-/// FIXME: Consider embedding in \a BlockRef when this can be encoded into
-/// something small (e.g., smaller than the cost of a reference), rather than
-/// splitting out a separate object.
+/// FIXME: Encode kinds separately from what jitlink has, since they're not
+/// stable.
+///
+/// FIXME: Make the encoding smaller.
 ///
 /// Note that random access to fixups is not important; consumers can decode as
 /// they iterate through. As such, a tight encoding could be:
@@ -251,26 +263,68 @@ private:
 /// number of fixups would be determined by iterating through.
 ///
 /// In a small function with only one fixup, this would cost 2B total.
+class FixupList {
+public:
+  class iterator
+      : public iterator_facade_base<iterator, std::forward_iterator_tag,
+                                    const Fixup> {
+    friend class FixupList;
+
+  public:
+    const Fixup &operator*() const { return *F; }
+    iterator &operator++() {
+      ++I;
+      decode();
+      return *this;
+    }
+
+    bool operator==(const iterator &RHS) const {
+      return I == RHS.I && Data.begin() == RHS.Data.begin() &&
+             Data.end() == RHS.Data.end();
+    }
+
+  private:
+    void decode();
+
+    /// Get the size. This is private so that clients don't depend on it, since
+    /// it'll be removed later.
+    size_t getNumEdges() const {
+      return Data.size() /
+             (sizeof(jitlink::Edge::Kind) + sizeof(jitlink::Edge::OffsetT));
+    }
+
+    struct EndTag {};
+    iterator(EndTag, StringRef Data) : Data(Data), I(getNumEdges()) {}
+    explicit iterator(StringRef Data) : Data(Data) { decode(); }
+
+    StringRef Data;
+    size_t I = 0;
+    Optional<Fixup> F;
+  };
+
+  iterator begin() const { return iterator(Data); }
+  iterator end() const { return iterator(iterator::EndTag{}, Data); }
+
+  static void encode(ArrayRef<const jitlink::Edge *> Edges,
+                     SmallVectorImpl<char> &Data);
+
+  static void encode(ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data);
+
+  FixupList() = default;
+  explicit FixupList(StringRef Data) : Data(Data) {}
+
+private:
+  StringRef Data;
+};
+
+/// An array of fixup offsets and kinds.
+///
+/// FIXME: Consider embedding in \a BlockRef when this can be encoded into
+/// something small (e.g., smaller than the cost of a reference), rather than
+/// splitting out a separate object.
 class FixupListRef : public LeafRef<FixupListRef> {
   using LeafRefT = LeafRef<FixupListRef>;
   friend class LeafRef<FixupListRef>;
-
-  // FIXME: Is this ABI-stable, or should we use something bigger in case we
-  // need more space in the future?
-  //
-  // Lang: Might as well use 16 bits or 32 bits, for expansion purposes. E.g.,
-  // X86 generic edges: only difference is whether linker can consider it a
-  // candidate for optimization.
-  // Duncan: should that be a property of the fixup or the target?
-  // Lang: came up in jitlink plugins for indirection, when synthesizing a jump
-  // stub for PLT. Do the same thing with a permanent ability to indirect. Need
-  // to think more.
-  //
-  // FIXME: Formalize CAS types separately from what jitlink has.
-  using SerializedKindT = jitlink::Edge::Kind;
-  using SerializedOffsetT = jitlink::Edge::OffsetT;
-  static constexpr size_t SerializedFixupSize =
-      sizeof(SerializedKindT) + sizeof(SerializedOffsetT);
 
 public:
   static constexpr StringLiteral KindString = "cas.o:fixup-list";
@@ -279,9 +333,7 @@ public:
   static Expected<FixupListRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
-  size_t getNumEdges() const { return getData().size() / SerializedFixupSize; }
-  jitlink::Edge::OffsetT getFixupOffset(size_t I) const;
-  jitlink::Edge::Kind getFixupKind(size_t I) const;
+  FixupList getFixups() const { return FixupList(getData()); }
 
   static Expected<FixupListRef> create(ObjectFileSchema &Schema,
                                        ArrayRef<const jitlink::Edge *> Edges);
@@ -562,11 +614,7 @@ public:
   Expected<BlockDataRef> getData() const {
     return BlockDataRef::get(getSchema(), getDataID());
   }
-  Expected<Optional<FixupListRef>> getFixups() const {
-    if (Optional<cas::CASID> Fixups = getFixupsID())
-      return FixupListRef::get(getSchema(), *Fixups);
-    return None;
-  }
+  Expected<FixupList> getFixups() const;
   Expected<Optional<TargetInfoListRef>> getTargetInfo() const {
     if (Optional<cas::CASID> TargetInfo = getTargetInfoID())
       return TargetInfoListRef::get(getSchema(), *TargetInfo);

@@ -421,15 +421,18 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
   ASSERT_TRUE(Block);
   EXPECT_TRUE(Block->hasEdges());
   Optional<TargetInfoListRef> TargetInfoList = cantFail(Block->getTargetInfo());
-  Optional<FixupListRef> FixupList = cantFail(Block->getFixups());
+  FixupList Fixups = cantFail(Block->getFixups());
   Optional<TargetListRef> TargetList = cantFail(Block->getTargets());
-  ASSERT_EQ(std::extent<decltype(AddOrder)>::value, FixupList->getNumEdges());
+  ASSERT_EQ(std::extent<decltype(AddOrder)>::value,
+            size_t(std::distance(Fixups.begin(), Fixups.end())));
   ASSERT_EQ(std::extent<decltype(AddOrder)>::value,
             TargetInfoList->getNumEdges());
   ASSERT_EQ(3u, TargetList->getNumTargets());
 
   // Check the fixups and targets, in sorted order.
-  for (size_t I = 0, E = std::extent<decltype(AddOrder)>::value; I != E; ++I) {
+  FixupList::iterator F = Fixups.begin();
+  for (size_t I = 0, E = std::extent<decltype(AddOrder)>::value; I != E;
+       ++I, ++F) {
     size_t TargetIndex = TargetInfoList->getTargetIndex(I);
     ASSERT_LT(TargetIndex, TargetList->getNumTargets());
     Optional<TargetRef> Target =
@@ -438,8 +441,8 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
     TargetRef ExpectedTarget = *CreatedSymbols.lookup(Targets[I]);
 
     // These are easy to test.
-    EXPECT_EQ(Kinds[I], FixupList->getFixupKind(I));
-    EXPECT_EQ(Offsets[I], FixupList->getFixupOffset(I));
+    EXPECT_EQ(Kinds[I], F->Kind);
+    EXPECT_EQ(Offsets[I], F->Offset);
     EXPECT_EQ(ExpectedTarget.getID(), Target->getID());
     EXPECT_EQ(Addends[I], TargetInfoList->getAddend(I));
   }

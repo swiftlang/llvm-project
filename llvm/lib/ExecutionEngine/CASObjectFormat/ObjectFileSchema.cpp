@@ -358,13 +358,60 @@ Expected<BlockDataRef> BlockDataRef::createContent(ObjectFileSchema &Schema,
   return createImpl(Schema, *Blob, Content.size(), Alignment, AlignmentOffset);
 }
 
+template <class EdgesT, class GetOffsetT, class GetKindT>
+static void encodeFixups(EdgesT &Edges, GetKindT GetKind, GetOffsetT GetOffset,
+                         SmallVectorImpl<char> &Data) {
+  raw_svector_ostream OS(Data);
+  support::endian::Writer EW(OS, support::endianness::little);
+  for (auto &E : Edges)
+    EW.write(GetOffset(E));
+
+  // FIXME: Kinds should be numbered in a stable way, not just rely on
+  // Edge::Kind.
+  for (auto &E : Edges)
+    EW.write(GetKind(E));
+}
+
+void FixupList::encode(ArrayRef<const jitlink::Edge *> Edges,
+                       SmallVectorImpl<char> &Data) {
+  encodeFixups(
+      Edges, [](const jitlink::Edge *E) { return E->getKind(); },
+      [](const jitlink::Edge *E) { return E->getOffset(); }, Data);
+}
+
+void FixupList::encode(ArrayRef<Fixup> Edges, SmallVectorImpl<char> &Data) {
+  encodeFixups(
+      Edges, [](const Fixup &F) { return F.Kind; },
+      [](const Fixup &F) { return F.Offset; }, Data);
+}
+
+void FixupList::iterator::decode() {
+  assert(I <= getNumEdges() && "past the end");
+  if (I == getNumEdges()) {
+    F = None;
+    return;
+  }
+
+  using namespace llvm::support;
+  F.emplace();
+  F->Offset = endian::read<jitlink::Edge::OffsetT, endianness::little, aligned>(
+      Data.begin() + I * sizeof(jitlink::Edge::OffsetT));
+
+  F->Kind = endian::read<jitlink::Edge::Kind, endianness::little, aligned>(
+      Data.begin() + getNumEdges() * sizeof(jitlink::Edge::OffsetT) +
+      I * sizeof(jitlink::Edge::Kind));
+}
+
 Expected<FixupListRef> FixupListRef::get(Expected<ObjectFormatNodeRef> Ref) {
   auto Leaf = LeafRefT::getLeaf(std::move(Ref));
   if (!Leaf)
     return Leaf.takeError();
 
   FixupListRef List(*Leaf);
-  if (List.getNumEdges() * SerializedFixupSize != List.getData().size())
+  size_t SerializedFixupSize =
+      sizeof(jitlink::Edge::Kind) + sizeof(jitlink::Edge::OffsetT);
+  size_t NumEdges = List.getData().size() / SerializedFixupSize;
+  if (NumEdges * SerializedFixupSize != List.getData().size())
     return createStringError(inconvertibleErrorCode(), "corrupt fixup list");
   return List;
 }
@@ -373,36 +420,11 @@ Expected<FixupListRef>
 FixupListRef::create(ObjectFileSchema &Schema,
                      ArrayRef<const jitlink::Edge *> Edges) {
   SmallString<1024> Data;
-  Data.reserve(Edges.size() * sizeof(SerializedKindT));
-
-  raw_svector_ostream OS(Data);
-  support::endian::Writer EW(OS, support::endianness::little);
-  for (const jitlink::Edge *Edge : Edges)
-    EW.write(SerializedOffsetT(Edge->getOffset()));
-
-  // FIXME: Kinds should be numbered in a stable way, not just rely on
-  // Edge::Kind.
-  for (const jitlink::Edge *Edge : Edges)
-    EW.write(SerializedKindT(Edge->getKind()));
+  FixupList::encode(Edges, Data);
 
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
   return get(Schema.createNode(*KindID, Data));
-}
-
-jitlink::Edge::OffsetT FixupListRef::getFixupOffset(size_t I) const {
-  assert(I < getNumEdges());
-  using namespace llvm::support;
-  return endian::read<SerializedOffsetT, endianness::little, aligned>(
-      getData().begin() + I * sizeof(SerializedOffsetT));
-}
-
-jitlink::Edge::Kind FixupListRef::getFixupKind(size_t I) const {
-  assert(I < getNumEdges());
-  using namespace llvm::support;
-  return endian::read<SerializedKindT, endianness::little, aligned>(
-      getData().begin() + getNumEdges() * sizeof(SerializedOffsetT) +
-      I * sizeof(SerializedKindT));
 }
 
 Expected<TargetInfoListRef>
@@ -615,6 +637,17 @@ Expected<SectionRef> SectionRef::get(Expected<ObjectFormatNodeRef> Ref) {
     return createStringError(inconvertibleErrorCode(), "corrupt section");
 
   return SectionRef(*Specific);
+}
+
+Expected<FixupList> BlockRef::getFixups() const {
+  Optional<cas::CASID> FixupsID = getFixupsID();
+  if (!FixupsID)
+    return FixupList("");
+
+  if (Expected<FixupListRef> Fixups = FixupListRef::get(getSchema(), *FixupsID))
+    return Fixups->getFixups();
+  else
+    return Fixups.takeError();
 }
 
 Expected<SectionRef> SectionRef::create(ObjectFileSchema &Schema,
@@ -2186,9 +2219,9 @@ Error LinkGraphBuilder::addEdges(jitlink::Symbol &ForSymbol, jitlink::Block &B,
   if (!Block.hasEdges())
     return Error::success();
 
-  Expected<Optional<FixupListRef>> ExpectedFixups = Block.getFixups();
-  if (!ExpectedFixups)
-    return ExpectedFixups.takeError();
+  Expected<FixupList> Fixups = Block.getFixups();
+  if (!Fixups)
+    return Fixups.takeError();
   Expected<Optional<TargetInfoListRef>> ExpectedTargetInfo =
       Block.getTargetInfo();
   if (!ExpectedTargetInfo)
@@ -2197,16 +2230,20 @@ Error LinkGraphBuilder::addEdges(jitlink::Symbol &ForSymbol, jitlink::Block &B,
   if (!ExpectedTargets)
     return ExpectedTargets.takeError();
 
-  FixupListRef Fixups = **ExpectedFixups;
   TargetInfoListRef TargetInfo = **ExpectedTargetInfo;
   TargetListRef Targets = **ExpectedTargets;
 
-  if (Fixups.getNumEdges() != TargetInfo.getNumEdges())
+  auto createMismatchError = []() {
     return createStringError(
         inconvertibleErrorCode(),
         "invalid edge-list with mismatched fixups and targets");
+  };
 
-  for (size_t I = 0, E = Fixups.getNumEdges(); I != E; ++I) {
+  FixupList::iterator F = Fixups->begin(), FE = Fixups->end();
+  for (size_t I = 0, E = TargetInfo.getNumEdges(); I != E; ++I, ++F) {
+    if (F == FE)
+      return createMismatchError();
+
     size_t TargetIndex = TargetInfo.getTargetIndex(I);
     if (TargetIndex >= Targets.getNumTargets())
       return createStringError(inconvertibleErrorCode(),
@@ -2216,23 +2253,22 @@ Error LinkGraphBuilder::addEdges(jitlink::Symbol &ForSymbol, jitlink::Block &B,
     bool IsAbstractBackedge = false;
     Expected<jitlink::Symbol *> Target = getOrCreateSymbol(
         Targets.getTarget(TargetIndex), &IsAbstractBackedge,
-        Fixups.getFixupKind(I) == jitlink::Edge::KeepAlive ? &ForSymbol
-                                                           : nullptr);
+        F->Kind == jitlink::Edge::KeepAlive ? &ForSymbol : nullptr);
     if (!Target)
       return Target.takeError();
 
     if (IsAbstractBackedge) {
       assert(AddAbstractBackedge);
-      AddAbstractBackedge(Fixups.getFixupKind(I), Fixups.getFixupOffset(I),
-                          TargetInfo.getAddend(I));
+      AddAbstractBackedge(F->Kind, F->Offset, TargetInfo.getAddend(I));
       continue;
     }
 
     // Pass in this block's KeptAliveByBlock for edges.
     assert(*Target && "Expected non-null symbol for target");
-    B.addEdge(Fixups.getFixupKind(I), Fixups.getFixupOffset(I), **Target,
-              TargetInfo.getAddend(I));
+    B.addEdge(F->Kind, F->Offset, **Target, TargetInfo.getAddend(I));
   }
+  if (F != FE)
+    return createMismatchError();
 
   return Error::success();
 }
