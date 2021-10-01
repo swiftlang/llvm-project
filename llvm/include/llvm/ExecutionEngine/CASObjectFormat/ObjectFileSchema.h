@@ -32,6 +32,10 @@ public:
 
   ObjectFileSchema &getSchema() const { return *Schema; }
 
+  bool operator==(const ObjectFormatNodeRef &RHS) const {
+    return Schema == RHS.Schema && cas::CASID(*this) == cas::CASID(RHS);
+  }
+
   ObjectFormatNodeRef() = delete;
 
 protected:
@@ -481,6 +485,35 @@ private:
 };
 
 /// An array of targets.
+class TargetList {
+public:
+  bool empty() const { return !size(); }
+  size_t size() const { return Last - First; }
+
+  Expected<TargetRef> operator[](size_t I) const { return get(I); }
+  Expected<TargetRef> get(size_t I) const {
+    assert(I < size() && "past the end");
+    return TargetRef::get(Node->getSchema(), Node->getReference(I + 1));
+  }
+
+  bool hasAbstractBackedge() const { return HasAbstractBackedge; }
+
+  TargetList() = default;
+  explicit TargetList(ObjectFormatNodeRef Node, bool HasAbstractBackedge,
+                      size_t First, size_t Last)
+      : Node(Node), First(First), Last(Last),
+        HasAbstractBackedge(HasAbstractBackedge) {
+    assert(Last == this->Last && "Unexpected overflow");
+  }
+
+private:
+  Optional<ObjectFormatNodeRef> Node;
+  uint32_t First = 0;
+  uint32_t Last = 0;
+  bool HasAbstractBackedge = false;
+};
+
+/// An array of targets.
 ///
 /// FIXME: Consider appending to \a BlockRef's references when there is only
 /// one target, only using a separate object when there are at least two.
@@ -495,10 +528,9 @@ public:
 
   size_t getNumTargets() const { return getNumReferences() - 1; }
 
-  Expected<TargetRef> getTarget(size_t I) const {
-    return TargetRef::get(getSchema(), getTargetID(I));
+  TargetList getTargets() const {
+    return TargetList(*this, hasAbstractBackedge(), 1, getNumTargets() + 1);
   }
-  cas::CASID getTargetID(size_t I) const { return getReference(I + 1); }
 
   /// Create the given target list. Does not sort the targets, since it's
   /// assumed the order is already relevant.
@@ -551,6 +583,8 @@ public:
                                             cas::BlobRef Name, bool IsExternal);
   static Expected<IndirectSymbolRef> create(ObjectFileSchema &Schema,
                                             StringRef Name, bool IsExternal);
+  static Expected<IndirectSymbolRef>
+  createAbstractBackedge(ObjectFileSchema &Schema);
   static Expected<IndirectSymbolRef> create(ObjectFileSchema &Schema,
                                             const jitlink::Symbol &S);
 
@@ -680,11 +714,7 @@ public:
   }
   Expected<FixupList> getFixups() const;
   Expected<TargetInfoList> getTargetInfo() const;
-  Expected<Optional<TargetListRef>> getTargets() const {
-    if (Optional<cas::CASID> Targets = getTargetsID())
-      return TargetListRef::get(getSchema(), *Targets);
-    return None;
-  }
+  Expected<TargetList> getTargets() const;
 
   static Expected<BlockRef>
   create(ObjectFileSchema &Schema, const jitlink::Block &Block,

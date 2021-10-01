@@ -9,6 +9,7 @@ add_llvm_unittest(CASObjectFormatTests
   FixupListTest.cpp
   ObjectFileSchemaTest.cpp
   TargetInfoListTest.cpp
+  TargetListTest.cpp
   )
 
 target_link_libraries(CASObjectFormatTests PRIVATE LLVMTestingSupport)

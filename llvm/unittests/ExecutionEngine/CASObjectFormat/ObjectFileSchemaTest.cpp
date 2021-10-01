@@ -422,21 +422,20 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
   EXPECT_TRUE(Block->hasEdges());
   TargetInfoList TIs = cantFail(Block->getTargetInfo());
   FixupList Fixups = cantFail(Block->getFixups());
-  Optional<TargetListRef> TargetList = cantFail(Block->getTargets());
+  TargetList BlockTargets = cantFail(Block->getTargets());
   ASSERT_EQ(std::extent<decltype(AddOrder)>::value,
             size_t(std::distance(Fixups.begin(), Fixups.end())));
   ASSERT_EQ(std::extent<decltype(AddOrder)>::value,
             size_t(std::distance(TIs.begin(), TIs.end())));
-  ASSERT_EQ(3u, TargetList->getNumTargets());
+  ASSERT_EQ(3u, BlockTargets.size());
 
   // Check the fixups and targets, in sorted order.
   FixupList::iterator F = Fixups.begin();
   TargetInfoList::iterator TI = TIs.begin();
   for (size_t I = 0, E = std::extent<decltype(AddOrder)>::value; I != E;
        ++I, ++F, ++TI) {
-    ASSERT_LT(TI->Index, TargetList->getNumTargets());
-    Optional<TargetRef> Target =
-        expectedToOptional(TargetList->getTarget(TI->Index));
+    ASSERT_LT(TI->Index, BlockTargets.size());
+    Optional<TargetRef> Target = expectedToOptional(BlockTargets[TI->Index]);
     ASSERT_TRUE(Target);
     TargetRef ExpectedTarget = *CreatedSymbols.lookup(Targets[I]);
 

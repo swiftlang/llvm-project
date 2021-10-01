@@ -168,6 +168,11 @@ Expected<IndirectSymbolRef> IndirectSymbolRef::create(ObjectFileSchema &Schema,
 }
 
 Expected<IndirectSymbolRef>
+IndirectSymbolRef::createAbstractBackedge(ObjectFileSchema &Schema) {
+  return create(Schema, AbstractBackedgeSymbolName, /*IsExternal=*/false);
+}
+
+Expected<IndirectSymbolRef>
 IndirectSymbolRef::create(ObjectFileSchema &Schema, const jitlink::Symbol &S) {
   assert(S.hasName() && "Anonymous symbols not supported here");
   return create(Schema, S.getName(), S.isExternal());
@@ -655,6 +660,17 @@ Expected<TargetInfoList> BlockRef::getTargetInfo() const {
     return TIs->getTargetInfo();
   else
     return TIs.takeError();
+}
+
+Expected<TargetList> BlockRef::getTargets() const {
+  Optional<cas::CASID> TargetsID = getTargetsID();
+  if (!TargetsID)
+    return TargetList();
+  if (Expected<TargetListRef> Targets =
+          TargetListRef::get(getSchema(), *TargetsID))
+    return Targets->getTargets();
+  else
+    return Targets.takeError();
 }
 
 Expected<SectionRef> SectionRef::create(ObjectFileSchema &Schema,
@@ -2225,11 +2241,9 @@ Error LinkGraphBuilder::addEdges(jitlink::Symbol &ForSymbol, jitlink::Block &B,
   Expected<TargetInfoList> TIs = Block.getTargetInfo();
   if (!TIs)
     return TIs.takeError();
-  Expected<Optional<TargetListRef>> ExpectedTargets = Block.getTargets();
-  if (!ExpectedTargets)
-    return ExpectedTargets.takeError();
-
-  TargetListRef Targets = **ExpectedTargets;
+  Expected<TargetList> Targets = Block.getTargets();
+  if (!Targets)
+    return Targets.takeError();
 
   auto createMismatchError = []() {
     return createStringError(
@@ -2240,14 +2254,14 @@ Error LinkGraphBuilder::addEdges(jitlink::Symbol &ForSymbol, jitlink::Block &B,
   FixupList::iterator F = Fixups->begin(), FE = Fixups->end();
   TargetInfoList::iterator TI = TIs->begin(), TIE = TIs->end();
   for (; F != FE && TI != TIE; ++F, ++TI) {
-    if (TI->Index >= Targets.getNumTargets())
+    if (TI->Index >= Targets->size())
       return createStringError(inconvertibleErrorCode(),
                                "target index too big for target-list");
 
     // Pass this block down for KeepAlive edges.
     bool IsAbstractBackedge = false;
     Expected<jitlink::Symbol *> Target = getOrCreateSymbol(
-        Targets.getTarget(TI->Index), &IsAbstractBackedge,
+        Targets->get(TI->Index), &IsAbstractBackedge,
         F->Kind == jitlink::Edge::KeepAlive ? &ForSymbol : nullptr);
     if (!Target)
       return Target.takeError();
