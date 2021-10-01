@@ -16,6 +16,14 @@ namespace llvm {
 namespace casobjectformat {
 
 class ObjectFileSchema;
+
+/// An object in "cas.o:", using the first CAS reference as a type-id. This
+/// type-id is useful for error checking and collecting statistics.
+///
+/// FIXME: Consider using the first 8B (or 1B!) of the data for the type-id
+/// instead... or, drop the type-id entirely except when it's needed to
+/// distinguish the type of a referenced object. (Note that dropping the
+/// type-id would break \a getKindString().)
 class ObjectFormatNodeRef : public cas::NodeRef {
 public:
   static Expected<ObjectFormatNodeRef> get(ObjectFileSchema &Schema,
@@ -59,6 +67,7 @@ private:
   Error fillCache();
 };
 
+/// A type-checked reference to a node of a specific kind.
 template <class DerivedT, class FinalT = DerivedT>
 class SpecificRef : public ObjectFormatNodeRef {
 protected:
@@ -82,6 +91,8 @@ protected:
   SpecificRef(ObjectFormatNodeRef Ref) : ObjectFormatNodeRef(Ref) {}
 };
 
+/// A type-checked reference to a node of a specific kind that is known to be a
+/// leaf.
 template <class DerivedT>
 class LeafRef : public SpecificRef<LeafRef<DerivedT>, DerivedT> {
   using SpecificRefT = SpecificRef<LeafRef<DerivedT>, DerivedT>;
@@ -129,6 +140,8 @@ protected:
 /// This would not capitalize on redundancy between symbol names and section
 /// names, maybe that doesn't matter in practice. Or maybe it only matters
 /// sometimes. Not clear.
+///
+/// FIXME: Should the section object (optionally) be embedded in its users?
 class SectionRef : public SpecificRef<SectionRef> {
   using SpecificRefT = SpecificRef<SectionRef>;
   friend class SpecificRef<SectionRef>;
@@ -223,6 +236,21 @@ private:
 };
 
 /// An array of fixup offsets and kinds.
+///
+/// FIXME: Consider embedding in \a BlockRef when this can be encoded into
+/// something small (e.g., smaller than the cost of a reference), rather than
+/// splitting out a separate object.
+///
+/// Note that random access to fixups is not important; consumers can decode as
+/// they iterate through. As such, a tight encoding could be:
+///
+///     ( Kind RelativeOffset )*
+///
+/// where Kind is 1B, and RelativeOffset is 1+B in vbr8 format, storing the
+/// offset from the previous fixup instead of from the start of the data. The
+/// number of fixups would be determined by iterating through.
+///
+/// In a small function with only one fixup, this would cost 2B total.
 class FixupListRef : public LeafRef<FixupListRef> {
   using LeafRefT = LeafRef<FixupListRef>;
   friend class LeafRef<FixupListRef>;
@@ -264,6 +292,24 @@ private:
 
 /// An array of target indices and addends, parallel to \a FixupListRef. The
 /// target indexes point into an associated \a TargetListRef.
+///
+/// FIXME: Consider embedding in \a BlockRef when this can be encoded into
+/// something small (e.g., smaller than the cost of a reference), rather than
+/// splitting out a separate object.
+///
+/// The encoding itself can also be optimized.
+/// - The addend is often 0, as many fixups don't use the field.
+/// - The size of a target index is bounded by the number of fixups.
+///
+/// A tight encoding could be:
+///
+///     NumIndexBits ( HasAddend Addend? Index )*
+///
+/// where NumIndexBits is 1B, HasAddend is 1-bit, Addend (when present) is
+/// signed-vbr8, and Index is NumIndexBits-bits.
+///
+/// A target info list with one target would usually be 1B (no addend needs
+/// 2 bits) or 2B (addend between -63 and 64 needs 10 bits).
 class TargetInfoListRef : public LeafRef<TargetInfoListRef> {
   using LeafRefT = LeafRef<TargetInfoListRef>;
   friend class LeafRef<TargetInfoListRef>;
@@ -319,6 +365,9 @@ private:
 };
 
 /// An array of targets.
+///
+/// FIXME: Consider appending to \a BlockRef's references when there is only
+/// one target, only using a separate object when there are at least two.
 class TargetListRef : public SpecificRef<TargetListRef> {
   using SpecificRefT = SpecificRef<TargetListRef>;
   friend class SpecificRef<TargetListRef>;
@@ -450,30 +499,40 @@ private:
 /// section.)
 ///
 /// FIXME: In the CAS-to-Mach-O converter, some sections will need semantic
-/// sorting of blocks (e.g., EH frames: CFEs before FDEs).
+/// sorting of blocks (e.g., EH frames: CFEs before FDEs). Maybe this could be
+/// modelled with a bit to indicate layout should be post-order?
 ///
-/// FIXME: Evaluate the following (major) refactoring:
+/// FIXME: Hide 'section', 'block-data', 'fixup-list', 'target-info-list', and
+/// 'target-list' from the public API of \a BlockRef, making the schema an
+/// implementation detail. This allows them to be encoded as data (instead of
+/// expensive CAS object references) when they are small. E.g.:
 ///
-/// - Delete the current 'edge-list' and 'target-list', which don't seem
-///   effective at exploiting redundancy.
-/// - Create a new 'target-list' that only stores TargetRef, sorted by target.
-///   This should get us some redundancy when the list of symbols referenced
-///   changes independently of the list addends or edge order. Mostly similar
-///   to 'symbol-table', but a different sort order and it can reference
-///   'indirect-symbol'.
-/// - Create a data-only 'edge-list' that is a parallel array to 'fixup-list',
-///   containing indexes into 'target-list' and addends.
-/// - Reference 'edge-list' and 'target-list' directly from 'block' (they
-///   should not reference each other).
+/// - Inline single-element target lists, storing the target directly rather
+///   than adding an unnecessary indirection.
 ///
-/// FIXME: Sink 'fixup-list' down to 'block-data'.
+/// - Evaluate storing fixup-list and target-info-list as data when they are
+///   small "enough". Tight encodings will often cost only a few bytes, whereas
+///   a CAS reference is at least the size of a hash. A simple rule: store
+///   inline if there are only 8 (or fewer) fixups.
 ///
-/// FIXME: Consider sinking 'section' down to 'block-data' (maybe even inlining
-/// it there). This reduces the size of 'block'. A bad idea if we support
-/// ELF/COFF section names in 'section' -- especially COMDATs -- since that
-/// will explode the number of 'block-data'... but probably COMDATs and
-/// function sections should be modelled at a higher level, not even referenced
-/// by 'block'.
+/// - Evaluate storing small block-data objects inline as pure data (especially
+///   zero-fill). The size, alignment, and alignment-offset can be stored
+///   compactly, and if the content is only a few bytes the overhead of a CAS
+///   reference is unnecessary. A simple rule: store inline whenever the
+///   content is only 16B (or smaller).
+///
+/// - Consider sinking 'fixup-list' down to 'block-data', since they may change
+///   in tandem.
+///
+/// - Consider sinking 'section' down to 'block-data' (maybe even inlining it
+///   there). This reduces the size of 'block'. A bad idea if we support
+///   ELF/COFF section names in 'section' -- especially COMDATs -- since that
+///   will explode the number of 'block-data'... but probably COMDATs and
+///   function sections should be modelled at a higher level, not even
+///   referenced by 'block'.
+///
+/// Note: the primary goal is not to avoid creation of small objects, but to
+/// remove indirection.
 class BlockRef : public SpecificRef<BlockRef> {
   using SpecificRefT = SpecificRef<BlockRef>;
   friend class SpecificRef<BlockRef>;
