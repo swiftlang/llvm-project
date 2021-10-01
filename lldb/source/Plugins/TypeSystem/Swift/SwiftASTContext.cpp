@@ -4538,20 +4538,6 @@ static SwiftASTContext::TypeOrDecl DeclToTypeOrDecl(swift::ASTContext *ast,
                                                     swift::Decl *decl) {
   if (decl) {
     switch (decl->getKind()) {
-    case swift::DeclKind::Import:
-    case swift::DeclKind::Extension:
-    case swift::DeclKind::PatternBinding:
-    case swift::DeclKind::TopLevelCode:
-    case swift::DeclKind::GenericTypeParam:
-    case swift::DeclKind::AssociatedType:
-    case swift::DeclKind::EnumElement:
-    case swift::DeclKind::EnumCase:
-    case swift::DeclKind::IfConfig:
-    case swift::DeclKind::Param:
-    case swift::DeclKind::Module:
-    case swift::DeclKind::MissingMember:
-      break;
-
     case swift::DeclKind::InfixOperator:
     case swift::DeclKind::PrefixOperator:
     case swift::DeclKind::PostfixOperator:
@@ -4580,13 +4566,7 @@ static SwiftASTContext::TypeOrDecl DeclToTypeOrDecl(swift::ASTContext *ast,
     case swift::DeclKind::Var:
       return decl;
 
-    case swift::DeclKind::Subscript:
-    case swift::DeclKind::Constructor:
-    case swift::DeclKind::Destructor:
-      break;
-
-    case swift::DeclKind::Accessor:
-    case swift::DeclKind::PoundDiagnostic:
+    default:
       break;
     }
   }
