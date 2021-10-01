@@ -41,6 +41,7 @@
 
 #include <algorithm>
 #include <sstream>
+#include <regex>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -307,6 +308,65 @@ GetClangTypeNode(CompilerType clang_type, swift::Demangle::Demangler &dem,
     kind = Node::Kind::TypeAlias;
     pointee = {};
     break;
+  case eTypeClassVector: {
+    CompilerType element_type;
+    uint64_t size;
+    bool is_vector = clang_type.IsVectorType(&element_type, &size);
+    if (!is_vector)
+      break;
+
+    // Check if this is a SIMD type. For a vector this is something like
+    // type __attribute__((ext_vector_type(dimension))).
+    if (!clang_name.contains("__attribute__((ext_vector_type"))
+      break;
+
+    // Build a tree with this structure:
+    // kind=BoundGenericStructure
+    //   kind=Type
+    //     kind=Structure
+    //       kind=Module, text="Swift"
+    //       kind=Identifier, text="SIMDN"
+    //   kind=TypeList
+    //     kind=Type
+    //       kind=Structure
+    //         kind=Module, text="Swift"
+    //         kind=Identifier, text="Type"
+    NodePointer element_type_node =
+        GetClangTypeNode(element_type, dem, swift_ast_context);
+    NodePointer type_list = dem.createNode(Node::Kind::TypeList);
+    type_list->addChild(element_type_node, dem);
+    NodePointer identifier =
+        dem.createNode(Node::Kind::Identifier, "SIMD" + std::to_string(size));
+    NodePointer module = dem.createNode(Node::Kind::Module, "Swift");
+    NodePointer structure = dem.createNode(Node::Kind::Structure);
+    structure->addChild(module, dem);
+    structure->addChild(identifier, dem);
+    NodePointer type = dem.createNode(Node::Kind::Type);
+    type->addChild(structure, dem);
+    NodePointer signature = dem.createNode(Node::Kind::BoundGenericStructure);
+    signature->addChild(type, dem);
+    signature->addChild(type_list, dem);
+    NodePointer outer_type = dem.createNode(Node::Kind::Type);
+    outer_type->addChild(signature, dem);
+    return outer_type;
+  }
+  case eTypeClassStruct: {
+    // Check if this is a SIMD type. SIMD structs are matrixes, and they're
+    // in the format simd_typeNxN.
+    // Regex: start with simd_ and end with NxN.
+    std::regex simd_matrix_recognizer("^simd_.*[0-9]+x[0-9]+");
+    if (!std::regex_match(clang_name.begin(), simd_matrix_recognizer))
+      break;
+
+    NodePointer identifier = dem.createNode(Node::Kind::Identifier, clang_name);
+    NodePointer module = dem.createNode(Node::Kind::Module, "simd");
+    NodePointer struct_ = dem.createNode(Node::Kind::Structure);
+    struct_->addChild(module, dem);
+    struct_->addChild(identifier, dem);
+    NodePointer type = dem.createNode(Node::Kind::Type);
+    type->addChild(struct_, dem);
+    return type;
+  }
   default:
     break;
   }
