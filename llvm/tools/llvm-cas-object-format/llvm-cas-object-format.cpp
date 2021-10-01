@@ -58,7 +58,7 @@ private:
 } // namespace
 
 static CASID readFile(CASDB &CAS, StringRef InputFile, SharedStream &OS);
-static void computeStats(CASDB &CAS, CASID ID);
+static void computeStats(CASDB &CAS, ArrayRef<CASID> IDs);
 
 int main(int argc, char *argv[]) {
   ExitOnError ExitOnErr;
@@ -82,9 +82,17 @@ int main(int argc, char *argv[]) {
   }
 
   StringMap<Optional<CASID>> Files;
+  SmallVector<CASID> SummaryIDs;
   SharedStream OS(outs());
   std::mutex Lock;
   for (StringRef IF : InputFiles) {
+    auto MaybeID = CAS->parseCASID(IF);
+    if (MaybeID) {
+      SummaryIDs.emplace_back(*MaybeID);
+      continue;
+    }
+    consumeError(MaybeID.takeError());
+
     if (Pool) {
       Pool->async([&, IF]() {
         CASID ID = readFile(*CAS, IF, OS);
@@ -102,17 +110,20 @@ int main(int argc, char *argv[]) {
     Pool->wait();
 
   outs() << "\n";
-  outs() << "Making summary object...\n";
-  HierarchicalTreeBuilder Builder;
-  for (auto &File : Files)
-    Builder.push(*File.second, TreeEntry::Regular, File.first());
-  CASID SummaryID = ExitOnErr(Builder.create(*CAS));
-  outs() << "summary tree: ";
-  ExitOnErr(CAS->printCASID(outs(), SummaryID));
-  outs() << "\n";
+  if (!Files.empty()) {
+    outs() << "Making summary object...\n";
+    HierarchicalTreeBuilder Builder;
+    for (auto &File : Files)
+      Builder.push(*File.second, TreeEntry::Regular, File.first());
+    CASID SummaryID = ExitOnErr(Builder.create(*CAS));
+    SummaryIDs.emplace_back(SummaryID);
+    outs() << "summary tree: ";
+    ExitOnErr(CAS->printCASID(outs(), SummaryID));
+    outs() << "\n";
+  }
 
   if (ComputeStats)
-    computeStats(*CAS, SummaryID);
+    computeStats(*CAS, SummaryIDs);
 }
 
 namespace {
@@ -749,7 +760,7 @@ public:
 };
 } // namespace
 
-static void computeStats(CASDB &CAS, CASID TopLevel) {
+static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
   ExitOnError ExitOnErr;
   ExitOnErr.setBanner("llvm-cas-object-format: compute-stats: ");
 
@@ -779,9 +790,9 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     if (!Node.Done)
       Worklist.push_back({ID, false, Schema});
   };
-  push(TopLevel);
-
   ObjectFileSchema ObjectsSchema(CAS);
+  for (auto ID : TopLevels)
+    push(ID);
   while (!Worklist.empty()) {
     CASID ID = Worklist.back().ID;
     if (Worklist.back().Visited) {
@@ -862,7 +873,8 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   size_t NumZeroFillBlocks = 0;
   size_t Num1TargetBlocks = 0;
   size_t Num2TargetBlocks = 0;
-  Nodes[TopLevel].NumPaths = 1;
+  for (auto ID : TopLevels)
+    Nodes[ID].NumPaths = 1;
   SpecificBumpPtrAllocator<ExternalBitVector::BitWord> VectorAlloc;
   for (const POTItem &Item : llvm::reverse(POT)) {
     cas::CASID ID = Item.ID;
@@ -1015,7 +1027,7 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     Kinds.push_back(I.first());
     addToTotal(I.second);
   }
-  size_t NumHashBytes = TopLevel.getHash().size();
+  size_t NumHashBytes = TopLevels.front().getHash().size();
   llvm::sort(Kinds);
 
   outs() << "  => Note: 'Parents' counts incoming edges\n"
