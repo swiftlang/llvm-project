@@ -427,6 +427,37 @@ FixupListRef::create(ObjectFileSchema &Schema,
   return get(Schema.createNode(*KindID, Data));
 }
 
+void TargetInfoList::encode(ArrayRef<TargetInfo> TIs,
+                            SmallVectorImpl<char> &Data) {
+  // FIXME: This can be packed much smaller. Indices count from 0 and addends
+  // are often close to 0 as well.
+  raw_svector_ostream OS(Data);
+  support::endian::Writer EW(OS, support::endianness::little);
+  for (const TargetInfo &TI : TIs)
+    EW.write(int64_t(TI.Addend));
+
+  for (const TargetInfo &TI : TIs) {
+    assert(TI.Index < TIs.size() && "More targets than edges?");
+    EW.write(uint32_t(TI.Index));
+  }
+}
+
+void TargetInfoList::iterator::decode() {
+  assert(I <= getNumEdges() && "past the end");
+  if (I == getNumEdges()) {
+    TI = None;
+    return;
+  }
+
+  using namespace llvm::support;
+  TI.emplace();
+  TI->Addend = endian::read<int64_t, endianness::little, aligned>(
+      Data.begin() + I * sizeof(int64_t));
+
+  TI->Index = endian::read<uint32_t, endianness::little, aligned>(
+      Data.begin() + getNumEdges() * sizeof(int64_t) + I * sizeof(uint32_t));
+}
+
 Expected<TargetInfoListRef>
 TargetInfoListRef::get(Expected<ObjectFormatNodeRef> Ref) {
   auto Leaf = LeafRefT::getLeaf(std::move(Ref));
@@ -434,58 +465,22 @@ TargetInfoListRef::get(Expected<ObjectFormatNodeRef> Ref) {
     return Leaf.takeError();
 
   TargetInfoListRef List(*Leaf);
-  if (List.getNumEdges() * (sizeof(uint64_t) + sizeof(uint32_t)) !=
-      List.getData().size())
+  size_t SerializedTargetInfoSize = sizeof(uint64_t) + sizeof(uint32_t);
+  size_t NumEdges = List.getData().size() / SerializedTargetInfoSize;
+  if (NumEdges * SerializedTargetInfoSize != List.getData().size())
     return createStringError(inconvertibleErrorCode(),
                              "corrupt target info list");
   return List;
 }
 
 Expected<TargetInfoListRef>
-TargetInfoListRef::create(ObjectFileSchema &Schema,
-                          ArrayRef<size_t> TargetIndices,
-                          ArrayRef<jitlink::Edge::AddendT> Addends) {
-  assert(TargetIndices.size() == Addends.size());
-
-  // FIXME: This can be packed much smaller. Indices count from 0 and addends
-  // are often close to 0 as well.
+TargetInfoListRef::create(ObjectFileSchema &Schema, ArrayRef<TargetInfo> TIs) {
   SmallString<1024> Data;
-  Data.reserve(Addends.size() * sizeof(uint64_t) +
-               TargetIndices.size() * sizeof(uint32_t));
-
-  raw_svector_ostream OS(Data);
-  support::endian::Writer EW(OS, support::endianness::little);
-  for (jitlink::Edge::AddendT Addend : Addends)
-    EW.write(uint64_t(Addend));
-
-  for (size_t Index : TargetIndices) {
-    assert(Index < Addends.size() && "More targets than edges?");
-    EW.write(uint32_t(Index));
-  }
+  TargetInfoList::encode(TIs, Data);
 
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
   return get(Schema.createNode(*KindID, Data));
-}
-
-size_t TargetInfoListRef::getNumEdges() const {
-  using namespace llvm::support;
-  return getData().size() / (sizeof(uint64_t) + sizeof(uint32_t));
-}
-
-jitlink::Edge::AddendT TargetInfoListRef::getAddend(size_t I) const {
-  assert(I < getNumEdges());
-  using namespace llvm::support;
-  return endian::read<uint64_t, endianness::little, aligned>(
-      getData().begin() + I * sizeof(uint64_t));
-}
-
-size_t TargetInfoListRef::getTargetIndex(size_t I) const {
-  assert(I < getNumEdges());
-  using namespace llvm::support;
-  return endian::read<uint32_t, endianness::little, aligned>(
-      getData().begin() + getNumEdges() * sizeof(uint64_t) +
-      I * sizeof(uint32_t));
 }
 
 StringRef TargetRef::getKindString(Kind K) {
@@ -650,6 +645,18 @@ Expected<FixupList> BlockRef::getFixups() const {
     return Fixups.takeError();
 }
 
+Expected<TargetInfoList> BlockRef::getTargetInfo() const {
+  Optional<cas::CASID> TargetInfoID = getTargetInfoID();
+  if (!TargetInfoID)
+    return TargetInfoList("");
+
+  if (Expected<TargetInfoListRef> TIs =
+          TargetInfoListRef::get(getSchema(), *TargetInfoID))
+    return TIs->getTargetInfo();
+  else
+    return TIs.takeError();
+}
+
 Expected<SectionRef> SectionRef::create(ObjectFileSchema &Schema,
                                         const jitlink::Section &S) {
   Expected<cas::BlobRef> Name = Schema.CAS.createBlob(S.getName());
@@ -778,9 +785,7 @@ static bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
 
 static Error decomposeAndSortEdges(
     const jitlink::Block &Block, SmallVectorImpl<const jitlink::Edge *> &Edges,
-    SmallVectorImpl<size_t> &TargetIndices,
-    SmallVectorImpl<jitlink::Edge::AddendT> &Addends,
-    SmallVectorImpl<TargetRef> &Targets,
+    SmallVectorImpl<TargetInfo> &TIs, SmallVectorImpl<TargetRef> &Targets,
     function_ref<Expected<TargetRef>(
         const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
         jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
@@ -788,8 +793,7 @@ static Error decomposeAndSortEdges(
   assert(Block.edges_size() &&
          "Expected to only be called when there's work to do");
   assert(Edges.empty());
-  assert(TargetIndices.empty());
-  assert(Addends.empty());
+  assert(TIs.empty());
   assert(Targets.empty());
 
   // Guess whether the edges are coming from data or code.
@@ -899,13 +903,12 @@ static Error decomposeAndSortEdges(
          "No symbols should have been added by lookup!");
 
   // Fill in the addends and target indices.
-  Addends.reserve(Edges.size());
-  TargetIndices.reserve(Edges.size());
+  TIs.reserve(Edges.size());
   for (const jitlink::Edge *E : Edges) {
     EdgeTarget &ET = EdgeTargets.find(E)->second;
-    size_t I = SymbolIndex.lookup(ET.Target);
-    TargetIndices.push_back(I);
-    Addends.push_back(ET.Addend);
+    TIs.emplace_back();
+    TIs.back().Index = SymbolIndex.lookup(ET.Target);
+    TIs.back().Addend = ET.Addend;
   }
   assert(TargetData.size() == SymbolIndex.size() &&
          "No symbols should have been added by lookup!");
@@ -937,15 +940,12 @@ Expected<BlockRef> BlockRef::create(
 
   // Break down the edges.
   SmallVector<const jitlink::Edge *, 16> Edges;
-  SmallVector<size_t, 16> TargetIndices;
-  SmallVector<jitlink::Edge::AddendT, 16> Addends;
+  SmallVector<TargetInfo, 16> TIs;
   SmallVector<TargetRef, 16> Targets;
-  if (Error E = decomposeAndSortEdges(Block, Edges, TargetIndices, Addends,
-                                      Targets, GetTargetRef))
+  if (Error E = decomposeAndSortEdges(Block, Edges, TIs, Targets, GetTargetRef))
     return std::move(E);
   assert(!Edges.empty());
-  assert(Edges.size() == TargetIndices.size());
-  assert(Edges.size() == Addends.size());
+  assert(Edges.size() == TIs.size());
   assert(!Targets.empty());
   assert(Targets.size() <= Edges.size());
 
@@ -954,7 +954,7 @@ Expected<BlockRef> BlockRef::create(
   if (!Fixups)
     return Fixups.takeError();
   Expected<TargetInfoListRef> TargetInfo =
-      TargetInfoListRef::create(Schema, TargetIndices, Addends);
+      TargetInfoListRef::create(Schema, TIs);
   if (!TargetInfo)
     return TargetInfo.takeError();
   Expected<TargetListRef> TargetList = TargetListRef::create(Schema, Targets);
@@ -2222,15 +2222,13 @@ Error LinkGraphBuilder::addEdges(jitlink::Symbol &ForSymbol, jitlink::Block &B,
   Expected<FixupList> Fixups = Block.getFixups();
   if (!Fixups)
     return Fixups.takeError();
-  Expected<Optional<TargetInfoListRef>> ExpectedTargetInfo =
-      Block.getTargetInfo();
-  if (!ExpectedTargetInfo)
-    return ExpectedTargetInfo.takeError();
+  Expected<TargetInfoList> TIs = Block.getTargetInfo();
+  if (!TIs)
+    return TIs.takeError();
   Expected<Optional<TargetListRef>> ExpectedTargets = Block.getTargets();
   if (!ExpectedTargets)
     return ExpectedTargets.takeError();
 
-  TargetInfoListRef TargetInfo = **ExpectedTargetInfo;
   TargetListRef Targets = **ExpectedTargets;
 
   auto createMismatchError = []() {
@@ -2240,34 +2238,31 @@ Error LinkGraphBuilder::addEdges(jitlink::Symbol &ForSymbol, jitlink::Block &B,
   };
 
   FixupList::iterator F = Fixups->begin(), FE = Fixups->end();
-  for (size_t I = 0, E = TargetInfo.getNumEdges(); I != E; ++I, ++F) {
-    if (F == FE)
-      return createMismatchError();
-
-    size_t TargetIndex = TargetInfo.getTargetIndex(I);
-    if (TargetIndex >= Targets.getNumTargets())
+  TargetInfoList::iterator TI = TIs->begin(), TIE = TIs->end();
+  for (; F != FE && TI != TIE; ++F, ++TI) {
+    if (TI->Index >= Targets.getNumTargets())
       return createStringError(inconvertibleErrorCode(),
                                "target index too big for target-list");
 
     // Pass this block down for KeepAlive edges.
     bool IsAbstractBackedge = false;
     Expected<jitlink::Symbol *> Target = getOrCreateSymbol(
-        Targets.getTarget(TargetIndex), &IsAbstractBackedge,
+        Targets.getTarget(TI->Index), &IsAbstractBackedge,
         F->Kind == jitlink::Edge::KeepAlive ? &ForSymbol : nullptr);
     if (!Target)
       return Target.takeError();
 
     if (IsAbstractBackedge) {
       assert(AddAbstractBackedge);
-      AddAbstractBackedge(F->Kind, F->Offset, TargetInfo.getAddend(I));
+      AddAbstractBackedge(F->Kind, F->Offset, TI->Addend);
       continue;
     }
 
     // Pass in this block's KeptAliveByBlock for edges.
     assert(*Target && "Expected non-null symbol for target");
-    B.addEdge(F->Kind, F->Offset, **Target, TargetInfo.getAddend(I));
+    B.addEdge(F->Kind, F->Offset, **Target, TI->Addend);
   }
-  if (F != FE)
+  if (F != FE || TI != TIE)
     return createMismatchError();
 
   return Error::success();

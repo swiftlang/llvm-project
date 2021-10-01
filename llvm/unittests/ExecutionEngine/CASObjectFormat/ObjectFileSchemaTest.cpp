@@ -420,23 +420,23 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
       expectedToOptional(BlockRef::create(Schema, B, createTarget));
   ASSERT_TRUE(Block);
   EXPECT_TRUE(Block->hasEdges());
-  Optional<TargetInfoListRef> TargetInfoList = cantFail(Block->getTargetInfo());
+  TargetInfoList TIs = cantFail(Block->getTargetInfo());
   FixupList Fixups = cantFail(Block->getFixups());
   Optional<TargetListRef> TargetList = cantFail(Block->getTargets());
   ASSERT_EQ(std::extent<decltype(AddOrder)>::value,
             size_t(std::distance(Fixups.begin(), Fixups.end())));
   ASSERT_EQ(std::extent<decltype(AddOrder)>::value,
-            TargetInfoList->getNumEdges());
+            size_t(std::distance(TIs.begin(), TIs.end())));
   ASSERT_EQ(3u, TargetList->getNumTargets());
 
   // Check the fixups and targets, in sorted order.
   FixupList::iterator F = Fixups.begin();
+  TargetInfoList::iterator TI = TIs.begin();
   for (size_t I = 0, E = std::extent<decltype(AddOrder)>::value; I != E;
-       ++I, ++F) {
-    size_t TargetIndex = TargetInfoList->getTargetIndex(I);
-    ASSERT_LT(TargetIndex, TargetList->getNumTargets());
+       ++I, ++F, ++TI) {
+    ASSERT_LT(TI->Index, TargetList->getNumTargets());
     Optional<TargetRef> Target =
-        expectedToOptional(TargetList->getTarget(TargetIndex));
+        expectedToOptional(TargetList->getTarget(TI->Index));
     ASSERT_TRUE(Target);
     TargetRef ExpectedTarget = *CreatedSymbols.lookup(Targets[I]);
 
@@ -444,7 +444,7 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
     EXPECT_EQ(Kinds[I], F->Kind);
     EXPECT_EQ(Offsets[I], F->Offset);
     EXPECT_EQ(ExpectedTarget.getID(), Target->getID());
-    EXPECT_EQ(Addends[I], TargetInfoList->getAddend(I));
+    EXPECT_EQ(Addends[I], TI->Addend);
   }
 }
 

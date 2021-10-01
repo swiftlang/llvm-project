@@ -342,14 +342,25 @@ private:
   explicit FixupListRef(LeafRefT Ref) : LeafRefT(Ref) {}
 };
 
-/// An array of target indices and addends, parallel to \a FixupListRef. The
-/// target indexes point into an associated \a TargetListRef.
+/// Information about how to apply a \a Fixup to a target, including the addend
+/// and an index into the \a TargetList.
+struct TargetInfo {
+  /// Addend to apply to the target address.
+  jitlink::Edge::AddendT Addend;
+
+  /// Index into the list of targets.
+  size_t Index;
+
+  bool operator==(const TargetInfo &RHS) const {
+    return Addend == RHS.Addend && Index == RHS.Index;
+  }
+  bool operator!=(const TargetInfo &RHS) const { return !operator==(RHS); }
+};
+
+/// An encoded list of \a TargetInfo, parallel with \a FixupList.
 ///
-/// FIXME: Consider embedding in \a BlockRef when this can be encoded into
-/// something small (e.g., smaller than the cost of a reference), rather than
-/// splitting out a separate object.
+/// FIXME: Optimize the encoding.
 ///
-/// The encoding itself can also be optimized.
 /// - The addend is often 0, as many fixups don't use the field.
 /// - The size of a target index is bounded by the number of fixups.
 ///
@@ -362,6 +373,62 @@ private:
 ///
 /// A target info list with one target would usually be 1B (no addend needs
 /// 2 bits) or 2B (addend between -63 and 64 needs 10 bits).
+class TargetInfoList {
+public:
+  class iterator
+      : public iterator_facade_base<iterator, std::forward_iterator_tag,
+                                    const TargetInfo> {
+    friend class TargetInfoList;
+
+  public:
+    const TargetInfo &operator*() const { return *TI; }
+    iterator &operator++() {
+      ++I;
+      decode();
+      return *this;
+    }
+
+    bool operator==(const iterator &RHS) const {
+      return I == RHS.I && Data.begin() == RHS.Data.begin() &&
+             Data.end() == RHS.Data.end();
+    }
+
+  private:
+    void decode();
+
+    /// Get the size. This is private so that clients don't depend on it, since
+    /// it'll be removed later.
+    size_t getNumEdges() const {
+      return Data.size() / (sizeof(uint64_t) + sizeof(uint32_t));
+    }
+
+    struct EndTag {};
+    iterator(EndTag, StringRef Data) : Data(Data), I(getNumEdges()) {}
+    explicit iterator(StringRef Data) : Data(Data) { decode(); }
+
+    StringRef Data;
+    size_t I = 0;
+    Optional<TargetInfo> TI;
+  };
+
+  iterator begin() const { return iterator(Data); }
+  iterator end() const { return iterator(iterator::EndTag{}, Data); }
+
+  static void encode(ArrayRef<TargetInfo> TIs, SmallVectorImpl<char> &Data);
+
+  TargetInfoList() = default;
+  explicit TargetInfoList(StringRef Data) : Data(Data) {}
+
+private:
+  StringRef Data;
+};
+
+/// An array of target indices and addends, parallel to \a FixupListRef. The
+/// target indexes point into an associated \a TargetListRef.
+///
+/// FIXME: Consider embedding in \a BlockRef when this can be encoded into
+/// something small (e.g., smaller than the cost of a reference), rather than
+/// splitting out a separate object.
 class TargetInfoListRef : public LeafRef<TargetInfoListRef> {
   using LeafRefT = LeafRef<TargetInfoListRef>;
   friend class LeafRef<TargetInfoListRef>;
@@ -369,18 +436,15 @@ class TargetInfoListRef : public LeafRef<TargetInfoListRef> {
 public:
   static constexpr StringLiteral KindString = "cas.o:target-info-list";
 
-  size_t getNumEdges() const;
-  size_t getTargetIndex(size_t I) const;
-  jitlink::Edge::AddendT getAddend(size_t I) const;
+  TargetInfoList getTargetInfo() const { return TargetInfoList(getData()); }
 
   static Expected<TargetInfoListRef> get(Expected<ObjectFormatNodeRef> Ref);
   static Expected<TargetInfoListRef> get(ObjectFileSchema &Schema,
                                          cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
-  static Expected<TargetInfoListRef>
-  create(ObjectFileSchema &Schema, ArrayRef<size_t> TargetIndices,
-         ArrayRef<jitlink::Edge::AddendT> Addends);
+  static Expected<TargetInfoListRef> create(ObjectFileSchema &Schema,
+                                            ArrayRef<TargetInfo> TIs);
 
 private:
   explicit TargetInfoListRef(LeafRefT Ref) : LeafRefT(Ref) {}
@@ -615,11 +679,7 @@ public:
     return BlockDataRef::get(getSchema(), getDataID());
   }
   Expected<FixupList> getFixups() const;
-  Expected<Optional<TargetInfoListRef>> getTargetInfo() const {
-    if (Optional<cas::CASID> TargetInfo = getTargetInfoID())
-      return TargetInfoListRef::get(getSchema(), *TargetInfo);
-    return None;
-  }
+  Expected<TargetInfoList> getTargetInfo() const;
   Expected<Optional<TargetListRef>> getTargets() const {
     if (Optional<cas::CASID> Targets = getTargetsID())
       return TargetListRef::get(getSchema(), *Targets);
