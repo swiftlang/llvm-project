@@ -254,19 +254,6 @@ struct Fixup {
 ///
 /// FIXME: Encode kinds separately from what jitlink has, since they're not
 /// stable.
-///
-/// FIXME: Make the encoding smaller.
-///
-/// Note that random access to fixups is not important; consumers can decode as
-/// they iterate through. As such, a tight encoding could be:
-///
-///     ( Kind RelativeOffset )*
-///
-/// where Kind is 1B, and RelativeOffset is 1+B in vbr8 format, storing the
-/// offset from the previous fixup instead of from the start of the data. The
-/// number of fixups would be determined by iterating through.
-///
-/// In a small function with only one fixup, this would cost 2B total.
 class FixupList {
 public:
   class iterator
@@ -277,32 +264,23 @@ public:
   public:
     const Fixup &operator*() const { return *F; }
     iterator &operator++() {
-      ++I;
       decode();
       return *this;
     }
 
     bool operator==(const iterator &RHS) const {
-      return I == RHS.I && Data.begin() == RHS.Data.begin() &&
+      return F == RHS.F && Data.begin() == RHS.Data.begin() &&
              Data.end() == RHS.Data.end();
     }
 
   private:
-    void decode();
-
-    /// Get the size. This is private so that clients don't depend on it, since
-    /// it'll be removed later.
-    size_t getNumEdges() const {
-      return Data.size() /
-             (sizeof(jitlink::Edge::Kind) + sizeof(jitlink::Edge::OffsetT));
-    }
+    void decode(bool IsInit = false);
 
     struct EndTag {};
-    iterator(EndTag, StringRef Data) : Data(Data), I(getNumEdges()) {}
-    explicit iterator(StringRef Data) : Data(Data) { decode(); }
+    iterator(EndTag, StringRef Data) : Data(Data.end(), 0) {}
+    explicit iterator(StringRef Data) : Data(Data) { decode(/*IsInit=*/true); }
 
     StringRef Data;
-    size_t I = 0;
     Optional<Fixup> F;
   };
 
@@ -363,20 +341,14 @@ struct TargetInfo {
 
 /// An encoded list of \a TargetInfo, parallel with \a FixupList.
 ///
-/// FIXME: Optimize the encoding.
+/// FIXME: Optimize the encoding further. Currently the index is stored as VBR8,
+/// but we know that the indexes are all smaller than the TargetList. For lists
+/// with 128 or fewer targets, we could get smaller.
 ///
-/// - The addend is often 0, as many fixups don't use the field.
-/// - The size of a target index is bounded by the number of fixups.
-///
-/// A tight encoding could be:
-///
-///     NumIndexBits ( HasAddend Addend? Index )*
-///
-/// where NumIndexBits is 1B, HasAddend is 1-bit, Addend (when present) is
-/// signed-vbr8, and Index is NumIndexBits-bits.
-///
-/// A target info list with one target would usually be 1B (no addend needs
-/// 2 bits) or 2B (addend between -63 and 64 needs 10 bits).
+/// There are very few instances of \a TargetInfoListRef (they dedup
+/// surprisingly well), so no benefit there, but the ones embedded in \a
+/// BlockRef can't be deduped. The statistics for "cas.o:block"'s inline data
+/// should show the headroom available there.
 class TargetInfoList {
 public:
   class iterator
@@ -387,31 +359,23 @@ public:
   public:
     const TargetInfo &operator*() const { return *TI; }
     iterator &operator++() {
-      ++I;
       decode();
       return *this;
     }
 
     bool operator==(const iterator &RHS) const {
-      return I == RHS.I && Data.begin() == RHS.Data.begin() &&
+      return TI == RHS.TI && Data.begin() == RHS.Data.begin() &&
              Data.end() == RHS.Data.end();
     }
 
   private:
-    void decode();
-
-    /// Get the size. This is private so that clients don't depend on it, since
-    /// it'll be removed later.
-    size_t getNumEdges() const {
-      return Data.size() / (sizeof(uint64_t) + sizeof(uint32_t));
-    }
+    void decode(bool IsInit = false);
 
     struct EndTag {};
-    iterator(EndTag, StringRef Data) : Data(Data), I(getNumEdges()) {}
-    explicit iterator(StringRef Data) : Data(Data) { decode(); }
+    iterator(EndTag, StringRef Data) : Data(Data.end(), 0) {}
+    explicit iterator(StringRef Data) : Data(Data) { decode(/*IsInit=*/true); }
 
     StringRef Data;
-    size_t I = 0;
     Optional<TargetInfo> TI;
   };
 
@@ -466,6 +430,7 @@ public:
   };
 
   Kind getKind() const { return K; }
+  bool isAbstractBackedge() const;
 
   static StringRef getKindString(Kind K);
   StringRef getKindString() const { return getKindString(K); }
@@ -488,17 +453,21 @@ private:
 class TargetList {
 public:
   bool empty() const { return !size(); }
-  size_t size() const { return Last - First; }
+  size_t size() const { return Last ? Last - First : Node ? 1 : 0; }
 
   Expected<TargetRef> operator[](size_t I) const { return get(I); }
   Expected<TargetRef> get(size_t I) const {
     assert(I < size() && "past the end");
+    if (!I && !Last)
+      return TargetRef::get(*Node);
     return TargetRef::get(Node->getSchema(), Node->getReference(I + 1));
   }
 
   bool hasAbstractBackedge() const { return HasAbstractBackedge; }
 
   TargetList() = default;
+  explicit TargetList(TargetRef Target)
+      : Node(Target), HasAbstractBackedge(Target.isAbstractBackedge()) {}
   explicit TargetList(ObjectFormatNodeRef Node, bool HasAbstractBackedge,
                       size_t First, size_t Last)
       : Node(Node), First(First), Last(Last),
@@ -692,20 +661,17 @@ public:
 
   bool hasEdges() const { return getNumReferences() > 3; }
 
-  bool hasAbstractBackedge() const;
+  bool hasAbstractBackedge() const { return Flags.HasAbstractBackedge; }
 
   cas::CASID getSectionID() const { return getReference(1); }
   cas::CASID getDataID() const { return getReference(2); }
-  Optional<cas::CASID> getFixupsID() const {
-    return hasEdges() ? getReference(3) : Optional<cas::CASID>();
-  }
-  Optional<cas::CASID> getTargetInfoID() const {
-    return hasEdges() ? getReference(4) : Optional<cas::CASID>();
-  }
-  Optional<cas::CASID> getTargetsID() const {
-    return hasEdges() ? getReference(5) : Optional<cas::CASID>();
-  }
 
+private:
+  Optional<cas::CASID> getTargetsID() const;
+  Optional<cas::CASID> getFixupsID() const;
+  Optional<cas::CASID> getTargetInfoID() const;
+
+public:
   Expected<SectionRef> getSection() const {
     return SectionRef::get(getSchema(), getSectionID());
   }
@@ -744,6 +710,13 @@ public:
   }
 
 private:
+  struct BlockFlags {
+    bool HasAbstractBackedge = false;
+    bool HasInlinedTargets = false;
+    bool HasEmbeddedEdges = false;
+  };
+  BlockFlags Flags;
+
   explicit BlockRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 
   static Expected<BlockRef> createImpl(ObjectFileSchema &Schema,
@@ -913,6 +886,139 @@ private:
 ///
 /// Note: This wrapper eagerly parses target triple, pointer size, and
 /// endianness.
+///
+/// FIXME: There isn't much dedup going on with target lists and
+/// `--inline-unary-target-lists` has almost no effect. Target lists are
+/// bloated by the KeepAlive edges to `__eh_frame` blocks. This prevents
+/// sharing target-lists (even if two functions have the same callees) and
+/// means that almost no block can inline its target-list. Supporting
+/// `__compact_unwind` properly will make this even worse since it'll add more
+/// KeepAlive edges.
+///
+/// We should probably do a more direct translation of the object format,
+/// which isn't trying to do implicit dead-stripping. If we want to support
+/// bit-for-bit round-trip back to Mach-O, something like could be needed
+/// anyway.
+///
+/// Currently we have:
+///
+///     compile-unit
+///       3x symbol table (skipping many dead-strippable symbols)
+///         symbol
+///           block
+///             block-data
+///             section
+///             target-list (including KeepAlive)
+///
+/// Instead we could have:
+///
+///     compile-unit
+///       section (referencing all defined symbols)
+///         symbol
+///           block
+///             block-data
+///               target-list (skipping KeepAlive)
+///
+/// ... but this relayering makes it hard to point at data symbols
+/// anonymously. The data could be listed explicitly by their section, but
+/// then referring to them either requires identifying somehow (e.g.,
+/// generating a name) or a combination of section+symbol.
+///
+/// ... and this relayering defeats a major optimization for `__ehframe` that
+/// dedups individual blocks by using a "template", which we also want to apply
+/// to `__compact_unwind`.
+///
+/// Here's another option, where:
+///
+/// - Sections sometimes point at symbols
+/// - Symbols sometimes point at sections
+///
+/// Split into three for clarity, starting with compile-unit:
+///
+///     compile-unit
+///       section
+///         section-header: identifier for section (e.g., `__text`)
+///         symbol-runs: list of symbols, organized as a flat list of
+///             references, interspersing a "real" symbol with a run of
+///             blocks kept alive with it (possibly from other sections).
+///           keep-alive-info: list of sections for the run of keep-alive
+///               blocks (e.g., `__compact_unwind`, `__eh_frame`), along
+///               with any metadata for building symbols from the blocks.
+///             section-header: indirect reference to the section for the
+///                 block contained in the list of symbols
+///           symbol: "real" symbol, followed by a run of blocks (depending
+///               on keep-alive info)
+///           block: anonymous symbol kept alive by the preceding symbol,
+///               stored in the section implied by context
+///
+/// Blocks reference symbols as before:
+///
+///     block
+///       block-data
+///       fixup-list
+///       target-info-list
+///       target-list: list of targets, which are a variant of one of
+///         indirect-symbol (name-based reference)
+///         symbol          (alias with direct reference)
+///
+/// Anonymous symbols/data can still be directly referenced to avoid
+/// requiring an "identity" for them. In that case they need a section
+/// header.
+///
+/// Symbols look like:
+///
+///     symbol
+///       section-header: (optional) for anonymous symbols, to identify
+///           the section it needs to go in / how to create it
+///       symbol-definition: which is a variant of
+///         block           (usual case)
+///         indirect-symbol (alias)
+///         symbol          (alias with direct reference)
+///
+/// In summary:
+///
+/// - The existing 'section' was renamed to 'section-header'.
+/// - The new section has explicit symbols. It can also have implicit
+///   symbols referenced/created elsewhere.
+/// - KeepAlive edges are stored outside of symbols, in
+///   symbol-runs+keep-alive-info. The kept-alive blocks can still be
+///   templated (as before) so their contents are independent of the
+///   associated symbol.
+/// - Blocks no longer reference their section explicitly. That must by
+///   determined by context of refernece.
+/// - Symbols that are referenced directly need to point at their section.
+///   Other symbols do not.
+///     - Exported symbols should be referenced by name to increase
+///       deduplication of callers and to avoid unnecessarily pointing at
+///       their section.
+///     - Anonymous symbols should be referenced directly unless they need
+///       "identity" (e.g., their address is taken or they are involved in a
+///       reference cycle).
+///     - Local symbols that aren't anonymous could be referenced either
+///       way. For symbols with (meaningless) generated names, it seems best
+///       to drop the name and reference by content. For names coming from
+///       an entity in a source file (e.g., `static void f1() {}`) it's best
+///       to reference indirectly to get dedup between builds.
+/// - Target lists no longer include keep-alive edges. This should:
+///     - Make more target lists match exactly (more dedup).
+///     - Reduce the size of them (fewer references overall).
+///     - Allow (many?) more to be inlined into their referencing block.
+/// - Overall, this should reduce the number of references significantly.
+///     - Every "function" drops a reference from its target list, target
+///       lists get deduped better, and many functions start inlining target
+///       lists.
+///     - Anonymous symbols still get deduped and don't need to be pointed
+///       at explicitly.
+///     - Templated symbols (e.g., `__eh_frame`) are no longer explicitly
+///       stored, avoiding a number of references to those blocks.
+/// - This also demonstrates a path forward for `__debug*`, once it gets
+///   split up between functions.
+///     - Debug info is anonymous, and should be kept alive along with the
+///       data it references.
+///     - The debug info block(s) for a specific function could be added
+///       to the symbol-runs.
+///     - "Templating" the debug info block(s) also seems potentially
+///        useful if it allows dedup. But that's less clear.
 class CompileUnitRef : public SpecificRef<CompileUnitRef> {
   using SpecificRefT = SpecificRef<CompileUnitRef>;
   friend class SpecificRef<CompileUnitRef>;

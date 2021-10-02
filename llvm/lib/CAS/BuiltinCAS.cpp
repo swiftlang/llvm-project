@@ -442,6 +442,7 @@ static void printTree(raw_ostream &OS, ArrayRef<NamedTreeEntry> SortedEntries,
 }
 
 CASID BuiltinCAS::ObjectContentReference::getReference(size_t I) const {
+  assert(I < getNumReferences() && "Reference out of range");
   return CASID(
       bufferAsRawHash(ReferenceBlock.substr(I * NumHashBytes, NumHashBytes)));
 }

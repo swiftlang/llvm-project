@@ -6,6 +6,7 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_unittest(CASObjectFormatTests
+  EncodingTest.cpp
   FixupListTest.cpp
   ObjectFileSchemaTest.cpp
   TargetInfoListTest.cpp

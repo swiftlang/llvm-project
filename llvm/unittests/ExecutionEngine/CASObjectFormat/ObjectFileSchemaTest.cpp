@@ -10,10 +10,20 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Memory.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
 using namespace llvm::casobjectformat;
+
+template <typename T>
+static Error unwrapExpected(Expected<T> &&E, Optional<T> &O) {
+  O.reset();
+  if (!E)
+    return E.takeError();
+  O = std::move(*E);
+  return Error::success();
+}
 
 namespace {
 
@@ -140,9 +150,6 @@ TEST(CASObjectFormatTests, LeafBlock) {
     EXPECT_EQ(Block->getDataID(), *BlockData);
     EXPECT_EQ(Block->getSectionID(), *Section);
     EXPECT_FALSE(Block->hasEdges());
-    EXPECT_FALSE(Block->getFixupsID());
-    EXPECT_FALSE(Block->getTargetInfoID());
-    EXPECT_FALSE(Block->getTargetsID());
   }
 }
 
@@ -416,9 +423,10 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
   };
 
   // This is the API being tested, which should build an edge list.
-  Optional<BlockRef> Block =
-      expectedToOptional(BlockRef::create(Schema, B, createTarget));
-  ASSERT_TRUE(Block);
+  Optional<BlockRef> Block;
+  ASSERT_THAT_ERROR(
+      unwrapExpected(BlockRef::create(Schema, B, createTarget), Block),
+      Succeeded());
   EXPECT_TRUE(Block->hasEdges());
   TargetInfoList TIs = cantFail(Block->getTargetInfo());
   FixupList Fixups = cantFail(Block->getFixups());

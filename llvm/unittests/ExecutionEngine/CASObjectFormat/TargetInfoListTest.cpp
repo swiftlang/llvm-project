@@ -66,6 +66,7 @@ TEST(TargetInfoListTest, Multiple) {
       {20, 4U}, {7777777, 9U}, {-20, 6U},       {-7777777, 8U},
   };
 
+  // Then check iteration.
   SmallString<128> Data;
   TargetInfoList::encode(Input, Data);
   TargetInfoList TIL(Data);
