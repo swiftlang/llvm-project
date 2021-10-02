@@ -340,7 +340,7 @@ public:
   FixupList getFixups() const { return FixupList(getData()); }
 
   static Expected<FixupListRef> create(ObjectFileSchema &Schema,
-                                       ArrayRef<const jitlink::Edge *> Edges);
+                                       ArrayRef<Fixup> Fixups);
 
 private:
   explicit FixupListRef(LeafRefT Ref) : LeafRefT(Ref) {}
@@ -728,9 +728,9 @@ public:
     return createImpl(Schema, Section, Data, None, None, None);
   }
   static Expected<BlockRef> create(ObjectFileSchema &Schema, SectionRef Section,
-                                   BlockDataRef Data, FixupListRef Fixups,
-                                   TargetInfoListRef TargetInfo,
-                                   TargetListRef Targets) {
+                                   BlockDataRef Data, ArrayRef<Fixup> Fixups,
+                                   ArrayRef<TargetInfo> TargetInfo,
+                                   ArrayRef<TargetRef> Targets) {
     return createImpl(Schema, Section, Data, Fixups, TargetInfo, Targets);
   }
 
@@ -748,9 +748,9 @@ private:
 
   static Expected<BlockRef> createImpl(ObjectFileSchema &Schema,
                                        SectionRef Section, BlockDataRef Data,
-                                       Optional<FixupListRef> Fixups,
-                                       Optional<TargetInfoListRef> TargetInfo,
-                                       Optional<TargetListRef> Targets);
+                                       ArrayRef<Fixup> Fixups,
+                                       ArrayRef<TargetInfo> TargetInfo,
+                                       ArrayRef<TargetRef> Targets);
 };
 
 /// A symbol.

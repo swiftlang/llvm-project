@@ -363,31 +363,16 @@ Expected<BlockDataRef> BlockDataRef::createContent(ObjectFileSchema &Schema,
   return createImpl(Schema, *Blob, Content.size(), Alignment, AlignmentOffset);
 }
 
-template <class EdgesT, class GetOffsetT, class GetKindT>
-static void encodeFixups(EdgesT &Edges, GetKindT GetKind, GetOffsetT GetOffset,
-                         SmallVectorImpl<char> &Data) {
+void FixupList::encode(ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data) {
   raw_svector_ostream OS(Data);
   support::endian::Writer EW(OS, support::endianness::little);
-  for (auto &E : Edges)
-    EW.write(GetOffset(E));
+  for (auto &F : Fixups)
+    EW.write(F.Offset);
 
   // FIXME: Kinds should be numbered in a stable way, not just rely on
   // Edge::Kind.
-  for (auto &E : Edges)
-    EW.write(GetKind(E));
-}
-
-void FixupList::encode(ArrayRef<const jitlink::Edge *> Edges,
-                       SmallVectorImpl<char> &Data) {
-  encodeFixups(
-      Edges, [](const jitlink::Edge *E) { return E->getKind(); },
-      [](const jitlink::Edge *E) { return E->getOffset(); }, Data);
-}
-
-void FixupList::encode(ArrayRef<Fixup> Edges, SmallVectorImpl<char> &Data) {
-  encodeFixups(
-      Edges, [](const Fixup &F) { return F.Kind; },
-      [](const Fixup &F) { return F.Offset; }, Data);
+  for (auto &F : Fixups)
+    EW.write(F.Kind);
 }
 
 void FixupList::iterator::decode() {
@@ -421,11 +406,10 @@ Expected<FixupListRef> FixupListRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return List;
 }
 
-Expected<FixupListRef>
-FixupListRef::create(ObjectFileSchema &Schema,
-                     ArrayRef<const jitlink::Edge *> Edges) {
+Expected<FixupListRef> FixupListRef::create(ObjectFileSchema &Schema,
+                                            ArrayRef<Fixup> Fixups) {
   SmallString<1024> Data;
-  FixupList::encode(Edges, Data);
+  FixupList::encode(Fixups, Data);
 
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
@@ -800,7 +784,7 @@ static bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
 }
 
 static Error decomposeAndSortEdges(
-    const jitlink::Block &Block, SmallVectorImpl<const jitlink::Edge *> &Edges,
+    const jitlink::Block &Block, SmallVectorImpl<Fixup> &Fixups,
     SmallVectorImpl<TargetInfo> &TIs, SmallVectorImpl<TargetRef> &Targets,
     function_ref<Expected<TargetRef>(
         const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
@@ -808,7 +792,7 @@ static Error decomposeAndSortEdges(
         GetTargetRef) {
   assert(Block.edges_size() &&
          "Expected to only be called when there's work to do");
-  assert(Edges.empty());
+  assert(Fixups.empty());
   assert(TIs.empty());
   assert(Targets.empty());
 
@@ -820,6 +804,7 @@ static Error decomposeAndSortEdges(
       !(Block.getSection().getProtectionFlags() & sys::Memory::MF_EXEC);
 
   // Collect edges and targets, filtering out duplicate symbols.
+  SmallVector<const jitlink::Edge *, 16> Edges;
   Edges.reserve(Block.edges_size());
   struct TargetAndSymbol {
     TargetRef Target;
@@ -919,8 +904,13 @@ static Error decomposeAndSortEdges(
          "No symbols should have been added by lookup!");
 
   // Fill in the addends and target indices.
+  Fixups.reserve(Edges.size());
   TIs.reserve(Edges.size());
   for (const jitlink::Edge *E : Edges) {
+    Fixups.emplace_back();
+    Fixups.back().Kind = E->getKind();
+    Fixups.back().Offset = E->getOffset();
+
     EdgeTarget &ET = EdgeTargets.find(E)->second;
     TIs.emplace_back();
     TIs.back().Index = SymbolIndex.lookup(ET.Target);
@@ -955,49 +945,50 @@ Expected<BlockRef> BlockRef::create(
     return createImpl(Schema, *Section, *Data, None, None, None);
 
   // Break down the edges.
-  SmallVector<const jitlink::Edge *, 16> Edges;
+  SmallVector<Fixup, 16> Fixups;
   SmallVector<TargetInfo, 16> TIs;
   SmallVector<TargetRef, 16> Targets;
-  if (Error E = decomposeAndSortEdges(Block, Edges, TIs, Targets, GetTargetRef))
+  if (Error E =
+          decomposeAndSortEdges(Block, Fixups, TIs, Targets, GetTargetRef))
     return std::move(E);
-  assert(!Edges.empty());
-  assert(Edges.size() == TIs.size());
+  assert(!Fixups.empty());
+  assert(Fixups.size() == TIs.size());
   assert(!Targets.empty());
-  assert(Targets.size() <= Edges.size());
+  assert(Targets.size() <= Fixups.size());
 
-  // Create everything.
-  Expected<FixupListRef> Fixups = FixupListRef::create(Schema, Edges);
-  if (!Fixups)
-    return Fixups.takeError();
-  Expected<TargetInfoListRef> TargetInfo =
-      TargetInfoListRef::create(Schema, TIs);
-  if (!TargetInfo)
-    return TargetInfo.takeError();
-  Expected<TargetListRef> TargetList = TargetListRef::create(Schema, Targets);
-  if (!TargetList)
-    return TargetList.takeError();
-  return createImpl(Schema, *Section, *Data, *Fixups, *TargetInfo, *TargetList);
+  return createImpl(Schema, *Section, *Data, Fixups, TIs, Targets);
 }
 
 Expected<BlockRef> BlockRef::createImpl(ObjectFileSchema &Schema,
                                         SectionRef Section, BlockDataRef Data,
-                                        Optional<FixupListRef> Fixups,
-                                        Optional<TargetInfoListRef> TargetInfo,
-                                        Optional<TargetListRef> Targets) {
+                                        ArrayRef<Fixup> Fixups,
+                                        ArrayRef<TargetInfo> TargetInfo,
+                                        ArrayRef<TargetRef> Targets) {
   bool HasAbstractBackedge = false;
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
   SmallVector<cas::CASID, 6> IDs = {*KindID, Section, Data};
-  if (Fixups) {
-    assert(TargetInfo && "Fixups without target info?");
-    assert(Targets && "Fixups without targets?");
-    IDs.push_back(*Fixups);
-    IDs.push_back(*TargetInfo);
-    IDs.push_back(*Targets);
-    HasAbstractBackedge = Targets->hasAbstractBackedge();
+  if (!Fixups.empty()) {
+    auto FixupsRef = FixupListRef::create(Schema, Fixups);
+    if (!FixupsRef)
+      return FixupsRef.takeError();
+    IDs.push_back(*FixupsRef);
+
+    assert(TargetInfo.size() == Fixups.size() && "Fixups without target info?");
+    auto TargetInfoRef = TargetInfoListRef::create(Schema, TargetInfo);
+    if (!TargetInfoRef)
+      return TargetInfoRef.takeError();
+    IDs.push_back(*TargetInfoRef);
+
+    assert(!Targets.empty() && "Fixups without targets?");
+    auto TargetsRef = TargetListRef::create(Schema, Targets);
+    if (!TargetsRef)
+      return TargetsRef.takeError();
+    IDs.push_back(*TargetsRef);
+    HasAbstractBackedge = TargetsRef->hasAbstractBackedge();
   } else {
-    assert(!TargetInfo && "Target info without fixups?");
-    assert(!Targets && "Targets without fixups?");
+    assert(TargetInfo.empty() && "Target info without fixups?");
+    assert(Targets.empty() && "Targets without fixups?");
   }
 
   return get(Schema.createNode(IDs, HasAbstractBackedge ? "\x01" : ""));
