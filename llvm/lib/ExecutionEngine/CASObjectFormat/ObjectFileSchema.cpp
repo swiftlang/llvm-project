@@ -1072,17 +1072,28 @@ Expected<SymbolRef> SymbolRef::get(Expected<ObjectFormatNodeRef> Ref) {
     return createStringError(inconvertibleErrorCode(), "corrupt symbol");
 
   // Check that the linkage is valid.
-  using namespace llvm::support;
-  if (Specific->getData().size() != sizeof(uint64_t) + sizeof(uint8_t) * 4 ||
-      (uint8_t)Specific->getData()[8] > (uint8_t)DS_Max ||
-      (uint8_t)Specific->getData()[9] > (uint8_t)S_Max ||
-      (uint8_t)Specific->getData()[10] > (uint8_t)M_Max ||
-      (uint8_t)Specific->getData()[11] > 1)
+  if (Specific->getData().empty())
     return createStringError(inconvertibleErrorCode(),
                              "corrupt symbol linkage");
 
+  uint64_t Offset = 0;
+  if (Specific->getData().size() > 1) {
+    StringRef Remaining = Specific->getData().drop_front();
+    Error E = encoding::consumeVBR8(Remaining, Offset);
+    if (E || !Remaining.empty()) {
+      consumeError(std::move(E));
+      return createStringError(inconvertibleErrorCode(),
+                               "corrupt symbol offset");
+    }
+  }
+
   // Anonymous symbols cannot be exported or merged by name.
-  SymbolRef Symbol(*Specific);
+  SymbolRef Symbol(*Specific, Offset);
+  if ((uint8_t)Symbol.getDeadStrip() > (uint8_t)DS_Max ||
+      (uint8_t)Symbol.getScope() > (uint8_t)S_Max ||
+      (uint8_t)Symbol.getMerge() > (uint8_t)M_Max)
+    return createStringError(inconvertibleErrorCode(),
+                             "corrupt symbol linkage");
   if ((!Symbol.hasName()) &&
       (Symbol.getScope() != S_Local || (Symbol.getMerge() & M_ByName)))
     return createStringError(inconvertibleErrorCode(),
@@ -1092,13 +1103,7 @@ Expected<SymbolRef> SymbolRef::get(Expected<ObjectFormatNodeRef> Ref) {
 }
 
 bool SymbolRef::isSymbolTemplate() const {
-  assert(getData().size() >= 12);
-  return getData()[11] == 1;
-}
-
-uint64_t SymbolRef::getOffset() const {
-  using namespace llvm::support;
-  return endian::read<uint64_t, endianness::little, aligned>(getData().begin());
+  return (unsigned char)getData()[0] & 0x1U;
 }
 
 cl::opt<bool> UseAutoHideDuringIngestion(
@@ -1200,16 +1205,14 @@ Expected<SymbolRef> SymbolRef::create(ObjectFileSchema &Schema,
     IsSymbolTemplate =
         cantFail(BlockRef::get(Definition)).hasAbstractBackedge();
 
-  // Note: the CAS likely needs to align data that follows. Make no effort to
-  // pack these into a combined bit-field.
-  SmallString<sizeof(uint64_t) + sizeof(uint8_t) * 4> Data;
-  raw_svector_ostream OS(Data);
-  support::endian::Writer EW(OS, support::endianness::little);
-  EW.write(Offset);
-  Data.push_back((uint8_t)F.DeadStrip);
-  Data.push_back((uint8_t)F.Scope);
-  Data.push_back((uint8_t)F.Merge);
-  Data.push_back((uint8_t)IsSymbolTemplate);
+  SmallString<16> Data;
+  static_assert(((uint8_t)DS_Max >> 2) == 0, "Not enough bits for dead-strip");
+  static_assert(((uint8_t)S_Max >> 2) == 0, "Not enough bits for scope");
+  static_assert(((uint8_t)M_Max >> 2) == 0, "Not enough bits for merge");
+  Data.push_back((uint8_t)F.DeadStrip << 6 | (uint8_t)F.Scope << 4 |
+                 (uint8_t)F.Merge << 2 | (uint8_t)IsSymbolTemplate);
+  if (Offset)
+    encoding::writeVBR8(Offset, Data);
 
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");

@@ -717,15 +717,21 @@ public:
   /// definition has an abstract backedge.
   bool isSymbolTemplate() const;
 
-  uint64_t getOffset() const;
+  uint64_t getOffset() const { return Offset; }
 
   Flags getFlags() const {
     return Flags(getDeadStrip(), getScope(), getMerge());
   }
 
-  DeadStripKind getDeadStrip() const { return (DeadStripKind)getData()[8]; }
-  ScopeKind getScope() const { return (ScopeKind)getData()[9]; }
-  MergeKind getMerge() const { return (MergeKind)getData()[10]; }
+  DeadStripKind getDeadStrip() const {
+    return (DeadStripKind)(((unsigned char)getData()[0] >> 6) & 0x3);
+  }
+  ScopeKind getScope() const {
+    return (ScopeKind)(((unsigned char)getData()[0] >> 4) & 0x3);
+  }
+  MergeKind getMerge() const {
+    return (MergeKind)(((unsigned char)getData()[0] >> 2) & 0x3);
+  }
 
   cas::CASID getDefinitionID() const { return getReference(1); }
   Optional<cas::CASID> getNameID() const {
@@ -761,7 +767,9 @@ public:
              GetDefinitionRef);
 
 private:
-  explicit SymbolRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
+  uint64_t Offset;
+  explicit SymbolRef(SpecificRefT Ref, uint64_t Offset)
+      : SpecificRefT(Ref), Offset(Offset) {}
 };
 
 /// A symbol table.
