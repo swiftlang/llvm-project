@@ -201,6 +201,10 @@ Expected<BlockDataRef> BlockDataRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return BlockDataRef(*Specific, Size, Alignment, AlignmentOffset);
 }
 
+cl::opt<size_t> MaxEdgesToEmbedInBlock(
+    "max-edges-to-embed-in-block",
+    cl::desc("Maximum number of edges to embed in a block."), cl::init(8));
+
 Expected<BlockDataRef> BlockDataRef::createImpl(ObjectFileSchema &Schema,
                                                 Optional<cas::BlobRef> Content,
                                                 uint64_t Size,
@@ -950,10 +954,6 @@ Expected<BlockRef> BlockRef::create(
 
   return createImpl(Schema, *Section, *Data, Fixups, TIs, Targets);
 }
-
-cl::opt<size_t> MaxEdgesToEmbedInBlock(
-    "max-edges-to-embed-in-block",
-    cl::desc("Maximum number of edges to embed in a block."), cl::init(8));
 
 cl::opt<bool>
     InlineUnaryTargetLists("inline-unary-target-lists",
