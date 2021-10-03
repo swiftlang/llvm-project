@@ -162,9 +162,9 @@ public:
   static constexpr StringLiteral KindString = "cas.o:block-data";
 
   bool isZeroFill() const { return getNumReferences() == 1; }
-  uint64_t getSize() const;
-  uint64_t getAlignment() const;
-  uint64_t getAlignmentOffset() const;
+  uint64_t getSize() const { return Size; }
+  uint64_t getAlignment() const { return Alignment; }
+  uint64_t getAlignmentOffset() const { return AlignmentOffset; }
 
   Optional<cas::CASID> getContentID() const {
     return isZeroFill() ? Optional<cas::CASID>() : getReference(1);
@@ -199,7 +199,13 @@ public:
                                        const jitlink::Block &Block);
 
 private:
-  explicit BlockDataRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
+  uint64_t Size;
+  uint64_t Alignment;
+  uint64_t AlignmentOffset;
+  explicit BlockDataRef(SpecificRefT Ref, uint64_t Size, uint64_t Alignment,
+                        uint64_t AlignmentOffset)
+      : SpecificRefT(Ref), Size(Size), Alignment(Alignment),
+        AlignmentOffset(AlignmentOffset) {}
 
   static Expected<BlockDataRef> createImpl(ObjectFileSchema &Schema,
                                            Optional<cas::BlobRef> Content,

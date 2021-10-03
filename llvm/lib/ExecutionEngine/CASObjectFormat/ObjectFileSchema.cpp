@@ -184,24 +184,21 @@ Expected<BlockDataRef> BlockDataRef::get(Expected<ObjectFormatNodeRef> Ref) {
   if (Specific->getNumReferences() != 1 && Specific->getNumReferences() != 2)
     return createStringError(inconvertibleErrorCode(), "corrupt block data");
 
-  return BlockDataRef(*Specific);
-}
+  uint64_t Size;
+  uint64_t Alignment;
+  uint64_t AlignmentOffset;
+  StringRef Remaining = Specific->getData();
+  Error E = encoding::consumeVBR8(Remaining, Size);
+  if (!E)
+    E = encoding::consumeVBR8(Remaining, Alignment);
+  if (!E)
+    E = encoding::consumeVBR8(Remaining, AlignmentOffset);
+  if (E || !Remaining.empty()) {
+    consumeError(std::move(E));
+    return createStringError(inconvertibleErrorCode(), "corrupt block data");
+  }
 
-uint64_t BlockDataRef::getSize() const {
-  using namespace llvm::support;
-  return endian::read<uint64_t, endianness::little, aligned>(getData().begin());
-}
-
-uint64_t BlockDataRef::getAlignment() const {
-  using namespace llvm::support;
-  return endian::read<uint64_t, endianness::little, aligned>(getData().begin() +
-                                                             sizeof(uint64_t));
-}
-
-uint64_t BlockDataRef::getAlignmentOffset() const {
-  using namespace llvm::support;
-  return endian::read<uint64_t, endianness::little, aligned>(
-      getData().begin() + 2 * sizeof(uint64_t));
+  return BlockDataRef(*Specific, Size, Alignment, AlignmentOffset);
 }
 
 Expected<BlockDataRef> BlockDataRef::createImpl(ObjectFileSchema &Schema,
@@ -215,12 +212,10 @@ Expected<BlockDataRef> BlockDataRef::createImpl(ObjectFileSchema &Schema,
   if (Content)
     IDs.push_back(*Content);
 
-  SmallString<sizeof(uint64_t) * 3> Data;
-  raw_svector_ostream OS(Data);
-  support::endian::Writer EW(OS, support::endianness::little);
-  EW.write(Size);
-  EW.write(Alignment);
-  EW.write(AlignmentOffset);
+  SmallString<16> Data;
+  encoding::writeVBR8(Size, Data);
+  encoding::writeVBR8(Alignment, Data);
+  encoding::writeVBR8(AlignmentOffset, Data);
   return get(Schema.createNode(IDs, Data));
 }
 
