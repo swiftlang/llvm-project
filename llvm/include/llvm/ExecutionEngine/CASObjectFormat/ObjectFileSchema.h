@@ -143,6 +143,66 @@ private:
   explicit SectionRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 };
 
+/// The kind and offset of a fixup (e.g., for a relocation).
+struct Fixup {
+  jitlink::Edge::Kind Kind;
+  jitlink::Edge::OffsetT Offset;
+
+  bool operator==(const Fixup &RHS) const {
+    return Kind == RHS.Kind && Offset == RHS.Offset;
+  }
+  bool operator!=(const Fixup &RHS) const { return !operator==(RHS); }
+};
+
+/// An encoded list of \a Fixup.
+///
+/// FIXME: Encode kinds separately from what jitlink has, since they're not
+/// stable.
+class FixupList {
+public:
+  class iterator
+      : public iterator_facade_base<iterator, std::forward_iterator_tag,
+                                    const Fixup> {
+    friend class FixupList;
+
+  public:
+    const Fixup &operator*() const { return *F; }
+    iterator &operator++() {
+      decode();
+      return *this;
+    }
+
+    bool operator==(const iterator &RHS) const {
+      return F == RHS.F && Data.begin() == RHS.Data.begin() &&
+             Data.end() == RHS.Data.end();
+    }
+
+  private:
+    void decode(bool IsInit = false);
+
+    struct EndTag {};
+    iterator(EndTag, StringRef Data) : Data(Data.end(), 0) {}
+    explicit iterator(StringRef Data) : Data(Data) { decode(/*IsInit=*/true); }
+
+    StringRef Data;
+    Optional<Fixup> F;
+  };
+
+  iterator begin() const { return iterator(Data); }
+  iterator end() const { return iterator(iterator::EndTag{}, Data); }
+
+  static void encode(ArrayRef<const jitlink::Edge *> Edges,
+                     SmallVectorImpl<char> &Data);
+
+  static void encode(ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data);
+
+  FixupList() = default;
+  explicit FixupList(StringRef Data) : Data(Data) {}
+
+private:
+  StringRef Data;
+};
+
 /// Raw content of a block.
 ///
 /// - A leaf if it's zero-fill.
@@ -211,66 +271,6 @@ private:
                                            Optional<cas::BlobRef> Content,
                                            uint64_t Size, uint64_t Alignment,
                                            uint64_t AlignmentOffset);
-};
-
-/// The kind and offset of a fixup (e.g., for a relocation).
-struct Fixup {
-  jitlink::Edge::Kind Kind;
-  jitlink::Edge::OffsetT Offset;
-
-  bool operator==(const Fixup &RHS) const {
-    return Kind == RHS.Kind && Offset == RHS.Offset;
-  }
-  bool operator!=(const Fixup &RHS) const { return !operator==(RHS); }
-};
-
-/// An encoded list of \a Fixup.
-///
-/// FIXME: Encode kinds separately from what jitlink has, since they're not
-/// stable.
-class FixupList {
-public:
-  class iterator
-      : public iterator_facade_base<iterator, std::forward_iterator_tag,
-                                    const Fixup> {
-    friend class FixupList;
-
-  public:
-    const Fixup &operator*() const { return *F; }
-    iterator &operator++() {
-      decode();
-      return *this;
-    }
-
-    bool operator==(const iterator &RHS) const {
-      return F == RHS.F && Data.begin() == RHS.Data.begin() &&
-             Data.end() == RHS.Data.end();
-    }
-
-  private:
-    void decode(bool IsInit = false);
-
-    struct EndTag {};
-    iterator(EndTag, StringRef Data) : Data(Data.end(), 0) {}
-    explicit iterator(StringRef Data) : Data(Data) { decode(/*IsInit=*/true); }
-
-    StringRef Data;
-    Optional<Fixup> F;
-  };
-
-  iterator begin() const { return iterator(Data); }
-  iterator end() const { return iterator(iterator::EndTag{}, Data); }
-
-  static void encode(ArrayRef<const jitlink::Edge *> Edges,
-                     SmallVectorImpl<char> &Data);
-
-  static void encode(ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data);
-
-  FixupList() = default;
-  explicit FixupList(StringRef Data) : Data(Data) {}
-
-private:
-  StringRef Data;
 };
 
 /// Information about how to apply a \a Fixup to a target, including the addend
