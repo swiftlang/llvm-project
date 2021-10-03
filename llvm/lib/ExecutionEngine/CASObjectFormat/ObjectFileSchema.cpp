@@ -176,50 +176,90 @@ IndirectSymbolRef::create(ObjectFileSchema &Schema, const jitlink::Symbol &S) {
   return create(Schema, S.getName(), S.isExternal());
 }
 
+cas::CASID BlockDataRef::getFixupsID() const {
+  assert(HasFixups);
+  assert(!EmbeddedFixupsSize);
+  return getReference(1 + !isZeroFill());
+}
+
+Expected<FixupList> BlockDataRef::getFixups() const {
+  if (!HasFixups)
+    return FixupList("");
+
+  if (EmbeddedFixupsSize)
+    return FixupList(getData().take_back(EmbeddedFixupsSize));
+
+  if (Expected<cas::BlobRef> Fixups = getCAS().getBlob(getFixupsID()))
+    return FixupList(Fixups->getData());
+  else
+    return Fixups.takeError();
+}
+
 Expected<BlockDataRef> BlockDataRef::get(Expected<ObjectFormatNodeRef> Ref) {
   auto Specific = SpecificRefT::getSpecific(std::move(Ref));
   if (!Specific)
     return Specific.takeError();
 
-  if (Specific->getNumReferences() != 1 && Specific->getNumReferences() != 2)
-    return createStringError(inconvertibleErrorCode(), "corrupt block data");
+  if (Specific->getNumReferences() < 1 && Specific->getNumReferences() > 3)
+    return createStringError(inconvertibleErrorCode(),
+                             "corrupt block data; got " +
+                                 Twine(Specific->getNumReferences()) + " refs");
+
+  StringRef Remaining = Specific->getData();
+  bool IsZeroFill = Remaining[0];
+  Remaining = Remaining.drop_front();
 
   uint64_t Size;
   uint64_t Alignment;
   uint64_t AlignmentOffset;
-  StringRef Remaining = Specific->getData();
   Error E = encoding::consumeVBR8(Remaining, Size);
   if (!E)
     E = encoding::consumeVBR8(Remaining, Alignment);
   if (!E)
     E = encoding::consumeVBR8(Remaining, AlignmentOffset);
-  if (E || !Remaining.empty()) {
+  if (E) {
     consumeError(std::move(E));
     return createStringError(inconvertibleErrorCode(), "corrupt block data");
   }
+  uint32_t EmbeddedFixupsSize = Remaining.size();
+  bool HasFixups =
+      EmbeddedFixupsSize || Specific->getNumReferences() > (1 + !IsZeroFill);
 
-  return BlockDataRef(*Specific, Size, Alignment, AlignmentOffset);
+  return BlockDataRef(*Specific, Size, Alignment, AlignmentOffset,
+                      EmbeddedFixupsSize, IsZeroFill, HasFixups);
 }
 
 cl::opt<size_t> MaxEdgesToEmbedInBlock(
     "max-edges-to-embed-in-block",
     cl::desc("Maximum number of edges to embed in a block."), cl::init(8));
 
-Expected<BlockDataRef> BlockDataRef::createImpl(ObjectFileSchema &Schema,
-                                                Optional<cas::BlobRef> Content,
-                                                uint64_t Size,
-                                                uint64_t Alignment,
-                                                uint64_t AlignmentOffset) {
+Expected<BlockDataRef> BlockDataRef::createImpl(
+    ObjectFileSchema &Schema, Optional<cas::BlobRef> Content, uint64_t Size,
+    uint64_t Alignment, uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups) {
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
-  SmallVector<cas::CASID, 2> IDs = {*KindID};
+
+  SmallVector<cas::CASID, 3> IDs = {*KindID};
   if (Content)
     IDs.push_back(*Content);
 
   SmallString<16> Data;
+  Data.push_back((unsigned char)!Content);
   encoding::writeVBR8(Size, Data);
   encoding::writeVBR8(Alignment, Data);
   encoding::writeVBR8(AlignmentOffset, Data);
+
+  if (Fixups.size() > MaxEdgesToEmbedInBlock) {
+    SmallString<128> FixupsData;
+    FixupList::encode(Fixups, FixupsData);
+    auto FixupsRef = Schema.CAS.createBlob(FixupsData);
+    if (!FixupsRef)
+      return FixupsRef.takeError();
+    IDs.push_back(*FixupsRef);
+  } else if (!Fixups.empty()) {
+    FixupList::encode(Fixups, Data);
+  }
+
   return get(Schema.createNode(IDs, Data));
 }
 
@@ -279,10 +319,11 @@ static void writeX86NopData(raw_ostream &OS, uint64_t Count) {
 }
 
 Expected<BlockDataRef> BlockDataRef::create(ObjectFileSchema &Schema,
-                                            const jitlink::Block &Block) {
+                                            const jitlink::Block &Block,
+                                            ArrayRef<Fixup> Fixups) {
   if (Block.isZeroFill())
     return createZeroFill(Schema, Block.getSize(), Block.getAlignment(),
-                          Block.getAlignmentOffset());
+                          Block.getAlignmentOffset(), Fixups);
 
   assert(Block.getContent().size() == Block.getSize());
   StringRef Content(Block.getContent().begin(), Block.getSize());
@@ -294,18 +335,17 @@ Expected<BlockDataRef> BlockDataRef::create(ObjectFileSchema &Schema,
     BlockData.emplace();
     BlockData->append(Content.begin(), Content.end());
   };
-  auto getFixupPtr = [&](const jitlink::Edge &E) -> char * {
+  auto getFixupPtr = [&](const Fixup &F) -> char * {
     initializeBlockData();
-    return &(*BlockData)[E.getOffset()];
+    return &(*BlockData)[F.Offset];
   };
 
   if (ZeroFixupsDuringBlockIngestion) {
     // FIXME: Directly accessing jitlink::x86_64::writeOperand() isn't correct.
     // See also the FIXME in CompileUnitRef::create().
-    for (const jitlink::Edge &Edge : Block.edges())
-      if (Edge.isRelocation())
-        if (Error E = jitlink::x86_64::writeOperand(Edge.getKind(), 0,
-                                                    getFixupPtr(Edge)))
+    for (Fixup F : Fixups)
+      if (F.Kind >= jitlink::Edge::FirstRelocation)
+        if (Error E = jitlink::x86_64::writeOperand(F.Kind, 0, getFixupPtr(F)))
           return std::move(E);
   }
 
@@ -331,33 +371,37 @@ Expected<BlockDataRef> BlockDataRef::create(ObjectFileSchema &Schema,
     Content = *BlockData;
 
   return createContent(Schema, Content, Block.getAlignment(),
-                       Block.getAlignmentOffset());
+                       Block.getAlignmentOffset(), Fixups);
 }
 
 Expected<BlockDataRef> BlockDataRef::createZeroFill(ObjectFileSchema &Schema,
                                                     uint64_t Size,
                                                     uint64_t Alignment,
-                                                    uint64_t AlignmentOffset) {
-  return createImpl(Schema, None, Size, Alignment, AlignmentOffset);
+                                                    uint64_t AlignmentOffset,
+                                                    ArrayRef<Fixup> Fixups) {
+  return createImpl(Schema, None, Size, Alignment, AlignmentOffset, Fixups);
 }
 
 Expected<BlockDataRef> BlockDataRef::createContent(ObjectFileSchema &Schema,
                                                    cas::BlobRef Blob,
                                                    uint64_t Alignment,
-                                                   uint64_t AlignmentOffset) {
+                                                   uint64_t AlignmentOffset,
+                                                   ArrayRef<Fixup> Fixups) {
   return createImpl(Schema, Blob, Blob.getData().size(), Alignment,
-                    AlignmentOffset);
+                    AlignmentOffset, Fixups);
 }
 
 Expected<BlockDataRef> BlockDataRef::createContent(ObjectFileSchema &Schema,
                                                    StringRef Content,
                                                    uint64_t Alignment,
-                                                   uint64_t AlignmentOffset) {
+                                                   uint64_t AlignmentOffset,
+                                                   ArrayRef<Fixup> Fixups) {
   Expected<cas::BlobRef> Blob = Schema.CAS.createBlob(Content);
   if (!Blob)
     return Blob.takeError();
 
-  return createImpl(Schema, *Blob, Content.size(), Alignment, AlignmentOffset);
+  return createImpl(Schema, *Blob, Content.size(), Alignment, AlignmentOffset,
+                    Fixups);
 }
 
 void FixupList::encode(ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data) {
@@ -407,12 +451,12 @@ void TargetInfoList::iterator::decode(bool IsInit) {
 
   int64_t Addend = 0;
   bool ConsumeFailed = errorToBool(encoding::consumeVBR8(Data, Addend));
-  assert(!ConsumeFailed && "Cannot decode vbr8");
+  assert(!ConsumeFailed && "Cannot decode addend");
   (void)ConsumeFailed;
 
   uint32_t Index = 0;
   ConsumeFailed = errorToBool(encoding::consumeVBR8(Data, Index));
-  assert(!ConsumeFailed && "Cannot decode vbr8");
+  assert(!ConsumeFailed && "Cannot decode index");
   (void)ConsumeFailed;
 
   TI.emplace();
@@ -577,53 +621,28 @@ Optional<cas::CASID> BlockRef::getTargetsID() const {
   return hasEdges() ? getReference(3) : Optional<cas::CASID>();
 }
 
-Optional<cas::CASID> BlockRef::getFixupsID() const {
-  assert(hasEdges() && "Expected edges");
-  assert(!Flags.HasEmbeddedEdges && "Expected explicit edges");
-  return getReference(4);
-}
-
 Optional<cas::CASID> BlockRef::getTargetInfoID() const {
   assert(hasEdges() && "Expected edges");
   assert(!Flags.HasEmbeddedEdges && "Expected explicit edges");
-  return getReference(5);
+  return getReference(4);
 }
 
 Expected<FixupList> BlockRef::getFixups() const {
   if (!hasEdges())
     return FixupList("");
 
-  if (Flags.HasEmbeddedEdges) {
-    uint64_t FixupsSize;
-    Expected<StringRef> FixupsAndInfo =
-        encoding::readVBR8(cas::NodeRef::getData().drop_front(), FixupsSize);
-    if (!FixupsAndInfo)
-      return FixupsAndInfo.takeError();
-    return FixupList(FixupsAndInfo->take_front(FixupsSize));
-  }
-
-  Optional<cas::CASID> FixupsID = getFixupsID();
-  if (!FixupsID)
-    return FixupList("");
-
-  if (Expected<cas::BlobRef> Fixups = getCAS().getBlob(*FixupsID))
-    return FixupList(Fixups->getData());
+  if (Expected<BlockDataRef> Data = getData())
+    return Data->getFixups();
   else
-    return Fixups.takeError();
+    return Data.takeError();
 }
 
 Expected<TargetInfoList> BlockRef::getTargetInfo() const {
   if (!hasEdges())
     return TargetInfoList("");
 
-  if (Flags.HasEmbeddedEdges) {
-    uint64_t FixupsSize;
-    Expected<StringRef> FixupsAndInfo =
-        encoding::readVBR8(cas::NodeRef::getData().drop_front(), FixupsSize);
-    if (!FixupsAndInfo)
-      return FixupsAndInfo.takeError();
-    return TargetInfoList(FixupsAndInfo->drop_front(FixupsSize));
-  }
+  if (Flags.HasEmbeddedEdges)
+    return TargetInfoList(cas::NodeRef::getData().drop_front());
 
   Optional<cas::CASID> TargetInfoID = getTargetInfoID();
   if (!TargetInfoID)
@@ -786,11 +805,11 @@ static Error decomposeAndSortEdges(
         const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
         jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
         GetTargetRef) {
-  assert(Block.edges_size() &&
-         "Expected to only be called when there's work to do");
   assert(Fixups.empty());
   assert(TIs.empty());
   assert(Targets.empty());
+  if (!Block.edges_size())
+    return Error::success();
 
   // Guess whether the edges are coming from data or code.
   //
@@ -932,13 +951,6 @@ Expected<BlockRef> BlockRef::create(
   Expected<SectionRef> Section = SectionRef::create(Schema, Block.getSection());
   if (!Section)
     return Section.takeError();
-  Expected<BlockDataRef> Data = BlockDataRef::create(Schema, Block);
-  if (!Data)
-    return Data.takeError();
-
-  // Return early if this is a leaf block.
-  if (!Block.edges_size())
-    return createImpl(Schema, *Section, *Data, None, None, None);
 
   // Break down the edges.
   SmallVector<Fixup, 16> Fixups;
@@ -947,12 +959,15 @@ Expected<BlockRef> BlockRef::create(
   if (Error E =
           decomposeAndSortEdges(Block, Fixups, TIs, Targets, GetTargetRef))
     return std::move(E);
-  assert(!Fixups.empty());
   assert(Fixups.size() == TIs.size());
-  assert(!Targets.empty());
   assert(Targets.size() <= Fixups.size());
+  assert(Targets.empty() == Fixups.empty());
 
-  return createImpl(Schema, *Section, *Data, Fixups, TIs, Targets);
+  // Return early if this is a leaf block.
+  Expected<BlockDataRef> Data = BlockDataRef::create(Schema, Block, Fixups);
+  if (!Data)
+    return Data.takeError();
+  return createImpl(Schema, *Section, *Data, TIs, Targets);
 }
 
 cl::opt<bool>
@@ -962,23 +977,20 @@ cl::opt<bool>
 
 Expected<BlockRef> BlockRef::createImpl(ObjectFileSchema &Schema,
                                         SectionRef Section, BlockDataRef Data,
-                                        ArrayRef<Fixup> Fixups,
                                         ArrayRef<TargetInfo> TargetInfo,
                                         ArrayRef<TargetRef> Targets) {
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
   SmallVector<cas::CASID, 6> IDs = {*KindID, Section, Data};
-  if (Fixups.empty()) {
-    assert(TargetInfo.empty() && "Target info without fixups?");
+  if (TargetInfo.empty()) {
     assert(Targets.empty() && "Targets without fixups?");
   } else {
-    assert(TargetInfo.size() == Fixups.size() && "Fixups without target info?");
     assert(!Targets.empty() && "Fixups without targets?");
   }
 
   bool HasAbstractBackedge = false;
   const bool EmbedEdges =
-      !Fixups.empty() && Fixups.size() <= MaxEdgesToEmbedInBlock;
+      !TargetInfo.empty() && TargetInfo.size() <= MaxEdgesToEmbedInBlock;
   const bool InlineTargets = InlineUnaryTargetLists && Targets.size() == 1;
   if (InlineTargets) {
     IDs.push_back(Targets[0].getID());
@@ -999,24 +1011,8 @@ Expected<BlockRef> BlockRef::createImpl(ObjectFileSchema &Schema,
   InlineData.push_back(static_cast<unsigned char>(Bits));
 
   if (EmbedEdges) {
-    SmallString<128> FixupData;
-    FixupList::encode(Fixups, FixupData);
-
-    // Store size of fixups in bytes, then fixups, then target-info.
-    //
-    // FIXME: Splitting up fixups (sinking to BlockData) would allow the size
-    // to be skipped.
-    encoding::writeVBR8(uint64_t(FixupData.size()), InlineData);
-    InlineData.append(FixupData);
     TargetInfoList::encode(TargetInfo, InlineData);
-  } else if (!Fixups.empty()) {
-    SmallString<128> FixupsData;
-    FixupList::encode(Fixups, FixupsData);
-    auto FixupsRef = Schema.CAS.createBlob(FixupsData);
-    if (!FixupsRef)
-      return FixupsRef.takeError();
-    IDs.push_back(*FixupsRef);
-
+  } else if (!TargetInfo.empty()) {
     SmallString<128> TargetInfoData;
     TargetInfoList::encode(TargetInfo, TargetInfoData);
     auto TargetInfoRef = Schema.CAS.createBlob(TargetInfoData);
@@ -1033,7 +1029,7 @@ Expected<BlockRef> BlockRef::get(Expected<ObjectFormatNodeRef> Ref) {
   if (!Specific)
     return Specific.takeError();
 
-  if (Specific->getNumReferences() < 3 || Specific->getNumReferences() > 6 ||
+  if (Specific->getNumReferences() < 3 || Specific->getNumReferences() > 5 ||
       Specific->getData().size() < 1)
     return createStringError(inconvertibleErrorCode(), "corrupt block");
 
@@ -1904,16 +1900,10 @@ public:
   /// is unlikely to have many hits. Instead, this should be used by a
   /// lazy-loading linker algorithm that wants to de-dup blocks by content.
   struct MergeableBlock {
-    // FIXME: Since the section, data, and fixup-list can be used directly for
-    // merging, maybe the format should split them out. This could mean *not*
-    // creating an EdgeListRef which has the TargetList and FixupList combined,
-    // or it could mean redundantly referencing the FixupList from two places
-    // in the block structure.
+    // FIXME: Since the section and data can be used directly for merging,
+    // maybe the format should split them out.
     SectionID Section;
     BlockDataID Data;
-    // FIXME: Fixups should be here somehow. Sinking them to BlockData would
-    // address that. But this data structure is not being used at all right now
-    // so it's okay that there's a bug for now.
 
     /// Realized targets. Pointing at the same array as \a TargetLists
     /// (allocated in \a TargetListAlloc).

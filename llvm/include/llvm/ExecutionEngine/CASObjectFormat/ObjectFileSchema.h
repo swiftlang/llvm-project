@@ -221,11 +221,16 @@ public:
   /// CAS object to avoid requiring "kind-string" support in CASDB.
   static constexpr StringLiteral KindString = "cas.o:block-data";
 
-  bool isZeroFill() const { return getNumReferences() == 1; }
+  bool isZeroFill() const { return IsZeroFill; }
   uint64_t getSize() const { return Size; }
   uint64_t getAlignment() const { return Alignment; }
   uint64_t getAlignmentOffset() const { return AlignmentOffset; }
+  Expected<FixupList> getFixups() const;
 
+private:
+  cas::CASID getFixupsID() const;
+
+public:
   Optional<cas::CASID> getContentID() const {
     return isZeroFill() ? Optional<cas::CASID>() : getReference(1);
   }
@@ -240,37 +245,42 @@ public:
     return get(Schema.getNode(ID));
   }
 
-  static Expected<BlockDataRef> createZeroFill(ObjectFileSchema &Schema,
-                                               uint64_t Size,
-                                               uint64_t Alignment,
-                                               uint64_t AlignmentOffset);
+  static Expected<BlockDataRef>
+  createZeroFill(ObjectFileSchema &Schema, uint64_t Size, uint64_t Alignment,
+                 uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups);
 
-  static Expected<BlockDataRef> createContent(ObjectFileSchema &Schema,
-                                              cas::BlobRef Blob,
-                                              uint64_t Alignment,
-                                              uint64_t AlignmentOffset);
+  static Expected<BlockDataRef>
+  createContent(ObjectFileSchema &Schema, cas::BlobRef Blob, uint64_t Alignment,
+                uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups);
 
-  static Expected<BlockDataRef> createContent(ObjectFileSchema &Schema,
-                                              StringRef Content,
-                                              uint64_t Alignment,
-                                              uint64_t AlignmentOffset);
+  static Expected<BlockDataRef>
+  createContent(ObjectFileSchema &Schema, StringRef Content, uint64_t Alignment,
+                uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups);
 
   static Expected<BlockDataRef> create(ObjectFileSchema &Schema,
-                                       const jitlink::Block &Block);
+                                       const jitlink::Block &Block,
+                                       ArrayRef<Fixup> Fixups);
 
 private:
   uint64_t Size;
   uint64_t Alignment;
   uint64_t AlignmentOffset;
+  uint32_t EmbeddedFixupsSize;
+  bool IsZeroFill;
+  bool HasFixups;
   explicit BlockDataRef(SpecificRefT Ref, uint64_t Size, uint64_t Alignment,
-                        uint64_t AlignmentOffset)
+                        uint64_t AlignmentOffset, uint32_t EmbeddedFixupsSize,
+                        bool IsZeroFill, bool HasFixups)
       : SpecificRefT(Ref), Size(Size), Alignment(Alignment),
-        AlignmentOffset(AlignmentOffset) {}
+        AlignmentOffset(AlignmentOffset),
+        EmbeddedFixupsSize(EmbeddedFixupsSize), IsZeroFill(IsZeroFill),
+        HasFixups(HasFixups) {}
 
   static Expected<BlockDataRef> createImpl(ObjectFileSchema &Schema,
                                            Optional<cas::BlobRef> Content,
                                            uint64_t Size, uint64_t Alignment,
-                                           uint64_t AlignmentOffset);
+                                           uint64_t AlignmentOffset,
+                                           ArrayRef<Fixup> Fixups);
 };
 
 /// Information about how to apply a \a Fixup to a target, including the addend
@@ -562,9 +572,6 @@ private:
 ///   reference is unnecessary. A simple rule: store inline whenever the
 ///   content is only 16B (or smaller).
 ///
-/// - Consider sinking 'fixup-list' down to 'block-data', since they may change
-///   in tandem.
-///
 /// - Consider sinking 'section' down to 'block-data' (maybe even inlining it
 ///   there). This reduces the size of 'block'. A bad idea if we support
 ///   ELF/COFF section names in 'section' -- especially COMDATs -- since that
@@ -590,7 +597,6 @@ public:
 
 private:
   Optional<cas::CASID> getTargetsID() const;
-  Optional<cas::CASID> getFixupsID() const;
   Optional<cas::CASID> getTargetInfoID() const;
 
 public:
@@ -613,13 +619,13 @@ public:
 
   static Expected<BlockRef> create(ObjectFileSchema &Schema, SectionRef Section,
                                    BlockDataRef Data) {
-    return createImpl(Schema, Section, Data, None, None, None);
+    return createImpl(Schema, Section, Data, None, None);
   }
   static Expected<BlockRef> create(ObjectFileSchema &Schema, SectionRef Section,
-                                   BlockDataRef Data, ArrayRef<Fixup> Fixups,
+                                   BlockDataRef Data,
                                    ArrayRef<TargetInfo> TargetInfo,
                                    ArrayRef<TargetRef> Targets) {
-    return createImpl(Schema, Section, Data, Fixups, TargetInfo, Targets);
+    return createImpl(Schema, Section, Data, TargetInfo, Targets);
   }
 
   static Expected<BlockRef> get(Expected<ObjectFormatNodeRef> Ref);
@@ -643,7 +649,6 @@ private:
 
   static Expected<BlockRef> createImpl(ObjectFileSchema &Schema,
                                        SectionRef Section, BlockDataRef Data,
-                                       ArrayRef<Fixup> Fixups,
                                        ArrayRef<TargetInfo> TargetInfo,
                                        ArrayRef<TargetRef> Targets);
 };
