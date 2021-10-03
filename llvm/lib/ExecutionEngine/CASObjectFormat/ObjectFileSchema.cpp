@@ -23,8 +23,6 @@ using namespace llvm::casobjectformat;
 
 const StringLiteral IndirectSymbolRef::KindString;
 const StringLiteral BlockDataRef::KindString;
-const StringLiteral FixupListRef::KindString;
-const StringLiteral TargetInfoListRef::KindString;
 const StringLiteral TargetListRef::KindString;
 const StringLiteral SectionRef::KindString;
 const StringLiteral BlockRef::KindString;
@@ -44,7 +42,6 @@ Error ObjectFileSchema::fillCache() {
 
   StringRef AllKindStrings[] = {
       IndirectSymbolRef::KindString, BlockDataRef::KindString,
-      FixupListRef::KindString,      TargetInfoListRef::KindString,
       TargetListRef::KindString,     SectionRef::KindString,
       BlockRef::KindString,          SymbolRef::KindString,
       SymbolTableRef::KindString,    CompileUnitRef::KindString,
@@ -393,24 +390,6 @@ void FixupList::iterator::decode(bool IsInit) {
   F->Offset = Offset;
 }
 
-Expected<FixupListRef> FixupListRef::get(Expected<ObjectFormatNodeRef> Ref) {
-  auto Leaf = LeafRefT::getLeaf(std::move(Ref));
-  if (!Leaf)
-    return Leaf.takeError();
-
-  return FixupListRef(*Leaf);
-}
-
-Expected<FixupListRef> FixupListRef::create(ObjectFileSchema &Schema,
-                                            ArrayRef<Fixup> Fixups) {
-  SmallString<1024> Data;
-  FixupList::encode(Fixups, Data);
-
-  Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
-  assert(KindID && "Expected valid KindID");
-  return get(Schema.createNode(*KindID, Data));
-}
-
 void TargetInfoList::encode(ArrayRef<TargetInfo> TIs,
                             SmallVectorImpl<char> &Data) {
   for (const TargetInfo &TI : TIs) {
@@ -440,25 +419,6 @@ void TargetInfoList::iterator::decode(bool IsInit) {
   TI.emplace();
   TI->Addend = Addend;
   TI->Index = Index;
-}
-
-Expected<TargetInfoListRef>
-TargetInfoListRef::get(Expected<ObjectFormatNodeRef> Ref) {
-  auto Leaf = LeafRefT::getLeaf(std::move(Ref));
-  if (!Leaf)
-    return Leaf.takeError();
-
-  return TargetInfoListRef(*Leaf);
-}
-
-Expected<TargetInfoListRef>
-TargetInfoListRef::create(ObjectFileSchema &Schema, ArrayRef<TargetInfo> TIs) {
-  SmallString<1024> Data;
-  TargetInfoList::encode(TIs, Data);
-
-  Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
-  assert(KindID && "Expected valid KindID");
-  return get(Schema.createNode(*KindID, Data));
 }
 
 StringRef TargetRef::getKindString(Kind K) {
@@ -647,8 +607,8 @@ Expected<FixupList> BlockRef::getFixups() const {
   if (!FixupsID)
     return FixupList("");
 
-  if (Expected<FixupListRef> Fixups = FixupListRef::get(getSchema(), *FixupsID))
-    return Fixups->getFixups();
+  if (Expected<cas::BlobRef> Fixups = getCAS().getBlob(*FixupsID))
+    return FixupList(Fixups->getData());
   else
     return Fixups.takeError();
 }
@@ -670,9 +630,8 @@ Expected<TargetInfoList> BlockRef::getTargetInfo() const {
   if (!TargetInfoID)
     return TargetInfoList("");
 
-  if (Expected<TargetInfoListRef> TIs =
-          TargetInfoListRef::get(getSchema(), *TargetInfoID))
-    return TIs->getTargetInfo();
+  if (Expected<cas::BlobRef> TIs = getCAS().getBlob(*TargetInfoID))
+    return TargetInfoList(TIs->getData());
   else
     return TIs.takeError();
 }
@@ -1056,12 +1015,16 @@ Expected<BlockRef> BlockRef::createImpl(ObjectFileSchema &Schema,
     InlineData.append(FixupData);
     TargetInfoList::encode(TargetInfo, InlineData);
   } else if (!Fixups.empty()) {
-    auto FixupsRef = FixupListRef::create(Schema, Fixups);
+    SmallString<128> FixupsData;
+    FixupList::encode(Fixups, FixupsData);
+    auto FixupsRef = Schema.CAS.createBlob(FixupsData);
     if (!FixupsRef)
       return FixupsRef.takeError();
     IDs.push_back(*FixupsRef);
 
-    auto TargetInfoRef = TargetInfoListRef::create(Schema, TargetInfo);
+    SmallString<128> TargetInfoData;
+    TargetInfoList::encode(TargetInfo, TargetInfoData);
+    auto TargetInfoRef = Schema.CAS.createBlob(TargetInfoData);
     if (!TargetInfoRef)
       return TargetInfoRef.takeError();
     IDs.push_back(*TargetInfoRef);
@@ -1936,7 +1899,6 @@ public:
   using BlockID = TypedID<BlockRef>;
   using BlockDataID = TypedID<BlockDataRef>;
   using TargetListID = TypedID<TargetListRef>;
-  using FixupListID = TypedID<FixupListRef>;
 
   /// Used for de-duping block instantiations.
   ///
@@ -1951,7 +1913,9 @@ public:
     // in the block structure.
     SectionID Section;
     BlockDataID Data;
-    FixupListID FixupList;
+    // FIXME: Fixups should be here somehow. Sinking them to BlockData would
+    // address that. But this data structure is not being used at all right now
+    // so it's okay that there's a bug for now.
 
     /// Realized targets. Pointing at the same array as \a TargetLists
     /// (allocated in \a TargetListAlloc).
@@ -1960,7 +1924,6 @@ public:
     friend bool operator==(const MergeableBlock &LHS,
                            const MergeableBlock &RHS) {
       return LHS.Section.ID == RHS.Section.ID && LHS.Data.ID == RHS.Data.ID &&
-             LHS.FixupList.ID == RHS.FixupList.ID &&
              LHS.TargetList == RHS.TargetList;
     }
   };
@@ -1981,7 +1944,7 @@ public:
     static unsigned getHashValue(const MergeableBlock &MB) {
       return hash_combine(
           hash_value(MB.Section.ID.getHash()), hash_value(MB.Data.ID.getHash()),
-          hash_value(MB.FixupList.ID.getHash()), hash_value(MB.TargetList));
+          hash_value(MB.TargetList));
     }
 
     static unsigned getHashValue(const MergeableBlock *MB) {

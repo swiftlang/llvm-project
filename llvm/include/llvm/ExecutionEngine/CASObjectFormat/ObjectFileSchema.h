@@ -95,38 +95,6 @@ protected:
   SpecificRef(ObjectFormatNodeRef Ref) : ObjectFormatNodeRef(Ref) {}
 };
 
-/// A type-checked reference to a node of a specific kind that is known to be a
-/// leaf.
-template <class DerivedT>
-class LeafRef : public SpecificRef<LeafRef<DerivedT>, DerivedT> {
-  using SpecificRefT = SpecificRef<LeafRef<DerivedT>, DerivedT>;
-  friend class SpecificRef<LeafRef<DerivedT>, DerivedT>;
-
-  // Hide non-leaf APIs.
-  size_t getNumReferences() const;
-  cas::CASID getReference(size_t I) const;
-  Error forEachReference(function_ref<Error(cas::CASID)> Callback) const;
-
-protected:
-  static Expected<DerivedT> get(Expected<ObjectFormatNodeRef> Ref) {
-    if (auto Leaf = getLeaf(std::move(Ref)))
-      return DerivedT(*Leaf);
-    else
-      return Leaf.takeError();
-  }
-
-  static Expected<LeafRef> getLeaf(Expected<ObjectFormatNodeRef> Ref) {
-    auto SpecificRef = SpecificRefT::getSpecific(std::move(Ref));
-    if (!SpecificRef)
-      return SpecificRef.takeError();
-    if (SpecificRef->getNumReferences() != 1)
-      return createStringError(inconvertibleErrorCode(), "corrupt leaf object");
-    return LeafRef(*SpecificRef);
-  }
-
-  LeafRef(ObjectFormatNodeRef Ref) : SpecificRefT(Ref) {}
-};
-
 /// A section.
 ///
 /// Note: the name is stored separately since in some formats there are
@@ -299,31 +267,6 @@ private:
   StringRef Data;
 };
 
-/// An array of fixup offsets and kinds.
-///
-/// FIXME: Consider embedding in \a BlockRef when this can be encoded into
-/// something small (e.g., smaller than the cost of a reference), rather than
-/// splitting out a separate object.
-class FixupListRef : public LeafRef<FixupListRef> {
-  using LeafRefT = LeafRef<FixupListRef>;
-  friend class LeafRef<FixupListRef>;
-
-public:
-  static constexpr StringLiteral KindString = "cas.o:fixup-list";
-
-  static Expected<FixupListRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<FixupListRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-  FixupList getFixups() const { return FixupList(getData()); }
-
-  static Expected<FixupListRef> create(ObjectFileSchema &Schema,
-                                       ArrayRef<Fixup> Fixups);
-
-private:
-  explicit FixupListRef(LeafRefT Ref) : LeafRefT(Ref) {}
-};
-
 /// Information about how to apply a \a Fixup to a target, including the addend
 /// and an index into the \a TargetList.
 struct TargetInfo {
@@ -389,33 +332,6 @@ public:
 
 private:
   StringRef Data;
-};
-
-/// An array of target indices and addends, parallel to \a FixupListRef. The
-/// target indexes point into an associated \a TargetListRef.
-///
-/// FIXME: Consider embedding in \a BlockRef when this can be encoded into
-/// something small (e.g., smaller than the cost of a reference), rather than
-/// splitting out a separate object.
-class TargetInfoListRef : public LeafRef<TargetInfoListRef> {
-  using LeafRefT = LeafRef<TargetInfoListRef>;
-  friend class LeafRef<TargetInfoListRef>;
-
-public:
-  static constexpr StringLiteral KindString = "cas.o:target-info-list";
-
-  TargetInfoList getTargetInfo() const { return TargetInfoList(getData()); }
-
-  static Expected<TargetInfoListRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<TargetInfoListRef> get(ObjectFileSchema &Schema,
-                                         cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-  static Expected<TargetInfoListRef> create(ObjectFileSchema &Schema,
-                                            ArrayRef<TargetInfo> TIs);
-
-private:
-  explicit TargetInfoListRef(LeafRefT Ref) : LeafRefT(Ref) {}
 };
 
 /// A variant of SymbolRef and IndirectSymbolRef. The kind is cached.
