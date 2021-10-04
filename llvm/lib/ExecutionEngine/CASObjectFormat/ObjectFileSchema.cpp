@@ -1740,6 +1740,11 @@ cl::opt<bool> UseAbstractBackedgeForPCBeginInFDEDuringBlockIngestion(
     "use-abstract-backedge-for-pc-begin-in-fde-during-block-ingestion",
     cl::desc("Use an abstract backedge for PCBegin in FDEs."), cl::init(true));
 
+cl::opt<bool>
+    PreferIndirectSymbolRefs("prefer-indirect-symbol-refs",
+                             cl::desc("Prefer referencing symbols indirectly."),
+                             cl::init(false));
+
 Expected<TargetRef> CompileUnitBuilder::getOrCreateTarget(
     const jitlink::Symbol &S, const jitlink::Block &SourceBlock,
     jitlink::Edge::Kind K, bool IsFromData, jitlink::Edge::AddendT &Addend,
@@ -1750,7 +1755,8 @@ Expected<TargetRef> CompileUnitBuilder::getOrCreateTarget(
     return getOrCreateAbstractBackedgeTarget();
 
   auto Cached = Symbols.find(&S);
-  if (Cached != Symbols.end())
+  if (Cached != Symbols.end() &&
+      (!PreferIndirectSymbolRefs || !Cached->second.hasName()))
     return Cached->second.getAsTarget();
   Expected<IndirectSymbolRef> Indirect = getOrCreateIndirectSymbol(S);
   if (!Indirect)
