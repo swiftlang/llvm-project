@@ -351,10 +351,8 @@ private:
 };
 
 /// A variant of SymbolRef and IndirectSymbolRef. The kind is cached.
-class TargetRef : public ObjectFormatNodeRef {
-  friend class SymbolRef;
-  friend class IndirectSymbolRef;
-
+class SymbolRef;
+class TargetRef {
 public:
   enum Kind {
     Symbol,
@@ -362,21 +360,38 @@ public:
   };
 
   Kind getKind() const { return K; }
+  ObjectFileSchema &getSchema() const { return *Schema; }
+  cas::CASID getID() const { return ID; }
+  operator cas::CASID() const { return getID(); }
 
-  static StringRef getKindString(Kind K);
-  StringRef getKindString() const { return getKindString(K); }
+  Expected<Optional<cas::BlobRef>> getNameBlob() const;
+
+  /// Get the name, which may be empty.
+  Expected<StringRef> getName() const {
+    if (auto ExpectedBlob = getNameBlob())
+      return *ExpectedBlob ? (*ExpectedBlob)->getData() : "";
+    else
+      return ExpectedBlob.takeError();
+  }
 
   /// Get a \a TargetRef. If \c Kind is specified, returns an error on
   /// mismatch; otherwise just requires that it's a valid target.
-  static Expected<TargetRef> get(Expected<ObjectFormatNodeRef> Ref,
-                                 Optional<Kind> ExpectedKind = None);
   static Expected<TargetRef> get(ObjectFileSchema &Schema, cas::CASID ID,
-                                 Optional<Kind> ExpectedKind = None) {
-    return get(Schema.getNode(ID), ExpectedKind);
+                                 Optional<Kind> ExpectedKind = None);
+
+  static TargetRef getIndirectSymbol(ObjectFileSchema &Schema,
+                                     cas::BlobRef Ref) {
+    return TargetRef(Schema, Ref, IndirectSymbol);
   }
+  static TargetRef getSymbol(ObjectFileSchema &Schema, const SymbolRef &Ref);
 
 private:
-  TargetRef(ObjectFormatNodeRef Ref, Kind K) : ObjectFormatNodeRef(Ref), K(K) {}
+  TargetRef() = delete;
+  TargetRef(ObjectFileSchema &Schema, cas::CASID ID, Kind K)
+      : Schema(&Schema), ID(ID), K(K) {}
+
+  ObjectFileSchema *Schema;
+  cas::CASID ID;
   Kind K;
 };
 
@@ -389,13 +404,10 @@ public:
   Expected<TargetRef> operator[](size_t I) const { return get(I); }
   Expected<TargetRef> get(size_t I) const {
     assert(I < size() && "past the end");
-    if (!I && !Last)
-      return TargetRef::get(*Node);
-    return TargetRef::get(Node->getSchema(), Node->getReference(I + 1));
+    return TargetRef::get(Node->getSchema(), Node->getReference(I + First));
   }
 
   TargetList() = default;
-  explicit TargetList(TargetRef Target) : Node(Target) {}
   explicit TargetList(ObjectFormatNodeRef Node, size_t First, size_t Last)
       : Node(Node), First(First), Last(Last) {
     assert(Last == this->Last && "Unexpected overflow");
@@ -436,49 +448,6 @@ public:
 
 private:
   explicit TargetListRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
-};
-
-/// An indirect reference to a symbol.
-///
-/// - Reference an external symbol.
-/// - Reference a symbol in a cycle.
-///
-/// FIXME: Should IsExternal be here? Here's what's wrong with it:
-///
-/// - Adds complexity.
-/// - Blocks redundancy in some cases.
-class IndirectSymbolRef : public SpecificRef<IndirectSymbolRef> {
-  using SpecificRefT = SpecificRef<IndirectSymbolRef>;
-  friend class SpecificRef<IndirectSymbolRef>;
-
-public:
-  static const constexpr StringLiteral KindString = "cas.o:indirect-symbol";
-
-  bool isExternal() const;
-  cas::CASID getNameID() const { return getReference(1); }
-  Expected<cas::BlobRef> getName() const {
-    return getCAS().getBlob(getNameID());
-  }
-
-  TargetRef getAsTarget() const {
-    return TargetRef(*this, TargetRef::IndirectSymbol);
-  }
-
-  static Expected<IndirectSymbolRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<IndirectSymbolRef> get(ObjectFileSchema &Schema,
-                                         cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-
-  static Expected<IndirectSymbolRef> create(ObjectFileSchema &Schema,
-                                            cas::BlobRef Name, bool IsExternal);
-  static Expected<IndirectSymbolRef> create(ObjectFileSchema &Schema,
-                                            StringRef Name, bool IsExternal);
-  static Expected<IndirectSymbolRef> create(ObjectFileSchema &Schema,
-                                            const jitlink::Symbol &S);
-
-private:
-  explicit IndirectSymbolRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 };
 
 /// A variant of SymbolRef, IndirectSymbolRef, and BlockRef.
@@ -584,7 +553,7 @@ public:
   cas::CASID getDataID() const { return getReference(2); }
 
 private:
-  Optional<cas::CASID> getTargetsID() const;
+  Optional<size_t> getTargetsIndex() const;
   Optional<cas::CASID> getTargetInfoID() const;
 
 public:
@@ -751,9 +720,10 @@ public:
     return get(Schema.getNode(ID));
   }
 
-  Expected<IndirectSymbolRef> createIndirectSymbol() const;
-
-  TargetRef getAsTarget() const { return TargetRef(*this, TargetRef::Symbol); }
+  TargetRef getAsTarget() const {
+    return TargetRef::getSymbol(getSchema(), *this);
+  }
+  Expected<TargetRef> getAsIndirectTarget() const;
 
   static Expected<SymbolRef> create(ObjectFileSchema &Schema,
                                     Optional<cas::BlobRef> SymbolName,
@@ -770,6 +740,11 @@ private:
   explicit SymbolRef(SpecificRefT Ref, uint64_t Offset)
       : SpecificRefT(Ref), Offset(Offset) {}
 };
+
+inline TargetRef TargetRef::getSymbol(ObjectFileSchema &Schema,
+                                      const SymbolRef &Ref) {
+  return TargetRef(Schema, Ref, Symbol);
+}
 
 /// A symbol table.
 class SymbolTableRef : public SpecificRef<SymbolTableRef> {
@@ -803,6 +778,32 @@ public:
 
 private:
   explicit SymbolTableRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
+};
+
+/// A list of (symbol) names.
+class NameListRef : public SpecificRef<NameListRef> {
+  using SpecificRefT = SpecificRef<NameListRef>;
+  friend class SpecificRef<NameListRef>;
+
+public:
+  static constexpr StringLiteral KindString = "cas.o:name-list";
+
+  size_t getNumNames() const { return getNumReferences() - 1; }
+  cas::CASID getNameID(size_t I) const { return getReference(I + 1); }
+  Expected<cas::BlobRef> getName(size_t I) const {
+    return getSchema().CAS.getBlob(getNameID(I));
+  }
+
+  static Expected<NameListRef> create(ObjectFileSchema &Schema,
+                                      MutableArrayRef<cas::BlobRef> Names);
+
+  static Expected<NameListRef> get(Expected<ObjectFormatNodeRef> Ref);
+  static Expected<NameListRef> get(ObjectFileSchema &Schema, cas::CASID CASID) {
+    return get(Schema.getNode(CASID));
+  }
+
+private:
+  explicit NameListRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 };
 
 /// An object file / compile unit.
@@ -956,6 +957,7 @@ public:
   cas::CASID getDeadStripNeverID() const { return getReference(1); }
   cas::CASID getDeadStripLinkID() const { return getReference(2); }
   cas::CASID getIndirectDeadStripCompileID() const { return getReference(3); }
+  cas::CASID getExternalSymbolsID() const { return getReference(4); }
   Expected<SymbolTableRef> getDeadStripNever() const {
     return SymbolTableRef::get(getSchema().getNode(getDeadStripNeverID()));
   }
@@ -965,6 +967,12 @@ public:
   Expected<SymbolTableRef> getIndirectDeadStripCompile() const {
     return SymbolTableRef::get(
         getSchema().getNode(getIndirectDeadStripCompileID()));
+  }
+
+  /// FIXME: Split this into two lists ("weak" and "strong") to model
+  /// weak-linked symbols.
+  Expected<NameListRef> getExternalSymbols() const {
+    return NameListRef::get(getSchema().getNode(getExternalSymbolsID()));
   }
 
   /// Eagerly parse the full compile unit to create a LinkGraph.
@@ -987,7 +995,8 @@ public:
   static Expected<CompileUnitRef>
   create(ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
          support::endianness Endianness, SymbolTableRef DeadStripNever,
-         SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile);
+         SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile,
+         NameListRef ExternalSymbols);
 
   /// Create a compile unit out of \p G.
   ///

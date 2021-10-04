@@ -393,9 +393,9 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
   // Create the external symbols.
   SmallDenseMap<jitlink::Symbol *, Optional<TargetRef>, 8> CreatedSymbols;
   for (jitlink::Symbol *S : {&S1, &S2}) {
-    auto Indirect = expectedToOptional(IndirectSymbolRef::create(Schema, *S));
+    auto Indirect = expectedToOptional(CAS->createBlob(S->getName()));
     ASSERT_TRUE(Indirect);
-    CreatedSymbols[S] = Indirect->getAsTarget();
+    CreatedSymbols[S] = TargetRef::getIndirectSymbol(Schema, *Indirect);
   }
 
   // Create the block and symbol for S3.

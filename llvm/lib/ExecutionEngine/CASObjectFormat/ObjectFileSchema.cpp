@@ -21,13 +21,13 @@
 using namespace llvm;
 using namespace llvm::casobjectformat;
 
-const StringLiteral IndirectSymbolRef::KindString;
 const StringLiteral BlockDataRef::KindString;
 const StringLiteral TargetListRef::KindString;
 const StringLiteral SectionRef::KindString;
 const StringLiteral BlockRef::KindString;
 const StringLiteral SymbolRef::KindString;
 const StringLiteral SymbolTableRef::KindString;
+const StringLiteral NameListRef::KindString;
 const StringLiteral CompileUnitRef::KindString;
 
 Error ObjectFileSchema::fillCache() {
@@ -41,10 +41,10 @@ Error ObjectFileSchema::fillCache() {
     return ExpectedRootKind.takeError();
 
   StringRef AllKindStrings[] = {
-      IndirectSymbolRef::KindString, BlockDataRef::KindString,
-      TargetListRef::KindString,     SectionRef::KindString,
-      BlockRef::KindString,          SymbolRef::KindString,
-      SymbolTableRef::KindString,    CompileUnitRef::KindString,
+      NameListRef::KindString,    BlockDataRef::KindString,
+      TargetListRef::KindString,  SectionRef::KindString,
+      BlockRef::KindString,       SymbolRef::KindString,
+      SymbolTableRef::KindString, CompileUnitRef::KindString,
   };
   cas::CASID Refs[] = {*RootKindID};
   for (StringRef KS : AllKindStrings) {
@@ -112,52 +112,6 @@ ObjectFormatNodeRef::get(ObjectFileSchema &Schema, Expected<cas::NodeRef> Ref) {
         inconvertibleErrorCode(),
         "invalid kind-string for node in object-file-schema");
   return ObjectFormatNodeRef(Schema, *Ref);
-}
-
-bool IndirectSymbolRef::isExternal() const {
-  assert(getData()[0] == 1 || getData()[0] == 0);
-  return getData()[0] == 1;
-}
-
-Expected<IndirectSymbolRef>
-IndirectSymbolRef::get(Expected<ObjectFormatNodeRef> Ref) {
-  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
-  if (!Specific)
-    return Specific.takeError();
-
-  if (Specific->getNumReferences() != 2 || Specific->getData().size() != 1 ||
-      (Specific->getData()[0] != 0 && Specific->getData()[0] != 1 &&
-       Specific->getData()[0] != 2))
-    return createStringError(inconvertibleErrorCode(),
-                             "corrupt indirect symbol");
-
-  return IndirectSymbolRef(*Specific);
-}
-
-Expected<IndirectSymbolRef> IndirectSymbolRef::create(ObjectFileSchema &Schema,
-                                                      cas::BlobRef Name,
-                                                      bool IsExternal) {
-  Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
-  assert(KindID && "Expected valid KindID");
-  cas::CASID IDs[] = {*KindID, Name};
-  SmallString<1> Data;
-  Data.push_back(IsExternal ? 1 : 0);
-  return get(Schema.createNode(IDs, Data));
-}
-
-Expected<IndirectSymbolRef> IndirectSymbolRef::create(ObjectFileSchema &Schema,
-                                                      StringRef Name,
-                                                      bool IsExternal) {
-  Expected<cas::BlobRef> Blob = Schema.CAS.createBlob(Name);
-  if (!Blob)
-    return Blob.takeError();
-  return create(Schema, *Blob, IsExternal);
-}
-
-Expected<IndirectSymbolRef>
-IndirectSymbolRef::create(ObjectFileSchema &Schema, const jitlink::Symbol &S) {
-  assert(S.hasName() && "Anonymous symbols not supported here");
-  return create(Schema, S.getName(), S.isExternal());
 }
 
 cas::CASID BlockDataRef::getFixupsID() const {
@@ -448,35 +402,41 @@ void TargetInfoList::iterator::decode(bool IsInit) {
   TI->Index = Index;
 }
 
-StringRef TargetRef::getKindString(Kind K) {
-  switch (K) {
-  case Symbol:
-    return SymbolRef::KindString;
-  case IndirectSymbol:
-    return IndirectSymbolRef::KindString;
-  }
+Expected<Optional<cas::BlobRef>> TargetRef::getNameBlob() const {
+  if (getKind() == IndirectSymbol)
+    return Schema->CAS.getBlob(ID);
+  auto Symbol = SymbolRef::get(*Schema, ID);
+  if (!Symbol)
+    return Symbol.takeError();
+  return Symbol->getName();
 }
 
-Expected<TargetRef> TargetRef::get(Expected<ObjectFormatNodeRef> Ref,
+Expected<TargetRef> TargetRef::get(ObjectFileSchema &Schema, cas::CASID ID,
                                    Optional<Kind> ExpectedKind) {
-  if (!Ref)
-    return Ref.takeError();
-  Optional<Kind> K = StringSwitch<Optional<Kind>>(Ref->getKindString())
-                         .Case(SymbolRef::KindString, Symbol)
-                         .Case(IndirectSymbolRef::KindString, IndirectSymbol)
-                         .Default(None);
-  if (!K)
+  auto checkExpectedKind = [&](Kind K, StringRef Name) -> Expected<TargetRef> {
+    if (ExpectedKind && *ExpectedKind != K)
+      return createStringError(inconvertibleErrorCode(),
+                               "unexpected " + Name + " for target");
+    return TargetRef(Schema, ID, K);
+  };
+
+  // If this is a blob, just return it.
+  if (Error E = Schema.CAS.getBlob(ID).takeError())
+    consumeError(std::move(E));
+  else
+    return checkExpectedKind(IndirectSymbol, "indirect symbol");
+
+  auto Object = ObjectFormatNodeRef::get(Schema, Schema.CAS.getNode(ID));
+  if (!Object) {
+    consumeError(Object.takeError());
+    return createStringError(inconvertibleErrorCode(), "invalid target");
+  }
+  if (Object->getKindString() != SymbolRef::KindString)
     return createStringError(inconvertibleErrorCode(),
-                             "invalid object kind '" + Ref->getKindString() +
+                             "invalid object kind '" + Object->getKindString() +
                                  "' for a target");
 
-  if (ExpectedKind && *K != *ExpectedKind)
-    return createStringError(inconvertibleErrorCode(),
-                             "unexpected object kind '" + Ref->getKindString() +
-                                 "', expected '" +
-                                 getKindString(*ExpectedKind) + "'");
-
-  return TargetRef(*Ref, *K);
+  return checkExpectedKind(Symbol, "symbol");
 }
 
 StringRef SymbolDefinitionRef::getKindString(Kind K) {
@@ -484,7 +444,8 @@ StringRef SymbolDefinitionRef::getKindString(Kind K) {
   case Alias:
     return SymbolRef::KindString;
   case IndirectAlias:
-    return IndirectSymbolRef::KindString;
+    // FIXME: There isn't a reasonable return here.
+    llvm::report_fatal_error("symbol definition needs indirect alias support");
   case Block:
     return BlockRef::KindString;
   }
@@ -497,7 +458,8 @@ SymbolDefinitionRef::get(Expected<ObjectFormatNodeRef> Ref,
     return Ref.takeError();
   Optional<Kind> K = StringSwitch<Optional<Kind>>(Ref->getKindString())
                          .Case(SymbolRef::KindString, Alias)
-                         .Case(IndirectSymbolRef::KindString, IndirectAlias)
+                         // FIXME: Cannot implement indirect aliases here.
+                         // .Case(cas::BlobRef::KindString, IndirectAlias)
                          .Case(BlockRef::KindString, Block)
                          .Default(None);
   if (!K)
@@ -586,8 +548,8 @@ Expected<SectionRef> SectionRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return SectionRef(*Specific);
 }
 
-Optional<cas::CASID> BlockRef::getTargetsID() const {
-  return hasEdges() ? getReference(3) : Optional<cas::CASID>();
+Optional<size_t> BlockRef::getTargetsIndex() const {
+  return hasEdges() ? 3 : Optional<size_t>();
 }
 
 Optional<cas::CASID> BlockRef::getTargetInfoID() const {
@@ -624,18 +586,13 @@ Expected<TargetInfoList> BlockRef::getTargetInfo() const {
 }
 
 Expected<TargetList> BlockRef::getTargets() const {
-  Optional<cas::CASID> TargetsID = getTargetsID();
-  if (!TargetsID)
+  Optional<size_t> TargetsIndex = getTargetsIndex();
+  if (!TargetsIndex)
     return TargetList();
-  if (Flags.HasInlinedTargets) {
-    if (Expected<TargetRef> InlinedTarget =
-            TargetRef::get(getSchema(), *TargetsID))
-      return TargetList(*InlinedTarget);
-    else
-      return InlinedTarget.takeError();
-  }
+  if (Flags.HasInlinedTargets)
+    return TargetList(*this, *TargetsIndex, *TargetsIndex + 1);
   if (Expected<TargetListRef> Targets =
-          TargetListRef::get(getSchema(), *TargetsID))
+          TargetListRef::get(getSchema(), getReference(*TargetsIndex)))
     return Targets->getTargets();
   else
     return Targets.takeError();
@@ -1039,16 +996,15 @@ Expected<BlockRef> BlockRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return B;
 }
 
-Expected<IndirectSymbolRef> SymbolRef::createIndirectSymbol() const {
-  if (!hasName())
-    return createStringError(
-        inconvertibleErrorCode(),
-        "invalid attempt to target anonymous symbol using its name");
+Expected<TargetRef> SymbolRef::getAsIndirectTarget() const {
   Expected<Optional<cas::BlobRef>> Name = getName();
   if (!Name)
     return Name.takeError();
-  assert(*Name && "Already checked this symbol has a name");
-  return IndirectSymbolRef::create(getSchema(), **Name, /*IsExternal=*/false);
+  if (!*Name)
+    return createStringError(
+        inconvertibleErrorCode(),
+        "invalid attempt to target anonymous symbol using its name");
+  return TargetRef::getIndirectSymbol(getSchema(), **Name);
 }
 
 Expected<SymbolRef> SymbolRef::get(Expected<ObjectFormatNodeRef> Ref) {
@@ -1218,7 +1174,7 @@ CompileUnitRef::get(Expected<ObjectFormatNodeRef> Ref) {
   if (!Specific)
     return Specific.takeError();
 
-  if (Specific->getNumReferences() != 4)
+  if (Specific->getNumReferences() != 5)
     return createStringError(inconvertibleErrorCode(), "corrupt compile unit");
 
   // Parse the fields stored in the data.
@@ -1253,7 +1209,8 @@ CompileUnitRef::get(Expected<ObjectFormatNodeRef> Ref) {
 Expected<CompileUnitRef> CompileUnitRef::create(
     ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
     support::endianness Endianness, SymbolTableRef DeadStripNever,
-    SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile) {
+    SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile,
+    NameListRef ExternalSymbols) {
   SmallString<256> Data;
   raw_svector_ostream OS(Data);
   support::endian::Writer EW(OS, support::endianness::little);
@@ -1266,8 +1223,40 @@ Expected<CompileUnitRef> CompileUnitRef::create(
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
   cas::CASID IDs[] = {*KindID, DeadStripNever, DeadStripLink,
-                      IndirectDeadStripCompile};
+                      IndirectDeadStripCompile, ExternalSymbols};
   return get(Schema.createNode(IDs, Data));
+}
+
+Expected<NameListRef> NameListRef::create(ObjectFileSchema &Schema,
+                                          MutableArrayRef<cas::BlobRef> Names) {
+  if (Names.size() >= (1ull << 32))
+    return createStringError(inconvertibleErrorCode(), "too many names");
+
+  Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
+  assert(KindID && "Expected valid KindID");
+  SmallVector<cas::CASID, 32> IDs = {*KindID};
+  IDs.reserve(Names.size() + 1);
+
+  // Sort the names to create a stable order.
+  if (Names.size() > 1) {
+    llvm::sort(Names, [](const cas::BlobRef &LHS, const cas::BlobRef &RHS) {
+      return LHS.getData() < RHS.getData();
+    });
+  }
+  IDs.append(Names.begin(), Names.end());
+
+  return get(Schema.createNode(IDs, ""));
+}
+
+Expected<NameListRef> NameListRef::get(Expected<ObjectFormatNodeRef> Ref) {
+  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
+  if (!Specific)
+    return Specific.takeError();
+
+  if (!Specific->getData().empty())
+    return createStringError(inconvertibleErrorCode(), "corrupt name list");
+
+  return NameListRef(*Specific);
 }
 
 Expected<SymbolTableRef> SymbolTableRef::create(ObjectFileSchema &Schema,
@@ -1455,13 +1444,14 @@ public:
   CompileUnitBuilder(ObjectFileSchema &Schema, raw_ostream *DebugOS)
       : CAS(Schema.CAS), Schema(Schema), DebugOS(DebugOS) {}
 
-  DenseMap<const jitlink::Symbol *, IndirectSymbolRef> IndirectSymbols;
+  DenseMap<const jitlink::Symbol *, cas::BlobRef> IndirectSymbols;
   DenseMap<const jitlink::Symbol *, SymbolRef> Symbols;
   DenseMap<const jitlink::Block *, BlockRef> Blocks;
 
   SmallVector<SymbolRef> DeadStripNeverSymbols;
   SmallVector<SymbolRef> DeadStripLinkSymbols;
   SmallVector<SymbolRef> IndirectDeadStripCompileSymbols;
+  SmallVector<cas::BlobRef> ExternalSymbols;
 
   /// Make symbols in post-order, exported symbols and non-dead-strippable
   /// symbols as entry points.
@@ -1477,8 +1467,7 @@ public:
   ///
   /// FIXME: If a symbol does not have a name, invent a name to enable the
   /// indirection.
-  Expected<IndirectSymbolRef>
-  getOrCreateIndirectSymbol(const jitlink::Symbol &S);
+  Expected<cas::BlobRef> getOrCreateIndirectSymbol(const jitlink::Symbol &S);
 
   /// Get the symbol as a target for the block. If \p S is in \a Symbols, use
   /// that; otherwise, defer to \a getOrCreateIndirectSymbol().
@@ -1573,7 +1562,7 @@ Error CompileUnitBuilder::createSymbol(const jitlink::Symbol &S) {
     auto Indirect = IndirectSymbols.find(&S);
     if (Indirect != IndirectSymbols.end()) {
       HasIndirectReference = true;
-      Name = cantFail(Indirect->second.getName());
+      Name = Indirect->second;
     }
   }
 
@@ -1670,7 +1659,7 @@ CompileUnitBuilder::getOrCreateBlock(const jitlink::Block &B) {
   return Cached->second;
 }
 
-Expected<IndirectSymbolRef>
+Expected<cas::BlobRef>
 CompileUnitBuilder::getOrCreateIndirectSymbol(const jitlink::Symbol &S) {
   auto Cached = IndirectSymbols.find(&S);
   if (Cached != IndirectSymbols.end())
@@ -1684,9 +1673,10 @@ CompileUnitBuilder::getOrCreateIndirectSymbol(const jitlink::Symbol &S) {
     IndirectDeadStripCompileSymbols.push_back(FullSymbol->second);
   }
 
-  Optional<Expected<IndirectSymbolRef>> ExpectedIndirectSymbol;
+  Optional<std::string> NameStorage;
+  Optional<StringRef> Name;
   if (S.hasName()) {
-    ExpectedIndirectSymbol = IndirectSymbolRef::create(Schema, S);
+    Name = S.getName();
   } else {
     assert(!S.isExternal());
 
@@ -1697,19 +1687,18 @@ CompileUnitBuilder::getOrCreateIndirectSymbol(const jitlink::Symbol &S) {
     //
     // However, currently this doesn't seem to be triggering right now, so
     // maybe it's "fine".
-    std::string GeneratedName =
-        ("cas.o:" + Twine(IndirectAnonymousSymbolCounter++)).str();
+    NameStorage = ("cas.o:" + Twine(IndirectAnonymousSymbolCounter++)).str();
+    Name = *NameStorage;
     if (DebugOS)
-      *DebugOS << "name anonymous symbol => " << GeneratedName << "\n";
-
-    ExpectedIndirectSymbol =
-        IndirectSymbolRef::create(Schema, GeneratedName, /*IsExternal=*/false);
+      *DebugOS << "name anonymous symbol => " << *NameStorage << "\n";
   }
+  Expected<cas::BlobRef> NameBlob = Schema.CAS.createBlob(S.getName());
+  if (!NameBlob)
+    return NameBlob.takeError();
 
-  if (!*ExpectedIndirectSymbol)
-    return ExpectedIndirectSymbol->takeError();
-  Cached = IndirectSymbols.insert(std::make_pair(&S, **ExpectedIndirectSymbol))
-               .first;
+  if (S.isExternal())
+    ExternalSymbols.push_back(*NameBlob);
+  Cached = IndirectSymbols.insert(std::make_pair(&S, *NameBlob)).first;
   return Cached->second;
 }
 
@@ -1752,10 +1741,10 @@ Expected<Optional<TargetRef>> CompileUnitBuilder::getOrCreateTarget(
   if (Cached != Symbols.end() &&
       (!PreferIndirectSymbolRefs || !Cached->second.hasName()))
     return Cached->second.getAsTarget();
-  Expected<IndirectSymbolRef> Indirect = getOrCreateIndirectSymbol(S);
+  Expected<cas::BlobRef> Indirect = getOrCreateIndirectSymbol(S);
   if (!Indirect)
     return Indirect.takeError();
-  return Indirect->getAsTarget();
+  return TargetRef::getIndirectSymbol(Schema, *Indirect);
 }
 
 Expected<CompileUnitRef> CompileUnitRef::create(ObjectFileSchema &Schema,
@@ -1784,10 +1773,14 @@ Expected<CompileUnitRef> CompileUnitRef::create(ObjectFileSchema &Schema,
       SymbolTableRef::create(Schema, Builder.IndirectDeadStripCompileSymbols);
   if (!CompileTable)
     return CompileTable.takeError();
+  Expected<NameListRef> ExternalSymbols =
+      NameListRef::create(Schema, Builder.ExternalSymbols);
+  if (!ExternalSymbols)
+    return ExternalSymbols.takeError();
 
   return CompileUnitRef::create(Schema, G.getTargetTriple(), G.getPointerSize(),
                                 G.getEndianness(), *NeverTable, *LinkTable,
-                                *CompileTable);
+                                *CompileTable, *ExternalSymbols);
 }
 
 namespace {
@@ -1830,6 +1823,9 @@ public:
     jitlink::Edge::AddendT Addend;
   };
 
+  Error makeExternalSymbols(Expected<NameListRef> ExternalSymbols);
+  Error makeExternalSymbol(ObjectFileSchema &Schema,
+                           Expected<cas::BlobRef> SymbolName);
   Error makeSymbols(Expected<SymbolTableRef> Table);
   Error makeSymbol(Expected<SymbolRef> Symbol);
 
@@ -1998,6 +1994,8 @@ Expected<std::unique_ptr<jitlink::LinkGraph>> CompileUnitRef::createLinkGraph(
                                                 Endianness, GetEdgeKindName);
 
   LinkGraphBuilder Builder(*G);
+  if (Error E = Builder.makeExternalSymbols(getExternalSymbols()))
+    return std::move(E);
   if (Error E = Builder.makeSymbols(getDeadStripNever()))
     return std::move(E);
   if (Error E = Builder.makeSymbols(getDeadStripLink()))
@@ -2046,12 +2044,41 @@ Expected<std::unique_ptr<jitlink::LinkGraph>> CompileUnitRef::createLinkGraph(
   return std::move(G);
 }
 
+Error LinkGraphBuilder::makeExternalSymbols(
+    Expected<NameListRef> ExternalSymbols) {
+  assert(!ForwardDeclaredBlock &&
+         "Expected no forward-declared symbols when creating externals");
+  if (!ExternalSymbols)
+    return ExternalSymbols.takeError();
+  for (size_t I = 0, E = ExternalSymbols->getNumNames(); I != E; ++I)
+    if (Error E = makeExternalSymbol(ExternalSymbols->getSchema(),
+                                     ExternalSymbols->getName(I)))
+      return E;
+  return Error::success();
+}
+
 Error LinkGraphBuilder::makeSymbols(Expected<SymbolTableRef> Table) {
   if (!Table)
     return Table.takeError();
   for (size_t I = 0, E = Table->getNumSymbols(); I != E; ++I)
     if (Error E = makeSymbol(Table->getSymbol(I)))
       return E;
+  return Error::success();
+}
+
+Error LinkGraphBuilder::makeExternalSymbol(ObjectFileSchema &Schema,
+                                           Expected<cas::BlobRef> SymbolName) {
+  if (!SymbolName)
+    return SymbolName.takeError();
+  TargetRef Target = TargetRef::getIndirectSymbol(Schema, *SymbolName);
+  StringRef Name = **SymbolName;
+
+  // FIXME: There's no current path for adding externals that are
+  // "weak-linked" (using jitlink::Linkage::Weak).
+  jitlink::Symbol &S =
+      G.addExternalSymbol(Name, /*Size=*/0, jitlink::Linkage::Strong);
+  Symbols[Target] = &S;
+  SymbolsByName[Name] = &S;
   return Error::success();
 }
 
@@ -2090,9 +2117,9 @@ LinkGraphBuilder::getOrCreateSymbol(Expected<TargetRef> Target,
 
   Optional<StringRef> Name;
   Optional<SymbolRef> Symbol;
-  bool IsExternal = false;
   if (Target->getKind() == TargetRef::Symbol) {
-    Expected<SymbolRef> ExpectedSymbol = SymbolRef::get(*Target);
+    Expected<SymbolRef> ExpectedSymbol =
+        SymbolRef::get(Target->getSchema(), *Target);
     if (!ExpectedSymbol)
       return ExpectedSymbol.takeError();
     Symbol = *ExpectedSymbol;
@@ -2108,37 +2135,26 @@ LinkGraphBuilder::getOrCreateSymbol(Expected<TargetRef> Target,
     }
   } else {
     assert(Target->getKind() == TargetRef::IndirectSymbol);
-    Expected<IndirectSymbolRef> Symbol = IndirectSymbolRef::get(*Target);
-    if (!Symbol)
-      return Symbol.takeError();
-    Expected<cas::BlobRef> ExpectedName = Symbol->getName();
+    Expected<StringRef> ExpectedName = Target->getName();
     if (!ExpectedName)
       return ExpectedName.takeError();
-    Name = **ExpectedName;
-    IsExternal = Symbol->isExternal();
+    Name = *ExpectedName;
   }
 
   // Check the name table if the symbol could have been referenced by a
   // different type of target.
   jitlink::Symbol *S = Name ? SymbolsByName.lookup(*Name) : nullptr;
   if (!S) {
-    if (IsExternal) {
-      // FIXME: There's no current path for adding externals that are
-      // "weak-linked" (using jitlink::Linkage::Weak).
-      S = &G.addExternalSymbol(*Name, /*Size=*/0, jitlink::Linkage::Strong);
-    } else {
-      // Forward declare and fix it up later.
-      if (!ForwardDeclaredBlock) {
-        jitlink::Section &Section = G.createSection(
-            "cas.o: forward-declared", sys::Memory::ProtectionFlags{});
-        ForwardDeclaredBlock = &G.createZeroFillBlock(Section, 1, 1, 1, 0);
-      }
-      S = Name ? &G.addDefinedSymbol(*ForwardDeclaredBlock, 0, *Name, 0,
-                                     jitlink::Linkage::Strong,
-                                     jitlink::Scope::Local, false, false)
-               : &G.addAnonymousSymbol(*ForwardDeclaredBlock, 0, 0, false,
-                                       false);
+    // Forward declare and fix it up later.
+    if (!ForwardDeclaredBlock) {
+      jitlink::Section &Section = G.createSection(
+          "cas.o: forward-declared", sys::Memory::ProtectionFlags{});
+      ForwardDeclaredBlock = &G.createZeroFillBlock(Section, 1, 1, 1, 0);
     }
+    S = Name ? &G.addDefinedSymbol(*ForwardDeclaredBlock, 0, *Name, 0,
+                                   jitlink::Linkage::Strong,
+                                   jitlink::Scope::Local, false, false)
+             : &G.addAnonymousSymbol(*ForwardDeclaredBlock, 0, 0, false, false);
   }
 
   if (Symbol)

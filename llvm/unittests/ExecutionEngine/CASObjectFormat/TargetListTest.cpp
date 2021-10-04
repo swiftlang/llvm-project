@@ -34,7 +34,6 @@ protected:
               jitlink::getGenericEdgeKindName);
     Section = &G->createSection("section", sys::Memory::MF_EXEC);
     Z = &G->createZeroFillBlock(*Section, 256, 0, 256, 0);
-    ExternalS = &G->addExternalSymbol("External", 0, jitlink::Linkage::Strong);
     DefinedS =
         &G->addDefinedSymbol(*Z, 0, "Defined", 0, jitlink::Linkage::Strong,
                              jitlink::Scope::Default, false, false);
@@ -43,10 +42,9 @@ protected:
     CAS = cas::createInMemoryCAS();
     Schema.emplace(*CAS);
 
-    // Create ExternalS.
+    // Create "External" symbol.
     ASSERT_THAT_ERROR(
-        unwrapExpected(IndirectSymbolRef::create(*Schema, *ExternalS),
-                       CreatedExternalS),
+        unwrapExpected(CAS->createBlob("External"), CreatedExternalS),
         Succeeded());
 
     // Create the block and symbol for DefinedS.
@@ -81,7 +79,6 @@ protected:
     CAS.reset();
     Section = nullptr;
     Z = nullptr;
-    ExternalS = nullptr;
     DefinedS = nullptr;
     G.reset();
   }
@@ -89,11 +86,10 @@ protected:
   Optional<jitlink::LinkGraph> G;
   jitlink::Section *Section = nullptr;
   jitlink::Block *Z = nullptr;
-  jitlink::Symbol *ExternalS = nullptr;
   jitlink::Symbol *DefinedS = nullptr;
   std::unique_ptr<cas::CASDB> CAS;
   Optional<ObjectFileSchema> Schema;
-  Optional<IndirectSymbolRef> CreatedExternalS;
+  Optional<cas::BlobRef> CreatedExternalS;
   Optional<BlockRef> ZeroBlock;
   Optional<SymbolRef> CreatedDefinedS;
 };
@@ -109,7 +105,7 @@ TEST_F(TargetListTest, empty) {
 
 TEST_F(TargetListTest, symbols) {
   TargetRef Input[] = {
-      CreatedExternalS->getAsTarget(),
+      TargetRef::getIndirectSymbol(*Schema, *CreatedExternalS),
       CreatedDefinedS->getAsTarget(),
   };
 
@@ -126,7 +122,7 @@ TEST_F(TargetListTest, symbols) {
     Optional<TargetRef> Ref = expectedToOptional(List[I]);
     ASSERT_TRUE(Ref);
     ASSERT_EQ(Input[I].getID(), Ref->getID());
-    ASSERT_EQ(Input[I].getKindString(), Ref->getKindString());
+    ASSERT_EQ(Input[I].getKind(), Ref->getKind());
   }
 }
 

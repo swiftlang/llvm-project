@@ -830,7 +830,7 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   };
   StringMap<ObjectKindInfo> Stats;
   ObjectKindInfo Totals;
-  size_t NumGeneratedNames = 0;
+  DenseSet<StringRef> GeneratedNames;
   Nodes[TopLevel].NumPaths = 1;
   SpecificBumpPtrAllocator<ExternalBitVector::BitWord> VectorAlloc;
   ObjectFileSchema Schema(CAS);
@@ -892,12 +892,17 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
       Totals.NumPaths += NumPaths; // Count paths to leafs.
 
     // Check specific stats.
-    if (Object.getKindString() == IndirectSymbolRef::KindString)
-      if (Optional<IndirectSymbolRef> Indirect = expectedToOptional(IndirectSymbolRef::get(Object)))
-        if (Optional<cas::BlobRef> Name =
-                expectedToOptional(Indirect->getName()))
-          if (Name->getData().startswith("cas.o:"))
-            ++NumGeneratedNames;
+    if (Object.getKindString() == BlockRef::KindString)
+      if (Optional<BlockRef> Block = expectedToOptional(BlockRef::get(Object)))
+        if (Optional<TargetList> Targets =
+                expectedToOptional(Block->getTargets()))
+          for (size_t I = 0, E = Targets->size(); I != E; ++I)
+            if (Optional<TargetRef> Target =
+                    expectedToOptional(Targets->get(I)))
+              if (Optional<StringRef> Name =
+                      expectedToOptional(Target->getName()))
+                if (Name->startswith("cas.o:"))
+                  GeneratedNames.insert(*Name);
 
     ExitOnErr(Object.forEachReference([&](CASID ChildID) {
       updateChild(ChildID);
@@ -949,11 +954,12 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     printInfo(Kind, Stats.lookup(Kind));
   printInfo("TOTAL", Totals);
 
-  if (NumGeneratedNames) {
+  if (!GeneratedNames.empty()) {
     outs() << "\n";
     outs() << llvm::formatv("{0,-22} {1,+10}\n", "Other Stats", "Count");
     outs() << llvm::formatv("{0,-22} {1,+10}\n", "===========", "=====");
-    outs() << llvm::formatv("{0,-22} {1,+10}\n", "num-generated-names", NumGeneratedNames);
+    outs() << llvm::formatv("{0,-22} {1,+10}\n", "num-generated-names",
+                            GeneratedNames.size());
   }
 }
 
