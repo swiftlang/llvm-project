@@ -10,12 +10,22 @@
 #include "llvm/ExecutionEngine/CASObjectFormat/ObjectFileSchema.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Memory.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
 using namespace llvm::casobjectformat;
 
 namespace {
+
+template <typename T>
+static Error unwrapExpected(Expected<T> &&E, Optional<T> &O) {
+  O.reset();
+  if (!E)
+    return E.takeError();
+  O = std::move(*E);
+  return Error::success();
+}
 
 class TargetListTest : public ::testing::Test {
 protected:
@@ -34,31 +44,39 @@ protected:
     Schema.emplace(*CAS);
 
     // Create ExternalS.
-    CreatedExternalS =
-        expectedToOptional(IndirectSymbolRef::create(*Schema, *ExternalS));
-    ASSERT_TRUE(CreatedExternalS);
+    ASSERT_THAT_ERROR(
+        unwrapExpected(IndirectSymbolRef::create(*Schema, *ExternalS),
+                       CreatedExternalS),
+        Succeeded());
 
     // Create the block and symbol for DefinedS.
-    ZeroBlock = expectedToOptional(
-        BlockRef::create(*Schema, *Z,
-                         [](const jitlink::Symbol &S, jitlink::Edge::Kind,
-                            bool IsFromData, jitlink::Edge::AddendT &,
-                            Optional<StringRef> &) -> Expected<TargetRef> {
-                           return createStringError(inconvertibleErrorCode(),
-                                                    "expected leaf block");
-                         }));
-    ASSERT_TRUE(ZeroBlock);
-    CreatedDefinedS = expectedToOptional(SymbolRef::create(
-        *Schema, *DefinedS,
-        [&](const jitlink::Block &B) -> Expected<SymbolDefinitionRef> {
-          assert(&B == Z);
-          return ZeroBlock->getAsSymbolDefinition();
-        }));
-    ASSERT_TRUE(CreatedDefinedS);
+    ASSERT_THAT_ERROR(
+        unwrapExpected(BlockRef::create(
+                           *Schema, *Z,
+                           [](const jitlink::Symbol &S, jitlink::Edge::Kind,
+                              bool IsFromData, jitlink::Edge::AddendT &,
+                              Optional<StringRef> &) -> Expected<TargetRef> {
+                             return createStringError(inconvertibleErrorCode(),
+                                                      "expected leaf block");
+                           }),
+                       ZeroBlock),
+        Succeeded());
 
-    CreatedAbstractBackedgeS =
-        expectedToOptional(IndirectSymbolRef::createAbstractBackedge(*Schema));
-    ASSERT_TRUE(CreatedAbstractBackedgeS);
+    ASSERT_THAT_ERROR(
+        unwrapExpected(
+            SymbolRef::create(
+                *Schema, *DefinedS,
+                [&](const jitlink::Block &B) -> Expected<SymbolDefinitionRef> {
+                  assert(&B == Z);
+                  return ZeroBlock->getAsSymbolDefinition();
+                }),
+            CreatedDefinedS),
+        Succeeded());
+
+    ASSERT_THAT_ERROR(
+        unwrapExpected(IndirectSymbolRef::createAbstractBackedge(*Schema),
+                       CreatedAbstractBackedgeS),
+        Succeeded());
   }
   void TearDown() override {
     CreatedAbstractBackedgeS.reset();
