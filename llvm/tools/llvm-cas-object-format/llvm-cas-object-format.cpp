@@ -894,10 +894,10 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     // Check specific stats.
     if (Object.getKindString() == IndirectSymbolRef::KindString)
       if (Optional<IndirectSymbolRef> Indirect = expectedToOptional(IndirectSymbolRef::get(Object)))
-        if (!Indirect->isAbstractBackedge())
-          if (Optional<cas::BlobRef> Name = expectedToOptional(Indirect->getName()))
-            if (Name->getData().startswith("cas.o:"))
-              ++NumGeneratedNames;
+        if (Optional<cas::BlobRef> Name =
+                expectedToOptional(Indirect->getName()))
+          if (Name->getData().startswith("cas.o:"))
+            ++NumGeneratedNames;
 
     ExitOnErr(Object.forEachReference([&](CASID ChildID) {
       updateChild(ChildID);

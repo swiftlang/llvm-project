@@ -72,14 +72,8 @@ protected:
                 }),
             CreatedDefinedS),
         Succeeded());
-
-    ASSERT_THAT_ERROR(
-        unwrapExpected(IndirectSymbolRef::createAbstractBackedge(*Schema),
-                       CreatedAbstractBackedgeS),
-        Succeeded());
   }
   void TearDown() override {
-    CreatedAbstractBackedgeS.reset();
     CreatedDefinedS.reset();
     ZeroBlock.reset();
     CreatedExternalS.reset();
@@ -102,13 +96,11 @@ protected:
   Optional<IndirectSymbolRef> CreatedExternalS;
   Optional<BlockRef> ZeroBlock;
   Optional<SymbolRef> CreatedDefinedS;
-  Optional<IndirectSymbolRef> CreatedAbstractBackedgeS;
 };
 
 TEST_F(TargetListTest, empty) {
   EXPECT_TRUE(TargetList().empty());
   EXPECT_EQ(0U, TargetList().size());
-  EXPECT_FALSE(TargetList().hasAbstractBackedge());
 
 #if !defined(NDEBUG) && GTEST_HAS_DEATH_TEST
   EXPECT_DEATH(expectedToOptional(TargetList()[0]), "past the end");
@@ -130,33 +122,6 @@ TEST_F(TargetListTest, symbols) {
   // Check the content.
   ASSERT_FALSE(List.empty());
   ASSERT_EQ(std::extent<decltype(Input)>::value, List.size());
-  EXPECT_FALSE(List.hasAbstractBackedge());
-  for (size_t I = 0, E = List.size(); I != E; ++I) {
-    Optional<TargetRef> Ref = expectedToOptional(List[I]);
-    ASSERT_TRUE(Ref);
-    ASSERT_EQ(Input[I].getID(), Ref->getID());
-    ASSERT_EQ(Input[I].getKindString(), Ref->getKindString());
-  }
-}
-
-TEST_F(TargetListTest, symbolsWithAbstractBackedge) {
-  TargetRef Input[] = {
-      CreatedExternalS->getAsTarget(),
-      CreatedDefinedS->getAsTarget(),
-      CreatedAbstractBackedgeS->getAsTarget(),
-  };
-
-  // Create a list.
-  Optional<TargetListRef> ListRef =
-      expectedToOptional(TargetListRef::create(*Schema, Input));
-  ASSERT_TRUE(ListRef);
-  EXPECT_TRUE(ListRef->hasAbstractBackedge());
-  TargetList List = ListRef->getTargets();
-
-  // Check the content.
-  ASSERT_FALSE(List.empty());
-  ASSERT_EQ(std::extent<decltype(Input)>::value, List.size());
-  EXPECT_TRUE(List.hasAbstractBackedge());
   for (size_t I = 0, E = List.size(); I != E; ++I) {
     Optional<TargetRef> Ref = expectedToOptional(List[I]);
     ASSERT_TRUE(Ref);

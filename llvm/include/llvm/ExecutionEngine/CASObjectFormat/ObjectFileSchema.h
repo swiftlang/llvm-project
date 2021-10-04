@@ -362,7 +362,6 @@ public:
   };
 
   Kind getKind() const { return K; }
-  bool isAbstractBackedge() const;
 
   static StringRef getKindString(Kind K);
   StringRef getKindString() const { return getKindString(K); }
@@ -395,15 +394,10 @@ public:
     return TargetRef::get(Node->getSchema(), Node->getReference(I + 1));
   }
 
-  bool hasAbstractBackedge() const { return HasAbstractBackedge; }
-
   TargetList() = default;
-  explicit TargetList(TargetRef Target)
-      : Node(Target), HasAbstractBackedge(Target.isAbstractBackedge()) {}
-  explicit TargetList(ObjectFormatNodeRef Node, bool HasAbstractBackedge,
-                      size_t First, size_t Last)
-      : Node(Node), First(First), Last(Last),
-        HasAbstractBackedge(HasAbstractBackedge) {
+  explicit TargetList(TargetRef Target) : Node(Target) {}
+  explicit TargetList(ObjectFormatNodeRef Node, size_t First, size_t Last)
+      : Node(Node), First(First), Last(Last) {
     assert(Last == this->Last && "Unexpected overflow");
   }
 
@@ -411,7 +405,6 @@ private:
   Optional<ObjectFormatNodeRef> Node;
   uint32_t First = 0;
   uint32_t Last = 0;
-  bool HasAbstractBackedge = false;
 };
 
 /// An array of targets.
@@ -425,12 +418,10 @@ class TargetListRef : public SpecificRef<TargetListRef> {
 public:
   static constexpr StringLiteral KindString = "cas.o:target-list";
 
-  bool hasAbstractBackedge() const;
-
   size_t getNumTargets() const { return getNumReferences() - 1; }
 
   TargetList getTargets() const {
-    return TargetList(*this, hasAbstractBackedge(), 1, getNumTargets() + 1);
+    return TargetList(*this, 1, getNumTargets() + 1);
   }
 
   /// Create the given target list. Does not sort the targets, since it's
@@ -464,7 +455,6 @@ public:
   static const constexpr StringLiteral KindString = "cas.o:indirect-symbol";
 
   bool isExternal() const;
-  bool isAbstractBackedge() const;
   cas::CASID getNameID() const { return getReference(1); }
   Expected<cas::BlobRef> getName() const {
     return getCAS().getBlob(getNameID());
@@ -484,8 +474,6 @@ public:
                                             cas::BlobRef Name, bool IsExternal);
   static Expected<IndirectSymbolRef> create(ObjectFileSchema &Schema,
                                             StringRef Name, bool IsExternal);
-  static Expected<IndirectSymbolRef>
-  createAbstractBackedge(ObjectFileSchema &Schema);
   static Expected<IndirectSymbolRef> create(ObjectFileSchema &Schema,
                                             const jitlink::Symbol &S);
 
@@ -612,7 +600,7 @@ public:
 
   static Expected<BlockRef>
   create(ObjectFileSchema &Schema, const jitlink::Block &Block,
-         function_ref<Expected<TargetRef>(
+         function_ref<Expected<Optional<TargetRef>>(
              const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
              jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
              GetTargetRef);

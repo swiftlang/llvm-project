@@ -115,16 +115,8 @@ ObjectFormatNodeRef::get(ObjectFileSchema &Schema, Expected<cas::NodeRef> Ref) {
 }
 
 bool IndirectSymbolRef::isExternal() const {
-  assert(getData()[0] == 2 || getData()[0] == 1 || getData()[0] == 0);
+  assert(getData()[0] == 1 || getData()[0] == 0);
   return getData()[0] == 1;
-}
-
-static const StringLiteral AbstractBackedgeSymbolName =
-    "cas.o: abstract-backedge-symbol";
-
-bool IndirectSymbolRef::isAbstractBackedge() const {
-  assert(getData()[0] == 2 || getData()[0] == 1 || getData()[0] == 0);
-  return getData()[0] == 2;
 }
 
 Expected<IndirectSymbolRef>
@@ -145,14 +137,11 @@ IndirectSymbolRef::get(Expected<ObjectFormatNodeRef> Ref) {
 Expected<IndirectSymbolRef> IndirectSymbolRef::create(ObjectFileSchema &Schema,
                                                       cas::BlobRef Name,
                                                       bool IsExternal) {
-  bool IsAbstractBackedge = Name.getData() == AbstractBackedgeSymbolName;
-  assert(!IsAbstractBackedge || !IsExternal);
-
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
   cas::CASID IDs[] = {*KindID, Name};
   SmallString<1> Data;
-  Data.push_back(IsAbstractBackedge ? 2 : IsExternal ? 1 : 0);
+  Data.push_back(IsExternal ? 1 : 0);
   return get(Schema.createNode(IDs, Data));
 }
 
@@ -163,11 +152,6 @@ Expected<IndirectSymbolRef> IndirectSymbolRef::create(ObjectFileSchema &Schema,
   if (!Blob)
     return Blob.takeError();
   return create(Schema, *Blob, IsExternal);
-}
-
-Expected<IndirectSymbolRef>
-IndirectSymbolRef::createAbstractBackedge(ObjectFileSchema &Schema) {
-  return create(Schema, AbstractBackedgeSymbolName, /*IsExternal=*/false);
 }
 
 Expected<IndirectSymbolRef>
@@ -473,11 +457,6 @@ StringRef TargetRef::getKindString(Kind K) {
   }
 }
 
-bool TargetRef::isAbstractBackedge() const {
-  return getKind() == TargetRef::IndirectSymbol &&
-         cantFail(IndirectSymbolRef::get(*this)).isAbstractBackedge();
-}
-
 Expected<TargetRef> TargetRef::get(Expected<ObjectFormatNodeRef> Ref,
                                    Optional<Kind> ExpectedKind) {
   if (!Ref)
@@ -535,17 +514,12 @@ SymbolDefinitionRef::get(Expected<ObjectFormatNodeRef> Ref,
   return SymbolDefinitionRef(*Ref, *K);
 }
 
-bool TargetListRef::hasAbstractBackedge() const {
-  assert(getData().empty() || getData() == "\x01");
-  return getData() == "\x01";
-}
-
 Expected<TargetListRef> TargetListRef::get(Expected<ObjectFormatNodeRef> Ref) {
   auto Specific = SpecificRefT::getSpecific(std::move(Ref));
   if (!Specific)
     return Specific.takeError();
 
-  if (!Specific->getData().empty() && Specific->getData() != "\x01")
+  if (!Specific->getData().empty())
     return createStringError(inconvertibleErrorCode(), "corrupt target list");
   return TargetListRef(*Specific);
 }
@@ -556,13 +530,8 @@ Expected<TargetListRef> TargetListRef::create(ObjectFileSchema &Schema,
   assert(KindID && "Expected valid KindID");
   SmallVector<cas::CASID, 16> IDs = {*KindID};
   IDs.reserve(Targets.size());
-
-  bool HasAbstractBackedge = false;
-  for (TargetRef Target : Targets) {
-    IDs.push_back(Target);
-    HasAbstractBackedge |= Target.isAbstractBackedge();
-  }
-  return get(Schema.createNode(IDs, HasAbstractBackedge ? "\x01" : ""));
+  IDs.append(Targets.begin(), Targets.end());
+  return get(Schema.createNode(IDs, ""));
 }
 
 namespace {
@@ -801,7 +770,7 @@ static bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
 static Error decomposeAndSortEdges(
     const jitlink::Block &Block, SmallVectorImpl<Fixup> &Fixups,
     SmallVectorImpl<TargetInfo> &TIs, SmallVectorImpl<TargetRef> &Targets,
-    function_ref<Expected<TargetRef>(
+    function_ref<Expected<Optional<TargetRef>>(
         const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
         jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
         GetTargetRef) {
@@ -827,9 +796,10 @@ static Error decomposeAndSortEdges(
     Optional<StringRef> SplitContent;
   };
   struct EdgeTarget {
-    TargetRef Target;
+    Optional<TargetRef> Target; // None if this is an abstract backedge.
     jitlink::Edge::AddendT Addend = ~0U;
   };
+  bool HasAbstractBackedge = false;
   SmallDenseMap<cas::CASID, size_t, 16> SymbolIndex;
   SmallDenseMap<const jitlink::Edge *, EdgeTarget, 16> EdgeTargets;
   SmallVector<TargetAndSymbol, 16> TargetData;
@@ -839,22 +809,29 @@ static Error decomposeAndSortEdges(
 
     Optional<StringRef> SplitContent;
     jitlink::Edge::AddendT Addend = E.getAddend();
-    Expected<TargetRef> Target =
+    Expected<Optional<TargetRef>> TargetOrAbstractBackedge =
         GetTargetRef(S, E.getKind(), IsFromData, Addend, SplitContent);
-    if (!Target)
-      return Target.takeError();
+    if (!TargetOrAbstractBackedge)
+      return TargetOrAbstractBackedge.takeError();
 
     // Map edges to targets.
-    EdgeTargets.insert(std::make_pair(&E, EdgeTarget{*Target, Addend}));
+    EdgeTargets.insert(
+        std::make_pair(&E, EdgeTarget{*TargetOrAbstractBackedge, Addend}));
+    if (!*TargetOrAbstractBackedge) {
+      HasAbstractBackedge = true;
+      continue;
+    }
 
     // Unique the targets themselves.
-    if (!SymbolIndex.insert(std::make_pair(Target->getID(), ~0U)).second)
+    TargetRef Target = **TargetOrAbstractBackedge;
+    if (!SymbolIndex.insert(std::make_pair(Target.getID(), ~0U)).second)
       continue;
-    TargetData.push_back(TargetAndSymbol{*Target, &S, SplitContent});
+    TargetData.push_back(TargetAndSymbol{Target, &S, SplitContent});
   }
   assert(!Edges.empty() && "No edges inserted?");
   assert(EdgeTargets.size() == Edges.size());
-  assert(!TargetData.empty() && "No symbols inserted?");
+  assert((HasAbstractBackedge || !TargetData.empty()) &&
+         "No symbols inserted?");
   assert(TargetData.size() == SymbolIndex.size());
 
   // Make the order of targets stable and fill in the index map.
@@ -904,10 +881,22 @@ static Error decomposeAndSortEdges(
 
                      // Compare the target and addend. In practice this is
                      // likely dead code.
-                     size_t LHSIndex = SymbolIndex.lookup(
-                         EdgeTargets.find(LHS)->second.Target);
-                     size_t RHSIndex = SymbolIndex.lookup(
-                         EdgeTargets.find(RHS)->second.Target);
+                     const EdgeTarget &LHSTarget =
+                         EdgeTargets.find(LHS)->second;
+                     const EdgeTarget &RHSTarget =
+                         EdgeTargets.find(RHS)->second;
+
+                     // Abstract backedges implicitly have an index past the
+                     // end of the target list. Return them last.
+                     bool IsLHSAbstract = !LHSTarget.Target;
+                     bool IsRHSAbstract = !RHSTarget.Target;
+                     if (IsLHSAbstract || IsRHSAbstract)
+                       return IsLHSAbstract < IsRHSAbstract;
+
+                     assert(!IsLHSAbstract);
+                     assert(!IsRHSAbstract);
+                     size_t LHSIndex = SymbolIndex.lookup(*LHSTarget.Target);
+                     size_t RHSIndex = SymbolIndex.lookup(*RHSTarget.Target);
                      if (LHSIndex < RHSIndex)
                        return true;
                      if (RHSIndex < LHSIndex)
@@ -921,6 +910,9 @@ static Error decomposeAndSortEdges(
   // Fill in the addends and target indices.
   Fixups.reserve(Edges.size());
   TIs.reserve(Edges.size());
+  Optional<size_t> AbstractBackedgeIndex;
+  if (HasAbstractBackedge)
+    AbstractBackedgeIndex = TargetData.size();
   for (const jitlink::Edge *E : Edges) {
     Fixups.emplace_back();
     Fixups.back().Kind = E->getKind();
@@ -928,7 +920,8 @@ static Error decomposeAndSortEdges(
 
     EdgeTarget &ET = EdgeTargets.find(E)->second;
     TIs.emplace_back();
-    TIs.back().Index = SymbolIndex.lookup(ET.Target);
+    TIs.back().Index =
+        ET.Target ? SymbolIndex.lookup(*ET.Target) : *AbstractBackedgeIndex;
     TIs.back().Addend = ET.Addend;
   }
   assert(TargetData.size() == SymbolIndex.size() &&
@@ -944,7 +937,7 @@ static Error decomposeAndSortEdges(
 
 Expected<BlockRef> BlockRef::create(
     ObjectFileSchema &Schema, const jitlink::Block &Block,
-    function_ref<Expected<TargetRef>(
+    function_ref<Expected<Optional<TargetRef>>(
         const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
         jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
         GetTargetRef) {
@@ -982,25 +975,30 @@ Expected<BlockRef> BlockRef::createImpl(ObjectFileSchema &Schema,
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
   SmallVector<cas::CASID, 6> IDs = {*KindID, Section, Data};
+
+  bool HasAbstractBackedge = false;
+  for (const auto &TI : TargetInfo) {
+    assert(TI.Index <= Targets.size() && "Target index out of range");
+    HasAbstractBackedge |= TI.Index == Targets.size();
+  }
+
   if (TargetInfo.empty()) {
     assert(Targets.empty() && "Targets without fixups?");
   } else {
-    assert(!Targets.empty() && "Fixups without targets?");
+    assert((HasAbstractBackedge || !Targets.empty()) &&
+           "Fixups without targets?");
   }
 
-  bool HasAbstractBackedge = false;
   const bool EmbedEdges =
       !TargetInfo.empty() && TargetInfo.size() <= MaxEdgesToEmbedInBlock;
   const bool InlineTargets = InlineUnaryTargetLists && Targets.size() == 1;
   if (InlineTargets) {
     IDs.push_back(Targets[0].getID());
-    HasAbstractBackedge = Targets[0].isAbstractBackedge();
   } else if (!Targets.empty()) {
     auto TargetsRef = TargetListRef::create(Schema, Targets);
     if (!TargetsRef)
       return TargetsRef.takeError();
     IDs.push_back(*TargetsRef);
-    HasAbstractBackedge = TargetsRef->hasAbstractBackedge();
   }
 
   SmallString<512> InlineData;
@@ -1457,7 +1455,6 @@ public:
   CompileUnitBuilder(ObjectFileSchema &Schema, raw_ostream *DebugOS)
       : CAS(Schema.CAS), Schema(Schema), DebugOS(DebugOS) {}
 
-  Optional<TargetRef> AbstractBackedgeTarget;
   DenseMap<const jitlink::Symbol *, IndirectSymbolRef> IndirectSymbols;
   DenseMap<const jitlink::Symbol *, SymbolRef> Symbols;
   DenseMap<const jitlink::Block *, BlockRef> Blocks;
@@ -1491,11 +1488,11 @@ public:
   /// Merge=M_ByContent && Scope=S_Local. In those cases, we'd want to
   /// reference an anonymous symbol directly, and only keep the name around as
   /// an alias as a convenience for users.
-  Expected<TargetRef> getOrCreateTarget(const jitlink::Symbol &S,
-                                        const jitlink::Block &SourceBlock,
-                                        jitlink::Edge::Kind K, bool IsFromData,
-                                        jitlink::Edge::AddendT &Addend,
-                                        Optional<StringRef> &SplitContent);
+  Expected<Optional<TargetRef>>
+  getOrCreateTarget(const jitlink::Symbol &S, const jitlink::Block &SourceBlock,
+                    jitlink::Edge::Kind K, bool IsFromData,
+                    jitlink::Edge::AddendT &Addend,
+                    Optional<StringRef> &SplitContent);
 
   /// Get or create a block.
   Expected<BlockRef> getOrCreateBlock(const jitlink::Block &B);
@@ -1503,9 +1500,6 @@ public:
   /// Get or create a symbol definition.
   Expected<SymbolDefinitionRef>
   getOrCreateSymbolDefinition(const jitlink::Symbol &S);
-
-  /// Get a target for \a AbstractBackedgeSymbolName.
-  Expected<TargetRef> getOrCreateAbstractBackedgeTarget();
 
 private:
   /// Guaranteed to be called in post-order. All undefined targets must be
@@ -1745,14 +1739,14 @@ cl::opt<bool>
                              cl::desc("Prefer referencing symbols indirectly."),
                              cl::init(false));
 
-Expected<TargetRef> CompileUnitBuilder::getOrCreateTarget(
+Expected<Optional<TargetRef>> CompileUnitBuilder::getOrCreateTarget(
     const jitlink::Symbol &S, const jitlink::Block &SourceBlock,
     jitlink::Edge::Kind K, bool IsFromData, jitlink::Edge::AddendT &Addend,
     Optional<StringRef> &SplitContent) {
   // Use an abstract target for the back-edge from FDEs in __TEXT,__eh_frame.
   if (UseAbstractBackedgeForPCBeginInFDEDuringBlockIngestion &&
       isPCBeginFromFDE(S, SourceBlock))
-    return getOrCreateAbstractBackedgeTarget();
+    return None;
 
   auto Cached = Symbols.find(&S);
   if (Cached != Symbols.end() &&
@@ -1762,21 +1756,6 @@ Expected<TargetRef> CompileUnitBuilder::getOrCreateTarget(
   if (!Indirect)
     return Indirect.takeError();
   return Indirect->getAsTarget();
-}
-
-Expected<TargetRef> CompileUnitBuilder::getOrCreateAbstractBackedgeTarget() {
-  if (AbstractBackedgeTarget)
-    return *AbstractBackedgeTarget;
-
-  Expected<cas::BlobRef> Blob = CAS.createBlob(AbstractBackedgeSymbolName);
-  if (!Blob)
-    return Blob.takeError();
-  Expected<IndirectSymbolRef> IndirectSymbol =
-      IndirectSymbolRef::create(Schema, *Blob, /*IsExternal=*/false);
-  if (!IndirectSymbol)
-    return IndirectSymbol.takeError();
-  AbstractBackedgeTarget = IndirectSymbol->getAsTarget();
-  return *AbstractBackedgeTarget;
 }
 
 Expected<CompileUnitRef> CompileUnitRef::create(ObjectFileSchema &Schema,
@@ -1860,7 +1839,7 @@ public:
   /// backedges.
   /// - If \p KeptAliveByBlock is set, this is a keep-alive edge.
   Expected<jitlink::Symbol *>
-  getOrCreateSymbol(Expected<TargetRef> Target, bool *IsAbstractBackedge,
+  getOrCreateSymbol(Expected<TargetRef> Target,
                     jitlink::Symbol *KeptAliveBySymbol);
   Expected<jitlink::Block *>
   getOrCreateBlock(jitlink::Symbol &ForSymbol, BlockRef Block,
@@ -1881,7 +1860,6 @@ public:
   LinkGraphBuilder(jitlink::LinkGraph &G) : G(G) {}
 
   jitlink::LinkGraph &G;
-  Optional<TargetRef> AbstractBackedgeTarget;
 
   template <class RefT> struct TypedID {
     cas::CASID ID;
@@ -2083,7 +2061,7 @@ Error LinkGraphBuilder::makeSymbol(Expected<SymbolRef> Symbol) {
   jitlink::Symbol *S = Symbols.lookup(Symbol->getAsTarget());
   if (!S) {
     if (Expected<jitlink::Symbol *> ExpectedS =
-            getOrCreateSymbol(Symbol->getAsTarget(), nullptr, nullptr))
+            getOrCreateSymbol(Symbol->getAsTarget(), nullptr))
       S = *ExpectedS;
     else
       return ExpectedS.takeError();
@@ -2104,7 +2082,6 @@ Error LinkGraphBuilder::makeSymbol(Expected<SymbolRef> Symbol) {
 
 Expected<jitlink::Symbol *>
 LinkGraphBuilder::getOrCreateSymbol(Expected<TargetRef> Target,
-                                    bool *IsAbstractBackedge,
                                     jitlink::Symbol *KeptAliveBySymbol) {
   if (!Target)
     return Target.takeError();
@@ -2139,14 +2116,6 @@ LinkGraphBuilder::getOrCreateSymbol(Expected<TargetRef> Target,
       return ExpectedName.takeError();
     Name = **ExpectedName;
     IsExternal = Symbol->isExternal();
-  }
-
-  if (Name && *Name == AbstractBackedgeSymbolName) {
-    assert(Target->getKind() == TargetRef::IndirectSymbol);
-    assert(!IsExternal);
-    assert(IsAbstractBackedge);
-    *IsAbstractBackedge = true;
-    return nullptr;
   }
 
   // Check the name table if the symbol could have been referenced by a
@@ -2277,23 +2246,23 @@ Error LinkGraphBuilder::addEdges(jitlink::Symbol &ForSymbol, jitlink::Block &B,
   FixupList::iterator F = Fixups->begin(), FE = Fixups->end();
   TargetInfoList::iterator TI = TIs->begin(), TIE = TIs->end();
   for (; F != FE && TI != TIE; ++F, ++TI) {
-    if (TI->Index >= Targets->size())
+    if (TI->Index > Targets->size())
       return createStringError(inconvertibleErrorCode(),
                                "target index too big for target-list");
 
-    // Pass this block down for KeepAlive edges.
-    bool IsAbstractBackedge = false;
-    Expected<jitlink::Symbol *> Target = getOrCreateSymbol(
-        Targets->get(TI->Index), &IsAbstractBackedge,
-        F->Kind == jitlink::Edge::KeepAlive ? &ForSymbol : nullptr);
-    if (!Target)
-      return Target.takeError();
-
-    if (IsAbstractBackedge) {
+    // Check for an abstract backedge.
+    if (TI->Index == Targets->size()) {
       assert(AddAbstractBackedge);
       AddAbstractBackedge(F->Kind, F->Offset, TI->Addend);
       continue;
     }
+
+    // Pass this block down for KeepAlive edges.
+    Expected<jitlink::Symbol *> Target = getOrCreateSymbol(
+        Targets->get(TI->Index),
+        F->Kind == jitlink::Edge::KeepAlive ? &ForSymbol : nullptr);
+    if (!Target)
+      return Target.takeError();
 
     // Pass in this block's KeptAliveByBlock for edges.
     assert(*Target && "Expected non-null symbol for target");
