@@ -549,13 +549,13 @@ Expected<SectionRef> SectionRef::get(Expected<ObjectFormatNodeRef> Ref) {
 }
 
 Optional<size_t> BlockRef::getTargetsIndex() const {
-  return hasEdges() ? 3 : Optional<size_t>();
+  return Flags.HasTargets ? 3 : Optional<size_t>();
 }
 
 Optional<cas::CASID> BlockRef::getTargetInfoID() const {
-  assert(hasEdges() && "Expected edges");
-  assert(!Flags.HasEmbeddedEdges && "Expected explicit edges");
-  return getReference(4);
+  assert(Flags.HasEdges && "Expected edges");
+  assert(!Flags.HasEmbeddedTargetInfo && "Expected explicit edges");
+  return getReference(3U + unsigned(Flags.HasTargets));
 }
 
 Expected<FixupList> BlockRef::getFixups() const {
@@ -572,7 +572,7 @@ Expected<TargetInfoList> BlockRef::getTargetInfo() const {
   if (!hasEdges())
     return TargetInfoList("");
 
-  if (Flags.HasEmbeddedEdges)
+  if (Flags.HasEmbeddedTargetInfo)
     return TargetInfoList(cas::NodeRef::getData().drop_front());
 
   Optional<cas::CASID> TargetInfoID = getTargetInfoID();
@@ -589,7 +589,7 @@ Expected<TargetList> BlockRef::getTargets() const {
   Optional<size_t> TargetsIndex = getTargetsIndex();
   if (!TargetsIndex)
     return TargetList();
-  if (Flags.HasInlinedTargets)
+  if (Flags.HasTargetInline)
     return TargetList(*this, *TargetsIndex, *TargetsIndex + 1);
   if (Expected<TargetListRef> Targets =
           TargetListRef::get(getSchema(), getReference(*TargetsIndex)))
@@ -946,10 +946,10 @@ Expected<BlockRef> BlockRef::createImpl(ObjectFileSchema &Schema,
            "Fixups without targets?");
   }
 
-  const bool EmbedEdges =
+  const bool HasEmbeddedTargetInfo =
       !TargetInfo.empty() && TargetInfo.size() <= MaxEdgesToEmbedInBlock;
-  const bool InlineTargets = InlineUnaryTargetLists && Targets.size() == 1;
-  if (InlineTargets) {
+  const bool HasTargetInline = InlineUnaryTargetLists && Targets.size() == 1;
+  if (HasTargetInline) {
     IDs.push_back(Targets[0].getID());
   } else if (!Targets.empty()) {
     auto TargetsRef = TargetListRef::create(Schema, Targets);
@@ -960,12 +960,14 @@ Expected<BlockRef> BlockRef::createImpl(ObjectFileSchema &Schema,
 
   SmallString<512> InlineData;
   unsigned Bits = 0;
-  Bits |= unsigned(HasAbstractBackedge);
-  Bits |= unsigned(InlineTargets) << 1;
-  Bits |= unsigned(EmbedEdges) << 2;
+  Bits |= unsigned(!TargetInfo.empty());   // HasEdges
+  Bits |= unsigned(!Targets.empty()) << 1; // HasTargets
+  Bits |= unsigned(HasTargetInline) << 2;
+  Bits |= unsigned(HasAbstractBackedge) << 3;
+  Bits |= unsigned(HasEmbeddedTargetInfo) << 4;
   InlineData.push_back(static_cast<unsigned char>(Bits));
 
-  if (EmbedEdges) {
+  if (HasEmbeddedTargetInfo) {
     TargetInfoList::encode(TargetInfo, InlineData);
   } else if (!TargetInfo.empty()) {
     SmallString<128> TargetInfoData;
@@ -990,9 +992,11 @@ Expected<BlockRef> BlockRef::get(Expected<ObjectFormatNodeRef> Ref) {
 
   BlockRef B(*Specific);
   unsigned char Bits = Specific->getData()[0];
-  B.Flags.HasAbstractBackedge = Bits & 1U;
-  B.Flags.HasInlinedTargets = Bits & (1U << 1);
-  B.Flags.HasEmbeddedEdges = Bits & (1U << 2);
+  B.Flags.HasEdges = Bits & 1U;
+  B.Flags.HasTargets = Bits & (1U << 1);
+  B.Flags.HasTargetInline = Bits & (1U << 2);
+  B.Flags.HasAbstractBackedge = Bits & (1U << 3);
+  B.Flags.HasEmbeddedTargetInfo = Bits & (1U << 4);
   return B;
 }
 

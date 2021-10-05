@@ -545,8 +545,7 @@ class BlockRef : public SpecificRef<BlockRef> {
 public:
   static constexpr StringLiteral KindString = "cas.o:block";
 
-  bool hasEdges() const { return getNumReferences() > 3; }
-
+  bool hasEdges() const { return Flags.HasEdges; }
   bool hasAbstractBackedge() const { return Flags.HasAbstractBackedge; }
 
   cas::CASID getSectionID() const { return getReference(1); }
@@ -596,9 +595,11 @@ public:
 
 private:
   struct BlockFlags {
+    bool HasEdges = false;
+    bool HasTargets = false;
+    bool HasTargetInline = false;
     bool HasAbstractBackedge = false;
-    bool HasInlinedTargets = false;
-    bool HasEmbeddedEdges = false;
+    bool HasEmbeddedTargetInfo = false;
   };
   BlockFlags Flags;
 
