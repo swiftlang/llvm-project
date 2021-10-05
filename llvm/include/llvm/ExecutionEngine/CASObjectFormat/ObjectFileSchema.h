@@ -840,7 +840,7 @@ private:
 ///         symbol
 ///           block
 ///             block-data
-///               target-list (skipping KeepAlive)
+///             target-list (skipping KeepAlive)
 ///
 /// ... but this relayering makes it hard to point at data symbols
 /// anonymously. The data could be listed explicitly by their section, but
@@ -878,7 +878,8 @@ private:
 ///
 ///     block
 ///       block-data
-///       fixup-list
+///         fixup-list
+///         content
 ///       target-info-list
 ///       target-list: list of targets, which are a variant of one of
 ///         indirect-symbol (name-based reference)
