@@ -44,7 +44,7 @@ protected:
 
     // Create "External" symbol.
     ASSERT_THAT_ERROR(
-        unwrapExpected(CAS->createBlob("External"), CreatedExternalS),
+        unwrapExpected(NameRef::create(*Schema, "External"), CreatedExternalS),
         Succeeded());
 
     // Create the block and symbol for DefinedS.
@@ -89,7 +89,7 @@ protected:
   jitlink::Symbol *DefinedS = nullptr;
   std::unique_ptr<cas::CASDB> CAS;
   Optional<ObjectFileSchema> Schema;
-  Optional<cas::BlobRef> CreatedExternalS;
+  Optional<NameRef> CreatedExternalS;
   Optional<BlockRef> ZeroBlock;
   Optional<SymbolRef> CreatedDefinedS;
 };

@@ -765,21 +765,29 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   struct WorklistItem {
     CASID ID;
     bool Visited;
+    ObjectFileSchema *Schema = nullptr;
   };
   SmallVector<WorklistItem> Worklist;
-  SmallVector<CASID> POT;
-  auto push = [&](CASID ID) {
+
+  struct POTItem {
+    CASID ID;
+    ObjectFileSchema *Schema = nullptr;
+  };
+  SmallVector<POTItem> POT;
+  auto push = [&](CASID ID, ObjectFileSchema *Schema = nullptr) {
     auto &Node = Nodes[ID];
     if (!Node.Done)
-      Worklist.push_back({ID, false});
+      Worklist.push_back({ID, false, Schema});
   };
   push(TopLevel);
+
+  ObjectFileSchema ObjectsSchema(CAS);
   while (!Worklist.empty()) {
     CASID ID = Worklist.back().ID;
     if (Worklist.back().Visited) {
       Nodes[ID].Done = true;
+      POT.push_back({ID, Worklist.back().Schema});
       Worklist.pop_back();
-      POT.push_back(ID);
       continue;
     }
     if (Nodes.lookup(ID).Done) {
@@ -810,9 +818,19 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     }
 
     assert(*Kind == ObjectKind::Node);
-    NodeRef Object = ExitOnErr(CAS.getNode(ID));
-    ExitOnErr(Object.forEachReference([&](CASID ChildID) {
-      push(ChildID);
+    NodeRef Node = ExitOnErr(CAS.getNode(ID));
+    ObjectFileSchema *&Schema = Worklist.back().Schema;
+
+    // Update the schema.
+    if (!Schema) {
+      if (ObjectsSchema.isRootNode(Node))
+        Schema = &ObjectsSchema;
+    } else if (!Schema->isNode(Node)) {
+      Schema = nullptr;
+    }
+
+    ExitOnErr(Node.forEachReference([&](CASID ChildID) {
+      push(ChildID, Schema);
       return Error::success();
     }));
   }
@@ -846,8 +864,8 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   size_t Num2TargetBlocks = 0;
   Nodes[TopLevel].NumPaths = 1;
   SpecificBumpPtrAllocator<ExternalBitVector::BitWord> VectorAlloc;
-  ObjectFileSchema Schema(CAS);
-  for (CASID ID : llvm::reverse(POT)) {
+  for (const POTItem &Item : llvm::reverse(POT)) {
+    cas::CASID ID = Item.ID;
     size_t NumPaths = Nodes.lookup(ID).NumPaths;
     Optional<ObjectKind> Kind = CAS.getObjectKind(ID);
     assert(Kind);
@@ -858,6 +876,9 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     };
 
     size_t NumParents = Nodes.lookup(ID).NumParents;
+    if (*Kind == ObjectKind::Blob && Item.Schema)
+      Kind = ObjectKind::Node; // Hack because nodes with no references look
+                               // like blobs.
     if (*Kind == ObjectKind::Blob) {
       auto &Info = Stats["builtin:blob"];
       ++Info.Count;
@@ -890,24 +911,31 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
 
     assert(*Kind == ObjectKind::Node);
     cas::NodeRef Node = ExitOnErr(CAS.getNode(ID));
+    auto addNodeStats = [&](ObjectKindInfo &Info) {
+      ++Info.Count;
+      Info.NumChildren += Node.getNumReferences();
+      Info.NumParents += NumParents;
+      Info.NumPaths += NumPaths;
+      Info.DataSize += Node.getData().size();
+      if (!Node.getNumReferences())
+        Totals.NumPaths += NumPaths; // Count paths to leafs.
 
-    // Skip the kind strings themselves to simplify output. References to them
-    // will still be counted.
-    //
-    // FIXME: Probably this should be included somehow even though it's
-    // negligible.
-    if (Schema.isKindID(Node))
+      ExitOnErr(Node.forEachReference([&](CASID ChildID) {
+        updateChild(ChildID);
+        return Error::success();
+      }));
+    };
+
+    // Handle nodes not in the schema.
+    if (!Item.Schema) {
+      addNodeStats(Stats["builtin:node"]);
       continue;
+    }
+
+    ObjectFileSchema &Schema = *Item.Schema;
 
     ObjectFormatNodeRef Object = ExitOnErr(Schema.getNode(Node));
-    auto &Info = Stats[Object.getKindString()];
-    ++Info.Count;
-    Info.NumChildren += Object.getNumReferences();
-    Info.NumParents += NumParents;
-    Info.NumPaths += NumPaths;
-    Info.DataSize += Object.getData().size();
-    if (!Object.getNumReferences())
-      Totals.NumPaths += NumPaths; // Count paths to leafs.
+    addNodeStats(Stats[Object.getKindString()]);
 
     // Check specific stats.
     if (Object.getKindString() == BlockRef::KindString) {
@@ -919,7 +947,7 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
             if (Optional<TargetRef> Target =
                     expectedToOptional(Targets->get(I))) {
               if (Optional<StringRef> Name =
-                      expectedToOptional(Target->getName()))
+                      expectedToOptional(Target->getNameString()))
                 if (Name->startswith("cas.o:"))
                   GeneratedNames.insert(*Name);
 
@@ -933,14 +961,14 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
           Num2TargetBlocks += Targets->size() == 2;
         }
         if (Optional<BlockDataRef> Data =
-                expectedToOptional(Block->getData())) {
+                expectedToOptional(Block->getBlockData())) {
           if (Data->isZeroFill())
             ++NumZeroFillBlocks;
           if (Optional<cas::CASID> Content = Data->getContentID())
             if (ContentBlobs.insert(*Content).second)
-              if (Optional<cas::BlobRef> Blob =
-                      expectedToOptional(CAS.getBlob(*Content)))
-                NumContentBlobs0To16B += Blob->getData().size() <= 16;
+              if (Optional<ContentRef> Blob =
+                      expectedToOptional(ContentRef::get(Schema, *Content)))
+                NumContentBlobs0To16B += Blob->getContent().size() <= 16;
         }
       }
     }
@@ -974,11 +1002,6 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
           SectionNames.insert(*Name);
       }
     }
-
-    ExitOnErr(Object.forEachReference([&](CASID ChildID) {
-      updateChild(ChildID);
-      return Error::success();
-    }));
   }
 
   SmallVector<StringRef> Kinds;
@@ -1041,7 +1064,6 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   printIfNotZero("num-symbol-names",
                  SymbolNames.size() + UndefinedSymbols.size());
   printIfNotZero("num-undefined-symbols", UndefinedSymbols.size());
-  printIfNotZero("num-content", ContentBlobs.size());
   printIfNotZero("num-content-0-to-16B", NumContentBlobs0To16B);
   printIfNotZero("num-anonymous-symbols", NumAnonymousSymbols);
   printIfNotZero("num-template-symbols", NumTemplateSymbols);

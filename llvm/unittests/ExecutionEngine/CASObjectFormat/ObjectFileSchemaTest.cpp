@@ -54,16 +54,17 @@ TEST(CASObjectFormatTests, Section) {
   std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
   ObjectFileSchema Schema(*CAS);
   for (jitlink::Section *S : Sections) {
-    Optional<SectionRef> Ref = expectedToOptional(SectionRef::create(Schema, *S));
-    ASSERT_TRUE(Ref);
+    Optional<SectionRef> Section =
+        expectedToOptional(SectionRef::create(Schema, *S));
+    ASSERT_TRUE(Section);
 
     // Note: MF_HUGE_HINT is expected to be dropped because it's not in the RWE
     // mask.
     EXPECT_EQ(S->getProtectionFlags() & sys::Memory::MF_RWE_MASK,
-              Ref->getProtectionFlags());
-    Optional<cas::BlobRef> Name = expectedToOptional(Ref->getName());
+              Section->getProtectionFlags());
+    Optional<NameRef> Name = expectedToOptional(Section->getName());
     ASSERT_TRUE(Name);
-    EXPECT_EQ(S->getName(), Name->getData());
+    EXPECT_EQ(S->getName(), Name->getName());
   }
 }
 
@@ -100,18 +101,18 @@ TEST(CASObjectFormatTests, BlockData) {
     EXPECT_EQ(B->getAlignmentOffset(), Ref->getAlignmentOffset());
     EXPECT_EQ(B->isZeroFill(), Ref->isZeroFill());
 
-    Expected<Optional<cas::BlobRef>> Content = Ref->getContent();
+    Expected<Optional<ContentRef>> Content = Ref->getContent();
     EXPECT_TRUE(bool(Content));
     if (!Content) {
       consumeError(Content.takeError());
       continue;
     }
     if (B->isZeroFill()) {
-      EXPECT_EQ(None, *Content);
+      EXPECT_FALSE(bool(*Content));
       continue;
     }
     EXPECT_EQ(StringRef(B->getContent().begin(), B->getContent().size()),
-              (*Content)->getData());
+              (*Content)->getContent());
   }
 }
 
@@ -404,7 +405,7 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
   // Create the external symbols.
   SmallDenseMap<jitlink::Symbol *, Optional<TargetRef>, 8> CreatedSymbols;
   for (jitlink::Symbol *S : {&S1, &S2}) {
-    auto Indirect = expectedToOptional(CAS->createBlob(S->getName()));
+    auto Indirect = expectedToOptional(NameRef::create(Schema, S->getName()));
     ASSERT_TRUE(Indirect);
     CreatedSymbols[S] = TargetRef::getIndirectSymbol(Schema, *Indirect);
   }
