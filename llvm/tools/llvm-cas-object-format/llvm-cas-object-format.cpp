@@ -758,6 +758,7 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   // In the first traversal, just collect a POT. Use NumPaths as a "Seen" list.
   struct NodeInfo {
     size_t NumPaths = 0;
+    size_t NumParents = 0;
     bool Done = false;
   };
   DenseMap<CASID, NodeInfo> Nodes;
@@ -821,17 +822,23 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   struct ObjectKindInfo {
     size_t Count = 0;
     size_t NumPaths = 0;
-    size_t NumReferences = 0;
+    size_t NumChildren = 0;
+    size_t NumParents = 0;
     size_t DataSize = 0;
 
     size_t getTotalSize(size_t NumHashBytes) const {
-      return NumReferences * NumHashBytes + DataSize;
+      return NumChildren * NumHashBytes + DataSize;
     }
   };
   StringMap<ObjectKindInfo> Stats;
   ObjectKindInfo Totals;
   DenseSet<StringRef> GeneratedNames;
   size_t NumAnonymousSymbols = 0;
+  size_t NumTemplateSymbols = 0;
+  size_t NumTemplateTargets = 0;
+  size_t NumZeroFillBlocks = 0;
+  size_t Num1TargetBlocks = 0;
+  size_t Num2TargetBlocks = 0;
   Nodes[TopLevel].NumPaths = 1;
   SpecificBumpPtrAllocator<ExternalBitVector::BitWord> VectorAlloc;
   ObjectFileSchema Schema(CAS);
@@ -841,14 +848,17 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     assert(Kind);
 
     auto updateChild = [&](CASID Child) {
+      ++Nodes[Child].NumParents;
       Nodes[Child].NumPaths += NumPaths;
     };
 
+    size_t NumParents = Nodes.lookup(ID).NumParents;
     if (*Kind == ObjectKind::Blob) {
       auto &Info = Stats["builtin:blob"];
       ++Info.Count;
       Info.DataSize += ExitOnErr(CAS.getBlob(ID)).getData().size();
       Info.NumPaths += NumPaths;
+      Info.NumParents += NumParents;
       Totals.NumPaths += NumPaths; // Count paths to leafs.
       continue;
     }
@@ -857,7 +867,8 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
       auto &Info = Stats["builtin:tree"];
       ++Info.Count;
       TreeRef Tree = ExitOnErr(CAS.getTree(ID));
-      Info.NumReferences += Tree.size();
+      Info.NumChildren += Tree.size();
+      Info.NumParents += NumParents;
       Info.NumPaths += NumPaths;
       if (!Tree.size())
         Totals.NumPaths += NumPaths; // Count paths to leafs.
@@ -886,29 +897,48 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     ObjectFormatNodeRef Object = ExitOnErr(Schema.getNode(Node));
     auto &Info = Stats[Object.getKindString()];
     ++Info.Count;
-    Info.NumReferences += Object.getNumReferences();
+    Info.NumChildren += Object.getNumReferences();
+    Info.NumParents += NumParents;
     Info.NumPaths += NumPaths;
     Info.DataSize += Object.getData().size();
     if (!Object.getNumReferences())
       Totals.NumPaths += NumPaths; // Count paths to leafs.
 
     // Check specific stats.
-    if (Object.getKindString() == BlockRef::KindString)
-      if (Optional<BlockRef> Block = expectedToOptional(BlockRef::get(Object)))
+    if (Object.getKindString() == BlockRef::KindString) {
+      if (Optional<BlockRef> Block =
+              expectedToOptional(BlockRef::get(Object))) {
         if (Optional<TargetList> Targets =
-                expectedToOptional(Block->getTargets()))
-          for (size_t I = 0, E = Targets->size(); I != E; ++I)
+                expectedToOptional(Block->getTargets())) {
+          for (size_t I = 0, E = Targets->size(); I != E; ++I) {
             if (Optional<TargetRef> Target =
-                    expectedToOptional(Targets->get(I)))
+                    expectedToOptional(Targets->get(I))) {
               if (Optional<StringRef> Name =
                       expectedToOptional(Target->getName()))
                 if (Name->startswith("cas.o:"))
                   GeneratedNames.insert(*Name);
-    if (Object.getKindString() == SymbolRef::KindString)
+
+              if (Target->getKind() == TargetRef::Symbol)
+                if (Optional<SymbolRef> Symbol =
+                        expectedToOptional(SymbolRef::get(Schema, *Target)))
+                  NumTemplateTargets += Symbol->isSymbolTemplate();
+            }
+          }
+          Num1TargetBlocks += Targets->size() == 1;
+          Num2TargetBlocks += Targets->size() == 2;
+        }
+        if (Optional<BlockDataRef> Data = expectedToOptional(Block->getData()))
+          if (Data->isZeroFill())
+            ++NumZeroFillBlocks;
+      }
+    }
+    if (Object.getKindString() == SymbolRef::KindString) {
       if (Optional<SymbolRef> Symbol =
-              expectedToOptional(SymbolRef::get(Object)))
-        if (!Symbol->hasName())
-          ++NumAnonymousSymbols;
+              expectedToOptional(SymbolRef::get(Object))) {
+        NumAnonymousSymbols += !Symbol->hasName();
+        NumTemplateSymbols += Symbol->isSymbolTemplate();
+      }
+    }
 
     ExitOnErr(Object.forEachReference([&](CASID ChildID) {
       updateChild(ChildID);
@@ -919,7 +949,8 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   SmallVector<StringRef> Kinds;
   auto addToTotal = [&Totals](ObjectKindInfo Info) {
     Totals.Count += Info.Count;
-    Totals.NumReferences += Info.NumReferences;
+    Totals.NumChildren += Info.NumChildren;
+    Totals.NumParents += Info.NumParents;
     Totals.DataSize += Info.DataSize;
   };
   for (auto &I : Stats) {
@@ -929,17 +960,18 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   size_t NumHashBytes = TopLevel.getHash().size();
   llvm::sort(Kinds);
 
-  outs() << "  => Note: 'Refs' counts references to immediate sub-objects\n"
-         << "  => Note: number of bytes per ref = " << NumHashBytes << "\n"
-         << "  => Note: cost estimate: sizeof(ref)*refs + data\n";
-  StringLiteral HeaderFormat = "{0,-22} {1,+10} {2,+7} {3,+13} {4,+7} {5,+10} "
-                               "{6,+7} {7,+10} {8,+7} {9,+10} {10,+7}\n";
-  StringLiteral Format = "{0,-22} {1,+10} {2,+7:P} {3,+13} {4,+7:P} {5,+10} "
-                         "{6,+7:P} {7,+10} {8,+7:P} {9,+10} {10,+7:P}\n";
-  outs() << llvm::formatv(HeaderFormat.begin(), "Kind", "Count", "",
-                          "Paths", "", "Refs", "", "Data (B)", "", "Cost (B)", "");
+  outs() << "  => Note: 'Parents' counts incoming edges\n"
+         << "  => Note: 'Children' counts outgoing edges (to sub-objects)\n"
+         << "  => Note: number of bytes per Ref = " << NumHashBytes << "\n"
+         << "  => Note: cost estimate: sizeof(Ref)*Children + Data\n";
+  StringLiteral HeaderFormat = "{0,-22} {1,+10} {2,+7} {3,+10} "
+                               "{4,+7} {5,+10} {6,+7} {7,+10} {8,+7}\n";
+  StringLiteral Format = "{0,-22} {1,+10} {2,+7:P} {3,+10} "
+                         "{4,+7:P} {5,+10} {6,+7:P} {7,+10} {8,+7:P}\n";
+  outs() << llvm::formatv(HeaderFormat.begin(), "Kind", "Count", "", "Parents",
+                          "", "Children", "", "Data (B)", "", "Cost (B)", "");
   outs() << llvm::formatv(HeaderFormat.begin(), "====", "=====", "",
-                          "=====", "", "====", "", "========", "",
+                          "=======", "", "========", "", "========", "",
                           "========", "");
   auto printInfo = [Format, NumHashBytes, Totals](StringRef Kind,
                                                   ObjectKindInfo Info) {
@@ -949,25 +981,33 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     size_t Size = Info.getTotalSize(NumHashBytes);
     outs() << llvm::formatv(
         Format.begin(), Kind, Info.Count, getPercent(Info.Count, Totals.Count),
-        Info.NumPaths,
-        getPercent(Info.NumPaths, Totals.NumPaths),
-        Info.NumReferences,
-        getPercent(Info.NumReferences, Totals.NumReferences), Info.DataSize,
-        getPercent(Info.DataSize, Totals.DataSize), Size,
+        Info.NumParents, getPercent(Info.NumParents, Totals.NumParents),
+        Info.NumChildren, getPercent(Info.NumChildren, Totals.NumChildren),
+        Info.DataSize, getPercent(Info.DataSize, Totals.DataSize), Size,
         getPercent(Size, Totals.getTotalSize(NumHashBytes)));
   };
   for (StringRef Kind : Kinds)
     printInfo(Kind, Stats.lookup(Kind));
   printInfo("TOTAL", Totals);
 
-  if (!GeneratedNames.empty() || NumAnonymousSymbols) {
-    if (!GeneratedNames.empty())
-      outs() << llvm::formatv("{0,-22} {1,+10}\n", "num-generated-names",
-                              GeneratedNames.size());
-    if (NumAnonymousSymbols)
-      outs() << llvm::formatv("{0,-22} {1,+10}\n", "num-anonymous-symbols",
-                              NumAnonymousSymbols);
-  }
+  // Other stats.
+  bool HasPrinted = false;
+  auto printIfNotZero = [&HasPrinted](StringRef Name, size_t Num) {
+    if (!Num)
+      return;
+    if (!HasPrinted)
+      outs() << "\n";
+    outs() << llvm::formatv("{0,-22} {1,+10}\n", Name, Num);
+    HasPrinted = true;
+  };
+
+  printIfNotZero("num-generated-names", GeneratedNames.size());
+  printIfNotZero("num-anonymous-symbols", NumAnonymousSymbols);
+  printIfNotZero("num-template-symbols", NumTemplateSymbols);
+  printIfNotZero("num-template-targets", NumTemplateTargets);
+  printIfNotZero("num-zero-fill-blocks", NumZeroFillBlocks);
+  printIfNotZero("num-1-target-blocks", Num2TargetBlocks);
+  printIfNotZero("num-2-target-blocks", Num1TargetBlocks);
 }
 
 static void dumpGraph(jitlink::LinkGraph &G, SharedStream &OS, StringRef Desc) {
