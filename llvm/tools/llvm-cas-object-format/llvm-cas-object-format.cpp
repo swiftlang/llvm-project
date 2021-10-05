@@ -831,6 +831,7 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   StringMap<ObjectKindInfo> Stats;
   ObjectKindInfo Totals;
   DenseSet<StringRef> GeneratedNames;
+  size_t NumAnonymousSymbols = 0;
   Nodes[TopLevel].NumPaths = 1;
   SpecificBumpPtrAllocator<ExternalBitVector::BitWord> VectorAlloc;
   ObjectFileSchema Schema(CAS);
@@ -903,6 +904,11 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
                       expectedToOptional(Target->getName()))
                 if (Name->startswith("cas.o:"))
                   GeneratedNames.insert(*Name);
+    if (Object.getKindString() == SymbolRef::KindString)
+      if (Optional<SymbolRef> Symbol =
+              expectedToOptional(SymbolRef::get(Object)))
+        if (!Symbol->hasName())
+          ++NumAnonymousSymbols;
 
     ExitOnErr(Object.forEachReference([&](CASID ChildID) {
       updateChild(ChildID);
@@ -954,12 +960,13 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
     printInfo(Kind, Stats.lookup(Kind));
   printInfo("TOTAL", Totals);
 
-  if (!GeneratedNames.empty()) {
-    outs() << "\n";
-    outs() << llvm::formatv("{0,-22} {1,+10}\n", "Other Stats", "Count");
-    outs() << llvm::formatv("{0,-22} {1,+10}\n", "===========", "=====");
-    outs() << llvm::formatv("{0,-22} {1,+10}\n", "num-generated-names",
-                            GeneratedNames.size());
+  if (!GeneratedNames.empty() || NumAnonymousSymbols) {
+    if (!GeneratedNames.empty())
+      outs() << llvm::formatv("{0,-22} {1,+10}\n", "num-generated-names",
+                              GeneratedNames.size());
+    if (NumAnonymousSymbols)
+      outs() << llvm::formatv("{0,-22} {1,+10}\n", "num-anonymous-symbols",
+                              NumAnonymousSymbols);
   }
 }
 
