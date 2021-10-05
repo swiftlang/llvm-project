@@ -217,8 +217,6 @@ class BlockDataRef : public SpecificRef<BlockDataRef> {
   friend class SpecificRef<BlockDataRef>;
 
 public:
-  /// FIXME: This is used as a type-id. It should probably be a reference to a
-  /// CAS object to avoid requiring "kind-string" support in CASDB.
   static constexpr StringLiteral KindString = "cas.o:block-data";
 
   bool isZeroFill() const { return IsZeroFill; }
