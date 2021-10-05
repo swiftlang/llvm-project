@@ -1472,14 +1472,8 @@ public:
   /// Cache the symbol. Asserts that the result is not already cached.
   void cacheSymbol(const jitlink::Symbol &S, SymbolRef Ref);
 
-  /// Create an indirect symbol. Caches the result.
-  ///
-  /// FIXME: If a symbol does not have a name, invent a name to enable the
-  /// indirection.
-  Expected<cas::BlobRef> getOrCreateIndirectSymbol(const jitlink::Symbol &S);
-
-  /// Get the symbol as a target for the block. If \p S is in \a Symbols, use
-  /// that; otherwise, defer to \a getOrCreateIndirectSymbol().
+  /// Get the symbol as a target for the block. If \p S has a definition in \a
+  /// Symbols, use that if it's not prefered to reference it indirectly.
   ///
   /// FIXME: Maybe targets should usually be name-based to improve redundancy
   /// between builds. In particular, could use direct references *only* for
@@ -1661,59 +1655,6 @@ CompileUnitBuilder::getOrCreateBlock(const jitlink::Block &B) {
   return Cached->second;
 }
 
-Expected<cas::BlobRef>
-CompileUnitBuilder::getOrCreateIndirectSymbol(const jitlink::Symbol &S) {
-  SymbolInfo &Info = Symbols[&S];
-  if (Info.Indirect)
-    return *Info.Indirect;
-
-  if (Info.Symbol) {
-    assert(!S.isExternal() && "External symbol has unexpected definition");
-    assert(S.hasName() &&
-           "Too late to create indirect reference to anonymous symbol...");
-    IndirectDeadStripCompileSymbols.push_back(*Info.Symbol);
-    Expected<Optional<cas::BlobRef>> NameBlob = Info.Symbol->getName();
-    if (!NameBlob)
-      return NameBlob.takeError();
-    assert(*NameBlob && "Symbol definition missing a name");
-    assert(***NameBlob == S.getName() && "Name mismatch");
-    Info.Indirect = **NameBlob;
-    return *Info.Indirect;
-  }
-
-  Optional<std::string> NameStorage;
-  Optional<StringRef> Name;
-  if (S.hasName()) {
-    Name = S.getName();
-  } else {
-    assert(!S.isExternal());
-
-    // FIXME: Do something better than this. Instead of generating a name, this
-    // should just be an index stored directly in the indirect symbol, and the
-    // anonymous symbols that are referenced indirectly need a top-level table
-    // entry.
-    //
-    // However, currently this doesn't seem to be triggering right now, so
-    // maybe it's "fine".
-    NameStorage = ("cas.o:" + Twine(IndirectAnonymousSymbolCounter++)).str();
-    Name = *NameStorage;
-    if (DebugOS)
-      *DebugOS << "name anonymous symbol => " << *NameStorage << "\n";
-  }
-  Expected<cas::BlobRef> NameBlob = Schema.CAS.createBlob(*Name);
-  if (!NameBlob)
-    return NameBlob.takeError();
-
-  if (S.isExternal()) {
-    if (S.getLinkage() == jitlink::Linkage::Weak)
-      WeakExternals.push_back(*NameBlob);
-    else
-      StrongExternals.push_back(*NameBlob);
-  }
-  Info.Indirect = *NameBlob;
-  return *Info.Indirect;
-}
-
 static bool isPCBeginFromFDE(const jitlink::Symbol &S,
                              const jitlink::Block &SourceBlock) {
   // FIXME: Mach-O specific logic.
@@ -1750,18 +1691,61 @@ Expected<Optional<TargetRef>> CompileUnitBuilder::getOrCreateTarget(
     return None;
 
   // Check if the target exists already.
-  {
-    auto Info = Symbols.lookup(&S);
-    if (Info.Symbol && (!PreferIndirectSymbolRefs || !Info.Symbol->hasName()))
-      return Info.Symbol->getAsTarget();
-    if (Info.Indirect)
-      return TargetRef::getIndirectSymbol(Schema, *Info.Indirect);
+  auto &Info = Symbols[&S];
+  if (Info.Symbol && (!PreferIndirectSymbolRefs || !Info.Symbol->hasName()))
+    return Info.Symbol->getAsTarget();
+  if (Info.Indirect)
+    return TargetRef::getIndirectSymbol(Schema, *Info.Indirect);
+
+  // Create an indirect target.
+  auto createIndirectTarget = [&](cas::BlobRef NameBlob) {
+    Info.Indirect = NameBlob;
+    return TargetRef::getIndirectSymbol(Schema, NameBlob);
+  };
+
+  if (Info.Symbol) {
+    assert(!S.isExternal() && "External symbol has unexpected definition");
+    assert(S.hasName() &&
+           "Too late to create indirect reference to anonymous symbol...");
+    IndirectDeadStripCompileSymbols.push_back(*Info.Symbol);
+    Expected<Optional<cas::BlobRef>> NameBlob = Info.Symbol->getName();
+    if (!NameBlob)
+      return NameBlob.takeError();
+    assert(*NameBlob && "Symbol definition missing a name");
+    assert(***NameBlob == S.getName() && "Name mismatch");
+    return createIndirectTarget(**NameBlob);
   }
 
-  Expected<cas::BlobRef> Indirect = getOrCreateIndirectSymbol(S);
-  if (!Indirect)
-    return Indirect.takeError();
-  return TargetRef::getIndirectSymbol(Schema, *Indirect);
+  Optional<std::string> NameStorage;
+  Optional<StringRef> Name;
+  if (S.hasName()) {
+    Name = S.getName();
+  } else {
+    assert(!S.isExternal());
+
+    // FIXME: Do something better than this. Instead of generating a name, this
+    // should just be an index stored directly in the indirect symbol, and the
+    // anonymous symbols that are referenced indirectly need a top-level table
+    // entry.
+    //
+    // However, currently this doesn't seem to be triggering right now, so
+    // maybe it's "fine".
+    NameStorage = ("cas.o:" + Twine(IndirectAnonymousSymbolCounter++)).str();
+    Name = *NameStorage;
+    if (DebugOS)
+      *DebugOS << "name anonymous symbol => " << *NameStorage << "\n";
+  }
+  Expected<cas::BlobRef> NameBlob = Schema.CAS.createBlob(*Name);
+  if (!NameBlob)
+    return NameBlob.takeError();
+
+  if (S.isExternal()) {
+    if (S.getLinkage() == jitlink::Linkage::Weak)
+      WeakExternals.push_back(*NameBlob);
+    else
+      StrongExternals.push_back(*NameBlob);
+  }
+  return createIndirectTarget(*NameBlob);
 }
 
 Expected<CompileUnitRef> CompileUnitRef::create(ObjectFileSchema &Schema,
