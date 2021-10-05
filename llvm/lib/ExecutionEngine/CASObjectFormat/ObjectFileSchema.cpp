@@ -1449,8 +1449,11 @@ public:
   CompileUnitBuilder(ObjectFileSchema &Schema, raw_ostream *DebugOS)
       : CAS(Schema.CAS), Schema(Schema), DebugOS(DebugOS) {}
 
-  DenseMap<const jitlink::Symbol *, cas::BlobRef> IndirectSymbols;
-  DenseMap<const jitlink::Symbol *, SymbolRef> Symbols;
+  struct SymbolInfo {
+    Optional<cas::BlobRef> Indirect;
+    Optional<SymbolRef> Symbol;
+  };
+  DenseMap<const jitlink::Symbol *, SymbolInfo> Symbols;
   DenseMap<const jitlink::Block *, BlockRef> Blocks;
 
   SmallVector<SymbolRef> DeadStripNeverSymbols;
@@ -1557,20 +1560,13 @@ cl::opt<bool> DropLeafSymbolNamesWithDot(
 
 Error CompileUnitBuilder::createSymbol(const jitlink::Symbol &S) {
   assert(!S.isExternal());
-  assert(!Symbols.count(&S));
+  assert(!Symbols.lookup(&S).Symbol);
 
   // FIXME: Handle absolute symbols.
   assert(!S.isAbsolute());
 
-  Optional<cas::BlobRef> Name;
-  bool HasIndirectReference = false;
-  {
-    auto Indirect = IndirectSymbols.find(&S);
-    if (Indirect != IndirectSymbols.end()) {
-      HasIndirectReference = true;
-      Name = Indirect->second;
-    }
-  }
+  Optional<cas::BlobRef> Name = Symbols.lookup(&S).Indirect;
+  bool HasIndirectReference = bool(Name);
 
   Expected<SymbolDefinitionRef> Definition = getOrCreateSymbolDefinition(S);
   if (!Definition)
@@ -1635,9 +1631,9 @@ Error CompileUnitBuilder::createSymbol(const jitlink::Symbol &S) {
 }
 
 void CompileUnitBuilder::cacheSymbol(const jitlink::Symbol &S, SymbolRef Ref) {
-  auto Insertion = Symbols.insert(std::make_pair(&S, Ref));
-  (void)Insertion;
-  assert(Insertion.second && "Expected insertion to succeed...");
+  auto &Info = Symbols[&S];
+  assert(!Info.Symbol && "Expected no symbol definition yet...");
+  Info.Symbol = Ref;
 }
 
 Expected<SymbolDefinitionRef>
@@ -1667,16 +1663,22 @@ CompileUnitBuilder::getOrCreateBlock(const jitlink::Block &B) {
 
 Expected<cas::BlobRef>
 CompileUnitBuilder::getOrCreateIndirectSymbol(const jitlink::Symbol &S) {
-  auto Cached = IndirectSymbols.find(&S);
-  if (Cached != IndirectSymbols.end())
-    return Cached->second;
+  SymbolInfo &Info = Symbols[&S];
+  if (Info.Indirect)
+    return *Info.Indirect;
 
-  // Ensure that anything referenced indirectly gets indexed at the top-level.
-  auto FullSymbol = Symbols.find(&S);
-  if (FullSymbol != Symbols.end()) {
+  if (Info.Symbol) {
+    assert(!S.isExternal() && "External symbol has unexpected definition");
     assert(S.hasName() &&
-           "Can't handle anonymous symbols here if definition already exists");
-    IndirectDeadStripCompileSymbols.push_back(FullSymbol->second);
+           "Too late to create indirect reference to anonymous symbol...");
+    IndirectDeadStripCompileSymbols.push_back(*Info.Symbol);
+    Expected<Optional<cas::BlobRef>> NameBlob = Info.Symbol->getName();
+    if (!NameBlob)
+      return NameBlob.takeError();
+    assert(*NameBlob && "Symbol definition missing a name");
+    assert(***NameBlob == S.getName() && "Name mismatch");
+    Info.Indirect = **NameBlob;
+    return *Info.Indirect;
   }
 
   Optional<std::string> NameStorage;
@@ -1698,7 +1700,7 @@ CompileUnitBuilder::getOrCreateIndirectSymbol(const jitlink::Symbol &S) {
     if (DebugOS)
       *DebugOS << "name anonymous symbol => " << *NameStorage << "\n";
   }
-  Expected<cas::BlobRef> NameBlob = Schema.CAS.createBlob(S.getName());
+  Expected<cas::BlobRef> NameBlob = Schema.CAS.createBlob(*Name);
   if (!NameBlob)
     return NameBlob.takeError();
 
@@ -1708,8 +1710,8 @@ CompileUnitBuilder::getOrCreateIndirectSymbol(const jitlink::Symbol &S) {
     else
       StrongExternals.push_back(*NameBlob);
   }
-  Cached = IndirectSymbols.insert(std::make_pair(&S, *NameBlob)).first;
-  return Cached->second;
+  Info.Indirect = *NameBlob;
+  return *Info.Indirect;
 }
 
 static bool isPCBeginFromFDE(const jitlink::Symbol &S,
@@ -1747,10 +1749,15 @@ Expected<Optional<TargetRef>> CompileUnitBuilder::getOrCreateTarget(
       isPCBeginFromFDE(S, SourceBlock))
     return None;
 
-  auto Cached = Symbols.find(&S);
-  if (Cached != Symbols.end() &&
-      (!PreferIndirectSymbolRefs || !Cached->second.hasName()))
-    return Cached->second.getAsTarget();
+  // Check if the target exists already.
+  {
+    auto Info = Symbols.lookup(&S);
+    if (Info.Symbol && (!PreferIndirectSymbolRefs || !Info.Symbol->hasName()))
+      return Info.Symbol->getAsTarget();
+    if (Info.Indirect)
+      return TargetRef::getIndirectSymbol(Schema, *Info.Indirect);
+  }
+
   Expected<cas::BlobRef> Indirect = getOrCreateIndirectSymbol(S);
   if (!Indirect)
     return Indirect.takeError();
