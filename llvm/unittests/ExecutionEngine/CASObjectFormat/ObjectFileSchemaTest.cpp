@@ -8,6 +8,7 @@
 
 #include "llvm/ExecutionEngine/CASObjectFormat/ObjectFileSchema.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Testing/Support/Error.h"
@@ -22,6 +23,16 @@ static Error unwrapExpected(Expected<T> &&E, Optional<T> &O) {
   if (!E)
     return E.takeError();
   O = std::move(*E);
+  return Error::success();
+}
+
+template <typename T>
+static Error unwrapExpected(Expected<std::unique_ptr<T>> &&E,
+                            std::unique_ptr<T> &P) {
+  P.reset();
+  if (!E)
+    return E.takeError();
+  P = std::move(*E);
   return Error::success();
 }
 
@@ -452,6 +463,120 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
     EXPECT_EQ(Offsets[I], F->Offset);
     EXPECT_EQ(ExpectedTarget.getID(), Target->getID());
     EXPECT_EQ(Addends[I], TI->Addend);
+  }
+}
+
+TEST(CASObjectFormatTests, RoundTrip) {
+  jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
+                       support::little, jitlink::getGenericEdgeKindName);
+  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+  jitlink::Symbol &S1 = G.addExternalSymbol("S1", 0, jitlink::Linkage::Strong);
+  jitlink::Symbol &S2 = G.addExternalSymbol("S2", 0, jitlink::Linkage::Weak);
+
+  // Add a defined symbol so there are two types of targets.
+  jitlink::Block &Z = G.createZeroFillBlock(Section, 256, 0, 256, 0);
+  jitlink::Symbol &S3 =
+      G.addDefinedSymbol(Z, 0, "S3", 0, jitlink::Linkage::Strong,
+                         jitlink::Scope::Default, false, false);
+
+  jitlink::Block &B = G.createContentBlock(Section, BlockContent, 0, 256, 0);
+
+  // Create arrays of each field. Sort by the order the edges should be sorted
+  // (precedence is offset, kind, target name, and addend).
+  jitlink::Edge::OffsetT Offsets[] = {0, 0, 0, 0, 0, 0, 8, 16};
+  jitlink::Edge::Kind Kinds[] = {
+      jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
+      jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
+      jitlink::Edge::FirstRelocation, jitlink::Edge::FirstRelocation + 1,
+      jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
+  };
+  jitlink::Symbol *Targets[] = {&S1, &S1, &S2, &S3, &S1, &S1, &S1, &S1};
+  jitlink::Edge::AddendT Addends[] = {0, 24, 0, 0, 0, 0, 0, 0};
+
+  // Add the edges, out of order.
+  size_t AddOrder[] = {2, 1, 0, 6, 7, 3, 5, 4};
+  static_assert(std::extent<decltype(AddOrder)>::value ==
+                    std::extent<decltype(Offsets)>::value,
+                "Check array sizes");
+  static_assert(std::extent<decltype(AddOrder)>::value ==
+                    std::extent<decltype(Kinds)>::value,
+                "Check array sizes");
+  static_assert(std::extent<decltype(AddOrder)>::value ==
+                    std::extent<decltype(Targets)>::value,
+                "Check array sizes");
+  static_assert(std::extent<decltype(AddOrder)>::value ==
+                    std::extent<decltype(Addends)>::value,
+                "Check array sizes");
+  for (size_t I : AddOrder)
+    B.addEdge(Kinds[I], Offsets[I], *Targets[I], Addends[I]);
+
+  // Add a few symbols pointing at "B".
+  G.addDefinedSymbol(B, 0, "B1", 0, jitlink::Linkage::Strong,
+                     jitlink::Scope::Default, false, false);
+  G.addDefinedSymbol(B, 0, "B2", 0, jitlink::Linkage::Weak,
+                     jitlink::Scope::Default, false, false);
+  G.addDefinedSymbol(B, 0, "B3", 0, jitlink::Linkage::Strong,
+                     jitlink::Scope::Hidden, false, false);
+  G.addDefinedSymbol(B, 0, "B4", 0, jitlink::Linkage::Weak,
+                     jitlink::Scope::Hidden, false, false);
+
+  std::unique_ptr<jitlink::LinkGraph> RoundTripG;
+  {
+    // Convert to cas.o.
+    std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
+    ObjectFileSchema Schema(*CAS);
+    Optional<CompileUnitRef> CU;
+    ASSERT_THAT_ERROR(unwrapExpected(CompileUnitRef::create(Schema, G), CU),
+                      Succeeded());
+
+    // Convert back to LinkGraph.
+    ASSERT_THAT_ERROR(
+        unwrapExpected(CU->createLinkGraph("round-tripped",
+                                           jitlink::getGenericEdgeKindName),
+                       RoundTripG),
+        Succeeded());
+  }
+
+  // Check linkage for named symbols.
+  auto mapSymbols = [](const jitlink::LinkGraph &G,
+                       StringMap<const jitlink::Symbol *> &Map) {
+    for (const jitlink::Symbol *S : G.defined_symbols())
+      if (S->hasName())
+        Map[S->getName()] = S;
+    for (const jitlink::Symbol *S : G.absolute_symbols())
+      Map[S->getName()] = S;
+    for (const jitlink::Symbol *S : G.external_symbols())
+      Map[S->getName()] = S;
+  };
+  auto collectSymbols = [](const jitlink::LinkGraph &G,
+                           SmallVectorImpl<const jitlink::Symbol *> &Vector) {
+    for (const jitlink::Symbol *S : G.defined_symbols())
+      Vector.push_back(S);
+    for (const jitlink::Symbol *S : G.absolute_symbols())
+      Vector.push_back(S);
+    for (const jitlink::Symbol *S : G.external_symbols())
+      Vector.push_back(S);
+  };
+  StringMap<const jitlink::Symbol *> RoundTripSymbols;
+  mapSymbols(*RoundTripG, RoundTripSymbols);
+  SmallVector<const jitlink::Symbol *> OriginalSymbols;
+  collectSymbols(G, OriginalSymbols);
+  for (const jitlink::Symbol *S : OriginalSymbols) {
+    if (!S->hasName()) // Skip for now.
+      continue;
+
+    const jitlink::Symbol *RoundTripS = RoundTripSymbols.lookup(S->getName());
+    StringRef RoundTripName = RoundTripS ? RoundTripS->getName() : "";
+    // Check the name rather than for nullptr so we get a good error message.
+    EXPECT_EQ(S->getName(), RoundTripName);
+    if (!RoundTripS)
+      continue;
+
+    EXPECT_EQ(S->isDefined(), RoundTripS->isDefined());
+    EXPECT_EQ(S->isAbsolute(), RoundTripS->isAbsolute());
+    EXPECT_EQ(S->isExternal(), RoundTripS->isExternal());
+    EXPECT_EQ(S->getLinkage(), RoundTripS->getLinkage());
+    EXPECT_EQ(S->getScope(), RoundTripS->getScope());
   }
 }
 

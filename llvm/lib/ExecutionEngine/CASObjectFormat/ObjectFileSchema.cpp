@@ -1174,7 +1174,7 @@ CompileUnitRef::get(Expected<ObjectFormatNodeRef> Ref) {
   if (!Specific)
     return Specific.takeError();
 
-  if (Specific->getNumReferences() != 5)
+  if (Specific->getNumReferences() != 6)
     return createStringError(inconvertibleErrorCode(), "corrupt compile unit");
 
   // Parse the fields stored in the data.
@@ -1210,7 +1210,7 @@ Expected<CompileUnitRef> CompileUnitRef::create(
     ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
     support::endianness Endianness, SymbolTableRef DeadStripNever,
     SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile,
-    NameListRef ExternalSymbols) {
+    NameListRef StrongSymbols, NameListRef WeakSymbols) {
   SmallString<256> Data;
   raw_svector_ostream OS(Data);
   support::endian::Writer EW(OS, support::endianness::little);
@@ -1222,8 +1222,9 @@ Expected<CompileUnitRef> CompileUnitRef::create(
 
   Optional<cas::CASID> KindID = Schema.getKindStringID(KindString);
   assert(KindID && "Expected valid KindID");
-  cas::CASID IDs[] = {*KindID, DeadStripNever, DeadStripLink,
-                      IndirectDeadStripCompile, ExternalSymbols};
+  cas::CASID IDs[] = {*KindID,       DeadStripNever,
+                      DeadStripLink, IndirectDeadStripCompile,
+                      StrongSymbols, WeakSymbols};
   return get(Schema.createNode(IDs, Data));
 }
 
@@ -1451,7 +1452,8 @@ public:
   SmallVector<SymbolRef> DeadStripNeverSymbols;
   SmallVector<SymbolRef> DeadStripLinkSymbols;
   SmallVector<SymbolRef> IndirectDeadStripCompileSymbols;
-  SmallVector<cas::BlobRef> ExternalSymbols;
+  SmallVector<cas::BlobRef> StrongExternals;
+  SmallVector<cas::BlobRef> WeakExternals;
 
   /// Make symbols in post-order, exported symbols and non-dead-strippable
   /// symbols as entry points.
@@ -1696,8 +1698,12 @@ CompileUnitBuilder::getOrCreateIndirectSymbol(const jitlink::Symbol &S) {
   if (!NameBlob)
     return NameBlob.takeError();
 
-  if (S.isExternal())
-    ExternalSymbols.push_back(*NameBlob);
+  if (S.isExternal()) {
+    if (S.getLinkage() == jitlink::Linkage::Weak)
+      WeakExternals.push_back(*NameBlob);
+    else
+      StrongExternals.push_back(*NameBlob);
+  }
   Cached = IndirectSymbols.insert(std::make_pair(&S, *NameBlob)).first;
   return Cached->second;
 }
@@ -1773,14 +1779,18 @@ Expected<CompileUnitRef> CompileUnitRef::create(ObjectFileSchema &Schema,
       SymbolTableRef::create(Schema, Builder.IndirectDeadStripCompileSymbols);
   if (!CompileTable)
     return CompileTable.takeError();
-  Expected<NameListRef> ExternalSymbols =
-      NameListRef::create(Schema, Builder.ExternalSymbols);
-  if (!ExternalSymbols)
-    return ExternalSymbols.takeError();
+  Expected<NameListRef> StrongExternals =
+      NameListRef::create(Schema, Builder.StrongExternals);
+  if (!StrongExternals)
+    return StrongExternals.takeError();
+  Expected<NameListRef> WeakExternals =
+      NameListRef::create(Schema, Builder.WeakExternals);
+  if (!WeakExternals)
+    return WeakExternals.takeError();
 
-  return CompileUnitRef::create(Schema, G.getTargetTriple(), G.getPointerSize(),
-                                G.getEndianness(), *NeverTable, *LinkTable,
-                                *CompileTable, *ExternalSymbols);
+  return CompileUnitRef::create(
+      Schema, G.getTargetTriple(), G.getPointerSize(), G.getEndianness(),
+      *NeverTable, *LinkTable, *CompileTable, *StrongExternals, *WeakExternals);
 }
 
 namespace {
@@ -1823,9 +1833,11 @@ public:
     jitlink::Edge::AddendT Addend;
   };
 
-  Error makeExternalSymbols(Expected<NameListRef> ExternalSymbols);
+  Error makeExternalSymbols(Expected<NameListRef> ExternalSymbols,
+                            jitlink::Linkage Linkage);
   Error makeExternalSymbol(ObjectFileSchema &Schema,
-                           Expected<cas::BlobRef> SymbolName);
+                           Expected<cas::BlobRef> SymbolName,
+                           jitlink::Linkage Linkage);
   Error makeSymbols(Expected<SymbolTableRef> Table);
   Error makeSymbol(Expected<SymbolRef> Symbol);
 
@@ -1994,7 +2006,11 @@ Expected<std::unique_ptr<jitlink::LinkGraph>> CompileUnitRef::createLinkGraph(
                                                 Endianness, GetEdgeKindName);
 
   LinkGraphBuilder Builder(*G);
-  if (Error E = Builder.makeExternalSymbols(getExternalSymbols()))
+  if (Error E = Builder.makeExternalSymbols(getStrongExternals(),
+                                            jitlink::Linkage::Strong))
+    return std::move(E);
+  if (Error E = Builder.makeExternalSymbols(getWeakExternals(),
+                                            jitlink::Linkage::Weak))
     return std::move(E);
   if (Error E = Builder.makeSymbols(getDeadStripNever()))
     return std::move(E);
@@ -2045,14 +2061,14 @@ Expected<std::unique_ptr<jitlink::LinkGraph>> CompileUnitRef::createLinkGraph(
 }
 
 Error LinkGraphBuilder::makeExternalSymbols(
-    Expected<NameListRef> ExternalSymbols) {
+    Expected<NameListRef> ExternalSymbols, jitlink::Linkage Linkage) {
   assert(!ForwardDeclaredBlock &&
          "Expected no forward-declared symbols when creating externals");
   if (!ExternalSymbols)
     return ExternalSymbols.takeError();
   for (size_t I = 0, E = ExternalSymbols->getNumNames(); I != E; ++I)
     if (Error E = makeExternalSymbol(ExternalSymbols->getSchema(),
-                                     ExternalSymbols->getName(I)))
+                                     ExternalSymbols->getName(I), Linkage))
       return E;
   return Error::success();
 }
@@ -2067,16 +2083,14 @@ Error LinkGraphBuilder::makeSymbols(Expected<SymbolTableRef> Table) {
 }
 
 Error LinkGraphBuilder::makeExternalSymbol(ObjectFileSchema &Schema,
-                                           Expected<cas::BlobRef> SymbolName) {
+                                           Expected<cas::BlobRef> SymbolName,
+                                           jitlink::Linkage Linkage) {
   if (!SymbolName)
     return SymbolName.takeError();
   TargetRef Target = TargetRef::getIndirectSymbol(Schema, *SymbolName);
   StringRef Name = **SymbolName;
 
-  // FIXME: There's no current path for adding externals that are
-  // "weak-linked" (using jitlink::Linkage::Weak).
-  jitlink::Symbol &S =
-      G.addExternalSymbol(Name, /*Size=*/0, jitlink::Linkage::Strong);
+  jitlink::Symbol &S = G.addExternalSymbol(Name, /*Size=*/0, Linkage);
   Symbols[Target] = &S;
   SymbolsByName[Name] = &S;
   return Error::success();

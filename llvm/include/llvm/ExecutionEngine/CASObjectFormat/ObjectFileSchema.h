@@ -957,7 +957,8 @@ public:
   cas::CASID getDeadStripNeverID() const { return getReference(1); }
   cas::CASID getDeadStripLinkID() const { return getReference(2); }
   cas::CASID getIndirectDeadStripCompileID() const { return getReference(3); }
-  cas::CASID getExternalSymbolsID() const { return getReference(4); }
+  cas::CASID getStrongExternalsID() const { return getReference(4); }
+  cas::CASID getWeakExternalsID() const { return getReference(5); }
   Expected<SymbolTableRef> getDeadStripNever() const {
     return SymbolTableRef::get(getSchema().getNode(getDeadStripNeverID()));
   }
@@ -968,11 +969,11 @@ public:
     return SymbolTableRef::get(
         getSchema().getNode(getIndirectDeadStripCompileID()));
   }
-
-  /// FIXME: Split this into two lists ("weak" and "strong") to model
-  /// weak-linked symbols.
-  Expected<NameListRef> getExternalSymbols() const {
-    return NameListRef::get(getSchema().getNode(getExternalSymbolsID()));
+  Expected<NameListRef> getStrongExternals() const {
+    return NameListRef::get(getSchema().getNode(getStrongExternalsID()));
+  }
+  Expected<NameListRef> getWeakExternals() const {
+    return NameListRef::get(getSchema().getNode(getWeakExternalsID()));
   }
 
   /// Eagerly parse the full compile unit to create a LinkGraph.
@@ -996,7 +997,7 @@ public:
   create(ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
          support::endianness Endianness, SymbolTableRef DeadStripNever,
          SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile,
-         NameListRef ExternalSymbols);
+         NameListRef StrongExternals, NameListRef WeakExternals);
 
   /// Create a compile unit out of \p G.
   ///
