@@ -963,7 +963,7 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   outs() << "  => Note: 'Parents' counts incoming edges\n"
          << "  => Note: 'Children' counts outgoing edges (to sub-objects)\n"
          << "  => Note: number of bytes per Ref = " << NumHashBytes << "\n"
-         << "  => Note: cost estimate: sizeof(Ref)*Children + Data\n";
+         << "  => Note: Cost = sizeof(Ref)*Children + Data\n";
   StringLiteral HeaderFormat = "{0,-22} {1,+10} {2,+7} {3,+10} "
                                "{4,+7} {5,+10} {6,+7} {7,+10} {8,+7}\n";
   StringLiteral Format = "{0,-22} {1,+10} {2,+7:P} {3,+10} "
