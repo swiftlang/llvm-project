@@ -833,6 +833,11 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   StringMap<ObjectKindInfo> Stats;
   ObjectKindInfo Totals;
   DenseSet<StringRef> GeneratedNames;
+  DenseSet<cas::CASID> SectionNames;
+  DenseSet<cas::CASID> SymbolNames;
+  DenseSet<cas::CASID> UndefinedSymbols;
+  DenseSet<cas::CASID> ContentBlobs;
+  size_t NumContentBlobs0To16B = 0;
   size_t NumAnonymousSymbols = 0;
   size_t NumTemplateSymbols = 0;
   size_t NumTemplateTargets = 0;
@@ -927,9 +932,16 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
           Num1TargetBlocks += Targets->size() == 1;
           Num2TargetBlocks += Targets->size() == 2;
         }
-        if (Optional<BlockDataRef> Data = expectedToOptional(Block->getData()))
+        if (Optional<BlockDataRef> Data =
+                expectedToOptional(Block->getData())) {
           if (Data->isZeroFill())
             ++NumZeroFillBlocks;
+          if (Optional<cas::CASID> Content = Data->getContentID())
+            if (ContentBlobs.insert(*Content).second)
+              if (Optional<cas::BlobRef> Blob =
+                      expectedToOptional(CAS.getBlob(*Content)))
+                NumContentBlobs0To16B += Blob->getData().size() <= 16;
+        }
       }
     }
     if (Object.getKindString() == SymbolRef::KindString) {
@@ -937,6 +949,29 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
               expectedToOptional(SymbolRef::get(Object))) {
         NumAnonymousSymbols += !Symbol->hasName();
         NumTemplateSymbols += Symbol->isSymbolTemplate();
+        if (Optional<cas::CASID> Name = Symbol->getNameID()) {
+          SymbolNames.insert(*Name);
+          UndefinedSymbols.erase(*Name);
+        }
+      }
+    }
+    if (Object.getKindString() == NameListRef::KindString) {
+      // FIXME: This is only valid because NameList is currently just used for
+      // lists of symbols.
+      if (Optional<NameListRef> List =
+              expectedToOptional(NameListRef::get(Object))) {
+        for (size_t I = 0, E = List->getNumNames(); I != E; ++I) {
+          cas::CASID Name = List->getNameID(I);
+          if (!SymbolNames.count(Name))
+            UndefinedSymbols.insert(Name);
+        }
+      }
+    }
+    if (Object.getKindString() == SectionRef::KindString) {
+      if (Optional<SectionRef> Section =
+              expectedToOptional(SectionRef::get(Object))) {
+        if (Optional<cas::CASID> Name = Section->getNameID())
+          SectionNames.insert(*Name);
       }
     }
 
@@ -1002,6 +1037,12 @@ static void computeStats(CASDB &CAS, CASID TopLevel) {
   };
 
   printIfNotZero("num-generated-names", GeneratedNames.size());
+  printIfNotZero("num-section-names", SectionNames.size());
+  printIfNotZero("num-symbol-names",
+                 SymbolNames.size() + UndefinedSymbols.size());
+  printIfNotZero("num-undefined-symbols", UndefinedSymbols.size());
+  printIfNotZero("num-content", ContentBlobs.size());
+  printIfNotZero("num-content-0-to-16B", NumContentBlobs0To16B);
   printIfNotZero("num-anonymous-symbols", NumAnonymousSymbols);
   printIfNotZero("num-template-symbols", NumTemplateSymbols);
   printIfNotZero("num-template-targets", NumTemplateTargets);
