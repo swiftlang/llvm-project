@@ -2157,13 +2157,13 @@ Expected<std::unique_ptr<jitlink::LinkGraph>> CompileUnitRef::createLinkGraph(
   if (Error E = Builder.makeExternalSymbols(getWeakExternals(),
                                             jitlink::Linkage::Weak))
     return std::move(E);
-  if (Error E = Builder.makeSymbols(getDeadStripNever()))
-    return std::move(E);
-  if (Error E = Builder.makeSymbols(getDeadStripLink()))
+  if (Error E = Builder.makeSymbols(getIndirectAnonymous()))
     return std::move(E);
   if (Error E = Builder.makeSymbols(getIndirectDeadStripCompile()))
     return std::move(E);
-  if (Error E = Builder.makeSymbols(getIndirectAnonymous()))
+  if (Error E = Builder.makeSymbols(getDeadStripLink()))
+    return std::move(E);
+  if (Error E = Builder.makeSymbols(getDeadStripNever()))
     return std::move(E);
 
   // Return early if there were no forward declarations.
