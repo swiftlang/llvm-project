@@ -1852,7 +1852,12 @@ Expected<Optional<TargetRef>> CompileUnitBuilder::getOrCreateTarget(
     assert(!S.isExternal() && "External symbol has unexpected definition");
     assert(S.hasName() &&
            "Too late to create indirect reference to anonymous symbol...");
-    IndirectDeadStripCompileSymbols.push_back(*Info.Symbol);
+
+    // FIXME: Add a test confirming that this is done if and only if the
+    // deadstripping is DS_CompileUnit.
+    if (Info.Symbol->getDeadStrip() == SymbolRef::DS_CompileUnit)
+      IndirectDeadStripCompileSymbols.push_back(*Info.Symbol);
+
     Expected<Optional<NameRef>> Name = Info.Symbol->getName();
     if (!Name)
       return Name.takeError();
