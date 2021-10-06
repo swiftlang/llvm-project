@@ -1051,8 +1051,9 @@ public:
   cas::CASID getDeadStripNeverID() const { return getReference(1); }
   cas::CASID getDeadStripLinkID() const { return getReference(2); }
   cas::CASID getIndirectDeadStripCompileID() const { return getReference(3); }
-  cas::CASID getStrongExternalsID() const { return getReference(4); }
-  cas::CASID getWeakExternalsID() const { return getReference(5); }
+  cas::CASID getIndirectAnonymousID() const { return getReference(4); }
+  cas::CASID getStrongExternalsID() const { return getReference(5); }
+  cas::CASID getWeakExternalsID() const { return getReference(6); }
   Expected<SymbolTableRef> getDeadStripNever() const {
     return SymbolTableRef::get(getSchema().getNode(getDeadStripNeverID()));
   }
@@ -1062,6 +1063,9 @@ public:
   Expected<SymbolTableRef> getIndirectDeadStripCompile() const {
     return SymbolTableRef::get(
         getSchema().getNode(getIndirectDeadStripCompileID()));
+  }
+  Expected<SymbolTableRef> getIndirectAnonymous() const {
+    return SymbolTableRef::get(getSchema().getNode(getIndirectAnonymousID()));
   }
   Expected<NameListRef> getStrongExternals() const {
     return NameListRef::get(getSchema().getNode(getStrongExternalsID()));
@@ -1091,7 +1095,8 @@ public:
   create(ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
          support::endianness Endianness, SymbolTableRef DeadStripNever,
          SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile,
-         NameListRef StrongExternals, NameListRef WeakExternals);
+         SymbolTableRef IndirectAnonymous, NameListRef StrongExternals,
+         NameListRef WeakExternals);
 
   /// Create a compile unit out of \p G.
   ///

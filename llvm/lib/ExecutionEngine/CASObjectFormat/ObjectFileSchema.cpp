@@ -1331,7 +1331,7 @@ CompileUnitRef::get(Expected<ObjectFormatNodeRef> Ref) {
   if (!Specific)
     return Specific.takeError();
 
-  if (Specific->getNumReferences() != 6)
+  if (Specific->getNumReferences() != 7)
     return createStringError(inconvertibleErrorCode(),
                              "corrupt compile unit refs");
 
@@ -1366,7 +1366,8 @@ Expected<CompileUnitRef> CompileUnitRef::create(
     ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
     support::endianness Endianness, SymbolTableRef DeadStripNever,
     SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile,
-    NameListRef StrongSymbols, NameListRef WeakSymbols) {
+    SymbolTableRef IndirectAnonymous, NameListRef StrongSymbols,
+    NameListRef WeakSymbols) {
   Expected<Builder> B = Builder::startRootNode(Schema, KindString);
   if (!B)
     return B.takeError();
@@ -1379,7 +1380,7 @@ Expected<CompileUnitRef> CompileUnitRef::create(
 
   assert(B->IDs.size() == 1 && "Expected the root type-id?");
   B->IDs.append({DeadStripNever, DeadStripLink, IndirectDeadStripCompile,
-                 StrongSymbols, WeakSymbols});
+                 IndirectAnonymous, StrongSymbols, WeakSymbols});
   return get(B->build());
 }
 
@@ -1590,7 +1591,6 @@ public:
   ObjectFileSchema &Schema;
   raw_ostream *DebugOS;
 
-  uint64_t IndirectAnonymousSymbolCounter = 0;
   CompileUnitBuilder(ObjectFileSchema &Schema, raw_ostream *DebugOS)
       : CAS(Schema.CAS), Schema(Schema), DebugOS(DebugOS) {}
 
@@ -1604,6 +1604,7 @@ public:
   SmallVector<SymbolRef> DeadStripNeverSymbols;
   SmallVector<SymbolRef> DeadStripLinkSymbols;
   SmallVector<SymbolRef> IndirectDeadStripCompileSymbols;
+  SmallVector<SymbolRef> IndirectAnonymousSymbols;
   SmallVector<NameRef> StrongExternals;
   SmallVector<NameRef> WeakExternals;
 
@@ -1873,14 +1874,8 @@ Expected<Optional<TargetRef>> CompileUnitBuilder::getOrCreateTarget(
 
     assert(!S.isExternal());
 
-    // FIXME: Do something better than this. Instead of generating a name, this
-    // should just be an index stored directly in the indirect symbol, and the
-    // anonymous symbols that are referenced indirectly need a top-level table
-    // entry.
-    //
-    // However, currently this doesn't seem to be triggering right now, so
-    // maybe it's "fine".
-    NameStorage = ("cas.o:" + Twine(IndirectAnonymousSymbolCounter++)).str();
+    NameStorage = ("cas.o:" + Twine(IndirectAnonymousSymbols.size())).str();
+    IndirectAnonymousSymbols.push_back(*Info.Symbol);
     if (DebugOS)
       *DebugOS << "name anonymous symbol => " << *NameStorage << "\n";
     return *NameStorage;
@@ -1924,6 +1919,10 @@ Expected<CompileUnitRef> CompileUnitRef::create(ObjectFileSchema &Schema,
       SymbolTableRef::create(Schema, Builder.IndirectDeadStripCompileSymbols);
   if (!CompileTable)
     return CompileTable.takeError();
+  Expected<SymbolTableRef> AnonymousTable =
+      SymbolTableRef::create(Schema, Builder.IndirectAnonymousSymbols);
+  if (!AnonymousTable)
+    return AnonymousTable.takeError();
   Expected<NameListRef> StrongExternals =
       NameListRef::create(Schema, Builder.StrongExternals);
   if (!StrongExternals)
@@ -1933,9 +1932,10 @@ Expected<CompileUnitRef> CompileUnitRef::create(ObjectFileSchema &Schema,
   if (!WeakExternals)
     return WeakExternals.takeError();
 
-  return CompileUnitRef::create(
-      Schema, G.getTargetTriple(), G.getPointerSize(), G.getEndianness(),
-      *NeverTable, *LinkTable, *CompileTable, *StrongExternals, *WeakExternals);
+  return CompileUnitRef::create(Schema, G.getTargetTriple(), G.getPointerSize(),
+                                G.getEndianness(), *NeverTable, *LinkTable,
+                                *CompileTable, *AnonymousTable,
+                                *StrongExternals, *WeakExternals);
 }
 
 namespace {
@@ -2162,6 +2162,8 @@ Expected<std::unique_ptr<jitlink::LinkGraph>> CompileUnitRef::createLinkGraph(
   if (Error E = Builder.makeSymbols(getDeadStripLink()))
     return std::move(E);
   if (Error E = Builder.makeSymbols(getIndirectDeadStripCompile()))
+    return std::move(E);
+  if (Error E = Builder.makeSymbols(getIndirectAnonymous()))
     return std::move(E);
 
   // Return early if there were no forward declarations.
