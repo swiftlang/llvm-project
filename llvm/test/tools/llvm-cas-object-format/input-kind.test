@@ -1,0 +1,9 @@
+RUN: rm -rf %t && mkdir -p %t
+RUN: llc %S/Inputs/main.ll --filetype=obj -o %t/main.o
+
+RUN: llvm-cas-object-format --cas %t/cas %t/main.o --just-blobs | tail -n 1 | cut -f 3 -d ' ' > %t/blob.id
+
+RUN: llvm-cas-object-format --cas %t/cas %t/main.o --object-stats > %t/output_1.txt
+RUN: llvm-cas-object-format --cas %t/cas --ingest-cas @%t/blob.id --object-stats > %t/output_2.txt
+
+RUN: diff %t/output_1.txt %t/output_2.txt

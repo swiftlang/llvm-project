@@ -15,7 +15,9 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Support/StringSaver.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -39,6 +41,22 @@ cl::opt<bool> ComputeStats("object-stats",
 cl::opt<std::string> JustDsymutil("just-dsymutil",
                                   cl::desc("Just run dsymutil."));
 
+enum InputKind {
+  IngestFromFS,
+  IngestFromCASTree,
+  AnalysisCASTree,
+};
+
+cl::opt<InputKind> InputFileKind(
+    cl::desc("choose input kind and action:"),
+    cl::values(clEnumValN(IngestFromFS, "ingest-fs",
+                          "ingest object files from file system (default)"),
+               clEnumValN(IngestFromCASTree, "ingest-cas",
+                          "ingest object files from cas tree"),
+               clEnumValN(AnalysisCASTree, "analysis-only",
+                          "analyze converted objects from cas tree")),
+    cl::init(InputKind::IngestFromFS));
+
 namespace {
 
 class SharedStream {
@@ -57,7 +75,8 @@ private:
 
 } // namespace
 
-static CASID readFile(CASDB &CAS, StringRef InputFile, SharedStream &OS);
+static CASID ingestFile(CASDB &CAS, StringRef InputFile,
+                        MemoryBufferRef FileContent, SharedStream &OS);
 static void computeStats(CASDB &CAS, ArrayRef<CASID> IDs);
 
 int main(int argc, char *argv[]) {
@@ -73,48 +92,88 @@ int main(int argc, char *argv[]) {
                                           ? getDefaultOnDiskCASPath()
                                           : CASPath));
 
-  Optional<ThreadPool> Pool;
-  if (NumThreads != 1) {
-    ThreadPoolStrategy PoolStrategy = hardware_concurrency();
-    if (NumThreads != 0)
-      PoolStrategy.ThreadsRequested = NumThreads;
-    Pool.emplace(PoolStrategy);
-  }
+  ThreadPoolStrategy PoolStrategy = hardware_concurrency();
+  if (NumThreads != 0)
+    PoolStrategy.ThreadsRequested = NumThreads;
+  ThreadPool Pool(PoolStrategy);
 
-  StringMap<Optional<CASID>> Files;
+  StringMap<CASID> Files;
   SmallVector<CASID> SummaryIDs;
   SharedStream OS(outs());
   std::mutex Lock;
-  for (StringRef IF : InputFiles) {
-    auto MaybeID = CAS->parseCASID(IF);
-    if (MaybeID) {
-      SummaryIDs.emplace_back(*MaybeID);
-      continue;
-    }
-    consumeError(MaybeID.takeError());
+  auto ingestAsyc = [&](StringRef InputFile, MemoryBufferRef FileContent) {
+    Pool.async([&, InputFile, FileContent]() {
+      CASID ID = ingestFile(*CAS, InputFile, FileContent, OS);
+      std::unique_lock<std::mutex> LockGuard(Lock);
+      assert(!Files.count(InputFile));
+      Files.try_emplace(InputFile, ID);
+    });
+  };
 
-    if (Pool) {
-      Pool->async([&, IF]() {
-        CASID ID = readFile(*CAS, IF, OS);
-        std::unique_lock<std::mutex> LockGuard(Lock);
-        assert(!Files.count(IF));
-        Files[IF] = ID;
-      });
-    } else {
-      CASID ID = readFile(*CAS, IF, OS);
-      assert(!Files.count(IF));
-      Files[IF] = ID;
+  for (StringRef IF : InputFiles) {
+    ExitOnError ExitOnErr;
+    ExitOnErr.setBanner(("llvm-cas-object-format: " + IF + ": ").str());
+
+    switch (InputFileKind) {
+    case AnalysisCASTree: {
+      auto ID = ExitOnErr(CAS->parseCASID(IF));
+      SummaryIDs.emplace_back(ID);
+      break;
+    }
+
+    case IngestFromFS: {
+      auto ObjBuffer = ExitOnErr(errorOrToExpected(MemoryBuffer::getFile(IF)));
+      ingestAsyc(IF, ObjBuffer->getMemBufferRef());
+      break;
+    }
+
+    case IngestFromCASTree: {
+      auto ID = ExitOnErr(CAS->parseCASID(IF));
+      BumpPtrAllocator Alloc;
+      StringSaver Saver(Alloc);
+      SmallVector<NamedTreeEntry> Stack;
+      Stack.emplace_back(ID, TreeEntry::Tree, "/");
+
+      while (!Stack.empty()) {
+        auto Node = Stack.pop_back_val();
+        if (Node.getKind() == TreeEntry::Regular) {
+          auto BlobContent = ExitOnErr(CAS->getBlob(Node.getID()));
+          auto ObjBuffer =
+              MemoryBuffer::getMemBuffer(BlobContent.getData(), Node.getName());
+          ingestAsyc(Node.getName(), ObjBuffer->getMemBufferRef());
+          continue;
+        }
+
+        if (Node.getKind() != TreeEntry::Tree)
+          ExitOnErr(createStringError(inconvertibleErrorCode(),
+                                      "unexpected CAS kind in the tree"));
+
+        TreeRef Tree = ExitOnErr(CAS->getTree(Node.getID()));
+        ExitOnErr(Tree.forEachEntry([&](const NamedTreeEntry &Entry) {
+          SmallString<128> PathStorage = Node.getName();
+          sys::path::append(PathStorage, sys::path::Style::posix,
+                            Entry.getName());
+          if (Entry.getKind() == TreeEntry::Regular) {
+            if (GlobP && !GlobP->match(PathStorage))
+              return Error::success();
+          }
+          Stack.emplace_back(Entry.getID(), Entry.getKind(),
+                             Saver.save(StringRef(PathStorage)));
+          return Error::success();
+        }));
+      }
+      break;
+    }
     }
   }
-  if (Pool)
-    Pool->wait();
+  Pool.wait();
 
   outs() << "\n";
   if (!Files.empty()) {
     outs() << "Making summary object...\n";
     HierarchicalTreeBuilder Builder;
     for (auto &File : Files)
-      Builder.push(*File.second, TreeEntry::Regular, File.first());
+      Builder.push(File.second, TreeEntry::Regular, File.first());
     CASID SummaryID = ExitOnErr(Builder.create(*CAS));
     SummaryIDs.emplace_back(SummaryID);
     outs() << "summary tree: ";
@@ -1092,20 +1151,19 @@ static void dumpGraph(jitlink::LinkGraph &G, SharedStream &OS, StringRef Desc) {
   OS.applyLocked([&](raw_ostream &OS) { OS << Desc << ":\n" << Data; });
 }
 
-static CASID readFile(CASDB &CAS, StringRef InputFile, SharedStream &OS) {
+static CASID ingestFile(CASDB &CAS, StringRef InputFile,
+                        MemoryBufferRef FileContent, SharedStream &OS) {
   ExitOnError ExitOnErr;
   ExitOnErr.setBanner(("llvm-cas-object-format: " + InputFile + ": ").str());
 
   auto EmitDotOnReturn = llvm::make_scope_exit(
       [&]() { OS.applyLocked([&](raw_ostream &OS) { OS << "."; }); });
 
-  auto ObjBuffer =
-      ExitOnErr(errorOrToExpected(MemoryBuffer::getFile(InputFile)));
   if (JustBlobs)
-    return ExitOnErr(CAS.createBlob(ObjBuffer->getBuffer()));
+    return ExitOnErr(CAS.createBlob(FileContent.getBuffer()));
 
   auto G = ExitOnErr(
-      jitlink::createLinkGraphFromObject(ObjBuffer->getMemBufferRef()));
+      jitlink::createLinkGraphFromObject(FileContent));
 
   if (SplitEHFrames &&
       G->getTargetTriple().getObjectFormat() == Triple::MachO &&
@@ -1202,7 +1260,7 @@ static CASID readFile(CASDB &CAS, StringRef InputFile, SharedStream &OS) {
     OS.applyLocked([&](raw_ostream &OS) { OS << DebugIngestOutput; });
 
   auto RoundTripG = ExitOnErr(CompileUnit.createLinkGraph(
-      ObjBuffer->getBufferIdentifier(),
+      FileContent.getBufferIdentifier(),
       ExitOnErr(jitlink::getGetEdgeKindNameFunction(G->getTargetTriple()))));
 
   if (Dump)
