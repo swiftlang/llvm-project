@@ -103,6 +103,8 @@ int main(int argc, char *argv[]) {
   StringMap<CASID> Files;
   SmallVector<CASID> SummaryIDs;
   SharedStream OS(outs());
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
   std::mutex Lock;
   auto ingestAsyc = [&](StringRef InputFile, MemoryBufferRef FileContent) {
     Pool.async([&, InputFile, FileContent]() {
@@ -132,8 +134,6 @@ int main(int argc, char *argv[]) {
 
     case IngestFromCASTree: {
       auto ID = ExitOnErr(CAS->parseCASID(IF));
-      BumpPtrAllocator Alloc;
-      StringSaver Saver(Alloc);
       SmallVector<NamedTreeEntry> Stack;
       Stack.emplace_back(ID, TreeEntry::Tree, "/");
       Optional<GlobPattern> GlobP;
