@@ -1,0 +1,15 @@
+RUN: rm -rf %t && mkdir -p %t
+RUN: llc %S/Inputs/main.ll --filetype=obj -o %t/main.o
+RUN: llc %S/Inputs/test.ll --filetype=obj -o %t/test.o
+
+RUN: llvm-cas-object-format --cas %t/cas %t/main.o %t/test.o --just-blobs | tail -n 1 | cut -f 3 -d ' ' > %t/blob.id
+
+RUN: llvm-cas-object-format --cas %t/cas %t/main.o --object-stats | FileCheck %s --check-prefix=CHECK-ONE-CU
+RUN: llvm-cas-object-format --cas %t/cas --ingest-cas @%t/blob.id --cas-glob "**/main.o" --object-stats | FileCheck %s --check-prefix=CHECK-ONE-CU
+
+RUN: llvm-cas-object-format --cas %t/cas --ingest-cas @%t/blob.id | tail -n 1 | cut -f 3 -d ' ' > %t/cas.id
+RUN: llvm-cas-object-format --cas %t/cas --analysis-only @%t/cas.id --object-stats | FileCheck %s --check-prefix=CHECK-TWO-CU
+RUN: llvm-cas-object-format --cas %t/cas --analysis-only @%t/cas.id --cas-glob "**/main.o" --object-stats | FileCheck %s --check-prefix=CHECK-ONE-CU
+
+CHECK-ONE-CU: cas.o:compile-unit 1
+CHECK-TWO-CU: cas.o:compile-unit 2

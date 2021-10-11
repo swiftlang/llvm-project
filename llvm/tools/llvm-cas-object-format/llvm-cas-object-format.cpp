@@ -14,6 +14,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
@@ -40,6 +41,8 @@ cl::opt<bool> ComputeStats("object-stats",
                            cl::desc("Compute and print out stats."));
 cl::opt<std::string> JustDsymutil("just-dsymutil",
                                   cl::desc("Just run dsymutil."));
+cl::opt<std::string> CASGlob("cas-glob",
+                             cl::desc("glob pattern for objects in CAS"));
 
 enum InputKind {
   IngestFromFS,
@@ -133,10 +136,16 @@ int main(int argc, char *argv[]) {
       StringSaver Saver(Alloc);
       SmallVector<NamedTreeEntry> Stack;
       Stack.emplace_back(ID, TreeEntry::Tree, "/");
+      Optional<GlobPattern> GlobP;
+      if (!CASGlob.empty())
+        GlobP.emplace(ExitOnErr(GlobPattern::create(CASGlob)));
 
       while (!Stack.empty()) {
         auto Node = Stack.pop_back_val();
         if (Node.getKind() == TreeEntry::Regular) {
+          if (GlobP && !GlobP->match(Node.getName()))
+              continue;
+
           auto BlobContent = ExitOnErr(CAS->getBlob(Node.getID()));
           auto ObjBuffer =
               MemoryBuffer::getMemBuffer(BlobContent.getData(), Node.getName());
@@ -835,6 +844,7 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
   struct WorklistItem {
     CASID ID;
     bool Visited;
+    StringRef Path;
     ObjectFileSchema *Schema = nullptr;
   };
   SmallVector<WorklistItem> Worklist;
@@ -843,17 +853,26 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
     CASID ID;
     ObjectFileSchema *Schema = nullptr;
   };
+
   SmallVector<POTItem> POT;
-  auto push = [&](CASID ID, ObjectFileSchema *Schema = nullptr) {
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+  Optional<GlobPattern> GlobP;
+  if (!CASGlob.empty())
+    GlobP.emplace(ExitOnErr(GlobPattern::create(CASGlob)));
+
+  auto push = [&](CASID ID, StringRef Path,
+                  ObjectFileSchema *Schema = nullptr) {
     auto &Node = Nodes[ID];
     if (!Node.Done)
-      Worklist.push_back({ID, false, Schema});
+      Worklist.push_back({ID, false, Path, Schema});
   };
   ObjectFileSchema ObjectsSchema(CAS);
   for (auto ID : TopLevels)
-    push(ID);
+    push(ID, "/");
   while (!Worklist.empty()) {
     CASID ID = Worklist.back().ID;
+    auto Name = Worklist.back().Path;
     if (Worklist.back().Visited) {
       Nodes[ID].Done = true;
       POT.push_back({ID, Worklist.back().Schema});
@@ -881,7 +900,14 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
     if (*Kind == ObjectKind::Tree) {
       TreeRef Tree = ExitOnErr(CAS.getTree(ID));
       ExitOnErr(Tree.forEachEntry([&](const NamedTreeEntry &Entry) {
-        push(Entry.getID());
+        SmallString<128> PathStorage = Name;
+        sys::path::append(PathStorage, sys::path::Style::posix,
+                          Entry.getName());
+        if (Entry.getKind() == TreeEntry::Regular) {
+          if (GlobP && !GlobP->match(PathStorage))
+            return Error::success();
+        }
+        push(Entry.getID(), Saver.save(StringRef(PathStorage)));
         return Error::success();
       }));
       continue;
@@ -900,7 +926,7 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
     }
 
     ExitOnErr(Node.forEachReference([&](CASID ChildID) {
-      push(ChildID, Schema);
+      push(ChildID, "", Schema);
       return Error::success();
     }));
   }
