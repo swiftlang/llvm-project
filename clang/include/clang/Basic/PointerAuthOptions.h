@@ -181,6 +181,9 @@ struct PointerAuthOptions {
   /// The ABI for Objective-C method lists.
   PointerAuthSchema ObjCMethodListFunctionPointers;
 
+  /// The ABI for Objective-C class_ro_t pointers.
+  PointerAuthSchema ObjCClassROPointers;
+
   /// The ABI for C++ virtual table pointers (the pointer to the table
   /// itself) as installed in an actual class instance.
   PointerAuthSchema CXXVTablePointers;

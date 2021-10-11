@@ -904,6 +904,7 @@ static void setPGOUseInstrumentor(CodeGenOptions &Opts,
 
 static bool parsePointerAuthOptions(PointerAuthOptions &Opts,
                                     ArgList &Args,
+                                    const CodeGenOptions &CodeGenOpts,
                                     const LangOptions &LangOpts,
                                     const llvm::Triple &Triple,
                                     DiagnosticsEngine &Diags) {
@@ -974,6 +975,10 @@ static bool parsePointerAuthOptions(PointerAuthOptions &Opts,
       Opts.CXXMemberFunctionPointers =
         PointerAuthSchema(Key::ASIA, false, Discrimination::Type);
       Opts.ThunkCXXVirtualMemberPointers = false;
+
+      if (CodeGenOpts.ObjCSignClassROPointers)
+        Opts.ObjCClassROPointers =
+          PointerAuthSchema(Key::ASDA, true, Discrimination::Constant, 0x61f8);
     }
 
     Opts.ReturnAddresses = LangOpts.PointerAuthReturns;
@@ -1387,8 +1392,20 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.EmitVersionIdentMetadata = Args.hasFlag(OPT_Qy, OPT_Qn, true);
 
+  // -f[no-]objc-sign-class-ro
+  Opts.ObjCSignClassROPointers = 0;
+  if (Arg *ClassROSigningArg = Args.getLastArg(
+            options::OPT_fobjc_sign_class_ro,
+            options::OPT_fno_objc_sign_class_ro)) {
+    const Option &SigningOpt = ClassROSigningArg->getOption();
+    if (SigningOpt.matches(options::OPT_fobjc_sign_class_ro))
+      Opts.ObjCSignClassROPointers = 1;
+    else
+      Opts.ObjCSignClassROPointers = 0;
+  }
+
   Success &=
-      parsePointerAuthOptions(Opts.PointerAuth, Args, LangOpts, Triple, Diags);
+    parsePointerAuthOptions(Opts.PointerAuth, Args, Opts, LangOpts, Triple, Diags);
   if (Args.hasArg(options::OPT_ffinite_loops))
     Opts.setFiniteLoops(CodeGenOptions::FiniteLoopsKind::Always);
   else if (Args.hasArg(options::OPT_fno_finite_loops))

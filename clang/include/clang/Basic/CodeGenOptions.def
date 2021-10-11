@@ -421,6 +421,9 @@ CODEGENOPT(AAPCSBitfieldWidth, 1, 1)
 ENUM_CODEGENOPT(SwiftAsyncFramePointer, SwiftAsyncFramePointerKind, 2,
                 SwiftAsyncFramePointerKind::Always)
 
+/// Whether to sign Objective-C class_ro_t pointers in objc_class structs
+CODEGENOPT(ObjCSignClassROPointers, 1, 0)
+
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
 #undef VALUE_CODEGENOPT

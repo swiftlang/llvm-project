@@ -2603,6 +2603,17 @@ Darwin::TranslateArgs(const DerivedArgList &Args, StringRef BoundArch,
     }
   }
 
+  // For macOS, we enable `class_ro_t` pointer signing by default, because
+  // the Objective-C runtime will ignore the extra bits in the pointer if
+  // it doesn't understand them.  For iOS, however, it is only on by default
+  // as of iOS 16; before then, it will be *off* by default.
+  if (!DAL->hasArgNoClaim(options::OPT_fobjc_sign_class_ro,
+                          options::OPT_fno_objc_sign_class_ro)) {
+    if (!isTargetIOSBased() || !isIPhoneOSVersionLT(16, 0)) {
+      DAL->AddFlagArg(nullptr, Opts.getOption(options::OPT_fobjc_sign_class_ro));
+    }
+  }
+
   if (!Args.getLastArg(options::OPT_stdlib_EQ) &&
       GetCXXStdlibType(Args) == ToolChain::CST_Libcxx)
     DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_stdlib_EQ),

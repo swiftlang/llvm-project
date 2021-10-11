@@ -85,7 +85,8 @@ static void GetObjCImageInfo(Module &M, unsigned &Version, unsigned &Flags,
                Key == "Objective-C GC Only" ||
                Key == "Objective-C Is Simulated" ||
                Key == "Objective-C Class Properties" ||
-               Key == "Objective-C Image Swift Version") {
+               Key == "Objective-C Image Swift Version" ||
+               Key == "Objective-C Enforce ClassRO Pointer Signing") {
       Flags |= mdconst::extract<ConstantInt>(MFE.Val)->getZExtValue();
     } else if (Key == "Objective-C Image Info Section") {
       Section = cast<MDString>(MFE.Val)->getString();

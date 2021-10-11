@@ -5141,10 +5141,7 @@ enum ImageInfoFlags {
   eImageInfo_GarbageCollected    = (1 << 1),
   eImageInfo_GCOnly              = (1 << 2),
   eImageInfo_OptimizedByDyld     = (1 << 3), // This flag is set by the dyld shared cache.
-
-  // A flag indicating that the module has no instances of a @synthesize of a
-  // superclass variable. <rdar://problem/6803242>
-  eImageInfo_CorrectedSynthesize = (1 << 4), // This flag is no longer set by clang.
+  eImageInfo_SignedClassRO       = (1 << 4),
   eImageInfo_ImageIsSimulated    = (1 << 5),
   eImageInfo_ClassProperties     = (1 << 6)
 };
@@ -5203,6 +5200,14 @@ void CGObjCCommonMac::EmitImageInfo() {
   // Indicate whether we are generating class properties.
   Mod.addModuleFlag(llvm::Module::Error, "Objective-C Class Properties",
                     eImageInfo_ClassProperties);
+
+  // Indicate whether we want enforcement of pointer signing for class_ro_t
+  // pointers.
+  if (CGM.getCodeGenOpts().ObjCSignClassROPointers) {
+    Mod.addModuleFlag(llvm::Module::Error,
+                      "Objective-C Enforce ClassRO Pointer Signing",
+                      eImageInfo_SignedClassRO);
+  }
 }
 
 // struct objc_module {
@@ -6472,7 +6477,11 @@ CGObjCNonFragileABIMac::BuildClassObject(const ObjCInterfaceDecl *CI,
   }
   values.add(ObjCEmptyCacheVar);
   values.add(ObjCEmptyVtableVar);
-  values.add(ClassRoGV);
+  if (const auto &schema = CGM.getCodeGenOpts().PointerAuth.ObjCClassROPointers) {
+    values.addSignedPointer(ClassRoGV, schema, GlobalDecl(), QualType());
+  } else {
+    values.add(ClassRoGV);
+  }
 
   llvm::GlobalVariable *GV =
     cast<llvm::GlobalVariable>(GetClassGlobal(CI, isMetaclass, ForDefinition));

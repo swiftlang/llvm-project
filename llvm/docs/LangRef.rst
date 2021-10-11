@@ -6780,6 +6780,11 @@ following key-value pairs:
        If present, its value must be 6. This flag requires that the
        ``Objective-C Garbage Collection`` flag have the value 2.
 
+   * - ``Objective-C Enforce ClassRO Pointer Signing``
+     - **[Optional]** --- Specifies that the Objective-C runtime should enforce
+       pointer signing for ``class_ro_t`` pointers in ``objc_class`` structs.
+       Value values are 0, for disabled, and 16, for enabled.
+
 Some important flag interactions:
 
 -  If a module with ``Objective-C Garbage Collection`` set to 0 is

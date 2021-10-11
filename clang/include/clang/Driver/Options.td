@@ -2144,6 +2144,9 @@ def fobjc_disable_direct_methods_for_testing :
   Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Ignore attribute objc_direct so that direct methods can be tested">,
   MarshallingInfoFlag<"LangOpts->ObjCDisableDirectMethodsForTesting">;
+def fobjc_sign_class_ro : Flag<["-"], "fobjc-sign-class-ro">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Sign the class_ro_t pointer in Objective-C class structures emitted by the compiler">;
+def fno_objc_sign_class_ro : Flag<["-"], "fno-objc-sign-class-ro">, Group<f_Group>, Flags<[CC1Option]>;
 
 def fomit_frame_pointer : Flag<["-"], "fomit-frame-pointer">, Group<f_Group>;
 def fopenmp : Flag<["-"], "fopenmp">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused]>,
