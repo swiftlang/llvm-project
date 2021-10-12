@@ -106,14 +106,6 @@ int main(int argc, char *argv[]) {
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
   std::mutex Lock;
-  auto ingestAsyc = [&](StringRef InputFile, MemoryBufferRef FileContent) {
-    Pool.async([&, InputFile, FileContent]() {
-      CASID ID = ingestFile(*CAS, InputFile, FileContent, OS);
-      std::unique_lock<std::mutex> LockGuard(Lock);
-      assert(!Files.count(InputFile));
-      Files.try_emplace(InputFile, ID);
-    });
-  };
 
   for (StringRef IF : InputFiles) {
     ExitOnError ExitOnErr;
@@ -127,8 +119,14 @@ int main(int argc, char *argv[]) {
     }
 
     case IngestFromFS: {
-      auto ObjBuffer = ExitOnErr(errorOrToExpected(MemoryBuffer::getFile(IF)));
-      ingestAsyc(IF, ObjBuffer->getMemBufferRef());
+      Pool.async([&, IF]() {
+        auto ObjBuffer =
+            ExitOnErr(errorOrToExpected(MemoryBuffer::getFile(IF)));
+        CASID ID = ingestFile(*CAS, IF, ObjBuffer->getMemBufferRef(), OS);
+        std::unique_lock<std::mutex> LockGuard(Lock);
+        assert(!Files.count(IF));
+        Files.try_emplace(IF, ID);
+      });
       break;
     }
 
@@ -147,9 +145,15 @@ int main(int argc, char *argv[]) {
               continue;
 
           auto BlobContent = ExitOnErr(CAS->getBlob(Node.getID()));
-          auto ObjBuffer =
-              MemoryBuffer::getMemBuffer(BlobContent.getData(), Node.getName());
-          ingestAsyc(Node.getName(), ObjBuffer->getMemBufferRef());
+          Pool.async([&]() {
+            auto ObjBuffer = MemoryBuffer::getMemBuffer(BlobContent.getData(),
+                                                        Node.getName());
+            CASID ID = ingestFile(*CAS, Node.getName(),
+                                  ObjBuffer->getMemBufferRef(), OS);
+            std::unique_lock<std::mutex> LockGuard(Lock);
+            assert(!Files.count(Node.getName()));
+            Files.try_emplace(Node.getName(), ID);
+          });
           continue;
         }
 
