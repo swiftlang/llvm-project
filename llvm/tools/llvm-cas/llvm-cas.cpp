@@ -10,6 +10,7 @@
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/CAS/Utils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -198,33 +199,17 @@ int listTree(CASDB &CAS, CASID ID) {
 
 int listTreeRecursively(CASDB &CAS, CASID ID) {
   ExitOnError ExitOnErr("llvm-cas: ls-tree-recursively: ");
-
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
-  SmallString<128> PathStorage;
-  SmallVector<NamedTreeEntry> Stack;
-  Stack.emplace_back(ID, TreeEntry::Tree, "/");
-
-  while (!Stack.empty()) {
-    if (Stack.back().getKind() != TreeEntry::Tree) {
-      printTreeEntry(CAS, llvm::outs(), Stack.pop_back_val());
-      continue;
-    }
-
-    NamedTreeEntry Parent = Stack.pop_back_val();
-    TreeRef Tree = ExitOnErr(CAS.getTree(Parent.getID()));
-    if (Tree.empty() || AllTrees)
-      printTreeEntry(CAS, llvm::outs(), Parent);
-    for (int I = Tree.size(), E = 0; I != E; --I) {
-      Optional<NamedTreeEntry> Child = Tree.get(I - 1);
-      assert(Child && "Expected no corruption");
-
-      SmallString<128> PathStorage = Parent.getName();
-      sys::path::append(PathStorage, sys::path::Style::posix, Child->getName());
-      Stack.emplace_back(Child->getID(), Child->getKind(),
-                         Saver.save(StringRef(PathStorage)));
-    }
-  }
+  ExitOnErr(walkFileTreeRecursively(
+      CAS, ID,
+      [&](const NamedTreeEntry &Entry, Optional<TreeRef> Tree) -> Error {
+        if (Entry.getKind() != TreeEntry::Tree) {
+          printTreeEntry(CAS, llvm::outs(), Entry);
+          return Error::success();
+        }
+        if (Tree->empty() || AllTrees)
+          printTreeEntry(CAS, llvm::outs(), Entry);
+        return Error::success();
+      }));
 
   return 0;
 }
