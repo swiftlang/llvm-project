@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
     }
 
     case IngestFromFS: {
-      Pool.async([&, IF]() {
+      Pool.async([&, IF, ExitOnErr]() {
         auto ObjBuffer =
             ExitOnErr(errorOrToExpected(MemoryBuffer::getFile(IF)));
         CASID ID = ingestFile(*CAS, IF, ObjBuffer->getMemBufferRef(), OS);
@@ -140,19 +140,19 @@ int main(int argc, char *argv[]) {
 
       while (!Stack.empty()) {
         auto Node = Stack.pop_back_val();
+        auto Name = Node.getName();
         if (Node.getKind() == TreeEntry::Regular) {
-          if (GlobP && !GlobP->match(Node.getName()))
+          if (GlobP && !GlobP->match(Name))
               continue;
 
           auto BlobContent = ExitOnErr(CAS->getBlob(Node.getID()));
-          Pool.async([&]() {
-            auto ObjBuffer = MemoryBuffer::getMemBuffer(BlobContent.getData(),
-                                                        Node.getName());
-            CASID ID = ingestFile(*CAS, Node.getName(),
-                                  ObjBuffer->getMemBufferRef(), OS);
+          Pool.async([&, Name, BlobContent]() {
+            auto ObjBuffer =
+                MemoryBuffer::getMemBuffer(BlobContent.getData(), Name);
+            CASID ID = ingestFile(*CAS, Name, ObjBuffer->getMemBufferRef(), OS);
             std::unique_lock<std::mutex> LockGuard(Lock);
-            assert(!Files.count(Node.getName()));
-            Files.try_emplace(Node.getName(), ID);
+            assert(!Files.count(Name));
+            Files.try_emplace(Name, ID);
           });
           continue;
         }
@@ -929,7 +929,7 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
       Schema = nullptr;
     }
 
-    ExitOnErr(Node.forEachReference([&](CASID ChildID) {
+    ExitOnErr(Node.forEachReference([&, Schema](CASID ChildID) {
       push(ChildID, "", Schema);
       return Error::success();
     }));
