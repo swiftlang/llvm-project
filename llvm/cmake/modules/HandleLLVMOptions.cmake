@@ -1266,6 +1266,22 @@ if(LLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE)
   append_if(SUPPORTS_CAS_TOKEN_CACHE "-fcas-token-cache" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
 endif()
 
+# Do depscan caching in tablegen.
+set(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN OFF CACHE BOOL
+  "Use the depscanning in tablegen")
+if(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN)
+  list(APPEND LLVM_TABLEGEN_FLAGS "--depscan")
+
+  if(LLVM_ENABLE_PROJECTS_USED)
+    get_filename_component(source_root "${LLVM_MAIN_SRC_DIR}/.." ABSOLUTE)
+  else()
+    set(source_root "${LLVM_MAIN_SRC_DIR}")
+  endif()
+
+  list(APPEND LLVM_TABLEGEN_FLAGS "--depscan-prefix-map=${source_root}=/^source")
+  list(APPEND LLVM_TABLEGEN_FLAGS "--depscan-prefix-map=${CMAKE_BINARY_DIR}=/^build")
+endif()
+
 if(LLVM_INCLUDE_TESTS)
   # Lit test suite requires at least python 3.6
   set(LLVM_MINIMUM_PYTHON_VERSION 3.6)

@@ -4,6 +4,7 @@ add_llvm_component_library(LLVMTableGen
   JSONBackend.cpp
   Main.cpp
   Record.cpp
+  ScanDependencies.cpp
   SetTheory.cpp
   StringMatcher.cpp
   TableGenBackend.cpp

@@ -1,4 +1,4 @@
-set(LLVM_LINK_COMPONENTS Support)
+set(LLVM_LINK_COMPONENTS Support CAS)
 
 add_tablegen(clang-tblgen CLANG
   ASTTableGen.cpp
