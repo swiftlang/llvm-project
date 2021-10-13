@@ -18,6 +18,7 @@
 #include "TGParser.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -55,8 +56,14 @@ WriteIfChanged("write-if-changed", cl::desc("Only write output if it changed"));
 static cl::opt<bool>
 TimePhases("time-phases", cl::desc("Time phases of parser and backend"));
 
-static int reportError(const char *ProgName, Twine Msg) {
-  errs() << ProgName << ": " << Msg;
+static int reportError(const char *ProgName, Error E) {
+  if (!E)
+    return 0;
+
+  handleAllErrors(std::move(E), [ProgName](const ErrorInfoBase &EI) {
+    errs() << ProgName << ": ";
+    EI.log(errs());
+  });
   errs().flush();
   return 1;
 }
@@ -65,25 +72,46 @@ static int reportError(const char *ProgName, Twine Msg) {
 ///
 /// This functionality is really only for the benefit of the build system.
 /// It is similar to GCC's `-M*` family of options.
-static int createDependencyFile(const TGParser &Parser, const char *argv0) {
+static Error createDependencyFile(const TGParser &Parser) {
   if (OutputFilename == "-")
-    return reportError(argv0, "the option -d must be used together with -o\n");
+    return createStringError(inconvertibleErrorCode(),
+                             "the option -d must be used together with -o");
 
   std::error_code EC;
   ToolOutputFile DepOut(DependFilename, EC, sys::fs::OF_Text);
   if (EC)
-    return reportError(argv0, "error opening " + DependFilename + ":" +
-                                  EC.message() + "\n");
+    return createStringError(EC, "error opening " + DependFilename + ":" +
+                                     EC.message());
   DepOut.os() << OutputFilename << ":";
   for (const auto &Dep : Parser.getDependencies()) {
     DepOut.os() << ' ' << Dep;
   }
   DepOut.os() << "\n";
   DepOut.keep();
-  return 0;
+  return Error::success();
 }
 
-int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
+namespace {
+class AlreadyReportedError : public ErrorInfo<AlreadyReportedError> {
+  virtual void anchor() override;
+
+public:
+  void log(raw_ostream &) const override {}
+  std::error_code convertToErrorCode() const override {
+    return inconvertibleErrorCode();
+  }
+
+  // Used by ErrorInfo::classID.
+  static char ID;
+
+  AlreadyReportedError() = default;
+};
+} // end namespace
+
+void AlreadyReportedError::anchor() {}
+char AlreadyReportedError::ID = 0;
+
+static Error TableGenMainImpl(TableGenMainFn *MainFn) {
   RecordKeeper Records;
 
   if (TimePhases)
@@ -95,8 +123,8 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> FileOrErr =
       MemoryBuffer::getFileOrSTDIN(InputFilename, /*IsText=*/true);
   if (std::error_code EC = FileOrErr.getError())
-    return reportError(argv0, "Could not open input file '" + InputFilename +
-                                  "': " + EC.message() + "\n");
+    return createStringError(EC, "Could not open input file '" + InputFilename +
+                                     "': " + EC.message());
 
   Records.saveInputFilename(InputFilename);
 
@@ -110,7 +138,7 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
   TGParser Parser(SrcMgr, MacroNames, Records);
 
   if (Parser.ParseFile())
-    return 1;
+    return make_error<AlreadyReportedError>();
   Records.stopTimer();
 
   // Write output to memory.
@@ -120,15 +148,15 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
   unsigned status = MainFn(Out, Records);
   Records.stopBackendTimer();
   if (status)
-    return 1;
+    return make_error<AlreadyReportedError>();
 
   // Always write the depfile, even if the main output hasn't changed.
   // If it's missing, Ninja considers the output dirty.  If this was below
   // the early exit below and someone deleted the .inc.d file but not the .inc
   // file, tablegen would never write the depfile.
   if (!DependFilename.empty()) {
-    if (int Ret = createDependencyFile(Parser, argv0))
-      return Ret;
+    if (Error E = createDependencyFile(Parser))
+      return E;
   }
 
   Records.startTimer("Write output");
@@ -146,8 +174,8 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
     std::error_code EC;
     ToolOutputFile OutFile(OutputFilename, EC, sys::fs::OF_Text);
     if (EC)
-      return reportError(argv0, "error opening " + OutputFilename + ": " +
-                                    EC.message() + "\n");
+      return createStringError(EC, "error opening " + OutputFilename + ": " +
+                                       EC.message());
     OutFile.os() << Out.str();
     if (ErrorsPrinted == 0)
       OutFile.keep();
@@ -157,11 +185,16 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
   Records.stopPhaseTiming();
 
   if (ErrorsPrinted > 0)
-    return reportError(argv0, Twine(ErrorsPrinted) + " errors.\n");
-  return 0;
+    return createStringError(inconvertibleErrorCode(),
+                             Twine(ErrorsPrinted) + " errors.");
+  return Error::success();
+}
+
+int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
+  return reportError(argv0, TableGenMainImpl(MainFn));
 }
 
 int llvm::TableGenMain(ArrayRef<const char *> Args, TableGenMainFn *MainFn) {
   assert(!Args.empty() && "Missing argv0!");
-  return TableGenMain(Args[0], MainFn);
+  return reportError(Args[0], TableGenMainImpl(MainFn));
 }
