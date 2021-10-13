@@ -282,7 +282,7 @@ int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
   cl::ParseCommandLineOptions(argc, argv);
 
-  return TableGenMain(argv[0], &LLVMTableGenMain);
+  return TableGenMain(makeArrayRef(argv, argc), &LLVMTableGenMain);
 }
 
 #ifndef __has_feature

@@ -160,3 +160,8 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
     return reportError(argv0, Twine(ErrorsPrinted) + " errors.\n");
   return 0;
 }
+
+int llvm::TableGenMain(ArrayRef<const char *> Args, TableGenMainFn *MainFn) {
+  assert(!Args.empty() && "Missing argv0!");
+  return TableGenMain(Args[0], MainFn);
+}
