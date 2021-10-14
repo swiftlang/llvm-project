@@ -10,8 +10,10 @@
 #include "clang/Driver/CC1DepScanDClient.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
 #include <sys/socket.h> // FIXME: Unix-only. Not portable.
 #include <sys/types.h>  // FIXME: Unix-only. Not portable.
@@ -150,6 +152,9 @@ class ScanDaemon : public OpenSocket {
 public:
   static Expected<ScanDaemon> create(StringRef BasePath, const char *Arg0);
 
+  static Expected<ScanDaemon> constructAndShakeHands(StringRef BasePath,
+                                                     const char *Arg0);
+
 private:
   static Expected<ScanDaemon> launchDaemon(StringRef BasePath,
                                            const char *Arg0);
@@ -161,6 +166,8 @@ private:
   static Expected<ScanDaemon> connectToJustLaunchedDaemon(StringRef BasePath) {
     return connectToDaemon(BasePath, /*ShouldWait=*/true);
   }
+
+  Error shakeHands() const;
 
   explicit ScanDaemon(OpenSocket S) : OpenSocket(std::move(S)) {}
 };
@@ -217,10 +224,29 @@ Expected<ScanDaemon> ScanDaemon::launchDaemon(StringRef BasePath,
       nullptr,
   };
 
+  const char *ArgsTestMode[] = {
+      Arg0,
+      "-cc1depscand",
+      "-run", // -launch if we want the daemon to fork itself.
+      BasePathCStr.c_str(),
+      "-shutdown",
+      nullptr,
+  };
+
+  static bool LaunchTestDaemon =
+      llvm::sys::Process::GetEnv("__CLANG_TEST_CC1DEPSCAND_SHUTDOWN")
+          .hasValue();
+
+  char **LaunchArgs = LaunchTestDaemon ? const_cast<char **>(ArgsTestMode)
+                                       : const_cast<char **>(Args);
+
+  // Only do it the first time.
+  LaunchTestDaemon = false;
+
   ::pid_t Pid;
   int EC = ::posix_spawn(&Pid, Args[0], /*file_actions=*/nullptr,
-                        /*attrp=*/nullptr, const_cast<char**>(Args),
-                        /*envp=*/nullptr);
+                         /*attrp=*/nullptr, LaunchArgs,
+                         /*envp=*/nullptr);
   if (EC)
     return llvm::errorCodeToError(std::error_code(EC, std::generic_category()));
 
@@ -242,6 +268,43 @@ Expected<ScanDaemon> ScanDaemon::create(StringRef BasePath, const char *Arg0) {
     llvm::consumeError(Daemon.takeError()); // FIXME: Sometimes return.
 
   return launchDaemon(BasePath, Arg0);
+}
+
+Expected<ScanDaemon> ScanDaemon::constructAndShakeHands(StringRef BasePath,
+    const char *Arg0) {
+  auto Daemon = ScanDaemon::create(BasePath, Arg0);
+  if (!Daemon)
+    return Daemon.takeError();
+
+  // If handshake failed, try relaunch the daemon.
+  if (auto E = Daemon->shakeHands()) {
+    logAllUnhandledErrors(std::move(E), llvm::errs(),
+                          "Restarting daemon due to error: ");
+
+    auto NewDaemon = launchDaemon(BasePath, Arg0);
+    // If recover failed, return Error.
+    if (!NewDaemon)
+      return NewDaemon.takeError();
+    if (auto NE = NewDaemon->shakeHands())
+      return std::move(NE);
+
+    return NewDaemon;
+  }
+
+  return Daemon;
+}
+
+Error ScanDaemon::shakeHands() const {
+  cc1depscand::CC1DepScanDProtocol Comms(*this);
+  cc1depscand::CC1DepScanDProtocol::ResultKind Result;
+  if (auto E = Comms.getResultKind(Result))
+    return E;
+
+  if (Result != cc1depscand::CC1DepScanDProtocol::SuccessResult)
+    return llvm::errorCodeToError(
+        std::error_code(ENOTCONN, std::generic_category()));
+
+  return llvm::Error::success();
 }
 
 static void reportAsFatalIfError(llvm::Error E) {
@@ -407,7 +470,8 @@ void cc1depscand::addCC1ScanDepsArgs(const char *Exec, SmallVectorImpl<const cha
       llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
 
   //llvm::dbgs() << "connecting to daemon...\n";
-  ScanDaemon Daemon = reportAsFatalIfError(ScanDaemon::create(BasePath, Exec));
+  ScanDaemon Daemon =
+      reportAsFatalIfError(ScanDaemon::constructAndShakeHands(BasePath, Exec));
   cc1depscand::CC1DepScanDProtocol Comms(Daemon);
 
   //llvm::dbgs() << "sending request...\n";
