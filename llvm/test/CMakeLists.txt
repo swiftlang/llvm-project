@@ -64,6 +64,8 @@ set(LLVM_TEST_DEPENDS
           llvm-bitcode-strip
           llvm-c-test
           llvm-cat
+          llvm-cas
+          llvm-cas-object-format
           llvm-cfi-verify
           llvm-config
           llvm-cov
