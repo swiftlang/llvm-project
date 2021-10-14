@@ -2130,8 +2130,13 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
       LookupFilename, RelativePath, SearchPath, SuggestedModule, isAngled);
 
   // Record the header's filename for later use.
-  if (File)
-    CurLexer->addInclude(OriginalFilename, File->getFileEntry(), FilenameLoc);
+  if (File) {
+    if (CurLexer)
+      CurLexer->addInclude(OriginalFilename, File->getFileEntry(), FilenameLoc);
+    else
+      CurPTHLexer->addInclude(OriginalFilename, File->getFileEntry(),
+                              FilenameLoc);
+  }
 
   if (usingPCHWithThroughHeader() && SkippingUntilPCHThroughHeader) {
     if (File && isPCHThroughHeader(&File->getFileEntry()))
