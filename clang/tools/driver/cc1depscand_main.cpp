@@ -374,8 +374,8 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   auto openAndReplaceFD = [&](int ReplacedFD, StringRef Path) {
     int FD;
     if (std::error_code EC = llvm::sys::fs::openFile(
-            LogOutPath, FD, llvm::sys::fs::CD_CreateAlways,
-            llvm::sys::fs::FA_Write, llvm::sys::fs::OF_None)) {
+            Path, FD, llvm::sys::fs::CD_CreateAlways, llvm::sys::fs::FA_Write,
+            llvm::sys::fs::OF_None)) {
       // Ignoring error?
       ::close(ReplacedFD);
       return;
@@ -397,7 +397,7 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   int PidFD;
   [&]() {
     if (std::error_code EC = llvm::sys::fs::openFile(
-            LogOutPath, PidFD, llvm::sys::fs::CD_OpenAlways,
+            PidPath, PidFD, llvm::sys::fs::CD_OpenAlways,
             llvm::sys::fs::FA_Write, llvm::sys::fs::OF_None))
       llvm::report_fatal_error("clang -cc1depscand: cannot open pidfile");
 
