@@ -341,6 +341,12 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   StringRef Command = Argv[0];
   StringRef BasePath = Argv[1];
 
+  // Shutdown test mode. In shutdown test mode, daemon will open acception, but
+  // not replying anything, just tear down the connect immediately.
+  bool ShutDownTest = false;
+  if (Argv.size() == 3 && StringRef(Argv[2]) == "-shutdown")
+    ShutDownTest = true;
+
   if (Command == "-launch") {
     signal(SIGCHLD, SIG_IGN);
     const char *Args[] = {
@@ -409,7 +415,12 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   }();
 
   // Clean up the pidfile when we're done.
-  auto ClosePidFile = llvm::make_scope_exit([&]() { ::close(PidFD); });
+  auto ClosePidFile = [&]() {
+    if (PidFD != -1)
+      ::close(PidFD);
+    PidFD = -1;
+  };
+  auto ClosePidFileAtExit = llvm::make_scope_exit([&]() { ClosePidFile(); });
 
   // Open the socket and start listening.
   int ListenSocket = cc1depscand::createSocket();
@@ -435,6 +446,12 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   if (::listen(ListenSocket, /*MaxBacklog=*/Pool.getThreadCount() * 16))
     llvm::report_fatal_error("clang -cc1depscand: cannot listen to socket");
 
+  auto ShutdownCleanUp = [&]() {
+    RemoveBindFile();
+    ClosePidFile();
+    ::close(ListenSocket);
+  };
+
   // FIXME: Should use user-specified CAS, if any.
   std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
       llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
@@ -456,9 +473,15 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
 
   SharedStream SharedOS(llvm::errs());
 
+#ifndef NDEBUG
+  if (ShutDownTest)
+    llvm::outs() << "launched in shutdown test state\n";
+#endif
+
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I) {
     Pool.async([&Service, &ShutDown, &ListenSocket, &NumRunning, &Start,
-                &SecondsSinceLastClose, &CAS, I, FS, Argv0, &SharedOS]() {
+                &SecondsSinceLastClose, &CAS, I, FS, Argv0, &SharedOS,
+                ShutDownTest, &ShutdownCleanUp]() {
       Optional<tooling::dependencies::DependencyScanningTool> Tool;
       SmallString<256> Message;
       while (true) {
@@ -472,17 +495,6 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
         auto CloseData = llvm::make_scope_exit([&]() { ::close(Data); });
         cc1depscand::CC1DepScanDProtocol Comms(Data);
 
-        {
-          ++NumRunning;
-
-          // Check again for shutdown, since the main thread could have
-          // requested it before we created the service.
-          //
-          // FIXME: Return Optional<ServiceReference> from the map, handling
-          // this condition in getOrCreateService().
-          if (ShutDown.load())
-            return; // FIXME: Tell the client about this?
-        }
         auto StopRunning = llvm::make_scope_exit([&]() {
           SecondsSinceLastClose.store(
               std::chrono::duration_cast<std::chrono::seconds>(
@@ -490,6 +502,37 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
                   .count());
           --NumRunning;
         });
+
+        {
+          ++NumRunning;
+
+          // In test mode, just tear down everything.
+          if (ShutDownTest) {
+            ShutdownCleanUp();
+            ShutDown.store(true);
+            continue;
+          }
+          // Check again for shutdown, since the main thread could have
+          // requested it before we created the service.
+          //
+          // FIXME: Return Optional<ServiceReference> from the map, handling
+          // this condition in getOrCreateService().
+          if (ShutDown.load()) {
+            // Abort the work in shutdown state since the thread can go down
+            // anytime.
+            return; // FIXME: Tell the client about this?
+          }
+        }
+
+        // First put a result kind as a handshake.
+        if (auto E = Comms.putResultKind(
+              cc1depscand::CC1DepScanDProtocol::SuccessResult)) {
+          SharedOS.applyLocked([&](raw_ostream &OS) {
+            OS << I << ": failed to send handshake\n";
+            logAllUnhandledErrors(std::move(E), OS);
+          });
+          continue; // go back to wait when handshake failed.
+        }
 
         llvm::BumpPtrAllocator Alloc;
         llvm::StringSaver Saver(Alloc);
@@ -671,11 +714,11 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
     if (LastAccessToDestroy < SecondsSinceLastClose)
       continue;
 
+    // Tear down the socket and bind file immediately but wait till all existing
+    // jobs to finish.
+    ShutdownCleanUp();
     ShutDown.store(true);
   }
-
-  RemoveBindFile();
-  ::close(ListenSocket);
 
   return 0;
 }
