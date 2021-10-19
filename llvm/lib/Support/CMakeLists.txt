@@ -157,6 +157,7 @@ add_llvm_component_library(LLVMSupport
   OutputConfig.cpp
   Parallel.cpp
   PluginLoader.cpp
+  PrefixMapper.cpp
   PrettyStackTrace.cpp
   RandomNumberGenerator.cpp
   Regex.cpp
