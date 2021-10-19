@@ -1901,7 +1901,7 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Protocol(
   }
 
   if (log)
-    log->Printf("existential address is 0x%llx", existential_address);
+    log->Printf("existential address is 0x%lx", existential_address);
 
   if (!existential_address || existential_address == LLDB_INVALID_ADDRESS) {
     if (log)
