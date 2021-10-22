@@ -45,31 +45,47 @@ need to be "fixed". Some are driver-only (and should remain so).
     - `-fdepscan-prefix-map-toolchain=<value>`: auto-detect the toolchain
       (location of `/usr/bin/clang`) and map it to `<value>`.
 
-### LLVM project CMake configuration
+### TableGen command-line options
 
-- `-DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN=ON`: turn on `-fdepscan` and all the
-  relevant `-fdepscan-prefix-map*` options.
-    - `-DLLVM_DEPSCAN_MODE=daemon` pass through to `-fdepscan-mode`.
-- `-DLLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE=ON`: turn on `-fcas-token-cache`.
+TableGen can scan dependencies and cache too. No daemonization. It always uses
+the builtin CAS.
 
-### Example of a bootstrap
+- `--depscan`: turn it on.
+- `--depscan-prefix-map=<key>=<value>`: same as `-fdepscan-prefix-map` for
+  `-cc1` above.
 
-Pretty hacky right now (probably this can be trimmed down)...
+The CMake option `-DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN=ON` turns this
+on when building the branch (toolchain doesn't matter).
 
-1. Construct most of a toolchain.
-2. Build clang and install it and its builtin headers.
-3. Configure LLVM project.
+### Construct a toolchain with CAS support
+
+Pretty hacky right now (can this be trimmed down?).
 
 ```
-% TOOLCHAIN_SRC="$(dirname $(dirname $(xcrun -find clang)))"
-% TOOLCHAIN=path/to/new/toolchain
+% TOOLCHAIN_SRC="$(dirname $(dirname $(dirname $(xcrun -find clang))))"
+% TOOLCHAIN=/absolute/path/to/new/toolchain
 % ditto "$TOOLCHAIN_SRC" "$TOOLCHAIN"
 
 % STAGE1BUILD=path/to/stage1/build
 % (cd "$STAGE1BUILD" &&
    cmake -DCMAKE_INSTALL_PREFIX="$TOOLCHAIN/usr" &&
-   ninja install-clang install-clang-resource-headers)
+   ninja install-clang install-clang-resource-headers install-LTO)
+```
 
+### Caching with just-built toolchain
+
+#### LLVM project CMake configuration
+
+For building a CAS-aware branch, there are some extra CMake options available.
+
+- `-DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN=ON`: turn on `-fdepscan` and all the
+  relevant `-fdepscan-prefix-map*` options.
+    - `-DLLVM_DEPSCAN_MODE=daemon` pass through to `-fdepscan-mode`.
+- `-DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN=ON`: as above, turns it on for
+  the just-built tablegen.
+- `-DLLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE=ON`: turn on `-fcas-token-cache`.
+
+```
 % CLANG="$TOOLCHAIN"/usr/bin/clang
 % STAGE2BUILD=path/to/stage2/build
 % SDK="$(xcrun -show-sdk-path)"
@@ -81,27 +97,60 @@ Pretty hacky right now (probably this can be trimmed down)...
      -DCMAKE_OSX_SYSROOT="$SDK"                     \
      -DCMAKE_C_COMPILER=$CLANG                      \
      -DCMAKE_CXX_COMPILER=${CLANG}++                \
+     -DCMAKE_ASM_COMPILER=$(xcrun -find clang)      \
      -DLLVM_ENABLE_LIBCXX=ON                        \
+     -DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN=ON \
      -DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN=ON          \
      -DLLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE=ON  \
      -DLLVM_DEPSCAN_MODE=daemon                     \
-     -DLLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE=OFF \
-     -DCMAKE_ASM_COMPILER=$(xcrun -find clang)      \
-     -DLLVM_TARGETS_TO_BUILD=X86                    \
      ../llvm &&
    ninja)
 ```
 
+Using `-DCMAKE_BUILD_TYPE=Release` speeds up the cached builds significantly,
+mainly by speeding up the linker and reducing I/O when writing out the smaller
+`.o` files during cached compilation. It also speeds up tablegen, of course.
+
+#### Manual configuration for other branches
+
+If the branch being built isn't CAS-aware:
+
+```
+% CLANG="$TOOLCHAIN"/usr/bin/clang
+% STAGE2BUILD=path/to/stage2/build
+% SDK="$(xcrun -show-sdk-path)"
+% rm -rf "$STAGE2BUILD"
+% mkdir -p "$STAGE2BUILD"
+% CLANGFLAGS=(
+    -fdepscan
+    -fdepscan-prefix-map="$PWD=/^source"
+    -fdepscan-prefix-map="(cd "$STAGE2BUILD" && pwd)=/^build"
+    -fdepscan-prefix-map-sdk=/^sdk
+    -fdepscan-prefix-map-toolchain=/^toolchain"
+    -Xclang
+    -fcas-token-cache
+  )
+% (cd "$STAGE2BUILD" &&
+   cmake -G Ninja                                   \
+     -DLLVM_ENABLE_PROJECTS="clang"                 \
+     -DCMAKE_OSX_SYSROOT="$SDK"                     \
+     -DCMAKE_C_COMPILER=$CLANG                      \
+     -DCMAKE_CXX_COMPILER=${CLANG}++                \
+     -DCMAKE_ASM_COMPILER=$(xcrun -find clang)      \
+     -DLLVM_ENABLE_LIBCXX=ON                        \
+     -DCMAKE_{C,CXX}_FLAGS="$CLANGFLAGS[*]"         \
+     ../llvm &&
+   ninja)
+```
+
+###  Build
+
 Notes on current command-line:
 
-- Adds `-DLLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE=OFF` to avoid the current
-  crashes related to that (seems to have broken during a rebase?).
-- Adds `-DLLVM_TARGETS_TO_BUILD=X86` to avoid the non-deterministic crashes in
-  AArch64.
 - Adds `-DCMAKE_ASM_COMPILER=$(xcrun -find clang)` to work around some assembler
-  problem.
+  problem (can't remember actual problem...).
 
-TODO: Investigate / fix those problems.
+TODO: Investigate / fix.
 
 #### Try touching a header
 
