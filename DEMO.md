@@ -54,8 +54,8 @@ the builtin CAS.
 - `--depscan-prefix-map=<key>=<value>`: same as `-fdepscan-prefix-map` for
   `-cc1` above.
 
-The CMake option `-DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN=ON` turns this
-on when building the branch (toolchain doesn't matter).
+This branch's CMake option `-DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN=ON`
+configures everything (doesn't matter what toolchain you're using). 
 
 ### Construct a toolchain with CAS support
 
@@ -72,11 +72,38 @@ Pretty hacky right now (can this be trimmed down?).
    ninja install-clang install-clang-resource-headers install-LTO)
 ```
 
+#### Caveats to investigate / fix
+
+- At some point there was a problem in the assembler. May still be there. Have
+  been avoiding it for a long time with:
+        -DCMAKE_ASM_COMPILER=$(xcrun -find clang)
+  problem (can't remember actual problem...).
+- Passing `-fdepscan-prefix-map` changes stderr to use the remapped locations.
+  This makes stderr cacheable, but it also seems to interfere with CMake's
+  platform detection. Do not pass these flags to `-CMAKE_{C,CXX}_FLAGS`.
+    - Perhaps the implementation should generate and cache serialized
+      diagnostics with the map in place, but send to stderr the deserialized
+      diagnostics with an inverse map. Probably needs some maneuvering in the
+      DiagnosticsEngine.
+- `-fdepscan-prefix-map` changes the debug info to point at the suggested
+  location. The debugger needs to be told the "real" location of the source
+  files or else it can't find them. For LLDB, these options can help:
+       (lldb) settings append target.source-map /<key> /<value>
+       (lldb) settings show target.source-map
+  There might be a way to do this automatically but there's no tooling for it
+  right now.
+- `-fcas-token-cache` is pretty experimental and fragile, since the layering
+  is a total hack. It particularly interferes with errors encountered during
+  preprocessing.
+- There are still some occasional daemon crashes/hangs, which in turn causes
+  `-cc1` to fail with awkward backtraces.
+
 ### Caching with just-built toolchain
 
 #### LLVM project CMake configuration
 
-For building a CAS-aware branch, there are some extra CMake options available.
+For building a CAS-aware branch (i.e., this one!), there are some extra CMake
+options available.
 
 - `-DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN=ON`: turn on `-fdepscan` and all the
   relevant `-fdepscan-prefix-map*` options.
@@ -111,9 +138,11 @@ Using `-DCMAKE_BUILD_TYPE=Release` speeds up the cached builds significantly,
 mainly by speeding up the linker and reducing I/O when writing out the smaller
 `.o` files during cached compilation. It also speeds up tablegen, of course.
 
-#### Manual configuration for other branches
+#### FIXME: Manual configuration for other branches
 
-If the branch being built isn't CAS-aware:
+If the branch being built isn't CAS-aware, you should be able to add the
+options directly. However, the `-fdepscan-prefix-map` options currently
+interfere with CMake's configuration.
 
 ```
 % CLANG="$TOOLCHAIN"/usr/bin/clang
@@ -122,13 +151,9 @@ If the branch being built isn't CAS-aware:
 % rm -rf "$STAGE2BUILD"
 % mkdir -p "$STAGE2BUILD"
 % CLANGFLAGS=(
-    -fdepscan
-    -fdepscan-prefix-map="$PWD=/^source"
-    -fdepscan-prefix-map="(cd "$STAGE2BUILD" && pwd)=/^build"
-    -fdepscan-prefix-map-sdk=/^sdk
-    -fdepscan-prefix-map-toolchain=/^toolchain"
-    -Xclang
-    -fcas-token-cache
+     -fdepscan
+     -Xclang
+     -fcas-token-cache
   )
 % (cd "$STAGE2BUILD" &&
    cmake -G Ninja                                   \
@@ -143,14 +168,16 @@ If the branch being built isn't CAS-aware:
    ninja)
 ```
 
-###  Build
-
-Notes on current command-line:
-
-- Adds `-DCMAKE_ASM_COMPILER=$(xcrun -find clang)` to work around some assembler
-  problem (can't remember actual problem...).
-
-TODO: Investigate / fix.
+Here are the extra flags that should be added to `CLANGFLAGS` above, except
+that they confuse CMake:
+```
+     -fdepscan-prefix-map="$PWD=/^source"
+     -fdepscan-prefix-map="(cd "$STAGE2BUILD" && pwd)=/^build"
+     -fdepscan-prefix-map-sdk=/^sdk
+     -fdepscan-prefix-map-toolchain=/^toolchain
+```
+Likely, this breaks CMake's platform detection somehow, but there could be
+something else going on.
 
 #### Try touching a header
 
