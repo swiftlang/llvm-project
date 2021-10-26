@@ -16,9 +16,24 @@
 namespace llvm {
 namespace casobjectformats {
 
-/// Schema base class.
+/// Schema base class for object files.
 ///
 /// All calls are expected to be thread-safe.
+///
+/// Adding a new object file schema currently involves the following:
+///
+/// 1. Derive from SchemaBase. See \a nestedv1::ObjectFileSchema for an
+///    example. Best to add some unit tests.
+/// 2. Add ingestion support in llvm-cas-object-format.cpp by updating its
+///    factory method for creating a schema.
+/// 3. Optional: Add stats support in llvm-cas-object-format.cpp by adding the
+///    schema and a node handler to StatCollector::Schemas.
+///
+/// TODO: Extract the non-object-file bits somewhere else. This derived class
+/// would add LinkGraph APIs.
+///
+/// TODO: Maybe allow schemas to be registered somewhere? Maybe just
+/// object-file schemas?
 class SchemaBase {
   virtual void anchor();
 

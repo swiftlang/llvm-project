@@ -224,7 +224,7 @@ struct NodeInfo {
 
 struct POTItem {
   CASID ID;
-  SchemaBase *Schema = nullptr;
+  const SchemaBase *Schema = nullptr;
 };
 
 struct ObjectKindInfo {
@@ -241,9 +241,22 @@ struct ObjectKindInfo {
 
 struct StatCollector {
   CASDB &CAS;
-  nestedv1::ObjectFileSchema NestedV1Schema;
 
-  StatCollector(CASDB &CAS) : CAS(CAS), NestedV1Schema(CAS) {}
+  using POTItemHandler = unique_function<void(
+      ExitOnError &, function_ref<void(ObjectKindInfo &)>, cas::NodeRef)>;
+
+  nestedv1::ObjectFileSchema NestedV1Schema;
+  SmallVector<std::pair<const SchemaBase *, POTItemHandler>> Schemas;
+
+  StatCollector(CASDB &CAS) : CAS(CAS), NestedV1Schema(CAS) {
+    Schemas.push_back(std::make_pair(
+        &NestedV1Schema,
+        [&](ExitOnError &ExitOnErr,
+            function_ref<void(ObjectKindInfo & Info)> addNodeStats,
+            cas::NodeRef Node) {
+          visitPOTItemNestedV1(ExitOnErr, NestedV1Schema, addNodeStats, Node);
+        }));
+  }
 
   DenseMap<CASID, NodeInfo> Nodes;
 
@@ -351,10 +364,13 @@ void StatCollector::visitPOTItem(ExitOnError &ExitOnErr, const POTItem &Item) {
     return;
   }
 
-  if (Item.Schema == &NestedV1Schema) {
-    visitPOTItemNestedV1(ExitOnErr, NestedV1Schema, addNodeStats, Node);
+  for (auto &S : Schemas) {
+    if (Item.Schema != S.first)
+      continue;
+    S.second(ExitOnErr, addNodeStats, Node);
     return;
   }
+  llvm_unreachable("schema not found");
 }
 
 void StatCollector::visitPOTItemNestedV1(
@@ -443,7 +459,7 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
     CASID ID;
     bool Visited;
     StringRef Path;
-    SchemaBase *Schema = nullptr;
+    const SchemaBase *Schema = nullptr;
   };
   SmallVector<WorklistItem> Worklist;
   SmallVector<POTItem> POT;
@@ -453,7 +469,8 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
   if (!CASGlob.empty())
     GlobP.emplace(ExitOnErr(GlobPattern::create(CASGlob)));
 
-  auto push = [&](CASID ID, StringRef Path, SchemaBase *Schema = nullptr) {
+  auto push = [&](CASID ID, StringRef Path,
+                  const SchemaBase *Schema = nullptr) {
     auto &Node = Nodes[ID];
     if (!Node.Done)
       Worklist.push_back({ID, false, Path, Schema});
@@ -505,12 +522,13 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
 
     assert(*Kind == ObjectKind::Node);
     NodeRef Node = ExitOnErr(CAS.getNode(ID));
-    SchemaBase *&Schema = Worklist.back().Schema;
+    const SchemaBase *&Schema = Worklist.back().Schema;
 
     // Update the schema.
     if (!Schema) {
-      if (Collector.NestedV1Schema.isRootNode(Node))
-        Schema = &Collector.NestedV1Schema;
+      for (auto &S : Collector.Schemas)
+        if (S.first->isRootNode(Node))
+          Schema = S.first;
     } else if (!Schema->isNode(Node)) {
       Schema = nullptr;
     }

@@ -87,8 +87,6 @@ private:
 /// Instead, the first byte is stolen from \a getData().
 ///
 /// The root node type-id is structured as:
-///
-/// TODO: Maybe allow schemas to be registered somewhere?
 class ObjectFileSchema final : public SchemaBase {
   void anchor() override;
 
