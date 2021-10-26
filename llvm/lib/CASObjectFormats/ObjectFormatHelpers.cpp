@@ -81,7 +81,7 @@ Error helpers::writeOperandForArch(Triple::ArchType Arch, jitlink::Edge::Kind K,
   if (Arch == Triple::x86_64)
     return jitlink::x86_64::writeOperand(K, OperandValue, FixupPtr);
 
-  report_fatal_error(createArchError(Arch, "writeOperandForArch"));
+  return createArchError(Arch, "writeOperandForArch");
 }
 
 Error helpers::writeNopForArch(Triple::ArchType Arch, raw_ostream &OS,
@@ -91,7 +91,7 @@ Error helpers::writeNopForArch(Triple::ArchType Arch, raw_ostream &OS,
     return Error::success();
   }
 
-  report_fatal_error(createArchError(Arch, "writeNopForARch"));
+  return createArchError(Arch, "writeNopForArch");
 }
 
 Expected<StringRef> helpers::canonicalizeContent(
