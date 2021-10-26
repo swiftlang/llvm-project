@@ -34,6 +34,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/Utils.h"
+#include "llvm/CASObjectFormats/SchemaBase.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Object/Archive.h"
@@ -52,6 +55,8 @@
 #include <algorithm>
 
 using namespace llvm;
+using namespace llvm::cas;
+using namespace llvm::casobjectformats;
 using namespace llvm::MachO;
 using namespace llvm::object;
 using namespace llvm::opt;
@@ -368,6 +373,53 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
     inputFiles.insert(newFile);
   }
   return newFile;
+}
+
+/// Reads a CAS object.
+/// \param CAS CAS database.
+/// \param ID The CASID pointing at the root node of the CAS object.
+/// \param path The object filename.
+static Expected<InputFile *> addCASObject(SchemaPool &CASSchemas, CASID ID,
+                                          StringRef path) {
+  // FIXME: Check format from the CAS data instead of using the filename.
+  if (!path.endswith(".o")) {
+    return createStringError(inconvertibleErrorCode(),
+                             "only supporting .o files, found: " + path);
+  }
+  InputFile *newFile = nullptr;
+
+  newFile = make<CASSchemaFile>(CASSchemas, ID, path);
+  if (Error E = cast<CASSchemaFile>(newFile)->parse())
+    return std::move(E);
+
+  if (newFile) {
+    if (config->printEachFile)
+      message(toString(newFile));
+    inputFiles.insert(newFile);
+  }
+  return newFile;
+}
+
+/// Reads a CAS tree of CAS object files.
+/// \param CAS CAS database.
+/// \param ID The CASID pointing to a tree of files.
+static Error addCASTree(SchemaPool &CASSchemas, CASID ID) {
+  return walkFileTreeRecursively(
+      CASSchemas.getCAS(), ID,
+      [&](const NamedTreeEntry &entry, Optional<TreeRef>) -> Error {
+        if (entry.getKind() == TreeEntry::Tree)
+          return Error::success();
+        if (entry.getKind() != TreeEntry::Regular) {
+          // FIXME: Handle symlinks?
+          return createStringError(inconvertibleErrorCode(),
+                                   "found non-regular entry: " +
+                                       entry.getName());
+        }
+        if (auto E = addCASObject(CASSchemas, entry.getID(), entry.getName())
+                         .takeError())
+          return E;
+        return Error::success();
+      });
 }
 
 static void addLibrary(StringRef name, bool isNeeded, bool isWeak,
@@ -991,9 +1043,20 @@ void createFiles(const InputArgList &args) {
     warnIfUnimplementedOption(opt);
 
     switch (opt.getID()) {
-    case OPT_INPUT:
-      addFile(rerootPath(arg->getValue()), /*forceLoadArchive=*/false);
+    case OPT_INPUT: {
+      StringRef path = rerootPath(arg->getValue());
+      if (config->CAS) {
+        if (auto optCASID = expectedToOptional(config->CAS->parseCASID(path))) {
+          if (auto E = addCASTree(*config->CASSchemas, *optCASID)) {
+            error("error walking CAS tree with ID '" + path +
+                  "': " + toString(std::move(E)));
+          }
+          break;
+        }
+      }
+      addFile(path, /*forceLoadArchive=*/false);
       break;
+    }
     case OPT_needed_library:
       if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
               addFile(rerootPath(arg->getValue()), false)))
@@ -1233,6 +1296,20 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   config->icfLevel = getICFLevel(args);
   config->dedupLiterals = args.hasArg(OPT_deduplicate_literals) ||
                           config->icfLevel != ICFLevel::none;
+
+  // FIXME: Only supporting the \p BuiltinCAS currently, add same flags and
+  // mechanism as on the clang side to be able to use any kind of CAS.
+  if (args.hasArg(OPT_cas_path)) {
+    StringRef path = args.getLastArgValue(OPT_cas_path);
+    auto CAS = llvm::cas::createOnDiskCAS(path);
+    if (CAS) {
+      config->CAS = std::move(*CAS);
+      config->CASSchemas = std::make_unique<SchemaPool>(*config->CAS);
+    } else {
+      error("error loading CAS at path '" + path +
+            "': " + toString(CAS.takeError()));
+    }
+  }
 
   // FIXME: Add a commandline flag for this too.
   config->zeroModTime = getenv("ZERO_AR_DATE");

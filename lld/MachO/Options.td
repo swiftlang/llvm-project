@@ -921,6 +921,10 @@ def cache_path_lto : Separate<["-"], "cache_path_lto">,
     MetaVarName<"<path>">,
     HelpText<"Use <path> as a directory for the incremental LTO cache">,
     Group<grp_rare>;
+def cas_path : Separate<["-"], "cas_path">,
+    MetaVarName<"<path>">,
+    HelpText<"Use <path> as the path to the CAS on disk">,
+    Group<grp_rare>;
 def prune_interval_lto : Separate<["-"], "prune_interval_lto">,
     MetaVarName<"<seconds>">,
     HelpText<"Prune the incremental LTO cache after <seconds> (-1 disables pruning)">,

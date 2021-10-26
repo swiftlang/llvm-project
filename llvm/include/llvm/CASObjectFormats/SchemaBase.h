@@ -80,6 +80,28 @@ public:
   virtual ~SchemaBase() = default;
 };
 
+/// Creates all the schemas and can be used to retrieve a particular schema
+/// based on a CAS root node. A client should aim to create and maximize re-use
+/// of an instance of this object.
+class SchemaPool {
+public:
+  /// Creates all the schemas up front.
+  explicit SchemaPool(cas::CASDB &CAS);
+
+  /// Look up the schema for the provided root node. Returns \a nullptr if no
+  /// schema was found or it's not actually a root node. The returned \p
+  /// SchemaBase pointer is owned by the \p SchemaPool instance, therefore it
+  /// cannot be used beyond the \p SchemaPool instance's lifetime.
+  ///
+  /// Thread-safe.
+  SchemaBase *getSchemaForRoot(cas::NodeRef Node) const;
+
+  cas::CASDB &getCAS() const { return Schemas.front()->CAS; }
+
+private:
+  SmallVector<std::unique_ptr<SchemaBase>> Schemas;
+};
+
 } // namespace casobjectformats
 } // namespace llvm
 

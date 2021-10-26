@@ -254,6 +254,7 @@ struct StatCollector {
   using POTItemHandler = unique_function<void(
       ExitOnError &, function_ref<void(ObjectKindInfo &)>, cas::NodeRef)>;
 
+  // FIXME: Utilize \p SchemaPool.
   nestedv1::ObjectFileSchema NestedV1Schema;
   flatv1::ObjectFileSchema FlatV1Schema;
   SmallVector<std::pair<const SchemaBase *, POTItemHandler>> Schemas;

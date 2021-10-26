@@ -245,3 +245,12 @@ directory.
     --keep-compact-unwind-alive=false \
     --prefer-indirect-symbol-refs=true
 ```
+
+## lld: Linking CAS.o
+
+`lld` can connect to the builtin CAS and read & link `CAS.o` objects:
+
+```
+% llvm-cas-object-format --cas "$TMPDIR/casfs.default" t1.o t2.o -silent > casid
+% ld64.lld -cas_path "$TMPDIR/casfs.default" @casid -o a.out
+```

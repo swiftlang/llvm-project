@@ -36,6 +36,7 @@ add_lld_library(lldMachO2
   ${LLVM_TARGETS_TO_BUILD}
   BinaryFormat
   BitReader
+  CASObjectFormats
   Core
   DebugInfoDWARF
   LTO
