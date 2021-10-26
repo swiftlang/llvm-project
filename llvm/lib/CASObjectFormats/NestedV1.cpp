@@ -10,10 +10,8 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/CASObjectFormats/Encoding.h"
+#include "llvm/CASObjectFormats/ObjectFormatHelpers.h"
 #include "llvm/Support/EndianStream.h"
-
-// FIXME: For jitlink::x86_64::writeOperand(). Should use a generic version.
-#include "llvm/ExecutionEngine/JITLink/x86_64.h"
 
 // FIXME: For cl::opt. Should thread through or delete.
 #include "llvm/Support/CommandLine.h"
@@ -376,47 +374,6 @@ cl::opt<bool> AppendTrailingNopPaddingDuringBlockIngestion__text(
              "__TEXT,__text during block ingestion."),
     cl::init(true));
 
-// FIXME: Copy/pasted from X86AsmBackend::writeNopData.
-static void writeX86NopData(raw_ostream &OS, uint64_t Count) {
-  static const char Nops[10][11] = {
-      // nop
-      "\x90",
-      // xchg %ax,%ax
-      "\x66\x90",
-      // nopl (%[re]ax)
-      "\x0f\x1f\x00",
-      // nopl 0(%[re]ax)
-      "\x0f\x1f\x40\x00",
-      // nopl 0(%[re]ax,%[re]ax,1)
-      "\x0f\x1f\x44\x00\x00",
-      // nopw 0(%[re]ax,%[re]ax,1)
-      "\x66\x0f\x1f\x44\x00\x00",
-      // nopl 0L(%[re]ax)
-      "\x0f\x1f\x80\x00\x00\x00\x00",
-      // nopl 0L(%[re]ax,%[re]ax,1)
-      "\x0f\x1f\x84\x00\x00\x00\x00\x00",
-      // nopw 0L(%[re]ax,%[re]ax,1)
-      "\x66\x0f\x1f\x84\x00\x00\x00\x00\x00",
-      // nopw %cs:0L(%[re]ax,%[re]ax,1)
-      "\x66\x2e\x0f\x1f\x84\x00\x00\x00\x00\x00",
-  };
-
-  const uint64_t MaxNopLength = 16;
-
-  // Emit as many MaxNopLength NOPs as needed, then emit a NOP of the remaining
-  // length.
-  do {
-    const uint8_t ThisNopLength = (uint8_t)std::min(Count, MaxNopLength);
-    const uint8_t Prefixes = ThisNopLength <= 10 ? 0 : ThisNopLength - 10;
-    for (uint8_t i = 0; i < Prefixes; i++)
-      OS << '\x66';
-    const uint8_t Rest = ThisNopLength - Prefixes;
-    if (Rest != 0)
-      OS.write(Nops[Rest - 1], Rest);
-    Count -= ThisNopLength;
-  } while (Count != 0);
-}
-
 Expected<BlockDataRef> BlockDataRef::create(const ObjectFileSchema &Schema,
                                             const jitlink::Block &Block,
                                             ArrayRef<Fixup> Fixups) {
@@ -427,26 +384,9 @@ Expected<BlockDataRef> BlockDataRef::create(const ObjectFileSchema &Schema,
   assert(Block.getContent().size() == Block.getSize());
   StringRef Content(Block.getContent().begin(), Block.getSize());
 
-  Optional<SmallString<1024>> BlockData;
-  auto initializeBlockData = [&BlockData, Content]() {
-    if (BlockData)
-      return;
-    BlockData.emplace();
-    BlockData->append(Content.begin(), Content.end());
-  };
-  auto getFixupPtr = [&](const Fixup &F) -> char * {
-    initializeBlockData();
-    return &(*BlockData)[F.Offset];
-  };
-
-  if (ZeroFixupsDuringBlockIngestion) {
-    // FIXME: Directly accessing jitlink::x86_64::writeOperand() isn't correct.
-    // See also the FIXME in CompileUnitRef::create().
-    for (Fixup F : Fixups)
-      if (F.Kind >= jitlink::Edge::FirstRelocation)
-        if (Error E = jitlink::x86_64::writeOperand(F.Kind, 0, getFixupPtr(F)))
-          return std::move(E);
-  }
+  ArrayRef<Fixup> FixupsToZero;
+  if (ZeroFixupsDuringBlockIngestion)
+    FixupsToZero = Fixups;
 
   // Append trailing noops to the last block in __TEXT,__text to canonicalize
   // its shape, to avoid noise when a block happens to be last. This is because
@@ -456,18 +396,21 @@ Expected<BlockDataRef> BlockDataRef::create(const ObjectFileSchema &Schema,
   // FIXME: Only do this when reading blocks parsed from Mach-O.
   //
   // FIXME: Probably we want this elsewhere (not just __TEXT,__text).
+  Optional<Align> TrailingNopsAlignment;
   if (AppendTrailingNopPaddingDuringBlockIngestion__text &&
-      Block.getSection().getName() == "__TEXT,__text" &&
-      !isAligned(Align(16), Block.getSize())) {
-    initializeBlockData();
+      Block.getSection().getName() == "__TEXT,__text")
+    TrailingNopsAlignment = Align(16);
 
-    raw_svector_ostream OS(*BlockData);
-    writeX86NopData(OS, offsetToAlignment(Block.getSize(), Align(16)));
-  }
-
-  // Use the modified content if something was tweaked.
-  if (BlockData)
-    Content = *BlockData;
+  // Canoncalize (and update) Content.
+  //
+  // FIXME: Hardcoded to x86_64 right now! But that's all that
+  // CompileUnitRef::create() will send over anyway.
+  SmallString<1024> MutableContentStorage;
+  if (Error E = helpers::canonicalizeContent(
+                    Triple::x86_64, Content, MutableContentStorage,
+                    FixupsToZero, TrailingNopsAlignment)
+                    .moveInto(Content))
+    return std::move(E);
 
   return createContent(Schema, Content, Block.getAlignment(),
                        Block.getAlignmentOffset(), Fixups);
@@ -1839,12 +1782,8 @@ Expected<Optional<TargetRef>> CompileUnitBuilder::getOrCreateTarget(
 Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
                                                 const jitlink::LinkGraph &G,
                                                 raw_ostream *DebugOS) {
-  if (!G.getTargetTriple().isX86()) {
-    assert(G.getTargetTriple().isX86() &&
-           "FIXME: Requires x86_64 for access to writeOperand()");
-    return createStringError(inconvertibleErrorCode(),
-                             "target triple must be x86_64 for now");
-  }
+  if (Error E = helpers::checkArch(G.getTargetTriple()))
+    return std::move(E);
 
   CompileUnitBuilder Builder(Schema, DebugOS);
   if (Error E = Builder.makeSymbols(G))
