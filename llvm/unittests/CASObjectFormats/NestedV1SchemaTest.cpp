@@ -1,4 +1,4 @@
-//===- ObjectFileSchemaTest.cpp - Unit tests CAS object file schema -------===//
+//===- NestedV1SchemaTest.cpp - Unit tests CAS object file schema ---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,16 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ExecutionEngine/CASObjectFormat/ObjectFileSchema.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/CASObjectFormats/NestedV1.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
-using namespace llvm::casobjectformat;
+using namespace llvm::casobjectformats;
+using namespace llvm::casobjectformats::nestedv1;
 
 template <typename T>
 static Error unwrapExpected(Expected<T> &&E, Optional<T> &O) {
@@ -38,9 +39,9 @@ static Error unwrapExpected(Expected<std::unique_ptr<T>> &&E,
 
 namespace {
 
-TEST(CASObjectFormatTests, Section) {
-  jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8, support::little,
-                       jitlink::getGenericEdgeKindName);
+TEST(NestedV1SchemaTest, Section) {
+  jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
+                       support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section *Sections[]{
       &G.createSection("read", sys::Memory::MF_READ),
       &G.createSection("write", sys::Memory::MF_WRITE),
@@ -69,13 +70,13 @@ TEST(CASObjectFormatTests, Section) {
 }
 
 static const char BlockContentBytes[] = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
-                                        0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B,
-                                        0x1C, 0x1D, 0x1E, 0x1F, 0x00};
+                                         0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B,
+                                         0x1C, 0x1D, 0x1E, 0x1F, 0x00};
 ArrayRef<char> BlockContent(BlockContentBytes);
 
-TEST(CASObjectFormatTests, BlockData) {
-  jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8, support::little,
-                       jitlink::getGenericEdgeKindName);
+TEST(NestedV1SchemaTest, BlockData) {
+  jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
+                       support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
   jitlink::Block *Blocks[] = {
       &G.createZeroFillBlock(Section, 0, 0, /*Alignment=*/1, 0),
@@ -116,7 +117,7 @@ TEST(CASObjectFormatTests, BlockData) {
   }
 }
 
-TEST(CASObjectFormatTests, LeafBlock) {
+TEST(NestedV1SchemaTest, LeafBlock) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section &Section1 =
@@ -140,14 +141,14 @@ TEST(CASObjectFormatTests, LeafBlock) {
   ObjectFileSchema Schema(*CAS);
   for (jitlink::Block *B : Blocks) {
     // This is the API being tested.
-    Optional<BlockRef> Block = expectedToOptional(BlockRef::create(
-        Schema, *B,
-        [](const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
-           jitlink::Edge::AddendT &,
-           Optional<StringRef> &) -> Expected<TargetRef> {
-          return createStringError(inconvertibleErrorCode(),
-                                   "expected a leaf block");
-        }));
+    Optional<BlockRef> Block = expectedToOptional(
+        BlockRef::create(Schema, *B,
+                         [](const jitlink::Symbol &, jitlink::Edge::Kind,
+                            bool IsFromData, jitlink::Edge::AddendT &,
+                            Optional<StringRef> &) -> Expected<TargetRef> {
+                           return createStringError(inconvertibleErrorCode(),
+                                                    "expected a leaf block");
+                         }));
     ASSERT_TRUE(Block);
 
     // Independently look up block data and section.
@@ -165,7 +166,7 @@ TEST(CASObjectFormatTests, LeafBlock) {
   }
 }
 
-TEST(CASObjectFormatTests, SymbolFlags) {
+TEST(NestedV1SchemaTest, SymbolFlags) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
@@ -222,7 +223,7 @@ TEST(CASObjectFormatTests, SymbolFlags) {
   EXPECT_EQ(SymbolRef::M_ByName, WeakDefaultDeadFlags.Merge);
 }
 
-TEST(CASObjectFormatTests, BlockSymbols) {
+TEST(NestedV1SchemaTest, BlockSymbols) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
@@ -256,8 +257,7 @@ TEST(CASObjectFormatTests, BlockSymbols) {
   };
   auto createSymbolDefinition =
       [&](const jitlink::Block &B) -> Expected<SymbolDefinitionRef> {
-    if (Expected<BlockRef> Block =
-            BlockRef::create(Schema, B, createTarget))
+    if (Expected<BlockRef> Block = BlockRef::create(Schema, B, createTarget))
       return Block->getAsSymbolDefinition();
     else
       return Block.takeError();
@@ -265,8 +265,8 @@ TEST(CASObjectFormatTests, BlockSymbols) {
 
   for (jitlink::Symbol *S : Symbols) {
     // This is the API being tested.
-    Optional<SymbolRef> Symbol =
-        expectedToOptional(SymbolRef::create(Schema, *S, createSymbolDefinition));
+    Optional<SymbolRef> Symbol = expectedToOptional(
+        SymbolRef::create(Schema, *S, createSymbolDefinition));
     ASSERT_TRUE(Symbol);
 
     // Check the flags match.
@@ -282,7 +282,7 @@ TEST(CASObjectFormatTests, BlockSymbols) {
   }
 }
 
-TEST(CASObjectFormatTests, SymbolTable) {
+TEST(NestedV1SchemaTest, SymbolTable) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
@@ -305,8 +305,7 @@ TEST(CASObjectFormatTests, SymbolTable) {
   };
   auto createSymbolDefinition =
       [&](const jitlink::Block &B) -> Expected<SymbolDefinitionRef> {
-    if (Expected<BlockRef> Block =
-            BlockRef::create(Schema, B, createTarget))
+    if (Expected<BlockRef> Block = BlockRef::create(Schema, B, createTarget))
       return Block->getAsSymbolDefinition();
     else
       return Block.takeError();
@@ -314,8 +313,8 @@ TEST(CASObjectFormatTests, SymbolTable) {
 
   SmallVector<SymbolRef> AllRefs;
   for (jitlink::Symbol *S : Symbols) {
-    Optional<SymbolRef> Ref =
-        expectedToOptional(SymbolRef::create(Schema, *S, createSymbolDefinition));
+    Optional<SymbolRef> Ref = expectedToOptional(
+        SymbolRef::create(Schema, *S, createSymbolDefinition));
     ASSERT_TRUE(Ref);
     AllRefs.push_back(*Ref);
   }
@@ -350,7 +349,7 @@ TEST(CASObjectFormatTests, SymbolTable) {
   }
 }
 
-TEST(CASObjectFormatTests, BlockWithEdges) {
+TEST(NestedV1SchemaTest, BlockWithEdges) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
@@ -369,14 +368,10 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
   // (precedence is offset, kind, target name, and addend).
   jitlink::Edge::OffsetT Offsets[] = {0, 0, 0, 0, 0, 0, 8, 16};
   jitlink::Edge::Kind Kinds[] = {
-      jitlink::Edge::FirstKeepAlive,
-      jitlink::Edge::FirstKeepAlive,
-      jitlink::Edge::FirstKeepAlive,
-      jitlink::Edge::FirstKeepAlive,
-      jitlink::Edge::FirstRelocation,
-      jitlink::Edge::FirstRelocation + 1,
-      jitlink::Edge::FirstKeepAlive,
-      jitlink::Edge::FirstKeepAlive,
+      jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
+      jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
+      jitlink::Edge::FirstRelocation, jitlink::Edge::FirstRelocation + 1,
+      jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
   };
   jitlink::Symbol *Targets[] = {&S1, &S1, &S2, &S3, &S1, &S1, &S1, &S1};
   jitlink::Edge::AddendT Addends[] = {0, 24, 0, 0, 0, 0, 0, 0};
@@ -411,17 +406,18 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
   }
 
   // Create the block and symbol for S3.
-  Optional<BlockRef> ZeroBlock = expectedToOptional(BlockRef::create(
-      Schema, Z,
-      [](const jitlink::Symbol &S, jitlink::Edge::Kind, bool IsFromData,
-         jitlink::Edge::AddendT &,
-         Optional<StringRef> &) -> Expected<TargetRef> {
-        return createStringError(inconvertibleErrorCode(),
-                                 "expected leaf block");
-      }));
+  Optional<BlockRef> ZeroBlock = expectedToOptional(
+      BlockRef::create(Schema, Z,
+                       [](const jitlink::Symbol &S, jitlink::Edge::Kind,
+                          bool IsFromData, jitlink::Edge::AddendT &,
+                          Optional<StringRef> &) -> Expected<TargetRef> {
+                         return createStringError(inconvertibleErrorCode(),
+                                                  "expected leaf block");
+                       }));
   ASSERT_TRUE(ZeroBlock);
   Optional<SymbolRef> DirectS3 = expectedToOptional(SymbolRef::create(
-      Schema, S3, [&](const jitlink::Block &B) -> Expected<SymbolDefinitionRef> {
+      Schema, S3,
+      [&](const jitlink::Block &B) -> Expected<SymbolDefinitionRef> {
         assert(&B == &Z);
         return ZeroBlock->getAsSymbolDefinition();
       }));
@@ -467,7 +463,7 @@ TEST(CASObjectFormatTests, BlockWithEdges) {
   }
 }
 
-TEST(CASObjectFormatTests, RoundTrip) {
+TEST(NestedV1SchemaTest, RoundTrip) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);

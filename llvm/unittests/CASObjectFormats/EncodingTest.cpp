@@ -1,4 +1,4 @@
-//===- EncodingTest.cpp - Unit tests for CASObjectFormat encoding ---------===//
+//===- EncodingTest.cpp - Unit tests for CASObjectFormats encodings -------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ExecutionEngine/CASObjectFormat/Encoding.h"
+#include "llvm/CASObjectFormats/Encoding.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
-using namespace llvm::casobjectformat;
-using namespace llvm::casobjectformat::encoding;
+using namespace llvm::casobjectformats;
+using namespace llvm::casobjectformats::encoding;
 
 template <class T> static Expected<T> makeRoundTripVBR8(T V) {
   SmallVector<char> Data;

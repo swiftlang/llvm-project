@@ -1,4 +1,4 @@
-//===- llvm/ExecutionEngine/CASObjectFormat/Encoding.h ----------*- C++ -*-===//
+//===- llvm/CASObjectFormats/Encoding.h ------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_EXECUTIONENGINE_CASOBJECTFORMAT_ENCODING_H
-#define LLVM_EXECUTIONENGINE_CASOBJECTFORMAT_ENCODING_H
+#ifndef LLVM_CASOBJECTFORMATS_ENCODING_H
+#define LLVM_CASOBJECTFORMATS_ENCODING_H
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Error.h"
@@ -15,7 +15,7 @@
 #include <type_traits>
 
 namespace llvm {
-namespace casobjectformat {
+namespace casobjectformats {
 namespace encoding {
 
 template <class T, std::enable_if_t<std::is_integral<T>::value &&
@@ -117,8 +117,8 @@ static Expected<StringRef> readVBR8(StringRef Data, T &V) {
   return Data;
 }
 
-} // namespace encoding
-} // end namespace casobjectformat
+} // end namespace encoding
+} // end namespace casobjectformats
 } // end namespace llvm
 
-#endif // LLVM_EXECUTIONENGINE_CASOBJECTFORMAT_ENCODING_H
+#endif // LLVM_CASOBJECTFORMATS_ENCODING_H

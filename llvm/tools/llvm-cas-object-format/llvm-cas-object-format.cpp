@@ -8,7 +8,7 @@
 
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/ScopeExit.h"
-#include "llvm/ExecutionEngine/CASObjectFormat/ObjectFileSchema.h"
+#include "llvm/CASObjectFormats/NestedV1.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
 #include "llvm/Support/CommandLine.h"
@@ -24,7 +24,7 @@
 
 using namespace llvm;
 using namespace llvm::cas;
-using namespace llvm::casobjectformat;
+using namespace llvm::casobjectformats;
 
 cl::opt<int> NumThreads("num-threads", cl::desc("Num worker threads."));
 cl::opt<bool> Dump("dump", cl::desc("Dump link-graph."));
@@ -198,6 +198,221 @@ int main(int argc, char *argv[]) {
     computeStats(*CAS, SummaryIDs);
 }
 
+namespace {
+struct NodeInfo {
+  size_t NumPaths = 0;
+  size_t NumParents = 0;
+  bool Done = false;
+};
+
+struct POTItem {
+  CASID ID;
+  SchemaBase *Schema = nullptr;
+};
+
+struct ObjectKindInfo {
+  size_t Count = 0;
+  size_t NumPaths = 0;
+  size_t NumChildren = 0;
+  size_t NumParents = 0;
+  size_t DataSize = 0;
+
+  size_t getTotalSize(size_t NumHashBytes) const {
+    return NumChildren * NumHashBytes + DataSize;
+  }
+};
+
+struct StatCollector {
+  CASDB &CAS;
+  nestedv1::ObjectFileSchema NestedV1Schema;
+
+  StatCollector(CASDB &CAS) : CAS(CAS), NestedV1Schema(CAS) {}
+
+  DenseMap<CASID, NodeInfo> Nodes;
+
+  StringMap<ObjectKindInfo> Stats;
+  ObjectKindInfo Totals;
+  DenseSet<StringRef> GeneratedNames;
+  DenseSet<cas::CASID> SectionNames;
+  DenseSet<cas::CASID> SymbolNames;
+  DenseSet<cas::CASID> UndefinedSymbols;
+  DenseSet<cas::CASID> ContentBlobs;
+  size_t NumContentBlobs0To16B = 0;
+  size_t NumAnonymousSymbols = 0;
+  size_t NumTemplateSymbols = 0;
+  size_t NumTemplateTargets = 0;
+  size_t NumZeroFillBlocks = 0;
+  size_t Num1TargetBlocks = 0;
+  size_t Num2TargetBlocks = 0;
+
+  void visitPOT(ExitOnError &ExitOnErr, ArrayRef<CASID> TopLevels,
+                ArrayRef<POTItem> POT);
+  void visitPOTItem(ExitOnError &ExitOnErr, const POTItem &Item);
+  void visitPOTItemNestedV1(
+      ExitOnError &ExitOnErr, nestedv1::ObjectFileSchema &Schema,
+      function_ref<void(ObjectKindInfo &Info)> addNodeStats, cas::NodeRef Node);
+  void printToOuts(ArrayRef<CASID> TopLevels);
+};
+} // end namespace
+
+void StatCollector::visitPOT(ExitOnError &ExitOnErr, ArrayRef<CASID> TopLevels,
+                             ArrayRef<POTItem> POT) {
+  for (auto ID : TopLevels)
+    Nodes[ID].NumPaths = 1;
+
+  // Visit POT in reverse (topological sort), computing Nodes and collecting
+  // stats.
+  for (const POTItem &Item : llvm::reverse(POT))
+    visitPOTItem(ExitOnErr, Item);
+}
+
+void StatCollector::visitPOTItem(ExitOnError &ExitOnErr, const POTItem &Item) {
+  cas::CASID ID = Item.ID;
+  size_t NumPaths = Nodes.lookup(ID).NumPaths;
+  Optional<ObjectKind> Kind = CAS.getObjectKind(ID);
+  assert(Kind);
+
+  auto updateChild = [&](CASID Child) {
+    ++Nodes[Child].NumParents;
+    Nodes[Child].NumPaths += NumPaths;
+  };
+
+  size_t NumParents = Nodes.lookup(ID).NumParents;
+  if (*Kind == ObjectKind::Blob && Item.Schema)
+    Kind = ObjectKind::Node; // Hack because nodes with no references look
+                             // like blobs.
+  if (*Kind == ObjectKind::Blob) {
+    auto &Info = Stats["builtin:blob"];
+    ++Info.Count;
+    Info.DataSize += ExitOnErr(CAS.getBlob(ID)).getData().size();
+    Info.NumPaths += NumPaths;
+    Info.NumParents += NumParents;
+    Totals.NumPaths += NumPaths; // Count paths to leafs.
+    return;
+  }
+
+  if (*Kind == ObjectKind::Tree) {
+    auto &Info = Stats["builtin:tree"];
+    ++Info.Count;
+    TreeRef Tree = ExitOnErr(CAS.getTree(ID));
+    Info.NumChildren += Tree.size();
+    Info.NumParents += NumParents;
+    Info.NumPaths += NumPaths;
+    if (!Tree.size())
+      Totals.NumPaths += NumPaths; // Count paths to leafs.
+
+    ExitOnErr(Tree.forEachEntry([&](const NamedTreeEntry &Entry) {
+      // FIXME: This is copied out of BuiltinCAS.cpp's makeTree.
+      Info.DataSize += sizeof(uint64_t) + sizeof(uint32_t) +
+                       alignTo(Entry.getName().size() + 1, Align(4));
+      updateChild(Entry.getID());
+      return Error::success();
+    }));
+    return;
+  }
+
+  assert(*Kind == ObjectKind::Node);
+  cas::NodeRef Node = ExitOnErr(CAS.getNode(ID));
+  auto addNodeStats = [&](ObjectKindInfo &Info) {
+    ++Info.Count;
+    Info.NumChildren += Node.getNumReferences();
+    Info.NumParents += NumParents;
+    Info.NumPaths += NumPaths;
+    Info.DataSize += Node.getData().size();
+    if (!Node.getNumReferences())
+      Totals.NumPaths += NumPaths; // Count paths to leafs.
+
+    ExitOnErr(Node.forEachReference([&](CASID ChildID) {
+      updateChild(ChildID);
+      return Error::success();
+    }));
+  };
+
+  // Handle nodes not in the schema.
+  if (!Item.Schema) {
+    addNodeStats(Stats["builtin:node"]);
+    return;
+  }
+
+  if (Item.Schema == &NestedV1Schema) {
+    visitPOTItemNestedV1(ExitOnErr, NestedV1Schema, addNodeStats, Node);
+    return;
+  }
+}
+
+void StatCollector::visitPOTItemNestedV1(
+    ExitOnError &ExitOnErr, nestedv1::ObjectFileSchema &Schema,
+    function_ref<void(ObjectKindInfo &Info)> addNodeStats, cas::NodeRef Node) {
+  using namespace llvm::casobjectformats::nestedv1;
+  ObjectFormatNodeRef Object = ExitOnErr(Schema.getNode(Node));
+  addNodeStats(Stats[Object.getKindString()]);
+
+  // Check specific stats.
+  if (Object.getKindString() == BlockRef::KindString) {
+    if (Optional<BlockRef> Block = expectedToOptional(BlockRef::get(Object))) {
+      if (Optional<TargetList> Targets =
+              expectedToOptional(Block->getTargets())) {
+        for (size_t I = 0, E = Targets->size(); I != E; ++I) {
+          if (Optional<TargetRef> Target =
+                  expectedToOptional(Targets->get(I))) {
+            if (Optional<StringRef> Name =
+                    expectedToOptional(Target->getNameString()))
+              if (Name->startswith("cas.o:"))
+                GeneratedNames.insert(*Name);
+
+            if (Target->getKind() == TargetRef::Symbol)
+              if (Optional<SymbolRef> Symbol =
+                      expectedToOptional(SymbolRef::get(Schema, *Target)))
+                NumTemplateTargets += Symbol->isSymbolTemplate();
+          }
+        }
+        Num1TargetBlocks += Targets->size() == 1;
+        Num2TargetBlocks += Targets->size() == 2;
+      }
+      if (Optional<BlockDataRef> Data =
+              expectedToOptional(Block->getBlockData())) {
+        if (Data->isZeroFill())
+          ++NumZeroFillBlocks;
+        if (Optional<cas::CASID> Content = Data->getContentID())
+          if (ContentBlobs.insert(*Content).second)
+            if (Optional<ContentRef> Blob =
+                    expectedToOptional(ContentRef::get(Schema, *Content)))
+              NumContentBlobs0To16B += Blob->getContent().size() <= 16;
+      }
+    }
+  }
+  if (Object.getKindString() == SymbolRef::KindString) {
+    if (Optional<SymbolRef> Symbol =
+            expectedToOptional(SymbolRef::get(Object))) {
+      NumAnonymousSymbols += !Symbol->hasName();
+      NumTemplateSymbols += Symbol->isSymbolTemplate();
+      if (Optional<cas::CASID> Name = Symbol->getNameID()) {
+        SymbolNames.insert(*Name);
+        UndefinedSymbols.erase(*Name);
+      }
+    }
+  }
+  if (Object.getKindString() == NameListRef::KindString) {
+    // FIXME: This is only valid because NameList is currently just used for
+    // lists of symbols.
+    if (Optional<NameListRef> List =
+            expectedToOptional(NameListRef::get(Object))) {
+      for (size_t I = 0, E = List->getNumNames(); I != E; ++I) {
+        cas::CASID Name = List->getNameID(I);
+        if (!SymbolNames.count(Name))
+          UndefinedSymbols.insert(Name);
+      }
+    }
+  }
+  if (Object.getKindString() == SectionRef::KindString) {
+    if (Optional<SectionRef> Section =
+            expectedToOptional(SectionRef::get(Object))) {
+      if (Optional<cas::CASID> Name = Section->getNameID())
+        SectionNames.insert(*Name);
+    }
+  }
+}
+
 static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
   ExitOnError ExitOnErr;
   ExitOnErr.setBanner("llvm-cas-object-format: compute-stats: ");
@@ -205,25 +420,15 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
   outs() << "Collecting object stats...\n";
 
   // In the first traversal, just collect a POT. Use NumPaths as a "Seen" list.
-  struct NodeInfo {
-    size_t NumPaths = 0;
-    size_t NumParents = 0;
-    bool Done = false;
-  };
-  DenseMap<CASID, NodeInfo> Nodes;
+  StatCollector Collector(CAS);
+  auto &Nodes = Collector.Nodes;
   struct WorklistItem {
     CASID ID;
     bool Visited;
     StringRef Path;
-    ObjectFileSchema *Schema = nullptr;
+    SchemaBase *Schema = nullptr;
   };
   SmallVector<WorklistItem> Worklist;
-
-  struct POTItem {
-    CASID ID;
-    ObjectFileSchema *Schema = nullptr;
-  };
-
   SmallVector<POTItem> POT;
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
@@ -231,13 +436,11 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
   if (!CASGlob.empty())
     GlobP.emplace(ExitOnErr(GlobPattern::create(CASGlob)));
 
-  auto push = [&](CASID ID, StringRef Path,
-                  ObjectFileSchema *Schema = nullptr) {
+  auto push = [&](CASID ID, StringRef Path, SchemaBase *Schema = nullptr) {
     auto &Node = Nodes[ID];
     if (!Node.Done)
       Worklist.push_back({ID, false, Path, Schema});
   };
-  ObjectFileSchema ObjectsSchema(CAS);
   for (auto ID : TopLevels)
     push(ID, "/");
   while (!Worklist.empty()) {
@@ -285,12 +488,12 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
 
     assert(*Kind == ObjectKind::Node);
     NodeRef Node = ExitOnErr(CAS.getNode(ID));
-    ObjectFileSchema *&Schema = Worklist.back().Schema;
+    SchemaBase *&Schema = Worklist.back().Schema;
 
     // Update the schema.
     if (!Schema) {
-      if (ObjectsSchema.isRootNode(Node))
-        Schema = &ObjectsSchema;
+      if (Collector.NestedV1Schema.isRootNode(Node))
+        Schema = &Collector.NestedV1Schema;
     } else if (!Schema->isNode(Node)) {
       Schema = nullptr;
     }
@@ -301,177 +504,13 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
     }));
   }
 
-  // Visit POT in reverse (topological sort), computing Nodes and collecting
-  // stats.
-  struct ObjectKindInfo {
-    size_t Count = 0;
-    size_t NumPaths = 0;
-    size_t NumChildren = 0;
-    size_t NumParents = 0;
-    size_t DataSize = 0;
+  Collector.visitPOT(ExitOnErr, TopLevels, POT);
+  Collector.printToOuts(TopLevels);
+}
 
-    size_t getTotalSize(size_t NumHashBytes) const {
-      return NumChildren * NumHashBytes + DataSize;
-    }
-  };
-  StringMap<ObjectKindInfo> Stats;
-  ObjectKindInfo Totals;
-  DenseSet<StringRef> GeneratedNames;
-  DenseSet<cas::CASID> SectionNames;
-  DenseSet<cas::CASID> SymbolNames;
-  DenseSet<cas::CASID> UndefinedSymbols;
-  DenseSet<cas::CASID> ContentBlobs;
-  size_t NumContentBlobs0To16B = 0;
-  size_t NumAnonymousSymbols = 0;
-  size_t NumTemplateSymbols = 0;
-  size_t NumTemplateTargets = 0;
-  size_t NumZeroFillBlocks = 0;
-  size_t Num1TargetBlocks = 0;
-  size_t Num2TargetBlocks = 0;
-  for (auto ID : TopLevels)
-    Nodes[ID].NumPaths = 1;
-  for (const POTItem &Item : llvm::reverse(POT)) {
-    cas::CASID ID = Item.ID;
-    size_t NumPaths = Nodes.lookup(ID).NumPaths;
-    Optional<ObjectKind> Kind = CAS.getObjectKind(ID);
-    assert(Kind);
-
-    auto updateChild = [&](CASID Child) {
-      ++Nodes[Child].NumParents;
-      Nodes[Child].NumPaths += NumPaths;
-    };
-
-    size_t NumParents = Nodes.lookup(ID).NumParents;
-    if (*Kind == ObjectKind::Blob && Item.Schema)
-      Kind = ObjectKind::Node; // Hack because nodes with no references look
-                               // like blobs.
-    if (*Kind == ObjectKind::Blob) {
-      auto &Info = Stats["builtin:blob"];
-      ++Info.Count;
-      Info.DataSize += ExitOnErr(CAS.getBlob(ID)).getData().size();
-      Info.NumPaths += NumPaths;
-      Info.NumParents += NumParents;
-      Totals.NumPaths += NumPaths; // Count paths to leafs.
-      continue;
-    }
-
-    if (*Kind == ObjectKind::Tree) {
-      auto &Info = Stats["builtin:tree"];
-      ++Info.Count;
-      TreeRef Tree = ExitOnErr(CAS.getTree(ID));
-      Info.NumChildren += Tree.size();
-      Info.NumParents += NumParents;
-      Info.NumPaths += NumPaths;
-      if (!Tree.size())
-        Totals.NumPaths += NumPaths; // Count paths to leafs.
-
-      ExitOnErr(Tree.forEachEntry([&](const NamedTreeEntry &Entry) {
-        // FIXME: This is copied out of BuiltinCAS.cpp's makeTree.
-        Info.DataSize += sizeof(uint64_t) + sizeof(uint32_t) +
-                         alignTo(Entry.getName().size() + 1, Align(4));
-        updateChild(Entry.getID());
-        return Error::success();
-      }));
-      continue;
-    }
-
-    assert(*Kind == ObjectKind::Node);
-    cas::NodeRef Node = ExitOnErr(CAS.getNode(ID));
-    auto addNodeStats = [&](ObjectKindInfo &Info) {
-      ++Info.Count;
-      Info.NumChildren += Node.getNumReferences();
-      Info.NumParents += NumParents;
-      Info.NumPaths += NumPaths;
-      Info.DataSize += Node.getData().size();
-      if (!Node.getNumReferences())
-        Totals.NumPaths += NumPaths; // Count paths to leafs.
-
-      ExitOnErr(Node.forEachReference([&](CASID ChildID) {
-        updateChild(ChildID);
-        return Error::success();
-      }));
-    };
-
-    // Handle nodes not in the schema.
-    if (!Item.Schema) {
-      addNodeStats(Stats["builtin:node"]);
-      continue;
-    }
-
-    ObjectFileSchema &Schema = *Item.Schema;
-
-    ObjectFormatNodeRef Object = ExitOnErr(Schema.getNode(Node));
-    addNodeStats(Stats[Object.getKindString()]);
-
-    // Check specific stats.
-    if (Object.getKindString() == BlockRef::KindString) {
-      if (Optional<BlockRef> Block =
-              expectedToOptional(BlockRef::get(Object))) {
-        if (Optional<TargetList> Targets =
-                expectedToOptional(Block->getTargets())) {
-          for (size_t I = 0, E = Targets->size(); I != E; ++I) {
-            if (Optional<TargetRef> Target =
-                    expectedToOptional(Targets->get(I))) {
-              if (Optional<StringRef> Name =
-                      expectedToOptional(Target->getNameString()))
-                if (Name->startswith("cas.o:"))
-                  GeneratedNames.insert(*Name);
-
-              if (Target->getKind() == TargetRef::Symbol)
-                if (Optional<SymbolRef> Symbol =
-                        expectedToOptional(SymbolRef::get(Schema, *Target)))
-                  NumTemplateTargets += Symbol->isSymbolTemplate();
-            }
-          }
-          Num1TargetBlocks += Targets->size() == 1;
-          Num2TargetBlocks += Targets->size() == 2;
-        }
-        if (Optional<BlockDataRef> Data =
-                expectedToOptional(Block->getBlockData())) {
-          if (Data->isZeroFill())
-            ++NumZeroFillBlocks;
-          if (Optional<cas::CASID> Content = Data->getContentID())
-            if (ContentBlobs.insert(*Content).second)
-              if (Optional<ContentRef> Blob =
-                      expectedToOptional(ContentRef::get(Schema, *Content)))
-                NumContentBlobs0To16B += Blob->getContent().size() <= 16;
-        }
-      }
-    }
-    if (Object.getKindString() == SymbolRef::KindString) {
-      if (Optional<SymbolRef> Symbol =
-              expectedToOptional(SymbolRef::get(Object))) {
-        NumAnonymousSymbols += !Symbol->hasName();
-        NumTemplateSymbols += Symbol->isSymbolTemplate();
-        if (Optional<cas::CASID> Name = Symbol->getNameID()) {
-          SymbolNames.insert(*Name);
-          UndefinedSymbols.erase(*Name);
-        }
-      }
-    }
-    if (Object.getKindString() == NameListRef::KindString) {
-      // FIXME: This is only valid because NameList is currently just used for
-      // lists of symbols.
-      if (Optional<NameListRef> List =
-              expectedToOptional(NameListRef::get(Object))) {
-        for (size_t I = 0, E = List->getNumNames(); I != E; ++I) {
-          cas::CASID Name = List->getNameID(I);
-          if (!SymbolNames.count(Name))
-            UndefinedSymbols.insert(Name);
-        }
-      }
-    }
-    if (Object.getKindString() == SectionRef::KindString) {
-      if (Optional<SectionRef> Section =
-              expectedToOptional(SectionRef::get(Object))) {
-        if (Optional<cas::CASID> Name = Section->getNameID())
-          SectionNames.insert(*Name);
-      }
-    }
-  }
-
+void StatCollector::printToOuts(ArrayRef<CASID> TopLevels) {
   SmallVector<StringRef> Kinds;
-  auto addToTotal = [&Totals](ObjectKindInfo Info) {
+  auto addToTotal = [&Totals = this->Totals](ObjectKindInfo Info) {
     Totals.Count += Info.Count;
     Totals.NumChildren += Info.NumChildren;
     Totals.NumParents += Info.NumParents;
@@ -481,9 +520,9 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
     Kinds.push_back(I.first());
     addToTotal(I.second);
   }
-  size_t NumHashBytes = TopLevels.front().getHash().size();
   llvm::sort(Kinds);
 
+  size_t NumHashBytes = TopLevels.front().getHash().size();
   outs() << "  => Note: 'Parents' counts incoming edges\n"
          << "  => Note: 'Children' counts outgoing edges (to sub-objects)\n"
          << "  => Note: number of bytes per Ref = " << NumHashBytes << "\n"
@@ -497,8 +536,8 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
   outs() << llvm::formatv(HeaderFormat.begin(), "====", "=====", "",
                           "=======", "", "========", "", "========", "",
                           "========", "");
-  auto printInfo = [Format, NumHashBytes, Totals](StringRef Kind,
-                                                  ObjectKindInfo Info) {
+  auto printInfo = [Format, NumHashBytes, &Totals = this->Totals](
+                       StringRef Kind, ObjectKindInfo Info) {
     if (!Info.Count)
       return;
     auto getPercent = [](double N, double D) { return D ? N / D : 0.0; };
@@ -647,9 +686,9 @@ static CASID ingestFile(CASDB &CAS, StringRef InputFile,
   Optional<raw_svector_ostream> DebugOS;
   if (DebugIngest)
     DebugOS.emplace(DebugIngestOutput);
-  ObjectFileSchema Schema(CAS);
-  auto CompileUnit = ExitOnErr(
-      CompileUnitRef::create(Schema, *G, DebugIngest ? &*DebugOS : nullptr));
+  nestedv1::ObjectFileSchema Schema(CAS);
+  auto CompileUnit = ExitOnErr(nestedv1::CompileUnitRef::create(
+      Schema, *G, DebugIngest ? &*DebugOS : nullptr));
 
   if (DebugIngest)
     OS.applyLocked([&](raw_ostream &OS) { OS << DebugIngestOutput; });

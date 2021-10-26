@@ -1,4 +1,4 @@
-//===- ObjectFileSchema.cpp -----------------------------------------------===//
+//===- CASObjectFormats/NestedV1.cpp --------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ExecutionEngine/CASObjectFormat/ObjectFileSchema.h"
+#include "llvm/CASObjectFormats/NestedV1.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/ExecutionEngine/CASObjectFormat/Encoding.h"
+#include "llvm/CASObjectFormats/Encoding.h"
 #include "llvm/Support/EndianStream.h"
 
 // FIXME: For jitlink::x86_64::writeOperand(). Should use a generic version.
@@ -19,7 +19,10 @@
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
-using namespace llvm::casobjectformat;
+using namespace llvm::casobjectformats;
+using namespace llvm::casobjectformats::nestedv1;
+
+void ObjectFileSchema::anchor() {}
 
 const StringLiteral NameRef::KindString;
 const StringLiteral ContentRef::KindString;
@@ -62,9 +65,9 @@ Error ObjectFileSchema::fillCache() {
     return Error::success();
 
   Optional<cas::CASID> RootKindID;
-  const unsigned Version = 0;
+  const unsigned Version = 0; // Bump this to error on old object files.
   if (Expected<cas::NodeRef> ExpectedRootKind =
-          CAS.createNode(None, "cas.o:schema:" + Twine(Version).str()))
+          CAS.createNode(None, "cas.o:nestedv1:schema:" + Twine(Version).str()))
     RootKindID = *ExpectedRootKind;
   else
     return ExpectedRootKind.takeError();
@@ -89,7 +92,7 @@ Error ObjectFileSchema::fillCache() {
            "Ran out of bits for kind strings");
   }
 
-  auto ExpectedTypeID = CAS.createNode(IDs, "cas.o:root");
+  auto ExpectedTypeID = CAS.createNode(IDs, "cas.o:nestedv1:root");
   if (!ExpectedTypeID)
     return ExpectedTypeID.takeError();
   RootNodeTypeID = *ExpectedTypeID;
@@ -497,66 +500,6 @@ Expected<BlockDataRef> BlockDataRef::createContent(ObjectFileSchema &Schema,
                     Fixups);
 }
 
-void FixupList::encode(ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data) {
-  // FIXME: Kinds should be numbered in a stable way, not just rely on
-  // Edge::Kind.
-  for (auto &F : Fixups) {
-    Data.push_back(static_cast<unsigned char>(F.Kind));
-    encoding::writeVBR8(uint64_t(F.Offset), Data);
-  }
-}
-
-void FixupList::iterator::decode(bool IsInit) {
-  if (Data.empty()) {
-    assert((IsInit || F) && "past the end");
-    F.reset();
-    return;
-  }
-
-  unsigned char Kind = Data[0];
-  Data = Data.drop_front();
-
-  uint64_t Offset = 0;
-  bool ConsumeFailed = errorToBool(encoding::consumeVBR8(Data, Offset));
-  assert(!ConsumeFailed && "Cannot decode vbr8");
-  (void)ConsumeFailed;
-
-  F.emplace();
-  F->Kind = Kind;
-  F->Offset = Offset;
-}
-
-void TargetInfoList::encode(ArrayRef<TargetInfo> TIs,
-                            SmallVectorImpl<char> &Data) {
-  for (const TargetInfo &TI : TIs) {
-    assert(TI.Index < TIs.size() && "More targets than edges?");
-    encoding::writeVBR8(int64_t(TI.Addend), Data);
-    encoding::writeVBR8(uint32_t(TI.Index), Data);
-  }
-}
-
-void TargetInfoList::iterator::decode(bool IsInit) {
-  if (Data.empty()) {
-    assert((IsInit || TI) && "past the end");
-    TI.reset();
-    return;
-  }
-
-  int64_t Addend = 0;
-  bool ConsumeFailed = errorToBool(encoding::consumeVBR8(Data, Addend));
-  assert(!ConsumeFailed && "Cannot decode addend");
-  (void)ConsumeFailed;
-
-  uint32_t Index = 0;
-  ConsumeFailed = errorToBool(encoding::consumeVBR8(Data, Index));
-  assert(!ConsumeFailed && "Cannot decode index");
-  (void)ConsumeFailed;
-
-  TI.emplace();
-  TI->Addend = Addend;
-  TI->Index = Index;
-}
-
 Expected<Optional<NameRef>> TargetRef::getName() const {
   if (getKind() == IndirectSymbol)
     return NameRef::get(*Schema, ID);
@@ -942,30 +885,30 @@ static Error decomposeAndSortEdges(
   assert(TargetData.size() == SymbolIndex.size());
 
   // Make the order of targets stable and fill in the index map.
-  std::stable_sort(TargetData.begin(), TargetData.end(),
-                   [](const TargetAndSymbol &LHS, const TargetAndSymbol &RHS) {
-                     if (LHS.Symbol != RHS.Symbol)
-                       return compareSymbolsBySemanticsAnd(
-                           LHS.Symbol, RHS.Symbol, compareSymbolsByAddress);
+  std::stable_sort(
+      TargetData.begin(), TargetData.end(),
+      [](const TargetAndSymbol &LHS, const TargetAndSymbol &RHS) {
+        if (LHS.Symbol != RHS.Symbol)
+          return compareSymbolsBySemanticsAnd(LHS.Symbol, RHS.Symbol,
+                                              compareSymbolsByAddress);
 
-                     // Same symbol but different target means that either it's
-                     // a different kind of reference, or a block got broken up.
-                     if (LHS.Target.getKind() != RHS.Target.getKind())
-                       return LHS.Target.getKind() < RHS.Target.getKind();
+        // Same symbol but different target means that either it's
+        // a different kind of reference, or a block got broken up.
+        if (LHS.Target.getKind() != RHS.Target.getKind())
+          return LHS.Target.getKind() < RHS.Target.getKind();
 
-                     // Check the contents that were split out.
-                     if (LHS.SplitContent && !RHS.SplitContent)
-                       return true;
-                     if (!LHS.SplitContent && RHS.SplitContent)
-                       return false;
-                     if (LHS.SplitContent)
-                       if (int Diff =
-                               LHS.SplitContent->compare(*RHS.SplitContent))
-                         return Diff < 0;
+        // Check the contents that were split out.
+        if (LHS.SplitContent && !RHS.SplitContent)
+          return true;
+        if (!LHS.SplitContent && RHS.SplitContent)
+          return false;
+        if (LHS.SplitContent)
+          if (int Diff = LHS.SplitContent->compare(*RHS.SplitContent))
+            return Diff < 0;
 
-                     // Give up.
-                     return false;
-                   });
+        // Give up.
+        return false;
+      });
 
   for (size_t I = 0, E = TargetData.size(); I != E; ++I)
     SymbolIndex[TargetData[I].Target] = I;
@@ -1550,7 +1493,7 @@ struct SymbolGraph {
   const jitlink::Symbol &S;
   SymbolGraph(const jitlink::Symbol &S) : S(S) {}
 };
-}
+} // namespace
 
 namespace llvm {
 template <> struct GraphTraits<SymbolGraph> {
@@ -2067,9 +2010,9 @@ public:
       return LHS == *RHS;
     }
     static unsigned getHashValue(const MergeableBlock &MB) {
-      return hash_combine(
-          hash_value(MB.Section.ID.getHash()), hash_value(MB.Data.ID.getHash()),
-          hash_value(MB.TargetList));
+      return hash_combine(hash_value(MB.Section.ID.getHash()),
+                          hash_value(MB.Data.ID.getHash()),
+                          hash_value(MB.TargetList));
     }
 
     static unsigned getHashValue(const MergeableBlock *MB) {

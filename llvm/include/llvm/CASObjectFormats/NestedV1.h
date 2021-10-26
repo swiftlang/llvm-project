@@ -1,4 +1,4 @@
-//===- llvm/ExecutionEngine/CASObjectFormat/ObjectFileSchema.h --*- C++ -*-===//
+//===- llvm/CASObjectFormats/NestedV1.h ------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,14 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_EXECUTIONENGINE_CASOBJECTFORMAT_OBJECTFILESCHEMA_H
-#define LLVM_EXECUTIONENGINE_CASOBJECTFORMAT_OBJECTFILESCHEMA_H
+#ifndef LLVM_CASOBJECTFORMATS_NESTEDV1_H
+#define LLVM_CASOBJECTFORMATS_NESTEDV1_H
 
 #include "llvm/CAS/CASDB.h"
+#include "llvm/CASObjectFormats/Data.h"
+#include "llvm/CASObjectFormats/SchemaBase.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 
 namespace llvm {
-namespace casobjectformat {
+namespace casobjectformats {
+namespace nestedv1 {
+
+using data::Fixup;
+using data::FixupList;
+using data::TargetInfo;
+using data::TargetInfoList;
 
 class ObjectFileSchema;
 
@@ -80,9 +88,10 @@ private:
 ///
 /// The root node type-id is structured as:
 ///
-/// TODO: Maybe, separate out an abstract interface? Allow schemas to be
-/// registered somewhere?
-class ObjectFileSchema {
+/// TODO: Maybe allow schemas to be registered somewhere?
+class ObjectFileSchema final : public SchemaBase {
+  void anchor() override;
+
 public:
   Optional<StringRef> getKindString(const cas::NodeRef &Node);
   Optional<unsigned char> getKindStringID(StringRef KindString);
@@ -91,16 +100,15 @@ public:
   /// Check if \a Node is a root (entry node) for the schema. This is a strong
   /// check, since it requires that the first reference matches a complete
   /// type-id DAG.
-  bool isRootNode(const cas::NodeRef &Node);
+  bool isRootNode(const cas::NodeRef &Node) override;
 
   /// Check if \a Node could be a node in the schema. This is a weak check,
   /// since it only looks up the KindString associated with the first
   /// character. The caller should ensure that the parent node is in the schema
   /// before calling this.
-  bool isNode(const cas::NodeRef &Node);
+  bool isNode(const cas::NodeRef &Node) override;
 
-  ObjectFileSchema(cas::CASDB &CAS) : CAS(CAS) {}
-  cas::CASDB &CAS;
+  ObjectFileSchema(cas::CASDB &CAS) : SchemaBase(CAS) {}
 
   Expected<ObjectFormatNodeRef> createNode(ArrayRef<cas::CASID> IDs,
                                            StringRef Data) {
@@ -233,66 +241,6 @@ private:
   explicit SectionRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 };
 
-/// The kind and offset of a fixup (e.g., for a relocation).
-struct Fixup {
-  jitlink::Edge::Kind Kind;
-  jitlink::Edge::OffsetT Offset;
-
-  bool operator==(const Fixup &RHS) const {
-    return Kind == RHS.Kind && Offset == RHS.Offset;
-  }
-  bool operator!=(const Fixup &RHS) const { return !operator==(RHS); }
-};
-
-/// An encoded list of \a Fixup.
-///
-/// FIXME: Encode kinds separately from what jitlink has, since they're not
-/// stable.
-class FixupList {
-public:
-  class iterator
-      : public iterator_facade_base<iterator, std::forward_iterator_tag,
-                                    const Fixup> {
-    friend class FixupList;
-
-  public:
-    const Fixup &operator*() const { return *F; }
-    iterator &operator++() {
-      decode();
-      return *this;
-    }
-
-    bool operator==(const iterator &RHS) const {
-      return F == RHS.F && Data.begin() == RHS.Data.begin() &&
-             Data.end() == RHS.Data.end();
-    }
-
-  private:
-    void decode(bool IsInit = false);
-
-    struct EndTag {};
-    iterator(EndTag, StringRef Data) : Data(Data.end(), 0) {}
-    explicit iterator(StringRef Data) : Data(Data) { decode(/*IsInit=*/true); }
-
-    StringRef Data;
-    Optional<Fixup> F;
-  };
-
-  iterator begin() const { return iterator(Data); }
-  iterator end() const { return iterator(iterator::EndTag{}, Data); }
-
-  static void encode(ArrayRef<const jitlink::Edge *> Edges,
-                     SmallVectorImpl<char> &Data);
-
-  static void encode(ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data);
-
-  FixupList() = default;
-  explicit FixupList(StringRef Data) : Data(Data) {}
-
-private:
-  StringRef Data;
-};
-
 /// Raw content of a block.
 ///
 /// - A leaf if it's zero-fill.
@@ -371,73 +319,6 @@ private:
                                            uint64_t Size, uint64_t Alignment,
                                            uint64_t AlignmentOffset,
                                            ArrayRef<Fixup> Fixups);
-};
-
-/// Information about how to apply a \a Fixup to a target, including the addend
-/// and an index into the \a TargetList.
-struct TargetInfo {
-  /// Addend to apply to the target address.
-  jitlink::Edge::AddendT Addend;
-
-  /// Index into the list of targets.
-  size_t Index;
-
-  bool operator==(const TargetInfo &RHS) const {
-    return Addend == RHS.Addend && Index == RHS.Index;
-  }
-  bool operator!=(const TargetInfo &RHS) const { return !operator==(RHS); }
-};
-
-/// An encoded list of \a TargetInfo, parallel with \a FixupList.
-///
-/// FIXME: Optimize the encoding further. Currently the index is stored as VBR8,
-/// but we know that the indexes are all smaller than the TargetList. For lists
-/// with 128 or fewer targets, we could get smaller.
-///
-/// There are very few instances of \a TargetInfoListRef (they dedup
-/// surprisingly well), so no benefit there, but the ones embedded in \a
-/// BlockRef can't be deduped. The statistics for "cas.o:block"'s inline data
-/// should show the headroom available there.
-class TargetInfoList {
-public:
-  class iterator
-      : public iterator_facade_base<iterator, std::forward_iterator_tag,
-                                    const TargetInfo> {
-    friend class TargetInfoList;
-
-  public:
-    const TargetInfo &operator*() const { return *TI; }
-    iterator &operator++() {
-      decode();
-      return *this;
-    }
-
-    bool operator==(const iterator &RHS) const {
-      return TI == RHS.TI && Data.begin() == RHS.Data.begin() &&
-             Data.end() == RHS.Data.end();
-    }
-
-  private:
-    void decode(bool IsInit = false);
-
-    struct EndTag {};
-    iterator(EndTag, StringRef Data) : Data(Data.end(), 0) {}
-    explicit iterator(StringRef Data) : Data(Data) { decode(/*IsInit=*/true); }
-
-    StringRef Data;
-    Optional<TargetInfo> TI;
-  };
-
-  iterator begin() const { return iterator(Data); }
-  iterator end() const { return iterator(iterator::EndTag{}, Data); }
-
-  static void encode(ArrayRef<TargetInfo> TIs, SmallVectorImpl<char> &Data);
-
-  TargetInfoList() = default;
-  explicit TargetInfoList(StringRef Data) : Data(Data) {}
-
-private:
-  StringRef Data;
 };
 
 /// A variant of SymbolRef and IndirectSymbolRef. The kind is cached.
@@ -1116,7 +997,8 @@ private:
   support::endianness Endianness;
 };
 
-} // namespace casobjectformat
+} // namespace nestedv1
+} // namespace casobjectformats
 } // namespace llvm
 
-#endif // LLVM_EXECUTIONENGINE_CASOBJECTFORMAT_OBJECTFILESCHEMA_H
+#endif // LLVM_CASOBJECTFORMATS_NESTEDV1_H

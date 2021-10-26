@@ -7,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ExecutionEngine/CASObjectFormat/ObjectFileSchema.h"
+#include "llvm/CASObjectFormats/Data.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Memory.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
-using namespace llvm::casobjectformat;
+using namespace llvm::casobjectformats;
+using namespace llvm::casobjectformats::data;
 
 namespace {
 

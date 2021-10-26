@@ -1,4 +1,4 @@
-//===- TargetListTest.cpp - Unit tests for TargetList ---------------------===//
+//===- NestedV1TargetListTest.cpp - Unit tests for TargetList -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ExecutionEngine/CASObjectFormat/ObjectFileSchema.h"
+#include "llvm/CASObjectFormats/NestedV1.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
-using namespace llvm::casobjectformat;
+using namespace llvm::casobjectformats;
+using namespace llvm::casobjectformats::nestedv1;
 
 namespace {
 

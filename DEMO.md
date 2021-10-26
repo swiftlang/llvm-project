@@ -217,8 +217,8 @@ directory.
 ```
 % BUILDDIR="build"
 % OBJECTSDIR="build"
-% (cd "$BUILDDIR" && ninja llvm-cas-object-format CASObjectFormatTests) &&
-  "$BUILDDIR"/unittests/ExecutionEngine/CASObjectFormat/CASObjectFormatTests &&
+% (cd "$BUILDDIR" && ninja llvm-cas-object-format CASObjectFormatsTests) &&
+  "$BUILDDIR"/unittests/CASObjectFormats/CASObjectFormatsTests &&
   find "$OBJECTSDIR"/lib/Support -name "*.o" |
   sort >objects-to-ingest &&
   time "$BUILDDIR"/llvm-cas-object-format --cas "$TMPDIR/casfs.default" \

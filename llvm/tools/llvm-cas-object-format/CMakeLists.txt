@@ -2,7 +2,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   JITLink
   CAS
-  CASObjectFormat
+  CASObjectFormats
   )
 
 add_llvm_tool(llvm-cas-object-format
