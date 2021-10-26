@@ -44,6 +44,11 @@ cl::opt<std::string> JustDsymutil("just-dsymutil",
 cl::opt<std::string> CASGlob("cas-glob",
                              cl::desc("glob pattern for objects in CAS"));
 
+cl::opt<std::string>
+    IngestSchemaName("ingest-schema",
+                     cl::desc("object file schema to ingest with"),
+                     cl::init("nestedv1"));
+
 enum InputKind {
   IngestFromFS,
   IngestFromCASTree,
@@ -78,7 +83,15 @@ private:
 
 } // namespace
 
-static CASID ingestFile(CASDB &CAS, StringRef InputFile,
+static Expected<std::unique_ptr<SchemaBase>>
+createSchema(CASDB &CAS, StringRef SchemaName) {
+  if (SchemaName == "nestedv1")
+    return std::make_unique<nestedv1::ObjectFileSchema>(CAS);
+  return createStringError(inconvertibleErrorCode(),
+                           "invalid schema '" + SchemaName + "'");
+}
+
+static CASID ingestFile(SchemaBase &Schema, StringRef InputFile,
                         MemoryBufferRef FileContent, SharedStream &OS);
 static void computeStats(CASDB &CAS, ArrayRef<CASID> IDs);
 
@@ -107,6 +120,8 @@ int main(int argc, char *argv[]) {
   StringSaver Saver(Alloc);
   std::mutex Lock;
 
+  std::unique_ptr<SchemaBase> IngestSchema =
+      ExitOnErr(createSchema(*CAS, IngestSchemaName));
   for (StringRef IF : InputFiles) {
     ExitOnError ExitOnErr;
     ExitOnErr.setBanner(("llvm-cas-object-format: " + IF + ": ").str());
@@ -122,7 +137,8 @@ int main(int argc, char *argv[]) {
       Pool.async([&, IF, ExitOnErr]() {
         auto ObjBuffer =
             ExitOnErr(errorOrToExpected(MemoryBuffer::getFile(IF)));
-        CASID ID = ingestFile(*CAS, IF, ObjBuffer->getMemBufferRef(), OS);
+        CASID ID =
+            ingestFile(*IngestSchema, IF, ObjBuffer->getMemBufferRef(), OS);
         std::unique_lock<std::mutex> LockGuard(Lock);
         assert(!Files.count(IF));
         Files.try_emplace(IF, ID);
@@ -149,7 +165,8 @@ int main(int argc, char *argv[]) {
           Pool.async([&, Name, BlobContent]() {
             auto ObjBuffer =
                 MemoryBuffer::getMemBuffer(BlobContent.getData(), Name);
-            CASID ID = ingestFile(*CAS, Name, ObjBuffer->getMemBufferRef(), OS);
+            CASID ID = ingestFile(*IngestSchema, Name,
+                                  ObjBuffer->getMemBufferRef(), OS);
             std::unique_lock<std::mutex> LockGuard(Lock);
             assert(!Files.count(Name));
             Files.try_emplace(Name, ID);
@@ -585,7 +602,7 @@ static void dumpGraph(jitlink::LinkGraph &G, SharedStream &OS, StringRef Desc) {
   OS.applyLocked([&](raw_ostream &OS) { OS << Desc << ":\n" << Data; });
 }
 
-static CASID ingestFile(CASDB &CAS, StringRef InputFile,
+static CASID ingestFile(SchemaBase &Schema, StringRef InputFile,
                         MemoryBufferRef FileContent, SharedStream &OS) {
   ExitOnError ExitOnErr;
   ExitOnErr.setBanner(("llvm-cas-object-format: " + InputFile + ": ").str());
@@ -593,6 +610,7 @@ static CASID ingestFile(CASDB &CAS, StringRef InputFile,
   auto EmitDotOnReturn = llvm::make_scope_exit(
       [&]() { OS.applyLocked([&](raw_ostream &OS) { OS << "."; }); });
 
+  auto &CAS = Schema.CAS;
   if (JustBlobs)
     return ExitOnErr(CAS.createBlob(FileContent.getBuffer()));
 
@@ -686,15 +704,14 @@ static CASID ingestFile(CASDB &CAS, StringRef InputFile,
   Optional<raw_svector_ostream> DebugOS;
   if (DebugIngest)
     DebugOS.emplace(DebugIngestOutput);
-  nestedv1::ObjectFileSchema Schema(CAS);
-  auto CompileUnit = ExitOnErr(nestedv1::CompileUnitRef::create(
-      Schema, *G, DebugIngest ? &*DebugOS : nullptr));
+  auto CompileUnit = ExitOnErr(
+      Schema.createFromLinkGraph(*G, DebugIngest ? &*DebugOS : nullptr));
 
   if (DebugIngest)
     OS.applyLocked([&](raw_ostream &OS) { OS << DebugIngestOutput; });
 
-  auto RoundTripG = ExitOnErr(CompileUnit.createLinkGraph(
-      FileContent.getBufferIdentifier(),
+  auto RoundTripG = ExitOnErr(Schema.createLinkGraph(
+      CompileUnit, FileContent.getBufferIdentifier(),
       ExitOnErr(jitlink::getGetEdgeKindNameFunction(G->getTargetTriple()))));
 
   if (Dump)

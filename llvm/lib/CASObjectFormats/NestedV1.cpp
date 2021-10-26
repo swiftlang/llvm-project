@@ -22,8 +22,6 @@ using namespace llvm;
 using namespace llvm::casobjectformats;
 using namespace llvm::casobjectformats::nestedv1;
 
-void ObjectFileSchema::anchor() {}
-
 const StringLiteral NameRef::KindString;
 const StringLiteral ContentRef::KindString;
 const StringLiteral BlockDataRef::KindString;
@@ -46,10 +44,11 @@ public:
   StringRef getEncodedList() const { return getData(); }
 
   static Expected<EncodedDataRef>
-  create(ObjectFileSchema &Schema,
+  create(const ObjectFileSchema &Schema,
          function_ref<void(SmallVectorImpl<char> &)> Encode);
   static Expected<EncodedDataRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<EncodedDataRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
+  static Expected<EncodedDataRef> get(const ObjectFileSchema &Schema,
+                                      cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
 
@@ -60,10 +59,34 @@ private:
 
 const StringLiteral EncodedDataRef::KindString;
 
-Error ObjectFileSchema::fillCache() {
-  if (RootNodeTypeID)
-    return Error::success();
+void ObjectFileSchema::anchor() {}
 
+Expected<cas::NodeRef>
+ObjectFileSchema::createFromLinkGraphImpl(const jitlink::LinkGraph &G,
+                                          raw_ostream *DebugOS) const {
+  return CompileUnitRef::create(*this, G, DebugOS);
+}
+
+Expected<std::unique_ptr<jitlink::LinkGraph>>
+ObjectFileSchema::createLinkGraphImpl(
+    cas::NodeRef RootNode, StringRef Name,
+    jitlink::LinkGraph::GetEdgeKindNameFunction GetEdgeKindName,
+    raw_ostream *) const {
+  if (!isRootNode(RootNode))
+    return createStringError(inconvertibleErrorCode(), "invalid root node");
+  auto CU = CompileUnitRef::get(*this, RootNode);
+  if (!CU)
+    return CU.takeError();
+  return CU->createLinkGraph(Name, GetEdgeKindName);
+}
+
+ObjectFileSchema::ObjectFileSchema(cas::CASDB &CAS) : SchemaBase(CAS) {
+  // Fill the cache immediately to preserve thread-safety.
+  if (Error E = fillCache())
+    report_fatal_error(std::move(E));
+}
+
+Error ObjectFileSchema::fillCache() {
   Optional<cas::CASID> RootKindID;
   const unsigned Version = 0; // Bump this to error on old object files.
   if (Expected<cas::NodeRef> ExpectedRootKind =
@@ -99,7 +122,8 @@ Error ObjectFileSchema::fillCache() {
   return Error::success();
 }
 
-Optional<StringRef> ObjectFileSchema::getKindString(const cas::NodeRef &Node) {
+Optional<StringRef>
+ObjectFileSchema::getKindString(const cas::NodeRef &Node) const {
   assert(&Node.getCAS() == &CAS);
   StringRef Data = Node.getData();
   if (Data.empty())
@@ -112,32 +136,22 @@ Optional<StringRef> ObjectFileSchema::getKindString(const cas::NodeRef &Node) {
   return None;
 }
 
-bool ObjectFileSchema::isRootNode(const cas::NodeRef &Node) {
-  if (Error E = fillCache())
-    report_fatal_error(std::move(E));
-  assert(RootNodeTypeID);
-
+bool ObjectFileSchema::isRootNode(const cas::NodeRef &Node) const {
   if (Node.getNumReferences() < 1)
     return false;
   return Node.getReference(0) == *RootNodeTypeID;
 }
 
-bool ObjectFileSchema::isNode(const cas::NodeRef &Node) {
-  if (Error E = fillCache())
-    report_fatal_error(std::move(E));
-
+bool ObjectFileSchema::isNode(const cas::NodeRef &Node) const {
   // This is a very weak check!
   return bool(getKindString(Node));
 }
 
 Expected<ObjectFormatNodeRef::Builder>
-ObjectFormatNodeRef::Builder::startRootNode(ObjectFileSchema &Schema,
+ObjectFormatNodeRef::Builder::startRootNode(const ObjectFileSchema &Schema,
                                             StringRef KindString) {
   Builder B(Schema);
-  Expected<cas::CASID> Root = Schema.getRootNodeTypeID();
-  if (!Root)
-    return Root.takeError();
-  B.IDs.push_back(*Root);
+  B.IDs.push_back(Schema.getRootNodeTypeID());
 
   if (Error E = B.startNodeImpl(KindString))
     return std::move(E);
@@ -155,7 +169,7 @@ Error ObjectFormatNodeRef::Builder::startNodeImpl(StringRef KindString) {
 }
 
 Expected<ObjectFormatNodeRef::Builder>
-ObjectFormatNodeRef::Builder::startNode(ObjectFileSchema &Schema,
+ObjectFormatNodeRef::Builder::startNode(const ObjectFileSchema &Schema,
                                         StringRef KindString) {
   Builder B(Schema);
   if (Error E = B.startNodeImpl(KindString))
@@ -172,29 +186,18 @@ StringRef ObjectFormatNodeRef::getKindString() const {
   assert(KS && "Expected valid kind string");
   return *KS;
 }
+
 Optional<unsigned char>
-ObjectFileSchema::getKindStringID(StringRef KindString) {
-  if (!RootNodeTypeID) {
-    if (Error E = fillCache()) {
-      consumeError(std::move(E));
-      return None;
-    }
-  }
+ObjectFileSchema::getKindStringID(StringRef KindString) const {
   for (auto &I : KindStrings)
     if (I.second == KindString)
       return I.first;
   return None;
 }
 
-Expected<cas::CASID> ObjectFileSchema::getRootNodeTypeID() {
-  if (!RootNodeTypeID)
-    if (Error E = fillCache())
-      return std::move(E);
-  return *RootNodeTypeID;
-}
-
 Expected<ObjectFormatNodeRef>
-ObjectFormatNodeRef::get(ObjectFileSchema &Schema, Expected<cas::NodeRef> Ref) {
+ObjectFormatNodeRef::get(const ObjectFileSchema &Schema,
+                         Expected<cas::NodeRef> Ref) {
   if (!Ref)
     return Ref.takeError();
   if (!Schema.isNode(*Ref))
@@ -217,7 +220,7 @@ EncodedDataRef::get(Expected<ObjectFormatNodeRef> Ref) {
 }
 
 Expected<EncodedDataRef>
-EncodedDataRef::create(ObjectFileSchema &Schema,
+EncodedDataRef::create(const ObjectFileSchema &Schema,
                        function_ref<void(SmallVectorImpl<char> &)> Encode) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
@@ -238,7 +241,8 @@ Expected<NameRef> NameRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return NameRef(*Specific);
 }
 
-Expected<NameRef> NameRef::create(ObjectFileSchema &Schema, StringRef Name) {
+Expected<NameRef> NameRef::create(const ObjectFileSchema &Schema,
+                                  StringRef Name) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
     return B.takeError();
@@ -258,7 +262,7 @@ Expected<ContentRef> ContentRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return ContentRef(*Specific);
 }
 
-Expected<ContentRef> ContentRef::create(ObjectFileSchema &Schema,
+Expected<ContentRef> ContentRef::create(const ObjectFileSchema &Schema,
                                         StringRef Content) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
@@ -327,10 +331,9 @@ cl::opt<size_t> MaxEdgesToEmbedInBlock(
     "max-edges-to-embed-in-block",
     cl::desc("Maximum number of edges to embed in a block."), cl::init(8));
 
-Expected<BlockDataRef>
-BlockDataRef::createImpl(ObjectFileSchema &Schema, Optional<ContentRef> Content,
-                         uint64_t Size, uint64_t Alignment,
-                         uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups) {
+Expected<BlockDataRef> BlockDataRef::createImpl(
+    const ObjectFileSchema &Schema, Optional<ContentRef> Content, uint64_t Size,
+    uint64_t Alignment, uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
     return B.takeError();
@@ -414,7 +417,7 @@ static void writeX86NopData(raw_ostream &OS, uint64_t Count) {
   } while (Count != 0);
 }
 
-Expected<BlockDataRef> BlockDataRef::create(ObjectFileSchema &Schema,
+Expected<BlockDataRef> BlockDataRef::create(const ObjectFileSchema &Schema,
                                             const jitlink::Block &Block,
                                             ArrayRef<Fixup> Fixups) {
   if (Block.isZeroFill())
@@ -470,28 +473,25 @@ Expected<BlockDataRef> BlockDataRef::create(ObjectFileSchema &Schema,
                        Block.getAlignmentOffset(), Fixups);
 }
 
-Expected<BlockDataRef> BlockDataRef::createZeroFill(ObjectFileSchema &Schema,
-                                                    uint64_t Size,
-                                                    uint64_t Alignment,
-                                                    uint64_t AlignmentOffset,
-                                                    ArrayRef<Fixup> Fixups) {
+Expected<BlockDataRef>
+BlockDataRef::createZeroFill(const ObjectFileSchema &Schema, uint64_t Size,
+                             uint64_t Alignment, uint64_t AlignmentOffset,
+                             ArrayRef<Fixup> Fixups) {
   return createImpl(Schema, None, Size, Alignment, AlignmentOffset, Fixups);
 }
 
-Expected<BlockDataRef> BlockDataRef::createContent(ObjectFileSchema &Schema,
-                                                   ContentRef Content,
-                                                   uint64_t Alignment,
-                                                   uint64_t AlignmentOffset,
-                                                   ArrayRef<Fixup> Fixups) {
+Expected<BlockDataRef>
+BlockDataRef::createContent(const ObjectFileSchema &Schema, ContentRef Content,
+                            uint64_t Alignment, uint64_t AlignmentOffset,
+                            ArrayRef<Fixup> Fixups) {
   return createImpl(Schema, Content, Content.getData().size(), Alignment,
                     AlignmentOffset, Fixups);
 }
 
-Expected<BlockDataRef> BlockDataRef::createContent(ObjectFileSchema &Schema,
-                                                   StringRef Content,
-                                                   uint64_t Alignment,
-                                                   uint64_t AlignmentOffset,
-                                                   ArrayRef<Fixup> Fixups) {
+Expected<BlockDataRef>
+BlockDataRef::createContent(const ObjectFileSchema &Schema, StringRef Content,
+                            uint64_t Alignment, uint64_t AlignmentOffset,
+                            ArrayRef<Fixup> Fixups) {
   Expected<ContentRef> Ref = ContentRef::create(Schema, Content);
   if (!Ref)
     return Ref.takeError();
@@ -509,8 +509,8 @@ Expected<Optional<NameRef>> TargetRef::getName() const {
   return Symbol->getName();
 }
 
-Expected<TargetRef> TargetRef::get(ObjectFileSchema &Schema, cas::CASID ID,
-                                   Optional<Kind> ExpectedKind) {
+Expected<TargetRef> TargetRef::get(const ObjectFileSchema &Schema,
+                                   cas::CASID ID, Optional<Kind> ExpectedKind) {
   auto checkExpectedKind = [&](Kind K, StringRef Name) -> Expected<TargetRef> {
     if (ExpectedKind && *ExpectedKind != K)
       return createStringError(inconvertibleErrorCode(),
@@ -577,7 +577,7 @@ Expected<TargetListRef> TargetListRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return TargetListRef(*Specific);
 }
 
-Expected<TargetListRef> TargetListRef::create(ObjectFileSchema &Schema,
+Expected<TargetListRef> TargetListRef::create(const ObjectFileSchema &Schema,
                                               ArrayRef<TargetRef> Targets) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
@@ -611,7 +611,7 @@ encodeProtectionFlags(sys::Memory::ProtectionFlags Perms) {
 }
 
 Expected<SectionRef>
-SectionRef::create(ObjectFileSchema &Schema, NameRef SectionName,
+SectionRef::create(const ObjectFileSchema &Schema, NameRef SectionName,
                    sys::Memory::ProtectionFlags Protections) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
@@ -691,7 +691,7 @@ Expected<TargetList> BlockRef::getTargets() const {
     return Targets.takeError();
 }
 
-Expected<SectionRef> SectionRef::create(ObjectFileSchema &Schema,
+Expected<SectionRef> SectionRef::create(const ObjectFileSchema &Schema,
                                         const jitlink::Section &S) {
   Expected<NameRef> Name = NameRef::create(Schema, S.getName());
   if (!Name)
@@ -986,7 +986,7 @@ static Error decomposeAndSortEdges(
 }
 
 Expected<BlockRef> BlockRef::create(
-    ObjectFileSchema &Schema, const jitlink::Block &Block,
+    const ObjectFileSchema &Schema, const jitlink::Block &Block,
     function_ref<Expected<Optional<TargetRef>>(
         const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
         jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
@@ -1018,7 +1018,7 @@ cl::opt<bool>
                            cl::desc("Whether to inline unary target lists."),
                            cl::init(true));
 
-Expected<BlockRef> BlockRef::createImpl(ObjectFileSchema &Schema,
+Expected<BlockRef> BlockRef::createImpl(const ObjectFileSchema &Schema,
                                         SectionRef Section, BlockDataRef Data,
                                         ArrayRef<TargetInfo> TargetInfo,
                                         ArrayRef<TargetRef> Targets) {
@@ -1214,7 +1214,7 @@ SymbolRef::Flags SymbolRef::getFlags(const jitlink::Symbol &S) {
 }
 
 Expected<SymbolRef> SymbolRef::create(
-    ObjectFileSchema &Schema, const jitlink::Symbol &S,
+    const ObjectFileSchema &Schema, const jitlink::Symbol &S,
     function_ref<Expected<SymbolDefinitionRef>(const jitlink::Block &)>
         GetDefinitionRef) {
   assert(!S.isExternal() && "Expected defined symbol");
@@ -1235,7 +1235,7 @@ Expected<SymbolRef> SymbolRef::create(
   return create(Schema, Name, *Definition, S.getOffset(), getFlags(S));
 }
 
-Expected<SymbolRef> SymbolRef::create(ObjectFileSchema &Schema,
+Expected<SymbolRef> SymbolRef::create(const ObjectFileSchema &Schema,
                                       Optional<NameRef> SymbolName,
                                       SymbolDefinitionRef Definition,
                                       uint64_t Offset, Flags F) {
@@ -1306,7 +1306,7 @@ CompileUnitRef::get(Expected<ObjectFormatNodeRef> Ref) {
 }
 
 Expected<CompileUnitRef> CompileUnitRef::create(
-    ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
+    const ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
     support::endianness Endianness, SymbolTableRef DeadStripNever,
     SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile,
     SymbolTableRef IndirectAnonymous, NameListRef StrongSymbols,
@@ -1327,7 +1327,7 @@ Expected<CompileUnitRef> CompileUnitRef::create(
   return get(B->build());
 }
 
-Expected<NameListRef> NameListRef::create(ObjectFileSchema &Schema,
+Expected<NameListRef> NameListRef::create(const ObjectFileSchema &Schema,
                                           MutableArrayRef<NameRef> Names) {
   if (Names.size() >= (1ull << 32))
     return createStringError(inconvertibleErrorCode(), "too many names");
@@ -1358,7 +1358,7 @@ Expected<NameListRef> NameListRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return NameListRef(*Specific);
 }
 
-Expected<SymbolTableRef> SymbolTableRef::create(ObjectFileSchema &Schema,
+Expected<SymbolTableRef> SymbolTableRef::create(const ObjectFileSchema &Schema,
                                                 ArrayRef<SymbolRef> Symbols) {
   if (Symbols.size() >= (1ull << 32))
     return createStringError(inconvertibleErrorCode(), "too many symbols");
@@ -1531,10 +1531,10 @@ namespace {
 class CompileUnitBuilder {
 public:
   cas::CASDB &CAS;
-  ObjectFileSchema &Schema;
+  const ObjectFileSchema &Schema;
   raw_ostream *DebugOS;
 
-  CompileUnitBuilder(ObjectFileSchema &Schema, raw_ostream *DebugOS)
+  CompileUnitBuilder(const ObjectFileSchema &Schema, raw_ostream *DebugOS)
       : CAS(Schema.CAS), Schema(Schema), DebugOS(DebugOS) {}
 
   struct SymbolInfo {
@@ -1836,7 +1836,7 @@ Expected<Optional<TargetRef>> CompileUnitBuilder::getOrCreateTarget(
   return createIndirectTarget(*Name);
 }
 
-Expected<CompileUnitRef> CompileUnitRef::create(ObjectFileSchema &Schema,
+Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
                                                 const jitlink::LinkGraph &G,
                                                 raw_ostream *DebugOS) {
   if (!G.getTargetTriple().isX86()) {
@@ -1923,7 +1923,7 @@ public:
 
   Error makeExternalSymbols(Expected<NameListRef> ExternalSymbols,
                             jitlink::Linkage Linkage);
-  Error makeExternalSymbol(ObjectFileSchema &Schema,
+  Error makeExternalSymbol(const ObjectFileSchema &Schema,
                            Expected<NameRef> SymbolName,
                            jitlink::Linkage Linkage);
   Error makeSymbols(Expected<SymbolTableRef> Table);
@@ -2172,7 +2172,7 @@ Error LinkGraphBuilder::makeSymbols(Expected<SymbolTableRef> Table) {
   return Error::success();
 }
 
-Error LinkGraphBuilder::makeExternalSymbol(ObjectFileSchema &Schema,
+Error LinkGraphBuilder::makeExternalSymbol(const ObjectFileSchema &Schema,
                                            Expected<NameRef> SymbolName,
                                            jitlink::Linkage Linkage) {
   if (!SymbolName)

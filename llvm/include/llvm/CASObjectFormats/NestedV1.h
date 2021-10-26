@@ -34,14 +34,14 @@ class ObjectFileSchema;
 /// type-id would break \a getKindString().)
 class ObjectFormatNodeRef : public cas::NodeRef {
 public:
-  static Expected<ObjectFormatNodeRef> get(ObjectFileSchema &Schema,
+  static Expected<ObjectFormatNodeRef> get(const ObjectFileSchema &Schema,
                                            Expected<cas::NodeRef> Ref);
   StringRef getKindString() const;
 
   /// Return the data skipping the type-id character.
   StringRef getData() const { return cas::NodeRef::getData().drop_front(); }
 
-  ObjectFileSchema &getSchema() const { return *Schema; }
+  const ObjectFileSchema &getSchema() const { return *Schema; }
 
   bool operator==(const ObjectFormatNodeRef &RHS) const {
     return Schema == RHS.Schema && cas::CASID(*this) == cas::CASID(RHS);
@@ -50,14 +50,14 @@ public:
   ObjectFormatNodeRef() = delete;
 
 protected:
-  ObjectFormatNodeRef(ObjectFileSchema &Schema, const cas::NodeRef &Node)
+  ObjectFormatNodeRef(const ObjectFileSchema &Schema, const cas::NodeRef &Node)
       : cas::NodeRef(Node), Schema(&Schema) {}
 
   class Builder {
   public:
-    static Expected<Builder> startRootNode(ObjectFileSchema &Schema,
+    static Expected<Builder> startRootNode(const ObjectFileSchema &Schema,
                                            StringRef KindString);
-    static Expected<Builder> startNode(ObjectFileSchema &Schema,
+    static Expected<Builder> startNode(const ObjectFileSchema &Schema,
                                        StringRef KindString);
 
     Expected<ObjectFormatNodeRef> build();
@@ -65,8 +65,8 @@ protected:
   private:
     Error startNodeImpl(StringRef KindString);
 
-    Builder(ObjectFileSchema &Schema) : Schema(&Schema) {}
-    ObjectFileSchema *Schema;
+    Builder(const ObjectFileSchema &Schema) : Schema(&Schema) {}
+    const ObjectFileSchema *Schema;
 
   public:
     SmallString<256> Data;
@@ -74,7 +74,7 @@ protected:
   };
 
 private:
-  ObjectFileSchema *Schema;
+  const ObjectFileSchema *Schema;
 };
 
 /// Schema for a DAG in a CAS.
@@ -93,28 +93,38 @@ class ObjectFileSchema final : public SchemaBase {
   void anchor() override;
 
 public:
-  Optional<StringRef> getKindString(const cas::NodeRef &Node);
-  Optional<unsigned char> getKindStringID(StringRef KindString);
-  Expected<cas::CASID> getRootNodeTypeID();
+  Optional<StringRef> getKindString(const cas::NodeRef &Node) const;
+  Optional<unsigned char> getKindStringID(StringRef KindString) const;
+
+  cas::CASID getRootNodeTypeID() const { return *RootNodeTypeID; }
 
   /// Check if \a Node is a root (entry node) for the schema. This is a strong
   /// check, since it requires that the first reference matches a complete
   /// type-id DAG.
-  bool isRootNode(const cas::NodeRef &Node) override;
+  bool isRootNode(const cas::NodeRef &Node) const override;
 
   /// Check if \a Node could be a node in the schema. This is a weak check,
   /// since it only looks up the KindString associated with the first
   /// character. The caller should ensure that the parent node is in the schema
   /// before calling this.
-  bool isNode(const cas::NodeRef &Node) override;
+  bool isNode(const cas::NodeRef &Node) const override;
 
-  ObjectFileSchema(cas::CASDB &CAS) : SchemaBase(CAS) {}
+  Expected<cas::NodeRef>
+  createFromLinkGraphImpl(const jitlink::LinkGraph &G,
+                          raw_ostream *DebugOS) const override;
+
+  Expected<std::unique_ptr<jitlink::LinkGraph>> createLinkGraphImpl(
+      cas::NodeRef RootNode, StringRef Name,
+      jitlink::LinkGraph::GetEdgeKindNameFunction GetEdgeKindName,
+      raw_ostream *DebugOS) const override;
+
+  ObjectFileSchema(cas::CASDB &CAS);
 
   Expected<ObjectFormatNodeRef> createNode(ArrayRef<cas::CASID> IDs,
-                                           StringRef Data) {
+                                           StringRef Data) const {
     return ObjectFormatNodeRef::get(*this, CAS.createNode(IDs, Data));
   }
-  Expected<ObjectFormatNodeRef> getNode(cas::CASID ID) {
+  Expected<ObjectFormatNodeRef> getNode(cas::CASID ID) const {
     return ObjectFormatNodeRef::get(*this, CAS.getNode(ID));
   }
 
@@ -122,7 +132,12 @@ private:
   // Two-way map. Should be small enough for linear search from string to
   // index.
   SmallVector<std::pair<unsigned char, StringRef>, 16> KindStrings;
+
+  // Optional as convenience for constructor, which does not return if it can't
+  // fill this in.
   Optional<cas::CASID> RootNodeTypeID;
+
+  // Called by constructor. Not thread-safe.
   Error fillCache();
 };
 
@@ -159,9 +174,10 @@ public:
 
   StringRef getName() const { return getData(); }
 
-  static Expected<NameRef> create(ObjectFileSchema &Schema, StringRef Name);
+  static Expected<NameRef> create(const ObjectFileSchema &Schema,
+                                  StringRef Name);
   static Expected<NameRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<NameRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
+  static Expected<NameRef> get(const ObjectFileSchema &Schema, cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
 
@@ -182,10 +198,11 @@ public:
     return makeArrayRef(Content.begin(), Content.size());
   }
 
-  static Expected<ContentRef> create(ObjectFileSchema &Schema,
+  static Expected<ContentRef> create(const ObjectFileSchema &Schema,
                                      StringRef Content);
   static Expected<ContentRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<ContentRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
+  static Expected<ContentRef> get(const ObjectFileSchema &Schema,
+                                  cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
 
@@ -226,14 +243,15 @@ public:
   }
   sys::Memory::ProtectionFlags getProtectionFlags() const;
 
-  static Expected<SectionRef> create(ObjectFileSchema &Schema,
+  static Expected<SectionRef> create(const ObjectFileSchema &Schema,
                                      NameRef SectionName,
                                      sys::Memory::ProtectionFlags Protections);
-  static Expected<SectionRef> create(ObjectFileSchema &Schema,
+  static Expected<SectionRef> create(const ObjectFileSchema &Schema,
                                      const jitlink::Section &S);
 
   static Expected<SectionRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<SectionRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
+  static Expected<SectionRef> get(const ObjectFileSchema &Schema,
+                                  cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
 
@@ -277,25 +295,30 @@ public:
   }
 
   static Expected<BlockDataRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<BlockDataRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
+  static Expected<BlockDataRef> get(const ObjectFileSchema &Schema,
+                                    cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
 
-  static Expected<BlockDataRef>
-  createZeroFill(ObjectFileSchema &Schema, uint64_t Size, uint64_t Alignment,
-                 uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups);
+  static Expected<BlockDataRef> createZeroFill(const ObjectFileSchema &Schema,
+                                               uint64_t Size,
+                                               uint64_t Alignment,
+                                               uint64_t AlignmentOffset,
+                                               ArrayRef<Fixup> Fixups);
 
-  static Expected<BlockDataRef> createContent(ObjectFileSchema &Schema,
+  static Expected<BlockDataRef> createContent(const ObjectFileSchema &Schema,
                                               ContentRef Content,
                                               uint64_t Alignment,
                                               uint64_t AlignmentOffset,
                                               ArrayRef<Fixup> Fixups);
 
-  static Expected<BlockDataRef>
-  createContent(ObjectFileSchema &Schema, StringRef Content, uint64_t Alignment,
-                uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups);
+  static Expected<BlockDataRef> createContent(const ObjectFileSchema &Schema,
+                                              StringRef Content,
+                                              uint64_t Alignment,
+                                              uint64_t AlignmentOffset,
+                                              ArrayRef<Fixup> Fixups);
 
-  static Expected<BlockDataRef> create(ObjectFileSchema &Schema,
+  static Expected<BlockDataRef> create(const ObjectFileSchema &Schema,
                                        const jitlink::Block &Block,
                                        ArrayRef<Fixup> Fixups);
 
@@ -314,7 +337,7 @@ private:
         EmbeddedFixupsSize(EmbeddedFixupsSize), IsZeroFill(IsZeroFill),
         HasFixups(HasFixups) {}
 
-  static Expected<BlockDataRef> createImpl(ObjectFileSchema &Schema,
+  static Expected<BlockDataRef> createImpl(const ObjectFileSchema &Schema,
                                            Optional<ContentRef> Content,
                                            uint64_t Size, uint64_t Alignment,
                                            uint64_t AlignmentOffset,
@@ -331,7 +354,7 @@ public:
   };
 
   Kind getKind() const { return K; }
-  ObjectFileSchema &getSchema() const { return *Schema; }
+  const ObjectFileSchema &getSchema() const { return *Schema; }
   cas::CASID getID() const { return ID; }
   operator cas::CASID() const { return getID(); }
 
@@ -347,20 +370,22 @@ public:
 
   /// Get a \a TargetRef. If \c Kind is specified, returns an error on
   /// mismatch; otherwise just requires that it's a valid target.
-  static Expected<TargetRef> get(ObjectFileSchema &Schema, cas::CASID ID,
+  static Expected<TargetRef> get(const ObjectFileSchema &Schema, cas::CASID ID,
                                  Optional<Kind> ExpectedKind = None);
 
-  static TargetRef getIndirectSymbol(ObjectFileSchema &Schema, NameRef Ref) {
+  static TargetRef getIndirectSymbol(const ObjectFileSchema &Schema,
+                                     NameRef Ref) {
     return TargetRef(Schema, Ref, IndirectSymbol);
   }
-  static TargetRef getSymbol(ObjectFileSchema &Schema, const SymbolRef &Ref);
+  static TargetRef getSymbol(const ObjectFileSchema &Schema,
+                             const SymbolRef &Ref);
 
 private:
   TargetRef() = delete;
-  TargetRef(ObjectFileSchema &Schema, cas::CASID ID, Kind K)
+  TargetRef(const ObjectFileSchema &Schema, cas::CASID ID, Kind K)
       : Schema(&Schema), ID(ID), K(K) {}
 
-  ObjectFileSchema *Schema;
+  const ObjectFileSchema *Schema;
   cas::CASID ID;
   Kind K;
 };
@@ -408,11 +433,12 @@ public:
 
   /// Create the given target list. Does not sort the targets, since it's
   /// assumed the order is already relevant.
-  static Expected<TargetListRef> create(ObjectFileSchema &Schema,
+  static Expected<TargetListRef> create(const ObjectFileSchema &Schema,
                                         ArrayRef<TargetRef> Targets);
 
   static Expected<TargetListRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<TargetListRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
+  static Expected<TargetListRef> get(const ObjectFileSchema &Schema,
+                                     cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
 
@@ -442,7 +468,7 @@ public:
   /// mismatch; otherwise just requires that it's a valid target.
   static Expected<SymbolDefinitionRef> get(Expected<ObjectFormatNodeRef> Ref,
                                            Optional<Kind> ExpectedKind = None);
-  static Expected<SymbolDefinitionRef> get(ObjectFileSchema &Schema,
+  static Expected<SymbolDefinitionRef> get(const ObjectFileSchema &Schema,
                                            cas::CASID ID,
                                            Optional<Kind> ExpectedKind = None) {
     return get(Schema.getNode(ID), ExpectedKind);
@@ -537,25 +563,25 @@ public:
   Expected<TargetList> getTargets() const;
 
   static Expected<BlockRef>
-  create(ObjectFileSchema &Schema, const jitlink::Block &Block,
+  create(const ObjectFileSchema &Schema, const jitlink::Block &Block,
          function_ref<Expected<Optional<TargetRef>>(
              const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
              jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
              GetTargetRef);
 
-  static Expected<BlockRef> create(ObjectFileSchema &Schema, SectionRef Section,
-                                   BlockDataRef Data) {
+  static Expected<BlockRef> create(const ObjectFileSchema &Schema,
+                                   SectionRef Section, BlockDataRef Data) {
     return createImpl(Schema, Section, Data, None, None);
   }
-  static Expected<BlockRef> create(ObjectFileSchema &Schema, SectionRef Section,
-                                   BlockDataRef Data,
+  static Expected<BlockRef> create(const ObjectFileSchema &Schema,
+                                   SectionRef Section, BlockDataRef Data,
                                    ArrayRef<TargetInfo> TargetInfo,
                                    ArrayRef<TargetRef> Targets) {
     return createImpl(Schema, Section, Data, TargetInfo, Targets);
   }
 
   static Expected<BlockRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<BlockRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
+  static Expected<BlockRef> get(const ObjectFileSchema &Schema, cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
 
@@ -575,7 +601,7 @@ private:
 
   explicit BlockRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 
-  static Expected<BlockRef> createImpl(ObjectFileSchema &Schema,
+  static Expected<BlockRef> createImpl(const ObjectFileSchema &Schema,
                                        SectionRef Section, BlockDataRef Data,
                                        ArrayRef<TargetInfo> TargetInfo,
                                        ArrayRef<TargetRef> Targets);
@@ -687,7 +713,8 @@ public:
   }
 
   static Expected<SymbolRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<SymbolRef> get(ObjectFileSchema &Schema, cas::CASID ID) {
+  static Expected<SymbolRef> get(const ObjectFileSchema &Schema,
+                                 cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
 
@@ -696,13 +723,13 @@ public:
   }
   Expected<TargetRef> getAsIndirectTarget() const;
 
-  static Expected<SymbolRef> create(ObjectFileSchema &Schema,
+  static Expected<SymbolRef> create(const ObjectFileSchema &Schema,
                                     Optional<NameRef> SymbolName,
                                     SymbolDefinitionRef Definition,
                                     uint64_t Offset, Flags F);
 
   static Expected<SymbolRef>
-  create(ObjectFileSchema &Schema, const jitlink::Symbol &S,
+  create(const ObjectFileSchema &Schema, const jitlink::Symbol &S,
          function_ref<Expected<SymbolDefinitionRef>(const jitlink::Block &)>
              GetDefinitionRef);
 
@@ -712,7 +739,7 @@ private:
       : SpecificRefT(Ref), Offset(Offset) {}
 };
 
-inline TargetRef TargetRef::getSymbol(ObjectFileSchema &Schema,
+inline TargetRef TargetRef::getSymbol(const ObjectFileSchema &Schema,
                                       const SymbolRef &Ref) {
   return TargetRef(Schema, Ref, Symbol);
 }
@@ -738,11 +765,11 @@ public:
 
   Expected<Optional<SymbolRef>> lookupSymbol(NameRef Name) const;
 
-  static Expected<SymbolTableRef> create(ObjectFileSchema &Schema,
+  static Expected<SymbolTableRef> create(const ObjectFileSchema &Schema,
                                          ArrayRef<SymbolRef> Symbols);
 
   static Expected<SymbolTableRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<SymbolTableRef> get(ObjectFileSchema &Schema,
+  static Expected<SymbolTableRef> get(const ObjectFileSchema &Schema,
                                       cas::CASID CASID) {
     return get(Schema.getNode(CASID));
   }
@@ -768,11 +795,12 @@ public:
     return NameRef::get(getSchema(), getNameID(I));
   }
 
-  static Expected<NameListRef> create(ObjectFileSchema &Schema,
+  static Expected<NameListRef> create(const ObjectFileSchema &Schema,
                                       MutableArrayRef<NameRef> Names);
 
   static Expected<NameListRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<NameListRef> get(ObjectFileSchema &Schema, cas::CASID CASID) {
+  static Expected<NameListRef> get(const ObjectFileSchema &Schema,
+                                   cas::CASID CASID) {
     return get(Schema.getNode(CASID));
   }
 
@@ -968,12 +996,12 @@ public:
                   jitlink::LinkGraph::GetEdgeKindNameFunction GetEdgeKindName);
 
   static Expected<CompileUnitRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<CompileUnitRef> get(ObjectFileSchema &Schema,
-                                      cas::CASID &ID) {
+  static Expected<CompileUnitRef> get(const ObjectFileSchema &Schema,
+                                      cas::CASID ID) {
     return get(Schema.getNode(ID));
   }
   static Expected<CompileUnitRef>
-  create(ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
+  create(const ObjectFileSchema &Schema, const Triple &TT, unsigned PointerSize,
          support::endianness Endianness, SymbolTableRef DeadStripNever,
          SymbolTableRef DeadStripLink, SymbolTableRef IndirectDeadStripCompile,
          SymbolTableRef IndirectAnonymous, NameListRef StrongExternals,
@@ -982,7 +1010,7 @@ public:
   /// Create a compile unit out of \p G.
   ///
   /// FIXME: Add configuration options to make more fine-tuned choices.
-  static Expected<CompileUnitRef> create(ObjectFileSchema &Schema,
+  static Expected<CompileUnitRef> create(const ObjectFileSchema &Schema,
                                          const jitlink::LinkGraph &G,
                                          raw_ostream *DebugOS = nullptr);
 
