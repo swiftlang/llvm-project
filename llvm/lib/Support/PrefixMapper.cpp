@@ -184,6 +184,9 @@ RealPathPrefixMapper::~RealPathPrefixMapper() = default;
 
 Error RealPathPrefixMapper::getRealPath(StringRef Path,
                                         SmallVectorImpl<char> &RealPath) {
+  assert(RealPath.empty() && "Expected to be fed an empty RealPath");
+  if (Path.empty())
+    return Error::success();
   if (std::error_code EC = FS->getRealPath(Path, RealPath))
     return createFileError(Path, EC);
   return Error::success();

@@ -491,6 +491,7 @@ struct MapState {
   RealPathPrefixMapper PM;
 
   SmallVector<MappedPrefix> Tests = {
+      {"", ""},
       {"relative", "/new1"},
       {"relative/nested", "/new1/nested"},
       {"symlink/to/relative", "/new1"},

@@ -116,7 +116,8 @@ private:
 };
 
 /// Wrapper for \a PrefixMapper that maps using the result of \a
-/// FileSystem::getRealPath(). Returns an error if inputs cannot be found.
+/// FileSystem::getRealPath(). Returns an error if an input cannot be found,
+/// except that an empty string always maps to itself.
 ///
 /// FIXME: The StringSaver should be optional. Only APIs returning StringRef
 /// need it, and those could assert/crash if one is not configured.
@@ -159,6 +160,8 @@ public:
   }
 
 private:
+  /// Call \a FS.getRealPath(). As a special case, if \p Path is empty,
+  /// leaves \p RealPath empty.
   Error getRealPath(StringRef Path, SmallVectorImpl<char> &RealPath);
   Error makePrefixReal(StringRef &Prefix);
 
