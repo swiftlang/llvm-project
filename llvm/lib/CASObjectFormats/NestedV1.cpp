@@ -530,29 +530,6 @@ Expected<TargetListRef> TargetListRef::create(const ObjectFileSchema &Schema,
   return get(B->build());
 }
 
-namespace {
-enum SectionProtectionFlags {
-  Read = 1,
-  Write = 2,
-  Exec = 4,
-};
-}
-
-static sys::Memory::ProtectionFlags
-decodeProtectionFlags(SectionProtectionFlags Perms) {
-  return sys::Memory::ProtectionFlags(
-      (Perms & Read ? sys::Memory::MF_READ : 0) |
-      (Perms & Write ? sys::Memory::MF_WRITE : 0) |
-      (Perms & Exec ? sys::Memory::MF_EXEC : 0));
-}
-
-static SectionProtectionFlags
-encodeProtectionFlags(sys::Memory::ProtectionFlags Perms) {
-  return SectionProtectionFlags((Perms & sys::Memory::MF_READ ? Read : 0) |
-                                (Perms & sys::Memory::MF_WRITE ? Write : 0) |
-                                (Perms & sys::Memory::MF_EXEC ? Exec : 0));
-}
-
 Expected<SectionRef>
 SectionRef::create(const ObjectFileSchema &Schema, NameRef SectionName,
                    sys::Memory::ProtectionFlags Protections) {
@@ -564,12 +541,12 @@ SectionRef::create(const ObjectFileSchema &Schema, NameRef SectionName,
 
   // FIXME: Does 1 byte leave enough space for expansion? Probably, but
   // 4 bytes would be fine too.
-  B->Data.push_back(uint8_t(encodeProtectionFlags(Protections)));
+  B->Data.push_back(uint8_t(data::encodeProtectionFlags(Protections)));
   return get(B->build());
 }
 
 sys::Memory::ProtectionFlags SectionRef::getProtectionFlags() const {
-  return decodeProtectionFlags((SectionProtectionFlags)getData()[0]);
+  return decodeProtectionFlags((data::SectionProtectionFlags)getData()[0]);
 }
 
 Expected<SectionRef> SectionRef::get(Expected<ObjectFormatNodeRef> Ref) {

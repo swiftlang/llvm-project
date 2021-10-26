@@ -16,6 +16,20 @@ namespace llvm {
 namespace casobjectformats {
 namespace data {
 
+/// Stable enum to model parts of sys::Memory::ProtectionFlags relevant for
+/// sections in object files.
+enum SectionProtectionFlags {
+  Read = 1,
+  Write = 2,
+  Exec = 4,
+};
+
+sys::Memory::ProtectionFlags
+decodeProtectionFlags(SectionProtectionFlags Perms);
+
+SectionProtectionFlags
+encodeProtectionFlags(sys::Memory::ProtectionFlags Perms);
+
 /// The kind and offset of a fixup (e.g., for a relocation).
 struct Fixup {
   jitlink::Edge::Kind Kind;

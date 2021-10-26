@@ -14,6 +14,21 @@ using namespace llvm;
 using namespace llvm::casobjectformats;
 using namespace llvm::casobjectformats::data;
 
+sys::Memory::ProtectionFlags
+data::decodeProtectionFlags(SectionProtectionFlags Perms) {
+  return sys::Memory::ProtectionFlags(
+      (Perms & Read ? sys::Memory::MF_READ : 0) |
+      (Perms & Write ? sys::Memory::MF_WRITE : 0) |
+      (Perms & Exec ? sys::Memory::MF_EXEC : 0));
+}
+
+SectionProtectionFlags
+data::encodeProtectionFlags(sys::Memory::ProtectionFlags Perms) {
+  return SectionProtectionFlags((Perms & sys::Memory::MF_READ ? Read : 0) |
+                                (Perms & sys::Memory::MF_WRITE ? Write : 0) |
+                                (Perms & sys::Memory::MF_EXEC ? Exec : 0));
+}
+
 void FixupList::encode(ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data) {
   // FIXME: Kinds should be numbered in a stable way, not just rely on
   // Edge::Kind.
