@@ -14,6 +14,11 @@
 #ifndef LLVM_CLANG_BASIC_ATTRKINDS_H
 #define LLVM_CLANG_BASIC_ATTRKINDS_H
 
+#pragma push_macro("IBAction")
+#pragma push_macro("IBOutlet")
+#undef IBAction
+#undef IBOutlet
+
 namespace clang {
 
 namespace attr {
@@ -29,5 +34,8 @@ enum Kind {
 
 } // end namespace attr
 } // end namespace clang
+
+#pragma pop_macro("IBAction")
+#pragma pop_macro("IBOutlet")
 
 #endif

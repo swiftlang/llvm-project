@@ -13,6 +13,11 @@
 #ifndef LLVM_CLANG_AST_ATTRVISITOR_H
 #define LLVM_CLANG_AST_ATTRVISITOR_H
 
+#pragma push_macro("IBAction")
+#pragma push_macro("IBOutlet")
+#undef IBAction
+#undef IBOutlet
+
 #include "clang/AST/Attr.h"
 
 namespace clang {
@@ -71,5 +76,8 @@ class ConstAttrVisitor
                                ParamTys...> {};
 
 } // namespace clang
+
+#pragma pop_macro("IBAction")
+#pragma pop_macro("IBOutlet")
 
 #endif // LLVM_CLANG_AST_ATTRVISITOR_H
