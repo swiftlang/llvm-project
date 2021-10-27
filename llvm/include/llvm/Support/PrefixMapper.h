@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TABLEGEN_PREFIXMAPPER_H
-#define LLVM_TABLEGEN_PREFIXMAPPER_H
+#ifndef LLVM_SUPPORT_PREFIXMAPPER_H
+#define LLVM_SUPPORT_PREFIXMAPPER_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
@@ -238,4 +238,4 @@ private:
 
 } // end namespace llvm
 
-#endif // LLVM_TABLEGEN_PREFIXMAPPER_H
+#endif // LLVM_SUPPORT_PREFIXMAPPER_H
