@@ -2328,13 +2328,20 @@ LinkGraphBuilder::createOrDuplicateBlock(jitlink::Symbol &ForSymbol,
   assert(S.Section == &B->getSection());
   uint64_t Address = getAlignedAddress(S, B->getSize(), B->getAlignment(),
                                        B->getAlignmentOffset());
-  return B->isZeroFill()
-             ? &G.createZeroFillBlock(B->getSection(), B->getSize(), Address,
-                                      B->getAlignment(),
-                                      B->getAlignmentOffset())
-             : &G.createContentBlock(B->getSection(), B->getContent(), Address,
-                                     B->getAlignment(),
-                                     B->getAlignmentOffset());
+  jitlink::Block &DupBlock =
+      B->isZeroFill()
+          ? G.createZeroFillBlock(B->getSection(), B->getSize(), Address,
+                                  B->getAlignment(), B->getAlignmentOffset())
+          : G.createContentBlock(B->getSection(), B->getContent(), Address,
+                                 B->getAlignment(), B->getAlignmentOffset());
+  if (Error E =
+          addEdges(ForSymbol, DupBlock, Block,
+                   [&](jitlink::Edge::Kind K, jitlink::Edge::OffsetT Offset,
+                       jitlink::Edge::AddendT Addend) {
+                     DupBlock.addEdge(K, Offset, *KeptAliveBySymbol, Addend);
+                   }))
+    return E;
+  return &DupBlock;
 }
 
 Error LinkGraphBuilder::defineSymbol(SymbolToDefine Symbol) {

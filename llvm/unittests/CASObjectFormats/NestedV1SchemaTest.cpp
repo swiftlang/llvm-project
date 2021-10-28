@@ -475,36 +475,42 @@ TEST(NestedV1SchemaTest, RoundTrip) {
       G.addDefinedSymbol(Z, 0, "S3", 0, jitlink::Linkage::Strong,
                          jitlink::Scope::Default, false, false);
 
-  jitlink::Block &B = G.createContentBlock(Section, BlockContent, 0, 256, 0);
+  auto createBlock = [&]() -> jitlink::Block & {
+    jitlink::Block &B = G.createContentBlock(Section, BlockContent, 0, 256, 0);
 
-  // Create arrays of each field. Sort by the order the edges should be sorted
-  // (precedence is offset, kind, target name, and addend).
-  jitlink::Edge::OffsetT Offsets[] = {0, 0, 0, 0, 0, 0, 8, 16};
-  jitlink::Edge::Kind Kinds[] = {
-      jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
-      jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
-      jitlink::Edge::FirstRelocation, jitlink::Edge::FirstRelocation + 1,
-      jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
+    // Create arrays of each field. Sort by the order the edges should be sorted
+    // (precedence is offset, kind, target name, and addend).
+    jitlink::Edge::OffsetT Offsets[] = {0, 0, 0, 0, 0, 0, 8, 16};
+    jitlink::Edge::Kind Kinds[] = {
+        jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
+        jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
+        jitlink::Edge::FirstRelocation, jitlink::Edge::FirstRelocation + 1,
+        jitlink::Edge::FirstKeepAlive,  jitlink::Edge::FirstKeepAlive,
+    };
+    jitlink::Symbol *Targets[] = {&S1, &S1, &S2, &S3, &S1, &S1, &S1, &S1};
+    jitlink::Edge::AddendT Addends[] = {0, 24, 0, 0, 0, 0, 0, 0};
+
+    // Add the edges, out of order.
+    size_t AddOrder[] = {2, 1, 0, 6, 7, 3, 5, 4};
+    static_assert(std::extent<decltype(AddOrder)>::value ==
+                      std::extent<decltype(Offsets)>::value,
+                  "Check array sizes");
+    static_assert(std::extent<decltype(AddOrder)>::value ==
+                      std::extent<decltype(Kinds)>::value,
+                  "Check array sizes");
+    static_assert(std::extent<decltype(AddOrder)>::value ==
+                      std::extent<decltype(Targets)>::value,
+                  "Check array sizes");
+    static_assert(std::extent<decltype(AddOrder)>::value ==
+                      std::extent<decltype(Addends)>::value,
+                  "Check array sizes");
+    for (size_t I : AddOrder)
+      B.addEdge(Kinds[I], Offsets[I], *Targets[I], Addends[I]);
+
+    return B;
   };
-  jitlink::Symbol *Targets[] = {&S1, &S1, &S2, &S3, &S1, &S1, &S1, &S1};
-  jitlink::Edge::AddendT Addends[] = {0, 24, 0, 0, 0, 0, 0, 0};
 
-  // Add the edges, out of order.
-  size_t AddOrder[] = {2, 1, 0, 6, 7, 3, 5, 4};
-  static_assert(std::extent<decltype(AddOrder)>::value ==
-                    std::extent<decltype(Offsets)>::value,
-                "Check array sizes");
-  static_assert(std::extent<decltype(AddOrder)>::value ==
-                    std::extent<decltype(Kinds)>::value,
-                "Check array sizes");
-  static_assert(std::extent<decltype(AddOrder)>::value ==
-                    std::extent<decltype(Targets)>::value,
-                "Check array sizes");
-  static_assert(std::extent<decltype(AddOrder)>::value ==
-                    std::extent<decltype(Addends)>::value,
-                "Check array sizes");
-  for (size_t I : AddOrder)
-    B.addEdge(Kinds[I], Offsets[I], *Targets[I], Addends[I]);
+  jitlink::Block &B = createBlock();
 
   // Add a few symbols pointing at "B".
   G.addDefinedSymbol(B, 0, "B1", 0, jitlink::Linkage::Strong,
@@ -515,6 +521,11 @@ TEST(NestedV1SchemaTest, RoundTrip) {
                      jitlink::Scope::Hidden, false, false);
   G.addDefinedSymbol(B, 0, "B4", 0, jitlink::Linkage::Weak,
                      jitlink::Scope::Hidden, false, false);
+
+  // Creaate duplicate block;
+  jitlink::Block &DupB = createBlock();
+  G.addDefinedSymbol(DupB, 0, "DupB1", 0, jitlink::Linkage::Strong,
+                     jitlink::Scope::Default, false, false);
 
   std::unique_ptr<jitlink::LinkGraph> RoundTripG;
   {
@@ -573,6 +584,42 @@ TEST(NestedV1SchemaTest, RoundTrip) {
     EXPECT_EQ(S->isExternal(), RoundTripS->isExternal());
     EXPECT_EQ(S->getLinkage(), RoundTripS->getLinkage());
     EXPECT_EQ(S->getScope(), RoundTripS->getScope());
+    if (S->isDefined()) {
+      const jitlink::Block &B = S->getBlock();
+      const jitlink::Block &RoundTripB = RoundTripS->getBlock();
+
+      auto getSortedEdges = [](const jitlink::Block &B) {
+        std::vector<jitlink::Edge> Edges;
+        llvm::copy(B.edges(), std::back_inserter(Edges));
+        llvm::sort(
+            Edges, [](const jitlink::Edge &LHS, const jitlink::Edge &RHS) {
+              if (LHS.getOffset() != RHS.getOffset())
+                return LHS.getOffset() < RHS.getOffset();
+              if (LHS.getAddend() != RHS.getAddend())
+                return LHS.getAddend() < RHS.getAddend();
+              if (LHS.getKind() != RHS.getKind())
+                return LHS.getKind() < RHS.getKind();
+              return LHS.getTarget().getName() < RHS.getTarget().getName();
+            });
+        return Edges;
+      };
+      std::vector<jitlink::Edge> Edges = getSortedEdges(B);
+      std::vector<jitlink::Edge> RoundTripEdges = getSortedEdges(RoundTripB);
+
+      EXPECT_EQ(Edges.size(), RoundTripEdges.size());
+      if (Edges.size() == RoundTripEdges.size()) {
+        for (unsigned i = 0, e = Edges.size(); i != e; ++i) {
+          const jitlink::Edge &E = Edges[i];
+          const jitlink::Edge &RoundTripE = RoundTripEdges[i];
+          EXPECT_EQ(E.getOffset(), RoundTripE.getOffset());
+          EXPECT_EQ(E.getKind(), RoundTripE.getKind());
+          EXPECT_EQ(E.isRelocation(), RoundTripE.isRelocation());
+          EXPECT_EQ(E.isKeepAlive(), RoundTripE.isKeepAlive());
+          EXPECT_EQ(E.getTarget().getName(), RoundTripE.getTarget().getName());
+          EXPECT_EQ(E.getAddend(), RoundTripE.getAddend());
+        }
+      }
+    }
   }
 }
 
