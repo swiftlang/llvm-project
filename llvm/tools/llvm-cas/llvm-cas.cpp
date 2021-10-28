@@ -17,6 +17,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/PrefixMapper.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
@@ -38,7 +39,8 @@ static int makeBlob(CASDB &CAS, StringRef DataPath);
 static int makeNode(CASDB &CAS, ArrayRef<std::string> References, StringRef DataPath);
 static int diffGraphs(CASDB &CAS, CASID LHS, CASID RHS);
 static int traverseGraph(CASDB &CAS, CASID ID);
-static int ingestFileSystem(CASDB &CAS, StringRef Path);
+static int ingestFileSystem(CASDB &CAS, StringRef Path,
+                            ArrayRef<MappedPrefix> Mappings);
 static int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path);
 
 int main(int Argc, char **Argv) {
@@ -48,6 +50,8 @@ int main(int Argc, char **Argv) {
   cl::opt<std::string> CASPath("cas", cl::desc("Path to CAS on disk."));
   cl::opt<std::string> DataPath("data",
                                 cl::desc("Path to data or '-' for stdin."));
+  cl::list<std::string> PrefixMap(
+      "prefix-map", cl::desc("Prefix map for ingesting file system"));
 
   enum CommandKind {
     Invalid,
@@ -112,8 +116,14 @@ int main(int Argc, char **Argv) {
     return diffGraphs(*CAS, LHS, RHS);
   }
 
-  if (Command == IngestFileSystem)
-    return ingestFileSystem(*CAS, DataPath);
+  if (Command == IngestFileSystem) {
+    ExitOnError CommandErr("llvm-cas: ingest prefix-map:");
+    SmallVector<MappedPrefix> Mappings;
+    if (auto Err = MappedPrefix::transformJoined(PrefixMap, Mappings))
+      CommandErr(std::move(Err));
+
+    return ingestFileSystem(*CAS, DataPath, Mappings);
+  }
 
   // Remaining commands need exactly one CAS object.
   if (Objects.empty())
@@ -422,17 +432,27 @@ static Error recursiveAccess(CachingOnDiskFileSystem &FS, StringRef Path) {
   return Error::success();
 }
 
-int ingestFileSystem(CASDB &CAS, StringRef Path) {
+int ingestFileSystem(CASDB &CAS, StringRef Path,
+                     ArrayRef<MappedPrefix> Mappings) {
   ExitOnError ExitOnErr("llvm-cas: ingest: ");
   auto FS = createCachingOnDiskFileSystem(CAS);
   if (!FS)
     ExitOnErr(FS.takeError());
 
   (*FS)->trackNewAccesses();
-
   ExitOnErr(recursiveAccess(**FS, Path));
 
-  auto Ref = (*FS)->createTreeFromAllAccesses();
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+  Optional<PrefixMapper> PM;
+  if (!Mappings.empty()) {
+    PM.emplace(Saver);
+    PM->addRange(Mappings);
+    PM->sort();
+  }
+
+  auto Ref = (*FS)->createTreeFromNewAccesses(
+      [&](StringRef Path) { return PM ? PM->map(Path) : Path; });
   if (!Ref)
     ExitOnErr(Ref.takeError());
 
