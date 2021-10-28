@@ -37,6 +37,21 @@ static Error unwrapExpected(Expected<std::unique_ptr<T>> &&E,
   return Error::success();
 }
 
+static Expected<TargetRef> createTarget(const jitlink::Symbol &S,
+                                        jitlink::Edge::Kind, bool IsFromData,
+                                        jitlink::Edge::AddendT &,
+                                        Optional<StringRef> &) {
+  return createStringError(inconvertibleErrorCode(), "expected leaf blocks");
+}
+
+static Expected<SymbolDefinitionRef>
+createSymbolDefinition(const jitlink::Block &B, ObjectFileSchema &Schema) {
+  if (Expected<BlockRef> Block = BlockRef::create(Schema, B, createTarget))
+    return Block->getAsSymbolDefinition();
+  else
+    return Block.takeError();
+}
+
 namespace {
 
 TEST(NestedV1SchemaTest, Section) {
@@ -250,17 +265,9 @@ TEST(NestedV1SchemaTest, BlockSymbols) {
 
   std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
   ObjectFileSchema Schema(*CAS);
-  auto createTarget = [](const jitlink::Symbol &S, jitlink::Edge::Kind,
-                         bool IsFromData, jitlink::Edge::AddendT &,
-                         Optional<StringRef> &) -> Expected<TargetRef> {
-    return createStringError(inconvertibleErrorCode(), "expected leaf blocks");
-  };
   auto createSymbolDefinition =
       [&](const jitlink::Block &B) -> Expected<SymbolDefinitionRef> {
-    if (Expected<BlockRef> Block = BlockRef::create(Schema, B, createTarget))
-      return Block->getAsSymbolDefinition();
-    else
-      return Block.takeError();
+    return ::createSymbolDefinition(B, Schema);
   };
 
   for (jitlink::Symbol *S : Symbols) {
@@ -298,17 +305,9 @@ TEST(NestedV1SchemaTest, SymbolTable) {
 
   std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
   ObjectFileSchema Schema(*CAS);
-  auto createTarget = [](const jitlink::Symbol &, jitlink::Edge::Kind,
-                         bool IsFromData, jitlink::Edge::AddendT &,
-                         Optional<StringRef> &) -> Expected<TargetRef> {
-    return createStringError(inconvertibleErrorCode(), "expected leaf blocks");
-  };
   auto createSymbolDefinition =
       [&](const jitlink::Block &B) -> Expected<SymbolDefinitionRef> {
-    if (Expected<BlockRef> Block = BlockRef::create(Schema, B, createTarget))
-      return Block->getAsSymbolDefinition();
-    else
-      return Block.takeError();
+    return ::createSymbolDefinition(B, Schema);
   };
 
   SmallVector<SymbolRef> AllRefs;
@@ -574,6 +573,31 @@ TEST(NestedV1SchemaTest, RoundTrip) {
     EXPECT_EQ(S->isExternal(), RoundTripS->isExternal());
     EXPECT_EQ(S->getLinkage(), RoundTripS->getLinkage());
     EXPECT_EQ(S->getScope(), RoundTripS->getScope());
+  }
+}
+
+TEST(NestedV1SchemaTest, ModInitFuncSection) {
+  jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
+                       support::little, jitlink::getGenericEdgeKindName);
+  jitlink::Section &Section =
+      G.createSection("__DATA,__mod_init_func", sys::Memory::MF_EXEC);
+  jitlink::Block &Block = G.createContentBlock(Section, BlockContent, 0, 16, 0);
+  jitlink::Symbol *Symbols[] = {
+      &G.addAnonymousSymbol(Block, 0, 0, true, false),
+  };
+
+  std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
+  ObjectFileSchema Schema(*CAS);
+  auto createSymbolDefinition =
+      [&](const jitlink::Block &B) -> Expected<SymbolDefinitionRef> {
+    return ::createSymbolDefinition(B, Schema);
+  };
+
+  for (jitlink::Symbol *S : Symbols) {
+    Optional<SymbolRef> Symbol = expectedToOptional(
+        SymbolRef::create(Schema, *S, createSymbolDefinition));
+    ASSERT_TRUE(Symbol);
+    EXPECT_EQ(SymbolRef::getFlags(*S).DeadStrip, SymbolRef::DS_Never);
   }
 }
 

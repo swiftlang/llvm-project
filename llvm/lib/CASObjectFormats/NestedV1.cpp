@@ -1116,8 +1116,10 @@ SymbolRef::Flags SymbolRef::getFlags(const jitlink::Symbol &S) {
     StringRef Name = S.getBlock().getSection().getName();
 
     // FIXME: Stop using hardcoded section names.
-    if (KeepStaticInitializersAlive)
-      IsLiveSection |= Name == "__TEXT,__constructor";
+    if (KeepStaticInitializersAlive) {
+      IsLiveSection |=
+          Name == "__DATA,__mod_init_func" || Name == "__TEXT,__constructor";
+    }
     if (KeepCompactUnwindAlive)
       IsLiveSection |= Name == "__LD,__compact_unwind";
   }
