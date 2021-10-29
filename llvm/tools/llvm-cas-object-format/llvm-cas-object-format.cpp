@@ -9,6 +9,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/CASObjectFormats/NestedV1.h"
+#include "llvm/CASObjectFormats/SimpleV1.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
 #include "llvm/Support/CommandLine.h"
@@ -88,6 +89,8 @@ static Expected<std::unique_ptr<SchemaBase>>
 createSchema(CASDB &CAS, StringRef SchemaName) {
   if (SchemaName == "nestedv1")
     return std::make_unique<nestedv1::ObjectFileSchema>(CAS);
+  if (SchemaName == "simplev1")
+    return std::make_unique<simplev1::ObjectFileSchema>(CAS);
   return createStringError(inconvertibleErrorCode(),
                            "invalid schema '" + SchemaName + "'");
 }
@@ -251,15 +254,24 @@ struct StatCollector {
       ExitOnError &, function_ref<void(ObjectKindInfo &)>, cas::NodeRef)>;
 
   nestedv1::ObjectFileSchema NestedV1Schema;
+  simplev1::ObjectFileSchema SimpleV1Schema;
   SmallVector<std::pair<const SchemaBase *, POTItemHandler>> Schemas;
 
-  StatCollector(CASDB &CAS) : CAS(CAS), NestedV1Schema(CAS) {
+  StatCollector(CASDB &CAS)
+      : CAS(CAS), NestedV1Schema(CAS), SimpleV1Schema(CAS) {
     Schemas.push_back(std::make_pair(
         &NestedV1Schema,
         [&](ExitOnError &ExitOnErr,
             function_ref<void(ObjectKindInfo & Info)> addNodeStats,
             cas::NodeRef Node) {
           visitPOTItemNestedV1(ExitOnErr, NestedV1Schema, addNodeStats, Node);
+        }));
+    Schemas.push_back(std::make_pair(
+        &SimpleV1Schema,
+        [&](ExitOnError &ExitOnErr,
+            function_ref<void(ObjectKindInfo & Info)> addNodeStats,
+            cas::NodeRef Node) {
+          visitPOTItemSimpleV1(ExitOnErr, SimpleV1Schema, addNodeStats, Node);
         }));
   }
 
@@ -284,6 +296,9 @@ struct StatCollector {
   void visitPOTItem(ExitOnError &ExitOnErr, const POTItem &Item);
   void visitPOTItemNestedV1(
       ExitOnError &ExitOnErr, nestedv1::ObjectFileSchema &Schema,
+      function_ref<void(ObjectKindInfo &Info)> addNodeStats, cas::NodeRef Node);
+  void visitPOTItemSimpleV1(
+      ExitOnError &ExitOnErr, simplev1::ObjectFileSchema &Schema,
       function_ref<void(ObjectKindInfo &Info)> addNodeStats, cas::NodeRef Node);
   void printToOuts(ArrayRef<CASID> TopLevels);
 };
@@ -443,6 +458,14 @@ void StatCollector::visitPOTItemNestedV1(
         SectionNames.insert(*Name);
     }
   }
+}
+
+void StatCollector::visitPOTItemSimpleV1(
+    ExitOnError &ExitOnErr, simplev1::ObjectFileSchema &Schema,
+    function_ref<void(ObjectKindInfo &Info)> addNodeStats, cas::NodeRef Node) {
+  using namespace llvm::casobjectformats::simplev1;
+  ObjectFormatNodeRef Object = ExitOnErr(Schema.getNode(Node));
+  addNodeStats(Stats[Object.getKindString()]);
 }
 
 static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
