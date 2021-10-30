@@ -1150,13 +1150,14 @@ std::unique_ptr<CASDB> cas::createInMemoryCAS() {
   return std::make_unique<BuiltinCAS>(BuiltinCAS::InMemoryOnlyTag());
 }
 
-static void appendDefaultCASRelativePath(SmallVectorImpl<char> &Path) {
-  llvm::sys::path::append(Path, "casfs.default");
-}
+// FIXME: Proxy not portable. Maybe also error-prone?
+constexpr StringLiteral DefaultDirProxy = "/^llvm::cas::builtin::default";
+constexpr StringLiteral DefaultName = "casfs.default";
 
 void cas::getDefaultOnDiskCASPath(SmallVectorImpl<char> &Path) {
-  llvm::sys::path::system_temp_directory(/*ErasedOnReboot=*/true, Path);
-  appendDefaultCASRelativePath(Path);
+  if (!llvm::sys::path::cache_directory(Path))
+    report_fatal_error("cannot get default cache directory");
+  llvm::sys::path::append(Path, DefaultName);
 }
 
 std::string cas::getDefaultOnDiskCASPath() {
@@ -1166,9 +1167,8 @@ std::string cas::getDefaultOnDiskCASPath() {
 }
 
 void cas::getDefaultOnDiskCASStableID(SmallVectorImpl<char> &Path) {
-  StringRef TmpDir = "/^$TMPDIR";
-  Path.assign(TmpDir.begin(), TmpDir.end());
-  llvm::sys::path::append(Path, "casfs.default");
+  Path.assign(DefaultDirProxy.begin(), DefaultDirProxy.end());
+  llvm::sys::path::append(Path, DefaultName);
 }
 
 std::string cas::getDefaultOnDiskCASStableID() {
