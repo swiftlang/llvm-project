@@ -606,18 +606,16 @@ TEST(NestedV1SchemaTest, RoundTrip) {
       std::vector<jitlink::Edge> Edges = getSortedEdges(B);
       std::vector<jitlink::Edge> RoundTripEdges = getSortedEdges(RoundTripB);
 
-      EXPECT_EQ(Edges.size(), RoundTripEdges.size());
-      if (Edges.size() == RoundTripEdges.size()) {
-        for (unsigned i = 0, e = Edges.size(); i != e; ++i) {
-          const jitlink::Edge &E = Edges[i];
-          const jitlink::Edge &RoundTripE = RoundTripEdges[i];
-          EXPECT_EQ(E.getOffset(), RoundTripE.getOffset());
-          EXPECT_EQ(E.getKind(), RoundTripE.getKind());
-          EXPECT_EQ(E.isRelocation(), RoundTripE.isRelocation());
-          EXPECT_EQ(E.isKeepAlive(), RoundTripE.isKeepAlive());
-          EXPECT_EQ(E.getTarget().getName(), RoundTripE.getTarget().getName());
-          EXPECT_EQ(E.getAddend(), RoundTripE.getAddend());
-        }
+      ASSERT_EQ(Edges.size(), RoundTripEdges.size());
+      for (unsigned i = 0, e = Edges.size(); i != e; ++i) {
+        const jitlink::Edge &E = Edges[i];
+        const jitlink::Edge &RoundTripE = RoundTripEdges[i];
+        EXPECT_EQ(E.getOffset(), RoundTripE.getOffset());
+        EXPECT_EQ(E.getKind(), RoundTripE.getKind());
+        EXPECT_EQ(E.isRelocation(), RoundTripE.isRelocation());
+        EXPECT_EQ(E.isKeepAlive(), RoundTripE.isKeepAlive());
+        EXPECT_EQ(E.getTarget().getName(), RoundTripE.getTarget().getName());
+        EXPECT_EQ(E.getAddend(), RoundTripE.getAddend());
       }
     }
   }
