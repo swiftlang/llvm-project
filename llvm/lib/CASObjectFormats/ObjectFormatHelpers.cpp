@@ -123,7 +123,7 @@ Expected<StringRef> helpers::canonicalizeContent(
     if (Error E = writeNopForArch(
             Arch, OS,
             offsetToAlignment(MutableContent->size(), *TrailingNopsAlignment)))
-      return E;
+      return std::move(E);
   }
 
   return MutableContent ? StringRef(Storage.begin(), Storage.size()) : Content;

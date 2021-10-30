@@ -2340,7 +2340,7 @@ LinkGraphBuilder::createOrDuplicateBlock(jitlink::Symbol &ForSymbol,
                        jitlink::Edge::AddendT Addend) {
                      DupBlock.addEdge(K, Offset, *KeptAliveBySymbol, Addend);
                    }))
-    return E;
+    return std::move(E);
   return &DupBlock;
 }
 
