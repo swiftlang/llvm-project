@@ -1152,7 +1152,7 @@ std::unique_ptr<CASDB> cas::createInMemoryCAS() {
 
 // FIXME: Proxy not portable. Maybe also error-prone?
 constexpr StringLiteral DefaultDirProxy = "/^llvm::cas::builtin::default";
-constexpr StringLiteral DefaultName = "casfs.default";
+constexpr StringLiteral DefaultName = "llvm.cas.builtin.default";
 
 void cas::getDefaultOnDiskCASPath(SmallVectorImpl<char> &Path) {
   if (!llvm::sys::path::cache_directory(Path))
