@@ -37,10 +37,7 @@ static Error unwrapExpected(Expected<std::unique_ptr<T>> &&E,
   return Error::success();
 }
 
-static Expected<TargetRef> createTarget(const jitlink::Symbol &S,
-                                        jitlink::Edge::Kind, bool IsFromData,
-                                        jitlink::Edge::AddendT &,
-                                        Optional<StringRef> &) {
+static Expected<TargetRef> createTarget(const jitlink::Symbol &S) {
   return createStringError(inconvertibleErrorCode(), "expected leaf blocks");
 }
 
@@ -156,14 +153,11 @@ TEST(NestedV1SchemaTest, LeafBlock) {
   ObjectFileSchema Schema(*CAS);
   for (jitlink::Block *B : Blocks) {
     // This is the API being tested.
-    Optional<BlockRef> Block = expectedToOptional(
-        BlockRef::create(Schema, *B,
-                         [](const jitlink::Symbol &, jitlink::Edge::Kind,
-                            bool IsFromData, jitlink::Edge::AddendT &,
-                            Optional<StringRef> &) -> Expected<TargetRef> {
-                           return createStringError(inconvertibleErrorCode(),
-                                                    "expected a leaf block");
-                         }));
+    Optional<BlockRef> Block = expectedToOptional(BlockRef::create(
+        Schema, *B, [](const jitlink::Symbol &) -> Expected<TargetRef> {
+          return createStringError(inconvertibleErrorCode(),
+                                   "expected a leaf block");
+        }));
     ASSERT_TRUE(Block);
 
     // Independently look up block data and section.
@@ -405,14 +399,11 @@ TEST(NestedV1SchemaTest, BlockWithEdges) {
   }
 
   // Create the block and symbol for S3.
-  Optional<BlockRef> ZeroBlock = expectedToOptional(
-      BlockRef::create(Schema, Z,
-                       [](const jitlink::Symbol &S, jitlink::Edge::Kind,
-                          bool IsFromData, jitlink::Edge::AddendT &,
-                          Optional<StringRef> &) -> Expected<TargetRef> {
-                         return createStringError(inconvertibleErrorCode(),
-                                                  "expected leaf block");
-                       }));
+  Optional<BlockRef> ZeroBlock = expectedToOptional(BlockRef::create(
+      Schema, Z, [](const jitlink::Symbol &S) -> Expected<TargetRef> {
+        return createStringError(inconvertibleErrorCode(),
+                                 "expected leaf block");
+      }));
   ASSERT_TRUE(ZeroBlock);
   Optional<SymbolRef> DirectS3 = expectedToOptional(SymbolRef::create(
       Schema, S3,
@@ -423,9 +414,7 @@ TEST(NestedV1SchemaTest, BlockWithEdges) {
   ASSERT_TRUE(DirectS3);
   CreatedSymbols[&S3] = DirectS3->getAsTarget();
 
-  auto createTarget = [&](const jitlink::Symbol &S, jitlink::Edge::Kind,
-                          bool IsFromData, jitlink::Edge::AddendT &,
-                          Optional<StringRef> &) -> Expected<TargetRef> {
+  auto createTarget = [&](const jitlink::Symbol &S) -> Expected<TargetRef> {
     return *CreatedSymbols.lookup(&S);
   };
 

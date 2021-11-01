@@ -562,9 +562,7 @@ public:
 
   static Expected<BlockRef>
   create(const ObjectFileSchema &Schema, const jitlink::Block &Block,
-         function_ref<Expected<Optional<TargetRef>>(
-             const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
-             jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
+         function_ref<Expected<Optional<TargetRef>>(const jitlink::Symbol &)>
              GetTargetRef);
 
   static Expected<BlockRef> create(const ObjectFileSchema &Schema,

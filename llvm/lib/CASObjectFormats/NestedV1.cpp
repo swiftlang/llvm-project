@@ -740,9 +740,7 @@ static bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
 static Error decomposeAndSortEdges(
     const jitlink::Block &Block, SmallVectorImpl<Fixup> &Fixups,
     SmallVectorImpl<TargetInfo> &TIs, SmallVectorImpl<TargetRef> &Targets,
-    function_ref<Expected<Optional<TargetRef>>(
-        const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
-        jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
+    function_ref<Expected<Optional<TargetRef>>(const jitlink::Symbol &)>
         GetTargetRef) {
   assert(Fixups.empty());
   assert(TIs.empty());
@@ -750,20 +748,12 @@ static Error decomposeAndSortEdges(
   if (!Block.edges_size())
     return Error::success();
 
-  // Guess whether the edges are coming from data or code.
-  //
-  // FIXME: This isn't robust. Data can be stored in executable sections. We
-  // differentiation in the edge kind instead.
-  bool IsFromData =
-      !(Block.getSection().getProtectionFlags() & sys::Memory::MF_EXEC);
-
   // Collect edges and targets, filtering out duplicate symbols.
   SmallVector<const jitlink::Edge *, 16> Edges;
   Edges.reserve(Block.edges_size());
   struct TargetAndSymbol {
     TargetRef Target;
     const jitlink::Symbol *Symbol;
-    Optional<StringRef> SplitContent;
   };
   struct EdgeTarget {
     Optional<TargetRef> Target; // None if this is an abstract backedge.
@@ -777,10 +767,8 @@ static Error decomposeAndSortEdges(
     Edges.push_back(&E);
     const jitlink::Symbol &S = E.getTarget();
 
-    Optional<StringRef> SplitContent;
     jitlink::Edge::AddendT Addend = E.getAddend();
-    Expected<Optional<TargetRef>> TargetOrAbstractBackedge =
-        GetTargetRef(S, E.getKind(), IsFromData, Addend, SplitContent);
+    Expected<Optional<TargetRef>> TargetOrAbstractBackedge = GetTargetRef(S);
     if (!TargetOrAbstractBackedge)
       return TargetOrAbstractBackedge.takeError();
 
@@ -796,7 +784,7 @@ static Error decomposeAndSortEdges(
     TargetRef Target = **TargetOrAbstractBackedge;
     if (!SymbolIndex.insert(std::make_pair(Target.getID(), ~0U)).second)
       continue;
-    TargetData.push_back(TargetAndSymbol{Target, &S, SplitContent});
+    TargetData.push_back(TargetAndSymbol{Target, &S});
   }
   assert(!Edges.empty() && "No edges inserted?");
   assert(EdgeTargets.size() == Edges.size());
@@ -816,15 +804,6 @@ static Error decomposeAndSortEdges(
         // a different kind of reference, or a block got broken up.
         if (LHS.Target.getKind() != RHS.Target.getKind())
           return LHS.Target.getKind() < RHS.Target.getKind();
-
-        // Check the contents that were split out.
-        if (LHS.SplitContent && !RHS.SplitContent)
-          return true;
-        if (!LHS.SplitContent && RHS.SplitContent)
-          return false;
-        if (LHS.SplitContent)
-          if (int Diff = LHS.SplitContent->compare(*RHS.SplitContent))
-            return Diff < 0;
 
         // Give up.
         return false;
@@ -907,9 +886,7 @@ static Error decomposeAndSortEdges(
 
 Expected<BlockRef> BlockRef::create(
     const ObjectFileSchema &Schema, const jitlink::Block &Block,
-    function_ref<Expected<Optional<TargetRef>>(
-        const jitlink::Symbol &, jitlink::Edge::Kind, bool IsFromData,
-        jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent)>
+    function_ref<Expected<Optional<TargetRef>>(const jitlink::Symbol &)>
         GetTargetRef) {
   Expected<SectionRef> Section = SectionRef::create(Schema, Block.getSection());
   if (!Section)
@@ -1492,10 +1469,8 @@ public:
   /// reference an anonymous symbol directly, and only keep the name around as
   /// an alias as a convenience for users.
   Expected<Optional<TargetRef>>
-  getOrCreateTarget(const jitlink::Symbol &S, const jitlink::Block &SourceBlock,
-                    jitlink::Edge::Kind K, bool IsFromData,
-                    jitlink::Edge::AddendT &Addend,
-                    Optional<StringRef> &SplitContent);
+  getOrCreateTarget(const jitlink::Symbol &S,
+                    const jitlink::Block &SourceBlock);
 
   /// Get or create a block.
   Expected<BlockRef> getOrCreateBlock(const jitlink::Block &B);
@@ -1654,11 +1629,9 @@ CompileUnitBuilder::getOrCreateBlock(const jitlink::Block &B) {
   if (Cached != Blocks.end())
     return Cached->second;
 
-  Expected<BlockRef> ExpectedBlock = BlockRef::create(
-      Schema, B,
-      [&](const jitlink::Symbol &S, jitlink::Edge::Kind K, bool IsFromData,
-          jitlink::Edge::AddendT &Addend, Optional<StringRef> &SplitContent) {
-        return getOrCreateTarget(S, B, K, IsFromData, Addend, SplitContent);
+  Expected<BlockRef> ExpectedBlock =
+      BlockRef::create(Schema, B, [&](const jitlink::Symbol &S) {
+        return getOrCreateTarget(S, B);
       });
   if (!ExpectedBlock)
     return ExpectedBlock.takeError();
@@ -1692,10 +1665,9 @@ cl::opt<bool>
                              cl::desc("Prefer referencing symbols indirectly."),
                              cl::init(false));
 
-Expected<Optional<TargetRef>> CompileUnitBuilder::getOrCreateTarget(
-    const jitlink::Symbol &S, const jitlink::Block &SourceBlock,
-    jitlink::Edge::Kind K, bool IsFromData, jitlink::Edge::AddendT &Addend,
-    Optional<StringRef> &SplitContent) {
+Expected<Optional<TargetRef>>
+CompileUnitBuilder::getOrCreateTarget(const jitlink::Symbol &S,
+                                      const jitlink::Block &SourceBlock) {
   // Use an abstract target for the back-edge from FDEs in __TEXT,__eh_frame.
   if (UseAbstractBackedgeForPCBeginInFDEDuringBlockIngestion &&
       isPCBeginFromFDE(S, SourceBlock))

@@ -52,9 +52,7 @@ protected:
     ASSERT_THAT_ERROR(
         unwrapExpected(BlockRef::create(
                            *Schema, *Z,
-                           [](const jitlink::Symbol &S, jitlink::Edge::Kind,
-                              bool IsFromData, jitlink::Edge::AddendT &,
-                              Optional<StringRef> &) -> Expected<TargetRef> {
+                           [](const jitlink::Symbol &S) -> Expected<TargetRef> {
                              return createStringError(inconvertibleErrorCode(),
                                                       "expected leaf block");
                            }),
