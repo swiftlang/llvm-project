@@ -11,11 +11,15 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/CAS/UniqueID.h"
 
 namespace llvm {
 namespace cas {
 
 /// Wrapper around a raw hash-based identifier for a CAS object.
+///
+/// TODO: Replace usage with \a UniqueIDRef and \a UniqueID as appropriate,
+/// then remove this.
 class CASID {
 public:
   ArrayRef<uint8_t> getHash() const { return Hash; }
@@ -28,6 +32,7 @@ public:
   }
 
   CASID() = delete;
+  CASID(UniqueIDRef ID) : Hash(ID.getHash()) {}
   explicit CASID(ArrayRef<uint8_t> Hash) : Hash(Hash) {}
   explicit operator ArrayRef<uint8_t>() const { return Hash; }
 

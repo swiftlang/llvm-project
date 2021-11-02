@@ -15,6 +15,7 @@
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
@@ -29,6 +30,14 @@ namespace {
 static constexpr size_t NumHashBytes = 20;
 using HashType = std::array<uint8_t, NumHashBytes>;
 using HashRef = ArrayRef<uint8_t>;
+
+class BuiltinNamespace : public Namespace {
+  BuiltinNamespace() : Namespace("llvm.builtin.cas[sha1]", NumHashBytes) {}
+
+public:
+  void printID(const UniqueIDRef &ID, raw_ostream &OS) const override;
+  Error parseID(StringRef Reference, UniqueID &OS) const override;
+};
 
 struct HashInfo {
   template <class HasherT> static auto hash(HashType Data) { return Data; }
@@ -105,9 +114,6 @@ public:
         : References(Object.ReferenceBlock), Data(Object.Data) {}
     AbstractObjectReference(const TreeObjectData &Object);
   };
-
-  Expected<CASID> parseCASID(StringRef Reference) final;
-  Error printCASID(raw_ostream &OS, CASID ID) final;
 
   Expected<ObjectAndID>
   createObject(AbstractObjectReference Object,
@@ -252,6 +258,11 @@ private:
 
 } // namespace
 
+static const Namespace &getBuiltinNamespace() {
+  static BuiltinNamespace NS;
+  return NS;
+}
+
 using TreeObjectData = BuiltinCAS::TreeObjectData;
 using ObjectContentReference = BuiltinCAS::ObjectContentReference;
 using ObjectAndID = BuiltinCAS::ObjectAndID;
@@ -329,7 +340,15 @@ static HashType stringToHash(StringRef Chars) {
 
 static StringRef getCASIDPrefix() { return "~{CASFS}:"; }
 
-Expected<CASID> BuiltinCAS::parseCASID(StringRef Reference) {
+void BuiltinNamespace::printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const override {
+  assert(&ID.getNamespace() == this && "Wrong namespace");
+
+  SmallString<64> Hash;
+  extractPrintableHash(CASID(ID.getHash()), Hash);
+  OS << getCASIDPrefix() << Hash;
+}
+
+Error BuiltinNamespace::parseID(StringRef Reference, UniqueID &ID) {
   if (!Reference.consume_front(getCASIDPrefix()))
     return createStringError(std::make_error_code(std::errc::invalid_argument),
                              "invalid cas-id '" + Reference + "'");
@@ -339,18 +358,7 @@ Expected<CASID> BuiltinCAS::parseCASID(StringRef Reference) {
     return createStringError(std::make_error_code(std::errc::invalid_argument),
                              "wrong size for cas-id hash '" + Reference + "'");
 
-  // FIXME: Take parsing as a hint that the ID will be loaded and do a look up
-  // of blobs and trees, rather than always allocating space for a hash.
-  return CASID(*new (ParsedIDs.Allocate()) HashType(stringToHash(Reference)));
-}
-
-Error BuiltinCAS::printCASID(raw_ostream &OS, CASID ID) {
-  if (ID.getHash().size() != NumHashBytes)
-    return errorCodeToError(std::make_error_code(std::errc::invalid_argument));
-
-  SmallString<64> Hash;
-  extractPrintableHash(ID, Hash);
-  OS << getCASIDPrefix() << Hash;
+  ID = UniqueIDRef(*this, HashType(stringToHash(Reference)));
   return Error::success();
 }
 
