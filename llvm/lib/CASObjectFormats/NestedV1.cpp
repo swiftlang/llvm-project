@@ -624,7 +624,7 @@ static bool compareSymbolsBySemanticsAnd(
     function_ref<bool(const jitlink::Symbol *, const jitlink::Symbol *)>
         NextCompare) {
   if (LHS == RHS)
-    return false;
+    return NextCompare(LHS, RHS);
 
   // Sort by name, putting anonymous symbols last.
   if (LHS->hasName() != RHS->hasName())
@@ -737,6 +737,37 @@ static bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
   return LHS->getSize() < RHS->getSize();
 }
 
+static void
+visitEdgesInStableOrder(const jitlink::Block &Block,
+                        function_ref<void(const jitlink::Edge &E)> HandleEdge) {
+  SmallVector<const jitlink::Edge *, 16> Edges;
+  Edges.reserve(Block.edges_size());
+  for (const jitlink::Edge &E : Block.edges()) {
+    Edges.push_back(&E);
+  }
+
+  std::stable_sort(
+      Edges.begin(), Edges.end(),
+      [](const jitlink::Edge *LHS, const jitlink::Edge *RHS) {
+        // Compare the fixup.
+        if (LHS->getOffset() != RHS->getOffset())
+          return LHS->getOffset() < RHS->getOffset();
+        if (LHS->getKind() != RHS->getKind())
+          return LHS->getKind() < RHS->getKind();
+
+        // Compare the target and addend. In practice this is
+        // likely dead code.
+        return compareSymbolsBySemanticsAnd(
+            &LHS->getTarget(), &RHS->getTarget(),
+            [&LHS, &RHS](const jitlink::Symbol *, const jitlink::Symbol *) {
+              return LHS->getAddend() < RHS->getAddend();
+            });
+      });
+
+  for (auto *E : Edges)
+    HandleEdge(*E);
+}
+
 static Error decomposeAndSortEdges(
     const jitlink::Block &Block, SmallVectorImpl<Fixup> &Fixups,
     SmallVectorImpl<TargetInfo> &TIs, SmallVectorImpl<TargetRef> &Targets,
@@ -748,138 +779,78 @@ static Error decomposeAndSortEdges(
   if (!Block.edges_size())
     return Error::success();
 
-  // Collect edges and targets, filtering out duplicate symbols.
-  SmallVector<const jitlink::Edge *, 16> Edges;
-  Edges.reserve(Block.edges_size());
-  struct TargetAndSymbol {
-    TargetRef Target;
-    const jitlink::Symbol *Symbol;
-  };
   struct EdgeTarget {
-    Optional<TargetRef> Target; // None if this is an abstract backedge.
-    jitlink::Edge::AddendT Addend = ~0U;
+    const jitlink::Symbol *Symbol;
+    // Index in the edge array for the edge that this target is part of.
+    size_t EdgeIdx;
   };
-  bool HasAbstractBackedge = false;
-  SmallDenseMap<cas::CASID, size_t, 16> SymbolIndex;
-  SmallDenseMap<const jitlink::Edge *, EdgeTarget, 16> EdgeTargets;
-  SmallVector<TargetAndSymbol, 16> TargetData;
-  for (const jitlink::Edge &E : Block.edges()) {
-    Edges.push_back(&E);
-    const jitlink::Symbol &S = E.getTarget();
+  SmallVector<EdgeTarget, 16> EdgeTargets;
+  Fixups.reserve(Block.edges_size());
+  TIs.reserve(Block.edges_size());
 
-    jitlink::Edge::AddendT Addend = E.getAddend();
-    Expected<Optional<TargetRef>> TargetOrAbstractBackedge = GetTargetRef(S);
+  constexpr size_t AbstractBackedgeIndexPlaceholder = ~0ULL;
+
+  visitEdgesInStableOrder(Block, [&](const jitlink::Edge &E) {
+    Fixups.push_back(Fixup{E.getKind(), E.getOffset()});
+    // We'll fill the real index later, using \p
+    // AbstractBackedgeIndexPlaceholder to mark as 'unset'.
+    TIs.push_back(TargetInfo{E.getAddend(), AbstractBackedgeIndexPlaceholder});
+    EdgeTargets.push_back(EdgeTarget{&E.getTarget(), Fixups.size() - 1});
+  });
+
+  // Make the order of targets stable.
+  std::stable_sort(EdgeTargets.begin(), EdgeTargets.end(),
+                   [&Fixups](const EdgeTarget &LHS, const EdgeTarget &RHS) {
+                     if (LHS.Symbol != RHS.Symbol)
+                       return compareSymbolsBySemanticsAnd(
+                           LHS.Symbol, RHS.Symbol, compareSymbolsByAddress);
+
+                     // Same symbol but different target means that either it's
+                     // a different kind of reference, or a block got broken up.
+                     auto LKind = Fixups[LHS.EdgeIdx].Kind;
+                     auto RKind = Fixups[RHS.EdgeIdx].Kind;
+                     if (LKind != RKind)
+                       return LKind < RKind;
+
+                     // Give up.
+                     return false;
+                   });
+
+  // Collect targets, filtering out duplicate symbols.
+
+  // Pair of CASID for \p TargetRef and its index in the \p Targets array.
+  SmallDenseMap<cas::CASID, size_t, 16> SeenSymbolRefs;
+  for (const EdgeTarget &EdgeTarget : EdgeTargets) {
+    Expected<Optional<TargetRef>> TargetOrAbstractBackedge =
+        GetTargetRef(*EdgeTarget.Symbol);
     if (!TargetOrAbstractBackedge)
       return TargetOrAbstractBackedge.takeError();
 
-    // Map edges to targets.
-    EdgeTargets.insert(
-        std::make_pair(&E, EdgeTarget{*TargetOrAbstractBackedge, Addend}));
     if (!*TargetOrAbstractBackedge) {
-      HasAbstractBackedge = true;
       continue;
     }
 
     // Unique the targets themselves.
     TargetRef Target = **TargetOrAbstractBackedge;
-    if (!SymbolIndex.insert(std::make_pair(Target.getID(), ~0U)).second)
-      continue;
-    TargetData.push_back(TargetAndSymbol{Target, &S});
+    decltype(SeenSymbolRefs)::iterator SeenSymIt;
+    bool Inserted;
+    std::tie(SeenSymIt, Inserted) =
+        SeenSymbolRefs.insert(std::make_pair(Target.getID(), Targets.size()));
+    if (Inserted) {
+      Targets.push_back(Target);
+    }
+    // Fill in the index map.
+    assert(EdgeTarget.EdgeIdx < TIs.size());
+    assert(SeenSymIt->second < Targets.size());
+    TIs[EdgeTarget.EdgeIdx].Index = SeenSymIt->second;
   }
-  assert(!Edges.empty() && "No edges inserted?");
-  assert(EdgeTargets.size() == Edges.size());
-  assert((HasAbstractBackedge || !TargetData.empty()) &&
-         "No symbols inserted?");
-  assert(TargetData.size() == SymbolIndex.size());
 
-  // Make the order of targets stable and fill in the index map.
-  std::stable_sort(
-      TargetData.begin(), TargetData.end(),
-      [](const TargetAndSymbol &LHS, const TargetAndSymbol &RHS) {
-        if (LHS.Symbol != RHS.Symbol)
-          return compareSymbolsBySemanticsAnd(LHS.Symbol, RHS.Symbol,
-                                              compareSymbolsByAddress);
-
-        // Same symbol but different target means that either it's
-        // a different kind of reference, or a block got broken up.
-        if (LHS.Target.getKind() != RHS.Target.getKind())
-          return LHS.Target.getKind() < RHS.Target.getKind();
-
-        // Give up.
-        return false;
-      });
-
-  for (size_t I = 0, E = TargetData.size(); I != E; ++I)
-    SymbolIndex[TargetData[I].Target] = I;
-  assert(TargetData.size() == SymbolIndex.size() &&
-         "No symbols should have been added by lookup!");
-
-  // Sort the edges.
-  std::stable_sort(Edges.begin(), Edges.end(),
-                   [&SymbolIndex, &EdgeTargets](const jitlink::Edge *LHS,
-                                                const jitlink::Edge *RHS) {
-                     // Compare the fixup.
-                     if (LHS->getOffset() < RHS->getOffset())
-                       return true;
-                     if (RHS->getOffset() < LHS->getOffset())
-                       return false;
-                     if (LHS->getKind() < RHS->getKind())
-                       return true;
-                     if (RHS->getKind() < LHS->getKind())
-                       return false;
-
-                     // Compare the target and addend. In practice this is
-                     // likely dead code.
-                     const EdgeTarget &LHSTarget =
-                         EdgeTargets.find(LHS)->second;
-                     const EdgeTarget &RHSTarget =
-                         EdgeTargets.find(RHS)->second;
-
-                     // Abstract backedges implicitly have an index past the
-                     // end of the target list. Return them last.
-                     bool IsLHSAbstract = !LHSTarget.Target;
-                     bool IsRHSAbstract = !RHSTarget.Target;
-                     if (IsLHSAbstract || IsRHSAbstract)
-                       return IsLHSAbstract < IsRHSAbstract;
-
-                     assert(!IsLHSAbstract);
-                     assert(!IsRHSAbstract);
-                     size_t LHSIndex = SymbolIndex.lookup(*LHSTarget.Target);
-                     size_t RHSIndex = SymbolIndex.lookup(*RHSTarget.Target);
-                     if (LHSIndex < RHSIndex)
-                       return true;
-                     if (RHSIndex < LHSIndex)
-                       return false;
-                     return EdgeTargets.find(LHS)->second.Addend <
-                            EdgeTargets.find(RHS)->second.Addend;
-                   });
-  assert(TargetData.size() == SymbolIndex.size() &&
-         "No symbols should have been added by lookup!");
-
-  // Fill in the addends and target indices.
-  Fixups.reserve(Edges.size());
-  TIs.reserve(Edges.size());
-  Optional<size_t> AbstractBackedgeIndex;
-  if (HasAbstractBackedge)
-    AbstractBackedgeIndex = TargetData.size();
-  for (const jitlink::Edge *E : Edges) {
-    Fixups.emplace_back();
-    Fixups.back().Kind = E->getKind();
-    Fixups.back().Offset = E->getOffset();
-
-    EdgeTarget &ET = EdgeTargets.find(E)->second;
-    TIs.emplace_back();
-    TIs.back().Index =
-        ET.Target ? SymbolIndex.lookup(*ET.Target) : *AbstractBackedgeIndex;
-    TIs.back().Addend = ET.Addend;
+  // Missing indices are because of abstract backedges, set them to the index
+  // past the \p Targets array.
+  for (TargetInfo &TI : TIs) {
+    if (TI.Index == AbstractBackedgeIndexPlaceholder)
+      TI.Index = Targets.size();
   }
-  assert(TargetData.size() == SymbolIndex.size() &&
-         "No symbols should have been added by lookup!");
-
-  // Copy out the targets.
-  Targets.reserve(TargetData.size());
-  for (const auto &I : TargetData)
-    Targets.push_back(I.Target);
 
   return Error::success();
 }
