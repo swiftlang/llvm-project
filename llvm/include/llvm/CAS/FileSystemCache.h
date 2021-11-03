@@ -19,12 +19,17 @@
 #include "llvm/Support/AlignOf.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/VirtualCachedDirectoryEntry.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <mutex>
 
 namespace llvm {
 namespace cas {
 
+/// Caching for lazily discovering a CAS-based filesystem.
+///
+/// FIXME: Extract most of this into llvm::vfs::FileSystemCache, so that it can
+/// be reused by \a InMemoryFileSystem and \a RedirectingFileSystem.
 class FileSystemCache : public ThreadSafeRefCountedBase<FileSystemCache> {
 public:
   static constexpr unsigned MaxSymlinkDepth = 16;
@@ -197,7 +202,7 @@ private:
   } WorkingDirectory;
 };
 
-class FileSystemCache::DirectoryEntry {
+class FileSystemCache::DirectoryEntry : public vfs::CachedDirectoryEntry {
 public:
   enum EntryKind {
     Regular,
@@ -213,8 +218,6 @@ public:
   bool isSymlink() const { return Kind == Symlink; }
   bool isDirectory() const { return Kind == Directory; }
   EntryKind getKind() const { return Kind; }
-  StringRef getName() const { return Name; }
-  StringRef getTreePath() const { return TreePath; }
   DirectoryEntry *getParent() const { return Parent; }
   Optional<CASID> getID() const { return ID; }
 
@@ -264,20 +267,12 @@ public:
 
   DirectoryEntry(DirectoryEntry *Parent, StringRef TreePath, EntryKind Kind,
                  Optional<CASID> ID)
-      : Parent(Parent), Kind(Kind), Node(nullptr), ID(ID) {
-    setTreePath(TreePath);
-  }
+      : CachedDirectoryEntry(TreePath), Parent(Parent), Kind(Kind),
+        Node(nullptr), ID(ID) {}
 
 private:
-  void setTreePath(StringRef TreePath) {
-    this->TreePath = TreePath;
-    this->Name = sys::path::filename(TreePath);
-  }
-
   DirectoryEntry *Parent;
   EntryKind Kind;
-  StringRef TreePath;
-  StringRef Name;
   Optional<sys::fs::UniqueID> UniqueID;
   std::atomic<void *> Node;
   Optional<CASID> ID; /// If this is a fixed tree.
