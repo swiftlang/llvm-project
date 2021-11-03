@@ -351,7 +351,7 @@ TEST(PrefixMapperTest, mapInPlace) {
   }
 }
 
-class GetRealPathFileSystem : public vfs::FileSystem {
+class GetDirectoryEntryFileSystem : public vfs::FileSystem {
 public:
   ErrorOr<vfs::Status> status(const Twine &) override {
     return make_error_code(std::errc::operation_not_permitted);
@@ -371,48 +371,53 @@ public:
     return make_error_code(std::errc::operation_not_permitted);
   }
 
-  std::error_code getRealPath(const Twine &Path,
-                              SmallVectorImpl<char> &Output) const override {
-    auto I = RealPaths.find(Path.str());
-    if (I == RealPaths.end())
-      return make_error_code(std::errc::no_such_file_or_directory);
-    Output.assign(I->second.begin(), I->second.end());
-    return std::error_code{};
+  Expected<const vfs::CachedDirectoryEntry *>
+  getDirectoryEntry(const Twine &Path, bool) const override {
+    auto I = Entries.find(Path.str());
+    if (I == Entries.end())
+      return createFileError(
+          Path, make_error_code(std::errc::no_such_file_or_directory));
+    return &I->second;
   }
 
-  StringMap<std::string> RealPaths = {
-      {"relative", "/real/path/1"},
-      {"relative/", "/real/path/1"},
-      {"symlink/to/relative", "/real/path/1"},
-      {"relative/nested", "/real/path/1/nested"},
-      {"symlink/to/relative/nested", "/real/path/1/nested"},
-      {"/real/path/1", "/real/path/1"},
-      {"/real/path/1/", "/real/path/1"},
-      {"/real/path/1/nested", "/real/path/1/nested"},
-      {"/absolute", "/real/path/2"},
-      {"/absolute/", "/real/path/2"},
-      {"/absolute/nested", "/real/path/2/nested"},
-      {"/real/path/2", "/real/path/2"},
-      {"/real/path/2/", "/real/path/2"},
-      {"/real/path/2/nested", "/real/path/2/nested"},
+  using CachedDirectoryEntry = vfs::CachedDirectoryEntry;
+  StringMap<CachedDirectoryEntry> Entries = {
+      {"relative", CachedDirectoryEntry("/real/path/1")},
+      {"relative/", CachedDirectoryEntry("/real/path/1")},
+      {"symlink/to/relative", CachedDirectoryEntry("/real/path/1")},
+      {"relative/nested", CachedDirectoryEntry("/real/path/1/nested")},
+      {"symlink/to/relative/nested",
+       CachedDirectoryEntry("/real/path/1/nested")},
+      {"/real/path/1", CachedDirectoryEntry("/real/path/1")},
+      {"/real/path/1/", CachedDirectoryEntry("/real/path/1")},
+      {"/real/path/1/nested", CachedDirectoryEntry("/real/path/1/nested")},
+      {"/absolute", CachedDirectoryEntry("/real/path/2")},
+      {"/absolute/", CachedDirectoryEntry("/real/path/2")},
+      {"/absolute/nested", CachedDirectoryEntry("/real/path/2/nested")},
+      {"/real/path/2", CachedDirectoryEntry("/real/path/2")},
+      {"/real/path/2/", CachedDirectoryEntry("/real/path/2")},
+      {"/real/path/2/nested", CachedDirectoryEntry("/real/path/2/nested")},
+      {"/unmapped/symlink", CachedDirectoryEntry("/unmapped/symlink")},
+      {"/unmapped/symlink/", CachedDirectoryEntry("/real/path/1")},
+      {"/unmapped/symlink/nested", CachedDirectoryEntry("/real/path/1/nested")},
   };
 };
 
-TEST(RealPathPrefixMapperTest, construct) {
-  auto FS = makeIntrusiveRefCnt<GetRealPathFileSystem>();
+TEST(TreePathPrefixMapperTest, construct) {
+  auto FS = makeIntrusiveRefCnt<GetDirectoryEntryFileSystem>();
 
   for (auto PathStyle : {
            sys::path::Style::posix,
            sys::path::Style::windows,
            sys::path::Style::native,
        }) {
-    EXPECT_EQ(PathStyle, RealPathPrefixMapper(FS, PathStyle).getPathStyle());
+    EXPECT_EQ(PathStyle, TreePathPrefixMapper(FS, PathStyle).getPathStyle());
   }
 }
 
-TEST(RealPathPrefixMapperTest, add) {
-  auto FS = makeIntrusiveRefCnt<GetRealPathFileSystem>();
-  RealPathPrefixMapper PM(FS);
+TEST(TreePathPrefixMapperTest, add) {
+  auto FS = makeIntrusiveRefCnt<GetDirectoryEntryFileSystem>();
+  TreePathPrefixMapper PM(FS);
 
   EXPECT_THAT_ERROR(PM.add(MappedPrefix{"relative", "/new1"}), Succeeded());
   EXPECT_THAT_ERROR(PM.add(MappedPrefix{"/absolute", "/new2"}), Succeeded());
@@ -424,9 +429,9 @@ TEST(RealPathPrefixMapperTest, add) {
   EXPECT_EQ(2u, PM.getMappings().size());
 }
 
-TEST(RealPathPrefixMapperTest, addRange) {
-  auto FS = makeIntrusiveRefCnt<GetRealPathFileSystem>();
-  RealPathPrefixMapper PM(FS);
+TEST(TreePathPrefixMapperTest, addRange) {
+  auto FS = makeIntrusiveRefCnt<GetDirectoryEntryFileSystem>();
+  TreePathPrefixMapper PM(FS);
 
   MappedPrefix BadMapping[] = {
       {"missing", "/new"},
@@ -444,9 +449,9 @@ TEST(RealPathPrefixMapperTest, addRange) {
   EXPECT_EQ(2u, PM.getMappings().size());
 }
 
-TEST(RealPathPrefixMapperTest, addRangeIfValid) {
-  auto FS = makeIntrusiveRefCnt<GetRealPathFileSystem>();
-  RealPathPrefixMapper PM(FS);
+TEST(TreePathPrefixMapperTest, addRangeIfValid) {
+  auto FS = makeIntrusiveRefCnt<GetDirectoryEntryFileSystem>();
+  TreePathPrefixMapper PM(FS);
 
   MappedPrefix Mappings[] = {
       {"missing-before", "/new"}, {"relative", "/new1"},
@@ -459,9 +464,9 @@ TEST(RealPathPrefixMapperTest, addRangeIfValid) {
   EXPECT_EQ((MappedPrefix{"/real/path/2", "/new2"}), PM.getMappings().back());
 }
 
-TEST(RealPathPrefixMapperTest, addInverseRange) {
-  auto FS = makeIntrusiveRefCnt<GetRealPathFileSystem>();
-  RealPathPrefixMapper PM(FS);
+TEST(TreePathPrefixMapperTest, addInverseRange) {
+  auto FS = makeIntrusiveRefCnt<GetDirectoryEntryFileSystem>();
+  TreePathPrefixMapper PM(FS);
 
   MappedPrefix BadMapping[] = {
       {"/new", "missing"},
@@ -479,9 +484,9 @@ TEST(RealPathPrefixMapperTest, addInverseRange) {
   EXPECT_EQ(2u, PM.getMappings().size());
 }
 
-TEST(RealPathPrefixMapperTest, addInverseRangeIfValid) {
-  auto FS = makeIntrusiveRefCnt<GetRealPathFileSystem>();
-  RealPathPrefixMapper PM(FS);
+TEST(TreePathPrefixMapperTest, addInverseRangeIfValid) {
+  auto FS = makeIntrusiveRefCnt<GetDirectoryEntryFileSystem>();
+  TreePathPrefixMapper PM(FS);
 
   MappedPrefix Mappings[] = {
       {"/new", "missing-before"}, {"/new1", "relative"},
@@ -496,9 +501,9 @@ TEST(RealPathPrefixMapperTest, addInverseRangeIfValid) {
 
 struct MapState {
   BumpPtrAllocator Alloc;
-  IntrusiveRefCntPtr<GetRealPathFileSystem> FS =
-      makeIntrusiveRefCnt<GetRealPathFileSystem>();
-  RealPathPrefixMapper PM;
+  IntrusiveRefCntPtr<GetDirectoryEntryFileSystem> FS =
+      makeIntrusiveRefCnt<GetDirectoryEntryFileSystem>();
+  TreePathPrefixMapper PM;
 
   SmallVector<MappedPrefix> Tests = {
       {"", ""},
@@ -520,7 +525,7 @@ struct MapState {
   }
 };
 
-TEST(RealPathPrefixMapperTest, map) {
+TEST(TreePathPrefixMapperTest, map) {
   MapState State;
   ASSERT_EQ(2u, State.PM.getMappings().size());
 
@@ -567,7 +572,7 @@ TEST(RealPathPrefixMapperTest, map) {
   }
 }
 
-TEST(RealPathPrefixMapperTest, mapInPlace) {
+TEST(TreePathPrefixMapperTest, mapInPlace) {
   MapState State;
   ASSERT_EQ(2u, State.PM.getMappings().size());
 

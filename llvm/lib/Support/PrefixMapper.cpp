@@ -175,79 +175,82 @@ void PrefixMapper::sort() {
                    });
 }
 
-RealPathPrefixMapper::RealPathPrefixMapper(
+TreePathPrefixMapper::TreePathPrefixMapper(
     IntrusiveRefCntPtr<vfs::FileSystem> FS, BumpPtrAllocator &Alloc,
     sys::path::Style PathStyle)
     : PM(Alloc, PathStyle), FS(std::move(FS)) {}
 
-RealPathPrefixMapper::RealPathPrefixMapper(
+TreePathPrefixMapper::TreePathPrefixMapper(
     IntrusiveRefCntPtr<vfs::FileSystem> FS, sys::path::Style PathStyle)
     : PM(PathStyle), FS(std::move(FS)) {}
 
-RealPathPrefixMapper::~RealPathPrefixMapper() = default;
+TreePathPrefixMapper::~TreePathPrefixMapper() = default;
 
-Error RealPathPrefixMapper::getRealPath(StringRef Path,
-                                        SmallVectorImpl<char> &RealPath) {
-  assert(RealPath.empty() && "Expected to be fed an empty RealPath");
+Error TreePathPrefixMapper::getTreePath(StringRef Path,
+                                        SmallVectorImpl<char> &TreePath) {
+  assert(TreePath.empty() && "Expected to be fed an empty TreePath");
   if (Path.empty())
     return Error::success();
-  if (std::error_code EC = FS->getRealPath(Path, RealPath))
-    return createFileError(Path, EC);
+  const vfs::CachedDirectoryEntry *Entry = nullptr;
+  if (Error E =
+          FS->getDirectoryEntry(Path, /*FollowSymlinks=*/false).moveInto(Entry))
+    return E;
+  TreePath.assign(Entry->getTreePath().begin(), Entry->getTreePath().end());
   return Error::success();
 }
 
-Error RealPathPrefixMapper::map(StringRef Path,
+Error TreePathPrefixMapper::map(StringRef Path,
                                 SmallVectorImpl<char> &NewPath) {
   NewPath.clear();
-  if (Error E = getRealPath(Path, NewPath))
+  if (Error E = getTreePath(Path, NewPath))
     return E;
   PM.mapInPlace(NewPath);
   return Error::success();
 }
 
-Expected<StringRef> RealPathPrefixMapper::map(StringRef Path) {
-  SmallString<256> RealPath;
-  if (Error E = getRealPath(Path, RealPath))
+Expected<StringRef> TreePathPrefixMapper::map(StringRef Path) {
+  SmallString<256> TreePath;
+  if (Error E = getTreePath(Path, TreePath))
     return std::move(E);
-  return PM.map(RealPath);
+  return PM.map(TreePath);
 }
 
-Expected<std::string> RealPathPrefixMapper::mapToString(StringRef Path) {
-  SmallString<256> RealPath;
-  if (Error E = getRealPath(Path, RealPath))
+Expected<std::string> TreePathPrefixMapper::mapToString(StringRef Path) {
+  SmallString<256> TreePath;
+  if (Error E = getTreePath(Path, TreePath))
     return std::move(E);
-  return PM.mapToString(RealPath);
+  return PM.mapToString(TreePath);
 }
 
-Error RealPathPrefixMapper::mapInPlace(SmallVectorImpl<char> &Path) {
-  SmallString<256> RealPath;
-  if (Error E = getRealPath(StringRef(Path.begin(), Path.size()), RealPath))
+Error TreePathPrefixMapper::mapInPlace(SmallVectorImpl<char> &Path) {
+  SmallString<256> TreePath;
+  if (Error E = getTreePath(StringRef(Path.begin(), Path.size()), TreePath))
     return E;
-  PM.map(RealPath, Path);
+  PM.map(TreePath, Path);
   return Error::success();
 }
 
-Error RealPathPrefixMapper::mapInPlace(std::string &Path) {
-  SmallString<256> RealPath;
-  if (Error E = getRealPath(Path, RealPath))
+Error TreePathPrefixMapper::mapInPlace(std::string &Path) {
+  SmallString<256> TreePath;
+  if (Error E = getTreePath(Path, TreePath))
     return E;
-  Path = PM.mapToString(RealPath);
+  Path = PM.mapToString(TreePath);
   return Error::success();
 }
 
-Error RealPathPrefixMapper::makePrefixReal(StringRef &Prefix) {
-  SmallString<256> RealPath;
-  if (Error E = getRealPath(Prefix, RealPath))
+Error TreePathPrefixMapper::canonicalizePrefix(StringRef &Prefix) {
+  SmallString<256> TreePath;
+  if (Error E = getTreePath(Prefix, TreePath))
     return E;
-  if (RealPath != Prefix)
-    Prefix = PM.getStringSaver().save(StringRef(RealPath));
+  if (TreePath != Prefix)
+    Prefix = PM.getStringSaver().save(StringRef(TreePath));
   return Error::success();
 }
 
-Error RealPathPrefixMapper::add(const MappedPrefix &Mapping) {
+Error TreePathPrefixMapper::add(const MappedPrefix &Mapping) {
   StringRef Old = Mapping.Old;
   StringRef New = Mapping.New;
-  if (Error E = makePrefixReal(Old))
+  if (Error E = canonicalizePrefix(Old))
     return E;
   PM.add(MappedPrefix{Old, New});
   return Error::success();

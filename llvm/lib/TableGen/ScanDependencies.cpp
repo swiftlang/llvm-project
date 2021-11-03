@@ -202,7 +202,7 @@ Error tablegen::createMainFileError(StringRef MainFilename,
 Expected<ScanIncludesResult> tablegen::scanIncludes(
     cas::CASDB &CAS, cas::CASID ExecID, StringRef MainFilename,
     ArrayRef<std::string> IncludeDirs, ArrayRef<MappedPrefix> PrefixMappings,
-    Optional<RealPathPrefixMapper> *CapturedPM) {
+    Optional<TreePathPrefixMapper> *CapturedPM) {
   IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS;
   if (Error E = cas::createCachingOnDiskFileSystem(CAS).moveInto(FS))
     return std::move(E);
@@ -216,8 +216,8 @@ Expected<ScanIncludesResult> tablegen::scanIncludes(
   if (Error E = accessAllIncludes(*FS, ExecID, IncludeDirs, *MainBlob))
     return std::move(E);
 
-  Optional<RealPathPrefixMapper> LocalPM;
-  Optional<RealPathPrefixMapper> &PM = CapturedPM ? *CapturedPM : LocalPM;
+  Optional<TreePathPrefixMapper> LocalPM;
+  Optional<TreePathPrefixMapper> &PM = CapturedPM ? *CapturedPM : LocalPM;
   if (!PrefixMappings.empty()) {
     PM.emplace(FS);
     if (Error E = PM->addRange(PrefixMappings))
@@ -238,7 +238,7 @@ tablegen::scanIncludesAndRemap(cas::CASDB &CAS, cas::CASID ExecID,
                                std::string &MainFilename,
                                std::vector<std::string> &IncludeDirs,
                                ArrayRef<MappedPrefix> PrefixMappings) {
-  Optional<RealPathPrefixMapper> PM;
+  Optional<TreePathPrefixMapper> PM;
   auto Result =
       scanIncludes(CAS, ExecID, MainFilename, IncludeDirs, PrefixMappings, &PM);
   if (!Result)

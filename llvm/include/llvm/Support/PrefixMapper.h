@@ -119,13 +119,36 @@ private:
   SmallVector<MappedPrefix> Mappings;
 };
 
-/// Wrapper for \a PrefixMapper that maps using the result of \a
-/// FileSystem::getRealPath(). Returns an error if an input cannot be found,
-/// except that an empty string always maps to itself.
+/// Wrapper for \a PrefixMapper that remaps paths that contain symlinks correctly.
 ///
-/// FIXME: The StringSaver should be optional. Only APIs returning StringRef
-/// need it, and those could assert/crash if one is not configured.
-class RealPathPrefixMapper {
+/// This compares paths (included the prefix) using a "tree" path (like a real
+/// path that does not follow symlinks in the basename). That is, the path to
+/// the named filesystem object.
+///
+/// For example, given:
+///
+///     /a/sym -> b
+///     /a/b/c/d
+///
+/// Paths are canonicalized in the following way:
+///
+/// - "/a/sym"   => "/a/sym"
+/// - "/a/sym/"  => "/a/b"
+/// - "/a/sym/c" => "/a/b/c"
+///
+/// If you have a prefix map "/a/sym/c=/new", then "/a/sym/c/d" and "/a/b/c/d"
+/// are both remapped to "/new/c/d". However, a prefix map "/a/sym=/new" will
+/// not remap anything under "/a/b"; instead, the symlink "/a/sym" is moved to
+/// "/new".
+///
+/// Relative paths are also made absolute.
+///
+/// The implementation relies on \a vfs::CachedDirectoryEntry::getTreePath(),
+/// which is only available in some filesystems.
+///
+/// Returns an error if an input cannot be found, except that an empty string
+/// always maps to itself.
+class TreePathPrefixMapper {
 public:
   Error map(StringRef Path, SmallVectorImpl<char> &NewPath);
   Error map(StringRef Path, std::string &NewPath) {
@@ -164,10 +187,10 @@ public:
   }
 
 private:
-  /// Call \a FS.getRealPath(). As a special case, if \p Path is empty,
-  /// leaves \p RealPath empty.
-  Error getRealPath(StringRef Path, SmallVectorImpl<char> &RealPath);
-  Error makePrefixReal(StringRef &Prefix);
+  /// Find the tree path for \p Path, getting the real path for its parent
+  /// directory but not following symlinks in \a sys::path::filename().
+  Error getTreePath(StringRef Path, SmallVectorImpl<char> &TreePath);
+  Error canonicalizePrefix(StringRef &Prefix);
 
 public:
   ArrayRef<MappedPrefix> getMappings() const { return PM.getMappings(); }
@@ -201,12 +224,12 @@ public:
 
   void sort() { PM.sort(); }
 
-  RealPathPrefixMapper(IntrusiveRefCntPtr<vfs::FileSystem> FS,
+  TreePathPrefixMapper(IntrusiveRefCntPtr<vfs::FileSystem> FS,
                        sys::path::Style PathStyle = sys::path::Style::native);
-  RealPathPrefixMapper(IntrusiveRefCntPtr<vfs::FileSystem> FS,
+  TreePathPrefixMapper(IntrusiveRefCntPtr<vfs::FileSystem> FS,
                        BumpPtrAllocator &Alloc,
                        sys::path::Style PathStyle = sys::path::Style::native);
-  ~RealPathPrefixMapper();
+  ~TreePathPrefixMapper();
 
 private:
   PrefixMapper PM;

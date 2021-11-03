@@ -22,7 +22,7 @@ namespace cas {
 class CachingOnDiskFileSystem;
 } // end namespace cas
 
-class RealPathPrefixMapper;
+class TreePathPrefixMapper;
 struct MappedPrefix;
 
 namespace tablegen {
@@ -70,7 +70,7 @@ struct ScanIncludesResult {
 
 /// Scan includes and build a CAS tree. If \p PrefixMappings is not \c None,
 /// remap the includes while building the tree. If \p PM is not \c nullptr
-/// then the \a RealPathPrefixMapper used will be returned there.
+/// then the \a TreePathPrefixMapper used will be returned there.
 ///
 /// \p ExecID is the Blob for the running executable. It can be used as part of
 /// the key for caching to avoid (fixed) bugs poisoning results.
@@ -82,7 +82,7 @@ Expected<ScanIncludesResult>
 scanIncludes(cas::CASDB &CAS, cas::CASID ExecID, StringRef MainFilename,
              ArrayRef<std::string> IncludeDirs,
              ArrayRef<MappedPrefix> PrefixMappings = None,
-             Optional<RealPathPrefixMapper> *CapturedPM = nullptr);
+             Optional<TreePathPrefixMapper> *CapturedPM = nullptr);
 
 /// Scan includes and build a CAS tree where their prefixes have been remapped
 /// according to \a PrefixMappings. Also remap the main file and include
