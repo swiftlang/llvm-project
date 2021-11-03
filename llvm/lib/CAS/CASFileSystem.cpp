@@ -24,7 +24,7 @@ class CASFileSystem : public CASFileSystemBase {
     FileSystemCache::DirectoryEntry *Entry;
 
     /// Mimics shell behaviour on directory changes. Not necessarily the same
-    /// as \c Entry->getRealPath().
+    /// as \c Entry->getTreePath().
     std::string Path;
   };
 
@@ -126,7 +126,7 @@ Error CASFileSystem::initialize(CASID RootID) {
 
   // Initial working directory is the root.
   WorkingDirectory.Entry = &Cache->getRoot();
-  WorkingDirectory.Path = WorkingDirectory.Entry->getRealPath().str();
+  WorkingDirectory.Path = WorkingDirectory.Entry->getTreePath().str();
 
   // Load the root to confirm it's really a tree.
   return loadDirectory(*WorkingDirectory.Entry);
@@ -153,7 +153,7 @@ Error CASFileSystem::loadDirectory(DirectoryEntry &Parent) {
   if (D.isComplete())
     return Error::success();
 
-  SmallString<128> Path = Parent.getRealPath();
+  SmallString<128> Path = Parent.getTreePath();
   size_t ParentPathSize = Path.size();
   auto makeCachedEntry =
       [&](const NamedTreeEntry &NewEntry) -> DirectoryEntry & {
@@ -327,7 +327,7 @@ CASFileSystem::lookupPath(StringRef Path, bool FollowSymlinks) {
   // FIXME: Need to handle lazy symlinks somehow.
   return Cache->lookupPath(Path, *WorkingDirectory.Entry, RequestDirectoryEntry,
                            RequestSymlinkTarget,
-                           /*PreloadRealPath=*/nullptr, FollowSymlinks,
+                           /*PreloadTreePath=*/nullptr, FollowSymlinks,
                            /*TrackNonRealPathEntries=*/nullptr);
 }
 

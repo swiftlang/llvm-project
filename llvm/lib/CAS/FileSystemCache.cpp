@@ -78,80 +78,80 @@ FileSystemCache::Directory::Writer::Writer(Directory &D) {
     ;
 }
 
-static StringRef allocateRealPath(
-    ThreadSafeAllocator<SpecificBumpPtrAllocator<char>> &RealPathAlloc,
-    StringRef RealPath) {
+static StringRef allocateTreePath(
+    ThreadSafeAllocator<SpecificBumpPtrAllocator<char>> &TreePathAlloc,
+    StringRef TreePath) {
   // Use constant strings when reasonable.
-  if (RealPath.empty())
+  if (TreePath.empty())
     return "";
-  if (RealPath == "/")
+  if (TreePath == "/")
     return "/";
 
-  char *AllocatedRealPath = RealPathAlloc.Allocate(RealPath.size() + 1);
-  llvm::copy(RealPath, AllocatedRealPath);
-  AllocatedRealPath[RealPath.size()] = 0;
-  return AllocatedRealPath;
+  char *AllocatedTreePath = TreePathAlloc.Allocate(TreePath.size() + 1);
+  llvm::copy(TreePath, AllocatedTreePath);
+  AllocatedTreePath[TreePath.size()] = 0;
+  return AllocatedTreePath;
 }
 
 static DirectoryEntry &makeLazyEntry(
-    ThreadSafeAllocator<SpecificBumpPtrAllocator<char>> &RealPathAlloc,
+    ThreadSafeAllocator<SpecificBumpPtrAllocator<char>> &TreePathAlloc,
     ThreadSafeAllocator<SpecificBumpPtrAllocator<DirectoryEntry>> &EntryAlloc,
-    DirectoryEntry &Parent, FileSystemCache::Directory &D, StringRef RealPath,
+    DirectoryEntry &Parent, FileSystemCache::Directory &D, StringRef TreePath,
     DirectoryEntry::EntryKind Kind, Optional<CASID> ID) {
-  assert(sys::path::parent_path(RealPath) == Parent.getRealPath());
-  assert(!D.lookup(sys::path::filename(RealPath)));
+  assert(sys::path::parent_path(TreePath) == Parent.getTreePath());
+  assert(!D.lookup(sys::path::filename(TreePath)));
   assert(!D.isComplete());
 
-  RealPath = allocateRealPath(RealPathAlloc, RealPath);
+  TreePath = allocateTreePath(TreePathAlloc, TreePath);
   DirectoryEntry &Entry =
-      *new (EntryAlloc.Allocate()) DirectoryEntry(&Parent, RealPath, Kind, ID);
+      *new (EntryAlloc.Allocate()) DirectoryEntry(&Parent, TreePath, Kind, ID);
   D.add(Entry);
   return Entry;
 }
 
 DirectoryEntry &
 FileSystemCache::makeLazySymlinkAlreadyLocked(DirectoryEntry &Parent,
-                                              StringRef RealPath, CASID ID) {
-  return makeLazyEntry(RealPathAlloc, EntryAlloc, Parent, Parent.asDirectory(),
-                       RealPath, DirectoryEntry::Symlink, ID);
+                                              StringRef TreePath, CASID ID) {
+  return makeLazyEntry(TreePathAlloc, EntryAlloc, Parent, Parent.asDirectory(),
+                       TreePath, DirectoryEntry::Symlink, ID);
 }
 
 DirectoryEntry &FileSystemCache::makeLazyFileAlreadyLocked(
-    DirectoryEntry &Parent, StringRef RealPath, CASID ID, bool IsExecutable) {
+    DirectoryEntry &Parent, StringRef TreePath, CASID ID, bool IsExecutable) {
   return makeLazyEntry(
-      RealPathAlloc, EntryAlloc, Parent, Parent.asDirectory(), RealPath,
+      TreePathAlloc, EntryAlloc, Parent, Parent.asDirectory(), TreePath,
       IsExecutable ? DirectoryEntry::Executable : DirectoryEntry::Regular, ID);
 }
 
 DirectoryEntry &FileSystemCache::makeDirectory(DirectoryEntry &Parent,
-                                               StringRef RealPath,
+                                               StringRef TreePath,
                                                Optional<CASID> ID) {
   Directory &D = Parent.asDirectory();
   Directory::Writer W(D);
-  if (DirectoryEntry *Existing = D.lookup(sys::path::filename(RealPath)))
+  if (DirectoryEntry *Existing = D.lookup(sys::path::filename(TreePath)))
     return *Existing;
 
-  return makeDirectoryAlreadyLocked(Parent, RealPath, ID);
+  return makeDirectoryAlreadyLocked(Parent, TreePath, ID);
 }
 
 DirectoryEntry &FileSystemCache::makeDirectoryAlreadyLocked(
-    DirectoryEntry &Parent, StringRef RealPath, Optional<CASID> ID) {
+    DirectoryEntry &Parent, StringRef TreePath, Optional<CASID> ID) {
   DirectoryEntry &Entry =
-      makeLazyEntry(RealPathAlloc, EntryAlloc, Parent, Parent.asDirectory(),
-                    RealPath, DirectoryEntry::Directory, ID);
+      makeLazyEntry(TreePathAlloc, EntryAlloc, Parent, Parent.asDirectory(),
+                    TreePath, DirectoryEntry::Directory, ID);
   Entry.setDirectory(*new (DirectoryAlloc.Allocate()) Directory);
   return Entry;
 }
 
 DirectoryEntry &FileSystemCache::makeSymlink(DirectoryEntry &Parent,
-                                             StringRef RealPath, CASID ID,
+                                             StringRef TreePath, CASID ID,
                                              StringRef Target) {
   Directory &D = Parent.asDirectory();
   Directory::Writer W(D);
-  if (DirectoryEntry *Existing = D.lookup(sys::path::filename(RealPath)))
+  if (DirectoryEntry *Existing = D.lookup(sys::path::filename(TreePath)))
     return *Existing;
 
-  DirectoryEntry &Entry = makeLazySymlinkAlreadyLocked(Parent, RealPath, ID);
+  DirectoryEntry &Entry = makeLazySymlinkAlreadyLocked(Parent, TreePath, ID);
   Entry.setSymlink(*new (SymlinkAlloc.Allocate()) Symlink(Target));
   return Entry;
 }
@@ -170,15 +170,15 @@ void FileSystemCache::finishLazySymlink(DirectoryEntry &SymlinkEntry,
 }
 
 DirectoryEntry &FileSystemCache::makeFile(DirectoryEntry &Parent,
-                                          StringRef RealPath, CASID ID,
+                                          StringRef TreePath, CASID ID,
                                           size_t Size, bool IsExecutable) {
   Directory &D = Parent.asDirectory();
   Directory::Writer W(D);
-  if (DirectoryEntry *Existing = D.lookup(sys::path::filename(RealPath)))
+  if (DirectoryEntry *Existing = D.lookup(sys::path::filename(TreePath)))
     return *Existing;
 
   DirectoryEntry &Entry =
-      makeLazyFileAlreadyLocked(Parent, RealPath, ID, IsExecutable);
+      makeLazyFileAlreadyLocked(Parent, TreePath, ID, IsExecutable);
   Entry.setFile(*new (FileAlloc.Allocate()) File(Size));
   return Entry;
 }
@@ -249,7 +249,7 @@ Expected<DirectoryEntry *> FileSystemCache::lookupPath(
     StringRef Path, DirectoryEntry &WorkingDirectory,
     RequestDirectoryEntryType RequestDirectoryEntry,
     RequestSymlinkTargetType RequestSymlinkTarget,
-    PreloadRealPathType PreloadRealPath, bool FollowSymlinks,
+    PreloadTreePathType PreloadTreePath, bool FollowSymlinks,
     function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries) {
   assert(Root && "Expected root filesystem to exist");
 
@@ -276,7 +276,7 @@ Expected<DirectoryEntry *> FileSystemCache::lookupPath(
     auto Work = Worklist.pop_back_val();
     Expected<LookupPathState> Found = lookupRealPathPrefixFrom(
         LookupPathState(*Current, Work.Remaining), RequestDirectoryEntry,
-        PreloadRealPath, TrackNonRealPathEntries);
+        PreloadTreePath, TrackNonRealPathEntries);
     if (!Found)
       return Found.takeError();
     Current = Found->Entry;
@@ -363,7 +363,7 @@ FileSystemCache::lookupRealPathPrefixFromCached(
 Expected<FileSystemCache::LookupPathState>
 FileSystemCache::lookupRealPathPrefixFrom(
     LookupPathState State, RequestDirectoryEntryType RequestDirectoryEntry,
-    PreloadRealPathType &PreloadRealPath,
+    PreloadTreePathType &PreloadTreePath,
     function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries) {
   assert(State.Entry);
   while (true) {
@@ -384,10 +384,10 @@ FileSystemCache::lookupRealPathPrefixFrom(
 
     // Cache the real path to avoid unnecessary component-by-component stat
     // calls.
-    if (PreloadRealPath) {
-      if (Error E = PreloadRealPath(*State.Entry, State.Remaining))
+    if (PreloadTreePath) {
+      if (Error E = PreloadTreePath(*State.Entry, State.Remaining))
         return std::move(E);
-      PreloadRealPath = nullptr;
+      PreloadTreePath = nullptr;
       continue;
     }
 

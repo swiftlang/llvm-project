@@ -34,7 +34,7 @@ class CachingOnDiskFileSystemImpl final : public CachingOnDiskFileSystem {
     FileSystemCache::DirectoryEntry *Entry;
 
     /// Mimics shell behaviour on directory changes. Not necessarily the same
-    /// as \c Entry->getRealPath().
+    /// as \c Entry->getTreePath().
     std::string Path;
   };
 
@@ -57,13 +57,13 @@ public:
       StringRef Path, bool FollowSymlinks = true, bool LookupOnDisk = true,
       function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries = nullptr);
 
-  DirectoryEntry *makeDirectory(DirectoryEntry &Parent, StringRef RealPath);
+  DirectoryEntry *makeDirectory(DirectoryEntry &Parent, StringRef TreePath);
 
   Expected<DirectoryEntry *> makeSymlink(DirectoryEntry &Parent,
-                                         const std::string &RealPath);
+                                         const std::string &TreePath);
 
   Expected<DirectoryEntry *> makeFile(DirectoryEntry &Parent,
-                                      StringRef RealPath, int BorrowedFD,
+                                      StringRef TreePath, int BorrowedFD,
                                       sys::fs::file_status Status);
 
   /// Preload the real path for \p Remaining, relative to \p From.
@@ -179,7 +179,7 @@ void CachingOnDiskFileSystemImpl::initializeWorkingDirectory() {
   // Start with root, and then initialize the current working directory to
   // match process state, ignoring errors if there's a problem.
   WorkingDirectory.Entry = &Cache->getRoot();
-  WorkingDirectory.Path = WorkingDirectory.Entry->getRealPath().str();
+  WorkingDirectory.Path = WorkingDirectory.Entry->getTreePath().str();
 
   SmallString<128> CWD;
   if (std::error_code EC = llvm::sys::fs::current_path(CWD)) {
@@ -248,16 +248,16 @@ StringRef CachingOnDiskFileSystemImpl::canonicalizeWorkingDirectory(
 
 FileSystemCache::DirectoryEntry *
 CachingOnDiskFileSystemImpl::makeDirectory(DirectoryEntry &Parent,
-                                           StringRef RealPath) {
-  return &Cache->makeDirectory(Parent, RealPath);
+                                           StringRef TreePath) {
+  return &Cache->makeDirectory(Parent, TreePath);
 }
 
 Expected<FileSystemCache::DirectoryEntry *>
 CachingOnDiskFileSystemImpl::makeSymlink(DirectoryEntry &Parent,
-                                         const std::string &RealPath) {
+                                         const std::string &TreePath) {
   char TargetBuffer[PATH_MAX] = {0};
   int TargetLength =
-      ::readlink(RealPath.c_str(), TargetBuffer, sizeof(TargetBuffer));
+      ::readlink(TreePath.c_str(), TargetBuffer, sizeof(TargetBuffer));
   if (TargetLength == -1)
     return errorCodeToError(std::error_code(errno, std::generic_category()));
   StringRef Target = StringRef(TargetBuffer, TargetLength);
@@ -266,12 +266,12 @@ CachingOnDiskFileSystemImpl::makeSymlink(DirectoryEntry &Parent,
   if (!Blob)
     return Blob.takeError();
 
-  return &Cache->makeSymlink(Parent, RealPath, *Blob, **Blob);
+  return &Cache->makeSymlink(Parent, TreePath, *Blob, **Blob);
 }
 
 Expected<FileSystemCache::DirectoryEntry *>
 CachingOnDiskFileSystemImpl::makeFile(DirectoryEntry &Parent,
-                                      StringRef RealPath, int BorrowedFD,
+                                      StringRef TreePath, int BorrowedFD,
                                       sys::fs::file_status Status) {
   Expected<BlobRef> ExpectedBlob =
       DB.createBlobFromOpenFile(BorrowedFD, Status);
@@ -279,7 +279,7 @@ CachingOnDiskFileSystemImpl::makeFile(DirectoryEntry &Parent,
     return ExpectedBlob.takeError();
 
   // Do not trust Status.size() in case the file is volatile.
-  return &Cache->makeFile(Parent, RealPath, *ExpectedBlob,
+  return &Cache->makeFile(Parent, TreePath, *ExpectedBlob,
                           ExpectedBlob->getData().size(),
                           Status.permissions() & sys::fs::perms::owner_exe);
 }
@@ -290,7 +290,7 @@ CachingOnDiskFileSystemImpl::lookupOnDiskFrom(DirectoryEntry &Parent,
   assert(Parent.isDirectory() && "Expected a directory");
 
   // Open the path on disk.
-  StringRef ParentPath = Parent.getRealPath();
+  StringRef ParentPath = Parent.getTreePath();
   std::string Path =
       (ParentPath.endswith("/") ? ParentPath + Name : ParentPath + "/" + Name)
           .str();
@@ -367,9 +367,9 @@ CachingOnDiskFileSystemImpl::getRealPath(const Twine &Path,
     return errorToErrorCode(ExpectedEntry.takeError());
 
   DirectoryEntry *Entry = *ExpectedEntry;
-  StringRef RealPath = Entry->getRealPath();
-  Output.resize(RealPath.size());
-  llvm::copy(RealPath, Output.begin());
+  StringRef TreePath = Entry->getTreePath();
+  Output.resize(TreePath.size());
+  llvm::copy(TreePath, Output.begin());
   return std::error_code();
 }
 
@@ -410,7 +410,7 @@ CachingOnDiskFileSystemImpl::getDirectoryIterator(const Twine &Path) {
   // Walk the directory on-disk to discover entries.
   std::error_code EC;
   SmallVector<std::string> Names;
-  for (sys::fs::directory_iterator I(Entry->getRealPath(), EC), E;
+  for (sys::fs::directory_iterator I(Entry->getTreePath(), EC), E;
        !EC && I != E; I.increment(EC))
     Names.emplace_back(sys::path::filename(I->path()).str());
   if (EC)
@@ -439,7 +439,7 @@ CachingOnDiskFileSystemImpl::getDirectoryIterator(const Twine &Path) {
 Error CachingOnDiskFileSystemImpl::preloadRealPath(DirectoryEntry &From,
                                                    StringRef Remaining) {
   SmallString<256> ExpectedRealPath;
-  ExpectedRealPath = From.getRealPath();
+  ExpectedRealPath = From.getTreePath();
   sys::path::append(ExpectedRealPath, Remaining);
 
   // Most paths don't exist. Start with a stat. Profiling says this is faster
@@ -520,7 +520,7 @@ CachingOnDiskFileSystemImpl::lookupPath(
       [this](FileSystemCache::DirectoryEntry &Parent, StringRef Name) {
         return lookupOnDiskFrom(Parent, Name);
       };
-  auto PreloadRealPathHelper = [this](DirectoryEntry &From,
+  auto PreloadTreePathHelper = [this](DirectoryEntry &From,
                                       StringRef Remaining) {
     return preloadRealPath(From, Remaining);
   };
@@ -541,17 +541,17 @@ CachingOnDiskFileSystemImpl::lookupPath(
 
   // Careful of use-after-scope.
   FileSystemCache::RequestDirectoryEntryType RequestDirectoryEntry = nullptr;
-  FileSystemCache::PreloadRealPathType PreloadRealPath = nullptr;
+  FileSystemCache::PreloadTreePathType PreloadTreePath = nullptr;
   if (LookupOnDisk) {
     RequestDirectoryEntry = RequestDirectoryEntryHelper;
-    PreloadRealPath = PreloadRealPathHelper;
+    PreloadTreePath = PreloadTreePathHelper;
   }
   if (TrackedAccesses)
     TrackNonRealPathEntries = TrackNonRealPathEntriesHelper;
 
   Expected<DirectoryEntry *> ExpectedEntry =
       Cache->lookupPath(Path, *WorkingDirectory.Entry, RequestDirectoryEntry,
-                        /*RequestSymlinkTarget=*/nullptr, PreloadRealPath,
+                        /*RequestSymlinkTarget=*/nullptr, PreloadTreePath,
                         FollowSymlinks, TrackNonRealPathEntries);
   if (IsTrackingStats && ExpectedEntry && *ExpectedEntry) {
     std::lock_guard<std::mutex> Lock(TrackedAccessesMutex);
@@ -581,11 +581,11 @@ static void pushEntryToBuilder(HierarchicalTreeBuilder &Builder,
   assert(!Entry.isDirectory());
 
   if (Entry.isSymlink()) {
-    Builder.push(*Entry.getID(), TreeEntry::Symlink, Entry.getRealPath());
+    Builder.push(*Entry.getID(), TreeEntry::Symlink, Entry.getTreePath());
     return;
   }
 
-  Builder.push(*Entry.getID(), getTreeEntryKind(Entry), Entry.getRealPath());
+  Builder.push(*Entry.getID(), getTreeEntryKind(Entry), Entry.getTreePath());
 }
 
 void CachingOnDiskFileSystemImpl::trackNewAccesses() {
@@ -609,7 +609,7 @@ Expected<TreeRef> CachingOnDiskFileSystemImpl::createTreeFromNewAccesses(
 
   HierarchicalTreeBuilder Builder;
   for (const DirectoryEntry *Entry : *MaybeTrackedAccesses) {
-    StringRef Path = Entry->getRealPath();
+    StringRef Path = Entry->getTreePath();
     if (RemapPath)
       Path = RemapPath(Path);
     if (Entry->isDirectory())
@@ -719,7 +719,7 @@ Error CachingOnDiskFileSystemImpl::TreeBuilder::push(const Twine &Path) {
 
     // Handle directories navigated away from with "..".
     assert(Entry->isDirectory());
-    Builder.pushDirectory(Entry->getRealPath());
+    Builder.pushDirectory(Entry->getTreePath());
   }
 
   while (!Worklist.empty()) {
@@ -727,7 +727,7 @@ Error CachingOnDiskFileSystemImpl::TreeBuilder::push(const Twine &Path) {
     assert(!Current->isFile());
     if (Current->isSymlink()) {
       if (Expected<DirectoryEntry *> ExpectedEntry = FS.lookupPath(
-              Current->getRealPath(),
+              Current->getTreePath(),
               /*FollowSymlinks=*/true,
               /*LookupOnDisk=*/false, [this](const DirectoryEntry &Entry) {
                 // Don't use pushSymlink() here since we
