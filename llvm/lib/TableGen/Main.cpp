@@ -257,11 +257,10 @@ struct TableGenCache {
 
   SmallVector<MappedPrefix> PrefixMappings;
   BumpPtrAllocator Alloc;
-  StringSaver Saver;
   Optional<RealPathPrefixMapper> PM;
   Optional<PrefixMapper> InversePM;
 
-  TableGenCache() : Saver(Alloc) {}
+  TableGenCache() = default;
   ~TableGenCache() { CreateDependencyFilePM = nullptr; }
 
   Expected<cas::CASID> createExecutableBlob(StringRef Argv0);
@@ -281,12 +280,12 @@ struct TableGenCache {
 void TableGenCache::createPrefixMap(
     IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS) {
   assert(!PM);
-  PM.emplace(std::move(FS), Saver);
+  PM.emplace(std::move(FS), Alloc);
   PM->addRangeIfValid(PrefixMappings);
 }
 
 void TableGenCache::createInversePrefixMap() {
-  InversePM.emplace(Saver);
+  InversePM.emplace(Alloc);
   InversePM->addInverseRange(PrefixMappings);
   CreateDependencyFilePM = &*InversePM;
 }

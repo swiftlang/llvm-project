@@ -216,12 +216,10 @@ Expected<ScanIncludesResult> tablegen::scanIncludes(
   if (Error E = accessAllIncludes(*FS, ExecID, IncludeDirs, *MainBlob))
     return std::move(E);
 
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
   Optional<RealPathPrefixMapper> LocalPM;
   Optional<RealPathPrefixMapper> &PM = CapturedPM ? *CapturedPM : LocalPM;
   if (!PrefixMappings.empty()) {
-    PM.emplace(FS, Saver);
+    PM.emplace(FS);
     if (Error E = PM->addRange(PrefixMappings))
       return std::move(E);
     PM->sort();

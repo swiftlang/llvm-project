@@ -176,9 +176,13 @@ void PrefixMapper::sort() {
 }
 
 RealPathPrefixMapper::RealPathPrefixMapper(
-    IntrusiveRefCntPtr<vfs::FileSystem> FS, StringSaver &Saver,
+    IntrusiveRefCntPtr<vfs::FileSystem> FS, BumpPtrAllocator &Alloc,
     sys::path::Style PathStyle)
-    : PM(Saver, PathStyle), FS(std::move(FS)) {}
+    : PM(Alloc, PathStyle), FS(std::move(FS)) {}
+
+RealPathPrefixMapper::RealPathPrefixMapper(
+    IntrusiveRefCntPtr<vfs::FileSystem> FS, sys::path::Style PathStyle)
+    : PM(PathStyle), FS(std::move(FS)) {}
 
 RealPathPrefixMapper::~RealPathPrefixMapper() = default;
 

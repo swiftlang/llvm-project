@@ -105,13 +105,17 @@ public:
   StringSaver &getStringSaver() { return Saver; }
   sys::path::Style getPathStyle() const { return PathStyle; }
 
-  PrefixMapper(StringSaver &Saver,
+  PrefixMapper(sys::path::Style PathStyle = sys::path::Style::native)
+      : PathStyle(PathStyle), Alloc(in_place), Saver(*Alloc) {}
+
+  PrefixMapper(BumpPtrAllocator &Alloc,
                sys::path::Style PathStyle = sys::path::Style::native)
-      : PathStyle(PathStyle), Saver(Saver) {}
+      : PathStyle(PathStyle), Saver(Alloc) {}
 
 private:
   sys::path::Style PathStyle;
-  StringSaver &Saver;
+  Optional<BumpPtrAllocator> Alloc;
+  StringSaver Saver;
   SmallVector<MappedPrefix> Mappings;
 };
 
@@ -198,7 +202,9 @@ public:
   void sort() { PM.sort(); }
 
   RealPathPrefixMapper(IntrusiveRefCntPtr<vfs::FileSystem> FS,
-                       StringSaver &Saver,
+                       sys::path::Style PathStyle = sys::path::Style::native);
+  RealPathPrefixMapper(IntrusiveRefCntPtr<vfs::FileSystem> FS,
+                       BumpPtrAllocator &Alloc,
                        sys::path::Style PathStyle = sys::path::Style::native);
   ~RealPathPrefixMapper();
 
