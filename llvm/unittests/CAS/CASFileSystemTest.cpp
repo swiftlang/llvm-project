@@ -8,6 +8,7 @@
 
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CASDB.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -90,6 +91,7 @@ static CASID createSymlinksTree(CASDB &CAS) {
   Builder.push(make("blob3"), TreeEntry::Regular, "/d/e/f/b3");
   Builder.push(make("blob4"), TreeEntry::Regular, "/d/e/f/b4");
   Builder.push(make("/d/b2"), TreeEntry::Symlink, "/d/e/f/s7");
+  Builder.push(make(".."), TreeEntry::Symlink, "/d/e/s8");
   return *expectedToOptional(Builder.create(CAS));
 }
 
@@ -289,6 +291,82 @@ TEST(CASFileSystemTest, openFileForReadFlat) {
   EXPECT_EQ("1", B1->getBuffer());
   EXPECT_EQ("2", B2->getBuffer());
   EXPECT_EQ("1", Bfile1->getBuffer());
+}
+
+TEST(CASFileSystemTest, getDirectoryEntry) {
+  std::unique_ptr<CASDB> CAS = createInMemoryCAS();
+  std::unique_ptr<vfs::FileSystem> CASFS;
+  ASSERT_THAT_ERROR(
+      createCASFileSystem(*CAS, createSymlinksTree(*CAS)).moveInto(CASFS),
+      Succeeded());
+
+  struct TestTuple {
+    StringRef In;
+    StringRef NoFollow;
+    StringRef Follow;
+  };
+  TestTuple Tests[] = {
+      {"/b1", "/b1", "/b1"},
+      {"/s0", "/s0", ""},
+      {"/s1", "/s1", "/b1"},
+      {"/s2", "/s2", "/d/b2"},
+
+      // "s8" points at a directory and is a bit more interesting.
+      {"/d/e/s8", "/d/e/s8", "/d"},
+      {"/d/e/s8/.", "/d", "/d"},
+      {"/d/e/s8/", "/d", "/d"},
+      {"/d/e/s8/e/f/s7", "/d/e/f/s7", "/d/b2"},
+  };
+
+  for (const auto &Test : makeArrayRef(Tests)) {
+    const vfs::CachedDirectoryEntry *Entry = nullptr;
+    ASSERT_THAT_ERROR(CASFS->getDirectoryEntry(Test.In, false).moveInto(Entry),
+                      Succeeded());
+    ASSERT_EQ(Test.NoFollow, Entry->getTreePath());
+
+    Error E = CASFS->getDirectoryEntry(Test.In, true).moveInto(Entry);
+    if (Test.Follow.empty()) {
+      ASSERT_THAT_ERROR(std::move(E), Failed());
+      continue;
+    }
+    ASSERT_THAT_ERROR(std::move(E), Succeeded());
+    ASSERT_EQ(Test.Follow, Entry->getTreePath());
+  }
+}
+
+TEST(CASFileSystemTest, getDirectoryEntrySymlinks) {
+  std::unique_ptr<CASDB> CAS = createInMemoryCAS();
+  ASSERT_TRUE(CAS);
+  std::unique_ptr<vfs::FileSystem> CASFS =
+      expectedToPointer(createCASFileSystem(*CAS, createSymlinksTree(*CAS)));
+  ASSERT_TRUE(CASFS);
+
+  // /s0 -> broken
+  // /s1 -> b1
+  // /b1
+  // /s2 -> d/b2
+  // /d/b2
+  // /d/s3 -> ../s4
+  // /s4 -> d/s5/b3
+  // /d/s5 -> e/s6
+  // /d/e/s6 -> f
+  // /d/e/f/b4
+  ErrorOr<std::unique_ptr<MemoryBuffer>> S0 = CASFS->getBufferForFile("/s0");
+  EXPECT_FALSE(S0);
+  EXPECT_TRUE(bufferHasContent(CASFS->getBufferForFile("/s1"),
+                               MemoryBufferRef("blob1", "/s1")));
+  EXPECT_TRUE(bufferHasContent(CASFS->getBufferForFile("/s2"),
+                               MemoryBufferRef("blob2", "/s2")));
+  EXPECT_TRUE(bufferHasContent(CASFS->getBufferForFile("/s4"),
+                               MemoryBufferRef("blob3", "/s4")));
+  EXPECT_TRUE(bufferHasContent(CASFS->getBufferForFile("/d/s3"),
+                               MemoryBufferRef("blob3", "/d/s3")));
+  EXPECT_TRUE(bufferHasContent(CASFS->getBufferForFile("/d/s5/b4"),
+                               MemoryBufferRef("blob4", "/d/s5/b4")));
+  EXPECT_TRUE(bufferHasContent(CASFS->getBufferForFile("/d/e/s6/b4"),
+                               MemoryBufferRef("blob4", "/d/e/s6/b4")));
+  EXPECT_TRUE(bufferHasContent(CASFS->getBufferForFile("/d/s5/../f/b3"),
+                               MemoryBufferRef("blob3", "/d/s5/../f/b3")));
 }
 
 TEST(CASFileSystemTest, dirBeginEmpty) {

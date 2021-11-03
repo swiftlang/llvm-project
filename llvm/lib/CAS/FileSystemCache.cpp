@@ -278,15 +278,15 @@ Expected<DirectoryEntry *> FileSystemCache::lookupPath(
         LookupPathState(*Current, Work.Remaining), RequestDirectoryEntry,
         PreloadTreePath, TrackNonRealPathEntries);
     if (!Found)
-      return Found.takeError();
+      return createFileError(Path, Found.takeError());
     Current = Found->Entry;
     StringRef Remaining = Found->Remaining;
 
     if (Current->getKind() != DirectoryEntry::Symlink) {
       // Give up if we're not done and we didn't hit a symlink.
       if (!Remaining.empty())
-        return errorCodeToError(
-            std::make_error_code(std::errc::no_such_file_or_directory));
+        return createFileError(
+            Path, make_error_code(std::errc::no_such_file_or_directory));
       continue;
     }
 
@@ -303,12 +303,12 @@ Expected<DirectoryEntry *> FileSystemCache::lookupPath(
       break;
 
     if (SymlinkDepth > MaxSymlinkDepth)
-      return errorCodeToError(
-          std::make_error_code(std::errc::too_many_symbolic_link_levels));
+      return createFileError(
+          Path, make_error_code(std::errc::too_many_symbolic_link_levels));
 
     if (!Current->hasNode())
       if (Error E = RequestSymlinkTarget(*Current))
-        return std::move(E);
+        return createFileError(Path, std::move(E));
     StringRef Target = Current->asSymlink().getTarget();
     if (Target.consume_front("/"))
       Current = Root;

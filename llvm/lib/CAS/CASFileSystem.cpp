@@ -48,6 +48,10 @@ public:
 
   ErrorOr<vfs::Status> status(const Twine &Path) final;
   ErrorOr<std::unique_ptr<vfs::File>> openFileForRead(const Twine &Path) final;
+
+  Expected<const vfs::CachedDirectoryEntry *>
+  getDirectoryEntry(const Twine &Path, bool FollowSymlinks) const final;
+
   vfs::directory_iterator dir_begin(const Twine &Dir,
                                     std::error_code &EC) final {
     auto IterOr = getDirectoryIterator(Dir);
@@ -258,6 +262,15 @@ Optional<CASID> CASFileSystem::getFileCASID(const Twine &Path) {
   if (Entry->isSymlink())
     return None; // Broken symlink.
   return Entry->getID();
+}
+
+Expected<const vfs::CachedDirectoryEntry *>
+CASFileSystem::getDirectoryEntry(const Twine &Path, bool FollowSymlinks) const {
+  SmallString<128> Storage;
+  StringRef PathRef = Path.toStringRef(Storage);
+
+  // It's not a const operation, but it's thread-safe.
+  return const_cast<CASFileSystem *>(this)->lookupPath(PathRef, FollowSymlinks);
 }
 
 ErrorOr<std::unique_ptr<vfs::File>>

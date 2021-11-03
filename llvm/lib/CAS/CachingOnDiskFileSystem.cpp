@@ -47,6 +47,9 @@ public:
   using Directory = FileSystemCache::Directory;
   using DirectoryEntry = FileSystemCache::DirectoryEntry;
 
+  Expected<const vfs::CachedDirectoryEntry *>
+  getDirectoryEntry(const Twine &Path, bool FollowSymlinks) const override;
+
   /// Look up a directory entry in the CAS, navigating trees and resolving
   /// symlinks in the parent path. If \p FollowSymlinks is true, also follows
   /// symlinks in the filename.
@@ -354,19 +357,26 @@ Optional<CASID> CachingOnDiskFileSystemImpl::getFileCASID(const Twine &Path) {
   return ID;
 }
 
-std::error_code
-CachingOnDiskFileSystemImpl::getRealPath(const Twine &Path,
-                                         SmallVectorImpl<char> &Output) const {
+Expected<const vfs::CachedDirectoryEntry *>
+CachingOnDiskFileSystemImpl::getDirectoryEntry(const Twine &Path,
+                                               bool FollowSymlinks) const {
   SmallString<128> Storage;
   StringRef PathRef = Path.toStringRef(Storage);
 
-  // We can get the real path, but it's not a const operation.
-  Expected<DirectoryEntry *> ExpectedEntry =
-      const_cast<CachingOnDiskFileSystemImpl *>(this)->lookupPath(PathRef);
-  if (!ExpectedEntry)
-    return errorToErrorCode(ExpectedEntry.takeError());
+  // It's not a const operation, but it's thread-safe.
+  return const_cast<CachingOnDiskFileSystemImpl *>(this)->lookupPath(
+      PathRef, FollowSymlinks);
+}
 
-  DirectoryEntry *Entry = *ExpectedEntry;
+std::error_code
+CachingOnDiskFileSystemImpl::getRealPath(const Twine &Path,
+                                         SmallVectorImpl<char> &Output) const {
+  // We can get the real path, but it's not a const operation.
+  const vfs::CachedDirectoryEntry *Entry = nullptr;
+  if (Error E =
+          getDirectoryEntry(Path, /*FollowSymlinks=*/true).moveInto(Entry))
+    return errorToErrorCode(std::move(E));
+
   StringRef TreePath = Entry->getTreePath();
   Output.resize(TreePath.size());
   llvm::copy(TreePath, Output.begin());

@@ -51,12 +51,22 @@ public:
         : Entry(&Entry), Remaining(Remaining) {
       size_t Slash = Remaining.find('/');
       Name = Remaining.substr(0, Slash);
-      AfterName =
-          Slash == StringRef::npos ? "" : Remaining.drop_front(Slash + 1);
+      AfterName = Slash == StringRef::npos ? "" : Remaining.drop_front(Slash);
     }
 
     void advance(DirectoryEntry &NewEntry) {
-      *this = LookupPathState(NewEntry, AfterName);
+      // If all that's left is the path separator, need to ensure a preceding
+      // symlink is followed. Return a "." to do that.
+      //
+      // FIXME: This logic is awkward. Probably Remaining should be an
+      // Optional, this should crash if advancing to far, and users of
+      // LookupPathState should be updated.
+      if (AfterName.empty())
+        *this = LookupPathState(NewEntry, AfterName);
+      else if (AfterName == "/")
+        *this = LookupPathState(NewEntry, ".");
+      else
+        *this = LookupPathState(NewEntry, AfterName.drop_front());
     }
     void skip() { advance(*Entry); }
   };
