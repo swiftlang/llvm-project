@@ -43,6 +43,7 @@ cl::opt<std::string> JustDsymutil("just-dsymutil",
                                   cl::desc("Just run dsymutil."));
 cl::opt<std::string> CASGlob("cas-glob",
                              cl::desc("glob pattern for objects in CAS"));
+cl::opt<bool> Silent("silent", cl::desc("only print final CAS ID"));
 
 cl::opt<std::string>
     IngestSchemaName("ingest-schema",
@@ -198,17 +199,21 @@ int main(int argc, char *argv[]) {
   }
   Pool.wait();
 
-  outs() << "\n";
+#define MSG(E)                                                                 \
+  if (!Silent) {                                                               \
+    outs() << E;                                                               \
+  }
+  MSG("\n");
   if (!Files.empty()) {
-    outs() << "Making summary object...\n";
+    MSG("Making summary object...\n");
     HierarchicalTreeBuilder Builder;
     for (auto &File : Files)
       Builder.push(File.second, TreeEntry::Regular, File.first());
     CASID SummaryID = ExitOnErr(Builder.create(*CAS));
     SummaryIDs.emplace_back(SummaryID);
-    outs() << "summary tree: ";
+    MSG("summary tree: ");
     ExitOnErr(CAS->printCASID(outs(), SummaryID));
-    outs() << "\n";
+    MSG("\n");
   }
 
   if (ComputeStats)
@@ -625,8 +630,10 @@ static CASID ingestFile(SchemaBase &Schema, StringRef InputFile,
   ExitOnError ExitOnErr;
   ExitOnErr.setBanner(("llvm-cas-object-format: " + InputFile + ": ").str());
 
-  auto EmitDotOnReturn = llvm::make_scope_exit(
-      [&]() { OS.applyLocked([&](raw_ostream &OS) { OS << "."; }); });
+  auto EmitDotOnReturn = llvm::make_scope_exit([&]() {
+    if (!Silent)
+      OS.applyLocked([&](raw_ostream &OS) { OS << "."; });
+  });
 
   auto &CAS = Schema.CAS;
   if (JustBlobs)
