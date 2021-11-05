@@ -5919,6 +5919,8 @@ def fno_depscan : Flag<["-"], "fno-depscan">,
     Alias<fdepscan_EQ>, AliasArgs<["off"]>;
 
 // CAS prefix map options.
+//
+// FIXME: Add DepscanOption flag.
 def fdepscan_prefix_map_EQ : Joined<["-"], "fdepscan-prefix-map=">,
     Group<f_Group>, MetaVarName<"<old>=<new>">,
     HelpText<"With -fdepscan, seamlessly filter the CAS filesystem to"
@@ -5935,8 +5937,12 @@ def fdepscan_prefix_map_toolchain_EQ :
              " remap it to the given path (see -fdepscan-prefix-map=).">;
 
 // -cc1depscan options.
+//
+// FIXME: Add to their own group; add NoDriverOption and DepscanOption flags.
 def cc1_args : Option<["-"], "cc1-args", KIND_REMAINING_ARGS>,
     HelpText<"pass cc1 options to depscan afterwards">;
+def dump_depscan_tree_EQ : Option<["-"], "dump-depscan-tree=", KIND_JOINED>,
+    HelpText<"emit the CAS identifier for the tree instead of the full -cc1">;
 
 // -cc1 options. These should be available in the driver too, but the driver
 // doesn't currently support most of them. For example, the driver should

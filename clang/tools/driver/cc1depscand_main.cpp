@@ -207,6 +207,7 @@ static void writeResponseFile(raw_ostream &OS,
 
     OS << "\" ";
   }
+  OS << "\n";
 }
 
 int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
@@ -229,21 +230,23 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
     return 1;
   }
 
+  llvm::BumpPtrAllocator Alloc;
+  llvm::StringSaver Saver(Alloc);
   StringRef WorkingDirectory;
   if (auto *Arg =
           Args.getLastArg(clang::driver::options::OPT_working_directory))
-    WorkingDirectory = Arg->getValue();
+    WorkingDirectory = Saver.save(Arg->getValue());
 
   cc1depscand::AutoPrefixMapping AutoMapping;
   for (auto &Arg :
        Args.getAllArgValues(clang::driver::options::OPT_fdepscan_prefix_map_EQ))
-    AutoMapping.PrefixMap.push_back(Arg);
+    AutoMapping.PrefixMap.push_back(Saver.save(Arg));
   if (auto *Arg = Args.getLastArg(
           clang::driver::options::OPT_fdepscan_prefix_map_sdk_EQ))
-    AutoMapping.NewSDKPath = Arg->getValue();
+    AutoMapping.NewSDKPath = Saver.save(Arg->getValue());
   if (auto *Arg = Args.getLastArg(
           clang::driver::options::OPT_fdepscan_prefix_map_toolchain_EQ))
-    AutoMapping.NewToolchainPath = Arg->getValue();
+    AutoMapping.NewToolchainPath = Saver.save(Arg->getValue());
 
   // Create the compiler invocation.
   auto Invocation = std::make_shared<CompilerInvocation>();
@@ -253,14 +256,16 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
     return 1;
   }
 
+  StringRef DumpDepscanTree;
+  if (auto *Arg =
+          Args.getLastArg(clang::driver::options::OPT_dump_depscan_tree_EQ))
+    DumpDepscanTree = Saver.save(Arg->getValue());
+
   if (!CompilerInvocation::CreateFromArgs(*Invocation, CC1Args->getValues(),
                                           Diags, Argv0)) {
     llvm::errs() << "cannot create compiler invocation\n";
     return 1;
   }
-
-  llvm::BumpPtrAllocator Alloc;
-  llvm::StringSaver Saver(Alloc);
 
   std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
       llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
@@ -284,8 +289,8 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
   llvm::Expected<llvm::cas::CASID> Root =
       Tool.getDependencyTreeFromCompilerInvocation(
           std::make_shared<CompilerInvocation>(*Invocation), WorkingDirectory,
-          *DiagsConsumer, [&](StringRef Path) {
-            return remapPath(Path, Saver, ComputedMapping);
+          *DiagsConsumer, [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
+            return remapPath(Entry.getTreePath(), Saver, ComputedMapping);
           });
 
   if (!Root) {
@@ -320,6 +325,14 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
     return 1;
   }
 
+  if (!DumpDepscanTree.empty()) {
+    std::error_code EC;
+    llvm::raw_fd_ostream RootOS(DumpDepscanTree, EC);
+    if (EC)
+      Diags.Report(diag::err_fe_unable_to_open_output)
+          << DumpDepscanTree << EC.message();
+    RootOS << RootID << "\n";
+  }
   writeResponseFile(*(*OutputFile)->getOS(), NewArgs);
 
   if (auto Err = (*OutputFile)->close()) {
@@ -619,8 +632,9 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
         llvm::Expected<llvm::cas::CASID> Root =
             Tool->getDependencyTreeFromCompilerInvocation(
                 std::make_shared<CompilerInvocation>(*Invocation),
-                WorkingDirectory, *DiagsConsumer, [&](StringRef Path) {
-                  return remapPath(Path, Saver, ComputedMapping);
+                WorkingDirectory, *DiagsConsumer,
+                [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
+                  return remapPath(Entry.getTreePath(), Saver, ComputedMapping);
                 });
         if (!Root) {
           SharedOS.applyLocked([&](raw_ostream &OS) {

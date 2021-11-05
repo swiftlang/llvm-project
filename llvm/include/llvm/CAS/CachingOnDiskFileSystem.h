@@ -41,8 +41,35 @@ public:
 
   /// Create a tree that represents all stats tracked since the call to \a
   /// trackNewAccesses(). Stops tracking new accesses.
+  ///
+  /// If provided, \p RemapPath is used to adjust paths in the created CAS
+  /// tree.
+  ///
+  /// FIXME: Targets of symbolic links are not currently remapped. For example,
+  /// given:
+  ///
+  ///     /sym1 -> old
+  ///     /old/filename
+  ///     /old/sym2 -> filename
+  ///     /old/sym3 -> /old/filename
+  ///
+  /// If \p RemapPath uses a mapping prefix "/old=/new", then the resulting
+  /// tree will be:
+  ///
+  ///     /sym1 -> old               [broken]
+  ///     /new/filename
+  ///     /new/sym2 -> filename
+  ///     /new/sym3 -> /old/filename [broken]
+  ///
+  /// ... but the correct result would keep /sym1 and /old/sym3 working:
+  ///
+  ///     /sym1 -> new               [broken]
+  ///     /new/filename
+  ///     /new/sym2 -> filename
+  ///     /new/sym3 -> /new/filename [broken]
   virtual Expected<TreeRef> createTreeFromNewAccesses(
-      llvm::function_ref<StringRef(StringRef)> RemapPath = nullptr) = 0;
+      llvm::function_ref<StringRef(const vfs::CachedDirectoryEntry &)>
+          RemapPath = nullptr) = 0;
 
   /// Create a tree that represents all known directories, files, and symlinks.
   virtual Expected<TreeRef> createTreeFromAllAccesses() = 0;

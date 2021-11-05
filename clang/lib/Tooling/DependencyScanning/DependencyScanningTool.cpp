@@ -191,9 +191,11 @@ llvm::Expected<llvm::cas::TreeRef>
 DependencyScanningTool::getDependencyTreeFromCompilerInvocation(
     std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
     DiagnosticConsumer &DiagsConsumer,
-    llvm::function_ref<StringRef(StringRef)> RemapPath) {
+    llvm::function_ref<StringRef(const llvm::vfs::CachedDirectoryEntry &)>
+        RemapPath) {
   llvm::cas::CachingOnDiskFileSystem &FS = Worker.getRealFS();
   FS.trackNewAccesses();
+  FS.setCurrentWorkingDirectory(CWD);
   MakeDependencyTree DepsConsumer(FS);
   Worker.computeDependenciesFromCompilerInvocation(std::move(Invocation), CWD,
                                                    DepsConsumer, DiagsConsumer);

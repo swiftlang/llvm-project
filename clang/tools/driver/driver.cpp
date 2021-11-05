@@ -421,8 +421,8 @@ static void addCC1ScanDepsArgsInline(
   llvm::Expected<llvm::cas::CASID> Root =
       Tool.getDependencyTreeFromCompilerInvocation(
           std::make_shared<CompilerInvocation>(*Invocation), WorkingDirectory,
-          *DiagsConsumer, [&](StringRef Path) {
-            return remapPath(Path, Saver, ComputedMapping);
+          *DiagsConsumer, [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
+            return remapPath(Entry.getTreePath(), Saver, ComputedMapping);
           });
   if (!Root) {
     // FIXME: Use D.Diags somehow...

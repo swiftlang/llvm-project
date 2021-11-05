@@ -95,7 +95,8 @@ public:
   llvm::Expected<llvm::cas::TreeRef> getDependencyTreeFromCompilerInvocation(
       std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
       DiagnosticConsumer &DiagsConsumer,
-      llvm::function_ref<StringRef(StringRef)> RemapPath = nullptr);
+      llvm::function_ref<StringRef(const llvm::vfs::CachedDirectoryEntry &)>
+          RemapPath = nullptr);
 
   llvm::Expected<llvm::cas::TreeRef>
   getDependencyTreeFromCC1CommandLine(ArrayRef<const char *> Args,

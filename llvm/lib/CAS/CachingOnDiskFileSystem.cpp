@@ -106,7 +106,8 @@ public:
 
   void trackNewAccesses() final;
   Expected<TreeRef> createTreeFromNewAccesses(
-      llvm::function_ref<StringRef(StringRef)> RemapPath) final;
+      llvm::function_ref<StringRef(const vfs::CachedDirectoryEntry &)>
+          RemapPath) final;
   Expected<TreeRef> createTreeFromAllAccesses() final;
   std::unique_ptr<CachingOnDiskFileSystem::TreeBuilder>
   createTreeBuilder() final;
@@ -607,7 +608,8 @@ void CachingOnDiskFileSystemImpl::trackNewAccesses() {
 }
 
 Expected<TreeRef> CachingOnDiskFileSystemImpl::createTreeFromNewAccesses(
-    llvm::function_ref<StringRef(StringRef)> RemapPath) {
+    llvm::function_ref<StringRef(const vfs::CachedDirectoryEntry &)>
+        RemapPath) {
   Optional<DenseSet<const DirectoryEntry *>> MaybeTrackedAccesses;
   {
     std::lock_guard<std::mutex> Lock(TrackedAccessesMutex);
@@ -619,9 +621,10 @@ Expected<TreeRef> CachingOnDiskFileSystemImpl::createTreeFromNewAccesses(
 
   HierarchicalTreeBuilder Builder;
   for (const DirectoryEntry *Entry : *MaybeTrackedAccesses) {
-    StringRef Path = Entry->getTreePath();
-    if (RemapPath)
-      Path = RemapPath(Path);
+    StringRef Path = RemapPath ? RemapPath(*Entry) : Entry->getTreePath();
+
+    // FIXME: If Entry is a symbol link, the spelling of its target should be
+    // remapped.
     if (Entry->isDirectory())
       Builder.pushDirectory(Path);
     else

@@ -4,5 +4,6 @@
 // RUN: %clang -cc1depscan -cc1-args -triple x86_64-apple-macos11.0 -x c %s -o %s.o 2>&1 | FileCheck %s
 
 // CHECK: "-fcas" "builtin"
+// CHECK: "-fcas-builtin-path" "/^llvm::cas::builtin::default/llvm.cas.builtin.default"
 
 int test() { return 0; }
