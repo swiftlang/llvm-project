@@ -257,7 +257,6 @@ struct TableGenCache {
 
   SmallVector<MappedPrefix> PrefixMappings;
   BumpPtrAllocator Alloc;
-  Optional<TreePathPrefixMapper> PM;
   Optional<PrefixMapper> InversePM;
 
   TableGenCache() = default;
@@ -272,19 +271,14 @@ struct TableGenCache {
   Error computeResult(TableGenMainFn *MainFn);
   Error replayResult();
 
-  void createPrefixMap(IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS);
   void createInversePrefixMap();
 };
 } // end namespace
 
-void TableGenCache::createPrefixMap(
-    IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS) {
-  assert(!PM);
-  PM.emplace(std::move(FS), Alloc);
-  PM->addRangeIfValid(PrefixMappings);
-}
-
 void TableGenCache::createInversePrefixMap() {
+  if (PrefixMappings.empty())
+    return;
+
   InversePM.emplace(Alloc);
   InversePM->addInverseRange(PrefixMappings);
   CreateDependencyFilePM = &*InversePM;
@@ -537,6 +531,7 @@ int llvm::TableGenMain(ArrayRef<const char *> Args, TableGenMainFn *MainFn) {
   if (Error E =
           MappedPrefix::transformJoined(DepscanPrefixMap, Cache.PrefixMappings))
     return reportError(Args[0], std::move(E));
+  Cache.createInversePrefixMap();
 
   if (Error E = Cache.lookupCachedResult(Args))
     return reportError(Args[0], std::move(E));
