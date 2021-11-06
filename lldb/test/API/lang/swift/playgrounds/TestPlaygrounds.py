@@ -66,6 +66,11 @@ class TestSwiftPlaygrounds(TestBase):
             triple = '{}-apple-macosx{}'.format(machine, version)
         return triple
 
+    # TODO: rdar://85093828 -- the weak-imported
+    # `swift_async_extendedFramePointerFlags` symbol is being marked as fatally
+    # missing, even though it's in the concurrency backdeploy library.
+    # This should only effect systems using backdeploy (Earlier than 12.0.1).
+    @skipIf(macos_version["<", "12.0.1"])
     @skipUnlessDarwin
     @swiftTest
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
