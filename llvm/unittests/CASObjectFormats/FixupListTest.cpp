@@ -20,11 +20,16 @@ namespace {
 
 TEST(FixupListTest, Empty) {
   EXPECT_EQ(FixupList().begin(), FixupList().end());
+  EXPECT_EQ(true, FixupList().empty());
 
 #if !defined(NDEBUG) && GTEST_HAS_DEATH_TEST
   EXPECT_DEATH(++FixupList().begin(), "past the end");
   EXPECT_DEATH(++FixupList().end(), "past the end");
 #endif
+
+  SmallString<128> Data;
+  FixupList::encode(ArrayRef<Fixup>(), Data);
+  EXPECT_EQ(true, Data.empty());
 }
 
 TEST(FixupListTest, Single) {
@@ -37,6 +42,7 @@ TEST(FixupListTest, Single) {
 
   {
     FixupList FL = makeList(Fixup{jitlink::Edge::Kind(0), 0U});
+    EXPECT_EQ(false, FL.empty());
     EXPECT_NE(FL.begin(), FL.end());
     EXPECT_EQ(jitlink::Edge::Kind(0), FL.begin()->Kind);
     EXPECT_EQ(0U, FL.begin()->Offset);
@@ -49,6 +55,7 @@ TEST(FixupListTest, Single) {
 
   {
     FixupList FL = makeList(Fixup{jitlink::Edge::Kind(127), 12345678U});
+    EXPECT_EQ(false, FL.empty());
     EXPECT_NE(FL.begin(), FL.end());
     EXPECT_EQ(jitlink::Edge::Kind(127), FL.begin()->Kind);
     EXPECT_EQ(12345678U, FL.begin()->Offset);
@@ -72,6 +79,7 @@ TEST(FixupListTest, Multiple) {
   SmallString<128> Data;
   FixupList::encode(Input, Data);
   FixupList FL(Data);
+  EXPECT_EQ(false, FL.empty());
   SmallVector<Fixup, 16> Output(FL.begin(), FL.end());
   EXPECT_EQ(makeArrayRef(Input), makeArrayRef(Output));
 }

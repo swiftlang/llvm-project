@@ -272,7 +272,6 @@ struct StatCollector {
   DenseSet<cas::CASID> SymbolNames;
   DenseSet<cas::CASID> UndefinedSymbols;
   DenseSet<cas::CASID> ContentBlobs;
-  size_t NumContentBlobs0To16B = 0;
   size_t NumAnonymousSymbols = 0;
   size_t NumTemplateSymbols = 0;
   size_t NumTemplateTargets = 0;
@@ -411,11 +410,6 @@ void StatCollector::visitPOTItemNestedV1(
               expectedToOptional(Block->getBlockData())) {
         if (Data->isZeroFill())
           ++NumZeroFillBlocks;
-        if (Optional<cas::CASID> Content = Data->getContentID())
-          if (ContentBlobs.insert(*Content).second)
-            if (Optional<ContentRef> Blob =
-                    expectedToOptional(ContentRef::get(Schema, *Content)))
-              NumContentBlobs0To16B += Blob->getContent().size() <= 16;
       }
     }
   }
@@ -609,7 +603,6 @@ void StatCollector::printToOuts(ArrayRef<CASID> TopLevels) {
   printIfNotZero("num-symbol-names",
                  SymbolNames.size() + UndefinedSymbols.size());
   printIfNotZero("num-undefined-symbols", UndefinedSymbols.size());
-  printIfNotZero("num-content-0-to-16B", NumContentBlobs0To16B);
   printIfNotZero("num-anonymous-symbols", NumAnonymousSymbols);
   printIfNotZero("num-template-symbols", NumTemplateSymbols);
   printIfNotZero("num-template-targets", NumTemplateTargets);

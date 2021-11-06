@@ -21,7 +21,6 @@ using namespace llvm::casobjectformats;
 using namespace llvm::casobjectformats::nestedv1;
 
 const StringLiteral NameRef::KindString;
-const StringLiteral ContentRef::KindString;
 const StringLiteral BlockDataRef::KindString;
 const StringLiteral TargetListRef::KindString;
 const StringLiteral SectionRef::KindString;
@@ -95,11 +94,10 @@ Error ObjectFileSchema::fillCache() {
 
   StringRef AllKindStrings[] = {
       BlockDataRef::KindString,   BlockRef::KindString,
-      CompileUnitRef::KindString, ContentRef::KindString,
-      EncodedDataRef::KindString, NameListRef::KindString,
-      NameRef::KindString,        SectionRef::KindString,
-      SymbolRef::KindString,      SymbolTableRef::KindString,
-      TargetListRef::KindString,
+      CompileUnitRef::KindString, EncodedDataRef::KindString,
+      NameListRef::KindString,    NameRef::KindString,
+      SectionRef::KindString,     SymbolRef::KindString,
+      SymbolTableRef::KindString, TargetListRef::KindString,
   };
   cas::CASID Refs[] = {*RootKindID};
   SmallVector<cas::CASID> IDs = {*RootKindID};
@@ -249,80 +247,17 @@ Expected<NameRef> NameRef::create(const ObjectFileSchema &Schema,
   return get(B->build());
 }
 
-Expected<ContentRef> ContentRef::get(Expected<ObjectFormatNodeRef> Ref) {
-  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
-  if (!Specific)
-    return Specific.takeError();
-
-  if (Specific->getNumReferences())
-    return createStringError(inconvertibleErrorCode(), "corrupt content");
-
-  return ContentRef(*Specific);
-}
-
-Expected<ContentRef> ContentRef::create(const ObjectFileSchema &Schema,
-                                        StringRef Content) {
-  Expected<Builder> B = Builder::startNode(Schema, KindString);
-  if (!B)
-    return B.takeError();
-
-  // FIXME: Should this be aligned?
-  B->Data.append(Content);
-  return get(B->build());
-}
-
-cas::CASID BlockDataRef::getFixupsID() const {
-  assert(HasFixups);
-  assert(!EmbeddedFixupsSize);
-  return getReference(!isZeroFill());
-}
-
-Expected<FixupList> BlockDataRef::getFixups() const {
-  if (!HasFixups)
-    return FixupList("");
-
-  if (EmbeddedFixupsSize)
-    return FixupList(getData().take_back(EmbeddedFixupsSize));
-
-  if (Expected<EncodedDataRef> Fixups =
-          EncodedDataRef::get(getSchema(), getFixupsID()))
-    return FixupList(Fixups->getEncodedList());
-  else
-    return Fixups.takeError();
-}
-
 Expected<BlockDataRef> BlockDataRef::get(Expected<ObjectFormatNodeRef> Ref) {
   auto Specific = SpecificRefT::getSpecific(std::move(Ref));
   if (!Specific)
     return Specific.takeError();
 
-  if (Specific->getNumReferences() > 2)
+  if (Specific->getNumReferences() > 0)
     return createStringError(inconvertibleErrorCode(),
                              "corrupt block data; got " +
                                  Twine(Specific->getNumReferences()) + " refs");
 
-  StringRef Remaining = Specific->getData();
-  bool IsZeroFill = Remaining[0];
-  Remaining = Remaining.drop_front();
-
-  uint64_t Size;
-  uint64_t Alignment;
-  uint64_t AlignmentOffset;
-  Error E = encoding::consumeVBR8(Remaining, Size);
-  if (!E)
-    E = encoding::consumeVBR8(Remaining, Alignment);
-  if (!E)
-    E = encoding::consumeVBR8(Remaining, AlignmentOffset);
-  if (E) {
-    consumeError(std::move(E));
-    return createStringError(inconvertibleErrorCode(), "corrupt block data");
-  }
-  uint32_t EmbeddedFixupsSize = Remaining.size();
-  bool HasFixups =
-      EmbeddedFixupsSize || Specific->getNumReferences() > (!IsZeroFill);
-
-  return BlockDataRef(*Specific, Size, Alignment, AlignmentOffset,
-                      EmbeddedFixupsSize, IsZeroFill, HasFixups);
+  return BlockDataRef(*Specific, data::BlockData(Specific->getData()));
 }
 
 cl::opt<size_t> MaxEdgesToEmbedInBlock(
@@ -330,33 +265,14 @@ cl::opt<size_t> MaxEdgesToEmbedInBlock(
     cl::desc("Maximum number of edges to embed in a block."), cl::init(8));
 
 Expected<BlockDataRef> BlockDataRef::createImpl(
-    const ObjectFileSchema &Schema, Optional<ContentRef> Content, uint64_t Size,
+    const ObjectFileSchema &Schema, Optional<StringRef> Content, uint64_t Size,
     uint64_t Alignment, uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
     return B.takeError();
 
-  if (Content)
-    B->IDs.push_back(*Content);
-
-  B->Data.push_back((unsigned char)!Content);
-  encoding::writeVBR8(Size, B->Data);
-  encoding::writeVBR8(Alignment, B->Data);
-  encoding::writeVBR8(AlignmentOffset, B->Data);
-
-  if (Fixups.size() > MaxEdgesToEmbedInBlock) {
-    auto FixupsRef =
-        EncodedDataRef::create(Schema, [Fixups](SmallVectorImpl<char> &Data) {
-          FixupList::encode(Fixups, Data);
-        });
-    if (!FixupsRef)
-      return FixupsRef.takeError();
-    B->IDs.push_back(*FixupsRef);
-  } else if (!Fixups.empty()) {
-    FixupList::encode(Fixups, B->Data);
-  }
-
-  // FIXME: Streamline again.
+  data::BlockData::encode(Size, Alignment, AlignmentOffset, Content, Fixups,
+                          B->Data);
   return get(B->build());
 }
 
@@ -424,22 +340,10 @@ BlockDataRef::createZeroFill(const ObjectFileSchema &Schema, uint64_t Size,
 }
 
 Expected<BlockDataRef>
-BlockDataRef::createContent(const ObjectFileSchema &Schema, ContentRef Content,
-                            uint64_t Alignment, uint64_t AlignmentOffset,
-                            ArrayRef<Fixup> Fixups) {
-  return createImpl(Schema, Content, Content.getData().size(), Alignment,
-                    AlignmentOffset, Fixups);
-}
-
-Expected<BlockDataRef>
 BlockDataRef::createContent(const ObjectFileSchema &Schema, StringRef Content,
                             uint64_t Alignment, uint64_t AlignmentOffset,
                             ArrayRef<Fixup> Fixups) {
-  Expected<ContentRef> Ref = ContentRef::create(Schema, Content);
-  if (!Ref)
-    return Ref.takeError();
-
-  return createImpl(Schema, *Ref, Content.size(), Alignment, AlignmentOffset,
+  return createImpl(Schema, Content, Content.size(), Alignment, AlignmentOffset,
                     Fixups);
 }
 
@@ -2170,11 +2074,8 @@ LinkGraphBuilder::getOrCreateBlock(jitlink::Symbol &ForSymbol, BlockRef Block,
   uint64_t AlignmentOffset = BlockData->getAlignmentOffset();
   Optional<ArrayRef<char>> Content;
   if (!BlockData->isZeroFill()) {
-    Expected<Optional<ContentRef>> ExpectedContent = BlockData->getContent();
-    if (!ExpectedContent)
-      return ExpectedContent.takeError();
-    assert(*ExpectedContent && "Block is not zero-fill so it should have data");
-    Content = (*ExpectedContent)->getContentArray();
+    Content = BlockData->getContentArray();
+    assert(Content && "Block is not zero-fill so it should have data");
     assert(Size == Content->size());
   }
 

@@ -183,31 +183,6 @@ private:
   explicit NameRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 };
 
-class ContentRef : public SpecificRef<ContentRef> {
-  using SpecificRefT = SpecificRef<ContentRef>;
-  friend class SpecificRef<ContentRef>;
-
-public:
-  static constexpr StringLiteral KindString = "cas.o:content";
-
-  StringRef getContent() const { return getData(); }
-  ArrayRef<char> getContentArray() const {
-    StringRef Content = getContent();
-    return makeArrayRef(Content.begin(), Content.size());
-  }
-
-  static Expected<ContentRef> create(const ObjectFileSchema &Schema,
-                                     StringRef Content);
-  static Expected<ContentRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<ContentRef> get(const ObjectFileSchema &Schema,
-                                  cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-
-private:
-  explicit ContentRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
-};
-
 /// A section.
 ///
 /// Note: the name is stored separately since in some formats there are
@@ -273,23 +248,14 @@ class BlockDataRef : public SpecificRef<BlockDataRef> {
 public:
   static constexpr StringLiteral KindString = "cas.o:block-data";
 
-  bool isZeroFill() const { return IsZeroFill; }
-  uint64_t getSize() const { return Size; }
-  uint64_t getAlignment() const { return Alignment; }
-  uint64_t getAlignmentOffset() const { return AlignmentOffset; }
-  Expected<FixupList> getFixups() const;
-
-private:
-  cas::CASID getFixupsID() const;
-
-public:
-  Optional<cas::CASID> getContentID() const {
-    return isZeroFill() ? Optional<cas::CASID>() : getReference(0);
-  }
-  Expected<Optional<ContentRef>> getContent() const {
-    if (Optional<cas::CASID> Content = getContentID())
-      return ContentRef::get(getSchema(), *Content);
-    return None;
+  bool isZeroFill() const { return Data.isZeroFill(); }
+  uint64_t getSize() const { return Data.getSize(); }
+  uint64_t getAlignment() const { return Data.getAlignment(); }
+  uint64_t getAlignmentOffset() const { return Data.getAlignmentOffset(); }
+  FixupList getFixups() const { return Data.getFixups(); }
+  Optional<StringRef> getContent() const { return Data.getContent(); }
+  Optional<ArrayRef<char>> getContentArray() const {
+    return Data.getContentArray();
   }
 
   static Expected<BlockDataRef> get(Expected<ObjectFormatNodeRef> Ref);
@@ -305,12 +271,6 @@ public:
                                                ArrayRef<Fixup> Fixups);
 
   static Expected<BlockDataRef> createContent(const ObjectFileSchema &Schema,
-                                              ContentRef Content,
-                                              uint64_t Alignment,
-                                              uint64_t AlignmentOffset,
-                                              ArrayRef<Fixup> Fixups);
-
-  static Expected<BlockDataRef> createContent(const ObjectFileSchema &Schema,
                                               StringRef Content,
                                               uint64_t Alignment,
                                               uint64_t AlignmentOffset,
@@ -321,22 +281,12 @@ public:
                                        ArrayRef<Fixup> Fixups);
 
 private:
-  uint64_t Size;
-  uint64_t Alignment;
-  uint64_t AlignmentOffset;
-  uint32_t EmbeddedFixupsSize;
-  bool IsZeroFill;
-  bool HasFixups;
-  explicit BlockDataRef(SpecificRefT Ref, uint64_t Size, uint64_t Alignment,
-                        uint64_t AlignmentOffset, uint32_t EmbeddedFixupsSize,
-                        bool IsZeroFill, bool HasFixups)
-      : SpecificRefT(Ref), Size(Size), Alignment(Alignment),
-        AlignmentOffset(AlignmentOffset),
-        EmbeddedFixupsSize(EmbeddedFixupsSize), IsZeroFill(IsZeroFill),
-        HasFixups(HasFixups) {}
+  data::BlockData Data;
+  explicit BlockDataRef(SpecificRefT Ref, data::BlockData Data)
+      : SpecificRefT(Ref), Data(Data) {}
 
   static Expected<BlockDataRef> createImpl(const ObjectFileSchema &Schema,
-                                           Optional<ContentRef> Content,
+                                           Optional<StringRef> Content,
                                            uint64_t Size, uint64_t Alignment,
                                            uint64_t AlignmentOffset,
                                            ArrayRef<Fixup> Fixups);

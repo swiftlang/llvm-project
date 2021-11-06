@@ -10,6 +10,7 @@
 #define LLVM_CASOBJECTFORMATS_DATA_H
 
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
+#include "llvm/Support/Alignment.h"
 #include <type_traits>
 
 namespace llvm {
@@ -77,6 +78,7 @@ public:
 
   iterator begin() const { return iterator(Data); }
   iterator end() const { return iterator(iterator::EndTag{}, Data); }
+  bool empty() const { return begin() == end(); }
 
   static void encode(ArrayRef<const jitlink::Edge *> Edges,
                      SmallVectorImpl<char> &Data);
@@ -87,6 +89,80 @@ public:
   explicit FixupList(StringRef Data) : Data(Data) {}
 
 private:
+  StringRef Data;
+};
+
+/// Block data, including fixups but not targets. This embeds a \a FixupList
+/// directly.
+///
+/// data   ::= header size content? fixup-list? alignment-offset?
+/// header ::= 6-bit alignment | IsZeroFill | HasAlignmentOffset
+class BlockData {
+  enum : unsigned {
+    NumAlignmentBits = 6,
+    AlignmentMask = (1u << NumAlignmentBits) - 1u,
+    HasAlignmentOffsetBit = NumAlignmentBits,
+    IsZeroFillBit,
+    AfterHeader = 1,
+  };
+  static_assert(IsZeroFillBit < 8, "Ran out of bits");
+
+public:
+  BlockData() = delete;
+  explicit BlockData(StringRef Data) : Data(Data) {
+    assert(Data.size() >= 2 && "Expected at least two bytes of data");
+  }
+
+  /// Encode block data.
+  ///
+  /// - Pass \a None for \p Content to make it zero-fill.
+  /// - Pass \a None for \p Fixups to encode them externally.
+  ///
+  /// Uses minimum of 2B (1B + VBR8(Size)). \p AlignmentOffset, \p Content, and
+  /// \p Fixups add no storage cost if they are not used.
+  static void encode(uint64_t Size, uint64_t Alignment,
+                     uint64_t AlignmentOffset, Optional<StringRef> Content,
+                     ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data);
+
+  Error decode(uint64_t &Size, uint64_t &Alignment, uint64_t &AlignmentOffset,
+               Optional<StringRef> &Content, FixupList &Fixups) const;
+
+  bool isZeroFill() const { return front() & (1u << IsZeroFillBit); }
+  uint64_t getSize() const {
+    StringRef Remaining = Data.drop_front(AfterHeader);
+    return consumeSizeFatal(Remaining);
+  }
+  uint64_t getAlignment() const {
+    return llvm::decodeMaybeAlign(front() & AlignmentMask).valueOrOne().value();
+  }
+  uint64_t getAlignmentOffset() const {
+    return hasAlignmentOffset() ? decodeAlignmentOffset() : 0;
+  }
+  Optional<ArrayRef<char>> getContentArray() const {
+    if (Optional<StringRef> Content = getContent())
+      return makeArrayRef(Content->begin(), Content->end());
+    return None;
+  }
+  Optional<StringRef> getContent() const;
+  FixupList getFixups() const;
+
+private:
+  static size_t getNumAlignmentOffsetBytes(uint64_t Alignment) {
+    return Alignment < (1ULL << 8)
+               ? 1
+               : Alignment < (1ULL << 16) ? 2
+                                          : Alignment < (1ULL << 32) ? 4 : 8;
+  }
+  static Error consumeContent(StringRef &Remaining, uint64_t Size,
+                              Optional<StringRef> &Content);
+  static Error consumeSize(StringRef &Remaining, uint64_t &Size);
+  static uint64_t consumeSizeFatal(StringRef &Remaining);
+  bool hasAlignmentOffset() const {
+    return front() & (1u << HasAlignmentOffsetBit);
+  }
+  uint64_t decodeAlignmentOffset() const;
+  uint8_t front() const { return Data.front(); }
+
   StringRef Data;
 };
 

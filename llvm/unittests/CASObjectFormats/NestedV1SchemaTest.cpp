@@ -114,18 +114,12 @@ TEST(NestedV1SchemaTest, BlockData) {
     EXPECT_EQ(B->getAlignmentOffset(), Ref->getAlignmentOffset());
     EXPECT_EQ(B->isZeroFill(), Ref->isZeroFill());
 
-    Expected<Optional<ContentRef>> Content = Ref->getContent();
-    EXPECT_TRUE(bool(Content));
-    if (!Content) {
-      consumeError(Content.takeError());
-      continue;
-    }
+    Optional<ArrayRef<char>> Content = Ref->getContentArray();
     if (B->isZeroFill()) {
-      EXPECT_FALSE(bool(*Content));
+      EXPECT_FALSE(bool(Content));
       continue;
     }
-    EXPECT_EQ(StringRef(B->getContent().begin(), B->getContent().size()),
-              (*Content)->getContent());
+    EXPECT_EQ(B->getContent(), *Content);
   }
 }
 
