@@ -60,6 +60,7 @@ TEST(BlockDataTest, ZeroFill) {
                 makeArrayRef(TwoFixups[1]), makeArrayRef(TwoFixups)}) {
             BlockData Data =
                 makeData(Alloc, Size, A.value(), Offset, Content, Fixups);
+            EXPECT_EQ(!bool(Content), Data.isZeroFill());
             EXPECT_EQ(Size, Data.getSize());
             EXPECT_EQ(A.value(), Data.getAlignment());
             EXPECT_EQ(Offset, Data.getAlignmentOffset());
