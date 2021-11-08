@@ -34,6 +34,13 @@ const StringLiteral EdgeListRef::KindString;
 
 void ObjectFileSchema::anchor() {}
 
+cl::opt<bool> NestEdgesInBlock("nest-edges-in-block",
+                               cl::desc("Put edges in block"), cl::init(false));
+
+cl::opt<bool> EncodeIndexInCU("encode-index-in-cu",
+                              cl::desc("Encode all indexes in CU"),
+                              cl::init(false));
+
 Expected<cas::NodeRef>
 ObjectFileSchema::createFromLinkGraphImpl(const jitlink::LinkGraph &G,
                                           raw_ostream *DebugOS) const {
@@ -320,8 +327,8 @@ EdgeListRef::create(CompileUnitBuilder &CUB,
   return get(B->build());
 }
 
-Error EdgeListRef::materialize(LinkGraphBuilder &LGB,
-                               jitlink::Block &Parent) const {
+Error EdgeListRef::materialize(LinkGraphBuilder &LGB, jitlink::Block &Parent,
+                               unsigned BlockIdx) const {
   auto Remaining = getData();
 
   unsigned EdgeSize;
@@ -362,9 +369,6 @@ Error EdgeListRef::materialize(LinkGraphBuilder &LGB,
   return Error::success();
 }
 
-cl::opt<bool> NestEdgesInBlock("nest-edges-in-block",
-                               cl::desc("Put edges in block"), cl::init(false));
-
 Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
                                     const jitlink::Block &Block) {
   Expected<Builder> B = Builder::startNode(CUB.Schema, KindString);
@@ -375,7 +379,10 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   auto SectionIndex = CUB.getSectionIndex(Block.getSection());
   if (!SectionIndex)
     return SectionIndex.takeError();
-  encoding::writeVBR8(*SectionIndex, B->Data);
+  if (EncodeIndexInCU)
+    CUB.encodeIndex(*SectionIndex);
+  else
+    encoding::writeVBR8(*SectionIndex, B->Data);
 
   // Encode block attributes.
   encoding::writeVBR8(Block.getSize(), B->Data);
@@ -427,18 +434,19 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
 
   // Encode edges.
   if (!NestEdgesInBlock) {
-    auto EdgeList = CUB.getOrCreateEdgeList(Edges);
-    if (!EdgeList)
-      return EdgeList.takeError();
+    if (auto E = CUB.createAndReferenceEdges(Edges))
+      return E;
     return get(B->build());
   }
+
   encoding::writeVBR8(Block.edges_size(), B->Data);
   for (const auto *E : Edges) {
     // Nest the Edge in block.
     auto SymbolIndex = CUB.getSymbolIndex(E->getTarget());
     if (!SymbolIndex)
       return SymbolIndex.takeError();
-    encoding::writeVBR8(*SymbolIndex, B->Data);
+
+    CUB.encodeIndex(*SymbolIndex);
 
     // FIXME: Some of the fields are not stable.
     unsigned char Bits = 0;
@@ -461,9 +469,12 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
   unsigned char Bits;
 
   auto Remaining = getData();
-  auto E = encoding::consumeVBR8(Remaining, SectionIdx);
-  if (!E)
-    E = encoding::consumeVBR8(Remaining, Size);
+  if (EncodeIndexInCU)
+    SectionIdx = LGB.nextIdxForBlock(BlockIdx);
+  else if (auto E = encoding::consumeVBR8(Remaining, SectionIdx))
+    return E;
+
+  auto  E = encoding::consumeVBR8(Remaining, Size);
   if (!E)
     E = encoding::consumeVBR8(Remaining, Alignment);
   if (!E)
@@ -529,7 +540,7 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
     if (!Edge)
       return Edge.takeError();
 
-    if (auto Err = Edge->materialize(LGB, *BlockInfo->Block))
+    if (auto Err = Edge->materialize(LGB, *BlockInfo->Block, BlockIdx))
       return Err;
 
     return Error::success();
@@ -543,8 +554,9 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
 
   for (unsigned I = 0; I < EdgeSize; ++I) {
     unsigned SymbolIdx;
-    E = encoding::consumeVBR8(Remaining, SymbolIdx);
-    if (E)
+    if (EncodeIndexInCU)
+      SymbolIdx = LGB.nextIdxForBlock(BlockIdx);
+    else if (auto E = encoding::consumeVBR8(Remaining, SymbolIdx))
       return E;
 
     auto Symbol = LGB.getSymbol(SymbolIdx);
@@ -590,9 +602,8 @@ Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
   if (!B)
     return B.takeError();
 
-  auto Name = CUB.getOrCreateName(S.getName());
-  if (!Name)
-    return Name.takeError();
+  if (auto E = CUB.createAndReferenceName(S.getName()))
+    return E;
 
   // Encode attributes. FIXME: Not optimal encoding.
   encoding::writeVBR8(S.getSize(), B->Data);
@@ -676,6 +687,10 @@ Expected<SymbolRef> SymbolRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return SymbolRef(*Specific);
 }
 
+void CompileUnitBuilder::encodeIndex(unsigned Index) {
+  LocalIndexStorage.emplace_back(Index);
+}
+
 unsigned CompileUnitBuilder::recordNode(const ObjectFormatNodeRef &Ref) {
   // Try emplace the current index into map.
   auto LastIdx = IDs.size();
@@ -734,23 +749,23 @@ CompileUnitBuilder::getSymbolIndex(const jitlink::Symbol &S) {
                            "Symbol should be in the index array");
 }
 
-Expected<NameRef> CompileUnitBuilder::getOrCreateName(StringRef Name) {
+Error CompileUnitBuilder::createAndReferenceName(StringRef Name) {
   auto Ref = NameRef::create(*this, Name);
   if (!Ref)
     return Ref.takeError();
   // NameRef is not top level record, always record here.
   recordNode(*Ref);
-  return *Ref;
+  return Error::success();
 }
 
-Expected<EdgeListRef>
-CompileUnitBuilder::getOrCreateEdgeList(ArrayRef<const jitlink::Edge *> Edges) {
+Error CompileUnitBuilder::createAndReferenceEdges(
+    ArrayRef<const jitlink::Edge *> Edges) {
   auto Ref = EdgeListRef::create(*this, Edges);
   if (!Ref)
     return Ref.takeError();
   // EdgeListRef is not top level record, always record here.
   recordNode(*Ref);
-  return *Ref;
+  return Error::success();
 }
 
 Expected<SectionRef>

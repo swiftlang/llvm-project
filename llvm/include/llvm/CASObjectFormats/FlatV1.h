@@ -211,7 +211,8 @@ public:
     return get(Schema.getNode(ID));
   }
 
-  Error materialize(LinkGraphBuilder &LGB, jitlink::Block &Parent) const;
+  Error materialize(LinkGraphBuilder &LGB, jitlink::Block &Parent,
+                    unsigned BlockIdx) const;
 
 private:
   explicit EdgeListRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
@@ -312,9 +313,9 @@ public:
                      raw_ostream *DebugOS)
       : CAS(Schema.CAS), Schema(Schema), TT(Target), DebugOS(DebugOS) {}
 
-  Expected<NameRef> getOrCreateName(StringRef S);
-  Expected<EdgeListRef>
-  getOrCreateEdgeList(ArrayRef<const jitlink::Edge *> Edges);
+  Error createAndReferenceName(StringRef S);
+  Error createAndReferenceEdges(ArrayRef<const jitlink::Edge *> Edges);
+
   Expected<SectionRef> createSection(const jitlink::Section &S);
   Expected<BlockRef> createBlock(const jitlink::Block &B);
   Expected<SymbolRef> createSymbol(const jitlink::Symbol &S);
@@ -323,6 +324,9 @@ public:
   Expected<unsigned> getSectionIndex(const jitlink::Section &S);
   Expected<unsigned> getBlockIndex(const jitlink::Block &B);
   Expected<unsigned> getSymbolIndex(const jitlink::Symbol &S);
+
+  // Encode the index into compile unit.
+  void encodeIndex(unsigned Index);
 
 private:
   friend class CompileUnitRef;
@@ -368,7 +372,7 @@ public:
   }
 
   unsigned nextIdxForBlock(unsigned BlockIndex) {
-    return Blocks[BlockIndex].BlockIdx++;
+    return Indexes[Blocks[BlockIndex].BlockIdx++];
   }
 
   Expected<cas::CASID> nextID() {
