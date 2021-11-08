@@ -315,13 +315,10 @@ EdgeListRef::create(CompileUnitBuilder &CUB,
     // FIXME: Some of the fields are not stable.
     unsigned char Bits = 0;
     Bits |= E->isKeepAlive();
-    Bits |= E->isRelocation() << 1;
     encoding::writeVBR8(Bits, B->Data);
     encoding::writeVBR8(E->getKind(), B->Data);
     encoding::writeVBR8(E->getOffset(), B->Data);
     encoding::writeVBR8(E->getAddend(), B->Data);
-    if (E->isRelocation())
-      encoding::writeVBR8(E->getRelocation(), B->Data);
   }
 
   return get(B->build());
@@ -347,7 +344,7 @@ Error EdgeListRef::materialize(LinkGraphBuilder &LGB, jitlink::Block &Parent,
       return Symbol.takeError();
 
     unsigned char Bits, Kind;
-    unsigned Offset, Addend, Relocation = 0;
+    unsigned Offset, Addend;
     E = encoding::consumeVBR8(Remaining, Bits);
     if (!E)
       E = encoding::consumeVBR8(Remaining, Kind);
@@ -355,12 +352,6 @@ Error EdgeListRef::materialize(LinkGraphBuilder &LGB, jitlink::Block &Parent,
       E = encoding::consumeVBR8(Remaining, Offset);
     if (!E)
       E = encoding::consumeVBR8(Remaining, Addend);
-    if (E)
-      return E;
-
-    bool IsRelocation = Bits & (1U << 1);
-    if (IsRelocation)
-      E = encoding::consumeVBR8(Remaining, Relocation);
     if (E)
       return E;
 
@@ -390,9 +381,6 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   encoding::writeVBR8(Block.getAlignmentOffset(), B->Data);
   unsigned char Bits = 0;
   Bits |= Block.isZeroFill();
-  // Not currently useful.
-  Bits |= Block.isContentMutable() << 1;
-  Bits |= Block.isAbsolute() << 2;
   encoding::writeVBR8(Bits, B->Data);
 
   // For zerofill block, we can just return here because it has no edges.
@@ -451,13 +439,10 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
     // FIXME: Some of the fields are not stable.
     unsigned char Bits = 0;
     Bits |= E->isKeepAlive();
-    Bits |= E->isRelocation() << 1;
     encoding::writeVBR8(Bits, B->Data);
     encoding::writeVBR8(E->getKind(), B->Data);
     encoding::writeVBR8(E->getOffset(), B->Data);
     encoding::writeVBR8(E->getAddend(), B->Data);
-    if (E->isRelocation())
-      encoding::writeVBR8(E->getRelocation(), B->Data);
   }
 
   return get(B->build());
@@ -564,7 +549,7 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
       return Symbol.takeError();
 
     unsigned char Bits, Kind;
-    unsigned Offset, Addend, Relocation = 0;
+    unsigned Offset, Addend;
     E = encoding::consumeVBR8(Remaining, Bits);
     if (!E)
       E = encoding::consumeVBR8(Remaining, Kind);
@@ -572,12 +557,6 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
       E = encoding::consumeVBR8(Remaining, Offset);
     if (!E)
       E = encoding::consumeVBR8(Remaining, Addend);
-    if (E)
-      return E;
-
-    bool IsRelocation = Bits & (1U << 1);
-    if (IsRelocation)
-      E = encoding::consumeVBR8(Remaining, Relocation);
     if (E)
       return E;
 
