@@ -443,16 +443,15 @@ int ingestFileSystem(CASDB &CAS, StringRef Path,
   ExitOnErr(recursiveAccess(**FS, Path));
 
   BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
-  Optional<PrefixMapper> PM;
+  Optional<TreePathPrefixMapper> PM;
   if (!Mappings.empty()) {
-    PM.emplace(Saver);
-    PM->addRange(Mappings);
+    PM.emplace(*FS, Alloc);
+    ExitOnErr(PM->addRange(Mappings));
     PM->sort();
   }
 
   auto Ref = (*FS)->createTreeFromNewAccesses(
-      [&](StringRef Path) { return PM ? PM->map(Path) : Path; });
+      [&](StringRef Path) { return PM ? PM->mapOrOriginal(Path) : Path; });
   if (!Ref)
     ExitOnErr(Ref.takeError());
 
