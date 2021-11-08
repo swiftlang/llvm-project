@@ -42,6 +42,19 @@ canonicalizeContent(Triple::ArchType Arch, StringRef Content,
                     ArrayRef<data::Fixup> FixupsToZero = None,
                     Optional<Align> TrailingNopsAlignment = None);
 
+/// Helpers to sort jitlink::Symbols into stable ordering so the same object
+/// will always have the same symbol ordering between builds.
+bool compareSymbolsBySemanticsAnd(
+    const jitlink::Symbol *LHS, const jitlink::Symbol *RHS,
+    function_ref<bool(const jitlink::Symbol *, const jitlink::Symbol *)>
+        NextCompare);
+
+bool compareSymbolsByLinkageAndSemantics(const jitlink::Symbol *LHS,
+                                         const jitlink::Symbol *RHS);
+
+bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
+                             const jitlink::Symbol *RHS);
+
 } // end namespace helpers
 } // end namespace casobjectformats
 } // end namespace llvm

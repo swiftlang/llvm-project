@@ -523,124 +523,6 @@ Expected<SectionRef> SectionRef::create(const ObjectFileSchema &Schema,
   return create(Schema, *Name, S.getProtectionFlags());
 }
 
-static bool compareSymbolsBySemanticsAnd(
-    const jitlink::Symbol *LHS, const jitlink::Symbol *RHS,
-    function_ref<bool(const jitlink::Symbol *, const jitlink::Symbol *)>
-        NextCompare) {
-  if (LHS == RHS)
-    return NextCompare(LHS, RHS);
-
-  // Sort by name, putting anonymous symbols last.
-  if (LHS->hasName() != RHS->hasName())
-    return LHS->hasName() > RHS->hasName();
-  if (LHS->hasName())
-    if (int Diff = LHS->getName().compare(RHS->getName()))
-      return Diff < 0;
-
-  // Put external symbols last, stopping if both are external.
-  if (LHS->isExternal() != RHS->isExternal())
-    return LHS->isExternal() < RHS->isExternal();
-  if (LHS->isExternal())
-    return NextCompare(LHS, RHS);
-
-  // Put absolute symbols after defined ones. Sort by symbol size if they're
-  // both absolute.
-  if (LHS->isAbsolute() != RHS->isAbsolute())
-    return LHS->isAbsolute() < RHS->isAbsolute();
-  if (LHS->isAbsolute()) {
-    if (LHS->getSize() != RHS->getSize())
-      return LHS->getSize() < RHS->getSize();
-    return NextCompare(LHS, RHS);
-  }
-
-  // Only defined symbols should remain.
-  assert(LHS->isDefined() && "Expected defined symbol");
-  assert(RHS->isDefined() && "Expected defined symbol");
-
-  // Compare section name.
-  const jitlink::Block &LB = LHS->getBlock();
-  const jitlink::Block &RB = RHS->getBlock();
-  if (&LB.getSection() != &RB.getSection())
-    if (int Diff = LB.getSection().getName().compare(RB.getSection().getName()))
-      return Diff < 0;
-
-  // Compare symbol size.
-  if (LHS->getSize() != RHS->getSize())
-    return LHS->getSize() < RHS->getSize();
-
-  // If it's the same block, compare by symbol offset.
-  if (&LB == &RB) {
-    if (LHS->getOffset() != RHS->getOffset())
-      return LHS->getOffset() < RHS->getOffset();
-    return NextCompare(LHS, RHS);
-  }
-
-  // Sort structurally by the block.
-  if (LB.edges_size() != RB.edges_size())
-    return LB.edges_size() < RB.edges_size();
-  if (LB.getSize() != RB.getSize())
-    return LB.getSize() < RB.getSize();
-
-  // Compare block content.
-  if (LB.isZeroFill() != RB.isZeroFill())
-    return LB.isZeroFill() < RB.isZeroFill();
-  if (LB.isZeroFill())
-    return NextCompare(LHS, RHS);
-
-  // FIXME: This could expensive. Maybe this should only be done sometimes
-  // (when symbols are mergeable by content?).
-  //
-  // FIXME: Fixups have not been zeroed out yet so this isn't going to match
-  // across TUs.
-  if (int Diff = StringRef(LB.getContent().begin(), LB.getSize())
-                     .compare(StringRef(RB.getContent().begin(), RB.getSize())))
-    return Diff < 0;
-  return NextCompare(LHS, RHS);
-}
-
-static bool compareSymbolsBySemantics(const jitlink::Symbol *LHS,
-                                      const jitlink::Symbol *RHS) {
-  return compareSymbolsBySemanticsAnd(
-      LHS, RHS,
-      [](const jitlink::Symbol *, const jitlink::Symbol *) { return false; });
-}
-
-static bool compareSymbolsByLinkageAndSemantics(const jitlink::Symbol *LHS,
-                                                const jitlink::Symbol *RHS) {
-  if (LHS == RHS)
-    return false;
-
-  // Put locals last.
-  if (LHS->getScope() != RHS->getScope())
-    return LHS->getScope() < RHS->getScope();
-
-  // Put strong symbols before weak symbols.
-  if (LHS->getLinkage() != RHS->getLinkage())
-    return LHS->getLinkage() < RHS->getLinkage();
-
-  // Put no-dead-strip symbols ahead of others.
-  if (LHS->isLive() != RHS->isLive())
-    return LHS->isLive() > RHS->isLive();
-
-  return compareSymbolsBySemantics(LHS, RHS);
-}
-
-static bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
-                                    const jitlink::Symbol *RHS) {
-  if (LHS == RHS)
-    return false;
-
-  if (LHS->isExternal() != RHS->isExternal())
-    return LHS->isExternal() < RHS->isExternal();
-
-  JITTargetAddress LAddr = LHS->getAddress();
-  JITTargetAddress RAddr = RHS->getAddress();
-  if (LAddr != RAddr)
-    return LAddr < RAddr;
-
-  return LHS->getSize() < RHS->getSize();
-}
-
 static void
 visitEdgesInStableOrder(const jitlink::Block &Block,
                         function_ref<void(const jitlink::Edge &E)> HandleEdge) {
@@ -661,7 +543,7 @@ visitEdgesInStableOrder(const jitlink::Block &Block,
 
         // Compare the target and addend. In practice this is
         // likely dead code.
-        return compareSymbolsBySemanticsAnd(
+        return helpers::compareSymbolsBySemanticsAnd(
             &LHS->getTarget(), &RHS->getTarget(),
             [&LHS, &RHS](const jitlink::Symbol *, const jitlink::Symbol *) {
               return LHS->getAddend() < RHS->getAddend();
@@ -706,8 +588,9 @@ static Error decomposeAndSortEdges(
   std::stable_sort(EdgeTargets.begin(), EdgeTargets.end(),
                    [&Fixups](const EdgeTarget &LHS, const EdgeTarget &RHS) {
                      if (LHS.Symbol != RHS.Symbol)
-                       return compareSymbolsBySemanticsAnd(
-                           LHS.Symbol, RHS.Symbol, compareSymbolsByAddress);
+                       return helpers::compareSymbolsBySemanticsAnd(
+                           LHS.Symbol, RHS.Symbol,
+                           helpers::compareSymbolsByAddress);
 
                      // Same symbol but different target means that either it's
                      // a different kind of reference, or a block got broken up.
@@ -1372,7 +1255,7 @@ Error CompileUnitBuilder::makeSymbols(const jitlink::LinkGraph &G) {
     size_t PreviousSize = Symbols.size();
     Symbols.append(NewSymbols.begin(), NewSymbols.end());
     llvm::sort(Symbols.begin() + PreviousSize, Symbols.end(),
-               compareSymbolsByAddress);
+               helpers::compareSymbolsByAddress);
   };
   for (const jitlink::Section &Section : G.sections())
     appendSymbols(Section.symbols());
@@ -1382,7 +1265,7 @@ Error CompileUnitBuilder::makeSymbols(const jitlink::LinkGraph &G) {
   // them. Use a stable sort so that the previous sort-by-section-then-address
   // will break ties.
   std::stable_sort(Symbols.begin(), Symbols.end(),
-                   compareSymbolsByLinkageAndSemantics);
+                   helpers::compareSymbolsByLinkageAndSemantics);
 
   // Make exported symbols with strong linkage. Delay weak and internal symbols
   // to make the order predictable for SCCs involving both.
