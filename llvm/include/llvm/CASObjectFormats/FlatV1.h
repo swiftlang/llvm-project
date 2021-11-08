@@ -1,4 +1,4 @@
-//===- llvm/CASObjectFormats/SimpleV1.h ------------------------*- C++ -*-===//
+//===- llvm/CASObjectFormats/FlatV1.h ---------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CASOBJECTFORMATS_SIMPLEV1_H
-#define LLVM_CASOBJECTFORMATS_SIMPLEV1_H
+#ifndef LLVM_CASOBJECTFORMATS_FLATV1_H
+#define LLVM_CASOBJECTFORMATS_FLATV1_H
 
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CASObjectFormats/Data.h"
@@ -16,7 +16,7 @@
 
 namespace llvm {
 namespace casobjectformats {
-namespace simplev1 {
+namespace flatv1 {
 
 using data::Fixup;
 
@@ -446,8 +446,8 @@ private:
   SmallVector<jitlink::Symbol *> Symbols;
 };
 
-} // namespace simplev1
+} // namespace flatv1
 } // namespace casobjectformats
 } // namespace llvm
 
-#endif // LLVM_CASOBJECTFORMATS_SIMPLEV1_H
+#endif // LLVM_CASOBJECTFORMATS_FLATV1_H

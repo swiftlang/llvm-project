@@ -1,8 +1,8 @@
 add_llvm_component_library(LLVMCASObjectFormats
   Data.cpp
+  FlatV1.cpp
   NestedV1.cpp
   SchemaBase.cpp
-  SimpleV1.cpp
   ObjectFormatHelpers.cpp
 
   ADDITIONAL_HEADER_DIRS

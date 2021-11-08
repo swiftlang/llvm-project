@@ -1,4 +1,4 @@
-//===- CASObjectFormats/SimpleV1.cpp --------------------------------------===//
+//===- CASObjectFormats/FlatV1.cpp ----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/CASObjectFormats/SimpleV1.h"
+#include "llvm/CASObjectFormats/FlatV1.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
@@ -23,7 +23,7 @@
 
 using namespace llvm;
 using namespace llvm::casobjectformats;
-using namespace llvm::casobjectformats::simplev1;
+using namespace llvm::casobjectformats::flatv1;
 
 const StringLiteral CompileUnitRef::KindString;
 const StringLiteral NameRef::KindString;
@@ -63,7 +63,7 @@ Error ObjectFileSchema::fillCache() {
   Optional<cas::CASID> RootKindID;
   const unsigned Version = 0; // Bump this to error on old object files.
   if (Expected<cas::NodeRef> ExpectedRootKind =
-          CAS.createNode(None, "cas.o:simplev1:schema:" + Twine(Version).str()))
+          CAS.createNode(None, "cas.o:flatv1:schema:" + Twine(Version).str()))
     RootKindID = *ExpectedRootKind;
   else
     return ExpectedRootKind.takeError();
@@ -85,7 +85,7 @@ Error ObjectFileSchema::fillCache() {
            "Ran out of bits for kind strings");
   }
 
-  auto ExpectedTypeID = CAS.createNode(IDs, "cas.o:simplev1:root");
+  auto ExpectedTypeID = CAS.createNode(IDs, "cas.o:flatv1:root");
   if (!ExpectedTypeID)
     return ExpectedTypeID.takeError();
   RootNodeTypeID = *ExpectedTypeID;
