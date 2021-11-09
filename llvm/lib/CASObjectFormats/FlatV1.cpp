@@ -31,6 +31,7 @@ const StringLiteral SectionRef::KindString;
 const StringLiteral BlockRef::KindString;
 const StringLiteral SymbolRef::KindString;
 const StringLiteral EdgeListRef::KindString;
+const StringLiteral BlockContentRef::KindString;
 
 void ObjectFileSchema::anchor() {}
 
@@ -84,6 +85,7 @@ Error ObjectFileSchema::fillCache() {
       BlockRef::KindString,  CompileUnitRef::KindString,
       NameRef::KindString,   SectionRef::KindString,
       SymbolRef::KindString, EdgeListRef::KindString,
+      BlockContentRef::KindString,
   };
   cas::CASID Refs[] = {*RootKindID};
   SmallVector<cas::CASID> IDs = {*RootKindID};
@@ -446,8 +448,13 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
     return E;
 
   // Encode content first with size and data.
-  encoding::writeVBR8(Content.size(), B->Data);
-  B->Data.append(Content);
+  if (UseBlockContentNode) {
+    if (auto E = CUB.createAndReferenceContent(Content))
+      return E;
+  } else {
+    encoding::writeVBR8(Content.size(), B->Data);
+    B->Data.append(Content);
+  }
 
   // Encode edges.
   if (!NestEdgesInBlock) {
@@ -507,15 +514,23 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
     return Error::success();
   }
 
-  unsigned ContentSize;
-  E = encoding::consumeVBR8(Remaining, ContentSize);
-  if (E)
-    return E;
-  auto Data = consumeDataOfSize(Remaining, ContentSize);
-  if (!Data)
-    return Data.takeError();
-
-  ArrayRef<char> Content(Data->data(), ContentSize);
+  StringRef ContentData;
+  if (UseBlockContentNode) {
+    auto ContentRef = LGB.getNode<BlockContentRef>(BlockIdx);
+    if (!ContentRef)
+      return ContentRef.takeError();
+    ContentData = ContentRef->getData();
+  } else {
+    unsigned ContentSize;
+    E = encoding::consumeVBR8(Remaining, ContentSize);
+    if (E)
+      return E;
+    auto Data = consumeDataOfSize(Remaining, ContentSize);
+    if (!Data)
+      return Data.takeError();
+    ContentData = *Data;
+  }
+  ArrayRef<char> Content(ContentData.data(), ContentData.size());
   auto &B = LGB.getLinkGraph()->createContentBlock(
       *SectionInfo->Section, Content, Address, Alignment, AlignOffset);
   if (auto E = LGB.addBlock(BlockIdx, &B))
@@ -539,7 +554,7 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
     return Error::success();
 
   if (!NestEdgesInBlock) {
-    auto Edge = LGB.getNode<EdgeListRef>(BlockInfo->BlockIdx++);
+    auto Edge = LGB.getNode<EdgeListRef>(BlockIdx);
     if (!Edge)
       return Edge.takeError();
 
@@ -569,6 +584,25 @@ Expected<BlockRef> BlockRef::get(Expected<ObjectFormatNodeRef> Ref) {
     return Specific.takeError();
 
   return BlockRef(*Specific);
+}
+
+Expected<BlockContentRef>
+BlockContentRef::get(Expected<ObjectFormatNodeRef> Ref) {
+  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
+  if (!Specific)
+    return Specific.takeError();
+
+  return BlockContentRef(*Specific);
+}
+
+Expected<BlockContentRef> BlockContentRef::create(CompileUnitBuilder &CUB,
+                                                  StringRef Content) {
+  Expected<Builder> B = Builder::startNode(CUB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+
+  B->Data.append(Content);
+  return get(B->build());
 }
 
 Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
@@ -751,6 +785,15 @@ Error CompileUnitBuilder::createAndReferenceName(StringRef Name) {
 Error CompileUnitBuilder::createAndReferenceEdges(
     ArrayRef<const jitlink::Edge *> Edges) {
   auto Ref = EdgeListRef::create(*this, Edges);
+  if (!Ref)
+    return Ref.takeError();
+  // EdgeListRef is not top level record, always record here.
+  recordNode(*Ref);
+  return Error::success();
+}
+
+Error CompileUnitBuilder::createAndReferenceContent(StringRef Content) {
+  auto Ref = BlockContentRef::create(*this, Content);
   if (!Ref)
     return Ref.takeError();
   // EdgeListRef is not top level record, always record here.
@@ -1020,7 +1063,7 @@ Error LinkGraphBuilder::materializeSections() {
 
 Error LinkGraphBuilder::materializeBlockContents() {
   for (unsigned I = 0; I < BlocksSize; ++I) {
-    auto Block = getNode<BlockRef>(Blocks[I].BlockIdx++);
+    auto Block = getNode<BlockRef>(I);
     if (!Block)
       return Block.takeError();
 
