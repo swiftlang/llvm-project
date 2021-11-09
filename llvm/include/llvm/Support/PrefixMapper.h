@@ -189,6 +189,7 @@ public:
 private:
   /// Find the tree path for \p Path, getting the real path for its parent
   /// directory but not following symlinks in \a sys::path::filename().
+  Expected<StringRef> getTreePath(StringRef Path);
   Error getTreePath(StringRef Path, SmallVectorImpl<char> &TreePath);
   Error canonicalizePrefix(StringRef &Prefix);
 

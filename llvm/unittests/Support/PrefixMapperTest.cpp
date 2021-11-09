@@ -397,6 +397,8 @@ public:
       {"/real/path/2", CachedDirectoryEntry("/real/path/2")},
       {"/real/path/2/", CachedDirectoryEntry("/real/path/2")},
       {"/real/path/2/nested", CachedDirectoryEntry("/real/path/2/nested")},
+      {"/unmapped/file", CachedDirectoryEntry("/unmapped/file")},
+      {"/unmapped/../unmapped/file", CachedDirectoryEntry("/unmapped/file")},
       {"/unmapped/symlink", CachedDirectoryEntry("/unmapped/symlink")},
       {"/unmapped/symlink/", CachedDirectoryEntry("/real/path/1")},
       {"/unmapped/symlink/nested", CachedDirectoryEntry("/real/path/1/nested")},
@@ -507,6 +509,8 @@ struct MapState {
 
   SmallVector<MappedPrefix> Tests = {
       {"", ""},
+      {"/unmapped/file", "/unmapped/file"},
+      {"/unmapped/../unmapped/file", "/unmapped/file"},
       {"relative", "/new1"},
       {"relative/nested", "/new1/nested"},
       {"symlink/to/relative", "/new1"},

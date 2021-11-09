@@ -186,16 +186,23 @@ TreePathPrefixMapper::TreePathPrefixMapper(
 
 TreePathPrefixMapper::~TreePathPrefixMapper() = default;
 
-Error TreePathPrefixMapper::getTreePath(StringRef Path,
-                                        SmallVectorImpl<char> &TreePath) {
-  assert(TreePath.empty() && "Expected to be fed an empty TreePath");
+Expected<StringRef> TreePathPrefixMapper::getTreePath(StringRef Path) {
   if (Path.empty())
-    return Error::success();
+    return Path;
   const vfs::CachedDirectoryEntry *Entry = nullptr;
   if (Error E =
           FS->getDirectoryEntry(Path, /*FollowSymlinks=*/false).moveInto(Entry))
+    return std::move(E);
+  return Entry->getTreePath();
+}
+
+Error TreePathPrefixMapper::getTreePath(StringRef Path,
+                                        SmallVectorImpl<char> &TreePath) {
+  assert(TreePath.empty() && "Expected to be fed an empty TreePath");
+  StringRef TreePathRef;
+  if (Error E = getTreePath(Path).moveInto(TreePathRef))
     return E;
-  TreePath.assign(Entry->getTreePath().begin(), Entry->getTreePath().end());
+  TreePath.assign(TreePathRef.begin(), TreePathRef.end());
   return Error::success();
 }
 
@@ -209,15 +216,15 @@ Error TreePathPrefixMapper::map(StringRef Path,
 }
 
 Expected<StringRef> TreePathPrefixMapper::map(StringRef Path) {
-  SmallString<256> TreePath;
-  if (Error E = getTreePath(Path, TreePath))
+  StringRef TreePath;
+  if (Error E = getTreePath(Path).moveInto(TreePath))
     return std::move(E);
   return PM.map(TreePath);
 }
 
 Expected<std::string> TreePathPrefixMapper::mapToString(StringRef Path) {
-  SmallString<256> TreePath;
-  if (Error E = getTreePath(Path, TreePath))
+  StringRef TreePath;
+  if (Error E = getTreePath(Path).moveInto(TreePath))
     return std::move(E);
   return PM.mapToString(TreePath);
 }
