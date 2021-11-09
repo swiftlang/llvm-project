@@ -16,7 +16,7 @@ using namespace llvm::tablegen;
 namespace {
 
 TEST(ScanDependenciesTest, scanTextForIncludes) {
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  std::pair<StringRef, SmallVector<StringRef>> Tests[] = {
       {"", {}},
       {"include \"file.td\"", {"file.td"}},
       {"include\"file.td\"", {"file.td"}},
@@ -32,12 +32,15 @@ TEST(ScanDependenciesTest, scanTextForIncludes) {
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+
+    // Include "T.first" so that it's included in failure output.
+    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
+              std::make_pair(T.first, makeArrayRef(Includes)));
   }
 }
 
 TEST(ScanDependenciesTest, scanFuzzyIncludesNotStart) {
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  std::pair<StringRef, SmallVector<StringRef>> Tests[] = {
       {" include \"file.td\"", {"file.td"}},
       {"    include \"file.td\"", {"file.td"}},
       {";include \"file.td\"", {"file.td"}},
@@ -55,12 +58,15 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesNotStart) {
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+
+    // Include "T.first" so that it's included in failure output.
+    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
+              std::make_pair(T.first, makeArrayRef(Includes)));
   }
 }
 
 TEST(ScanDependenciesTest, scanFuzzyIncludesSuffix) {
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  std::pair<StringRef, SmallVector<StringRef>> Tests[] = {
       {"include \"file.td\"\n", {"file.td"}},
       {"include \"file.td\"\r", {"file.td"}},
       {"include \"file.td\"\t", {"file.td"}},
@@ -74,26 +80,32 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesSuffix) {
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+
+    // Include "T.first" so that it's included in failure output.
+    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
+              std::make_pair(T.first, makeArrayRef(Includes)));
   }
 }
 
 TEST(ScanDependenciesTest, scanFuzzyIncludesWithPrefix) {
   // Don't recognize 'include' if it's not after an appropriate token?
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  std::pair<StringRef, SmallVector<StringRef>> Tests[] = {
       {"prefixinclude \"file.td\"", {}},
       {"prefix0include \"file.td\"", {}},
   };
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+
+    // Include "T.first" so that it's included in failure output.
+    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
+              std::make_pair(T.first, makeArrayRef(Includes)));
   }
 }
 
 TEST(ScanDependenciesTest, scanFuzzyIncludesComments) {
   // It'd be nice to skip comments but the current fuzzy scan doesn't bother.
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  std::pair<StringRef, SmallVector<StringRef>> Tests[] = {
       {"// include \"file.td\"", {"file.td"}},
       {"/* include \"file.td\"", {"file.td"}},
       {"/* include \"file.td\" */", {"file.td"}},
@@ -101,12 +113,15 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesComments) {
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+
+    // Include "T.first" so that it's included in failure output.
+    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
+              std::make_pair(T.first, makeArrayRef(Includes)));
   }
 }
 
 TEST(ScanDependenciesTest, flattenStrings) {
-  std::pair<ArrayRef<StringRef>, StringRef> Tests[] = {
+  std::pair<SmallVector<StringRef>, StringRef> Tests[] = {
       {{}, StringLiteral::withInnerNUL("")},
       {{""}, StringLiteral::withInnerNUL("\0")},
       {{"a"}, StringLiteral::withInnerNUL("a\0")},
@@ -122,7 +137,10 @@ TEST(ScanDependenciesTest, flattenStrings) {
 
     SmallVector<StringRef> Split;
     splitFlattenedStrings(T.second, Split);
-    EXPECT_EQ(T, std::make_pair(makeArrayRef(Split), T.second));
+
+    // Include "T.second" so that it's included in failure output.
+    EXPECT_EQ(std::make_pair(makeArrayRef(T.first), T.second),
+              std::make_pair(makeArrayRef(Split), T.second));
   }
 }
 
