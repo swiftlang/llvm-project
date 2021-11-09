@@ -186,6 +186,25 @@ TreePathPrefixMapper::TreePathPrefixMapper(
 
 TreePathPrefixMapper::~TreePathPrefixMapper() = default;
 
+void TreePathPrefixMapper::map(const vfs::CachedDirectoryEntry &Entry,
+                               SmallVectorImpl<char> &NewPath) {
+  PM.map(Entry.getTreePath(), NewPath);
+}
+
+void TreePathPrefixMapper::map(const vfs::CachedDirectoryEntry &Entry,
+                               std::string &NewPath) {
+  PM.map(Entry.getTreePath(), NewPath);
+}
+
+StringRef TreePathPrefixMapper::map(const vfs::CachedDirectoryEntry &Entry) {
+  return PM.map(Entry.getTreePath());
+}
+
+std::string
+TreePathPrefixMapper::mapToString(const vfs::CachedDirectoryEntry &Entry) {
+  return PM.mapToString(Entry.getTreePath());
+}
+
 Expected<StringRef> TreePathPrefixMapper::getTreePath(StringRef Path) {
   if (Path.empty())
     return Path;

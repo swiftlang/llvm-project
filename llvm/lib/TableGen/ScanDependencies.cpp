@@ -227,8 +227,7 @@ Expected<ScanIncludesResult> tablegen::scanIncludes(
 
   Expected<cas::TreeRef> Tree = FS->createTreeFromNewAccesses(
       [&](const vfs::CachedDirectoryEntry &Entry) {
-        return PM ? PM->mapOrOriginal(Entry.getTreePath())
-                  : Entry.getTreePath();
+        return PM ? PM->map(Entry) : Entry.getTreePath();
       });
   if (!Tree)
     return Tree.takeError();

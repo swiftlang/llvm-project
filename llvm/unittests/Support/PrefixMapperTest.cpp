@@ -573,6 +573,22 @@ TEST(TreePathPrefixMapperTest, map) {
     State.PM.mapOrOriginal(Map.Old, FoundS);
     EXPECT_EQ(Map.New, FoundV);
     EXPECT_EQ(Map.New, FoundS);
+
+    if (Map.Old.empty())
+      continue;
+    const vfs::CachedDirectoryEntry *Entry = nullptr;
+    ASSERT_THAT_ERROR(
+        State.FS->getDirectoryEntry(Map.Old, /*FollowSymlinks=*/false)
+            .moveInto(Entry),
+        Succeeded());
+    FoundV = "";
+    FoundS = "";
+    State.PM.map(*Entry, FoundV);
+    State.PM.map(*Entry, FoundS);
+    EXPECT_EQ(Map.New, State.PM.map(*Entry));
+    EXPECT_EQ(Map.New, State.PM.mapToString(*Entry));
+    EXPECT_EQ(Map.New, FoundV);
+    EXPECT_EQ(Map.New, FoundS);
   }
 }
 

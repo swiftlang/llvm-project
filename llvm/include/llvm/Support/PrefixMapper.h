@@ -19,6 +19,7 @@ namespace llvm {
 
 namespace vfs {
 class FileSystem;
+class CachedDirectoryEntry;
 } // end namespace vfs
 
 struct MappedPrefix {
@@ -150,6 +151,12 @@ private:
 /// always maps to itself.
 class TreePathPrefixMapper {
 public:
+  void map(const vfs::CachedDirectoryEntry &Entry,
+           SmallVectorImpl<char> &NewPath);
+  void map(const vfs::CachedDirectoryEntry &Entry, std::string &NewPath);
+  StringRef map(const vfs::CachedDirectoryEntry &Entry);
+  std::string mapToString(const vfs::CachedDirectoryEntry &Entry);
+
   Error map(StringRef Path, SmallVectorImpl<char> &NewPath);
   Error map(StringRef Path, std::string &NewPath) {
     return mapToString(Path).moveInto(NewPath);

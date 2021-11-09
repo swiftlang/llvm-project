@@ -837,10 +837,7 @@ clang::updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
                         std::make_shared<CompilerInvocation>(*Invocation),
                         WorkingDirectory, DiagsConsumer,
                         [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
-                          // FIXME: Add an API to TreePathPrefixMapper that
-                          // uses \a Entry directly rather than doing another
-                          // lookup.
-                          return Mapper.mapOrOriginal(Entry.getTreePath());
+                          return Mapper.map(Entry);
                         })
                     .moveInto(Root))
     return std::move(E);
