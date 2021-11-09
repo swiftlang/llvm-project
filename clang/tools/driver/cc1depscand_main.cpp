@@ -34,6 +34,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/PrefixMapper.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ThreadPool.h"
@@ -639,36 +640,21 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   return 0;
 }
 
-static llvm::Error computeSingleMapping(
-    llvm::StringSaver &Saver, llvm::cas::CachingOnDiskFileSystem &FS,
-    StringRef Old, StringRef New,
-    SmallVectorImpl<std::pair<StringRef, StringRef>> &ComputedMapping) {
-  SmallString<256> RealPath = Old;
-  if (std::error_code EC = FS.getRealPath(Old, RealPath))
-    return createFileError(Old, EC);
-  if (RealPath != Old)
-    Old = Saver.save(StringRef(RealPath));
-  ComputedMapping.push_back({Old, New});
-  return llvm::Error::success();
-}
-
-static llvm::Error computeSDKMapping(
-    llvm::StringSaver &Saver, llvm::cas::CachingOnDiskFileSystem &FS,
-    const CompilerInvocation &Invocation, StringRef New,
-    SmallVectorImpl<std::pair<StringRef, StringRef>> &ComputedMapping) {
+static llvm::Error computeSDKMapping(llvm::StringSaver &Saver,
+                                     const CompilerInvocation &Invocation,
+                                     StringRef New,
+                                     llvm::TreePathPrefixMapper &Mapper) {
   StringRef SDK = Invocation.getHeaderSearchOpts().Sysroot;
   if (SDK.empty())
     return llvm::Error::success();
 
   // Need a new copy of the string since the invocation will be modified.
-  SDK = Saver.save(SDK);
-  return computeSingleMapping(Saver, FS, SDK, New, ComputedMapping);
+  return Mapper.add(llvm::MappedPrefix{Saver.save(SDK), New});
 }
 
-static llvm::Error computeToolchainMapping(
-    llvm::StringSaver &Saver, llvm::cas::CachingOnDiskFileSystem &FS,
-    StringRef ClangPath, StringRef New,
-    SmallVectorImpl<std::pair<StringRef, StringRef>> &ComputedMapping) {
+static llvm::Error computeToolchainMapping(llvm::StringSaver &Saver,
+                                           StringRef ClangPath, StringRef New,
+                                           llvm::TreePathPrefixMapper &Mapper) {
   // Look up from clang for the toolchain, assuming clang is at
   // <toolchain>/usr/bin/clang. Return a shallower guess if the directories
   // don't match.
@@ -680,81 +666,41 @@ static llvm::Error computeToolchainMapping(
       break;
     Guess = llvm::sys::path::parent_path(Guess);
   }
-  return computeSingleMapping(Saver, FS, Guess, New, ComputedMapping);
+  return Mapper.add(llvm::MappedPrefix{Guess, New});
 }
 
-static llvm::Error computeFullMapping(
-    llvm::StringSaver &Saver, llvm::cas::CachingOnDiskFileSystem &FS,
-    StringRef ClangPath, const CompilerInvocation &Invocation,
-    const cc1depscand::DepscanPrefixMapping &DepscanMapping,
-    SmallVectorImpl<std::pair<StringRef, StringRef>> &ComputedMapping) {
+static llvm::Error
+computeFullMapping(llvm::StringSaver &Saver, StringRef ClangPath,
+                   const CompilerInvocation &Invocation,
+                   const cc1depscand::DepscanPrefixMapping &DepscanMapping,
+                   llvm::TreePathPrefixMapper &Mapper) {
   if (DepscanMapping.NewSDKPath)
-    if (llvm::Error E = computeSDKMapping(
-            Saver, FS, Invocation, *DepscanMapping.NewSDKPath, ComputedMapping))
+    if (llvm::Error E = computeSDKMapping(Saver, Invocation,
+                                          *DepscanMapping.NewSDKPath, Mapper))
       return E;
 
   if (DepscanMapping.NewToolchainPath)
     if (llvm::Error E = computeToolchainMapping(
-            Saver, FS, ClangPath, *DepscanMapping.NewToolchainPath,
-            ComputedMapping))
+            Saver, ClangPath, *DepscanMapping.NewToolchainPath, Mapper))
       return E;
 
-  for (StringRef Map : DepscanMapping.PrefixMap) {
-    size_t Equals = Map.find('=');
-    if (Equals == StringRef::npos)
-      continue; // FIXME: Should have been checked already, but we should error?
-    StringRef Old = Map.take_front(Equals);
-    StringRef New = Map.drop_front(Equals + 1);
-    if (llvm::Error E =
-            computeSingleMapping(Saver, FS, Old, New, ComputedMapping))
+  if (!DepscanMapping.PrefixMap.empty()) {
+    llvm::SmallVector<llvm::MappedPrefix> Split;
+    llvm::MappedPrefix::transformJoinedIfValid(DepscanMapping.PrefixMap, Split);
+    if (llvm::Error E = Mapper.addRange(Split))
       return E;
   }
 
-  // Sort in reverse lexicographic order, so that deeper paths are prioritized
-  // over their parent paths. For example, if both the source and build
-  // directories are remapped and one is nested inside the other, the nested
-  // one should be checked first.
-  std::stable_sort(ComputedMapping.begin(), ComputedMapping.end(),
-                   [](const std::pair<StringRef, StringRef> &LHS,
-                      const std::pair<StringRef, StringRef> &RHS) {
-                     return LHS.first > RHS.first;
-                   });
-
+  Mapper.sort();
   return llvm::Error::success();
 }
 
-static StringRef remapPath(StringRef Path, llvm::StringSaver &Saver,
-                           ArrayRef<std::pair<StringRef, StringRef>> Mapping) {
-  // Replace with the first match.
-  for (auto Map : Mapping) {
-    StringRef Old = Map.first;
-    StringRef New = Map.second;
-    StringRef Suffix = Path;
-    if (!Suffix.consume_front(Old))
-      continue;
-
-    // Matches exactly.
-    if (Suffix.empty())
-      return New;
-
-    if (!llvm::sys::path::is_separator(Suffix.front()))
-      continue;
-
-    // Drop the separator, append, and return.
-    SmallString<256> Absolute = New;
-    llvm::sys::path::append(Absolute, Suffix.drop_front());
-    return Saver.save(StringRef(Absolute));
-  }
-
-  // Didn't find a match.
-  return Path;
-}
-
-static void updateCompilerInvocation(
-    CompilerInvocation &Invocation, llvm::StringSaver &Saver,
-    llvm::cas::CachingOnDiskFileSystem &FS, std::string RootID,
-    StringRef CASWorkingDirectory,
-    ArrayRef<std::pair<StringRef, StringRef>> ComputedMapping) {
+static void updateCompilerInvocation(CompilerInvocation &Invocation,
+                                     llvm::StringSaver &Saver,
+                                     llvm::cas::CachingOnDiskFileSystem &FS,
+                                     std::string RootID,
+                                     StringRef CASWorkingDirectory,
+                                     llvm::TreePathPrefixMapper &Mapper) {
   // Fix the CAS options.
   auto &CASOpts = Invocation.getCASOpts();
   CASOpts.Kind = CASOptions::BuiltinCAS; // FIXME: Don't override.
@@ -766,40 +712,15 @@ static void updateCompilerInvocation(
 
   // If there are no mappings, we're done. Otherwise, continue and remap
   // everything.
-  if (ComputedMapping.empty())
+  if (Mapper.getMappings().empty())
     return;
 
   // Turn off dependency outputs. Should have already been emitted.
   Invocation.getDependencyOutputOpts().OutputFile.clear();
 
-  auto remap = [&](StringRef In) -> Optional<StringRef> {
-    if (In.empty())
-      return In;
-
-    // FIXME: This converts relative paths to absolute paths. That's not ideal.
-    // For relative paths, it'd be better to recreate the relative path in the
-    // remapped world.
-    SmallString<256> RealPath;
-    if (std::error_code EC = FS.getRealPath(In, RealPath))
-      return None;
-
-    // Don't modify paths that don't get remapped at all.
-    StringRef Out = remapPath(RealPath, Saver, ComputedMapping);
-    return RealPath == Out ? In : Out;
-  };
-
   // Returns "false" on success, "true" if the path doesn't exist.
   auto remapInPlace = [&](std::string &S) -> bool {
-    auto NewS = remap(S);
-    if (!NewS)
-      return true;
-    S = NewS->str();
-    return false;
-  };
-
-  auto remapInPlaceOrClear = [&](std::string &S) {
-    if (remapInPlace(S))
-      S.clear();
+    return errorToBool(Mapper.mapInPlace(S));
   };
 
   auto remapInPlaceOrFilterOutWith = [&](auto &Vector, auto Remapper) {
@@ -816,7 +737,7 @@ static void updateCompilerInvocation(
 
   // Remap header search.
   auto &HeaderSearchOpts = Invocation.getHeaderSearchOpts();
-  remapInPlaceOrClear(HeaderSearchOpts.Sysroot);
+  Mapper.mapInPlaceOrClear(HeaderSearchOpts.Sysroot);
   remapInPlaceOrFilterOutWith(HeaderSearchOpts.UserEntries,
                               [&](HeaderSearchOptions::Entry &Entry) {
                                 if (Entry.IgnoreSysRoot)
@@ -828,9 +749,9 @@ static void updateCompilerInvocation(
       [&](HeaderSearchOptions::SystemHeaderPrefix &Prefix) {
         return remapInPlace(Prefix.Prefix);
       });
-  remapInPlaceOrClear(HeaderSearchOpts.ResourceDir);
-  remapInPlaceOrClear(HeaderSearchOpts.ModuleCachePath);
-  remapInPlaceOrClear(HeaderSearchOpts.ModuleUserBuildPath);
+  Mapper.mapInPlaceOrClear(HeaderSearchOpts.ResourceDir);
+  Mapper.mapInPlaceOrClear(HeaderSearchOpts.ModuleCachePath);
+  Mapper.mapInPlaceOrClear(HeaderSearchOpts.ModuleUserBuildPath);
   for (auto I = HeaderSearchOpts.PrebuiltModuleFiles.begin(),
             E = HeaderSearchOpts.PrebuiltModuleFiles.end();
        I != E;) {
@@ -848,7 +769,7 @@ static void updateCompilerInvocation(
         if (Input.isBuffer())
           return false; // FIXME: Can this happen when parsing command-line?
 
-        Optional<StringRef> RemappedFile = remap(Input.getFile());
+        Optional<StringRef> RemappedFile = Mapper.mapOrNone(Input.getFile());
         if (!RemappedFile)
           return true;
         if (RemappedFile != Input.getFile())
@@ -858,9 +779,9 @@ static void updateCompilerInvocation(
       });
 
   // Skip the output file. That's not the input CAS filesystem.
-  //   remapInPlaceOrClear(OutputFile); <-- this doesn't make sense.
+  //   Mapper.mapInPlaceOrClear(OutputFile); <-- this doesn't make sense.
 
-  remapInPlaceOrClear(FrontendOpts.CodeCompletionAt.FileName);
+  Mapper.mapInPlaceOrClear(FrontendOpts.CodeCompletionAt.FileName);
 
   // Don't remap plugins (for now), since we don't know how to remap their
   // arguments. Maybe they should be loaded outside of the CAS filesystem?
@@ -872,17 +793,17 @@ static void updateCompilerInvocation(
   remapInPlaceOrFilterOut(FrontendOpts.ModuleFiles);
   remapInPlaceOrFilterOut(FrontendOpts.ModulesEmbedFiles);
   remapInPlaceOrFilterOut(FrontendOpts.ASTMergeFiles);
-  remapInPlaceOrClear(FrontendOpts.OverrideRecordLayoutsFile);
-  remapInPlaceOrClear(FrontendOpts.StatsFile);
+  Mapper.mapInPlaceOrClear(FrontendOpts.OverrideRecordLayoutsFile);
+  Mapper.mapInPlaceOrClear(FrontendOpts.StatsFile);
 
   // Filesystem options.
   auto &FileSystemOpts = Invocation.getFileSystemOpts();
-  remapInPlaceOrClear(FileSystemOpts.WorkingDir);
+  Mapper.mapInPlaceOrClear(FileSystemOpts.WorkingDir);
 
   // Code generation options.
   auto &CodeGenOpts = Invocation.getCodeGenOpts();
-  remapInPlaceOrClear(CodeGenOpts.DebugCompilationDir);
-  remapInPlaceOrClear(CodeGenOpts.CoverageCompilationDir);
+  Mapper.mapInPlaceOrClear(CodeGenOpts.DebugCompilationDir);
+  Mapper.mapInPlaceOrClear(CodeGenOpts.CoverageCompilationDir);
 }
 
 Expected<llvm::cas::CASID>
@@ -906,9 +827,9 @@ clang::updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
 
   llvm::BumpPtrAllocator Alloc;
   llvm::StringSaver Saver(Alloc);
-  SmallVector<std::pair<StringRef, StringRef>> ComputedMapping;
-  if (llvm::Error E = computeFullMapping(Saver, FS, Exec, *Invocation,
-                                         PrefixMapping, ComputedMapping))
+  llvm::TreePathPrefixMapper Mapper(&FS, Alloc);
+  if (llvm::Error E =
+          computeFullMapping(Saver, Exec, *Invocation, PrefixMapping, Mapper))
     return std::move(E);
 
   Optional<llvm::cas::CASID> Root;
@@ -916,14 +837,16 @@ clang::updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
                         std::make_shared<CompilerInvocation>(*Invocation),
                         WorkingDirectory, DiagsConsumer,
                         [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
-                          return remapPath(Entry.getTreePath(), Saver,
-                                           ComputedMapping);
+                          // FIXME: Add an API to TreePathPrefixMapper that
+                          // uses \a Entry directly rather than doing another
+                          // lookup.
+                          return Mapper.mapOrOriginal(Entry.getTreePath());
                         })
                     .moveInto(Root))
     return std::move(E);
   std::string RootID = llvm::cantFail(CAS.convertCASIDToString(*Root));
   updateCompilerInvocation(*Invocation, Saver, FS, RootID, WorkingDirectory,
-                           ComputedMapping);
+                           Mapper);
 
   OutputArgs.resize(1);
   OutputArgs[0] = "-cc1";
