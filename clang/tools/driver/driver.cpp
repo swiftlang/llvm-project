@@ -363,17 +363,6 @@ parseCASFSAutoPrefixMappings(const Driver &D, const ArgList &Args) {
   return Mapping;
 }
 
-static void reportAsFatalIfError(llvm::Error E) {
-  if (E)
-    llvm::report_fatal_error(std::move(E));
-}
-
-template <typename T> static T reportAsFatalIfError(Expected<T> ValOrErr) {
-  if (!ValOrErr)
-    reportAsFatalIfError(ValOrErr.takeError());
-  return std::move(*ValOrErr);
-}
-
 static void addCC1ScanDepsArgsInline(
     const char *Exec, SmallVectorImpl<const char *> &CC1Args,
     const cc1depscand::DepscanPrefixMapping &PrefixMapping,
