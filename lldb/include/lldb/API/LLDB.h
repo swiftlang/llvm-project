@@ -9,6 +9,8 @@
 #ifndef LLDB_API_LLDB_H
 #define LLDB_API_LLDB_H
 
+#include "lldb/lldb-public.h"
+
 #include "lldb/API/SBAddress.h"
 #include "lldb/API/SBAttachInfo.h"
 #include "lldb/API/SBBlock.h"
