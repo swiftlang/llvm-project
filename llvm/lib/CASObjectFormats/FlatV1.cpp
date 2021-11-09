@@ -297,6 +297,59 @@ Expected<EdgeListRef> EdgeListRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return EdgeListRef(*Specific);
 }
 
+static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
+                        const jitlink::Edge *E, bool ForceDirectIndex = false) {
+
+  auto SymbolIndex = CUB.getSymbolIndex(E->getTarget());
+  if (!SymbolIndex)
+    return SymbolIndex.takeError();
+
+  if (EncodeIndexInCU && !ForceDirectIndex)
+    CUB.encodeIndex(*SymbolIndex);
+  else
+    encoding::writeVBR8(*SymbolIndex, Data);
+
+  // FIXME: Some of the fields are not stable.
+  unsigned char Bits = 0;
+  Bits |= E->isKeepAlive();
+  encoding::writeVBR8(Bits, Data);
+  encoding::writeVBR8(E->getKind(), Data);
+  encoding::writeVBR8(E->getOffset(), Data);
+  encoding::writeVBR8(E->getAddend(), Data);
+  return Error::success();
+}
+
+static Error decodeEdge(LinkGraphBuilder &LGB, StringRef Data,
+                        jitlink::Block &Parent, unsigned BlockIdx,
+                        bool ForceDirectIndex = false) {
+  unsigned SymbolIdx;
+
+  if (EncodeIndexInCU && !ForceDirectIndex)
+    SymbolIdx = LGB.nextIdxForBlock(BlockIdx);
+  else if (auto E = encoding::consumeVBR8(Data, SymbolIdx))
+    return E;
+
+  auto Symbol = LGB.getSymbol(SymbolIdx);
+  if (!Symbol)
+    return Symbol.takeError();
+
+  unsigned char Bits, Kind;
+  unsigned Offset, Addend;
+  auto E = encoding::consumeVBR8(Data, Bits);
+  if (!E)
+    E = encoding::consumeVBR8(Data, Kind);
+  if (!E)
+    E = encoding::consumeVBR8(Data, Offset);
+  if (!E)
+    E = encoding::consumeVBR8(Data, Addend);
+  if (E)
+    return E;
+
+  Parent.addEdge((jitlink::Edge::Kind)Kind, Offset, **Symbol, Addend);
+
+  return Error::success();
+}
+
 Expected<EdgeListRef>
 EdgeListRef::create(CompileUnitBuilder &CUB,
                     ArrayRef<const jitlink::Edge *> Edges) {
@@ -306,19 +359,9 @@ EdgeListRef::create(CompileUnitBuilder &CUB,
 
   encoding::writeVBR8(Edges.size(), B->Data);
   for (const auto *E : Edges) {
-    // Nest the Edge in block.
-    auto SymbolIndex = CUB.getSymbolIndex(E->getTarget());
-    if (!SymbolIndex)
-      return SymbolIndex.takeError();
-    encoding::writeVBR8(*SymbolIndex, B->Data);
-
-    // FIXME: Some of the fields are not stable.
-    unsigned char Bits = 0;
-    Bits |= E->isKeepAlive();
-    encoding::writeVBR8(Bits, B->Data);
-    encoding::writeVBR8(E->getKind(), B->Data);
-    encoding::writeVBR8(E->getOffset(), B->Data);
-    encoding::writeVBR8(E->getAddend(), B->Data);
+    // EdgeList is too "nested" to encode index in CU.
+    if (auto Err = encodeEdge(CUB, B->Data, E, true))
+      return Err;
   }
 
   return get(B->build());
@@ -334,28 +377,9 @@ Error EdgeListRef::materialize(LinkGraphBuilder &LGB, jitlink::Block &Parent,
     return E;
 
   for (unsigned I = 0; I < EdgeSize; ++I) {
-    unsigned SymbolIdx;
-    E = encoding::consumeVBR8(Remaining, SymbolIdx);
-    if (E)
-      return E;
-
-    auto Symbol = LGB.getSymbol(SymbolIdx);
-    if (!Symbol)
-      return Symbol.takeError();
-
-    unsigned char Bits, Kind;
-    unsigned Offset, Addend;
-    E = encoding::consumeVBR8(Remaining, Bits);
-    if (!E)
-      E = encoding::consumeVBR8(Remaining, Kind);
-    if (!E)
-      E = encoding::consumeVBR8(Remaining, Offset);
-    if (!E)
-      E = encoding::consumeVBR8(Remaining, Addend);
-    if (E)
-      return E;
-
-    Parent.addEdge((jitlink::Edge::Kind)Kind, Offset, **Symbol, Addend);
+    // EdgeList is too "nested" to encode index in CU.
+    if (auto Err = decodeEdge(LGB, Remaining, Parent, BlockIdx, true))
+      return Err;
   }
   return Error::success();
 }
@@ -430,19 +454,8 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   encoding::writeVBR8(Block.edges_size(), B->Data);
   for (const auto *E : Edges) {
     // Nest the Edge in block.
-    auto SymbolIndex = CUB.getSymbolIndex(E->getTarget());
-    if (!SymbolIndex)
-      return SymbolIndex.takeError();
-
-    CUB.encodeIndex(*SymbolIndex);
-
-    // FIXME: Some of the fields are not stable.
-    unsigned char Bits = 0;
-    Bits |= E->isKeepAlive();
-    encoding::writeVBR8(Bits, B->Data);
-    encoding::writeVBR8(E->getKind(), B->Data);
-    encoding::writeVBR8(E->getOffset(), B->Data);
-    encoding::writeVBR8(E->getAddend(), B->Data);
+    if (auto Err = encodeEdge(CUB, B->Data, E))
+      return Err;
   }
 
   return get(B->build());
@@ -538,30 +551,8 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
     return E;
 
   for (unsigned I = 0; I < EdgeSize; ++I) {
-    unsigned SymbolIdx;
-    if (EncodeIndexInCU)
-      SymbolIdx = LGB.nextIdxForBlock(BlockIdx);
-    else if (auto E = encoding::consumeVBR8(Remaining, SymbolIdx))
-      return E;
-
-    auto Symbol = LGB.getSymbol(SymbolIdx);
-    if (!Symbol)
-      return Symbol.takeError();
-
-    unsigned char Bits, Kind;
-    unsigned Offset, Addend;
-    E = encoding::consumeVBR8(Remaining, Bits);
-    if (!E)
-      E = encoding::consumeVBR8(Remaining, Kind);
-    if (!E)
-      E = encoding::consumeVBR8(Remaining, Offset);
-    if (!E)
-      E = encoding::consumeVBR8(Remaining, Addend);
-    if (E)
-      return E;
-
-    BlockInfo->Block->addEdge((jitlink::Edge::Kind)Kind, Offset, **Symbol,
-                              Addend);
+    if (auto Err = decodeEdge(LGB, Remaining, *BlockInfo->Block, BlockIdx))
+      return Err;
   }
 
   return Error::success();
