@@ -1,4 +1,4 @@
-//===- MappingHelper.h - Helper for updating mappings ---------------------===//
+//===- UpdateCC1Args.h - Helper for updating -cc1 -------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// FIXME: Having this file here is a total hack; this stuff probably needs to
-// move to the Frontend library, likely in CompilerInvocation.
+// FIXME: Having this file here is a hack; this stuff probably needs to move to
+// the Frontend library, likely in CompilerInvocation.
 
 #include "clang/Basic/Stack.h"
 #include "clang/Driver/CC1DepScanDClient.h"

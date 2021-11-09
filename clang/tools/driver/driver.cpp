@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MappingHelper.h"
+#include "UpdateCC1Args.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/Stack.h"
