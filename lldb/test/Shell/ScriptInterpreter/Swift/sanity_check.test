@@ -1,0 +1,12 @@
+# RUN: echo "int main() { return 0; }" | %clang_host -x c - -o %t
+# RUN: %lldb -s %s --script-language swift -b %t 2>&1 | FileCheck %s
+script -- print("hello \(40+2)")
+# CHECK: hello 42
+command script import /Users/friss/dev/tmp/sblist.swift
+# CHECK-NEXT: (lldb) command script import /Users/friss/dev/tmp/sblist.swift
+command script import /Users/friss/dev/tmp/sbtarget.swift
+# CHECK-NEXT: (lldb) command script import /Users/friss/dev/tmp/sbtarget.swift
+script -- for module in lldb.target.modules { print("\(String(cString: module.GetUUIDString())) \(String(cString: module.GetFileSpec().GetFilename()))") }
+# CHECK-NEXT: (lldb) script -- for module in lldb.target.modules { print("\(String(cString: module.GetUUIDString())) \(String(cString: module.GetFileSpec().GetFilename()))") }
+# CHECK-NEXT: {{[-0-9A-F]+}} sanity_check.test.tmp
+# CHECK-NEXT: {{[-0-9A-F]+}} dyld

@@ -217,6 +217,7 @@ enum ScriptLanguage {
   eScriptLanguageNone = 0,
   eScriptLanguagePython,
   eScriptLanguageLua,
+  eScriptLanguageSwift,
   eScriptLanguageUnknown,
   eScriptLanguageDefault = eScriptLanguagePython
 };
