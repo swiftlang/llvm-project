@@ -25,7 +25,7 @@ class ArgList;
 namespace clang {
 namespace cc1depscand {
 
-struct AutoPrefixMapping {
+struct DepscanPrefixMapping {
   Optional<StringRef> NewSDKPath;
   Optional<StringRef> NewToolchainPath;
   SmallVector<StringRef> PrefixMap;
@@ -36,11 +36,10 @@ struct AutoArgEdit {
   StringRef NewArg;
 };
 
-/// Need DriverArgs just to get access to ArgList::MakeArgString(). This should
-/// be changed to a function ref.
-void addCC1ScanDepsArgs(const char *Exec, SmallVectorImpl<const char *> &Argv,
-                        const AutoPrefixMapping &Mapping,
-                        llvm::function_ref<const char *(const Twine &)> SaveArg);
+void addCC1ScanDepsArgs(
+    const char *Exec, SmallVectorImpl<const char *> &Argv,
+    const DepscanPrefixMapping &Mapping,
+    llvm::function_ref<const char *(const Twine &)> SaveArg);
 
 } // namespace cc1depscand
 } // namespace clang

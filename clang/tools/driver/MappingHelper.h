@@ -22,6 +22,27 @@
 
 namespace clang {
 
+namespace tooling {
+namespace dependencies {
+class DependencyScanningTool;
+} // end namespace dependencies
+} // end namespace tooling
+
+llvm::Expected<llvm::cas::CASID>
+updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
+              tooling::dependencies::DependencyScanningTool &Tool,
+              DiagnosticConsumer &DiagsConsumer, const char *Exec,
+              ArrayRef<const char *> InputArgs, StringRef WorkingDirectory,
+              SmallVectorImpl<const char *> &OutputArgs,
+              const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+              llvm::function_ref<const char *(const Twine &)> SaveArg);
+
+llvm::Expected<llvm::cas::CASID>
+updateCC1Args(const char *Exec, ArrayRef<const char *> InputArgs,
+              SmallVectorImpl<const char *> &OutputArgs,
+              const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+              llvm::function_ref<const char *(const Twine &)> SaveArg);
+
 static llvm::Error computeSingleMapping(
     llvm::StringSaver &Saver, llvm::cas::CachingOnDiskFileSystem &FS,
     StringRef Old, StringRef New,
@@ -69,20 +90,20 @@ static llvm::Error computeToolchainMapping(
 static llvm::Error computeFullMapping(
     llvm::StringSaver &Saver, llvm::cas::CachingOnDiskFileSystem &FS,
     StringRef ClangPath, const CompilerInvocation &Invocation,
-    const cc1depscand::AutoPrefixMapping &AutoMapping,
+    const cc1depscand::DepscanPrefixMapping &DepscanMapping,
     SmallVectorImpl<std::pair<StringRef, StringRef>> &ComputedMapping) {
-  if (AutoMapping.NewSDKPath)
+  if (DepscanMapping.NewSDKPath)
     if (llvm::Error E = computeSDKMapping(
-            Saver, FS, Invocation, *AutoMapping.NewSDKPath, ComputedMapping))
+            Saver, FS, Invocation, *DepscanMapping.NewSDKPath, ComputedMapping))
       return E;
 
-  if (AutoMapping.NewToolchainPath)
-    if (llvm::Error E = computeToolchainMapping(Saver, FS, ClangPath,
-                                                *AutoMapping.NewToolchainPath,
-                                                ComputedMapping))
+  if (DepscanMapping.NewToolchainPath)
+    if (llvm::Error E = computeToolchainMapping(
+            Saver, FS, ClangPath, *DepscanMapping.NewToolchainPath,
+            ComputedMapping))
       return E;
 
-  for (StringRef Map : AutoMapping.PrefixMap) {
+  for (StringRef Map : DepscanMapping.PrefixMap) {
     size_t Equals = Map.find('=');
     if (Equals == StringRef::npos)
       continue; // FIXME: Should have been checked already, but we should error?

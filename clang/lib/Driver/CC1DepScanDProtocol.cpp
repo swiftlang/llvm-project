@@ -346,28 +346,30 @@ llvm::Error CC1DepScanDProtocol::getArgs(llvm::StringSaver &Saver,
   return Error::success();
 }
 
-llvm::Error CC1DepScanDProtocol::putCommand(StringRef WorkingDirectory,
-                                            ArrayRef<const char *> Args,
-                                            const AutoPrefixMapping &Mapping) {
+llvm::Error
+CC1DepScanDProtocol::putCommand(StringRef WorkingDirectory,
+                                ArrayRef<const char *> Args,
+                                const DepscanPrefixMapping &Mapping) {
   if (llvm::Error E = putString(WorkingDirectory))
     return E;
   if (llvm::Error E = putArgs(Args))
     return E;
-  return putAutoPrefixMapping(Mapping);
+  return putDepscanPrefixMapping(Mapping);
 }
 
 llvm::Error CC1DepScanDProtocol::getCommand(llvm::StringSaver &Saver,
                                             StringRef &WorkingDirectory,
                                             SmallVectorImpl<const char *> &Args,
-                                            AutoPrefixMapping &Mapping) {
+                                            DepscanPrefixMapping &Mapping) {
   if (llvm::Error E = getString(Saver, WorkingDirectory))
     return E;
   if (llvm::Error E = getArgs(Saver, Args))
     return E;
-  return getAutoPrefixMapping(Saver, Mapping);
+  return getDepscanPrefixMapping(Saver, Mapping);
 }
 
-llvm::Error CC1DepScanDProtocol::putAutoPrefixMapping(const AutoPrefixMapping &Mapping) {
+llvm::Error CC1DepScanDProtocol::putDepscanPrefixMapping(
+    const DepscanPrefixMapping &Mapping) {
   // Construct the message.
   SmallString<256> FullMapping;
   if (Mapping.NewSDKPath)
@@ -383,8 +385,9 @@ llvm::Error CC1DepScanDProtocol::putAutoPrefixMapping(const AutoPrefixMapping &M
   return putString(FullMapping);
 }
 
-llvm::Error CC1DepScanDProtocol::getAutoPrefixMapping(llvm::StringSaver &Saver,
-                                                      AutoPrefixMapping &Mapping) {
+llvm::Error
+CC1DepScanDProtocol::getDepscanPrefixMapping(llvm::StringSaver &Saver,
+                                             DepscanPrefixMapping &Mapping) {
   StringRef FullMapping;
   if (llvm::Error E = getString(Saver, FullMapping))
     return E;
@@ -459,9 +462,10 @@ llvm::Error CC1DepScanDProtocol::getScanResult(llvm::StringSaver &Saver,
   return Error::success();
 }
 
-void cc1depscand::addCC1ScanDepsArgs(const char *Exec, SmallVectorImpl<const char *> &Argv,
-                                     const AutoPrefixMapping &Mapping,
-                                     llvm::function_ref<const char *(const Twine &)> SaveArg) {
+void cc1depscand::addCC1ScanDepsArgs(
+    const char *Exec, SmallVectorImpl<const char *> &Argv,
+    const DepscanPrefixMapping &Mapping,
+    llvm::function_ref<const char *(const Twine &)> SaveArg) {
   SmallString<128> BasePath = cc1depscand::getBasePath();
 
   // FIXME: Skip some of this if -fcas-fs has been passed.
@@ -486,17 +490,9 @@ void cc1depscand::addCC1ScanDepsArgs(const char *Exec, SmallVectorImpl<const cha
   if (Result != cc1depscand::CC1DepScanDProtocol::SuccessResult)
     llvm::report_fatal_error("-cc1depscand failed");
   reportAsFatalIfError(Comms.getArgs(Saver, NewArgs));
-  //llvm::dbgs() << "got answer...\n";
 
   // FIXME: Avoid this duplication.
   Argv.resize(NewArgs.size() + 1);
   for (int I = 0, E = NewArgs.size(); I != E; ++I)
     Argv[I + 1] = SaveArg(NewArgs[I]);
-
-  // llvm::dbgs() << "running:";
-  // for (const char *Arg : Argv)
-  //   llvm::dbgs() << " " << Arg;
-  // llvm::dbgs() << "\n";
-
-  // llvm::dbgs() << "compiling...\n";
 }

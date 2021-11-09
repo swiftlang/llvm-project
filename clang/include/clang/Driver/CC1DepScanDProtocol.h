@@ -117,9 +117,9 @@ public:
     return putMessage(String.size(), String.begin());
   }
 
-  llvm::Error putAutoPrefixMapping(const AutoPrefixMapping &Mapping);
-  llvm::Error getAutoPrefixMapping(llvm::StringSaver &Saver,
-                                   AutoPrefixMapping &Mapping);
+  llvm::Error putDepscanPrefixMapping(const DepscanPrefixMapping &Mapping);
+  llvm::Error getDepscanPrefixMapping(llvm::StringSaver &Saver,
+                                      DepscanPrefixMapping &Mapping);
 
   llvm::Error putArgs(ArrayRef<const char *> Args);
   llvm::Error getArgs(llvm::StringSaver &Saver,
@@ -127,10 +127,10 @@ public:
 
   llvm::Error putCommand(StringRef WorkingDirectory,
                          ArrayRef<const char *> Args,
-                         const AutoPrefixMapping &Mapping);
+                         const DepscanPrefixMapping &Mapping);
   llvm::Error getCommand(llvm::StringSaver &Saver, StringRef &WorkingDirectory,
                          SmallVectorImpl<const char *> &Args,
-                         AutoPrefixMapping &Mapping);
+                         DepscanPrefixMapping &Mapping);
 
   llvm::Error putAutoArgEdits(ArrayRef<AutoArgEdit> Edits);
   llvm::Error getAutoArgEdits(llvm::StringSaver &Saver, SmallVectorImpl<AutoArgEdit> &Edits);

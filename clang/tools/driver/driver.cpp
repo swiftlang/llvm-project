@@ -341,9 +341,9 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   return 1;
 }
 
-static cc1depscand::AutoPrefixMapping
+static cc1depscand::DepscanPrefixMapping
 parseCASFSAutoPrefixMappings(const Driver &D, const ArgList &Args) {
-  cc1depscand::AutoPrefixMapping Mapping;
+  cc1depscand::DepscanPrefixMapping Mapping;
   for (const Arg *A : Args.filtered(options::OPT_fdepscan_prefix_map_EQ)) {
     StringRef Map = A->getValue();
     size_t Equals = Map.find('=');
@@ -376,66 +376,14 @@ template <typename T> static T reportAsFatalIfError(Expected<T> ValOrErr) {
 
 static void addCC1ScanDepsArgsInline(
     const char *Exec, SmallVectorImpl<const char *> &CC1Args,
-    const cc1depscand::AutoPrefixMapping &AutoMapping,
+    const cc1depscand::DepscanPrefixMapping &PrefixMapping,
     llvm::function_ref<const char *(const Twine &)> SaveArg) {
-  // FIXME: This is a copy/paste modify from cc1depscand_main. Instead this
-  // functionality should be extracted to a common helper.
+  llvm::Error E =
+      updateCC1Args(Exec, CC1Args, CC1Args, PrefixMapping, SaveArg).takeError();
 
-
-  // FIXME: Should use user-specified CAS, if any.
-  std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
-      llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
-
-  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
-      llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
-
-  tooling::dependencies::DependencyScanningService Service(
-      tooling::dependencies::ScanningMode::MinimizedSourcePreprocessing,
-      tooling::dependencies::ScanningOutputFormat::Tree, FS,
-      /*ReuseFileManager=*/false,
-      /*SkipExcludedPPRanges=*/true);
-  tooling::dependencies::DependencyScanningTool Tool(Service);
-
-  auto DiagsConsumer = std::make_unique<IgnoringDiagConsumer>();
-  DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
-  Diags.setClient(DiagsConsumer.get(), /*ShouldOwnClient=*/false);
-  auto Invocation = std::make_shared<CompilerInvocation>();
-  if (!CompilerInvocation::CreateFromArgs(*Invocation, CC1Args, Diags,
-                                          Exec))
-    return; // FIXME: Should error or at least warn, not just pretend this didn't happen.
-
-  llvm::BumpPtrAllocator Alloc;
-  llvm::StringSaver Saver(Alloc);
-  SmallVector<std::pair<StringRef, StringRef>> ComputedMapping;
-  if (llvm::Error E = computeFullMapping(Saver, *FS, Exec, *Invocation,
-                                          AutoMapping, ComputedMapping)) {
-    // FIXME: Use D.Diags somehow...
-    logAllUnhandledErrors(std::move(E), llvm::errs());
-    return;
-  }
-
-  SmallString<128> WorkingDirectory;
-  reportAsFatalIfError(
-      llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
-
-  llvm::Expected<llvm::cas::CASID> Root =
-      Tool.getDependencyTreeFromCompilerInvocation(
-          std::make_shared<CompilerInvocation>(*Invocation), WorkingDirectory,
-          *DiagsConsumer, [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
-            return remapPath(Entry.getTreePath(), Saver, ComputedMapping);
-          });
-  if (!Root) {
-    // FIXME: Use D.Diags somehow...
-    logAllUnhandledErrors(Root.takeError(), llvm::errs());
-    return;
-  }
-  std::string RootID = llvm::cantFail(CAS->convertCASIDToString(*Root));
-  updateCompilerInvocation(*Invocation, Saver, *FS, RootID,
-                            WorkingDirectory, ComputedMapping);
-
-  CC1Args.resize(1);
-  CC1Args[0] = "-cc1";
-  Invocation->generateCC1CommandLine(CC1Args, SaveArg);
+  // FIXME: Use DiagnosticEngine somehow...
+  logAllUnhandledErrors(std::move(E), llvm::errs());
+  return;
 }
 
 static void
@@ -450,14 +398,14 @@ CC1ScanDeps(const Arg &A, const char *Exec,
     D.Diag(diag::err_drv_invalid_argument_to_option)
       << Mode << A.getOption().getName();
 
-  cc1depscand::AutoPrefixMapping AutoMapping =
+  cc1depscand::DepscanPrefixMapping PrefixMapping =
       parseCASFSAutoPrefixMappings(D, Args);
 
   auto SaveArg = [&Args](const Twine &T) { return Args.MakeArgString(T); };
   if (Mode == "inline")
-    addCC1ScanDepsArgsInline(Exec, CC1Args, AutoMapping, SaveArg);
+    addCC1ScanDepsArgsInline(Exec, CC1Args, PrefixMapping, SaveArg);
   else
-    cc1depscand::addCC1ScanDepsArgs(Exec, CC1Args, AutoMapping, SaveArg);
+    cc1depscand::addCC1ScanDepsArgs(Exec, CC1Args, PrefixMapping, SaveArg);
 }
 
 int main(int Argc, const char **Argv) {

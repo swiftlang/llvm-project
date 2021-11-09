@@ -49,6 +49,7 @@
 
 using namespace clang;
 using namespace llvm::opt;
+using llvm::Error;
 
 #ifdef CLANG_HAVE_RLIMITS
 #if defined(__linux__) && defined(__PIE__)
@@ -212,7 +213,6 @@ static void writeResponseFile(raw_ostream &OS,
 
 int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
                     void *MainAddr) {
-  // FIXME:: Dedup fixme code.
   SmallString<128> DiagsBuffer;
   llvm::raw_svector_ostream DiagsOS(DiagsBuffer);
   auto DiagsConsumer = std::make_unique<TextDiagnosticPrinter>(
@@ -237,19 +237,17 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
           Args.getLastArg(clang::driver::options::OPT_working_directory))
     WorkingDirectory = Saver.save(Arg->getValue());
 
-  cc1depscand::AutoPrefixMapping AutoMapping;
+  cc1depscand::DepscanPrefixMapping PrefixMapping;
   for (auto &Arg :
        Args.getAllArgValues(clang::driver::options::OPT_fdepscan_prefix_map_EQ))
-    AutoMapping.PrefixMap.push_back(Saver.save(Arg));
+    PrefixMapping.PrefixMap.push_back(Saver.save(Arg));
   if (auto *Arg = Args.getLastArg(
           clang::driver::options::OPT_fdepscan_prefix_map_sdk_EQ))
-    AutoMapping.NewSDKPath = Saver.save(Arg->getValue());
+    PrefixMapping.NewSDKPath = Saver.save(Arg->getValue());
   if (auto *Arg = Args.getLastArg(
           clang::driver::options::OPT_fdepscan_prefix_map_toolchain_EQ))
-    AutoMapping.NewToolchainPath = Saver.save(Arg->getValue());
+    PrefixMapping.NewToolchainPath = Saver.save(Arg->getValue());
 
-  // Create the compiler invocation.
-  auto Invocation = std::make_shared<CompilerInvocation>();
   auto *CC1Args = Args.getLastArg(clang::driver::options::OPT_cc1_args);
   if (!CC1Args) {
     llvm::errs() << "missing -cc1-args option\n";
@@ -261,11 +259,8 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
           Args.getLastArg(clang::driver::options::OPT_dump_depscan_tree_EQ))
     DumpDepscanTree = Saver.save(Arg->getValue());
 
-  if (!CompilerInvocation::CreateFromArgs(*Invocation, CC1Args->getValues(),
-                                          Diags, Argv0)) {
-    llvm::errs() << "cannot create compiler invocation\n";
-    return 1;
-  }
+  auto *OutputArg = Args.getLastArg(clang::driver::options::OPT_o);
+  std::string OutputPath = OutputArg ? OutputArg->getValue() : "-";
 
   std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
       llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
@@ -277,38 +272,16 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
       /*ReuseFileManager=*/false,
       /*SkipExcludedPPRanges=*/true);
   tooling::dependencies::DependencyScanningTool Tool(Service);
-
-  SmallVector<std::pair<StringRef, StringRef>> ComputedMapping;
-  if (auto E = computeFullMapping(Saver, *FS, Argv0, *Invocation, AutoMapping,
-                                  ComputedMapping)) {
-    llvm::errs() << "failed to compute mapping: "
-                 << llvm::toString(std::move(E)) << "\n";
-    return 1;
-  }
-
-  llvm::Expected<llvm::cas::CASID> Root =
-      Tool.getDependencyTreeFromCompilerInvocation(
-          std::make_shared<CompilerInvocation>(*Invocation), WorkingDirectory,
-          *DiagsConsumer, [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
-            return remapPath(Entry.getTreePath(), Saver, ComputedMapping);
-          });
-
-  if (!Root) {
-    llvm::errs() << "depscan failed\n";
-    return 1;
-  }
-
-  std::string RootID = llvm::cantFail(CAS->convertCASIDToString(*Root));
-  updateCompilerInvocation(*Invocation, Saver, *FS, RootID, WorkingDirectory,
-                           ComputedMapping);
-
   SmallVector<const char *> NewArgs;
-  Invocation->generateCC1CommandLine(
-      NewArgs, [&](const llvm::Twine &Arg) { return Saver.save(Arg).begin(); });
-
-  auto *OutputArg = Args.getLastArg(clang::driver::options::OPT_o);
-
-  StringRef OutputPath = OutputArg? OutputArg->getValue() : "-";
+  Optional<llvm::cas::CASID> RootID;
+  if (Error E =
+          updateCC1Args(*FS, Tool, *DiagsConsumer, Argv0, CC1Args->getValues(),
+                        WorkingDirectory, NewArgs, PrefixMapping,
+                        [&](const Twine &T) { return Saver.save(T).data(); })
+              .moveInto(RootID)) {
+    llvm::errs() << "failed to update -cc1: " << toString(std::move(E)) << "\n";
+    return 1;
+  }
 
   // FIXME: Use OutputBackend to OnDisk only now.
   auto OutputBackend =
@@ -331,7 +304,7 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
     if (EC)
       Diags.Report(diag::err_fe_unable_to_open_output)
           << DumpDepscanTree << EC.message();
-    RootOS << RootID << "\n";
+    RootOS << llvm::cantFail(CAS->convertCASIDToString(*RootID)) << "\n";
   }
   writeResponseFile(*(*OutputFile)->getOS(), NewArgs);
 
@@ -493,8 +466,8 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
 
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I) {
     Pool.async([&Service, &ShutDown, &ListenSocket, &NumRunning, &Start,
-                &SecondsSinceLastClose, &CAS, I, FS, Argv0, &SharedOS,
-                ShutDownTest, &ShutdownCleanUp]() {
+                &SecondsSinceLastClose, I, FS, Argv0, &SharedOS, ShutDownTest,
+                &ShutdownCleanUp]() {
       Optional<tooling::dependencies::DependencyScanningTool> Tool;
       SmallString<256> Message;
       while (true) {
@@ -551,9 +524,9 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
         llvm::StringSaver Saver(Alloc);
         StringRef WorkingDirectory;
         SmallVector<const char *> Args;
-        cc1depscand::AutoPrefixMapping AutoMapping;
-        if (llvm::Error E =
-                Comms.getCommand(Saver, WorkingDirectory, Args, AutoMapping)) {
+        cc1depscand::DepscanPrefixMapping PrefixMapping;
+        if (llvm::Error E = Comms.getCommand(Saver, WorkingDirectory, Args,
+                                             PrefixMapping)) {
           SharedOS.applyLocked([&](raw_ostream &OS) {
             OS << I << ": failed to get command\n";
             logAllUnhandledErrors(std::move(E), OS);
@@ -578,13 +551,13 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
         llvm::raw_svector_ostream DiagsOS(DiagsBuffer);
         auto DiagsConsumer = std::make_unique<TextDiagnosticPrinter>(
             DiagsOS, new DiagnosticOptions(), false);
-        DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
-        Diags.setClient(DiagsConsumer.get(), /*ShouldOwnClient=*/false);
 
-        // Create the compiler invocation.
-        auto Invocation = std::make_shared<CompilerInvocation>();
-        if (!CompilerInvocation::CreateFromArgs(*Invocation, Args, Diags,
-                                                Args[0])) {
+        SmallVector<const char *> NewArgs;
+        if (Error E = updateCC1Args(
+                          *FS, *Tool, *DiagsConsumer, Argv0, Args,
+                          WorkingDirectory, NewArgs, PrefixMapping,
+                          [&](const Twine &T) { return Saver.save(T).data(); })
+                          .takeError()) {
           SharedOS.applyLocked([&](raw_ostream &OS) {
             printScannedCC1(OS);
             OS << I << ": failed to create compiler invocation\n";
@@ -594,77 +567,6 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
               cc1depscand::CC1DepScanDProtocol::ErrorResult));
           continue;
         }
-        if (!DiagsBuffer.empty()) {
-          SharedOS.applyLocked([&](raw_ostream &OS) {
-            printScannedCC1(OS);
-            OS << I << ": diags from compiler invocation\n";
-            OS << DiagsBuffer;
-          });
-          DiagsBuffer.clear();
-        }
-
-        SmallVector<std::pair<StringRef, StringRef>> ComputedMapping;
-        if (llvm::Error E = computeFullMapping(Saver, *FS, Argv0, *Invocation,
-                                               AutoMapping, ComputedMapping)) {
-          SharedOS.applyLocked([&](raw_ostream &OS) {
-            printScannedCC1(OS);
-            logAllUnhandledErrors(std::move(E), OS);
-            OS << I << ": failed to compute mapping:\n";
-            OS << "  Inputs were:\n";
-            if (AutoMapping.NewSDKPath)
-              OS << "    sdk => " << *AutoMapping.NewSDKPath << "\n";
-            if (AutoMapping.NewToolchainPath)
-              OS << "    toolchain => " << *AutoMapping.NewToolchainPath
-                 << "\n";
-            for (StringRef Map : AutoMapping.PrefixMap)
-              OS << "    [" << Map << "]\n";
-            OS << "  Got this far:\n";
-            for (auto &Pair : ComputedMapping)
-              OS << "     " << Pair.first << " => " << Pair.second << "\n";
-          });
-          consumeError(Comms.putResultKind(
-              cc1depscand::CC1DepScanDProtocol::ErrorResult));
-          continue;
-        }
-
-        // DependencyScanningWorker::runInvocation modifies the
-        // CompilerInvocation it's given, so send in a copy.
-        llvm::Expected<llvm::cas::CASID> Root =
-            Tool->getDependencyTreeFromCompilerInvocation(
-                std::make_shared<CompilerInvocation>(*Invocation),
-                WorkingDirectory, *DiagsConsumer,
-                [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
-                  return remapPath(Entry.getTreePath(), Saver, ComputedMapping);
-                });
-        if (!Root) {
-          SharedOS.applyLocked([&](raw_ostream &OS) {
-            printScannedCC1(OS);
-            OS << I << ": depscan failed\n";
-            logAllUnhandledErrors(Root.takeError(), OS);
-            OS << I << ": diags\n";
-            OS << DiagsBuffer;
-          });
-          consumeError(Comms.putResultKind(
-              cc1depscand::CC1DepScanDProtocol::ErrorResult));
-          continue;
-        }
-        if (!DiagsBuffer.empty()) {
-          SharedOS.applyLocked([&](raw_ostream &OS) {
-            printScannedCC1(OS);
-            OS << I << ": diags from depscan\n";
-            OS << DiagsBuffer;
-          });
-          DiagsBuffer.clear();
-        }
-
-        std::string RootID = llvm::cantFail(CAS->convertCASIDToString(*Root));
-        updateCompilerInvocation(*Invocation, Saver, *FS, RootID,
-                                 WorkingDirectory, ComputedMapping);
-
-        SmallVector<const char *> NewArgs;
-        Invocation->generateCC1CommandLine(
-            NewArgs,
-            [&](const llvm::Twine &Arg) { return Saver.save(Arg).begin(); });
 
         if (llvm::Error E = Comms.putResultKind(
                 cc1depscand::CC1DepScanDProtocol::SuccessResult)) {
@@ -735,4 +637,79 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   }
 
   return 0;
+}
+
+Expected<llvm::cas::CASID>
+clang::updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
+                     tooling::dependencies::DependencyScanningTool &Tool,
+                     DiagnosticConsumer &DiagsConsumer, const char *Exec,
+                     ArrayRef<const char *> InputArgs,
+                     StringRef WorkingDirectory,
+                     SmallVectorImpl<const char *> &OutputArgs,
+                     const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+                     llvm::function_ref<const char *(const Twine &)> SaveArg) {
+  // FIXME: Should use user-specified CAS, if any.
+  llvm::cas::CASDB &CAS = FS.getCAS();
+
+  DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
+  Diags.setClient(&DiagsConsumer, /*ShouldOwnClient=*/false);
+  auto Invocation = std::make_shared<CompilerInvocation>();
+  if (!CompilerInvocation::CreateFromArgs(*Invocation, InputArgs, Diags, Exec))
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "failed to create compiler invocation");
+
+  llvm::BumpPtrAllocator Alloc;
+  llvm::StringSaver Saver(Alloc);
+  SmallVector<std::pair<StringRef, StringRef>> ComputedMapping;
+  if (llvm::Error E = computeFullMapping(Saver, FS, Exec, *Invocation,
+                                         PrefixMapping, ComputedMapping))
+    return std::move(E);
+
+  Optional<llvm::cas::CASID> Root;
+  if (Error E = Tool.getDependencyTreeFromCompilerInvocation(
+                        std::make_shared<CompilerInvocation>(*Invocation),
+                        WorkingDirectory, DiagsConsumer,
+                        [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
+                          return remapPath(Entry.getTreePath(), Saver,
+                                           ComputedMapping);
+                        })
+                    .moveInto(Root))
+    return std::move(E);
+  std::string RootID = llvm::cantFail(CAS.convertCASIDToString(*Root));
+  updateCompilerInvocation(*Invocation, Saver, FS, RootID, WorkingDirectory,
+                           ComputedMapping);
+
+  OutputArgs.resize(1);
+  OutputArgs[0] = "-cc1";
+  Invocation->generateCC1CommandLine(OutputArgs, SaveArg);
+  return *Root;
+}
+
+Expected<llvm::cas::CASID>
+clang::updateCC1Args(const char *Exec, ArrayRef<const char *> InputArgs,
+                     SmallVectorImpl<const char *> &OutputArgs,
+                     const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+                     llvm::function_ref<const char *(const Twine &)> SaveArg) {
+  // FIXME: Should use user-specified CAS, if any.
+  std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
+      llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
+
+  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
+      llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
+
+  tooling::dependencies::DependencyScanningService Service(
+      tooling::dependencies::ScanningMode::MinimizedSourcePreprocessing,
+      tooling::dependencies::ScanningOutputFormat::Tree, FS,
+      /*ReuseFileManager=*/false,
+      /*SkipExcludedPPRanges=*/true);
+  tooling::dependencies::DependencyScanningTool Tool(Service);
+
+  auto DiagsConsumer = std::make_unique<IgnoringDiagConsumer>();
+
+  SmallString<128> WorkingDirectory;
+  reportAsFatalIfError(
+      llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
+
+  return updateCC1Args(*FS, Tool, *DiagsConsumer, Exec, InputArgs,
+                       WorkingDirectory, OutputArgs, PrefixMapping, SaveArg);
 }
