@@ -15,8 +15,10 @@ using namespace llvm::tablegen;
 
 namespace {
 
+using TestInputType = std::pair<StringRef, SmallVector<StringRef>>;
+
 TEST(ScanDependenciesTest, scanTextForIncludes) {
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  TestInputType Tests[] = {
       {"", {}},
       {"include \"file.td\"", {"file.td"}},
       {"include\"file.td\"", {"file.td"}},
@@ -32,12 +34,12 @@ TEST(ScanDependenciesTest, scanTextForIncludes) {
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(T.second, Includes);
   }
 }
 
 TEST(ScanDependenciesTest, scanFuzzyIncludesNotStart) {
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  TestInputType Tests[] = {
       {" include \"file.td\"", {"file.td"}},
       {"    include \"file.td\"", {"file.td"}},
       {";include \"file.td\"", {"file.td"}},
@@ -55,12 +57,12 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesNotStart) {
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(T.second, Includes);
   }
 }
 
 TEST(ScanDependenciesTest, scanFuzzyIncludesSuffix) {
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  TestInputType Tests[] = {
       {"include \"file.td\"\n", {"file.td"}},
       {"include \"file.td\"\r", {"file.td"}},
       {"include \"file.td\"\t", {"file.td"}},
@@ -74,26 +76,26 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesSuffix) {
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(T.second, Includes);
   }
 }
 
 TEST(ScanDependenciesTest, scanFuzzyIncludesWithPrefix) {
   // Don't recognize 'include' if it's not after an appropriate token?
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  TestInputType Tests[] = {
       {"prefixinclude \"file.td\"", {}},
       {"prefix0include \"file.td\"", {}},
   };
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(T.second, Includes);
   }
 }
 
 TEST(ScanDependenciesTest, scanFuzzyIncludesComments) {
   // It'd be nice to skip comments but the current fuzzy scan doesn't bother.
-  std::pair<StringRef, ArrayRef<StringRef>> Tests[] = {
+  TestInputType Tests[] = {
       {"// include \"file.td\"", {"file.td"}},
       {"/* include \"file.td\"", {"file.td"}},
       {"/* include \"file.td\" */", {"file.td"}},
@@ -101,12 +103,12 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesComments) {
   for (auto T : Tests) {
     SmallVector<StringRef> Includes;
     scanTextForIncludes(T.first, Includes);
-    EXPECT_EQ(T, std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(T.second, Includes);
   }
 }
 
 TEST(ScanDependenciesTest, flattenStrings) {
-  std::pair<ArrayRef<StringRef>, StringRef> Tests[] = {
+  std::pair<SmallVector<StringRef>, StringRef> Tests[] = {
       {{}, StringLiteral::withInnerNUL("")},
       {{""}, StringLiteral::withInnerNUL("\0")},
       {{"a"}, StringLiteral::withInnerNUL("a\0")},
@@ -117,12 +119,12 @@ TEST(ScanDependenciesTest, flattenStrings) {
   };
   for (auto T : Tests) {
     SmallString<128> Flattened;
-    flattenStrings(T.first, Flattened);
-    EXPECT_EQ(T, std::make_pair(T.first, StringRef(Flattened)));
+    flattenStrings(makeArrayRef(T.first), Flattened);
+    EXPECT_EQ(T.second, StringRef(Flattened));
 
     SmallVector<StringRef> Split;
     splitFlattenedStrings(T.second, Split);
-    EXPECT_EQ(T, std::make_pair(makeArrayRef(Split), T.second));
+    EXPECT_EQ(T.first, Split);
   }
 }
 
