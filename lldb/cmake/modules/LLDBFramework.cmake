@@ -59,12 +59,27 @@ set(CMAKE_XCODE_ATTRIBUTE_CLANG_WARN_DOCUMENTATION_COMMENTS "YES")
 
 # On iOS, there is no versioned framework layout. Skip this symlink step.
 if(NOT APPLE_EMBEDDED)
-  # Apart from this one, CMake creates all required symlinks in the framework bundle.
+  add_custom_command(TARGET liblldb POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework/Versions/A/Modules/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${LLDB_SOURCE_DIR}/include/lldb/lldb-framework.modulemap
+            ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework/Versions/A/Modules/module.modulemap
+    COMMENT "LLDB.framework: copy framework modulemap"
+  )
+
+  # Apart from these ones, CMake creates all required symlinks in the framework bundle.
   add_custom_command(TARGET liblldb POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E create_symlink
             Versions/Current/Headers
             ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework/Headers
     COMMENT "LLDB.framework: create Headers symlink"
+  )
+  add_custom_command(TARGET liblldb POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+            Versions/Current/Modules
+            ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework/Modules
+    COMMENT "LLDB.framework: create Modules symlink"
   )
 endif()
 
