@@ -36,10 +36,15 @@ void ObjectFileSchema::anchor() {}
 
 cl::opt<bool> NestEdgesInBlock("nest-edges-in-block",
                                cl::desc("Put edges in block"), cl::init(false));
-
 cl::opt<bool> EncodeIndexInCU("encode-index-in-cu",
                               cl::desc("Encode all indexes in CU"),
                               cl::init(false));
+cl::opt<bool> NameInSymbols("name-in-symbols",
+                            cl::desc("Encode symbol name in SymbolRef"),
+                            cl::init(false));
+cl::opt<bool> UseBlockContentNode("use-block-content",
+                            cl::desc("Use block-content"),
+                            cl::init(false));
 
 Expected<cas::NodeRef>
 ObjectFileSchema::createFromLinkGraphImpl(const jitlink::LinkGraph &G,
@@ -572,7 +577,10 @@ Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
   if (!B)
     return B.takeError();
 
-  if (auto E = CUB.createAndReferenceName(S.getName()))
+  if (NameInSymbols) {
+    encoding::writeVBR8(S.getName().size(), B->Data);
+    B->Data.append(S.getName());
+  } else if (auto E = CUB.createAndReferenceName(S.getName()))
     return E;
 
   // Encode attributes. FIXME: Not optimal encoding.
@@ -600,10 +608,23 @@ Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
 Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
   StringRef Remaining = getData();
   unsigned Size, Offset, Bits;
+  StringRef Name;
 
-  auto Name = LGB.nextNode<NameRef>();
-  if (!Name)
-    return Name.takeError();
+  if (NameInSymbols) {
+    unsigned NameSize;
+    auto E = encoding::consumeVBR8(Remaining, NameSize);
+    if (E)
+      return E;
+    auto NameStr = consumeDataOfSize(Remaining, NameSize);
+    if (NameStr)
+      return NameStr.takeError();
+    Name = *NameStr;
+  } else {
+    auto NameStr = LGB.nextNode<NameRef>();
+    if (!NameStr)
+      return NameStr.takeError();
+    Name = NameStr->getName();
+  }
 
   auto E = encoding::consumeVBR8(Remaining, Size);
   if (!E)
@@ -616,8 +637,7 @@ Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
   jitlink::Linkage Linkage = (jitlink::Linkage)((Bits & (1U << 2)) >> 2);
   bool IsDefined = Bits & (1U << 3);
   if (!IsDefined) {
-    auto &Symbol =
-        LGB.getLinkGraph()->addExternalSymbol(Name->getName(), Size, Linkage);
+    auto &Symbol = LGB.getLinkGraph()->addExternalSymbol(Name, Size, Linkage);
     if (auto E = LGB.addSymbol(Idx, &Symbol))
       return E;
     return Error::success();
@@ -637,12 +657,12 @@ Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
     return BlockInfo.takeError();
 
   auto &Symbol =
-      Name->getName().empty()
+      Name.empty()
           ? LGB.getLinkGraph()->addAnonymousSymbol(*BlockInfo->Block, Offset, 0,
                                                    IsCallable, IsLive)
           : LGB.getLinkGraph()->addDefinedSymbol(*BlockInfo->Block, Offset,
-                                                 Name->getName(), 0, Linkage,
-                                                 Scope, IsCallable, IsLive);
+                                                 Name, 0, Linkage, Scope,
+                                                 IsCallable, IsLive);
   if (auto E = LGB.addSymbol(Idx, &Symbol))
     return E;
 
