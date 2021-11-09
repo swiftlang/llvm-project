@@ -240,6 +240,28 @@ private:
   explicit BlockRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 };
 
+class BlockContentRef : public SpecificRef<BlockContentRef> {
+  using SpecificRefT = SpecificRef<BlockContentRef>;
+  friend class SpecificRef<BlockContentRef>;
+
+public:
+  static constexpr StringLiteral KindString = "cas.o:block-content";
+
+  static Expected<BlockContentRef> create(CompileUnitBuilder &CUB,
+                                          StringRef Content);
+
+  static Expected<BlockContentRef> get(Expected<ObjectFormatNodeRef> Ref);
+  static Expected<BlockContentRef> get(const ObjectFileSchema &Schema,
+                                       cas::CASID ID) {
+    return get(Schema.getNode(ID));
+  }
+
+  Error materialize(LinkGraphBuilder &LGB, unsigned BlockIdx) const;
+
+private:
+  explicit BlockContentRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
+};
+
 class SymbolRef : public SpecificRef<SymbolRef> {
   using SpecificRefT = SpecificRef<SymbolRef>;
   friend class SpecificRef<SymbolRef>;
@@ -315,6 +337,7 @@ public:
 
   Error createAndReferenceName(StringRef S);
   Error createAndReferenceEdges(ArrayRef<const jitlink::Edge *> Edges);
+  Error createAndReferenceContent(StringRef Content);
 
   Expected<SectionRef> createSection(const jitlink::Section &S);
   Expected<BlockRef> createBlock(const jitlink::Block &B);
@@ -397,7 +420,7 @@ public:
   }
 
   template <typename RefT> Expected<RefT> getNode(unsigned Idx) {
-    auto IDIndex = Indexes[Idx] + 1;
+    auto IDIndex = nextIdxForBlock(Idx) + 1;
     if (IDIndex >= IDs.size())
       return createStringError(inconvertibleErrorCode(),
                                "ID Index out of bound");
