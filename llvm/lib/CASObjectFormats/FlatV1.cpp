@@ -46,6 +46,9 @@ cl::opt<bool> NameInSymbols("name-in-symbols",
 cl::opt<bool> UseBlockContentNode("use-block-content",
                             cl::desc("Use block-content"),
                             cl::init(false));
+cl::opt<bool> InlineSymbols("inline-symbols",
+                            cl::desc("Inline symbols in CU"),
+                            cl::init(false));
 
 Expected<cas::NodeRef>
 ObjectFileSchema::createFromLinkGraphImpl(const jitlink::LinkGraph &G,
@@ -326,7 +329,7 @@ static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
   return Error::success();
 }
 
-static Error decodeEdge(LinkGraphBuilder &LGB, StringRef Data,
+static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
                         jitlink::Block &Parent, unsigned BlockIdx,
                         bool ForceDirectIndex = false) {
   unsigned SymbolIdx;
@@ -605,21 +608,17 @@ Expected<BlockContentRef> BlockContentRef::create(CompileUnitBuilder &CUB,
   return get(B->build());
 }
 
-Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
-                                      const jitlink::Symbol &S) {
-  Expected<Builder> B = Builder::startNode(CUB.Schema, KindString);
-  if (!B)
-    return B.takeError();
-
+static Error encodeSymbol(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
+                          const jitlink::Symbol &S) {
   if (NameInSymbols) {
-    encoding::writeVBR8(S.getName().size(), B->Data);
-    B->Data.append(S.getName());
+    encoding::writeVBR8(S.getName().size(), Data);
+    Data.append(S.getName().begin(), S.getName().end());
   } else if (auto E = CUB.createAndReferenceName(S.getName()))
     return E;
 
   // Encode attributes. FIXME: Not optimal encoding.
-  encoding::writeVBR8(S.getSize(), B->Data);
-  encoding::writeVBR8(S.getOffset(), B->Data);
+  encoding::writeVBR8(S.getSize(), Data);
+  encoding::writeVBR8(S.getOffset(), Data);
   unsigned Bits = 0;
   Bits |= (unsigned)S.getScope();        // 2 bits
   Bits |= (unsigned)S.getLinkage() << 2; // 1 bit
@@ -627,7 +626,7 @@ Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
   Bits |= (unsigned)S.isLive() << 4;     // 1 bit
   Bits |= (unsigned)S.isCallable() << 5; // 1 bit
   Bits |= (unsigned)S.isAutoHide() << 6; // 1 bit
-  encoding::writeVBR8(Bits, B->Data);
+  encoding::writeVBR8(Bits, Data);
 
   if (S.isDefined()) {
     auto BlockIndex = CUB.getBlockIndex(S.getBlock());
@@ -636,23 +635,22 @@ Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
     if (EncodeIndexInCU)
       CUB.encodeIndex(*BlockIndex);
     else
-      encoding::writeVBR8(*BlockIndex, B->Data);
+      encoding::writeVBR8(*BlockIndex, Data);
   }
-
-  return get(B->build());
+  return Error::success();
 }
 
-Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
-  StringRef Remaining = getData();
+static Error decodeSymbol(LinkGraphBuilder &LGB, StringRef &Data,
+                          unsigned Idx) {
   unsigned Size, Offset, Bits;
   StringRef Name;
 
   if (NameInSymbols) {
     unsigned NameSize;
-    auto E = encoding::consumeVBR8(Remaining, NameSize);
+    auto E = encoding::consumeVBR8(Data, NameSize);
     if (E)
       return E;
-    auto NameStr = consumeDataOfSize(Remaining, NameSize);
+    auto NameStr = consumeDataOfSize(Data, NameSize);
     if (!NameStr)
       return NameStr.takeError();
     Name = *NameStr;
@@ -663,11 +661,11 @@ Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
     Name = NameStr->getName();
   }
 
-  auto E = encoding::consumeVBR8(Remaining, Size);
+  auto E = encoding::consumeVBR8(Data, Size);
   if (!E)
-    E = encoding::consumeVBR8(Remaining, Offset);
+    E = encoding::consumeVBR8(Data, Offset);
   if (!E)
-    E = encoding::consumeVBR8(Remaining, Bits);
+    E = encoding::consumeVBR8(Data, Bits);
   if (E)
     return E;
 
@@ -690,7 +688,7 @@ Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
     if (!Idx)
       return Idx.takeError();
     BlockIdx = *Idx;
-  } else if (auto E = encoding::consumeVBR8(Remaining, BlockIdx))
+  } else if (auto E = encoding::consumeVBR8(Data, BlockIdx))
     return E;
 
   auto BlockInfo = LGB.getBlockInfo(BlockIdx);
@@ -708,6 +706,23 @@ Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
     return E;
 
   return Error::success();
+}
+
+Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
+                                      const jitlink::Symbol &S) {
+  Expected<Builder> B = Builder::startNode(CUB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+
+  if (auto E = encodeSymbol(CUB, B->Data, S))
+    return E;
+
+  return get(B->build());
+}
+
+Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
+  auto Data = getData();
+  return decodeSymbol(LGB, Data, Idx);
 }
 
 Expected<SymbolRef> SymbolRef::get(Expected<ObjectFormatNodeRef> Ref) {
@@ -744,11 +759,15 @@ unsigned CompileUnitBuilder::commitNode(const ObjectFormatNodeRef &Ref) {
     IDs.emplace_back(Ref.getID());
 
   Indexes.emplace_back(Idx);
+  pushNodes();
+  return Idx;
+}
+
+void CompileUnitBuilder::pushNodes() {
   // Emplace the local ids and clear the local storage.
   Indexes.insert(Indexes.end(), LocalIndexStorage.begin(),
                  LocalIndexStorage.end());
   LocalIndexStorage.clear();
-  return Idx;
 }
 
 Expected<unsigned> CompileUnitBuilder::getBlockIndex(const jitlink::Block &B) {
@@ -808,30 +827,39 @@ Error CompileUnitBuilder::createAndReferenceContent(StringRef Content) {
   return Error::success();
 }
 
-Expected<SectionRef>
-CompileUnitBuilder::createSection(const jitlink::Section &S) {
+Error CompileUnitBuilder::createSection(const jitlink::Section &S) {
   auto Ref = SectionRef::create(*this, S);
   if (!Ref)
     return Ref.takeError();
   Sections.emplace_back(&S);
-  return Ref;
+  commitNode(*Ref);
+  return Error::success();
 }
 
-Expected<BlockRef> CompileUnitBuilder::createBlock(const jitlink::Block &B) {
+Error CompileUnitBuilder::createBlock(const jitlink::Block &B) {
   // Store the current idx. It is created in order so just add in the end.
   BlockIndexStarts.push_back(Indexes.size());
   auto Block = BlockRef::create(*this, B);
   if (!Block)
     return Block.takeError();
-  return *Block;
+  commitNode(*Block);
+  return Error::success();
 }
 
-Expected<SymbolRef> CompileUnitBuilder::createSymbol(const jitlink::Symbol &S) {
+Error CompileUnitBuilder::createSymbol(const jitlink::Symbol &S) {
+  if (InlineSymbols) {
+    if (auto E = encodeSymbol(*this, InlineBuffer, S))
+      return E;
+    Symbols.emplace_back(&S);
+    pushNodes();
+    return Error::success();
+  }
   auto Ref = SymbolRef::create(*this, S);
   if (!Ref)
     return Ref.takeError();
   Symbols.emplace_back(&S);
-  return Ref;
+  commitNode(*Ref);
+  return Error::success();
 }
 
 Expected<CompileUnitRef>
@@ -878,10 +906,8 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
   // Visit sections first since they don't have references to each other.
   // Assume section list has a stable ordering.
   for (const auto &S : G.sections()) {
-    auto Ref = Builder.createSection(S);
-    if (!Ref)
-      return Ref.takeError();
-    Builder.commitNode(*Ref);
+    if (auto E = Builder.createSection(S))
+      return E;
   }
   // Visit symbols. Sort the symbols for stable ordering.
   // FIXME: duplicated code for sorting and comparsion.
@@ -912,19 +938,15 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
 
   // Create sections.
   for (auto *S : Symbols) {
-    auto Ref = Builder.createSymbol(*S);
-    if (!Ref)
-      return Ref.takeError();
-    Builder.commitNode(*Ref);
+    if (auto E = Builder.createSymbol(*S))
+      return E;
   }
 
   // Create BlockRefs.
   Builder.BlockIndexStarts.reserve(Builder.Blocks.size());
   for (auto *B : Builder.Blocks) {
-    auto Ref = Builder.createBlock(*B);
-    if (!Ref)
-      return Ref.takeError();
-    Builder.commitNode(*Ref);
+    if (auto E = Builder.createBlock(*B))
+      return E;
   }
 
   auto B = Builder::startRootNode(Schema, KindString);
@@ -949,6 +971,10 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
     encoding::writeVBR8(Idx, B->Data);
   for (auto Idx : Builder.BlockIndexStarts)
     encoding::writeVBR8(Idx, B->Data);
+
+  // Inlined symbols if set.
+  if (InlineSymbols)
+    B->Data.append(Builder.InlineBuffer);
 
   return get(B->build());
 }
@@ -1016,7 +1042,9 @@ Error CompileUnitRef::materialize(LinkGraphBuilder &LGB) const {
     LGB.Blocks[I].BlockIdx = Idx;
   }
 
-  if (!Remaining.empty())
+  if (InlineSymbols)
+    LGB.InlineBuffer = Remaining;
+  else if (!Remaining.empty())
     return createStringError(inconvertibleErrorCode(),
                              "corrupt ending of compile unit");
 
@@ -1083,6 +1111,13 @@ Error LinkGraphBuilder::materializeBlockContents() {
 }
 
 Error LinkGraphBuilder::materializeSymbols() {
+  if (InlineSymbols) {
+    for (unsigned I = 0; I < SymbolsSize; ++I) {
+      if (auto E = decodeSymbol(*this, InlineBuffer, I))
+        return E;
+    }
+    return Error::success();
+  }
   for (unsigned I = 0; I < SymbolsSize; ++I) {
     auto Symbol = nextNode<SymbolRef>();
     if (!Symbol)

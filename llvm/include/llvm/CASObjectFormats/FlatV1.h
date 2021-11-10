@@ -339,9 +339,9 @@ public:
   Error createAndReferenceEdges(ArrayRef<const jitlink::Edge *> Edges);
   Error createAndReferenceContent(StringRef Content);
 
-  Expected<SectionRef> createSection(const jitlink::Section &S);
-  Expected<BlockRef> createBlock(const jitlink::Block &B);
-  Expected<SymbolRef> createSymbol(const jitlink::Symbol &S);
+  Error createSection(const jitlink::Section &S);
+  Error createBlock(const jitlink::Block &B);
+  Error createSymbol(const jitlink::Symbol &S);
 
   // Lookup functions. The result must exist in the cache already.
   Expected<unsigned> getSectionIndex(const jitlink::Section &S);
@@ -356,6 +356,7 @@ private:
 
   unsigned recordNode(const ObjectFormatNodeRef &Ref);
   unsigned commitNode(const ObjectFormatNodeRef &Ref);
+  void pushNodes();
 
   // Cache all the CASID created.
   DenseMap<cas::CASID, unsigned> CASIDMap;
@@ -370,6 +371,9 @@ private:
   SmallVector<const jitlink::Symbol *, 16> Symbols;
   SmallVector<const jitlink::Block *, 16> Blocks;
   std::vector<unsigned> BlockIndexStarts;
+
+  // Temp storage.
+  SmallString<256> InlineBuffer;
 };
 
 class LinkGraphBuilder {
@@ -471,6 +475,8 @@ private:
   SmallVector<SectionInfo, 16> Sections;
   SmallVector<BlockInfo, 16> Blocks;
   SmallVector<jitlink::Symbol *> Symbols;
+
+  StringRef InlineBuffer;
 };
 
 } // namespace flatv1
