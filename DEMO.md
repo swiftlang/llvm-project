@@ -88,8 +88,10 @@ Pretty hacky right now (can this be trimmed down?).
 - `-fdepscan-prefix-map` changes the debug info to point at the suggested
   location. The debugger needs to be told the "real" location of the source
   files or else it can't find them. For LLDB, these options can help:
+
        (lldb) settings append target.source-map /<key> /<value>
        (lldb) settings show target.source-map
+
   There might be a way to do this automatically but there's no tooling for it
   right now.
 - `-fcas-token-cache` is pretty experimental and fragile, since the layering
