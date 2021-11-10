@@ -653,7 +653,7 @@ Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
     if (E)
       return E;
     auto NameStr = consumeDataOfSize(Remaining, NameSize);
-    if (NameStr)
+    if (!NameStr)
       return NameStr.takeError();
     Name = *NameStr;
   } else {
