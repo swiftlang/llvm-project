@@ -633,7 +633,10 @@ Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
     auto BlockIndex = CUB.getBlockIndex(S.getBlock());
     if (!BlockIndex)
       return BlockIndex.takeError();
-    encoding::writeVBR8(*BlockIndex, B->Data);
+    if (EncodeIndexInCU)
+      CUB.encodeIndex(*BlockIndex);
+    else
+      encoding::writeVBR8(*BlockIndex, B->Data);
   }
 
   return get(B->build());
@@ -682,8 +685,12 @@ Error SymbolRef::materialize(LinkGraphBuilder &LGB, unsigned Idx) const {
   bool IsCallable = Bits & (1U << 5);
 
   unsigned BlockIdx;
-  E = encoding::consumeVBR8(Remaining, BlockIdx);
-  if (E)
+  if (EncodeIndexInCU) {
+    auto Idx = LGB.nextIdx();
+    if (!Idx)
+      return Idx.takeError();
+    BlockIdx = *Idx;
+  } else if (auto E = encoding::consumeVBR8(Remaining, BlockIdx))
     return E;
 
   auto BlockInfo = LGB.getBlockInfo(BlockIdx);
