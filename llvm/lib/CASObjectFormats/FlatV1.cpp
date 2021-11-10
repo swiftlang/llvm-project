@@ -373,7 +373,7 @@ EdgeListRef::create(CompileUnitBuilder &CUB,
   for (const auto *E : Edges) {
     // EdgeList is too "nested" to encode index in CU.
     if (auto Err = encodeEdge(CUB, B->Data, E, true))
-      return Err;
+      return std::move(Err);
   }
 
   return get(B->build());
@@ -450,12 +450,12 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
                                              MutableContentStorage, Fixups,
                                              TrailingNopsAlignment)
                     .moveInto(Content))
-    return E;
+    return std::move(E);
 
   // Encode content first with size and data.
   if (UseBlockContentNode) {
     if (auto E = CUB.createAndReferenceContent(Content))
-      return E;
+      return std::move(E);
   } else {
     encoding::writeVBR8(Content.size(), B->Data);
     B->Data.append(Content);
@@ -464,7 +464,7 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   // Encode edges.
   if (UseEdgeList) {
     if (auto E = CUB.createAndReferenceEdges(Edges))
-      return E;
+      return std::move(E);
     return get(B->build());
   }
 
@@ -472,7 +472,7 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   for (const auto *E : Edges) {
     // Nest the Edge in block.
     if (auto Err = encodeEdge(CUB, B->Data, E))
-      return Err;
+      return std::move(Err);
   }
 
   return get(B->build());
@@ -717,7 +717,7 @@ Expected<SymbolRef> SymbolRef::create(CompileUnitBuilder &CUB,
     return B.takeError();
 
   if (auto E = encodeSymbol(CUB, B->Data, S))
-    return E;
+    return std::move(E);
 
   return get(B->build());
 }
@@ -909,7 +909,7 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
   // Assume section list has a stable ordering.
   for (const auto &S : G.sections()) {
     if (auto E = Builder.createSection(S))
-      return E;
+      return std::move(E);
   }
   // Visit symbols. Sort the symbols for stable ordering.
   // FIXME: duplicated code for sorting and comparsion.
@@ -941,14 +941,14 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
   // Create sections.
   for (auto *S : Symbols) {
     if (auto E = Builder.createSymbol(*S))
-      return E;
+      return std::move(E);
   }
 
   // Create BlockRefs.
   Builder.BlockIndexStarts.reserve(Builder.Blocks.size());
   for (auto *B : Builder.Blocks) {
     if (auto E = Builder.createBlock(*B))
-      return E;
+      return std::move(E);
   }
 
   auto B = Builder::startRootNode(Schema, KindString);
@@ -1062,19 +1062,19 @@ Expected<std::unique_ptr<jitlink::LinkGraph>> CompileUnitRef::createLinkGraph(
     jitlink::LinkGraph::GetEdgeKindNameFunction GetEdgeKindName) {
   LinkGraphBuilder Builder(Name, GetEdgeKindName, *this);
   if (auto E = Builder.materializeCompileUnit())
-    return E;
+    return std::move(E);
 
   if (auto E = Builder.materializeSections())
-    return E;
+    return std::move(E);
 
   if (auto E = Builder.materializeBlockContents())
-    return E;
+    return std::move(E);
 
   if (auto E = Builder.materializeSymbols())
-    return E;
+    return std::move(E);
 
   if (auto E = Builder.materializeEdges())
-    return E;
+    return std::move(E);
 
   return Builder.takeLinkGraph();
 }
