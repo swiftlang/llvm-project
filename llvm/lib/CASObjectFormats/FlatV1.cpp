@@ -35,14 +35,16 @@ const StringLiteral BlockContentRef::KindString;
 
 void ObjectFileSchema::anchor() {}
 
-cl::opt<bool> NestEdgesInBlock("nest-edges-in-block",
-                               cl::desc("Put edges in block"), cl::init(false));
-cl::opt<bool> EncodeIndexInCU("encode-index-in-cu",
-                              cl::desc("Encode all indexes in CU"),
-                              cl::init(false));
-cl::opt<bool> NameInSymbols("name-in-symbols",
-                            cl::desc("Encode symbol name in SymbolRef"),
-                            cl::init(false));
+cl::opt<bool> UseEdgeList("use-edge-list",
+                          cl::desc("Put edges in a separate cas node"),
+                          cl::init(false));
+cl::opt<bool> DirectIndexEncode("direct-index-encode",
+                                cl::desc("Encode all indexes directly"),
+                                cl::init(false));
+cl::opt<bool>
+    UseIndirectSymbolName("indirect-symbol-name",
+                          cl::desc("Encode symbol name into its own node"),
+                          cl::init(false));
 cl::opt<bool> UseBlockContentNode("use-block-content",
                             cl::desc("Use block-content"),
                             cl::init(false));
@@ -314,7 +316,7 @@ static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
   if (!SymbolIndex)
     return SymbolIndex.takeError();
 
-  if (EncodeIndexInCU && !ForceDirectIndex)
+  if (!DirectIndexEncode && !ForceDirectIndex)
     CUB.encodeIndex(*SymbolIndex);
   else
     encoding::writeVBR8(*SymbolIndex, Data);
@@ -334,7 +336,7 @@ static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
                         bool ForceDirectIndex = false) {
   unsigned SymbolIdx;
 
-  if (EncodeIndexInCU && !ForceDirectIndex)
+  if (!DirectIndexEncode && !ForceDirectIndex)
     SymbolIdx = LGB.nextIdxForBlock(BlockIdx);
   else if (auto E = encoding::consumeVBR8(Data, SymbolIdx))
     return E;
@@ -404,7 +406,7 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   auto SectionIndex = CUB.getSectionIndex(Block.getSection());
   if (!SectionIndex)
     return SectionIndex.takeError();
-  if (EncodeIndexInCU)
+  if (!DirectIndexEncode)
     CUB.encodeIndex(*SectionIndex);
   else
     encoding::writeVBR8(*SectionIndex, B->Data);
@@ -460,7 +462,7 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   }
 
   // Encode edges.
-  if (!NestEdgesInBlock) {
+  if (UseEdgeList) {
     if (auto E = CUB.createAndReferenceEdges(Edges))
       return E;
     return get(B->build());
@@ -482,7 +484,7 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
   unsigned char Bits;
 
   auto Remaining = getData();
-  if (EncodeIndexInCU)
+  if (!DirectIndexEncode)
     SectionIdx = LGB.nextIdxForBlock(BlockIdx);
   else if (auto E = encoding::consumeVBR8(Remaining, SectionIdx))
     return E;
@@ -541,7 +543,7 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
 
   // When not embedding, use Remaining to indicate if there is an EdgeList to
   // decode.
-  unsigned RemainSize = NestEdgesInBlock ? Remaining.size() : 1;
+  unsigned RemainSize = !UseEdgeList ? Remaining.size() : 1;
   LGB.setBlockRemaining(BlockIdx, RemainSize);
   return Error::success();
 }
@@ -556,7 +558,7 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
   if (!BlockInfo->Remaining)
     return Error::success();
 
-  if (!NestEdgesInBlock) {
+  if (UseEdgeList) {
     auto Edge = LGB.getNode<EdgeListRef>(BlockIdx);
     if (!Edge)
       return Edge.takeError();
@@ -610,7 +612,7 @@ Expected<BlockContentRef> BlockContentRef::create(CompileUnitBuilder &CUB,
 
 static Error encodeSymbol(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
                           const jitlink::Symbol &S) {
-  if (NameInSymbols) {
+  if (!UseIndirectSymbolName) {
     encoding::writeVBR8(S.getName().size(), Data);
     Data.append(S.getName().begin(), S.getName().end());
   } else if (auto E = CUB.createAndReferenceName(S.getName()))
@@ -632,7 +634,7 @@ static Error encodeSymbol(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
     auto BlockIndex = CUB.getBlockIndex(S.getBlock());
     if (!BlockIndex)
       return BlockIndex.takeError();
-    if (EncodeIndexInCU)
+    if (!DirectIndexEncode)
       CUB.encodeIndex(*BlockIndex);
     else
       encoding::writeVBR8(*BlockIndex, Data);
@@ -645,7 +647,7 @@ static Error decodeSymbol(LinkGraphBuilder &LGB, StringRef &Data,
   unsigned Size, Offset, Bits;
   StringRef Name;
 
-  if (NameInSymbols) {
+  if (!UseIndirectSymbolName) {
     unsigned NameSize;
     auto E = encoding::consumeVBR8(Data, NameSize);
     if (E)
@@ -683,7 +685,7 @@ static Error decodeSymbol(LinkGraphBuilder &LGB, StringRef &Data,
   bool IsCallable = Bits & (1U << 5);
 
   unsigned BlockIdx;
-  if (EncodeIndexInCU) {
+  if (!DirectIndexEncode) {
     auto Idx = LGB.nextIdx();
     if (!Idx)
       return Idx.takeError();
