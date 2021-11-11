@@ -316,18 +316,17 @@ static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
   if (!SymbolIndex)
     return SymbolIndex.takeError();
 
+  unsigned IdxAndHasAddend = *SymbolIndex << 1 | (E->getAddend() != 0);
   if (!DirectIndexEncode && !ForceDirectIndex)
-    CUB.encodeIndex(*SymbolIndex);
+    CUB.encodeIndex(IdxAndHasAddend);
   else
-    encoding::writeVBR8(*SymbolIndex, Data);
+    encoding::writeVBR8(IdxAndHasAddend, Data);
 
   // FIXME: Some of the fields are not stable.
-  unsigned char Bits = 0;
-  Bits |= E->isKeepAlive();
-  encoding::writeVBR8(Bits, Data);
   encoding::writeVBR8(E->getKind(), Data);
   encoding::writeVBR8(E->getOffset(), Data);
-  encoding::writeVBR8(E->getAddend(), Data);
+  if (E->getAddend() != 0)
+    encoding::writeVBR8(E->getAddend(), Data);
   return Error::success();
 }
 
@@ -335,24 +334,22 @@ static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
                         jitlink::Block &Parent, unsigned BlockIdx,
                         bool ForceDirectIndex = false) {
   unsigned SymbolIdx;
-
   if (!DirectIndexEncode && !ForceDirectIndex)
     SymbolIdx = LGB.nextIdxForBlock(BlockIdx);
   else if (auto E = encoding::consumeVBR8(Data, SymbolIdx))
     return E;
 
-  auto Symbol = LGB.getSymbol(SymbolIdx);
+  bool HasAddend = SymbolIdx & 1U;
+  auto Symbol = LGB.getSymbol(SymbolIdx >> 1);
   if (!Symbol)
     return Symbol.takeError();
 
-  unsigned char Bits, Kind;
-  unsigned Offset, Addend;
-  auto E = encoding::consumeVBR8(Data, Bits);
-  if (!E)
-    E = encoding::consumeVBR8(Data, Kind);
+  unsigned char Kind;
+  unsigned Offset, Addend = 0;
+  auto E = encoding::consumeVBR8(Data, Kind);
   if (!E)
     E = encoding::consumeVBR8(Data, Offset);
-  if (!E)
+  if (!E && HasAddend)
     E = encoding::consumeVBR8(Data, Addend);
   if (E)
     return E;
