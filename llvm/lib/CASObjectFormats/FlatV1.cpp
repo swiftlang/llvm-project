@@ -408,18 +408,6 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   else
     encoding::writeVBR8(*SectionIndex, B->Data);
 
-  // Encode block attributes.
-  encoding::writeVBR8(Block.getSize(), B->Data);
-  encoding::writeVBR8(Block.getAlignment(), B->Data);
-  encoding::writeVBR8(Block.getAlignmentOffset(), B->Data);
-  unsigned char Bits = 0;
-  Bits |= Block.isZeroFill();
-  encoding::writeVBR8(Bits, B->Data);
-
-  // For zerofill block, we can just return here because it has no edges.
-  if (Block.isZeroFill())
-    return get(B->build());
-
   // Do a simple sorting based on offset so it has stable ordering for the same
   // block.
   SmallVector<const jitlink::Edge *, 16> Edges;
@@ -436,27 +424,42 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
     Fixups.back().Offset = E->getOffset();
   }
 
-  // Normalize content and put it at the end of the block.
-  // FIXME: assume current block alignment is the alignment for padding and just
-  // pad every block.
-  Optional<Align> TrailingNopsAlignment;
-  TrailingNopsAlignment = Align{Block.getAlignment()};
-  StringRef Content(Block.getContent().begin(), Block.getSize());
-  SmallString<1024> MutableContentStorage;
-  if (Error E = helpers::canonicalizeContent(CUB.TT.getArch(), Content,
-                                             MutableContentStorage, Fixups,
-                                             TrailingNopsAlignment)
-                    .moveInto(Content))
-    return std::move(E);
+  // Create BlockData.
+  SmallString<1024> EncodeContent;
+  if (!Block.isZeroFill()) {
+    SmallString<1024> MutableContentStorage;
+    // Normalize content and put it at the end of the block.
+    // FIXME: assume current block alignment is the alignment for padding and
+    // just pad every block.
+    Optional<Align> TrailingNopsAlignment;
+    TrailingNopsAlignment = Align{Block.getAlignment()};
+    StringRef Content(Block.getContent().begin(), Block.getSize());
+    if (Error E = helpers::canonicalizeContent(CUB.TT.getArch(), Content,
+                                               MutableContentStorage, Fixups,
+                                               TrailingNopsAlignment)
+                      .moveInto(Content))
+      return std::move(E);
+    data::BlockData::encode(Content.size(), Block.getAlignment(),
+                            Block.getAlignmentOffset(), Content,
+                            ArrayRef<Fixup>(), EncodeContent);
+  } else
+    data::BlockData::encode(Block.getSize(), Block.getAlignment(),
+                            Block.getAlignmentOffset(), None,
+                            ArrayRef<Fixup>(), EncodeContent);
 
+  StringRef BlockData(EncodeContent);
   // Encode content first with size and data.
   if (UseBlockContentNode) {
-    if (auto E = CUB.createAndReferenceContent(Content))
+    if (auto E = CUB.createAndReferenceContent(BlockData))
       return std::move(E);
   } else {
-    encoding::writeVBR8(Content.size(), B->Data);
-    B->Data.append(Content);
+    encoding::writeVBR8(BlockData.size(), B->Data);
+    B->Data.append(BlockData);
   }
+
+  // For zerofill block, we can just return here because it has no edges.
+  if (Block.isZeroFill())
+    return get(B->build());
 
   // Encode edges.
   if (UseEdgeList) {
@@ -477,8 +480,7 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
 
 Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
                                  unsigned BlockIdx) const {
-  unsigned SectionIdx, Size, Alignment, AlignOffset;
-  unsigned char Bits;
+  uint64_t SectionIdx, Size, Alignment, AlignOffset;
 
   auto Remaining = getData();
   if (!DirectIndexEncode)
@@ -486,24 +488,34 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
   else if (auto E = encoding::consumeVBR8(Remaining, SectionIdx))
     return E;
 
-  auto  E = encoding::consumeVBR8(Remaining, Size);
-  if (!E)
-    E = encoding::consumeVBR8(Remaining, Alignment);
-  if (!E)
-    E = encoding::consumeVBR8(Remaining, AlignOffset);
-  if (!E)
-    E = encoding::consumeVBR8(Remaining, Bits);
-
-  if (E)
-    return E;
-
   auto SectionInfo = LGB.getSectionInfo(SectionIdx);
   if (!SectionInfo)
     return SectionInfo.takeError();
 
-  bool IsZeroFill = Bits & 1U;
+  StringRef ContentData;
+  if (UseBlockContentNode) {
+    auto ContentRef = LGB.getNode<BlockContentRef>(BlockIdx);
+    if (!ContentRef)
+      return ContentRef.takeError();
+    ContentData = ContentRef->getData();
+  } else {
+    unsigned ContentSize;
+    auto E = encoding::consumeVBR8(Remaining, ContentSize);
+    if (E)
+      return E;
+    auto Data = consumeDataOfSize(Remaining, ContentSize);
+    if (!Data)
+      return Data.takeError();
+    ContentData = *Data;
+  }
+  Optional<StringRef> BlockData;
+  data::FixupList Fixups;
+  data::BlockData Block(ContentData);
+  if (auto E = Block.decode(Size, Alignment, AlignOffset, BlockData, Fixups))
+    return E;
+
   auto Address = getAlignedAddress(*SectionInfo, Size, Alignment, AlignOffset);
-  if (IsZeroFill) {
+  if (Block.isZeroFill()) {
     auto &B = LGB.getLinkGraph()->createZeroFillBlock(
         *SectionInfo->Section, Size, Address, Alignment, AlignOffset);
     if (auto E = LGB.addBlock(BlockIdx, &B))
@@ -516,23 +528,7 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
     return Error::success();
   }
 
-  StringRef ContentData;
-  if (UseBlockContentNode) {
-    auto ContentRef = LGB.getNode<BlockContentRef>(BlockIdx);
-    if (!ContentRef)
-      return ContentRef.takeError();
-    ContentData = ContentRef->getData();
-  } else {
-    unsigned ContentSize;
-    E = encoding::consumeVBR8(Remaining, ContentSize);
-    if (E)
-      return E;
-    auto Data = consumeDataOfSize(Remaining, ContentSize);
-    if (!Data)
-      return Data.takeError();
-    ContentData = *Data;
-  }
-  ArrayRef<char> Content(ContentData.data(), ContentData.size());
+  ArrayRef<char> Content(BlockData->data(), BlockData->size());
   auto &B = LGB.getLinkGraph()->createContentBlock(
       *SectionInfo->Section, Content, Address, Alignment, AlignOffset);
   if (auto E = LGB.addBlock(BlockIdx, &B))
