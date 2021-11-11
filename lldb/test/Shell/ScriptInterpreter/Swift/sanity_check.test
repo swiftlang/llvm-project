@@ -1,12 +1,19 @@
+# REQUIRES: system-darwin
 # RUN: echo "int main() { return 0; }" | %clang_host -x c - -o %t
-# RUN: %lldb -s %s --script-language swift -b %t 2>&1 | FileCheck %s
-script -- print("hello \(40+2)")
+# RUN: %lldb -s %s --script-language swift \
+# RUN: -o "script -- print(\"hello \\(40+2)\")" \
+# RUN: -o "command script import %S/Inputs/sblist.swift" \
+# RUN: -o "command script import %S/Inputs/sbtarget.swift" \
+# RUN: -o "script -- \
+# RUN:       for module in lldb.target.modules { \
+# RUN:         print(\"\\(String(cString: module.GetUUIDString())) \
+# RUN:                 \\(String(cString: module.GetFileSpec().GetFilename()))\") \
+# RUN:       }" \
+# RUN: -b %t 2>&1 | FileCheck %s
+
 # CHECK: hello 42
-command script import /Users/friss/dev/tmp/sblist.swift
-# CHECK-NEXT: (lldb) command script import /Users/friss/dev/tmp/sblist.swift
-command script import /Users/friss/dev/tmp/sbtarget.swift
-# CHECK-NEXT: (lldb) command script import /Users/friss/dev/tmp/sbtarget.swift
-script -- for module in lldb.target.modules { print("\(String(cString: module.GetUUIDString())) \(String(cString: module.GetFileSpec().GetFilename()))") }
+# CHECK-NEXT: (lldb) command script import {{.*}}/Inputs/sblist.swift
+# CHECK-NEXT: (lldb) command script import {{.*}}/Inputs/sbtarget.swift
 # CHECK-NEXT: (lldb) script -- for module in lldb.target.modules { print("\(String(cString: module.GetUUIDString())) \(String(cString: module.GetFileSpec().GetFilename()))") }
 # CHECK-NEXT: {{[-0-9A-F]+}} sanity_check.test.tmp
 # CHECK-NEXT: {{[-0-9A-F]+}} dyld
