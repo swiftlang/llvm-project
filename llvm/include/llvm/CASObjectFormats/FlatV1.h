@@ -445,12 +445,12 @@ public:
   struct BlockInfo {
     jitlink::Block *Block;
     Optional<BlockRef> Ref;
+    Optional<data::BlockData> Data;
+    Optional<data::FixupList::iterator> CurrentFixup;
     unsigned BlockIdx = 0;
     unsigned Remaining = 0;
   };
 
-  Error addBlock(unsigned BlockIdx, jitlink::Block *B);
-  void setBlockRemaining(unsigned BlockIdx, unsigned Remaining);
   Expected<BlockInfo &> getBlockInfo(unsigned BlockIdx);
 
   Error addSymbol(unsigned SymbolIdx, jitlink::Symbol *S);

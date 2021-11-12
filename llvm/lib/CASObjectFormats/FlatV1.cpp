@@ -322,9 +322,6 @@ static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
   else
     encoding::writeVBR8(IdxAndHasAddend, Data);
 
-  // FIXME: Some of the fields are not stable.
-  encoding::writeVBR8(E->getKind(), Data);
-  encoding::writeVBR8(E->getOffset(), Data);
   if (E->getAddend() != 0)
     encoding::writeVBR8(E->getAddend(), Data);
   return Error::success();
@@ -344,17 +341,20 @@ static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
   if (!Symbol)
     return Symbol.takeError();
 
-  unsigned char Kind;
-  unsigned Offset, Addend = 0;
-  auto E = encoding::consumeVBR8(Data, Kind);
-  if (!E)
-    E = encoding::consumeVBR8(Data, Offset);
-  if (!E && HasAddend)
-    E = encoding::consumeVBR8(Data, Addend);
-  if (E)
-    return E;
+  unsigned Addend = 0;
+  if (HasAddend) {
+    if (auto E = encoding::consumeVBR8(Data, Addend))
+      return E;
+  }
+  auto BlockInfo = LGB.getBlockInfo(BlockIdx);
+  if (!BlockInfo)
+    return BlockInfo.takeError();
 
-  Parent.addEdge((jitlink::Edge::Kind)Kind, Offset, **Symbol, Addend);
+  auto Fixup = **BlockInfo->CurrentFixup;
+  if (*BlockInfo->CurrentFixup != BlockInfo->Data->getFixups().end())
+    ++*BlockInfo->CurrentFixup;
+
+  Parent.addEdge(Fixup.Kind, Fixup.Offset, **Symbol, Addend);
 
   return Error::success();
 }
@@ -425,27 +425,28 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   }
 
   // Create BlockData.
-  SmallString<1024> EncodeContent;
+  SmallString<1024> MutableContentStorage;
+  Optional<StringRef> Content;
+  size_t BlockSize = Block.getSize();
   if (!Block.isZeroFill()) {
-    SmallString<1024> MutableContentStorage;
     // Normalize content and put it at the end of the block.
     // FIXME: assume current block alignment is the alignment for padding and
     // just pad every block.
     Optional<Align> TrailingNopsAlignment;
     TrailingNopsAlignment = Align{Block.getAlignment()};
-    StringRef Content(Block.getContent().begin(), Block.getSize());
-    if (Error E = helpers::canonicalizeContent(CUB.TT.getArch(), Content,
+    StringRef BlockContent(Block.getContent().begin(), Block.getSize());
+    if (Error E = helpers::canonicalizeContent(CUB.TT.getArch(), BlockContent,
                                                MutableContentStorage, Fixups,
                                                TrailingNopsAlignment)
                       .moveInto(Content))
       return std::move(E);
-    data::BlockData::encode(Content.size(), Block.getAlignment(),
-                            Block.getAlignmentOffset(), Content,
-                            ArrayRef<Fixup>(), EncodeContent);
-  } else
-    data::BlockData::encode(Block.getSize(), Block.getAlignment(),
-                            Block.getAlignmentOffset(), None,
-                            ArrayRef<Fixup>(), EncodeContent);
+    BlockSize = Content->size();
+  }
+
+  SmallString<1024> EncodeContent;
+  data::BlockData::encode(BlockSize, Block.getAlignment(),
+                          Block.getAlignmentOffset(), Content, Fixups,
+                          EncodeContent);
 
   StringRef BlockData(EncodeContent);
   // Encode content first with size and data.
@@ -456,10 +457,6 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
     encoding::writeVBR8(BlockData.size(), B->Data);
     B->Data.append(BlockData);
   }
-
-  // For zerofill block, we can just return here because it has no edges.
-  if (Block.isZeroFill())
-    return get(B->build());
 
   // Encode edges.
   if (UseEdgeList) {
@@ -480,8 +477,7 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
 
 Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
                                  unsigned BlockIdx) const {
-  uint64_t SectionIdx, Size, Alignment, AlignOffset;
-
+  uint64_t SectionIdx;
   auto Remaining = getData();
   if (!DirectIndexEncode)
     SectionIdx = LGB.nextIdxForBlock(BlockIdx);
@@ -500,44 +496,37 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
     ContentData = ContentRef->getData();
   } else {
     unsigned ContentSize;
-    auto E = encoding::consumeVBR8(Remaining, ContentSize);
-    if (E)
+    if (auto E = encoding::consumeVBR8(Remaining, ContentSize))
       return E;
     auto Data = consumeDataOfSize(Remaining, ContentSize);
     if (!Data)
       return Data.takeError();
     ContentData = *Data;
   }
-  Optional<StringRef> BlockData;
-  data::FixupList Fixups;
-  data::BlockData Block(ContentData);
-  if (auto E = Block.decode(Size, Alignment, AlignOffset, BlockData, Fixups))
-    return E;
 
-  auto Address = getAlignedAddress(*SectionInfo, Size, Alignment, AlignOffset);
-  if (Block.isZeroFill()) {
-    auto &B = LGB.getLinkGraph()->createZeroFillBlock(
-        *SectionInfo->Section, Size, Address, Alignment, AlignOffset);
-    if (auto E = LGB.addBlock(BlockIdx, &B))
-      return E;
+  auto BlockInfo = LGB.getBlockInfo(BlockIdx);
+  if (!BlockInfo)
+    return BlockInfo.takeError();
 
-    if (!Remaining.empty())
-      return createStringError(inconvertibleErrorCode(),
-                               "zero fill block garbage bits");
+  BlockInfo->Data.emplace(ContentData);
+  auto &Block = *BlockInfo->Data;
+  BlockInfo->CurrentFixup.emplace(BlockInfo->Data->getFixups().begin());
 
-    return Error::success();
-  }
+  auto Address =
+      getAlignedAddress(*SectionInfo, Block.getSize(), Block.getAlignment(),
+                        Block.getAlignmentOffset());
+  auto &B = Block.isZeroFill()
+                ? LGB.getLinkGraph()->createZeroFillBlock(
+                      *SectionInfo->Section, Block.getSize(), Address,
+                      Block.getAlignment(), Block.getAlignmentOffset())
+                : LGB.getLinkGraph()->createContentBlock(
+                      *SectionInfo->Section, *Block.getContentArray(), Address,
+                      Block.getAlignment(), Block.getAlignmentOffset());
 
-  ArrayRef<char> Content(BlockData->data(), BlockData->size());
-  auto &B = LGB.getLinkGraph()->createContentBlock(
-      *SectionInfo->Section, Content, Address, Alignment, AlignOffset);
-  if (auto E = LGB.addBlock(BlockIdx, &B))
-    return E;
-
+  BlockInfo->Block = &B;
   // When not embedding, use Remaining to indicate if there is an EdgeList to
   // decode.
-  unsigned RemainSize = !UseEdgeList ? Remaining.size() : 1;
-  LGB.setBlockRemaining(BlockIdx, RemainSize);
+  BlockInfo->Remaining = !UseEdgeList ? Remaining.size() : 1;
   return Error::success();
 }
 
@@ -1140,19 +1129,6 @@ Error LinkGraphBuilder::addSection(unsigned SectionIdx, jitlink::Section *S) {
                              "Section is at the wrong index");
   Sections[SectionIdx].Section = S;
   return Error::success();
-}
-
-Error LinkGraphBuilder::addBlock(unsigned BlockIdx, jitlink::Block *B) {
-  if (BlockIdx >= Blocks.size())
-    return createStringError(inconvertibleErrorCode(),
-                             "Block is at the wrong index");
-  Blocks[BlockIdx].Block = B;
-  return Error::success();
-}
-
-void LinkGraphBuilder::setBlockRemaining(unsigned BlockIdx,
-                                         unsigned Remaining) {
-  Blocks[BlockIdx].Remaining = Remaining;
 }
 
 Expected<LinkGraphBuilder::BlockInfo &>
