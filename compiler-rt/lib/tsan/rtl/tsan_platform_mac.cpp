@@ -142,7 +142,6 @@ void WriteMemoryProfile(char *buf, uptr buf_size, u64 uptime_ns) {
   uptr trace_res, trace_dirty;
   RegionMemUsage(ShadowBeg(), ShadowEnd(), &shadow_res, &shadow_dirty);
   RegionMemUsage(MetaShadowBeg(), MetaShadowEnd(), &meta_res, &meta_dirty);
-  RegionMemUsage(TraceMemBeg(), TraceMemEnd(), &trace_res, &trace_dirty);
 
 #if !SANITIZER_GO
   uptr low_res, low_dirty;
@@ -176,7 +175,6 @@ void WriteMemoryProfile(char *buf, uptr buf_size, u64 uptime_ns) {
       "------------------------------\n",
       ShadowBeg(), ShadowEnd(), shadow_res / 1024, shadow_dirty / 1024,
       MetaShadowBeg(), MetaShadowEnd(), meta_res / 1024, meta_dirty / 1024,
-      TraceMemBeg(), TraceMemEnd(), trace_res / 1024, trace_dirty / 1024,
 #  if !SANITIZER_GO
       LoAppMemBeg(), LoAppMemEnd(), low_res / 1024, low_dirty / 1024,
       HiAppMemBeg(), HiAppMemEnd(), high_res / 1024, high_dirty / 1024,
