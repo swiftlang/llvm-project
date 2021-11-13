@@ -1238,32 +1238,44 @@ set(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN OFF CACHE BOOL
   "Use the experimental -fdepscan and related flags")
 set(LLVM_DEPSCAN_MODE "" CACHE STRING "Mode for -fdepscan if used")
 if(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN)
-  check_c_compiler_flag("-fdepscan" SUPPORTS_DEPSCAN)
+  # Don't daemonize when running the check.
+  check_c_compiler_flag("-fdepscan=off" SUPPORTS_DEPSCAN)
 
+  # Check LLVM_DEPSCAN_MODE before entering if() in order to claim it.
   if(LLVM_DEPSCAN_MODE)
     append_if(SUPPORTS_DEPSCAN "-fdepscan=${LLVM_DEPSCAN_MODE}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   else()
     append_if(SUPPORTS_DEPSCAN "-fdepscan" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   endif()
 
-  if(LLVM_ENABLE_PROJECTS_USED)
-    get_filename_component(source_root "${LLVM_MAIN_SRC_DIR}/.." ABSOLUTE)
-  else()
-    set(source_root "${LLVM_MAIN_SRC_DIR}")
-  endif()
+  if(SUPPORTS_DEPSCAN)
+    check_c_compiler_flag("-fdepscan=off -fdepscan-share-stop=cmake" SUPPORTS_DEPSCAN_SHARE)
+    if(SUPPORTS_DEPSCAN_SHARE)
+      append("-fdepscan-share-parent=${CMAKE_MAKE_PROGRAM}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+      append("-fdepscan-share-stop=cmake" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    endif()
 
-  append_if(SUPPORTS_DEPSCAN "-fdepscan-prefix-map-sdk=/^sdk" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-  append_if(SUPPORTS_DEPSCAN "-fdepscan-prefix-map-toolchain=/^toolchain" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-  append_if(SUPPORTS_DEPSCAN "-fdepscan-prefix-map=${source_root}=/^source" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-  append_if(SUPPORTS_DEPSCAN "-fdepscan-prefix-map=${CMAKE_BINARY_DIR}=/^build" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    if(LLVM_ENABLE_PROJECTS_USED)
+      get_filename_component(source_root "${LLVM_MAIN_SRC_DIR}/.." ABSOLUTE)
+    else()
+      set(source_root "${LLVM_MAIN_SRC_DIR}")
+    endif()
+
+    append("-fdepscan-prefix-map-sdk=/^sdk" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append("-fdepscan-prefix-map-toolchain=/^toolchain" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append("-fdepscan-prefix-map=${source_root}=/^source" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append("-fdepscan-prefix-map=${CMAKE_BINARY_DIR}=/^build" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  endif()
 endif()
 
 set(LLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE OFF CACHE BOOL
     "Cache tokens using -Xclang -fcas-cache-tokens")
 if(LLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE)
   check_c_compiler_flag("-Xclang -fcas-token-cache" SUPPORTS_CAS_TOKEN_CACHE)
-  append_if(SUPPORTS_CAS_TOKEN_CACHE "-Xclang" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-  append_if(SUPPORTS_CAS_TOKEN_CACHE "-fcas-token-cache" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  if(SUPPORTS_CAS_TOKEN_CACHE)
+    append("-Xclang" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append("-fcas-token-cache" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  endif()
 endif()
 
 # Do depscan caching in tablegen.

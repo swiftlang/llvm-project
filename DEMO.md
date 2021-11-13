@@ -35,7 +35,22 @@ need to be "fixed". Some are driver-only (and should remain so).
   specified, but for now always uses the builtin CAS at a fixed path. This
   *should* respect `-fcas-fs` and create a pruned/new CAS tree, but for now
   ignores it.
-    - `-fdepscan-mode=daemon`: currently the only option... run in a daemon.
+    - `-fdepscan=auto` is the current alias for `-fdepscan`. It is the same
+      as `-fdepscan=daemon` if it seems profitible, otherwise `=inline`.
+    - `-fdepscan=daemon` always makes a daemon. It may allow shared state:
+        - `-fdepscan-share-parent`: share state based on the PID of the parent
+          process.
+        - `-fdepscan-share-parent=ninja`: share state based on the PID of the
+          parent process if it's called `ninja`.
+        - `-fdepscan-share=ninja`: share state based on the PID of the
+          closest `ninja` in the process ancestors.
+        - `-fdepscan-share-stop=cmake`: do not share state if `cmake` is the
+          parent process, or is a closer process ancestor than the command to
+          share under. This protects against shared state in configuration
+          files.
+    - `-fdepscan=inline`: never daemonize. This is much slower.
+    - `-fdepscan=off`: the default!, but can be added to the end of a
+      command-line.
     - `-fdepscan-prefix-map=<key>=<value>`: do prefix mapping on the CAS tree
       and the `-cc1` command-line, rewriting paths starting with `<key>` to
       start with `<value>`. Can be used to make the `-cc1` command-line
@@ -108,8 +123,8 @@ For building a CAS-aware branch (i.e., this one!), there are some extra CMake
 options available.
 
 - `-DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN=ON`: turn on `-fdepscan` and all the
-  relevant `-fdepscan-prefix-map*` options.
-    - `-DLLVM_DEPSCAN_MODE=daemon` pass through to `-fdepscan-mode`.
+  relevant `-fdepscan-*` options.
+    - `-DLLVM_DEPSCAN_MODE=...` pass through to `-fdepscan-mode`.
 - `-DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN=ON`: as above, turns it on for
   the just-built tablegen.
 - `-DLLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE=ON`: turn on `-fcas-token-cache`.
@@ -131,7 +146,6 @@ options available.
      -DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN=ON \
      -DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN=ON          \
      -DLLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE=ON  \
-     -DLLVM_DEPSCAN_MODE=daemon                     \
      ../llvm &&
    ninja)
 ```
@@ -143,8 +157,7 @@ mainly by speeding up the linker and reducing I/O when writing out the smaller
 #### FIXME: Manual configuration for other branches
 
 If the branch being built isn't CAS-aware, you should be able to add the
-options directly. However, the `-fdepscan-prefix-map` options currently
-interfere with CMake's configuration.
+options directly.
 
 ```
 % CLANG="$TOOLCHAIN"/usr/bin/clang
@@ -153,7 +166,11 @@ interfere with CMake's configuration.
 % rm -rf "$STAGE2BUILD"
 % mkdir -p "$STAGE2BUILD"
 % CLANGFLAGS=(
-     -fdepscan
+     -fdepscan -fdepscan-share-parent=ninja -fdepscan-share-stop=cmake
+     -fdepscan-prefix-map-sdk=/^sdk
+     -fdepscan-prefix-map-toolchain=/^toolchain
+     -fdepscan-prefix-map=$STAGE2BUILD=/^build
+     -fdepscan-prefix-map=$PWD=/^source
      -Xclang
      -fcas-token-cache
   )

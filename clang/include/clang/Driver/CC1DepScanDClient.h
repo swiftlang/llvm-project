@@ -38,7 +38,7 @@ struct AutoArgEdit {
 
 void addCC1ScanDepsArgs(
     const char *Exec, SmallVectorImpl<const char *> &Argv,
-    const DepscanPrefixMapping &Mapping,
+    const DepscanPrefixMapping &Mapping, StringRef DaemonKey,
     llvm::function_ref<const char *(const Twine &)> SaveArg);
 
 } // namespace cc1depscand

@@ -23,7 +23,7 @@
 namespace clang {
 namespace cc1depscand {
 
-StringRef getBasePath();
+std::string getBasePath(StringRef DaemonKey);
 
 int createSocket();
 int connectToSocket(StringRef BasePath, int Socket);

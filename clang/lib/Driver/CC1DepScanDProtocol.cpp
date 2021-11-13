@@ -77,30 +77,21 @@ int cc1depscand::bindToSocket(StringRef BasePath, int Socket) {
   return 0;
 }
 
-StringRef cc1depscand::getBasePath() {
-  static Optional<SmallString<128>> BasePath = None;
-
-  // FIXME: Not thread-safe, but does the driver need threads?
-  if (BasePath)
-    return *BasePath;
+std::string cc1depscand::getBasePath(StringRef DaemonKey) {
+  assert(!DaemonKey.empty() && "Expected valid daemon key");
 
   // Construct the path.
-  //
-  // FIXME: Using ppid is non-portable and totally unsound. Can't check pgrp,
-  // since ninja sets a different pgrp for each clang invocation. Probably we
-  // should add the CASID of the clang executable, which maybe needs to be
-  // computed anyway...
-  //
-  // FIXME: We should also check that the parent is an actual build system
-  // (like ninja) to avoid merging jobs in simple shell invocations, where the
-  // sources may have changed in between.
-  BasePath.emplace();
-  llvm::sys::path::system_temp_directory(/*ErasedOnReboot=*/true, *BasePath);
-  llvm::sys::path::append(*BasePath, "cc1scand." + Twine(::getppid()));
+  SmallString<128> BasePath;
+  llvm::sys::path::system_temp_directory(/*ErasedOnReboot=*/true, BasePath);
+  llvm::sys::path::append(BasePath, "llvm.depscan.daemon");
+
+  // Ignore the error here; let something else report an error lator.
+  (void)llvm::sys::fs::create_directories(BasePath);
+
+  llvm::sys::path::append(BasePath, DaemonKey);
 
   // Ensure null-termination.
-  (void)BasePath->c_str();
-  return *BasePath;
+  return BasePath.str().str();
 }
 
 namespace {
@@ -464,9 +455,9 @@ llvm::Error CC1DepScanDProtocol::getScanResult(llvm::StringSaver &Saver,
 
 void cc1depscand::addCC1ScanDepsArgs(
     const char *Exec, SmallVectorImpl<const char *> &Argv,
-    const DepscanPrefixMapping &Mapping,
+    const DepscanPrefixMapping &Mapping, StringRef DaemonKey,
     llvm::function_ref<const char *(const Twine &)> SaveArg) {
-  SmallString<128> BasePath = cc1depscand::getBasePath();
+  std::string BasePath = cc1depscand::getBasePath(DaemonKey);
 
   // FIXME: Skip some of this if -fcas-fs has been passed.
   SmallString<128> WorkingDirectory;
