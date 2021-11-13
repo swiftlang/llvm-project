@@ -562,7 +562,9 @@ void CGDebugInfo::CreateCompileUnit() {
     LangTag = llvm::dwarf::DW_LANG_C89;
   }
 
-  std::string Producer = getClangFullVersion();
+  // FIXME: Choose IncludeRevision based on command-line argument. Including
+  // the Git revision is bad for reproducible builds / caching.
+  std::string Producer = getClangFullVersion(/*IncludeRevision=*/false);
 
   // Figure out which version of the ObjC runtime we have.
   unsigned RuntimeVers = 0;
