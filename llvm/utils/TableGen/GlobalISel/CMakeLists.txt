@@ -1,6 +1,7 @@
 set(LLVM_LINK_COMPONENTS
   Support
   TableGen
+  CAS
   )
 
 add_llvm_library(LLVMTableGenGlobalISel STATIC DISABLE_LLVM_LINK_LLVM_DYLIB
