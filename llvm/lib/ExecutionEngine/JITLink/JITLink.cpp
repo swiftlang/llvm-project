@@ -400,6 +400,8 @@ Expected<LinkGraph::GetEdgeKindNameFunction>
 getGetEdgeKindNameFunction(const Triple &TT) {
   if (TT.isOSBinFormatMachO())
     return getGetEdgeKindNameFunctionForMachO(TT);
+  if (TT.isOSBinFormatELF())
+    return getGetEdgeKindNameFunctionForELF(TT);
   return make_error<JITLinkError>("Unsupported triple");
 }
 

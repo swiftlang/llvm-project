@@ -681,10 +681,10 @@ static Error decodeSymbol(LinkGraphBuilder &LGB, StringRef &Data,
 
   auto &Symbol =
       Name.empty()
-          ? LGB.getLinkGraph()->addAnonymousSymbol(*BlockInfo->Block, Offset, 0,
-                                                   IsCallable, IsLive)
+          ? LGB.getLinkGraph()->addAnonymousSymbol(*BlockInfo->Block, Offset,
+                                                   Size, IsCallable, IsLive)
           : LGB.getLinkGraph()->addDefinedSymbol(*BlockInfo->Block, Offset,
-                                                 Name, 0, Linkage, Scope,
+                                                 Name, Size, Linkage, Scope,
                                                  IsCallable, IsLive);
   if (auto E = LGB.addSymbol(Idx, &Symbol))
     return E;
