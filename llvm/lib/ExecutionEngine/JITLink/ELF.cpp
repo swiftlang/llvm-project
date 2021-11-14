@@ -15,6 +15,7 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/ExecutionEngine/JITLink/ELF_riscv.h"
 #include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"
+#include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Format.h"
@@ -73,6 +74,15 @@ createLinkGraphFromELFObject(MemoryBufferRef ObjectBuffer) {
         "Unsupported target machine architecture in ELF object " +
         ObjectBuffer.getBufferIdentifier());
   }
+}
+
+Expected<LinkGraph::GetEdgeKindNameFunction>
+getGetEdgeKindNameFunctionForELF(const Triple &TT) {
+  assert(TT.isOSBinFormatELF());
+  if (TT.getArch() == Triple::x86_64)
+    return x86_64::getEdgeKindName;
+
+  return make_error<JITLinkError>("Unsupported mach-o triple");
 }
 
 void link_ELF(std::unique_ptr<LinkGraph> G,

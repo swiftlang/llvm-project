@@ -26,6 +26,10 @@ namespace jitlink {
 Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromELFObject(MemoryBufferRef ObjectBuffer);
 
+/// Get the edge kind name function for ELF triples.
+Expected<LinkGraph::GetEdgeKindNameFunction>
+getGetEdgeKindNameFunctionForELF(const Triple &TT);
+
 /// Link the given graph.
 ///
 /// Uses conservative defaults for GOT and stub handling based on the target
