@@ -8,8 +8,9 @@
 
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/ScopeExit.h"
-#include "llvm/CASObjectFormats/NestedV1.h"
 #include "llvm/CASObjectFormats/FlatV1.h"
+#include "llvm/CASObjectFormats/NestedV1.h"
+#include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
 #include "llvm/Support/CommandLine.h"
@@ -641,6 +642,25 @@ static void dumpGraph(jitlink::LinkGraph &G, SharedStream &OS, StringRef Desc) {
   OS.applyLocked([&](raw_ostream &OS) { OS << Desc << ":\n" << Data; });
 }
 
+static Error createSplitEHFramePasses(jitlink::LinkGraph &G) {
+  if (G.getTargetTriple().getObjectFormat() == Triple::MachO &&
+      G.getTargetTriple().getArch() == Triple::x86_64) {
+    if (auto E = jitlink::createEHFrameSplitterPass_MachO_x86_64()(G))
+      return E;
+    if (auto E = jitlink::createEHFrameEdgeFixerPass_MachO_x86_64()(G))
+      return E;
+  } else if (G.getTargetTriple().getObjectFormat() == Triple::ELF &&
+             G.getTargetTriple().getArch() == Triple::x86_64) {
+    if (auto E = jitlink::createEHFrameSplitterPass_ELF_x86_64()(G))
+      return E;
+    if (auto E = jitlink::createEHFrameEdgeFixerPass_ELF_x86_64()(G))
+      return E;
+  } else
+    dbgs() << "Note: not fixing eh-frame sections\n";
+
+  return Error::success();
+}
+
 static CASID ingestFile(SchemaBase &Schema, StringRef InputFile,
                         MemoryBufferRef FileContent, SharedStream &OS) {
   ExitOnError ExitOnErr;
@@ -658,14 +678,8 @@ static CASID ingestFile(SchemaBase &Schema, StringRef InputFile,
   auto G = ExitOnErr(
       jitlink::createLinkGraphFromObject(FileContent));
 
-  if (SplitEHFrames &&
-      G->getTargetTriple().getObjectFormat() == Triple::MachO &&
-      G->getTargetTriple().getArch() == Triple::x86_64) {
-    ExitOnErr(jitlink::createEHFrameSplitterPass_MachO_x86_64()(*G));
-    ExitOnErr(jitlink::createEHFrameEdgeFixerPass_MachO_x86_64()(*G));
-  } else {
-    dbgs() << "Note: not fixing eh-frame sections\n";
-  }
+  if (SplitEHFrames)
+    ExitOnErr(createSplitEHFramePasses(*G));
 
   if (!JustDsymutil.empty()) {
     // Create a map for each symbol in TEXT.
