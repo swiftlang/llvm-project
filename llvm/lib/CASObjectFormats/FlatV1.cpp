@@ -341,7 +341,7 @@ static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
   if (!Symbol)
     return Symbol.takeError();
 
-  unsigned Addend = 0;
+  jitlink::Edge::AddendT Addend = 0;
   if (HasAddend) {
     if (auto E = encoding::consumeVBR8(Data, Addend))
       return E;
