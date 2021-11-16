@@ -9,6 +9,7 @@ add_llvm_unittest(CASObjectFormatsTests
   EncodingTest.cpp
   BlockDataTest.cpp
   FixupListTest.cpp
+  FlatV1SchemaTest.cpp
   NestedV1SchemaTest.cpp
   NestedV1TargetListTest.cpp
   TargetInfoListTest.cpp
