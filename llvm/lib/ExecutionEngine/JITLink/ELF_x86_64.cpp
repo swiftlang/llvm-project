@@ -525,5 +525,15 @@ const char *getELFX86RelocationKindName(Edge::Kind R) {
   }
   return getGenericEdgeKindName(static_cast<Edge::Kind>(R));
 }
+
+LinkGraphPassFunction createEHFrameSplitterPass_ELF_x86_64() {
+  return EHFrameSplitter(".eh_frame");
+}
+
+LinkGraphPassFunction createEHFrameEdgeFixerPass_ELF_x86_64() {
+  return EHFrameEdgeFixer(".eh_frame", x86_64::PointerSize, x86_64::Delta64,
+                          x86_64::Delta32, x86_64::NegDelta32);
+}
+
 } // end namespace jitlink
 } // end namespace llvm
