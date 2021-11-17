@@ -48,6 +48,8 @@ TEST(TargetInfoListTest, Single) {
   TargetInfo TIs[] = {
       {0, 0U},
       {7777777, 0U},
+      {6, 1U},
+      {0, 9U},
   };
   for (TargetInfo TI : TIs) {
     TargetInfoList TIL = makeList(TI);
@@ -63,9 +65,10 @@ TEST(TargetInfoListTest, Single) {
 
 TEST(TargetInfoListTest, Multiple) {
   TargetInfo Input[] = {
-      {0, 0U},  {1, 1U},       {0, 2U},         {1, 3U},        {0, 7U},
-      {1, 13U}, {-20, 12U},    {-7777777, 11U}, {20, 5U},       {7777777, 10U},
-      {20, 4U}, {7777777, 9U}, {-20, 6U},       {-7777777, 8U},
+      {0, 0U},   {1, 1U},        {0, 2U},    {1, 3U},
+      {0, 7U},   {1, 13U},       {-20, 12U}, {-7777777, 11U},
+      {20, 5U},  {7777777, 10U}, {20, 4U},   {7777777, 9U},
+      {-20, 6U}, {-7777777, 8U}, {6, 200U},  {0, 75U},
   };
 
   // Then check iteration.

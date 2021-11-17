@@ -215,9 +215,11 @@ LLVM_DUMP_METHOD void TargetInfo::dump() const { print(dbgs()); }
 void TargetInfoList::encode(ArrayRef<TargetInfo> TIs,
                             SmallVectorImpl<char> &Data) {
   for (const TargetInfo &TI : TIs) {
-    assert(TI.Index < TIs.size() && "More targets than edges?");
-    encoding::writeVBR8(int64_t(TI.Addend), Data);
-    encoding::writeVBR8(uint32_t(TI.Index), Data);
+    bool HasAddend = TI.Addend;
+    uint64_t IndexAndHasAddend = (uint64_t(TI.Index) << 1) | HasAddend;
+    encoding::writeVBR8(IndexAndHasAddend, Data);
+    if (HasAddend)
+      encoding::writeVBR8(TI.Addend, Data);
   }
 }
 
@@ -228,17 +230,22 @@ void TargetInfoList::iterator::decode(bool IsInit) {
     return;
   }
 
-  int64_t Addend = 0;
-  bool ConsumeFailed = errorToBool(encoding::consumeVBR8(Data, Addend));
-  assert(!ConsumeFailed && "Cannot decode addend");
-  (void)ConsumeFailed;
+  uint64_t IndexAndHasAddend = 0;
+  {
+    bool ConsumeFailed = errorToBool(encoding::consumeVBR8(Data,
+                                                           IndexAndHasAddend));
+    assert(!ConsumeFailed && "Cannot decode index");
+    (void)ConsumeFailed;
+  }
 
-  uint32_t Index = 0;
-  ConsumeFailed = errorToBool(encoding::consumeVBR8(Data, Index));
-  assert(!ConsumeFailed && "Cannot decode index");
-  (void)ConsumeFailed;
+  int64_t Addend = 0;
+  if (IndexAndHasAddend & 0x1) {
+    bool ConsumeFailed = errorToBool(encoding::consumeVBR8(Data, Addend));
+    assert(!ConsumeFailed && "Cannot decode addend");
+    (void)ConsumeFailed;
+  }
 
   TI.emplace();
   TI->Addend = Addend;
-  TI->Index = Index;
+  TI->Index = IndexAndHasAddend >> 1;
 }

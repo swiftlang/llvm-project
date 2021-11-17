@@ -192,16 +192,8 @@ struct TargetInfo {
   bool operator!=(const TargetInfo &RHS) const { return !operator==(RHS); }
 };
 
-/// An encoded list of \a TargetInfo, parallel with \a FixupList.
-///
-/// FIXME: Optimize the encoding further. Currently the index is stored as VBR8,
-/// but we know that the indexes are all smaller than the TargetList. For lists
-/// with 128 or fewer targets, we could get smaller.
-///
-/// There are very few instances of \a TargetInfoListRef (they dedup
-/// surprisingly well), so no benefit there, but the ones embedded in \a
-/// BlockRef can't be deduped. The statistics for "cas.o:block"'s inline data
-/// should show the headroom available there.
+/// An encoded list of \a TargetInfo, parallel with \a FixupList. This encodes
+/// a target index and an addend.
 class TargetInfoList {
 public:
   class iterator
