@@ -30,14 +30,10 @@ const StringLiteral NameRef::KindString;
 const StringLiteral SectionRef::KindString;
 const StringLiteral BlockRef::KindString;
 const StringLiteral SymbolRef::KindString;
-const StringLiteral EdgeListRef::KindString;
 const StringLiteral BlockContentRef::KindString;
 
 void ObjectFileSchema::anchor() {}
 
-cl::opt<bool> UseEdgeList("use-edge-list",
-                          cl::desc("Put edges in a separate cas node"),
-                          cl::init(false));
 cl::opt<bool> DirectIndexEncode("direct-index-encode",
                                 cl::desc("Encode all indexes directly"),
                                 cl::init(false));
@@ -89,8 +85,7 @@ Error ObjectFileSchema::fillCache() {
   StringRef AllKindStrings[] = {
       BlockRef::KindString,  CompileUnitRef::KindString,
       NameRef::KindString,   SectionRef::KindString,
-      SymbolRef::KindString, EdgeListRef::KindString,
-      BlockContentRef::KindString,
+      SymbolRef::KindString, BlockContentRef::KindString,
   };
   cas::CASID Refs[] = {*RootKindID};
   SmallVector<cas::CASID> IDs = {*RootKindID};
@@ -301,14 +296,6 @@ Expected<SectionRef> SectionRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return SectionRef(*Specific);
 }
 
-Expected<EdgeListRef> EdgeListRef::get(Expected<ObjectFormatNodeRef> Ref) {
-  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
-  if (!Specific)
-    return Specific.takeError();
-
-  return EdgeListRef(*Specific);
-}
-
 static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
                         const jitlink::Edge *E, bool ForceDirectIndex = false) {
 
@@ -356,40 +343,6 @@ static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
 
   Parent.addEdge(Fixup.Kind, Fixup.Offset, **Symbol, Addend);
 
-  return Error::success();
-}
-
-Expected<EdgeListRef>
-EdgeListRef::create(CompileUnitBuilder &CUB,
-                    ArrayRef<const jitlink::Edge *> Edges) {
-  auto B = Builder::startNode(CUB.Schema, KindString);
-  if (!B)
-    return B.takeError();
-
-  encoding::writeVBR8(Edges.size(), B->Data);
-  for (const auto *E : Edges) {
-    // EdgeList is too "nested" to encode index in CU.
-    if (auto Err = encodeEdge(CUB, B->Data, E, true))
-      return std::move(Err);
-  }
-
-  return get(B->build());
-}
-
-Error EdgeListRef::materialize(LinkGraphBuilder &LGB, jitlink::Block &Parent,
-                               unsigned BlockIdx) const {
-  auto Remaining = getData();
-
-  unsigned EdgeSize;
-  auto E = encoding::consumeVBR8(Remaining, EdgeSize);
-  if (E)
-    return E;
-
-  for (unsigned I = 0; I < EdgeSize; ++I) {
-    // EdgeList is too "nested" to encode index in CU.
-    if (auto Err = decodeEdge(LGB, Remaining, Parent, BlockIdx, true))
-      return Err;
-  }
   return Error::success();
 }
 
@@ -458,13 +411,6 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
     B->Data.append(BlockData);
   }
 
-  // Encode edges.
-  if (UseEdgeList) {
-    if (auto E = CUB.createAndReferenceEdges(Edges))
-      return std::move(E);
-    return get(B->build());
-  }
-
   encoding::writeVBR8(Block.edges_size(), B->Data);
   for (const auto *E : Edges) {
     // Nest the Edge in block.
@@ -524,9 +470,7 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
                       Block.getAlignment(), Block.getAlignmentOffset());
 
   BlockInfo->Block = &B;
-  // When not embedding, use Remaining to indicate if there is an EdgeList to
-  // decode.
-  BlockInfo->Remaining = !UseEdgeList ? Remaining.size() : 1;
+  BlockInfo->Remaining = Remaining.size();
   return Error::success();
 }
 
@@ -539,17 +483,6 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
   // Nothing remains, no edges.
   if (!BlockInfo->Remaining)
     return Error::success();
-
-  if (UseEdgeList) {
-    auto Edge = LGB.getNode<EdgeListRef>(BlockIdx);
-    if (!Edge)
-      return Edge.takeError();
-
-    if (auto Err = Edge->materialize(LGB, *BlockInfo->Block, BlockIdx))
-      return Err;
-
-    return Error::success();
-  }
 
   auto Remaining = getData().take_back(BlockInfo->Remaining);
   unsigned EdgeSize;
@@ -788,16 +721,6 @@ Error CompileUnitBuilder::createAndReferenceName(StringRef Name) {
   if (!Ref)
     return Ref.takeError();
   // NameRef is not top level record, always record here.
-  recordNode(*Ref);
-  return Error::success();
-}
-
-Error CompileUnitBuilder::createAndReferenceEdges(
-    ArrayRef<const jitlink::Edge *> Edges) {
-  auto Ref = EdgeListRef::create(*this, Edges);
-  if (!Ref)
-    return Ref.takeError();
-  // EdgeListRef is not top level record, always record here.
   recordNode(*Ref);
   return Error::success();
 }

@@ -196,28 +196,6 @@ private:
   explicit SectionRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 };
 
-class EdgeListRef : public SpecificRef<EdgeListRef> {
-  using SpecificRefT = SpecificRef<EdgeListRef>;
-  friend class SpecificRef<EdgeListRef>;
-
-public:
-  static constexpr StringLiteral KindString = "cas.o:edgelist";
-
-  static Expected<EdgeListRef> create(CompileUnitBuilder &CUB,
-                                      ArrayRef<const jitlink::Edge *> Edges);
-  static Expected<EdgeListRef> get(Expected<ObjectFormatNodeRef> Ref);
-  static Expected<EdgeListRef> get(const ObjectFileSchema &Schema,
-                                   cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-
-  Error materialize(LinkGraphBuilder &LGB, jitlink::Block &Parent,
-                    unsigned BlockIdx) const;
-
-private:
-  explicit EdgeListRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
-};
-
 class BlockRef : public SpecificRef<BlockRef> {
   using SpecificRefT = SpecificRef<BlockRef>;
   friend class SpecificRef<BlockRef>;
@@ -336,7 +314,6 @@ public:
       : CAS(Schema.CAS), Schema(Schema), TT(Target), DebugOS(DebugOS) {}
 
   Error createAndReferenceName(StringRef S);
-  Error createAndReferenceEdges(ArrayRef<const jitlink::Edge *> Edges);
   Error createAndReferenceContent(StringRef Content);
 
   Error createSection(const jitlink::Section &S);
