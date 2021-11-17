@@ -423,7 +423,6 @@ public:
     jitlink::Block *Block;
     Optional<BlockRef> Ref;
     Optional<data::BlockData> Data;
-    Optional<data::FixupList::iterator> CurrentFixup;
     unsigned BlockIdx = 0;
     unsigned Remaining = 0;
   };

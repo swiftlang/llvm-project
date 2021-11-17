@@ -316,6 +316,7 @@ static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
 
 static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
                         jitlink::Block &Parent, unsigned BlockIdx,
+                        const data::Fixup &Fixup,
                         bool ForceDirectIndex = false) {
   unsigned SymbolIdx;
   if (!DirectIndexEncode && !ForceDirectIndex)
@@ -336,10 +337,6 @@ static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
   auto BlockInfo = LGB.getBlockInfo(BlockIdx);
   if (!BlockInfo)
     return BlockInfo.takeError();
-
-  auto Fixup = **BlockInfo->CurrentFixup;
-  if (*BlockInfo->CurrentFixup != BlockInfo->Data->getFixups().end())
-    ++*BlockInfo->CurrentFixup;
 
   Parent.addEdge(Fixup.Kind, Fixup.Offset, **Symbol, Addend);
 
@@ -411,7 +408,6 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
     B->Data.append(BlockData);
   }
 
-  encoding::writeVBR8(Block.edges_size(), B->Data);
   for (const auto *E : Edges) {
     // Nest the Edge in block.
     if (auto Err = encodeEdge(CUB, B->Data, E))
@@ -456,8 +452,6 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
 
   BlockInfo->Data.emplace(ContentData);
   auto &Block = *BlockInfo->Data;
-  BlockInfo->CurrentFixup.emplace(BlockInfo->Data->getFixups().begin());
-
   auto Address =
       getAlignedAddress(*SectionInfo, Block.getSize(), Block.getAlignment(),
                         Block.getAlignmentOffset());
@@ -485,13 +479,9 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
     return Error::success();
 
   auto Remaining = getData().take_back(BlockInfo->Remaining);
-  unsigned EdgeSize;
-  auto E = encoding::consumeVBR8(Remaining, EdgeSize);
-  if (E)
-    return E;
-
-  for (unsigned I = 0; I < EdgeSize; ++I) {
-    if (auto Err = decodeEdge(LGB, Remaining, *BlockInfo->Block, BlockIdx))
+  for (const data::Fixup &Fixup : BlockInfo->Data->getFixups()) {
+    if (Error Err =
+            decodeEdge(LGB, Remaining, *BlockInfo->Block, BlockIdx, Fixup))
       return Err;
   }
 
