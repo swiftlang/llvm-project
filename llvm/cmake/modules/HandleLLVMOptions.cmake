@@ -1252,7 +1252,16 @@ if(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN)
     check_c_compiler_flag("-fdepscan=off -fdepscan-share-stop=cmake" SUPPORTS_DEPSCAN_SHARE)
     if(SUPPORTS_DEPSCAN_SHARE)
       get_filename_component(CMAKE_MAKE_PROGRAM_NAME "${CMAKE_MAKE_PROGRAM}" NAME)
-      append("-fdepscan-share-parent=${CMAKE_MAKE_PROGRAM_NAME}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+      if(CMAKE_GENERATOR STREQUAL "Ninja")
+        # Ninja should always be direct parent of clang invocations (except
+        # during configuration). Avoid unnecessary ancestor searches.
+        set(fdepscan_share "-fdepscan-share-parent")
+      else()
+        # Other build systems may use subshells.
+        set(fdepscan_share "-fdepscan-share")
+      endif()
+
+      append("${fdepscan_share}=${CMAKE_MAKE_PROGRAM_NAME}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
       append("-fdepscan-share-stop=cmake" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
     endif()
 
