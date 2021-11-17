@@ -112,8 +112,6 @@ Pretty hacky right now (can this be trimmed down?).
 - `-fcas-token-cache` is pretty experimental and fragile, since the layering
   is a total hack. It particularly interferes with errors encountered during
   preprocessing.
-- There are still some occasional daemon crashes/hangs, which in turn causes
-  `-cc1` to fail with awkward backtraces.
 
 ### Caching with just-built toolchain
 
