@@ -1845,17 +1845,20 @@ Error LinkGraphBuilder::makeSymbol(Expected<SymbolRef> Symbol) {
     else
       return ExpectedS.takeError();
   }
-  // FIXME: Complete a post-order traversal of each symbol/block graph before
-  // going through the worklist, thus creating jitlink::Block instances
-  // bottom-up. This will make the LinkGraph address assignment more
-  // predictable, and also will fix __eh_frame to have the CIEs defined ahead
-  // of FDEs.
-  //
+  // FIXME: The visitation order is pre-order (with children in order), but the
+  // order of CIE/FDE in EH frames requires post-order. CIEs are like
+  // abbreviations, and must come before any FDE that references it (every FDE
+  // references exactly one CIE).
   // FIXME: Handle abstract backedges somehow more directly (likely as part of
   // the above).
-  while (!Worklist.empty())
+  while (!Worklist.empty()) {
+    size_t OldSize = Worklist.size() - 1;
     if (Error E = defineSymbol(Worklist.pop_back_val()))
       return E;
+    // Reverse so that we visit children in order. This is helpful for getting
+    // edge symbol/blocks in order.
+    std::reverse(Worklist.begin() + OldSize, Worklist.end());
+  }
   return Error::success();
 }
 

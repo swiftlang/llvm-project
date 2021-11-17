@@ -552,8 +552,7 @@ TEST(NestedV1SchemaTest, RoundTrip) {
   SmallVector<const jitlink::Symbol *> OriginalSymbols;
   collectSymbols(G, OriginalSymbols);
   for (const jitlink::Symbol *S : OriginalSymbols) {
-    if (!S->hasName()) // Skip for now.
-      continue;
+    ASSERT_TRUE(S->hasName());
 
     const jitlink::Symbol *RoundTripS = RoundTripSymbols.lookup(S->getName());
     StringRef RoundTripName = RoundTripS ? RoundTripS->getName() : "";
@@ -601,6 +600,72 @@ TEST(NestedV1SchemaTest, RoundTrip) {
         EXPECT_EQ(E.getAddend(), RoundTripE.getAddend());
       }
     }
+  }
+}
+
+TEST(NestedV1SchemaTest, RoundTripBlockOrder) {
+  jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
+                       support::little, jitlink::getGenericEdgeKindName);
+  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+
+  auto createBlock = [&]() -> jitlink::Block & {
+    jitlink::Block &B = G.createContentBlock(Section, BlockContent, 0, 256, 0);
+    return B;
+  };
+
+  jitlink::Symbol &B1 =
+      G.addDefinedSymbol(createBlock(), 0, "B1", 0, jitlink::Linkage::Weak,
+                         jitlink::Scope::Local, false, false);
+  jitlink::Symbol &B2 =
+      G.addDefinedSymbol(createBlock(), 0, "B2", 0, jitlink::Linkage::Weak,
+                         jitlink::Scope::Local, false, false);
+  jitlink::Symbol &B3 =
+      G.addDefinedSymbol(createBlock(), 0, "B3", 0, jitlink::Linkage::Weak,
+                         jitlink::Scope::Local, false, false);
+
+  jitlink::Block &TB = G.createContentBlock(Section, BlockContent, 0, 256, 0);
+  jitlink::Symbol *Targets[] = {&B1, &B2, &B3};
+  for (unsigned I = 0; I != array_lengthof(Targets); ++I)
+    TB.addEdge(jitlink::Edge::FirstKeepAlive, 0, *Targets[I], 0);
+  G.addDefinedSymbol(TB, 0, "T1", 0, jitlink::Linkage::Strong,
+                     jitlink::Scope::Default, false, false);
+
+  std::unique_ptr<jitlink::LinkGraph> RoundTripG;
+  {
+    // Convert to cas.o.
+    std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
+    ObjectFileSchema Schema(*CAS);
+    Optional<CompileUnitRef> CU;
+    ASSERT_THAT_ERROR(unwrapExpected(CompileUnitRef::create(Schema, G), CU),
+                      Succeeded());
+
+    // Convert back to LinkGraph.
+    ASSERT_THAT_ERROR(
+        unwrapExpected(CU->createLinkGraph("round-tripped",
+                                           jitlink::getGenericEdgeKindName),
+                       RoundTripG),
+        Succeeded());
+  }
+
+  DenseMap<jitlink::Block *, std::vector<jitlink::Symbol *>> RTBlockSymbols;
+
+  // Map from blocks to the symbols pointing at them.
+  for (auto *Sym : RoundTripG->defined_symbols())
+    RTBlockSymbols[&Sym->getBlock()].push_back(Sym);
+
+  SmallVector<jitlink::Block *, 4> RTBlocks;
+  for (const auto &Entries : RTBlockSymbols)
+    RTBlocks.push_back(Entries.first);
+  llvm::sort(RTBlocks,
+             [](const jitlink::Block *LHS, const jitlink::Block *RHS) {
+               return LHS->getAddress() < RHS->getAddress();
+             });
+  const char *NamesToCheck[] = {"T1", "B1", "B2", "B3"};
+  for (unsigned I = 0; I != array_lengthof(NamesToCheck); ++I) {
+    ASSERT_TRUE(I < RTBlocks.size());
+    const auto &Syms = RTBlockSymbols[RTBlocks[I]];
+    ASSERT_EQ(Syms.size(), size_t(1));
+    EXPECT_EQ(Syms.front()->getName(), StringRef(NamesToCheck[I]));
   }
 }
 
