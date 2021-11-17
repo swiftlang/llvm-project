@@ -55,13 +55,11 @@ TEST(NestedV1SchemaTest, Section) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section *Sections[]{
-      &G.createSection("read", sys::Memory::MF_READ),
-      &G.createSection("write", sys::Memory::MF_WRITE),
-      &G.createSection("exec", sys::Memory::MF_EXEC),
-      &G.createSection("all", sys::Memory::MF_RWE_MASK),
-      &G.createSection("HUGE",
-                       sys::Memory::ProtectionFlags(sys::Memory::MF_READ |
-                                                    sys::Memory::MF_HUGE_HINT)),
+      &G.createSection("read", jitlink::MemProt::Read),
+      &G.createSection("write", jitlink::MemProt::Write),
+      &G.createSection("exec", jitlink::MemProt::Exec),
+      &G.createSection("all", jitlink::MemProt::Read | jitlink::MemProt::Write |
+                                  jitlink::MemProt::Exec),
   };
 
   std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
@@ -71,10 +69,7 @@ TEST(NestedV1SchemaTest, Section) {
         expectedToOptional(SectionRef::create(Schema, *S));
     ASSERT_TRUE(Section);
 
-    // Note: MF_HUGE_HINT is expected to be dropped because it's not in the RWE
-    // mask.
-    EXPECT_EQ(S->getProtectionFlags() & sys::Memory::MF_RWE_MASK,
-              Section->getProtectionFlags());
+    EXPECT_EQ(S->getMemProt(), Section->getMemProt());
     Optional<NameRef> Name = expectedToOptional(Section->getName());
     ASSERT_TRUE(Name);
     EXPECT_EQ(S->getName(), Name->getName());
@@ -89,7 +84,8 @@ ArrayRef<char> BlockContent(BlockContentBytes);
 TEST(NestedV1SchemaTest, BlockData) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
-  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+  jitlink::Section &Section =
+      G.createSection("section", jitlink::MemProt::Exec);
   jitlink::Block *Blocks[] = {
       &G.createZeroFillBlock(Section, 0, 0, /*Alignment=*/1, 0),
       &G.createZeroFillBlock(Section, 8, 64, /*Alignment=*/1, 0),
@@ -127,9 +123,9 @@ TEST(NestedV1SchemaTest, LeafBlock) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section &Section1 =
-      G.createSection("section1", sys::Memory::MF_EXEC);
+      G.createSection("section1", jitlink::MemProt::Exec);
   jitlink::Section &Section2 =
-      G.createSection("section2", sys::Memory::MF_EXEC);
+      G.createSection("section2", jitlink::MemProt::Exec);
   jitlink::Block *Blocks[] = {
       &G.createZeroFillBlock(Section1, 0, 0, /*Alignment=*/1, 0),
       &G.createZeroFillBlock(Section1, 8, 64, /*Alignment=*/1, 0),
@@ -172,7 +168,8 @@ TEST(NestedV1SchemaTest, LeafBlock) {
 TEST(NestedV1SchemaTest, SymbolFlags) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
-  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+  jitlink::Section &Section =
+      G.createSection("section", jitlink::MemProt::Exec);
   jitlink::Block &Block = G.createContentBlock(Section, BlockContent, 0, 16, 0);
   jitlink::Symbol &StrongDefaultDead =
       G.addDefinedSymbol(Block, 0, "symbol1", 0, jitlink::Linkage::Strong,
@@ -229,7 +226,8 @@ TEST(NestedV1SchemaTest, SymbolFlags) {
 TEST(NestedV1SchemaTest, BlockSymbols) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
-  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+  jitlink::Section &Section =
+      G.createSection("section", jitlink::MemProt::Exec);
   jitlink::Block &Block = G.createContentBlock(Section, BlockContent, 0, 16, 0);
   jitlink::Symbol *Symbols[] = {
       &G.addCommonSymbol("common-symbol1", jitlink::Scope::Default, Section, 0,
@@ -280,7 +278,8 @@ TEST(NestedV1SchemaTest, BlockSymbols) {
 TEST(NestedV1SchemaTest, SymbolTable) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
-  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+  jitlink::Section &Section =
+      G.createSection("section", jitlink::MemProt::Exec);
   jitlink::Block &Block = G.createContentBlock(Section, BlockContent, 0, 16, 0);
   jitlink::Symbol *Symbols[] = {
       &G.addAnonymousSymbol(Block, 0, 0, false, /*IsLive*/ false),
@@ -339,7 +338,8 @@ TEST(NestedV1SchemaTest, SymbolTable) {
 TEST(NestedV1SchemaTest, BlockWithEdges) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
-  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+  jitlink::Section &Section =
+      G.createSection("section", jitlink::MemProt::Exec);
   jitlink::Symbol &S1 = G.addExternalSymbol("S1", 0, jitlink::Linkage::Strong);
   jitlink::Symbol &S2 = G.addExternalSymbol("S2", 0, jitlink::Linkage::Strong);
 
@@ -448,7 +448,8 @@ TEST(NestedV1SchemaTest, BlockWithEdges) {
 TEST(NestedV1SchemaTest, RoundTrip) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
-  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+  jitlink::Section &Section =
+      G.createSection("section", jitlink::MemProt::Exec);
   jitlink::Symbol &S1 = G.addExternalSymbol("S1", 0, jitlink::Linkage::Strong);
   jitlink::Symbol &S2 = G.addExternalSymbol("S2", 0, jitlink::Linkage::Weak);
 
@@ -608,7 +609,7 @@ TEST(NestedV1SchemaTest, ModInitFuncSection) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
   jitlink::Section &Section =
-      G.createSection("__DATA,__mod_init_func", sys::Memory::MF_EXEC);
+      G.createSection("__DATA,__mod_init_func", jitlink::MemProt::Exec);
   jitlink::Block &Block = G.createContentBlock(Section, BlockContent, 0, 16, 0);
   jitlink::Symbol *Symbols[] = {
       &G.addAnonymousSymbol(Block, 0, 0, true, false),

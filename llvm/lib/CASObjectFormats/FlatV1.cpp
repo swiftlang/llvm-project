@@ -275,8 +275,7 @@ Expected<SectionRef> SectionRef::create(CompileUnitBuilder &CUB,
   if (!B)
     return B.takeError();
 
-  B->Data.push_back(
-      uint8_t(data::encodeProtectionFlags(S.getProtectionFlags())));
+  B->Data.push_back(uint8_t(data::encodeProtectionFlags(S.getMemProt())));
 
   B->Data.append(S.getName());
 

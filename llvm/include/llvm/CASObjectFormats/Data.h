@@ -25,11 +25,9 @@ enum SectionProtectionFlags {
   Exec = 4,
 };
 
-sys::Memory::ProtectionFlags
-decodeProtectionFlags(SectionProtectionFlags Perms);
+jitlink::MemProt decodeProtectionFlags(SectionProtectionFlags Perms);
 
-SectionProtectionFlags
-encodeProtectionFlags(sys::Memory::ProtectionFlags Perms);
+SectionProtectionFlags encodeProtectionFlags(jitlink::MemProt Perms);
 
 /// The kind and offset of a fixup (e.g., for a relocation).
 struct Fixup {

@@ -29,7 +29,8 @@ ArrayRef<char> BlockContent(BlockContentBytes);
 TEST(FlatV1SchemaTest, RoundTrip) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
-  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+  jitlink::Section &Section =
+      G.createSection("section", jitlink::MemProt::Exec);
   jitlink::Symbol &S1 = G.addExternalSymbol("S1", 0, jitlink::Linkage::Strong);
   jitlink::Symbol &S2 = G.addExternalSymbol("S2", 0, jitlink::Linkage::Weak);
 
