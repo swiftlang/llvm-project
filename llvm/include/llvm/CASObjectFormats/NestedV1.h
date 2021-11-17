@@ -214,11 +214,11 @@ public:
   Expected<NameRef> getName() const {
     return NameRef::get(getSchema(), getNameID());
   }
-  sys::Memory::ProtectionFlags getProtectionFlags() const;
+  jitlink::MemProt getMemProt() const;
 
   static Expected<SectionRef> create(const ObjectFileSchema &Schema,
                                      NameRef SectionName,
-                                     sys::Memory::ProtectionFlags Protections);
+                                     jitlink::MemProt MemProt);
   static Expected<SectionRef> create(const ObjectFileSchema &Schema,
                                      const jitlink::Section &S);
 

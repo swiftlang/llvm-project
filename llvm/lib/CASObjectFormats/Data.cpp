@@ -8,25 +8,25 @@
 
 #include "llvm/CASObjectFormats/Data.h"
 #include "llvm/CASObjectFormats/Encoding.h"
+#include "llvm/ExecutionEngine/JITLink/MemoryFlags.h"
 #include "llvm/Support/EndianStream.h"
 
 using namespace llvm;
 using namespace llvm::casobjectformats;
 using namespace llvm::casobjectformats::data;
 
-sys::Memory::ProtectionFlags
-data::decodeProtectionFlags(SectionProtectionFlags Perms) {
-  return sys::Memory::ProtectionFlags(
-      (Perms & Read ? sys::Memory::MF_READ : 0) |
-      (Perms & Write ? sys::Memory::MF_WRITE : 0) |
-      (Perms & Exec ? sys::Memory::MF_EXEC : 0));
+jitlink::MemProt data::decodeProtectionFlags(SectionProtectionFlags Perms) {
+  return (Perms & Read ? jitlink::MemProt::Read : jitlink::MemProt::None) |
+         (Perms & Write ? jitlink::MemProt::Write : jitlink::MemProt::None) |
+         (Perms & Exec ? jitlink::MemProt::Exec : jitlink::MemProt::None);
 }
 
-SectionProtectionFlags
-data::encodeProtectionFlags(sys::Memory::ProtectionFlags Perms) {
-  return SectionProtectionFlags((Perms & sys::Memory::MF_READ ? Read : 0) |
-                                (Perms & sys::Memory::MF_WRITE ? Write : 0) |
-                                (Perms & sys::Memory::MF_EXEC ? Exec : 0));
+SectionProtectionFlags data::encodeProtectionFlags(jitlink::MemProt Perms) {
+  return SectionProtectionFlags(
+      ((Perms & jitlink::MemProt::Read) != jitlink::MemProt::None ? Read : 0) |
+      ((Perms & jitlink::MemProt::Write) != jitlink::MemProt::None ? Write
+                                                                   : 0) |
+      ((Perms & jitlink::MemProt::Exec) != jitlink::MemProt::None ? Exec : 0));
 }
 
 void FixupList::encode(ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data) {
