@@ -393,6 +393,8 @@ inline Error writeOperand(const Edge::Kind &K, uint64_t OperandValue,
   case RequestTLVPAndTransformToPCRel32TLVPLoadREXRelaxable:
     // FIXME: Whether to error here could be client-dependent. Some clients
     // just want to zero it out, so no error for now.
+  case RequestTLSDescInGOTAndTransformToDelta32:
+    // FIXME: TLS Support EdgeKind.
 
   case BranchPCRel32:
   case BranchPCRel32ToPtrJumpStub:
