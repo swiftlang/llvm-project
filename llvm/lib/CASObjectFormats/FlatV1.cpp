@@ -292,42 +292,107 @@ Expected<SectionRef> SectionRef::get(Expected<ObjectFormatNodeRef> Ref) {
   return SectionRef(*Specific);
 }
 
-static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
+static Error encodeEdge(CompileUnitBuilder &CUB,
+                        SmallVectorImpl<data::TargetInfo> &List,
                         const jitlink::Edge *E) {
-
   auto SymbolIndex = CUB.getSymbolIndex(E->getTarget());
   if (!SymbolIndex)
     return SymbolIndex.takeError();
-
-  unsigned IdxAndHasAddend = *SymbolIndex << 1 | (E->getAddend() != 0);
-  CUB.encodeIndex(IdxAndHasAddend);
-
-  if (E->getAddend() != 0)
-    encoding::writeVBR8(E->getAddend(), Data);
+  List.push_back({E->getAddend(), *SymbolIndex});
   return Error::success();
 }
 
-static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
-                        jitlink::Block &Parent, unsigned BlockIdx,
-                        const data::Fixup &Fixup) {
-  unsigned SymbolIdx = LGB.nextIdxForBlock(BlockIdx);
+static Error encodeEdges(CompileUnitBuilder &CUB,
+                         ArrayRef<const jitlink::Edge *> Edges) {
+  assert(!Edges.empty() && "Expected edges");
+  bool HasAddends = false;
+  for (const jitlink::Edge *E : Edges)
+    if ((HasAddends = E->getAddend()))
+      break;
 
-  bool HasAddend = SymbolIdx & 1U;
-  auto Symbol = LGB.getSymbol(SymbolIdx >> 1);
+  if (HasAddends) {
+    size_t Start;
+    if (Error Err = CUB.encodeTargetInfo(Edges).moveInto(Start))
+      return Err;
+    CUB.encodeIndex((Start << 1) | 1U);
+    return Error::success();
+  }
+
+  bool IsFirst = true;
+  for (const jitlink::Edge *E : Edges) {
+    auto SymbolIndex = CUB.getSymbolIndex(E->getTarget());
+    if (!SymbolIndex)
+      return SymbolIndex.takeError();
+
+    // First symbol is left-shifted to differentiate from TargetInfo.
+    unsigned IndexToEncode = IsFirst ? *SymbolIndex << 1 : *SymbolIndex;
+    IsFirst = false;
+    CUB.encodeIndex(IndexToEncode);
+  }
+  return Error::success();
+}
+
+Expected<size_t> CompileUnitBuilder::encodeTargetInfo(
+    ArrayRef<const jitlink::Edge *> Edges) {
+  SmallVector<data::TargetInfo> List;
+  for (const jitlink::Edge *E : Edges)
+    if (Error Err = encodeEdge(*this, List, E))
+      return std::move(Err);
+
+  size_t Start = FlatTargetInfo.size();
+  data::TargetInfoList::encode(List, FlatTargetInfo);
+  size_t Length = FlatTargetInfo.size() - Start;
+  auto &MaybeExisting =
+      TargetInfoPool[StringRef(FlatTargetInfo).take_back(Length)];
+  if (MaybeExisting) {
+    // Truncate FlatTargetInfo again since this is already in the pool.
+    FlatTargetInfo.resize(Start);
+    Start = MaybeExisting - 1;
+  } else {
+    MaybeExisting = Start + 1;
+  }
+
+  return Start;
+}
+
+data::TargetInfoList LinkGraphBuilder::getTargetInfoFrom(unsigned Start) {
+  assert(Start < FlatTargetInfo.size() && "Start out of range");
+  return data::TargetInfoList(StringRef(FlatTargetInfo).drop_front(Start));
+}
+
+static Error decodeEdge(LinkGraphBuilder &LGB, jitlink::Block &Parent,
+                        const data::TargetInfo &TI, const data::Fixup &Fixup) {
+  auto Symbol = LGB.getSymbol(TI.Index);
   if (!Symbol)
     return Symbol.takeError();
 
-  jitlink::Edge::AddendT Addend = 0;
-  if (HasAddend) {
-    if (auto E = encoding::consumeVBR8(Data, Addend))
-      return E;
+  Parent.addEdge(Fixup.Kind, Fixup.Offset, **Symbol, TI.Addend);
+  return Error::success();
+}
+
+static Error decodeEdges(LinkGraphBuilder &LGB, jitlink::Block &Parent,
+                         unsigned BlockIdx, const data::FixupList &FL) {
+  assert(!FL.empty() && "Expected edges");
+
+  unsigned TargetInfoIndex = LGB.nextIdxForBlock(BlockIdx);
+  if (TargetInfoIndex & 1U) {
+    unsigned TargetInfoStart = TargetInfoIndex >> 1;
+    data::TargetInfoList TIL(LGB.getTargetInfoFrom(TargetInfoStart));
+    data::TargetInfoList::iterator TI = TIL.begin();
+    for (data::Fixup Fixup : FL)
+      if (Error E = decodeEdge(LGB, Parent, *TI++, Fixup))
+        return E;
+    return Error::success();
   }
-  auto BlockInfo = LGB.getBlockInfo(BlockIdx);
-  if (!BlockInfo)
-    return BlockInfo.takeError();
 
-  Parent.addEdge(Fixup.Kind, Fixup.Offset, **Symbol, Addend);
-
+  // No addends.
+  bool IsFirst = true;
+  for (data::Fixup Fixup : FL) {
+    unsigned SymbolIndex = IsFirst ? TargetInfoIndex >> 1 : LGB.nextIdxForBlock(BlockIdx);
+    IsFirst = false;
+    if (Error Err = decodeEdge(LGB, Parent, data::TargetInfo{0, SymbolIndex}, Fixup))
+      return Err;
+  }
   return Error::success();
 }
 
@@ -389,15 +454,12 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
     if (auto E = CUB.createAndReferenceContent(BlockData))
       return std::move(E);
   } else {
-    encoding::writeVBR8(BlockData.size(), B->Data);
     B->Data.append(BlockData);
   }
 
-  for (const auto *E : Edges) {
-    // Nest the Edge in block.
-    if (auto Err = encodeEdge(CUB, B->Data, E))
+  if (!Edges.empty())
+    if (Error Err = encodeEdges(CUB, Edges))
       return std::move(Err);
-  }
 
   return get(B->build());
 }
@@ -405,7 +467,6 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
 Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
                                  unsigned BlockIdx) const {
   uint64_t SectionIdx;
-  auto Remaining = getData();
   SectionIdx = LGB.nextIdxForBlock(BlockIdx);
 
   auto SectionInfo = LGB.getSectionInfo(SectionIdx);
@@ -419,21 +480,14 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
       return ContentRef.takeError();
     ContentData = ContentRef->getData();
   } else {
-    unsigned ContentSize;
-    if (auto E = encoding::consumeVBR8(Remaining, ContentSize))
-      return E;
-    auto Data = consumeDataOfSize(Remaining, ContentSize);
-    if (!Data)
-      return Data.takeError();
-    ContentData = *Data;
+    ContentData = getData();
   }
 
   auto BlockInfo = LGB.getBlockInfo(BlockIdx);
   if (!BlockInfo)
     return BlockInfo.takeError();
 
-  BlockInfo->Data.emplace(ContentData);
-  auto &Block = *BlockInfo->Data;
+  data::BlockData Block(ContentData);
   auto Address =
       getAlignedAddress(*SectionInfo, Block.getSize(), Block.getAlignment(),
                         Block.getAlignmentOffset());
@@ -446,7 +500,7 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
                       Block.getAlignment(), Block.getAlignmentOffset());
 
   BlockInfo->Block = &B;
-  BlockInfo->Remaining = Remaining.size();
+  BlockInfo->Fixups = Block.getFixups();
   return Error::success();
 }
 
@@ -457,17 +511,10 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
     return BlockInfo.takeError();
 
   // Nothing remains, no edges.
-  if (!BlockInfo->Remaining)
+  if (BlockInfo->Fixups->empty())
     return Error::success();
 
-  auto Remaining = getData().take_back(BlockInfo->Remaining);
-  for (const data::Fixup &Fixup : BlockInfo->Data->getFixups()) {
-    if (Error Err =
-            decodeEdge(LGB, Remaining, *BlockInfo->Block, BlockIdx, Fixup))
-      return Err;
-  }
-
-  return Error::success();
+  return decodeEdges(LGB, *BlockInfo->Block, BlockIdx, *BlockInfo->Fixups);
 }
 
 Expected<BlockRef> BlockRef::get(Expected<ObjectFormatNodeRef> Ref) {
@@ -843,6 +890,10 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
   for (auto Idx : Builder.BlockIndexStarts)
     encoding::writeVBR8(Idx, B->Data);
 
+  /// Write the flat TargetInfoList data.
+  encoding::writeVBR8(Builder.FlatTargetInfo.size(), B->Data);
+  B->Data.append(Builder.FlatTargetInfo);
+
   // Inlined symbols if set.
   if (InlineSymbols)
     B->Data.append(Builder.InlineBuffer);
@@ -912,6 +963,14 @@ Error CompileUnitRef::materialize(LinkGraphBuilder &LGB) const {
       return Err;
     LGB.Blocks[I].BlockIdx = Idx;
   }
+
+  /// Write the flat TargetInfoList data.
+  size_t FlatTargetInfoSize;
+  if (Error Err = encoding::consumeVBR8(Remaining, FlatTargetInfoSize))
+    return Err;
+  if (Error Err = consumeDataOfSize(Remaining, FlatTargetInfoSize)
+                      .moveInto(LGB.FlatTargetInfo))
+    return Err;
 
   if (InlineSymbols)
     LGB.InlineBuffer = Remaining;
