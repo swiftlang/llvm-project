@@ -9,6 +9,7 @@
 #ifndef LLVM_CASOBJECTFORMATS_FLATV1_H
 #define LLVM_CASOBJECTFORMATS_FLATV1_H
 
+#include "llvm/ADT/StringMap.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CASObjectFormats/Data.h"
 #include "llvm/CASObjectFormats/SchemaBase.h"
@@ -311,7 +312,8 @@ public:
 
   CompileUnitBuilder(const ObjectFileSchema &Schema, Triple Target,
                      raw_ostream *DebugOS)
-      : CAS(Schema.CAS), Schema(Schema), TT(Target), DebugOS(DebugOS) {}
+      : CAS(Schema.CAS), Schema(Schema), TT(Target), DebugOS(DebugOS),
+        TargetInfoPool(TargetInfoAlloc) {}
 
   Error createAndReferenceName(StringRef S);
   Error createAndReferenceContent(StringRef Content);
@@ -327,6 +329,9 @@ public:
 
   // Encode the index into compile unit.
   void encodeIndex(unsigned Index);
+
+  // Encode a target info list and return an offset.
+  Error encodeTargetInfo(ArrayRef<const jitlink::Edge *> Edges);
 
 private:
   friend class CompileUnitRef;
@@ -348,6 +353,11 @@ private:
   SmallVector<const jitlink::Symbol *, 16> Symbols;
   SmallVector<const jitlink::Block *, 16> Blocks;
   std::vector<unsigned> BlockIndexStarts;
+
+  // TargetInfoList storage.
+  SmallString<256> FlatTargetInfo;
+  BumpPtrAllocator TargetInfoAlloc;
+  StringMap<uint32_t, BumpPtrAllocator> TargetInfoPool;
 
   // Temp storage.
   SmallString<256> InlineBuffer;
@@ -422,15 +432,18 @@ public:
   struct BlockInfo {
     jitlink::Block *Block;
     Optional<BlockRef> Ref;
-    Optional<data::BlockData> Data;
+    Optional<data::FixupList> Fixups;
     unsigned BlockIdx = 0;
-    unsigned Remaining = 0;
   };
 
   Expected<BlockInfo &> getBlockInfo(unsigned BlockIdx);
 
   Error addSymbol(unsigned SymbolIdx, jitlink::Symbol *S);
   Expected<jitlink::Symbol *> getSymbol(unsigned SymbolIdx);
+
+  /// Returns a list starting from \p Start, but that iterates past the end of
+  /// the edges.
+  data::TargetInfoList getTargetInfoFrom(unsigned Start);
 
 private:
   friend class CompileUnitRef;
@@ -446,6 +459,9 @@ private:
   unsigned SectionsSize;
   unsigned SymbolsSize;
   unsigned BlocksSize;
+
+  // Target info.
+  StringRef FlatTargetInfo;
 
   // Lookup Cache.
   SmallVector<SectionInfo, 16> Sections;
