@@ -34,9 +34,6 @@ const StringLiteral BlockContentRef::KindString;
 
 void ObjectFileSchema::anchor() {}
 
-cl::opt<bool> DirectIndexEncode("direct-index-encode",
-                                cl::desc("Encode all indexes directly"),
-                                cl::init(false));
 cl::opt<bool>
     UseIndirectSymbolName("indirect-symbol-name",
                           cl::desc("Encode symbol name into its own node"),
@@ -304,10 +301,7 @@ static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
     return SymbolIndex.takeError();
 
   unsigned IdxAndHasAddend = *SymbolIndex << 1 | (E->getAddend() != 0);
-  if (!DirectIndexEncode)
-    CUB.encodeIndex(IdxAndHasAddend);
-  else
-    encoding::writeVBR8(IdxAndHasAddend, Data);
+  CUB.encodeIndex(IdxAndHasAddend);
 
   if (E->getAddend() != 0)
     encoding::writeVBR8(E->getAddend(), Data);
@@ -317,11 +311,7 @@ static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
 static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
                         jitlink::Block &Parent, unsigned BlockIdx,
                         const data::Fixup &Fixup) {
-  unsigned SymbolIdx;
-  if (!DirectIndexEncode)
-    SymbolIdx = LGB.nextIdxForBlock(BlockIdx);
-  else if (auto E = encoding::consumeVBR8(Data, SymbolIdx))
-    return E;
+  unsigned SymbolIdx = LGB.nextIdxForBlock(BlockIdx);
 
   bool HasAddend = SymbolIdx & 1U;
   auto Symbol = LGB.getSymbol(SymbolIdx >> 1);
@@ -352,10 +342,7 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   auto SectionIndex = CUB.getSectionIndex(Block.getSection());
   if (!SectionIndex)
     return SectionIndex.takeError();
-  if (!DirectIndexEncode)
-    CUB.encodeIndex(*SectionIndex);
-  else
-    encoding::writeVBR8(*SectionIndex, B->Data);
+  CUB.encodeIndex(*SectionIndex);
 
   // Do a simple sorting based on offset so it has stable ordering for the same
   // block.
@@ -420,10 +407,7 @@ Error BlockRef::materializeBlock(LinkGraphBuilder &LGB,
                                  unsigned BlockIdx) const {
   uint64_t SectionIdx;
   auto Remaining = getData();
-  if (!DirectIndexEncode)
-    SectionIdx = LGB.nextIdxForBlock(BlockIdx);
-  else if (auto E = encoding::consumeVBR8(Remaining, SectionIdx))
-    return E;
+  SectionIdx = LGB.nextIdxForBlock(BlockIdx);
 
   auto SectionInfo = LGB.getSectionInfo(SectionIdx);
   if (!SectionInfo)
@@ -538,10 +522,7 @@ static Error encodeSymbol(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
     auto BlockIndex = CUB.getBlockIndex(S.getBlock());
     if (!BlockIndex)
       return BlockIndex.takeError();
-    if (!DirectIndexEncode)
-      CUB.encodeIndex(*BlockIndex);
-    else
-      encoding::writeVBR8(*BlockIndex, Data);
+    CUB.encodeIndex(*BlockIndex);
   }
   return Error::success();
 }
@@ -589,12 +570,7 @@ static Error decodeSymbol(LinkGraphBuilder &LGB, StringRef &Data,
   bool IsCallable = Bits & (1U << 5);
 
   unsigned BlockIdx;
-  if (!DirectIndexEncode) {
-    auto Idx = LGB.nextIdx();
-    if (!Idx)
-      return Idx.takeError();
-    BlockIdx = *Idx;
-  } else if (auto E = encoding::consumeVBR8(Data, BlockIdx))
+  if (Error E = LGB.nextIdx().moveInto(BlockIdx))
     return E;
 
   auto BlockInfo = LGB.getBlockInfo(BlockIdx);
