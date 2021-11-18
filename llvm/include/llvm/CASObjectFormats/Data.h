@@ -14,6 +14,9 @@
 #include <type_traits>
 
 namespace llvm {
+
+class raw_ostream;
+
 namespace casobjectformats {
 namespace data {
 
@@ -174,6 +177,14 @@ struct TargetInfo {
 
   /// Index into the list of targets.
   size_t Index;
+
+  /// Print for debugging purposes.
+  void print(raw_ostream &OS) const;
+  void dump() const;
+  friend raw_ostream &operator<<(raw_ostream &OS, const TargetInfo &TI) {
+    TI.print(OS);
+    return OS;
+  }
 
   bool operator==(const TargetInfo &RHS) const {
     return Addend == RHS.Addend && Index == RHS.Index;

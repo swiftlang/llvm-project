@@ -18,6 +18,16 @@ using namespace llvm::casobjectformats::data;
 
 namespace {
 
+TEST(TargetInfoTest, Print) {
+  auto toString = [](const TargetInfo &TI) {
+    std::string S;
+    raw_string_ostream(S) << TI;
+    return S;
+  };
+  EXPECT_EQ("{addend=17,index=33}", toString(TargetInfo{17, 33U}));
+  EXPECT_EQ("{addend=-17,index=2}", toString(TargetInfo{-17, 2U}));
+}
+
 TEST(TargetInfoListTest, Empty) {
   EXPECT_EQ(TargetInfoList().begin(), TargetInfoList().end());
 
@@ -29,29 +39,20 @@ TEST(TargetInfoListTest, Empty) {
 
 TEST(TargetInfoListTest, Single) {
   SmallString<128> Data;
-  auto makeList = [&Data](TargetInfo &&F) {
+  auto makeList = [&Data](const TargetInfo &F) {
     Data.clear();
     TargetInfoList::encode(makeArrayRef(F), Data);
     return TargetInfoList(Data);
   };
 
-  {
-    TargetInfoList TIL = makeList(TargetInfo{0, 0U});
+  TargetInfo TIs[] = {
+      {0, 0U},
+      {7777777, 0U},
+  };
+  for (TargetInfo TI : TIs) {
+    TargetInfoList TIL = makeList(TI);
     EXPECT_NE(TIL.begin(), TIL.end());
-    EXPECT_EQ(0, TIL.begin()->Addend);
-    EXPECT_EQ(0U, TIL.begin()->Index);
-    EXPECT_EQ(1, std::distance(TIL.begin(), TIL.end()));
-#if !defined(NDEBUG) && GTEST_HAS_DEATH_TEST
-    EXPECT_DEATH(++++TIL.begin(), "past the end");
-    EXPECT_DEATH(++TIL.end(), "past the end");
-#endif
-  }
-
-  {
-    TargetInfoList TIL = makeList(TargetInfo{7777777, 0U});
-    EXPECT_NE(TIL.begin(), TIL.end());
-    EXPECT_EQ(7777777, TIL.begin()->Addend);
-    EXPECT_EQ(0U, TIL.begin()->Index);
+    EXPECT_EQ(TI, *TIL.begin());
     EXPECT_EQ(1, std::distance(TIL.begin(), TIL.end()));
 #if !defined(NDEBUG) && GTEST_HAS_DEATH_TEST
     EXPECT_DEATH(++++TIL.begin(), "past the end");

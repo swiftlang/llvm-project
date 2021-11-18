@@ -206,6 +206,12 @@ uint64_t BlockData::decodeAlignmentOffset() const {
   }
 }
 
+void TargetInfo::print(raw_ostream &OS) const {
+  OS << "{addend=" << Addend << ",index=" << Index << "}";
+}
+
+LLVM_DUMP_METHOD void TargetInfo::dump() const { print(dbgs()); }
+
 void TargetInfoList::encode(ArrayRef<TargetInfo> TIs,
                             SmallVectorImpl<char> &Data) {
   for (const TargetInfo &TI : TIs) {
