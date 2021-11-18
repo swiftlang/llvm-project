@@ -559,6 +559,10 @@ private:
 ///
 /// - Size: ELF-specific, and not used for anything. Size of the symbol.
 /// - IsCallable: cache of EXEC bit on the block.
+///
+/// FIXME: Pass through more of information from LLVM. For example, if a symbol
+/// is marked \p DS_Never then \p isAutoHide() will always return false, but
+/// that may incur information loss for the client.
 class SymbolRef : public SpecificRef<SymbolRef> {
   using SpecificRefT = SpecificRef<SymbolRef>;
   friend class SpecificRef<SymbolRef>;
@@ -642,6 +646,11 @@ public:
   }
   MergeKind getMerge() const {
     return (MergeKind)(((unsigned char)getData()[0] >> 2) & 0x3);
+  }
+
+  bool isAutoHide() const {
+    return getDeadStrip() == DS_CompileUnit && getScope() != S_Local &&
+           getMerge() == M_ByNameOrContent;
   }
 
   cas::CASID getDefinitionID() const { return getReference(0); }

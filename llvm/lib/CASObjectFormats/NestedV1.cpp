@@ -2102,6 +2102,12 @@ Error LinkGraphBuilder::defineSymbol(SymbolToDefine Symbol) {
   // FIXME: Maybe go further here and use MergeableBlocks. Or maybe it's not
   // worth it (not ever going to succeed) when we're within a single compile
   // unit.
+  // FIXME: With \p MergeByContent == true multiple symbols may share the same
+  // \p jitlink::Block pointer but it is not sufficiently communicated via the
+  // LinkGraph interface whether it is a *requirement* that symbols share the
+  // same block (as is the case with aliases) or whether the linker *can* use
+  // the same block contents if it desires so (e.g. the linker may share the
+  // block for a release build but not for a debug build).
   Expected<jitlink::Block *> Block =
       MergeByContent ? getOrCreateBlock(*Symbol.S, *DefinitionBlock,
                                         Symbol.KeptAliveBySymbol)
@@ -2129,5 +2135,6 @@ Error LinkGraphBuilder::defineSymbol(SymbolToDefine Symbol) {
 
   G.redefineSymbol(*Symbol.S, **Block, Symbol.Ref.getOffset(),
                    /*Size=*/0, Linkage, Scope, IsLive);
+  Symbol.S->setAutoHide(Symbol.Ref.isAutoHide());
   return Error::success();
 }

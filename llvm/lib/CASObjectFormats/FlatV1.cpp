@@ -565,6 +565,7 @@ static Error decodeSymbol(LinkGraphBuilder &LGB, StringRef &Data,
   jitlink::Scope Scope = (jitlink::Scope)(Bits & 3U);
   bool IsLive = Bits & (1U << 4);
   bool IsCallable = Bits & (1U << 5);
+  bool IsAutoHide = Bits & (1U << 6);
 
   unsigned BlockIdx;
   if (Error E = LGB.nextIdx().moveInto(BlockIdx))
@@ -581,6 +582,7 @@ static Error decodeSymbol(LinkGraphBuilder &LGB, StringRef &Data,
           : LGB.getLinkGraph()->addDefinedSymbol(*BlockInfo->Block, Offset,
                                                  Name, Size, Linkage, Scope,
                                                  IsCallable, IsLive);
+  Symbol.setAutoHide(IsAutoHide);
   if (auto E = LGB.addSymbol(Idx, &Symbol))
     return E;
 

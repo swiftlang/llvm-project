@@ -37,8 +37,9 @@ TEST(FlatV1SchemaTest, RoundTrip) {
   // Add a defined symbol so there are two types of targets.
   jitlink::Block &Z = G.createZeroFillBlock(Section, 256, 0, 256, 0);
   jitlink::Symbol &S3 =
-      G.addDefinedSymbol(Z, 0, "S3", 0, jitlink::Linkage::Strong,
+      G.addDefinedSymbol(Z, 0, "S3", 0, jitlink::Linkage::Weak,
                          jitlink::Scope::Default, false, false);
+  S3.setAutoHide(true);
 
   auto createBlock = [&]() -> jitlink::Block & {
     jitlink::Block &B = G.createContentBlock(Section, BlockContent, 0, 256, 0);
@@ -155,6 +156,7 @@ TEST(FlatV1SchemaTest, RoundTrip) {
     EXPECT_EQ(S->isExternal(), RoundTripS->isExternal());
     EXPECT_EQ(S->getLinkage(), RoundTripS->getLinkage());
     EXPECT_EQ(S->getScope(), RoundTripS->getScope());
+    EXPECT_EQ(S->isAutoHide(), RoundTripS->isAutoHide());
     if (S->isDefined()) {
       const jitlink::Block &B = S->getBlock();
       const jitlink::Block &RoundTripB = RoundTripS->getBlock();
