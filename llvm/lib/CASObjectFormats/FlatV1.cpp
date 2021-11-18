@@ -303,12 +303,42 @@ static Error encodeEdge(CompileUnitBuilder &CUB,
   return Error::success();
 }
 
-Error CompileUnitBuilder::encodeTargetInfo(
+static Error encodeEdges(CompileUnitBuilder &CUB,
+                         ArrayRef<const jitlink::Edge *> Edges) {
+  assert(!Edges.empty() && "Expected edges");
+  bool HasAddends = false;
+  for (const jitlink::Edge *E : Edges)
+    if ((HasAddends = E->getAddend()))
+      break;
+
+  if (HasAddends) {
+    size_t Start;
+    if (Error Err = CUB.encodeTargetInfo(Edges).moveInto(Start))
+      return Err;
+    CUB.encodeIndex((Start << 1) | 1U);
+    return Error::success();
+  }
+
+  bool IsFirst = true;
+  for (const jitlink::Edge *E : Edges) {
+    auto SymbolIndex = CUB.getSymbolIndex(E->getTarget());
+    if (!SymbolIndex)
+      return SymbolIndex.takeError();
+
+    // First symbol is left-shifted to differentiate from TargetInfo.
+    unsigned IndexToEncode = IsFirst ? *SymbolIndex << 1 : *SymbolIndex;
+    IsFirst = false;
+    CUB.encodeIndex(IndexToEncode);
+  }
+  return Error::success();
+}
+
+Expected<size_t> CompileUnitBuilder::encodeTargetInfo(
     ArrayRef<const jitlink::Edge *> Edges) {
   SmallVector<data::TargetInfo> List;
   for (const jitlink::Edge *E : Edges)
     if (Error Err = encodeEdge(*this, List, E))
-      return Err;
+      return std::move(Err);
 
   size_t Start = FlatTargetInfo.size();
   data::TargetInfoList::encode(List, FlatTargetInfo);
@@ -323,11 +353,7 @@ Error CompileUnitBuilder::encodeTargetInfo(
     MaybeExisting = Start + 1;
   }
 
-  // FIXME: Maybe should use uint64_t, or be a different range from CAS object
-  // indexes.
-  assert(Start < UINT_MAX && "Index out of range");
-  encodeIndex(Start);
-  return Error::success();
+  return Start;
 }
 
 data::TargetInfoList LinkGraphBuilder::getTargetInfoFrom(unsigned Start) {
@@ -347,15 +373,27 @@ static Error decodeEdge(LinkGraphBuilder &LGB, jitlink::Block &Parent,
 
 static Error decodeEdges(LinkGraphBuilder &LGB, jitlink::Block &Parent,
                          unsigned BlockIdx, const data::FixupList &FL) {
-  if (FL.empty())
-    return Error::success();
+  assert(!FL.empty() && "Expected edges");
 
-  unsigned TargetInfoStart = LGB.nextIdxForBlock(BlockIdx);
-  data::TargetInfoList TIL(LGB.getTargetInfoFrom(TargetInfoStart));
-  data::TargetInfoList::iterator TI = TIL.begin();
-  for (const data::Fixup &Fixup : FL)
-    if (Error E = decodeEdge(LGB, Parent, *TI++, Fixup))
-      return E;
+  unsigned TargetInfoIndex = LGB.nextIdxForBlock(BlockIdx);
+  if (TargetInfoIndex & 1U) {
+    unsigned TargetInfoStart = TargetInfoIndex >> 1;
+    data::TargetInfoList TIL(LGB.getTargetInfoFrom(TargetInfoStart));
+    data::TargetInfoList::iterator TI = TIL.begin();
+    for (data::Fixup Fixup : FL)
+      if (Error E = decodeEdge(LGB, Parent, *TI++, Fixup))
+        return E;
+    return Error::success();
+  }
+
+  // No addends.
+  bool IsFirst = true;
+  for (data::Fixup Fixup : FL) {
+    unsigned SymbolIndex = IsFirst ? TargetInfoIndex >> 1 : LGB.nextIdxForBlock(BlockIdx);
+    IsFirst = false;
+    if (Error Err = decodeEdge(LGB, Parent, data::TargetInfo{0, SymbolIndex}, Fixup))
+      return Err;
+  }
   return Error::success();
 }
 
@@ -421,7 +459,7 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   }
 
   if (!Edges.empty())
-    if (auto Err = CUB.encodeTargetInfo(Edges))
+    if (Error Err = encodeEdges(CUB, Edges))
       return std::move(Err);
 
   return get(B->build());

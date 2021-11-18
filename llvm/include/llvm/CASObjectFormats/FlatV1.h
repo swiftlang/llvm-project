@@ -330,8 +330,8 @@ public:
   // Encode the index into compile unit.
   void encodeIndex(unsigned Index);
 
-  // Encode a target info list and return an offset.
-  Error encodeTargetInfo(ArrayRef<const jitlink::Edge *> Edges);
+  // Encode a target info list and return the offset.
+  Expected<size_t> encodeTargetInfo(ArrayRef<const jitlink::Edge *> Edges);
 
 private:
   friend class CompileUnitRef;
