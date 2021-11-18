@@ -62,6 +62,7 @@ public:
       decode();
       return *this;
     }
+    using iterator::iterator_facade_base::operator++;
 
     bool operator==(const iterator &RHS) const {
       return F == RHS.F && Data.begin() == RHS.Data.begin() &&
@@ -207,6 +208,7 @@ public:
       decode();
       return *this;
     }
+    using iterator::iterator_facade_base::operator++;
 
     bool operator==(const iterator &RHS) const {
       return TI == RHS.TI && Data.begin() == RHS.Data.begin() &&
