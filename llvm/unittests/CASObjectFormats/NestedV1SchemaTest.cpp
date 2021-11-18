@@ -607,7 +607,8 @@ TEST(NestedV1SchemaTest, RoundTrip) {
 TEST(NestedV1SchemaTest, RoundTripBlockOrder) {
   jitlink::LinkGraph G("graph", Triple("x86_64-apple-darwin"), 8,
                        support::little, jitlink::getGenericEdgeKindName);
-  jitlink::Section &Section = G.createSection("section", sys::Memory::MF_EXEC);
+  jitlink::Section &Section =
+      G.createSection("section", jitlink::MemProt::Exec);
 
   auto createBlock = [&]() -> jitlink::Block & {
     jitlink::Block &B = G.createContentBlock(Section, BlockContent, 0, 256, 0);
