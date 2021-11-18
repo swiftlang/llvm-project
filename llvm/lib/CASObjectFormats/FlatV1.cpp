@@ -297,14 +297,14 @@ Expected<SectionRef> SectionRef::get(Expected<ObjectFormatNodeRef> Ref) {
 }
 
 static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
-                        const jitlink::Edge *E, bool ForceDirectIndex = false) {
+                        const jitlink::Edge *E) {
 
   auto SymbolIndex = CUB.getSymbolIndex(E->getTarget());
   if (!SymbolIndex)
     return SymbolIndex.takeError();
 
   unsigned IdxAndHasAddend = *SymbolIndex << 1 | (E->getAddend() != 0);
-  if (!DirectIndexEncode && !ForceDirectIndex)
+  if (!DirectIndexEncode)
     CUB.encodeIndex(IdxAndHasAddend);
   else
     encoding::writeVBR8(IdxAndHasAddend, Data);
@@ -316,10 +316,9 @@ static Error encodeEdge(CompileUnitBuilder &CUB, SmallVectorImpl<char> &Data,
 
 static Error decodeEdge(LinkGraphBuilder &LGB, StringRef &Data,
                         jitlink::Block &Parent, unsigned BlockIdx,
-                        const data::Fixup &Fixup,
-                        bool ForceDirectIndex = false) {
+                        const data::Fixup &Fixup) {
   unsigned SymbolIdx;
-  if (!DirectIndexEncode && !ForceDirectIndex)
+  if (!DirectIndexEncode)
     SymbolIdx = LGB.nextIdxForBlock(BlockIdx);
   else if (auto E = encoding::consumeVBR8(Data, SymbolIdx))
     return E;
