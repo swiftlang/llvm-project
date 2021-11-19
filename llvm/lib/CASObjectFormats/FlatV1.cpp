@@ -456,10 +456,8 @@ Error BlockRef::materializeEdges(LinkGraphBuilder &LGB,
   if (!BlockInfo)
     return BlockInfo.takeError();
 
-  // Nothing remains, no edges.
-  if (!BlockInfo->Remaining)
-    return Error::success();
-
+  // There may be edges even if `BlockInfo->Remaining` is zero, if the `addend`s
+  // are zero.
   auto Remaining = getData().take_back(BlockInfo->Remaining);
   for (const data::Fixup &Fixup : BlockInfo->Data->getFixups()) {
     if (Error Err =

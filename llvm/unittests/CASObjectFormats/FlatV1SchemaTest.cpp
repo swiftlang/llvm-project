@@ -92,6 +92,14 @@ TEST(FlatV1SchemaTest, RoundTrip) {
   G.addDefinedSymbol(DupB, 0, "DupB1", 0, jitlink::Linkage::Strong,
                      jitlink::Scope::Default, false, false);
 
+  {
+    // Create a block with an edge with addend = 0.
+    jitlink::Block &B = G.createContentBlock(Section, BlockContent, 0, 256, 0);
+    B.addEdge(jitlink::Edge::FirstKeepAlive, 0, S1, 0);
+    G.addDefinedSymbol(B, 0, "AddendZeroEdge", 0, jitlink::Linkage::Strong,
+                       jitlink::Scope::Default, false, false);
+  }
+
   std::unique_ptr<jitlink::LinkGraph> RoundTripG;
   {
     // Convert to cas.o.
