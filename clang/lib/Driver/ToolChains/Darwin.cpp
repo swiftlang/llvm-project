@@ -521,10 +521,18 @@ namespace {
 /// Environment. By default, same as the host application.
 class VirtualEnvironment {
 public:
+  /// Get the environment block, only if it has been overridden. This is a valid
+  /// environment block and includes the terminating \a nullptr.
   Optional<ArrayRef<const char *>> getEnvironmentIfOverridden() const {
     if (Environment)
       return makeArrayRef(*Environment);
     return None;
+  }
+
+  /// Get the parts of the environment that have been overridden. Not a valid
+  /// environment block.
+  ArrayRef<const char *> getOverriddenEnvironment() const {
+    return OverriddenEnvironment;
   }
 
   void set(StringRef Name, StringRef Value,
@@ -536,6 +544,7 @@ private:
   static const char **getHostEnvironment();
   void copyHostEnvironment(const char **I = nullptr);
   Optional<SmallVector<const char *>> Environment;
+  SmallVector<const char *> OverriddenEnvironment;
 };
 } // end namespace
 
@@ -589,6 +598,9 @@ void VirtualEnvironment::set(
   SmallString<128> Storage;
   const char *NameValue =
       SaveString((Name + Twine("=") + Value).toStringRef(Storage));
+
+  // Record what has been overridden.
+  OverriddenEnvironment.push_back(NameValue);
 
   // Update the environment block.
   if (!Environment)
@@ -826,15 +838,11 @@ void darwin::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Cmd->setInputFileList(std::move(InputFileList));
 
   // Set the environment, if it has been overridden.
-  //
-  // FIXME: If VAR=1 has been overridden, then -### should include it as:
-  //
-  //     % env VAR=1 /usr/bin/ld ...
-  //
-  // But currently nothing gets shown at all.
   if (Optional<ArrayRef<const char *>> Env =
-          Environment.getEnvironmentIfOverridden())
-    Cmd->setEnvironment(*Env);
+          Environment.getEnvironmentIfOverridden()) {
+    Cmd->setEnvironment(Env->drop_back());
+    Cmd->setEnvironmentDisplay(Environment.getOverriddenEnvironment());
+  }
 
   C.addCommand(std::move(Cmd));
 }
