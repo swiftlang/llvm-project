@@ -18,6 +18,10 @@ TODO: add demos for plugins once there are some.
 Some of these are currently `-cc1`-only. Some should stay that way, others just
 need to be "fixed". Some are driver-only (and should remain so).
 
+- `-greproducible`: Make debug info more reproducible. Both `-cc1` and linker.
+    - Avoids writing out Clang's Git revision (maybe it should avoid the
+      version altogether).
+    - Tells the linker not to write object file timestamps in the debug map.
 - `-fcas=builtin`: use the builtin CAS (defaults to in-memory).
     - `-fcas-builtin-path=<path>`: path to on-disk storage for CAS.
     - `-fcas-builtin-path='/^$TMPDIR/<path>'`: "hack" for referencing temp
@@ -136,11 +140,9 @@ options available.
 % (cd "$STAGE2BUILD" &&
    cmake -G Ninja                                   \
      -DLLVM_ENABLE_PROJECTS="clang"                 \
-     -DCMAKE_OSX_SYSROOT="$SDK"                     \
      -DCMAKE_C_COMPILER=$CLANG                      \
      -DCMAKE_CXX_COMPILER=${CLANG}++                \
      -DCMAKE_ASM_COMPILER=$(xcrun -find clang)      \
-     -DLLVM_ENABLE_LIBCXX=ON                        \
      -DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN=ON \
      -DLLVM_ENABLE_EXPERIMENTAL_DEPSCAN=ON          \
      -DLLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE=ON  \
@@ -164,6 +166,7 @@ options directly.
 % rm -rf "$STAGE2BUILD"
 % mkdir -p "$STAGE2BUILD"
 % CLANGFLAGS=(
+     -greproducible
      -fdepscan -fdepscan-share-parent=ninja -fdepscan-share-stop=cmake
      -fdepscan-prefix-map-sdk=/^sdk
      -fdepscan-prefix-map-toolchain=/^toolchain
@@ -173,14 +176,13 @@ options directly.
      -fcas-token-cache
   )
 % (cd "$STAGE2BUILD" &&
-   cmake -G Ninja                                   \
-     -DLLVM_ENABLE_PROJECTS="clang"                 \
-     -DCMAKE_OSX_SYSROOT="$SDK"                     \
-     -DCMAKE_C_COMPILER=$CLANG                      \
-     -DCMAKE_CXX_COMPILER=${CLANG}++                \
-     -DCMAKE_ASM_COMPILER=$(xcrun -find clang)      \
-     -DLLVM_ENABLE_LIBCXX=ON                        \
-     -DCMAKE_{C,CXX}_FLAGS="$CLANGFLAGS[*]"         \
+   cmake -G Ninja                                               \
+     -DLLVM_ENABLE_PROJECTS="clang"                             \
+     -DCMAKE_C_COMPILER=$CLANG                                  \
+     -DCMAKE_CXX_COMPILER=${CLANG}++                            \
+     -DCMAKE_ASM_COMPILER=$(xcrun -find clang)                  \
+     -DCMAKE_{C,CXX}_FLAGS="$CLANGFLAGS[*]"                     \
+     -DCMAKE_{EXE,SHARED,MODULE}_LINKER_FLAGS="-greproducible"  \
      ../llvm &&
    ninja)
 ```

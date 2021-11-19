@@ -824,14 +824,13 @@ void darwin::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Set the environment to include ZERO_AR_FLAGS.
   //
-  // FIXME: Add a -freproducible-debug-info command-line option and use that to
-  // trigger this.
-  //
   // FIXME: Add a flag to the linkers to support this without an environment
   // variable, and use that when the linkers are new enough.
   VirtualEnvironment Environment;
-  Environment.set("ZERO_AR_DATE", "1",
-                  [&](StringRef S) { return Args.MakeArgString(S); });
+  if (Args.hasFlag(options::OPT_greproducible,
+                   options::OPT_gno_reproducible, false))
+    Environment.set("ZERO_AR_DATE", "1",
+                    [&](StringRef S) { return Args.MakeArgString(S); });
 
   std::unique_ptr<Command> Cmd = std::make_unique<Command>(
       JA, *this, ResponseSupport, Exec, CmdArgs, Inputs, Output);

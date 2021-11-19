@@ -6608,12 +6608,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   const char *Exec = D.getClangProgramPath();
 
+  // Check if there's a request for reproducible debug info. Pass it through
+  // but also use it.
+  bool GReproducible =
+      Args.hasFlag(options::OPT_greproducible,
+                   options::OPT_gno_reproducible, false);
+  if (GReproducible)
+    CmdArgs.push_back("-greproducible");
+
   // Optionally embed the -cc1 level arguments into the debug info or a
   // section, for build analysis.
   // Also record command line arguments into the debug info if
   // -grecord-gcc-switches options is set on.
   // By default, -gno-record-gcc-switches is set on and no recording.
   auto GRecordSwitches =
+      !GReproducible &&
       Args.hasFlag(options::OPT_grecord_command_line,
                    options::OPT_gno_record_command_line, false);
   auto FRecordSwitches =
