@@ -517,6 +517,90 @@ static void renderRemarksOptions(const ArgList &Args, ArgStringList &CmdArgs,
   }
 }
 
+namespace {
+/// Environment. By default, same as the host application.
+class VirtualEnvironment {
+public:
+  Optional<ArrayRef<const char *>> getEnvironmentIfOverridden() const {
+    if (Environment)
+      return makeArrayRef(*Environment);
+    return None;
+  }
+
+  void set(StringRef Name, StringRef Value,
+           llvm::function_ref<const char *(StringRef)> SaveString);
+
+private:
+  static const char **findName(const char **I, StringRef Name,
+                               Optional<StringRef> &Existing);
+  static const char **getHostEnvironment();
+  void copyHostEnvironment(const char **I = nullptr);
+  Optional<SmallVector<const char *>> Environment;
+};
+} // end namespace
+
+const char **VirtualEnvironment::findName(const char **I, StringRef Name,
+                                          Optional<StringRef> &Existing) {
+  std::string Prefix = (Name + Twine("=")).str();
+  for (; *I; ++I) {
+    StringRef NameValue = *I;
+    if (!NameValue.startswith(Prefix))
+      continue;
+    Existing = NameValue;
+    break;
+  }
+  return I;
+}
+
+extern char **environ;
+const char **VirtualEnvironment::getHostEnvironment() {
+  return const_cast<const char **>(environ);
+}
+
+void VirtualEnvironment::copyHostEnvironment(const char **Hint) {
+  assert(!Environment);
+  const char **B = getHostEnvironment();
+  const char **I = Hint ? Hint : B;
+  while (*I)
+    ++I;
+
+  Environment.emplace();
+
+  // Include room for nullptr plus 1 new variable.
+  Environment->reserve(I - B + 2);
+
+  // Include nullptr.
+  Environment->append(B, I + 1);
+}
+
+/// Set an environment variable.
+///
+/// FIXME: Not portable.
+void VirtualEnvironment::set(
+    StringRef Name, StringRef Value,
+    llvm::function_ref<const char *(StringRef)> SaveString) {
+  const char **B =
+      Environment ? Environment->data() : const_cast<const char **>(environ);
+  Optional<StringRef> Existing;
+  const char **I = findName(B, Name, Existing);
+  if (Existing && Existing->drop_front(Name.size() + 1) == Value)
+    return;
+
+  SmallString<128> Storage;
+  const char *NameValue =
+      SaveString((Name + Twine("=") + Value).toStringRef(Storage));
+
+  // Update the environment block.
+  if (!Environment)
+    copyHostEnvironment(I);
+  if (*I) {
+    (*Environment)[I - B] = NameValue;
+    return;
+  }
+  Environment->back() = NameValue;
+  Environment->push_back(nullptr);
+}
+
 void darwin::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -726,9 +810,32 @@ void darwin::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                        "-filelist"};
   }
 
+  // Set the environment to include ZERO_AR_FLAGS.
+  //
+  // FIXME: Add a -freproducible-debug-info command-line option and use that to
+  // trigger this.
+  //
+  // FIXME: Add a flag to the linkers to support this without an environment
+  // variable, and use that when the linkers are new enough.
+  VirtualEnvironment Environment;
+  Environment.set("ZERO_AR_DATE", "1",
+                  [&](StringRef S) { return Args.MakeArgString(S); });
+
   std::unique_ptr<Command> Cmd = std::make_unique<Command>(
       JA, *this, ResponseSupport, Exec, CmdArgs, Inputs, Output);
   Cmd->setInputFileList(std::move(InputFileList));
+
+  // Set the environment, if it has been overridden.
+  //
+  // FIXME: If VAR=1 has been overridden, then -### should include it as:
+  //
+  //     % env VAR=1 /usr/bin/ld ...
+  //
+  // But currently nothing gets shown at all.
+  if (Optional<ArrayRef<const char *>> Env =
+          Environment.getEnvironmentIfOverridden())
+    Cmd->setEnvironment(*Env);
+
   C.addCommand(std::move(Cmd));
 }
 
