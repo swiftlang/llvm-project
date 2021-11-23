@@ -28,6 +28,13 @@ using namespace llvm;
 using namespace llvm::cas;
 using namespace llvm::casobjectformats;
 
+#ifndef NDEBUG
+// With assertions enabled do a check we get deterministic CASID for ingestion.
+constexpr unsigned DefaultRepeats = 1;
+#else
+constexpr unsigned DefaultRepeats = 0;
+#endif
+
 cl::opt<int> NumThreads("num-threads", cl::desc("Num worker threads."));
 cl::opt<bool> Dump("dump", cl::desc("Dump link-graph."));
 cl::opt<bool>
@@ -46,6 +53,10 @@ cl::opt<std::string> JustDsymutil("just-dsymutil",
 cl::opt<std::string> CASGlob("cas-glob",
                              cl::desc("glob pattern for objects in CAS"));
 cl::opt<bool> Silent("silent", cl::desc("only print final CAS ID"));
+cl::opt<unsigned>
+    NumRepeats("repeat",
+               cl::desc("Repeat ingest action and check that we got same ID"),
+               cl::init(DefaultRepeats));
 
 cl::opt<std::string>
     IngestSchemaName("ingest-schema",
@@ -643,15 +654,39 @@ static void dumpGraph(jitlink::LinkGraph &G, SharedStream &OS, StringRef Desc) {
   OS.applyLocked([&](raw_ostream &OS) { OS << Desc << ":\n" << Data; });
 }
 
+/// LinkGraph creates an anonymous symbol that covers the full EH frame section
+/// block and no edge points to it. The EH frame splitter may end up creating an
+/// identical symbol (that has an edge pointed to it) which can result in
+/// non-deterministic behavior in \p FlatV1 schema ingestion, because the
+/// symbols cannot be ordered in a deterministic manner. \p
+/// removeRedundantEHFrameSymbol() removes this redundant symbol before we run
+/// the EH frame splitter.
+/// FIXME: Should this be taken care of by the EH frame splitter?
+static void removeRedundantEHFrameSymbol(jitlink::LinkGraph &G) {
+  // FIXME: Consider implementing removeRedundantEHFrameSymbol as a jitlink
+  // pass. Note this section name is machO specific.
+  auto *EHFrame = G.findSectionByName("__TEXT,__eh_frame");
+  if (!EHFrame)
+    return;
+  for (jitlink::Symbol *Sym : G.defined_symbols()) {
+    if (&Sym->getBlock().getSection() == EHFrame) {
+      G.removeDefinedSymbol(*Sym);
+      break;
+    }
+  }
+}
+
 static Error createSplitEHFramePasses(jitlink::LinkGraph &G) {
   if (G.getTargetTriple().getObjectFormat() == Triple::MachO &&
       G.getTargetTriple().getArch() == Triple::x86_64) {
+    removeRedundantEHFrameSymbol(G);
     if (auto E = jitlink::createEHFrameSplitterPass_MachO_x86_64()(G))
       return E;
     if (auto E = jitlink::createEHFrameEdgeFixerPass_MachO_x86_64()(G))
       return E;
   } else if (G.getTargetTriple().getObjectFormat() == Triple::ELF &&
              G.getTargetTriple().getArch() == Triple::x86_64) {
+    // FIXME: Is removeRedundantEHFrameSymbol() necessary for ELF as well?
     if (auto E = jitlink::createEHFrameSplitterPass_ELF_x86_64()(G))
       return E;
     if (auto E = jitlink::createEHFrameEdgeFixerPass_ELF_x86_64()(G))
@@ -676,11 +711,17 @@ static CASID ingestFile(SchemaBase &Schema, StringRef InputFile,
   if (JustBlobs)
     return ExitOnErr(CAS.createBlob(FileContent.getBuffer()));
 
-  auto G = ExitOnErr(
-      jitlink::createLinkGraphFromObject(FileContent));
+  auto createLinkGraph =
+      [&ExitOnErr](
+          MemoryBufferRef FileContent) -> std::unique_ptr<jitlink::LinkGraph> {
+    auto G = ExitOnErr(jitlink::createLinkGraphFromObject(FileContent));
 
-  if (SplitEHFrames)
-    ExitOnErr(createSplitEHFramePasses(*G));
+    if (SplitEHFrames)
+      ExitOnErr(createSplitEHFramePasses(*G));
+    return G;
+  };
+
+  auto G = createLinkGraph(FileContent);
 
   if (!JustDsymutil.empty()) {
     // Create a map for each symbol in TEXT.
@@ -762,6 +803,17 @@ static CASID ingestFile(SchemaBase &Schema, StringRef InputFile,
     DebugOS.emplace(DebugIngestOutput);
   auto CompileUnit = ExitOnErr(
       Schema.createFromLinkGraph(*G, DebugIngest ? &*DebugOS : nullptr));
+  for (unsigned I = 0; I != NumRepeats; ++I) {
+    auto newG = createLinkGraph(FileContent);
+    auto NewCompileUnit = ExitOnErr(Schema.createFromLinkGraph(*newG));
+    if (NewCompileUnit.getID() != CompileUnit.getID()) {
+      errs() << "error: got different CASID while repeating ingestion, ";
+      ExitOnErr(CAS.printCASID(errs(), CompileUnit));
+      errs() << " and ";
+      ExitOnErr(CAS.printCASID(errs(), NewCompileUnit));
+      exit(1);
+    }
+  }
 
   if (DebugIngest)
     OS.applyLocked([&](raw_ostream &OS) { OS << DebugIngestOutput; });

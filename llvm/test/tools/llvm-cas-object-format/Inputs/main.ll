@@ -10,4 +10,4 @@ define i32 @main() #0 {
   ret i32 %1
 }
 
-attributes #0 = { noinline nounwind optnone }
+attributes #0 = { noinline nounwind optnone uwtable }
