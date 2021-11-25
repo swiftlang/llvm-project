@@ -4643,6 +4643,15 @@ void CompilerInvocation::generateCC1CommandLine(
   GenerateDependencyOutputArgs(DependencyOutputOpts, Args, SA);
 }
 
+void CompilerInvocation::ensureCASIsEnabled() {
+  CASOptions &Opts = getCASOpts();
+  if (Opts.Kind == CASOptions::NoCAS) {
+    Opts.Kind = CASOptions::BuiltinCAS;
+    if (Opts.BuiltinPath.empty())
+      Opts.BuiltinPath = llvm::cas::getDefaultOnDiskCASStableID();
+  }
+}
+
 static std::shared_ptr<llvm::cas::CASDB>
 createBuiltinCASImpl(const CASOptions &Opts, DiagnosticsEngine &Diags) {
   if (Opts.BuiltinPath.empty())

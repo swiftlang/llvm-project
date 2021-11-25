@@ -1,11 +1,8 @@
 // Test running -fcas-token-cache.
 //
-// TODO: Test should be updated to not depend on a working cache at default
-// location, which is out of test/build directory.  Removing the dependency on
-// driver will be great as well (-fdepscan should get coverage somewhere else
-// instead).
+// TODO: Remove the dependency on driver (-fdepscan should get coverage somewhere else instead).
 
-// RUN: %clang -target x86_64-apple-macos11 -I %S/Inputs -fdepscan=inline -Xclang -fcas-token-cache -fsyntax-only -x c %s
+// RUN: %clang -target x86_64-apple-macos11 -I %S/Inputs -fdepscan=inline -Xclang -fcas-token-cache -Xclang -fcas -Xclang builtin -Xclang -fcas-builtin-path -Xclang %t/cas -fsyntax-only -x c %s
 
 #include "test.h"
 

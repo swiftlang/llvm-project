@@ -394,11 +394,14 @@ parseCASFSAutoPrefixMappings(const Driver &D, const ArgList &Args) {
 }
 
 static void addCC1ScanDepsArgsInline(
-    const char *Exec, SmallVectorImpl<const char *> &CC1Args,
+    const char *Exec, CompilerInvocation &Invocation,
+    SmallVectorImpl<const char *> &CC1Args,
     const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+    DiagnosticsEngine &Diags,
     llvm::function_ref<const char *(const Twine &)> SaveArg) {
   llvm::Error E =
-      updateCC1Args(Exec, CC1Args, CC1Args, PrefixMapping, SaveArg).takeError();
+      updateCC1Args(Exec, Invocation, CC1Args, PrefixMapping, Diags, SaveArg)
+          .takeError();
 
   // FIXME: Use DiagnosticEngine somehow...
   logAllUnhandledErrors(std::move(E), llvm::errs());
@@ -562,12 +565,19 @@ CC1ScanDeps(const Arg &A, const char *Exec,
   cc1depscand::DepscanPrefixMapping PrefixMapping =
       parseCASFSAutoPrefixMappings(D, Args);
 
+  CompilerInvocation Invocation;
+  if (!CompilerInvocation::CreateFromArgs(Invocation, CC1Args, D.getDiags(),
+                                          Exec))
+    return;
+  Invocation.ensureCASIsEnabled();
+
   auto SaveArg = [&Args](const Twine &T) { return Args.MakeArgString(T); };
   if (Optional<std::string> DaemonKey = makeDepscanDaemonKey(Mode, Sharing))
-    cc1depscand::addCC1ScanDepsArgs(Exec, CC1Args, PrefixMapping, *DaemonKey,
-                                    SaveArg);
+    cc1depscand::addCC1ScanDepsArgs(Exec, Invocation, CC1Args, PrefixMapping,
+                                    *DaemonKey, SaveArg);
   else
-    addCC1ScanDepsArgsInline(Exec, CC1Args, PrefixMapping, SaveArg);
+    addCC1ScanDepsArgsInline(Exec, Invocation, CC1Args, PrefixMapping,
+                             D.getDiags(), SaveArg);
 }
 
 int main(int Argc, const char **Argv) {

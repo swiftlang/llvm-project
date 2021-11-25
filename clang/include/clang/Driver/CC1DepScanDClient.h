@@ -23,6 +23,9 @@ class ArgList;
 }
 }
 namespace clang {
+
+class CompilerInvocation;
+
 namespace cc1depscand {
 
 struct DepscanPrefixMapping {
@@ -37,8 +40,9 @@ struct AutoArgEdit {
 };
 
 void addCC1ScanDepsArgs(
-    const char *Exec, SmallVectorImpl<const char *> &Argv,
-    const DepscanPrefixMapping &Mapping, StringRef DaemonKey,
+    const char *Exec, const CompilerInvocation &Invocation,
+    SmallVectorImpl<const char *> &Argv, const DepscanPrefixMapping &Mapping,
+    StringRef DaemonKey,
     llvm::function_ref<const char *(const Twine &)> SaveArg);
 
 } // namespace cc1depscand

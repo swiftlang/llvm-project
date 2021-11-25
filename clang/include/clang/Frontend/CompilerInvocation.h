@@ -293,6 +293,11 @@ public:
     return PreprocessorOutputOpts;
   }
 
+  /// If CAS is not enabled it sets the CAS options to "-fcas builtin
+  /// -fcas-builtin-path <default>". If CAS is already enabled then it's a
+  /// no-op.
+  void ensureCASIsEnabled();
+
   /// @}
 
 private:

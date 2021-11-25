@@ -32,15 +32,16 @@ llvm::Expected<llvm::cas::CASID>
 updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
               tooling::dependencies::DependencyScanningTool &Tool,
               DiagnosticConsumer &DiagsConsumer, const char *Exec,
-              ArrayRef<const char *> InputArgs, StringRef WorkingDirectory,
+              CompilerInvocation &Invocation, StringRef WorkingDirectory,
               SmallVectorImpl<const char *> &OutputArgs,
               const cc1depscand::DepscanPrefixMapping &PrefixMapping,
               llvm::function_ref<const char *(const Twine &)> SaveArg);
 
 llvm::Expected<llvm::cas::CASID>
-updateCC1Args(const char *Exec, ArrayRef<const char *> InputArgs,
+updateCC1Args(const char *Exec, CompilerInvocation &Invocation,
               SmallVectorImpl<const char *> &OutputArgs,
               const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+              DiagnosticsEngine &Diags,
               llvm::function_ref<const char *(const Twine &)> SaveArg);
 
 } // end namespace clang

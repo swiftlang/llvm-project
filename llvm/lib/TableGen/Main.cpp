@@ -62,6 +62,12 @@ MacroNames("D", cl::desc("Name of the macro to be defined"),
 static cl::opt<bool>
 WriteIfChanged("write-if-changed", cl::desc("Only write output if it changed"));
 
+// FIXME: Include the rest of the CAS options as well.
+static cl::opt<std::string> CASBuiltinPath(
+    "fcas-builtin-path",
+    cl::desc(
+        "Path to a persistent on-disk backing store for the builtin CAS."));
+
 static cl::opt<bool> Depscan("depscan",
                              cl::desc("Use a CAS, depscanning, and caching"));
 static cl::list<std::string>
@@ -364,8 +370,10 @@ Error TableGenCache::createAction(ArrayRef<const char *> Args) {
 }
 
 Error TableGenCache::lookupCachedResult(ArrayRef<const char *> Args) {
-  if (Error E =
-          cas::createOnDiskCAS(cas::getDefaultOnDiskCASPath()).moveInto(CAS))
+  std::string CASPath = CASBuiltinPath;
+  if (CASPath.empty())
+    CASPath = cas::getDefaultOnDiskCASPath();
+  if (Error E = cas::createOnDiskCAS(CASPath).moveInto(CAS))
     return E;
 
   if (Error E = createExecutableBlob(Args[0]).moveInto(ExecutableID))

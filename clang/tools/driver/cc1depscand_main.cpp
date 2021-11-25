@@ -263,8 +263,14 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
   auto *OutputArg = Args.getLastArg(clang::driver::options::OPT_o);
   std::string OutputPath = OutputArg ? OutputArg->getValue() : "-";
 
-  std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
-      llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
+  CompilerInvocation Invocation;
+  if (!CompilerInvocation::CreateFromArgs(Invocation, CC1Args->getValues(),
+                                          Diags, Argv0))
+    return 1;
+  Invocation.ensureCASIsEnabled();
+  auto CAS = createCASFromCompilerInvocation(Invocation, Diags);
+  if (!CAS)
+    return 1;
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
       llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
   tooling::dependencies::DependencyScanningService Service(
@@ -276,7 +282,7 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
   SmallVector<const char *> NewArgs;
   Optional<llvm::cas::CASID> RootID;
   if (Error E =
-          updateCC1Args(*FS, Tool, *DiagsConsumer, Argv0, CC1Args->getValues(),
+          updateCC1Args(*FS, Tool, *DiagsConsumer, Argv0, Invocation,
                         WorkingDirectory, NewArgs, PrefixMapping,
                         [&](const Twine &T) { return Saver.save(T).data(); })
               .moveInto(RootID)) {
@@ -334,14 +340,32 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   if (Argv.size() == 3 && StringRef(Argv[2]) == "-shutdown")
     ShutDownTest = true;
 
+  // FIXME: Include the rest of the CAS options as well.
+  const char *BuiltinCASPath = nullptr;
+  for (unsigned I = 0, E = Argv.size(); I != E; ++I) {
+    StringRef Arg = Argv[I];
+    if (Arg == "-fcas-builtin-path") {
+      if (I + 1 < E) {
+        BuiltinCASPath = Argv[I + 1];
+      } else {
+        llvm::report_fatal_error(
+            "clang -cc1depscand: missing path for '-fcas-builtin-path'");
+      }
+    }
+  }
+
   if (Command == "-launch") {
     signal(SIGCHLD, SIG_IGN);
-    const char *Args[] = {
+    SmallVector<const char *, 8> Args{
         Argv0, "-cc1depscand", "-run", BasePath.begin(), nullptr,
     };
+    if (BuiltinCASPath) {
+      Args.push_back("-fcas-builtin-path");
+      Args.push_back(BuiltinCASPath);
+    }
     int IgnoredPid;
     int EC = ::posix_spawn(&IgnoredPid, Args[0], /*file_actions=*/nullptr,
-                           /*attrp=*/nullptr, const_cast<char **>(Args),
+                           /*attrp=*/nullptr, const_cast<char **>(Args.data()),
                            /*envp=*/nullptr);
     if (EC)
       llvm::report_fatal_error("clang -cc1depscand: failed to daemonize");
@@ -439,9 +463,14 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
     ::close(ListenSocket);
   };
 
-  // FIXME: Should use user-specified CAS, if any.
-  std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
-      llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
+  // FIXME: Should use the rest of the CAS options, if any.
+  std::string CASPath;
+  if (BuiltinCASPath)
+    CASPath = BuiltinCASPath;
+  else
+    CASPath = llvm::cas::getDefaultOnDiskCASPath();
+  std::unique_ptr<llvm::cas::CASDB> CAS =
+      reportAsFatalIfError(llvm::cas::createOnDiskCAS(CASPath));
 
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
       llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
@@ -553,12 +582,7 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
         auto DiagsConsumer = std::make_unique<TextDiagnosticPrinter>(
             DiagsOS, new DiagnosticOptions(), false);
 
-        SmallVector<const char *> NewArgs;
-        if (Error E = updateCC1Args(
-                          *FS, *Tool, *DiagsConsumer, Argv0, Args,
-                          WorkingDirectory, NewArgs, PrefixMapping,
-                          [&](const Twine &T) { return Saver.save(T).data(); })
-                          .takeError()) {
+        auto handleError = [&](Error E) {
           SharedOS.applyLocked([&](raw_ostream &OS) {
             printScannedCC1(OS);
             OS << I << ": failed to create compiler invocation\n";
@@ -566,6 +590,27 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
           });
           consumeError(Comms.putResultKind(
               cc1depscand::CC1DepScanDProtocol::ErrorResult));
+        };
+
+        DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
+        Diags.setClient(DiagsConsumer.get(), /*ShouldOwnClient=*/false);
+        CompilerInvocation Invocation;
+        if (!CompilerInvocation::CreateFromArgs(Invocation, Args, Diags,
+                                                Argv0)) {
+          handleError(
+              llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                      "failed to create compiler invocation"));
+          continue;
+        }
+        Invocation.ensureCASIsEnabled();
+
+        SmallVector<const char *> NewArgs;
+        if (Error E = updateCC1Args(
+                          *FS, *Tool, *DiagsConsumer, Argv0, Invocation,
+                          WorkingDirectory, NewArgs, PrefixMapping,
+                          [&](const Twine &T) { return Saver.save(T).data(); })
+                          .takeError()) {
+          handleError(std::move(E));
           continue;
         }
 
@@ -703,12 +748,13 @@ static void updateCompilerInvocation(CompilerInvocation &Invocation,
                                      llvm::TreePathPrefixMapper &Mapper) {
   // Fix the CAS options.
   auto &CASOpts = Invocation.getCASOpts();
-  CASOpts.Kind = CASOptions::BuiltinCAS; // FIXME: Don't override.
+  if (CASOpts.Kind == CASOptions::NoCAS) {
+    CASOpts.Kind = CASOptions::BuiltinCAS;
+    CASOpts.BuiltinPath = llvm::cas::getDefaultOnDiskCASStableID();
+  }
   CASOpts.CASFileSystemRootID = RootID;
   CASOpts.CASFileSystemWorkingDirectory = CASWorkingDirectory.str();
   CASOpts.CASFileSystemResultCache = true; // FIXME: Don't always set.
-  CASOpts.BuiltinPath =
-      llvm::cas::getDefaultOnDiskCASStableID(); // FIXME: Don't override.
 
   // If there are no mappings, we're done. Otherwise, continue and remap
   // everything.
@@ -810,31 +856,23 @@ Expected<llvm::cas::CASID>
 clang::updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
                      tooling::dependencies::DependencyScanningTool &Tool,
                      DiagnosticConsumer &DiagsConsumer, const char *Exec,
-                     ArrayRef<const char *> InputArgs,
-                     StringRef WorkingDirectory,
+                     CompilerInvocation &Invocation, StringRef WorkingDirectory,
                      SmallVectorImpl<const char *> &OutputArgs,
                      const cc1depscand::DepscanPrefixMapping &PrefixMapping,
                      llvm::function_ref<const char *(const Twine &)> SaveArg) {
   // FIXME: Should use user-specified CAS, if any.
   llvm::cas::CASDB &CAS = FS.getCAS();
 
-  DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
-  Diags.setClient(&DiagsConsumer, /*ShouldOwnClient=*/false);
-  auto Invocation = std::make_shared<CompilerInvocation>();
-  if (!CompilerInvocation::CreateFromArgs(*Invocation, InputArgs, Diags, Exec))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "failed to create compiler invocation");
-
   llvm::BumpPtrAllocator Alloc;
   llvm::StringSaver Saver(Alloc);
   llvm::TreePathPrefixMapper Mapper(&FS, Alloc);
   if (llvm::Error E =
-          computeFullMapping(Saver, Exec, *Invocation, PrefixMapping, Mapper))
+          computeFullMapping(Saver, Exec, Invocation, PrefixMapping, Mapper))
     return std::move(E);
 
   Optional<llvm::cas::CASID> Root;
   if (Error E = Tool.getDependencyTreeFromCompilerInvocation(
-                        std::make_shared<CompilerInvocation>(*Invocation),
+                        std::make_shared<CompilerInvocation>(Invocation),
                         WorkingDirectory, DiagsConsumer,
                         [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
                           return Mapper.map(Entry);
@@ -842,23 +880,25 @@ clang::updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
                     .moveInto(Root))
     return std::move(E);
   std::string RootID = llvm::cantFail(CAS.convertCASIDToString(*Root));
-  updateCompilerInvocation(*Invocation, Saver, FS, RootID, WorkingDirectory,
+  updateCompilerInvocation(Invocation, Saver, FS, RootID, WorkingDirectory,
                            Mapper);
 
   OutputArgs.resize(1);
   OutputArgs[0] = "-cc1";
-  Invocation->generateCC1CommandLine(OutputArgs, SaveArg);
+  Invocation.generateCC1CommandLine(OutputArgs, SaveArg);
   return *Root;
 }
 
 Expected<llvm::cas::CASID>
-clang::updateCC1Args(const char *Exec, ArrayRef<const char *> InputArgs,
+clang::updateCC1Args(const char *Exec, CompilerInvocation &Invocation,
                      SmallVectorImpl<const char *> &OutputArgs,
                      const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+                     DiagnosticsEngine &Diags,
                      llvm::function_ref<const char *(const Twine &)> SaveArg) {
-  // FIXME: Should use user-specified CAS, if any.
-  std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
-      llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
+  auto CAS = createCASFromCompilerInvocation(Invocation, Diags);
+  if (!CAS)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "failed to create CAS");
 
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
       llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
@@ -876,6 +916,6 @@ clang::updateCC1Args(const char *Exec, ArrayRef<const char *> InputArgs,
   reportAsFatalIfError(
       llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
 
-  return updateCC1Args(*FS, Tool, *DiagsConsumer, Exec, InputArgs,
+  return updateCC1Args(*FS, Tool, *DiagsConsumer, Exec, Invocation,
                        WorkingDirectory, OutputArgs, PrefixMapping, SaveArg);
 }

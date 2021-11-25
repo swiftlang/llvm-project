@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/CC1DepScanDProtocol.h"
+#include "clang/Basic/CASOptions.h"
 #include "clang/Driver/CC1DepScanDClient.h"
+#include "clang/Frontend/CompilerInvocation.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Error.h"
@@ -141,14 +143,16 @@ private:
 
 class ScanDaemon : public OpenSocket {
 public:
-  static Expected<ScanDaemon> create(StringRef BasePath, const char *Arg0);
+  static Expected<ScanDaemon> create(StringRef BasePath, const char *Arg0,
+                                     const CASOptions &CASOpts);
 
   static Expected<ScanDaemon> constructAndShakeHands(StringRef BasePath,
-                                                     const char *Arg0);
+                                                     const char *Arg0,
+                                                     const CASOptions &CASOpts);
 
 private:
-  static Expected<ScanDaemon> launchDaemon(StringRef BasePath,
-                                           const char *Arg0);
+  static Expected<ScanDaemon> launchDaemon(StringRef BasePath, const char *Arg0,
+                                           const CASOptions &CASOpts);
   static Expected<ScanDaemon> connectToDaemon(StringRef BasePath,
                                               bool ShouldWait);
   static Expected<ScanDaemon> connectToExistingDaemon(StringRef BasePath) {
@@ -205,13 +209,21 @@ Expected<ScanDaemon> ScanDaemon::connectToDaemon(StringRef BasePath,
 }
 
 Expected<ScanDaemon> ScanDaemon::launchDaemon(StringRef BasePath,
-                                              const char *Arg0) {
+                                              const char *Arg0,
+                                              const CASOptions &CASOpts) {
   std::string BasePathCStr = BasePath.str();
+  // FIXME: Pass all of the CAS options.
+  std::string BuiltinCASPath = CASOpts.BuiltinPath;
+  if (BuiltinCASPath.empty())
+    BuiltinCASPath = llvm::cas::getDefaultOnDiskCASStableID();
+
   const char *Args[] = {
       Arg0,
       "-cc1depscand",
       "-run", // -launch if we want the daemon to fork itself.
       BasePathCStr.c_str(),
+      "-fcas-builtin-path",
+      BuiltinCASPath.c_str(),
       nullptr,
   };
 
@@ -220,6 +232,8 @@ Expected<ScanDaemon> ScanDaemon::launchDaemon(StringRef BasePath,
       "-cc1depscand",
       "-run", // -launch if we want the daemon to fork itself.
       BasePathCStr.c_str(),
+      "-fcas-builtin-path",
+      BuiltinCASPath.c_str(),
       "-shutdown",
       nullptr,
   };
@@ -252,18 +266,20 @@ Expected<ScanDaemon> ScanDaemon::launchDaemon(StringRef BasePath,
   return connectToJustLaunchedDaemon(BasePath);
 }
 
-Expected<ScanDaemon> ScanDaemon::create(StringRef BasePath, const char *Arg0) {
+Expected<ScanDaemon> ScanDaemon::create(StringRef BasePath, const char *Arg0,
+                                        const CASOptions &CASOpts) {
   if (Expected<ScanDaemon> Daemon = connectToExistingDaemon(BasePath))
     return Daemon;
   else
     llvm::consumeError(Daemon.takeError()); // FIXME: Sometimes return.
 
-  return launchDaemon(BasePath, Arg0);
+  return launchDaemon(BasePath, Arg0, CASOpts);
 }
 
-Expected<ScanDaemon> ScanDaemon::constructAndShakeHands(StringRef BasePath,
-    const char *Arg0) {
-  auto Daemon = ScanDaemon::create(BasePath, Arg0);
+Expected<ScanDaemon>
+ScanDaemon::constructAndShakeHands(StringRef BasePath, const char *Arg0,
+                                   const CASOptions &CASOpts) {
+  auto Daemon = ScanDaemon::create(BasePath, Arg0, CASOpts);
   if (!Daemon)
     return Daemon.takeError();
 
@@ -272,7 +288,7 @@ Expected<ScanDaemon> ScanDaemon::constructAndShakeHands(StringRef BasePath,
     logAllUnhandledErrors(std::move(E), llvm::errs(),
                           "Restarting daemon due to error: ");
 
-    auto NewDaemon = launchDaemon(BasePath, Arg0);
+    auto NewDaemon = launchDaemon(BasePath, Arg0, CASOpts);
     // If recover failed, return Error.
     if (!NewDaemon)
       return NewDaemon.takeError();
@@ -454,8 +470,9 @@ llvm::Error CC1DepScanDProtocol::getScanResult(llvm::StringSaver &Saver,
 }
 
 void cc1depscand::addCC1ScanDepsArgs(
-    const char *Exec, SmallVectorImpl<const char *> &Argv,
-    const DepscanPrefixMapping &Mapping, StringRef DaemonKey,
+    const char *Exec, const CompilerInvocation &Invocation,
+    SmallVectorImpl<const char *> &Argv, const DepscanPrefixMapping &Mapping,
+    StringRef DaemonKey,
     llvm::function_ref<const char *(const Twine &)> SaveArg) {
   std::string BasePath = cc1depscand::getBasePath(DaemonKey);
 
@@ -465,8 +482,8 @@ void cc1depscand::addCC1ScanDepsArgs(
       llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
 
   //llvm::dbgs() << "connecting to daemon...\n";
-  ScanDaemon Daemon =
-      reportAsFatalIfError(ScanDaemon::constructAndShakeHands(BasePath, Exec));
+  ScanDaemon Daemon = reportAsFatalIfError(ScanDaemon::constructAndShakeHands(
+      BasePath, Exec, Invocation.getCASOpts()));
   cc1depscand::CC1DepScanDProtocol Comms(Daemon);
 
   //llvm::dbgs() << "sending request...\n";
