@@ -3,8 +3,8 @@
 // RUN: llvm-mc -filetype=obj -triple=x86_64-apple-macos %s -o %t/test.o
 // RUN: llvm-cas-object-format %t/test.o -cas %t/cas -ingest-schema=flatv1 -silent > %t/casid-flat.txt
 // RUN: llvm-cas-object-format %t/test.o -cas %t/cas -ingest-schema=nestedv1 -silent > %t/casid-nested.txt
-// RUN: %lld -lc++ -lSystem -cas_path %t/cas @%t/casid-flat.txt -o %t/test-flat
-// RUN: %lld -lc++ -lSystem -cas_path %t/cas @%t/casid-nested.txt -o %t/test-nested
+// RUN: %lld -lc++ -lSystem --fcas-builtin-path %t/cas @%t/casid-flat.txt -o %t/test-flat
+// RUN: %lld -lc++ -lSystem --fcas-builtin-path %t/cas @%t/casid-nested.txt -o %t/test-nested
 // RUN: llvm-objdump --macho %t/test-flat --full-contents -d -t | \
 // RUN:     FileCheck %s --check-prefix=CHECK --check-prefix=FLAT
 // RUN: llvm-objdump --macho %t/test-nested --full-contents -d -t | \

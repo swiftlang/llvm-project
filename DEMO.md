@@ -273,5 +273,5 @@ Some other use flags to use:
 
 ```
 % llvm-cas-object-format --cas "$TMPDIR/casfs.default" t1.o t2.o -silent > casid
-% ld64.lld -cas_path "$TMPDIR/casfs.default" @casid -o a.out
+% ld64.lld --fcas-builtin-path "$TMPDIR/casfs.default" @casid -o a.out
 ```

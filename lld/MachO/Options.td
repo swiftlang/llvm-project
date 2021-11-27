@@ -74,6 +74,14 @@ def thinlto_cache_policy: Joined<["--"], "thinlto-cache-policy=">,
 def O : JoinedOrSeparate<["-"], "O">,
     HelpText<"Optimize output file size">;
 
+// CAS-related options.
+// FIXME: Include missing CAS options from clang.
+
+def cas_path : Separate<["--"], "fcas-builtin-path">,
+    HelpText<"Path to a persistent on-disk backing store for the builtin CAS.">,
+    MetaVarName<"<path>">,
+    Group<grp_lld>;
+
 // This is a complete Options.td compiled from Apple's ld(1) manpage
 // dated 2018-03-07 and cross checked with ld64 source code in repo
 // https://github.com/apple-opensource/ld64 at git tag "512.4" dated
@@ -920,10 +928,6 @@ def object_path_lto : Separate<["-"], "object_path_lto">,
 def cache_path_lto : Separate<["-"], "cache_path_lto">,
     MetaVarName<"<path>">,
     HelpText<"Use <path> as a directory for the incremental LTO cache">,
-    Group<grp_rare>;
-def cas_path : Separate<["-"], "cas_path">,
-    MetaVarName<"<path>">,
-    HelpText<"Use <path> as the path to the CAS on disk">,
     Group<grp_rare>;
 def prune_interval_lto : Separate<["-"], "prune_interval_lto">,
     MetaVarName<"<seconds>">,
