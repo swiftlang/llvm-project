@@ -8,6 +8,7 @@
 
 #include "Config.h"
 #include "Driver.h"
+#include "FileSystem.h"
 #include "InputFiles.h"
 #include "ObjC.h"
 #include "Target.h"
@@ -24,8 +25,8 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TextAPI/InterfaceFile.h"
 #include "llvm/TextAPI/TextAPIReader.h"
 
@@ -114,7 +115,7 @@ void MachOOptTable::printHelp(const char *argv0, bool showHidden) const {
 }
 
 static std::string rewritePath(StringRef s) {
-  if (fs::exists(s))
+  if (macho::fs::exists(s))
     return relativeToRoot(s);
   return std::string(s);
 }
@@ -122,7 +123,7 @@ static std::string rewritePath(StringRef s) {
 static std::string rewriteInputPath(StringRef s) {
   // Don't bother rewriting "absolute" paths that are actually under the
   // syslibroot; simply rewriting the syslibroot is sufficient.
-  if (rerootPath(s) == s && fs::exists(s))
+  if (rerootPath(s) == s && macho::fs::exists(s))
     return relativeToRoot(s);
   return std::string(s);
 }
@@ -187,14 +188,14 @@ static void searchedDylib(const Twine &path, bool found) {
 Optional<std::string> macho::resolveDylibPath(StringRef dylibPath) {
   // TODO: if a tbd and dylib are both present, we should check to make sure
   // they are consistent.
-  bool dylibExists = fs::exists(dylibPath);
+  bool dylibExists = macho::fs::exists(dylibPath);
   searchedDylib(dylibPath, dylibExists);
   if (dylibExists)
     return std::string(dylibPath);
 
   SmallString<261> tbdPath = dylibPath;
   path::replace_extension(tbdPath, ".tbd");
-  bool tbdExists = fs::exists(tbdPath);
+  bool tbdExists = macho::fs::exists(tbdPath);
   searchedDylib(tbdPath, tbdExists);
   if (tbdExists)
     return std::string(tbdPath);
@@ -257,7 +258,7 @@ macho::findPathCombination(const Twine &name,
     path::append(base, name);
     for (StringRef ext : extensions) {
       Twine location = base + ext;
-      bool exists = fs::exists(location);
+      bool exists = macho::fs::exists(location);
       searchedDylib(location, exists);
       if (exists)
         return saver.save(location.str());
@@ -305,9 +306,9 @@ uint32_t macho::getModTime(StringRef path) {
   if (config->zeroModTime)
     return 0;
 
-  fs::file_status stat;
-  if (!fs::status(path, stat))
-    if (fs::exists(stat))
+  vfs::Status stat;
+  if (!macho::fs::status(path, stat))
+    if (stat.exists())
       return toTimeT(stat.getLastModificationTime());
 
   warn("failed to get modification time of " + path);
@@ -323,7 +324,7 @@ void macho::printArchiveMemberLoad(StringRef reason, const InputFile *f) {
 
 macho::DependencyTracker::DependencyTracker(StringRef path)
     : path(path), active(!path.empty()) {
-  if (active && fs::exists(path) && !fs::can_write(path)) {
+  if (active && sys::fs::exists(path) && !sys::fs::can_write(path)) {
     warn("Ignoring dependency_info option since specified path is not "
          "writeable.");
     active = false;
@@ -337,7 +338,7 @@ void macho::DependencyTracker::write(StringRef version,
     return;
 
   std::error_code ec;
-  raw_fd_ostream os(path, ec, fs::OF_None);
+  raw_fd_ostream os(path, ec, sys::fs::OF_None);
   if (ec) {
     warn("Error writing dependency info to file");
     return;

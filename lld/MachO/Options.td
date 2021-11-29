@@ -81,6 +81,14 @@ def cas_path : Separate<["--"], "fcas-builtin-path">,
     HelpText<"Path to a persistent on-disk backing store for the builtin CAS.">,
     MetaVarName<"<path>">,
     Group<grp_lld>;
+def fcas_fs : Separate<["--"], "fcas-fs">,
+    HelpText<"Configure the filesystem to read from the provided CAS tree.">,
+    MetaVarName<"<tree>">,
+    Group<grp_lld>;
+def fcas_fs_working_directory : Separate<["--"], "fcas-fs-working-directory">,
+    HelpText<"Working directory for -fcas-fs (if not the root).">,
+    MetaVarName<"<dir>">,
+    Group<grp_lld>;
 
 // This is a complete Options.td compiled from Apple's ld(1) manpage
 // dated 2018-03-07 and cross checked with ld64 source code in repo

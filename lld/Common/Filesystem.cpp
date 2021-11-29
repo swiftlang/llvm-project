@@ -11,11 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "lld/Common/Filesystem.h"
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #if LLVM_ON_UNIX
 #include <unistd.h>
 #endif
@@ -126,4 +129,31 @@ std::error_code lld::tryCreateFile(StringRef path) {
   if (path == "-")
     return std::error_code();
   return errorToErrorCode(FileOutputBuffer::create(path, 1).takeError());
+}
+
+Expected<IntrusiveRefCntPtr<llvm::vfs::FileSystem>>
+lld::createFileSystem(cas::CASDB *CAS, Optional<StringRef> CASFileSystemRootID,
+                      Optional<StringRef> CASFileSystemWorkingDirectory) {
+  if (!CAS || !CASFileSystemRootID.hasValue())
+    return llvm::vfs::getRealFileSystem();
+
+  StringRef rootIDString = CASFileSystemRootID.getValue();
+  Expected<llvm::cas::CASID> rootID = CAS->parseCASID(rootIDString);
+  if (!rootID)
+    return rootID.takeError();
+
+  Expected<std::unique_ptr<llvm::vfs::FileSystem>> expectedFS =
+      llvm::cas::createCASFileSystem(*CAS, *rootID);
+  if (!expectedFS)
+    return expectedFS.takeError();
+  std::unique_ptr<llvm::vfs::FileSystem> fs = std::move(*expectedFS);
+
+  if (CASFileSystemWorkingDirectory.hasValue()) {
+    // Try to change directories.
+    StringRef cwd = CASFileSystemWorkingDirectory.getValue();
+    if (std::error_code ec = fs->setCurrentWorkingDirectory(cwd))
+      return errorCodeToError(ec);
+  }
+
+  return std::move(fs);
 }

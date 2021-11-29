@@ -46,6 +46,7 @@
 #include "Driver.h"
 #include "Dwarf.h"
 #include "ExportTrie.h"
+#include "FileSystem.h"
 #include "InputSection.h"
 #include "MachOStructs.h"
 #include "ObjC.h"
@@ -69,6 +70,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TextAPI/Architecture.h"
 #include "llvm/TextAPI/InterfaceFile.h"
 
@@ -179,7 +181,8 @@ static bool checkCompatibility(const InputFile *input) {
 
 // Open a given file path and return it as a memory-mapped file.
 Optional<MemoryBufferRef> macho::readFile(StringRef path) {
-  ErrorOr<std::unique_ptr<MemoryBuffer>> mbOrErr = MemoryBuffer::getFile(path);
+  ErrorOr<std::unique_ptr<MemoryBuffer>> mbOrErr =
+      config->fs->getBufferForFile(path);
   if (std::error_code ec = mbOrErr.getError()) {
     error("cannot open " + path + ": " + ec.message());
     return None;
@@ -881,7 +884,7 @@ static DylibFile *findDylib(StringRef path, DylibFile *umbrella,
     path::append(newPath, path::parent_path(config->outputFile), path);
     path = newPath;
   } else if (path.consume_front("@loader_path/")) {
-    fs::real_path(umbrella->getName(), newPath);
+    macho::fs::real_path(umbrella->getName(), newPath);
     path::remove_filename(newPath);
     path::append(newPath, path);
     path = newPath;
@@ -889,7 +892,7 @@ static DylibFile *findDylib(StringRef path, DylibFile *umbrella,
     for (StringRef rpath : umbrella->rpaths) {
       newPath.clear();
       if (rpath.consume_front("@loader_path/")) {
-        fs::real_path(umbrella->getName(), newPath);
+        macho::fs::real_path(umbrella->getName(), newPath);
         path::remove_filename(newPath);
       }
       path::append(newPath, rpath, path.drop_front(strlen("@rpath/")));
