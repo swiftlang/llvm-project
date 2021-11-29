@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/Utils.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
@@ -96,7 +97,35 @@ void HierarchicalTreeBuilder::pushImpl(Optional<CASID> ID,
   Entries.emplace_back(ID, Kind, canonicalize(CanonicalPath, Kind));
 }
 
+void HierarchicalTreeBuilder::pushTreeContent(CASID ID, const Twine &Path) {
+  SmallVector<char, 256> CanonicalPath;
+  Path.toVector(CanonicalPath);
+  TreeEntry::EntryKind Kind = TreeEntry::Tree;
+  TreeContents.emplace_back(ID, Kind, canonicalize(CanonicalPath, Kind));
+}
+
 Expected<TreeRef> HierarchicalTreeBuilder::create(CASDB &CAS) {
+  // FIXME: It is inefficient expanding the whole tree recursively like this,
+  // use a more efficient algorithm to merge contents.
+  for (const auto &TreeContent : TreeContents) {
+    CASID ID = *TreeContent.getID();
+    StringRef Path = TreeContent.getPath();
+    Error E = walkFileTreeRecursively(
+        CAS, ID,
+        [&](const NamedTreeEntry &Entry, Optional<TreeRef> Tree) -> Error {
+          if (Entry.getKind() != TreeEntry::Tree) {
+            pushImpl(Entry.getID(), Entry.getKind(), Path + Entry.getName());
+            return Error::success();
+          }
+          if (Tree->empty())
+            pushDirectory(Path + Entry.getName());
+          return Error::success();
+        });
+    if (E)
+      return E;
+  }
+  TreeContents.clear();
+
   if (Entries.empty())
     return CAS.createTree();
 

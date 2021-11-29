@@ -39,6 +39,7 @@ static int makeNode(CASDB &CAS, ArrayRef<std::string> References, StringRef Data
 static int diffGraphs(CASDB &CAS, CASID LHS, CASID RHS);
 static int traverseGraph(CASDB &CAS, CASID ID);
 static int ingestFileSystem(CASDB &CAS, StringRef Path);
+static int mergeTrees(CASDB &CAS, ArrayRef<std::string> Objects);
 static int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path);
 
 int main(int Argc, char **Argv) {
@@ -62,6 +63,7 @@ int main(int Argc, char **Argv) {
     ListTreeRecursive,
     ListObjectReferences,
     IngestFileSystem,
+    MergeTrees,
     GetCASIDForFile,
   };
   cl::opt<CommandKind> Command(
@@ -79,6 +81,7 @@ int main(int Argc, char **Argv) {
                      "list tree recursive"),
           clEnumValN(ListObjectReferences, "ls-node-refs", "list node refs"),
           clEnumValN(IngestFileSystem, "ingest", "ingest file system"),
+          clEnumValN(MergeTrees, "merge", "merge paths/cas-ids"),
           clEnumValN(GetCASIDForFile, "get-cas-id", "get cas id for file")),
       cl::init(CommandKind::Invalid));
 
@@ -114,6 +117,9 @@ int main(int Argc, char **Argv) {
 
   if (Command == IngestFileSystem)
     return ingestFileSystem(*CAS, DataPath);
+
+  if (Command == MergeTrees)
+    return mergeTrees(*CAS, Objects);
 
   // Remaining commands need exactly one CAS object.
   if (Objects.empty())
@@ -422,21 +428,43 @@ static Error recursiveAccess(CachingOnDiskFileSystem &FS, StringRef Path) {
   return Error::success();
 }
 
-int ingestFileSystem(CASDB &CAS, StringRef Path) {
-  ExitOnError ExitOnErr("llvm-cas: ingest: ");
+static Expected<TreeRef> ingestFileSystemImpl(CASDB &CAS, StringRef Path) {
   auto FS = createCachingOnDiskFileSystem(CAS);
   if (!FS)
-    ExitOnErr(FS.takeError());
+    return FS.takeError();
 
   (*FS)->trackNewAccesses();
 
-  ExitOnErr(recursiveAccess(**FS, Path));
+  if (Error E = recursiveAccess(**FS, Path))
+    return E;
 
-  auto Ref = (*FS)->createTreeFromAllAccesses();
-  if (!Ref)
-    ExitOnErr(Ref.takeError());
+  return (*FS)->createTreeFromAllAccesses();
+}
 
-  ExitOnErr(CAS.printCASID(outs(), *Ref));
+int ingestFileSystem(CASDB &CAS, StringRef Path) {
+  ExitOnError ExitOnErr("llvm-cas: ingest: ");
+  auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Path));
+  ExitOnErr(CAS.printCASID(outs(), Ref));
+  return 0;
+}
+
+static int mergeTrees(CASDB &CAS, ArrayRef<std::string> Objects) {
+  ExitOnError ExitOnErr("llvm-cas: merge: ");
+
+  HierarchicalTreeBuilder Builder;
+  for (const auto &Object : Objects) {
+    auto ID = CAS.parseCASID(Object);
+    if (ID) {
+      Builder.pushTreeContent(*ID, "");
+    } else {
+      consumeError(ID.takeError());
+      auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Object));
+      Builder.pushTreeContent(Ref, "");
+    }
+  }
+
+  auto Ref = ExitOnErr(Builder.create(CAS));
+  ExitOnErr(CAS.printCASID(outs(), Ref));
   return 0;
 }
 

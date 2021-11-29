@@ -8,6 +8,10 @@ Play with `llvm-cas`. E.g., print a tree:
 % ninja llvm-cas
 % llvm-cas --cas $TMPDIR/casfs.default --ls-tree <tree-id>
 ```
+Merge directories:
+```
+% llvm-cas --cas $TMPDIR/casfs.default --merge <tree-id> /path/to/dir
+```
 
 TODO: add demos for plugins once there are some.
 

@@ -353,6 +353,7 @@ class HierarchicalTreeBuilder {
 
   /// Preallocate space for small trees, common when creating cache keys.
   SmallVector<HierarchicalEntry, 8> Entries;
+  SmallVector<HierarchicalEntry, 0> TreeContents;
 
   void pushImpl(Optional<CASID> ID, TreeEntry::EntryKind Kind,
                 const Twine &Path);
@@ -373,6 +374,13 @@ public:
   void pushDirectory(const Twine &Path) {
     return pushImpl(None, TreeEntry::Tree, Path);
   }
+
+  /// Add a directory with specific contents. It is functionally equivalent to:
+  ///   * Calling pushDirectory() for every tree
+  ///   * Calling push() for every non-tree
+  ///
+  /// Allows merging the contents of multiple directories.
+  void pushTreeContent(CASID ID, const Twine &Path);
 
   /// Drop all entries.
   void clear() { Entries.clear(); }
