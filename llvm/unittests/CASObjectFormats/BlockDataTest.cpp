@@ -43,7 +43,7 @@ TEST(BlockDataTest, ZeroFill) {
   };
   for (StringRef ContentHint : {"1", "longer content\n"}) {
     for (uint64_t Size :
-         {1ULL, 2ULL, 7ULL, 1024ULL, uint64_t(ContentHint.size())}) {
+         {1ULL, 2ULL, 7ULL, 1024ULL, (unsigned long long)ContentHint.size()}) {
       Optional<StringRef> Content;
       if (Size == ContentHint.size())
         Content = ContentHint;
