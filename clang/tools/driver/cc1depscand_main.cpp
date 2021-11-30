@@ -43,6 +43,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <sys/file.h> // FIXME: Unix-only. Not portable.
+#include <sys/signal.h> // FIXME: Unix-only. Not portable.
 
 #ifdef CLANG_HAVE_RLIMITS
 #include <sys/resource.h>

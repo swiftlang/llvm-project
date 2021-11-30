@@ -55,12 +55,15 @@
 #include <set>
 #include <system_error>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
 #if defined(__APPLE__) &&                                                      \
     __has_include(<libproc.h>) && __has_include(<sys/proc_info.h>)
 #define USE_APPLE_LIBPROC_FOR_DEPSCAN_ANCESTORS
 #include <libproc.h>
 #include <sys/proc_info.h>
-#include <unistd.h>
 #endif
 
 using namespace clang;
