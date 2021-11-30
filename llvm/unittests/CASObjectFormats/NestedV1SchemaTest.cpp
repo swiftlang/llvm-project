@@ -513,9 +513,9 @@ TEST(NestedV1SchemaTest, RoundTrip) {
                      jitlink::Scope::Default, false, false);
 
   std::unique_ptr<jitlink::LinkGraph> RoundTripG;
+  std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
   {
     // Convert to cas.o.
-    std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
     ObjectFileSchema Schema(*CAS);
     Optional<CompileUnitRef> CU;
     ASSERT_THAT_ERROR(unwrapExpected(CompileUnitRef::create(Schema, G), CU),
@@ -635,9 +635,9 @@ TEST(NestedV1SchemaTest, RoundTripBlockOrder) {
                      jitlink::Scope::Default, false, false);
 
   std::unique_ptr<jitlink::LinkGraph> RoundTripG;
+  std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
   {
     // Convert to cas.o.
-    std::unique_ptr<cas::CASDB> CAS = cas::createInMemoryCAS();
     ObjectFileSchema Schema(*CAS);
     Optional<CompileUnitRef> CU;
     ASSERT_THAT_ERROR(unwrapExpected(CompileUnitRef::create(Schema, G), CU),
