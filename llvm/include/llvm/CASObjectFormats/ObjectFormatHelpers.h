@@ -55,6 +55,12 @@ bool compareSymbolsByLinkageAndSemantics(const jitlink::Symbol *LHS,
 bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
                              const jitlink::Symbol *RHS);
 
+/// Helpers to sort jitlink::Block into stable ordering in the same section.
+bool compareBlocks(const jitlink::Block *LHS, const jitlink::Block *RHS);
+
+/// Helpers to sort jitlink::Edge into stable ordering in the same block.
+bool compareEdges(const jitlink::Edge *LHS, const jitlink::Edge *RHS);
+
 } // end namespace helpers
 } // end namespace casobjectformats
 } // end namespace llvm

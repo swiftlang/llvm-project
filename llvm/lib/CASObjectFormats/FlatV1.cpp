@@ -187,37 +187,6 @@ static Expected<StringRef> consumeDataOfSize(StringRef &Data, unsigned Size) {
   return Ret;
 }
 
-static bool compareBlocksByAddress(const jitlink::Block *LHS,
-                                   const jitlink::Block *RHS) {
-  if (LHS == RHS)
-    return false;
-
-  JITTargetAddress LAddr = LHS->getAddress();
-  JITTargetAddress RAddr = RHS->getAddress();
-  if (LAddr != RAddr)
-    return LAddr < RAddr;
-
-  return LHS->getSize() < RHS->getSize();
-}
-
-static bool compareEdges(const jitlink::Edge *LHS, const jitlink::Edge *RHS) {
-  if (LHS == RHS)
-    return false;
-
-  if (LHS->getOffset() != RHS->getOffset())
-    return LHS->getOffset() < RHS->getOffset();
-
-  if (LHS->getAddend() != RHS->getAddend())
-    return LHS->getAddend() < RHS->getAddend();
-
-  if (LHS->getKind() != RHS->getKind())
-    return LHS->getKind() < RHS->getKind();
-
-  return helpers::compareSymbolsBySemanticsAnd(
-      &LHS->getTarget(), &RHS->getTarget(), helpers::compareSymbolsByAddress);
-}
-
-
 static uint64_t getAlignedAddress(LinkGraphBuilder::SectionInfo &Section,
                                   uint64_t Size, uint64_t Alignment,
                                   uint64_t AlignmentOffset) {
@@ -349,7 +318,7 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   Edges.reserve(Block.edges_size());
   for (const auto &E : Block.edges())
     Edges.emplace_back(&E);
-  llvm::sort(Edges, compareEdges);
+  llvm::sort(Edges, helpers::compareEdges);
 
   SmallVector<Fixup, 16> Fixups;
   Fixups.reserve(Edges.size());
@@ -781,9 +750,8 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
       return std::move(E);
   }
   // Visit symbols. Sort the symbols for stable ordering.
-  // FIXME: duplicated code for sorting and comparsion.
   SmallVector<const jitlink::Symbol *, 16> Symbols;
-  auto appendSymbols = [&](auto &&NewSymbols) {
+  auto appendSymbols = [&](const auto &NewSymbols) {
     size_t PreviousSize = Symbols.size();
     Symbols.append(NewSymbols.begin(), NewSymbols.end());
     llvm::sort(Symbols.begin() + PreviousSize, Symbols.end(),
@@ -798,11 +766,11 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
                    helpers::compareSymbolsByLinkageAndSemantics);
 
   // Visit blocks. Create a ordered list of blocks so it can be index.
-  auto appendBlocks = [&](auto &&NewBlocks) {
+  auto appendBlocks = [&](const auto &NewBlocks) {
     size_t PreviousSize = Builder.Blocks.size();
     Builder.Blocks.append(NewBlocks.begin(), NewBlocks.end());
     llvm::sort(Builder.Blocks.begin() + PreviousSize, Builder.Blocks.end(),
-               compareBlocksByAddress);
+               helpers::compareBlocks);
   };
   for (const jitlink::Section &Section : G.sections())
     appendBlocks(Section.blocks());
