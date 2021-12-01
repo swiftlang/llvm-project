@@ -246,6 +246,23 @@ directory.
     --prefer-indirect-symbol-refs=true
 ```
 
+Currently, there are two schemas available for CAS-based object format:
+`nestedv1` (default) and `flatv1`. FlatV1 schema uses a more direct
+serialization of LinkGraph and works for both MachO and ELF. You can try use
+`flatv1` schema with following options:
+
+```
+  time "$BUILDDIR"/llvm-cas-object-format --cas "$TMPDIR/casfs.default" \
+    --ingest-schema=flatv1 --object-stats @objects-to-ingest
+```
+
+Some other use flags to use:
+
+* `--just-blobs`: Ingest the object files as blobs into CAS
+* `--ingest-cas`: Treat the inputs as CASID for cas tree instead of filename.
+* `--debug`, `--debug-ingest`, `--dump`: Useful debug options (some only work
+  with assertion build)
+
 ## lld: Linking CAS.o
 
 `lld` can connect to the builtin CAS and read & link `CAS.o` objects:
