@@ -181,6 +181,7 @@ struct Configuration {
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> fs;
   std::unique_ptr<llvm::cas::CASDB> CAS;
   std::unique_ptr<llvm::casobjectformats::SchemaPool> CASSchemas;
+  bool depScanning = false;
 
   llvm::DenseMap<llvm::StringRef, SymbolPriorityEntry> priorities;
   SectionRenameMap sectionRenameMap;

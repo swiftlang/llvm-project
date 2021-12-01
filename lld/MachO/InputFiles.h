@@ -116,6 +116,8 @@ public:
   std::vector<ConcatInputSection *> debugSections;
   ArrayRef<llvm::MachO::data_in_code_entry> dataInCodeEntries;
 
+  static void parseLCLinkerOptions(MemoryBufferRef mb);
+
 private:
   template <class LP> void parse();
   template <class Section> void parseSections(ArrayRef<Section>);

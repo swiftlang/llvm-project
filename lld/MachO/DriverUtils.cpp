@@ -130,7 +130,8 @@ static std::string rewriteInputPath(StringRef s) {
 
 // Reconstructs command line arguments so that so that you can re-run
 // the same command with the same inputs. This is for --reproduce.
-std::string macho::createResponseFile(const InputArgList &args) {
+std::string macho::createResponseFile(const InputArgList &args,
+                                      bool isForCacheKey) {
   SmallString<0> data;
   raw_svector_ostream os(data);
 
@@ -143,7 +144,15 @@ std::string macho::createResponseFile(const InputArgList &args) {
       os << quote(rewriteInputPath(arg->getValue())) << "\n";
       break;
     case OPT_o:
-      os << "-o " << quote(path::filename(arg->getValue())) << "\n";
+      if (isForCacheKey) {
+        if (getOutputType(args) != MH_EXECUTE) {
+          // Add the full filename since it can be part of the output for
+          // dylibs.
+          os << "-o " << arg->getValue() << "\n";
+        }
+      } else {
+        os << "-o " << quote(path::filename(arg->getValue())) << "\n";
+      }
       break;
     case OPT_filelist:
       if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
@@ -171,6 +180,16 @@ std::string macho::createResponseFile(const InputArgList &args) {
          << quote(arg->getValue(1)) << " "
          << quote(rewritePath(arg->getValue(2))) << "\n";
       break;
+    case OPT_verbose:
+    case OPT_time_trace:
+    case OPT_time_trace_granularity_eq:
+    case OPT_time_trace_file_eq:
+      if (isForCacheKey) {
+        // Useful to ignore so the option can be enabled/disabled without
+        // affecting the caching itself.
+        break;
+      }
+      LLVM_FALLTHROUGH;
     default:
       os << toString(*arg) << "\n";
     }
@@ -205,6 +224,10 @@ Optional<std::string> macho::resolveDylibPath(StringRef dylibPath) {
 // It's not uncommon to have multiple attempts to load a single dylib,
 // especially if it's a commonly re-exported core library.
 static DenseMap<CachedHashStringRef, DylibFile *> loadedDylibs;
+
+void macho::resetLoadedDylibs() {
+  loadedDylibs.clear();
+}
 
 DylibFile *macho::loadDylib(MemoryBufferRef mbref, DylibFile *umbrella,
                             bool isBundleLoader) {

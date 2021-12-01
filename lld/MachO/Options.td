@@ -90,6 +90,13 @@ def fcas_fs_working_directory : Separate<["--"], "fcas-fs-working-directory">,
     MetaVarName<"<dir>">,
     Group<grp_lld>;
 
+def fcas_cache_results: Flag<["--"], "fcas-cache-results">,
+    HelpText<"Use a result cache">,
+    Group<grp_lld>;
+def fcas_no_cache_results: Flag<["--"], "fcas-no-cache-results">,
+    HelpText<"Use a result cache">,
+    Group<grp_lld>;
+
 // This is a complete Options.td compiled from Apple's ld(1) manpage
 // dated 2018-03-07 and cross checked with ld64 source code in repo
 // https://github.com/apple-opensource/ld64 at git tag "512.4" dated
