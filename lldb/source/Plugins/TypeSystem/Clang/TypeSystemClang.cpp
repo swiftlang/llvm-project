@@ -9052,7 +9052,8 @@ void TypeSystemClang::DumpSummary(lldb::opaque_compiler_type_t type,
 }
 
 void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
-                                          lldb::DescriptionLevel level) {
+                                          lldb::DescriptionLevel level,
+                                          ExecutionContextScope *) {
   StreamFile s(stdout, false);
   DumpTypeDescription(type, &s, level);
 
@@ -9066,7 +9067,8 @@ void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
 
 void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
                                           Stream *s,
-                                          lldb::DescriptionLevel level) {
+                                          lldb::DescriptionLevel level,
+                                          ExecutionContextScope *) {
   if (type) {
     clang::QualType qual_type =
         RemoveWrappingTypes(GetQualType(type), {clang::Type::Typedef});
@@ -9156,7 +9158,7 @@ void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
     if (buf.size() > 0) {
       s->Write(buf.data(), buf.size());
     }
-}
+  }
 }
 
 void TypeSystemClang::DumpTypeName(const CompilerType &type) {

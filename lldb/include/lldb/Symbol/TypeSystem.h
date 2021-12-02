@@ -411,7 +411,8 @@ public:
   /// Dump the type to stdout.
   virtual void DumpTypeDescription(
       lldb::opaque_compiler_type_t type,
-      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull) = 0;
+      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull,
+      ExecutionContextScope *exe_scope = nullptr) = 0;
 
   /// Print a description of the type to a stream. The exact implementation
   /// varies, but the expectation is that eDescriptionLevelFull returns a
@@ -419,7 +420,8 @@ public:
   /// does a dump of the underlying AST if applicable.
   virtual void DumpTypeDescription(
       lldb::opaque_compiler_type_t type, Stream *s,
-      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull) = 0;
+      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull,
+      ExecutionContextScope *exe_scope = nullptr) = 0;
 
   // TODO: These methods appear unused. Should they be removed?
 
