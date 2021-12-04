@@ -9,6 +9,7 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningFilesystem.h"
 #include "clang/Basic/Version.h"
 #include "clang/Lex/DependencyDirectivesSourceMinimizer.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Threading.h"

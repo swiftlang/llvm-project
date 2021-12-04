@@ -1,4 +1,4 @@
-//===- llvm/CAS/CASDB.h ---------------------------------------*- C++ -*-===//
+//===- llvm/CAS/CASDB.h -----------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,9 +9,9 @@
 #ifndef LLVM_CAS_CASDB_H
 #define LLVM_CAS_CASDB_H
 
-#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/CAS/CASID.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h" // FIXME: Split out sys::fs::file_status.
 #include "llvm/Support/MemoryBuffer.h"
@@ -27,30 +27,6 @@ enum class ObjectKind {
   Blob, /// Data, with no references.
   Tree, /// Filesystem-style tree, with named references and entry types.
   Node, /// Abstract hierarchical node, with data and references.
-};
-
-/// Wrapper around a raw hash-based identifier for a CAS object.
-class CASID {
-public:
-  ArrayRef<uint8_t> getHash() const { return Hash; }
-
-  friend bool operator==(CASID LHS, CASID RHS) {
-    return LHS.getHash() == RHS.getHash();
-  }
-  friend bool operator!=(CASID LHS, CASID RHS) {
-    return LHS.getHash() != RHS.getHash();
-  }
-
-  CASID() = delete;
-  explicit CASID(ArrayRef<uint8_t> Hash) : Hash(Hash) {}
-  explicit operator ArrayRef<uint8_t>() const { return Hash; }
-
-  friend hash_code hash_value(cas::CASID ID) {
-    return hash_value(ID.getHash());
-  }
-
-private:
-  ArrayRef<uint8_t> Hash;
 };
 
 /// Generic CAS object reference.
@@ -407,26 +383,6 @@ public:
 };
 
 } // namespace cas
-
-template <> struct DenseMapInfo<cas::CASID> {
-  static cas::CASID getEmptyKey() {
-    return cas::CASID(DenseMapInfo<ArrayRef<uint8_t>>::getEmptyKey());
-  }
-
-  static cas::CASID getTombstoneKey() {
-    return cas::CASID(DenseMapInfo<ArrayRef<uint8_t>>::getTombstoneKey());
-  }
-
-  static unsigned getHashValue(cas::CASID ID) {
-    return DenseMapInfo<ArrayRef<uint8_t>>::getHashValue(ID.getHash());
-  }
-
-  static bool isEqual(cas::CASID LHS, cas::CASID RHS) {
-    return DenseMapInfo<ArrayRef<uint8_t>>::isEqual(LHS.getHash(),
-                                                    RHS.getHash());
-  }
-};
-
 } // namespace llvm
 
 #endif // LLVM_CAS_CASDB_H

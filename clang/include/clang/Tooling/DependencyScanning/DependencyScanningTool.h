@@ -14,8 +14,13 @@
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 #include "clang/Tooling/JSONCompilationDatabase.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/CAS/CASDB.h"
 #include <string>
+
+namespace llvm {
+namespace cas {
+class TreeRef;
+}
+} // namespace llvm
 
 namespace clang{
 namespace tooling{

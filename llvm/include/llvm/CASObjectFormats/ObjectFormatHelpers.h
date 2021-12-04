@@ -10,7 +10,6 @@
 #define LLVM_CASOBJECTFORMATS_OBJECTFORMATHELPERS_H
 
 #include "llvm/ADT/Triple.h"
-#include "llvm/CAS/CASDB.h"
 #include "llvm/CASObjectFormats/Data.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 

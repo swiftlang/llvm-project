@@ -9,12 +9,14 @@
 #ifndef LLVM_CAS_THREADSAFEFILESYSTEM_H
 #define LLVM_CAS_THREADSAFEFILESYSTEM_H
 
-#include "llvm/CAS/CASDB.h" // FIXME: Split out CASID.
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VirtualFileSystem.h"
 
 namespace llvm {
 namespace cas {
+
+class CASDB;
+class CASID;
 
 /// For thread-safe filesystem implementations.
 class ThreadSafeFileSystem : public vfs::FileSystem {

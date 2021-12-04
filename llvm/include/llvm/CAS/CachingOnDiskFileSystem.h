@@ -9,7 +9,6 @@
 #ifndef LLVM_CAS_CACHINGONDISKFILESYSTEM_H
 #define LLVM_CAS_CACHINGONDISKFILESYSTEM_H
 
-#include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/FileSystemCache.h"
 #include "llvm/CAS/ThreadSafeFileSystem.h"
 #include "llvm/Support/Error.h"
@@ -18,6 +17,8 @@
 
 namespace llvm {
 namespace cas {
+
+class TreeRef;
 
 /// A mostly-thread-safe caching on-disk filesystem. The only unsafe operation
 /// is \a setCurrentWorkingDirectory(), which would be dangerous to call in a

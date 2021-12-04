@@ -26,6 +26,7 @@
 #include "clang/Lex/Token.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/Support/DJB.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorOr.h"

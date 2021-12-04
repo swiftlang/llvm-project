@@ -13,7 +13,7 @@
 #include "clang/Lex/PreprocessorExcludedConditionalDirectiveSkipMapping.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASID.h"
 #include "llvm/CAS/ThreadSafeFileSystem.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ErrorOr.h"

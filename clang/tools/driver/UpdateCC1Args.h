@@ -13,7 +13,6 @@
 #include "clang/Driver/CC1DepScanDClient.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Lex/HeaderSearchOptions.h"
-#include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"

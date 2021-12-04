@@ -9,7 +9,7 @@
 #ifndef LLVM_CASOBJECTFORMATS_FLATV1_H
 #define LLVM_CASOBJECTFORMATS_FLATV1_H
 
-#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASID.h"
 #include "llvm/CASObjectFormats/Data.h"
 #include "llvm/CASObjectFormats/SchemaBase.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"

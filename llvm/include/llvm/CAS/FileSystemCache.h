@@ -13,7 +13,7 @@
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASID.h"
 #include "llvm/CAS/HashMappedTrie.h"
 #include "llvm/CAS/ThreadSafeAllocator.h"
 #include "llvm/Support/AlignOf.h"
