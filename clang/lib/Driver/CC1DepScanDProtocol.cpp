@@ -83,12 +83,7 @@ std::string cc1depscand::getBasePath(StringRef DaemonKey) {
   // Construct the path.
   SmallString<128> BasePath;
   llvm::sys::path::system_temp_directory(/*ErasedOnReboot=*/true, BasePath);
-  llvm::sys::path::append(BasePath, "llvm.depscan.daemon");
-
-  // Ignore the error here; let something else report an error lator.
-  (void)llvm::sys::fs::create_directories(BasePath);
-
-  llvm::sys::path::append(BasePath, DaemonKey);
+  llvm::sys::path::append(BasePath, "llvm.depscan.daemon", DaemonKey);
 
   // Ensure null-termination.
   return BasePath.str().str();
