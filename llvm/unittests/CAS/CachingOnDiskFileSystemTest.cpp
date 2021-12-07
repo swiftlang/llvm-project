@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
