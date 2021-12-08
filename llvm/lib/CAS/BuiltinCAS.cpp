@@ -835,26 +835,6 @@ Error BuiltinCAS::forEachReferenceInNode(
   return Error::success();
 }
 
-// FIXME: Expose this from MemoryBuffer.cpp instead of this copy/paste.
-static Error readFileFromStream(sys::fs::file_t FD,
-                                SmallVectorImpl<char> &Buffer) {
-  const ssize_t ChunkSize = 4096 * 4;
-
-  // Read into Buffer until we hit EOF.
-  for (;;) {
-    Buffer.reserve(Buffer.size() + ChunkSize);
-    Expected<size_t> ReadBytes = sys::fs::readNativeFile(
-        FD, makeMutableArrayRef(Buffer.end(), ChunkSize));
-    if (!ReadBytes)
-      return ReadBytes.takeError();
-    if (*ReadBytes == 0)
-      break;
-    Buffer.set_size(Buffer.size() + *ReadBytes);
-  }
-
-  return Error::success();
-}
-
 Expected<BlobRef>
 BuiltinCAS::createBlobFromOpenFileImpl(sys::fs::file_t FD,
                                        Optional<sys::fs::file_status> Status) {
@@ -877,7 +857,7 @@ BuiltinCAS::createBlobFromOpenFileImpl(sys::fs::file_t FD,
     StatusFileSize = Status->getSize();
 
   sys::fs::mapped_file_region MappedContent;
-  SmallString<4 * 4096> StreamedContent;
+  SmallString<sys::fs::DefaultReadChunkSize> StreamedContent;
   Optional<StringRef> Content;
   if (StatusFileSize && *StatusFileSize > 4u * 4096) {
     std::error_code EC;
@@ -888,7 +868,7 @@ BuiltinCAS::createBlobFromOpenFileImpl(sys::fs::file_t FD,
       return errorCodeToError(EC);
     Content.emplace(MappedContent.data(), MappedContent.size());
   } else {
-    if (Error E = readFileFromStream(FD, StreamedContent))
+    if (Error E = sys::fs::readNativeFileToEOF(FD, StreamedContent))
       return std::move(E);
     Content.emplace(StreamedContent);
   }
