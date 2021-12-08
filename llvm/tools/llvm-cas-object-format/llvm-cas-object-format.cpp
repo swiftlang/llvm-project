@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/CAS/Utils.h"
 #include "llvm/CASObjectFormats/FlatV1.h"
 #include "llvm/CASObjectFormats/NestedV1.h"
 #include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"
@@ -15,6 +16,7 @@
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -40,6 +42,8 @@ cl::opt<bool> Dump("dump", cl::desc("Dump link-graph."));
 cl::opt<bool>
     JustBlobs("just-blobs",
               cl::desc("Just ingest blobs, instead of breaking up files."));
+cl::opt<std::string> CASIDOutput("casid-output",
+                                 cl::desc("Write output as embedded CASID"));
 cl::opt<bool> DebugIngest("debug-ingest",
                           cl::desc("Debug ingesting the object file."));
 cl::opt<bool> SplitEHFrames("split-eh", cl::desc("Split eh-frame sections."),
@@ -116,6 +120,11 @@ int main(int argc, char *argv[]) {
   ExitOnErr.setBanner(std::string(argv[0]) + ": ");
 
   cl::ParseCommandLineOptions(argc, argv);
+
+  if (!CASIDOutput.empty() && InputFiles.size() != 1) {
+    errs() << "error: '-casid-output' requires only one input";
+    return 1;
+  }
 
   std::unique_ptr<CASDB> CAS =
       StringRef(CASPath).empty()
@@ -214,6 +223,21 @@ int main(int argc, char *argv[]) {
   }
   Pool.wait();
 
+  if (!CASIDOutput.empty()) {
+    assert(Files.size() == 1);
+    auto File = Files.begin();
+    SmallVector<char, 50> Contents;
+    {
+      raw_svector_ostream OS(Contents);
+      writeCASIDBuffer(*CAS, File->second, OS);
+    }
+    std::unique_ptr<FileOutputBuffer> outBuf =
+        ExitOnErr(FileOutputBuffer::create(CASIDOutput, Contents.size()));
+    llvm::copy(Contents, outBuf->getBufferStart());
+    ExitOnErr(outBuf->commit());
+    return 0;
+  }
+
 #define MSG(E)                                                                 \
   if (!Silent) {                                                               \
     outs() << E;                                                               \
@@ -233,6 +257,8 @@ int main(int argc, char *argv[]) {
 
   if (ComputeStats)
     computeStats(*CAS, SummaryIDs);
+
+  return 0;
 }
 
 namespace {

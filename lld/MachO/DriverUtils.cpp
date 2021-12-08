@@ -20,6 +20,8 @@
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/Utils.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
@@ -31,6 +33,7 @@
 #include "llvm/TextAPI/TextAPIReader.h"
 
 using namespace llvm;
+using namespace llvm::cas;
 using namespace llvm::MachO;
 using namespace llvm::opt;
 using namespace llvm::sys;
@@ -309,17 +312,43 @@ Optional<InputFile *> macho::loadArchiveMember(MemoryBufferRef mb,
   if (config->zeroModTime)
     modTime = 0;
 
+  StringRef memberName = mb.getBufferIdentifier();
   switch (identify_magic(mb.getBuffer())) {
   case file_magic::macho_object:
     if (!objCOnly || hasObjCSection(mb))
       return make<ObjFile>(mb, modTime, archiveName);
     return None;
+  case file_magic::cas_id: {
+    if (!config->CAS) {
+      error(archiveName + ": archive member " + memberName +
+            " embedding a CAS-ID but CAS is not enabled");
+      return None;
+    }
+    CASDB &CAS = *config->CAS;
+    auto ID = readCASIDBuffer(CAS, mb);
+    if (!ID) {
+      error(archiveName + ": archive member " + memberName +
+            " failed reading CAS-ID: " + toString(ID.takeError()));
+      return None;
+    }
+    auto blobRef = CAS.getBlob(*ID);
+    if (!blobRef) {
+      consumeError(blobRef.takeError());
+      error(archiveName + ": archive member " + memberName +
+            " embedding a non-blob CAS-ID");
+      return None;
+    }
+    MemoryBufferRef objectMB(blobRef->getData(), memberName);
+    if (!objCOnly || hasObjCSection(objectMB))
+      return make<ObjFile>(objectMB, *blobRef, archiveName);
+    return None;
+  }
   case file_magic::bitcode:
     if (!objCOnly || check(isBitcodeContainingObjCCategory(mb)))
       return make<BitcodeFile>(mb, archiveName, offsetInArchive);
     return None;
   default:
-    error(archiveName + ": archive member " + mb.getBufferIdentifier() +
+    error(archiveName + ": archive member " + memberName +
           " has unhandled file type");
     return None;
   }

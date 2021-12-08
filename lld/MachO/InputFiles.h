@@ -109,16 +109,19 @@ private:
 class ObjFile final : public InputFile {
 public:
   ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName);
+  ObjFile(MemoryBufferRef mb, llvm::cas::CASID ID, StringRef archiveName);
   static bool classof(const InputFile *f) { return f->kind() == ObjKind; }
 
   llvm::DWARFUnit *compileUnit = nullptr;
   const uint32_t modTime;
+  const llvm::Optional<llvm::cas::CASID> casID;
   std::vector<ConcatInputSection *> debugSections;
   ArrayRef<llvm::MachO::data_in_code_entry> dataInCodeEntries;
 
   static void parseLCLinkerOptions(MemoryBufferRef mb);
 
 private:
+  void init(StringRef archiveName);
   template <class LP> void parse();
   template <class Section> void parseSections(ArrayRef<Section>);
   template <class LP>

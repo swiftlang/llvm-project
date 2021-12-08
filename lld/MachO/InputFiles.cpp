@@ -763,6 +763,15 @@ void ObjFile::parseLCLinkerOptions(MemoryBufferRef mb) {
 
 ObjFile::ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName)
     : InputFile(ObjKind, mb), modTime(modTime) {
+  init(archiveName);
+}
+
+ObjFile::ObjFile(MemoryBufferRef mb, llvm::cas::CASID ID, StringRef archiveName)
+    : InputFile(ObjKind, mb), modTime(0), casID(std::move(ID)) {
+  init(archiveName);
+}
+
+void ObjFile::init(StringRef archiveName) {
   this->archiveName = std::string(archiveName);
   if (target->wordSize == 8)
     parse<LP64>();

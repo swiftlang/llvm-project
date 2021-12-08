@@ -299,6 +299,9 @@ static void handleFileForDepScanning(MemoryBufferRef mbref) {
 
 static DenseMap<StringRef, ArchiveFile *> loadedArchives;
 
+static Expected<InputFile *> addCASObject(SchemaPool &CASSchemas, CASID ID,
+                                          StringRef path);
+
 static InputFile *addFile(StringRef path, bool forceLoadArchive,
                           bool isExplicit = true, bool isBundleLoader = false) {
   Optional<MemoryBufferRef> buffer = readFile(path);
@@ -309,11 +312,8 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
     handleFileForDepScanning(mbref);
     return nullptr;
   }
-  InputFile *newFile = nullptr;
 
-  file_magic magic = identify_magic(mbref.getBuffer());
-  switch (magic) {
-  case file_magic::archive: {
+  auto addArchive = [&](MemoryBufferRef mbref) -> InputFile * {
     // Avoid loading archives twice. If the archives are being force-loaded,
     // loading them twice would create duplicate symbol errors. In the
     // non-force-loading case, this is just a minor performance optimization.
@@ -364,9 +364,16 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
       }
     }
 
-    newFile = loadedArchives[path] = make<ArchiveFile>(std::move(file));
+    return loadedArchives[path] = make<ArchiveFile>(std::move(file));
+  };
+
+  InputFile *newFile = nullptr;
+  file_magic magic = identify_magic(mbref.getBuffer());
+
+  switch (magic) {
+  case file_magic::archive:
+    newFile = addArchive(mbref);
     break;
-  }
   case file_magic::macho_object:
     newFile = make<ObjFile>(mbref, getModTime(path), "");
     break;
@@ -391,6 +398,43 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
     if (DylibFile *dylibFile = loadDylib(mbref, nullptr, isBundleLoader))
       newFile = dylibFile;
     break;
+  case file_magic::cas_id: {
+    if (!config->CAS) {
+      error(path + ": embedding a CAS-ID but CAS is not enabled");
+      break;
+    }
+    CASDB &CAS = *config->CAS;
+    Expected<CASID> expCASID = readCASIDBuffer(CAS, mbref);
+    if (!expCASID) {
+      error(path + ": failed reading: " + toString(expCASID.takeError()));
+      break;
+    }
+    CASID ID = std::move(*expCASID);
+    auto blobRef = CAS.getBlob(ID);
+    if (blobRef) {
+      MemoryBufferRef casMBRef(blobRef->getData(), path);
+      switch (identify_magic(casMBRef.getBuffer())) {
+      case file_magic::archive:
+        newFile = addArchive(casMBRef);
+        break;
+      case file_magic::macho_object:
+        newFile = make<ObjFile>(casMBRef, *blobRef, "");
+        break;
+      default:
+        error(path + ": unexpected CASID file type");
+        break;
+      }
+    } else {
+      consumeError(blobRef.takeError());
+      auto casFile = addCASObject(*config->CASSchemas, ID, path);
+      if (!casFile) {
+        error(path + ": " + toString(casFile.takeError()));
+        break;
+      }
+      newFile = *casFile;
+    }
+    break;
+  }
   default:
     error(path + ": unhandled file type");
   }
