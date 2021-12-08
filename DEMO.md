@@ -202,6 +202,42 @@ that they confuse CMake:
 Likely, this breaks CMake's platform detection somehow, but there could be
 something else going on.
 
+
+#### Build swift compiler
+
+In order to build swift compiler from `main` branch which is not CAS aware, do:
+
+```
+% CCC_OVERRIDE_OPTIONS="+-fdepscan +-fdepscan-share-parent=ninja +-fdepscan-share-stop=cmake" \
+  ./utils/build-script --host-cc $CLANG --host-cxx ${CLANG}++ $OTHER_FLAGS
+```
+
+Or if you use the pre-built cas-aware toolchain, you can do:
+
+```
+# only need to run the first command once, maybe include that in the future toolchain?
+% (cd $TOOLCHAIN && ln -s clang cc)
+% CCC_OVERRIDE_OPTIONS="+-fdepscan +-fdepscan-share-parent=ninja +-fdepscan-share-stop=cmake"
+	TOOLCHAINS="Local Swift Development Snapshot" ./util/build-script $OTHER_FLAGS
+```
+
+Or if you are on the cas-aware swift branch, checkout from `experimental/cas/rebranch` branch via:
+
+```
+% ./util/update-checkout --scheme experimental/cas/rebranch
+```
+
+You can build the scheme with a CAS aware toolchain:
+
+```
+% TOOLCHAINS="Local Swift Development Snapshot" ./util/build-script --cas $OTHER_FLAGS
+```
+
+Notes about using `CCC_OVERRIDE_OPTIONS` vs `--cas` option:
+
+* `CCC_OVERRIDE_OPTIONS` to overwrite clang options globally because swift build script on `main` does not provide access to CMake command-line to add `CMAKE_{C,CXX}_FLAGS`. The downside is we can't apply path fixup or enable other caching features (like TableGen). It can also turn on `-fdepscan` in places that lacks test coverage (e.g. within cmake configuration, swift package manager, etc.).
+* `--cas` option on `experimental/cas/rebranch` branch will turn on `-fdepscan` on most of the cmake builds, with llvm-project (except compiler-rt) gets the full support with TableGen and token cache.
+
 #### Try touching a header
 
 ```
