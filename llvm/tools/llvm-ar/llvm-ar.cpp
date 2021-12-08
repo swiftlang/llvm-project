@@ -672,7 +672,7 @@ static void addChildMember(std::vector<NewArchiveMember> &Members,
     }
   }
   if (FlattenArchive &&
-      identify_magic(NMOrErr->Buf->getBuffer()) == file_magic::archive) {
+      identify_magic(NMOrErr->Contents) == file_magic::archive) {
     Expected<std::string> FileNameOrErr = M.getFullName();
     failIfError(FileNameOrErr.takeError());
     object::Archive &Lib = readLibrary(*FileNameOrErr);
@@ -712,7 +712,7 @@ static void addMember(std::vector<NewArchiveMember> &Members,
   }
 
   if (FlattenArchive &&
-      identify_magic(NMOrErr->Buf->getBuffer()) == file_magic::archive) {
+      identify_magic(NMOrErr->Contents) == file_magic::archive) {
     object::Archive &Lib = readLibrary(FileName);
     // When creating thin archives, only flatten if the member is also thin.
     if (!Thin || Lib.isThin()) {
@@ -879,7 +879,7 @@ static object::Archive::Kind getDefaultForHost() {
 }
 
 static object::Archive::Kind getKindFromMember(const NewArchiveMember &Member) {
-  auto MemBufferRef = Member.Buf->getMemBufferRef();
+  auto MemBufferRef = Member.getContentsBufferRef();
   Expected<std::unique_ptr<object::ObjectFile>> OptionalObject =
       object::ObjectFile::createObjectFile(MemBufferRef);
 
