@@ -382,11 +382,35 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
         << llvm::cantFail(CAS->convertCASIDToString(*ResultCacheKey));
     llvm::consumeError(Result.takeError());
 
+    IntrusiveRefCntPtr<llvm::vfs::OutputBackend> OnDiskOutBackend =
+        llvm::makeIntrusiveRefCnt<llvm::vfs::OnDiskOutputBackend>();
+    IntrusiveRefCntPtr<llvm::vfs::OutputBackend> NormalFileOutBackend =
+        OnDiskOutBackend;
+    IntrusiveRefCntPtr<llvm::vfs::OutputBackend> CASIDFileOutBackend;
+    if (Clang->getInvocation().getCASOpts().WriteOutputAsCASID) {
+      std::string OutputFile =
+          Clang->getInvocation().getFrontendOpts().OutputFile;
+      // Create a backend that writes normal files contents but excludes the
+      // output filename.
+      NormalFileOutBackend = llvm::vfs::makeFilteringOutputBackend(
+          OnDiskOutBackend,
+          [OutputFile](StringRef ResolvedPath, llvm::vfs::OutputConfig) {
+            return ResolvedPath != OutputFile;
+          });
+      // Create a backend that writes files as embedded CASIDs but only for the
+      // output filename.
+      CASIDFileOutBackend = llvm::vfs::makeFilteringOutputBackend(
+          OnDiskOutBackend,
+          [OutputFile](StringRef ResolvedPath, llvm::vfs::OutputConfig) {
+            return ResolvedPath == OutputFile;
+          });
+    }
+
     // Set up the output backend so we can save / cache the result after.
-    CASOutputs = llvm::makeIntrusiveRefCnt<llvm::cas::CASOutputBackend>(*CAS);
+    CASOutputs = llvm::makeIntrusiveRefCnt<llvm::cas::CASOutputBackend>(
+        *CAS, std::move(CASIDFileOutBackend));
     Clang->setOutputBackend(llvm::vfs::makeMirroringOutputBackend(
-        CASOutputs,
-        llvm::makeIntrusiveRefCnt<llvm::vfs::OnDiskOutputBackend>()));
+        CASOutputs, std::move(NormalFileOutBackend)));
     ResultDiagsOS = std::make_unique<raw_mirroring_ostream>(
         llvm::errs(), std::make_unique<llvm::raw_svector_ostream>(ResultDiags));
 

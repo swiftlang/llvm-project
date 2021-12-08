@@ -7,12 +7,50 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/Utils.h"
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/CAS/CASDB.h"
+// FIXME: It's layer violation including this (libLLVMCAS should not depend on
+// headers of libLLVMCASObjectFormats) but 'Encoding.h' itself should really
+// move to libLLVMSupport.
+#include "llvm/CASObjectFormats/Encoding.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/StringSaver.h"
 
 using namespace llvm;
 using namespace llvm::cas;
+using namespace llvm::casobjectformats;
+
+Expected<CASID> cas::readCASIDBuffer(cas::CASDB &CAS, MemoryBufferRef Buffer) {
+  if (identify_magic(Buffer.getBuffer()) != file_magic::cas_id)
+    return createStringError(std::errc::invalid_argument,
+                             "buffer does not contain a CASID");
+
+  StringRef Remaining =
+      Buffer.getBuffer().substr(StringRef(casidObjectMagicPrefix).size());
+  uint32_t Size;
+  auto E = encoding::consumeVBR8(Remaining, Size);
+  if (E)
+    return E;
+
+  StringRef CASIDStr = Remaining.substr(0, Size);
+  return CAS.parseCASID(CASIDStr);
+}
+
+void cas::writeCASIDBuffer(cas::CASDB &CAS, const CASID &ID,
+                           llvm::raw_ostream &OS) {
+  OS << casidObjectMagicPrefix;
+  SmallString<256> CASIDStr;
+  {
+    raw_svector_ostream Buf(CASIDStr);
+    cantFail(CAS.printCASID(Buf, ID));
+  }
+  // Write out the size of the CASID so that we can read it back properly even
+  // if the buffer has additional padding (e.g. after getting added in an
+  // archive).
+  SmallString<2> SizeBuf;
+  encoding::writeVBR8(CASIDStr.size(), SizeBuf);
+  OS << SizeBuf << CASIDStr;
+}
 
 Error cas::walkFileTreeRecursively(
     CASDB &CAS, CASID ID,

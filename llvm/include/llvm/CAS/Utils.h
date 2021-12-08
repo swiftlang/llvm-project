@@ -12,12 +12,18 @@
 #include "llvm/Support/Error.h"
 
 namespace llvm {
+class MemoryBufferRef;
+
 namespace cas {
 
 class CASDB;
 class CASID;
 class NamedTreeEntry;
 class TreeRef;
+
+Expected<CASID> readCASIDBuffer(cas::CASDB &CAS, llvm::MemoryBufferRef Buffer);
+
+void writeCASIDBuffer(cas::CASDB &CAS, const CASID &ID, llvm::raw_ostream &OS);
 
 /// Visit each file entry in order, returning an error from \p Callback to stop
 /// early.

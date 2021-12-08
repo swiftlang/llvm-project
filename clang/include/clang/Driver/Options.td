@@ -6033,6 +6033,11 @@ defm fcas_token_cache : BoolFOption<"cas-token-cache",
     PosFlag<SetTrue, [], "When reading from a CAS, cache tokens.">,
     NegFlag<SetFalse>>;
 
+defm fcasid_output : BoolFOption<"casid-output",
+    CASOpts<"WriteOutputAsCASID">, DefaultFalse,
+    PosFlag<SetTrue, [], "When using -fcas-fs-result-cache, write a CASID for the output file.">,
+    NegFlag<SetFalse>>;
+
 } // let Flags = [CC1Option, NoDriverOption]
 
 def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,

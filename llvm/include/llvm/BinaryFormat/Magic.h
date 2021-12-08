@@ -51,6 +51,7 @@ struct file_magic {
     wasm_object,         ///< WebAssembly Object file
     pdb,                 ///< Windows PDB debug info file
     tapi_file,           ///< Text-based Dynamic Library Stub file
+    cas_id,              ///< Embedded CAS ID
   };
 
   bool is_object() const { return V != unknown; }
@@ -73,6 +74,9 @@ file_magic identify_magic(StringRef magic);
 /// @returns errc::success if result has been successfully set, otherwise a
 ///          platform-specific error_code.
 std::error_code identify_magic(const Twine &path, file_magic &result);
+
+constexpr const char *casidObjectMagicPrefix = "CASID:";
+
 } // namespace llvm
 
 #endif

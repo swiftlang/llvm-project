@@ -14,5 +14,5 @@ add_llvm_component_library(LLVMCAS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/CAS
 
   LINK_COMPONENTS
-  Support
+  BinaryFormat
 )
