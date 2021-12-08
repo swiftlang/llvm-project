@@ -122,7 +122,7 @@ Expected<TreeRef> HierarchicalTreeBuilder::create(CASDB &CAS) {
           return Error::success();
         });
     if (E)
-      return E;
+      return std::move(E);
   }
   TreeContents.clear();
 
