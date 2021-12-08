@@ -150,7 +150,7 @@ namespace llvm {
 
     /// empty - Check if the string is empty.
     LLVM_NODISCARD
-    bool empty() const { return Length == 0; }
+    constexpr bool empty() const { return Length == 0; }
 
     /// size - Get the string size.
     LLVM_NODISCARD
