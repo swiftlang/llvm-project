@@ -22,6 +22,11 @@
 // RUN:     -fsyntax-only -x c %s                                      \
 // RUN: | FileCheck %s -allow-empty
 // CHECK-NOT: warning:
+//
+// RUN: not %clang -target x86_64-apple-macos11 -I %S/Inputs \
+// RUN:     -fdepscan-share-parents 2>&1                     \
+// RUN: | FileCheck %s -check-prefix=BAD-SPELLING
+// BAD-SPELLING: error: unknown argument '-fdepscan-share-parents'
 
 #include "test.h"
 

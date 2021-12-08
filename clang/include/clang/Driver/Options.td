@@ -5935,7 +5935,7 @@ def fdepscan_share_parent_EQ : Joined<["-"], "fdepscan-share-parent=">,
     HelpText<"Share state based on the PID of the parent command if the name"
              " matches."
              " See also -fdepscan-share-stop.">;
-def fdepscan_share_parent : Joined<["-"], "fdepscan-share-parent">,
+def fdepscan_share_parent : Flag<["-"], "fdepscan-share-parent">,
     Group<f_Group>,
     HelpText<"Share state based on the PID of the parent command."
              " See also -fdepscan-share-stop.">;
