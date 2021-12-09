@@ -436,7 +436,7 @@ static Expected<TreeRef> ingestFileSystemImpl(CASDB &CAS, StringRef Path) {
   (*FS)->trackNewAccesses();
 
   if (Error E = recursiveAccess(**FS, Path))
-    return E;
+    return std::move(E);
 
   return (*FS)->createTreeFromAllAccesses();
 }

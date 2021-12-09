@@ -28,9 +28,8 @@ Expected<CASID> cas::readCASIDBuffer(cas::CASDB &CAS, MemoryBufferRef Buffer) {
   StringRef Remaining =
       Buffer.getBuffer().substr(StringRef(casidObjectMagicPrefix).size());
   uint32_t Size;
-  auto E = encoding::consumeVBR8(Remaining, Size);
-  if (E)
-    return E;
+  if (auto E = encoding::consumeVBR8(Remaining, Size))
+    return std::move(E);
 
   StringRef CASIDStr = Remaining.substr(0, Size);
   return CAS.parseCASID(CASIDStr);
