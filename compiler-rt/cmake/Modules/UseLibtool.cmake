@@ -28,6 +28,12 @@ if(CMAKE_LIBTOOL)
     if(NOT LIBTOOL_VERSION VERSION_LESS "862")
       set(LIBTOOL_NO_WARNING_FLAG "-no_warning_for_no_symbols")
     endif()
+  elseif("${LIBTOOL_V_OUTPUT}" MATCHES "LLVM version ([0-9.]+).*")
+    string(REGEX REPLACE ".*LLVM version ([0-9.]+).*" "\\1" LIBTOOL_VERSION
+      ${LIBTOOL_V_OUTPUT})
+    if(NOT LIBTOOL_VERSION VERSION_LESS "13")
+      set(LIBTOOL_NO_WARNING_FLAG "-no_warning_for_no_symbols")
+    endif()
   endif()
 
   foreach(lang ${languages})
