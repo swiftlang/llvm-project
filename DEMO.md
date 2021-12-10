@@ -91,8 +91,12 @@ Pretty hacky right now (can this be trimmed down?).
 
 % STAGE1BUILD=path/to/stage1/build
 % (cd "$STAGE1BUILD" &&
-   cmake -DCMAKE_INSTALL_PREFIX="$TOOLCHAIN/usr" &&
+   cmake -DCMAKE_INSTALL_PREFIX="$TOOLCHAIN/usr" ../llvm &&
    ninja install-clang install-clang-resource-headers install-LTO)
+```
+Optionally also install experimental libtool and linker support:
+```
+% (cd "$STAGE1BUILD" && ninja install-lld install-llvm-libtool-darwin)
 ```
 
 #### Caveats to investigate / fix
@@ -108,17 +112,16 @@ Pretty hacky right now (can this be trimmed down?).
       diagnostics with the map in place, but send to stderr the deserialized
       diagnostics with an inverse map. Probably needs some maneuvering in the
       DiagnosticsEngine.
-- `-fdepscan-prefix-map` changes the debug info to point at the suggested
+- `-fdepscan-prefix-map` changes the debug info to point at a canonical
   location. The debugger needs to be told the "real" location of the source
   files or else it can't find them. For LLDB, these options can help:
 
        (lldb) settings append target.source-map /<key> /<value>
        (lldb) settings show target.source-map
 
-  There might be a way to do this automatically but there's no tooling for it
-  right now.
+  There's no tooling yet for doing this automatically in the build.
 - `-fcas-token-cache` is pretty experimental and fragile, since the layering
-  is a total hack. It particularly interferes with errors encountered during
+  is a bit of a hack. It particularly interferes with errors encountered during
   preprocessing.
 
 ### Caching with just-built toolchain
@@ -158,7 +161,19 @@ Using `-DCMAKE_BUILD_TYPE=Release` speeds up the cached builds significantly,
 mainly by speeding up the linker and reducing I/O when writing out the smaller
 `.o` files during cached compilation. It also speeds up tablegen, of course.
 
-#### FIXME: Manual configuration for other branches
+There are also some CMake flags for turning on basic linker integration:
+
+- `-DLLVM_CAS_ENABLE_CASID_OBJECT_OUTPUTS=ON`: write lightweight Clang outputs,
+  where the `.o` written to disk just contains the CAS object identifier. Only
+  supported by "lld/machO" (see below). Not supported by LLDB or dsymutil.
+    - `-DCMAKE_LIBTOOL="$TOOLCHAIN/usr/bin/llvm-libtool-darwin"`: point at a
+      libtool that understands these object files.
+    - `-DLLVM_USE_LINKER="$TOOLCHAIN/usr/bin/ld64.lld"`: point at a linker that
+      understands these object files.
+- `-DLLVM_ENABLE_EXPERIMENTAL_LINKER_RESULT_CACHE=ON`: use a result cache in
+  the linker.
+
+#### Manual configuration for other branches
 
 If the branch being built isn't CAS-aware, you should be able to add the
 options directly.
@@ -174,7 +189,7 @@ options directly.
      -fdepscan -fdepscan-share-parent=ninja -fdepscan-share-stop=cmake
      -fdepscan-prefix-map-sdk=/^sdk
      -fdepscan-prefix-map-toolchain=/^toolchain
-     -fdepscan-prefix-map=$STAGE2BUILD=/^build
+     -fdepscan-prefix-map=$(cd $STAGE2BUILD && pwd)=/^build
      -fdepscan-prefix-map=$PWD=/^source
      -Xclang
      -fcas-token-cache
@@ -191,17 +206,35 @@ options directly.
    ninja)
 ```
 
-Here are the extra flags that should be added to `CLANGFLAGS` above, except
-that they confuse CMake:
-```
-     -fdepscan-prefix-map="$PWD=/^source"
-     -fdepscan-prefix-map="(cd "$STAGE2BUILD" && pwd)=/^build"
-     -fdepscan-prefix-map-sdk=/^sdk
-     -fdepscan-prefix-map-toolchain=/^toolchain
-```
-Likely, this breaks CMake's platform detection somehow, but there could be
-something else going on.
+#### Try touching a header
 
+```
+% touch llvm/include/llvm/ADT/StringRef.h
+% (cd "$STAGE2BUILD" && ninja)
+```
+
+#### Try cleaning
+
+```
+% (cd "$STAGE2BUILD" && ninja clean && ninja)
+```
+
+#### Try a different build directory
+
+```
+% mkdir new-builddir &&
+  (cd new-builddir && cmake ... && ninja)
+```
+
+#### Try a different source directory
+
+```
+% git worktree add new-source-dir --detach experimental/cas/main &&
+  cd new-source-dir
+
+% mkdir build &&
+  (cd build && cmake ... && ninja)
+```
 
 #### Build swift compiler
 
@@ -237,36 +270,6 @@ Notes about using `CCC_OVERRIDE_OPTIONS` vs `--cas` option:
 
 * `CCC_OVERRIDE_OPTIONS` to overwrite clang options globally because swift build script on `main` does not provide access to CMake command-line to add `CMAKE_{C,CXX}_FLAGS`. The downside is we can't apply path fixup or enable other caching features (like TableGen). It can also turn on `-fdepscan` in places that lacks test coverage (e.g. within cmake configuration, swift package manager, etc.).
 * `--cas` option on `experimental/cas/rebranch` branch will turn on `-fdepscan` on most of the cmake builds, with llvm-project (except compiler-rt) gets the full support with TableGen and token cache.
-
-#### Try touching a header
-
-```
-% touch llvm/include/llvm/ADT/StringRef.h
-% (cd "$STAGE2BUILD" && ninja)
-```
-
-#### Try cleaning
-
-```
-% (cd "$STAGE2BUILD" && ninja clean && ninja)
-```
-
-#### Try a different build directory
-
-```
-% mkdir new-builddir &&
-  (cd new-builddir && cmake ... && ninja)
-```
-
-#### Try a different source directory
-
-```
-% git worktree add new-source-dir --detach experimental/cas/main &&
-  cd new-source-dir
-
-% mkdir build &&
-  (cd build && cmake ... && ninja)
-```
 
 ## CAS.o: CAS-based object format
 
