@@ -1,16 +1,21 @@
-; RUN: opt -disable-verify -debug-pass-manager -passes='default<O1>' -S %s 2>&1 | FileCheck %s --check-prefixes=NEWPM_O1
-; RUN: opt -disable-verify -debug-pass-manager -passes='default<O2>' -S %s 2>&1 | FileCheck %s --check-prefixes=NEWPM_O2
-; RUN: opt -disable-verify -debug-pass-manager -passes='default<O2>' -extra-vectorizer-passes -S %s 2>&1 | FileCheck %s --check-prefixes=NEWPM_O2_EXTRA
+; RUN: opt -disable-verify -debug-pass-manager -passes='default<O1>' -force-vector-width=4 -S %s 2>&1 | FileCheck %s --check-prefixes=O1
+; RUN: opt -disable-verify -debug-pass-manager -passes='default<O2>' -force-vector-width=4 -S %s 2>&1 | FileCheck %s --check-prefixes=O2
+; RUN: opt -disable-verify -debug-pass-manager -passes='default<O2>' -force-vector-width=4 -extra-vectorizer-passes -S %s 2>&1 | FileCheck %s --check-prefixes=O2_EXTRA
+
+; When the loop doesn't get vectorized, no extra vector passes should run.
+; RUN: opt -disable-verify -debug-pass-manager -passes='default<O2>' -force-vector-width=0 -extra-vectorizer-passes -S %s 2>&1 | FileCheck %s --check-prefixes=O2
 
 ; REQUIRES: asserts
 
+; The loop vectorizer still runs at both -O1/-O2 even with the
+; debug flag, but it only works on loops explicitly annotated
+; with pragmas.
+
 ; SLP does not run at -O1. Loop vectorization runs, but it only
 ; works on loops explicitly annotated with pragmas.
-
-; OLDPM_O1-LABEL:  Pass Arguments:
-; OLDPM_O1:        Loop Vectorization
-; OLDPM_O1-NOT:    SLP Vectorizer
-; OLDPM_O1:        Optimize scalar/vector ops
+; O1-LABEL:  Running pass: LoopVectorizePass
+; O1-NOT:    Running pass: SLPVectorizerPass
+; O1:        Running pass: VectorCombinePass
 
 ; Everything runs at -O2.
 ; O2-LABEL:  Running pass: LoopVectorizePass
@@ -19,28 +24,18 @@
 ; O2:        Running pass: SLPVectorizerPass
 ; O2:        Running pass: VectorCombinePass
 
-; There should be no difference with the new pass manager.
-; This is tested more thoroughly in other test files.
-
-; NEWPM_O1-LABEL:  Running pass: LoopVectorizePass
-; NEWPM_O1-NOT:    Running pass: SLPVectorizerPass
-; NEWPM_O1:        Running pass: VectorCombinePass
-
-; NEWPM_O2-LABEL:  Running pass: LoopVectorizePass
-; NEWPM_O2:        Running pass: SLPVectorizerPass
-; NEWPM_O2:        Running pass: VectorCombinePass
-
-; NEWPM_O2_EXTRA-LABEL: Running pass: LoopVectorizePass
-; NEWPM_O2_EXTRA: Running pass: EarlyCSEPass
-; NEWPM_O2_EXTRA: Running pass: CorrelatedValuePropagationPass
-; NEWPM_O2_EXTRA: Running pass: InstCombinePass
-; NEWPM_O2_EXTRA: Running pass: LICMPass
-; NEWPM_O2_EXTRA: Running pass: SimpleLoopUnswitchPass
-; NEWPM_O2_EXTRA: Running pass: SimplifyCFGPass
-; NEWPM_O2_EXTRA: Running pass: InstCombinePass
-; NEWPM_O2_EXTRA: Running pass: SLPVectorizerPass
-; NEWPM_O2_EXTRA: Running pass: EarlyCSEPass
-; NEWPM_O2_EXTRA: Running pass: VectorCombinePass
+; Optionally run cleanup passes.
+; O2_EXTRA-LABEL: Running pass: LoopVectorizePass
+; O2_EXTRA: Running pass: EarlyCSEPass
+; O2_EXTRA: Running pass: CorrelatedValuePropagationPass
+; O2_EXTRA: Running pass: InstCombinePass
+; O2_EXTRA: Running pass: LICMPass
+; O2_EXTRA: Running pass: SimpleLoopUnswitchPass
+; O2_EXTRA: Running pass: SimplifyCFGPass
+; O2_EXTRA: Running pass: InstCombinePass
+; O2_EXTRA: Running pass: SLPVectorizerPass
+; O2_EXTRA: Running pass: EarlyCSEPass
+; O2_EXTRA: Running pass: VectorCombinePass
 
 define i64 @f(i1 %cond, i32* %src, i32* %dst) {
 entry:
