@@ -35,7 +35,8 @@ TEST(CASOutputBackendTest, createFiles) {
   std::unique_ptr<CASDB> CAS = createInMemoryCAS();
   ASSERT_TRUE(CAS);
 
-  auto Outputs = makeIntrusiveRefCnt<CASOutputBackend>(*CAS, nullptr);
+  auto Outputs = makeIntrusiveRefCnt<CASOutputBackend>(
+      *CAS, nullptr, [](StringRef Path) { return Path.str(); });
 
   auto make = [&](StringRef Content, StringRef Path) {
     auto O = expectedToPointer(Outputs->createFile(Path));
