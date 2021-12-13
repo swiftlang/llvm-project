@@ -40,16 +40,19 @@ private:
 
 CASOutputBackend::CASOutputBackend(
     std::shared_ptr<CASDB> CAS,
-    IntrusiveRefCntPtr<llvm::vfs::OutputBackend> CASIDOutputBackend)
-    : CASOutputBackend(*CAS, std::move(CASIDOutputBackend)) {
+    IntrusiveRefCntPtr<llvm::vfs::OutputBackend> CASIDOutputBackend,
+    function_ref<std::string(StringRef)> CASPathRewriter)
+    : CASOutputBackend(*CAS, std::move(CASIDOutputBackend), CASPathRewriter) {
   this->OwnedCAS = std::move(CAS);
 }
 
 CASOutputBackend::CASOutputBackend(
-    CASDB &CAS, IntrusiveRefCntPtr<llvm::vfs::OutputBackend> CASIDOutputBackend)
+    CASDB &CAS, IntrusiveRefCntPtr<llvm::vfs::OutputBackend> CASIDOutputBackend,
+    function_ref<std::string(StringRef)> CASPathRewriter)
     : StableUniqueEntityAdaptorType(
           sys::path::Style::native /*FIXME: should be posix?*/),
-      CAS(CAS), CASIDOutputBackend(std::move(CASIDOutputBackend)) {}
+      CAS(CAS), CASIDOutputBackend(std::move(CASIDOutputBackend)),
+      CASPathRewriter(CASPathRewriter) {}
 
 CASOutputBackend::~CASOutputBackend() = default;
 
@@ -99,7 +102,8 @@ CASOutputBackend::createFileImpl(StringRef ResolvedPath,
                                            Config))
             return E;
         }
-        Impl->Builder.push(ID, TreeEntry::Regular, Path);
+        std::string TreePath = CASPathRewriter(Path);
+        Impl->Builder.push(ID, TreeEntry::Regular, TreePath);
         return Error::success();
       });
 }

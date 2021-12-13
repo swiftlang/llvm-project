@@ -251,7 +251,16 @@ static int replayResult(llvm::cas::CASDB &CAS, llvm::cas::CASID ResultID) {
     // FIXME: This doesn't seem totally right, but it seems to "work" given
     // that the outputs are being stored at the root right now (not in a
     // working directory).
-    StringRef OutputPath = CASPath.drop_front(StringRef("/outputs/").size());
+    StringRef OutputPath = CASPath.drop_front(StringRef("/outputs").size());
+
+    // The next part of the path component is either relative/absolute,
+    // depending on if the output path is relative or absolute.
+    if (OutputPath.consume_front("/absolute"))
+      assert(llvm::sys::path::is_absolute(OutputPath) &&
+             "OutputPath should be absolute");
+    else if (OutputPath.consume_front("/relative/"))
+      assert(!llvm::sys::path::is_absolute(OutputPath) &&
+             "OutputPath should be relative");
 
     std::unique_ptr<llvm::FileOutputBuffer> Output;
     if (Expected<std::unique_ptr<llvm::FileOutputBuffer>> ExpectedOutput =
@@ -409,7 +418,17 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
 
     // Set up the output backend so we can save / cache the result after.
     CASOutputs = llvm::makeIntrusiveRefCnt<llvm::cas::CASOutputBackend>(
-        *CAS, std::move(CASIDFileOutBackend));
+        *CAS, std::move(CASIDFileOutBackend), [](StringRef Path) {
+          // Convert the path in CAS tree depending on if the path is absolute
+          // or relative.
+          SmallString<256> NewPath;
+          if (llvm::sys::path::is_absolute(Path))
+            llvm::sys::path::append(NewPath, "absolute", Path);
+          else
+            llvm::sys::path::append(NewPath, "relative", Path);
+
+          return NewPath.str().str();
+        });
     Clang->setOutputBackend(llvm::vfs::makeMirroringOutputBackend(
         CASOutputs, std::move(NormalFileOutBackend)));
     ResultDiagsOS = std::make_unique<raw_mirroring_ostream>(
