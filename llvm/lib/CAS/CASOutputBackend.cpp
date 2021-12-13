@@ -9,6 +9,7 @@
 #include "llvm/CAS/CASOutputBackend.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/CAS/Utils.h"
 #include "llvm/Support/AlignOf.h"
 #include "llvm/Support/Allocator.h"

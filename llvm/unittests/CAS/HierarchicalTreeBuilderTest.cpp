@@ -8,6 +8,7 @@
 
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
+#include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 

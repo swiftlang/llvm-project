@@ -21,6 +21,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"

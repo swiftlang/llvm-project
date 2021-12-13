@@ -9,6 +9,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/CAS/Utils.h"
+#include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/CASObjectFormats/FlatV1.h"
 #include "llvm/CASObjectFormats/NestedV1.h"
 #include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"

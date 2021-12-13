@@ -12,6 +12,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CAS/CASID.h"
+#include "llvm/CAS/TreeEntry.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h" // FIXME: Split out sys::fs::file_status.
 #include "llvm/Support/MemoryBuffer.h"
@@ -62,53 +63,6 @@ private:
 
   friend class CASDB;
   StringRef Data;
-};
-
-class TreeEntry {
-public:
-  enum EntryKind {
-    Regular,    /// A file.
-    Executable, /// A file that's executable.
-    Symlink,    /// A symbolic link.
-    Tree,       /// A filesystem tree.
-  };
-
-  EntryKind getKind() const { return Kind; }
-  bool isRegular() const { return Kind == Regular; }
-  bool isExecutable() const { return Kind == Executable; }
-  bool isSymlink() const { return Kind == Symlink; }
-  bool isTree() const { return Kind == Tree; }
-
-  CASID getID() const { return ID; }
-
-  friend bool operator==(const TreeEntry &LHS, const TreeEntry &RHS) {
-    return LHS.Kind == RHS.Kind && LHS.ID == RHS.ID;
-  }
-
-  TreeEntry(CASID ID, EntryKind Kind) : Kind(Kind), ID(ID) {}
-
-private:
-  EntryKind Kind;
-  CASID ID;
-};
-
-class NamedTreeEntry : public TreeEntry {
-public:
-  StringRef getName() const { return Name; }
-
-  friend bool operator==(const NamedTreeEntry &LHS, const NamedTreeEntry &RHS) {
-    return static_cast<const TreeEntry &>(LHS) == RHS && LHS.Name == RHS.Name;
-  }
-
-  friend bool operator<(const NamedTreeEntry &LHS, const NamedTreeEntry &RHS) {
-    return LHS.Name < RHS.Name;
-  }
-
-  NamedTreeEntry(CASID ID, EntryKind Kind, StringRef Name)
-      : TreeEntry(ID, Kind), Name(Name) {}
-
-private:
-  StringRef Name;
 };
 
 /// Reference to a tree CAS object. Reference is passed by value and is
@@ -328,67 +282,6 @@ void getDefaultOnDiskCASStableID(SmallVectorImpl<char> &Path);
 
 std::string getDefaultOnDiskCASPath();
 std::string getDefaultOnDiskCASStableID();
-
-/// Structure to facilitating building full tree hierarchies.
-///
-/// FIXME: likely move to the caller; may not be common.
-class HierarchicalTreeBuilder {
-  struct HierarchicalEntry {
-  public:
-    StringRef getPath() const { return Path; }
-    Optional<CASID> getID() const { return ID; }
-    TreeEntry::EntryKind getKind() const { return Kind; }
-
-    HierarchicalEntry(Optional<CASID> ID, TreeEntry::EntryKind Kind,
-                      StringRef Path)
-        : ID(ID), Kind(Kind), Path(Path.str()) {
-      assert(ID || Kind == TreeEntry::Tree);
-    }
-
-  private:
-    Optional<CASID> ID;
-    TreeEntry::EntryKind Kind;
-    std::string Path;
-  };
-
-  /// Preallocate space for small trees, common when creating cache keys.
-  SmallVector<HierarchicalEntry, 8> Entries;
-  SmallVector<HierarchicalEntry, 0> TreeContents;
-
-  void pushImpl(Optional<CASID> ID, TreeEntry::EntryKind Kind,
-                const Twine &Path);
-
-public:
-  /// Add a hierarchical entry at \p Path, which is expected to be from the
-  /// top-level (otherwise, the caller should prepend a working directory).
-  ///
-  /// All ".." components will be squashed by eating the parent. Paths through
-  /// symlinks will not work, and should be resolved ahead of time. Paths must
-  /// be POSIX-style.
-  void push(CASID ID, TreeEntry::EntryKind Kind, const Twine &Path) {
-    return pushImpl(ID, Kind, Path);
-  }
-
-  /// Add a directory. Ensures the directory will exist even if there are no
-  /// files pushed from within it.
-  void pushDirectory(const Twine &Path) {
-    return pushImpl(None, TreeEntry::Tree, Path);
-  }
-
-  /// Add a directory with specific contents. It is functionally equivalent to:
-  ///   * Calling pushDirectory() for every tree
-  ///   * Calling push() for every non-tree
-  ///
-  /// Allows merging the contents of multiple directories.
-  void pushTreeContent(CASID ID, const Twine &Path);
-
-  /// Drop all entries.
-  void clear() { Entries.clear(); }
-
-  /// Recursively create the trees implied by calls to \a push(), return the
-  /// top-level \a CASID.
-  Expected<TreeRef> create(CASDB &CAS);
-};
 
 } // namespace cas
 } // namespace llvm

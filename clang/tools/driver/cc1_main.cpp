@@ -31,6 +31,7 @@
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CASOutputBackend.h"
+#include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LinkAllPasses.h"
 #include "llvm/Option/Arg.h"

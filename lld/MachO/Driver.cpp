@@ -39,6 +39,7 @@
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/CAS/Utils.h"
 #include "llvm/CASObjectFormats/SchemaBase.h"
 #include "llvm/Config/llvm-config.h"

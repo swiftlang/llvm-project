@@ -11,6 +11,7 @@
 #include "clang/Lex/DependencyDirectivesSourceMinimizer.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Threading.h"
 
