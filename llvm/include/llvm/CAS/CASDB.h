@@ -136,7 +136,7 @@ private:
 /// maintains an action cache.
 ///
 /// TODO: Split this up into four different APIs. Remaining description is for
-/// those APIs.
+/// those APIs (should delete docs from here as APIs are created).
 ///
 /// - ObjectHasher. Knows how to hash objects (blobs, trees, and nodes) to
 ///   produce a UniqueID.
@@ -290,7 +290,7 @@ private:
 ///                 Destructor).
 ///       As with Persistent, but with a managed lifetime. 'RequiresMinSize'
 ///       (sum of storage) can be set to disallow use when nodes are too small
-///       e.g., the client may want to copy to bump-ptr-allocated memory and
+///       (e.g., the client may want to copy to bump-ptr-allocated memory and
 ///       skip the allocation traffic past a given threshold).
 class CASDB {
 public:

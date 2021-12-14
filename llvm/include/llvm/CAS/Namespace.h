@@ -53,9 +53,9 @@ public:
 protected:
   virtual void printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const = 0;
 
-  Namespace(StringRef Name, size_t HashSize)
+  Namespace(const Twine &Name, size_t HashSize)
       : Name(Name.str()), HashSize(HashSize) {
-    assert(HashSize >= sizeof(size_t) && "Expected strong hash");
+    assert(HashSize >= sizeof(uint64_t) && "Expected minimum hash size of 64 bits");
   }
 
 private:

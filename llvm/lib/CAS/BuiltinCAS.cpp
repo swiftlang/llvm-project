@@ -35,7 +35,7 @@ class BuiltinNamespace : public Namespace {
   BuiltinNamespace() : Namespace("llvm.builtin.cas[sha1]", NumHashBytes) {}
 
 public:
-  void printID(const UniqueIDRef &ID, raw_ostream &OS) const override;
+  void printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const override;
   Error parseID(StringRef Reference, UniqueID &OS) const override;
 };
 
@@ -301,22 +301,10 @@ static HashType makeHash(HashRef Bytes) {
 
 static HashType makeHash(CASID ID) { return makeHash(ID.getHash()); }
 
+/// FIXME: Update callers to call \a UniqueIDRef::print().
 static void extractPrintableHash(CASID ID, SmallVectorImpl<char> &Dest) {
-  ArrayRef<uint8_t> RawHash = ID.getHash();
-  assert(Dest.empty());
-  assert(RawHash.size() == 20);
-  Dest.reserve(40);
-  auto ToChar = [](uint8_t Bit) {
-    if (Bit < 10)
-      return '0' + Bit;
-    return Bit - 10 + 'a';
-  };
-  for (uint8_t Bit : RawHash) {
-    uint8_t High = Bit >> 4;
-    uint8_t Low = Bit & 0xf;
-    Dest.push_back(ToChar(High));
-    Dest.push_back(ToChar(Low));
-  }
+  raw_svector_stream OS(Dest);
+  hexadecimal::printHash(ID.getHash(), OS);
 }
 
 static HashType stringToHash(StringRef Chars) {
@@ -342,10 +330,8 @@ static StringRef getCASIDPrefix() { return "~{CASFS}:"; }
 
 void BuiltinNamespace::printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const override {
   assert(&ID.getNamespace() == this && "Wrong namespace");
-
-  SmallString<64> Hash;
-  extractPrintableHash(CASID(ID.getHash()), Hash);
-  OS << getCASIDPrefix() << Hash;
+  OS << getCASIDPrefix();
+  hexadecimal::printHash(ID.getHash(), OS);
 }
 
 Error BuiltinNamespace::parseID(StringRef Reference, UniqueID &ID) {
@@ -353,12 +339,10 @@ Error BuiltinNamespace::parseID(StringRef Reference, UniqueID &ID) {
     return createStringError(std::make_error_code(std::errc::invalid_argument),
                              "invalid cas-id '" + Reference + "'");
 
-  // FIXME: Allow shortened references?
-  if (Reference.size() != 2 * NumHashBytes)
+  if (Error E = hexadecimal::parseHashForID(*this, Reference, ID))
     return createStringError(std::make_error_code(std::errc::invalid_argument),
-                             "wrong size for cas-id hash '" + Reference + "'");
-
-  ID = UniqueIDRef(*this, HashType(stringToHash(Reference)));
+                             "invalid cas-id '" + Reference + "': "
+                                 + toString(std::move(E)));
   return Error::success();
 }
 
