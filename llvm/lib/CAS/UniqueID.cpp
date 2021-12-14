@@ -12,14 +12,13 @@
 using namespace llvm;
 using namespace llvm::cas;
 
-virtual Namespace::anchor() {}
+LLVM_DUMP_METHOD void UniqueIDRef::dump() const { print(dbgs()); }
 
-LLVM_DUMP_METHOD void CASUniqueIDRef::dump() const { print(dbgs()); }
-
-void CASUniqueID::print(raw_ostream &OS) const {
+void UniqueID::print(raw_ostream &OS) const {
   if (isValid())
-    CASUniqueIDRef(*this).print(OS);
+    UniqueIDRef(*this).print(OS);
   else
     OS << "<none>";
 }
-LLVM_DUMP_METHOD void CASUniqueID::dump() const { print(dbgs()); }
+
+LLVM_DUMP_METHOD void UniqueID::dump() const { print(dbgs()); }

@@ -8,6 +8,7 @@ add_llvm_component_library(LLVMCAS
   HashMappedTrie.cpp
   HierarchicalTreeBuilder.cpp
   Namespace.cpp
+  NamespaceHelpers.cpp
   OnDiskHashMappedTrie.cpp
   PluginCAS.cpp
   UniqueID.cpp

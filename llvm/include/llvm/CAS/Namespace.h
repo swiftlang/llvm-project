@@ -11,6 +11,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 
 namespace llvm {
 namespace cas {
@@ -50,12 +51,10 @@ public:
   Namespace(const Namespace &) = delete;
   virtual ~Namespace() = default;
 
-protected:
-  virtual void printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const = 0;
-
   Namespace(const Twine &Name, size_t HashSize)
       : Name(Name.str()), HashSize(HashSize) {
-    assert(HashSize >= sizeof(uint64_t) && "Expected minimum hash size of 64 bits");
+    assert(HashSize >= sizeof(uint64_t) &&
+           "Expected minimum hash size of 64 bits");
   }
 
 private:

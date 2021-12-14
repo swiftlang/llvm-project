@@ -18,16 +18,16 @@ LLVM_DUMP_METHOD void CASDB::dump() const { print(dbgs()); }
 
 Expected<CASID> CASDB::parseCASID(StringRef Reference) {
   UniqueID ID;
-  if (Error E = parseID(Reference))
+  if (Error E = parseID(Reference, ID))
     return std::move(E);
   return CASID(ID.getHash());
 }
 
 Error CASDB::printCASID(raw_ostream &OS, CASID ID) {
-  if (ID.getHash().size() != NumHashBytes)
+  if (ID.getHash().size() != getNamespace().getHashSize())
     return errorCodeToError(std::make_error_code(std::errc::invalid_argument));
 
-  getNamespace().printID(OS, UniqueIDRef(getNamespace(), ID.getHash()));
+  getNamespace().printID(UniqueIDRef(getNamespace(), ID.getHash()), OS);
   return Error::success();
 }
 

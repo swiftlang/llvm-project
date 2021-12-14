@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/Namespace.h"
-#include "llvm/Support/raw_ostream.h"
 #include "TestingNamespaces.h"
+#include "llvm/CAS/UniqueID.h"
+#include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -18,24 +19,24 @@ TEST(NamespaceTest, Accessors) {
   // Use testing namespaces to confirm accessors work.
   for (size_t HashSize : {8U, 32U}) {
     for (StringRef Suffix : {"", "suffix1", "suffix2"}) {
-      const Namespace &NS = testing::getNamespace(HashSize);
+      const Namespace &NS = cas::testing::getNamespace(HashSize, Suffix);
       EXPECT_EQ(HashSize, NS.getHashSize());
-      EXPECT_TRUE(("llvm.test[" + Twine(HashSize) + "]" + Suffix).str(),
-                  NS.getName());
+      EXPECT_EQ(("llvm.test[" + Twine(HashSize) + "]" + Suffix).str(),
+                NS.getName());
     }
   }
 }
 
 #if defined(GTEST_HAS_DEATH_TEST) && !defined(NDEBUG)
 TEST(NamespaceTest, MinimumHashSize) {
-  EXPECT_DEATH(testing::getNamespaceForHashSize(7),
+  EXPECT_DEATH(cas::testing::getNamespace(7),
                "Expected minimum hash size of 64 bits");
 }
 #endif
 
 TEST(NamespaceTest, printIDReportFatalError) {
-  const Namespace &BareNS = testing::getNamespace(8);
-  const Namespace &SuffixNS = testing::getNamespace(8, "suffix");
+  const Namespace &BareNS = cas::testing::getNamespace(8);
+  const Namespace &SuffixNS = cas::testing::getNamespace(8, "suffix");
   ASSERT_NE(&BareNS, &SuffixNS);
   std::array<uint8_t, 8> Zero;
   UniqueIDRef BareID(BareNS, Zero);

@@ -9,8 +9,7 @@
 #ifndef LLVM_UNITTESTS_CAS_TESTINGNAMESPACES_H
 #define LLVM_UNITTESTS_CAS_TESTINGNAMESPACES_H
 
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/StringRef.h"
+#include "llvm/CAS/Namespace.h"
 
 namespace llvm {
 namespace cas {

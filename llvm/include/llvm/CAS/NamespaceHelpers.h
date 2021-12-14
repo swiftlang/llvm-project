@@ -19,6 +19,7 @@ class raw_ostream;
 namespace cas {
 
 class Namespace;
+class UniqueID;
 
 class ParseHashError : public ErrorInfo<ParseHashError, StringError> {
 public:

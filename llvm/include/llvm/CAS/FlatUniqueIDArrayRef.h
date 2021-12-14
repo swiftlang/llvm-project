@@ -9,9 +9,9 @@
 #ifndef LLVM_CAS_FLATUNIQUEIDARRAYREF_H
 #define LLVM_CAS_FLATUNIQUEIDARRAYREF_H
 
-#include "llvm/CAS/CASUniqueID.h"
 #include "llvm/ADT/iterator.h"
-#include "llvm/CAS/CASNamespace.h"
+#include "llvm/CAS/Namespace.h"
+#include "llvm/CAS/UniqueID.h"
 
 namespace llvm {
 namespace cas {
@@ -20,52 +20,71 @@ namespace cas {
 /// hashes stored consecutively in memory.
 class FlatUniqueIDArrayRef {
 public:
-  class iterator : iterator_facade_base<iterator, std::random_access_iterator_tag, const UniqueIDRef,
-                                        ptrdiff_t, const UniqueIDRef *, UniqueIDRef> {
+  class iterator
+      : public iterator_facade_base<iterator, std::random_access_iterator_tag,
+                                    const UniqueIDRef, ptrdiff_t,
+                                    const UniqueIDRef *, UniqueIDRef> {
     // FIXME: Merge from main, which already has this, and remove this copy's
     // operator->() in favour of the default implementation in
     // iterator_facade_base.
     class PointerProxy {
       friend iterator;
       UniqueIDRef ID;
+      explicit PointerProxy(UniqueIDRef ID) : ID(ID) {}
 
     public:
       const UniqueIDRef *operator->() const { return &ID; }
     };
 
   public:
-    UniqueIDRef operator*() const { return UniqueIDRef(makeArrayRef(I, I + Size)); }
-    PointerProxy operator->() const { return PointerProxy{**this}; }
+    UniqueIDRef operator*() const {
+      return UniqueIDRef(*NS, makeArrayRef(I, I + NS->getHashSize()));
+    }
+    PointerProxy operator->() const { return PointerProxy(**this); }
     iterator &operator++() { return *this += 1; }
     iterator &operator--() { return *this -= 1; }
     iterator &operator+=(ptrdiff_t Diff) {
-      I += Diff * HashSize;
+      I += Diff * NS->getHashSize();
       return *this;
     }
     iterator &operator-=(ptrdiff_t Diff) {
-      I -= Diff * HashSize;
+      I -= Diff * NS->getHashSize();
       return *this;
     }
     bool operator<(iterator RHS) const { return I < RHS.I; }
-    ptrdiff_t operator-(iterator RHS) const { return (I - RHS.I) / HashSize; }
+    ptrdiff_t operator-(iterator RHS) const {
+      return (I - RHS.I) / NS->getHashSize();
+    }
+    friend bool operator==(const iterator &LHS, const iterator &RHS) {
+      return LHS.NS == RHS.NS && LHS.I == RHS.I;
+    }
 
   private:
     friend FlatUniqueIDArrayRef;
     iterator() = delete;
-    iterator(size_t HashSize, const uint8_t *I) : HashSize(HashSize), I(I) {}
-    size_t HashSize;
+    iterator(const Namespace &NS, const uint8_t *I) : NS(&NS), I(I) {}
+    const Namespace *NS;
     const uint8_t *I;
   };
 
-  iterator begin() const { return iterator(HashSize, Hashes.begin()); }
-  iterator end() const { return iterator(HashSize, Hashes.end()); }
-  size_t size() const { return Hashes.size() / HashSize; }
-  bool empty() const { return Hashes.empty(); }
+  iterator begin() const { return iterator(*NS, FlatHashes.begin()); }
+  iterator end() const { return iterator(*NS, FlatHashes.end()); }
+  size_t size() const { return FlatHashes.size() / getHashSize(); }
+  bool empty() const { return FlatHashes.empty(); }
   UniqueIDRef operator[](ptrdiff_t I) const { return begin()[I]; }
 
-  const Namespace &getNamespace() const { return Namespace; }
-  size_t getHashSize() const { return HashSize; }
+  const Namespace &getNamespace() const { return *NS; }
+  size_t getHashSize() const { return NS->getHashSize(); }
   ArrayRef<uint8_t> getFlatHashes() const { return FlatHashes; }
+
+  friend bool operator==(const FlatUniqueIDArrayRef &LHS,
+                         const FlatUniqueIDArrayRef &RHS) {
+    return LHS.NS == RHS.NS && LHS.FlatHashes == RHS.FlatHashes;
+  }
+  friend bool operator!=(const FlatUniqueIDArrayRef &LHS,
+                         const FlatUniqueIDArrayRef &RHS) {
+    return !(LHS == RHS);
+  }
 
   FlatUniqueIDArrayRef(const Namespace &NS, ArrayRef<uint8_t> FlatHashes)
       : NS(&NS), FlatHashes(FlatHashes) {

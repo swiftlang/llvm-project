@@ -10,6 +10,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/HashMappedTrie.h"
+#include "llvm/CAS/NamespaceHelpers.h"
 #include "llvm/CAS/OnDiskHashMappedTrie.h"
 #include "llvm/CAS/ThreadSafeAllocator.h"
 #include "llvm/Support/Allocator.h"
@@ -37,6 +38,11 @@ class BuiltinNamespace : public Namespace {
 public:
   void printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const override;
   Error parseID(StringRef Reference, UniqueID &OS) const override;
+
+  static const Namespace &get() {
+    static BuiltinNamespace NS;
+    return NS;
+  }
 };
 
 struct HashInfo {
@@ -162,13 +168,14 @@ public:
 
   struct InMemoryOnlyTag {};
   BuiltinCAS() = delete;
-  explicit BuiltinCAS(InMemoryOnlyTag) { AlignedInMemoryStrings.emplace(); }
+  explicit BuiltinCAS(InMemoryOnlyTag) : CASDB(BuiltinNamespace::get()) {
+    AlignedInMemoryStrings.emplace();
+  }
   explicit BuiltinCAS(StringRef RootPath,
                       std::shared_ptr<OnDiskHashMappedTrie> OnDiskObjects,
                       std::shared_ptr<OnDiskHashMappedTrie> OnDiskResults)
-      : OnDiskObjects(std::move(OnDiskObjects)),
-        OnDiskResults(std::move(OnDiskResults)),
-        RootPath(RootPath.str()) {
+      : CASDB(BuiltinNamespace::get()), OnDiskObjects(std::move(OnDiskObjects)),
+        OnDiskResults(std::move(OnDiskResults)), RootPath(RootPath.str()) {
     SmallString<128> Temp = RootPath;
     sys::path::append(Temp, "tmp.");
     TempPrefix = Temp.str().str();
@@ -258,11 +265,6 @@ private:
 
 } // namespace
 
-static const Namespace &getBuiltinNamespace() {
-  static BuiltinNamespace NS;
-  return NS;
-}
-
 using TreeObjectData = BuiltinCAS::TreeObjectData;
 using ObjectContentReference = BuiltinCAS::ObjectContentReference;
 using ObjectAndID = BuiltinCAS::ObjectAndID;
@@ -303,46 +305,28 @@ static HashType makeHash(CASID ID) { return makeHash(ID.getHash()); }
 
 /// FIXME: Update callers to call \a UniqueIDRef::print().
 static void extractPrintableHash(CASID ID, SmallVectorImpl<char> &Dest) {
-  raw_svector_stream OS(Dest);
+  raw_svector_ostream OS(Dest);
   hexadecimal::printHash(ID.getHash(), OS);
-}
-
-static HashType stringToHash(StringRef Chars) {
-  auto FromChar = [](char Ch) -> unsigned {
-    if (Ch >= '0' && Ch <= '9')
-      return Ch - '0';
-    assert(Ch >= 'a');
-    assert(Ch <= 'f');
-    return Ch - 'a' + 10;
-  };
-
-  HashType Hash;
-  assert(Chars.size() == sizeof(Hash) * 2);
-  for (int I = 0, E = sizeof(Hash); I != E; ++I) {
-    uint8_t High = FromChar(Chars[I * 2]);
-    uint8_t Low = FromChar(Chars[I * 2 + 1]);
-    Hash[I] = (High << 4) | Low;
-  }
-  return Hash;
 }
 
 static StringRef getCASIDPrefix() { return "~{CASFS}:"; }
 
-void BuiltinNamespace::printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const override {
+void BuiltinNamespace::printIDImpl(const UniqueIDRef &ID,
+                                   raw_ostream &OS) const {
   assert(&ID.getNamespace() == this && "Wrong namespace");
   OS << getCASIDPrefix();
   hexadecimal::printHash(ID.getHash(), OS);
 }
 
-Error BuiltinNamespace::parseID(StringRef Reference, UniqueID &ID) {
+Error BuiltinNamespace::parseID(StringRef Reference, UniqueID &ID) const {
   if (!Reference.consume_front(getCASIDPrefix()))
     return createStringError(std::make_error_code(std::errc::invalid_argument),
                              "invalid cas-id '" + Reference + "'");
 
   if (Error E = hexadecimal::parseHashForID(*this, Reference, ID))
     return createStringError(std::make_error_code(std::errc::invalid_argument),
-                             "invalid cas-id '" + Reference + "': "
-                                 + toString(std::move(E)));
+                             "invalid cas-id '" + Reference +
+                                 "': " + toString(std::move(E)));
   return Error::success();
 }
 

@@ -20,16 +20,27 @@ class raw_ostream;
 
 namespace cas {
 
-/// Reference to a unique ID. Does not own storage for its hash; like \a
-/// StringRef, need to be aware of lifetime.
+/// A unique ID for the CAS that does not own storage for the hash. Like a \a
+/// StringRef, users must be careful of the lifetime of the underlying storage.
 ///
-/// Must always be fully initialized. Use \a Optional if necessary for delayed
-/// construction.
+/// There are two components:
 ///
-/// Associated with a specific \a Namespace.
+/// - The \a Namespace returned by \a getNamespace() is the domain this
+///   identifier, which implicitly determines the hash function and schema for
+///   objects in the CAS.
+/// - The hash returned by \a getHash() is the hash that idnetifies an object
+///   in the namespace.
+///
+/// \a UniqueIDRef is valid by construction (barring lifetime issues) and does
+/// not support an "uninitialized" state. Delayed initialization patterns
+/// require an \a Optional. However, it does support sentinel values for use
+/// with \a DenseMapInfo<UniqueIDRef>.
 class UniqueIDRef {
-  // Fixed set of expected sizes for hashes. Allows comparing hashes without
-  // chasing the Namespace pointer. Other sizes are still okay, but slower.
+  /// Fixed set of expected sizes for hashes. Allows comparing hashes without
+  /// chasing the Namespace pointer. Other sizes still work, but may be slower.
+  ///
+  /// If it's useful, we can add more values here. Or, maybe chasing the
+  /// Namespace::getHashSize() pointer is not so bad.
   enum HashSize {
     NotEmbedded,
     Embedded20B, // 160 bits
@@ -37,8 +48,9 @@ class UniqueIDRef {
     // Can fill common values can go here.
   };
   enum : size_t {
-    // Expect hashes to be at least 16B.
-    MinHashSize = 16,
+    // Expect hashes to be at least 8B. This enables comparing hash prefixes
+    // without knowing their size.
+    MinHashSize = 8,
   };
 
 public:
@@ -59,9 +71,7 @@ public:
   }
 
   void dump() const;
-  void print(raw_ostream &OS) const {
-    ID.getNamespace().printID(ID, OS);
-  }
+  void print(raw_ostream &OS) const { getNamespace().printID(*this, OS); }
   friend raw_ostream &operator<<(raw_ostream &OS, UniqueIDRef ID) {
     ID.print(OS);
     return OS;
@@ -71,14 +81,27 @@ public:
     return makeArrayRef(Hash, Hash + getHashSize());
   }
 
+  /// Get the embedded sentinel pointer for \a DenseMapInfo<UniqueIDRef>.
+  const void *getSentinelPointer() const {
+    return Hash ? nullptr : NamespaceAndHashSize.getPointer();
+  }
+
   friend bool operator==(UniqueIDRef LHS, UniqueIDRef RHS) {
     if (LHS.NamespaceAndHashSize != RHS.NamespaceAndHashSize)
       return false;
-    if (LHS.Hash == RHS.Hash)
-      return true;
+
+    // Check the prefix that's guaranteed by MinHashSize since this doesn't
+    // require loading the hash size from the namespace.
     if (makeArrayRef(LHS.Hash, MinHashSize) !=
         makeArrayRef(RHS.Hash, MinHashSize))
       return false;
+
+    // Avoid loading the hash size from the namespace if the pointers happen to
+    // be equal.
+    if (LHS.Hash == RHS.Hash)
+      return true;
+
+    // Compare the full hash.
     return LHS.getHash().drop_front(MinHashSize) ==
            RHS.getHash().drop_front(MinHashSize);
   }
@@ -86,11 +109,16 @@ public:
     return !(LHS == RHS);
   }
 
+  /// Get a 64-bit hash value. \a getHash() is assumed to be a strong hash
+  /// value; this returns its 64-bit prefix.
   uint64_t getHashValue() const {
     uint64_t Value = 0;
     for (size_t I = 0, E = sizeof(uint64_t); I != E; ++I)
       Value |= Hash[I] << (I * 8);
     return Value;
+  }
+  friend hash_code hash_value(UniqueIDRef ID) {
+    return hash_code(ID.getHashValue());
   }
 
   UniqueIDRef() = delete;
@@ -99,29 +127,29 @@ public:
   UniqueIDRef &operator=(UniqueIDRef &&) = default;
   UniqueIDRef &operator=(const UniqueIDRef &) = default;
 
-  UniqueIDRef(const Namespace &NS, ArrayRef<uint8_t> Hash) : NS(&NS), Hash(Hash.begin()) {
+  UniqueIDRef(const Namespace &NS, ArrayRef<uint8_t> Hash)
+      : NamespaceAndHashSize(&NS), Hash(Hash.begin()) {
     assert(NS.getHashSize() >= MinHashSize && "Expected hash not to be small");
     assert(NS.getHashSize() == Hash.size() && "Expected valid hash for namespace");
     if (NS.getHashSize() == 20)
-      NS.setInt(Embedded20B);
+      NamespaceAndHashSize.setInt(Embedded20B);
     else if (NS.getHashSize() == 32)
-      NS.setInt(Embedded32B);
+      NamespaceAndHashSize.setInt(Embedded32B);
   }
 
   struct DenseMapTombstoneTag {};
   struct DenseMapEmptyTag {};
 
-  explicit UniqueIDRef(DenseMapTombstoneTag) :
-      : Hash(DenseMapInfo<ArrayRef<uint8_t>>::getTombstoneKey());
-  explicit UniqueIDRef(DenseMapEmptyTag) :
-      : Hash(DenseMapInfo<ArrayRef<uint8_t>>::getEmptyKey());
+  explicit UniqueIDRef(DenseMapTombstoneTag)
+      : NamespaceAndHashSize(
+            DenseMapInfo<const Namespace *>::getTombstoneKey()) {}
+  explicit UniqueIDRef(DenseMapEmptyTag)
+      : NamespaceAndHashSize(DenseMapInfo<const Namespace *>::getEmptyKey()) {}
 
 private:
-  PointerIntPair<const Namespace *, 3> NamespaceAndHashSize;
+  PointerIntPair<const Namespace *, 3, HashSize> NamespaceAndHashSize;
   const uint8_t *Hash = nullptr;
 };
-
-hash_code hash_value(UniqueIDRef ID) { return hash_code(ID.getHashValue()); }
 
 } // end namespace cas
 
@@ -137,17 +165,22 @@ template <> struct DenseMapInfo<cas::UniqueIDRef> {
   static unsigned getHashValue(cas::UniqueIDRef ID) { return ID.getHashValue(); }
 
   static bool isEqual(cas::UniqueIDRef LHS, cas::UniqueIDRef RHS) {
-    return DenseMapInfo<ArrayRef<uint8_t>>::isEqual(LHS.getHash(),
-                                                    RHS.getHash());
+    const void *SentinelLHS = LHS.getSentinelPointer();
+    const void *SentinelRHS = RHS.getSentinelPointer();
+    if (SentinelLHS || SentinelRHS)
+      return SentinelLHS == SentinelRHS;
+    return LHS == RHS;
   }
 };
 
 namespace cas {
 
-/// A unique ID that owns its hash storage. Uses small string optimization for
-/// hashes within 32B.
+/// A unique ID for the CAS that owns storage for a hash. Uses small string
+/// optimization for hashes within 32B.
 ///
-/// May be uninitialized, in which case \a getNamespace() is \a nullptr.
+/// \a UniqueID supports an "uninitialized" state. This falls out from owning
+/// movable storage. When uninitialized, \a isValid() returns \c false and
+/// \a getNamespace() and \a getHash() assert.
 class UniqueID {
 public:
   /// Check if this ID is valid.
@@ -155,13 +188,13 @@ public:
   explicit operator bool() const { return isValid(); }
 
   const Namespace &getNamespace() const {
-    assert(NS && "Invalid namespace");
+    assert(isValid() && "Cannot get namespace from invalid ID");
     return *NS;
   }
 
   /// Get the raw bytes of the hash.
   ArrayRef<uint8_t> getHash() const {
-    assert(isValid() && "Cannot get hash from invalid UniqueID");
+    assert(isValid() && "Cannot get hash from invalid ID");
     const uint8_t *HashPtr = isSmall() ? Storage.Hash : Storage.Mem;
     return makeArrayRef(HashPtr, HashPtr + getNamespace().getHashSize());
   }
@@ -170,6 +203,29 @@ public:
   operator UniqueIDRef() const {
     assert(isValid() && "Cannot convert invalid UniqueID to reference");
     return UniqueIDRef(getNamespace(), getHash());
+  }
+
+  friend bool operator==(const UniqueID &LHS, const UniqueID &RHS) {
+    if (!LHS.isValid() || !RHS.isValid())
+      return LHS.isValid() == RHS.isValid();
+    return UniqueIDRef(LHS) == UniqueIDRef(RHS);
+  }
+  friend bool operator==(const UniqueIDRef &LHS, const UniqueID &RHS) {
+    if (!RHS.isValid())
+      return false;
+    return LHS == UniqueIDRef(RHS);
+  }
+  friend bool operator==(const UniqueID &LHS, const UniqueIDRef &RHS) {
+    return RHS == LHS;
+  }
+  friend bool operator!=(const UniqueID &LHS, const UniqueID &RHS) {
+    return !(LHS == RHS);
+  }
+  friend bool operator!=(const UniqueID &LHS, const UniqueIDRef &RHS) {
+    return !(LHS == RHS);
+  }
+  friend bool operator!=(const UniqueIDRef &LHS, const UniqueID &RHS) {
+    return !(LHS == RHS);
   }
 
   void dump() const;
@@ -205,6 +261,9 @@ public:
     return copyImpl(ID);
   }
 
+  UniqueID(const Namespace &NS, ArrayRef<uint8_t> Hash)
+      : UniqueID(UniqueIDRef(NS, Hash)) {}
+
   ~UniqueID() { destroy(); }
 
 private:
@@ -222,24 +281,25 @@ private:
       NS = &ID.getNamespace();
       allocate();
     }
-    memcpy(isSmall() ? Storage.Hash : Storage.Mem, Hash, Hash.size());
+    ArrayRef<uint8_t> Hash = ID.getHash();
+    memcpy(isSmall() ? Storage.Hash : Storage.Mem, Hash.begin(), Hash.size());
     return *this;
   }
   UniqueID &moveImpl(UniqueID &ID) {
     NS = ID.NS;
     memcpy(&Storage, &ID.Storage, sizeof(Storage));
     ID.NS = nullptr;
-    memset(&ID.Storage, sizeof(Storage), 0);
+    memset(&ID.Storage, 0, sizeof(Storage));
     return *this;
   }
-  constexpr inline size_t InlineHashSize = 32;
-  bool isSmall() const {
-    return !NS || NS->getNamespace().getHashSize() <= InlineHashSize;
-  }
+  enum : size_t {
+    InlineHashSize = 32,
+  };
+  bool isSmall() const { return !NS || NS->getHashSize() <= InlineHashSize; }
 
   const Namespace *NS = nullptr;
   union {
-    const uint8_t *Mem = nullptr;
+    uint8_t *Mem = nullptr;
     uint8_t Hash[InlineHashSize];
   } Storage;
 };

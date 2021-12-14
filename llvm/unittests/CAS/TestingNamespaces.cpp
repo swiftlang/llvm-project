@@ -7,6 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestingNamespaces.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/CAS/NamespaceHelpers.h"
+#include "llvm/CAS/UniqueID.h"
+#include <mutex>
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -15,11 +19,13 @@ using namespace llvm::cas;
 /// function.
 const Namespace &testing::getNamespace(size_t HashSize, StringRef NameSuffix) {
   SmallString<128> Storage;
-  StringRef Name = ("llvm.testing[" + Twine(HashSize) + "]" + NameSuffix).toStringRef();
+  StringRef Name =
+      ("llvm.test[" + Twine(HashSize) + "]" + NameSuffix).toStringRef(Storage);
 
-  class TestingNamespace : Namespace {
+  class TestingNamespace : public Namespace {
   public:
-    TestingNamespace(size_t HashSize, StringRef Name) : Namespace(Name, HashSize) {}
+    TestingNamespace(size_t HashSize, StringRef Name)
+        : Namespace(Name, HashSize) {}
     void printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const override {
       hexadecimal::printHash(ID.getHash(), OS);
     }
@@ -30,7 +36,7 @@ const Namespace &testing::getNamespace(size_t HashSize, StringRef NameSuffix) {
 
   static StringMap<std::unique_ptr<const TestingNamespace>> Map;
   static std::mutex Mutex;
-  std::scoped_lock<std::mutex> Lock(Mutex);
+  std::lock_guard<std::mutex> Lock(Mutex);
   auto &NS = Map[Name];
   if (!NS)
     NS = std::make_unique<TestingNamespace>(HashSize, Name);

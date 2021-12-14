@@ -8,11 +8,12 @@
 
 #include "llvm/CAS/Namespace.h"
 #include "llvm/CAS/UniqueID.h"
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 using namespace llvm::cas;
 
-virtual Namespace::anchor() {}
+void Namespace::anchor() {}
 
 void Namespace::printID(const UniqueIDRef &ID, raw_ostream &OS) const {
   if (&ID.getNamespace() == this) {
@@ -20,10 +21,7 @@ void Namespace::printID(const UniqueIDRef &ID, raw_ostream &OS) const {
     return;
   }
 
-  SmallString<128> Msg;
-  raw_svector_stream OS(Msg);
-  OS << "CAS namespace '" << getName()
-     << "' cannot print ID from namespace '"
-     << ID.getNamespace().getName() << "'";
-  report_fatal_error(Msg);
+  report_fatal_error("CAS namespace '" + getName() +
+                     "' cannot print ID from namespace '" +
+                     ID.getNamespace().getName() + "'");
 }
