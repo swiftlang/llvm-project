@@ -285,9 +285,11 @@ public:
                     swift::Demangle::NodePointer node);
 
   /// Return the canonicalized Demangle tree for a Swift mangled type name.
-  static swift::Demangle::NodePointer GetCanonicalDemangleTree(
-      TypeSystemSwiftTypeRef *module_holder, SwiftASTContext *target_holder,
-      swift::Demangle::Demangler &dem, llvm::StringRef mangled_name);
+  static swift::Demangle::NodePointer
+  GetCanonicalDemangleTree(TypeSystemSwiftTypeRef *module_holder,
+                           std::function<SwiftASTContext *()> target_provider,
+                           swift::Demangle::Demangler &dem,
+                           llvm::StringRef mangled_name);
 
   /// Return the base name of the topmost nominal type.
   static llvm::StringRef GetBaseName(swift::Demangle::NodePointer node);

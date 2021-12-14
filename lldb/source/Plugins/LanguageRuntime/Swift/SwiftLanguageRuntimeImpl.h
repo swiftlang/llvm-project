@@ -180,7 +180,8 @@ public:
   bool IsABIStable();
 
   void DumpTyperef(CompilerType type, TypeSystemSwiftTypeRef *module_holder,
-             SwiftASTContext *swift_ast_context, Stream *s);
+                   std::function<SwiftASTContext *()> lazy_swift_ast_context,
+                   Stream *s);
   /// Returned by \ref ForEachSuperClassType. Not every user of \p
   /// ForEachSuperClassType needs all of these. By returning this
   /// object we call into the runtime only when needed.
@@ -243,7 +244,7 @@ protected:
   /// Use the reflection context to build a TypeRef object.
   const swift::reflection::TypeRef *
   GetTypeRef(CompilerType type, TypeSystemSwiftTypeRef *module_holder,
-             SwiftASTContext *swift_ast_context);
+             std::function<SwiftASTContext *()> lazy_swift_ast_context);
 
   /// If \p instance points to a Swift object, retrieve its
   /// RecordTypeInfo and pass it to the callback \p fn. Repeat the
