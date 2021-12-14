@@ -11,6 +11,8 @@
 
 #include "lldb/API/SBDebugger.h"
 
+#include "lldb/lldb-private.h"
+
 #include "lldb/API/SBBroadcaster.h"
 #include "lldb/API/SBCommandInterpreter.h"
 #include "lldb/API/SBCommandInterpreterRunOptions.h"
@@ -50,7 +52,6 @@
 #include "lldb/Target/TargetList.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/State.h"
-#include "lldb/Version/Version.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"

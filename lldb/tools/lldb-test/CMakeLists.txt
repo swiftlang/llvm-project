@@ -6,6 +6,7 @@ add_lldb_tool(lldb-test
   SystemInitializerTest.cpp
 
   LINK_LIBS
+    lldbBase
     lldbBreakpoint
     lldbCore
     lldbDataFormatters
@@ -16,7 +17,6 @@ add_lldb_tool(lldb-test
     lldbSymbol
     lldbTarget
     lldbUtility
-    lldbVersion
     ${LLDB_ALL_PLUGINS}
     ${host_lib}
 

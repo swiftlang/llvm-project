@@ -15,7 +15,7 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/Timer.h"
-#include "lldb/Version/Version.h"
+#include "lldb/lldb-private.h"
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"

@@ -104,6 +104,7 @@ add_lldb_library(liblldb SHARED ${option_framework}
   ${lldb_lua_wrapper}
 
   LINK_LIBS
+    lldbBase
     lldbBreakpoint
     lldbCore
     lldbDataFormatters
@@ -114,7 +115,6 @@ add_lldb_library(liblldb SHARED ${option_framework}
     lldbSymbol
     lldbTarget
     lldbUtility
-    lldbVersion
     ${LLDB_ALL_PLUGINS}
 ## BEGIN SWIFT
     ${SWIFT_ALL_LIBS}
