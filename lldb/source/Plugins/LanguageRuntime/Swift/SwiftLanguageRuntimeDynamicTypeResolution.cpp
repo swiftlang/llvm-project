@@ -1948,7 +1948,7 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Protocol(
 
   const swift::reflection::TypeRef *protocol_typeref =
       GetTypeRef(protocol_type, &tss->GetTypeSystemSwiftTypeRef(),
-                 tss->GetSwiftASTContext());
+                 tss->GetLazySwiftASTContext());
   if (!protocol_typeref) {
     if (log)
       log->Printf("Could not get protocol typeref");
@@ -2502,11 +2502,11 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_IndirectEnumCase(
 
 void SwiftLanguageRuntimeImpl::DumpTyperef(
     CompilerType type, TypeSystemSwiftTypeRef *module_holder,
-    SwiftASTContext *swift_ast_context, Stream *s) {
+    std::function<SwiftASTContext *()> lazy_swift_ast_context, Stream *s) {
   if (!s)
     return;
 
-  const auto *typeref = GetTypeRef(type, module_holder, swift_ast_context);
+  const auto *typeref = GetTypeRef(type, module_holder, lazy_swift_ast_context);
   if (!typeref)
     return;
 
@@ -2958,10 +2958,9 @@ lldb::addr_t SwiftLanguageRuntimeImpl::FixupAddress(lldb::addr_t addr,
   return addr;
 }
 
-const swift::reflection::TypeRef *
-SwiftLanguageRuntimeImpl::GetTypeRef(CompilerType type,
-                                     TypeSystemSwiftTypeRef *module_holder,
-                                     SwiftASTContext *swift_ast_context) {
+const swift::reflection::TypeRef *SwiftLanguageRuntimeImpl::GetTypeRef(
+    CompilerType type, TypeSystemSwiftTypeRef *module_holder,
+    std::function<SwiftASTContext *()> lazy_swift_ast_context) {
   // Demangle the mangled name.
   swift::Demangle::Demangler dem;
   ConstString mangled_name = type.GetMangledTypeName();
@@ -2970,7 +2969,8 @@ SwiftLanguageRuntimeImpl::GetTypeRef(CompilerType type,
     return nullptr;
   swift::Demangle::NodePointer node =
       TypeSystemSwiftTypeRef::GetCanonicalDemangleTree(
-          module_holder, swift_ast_context, dem, mangled_name.GetStringRef());
+          module_holder, lazy_swift_ast_context, dem,
+          mangled_name.GetStringRef());
   if (!node)
     return nullptr;
 
@@ -3014,7 +3014,7 @@ SwiftLanguageRuntimeImpl::GetSwiftRuntimeTypeInfo(
   // context, but we need to resolve (any DWARF links in) the typeref
   // in the original module.
   const swift::reflection::TypeRef *type_ref = GetTypeRef(
-      type, &ts->GetTypeSystemSwiftTypeRef(), ts->GetSwiftASTContext());
+      type, &ts->GetTypeSystemSwiftTypeRef(), ts->GetLazySwiftASTContext());
   if (!type_ref)
     return nullptr;
 

@@ -116,6 +116,11 @@ public:
 
   static LanguageSet GetSupportedLanguagesForTypes();
   virtual SwiftASTContext *GetSwiftASTContext() const = 0;
+
+  std::function<SwiftASTContext *()> GetLazySwiftASTContext() const {
+    return [this]() { return GetSwiftASTContext(); };
+  }
+
   virtual TypeSystemSwiftTypeRef &GetTypeSystemSwiftTypeRef() = 0;
   virtual void SetTriple(const llvm::Triple triple) = 0;
   virtual void ClearModuleDependentCaches() = 0;
