@@ -8,6 +8,7 @@
 
 #include "llvm/CAS/UniqueID.h"
 #include "TestingNamespaces.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
@@ -138,6 +139,61 @@ TEST_P(UniqueIDRefTest, getHashValue) {
   EXPECT_EQ(ZeroID.getHashValue(), Back1ID.getHashValue());
   EXPECT_EQ(ZeroID.getHashValue(), PastHashValueFront1ID.getHashValue());
   EXPECT_EQ(Back1ID.getHashValue(), PastHashValueFront1ID.getHashValue());
+}
+
+TEST_P(UniqueIDRefTest, DenseMap) {
+  const Namespace &NS = cas::testing::getNamespace(GetParam());
+
+  // Do a few DenseSet opertions to test that tombstones and empty markers work
+  // correctly.
+  SmallDenseSet<UniqueIDRef, 2> Set;
+  UniqueIDRef ZeroID(NS, Zero);
+  UniqueIDRef Zero2ID(NS, Zero2);
+  UniqueIDRef Front1ID(NS, Front1);
+  UniqueIDRef Back1ID(NS, Back1);
+  UniqueIDRef HashValueBack1ID(NS, HashValueBack1);
+  for (int I = 0, E = 2; I != E; ++I) {
+    Set.erase(ZeroID);
+    EXPECT_FALSE(Set.count(ZeroID));
+    Set.insert(ZeroID);
+    EXPECT_TRUE(Set.count(ZeroID));
+  }
+  EXPECT_TRUE(Set.count(ZeroID));
+  ASSERT_EQ(1U, Set.size());
+
+  Set.insert(Zero2ID);
+  EXPECT_TRUE(Set.count(ZeroID));
+  EXPECT_TRUE(Set.count(Zero2ID));
+  ASSERT_EQ(1U, Set.size());
+
+  Set.insert(Front1ID);
+  EXPECT_TRUE(Set.count(ZeroID));
+  EXPECT_TRUE(Set.count(Front1ID));
+  ASSERT_EQ(2U, Set.size());
+
+  Set.erase(ZeroID);
+  EXPECT_FALSE(Set.count(ZeroID));
+  EXPECT_TRUE(Set.count(Front1ID));
+  ASSERT_EQ(1U, Set.size());
+
+  Set.insert(ZeroID);
+  Set.insert(Back1ID);
+  Set.insert(HashValueBack1ID);
+  Set.erase(Front1ID);
+  EXPECT_FALSE(Set.count(Front1ID));
+  EXPECT_TRUE(Set.count(ZeroID));
+  EXPECT_TRUE(Set.count(Back1ID));
+  EXPECT_TRUE(Set.count(HashValueBack1ID));
+  bool BiggerThan64Bits = GetParam() > 8;
+  EXPECT_EQ(BiggerThan64Bits, Back1ID != HashValueBack1ID);
+  ASSERT_EQ(2U + BiggerThan64Bits, Set.size());
+
+  Set.erase(ZeroID);
+  EXPECT_FALSE(Set.count(ZeroID));
+  EXPECT_FALSE(Set.count(Front1ID));
+  EXPECT_TRUE(Set.count(Back1ID));
+  EXPECT_TRUE(Set.count(HashValueBack1ID));
+  ASSERT_EQ(1U + BiggerThan64Bits, Set.size());
 }
 
 class UniqueIDTest : public UniqueIDTestBase {};

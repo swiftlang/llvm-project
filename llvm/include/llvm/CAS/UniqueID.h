@@ -83,7 +83,7 @@ public:
 
   /// Get the embedded sentinel pointer for \a DenseMapInfo<UniqueIDRef>.
   const void *getSentinelPointer() const {
-    return Hash ? nullptr : NamespaceAndHashSize.getPointer();
+    return NamespaceAndHashSize.getPointer() ? nullptr : Hash;
   }
 
   friend bool operator==(UniqueIDRef LHS, UniqueIDRef RHS) {
@@ -141,10 +141,9 @@ public:
   struct DenseMapEmptyTag {};
 
   explicit UniqueIDRef(DenseMapTombstoneTag)
-      : NamespaceAndHashSize(
-            DenseMapInfo<const Namespace *>::getTombstoneKey()) {}
+      : Hash(DenseMapInfo<const uint8_t *>::getTombstoneKey()) {}
   explicit UniqueIDRef(DenseMapEmptyTag)
-      : NamespaceAndHashSize(DenseMapInfo<const Namespace *>::getEmptyKey()) {}
+      : Hash(DenseMapInfo<const uint8_t *>::getEmptyKey()) {}
 
 private:
   PointerIntPair<const Namespace *, 3, HashSize> NamespaceAndHashSize;
