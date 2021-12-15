@@ -654,6 +654,18 @@ bool SwiftLanguageRuntimeImpl::AddModuleToReflectionContext(
         swift::remote::RemoteAddress(load_ptr),
         llvm::Optional<llvm::sys::MemoryBlock>(file_buffer));
   } else {
+    auto symbol_file = module_sp->GetSymbolFile();
+    auto symbol_object_file = symbol_file->GetObjectFile();
+    if (symbol_object_file &&
+        symbol_object_file->GetType() == ObjectFile::eTypeDebugInfo) {
+      start_address = symbol_object_file->GetBaseAddress();
+      load_ptr = static_cast<uintptr_t>(
+          start_address.GetLoadAddress(&(m_process.GetTarget())));
+      if (load_ptr == 0 || load_ptr == LLDB_INVALID_ADDRESS) {
+        llvm::errs() << "Error with load address\n";
+        return false;
+      }
+    }
     m_reflection_ctx->addImage(swift::remote::RemoteAddress(load_ptr));
   }
   return true;
