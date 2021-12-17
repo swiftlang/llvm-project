@@ -3,17 +3,17 @@
 There's some shared code for encodings for a few object file concepts.
 
 Generic encoding functions (like VBR8) are in:
+
 - llvm/include/llvm/CASObjectFormats/Encoding.h
 - llvm/lib/CASObjectFormats/Encoding.cpp
 
 Conceptual data are in:
+
 - llvm/include/llvm/CASObjectFormats/Data.h
 - llvm/lib/CASObjectFormats/Data.cpp
 
-These are all pretty rough, and in some cases have unnecessary or
-harmful micro-optimizations.
-
-These are all a work-in-progress.
+These are all pretty rough/WIP, and in some cases may have unnecessary
+micro-optimizations that might inhibit fast algorithms using these.
 
 ## Encoding: VBR8
 
@@ -22,6 +22,7 @@ bytes, where the high bit of each byte (usually) indicates whether
 there's more to read (only if there could be more data). Signed numbers have the sign rotated into the low-bit.
 
 E.g.:
+
 - `uint8_t` and `int8_t` use exactly 1B.
 - `uint16_t` and `int16_t` use between 1B and 3B.
 - `uint32_t` and `int32_t` use between 1B and 5B.

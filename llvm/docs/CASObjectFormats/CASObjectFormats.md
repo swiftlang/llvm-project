@@ -3,6 +3,7 @@
 ## Objects supported by the CAS
 
 There are three types of objects in LLVMCAS:
+
 - Blob: opaque sequence of bytes (`StringRef`).
 - Tree: filesystem tree, mapping names to other CAS objects. Similar to a tree
   in Git, and not particularly relevant here.
@@ -11,8 +12,9 @@ There are three types of objects in LLVMCAS:
 
 The object format schemas mostly use `Node`s.
 
-- The top-level `Node` reserves its first CAS reference for a "type-id". This
-  is DAG of CAS objects that identifies the schema.
+- The top-level `Node` is treated like a "root" node for the schema. It
+  reserves its first CAS reference for a "type-id", which is DAG of CAS objects
+  that identifies the schema.
 - Currently, the kind for other nodes is in their first byte of data. This is
   a convenience for debugging / dumping them.
 
@@ -48,19 +50,22 @@ storage optimization headroom.
 
 Not clear whether we'll evolve one of these or create a new one.
 
-### Caveat: Does not support real algorithms
+### Caveat: Not ready to support real algorithms
 
-At a minimum, we want the format/interface to support:
+At a minimum, we want APIs to support:
 
 - Builder APIs in a compiler backend.
 - APIs / data structures to support linking concepts, such as:
     - Symbol
     - Block
     - Atom
-    - GOT
+    - Edges
+    - Relocations
+    - Liveness
 - Lazy-loading during linking.
 
-Currently, these are not supported.
+The schemas/APIs don't support those (yet)... at least, not directly. They do
+support serialization to/from `jitlink::LinkGraph`, which does support those.
 
 ### Caveat: Missing high-level object file pieces
 
@@ -71,6 +76,7 @@ object file things like Mach-O load commands.
 
 There are various types in `jitlink` (such as `Edge::Kind`) that these
 formats use directly. This is bad for a few reasons:
+
 - They shouldn't depend on `jitlink`
 - `jitlink` types are all unstable (can change at any time)
 - `jitlink` types only handle the things the JIT cares about. E.g.,

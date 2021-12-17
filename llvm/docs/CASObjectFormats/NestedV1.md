@@ -9,6 +9,7 @@ others are referenced indirectly by their name (sometimes only to break a
 cycle).
 
 The code is in:
+
 - llvm/include/llvm/CASObjectFormats/NestedV1.h
 - llvm/lib/CASObjectFormats/NestedV1.cpp
 
@@ -17,6 +18,7 @@ See also: CommonEncodings.md.
 ## Major caveats with current state
 
 This format currently:
+
 - implicitly dead strips some things during creation
 - makes a bit of a mess of symbol attributes
 
@@ -69,6 +71,7 @@ elsewhere.
 
 The builder requires a `jitlink::LinkGraph` as input. The algorithm for
 generating a *compile-unit* is:
+
 - Sort symbols:
     - by scope, putting locals last
     - by linkage, putting strong symbols before weak symbols
