@@ -10,6 +10,7 @@
 #define LLVM_CAS_ACTIONCACHE_H
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/CAS/Namespace.h"
 #include "llvm/CAS/UniqueID.h"
 #include "llvm/Support/Error.h"
@@ -18,20 +19,42 @@
 namespace llvm {
 namespace cas {
 
+class ActionCache;
+
 /// Structure for describing an action and its inputs.
 class ActionDescription {
 public:
+  ActionDescription() = delete;
+
   explicit ActionDescription(StringRef Data, ArrayRef<UniqueIDRef> IDs = None)
-      : Data(Data), IDs(ID) {
+      : Data(Data), IDs(IDs) {
     assert(!Data.empty());
   }
 
   explicit ActionDescription(StringRef Data, UniqueIDRef ID)
-      : Action(Data, makeArrayRef(ID)) {}
+      : ActionDescription(Data, makeArrayRef(ID)) {}
+
+  StringRef getData() const { return Data; }
+  ArrayRef<UniqueIDRef> getIDs() const { return IDs; }
 
 private:
   StringRef Data;
   ArrayRef<UniqueIDRef> IDs;
+
+  friend class ActionCache;
+  enum : size_t { MaxCachedHashSize = 32 };
+
+  /// A cache for the hash of this action. See \a ActionCache::cacheHash() and
+  /// \a ActionCache::getCachedHash().
+  ///
+  /// FIXME: Should this just be UniqueID? Or is it useful to allow (e.g.) an
+  /// in-memory ActionCache to use a weak hash and compare the description for
+  /// equality?
+  struct {
+    const ActionCache *Creator = nullptr;
+    uint8_t Bytes[MaxCachedHashSize] = {0};
+    size_t Size = 0;
+  } CachedHash;
 };
 
 /// A cache of actions and results, mapping from an arbitrary StringRef to
@@ -48,6 +71,8 @@ public:
   /// including all inputs (e.g., a UniqueID for the clang binary's blob should
   /// be included if caching something in the Clang compiler).
   ///
+  /// Thread-safe.
+  ///
   /// \return Error if there's a collision or some problem storing the result.
   /// \pre \c Result.getNamespace() is the same as \a getNamespace().
   /// \post Subsequent call to \a get() with \p Action returns \p Result.
@@ -59,20 +84,30 @@ public:
 
   /// Get a result from the cache.
   ///
+  /// May update \p Action to store a cached hash for a later to call to \a
+  /// put().
+  ///
+  /// Thread-safe.
+  ///
   /// \post \p MaybeResult is set to the cached result for \p Action, if any.
   /// Otherwise, \a UniqueID::isValid() is false.
-  Error get(const ActionDescription &Action, UniqueID &MaybeResult) {
+  Error get(ActionDescription &Action, UniqueID &MaybeResult) {
     MaybeResult = UniqueID();
-    return getImpl(Action, Result);
+    return getImpl(Action, MaybeResult);
   }
 
   /// Get a result from the cache with extended lifetime.
+  ///
+  /// May update \p Action to store a cached hash for a later to call to \a
+  /// put().
+  ///
+  /// Thread-safe.
   ///
   /// \post \p MaybeResult is set to the cached result for \p Action, if
   /// any. Otherwise, it has \a None.
   /// \post \p MaybeResult is valid to reference as long as the \a ActionCache
   /// is alive.
-  Error get(const ActionDescription &Action,
+  Error get(ActionDescription &Action,
             Optional<UniqueIDRef> &MaybeResult) {
     MaybeResult = None;
     return getWithLifetimeImpl(Action, MaybeResult);
@@ -81,8 +116,25 @@ public:
   /// Get the CAS namespace for this ActionCache.
   const Namespace &getNamespace() const { return NS; }
 
+  virtual ~ActionCache() = default;
+
 protected:
   ActionCache(const Namespace &NS) : NS(NS) {}
+
+  /// Cache a hash computed for \p Action.
+  void cacheHash(ActionDescription &Action, ArrayRef<uint8_t> Hash) {
+    assert(Hash.size() <= ActionDescription::MaxCachedHashSize);
+    Action.CachedHash.Creator = this;
+    llvm::copy(Hash, Action.CachedHash.Bytes);
+    Action.CachedHash.Size = Hash.size();
+  }
+
+  /// Access the stored hash computed for \p Action.
+  Optional<ArrayRef<uint8_t>> getCachedHash(ActionDescription &Action) {
+    if (Action.CachedHash.Creator != this)
+      return None;
+    return makeArrayRef(Action.CachedHash.Bytes, Action.CachedHash.Size);
+  }
 
   /// Cache \p Action to \p Result (implementation).
   ///
@@ -97,7 +149,7 @@ protected:
   ///
   /// \pre \p Action is not empty.
   /// \pre \p !MaybeResult.isValid().
-  virtual Error getImpl(const ActionDescription &Action,
+  virtual Error getImpl(ActionDescription &Action,
                         UniqueID &MaybeResult) {
     Optional<UniqueIDRef> Ref;
     if (Error E = getWithLifetimeImpl(Action, Ref))
@@ -111,21 +163,24 @@ protected:
   ///
   /// \pre \p Action is not empty.
   /// \pre \p !MaybeResult.isValid().
-  virtual Error getWithLifetimeImpl(const ActionDescription &Action,
+  virtual Error getWithLifetimeImpl(ActionDescription &Action,
                                     Optional<UniqueIDRef> &MaybeResult) = 0;
 
 private:
   const Namespace &NS;
 };
 
-///     - put: (StringRef, UniqueIDRef)           => Error
-///     - get: (StringRef, UniqueID&)             => Error
-///     - get: (StringRef, Optional<UniqueIDRef>) => Error // provides lifetime
-///     - Concrete subclasses:
-///         - InMemory -- can use ThreadSafeHashMappedTrie
-///         - OnDisk -- can use OnDiskHashMappedTrie, but lots of options; needs
-///           configuration
-///         - Plugin -- simple plugin API for the cache itself
+/// Create an in-memory action cache for \a UniqueID from \p NS.
+std::unique_ptr<ActionCache> createInMemoryActionCache(const Namespace &NS);
+
+/// Create an on-disk action cache for \a UniqueID from \p NS.
+Expected<std::unique_ptr<ActionCache>>
+createOnDiskActionCache(const Namespace &NS, const Twine &Path);
+
+/// Create a plugin action cache for \a UniqueID from \p NS.
+Expected<std::unique_ptr<ActionCache>>
+createPluginActionCache(const Namespace &NS, StringRef PluginPath,
+                        ArrayRef<std::string> PluginArgs = None);
 
 } // namespace cas
 } // namespace llvm
