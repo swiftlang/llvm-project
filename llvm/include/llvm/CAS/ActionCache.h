@@ -21,40 +21,105 @@ namespace cas {
 
 class ActionCache;
 
-/// Structure for describing an action and its inputs.
+/// Structure for describing an action and its inputs. This is used as a key in
+/// the \a ActionCache.
+///
+/// - \a getIdentifier(), which is required, is a printable identifier.
+/// - \a getIDs() contains action inputs.
+/// - \a getExtraData() is arbitrary data that's not printable, such as a
+///   context hash, or serialized data not stored in a CAS.
 class ActionDescription {
 public:
   ActionDescription() = delete;
 
-  explicit ActionDescription(StringRef Data, ArrayRef<UniqueIDRef> IDs = None)
-      : Data(Data), IDs(IDs) {
-    assert(!Data.empty());
+  explicit ActionDescription(StringRef Identifier,
+                             ArrayRef<UniqueIDRef> IDs = None,
+                             StringRef ExtraData = "")
+      : Identifier(Identifier), ExtraData(ExtraData), IDs(IDs) {
+    assert(!Identifier.empty());
   }
 
-  explicit ActionDescription(StringRef Data, UniqueIDRef ID)
-      : ActionDescription(Data, makeArrayRef(ID)) {}
+  explicit ActionDescription(StringRef Identifier, UniqueIDRef ID,
+                             StringRef ExtraData = "")
+      : ActionDescription(Identifier, makeArrayRef(ID), ExtraData) {}
 
-  StringRef getData() const { return Data; }
+  StringRef getIdentifier() const { return Identifier; }
   ArrayRef<UniqueIDRef> getIDs() const { return IDs; }
+  StringRef getExtraData() const { return ExtraData; }
+
+  void print(raw_ostream &OS, bool PrintIDs = true, PrintExtraData = false) const;
+  void dump() const;
+  friend raw_ostream &operator<<(raw_ostream &OS, const ActionDescription &Action) {
+    Action.print(OS);
+    return OS;
+  }
+
+  /// Serialize. This can be used to hash the description.
+  void serialize(function_ref<void (ArrayRef<uint8_t>)> AppendBytes) const;
 
 private:
-  StringRef Data;
-  ArrayRef<UniqueIDRef> IDs;
+  const StringRef Identifier;
+  const StringRef ExtraData;
+  const ArrayRef<UniqueIDRef> IDs;
 
   friend class ActionCache;
   enum : size_t { MaxCachedHashSize = 32 };
 
-  /// A cache for the hash of this action. See \a ActionCache::cacheHash() and
-  /// \a ActionCache::getCachedHash().
+  /// A cache for the hash of this action. Mutators and accessors are available
+  /// for implementations of \a ActionCache via \a ActionCache::cacheHash() and
+  /// \a ActionCache::getCachedHash(). This allows duplicate
+  /// serialization/hashing to be avoided in the case: \a ActionCache::get() is
+  /// a cache miss, result computed, \a ActionCache::put() called with result.
   ///
-  /// FIXME: Should this just be UniqueID? Or is it useful to allow (e.g.) an
-  /// in-memory ActionCache to use a weak hash and compare the description for
-  /// equality?
+  /// This does not just store a \a UniqueID, since an \a ActionCache may use a
+  /// different hash algorithm than the namespace of the \a UniqueIDs... or no
+  /// hash algorithm at all.
+  ///
+  /// TODO: Also allow a \a std::string to be cached instead (via a variant of
+  /// some sort), in case an \a ActionCache implementation is using the full,
+  /// serialized ActionDescription directly rather than hashing it.
   struct {
+    /// Track the \a ActionCache that cached here to catch errors where \a
+    /// ActionCache::get() is called with one cache and \a ActionCache::put()
+    /// is called with another, where the latter potentially uses a different
+    /// map strategy.
     const ActionCache *Creator = nullptr;
-    uint8_t Bytes[MaxCachedHashSize] = {0};
-    size_t Size = 0;
-  } CachedHash;
+
+    /// FIXME: Do we care about the layout of \a ActionDescription? If not,
+    /// maybe this should just be SmallVector<uint8_t, 32>.
+    uint8_t Hash[MaxCachedHashSize] = {0};
+    size_t HashSize = 0;
+  } Cached;
+};
+
+/// ActionCache collision error.
+///
+/// Expected to be extremely rare, indicating a programming error where context
+/// was missing from the key.
+class ActionCacheCollisionError final : public ErrorInfo<ActionCacheCollisionError, ECError> {
+  void anchor() override;
+
+public:
+  static char ID;
+
+  StringRef getAction() const { return Action; }
+  UniqueIDRef getNewResult() const { return NewResult; }
+  UniqueIDRef getExistingResult() const { return ExistingResult; }
+
+  void log(raw_ostream &OS) const override;
+
+  ActionCacheCollisionError(UniqueIDRef ExistingResult,
+                            const ActionDescription &Action, UniqueIDRef NewResult);
+      : ActionCacheCollisionError::ErrorInfo(make_error_code(std::errc::file_exists)),
+        ExistingResult(ExistingResult), NewResult(NewResult) {
+    saveAction(Action);
+  }
+
+private:
+  void saveAction(const ActionDescription &Action);
+  UniqueID ExistingResult;
+  std::string Action;
+  UniqueID NewResult;
 };
 
 /// A cache of actions and results, mapping from an arbitrary StringRef to
@@ -124,16 +189,16 @@ protected:
   /// Cache a hash computed for \p Action.
   void cacheHash(ActionDescription &Action, ArrayRef<uint8_t> Hash) {
     assert(Hash.size() <= ActionDescription::MaxCachedHashSize);
-    Action.CachedHash.Creator = this;
-    llvm::copy(Hash, Action.CachedHash.Bytes);
-    Action.CachedHash.Size = Hash.size();
+    Action.Cached.Creator = this;
+    llvm::copy(Hash, Action.Cached.Hash);
+    Action.Cached.HashSize = Hash.size();
   }
 
   /// Access the stored hash computed for \p Action.
   Optional<ArrayRef<uint8_t>> getCachedHash(ActionDescription &Action) {
-    if (Action.CachedHash.Creator != this)
+    if (Action.Cached.Creator != this)
       return None;
-    return makeArrayRef(Action.CachedHash.Bytes, Action.CachedHash.Size);
+    return makeArrayRef(Action.Cached.Hash, Action.Cached.HashSize);
   }
 
   /// Cache \p Action to \p Result (implementation).

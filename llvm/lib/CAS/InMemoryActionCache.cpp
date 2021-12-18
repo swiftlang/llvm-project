@@ -27,15 +27,30 @@ using namespace llvm::cas;
 
 namespace {
 
-static constexpr size_t NumHashBytes = sizeof(SHA1::hash(None));
-using DescriptionHashType = std::array<uint8_t, NumHashBytes>;
-using DescriptionHashRef = ArrayRef<uint8_t>;
+/// The hasher to use for actions. This need not match the hasher for the
+/// Namespace.
+///
+/// FIXME: Update to BLAKE3 at some point and use a subset of the bits (since
+/// 32B is overkill). That's faster than SHA1. Note that for in-memory use,
+/// collisions seem exceedingly unlikely, so even the 20B in SHA1 are probably
+/// overkill.
+using ActionHasherT = SHA1;
 
-struct HashInfo {
-  template <class HasherT> static auto hash(DescriptionHashType Data) { return Data; }
-  template <class HasherT> using HashType = decltype(hash<HasherT>(DescriptionHashType()));
-};
+static constexpr size_t ActionHashNumBytes = sizeof(ActionHasherT::hash(None));
+using ActionHashT = std::array<uint8_t, ActionHashNumBytes>;
 
+/// This is an in-memory action cache, acting as a map from \a
+/// ActionDescription to \a UniqueIDRef.
+///
+/// The current implementation uses a strong hash (\a SHA1) of the serialized
+/// \a ActionDescription as a key for a \a ThreadSafeHashMappedTrie.
+///
+/// FIXME: We should have multiple variants, with different options for the
+/// underlying storage. Another obvious one is StringMap + BumpPtrAllocator,
+/// which guards every put() or get() by locking a \a std::mutex. The \a
+/// ActionDescription could be serialized and the string used as the key. For
+/// better multi-threading performance, the map (and allocator) could
+/// optionally be sharded.
 class InMemoryActionCache final : public ActionCache {
 public:
   Error getImpl(ActionDescription &Action, Optional<UniqueIDRef> &Result) override;
@@ -43,11 +58,31 @@ public:
   InMemoryActionCache(const Namespace &NS) : ActionCache(NS) {}
 
 private:
-  /// Map from DescriptionHashType to the result hash, owned by \a ResultIDs.
-  ThreadSafeHashMappedTrie<DescriptionHashType, const uint8_t *>;
-  ResultCacheType Results;
-  Optional<ThreadSafeAllocator<SpecificBumpPtrAllocator<uint8_t>>>
-      ResultHashes;
+  /// Map from \a ActionHashT, which is a hash of the serialized \a
+  /// ActionDescription, to the result.
+  ///
+  /// FIXME: Ideally, the stored data for the result ID would be \c
+  /// std::array<uint8_t> (the bytes from \a UniqueID::getHash()). This avoids
+  /// storing the \a Namespace pointer redundantly. However, the size of the
+  /// hash depends on the \a Namespace and currently the allocation size is
+  /// configured at compile-time via the template parameter.
+  ///
+  /// A possible solution is to change ThreadSafeHashMappedTrie to
+  /// tail-allocate the stored data, with allocation size configured at
+  /// runtime; probably not too hard.
+  ///
+  /// A rejected solution is using a BumpPtrAllocator here. The trie is already
+  /// managing allocations for inserted content; we should improve those
+  /// allocations, not add another layer.
+  ///
+  /// For now, store \a UniqueID. This wastes some space, but it's simple.
+  using ResultCacheT = ThreadSafeHashMappedTrie<ActionHashT, UniqueID>;
+
+  /// Pull out the value type for convenience.
+  using ResultCacheValueT = ResultCacheT::HashedDataType;
+
+  /// Map from ActionHashT to the result hashes.
+  ResultCacheT Results;
 };
 
 } // end namespace
@@ -71,37 +106,27 @@ static Error createResultCacheCorruptError(CASID InputID) {
                            "result cache corrupt for '" + InputHash + "'");
 }
 
-static ArrayRef<uint8_t> hashAction(const Namespace &NS,
-                                    const ActionDescription &Action,
-                                    SmallVectorImpl<uint8_t> &Storage) {
-  SHA1 Hasher;
-  Hasher.update(NS.getHashSize());
-  Hasher.update(Action.getIDs().size());
-  Hasher.update(Action.getData().size());
-  for (UniqueIDRef ID : Action.getIDs())
-    Hasher.update(ID.getHash());
-  Hasher.update(Action.getData());
+static ActionHashT hashAction(const ActionDescription &Action) {
+  ActionHasherT Hasher;
+  Action.serialize([&Hasher](ArrayRef<uint8_t> Bytes) { Hasher.update(Bytes); });
+  Storage.resize(ActionHashNumBytes);
 
-  Storage.resize(NumHashBytes);
-  llvm::copy(Hasher.final(), Storage.begin());
-  return makeArrayRef(Storage);
+  ActionHashT Hash;
+  llvm::copy(Hasher.final(), Hash.begin());
+  return Hash;
 }
 
 Error InMemoryActionCache::getImpl(
     ActionDescription &Action, Optional<UniqueIDRef> &Result) {
   assert(!Result && "Expected result to be reset be entry");
+  ActionHashT Hash;
+  if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
+    llvm::copy(*CachedHash, Hash.begin());
+  else
+    cacheHash(Action, Hash = hashAction(Action));
 
-  SmallVector<uint8_t, 32> HashStorage;
-  Optional<ArrayRef<uint8_t>> Hash = getCachedHash(Action);
-  if (!Hash) {
-    Hash = hashAction(getNamespace(), Action, HashStorage);
-    cacheHash(Action, Hash);
-  }
-
-  if (auto Lookup = ResultCache.lookup(*Hash))
-    Result = UniqueIDRef(getNamespace(),
-                         ArrayRef<uint8_t>(Lookup->Data,
-                                           Lookup->Data + getNamespace().getHashSize()));
+  if (auto Lookup = Results.lookup(Hash))
+    Result = Lookup->Data;
 
   // A cache miss is not an error.
   return Error::success();
@@ -109,138 +134,41 @@ Error InMemoryActionCache::getImpl(
 
 Error InMemoryActionCache::putImpl(
     const ActionDescription &Action, UniqueIDRef Result) {
-  SmallVector<uint8_t, 32> HashStorage;
-  Optional<ArrayRef<uint8_t>> Hash = getCachedHash(Action);
-  if (!Hash)
-    Hash = hashAction(getNamespace(), Action, HashStorage);
+  // Ensure we're only storing hashes from a single namespace.
+  assert(&getNamespace() == &Result.getNamespace() && "Mismatched namespace");
 
+  // Check that the inputs are in the same namespace. Not strictly necessary
+  // for correctness of the cache, but if this fails there's probably a bug...
+  //
+  // Note: Only check the first ID here. ActionDescription::serialize() asserts
+  // that they all match. This must be called at some point to generate the
+  // hash.
+  assert((Action.getIDs().empty() ||
+          &getNamespace() == Action.getIDs().front().getNamespace()) &&
+         "Mismatched namespace");
 
-}
+  ActionHashT Hash;
+  if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
+    llvm::copy(*CachedHash, Hash.begin());
+  else
+    Hash = hashAction(Action);
 
-Error BuiltinCAS::putCachedResult(CASID InputID, CASID OutputID) {
-  auto Lookup = ResultCache.lookup(InputID.getHash());
-
-  auto checkOutput = [&](HashRef ExistingOutput) -> Error {
-    if (ExistingOutput == OutputID.getHash())
-      return Error::success();
-    // FIXME: probably...
-    reportAsFatalIfError(createResultCachePoisonedError(InputID, OutputID,
-                                                        CASID(ExistingOutput)));
-    return Error::success();
-  };
+  // Do a lookup before inserting to avoid allocating when result is present.
+  //
+  // FIXME: Update trie to delay allocation until *after* finding the slot.
+  Optional<UniqueIDRef> StoredID;
+  auto Lookup = Results.lookup(InputID.getHash());
   if (Lookup)
-    return checkOutput(Lookup->Data);
-
-  // Store in-memory.
-  return checkOutput(
-      ResultCache
-          .insert(Lookup, ResultCacheType::HashedDataType(makeHash(InputID),
-                                                          makeHash(OutputID)))
-          .Data);
-}
-
-Optional<BuiltinCAS::MappedContentReference>
-BuiltinCAS::openOnDisk(OnDiskHashMappedTrie &Trie, HashRef Hash) {
-  if (auto Lookup = Trie.lookup(Hash))
-    return std::move(Lookup.get());
-  return None;
-}
-
-Expected<std::unique_ptr<MemoryBuffer>> BuiltinCAS::openFile(StringRef Path) {
-  assert(!isInMemoryOnly());
-  return errorOrToExpected(llvm::MemoryBuffer::getFile(Path));
-}
-
-Expected<std::unique_ptr<MemoryBuffer>>
-BuiltinCAS::openFileWithID(StringRef BaseDir, CASID ID) {
-  assert(!isInMemoryOnly());
-  SmallString<256> Path = StringRef(*RootPath);
-  sys::path::append(Path, BaseDir);
-
-  SmallString<64> PrintableHash;
-  extractPrintableHash(ID, PrintableHash);
-  sys::path::append(Path, PrintableHash);
-
-  Expected<std::unique_ptr<MemoryBuffer>> Buffer = openFile(Path);
-  if (Buffer)
-    return Buffer;
-
-  // FIXME: Should we sometimes return the error directly?
-  consumeError(Buffer.takeError());
-  return createStringError(std::make_error_code(std::errc::invalid_argument),
-                           "unknown blob '" + PrintableHash + "'");
-}
-
-StringRef BuiltinCAS::getPathForID(StringRef BaseDir, CASID ID,
-                                   SmallVectorImpl<char> &Storage) {
-  Storage.assign(RootPath->begin(), RootPath->end());
-  sys::path::append(Storage, BaseDir);
-
-  SmallString<64> PrintableHash;
-  extractPrintableHash(ID, PrintableHash);
-  sys::path::append(Storage, PrintableHash);
-
-  return StringRef(Storage.begin(), Storage.size());
-}
-
-Expected<std::unique_ptr<CASDB>> cas::createOnDiskCAS(const Twine &Path) {
-  SmallString<256> AbsPath;
-  Path.toVector(AbsPath);
-  sys::fs::make_absolute(AbsPath);
-
-  if (AbsPath == getDefaultOnDiskCASStableID())
-    AbsPath = StringRef(getDefaultOnDiskCASPath());
-
-  if (std::error_code EC = sys::fs::create_directories(AbsPath)) {
-    return createFileError(AbsPath, EC);
-  }
-
-  std::shared_ptr<OnDiskHashMappedTrie> OnDiskObjects;
-  std::shared_ptr<OnDiskHashMappedTrie> OnDiskResults;
-
-  uint64_t GB = 1024ull * 1024ull * 1024ull;
-  if (auto Expected = OnDiskHashMappedTrie::create(
-          AbsPath.str() + "/objects", NumHashBytes * sizeof(uint8_t), 16 * GB))
-    OnDiskObjects = std::move(*Expected);
+    StoredID = Lookup->Data;
   else
-    return Expected.takeError();
-  if (auto Expected = OnDiskHashMappedTrie::create(
-          AbsPath.str() + "/results", NumHashBytes * sizeof(uint8_t), GB))
-    OnDiskResults = std::move(*Expected);
-  else
-    return Expected.takeError();
+    StoredID = ResultCache.insert(Lookup, ResultCacheValueT(Hash, UniqueID(Result))).Data;
 
-  return std::make_unique<BuiltinCAS>(AbsPath, std::move(OnDiskObjects),
-                                      std::move(OnDiskResults));
+  // Check for a cache collision.
+  if (StoredID != Result)
+    return make_error<ActionCacheCollisionError>(*StoredID, Action, Result);
+  return Error::success();
 }
 
-std::unique_ptr<CASDB> cas::createInMemoryCAS() {
-  return std::make_unique<BuiltinCAS>(BuiltinCAS::InMemoryOnlyTag());
-}
-
-// FIXME: Proxy not portable. Maybe also error-prone?
-constexpr StringLiteral DefaultDirProxy = "/^llvm::cas::builtin::default";
-constexpr StringLiteral DefaultName = "llvm.cas.builtin.default";
-
-void cas::getDefaultOnDiskCASPath(SmallVectorImpl<char> &Path) {
-  if (!llvm::sys::path::cache_directory(Path))
-    report_fatal_error("cannot get default cache directory");
-  llvm::sys::path::append(Path, DefaultName);
-}
-
-std::string cas::getDefaultOnDiskCASPath() {
-  SmallString<128> Path;
-  getDefaultOnDiskCASPath(Path);
-  return Path.str().str();
-}
-
-void cas::getDefaultOnDiskCASStableID(SmallVectorImpl<char> &Path) {
-  Path.assign(DefaultDirProxy.begin(), DefaultDirProxy.end());
-  llvm::sys::path::append(Path, DefaultName);
-}
-
-std::string cas::getDefaultOnDiskCASStableID() {
-  SmallString<128> Path;
-  getDefaultOnDiskCASStableID(Path);
-  return Path.str().str();
+std::unique_ptr<CASDB> cas::createInMemoryActionCache(const Namespace &NS) {
+  return std::make_unique<InMemoryActionCache>(NS);
 }
