@@ -15,20 +15,45 @@
 using namespace llvm;
 using namespace llvm::cas;
 
-char ActionCacheCollisionError::ID = 0;
-void ActionCacheCollisionError::anchor() {}
+char ActionDescriptionError::ID = 0;
+void ActionDescriptionError::anchor() {}
 
-void ActionDescription::saveAction(const ActionDescription &Action) {
+void ActionDescriptionError::log(raw_ostream &OS) const override {
+  ECError::log(OS);
+  OS << ": action " << Action;
+}
+
+void ActionDescriptionError::saveAction(const ActionDescription &Action) {
   SmallString<128> Printed;
   raw_svector_stream(Printed) << Action;
   this->Action = Printed;
 }
 
+char ActionCacheCollisionError::ID = 0;
+void ActionCacheCollisionError::anchor() {}
+
 void ActionCacheCollisionError::log(raw_ostream &OS) const {
-  OS << "cache collision: result " << ExistingResult << " exists; ignoring " << NewResult
-     << " for action: " << Action;
+  OS << "cache collision: result " << ExistingResult << " exists; ignoring "
+     << NewResult << " for action " << getAction();
 }
 
+char CorruptActionCacheResultError::ID = 0;
+void CorruptActionCacheResultError::anchor() {}
+
+void CorruptActionCacheResultError::log(raw_ostream &OS) const override {
+  OS << "cached result corrupt for action " << getAction();
+}
+
+char WrongActionCacheNamespaceError::ID = 0;
+void WrongActionCacheNamespaceError::anchor() {}
+
+void WrongActionCacheNamespaceError::log(raw_ostream &OS) const {
+  OS << "wrong namespace for action cache";
+  if (Path)
+    OS << "at '" << *Path << "'";
+  OS << ": expected '" << ExpectedNamespace << " but observed '"
+     << ObservedNamespace << ")";
+}
 static ArrayRef<uint8_t> toArrayRef(StringRef String) {
   return ArrayRef<uint8_t>(static_cast<const uint8_t *>(String.begin()),
                            static_cast<const uint8_t *>(String.end()));

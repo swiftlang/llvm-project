@@ -25,6 +25,30 @@ class MemoryBuffer;
 namespace cas {
 
 /// On-disk hash-mapped trie. Thread-safe / lock-free.
+///
+/// This is an on-disk, (mostly) thread-safe key-value store that is (mostly)
+/// lock-free. The keys are fixed length, and are expected to be binary hashes
+/// with a normal distribution.
+///
+/// - Thread-safety is achieved through the use of atomics within a shared
+///   memory mapping. Atomic access does not work on networked filesystems.
+/// - Filesystem locks are used, but only sparingly:
+///     - during initialization, for creating / opening an existing store;
+///     - rarely on insertion, to resize the store (see \a
+///       OnDiskHashMappedTrie::MappedFileInfo::requestFileSize()).
+/// - Path is used as a directory:
+///     - "index" stores the root trie and subtries.
+///     - "data" stores (most of) the entries, like a bump-ptr-allocator.
+///     - Large entries are stored externally in a file named by the key.
+/// - Code is system-dependent (Windows not yet implemented), and binary format
+///   itself is not portable. These are not artifacts that can/should be moved
+///   between different systems; they are only appropriate for local storage.
+///
+/// FIXME: Add support for storing top-level metadata or identifiers that can
+/// be created / read during initialization.
+///
+/// FIXME: Implement for Windows. See comment next to implementation of \a
+/// OnDiskHashMappedTrie::MappedFileInfo::open().
 class OnDiskHashMappedTrie {
 public:
   void operator delete(void *Ptr) { ::free(Ptr); }

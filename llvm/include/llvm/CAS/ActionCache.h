@@ -92,36 +92,6 @@ private:
   } Cached;
 };
 
-/// ActionCache collision error.
-///
-/// Expected to be extremely rare, indicating a programming error where context
-/// was missing from the key.
-class ActionCacheCollisionError final : public ErrorInfo<ActionCacheCollisionError, ECError> {
-  void anchor() override;
-
-public:
-  static char ID;
-
-  StringRef getAction() const { return Action; }
-  UniqueIDRef getNewResult() const { return NewResult; }
-  UniqueIDRef getExistingResult() const { return ExistingResult; }
-
-  void log(raw_ostream &OS) const override;
-
-  ActionCacheCollisionError(UniqueIDRef ExistingResult,
-                            const ActionDescription &Action, UniqueIDRef NewResult);
-      : ActionCacheCollisionError::ErrorInfo(make_error_code(std::errc::file_exists)),
-        ExistingResult(ExistingResult), NewResult(NewResult) {
-    saveAction(Action);
-  }
-
-private:
-  void saveAction(const ActionDescription &Action);
-  UniqueID ExistingResult;
-  std::string Action;
-  UniqueID NewResult;
-};
-
 /// A cache of actions and results, mapping from an arbitrary StringRef to
 /// UniqueID.
 ///
@@ -144,6 +114,17 @@ public:
   /// Returns an error if there is a \a get() will not return
   Error put(const ActionDescription &Action, UniqueIDRef Result) {
     assert(&Result.getNamespace() == &getNamespace());
+
+    // Check that the inputs are in the same namespace. Not strictly necessary
+    // for correctness of the cache, but if this fails there's probably a bug...
+    //
+    // Note: Only check the first ID here. ActionDescription::serialize()
+    // asserts that they all match; assume this will be called at some point to
+    // generate a hash for it.
+    assert((Action.getIDs().empty() ||
+            &getNamespace() == Action.getIDs().front().getNamespace()) &&
+           "Mismatched namespace");
+
     return putImpl(Action, Result);
   }
 
@@ -246,6 +227,99 @@ createOnDiskActionCache(const Namespace &NS, const Twine &Path);
 Expected<std::unique_ptr<ActionCache>>
 createPluginActionCache(const Namespace &NS, StringRef PluginPath,
                         ArrayRef<std::string> PluginArgs = None);
+
+/// An error for opening an \a ActionCache with the wrong namespace.
+class WrongActionCacheNamespaceError final
+    : public ErrorInfo<WrongActionCacheNamespaceError> {
+  void anchor() override;
+
+public:
+  static char ID;
+  void log(raw_ostream &OS) const override;
+  std::error_code convertToErrorCode() const override {
+    return make_error_code(std::errc::invalid_argument);
+  }
+
+  StringRef getExpectedNamespaceName() const { return ExpectedNamespaceName; }
+  StringRef getObservedNamespaceName() const { return ObservedNamespaceName; }
+
+  WrongActionCacheNamespaceError(const Namespace &ExpectedNamespace,
+                                 const Twine &ObservedNamespaceName)
+      : ExpectedNamespaceName(ExpectedNamespace.getName().str()),
+        ObservedNamespaceName(ObservedNamespaceName.str()) {}
+
+private:
+  std::string ExpectedNamespaceName;
+  std::string ObservedNamespaceName;
+};
+
+/// Error involving an \a ActionDescription.
+///
+/// Constructor prints out the description to protect from lifetime issues in
+/// case the description's references go out of scope. This is expensive, so
+/// these errors should be reserved for error paths that are rare or can be
+/// slow.
+class ActionDescriptionError
+    : public ErrorInfo<ActionDescriptionError, ECError> {
+  void anchor() override;
+
+public:
+  static char ID;
+  void log(raw_ostream &OS) const override;
+
+  StringRef getAction() const { return Action; }
+
+  ActionDescriptionError(std::error_code EC, const ActionDescription &Action)
+      : ActionDescriptionError::ErrorInfo(EC) {
+    saveAction(Action);
+  }
+
+protected:
+  void saveAction(const ActionDescription &Action);
+
+private:
+  std::string Action;
+};
+
+/// ActionCache collision error.
+///
+/// Expected to be extremely rare, indicating a programming error where context
+/// was missing from the key.
+class ActionCacheCollisionError final
+    : public ErrorInfo<ActionCacheCollisionError, ActionDescriptionError> {
+  void anchor() override;
+
+public:
+  static char ID;
+  void log(raw_ostream &OS) const override;
+
+  UniqueIDRef getNewResult() const { return NewResult; }
+  UniqueIDRef getExistingResult() const { return ExistingResult; }
+
+  ActionCacheCollisionError(UniqueIDRef ExistingResult,
+                            const ActionDescription &Action,
+                            UniqueIDRef NewResult)
+      : ActionCacheCollisionError::ErrorInfo(
+            make_error_code(std::errc::file_exists), Action),
+        ExistingResult(ExistingResult), NewResult(NewResult) {}
+
+private:
+  UniqueID ExistingResult;
+  UniqueID NewResult;
+};
+
+class CorruptActionCacheResultError final
+    : public ErrorInfo<CorruptActionCacheResultError, ActionDescriptionError> {
+  void anchor() override;
+
+public:
+  static char ID;
+  void log(raw_ostream &OS) const override;
+
+  CorruptActionCacheResultError(const ActionDescription &Action)
+      : CorruptActionCacheResultError::ErrorInfo(
+            make_error_code(std::errc::result_out_of_range), Action) {}
+};
 
 } // namespace cas
 } // namespace llvm

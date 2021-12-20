@@ -55,7 +55,7 @@ using ActionHashT = std::array<uint8_t, ActionHashNumBytes>;
 /// hash.
 class OnDiskActionCache : public ActionCache {
 public:
-  Error getImpl(ActionDescription &Action, Optional<UniqueIDRef> &Result) override;
+  Error getImpl(ActionDescription &Action, UniqueID &Result) override;
   Error putImpl(const ActionDescription &Action, UniqueIDRef Result) override;
 
   OnDiskActionCache(StringRef Path, std::shared_ptr<OnDiskHashMappedTrie> Results)
@@ -73,106 +73,57 @@ private:
 
 } // end namespace
 
-Expected<CASID> BuiltinCAS::getCachedResult(CASID InputID) {
-  auto Lookup = ResultCache.lookup(InputID.getHash());
-  if (Lookup)
-    return CASID(Lookup->Data);
+static ArrayRef<uint8_t> toArrayRef(StringRef Data) {
+  return makeArrayRef(static_cast<const uint8_t *>(File->Data.begin()),
+                      static_cast<const uint8_t *>(File->Data.end()));
+}
 
-  // FIXME: Odd to have an error for a cache miss. Maybe this function should
-  // just return Optional.
-  if (isInMemoryOnly())
-    return createResultCacheMissError(InputID);
+Error OnDiskActionCache::getImpl(ActionDescription &Action, UniqueID &Result) {
+  assert(!Result && "Expected result to be reset before entry");
+  ActionHashT ActionHash;
+  if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
+    llvm::copy(*CachedHash, ActionHash.begin());
+  else
+    cacheHash(Action, ActionHash = hashAction(Action));
 
   Optional<MappedContentReference> File =
-      openOnDisk(*OnDiskResults, InputID.getHash());
+      openOnDisk(*OnDiskResults, ActionHash);
   if (!File)
-    return createResultCacheMissError(InputID);
-  if (File->Metadata != "results") // FIXME: Should cache this object.
-    return createCorruptObjectError(InputID);
+    return Error::success(); // Cache miss is not an error.
 
-  // Drop File.Map on the floor since we're storing a std::string.
-  if (File->Data.size() != NumHashBytes)
-    reportAsFatalIfError(createResultCacheCorruptError(InputID));
-  HashRef OutputHash = bufferAsRawHash(File->Data);
-  return CASID(ResultCache
-                   .insert(Lookup, ResultCacheType::HashedDataType(
-                                       makeHash(InputID), makeHash(OutputHash)))
-                   .Data);
+  // Check for corruption.
+  ArrayRef<uint8_t> ResultHash = toArrayRef(File->Data);
+  if (File->Metadata != "results" ||
+      ResultHash.size() != getNamespace().getHashSize())
+    return make_error<CorruptActionCacheResultError>(Action);
+
+  // Found.
+  Result.emplace(getNamespace(), ResultHash);
+  return Error::success();
 }
 
-Error BuiltinCAS::putCachedResult(CASID InputID, CASID OutputID) {
-  auto Lookup = ResultCache.lookup(InputID.getHash());
+Error OnDiskActionCache::putImpl(const ActionDescription &Action,
+                                 const UniqueIDRef &Result) {
+  ActionHashT ActionHash;
+  if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
+    llvm::copy(*CachedHash, ActionHash.begin());
+  else
+    ActionHash = hashAction(Action);
 
-  auto checkOutput = [&](HashRef ExistingOutput) -> Error {
-    if (ExistingOutput == OutputID.getHash())
-      return Error::success();
-    // FIXME: probably...
-    reportAsFatalIfError(createResultCachePoisonedError(InputID, OutputID,
-                                                        CASID(ExistingOutput)));
-    return Error::success();
-  };
-  if (Lookup)
-    return checkOutput(Lookup->Data);
+  // Insert and check for corruption of existing result.
+  StringRef ResultData(static_cast<const char *>(Result.getHash().begin()),
+                       static_cast<const char *>(Result.getHash().end()));
+  MappedContentReference File =
+      OnDiskResults->insert(ActionHash, "results", ResultData);
+  if (File->Metadata != "results" ||
+      File->Data.size() != getNamespace().getHashSize())
+    return make_error<CorruptActionCacheResultError>(Action);
 
-  if (!isInMemoryOnly()) {
-    // Store on-disk and check any existing data matches.
-    HashRef OutputHash = OutputID.getHash();
-    MappedContentReference File = OnDiskResults->insert(
-        InputID.getHash(), "results", rawHashAsBuffer(OutputHash));
-    if (Error E = checkOutput(bufferAsRawHash(File.Data)))
-      return E;
-  }
-
-  // Store in-memory.
-  return checkOutput(
-      ResultCache
-          .insert(Lookup, ResultCacheType::HashedDataType(makeHash(InputID),
-                                                          makeHash(OutputID)))
-          .Data);
-}
-
-Optional<BuiltinCAS::MappedContentReference>
-BuiltinCAS::openOnDisk(OnDiskHashMappedTrie &Trie, HashRef Hash) {
-  if (auto Lookup = Trie.lookup(Hash))
-    return std::move(Lookup.get());
-  return None;
-}
-
-Expected<std::unique_ptr<MemoryBuffer>> BuiltinCAS::openFile(StringRef Path) {
-  assert(!isInMemoryOnly());
-  return errorOrToExpected(llvm::MemoryBuffer::getFile(Path));
-}
-
-Expected<std::unique_ptr<MemoryBuffer>>
-BuiltinCAS::openFileWithID(StringRef BaseDir, CASID ID) {
-  assert(!isInMemoryOnly());
-  SmallString<256> Path = StringRef(*RootPath);
-  sys::path::append(Path, BaseDir);
-
-  SmallString<64> PrintableHash;
-  extractPrintableHash(ID, PrintableHash);
-  sys::path::append(Path, PrintableHash);
-
-  Expected<std::unique_ptr<MemoryBuffer>> Buffer = openFile(Path);
-  if (Buffer)
-    return Buffer;
-
-  // FIXME: Should we sometimes return the error directly?
-  consumeError(Buffer.takeError());
-  return createStringError(std::make_error_code(std::errc::invalid_argument),
-                           "unknown blob '" + PrintableHash + "'");
-}
-
-StringRef BuiltinCAS::getPathForID(StringRef BaseDir, CASID ID,
-                                   SmallVectorImpl<char> &Storage) {
-  Storage.assign(RootPath->begin(), RootPath->end());
-  sys::path::append(Storage, BaseDir);
-
-  SmallString<64> PrintableHash;
-  extractPrintableHash(ID, PrintableHash);
-  sys::path::append(Storage, PrintableHash);
-
-  return StringRef(Storage.begin(), Storage.size());
+  // Check for collision.
+  UniqueIDRef StoredResult(getNamespace(), toArrayRef(File->Data));
+  if (StoredResult != Result)
+    return make_error<ActionCacheCollisionError>(StoredResult, Action, Result);
+  return Error::success();
 }
 
 /// Need to check that the namespace is the same so the same action cache isn't
@@ -180,8 +131,9 @@ StringRef BuiltinCAS::getPathForID(StringRef BaseDir, CASID ID,
 /// different size and/or meaning).
 ///
 /// FIXME: This sanity check should be stored inside an existing file but
-/// OnDiskHashMappedTrie doesn't currently have support for that. This function
-/// relies on knowing that the on-disk trie is actually a directory...
+/// OnDiskHashMappedTrie doesn't currently have support for top-level metadata
+/// like that (see FIXME there). This function relies on knowing that the
+/// on-disk trie is actually a directory...
 static Error createOrCheckNamespaceFile(const Namespace &NS, StringRef TriePath) {
   SmallString<256> NamespaceFilePath = TriePath;
   sys::path::append(NamespaceFilePath, "namespace");
@@ -198,7 +150,7 @@ static Error createOrCheckNamespaceFile(const Namespace &NS, StringRef TriePath)
   // Lock the file so we can initialize it.
   if (std::error_code EC = sys::fs::lockFile(*FD)) {
     sys::fs::closeFile(FD);
-    return createFileError(Path, EC);
+    return createFileError(NamespaceFilePath, EC);
   }
   auto Unlock = make_scope_exit([&]() { sys::fs::unlockFile(FD); });
 
@@ -212,12 +164,17 @@ static Error createOrCheckNamespaceFile(const Namespace &NS, StringRef TriePath)
     return Error::success();
   }
 
-  /// FIXME: Only read up to Name.size().
+  /// Limit how much of the file to read, in case it's very large.
   SmallString<1024> ExistingContent;
-  if (Error E = sys::fs::readNativeFileToEOF(FD, ExistingContent, /*ChunkSize=*/Name.size()))
-    return E;
+  const size_t SizeLimit = Name.size() + 10;
+  if (Error E = sys::fs::readNativeFileToLimit(FD, ExistingContent, SizeLimit))
+    return createFileError(E, NamespaceFilePath);
   if (ExistingContent != Name)
-    return createStringError(...);
+    return createFileError(TriePath,
+                           make_error<WrongActionCacheNamespaceError>(
+                               NS, ExistingContent.size() == SizeLimit
+                                       ? ExistingContent.drop_back() + "..."
+                                       : ExistingContent));
   return Error::success();
 }
 
@@ -227,16 +184,22 @@ Expected<std::unique_ptr<ActionCache>> cas::createOnDiskActionCache(
   Path.toVector(AbsPath);
   sys::fs::make_absolute(AbsPath);
 
-  if (AbsPath == getDefaultOnDiskActionCacheStableID()) {
+  if (AbsPath == getDefaultOnDiskActionCacheStableID())
     AbsPath = StringRef(getDefaultOnDiskActionCachePath());
-    sys::path::append(NS.getName());
-  }
 
-  // FIXME: Only call create_directories() as a fallback. Can do this in
-  // createOrCheckNamespaceFile().
+  // Append a subdirectory for CAS namespace if using the default path.
+  //
+  // FIXME: This enables using a default action cache path location with a
+  // variety of CAS implementations (could use a non-default CAS). Is that
+  // important/useful?
+  if (AbsPath == getDefaultOnDiskActionCachePath())
+    sys::path::append(NS.getName());
+
+  // FIXME: Only call create_directories() as a fallback.
   if (std::error_code EC = sys::fs::create_directories(AbsPath))
     return createFileError(AbsPath, EC);
 
+  // FIXME: Sink into (new) validation support in OnDiskHashMappedTrie.
   if (Error E = createOrCheckNamespaceFile(AbsPath))
     return std::move(E);
 
@@ -251,8 +214,9 @@ Expected<std::unique_ptr<ActionCache>> cas::createOnDiskActionCache(
 }
 
 // FIXME: Proxy not portable. Maybe also error-prone?
-constexpr StringLiteral DefaultDirProxy = "/^llvm::cas::actions::default";
-constexpr StringLiteral DefaultName = "llvm.cas.actions.default";
+constexpr StringLiteral DefaultDirProxy =
+    "/^llvm::cas::builtin::default::cache";
+constexpr StringLiteral DefaultName = "llvm.cas.builtin.default.cache";
 
 void cas::getDefaultOnDiskActionCachePath(SmallVectorImpl<char> &Path) {
   if (!llvm::sys::path::cache_directory(Path))

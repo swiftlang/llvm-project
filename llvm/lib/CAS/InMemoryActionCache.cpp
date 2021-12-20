@@ -118,14 +118,14 @@ static ActionHashT hashAction(const ActionDescription &Action) {
 
 Error InMemoryActionCache::getImpl(
     ActionDescription &Action, Optional<UniqueIDRef> &Result) {
-  assert(!Result && "Expected result to be reset be entry");
-  ActionHashT Hash;
+  assert(!Result && "Expected result to be reset before entry");
+  ActionHashT ActionHash;
   if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
-    llvm::copy(*CachedHash, Hash.begin());
+    llvm::copy(*CachedHash, ActionHash.begin());
   else
-    cacheHash(Action, Hash = hashAction(Action));
+    cacheHash(Action, ActionHash = hashAction(Action));
 
-  if (auto Lookup = Results.lookup(Hash))
+  if (auto Lookup = Results.lookup(ActionHash))
     Result = Lookup->Data;
 
   // A cache miss is not an error.
@@ -134,38 +134,28 @@ Error InMemoryActionCache::getImpl(
 
 Error InMemoryActionCache::putImpl(
     const ActionDescription &Action, UniqueIDRef Result) {
-  // Ensure we're only storing hashes from a single namespace.
-  assert(&getNamespace() == &Result.getNamespace() && "Mismatched namespace");
-
-  // Check that the inputs are in the same namespace. Not strictly necessary
-  // for correctness of the cache, but if this fails there's probably a bug...
-  //
-  // Note: Only check the first ID here. ActionDescription::serialize() asserts
-  // that they all match. This must be called at some point to generate the
-  // hash.
-  assert((Action.getIDs().empty() ||
-          &getNamespace() == Action.getIDs().front().getNamespace()) &&
-         "Mismatched namespace");
-
-  ActionHashT Hash;
+  ActionHashT ActionHash;
   if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
-    llvm::copy(*CachedHash, Hash.begin());
+    llvm::copy(*CachedHash, ActionHash.begin());
   else
-    Hash = hashAction(Action);
+    ActionHash = hashAction(Action);
 
   // Do a lookup before inserting to avoid allocating when result is present.
   //
   // FIXME: Update trie to delay allocation until *after* finding the slot.
-  Optional<UniqueIDRef> StoredID;
+  Optional<UniqueIDRef> StoredResult;
   auto Lookup = Results.lookup(InputID.getHash());
   if (Lookup)
-    StoredID = Lookup->Data;
+    StoredResult = Lookup->Data;
   else
-    StoredID = ResultCache.insert(Lookup, ResultCacheValueT(Hash, UniqueID(Result))).Data;
+    StoredResult =
+        ResultCache
+            .insert(Lookup, ResultCacheValueT(ActionHash, UniqueID(Result)))
+            .Data;
 
-  // Check for a cache collision.
-  if (StoredID != Result)
-    return make_error<ActionCacheCollisionError>(*StoredID, Action, Result);
+  // Check for collision.
+  if (StoredResult != Result)
+    return make_error<ActionCacheCollisionError>(*StoredResult, Action, Result);
   return Error::success();
 }
 
