@@ -51,6 +51,17 @@ struct HashInfo {
   template <class HasherT> using HashType = decltype(hash<HasherT>(HashType()));
 };
 
+/// Object storage and in-memory lifetime.
+///
+/// Currently uses SHA1 as a hash function.
+///
+/// FIXME: Move from SHA1 to BLAKE3, the latter of which is faster and
+/// stronger.
+///
+/// TODO: Consider adding CAS configuration for how many bytes to use. E.g.,
+/// could use the first 16 bytes of a BLAKE3 hash to reduce storage cost for
+/// references. Depending on the application (e.g., always in-memory), this
+/// might be sufficiently strong.
 class BuiltinCAS : public CASDB {
 public:
   class TempFile;

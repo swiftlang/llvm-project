@@ -31,10 +31,8 @@ namespace {
 /// The hasher to use for actions. This need not match the hasher for the
 /// Namespace.
 ///
-/// FIXME: Update to BLAKE3 at some point and use a subset of the bits (since
-/// 32B is overkill). That's faster than SHA1. Note that for in-memory use,
-/// collisions seem exceedingly unlikely, so even the 20B in SHA1 are probably
-/// overkill.
+/// FIXME: Update to BLAKE3 at some point, which is faster and stronger than
+/// SHA1.
 using ActionHasherT = SHA1;
 
 static constexpr size_t ActionHashNumBytes = sizeof(ActionHasherT::hash(None));

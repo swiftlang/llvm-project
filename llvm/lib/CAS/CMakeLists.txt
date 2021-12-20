@@ -8,8 +8,10 @@ add_llvm_component_library(LLVMCAS
   FileSystemCache.cpp
   HashMappedTrie.cpp
   HierarchicalTreeBuilder.cpp
+  InMemoryActionCache.cpp
   Namespace.cpp
   NamespaceHelpers.cpp
+  OnDiskActionCache.cpp
   OnDiskHashMappedTrie.cpp
   PluginCAS.cpp
   UniqueID.cpp
