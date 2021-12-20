@@ -6,21 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/ScopeExit.h"
-#include "llvm/ADT/StringMap.h"
-#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/HashMappedTrie.h"
-#include "llvm/CAS/NamespaceHelpers.h"
-#include "llvm/CAS/ThreadSafeAllocator.h"
-#include "llvm/Support/Allocator.h"
-#include "llvm/Support/EndianStream.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/Path.h"
-#include "llvm/Support/Process.h"
-#include "llvm/Support/SmallVectorMemoryBuffer.h"
-#include "llvm/Support/StringSaver.h"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -53,13 +40,14 @@ using ActionHashT = std::array<uint8_t, ActionHashNumBytes>;
 /// optionally be sharded.
 class InMemoryActionCache final : public ActionCache {
 public:
-  Error getImpl(ActionDescription &Action, Optional<UniqueIDRef> &Result) override;
+  Error getWithLifetimeImpl(ActionDescription &Action,
+                            Optional<UniqueIDRef> &Result) override;
   Error putImpl(const ActionDescription &Action, UniqueIDRef Result) override;
   InMemoryActionCache(const Namespace &NS) : ActionCache(NS) {}
 
 private:
-  /// Map from \a ActionHashT, which is a hash of the serialized \a
-  /// ActionDescription, to the result.
+  /// Cache results (currently storing \a UniqueID) based on the hash of the
+  /// action that generated them, indicated by \a ActionHashT.
   ///
   /// FIXME: Ideally, the stored data for the result ID would be \c
   /// std::array<uint8_t> (the bytes from \a UniqueID::getHash()). This avoids
@@ -76,7 +64,7 @@ private:
   /// allocations, not add another layer.
   ///
   /// For now, store \a UniqueID. This wastes some space, but it's simple.
-  using ResultCacheT = ThreadSafeHashMappedTrie<ActionHashT, UniqueID>;
+  using ResultCacheT = ThreadSafeHashMappedTrie<UniqueID, ActionHashT>;
 
   /// Pull out the value type for convenience.
   using ResultCacheValueT = ResultCacheT::HashedDataType;
@@ -87,43 +75,14 @@ private:
 
 } // end namespace
 
-static Error createResultCachePoisonedError(CASID InputID, CASID OutputID,
-                                            CASID ExistingOutputID) {
-  SmallString<64> InputHash, OutputHash, ExistingOutputHash;
-  extractPrintableHash(InputID, InputHash);
-  extractPrintableHash(OutputID, OutputHash);
-  extractPrintableHash(ExistingOutputID, ExistingOutputHash);
-  return createStringError(std::make_error_code(std::errc::invalid_argument),
-                           "cache poisoned for '" + InputHash + "' (new='" +
-                               OutputHash + "' vs. existing '" +
-                               ExistingOutputHash + "')");
-}
-
-static Error createResultCacheCorruptError(CASID InputID) {
-  SmallString<64> InputHash;
-  extractPrintableHash(InputID, InputHash);
-  return createStringError(std::make_error_code(std::errc::invalid_argument),
-                           "result cache corrupt for '" + InputHash + "'");
-}
-
-static ActionHashT hashAction(const ActionDescription &Action) {
-  ActionHasherT Hasher;
-  Action.serialize([&Hasher](ArrayRef<uint8_t> Bytes) { Hasher.update(Bytes); });
-  Storage.resize(ActionHashNumBytes);
-
-  ActionHashT Hash;
-  llvm::copy(Hasher.final(), Hash.begin());
-  return Hash;
-}
-
-Error InMemoryActionCache::getImpl(
-    ActionDescription &Action, Optional<UniqueIDRef> &Result) {
+Error InMemoryActionCache::getWithLifetimeImpl(ActionDescription &Action,
+                                               Optional<UniqueIDRef> &Result) {
   assert(!Result && "Expected result to be reset before entry");
   ActionHashT ActionHash;
   if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
     llvm::copy(*CachedHash, ActionHash.begin());
   else
-    cacheHash(Action, ActionHash = hashAction(Action));
+    cacheHash(Action, ActionHash = Action.computeHash<ActionHasherT>());
 
   if (auto Lookup = Results.lookup(ActionHash))
     Result = Lookup->Data;
@@ -138,19 +97,18 @@ Error InMemoryActionCache::putImpl(
   if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
     llvm::copy(*CachedHash, ActionHash.begin());
   else
-    ActionHash = hashAction(Action);
+    ActionHash = Action.computeHash<ActionHasherT>();
 
   // Do a lookup before inserting to avoid allocating when result is present.
   //
   // FIXME: Update trie to delay allocation until *after* finding the slot.
   Optional<UniqueIDRef> StoredResult;
-  auto Lookup = Results.lookup(InputID.getHash());
+  auto Lookup = Results.lookup(ActionHash);
   if (Lookup)
     StoredResult = Lookup->Data;
   else
     StoredResult =
-        ResultCache
-            .insert(Lookup, ResultCacheValueT(ActionHash, UniqueID(Result)))
+        Results.insert(Lookup, ResultCacheValueT(ActionHash, UniqueID(Result)))
             .Data;
 
   // Check for collision.
@@ -159,6 +117,7 @@ Error InMemoryActionCache::putImpl(
   return Error::success();
 }
 
-std::unique_ptr<CASDB> cas::createInMemoryActionCache(const Namespace &NS) {
+std::unique_ptr<ActionCache>
+cas::createInMemoryActionCache(const Namespace &NS) {
   return std::make_unique<InMemoryActionCache>(NS);
 }

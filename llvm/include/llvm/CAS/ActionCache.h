@@ -47,7 +47,8 @@ public:
   ArrayRef<UniqueIDRef> getIDs() const { return IDs; }
   StringRef getExtraData() const { return ExtraData; }
 
-  void print(raw_ostream &OS, bool PrintIDs = true, PrintExtraData = false) const;
+  void print(raw_ostream &OS, bool PrintIDs = true,
+             bool PrintExtraData = false) const;
   void dump() const;
   friend raw_ostream &operator<<(raw_ostream &OS, const ActionDescription &Action) {
     Action.print(OS);
@@ -55,7 +56,26 @@ public:
   }
 
   /// Serialize. This can be used to hash the description.
+  ///
+  /// This does not serialize the \a Namespace of IDs, which must be known by
+  /// context.
+  ///
+  /// TODO: Consider adding a deserialize() free function that takes \a
+  /// Namespace as an argument.
   void serialize(function_ref<void (ArrayRef<uint8_t>)> AppendBytes) const;
+
+  template <class HasherT> void updateHasher(HasherT &Hasher) const {
+    serialize([&Hasher](ArrayRef<uint8_t> Bytes) { Hasher.update(Bytes); });
+  }
+  template <class HasherT,
+            class HashT = std::array<uint8_t, sizeof(HasherT::hash(None))>>
+  HashT computeHash() const {
+    HasherT Hasher;
+    updateHasher(Hasher);
+    HashT Hash;
+    llvm::copy(Hasher.final(), Hash.begin());
+    return Hash;
+  }
 
 private:
   const StringRef Identifier;
@@ -122,7 +142,7 @@ public:
     // asserts that they all match; assume this will be called at some point to
     // generate a hash for it.
     assert((Action.getIDs().empty() ||
-            &getNamespace() == Action.getIDs().front().getNamespace()) &&
+            &getNamespace() == &Action.getIDs().front().getNamespace()) &&
            "Mismatched namespace");
 
     return putImpl(Action, Result);
@@ -176,7 +196,7 @@ protected:
   }
 
   /// Access the stored hash computed for \p Action.
-  Optional<ArrayRef<uint8_t>> getCachedHash(ActionDescription &Action) {
+  Optional<ArrayRef<uint8_t>> getCachedHash(const ActionDescription &Action) {
     if (Action.Cached.Creator != this)
       return None;
     return makeArrayRef(Action.Cached.Hash, Action.Cached.HashSize);

@@ -18,15 +18,15 @@ using namespace llvm::cas;
 char ActionDescriptionError::ID = 0;
 void ActionDescriptionError::anchor() {}
 
-void ActionDescriptionError::log(raw_ostream &OS) const override {
+void ActionDescriptionError::log(raw_ostream &OS) const {
   ECError::log(OS);
   OS << ": action " << Action;
 }
 
 void ActionDescriptionError::saveAction(const ActionDescription &Action) {
-  SmallString<128> Printed;
-  raw_svector_stream(Printed) << Action;
-  this->Action = Printed;
+  SmallString<1024> Printed;
+  raw_svector_ostream(Printed) << Action;
+  this->Action = Printed.str().str();
 }
 
 char ActionCacheCollisionError::ID = 0;
@@ -40,7 +40,7 @@ void ActionCacheCollisionError::log(raw_ostream &OS) const {
 char CorruptActionCacheResultError::ID = 0;
 void CorruptActionCacheResultError::anchor() {}
 
-void CorruptActionCacheResultError::log(raw_ostream &OS) const override {
+void CorruptActionCacheResultError::log(raw_ostream &OS) const {
   OS << "cached result corrupt for action " << getAction();
 }
 
@@ -48,42 +48,40 @@ char WrongActionCacheNamespaceError::ID = 0;
 void WrongActionCacheNamespaceError::anchor() {}
 
 void WrongActionCacheNamespaceError::log(raw_ostream &OS) const {
-  OS << "wrong namespace for action cache";
-  if (Path)
-    OS << "at '" << *Path << "'";
-  OS << ": expected '" << ExpectedNamespace << " but observed '"
-     << ObservedNamespace << ")";
+  OS << "wrong action cache namespace: expected '" << ExpectedNamespaceName
+     << "' but observed '" << ObservedNamespaceName << "'";
 }
 static ArrayRef<uint8_t> toArrayRef(StringRef String) {
-  return ArrayRef<uint8_t>(static_cast<const uint8_t *>(String.begin()),
-                           static_cast<const uint8_t *>(String.end()));
+  return ArrayRef<uint8_t>(reinterpret_cast<const uint8_t *>(String.begin()),
+                           reinterpret_cast<const uint8_t *>(String.end()));
 }
 
 void ActionDescription::serialize(function_ref<void (ArrayRef<uint8_t>)> AppendBytes) const {
   const Namespace *NS = nullptr;
-  // Serialize sizes of all strings / arrays / hashes.
+  // Serialize sizes of strings / arrays.
   {
-    SmallVector<char, 64> Sizes;
+    SmallString<sizeof(uint32_t) * 4> Sizes;
     raw_svector_ostream SizesOS(Sizes);
     support::endian::Writer SizesEW(SizesOS, support::endianness::little);
+    SizesEW.write(uint32_t(IDs.size()));
     SizesEW.write(uint32_t(Identifier.size()));
     SizesEW.write(uint32_t(ExtraData.size()));
-    SizesEW.write(uint32_t(IDs.size()));
 
     if (!IDs.empty()) {
       NS = &IDs.front().getNamespace();
+
+      // FIXME: Consider removing, since the namespace is supposed to be
+      // implied from context. But the slight redundancy is cheap and might be
+      // useful.
       SizesEW.write(uint32_t(NS->getHashSize()));
-      SizesEW.write(uint32_t(NS->getName().size()));
     }
 
-    AppendBytes(Sizes);
+    AppendBytes(toArrayRef(Sizes));
   }
 
   // Serialize content of strings / arrays / hashes.
   AppendBytes(toArrayRef(Identifier));
-  if (NS)
-    AppendBytes(toArrayRef(NS->getName()));
-  for (ObjectIDRef ID : ID) {
+  for (UniqueIDRef ID : IDs) {
     assert(&ID.getNamespace() == NS && "Expected IDs to share a namespace!");
     AppendBytes(ID.getHash());
   }

@@ -7,21 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/ScopeExit.h"
-#include "llvm/ADT/StringMap.h"
-#include "llvm/CAS/CASDB.h"
-#include "llvm/CAS/HashMappedTrie.h"
-#include "llvm/CAS/NamespaceHelpers.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/OnDiskHashMappedTrie.h"
-#include "llvm/CAS/ThreadSafeAllocator.h"
-#include "llvm/Support/Allocator.h"
-#include "llvm/Support/EndianStream.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/Process.h"
-#include "llvm/Support/SmallVectorMemoryBuffer.h"
-#include "llvm/Support/StringSaver.h"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -53,11 +42,13 @@ using ActionHashT = std::array<uint8_t, ActionHashNumBytes>;
 /// hash.
 class OnDiskActionCache : public ActionCache {
 public:
-  Error getImpl(ActionDescription &Action, UniqueID &Result) override;
+  Error getWithLifetimeImpl(ActionDescription &Action,
+                            Optional<UniqueIDRef> &Result) override;
   Error putImpl(const ActionDescription &Action, UniqueIDRef Result) override;
 
-  OnDiskActionCache(StringRef Path, std::shared_ptr<OnDiskHashMappedTrie> Results)
-      : Path(Path.str()), Results(std::move(Results)) {}
+  OnDiskActionCache(const Namespace &NS, StringRef Path,
+                    std::shared_ptr<OnDiskHashMappedTrie> Results)
+      : ActionCache(NS), Path(Path.str()), Results(std::move(Results)) {}
 
 private:
   using MappedContentReference = OnDiskHashMappedTrie::MappedContentReference;
@@ -72,17 +63,18 @@ private:
 } // end namespace
 
 static ArrayRef<uint8_t> toArrayRef(StringRef Data) {
-  return makeArrayRef(static_cast<const uint8_t *>(File->Data.begin()),
-                      static_cast<const uint8_t *>(File->Data.end()));
+  return makeArrayRef(reinterpret_cast<const uint8_t *>(Data.begin()),
+                      reinterpret_cast<const uint8_t *>(Data.end()));
 }
 
-Error OnDiskActionCache::getImpl(ActionDescription &Action, UniqueID &Result) {
+Error OnDiskActionCache::getWithLifetimeImpl(ActionDescription &Action,
+                                             Optional<UniqueIDRef> &Result) {
   assert(!Result && "Expected result to be reset before entry");
   ActionHashT ActionHash;
   if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
     llvm::copy(*CachedHash, ActionHash.begin());
   else
-    cacheHash(Action, ActionHash = hashAction(Action));
+    cacheHash(Action, ActionHash = Action.computeHash<ActionHasherT>());
 
   Optional<MappedContentReference> File =
       openOnDisk(*OnDiskResults, ActionHash);
@@ -106,11 +98,11 @@ Error OnDiskActionCache::putImpl(const ActionDescription &Action,
   if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
     llvm::copy(*CachedHash, ActionHash.begin());
   else
-    ActionHash = hashAction(Action);
+    ActionHash = Action.computeHash<ActionHasherT>();
 
   // Insert and check for corruption of existing result.
-  StringRef ResultData(static_cast<const char *>(Result.getHash().begin()),
-                       static_cast<const char *>(Result.getHash().end()));
+  StringRef ResultData(reinterpret_cast<const char *>(Result.getHash().begin()),
+                       reinterpret_cast<const char *>(Result.getHash().end()));
   MappedContentReference File =
       OnDiskResults->insert(ActionHash, "results", ResultData);
   if (File->Metadata != "results" ||
