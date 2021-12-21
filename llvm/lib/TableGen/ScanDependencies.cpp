@@ -75,12 +75,9 @@ void tablegen::scanTextForIncludes(StringRef Input,
 }
 
 static Error
-fetchCachedIncludedFiles(cas::CASDB &CAS, cas::CASID ID,
+fetchCachedIncludedFiles(cas::BlobRef Blob,
                          SmallVectorImpl<StringRef> &IncludedFiles) {
-  Expected<cas::BlobRef> ExpectedBlob = CAS.getBlob(ID);
-  if (!ExpectedBlob)
-    return ExpectedBlob.takeError();
-  splitFlattenedStrings(ExpectedBlob->getData(), IncludedFiles);
+  splitFlattenedStrings(Blob.getData(), IncludedFiles);
   return Error::success();
 }
 
@@ -107,7 +104,9 @@ Error tablegen::scanTextForIncludes(cas::CASDB &CAS, cas::ActionCache &Cache,
   if (Error E = Cache.get(Action, ResultID))
     return E;
   if (ResultID)
-    return fetchCachedIncludedFiles(CAS, CAS.getCASID(*ResultID), Includes);
+    if (Optional<cas::BlobRef> Blob =
+            expectedToOptional(CAS.getBlob(*ResultID)))
+      return fetchCachedIncludedFiles(*Blob, Includes);
   return computeIncludedFiles(CAS, Cache, Action, Blob.getData(), Includes);
 }
 

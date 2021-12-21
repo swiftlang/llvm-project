@@ -276,7 +276,7 @@ struct TableGenCache {
   Error lookupCachedResult(ArrayRef<const char *> Args);
 
   Error computeResult(TableGenMainFn *MainFn);
-  Error replayResult();
+  Error replayResult(cas::TreeRef Tree);
 
   void createInversePrefixMap();
 };
@@ -417,7 +417,9 @@ struct CapturedDiagnostics {
 
 Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
   if (ResultID)
-    return replayResult();
+    if (Optional<cas::TreeRef> Tree =
+            expectedToOptional(CAS->getTree(*ResultID)))
+      return replayResult(*Tree);
 
   std::string CapturedStderr;
   std::string OutputStorage;
@@ -472,15 +474,9 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
   return Cache->put(*Action, CAS->getUniqueID(*Tree));
 }
 
-Error TableGenCache::replayResult() {
-  assert(ResultID && "Need a result!");
-
-  Expected<cas::TreeRef> Tree = CAS->getTree(CAS->getCASID(*ResultID));
-  if (!Tree)
-    return Tree.takeError();
-
+Error TableGenCache::replayResult(cas::TreeRef Tree) {
   auto getBlob = [&](StringRef Name, Optional<cas::BlobRef> &Blob) -> Error {
-    Optional<cas::NamedTreeEntry> Entry = Tree->lookup(Name);
+    Optional<cas::NamedTreeEntry> Entry = Tree.lookup(Name);
     if (!Entry)
       return Error::success();
     Expected<cas::BlobRef> ExpectedBlob = CAS->getBlob(Entry->getID());

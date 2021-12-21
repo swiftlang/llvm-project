@@ -197,17 +197,7 @@ private:
 ///          - If an InMemoryView adapts a BuiltinNullCAS, it should be
 ///            equivalent to the current return of \a createInMemoryCAS().
 ///
-/// - ActionCache. Assigned to a specific Namespace, is a cache/map from an
-///   arbitrary StringRef to a UniqueID. Must be in the same namespace as the
-///   IDs it stores.
-///     - put: (StringRef, UniqueIDRef)           => Error
-///     - get: (StringRef, UniqueID&)             => Error
-///     - get: (StringRef, Optional<UniqueIDRef>) => Error // provides lifetime
-///     - Concrete subclasses:
-///         - InMemory -- can use ThreadSafeHashMappedTrie
-///         - OnDisk -- can use OnDiskHashMappedTrie, but lots of options; needs
-///           configuration
-///         - Plugin -- simple plugin API for the cache itself
+/// - \a ActionCache (which has been split out!).
 ///
 /// Plugins:
 /// ========
@@ -376,6 +366,15 @@ public:
 
   virtual Optional<ObjectKind> getObjectKind(CASID ID) = 0;
   virtual bool isKnownObject(CASID ID) { return bool(getObjectKind(ID)); }
+
+  // Transitional APIs.
+  Expected<BlobRef> getBlob(UniqueIDRef ID) { return getBlob(getCASID(ID)); }
+  Expected<TreeRef> getTree(UniqueIDRef ID) { return getTree(getCASID(ID)); }
+  Expected<NodeRef> getNode(UniqueIDRef ID) { return getNode(getCASID(ID)); }
+  Optional<ObjectKind> getObjectKind(UniqueIDRef ID) {
+    return getObjectKind(getCASID(ID));
+  }
+  bool isKnownObject(UniqueIDRef ID) { return isKnownObject(getCASID(ID)); }
 
   virtual void print(raw_ostream &) const {}
   void dump() const;
