@@ -1,9 +1,8 @@
 //===-------- JITLink_EHFrameSupport.cpp - JITLink eh-frame utils ---------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -665,7 +664,7 @@ EHFrameEdgeFixer::readEncodedPointer(uint8_t PointerEncoding,
     EffectiveType = (PointerSize == 8) ? DW_EH_PE_udata8 : DW_EH_PE_udata4;
 
   JITTargetAddress Addr;
-  Edge::Kind PointerEdgeKind;
+  Edge::Kind PointerEdgeKind = Edge::Invalid;
   switch (EffectiveType) {
   case DW_EH_PE_udata4: {
     uint32_t Val;

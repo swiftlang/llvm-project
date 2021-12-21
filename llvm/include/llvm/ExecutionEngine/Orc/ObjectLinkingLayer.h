@@ -101,7 +101,11 @@ public:
   using ReturnObjectBufferFunction =
       std::function<void(std::unique_ptr<MemoryBuffer>)>;
 
-  /// Construct an ObjectLinkingLayer.
+  /// Construct an ObjectLinkingLayer using the ExecutorProcessControl
+  /// instance's memory manager.
+  ObjectLinkingLayer(ExecutionSession &ES);
+
+  /// Construct an ObjectLinkingLayer using a custom memory manager.
   ObjectLinkingLayer(ExecutionSession &ES,
                      jitlink::JITLinkMemoryManager &MemMgr);
 
@@ -180,13 +184,13 @@ public:
   }
 
 private:
-  using AllocPtr = std::unique_ptr<jitlink::JITLinkMemoryManager::Allocation>;
+  using FinalizedAlloc = jitlink::JITLinkMemoryManager::FinalizedAlloc;
 
   void modifyPassConfig(MaterializationResponsibility &MR,
                         jitlink::LinkGraph &G,
                         jitlink::PassConfiguration &PassConfig);
   void notifyLoaded(MaterializationResponsibility &MR);
-  Error notifyEmitted(MaterializationResponsibility &MR, AllocPtr Alloc);
+  Error notifyEmitted(MaterializationResponsibility &MR, FinalizedAlloc FA);
 
   Error handleRemoveResources(ResourceKey K) override;
   void handleTransferResources(ResourceKey DstKey, ResourceKey SrcKey) override;
@@ -197,7 +201,7 @@ private:
   bool OverrideObjectFlags = false;
   bool AutoClaimObjectSymbols = false;
   ReturnObjectBufferFunction ReturnObjectBuffer;
-  DenseMap<ResourceKey, std::vector<AllocPtr>> Allocs;
+  DenseMap<ResourceKey, std::vector<FinalizedAlloc>> Allocs;
   std::vector<std::unique_ptr<Plugin>> Plugins;
 };
 
