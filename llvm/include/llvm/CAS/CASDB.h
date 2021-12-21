@@ -365,9 +365,6 @@ public:
   virtual Optional<ObjectKind> getObjectKind(CASID ID) = 0;
   virtual bool isKnownObject(CASID ID) { return bool(getObjectKind(ID)); }
 
-  virtual Expected<CASID> getCachedResult(CASID InputID) = 0;
-  virtual Error putCachedResult(CASID InputID, CASID OutputID) = 0;
-
   virtual void print(raw_ostream &) const {}
   void dump() const;
 
