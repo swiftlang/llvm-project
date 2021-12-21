@@ -62,7 +62,7 @@ private:
   const size_t HashSize;
 };
 
-class NamespaceParseIDError
+class NamespaceParseIDError final
     : public ErrorInfo<NamespaceParseIDError, StringError> {
   void anchor() override;
 
