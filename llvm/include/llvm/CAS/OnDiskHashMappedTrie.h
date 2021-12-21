@@ -69,6 +69,7 @@ public:
         sys::fs::mapped_file_region Map = sys::fs::mapped_file_region())
         : Metadata(Metadata), Data(Data), Map(std::move(Map)) {}
     MappedContentReference(MappedContentReference &&) = default;
+    MappedContentReference &operator=(MappedContentReference &&) = default;
   };
 
   /// Result of a lookup. Suitable for an insertion hint. Maybe could be
@@ -77,8 +78,12 @@ public:
   /// through an iterator pattern).
   class LookupResult {
   public:
-    Optional<MappedContentReference> &get() { return Content; }
+    MappedContentReference &&take() {
+      assert(Content && "Expected valid content");
+      return std::move(*Content);
+    }
 
+    /// Returns true if \a get() is not \c None.
     explicit operator bool() const { return I == -2u; }
 
     LookupResult() noexcept = default;

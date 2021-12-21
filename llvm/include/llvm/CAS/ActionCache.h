@@ -248,6 +248,11 @@ Expected<std::unique_ptr<ActionCache>>
 createPluginActionCache(const Namespace &NS, StringRef PluginPath,
                         ArrayRef<std::string> PluginArgs = None);
 
+void getDefaultOnDiskActionCachePath(SmallVectorImpl<char> &Path);
+std::string getDefaultOnDiskActionCachePath();
+void getDefaultOnDiskActionCacheStableID(SmallVectorImpl<char> &Path);
+std::string getDefaultOnDiskActionCacheStableID();
+
 /// An error for opening an \a ActionCache with the wrong namespace.
 class WrongActionCacheNamespaceError final
     : public ErrorInfo<WrongActionCacheNamespaceError> {

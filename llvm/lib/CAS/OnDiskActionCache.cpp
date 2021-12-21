@@ -76,14 +76,19 @@ Error OnDiskActionCache::getWithLifetimeImpl(ActionDescription &Action,
   else
     cacheHash(Action, ActionHash = Action.computeHash<ActionHasherT>());
 
-  Optional<MappedContentReference> File =
-      openOnDisk(*OnDiskResults, ActionHash);
-  if (!File)
+  Optional<MappedContentReference> Stored;
+  if (auto Lookup = Results->lookup(ActionHash))
+    Stored = Lookup.take();
+  else
     return Error::success(); // Cache miss is not an error.
 
   // Check for corruption.
-  ArrayRef<uint8_t> ResultHash = toArrayRef(File->Data);
-  if (File->Metadata != "results" ||
+  //
+  // FIXME: Add some configuration to OnDiskHashMappedTrie to guarantee the
+  // results are not outlined, and change that part to an assertion (property
+  // can be validated on initialization of the trie, and then assert here).
+  ArrayRef<uint8_t> ResultHash = toArrayRef(Stored->Data);
+  if (Stored->Map || Stored->Metadata != "results" ||
       ResultHash.size() != getNamespace().getHashSize())
     return make_error<CorruptActionCacheResultError>(Action);
 
@@ -93,7 +98,7 @@ Error OnDiskActionCache::getWithLifetimeImpl(ActionDescription &Action,
 }
 
 Error OnDiskActionCache::putImpl(const ActionDescription &Action,
-                                 const UniqueIDRef &Result) {
+                                 UniqueIDRef Result) {
   ActionHashT ActionHash;
   if (Optional<ArrayRef<uint8_t>> CachedHash = getCachedHash(Action))
     llvm::copy(*CachedHash, ActionHash.begin());
@@ -101,16 +106,24 @@ Error OnDiskActionCache::putImpl(const ActionDescription &Action,
     ActionHash = Action.computeHash<ActionHasherT>();
 
   // Insert and check for corruption of existing result.
+  //
+  // The check against \a Stored.Map is in-case Results has outlined some large
+  // data into a separate file. For the action cache, that doesn't make any
+  // sense and indicates corruption.
+  //
+  // FIXME: Add some configuration to OnDiskHashMappedTrie to guarantee the
+  // results are not outlined, and change that part to an assertion (property
+  // can be validated on initialization of the trie, and then assert here).
   StringRef ResultData(reinterpret_cast<const char *>(Result.getHash().begin()),
-                       reinterpret_cast<const char *>(Result.getHash().end()));
-  MappedContentReference File =
-      OnDiskResults->insert(ActionHash, "results", ResultData);
-  if (File->Metadata != "results" ||
-      File->Data.size() != getNamespace().getHashSize())
+                       Result.getHash().size());
+  MappedContentReference Stored =
+      Results->insert(ActionHash, "results", ResultData);
+  if (Stored.Map || Stored.Metadata != "results" ||
+      Stored.Data.size() != getNamespace().getHashSize())
     return make_error<CorruptActionCacheResultError>(Action);
 
   // Check for collision.
-  UniqueIDRef StoredResult(getNamespace(), toArrayRef(File->Data));
+  UniqueIDRef StoredResult(getNamespace(), toArrayRef(Stored.Data));
   if (StoredResult != Result)
     return make_error<ActionCacheCollisionError>(StoredResult, Action, Result);
   return Error::success();
@@ -133,19 +146,20 @@ static Error createOrCheckNamespaceFile(const Namespace &NS, StringRef TriePath)
   // FIXME: Check for create directories error and retry.
   sys::fs::file_t FD;
   if (Error E = sys::fs::openNativeFileForReadWrite(
-          NamespaceFilePath, sys::fs::CD_OpenAlways, sys::fs::OF_None))
+                    NamespaceFilePath, sys::fs::CD_OpenAlways, sys::fs::OF_None)
+                    .moveInto(FD))
     return E;
-  auto Close = make_scope_exit([&]() { sys::fs::close(FD); });
+  auto Close = make_scope_exit([&]() { sys::fs::closeFile(FD); });
 
   // Lock the file so we can initialize it.
-  if (std::error_code EC = sys::fs::lockFile(*FD)) {
+  if (std::error_code EC = sys::fs::lockFile(FD)) {
     sys::fs::closeFile(FD);
     return createFileError(NamespaceFilePath, EC);
   }
   auto Unlock = make_scope_exit([&]() { sys::fs::unlockFile(FD); });
 
   sys::fs::file_status Status;
-  if (std::error_code EC = sys::fs::status(*FD, Status))
+  if (std::error_code EC = sys::fs::status(FD, Status))
     return errorCodeToError(EC);
 
   uint64_t FileSize = Status.getSize();
@@ -158,13 +172,13 @@ static Error createOrCheckNamespaceFile(const Namespace &NS, StringRef TriePath)
   SmallString<1024> ExistingContent;
   const size_t SizeLimit = Name.size() + 10;
   if (Error E = sys::fs::readNativeFileToLimit(FD, ExistingContent, SizeLimit))
-    return createFileError(E, NamespaceFilePath);
+    return createFileError(NamespaceFilePath, std::move(E));
   if (ExistingContent != Name)
-    return createFileError(TriePath,
-                           make_error<WrongActionCacheNamespaceError>(
-                               NS, ExistingContent.size() == SizeLimit
-                                       ? ExistingContent.drop_back() + "..."
-                                       : ExistingContent));
+    return createFileError(
+        TriePath, make_error<WrongActionCacheNamespaceError>(
+                      NS, ExistingContent.size() == SizeLimit
+                              ? StringRef(ExistingContent).drop_back() + "..."
+                              : ExistingContent));
   return Error::success();
 }
 
@@ -183,24 +197,24 @@ Expected<std::unique_ptr<ActionCache>> cas::createOnDiskActionCache(
   // variety of CAS implementations (could use a non-default CAS). Is that
   // important/useful?
   if (AbsPath == getDefaultOnDiskActionCachePath())
-    sys::path::append(NS.getName());
+    sys::path::append(AbsPath, NS.getName());
 
   // FIXME: Only call create_directories() as a fallback.
   if (std::error_code EC = sys::fs::create_directories(AbsPath))
     return createFileError(AbsPath, EC);
 
   // FIXME: Sink into (new) validation support in OnDiskHashMappedTrie.
-  if (Error E = createOrCheckNamespaceFile(AbsPath))
+  if (Error E = createOrCheckNamespaceFile(NS, AbsPath))
     return std::move(E);
 
   std::shared_ptr<OnDiskHashMappedTrie> Results;
   constexpr uint64_t GB = 1024ull * 1024ull * 1024ull;
   if (Error E = OnDiskHashMappedTrie::create(
-          AbsPath, NumHashBytes * sizeof(uint8_t), GB).moveInto(Results))
+                    AbsPath, sizeof(ActionHashT) * sizeof(uint8_t), GB)
+                    .moveInto(Results))
     return std::move(E);
 
-  return std::make_unique<ActionCache>(AbsPath, std::move(OnDiskObjects),
-                                      std::move(OnDiskResults));
+  return std::make_unique<OnDiskActionCache>(NS, AbsPath, std::move(Results));
 }
 
 // FIXME: Proxy not portable. Maybe also error-prone?
