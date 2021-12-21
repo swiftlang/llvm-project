@@ -1027,18 +1027,6 @@ enum : size_t { DefaultReadChunkSize = 4 * 4096 };
 Error readNativeFileToEOF(file_t FileHandle, SmallVectorImpl<char> &Buffer,
                           ssize_t ChunkSize = DefaultReadChunkSize);
 
-/// Reads from \p FileHandle into \p Buffer, not allowing it to exceed size \p
-/// SizeLimit.
-///
-/// This calls \a readNativeFile() in a loop. On Error, previous chunks that
-/// were read successfully are left in \p Buffer and returned.
-///
-/// \param FileHandle File to read from.
-/// \param Buffer Where to put the file content.
-/// \param SizeLimit limit for the size of \p Buffer.
-Error readNativeFileToLimit(file_t FileHandle, SmallVectorImpl<char> &Buffer,
-                            size_t SizeLimit);
-
 /// Reads \p Buf.size() bytes from \p FileHandle at offset \p Offset into \p
 /// Buf. If 'pread' is available, this will use that, otherwise it will use
 /// 'lseek'. Returns the number of bytes actually read. Returns 0 when reaching

@@ -1183,27 +1183,6 @@ Error readNativeFileToEOF(file_t FileHandle, SmallVectorImpl<char> &Buffer,
   }
 }
 
-Error readNativeFileToLimit(file_t FileHandle, SmallVectorImpl<char> &Buffer,
-                            size_t SizeLimit) {
-  // Install a handler to truncate the buffer to the correct size on exit.
-  size_t Size = Buffer.size();
-  auto TruncateOnExit = make_scope_exit([&]() { Buffer.truncate(Size); });
-
-  // Read into Buffer until we hit EOF.
-  Buffer.resize_for_overwrite(SizeLimit);
-  while (Size < SizeLimit) {
-    Expected<size_t> ReadBytes =
-        readNativeFile(FileHandle, makeMutableArrayRef(Buffer.begin() + Size,
-                                                       SizeLimit - Size));
-    if (!ReadBytes)
-      return ReadBytes.takeError();
-    if (*ReadBytes == 0)
-      break;
-    Size += *ReadBytes;
-  }
-  return Error::success();
-}
-
 } // end namespace fs
 } // end namespace sys
 } // end namespace llvm
