@@ -5,6 +5,8 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_unittest(CASTests
+  ActionCacheTest.cpp
+  ActionDescriptionTest.cpp
   CASDBTest.cpp
   CASFileSystemTest.cpp
   CASOutputBackendTest.cpp
