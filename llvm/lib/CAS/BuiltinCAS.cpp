@@ -92,7 +92,7 @@ public:
   /// A CASID plus a reference to an object stored in memory.
   struct ObjectAndID {
     const ObjectContentReference &Object;
-    CASID ID;
+    UniqueIDRef ID;
   };
 
   /// List of references, either as CASIDs or a contiguous block.
@@ -666,7 +666,7 @@ Expected<ObjectAndID> BuiltinCAS::getObject(CASID ID) {
   HashRef Hash = ID.getHash();
   auto Lookup = ObjectCache.lookup(Hash);
   if (Lookup)
-    return ObjectAndID{Lookup->Data, CASID(Lookup->Hash)};
+    return ObjectAndID{Lookup->Data, UniqueIDRef(getNamespace(), Lookup->Hash)};
 
   if (isInMemoryOnly())
     return createUnknownObjectError(ID);
@@ -683,7 +683,7 @@ Expected<ObjectAndID> BuiltinCAS::getObject(CASID ID) {
 
   auto &Insertion = ObjectCache.insert(
       Lookup, ObjectCacheType::HashedDataType(makeHash(Hash), *Object));
-  return ObjectAndID{Insertion.Data, CASID(Insertion.Hash)};
+  return ObjectAndID{Insertion.Data, UniqueIDRef(getNamespace(), Insertion.Hash)};
 }
 
 Expected<BlobRef> BuiltinCAS::getBlobFromObject(Expected<ObjectAndID> Object) {
@@ -860,7 +860,7 @@ Expected<ObjectAndID> BuiltinCAS::createObject(
   auto Lookup = ObjectCache.lookup(Hash);
   if (Lookup) {
     assert(Object.Data == Lookup->Data.Data);
-    return ObjectAndID{Lookup->Data, CASID(Lookup->Hash)};
+    return ObjectAndID{Lookup->Data, UniqueIDRef(getNamespace(), Lookup->Hash)};
   }
 
   SmallString<256> Metadata;
@@ -881,7 +881,7 @@ Expected<ObjectAndID> BuiltinCAS::createObject(
 
   auto &Insertion = ObjectCache.insert(
       Lookup, ObjectCacheType::HashedDataType(Hash, *PersistentObject));
-  return ObjectAndID{Insertion.Data, CASID(Insertion.Hash)};
+  return ObjectAndID{Insertion.Data, UniqueIDRef(getNamespace(), Insertion.Hash)};
 }
 
 Expected<BlobRef> BuiltinCAS::createBlobImpl(

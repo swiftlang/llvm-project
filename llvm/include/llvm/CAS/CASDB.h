@@ -38,10 +38,10 @@ public:
   operator CASID() const { return ID; }
 
 protected:
-  explicit ObjectRef(CASID ID) : ID(ID) {}
+  explicit ObjectRef(UniqueIDRef ID) : ID(ID) {}
 
 private:
-  CASID ID;
+  UniqueIDRef ID;
 };
 
 /// Reference to a blob in the CAS.
@@ -58,7 +58,7 @@ public:
   BlobRef() = delete;
 
 private:
-  BlobRef(CASID ID, StringRef Data) : ObjectRef(ID), Data(Data) {
+  BlobRef(UniqueIDRef ID, StringRef Data) : ObjectRef(ID), Data(Data) {
     assert(Data.end()[0] == 0 && "Blobs should guarantee null-termination");
   }
 
@@ -91,7 +91,7 @@ public:
   TreeRef() = delete;
 
 private:
-  TreeRef(CASID ID, CASDB &CAS, const void *Tree, size_t NumEntries)
+  TreeRef(UniqueIDRef ID, CASDB &CAS, const void *Tree, size_t NumEntries)
       : ObjectRef(ID), CAS(&CAS), Tree(Tree), NumEntries(NumEntries) {}
 
   friend class CASDB;
@@ -120,7 +120,7 @@ public:
   NodeRef() = delete;
 
 private:
-  NodeRef(CASID ID, CASDB &CAS, const void *Object, size_t NumReferences,
+  NodeRef(UniqueIDRef ID, CASDB &CAS, const void *Object, size_t NumReferences,
           StringRef Data)
       : ObjectRef(ID), CAS(&CAS), Object(Object), NumReferences(NumReferences),
         Data(Data) {}
@@ -394,7 +394,7 @@ protected:
   /// Build a \a BlobRef. For use by derived classes to access the private
   /// constructor of \a BlobRef. Templated as a hack to allow this to be
   /// declared before \a TreeRef.
-  static BlobRef makeBlobRef(CASID ID, StringRef Data) {
+  static BlobRef makeBlobRef(UniqueIDRef ID, StringRef Data) {
     return BlobRef(ID, Data);
   }
 
@@ -410,7 +410,7 @@ protected:
 
   /// Build a \a TreeRef from a pointer. For use by derived classes to access
   /// the private constructor of \a TreeRef.
-  TreeRef makeTreeRef(CASID ID, const void *TreePtr, size_t NumEntries) {
+  TreeRef makeTreeRef(UniqueIDRef ID, const void *TreePtr, size_t NumEntries) {
     assert(TreePtr);
     return TreeRef(ID, *this, TreePtr, NumEntries);
   }
@@ -434,7 +434,7 @@ protected:
 
   /// Build a \a NodeRef from a pointer. For use by derived classes to
   /// access the private constructor of \a NodeRef.
-  NodeRef makeNodeRef(CASID ID, const void *ObjectPtr, size_t NumReferences,
+  NodeRef makeNodeRef(UniqueIDRef ID, const void *ObjectPtr, size_t NumReferences,
                       StringRef Data) {
     assert(ObjectPtr);
     return NodeRef(ID, *this, ObjectPtr, NumReferences, Data);
