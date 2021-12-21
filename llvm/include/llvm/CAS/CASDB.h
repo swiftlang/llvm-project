@@ -329,6 +329,18 @@ public:
 
   Error getPrintedCASID(CASID ID, SmallVectorImpl<char> &Reference);
 
+  /// Translate from CASID and UniqueIDRef.
+  UniqueIDRef getUniqueID(CASID ID) const {
+    return UniqueIDRef(getNamespace(), ID.getHash());
+  }
+  /// Translate from UniqueIDRef to CASID.
+  CASID getCASID(UniqueIDRef ID) const {
+    assert(&ID.getNamespace() == &getNamespace());
+    return CASID(ID.getHash());
+  }
+  /// Beware of lifetime issues.
+  CASID getCASID(const UniqueID &ID) const = delete;
+
   virtual Expected<BlobRef> createBlob(StringRef Data) = 0;
 
   virtual Expected<TreeRef>

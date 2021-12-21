@@ -19,6 +19,7 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
@@ -248,10 +249,15 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
 namespace {
 struct TableGenCache {
   std::unique_ptr<cas::CASDB> CAS;
+  std::unique_ptr<cas::ActionCache> Cache;
   Optional<cas::CASID> ExecutableID;
   Optional<cas::CASID> IncludesTreeID;
-  Optional<cas::CASID> ActionID;
-  Optional<cas::CASID> ResultID;
+
+  SmallVector<cas::UniqueIDRef> ActionInputs;
+  SmallString<256> SerializedCommandLine;
+  Optional<cas::ActionDescription> Action;
+
+  Optional<cas::UniqueIDRef> ResultID;
   Optional<cas::CASID> MainFileID;
   std::unique_ptr<MemoryBuffer> MainFile;
   Optional<std::string> OriginalInputFilename;
@@ -264,7 +270,7 @@ struct TableGenCache {
   ~TableGenCache() { CreateDependencyFilePM = nullptr; }
 
   Expected<cas::CASID> createExecutableBlob(StringRef Argv0);
-  Expected<cas::CASID> createCommandLineBlob(ArrayRef<const char *> Args);
+  void serializeCommandLine(ArrayRef<const char *> Args);
   Error createAction(ArrayRef<const char *> Args);
 
   Error lookupCachedResult(ArrayRef<const char *> Args);
@@ -295,15 +301,12 @@ Expected<cas::CASID> TableGenCache::createExecutableBlob(StringRef Argv0) {
   return *Blob;
 }
 
-Expected<cas::CASID>
-TableGenCache::createCommandLineBlob(ArrayRef<const char *> Args) {
-  SmallString<1024> CommandLine;
-
-  // Use raw_svector_stream since it doesn't buffer.
-  raw_svector_ostream OS(CommandLine);
+void TableGenCache::serializeCommandLine(ArrayRef<const char *> Args) {
+  assert(SerializedCommandLine.empty());
+  raw_svector_ostream OS(SerializedCommandLine);
   auto serializeArg = [&](StringRef Arg) {
     OS << Arg;
-    CommandLine.push_back(0);
+    SerializedCommandLine.push_back(0);
   };
   serializeArg(sys::path::filename(Args[0]));
   Args = Args.drop_front();
@@ -340,27 +343,18 @@ TableGenCache::createCommandLineBlob(ArrayRef<const char *> Args) {
     serializeArg(Args.front());
     Args = Args.drop_front();
   }
-
-  Expected<cas::BlobRef> Blob = CAS->createBlob(CommandLine);
-  if (!Blob)
-    return Blob.takeError();
-  return *Blob;
 }
 
 Error TableGenCache::createAction(ArrayRef<const char *> Args) {
-  Expected<cas::CASID> CommandLineID = createCommandLineBlob(Args);
-  if (!CommandLineID)
-    return CommandLineID.takeError();
+  assert(!Action);
+  serializeCommandLine(Args);
 
-  cas::HierarchicalTreeBuilder Builder;
-  Builder.push(*IncludesTreeID, cas::TreeEntry::Tree, "includes");
-  Builder.push(*MainFileID, cas::TreeEntry::Regular, "input");
-  Builder.push(*ExecutableID, cas::TreeEntry::Regular, "executable");
-  Builder.push(*CommandLineID, cas::TreeEntry::Regular, "command-line");
-  Expected<cas::TreeRef> Tree = Builder.create(*CAS);
-  if (!Tree)
-    return Tree.takeError();
-  ActionID = *Tree;
+  assert(ActionInputs.empty());
+  ActionInputs.push_back(CAS->getUniqueID(*IncludesTreeID));
+  ActionInputs.push_back(CAS->getUniqueID(*MainFileID));
+  ActionInputs.push_back(CAS->getUniqueID(*ExecutableID));
+  Action.emplace("llvm::tablegen::generate", ActionInputs,
+                 SerializedCommandLine);
   return Error::success();
 }
 
@@ -368,13 +362,18 @@ Error TableGenCache::lookupCachedResult(ArrayRef<const char *> Args) {
   if (Error E =
           cas::createOnDiskCAS(cas::getDefaultOnDiskCASPath()).moveInto(CAS))
     return E;
+  if (Error E = cas::createOnDiskActionCache(
+                    CAS->getNamespace(), cas::getDefaultOnDiskActionCachePath())
+                    .moveInto(Cache))
+    return E;
 
   if (Error E = createExecutableBlob(Args[0]).moveInto(ExecutableID))
     return E;
 
   OriginalInputFilename = InputFilename.getValue();
-  Expected<ScanIncludesResult> Scan = scanIncludesAndRemap(
-      *CAS, *ExecutableID, InputFilename, *&IncludeDirs, PrefixMappings);
+  Expected<ScanIncludesResult> Scan =
+      scanIncludesAndRemap(*CAS, *Cache, *ExecutableID, InputFilename,
+                           *&IncludeDirs, PrefixMappings);
   if (!Scan)
     return Scan.takeError();
 
@@ -387,9 +386,7 @@ Error TableGenCache::lookupCachedResult(ArrayRef<const char *> Args) {
   if (Error E = createAction(Args))
     return E;
 
-  // Not an error for the result to be missing.
-  ResultID = expectedToOptional(CAS->getCachedResult(*ActionID));
-  return Error::success();
+  return Cache->get(*Action, ResultID);
 }
 
 namespace {
@@ -427,7 +424,7 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
   SmallString<256> DependStorage;
 
   CapturedDiagnostics Diags;
-  if (ActionID) {
+  if (Action) {
     assert(IncludesTreeID && "Expected an input tree...");
     if (auto FS = cas::createCASFileSystem(*CAS, *IncludesTreeID))
       SrcMgr.setFileSystem(std::move(*FS));
@@ -448,7 +445,7 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
     return E;
 
   // Caching not turned on.
-  if (!ActionID)
+  if (!Action)
     return Error::success();
 
   cas::HierarchicalTreeBuilder Builder;
@@ -472,13 +469,13 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
   Expected<cas::TreeRef> Tree = Builder.create(*CAS);
   if (!Tree)
     return Tree.takeError();
-  return CAS->putCachedResult(*ActionID, *Tree);
+  return Cache->put(*Action, CAS->getUniqueID(*Tree));
 }
 
 Error TableGenCache::replayResult() {
   assert(ResultID && "Need a result!");
 
-  Expected<cas::TreeRef> Tree = CAS->getTree(*ResultID);
+  Expected<cas::TreeRef> Tree = CAS->getTree(CAS->getCASID(*ResultID));
   if (!Tree)
     return Tree.takeError();
 
