@@ -331,13 +331,9 @@ void BuiltinNamespace::printIDImpl(const UniqueIDRef &ID,
 
 Error BuiltinNamespace::parseID(StringRef Reference, UniqueID &ID) const {
   if (!Reference.consume_front(getCASIDPrefix()))
-    return createStringError(std::make_error_code(std::errc::invalid_argument),
-                             "invalid cas-id '" + Reference + "'");
-
+    return make_error<NamespaceParseIDError>(*this, Reference);
   if (Error E = hexadecimal::parseHashForID(*this, Reference, ID))
-    return createStringError(std::make_error_code(std::errc::invalid_argument),
-                             "invalid cas-id '" + Reference +
-                                 "': " + toString(std::move(E)));
+    return make_error<NamespaceParseIDError>(*this, Reference, std::move(E));
   return Error::success();
 }
 

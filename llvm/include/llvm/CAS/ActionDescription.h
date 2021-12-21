@@ -42,6 +42,10 @@ public:
                              StringRef ExtraData = "")
       : ActionDescription(Identifier, makeArrayRef(ID), ExtraData) {}
 
+  /// Takes a reference to UniqueIDRef.
+  explicit ActionDescription(StringRef Identifier, const UniqueID &ID,
+                             StringRef ExtraData = "") = delete;
+
   StringRef getIdentifier() const { return Identifier; }
   ArrayRef<UniqueIDRef> getIDs() const { return IDs; }
   StringRef getExtraData() const { return ExtraData; }

@@ -27,10 +27,15 @@ const Namespace &testing::getNamespace(size_t HashSize, StringRef NameSuffix) {
     TestingNamespace(size_t HashSize, StringRef Name)
         : Namespace(Name, HashSize) {}
     void printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const override {
+      OS << getName() << "://";
       hexadecimal::printHash(ID.getHash(), OS);
     }
     Error parseID(StringRef Printed, UniqueID &ID) const override {
-      return hexadecimal::parseHashForID(*this, Printed, ID);
+      if (!Printed.consume_front(getName()) || !Printed.consume_front("://"))
+        return make_error<NamespaceParseIDError>(*this, Printed);
+      if (Error E = hexadecimal::parseHashForID(*this, Printed, ID))
+        return make_error<NamespaceParseIDError>(*this, Printed, std::move(E));
+      return Error::success();
     }
   };
 

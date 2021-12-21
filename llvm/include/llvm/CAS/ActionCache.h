@@ -64,6 +64,9 @@ public:
     MaybeResult = UniqueID();
     return getImpl(Action, MaybeResult);
   }
+  Error get(ActionDescription &&Action, UniqueID &MaybeResult) {
+    return get(Action, MaybeResult);
+  }
 
   /// Get a result from the cache with extended lifetime.
   ///
@@ -80,6 +83,9 @@ public:
             Optional<UniqueIDRef> &MaybeResult) {
     MaybeResult = None;
     return getWithLifetimeImpl(Action, MaybeResult);
+  }
+  Error get(ActionDescription &&Action, Optional<UniqueIDRef> &MaybeResult) {
+    return get(Action, MaybeResult);
   }
 
   /// Get the CAS namespace for this ActionCache.

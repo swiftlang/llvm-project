@@ -62,6 +62,25 @@ private:
   const size_t HashSize;
 };
 
+class NamespaceParseIDError
+    : public ErrorInfo<NamespaceParseIDError, StringError> {
+  void anchor() override;
+
+public:
+  static char ID;
+
+  NamespaceParseIDError(const Namespace &NS, StringRef FailedID)
+      : NamespaceParseIDError::ErrorInfo(
+            make_error_code(std::errc::invalid_argument),
+            "invalid cas identifier '" + FailedID + "' for namespace " +
+                NS.getName()) {}
+  NamespaceParseIDError(const Namespace &NS, StringRef FailedID, Error E)
+      : NamespaceParseIDError::ErrorInfo(
+            make_error_code(std::errc::invalid_argument),
+            "invalid cas identifier '" + FailedID + "' for namespace " +
+                NS.getName() + ": " + toString(std::move(E))) {}
+};
+
 } // end namespace cas
 } // end namespace llvm
 

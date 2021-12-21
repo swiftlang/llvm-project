@@ -13,6 +13,9 @@
 using namespace llvm;
 using namespace llvm::cas;
 
+char NamespaceParseIDError::ID = 0;
+void NamespaceParseIDError::anchor() {}
+
 void Namespace::anchor() {}
 
 void Namespace::printID(const UniqueIDRef &ID, raw_ostream &OS) const {
