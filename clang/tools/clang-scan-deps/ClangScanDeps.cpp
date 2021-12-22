@@ -629,7 +629,7 @@ int main(int argc, const char **argv) {
                                              Errs))
             HadErrors = true;
         } else if (Format == ScanningOutputFormat::Tree) {
-          auto MaybeTree = WorkerTools[I]->getDependencyTree(*Input, CWD);
+          auto MaybeTree = WorkerTools[I]->getDependencyTree(Input->CommandLine, CWD);
           if (handleTreeDependencyToolResult(*CAS, Filename, MaybeTree, DependencyOS,
                                              Errs))
             HadErrors = true;

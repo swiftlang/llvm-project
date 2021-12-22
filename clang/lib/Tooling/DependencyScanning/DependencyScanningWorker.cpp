@@ -292,10 +292,10 @@ private:
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
   ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings;
   ScanningOutputFormat Format;
-  bool OptimizeArgs;
-  llvm::Optional<StringRef> ModuleName;
   bool OverrideCASTokenCache;
+  bool OptimizeArgs;
   bool EmitDependencyFile = false;
+  llvm::Optional<StringRef> ModuleName;
 };
 
 } // end anonymous namespace

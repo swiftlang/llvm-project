@@ -94,8 +94,7 @@ public:
 
   /// Collect dependency tree.
   llvm::Expected<llvm::cas::TreeRef>
-  getDependencyTree(const tooling::CompilationDatabase &Compilations,
-                    StringRef CWD);
+  getDependencyTree(const std::vector<std::string> &CommandLine, StringRef CWD);
 
   llvm::Expected<llvm::cas::TreeRef> getDependencyTreeFromCompilerInvocation(
       std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
