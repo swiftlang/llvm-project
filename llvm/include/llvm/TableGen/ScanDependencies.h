@@ -66,7 +66,7 @@ Error accessAllIncludes(cas::ActionCache &Cache,
 Error createMainFileError(StringRef MainFilename, std::error_code EC);
 
 struct ScanIncludesResult {
-  cas::CASID IncludesTree;
+  cas::UniqueIDRef IncludesTree;
   cas::BlobRef MainBlob;
 };
 

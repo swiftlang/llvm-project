@@ -1000,7 +1000,9 @@ Expected<NameListRef> NameListRef::create(const ObjectFileSchema &Schema,
       return LHS.getName() < RHS.getName();
     });
   }
-  B->IDs.append(Names.begin(), Names.end());
+  B->IDs.reserve(B->IDs.size() + Names.size());
+  for (cas::CASID ID : Names)
+    B->IDs.push_back(ID);
 
   return get(B->build());
 }

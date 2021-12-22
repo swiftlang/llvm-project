@@ -250,15 +250,15 @@ namespace {
 struct TableGenCache {
   std::unique_ptr<cas::CASDB> CAS;
   std::unique_ptr<cas::ActionCache> Cache;
-  Optional<cas::CASID> ExecutableID;
-  Optional<cas::CASID> IncludesTreeID;
+  Optional<cas::UniqueIDRef> ExecutableID;
+  Optional<cas::UniqueIDRef> IncludesTreeID;
 
   SmallVector<cas::UniqueIDRef> ActionInputs;
   SmallString<256> SerializedCommandLine;
   Optional<cas::ActionDescription> Action;
 
   Optional<cas::UniqueIDRef> ResultID;
-  Optional<cas::CASID> MainFileID;
+  Optional<cas::UniqueIDRef> MainFileID;
   std::unique_ptr<MemoryBuffer> MainFile;
   Optional<std::string> OriginalInputFilename;
 
@@ -269,7 +269,7 @@ struct TableGenCache {
   TableGenCache() = default;
   ~TableGenCache() { CreateDependencyFilePM = nullptr; }
 
-  Expected<cas::CASID> createExecutableBlob(StringRef Argv0);
+  Expected<cas::UniqueIDRef> createExecutableBlob(StringRef Argv0);
   void serializeCommandLine(ArrayRef<const char *> Args);
   Error createAction(ArrayRef<const char *> Args);
 
@@ -291,7 +291,7 @@ void TableGenCache::createInversePrefixMap() {
   CreateDependencyFilePM = &*InversePM;
 }
 
-Expected<cas::CASID> TableGenCache::createExecutableBlob(StringRef Argv0) {
+Expected<cas::UniqueIDRef> TableGenCache::createExecutableBlob(StringRef Argv0) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> Buffer = MemoryBuffer::getFile(Argv0);
   if (!Buffer)
     return errorCodeToError(Buffer.getError());
@@ -350,9 +350,9 @@ Error TableGenCache::createAction(ArrayRef<const char *> Args) {
   serializeCommandLine(Args);
 
   assert(ActionInputs.empty());
-  ActionInputs.push_back(CAS->getUniqueID(*IncludesTreeID));
-  ActionInputs.push_back(CAS->getUniqueID(*MainFileID));
-  ActionInputs.push_back(CAS->getUniqueID(*ExecutableID));
+  ActionInputs.push_back(*IncludesTreeID);
+  ActionInputs.push_back(*MainFileID);
+  ActionInputs.push_back(*ExecutableID);
   Action.emplace("llvm::tablegen::generate", ActionInputs,
                  SerializedCommandLine);
   return Error::success();
@@ -452,7 +452,7 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
 
   cas::HierarchicalTreeBuilder Builder;
   auto addFile = [&](StringRef Name, StringRef Data) -> Error {
-    Expected<cas::CASID> ID = CAS->createBlob(Data);
+    Expected<cas::UniqueIDRef> ID = CAS->createBlob(Data);
     if (!ID)
       return ID.takeError();
     Builder.push(*ID, cas::TreeEntry::Regular, Name);
@@ -471,7 +471,7 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
   Expected<cas::TreeRef> Tree = Builder.create(*CAS);
   if (!Tree)
     return Tree.takeError();
-  return Cache->put(*Action, CAS->getUniqueID(*Tree));
+  return Cache->put(*Action, *Tree);
 }
 
 Error TableGenCache::replayResult(cas::TreeRef Tree) {

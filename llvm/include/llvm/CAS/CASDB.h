@@ -34,8 +34,10 @@ enum class ObjectKind {
 /// Generic CAS object reference.
 class ObjectRef {
 public:
-  CASID getID() const { return ID; }
-  operator CASID() const { return ID; }
+  CASID getCASID() const { return CASID(ID); }
+  operator CASID() const { return CASID(ID); }
+  UniqueIDRef getID() const { return ID; }
+  operator UniqueIDRef() const { return ID; }
 
 protected:
   explicit ObjectRef(UniqueIDRef ID) : ID(ID) {}
