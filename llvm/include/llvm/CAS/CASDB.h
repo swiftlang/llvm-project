@@ -154,6 +154,9 @@ private:
 ///   regions or copy data out. APIs take a "Capture" out-parameter (see (far)
 ///   below) that configures the capabilities/preferences of the client.
 ///     - get{Blob,Node,Tree}        => Out-param: Capture
+///       (missing is not an error)
+///     - expect{Blob,Node,Tree}     => Out-param: Capture
+///       (missing is an error)
 ///     - create{Blob,Node,Tree}     => Out-param: UniqueID
 ///     - create{Blob,Node,Tree}     => Out-param: UniqueID + Capture
 ///     - createBlobFromOnDiskPath   => Out-param: UniqueID + Capture
@@ -190,7 +193,11 @@ private:
 ///     - \c InMemoryTree : InMemoryObject. Simplest to use a specific format
 ///       and translate from underlying CAS object to make the in-memory view.
 ///     - get{Blob,Node,Tree}    => InMemoryBlob*,InMemoryNode*,InMemoryTree*
-///     - create{Blob,Node,Tree} => InMemoryBlob*,InMemoryNode*,InMemoryTree*
+///       (returns Expected<*>; missing is nullptr)
+///     - expect{Blob,Node,Tree} => InMemoryBlob&,InMemoryNode&,InMemoryTree&
+///       (returns Expected<&>; missing is an error)
+///     - create{Blob,Node,Tree} => InMemoryBlob&,InMemoryNode&,InMemoryTree&
+///       (returns Expected<&>; missing is an error)
 ///     - Eventually: overloads with continuation out-param
 ///     - Eventually: overloads with std::future out-param
 ///     - Examples:
@@ -362,6 +369,9 @@ protected:
                              Optional<sys::fs::file_status> Status);
 
 public:
+  // FIXME: It'd be better if these returned Optional, and Error only occured
+  // on corruption / network failure / etc.; ID could refer to something that
+  // has been garbage-collected.
   virtual Expected<BlobRef> getBlob(CASID ID) = 0;
   virtual Expected<TreeRef> getTree(CASID ID) = 0;
   virtual Expected<NodeRef> getNode(CASID ID) = 0;

@@ -4643,62 +4643,9 @@ void CompilerInvocation::generateCC1CommandLine(
   GenerateDependencyOutputArgs(DependencyOutputOpts, Args, SA);
 }
 
-static std::shared_ptr<llvm::cas::CASDB>
-createBuiltinCASImpl(const CASOptions &Opts, DiagnosticsEngine &Diags) {
-  if (Opts.BuiltinPath.empty())
-    return llvm::cas::createInMemoryCAS();
-
-  // FIXME: Pass on the actual error from the CAS.
-  if (auto MaybeCAS = llvm::expectedToOptional(
-          llvm::cas::createOnDiskCAS(Opts.BuiltinPath)))
-    return std::move(*MaybeCAS);
-  Diags.Report(diag::err_builtin_cas_cannot_be_initialized) << Opts.BuiltinPath;
-  return nullptr;
-}
-
-/// Create a CAS, memoizing the result so they can be shared.
-///
-/// FIXME: Memoize for plugins as well as builtins.
-static std::shared_ptr<llvm::cas::CASDB> createCAS(const CASOptions &Opts,
-                                                   DiagnosticsEngine &Diags) {
-  assert(Opts.Kind != CASOptions::NoCAS && "Expected to need a CAS");
-  if (Opts.Kind == CASOptions::PluginCAS) {
-    // FIXME: Pass on the actual error text from the CAS.
-    if (auto MaybeCAS = llvm::expectedToOptional(
-            llvm::cas::createPluginCAS(Opts.PluginPath, Opts.PluginArgs)))
-      return std::move(*MaybeCAS);
-
-    // FIXME: Add notes with the plugin arguments?
-    Diags.Report(diag::err_cas_plugin_cannot_be_loaded) << Opts.PluginPath;
-    return nullptr;
-  }
-
-  static llvm::StringMap<std::weak_ptr<llvm::cas::CASDB>> SharedMap;
-  static std::mutex SharedMapMutex;
-  std::lock_guard<std::mutex> Lock(SharedMapMutex);
-
-  std::weak_ptr<llvm::cas::CASDB> &CachedDB = SharedMap[Opts.BuiltinPath];
-  if (std::shared_ptr<llvm::cas::CASDB> DB = CachedDB.lock())
-    return DB;
-
-  std::shared_ptr<llvm::cas::CASDB> DB = createBuiltinCASImpl(Opts, Diags);
-  CachedDB = DB;
-  return DB;
-}
-
-std::shared_ptr<llvm::cas::CASDB>
-clang::createCASFromCompilerInvocation(const CompilerInvocation &CI,
-                                       DiagnosticsEngine &Diags) {
-  const CASOptions &Opts = CI.getCASOpts();
-  if (Opts.Kind == CASOptions::NoCAS)
-    return nullptr;
-
-  return createCAS(Opts, Diags);
-}
-
 static IntrusiveRefCntPtr<llvm::vfs::FileSystem>
 createBaseFS(const CASOptions &Opts, DiagnosticsEngine &Diags) {
-  if (Opts.Kind == CASOptions::NoCAS || Opts.CASFileSystemRootID.empty())
+  if (Opts.CASFileSystemRootID.empty())
     return llvm::vfs::getRealFileSystem();
 
   // Helper for creating a valid (but empty) CASFS if an error is encountered.
@@ -4709,10 +4656,7 @@ createBaseFS(const CASOptions &Opts, DiagnosticsEngine &Diags) {
         llvm::cas::createCASFileSystem(std::move(CAS), EmptyRootID));
   };
 
-  std::shared_ptr<llvm::cas::CASDB> CAS = createCAS(Opts, Diags);
-  if (!CAS)
-    return makeEmptyCASFS(); // Error already reported.
-
+  std::shared_ptr<llvm::cas::CASDB> CAS = Opts.getOrCreateCAS(Diags);
   StringRef RootIDString = Opts.CASFileSystemRootID;
   Expected<llvm::cas::CASID> RootID = CAS->parseCASID(RootIDString);
   if (!RootID) {
