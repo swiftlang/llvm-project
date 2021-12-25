@@ -37,7 +37,6 @@ add_lldb_library(lldbPluginExpressionParserSwift PLUGIN
     swiftSIL
     swiftSILOptimizer
     swiftSerialization
-    swiftCompilerModules
     clangAST
     clangBasic
     clangRewrite
@@ -46,3 +45,7 @@ add_lldb_library(lldbPluginExpressionParserSwift PLUGIN
     Support
     Core
   )
+if(TARGET swiftCompilerModules)
+  target_link_libraries(lldbPluginExpressionParserSwift PRIVATE
+    swiftCompilerModules)
+endif()
