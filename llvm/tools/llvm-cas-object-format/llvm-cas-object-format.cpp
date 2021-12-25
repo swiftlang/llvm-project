@@ -25,6 +25,7 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/ThreadPool.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -57,6 +58,9 @@ cl::opt<std::string> JustDsymutil("just-dsymutil",
                                   cl::desc("Just run dsymutil."));
 cl::opt<std::string> CASGlob("cas-glob",
                              cl::desc("glob pattern for objects in CAS"));
+cl::opt<std::string>
+    CASGlobExclude("cas-glob-exclude",
+                   cl::desc("glob pattern for objects to exclude in CAS"));
 cl::opt<bool> Silent("silent", cl::desc("only print final CAS ID"));
 cl::opt<unsigned>
     NumRepeats("repeat",
@@ -115,6 +119,27 @@ createSchema(CASDB &CAS, StringRef SchemaName) {
 static CASID ingestFile(SchemaBase &Schema, StringRef InputFile,
                         MemoryBufferRef FileContent, SharedStream &OS);
 static void computeStats(CASDB &CAS, ArrayRef<CASID> IDs);
+
+static bool shouldVisitPath(StringRef Path) {
+  ExitOnError ExitOnErr;
+  static Optional<GlobPattern> GlobP;
+  static Optional<GlobPattern> GlobPExclude;
+
+  static llvm::once_flag Flag;
+  llvm::call_once(Flag, [&]() {
+    if (!CASGlob.empty())
+      GlobP.emplace(ExitOnErr(GlobPattern::create(CASGlob)));
+    if (!CASGlobExclude.empty())
+      GlobPExclude.emplace(ExitOnErr(GlobPattern::create(CASGlobExclude)));
+  });
+
+  if (GlobP && GlobP->match(Path))
+    return false;
+  if (GlobPExclude && !GlobPExclude->match(Path))
+    return false;
+
+  return true;
+}
 
 int main(int argc, char *argv[]) {
   ExitOnError ExitOnErr;
@@ -176,16 +201,12 @@ int main(int argc, char *argv[]) {
       auto ID = ExitOnErr(CAS->parseCASID(IF));
       SmallVector<NamedTreeEntry> Stack;
       Stack.emplace_back(ID, TreeEntry::Tree, "/");
-      Optional<GlobPattern> GlobP;
-      if (!CASGlob.empty())
-        GlobP.emplace(ExitOnErr(GlobPattern::create(CASGlob)));
-
       while (!Stack.empty()) {
         auto Node = Stack.pop_back_val();
         auto Name = Node.getName();
         if (Node.getKind() == TreeEntry::Regular) {
-          if (GlobP && !GlobP->match(Name))
-              continue;
+          if (!shouldVisitPath(Name))
+            continue;
 
           auto BlobContent = ExitOnErr(CAS->getBlob(Node.getID()));
           Pool.async([&, Name, BlobContent]() {
@@ -210,7 +231,7 @@ int main(int argc, char *argv[]) {
           sys::path::append(PathStorage, sys::path::Style::posix,
                             Entry.getName());
           if (Entry.getKind() == TreeEntry::Regular) {
-            if (GlobP && !GlobP->match(PathStorage))
+            if (!shouldVisitPath(Name))
               return Error::success();
           }
           Stack.emplace_back(Entry.getID(), Entry.getKind(),
@@ -527,9 +548,6 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
   SmallVector<POTItem> POT;
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
-  Optional<GlobPattern> GlobP;
-  if (!CASGlob.empty())
-    GlobP.emplace(ExitOnErr(GlobPattern::create(CASGlob)));
 
   auto push = [&](CASID ID, StringRef Path,
                   const SchemaBase *Schema = nullptr) {
@@ -573,7 +591,7 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels) {
         sys::path::append(PathStorage, sys::path::Style::posix,
                           Entry.getName());
         if (Entry.getKind() == TreeEntry::Regular) {
-          if (GlobP && !GlobP->match(PathStorage))
+          if (!shouldVisitPath(PathStorage))
             return Error::success();
         }
         push(Entry.getID(), Saver.save(StringRef(PathStorage)));

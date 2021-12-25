@@ -172,7 +172,7 @@ private:
 
   Error addSingleRelocation(const typename ELFT::Rela &Rel,
                             const typename ELFT::Shdr &FixupSection,
-                            Section &GraphSection) {
+                            Block &BlockToFix) {
     using Base = ELFLinkGraphBuilder<ELFT>;
 
     uint32_t SymbolIndex = Rel.getSymbol(false);
@@ -246,17 +246,16 @@ private:
     }
     }
 
-    Block *BlockToFix = *(GraphSection.blocks().begin());
     JITTargetAddress FixupAddress = FixupSection.sh_addr + Rel.r_offset;
-    Edge::OffsetT Offset = FixupAddress - BlockToFix->getAddress();
+    Edge::OffsetT Offset = FixupAddress - BlockToFix.getAddress();
     Edge GE(Kind, Offset, *GraphSymbol, Addend);
     LLVM_DEBUG({
       dbgs() << "    ";
-      printEdge(dbgs(), *BlockToFix, GE, getELFX86RelocationKindName(Kind));
+      printEdge(dbgs(), BlockToFix, GE, getELFX86RelocationKindName(Kind));
       dbgs() << "\n";
     });
 
-    BlockToFix->addEdge(std::move(GE));
+    BlockToFix.addEdge(std::move(GE));
     return Error::success();
   }
 
