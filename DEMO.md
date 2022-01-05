@@ -236,6 +236,31 @@ options directly.
   (cd build && cmake ... && ninja)
 ```
 
+#### Try debugging just built compiler
+
+CMake on a CAS-aware branch creates a .lldbinit file in the build directory
+which helps to map the canonicalized path back to the path on disk:
+
+```
+% lldb -- $COMMAND
+
+(lldb) command source $BUILD_DIR/.lldbinit
+```
+
+or source from lldb commandline:
+
+```
+% lldb --source $BUILD_DIR/.lldbinit -- $COMMAND
+```
+
+or if your CWD is in `$BUILD_DIR`, just run:
+
+```
+% lldb --local-lldbinit -- $COMMAND
+```
+
+You can also manually do that by using `settings set target.source-map` command.
+
 #### Build swift compiler
 
 In order to build swift compiler from `main` branch which is not CAS aware, do:

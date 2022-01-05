@@ -1272,6 +1272,11 @@ if(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN)
     append("-fdepscan-prefix-map=${source_root}=/^source" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
     append("-fdepscan-prefix-map=${CMAKE_BINARY_DIR}=/^build" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
 
+    # Create a LLDB init file to remap prefix map back to original path.
+    # TODO: Remap SDK and toolchain path.
+    set(lldb_prefix_remap_init_file "${CMAKE_BINARY_DIR}/.lldbinit")
+    file(WRITE ${lldb_prefix_remap_init_file} "settings set target.source-map /^source ${source_root} /^build ${CMAKE_BINARY_DIR}")
+
     check_c_compiler_flag("-greproducible" SUPPORTS_GREPRODUCIBLE)
     if(SUPPORTS_GREPRODUCIBLE)
       append("-greproducible"
