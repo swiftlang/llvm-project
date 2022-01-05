@@ -302,8 +302,8 @@ DependencyScanningWorker::DependencyScanningWorker(
     PPSkipMappings =
         std::make_unique<ExcludedPreprocessorDirectiveSkipMapping>();
   if (Service.getMode() == ScanningMode::MinimizedSourcePreprocessing)
-    DepFS =
-        new DependencyScanningWorkerFilesystem(ProxyFS, PPSkipMappings.get());
+    DepFS = new DependencyScanningWorkerFilesystem(
+        Service.getActionCache(), ProxyFS, PPSkipMappings.get());
   if (Service.canReuseFileManager())
     Files = new FileManager(FileSystemOptions(), RealFS);
 }

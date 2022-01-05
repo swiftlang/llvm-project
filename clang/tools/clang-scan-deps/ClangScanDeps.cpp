@@ -550,8 +550,11 @@ int main(int argc, const char **argv) {
   }
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
       llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
-  DependencyScanningService Service(ScanMode, Format, FS, ReuseFileManager,
-                                    SkipExcludedPPRanges,
+  std::unique_ptr<llvm::cas::ActionCache> Cache =
+      llvm::cantFail(createOnDiskActionCache(
+          CAS->getNamespace(), llvm::cas::getDefaultOnDiskActionCachePath()));
+  DependencyScanningService Service(ScanMode, Format, FS, *Cache,
+                                    ReuseFileManager, SkipExcludedPPRanges,
                                     OverrideCASTokenCache);
   llvm::ThreadPool Pool(llvm::hardware_concurrency(NumThreads));
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;

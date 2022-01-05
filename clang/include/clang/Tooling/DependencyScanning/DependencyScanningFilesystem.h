@@ -23,6 +23,7 @@
 namespace llvm {
 namespace cas {
 class CachingOnDiskFileSystem;
+class ActionCache;
 } // namespace cas
 } // namespace llvm
 
@@ -42,6 +43,7 @@ namespace dependencies {
 class DependencyScanningWorkerFilesystem : public llvm::cas::CASFileSystemBase {
 public:
   DependencyScanningWorkerFilesystem(
+      llvm::cas::ActionCache &ActionCache,
       IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS,
       ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings);
 
@@ -101,11 +103,11 @@ private:
   };
   Expected<StringRef>
   computeMinimized(llvm::cas::CASID InputDataID, StringRef Identifier,
-                   Optional<llvm::cas::CASID> &MinimizedDataID);
+                   Optional<llvm::cas::UniqueIDRef> &MinimizedDataID);
 
-  Expected<StringRef> getMinimized(llvm::cas::CASID OutputID,
-                                   StringRef Identifier,
-                                   Optional<llvm::cas::CASID> &MinimizedDataID);
+  Expected<StringRef>
+  getMinimized(llvm::cas::UniqueIDRef OutputID, StringRef Identifier,
+               Optional<llvm::cas::UniqueIDRef> &MinimizedDataID);
 
   Expected<StringRef> getOriginal(llvm::cas::CASID InputDataID);
 
@@ -114,6 +116,7 @@ private:
   llvm::cas::CachingOnDiskFileSystem &getCachingFS();
 
   llvm::cas::CASDB &CAS;
+  llvm::cas::ActionCache &Cache;
   Optional<llvm::cas::CASID> ClangFullVersionID;
   Optional<llvm::cas::CASID> MinimizeID;
   Optional<llvm::cas::CASID> EmptyBlobID;

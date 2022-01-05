@@ -9,6 +9,8 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningFilesystem.h"
 #include "clang/Basic/Version.h"
 #include "clang/Lex/DependencyDirectivesSourceMinimizer.h"
+#include "llvm/CAS/ActionCache.h"
+#include "llvm/CAS/ActionDescription.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
@@ -35,10 +37,11 @@ using llvm::Error;
 namespace cas = llvm::cas;
 
 DependencyScanningWorkerFilesystem::DependencyScanningWorkerFilesystem(
+    llvm::cas::ActionCache &ActionCache,
     IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS,
     ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings)
     : FS(WorkerFS), Entries(EntryAlloc), CAS(WorkerFS->getCAS()),
-      PPSkipMappings(PPSkipMappings) {}
+      Cache(ActionCache), PPSkipMappings(PPSkipMappings) {}
 
 DependencyScanningWorkerFilesystem::~DependencyScanningWorkerFilesystem() =
     default;
@@ -53,32 +56,32 @@ static void addSkippedRange(llvm::DenseMap<unsigned, unsigned> &Skip,
     Skip[Offset] = Length;
 }
 
-static Error cacheMinimized(cas::CASID InputID, cas::CASDB &CAS,
-                            cas::CASID OutputDataID,
+static Error cacheMinimized(cas::ActionDescription &Action, cas::CASDB &CAS,
+                            cas::ActionCache &Cache, cas::CASID OutputDataID,
                             cas::CASID SkippedRangesID) {
   cas::HierarchicalTreeBuilder Builder;
   Builder.push(OutputDataID, cas::TreeEntry::Regular, "data");
   Builder.push(SkippedRangesID, cas::TreeEntry::Regular, "skipped-ranges");
-  Expected<cas::CASID> OutputID = Builder.create(CAS);
+  auto OutputID = Builder.create(CAS);
   if (!OutputID)
     return OutputID.takeError();
-  return CAS.putCachedResult(InputID, *OutputID);
+  return Cache.put(Action, *OutputID);
 }
 
 Expected<StringRef> DependencyScanningWorkerFilesystem::getMinimized(
-    cas::CASID OutputID, StringRef Identifier,
-    Optional<cas::CASID> &MinimizedDataID) {
+    cas::UniqueIDRef OutputID, StringRef Identifier,
+    Optional<cas::UniqueIDRef> &MinimizedDataID) {
   // Extract the blob IDs from the tree.
   Expected<cas::TreeRef> Tree = CAS.getTree(OutputID);
   if (!Tree)
     return Tree.takeError();
   auto unwrapID =
-      [](Optional<cas::NamedTreeEntry> Entry) -> Optional<cas::CASID> {
+      [&](Optional<cas::NamedTreeEntry> Entry) -> Optional<cas::UniqueIDRef> {
     if (Entry)
-      return Entry->getID();
+      return CAS.getUniqueID(Entry->getID());
     return None;
   };
-  Optional<cas::CASID> SkippedRangesID =
+  Optional<cas::UniqueIDRef> SkippedRangesID =
       unwrapID(Tree->lookup("skipped-ranges"));
   MinimizedDataID = unwrapID(Tree->lookup("data"));
 
@@ -118,7 +121,7 @@ Expected<StringRef> DependencyScanningWorkerFilesystem::getMinimized(
 
 Expected<StringRef> DependencyScanningWorkerFilesystem::computeMinimized(
     cas::CASID InputDataID, StringRef Identifier,
-    Optional<llvm::cas::CASID> &MinimizedDataID) {
+    Optional<llvm::cas::UniqueIDRef> &MinimizedDataID) {
   using namespace llvm;
   using namespace llvm::cas;
 
@@ -136,7 +139,7 @@ Expected<StringRef> DependencyScanningWorkerFilesystem::computeMinimized(
     EmptyBlobID = reportAsFatalIfError(CAS.createBlob(""));
 
   // Construct a tree for the input.
-  Optional<CASID> InputID;
+  Optional<UniqueIDRef> InputID;
   {
     HierarchicalTreeBuilder Builder;
     Builder.push(*ClangFullVersionID, TreeEntry::Regular, "version");
@@ -146,9 +149,11 @@ Expected<StringRef> DependencyScanningWorkerFilesystem::computeMinimized(
   }
 
   // Check the result cache.
-  if (Optional<CASID> OutputID =
-          expectedToOptional(CAS.getCachedResult(*InputID))) {
-    auto Ex = getMinimized(*OutputID, Identifier, MinimizedDataID);
+  cas::ActionDescription Action("minimized-source", *InputID);
+  UniqueID OutputID;
+  reportAsFatalIfError(Cache.get(Action, OutputID));
+  if (OutputID.isValid()) {
+    auto Ex = getMinimized(OutputID, Identifier, MinimizedDataID);
     return reportAsFatalIfError(std::move(Ex));
   }
 
@@ -159,7 +164,8 @@ Expected<StringRef> DependencyScanningWorkerFilesystem::computeMinimized(
   SmallVector<minimize_source_to_dependency_directives::Token, 64> Tokens;
   if (minimizeSourceToDependencyDirectives(InputData, Buffer, Tokens)) {
     // Failure. Cache a self-mapping and return the input data unmodified.
-    reportAsFatalIfError(cacheMinimized(*InputID, CAS, InputDataID, *EmptyBlobID));
+    reportAsFatalIfError(
+        cacheMinimized(Action, CAS, Cache, InputDataID, *EmptyBlobID));
     return InputData;
   }
 
@@ -189,7 +195,9 @@ Expected<StringRef> DependencyScanningWorkerFilesystem::computeMinimized(
 
   // Cache the computation.
   CASID SkippedRangesID = reportAsFatalIfError(CAS.createBlob(Buffer));
-  reportAsFatalIfError(cacheMinimized(*InputID, CAS, *MinimizedDataID, SkippedRangesID));
+  CASID MinDataID = CAS.getCASID(*MinimizedDataID);
+  reportAsFatalIfError(
+      cacheMinimized(Action, CAS, Cache, MinDataID, SkippedRangesID));
 
   if (SkipMappingsResults)
     (*PPSkipMappings)[OutputData.begin()] = std::move(SkipMappingsResults);
@@ -278,12 +286,12 @@ DependencyScanningWorkerFilesystem::lookupPath(const Twine &Path) {
     return LookupPathResult{nullptr, std::move(MaybeStatus)};
 
   llvm::ErrorOr<StringRef> Buffer = std::error_code();
-  llvm::Optional<llvm::cas::CASID> EffectiveID;
+  llvm::Optional<llvm::cas::UniqueIDRef> EffectiveID;
   if (!shouldIgnoreFile(PathRef) && shouldMinimize(PathRef)) {
     Buffer = expectedToErrorOr(computeMinimized(*FileID, PathRef, EffectiveID));
   } else {
     Buffer = expectedToErrorOr(getOriginal(*FileID));
-    EffectiveID = *FileID;
+    EffectiveID = CAS.getUniqueID(*FileID);
   }
 
   auto &Entry = Entries[PathRef];
@@ -300,7 +308,7 @@ DependencyScanningWorkerFilesystem::lookupPath(const Twine &Path) {
       MaybeStatus->getLastModificationTime(), MaybeStatus->getUser(),
       MaybeStatus->getGroup(), Entry.Buffer->size(), MaybeStatus->getType(),
       MaybeStatus->getPermissions());
-  Entry.ID = EffectiveID;
+  Entry.ID = CAS.getCASID(*EffectiveID);
   return LookupPathResult{&Entry, std::error_code()};
 }
 

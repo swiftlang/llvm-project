@@ -36,6 +36,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/CAS/ActionCache.h"
+#include "llvm/CAS/ActionDescription.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
@@ -1379,12 +1381,20 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
   }
 
   CASID cacheKey = *optCacheKey;
-  Expected<CASID> result = config->CAS->getCachedResult(cacheKey);
-  if (result) {
+  llvm::cas::ActionDescription actionDes("lld",
+                                         config->CAS->getUniqueID(cacheKey));
+  UniqueID result;
+  auto cacheErr = config->Cache->get(actionDes, result);
+  if (cacheErr) {
+    error("error reading action cache: " + toString(std::move(cacheErr)));
+    return false;
+  }
+  if (result.isValid()) {
+    CASID casID = CASID(result.getHash());
     log("Caching: cache hit, result: " +
-        cantFail(CAS.convertCASIDToString(*result)) +
+        cantFail(CAS.convertCASIDToString(casID)) +
         ", key: " + cantFail(CAS.convertCASIDToString(cacheKey)));
-    if (Error E = replayResult(CAS, std::move(*result))) {
+    if (Error E = replayResult(CAS, casID)) {
       error("error replaying cached result: " + toString(std::move(E)));
       return false;
     }
@@ -1396,7 +1406,6 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
 
     log("Caching: cache miss, key: " +
         cantFail(CAS.convertCASIDToString(cacheKey)));
-    consumeError(result.takeError());
 
     SmallString<128> workingDirectory;
     if (std::error_code ec = sys::fs::current_path(workingDirectory)) {
@@ -1453,7 +1462,7 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
       return false;
     }
 
-    if (Error E = CAS.putCachedResult(cacheKey, *resultID)) {
+    if (Error E = config->Cache->put(actionDes, CAS.getUniqueID(*resultID))) {
       error("error storing cached result: " + toString(std::move(E)));
       return false;
     }
@@ -1518,6 +1527,13 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     StringRef path = args.getLastArgValue(OPT_cas_path);
     auto CAS = llvm::cas::createOnDiskCAS(path);
     if (CAS) {
+      auto Cache =
+          llvm::cas::createOnDiskActionCache((*CAS)->getNamespace(), path);
+      if (Cache)
+        config->Cache = std::move(*Cache);
+      else
+        error("error loading CAS at path '" + path +
+              "': " + toString(Cache.takeError()));
       config->CAS = std::move(*CAS);
       config->CASSchemas = std::make_unique<SchemaPool>(*config->CAS);
     } else {

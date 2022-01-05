@@ -10,6 +10,7 @@
 #define LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_SERVICE_H
 
 #include "clang/Tooling/DependencyScanning/DependencyScanningFilesystem.h"
+#include "llvm/CAS/ActionCache.h"
 
 namespace clang {
 namespace tooling {
@@ -52,8 +53,8 @@ public:
   DependencyScanningService(
       ScanningMode Mode, ScanningOutputFormat Format,
       IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> SharedFS,
-      bool ReuseFileManager = true, bool SkipExcludedPPRanges = true,
-      bool OverrideCASTokenCache = false);
+      llvm::cas::ActionCache &Cache, bool ReuseFileManager = true,
+      bool SkipExcludedPPRanges = true, bool OverrideCASTokenCache = false);
 
   ~DependencyScanningService();
 
@@ -69,6 +70,8 @@ public:
 
   llvm::cas::CachingOnDiskFileSystem &getSharedFS() { return *SharedFS; }
 
+  llvm::cas::ActionCache &getActionCache() { return Cache; }
+
 private:
   const ScanningMode Mode;
   const ScanningOutputFormat Format;
@@ -80,6 +83,7 @@ private:
   const bool OverrideCASTokenCache;
   /// The global file system cache.
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> SharedFS;
+  llvm::cas::ActionCache &Cache;
 };
 
 } // end namespace dependencies

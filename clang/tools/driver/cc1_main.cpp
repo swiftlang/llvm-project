@@ -28,10 +28,13 @@
 #include "clang/Frontend/Utils.h"
 #include "clang/FrontendTool/Utils.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CAS/ActionCache.h"
+#include "llvm/CAS/ActionDescription.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CASOutputBackend.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
+#include "llvm/CAS/UniqueID.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LinkAllPasses.h"
 #include "llvm/Option/Arg.h"
@@ -39,6 +42,7 @@
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/ManagedStatic.h"
@@ -188,15 +192,27 @@ static int PrintSupportedCPUs(std::string TargetStr) {
   return 0;
 }
 
-static Optional<llvm::cas::CASID>
+static std::string convertUniqueIDRef(llvm::cas::UniqueIDRef ID) {
+  std::string ActionStr;
+  llvm::raw_string_ostream SS(ActionStr);
+  ID.print(SS);
+  return ActionStr;
+}
+
+static Optional<llvm::cas::UniqueIDRef>
 createResultCacheKey(llvm::cas::CASDB &CAS, DiagnosticsEngine &Diags,
-                     StringRef RootIDString, ArrayRef<const char *> Argv) {
+                     const CASOptions &CASOpts, ArrayRef<const char *> Argv) {
+  if (!CASOpts.CASFileSystemResultCache)
+    return None;
+
   // FIXME: currently correct since the main executable is always in the root
   // from scanning, but we should probably make it explicit here...
-  Expected<llvm::cas::CASID> RootID = CAS.parseCASID(RootIDString);
+  Expected<llvm::cas::CASID> RootID =
+      CAS.parseCASID(CASOpts.CASFileSystemRootID);
   if (!RootID) {
     llvm::consumeError(RootID.takeError());
-    Diags.Report(diag::err_cas_cannot_parse_root_id) << RootIDString;
+    Diags.Report(diag::err_cas_cannot_parse_root_id)
+        << CASOpts.CASFileSystemRootID;
     return None;
   }
 
@@ -218,6 +234,13 @@ createResultCacheKey(llvm::cas::CASDB &CAS, DiagnosticsEngine &Diags,
                llvm::cas::TreeEntry::Regular, "version");
 
   return llvm::cantFail(Builder.create(CAS)).getID();
+}
+
+static Optional<llvm::cas::ActionDescription>
+createCC1ActionDescription(Optional<llvm::cas::UniqueIDRef> &Key) {
+  if (!Key)
+    return None;
+  return llvm::cas::ActionDescription("cc1-result", *Key);
 }
 
 static int replayResult(llvm::cas::CASDB &CAS, llvm::cas::CASID ResultID) {
@@ -353,35 +376,28 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
     return 1;
 
   // Handle result caching in the CAS.
-  Optional<llvm::cas::CASID> ResultCacheKey;
-  std::shared_ptr<llvm::cas::CASDB> CAS;
+  auto &CAS = Clang->getOrCreateCAS();
+  auto ResultCacheKey = createResultCacheKey(
+      CAS, Clang->getDiagnostics(), Clang->getInvocation().getCASOpts(), Argv);
+  auto Action = createCC1ActionDescription(ResultCacheKey);
   IntrusiveRefCntPtr<llvm::cas::CASOutputBackend> CASOutputs;
   SmallString<256> ResultDiags;
   std::unique_ptr<llvm::raw_ostream> ResultDiagsOS;
-  if (Clang->getInvocation().getCASOpts().CASFileSystemResultCache) {
-    CAS = createCASFromCompilerInvocation(Clang->getInvocation(), Clang->getDiagnostics());
-    if (!CAS)
-      return 1; // Error already emitted.
-
+  if (ResultCacheKey) {
     // Check the result cache.
-    ResultCacheKey = createResultCacheKey(
-        *CAS, Clang->getDiagnostics(),
-        Clang->getInvocation().getCASOpts().CASFileSystemRootID,
-        Argv);
-    if (!ResultCacheKey)
-      return 1; // Error already emitted.
-    Expected<llvm::cas::CASID> Result = CAS->getCachedResult(*ResultCacheKey);
+    Optional<llvm::cas::UniqueIDRef> Result;
+    llvm::cantFail(
+        Clang->getOrCreateActionCache().get(*Action, Result));
     if (Result) {
       Clang->getDiagnostics().Report(diag::remark_cas_fs_result_cache_hit)
-          << llvm::cantFail(CAS->convertCASIDToString(*ResultCacheKey))
-          << llvm::cantFail(CAS->convertCASIDToString(*Result));
-      int Failed = replayResult(*CAS, std::move(*Result));
+          << convertUniqueIDRef(*ResultCacheKey)
+          << convertUniqueIDRef(*Result);
+      int Failed = replayResult(CAS, CAS.getCASID(*Result));
       llvm::remove_fatal_error_handler();
       return Failed;
     }
     Clang->getDiagnostics().Report(diag::remark_cas_fs_result_cache_miss)
-        << llvm::cantFail(CAS->convertCASIDToString(*ResultCacheKey));
-    llvm::consumeError(Result.takeError());
+        << convertUniqueIDRef(*ResultCacheKey);
 
     IntrusiveRefCntPtr<llvm::vfs::OutputBackend> OnDiskOutBackend =
         llvm::makeIntrusiveRefCnt<llvm::vfs::OnDiskOutputBackend>();
@@ -409,7 +425,7 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
 
     // Set up the output backend so we can save / cache the result after.
     CASOutputs = llvm::makeIntrusiveRefCnt<llvm::cas::CASOutputBackend>(
-        *CAS, std::move(CASIDFileOutBackend));
+        CAS, std::move(CASIDFileOutBackend));
     Clang->setOutputBackend(llvm::vfs::makeMirroringOutputBackend(
         CASOutputs, std::move(NormalFileOutBackend)));
     ResultDiagsOS = std::make_unique<raw_mirroring_ostream>(
@@ -458,22 +474,23 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
   //
   // FIXME: Also cache failed builds?
   if (Success && ResultCacheKey) {
-    Expected<llvm::cas::CASID> Outputs = CASOutputs->createTree();
+    auto Outputs = CASOutputs->createTree();
     if (!Outputs)
       llvm::report_fatal_error(Outputs.takeError());
 
     // Hack around llvm::errs() not being captured by the output backend yet.
-    Expected<llvm::cas::BlobRef> Errs = CAS->createBlob(ResultDiags);
+    Expected<llvm::cas::BlobRef> Errs = CAS.createBlob(ResultDiags);
     if (!Errs)
       llvm::report_fatal_error(Errs.takeError());
 
     llvm::cas::HierarchicalTreeBuilder Builder;
     Builder.push(*Outputs, llvm::cas::TreeEntry::Tree, "outputs");
     Builder.push(*Errs, llvm::cas::TreeEntry::Regular, "stderr");
-    Expected<llvm::cas::CASID> Result = Builder.create(*CAS);
+    auto Result = Builder.create(CAS);
     if (!Result)
       llvm::report_fatal_error(Result.takeError());
-    if (llvm::Error E = CAS->putCachedResult(*ResultCacheKey, *Result))
+    if (auto E = Clang->getOrCreateActionCache().put(*Action,
+                                                     CAS.getUniqueID(*Result)))
       llvm::report_fatal_error(std::move(E));
   }
 

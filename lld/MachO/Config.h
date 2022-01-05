@@ -23,11 +23,13 @@
 #include "llvm/TextAPI/Platform.h"
 #include "llvm/TextAPI/Target.h"
 
+#include <memory>
 #include <vector>
 
 namespace llvm {
 namespace cas {
 class CASDB;
+class ActionCache;
 }
 namespace casobjectformats {
 class SchemaPool;
@@ -180,6 +182,7 @@ struct Configuration {
 
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> fs;
   std::unique_ptr<llvm::cas::CASDB> CAS;
+  std::unique_ptr<llvm::cas::ActionCache> Cache;
   std::unique_ptr<llvm::casobjectformats::SchemaPool> CASSchemas;
   bool depScanning = false;
 

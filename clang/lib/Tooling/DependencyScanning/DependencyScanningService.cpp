@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Support/TargetSelect.h"
@@ -18,12 +19,12 @@ using namespace dependencies;
 DependencyScanningService::DependencyScanningService(
     ScanningMode Mode, ScanningOutputFormat Format,
     IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> SharedFS,
-    bool ReuseFileManager, bool SkipExcludedPPRanges,
-    bool OverrideCASTokenCache)
+    llvm::cas::ActionCache &Cache, bool ReuseFileManager,
+    bool SkipExcludedPPRanges, bool OverrideCASTokenCache)
     : Mode(Mode), Format(Format), ReuseFileManager(ReuseFileManager),
       SkipExcludedPPRanges(SkipExcludedPPRanges),
       OverrideCASTokenCache(OverrideCASTokenCache),
-      SharedFS(std::move(SharedFS)) {
+      SharedFS(std::move(SharedFS)), Cache(Cache) {
   if (!this->SharedFS)
     this->SharedFS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(
         llvm::cas::createInMemoryCAS()));

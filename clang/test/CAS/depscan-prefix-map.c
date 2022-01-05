@@ -15,8 +15,7 @@
 // RUN:              -working-directory %t.d                              \
 // RUN: | FileCheck %s
 //
-// CHECK:      "-fcas" "builtin"
-// CHECK-SAME: "-fcas-builtin-path" "/^llvm::cas::builtin::default/llvm.cas.builtin.default"
+// CHECK: "-fcas-builtin-path" "/^llvm::cas::builtin::default/llvm.cas.builtin.default"
 // CHECK-SAME: "-working-directory" "/^testdir"
 // CHECK-SAME: "-x" "c" "/^source/depscan-prefix-map.c"
 // CHECK-SAME: "-isysroot" "/^sdk"

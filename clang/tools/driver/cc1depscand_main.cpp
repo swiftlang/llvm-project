@@ -25,6 +25,7 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Option/ArgList.h"
@@ -40,6 +41,7 @@
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdio>
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <sys/file.h> // FIXME: Unix-only. Not portable.
@@ -268,9 +270,12 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
       llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
       llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
+  std::unique_ptr<llvm::cas::ActionCache> Cache =
+      llvm::cantFail(createOnDiskActionCache(
+          CAS->getNamespace(), llvm::cas::getDefaultOnDiskActionCachePath()));
   tooling::dependencies::DependencyScanningService Service(
       tooling::dependencies::ScanningMode::MinimizedSourcePreprocessing,
-      tooling::dependencies::ScanningOutputFormat::Tree, FS,
+      tooling::dependencies::ScanningOutputFormat::Tree, FS, *Cache,
       /*ReuseFileManager=*/false,
       /*SkipExcludedPPRanges=*/true);
   tooling::dependencies::DependencyScanningTool Tool(Service);
@@ -449,12 +454,15 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   // FIXME: Should use user-specified CAS, if any.
   std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
       llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
+  std::unique_ptr<llvm::cas::ActionCache> Cache =
+      llvm::cantFail(createOnDiskActionCache(
+          CAS->getNamespace(), llvm::cas::getDefaultOnDiskActionCachePath()));
 
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
       llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
   tooling::dependencies::DependencyScanningService Service(
       tooling::dependencies::ScanningMode::MinimizedSourcePreprocessing,
-      tooling::dependencies::ScanningOutputFormat::Tree, FS,
+      tooling::dependencies::ScanningOutputFormat::Tree, FS, *Cache,
       /*ReuseFileManager=*/false,
       /*SkipExcludedPPRanges=*/true);
 
@@ -867,12 +875,16 @@ clang::updateCC1Args(const char *Exec, ArrayRef<const char *> InputArgs,
   std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
       llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
 
+  std::unique_ptr<llvm::cas::ActionCache> Cache =
+      llvm::cantFail(createOnDiskActionCache(
+          CAS->getNamespace(), llvm::cas::getDefaultOnDiskActionCachePath()));
+
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
       llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
 
   tooling::dependencies::DependencyScanningService Service(
       tooling::dependencies::ScanningMode::MinimizedSourcePreprocessing,
-      tooling::dependencies::ScanningOutputFormat::Tree, FS,
+      tooling::dependencies::ScanningOutputFormat::Tree, FS, *Cache,
       /*ReuseFileManager=*/false,
       /*SkipExcludedPPRanges=*/true);
   tooling::dependencies::DependencyScanningTool Tool(Service);
