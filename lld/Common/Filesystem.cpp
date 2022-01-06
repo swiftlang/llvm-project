@@ -138,7 +138,8 @@ lld::createFileSystem(cas::CASDB *CAS, Optional<StringRef> CASFileSystemRootID,
     return llvm::vfs::getRealFileSystem();
 
   StringRef rootIDString = CASFileSystemRootID.getValue();
-  Expected<llvm::cas::CASID> rootID = CAS->parseCASID(rootIDString);
+  llvm::cas::UniqueID uid;
+  Expected<llvm::cas::CASID> rootID = CAS->parseCASID(rootIDString, uid);
   if (!rootID)
     return rootID.takeError();
 

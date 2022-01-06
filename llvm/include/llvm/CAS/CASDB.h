@@ -314,7 +314,7 @@ public:
   /// be a reference that has been constructed correctly.
   ///
   /// TODO: Remove once callers use \a parseID().
-  Expected<CASID> parseCASID(StringRef Reference);
+  Expected<CASID> parseCASID(StringRef Reference, UniqueID &ID);
 
   /// Print \p ID to \p OS, returning an error if \p ID is not a valid \p CASID
   /// for this CAS. If \p ID is valid for the CAS schema but unknown to this

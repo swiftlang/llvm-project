@@ -407,7 +407,8 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
       break;
     }
     CASDB &CAS = *config->CAS;
-    Expected<CASID> expCASID = readCASIDBuffer(CAS, mbref);
+    UniqueID id;
+    Expected<CASID> expCASID = readCASIDBuffer(CAS, mbref, id);
     if (!expCASID) {
       error(path + ": failed reading: " + toString(expCASID.takeError()));
       break;
@@ -1135,8 +1136,9 @@ void createFiles(const InputArgList &args) {
     case OPT_INPUT: {
       if (config->CAS) {
         StringRef casid = arg->getValue();
+        llvm::cas::UniqueID uid;
         if (auto optCASID =
-                expectedToOptional(config->CAS->parseCASID(casid))) {
+                expectedToOptional(config->CAS->parseCASID(casid, uid))) {
           if (config->depScanning)
             continue; // we'll record the casid as part of the options.
           if (auto E = addCASTree(*config->CASSchemas, *optCASID)) {

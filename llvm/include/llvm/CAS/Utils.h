@@ -20,8 +20,10 @@ class CASDB;
 class CASID;
 class NamedTreeEntry;
 class TreeRef;
+class UniqueID;
 
-Expected<CASID> readCASIDBuffer(cas::CASDB &CAS, llvm::MemoryBufferRef Buffer);
+Expected<CASID> readCASIDBuffer(cas::CASDB &CAS, llvm::MemoryBufferRef Buffer,
+                                UniqueID &ID);
 
 void writeCASIDBuffer(cas::CASDB &CAS, const CASID &ID, llvm::raw_ostream &OS);
 
