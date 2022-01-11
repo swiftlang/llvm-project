@@ -622,7 +622,7 @@ OnDiskOutputFile::openMappedFile(size_t Size) {
       sys::fs::mapped_file_region::readwrite, Size, 0, EC);
   if (EC)
     return errorCodeToError(EC);
-  return Mapping;
+  return std::move(Mapping);
 }
 
 Error OnDiskOutputFile::closeFile(ContentBuffer *MaybeContent) {
@@ -703,7 +703,7 @@ OnDiskOutputBackend::createFileImpl(StringRef ResolvedPath,
       std::make_unique<OnDiskOutputFile>(ResolvedPath, Config, Settings);
   if (Error E = File->initializeFile())
     return std::move(E);
-  return File;
+  return std::move(File);
 }
 
 Expected<IntrusiveRefCntPtr<OutputDirectory>>
