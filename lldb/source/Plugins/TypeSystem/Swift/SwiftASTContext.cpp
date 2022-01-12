@@ -5744,6 +5744,7 @@ SwiftASTContext::GetTypeInfo(opaque_compiler_type_t type,
 
   case swift::TypeKind::Protocol:
   case swift::TypeKind::ProtocolComposition:
+  case swift::TypeKind::Existential:
     swift_flags |= eTypeHasChildren | eTypeIsStructUnion | eTypeIsProtocol;
     break;
   case swift::TypeKind::ExistentialMetatype:
@@ -5825,6 +5826,7 @@ lldb::TypeClass SwiftASTContext::GetTypeClass(opaque_compiler_type_t type) {
   case swift::TypeKind::DependentMember:
   case swift::TypeKind::Protocol:
   case swift::TypeKind::ProtocolComposition:
+  case swift::TypeKind::Existential:
   case swift::TypeKind::Metatype:
   case swift::TypeKind::Module:
   case swift::TypeKind::NestedArchetype:
@@ -6328,6 +6330,7 @@ lldb::Encoding SwiftASTContext::GetEncoding(opaque_compiler_type_t type,
   case swift::TypeKind::Struct:
   case swift::TypeKind::Protocol:
   case swift::TypeKind::ProtocolComposition:
+  case swift::TypeKind::Existential:
     break;
   case swift::TypeKind::LValue:
     return lldb::eEncodingUint;
@@ -6416,7 +6419,8 @@ uint32_t SwiftASTContext::GetNumChildren(opaque_compiler_type_t type,
   }
 
   case swift::TypeKind::Protocol:
-  case swift::TypeKind::ProtocolComposition: {
+  case swift::TypeKind::ProtocolComposition:
+  case swift::TypeKind::Existential: {
     ProtocolInfo protocol_info;
     if (!GetProtocolTypeInfo(ToCompilerType(GetSwiftType(type)), protocol_info))
       break;
@@ -6556,6 +6560,7 @@ uint32_t SwiftASTContext::GetNumFields(opaque_compiler_type_t type,
 
   case swift::TypeKind::Protocol:
   case swift::TypeKind::ProtocolComposition:
+  case swift::TypeKind::Existential:
     return GetNumChildren(type, /*omit_empty_base_classes=*/false, nullptr);
 
   case swift::TypeKind::ExistentialMetatype:
@@ -6829,7 +6834,8 @@ CompilerType SwiftASTContext::GetFieldAtIndex(opaque_compiler_type_t type,
   }
 
   case swift::TypeKind::Protocol:
-  case swift::TypeKind::ProtocolComposition: {
+  case swift::TypeKind::ProtocolComposition:
+  case swift::TypeKind::Existential: {
     ProtocolInfo protocol_info;
     if (!GetProtocolTypeInfo(ToCompilerType(GetSwiftType(type)), protocol_info))
       break;
@@ -6943,6 +6949,7 @@ uint32_t SwiftASTContext::GetNumPointeeChildren(opaque_compiler_type_t type) {
   case swift::TypeKind::Function:
   case swift::TypeKind::GenericFunction:
   case swift::TypeKind::ProtocolComposition:
+  case swift::TypeKind::Existential:
     return 0;
   case swift::TypeKind::LValue:
     return 1;
@@ -7261,7 +7268,8 @@ CompilerType SwiftASTContext::GetChildCompilerTypeAtIndex(
   }
 
   case swift::TypeKind::Protocol:
-  case swift::TypeKind::ProtocolComposition: {
+  case swift::TypeKind::ProtocolComposition:
+  case swift::TypeKind::Existential: {
     ProtocolInfo protocol_info;
     if (!GetProtocolTypeInfo(ToCompilerType(GetSwiftType(type)), protocol_info))
       break;
@@ -7500,7 +7508,8 @@ size_t SwiftASTContext::GetIndexOfChildMemberWithName(
     } break;
 
     case swift::TypeKind::Protocol:
-    case swift::TypeKind::ProtocolComposition: {
+    case swift::TypeKind::ProtocolComposition:
+    case swift::TypeKind::Existential: {
       ProtocolInfo protocol_info;
       if (!GetProtocolTypeInfo(ToCompilerType(GetSwiftType(type)),
                                protocol_info))
@@ -7898,6 +7907,7 @@ bool SwiftASTContext::DumpTypeValue(
   } break;
 
   case swift::TypeKind::ProtocolComposition:
+  case swift::TypeKind::Existential:
   case swift::TypeKind::UnboundGeneric:
   case swift::TypeKind::BoundGenericStruct:
   case swift::TypeKind::DynamicSelf:
@@ -8184,6 +8194,21 @@ void SwiftASTContext::DumpTypeDescription(opaque_compiler_type_t type,
               print_help_if_available));
 
       protocol_composition_type->print(ostream, print_options);
+      ostream.flush();
+      if (buffer.empty() == false)
+        s->Printf("%s\n", buffer.c_str());
+      break;
+    }
+    case swift::TypeKind::Existential: {
+      swift::ExistentialType *existential_type =
+          swift_can_type->castTo<swift::ExistentialType>();
+      std::string buffer;
+      llvm::raw_string_ostream ostream(buffer);
+      const swift::PrintOptions &print_options(
+          SwiftASTContext::GetUserVisibleTypePrintingOptions(
+              print_help_if_available));
+
+        existential_type->print(ostream, print_options);
       ostream.flush();
       if (buffer.empty() == false)
         s->Printf("%s\n", buffer.c_str());
