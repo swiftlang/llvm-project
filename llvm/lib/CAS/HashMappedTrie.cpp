@@ -63,9 +63,11 @@ private:
 };
 } // namespace
 
+namespace llvm {
 template <> struct isa_impl<ThreadSafeSubtrie, TrieNode> {
   static inline bool doit(const TrieNode &TN) { return TN.IsSubtrie; }
 };
+} // namespace llvm
 
 std::unique_ptr<ThreadSafeSubtrie> ThreadSafeSubtrie::create(size_t StartBit,
                                                              size_t NumBits) {

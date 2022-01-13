@@ -57,7 +57,7 @@ public:
 
     explicit operator bool() const { return I == -2u; }
 
-    LookupResult() noexcept = default;
+    LookupResult() = default;
     LookupResult(LookupResult &&) = default;
     LookupResult &operator=(LookupResult &&) = default;
 

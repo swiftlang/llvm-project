@@ -348,7 +348,7 @@ static Expected<std::unique_ptr<CASFileSystem>>
 initializeCASFileSystem(std::unique_ptr<CASFileSystem> FS, CASID RootID) {
   if (Error E = FS->initialize(RootID))
     return std::move(E);
-  return FS;
+  return std::move(FS);
 }
 
 Expected<std::unique_ptr<CASFileSystemBase>>

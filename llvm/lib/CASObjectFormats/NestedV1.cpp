@@ -21,15 +21,15 @@ using namespace llvm;
 using namespace llvm::casobjectformats;
 using namespace llvm::casobjectformats::nestedv1;
 
-const StringLiteral NameRef::KindString;
-const StringLiteral BlockDataRef::KindString;
-const StringLiteral TargetListRef::KindString;
-const StringLiteral SectionRef::KindString;
-const StringLiteral BlockRef::KindString;
-const StringLiteral SymbolRef::KindString;
-const StringLiteral SymbolTableRef::KindString;
-const StringLiteral NameListRef::KindString;
-const StringLiteral CompileUnitRef::KindString;
+constexpr StringLiteral NameRef::KindString;
+constexpr StringLiteral BlockDataRef::KindString;
+constexpr StringLiteral TargetListRef::KindString;
+constexpr StringLiteral SectionRef::KindString;
+constexpr StringLiteral BlockRef::KindString;
+constexpr StringLiteral SymbolRef::KindString;
+constexpr StringLiteral SymbolTableRef::KindString;
+constexpr StringLiteral NameListRef::KindString;
+constexpr StringLiteral CompileUnitRef::KindString;
 
 namespace {
 class EncodedDataRef : public SpecificRef<EncodedDataRef> {
@@ -55,7 +55,7 @@ private:
 };
 } // end namespace
 
-const StringLiteral EncodedDataRef::KindString;
+constexpr StringLiteral EncodedDataRef::KindString;
 
 void ObjectFileSchema::anchor() {}
 

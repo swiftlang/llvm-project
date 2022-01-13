@@ -25,12 +25,12 @@ using namespace llvm;
 using namespace llvm::casobjectformats;
 using namespace llvm::casobjectformats::flatv1;
 
-const StringLiteral CompileUnitRef::KindString;
-const StringLiteral NameRef::KindString;
-const StringLiteral SectionRef::KindString;
-const StringLiteral BlockRef::KindString;
-const StringLiteral SymbolRef::KindString;
-const StringLiteral BlockContentRef::KindString;
+constexpr StringLiteral CompileUnitRef::KindString;
+constexpr StringLiteral NameRef::KindString;
+constexpr StringLiteral SectionRef::KindString;
+constexpr StringLiteral BlockRef::KindString;
+constexpr StringLiteral SymbolRef::KindString;
+constexpr StringLiteral BlockContentRef::KindString;
 
 void ObjectFileSchema::anchor() {}
 

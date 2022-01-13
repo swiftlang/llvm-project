@@ -84,17 +84,17 @@ private:
 
   IntrusiveRefCntPtr<llvm::cas::CASFileSystemBase> FS;
 
-  struct Entry {
+  struct FileEntry {
     std::error_code EC; // If non-zero, caches a stat failure.
     Optional<StringRef> Buffer;
     llvm::vfs::Status Status;
     Optional<llvm::cas::CASID> ID;
   };
   llvm::BumpPtrAllocator EntryAlloc;
-  llvm::StringMap<Entry, llvm::BumpPtrAllocator> Entries;
+  llvm::StringMap<FileEntry, llvm::BumpPtrAllocator> Entries;
 
   struct LookupPathResult {
-    const Entry *Entry = nullptr;
+    const FileEntry *Entry = nullptr;
 
     // Only filled if the Entry is nullptr.
     llvm::ErrorOr<llvm::vfs::Status> Status;
