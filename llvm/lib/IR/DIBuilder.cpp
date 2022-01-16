@@ -32,9 +32,22 @@ static cl::opt<bool>
                cl::init(false), cl::Hidden);
 
 DIBuilder::DIBuilder(Module &m, bool AllowUnresolvedNodes, DICompileUnit *CU)
-  : M(m), VMContext(M.getContext()), CUNode(CU),
-      DeclareFn(nullptr), ValueFn(nullptr), LabelFn(nullptr),
-      AllowUnresolvedNodes(AllowUnresolvedNodes) {}
+    : M(m), VMContext(M.getContext()), CUNode(CU), DeclareFn(nullptr),
+      ValueFn(nullptr), LabelFn(nullptr), AddrFn(nullptr),
+      AllowUnresolvedNodes(AllowUnresolvedNodes) {
+  if (CUNode) {
+    if (const auto &ETs = CUNode->getEnumTypes())
+      AllEnumTypes.assign(ETs.begin(), ETs.end());
+    if (const auto &RTs = CUNode->getRetainedTypes())
+      AllRetainTypes.assign(RTs.begin(), RTs.end());
+    if (const auto &GVs = CUNode->getGlobalVariables())
+      AllGVs.assign(GVs.begin(), GVs.end());
+    if (const auto &IMs = CUNode->getImportedEntities())
+      AllImportedModules.assign(IMs.begin(), IMs.end());
+    if (const auto &MNs = CUNode->getMacros())
+      AllMacrosPerParent.insert({nullptr, {MNs.begin(), MNs.end()}});
+  }
+}
 
 void DIBuilder::trackIfUnresolved(MDNode *N) {
   if (!N)
@@ -967,6 +980,24 @@ Instruction *DIBuilder::insertDbgValueIntrinsic(Value *V,
   return insertDbgValueIntrinsic(V, VarInfo, Expr, DL, InsertAtEnd, nullptr);
 }
 
+Instruction *DIBuilder::insertDbgAddrIntrinsic(Value *V,
+                                               DILocalVariable *VarInfo,
+                                               DIExpression *Expr,
+                                               const DILocation *DL,
+                                               Instruction *InsertBefore) {
+  return insertDbgAddrIntrinsic(
+      V, VarInfo, Expr, DL, InsertBefore ? InsertBefore->getParent() : nullptr,
+      InsertBefore);
+}
+
+Instruction *DIBuilder::insertDbgAddrIntrinsic(Value *V,
+                                               DILocalVariable *VarInfo,
+                                               DIExpression *Expr,
+                                               const DILocation *DL,
+                                               BasicBlock *InsertAtEnd) {
+  return insertDbgAddrIntrinsic(V, VarInfo, Expr, DL, InsertAtEnd, nullptr);
+}
+
 /// Initialize IRBuilder for inserting dbg.declare and dbg.value intrinsics.
 /// This abstracts over the various ways to specify an insert position.
 static void initIRBuilder(IRBuilder<> &Builder, const DILocation *DL,
@@ -1010,17 +1041,20 @@ Instruction *DIBuilder::insertDeclare(Value *Storage, DILocalVariable *VarInfo,
   return B.CreateCall(DeclareFn, Args);
 }
 
-Instruction *DIBuilder::insertDbgValueIntrinsic(
-    Value *V, DILocalVariable *VarInfo, DIExpression *Expr,
-    const DILocation *DL, BasicBlock *InsertBB, Instruction *InsertBefore) {
-  assert(V && "no value passed to dbg.value");
-  assert(VarInfo && "empty or invalid DILocalVariable* passed to dbg.value");
+Instruction *DIBuilder::insertDbgIntrinsic(llvm::Function *IntrinsicFn,
+                                           Value *V, DILocalVariable *VarInfo,
+                                           DIExpression *Expr,
+                                           const DILocation *DL,
+                                           BasicBlock *InsertBB,
+                                           Instruction *InsertBefore) {
+  assert(IntrinsicFn && "must pass a non-null intrinsic function");
+  assert(V && "must pass a value to a dbg intrinsic");
+  assert(VarInfo &&
+         "empty or invalid DILocalVariable* passed to debug intrinsic");
   assert(DL && "Expected debug loc");
   assert(DL->getScope()->getSubprogram() ==
              VarInfo->getScope()->getSubprogram() &&
          "Expected matching subprograms");
-  if (!ValueFn)
-    ValueFn = Intrinsic::getDeclaration(&M, Intrinsic::dbg_value);
 
   trackIfUnresolved(VarInfo);
   trackIfUnresolved(Expr);
@@ -1030,7 +1064,7 @@ Instruction *DIBuilder::insertDbgValueIntrinsic(
 
   IRBuilder<> B(DL->getContext());
   initIRBuilder(B, DL, InsertBB, InsertBefore);
-  return B.CreateCall(ValueFn, Args);
+  return B.CreateCall(IntrinsicFn, Args);
 }
 
 Instruction *DIBuilder::insertLabel(
