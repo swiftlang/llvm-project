@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/TableGen/ScanDependencies.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrefixMapper.h"
@@ -74,16 +75,14 @@ void tablegen::scanTextForIncludes(StringRef Input,
 }
 
 static Error
-fetchCachedIncludedFiles(cas::CASDB &CAS, cas::CASID ID,
+fetchCachedIncludedFiles(cas::BlobRef Blob,
                          SmallVectorImpl<StringRef> &IncludedFiles) {
-  Expected<cas::BlobRef> ExpectedBlob = CAS.getBlob(ID);
-  if (!ExpectedBlob)
-    return ExpectedBlob.takeError();
-  splitFlattenedStrings(ExpectedBlob->getData(), IncludedFiles);
+  splitFlattenedStrings(Blob.getData(), IncludedFiles);
   return Error::success();
 }
 
-static Error computeIncludedFiles(cas::CASDB &CAS, cas::CASID Key,
+static Error computeIncludedFiles(cas::CASDB &CAS, cas::ActionCache &Cache,
+                                  const cas::ActionDescription &Action,
                                   StringRef Input,
                                   SmallVectorImpl<StringRef> &IncludedFiles) {
   SmallString<256> ResultToCache;
@@ -93,24 +92,22 @@ static Error computeIncludedFiles(cas::CASDB &CAS, cas::CASID Key,
   Expected<cas::BlobRef> ExpectedResult = CAS.createBlob(ResultToCache);
   if (!ExpectedResult)
     return ExpectedResult.takeError();
-  if (Error E = CAS.putCachedResult(Key, *ExpectedResult))
-    return E;
-  return Error::success();
+  return Cache.put(Action, CAS.getUniqueID(*ExpectedResult));
 }
 
-Error tablegen::scanTextForIncludes(cas::CASDB &CAS, cas::CASID ExecID,
-                                    const cas::BlobRef &Blob,
+Error tablegen::scanTextForIncludes(cas::CASDB &CAS, cas::ActionCache &Cache,
+                                    cas::CASID ExecID, const cas::BlobRef &Blob,
                                     SmallVectorImpl<StringRef> &Includes) {
-  constexpr StringLiteral CacheKeyData = "llvm::tablegen::scanTextForIncludes";
-
-  Expected<cas::NodeRef> Key = CAS.createNode({ExecID, Blob}, CacheKeyData);
-  if (!Key)
-    return Key.takeError();
-
-  if (Optional<cas::CASID> ResultID =
-          expectedToOptional(CAS.getCachedResult(*Key)))
-    return fetchCachedIncludedFiles(CAS, *ResultID, Includes);
-  return computeIncludedFiles(CAS, *Key, Blob.getData(), Includes);
+  cas::UniqueIDRef Inputs[] = {CAS.getUniqueID(ExecID), CAS.getUniqueID(Blob)};
+  cas::ActionDescription Action("llvm::tablegen::scanTextForIncludes", Inputs);
+  Optional<cas::UniqueIDRef> ResultID;
+  if (Error E = Cache.get(Action, ResultID))
+    return E;
+  if (ResultID)
+    if (Optional<cas::BlobRef> Blob =
+            expectedToOptional(CAS.getBlob(*ResultID)))
+      return fetchCachedIncludedFiles(*Blob, Includes);
+  return computeIncludedFiles(CAS, Cache, Action, Blob.getData(), Includes);
 }
 
 Optional<cas::CASID>
@@ -132,7 +129,8 @@ tablegen::lookupIncludeID(cas::CachingOnDiskFileSystem &FS,
   return ID;
 }
 
-Error tablegen::accessAllIncludes(cas::CachingOnDiskFileSystem &FS,
+Error tablegen::accessAllIncludes(cas::ActionCache &Cache,
+                                  cas::CachingOnDiskFileSystem &FS,
                                   cas::CASID ExecID,
                                   ArrayRef<std::string> IncludeDirs,
                                   const cas::BlobRef &MainFileBlob) {
@@ -157,8 +155,8 @@ Error tablegen::accessAllIncludes(cas::CachingOnDiskFileSystem &FS,
   SmallVector<StringRef> IncludedFiles;
   while (!Worklist.empty()) {
     IncludedFiles.clear();
-    if (Error E = scanTextForIncludes(CAS, ExecID, Worklist.pop_back_val(),
-                                      IncludedFiles))
+    if (Error E = scanTextForIncludes(CAS, Cache, ExecID,
+                                      Worklist.pop_back_val(), IncludedFiles))
       return E;
 
     // Add included files to the worklist. Ignore files not found, since the
@@ -199,10 +197,12 @@ Error tablegen::createMainFileError(StringRef MainFilename,
                                    "': " + EC.message());
 }
 
-Expected<ScanIncludesResult> tablegen::scanIncludes(
-    cas::CASDB &CAS, cas::CASID ExecID, StringRef MainFilename,
-    ArrayRef<std::string> IncludeDirs, ArrayRef<MappedPrefix> PrefixMappings,
-    Optional<TreePathPrefixMapper> *CapturedPM) {
+Expected<ScanIncludesResult>
+tablegen::scanIncludes(cas::CASDB &CAS, cas::ActionCache &Cache,
+                       cas::CASID ExecID, StringRef MainFilename,
+                       ArrayRef<std::string> IncludeDirs,
+                       ArrayRef<MappedPrefix> PrefixMappings,
+                       Optional<TreePathPrefixMapper> *CapturedPM) {
   IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS;
   if (Error E = cas::createCachingOnDiskFileSystem(CAS).moveInto(FS))
     return std::move(E);
@@ -213,7 +213,7 @@ Expected<ScanIncludesResult> tablegen::scanIncludes(
     return MainBlob.takeError();
 
   // Helper for adding to the worklist.
-  if (Error E = accessAllIncludes(*FS, ExecID, IncludeDirs, *MainBlob))
+  if (Error E = accessAllIncludes(Cache, *FS, ExecID, IncludeDirs, *MainBlob))
     return std::move(E);
 
   Optional<TreePathPrefixMapper> LocalPM;
@@ -236,13 +236,13 @@ Expected<ScanIncludesResult> tablegen::scanIncludes(
 }
 
 Expected<ScanIncludesResult>
-tablegen::scanIncludesAndRemap(cas::CASDB &CAS, cas::CASID ExecID,
-                               std::string &MainFilename,
+tablegen::scanIncludesAndRemap(cas::CASDB &CAS, cas::ActionCache &Cache,
+                               cas::CASID ExecID, std::string &MainFilename,
                                std::vector<std::string> &IncludeDirs,
                                ArrayRef<MappedPrefix> PrefixMappings) {
   Optional<TreePathPrefixMapper> PM;
-  auto Result =
-      scanIncludes(CAS, ExecID, MainFilename, IncludeDirs, PrefixMappings, &PM);
+  auto Result = scanIncludes(CAS, Cache, ExecID, MainFilename, IncludeDirs,
+                             PrefixMappings, &PM);
   if (!Result)
     return Result.takeError();
 

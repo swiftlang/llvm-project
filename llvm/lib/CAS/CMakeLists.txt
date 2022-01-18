@@ -1,4 +1,6 @@
 add_llvm_component_library(LLVMCAS
+  ActionCache.cpp
+  ActionDescription.cpp
   BuiltinCAS.cpp
   CASDB.cpp
   CASFileSystem.cpp
@@ -7,8 +9,13 @@ add_llvm_component_library(LLVMCAS
   FileSystemCache.cpp
   HashMappedTrie.cpp
   HierarchicalTreeBuilder.cpp
+  InMemoryActionCache.cpp
+  Namespace.cpp
+  NamespaceHelpers.cpp
+  OnDiskActionCache.cpp
   OnDiskHashMappedTrie.cpp
   PluginCAS.cpp
+  UniqueID.cpp
   Utils.cpp
 
   ADDITIONAL_HEADER_DIRS

@@ -28,6 +28,10 @@ namespace llvm {
 
 class MemoryBuffer;
 
+namespace cas {
+class ActionCache;
+} // end namespace cas
+
 } // namespace llvm
 
 namespace clang {
@@ -96,18 +100,18 @@ class PTHManager {
   llvm::SpecificBumpPtrAllocator<IdentifierInfo *> IdentifierInfoCacheAlloc;
 
   llvm::cas::CASDB &CAS;
+  llvm::cas::ActionCache &Cache;
   IntrusiveRefCntPtr<llvm::cas::CASFileSystemBase> FS;
   LangOptions CanonicalLangOpts;
-  Optional<llvm::cas::CASID> SerializedLangOpts;
-  Optional<llvm::cas::CASID> ClangVersion;
-  Optional<llvm::cas::CASID> Operation;
+  Optional<llvm::cas::UniqueIDRef> SerializedLangOpts;
+  Optional<llvm::cas::UniqueIDRef> ClangVersion;
 
   /// PP - The Preprocessor object that will use this PTHManager to create
   ///  PTHLexer objects.
   Preprocessor *PP = nullptr;
 
-  PTHHandler *createHandler(StringRef Filename, llvm::cas::CASID PTH);
-  Expected<llvm::cas::CASID> computePTH(llvm::cas::CASID InputFile);
+  PTHHandler *createHandler(StringRef Filename, StringRef PTH);
+  Expected<StringRef> computePTH(llvm::cas::CASID InputFile);
 
 public:
   // The current PTH version.
@@ -118,7 +122,8 @@ public:
   ~PTHManager();
   PTHManager() = delete;
 
-  PTHManager(IntrusiveRefCntPtr<llvm::cas::CASFileSystemBase> FS,
+  PTHManager(llvm::cas::ActionCache &Cache,
+             IntrusiveRefCntPtr<llvm::cas::CASFileSystemBase> FS,
              Preprocessor &PP);
 
   void setPreprocessor(Preprocessor *pp) { PP = pp; }

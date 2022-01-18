@@ -135,6 +135,19 @@ protected:
   LookupResultBase lookup(ArrayRef<uint8_t> Hash) const;
 
   /// Returns the actual content in the map, potentially a different node.
+  ///
+  /// FIXME: This should take a function that allocates and constructs the
+  /// content lazily (taking the hash as a separate parameter), in case of
+  /// collision.
+  ///
+  /// TODO: Look into using BumpPtrAllocator for TrieContent instead of
+  /// separate allocations for each node. Probably not hard to make one that is
+  /// lock-free except when allocating new slabs. Note: \c std::unique_ptr is
+  /// convenient here because \p Content may be deallocated if two threads are
+  /// racing to insert the same data; once allocation is delayed to when the
+  /// right slot has been found, an allocation race is likely rare enough
+  /// that'd be acceptable to leak the losing allocation on the bump-ptr; or,
+  /// could recycle the allocation somehow.
   TrieContentBase &insert(LookupResultBase Hint,
                           std::unique_ptr<TrieContentBase> Content);
 

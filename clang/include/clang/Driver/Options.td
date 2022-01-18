@@ -5926,11 +5926,11 @@ def dump_depscan_tree_EQ : Option<["-"], "dump-depscan-tree=", KIND_JOINED>,
 let Flags = [CC1Option, NoDriverOption] in {
 
 def fcas : Separate<["-"], "fcas">,
-    Group<f_Group>, MetaVarName<"<none|builtin|plugin>">,
+    Group<f_Group>, MetaVarName<"<builtin|plugin>">,
     HelpText<"Kind of CAS to use during compilation.">,
-    Values<"none,builtin,plugin">, NormalizedValuesScope<"CASOptions">,
-    NormalizedValues<["NoCAS", "BuiltinCAS", "PluginCAS"]>,
-    MarshallingInfoEnum<CASOpts<"Kind">, "NoCAS">;
+    Values<"builtin,plugin">, NormalizedValuesScope<"CASOptions">,
+    NormalizedValues<["BuiltinCAS", "PluginCAS"]>,
+    MarshallingInfoEnum<CASOpts<"Kind">, "BuiltinCAS">;
 
 def fcas_builtin_path : Separate<["-"], "fcas-builtin-path">,
     Group<f_Group>, MetaVarName<"<dir>">,
@@ -5950,10 +5950,14 @@ def fcas_plugin_arg : Joined<["-"], "fcas-plugin-arg">,
     ShouldParseIf<!strconcat(fcas.KeyPath," == CASOptions::PluginCAS")>,
     MarshallingInfoStringVector<CASOpts<"PluginArgs">>;
 
+def fcas_action_cache : Separate<["-"], "faction-cache">,
+    Group<f_Group>, MetaVarName<"<dir>">,
+    HelpText<"An on-disk action cache to use with the CAS.">,
+    MarshallingInfoString<CASOpts<"ActionCachePath">>;
+
 def fcas_fs : Separate<["-"], "fcas-fs">,
     Group<f_Group>, MetaVarName<"<tree>">,
     HelpText<"Configure the filesystem to read from the provided CAS tree.">,
-    ShouldParseIf<!strconcat(fcas.KeyPath, " != CASOptions::NoCAS")>,
     MarshallingInfoString<CASOpts<"CASFileSystemRootID">>;
 
 def fcas_fs_working_directory : Separate<["-"], "fcas-fs-working-directory">,

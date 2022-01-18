@@ -1952,6 +1952,41 @@ TEST_F(FileSystemTest, readNativeFileToEOF) {
   ASSERT_EQ(Content.size() + 5, SmallChunks.capacity());
 }
 
+TEST_F(FileSystemTest, readNativeFileToLimit) {
+  constexpr StringLiteral Content = "0123456789";
+  createFileWithData(NonExistantFile, false, fs::CD_CreateNew, Content);
+  FileRemover Cleanup(NonExistantFile);
+  const auto &Read = [&](SmallVectorImpl<char> &V, size_t SizeLimit) {
+    Expected<fs::file_t> FD = fs::openNativeFileForRead(NonExistantFile);
+    if (!FD)
+      return FD.takeError();
+    auto Close = make_scope_exit([&] { fs::closeFile(*FD); });
+    return fs::readNativeFileToLimit(*FD, V, SizeLimit);
+  };
+
+  // Check basic operation.
+  for (size_t SizeLimit :
+       {0ULL, 1ULL, Content.size() - 1LL, Content.size() + 0ULL,
+        Content.size() + 1ULL, 1024ULL}) {
+    SmallString<64> V;
+    ASSERT_THAT_ERROR(Read(V, SizeLimit), Succeeded());
+    ASSERT_LE(V.size(), SizeLimit);
+    ASSERT_EQ(SizeLimit < Content.size() ? Content.take_front(SizeLimit)
+                                         : StringRef(Content),
+              V);
+  }
+
+  // Check appending.
+  {
+    constexpr StringLiteral Prefix = "chars-";
+    SmallString<64> V = Prefix;
+    ASSERT_THAT_ERROR(Read(V, Content.size()), Succeeded());
+    ASSERT_EQ(Content.size(), V.size());
+    ASSERT_EQ(
+        (Prefix + Content.take_front(Content.size() - Prefix.size())).str(), V);
+  }
+}
+
 TEST_F(FileSystemTest, readNativeFileSlice) {
   createFileWithData(NonExistantFile, false, fs::CD_CreateNew, "01234");
   FileRemover Cleanup(NonExistantFile);

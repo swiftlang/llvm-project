@@ -34,6 +34,11 @@ namespace llvm {
 class raw_fd_ostream;
 class Timer;
 class TimerGroup;
+
+namespace cas {
+class CASDB;
+class ActionCache;
+} // end namespace cas
 }
 
 namespace clang {
@@ -75,6 +80,9 @@ enum class DisableValidationForModuleKind;
 class CompilerInstance : public ModuleLoader {
   /// The options used in this compiler instance.
   std::shared_ptr<CompilerInvocation> Invocation;
+
+  std::shared_ptr<llvm::cas::CASDB> CAS;
+  std::shared_ptr<llvm::cas::ActionCache> ActionCache;
 
   /// The diagnostics engine instance.
   IntrusiveRefCntPtr<DiagnosticsEngine> Diagnostics;
@@ -233,6 +241,15 @@ public:
     BuildGlobalModuleIndex = Build;
   }
 
+  llvm::cas::CASDB &getCAS() const { return *CAS; }
+  llvm::cas::CASDB &getOrCreateCAS();
+  std::shared_ptr<llvm::cas::CASDB> getCASPtr() const { return CAS; }
+
+  llvm::cas::ActionCache &getOrCreateActionCache();
+  llvm::cas::ActionCache &getActionCache() const { return *ActionCache; }
+  std::shared_ptr<llvm::cas::ActionCache> getActionCachePtr() const {
+    return ActionCache;
+  }
   /// }
   /// @name Forwarding Methods
   /// {

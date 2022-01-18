@@ -44,8 +44,9 @@ class FileSystem;
 
 namespace cas {
 
+class ActionCache;
 class CASDB;
-
+class Namespace;
 }
 
 } // namespace llvm
@@ -341,10 +342,6 @@ createVFSFromCompilerInvocation(const CompilerInvocation &CI,
 IntrusiveRefCntPtr<llvm::vfs::FileSystem> createVFSFromCompilerInvocation(
     const CompilerInvocation &CI, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS);
-
-std::shared_ptr<llvm::cas::CASDB>
-createCASFromCompilerInvocation(const CompilerInvocation &CI,
-                                DiagnosticsEngine &Diags);
 
 } // namespace clang
 

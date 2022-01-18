@@ -37,7 +37,7 @@ public:
   const ObjectFileSchema &getSchema() const { return *Schema; }
 
   bool operator==(const ObjectFormatNodeRef &RHS) const {
-    return Schema == RHS.Schema && cas::CASID(*this) == cas::CASID(RHS);
+    return Schema == RHS.Schema && getID() == RHS.getID();
   }
 
   ObjectFormatNodeRef() = delete;

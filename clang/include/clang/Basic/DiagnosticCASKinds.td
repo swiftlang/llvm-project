@@ -11,9 +11,10 @@ let Component = "CAS" in {
 def err_cas_plugin_cannot_be_loaded : Error<
   "CAS plugin '%0' cannot be loaded (check -fcas-plugin-path and"
   " -fcas-plugin-args)">, DefaultFatal;
-def err_builtin_cas_cannot_be_initialized : Error<
-  "Builtin CAS cannot be initialized from '%0' on disk"
-  " (check -fcas-builtin-path)">, DefaultFatal;
+def err_cannot_initialize_action_cache : Error<
+  "cannot initialize action cache: %0">, DefaultFatal;
+def err_cannot_initialize_builtin_cas : Error<
+  "cannot initialize builtin CAS: %0">, DefaultFatal;
 def err_cas_builtin_path : Error<
   "Builtin CAS cannot be initialized from '%0' on disk"
   " (check -fcas-builtin-path)">, DefaultFatal;

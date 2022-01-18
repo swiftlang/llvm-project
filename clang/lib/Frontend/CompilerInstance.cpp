@@ -38,6 +38,7 @@
 #include "clang/Serialization/GlobalModuleIndex.h"
 #include "clang/Serialization/InMemoryModuleCache.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/Errc.h"
@@ -79,6 +80,19 @@ bool CompilerInstance::shouldBuildGlobalModuleIndex() const {
           (TheASTReader && TheASTReader->isGlobalIndexUnavailable() &&
            getFrontendOpts().GenerateGlobalModuleIndex)) &&
          !DisableGeneratingGlobalModuleIndex;
+}
+
+llvm::cas::ActionCache &CompilerInstance::getOrCreateActionCache() {
+  if (!ActionCache)
+    ActionCache = getInvocation().getCASOpts().getOrCreateActionCache(
+        getOrCreateCAS().getNamespace(), getDiagnostics());
+  return *ActionCache;
+}
+
+llvm::cas::CASDB &CompilerInstance::getOrCreateCAS() {
+  if (!CAS)
+    CAS = getInvocation().getCASOpts().getOrCreateCAS(getDiagnostics());
+  return *CAS;
 }
 
 void CompilerInstance::setDiagnostics(DiagnosticsEngine *Value) {
@@ -463,12 +477,20 @@ void CompilerInstance::createPreprocessor(TranslationUnitKind TUKind) {
   PP->Initialize(getTarget(), getAuxTarget());
 
   // Create a PTH manager if we are using some form of a token cache.
+  //
+  // FIXME: Should not be in CASOptions.
+  // FIXME: Current option controls/describes whether to cache the first stage
+  // of lexing, implying it should be two stages only if caching. Instead,
+  // option should control/describe whether to tokenize in two stages, and the
+  // compiler should cache when appropriate.
   if (CASOpts.CASTokenCache) {
+    // FIXME: Lexing algorithm should not depend on CAS-aware filesystem.
+    // - Can create an in-memory CAS and/or ActionCache on-the-fly.
+    // - Can use two-stage lexing regardless of caching behaviour.
     llvm::vfs::FileSystem &FS = getFileManager().getVirtualFileSystem();
-
-    // FIXME: use dyn_cast here.
     if (FS.isCASFS())
       PP->setPTHManager(std::make_unique<PTHManager>(
+          getOrCreateActionCache(),
           &static_cast<llvm::cas::CASFileSystemBase &>(FS), *PP));
   }
 

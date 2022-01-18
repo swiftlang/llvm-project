@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 
 using namespace llvm;
@@ -14,4 +15,10 @@ using namespace llvm::cas;
 Expected<std::unique_ptr<CASDB>>
 cas::createPluginCAS(StringRef, ArrayRef<std::string>) {
   report_fatal_error("CAS plugins not implemented");
+}
+
+Expected<std::unique_ptr<ActionCache>>
+cas::createPluginActionCache(const Namespace &NS, StringRef PluginPath,
+                             ArrayRef<std::string> PluginArgs) {
+  report_fatal_error("ActionCache plugins not implemented");
 }

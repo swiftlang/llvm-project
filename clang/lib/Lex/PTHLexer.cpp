@@ -26,6 +26,7 @@
 #include "clang/Lex/Token.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/Support/DJB.h"
@@ -343,9 +344,10 @@ SourceLocation PTHLexer::getSourceLocation() {
 // PTHManager methods.
 //===----------------------------------------------------------------------===//
 
-PTHManager::PTHManager(IntrusiveRefCntPtr<llvm::cas::CASFileSystemBase> FS,
+PTHManager::PTHManager(llvm::cas::ActionCache &Cache,
+                       IntrusiveRefCntPtr<llvm::cas::CASFileSystemBase> FS,
                        Preprocessor &PP)
-    : CAS(FS->getCAS()), FS(std::move(FS)), PP(&PP) {
+    : CAS(FS->getCAS()), Cache(Cache), FS(std::move(FS)), PP(&PP) {
   {
     const LangOptions &OriginalLangOpts = PP.getLangOpts();
     // Copy over most options.
@@ -493,16 +495,9 @@ std::unique_ptr<PTHLexer> PTHHandler::createLexer(PTHManager &PTHM,
   return std::unique_ptr<PTHLexer>(new PTHLexer(*this, *PTHM.PP, FID));
 }
 
-PTHHandler *PTHManager::createHandler(StringRef Filename,
-                                      llvm::cas::CASID PTH) {
-  if (auto ExpectedBuffer = CAS.getBlob(PTH)) {
-    return new (HandlerAlloc.Allocate())
-        PTHHandler(*this, PP->getDiagnostics(), Filename, ExpectedBuffer->getData());
-  } else {
-    // FIXME: Diagnose instead of reporting fatal.
-    llvm::report_fatal_error(ExpectedBuffer.takeError());
-  }
-  return nullptr;
+PTHHandler *PTHManager::createHandler(StringRef Filename, StringRef PTH) {
+  return new (HandlerAlloc.Allocate())
+      PTHHandler(*this, PP->getDiagnostics(), Filename, PTH);
 }
 
 std::unique_ptr<PTHLexer> PTHManager::createLexer(FileID FID) {
@@ -516,14 +511,14 @@ std::unique_ptr<PTHLexer> PTHManager::createLexer(FileID FID) {
     return Handler->createLexer(*this, FID);
 
   // Create a handler for this PTH.
-  //
-  // FIXME: Consider reporting diag::err_invalid_pth_file or similar?
   StringRef Filename = FE->getName();
-  if (Optional<llvm::cas::CASID> InputFile = FS->getFileCASID(Filename))
-    if (Optional<llvm::cas::CASID> PTHFile =
-            expectedToOptional(computePTH(*InputFile)))
-      Handler = createHandler(Filename, *PTHFile);
-
+  if (Optional<llvm::cas::CASID> InputFile = FS->getFileCASID(Filename)) {
+    StringRef Buffer;
+    if (llvm::Error E = computePTH(*InputFile).moveInto(Buffer))
+      consumeError(std::move(E)); // FIXME: Report somehow...
+    else
+      Handler = createHandler(Filename, Buffer);
+  }
   if (!Handler)
     Handler = &NullHandler;
 
@@ -586,39 +581,38 @@ public:
 };
 } // end anonymous namespace
 
-Expected<llvm::cas::CASID> PTHManager::computePTH(llvm::cas::CASID InputFile) {
-  if (!ClangVersion) {
-    assert(!Operation);
-
-    // FIXME: This should be the clang executable...
+Expected<StringRef> PTHManager::computePTH(llvm::cas::CASID InputFile) {
+  // FIXME: This should be the clang executable...
+  if (!ClangVersion)
     ClangVersion = llvm::cantFail(CAS.createBlob(getClangFullVersion()));
-    Operation = llvm::cantFail(CAS.createBlob("generate-isolated-pth"));
-  }
 
-  llvm::cas::HierarchicalTreeBuilder Builder;
-  Builder.push(InputFile, llvm::cas::TreeEntry::Regular, "data");
-  Builder.push(*ClangVersion, llvm::cas::TreeEntry::Regular, "version");
-  Builder.push(*Operation, llvm::cas::TreeEntry::Regular, "operation");
-  Builder.push(*SerializedLangOpts, llvm::cas::TreeEntry::Regular, "lang-opts");
-
-  llvm::cas::CASID CacheKey = llvm::cantFail(Builder.create(CAS)).getID();
-  if (Optional<llvm::cas::CASID> CachedPTH =
-          expectedToOptional(CAS.getCachedResult(CacheKey)))
-    return *CachedPTH;
+  llvm::cas::UniqueIDRef InputIDs[] = {CAS.getUniqueID(InputFile),
+                                       *ClangVersion, *SerializedLangOpts};
+  llvm::cas::ActionDescription Action("generate-isolated-pth",
+                                      llvm::makeArrayRef(InputIDs));
+  Optional<llvm::cas::UniqueIDRef> ResultID;
+  if (llvm::Error E = Cache.get(Action, ResultID))
+    return E;
+  // Missing blob is not an error, since ActionCache may reference results that
+  // the CAS does not have stored.
+  if (ResultID)
+    if (Optional<llvm::cas::BlobRef> Blob =
+            expectedToOptional(CAS.getBlob(*ResultID)))
+      return Blob->getData();
 
   SmallString<256> PTHString;
   {
     llvm::raw_svector_ostream OS(PTHString);
     PTHWriter Writer(OS);
 
-    // FIXME: Maybe we should allow this to fail? Then we should cache the
-    // failure.
+    // FIXME: Report errors?
     Writer.generatePTH(OS, llvm::cantFail(CAS.getBlob(InputFile)).getData(),
                        CanonicalLangOpts);
   }
+  // FIXME: Should report these errors, at least as warnings.
   llvm::cas::BlobRef PTH = llvm::cantFail(CAS.createBlob(PTHString));
-  llvm::cantFail(CAS.putCachedResult(CacheKey, PTH));
-  return PTH;
+  llvm::cantFail(Cache.put(Action, PTH));
+  return PTH.getData();
 }
 
 OffsetType PTHWriter::getStringOffset(StringRef S) {

@@ -10,11 +10,13 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/HashMappedTrie.h"
+#include "llvm/CAS/NamespaceHelpers.h"
 #include "llvm/CAS/OnDiskHashMappedTrie.h"
 #include "llvm/CAS/ThreadSafeAllocator.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
@@ -30,12 +32,36 @@ static constexpr size_t NumHashBytes = 20;
 using HashType = std::array<uint8_t, NumHashBytes>;
 using HashRef = ArrayRef<uint8_t>;
 
+class BuiltinNamespace : public Namespace {
+  BuiltinNamespace() : Namespace("llvm.builtin.cas[sha1]", NumHashBytes) {}
+
+public:
+  void printIDImpl(const UniqueIDRef &ID, raw_ostream &OS) const override;
+  Error parseID(StringRef Reference, UniqueID &OS) const override;
+
+  static const Namespace &get() {
+    static BuiltinNamespace NS;
+    return NS;
+  }
+};
+
 struct HashInfo {
   template <class HasherT> static auto hash(HashType Data) { return Data; }
 
   template <class HasherT> using HashType = decltype(hash<HasherT>(HashType()));
 };
 
+/// Object storage and in-memory lifetime.
+///
+/// Currently uses SHA1 as a hash function.
+///
+/// FIXME: Move from SHA1 to BLAKE3, the latter of which is faster and
+/// stronger.
+///
+/// TODO: Consider adding CAS configuration for how many bytes to use. E.g.,
+/// could use the first 16 bytes of a BLAKE3 hash to reduce storage cost for
+/// references. Depending on the application (e.g., always in-memory), this
+/// might be sufficiently strong.
 class BuiltinCAS : public CASDB {
 public:
   class TempFile;
@@ -66,7 +92,7 @@ public:
   /// A CASID plus a reference to an object stored in memory.
   struct ObjectAndID {
     const ObjectContentReference &Object;
-    CASID ID;
+    UniqueIDRef ID;
   };
 
   /// List of references, either as CASIDs or a contiguous block.
@@ -105,9 +131,6 @@ public:
         : References(Object.ReferenceBlock), Data(Object.Data) {}
     AbstractObjectReference(const TreeObjectData &Object);
   };
-
-  Expected<CASID> parseCASID(StringRef Reference) final;
-  Error printCASID(raw_ostream &OS, CASID ID) final;
 
   Expected<ObjectAndID>
   createObject(AbstractObjectReference Object,
@@ -151,17 +174,14 @@ public:
 
   void print(raw_ostream &OS) const final;
 
-  Expected<CASID> getCachedResult(CASID InputID) final;
-  Error putCachedResult(CASID InputID, CASID OutputID) final;
-
   struct InMemoryOnlyTag {};
   BuiltinCAS() = delete;
-  explicit BuiltinCAS(InMemoryOnlyTag) { AlignedInMemoryStrings.emplace(); }
+  explicit BuiltinCAS(InMemoryOnlyTag) : CASDB(BuiltinNamespace::get()) {
+    AlignedInMemoryStrings.emplace();
+  }
   explicit BuiltinCAS(StringRef RootPath,
-                      std::shared_ptr<OnDiskHashMappedTrie> OnDiskObjects,
-                      std::shared_ptr<OnDiskHashMappedTrie> OnDiskResults)
-      : OnDiskObjects(std::move(OnDiskObjects)),
-        OnDiskResults(std::move(OnDiskResults)),
+                      std::shared_ptr<OnDiskHashMappedTrie> OnDiskObjects)
+      : CASDB(BuiltinNamespace::get()), OnDiskObjects(std::move(OnDiskObjects)),
         RootPath(RootPath.str()) {
     SmallString<128> Temp = RootPath;
     sys::path::append(Temp, "tmp.");
@@ -231,14 +251,10 @@ private:
                                               HashRef Hash);
 
   std::shared_ptr<OnDiskHashMappedTrie> OnDiskObjects;
-  std::shared_ptr<OnDiskHashMappedTrie> OnDiskResults;
 
   using ObjectCacheType =
       ThreadSafeHashMappedTrie<ObjectContentReference, HashType>;
   ObjectCacheType ObjectCache;
-
-  using ResultCacheType = ThreadSafeHashMappedTrie<HashType, HashType>;
-  ResultCacheType ResultCache;
 
   Optional<std::string> RootPath;
   Optional<std::string> TempPrefix;
@@ -265,11 +281,6 @@ template <typename T> static T reportAsFatalIfError(Expected<T> ValOrErr) {
   return std::move(*ValOrErr);
 }
 
-static void reportAsFatalIfError(Error E) {
-  if (E)
-    report_fatal_error(std::move(E));
-}
-
 static HashRef bufferAsRawHash(StringRef Bytes) {
   assert(Bytes.size() == NumHashBytes);
   return HashRef(reinterpret_cast<const uint8_t *>(Bytes.begin()),
@@ -288,69 +299,26 @@ static HashType makeHash(HashRef Bytes) {
   return Hash;
 }
 
-static HashType makeHash(CASID ID) { return makeHash(ID.getHash()); }
-
+/// FIXME: Update callers to call \a UniqueIDRef::print().
 static void extractPrintableHash(CASID ID, SmallVectorImpl<char> &Dest) {
-  ArrayRef<uint8_t> RawHash = ID.getHash();
-  assert(Dest.empty());
-  assert(RawHash.size() == 20);
-  Dest.reserve(40);
-  auto ToChar = [](uint8_t Bit) {
-    if (Bit < 10)
-      return '0' + Bit;
-    return Bit - 10 + 'a';
-  };
-  for (uint8_t Bit : RawHash) {
-    uint8_t High = Bit >> 4;
-    uint8_t Low = Bit & 0xf;
-    Dest.push_back(ToChar(High));
-    Dest.push_back(ToChar(Low));
-  }
-}
-
-static HashType stringToHash(StringRef Chars) {
-  auto FromChar = [](char Ch) -> unsigned {
-    if (Ch >= '0' && Ch <= '9')
-      return Ch - '0';
-    assert(Ch >= 'a');
-    assert(Ch <= 'f');
-    return Ch - 'a' + 10;
-  };
-
-  HashType Hash;
-  assert(Chars.size() == sizeof(Hash) * 2);
-  for (int I = 0, E = sizeof(Hash); I != E; ++I) {
-    uint8_t High = FromChar(Chars[I * 2]);
-    uint8_t Low = FromChar(Chars[I * 2 + 1]);
-    Hash[I] = (High << 4) | Low;
-  }
-  return Hash;
+  raw_svector_ostream OS(Dest);
+  hexadecimal::printHash(ID.getHash(), OS);
 }
 
 static StringRef getCASIDPrefix() { return "~{CASFS}:"; }
 
-Expected<CASID> BuiltinCAS::parseCASID(StringRef Reference) {
-  if (!Reference.consume_front(getCASIDPrefix()))
-    return createStringError(std::make_error_code(std::errc::invalid_argument),
-                             "invalid cas-id '" + Reference + "'");
-
-  // FIXME: Allow shortened references?
-  if (Reference.size() != 2 * NumHashBytes)
-    return createStringError(std::make_error_code(std::errc::invalid_argument),
-                             "wrong size for cas-id hash '" + Reference + "'");
-
-  // FIXME: Take parsing as a hint that the ID will be loaded and do a look up
-  // of blobs and trees, rather than always allocating space for a hash.
-  return CASID(*new (ParsedIDs.Allocate()) HashType(stringToHash(Reference)));
+void BuiltinNamespace::printIDImpl(const UniqueIDRef &ID,
+                                   raw_ostream &OS) const {
+  assert(&ID.getNamespace() == this && "Wrong namespace");
+  OS << getCASIDPrefix();
+  hexadecimal::printHash(ID.getHash(), OS);
 }
 
-Error BuiltinCAS::printCASID(raw_ostream &OS, CASID ID) {
-  if (ID.getHash().size() != NumHashBytes)
-    return errorCodeToError(std::make_error_code(std::errc::invalid_argument));
-
-  SmallString<64> Hash;
-  extractPrintableHash(ID, Hash);
-  OS << getCASIDPrefix() << Hash;
+Error BuiltinNamespace::parseID(StringRef Reference, UniqueID &ID) const {
+  if (!Reference.consume_front(getCASIDPrefix()))
+    return make_error<NamespaceParseIDError>(*this, Reference);
+  if (Error E = hexadecimal::parseHashForID(*this, Reference, ID))
+    return make_error<NamespaceParseIDError>(*this, Reference, std::move(E));
   return Error::success();
 }
 
@@ -359,8 +327,6 @@ void BuiltinCAS::print(raw_ostream &OS) const {
     OS << "on-disk-root-path: " << *RootPath << "\n";
   OS << "in-memory-objects: ";
   ObjectCache.print(OS);
-  OS << "in-memory-results: ";
-  ResultCache.print(OS);
 }
 
 static Error createUnknownObjectError(CASID ID) {
@@ -700,7 +666,7 @@ Expected<ObjectAndID> BuiltinCAS::getObject(CASID ID) {
   HashRef Hash = ID.getHash();
   auto Lookup = ObjectCache.lookup(Hash);
   if (Lookup)
-    return ObjectAndID{Lookup->Data, CASID(Lookup->Hash)};
+    return ObjectAndID{Lookup->Data, UniqueIDRef(getNamespace(), Lookup->Hash)};
 
   if (isInMemoryOnly())
     return createUnknownObjectError(ID);
@@ -717,7 +683,7 @@ Expected<ObjectAndID> BuiltinCAS::getObject(CASID ID) {
 
   auto &Insertion = ObjectCache.insert(
       Lookup, ObjectCacheType::HashedDataType(makeHash(Hash), *Object));
-  return ObjectAndID{Insertion.Data, CASID(Insertion.Hash)};
+  return ObjectAndID{Insertion.Data, UniqueIDRef(getNamespace(), Insertion.Hash)};
 }
 
 Expected<BlobRef> BuiltinCAS::getBlobFromObject(Expected<ObjectAndID> Object) {
@@ -894,7 +860,7 @@ Expected<ObjectAndID> BuiltinCAS::createObject(
   auto Lookup = ObjectCache.lookup(Hash);
   if (Lookup) {
     assert(Object.Data == Lookup->Data.Data);
-    return ObjectAndID{Lookup->Data, CASID(Lookup->Hash)};
+    return ObjectAndID{Lookup->Data, UniqueIDRef(getNamespace(), Lookup->Hash)};
   }
 
   SmallString<256> Metadata;
@@ -915,7 +881,7 @@ Expected<ObjectAndID> BuiltinCAS::createObject(
 
   auto &Insertion = ObjectCache.insert(
       Lookup, ObjectCacheType::HashedDataType(Hash, *PersistentObject));
-  return ObjectAndID{Insertion.Data, CASID(Insertion.Hash)};
+  return ObjectAndID{Insertion.Data, UniqueIDRef(getNamespace(), Insertion.Hash)};
 }
 
 Expected<BlobRef> BuiltinCAS::createBlobImpl(
@@ -967,94 +933,10 @@ StringRef BuiltinCAS::persistBufferInMemory(
   return StringRef(InMemoryBuffer, Buffer.size());
 }
 
-static Error createResultCacheMissError(CASID InputID) {
-  SmallString<64> InputHash;
-  extractPrintableHash(InputID, InputHash);
-  return createStringError(std::make_error_code(std::errc::invalid_argument),
-                           "no result for '" + InputHash + "'");
-}
-
-static Error createResultCachePoisonedError(CASID InputID, CASID OutputID,
-                                            CASID ExistingOutputID) {
-  SmallString<64> InputHash, OutputHash, ExistingOutputHash;
-  extractPrintableHash(InputID, InputHash);
-  extractPrintableHash(OutputID, OutputHash);
-  extractPrintableHash(ExistingOutputID, ExistingOutputHash);
-  return createStringError(std::make_error_code(std::errc::invalid_argument),
-                           "cache poisoned for '" + InputHash + "' (new='" +
-                               OutputHash + "' vs. existing '" +
-                               ExistingOutputHash + "')");
-}
-
-static Error createResultCacheCorruptError(CASID InputID) {
-  SmallString<64> InputHash;
-  extractPrintableHash(InputID, InputHash);
-  return createStringError(std::make_error_code(std::errc::invalid_argument),
-                           "result cache corrupt for '" + InputHash + "'");
-}
-
-Expected<CASID> BuiltinCAS::getCachedResult(CASID InputID) {
-  auto Lookup = ResultCache.lookup(InputID.getHash());
-  if (Lookup)
-    return CASID(Lookup->Data);
-
-  // FIXME: Odd to have an error for a cache miss. Maybe this function should
-  // just return Optional.
-  if (isInMemoryOnly())
-    return createResultCacheMissError(InputID);
-
-  Optional<MappedContentReference> File =
-      openOnDisk(*OnDiskResults, InputID.getHash());
-  if (!File)
-    return createResultCacheMissError(InputID);
-  if (File->Metadata != "results") // FIXME: Should cache this object.
-    return createCorruptObjectError(InputID);
-
-  // Drop File.Map on the floor since we're storing a std::string.
-  if (File->Data.size() != NumHashBytes)
-    reportAsFatalIfError(createResultCacheCorruptError(InputID));
-  HashRef OutputHash = bufferAsRawHash(File->Data);
-  return CASID(ResultCache
-                   .insert(Lookup, ResultCacheType::HashedDataType(
-                                       makeHash(InputID), makeHash(OutputHash)))
-                   .Data);
-}
-
-Error BuiltinCAS::putCachedResult(CASID InputID, CASID OutputID) {
-  auto Lookup = ResultCache.lookup(InputID.getHash());
-
-  auto checkOutput = [&](HashRef ExistingOutput) -> Error {
-    if (ExistingOutput == OutputID.getHash())
-      return Error::success();
-    // FIXME: probably...
-    reportAsFatalIfError(createResultCachePoisonedError(InputID, OutputID,
-                                                        CASID(ExistingOutput)));
-    return Error::success();
-  };
-  if (Lookup)
-    return checkOutput(Lookup->Data);
-
-  if (!isInMemoryOnly()) {
-    // Store on-disk and check any existing data matches.
-    HashRef OutputHash = OutputID.getHash();
-    MappedContentReference File = OnDiskResults->insert(
-        InputID.getHash(), "results", rawHashAsBuffer(OutputHash));
-    if (Error E = checkOutput(bufferAsRawHash(File.Data)))
-      return E;
-  }
-
-  // Store in-memory.
-  return checkOutput(
-      ResultCache
-          .insert(Lookup, ResultCacheType::HashedDataType(makeHash(InputID),
-                                                          makeHash(OutputID)))
-          .Data);
-}
-
 Optional<BuiltinCAS::MappedContentReference>
 BuiltinCAS::openOnDisk(OnDiskHashMappedTrie &Trie, HashRef Hash) {
   if (auto Lookup = Trie.lookup(Hash))
-    return std::move(Lookup.get());
+    return Lookup.take();
   return None;
 }
 
@@ -1108,7 +990,6 @@ Expected<std::unique_ptr<CASDB>> cas::createOnDiskCAS(const Twine &Path) {
   }
 
   std::shared_ptr<OnDiskHashMappedTrie> OnDiskObjects;
-  std::shared_ptr<OnDiskHashMappedTrie> OnDiskResults;
 
   uint64_t GB = 1024ull * 1024ull * 1024ull;
   if (auto Expected = OnDiskHashMappedTrie::create(
@@ -1116,14 +997,8 @@ Expected<std::unique_ptr<CASDB>> cas::createOnDiskCAS(const Twine &Path) {
     OnDiskObjects = std::move(*Expected);
   else
     return Expected.takeError();
-  if (auto Expected = OnDiskHashMappedTrie::create(
-          AbsPath.str() + "/results", NumHashBytes * sizeof(uint8_t), GB))
-    OnDiskResults = std::move(*Expected);
-  else
-    return Expected.takeError();
 
-  return std::make_unique<BuiltinCAS>(AbsPath, std::move(OnDiskObjects),
-                                      std::move(OnDiskResults));
+  return std::make_unique<BuiltinCAS>(AbsPath, std::move(OnDiskObjects));
 }
 
 std::unique_ptr<CASDB> cas::createInMemoryCAS() {

@@ -5,13 +5,19 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_unittest(CASTests
+  ActionCacheTest.cpp
+  ActionDescriptionTest.cpp
   CASDBTest.cpp
   CASFileSystemTest.cpp
   CASOutputBackendTest.cpp
   CASUtilsTest.cpp
   CachingOnDiskFileSystemTest.cpp
+  FlatUniqueIDArrayRefTest.cpp
   HashMappedTrieTest.cpp
   HierarchicalTreeBuilderTest.cpp
+  NamespaceTest.cpp
+  TestingNamespaces.cpp
+  UniqueIDTest.cpp
   )
 
 target_link_libraries(CASTests PRIVATE LLVMTestingSupport)
