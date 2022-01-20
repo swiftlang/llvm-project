@@ -10,6 +10,7 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/CASObjectFormats/Encoding.h"
+#include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/Support/EndianStream.h"
 
 // FIXME: For jitlink::x86_64::writeOperand(). Should use a generic version.
@@ -129,7 +130,110 @@ Expected<StringRef> helpers::canonicalizeContent(
   return MutableContent ? StringRef(Storage.begin(), Storage.size()) : Content;
 }
 
-bool helpers::compareSymbolsBySemanticsAnd(
+class LinkGraphComparator {
+public:
+  bool isEdgeEqual(const jitlink::Edge *LHS, const jitlink::Edge *RHS);
+  bool compareBlocks(const jitlink::Block *LHS, const jitlink::Block *RHS,
+                     bool &MaybeEqual);
+
+  bool compareSymbolsBySemanticsAnd(
+      const jitlink::Symbol *LHS, const jitlink::Symbol *RHS,
+      function_ref<bool(const jitlink::Symbol *, const jitlink::Symbol *)>
+          NextCompare);
+
+  bool compareSymbolsByLinkageAndSemantics(const jitlink::Symbol *LHS,
+                                           const jitlink::Symbol *RHS);
+
+  bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
+                               const jitlink::Symbol *RHS);
+
+  bool compareEdges(const jitlink::Edge *LHS, const jitlink::Edge *RHS);
+
+private:
+  // How depth the edge/target comparsion stops.
+  const unsigned MaxEdgeDepth = 1;
+  // Current EdgeComparsion Depth.
+  unsigned CurrentEdgeDepth = 0;
+};
+
+// A strict Edge equal comparsion.
+bool LinkGraphComparator::isEdgeEqual(const jitlink::Edge *LHS,
+                                      const jitlink::Edge *RHS) {
+  if (LHS == RHS)
+    return true;
+
+  return LHS->getOffset() == RHS->getOffset() &&
+         LHS->getAddend() == RHS->getAddend() &&
+         LHS->getKind() == RHS->getKind() &&
+         &LHS->getTarget() == &RHS->getTarget();
+}
+
+bool LinkGraphComparator::compareBlocks(const jitlink::Block *LHS,
+                                        const jitlink::Block *RHS,
+                                        bool &MaybeEqual) {
+  MaybeEqual = false;
+  if (LHS == RHS)
+    return false;
+
+  JITTargetAddress LAddr = LHS->getAddress();
+  JITTargetAddress RAddr = RHS->getAddress();
+  if (LAddr != RAddr)
+    return LAddr < RAddr;
+
+  if (LHS->getSize() != RHS->getSize())
+    return LHS->getSize() < RHS->getSize();
+
+  if (LHS->edges_size() != RHS->edges_size())
+    return LHS->edges_size() < RHS->edges_size();
+
+  // Compare Content.
+  if (LHS->isZeroFill() != RHS->isZeroFill())
+    return LHS->isZeroFill() < RHS->isZeroFill();
+
+  // FIXME: This could expensive. Maybe this should only be done sometimes
+  // (when symbols are mergeable by content?).
+  //
+  // FIXME: Fixups have not been zeroed out yet so this isn't going to match
+  // across TUs.
+  if (int Diff =
+          StringRef(LHS->getContent().begin(), LHS->getSize())
+              .compare(StringRef(RHS->getContent().begin(), RHS->getSize())))
+    return Diff < 0;
+
+  if (CurrentEdgeDepth >= MaxEdgeDepth) {
+    MaybeEqual = true;
+    return false;
+  }
+
+  // Need to compare the edges to have a stable ordering of blocks. This
+  // computation is duplicated in Edge serialization but it rarely reaches here
+  // in comparsion.
+  auto EdgeSize = LHS->edges_size();
+  auto sortEdges = [&](const jitlink::Edge *LHS, const jitlink::Edge *RHS) {
+    return compareEdges(LHS, RHS);
+  };
+  auto buildEdges = [&](const jitlink::Block *B) {
+    SmallVector<const jitlink::Edge *, 16> Edges;
+    Edges.reserve(EdgeSize);
+    for (const auto &E : B->edges())
+      Edges.emplace_back(&E);
+    llvm::sort(Edges, sortEdges);
+    return Edges;
+  };
+
+  ++CurrentEdgeDepth;
+  auto LE = buildEdges(LHS);
+  auto RE = buildEdges(RHS);
+  for (unsigned Idx = 0; Idx < EdgeSize; ++Idx) {
+    if (!isEdgeEqual(LE[Idx], RE[Idx]))
+      return compareEdges(LE[Idx], RE[Idx]);
+  }
+
+  MaybeEqual = true;
+  return false;
+}
+
+bool LinkGraphComparator::compareSymbolsBySemanticsAnd(
     const jitlink::Symbol *LHS, const jitlink::Symbol *RHS,
     function_ref<bool(const jitlink::Symbol *, const jitlink::Symbol *)>
         NextCompare) {
@@ -181,31 +285,18 @@ bool helpers::compareSymbolsBySemanticsAnd(
     return NextCompare(LHS, RHS);
   }
 
-  // Sort structurally by the block.
-  if (LB.edges_size() != RB.edges_size())
-    return LB.edges_size() < RB.edges_size();
-  if (LB.getSize() != RB.getSize())
-    return LB.getSize() < RB.getSize();
+  bool NeedNextCompare = false;
+  if (!compareBlocks(&LB, &RB, NeedNextCompare)) {
+    if (NeedNextCompare)
+      return NextCompare(LHS, RHS);
 
-  // Compare block content.
-  if (LB.isZeroFill() != RB.isZeroFill())
-    return LB.isZeroFill() < RB.isZeroFill();
-  if (LB.isZeroFill())
-    return NextCompare(LHS, RHS);
-
-  // FIXME: This could expensive. Maybe this should only be done sometimes
-  // (when symbols are mergeable by content?).
-  //
-  // FIXME: Fixups have not been zeroed out yet so this isn't going to match
-  // across TUs.
-  if (int Diff = StringRef(LB.getContent().begin(), LB.getSize())
-                     .compare(StringRef(RB.getContent().begin(), RB.getSize())))
-    return Diff < 0;
-  return NextCompare(LHS, RHS);
+    return false;
+  }
+  return true;
 }
 
-bool helpers::compareSymbolsByLinkageAndSemantics(const jitlink::Symbol *LHS,
-                                                  const jitlink::Symbol *RHS) {
+bool LinkGraphComparator::compareSymbolsByLinkageAndSemantics(
+    const jitlink::Symbol *LHS, const jitlink::Symbol *RHS) {
   if (LHS == RHS)
     return false;
 
@@ -226,8 +317,8 @@ bool helpers::compareSymbolsByLinkageAndSemantics(const jitlink::Symbol *LHS,
       [](const jitlink::Symbol *, const jitlink::Symbol *) { return false; });
 }
 
-bool helpers::compareSymbolsByAddress(const jitlink::Symbol *LHS,
-                                      const jitlink::Symbol *RHS) {
+bool LinkGraphComparator::compareSymbolsByAddress(const jitlink::Symbol *LHS,
+                                                  const jitlink::Symbol *RHS) {
   if (LHS == RHS)
     return false;
 
@@ -242,3 +333,49 @@ bool helpers::compareSymbolsByAddress(const jitlink::Symbol *LHS,
   return LHS->getSize() < RHS->getSize();
 }
 
+bool LinkGraphComparator::compareEdges(const jitlink::Edge *LHS,
+                                       const jitlink::Edge *RHS) {
+  if (LHS == RHS)
+    return false;
+
+  if (LHS->getOffset() != RHS->getOffset())
+    return LHS->getOffset() < RHS->getOffset();
+
+  if (LHS->getAddend() != RHS->getAddend())
+    return LHS->getAddend() < RHS->getAddend();
+
+  if (LHS->getKind() != RHS->getKind())
+    return LHS->getKind() < RHS->getKind();
+
+  // Compare the target it points to. This can be potentially expensive.
+  return helpers::compareSymbolsByLinkageAndSemantics(&LHS->getTarget(),
+                                                      &RHS->getTarget());
+}
+
+bool helpers::compareSymbolsBySemanticsAnd(
+    const jitlink::Symbol *LHS, const jitlink::Symbol *RHS,
+    function_ref<bool(const jitlink::Symbol *, const jitlink::Symbol *)>
+        NextCompare) {
+  return LinkGraphComparator().compareSymbolsBySemanticsAnd(LHS, RHS,
+                                                            NextCompare);
+}
+
+bool helpers::compareSymbolsByLinkageAndSemantics(const jitlink::Symbol *LHS,
+                                                  const jitlink::Symbol *RHS) {
+  return LinkGraphComparator().compareSymbolsByLinkageAndSemantics(LHS, RHS);
+}
+
+bool helpers::compareSymbolsByAddress(const jitlink::Symbol *LHS,
+                                      const jitlink::Symbol *RHS) {
+  return LinkGraphComparator().compareSymbolsByAddress(LHS, RHS);
+}
+
+bool helpers::compareBlocks(const jitlink::Block *LHS,
+                            const jitlink::Block *RHS) {
+  bool MaybeEqual = false;
+  return LinkGraphComparator().compareBlocks(LHS, RHS, MaybeEqual);
+}
+
+bool helpers::compareEdges(const jitlink::Edge *LHS, const jitlink::Edge *RHS) {
+  return LinkGraphComparator().compareEdges(LHS, RHS);
+}
