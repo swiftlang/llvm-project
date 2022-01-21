@@ -325,8 +325,7 @@ Optional<InputFile *> macho::loadArchiveMember(MemoryBufferRef mb,
       return None;
     }
     CASDB &CAS = *config->CAS;
-    UniqueID id;
-    auto ID = readCASIDBuffer(CAS, mb, id);
+    auto ID = readCASIDBuffer(CAS, mb);
     if (!ID) {
       error(archiveName + ": archive member " + memberName +
             " failed reading CAS-ID: " + toString(ID.takeError()));

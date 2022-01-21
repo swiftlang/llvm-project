@@ -16,7 +16,8 @@ using namespace llvm::cas;
 LLVM_DUMP_METHOD void CASDB::dump() const { print(dbgs()); }
 
 
-Expected<CASID> CASDB::parseCASID(StringRef Reference, UniqueID &ID) {
+Expected<CASID> CASDB::parseCASID(StringRef Reference) {
+  UniqueID ID;
   if (Error E = parseID(Reference, ID))
     return std::move(E);
   return CASID(ID.getHash());

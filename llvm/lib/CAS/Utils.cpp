@@ -20,8 +20,7 @@ using namespace llvm;
 using namespace llvm::cas;
 using namespace llvm::casobjectformats;
 
-Expected<CASID> cas::readCASIDBuffer(cas::CASDB &CAS, MemoryBufferRef Buffer,
-                                     UniqueID &ID) {
+Expected<CASID> cas::readCASIDBuffer(cas::CASDB &CAS, MemoryBufferRef Buffer) {
   if (identify_magic(Buffer.getBuffer()) != file_magic::cas_id)
     return createStringError(std::errc::invalid_argument,
                              "buffer does not contain a CASID");
@@ -33,7 +32,7 @@ Expected<CASID> cas::readCASIDBuffer(cas::CASDB &CAS, MemoryBufferRef Buffer,
     return std::move(E);
 
   StringRef CASIDStr = Remaining.substr(0, Size);
-  return CAS.parseCASID(CASIDStr, ID);
+  return CAS.parseCASID(CASIDStr);
 }
 
 void cas::writeCASIDBuffer(cas::CASDB &CAS, const CASID &ID,

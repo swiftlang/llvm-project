@@ -111,9 +111,8 @@ int main(int Argc, char **Argv) {
       CommandErr(
           createStringError(inconvertibleErrorCode(), "expected 2 objects"));
 
-    UniqueID LUID, RUID;
-    CASID LHS = ExitOnErr(CAS->parseCASID(Objects[0], LUID));
-    CASID RHS = ExitOnErr(CAS->parseCASID(Objects[1], RUID));
+    CASID LHS = ExitOnErr(CAS->parseCASID(Objects[0]));
+    CASID RHS = ExitOnErr(CAS->parseCASID(Objects[1]));
     return diffGraphs(*CAS, LHS, RHS);
   }
 
@@ -130,9 +129,7 @@ int main(int Argc, char **Argv) {
   if (Objects.size() > 1)
     ExitOnErr(createStringError(inconvertibleErrorCode(),
                                 "too many <object>s, expected 1"));
-
-  UniqueID UID;
-  CASID ID = ExitOnErr(CAS->parseCASID(Objects.front(), UID));
+  CASID ID = ExitOnErr(CAS->parseCASID(Objects.front()));
 
   if (Command == TraverseGraph)
     return traverseGraph(*CAS, ID);
@@ -298,8 +295,7 @@ static int makeNode(CASDB &CAS, ArrayRef<std::string> Objects, StringRef DataPat
   SmallVector<CASID> IDs;
   for (StringRef Object : Objects) {
     ExitOnError ObjectErr("llvm-cas: make-node: ref: ");
-    UniqueID UID;
-    CASID ID = ObjectErr(CAS.parseCASID(Object, UID));
+    CASID ID = ObjectErr(CAS.parseCASID(Object));
     if (!CAS.isKnownObject(ID))
       ObjectErr(createStringError(inconvertibleErrorCode(),
                                   "unknown object '" + Object + "'"));
@@ -457,10 +453,8 @@ static int mergeTrees(CASDB &CAS, ArrayRef<std::string> Objects) {
   ExitOnError ExitOnErr("llvm-cas: merge: ");
 
   HierarchicalTreeBuilder Builder;
-  std::vector<UniqueID> UIDs(Objects.size());
-  unsigned Idx = 0;
   for (const auto &Object : Objects) {
-    auto ID = CAS.parseCASID(Object, UIDs[Idx++]);
+    auto ID = CAS.parseCASID(Object);
     if (ID) {
       Builder.pushTreeContent(*ID, "");
     } else {

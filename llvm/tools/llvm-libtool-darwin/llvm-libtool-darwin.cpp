@@ -294,8 +294,7 @@ static Error verifyAndAddMachOObjectFromCAS(MembersPerArchitectureMap &Members,
   CASDB &CAS = *C.CAS;
 
   auto MBRef = Member.Buf->getMemBufferRef();
-  UniqueID UID;
-  auto ID = readCASIDBuffer(CAS, MBRef, UID);
+  auto ID = readCASIDBuffer(CAS, MBRef);
   if (!ID)
     return ID.takeError();
 

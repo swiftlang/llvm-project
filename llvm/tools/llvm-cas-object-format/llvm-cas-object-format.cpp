@@ -154,8 +154,7 @@ int main(int argc, char *argv[]) {
 
     switch (InputFileKind) {
     case AnalysisCASTree: {
-      UniqueID UID;
-      auto ID = ExitOnErr(CAS->parseCASID(IF, UID));
+      auto ID = ExitOnErr(CAS->parseCASID(IF));
       SummaryIDs.emplace_back(ID);
       break;
     }
@@ -174,8 +173,7 @@ int main(int argc, char *argv[]) {
     }
 
     case IngestFromCASTree: {
-      UniqueID UID;
-      auto ID = ExitOnErr(CAS->parseCASID(IF, UID));
+      auto ID = ExitOnErr(CAS->parseCASID(IF));
       SmallVector<NamedTreeEntry> Stack;
       Stack.emplace_back(ID, TreeEntry::Tree, "/");
       Optional<GlobPattern> GlobP;

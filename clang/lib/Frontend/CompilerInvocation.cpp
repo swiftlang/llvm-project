@@ -4658,8 +4658,7 @@ createBaseFS(const CASOptions &Opts, DiagnosticsEngine &Diags) {
 
   std::shared_ptr<llvm::cas::CASDB> CAS = Opts.getOrCreateCAS(Diags);
   StringRef RootIDString = Opts.CASFileSystemRootID;
-  llvm::cas::UniqueID UID;
-  Expected<llvm::cas::CASID> RootID = CAS->parseCASID(RootIDString, UID);
+  Expected<llvm::cas::CASID> RootID = CAS->parseCASID(RootIDString);
   if (!RootID) {
     llvm::consumeError(RootID.takeError());
     Diags.Report(diag::err_cas_cannot_parse_root_id) << RootIDString;
