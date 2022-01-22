@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CAS/CASID.h"
 #include "llvm/CAS/Namespace.h"
+#include "llvm/CAS/ThreadSafeAllocator.h"
 #include "llvm/CAS/TreeEntry.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h" // FIXME: Split out sys::fs::file_status.
@@ -313,7 +314,8 @@ public:
   /// (correctly formatted); it does not refer to an object that exists, just
   /// be a reference that has been constructed correctly.
   ///
-  /// TODO: Remove once callers use \a parseID().
+  /// TODO: Remove once callers use \a parseID() and manage lifetime of the
+  /// parsed ID.
   Expected<CASID> parseCASID(StringRef Reference);
 
   /// Print \p ID to \p OS, returning an error if \p ID is not a valid \p CASID
@@ -456,6 +458,11 @@ protected:
 
 private:
   const Namespace &NS;
+
+  /// Allocator for parseCASID().
+  ///
+  /// FIXME: Remove this.
+  ThreadSafeAllocator<SpecificBumpPtrAllocator<uint8_t>> ParsedIDAlloc;
 };
 
 Optional<NamedTreeEntry> TreeRef::lookup(StringRef Name) const {

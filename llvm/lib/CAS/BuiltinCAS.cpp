@@ -261,7 +261,6 @@ private:
 
   Optional<ThreadSafeAllocator<SpecificBumpPtrAllocator<char>>>
       AlignedInMemoryStrings;
-  ThreadSafeAllocator<SpecificBumpPtrAllocator<HashType>> ParsedIDs;
   ThreadSafeAllocator<SpecificBumpPtrAllocator<sys::fs::mapped_file_region>>
       PersistentMaps;
 };
