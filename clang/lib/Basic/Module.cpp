@@ -238,6 +238,10 @@ std::string Module::getFullModuleName(bool AllowStringLiterals) const {
   return Result;
 }
 
+void PrettyStackTraceModuleAction::print(raw_ostream &OS) const {
+  OS << Action << " module '" << SubjectModule->getFullModuleName() << "'\n";
+}
+
 bool Module::fullModuleNameIs(ArrayRef<StringRef> nameParts) const {
   for (const Module *M = this; M; M = M->Parent) {
     if (nameParts.empty() || M->Name != nameParts.back())

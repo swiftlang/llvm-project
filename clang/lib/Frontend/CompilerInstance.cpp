@@ -1044,6 +1044,9 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
     llvm::EnableStatistics(false);
 
   for (const FrontendInputFile &FIF : getFrontendOpts().Inputs) {
+    std::string filename = FIF.getFile().str();
+    llvm::PrettyStackTraceFormat trace("Acting on file '%s'", filename.c_str());
+
     // Reset the ID tables if we are reusing the SourceManager and parsing
     // regular files.
     if (hasSourceManager() && !Act.isModelParsingAction())
