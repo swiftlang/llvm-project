@@ -1069,10 +1069,11 @@ public:
                     lldb::addr_t *load_addr_ptr = nullptr);
 
   size_t ReadCStringFromMemory(const Address &addr, std::string &out_str,
-                               Status &error);
+                               Status &error, bool force_live_memory = false);
 
   size_t ReadCStringFromMemory(const Address &addr, char *dst,
-                               size_t dst_max_len, Status &result_error);
+                               size_t dst_max_len, Status &result_error,
+                               bool force_live_memory = false);
 
   size_t ReadScalarIntegerFromMemory(const Address &addr, uint32_t byte_size,
                                      bool is_signed, Scalar &scalar,
