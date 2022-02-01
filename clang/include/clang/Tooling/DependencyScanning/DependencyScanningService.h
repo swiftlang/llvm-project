@@ -9,6 +9,7 @@
 #ifndef LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGSERVICE_H
 #define LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGSERVICE_H
 
+#include "clang/Tooling/DependencyScanning/DependencyScanningCASFilesystem.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningFilesystem.h"
 
 namespace clang {
@@ -67,9 +68,15 @@ public:
 
   bool canOptimizeArgs() const { return OptimizeArgs; }
 
+  DependencyScanningFilesystemSharedCache &getSharedCache() {
+    return SharedCache;
+  }
+
   bool overrideCASTokenCache() const { return OverrideCASTokenCache; }
 
   llvm::cas::CachingOnDiskFileSystem &getSharedFS() { return *SharedFS; }
+
+  bool useCASScanning() const { return (bool)SharedFS; }
 
 private:
   const ScanningMode Mode;
@@ -83,7 +90,11 @@ private:
   const bool OptimizeArgs;
   /// CAS options.
   const bool OverrideCASTokenCache;
+  /// Shared CachingOnDiskFileSystem. Set to nullptr to not use CAS dependency
+  /// scanning.
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> SharedFS;
+  /// The global file system cache.
+  DependencyScanningFilesystemSharedCache SharedCache;
 };
 
 } // end namespace dependencies

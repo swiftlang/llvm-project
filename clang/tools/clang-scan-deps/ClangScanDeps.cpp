@@ -228,6 +228,11 @@ static llvm::cl::opt<ResourceDirRecipeKind> ResourceDirRecipe(
     llvm::cl::init(RDRK_ModifyCompilerPath),
     llvm::cl::cat(DependencyScannerCategory));
 
+llvm::cl::opt<bool> UseCAS("cas",
+                           llvm::cl::desc("Use CAS based dependency scanning."),
+                           llvm::cl::init(false),
+                           llvm::cl::cat(DependencyScannerCategory));
+
 llvm::cl::opt<bool> OverrideCASTokenCache(
     "override-cas-token-cache",
     llvm::cl::desc("Override the CAS-based token cache, using it always."),
@@ -569,19 +574,21 @@ int main(int argc, const char **argv) {
   SharedStream DependencyOS(llvm::outs());
 
   std::unique_ptr<llvm::cas::CASDB> CAS;
-  if (InMemoryCAS) {
-    CAS = llvm::cas::createInMemoryCAS();
-  } else {
-    SmallString<128> CASPath;
-    llvm::cas::getDefaultOnDiskCASPath(CASPath);
-    llvm::errs() << "cas-path = '" << CASPath << "'\n";
-    CAS = cantFail(llvm::cas::createOnDiskCAS(CASPath));
+  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS;
+  if (UseCAS) {
+    if (InMemoryCAS) {
+      CAS = llvm::cas::createInMemoryCAS();
+    } else {
+      SmallString<128> CASPath;
+      llvm::cas::getDefaultOnDiskCASPath(CASPath);
+      llvm::errs() << "cas-path = '" << CASPath << "'\n";
+      CAS = cantFail(llvm::cas::createOnDiskCAS(CASPath));
+    }
+    FS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
   }
-  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
-      llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
   DependencyScanningService Service(ScanMode, Format, FS, ReuseFileManager,
-                                    SkipExcludedPPRanges, OverrideCASTokenCache,
-                                    OptimizeArgs);
+                                    SkipExcludedPPRanges, OptimizeArgs,
+                                    OverrideCASTokenCache);
   llvm::ThreadPool Pool(llvm::hardware_concurrency(NumThreads));
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I)

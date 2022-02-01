@@ -300,7 +300,7 @@ private:
 
 DependencyScanningWorker::DependencyScanningWorker(
     DependencyScanningService &Service)
-    : Format(Service.getFormat()),
+    : Format(Service.getFormat()), OptimizeArgs(Service.canOptimizeArgs()),
       OverrideCASTokenCache(Service.overrideCASTokenCache()) {
   PCHContainerOps = std::make_shared<PCHContainerOperations>();
   PCHContainerOps->registerReader(
@@ -313,8 +313,10 @@ DependencyScanningWorker::DependencyScanningWorker(
   auto OverlayFS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
       llvm::vfs::createPhysicalFileSystem());
   // FIXME: Need to teach CachingFileSystem to understand overlay.
-  CacheFS = Service.getSharedFS().createProxyFS();
-  OverlayFS->pushOverlay(CacheFS);
+  if (Service.useCASScanning()) {
+    CacheFS = Service.getSharedFS().createProxyFS();
+    OverlayFS->pushOverlay(CacheFS);
+  }
   InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
   OverlayFS->pushOverlay(InMemoryFS);
   RealFS = OverlayFS;
@@ -322,9 +324,14 @@ DependencyScanningWorker::DependencyScanningWorker(
   if (Service.canSkipExcludedPPRanges())
     PPSkipMappings =
         std::make_unique<ExcludedPreprocessorDirectiveSkipMapping>();
-  if (Service.getMode() == ScanningMode::MinimizedSourcePreprocessing)
-    DepFS =
-        new DependencyScanningWorkerFilesystem(CacheFS, PPSkipMappings.get());
+  if (Service.getMode() == ScanningMode::MinimizedSourcePreprocessing) {
+    if (Service.useCASScanning())
+      DepFS = new DependencyScanningCASFilesystem(
+          Service.getSharedCache(), CacheFS, PPSkipMappings.get());
+    else
+      DepFS = new DependencyScanningWorkerFilesystem(
+          Service.getSharedCache(), RealFS, PPSkipMappings.get());
+  }
   if (Service.canReuseFileManager())
     Files = new FileManager(FileSystemOptions(), RealFS);
 }

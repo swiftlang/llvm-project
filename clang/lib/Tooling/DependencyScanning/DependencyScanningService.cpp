@@ -24,10 +24,6 @@ DependencyScanningService::DependencyScanningService(
       SkipExcludedPPRanges(SkipExcludedPPRanges), OptimizeArgs(OptimizeArgs),
       OverrideCASTokenCache(OverrideCASTokenCache),
       SharedFS(std::move(SharedFS)) {
-  if (!this->SharedFS)
-    this->SharedFS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(
-        llvm::cas::createInMemoryCAS()));
-
   // Initialize targets for object file support.
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
