@@ -1652,7 +1652,7 @@ void RelocationBaseSection::partitionRels() {
     return;
   const RelType relativeRel = target->relativeRel;
   numRelativeRelocs =
-      llvm::partition(relocs, [=](auto &r) { return r.type == relativeRel; }) -
+      llvm::partition(relocs, [=](const DynamicReloc &r) { return r.type == relativeRel; }) -
       relocs.begin();
 }
 
