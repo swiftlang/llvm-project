@@ -23,6 +23,10 @@ public:
   swift::remote::RemoteAddress
   getSymbolAddress(const std::string &name) override;
 
+  swift::remote::RemoteAbsolutePointer
+  resolvePointer(swift::remote::RemoteAddress address,
+                 uint64_t readValue) override;
+
   bool readBytes(swift::remote::RemoteAddress address, uint8_t *dest,
                  uint64_t size) override;
 
