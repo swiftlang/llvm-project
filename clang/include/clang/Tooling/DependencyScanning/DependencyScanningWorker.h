@@ -98,6 +98,8 @@ private:
   /// dependencies. This filesystem persists across multiple compiler
   /// invocations.
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
+  /// The CAS Dependency Filesytem. This is not set at the sametime as DepFS;
+  llvm::IntrusiveRefCntPtr<DependencyScanningCASFilesystem> DepCASFS;
   /// The file manager that is reused across multiple invocations by this
   /// worker. If null, the file manager will not be reused.
   llvm::IntrusiveRefCntPtr<FileManager> Files;

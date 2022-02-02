@@ -156,12 +156,14 @@ public:
   DependencyScanningAction(
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
+      llvm::IntrusiveRefCntPtr<DependencyScanningCASFilesystem> DepCASFS,
       ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings,
       bool OverrideCASTokenCache, ScanningOutputFormat Format,
       bool OptimizeArgs, bool EmitDependencyFile = false,
       llvm::Optional<StringRef> ModuleName = None)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
-        DepFS(std::move(DepFS)), PPSkipMappings(PPSkipMappings), Format(Format),
+        DepFS(std::move(DepFS)), DepCASFS(std::move(DepCASFS)),
+        PPSkipMappings(PPSkipMappings), Format(Format),
         OverrideCASTokenCache(OverrideCASTokenCache),
         OptimizeArgs(OptimizeArgs), EmitDependencyFile(EmitDependencyFile),
         ModuleName(ModuleName) {}
@@ -198,7 +200,8 @@ public:
       visitPrebuiltModule(
           ScanInstance.getPreprocessorOpts().ImplicitPCHInclude, ScanInstance,
           ScanInstance.getHeaderSearchOpts().PrebuiltModuleFiles,
-          PrebuiltModulesInputFiles, /*VisitInputFiles=*/DepFS != nullptr);
+          PrebuiltModulesInputFiles,
+          /*VisitInputFiles=*/getDepScanFS() != nullptr);
 
     // Use the dependency scanning optimized file system if requested to do so.
     if (DepFS) {
@@ -220,6 +223,34 @@ public:
       // filesystem.
       FileMgr->setVirtualFileSystem(createVFSFromCompilerInvocation(
           ScanInstance.getInvocation(), ScanInstance.getDiagnostics(), DepFS));
+
+      // Pass the skip mappings which should speed up excluded conditional block
+      // skipping in the preprocessor.
+      if (PPSkipMappings)
+        ScanInstance.getPreprocessorOpts()
+            .ExcludedConditionalDirectiveSkipMappings = PPSkipMappings;
+    }
+    // CAS Implementation.
+    if (DepCASFS) {
+      DepCASFS->enableMinimizationOfAllFiles();
+      // Don't minimize any files that contributed to prebuilt modules. The
+      // implicit build validates the modules by comparing the reported sizes of
+      // their inputs to the current state of the filesystem. Minimization would
+      // throw this mechanism off.
+      for (const auto &File : PrebuiltModulesInputFiles)
+        DepCASFS->disableMinimization(File.getKey());
+      // Don't minimize any files that were explicitly passed in the build
+      // settings and that might be opened.
+      for (const auto &E : ScanInstance.getHeaderSearchOpts().UserEntries)
+        DepCASFS->disableMinimization(E.Path);
+      for (const auto &F : ScanInstance.getHeaderSearchOpts().VFSOverlayFiles)
+        DepCASFS->disableMinimization(F);
+
+      // Support for virtual file system overlays on top of the caching
+      // filesystem.
+      FileMgr->setVirtualFileSystem(createVFSFromCompilerInvocation(
+          ScanInstance.getInvocation(), ScanInstance.getDiagnostics(),
+          DepCASFS));
 
       // Pass the skip mappings which should speed up excluded conditional block
       // skipping in the preprocessor.
@@ -279,15 +310,28 @@ public:
       Action = std::make_unique<ReadPCHAndPreprocessAction>();
 
     const bool Result = ScanInstance.ExecuteAction(*Action);
-    if (!DepFS)
+    if (!getDepScanFS())
       FileMgr->clearStatCache();
     return Result;
+  }
+
+  IntrusiveRefCntPtr<llvm::vfs::FileSystem> getDepScanFS() {
+    if (DepFS) {
+      assert(!DepCASFS && "CAS DepFS should not be set");
+      return DepFS;
+    }
+    if (DepCASFS) {
+      assert(!DepFS && "DepFS should not be set");
+      return DepCASFS;
+    }
+    return nullptr;
   }
 
 private:
   StringRef WorkingDirectory;
   DependencyConsumer &Consumer;
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
+  llvm::IntrusiveRefCntPtr<DependencyScanningCASFilesystem> DepCASFS;
   ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings;
   ScanningOutputFormat Format;
   bool OverrideCASTokenCache;
@@ -326,8 +370,8 @@ DependencyScanningWorker::DependencyScanningWorker(
         std::make_unique<ExcludedPreprocessorDirectiveSkipMapping>();
   if (Service.getMode() == ScanningMode::MinimizedSourcePreprocessing) {
     if (Service.useCASScanning())
-      DepFS = new DependencyScanningCASFilesystem(
-          Service.getSharedCache(), CacheFS, PPSkipMappings.get());
+      DepCASFS =
+          new DependencyScanningCASFilesystem(CacheFS, PPSkipMappings.get());
     else
       DepFS = new DependencyScanningWorkerFilesystem(
           Service.getSharedCache(), RealFS, PPSkipMappings.get());
@@ -382,7 +426,7 @@ llvm::Error DependencyScanningWorker::computeDependencies(
   return runWithDiags(CreateAndPopulateDiagOpts(FinalCCommandLine).release(),
                       [&](DiagnosticConsumer &DC, DiagnosticOptions &DiagOpts) {
                         DependencyScanningAction Action(
-                            WorkingDirectory, Consumer, DepFS,
+                            WorkingDirectory, Consumer, DepFS, DepCASFS,
                             PPSkipMappings.get(), OverrideCASTokenCache, Format,
                             OptimizeArgs, /*EmitDependencyFile=*/false,
                             ModuleName);
@@ -437,7 +481,7 @@ void DependencyScanningWorker::computeDependenciesFromCompilerInvocation(
 
   // FIXME: EmitDependencyFile should only be set when it's for a real
   // compilation.
-  DependencyScanningAction Action(WorkingDirectory, DepsConsumer, DepFS,
+  DependencyScanningAction Action(WorkingDirectory, DepsConsumer, DepFS, DepCASFS,
                                   PPSkipMappings.get(), OverrideCASTokenCache,
                                   Format, /*EmitDependencyFile=*/true);
 

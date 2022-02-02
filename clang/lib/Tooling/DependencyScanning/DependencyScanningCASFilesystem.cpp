@@ -19,8 +19,7 @@ using namespace clang;
 using namespace tooling;
 using namespace dependencies;
 
-template <typename T>
-static T reportAsFatalIfError(Expected<T> ValOrErr) {
+template <typename T> static T reportAsFatalIfError(Expected<T> ValOrErr) {
   if (!ValOrErr)
     llvm::report_fatal_error(ValOrErr.takeError());
   return std::move(*ValOrErr);
@@ -35,14 +34,12 @@ using llvm::Error;
 namespace cas = llvm::cas;
 
 DependencyScanningCASFilesystem::DependencyScanningCASFilesystem(
-    DependencyScanningFilesystemSharedCache &SharedCache,
     IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS,
     ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings)
-    : DependencyScanningWorkerFilesystem(SharedCache, WorkerFS, PPSkipMappings),
-      FS(WorkerFS), Entries(EntryAlloc), CAS(WorkerFS->getCAS()) {}
+    : FS(WorkerFS), Entries(EntryAlloc), CAS(WorkerFS->getCAS()),
+      PPSkipMappings(PPSkipMappings) {}
 
-DependencyScanningCASFilesystem::~DependencyScanningCASFilesystem() =
-    default;
+DependencyScanningCASFilesystem::~DependencyScanningCASFilesystem() = default;
 
 static void addSkippedRange(llvm::DenseMap<unsigned, unsigned> &Skip,
                             unsigned Offset, unsigned Length) {
@@ -160,7 +157,8 @@ Expected<StringRef> DependencyScanningCASFilesystem::computeMinimized(
   SmallVector<minimize_source_to_dependency_directives::Token, 64> Tokens;
   if (minimizeSourceToDependencyDirectives(InputData, Buffer, Tokens)) {
     // Failure. Cache a self-mapping and return the input data unmodified.
-    reportAsFatalIfError(cacheMinimized(*InputID, CAS, InputDataID, *EmptyBlobID));
+    reportAsFatalIfError(
+        cacheMinimized(*InputID, CAS, InputDataID, *EmptyBlobID));
     return InputData;
   }
 
@@ -190,7 +188,8 @@ Expected<StringRef> DependencyScanningCASFilesystem::computeMinimized(
 
   // Cache the computation.
   CASID SkippedRangesID = reportAsFatalIfError(CAS.createBlob(Buffer));
-  reportAsFatalIfError(cacheMinimized(*InputID, CAS, *MinimizedDataID, SkippedRangesID));
+  reportAsFatalIfError(
+      cacheMinimized(*InputID, CAS, *MinimizedDataID, SkippedRangesID));
 
   if (SkipMappingsResults)
     (*PPSkipMappings)[OutputData.begin()] = std::move(SkipMappingsResults);
@@ -215,12 +214,12 @@ static bool shouldMinimizeBasedOnExtension(StringRef Filename) {
   if (Ext.empty())
     return true; // C++ standard library
   return llvm::StringSwitch<bool>(Ext)
-    .CasesLower(".c", ".cc", ".cpp", ".c++", ".cxx", true)
-    .CasesLower(".h", ".hh", ".hpp", ".h++", ".hxx", true)
-    .CasesLower(".m", ".mm", true)
-    .CasesLower(".i", ".ii", ".mi", ".mmi", true)
-    .CasesLower(".def", ".inc", true)
-    .Default(false);
+      .CasesLower(".c", ".cc", ".cpp", ".c++", ".cxx", true)
+      .CasesLower(".h", ".hh", ".hpp", ".h++", ".hxx", true)
+      .CasesLower(".m", ".mm", true)
+      .CasesLower(".i", ".ii", ".mi", ".mmi", true)
+      .CasesLower(".def", ".inc", true)
+      .Default(false);
 }
 
 static bool shouldCacheStatFailures(StringRef Filename) {
@@ -247,8 +246,7 @@ bool DependencyScanningCASFilesystem::shouldMinimize(StringRef RawFilename) {
   return !NotToBeMinimized.contains(Filename);
 }
 
-cas::CachingOnDiskFileSystem &
-DependencyScanningCASFilesystem::getCachingFS() {
+cas::CachingOnDiskFileSystem &DependencyScanningCASFilesystem::getCachingFS() {
   return static_cast<cas::CachingOnDiskFileSystem &>(*FS);
 }
 

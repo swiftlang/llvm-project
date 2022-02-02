@@ -31,26 +31,20 @@ namespace clang {
 namespace tooling {
 namespace dependencies {
 
-// CAS based Dependency Scanning Woker Filesystem.
-// This should be a ThreadSafeFilesystem that you can create proxy with
-// `createThreadSafeproxyFS()`.
-class DependencyScanningCASFilesystem
-    : public DependencyScanningWorkerFilesystem {
+class DependencyScanningCASFilesystem : public llvm::cas::CASFileSystemBase {
 public:
   DependencyScanningCASFilesystem(
-      DependencyScanningFilesystemSharedCache &SharedCache,
       IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS,
       ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings);
 
   ~DependencyScanningCASFilesystem();
 
-  llvm::cas::CASDB &getCAS() const { return FS->getCAS(); }
-  Optional<llvm::cas::CASID> getFileCASID(const Twine &Path);
+  llvm::cas::CASDB &getCAS() const override { return FS->getCAS(); }
+  Optional<llvm::cas::CASID> getFileCASID(const Twine &Path) override;
 
   // FIXME: Make a templated version of ProxyFileSystem with a configurable
   // base class.
-  llvm::vfs::directory_iterator dir_begin(const Twine &Dir,
-                                          std::error_code &EC) override {
+  llvm::vfs::directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override {
     return FS->dir_begin(Dir, EC);
   }
   llvm::ErrorOr<std::string> getCurrentWorkingDirectory() const override {
@@ -67,7 +61,8 @@ public:
     return FS->isLocal(Path, Result);
   }
 
-  IntrusiveRefCntPtr<llvm::cas::ThreadSafeFileSystem> createThreadSafeProxyFS();
+  IntrusiveRefCntPtr<llvm::cas::ThreadSafeFileSystem>
+  createThreadSafeProxyFS() override;
 
   llvm::ErrorOr<llvm::vfs::Status> status(const Twine &Path) override;
   llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
@@ -118,6 +113,10 @@ private:
   Optional<llvm::cas::CASID> MinimizeID;
   Optional<llvm::cas::CASID> EmptyBlobID;
 
+  /// The optional mapping structure which records information about the
+  /// excluded conditional directive skip mappings that are used by the
+  /// currently active preprocessor.
+  ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings;
   /// The set of files that should not be minimized.
   llvm::StringSet<> NotToBeMinimized;
 };

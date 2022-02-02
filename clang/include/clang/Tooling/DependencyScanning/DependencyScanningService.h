@@ -69,7 +69,9 @@ public:
   bool canOptimizeArgs() const { return OptimizeArgs; }
 
   DependencyScanningFilesystemSharedCache &getSharedCache() {
-    return SharedCache;
+    assert(!SharedFS && "Expected not to have a CASFS");
+    assert(SharedCache && "Expected a shared cache");
+    return *SharedCache;
   }
 
   bool overrideCASTokenCache() const { return OverrideCASTokenCache; }
@@ -94,7 +96,7 @@ private:
   /// scanning.
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> SharedFS;
   /// The global file system cache.
-  DependencyScanningFilesystemSharedCache SharedCache;
+  Optional<DependencyScanningFilesystemSharedCache> SharedCache;
 };
 
 } // end namespace dependencies
