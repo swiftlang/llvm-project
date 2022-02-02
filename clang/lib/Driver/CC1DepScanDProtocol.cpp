@@ -141,19 +141,20 @@ public:
   static Expected<ScanDaemon> constructAndShakeHands(StringRef BasePath,
                                                      const char *Arg0);
 
+  static Expected<ScanDaemon> connectToExistingDaemon(StringRef BasePath) {
+    return connectToDaemon(BasePath, /*ShouldWait=*/false);
+  }
+
+  Error shakeHands() const;
+
 private:
   static Expected<ScanDaemon> launchDaemon(StringRef BasePath,
                                            const char *Arg0);
   static Expected<ScanDaemon> connectToDaemon(StringRef BasePath,
                                               bool ShouldWait);
-  static Expected<ScanDaemon> connectToExistingDaemon(StringRef BasePath) {
-    return connectToDaemon(BasePath, /*ShouldWait=*/false);
-  }
   static Expected<ScanDaemon> connectToJustLaunchedDaemon(StringRef BasePath) {
     return connectToDaemon(BasePath, /*ShouldWait=*/true);
   }
-
-  Error shakeHands() const;
 
   explicit ScanDaemon(OpenSocket S) : OpenSocket(std::move(S)) {}
 };
@@ -481,4 +482,33 @@ void cc1depscand::addCC1ScanDepsArgs(
   Argv.resize(NewArgs.size() + 1);
   for (int I = 0, E = NewArgs.size(); I != E; ++I)
     Argv[I + 1] = SaveArg(NewArgs[I]);
+}
+
+void cc1depscand::shutdownCC1ScanDepsDaemon(StringRef Path) {
+  SmallString<128> WorkingDirectory;
+  reportAsFatalIfError(
+      llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
+
+  //llvm::dbgs() << "connecting to daemon...\n";
+  ScanDaemon Daemon =
+      reportAsFatalIfError(ScanDaemon::connectToExistingDaemon(Path));
+
+  if (auto E = Daemon.shakeHands()) {
+    logAllUnhandledErrors(std::move(E), llvm::errs(),
+                          "Cannot connect to the daemon to shutdown, quit");
+    return;
+  }
+  cc1depscand::CC1DepScanDProtocol Comms(Daemon);
+
+  DepscanPrefixMapping Mapping;
+  const char *Args[] = { "-shutdown", nullptr };
+  //llvm::dbgs() << "sending shutdown request...\n";
+  reportAsFatalIfError(Comms.putCommand(WorkingDirectory, Args[0], Mapping));
+
+  // Wait for the ack before return.
+  cc1depscand::CC1DepScanDProtocol::ResultKind Result;
+  reportAsFatalIfError(Comms.getResultKind(Result));
+
+  if (Result != cc1depscand::CC1DepScanDProtocol::SuccessResult)
+    llvm::report_fatal_error("Daemon shutdown failed");
 }

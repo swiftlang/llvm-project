@@ -41,6 +41,8 @@ void addCC1ScanDepsArgs(
     const DepscanPrefixMapping &Mapping, StringRef DaemonKey,
     llvm::function_ref<const char *(const Twine &)> SaveArg);
 
+void shutdownCC1ScanDepsDaemon(StringRef Path);
+
 } // namespace cc1depscand
 } // namespace clang
 

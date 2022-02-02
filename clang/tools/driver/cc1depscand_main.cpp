@@ -13,6 +13,7 @@
 #include "clang/Basic/TargetOptions.h"
 #include "clang/CodeGen/ObjectFilePCHContainerOperations.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/CC1DepScanDClient.h"
 #include "clang/Driver/CC1DepScanDProtocol.h"
 #include "clang/Driver/Options.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -332,13 +333,25 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   // Shutdown test mode. In shutdown test mode, daemon will open acception, but
   // not replying anything, just tear down the connect immediately.
   bool ShutDownTest = false;
-  if (Argv.size() == 3 && StringRef(Argv[2]) == "-shutdown")
-    ShutDownTest = true;
+  bool KeepAlive = false;
+  bool Detached = false;
+  bool Debug = false;
+  if (Argv.size() == 3) {
+    if (StringRef(Argv[2]) == "-shutdown")
+      ShutDownTest = true;
+    if (StringRef(Argv[2]) == "-detach")
+      Detached = true;
+    if (StringRef(Argv[2]) == "-debug") {
+      // Debug mode. Running in detach mode.
+      Debug = true;
+      Detached = true;
+    }
+  }
 
   if (Command == "-launch") {
     signal(SIGCHLD, SIG_IGN);
     const char *Args[] = {
-        Argv0, "-cc1depscand", "-run", BasePath.begin(), nullptr,
+        Argv0, "-cc1depscand", "-run", BasePath.begin(), "-detach", nullptr,
     };
     int IgnoredPid;
     int EC = ::posix_spawn(&IgnoredPid, Args[0], /*file_actions=*/nullptr,
@@ -349,15 +362,41 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
     ::exit(0);
   }
 
-  if (Command != "-run")
+  if (Command == "-start") {
+    KeepAlive = true;
+    if (!Detached) {
+      signal(SIGCHLD, SIG_IGN);
+      const char *Args[] = {
+          Argv0, "-cc1depscand", "-start", BasePath.begin(), "-detach", nullptr,
+      };
+      int IgnoredPid;
+      int EC = ::posix_spawn(&IgnoredPid, Args[0], /*file_actions=*/nullptr,
+                             /*attrp=*/nullptr, const_cast<char **>(Args),
+                             /*envp=*/nullptr);
+      if (EC)
+        llvm::report_fatal_error("clang -cc1depscand: failed to daemonize");
+      ::exit(0);
+    }
+  }
+
+  if (Command == "-shutdown") {
+    // When shutdown command is received, connect to daemon and sent shuwdown
+    // command.
+    cc1depscand::shutdownCC1ScanDepsDaemon(BasePath);
+    ::exit(0);
+  }
+
+  if (Command != "-run" && Command != "-start")
     llvm::report_fatal_error("clang -cc1depscand: unknown command '" + Command +
                              "'");
 
   // Daemonize.
   if (::signal(SIGHUP, SIG_IGN) == SIG_ERR)
     llvm::report_fatal_error("clang -cc1depscand: failed to ignore SIGHUP");
-  if (::setsid() == -1)
-    llvm::report_fatal_error("clang -cc1depscand: setsid failed");
+  if (!Debug) {
+    if (::setsid() == -1)
+      llvm::report_fatal_error("clang -cc1depscand: setsid failed");
+  }
 
   // Check the pidfile.
   SmallString<128> PidPath, LogOutPath, LogErrPath;
@@ -542,6 +581,14 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
           continue; // FIXME: Tell the client something went wrong.
         }
 
+        if (StringRef(Args[0]) == "-shutdown") {
+          consumeError(Comms.putResultKind(
+              cc1depscand::CC1DepScanDProtocol::SuccessResult));
+          ShutdownCleanUp();
+          ShutDown.store(true);
+          continue;
+        }
+
         auto printScannedCC1 = [&](raw_ostream &OS) {
           OS << I << ": scanned -cc1:";
           for (const char *Arg : Args)
@@ -625,6 +672,9 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
 
     if (ShutDown.load())
       break;
+
+    if (KeepAlive)
+      continue;
 
     // Figure out the latest access time that we'll delete.
     uint64_t LastAccessToDestroy =

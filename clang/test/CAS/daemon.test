@@ -1,0 +1,5 @@
+/// Depscan daemon test by performing a start stop cycle.
+
+// RUN: rm -rf %t/depscand && mkdir -p %t/depscand
+// RUN: %clang -cc1depscand -launch %t/depscand -start
+// RUN: %clang -cc1depscand -shutdown %t/depscand
