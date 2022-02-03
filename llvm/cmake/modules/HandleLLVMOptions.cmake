@@ -1236,6 +1236,7 @@ endif()
 set(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN OFF CACHE BOOL
   "Use the experimental -fdepscan and related flags")
 set(LLVM_DEPSCAN_MODE "" CACHE STRING "Mode for -fdepscan if used")
+set(LLVM_DEPSCAN_DAEMON "" CACHE STRING "Path to existing DepScan daemon to use")
 set(LLVM_CAS_BUILTIN_PATH "" CACHE STRING "Path to pass for -fcas-builtin-path")
 set(LLVM_CAS_BUILTIN_PATH_Default "/^llvm::cas::builtin::default/llvm.cas.builtin.default")
 if (LLVM_CAS_BUILTIN_PATH)
@@ -1255,20 +1256,24 @@ if(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN)
   endif()
 
   if(SUPPORTS_DEPSCAN)
-    check_c_compiler_flag("-fdepscan=off -fdepscan-share-stop=cmake" SUPPORTS_DEPSCAN_SHARE)
-    if(SUPPORTS_DEPSCAN_SHARE)
-      get_filename_component(CMAKE_MAKE_PROGRAM_NAME "${CMAKE_MAKE_PROGRAM}" NAME)
-      if(CMAKE_GENERATOR STREQUAL "Ninja")
-        # Ninja should always be direct parent of clang invocations (except
-        # during configuration). Avoid unnecessary ancestor searches.
-        set(fdepscan_share "-fdepscan-share-parent")
-      else()
-        # Other build systems may use subshells.
-        set(fdepscan_share "-fdepscan-share")
-      endif()
+    if(LLVM_DEPSCAN_DAEMON)
+      append("-fdepscan-daemon=${LLVM_DEPSCAN_DAEMON}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    else()
+      check_c_compiler_flag("-fdepscan=off -fdepscan-share-stop=cmake" SUPPORTS_DEPSCAN_SHARE)
+      if(SUPPORTS_DEPSCAN_SHARE)
+        get_filename_component(CMAKE_MAKE_PROGRAM_NAME "${CMAKE_MAKE_PROGRAM}" NAME)
+        if(CMAKE_GENERATOR STREQUAL "Ninja")
+          # Ninja should always be direct parent of clang invocations (except
+          # during configuration). Avoid unnecessary ancestor searches.
+          set(fdepscan_share "-fdepscan-share-parent")
+        else()
+          # Other build systems may use subshells.
+          set(fdepscan_share "-fdepscan-share")
+        endif()
 
-      append("${fdepscan_share}=${CMAKE_MAKE_PROGRAM_NAME}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-      append("-fdepscan-share-stop=cmake" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+        append("${fdepscan_share}=${CMAKE_MAKE_PROGRAM_NAME}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+        append("-fdepscan-share-stop=cmake" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+      endif()
     endif()
 
     if(LLVM_ENABLE_PROJECTS_USED)
