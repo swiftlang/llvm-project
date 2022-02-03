@@ -354,16 +354,17 @@ DependencyScanningWorker::DependencyScanningWorker(
   PCHContainerOps->registerWriter(
       std::make_unique<ObjectFilePCHContainerWriter>());
 
-  auto OverlayFS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
-      llvm::vfs::createPhysicalFileSystem());
-  // FIXME: Need to teach CachingFileSystem to understand overlay.
-  if (Service.useCASScanning()) {
+  if (!Service.useCASScanning()) {
+    auto OverlayFS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+        llvm::vfs::createPhysicalFileSystem());
+    InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+    OverlayFS->pushOverlay(InMemoryFS);
+    RealFS = OverlayFS;
+  } else {
+    // FIXME: Need to teach CachingFileSystem to understand overlay.
     CacheFS = Service.getSharedFS().createProxyFS();
-    OverlayFS->pushOverlay(CacheFS);
+    RealFS = CacheFS;
   }
-  InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
-  OverlayFS->pushOverlay(InMemoryFS);
-  RealFS = OverlayFS;
 
   if (Service.canSkipExcludedPPRanges())
     PPSkipMappings =

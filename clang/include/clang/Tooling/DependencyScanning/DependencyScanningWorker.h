@@ -82,7 +82,8 @@ public:
                                              StringRef WorkingDirectory,
                                              DependencyConsumer &DepsConsumer);
 
-  llvm::cas::CachingOnDiskFileSystem &getRealFS() { return *CacheFS; }
+  llvm::vfs::FileSystem &getRealFS() { return *RealFS; }
+  llvm::cas::CachingOnDiskFileSystem &getCASFS() { return *CacheFS; }
 
 private:
   std::shared_ptr<PCHContainerOperations> PCHContainerOps;

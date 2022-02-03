@@ -156,7 +156,7 @@ private:
 
 llvm::Expected<llvm::cas::TreeRef> DependencyScanningTool::getDependencyTree(
     const std::vector<std::string> &CommandLine, StringRef CWD) {
-  llvm::cas::CachingOnDiskFileSystem &FS = Worker.getRealFS();
+  llvm::cas::CachingOnDiskFileSystem &FS = Worker.getCASFS();
   FS.trackNewAccesses();
   MakeDependencyTree Consumer(FS);
   auto Result = Worker.computeDependencies(CWD, CommandLine, Consumer);
@@ -181,7 +181,7 @@ DependencyScanningTool::getDependencyTreeFromCompilerInvocation(
     DiagnosticConsumer &DiagsConsumer,
     llvm::function_ref<StringRef(const llvm::vfs::CachedDirectoryEntry &)>
         RemapPath) {
-  llvm::cas::CachingOnDiskFileSystem &FS = Worker.getRealFS();
+  llvm::cas::CachingOnDiskFileSystem &FS = Worker.getCASFS();
   FS.trackNewAccesses();
   FS.setCurrentWorkingDirectory(CWD);
   MakeDependencyTree DepsConsumer(FS);
@@ -196,7 +196,7 @@ DependencyScanningTool::getDependencyTreeFromCompilerInvocation(
 llvm::Expected<llvm::cas::TreeRef>
 DependencyScanningTool::getDependencyTreeFromCC1CommandLine(
     ArrayRef<const char *> Args, StringRef CWD) {
-  llvm::cas::CachingOnDiskFileSystem &FS = Worker.getRealFS();
+  llvm::cas::CachingOnDiskFileSystem &FS = Worker.getCASFS();
   FS.trackNewAccesses();
   MakeDependencyTree DepsConsumer(FS);
   Worker.computeDependenciesFromCC1CommandLine(Args, CWD, DepsConsumer);
