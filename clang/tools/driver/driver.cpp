@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "UpdateCC1Args.h"
+#include "clang/Driver/CC1DepScanDProtocol.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/Stack.h"
@@ -466,14 +467,12 @@ struct DepscanSharing {
   bool OnlyShareParent = false;
   Optional<StringRef> Name;
   Optional<StringRef> Stop;
+  Optional<StringRef> Path;
 };
 } // end namespace;
 
 static Optional<std::string>
 makeDepscanDaemonKey(StringRef Mode, const DepscanSharing &Sharing) {
-  if (Mode == "inline")
-    return None;
-
   auto makeKey = [](uint64_t PID) { return Twine(PID).str(); };
 
   if (Sharing.Name) {
@@ -509,6 +508,20 @@ makeDepscanDaemonKey(StringRef Mode, const DepscanSharing &Sharing) {
   return None;
 }
 
+static Optional<std::string>
+makeDepscanDaemonPath(StringRef Mode, const DepscanSharing &Sharing) {
+  if (Mode == "inline")
+    return None;
+
+  if (Sharing.Path)
+    return Sharing.Path->str();
+
+  if (auto Key = makeDepscanDaemonKey(Mode, Sharing))
+    return cc1depscand::getBasePath(*Key);
+
+  return None;
+}
+
 static void
 CC1ScanDeps(const Arg &A, const char *Exec,
             SmallVectorImpl<const char *> &CC1Args, const Driver &D,
@@ -533,6 +546,8 @@ CC1ScanDeps(const Arg &A, const char *Exec,
       Sharing.OnlyShareParent = true;
     }
   }
+  if (Arg *A = Args.getLastArg(options::OPT_fdepscan_daemon_EQ))
+    Sharing.Path = A->getValue();
 
   if (Mode == "off")
     return;
@@ -545,8 +560,9 @@ CC1ScanDeps(const Arg &A, const char *Exec,
       parseCASFSAutoPrefixMappings(D, Args);
 
   auto SaveArg = [&Args](const Twine &T) { return Args.MakeArgString(T); };
-  if (Optional<std::string> DaemonKey = makeDepscanDaemonKey(Mode, Sharing))
-    cc1depscand::addCC1ScanDepsArgs(Exec, CC1Args, PrefixMapping, *DaemonKey,
+  if (Optional<std::string> DaemonPath = makeDepscanDaemonPath(Mode, Sharing))
+    cc1depscand::addCC1ScanDepsArgs(Exec, CC1Args, PrefixMapping, *DaemonPath,
+                                    /*NoSpawnDaemon*/ (bool)Sharing.Path,
                                     SaveArg);
   else
     addCC1ScanDepsArgsInline(Exec, CC1Args, PrefixMapping, SaveArg);

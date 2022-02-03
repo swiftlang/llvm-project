@@ -141,9 +141,7 @@ public:
   static Expected<ScanDaemon> constructAndShakeHands(StringRef BasePath,
                                                      const char *Arg0);
 
-  static Expected<ScanDaemon> connectToExistingDaemon(StringRef BasePath) {
-    return connectToDaemon(BasePath, /*ShouldWait=*/false);
-  }
+  static Expected<ScanDaemon> connectToDaemonAndShakeHands(StringRef BasePath);
 
   Error shakeHands() const;
 
@@ -152,6 +150,9 @@ private:
                                            const char *Arg0);
   static Expected<ScanDaemon> connectToDaemon(StringRef BasePath,
                                               bool ShouldWait);
+  static Expected<ScanDaemon> connectToExistingDaemon(StringRef BasePath) {
+    return connectToDaemon(BasePath, /*ShouldWait=*/false);
+  }
   static Expected<ScanDaemon> connectToJustLaunchedDaemon(StringRef BasePath) {
     return connectToDaemon(BasePath, /*ShouldWait=*/true);
   }
@@ -277,6 +278,17 @@ Expected<ScanDaemon> ScanDaemon::constructAndShakeHands(StringRef BasePath,
 
     return NewDaemon;
   }
+
+  return Daemon;
+}
+
+Expected<ScanDaemon> ScanDaemon::connectToDaemonAndShakeHands(StringRef Path) {
+  auto Daemon = ScanDaemon::connectToExistingDaemon(Path);
+  if (!Daemon)
+    return Daemon.takeError();
+
+  if (auto E = Daemon->shakeHands())
+    return std::move(E);
 
   return Daemon;
 }
@@ -451,18 +463,19 @@ llvm::Error CC1DepScanDProtocol::getScanResult(llvm::StringSaver &Saver,
 
 void cc1depscand::addCC1ScanDepsArgs(
     const char *Exec, SmallVectorImpl<const char *> &Argv,
-    const DepscanPrefixMapping &Mapping, StringRef DaemonKey,
+    const DepscanPrefixMapping &Mapping, StringRef Path, bool NoSpawnDaemon,
     llvm::function_ref<const char *(const Twine &)> SaveArg) {
-  std::string BasePath = cc1depscand::getBasePath(DaemonKey);
-
   // FIXME: Skip some of this if -fcas-fs has been passed.
   SmallString<128> WorkingDirectory;
   reportAsFatalIfError(
       llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
 
-  //llvm::dbgs() << "connecting to daemon...\n";
+  // llvm::dbgs() << "connecting to daemon...\n";
   ScanDaemon Daemon =
-      reportAsFatalIfError(ScanDaemon::constructAndShakeHands(BasePath, Exec));
+      NoSpawnDaemon
+          ? reportAsFatalIfError(ScanDaemon::connectToDaemonAndShakeHands(Path))
+          : reportAsFatalIfError(
+                ScanDaemon::constructAndShakeHands(Path, Exec));
   cc1depscand::CC1DepScanDProtocol Comms(Daemon);
 
   //llvm::dbgs() << "sending request...\n";
@@ -490,15 +503,14 @@ void cc1depscand::shutdownCC1ScanDepsDaemon(StringRef Path) {
       llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
 
   //llvm::dbgs() << "connecting to daemon...\n";
-  ScanDaemon Daemon =
-      reportAsFatalIfError(ScanDaemon::connectToExistingDaemon(Path));
+  auto Daemon = ScanDaemon::connectToDaemonAndShakeHands(Path);
 
-  if (auto E = Daemon.shakeHands()) {
-    logAllUnhandledErrors(std::move(E), llvm::errs(),
-                          "Cannot connect to the daemon to shutdown, quit");
+  if (!Daemon) {
+    logAllUnhandledErrors(Daemon.takeError(), llvm::errs(),
+                          "Cannot connect to the daemon to shutdown: ");
     return;
   }
-  cc1depscand::CC1DepScanDProtocol Comms(Daemon);
+  cc1depscand::CC1DepScanDProtocol Comms(*Daemon);
 
   DepscanPrefixMapping Mapping;
   const char *Args[] = { "-shutdown", nullptr };
