@@ -185,14 +185,14 @@ bool LLDBMemoryReader::readBytes(swift::remote::RemoteAddress address,
   llvm::Optional<Address> maybeAddr =
       resolveRemoteAddress(address.getAddressData());
   if (!maybeAddr) {
-    LLDB_LOGV(log, "[MemoryReader] could not resolve address {1:x}",
+    LLDB_LOG(log, "[MemoryReader] could not resolve address {1:x}",
               address.getAddressData());
     return false;
   }
   auto addr = *maybeAddr;
 
   if (size > m_max_read_amount) {
-    LLDB_LOGV(log, "[MemoryReader] memory read exceeds maximum allowed size");
+    LLDB_LOG(log, "[MemoryReader] memory read exceeds maximum allowed size");
     return false;
   }
   Target &target(m_process.GetTarget());
@@ -202,12 +202,12 @@ bool LLDBMemoryReader::readBytes(swift::remote::RemoteAddress address,
   const bool force_live_memory =
       !readMetadataFromFileCacheEnabled() || !addr.IsSectionOffset();
   if (size > target.ReadMemory(addr, dest, size, error, force_live_memory)) {
-    LLDB_LOGV(log,
+    LLDB_LOG(log,
               "[MemoryReader] memory read returned fewer bytes than asked for");
     return false;
   }
   if (error.Fail()) {
-    LLDB_LOGV(log, "[MemoryReader] memory read returned error: {0}",
+    LLDB_LOG(log, "[MemoryReader] memory read returned error: {0}",
               error.AsCString());
     return false;
   }
@@ -236,7 +236,7 @@ bool LLDBMemoryReader::readString(swift::remote::RemoteAddress address,
   llvm::Optional<Address> maybeAddr =
       resolveRemoteAddress(address.getAddressData());
   if (!maybeAddr) {
-    LLDB_LOGV(log, "[MemoryReader] could not resolve address {1:x}",
+    LLDB_LOG(log, "[MemoryReader] could not resolve address {1:x}",
               address.getAddressData());
     return false;
   }
@@ -262,7 +262,7 @@ bool LLDBMemoryReader::readString(swift::remote::RemoteAddress address,
               format_string(dest));
     return true;
   }
-  LLDB_LOGV(log, "[MemoryReader] memory read returned error: {0}",
+  LLDB_LOG(log, "[MemoryReader] memory read returned error: {0}",
             error.AsCString());
   return false;
 }
