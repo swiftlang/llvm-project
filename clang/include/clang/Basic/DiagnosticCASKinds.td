@@ -25,6 +25,8 @@ def err_cas_filesystem_cannot_be_initialized : Error<
 def err_cas_filesystem_cannot_set_working_directory : Error<
   "CAS filesystem cannot set working directory to '%0' specified by"
   " -fcas-fs-working-directory">, DefaultFatal;
+def err_cas_depscan_daemon_connection: Error<
+  "Failed to establish connection with depscan daemon: %0">, DefaultFatal;
 
 def remark_cas_fs_result_cache_hit : Remark<
   "result cache hit for '%0' => '%1'">, InGroup<CASFSResultCacheHit>;

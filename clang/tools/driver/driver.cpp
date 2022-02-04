@@ -15,6 +15,7 @@
 #include "clang/Driver/CC1DepScanDProtocol.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/DiagnosticCAS.h"
 #include "clang/Basic/Stack.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/CC1DepScanDClient.h"
@@ -560,11 +561,14 @@ CC1ScanDeps(const Arg &A, const char *Exec,
       parseCASFSAutoPrefixMappings(D, Args);
 
   auto SaveArg = [&Args](const Twine &T) { return Args.MakeArgString(T); };
-  if (Optional<std::string> DaemonPath = makeDepscanDaemonPath(Mode, Sharing))
-    cc1depscand::addCC1ScanDepsArgs(Exec, CC1Args, PrefixMapping, *DaemonPath,
-                                    /*NoSpawnDaemon*/ (bool)Sharing.Path,
-                                    SaveArg);
-  else
+  if (Optional<std::string> DaemonPath = makeDepscanDaemonPath(Mode, Sharing)) {
+    auto Err = cc1depscand::addCC1ScanDepsArgs(
+        Exec, CC1Args, PrefixMapping, *DaemonPath,
+        /*NoSpawnDaemon*/ (bool)Sharing.Path, SaveArg);
+    if (Err)
+      D.Diag(diag::err_cas_depscan_daemon_connection)
+          << toString(std::move(Err));
+  } else
     addCC1ScanDepsArgsInline(Exec, CC1Args, PrefixMapping, SaveArg);
 }
 

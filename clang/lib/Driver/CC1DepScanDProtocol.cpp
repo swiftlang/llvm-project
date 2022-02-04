@@ -461,40 +461,48 @@ llvm::Error CC1DepScanDProtocol::getScanResult(llvm::StringSaver &Saver,
   return Error::success();
 }
 
-void cc1depscand::addCC1ScanDepsArgs(
+llvm::Error cc1depscand::addCC1ScanDepsArgs(
     const char *Exec, SmallVectorImpl<const char *> &Argv,
     const DepscanPrefixMapping &Mapping, StringRef Path, bool NoSpawnDaemon,
     llvm::function_ref<const char *(const Twine &)> SaveArg) {
   // FIXME: Skip some of this if -fcas-fs has been passed.
   SmallString<128> WorkingDirectory;
-  reportAsFatalIfError(
-      llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
+  if (auto E =
+          llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)))
+    return E;
 
   // llvm::dbgs() << "connecting to daemon...\n";
-  ScanDaemon Daemon =
-      NoSpawnDaemon
-          ? reportAsFatalIfError(ScanDaemon::connectToDaemonAndShakeHands(Path))
-          : reportAsFatalIfError(
-                ScanDaemon::constructAndShakeHands(Path, Exec));
-  cc1depscand::CC1DepScanDProtocol Comms(Daemon);
+  auto Daemon = NoSpawnDaemon ? ScanDaemon::connectToDaemonAndShakeHands(Path)
+                              : ScanDaemon::constructAndShakeHands(Path, Exec);
+  if (!Daemon)
+    return Daemon.takeError();
+  cc1depscand::CC1DepScanDProtocol Comms(*Daemon);
 
   //llvm::dbgs() << "sending request...\n";
-  reportAsFatalIfError(Comms.putCommand(WorkingDirectory, Argv, Mapping));
+  if (auto E = Comms.putCommand(WorkingDirectory, Argv, Mapping))
+    return E;
 
   llvm::BumpPtrAllocator Alloc;
   llvm::StringSaver Saver(Alloc);
   SmallVector<AutoArgEdit> ArgEdits;
   SmallVector<const char *> NewArgs;
   cc1depscand::CC1DepScanDProtocol::ResultKind Result;
-  reportAsFatalIfError(Comms.getResultKind(Result));
+  if (auto E = Comms.getResultKind(Result))
+    return E;
+
   if (Result != cc1depscand::CC1DepScanDProtocol::SuccessResult)
-    llvm::report_fatal_error("-cc1depscand failed");
-  reportAsFatalIfError(Comms.getArgs(Saver, NewArgs));
+    return createStringError(inconvertibleErrorCode(),
+                             "cc1depscand returns failure");
+
+  if (auto E = Comms.getArgs(Saver, NewArgs))
+    return E;
 
   // FIXME: Avoid this duplication.
   Argv.resize(NewArgs.size() + 1);
   for (int I = 0, E = NewArgs.size(); I != E; ++I)
     Argv[I + 1] = SaveArg(NewArgs[I]);
+
+  return Error::success();
 }
 
 void cc1depscand::shutdownCC1ScanDepsDaemon(StringRef Path) {

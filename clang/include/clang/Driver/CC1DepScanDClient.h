@@ -13,6 +13,7 @@
 #include <llvm/ADT/Optional.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/StringRef.h>
+#include <llvm/Support/Error.h>
 #include <vector>
 
 namespace llvm {
@@ -36,10 +37,11 @@ struct AutoArgEdit {
   StringRef NewArg;
 };
 
-void addCC1ScanDepsArgs(
-    const char *Exec, SmallVectorImpl<const char *> &Argv,
-    const DepscanPrefixMapping &Mapping, StringRef Path, bool NoSpawnDaemon,
-    llvm::function_ref<const char *(const Twine &)> SaveArg);
+llvm::Error
+addCC1ScanDepsArgs(const char *Exec, SmallVectorImpl<const char *> &Argv,
+                   const DepscanPrefixMapping &Mapping, StringRef Path,
+                   bool NoSpawnDaemon,
+                   llvm::function_ref<const char *(const Twine &)> SaveArg);
 
 void shutdownCC1ScanDepsDaemon(StringRef Path);
 
