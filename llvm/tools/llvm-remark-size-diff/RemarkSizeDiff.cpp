@@ -142,13 +142,13 @@ static void printFunctionDiff(const FunctionDiff &FD, llvm::raw_ostream &OS) {
   const int64_t StackDiff = FD.getStackDiff();
   // Output an indicator denoting which files the function was present in.
   switch (FilesPresent) {
-  case FilesPresent::A:
+  case A:
     OS << "-- ";
     break;
-  case FilesPresent::B:
+  case B:
     OS << "++ ";
     break;
-  case FilesPresent::BOTH:
+  case BOTH:
     OS << "== ";
     break;
   }
