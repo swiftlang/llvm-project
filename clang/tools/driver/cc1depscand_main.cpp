@@ -874,6 +874,8 @@ clang::updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
                      llvm::function_ref<const char *(const Twine &)> SaveArg) {
   // FIXME: Should use user-specified CAS, if any.
   llvm::cas::CASDB &CAS = FS.getCAS();
+  // Set current working directory so the PrefixMapper has the correct info.
+  FS.setCurrentWorkingDirectory(WorkingDirectory);
 
   DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
   Diags.setClient(&DiagsConsumer, /*ShouldOwnClient=*/false);
