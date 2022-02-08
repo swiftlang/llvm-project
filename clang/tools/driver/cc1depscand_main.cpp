@@ -28,6 +28,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/Compiler.h"
@@ -53,6 +54,12 @@
 using namespace clang;
 using namespace llvm::opt;
 using llvm::Error;
+
+#define DEBUG_TYPE "cc1depscand"
+
+ALWAYS_ENABLED_STATISTIC(NumRequests, "Number of -cc1 update requests");
+ALWAYS_ENABLED_STATISTIC(NumCASCacheHit,
+                         "Number of compilations should hit cache");
 
 #ifdef CLANG_HAVE_RLIMITS
 #if defined(__linux__) && defined(__PIE__)
@@ -364,6 +371,7 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
 
   if (Command == "-start") {
     KeepAlive = true;
+    llvm::EnableStatistics(/*DoPrintOnExit=*/true);
     if (!Detached) {
       signal(SIGCHLD, SIG_IGN);
       const char *Args[] = {
@@ -589,6 +597,8 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
           continue;
         }
 
+        // cc1 request.
+        ++NumRequests;
         auto printScannedCC1 = [&](raw_ostream &OS) {
           OS << I << ": scanned -cc1:";
           for (const char *Arg : Args)
@@ -608,11 +618,12 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
             DiagsOS, new DiagnosticOptions(), false);
 
         SmallVector<const char *> NewArgs;
-        if (Error E = updateCC1Args(
+        auto RootID = updateCC1Args(
                           *FS, *Tool, *DiagsConsumer, Argv0, Args,
                           WorkingDirectory, NewArgs, PrefixMapping,
-                          [&](const Twine &T) { return Saver.save(T).data(); })
-                          .takeError()) {
+                          [&](const Twine &T) { return Saver.save(T).data(); });
+        if (!RootID) {
+          consumeError(RootID.takeError());
           SharedOS.applyLocked([&](raw_ostream &OS) {
             printScannedCC1(OS);
             OS << I << ": failed to create compiler invocation\n";
@@ -655,6 +666,35 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
           printComputedCC1(OS);
         });
 #endif
+        // FIXME: we re-compute the cache key here and try to access the action
+        // cache and see if it should be a cache hit. Is there a better way to
+        // get this stats in the daemon?
+        auto &CAS = FS->getCAS();
+        SmallString<256> CommandLine;
+        // There is an extra cc1 from the cc1_main.
+        CommandLine.append("-cc1");
+        CommandLine.push_back(0);
+        for (StringRef Arg : NewArgs) {
+          CommandLine.append(Arg);
+          CommandLine.push_back(0);
+        }
+
+        llvm::cas::HierarchicalTreeBuilder Builder;
+        Builder.push(*RootID, llvm::cas::TreeEntry::Tree, "filesystem");
+        Builder.push(llvm::cantFail(CAS.createBlob(CommandLine)),
+                     llvm::cas::TreeEntry::Regular, "command-line");
+        Builder.push(llvm::cantFail(CAS.createBlob("-cc1")),
+                     llvm::cas::TreeEntry::Regular, "computation");
+
+        Builder.push(llvm::cantFail(CAS.createBlob(getClangFullVersion())),
+                     llvm::cas::TreeEntry::Regular, "version");
+
+        auto Key = llvm::cantFail(Builder.create(CAS)).getID();
+        auto Result = CAS.getCachedResult(Key);
+        if (Result)
+          ++NumCASCacheHit;
+        else
+          llvm::consumeError(Result.takeError());
       }
     });
   };
