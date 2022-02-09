@@ -376,7 +376,7 @@ CachingOnDiskFileSystemImpl::getRealPath(const Twine &Path,
   // We can get the real path, but it's not a const operation.
   const vfs::CachedDirectoryEntry *Entry = nullptr;
   if (Error E =
-          getDirectoryEntry(Path, /*FollowSymlinks=*/true).moveInto(Entry))
+          getDirectoryEntry(Path, /*FollowSymlinks=*/false).moveInto(Entry))
     return errorToErrorCode(std::move(E));
 
   StringRef TreePath = Entry->getTreePath();

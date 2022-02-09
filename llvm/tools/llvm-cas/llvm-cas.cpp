@@ -18,6 +18,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/PrefixMapper.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
@@ -28,6 +29,9 @@ using namespace llvm::cas;
 
 static cl::opt<bool> AllTrees("all-trees",
                               cl::desc("Print all trees, not just empty ones, for ls-tree-recursive"));
+static cl::list<std::string> PrefixMapPaths(
+    "prefix-map",
+    cl::desc("prefix map for file system ingestion, -prefix-map BEFORE=AFTER"));
 
 static int dump(CASDB &CAS);
 static int listTree(CASDB &CAS, CASID ID);
@@ -446,12 +450,25 @@ static Expected<TreeRef> ingestFileSystemImpl(CASDB &CAS, StringRef Path) {
   if (!FS)
     return FS.takeError();
 
+  BumpPtrAllocator Alloc;
+  TreePathPrefixMapper Mapper(*FS, Alloc);
+  SmallVector<llvm::MappedPrefix> Split;
+  if (!PrefixMapPaths.empty()) {
+    MappedPrefix::transformJoinedIfValid(PrefixMapPaths, Split);
+    if (llvm::Error E = Mapper.addRange(Split))
+      return std::move(E);
+    Mapper.sort();
+  }
+
   (*FS)->trackNewAccesses();
 
   if (Error E = recursiveAccess(**FS, Path))
     return std::move(E);
 
-  return (*FS)->createTreeFromAllAccesses();
+  return (*FS)->createTreeFromNewAccesses(
+      [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
+        return Mapper.map(Entry);
+      });
 }
 
 int ingestFileSystem(CASDB &CAS, StringRef Path) {
