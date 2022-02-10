@@ -191,6 +191,10 @@ void printTreeEntry(CASDB &CAS, raw_ostream &OS, TreeEntry::EntryKind Kind,
   OS << " " << Name;
   if (Kind == TreeEntry::Tree)
     OS << "/";
+  if (Kind == TreeEntry::Symlink) {
+    auto Target = cantFail(CAS.getBlob(ID));
+    OS << " -> " << *Target;
+  }
   OS << "\n";
 }
 

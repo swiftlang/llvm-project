@@ -6,7 +6,7 @@ RUN: llvm-cas --cas %t/cas --ls-tree-recursive @%t/cas.id | FileCheck %s
 CHECK: file
 CHECK-SAME: /^input/directory/file
 CHECK: syml
-CHECK-SAME: /^input/file
+CHECK-SAME: /^input/file -> directory/file
 CHECK: file
 CHECK-SAME: /^input/oneline
 CHECK: file
