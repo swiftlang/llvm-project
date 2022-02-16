@@ -28,7 +28,7 @@ mkdir myswift
 cd myswift
 git clone https://github.com/apple/swift.git swift
 ./swift/utils/update-checkout
-./swift/utils/build-script -r --lldb
+./swift/utils/build-script -r --lldb --lldb-use-system-debugserver
 ```
 
 # Contribution Subtleties
