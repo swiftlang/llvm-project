@@ -154,6 +154,10 @@ if platform.system() not in ['Darwin', 'Fuchsia']:
 # This is CAS enabled branch:
 config.available_features.add('cas')
 
+# Feature for the build directory path is not too long for certain tests.
+if len(config.clang_obj_root) < 50:
+    config.available_features.add('short-build-dir-path')
+
 # Case-insensitive file system
 
 

@@ -1,6 +1,6 @@
 // Test running -fdepscan with a daemon launched from different directory.
 //
-// REQUIRES: system-darwin
+// REQUIRES: system-darwin, short-build-dir-path
 
 // RUN: rm -rf %t && mkdir -p %t/include
 // RUN: cp %S/Inputs/test.h %t/include
