@@ -11,10 +11,6 @@
 
 #include <cstdint>
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "llvm/ADT/StringRef.h"
-#endif
-
 // Log Bits specific to logging in lldb
 #define LIBLLDB_LOG_PROCESS (1u << 1)
 #define LIBLLDB_LOG_THREAD (1u << 2)
@@ -54,10 +50,6 @@
    LIBLLDB_LOG_STATE | LIBLLDB_LOG_SYMBOLS | LIBLLDB_LOG_TARGET |              \
    LIBLLDB_LOG_COMMANDS)
 
-#ifdef LLDB_ENABLE_SWIFT
-#define LIBLLDB_SWIFT_LOG_HEALTH (1u << 1)
-#endif
-
 namespace lldb_private {
 
 class Log;
@@ -65,11 +57,6 @@ class Log;
 Log *GetLogIfAllCategoriesSet(uint32_t mask);
 
 Log *GetLogIfAnyCategoriesSet(uint32_t mask);
-
-#ifdef LLDB_ENABLE_SWIFT
-Log *GetSwiftHealthLog();
-llvm::StringRef GetSwiftHealthLogData();
-#endif
 
 void InitializeLldbChannel();
 
