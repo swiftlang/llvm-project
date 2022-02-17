@@ -32,8 +32,8 @@ git clone https://github.com/apple/swift.git swift
 ./swift/utils/build-script -r --lldb
 ```
 
-Note: codesigning setup is not required when using
-`--lldb-use-system-debugserver`.
+Note: The codesigning setup script needs to be run only once. It's not required
+if `build-script` is run with the `--lldb-use-system-debugserver` flag.
 
 # Contribution Subtleties
 
