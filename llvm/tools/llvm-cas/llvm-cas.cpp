@@ -52,9 +52,11 @@ int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
 
   cl::list<std::string> Objects(cl::Positional, cl::desc("<object>..."));
-  cl::opt<std::string> CASPath("cas", cl::desc("Path to CAS on disk."));
+  cl::opt<std::string> CASPath("cas", cl::desc("Path to CAS on disk."),
+                               cl::value_desc("path"));
   cl::opt<std::string> DataPath("data",
-                                cl::desc("Path to data or '-' for stdin."));
+                                cl::desc("Path to data or '-' for stdin."),
+                                cl::value_desc("path"));
 
   enum CommandKind {
     Invalid,
@@ -101,7 +103,8 @@ int main(int Argc, char **Argv) {
                                 "no command action is specified"));
 
   if (CASPath.empty())
-    ExitOnErr(createStringError(inconvertibleErrorCode(), "missing --path"));
+    ExitOnErr(
+        createStringError(inconvertibleErrorCode(), "missing --cas=<path>"));
   std::unique_ptr<CASDB> CAS = ExitOnErr(llvm::cas::createOnDiskCAS(CASPath));
   assert(CAS);
 
@@ -434,7 +437,7 @@ int traverseGraph(CASDB &CAS, CASID ID) {
 static Error recursiveAccess(CachingOnDiskFileSystem &FS, StringRef Path) {
   auto ST = FS.status(Path);
   if (!ST)
-    return errorCodeToError(ST.getError());
+    return createFileError(Path, ST.getError());
 
   if (ST->isDirectory()) {
     std::error_code EC;
@@ -477,6 +480,9 @@ static Expected<TreeRef> ingestFileSystemImpl(CASDB &CAS, StringRef Path) {
 
 int ingestFileSystem(CASDB &CAS, StringRef Path) {
   ExitOnError ExitOnErr("llvm-cas: ingest: ");
+  if (Path.empty())
+    ExitOnErr(
+        createStringError(inconvertibleErrorCode(), "missing --data=<path>"));
   auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Path));
   ExitOnErr(CAS.printCASID(outs(), Ref));
   return 0;
