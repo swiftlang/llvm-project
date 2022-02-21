@@ -285,7 +285,7 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
   SmallVector<const char *> NewArgs;
   Optional<llvm::cas::CASID> RootID;
   if (Error E =
-          updateCC1Args(*FS, Tool, *DiagsConsumer, Argv0, CC1Args->getValues(),
+          updateCC1Args(Tool, *DiagsConsumer, Argv0, CC1Args->getValues(),
                         WorkingDirectory, NewArgs, PrefixMapping,
                         [&](const Twine &T) { return Saver.save(T).data(); })
               .moveInto(RootID)) {
@@ -521,7 +521,7 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
 
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I) {
     Pool.async([&Service, &ShutDown, &ListenSocket, &NumRunning, &Start,
-                &SecondsSinceLastClose, I, FS, Argv0, &SharedOS, ShutDownTest,
+                &SecondsSinceLastClose, I, Argv0, &SharedOS, ShutDownTest,
                 &ShutdownCleanUp]() {
       Optional<tooling::dependencies::DependencyScanningTool> Tool;
       SmallString<256> Message;
@@ -618,9 +618,9 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
             DiagsOS, new DiagnosticOptions(), false);
 
         SmallVector<const char *> NewArgs;
-        auto RootID = updateCC1Args(
-                          *FS, *Tool, *DiagsConsumer, Argv0, Args,
-                          WorkingDirectory, NewArgs, PrefixMapping,
+        auto RootID =
+            updateCC1Args(*Tool, *DiagsConsumer, Argv0, Args, WorkingDirectory,
+                          NewArgs, PrefixMapping,
                           [&](const Twine &T) { return Saver.save(T).data(); });
         if (!RootID) {
           consumeError(RootID.takeError());
@@ -669,7 +669,7 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
         // FIXME: we re-compute the cache key here and try to access the action
         // cache and see if it should be a cache hit. Is there a better way to
         // get this stats in the daemon?
-        auto &CAS = FS->getCAS();
+        auto &CAS = Tool->getCachingFileSystem().getCAS();
         SmallString<256> CommandLine;
         // There is an extra cc1 from the cc1_main.
         CommandLine.append("-cc1");
@@ -904,8 +904,7 @@ static void updateCompilerInvocation(CompilerInvocation &Invocation,
 }
 
 Expected<llvm::cas::CASID>
-clang::updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
-                     tooling::dependencies::DependencyScanningTool &Tool,
+clang::updateCC1Args(tooling::dependencies::DependencyScanningTool &Tool,
                      DiagnosticConsumer &DiagsConsumer, const char *Exec,
                      ArrayRef<const char *> InputArgs,
                      StringRef WorkingDirectory,
@@ -913,9 +912,8 @@ clang::updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
                      const cc1depscand::DepscanPrefixMapping &PrefixMapping,
                      llvm::function_ref<const char *(const Twine &)> SaveArg) {
   // FIXME: Should use user-specified CAS, if any.
+  llvm::cas::CachingOnDiskFileSystem &FS = Tool.getCachingFileSystem();
   llvm::cas::CASDB &CAS = FS.getCAS();
-  // Set current working directory so the PrefixMapper has the correct info.
-  FS.setCurrentWorkingDirectory(WorkingDirectory);
 
   DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
   Diags.setClient(&DiagsConsumer, /*ShouldOwnClient=*/false);
@@ -975,6 +973,6 @@ clang::updateCC1Args(const char *Exec, ArrayRef<const char *> InputArgs,
   reportAsFatalIfError(
       llvm::errorCodeToError(llvm::sys::fs::current_path(WorkingDirectory)));
 
-  return updateCC1Args(*FS, Tool, *DiagsConsumer, Exec, InputArgs,
-                       WorkingDirectory, OutputArgs, PrefixMapping, SaveArg);
+  return updateCC1Args(Tool, *DiagsConsumer, Exec, InputArgs, WorkingDirectory,
+                       OutputArgs, PrefixMapping, SaveArg);
 }

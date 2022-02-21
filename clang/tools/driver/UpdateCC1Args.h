@@ -28,8 +28,7 @@ class DependencyScanningTool;
 } // end namespace tooling
 
 llvm::Expected<llvm::cas::CASID>
-updateCC1Args(llvm::cas::CachingOnDiskFileSystem &FS,
-              tooling::dependencies::DependencyScanningTool &Tool,
+updateCC1Args(tooling::dependencies::DependencyScanningTool &Tool,
               DiagnosticConsumer &DiagsConsumer, const char *Exec,
               ArrayRef<const char *> InputArgs, StringRef WorkingDirectory,
               SmallVectorImpl<const char *> &OutputArgs,

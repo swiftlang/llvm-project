@@ -123,6 +123,10 @@ public:
                       StringRef CWD, const llvm::StringSet<> &AlreadySeen,
                       llvm::Optional<StringRef> ModuleName = None);
 
+  llvm::cas::CachingOnDiskFileSystem &getCachingFileSystem() {
+    return Worker.getCASFS();
+  }
+
 private:
   DependencyScanningWorker Worker;
 };
