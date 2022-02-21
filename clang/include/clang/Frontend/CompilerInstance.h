@@ -315,6 +315,13 @@ public:
     return Invocation->getTargetOpts();
   }
 
+  CASOptions &getCASOpts() {
+    return Invocation->getCASOpts();
+  }
+  const CASOptions &getCASOpts() const {
+    return Invocation->getCASOpts();
+  }
+
   /// }
   /// @name Diagnostics Engine
   /// {

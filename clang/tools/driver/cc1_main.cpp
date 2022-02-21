@@ -398,29 +398,9 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
         llvm::makeIntrusiveRefCnt<llvm::vfs::OnDiskOutputBackend>();
     IntrusiveRefCntPtr<llvm::vfs::OutputBackend> NormalFileOutBackend =
         OnDiskOutBackend;
-    IntrusiveRefCntPtr<llvm::vfs::OutputBackend> CASIDFileOutBackend;
-    if (Clang->getInvocation().getCASOpts().WriteOutputAsCASID) {
-      std::string OutputFile =
-          Clang->getInvocation().getFrontendOpts().OutputFile;
-      // Create a backend that writes normal files contents but excludes the
-      // output filename.
-      NormalFileOutBackend = llvm::vfs::makeFilteringOutputBackend(
-          OnDiskOutBackend,
-          [OutputFile](StringRef ResolvedPath, llvm::vfs::OutputConfig) {
-            return ResolvedPath != OutputFile;
-          });
-      // Create a backend that writes files as embedded CASIDs but only for the
-      // output filename.
-      CASIDFileOutBackend = llvm::vfs::makeFilteringOutputBackend(
-          OnDiskOutBackend,
-          [OutputFile](StringRef ResolvedPath, llvm::vfs::OutputConfig) {
-            return ResolvedPath == OutputFile;
-          });
-    }
-
     // Set up the output backend so we can save / cache the result after.
     CASOutputs = llvm::makeIntrusiveRefCnt<llvm::cas::CASOutputBackend>(
-        *CAS, std::move(CASIDFileOutBackend), [](StringRef Path) {
+        *CAS, std::move(OnDiskOutBackend), [](StringRef Path) {
           // Convert the path in CAS tree depending on if the path is absolute
           // or relative.
           SmallString<256> NewPath;

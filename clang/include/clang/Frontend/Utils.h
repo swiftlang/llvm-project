@@ -22,6 +22,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/Option/OptSpecifier.h"
 #include "llvm/Support/FileCollector.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -35,6 +36,7 @@
 namespace clang {
 
 class ASTReader;
+class CASOptions;
 class CompilerInstance;
 class CompilerInvocation;
 class DiagnosticsEngine;
@@ -211,6 +213,11 @@ std::unique_ptr<CompilerInvocation> createInvocationFromCommandLine(
     std::vector<std::string> *CC1Args = nullptr);
 
 // Frontend timing utils
+
+// FIXME: Implemented in a different file.
+std::shared_ptr<llvm::cas::CASDB>
+createCASFromCASOptions(const CASOptions &Opts, DiagnosticsEngine &Diags);
+
 
 } // namespace clang
 

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CodeGen/BackendUtil.h"
+#include "clang/Basic/CASOptions.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
@@ -112,6 +113,7 @@ class EmitAssemblyHelper {
   const CodeGenOptions &CodeGenOpts;
   const clang::TargetOptions &TargetOpts;
   const LangOptions &LangOpts;
+  const CASOptions &CASOpts;
   Module *TheModule;
 
   Timer CodeGenerationTime;
@@ -167,9 +169,9 @@ public:
                      const HeaderSearchOptions &HeaderSearchOpts,
                      const CodeGenOptions &CGOpts,
                      const clang::TargetOptions &TOpts,
-                     const LangOptions &LOpts, Module *M)
+                     const LangOptions &LOpts, const CASOptions &COpts, Module *M)
       : Diags(_Diags), HSOpts(HeaderSearchOpts), CodeGenOpts(CGOpts),
-        TargetOpts(TOpts), LangOpts(LOpts), TheModule(M),
+        TargetOpts(TOpts), LangOpts(LOpts), CASOpts(COpts), TheModule(M),
         CodeGenerationTime("codegen", "Code Generation Time") {}
 
   ~EmitAssemblyHelper() {
@@ -506,6 +508,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
                               const CodeGenOptions &CodeGenOpts,
                               const clang::TargetOptions &TargetOpts,
                               const LangOptions &LangOpts,
+                              const CASOptions &CASOpts,
                               const HeaderSearchOptions &HSOpts) {
   switch (LangOpts.getThreadModel()) {
   case LangOptions::ThreadModelKind::POSIX:
@@ -567,6 +570,18 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.NoZerosInBSS = CodeGenOpts.NoZeroInitializedInBSS;
   Options.UnsafeFPMath = LangOpts.UnsafeFPMath;
   Options.ApproxFuncFPMath = LangOpts.ApproxFunc;
+  Options.UseCASObject = CASOpts.WriteOutputAsCASID;
+  switch (CASOpts.CASObjectSchema) {
+  case CASOptions::CASObjectSchemaKind::Native:
+    Options.CASObjFormat = CASObjectFormat::Native;
+    break;
+  case CASOptions::CASObjectSchemaKind::NestedV1:
+    Options.CASObjFormat = CASObjectFormat::NestedV1;
+    break;
+  case CASOptions::CASObjectSchemaKind::FlatV1:
+    Options.CASObjFormat = CASObjectFormat::FlatV1;
+    break;
+  }
 
   Options.BBSections =
       llvm::StringSwitch<llvm::BasicBlockSection>(CodeGenOpts.BBSections)
@@ -951,10 +966,13 @@ void EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {
 
   llvm::TargetOptions Options;
   if (!initTargetOptions(Diags, Options, CodeGenOpts, TargetOpts, LangOpts,
-                         HSOpts))
+                         CASOpts, HSOpts))
     return;
   TM.reset(TheTarget->createTargetMachine(Triple, TargetOpts.CPU, FeaturesStr,
                                           Options, RM, CM, OptLevel));
+
+  if (auto CASDB = clang::createCASFromCASOptions(CASOpts, Diags))
+    TM->setCASDB(CASDB);
 }
 
 bool EmitAssemblyHelper::AddEmitPasses(legacy::PassManager &CodeGenPasses,
@@ -1574,7 +1592,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 static void runThinLTOBackend(
     DiagnosticsEngine &Diags, ModuleSummaryIndex *CombinedIndex, Module *M,
     const HeaderSearchOptions &HeaderOpts, const CodeGenOptions &CGOpts,
-    const clang::TargetOptions &TOpts, const LangOptions &LOpts,
+    const clang::TargetOptions &TOpts, const LangOptions &LOpts, const CASOptions &CASOpts,
     std::unique_ptr<raw_pwrite_stream> OS, std::string SampleProfile,
     std::string ProfileRemapping, BackendAction Action) {
   StringMap<DenseMap<GlobalValue::GUID, GlobalValueSummary *>>
@@ -1610,7 +1628,7 @@ static void runThinLTOBackend(
   Conf.RelocModel = CGOpts.RelocationModel;
   Conf.CGOptLevel = getCGOptLevel(CGOpts);
   Conf.OptLevel = CGOpts.OptimizationLevel;
-  initTargetOptions(Diags, Conf.Options, CGOpts, TOpts, LOpts, HeaderOpts);
+  initTargetOptions(Diags, Conf.Options, CGOpts, TOpts, LOpts, CASOpts, HeaderOpts);
   Conf.SampleProfile = std::move(SampleProfile);
   Conf.PTO.LoopUnrolling = CGOpts.UnrollLoops;
   // For historical reasons, loop interleaving is set to mirror setting for loop
@@ -1677,6 +1695,7 @@ void clang::EmitBackendOutput(DiagnosticsEngine &Diags,
                               const CodeGenOptions &CGOpts,
                               const clang::TargetOptions &TOpts,
                               const LangOptions &LOpts,
+                              const CASOptions &CASOpts,
                               StringRef TDesc, Module *M,
                               BackendAction Action,
                               std::unique_ptr<raw_pwrite_stream> OS) {
@@ -1705,7 +1724,7 @@ void clang::EmitBackendOutput(DiagnosticsEngine &Diags,
     if (CombinedIndex) {
       if (!CombinedIndex->skipModuleByDistributedBackend()) {
         runThinLTOBackend(Diags, CombinedIndex.get(), M, HeaderOpts, CGOpts,
-                          TOpts, LOpts, std::move(OS), CGOpts.SampleProfileFile,
+                          TOpts, LOpts, CASOpts, std::move(OS), CGOpts.SampleProfileFile,
                           CGOpts.ProfileRemappingFile, Action);
         return;
       }
@@ -1721,7 +1740,7 @@ void clang::EmitBackendOutput(DiagnosticsEngine &Diags,
     }
   }
 
-  EmitAssemblyHelper AsmHelper(Diags, HeaderOpts, CGOpts, TOpts, LOpts, M);
+  EmitAssemblyHelper AsmHelper(Diags, HeaderOpts, CGOpts, TOpts, LOpts, CASOpts, M);
 
   if (CGOpts.LegacyPassManager)
     AsmHelper.EmitAssemblyWithLegacyPassManager(Action, std::move(OS));

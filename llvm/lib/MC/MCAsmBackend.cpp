@@ -9,8 +9,10 @@
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLArrayExtras.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixupKindInfo.h"
+#include "llvm/MC/MCMachOCASWriter.h"
 #include "llvm/MC/MCMachObjectWriter.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCWasmObjectWriter.h"
@@ -45,6 +47,19 @@ MCAsmBackend::createObjectWriter(raw_pwrite_stream &OS) const {
   case Triple::XCOFF:
     return createXCOFFObjectWriter(
         cast<MCXCOFFObjectTargetWriter>(std::move(TW)), OS);
+  default:
+    llvm_unreachable("unexpected object format");
+  }
+}
+
+std::unique_ptr<MCObjectWriter>
+MCAsmBackend::createCASObjectWriter(raw_pwrite_stream &OS, cas::CASDB &CAS,
+                                    CASObjectFormat Format) const {
+  auto TW = createObjectTargetWriter();
+  switch (TW->getFormat()) {
+  case Triple::MachO:
+    return createMachOCASWriter(cast<MCMachObjectTargetWriter>(std::move(TW)),
+                                CAS, Format, OS, Endian == support::little);
   default:
     llvm_unreachable("unexpected object format");
   }

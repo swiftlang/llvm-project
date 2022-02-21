@@ -121,13 +121,22 @@ namespace llvm {
     Never,
   };
 
+  /// CAS object format
+  enum class CASObjectFormat {
+    // Native object stored in CAS
+    Native,
+    // CAS object schema.
+    NestedV1,
+    FlatV1,
+  };
+
   class TargetOptions {
   public:
     TargetOptions()
         : UnsafeFPMath(false), NoInfsFPMath(false), NoNaNsFPMath(false),
           NoTrappingFPMath(true), NoSignedZerosFPMath(false),
           ApproxFuncFPMath(false), EnableAIXExtendedAltivecABI(false),
-          HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false),
+          HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false), UseCASObject(false),
           GuaranteedTailCallOpt(false), StackSymbolOrdering(true),
           EnableFastISel(false), EnableGlobalISel(false), UseInitArray(false),
           DisableIntegratedAS(false), RelaxELFRelocations(false),
@@ -209,6 +218,10 @@ namespace llvm {
     /// .bss section. This flag disables such behaviour (necessary, e.g. for
     /// crt*.o compiling).
     unsigned NoZerosInBSS : 1;
+
+    /// UseCASObject - Use CAS based object format as the output.
+    unsigned UseCASObject : 1;
+    CASObjectFormat CASObjFormat = CASObjectFormat::Native;
 
     /// GuaranteedTailCallOpt - This flag is enabled when -tailcallopt is
     /// specified on the commandline. When the flag is on, participating targets

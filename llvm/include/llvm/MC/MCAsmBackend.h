@@ -14,6 +14,7 @@
 #include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/Target/TargetOptions.h"
 #include <cstdint>
 
 namespace llvm {
@@ -36,11 +37,17 @@ class MCSubtargetInfo;
 class MCValue;
 class raw_pwrite_stream;
 class StringRef;
+class Triple;
 class raw_ostream;
+
+namespace cas {
+class CASDB;
+} // namespace cas
 
 /// Generic interface to target specific assembler backends.
 class MCAsmBackend {
 protected: // Can only create subclasses.
+
   MCAsmBackend(support::endianness Endian);
 
 public:
@@ -72,6 +79,11 @@ public:
   /// emit the final object file.
   std::unique_ptr<MCObjectWriter>
   createObjectWriter(raw_pwrite_stream &OS) const;
+
+  /// Create a CAS object writer for the assembler backend.
+  std::unique_ptr<MCObjectWriter>
+  createCASObjectWriter(raw_pwrite_stream &OS, cas::CASDB &CAS,
+                        CASObjectFormat Format) const;
 
   /// Create an MCObjectWriter that writes two object files: a .o file which is
   /// linked into the final program and a .dwo file which is used by debuggers.

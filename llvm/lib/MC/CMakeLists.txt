@@ -58,6 +58,7 @@ add_llvm_component_library(LLVMMC
   MCXCOFFObjectTargetWriter.cpp
   MCXCOFFStreamer.cpp
   MachObjectWriter.cpp
+  MachOCASWriter.cpp
   StringTableBuilder.cpp
   SubtargetFeature.cpp
   TargetRegistry.cpp
@@ -71,6 +72,8 @@ add_llvm_component_library(LLVMMC
   LINK_COMPONENTS
   Support
   BinaryFormat
+  CAS
+  CASObjectFormats
   DebugInfoCodeView
   )
 

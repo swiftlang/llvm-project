@@ -4769,6 +4769,12 @@ std::shared_ptr<llvm::cas::CASDB>
 clang::createCASFromCompilerInvocation(const CompilerInvocation &CI,
                                        DiagnosticsEngine &Diags) {
   const CASOptions &Opts = CI.getCASOpts();
+  return createCASFromCASOptions(Opts, Diags);
+}
+
+std::shared_ptr<llvm::cas::CASDB>
+clang::createCASFromCASOptions(const CASOptions &Opts,
+                               DiagnosticsEngine &Diags) {
   if (Opts.Kind == CASOptions::NoCAS)
     return nullptr;
 

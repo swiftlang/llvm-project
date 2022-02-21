@@ -50,6 +50,7 @@ class PCHContainerGenerator : public ASTConsumer {
   CodeGenOptions CodeGenOpts;
   const TargetOptions TargetOpts;
   LangOptions LangOpts;
+  const CASOptions &CASOpts;
   std::unique_ptr<llvm::LLVMContext> VMContext;
   std::unique_ptr<llvm::Module> M;
   std::unique_ptr<CodeGen::CodeGenModule> Builder;
@@ -143,6 +144,7 @@ public:
         HeaderSearchOpts(CI.getHeaderSearchOpts()),
         PreprocessorOpts(CI.getPreprocessorOpts()),
         TargetOpts(CI.getTargetOpts()), LangOpts(CI.getLangOpts()),
+        CASOpts(CI.getCASOpts()),
         OS(std::move(OS)), Buffer(std::move(Buffer)) {
     // The debug info output isn't affected by CodeModel and
     // ThreadModel, but the backend expects them to be nonempty.
@@ -312,7 +314,7 @@ public:
       // Print the IR for the PCH container to the debug output.
       llvm::SmallString<0> Buffer;
       clang::EmitBackendOutput(
-          Diags, HeaderSearchOpts, CodeGenOpts, TargetOpts, LangOpts,
+          Diags, HeaderSearchOpts, CodeGenOpts, TargetOpts, LangOpts, CASOpts,
           Ctx.getTargetInfo().getDataLayoutString(), M.get(),
           BackendAction::Backend_EmitLL,
           std::make_unique<llvm::raw_svector_ostream>(Buffer));
@@ -321,7 +323,7 @@ public:
 
     // Use the LLVM backend to emit the pch container.
     clang::EmitBackendOutput(Diags, HeaderSearchOpts, CodeGenOpts, TargetOpts,
-                             LangOpts,
+                             LangOpts, CASOpts,
                              Ctx.getTargetInfo().getDataLayoutString(), M.get(),
                              BackendAction::Backend_EmitObj, std::move(OS));
 

@@ -26,6 +26,7 @@ namespace clang {
   class CodeGenOptions;
   class TargetOptions;
   class LangOptions;
+  class CASOptions;
 
   enum BackendAction {
     Backend_EmitAssembly,  ///< Emit native assembly files
@@ -39,6 +40,7 @@ namespace clang {
   void EmitBackendOutput(DiagnosticsEngine &Diags, const HeaderSearchOptions &,
                          const CodeGenOptions &CGOpts,
                          const TargetOptions &TOpts, const LangOptions &LOpts,
+                         const CASOptions &CASOpts,
                          StringRef TDesc, llvm::Module *M, BackendAction Action,
                          std::unique_ptr<raw_pwrite_stream> OS);
 

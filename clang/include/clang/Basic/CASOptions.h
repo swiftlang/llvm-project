@@ -56,6 +56,14 @@ public:
 
   /// For \a PluginCAS, the arguments to initialize the plugin.
   std::vector<std::string> PluginArgs;
+
+  enum CASObjectSchemaKind {
+    Native,
+    NestedV1,
+    FlatV1,
+  };
+  /// When use WriteOutputAsCASID, specify the output object format.
+  CASObjectSchemaKind CASObjectSchema = Native;
 };
 
 } // end namespace clang

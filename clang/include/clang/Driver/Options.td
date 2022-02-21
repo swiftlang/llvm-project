@@ -6192,6 +6192,13 @@ defm fcasid_output : BoolFOption<"casid-output",
     PosFlag<SetTrue, [], "When using -fcas-fs-result-cache, write a CASID for the output file.">,
     NegFlag<SetFalse>>;
 
+def fcas_object_schema : Joined<["-"], "fcas-object-schema=">,
+    Group<f_Group>, MetaVarName<"<native|nestedv1|flatv1>">,
+    HelpText<"The output CAS object schema">,
+    Values<"native,nestedv1,flatv1">, NormalizedValuesScope<"CASOptions::CASObjectSchemaKind">,
+    NormalizedValues<["Native", "NestedV1", "FlatV1"]>,
+    MarshallingInfoEnum<CASOpts<"CASObjectSchema">, "Native">;
+
 } // let Flags = [CC1Option, NoDriverOption]
 
 def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,

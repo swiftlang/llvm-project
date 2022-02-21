@@ -16,6 +16,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
@@ -116,6 +117,9 @@ protected: // Can only create subclasses.
   // PGO related tunables.
   Optional<PGOOptions> PGOOption = None;
 
+  // CASDB.
+  std::shared_ptr<cas::CASDB> CASDB;
+
 public:
   const TargetOptions DefaultOptions;
   mutable TargetOptions Options;
@@ -130,6 +134,13 @@ public:
   StringRef getTargetCPU() const { return TargetCPU; }
   StringRef getTargetFeatureString() const { return TargetFS; }
   void setTargetFeatureString(StringRef FS) { TargetFS = std::string(FS); }
+
+  cas::CASDB &getCASDB() const {
+    assert(CASDB && "CASDB needs to be set");
+    return *CASDB;
+  }
+
+  void setCASDB(std::shared_ptr<cas::CASDB> DB) { CASDB = DB; }
 
   /// Virtual method implemented by subclasses that returns a reference to that
   /// target's TargetSubtargetInfo-derived member variable.
