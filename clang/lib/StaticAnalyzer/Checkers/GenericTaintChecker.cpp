@@ -36,6 +36,8 @@ using namespace clang;
 using namespace ento;
 using namespace taint;
 
+using llvm::ImmutableSet;
+
 namespace {
 
 class GenericTaintChecker;
@@ -432,7 +434,9 @@ template <> struct ScalarEnumerationTraits<TaintConfiguration::VariadicType> {
 /// to the call post-visit. The values are signed integers, which are either
 /// ReturnValueIndex, or indexes of the pointer/reference argument, which
 /// points to data, which should be tainted on return.
-REGISTER_SET_WITH_PROGRAMSTATE(TaintArgsOnPostVisit, ArgIdxTy)
+REGISTER_MAP_WITH_PROGRAMSTATE(TaintArgsOnPostVisit, const LocationContext *,
+                               ImmutableSet<ArgIdxTy>)
+REGISTER_SET_FACTORY_WITH_PROGRAMSTATE(ArgIdxFactory, ArgIdxTy)
 
 void GenericTaintRuleParser::validateArgVector(const std::string &Option,
                                                const ArgVecTy &Args) const {
@@ -683,15 +687,26 @@ void GenericTaintChecker::checkPostCall(const CallEvent &Call,
   // Set the marked values as tainted. The return value only accessible from
   // checkPostStmt.
   ProgramStateRef State = C.getState();
+  const StackFrameContext *CurrentFrame = C.getStackFrame();
 
   // Depending on what was tainted at pre-visit, we determined a set of
   // arguments which should be tainted after the function returns. These are
   // stored in the state as TaintArgsOnPostVisit set.
-  TaintArgsOnPostVisitTy TaintArgs = State->get<TaintArgsOnPostVisit>();
-  if (TaintArgs.isEmpty())
-    return;
+  TaintArgsOnPostVisitTy TaintArgsMap = State->get<TaintArgsOnPostVisit>();
 
-  for (ArgIdxTy ArgNum : TaintArgs) {
+  const ImmutableSet<ArgIdxTy> *TaintArgs = TaintArgsMap.lookup(CurrentFrame);
+  if (!TaintArgs)
+    return;
+  assert(!TaintArgs->isEmpty());
+
+  LLVM_DEBUG(for (ArgIdxTy I
+                  : *TaintArgs) {
+    llvm::dbgs() << "PostCall<";
+    Call.dump(llvm::dbgs());
+    llvm::dbgs() << "> actually wants to taint arg index: " << I << '\n';
+  });
+
+  for (ArgIdxTy ArgNum : *TaintArgs) {
     // Special handling for the tainted return value.
     if (ArgNum == ReturnValueIndex) {
       State = addTaint(State, Call.getReturnValue());
@@ -705,7 +720,7 @@ void GenericTaintChecker::checkPostCall(const CallEvent &Call,
   }
 
   // Clear up the taint info from the state.
-  State = State->remove<TaintArgsOnPostVisit>();
+  State = State->remove<TaintArgsOnPostVisit>(CurrentFrame);
   C.addTransition(State);
 }
 
@@ -767,18 +782,33 @@ void GenericTaintRule::process(const GenericTaintChecker &Checker,
   };
 
   /// Propagate taint where it is necessary.
+  auto &F = State->getStateManager().get_context<ArgIdxFactory>();
+  ImmutableSet<ArgIdxTy> Result = F.getEmptySet();
   ForEachCallArg(
-      [this, &State, WouldEscape](ArgIdxTy I, const Expr *E, SVal V) {
-        if (PropDstArgs.contains(I))
-          State = State->add<TaintArgsOnPostVisit>(I);
+      [this, WouldEscape, &Call, &Result, &F](ArgIdxTy I, const Expr *E,
+                                              SVal V) {
+        if (PropDstArgs.contains(I)) {
+          LLVM_DEBUG(llvm::dbgs() << "PreCall<"; Call.dump(llvm::dbgs());
+                     llvm::dbgs()
+                     << "> prepares tainting arg index: " << I << '\n';);
+          Result = F.add(Result, I);
+        }
 
         // TODO: We should traverse all reachable memory regions via the
         // escaping parameter. Instead of doing that we simply mark only the
         // referred memory region as tainted.
-        if (WouldEscape(V, E->getType()))
-          State = State->add<TaintArgsOnPostVisit>(I);
+        if (WouldEscape(V, E->getType())) {
+          LLVM_DEBUG(if (!Result.contains(I)) {
+            llvm::dbgs() << "PreCall<";
+            Call.dump(llvm::dbgs());
+            llvm::dbgs() << "> prepares tainting arg index: " << I << '\n';
+          });
+          Result = F.add(Result, I);
+        }
       });
 
+  if (!Result.isEmpty())
+    State = State->set<TaintArgsOnPostVisit>(C.getStackFrame(), Result);
   C.addTransition(State);
 }
 
@@ -869,7 +899,11 @@ void GenericTaintChecker::taintUnsafeSocketProtocol(const CallEvent &Call,
   if (SafeProtocol)
     return;
 
-  C.addTransition(C.getState()->add<TaintArgsOnPostVisit>(ReturnValueIndex));
+  ProgramStateRef State = C.getState();
+  auto &F = State->getStateManager().get_context<ArgIdxFactory>();
+  ImmutableSet<ArgIdxTy> Result = F.add(F.getEmptySet(), ReturnValueIndex);
+  State = State->set<TaintArgsOnPostVisit>(C.getStackFrame(), Result);
+  C.addTransition(State);
 }
 
 /// Checker registration
