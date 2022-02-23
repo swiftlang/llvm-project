@@ -207,5 +207,29 @@ class TestSwiftMoveFunctionType(TestBase):
         # should still be None.
         self.assertIsNone(varK.value, "varK should not have a value!")
 
+        # Run again so we go and run to the next test.
+        self.runCmd('continue')
+
     def do_check_copyable_value_ccf_false(self):
-        pass
+        frame = self.thread.frames[0]
+        self.assertTrue(frame.IsValid(), "Couldn't get a frame.")
+        varK = frame.FindVariable('k')
+
+        # Check at our start point that we do not have any state for varK and
+        # then continue to our next breakpoint.
+        self.assertIsNone(varK.value, "varK should not have a value?!")
+        self.runCmd('continue')
+
+        # At this breakpoint, k should be defined since we are going to do
+        # something with it.
+        self.assertIsNotNone(varK.value, "varK should have a value?!")
+        self.runCmd('continue')
+
+        # At this breakpoint, we are now past the end of the conditional
+        # statement. We know due to the move checking that k can not have any
+        # uses that are reachable from the move. So it is safe to always not
+        # provide the value here.
+        self.assertIsNone(varK.value, "varK should have a value?!")
+
+        # Run again so we go and run to the next test.
+        self.runCmd('continue')

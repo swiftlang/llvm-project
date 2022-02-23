@@ -83,8 +83,8 @@ public func copyableValueCCFTrueTest() {
 
 public func copyableValueCCFFalseTest() {
     let k = Klass() // Set breakpoint copyableValueCCFFalseTest here 1
-    k.doSomething()
-    if falseBoolValue { // Set breakpoint copyableValueCCFFalseTest here 2
+    k.doSomething() // Set breakpoint copyableValueCCFFalseTest here 2
+    if falseBoolValue {
         let m = _move(k)
         m.doSomething()
     }
