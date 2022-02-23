@@ -210,13 +210,7 @@ HashedCollectionConfig::RegisterSummaryProviders(
   flags.SetSkipPointers(false);
   AddCXXSummary(swift_category_sp, summaryProvider,
                 m_summaryProviderName.AsCString(),
-                m_nativeStorage_mangledRegex_ObjC, flags, true);
-  AddCXXSummary(swift_category_sp, summaryProvider,
-                m_summaryProviderName.AsCString(),
                 m_emptyStorage_mangled_ObjC, flags, false);
-  AddCXXSummary(swift_category_sp, summaryProvider,
-                m_summaryProviderName.AsCString(),
-                m_deferredBridgedStorage_mangledRegex_ObjC, flags, true);
 }
 
 void
@@ -244,13 +238,7 @@ HashedCollectionConfig::RegisterSyntheticChildrenCreators(
   flags.SetSkipPointers(false);
   AddCXXSynthetic(swift_category_sp, creator,
                   m_syntheticChildrenName.AsCString(),
-                  m_nativeStorage_mangledRegex_ObjC, flags, true);
-  AddCXXSynthetic(swift_category_sp, creator,
-                  m_syntheticChildrenName.AsCString(),
                   m_emptyStorage_mangled_ObjC, flags, false);
-  AddCXXSynthetic(swift_category_sp, creator,
-                  m_syntheticChildrenName.AsCString(),
-                  m_deferredBridgedStorage_mangledRegex_ObjC, flags, true);
 }
 
 bool

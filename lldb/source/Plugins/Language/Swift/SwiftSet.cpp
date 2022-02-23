@@ -51,8 +51,6 @@ SetConfig::SetConfig()
     ConstString("Swift.__RawSetStorage");
 
     // Native storage class
-  m_nativeStorage_mangledRegex_ObjC =
-    ConstString("^_TtGCs11_SetStorage.*");
   m_nativeStorage_demangledPrefix =
     ConstString("Swift._SetStorage<");
   m_nativeStorage_demangledRegex =
@@ -63,8 +61,6 @@ SetConfig::SetConfig()
   m_emptyStorage_demangled = ConstString("Swift.__EmptySetSingleton");
 
   // Deferred non-verbatim bridged set
-  m_deferredBridgedStorage_mangledRegex_ObjC
-    = ConstString("^_TtGCs19_SwiftDeferredNSSet.*");
   m_deferredBridgedStorage_demangledPrefix
     = ConstString("Swift._SwiftDeferredNSSet<");
   m_deferredBridgedStorage_demangledRegex

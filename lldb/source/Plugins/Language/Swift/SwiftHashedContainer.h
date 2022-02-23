@@ -99,14 +99,12 @@ protected:
   ConstString m_nativeStorageRoot_mangled;
   ConstString m_nativeStorageRoot_demangled;
 
-  ConstString m_nativeStorage_mangledRegex_ObjC;
   ConstString m_nativeStorage_demangledPrefix;
   ConstString m_nativeStorage_demangledRegex;
 
   ConstString m_emptyStorage_mangled_ObjC;
   ConstString m_emptyStorage_demangled;
 
-  ConstString m_deferredBridgedStorage_mangledRegex_ObjC;
   ConstString m_deferredBridgedStorage_demangledPrefix;
   ConstString m_deferredBridgedStorage_demangledRegex;
 };

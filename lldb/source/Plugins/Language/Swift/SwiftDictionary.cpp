@@ -50,8 +50,6 @@ DictionaryConfig::DictionaryConfig()
     ConstString("Swift.__RawDictionaryStorage");
 
   // Native storage class
-  m_nativeStorage_mangledRegex_ObjC =
-    ConstString("^_TtGCs18_DictionaryStorage.*");
   m_nativeStorage_demangledPrefix =
     ConstString("Swift._DictionaryStorage<");
   m_nativeStorage_demangledRegex =
@@ -64,8 +62,6 @@ DictionaryConfig::DictionaryConfig()
     = ConstString("Swift.__EmptyDictionarySingleton");
 
   // Deferred non-verbatim bridged dictionary
-  m_deferredBridgedStorage_mangledRegex_ObjC
-    = ConstString("^_TtGCs26_SwiftDeferredNSDictionary.*");
   m_deferredBridgedStorage_demangledPrefix
     = ConstString("Swift._SwiftDeferredNSDictionary<");
   m_deferredBridgedStorage_demangledRegex
