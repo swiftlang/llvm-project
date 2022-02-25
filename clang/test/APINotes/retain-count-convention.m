@@ -5,7 +5,7 @@
 
 #import <SimpleKit/SimpleKit.h>
 
-// CHECK: void *getCFOwnedToUnowned() __attribute__((cf_returns_not_retained));
+// CHECK: void *getCFOwnedToUnowned(void) __attribute__((cf_returns_not_retained));
 // CHECK: void *getCFUnownedToOwned() __attribute__((cf_returns_retained));
 // CHECK: void *getCFOwnedToNone() __attribute__((cf_unknown_transfer));
 // CHECK: id getObjCOwnedToUnowned() __attribute__((ns_returns_not_retained));
