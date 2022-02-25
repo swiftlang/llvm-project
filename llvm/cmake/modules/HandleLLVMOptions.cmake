@@ -1244,6 +1244,7 @@ if (LLVM_CAS_BUILTIN_PATH)
 endif()
 set(LLVM_CAS_ENABLE_CASID_OBJECT_OUTPUTS OFF CACHE BOOL
   "When the experimental -fdepscan is enabled also enable writing CASIDs for object files")
+set(LLVM_CASID_OBJECT_SCHEMA "" CACHE STRING "The output CAS object schema to use")
 if(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN)
   # Don't daemonize when running the check.
   check_c_compiler_flag("-fdepscan=off" SUPPORTS_DEPSCAN)
@@ -1342,6 +1343,10 @@ if (LLVM_CAS_ENABLE_CASID_OBJECT_OUTPUTS)
     message(FATAL_ERROR "LLVM_CAS_ENABLE_CASID_OBJECT_OUTPUTS requires a CAS-aware linker")
   endif()
   append("-Xclang -fcasid-output" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  if(LLVM_CASID_OBJECT_SCHEMA)
+    string(TOLOWER "${LLVM_CASID_OBJECT_SCHEMA}" CAS_SCHEMA_OPTION_NAME)
+    append("-Xclang -fcas-object-schema=${CAS_SCHEMA_OPTION_NAME}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  endif()
   # FIXME: Do check that libtool supports embedded CASIDs and error out if not.
   append("-fcas builtin -fcas-builtin-path ${LLVM_CAS_BUILTIN_PATH_Default}" CMAKE_STATIC_LINKER_FLAGS)
 endif()

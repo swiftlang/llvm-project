@@ -170,6 +170,8 @@ There are also some CMake flags for turning on basic linker integration:
       libtool that understands these object files.
     - `-DLLVM_USE_LINKER="$TOOLCHAIN/usr/bin/ld64.lld"`: point at a linker that
       understands these object files.
+    - `-DLLVM_CASID_OBJECT_SCHEMA={Native,FlatV1,NestedV1}`: select the CAS
+      object format to be used.`
 - `-DLLVM_ENABLE_EXPERIMENTAL_LINKER_RESULT_CACHE=ON`: use a result cache in
   the linker.
 
