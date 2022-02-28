@@ -15,6 +15,11 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CASObjectFormats/CASObjectReader.h"
+#include "llvm/CASObjectFormats/Encoding.h"
+#include "llvm/CASObjectFormats/SchemaBase.h"
+#include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/Error.h"
@@ -368,15 +373,59 @@ static void writeSymbolTable(raw_ostream &Out, object::Archive::Kind Kind,
 }
 
 static Expected<std::vector<unsigned>>
-getSymbols(MemoryBufferRef Buf, raw_ostream &SymNames, bool &HasObject) {
+getSymbols(const NewArchiveMember &M, raw_ostream &SymNames, bool &HasObject) {
   std::vector<unsigned> Ret;
 
+  auto Buf = M.getContentsBufferRef();
   // In the scenario when LLVMContext is populated SymbolicFile will contain a
   // reference to it, thus SymbolicFile should be destroyed first.
   LLVMContext Context;
   std::unique_ptr<object::SymbolicFile> Obj;
 
   const file_magic Type = identify_magic(Buf.getBuffer());
+  if (Type == file_magic::cas_id && M.CAS && M.CASSchemas) {
+    // Handling CAS Object Format here. Requires CAS/CASSchemas to be passed
+    // while a normal MachO Object in CAS does not have the CAS context set.
+    using namespace llvm::cas;
+    using namespace llvm::casobjectformats;
+    using namespace llvm::casobjectformats::reader;
+
+    StringRef Remaining =
+        Buf.getBuffer().substr(StringRef(casidObjectMagicPrefix).size());
+    uint32_t Size;
+    if (auto E = llvm::casobjectformats::encoding::consumeVBR8(Remaining, Size))
+      return std::move(E);
+
+    StringRef CASIDStr = Remaining.substr(0, Size);
+    auto ID = M.CAS->parseCASID(CASIDStr);
+    if (!ID)
+      return ID.takeError();
+    auto Ref = M.CASSchemas->getCAS().getNode(*ID);
+    if (!Ref)
+      return Ref.takeError();
+    SchemaBase *Schema = M.CASSchemas->getSchemaForRoot(*Ref);
+    if (!Schema)
+      return createStringError(inconvertibleErrorCode(),
+                               "CAS object is not a recognized object file");
+
+    auto ExpReader = Schema->createObjectReader(*Ref);
+    if (!ExpReader)
+      return ExpReader.takeError();
+    reader::CASObjectReader &Reader = **ExpReader;
+    Error E =
+        Reader.forEachSymbol([&](CASSymbolRef Ref, CASSymbol Info) -> Error {
+          if (Info.Scope == jitlink::Scope::Local || !Info.isDefined())
+            return Error::success();
+          HasObject = true;
+          Ret.push_back(SymNames.tell());
+          SymNames << Info.Name << '\0';
+          return Error::success();
+        });
+    if (E)
+      return std::move(E);
+
+    return Ret;
+  }
   // Treat unsupported file types as having no symbols.
   if (!object::SymbolicFile::isSymbolicFile(Type, &Context))
     return Ret;
@@ -512,7 +561,7 @@ computeMemberData(raw_ostream &StringTable, raw_ostream &SymNames,
     std::vector<unsigned> Symbols;
     if (NeedSymbols) {
       Expected<std::vector<unsigned>> SymbolsOrErr =
-          getSymbols(M.getContentsBufferRef(), SymNames, HasObject);
+          getSymbols(M, SymNames, HasObject);
       if (auto E = SymbolsOrErr.takeError())
         return std::move(E);
       Symbols = std::move(*SymbolsOrErr);

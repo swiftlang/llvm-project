@@ -1541,8 +1541,13 @@ static Expected<InputFile *> loadArchiveMember(MemoryBufferRef mb,
             " failed reading CAS-ID: " + toString(id.takeError()));
     }
     auto blobRef = cas.getBlob(*id);
-    if (!blobRef)
-      return blobRef.takeError();
+    if (!blobRef) {
+      consumeError(blobRef.takeError());
+      auto *newFile = make<CASSchemaFile>(memberName);
+      if (Error err = newFile->parse(*config->CASSchemas, *id))
+        return std::move(err);
+      return newFile;
+    }
     MemoryBufferRef objectMB(blobRef->getData(), memberName);
     return make<ObjFile>(objectMB, *blobRef, archiveName);
   }

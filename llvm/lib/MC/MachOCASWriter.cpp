@@ -75,7 +75,7 @@ uint64_t MachOCASWriter::writeObject(MCAssembler &Asm,
     llvm_unreachable("unhandled format");
   }
 
-  auto Obj = MemoryBuffer::getMemBuffer(ObjectData.str());
+  auto Obj = MemoryBuffer::getMemBuffer(ObjectData.str(), "", false);
   auto G = cantFail(jitlink::createLinkGraphFromObject(Obj->getMemBufferRef()));
   auto Ref = cantFail(Schema->createFromLinkGraph(*G));
 

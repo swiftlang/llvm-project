@@ -17,6 +17,14 @@
 
 namespace llvm {
 
+namespace cas {
+class CASDB;
+} // namespace cas
+
+namespace casobjectformats {
+class SchemaPool;
+} // namespace casobjectformats
+
 struct NewArchiveMember {
   std::unique_ptr<MemoryBuffer> Buf;
   StringRef MemberName;
@@ -25,6 +33,9 @@ struct NewArchiveMember {
   StringRef Contents;
   sys::TimePoint<std::chrono::seconds> ModTime;
   unsigned UID = 0, GID = 0, Perms = 0644;
+
+  cas::CASDB *CAS = nullptr;
+  casobjectformats::SchemaPool *CASSchemas = nullptr;
 
   NewArchiveMember() = default;
   NewArchiveMember(MemoryBufferRef BufRef);
@@ -52,6 +63,11 @@ Error writeArchive(StringRef ArcName, ArrayRef<NewArchiveMember> NewMembers,
 Expected<std::unique_ptr<MemoryBuffer>>
 writeArchiveToBuffer(ArrayRef<NewArchiveMember> NewMembers, bool WriteSymtab,
                      object::Archive::Kind Kind, bool Deterministic, bool Thin);
+
+Expected<std::unique_ptr<MemoryBuffer>>
+writeCASArchiveToBuffer(cas::CASDB &CAS, ArrayRef<NewArchiveMember> NewMembers,
+                        bool WriteSymtab, object::Archive::Kind Kind,
+                        bool Deterministic, bool Thin);
 }
 
 #endif
