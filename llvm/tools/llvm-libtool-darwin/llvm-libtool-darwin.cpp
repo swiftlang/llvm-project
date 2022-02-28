@@ -13,6 +13,8 @@
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/Utils.h"
+#include "llvm/CASObjectFormats/CASObjectReader.h"
+#include "llvm/CASObjectFormats/SchemaBase.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/IRObjectFile.h"
@@ -33,6 +35,7 @@
 
 using namespace llvm;
 using namespace llvm::cas;
+using namespace llvm::casobjectformats;
 using namespace llvm::object;
 
 class NewArchiveMemberList;
@@ -130,6 +133,7 @@ struct Config {
   uint32_t ArchCPUType;
   uint32_t ArchCPUSubtype;
   std::unique_ptr<cas::CASDB> CAS;
+  std::unique_ptr<SchemaPool> CASSchemas;
 };
 
 static Expected<std::string> searchForFile(const Twine &FileName) {
@@ -385,11 +389,8 @@ private:
   
       auto BlobRef = CAS.getBlob(*ID);
       if (!BlobRef) {
-        // FIXME: Support CAS schema objects.
         consumeError(BlobRef.takeError());
-        return createStringError(
-            std::make_error_code(std::errc::invalid_argument),
-            "CASID object input '" + Member.MemberName + "' not a blob object");
+        return verifyAndAddMachOCASObject(Member, *ID);
       }
   
       // This is a native macho file.
@@ -400,6 +401,49 @@ private:
       Member.GID = 0;
       Member.Perms = 0644;
       return verifyAndAddMachOObject(std::move(Member));
+    }
+
+    Error verifyAndAddMachOCASObject(NewArchiveMember &Member, CASID ID) {
+      Expected<cas::NodeRef> Ref = Builder.C.CASSchemas->getCAS().getNode(ID);
+      if (auto E = Ref.takeError())
+        return E;
+      SchemaBase *Schema = Builder.C.CASSchemas->getSchemaForRoot(*Ref);
+      if (!Schema)
+        return createStringError(inconvertibleErrorCode(),
+                                 "CAS object is not a recognized object file");
+
+      auto ExpReader = Schema->createObjectReader(*Ref);
+      if (!ExpReader)
+        return ExpReader.takeError();
+      reader::CASObjectReader &Reader = **ExpReader;
+
+      Triple TT = Reader.getTargetTriple();
+      Expected<uint32_t> FileCPUTypeOrErr = MachO::getCPUType(TT);
+      if (!FileCPUTypeOrErr)
+        return FileCPUTypeOrErr.takeError();
+
+      Expected<uint32_t> FileCPUSubTypeOrErr = MachO::getCPUSubType(TT);
+      if (!FileCPUSubTypeOrErr)
+        return FileCPUSubTypeOrErr.takeError();
+
+      // If -arch_only is specified then skip this file if it doesn't match
+      // the architecture specified.
+      if (!ArchType.empty() &&
+          !acceptFileArch(*FileCPUTypeOrErr, *FileCPUSubTypeOrErr)) {
+        return Error::success();
+      }
+
+      uint64_t FileCPUID = getCPUID(*FileCPUTypeOrErr, *FileCPUSubTypeOrErr);
+      // Clear status.
+      Member.ModTime = sys::TimePoint<std::chrono::seconds>();
+      Member.UID = 0;
+      Member.GID = 0;
+      Member.Perms = 0644;
+      Member.CAS = Builder.C.CAS.get();
+      Member.CASSchemas = Builder.C.CASSchemas.get();
+      Builder.Data.MembersPerArchitecture[FileCPUID].push_back(
+          std::move(Member), FileName);
+      return Error::success();
     }
 
     Error verifyAndAddMachOObject(NewArchiveMember Member) {
@@ -801,6 +845,7 @@ static Expected<Config> parseCommandLine(int Argc, char **Argv) {
     if (Error E = MaybeCAS.takeError())
       return std::move(E);
     C.CAS = std::move(*MaybeCAS);
+    C.CASSchemas = std::make_unique<llvm::casobjectformats::SchemaPool>(*C.CAS);
   }
 
   return std::move(C);

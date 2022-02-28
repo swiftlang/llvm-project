@@ -358,8 +358,13 @@ static InputFile *addFile(StringRef path, ForceLoad forceLoadArchive,
             auto blobRef = CAS.getBlob(*ID);
             if (!blobRef) {
               consumeError(blobRef.takeError());
-              error(archiveName + ": archive member " + memberName +
-                    " embedding a non-blob CAS-ID");
+              // FIXME: -ObjC load for CASObjectFileFormat doesn't work yet.
+              // Always load.
+              if (Error e = file->fetch(c, "-ObjC"))
+                error(toString(file) +
+                      ": -ObjC failed to load archive member: " +
+                      toString(std::move(e)));
+              continue;
             }
             mb = MemoryBufferRef(blobRef->getData(), memberName);
           }

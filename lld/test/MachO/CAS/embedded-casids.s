@@ -27,6 +27,13 @@
 // RUN: %lld --fcas-builtin-path %t/cas -lSystem -framework CoreFoundation %t/main.schema.o -o %t/exe-schema -lt -L%t/alib.id
 // RUN: llvm-objdump --macho %t/exe-schema -t | FileCheck %s -check-prefix=SYMBOLS
 
+// Check with CAS schema static library.
+// RUN: llvm-cas-object-format -cas %t/cas -ingest-schema=flatv1 %t/t1.o -casid-output %t/t1.schema.o
+// RUN: llvm-cas-object-format -cas %t/cas -ingest-schema=flatv1 %t/t2.o -casid-output %t/t2.schema.o
+// RUN: llvm-libtool-darwin -fcas builtin -fcas-builtin-path %t/cas -static -o %t/alib.id/libt.schema.a %t/t1.schema.o %t/t2.schema.o
+// RUN: %lld --fcas-builtin-path %t/cas -lSystem -framework CoreFoundation %t/main.schema.o -o %t/exe-schema2 %t/alib.id/libt.schema.a
+// RUN: llvm-objdump --macho %t/exe-schema2 -t | FileCheck %s -check-prefix=SYMBOLS
+
 // Check with cached result
 // RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose -lSystem -framework CoreFoundation %t/main.id.o -o %t/exe.1 -lt -L%t/alib.id 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CACHE-MISS
