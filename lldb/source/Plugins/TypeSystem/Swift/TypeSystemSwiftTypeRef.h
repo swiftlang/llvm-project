@@ -25,11 +25,17 @@
 
 namespace swift {
 class DWARFImporterDelegate;
+class DiagnosticEngine;
+class SourceManager;
 namespace Demangle {
 class Node;
 using NodePointer = Node *;
 class Demangler;
 } // namespace Demangle
+namespace importer {
+class NameImporterBase;
+struct PlatformAvailability;
+} // namespace importer
 } // namespace swift
 
 namespace lldb_private {
@@ -64,6 +70,8 @@ public:
     return *this;
   }
   swift::DWARFImporterDelegate &GetDWARFImporterDelegate();
+  swift::importer::NameImporterBase *GetNameImporter() const;
+  llvm::Triple GetTriple() const;
   void SetTriple(const llvm::Triple triple) override;
   void ClearModuleDependentCaches() override;
   lldb::TargetWP GetTargetWP() const override { return {}; }
@@ -383,6 +391,11 @@ protected:
   mutable SwiftASTContext *m_swift_ast_context = nullptr;
   mutable std::unique_ptr<swift::DWARFImporterDelegate>
       m_dwarf_importer_delegate_up;
+  mutable std::unique_ptr<swift::SourceManager> m_source_manager_up;
+  mutable std::unique_ptr<swift::DiagnosticEngine> m_diagnostic_engine_up;
+  mutable std::unique_ptr<swift::importer::PlatformAvailability>
+      m_platform_availability_up;
+  mutable std::unique_ptr<swift::importer::NameImporterBase> m_name_importer_up;
   std::unique_ptr<DWARFASTParser> m_dwarf_ast_parser_up;
 
   /// The APINotesManager responsible for each Clang module.
