@@ -49,9 +49,9 @@ static int64_t MaxConstraintValue = std::numeric_limits<int64_t>::max();
 // vector.
 static SmallVector<std::pair<int64_t, Value *>, 4> decompose(Value *V) {
   if (auto *CI = dyn_cast<ConstantInt>(V)) {
-    if (CI->isNegative() || CI->uge(MaxConstraintValue))
+    if (CI->uge(MaxConstraintValue))
       return {};
-    return {{CI->getSExtValue(), nullptr}};
+    return {{CI->getZExtValue(), nullptr}};
   }
   auto *GEP = dyn_cast<GetElementPtrInst>(V);
   if (GEP && GEP->getNumOperands() == 2 && GEP->isInBounds()) {
@@ -100,8 +100,9 @@ static SmallVector<std::pair<int64_t, Value *>, 4> decompose(Value *V) {
 
   Value *Op1;
   ConstantInt *CI;
-  if (match(V, m_NUWAdd(m_Value(Op0), m_ConstantInt(CI))))
-    return {{CI->getSExtValue(), nullptr}, {1, Op0}};
+  if (match(V, m_NUWAdd(m_Value(Op0), m_ConstantInt(CI))) &&
+      !CI->uge(MaxConstraintValue))
+    return {{CI->getZExtValue(), nullptr}, {1, Op0}};
   if (match(V, m_NUWAdd(m_Value(Op0), m_Value(Op1))))
     return {{0, nullptr}, {1, Op0}, {1, Op1}};
 
