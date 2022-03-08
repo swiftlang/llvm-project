@@ -59,14 +59,11 @@ class TestSwiftErrorBreakpoint(TestBase):
             types.AppendString("exception-typename")
             types.AppendString(typename)
         return target.BreakpointCreateForException(
-            lldb.eLanguageTypeSwift, False, True, types)
+            lldb.eLanguageTypeSwift, False, True, types).GetID()
 
     def create_breakpoint_with_command(self, target, typename):
-        cmd = "breakpoint set -E swift"
-        if typename:
-            cmd += " --exception-typename " + typename
-        self.runCmd(cmd)
-        return target.GetBreakpointAtIndex(0)
+        return lldbutil.run_break_set_by_exception(
+            self, "swift", exception_typename=typename)
 
     def do_test(self, typename, should_stop, make_breakpoint):
         exe_name = "a.out"
@@ -77,7 +74,7 @@ class TestSwiftErrorBreakpoint(TestBase):
         self.assertTrue(target, VALID_TARGET)
 
         # Set the breakpoints
-        swift_error_bkpt = make_breakpoint(target, typename)
+        swift_error_bkpt_id = make_breakpoint(target, typename)
         # Note, I'm not checking locations here because we never know them
         # before launch.
 
@@ -86,8 +83,8 @@ class TestSwiftErrorBreakpoint(TestBase):
 
         if should_stop:
             self.assertTrue(process, PROCESS_IS_VALID)
-            breakpoint_threads = lldbutil.get_threads_stopped_at_breakpoint(
-                process, swift_error_bkpt)
+            breakpoint_threads = lldbutil.get_threads_stopped_at_breakpoint_id(
+                process, swift_error_bkpt_id)
             self.assertEqual(len(breakpoint_threads), 1,
                 "We didn't stop at the error breakpoint")
         else:
@@ -95,4 +92,4 @@ class TestSwiftErrorBreakpoint(TestBase):
             self.assertEqual(exit_state, lldb.eStateExited,
                 "We stopped at the error breakpoint when we shouldn't have.")
 
-        target.BreakpointDelete(swift_error_bkpt.GetID())
+        target.BreakpointDelete(swift_error_bkpt_id)
