@@ -9,6 +9,7 @@
 #include "BinaryHolder.h"
 #include "DebugMap.h"
 #include "MachOUtils.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Object/MachO.h"
 #include "llvm/Support/Path.h"
@@ -51,6 +52,11 @@ private:
   BinaryHolder BinHolder;
   /// Map of the binary symbol addresses.
   StringMap<uint64_t> MainBinarySymbolAddresses;
+
+  /// Binary symbol addresses to names map, to speedup
+  /// `getMainBinarySymbolNames`;
+  SmallDenseMap<uint64_t, SmallVector<StringRef>> MainBinaryAddresses2NamesMap;
+
   StringRef MainBinaryStrings;
   /// The constructed DebugMap.
   std::unique_ptr<DebugMap> Result;
@@ -74,7 +80,7 @@ private:
                             sys::TimePoint<std::chrono::seconds> Timestamp);
   void resetParserState();
   uint64_t getMainBinarySymbolAddress(StringRef Name);
-  std::vector<StringRef> getMainBinarySymbolNames(uint64_t Value);
+  SmallVector<StringRef> &getMainBinarySymbolNames(uint64_t Value);
   void loadMainBinarySymbols(const MachOObjectFile &MainBinary);
   void loadCurrentObjectFileSymbols(const object::MachOObjectFile &Obj);
   void handleStabSymbolTableEntry(uint32_t StringIndex, uint8_t Type,
@@ -531,14 +537,8 @@ uint64_t MachODebugMapParser::getMainBinarySymbolAddress(StringRef Name) {
 }
 
 /// Get all symbol names in the main binary for the given value.
-std::vector<StringRef>
-MachODebugMapParser::getMainBinarySymbolNames(uint64_t Value) {
-  std::vector<StringRef> Names;
-  for (const auto &Entry : MainBinarySymbolAddresses) {
-    if (Entry.second == Value)
-      Names.push_back(Entry.first());
-  }
-  return Names;
+SmallVector<StringRef> &MachODebugMapParser::getMainBinarySymbolNames(uint64_t Value) {
+  return MainBinaryAddresses2NamesMap[Value];
 }
 
 /// Load the interesting main binary symbols' addresses into
@@ -547,6 +547,8 @@ void MachODebugMapParser::loadMainBinarySymbols(
     const MachOObjectFile &MainBinary) {
   section_iterator Section = MainBinary.section_end();
   MainBinarySymbolAddresses.clear();
+  MainBinaryAddresses2NamesMap.clear();
+
   for (const auto &Sym : MainBinary.symbols()) {
     Expected<SymbolRef::Type> TypeOrErr = Sym.getType();
     if (!TypeOrErr) {
@@ -588,10 +590,14 @@ void MachODebugMapParser::loadMainBinarySymbols(
     if (Name.size() == 0 || Name[0] == '\0')
       continue;
     // Override only if the new key is global.
-    if (Extern)
+    if (Extern) {
       MainBinarySymbolAddresses[Name] = Addr;
-    else
-      MainBinarySymbolAddresses.try_emplace(Name, Addr);
+      getMainBinarySymbolNames(Addr).push_back(Name);
+    } else {
+      if (MainBinarySymbolAddresses.try_emplace(Name, Addr).second) {
+        getMainBinarySymbolNames(Addr).push_back(Name);
+      }
+    }
   }
 }
 
