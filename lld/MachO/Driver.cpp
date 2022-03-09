@@ -548,6 +548,8 @@ static void addFramework(StringRef name, bool isNeeded, bool isWeak,
 
     InputFile *file =
         addFile(*path, forceLoadArchive, /*isLazy=*/false, isExplicit);
+    if (!file)
+      return;
     if (auto *dylibFile = dyn_cast_or_null<DylibFile>(file)) {
       if (isNeeded)
         dylibFile->forceNeeded = true;
