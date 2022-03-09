@@ -27,6 +27,7 @@
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/FrontendTool/Utils.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
@@ -358,10 +359,14 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
                                   static_cast<void*>(&Clang->getDiagnostics()));
 
   DiagsBuffer->FlushDiagnostics(Clang->getDiagnostics());
-  if (!Success) {
+
+  auto FinishDiagnosticClient = llvm::make_scope_exit([&]() {
+    // Notify the diagnostic client that all files were processed.
     Clang->getDiagnosticClient().finish();
+  });
+
+  if (!Success)
     return 1;
-  }
 
   // Handle result caching in the CAS.
   Optional<llvm::cas::CASID> ResultCacheKey;
@@ -444,11 +449,18 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
     // raw_ostream. Need to fix that first. Also, maybe the format doesn't need
     // to be bitcode... we just want to serialize them faithfully such that we
     // can decide at output time whether to make the colours pretty.
+
+    // Notify the existing diagnostic client that all files were processed.
+    Clang->getDiagnosticClient().finish();
+
     Clang->getDiagnostics().setClient(
         new TextDiagnosticPrinter(
             *ResultDiagsOS, &Clang->getInvocation().getDiagnosticOpts()),
         /*ShouldOwnClient=*/true);
   }
+
+  // ExecuteAction takes responsibility.
+  FinishDiagnosticClient.release();
 
   // Execute the frontend actions.
   {
