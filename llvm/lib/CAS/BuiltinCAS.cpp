@@ -2704,7 +2704,7 @@ OnDiskCAS::getObjectProxy(IndexProxy I) const {
   SmallString<256> Path;
   getStandalonePath(Object.SK, I, Path);
   ErrorOr<std::unique_ptr<MemoryBuffer>> OwnedBuffer = MemoryBuffer::getFile(
-      Path, /*IsText=*/false, /*RequiresNullTerminator=*/false);
+      Path, /*IsText=*/false, /*RequiresNullTerminator=*/true);
   if (!OwnedBuffer)
     return createCorruptObjectError(getID(I));
 
