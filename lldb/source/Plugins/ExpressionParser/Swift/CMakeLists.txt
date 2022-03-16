@@ -46,7 +46,7 @@ add_lldb_library(lldbPluginExpressionParserSwift PLUGIN
     Core
   )
 
-if(BOOTSTRAPPING_MODE)
+if(SWIFT_BOOTSTRAPPING_MODE)
   target_link_libraries(lldbPluginExpressionParserSwift
     PRIVATE
       swiftCompilerModules)
