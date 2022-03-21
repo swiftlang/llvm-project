@@ -264,33 +264,42 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
     return 1;
   }
 
-  StringRef DumpDepscanTree;
-  if (auto *Arg =
-          Args.getLastArg(clang::driver::options::OPT_dump_depscan_tree_EQ))
-    DumpDepscanTree = Saver.save(Arg->getValue());
-
   auto *OutputArg = Args.getLastArg(clang::driver::options::OPT_o);
   std::string OutputPath = OutputArg ? OutputArg->getValue() : "-";
-
-  std::unique_ptr<llvm::cas::CASDB> CAS = reportAsFatalIfError(
-      llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
-  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
-      llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
-  tooling::dependencies::DependencyScanningService Service(
-      tooling::dependencies::ScanningMode::MinimizedSourcePreprocessing,
-      tooling::dependencies::ScanningOutputFormat::Tree, FS,
-      /*ReuseFileManager=*/false,
-      /*SkipExcludedPPRanges=*/true);
-  tooling::dependencies::DependencyScanningTool Tool(Service);
+  StringRef DumpDepscanTree;
   SmallVector<const char *> NewArgs;
   Optional<llvm::cas::CASID> RootID;
-  if (Error E =
-          updateCC1Args(Tool, *DiagsConsumer, Argv0, CC1Args->getValues(),
-                        WorkingDirectory, NewArgs, PrefixMapping,
-                        [&](const Twine &T) { return Saver.save(T).data(); })
-              .moveInto(RootID)) {
-    llvm::errs() << "failed to update -cc1: " << toString(std::move(E)) << "\n";
-    return 1;
+  std::unique_ptr<llvm::cas::CASDB> CAS;
+  auto *DepScanArg = Args.getLastArg(clang::driver::options::OPT_fdepscan_EQ);
+  assert(DepScanArg && "-fdepscan not passed");
+  if (DepScanArg && StringRef(DepScanArg->getValue()) != "inline") {
+    for (auto *A : CC1Args->getValues())
+      NewArgs.push_back(A);
+    CC1ScanDeps(*DepScanArg, Argv0, NewArgs, Diags, Args);
+  } else {
+    if (auto *Arg =
+            Args.getLastArg(clang::driver::options::OPT_dump_depscan_tree_EQ))
+      DumpDepscanTree = Saver.save(Arg->getValue());
+
+    CAS = reportAsFatalIfError(
+        llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
+    IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
+        llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
+    tooling::dependencies::DependencyScanningService Service(
+        tooling::dependencies::ScanningMode::MinimizedSourcePreprocessing,
+        tooling::dependencies::ScanningOutputFormat::Tree, FS,
+        /*ReuseFileManager=*/false,
+        /*SkipExcludedPPRanges=*/true);
+    tooling::dependencies::DependencyScanningTool Tool(Service);
+    if (Error E =
+            updateCC1Args(Tool, *DiagsConsumer, Argv0, CC1Args->getValues(),
+                          WorkingDirectory, NewArgs, PrefixMapping,
+                          [&](const Twine &T) { return Saver.save(T).data(); })
+                .moveInto(RootID)) {
+      llvm::errs() << "failed to update -cc1: " << toString(std::move(E))
+                   << "\n";
+      return 1;
+    }
   }
 
   // FIXME: Use OutputBackend to OnDisk only now.

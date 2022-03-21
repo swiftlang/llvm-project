@@ -225,11 +225,6 @@ public:
   typedef int (*CC1ToolFunc)(SmallVectorImpl<const char *> &ArgV);
   CC1ToolFunc CC1Main = nullptr;
 
-  typedef void (*CC1ScanDepsFunc)(
-      const llvm::opt::Arg &, const char *, SmallVectorImpl<const char *> &, const Driver &,
-      const llvm::opt::ArgList &Args);
-  CC1ScanDepsFunc CC1ScanDeps = nullptr;
-
 private:
   /// Raw target triple.
   std::string TargetTriple;

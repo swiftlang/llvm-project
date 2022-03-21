@@ -4486,10 +4486,99 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsIAMCU && types::isCXX(Input.getType()))
     D.Diag(diag::err_drv_clang_unsupported) << "C++ for IAMCU";
 
+  // Handle depscan.
+  if (JA.getKind() == Action::DepscanJobClass) {
+    CmdArgs.push_back("-cc1depscan");
+
+    // Pass depscan related options to cc1depscan.
+    const OptSpecifier DepScanOpts[] = {
+        options::OPT_fdepscan_EQ,
+        options::OPT_fdepscan_share_EQ,
+        options::OPT_fdepscan_share_parent,
+        options::OPT_fdepscan_share_parent_EQ,
+        options::OPT_fno_depscan_share,
+        options::OPT_fdepscan_share_stop_EQ,
+        options::OPT_fdepscan_daemon_EQ,
+        options::OPT_fdepscan_prefix_map_EQ,
+        options::OPT_fdepscan_prefix_map_sdk_EQ,
+        options::OPT_fdepscan_prefix_map_toolchain_EQ};
+
+    Args.AddAllArgs(CmdArgs, DepScanOpts);
+
+    assert(Output.isFilename() && "Depscan needs to have file output");
+    CmdArgs.push_back("-o");
+    CmdArgs.push_back(Output.getFilename());
+    CmdArgs.push_back("-cc1-args");
+  }
+
   // Invoke ourselves in -cc1 mode.
   //
   // FIXME: Implement custom jobs for internal actions.
   CmdArgs.push_back("-cc1");
+
+  // Handle full response file input.
+  if (Inputs.front().getType() == types::TY_CMD) {
+    // Render response file input first.
+    assert(Inputs.size() == 1 && "Only one response file input");
+    auto &II = Inputs.front();
+    assert(II.isFilename() && "Should be response file");
+    SmallString<128> InputName("@");
+    InputName += II.getFilename();
+    CmdArgs.push_back(C.getArgs().MakeArgString(InputName));
+
+    // FIXME: We overwrite the output and the action kind argument. Maybe there
+    // are better ways to do that. Not all output kind is handled here.
+    // If doing this as it is, we need to factor out the common code when
+    // upstreaming.
+    if (isa<AssembleJobAction>(JA)) {
+      CmdArgs.push_back("-emit-obj");
+    } else if (isa<PreprocessJobAction>(JA)) {
+      if (Output.getType() == types::TY_Dependencies)
+        CmdArgs.push_back("-Eonly");
+      else {
+        CmdArgs.push_back("-E");
+      }
+    } else {
+      if (JA.getType() == types::TY_Nothing) {
+        CmdArgs.push_back("-fsyntax-only");
+      } else if (JA.getType() == types::TY_LLVM_IR ||
+                 JA.getType() == types::TY_LTO_IR) {
+        CmdArgs.push_back("-emit-llvm");
+      } else if (JA.getType() == types::TY_LLVM_BC ||
+                 JA.getType() == types::TY_LTO_BC) {
+        if (Args.hasArg(options::OPT_S) &&
+            Args.hasArg(options::OPT_emit_llvm)) {
+          CmdArgs.push_back("-emit-llvm");
+        } else {
+          CmdArgs.push_back("-emit-llvm-bc");
+        }
+      } else if (JA.getType() == types::TY_PP_Asm) {
+        CmdArgs.push_back("-S");
+      } else if (JA.getType() == types::TY_AST) {
+        CmdArgs.push_back("-emit-pch");
+      } else if (JA.getType() == types::TY_ModuleFile) {
+        CmdArgs.push_back("-module-file-info");
+      } else {
+        llvm_unreachable("unhandled case");
+      }
+    }
+    if (Output.isFilename()) {
+      CmdArgs.push_back("-o");
+      CmdArgs.push_back(Output.getFilename());
+    }
+    const char *Exec = D.getClangProgramPath();
+    if (D.CC1Main && !D.CCGenDiagnostics) {
+      // Invoke the CC1 directly in this process
+      C.addCommand(std::make_unique<CC1Command>(
+          JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, Inputs,
+          Output));
+    } else {
+      C.addCommand(std::make_unique<Command>(JA, *this,
+                                             ResponseFileSupport::AtFileUTF8(),
+                                             Exec, CmdArgs, Inputs, Output));
+    }
+    return;
+  }
 
   // Add the "effective" target triple.
   CmdArgs.push_back("-triple");
@@ -4648,7 +4737,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
            "Extract API actions must generate a API information.");
     CmdArgs.push_back("-extract-api");
   } else {
-    assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) &&
+    assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA) || isa<DepscanJobAction>(JA)) &&
            "Invalid action for clang tool.");
     if (JA.getType() == types::TY_Nothing) {
       CmdArgs.push_back("-fsyntax-only");
@@ -4685,6 +4774,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     } else if (JA.getType() == types::TY_RewrittenLegacyObjC) {
       CmdArgs.push_back("-rewrite-objc");
       rewriteKind = RK_Fragile;
+    } else if (JA.getType() == types::TY_CMD) {
+      // DepScan response file output. Use fsyntax-only is enough.
+      CmdArgs.push_back("-fsyntax-only");
     } else {
       assert(JA.getType() == types::TY_PP_Asm && "Unexpected output type!");
     }
@@ -7249,15 +7341,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     else
       Input.getInputArg().renderAsInput(Args, CmdArgs);
   }
-
-  // Do this last! This uses the rest of the -cc1 command-line as input.
-  //
-  // FIXME: Instead of scanning now, the driver should be structured to create
-  // two -cc1 actions, the first to scan and the second to run the results of
-  // the scan (somehow). The daemon should be an optimization for running the
-  // first of these actions.
-  if (Arg *A = Args.getLastArg(options::OPT_fdepscan_EQ))
-    D.CC1ScanDeps(*A, Exec, CmdArgs, D, Args);
 
   if (D.CC1Main && !D.CCGenDiagnostics) {
     // Invoke the CC1 directly in this process

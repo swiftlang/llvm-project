@@ -4,7 +4,7 @@
 //
 // RUN: rm -rf %t.d
 // RUN: mkdir %t.d
-// RUN: %clang -cc1depscan -dump-depscan-tree=%t.root                     \
+// RUN: %clang -cc1depscan -dump-depscan-tree=%t.root -fdepscan=inline    \
 // RUN:    -fdepscan-prefix-map=%S=/^source                               \
 // RUN:    -fdepscan-prefix-map=%t.d=/^testdir                            \
 // RUN:    -fdepscan-prefix-map=%{objroot}=/^objroot                      \

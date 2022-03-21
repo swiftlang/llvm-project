@@ -3906,6 +3906,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg))
         break;
 
+    // FIXME: To avoid globally adding the depscan phase to all the input types,
+    // we try to inject depscan phase here if the first phase is preprocess and
+    // -fdepscan is used.
+    if (PL.front() == phases::Preprocess &&
+        Args.hasArg(options::OPT_fdepscan_EQ))
+      PL.insert(PL.begin(), phases::Depscan);
+
     for (phases::ID Phase : PL) {
 
       // Add any offload action the host action depends on.
@@ -4191,6 +4198,8 @@ Action *Driver::ConstructPhaseAction(
     llvm_unreachable("link action invalid here.");
   case phases::IfsMerge:
     llvm_unreachable("ifsmerge action invalid here.");
+  case phases::Depscan:
+    return C.MakeAction<DepscanJobAction>(Input, types::TY_CMD);
   case phases::Preprocess: {
     types::ID OutputTy;
     // -M and -MM specify the dependency file name by altering the output type,
@@ -4199,7 +4208,12 @@ Action *Driver::ConstructPhaseAction(
         !Args.hasArg(options::OPT_MD, options::OPT_MMD)) {
       OutputTy = types::TY_Dependencies;
     } else {
-      OutputTy = Input->getType();
+      // If the previous is action is depscan, bypass the output kind from
+      // depscan.
+      if (Input->getKind() == AssembleJobAction::DepscanJobClass)
+        OutputTy = Input->getInputs().front()->getType();
+      else
+        OutputTy = Input->getType();
       if (!Args.hasFlag(options::OPT_frewrite_includes,
                         options::OPT_fno_rewrite_includes, false) &&
           !Args.hasFlag(options::OPT_frewrite_imports,
@@ -4371,9 +4385,16 @@ void Driver::BuildJobs(Compilation &C) const {
 
   // If we have more than one job, then disable integrated-cc1 for now. Do this
   // also when we need to report process execution statistics.
-  if (C.getJobs().size() > 1 || CCPrintProcessStats)
-    for (auto &J : C.getJobs())
-      J.InProcess = false;
+  if (C.getJobs().size() > 1 || CCPrintProcessStats) {
+    // DepScan introduces a new DepScan binding that cannot be merged so it will
+    // end up having 2 jobs instead of 1 but we still should run the command
+    // in-process if possible.
+    if (C.getJobs().size() != 2 ||
+        !isa<DepscanJobAction>(C.getJobs().begin()->getSource())) {
+      for (auto &J : C.getJobs())
+        J.InProcess = false;
+    }
+  }
 
   if (CCPrintProcessStats) {
     C.setPostCallback([=](const Command &Cmd, int Res) {

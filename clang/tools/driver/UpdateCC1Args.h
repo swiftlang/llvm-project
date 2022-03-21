@@ -19,7 +19,16 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 
+namespace llvm {
+namespace opt {
+class Arg;
+class ArgList;
+} // namespace opt
+} // namespace llvm
+
 namespace clang {
+
+class DiagnosticsEngine;
 
 namespace tooling {
 namespace dependencies {
@@ -40,5 +49,9 @@ updateCC1Args(const char *Exec, ArrayRef<const char *> InputArgs,
               SmallVectorImpl<const char *> &OutputArgs,
               const cc1depscand::DepscanPrefixMapping &PrefixMapping,
               llvm::function_ref<const char *(const Twine &)> SaveArg);
+
+void CC1ScanDeps(const llvm::opt::Arg &A, const char *Exec,
+                 SmallVectorImpl<const char *> &CC1Args,
+                 DiagnosticsEngine &Diag, const llvm::opt::ArgList &Args);
 
 } // end namespace clang

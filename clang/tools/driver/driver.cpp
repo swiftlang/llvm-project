@@ -14,6 +14,7 @@
 #include "UpdateCC1Args.h"
 #include "clang/Driver/CC1DepScanDProtocol.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/DiagnosticCAS.h"
 #include "clang/Basic/Stack.h"
@@ -356,13 +357,13 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
 }
 
 static cc1depscand::DepscanPrefixMapping
-parseCASFSAutoPrefixMappings(const Driver &D, const ArgList &Args) {
+parseCASFSAutoPrefixMappings(DiagnosticsEngine &Diag, const ArgList &Args) {
   cc1depscand::DepscanPrefixMapping Mapping;
   for (const Arg *A : Args.filtered(options::OPT_fdepscan_prefix_map_EQ)) {
     StringRef Map = A->getValue();
     size_t Equals = Map.find('=');
     if (Equals == StringRef::npos)
-      D.Diag(diag::err_drv_invalid_argument_to_option)
+      Diag.Report(diag::err_drv_invalid_argument_to_option)
           << Map << A->getOption().getName();
     else
       Mapping.PrefixMap.push_back(Map);
@@ -523,10 +524,10 @@ makeDepscanDaemonPath(StringRef Mode, const DepscanSharing &Sharing) {
   return None;
 }
 
-static void
-CC1ScanDeps(const Arg &A, const char *Exec,
-            SmallVectorImpl<const char *> &CC1Args, const Driver &D,
-            const ArgList &Args) {
+void clang::CC1ScanDeps(const llvm::opt::Arg &A, const char *Exec,
+                        SmallVectorImpl<const char *> &CC1Args,
+                        DiagnosticsEngine &Diag,
+                        const llvm::opt::ArgList &Args) {
   StringRef Mode = A.getValue();
 
   // Collect these before returning to ensure they're claimed.
@@ -554,11 +555,11 @@ CC1ScanDeps(const Arg &A, const char *Exec,
     return;
 
   if (Mode != "daemon" && Mode != "inline" && Mode != "auto")
-    D.Diag(diag::err_drv_invalid_argument_to_option)
-      << Mode << A.getOption().getName();
+    Diag.Report(diag::err_drv_invalid_argument_to_option)
+        << Mode << A.getOption().getName();
 
   cc1depscand::DepscanPrefixMapping PrefixMapping =
-      parseCASFSAutoPrefixMappings(D, Args);
+      parseCASFSAutoPrefixMappings(Diag, Args);
 
   auto SaveArg = [&Args](const Twine &T) { return Args.MakeArgString(T); };
   if (Optional<std::string> DaemonPath = makeDepscanDaemonPath(Mode, Sharing)) {
@@ -566,7 +567,7 @@ CC1ScanDeps(const Arg &A, const char *Exec,
         Exec, CC1Args, PrefixMapping, *DaemonPath,
         /*NoSpawnDaemon*/ (bool)Sharing.Path, SaveArg);
     if (Err)
-      D.Diag(diag::err_cas_depscan_daemon_connection)
+      Diag.Report(diag::err_cas_depscan_daemon_connection)
           << toString(std::move(Err));
   } else
     addCC1ScanDepsArgsInline(Exec, CC1Args, PrefixMapping, SaveArg);
@@ -725,9 +726,6 @@ int main(int Argc, const char **Argv) {
     // Ensure the CC1Command actually catches cc1 crashes
     llvm::CrashRecoveryContext::Enable();
   }
-
-  // Always give a pointer to -cc1scandeps.
-  TheDriver.CC1ScanDeps = &CC1ScanDeps;
 
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(Args));
   int Res = 1;
