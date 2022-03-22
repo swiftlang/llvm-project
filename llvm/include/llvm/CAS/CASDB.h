@@ -116,6 +116,8 @@ public:
   /// Get the content of the node. Valid as long as the CAS is valid.
   StringRef getData() const { return Data; }
 
+  inline Expected<StringRef> getName(size_t I) const;
+
   NodeProxy() = delete;
 
 private:
@@ -191,6 +193,10 @@ protected:
   virtual Optional<NamedTreeEntry> lookupInTree(const TreeProxy &Tree,
                                                 StringRef Name) const = 0;
   virtual NamedTreeEntry getInTree(const TreeProxy &Tree, size_t I) const = 0;
+
+  virtual Expected<StringRef> getNodeName(const NodeProxy &Node,
+                                          size_t I) const = 0;
+
   virtual Error forEachEntryInTree(
       const TreeProxy &Tree,
       function_ref<Error(const NamedTreeEntry &)> Callback) const = 0;
@@ -268,6 +274,9 @@ CASID NodeProxy::getReference(size_t I) const {
 
 Error NodeProxy::forEachReference(function_ref<Error(CASID)> Callback) const {
   return CAS->forEachReferenceInNode(*this, Callback);
+}
+Expected<StringRef> NodeProxy::getName(size_t I) const {
+  return CAS->getNodeName(*this, I);
 }
 
 Expected<std::unique_ptr<CASDB>>

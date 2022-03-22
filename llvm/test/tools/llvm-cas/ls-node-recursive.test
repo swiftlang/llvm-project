@@ -1,0 +1,60 @@
+//RUN: rm -rf %t && mkdir -p %t
+RUN: clang %S/Inputs/test_a.cpp -c -gcas-friendly-debug-info -o %t/test_a.o
+RUN: clang %S/Inputs/test_b.cpp -c -gcas-friendly-debug-info -o %t/test_b.o
+RUN: find %t -name "*.o" &> %t/objects_to_ingest
+
+RUN: llvm-cas-object-format --cas %t/cas --object-stats --ingest-schema=flatv1 @%t/objects_to_ingest | grep "llvmcas://" | xargs -I{}  llvm-cas --ls-node-recursive {} --cas %t/cas | FileCheck %s 
+
+CHECK: file llvmcas://{{[a-z0-9]+}} {{.+}}a.o
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root
+CHECK-NEXT: 		llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:block
+CHECK-NEXT: 			llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:block/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:compile-unit
+CHECK-NEXT: 			llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:compile-unit/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:name
+CHECK-NEXT: 			llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:name/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:section
+CHECK-NEXT: 			llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:section/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:symbol
+CHECK-NEXT: 			llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:symbol/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:block-content
+CHECK-NEXT: 			llvmcas://{{[a-z0-9]+}} /cas.o:flatv1:root/cas.o:block-content/cas.o:flatv1:schema:0
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}TEXT,{{.*}}text
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}DWARF,{{.*}}debug_abbrev
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}DWARF,{{.*}}debug_info
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}DWARF,{{.*}}debug_str
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}DWARF,{{.*}}apple_names
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}DWARF,{{.*}}apple_objc
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}DWARF,{{.*}}apple_namespac
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}DWARF,{{.*}}apple_types
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}LD,{{.*}}compact_unwind
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}TEXT,{{.*}}eh_frame
+CHECK-NEXT: 	llvmcas://{{[a-z0-9]+}} /{{.*}}DWARF,{{.*}}debug_line
+
+CHECK: file llvmcas://{{[0-9a-z]+}} {{.+}}b.o
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root
+CHECK-NEXT: 		llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:block
+CHECK-NEXT: 			llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:block/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:compile-unit
+CHECK-NEXT: 			llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:compile-unit/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:name
+CHECK-NEXT: 			llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:name/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:section
+CHECK-NEXT: 			llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:section/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:symbol
+CHECK-NEXT: 			llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:symbol/cas.o:flatv1:schema:0
+CHECK-NEXT: 		llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:block-content
+CHECK-NEXT: 			llvmcas://{{[0-9a-z]+}} /cas.o:flatv1:root/cas.o:block-content/cas.o:flatv1:schema:0
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}TEXT,{{.*}}text
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}DWARF,{{.*}}debug_abbrev
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}DWARF,{{.*}}debug_info
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}DWARF,{{.*}}debug_str
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}DWARF,{{.*}}apple_names
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}DWARF,{{.*}}apple_objc
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}DWARF,{{.*}}apple_namespac
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}DWARF,{{.*}}apple_types
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}LD,{{.*}}compact_unwind
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}TEXT,{{.*}}eh_frame
+CHECK-NEXT: 	llvmcas://{{[0-9a-z]+}} /{{.*}}DWARF,{{.*}}debug_line

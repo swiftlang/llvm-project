@@ -432,6 +432,9 @@ private:
   Optional<NamedTreeEntry> lookupInTree(const TreeProxy &Handle,
                                         StringRef Name) const final;
   NamedTreeEntry getInTree(const TreeProxy &Handle, size_t I) const final;
+
+  Expected<StringRef> getNodeName(const NodeProxy &Node, size_t I) const final;
+
   Error forEachEntryInTree(
       const TreeProxy &Tree,
       function_ref<Error(const NamedTreeEntry &)> Callback) const final;
@@ -719,4 +722,10 @@ Error InMemoryCAS::forEachReferenceInNode(
 
 std::unique_ptr<CASDB> cas::createInMemoryCAS() {
   return std::make_unique<InMemoryCAS>();
+}
+
+Expected<StringRef> InMemoryCAS::getNodeName(const NodeProxy &Node,
+                                             size_t I) const {
+  return createStringError(std::make_error_code(std::errc::invalid_argument),
+                           "Cannot list nodes for an InMemoryCAS");
 }

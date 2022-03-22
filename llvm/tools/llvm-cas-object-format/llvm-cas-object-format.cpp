@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
       Builder.push(File.second, TreeEntry::Regular, File.first());
     CASID SummaryID = ExitOnErr(Builder.create(*CAS));
     SummaryIDs.emplace_back(SummaryID);
-    MSG("summary tree: ");
+    MSG("summary tree: \n");
     outs() << SummaryID << "\n";
   }
 

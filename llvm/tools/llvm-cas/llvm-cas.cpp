@@ -47,6 +47,7 @@ static int traverseGraph(CASDB &CAS, CASID ID);
 static int ingestFileSystem(CASDB &CAS, StringRef Path);
 static int mergeTrees(CASDB &CAS, ArrayRef<std::string> Objects);
 static int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path);
+static int listObjectRecursively(CASDB &CAS, CASID ID);
 
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
@@ -74,6 +75,7 @@ int main(int Argc, char **Argv) {
     IngestFileSystem,
     MergeTrees,
     GetCASIDForFile,
+    ListObjectRecursive,
   };
   cl::opt<CommandKind> Command(
       cl::desc("choose command action:"),
@@ -92,7 +94,9 @@ int main(int Argc, char **Argv) {
           clEnumValN(ListObjectReferences, "ls-node-refs", "list node refs"),
           clEnumValN(IngestFileSystem, "ingest", "ingest file system"),
           clEnumValN(MergeTrees, "merge", "merge paths/cas-ids"),
-          clEnumValN(GetCASIDForFile, "get-cas-id", "get cas id for file")),
+          clEnumValN(GetCASIDForFile, "get-cas-id", "get cas id for file"),
+          clEnumValN(ListObjectRecursive, "ls-node-recursive",
+                     "list node recursive")),
       cl::init(CommandKind::Invalid));
 
   cl::ParseCommandLineOptions(Argc, Argv, "llvm-cas CAS tool\n");
@@ -170,6 +174,9 @@ int main(int Argc, char **Argv) {
 
   if (Command == GetCASIDForFile)
     return getCASIDForFile(*CAS, ID, DataPath);
+
+  if (Command == ListObjectRecursive)
+    return listObjectRecursively(*CAS, ID);
 
   assert(Command == CatBlob);
   return catBlob(*CAS, ID);
@@ -308,6 +315,20 @@ int listObjectReferences(CASDB &CAS, CASID ID) {
     llvm::outs() << ID << "\n";
     return Error::success();
   }));
+
+  return 0;
+}
+
+int listObjectRecursively(CASDB &CAS, CASID ID) {
+
+  ExitOnError ExitOnErr("llvm-cas: ls-node-recursively: ");
+  ExitOnErr(walkFileTreeRecursively(
+      CAS, ID,
+      [&](const NamedTreeEntry &Entry, Optional<TreeProxy> Tree) -> Error {
+        printTreeEntry(CAS, llvm::outs(), Entry);
+        return Error::success();
+      },
+      true));
 
   return 0;
 }
