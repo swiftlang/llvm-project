@@ -4519,7 +4519,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
   // FIXME: Implement custom jobs for internal actions.
   CmdArgs.push_back("-cc1");
 
-  // Handle full response file input.
+  // Handle response file input.
   if (Inputs.front().getType() == types::TY_ResponseFile) {
     // Render response file input first.
     assert(Inputs.size() == 1 && "Only one response file input");
@@ -4529,12 +4529,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
     InputName += II.getFilename();
     CmdArgs.push_back(C.getArgs().MakeArgString(InputName));
 
-    // FIXME: Overwrite the output filename. To fix this, we need to somehow
-    // route the final output type into Depscan ConstructJob.
+    // FIXME: The -cc1depscan job should include the -o for the -cc1 job that
+    // follows it in -cc1-args, but it doesn't currently have access to that
+    // filename. To fix this, we need to somehow route the final output type
+    // into Depscan ConstructJob.
     if (Output.isFilename()) {
       CmdArgs.push_back("-o");
       CmdArgs.push_back(Output.getFilename());
     }
+    // FIXME: Clean up this code and factor out the common logic (see the end of
+    // the function)
     const char *Exec = D.getClangProgramPath();
     if (D.CC1Main && !D.CCGenDiagnostics) {
       // Invoke the CC1 directly in this process
@@ -4743,9 +4747,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
     } else if (JA.getType() == types::TY_RewrittenLegacyObjC) {
       CmdArgs.push_back("-rewrite-objc");
       rewriteKind = RK_Fragile;
-    } else if (JA.getType() == types::TY_ResponseFile) {
-      // DepScan response file output. Use fsyntax-only is enough.
-      CmdArgs.push_back("-fsyntax-only");
     } else {
       assert(JA.getType() == types::TY_PP_Asm && "Unexpected output type!");
     }
