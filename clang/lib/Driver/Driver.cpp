@@ -4383,17 +4383,19 @@ void Driver::BuildJobs(Compilation &C) const {
                        /*TargetDeviceOffloadKind*/ Action::OFK_None);
   }
 
+  // DepScan introduces a new DepScan binding that cannot be merged so it will
+  // end up having 2 jobs instead of 1 but we still should run the command
+  // in-process if possible.
+  bool ShouldInProcessDepScan =
+      C.getJobs().size() == 2 &&
+      isa<DepscanJobAction>(C.getJobs().begin()->getSource());
+
   // If we have more than one job, then disable integrated-cc1 for now. Do this
   // also when we need to report process execution statistics.
-  if (C.getJobs().size() > 1 || CCPrintProcessStats) {
-    // DepScan introduces a new DepScan binding that cannot be merged so it will
-    // end up having 2 jobs instead of 1 but we still should run the command
-    // in-process if possible.
-    if (C.getJobs().size() != 2 ||
-        !isa<DepscanJobAction>(C.getJobs().begin()->getSource())) {
-      for (auto &J : C.getJobs())
-        J.InProcess = false;
-    }
+  if ((C.getJobs().size() > 1 && !ShouldInProcessDepScan) ||
+      CCPrintProcessStats) {
+    for (auto &J : C.getJobs())
+      J.InProcess = false;
   }
 
   if (CCPrintProcessStats) {
@@ -4744,6 +4746,14 @@ class ToolSelector final {
     Inputs = NewInputs;
   }
 
+  void combineWithDepscan(const Tool *T, const JobAction *Current,
+                          ActionList &Inputs) {
+    for (Action *A : Inputs) {
+      if (auto *DepScan = dyn_cast<DepscanJobAction>(A))
+        DepScan->setScanningJobAction(Current);
+    }
+  }
+
 public:
   ToolSelector(const JobAction *BaseAction, const ToolChain &TC,
                const Compilation &C, bool SaveTemps, bool EmbedBitcode)
@@ -4800,6 +4810,8 @@ public:
     }
 
     combineWithPreprocessor(T, Inputs, CollapsedOffloadAction);
+
+    combineWithDepscan(T, BaseAction, Inputs);
     return T;
   }
 };

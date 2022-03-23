@@ -4381,13 +4381,16 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
   RenderDebugInfoCompressionArgs(Args, CmdArgs, D, TC);
 }
 
-void Clang::ConstructJob(Compilation &C, const JobAction &JA,
+void Clang::ConstructJob(Compilation &C, const JobAction &Job,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
   const auto &TC = getToolChain();
   const llvm::Triple &RawTriple = TC.getTriple();
   const llvm::Triple &Triple = TC.getEffectiveTriple();
   const std::string &TripleStr = Triple.getTriple();
+  const JobAction &JA = isa<DepscanJobAction>(Job)
+                            ? cast<DepscanJobAction>(Job).getScanningJobAction()
+                            : Job;
 
   bool KernelOrKext =
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
@@ -4487,7 +4490,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     D.Diag(diag::err_drv_clang_unsupported) << "C++ for IAMCU";
 
   // Handle depscan.
-  if (JA.getKind() == Action::DepscanJobClass) {
+  if (Job.getKind() == Action::DepscanJobClass) {
     CmdArgs.push_back("-cc1depscan");
 
     // Pass depscan related options to cc1depscan.
@@ -4526,42 +4529,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     InputName += II.getFilename();
     CmdArgs.push_back(C.getArgs().MakeArgString(InputName));
 
-    // FIXME: We overwrite the output and the action kind argument. Maybe there
-    // are better ways to do that. Not all output kind is handled here.
-    // If doing this as it is, we need to factor out the common code when
-    // upstreaming.
-    if (isa<AssembleJobAction>(JA)) {
-      CmdArgs.push_back("-emit-obj");
-    } else if (isa<PreprocessJobAction>(JA)) {
-      if (Output.getType() == types::TY_Dependencies)
-        CmdArgs.push_back("-Eonly");
-      else {
-        CmdArgs.push_back("-E");
-      }
-    } else {
-      if (JA.getType() == types::TY_Nothing) {
-        CmdArgs.push_back("-fsyntax-only");
-      } else if (JA.getType() == types::TY_LLVM_IR ||
-                 JA.getType() == types::TY_LTO_IR) {
-        CmdArgs.push_back("-emit-llvm");
-      } else if (JA.getType() == types::TY_LLVM_BC ||
-                 JA.getType() == types::TY_LTO_BC) {
-        if (Args.hasArg(options::OPT_S) &&
-            Args.hasArg(options::OPT_emit_llvm)) {
-          CmdArgs.push_back("-emit-llvm");
-        } else {
-          CmdArgs.push_back("-emit-llvm-bc");
-        }
-      } else if (JA.getType() == types::TY_PP_Asm) {
-        CmdArgs.push_back("-S");
-      } else if (JA.getType() == types::TY_AST) {
-        CmdArgs.push_back("-emit-pch");
-      } else if (JA.getType() == types::TY_ModuleFile) {
-        CmdArgs.push_back("-module-file-info");
-      } else {
-        llvm_unreachable("unhandled case");
-      }
-    }
+    // FIXME: Overwrite the output filename. To fix this, we need to somehow
+    // route the final output type into Depscan ConstructJob.
     if (Output.isFilename()) {
       CmdArgs.push_back("-o");
       CmdArgs.push_back(Output.getFilename());
@@ -4570,10 +4539,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (D.CC1Main && !D.CCGenDiagnostics) {
       // Invoke the CC1 directly in this process
       C.addCommand(std::make_unique<CC1Command>(
-          JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, Inputs,
+          Job, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, Inputs,
           Output));
     } else {
-      C.addCommand(std::make_unique<Command>(JA, *this,
+      C.addCommand(std::make_unique<Command>(Job, *this,
                                              ResponseFileSupport::AtFileUTF8(),
                                              Exec, CmdArgs, Inputs, Output));
     }
@@ -4937,7 +4906,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     C.addCommand(std::make_unique<Command>(
-        JA, *this, ResponseFileSupport::AtFileUTF8(), D.getClangProgramPath(),
+        Job, *this, ResponseFileSupport::AtFileUTF8(), D.getClangProgramPath(),
         CmdArgs, Inputs, Output));
     return;
   }
@@ -7344,11 +7313,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (D.CC1Main && !D.CCGenDiagnostics) {
     // Invoke the CC1 directly in this process
-    C.addCommand(std::make_unique<CC1Command>(JA, *this,
+    C.addCommand(std::make_unique<CC1Command>(Job, *this,
                                               ResponseFileSupport::AtFileUTF8(),
                                               Exec, CmdArgs, Inputs, Output));
   } else {
-    C.addCommand(std::make_unique<Command>(JA, *this,
+    C.addCommand(std::make_unique<Command>(Job, *this,
                                            ResponseFileSupport::AtFileUTF8(),
                                            Exec, CmdArgs, Inputs, Output));
   }

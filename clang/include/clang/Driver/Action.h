@@ -408,6 +408,12 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == DepscanJobClass;
   }
+
+  const JobAction &getScanningJobAction() const { return *JA; }
+  void setScanningJobAction(const JobAction *Job) { JA = Job; }
+
+private:
+  const JobAction *JA;
 };
 
 class PreprocessJobAction : public JobAction {

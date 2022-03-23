@@ -322,7 +322,7 @@ JobAction::JobAction(ActionClass Kind, const ActionList &Inputs, types::ID Type)
 void DepscanJobAction::anchor() {}
 
 DepscanJobAction::DepscanJobAction(Action *Input, types::ID OutputType)
-    : JobAction(DepscanJobClass, Input, OutputType) {}
+    : JobAction(DepscanJobClass, Input, OutputType), JA(this) {}
 
 void PreprocessJobAction::anchor() {}
 
