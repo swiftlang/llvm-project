@@ -104,4 +104,4 @@ TYPE("api-information",          API_INFO,     INVALID,         "json",   phases
 TYPE("none",                     Nothing,      INVALID,         nullptr,  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 
 // Generic command line type, used to pass command as response file to the next action.
-TYPE("command",                  CMD,          INVALID,         "cmd",    phases::Depscan)
+TYPE("response-file",            ResponseFile, INVALID,         "rsp",    phases::Depscan)

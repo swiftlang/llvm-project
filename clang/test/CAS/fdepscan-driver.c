@@ -3,7 +3,7 @@
 // RUN:   FileCheck %s --check-prefix=CHECK-PHASES
 
 // CHECK-PHASES: 0: input
-// CHECK-PHASES: 1: depscan, {0}, command
+// CHECK-PHASES: 1: depscan, {0}, response-file
 // CHECK-PHASES: 2: preprocessor, {1}, cpp-output
 // CHECK-PHASES: 3: compiler, {2}, ir
 // CHECK-PHASES: 4: backend, {3}, assembler

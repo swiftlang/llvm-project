@@ -4517,7 +4517,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("-cc1");
 
   // Handle full response file input.
-  if (Inputs.front().getType() == types::TY_CMD) {
+  if (Inputs.front().getType() == types::TY_ResponseFile) {
     // Render response file input first.
     assert(Inputs.size() == 1 && "Only one response file input");
     auto &II = Inputs.front();
@@ -4774,7 +4774,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     } else if (JA.getType() == types::TY_RewrittenLegacyObjC) {
       CmdArgs.push_back("-rewrite-objc");
       rewriteKind = RK_Fragile;
-    } else if (JA.getType() == types::TY_CMD) {
+    } else if (JA.getType() == types::TY_ResponseFile) {
       // DepScan response file output. Use fsyntax-only is enough.
       CmdArgs.push_back("-fsyntax-only");
     } else {
