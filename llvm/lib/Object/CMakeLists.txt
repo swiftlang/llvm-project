@@ -39,6 +39,8 @@ add_llvm_component_library(LLVMObject
 
   LINK_COMPONENTS
   BitReader
+  CAS
+  CASObjectFormats
   Core
   MC
   BinaryFormat
