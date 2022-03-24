@@ -78,6 +78,8 @@ using namespace llvm;
 
 namespace {
 
+using SwiftWorkaroundGlobals_t = DenseMap<GlobalVariable *, uint64_t>;
+
 /// A little helper class for building
 class CoroCloner {
 public:
@@ -1042,24 +1044,40 @@ static void removeCoroEnds(const coro::Shape &Shape, CallGraph *CG) {
   }
 }
 
-static void updateAsyncFuncPointerContextSize(coro::Shape &Shape) {
+static void
+updateAsyncFuncPointerContextSize(coro::Shape &Shape,
+                      const SwiftWorkaroundGlobals_t &SwiftWorkaroundGlobals) {
   assert(Shape.ABI == coro::ABI::Async);
 
   auto *FuncPtrStruct = cast<ConstantStruct>(
       Shape.AsyncLowering.AsyncFuncPointer->getInitializer());
   auto *OrigRelativeFunOffset = FuncPtrStruct->getOperand(0);
   auto *OrigContextSize = FuncPtrStruct->getOperand(1);
+  uint64_t NewContextSizeBytes = Shape.AsyncLowering.ContextSize;
+  auto workaround = SwiftWorkaroundGlobals.find(Shape.AsyncLowering.AsyncFuncPointer);
+  if (workaround != SwiftWorkaroundGlobals.end()) {
+    // The Swift concurrency runtime in older Apple OSes has a bug in the task
+    // allocator when trying to use the preallocated space for an `async let`
+    // child task as the initial slab for the allocator. Work around this issue
+    // by padding the context size to always be too big to fit in the
+    // preallocated space, forcing the runtime to always allocate a new slab.
+    NewContextSizeBytes = std::max(NewContextSizeBytes,
+                                   workaround->second);
+  }
+  
   auto *NewContextSize = ConstantInt::get(OrigContextSize->getType(),
-                                          Shape.AsyncLowering.ContextSize);
+                                          NewContextSizeBytes);
   auto *NewFuncPtrStruct = ConstantStruct::get(
       FuncPtrStruct->getType(), OrigRelativeFunOffset, NewContextSize);
 
   Shape.AsyncLowering.AsyncFuncPointer->setInitializer(NewFuncPtrStruct);
 }
 
-static void replaceFrameSize(coro::Shape &Shape) {
+static void
+replaceFrameSize(coro::Shape &Shape,
+                 const SwiftWorkaroundGlobals_t &SwiftWorkaroundGlobals) {
   if (Shape.ABI == coro::ABI::Async)
-    updateAsyncFuncPointerContextSize(Shape);
+    updateAsyncFuncPointerContextSize(Shape, SwiftWorkaroundGlobals);
 
   if (Shape.CoroSizes.empty())
     return;
@@ -1799,9 +1817,11 @@ namespace {
   };
 }
 
-static coro::Shape splitCoroutine(Function &F,
-                                  SmallVectorImpl<Function *> &Clones,
-                                  bool ReuseFrameSlot) {
+static coro::Shape
+splitCoroutine(Function &F,
+               SmallVectorImpl<Function *> &Clones,
+               bool ReuseFrameSlot,
+               const SwiftWorkaroundGlobals_t &SwiftWorkaroundGlobals) {
   PrettyStackTraceFunction prettyStackTrace(F);
 
   // The suspend-crossing algorithm in buildCoroutineFrame get tripped
@@ -1814,7 +1834,7 @@ static coro::Shape splitCoroutine(Function &F,
 
   simplifySuspendPoints(Shape);
   buildCoroutineFrame(F, Shape);
-  replaceFrameSize(Shape);
+  replaceFrameSize(Shape, SwiftWorkaroundGlobals);
 
   // If there are no suspend points, no split required, just remove
   // the allocation and deallocation blocks, they are not needed.
@@ -2119,6 +2139,45 @@ static void addPrepareFunction(const Module &M,
     Fns.push_back(PrepareFn);
 }
 
+// Some Swift coroutines need some codegen massaging to dodge runtime bugs
+// in older Apple OSes. The compiler will annotate those with metadata in the
+// LLVM module if that's the case. Collect the affected AsyncFunctionPointer
+// records now, so that we can modify post-splitting code generation
+// appropriately.
+static SwiftWorkaroundGlobals_t
+gatherSwiftWorkaroundGlobals(Module &M) {
+  SwiftWorkaroundGlobals_t SwiftWorkaroundGlobals;
+  if (auto swiftWorkaroundMetadata
+        = M.getNamedMetadata("swift.async.asyncLetWorkaround")) {
+    for (unsigned i = 0, e = swiftWorkaroundMetadata->getNumOperands();
+         i < e; ++i) {
+      auto node = swiftWorkaroundMetadata->getOperand(i);
+      
+      if (node->getNumOperands() != 2)
+        continue;
+      
+      auto varConstantAsMetadata
+        = dyn_cast<ConstantAsMetadata>(node->getOperand(0).get());
+      if (!varConstantAsMetadata)
+        continue;
+      
+      auto minSizeConstantAsMetadata
+        = dyn_cast<ConstantAsMetadata>(node->getOperand(1).get());
+      if (!minSizeConstantAsMetadata)
+        continue;
+      
+      auto var = dyn_cast<GlobalVariable>(varConstantAsMetadata->getValue());
+      auto minSize = dyn_cast<ConstantInt>(minSizeConstantAsMetadata->getValue());
+      if (!var || !minSize)
+        continue;
+      
+      SwiftWorkaroundGlobals.insert({var, minSize->getValue().getLimitedValue()});
+    }
+  }
+
+  return SwiftWorkaroundGlobals;
+}
+
 PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
                                      CGSCCAnalysisManager &AM,
                                      LazyCallGraph &CG, CGSCCUpdateResult &UR) {
@@ -2128,9 +2187,16 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
   Module &M = *C.begin()->getFunction().getParent();
   auto &FAM =
       AM.getResult<FunctionAnalysisManagerCGSCCProxy>(C, CG).getManager();
-
+  
   if (!declaresCoroSplitIntrinsics(M))
     return PreservedAnalyses::all();
+
+  // Some Swift coroutines need some codegen massaging to dodge runtime bugs
+  // in older Apple OSes. The compiler will annotate those with metadata in the
+  // LLVM module if that's the case. Collect the affected AsyncFunctionPointer
+  // records now, so that we can modify post-splitting code generation
+  // appropriately.
+  auto SwiftWorkaroundGlobals = gatherSwiftWorkaroundGlobals(M);
 
   // Check for uses of llvm.coro.prepare.retcon/async.
   SmallVector<Function *, 2> PrepareFns;
@@ -2162,7 +2228,8 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     F.removeFnAttr(CORO_PRESPLIT_ATTR);
 
     SmallVector<Function *, 4> Clones;
-    const coro::Shape Shape = splitCoroutine(F, Clones, ReuseFrameSlot);
+    const coro::Shape Shape = splitCoroutine(F, Clones, ReuseFrameSlot,
+                                             SwiftWorkaroundGlobals);
     updateCallGraphAfterCoroutineSplit(*N, Shape, Clones, C, CG, AM, UR, FAM);
 
     if (!Shape.CoroSuspends.empty()) {
@@ -2239,6 +2306,8 @@ struct CoroSplitLegacy : public CallGraphSCCPass {
       return Changed;
     }
 
+    auto SwiftWorkaroundGlobals = gatherSwiftWorkaroundGlobals(M);
+
     createDevirtTriggerFunc(CG, SCC);
 
     // Split all the coroutines.
@@ -2260,7 +2329,8 @@ struct CoroSplitLegacy : public CallGraphSCCPass {
       F->removeFnAttr(CORO_PRESPLIT_ATTR);
 
       SmallVector<Function *, 4> Clones;
-      const coro::Shape Shape = splitCoroutine(*F, Clones, ReuseFrameSlot);
+      const coro::Shape Shape = splitCoroutine(*F, Clones, ReuseFrameSlot,
+                                               SwiftWorkaroundGlobals);
       updateCallGraphAfterCoroutineSplit(*F, Shape, Clones, CG, SCC);
       if (Shape.ABI == coro::ABI::Async) {
         // Restart SCC passes.

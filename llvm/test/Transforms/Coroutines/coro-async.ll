@@ -36,6 +36,18 @@ declare void @my_other_async_function(i8* %async.ctxt)
      i32 8
 }>
 
+; This one is marked by metadata to artifically pad the async context size,
+; to work around a runtime bug in older Apple OSes.
+@my_async_function_asyncLet_workaround_fp = constant <{ i32, i32 }>
+  <{ i32 trunc (
+       i64 sub (
+         i64 ptrtoint (void (i8*, %async.task*, %async.actor*)* @my_async_function_asyncLet_workaround to i64),
+         i64 ptrtoint (i32* getelementptr inbounds (<{ i32, i32 }>, <{ i32, i32 }>* @my_async_function_fp, i32 0, i32 1) to i64)
+       )
+     to i32),
+     i32 64
+}>
+
 ; Function that implements the dispatch to the callee function.
 define swiftcc void @my_async_function.my_other_async_function_fp.apply(i8* %fnPtr, i8* %async.ctxt, %async.task* %task, %async.actor* %actor) {
   %callee = bitcast i8* %fnPtr to void(i8*, %async.task*, %async.actor*)*
@@ -122,9 +134,65 @@ define void @my_async_function_pa(i8* %ctxt, %async.task* %task, %async.actor* %
   ret void
 }
 
+define swiftcc void @my_async_function_asyncLet_workaround(i8* swiftasync %async.ctxt, %async.task* %task, %async.actor* %actor) {
+entry:
+  %tmp = alloca { i64, i64 }, align 8
+  %vector = alloca <4 x double>, align 16
+  %proj.1 = getelementptr inbounds { i64, i64 }, { i64, i64 }* %tmp, i64 0, i32 0
+  %proj.2 = getelementptr inbounds { i64, i64 }, { i64, i64 }* %tmp, i64 0, i32 1
+
+  %id = call token @llvm.coro.id.async(i32 128, i32 16, i32 0,
+          i8* bitcast (<{i32, i32}>* @my_async_function_asyncLet_workaround_fp to i8*))
+  %hdl = call i8* @llvm.coro.begin(token %id, i8* null)
+  store i64 0, i64* %proj.1, align 8
+  store i64 1, i64* %proj.2, align 8
+  call void @some_may_write(i64* %proj.1)
+
+	; Begin lowering: apply %my_other_async_function(%args...)
+
+  ; setup callee context
+  %arg0 = bitcast %async.task* %task to i8*
+  %arg1 = bitcast <{ i32, i32}>* @my_other_async_function_fp to i8*
+  %callee_context = call i8* @llvm.coro.async.context.alloc(i8* %arg0, i8* %arg1)
+	%callee_context.0 = bitcast i8* %callee_context to %async.ctxt*
+  ; store arguments ...
+  ; ... (omitted)
+
+  ; store the return continuation
+  %callee_context.return_to_caller.addr = getelementptr inbounds %async.ctxt, %async.ctxt* %callee_context.0, i32 0, i32 1
+  %return_to_caller.addr = bitcast void(i8*, %async.task*, %async.actor*)** %callee_context.return_to_caller.addr to i8**
+  %resume.func_ptr = call i8* @llvm.coro.async.resume()
+  store i8* %resume.func_ptr, i8** %return_to_caller.addr
+
+  ; store caller context into callee context
+  %callee_context.caller_context.addr = getelementptr inbounds %async.ctxt, %async.ctxt* %callee_context.0, i32 0, i32 0
+  store i8* %async.ctxt, i8** %callee_context.caller_context.addr
+  %resume_proj_fun = bitcast i8*(i8*)* @__swift_async_resume_project_context to i8*
+  %callee = bitcast void(i8*, %async.task*, %async.actor*)* @asyncSuspend to i8*
+  %vector_spill = load <4 x double>, <4 x double>* %vector, align 16
+  %res = call {i8*, i8*, i8*} (i32, i8*, i8*, ...) @llvm.coro.suspend.async(i32 0,
+                                                  i8* %resume.func_ptr,
+                                                  i8* %resume_proj_fun,
+                                                  void (i8*, i8*, %async.task*, %async.actor*)* @my_async_function.my_other_async_function_fp.apply,
+                                                  i8* %callee, i8* %callee_context, %async.task* %task, %async.actor *%actor), !dbg !5
+
+  call void @llvm.coro.async.context.dealloc(i8* %callee_context)
+  %continuation_task_arg = extractvalue {i8*, i8*, i8*} %res, 1
+  %task.2 =  bitcast i8* %continuation_task_arg to %async.task*
+  %val = load i64, i64* %proj.1
+  call void @some_user(i64 %val)
+  %val.2 = load i64, i64* %proj.2
+  call void @some_user(i64 %val.2)
+  store <4 x double> %vector_spill, <4 x double>* %vector, align 16
+  tail call swiftcc void @asyncReturn(i8* %async.ctxt, %async.task* %task.2, %async.actor* %actor)
+  call i1 (i8*, i1, ...) @llvm.coro.end.async(i8* %hdl, i1 0)
+  unreachable
+}
+
 ; Make sure we update the async function pointer
 ; CHECK: @my_async_function_fp = constant <{ i32, i32 }> <{ {{.*}}, i32 176 }
 ; CHECK: @my_async_function_pa_fp = constant <{ i32, i32 }> <{ {{.*}}, i32 176 }
+; CHECK: @my_async_function_asyncLet_workaround_fp = constant <{ i32, i32 }> <{ {{.*}}, i32 640 }
 ; CHECK: @my_async_function2_fp = constant <{ i32, i32 }> <{ {{.*}}, i32 176 }
 
 ; CHECK-LABEL: define swiftcc void @my_async_function(i8* swiftasync %async.ctxt, %async.task* %task, %async.actor* %actor)
@@ -585,6 +653,7 @@ declare i8* @hide(i8*)
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!0}
+!swift.async.asyncLetWorkaround = !{!10}
 
 !0 = !{i32 2, !"Debug Info Version", i32 3}
 ; CHECK: ![[SP1]] = distinct !DISubprogram(name: "my_async_function",
@@ -615,3 +684,4 @@ declare i8* @hide(i8*)
 !7 = !DILexicalBlockFile(scope: !6, file: !8, discriminator: 0)
 !8 = !DIFile(filename: "/tmp/fake.cpp", directory: "/")
 !9 = !DILocation(line: 2, column: 0, scope: !7)
+!10 = !{<{ i32, i32 }>* @my_async_function_asyncLet_workaround_fp, i64 640}
