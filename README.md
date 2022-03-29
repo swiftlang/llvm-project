@@ -1,6 +1,6 @@
 # Apple's fork of llvm-project
 
-This is Apple's fork of llvm-project.  For more information on Apple's
+This is Apple's fork of the llvm-project.  For more information on Apple's
 branching scheme, please see
 [apple-docs/AppleBranchingScheme.md](https://github.com/apple/llvm-project/tree/apple/main/apple-docs/AppleBranchingScheme.md).
 
@@ -31,7 +31,7 @@ files needed to process intermediate representations and convert them into
 object files.  Tools include an assembler, disassembler, bitcode analyzer, and
 bitcode optimizer.  It also contains basic regression tests.
 
-C-like languages use the [Clang](http://clang.llvm.org/) front end.  This
+C-like languages use the [Clang](https://clang.llvm.org/) front end.  This
 component compiles C, C++, Objective-C, and Objective-C++ code into LLVM bitcode
 -- and from there into object files, using LLVM.
 
@@ -42,7 +42,7 @@ the [LLD linker](https://lld.llvm.org), and more.
 ### Getting the Source Code and Building LLVM
 
 The LLVM Getting Started documentation may be out of date.  The [Clang
-Getting Started](http://clang.llvm.org/get_started.html) page might have more
+Getting Started](https://clang.llvm.org/get_started.html) page might have more
 accurate information.
 
 This is an example work-flow and configuration to get and build the LLVM source:
