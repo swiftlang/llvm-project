@@ -37,7 +37,14 @@ declare void @my_other_async_function(i8* %async.ctxt)
 }>
 
 ; Function that implements the dispatch to the callee function.
-define swiftcc void @my_async_function.my_other_async_function_fp.apply(i8* %fnPtr, i8* %async.ctxt, %async.task* %task, %async.actor* %actor) {
+define swiftcc void @my_async_function.my_other_async_function_fp.apply(i8* %fnPtr, i8* %async.ctxt, %async.task* %task, %async.actor* %actor) !dbg !10 {
+  %callee = bitcast i8* %fnPtr to void(i8*, %async.task*, %async.actor*)* , !dbg !13
+  tail call swiftcc void %callee(i8* %async.ctxt, %async.task* %task, %async.actor* %actor) , !dbg !13
+  ret void
+}
+
+; Another time without debug info.
+define swiftcc void @my_async_function.my_other_async_function_fp.apply2(i8* %fnPtr, i8* %async.ctxt, %async.task* %task, %async.actor* %actor) {
   %callee = bitcast i8* %fnPtr to void(i8*, %async.task*, %async.actor*)*
   tail call swiftcc void %callee(i8* %async.ctxt, %async.task* %task, %async.actor* %actor)
   ret void
@@ -158,8 +165,8 @@ define void @my_async_function_pa(i8* %ctxt, %async.task* %task, %async.actor* %
 ; CHECK-O0:   [[VECTOR_SPILL:%.*]] = load <4 x double>, <4 x double>* {{.*}}
 ; CHECK-O0:   [[VECTOR_SPILL_ADDR:%.*]] = getelementptr inbounds %my_async_function.Frame, %my_async_function.Frame* {{.*}}, i32 0, i32 1
 ; CHECK-O0:   store <4 x double> [[VECTOR_SPILL]], <4 x double>* [[VECTOR_SPILL_ADDR]], align 16
-; CHECK:   tail call swiftcc void @asyncSuspend(i8* [[CALLEE_CTXT]], %async.task* %task, %async.actor* %actor)
-; CHECK:   ret void
+; CHECK:   tail call swiftcc void @asyncSuspend(i8* [[CALLEE_CTXT]], %async.task* %task, %async.actor* %actor), !dbg ![[DBG1:[0-9]+]]
+; CHECK:   ret void, !dbg ![[DBG1]]
 ; CHECK: }
 
 ; CHECK-LABEL: define internal swiftcc void @my_async_functionTQ0_(i8* nocapture readonly swiftasync %0, i8* %1, i8* nocapture readnone %2)
@@ -245,7 +252,7 @@ entry:
                                                   i8* %resume.func_ptr.1,
                                                   i8* %resume_proj_fun.2,
                                                   void (i8*, i8*, %async.task*, %async.actor*)* @my_async_function.my_other_async_function_fp.apply,
-                                                  i8* %callee.2, i8* %callee_context, %async.task* %task.casted, %async.actor *%actor)
+                                                  i8* %callee.2, i8* %callee_context, %async.task* %task.casted, %async.actor *%actor), !dbg !9
 
   call void @llvm.coro.async.context.dealloc(i8* %callee_context)
   %continuation_actor_arg = extractvalue {i8*, i8*, i8*} %res.2, 1
@@ -465,7 +472,7 @@ entry:
          @llvm.coro.suspend.async.sl_p0i8p0i8p0i8p0i8s(i32 256, ;; swiftasync at 0 and swiftself at 1 in resume function
                                                  i8* %resume.func_ptr,
                                                  i8* %resume_proj_fun,
-                                                 void (i8*, i8*, %async.task*, %async.actor*)* @my_async_function.my_other_async_function_fp.apply,
+                                                 void (i8*, i8*, %async.task*, %async.actor*)* @my_async_function.my_other_async_function_fp.apply2,
                                                  i8* %callee, i8* %callee_context, %async.task* %task, %async.actor *%actor)
 
   call void @llvm.coro.async.context.dealloc(i8* %callee_context)
@@ -590,6 +597,7 @@ declare i8* @hide(i8*)
 ; CHECK: ![[SP1]] = distinct !DISubprogram(name: "my_async_function",
 ; CHECK-SAME:                              linkageName: "my_async_function",
 ; CHECK-SAME:                              scopeLine: 1
+; CHECK ![[DBG1]] = !DILocation(line: 2, scope: !9)
 !1 = distinct !DISubprogram(name: "my_async_function",
                             linkageName: "my_async_function",
                             scope: !2, file: !3, line: 1, type: !4,
@@ -615,3 +623,12 @@ declare i8* @hide(i8*)
 !7 = !DILexicalBlockFile(scope: !6, file: !8, discriminator: 0)
 !8 = !DIFile(filename: "/tmp/fake.cpp", directory: "/")
 !9 = !DILocation(line: 2, column: 0, scope: !7)
+
+
+!10 = distinct !DISubprogram(name: "my_async_function.my_other_async_function_fp.apply",
+                            linkageName: "my_async_function.my_other_async_function_fp.apply",
+                            scope: !2, file: !3, line: 1, type: !4,
+                            scopeLine: 1, spFlags: DISPFlagDefinition, unit: !2)
+!11 = !DILexicalBlockFile(scope: !10, file: !8, discriminator: 0)
+!12 = !DIFile(filename: "/tmp/fake2.cpp", directory: "/")
+!13 = !DILocation(line: 2, column: 0, scope: !11)
