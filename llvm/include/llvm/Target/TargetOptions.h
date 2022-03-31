@@ -121,13 +121,23 @@ namespace llvm {
     Never,
   };
 
+  /// CAS Backend Mode.
+  enum class CASBackendMode {
+    // Emit normal object file but serialized from CAS.
+    Native,
+    // Emit CASID output file.
+    CASID,
+    // Verify the output by comparing normal object writer with CAS object writer.
+    Verify,
+  };
+
   class TargetOptions {
   public:
     TargetOptions()
         : UnsafeFPMath(false), NoInfsFPMath(false), NoNaNsFPMath(false),
           NoTrappingFPMath(true), NoSignedZerosFPMath(false),
           ApproxFuncFPMath(false), EnableAIXExtendedAltivecABI(false),
-          HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false),
+          HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false), UseCASBackend(false),
           GuaranteedTailCallOpt(false), StackSymbolOrdering(true),
           EnableFastISel(false), EnableGlobalISel(false), UseInitArray(false),
           LowerGlobalDtorsViaCxaAtExit(false), DisableIntegratedAS(false),
@@ -211,6 +221,10 @@ namespace llvm {
     /// .bss section. This flag disables such behaviour (necessary, e.g. for
     /// crt*.o compiling).
     unsigned NoZerosInBSS : 1;
+
+    /// UseCASObject - Use CAS based object format as the output.
+    unsigned UseCASBackend : 1;
+    CASBackendMode CASObjMode = CASBackendMode::Native;
 
     /// GuaranteedTailCallOpt - This flag is enabled when -tailcallopt is
     /// specified on the commandline. When the flag is on, participating targets

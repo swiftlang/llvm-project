@@ -43,6 +43,7 @@ class SectionRef;
 class SymbolRef;
 class symbol_iterator;
 class WasmObjectFile;
+class CASObjectFile;
 
 using section_iterator = content_iterator<SectionRef>;
 
@@ -390,6 +391,9 @@ public:
 
   static Expected<std::unique_ptr<WasmObjectFile>>
   createWasmObjectFile(MemoryBufferRef Object);
+
+  static Expected<std::unique_ptr<CASObjectFile>>
+  createCASObjectFile(MemoryBufferRef Object);
 };
 
 // Inline function definitions.

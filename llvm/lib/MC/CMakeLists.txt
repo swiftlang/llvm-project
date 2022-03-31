@@ -12,6 +12,8 @@ add_llvm_component_library(LLVMMC
   MCAsmMacro.cpp
   MCAsmStreamer.cpp
   MCAssembler.cpp
+  MCCASFlatV1.cpp
+  MCCASFormatSchemaBase.cpp
   MCCodeEmitter.cpp
   MCCodeView.cpp
   MCContext.cpp
@@ -59,6 +61,7 @@ add_llvm_component_library(LLVMMC
   MCXCOFFObjectTargetWriter.cpp
   MCXCOFFStreamer.cpp
   MachObjectWriter.cpp
+  MachOCASWriter.cpp
   SPIRVObjectWriter.cpp
   StringTableBuilder.cpp
   SubtargetFeature.cpp
@@ -73,6 +76,8 @@ add_llvm_component_library(LLVMMC
   LINK_COMPONENTS
   Support
   BinaryFormat
+  CAS
+  CASObjectFormats
   DebugInfoCodeView
   )
 

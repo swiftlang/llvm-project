@@ -125,6 +125,12 @@ class MachObjectWriter : public MCObjectWriter {
 
   void writeWithPadding(StringRef Str, uint64_t Size);
 
+  // Private data.
+  uint64_t LOHRawSize = 0;
+  uint64_t LOHSize = 0;
+  unsigned NumSymbols = 0;
+  unsigned SectionDataPadding = 0;
+
 public:
   MachObjectWriter(std::unique_ptr<MCMachObjectTargetWriter> MOTW,
                    raw_pwrite_stream &OS, bool IsLittleEndian)
@@ -266,6 +272,15 @@ public:
   uint64_t writeObject(MCAssembler &Asm, const MCAsmLayout &Layout) override;
 
   void writeAddrsigSection(MCAssembler &Asm);
+
+  // FIXME: Break down writeObject into following stages for slicing the output.
+  // This is a very rough slicing and need to be improved.
+  void prepareObject(MCAssembler &Asm, const MCAsmLayout &Layout);
+  void writeMachOHeader(MCAssembler &Asm, const MCAsmLayout &Layout);
+  void writeSectionData(MCAssembler &Asm, const MCAsmLayout &Layout);
+  void writeRelocations(MCAssembler &Asm, const MCAsmLayout &Layout);
+  void writeDataInCodeRegion(MCAssembler &Asm, const MCAsmLayout &Layout);
+  void writeSymbolTable(MCAssembler &Asm, const MCAsmLayout &Layout);
 };
 
 /// Construct a new Mach-O writer instance.

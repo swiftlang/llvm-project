@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Disassembler.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
@@ -34,10 +35,13 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/Target/TargetOptions.h"
+#include "llvm/Target/TargetOptions.h"
 
 using namespace llvm;
 
@@ -512,6 +516,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<buffer_ostream> BOS;
   raw_pwrite_stream *OS = &Out->os();
   std::unique_ptr<MCStreamer> Str;
+  auto CASDB = llvm::cas::createInMemoryCAS();
 
   std::unique_ptr<MCInstrInfo> MCII(TheTarget->createMCInstrInfo());
   assert(MCII && "Unable to create instruction info!");
@@ -561,12 +566,18 @@ int main(int argc, char **argv) {
       OS = BOS.get();
     }
 
+    // This is used for testing llvm-mc with CASBackend.
+    bool UseCASBackend = (TheTriple.getObjectFormat() == Triple::MachO) &&
+                         llvm::sys::Process::GetEnv("LLVM_TEST_CAS_BACKEND");
+
     MCCodeEmitter *CE = TheTarget->createMCCodeEmitter(*MCII, Ctx);
     MCAsmBackend *MAB = TheTarget->createMCAsmBackend(*STI, *MRI, MCOptions);
     Str.reset(TheTarget->createMCObjectStreamer(
         TheTriple, Ctx, std::unique_ptr<MCAsmBackend>(MAB),
-        DwoOut ? MAB->createDwoObjectWriter(*OS, DwoOut->os())
-               : MAB->createObjectWriter(*OS),
+        UseCASBackend ? MAB->createCASObjectWriter(*OS, TheTriple, *CASDB,
+                                                   llvm::CASBackendMode::Native)
+        : DwoOut      ? MAB->createDwoObjectWriter(*OS, DwoOut->os())
+                      : MAB->createObjectWriter(*OS),
         std::unique_ptr<MCCodeEmitter>(CE), *STI, MCOptions.MCRelaxAll,
         MCOptions.MCIncrementalLinkerCompatible,
         /*DWARFMustBeAtTheEnd*/ false));

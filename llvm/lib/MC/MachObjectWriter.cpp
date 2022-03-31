@@ -771,13 +771,12 @@ void MachObjectWriter::writeAddrsigSection(MCAssembler &Asm) {
     encodeULEB128(sym->getIndex(), OS);
 }
 
-uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
-                                       const MCAsmLayout &Layout) {
-  uint64_t StartOffset = W.OS.tell();
-
+void MachObjectWriter::prepareObject(MCAssembler &Asm,
+                                     const MCAsmLayout &Layout) {
   // Compute symbol table information and bind symbol indices.
   computeSymbolTable(Asm, LocalSymbolData, ExternalSymbolData,
                      UndefinedSymbolData);
+
   writeAddrsigSection(Asm);
 
   if (!Asm.CGProfile.empty()) {
@@ -796,7 +795,10 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
       support::endian::write(OS, CGPE.Count, W.Endian);
     }
   }
+}
 
+void MachObjectWriter::writeMachOHeader(MCAssembler &Asm,
+                                        const MCAsmLayout &Layout) {
   unsigned NumSections = Asm.size();
   const MCAssembler::VersionInfoType &VersionInfo =
     Layout.getAssembler().getVersionInfo();
@@ -836,15 +838,15 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
   }
 
   // Add the loh load command size, if used.
-  uint64_t LOHRawSize = Asm.getLOHContainer().getEmitSize(*this, Layout);
-  uint64_t LOHSize = alignTo(LOHRawSize, is64Bit() ? 8 : 4);
+  LOHRawSize = Asm.getLOHContainer().getEmitSize(*this, Layout);
+  LOHSize = alignTo(LOHRawSize, is64Bit() ? 8 : 4);
   if (LOHSize) {
     ++NumLoadCommands;
     LoadCommandsSize += sizeof(MachO::linkedit_data_command);
   }
 
   // Add the symbol table load command sizes, if used.
-  unsigned NumSymbols = LocalSymbolData.size() + ExternalSymbolData.size() +
+  NumSymbols = LocalSymbolData.size() + ExternalSymbolData.size() +
     UndefinedSymbolData.size();
   if (NumSymbols) {
     NumLoadCommands += 2;
@@ -883,7 +885,7 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
   // The section data is padded to pointer size bytes.
   //
   // FIXME: Is this machine dependent?
-  unsigned SectionDataPadding =
+  SectionDataPadding =
       offsetToAlignment(SectionDataFileSize, is64Bit() ? Align(8) : Align(4));
   SectionDataFileSize += SectionDataPadding;
 
@@ -1002,7 +1004,10 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
   // Write the linker options load commands.
   for (const auto &Option : Asm.getLinkerOptions())
     writeLinkerOptionsLoadCommand(Option);
+}
 
+void MachObjectWriter::writeSectionData(MCAssembler &Asm,
+                                        const MCAsmLayout &Layout) {
   // Write the actual section data.
   for (const MCSection &Sec : Asm) {
     Asm.writeSectionData(W.OS, &Sec, Layout);
@@ -1013,7 +1018,10 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
 
   // Write the extra padding.
   W.OS.write_zeros(SectionDataPadding);
+}
 
+void MachObjectWriter::writeRelocations(MCAssembler &Asm,
+                                        const MCAsmLayout &Layout) {
   // Write the relocation entries.
   for (const MCSection &Sec : Asm) {
     // Write the section relocation entries, in reverse order to match 'as'
@@ -1024,7 +1032,10 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
       W.write<uint32_t>(Rel.MRE.r_word1);
     }
   }
+}
 
+void MachObjectWriter::writeDataInCodeRegion(MCAssembler &Asm,
+                                             const MCAsmLayout &Layout) {
   // Write out the data-in-code region payload, if there is one.
   for (MCAssembler::const_data_region_iterator
          it = Asm.data_region_begin(), ie = Asm.data_region_end();
@@ -1058,7 +1069,10 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
         offsetToAlignment(LOHRawSize, is64Bit() ? Align(8) : Align(4)));
     assert(W.OS.tell() - Start == LOHSize);
   }
+}
 
+void MachObjectWriter::writeSymbolTable(MCAssembler &Asm,
+                                        const MCAsmLayout &Layout) {
   // Write the symbol table data, if used.
   if (NumSymbols) {
     // Write the indirect symbol entries.
@@ -1094,6 +1108,18 @@ uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
     // Write the string table.
     StringTable.write(W.OS);
   }
+}
+
+uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,
+                                       const MCAsmLayout &Layout) {
+  uint64_t StartOffset = W.OS.tell();
+
+  prepareObject(Asm, Layout);
+  writeMachOHeader(Asm, Layout);
+  writeSectionData(Asm, Layout);
+  writeRelocations(Asm, Layout);
+  writeDataInCodeRegion(Asm, Layout);
+  writeSymbolTable(Asm, Layout);
 
   return W.OS.tell() - StartOffset;
 }

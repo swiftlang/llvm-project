@@ -6378,6 +6378,18 @@ defm casid_output : BoolFOption<"casid-output",
                          " write a CASID for the output file.">,
     NegFlag<SetFalse>>;
 
+defm cas_backend : BoolFOption<"cas-backend",
+    CodeGenOpts<"UseCASBackend">, DefaultFalse,
+    PosFlag<SetTrue, [], "Enable using CASBackend for object file output">,
+    NegFlag<SetFalse>>;
+
+def fcas_backend_mode : Joined<["-"], "fcas-backend-mode=">,
+    Group<f_Group>, MetaVarName<"<native|casid|verify>">,
+    HelpText<"CASBackendMode for output kind">,
+    Values<"native,casid,verify">, NormalizedValuesScope<"llvm::CASBackendMode">,
+    NormalizedValues<["Native", "CASID", "Verify"]>,
+    MarshallingInfoEnum<CodeGenOpts<"CASObjMode">, "Native">;
+
 } // let Flags = [CC1Option, NoDriverOption]
 
 def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,

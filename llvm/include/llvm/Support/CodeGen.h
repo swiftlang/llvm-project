@@ -97,6 +97,13 @@ namespace llvm {
   };
   } // namespace ZeroCallUsedRegs
 
+  /// Enumeration value for CASObject format kind.
+  enum CASObjectSchemaKind {
+    Native,   ///< Native object file in CAS.
+    NestedV1, ///< NestedV1
+    FlatV1,   ///< FlatV1
+  };
+
   enum class UWTableKind {
     None = 0,  ///< No unwind table requested
     Sync = 1,  ///< "Synchronous" unwind tables

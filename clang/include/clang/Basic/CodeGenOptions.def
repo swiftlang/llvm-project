@@ -193,6 +193,7 @@ CODEGENOPT(StrictFloatCastOverflow, 1, 1)
 
 CODEGENOPT(UniformWGSize     , 1, 0) ///< -cl-uniform-work-group-size
 CODEGENOPT(NoZeroInitializedInBSS , 1, 0) ///< -fno-zero-initialized-in-bss.
+
 /// Method of Objective-C dispatch to use.
 ENUM_CODEGENOPT(ObjCDispatchMethod, ObjCDispatchMethodKind, 2, Legacy)
 /// Replace certain message sends with calls to ObjC runtime entrypoints
@@ -474,6 +475,13 @@ CODEGENOPT(SkipRaxSetup, 1, 0)
 /// Whether to zero out caller-used registers before returning.
 ENUM_CODEGENOPT(ZeroCallUsedRegs, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind,
                 5, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::Skip)
+
+/// Whether to use CASID backend.
+CODEGENOPT(UseCASBackend, 1, 0)
+
+/// The CASObjectFormat used when CAS output is used.
+ENUM_CODEGENOPT(CASObjMode, llvm::CASBackendMode,
+                2, llvm::CASBackendMode::Native)
 
 /// Whether to use opaque pointers.
 CODEGENOPT(OpaquePointers, 1, 0)

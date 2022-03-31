@@ -22,6 +22,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/Support/FileCollector.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/VirtualOutputBackend.h"
@@ -35,6 +36,7 @@
 namespace clang {
 
 class ASTReader;
+class CASOptions;
 class CompilerInstance;
 class CompilerInvocation;
 class DiagnosticsEngine;
