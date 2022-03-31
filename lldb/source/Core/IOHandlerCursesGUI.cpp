@@ -1611,7 +1611,7 @@ public:
   // Returns the index of the choice.
   int GetChoice() { return m_choice; }
 
-  void SetChoice(llvm::StringRef choice) {
+  void SetChoice(const std::string &choice) {
     for (int i = 0; i < GetNumberOfChoices(); i++) {
       if (choice == m_choices[i]) {
         m_choice = i;
@@ -1636,7 +1636,7 @@ public:
       : ChoicesFieldDelegate("Platform Plugin", 3, GetPossiblePluginNames()) {
     PlatformSP platform_sp = debugger.GetPlatformList().GetSelectedPlatform();
     if (platform_sp)
-      SetChoice(platform_sp->GetPluginName());
+      SetChoice(platform_sp->GetName().AsCString());
   }
 
   std::vector<std::string> GetPossiblePluginNames() {

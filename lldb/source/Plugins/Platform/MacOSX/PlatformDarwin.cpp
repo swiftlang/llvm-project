@@ -48,6 +48,9 @@
 using namespace lldb;
 using namespace lldb_private;
 
+/// Default Constructor
+PlatformDarwin::PlatformDarwin(bool is_host) : PlatformPOSIX(is_host) {}
+
 /// Destructor.
 ///
 /// The destructor is virtual since this class is designed to be

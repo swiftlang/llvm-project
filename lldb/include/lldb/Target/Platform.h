@@ -99,24 +99,6 @@ public:
                              const ArchSpec &process_host_arch = {},
                              ArchSpec *platform_arch_ptr = nullptr);
 
-  /// Get the platform for the given list of architectures.
-  ///
-  /// The algorithm works a follows:
-  ///
-  /// 1. Returns the selected platform if it matches any of the architectures.
-  /// 2. Returns the host platform if it matches any of the architectures.
-  /// 3. Returns the platform that matches all the architectures.
-  ///
-  /// If none of the above apply, this function returns a default platform. The
-  /// candidates output argument differentiates between either no platforms
-  /// supporting the given architecture or multiple platforms supporting the
-  /// given architecture.
-  static lldb::PlatformSP
-  GetPlatformForArchitectures(std::vector<ArchSpec> archs,
-                              const ArchSpec &process_host_arch,
-                              lldb::PlatformSP selected_platform_sp,
-                              std::vector<lldb::PlatformSP> &candidates);
-
   static const char *GetHostPlatformName();
 
   static void SetHostPlatform(const lldb::PlatformSP &platform_sp);
@@ -238,7 +220,7 @@ public:
   bool GetOSKernelDescription(std::string &s);
 
   // Returns the name of the platform
-  llvm::StringRef GetName() { return GetPluginName(); }
+  ConstString GetName();
 
   virtual const char *GetHostname();
 
@@ -532,17 +514,17 @@ public:
 
   virtual uint64_t ReadFile(lldb::user_id_t fd, uint64_t offset, void *dst,
                             uint64_t dst_len, Status &error) {
-    error.SetErrorStringWithFormatv(
-        "Platform::ReadFile() is not supported in the {0} platform",
-        GetPluginName());
+    error.SetErrorStringWithFormat(
+        "Platform::ReadFile() is not supported in the %s platform",
+        GetName().GetCString());
     return -1;
   }
 
   virtual uint64_t WriteFile(lldb::user_id_t fd, uint64_t offset,
                              const void *src, uint64_t src_len, Status &error) {
-    error.SetErrorStringWithFormatv(
-        "Platform::WriteFile() is not supported in the {0} platform",
-        GetPluginName());
+    error.SetErrorStringWithFormat(
+        "Platform::WriteFile() is not supported in the %s platform",
+        GetName().GetCString());
     return -1;
   }
 
@@ -870,9 +852,6 @@ public:
   }
 
 protected:
-  /// For unit testing purposes only.
-  static void Clear();
-
   /// Create a list of ArchSpecs with the given OS and a architectures. The
   /// vendor field is left as an "unspecified unknown".
   static std::vector<ArchSpec>

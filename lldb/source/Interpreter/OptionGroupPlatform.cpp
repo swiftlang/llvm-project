@@ -122,7 +122,7 @@ bool OptionGroupPlatform::PlatformMatches(
     const lldb::PlatformSP &platform_sp) const {
   if (platform_sp) {
     if (!m_platform_name.empty()) {
-      if (platform_sp->GetName() != m_platform_name)
+      if (platform_sp->GetName() != ConstString(m_platform_name.c_str()))
         return false;
     }
 

@@ -342,7 +342,7 @@ const char *SBPlatform::GetName() {
 
   PlatformSP platform_sp(GetSP());
   if (platform_sp)
-    return ConstString(platform_sp->GetName()).AsCString();
+    return platform_sp->GetName().GetCString();
   return nullptr;
 }
 
