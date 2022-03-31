@@ -40,16 +40,25 @@ public:
 
 class IndexDataStoreImpl {
   std::string FilePath;
+  std::map<std::string, std::string, std::greater<std::string>> PrefixMap;
   std::shared_ptr<UnitEventHandlerData> TheUnitEventHandlerData;
   std::unique_ptr<DirectoryWatcher> DirWatcher;
 
 public:
-  explicit IndexDataStoreImpl(StringRef indexStorePath)
-    : FilePath(indexStorePath) {
+  explicit IndexDataStoreImpl(StringRef indexStorePath,
+    std::map<std::string, std::string, std::greater<std::string>> prefixMap)
+    : FilePath(indexStorePath), PrefixMap(prefixMap) {
     TheUnitEventHandlerData = std::make_shared<UnitEventHandlerData>();
   }
 
   StringRef getFilePath() const { return FilePath; }
+  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
+      getPrefixMap() const {
+    std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> m;
+    for (const auto &Prefix : PrefixMap)
+      m.insert({Prefix.first, Prefix.second});
+    return m;
+  }
   bool foreachUnitName(bool sorted,
                        llvm::function_ref<bool(StringRef unitName)> receiver);
   void setUnitEventHandler(IndexDataStore::UnitEventHandler Handler);
@@ -180,7 +189,9 @@ void IndexDataStoreImpl::purgeStaleData() {
 
 
 std::unique_ptr<IndexDataStore>
-IndexDataStore::create(StringRef IndexStorePath, std::string &Error) {
+IndexDataStore::create(StringRef IndexStorePath,
+  std::map<std::string, std::string, std::greater<std::string>>
+      PrefixMap, std::string &Error) {
   if (!sys::fs::exists(IndexStorePath)) {
     raw_string_ostream OS(Error);
     OS << "index store path does not exist: " << IndexStorePath;
@@ -188,7 +199,7 @@ IndexDataStore::create(StringRef IndexStorePath, std::string &Error) {
   }
 
   return std::unique_ptr<IndexDataStore>(
-    new IndexDataStore(new IndexDataStoreImpl(IndexStorePath)));
+    new IndexDataStore(new IndexDataStoreImpl(IndexStorePath, PrefixMap)));
 }
 
 #define IMPL static_cast<IndexDataStoreImpl*>(Impl)
@@ -199,6 +210,11 @@ IndexDataStore::~IndexDataStore() {
 
 StringRef IndexDataStore::getFilePath() const {
   return IMPL->getFilePath();
+}
+
+std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
+    IndexDataStore::getPrefixMap() const {
+  return IMPL->getPrefixMap();
 }
 
 bool IndexDataStore::foreachUnitName(bool sorted,

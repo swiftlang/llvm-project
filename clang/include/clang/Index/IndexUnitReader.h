@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Chrono.h"
+#include <map>
 
 namespace clang {
 namespace index {
@@ -29,9 +30,12 @@ public:
 
   static std::unique_ptr<IndexUnitReader>
     createWithUnitFilename(StringRef UnitFilename, StringRef StorePath,
+      std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> PrefixMap,
                            std::string &Error);
   static std::unique_ptr<IndexUnitReader>
-    createWithFilePath(StringRef FilePath, std::string &Error);
+    createWithFilePath(StringRef FilePath,
+      std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> PrefixMap,
+                       std::string &Error);
 
   static Optional<llvm::sys::TimePoint<>>
     getModificationTimeForUnit(StringRef UnitFilename, StringRef StorePath,

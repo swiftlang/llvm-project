@@ -22,6 +22,8 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/raw_ostream.h"
+#include <map>
 
 #if INDEXSTORE_HAS_BLOCKS
 #include <Block.h>
@@ -98,6 +100,12 @@ indexstore_format_version(void) {
 
 indexstore_t
 indexstore_store_create(const char *store_path, indexstore_error_t *c_error) {
+  return indexstore_store_create_with_prefix_mapping(store_path, nullptr, 0, c_error);
+}
+
+indexstore_t
+indexstore_store_create_with_prefix_mapping(const char *store_path, const char **PrefixMappings,
+                        size_t NumMappings, indexstore_error_t *c_error) {
   // Look through the managed static to trigger construction of the managed
   // static which registers our fatal error handler. This ensures it is only
   // registered once.
@@ -105,7 +113,21 @@ indexstore_store_create(const char *store_path, indexstore_error_t *c_error) {
 
   std::unique_ptr<IndexDataStore> store;
   std::string error;
-  store = IndexDataStore::create(store_path, error);
+  std::map<std::string, std::string, std::greater<std::string>>
+      PrefixMap;
+  if (PrefixMappings != nullptr && NumMappings > 0) {
+    for (size_t i = 0; i < NumMappings; ++i) {
+      llvm::StringRef Mapping(PrefixMappings[i]);
+      if (!Mapping.contains('=')) {
+        raw_string_ostream OS(error);
+        OS << "invalid prefix mapping: " << Mapping;
+        return nullptr;
+      }
+      auto Split = Mapping.split('=');
+      PrefixMap.insert({Split.first.str(), Split.second.str()});
+    }
+  }
+  store = IndexDataStore::create(store_path, PrefixMap, error);
   if (!store) {
     if (c_error)
       *c_error = new IndexStoreError{ error };
@@ -575,12 +597,15 @@ indexstore_record_reader_occurrences_of_symbols_apply_f(indexstore_record_reader
 }
 
 size_t
-indexstore_store_get_unit_name_from_output_path(indexstore_t store,
+indexstore_store_get_unit_name_from_output_path(indexstore_t c_store,
                                                 const char *output_path,
                                                 char *name_buf,
                                                 size_t buf_size) {
+  IndexDataStore *store = static_cast<IndexDataStore*>(c_store);
   SmallString<256> unitName;
-  IndexUnitWriter::getUnitNameForAbsoluteOutputFile(output_path, unitName);
+  auto prefixMap = store->getPrefixMap();
+  IndexUnitWriter::getUnitNameForAbsoluteOutputFile(output_path, unitName,
+                                                    prefixMap);
   size_t nameLen = unitName.size();
   if (buf_size != 0) {
     strncpy(name_buf, unitName.c_str(), buf_size-1);
@@ -622,7 +647,9 @@ indexstore_unit_reader_create(indexstore_t c_store, const char *unit_name,
   std::unique_ptr<IndexUnitReader> reader;
   std::string error;
   reader = IndexUnitReader::createWithUnitFilename(unit_name,
-                                                   store->getFilePath(), error);
+                                                   store->getFilePath(),
+                                                   store->getPrefixMap(),
+                                                   error);
   if (!reader) {
     if (c_error)
       *c_error = new IndexStoreError{ error };

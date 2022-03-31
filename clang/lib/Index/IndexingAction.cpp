@@ -22,6 +22,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Serialization/ASTReader.h"
 #include "llvm/ADT/STLExtras.h"
+#include <map>
 #include <memory>
 
 using namespace clang;
@@ -828,11 +829,15 @@ static void writeUnitData(const CompilerInstance &CI,
         return Mod;
     return nullptr;
   };
+  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
+      PrefixMap;
+  for (const auto &KV : CI.getCodeGenOpts().DebugPrefixMap)
+    PrefixMap[KV.first] = KV.second;
 
   IndexUnitWriter UnitWriter(
       CI.getFileManager(), DataPath, "clang", getClangVersion(), OutputFile,
       ModuleName, RootFile, IsSystemUnit, IsModuleUnit, IsDebugCompilation,
-      CI.getTargetOpts().Triple, SysrootPath, getModuleInfo);
+      CI.getTargetOpts().Triple, SysrootPath, PrefixMap, getModuleInfo);
 
   DepProvider.visitFileDependencies(
       CI, [&](const FileEntry *FE, bool isSystemFile) {

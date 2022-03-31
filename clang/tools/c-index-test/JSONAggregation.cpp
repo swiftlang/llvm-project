@@ -382,9 +382,11 @@ void Aggregator::dumpJSON(raw_ostream &OS) {
 }
 
 
-bool index::aggregateDataAsJSON(StringRef StorePath, raw_ostream &OS) {
+bool index::aggregateDataAsJSON(StringRef StorePath,
+    std::map<std::string, std::string, std::greater<std::string>> PrefixMap,
+    raw_ostream &OS) {
   std::string error;
-  auto dataStore = IndexStore(StorePath, error);
+  auto dataStore = IndexStore(StorePath, PrefixMap, error);
   if (!dataStore) {
     errs() << "error opening store path '" << StorePath << "': " << error << '\n';
     return true;

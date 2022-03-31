@@ -133,6 +133,11 @@ typedef void *indexstore_t;
 INDEXSTORE_PUBLIC indexstore_t
 indexstore_store_create(const char *store_path, indexstore_error_t *error);
 
+INDEXSTORE_PUBLIC indexstore_t
+indexstore_store_create_with_prefix_mapping(
+    const char *store_path, const char **PrefixMappings,
+    size_t NumMappings,indexstore_error_t *error);
+
 INDEXSTORE_PUBLIC void
 indexstore_store_dispose(indexstore_t);
 

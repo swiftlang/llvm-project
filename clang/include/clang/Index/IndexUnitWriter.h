@@ -12,6 +12,7 @@
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallString.h"
+#include <map>
 #include <string>
 #include <vector>
 
@@ -57,6 +58,8 @@ class IndexUnitWriter {
   std::string TargetTriple;
   std::string WorkDir;
   std::string SysrootPath;
+  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
+      PrefixMap;
   std::function<writer::ModuleInfo(writer::OpaqueModule,
                             SmallVectorImpl<char> &Scratch)> GetInfoForModuleFn;
   struct FileInclude {
@@ -87,6 +90,8 @@ public:
   /// \param MainFile the main file for a compiled source file. This should be
   /// null for PCH and module units.
   /// \param IsSystem true for system module units, false otherwise.
+  /// \param PrefixMap Mapping to use to standardize file paths to make them
+  /// hermetic/reproducible. This applies to all paths emitted in the unit file.
   IndexUnitWriter(FileManager &FileMgr,
                   StringRef StorePath,
                   StringRef ProviderIdentifier, StringRef ProviderVersion,
@@ -98,6 +103,8 @@ public:
                   bool IsDebugCompilation,
                   StringRef TargetTriple,
                   StringRef SysrootPath,
+                  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
+                      PrefixMap,
                   writer::ModuleInfoWriterCallback GetInfoForModule);
   ~IndexUnitWriter();
 
@@ -120,7 +127,8 @@ public:
   Optional<bool> isUnitUpToDateForOutputFile(StringRef FilePath,
                                              Optional<StringRef> TimeCompareFilePath,
                                              std::string &Error);
-  static void getUnitNameForAbsoluteOutputFile(StringRef FilePath, SmallVectorImpl<char> &Str);
+  static void getUnitNameForAbsoluteOutputFile(StringRef FilePath, SmallVectorImpl<char> &Str,
+      std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> &PrefixMap);
   static bool initIndexDirectory(StringRef StorePath, std::string &Error);
 
 private:

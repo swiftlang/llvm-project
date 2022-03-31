@@ -15,6 +15,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Chrono.h"
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 
@@ -26,9 +27,14 @@ public:
   ~IndexDataStore();
 
   static std::unique_ptr<IndexDataStore>
-    create(StringRef IndexStorePath, std::string &Error);
+    create(StringRef IndexStorePath,
+      std::map<std::string, std::string, std::greater<std::string>>
+          PrefixMap,
+      std::string &Error);
 
   StringRef getFilePath() const;
+  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
+          getPrefixMap() const;
   bool foreachUnitName(bool sorted,
                        llvm::function_ref<bool(StringRef unitName)> receiver);
 
