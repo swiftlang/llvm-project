@@ -916,12 +916,12 @@ entryresume.3:
 ;; We reinitialize k in 4.
 ;; DWARF: DW_AT_linkage_name  ("$s27move_function_dbginfo_async16varSimpleTestVaryyYaFTY4_")
 ;; DWARF: DW_TAG_variable
+;; DWARF-NEXT: DW_AT_location  (DW_OP_entry_value(DW_OP_reg14 R14), DW_OP_plus_uconst 0x10, DW_OP_plus_uconst 0x10)
+;; DWARF-NEXT: DW_AT_name  ("m")
+;; DWARF: DW_TAG_variable
 ;; DWARF-NEXT: DW_AT_location  (0x{{[0-9a-f]+}}:
 ;; DWARF-NEXT: [0x{{[0-9a-f]+}}, 0x{{[0-9a-f]+}}): DW_OP_entry_value(DW_OP_reg14 R14), DW_OP_plus_uconst 0x10, DW_OP_plus_uconst 0x8)
 ;; DWARF-NEXT: DW_AT_name ("k")
-;; DWARF: DW_TAG_variable
-;; DWARF-NEXT: DW_AT_location  (DW_OP_entry_value(DW_OP_reg14 R14), DW_OP_plus_uconst 0x10, DW_OP_plus_uconst 0x10)
-;; DWARF-NEXT: DW_AT_name  ("m")
 define hidden swifttailcc void @"$s27move_function_dbginfo_async16varSimpleTestVaryyYaFTY4_"(i8* swiftasync %0) #2 !dbg !325 {
 entryresume.4:
   call void @llvm.dbg.declare(metadata i8* %0, metadata !329, metadata !DIExpression(DW_OP_plus_uconst, 16, DW_OP_plus_uconst, 16)), !dbg !330
