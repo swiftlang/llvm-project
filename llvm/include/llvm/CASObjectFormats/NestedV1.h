@@ -210,7 +210,11 @@ public:
   // FIXME: Support "huge" bit?
   static constexpr StringLiteral KindString = "cas.o:section";
 
-  cas::CASID getNameID() const { return getReference(0); }
+  cas::CASID getNameID() const {
+    Optional<cas::CASID> casID = getReference(0);
+    assert(casID);
+    return *casID;
+  }
   Expected<NameRef> getName() const {
     return NameRef::get(getSchema(), getNameID());
   }
@@ -347,7 +351,9 @@ public:
   Expected<TargetRef> operator[](size_t I) const { return get(I); }
   Expected<TargetRef> get(size_t I) const {
     assert(I < size() && "past the end");
-    return TargetRef::get(Node->getSchema(), Node->getReference(I + First));
+    Optional<cas::CASID> casID = Node->getReference(I + First);
+    assert(casID);
+    return TargetRef::get(Node->getSchema(), *casID);
   }
 
   TargetList() = default;
@@ -493,8 +499,16 @@ public:
   bool hasAbstractBackedge() const { return Flags.HasAbstractBackedge; }
   bool hasKeepAliveEdge() const { return Flags.HasKeepAliveEdge; }
 
-  cas::CASID getSectionID() const { return getReference(0); }
-  cas::CASID getDataID() const { return getReference(1); }
+  cas::CASID getSectionID() const {
+    Optional<cas::CASID> casID = getReference(0);
+    assert(casID);
+    return *casID;
+  }
+  cas::CASID getDataID() const {
+    Optional<cas::CASID> casID = getReference(1);
+    assert(casID);
+    return *casID;
+  }
 
 private:
   Optional<size_t> getTargetsIndex() const;
@@ -657,7 +671,11 @@ public:
            getMerge() == M_ByNameOrContent;
   }
 
-  cas::CASID getDefinitionID() const { return getReference(0); }
+  cas::CASID getDefinitionID() const {
+    Optional<cas::CASID> casID = getReference(0);
+    assert(casID);
+    return *casID;
+  }
   Optional<cas::CASID> getNameID() const {
     return hasName() ? getReference(1) : Optional<cas::CASID>();
   }
@@ -716,7 +734,11 @@ public:
     return getNumSymbols() - getNumAnonymousSymbols();
   }
   size_t getNumSymbols() const { return getNumReferences(); }
-  cas::CASID getSymbolID(size_t I) const { return getReference(I); }
+  cas::CASID getSymbolID(size_t I) const {
+    Optional<cas::CASID> casID = getReference(I);
+    assert(casID);
+    return *casID;
+  }
 
   Expected<SymbolRef> getSymbol(size_t I) const {
     return SymbolRef::get(getSchema().getNode(getSymbolID(I)));
@@ -749,7 +771,11 @@ public:
   static constexpr StringLiteral KindString = "cas.o:name-list";
 
   size_t getNumNames() const { return getNumReferences(); }
-  cas::CASID getNameID(size_t I) const { return getReference(I); }
+  cas::CASID getNameID(size_t I) const {
+    Optional<cas::CASID> casID = getReference(I);
+    assert(casID);
+    return *casID;
+  }
   Expected<NameRef> getName(size_t I) const {
     return NameRef::get(getSchema(), getNameID(I));
   }
@@ -916,13 +942,41 @@ public:
   unsigned getPointerSize() const { return PointerSize; }
   support::endianness getEndianness() const { return Endianness; }
 
-  cas::CASID getDeadStripNeverID() const { return getReference(1); }
-  cas::CASID getDeadStripLinkID() const { return getReference(2); }
-  cas::CASID getIndirectDeadStripCompileID() const { return getReference(3); }
-  cas::CASID getIndirectAnonymousID() const { return getReference(4); }
-  cas::CASID getStrongExternalsID() const { return getReference(5); }
-  cas::CASID getWeakExternalsID() const { return getReference(6); }
-  cas::CASID getUnreferencedID() const { return getReference(7); }
+  cas::CASID getDeadStripNeverID() const {
+    Optional<cas::CASID> casID = getReference(1);
+    assert(casID);
+    return *casID;
+  }
+  cas::CASID getDeadStripLinkID() const {
+    Optional<cas::CASID> casID = getReference(2);
+    assert(casID);
+    return *casID;
+  }
+  cas::CASID getIndirectDeadStripCompileID() const {
+    Optional<cas::CASID> casID = getReference(3);
+    assert(casID);
+    return *casID;
+  }
+  cas::CASID getIndirectAnonymousID() const {
+    Optional<cas::CASID> casID = getReference(4);
+    assert(casID);
+    return *casID;
+  }
+  cas::CASID getStrongExternalsID() const {
+    Optional<cas::CASID> casID = getReference(5);
+    assert(casID);
+    return *casID;
+  }
+  cas::CASID getWeakExternalsID() const {
+    Optional<cas::CASID> casID = getReference(6);
+    assert(casID);
+    return *casID;
+  }
+  cas::CASID getUnreferencedID() const {
+    Optional<cas::CASID> casID = getReference(7);
+    assert(casID);
+    return *casID;
+  }
   Expected<SymbolTableRef> getDeadStripNever() const {
     return SymbolTableRef::get(getSchema().getNode(getDeadStripNeverID()));
   }

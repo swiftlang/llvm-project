@@ -322,13 +322,15 @@ int listObjectReferences(CASDB &CAS, CASID ID) {
 int listObjectRecursively(CASDB &CAS, CASID ID) {
 
   ExitOnError ExitOnErr("llvm-cas: ls-node-recursively: ");
-  ExitOnErr(walkFileTreeRecursively(
-      CAS, ID,
-      [&](const NamedTreeEntry &Entry, Optional<TreeProxy> Tree) -> Error {
-        printTreeEntry(CAS, llvm::outs(), Entry);
+  ExitOnErr(walkObjectsRecursively(
+      CAS, ID, [&](const std::pair<CASID, unsigned> &Entry) -> Error {
+        for (unsigned i = 0; i < Entry.second; i++) {
+          llvm::outs() << "\t";
+        }
+
+        llvm::outs() << Entry.first << "\n";
         return Error::success();
-      },
-      true));
+      }));
 
   return 0;
 }

@@ -36,14 +36,11 @@ void writeCASIDBuffer(const CASID &ID, llvm::raw_ostream &OS);
 /// passes \p None.
 Error walkFileTreeRecursively(
     CASDB &CAS, CASID ID,
-    function_ref<Error(const NamedTreeEntry &, Optional<TreeProxy>)> Callback,
-    bool RecurseNode = false);
+    function_ref<Error(const NamedTreeEntry &, Optional<TreeProxy>)> Callback);
 
 Error walkObjectsRecursively(
     CASDB &CAS, CASID ID,
-    function_ref<
-        Error(const std::pair<CASID, std::pair<StringRef, unsigned>> &)>
-        Callback);
+    function_ref<Error(const std::pair<CASID, unsigned> &)> Callback);
 
 } // namespace cas
 } // namespace llvm

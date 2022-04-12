@@ -665,8 +665,9 @@ Expected<TargetList> BlockRef::getTargets() const {
     return TargetList();
   if (Flags.HasTargetInline)
     return TargetList(*this, *TargetsIndex, *TargetsIndex + 1);
-  if (Expected<TargetListRef> Targets =
-          TargetListRef::get(getSchema(), getReference(*TargetsIndex)))
+  Optional<cas::CASID> casID = getReference(*TargetsIndex);
+  assert(casID);
+  if (Expected<TargetListRef> Targets = TargetListRef::get(getSchema(), *casID))
     return Targets->getTargets();
   else
     return Targets.takeError();

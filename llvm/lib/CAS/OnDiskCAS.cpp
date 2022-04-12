@@ -783,14 +783,13 @@ private:
                                ArrayRef<StringRef> NameCache = None) const;
   NamedTreeEntry getInTree(const TreeProxy &Tree, size_t I) const final;
 
-  Expected<StringRef> getNodeName(const NodeProxy &Node, size_t I) const final;
-
   Error forEachEntryInTree(
       const TreeProxy &Tree,
       function_ref<Error(const NamedTreeEntry &)> Callback) const final;
 
   // NodeAPI.
-  CASID getReferenceInNode(const NodeProxy &Ref, size_t I) const final;
+  Optional<CASID> getReferenceInNode(const NodeProxy &Ref,
+                                     size_t I) const final;
   Error forEachReferenceInNode(const NodeProxy &Ref,
                                function_ref<Error(CASID)> Callback) const final;
 
@@ -1983,7 +1982,7 @@ NamedTreeEntry OnDiskCAS::makeTreeEntry(DataRecordHandle Record, size_t I,
                                         ArrayRef<StringRef> NameCache) const {
   size_t NumNames = Record.getNumRefs() / 2;
   assert(I < NumNames);
-  // assert(Record.getNumRefs() % 2 == 0);
+  assert(Record.getNumRefs() % 2 == 0);
   StringRef Name;
   if (NameCache.empty()) {
     Optional<StringRef> S = getString(Record.getRefs()[I]);
@@ -2064,17 +2063,6 @@ NamedTreeEntry OnDiskCAS::getInTree(const TreeProxy &Tree, size_t I) const {
   return makeTreeEntry(Record, I);
 }
 
-Expected<StringRef> OnDiskCAS::getNodeName(const NodeProxy &Node,
-                                           size_t I) const {
-  DataRecordHandle Record = DataRecordHandle::get(
-      reinterpret_cast<char *>(const_cast<void *>(getNodePtr(Node))));
-
-  Optional<StringRef> S = getString(Record.getRefs()[I]);
-  if (!S)
-    report_fatal_error("corrupt name in tree entry");
-  return *S;
-}
-
 Error OnDiskCAS::forEachEntryInTree(
     const TreeProxy &Tree,
     function_ref<Error(const NamedTreeEntry &)> Callback) const {
@@ -2089,13 +2077,13 @@ Error OnDiskCAS::forEachEntryInTree(
   return Error::success();
 }
 
-CASID OnDiskCAS::getReferenceInNode(const NodeProxy &Node, size_t I) const {
+Optional<CASID> OnDiskCAS::getReferenceInNode(const NodeProxy &Node,
+                                              size_t I) const {
   DataRecordHandle Record = DataRecordHandle::get(
       reinterpret_cast<char *>(const_cast<void *>(getNodePtr(Node))));
 
   Optional<CASID> ID = getCASID(Record.getRefs()[I]);
-  assert(ID);
-  return *ID;
+  return ID;
 }
 
 Error OnDiskCAS::forEachReferenceInNode(

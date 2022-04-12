@@ -433,14 +433,13 @@ private:
                                         StringRef Name) const final;
   NamedTreeEntry getInTree(const TreeProxy &Handle, size_t I) const final;
 
-  Expected<StringRef> getNodeName(const NodeProxy &Node, size_t I) const final;
-
   Error forEachEntryInTree(
       const TreeProxy &Tree,
       function_ref<Error(const NamedTreeEntry &)> Callback) const final;
 
   // NodeAPI.
-  CASID getReferenceInNode(const NodeProxy &Handle, size_t I) const final;
+  Optional<CASID> getReferenceInNode(const NodeProxy &Handle,
+                                     size_t I) const final;
   Error forEachReferenceInNode(const NodeProxy &Handle,
                                function_ref<Error(CASID)> Callback) const final;
 
@@ -705,7 +704,8 @@ Error InMemoryCAS::forEachEntryInTree(
   return Error::success();
 }
 
-CASID InMemoryCAS::getReferenceInNode(const NodeProxy &Handle, size_t I) const {
+Optional<CASID> InMemoryCAS::getReferenceInNode(const NodeProxy &Handle,
+                                                size_t I) const {
   auto &Node = *reinterpret_cast<const InMemoryNode *>(getNodePtr(Handle));
   assert(I < Node.getRefs().size() && "Invalid index");
   return getID(*Node.getRefs()[I]);
@@ -722,10 +722,4 @@ Error InMemoryCAS::forEachReferenceInNode(
 
 std::unique_ptr<CASDB> cas::createInMemoryCAS() {
   return std::make_unique<InMemoryCAS>();
-}
-
-Expected<StringRef> InMemoryCAS::getNodeName(const NodeProxy &Node,
-                                             size_t I) const {
-  return createStringError(std::make_error_code(std::errc::invalid_argument),
-                           "Cannot list nodes for an InMemoryCAS");
 }

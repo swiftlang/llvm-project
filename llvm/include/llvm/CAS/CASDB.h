@@ -107,7 +107,7 @@ public:
   CASDB &getCAS() const { return *CAS; }
 
   size_t getNumReferences() const { return NumReferences; }
-  inline CASID getReference(size_t I) const;
+  inline Optional<CASID> getReference(size_t I) const;
 
   /// Visit each reference in order, returning an error from \p Callback to
   /// stop early.
@@ -115,8 +115,6 @@ public:
 
   /// Get the content of the node. Valid as long as the CAS is valid.
   StringRef getData() const { return Data; }
-
-  inline Expected<StringRef> getName(size_t I) const;
 
   NodeProxy() = delete;
 
@@ -194,9 +192,6 @@ protected:
                                                 StringRef Name) const = 0;
   virtual NamedTreeEntry getInTree(const TreeProxy &Tree, size_t I) const = 0;
 
-  virtual Expected<StringRef> getNodeName(const NodeProxy &Node,
-                                          size_t I) const = 0;
-
   virtual Error forEachEntryInTree(
       const TreeProxy &Tree,
       function_ref<Error(const NamedTreeEntry &)> Callback) const = 0;
@@ -231,7 +226,8 @@ protected:
 
   // Support for NodeProxy.
   friend class NodeProxy;
-  virtual CASID getReferenceInNode(const NodeProxy &Ref, size_t I) const = 0;
+  virtual Optional<CASID> getReferenceInNode(const NodeProxy &Ref,
+                                             size_t I) const = 0;
   virtual Error
   forEachReferenceInNode(const NodeProxy &Ref,
                          function_ref<Error(CASID)> Callback) const = 0;
@@ -268,15 +264,12 @@ Error TreeProxy::forEachEntry(
   return CAS->forEachEntryInTree(*this, Callback);
 }
 
-CASID NodeProxy::getReference(size_t I) const {
+Optional<CASID> NodeProxy::getReference(size_t I) const {
   return CAS->getReferenceInNode(*this, I);
 }
 
 Error NodeProxy::forEachReference(function_ref<Error(CASID)> Callback) const {
   return CAS->forEachReferenceInNode(*this, Callback);
-}
-Expected<StringRef> NodeProxy::getName(size_t I) const {
-  return CAS->getNodeName(*this, I);
 }
 
 Expected<std::unique_ptr<CASDB>>
