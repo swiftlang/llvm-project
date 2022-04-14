@@ -245,12 +245,10 @@ ErrorOr<vfs::Status> DirectoryEntry::getStatus(const Twine &RequestedName) {
                      /*Group=*/0, Size, getFileType(), Permissions);
 }
 
-Expected<DirectoryEntry *> FileSystemCache::lookupPath(
-    StringRef Path, DirectoryEntry &WorkingDirectory,
-    RequestDirectoryEntryType RequestDirectoryEntry,
-    RequestSymlinkTargetType RequestSymlinkTarget,
-    PreloadTreePathType PreloadTreePath, bool FollowSymlinks,
-    function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries) {
+Expected<DirectoryEntry *>
+FileSystemCache::lookupPath(DiscoveryInstance &DI, StringRef Path,
+                            DirectoryEntry &WorkingDirectory,
+                            bool FollowSymlinks) {
   assert(Root && "Expected root filesystem to exist");
 
   struct WorklistNode {
@@ -274,9 +272,8 @@ Expected<DirectoryEntry *> FileSystemCache::lookupPath(
   while (!Worklist.empty()) {
     assert(Current);
     auto Work = Worklist.pop_back_val();
-    Expected<LookupPathState> Found = lookupRealPathPrefixFrom(
-        LookupPathState(*Current, Work.Remaining), RequestDirectoryEntry,
-        PreloadTreePath, TrackNonRealPathEntries);
+    Expected<LookupPathState> Found =
+        lookupRealPathPrefixFrom(DI, LookupPathState(*Current, Work.Remaining));
     if (!Found)
       return createFileError(Path, Found.takeError());
     Current = Found->Entry;
@@ -291,8 +288,7 @@ Expected<DirectoryEntry *> FileSystemCache::lookupPath(
     }
 
     // Save the progress in the builder.
-    if (TrackNonRealPathEntries)
-      TrackNonRealPathEntries(*Current);
+    DI.trackNonRealPathEntry(*Current);
 
     unsigned SymlinkDepth = Work.SymlinkDepth + 1;
     pushWork(Remaining, SymlinkDepth);
@@ -307,7 +303,7 @@ Expected<DirectoryEntry *> FileSystemCache::lookupPath(
           Path, make_error_code(std::errc::too_many_symbolic_link_levels));
 
     if (!Current->hasNode())
-      if (Error E = RequestSymlinkTarget(*Current))
+      if (Error E = DI.requestSymlinkTarget(*Current))
         return createFileError(Path, std::move(E));
     StringRef Target = Current->asSymlink().getTarget();
     if (Target.consume_front("/"))
@@ -361,13 +357,14 @@ FileSystemCache::lookupRealPathPrefixFromCached(
 }
 
 Expected<FileSystemCache::LookupPathState>
-FileSystemCache::lookupRealPathPrefixFrom(
-    LookupPathState State, RequestDirectoryEntryType RequestDirectoryEntry,
-    PreloadTreePathType &PreloadTreePath,
-    function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries) {
+FileSystemCache::lookupRealPathPrefixFrom(DiscoveryInstance &DI,
+                                          LookupPathState State) {
   assert(State.Entry);
+  bool LoadedRealPath = false;
   while (true) {
-    State = lookupRealPathPrefixFromCached(State, TrackNonRealPathEntries);
+    State = lookupRealPathPrefixFromCached(State, [&DI](DirectoryEntry &Entry) {
+      return DI.trackNonRealPathEntry(Entry);
+    });
 
     // Success!
     if (State.Remaining.empty())
@@ -378,25 +375,25 @@ FileSystemCache::lookupRealPathPrefixFrom(
         State.Entry->asDirectory().isComplete())
       return State;
 
-    // Can't look any further if we're not accessing the disk.
-    if (!RequestDirectoryEntry)
-      return State;
-
     // Cache the real path to avoid unnecessary component-by-component stat
     // calls.
-    if (PreloadTreePath) {
-      if (Error E = PreloadTreePath(*State.Entry, State.Remaining))
+    if (!LoadedRealPath) {
+      if (Error E = DI.preloadRealPath(*State.Entry, State.Remaining))
         return std::move(E);
-      PreloadTreePath = nullptr;
+      LoadedRealPath = true;
       continue;
     }
 
     // Read the next component from disk.
     Expected<DirectoryEntry *> Next =
-        RequestDirectoryEntry(*State.Entry, State.Name);
+        DI.requestDirectoryEntry(*State.Entry, State.Name);
     if (!Next)
       return Next.takeError();
-    assert(*Next);
+
+    // Can't look any further if we're not accessing the disk.
+    if (!*Next)
+      return State;
+
     State.advance(**Next);
   }
 }
@@ -494,3 +491,5 @@ FileSystemCache::VFSDirIterImpl::create(
       StringRef(HungOffParentPath, ParentPath.size()),
       makeArrayRef(HungOffEntries, Entries.size())));
 }
+
+FileSystemCache::DiscoveryInstance::~DiscoveryInstance() {}

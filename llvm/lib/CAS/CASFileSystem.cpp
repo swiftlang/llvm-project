@@ -314,34 +314,45 @@ CASFileSystem::getDirectoryIterator(const Twine &Path) {
       WorkingDirectory.Path, PathRef);
 }
 
-Expected<CASFileSystem::DirectoryEntry *>
-CASFileSystem::lookupPath(StringRef Path, bool FollowSymlinks) {
-  auto RequestDirectoryEntry =
-      [this](FileSystemCache::DirectoryEntry &Parent,
-             StringRef Name) -> Expected<DirectoryEntry *> {
+namespace {
+class CASFileSystemDI final : public FileSystemCache::DiscoveryInstance {
+public:
+  CASFileSystemDI(CASFileSystem &FS) : FS(FS) {}
+  ~CASFileSystemDI() {}
+
+private:
+  using DirectoryEntry = FileSystemCache::DirectoryEntry;
+
+  Expected<DirectoryEntry *> requestDirectoryEntry(DirectoryEntry &Parent,
+                                                   StringRef Name) override {
     if (Parent.asDirectory().isComplete())
       return errorCodeToError(
           std::make_error_code(std::errc::no_such_file_or_directory));
 
-    if (Error E = loadDirectory(Parent))
+    if (Error E = FS.loadDirectory(Parent))
       return std::move(E);
 
-    Directory &D = Parent.asDirectory();
+    CASFileSystem::Directory &D = Parent.asDirectory();
     assert(D.isComplete() && "Loaded directory should be complete");
     if (DirectoryEntry *Entry = D.lookup(Name))
       return Entry;
     return errorCodeToError(
         std::make_error_code(std::errc::no_such_file_or_directory));
-  };
-  auto RequestSymlinkTarget = [this](FileSystemCache::DirectoryEntry &Symlink) {
-    return loadSymlink(Symlink);
-  };
+  }
+  Error requestSymlinkTarget(DirectoryEntry &Symlink) override {
+    // FIXME: Need to handle lazy symlinks somehow.
+    return FS.loadSymlink(Symlink);
+  }
 
-  // FIXME: Need to handle lazy symlinks somehow.
-  return Cache->lookupPath(Path, *WorkingDirectory.Entry, RequestDirectoryEntry,
-                           RequestSymlinkTarget,
-                           /*PreloadTreePath=*/nullptr, FollowSymlinks,
-                           /*TrackNonRealPathEntries=*/nullptr);
+private:
+  CASFileSystem &FS;
+};
+} // end anonymous namespace
+
+Expected<CASFileSystem::DirectoryEntry *>
+CASFileSystem::lookupPath(StringRef Path, bool FollowSymlinks) {
+  CASFileSystemDI DI(*this);
+  return Cache->lookupPath(DI, Path, *WorkingDirectory.Entry, FollowSymlinks);
 }
 
 static Expected<std::unique_ptr<CASFileSystem>>

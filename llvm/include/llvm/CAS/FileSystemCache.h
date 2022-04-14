@@ -71,6 +71,29 @@ public:
     void skip() { advance(*Entry); }
   };
 
+  class DiscoveryInstance {
+  public:
+    virtual ~DiscoveryInstance();
+
+    /// Request a directory entry. The first parameter is the parent to look
+    /// under, the second is the name of the entry.
+    virtual Expected<DirectoryEntry *>
+    requestDirectoryEntry(DirectoryEntry &Parent, StringRef Name) = 0;
+
+    /// Request target of (lazy) symlink be filled in.
+    virtual Error requestSymlinkTarget(DirectoryEntry &Symlink) = 0;
+
+    /// Request a real path. The discovery instance should ensure this does
+    /// minimal work if called multiple times during a single lookup.
+    virtual Error preloadRealPath(DirectoryEntry &Parent, StringRef Remaining) {
+      return Error::success();
+    }
+
+    /// Symlinks and navigated-away-from directories are passed through as the
+    /// search progresses.
+    virtual void trackNonRealPathEntry(DirectoryEntry &Entry) {}
+  };
+
 public:
   /// Create a directory entry and a directory at \a TreePath when \p Parent's
   /// mutex is already locked.
@@ -124,18 +147,6 @@ public:
   /// Thread-safe; takes a lock on \c FileEntry.getParent()->Mutex.
   void finishLazyFile(DirectoryEntry &FileEntry, size_t Size);
 
-  /// Request a directory entry. The first parameter is the parent to look
-  /// under, the second is the name of the entry, and the third is true if the
-  /// name came from a call to \a PreloadTreePathType.
-  using RequestDirectoryEntryType =
-      function_ref<Expected<DirectoryEntry *>(DirectoryEntry &, StringRef)>;
-
-  /// Request target of (lazy) symlink be filled in.
-  using RequestSymlinkTargetType = function_ref<Error(DirectoryEntry &)>;
-
-  /// Request a real path.
-  using PreloadTreePathType = function_ref<Error(DirectoryEntry &, StringRef)>;
-
   /// Look up a directory entry in the CAS, navigating trees and resolving
   /// symlinks in the parent path. If \p FollowSymlinks is true, also follows
   /// symlinks in the filename.
@@ -143,12 +154,9 @@ public:
   /// If \p TrackNonRealPathEntries is given, symlinks and
   /// navigated-away-from directories are passed through as the search
   /// progresses.
-  Expected<DirectoryEntry *>
-  lookupPath(StringRef Path, DirectoryEntry &WorkingDirectory,
-             RequestDirectoryEntryType RequestDirectoryEntry,
-             RequestSymlinkTargetType RequestSymlinkTarget,
-             PreloadTreePathType PreloadTreePath, bool FollowSymlinks,
-             function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries);
+  Expected<DirectoryEntry *> lookupPath(DiscoveryInstance &DI, StringRef Path,
+                                        DirectoryEntry &WorkingDirectory,
+                                        bool FollowSymlinks);
 
   /// Look up a directory entry in the CAS, navigating through real paths but
   /// returning early on a symlink.
@@ -158,10 +166,8 @@ public:
 
   /// Look up a directory entry in the CAS, navigating through real paths but
   /// returning early on a symlink.
-  Expected<LookupPathState> lookupRealPathPrefixFrom(
-      LookupPathState State, RequestDirectoryEntryType RequestDirectoryEntry,
-      PreloadTreePathType &PreloadTreePath,
-      function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries);
+  Expected<LookupPathState> lookupRealPathPrefixFrom(DiscoveryInstance &DI,
+                                                     LookupPathState State);
 
   /// Lookup \p Path, knowing that \a sys::fs::real_path() was called and
   /// failed.

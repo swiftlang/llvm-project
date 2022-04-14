@@ -129,12 +129,23 @@ public:
       : CachingOnDiskFileSystem(Proxy), Cache(Proxy.Cache),
         WorkingDirectory(Proxy.WorkingDirectory) {}
 
+  bool isTrackingAccess() const {
+    std::lock_guard<std::mutex> Lock(TrackedAccessesMutex);
+    return TrackedAccesses ? true : false;
+  }
+
+  void trackAccess(const DirectoryEntry &Entry) {
+    std::lock_guard<std::mutex> Lock(TrackedAccessesMutex);
+    if (TrackedAccesses)
+      TrackedAccesses->insert(&Entry);
+  }
+
 private:
   void initializeWorkingDirectory();
 
   // Cached stats. Useful for tracking everything that has been stat'ed.
   Optional<DenseSet<const DirectoryEntry *>> TrackedAccesses;
-  std::mutex TrackedAccessesMutex;
+  mutable std::mutex TrackedAccessesMutex;
 
   IntrusiveRefCntPtr<FileSystemCache> Cache;
   WorkingDirectoryType WorkingDirectory;
@@ -522,52 +533,65 @@ Error CachingOnDiskFileSystemImpl::preloadRealPath(DirectoryEntry &From,
   return Error::success();
 }
 
+namespace {
+class OnDiskCachingFileSystemDI final
+    : public FileSystemCache::DiscoveryInstance {
+public:
+  using DirectoryEntry = FileSystemCache::DirectoryEntry;
+  OnDiskCachingFileSystemDI(
+      CachingOnDiskFileSystemImpl &FS,
+      function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries,
+      bool IsTrackingStats, bool LookupOnDisk)
+      : FS(FS), TrackNonRealPathEntries(TrackNonRealPathEntries),
+        IsTrackingStats(IsTrackingStats), LookupOnDisk(LookupOnDisk) {}
+  ~OnDiskCachingFileSystemDI() {}
+
+private:
+  Expected<DirectoryEntry *> requestDirectoryEntry(DirectoryEntry &Parent,
+                                                   StringRef Name) override {
+    if (LookupOnDisk)
+      return FS.lookupOnDiskFrom(Parent, Name);
+    return nullptr;
+  }
+  Error requestSymlinkTarget(DirectoryEntry &Symlink) override {
+    assert(Symlink.hasNode());
+    return Error::success();
+  }
+  Error preloadRealPath(DirectoryEntry &Parent, StringRef Remaining) override {
+    if (LookupOnDisk && !ComputedRealPath) {
+      ComputedRealPath = true;
+      return FS.preloadRealPath(Parent, Remaining);
+    }
+    return Error::success();
+  }
+  void trackNonRealPathEntry(DirectoryEntry &Entry) override {
+    if (TrackNonRealPathEntries)
+      TrackNonRealPathEntries(Entry);
+    if (IsTrackingStats)
+      FS.trackAccess(Entry);
+  }
+
+private:
+  CachingOnDiskFileSystemImpl &FS;
+  function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries;
+  bool IsTrackingStats;
+  bool LookupOnDisk;
+  bool ComputedRealPath = false;
+};
+} // end anonymous namespace
+
 Expected<FileSystemCache::DirectoryEntry *>
 CachingOnDiskFileSystemImpl::lookupPath(
     StringRef Path, bool FollowSymlinks, bool LookupOnDisk,
     function_ref<void(FileSystemCache::DirectoryEntry &)>
         TrackNonRealPathEntries) {
-  auto RequestDirectoryEntryHelper =
-      [this](FileSystemCache::DirectoryEntry &Parent, StringRef Name) {
-        return lookupOnDiskFrom(Parent, Name);
-      };
-  auto PreloadTreePathHelper = [this](DirectoryEntry &From,
-                                      StringRef Remaining) {
-    return preloadRealPath(From, Remaining);
-  };
-
-  bool IsTrackingStats = false;
-  {
-    std::lock_guard<std::mutex> Lock(TrackedAccessesMutex);
-    IsTrackingStats = TrackedAccesses ? true : false;
-  }
-
-  auto TrackNonRealPathEntriesHelper =
-      [this, TrackNonRealPathEntries](FileSystemCache::DirectoryEntry &Entry) {
-        if (TrackNonRealPathEntries)
-          TrackNonRealPathEntries(Entry);
-        std::lock_guard<std::mutex> Lock(TrackedAccessesMutex);
-        TrackedAccesses->insert(&Entry);
-      };
-
-  // Careful of use-after-scope.
-  FileSystemCache::RequestDirectoryEntryType RequestDirectoryEntry = nullptr;
-  FileSystemCache::PreloadTreePathType PreloadTreePath = nullptr;
-  if (LookupOnDisk) {
-    RequestDirectoryEntry = RequestDirectoryEntryHelper;
-    PreloadTreePath = PreloadTreePathHelper;
-  }
-  if (TrackedAccesses)
-    TrackNonRealPathEntries = TrackNonRealPathEntriesHelper;
-
+  bool IsTrackingStats = isTrackingAccess();
+  OnDiskCachingFileSystemDI DI(*this, TrackNonRealPathEntries, IsTrackingStats,
+                               LookupOnDisk);
   Expected<DirectoryEntry *> ExpectedEntry =
-      Cache->lookupPath(Path, *WorkingDirectory.Entry, RequestDirectoryEntry,
-                        /*RequestSymlinkTarget=*/nullptr, PreloadTreePath,
-                        FollowSymlinks, TrackNonRealPathEntries);
-  if (IsTrackingStats && ExpectedEntry && *ExpectedEntry) {
-    std::lock_guard<std::mutex> Lock(TrackedAccessesMutex);
-    TrackedAccesses->insert(*ExpectedEntry);
-  }
+      Cache->lookupPath(DI, Path, *WorkingDirectory.Entry, FollowSymlinks);
+  if (IsTrackingStats && ExpectedEntry && *ExpectedEntry)
+    trackAccess(**ExpectedEntry);
   return ExpectedEntry;
 }
 
