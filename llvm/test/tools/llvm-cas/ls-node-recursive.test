@@ -1,6 +1,6 @@
 RUN: rm -rf %t && mkdir -p %t
-RUN: clang %S/Inputs/test_a.cpp -c -gcas-friendly-debug-info -o %t/test_a.o
-RUN: clang %S/Inputs/test_b.cpp -c -gcas-friendly-debug-info -o %t/test_b.o
+RUN: clang %S/Inputs/test_a.cpp -c -gcas-friendly-debug-info --target=x86_64-apple-darwin21.1.0 -o %t/test_a.o
+RUN: clang %S/Inputs/test_b.cpp -c -gcas-friendly-debug-info --target=x86_64-apple-darwin21.1.0 -o %t/test_b.o
 RUN: find %t -name "*.o" &> %t/objects_to_ingest
 
 RUN: llvm-cas-object-format --cas %t/cas --object-stats --ingest-schema=flatv1 @%t/objects_to_ingest -silent | grep "llvmcas://" | xargs -I{}  llvm-cas --ls-node-recursive {} --cas %t/cas | FileCheck %s 
