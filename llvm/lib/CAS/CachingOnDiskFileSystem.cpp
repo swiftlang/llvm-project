@@ -65,6 +65,9 @@ public:
   Expected<DirectoryEntry *> makeSymlink(DirectoryEntry &Parent,
                                          const std::string &TreePath);
 
+  Expected<DirectoryEntry *>
+  makeSymlinkTo(DirectoryEntry &Parent, StringRef TreePath, StringRef Target);
+
   Expected<DirectoryEntry *> makeFile(DirectoryEntry &Parent,
                                       StringRef TreePath, int BorrowedFD,
                                       sys::fs::file_status Status);
@@ -72,9 +75,16 @@ public:
   /// Preload the real path for \p Remaining, relative to \p From.
   Error preloadRealPath(DirectoryEntry &From, StringRef Remaining);
 
-  /// Look up a name on disk inside \p From.
+  /// Look up a name on disk inside \p Parent.
+  ///
+  /// \param Parent The path to look in.
+  /// \param Name The new path component to lookup.
+  /// \param ExpectNonCanonical Whether \p Name failed to match the result from
+  ///                           \c preloadRealPath, indicating that it should be
+  ///                           a non-canonical element such as a symlink.
   Expected<DirectoryEntry *> lookupOnDiskFrom(DirectoryEntry &Parent,
-                                              StringRef Name);
+                                              StringRef Name,
+                                              bool ExpectNonCanonical = false);
 
   ErrorOr<vfs::Status> statusAndFileID(const Twine &Path,
                                        Optional<CASID> &FileID) final;
@@ -265,11 +275,16 @@ CachingOnDiskFileSystemImpl::makeSymlink(DirectoryEntry &Parent,
   if (TargetLength == -1)
     return errorCodeToError(std::error_code(errno, std::generic_category()));
   StringRef Target = StringRef(TargetBuffer, TargetLength);
+  return makeSymlinkTo(Parent, TreePath, Target);
+}
 
+Expected<FileSystemCache::DirectoryEntry *>
+CachingOnDiskFileSystemImpl::makeSymlinkTo(DirectoryEntry &Parent,
+                                           StringRef TreePath,
+                                           StringRef Target) {
   Expected<BlobProxy> Blob = DB.createBlob(Target);
   if (!Blob)
     return Blob.takeError();
-
   return &Cache->makeSymlink(Parent, TreePath, *Blob, **Blob);
 }
 
@@ -290,7 +305,8 @@ CachingOnDiskFileSystemImpl::makeFile(DirectoryEntry &Parent,
 
 Expected<FileSystemCache::DirectoryEntry *>
 CachingOnDiskFileSystemImpl::lookupOnDiskFrom(DirectoryEntry &Parent,
-                                              StringRef Name) {
+                                              StringRef Name,
+                                              bool ExpectNonCanonical) {
   assert(Parent.isDirectory() && "Expected a directory");
 
   // Open the path on disk.
@@ -304,19 +320,61 @@ CachingOnDiskFileSystemImpl::lookupOnDiskFrom(DirectoryEntry &Parent,
   if (std::error_code EC = sys::fs::status(Path, Status, /*follow=*/false))
     return errorCodeToError(EC);
 
-  if (Status.type() == sys::fs::file_type::directory_file)
-    return makeDirectory(Parent, Path);
+  auto MakeEntry =
+      [this, &Parent](
+          const std::string &Path,
+          const sys::fs::file_status &Status) -> Expected<DirectoryEntry *> {
+    if (Status.type() == sys::fs::file_type::directory_file)
+      return makeDirectory(Parent, Path);
 
-  if (Status.type() == sys::fs::file_type::symlink_file)
-    return makeSymlink(Parent, Path);
+    if (Status.type() == sys::fs::file_type::symlink_file)
+      return makeSymlink(Parent, Path);
 
-  int FD;
-  if (std::error_code EC =
-          sys::fs::openFile(Path, FD, sys::fs::CD_OpenExisting,
-                            sys::fs::FA_Read, sys::fs::OF_None))
+    int FD;
+    if (std::error_code EC =
+            sys::fs::openFile(Path, FD, sys::fs::CD_OpenExisting,
+                              sys::fs::FA_Read, sys::fs::OF_None))
+      return errorCodeToError(EC);
+    auto CloseOnExit = make_scope_exit([&FD]() { ::close(FD); });
+    return makeFile(Parent, Path, FD, Status);
+  };
+
+  if (!ExpectNonCanonical || Status.type() == sys::fs::file_type::symlink_file)
+    return MakeEntry(Path, Status);
+
+  // We expected a non-canonical path, but it's not a symlink. Either the path
+  // is a case-insensitive match, or the filesystem has been modified. Try to
+  // find the real path in the same directory, and if it exists assume a case-
+  // insensitive match. Do *not* check the name, since we do not know how the
+  // underlying filesystem handles non-ascii case comparison.
+  // FIXME: reuse the real_path from preloadRealPath if the case-insensitive
+  // match is only in the final path component.
+  SmallString<128> Storage;
+  if (std::error_code EC = sys::fs::real_path(Path, Storage))
     return errorCodeToError(EC);
-  auto CloseOnExit = make_scope_exit([&FD]() { ::close(FD); });
-  return makeFile(Parent, Path, FD, Status);
+  std::string RealFilename = sys::path::filename(Storage).str();
+  if (RealFilename != Name) {
+    Storage.assign(ParentPath);
+    sys::path::append(Storage, RealFilename);
+    sys::fs::file_status RealStatus;
+    if (sys::fs::status(Storage, RealStatus, /*follow=*/false) ==
+            std::error_code() &&
+        RealStatus.type() != sys::fs::file_type::symlink_file &&
+        RealStatus.getUniqueID() == Status.getUniqueID()) {
+      // Create an entry for RealFilename, and a fake symlink to the real path
+      // so that the result has the correct real path and uniqueid.
+      // FIXME: This code may also be reachable on a case-sensitive filesytem
+      // if there is a hard link in the same directory and we got unlucky with
+      // F_GETPATH on Darwin, where it is non-deterministic for hard links.
+      auto Entry = MakeEntry(Storage.str().str(), RealStatus);
+      if (Entry)
+        return makeSymlinkTo(Parent, Path, RealFilename);
+      consumeError(Entry.takeError());
+    }
+  }
+  // Otherwise, the filesystem has been modified. Fallthough and recover by
+  // creating a new entry.
+  return MakeEntry(Path, Status);
 }
 
 ErrorOr<vfs::Status>
@@ -528,8 +586,9 @@ CachingOnDiskFileSystemImpl::lookupPath(
     function_ref<void(FileSystemCache::DirectoryEntry &)>
         TrackNonRealPathEntries) {
   auto RequestDirectoryEntryHelper =
-      [this](FileSystemCache::DirectoryEntry &Parent, StringRef Name) {
-        return lookupOnDiskFrom(Parent, Name);
+      [this](FileSystemCache::DirectoryEntry &Parent, StringRef Name,
+             bool ExpectNonCanonical) {
+        return lookupOnDiskFrom(Parent, Name, ExpectNonCanonical);
       };
   auto PreloadTreePathHelper = [this](DirectoryEntry &From,
                                       StringRef Remaining) {

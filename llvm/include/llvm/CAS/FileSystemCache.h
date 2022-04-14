@@ -126,9 +126,10 @@ public:
 
   /// Request a directory entry. The first parameter is the parent to look
   /// under, the second is the name of the entry, and the third is true if the
-  /// name came from a call to \a PreloadTreePathType.
-  using RequestDirectoryEntryType =
-      function_ref<Expected<DirectoryEntry *>(DirectoryEntry &, StringRef)>;
+  /// name is requested because a prior result from PreloadTreePath failed to
+  /// match at this position.
+  using RequestDirectoryEntryType = function_ref<Expected<DirectoryEntry *>(
+      DirectoryEntry &, StringRef, bool)>;
 
   /// Request target of (lazy) symlink be filled in.
   using RequestSymlinkTargetType = function_ref<Error(DirectoryEntry &)>;
@@ -160,7 +161,7 @@ public:
   /// returning early on a symlink.
   Expected<LookupPathState> lookupRealPathPrefixFrom(
       LookupPathState State, RequestDirectoryEntryType RequestDirectoryEntry,
-      PreloadTreePathType &PreloadTreePath,
+      PreloadTreePathType PreloadTreePath,
       function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries);
 
   /// Lookup \p Path, knowing that \a sys::fs::real_path() was called and

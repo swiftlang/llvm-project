@@ -316,9 +316,9 @@ CASFileSystem::getDirectoryIterator(const Twine &Path) {
 
 Expected<CASFileSystem::DirectoryEntry *>
 CASFileSystem::lookupPath(StringRef Path, bool FollowSymlinks) {
-  auto RequestDirectoryEntry =
-      [this](FileSystemCache::DirectoryEntry &Parent,
-             StringRef Name) -> Expected<DirectoryEntry *> {
+  auto RequestDirectoryEntry = [this](FileSystemCache::DirectoryEntry &Parent,
+                                      StringRef Name,
+                                      bool) -> Expected<DirectoryEntry *> {
     if (Parent.asDirectory().isComplete())
       return errorCodeToError(
           std::make_error_code(std::errc::no_such_file_or_directory));

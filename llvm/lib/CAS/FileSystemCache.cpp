@@ -363,9 +363,10 @@ FileSystemCache::lookupRealPathPrefixFromCached(
 Expected<FileSystemCache::LookupPathState>
 FileSystemCache::lookupRealPathPrefixFrom(
     LookupPathState State, RequestDirectoryEntryType RequestDirectoryEntry,
-    PreloadTreePathType &PreloadTreePath,
+    PreloadTreePathType PreloadTreePath,
     function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries) {
   assert(State.Entry);
+  bool ExpectNonCanon = false;
   while (true) {
     State = lookupRealPathPrefixFromCached(State, TrackNonRealPathEntries);
 
@@ -388,16 +389,18 @@ FileSystemCache::lookupRealPathPrefixFrom(
       if (Error E = PreloadTreePath(*State.Entry, State.Remaining))
         return std::move(E);
       PreloadTreePath = nullptr;
+      ExpectNonCanon = true;
       continue;
     }
 
     // Read the next component from disk.
     Expected<DirectoryEntry *> Next =
-        RequestDirectoryEntry(*State.Entry, State.Name);
+        RequestDirectoryEntry(*State.Entry, State.Name, ExpectNonCanon);
     if (!Next)
       return Next.takeError();
     assert(*Next);
     State.advance(**Next);
+    ExpectNonCanon = false;
   }
 }
 

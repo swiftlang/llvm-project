@@ -383,4 +383,108 @@ TEST(CachingOnDiskFileSystemTest, getRealPath) {
   EXPECT_EQ(FilePath, LinkPath);
 }
 
+TEST(CachingOnDiskFileSystemTest, caseSensitivityFile) {
+  TempDir D("caching-on-disk-file-system-test", /*Unique=*/true);
+  IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS =
+      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+  ASSERT_FALSE(FS->setCurrentWorkingDirectory(D.path()));
+
+  std::vector<std::pair<std::string, std::string>> Files = {{"file", "File"},
+                                                            {"filé", "filÉ"}};
+
+  for (auto &Pair : Files) {
+    TempFile File1(D.path(Pair.first), "", "content");
+    TempFile File2(D.path(Pair.second), "", "content");
+    SmallString<128> File1PathReal, File2PathReal;
+    ASSERT_EQ(llvm::sys::fs::real_path(File1.path(), File1PathReal),
+              std::error_code());
+    ASSERT_EQ(llvm::sys::fs::real_path(File2.path(), File2PathReal),
+              std::error_code());
+    SmallString<128> File1Path, File2Path;
+    EXPECT_FALSE(FS->getRealPath(File1.path(), File1Path));
+    EXPECT_FALSE(FS->getRealPath(File2.path(), File2Path));
+    EXPECT_EQ(File1Path, File1PathReal);
+    llvm::vfs::Status Stat1, Stat2;
+    ASSERT_THAT_ERROR(
+        errorOrToExpected(FS->status(File1.path())).moveInto(Stat1),
+        Succeeded());
+    ASSERT_THAT_ERROR(
+        errorOrToExpected(FS->status(File2.path())).moveInto(Stat2),
+        Succeeded());
+
+    if (File1PathReal == File2PathReal) {
+      // Case-insensitive underlying filesystem.
+      EXPECT_EQ(File1Path, File2Path);
+      EXPECT_EQ(Stat1.getUniqueID(), Stat2.getUniqueID());
+    } else {
+      // Case-sensitive underlying filesystem.
+      EXPECT_EQ(File2Path, File2PathReal);
+      EXPECT_NE(File1Path, File2Path);
+      EXPECT_NE(Stat1.getUniqueID(), Stat2.getUniqueID());
+    }
+  }
+}
+
+TEST(CachingOnDiskFileSystemTest, caseSensitivityDir) {
+  TempDir D("caching-on-disk-file-system-test", /*Unique=*/true);
+  IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS =
+      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+  ASSERT_FALSE(FS->setCurrentWorkingDirectory(D.path()));
+
+  TempDir Dir1(D.path("dir"));
+  TempDir Dir2(D.path("Dir"));
+  TempDir Dir3(Dir1.path("dir"));
+  TempDir Dir4(Dir1.path("Dir"));
+
+  std::vector<std::pair<std::string, std::string>> Files = {
+      {"file", "file"},         // noncanon/canon
+      {"file", "File"},         // noncanon/noncanon
+      {"dir/file", "dir/file"}, // noncanon/canon/canon
+      {"dir/file", "dir/File"}, // noncanon/canon/noncanon
+      {"dir/file", "Dir/file"}, // noncanon/noncanon/canon
+      {"dir/file", "Dir/File"}, // noncanon/noncanon/noncanon
+  };
+
+  for (auto &Pair : Files) {
+    TempFile File1(Dir1.path(Pair.first), "", "content");
+    TempFile File2(Dir2.path(Pair.second), "", "content");
+
+    SmallString<128> File1PathReal, File2PathReal;
+    ASSERT_EQ(llvm::sys::fs::real_path(File1.path(), File1PathReal),
+              std::error_code());
+    ASSERT_EQ(llvm::sys::fs::real_path(File2.path(), File2PathReal),
+              std::error_code());
+    SmallString<128> File1Path, File2Path;
+    EXPECT_FALSE(FS->getRealPath(File1.path(), File1Path));
+    EXPECT_FALSE(FS->getRealPath(File2.path(), File2Path));
+    EXPECT_EQ(File1Path, File1PathReal);
+    llvm::vfs::Status StatD1, StatD2, StatF1, StatF2;
+    ASSERT_THAT_ERROR(
+        errorOrToExpected(FS->status(Dir1.path())).moveInto(StatD1),
+        Succeeded());
+    ASSERT_THAT_ERROR(
+        errorOrToExpected(FS->status(Dir2.path())).moveInto(StatD2),
+        Succeeded());
+    ASSERT_THAT_ERROR(
+        errorOrToExpected(FS->status(File1.path())).moveInto(StatF1),
+        Succeeded());
+    ASSERT_THAT_ERROR(
+        errorOrToExpected(FS->status(File2.path())).moveInto(StatF2),
+        Succeeded());
+
+    if (File1PathReal == File2PathReal) {
+      // Case-insensitive underlying filesystem.
+      EXPECT_EQ(File1Path, File2Path);
+      EXPECT_EQ(StatD1.getUniqueID(), StatD2.getUniqueID());
+      EXPECT_EQ(StatF1.getUniqueID(), StatF2.getUniqueID());
+    } else {
+      // Case-sensitive underlying filesystem.
+      EXPECT_EQ(File2Path, File2PathReal);
+      EXPECT_NE(File1Path, File2Path);
+      EXPECT_NE(StatD1.getUniqueID(), StatD2.getUniqueID());
+      EXPECT_NE(StatF1.getUniqueID(), StatF2.getUniqueID());
+    }
+  }
+}
+
 } // namespace
