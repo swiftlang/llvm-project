@@ -95,7 +95,7 @@ int main(int Argc, char **Argv) {
           clEnumValN(IngestFileSystem, "ingest", "ingest file system"),
           clEnumValN(MergeTrees, "merge", "merge paths/cas-ids"),
           clEnumValN(GetCASIDForFile, "get-cas-id", "get cas id for file"),
-          clEnumValN(ListObjectRecursive, "ls-node-recursive",
+          clEnumValN(ListObjectRecursive, "ls-object-recursive",
                      "list node recursive")),
       cl::init(CommandKind::Invalid));
 
@@ -323,12 +323,8 @@ int listObjectRecursively(CASDB &CAS, CASID ID) {
 
   ExitOnError ExitOnErr("llvm-cas: ls-node-recursively: ");
   ExitOnErr(walkObjectsRecursively(
-      CAS, ID, [&](const std::pair<CASID, unsigned> &Entry) -> Error {
-        for (unsigned i = 0; i < Entry.second; i++) {
-          llvm::outs() << "\t";
-        }
-
-        llvm::outs() << Entry.first << "\n";
+      CAS, ID, [&](const CASID ID, unsigned Indent) -> Error {
+        llvm::outs().indent(Indent) << ID << "\n";
         return Error::success();
       }));
 

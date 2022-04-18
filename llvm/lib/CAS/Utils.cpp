@@ -86,17 +86,15 @@ Error cas::walkFileTreeRecursively(
 }
 
 Error cas::walkObjectsRecursively(
-    CASDB &CAS, CASID ID,
-    function_ref<Error(const std::pair<CASID, unsigned> &)> Callback) {
+    CASDB &CAS, CASID ID, function_ref<Error(const CASID, unsigned)> Callback) {
 
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
-  SmallString<128> PathStorage;
   SmallVector<std::pair<CASID, unsigned>> Stack;
   Stack.emplace_back(ID, 0);
 
   while (!Stack.empty()) {
-    if (Error E = Callback(Stack.back()))
+    if (Error E = Callback(Stack.back().first, Stack.back().second))
       return E;
 
     std::pair<CASID, unsigned> Parent = Stack.pop_back_val();

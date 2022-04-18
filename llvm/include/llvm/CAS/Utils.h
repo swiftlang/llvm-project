@@ -38,9 +38,17 @@ Error walkFileTreeRecursively(
     CASDB &CAS, CASID ID,
     function_ref<Error(const NamedTreeEntry &, Optional<TreeProxy>)> Callback);
 
+/// Visit each file entry using preorder traversal, returning an error from \p
+/// Callback to stop early.
+///
+/// The \p CASID, that the \p Callback receives, is the CASID of a
+/// node that is visited and has to be printed
+///
+/// Passes the \p unsigned value is used for indentation purposes to denote the
+/// tree structure of the nodes
+
 Error walkObjectsRecursively(
-    CASDB &CAS, CASID ID,
-    function_ref<Error(const std::pair<CASID, unsigned> &)> Callback);
+    CASDB &CAS, CASID ID, function_ref<Error(const CASID, unsigned)> Callback);
 
 } // namespace cas
 } // namespace llvm
