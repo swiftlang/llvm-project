@@ -315,10 +315,10 @@ CASFileSystem::getDirectoryIterator(const Twine &Path) {
 }
 
 namespace {
-class CASFileSystemDI final : public FileSystemCache::DiscoveryInstance {
+class DiscoveryInstanceImpl final : public FileSystemCache::DiscoveryInstance {
 public:
-  CASFileSystemDI(CASFileSystem &FS) : FS(FS) {}
-  ~CASFileSystemDI() {}
+  DiscoveryInstanceImpl(CASFileSystem &FS) : FS(FS) {}
+  ~DiscoveryInstanceImpl() {}
 
 private:
   using DirectoryEntry = FileSystemCache::DirectoryEntry;
@@ -340,7 +340,6 @@ private:
         std::make_error_code(std::errc::no_such_file_or_directory));
   }
   Error requestSymlinkTarget(DirectoryEntry &Symlink) override {
-    // FIXME: Need to handle lazy symlinks somehow.
     return FS.loadSymlink(Symlink);
   }
 
@@ -351,7 +350,7 @@ private:
 
 Expected<CASFileSystem::DirectoryEntry *>
 CASFileSystem::lookupPath(StringRef Path, bool FollowSymlinks) {
-  CASFileSystemDI DI(*this);
+  DiscoveryInstanceImpl DI(*this);
   return Cache->lookupPath(DI, Path, *WorkingDirectory.Entry, FollowSymlinks);
 }
 

@@ -279,6 +279,19 @@ public:
     (void)Node.compare_exchange_strong(Null, &S, std::memory_order_acq_rel);
   }
 
+  /// If \p Other is a prefix of the current entry, returns the child of
+  /// \p Other that would be next in the current entry, if any.
+  DirectoryEntry *nextEntryAfterPrefix(DirectoryEntry &Other) {
+    DirectoryEntry *E = this, *P = Parent;
+    while (P) {
+      if (P == &Other)
+        return E;
+      E = P;
+      P = P->Parent;
+    }
+    return nullptr;
+  }
+
   DirectoryEntry() = delete;
 
   DirectoryEntry(DirectoryEntry *Parent, StringRef TreePath, EntryKind Kind,

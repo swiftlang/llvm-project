@@ -273,3 +273,5 @@ if 'aix' in config.target_triple:
                       '/ASTMerge/anonymous-fields', '/ASTMerge/injected-class-name-decl'):
         exclude_unsupported_files_for_aix(config.test_source_root + directory)
 
+if os.path.exists(os.path.join(config.clang_src_dir, 'TeSt')):
+    config.available_features.add('case_insensitive_src_dir')
