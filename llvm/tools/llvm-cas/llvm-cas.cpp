@@ -324,7 +324,7 @@ int listObjectRecursively(CASDB &CAS, CASID ID) {
   ExitOnError ExitOnErr("llvm-cas: ls-node-recursively: ");
   ExitOnErr(walkObjectsRecursively(
       CAS, ID, [&](const CASID ID, unsigned Indent) -> Error {
-        llvm::outs().indent(Indent) << ID << "\n";
+        llvm::outs().indent(Indent * 3) << ID << "\n";
         return Error::success();
       }));
 
