@@ -2159,9 +2159,9 @@ static bool checkVerifyPrefixes(const std::vector<std::string> &VerifyPrefixes,
 }
 
 void CompilerInvocation::GenerateCASArgs(
-    const CASOptions &Opts, SmallVectorImpl<const char *> &Args,
+    const llvm::cas::CASOptions &Opts, SmallVectorImpl<const char *> &Args,
     CompilerInvocation::StringAllocator SA) {
-  const CASOptions &CASOpts = Opts;
+  const llvm::cas::CASOptions &CASOpts = Opts;
 
 #define CAS_OPTION_WITH_MARSHALLING(                                           \
     PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
@@ -2175,9 +2175,10 @@ void CompilerInvocation::GenerateCASArgs(
 #undef CAS_OPTION_WITH_MARSHALLING
 }
 
-bool CompilerInvocation::ParseCASArgs(CASOptions &Opts, const ArgList &Args,
+bool CompilerInvocation::ParseCASArgs(llvm::cas::CASOptions &Opts,
+                                      const ArgList &Args,
                                       DiagnosticsEngine &Diags) {
-  CASOptions &CASOpts = Opts;
+  llvm::cas::CASOptions &CASOpts = Opts;
   bool Success = true;
 
 #define CAS_OPTION_WITH_MARSHALLING(                                           \
@@ -4671,8 +4672,11 @@ createBaseFS(const CompilerInvocation &Invocation, DiagnosticsEngine &Diags,
 
   // If no CAS was provided, create one with CASOptions.
   std::shared_ptr<llvm::cas::CASDB> CAS = std::move(OverrideCAS);
-  if (!CAS)
-    CAS = Invocation.getCASOpts().getOrCreateCAS(Diags);
+  if (!CAS) {
+    if (auto Err = Invocation.getCASOpts().getOrCreateCAS().moveInto(CAS))
+      Diags.Report(diag::err_builtin_cas_cannot_be_initialized)
+          << toString(std::move(Err));
+  }
 
   // Helper for creating a valid (but empty) CASFS if an error is encountered.
   auto makeEmptyCASFS = [&CAS]() {

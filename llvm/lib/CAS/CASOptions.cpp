@@ -6,17 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/CAS/CASOptions.h"
-#include "clang/Basic/Diagnostic.h"
-#include "clang/Basic/DiagnosticCAS.h"
 #include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASOptions.h"
 
-using namespace clang;
+using namespace llvm;
 using namespace llvm::cas;
 
-static std::shared_ptr<llvm::cas::CASDB>
-createCAS(const CASConfiguration &Config, DiagnosticsEngine &Diags,
-          bool CreateEmptyCASOnFailure) {
+static Expected<std::shared_ptr<llvm::cas::CASDB>>
+createCAS(const CASConfiguration &Config, bool CreateEmptyCASOnFailure) {
   if (Config.CASPath.empty())
     return llvm::cas::createInMemoryCAS();
 
@@ -24,7 +21,7 @@ createCAS(const CASConfiguration &Config, DiagnosticsEngine &Diags,
   SmallString<128> Storage;
   StringRef Path = Config.CASPath;
   if (Path == "auto") {
-    llvm::cas::getDefaultOnDiskCASPath(Storage);
+    getDefaultOnDiskCASPath(Storage);
     Path = Storage;
   }
 
@@ -32,32 +29,39 @@ createCAS(const CASConfiguration &Config, DiagnosticsEngine &Diags,
   if (auto MaybeCAS =
           llvm::expectedToOptional(llvm::cas::createOnDiskCAS(Path)))
     return std::move(*MaybeCAS);
-  Diags.Report(diag::err_builtin_cas_cannot_be_initialized) << Path;
-  return CreateEmptyCASOnFailure ? llvm::cas::createInMemoryCAS() : nullptr;
+
+  if (CreateEmptyCASOnFailure)
+    return createInMemoryCAS();
+
+  return createStringError(std::make_error_code(std::errc::invalid_argument),
+                           "cannot be initialized from \'" + Path + "\'");
 }
 
-std::shared_ptr<llvm::cas::CASDB>
-CASOptions::getOrCreateCAS(DiagnosticsEngine &Diags,
-                           bool CreateEmptyCASOnFailure) const {
+Expected<std::shared_ptr<llvm::cas::CASDB>>
+CASOptions::getOrCreateCAS(bool CreateEmptyCASOnFailure) const {
   if (Cache.Config.IsFrozen)
     return Cache.CAS;
 
   auto &CurrentConfig = static_cast<const CASConfiguration &>(*this);
   if (!Cache.CAS || CurrentConfig != Cache.Config) {
     Cache.Config = CurrentConfig;
-    Cache.CAS = createCAS(Cache.Config, Diags, CreateEmptyCASOnFailure);
+    if (auto Err = createCAS(Cache.Config, CreateEmptyCASOnFailure)
+                       .moveInto(Cache.CAS))
+      return std::move(Err);
   }
 
   return Cache.CAS;
 }
 
-std::shared_ptr<llvm::cas::CASDB>
-CASOptions::getOrCreateCASAndHideConfig(DiagnosticsEngine &Diags) {
+Expected<std::shared_ptr<llvm::cas::CASDB>>
+CASOptions::getOrCreateCASAndHideConfig() {
   if (Cache.Config.IsFrozen)
     return Cache.CAS;
 
-  std::shared_ptr<llvm::cas::CASDB> CAS = getOrCreateCAS(Diags);
-  assert(CAS == Cache.CAS && "Expected CAS to be cached");
+  auto CAS = getOrCreateCAS();
+  if (!CAS)
+    return CAS.takeError();
+  assert(*CAS == Cache.CAS && "Expected CAS to be cached");
 
   // Freeze the CAS and wipe out the visible config to hide it from future
   // accesses. For example, future diagnostics cannot see this. Something that
@@ -67,10 +71,10 @@ CASOptions::getOrCreateCASAndHideConfig(DiagnosticsEngine &Diags) {
   CurrentConfig = CASConfiguration();
   CurrentConfig.IsFrozen = Cache.Config.IsFrozen = true;
 
-  if (CAS) {
+  if (*CAS) {
     // Set the CASPath to the hash schema, since that leaks through CASContext's
     // API and is observable.
-    CurrentConfig.CASPath = CAS->getHashSchemaIdentifier().str();
+    CurrentConfig.CASPath = (*CAS)->getHashSchemaIdentifier().str();
   }
 
   return CAS;

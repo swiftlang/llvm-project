@@ -82,7 +82,7 @@ public:
   llvm::vfs::FileSystem &getRealFS() { return *RealFS; }
   llvm::cas::CachingOnDiskFileSystem &getCASFS() { return *CacheFS; }
   bool useCAS() const { return UseCAS; }
-  const CASOptions &getCASOpts() const { return CASOpts; }
+  const llvm::cas::CASOptions &getCASOpts() const { return CASOpts; }
 
   /// If \p DependencyScanningService enabled sharing of \p FileManager this
   /// will return the same instance, otherwise it will create a new one for
@@ -112,7 +112,7 @@ private:
   /// Whether to optimize the modules' command-line arguments.
   bool OptimizeArgs;
 
-  CASOptions CASOpts;
+  llvm::cas::CASOptions CASOpts;
   bool UseCAS;
   bool OverrideCASTokenCache;
 };

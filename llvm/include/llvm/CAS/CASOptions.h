@@ -7,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// Defines the clang::CASOptions interface.
+/// Defines the llvm::CASOptions interface.
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_CAS_CASOPTIONS_H
-#define LLVM_CLANG_CAS_CASOPTIONS_H
+#ifndef LLVM_CAS_CASOPTIONS_H
+#define LLVM_CAS_CASOPTIONS_H
 
+#include "llvm/Support/Error.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -21,12 +22,6 @@
 namespace llvm {
 namespace cas {
 class CASDB;
-} // end namespace cas
-} // end namespace llvm
-
-namespace clang {
-
-class DiagnosticsEngine;
 
 /// Base class for options configuring which CAS to use. Separated for the
 /// fields where we don't need special move/copy logic.
@@ -88,9 +83,8 @@ public:
   ///
   /// If \p CreateEmptyCASOnFailure, returns an empty in-memory CAS on failure.
   /// Else, returns \c nullptr on failure.
-  std::shared_ptr<llvm::cas::CASDB>
-  getOrCreateCAS(DiagnosticsEngine &Diags,
-                 bool CreateEmptyCASOnFailure = false) const;
+  Expected<std::shared_ptr<llvm::cas::CASDB>>
+  getOrCreateCAS(bool CreateEmptyCASOnFailure = false) const;
 
   /// Get a CAS defined by the options above. Future calls will return the same
   /// CAS instance, even if the configuration changes again later.
@@ -99,8 +93,7 @@ public:
   /// affecting the output of something that takes \a CASOptions as an input.
   /// This also "locks in" the return value of \a getOrCreateCAS(): future
   /// calls will not check if the configuration has changed.
-  std::shared_ptr<llvm::cas::CASDB>
-  getOrCreateCASAndHideConfig(DiagnosticsEngine &Diags);
+  Expected<std::shared_ptr<llvm::cas::CASDB>> getOrCreateCASAndHideConfig();
 
   /// If the configuration is not for a persistent store, it modifies it to the
   /// default on-disk CAS, otherwise this is a noop.
@@ -117,6 +110,7 @@ private:
   mutable CachedCAS Cache;
 };
 
-} // end namespace clang
+} // end namespace cas
+} // end namespace llvm
 
-#endif // LLVM_CLANG_CAS_CASOPTIONS_H
+#endif // LLVM_CAS_CASOPTIONS_H

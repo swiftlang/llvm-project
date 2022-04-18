@@ -357,7 +357,8 @@ scanAndUpdateCC1Inline(const char *Exec, ArrayRef<const char *> InputArgs,
                        SmallVectorImpl<const char *> &OutputArgs,
                        const cc1depscand::DepscanPrefixMapping &PrefixMapping,
                        llvm::function_ref<const char *(const Twine &)> SaveArg,
-                       const CASOptions &CASOpts, llvm::cas::CASDB &CAS);
+                       const llvm::cas::CASOptions &CASOpts,
+                       llvm::cas::CASDB &CAS);
 
 static Expected<llvm::cas::CASID> scanAndUpdateCC1InlineWithTool(
     tooling::dependencies::DependencyScanningTool &Tool,
@@ -401,7 +402,7 @@ static llvm::Expected<llvm::cas::CASID> scanAndUpdateCC1UsingDaemon(
     SmallVectorImpl<const char *> &NewArgs,
     const cc1depscand::DepscanPrefixMapping &Mapping, StringRef Path,
     bool NoSpawnDaemon, llvm::function_ref<const char *(const Twine &)> SaveArg,
-    const CASOptions &CASOpts, llvm::cas::CASDB &CAS) {
+    const llvm::cas::CASOptions &CASOpts, llvm::cas::CASDB &CAS) {
   using namespace clang::cc1depscand;
 
   // FIXME: Skip some of this if -fcas-fs has been passed.
@@ -490,7 +491,8 @@ static int scanAndUpdateCC1(const char *Exec, ArrayRef<const char *> OldArgs,
                             SmallVectorImpl<const char *> &NewArgs,
                             DiagnosticsEngine &Diag,
                             const llvm::opt::ArgList &Args,
-                            const CASOptions &CASOpts, llvm::cas::CASDB &CAS,
+                            const llvm::cas::CASOptions &CASOpts,
+                            llvm::cas::CASDB &CAS,
                             llvm::Optional<llvm::cas::CASID> &RootID) {
   using namespace clang::driver;
 
@@ -599,18 +601,21 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
   SmallVector<const char *> NewArgs;
   Optional<llvm::cas::CASID> RootID;
 
-  CASOptions CASOpts;
+  llvm::cas::CASOptions CASOpts;
   auto ParsedCC1Args =
       Opts.ParseArgs(CC1Args->getValues(), MissingArgIndex, MissingArgCount);
   CompilerInvocation::ParseCASArgs(CASOpts, ParsedCC1Args, Diags);
   CASOpts.ensurePersistentCAS();
 
-  std::shared_ptr<llvm::cas::CASDB> CAS = CASOpts.getOrCreateCAS(Diags);
-  if (!CAS)
+  auto CAS = CASOpts.getOrCreateCAS();
+  if (!CAS) {
+    Diags.Report(diag::err_builtin_cas_cannot_be_initialized)
+        << toString(CAS.takeError());
     return 1;
+  }
 
   if (int Ret = scanAndUpdateCC1(Argv0, CC1Args->getValues(), NewArgs, Diags,
-                                 Args, CASOpts, *CAS, RootID))
+                                 Args, CASOpts, **CAS, RootID))
     return Ret;
 
   // FIXME: Use OutputBackend to OnDisk only now.
@@ -827,7 +832,7 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   };
 
   DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
-  CASOptions CASOpts;
+  llvm::cas::CASOptions CASOpts;
   const OptTable &Opts = clang::driver::getDriverOptTable();
   unsigned MissingArgIndex, MissingArgCount;
   auto ParsedCASArgs =
@@ -835,9 +840,7 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   CompilerInvocation::ParseCASArgs(CASOpts, ParsedCASArgs, Diags);
   CASOpts.ensurePersistentCAS();
 
-  std::shared_ptr<llvm::cas::CASDB> CAS = CASOpts.getOrCreateCAS(Diags);
-  if (!CAS)
-    llvm::report_fatal_error("clang -cc1depscand: cannot create CAS");
+  auto CAS = reportAsFatalIfError(CASOpts.getOrCreateCAS());
 
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
       llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
@@ -1099,7 +1102,8 @@ scanAndUpdateCC1Inline(const char *Exec, ArrayRef<const char *> InputArgs,
                        SmallVectorImpl<const char *> &OutputArgs,
                        const cc1depscand::DepscanPrefixMapping &PrefixMapping,
                        llvm::function_ref<const char *(const Twine &)> SaveArg,
-                       const CASOptions &CASOpts, llvm::cas::CASDB &CAS) {
+                       const llvm::cas::CASOptions &CASOpts,
+                       llvm::cas::CASDB &CAS) {
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
       llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(CAS));
 

@@ -19,9 +19,13 @@
 #include <sys/un.h>     // FIXME: Unix-only. Not portable.
 #include <unistd.h>     // FIXME: Unix-only. Not portable.
 
-namespace clang {
+namespace llvm {
+namespace cas {
 class CASOptions;
+} // namespace cas
+} // namespace llvm
 
+namespace clang {
 namespace cc1depscand {
 
 struct DepscanPrefixMapping;
@@ -201,19 +205,20 @@ private:
 class ScanDaemon : public OpenSocket {
 public:
   static Expected<ScanDaemon> create(StringRef BasePath, const char *Arg0,
-                                     const CASOptions &CASOpts);
+                                     const llvm::cas::CASOptions &CASOpts);
 
-  static Expected<ScanDaemon> constructAndShakeHands(StringRef BasePath,
-                                                     const char *Arg0,
-                                                     const CASOptions &CASOpts);
+  static Expected<ScanDaemon>
+  constructAndShakeHands(StringRef BasePath, const char *Arg0,
+                         const llvm::cas::CASOptions &CASOpts);
 
   static Expected<ScanDaemon> connectToDaemonAndShakeHands(StringRef BasePath);
 
   llvm::Error shakeHands() const;
 
 private:
-  static Expected<ScanDaemon> launchDaemon(StringRef BasePath, const char *Arg0,
-                                           const CASOptions &CASOpts);
+  static Expected<ScanDaemon>
+  launchDaemon(StringRef BasePath, const char *Arg0,
+               const llvm::cas::CASOptions &CASOpts);
   static Expected<ScanDaemon> connectToDaemon(StringRef BasePath,
                                               bool ShouldWait);
   static Expected<ScanDaemon> connectToExistingDaemon(StringRef BasePath) {

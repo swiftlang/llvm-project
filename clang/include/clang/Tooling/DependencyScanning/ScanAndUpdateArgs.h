@@ -21,7 +21,6 @@ class CASID;
 
 namespace clang {
 
-class CASOptions;
 class CompilerInvocation;
 class DiagnosticConsumer;
 

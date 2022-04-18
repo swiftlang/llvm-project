@@ -6,11 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/CAS/CASOptions.h"
-#include "clang/Basic/Diagnostic.h"
-#include "clang/Basic/DiagnosticIDs.h"
-#include "clang/Basic/DiagnosticOptions.h"
 #include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASOptions.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Testing/Support/Error.h"
@@ -18,7 +15,7 @@
 #include "gtest/gtest.h"
 
 using namespace llvm;
-using namespace clang;
+using namespace llvm::cas;
 
 namespace {
 
@@ -35,46 +32,40 @@ TEST(CASOptionsTest, getKind) {
 }
 
 TEST(CASOptionsTest, getOrCreateCAS) {
-  DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions,
-                          new IgnoringDiagConsumer());
-
   // Create an in-memory CAS.
   CASOptions Opts;
-  std::shared_ptr<cas::CASDB> InMemory = Opts.getOrCreateCAS(Diags);
+  std::shared_ptr<cas::CASDB> InMemory = cantFail(Opts.getOrCreateCAS());
   ASSERT_TRUE(InMemory);
-  EXPECT_EQ(InMemory, Opts.getOrCreateCAS(Diags));
+  EXPECT_EQ(InMemory, cantFail(Opts.getOrCreateCAS()));
   EXPECT_EQ(CASOptions::InMemoryCAS, Opts.getKind());
 
   // Create an on-disk CAS.
   unittest::TempDir Dir("cas-options", /*Unique=*/true);
   Opts.CASPath = Dir.path("cas").str().str();
-  std::shared_ptr<cas::CASDB> OnDisk = Opts.getOrCreateCAS(Diags);
+  std::shared_ptr<cas::CASDB> OnDisk = cantFail(Opts.getOrCreateCAS());
   EXPECT_NE(InMemory, OnDisk);
-  EXPECT_EQ(OnDisk, Opts.getOrCreateCAS(Diags));
+  EXPECT_EQ(OnDisk, cantFail(Opts.getOrCreateCAS()));
   EXPECT_EQ(CASOptions::OnDiskCAS, Opts.getKind());
 
   // Create an on-disk CAS at an automatic location.
   Opts.CASPath = "auto";
-  std::shared_ptr<cas::CASDB> OnDiskAuto = Opts.getOrCreateCAS(Diags);
+  std::shared_ptr<cas::CASDB> OnDiskAuto = cantFail(Opts.getOrCreateCAS());
   EXPECT_NE(InMemory, OnDiskAuto);
   EXPECT_NE(OnDisk, OnDiskAuto);
-  EXPECT_EQ(OnDiskAuto, Opts.getOrCreateCAS(Diags));
+  EXPECT_EQ(OnDiskAuto, cantFail(Opts.getOrCreateCAS()));
   EXPECT_EQ(CASOptions::OnDiskCAS, Opts.getKind());
 
   // Create another in-memory CAS. It won't be the same one.
   Opts.CASPath = "";
-  std::shared_ptr<cas::CASDB> InMemory2 = Opts.getOrCreateCAS(Diags);
+  std::shared_ptr<cas::CASDB> InMemory2 = cantFail(Opts.getOrCreateCAS());
   EXPECT_NE(InMemory, InMemory2);
   EXPECT_NE(OnDisk, InMemory2);
   EXPECT_NE(OnDiskAuto, InMemory2);
-  EXPECT_EQ(InMemory2, Opts.getOrCreateCAS(Diags));
+  EXPECT_EQ(InMemory2, cantFail(Opts.getOrCreateCAS()));
   EXPECT_EQ(CASOptions::InMemoryCAS, Opts.getKind());
 }
 
 TEST(CASOptionsTest, getOrCreateCASInvalid) {
-  DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions,
-                          new IgnoringDiagConsumer());
-
   // Create a file, then try to put a CAS there.
   StringRef Contents = "contents";
   unittest::TempDir Dir("cas-options", /*Unique=*/true);
@@ -83,11 +74,10 @@ TEST(CASOptionsTest, getOrCreateCASInvalid) {
 
   CASOptions Opts;
   Opts.CASPath = File.path().str();
-  EXPECT_EQ(nullptr, Opts.getOrCreateCAS(Diags));
+  EXPECT_THAT_EXPECTED(Opts.getOrCreateCAS(), Failed());
 
-  std::shared_ptr<cas::CASDB> Empty =
-      Opts.getOrCreateCAS(Diags, /*CreateEmptyCASOnFailure=*/true);
-  EXPECT_EQ(Empty, Opts.getOrCreateCAS(Diags));
+  auto Empty = cantFail(Opts.getOrCreateCAS(/*CreateEmptyCASOnFailure=*/true));
+  EXPECT_EQ(Empty, cantFail(Opts.getOrCreateCAS()));
 
   // Ensure the file wasn't clobbered.
   std::unique_ptr<MemoryBuffer> MemBuffer;
@@ -98,14 +88,12 @@ TEST(CASOptionsTest, getOrCreateCASInvalid) {
 }
 
 TEST(CASOptionsTest, getOrCreateCASAndHideConfig) {
-  DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions,
-                          new IgnoringDiagConsumer());
-
   // Hide the CAS configuration when creating it.
   unittest::TempDir Dir("cas-options", /*Unique=*/true);
   CASOptions Opts;
   Opts.CASPath = Dir.path("cas").str().str();
-  std::shared_ptr<cas::CASDB> CAS = Opts.getOrCreateCASAndHideConfig(Diags);
+  std::shared_ptr<cas::CASDB> CAS =
+      cantFail(Opts.getOrCreateCASAndHideConfig());
   ASSERT_TRUE(CAS);
   EXPECT_EQ(CASOptions::UnknownCAS, Opts.getKind());
 
@@ -115,15 +103,15 @@ TEST(CASOptionsTest, getOrCreateCASAndHideConfig) {
 
   // Check that new paths are ignored.
   Opts.CASPath = "";
-  EXPECT_EQ(CAS, Opts.getOrCreateCAS(Diags));
+  EXPECT_EQ(CAS, cantFail(Opts.getOrCreateCAS()));
   EXPECT_EQ(CASOptions::UnknownCAS, Opts.getKind());
-  EXPECT_EQ(CAS, Opts.getOrCreateCASAndHideConfig(Diags));
+  EXPECT_EQ(CAS, cantFail(Opts.getOrCreateCASAndHideConfig()));
   EXPECT_EQ(CASOptions::UnknownCAS, Opts.getKind());
 
   Opts.CASPath = Dir.path("ignored-cas").str().str();
-  EXPECT_EQ(CAS, Opts.getOrCreateCAS(Diags));
+  EXPECT_EQ(CAS, cantFail(Opts.getOrCreateCAS()));
   EXPECT_EQ(CASOptions::UnknownCAS, Opts.getKind());
-  EXPECT_EQ(CAS, Opts.getOrCreateCASAndHideConfig(Diags));
+  EXPECT_EQ(CAS, cantFail(Opts.getOrCreateCASAndHideConfig()));
   EXPECT_EQ(CASOptions::UnknownCAS, Opts.getKind());
 }
 
