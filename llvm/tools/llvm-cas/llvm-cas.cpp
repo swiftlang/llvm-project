@@ -9,6 +9,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
+#include "llvm/CAS/CASOptions.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/CAS/Utils.h"
@@ -102,16 +103,10 @@ int main(int Argc, char **Argv) {
     ExitOnErr(createStringError(inconvertibleErrorCode(),
                                 "no command action is specified"));
 
-  // FIXME: Consider creating an in-memory CAS.
-  if (CASPath.empty())
-    ExitOnErr(
-        createStringError(inconvertibleErrorCode(), "missing --cas=<path>"));
-  std::unique_ptr<CASDB> CAS;
-  if (CASPath == "auto")
-    CAS = ExitOnErr(
-        llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
-  else
-    CAS = ExitOnErr(llvm::cas::createOnDiskCAS(CASPath));
+  CASOptions CASOpts;
+  CASOpts.CASPath = CASPath;
+
+  auto CAS = ExitOnErr(CASOpts.getOrCreateCAS());
   assert(CAS);
 
   if (Command == Dump)
