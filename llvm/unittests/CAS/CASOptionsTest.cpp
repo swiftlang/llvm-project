@@ -115,4 +115,75 @@ TEST(CASOptionsTest, getOrCreateCASAndHideConfig) {
   EXPECT_EQ(CASOptions::UnknownCAS, Opts.getKind());
 }
 
+TEST(CASOptionsTest, CASIDFile) {
+  // Round trip the content through CASID file and check equal.
+  unittest::TempDir Dir("cas-options", /*Unique=*/true);
+  CASOptions Opts;
+  Opts.CASPath = Dir.path("cas").str().str();
+  auto CAS = cantFail(Opts.getOrCreateCAS());
+
+  SmallString<256> FileContent;
+  raw_svector_ostream SS(FileContent);
+
+  auto Blob = cantFail(CAS->createBlob("blob"));
+  Opts.writeCASIDFile(SS, Blob.getID());
+
+  auto Buf = MemoryBuffer::getMemBufferCopy(FileContent);
+
+  CASOptions Opts2;
+  auto ID = Opts2.createFromCASIDFile(Buf->getMemBufferRef());
+  EXPECT_THAT_EXPECTED(ID, Succeeded());
+  EXPECT_EQ(Opts, Opts2);
+
+  auto CAS2 = cantFail(Opts2.getOrCreateCAS());
+  auto Blob2 = cantFail(CAS2->getBlob(*ID));
+  EXPECT_EQ(Blob.getData(), Blob2.getData());
+}
+
+TEST(CASOptionsTest, CASIDFileSwitching) {
+  // Test switching CASOptions when reading CASIDFile.
+  // Create normal CASOptions.
+  unittest::TempDir Dir("cas-options", /*Unique=*/true);
+  CASOptions Opts1;
+  Opts1.CASPath = Dir.path("cas").str().str();
+  auto createInputFile = [](CASOptions &Opts, StringRef Data) {
+    SmallString<256> FileContent;
+    raw_svector_ostream SS(FileContent);
+    auto CAS = cantFail(Opts.getOrCreateCAS());
+    auto Blob = cantFail(CAS->createBlob(Data));
+    Opts.writeCASIDFile(SS, Blob.getID());
+    return FileContent;
+  };
+  auto readCASFile = [](CASOptions &Opts, SmallString<256> &FileContent) {
+    auto Buf = MemoryBuffer::getMemBufferCopy(FileContent);
+    return Opts.createFromCASIDFile(Buf->getMemBufferRef());
+  };
+  auto File1 = createInputFile(Opts1, "blob1");
+  auto Blob1 = readCASFile(Opts1, File1);
+  EXPECT_THAT_EXPECTED(Blob1, Succeeded());
+
+  // Create frozen CASOptions.
+  unittest::TempDir Dir2("cas-options", /*Unique=*/true);
+  CASOptions Opts2;
+  Opts2.CASPath = Dir2.path("cas").str().str();
+  // Freeze Opt2.
+  auto CAS2 = cantFail(Opts2.getOrCreateCASAndHideConfig());
+  auto File2 = createInputFile(Opts2, "blob2");
+  auto Blob2 = readCASFile(Opts2, File2);
+  EXPECT_THAT_EXPECTED(Blob2, Succeeded());
+
+  // Use Opts1 to read File2 should work.
+  auto Blob3 = readCASFile(Opts1, File2);
+  EXPECT_THAT_EXPECTED(Blob3, Succeeded());
+
+  // Use Opts2 to read File1 should fail.
+  auto Blob4 = readCASFile(Opts2, File1);
+  EXPECT_THAT_EXPECTED(Blob4, Failed());
+
+  // And Opts2 can read the file created by updated Opts1.
+  auto File3 = createInputFile(Opts1, "data");
+  auto Blob5 = readCASFile(Opts2, File3);
+  EXPECT_THAT_EXPECTED(Blob5, Succeeded());
+}
+
 } // end namespace

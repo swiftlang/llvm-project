@@ -20,8 +20,11 @@
 #include <vector>
 
 namespace llvm {
+class MemoryBufferRef;
+
 namespace cas {
 class CASDB;
+class CASID;
 
 /// Base class for options configuring which CAS to use. Separated for the
 /// fields where we don't need special move/copy logic.
@@ -98,6 +101,16 @@ public:
   /// If the configuration is not for a persistent store, it modifies it to the
   /// default on-disk CAS, otherwise this is a noop.
   void ensurePersistentCAS();
+
+  /// Write CASIDFile that contains both CASOptions to recreate CASConfiguration
+  /// and CASID to fetch the object.
+  void writeCASIDFile(raw_ostream &OS, const CASID &ID) const;
+
+  /// Create CASID from a CASIDFile. If CASOptions are not frozen, it will
+  /// update the CASOption to match the configuration in the CASIDFile. If
+  /// CASOption is frozen, it will return error if the configuration doesn't
+  /// match.
+  Expected<CASID> createFromCASIDFile(MemoryBufferRef Buf);
 
 private:
   struct CachedCAS {

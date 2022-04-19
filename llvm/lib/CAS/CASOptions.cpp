@@ -8,6 +8,7 @@
 
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASOptions.h"
+#include "llvm/Support/YAMLTraits.h"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -91,4 +92,60 @@ void CASOptions::ensurePersistentCAS() {
   case OnDiskCAS:
     break;
   }
+}
+
+using llvm::yaml::IO;
+using llvm::yaml::MappingTraits;
+
+struct CASIDFileImpl {
+  std::string CASPath;
+  std::string CASID;
+};
+
+namespace llvm {
+namespace yaml {
+
+template <> struct MappingTraits<CASIDFileImpl> {
+  static void mapping(IO &IO, CASIDFileImpl &Value) {
+    IO.mapTag("!cas-file-v1", true);
+    IO.mapRequired("cas-id", Value.CASID);
+    IO.mapRequired("cas-path", Value.CASPath);
+  }
+};
+
+} // namespace yaml
+} // namespace llvm
+
+void CASOptions::writeCASIDFile(raw_ostream &OS, const CASID &ID) const {
+  CASIDFileImpl Output;
+  raw_string_ostream SS(Output.CASID);
+  ID.print(SS);
+  // Use the CASPath from the cache as the frozen CASOption have the path wiped.
+  Output.CASPath = Cache.Config.CASPath;
+  yaml::Output Yout(OS);
+  Yout << Output;
+}
+
+Expected<CASID> CASOptions::createFromCASIDFile(MemoryBufferRef Buf) {
+  yaml::Input Yin(Buf.getBuffer());
+  CASIDFileImpl FileIn;
+  Yin >> FileIn;
+
+  if (Yin.error())
+    return errorCodeToError(Yin.error());
+
+  if (IsFrozen && Cache.Config.CASPath != FileIn.CASPath)
+    return createStringError(
+        std::make_error_code(std::errc::invalid_argument),
+        "CASIDFile has a different CASPath from the frozen CASOptions \'" +
+            Cache.Config.CASPath + "\' vs. \'" + FileIn.CASPath + "\'");
+
+  if (!IsFrozen)
+    CASPath = FileIn.CASPath;
+
+  auto CAS = getOrCreateCAS();
+  if (!CAS)
+    return CAS.takeError();
+
+  return (*CAS)->parseID(FileIn.CASID);
 }
