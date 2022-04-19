@@ -34,6 +34,13 @@ static cl::list<std::string> PrefixMapPaths(
     "prefix-map",
     cl::desc("prefix map for file system ingestion, -prefix-map BEFORE=AFTER"));
 
+static cl::opt<bool>
+    UseCASIDFile("cas-id-file",
+              cl::desc("Use CASID file as output instead of just the CASID"));
+static cl::opt<std::string>
+    Output("o", cl::desc("CASID output file path, default to stdout."),
+           cl::value_desc("path"), cl::init("-"));
+
 static int dump(CASDB &CAS);
 static int listTree(CASDB &CAS, CASID ID);
 static int listTreeRecursively(CASDB &CAS, CASID ID);
@@ -41,13 +48,15 @@ static int listObjectReferences(CASDB &CAS, CASID ID);
 static int catBlob(CASDB &CAS, CASID ID);
 static int catNodeData(CASDB &CAS, CASID ID);
 static int printKind(CASDB &CAS, CASID ID);
-static int makeBlob(CASDB &CAS, StringRef DataPath);
-static int makeNode(CASDB &CAS, ArrayRef<std::string> References, StringRef DataPath);
+static int makeBlob(CASOptions &Opts, StringRef DataPath);
+static int makeNode(CASOptions &Opts, ArrayRef<std::string> References,
+                    StringRef DataPath);
 static int diffGraphs(CASDB &CAS, CASID LHS, CASID RHS);
 static int traverseGraph(CASDB &CAS, CASID ID);
-static int ingestFileSystem(CASDB &CAS, StringRef Path);
-static int mergeTrees(CASDB &CAS, ArrayRef<std::string> Objects);
-static int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path);
+static int ingestFileSystem(CASOptions &Opts, StringRef Path);
+static int mergeTrees(CASOptions &Opts, ArrayRef<std::string> Objects);
+static int getCASIDForFile(CASOptions &Opts, CASID ID, StringRef Path);
+static int writeCASIDOutput(CASOptions &Opts, CASID ID);
 
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
@@ -113,10 +122,10 @@ int main(int Argc, char **Argv) {
     return dump(*CAS);
 
   if (Command == MakeBlob)
-    return makeBlob(*CAS, DataPath);
+    return makeBlob(CASOpts, DataPath);
 
   if (Command == MakeNode)
-    return makeNode(*CAS, Objects, DataPath);
+    return makeNode(CASOpts, Objects, DataPath);
 
   if (Command == DiffGraphs) {
     ExitOnError CommandErr("llvm-cas: diff-graphs");
@@ -131,10 +140,10 @@ int main(int Argc, char **Argv) {
   }
 
   if (Command == IngestFileSystem)
-    return ingestFileSystem(*CAS, DataPath);
+    return ingestFileSystem(CASOpts, DataPath);
 
   if (Command == MergeTrees)
-    return mergeTrees(*CAS, Objects);
+    return mergeTrees(CASOpts, Objects);
 
   // Remaining commands need exactly one CAS object.
   if (Objects.empty())
@@ -164,7 +173,7 @@ int main(int Argc, char **Argv) {
     return printKind(*CAS, ID);
 
   if (Command == GetCASIDForFile)
-    return getCASIDForFile(*CAS, ID, DataPath);
+    return getCASIDForFile(CASOpts, ID, DataPath);
 
   assert(Command == CatBlob);
   return catBlob(*CAS, ID);
@@ -258,13 +267,14 @@ int dump(CASDB &CAS) {
   return 0;
 }
 
-int makeBlob(CASDB &CAS, StringRef DataPath) {
+int makeBlob(CASOptions &Opts, StringRef DataPath) {
   ExitOnError ExitOnErr("llvm-cas: make-blob: ");
+  auto CAS = ExitOnErr(Opts.getOrCreateCAS());
   std::unique_ptr<MemoryBuffer> Buffer =
       ExitOnErr(openBuffer(DataPath));
 
-  BlobProxy Blob = ExitOnErr(CAS.createBlob(Buffer->getBuffer()));
-  llvm::outs() << Blob.getID() << "\n";
+  BlobProxy Blob = ExitOnErr(CAS->createBlob(Buffer->getBuffer()));
+  writeCASIDOutput(Opts, Blob.getID());
   return 0;
 }
 
@@ -307,23 +317,24 @@ int listObjectReferences(CASDB &CAS, CASID ID) {
   return 0;
 }
 
-static int makeNode(CASDB &CAS, ArrayRef<std::string> Objects, StringRef DataPath) {
-  std::unique_ptr<MemoryBuffer> Data =
-      ExitOnError("llvm-cas: make-node: data: ")(openBuffer(DataPath));
+int makeNode(CASOptions &Opts, ArrayRef<std::string> Objects,
+             StringRef DataPath) {
+  ExitOnError ExitOnErr("llvm-cas: make-node: ");
+  std::unique_ptr<MemoryBuffer> Data = ExitOnErr(openBuffer(DataPath));
 
+  auto CAS = ExitOnErr(Opts.getOrCreateCAS());
   SmallVector<CASID> IDs;
   for (StringRef Object : Objects) {
     ExitOnError ObjectErr("llvm-cas: make-node: ref: ");
-    CASID ID = ObjectErr(CAS.parseID(Object));
-    if (!CAS.isKnownObject(ID))
+    CASID ID = ObjectErr(CAS->parseID(Object));
+    if (!CAS->isKnownObject(ID))
       ObjectErr(createStringError(inconvertibleErrorCode(),
                                   "unknown object '" + Object + "'"));
     IDs.push_back(ID);
   }
 
-  ExitOnError ExitOnErr("llvm-cas: make-node: ");
-  NodeProxy Object = ExitOnErr(CAS.createNode(IDs, Data->getBuffer()));
-  llvm::outs() << Object.getID() << "\n";
+  NodeProxy Object = ExitOnErr(CAS->createNode(IDs, Data->getBuffer()));
+  writeCASIDOutput(Opts, Object.getID());
   return 0;
 }
 
@@ -468,38 +479,41 @@ static Expected<TreeProxy> ingestFileSystemImpl(CASDB &CAS, StringRef Path) {
       });
 }
 
-int ingestFileSystem(CASDB &CAS, StringRef Path) {
+int ingestFileSystem(CASOptions &Opts, StringRef Path) {
   ExitOnError ExitOnErr("llvm-cas: ingest: ");
   if (Path.empty())
     ExitOnErr(
         createStringError(inconvertibleErrorCode(), "missing --data=<path>"));
-  auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Path));
-  outs() << Ref.getID() << "\n";
+  auto CAS = ExitOnErr(Opts.getOrCreateCAS());
+  auto Ref = ExitOnErr(ingestFileSystemImpl(*CAS, Path));
+  writeCASIDOutput(Opts, Ref.getID());
   return 0;
 }
 
-static int mergeTrees(CASDB &CAS, ArrayRef<std::string> Objects) {
+int mergeTrees(CASOptions &Opts, ArrayRef<std::string> Objects) {
   ExitOnError ExitOnErr("llvm-cas: merge: ");
 
+  auto CAS = ExitOnErr(Opts.getOrCreateCAS());
   HierarchicalTreeBuilder Builder;
   for (const auto &Object : Objects) {
-    auto ID = CAS.parseID(Object);
+    auto ID = CAS->parseID(Object);
     if (ID) {
       Builder.pushTreeContent(*ID, "");
     } else {
       consumeError(ID.takeError());
-      auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Object));
+      auto Ref = ExitOnErr(ingestFileSystemImpl(*CAS, Object));
       Builder.pushTreeContent(Ref, "");
     }
   }
 
-  auto Ref = ExitOnErr(Builder.create(CAS));
-  outs() << Ref.getID() << "\n";
+  auto Ref = ExitOnErr(Builder.create(*CAS));
+  writeCASIDOutput(Opts, Ref.getID());
   return 0;
 }
 
-int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path) {
+int getCASIDForFile(CASOptions &Opts, CASID ID, StringRef Path) {
   ExitOnError ExitOnErr("llvm-cas: get-cas-id: ");
+  auto CAS = ExitOnErr(Opts.getOrCreateCAS());
   auto FS = createCASFileSystem(CAS, ID);
   if (!FS)
     ExitOnErr(FS.takeError());
@@ -509,6 +523,19 @@ int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path) {
     ExitOnErr(errorCodeToError(
         std::make_error_code(std::errc::no_such_file_or_directory)));
 
-  outs() << *FileID << "\n";
+  writeCASIDOutput(Opts, *FileID);
+  return 0;
+}
+
+int writeCASIDOutput(CASOptions &Opts, CASID ID) {
+  ExitOnError ExitOnErr("llvm-cas: write CASID output: ");
+  std::error_code EC;
+  raw_fd_ostream OS(Output, EC);
+  if (EC)
+    ExitOnErr(errorCodeToError(EC));
+  if (UseCASIDFile)
+    Opts.writeCASIDFile(OS, ID);
+  else
+    OS << ID << "\n";
   return 0;
 }

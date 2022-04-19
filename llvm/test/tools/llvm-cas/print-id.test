@@ -11,3 +11,10 @@ CHECK:llvmcas://{{[a-z0-9]+}}
 # Confirm that there's a newline after.
 RUN: wc -l <%t/id | FileCheck %s -check-prefix=NEWLINE
 NEWLINE: 1
+
+RUN: llvm-cas --cas %t/cas --ingest --data %S/Inputs --cas-id-file -o %t/id2
+RUN: FileCheck %s -DPATH=%t/cas --check-prefix=IDFILE < %t/id2
+IDFILE: --- !cas-file-v1
+IDFILE-NEXT: cas-id:          'llvmcas://{{[a-z0-9]+}}'
+IDFILE-NEXT: cas-path:        '[[PATH]]'
+IDFILE-NEXT: ...
