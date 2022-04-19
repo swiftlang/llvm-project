@@ -7579,6 +7579,11 @@ bool SwiftASTContext::DumpTypeValue(
 
   swift::CanType swift_can_type(GetCanonicalSwiftType(type));
 
+  if (auto *dyn_self = llvm::dyn_cast_or_null<swift::DynamicSelfType>(
+          swift_can_type.getPointer()))
+    swift_can_type =
+        GetCanonicalSwiftType(dyn_self->getSelfType().getPointer());
+
   const swift::TypeKind type_kind = swift_can_type->getKind();
   switch (type_kind) {
   case swift::TypeKind::BuiltinDefaultActorStorage:
@@ -7736,6 +7741,7 @@ bool SwiftASTContext::DumpTypeValue(
   case swift::TypeKind::UnboundGeneric:
   case swift::TypeKind::BoundGenericStruct:
   case swift::TypeKind::DynamicSelf:
+    swift_can_type.dump();
     break;
 
   case swift::TypeKind::Optional:

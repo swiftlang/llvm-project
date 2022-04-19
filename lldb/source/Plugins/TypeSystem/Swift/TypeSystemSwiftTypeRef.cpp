@@ -3418,6 +3418,15 @@ bool TypeSystemSwiftTypeRef::DumpTypeValue(
     using namespace swift::Demangle;
     Demangler dem;
     auto *node = DemangleCanonicalType(dem, type);
+    // Get the actual type of self.
+    if (node->getKind() == Node::Kind::DynamicSelf) {
+      if (node->hasChildren() && node->getFirstChild()->hasChildren()) {
+        node = node->getFirstChild()->getFirstChild();
+      } else {
+        assert(false && "Unexpected demangle tree for dynamic self node.");
+        return false;
+      }
+    }
     switch (node->getKind()) {
     case Node::Kind::Class:
     case Node::Kind::BoundGenericClass:
@@ -3535,6 +3544,7 @@ bool TypeSystemSwiftTypeRef::DumpTypeValue(
             bitfield_bit_size, bitfield_bit_offset, exe_scope, is_base_class);
       return {};
     }
+
     default:
       assert(false && "Unhandled node kind");
       LLDB_LOGF(GetLog(LLDBLog::Types),
