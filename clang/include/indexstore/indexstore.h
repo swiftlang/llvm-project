@@ -137,12 +137,20 @@ indexstore_creation_options_create();
 INDEXSTORE_PUBLIC void
 indexstore_creation_options_dispose(indexstore_creation_options_t);
 
-INDEXSTORE_PUBLIC void indexstore_creation_options_add_prefix_mapping(
-    indexstore_creation_options_t options, const char *path_prefix, const char *remapped_path_prefix);
+/// Adds a remapping from \c path_prefix to \c remapped_path_prefix.
+///
+/// This should be used to convert hermetic or remote paths embedded in the index data to the
+/// equivalent paths on the local machine.
+INDEXSTORE_PUBLIC void
+indexstore_creation_options_add_prefix_mapping(indexstore_creation_options_t options,
+                                               const char *path_prefix,
+                                               const char *remapped_path_prefix);
 
 INDEXSTORE_PUBLIC indexstore_t
 indexstore_store_create(const char *store_path, indexstore_error_t *error);
 
+
+/// Open the indexstore at the specified path using the specified options, which may be NULL.
 INDEXSTORE_PUBLIC indexstore_t
 indexstore_store_create_with_options(const char *store_path, indexstore_creation_options_t options,
                                      indexstore_error_t *error);

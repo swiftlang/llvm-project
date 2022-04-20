@@ -38,6 +38,7 @@ static std::string remapPath(std::map<llvm::StringRef, llvm::StringRef, std::gre
 }
 
 class IndexUnitWriter::PathStorage {
+  FileManager &FileMgr;
   std::string WorkDir;
   std::string SysrootPath;
   SmallString<512> PathsBuf;
@@ -48,9 +49,9 @@ class IndexUnitWriter::PathStorage {
                                      &PrefixMap;
 
 public:
-  PathStorage(StringRef workDir, StringRef sysrootPath,
+  PathStorage(FileManager &fileMgr, StringRef workDir, StringRef sysrootPath,
       std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
-                 &prefixMap) : PrefixMap(prefixMap) {
+                 &prefixMap) : FileMgr(fileMgr), PrefixMap(prefixMap) {
     WorkDir = std::string(workDir);
     if (sysrootPath == "/")
       sysrootPath = StringRef();
@@ -70,7 +71,9 @@ public:
 
     if (IsNew) {
       StringRef Filename = sys::path::filename(FE->getName());
-      DirBitPath Dir = getDirBitPath(sys::path::parent_path(FE->getName()));
+      SmallString<256> AbsDirPath(sys::path::parent_path(FE->getName()));
+      FileMgr.makeAbsolutePath(AbsDirPath);
+      DirBitPath Dir = getDirBitPath(AbsDirPath.str());
       FileBitPaths.emplace_back(Dir.PrefixKind, Dir.Dir,
                                 BitPathComponent(getPathOffset(Filename),
                                                  Filename.size()));
@@ -146,14 +149,18 @@ IndexUnitWriter::IndexUnitWriter(FileManager &FileMgr,
   store::appendUnitSubDir(this->UnitsPath);
   this->ProviderIdentifier = std::string(ProviderIdentifier);
   this->ProviderVersion = std::string(ProviderVersion);
-  this->OutputFile = std::string(OutputFile);
+  SmallString<256> AbsOutputFile(OutputFile);
+  FileMgr.makeAbsolutePath(AbsOutputFile);
+  this->OutputFile = std::string(AbsOutputFile.str());
   this->ModuleName = std::string(ModuleName);
   this->MainFile = MainFile;
   this->IsSystemUnit = IsSystem;
   this->IsModuleUnit = IsModuleUnit;
   this->IsDebugCompilation = IsDebugCompilation;
   this->TargetTriple = std::string(TargetTriple);
-  this->SysrootPath = std::string(SysrootPath);
+  SmallString<256> AbsSysroot(SysrootPath);
+  FileMgr.makeAbsolutePath(AbsSysroot);
+  this->SysrootPath = std::string(AbsSysroot.str());
   this->PrefixMap = PrefixMap;
   this->GetInfoForModuleFn = GetInfoForModule;
 }
@@ -366,7 +373,7 @@ bool IndexUnitWriter::write(std::string &Error) {
   Stream.Emit('X', 8);
   Stream.Emit('U', 8);
 
-  PathStorage PathStore(WorkDir, SysrootPath, PrefixMap);
+  PathStorage PathStore(FileMgr, WorkDir, SysrootPath, PrefixMap);
 
   writeBlockInfo(Stream);
   writeVersionInfo(Stream);
