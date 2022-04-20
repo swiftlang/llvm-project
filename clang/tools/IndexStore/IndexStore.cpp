@@ -81,6 +81,10 @@ struct IndexStoreError {
   std::string Error;
 };
 
+struct IndexStoreCreationOptions {
+  std::map<std::string, std::string, std::greater<std::string>> PrefixMap;
+};
+
 } // anonymous namespace
 
 const char *
@@ -98,14 +102,30 @@ indexstore_format_version(void) {
   return IndexDataStore::getFormatVersion();
 }
 
-indexstore_t
-indexstore_store_create(const char *store_path, indexstore_error_t *c_error) {
-  return indexstore_store_create_with_prefix_mapping(store_path, nullptr, 0, c_error);
+indexstore_creation_options_t
+indexstore_creation_options_create() {
+  return new IndexStoreCreationOptions();
+}
+
+void
+indexstore_creation_options_dispose(indexstore_creation_options_t options) {
+  delete static_cast<IndexStoreCreationOptions*>(options);
+}
+
+void indexstore_creation_options_add_prefix_mapping(
+    indexstore_creation_options_t c_options, const char *path_prefix, const char *remapped_path_prefix) {
+  IndexStoreCreationOptions *options = static_cast<IndexStoreCreationOptions*>(c_options);
+  options->PrefixMap.insert({std::string(path_prefix), std::string(remapped_path_prefix)});
 }
 
 indexstore_t
-indexstore_store_create_with_prefix_mapping(const char *store_path, const char **PrefixMappings,
-                        size_t NumMappings, indexstore_error_t *c_error) {
+indexstore_store_create(const char *store_path, indexstore_error_t *c_error) {
+  return indexstore_store_create_with_options(store_path, nullptr, c_error);
+}
+
+indexstore_t
+indexstore_store_create_with_options(const char *store_path, indexstore_creation_options_t c_options,
+                                     indexstore_error_t *c_error) {
   // Look through the managed static to trigger construction of the managed
   // static which registers our fatal error handler. This ensures it is only
   // registered once.
@@ -113,19 +133,10 @@ indexstore_store_create_with_prefix_mapping(const char *store_path, const char *
 
   std::unique_ptr<IndexDataStore> store;
   std::string error;
-  std::map<std::string, std::string, std::greater<std::string>>
-      PrefixMap;
-  if (PrefixMappings != nullptr && NumMappings > 0) {
-    for (size_t i = 0; i < NumMappings; ++i) {
-      llvm::StringRef Mapping(PrefixMappings[i]);
-      if (!Mapping.contains('=')) {
-        raw_string_ostream OS(error);
-        OS << "invalid prefix mapping: " << Mapping;
-        return nullptr;
-      }
-      auto Split = Mapping.split('=');
-      PrefixMap.insert({Split.first.str(), Split.second.str()});
-    }
+  std::map<std::string, std::string, std::greater<std::string>> PrefixMap;
+  if (c_options != nullptr) {
+    IndexStoreCreationOptions *options = static_cast<IndexStoreCreationOptions*>(c_options);
+    PrefixMap = options->PrefixMap;
   }
   store = IndexDataStore::create(store_path, PrefixMap, error);
   if (!store) {

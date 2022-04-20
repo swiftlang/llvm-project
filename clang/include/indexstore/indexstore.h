@@ -25,7 +25,7 @@
  * INDEXSTORE_VERSION_MAJOR is intended for "major" source/ABI breaking changes.
  */
 #define INDEXSTORE_VERSION_MAJOR 0
-#define INDEXSTORE_VERSION_MINOR 12
+#define INDEXSTORE_VERSION_MINOR 13
 
 #define INDEXSTORE_VERSION_ENCODE(major, minor) ( \
       ((major) * 10000)                           \
@@ -129,14 +129,23 @@ INDEXSTORE_PUBLIC unsigned
 indexstore_format_version(void);
 
 typedef void *indexstore_t;
+typedef void *indexstore_creation_options_t;
+
+INDEXSTORE_PUBLIC indexstore_creation_options_t
+indexstore_creation_options_create();
+
+INDEXSTORE_PUBLIC void
+indexstore_creation_options_dispose(indexstore_creation_options_t);
+
+INDEXSTORE_PUBLIC void indexstore_creation_options_add_prefix_mapping(
+    indexstore_creation_options_t options, const char *path_prefix, const char *remapped_path_prefix);
 
 INDEXSTORE_PUBLIC indexstore_t
 indexstore_store_create(const char *store_path, indexstore_error_t *error);
 
 INDEXSTORE_PUBLIC indexstore_t
-indexstore_store_create_with_prefix_mapping(
-    const char *store_path, const char **PrefixMappings,
-    size_t NumMappings,indexstore_error_t *error);
+indexstore_store_create_with_options(const char *store_path, indexstore_creation_options_t options,
+                                     indexstore_error_t *error);
 
 INDEXSTORE_PUBLIC void
 indexstore_store_dispose(indexstore_t);

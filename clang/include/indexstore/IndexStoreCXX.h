@@ -107,14 +107,12 @@ public:
     std::string &error) {
     llvm::SmallString<64> buf = path;
     indexstore_error_t c_err = nullptr;
-    std::vector<std::string> mapping_storage;
-    std::vector<const char *> c_strs;
+    indexstore_creation_options_t options = indexstore_creation_options_create();
     for (const auto &Mapping : prefix_map)
-      mapping_storage.push_back(Mapping.first + "=" + Mapping.second);
-    for (const auto &Str : mapping_storage)
-      c_strs.push_back(Str.c_str());
-    obj = indexstore_store_create_with_prefix_mapping(buf.c_str(), c_strs.data(),
-                                                      c_strs.size(), &c_err);
+      indexstore_creation_options_add_prefix_mapping(options, Mapping.first.c_str(), Mapping.second.c_str());
+
+    obj = indexstore_store_create_with_options(buf.c_str(), options, &c_err);
+    indexstore_creation_options_dispose(options);
     if (c_err) {
       error = indexstore_error_get_description(c_err);
       indexstore_error_dispose(c_err);
