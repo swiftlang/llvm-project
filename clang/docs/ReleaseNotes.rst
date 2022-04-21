@@ -176,6 +176,11 @@ Non-comprehensive list of changes in this release
 
 New Compiler Flags
 ------------------
+- Added the ``-fno-knr-functions`` flag to allow users to opt into the C2x
+  behavior where a function with an empty parameter list is treated as though
+  the parameter list were ``void``. There is no ``-fknr-functions`` or
+  ``-fno-no-knr-functions`` flag; this feature cannot be disabled in language
+  modes where it is required, such as C++ or C2x.
 
 Deprecated Compiler Flags
 -------------------------
@@ -239,14 +244,13 @@ C2x Feature Support
 - Removed support for implicit function declarations. This was a C89 feature
   that was removed in C99, but cannot be supported in C2x because it requires
   support for functions without prototypes, which no longer exist in C2x.
+- Implemented `WG14 N2841 No function declarators without prototypes <https://www9.open-std.org/jtc1/sc22/wg14/www/docs/n2841.htm>`_
+  and `WG14 N2432 Remove support for function definitions with identifier lists <https://www9.open-std.org/jtc1/sc22/wg14/www/docs/n2432.pdf>`_.
 
 C++ Language Changes in Clang
 -----------------------------
 
-- Improved ``-O0`` code generation for calls to ``std::move``, ``std::forward``,
-  ``std::move_if_noexcept``, ``std::addressof``, and ``std::as_const``. These
-  are now treated as compiler builtins and implemented directly, rather than
-  instantiating the definition from the standard library.
+- ...
 
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -271,11 +275,6 @@ C++2b Feature Support
 - Implemented `P2128R6: Multidimensional subscript operator <https://wg21.link/P2128R6>`_.
 - Implemented `P0849R8: auto(x): decay-copy in the language <https://wg21.link/P0849R8>`_.
 - Implemented `P2242R3: Non-literal variables (and labels and gotos) in constexpr functions	<https://wg21.link/P2242R3>`_.
-- Implemented `P2036R3: Change scope of lambda trailing-return-type <https://wg21.link/P2036R3>`_.
-  This proposal modifies how variables captured in lambdas can appear in trailing return type
-  expressions and how their types are deduced therein, in all C++ language versions.
-  `CWG2569 <https://cplusplus.github.io/CWG/issues/2569.html>`_ is also partially implemented so that
-  `[x](decltype(x)){}` doesn't become ill-formed with the adoption of P2036R3.
 
 CUDA Language Changes in Clang
 ------------------------------
