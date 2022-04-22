@@ -103,7 +103,7 @@ indexstore_format_version(void) {
 }
 
 indexstore_creation_options_t
-indexstore_creation_options_create() {
+indexstore_creation_options_create(void) {
   return new IndexStoreCreationOptions();
 }
 

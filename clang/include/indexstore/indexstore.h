@@ -132,7 +132,7 @@ typedef void *indexstore_t;
 typedef void *indexstore_creation_options_t;
 
 INDEXSTORE_PUBLIC indexstore_creation_options_t
-indexstore_creation_options_create();
+indexstore_creation_options_create(void);
 
 INDEXSTORE_PUBLIC void
 indexstore_creation_options_dispose(indexstore_creation_options_t);
