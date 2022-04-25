@@ -9,6 +9,7 @@ add_llvm_unittest(ADTTests
   APIntTest.cpp
   APSIntTest.cpp
   ArrayRefTest.cpp
+  AtomicUniquePointerTest.cpp
   BitFieldsTest.cpp
   BitmaskEnumTest.cpp
   BitVectorTest.cpp
