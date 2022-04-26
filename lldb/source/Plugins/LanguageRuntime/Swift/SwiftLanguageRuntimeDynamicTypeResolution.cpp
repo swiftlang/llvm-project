@@ -41,6 +41,12 @@
 using namespace lldb;
 using namespace lldb_private;
 
+template <class Runtime>
+const swift::GenericParamDescriptor *
+swift::targetImplicitGenericParamDescriptors() {
+  return swift::externalTargetImplicitGenericParamDescriptors();
+}
+
 namespace lldb_private {
 swift::Type GetSwiftType(CompilerType type) {
   auto *ts = type.GetTypeSystem();
