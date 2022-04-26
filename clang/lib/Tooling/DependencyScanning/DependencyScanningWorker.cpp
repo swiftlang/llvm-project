@@ -142,7 +142,7 @@ class DependencyScanningAction : public tooling::ToolAction {
 public:
   DependencyScanningAction(
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
-      const CASOptions &CASOpts,
+      const llvm::cas::CASOptions &CASOpts,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       llvm::IntrusiveRefCntPtr<DependencyScanningCASFilesystem> DepCASFS,
       ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings,
@@ -323,7 +323,7 @@ public:
 private:
   StringRef WorkingDirectory;
   DependencyConsumer &Consumer;
-  const CASOptions &CASOpts;
+  const llvm::cas::CASOptions &CASOpts;
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
   llvm::IntrusiveRefCntPtr<DependencyScanningCASFilesystem> DepCASFS;
   ExcludedPreprocessorDirectiveSkipMapping *PPSkipMappings;

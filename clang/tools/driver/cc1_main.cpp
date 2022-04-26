@@ -326,7 +326,10 @@ Optional<int> CompileJobCache::initialize(CompilerInstance &Clang) {
   //
   // TODO: Extract CASOptions.Path first if we need it later since it'll
   // disappear here.
-  CAS = Invocation.getCASOpts().getOrCreateCASAndHideConfig(Diags);
+  if (auto Err =
+          Invocation.getCASOpts().getOrCreateCASAndHideConfig().moveInto(CAS))
+    Diags.Report(diag::err_builtin_cas_cannot_be_initialized)
+        << toString(std::move(Err));
   if (!CAS)
     return 1; // Exit with error!
 

@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/CAS/CASOptions.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/CAS/Utils.h"
 #include "llvm/CASObjectFormats/CASObjectReader.h"
@@ -150,13 +151,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  std::unique_ptr<CASDB> CAS;
-  if (StringRef(CASPath).empty())
-    CAS = createInMemoryCAS();
-  else if (CASPath == "auto")
-    CAS = ExitOnErr(createOnDiskCAS(getDefaultOnDiskCASPath()));
-  else
-    CAS = ExitOnErr(createOnDiskCAS(CASPath));
+  CASOptions CASOpts;
+  CASOpts.CASPath = CASPath;
+  auto CAS = ExitOnErr(CASOpts.getOrCreateCAS());
 
   ThreadPoolStrategy PoolStrategy = hardware_concurrency();
   if (NumThreads != 0)

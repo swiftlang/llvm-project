@@ -15,7 +15,6 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/LangStandard.h"
-#include "clang/CAS/CASOptions.h"
 #include "clang/Frontend/DependencyOutputOptions.h"
 #include "clang/Frontend/FrontendOptions.h"
 #include "clang/Frontend/MigratorOptions.h"
@@ -23,6 +22,7 @@
 #include "clang/StaticAnalyzer/Core/AnalyzerOptions.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/CAS/CASOptions.h"
 #include <memory>
 #include <string>
 
@@ -145,7 +145,7 @@ protected:
   MigratorOptions MigratorOpts;
 
   /// Options configuring the CAS.
-  CASOptions CASOpts;
+  llvm::cas::CASOptions CASOpts;
 
   /// Options controlling IRgen and the backend.
   CodeGenOptions CodeGenOpts;
@@ -246,19 +246,20 @@ public:
                               StringAllocator SA) const;
 
   /// Parse command line options that map to \p CASOptions.
-  static bool ParseCASArgs(CASOptions &Opts, const llvm::opt::ArgList &Args,
+  static bool ParseCASArgs(llvm::cas::CASOptions &Opts,
+                           const llvm::opt::ArgList &Args,
                            DiagnosticsEngine &Diags);
 
   /// Generate command line options from CASOptions.
-  static void GenerateCASArgs(const CASOptions &Opts,
+  static void GenerateCASArgs(const llvm::cas::CASOptions &Opts,
                               SmallVectorImpl<const char *> &Args,
                               CompilerInvocation::StringAllocator SA);
   /// @}
   /// @name Option Subgroups
   /// @{
 
-  CASOptions &getCASOpts() { return CASOpts; }
-  const CASOptions &getCASOpts() const { return CASOpts; }
+  llvm::cas::CASOptions &getCASOpts() { return CASOpts; }
+  const llvm::cas::CASOptions &getCASOpts() const { return CASOpts; }
 
   AnalyzerOptionsRef getAnalyzerOpts() const { return AnalyzerOpts; }
 

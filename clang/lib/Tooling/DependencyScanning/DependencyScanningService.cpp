@@ -16,7 +16,8 @@ using namespace tooling;
 using namespace dependencies;
 
 DependencyScanningService::DependencyScanningService(
-    ScanningMode Mode, ScanningOutputFormat Format, CASOptions CASOpts,
+    ScanningMode Mode, ScanningOutputFormat Format,
+    llvm::cas::CASOptions CASOpts,
     IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> SharedFS,
     bool ReuseFileManager, bool SkipExcludedPPRanges, bool OptimizeArgs,
     bool OverrideCASTokenCache)

@@ -9,9 +9,9 @@
 #ifndef LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGSERVICE_H
 #define LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGSERVICE_H
 
-#include "clang/CAS/CASOptions.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningCASFilesystem.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningFilesystem.h"
+#include "llvm/CAS/CASOptions.h"
 
 namespace clang {
 namespace tooling {
@@ -56,7 +56,8 @@ enum class ScanningOutputFormat {
 class DependencyScanningService {
 public:
   DependencyScanningService(
-      ScanningMode Mode, ScanningOutputFormat Format, CASOptions CASOpts,
+      ScanningMode Mode, ScanningOutputFormat Format,
+      llvm::cas::CASOptions CASOpts,
       IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> SharedFS,
       bool ReuseFileManager = true, bool SkipExcludedPPRanges = true,
       bool OptimizeArgs = false, bool OverrideCASTokenCache = false);
@@ -67,7 +68,7 @@ public:
 
   ScanningOutputFormat getFormat() const { return Format; }
 
-  const CASOptions &getCASOpts() const { return CASOpts; }
+  const llvm::cas::CASOptions &getCASOpts() const { return CASOpts; }
 
   bool canReuseFileManager() const { return ReuseFileManager; }
 
@@ -90,7 +91,7 @@ public:
 private:
   const ScanningMode Mode;
   const ScanningOutputFormat Format;
-  CASOptions CASOpts;
+  llvm::cas::CASOptions CASOpts;
   const bool ReuseFileManager;
   /// Set to true to use the preprocessor optimization that skips excluded PP
   /// ranges by bumping the buffer pointer in the lexer instead of lexing the

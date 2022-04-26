@@ -11,7 +11,6 @@ add_clang_tool(clang-scan-deps
 set(CLANG_SCAN_DEPS_LIB_DEPS
   clangAST
   clangBasic
-  clangCAS
   clangCodeGen
   clangDriver
   clangFrontend

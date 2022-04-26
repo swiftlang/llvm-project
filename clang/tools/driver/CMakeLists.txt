@@ -39,7 +39,6 @@ add_clang_tool(clang
 clang_target_link_libraries(clang
   PRIVATE
   clangBasic
-  clangCAS
   clangCodeGen
   clangDependencyScanning
   clangDriver

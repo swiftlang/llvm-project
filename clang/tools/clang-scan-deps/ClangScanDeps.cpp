@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/DiagnosticCAS.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -742,7 +743,7 @@ int main(int argc, const char **argv) {
   DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
   Diags.setClient(DiagsConsumer.get(), /*ShouldOwnClient=*/false);
 
-  CASOptions CASOpts;
+  llvm::cas::CASOptions CASOpts;
   std::shared_ptr<llvm::cas::CASDB> CAS;
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS;
   if (outputFormatRequiresCAS()) {
@@ -752,7 +753,9 @@ int main(int argc, const char **argv) {
       else
         CASOpts.ensurePersistentCAS();
     }
-    CAS = CASOpts.getOrCreateCAS(Diags);
+    if (auto Err = CASOpts.getOrCreateCAS().moveInto(CAS))
+      Diags.Report(diag::err_builtin_cas_cannot_be_initialized)
+          << toString(std::move(Err));
     if (!CAS)
       return 1;
     FS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));

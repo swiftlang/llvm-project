@@ -132,9 +132,9 @@ Expected<ScanDaemon> ScanDaemon::connectToDaemon(StringRef BasePath,
       std::error_code(ENOENT, std::generic_category()));
 }
 
-Expected<ScanDaemon> ScanDaemon::launchDaemon(StringRef BasePath,
-                                              const char *Arg0,
-                                              const CASOptions &CASOpts) {
+Expected<ScanDaemon>
+ScanDaemon::launchDaemon(StringRef BasePath, const char *Arg0,
+                         const llvm::cas::CASOptions &CASOpts) {
   std::string BasePathCStr = BasePath.str();
   const char *Args[] = {
       Arg0,
@@ -189,7 +189,7 @@ Expected<ScanDaemon> ScanDaemon::launchDaemon(StringRef BasePath,
 }
 
 Expected<ScanDaemon> ScanDaemon::create(StringRef BasePath, const char *Arg0,
-                                        const CASOptions &CASOpts) {
+                                        const llvm::cas::CASOptions &CASOpts) {
   if (Expected<ScanDaemon> Daemon = connectToExistingDaemon(BasePath))
     return Daemon;
   else
@@ -200,7 +200,7 @@ Expected<ScanDaemon> ScanDaemon::create(StringRef BasePath, const char *Arg0,
 
 Expected<ScanDaemon>
 ScanDaemon::constructAndShakeHands(StringRef BasePath, const char *Arg0,
-                                   const CASOptions &CASOpts) {
+                                   const llvm::cas::CASOptions &CASOpts) {
   auto Daemon = ScanDaemon::create(BasePath, Arg0, CASOpts);
   if (!Daemon)
     return Daemon.takeError();

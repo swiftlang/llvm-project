@@ -118,7 +118,9 @@ public:
                       StringRef CWD, const llvm::StringSet<> &AlreadySeen,
                       llvm::Optional<StringRef> ModuleName = None);
 
-  const CASOptions &getCASOpts() const { return Worker.getCASOpts(); }
+  const llvm::cas::CASOptions &getCASOpts() const {
+    return Worker.getCASOpts();
+  }
 
   llvm::cas::CachingOnDiskFileSystem &getCachingFileSystem() {
     return Worker.getCASFS();

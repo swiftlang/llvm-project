@@ -12,6 +12,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticCAS.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LangStandard.h"
 #include "clang/Basic/SourceManager.h"
@@ -848,9 +849,14 @@ llvm::cas::CASDB &CompilerInstance::getOrCreateCAS() {
 
   // Create a new CAS instance from the CompilerInvocation. Future calls to
   // createFileManager() will use the same CAS.
-  CAS = getInvocation().getCASOpts().getOrCreateCAS(
-      getDiagnostics(),
-      /*CreateEmptyCASOnFailure=*/true);
+  if (auto Err = getInvocation()
+                     .getCASOpts()
+                     .getOrCreateCAS(
+                         /*CreateEmptyCASOnFailure=*/true)
+                     .moveInto(CAS)) {
+    getDiagnostics().Report(diag::err_builtin_cas_cannot_be_initialized)
+        << toString(std::move(Err));
+  }
   return *CAS;
 }
 
