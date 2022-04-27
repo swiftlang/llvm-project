@@ -10,6 +10,7 @@ add_llvm_unittest(CASTests
   CASOutputBackendTest.cpp
   CASProvidingFileSystemTest.cpp
   CachingOnDiskFileSystemTest.cpp
+  LazyAtomicPointerTest.cpp
   HashMappedTrieTest.cpp
   HierarchicalTreeBuilderTest.cpp
   OnDiskHashMappedTrieTest.cpp
