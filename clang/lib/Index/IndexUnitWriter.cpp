@@ -150,7 +150,8 @@ IndexUnitWriter::IndexUnitWriter(FileManager &FileMgr,
   this->ProviderIdentifier = std::string(ProviderIdentifier);
   this->ProviderVersion = std::string(ProviderVersion);
   SmallString<256> AbsOutputFile(OutputFile);
-  FileMgr.makeAbsolutePath(AbsOutputFile);
+  if (OutputFile != "-")  // Can't make stdout absolute, should stay as "-".
+    FileMgr.makeAbsolutePath(AbsOutputFile);
   this->OutputFile = std::string(AbsOutputFile.str());
   this->ModuleName = std::string(ModuleName);
   this->MainFile = MainFile;
