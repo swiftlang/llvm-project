@@ -20,6 +20,7 @@
 #include "clang/Config/config.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
+#include "clang/Frontend/CompileJobCacheKey.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
@@ -192,46 +193,6 @@ static int PrintSupportedCPUs(std::string TargetStr) {
   return 0;
 }
 
-static Optional<llvm::cas::CASID>
-createResultCacheKey(llvm::cas::CASDB &CAS, DiagnosticsEngine &Diags,
-                     const CompilerInvocation &Invocation) {
-  // Generate a new command-line in case Invocation has been canonicalized.
-  llvm::BumpPtrAllocator Alloc;
-  llvm::StringSaver Saver(Alloc);
-  llvm::SmallVector<const char *> Argv;
-  Invocation.generateCC1CommandLine(
-      Argv, [&Saver](const llvm::Twine &T) { return Saver.save(T).data(); });
-
-  // FIXME: currently correct since the main executable is always in the root
-  // from scanning, but we should probably make it explicit here...
-  StringRef RootIDString = Invocation.getFileSystemOpts().CASFileSystemRootID;
-  Expected<llvm::cas::CASID> RootID = CAS.parseID(RootIDString);
-  if (!RootID) {
-    llvm::consumeError(RootID.takeError());
-    Diags.Report(diag::err_cas_cannot_parse_root_id) << RootIDString;
-    return None;
-  }
-
-  SmallString<256> CommandLine;
-  for (StringRef Arg : Argv) {
-    CommandLine.append(Arg);
-    CommandLine.push_back(0);
-  }
-
-  llvm::cas::HierarchicalTreeBuilder Builder;
-  Builder.push(*RootID, llvm::cas::TreeEntry::Tree, "filesystem");
-  Builder.push(llvm::cantFail(CAS.createBlob(CommandLine)),
-               llvm::cas::TreeEntry::Regular, "command-line");
-  Builder.push(llvm::cantFail(CAS.createBlob("-cc1")),
-               llvm::cas::TreeEntry::Regular, "computation");
-
-  // FIXME: The version is maybe insufficient...
-  Builder.push(llvm::cantFail(CAS.createBlob(getClangFullVersion())),
-               llvm::cas::TreeEntry::Regular, "version");
-
-  return llvm::cantFail(Builder.create(CAS)).getID();
-}
-
 namespace {
 
 // Manage caching and replay of compile jobs.
@@ -378,8 +339,8 @@ Optional<int> CompileJobCache::tryReplayCachedResult(CompilerInstance &Clang) {
     return None;
 
   // Create the result cache key once Invocation has been canonicalized.
-  ResultCacheKey =
-      createResultCacheKey(*CAS, Clang.getDiagnostics(), Clang.getInvocation());
+  ResultCacheKey = createCompileJobCacheKey(*CAS, Clang.getDiagnostics(),
+                                            Clang.getInvocation());
   if (!ResultCacheKey)
     return 1;
 

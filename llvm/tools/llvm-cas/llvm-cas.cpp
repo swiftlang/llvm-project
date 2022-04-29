@@ -175,50 +175,12 @@ int main(int Argc, char **Argv) {
   return catBlob(*CAS, ID);
 }
 
-void printTreeEntryKind(raw_ostream &OS, TreeEntry::EntryKind Kind) {
-  switch (Kind) {
-  case TreeEntry::Regular:
-    OS << "file";
-    break;
-  case TreeEntry::Executable:
-    OS << "exec";
-    break;
-  case TreeEntry::Symlink:
-    OS << "syml";
-    break;
-  case TreeEntry::Tree:
-    OS << "tree";
-    break;
-  }
-}
-
-void printTreeEntry(CASDB &CAS, raw_ostream &OS, TreeEntry::EntryKind Kind,
-                    CASID ID, StringRef Name) {
-  printTreeEntryKind(OS, Kind);
-  OS << " " << ID << " " << Name;
-  if (Kind == TreeEntry::Tree)
-    OS << "/";
-  if (Kind == TreeEntry::Symlink) {
-    auto Target = cantFail(CAS.getBlob(ID));
-    OS << " -> " << *Target;
-  }
-  OS << "\n";
-}
-
-void printTreeEntry(CASDB &CAS, raw_ostream &OS, const TreeEntry &Entry, StringRef Name) {
-  printTreeEntry(CAS, OS, Entry.getKind(), Entry.getID(), Name);
-}
-
-void printTreeEntry(CASDB &CAS, raw_ostream &OS, const NamedTreeEntry &Entry) {
-  printTreeEntry(CAS, OS, Entry, Entry.getName());
-}
-
 int listTree(CASDB &CAS, CASID ID) {
   ExitOnError ExitOnErr("llvm-cas: ls-tree: ");
 
   TreeProxy Tree = ExitOnErr(CAS.getTree(ID));
   ExitOnErr(Tree.forEachEntry([&](const NamedTreeEntry &Entry) {
-    printTreeEntry(CAS, llvm::outs(), Entry);
+    Entry.print(llvm::outs(), CAS);
     return Error::success();
   }));
 
@@ -231,11 +193,11 @@ int listTreeRecursively(CASDB &CAS, CASID ID) {
       CAS, ID,
       [&](const NamedTreeEntry &Entry, Optional<TreeProxy> Tree) -> Error {
         if (Entry.getKind() != TreeEntry::Tree) {
-          printTreeEntry(CAS, llvm::outs(), Entry);
+          Entry.print(llvm::outs(), CAS);
           return Error::success();
         }
         if (Tree->empty() || AllTrees)
-          printTreeEntry(CAS, llvm::outs(), Entry);
+          Entry.print(llvm::outs(), CAS);
         return Error::success();
       }));
 

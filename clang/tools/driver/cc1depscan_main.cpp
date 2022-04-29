@@ -15,6 +15,7 @@
 #include "clang/CodeGen/ObjectFilePCHContainerOperations.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Options.h"
+#include "clang/Frontend/CompileJobCacheKey.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/TextDiagnosticBuffer.h"
@@ -1002,26 +1003,7 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
         // cache and see if it should be a cache hit. Is there a better way to
         // get this stats in the daemon?
         auto &CAS = Tool->getCachingFileSystem().getCAS();
-        SmallString<256> CommandLine;
-        // There is an extra cc1 from the cc1_main.
-        CommandLine.append("-cc1");
-        CommandLine.push_back(0);
-        for (StringRef Arg : NewArgs) {
-          CommandLine.append(Arg);
-          CommandLine.push_back(0);
-        }
-
-        llvm::cas::HierarchicalTreeBuilder Builder;
-        Builder.push(*RootID, llvm::cas::TreeEntry::Tree, "filesystem");
-        Builder.push(llvm::cantFail(CAS.createBlob(CommandLine)),
-                     llvm::cas::TreeEntry::Regular, "command-line");
-        Builder.push(llvm::cantFail(CAS.createBlob("-cc1")),
-                     llvm::cas::TreeEntry::Regular, "computation");
-
-        Builder.push(llvm::cantFail(CAS.createBlob(getClangFullVersion())),
-                     llvm::cas::TreeEntry::Regular, "version");
-
-        auto Key = llvm::cantFail(Builder.create(CAS)).getID();
+        auto Key = createCompileJobCacheKey(CAS, NewArgs, *RootID);
         auto Result = CAS.getCachedResult(Key);
         if (Result)
           ++NumCASCacheHit;

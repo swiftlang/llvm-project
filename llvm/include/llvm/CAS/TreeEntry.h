@@ -15,6 +15,8 @@
 namespace llvm {
 namespace cas {
 
+class CASDB;
+
 class TreeEntry {
 public:
   enum EntryKind {
@@ -57,6 +59,8 @@ public:
 
   NamedTreeEntry(CASID ID, EntryKind Kind, StringRef Name)
       : TreeEntry(ID, Kind), Name(Name) {}
+
+  void print(raw_ostream &OS, CASDB &CAS) const;
 
 private:
   StringRef Name;

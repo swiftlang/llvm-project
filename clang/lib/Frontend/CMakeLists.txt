@@ -15,6 +15,7 @@ add_clang_library(clangFrontend
   ASTUnit.cpp
   ChainedDiagnosticConsumer.cpp
   ChainedIncludesSource.cpp
+  CompileJobCacheKey.cpp
   CompilerInstance.cpp
   CompilerInvocation.cpp
   CreateInvocationFromCommandLine.cpp
