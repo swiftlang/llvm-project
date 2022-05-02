@@ -265,6 +265,10 @@ C++ Language Changes in Clang
   ``std::move_if_noexcept``, ``std::addressof``, and ``std::as_const``. These
   are now treated as compiler builtins and implemented directly, rather than
   instantiating the definition from the standard library.
+- Fixed mangling of nested dependent names such as ``T::a::b``, where ``T`` is a
+  template parameter, to conform to the Itanium C++ ABI and be compatible with
+  GCC. This breaks binary compatibility with code compiled with earlier versions
+  of clang; use the ``-fclang-abi-compat=14`` option to get the old mangling.
 
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -275,10 +279,6 @@ C++20 Feature Support
   `Issue 54578 <https://github.com/llvm/llvm-project/issues/54578>`_.
 
 - Implemented `__builtin_source_location()` which enables library support for std::source_location.
-- Clang now correctly delays the instantiation of function constraints until
-  the time of checking, which should now allow the libstdc++ ranges implementation
-  to work for at least trivial examples.  This fixes
-  `Issue 44178 <https://github.com/llvm/llvm-project/issues/44178>`_.
 
 - The mangling scheme for C++20 modules has incompatibly changed. The
   initial mangling was discovered not to be reversible, and the weak
