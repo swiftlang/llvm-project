@@ -10,14 +10,15 @@
 #define LLVM_CLANG_TOOLS_CINDEXTEST_JSONAGGREGATION_H
 
 #include "clang/Basic/LLVM.h"
-#include <map>
 
 namespace clang {
+
+class PathRemapper;
+
 namespace index {
 
 /// Returns true if an error occurred, false otherwise.
-bool aggregateDataAsJSON(StringRef StorePath,
-						 std::map<std::string, std::string, std::greater<std::string>> PrefixMap,
+bool aggregateDataAsJSON(StringRef StorePath, const PathRemapper &Remapper,
 						 raw_ostream &OS);
 
 } // end namespace index

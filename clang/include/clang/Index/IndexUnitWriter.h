@@ -23,6 +23,7 @@ namespace llvm {
 namespace clang {
   class FileEntry;
   class FileManager;
+  class PathRemapper;
 
 namespace index {
 
@@ -58,8 +59,7 @@ class IndexUnitWriter {
   std::string TargetTriple;
   std::string WorkDir;
   std::string SysrootPath;
-  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
-      PrefixMap;
+  const PathRemapper &Remapper;
   std::function<writer::ModuleInfo(writer::OpaqueModule,
                             SmallVectorImpl<char> &Scratch)> GetInfoForModuleFn;
   struct FileInclude {
@@ -90,7 +90,7 @@ public:
   /// \param MainFile the main file for a compiled source file. This should be
   /// null for PCH and module units.
   /// \param IsSystem true for system module units, false otherwise.
-  /// \param PrefixMap Mapping to use to standardize file paths to make them
+  /// \param Remapper Remapper to use to standardize file paths to make them
   /// hermetic/reproducible. This applies to all paths emitted in the unit file.
   IndexUnitWriter(FileManager &FileMgr,
                   StringRef StorePath,
@@ -103,8 +103,7 @@ public:
                   bool IsDebugCompilation,
                   StringRef TargetTriple,
                   StringRef SysrootPath,
-                  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
-                      PrefixMap,
+                  const PathRemapper &Remapper,
                   writer::ModuleInfoWriterCallback GetInfoForModule);
   ~IndexUnitWriter();
 
@@ -128,7 +127,7 @@ public:
                                              Optional<StringRef> TimeCompareFilePath,
                                              std::string &Error);
   static void getUnitNameForAbsoluteOutputFile(StringRef FilePath, SmallVectorImpl<char> &Str,
-      std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> &PrefixMap);
+                                               const PathRemapper &Remapper);
   static bool initIndexDirectory(StringRef StorePath, std::string &Error);
 
 private:

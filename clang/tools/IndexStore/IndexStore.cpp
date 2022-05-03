@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "indexstore/indexstore.h"
+#include "clang/Basic/PathRemapper.h"
 #include "clang/Index/IndexDataStore.h"
 #include "clang/Index/IndexDataStoreSymbolUtils.h"
 #include "clang/Index/IndexRecordReader.h"
@@ -22,8 +23,6 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/raw_ostream.h"
-#include <map>
 
 #if INDEXSTORE_HAS_BLOCKS
 #include <Block.h>
@@ -82,7 +81,7 @@ struct IndexStoreError {
 };
 
 struct IndexStoreCreationOptions {
-  std::map<std::string, std::string, std::greater<std::string>> PrefixMap;
+  PathRemapper Remapper;
 };
 
 } // anonymous namespace
@@ -115,7 +114,7 @@ indexstore_creation_options_dispose(indexstore_creation_options_t options) {
 void indexstore_creation_options_add_prefix_mapping(
     indexstore_creation_options_t c_options, const char *path_prefix, const char *remapped_path_prefix) {
   IndexStoreCreationOptions *options = static_cast<IndexStoreCreationOptions*>(c_options);
-  options->PrefixMap.insert({std::string(path_prefix), std::string(remapped_path_prefix)});
+  options->Remapper.addMapping(path_prefix, remapped_path_prefix);
 }
 
 indexstore_t
@@ -133,12 +132,12 @@ indexstore_store_create_with_options(const char *store_path, indexstore_creation
 
   std::unique_ptr<IndexDataStore> store;
   std::string error;
-  std::map<std::string, std::string, std::greater<std::string>> PrefixMap;
+  PathRemapper Remapper;
   if (c_options != nullptr) {
     IndexStoreCreationOptions *options = static_cast<IndexStoreCreationOptions*>(c_options);
-    PrefixMap = options->PrefixMap;
+    Remapper = options->Remapper;
   }
-  store = IndexDataStore::create(store_path, PrefixMap, error);
+  store = IndexDataStore::create(store_path, Remapper, error);
   if (!store) {
     if (c_error)
       *c_error = new IndexStoreError{ error };
@@ -614,9 +613,9 @@ indexstore_store_get_unit_name_from_output_path(indexstore_t c_store,
                                                 size_t buf_size) {
   IndexDataStore *store = static_cast<IndexDataStore*>(c_store);
   SmallString<256> unitName;
-  auto prefixMap = store->getPrefixMap();
+  auto remapper = store->getPathRemapper();
   IndexUnitWriter::getUnitNameForAbsoluteOutputFile(output_path, unitName,
-                                                    prefixMap);
+                                                    remapper);
   size_t nameLen = unitName.size();
   if (buf_size != 0) {
     strncpy(name_buf, unitName.c_str(), buf_size-1);
@@ -659,7 +658,7 @@ indexstore_unit_reader_create(indexstore_t c_store, const char *unit_name,
   std::string error;
   reader = IndexUnitReader::createWithUnitFilename(unit_name,
                                                    store->getFilePath(),
-                                                   store->getPrefixMap(),
+                                                   store->getPathRemapper(),
                                                    error);
   if (!reader) {
     if (c_error)

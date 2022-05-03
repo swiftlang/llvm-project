@@ -14,11 +14,11 @@
 #define LLVM_CLANG_INDEXSTORE_INDEXSTORECXX_H
 
 #include "indexstore/indexstore.h"
+#include "clang/Basic/PathRemapper.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
-#include <map>
 
 namespace indexstore {
   using llvm::ArrayRef;
@@ -102,13 +102,11 @@ class IndexStore {
   friend class IndexUnitReader;
 
 public:
-  IndexStore(StringRef path,
-    std::map<std::string, std::string, std::greater<std::string>> prefix_map,
-    std::string &error) {
+  IndexStore(StringRef path, clang::PathRemapper remapper, std::string &error) {
     llvm::SmallString<64> buf = path;
     indexstore_error_t c_err = nullptr;
     indexstore_creation_options_t options = indexstore_creation_options_create();
-    for (const auto &Mapping : prefix_map)
+    for (const auto &Mapping : remapper.getMappings())
       indexstore_creation_options_add_prefix_mapping(options, Mapping.first.c_str(), Mapping.second.c_str());
 
     obj = indexstore_store_create_with_options(buf.c_str(), options, &c_err);
@@ -127,10 +125,9 @@ public:
     indexstore_store_dispose(obj);
   }
 
-  static IndexStoreRef create(StringRef path,
-    std::map<std::string, std::string, std::greater<std::string>> prefix_map,
-    std::string &error) {
-    auto storeRef = std::make_shared<IndexStore>(path, prefix_map, error);
+  static IndexStoreRef create(StringRef path, clang::PathRemapper remapper,
+                              std::string &error) {
+    auto storeRef = std::make_shared<IndexStore>(path, remapper, error);
     if (storeRef->isInvalid())
       return nullptr;
     return storeRef;

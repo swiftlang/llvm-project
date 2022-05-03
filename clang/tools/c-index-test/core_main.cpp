@@ -12,6 +12,7 @@
 #include "clang/DirectoryWatcher/DirectoryWatcher.h"
 #include "clang/AST/Mangle.h"
 #include "clang/Basic/LangOptions.h"
+#include "clang/Basic/PathRemapper.h"
 #include "clang/CodeGen/ObjectFilePCHContainerOperations.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -394,11 +395,10 @@ static bool printStoreRecord(indexstore::IndexStore &Store, StringRef RecName,
   return false;
 }
 
-static int printStoreRecords(StringRef StorePath,
-    std::map<std::string, std::string, std::greater<std::string>> PrefixMap,
+static int printStoreRecords(StringRef StorePath, PathRemapper Remapper,
                              raw_ostream &OS) {
   std::string Error;
-  indexstore::IndexStore Store(StorePath, PrefixMap, Error);
+  indexstore::IndexStore Store(StorePath, Remapper, Error);
   if (!Store) {
     errs() << "error loading store: " << Error << "\n";
     return 1;
@@ -450,10 +450,9 @@ static std::string findRecordNameForFile(indexstore::IndexStore &store,
 
 static int printStoreFileRecord(StringRef storePath, StringRef filePath,
                                 Optional<unsigned> lineStart, unsigned lineCount,
-         std::map<std::string, std::string, std::greater<std::string>> prefixMap,
-                                raw_ostream &OS) {
+                                PathRemapper remapper, raw_ostream &OS) {
   std::string error;
-  indexstore::IndexStore store(storePath, prefixMap, error);
+  indexstore::IndexStore store(storePath, remapper, error);
   if (!store) {
     errs() << "error loading store: " << error << "\n";
     return 1;
@@ -487,14 +486,10 @@ static int printStoreFileRecord(StringRef storePath, StringRef filePath,
 // Print Unit
 //===----------------------------------------------------------------------===//
 
-static int printUnit(StringRef Filename,
-  std::map<std::string, std::string, std::greater<std::string>> PrefixMap,
+static int printUnit(StringRef Filename, PathRemapper Remapper,
                      raw_ostream &OS) {
-  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> PrefixRefs;
-  for (const auto &Mapping : PrefixMap)
-    PrefixRefs.insert({Mapping.first, Mapping.second});
   std::string Error;
-  auto Reader = IndexUnitReader::createWithFilePath(Filename, PrefixRefs, Error);
+  auto Reader = IndexUnitReader::createWithFilePath(Filename, Remapper, Error);
   if (!Reader) {
     errs() << Error << '\n';
     return true;
@@ -605,11 +600,10 @@ static bool printStoreUnit(indexstore::IndexStore &Store, StringRef UnitName,
   return false;
 }
 
-static int printStoreUnits(StringRef StorePath,
-        std::map<std::string, std::string, std::greater<std::string>> PrefixMap,
+static int printStoreUnits(StringRef StorePath, PathRemapper Remapper,
                            raw_ostream &OS) {
   std::string Error;
-  indexstore::IndexStore Store(StorePath, PrefixMap, Error);
+  indexstore::IndexStore Store(StorePath, Remapper, Error);
   if (!Store) {
     errs() << "error loading store: " << Error << "\n";
     return 1;
@@ -1019,7 +1013,7 @@ int indextest_core_main(int argc, const char **argv) {
     return 1;
   }
 
-  std::map<std::string, std::string, std::greater<std::string>> PrefixMap;
+  PathRemapper PathRemapper;
   for (const auto &Mapping : options::PrefixMap) {
     llvm::StringRef MappingRef(Mapping);
     if (!MappingRef.contains('=')) {
@@ -1028,7 +1022,7 @@ int indextest_core_main(int argc, const char **argv) {
       return 1;
     }
     auto Split = MappingRef.split('=');
-    PrefixMap.insert({Split.first.str(), Split.second.str()});
+    PathRemapper.addMapping(Split.first, Split.second);
   }
 
   if (options::Action == ActionType::PrintSourceSymbols) {
@@ -1059,7 +1053,7 @@ int indextest_core_main(int argc, const char **argv) {
         return 1;
       }
       return printStoreFileRecord(options::InputFiles[0], filepath, lineStart,
-                                  lineCount, PrefixMap, outs());
+                                  lineCount, PathRemapper, outs());
     }
 
     if (options::InputFiles.empty()) {
@@ -1068,7 +1062,7 @@ int indextest_core_main(int argc, const char **argv) {
     }
 
     if (sys::fs::is_directory(options::InputFiles[0]))
-      return printStoreRecords(options::InputFiles[0], PrefixMap, outs());
+      return printStoreRecords(options::InputFiles[0], PathRemapper, outs());
     else
       return printRecord(options::InputFiles[0], outs());
   }
@@ -1080,9 +1074,9 @@ int indextest_core_main(int argc, const char **argv) {
     }
 
     if (sys::fs::is_directory(options::InputFiles[0]))
-      return printStoreUnits(options::InputFiles[0], PrefixMap, outs());
+      return printStoreUnits(options::InputFiles[0], PathRemapper, outs());
     else
-      return printUnit(options::InputFiles[0], PrefixMap, outs());
+      return printUnit(options::InputFiles[0], PathRemapper, outs());
   }
 
   if (options::Action == ActionType::PrintStoreFormatVersion) {
@@ -1096,14 +1090,14 @@ int indextest_core_main(int argc, const char **argv) {
     }
     StringRef storePath = options::InputFiles[0];
     if (options::OutputFile.empty())
-      return aggregateDataAsJSON(storePath, PrefixMap, outs());
+      return aggregateDataAsJSON(storePath, PathRemapper, outs());
     std::error_code EC;
     raw_fd_ostream OS(options::OutputFile, EC, llvm::sys::fs::OF_None);
     if (EC) {
       errs() << "failed to open output file: " << EC.message() << '\n';
       return 1;
     }
-    return aggregateDataAsJSON(storePath, PrefixMap, OS);
+    return aggregateDataAsJSON(storePath, PathRemapper, OS);
   }
   
   if (options::Action == ActionType::ScanDeps) {

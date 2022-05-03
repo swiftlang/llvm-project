@@ -8,6 +8,7 @@
 
 #include "JSONAggregation.h"
 #include "indexstore/IndexStoreCXX.h"
+#include "clang/Basic/PathRemapper.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Index/IndexDataStoreSymbolUtils.h"
 #include "llvm/ADT/StringMap.h"
@@ -383,10 +384,9 @@ void Aggregator::dumpJSON(raw_ostream &OS) {
 
 
 bool index::aggregateDataAsJSON(StringRef StorePath,
-    std::map<std::string, std::string, std::greater<std::string>> PrefixMap,
-    raw_ostream &OS) {
+                                const PathRemapper &Remapper, raw_ostream &OS) {
   std::string error;
-  auto dataStore = IndexStore(StorePath, PrefixMap, error);
+  auto dataStore = IndexStore(StorePath, Remapper, error);
   if (!dataStore) {
     errs() << "error opening store path '" << StorePath << "': " << error << '\n';
     return true;

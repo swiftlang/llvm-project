@@ -28,18 +28,6 @@ using namespace llvm;
 
 namespace {
 
-static std::string remapPath(std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
-                             &PrefixMap, llvm::StringRef Path) {
-  if (PrefixMap.empty())
-    return Path.str();
-
-  SmallString<256> P = Path;
-  for (const auto &Entry : PrefixMap)
-    if (llvm::sys::path::replace_path_prefix(P, Entry.first, Entry.second))
-      break;
-  return P.str().str();
-}
-
 typedef function_ref<bool(const IndexUnitReader::DependencyInfo &)> DependencyReceiver;
 typedef function_ref<bool(const IndexUnitReader::IncludeInfo &)> IncludeReceiver;
 
@@ -63,7 +51,7 @@ public:
   StringRef Target;
   std::vector<FileBitPath> Paths;
   StringRef PathsBuffer;
-  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> PrefixMap;
+  const PathRemapper &Remapper;
 
   struct ModuleInfo {
     unsigned NameOffset;
@@ -72,8 +60,8 @@ public:
   std::vector<ModuleInfo> Modules;
   StringRef ModuleNamesBuffer;
 
+  IndexUnitReaderImpl(const PathRemapper &remapper) : Remapper(remapper) {}
   bool init(std::unique_ptr<MemoryBuffer> Buf, sys::TimePoint<> ModTime,
-            std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> PrefixMap,
             std::string &Error);
 
   StringRef getProviderIdentifier() const { return ProviderIdentifier; }
@@ -103,7 +91,7 @@ public:
   }
 
   std::string getAndRemapPathFromBuffer(size_t Offset, size_t Size) {
-    return remapPath(PrefixMap, getPathFromBuffer(Offset, Size));
+    return Remapper.remapPath(getPathFromBuffer(Offset, Size));
   }
 
   void constructFilePath(SmallVectorImpl<char> &Path, int PathIndex);
@@ -289,11 +277,9 @@ public:
 
 bool IndexUnitReaderImpl::init(std::unique_ptr<MemoryBuffer> Buf,
                                sys::TimePoint<> ModTime,
-                               std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> PrefixMap,
                                std::string &Error) {
   this->ModTime = ModTime;
   this->MemBuf = std::move(Buf);
-  this->PrefixMap = PrefixMap;
   llvm::BitstreamCursor Stream(*MemBuf);
 
   if (Stream.AtEndOfStream()) {
@@ -395,10 +381,10 @@ void IndexUnitReaderImpl::constructFilePath(SmallVectorImpl<char> &PathBuf,
   sys::path::append(PathBuf,
                     getPathFromBuffer(Path.Dir.Offset, Path.Dir.Size),
                     getPathFromBuffer(Path.Filename.Offset, Path.Filename.Size));
-  if (Path.PrefixKind == UNIT_PATH_PREFIX_NONE && !PrefixMap.empty()) {
+  if (Path.PrefixKind == UNIT_PATH_PREFIX_NONE && !Remapper.empty()) {
     SmallString<256> PathStr;
     PathStr.assign(PathBuf);
-    std::string Remapped = remapPath(PrefixMap, PathStr.str());
+    std::string Remapped = Remapper.remapPath(PathStr.str());
     PathBuf.clear();
     PathBuf.append(Remapped.begin(), Remapped.end());
   }
@@ -419,17 +405,17 @@ StringRef IndexUnitReaderImpl::getModuleName(int ModuleIndex) {
 std::unique_ptr<IndexUnitReader>
 IndexUnitReader::createWithUnitFilename(StringRef UnitFilename,
                                         StringRef StorePath,
-          std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> PrefixMap,
+                                        const PathRemapper &Remapper,
                                         std::string &Error) {
   SmallString<128> PathBuf = StorePath;
   appendUnitSubDir(PathBuf);
   sys::path::append(PathBuf, UnitFilename);
-  return createWithFilePath(PathBuf.str(), PrefixMap, Error);
+  return createWithFilePath(PathBuf.str(), Remapper, Error);
 }
 
 std::unique_ptr<IndexUnitReader>
 IndexUnitReader::createWithFilePath(StringRef FilePath,
-    std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> PrefixMap,
+                                    const PathRemapper &Remapper,
                                     std::string &Error) {
   int FD;
   std::error_code EC = sys::fs::openFileForRead(FilePath, FD);
@@ -464,9 +450,9 @@ IndexUnitReader::createWithFilePath(StringRef FilePath,
     return nullptr;
   }
 
-  std::unique_ptr<IndexUnitReaderImpl> Impl(new IndexUnitReaderImpl());
+  std::unique_ptr<IndexUnitReaderImpl> Impl(new IndexUnitReaderImpl(Remapper));
   bool Err = Impl->init(std::move(*ErrOrBuf), FileStat.getLastModificationTime(),
-                        PrefixMap, Error);
+                        Error);
   if (Err)
     return nullptr;
 

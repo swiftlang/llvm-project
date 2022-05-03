@@ -10,12 +10,12 @@
 #define LLVM_CLANG_INDEX_INDEXDATASTORE_H
 
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/PathRemapper.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Chrono.h"
 #include <functional>
-#include <map>
 #include <memory>
 #include <string>
 
@@ -27,14 +27,11 @@ public:
   ~IndexDataStore();
 
   static std::unique_ptr<IndexDataStore>
-    create(StringRef IndexStorePath,
-      std::map<std::string, std::string, std::greater<std::string>>
-          PrefixMap,
+    create(StringRef IndexStorePath, PathRemapper Remapper,
       std::string &Error);
 
   StringRef getFilePath() const;
-  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
-          getPrefixMap() const;
+  const PathRemapper & getPathRemapper() const;
   bool foreachUnitName(bool sorted,
                        llvm::function_ref<bool(StringRef unitName)> receiver);
 

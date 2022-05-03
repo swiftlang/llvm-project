@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Index/IndexDataStore.h"
+#include "clang/Basic/PathRemapper.h"
 #include "clang/DirectoryWatcher/DirectoryWatcher.h"
 #include "../lib/Index/IndexDataStoreUtils.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -40,24 +41,19 @@ public:
 
 class IndexDataStoreImpl {
   std::string FilePath;
-  std::map<std::string, std::string, std::greater<std::string>> PrefixMap;
+  PathRemapper Remapper;
   std::shared_ptr<UnitEventHandlerData> TheUnitEventHandlerData;
   std::unique_ptr<DirectoryWatcher> DirWatcher;
 
 public:
-  explicit IndexDataStoreImpl(StringRef indexStorePath,
-    std::map<std::string, std::string, std::greater<std::string>> prefixMap)
-    : FilePath(indexStorePath), PrefixMap(prefixMap) {
+  explicit IndexDataStoreImpl(StringRef indexStorePath, PathRemapper remapper)
+    : FilePath(indexStorePath), Remapper(remapper) {
     TheUnitEventHandlerData = std::make_shared<UnitEventHandlerData>();
   }
 
   StringRef getFilePath() const { return FilePath; }
-  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
-      getPrefixMap() const {
-    std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>> m;
-    for (const auto &Prefix : PrefixMap)
-      m.insert({Prefix.first, Prefix.second});
-    return m;
+  const PathRemapper &getPathRemapper() const {
+    return Remapper;
   }
   bool foreachUnitName(bool sorted,
                        llvm::function_ref<bool(StringRef unitName)> receiver);
@@ -189,9 +185,8 @@ void IndexDataStoreImpl::purgeStaleData() {
 
 
 std::unique_ptr<IndexDataStore>
-IndexDataStore::create(StringRef IndexStorePath,
-  std::map<std::string, std::string, std::greater<std::string>>
-      PrefixMap, std::string &Error) {
+IndexDataStore::create(StringRef IndexStorePath, PathRemapper Remapper,
+                       std::string &Error) {
   if (!sys::fs::exists(IndexStorePath)) {
     raw_string_ostream OS(Error);
     OS << "index store path does not exist: " << IndexStorePath;
@@ -199,7 +194,7 @@ IndexDataStore::create(StringRef IndexStorePath,
   }
 
   return std::unique_ptr<IndexDataStore>(
-    new IndexDataStore(new IndexDataStoreImpl(IndexStorePath, PrefixMap)));
+    new IndexDataStore(new IndexDataStoreImpl(IndexStorePath, Remapper)));
 }
 
 #define IMPL static_cast<IndexDataStoreImpl*>(Impl)
@@ -212,9 +207,8 @@ StringRef IndexDataStore::getFilePath() const {
   return IMPL->getFilePath();
 }
 
-std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
-    IndexDataStore::getPrefixMap() const {
-  return IMPL->getPrefixMap();
+const PathRemapper & IndexDataStore::getPathRemapper() const {
+  return IMPL->getPathRemapper();
 }
 
 bool IndexDataStore::foreachUnitName(bool sorted,
