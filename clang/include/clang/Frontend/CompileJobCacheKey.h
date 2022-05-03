@@ -35,7 +35,7 @@ createCompileJobCacheKey(llvm::cas::CASDB &CAS, DiagnosticsEngine &Diags,
                          const CompilerInvocation &Invocation);
 
 /// Create a cache key for the given cc1 command-line arguments and filesystem
-/// as a \c CASID.
+/// as a \c CASID. The first argument must be "-cc1".
 llvm::cas::CASID createCompileJobCacheKey(llvm::cas::CASDB &CAS,
                                           llvm::ArrayRef<const char *> CC1Args,
                                           llvm::cas::CASID FileSystemRootID);

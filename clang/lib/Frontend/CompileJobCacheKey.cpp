@@ -23,6 +23,7 @@ using namespace llvm::cas;
 llvm::cas::CASID
 clang::createCompileJobCacheKey(CASDB &CAS, ArrayRef<const char *> CC1Args,
                                 llvm::cas::CASID FileSystemRootID) {
+  assert(!CC1Args.empty() && StringRef(CC1Args[0]) == "-cc1");
   SmallString<256> CommandLine;
   for (StringRef Arg : CC1Args) {
     CommandLine.append(Arg);
@@ -50,6 +51,7 @@ clang::createCompileJobCacheKey(CASDB &CAS, DiagnosticsEngine &Diags,
   llvm::BumpPtrAllocator Alloc;
   llvm::StringSaver Saver(Alloc);
   llvm::SmallVector<const char *> Argv;
+  Argv.push_back("-cc1");
   Invocation.generateCC1CommandLine(
       Argv, [&Saver](const llvm::Twine &T) { return Saver.save(T).data(); });
 

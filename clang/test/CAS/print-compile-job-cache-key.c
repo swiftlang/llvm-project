@@ -23,6 +23,7 @@
 // RUN: clang-cas-test -print-compile-job-cache-key -cas %t/cas @%t/cache-key | FileCheck %s
 //
 // CHECK: command-line: llvmcas://
+// CHECK:   -cc1
 // CHECK:   -fcas-path llvm.cas.builtin.v2[BLAKE3]
 // CHECK:   -fcas-fs llvmcas://
 // CHECK:   -x c {{.*}}print-compile-job-cache-key.c
