@@ -2366,6 +2366,13 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     return {};
   }
 
+  bool enable_bare_slash_regex_literals =
+      target_sp->GetSwiftEnableBareSlashRegex();
+  swift_ast_sp->GetLanguageOptions().EnableBareSlashRegexLiterals =
+      target_sp->GetSwiftEnableBareSlashRegex();
+  swift_ast_sp->GetLanguageOptions().EnableExperimentalStringProcessing =
+      target_sp->GetSwiftEnableBareSlashRegex();
+
   for (size_t mi = 0; mi != num_images; ++mi) {
     std::vector<std::string> module_names;
     auto module_sp = target.GetImages().GetModuleAtIndex(mi);
@@ -8299,6 +8306,17 @@ bool SwiftASTContext::GetImplicitImports(
 
     attributed_import.module = swift::ImportedModule(module);
     modules.emplace_back(attributed_import);
+  }
+
+  // FIXME: the correct thing to do would be to get the modules by calling 
+  // CompilerInstance::getImplicitImportInfo. However, we currently don't have 
+  // access to a CompilerInstance.
+  if (sc.target_sp->GetSwiftEnableBareSlashRegex()) {
+    SourceModule module_info;
+    ConstString module_const_str(swift::SWIFT_STRING_PROCESSING_NAME);
+    module_info.path.push_back(module_const_str);
+    Status err;
+    LoadOneModule(module_info, swift_ast_context, process_sp, true, err);
   }
   return true;
 }
