@@ -983,8 +983,11 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
 
     CurDir = &SearchDirs[i];
 
+    const auto FE = &File->getFileEntry();
+    IncludeNames[FE] = Filename;
+
     // This file is a system header or C++ unfriendly if the dir is.
-    HeaderFileInfo &HFI = getFileInfo(&File->getFileEntry());
+    HeaderFileInfo &HFI = getFileInfo(FE);
     HFI.DirInfo = CurDir->getDirCharacteristic();
 
     // If the directory characteristic is User but this framework was
@@ -1407,6 +1410,13 @@ Optional<unsigned> HeaderSearch::searchDirIdx(const DirectoryLookup &DL) const {
 
 StringRef HeaderSearch::getUniqueFrameworkName(StringRef Framework) {
   return FrameworkNames.insert(Framework).first->first();
+}
+
+StringRef HeaderSearch::getIncludeNameForHeader(const FileEntry *File) const {
+  auto It = IncludeNames.find(File);
+  if (It == IncludeNames.end())
+    return {};
+  return It->second;
 }
 
 bool HeaderSearch::hasModuleMap(StringRef FileName,
