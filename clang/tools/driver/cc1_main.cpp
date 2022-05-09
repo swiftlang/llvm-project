@@ -37,6 +37,7 @@
 #include "llvm/CAS/Utils.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LinkAllPasses.h"
+#include "llvm/MC/CAS/MCCASFlatV1.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
@@ -263,6 +264,7 @@ private:
   std::shared_ptr<llvm::cas::CASDB> CAS;
   SmallString<256> ResultDiags;
   bool WriteOutputAsCASID = false;
+  bool UseCASBackend = false;
   Optional<llvm::cas::CASID> ResultCacheKey;
   std::unique_ptr<llvm::raw_ostream> ResultDiagsOS;
   IntrusiveRefCntPtr<llvm::cas::CASOutputBackend> CASOutputs;
@@ -299,7 +301,10 @@ Optional<int> CompileJobCache::initialize(CompilerInstance &Clang) {
   // other outputs during replay.
   WriteOutputAsCASID = Invocation.getFrontendOpts().WriteOutputAsCASID;
   Invocation.getFrontendOpts().WriteOutputAsCASID = false;
-  ComputedJobNeedsReplay |= WriteOutputAsCASID;
+  // FIXME: Hack, use CASIDFile to communicate CASID to replay job.
+  UseCASBackend = Invocation.getCodeGenOpts().UseCASBackend;
+  Invocation.getCodeGenOpts().setCASObjMode(llvm::CASBackendMode::CASID);
+  ComputedJobNeedsReplay |= WriteOutputAsCASID || UseCASBackend;
 
   // TODO: Canonicalize OutputFile to "-" here. During replay, move it and
   // derived outputs to the right place.
@@ -491,10 +496,42 @@ Optional<int> CompileJobCache::replayCachedResult(llvm::cas::ObjectRef ResultID,
 
     Optional<StringRef> Contents;
     SmallString<50> ContentsStorage;
-    if (Path->getData() == OutputFile && WriteOutputAsCASID) {
-      {
-        llvm::raw_svector_ostream OS(ContentsStorage);
+    if (Path->getData() == OutputFile) {
+      llvm::raw_svector_ostream OS(ContentsStorage);
+      if (WriteOutputAsCASID)
         llvm::cas::writeCASIDBuffer(BytesID, OS);
+      else if (UseCASBackend) {
+        // Replay by write out object file. Current hack is pass CASBackend
+        // serialization in CASIDFile. Read out the CASID and serialize out to
+        // object file.
+        Optional<llvm::cas::BlobProxy> Bytes;
+        if (Error E = CAS->getBlob(BytesID).moveInto(Bytes))
+          llvm::report_fatal_error(std::move(E));
+        auto Buf = llvm::MemoryBuffer::getMemBufferCopy(Bytes->getData());
+        auto MCCASID = llvm::cas::readCASIDBuffer(*CAS, *Buf);
+        if (!MCCASID)
+          report_fatal_error(MCCASID.takeError());
+        // When the environmental variable is set, save the backend CASID for
+        // analysis later.
+        if (llvm::sys::Process::GetEnv("CLANG_CAS_BACKEND_SAVE_CASID_FILE")) {
+          std::string CASIDPath = Path->getData().str() + ".casid";
+          std::error_code EC;
+          llvm::raw_fd_ostream IDOS(CASIDPath, EC);
+          if (EC)
+            report_fatal_error(llvm::errorCodeToError(EC));
+          IDOS << Bytes->getData();
+        }
+        Optional<llvm::cas::NodeProxy> CASObj;
+        if (Error E = CAS->getNode(*MCCASID).moveInto(CASObj))
+          llvm::report_fatal_error(std::move(E));
+        auto Schema =
+            std::make_unique<llvm::mccasformats::flatv1::MCSchema>(*CAS);
+        if (auto E = Schema->serializeObjectFile(*CASObj, OS))
+          report_fatal_error(std::move(E));
+      } else {
+        Optional<llvm::cas::BlobProxy> Bytes;
+        if (Error E = CAS->getBlob(BytesID).moveInto(Bytes))
+          llvm::report_fatal_error(std::move(E));
       }
       Contents = ContentsStorage;
     } else if (JustComputedResult) {
