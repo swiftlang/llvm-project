@@ -19,6 +19,7 @@
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/ExecutionEngine/JITLink/MachO.h"
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
+#include "llvm/MC/CAS/MCCASFlatV1.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileOutputBuffer.h"
@@ -47,6 +48,8 @@ cl::opt<bool> Dump("dump", cl::desc("Dump link-graph."));
 cl::opt<bool>
     JustBlobs("just-blobs",
               cl::desc("Just ingest blobs, instead of breaking up files."));
+cl::opt<bool> CASIDFile("casid-file",
+                        cl::desc("Input is CASID file, just ingest CASID."));
 cl::opt<std::string> CASIDOutput("casid-output",
                                  cl::desc("Write output as embedded CASID"));
 cl::opt<bool> DebugIngest("debug-ingest",
@@ -335,7 +338,7 @@ struct NodeInfo {
 
 struct POTItem {
   CASID ID;
-  const ObjectFormatSchemaBase *Schema = nullptr;
+  const NodeSchema *Schema = nullptr;
 };
 
 struct ObjectKindInfo {
@@ -359,11 +362,12 @@ struct StatCollector {
   // FIXME: Utilize \p SchemaPool.
   nestedv1::ObjectFileSchema NestedV1Schema;
   flatv1::ObjectFileSchema FlatV1Schema;
-  SmallVector<std::pair<const ObjectFormatSchemaBase *, POTItemHandler>>
+  llvm::mccasformats::flatv1::MCSchema MCFlatV1Schema;
+  SmallVector<std::pair<const NodeSchema*, POTItemHandler>>
       Schemas;
 
   StatCollector(CASDB &CAS)
-      : CAS(CAS), NestedV1Schema(CAS), FlatV1Schema(CAS) {
+      : CAS(CAS), NestedV1Schema(CAS), FlatV1Schema(CAS), MCFlatV1Schema(CAS) {
     Schemas.push_back(std::make_pair(
         &NestedV1Schema,
         [&](ExitOnError &ExitOnErr,
@@ -377,6 +381,13 @@ struct StatCollector {
             function_ref<void(ObjectKindInfo & Info)> addNodeStats,
             cas::NodeProxy Node) {
           visitPOTItemFlatV1(ExitOnErr, FlatV1Schema, addNodeStats, Node);
+        }));
+    Schemas.push_back(std::make_pair(
+        &MCFlatV1Schema,
+        [&](ExitOnError &ExitOnErr,
+            function_ref<void(ObjectKindInfo & Info)> addNodeStats,
+            cas::NodeProxy Node) {
+          visitPOTItemMCFlatV1(ExitOnErr, MCFlatV1Schema, addNodeStats, Node);
         }));
   }
 
@@ -408,6 +419,11 @@ struct StatCollector {
                           flatv1::ObjectFileSchema &Schema,
                           function_ref<void(ObjectKindInfo &Info)> addNodeStats,
                           cas::NodeProxy Node);
+  void
+  visitPOTItemMCFlatV1(ExitOnError &ExitOnErr,
+                       llvm::mccasformats::flatv1::MCSchema &Schema,
+                       function_ref<void(ObjectKindInfo &Info)> addNodeStats,
+                       cas::NodeProxy Node);
   void printToOuts(ArrayRef<CASID> TopLevels, raw_ostream &StatOS);
 };
 } // end namespace
@@ -565,6 +581,15 @@ void StatCollector::visitPOTItemFlatV1(
   addNodeStats(Stats[Object.getKindString()]);
 }
 
+void StatCollector::visitPOTItemMCFlatV1(
+    ExitOnError &ExitOnErr, llvm::mccasformats::flatv1::MCSchema &Schema,
+    function_ref<void(ObjectKindInfo &Info)> addNodeStats,
+    cas::NodeProxy Node) {
+  using namespace llvm::casobjectformats::flatv1;
+  auto Object = ExitOnErr(Schema.getNode(Node));
+  addNodeStats(Stats[Object.getKindString()]);
+}
+
 static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels,
                          raw_ostream &StatOS) {
   ExitOnError ExitOnErr;
@@ -579,7 +604,7 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels,
     CASID ID;
     bool Visited;
     StringRef Path;
-    const ObjectFormatSchemaBase *Schema = nullptr;
+    const NodeSchema *Schema = nullptr;
   };
   SmallVector<WorklistItem> Worklist;
   SmallVector<POTItem> POT;
@@ -590,7 +615,7 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels,
     GlobP.emplace(ExitOnErr(GlobPattern::create(CASGlob)));
 
   auto push = [&](CASID ID, StringRef Path,
-                  const ObjectFormatSchemaBase *Schema = nullptr) {
+                  const NodeSchema *Schema = nullptr) {
     auto &Node = Nodes[ID];
     if (!Node.Done)
       Worklist.push_back({ID, false, Path, Schema});
@@ -638,7 +663,7 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels,
     }
 
     NodeProxy Node = NodeProxy::load(CAS, Object->get<NodeHandle>());
-    const ObjectFormatSchemaBase *&Schema = Worklist.back().Schema;
+    const NodeSchema *&Schema = Worklist.back().Schema;
 
     // Update the schema.
     if (!Schema) {
@@ -860,6 +885,9 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
   if (JustBlobs)
     return CAS.getReference(
         ExitOnErr(CAS.storeNodeFromString(None, FileContent.getBuffer())));
+
+  if (CASIDFile)
+    return ExitOnErr(readCASIDBuffer(Schema.CAS, FileContent));
 
   auto createLinkGraph =
       [&ExitOnErr](

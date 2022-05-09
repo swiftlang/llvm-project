@@ -14,6 +14,7 @@
 
 namespace llvm {
 namespace cas {
+class NodeProxy;
 
 /// A base class for schemas built on top of CAS nodes.
 ///
@@ -29,6 +30,8 @@ public:
   /// check, since it requires that the first reference matches a complete
   /// type-id DAG.
   virtual bool isRootNode(const cas::NodeHandle &Node) const = 0;
+
+  virtual bool isNode(const cas::NodeHandle &Node) const = 0;
 
   cas::CASDB &CAS;
 

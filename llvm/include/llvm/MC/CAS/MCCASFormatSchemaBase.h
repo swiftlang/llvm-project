@@ -30,6 +30,10 @@ public:
     return isRootNode(cas::NodeProxy::load(CAS, Node));
   }
 
+  bool isNode(const cas::NodeHandle &Node) const final {
+    return isNode(cas::NodeProxy::load(CAS, Node));
+  }
+
   /// Check if \a Node is a root (entry node) for the schema. This is a strong
   /// check, since it requires that the first reference matches a complete
   /// type-id DAG.
