@@ -1903,7 +1903,7 @@ Expected<NodeHandle> OnDiskCAS::storeNodeImpl(ArrayRef<uint8_t> ComputedHash,
   }
 
   // Big leaf nodes.
-  if (Data.size() > TrieRecord::MaxEmbeddedSize)
+  if (Refs.empty() && Data.size() > TrieRecord::MaxEmbeddedSize)
     return createStandaloneLeaf(I, Data);
 
   // TODO: Check whether it's worth checking the index for an already existing

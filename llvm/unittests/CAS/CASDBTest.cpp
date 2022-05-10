@@ -400,15 +400,21 @@ TEST_P(CASDBTest, NodesBig) {
   if (Storage.size() < SizeE)
     Storage.resize(SizeE, '\01');
 
+  SmallVector<CASID, 4> CreatedNodes;
   // Avoid checking every size because this is an expensive test. Just check
-  // for data that is 8B-word-aligned, and one less.
+  // for data that is 8B-word-aligned, and one less. Also appending the created
+  // nodes as the references in the next block to check references are created
+  // correctly.
   for (size_t Size = SizeB; Size < SizeE; Size += WordSize) {
     for (bool IsAligned : {false, true}) {
       StringRef Data(Storage.data(), Size - (IsAligned ? 0 : 1));
       Optional<NodeProxy> Node;
-      ASSERT_THAT_ERROR(CAS->createNode(None, Data).moveInto(Node), Succeeded());
+      ASSERT_THAT_ERROR(CAS->createNode(CreatedNodes, Data).moveInto(Node),
+                        Succeeded());
       ASSERT_EQ(Data, Node->getData());
       ASSERT_EQ(0, Node->getData().end()[0]);
+      ASSERT_EQ(Node->getNumReferences(), CreatedNodes.size());
+      CreatedNodes.emplace_back(Node->getID());
     }
   }
 }
