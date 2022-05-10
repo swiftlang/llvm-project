@@ -664,7 +664,7 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   bool KeepAlive = false;
   bool Detached = false;
   bool Debug = false;
-  if (Argv.size() == 3) {
+  if (Argv.size() >= 3) {
     if (StringRef(Argv[2]) == "-shutdown")
       ShutDownTest = true;
     if (StringRef(Argv[2]) == "-detach")
