@@ -765,7 +765,7 @@ public:
   static constexpr StringLiteral DataPoolFile = "data";
   static constexpr StringLiteral ActionCacheFile = "actions";
 
-  static constexpr StringLiteral FilePrefix = "v3.";
+  static constexpr StringLiteral FilePrefix = "v4.";
   static constexpr StringLiteral FileSuffixData = ".data";
   static constexpr StringLiteral FileSuffixLeaf = ".leaf";
   static constexpr StringLiteral FileSuffixLeaf0 = ".leaf+0";
