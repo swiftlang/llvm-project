@@ -31,6 +31,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/raw_ostream.h"
+#include <memory>
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -76,6 +77,9 @@ cl::opt<std::string>
     IngestSchemaName("ingest-schema",
                      cl::desc("object file schema to ingest with"),
                      cl::init("nestedv1"));
+cl::opt<std::string> OutputPrefix("output-prefix",
+                                  cl::desc("output object file prefix"),
+                                  cl::init("."));
 
 enum InputKind {
   IngestFromFS,
@@ -83,6 +87,7 @@ enum InputKind {
   AnalysisCASTree,
   PrintCASTree,
   PrintCASObject,
+  MaterializeObjects,
 };
 
 cl::opt<InputKind> InputFileKind(
@@ -95,6 +100,8 @@ cl::opt<InputKind> InputFileKind(
                           "analyze converted objects from cas tree"),
                clEnumValN(PrintCASTree, "print-cas-tree",
                           "print cas object from cas tree ID"),
+               clEnumValN(MaterializeObjects, "materialize-objects",
+                          "materialize objects from CAS tree"),
                clEnumValN(PrintCASObject, "print-cas-object",
                           "print cas object from cas object ID")),
     cl::init(InputKind::IngestFromFS));
@@ -150,6 +157,7 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
 static void computeStats(CASDB &CAS, ArrayRef<CASID> IDs, raw_ostream &StatOS);
 static Error printCASObjectOrTree(ObjectFormatSchemaPool &Pool, CASID ID, bool omitCASID);
 static Error printCASObject(ObjectFormatSchemaPool &Pool, CASID ID, bool omitCASID);
+static Error materializeObjectsFromCASTree(CASDB &CAS, CASID ID);
 
 int main(int argc, char *argv[]) {
   ExitOnError ExitOnErr;
@@ -206,6 +214,12 @@ int main(int argc, char *argv[]) {
       auto ID = ExitOnErr(CAS->parseID(IF));
       ExitOnErr(printCASObject(SchemaPool, ID, omitCASID));
       break;
+    }
+
+    case MaterializeObjects: {
+      auto ID = ExitOnErr(CAS->parseID(IF));
+      ExitOnErr(materializeObjectsFromCASTree(*CAS, ID));
+      return 0;
     }
 
     case IngestFromFS: {
@@ -801,6 +815,46 @@ static Error printCASObjectOrTree(ObjectFormatSchemaPool &Pool, CASID ID, bool o
                                        entry.getName());
         }
         return printCASObject(Pool, Pool.getCAS().getObjectID(entry.getRef()), omitCASID);
+      });
+}
+
+static Error materializeObjectsFromCASTree(CASDB &CAS, CASID ID) {
+  Expected<TreeProxy> ExpTree = CAS.getTree(ID);
+  if (!ExpTree)
+    return ExpTree.takeError();
+
+  return walkFileTreeRecursively(
+      CAS, ID,
+      [&](const NamedTreeEntry &Entry, Optional<TreeProxy>) -> Error {
+        if (Entry.getKind() == TreeEntry::Tree)
+          return Error::success();
+        if (Entry.getKind() != TreeEntry::Regular) {
+          return createStringError(inconvertibleErrorCode(),
+                                   "found non-regular entry: " +
+                                       Entry.getName());
+        }
+        auto ObjRoot = CAS.getNode(Entry.getID());
+        if (!ObjRoot)
+          return ObjRoot.takeError();
+
+        SmallString<256> OutputPath(OutputPrefix);
+        StringRef ObjFileName = Entry.getName();
+        ObjFileName.consume_back(".casid");
+        llvm::sys::path::append(OutputPath, ObjFileName);
+
+        SmallString<50> ContentsStorage;
+        raw_svector_ostream ObjOS(ContentsStorage);
+        auto Schema =
+            std::make_unique<llvm::mccasformats::flatv1::MCSchema>(CAS);
+        if (Error E = Schema->serializeObjectFile(*ObjRoot, ObjOS))
+          return E;
+        std::unique_ptr<llvm::FileOutputBuffer> Output;
+        if (Error E = llvm::FileOutputBuffer::create(OutputPath,
+                                                     ContentsStorage.size())
+                          .moveInto(Output))
+          return E;
+        llvm::copy(ContentsStorage, Output->getBufferStart());
+        return Output->commit();
       });
 }
 
