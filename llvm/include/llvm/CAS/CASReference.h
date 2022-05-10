@@ -168,7 +168,7 @@ private:
   }
   explicit ObjectRef(DenseMapEmptyTag T) : ReferenceBase(T) {}
   explicit ObjectRef(DenseMapTombstoneTag T) : ReferenceBase(T) {}
-  ObjectRef(ReferenceBase) = delete;
+  explicit ObjectRef(ReferenceBase) = delete;
 };
 
 /// Handle to a loaded object in a \a CASDB instance.
@@ -201,7 +201,7 @@ private:
   friend class ReferenceBase;
   friend class testing_helpers::HandleFactory;
   using ReferenceBase::ReferenceBase;
-  ObjectHandle(ReferenceBase) = delete;
+  explicit ObjectHandle(ReferenceBase) = delete;
   ObjectHandle(const CASDB &CAS, uint64_t InternalRef)
       : ReferenceBase(&CAS, InternalRef, /*IsHandle=*/true) {}
   template <class HandleT, HandleKind> friend class AnyObjectHandleImpl;
@@ -213,7 +213,7 @@ class NodeHandle : public ObjectHandle {
   friend class CASDB;
   friend class testing_helpers::HandleFactory;
   using ObjectHandle::ObjectHandle;
-  NodeHandle(ObjectHandle) = delete;
+  explicit NodeHandle(ObjectHandle) = delete;
   template <class HandleT, HandleKind> friend class AnyObjectHandleImpl;
   static constexpr HandleKind getHandleKind() { return NodeKind; }
 };
@@ -223,7 +223,7 @@ class TreeHandle : public ObjectHandle {
   friend class CASDB;
   friend class testing_helpers::HandleFactory;
   using ObjectHandle::ObjectHandle;
-  TreeHandle(ObjectHandle) = delete;
+  explicit TreeHandle(ObjectHandle) = delete;
   template <class HandleT, HandleKind> friend class AnyObjectHandleImpl;
   static constexpr HandleKind getHandleKind() { return TreeKind; }
 };
