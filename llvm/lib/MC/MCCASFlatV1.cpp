@@ -549,7 +549,7 @@ Error MCCASBuilder::buildMachOHeader() {
   if (!Header)
     return Header.takeError();
 
-  IDs.push_back(Header->getID());
+  Sections.push_back(Header->getID());
   return Error::success();
 }
 
@@ -566,14 +566,14 @@ Error MCCASBuilder::buildFragments() {
       auto Fragment = FragmentRef::create(*this, F, Size);
       if (!Fragment)
         return Fragment.takeError();
-      Fragments.push_back(Fragment->getID());
+      addNode(*Fragment);
     }
 
     uint64_t Pad = ObjectWriter.getPaddingSize(&Sec, Layout);
     auto Fill = FragmentRef::createZeroFill(*this, Pad);
     if (!Fill)
       return Fill.takeError();
-    Fragments.push_back(Fill->getID());
+    addNode(*Fill);
   }
   return Error::success();
 }
@@ -585,7 +585,7 @@ Error MCCASBuilder::buildRelocations() {
   if (!Data)
     return Data.takeError();
 
-  IDs.push_back(Data->getID());
+  Sections.push_back(Data->getID());
   return Error::success();
 }
 
@@ -596,7 +596,7 @@ Error MCCASBuilder::buildDataInCodeRegion() {
   if (!Data)
     return Data.takeError();
 
-  IDs.push_back(Data->getID());
+  Sections.push_back(Data->getID());
   return Error::success();
 }
 
@@ -607,8 +607,18 @@ Error MCCASBuilder::buildSymbolTable() {
   if (!Sym)
     return Sym.takeError();
 
-  IDs.push_back(Sym->getID());
+  Sections.push_back(Sym->getID());
   return Error::success();
+}
+
+void MCCASBuilder::addNode(cas::NodeProxy Node) {
+  auto LastIdx = Fragments.size();
+  auto Result = CASIDMap.try_emplace(Node.getID(), LastIdx);
+  auto Idx = Result.second ? LastIdx : Result.first->getSecond();
+  FragmentIDs.push_back(Idx);
+  // If insert successful, we need to store the ID into the vector.
+  if (Result.second)
+    Fragments.push_back(Node.getID());
 }
 
 Expected<MCAssemblerRef> MCAssemblerRef::create(const MCSchema &Schema,
@@ -643,14 +653,16 @@ Expected<MCAssemblerRef> MCAssemblerRef::create(const MCSchema &Schema,
     return B.takeError();
 
   // Put Header, Relocations, SymbolTable, etc. in the front.
-  B->IDs.insert(B->IDs.end(), Builder.IDs.begin(), Builder.IDs.end());
+  B->IDs.append(Builder.Sections.begin(), Builder.Sections.end());
   // Then put all Fragments.
-  B->IDs.insert(B->IDs.end(), Builder.Fragments.begin(),
-                Builder.Fragments.end());
+  B->IDs.append(Builder.Fragments.begin(), Builder.Fragments.end());
 
   std::string NormalizedTriple = ObjectWriter.Target.normalize();
   writeVBR8(uint32_t(NormalizedTriple.size()), B->Data);
   B->Data.append(NormalizedTriple);
+
+  for (unsigned Idx : Builder.FragmentIDs)
+    writeVBR8(Idx, B->Data);
 
   return get(B->build());
 }
@@ -690,8 +702,11 @@ Error MCAssemblerRef::materialize(raw_ostream &OS) const {
   Written += *HeaderSize;
 
   // SectionData.
-  for (unsigned Idx = 5; Idx < getNumReferences(); ++Idx) {
-    auto Fragment = FragmentRef::get(getSchema(), getReferenceID(Idx));
+  while (!Remaining.empty()) {
+    unsigned FragID;
+    if (auto E = consumeVBR8(Remaining, FragID))
+      return E;
+    auto Fragment = FragmentRef::get(getSchema(), getReferenceID(FragID + 5));
     if (!Fragment)
       return Fragment.takeError();
     auto SizeOrErr = Fragment->materialize(OS, Target.isLittleEndian());

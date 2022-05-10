@@ -9,6 +9,7 @@
 #ifndef LLVM_MC_CAS_MCCASFLATV1_H
 #define LLVM_MC_CAS_MCCASFLATV1_H
 
+#include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASID.h"
 #include "llvm/MC/CAS/MCCASFormatSchemaBase.h"
 #include "llvm/MC/CAS/MCCASReader.h"
@@ -285,11 +286,15 @@ public:
   Error buildDataInCodeRegion();
   Error buildSymbolTable();
 
+  void addNode(cas::NodeProxy Node);
+
 private:
   friend class MCAssemblerRef;
 
-  std::vector<cas::CASID> IDs;
+  DenseMap<cas::CASID, unsigned> CASIDMap;
+  std::vector<unsigned> FragmentIDs;
   std::vector<cas::CASID> Fragments;
+  SmallVector<cas::CASID, 4> Sections;
 };
 
 } // namespace flatv1
