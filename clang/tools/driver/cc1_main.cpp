@@ -405,7 +405,9 @@ void CompileJobCache::finishComputedResult(CompilerInstance &Clang,
 
   // Don't cache failed builds.
   //
-  // TODO: Consider caching failed builds!
+  // TODO: Consider caching failed builds! Note: when output files are written
+  // without a temporary (non-atomically), failure may cause the removal of a
+  // preexisting file. That behaviour is not currently modeled by the cache.
   if (!Success)
     return;
 
