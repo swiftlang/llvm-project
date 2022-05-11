@@ -85,13 +85,13 @@ static void updateCompilerInvocation(CompilerInvocation &Invocation,
   auto &FrontendOpts = Invocation.getFrontendOpts();
   FrontendOpts.CacheCompileJob = true; // FIXME: Don't set.
 
+  // Turn off dependency outputs. Should have already been emitted.
+  Invocation.getDependencyOutputOpts().OutputFile.clear();
+
   // If there are no mappings, we're done. Otherwise, continue and remap
   // everything.
   if (Mapper.getMappings().empty())
     return;
-
-  // Turn off dependency outputs. Should have already been emitted.
-  Invocation.getDependencyOutputOpts().OutputFile.clear();
 
   // Returns "false" on success, "true" if the path doesn't exist.
   auto remapInPlace = [&](std::string &S) -> bool {
