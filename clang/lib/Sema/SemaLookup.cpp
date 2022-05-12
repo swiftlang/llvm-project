@@ -5344,6 +5344,7 @@ void Sema::diagnoseMissingImport(SourceLocation Loc, NamedDecl *Decl,
 
   Module *Owner = getOwningModule(Def);
   assert(Owner && "definition of hidden declaration is not in a module");
+  llvm::errs() << "Sema::diagnoseMissingImport " << Decl->getName() << ": " << getOwningModule(Decl)->getFullModuleName(true) << "; Def:" << Owner->getFullModuleName(true) << "\n";
 
   llvm::SmallVector<Module*, 8> OwningModules;
   OwningModules.push_back(Owner);
@@ -5465,6 +5466,7 @@ void Sema::diagnoseTypo(const TypoCorrection &Correction,
     NamedDecl *Decl = Correction.getFoundDecl();
     assert(Decl && "import required but no declaration to import");
 
+    llvm::errs() << "diagnose typo\n";
     diagnoseMissingImport(Correction.getCorrectionRange().getBegin(), Decl,
                           MissingImportKind::Declaration, ErrorRecovery);
     return;
