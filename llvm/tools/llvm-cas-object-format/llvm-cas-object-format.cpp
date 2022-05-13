@@ -824,7 +824,7 @@ static Error materializeObjectsFromCASTree(CASDB &CAS, CASID ID) {
     return ExpTree.takeError();
 
   return walkFileTreeRecursively(
-      CAS, ID,
+      CAS, *ExpTree,
       [&](const NamedTreeEntry &Entry, Optional<TreeProxy>) -> Error {
         if (Entry.getKind() == TreeEntry::Tree)
           return Error::success();
@@ -833,7 +833,7 @@ static Error materializeObjectsFromCASTree(CASDB &CAS, CASID ID) {
                                    "found non-regular entry: " +
                                        Entry.getName());
         }
-        auto ObjRoot = CAS.getNode(Entry.getID());
+        auto ObjRoot = CAS.loadNode(Entry.getRef());
         if (!ObjRoot)
           return ObjRoot.takeError();
 
@@ -940,8 +940,10 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
     return CAS.getReference(
         ExitOnErr(CAS.storeNodeFromString(None, FileContent.getBuffer())));
 
-  if (CASIDFile)
-    return ExitOnErr(readCASIDBuffer(Schema.CAS, FileContent));
+  if (CASIDFile) {
+    auto ID = ExitOnErr(readCASIDBuffer(Schema.CAS, FileContent));
+    return ExitOnErr(Schema.CAS.getNode(ID)).getRef();
+  }
 
   auto createLinkGraph =
       [&ExitOnErr](
