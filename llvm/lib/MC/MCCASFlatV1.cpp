@@ -25,10 +25,14 @@ using namespace llvm::casobjectformats::encoding;
 
 constexpr StringLiteral MCAssemblerRef::KindString;
 constexpr StringLiteral HeaderRef::KindString;
-constexpr StringLiteral FragmentRef::KindString;
+constexpr StringLiteral PaddingRef::KindString;
 constexpr StringLiteral RelocationsRef::KindString;
 constexpr StringLiteral DataInCodeRef::KindString;
 constexpr StringLiteral SymbolTableRef::KindString;
+
+#define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
+  constexpr StringLiteral MCFragmentName##Ref::KindString;
+#include "llvm/MC/CAS/MCCASFlatV1.def"
 
 void MCSchema::anchor() {}
 char MCSchema::ID = 0;
@@ -67,9 +71,12 @@ Error MCSchema::fillCache() {
     return ExpectedRootKind.takeError();
 
   StringRef AllKindStrings[] = {
-      FragmentRef::KindString,   MCAssemblerRef::KindString,
+      PaddingRef::KindString,   MCAssemblerRef::KindString,
       HeaderRef::KindString,     RelocationsRef::KindString,
       DataInCodeRef::KindString, SymbolTableRef::KindString,
+#define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
+  MCFragmentName##Ref::KindString,
+#include "llvm/MC/CAS/MCCASFlatV1.def"
   };
   cas::CASID Refs[] = {*RootKindID};
   SmallVector<cas::CASID> IDs = {*RootKindID};
@@ -254,277 +261,295 @@ Expected<SymbolTableRef> SymbolTableRef::get(Expected<MCNodeProxy> Ref) {
   return SymbolTableRef(*Specific);
 }
 
-Expected<FragmentRef> FragmentRef::createZeroFill(MCCASBuilder &MB,
-                                                  uint64_t Size) {
+Expected<PaddingRef> PaddingRef::create(MCCASBuilder &MB, uint64_t Size) {
   // Fake a FT_Fill Fragment that is zero filled.
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
 
-  B->Data.push_back(uint8_t(MCFragment::FT_Fill));
   writeVBR8(Size, B->Data);
-  writeVBR8(0, B->Data);
-  writeVBR8(1, B->Data);
   return get(B->build());
 }
 
-Expected<FragmentRef> FragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
-                                          unsigned FragmentSize) {
-  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
-  if (!B)
-    return B.takeError();
-
-  B->Data.push_back(uint8_t(F.getKind()));
-
-  SmallString<8> FragmentData;
-  raw_svector_ostream FragmentOS(FragmentData);
-  if (const MCEncodedFragment *EF = dyn_cast<MCEncodedFragment>(&F))
-    MB.Asm.writeFragmentPadding(FragmentOS, *EF, FragmentSize);
-
-  ArrayRef<char> Contents;
-  switch (F.getKind()) {
-  case MCFragment::FT_Align: {
-    const MCAlignFragment &AF = cast<MCAlignFragment>(F);
-    uint64_t Count = FragmentSize / AF.getValueSize();
-    if (AF.hasEmitNops()) {
-      // Write 0 as size and use backend to emit nop.
-      writeVBR8(0, B->Data);
-      if (!MB.Asm.getBackend().writeNopData(FragmentOS, Count,
-                                            AF.getSubtargetInfo()))
-        report_fatal_error("unable to write nop sequence of " + Twine(Count) +
-                           " bytes");
-      break;
-    }
-    writeVBR8(Count, B->Data);
-    writeVBR8(AF.getValue(), B->Data);
-    writeVBR8(AF.getValueSize(), B->Data);
-    break;
-  }
-  case MCFragment::FT_Data: {
-    Contents = cast<MCDataFragment>(F).getContents();
-    break;
-  }
-  case MCFragment::FT_Relaxable: {
-    Contents = cast<MCRelaxableFragment>(F).getContents();
-    break;
-  }
-  case MCFragment::FT_CompactEncodedInst: {
-    Contents = cast<MCCompactEncodedInstFragment>(F).getContents();
-    break;
-  }
-  case MCFragment::FT_Fill: {
-    const MCFillFragment &FF = cast<MCFillFragment>(F);
-    writeVBR8(FragmentSize, B->Data);
-    writeVBR8(FF.getValue(), B->Data);
-    writeVBR8(FF.getValueSize(), B->Data);
-    break;
-  }
-  case MCFragment::FT_Nops: {
-    // TODO: Use backend to write NOPs and store the full content. We can be
-    // more efficient to store this information if we know the backend.
-    // FIXME: Code duplication with MCAssembler::writeFragment().
-    const MCNopsFragment &NF = cast<MCNopsFragment>(F);
-    int64_t NumBytes = NF.getNumBytes();
-    int64_t ControlledNopLength = NF.getControlledNopLength();
-    int64_t MaximumNopLength =
-        MB.Asm.getBackend().getMaximumNopSize(*NF.getSubtargetInfo());
-    if (ControlledNopLength > MaximumNopLength)
-      ControlledNopLength = MaximumNopLength;
-    if (!ControlledNopLength)
-      ControlledNopLength = MaximumNopLength;
-    while (NumBytes) {
-      uint64_t NumBytesToEmit =
-          (uint64_t)std::min(NumBytes, ControlledNopLength);
-      assert(NumBytesToEmit && "try to emit empty NOP instruction");
-      if (!MB.Asm.getBackend().writeNopData(FragmentOS, NumBytesToEmit,
-                                            NF.getSubtargetInfo())) {
-        report_fatal_error("unable to write nop sequence of the remaining " +
-                           Twine(NumBytesToEmit) + " bytes");
-        break;
-      }
-      NumBytes -= NumBytesToEmit;
-    }
-    break;
-  }
-  case MCFragment::FT_LEB: {
-    Contents = cast<MCLEBFragment>(F).getContents();
-    break;
-  }
-  case MCFragment::FT_BoundaryAlign: {
-    const MCBoundaryAlignFragment &BF = cast<MCBoundaryAlignFragment>(F);
-    if (!MB.Asm.getBackend().writeNopData(FragmentOS, FragmentSize,
-                                          BF.getSubtargetInfo()))
-      report_fatal_error("unable to write nop sequence of " +
-                         Twine(FragmentSize) + " bytes");
-    break;
-  }
-  case MCFragment::FT_SymbolId: {
-    const MCSymbolIdFragment &SF = cast<MCSymbolIdFragment>(F);
-    writeVBR8(SF.getSymbol()->getIndex(), B->Data);
-    break;
-  }
-  case MCFragment::FT_Org: {
-    const MCOrgFragment &OF = cast<MCOrgFragment>(F);
-    writeVBR8(FragmentSize, B->Data);
-    writeVBR8((char)OF.getValue(), B->Data);
-    break;
-  }
-  case MCFragment::FT_Dwarf: {
-    Contents = cast<MCDwarfLineAddrFragment>(F).getContents();
-    break;
-  }
-  case MCFragment::FT_DwarfFrame: {
-    Contents = cast<MCDwarfCallFrameFragment>(F).getContents();
-    break;
-  }
-  case MCFragment::FT_CVInlineLines: {
-    Contents = cast<MCCVInlineLineTableFragment>(F).getContents();
-    break;
-  }
-  case MCFragment::FT_CVDefRange: {
-    Contents = cast<MCCVDefRangeFragment>(F).getContents();
-    break;
-  }
-  case MCFragment::FT_PseudoProbe: {
-    Contents = cast<MCPseudoProbeAddrFragment>(F).getContents();
-    break;
-  }
-  case MCFragment::FT_Dummy:
-    llvm_unreachable("Should not have been added");
-  }
-
-  B->Data.append(FragmentData);
-  B->Data.append(Contents.begin(), Contents.end());
-
-  assert(((FragmentData.empty() && Contents.empty()) ||
-          (FragmentData.size() + Contents.size() == FragmentSize)) &&
-         "Size should match");
-
-  return get(B->build());
+Expected<uint64_t> PaddingRef::materialize(raw_ostream &OS) const {
+  StringRef Remaining = getData();
+  uint64_t Size;
+  if (auto E = consumeVBR8(Remaining, Size))
+    return E;
+  OS.write_zeros(Size);
+  return Size;
 }
 
-Expected<uint64_t> FragmentRef::materialize(raw_ostream &OS,
-                                            bool IsLittleEndian) const {
-  auto FT = (MCFragment::FragmentType)getData()[0];
-  auto Remaining = getData().drop_front(1);
-  auto Endian = IsLittleEndian ? support::little : support::big;
-  switch (FT) {
-  case MCFragment::FT_Align: {
-    uint64_t Count;
-    if (auto E = consumeVBR8(Remaining, Count))
-      return E;
-
-    // hasEmitNops.
-    if (!Count) {
-      OS << Remaining;
-      return Remaining.size();
-    }
-    int64_t Value;
-    unsigned ValueSize;
-    if (auto E = consumeVBR8(Remaining, Value))
-      return E;
-    if (auto E = consumeVBR8(Remaining, ValueSize))
-      return E;
-
-    for (uint64_t I = 0; I != Count; ++I) {
-      switch (ValueSize) {
-      default:
-        llvm_unreachable("Invalid size!");
-      case 1:
-        OS << char(Value);
-        break;
-      case 2:
-        support::endian::write<uint16_t>(OS, Value, Endian);
-        break;
-      case 4:
-        support::endian::write<uint32_t>(OS, Value, Endian);
-        break;
-      case 8:
-        support::endian::write<uint64_t>(OS, Value, Endian);
-        break;
-      }
-    }
-    return Count * ValueSize;
-  }
-  case MCFragment::FT_Fill: {
-    uint64_t Size;
-    uint64_t Value;
-    unsigned ValueSize;
-    if (auto E = consumeVBR8(Remaining, Size))
-      return E;
-    if (auto E = consumeVBR8(Remaining, Value))
-      return E;
-    if (auto E = consumeVBR8(Remaining, ValueSize))
-      return E;
-
-    // FIXME: Code duplication from writeFragment.
-    const unsigned MaxChunkSize = 16;
-    char Data[MaxChunkSize];
-    for (unsigned I = 0; I != ValueSize; ++I) {
-      unsigned Index = Endian == support::little ? I : (ValueSize - I - 1);
-      Data[I] = uint8_t(Value >> (Index * 8));
-    }
-    for (unsigned I = ValueSize; I < MaxChunkSize; ++I)
-      Data[I] = Data[I - ValueSize];
-
-    const unsigned NumPerChunk = MaxChunkSize / ValueSize;
-    const unsigned ChunkSize = ValueSize * NumPerChunk;
-
-    StringRef Ref(Data, ChunkSize);
-    for (uint64_t I = 0, E = Size / ChunkSize; I != E; ++I)
-      OS << Ref;
-
-    unsigned TrailingCount = Size % ChunkSize;
-    if (TrailingCount)
-      OS.write(Data, TrailingCount);
-    return Size;
-  }
-  case MCFragment::FT_SymbolId: {
-    uint32_t Value;
-    if (auto E = consumeVBR8(Remaining, Value))
-      return E;
-    support::endian::write<uint32_t>(OS, Value, Endian);
-    return 4;
-  }
-  case MCFragment::FT_Org: {
-    uint64_t Size;
-    char Value;
-    if (auto E = consumeVBR8(Remaining, Size))
-      return E;
-    if (auto E = consumeVBR8(Remaining, Value))
-      return E;
-    for (uint64_t I = 0, E = Size; I != E; ++I)
-      OS << char(Value);
-    return Size;
-  }
-  case MCFragment::FT_Data:
-  case MCFragment::FT_Relaxable:
-  case MCFragment::FT_CompactEncodedInst:
-  case MCFragment::FT_Nops:
-  case MCFragment::FT_LEB:
-  case MCFragment::FT_BoundaryAlign:
-  case MCFragment::FT_Dwarf:
-  case MCFragment::FT_DwarfFrame:
-  case MCFragment::FT_CVInlineLines:
-  case MCFragment::FT_CVDefRange:
-  case MCFragment::FT_PseudoProbe:
-    OS << Remaining;
-    return Remaining.size();
-
-  case MCFragment::FT_Dummy:
-    llvm_unreachable("Should not have been added");
-  }
-
-  llvm_unreachable("Unknown Fragment Type");
-}
-
-Expected<FragmentRef> FragmentRef::get(Expected<MCNodeProxy> Ref) {
+Expected<PaddingRef> PaddingRef::get(Expected<MCNodeProxy> Ref) {
   auto Specific = SpecificRefT::getSpecific(std::move(Ref));
   if (!Specific)
     return Specific.takeError();
 
-  return FragmentRef(*Specific);
+  return PaddingRef(*Specific);
 }
+
+Expected<MCAlignFragmentRef>
+MCAlignFragmentRef::create(MCCASBuilder &MB, const MCAlignFragment &F,
+                           unsigned FragmentSize) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+
+  uint64_t Count = FragmentSize / F.getValueSize();
+  if (F.hasEmitNops()) {
+    // Write 0 as size and use backend to emit nop.
+    writeVBR8(0, B->Data);
+    if (!MB.Asm.getBackend().writeNopData(MB.FragmentOS, Count,
+                                          F.getSubtargetInfo()))
+      report_fatal_error("unable to write nop sequence of " + Twine(Count) +
+                         " bytes");
+    B->Data.append(MB.FragmentData);
+    return get(B->build());
+  }
+  writeVBR8(Count, B->Data);
+  writeVBR8(F.getValue(), B->Data);
+  writeVBR8(F.getValueSize(), B->Data);
+  return get(B->build());
+}
+
+Expected<uint64_t>
+MCAlignFragmentRef::materialize(MCCASReader &Reader) const {
+  uint64_t Count;
+  auto Remaining = getData();
+  auto Endian = Reader.isLittleEndian() ? support::little : support::big;
+  if (auto E = consumeVBR8(Remaining, Count))
+    return E;
+
+  // hasEmitNops.
+  if (!Count) {
+    Reader.OS << Remaining;
+    return Remaining.size();
+  }
+  int64_t Value;
+  unsigned ValueSize;
+  if (auto E = consumeVBR8(Remaining, Value))
+    return E;
+  if (auto E = consumeVBR8(Remaining, ValueSize))
+    return E;
+
+  for (uint64_t I = 0; I != Count; ++I) {
+    switch (ValueSize) {
+    default:
+      llvm_unreachable("Invalid size!");
+    case 1:
+      Reader.OS << char(Value);
+      break;
+    case 2:
+      support::endian::write<uint16_t>(Reader.OS, Value, Endian);
+      break;
+    case 4:
+      support::endian::write<uint32_t>(Reader.OS, Value, Endian);
+      break;
+    case 8:
+      support::endian::write<uint64_t>(Reader.OS, Value, Endian);
+      break;
+    }
+  }
+  return Count * ValueSize;
+}
+
+Expected<MCBoundaryAlignFragmentRef> MCBoundaryAlignFragmentRef::create(
+    MCCASBuilder &MB, const MCBoundaryAlignFragment &F, unsigned FragmentSize) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+  if (!MB.Asm.getBackend().writeNopData(MB.FragmentOS, FragmentSize,
+                                        F.getSubtargetInfo()))
+    report_fatal_error("unable to write nop sequence of " +
+                       Twine(FragmentSize) + " bytes");
+  B->Data.append(MB.FragmentData);
+  return get(B->build());
+}
+
+Expected<uint64_t>
+MCBoundaryAlignFragmentRef::materialize(MCCASReader &Reader) const {
+  Reader.OS << getData();
+  return getData().size();
+}
+
+Expected<MCCVInlineLineTableFragmentRef>
+MCCVInlineLineTableFragmentRef::create(MCCASBuilder &MB,
+                                       const MCCVInlineLineTableFragment &F,
+                                       unsigned FragmentSize) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+  B->Data.append(F.getContents());
+  return get(B->build());
+}
+
+Expected<uint64_t>
+MCCVInlineLineTableFragmentRef::materialize(MCCASReader &Reader) const {
+  Reader.OS << getData();
+  return getData().size();
+}
+
+Expected<MCDummyFragmentRef>
+MCDummyFragmentRef::create(MCCASBuilder &MB, const MCDummyFragment &F,
+                           unsigned FragmentSize) {
+  llvm_unreachable("Should not have been added");
+}
+
+Expected<uint64_t> MCDummyFragmentRef::materialize(MCCASReader &Reader) const {
+  llvm_unreachable("Should not have been added");
+}
+
+Expected<MCFillFragmentRef> MCFillFragmentRef::create(MCCASBuilder &MB,
+                                                      const MCFillFragment &F,
+                                                      unsigned FragmentSize) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+  writeVBR8(FragmentSize, B->Data);
+  writeVBR8(F.getValue(), B->Data);
+  writeVBR8(F.getValueSize(), B->Data);
+  return get(B->build());
+}
+
+Expected<uint64_t> MCFillFragmentRef::materialize(MCCASReader &Reader) const {
+  StringRef Remaining = getData();
+  uint64_t Size;
+  uint64_t Value;
+  unsigned ValueSize;
+  if (auto E = consumeVBR8(Remaining, Size))
+    return E;
+  if (auto E = consumeVBR8(Remaining, Value))
+    return E;
+  if (auto E = consumeVBR8(Remaining, ValueSize))
+    return E;
+
+  // FIXME: Code duplication from writeFragment.
+  const unsigned MaxChunkSize = 16;
+  char Data[MaxChunkSize];
+  for (unsigned I = 0; I != ValueSize; ++I) {
+    unsigned Index =
+        Reader.isLittleEndian() == support::little ? I : (ValueSize - I - 1);
+    Data[I] = uint8_t(Value >> (Index * 8));
+  }
+  for (unsigned I = ValueSize; I < MaxChunkSize; ++I)
+    Data[I] = Data[I - ValueSize];
+
+  const unsigned NumPerChunk = MaxChunkSize / ValueSize;
+  const unsigned ChunkSize = ValueSize * NumPerChunk;
+
+  StringRef Ref(Data, ChunkSize);
+  for (uint64_t I = 0, E = Size / ChunkSize; I != E; ++I)
+    Reader.OS << Ref;
+
+  unsigned TrailingCount = Size % ChunkSize;
+  if (TrailingCount)
+    Reader.OS.write(Data, TrailingCount);
+  return Size;
+}
+
+Expected<MCLEBFragmentRef> MCLEBFragmentRef::create(MCCASBuilder &MB,
+                                                    const MCLEBFragment &F,
+                                                    unsigned FragmentSize) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+  B->Data.append(F.getContents());
+  return get(B->build());
+}
+
+Expected<uint64_t> MCLEBFragmentRef::materialize(MCCASReader &Reader) const {
+  Reader.OS << getData();
+  return getData().size();
+}
+
+Expected<MCNopsFragmentRef> MCNopsFragmentRef::create(MCCASBuilder &MB,
+                                                    const MCNopsFragment &F,
+                                                    unsigned FragmentSize) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+  int64_t NumBytes = F.getNumBytes();
+  int64_t ControlledNopLength = F.getControlledNopLength();
+  int64_t MaximumNopLength =
+      MB.Asm.getBackend().getMaximumNopSize(*F.getSubtargetInfo());
+  if (ControlledNopLength > MaximumNopLength)
+    ControlledNopLength = MaximumNopLength;
+  if (!ControlledNopLength)
+    ControlledNopLength = MaximumNopLength;
+  while (NumBytes) {
+    uint64_t NumBytesToEmit = (uint64_t)std::min(NumBytes, ControlledNopLength);
+    assert(NumBytesToEmit && "try to emit empty NOP instruction");
+    if (!MB.Asm.getBackend().writeNopData(MB.FragmentOS, NumBytesToEmit,
+                                          F.getSubtargetInfo())) {
+      report_fatal_error("unable to write nop sequence of the remaining " +
+                         Twine(NumBytesToEmit) + " bytes");
+      break;
+    }
+    NumBytes -= NumBytesToEmit;
+  }
+  B->Data.append(MB.FragmentData);
+  return get(B->build());
+}
+
+Expected<uint64_t> MCNopsFragmentRef::materialize(MCCASReader &Reader) const {
+  Reader.OS << getData();
+  return getData().size();
+}
+
+Expected<MCOrgFragmentRef> MCOrgFragmentRef::create(MCCASBuilder &MB,
+                                                    const MCOrgFragment &F,
+                                                    unsigned FragmentSize) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+  writeVBR8(FragmentSize, B->Data);
+  writeVBR8((char)F.getValue(), B->Data);
+  return get(B->build());
+}
+
+Expected<uint64_t> MCOrgFragmentRef::materialize(MCCASReader &Reader) const {
+  Reader.OS << getData();
+  return getData().size();
+}
+
+Expected<MCSymbolIdFragmentRef>
+MCSymbolIdFragmentRef::create(MCCASBuilder &MB, const MCSymbolIdFragment &F,
+                              unsigned FragmentSize) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+  writeVBR8(F.getSymbol()->getIndex(), B->Data);
+  return get(B->build());
+}
+
+Expected<uint64_t>
+MCSymbolIdFragmentRef::materialize(MCCASReader &Reader) const {
+  Reader.OS << getData();
+  return getData().size();
+}
+
+#define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
+  Expected<MCFragmentName##Ref> MCFragmentName##Ref::create(                   \
+      MCCASBuilder &MB, const MCFragmentName &F, unsigned FragmentSize) {      \
+    Expected<Builder> B = Builder::startNode(MB.Schema, KindString);           \
+    if (!B)                                                                    \
+      return B.takeError();                                                    \
+    MB.Asm.writeFragmentPadding(MB.FragmentOS, F, FragmentSize);                  \
+    ArrayRef<char> Contents = F.getContents();                                 \
+    B->Data.append(MB.FragmentData);                                              \
+    B->Data.append(Contents.begin(), Contents.end());                          \
+    assert(((MB.FragmentData.empty() && Contents.empty()) ||                      \
+            (MB.FragmentData.size() + Contents.size() == FragmentSize)) &&        \
+           "Size should match");                                               \
+    return get(B->build());                                                    \
+  }                                                                            \
+  Expected<uint64_t> MCFragmentName##Ref::materialize(MCCASReader &Reader)     \
+      const {                                                                  \
+    Reader.OS << getData();                                                    \
+    return getData().size();                                                   \
+  }
+#define MCFRAGMENT_ENCODED_FRAGMENT_ONLY
+#include "llvm/MC/CAS/MCCASFlatV1.def"
 
 Expected<MCAssemblerRef> MCAssemblerRef::get(Expected<MCNodeProxy> Ref) {
   auto Specific = SpecificRefT::getSpecific(std::move(Ref));
@@ -553,24 +578,39 @@ Error MCCASBuilder::buildMachOHeader() {
   return Error::success();
 }
 
+Error MCCASBuilder::buildFragment(const MCFragment &F) {
+  auto Size = Asm.computeFragmentSize(Layout, F);
+  // Don't need to encode the fragment if it doesn't contribute anything.
+  if (!Size)
+    return Error::success();
+
+  switch (F.getKind()) {
+#define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
+  case MCFragment::MCEnumName: {                                               \
+    const MCFragmentName &SF = cast<MCFragmentName>(F);                        \
+    auto FN = MCFragmentName##Ref::create(*this, SF, Size);                    \
+    if (!FN)                                                                   \
+      return FN.takeError();                                                   \
+    addNode(*FN);                                                              \
+    return Error::success();                                                   \
+  }
+#include "llvm/MC/CAS/MCCASFlatV1.def"
+  }
+  llvm_unreachable("unknown fragment");
+}
+
 Error MCCASBuilder::buildFragments() {
   for (const MCSection &Sec : Asm) {
     if (Sec.isVirtualSection())
       continue;
     for (const MCFragment &F : Sec) {
-      auto Size = Asm.computeFragmentSize(Layout, F);
-      // Don't need to encode the fragment if it doesn't contribute anything.
-      if (!Size)
-        continue;
-
-      auto Fragment = FragmentRef::create(*this, F, Size);
-      if (!Fragment)
-        return Fragment.takeError();
-      addNode(*Fragment);
+      FragmentData.clear();
+      if (auto Err = buildFragment(F))
+        return Err;
     }
 
     uint64_t Pad = ObjectWriter.getPaddingSize(&Sec, Layout);
-    auto Fill = FragmentRef::createZeroFill(*this, Pad);
+    auto Fill = PaddingRef::create(*this, Pad);
     if (!Fill)
       return Fill.takeError();
     addNode(*Fill);
@@ -688,6 +728,7 @@ Error MCAssemblerRef::materialize(raw_ostream &OS) const {
     return TripleStr.takeError();
   Triple Target(*TripleStr);
 
+  MCCASReader Reader(OS, Target, getSchema());
   // The first few referenced nodes are speical blocks: Header, Relocations,
   // DataInCode, SymbolTable.
   if (getNumReferences() < 5)
@@ -706,10 +747,7 @@ Error MCAssemblerRef::materialize(raw_ostream &OS) const {
     unsigned FragID;
     if (auto E = consumeVBR8(Remaining, FragID))
       return E;
-    auto Fragment = FragmentRef::get(getSchema(), getReferenceID(FragID + 5));
-    if (!Fragment)
-      return Fragment.takeError();
-    auto SizeOrErr = Fragment->materialize(OS, Target.isLittleEndian());
+    auto SizeOrErr = Reader.materializeFragment(getReferenceID(FragID + 5));
     if (!SizeOrErr)
       return SizeOrErr.takeError();
     Written += *SizeOrErr;
@@ -733,4 +771,23 @@ Error MCAssemblerRef::materialize(raw_ostream &OS) const {
     return SymOrErr.takeError();
 
   return Error::success();
+}
+
+MCCASReader::MCCASReader(raw_ostream &OS, const Triple &Target,
+                         const MCSchema &Schema)
+    : OS(OS), Target(Target), Schema(Schema) {}
+
+Expected<uint64_t> MCCASReader::materializeFragment(cas::CASID ID) {
+  auto Node = MCNodeProxy::get(Schema, Schema.CAS.getNode(ID));
+  if (!Node)
+    return Node.takeError();
+
+#define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
+  if (auto F = MCFragmentName##Ref::Cast(*Node))                               \
+    return F->materialize(*this);
+#include "llvm/MC/CAS/MCCASFlatV1.def"
+  if (auto F = PaddingRef::Cast(*Node))
+    return F->materialize(OS);
+
+  llvm_unreachable("unknown fragment");
 }
