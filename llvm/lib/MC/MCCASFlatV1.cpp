@@ -643,11 +643,18 @@ Error MCCASBuilder::buildDataInCodeRegion() {
 Error MCCASBuilder::buildSymbolTable() {
   ObjectWriter.resetBuffer();
   ObjectWriter.writeSymbolTable(Asm, Layout);
-  auto Sym = SymbolTableRef::create(*this, ObjectWriter.getContent());
-  if (!Sym)
-    return Sym.takeError();
+  StringRef S = ObjectWriter.getContent();
+  while (!S.empty()) {
+    auto SplitSym = S.split('\0');
+    auto Sym = SymbolTableRef::create(*this, SplitSym.first);
+    if (!Sym)
+      return Sym.takeError();
 
-  Sections.push_back(Sym->getID());
+    Sections.push_back(Sym->getID());
+    ++SymTableSize;
+
+    S = SplitSym.second;
+  }
   return Error::success();
 }
 
@@ -701,6 +708,7 @@ Expected<MCAssemblerRef> MCAssemblerRef::create(const MCSchema &Schema,
   writeVBR8(uint32_t(NormalizedTriple.size()), B->Data);
   B->Data.append(NormalizedTriple);
 
+  writeVBR8(Builder.SymTableSize, B->Data);
   for (unsigned Idx : Builder.FragmentIDs)
     writeVBR8(Idx, B->Data);
 
@@ -731,9 +739,12 @@ Error MCAssemblerRef::materialize(raw_ostream &OS) const {
   MCCASReader Reader(OS, Target, getSchema());
   // The first few referenced nodes are speical blocks: Header, Relocations,
   // DataInCode, SymbolTable.
-  if (getNumReferences() < 5)
+  if (getNumReferences() < 4)
     return createStringError(inconvertibleErrorCode(),
                              "not enough sub-blocks in MCAssemblerRef");
+  unsigned SymTableSize;
+  if (auto E = consumeVBR8(Remaining, SymTableSize))
+    return E;
 
   uint64_t Written = 0;
   // MachOHeader.
@@ -747,7 +758,8 @@ Error MCAssemblerRef::materialize(raw_ostream &OS) const {
     unsigned FragID;
     if (auto E = consumeVBR8(Remaining, FragID))
       return E;
-    auto SizeOrErr = Reader.materializeFragment(getReferenceID(FragID + 5));
+    auto SizeOrErr =
+        Reader.materializeFragment(getReferenceID(FragID + SymTableSize + 4));
     if (!SizeOrErr)
       return SizeOrErr.takeError();
     Written += *SizeOrErr;
@@ -766,9 +778,12 @@ Error MCAssemblerRef::materialize(raw_ostream &OS) const {
   if (!DCOrErr)
     return DCOrErr.takeError();
 
-  auto SymOrErr = materializeData<SymbolTableRef>(OS, *this, 4);
-  if (!SymOrErr)
-    return SymOrErr.takeError();
+  for (unsigned Idx = 0; Idx < SymTableSize; ++ Idx) {
+    auto SymOrErr = materializeData<SymbolTableRef>(OS, *this, Idx + 4);
+    if (!SymOrErr)
+      return SymOrErr.takeError();
+    OS.write_zeros(1);
+  }
 
   return Error::success();
 }

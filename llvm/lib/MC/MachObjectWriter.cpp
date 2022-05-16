@@ -1069,11 +1069,7 @@ void MachObjectWriter::writeDataInCodeRegion(MCAssembler &Asm,
         offsetToAlignment(LOHRawSize, is64Bit() ? Align(8) : Align(4)));
     assert(W.OS.tell() - Start == LOHSize);
   }
-}
 
-void MachObjectWriter::writeSymbolTable(MCAssembler &Asm,
-                                        const MCAsmLayout &Layout) {
-  // Write the symbol table data, if used.
   if (NumSymbols) {
     // Write the indirect symbol entries.
     for (MCAssembler::const_indirect_symbol_iterator
@@ -1104,10 +1100,14 @@ void MachObjectWriter::writeSymbolTable(MCAssembler &Asm,
          {&LocalSymbolData, &ExternalSymbolData, &UndefinedSymbolData})
       for (MachSymbolData &Entry : *SymbolData)
         writeNlist(Entry, Layout);
+  }
+}
 
+void MachObjectWriter::writeSymbolTable(MCAssembler &Asm,
+                                        const MCAsmLayout &Layout) {
+  if (NumSymbols)
     // Write the string table.
     StringTable.write(W.OS);
-  }
 }
 
 uint64_t MachObjectWriter::writeObject(MCAssembler &Asm,

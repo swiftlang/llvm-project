@@ -338,6 +338,7 @@ private:
 
   Error buildFragment(const MCFragment &F);
 
+  unsigned SymTableSize = 0;
   DenseMap<cas::CASID, unsigned> CASIDMap;
   std::vector<unsigned> FragmentIDs;
   std::vector<cas::CASID> Fragments;
