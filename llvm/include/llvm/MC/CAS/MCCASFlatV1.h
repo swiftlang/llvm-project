@@ -153,101 +153,32 @@ protected:
   SpecificRef(MCNodeProxy Ref) : MCNodeProxy(Ref) {}
 };
 
-class HeaderRef : public SpecificRef<HeaderRef> {
-  using SpecificRefT = SpecificRef<HeaderRef>;
-  friend class SpecificRef<HeaderRef>;
-
-public:
-  static constexpr StringLiteral KindString = "mc:header";
-
-  StringRef getHeader() const { return getData(); }
-
-  static Expected<HeaderRef> create(MCCASBuilder &MB, StringRef Header);
-  static Expected<HeaderRef> get(Expected<MCNodeProxy> Ref);
-  static Expected<HeaderRef> get(const MCSchema &Schema, cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-
-private:
-  explicit HeaderRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
-};
-
-class RelocationsRef : public SpecificRef<RelocationsRef> {
-  using SpecificRefT = SpecificRef<RelocationsRef>;
-  friend class SpecificRef<RelocationsRef>;
-
-public:
-  static constexpr StringLiteral KindString = "mc:relocation";
-
-  static Expected<RelocationsRef> create(MCCASBuilder &MB, StringRef Data);
-  static Expected<RelocationsRef> get(Expected<MCNodeProxy> Ref);
-  static Expected<RelocationsRef> get(const MCSchema &Schema, cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-
-private:
-  explicit RelocationsRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
-};
-
-class DataInCodeRef : public SpecificRef<DataInCodeRef> {
-  using SpecificRefT = SpecificRef<DataInCodeRef>;
-  friend class SpecificRef<DataInCodeRef>;
-
-public:
-  static constexpr StringLiteral KindString = "mc:data-in-code";
-
-  static Expected<DataInCodeRef> create(MCCASBuilder &MB, StringRef Data);
-  static Expected<DataInCodeRef> get(Expected<MCNodeProxy> Ref);
-  static Expected<DataInCodeRef> get(const MCSchema &Schema, cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-
-private:
-  explicit DataInCodeRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
-};
-
-class SymbolTableRef : public SpecificRef<SymbolTableRef> {
-  using SpecificRefT = SpecificRef<SymbolTableRef>;
-  friend class SpecificRef<SymbolTableRef>;
-
-public:
-  static constexpr StringLiteral KindString = "mc:symbol-table";
-
-  static Expected<SymbolTableRef> create(MCCASBuilder &MB, StringRef Sym);
-  static Expected<SymbolTableRef> get(Expected<MCNodeProxy> Ref);
-  static Expected<SymbolTableRef> get(const MCSchema &Schema, cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-
-private:
-  explicit SymbolTableRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
-};
-
-class PaddingRef : public SpecificRef<PaddingRef> {
-  using SpecificRefT = SpecificRef<PaddingRef>;
-  friend class SpecificRef<PaddingRef>;
-
-public:
-  static constexpr StringLiteral KindString = "mc:padding";
-
-  static Expected<PaddingRef> create(MCCASBuilder &MB, uint64_t Size);
-
-  static Expected<PaddingRef> get(Expected<MCNodeProxy> Ref);
-  static Expected<PaddingRef> get(const MCSchema &Schema, cas::CASID ID) {
-    return get(Schema.getNode(ID));
-  }
-  static Optional<PaddingRef> Cast(MCNodeProxy Ref) {
-    auto Specific = SpecificRefT::Cast(Ref);
-    if (!Specific)
-      return None;
-    return PaddingRef(*Specific);
-  }
-
-  Expected<uint64_t> materialize(raw_ostream &OS) const;
-
-private:
-  explicit PaddingRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
-};
+#define CASV1_SIMPLE_DATA_REF(RefName, IdentifierName)                         \
+  class RefName : public SpecificRef<RefName> {                                \
+    using SpecificRefT = SpecificRef<RefName>;                                 \
+    friend class SpecificRef<RefName>;                                         \
+                                                                               \
+  public:                                                                      \
+    static constexpr StringLiteral KindString = #IdentifierName;               \
+    static Expected<RefName> create(MCCASBuilder &MB, StringRef Data);         \
+    static Expected<RefName> get(Expected<MCNodeProxy> Ref);                   \
+    static Expected<RefName> get(const MCSchema &Schema, cas::CASID ID) {      \
+      return get(Schema.getNode(ID));                                          \
+    }                                                                          \
+    static Optional<RefName> Cast(MCNodeProxy Ref) {                           \
+      auto Specific = SpecificRefT::Cast(Ref);                                 \
+      if (!Specific)                                                           \
+        return None;                                                           \
+      return RefName(*Specific);                                               \
+    }                                                                          \
+    Expected<uint64_t> materialize(raw_ostream &OS) const {                    \
+      OS << getData();                                                         \
+      return getData().size();                                                 \
+    }                                                                          \
+                                                                               \
+  private:                                                                     \
+    explicit RefName(SpecificRefT Ref) : SpecificRefT(Ref) {}                  \
+  };
 
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   class MCFragmentName##Ref : public SpecificRef<MCFragmentName##Ref> {        \
@@ -281,6 +212,32 @@ private:
     explicit MCFragmentName##Ref(SpecificRefT Ref) : SpecificRefT(Ref) {}      \
   };
 #include "llvm/MC/CAS/MCCASFlatV1.def"
+
+class PaddingRef : public SpecificRef<PaddingRef> {
+  using SpecificRefT = SpecificRef<PaddingRef>;
+  friend class SpecificRef<PaddingRef>;
+
+public:
+  static constexpr StringLiteral KindString = "mc:padding";
+
+  static Expected<PaddingRef> create(MCCASBuilder &MB, uint64_t Size);
+
+  static Expected<PaddingRef> get(Expected<MCNodeProxy> Ref);
+  static Expected<PaddingRef> get(const MCSchema &Schema, cas::CASID ID) {
+    return get(Schema.getNode(ID));
+  }
+  static Optional<PaddingRef> Cast(MCNodeProxy Ref) {
+    auto Specific = SpecificRefT::Cast(Ref);
+    if (!Specific)
+      return None;
+    return PaddingRef(*Specific);
+  }
+
+  Expected<uint64_t> materialize(raw_ostream &OS) const;
+
+private:
+  explicit PaddingRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
+};
 
 class MCAssemblerRef : public SpecificRef<MCAssemblerRef> {
   using SpecificRefT = SpecificRef<MCAssemblerRef>;
@@ -329,14 +286,13 @@ public:
   Error buildSymbolTable();
 
   void addNode(cas::NodeProxy Node);
+  Error buildFragment(const MCFragment &F, unsigned FragmentSize);
 
   // Scratch space
   SmallString<8> FragmentData;
   raw_svector_ostream FragmentOS;
 private:
   friend class MCAssemblerRef;
-
-  Error buildFragment(const MCFragment &F);
 
   unsigned SymTableSize = 0;
   DenseMap<cas::CASID, unsigned> CASIDMap;

@@ -10,6 +10,17 @@
 //
 //,,,----------------------------------------------------------------------,,,//
 
+#ifdef CASV1_SIMPLE_DATA_REF
+
+CASV1_SIMPLE_DATA_REF(HeaderRef, mc:header)
+CASV1_SIMPLE_DATA_REF(RelocationsRef, mc:relocations)
+CASV1_SIMPLE_DATA_REF(DataInCodeRef, mc:data_in_code)
+CASV1_SIMPLE_DATA_REF(SymbolTableRef, mc:symbol_table)
+CASV1_SIMPLE_DATA_REF(MergedFragmentRef, mc:merged_fragment)
+
+#undef CASV1_SIMPLE_DATA_REF
+#endif /* CASV1_SIMPLE_DATA_REF */
+
 #ifdef MCFRAGMENT_NODE_REF
 
 #ifndef MCFRAGMENT_ENCODED_FRAGMENT_ONLY

@@ -15,6 +15,7 @@
 
 // FIXME: Fix dependency here.
 #include "llvm/CASObjectFormats/Encoding.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
 using namespace llvm::mccasformats;
@@ -24,18 +25,21 @@ using namespace llvm::mccasformats::reader;
 using namespace llvm::casobjectformats::encoding;
 
 constexpr StringLiteral MCAssemblerRef::KindString;
-constexpr StringLiteral HeaderRef::KindString;
 constexpr StringLiteral PaddingRef::KindString;
-constexpr StringLiteral RelocationsRef::KindString;
-constexpr StringLiteral DataInCodeRef::KindString;
-constexpr StringLiteral SymbolTableRef::KindString;
 
+#define CASV1_SIMPLE_DATA_REF(RefName, IdentifierName)                         \
+  constexpr StringLiteral RefName::KindString;
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   constexpr StringLiteral MCFragmentName##Ref::KindString;
 #include "llvm/MC/CAS/MCCASFlatV1.def"
 
 void MCSchema::anchor() {}
 char MCSchema::ID = 0;
+
+cl::opt<unsigned>
+    MCDataMergeThreshold("mc-cas-data-merge-threshold",
+                         cl::desc("MCDataFragment merge threshold"),
+                         cl::init(64));
 
 Expected<cas::NodeProxy>
 MCSchema::createFromMCAssemblerImpl(MachOCASWriter &ObjectWriter,
@@ -72,8 +76,7 @@ Error MCSchema::fillCache() {
 
   StringRef AllKindStrings[] = {
       PaddingRef::KindString,   MCAssemblerRef::KindString,
-      HeaderRef::KindString,     RelocationsRef::KindString,
-      DataInCodeRef::KindString, SymbolTableRef::KindString,
+#define CASV1_SIMPLE_DATA_REF(RefName, IdentifierName) RefName::KindString,
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   MCFragmentName##Ref::KindString,
 #include "llvm/MC/CAS/MCCASFlatV1.def"
@@ -187,79 +190,21 @@ static Expected<StringRef> consumeDataOfSize(StringRef &Data, unsigned Size) {
   return Ret;
 }
 
-Expected<HeaderRef> HeaderRef::create(MCCASBuilder &MB, StringRef Name) {
-  auto B = Builder::startNode(MB.Schema, KindString);
-  if (!B)
-    return B.takeError();
-
-  B->Data.append(Name);
-  return get(B->build());
+#define CASV1_SIMPLE_DATA_REF(RefName, IdentifierName)                         \
+Expected<RefName> RefName::create(MCCASBuilder &MB, StringRef Name) {      \
+  auto B = Builder::startNode(MB.Schema, KindString); \
+  if (!B) \
+    return B.takeError(); \
+  B->Data.append(Name); \
+  return get(B->build()); \
+} \
+Expected<RefName> RefName::get(Expected<MCNodeProxy> Ref) { \
+  auto Specific = SpecificRefT::getSpecific(std::move(Ref)); \
+  if (!Specific) \
+    return Specific.takeError(); \
+  return RefName(*Specific); \
 }
-
-Expected<HeaderRef> HeaderRef::get(Expected<MCNodeProxy> Ref) {
-  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
-  if (!Specific)
-    return Specific.takeError();
-
-  if (Specific->getNumReferences())
-    return createStringError(inconvertibleErrorCode(), "corrupt name");
-
-  return HeaderRef(*Specific);
-}
-
-Expected<RelocationsRef> RelocationsRef::create(MCCASBuilder &MB,
-                                                StringRef Data) {
-  auto B = Builder::startNode(MB.Schema, KindString);
-  if (!B)
-    return B.takeError();
-
-  B->Data.append(Data);
-  return get(B->build());
-}
-
-Expected<RelocationsRef> RelocationsRef::get(Expected<MCNodeProxy> Ref) {
-  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
-  if (!Specific)
-    return Specific.takeError();
-
-  return RelocationsRef(*Specific);
-}
-
-Expected<DataInCodeRef> DataInCodeRef::create(MCCASBuilder &MB,
-                                              StringRef Data) {
-  auto B = Builder::startNode(MB.Schema, KindString);
-  if (!B)
-    return B.takeError();
-
-  B->Data.append(Data);
-  return get(B->build());
-}
-
-Expected<DataInCodeRef> DataInCodeRef::get(Expected<MCNodeProxy> Ref) {
-  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
-  if (!Specific)
-    return Specific.takeError();
-
-  return DataInCodeRef(*Specific);
-}
-
-Expected<SymbolTableRef> SymbolTableRef::create(MCCASBuilder &MB,
-                                                StringRef Data) {
-  auto B = Builder::startNode(MB.Schema, KindString);
-  if (!B)
-    return B.takeError();
-
-  B->Data.append(Data);
-  return get(B->build());
-}
-
-Expected<SymbolTableRef> SymbolTableRef::get(Expected<MCNodeProxy> Ref) {
-  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
-  if (!Specific)
-    return Specific.takeError();
-
-  return SymbolTableRef(*Specific);
-}
+#include "llvm/MC/CAS/MCCASFlatV1.def"
 
 Expected<PaddingRef> PaddingRef::create(MCCASBuilder &MB, uint64_t Size) {
   // Fake a FT_Fill Fragment that is zero filled.
@@ -578,12 +523,8 @@ Error MCCASBuilder::buildMachOHeader() {
   return Error::success();
 }
 
-Error MCCASBuilder::buildFragment(const MCFragment &F) {
-  auto Size = Asm.computeFragmentSize(Layout, F);
-  // Don't need to encode the fragment if it doesn't contribute anything.
-  if (!Size)
-    return Error::success();
-
+Error MCCASBuilder::buildFragment(const MCFragment &F, unsigned Size) {
+  FragmentData.clear();
   switch (F.getKind()) {
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   case MCFragment::MCEnumName: {                                               \
@@ -599,15 +540,125 @@ Error MCCASBuilder::buildFragment(const MCFragment &F) {
   llvm_unreachable("unknown fragment");
 }
 
+class MCDataFragmentMerger {
+public:
+  MCDataFragmentMerger(MCCASBuilder &Builder) : Builder(Builder) {}
+  ~MCDataFragmentMerger() {
+    assert(MergeCandidates.empty() && "Not flushed");
+  }
+
+  Expected<bool> tryMerge(const MCFragment &F, unsigned Size);
+  Error flush() { return emitMergedFragments(); }
+private:
+  Error emitMergedFragments();
+  void reset();
+
+  MCCASBuilder &Builder;
+  const MCSymbol *CurrentAtom = nullptr;
+  unsigned CurrentSize = 0;
+  std::vector<std::pair<const MCFragment *, unsigned>> MergeCandidates;
+};
+
+// Return true, if the fragment is handled by Merger. Return false for default
+// MCFragment serialization.
+Expected<bool> MCDataFragmentMerger::tryMerge(const MCFragment &F,
+                                              unsigned Size) {
+  bool IsSameAtom = CurrentAtom == nullptr || CurrentAtom == F.getAtom();
+  CurrentAtom = F.getAtom();
+  // TODO: Try merge align fragment?
+  bool IsDataFragment = isa<MCEncodedFragment>(F);
+  // If not the same atom, flush merge candidate and return false.
+  if (!IsSameAtom || !IsDataFragment) {
+    if (auto E = emitMergedFragments())
+      return E;
+    return false;
+  }
+
+  // If there are no candidates and the size is large enough, emit normal
+  // fragment.
+  if (MergeCandidates.empty() && Size > MCDataMergeThreshold)
+    return false;
+
+  // Use Merger to handle the fragment.
+  CurrentSize += Size;
+  MergeCandidates.emplace_back(&F, Size);
+  // If we reach the threshold, emit the merged data fragment.
+  if (CurrentSize > MCDataMergeThreshold) {
+    if (auto E = emitMergedFragments())
+      return E;
+  }
+
+  return true;
+}
+
+Error MCDataFragmentMerger::emitMergedFragments() {
+  if (MergeCandidates.empty())
+    return Error::success();
+
+  // Use normal node to store the node.
+  if (MergeCandidates.size() == 1) {
+    auto E = Builder.buildFragment(*MergeCandidates.front().first,
+                                   MergeCandidates.front().second);
+    reset();
+    return E;
+  }
+  SmallString<8> FragmentData;
+  raw_svector_ostream FragmentOS(FragmentData);
+  for (auto &F : MergeCandidates) {
+    switch (F.first->getKind()) {
+#define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
+  case MCFragment::MCEnumName: {                                               \
+    const MCFragmentName *SF = cast<MCFragmentName>(F.first);                  \
+    Builder.Asm.writeFragmentPadding(FragmentOS, *SF, F.second);               \
+    FragmentData.append(SF->getContents());                                    \
+    break;                                                                     \
+  }
+#define MCFRAGMENT_ENCODED_FRAGMENT_ONLY
+#include "llvm/MC/CAS/MCCASFlatV1.def"
+    default:
+      llvm_unreachable("other framgents should not be added");
+    }
+  }
+
+  auto FN = MergedFragmentRef::create(Builder, FragmentData);
+  if (!FN)
+    return FN.takeError();
+  Builder.addNode(*FN);
+
+  // Clear state.
+  reset();
+  return Error::success();
+}
+
+void MCDataFragmentMerger::reset() {
+  CurrentSize = 0;
+  CurrentAtom = nullptr;
+  MergeCandidates.clear();
+}
+
 Error MCCASBuilder::buildFragments() {
   for (const MCSection &Sec : Asm) {
     if (Sec.isVirtualSection())
       continue;
+
+    MCDataFragmentMerger Merger(*this);
     for (const MCFragment &F : Sec) {
-      FragmentData.clear();
-      if (auto Err = buildFragment(F))
+      auto Size = Asm.computeFragmentSize(Layout, F);
+      // Don't need to encode the fragment if it doesn't contribute anything.
+      if (!Size)
+        continue;
+
+      auto MergedOrErr = Merger.tryMerge(F, Size);
+      if (!MergedOrErr)
+        return MergedOrErr.takeError();
+      if (*MergedOrErr)
+        continue;
+
+      if (auto Err = buildFragment(F, Size))
         return Err;
     }
+    if (auto E = Merger.flush())
+      return E;
 
     uint64_t Pad = ObjectWriter.getPaddingSize(&Sec, Layout);
     auto Fill = PaddingRef::create(*this, Pad);
@@ -721,8 +772,7 @@ materializeData(raw_ostream &OS, const MCAssemblerRef &Asm, unsigned Idx) {
   auto Ref = T::get(Asm.getSchema(), Asm.getReferenceID(Idx));
   if (!Ref)
     return Ref.takeError();
-  OS << Ref->getData();
-  return Ref->getData().size();
+  return Ref->materialize(OS);
 }
 
 Error MCAssemblerRef::materialize(raw_ostream &OS) const {
@@ -802,6 +852,8 @@ Expected<uint64_t> MCCASReader::materializeFragment(cas::CASID ID) {
     return F->materialize(*this);
 #include "llvm/MC/CAS/MCCASFlatV1.def"
   if (auto F = PaddingRef::Cast(*Node))
+    return F->materialize(OS);
+  if (auto F = MergedFragmentRef::Cast(*Node))
     return F->materialize(OS);
 
   llvm_unreachable("unknown fragment");
