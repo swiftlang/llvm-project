@@ -482,6 +482,10 @@ Optional<unsigned> Preprocessor::getSkippedRangeForExcludedConditionalBlock(
 void Preprocessor::SuggestTypoedDirective(const Token &Tok,
                                           StringRef Directive,
                                           const SourceLocation &EndLoc) const {
+  // If this is a `.S` file, treat unknown # directives as non-preprocessor
+  // directives.
+  if (getLangOpts().AsmPreprocessor) return;
+
   std::vector<StringRef> Candidates = {
       "if", "ifdef", "ifndef", "elif", "else", "endif"
   };
