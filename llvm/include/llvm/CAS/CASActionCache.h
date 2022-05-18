@@ -55,22 +55,57 @@ public:
 
 /// Abstract string-based map.
 class AbstractStringMap {
-  virtual Error store(StringRef Key, StringRef Value);
-  virtual Error poison(StringRef Key);
-  virtual Error get(StringRef Key, SmallVectorImpl<char> &Value);
+public:
+  virtual Error put(StringRef Key, StringRef Value);
+
+  /// Return \c true on missing.
+  virtual bool get(StringRef Key, raw_ostream &ValueOS);
 };
 
 /// Adapts an abstract StringMap to an ActionCache, storing the result as the
 /// ObjectID of the cache.
 class StringMapActionCacheAdaptor : public ActionCache {
-  AbstractStringMap Map;
+public:
+  /// Put mapping from \p ActionKey to \p Result. Calls \a CASDB::getObjectID()
+  /// and then \a putID(). Does not store the content of \p Result.
+  Error put(const CacheKey &ActionKey, const ObjectRef &Result) override;
+
+  /// Put mapping from \p ActionKey to \p Result.
+  Optional<CASID> putID(const CacheKey &ActionKey, const CASID &Result);
+
+  /// Get mapped result for \a ActionKey. Calls \a getID() and then \a
+  /// CASDB::getReference().
+  Optional<ObjectRef> get(const CacheKey &ActionKey) const override;
+
+  /// Get the ID for the result of \p ActionKey.
+  Optional<CASID> getID(const CacheKey &ActionKey) const;
+
+  CASDB &getCAS() const { return CAS; };
+  AbstractStringMap &getMap() const { return Map; };
+
+private:
+  CASDB &CAS;
+  AbstractStringMap &Map;
 };
 
 /// Adapts an abstract StringMap to an ActionCache, storing the result as the
 /// ObjectID of the cache. This also caches the content of objects themselves.
-class StringMapActionCacheAdaptorWithStorage : public StringMapActionCacheAdaptor {
-};
+class StringMapActionCacheAdaptorWithObjectStorage : public {
+public:
+  /// Put mapping from \p ActionKey to \p Result, also storing the transitive
+  /// content of \p Result in the map.
+  Error put(const CacheKey &ActionKey, const ObjectRef &Result) override;
 
+  /// Get mapped result for \a ActionKey. Stores the transitive content of the
+  /// result in the CAS as well.
+  Optional<ObjectRef> get(const CacheKey &ActionKey) const override;
+
+  CASDB &getCAS() const { return UnderlyingAdaptor.getCAS(); };
+  AbstractStringMap &getMap() const { return UnderlyingAdaptor.getMap(); };
+
+private:
+  StringMapActionCacheAdaptor UnderlyingAdaptor;
+};
 
 } // namespace cas
 } // namespace llvm
