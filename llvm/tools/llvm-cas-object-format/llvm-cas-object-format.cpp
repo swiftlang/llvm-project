@@ -570,7 +570,7 @@ static void computeStats(CASDB &CAS, ArrayRef<CASID> TopLevels,
   ExitOnError ExitOnErr;
   ExitOnErr.setBanner("llvm-cas-object-format: compute-stats: ");
 
-  outs() << "Collecting object stats...\n";
+  MSG("Collecting object stats...\n");
 
   // In the first traversal, just collect a POT. Use NumPaths as a "Seen" list.
   StatCollector Collector(CAS);
