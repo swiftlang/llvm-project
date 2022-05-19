@@ -1,0 +1,3 @@
+RUN: rm -rf %t && mkdir -p %t
+RUN: touch %t/input.txt
+RUN: llvm-cas-object-format --cas %t/cas --analysis-only --object-stats - @%t/input.txt

@@ -303,7 +303,7 @@ int main(int argc, char *argv[]) {
     outs() << SummaryID << "\n";
   }
 
-  if (ComputeStats.empty()) {
+  if (ComputeStats.empty() || SummaryIDs.empty()) {
     return 0;
   }
 
