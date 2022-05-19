@@ -1,5 +1,7 @@
 add_llvm_component_library(LLVMCAS
   BuiltinCAS.cpp
+  CASActionCache.cpp
+  CASActionCaches.cpp
   CASDB.cpp
   CASFileSystem.cpp
   CASNodeSchema.cpp

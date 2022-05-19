@@ -11,11 +11,9 @@
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/CAS/CASID.h"
+#include "llvm/CAS/CASCacheKey.h"
 #include "llvm/CAS/CASReference.h"
-#include "llvm/CAS/TreeEntry.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/FileSystem.h" // FIXME: Split out sys::fs::file_status.
 #include <cstddef>
 
 namespace llvm {
@@ -32,82 +30,50 @@ protected:
 
 public:
   /// Get a previously computed result for \p ActionKey.
-  virtual Optional<ObjectRef> get(const CacheKey &ActionKey) const = 0;
+  Optional<ObjectRef> get(const CacheKey &ActionKey) const {
+    SmallVector<char, 32> Storage;
+    return getImpl(resolveKey(ActionKey));
+  }
 
   /// Cache \p Result for the \p ActionKey computation.
-  virtual Error put(const CacheKey &ActionKey, const ObjectRef &Result) = 0;
+  Error put(const CacheKey &ActionKey, const ObjectRef &Result) {
+    SmallVector<char, 32> Storage;
+    return putImpl(resolveKey(ActionKey), Result);
+  }
 
   /// Poison the cache for \p ActionKey.
-  virtual Error poison(const CacheKey &ActionKey) = 0;
+  Error poison(const CacheKey &ActionKey) {
+    SmallVector<char, 32> Storage;
+    return poisonImpl(resolveKey(ActionKey));
+  }
 
-  /// Get or compute a result for \p ActionKey. The default implementation
-  /// calls \a get(), and if not found calls \p Compute and \a put().
-  ///
-  /// Overrides should match this basic pattern, but is free to optimize or
-  /// audit. For example, it might share an internal lookup of \p ActionKey
-  /// between \a get() and \a put(). Or, it might probabilistically call \p
-  /// Compute even after \a get() returns a result, calling \a poision() on a
-  /// mismatch.
-  virtual Expected<ObjectRef> getOrCompute(
+  /// Get or compute a result for \p ActionKey. Equivalent to calling \a get()
+  /// (followed by \a compute() and \a put() on failure), but avoids calling \a
+  /// resolveKey() twice.
+  Expected<ObjectRef> getOrCompute(
       const CacheKey &ActionKey,
       function_ref<Expected<ObjectRef> ()> Compute);
-};
 
-/// Abstract string-based map.
-class AbstractStringMap {
-public:
-  virtual Error put(StringRef Key, StringRef Value);
+  CASDB &getCAS() const { return CAS; }
 
-  /// Return \c true on missing.
-  virtual bool get(StringRef Key, raw_ostream &ValueOS);
-};
+protected:
+  /// Convert \p ActionKey to internal key, using \p Storage if necessary for
+  /// storage. Default implementation uses CacheKey's string representation
+  /// directly.
+  virtual ArrayRef<uint8_t> resolveKey(const CacheKey &ActionKey,
+                                       SmallVectorImpl<char> &Storage) const;
 
-/// Adapts an abstract StringMap to an ActionCache, storing the result as the
-/// ObjectID of the cache.
-class StringMapActionCacheAdaptor : public ActionCache {
-public:
-  /// Put mapping from \p ActionKey to \p Result. Calls \a CASDB::getObjectID()
-  /// and then \a putID(). Does not store the content of \p Result.
-  Error put(const CacheKey &ActionKey, const ObjectRef &Result) override;
+  virtual Optional<ObjectRef> getImpl(ArrayRef<uint8_t> ResolvedKey) const = 0;
+  virtual Error putImpl(ArrayRef<uint8_t> ResolvedKey, const ObjectRef &Result) = 0;
+  virtual Error poisonImpl(ArrayRef<uint8_t> ResolvedKey) = 0;
 
-  /// Put mapping from \p ActionKey to \p Result.
-  Optional<CASID> putID(const CacheKey &ActionKey, const CASID &Result);
-
-  /// Get mapped result for \a ActionKey. Calls \a getID() and then \a
-  /// CASDB::getReference().
-  Optional<ObjectRef> get(const CacheKey &ActionKey) const override;
-
-  /// Get the ID for the result of \p ActionKey.
-  Optional<CASID> getID(const CacheKey &ActionKey) const;
-
-  CASDB &getCAS() const { return CAS; };
-  AbstractStringMap &getMap() const { return Map; };
+  ActionCache(CASDB &CAS) : CAS(CAS) {}
 
 private:
   CASDB &CAS;
-  AbstractStringMap &Map;
 };
 
-/// Adapts an abstract StringMap to an ActionCache, storing the result as the
-/// ObjectID of the cache. This also caches the content of objects themselves.
-class StringMapActionCacheAdaptorWithObjectStorage : public {
-public:
-  /// Put mapping from \p ActionKey to \p Result, also storing the transitive
-  /// content of \p Result in the map.
-  Error put(const CacheKey &ActionKey, const ObjectRef &Result) override;
-
-  /// Get mapped result for \a ActionKey. Stores the transitive content of the
-  /// result in the CAS as well.
-  Optional<ObjectRef> get(const CacheKey &ActionKey) const override;
-
-  CASDB &getCAS() const { return UnderlyingAdaptor.getCAS(); };
-  AbstractStringMap &getMap() const { return UnderlyingAdaptor.getMap(); };
-
-private:
-  StringMapActionCacheAdaptor UnderlyingAdaptor;
-};
-
-} // namespace cas
-} // namespace llvm
+} // end namespace cas
+} // end namespace llvm
 
 #endif // LLVM_CAS_CASACTIONCACHE_H

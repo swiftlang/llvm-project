@@ -13,51 +13,23 @@ using namespace llvm::cas;
 
 void CASActionCache::anchor() {}
 
-virtual Expected<ObjectRef> CASActionCache::getOrCompute(
+ArrayRef<uint8_t> ActionCache::resolveKey(const CacheKey &ActionKey,
+                                          SmallVectorImpl<char> &Storage) const {
+  raw_svector_stream(Storage) << ActionKey;
+  return arrayRefFromStringRef(StringRef(Storage.begin(), Storage.size()));
+}
+
+Expected<ObjectRef> ActionCache::getOrCompute(
     const CacheKey &ActionKey,
     function_ref<Expected<ObjectRef> ()> Computation) {
-  if (Optional<ObjectRef> Result = get(ActionKey))
+  SmallVector<char, 32> KeyStorage;
+  ArrayRef<uint8_t> ResolvedKey = resolveKey(ActionKey, KeyStorage);
+  if (Optional<ObjectRef> Result = getImpl(ResolvedKey))
     return *Object;
   Optional<ObjectRef> Result;
   if (Error E = Computation().moveInto(Result))
     return std::move(E);
-  if (Error E = put(ActionKey, *Result))
+  if (Error E = putImpl(ResolvedKey, *Result))
     return std::move(E);
   return *Result;
-}
-
-Error StringMapActionCacheAdaptor::put(const CacheKey &ActionKey, const ObjectRef &Result) {
-  return putID(ActionKey, getCAS().getObjectID(Result));
-}
-
-Optional<CASID> StringMapActionCacheAdaptor::putID(const CacheKey &ActionKey, const CASID &Result) {
-  SmallString<64> KeyString = "action/" + ActionKey.toString();
-  return getMap().put(KeyString, ResultString);
-}
-
-Optional<ObjectRef> StringMapActionCacheAdaptor::get(const CacheKey &ActionKey) const {
-  Optional<CASID> ID = getID(ActionKey);
-  if (!ID)
-    return None;
-  return getCAS().getReference(*ID);
-}
-
-Optional<CASID> StringMapActionCacheAdaptor::getID(const CacheKey &ActionKey) const {
-  SmallString<64> KeyString = "action/" + ActionKey.toString();
-  SmallString<128> ResultString;
-  {
-    raw_ostream OS(ResultString);
-    if (getMap().get(KeyString, OS))
-      return None;
-  }
-  return expectedToOptional(getCAS().parseID(ResultString));
-}
-
-Error StringMapActionCacheAdaptorWithObjectStorage::put(const CacheKey &ActionKey,
-                                                        const ObjectRef &Result) {
-  SmallDenseMap<ObjectRef> Seen;
-  SmallVector<ObjectRef> Stack;
-}
-
-Optional<ObjectRef> StringMapActionCacheAdaptorWithObjectStorage::get(const CacheKey &ActionKey) const {
 }
