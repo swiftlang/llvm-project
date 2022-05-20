@@ -220,7 +220,7 @@ Expected<uint64_t> PaddingRef::materialize(raw_ostream &OS) const {
   StringRef Remaining = getData();
   uint64_t Size;
   if (auto E = consumeVBR8(Remaining, Size))
-    return E;
+    return std::move(E);
   OS.write_zeros(Size);
   return Size;
 }
@@ -263,7 +263,7 @@ MCAlignFragmentRef::materialize(MCCASReader &Reader) const {
   auto Remaining = getData();
   auto Endian = Reader.isLittleEndian() ? support::little : support::big;
   if (auto E = consumeVBR8(Remaining, Count))
-    return E;
+    return std::move(E);
 
   // hasEmitNops.
   if (!Count) {
@@ -273,9 +273,9 @@ MCAlignFragmentRef::materialize(MCCASReader &Reader) const {
   int64_t Value;
   unsigned ValueSize;
   if (auto E = consumeVBR8(Remaining, Value))
-    return E;
+    return std::move(E);
   if (auto E = consumeVBR8(Remaining, ValueSize))
-    return E;
+    return std::move(E);
 
   for (uint64_t I = 0; I != Count; ++I) {
     switch (ValueSize) {
@@ -362,11 +362,11 @@ Expected<uint64_t> MCFillFragmentRef::materialize(MCCASReader &Reader) const {
   uint64_t Value;
   unsigned ValueSize;
   if (auto E = consumeVBR8(Remaining, Size))
-    return E;
+    return std::move(E);
   if (auto E = consumeVBR8(Remaining, Value))
-    return E;
+    return std::move(E);
   if (auto E = consumeVBR8(Remaining, ValueSize))
-    return E;
+    return std::move(E);
 
   // FIXME: Code duplication from writeFragment.
   const unsigned MaxChunkSize = 16;
@@ -479,12 +479,12 @@ MCSymbolIdFragmentRef::materialize(MCCASReader &Reader) const {
     Expected<Builder> B = Builder::startNode(MB.Schema, KindString);           \
     if (!B)                                                                    \
       return B.takeError();                                                    \
-    MB.Asm.writeFragmentPadding(MB.FragmentOS, F, FragmentSize);                  \
+    MB.Asm.writeFragmentPadding(MB.FragmentOS, F, FragmentSize);               \
     ArrayRef<char> Contents = F.getContents();                                 \
-    B->Data.append(MB.FragmentData);                                              \
+    B->Data.append(MB.FragmentData);                                           \
     B->Data.append(Contents.begin(), Contents.end());                          \
-    assert(((MB.FragmentData.empty() && Contents.empty()) ||                      \
-            (MB.FragmentData.size() + Contents.size() == FragmentSize)) &&        \
+    assert(((MB.FragmentData.empty() && Contents.empty()) ||                   \
+            (MB.FragmentData.size() + Contents.size() == FragmentSize)) &&     \
            "Size should match");                                               \
     return get(B->build());                                                    \
   }                                                                            \
@@ -570,7 +570,7 @@ Expected<bool> MCDataFragmentMerger::tryMerge(const MCFragment &F,
   // If not the same atom, flush merge candidate and return false.
   if (!IsSameAtom || !IsDataFragment) {
     if (auto E = emitMergedFragments())
-      return E;
+      return std::move(E);
     return false;
   }
 
@@ -585,7 +585,7 @@ Expected<bool> MCDataFragmentMerger::tryMerge(const MCFragment &F,
   // If we reach the threshold, emit the merged data fragment.
   if (CurrentSize > MCDataMergeThreshold) {
     if (auto E = emitMergedFragments())
-      return E;
+      return std::move(E);
   }
 
   return true;
@@ -727,24 +727,24 @@ Expected<MCAssemblerRef> MCAssemblerRef::create(const MCSchema &Schema,
   MCCASBuilder Builder(Schema, ObjectWriter, Asm, Layout, DebugOS);
 
   if (auto E = Builder.prepare())
-    return E;
+    return std::move(E);
 
   if (auto E = Builder.buildMachOHeader())
-    return E;
+    return std::move(E);
 
   if (auto E = Builder.buildFragments())
-    return E;
+    return std::move(E);
 
   ObjectWriter.writeSectionData(Asm, Layout); // For verify mode only.
 
   if (auto E = Builder.buildRelocations())
-    return E;
+    return std::move(E);
 
   if (auto E = Builder.buildDataInCodeRegion())
-    return E;
+    return std::move(E);
 
   if (auto E = Builder.buildSymbolTable())
-    return E;
+    return std::move(E);
 
   auto B = Builder::startRootNode(Schema, KindString);
   if (!B)
