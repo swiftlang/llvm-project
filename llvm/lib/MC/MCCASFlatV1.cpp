@@ -9,6 +9,8 @@
 #include "llvm/MC/CAS/MCCASFlatV1.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/EndianStream.h"
 #include <memory>
@@ -40,6 +42,9 @@ cl::opt<unsigned>
     MCDataMergeThreshold("mc-cas-data-merge-threshold",
                          cl::desc("MCDataFragment merge threshold"),
                          cl::init(64));
+cl::opt<bool> SplitStringSections(
+    "mc-cas-split-string-sections",
+    cl::desc("Split String Sections (SymTable and DebugStr)"), cl::init(true));
 
 Expected<cas::NodeProxy>
 MCSchema::createFromMCAssemblerImpl(MachOCASWriter &ObjectWriter,
@@ -636,10 +641,43 @@ void MCDataFragmentMerger::reset() {
   MergeCandidates.clear();
 }
 
+Error MCCASBuilder::createStringSection(
+    StringRef S, std::function<Error(StringRef)> CreateFn) {
+  assert(S.endswith("\0") && "String sections are null terminated");
+  if (!SplitStringSections)
+    return CreateFn(S);
+
+  while (!S.empty()) {
+    auto SplitSym = S.split('\0');
+    if (auto E = CreateFn(SplitSym.first))
+      return E;
+
+    S = SplitSym.second;
+  }
+  return Error::success();
+}
+
 Error MCCASBuilder::buildFragments() {
   for (const MCSection &Sec : Asm) {
     if (Sec.isVirtualSection())
       continue;
+
+    if (Asm.getContext().getObjectFileInfo()->getDwarfStrSection() == &Sec) {
+      assert(Sec.getFragmentList().size() == 1 &&
+             "One fragment in debug str section");
+      ArrayRef<char> Content = cast<MCDataFragment>(*Sec.begin()).getContents();
+      StringRef S = StringRef(Content.data(), Content.size());
+      if (auto E = createStringSection(S, [&](StringRef S) -> Error {
+            auto Sym = DebugStrRef::create(*this, S);
+            if (!Sym)
+              return Sym.takeError();
+            addNode(*Sym);
+            return Error::success();
+          }))
+        return E;
+
+      continue;
+    }
 
     MCDataFragmentMerger Merger(*this);
     for (const MCFragment &F : Sec) {
@@ -695,18 +733,14 @@ Error MCCASBuilder::buildSymbolTable() {
   ObjectWriter.resetBuffer();
   ObjectWriter.writeSymbolTable(Asm, Layout);
   StringRef S = ObjectWriter.getContent();
-  while (!S.empty()) {
-    auto SplitSym = S.split('\0');
-    auto Sym = SymbolTableRef::create(*this, SplitSym.first);
+  return createStringSection(S, [&](StringRef S) -> Error {
+    auto Sym = SymbolTableRef::create(*this, S);
     if (!Sym)
       return Sym.takeError();
-
     Sections.push_back(Sym->getID());
     ++SymTableSize;
-
-    S = SplitSym.second;
-  }
-  return Error::success();
+    return Error::success();
+  });
 }
 
 void MCCASBuilder::addNode(cas::NodeProxy Node) {
@@ -855,6 +889,14 @@ Expected<uint64_t> MCCASReader::materializeFragment(cas::CASID ID) {
     return F->materialize(OS);
   if (auto F = MergedFragmentRef::Cast(*Node))
     return F->materialize(OS);
+  if (auto F = DebugStrRef::Cast(*Node)) {
+    auto Size = F->materialize(OS);
+    if (!Size)
+      return Size.takeError();
+    // Write null between strings.
+    OS.write_zeros(1);
+    return *Size + 1;
+  }
 
   llvm_unreachable("unknown fragment");
 }

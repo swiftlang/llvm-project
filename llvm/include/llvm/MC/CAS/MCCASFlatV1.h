@@ -294,6 +294,10 @@ public:
 private:
   friend class MCAssemblerRef;
 
+  // Helper functions.
+  Error createStringSection(StringRef S,
+                            std::function<Error(StringRef)> CreateFn);
+
   unsigned SymTableSize = 0;
   DenseMap<cas::CASID, unsigned> CASIDMap;
   std::vector<unsigned> FragmentIDs;

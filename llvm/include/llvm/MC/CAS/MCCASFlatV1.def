@@ -17,6 +17,7 @@ CASV1_SIMPLE_DATA_REF(RelocationsRef, mc:relocations)
 CASV1_SIMPLE_DATA_REF(DataInCodeRef, mc:data_in_code)
 CASV1_SIMPLE_DATA_REF(SymbolTableRef, mc:symbol_table)
 CASV1_SIMPLE_DATA_REF(MergedFragmentRef, mc:merged_fragment)
+CASV1_SIMPLE_DATA_REF(DebugStrRef, mc:debug_string)
 
 #undef CASV1_SIMPLE_DATA_REF
 #endif /* CASV1_SIMPLE_DATA_REF */
