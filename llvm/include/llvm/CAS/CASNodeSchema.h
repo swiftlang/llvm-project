@@ -10,8 +10,6 @@
 #define LLVM_CAS_CASNODESCHEMA_H
 
 #include "llvm/CAS/CASReference.h"
-#include "llvm/CASObjectFormats/Data.h"
-#include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/Support/ExtensibleRTTI.h"
 
 namespace llvm {

@@ -10,6 +10,8 @@
 #define LLVM_ADT_LAZYATOMICPOINTER_H
 
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/Support/Compiler.h"
+#include <assert.h>
 #include <atomic>
 
 namespace llvm {

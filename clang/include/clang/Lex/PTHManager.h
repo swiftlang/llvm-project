@@ -15,7 +15,9 @@
 #define LLVM_CLANG_LEX_PTHMANAGER_H
 
 #include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CAS/CASFileSystem.h"
