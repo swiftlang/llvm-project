@@ -325,6 +325,7 @@ public:
     FullRefs.reserve(SmallRefs.size() + 1);
     for (InternalRef4B Small : SmallRefs)
       FullRefs.push_back(Small);
+    FullRefs.push_back(Ref);
     SmallRefs.clear();
   }
 
