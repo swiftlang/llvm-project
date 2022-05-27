@@ -94,6 +94,10 @@ multiline text multiline text multiline text multiline text multiline text)",
     EXPECT_EQ(IDs[I], Blob->getID());
   }
 
+  // Run validation on all CASIDs.
+  for (int I = 0, E = IDs.size(); I != E; ++I)
+    ASSERT_THAT_ERROR(CAS1->validateObject(IDs[I]), Succeeded());
+
   // Check that the blobs can be retrieved multiple times.
   for (int I = 0, E = IDs.size(); I != E; ++I) {
     for (int J = 0, JE = 3; J != JE; ++J) {
@@ -133,10 +137,15 @@ TEST_P(CASDBTest, BlobsBig) {
     Optional<CASID> ID2;
     ASSERT_THAT_ERROR(CAS->createBlob(String1).moveInto(ID1), Succeeded());
     ASSERT_THAT_ERROR(CAS->createBlob(String1).moveInto(ID2), Succeeded());
+    ASSERT_THAT_ERROR(CAS->validateObject(*ID1), Succeeded());
+    ASSERT_THAT_ERROR(CAS->validateObject(*ID2), Succeeded());
     ASSERT_EQ(ID1, ID2);
+
     String1.append(String2);
     ASSERT_THAT_ERROR(CAS->createBlob(String2).moveInto(ID1), Succeeded());
     ASSERT_THAT_ERROR(CAS->createBlob(String2).moveInto(ID2), Succeeded());
+    ASSERT_THAT_ERROR(CAS->validateObject(*ID1), Succeeded());
+    ASSERT_THAT_ERROR(CAS->validateObject(*ID2), Succeeded());
     ASSERT_EQ(ID1, ID2);
     String2.append(String1);
   }
@@ -220,6 +229,10 @@ TEST_P(CASDBTest, Trees) {
                       Succeeded());
     EXPECT_EQ(FlatTreeEntries[I].size(), NumCalls);
   }
+
+  // Run validation.
+  for (int I = 1, E = FlatIDs.size(); I != E; ++I)
+    ASSERT_THAT_ERROR(CAS1->validateObject(FlatIDs[I]), Succeeded());
 
   // Confirm these trees don't exist in a fresh CAS instance. Skip the first
   // tree, which is empty and could be implicitly in some CAS.
@@ -306,6 +319,7 @@ TEST_P(CASDBTest, Trees) {
       ASSERT_THAT_ERROR(CAS->createTree(NewEntries).moveInto(Tree),
                         Succeeded());
       ASSERT_EQ(*ID, Tree->getID());
+      ASSERT_THAT_ERROR(CAS->validateObject(*ID), Succeeded());
       Tree.reset();
       ASSERT_THAT_ERROR(CAS->getTree(*ID).moveInto(Tree), Succeeded());
       for (int I = 0, E = NewEntries.size(); I != E; ++I)
@@ -437,6 +451,9 @@ TEST_P(CASDBTest, NodesBig) {
       CreatedNodes.emplace_back(Node->getID());
     }
   }
+
+  for (auto ID: CreatedNodes)
+    ASSERT_THAT_ERROR(CAS->validateObject(ID), Succeeded());
 }
 
 INSTANTIATE_TEST_SUITE_P(InMemoryCAS, CASDBTest, ::testing::Values([](int) {

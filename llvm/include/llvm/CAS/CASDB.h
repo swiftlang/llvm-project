@@ -248,6 +248,8 @@ public:
   template <class ProxyT, class HandleT>
   Expected<ProxyT> loadObjectProxy(Expected<HandleT> H);
 
+  virtual Error validateObject(const CASID &ID) = 0;
+
 public:
   /// FIXME: Delete these. Update callers to call \a loadObject() and create
   /// the proxy themselves.

@@ -120,3 +120,41 @@ uint64_t BuiltinCAS::readDataImpl(NodeHandle Node, raw_ostream &OS,
   OS << toStringRef(Data);
   return Data.size();
 }
+
+Error BuiltinCAS::validateObject(const CASID &ID) {
+  auto Handle = loadObject(ID);
+  if (!Handle)
+    return Handle.takeError();
+
+  if (!*Handle)
+    return createUnknownObjectError(ID);
+
+  if (auto Node = (*Handle)->dyn_cast<NodeHandle>()) {
+    auto Proxy = NodeProxy::load(*this, *Node);
+    SmallVector<ObjectRef> Refs;
+    if (auto E = Proxy.forEachReference([&](ObjectRef Ref) -> Error {
+          Refs.push_back(Ref);
+          return Error::success();
+        }))
+      return E;
+
+    ArrayRef<char> Data(Proxy.getData().data(), Proxy.getData().size());
+    auto Hash = BuiltinObjectHasher<HasherT>::hashNode(*this, Refs, Data);
+    if (!ID.getHash().equals(Hash))
+      return createCorruptObjectError(ID);
+  } else if (auto Tree = (*Handle)->dyn_cast<TreeHandle>()) {
+    auto Proxy = TreeProxy::load(*this, *Tree);
+    SmallVector<NamedTreeEntry> Entries;
+    if (auto E = Proxy.forEachEntry([&](NamedTreeEntry Entry) -> Error {
+          Entries.push_back(Entry);
+          return Error::success();
+        }))
+      return E;
+    auto Hash = BuiltinObjectHasher<HasherT>::hashTree(*this, Entries);
+    if (!ID.getHash().equals(Hash))
+      return createCorruptObjectError(ID);
+  } else
+    return createWrongKindError(ID);
+
+  return Error::success();
+}

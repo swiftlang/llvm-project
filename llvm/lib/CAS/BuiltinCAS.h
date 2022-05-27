@@ -233,6 +233,8 @@ public:
                              "result cache corrupt for '" + Input.toString() +
                                  "'");
   }
+
+  Error validateObject(const CASID &ID) final;
 };
 
 } // end namespace builtin

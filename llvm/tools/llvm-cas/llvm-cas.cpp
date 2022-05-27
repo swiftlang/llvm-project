@@ -47,6 +47,7 @@ static int traverseGraph(CASDB &CAS, CASID ID);
 static int ingestFileSystem(CASDB &CAS, StringRef Path);
 static int mergeTrees(CASDB &CAS, ArrayRef<std::string> Objects);
 static int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path);
+static int validateObject(CASDB &CAS, CASID ID);
 
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
@@ -74,6 +75,7 @@ int main(int Argc, char **Argv) {
     IngestFileSystem,
     MergeTrees,
     GetCASIDForFile,
+    Validate,
   };
   cl::opt<CommandKind> Command(
       cl::desc("choose command action:"),
@@ -92,7 +94,8 @@ int main(int Argc, char **Argv) {
           clEnumValN(ListObjectReferences, "ls-node-refs", "list node refs"),
           clEnumValN(IngestFileSystem, "ingest", "ingest file system"),
           clEnumValN(MergeTrees, "merge", "merge paths/cas-ids"),
-          clEnumValN(GetCASIDForFile, "get-cas-id", "get cas id for file")),
+          clEnumValN(GetCASIDForFile, "get-cas-id", "get cas id for file"),
+          clEnumValN(Validate, "validate", "validate the object for CASID")),
       cl::init(CommandKind::Invalid));
 
   cl::ParseCommandLineOptions(Argc, Argv, "llvm-cas CAS tool\n");
@@ -170,6 +173,9 @@ int main(int Argc, char **Argv) {
 
   if (Command == GetCASIDForFile)
     return getCASIDForFile(*CAS, ID, DataPath);
+
+  if (Command == Validate)
+    return validateObject(*CAS, ID);
 
   assert(Command == CatBlob);
   return catBlob(*CAS, ID);
@@ -462,5 +468,12 @@ int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path) {
         std::make_error_code(std::errc::no_such_file_or_directory)));
 
   outs() << *FileID << "\n";
+  return 0;
+}
+
+int validateObject(CASDB &CAS, CASID ID) {
+  ExitOnError ExitOnErr("llvm-cas: validate: ");
+  ExitOnErr(CAS.validateObject(ID));
+  outs() << ID << ": validated successfully\n";
   return 0;
 }
