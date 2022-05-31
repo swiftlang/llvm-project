@@ -6,10 +6,10 @@ RUN: split-file %s %t
 RUN: clang %t/temp_a.cpp -c -g -fcas-friendly-debug-info=debug-line-only --target=x86_64-apple-darwin21.1.0 -o %t/temp_a.o
 RUN: clang %t/temp_b.cpp -c -g -fcas-friendly-debug-info=debug-line-only --target=x86_64-apple-darwin21.1.0 -o %t/temp_b.o
 RUN: find %t -name "*.o" &> %t/objects_to_ingest
-RUN: llvm-cas-object-format --cas %t/cas --ingest-schema=nestedv1 @%t/objects_to_ingest -silent > %t/output.casid
+RUN: llvm-cas-object-format --cas %t/cas --ingest-schema=nestedv1 --debug-info-split-type=debug-line-only @%t/objects_to_ingest -silent > %t/output.casid
 RUN: llvm-cas-object-format --cas %t/cas --ingest-schema=nestedv1 --print-cas-tree @%t/output.casid | FileCheck %s --check-prefix NESTED
 
-RUN: llvm-cas-object-format --cas %t/cas --ingest-schema=flatv1 @%t/objects_to_ingest -silent > %t/output.casid
+RUN: llvm-cas-object-format --cas %t/cas --ingest-schema=flatv1 --debug-info-split-type=debug-line-only @%t/objects_to_ingest -silent > %t/output.casid
 RUN: llvm-cas-object-format --cas %t/cas --ingest-schema=flatv1 --print-cas-tree @%t/output.casid | FileCheck %s --check-prefix FLAT
 
 NESTED: SECTION: __DWARF,__debug_line | MemProt: RW-

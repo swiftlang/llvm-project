@@ -321,10 +321,19 @@ static Error decodeFixup(const FlatV1ObjectReader &Reader, StringRef &Data,
 }
 
 Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
-                                    const jitlink::Block &Block) {
+                                    const jitlink::Block &Block,
+                                    cas::CASID *AbbrevID) {
   Expected<Builder> B = Builder::startNode(CUB.Schema, KindString);
   if (!B)
     return B.takeError();
+
+  bool IsDebugInfoBlock = false;
+  // If we are creating a cas block out of a debug_info jitlink::Block, add the
+  // debug_abbrev cas block CAS ID as a refrence
+  if (Block.getSection().getName() == "__DWARF,__debug_info") {
+    B->IDs.push_back(*AbbrevID);
+    IsDebugInfoBlock = true;
+  }
 
   // Encode Section.
   auto SectionIndex = CUB.getSectionIndex(Block.getSection());
@@ -366,11 +375,10 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
       return std::move(E);
     BlockSize = Content->size();
   }
-
   SmallString<1024> EncodeContent;
   data::BlockData::encode(BlockSize, Block.getAlignment(),
                           Block.getAlignmentOffset(), Content, Fixups,
-                          EncodeContent);
+                          EncodeContent, IsDebugInfoBlock);
 
   StringRef BlockData(EncodeContent);
   // Encode content first with size and data.
@@ -689,9 +697,34 @@ Error CompileUnitBuilder::createSection(const jitlink::Section &S) {
 }
 
 Error CompileUnitBuilder::createBlock(const jitlink::Block &B) {
+  if (B.getSection().getName() == "__DWARF,__debug_abbrev" ||
+      B.getSection().getName() == "__DWARF,__debug_info")
+    return Error::success();
   // Store the current idx. It is created in order so just add in the end.
   BlockIndexStarts.push_back(Indexes.size());
   auto Block = BlockRef::create(*this, B);
+  if (!Block)
+    return Block.takeError();
+  commitNode(*Block);
+  return Error::success();
+}
+
+Expected<cas::CASID>
+CompileUnitBuilder::createAbbrevBlock(const jitlink::Block &B) {
+  // Store the current idx. It is created in order so just add in the end.
+  BlockIndexStarts.push_back(Indexes.size());
+  auto Block = BlockRef::create(*this, B);
+  if (!Block)
+    return Block.takeError();
+  commitNode(*Block);
+  return Block->getID();
+}
+
+Error CompileUnitBuilder::createInfoBlock(const jitlink::Block &B,
+                                          cas::CASID *AbbrevID) {
+  // Store the current idx. It is created in order so just add in the end.
+  BlockIndexStarts.push_back(Indexes.size());
+  auto Block = BlockRef::create(*this, B, AbbrevID);
   if (!Block)
     return Block.takeError();
   commitNode(*Block);
@@ -792,8 +825,24 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
     llvm::sort(Builder.Blocks.begin() + PreviousSize, Builder.Blocks.end(),
                compareBlocksByAddress);
   };
-  for (const jitlink::Section &Section : G.sections())
+  SmallVector<const jitlink::Block *, 16> AbbrevBlocks;
+  SmallVector<const jitlink::Block *, 16> InfoBlocks;
+  for (const jitlink::Section &Section : G.sections()) {
+    if (Section.getName() == "__DWARF,__debug_abbrev")
+      AbbrevBlocks.append(Section.blocks().begin(), Section.blocks().end());
+    else if (Section.getName() == "__DWARF,__debug_info")
+      InfoBlocks.append(Section.blocks().begin(), Section.blocks().end());
     appendBlocks(Section.blocks());
+  }
+  // If the number of debug_abbrev blocks are 1, we assume that the
+  // abbreviations could not be split up, and every debug_info compile unit
+  // should have a reference to the same abbreviation.
+  assert(AbbrevBlocks.size() == 1 ||
+         AbbrevBlocks.size() == InfoBlocks.size() &&
+             "The number of Abbreviation contributions should be equal to the "
+             "number of Compile Units");
+  llvm::sort(InfoBlocks.begin(), InfoBlocks.end(), compareBlocksByAddress);
+  llvm::sort(AbbrevBlocks.begin(), AbbrevBlocks.end(), compareBlocksByAddress);
 
 #ifndef NDEBUG
   for (auto *S : makeArrayRef(Symbols).slice(0, DefinedSymbolsSize))
@@ -813,6 +862,22 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
   for (auto *B : Builder.Blocks) {
     if (auto E = Builder.createBlock(*B))
       return std::move(E);
+  }
+
+  // Create BlockRefs for Abbrevs and Compile Units
+  SmallVector<cas::CASID, 16> AbbrevIDs;
+  for (auto *B : AbbrevBlocks) {
+    Expected<cas::CASID> ID = Builder.createAbbrevBlock(*B);
+    if (!ID)
+      return ID.takeError();
+    AbbrevIDs.push_back(*ID);
+  }
+  unsigned I = 0;
+  for (auto *B : InfoBlocks) {
+    if (auto E = Builder.createInfoBlock(
+            *B, AbbrevIDs.size() == 1 ? &AbbrevIDs[0] : &AbbrevIDs[I]))
+      return std::move(E);
+    I++;
   }
 
   auto B = Builder::startRootNode(Schema, KindString);

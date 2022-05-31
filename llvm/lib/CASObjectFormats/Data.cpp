@@ -60,7 +60,8 @@ void FixupList::iterator::decode(bool IsInit) {
 
 void BlockData::encode(uint64_t Size, uint64_t Alignment,
                        uint64_t AlignmentOffset, Optional<StringRef> Content,
-                       ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data) {
+                       ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data,
+                       bool IsDebugInfoBlock) {
   assert(!Content || Size == Content->size() && "Mismatched content size");
   assert(Alignment && "Expected non-zero alignment");
   assert(isPowerOf2_64(Alignment) && "Expected alignment to be a power of 2");
@@ -81,8 +82,48 @@ void BlockData::encode(uint64_t Size, uint64_t Alignment,
                  (unsigned(IsZeroFill) << IsZeroFillBit));
 
   encoding::writeVBR8(Size, Data);
-  if (Content)
-    Data.append(Content->begin(), Content->end());
+  if (Content) {
+    if (!IsDebugInfoBlock) {
+      Data.append(Content->begin(), Content->end());
+    } else {
+      // This is a debug info block, the abbreviation offset can cause
+      // deduplication to fail, handle it here.
+      StringRef SizeOfUnit = Content->substr(0, 4);
+      unsigned SizeOfUnitInt = 0;
+      SizeOfUnitInt |= SizeOfUnit[3];
+      SizeOfUnitInt <<= 8;
+      SizeOfUnitInt |= SizeOfUnit[2];
+      SizeOfUnitInt <<= 8;
+      SizeOfUnitInt |= SizeOfUnit[1];
+      SizeOfUnitInt <<= 8;
+      SizeOfUnitInt |= SizeOfUnit[0];
+      if (SizeOfUnitInt != 0xffffffff) {
+        // This is a 32-bit DWARF format, copy the first 6 bytes for size and
+        // DWARF version, skip the next 4 bytes and copy 0's, then copy the
+        // rest.
+        Data.append(Content->begin(), Content->begin() + 6);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.append(Content->begin() + 10, Content->end());
+      } else {
+        // This is a 64-bit DWARF format, copy the first 16 bytes for size,
+        // DWARF version, unit type, and address size, skip the next 8 bytes and
+        // copy 0's, then copy the rest.
+        Data.append(Content->begin(), Content->begin() + 16);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.push_back(0);
+        Data.append(Content->begin() + 24, Content->end());
+      }
+    }
+  }
   FixupList::encode(Fixups, Data);
 
   if (!HasAlignmentOffset)

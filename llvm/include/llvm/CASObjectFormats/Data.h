@@ -124,7 +124,8 @@ public:
   /// \p Fixups add no storage cost if they are not used.
   static void encode(uint64_t Size, uint64_t Alignment,
                      uint64_t AlignmentOffset, Optional<StringRef> Content,
-                     ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data);
+                     ArrayRef<Fixup> Fixups, SmallVectorImpl<char> &Data,
+                     bool IsDebugInfoBlock = false);
 
   Error decode(uint64_t &Size, uint64_t &Alignment, uint64_t &AlignmentOffset,
                Optional<StringRef> &Content, FixupList &Fixups) const;

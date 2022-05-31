@@ -1,7 +1,47 @@
 RUN: rm -rf %t && mkdir -p %t
 RUN: llc %S/Inputs/debug_line_split.ll --filetype=obj -o %t/debug_line_split.o
 
-RUN: llvm-cas-object-format --cas %t/cas --dump --ingest-schema=nestedv1 %t/debug_line_split.o | FileCheck %s
+RUN: llvm-cas-object-format --cas %t/cas --dump --ingest-schema=nestedv1 --debug-info-split-type=debug-line-info-and-abbrev %t/debug_line_split.o | FileCheck %s
+
+CHECK: section __DWARF,__debug_abbrev:
+CHECK-EMPTY:
+CHECK-NEXT:  block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:    symbols:
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT: no edges
+CHECK-EMPTY:
+CHECK-NEXT:  block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:    symbols:
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:    no edges
+CHECK-EMPTY:
+CHECK-NEXT:  block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:    symbols:
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:    no edges
+
+CHECK: section __DWARF,__debug_info:
+CHECK-EMPTY:
+CHECK-NEXT:  block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:    symbols:
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:    edges:
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _foo
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _foo
+CHECK-EMPTY:
+CHECK-NEXT:  block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:    symbols:
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:    edges:
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _bar
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _bar
+CHECK-EMPTY:
+CHECK-NEXT:  block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:    symbols:
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:    edges:
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _main
+CHECK-NEXT:      0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _main
 
 CHECK: section __DWARF,__debug_line:
 CHECK-EMPTY: 
@@ -23,6 +63,45 @@ CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-
 CHECK-NEXT:     edges:
 CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _main
 
+CHECK: section __DWARF,__debug_abbrev:
+CHECK-EMPTY: 
+CHECK-NEXT:   block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:     symbols:
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:     no edges
+CHECK-EMPTY: 
+CHECK-NEXT:   block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:     symbols:
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:     no edges
+CHECK-EMPTY: 
+CHECK-NEXT:   block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:     symbols:
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:     no edges
+
+CHECK: section __DWARF,__debug_info:
+CHECK-EMPTY: 
+CHECK-NEXT:   block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:     symbols:
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:     edges:
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _bar
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _bar
+CHECK-EMPTY: 
+CHECK-NEXT:   block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:     symbols:
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:     edges:
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _foo
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _foo
+CHECK-EMPTY: 
+CHECK-NEXT:   block 0x{{[0-9a-fA-F]+}} size = 0x{{[0-9a-fA-F]+}}, align = {{[0-9]+}}, alignment-offset = {{[0-9]+}}
+CHECK-NEXT:     symbols:
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}): size: 0x{{[0-9a-fA-F]+}}, linkage: strong, scope: local, live  -   <anonymous symbol>
+CHECK-NEXT:     edges:
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _main
+CHECK-NEXT:       0x{{[0-9a-fA-F]+}} (block + 0x{{[0-9a-fA-F]+}}), addend = +0x{{[0-9a-fA-F]+}}, kind = Pointer64, target = _main
 
 CHECK: section __DWARF,__debug_line:
 CHECK-EMPTY: 

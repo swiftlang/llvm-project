@@ -16,6 +16,7 @@
 #include "llvm/CASObjectFormats/LinkGraph.h"
 #include "llvm/CASObjectFormats/NestedV1.h"
 #include "llvm/CASObjectFormats/Utils.h"
+#include "llvm/ExecutionEngine/JITLink/DWARFRecordSectionSplitter.h"
 #include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/ExecutionEngine/JITLink/MachO.h"
@@ -125,6 +126,28 @@ cl::opt<FormatType> ObjectStatsFormat(
                    "object stats formatted in a readable format (default)"),
         clEnumValN(CSV, "csv", "object stats formatted in a CSV format")),
     cl::init(FormatType::Pretty));
+
+enum DebugInfoType {
+  NoDebugInfo,
+  DebugLineOnly,
+  DebugLineAndInfo,
+  DebugLineInfoAndAbbrev
+};
+
+cl::opt<DebugInfoType> DebugInfoSplitType(
+    "debug-info-split-type",
+    cl::desc("Specify the kind of debug info that can be split up:"),
+    cl::values(
+        clEnumValN(NoDebugInfo, "none",
+                   "None of the debug info is split-able (default)"),
+        clEnumValN(DebugLineOnly, "debug-line-only",
+                   "The debug_line section is split-able"),
+        clEnumValN(DebugLineAndInfo, "debug-line-and-info",
+                   "The debug_line and debug_info sections can be split"),
+        clEnumValN(DebugLineInfoAndAbbrev, "debug-line-info-and-abbrev",
+                   "The debug_line, debug_info, and debug_abbrev sections can "
+                   "all split-able")),
+    cl::init(DebugInfoType::NoDebugInfo));
 
 namespace {
 
@@ -968,6 +991,38 @@ static Error SplitDebugLine(jitlink::LinkGraph &G) {
   return Error::success();
 }
 
+static Error SplitDebugInfoOrDebugAbbrev(jitlink::LinkGraph &G,
+                                         StringRef SectionName,
+                                         std::vector<uint64_t> *AbbrevOffsets) {
+  removeRedundantSectionSymbol(G, SectionName);
+  llvm::jitlink::DWARFRecordSectionSplitter DRSS(SectionName);
+  if (auto E = DRSS(G, AbbrevOffsets))
+    return E;
+  // Add an anonymous symbol so that the blocks don't get dropped
+  if (auto *DLSec = G.findSectionByName(SectionName)) {
+    for (auto *B : DLSec->blocks()) {
+      G.addAnonymousSymbol(*B, 0, B->getSize(), false, true);
+    }
+  }
+  return Error::success();
+}
+
+static Error SplitDebugInfoAndDebugAbbrev(jitlink::LinkGraph &G,
+                                          DebugInfoType DebugInfoSplitType) {
+  if (G.getTargetTriple().getObjectFormat() == Triple::MachO) {
+    std::vector<uint64_t> AbbrevOffsets;
+    if (auto E = SplitDebugInfoOrDebugAbbrev(G, "__DWARF,__debug_info",
+                                             &AbbrevOffsets))
+      return E;
+    if (DebugInfoSplitType == DebugInfoType::DebugLineInfoAndAbbrev) {
+      if (auto E = SplitDebugInfoOrDebugAbbrev(G, "__DWARF,__debug_abbrev",
+                                               &AbbrevOffsets))
+        return E;
+    }
+  }
+  return Error::success();
+}
+
 static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
                             MemoryBufferRef FileContent, SharedStream &OS) {
   ExitOnError ExitOnErr;
@@ -995,9 +1050,14 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
 
     if (SplitEHFrames)
       ExitOnErr(createSplitEHFramePasses(*G));
-    
-    ExitOnErr(SplitDebugLine(*G));
-            
+
+    if (DebugInfoSplitType != DebugInfoType::NoDebugInfo)
+      ExitOnErr(SplitDebugLine(*G));
+
+    if (DebugInfoSplitType != DebugInfoType::NoDebugInfo &&
+        DebugInfoSplitType != DebugInfoType::DebugLineOnly)
+      ExitOnErr(SplitDebugInfoAndDebugAbbrev(*G, DebugInfoSplitType));
+
     return G;
   };
 
@@ -1010,7 +1070,8 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
     if (!Text)
       return CAS.getReference(ExitOnErr(Schema.create()));
 
-    auto MapFile = ExitOnErr(sys::fs::TempFile::create("/tmp/debug-%%%%%%%%.map"));
+    auto MapFile =
+        ExitOnErr(sys::fs::TempFile::create("/tmp/debug-%%%%%%%%.map"));
     auto DsymFile =
         ExitOnErr(sys::fs::TempFile::create(MapFile.TmpName + ".dwarf"));
     Optional<StringRef> Redirects[] = {

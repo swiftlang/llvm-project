@@ -208,7 +208,8 @@ public:
   static constexpr StringLiteral KindString = "cas.o:block";
 
   static Expected<BlockRef> create(CompileUnitBuilder &CUB,
-                                   const jitlink::Block &Block);
+                                   const jitlink::Block &Block,
+                                   cas::CASID *AbbrevID = nullptr);
 
   static Expected<BlockRef> get(Expected<ObjectFormatObjectProxy> Ref);
   static Expected<BlockRef> get(const ObjectFileSchema &Schema,
@@ -313,6 +314,8 @@ public:
 
   Error createSection(const jitlink::Section &S);
   Error createBlock(const jitlink::Block &B);
+  Expected<cas::CASID> createAbbrevBlock(const jitlink::Block &B);
+  Error createInfoBlock(const jitlink::Block &B, cas::CASID *AbbrevID);
   Error createSymbol(const jitlink::Symbol &S);
 
   // Lookup functions. The result must exist in the cache already.
