@@ -84,7 +84,7 @@ add_custom_target(clang-cache-build-session DEPENDS "${clang_cache_build_session
 add_dependencies(clang clang-cache-build-session)
 if (CLANG_BUILD_TOOLS)
   install(FILES "${clang_cache_build_session_dest}"
-          RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+          DESTINATION "${CMAKE_INSTALL_BINDIR}"
           COMPONENT clang)
   if(NOT LLVM_ENABLE_IDE)
     add_llvm_install_targets(install-clang-cache-build-session
