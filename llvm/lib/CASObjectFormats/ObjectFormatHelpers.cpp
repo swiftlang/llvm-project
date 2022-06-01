@@ -230,10 +230,13 @@ bool helpers::compareSymbolsByLinkageAndSemantics(const jitlink::Symbol *LHS,
       [](const jitlink::Symbol *, const jitlink::Symbol *) { return false; });
 }
 
-bool helpers::compareSymbolsByAddress(const jitlink::Symbol *LHS,
-                                      const jitlink::Symbol *RHS) {
+bool helpers::compareSymbolsByAddressAnd(
+    const jitlink::Symbol *LHS, const jitlink::Symbol *RHS,
+    function_ref<bool(const jitlink::Symbol *, const jitlink::Symbol *)>
+        NextCompare) {
   if (LHS == RHS)
-    return false;
+    return NextCompare(LHS, RHS);
+
 
   if (LHS->isExternal() != RHS->isExternal())
     return LHS->isExternal() < RHS->isExternal();
@@ -243,6 +246,16 @@ bool helpers::compareSymbolsByAddress(const jitlink::Symbol *LHS,
   if (LAddr != RAddr)
     return LAddr < RAddr;
 
-  return LHS->getSize() < RHS->getSize();
+  if (LHS->getSize() != RHS->getSize())
+    return LHS->getSize() < RHS->getSize();
+
+  return NextCompare(LHS, RHS);
+}
+
+bool helpers::compareSymbolsByAddress(const jitlink::Symbol *LHS,
+                                      const jitlink::Symbol *RHS) {
+  return compareSymbolsByAddressAnd(
+      LHS, RHS,
+      [](const jitlink::Symbol *, const jitlink::Symbol *) { return false; });
 }
 

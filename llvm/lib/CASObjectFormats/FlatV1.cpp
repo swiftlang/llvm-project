@@ -763,11 +763,17 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
   // Visit symbols. Sort the symbols for stable ordering.
   // FIXME: duplicated code for sorting and comparsion.
   SmallVector<const jitlink::Symbol *, 16> Symbols;
+  auto compareSymbol = [](const jitlink::Symbol *LHS,
+                          const jitlink::Symbol *RHS) {
+    return helpers::compareSymbolsByAddressAnd(
+        LHS, RHS, [](const jitlink::Symbol *LHS, const jitlink::Symbol *RHS) {
+          return LHS->getName().compare(RHS->getName()) < 0;
+        });
+  };
   auto appendSymbols = [&](auto &&NewSymbols) {
     size_t PreviousSize = Symbols.size();
     Symbols.append(NewSymbols.begin(), NewSymbols.end());
-    llvm::sort(Symbols.begin() + PreviousSize, Symbols.end(),
-               helpers::compareSymbolsByAddress);
+    llvm::sort(Symbols.begin() + PreviousSize, Symbols.end(), compareSymbol);
   };
   for (const jitlink::Section &Section : G.sections())
     appendSymbols(Section.symbols());

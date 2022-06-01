@@ -51,6 +51,11 @@ bool compareSymbolsBySemanticsAnd(
 bool compareSymbolsByLinkageAndSemantics(const jitlink::Symbol *LHS,
                                          const jitlink::Symbol *RHS);
 
+bool compareSymbolsByAddressAnd(
+    const jitlink::Symbol *LHS, const jitlink::Symbol *RHS,
+    function_ref<bool(const jitlink::Symbol *, const jitlink::Symbol *)>
+        NextCompare);
+
 bool compareSymbolsByAddress(const jitlink::Symbol *LHS,
                              const jitlink::Symbol *RHS);
 
