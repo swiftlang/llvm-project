@@ -187,6 +187,11 @@ New Compiler Flags
   the parameter list were ``void``. There is no ``-fknr-functions`` or
   ``-fno-no-knr-functions`` flag; this feature cannot be disabled in language
   modes where it is required, such as C++ or C2x.
+- Added the ``-fexperimental-max-bitint-width=`` option to increase the maximum
+  allowed bit width of ``_BitInt`` types beyond the default of 128 bits. Some
+  operations, such as division or float-to-integer conversion, on ``_BitInt``
+  types with more than 128 bits currently crash clang. This option will be
+  removed in the future once clang supports all such operations.
 
 Deprecated Compiler Flags
 -------------------------
