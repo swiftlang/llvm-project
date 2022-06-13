@@ -29,6 +29,7 @@ class TestSwiftObjCMainConflictingDylibsBridgingHeader(TestBase):
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipUnlessDarwin
     @swiftTest
+    @skipIfDarwin
     def test(self):
         self.build()
         target, process, _, _ = lldbutil.run_to_source_breakpoint(

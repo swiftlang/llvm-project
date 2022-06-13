@@ -30,6 +30,7 @@ class TsanSwiftAccessRaceTestCase(lldbtest.TestBase):
     @skipIfLinux
     @skipUnlessSwiftThreadSanitizer
     @skipIfAsan # This test does not behave reliable with an ASANified LLDB.
+    @skipIfDarwin
     def test_tsan_swift(self):
         self.build()
         self.do_test()
