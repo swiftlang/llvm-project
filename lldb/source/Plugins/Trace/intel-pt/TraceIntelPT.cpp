@@ -78,23 +78,36 @@ TraceIntelPT::TraceIntelPT(JSONTraceSession &session,
                            ArrayRef<ProcessSP> traced_processes,
                            ArrayRef<ThreadPostMortemTraceSP> traced_threads)
     : Trace(traced_processes, session.GetCoreIds()),
-      m_cpu_info(session.cpu_info),
-      m_tsc_conversion(session.tsc_perf_zero_conversion) {
-  for (const ThreadPostMortemTraceSP &thread : traced_threads) {
-    m_thread_decoders.emplace(thread->GetID(),
-                              std::make_unique<ThreadDecoder>(thread, *this));
-    if (const Optional<FileSpec> &trace_file = thread->GetTraceFile()) {
-      SetPostMortemThreadDataFile(thread->GetID(),
-                                  IntelPTDataKinds::kTraceBuffer, *trace_file);
-    }
-  }
+      m_cpu_info(session.cpu_info) {
+  m_storage.tsc_conversion = session.tsc_perf_zero_conversion;
+
   if (session.cores) {
+    std::vector<core_id_t> cores;
+
     for (const JSONCore &core : *session.cores) {
       SetPostMortemCoreDataFile(core.core_id, IntelPTDataKinds::kTraceBuffer,
                                 FileSpec(core.trace_buffer));
+
       SetPostMortemCoreDataFile(core.core_id,
                                 IntelPTDataKinds::kPerfContextSwitchTrace,
                                 FileSpec(core.context_switch_trace));
+      cores.push_back(core.core_id);
+    }
+
+    std::vector<tid_t> tids;
+    for (const JSONProcess &process : session.processes)
+      for (const JSONThread &thread : process.threads)
+        tids.push_back(thread.tid);
+
+    m_storage.multicore_decoder.emplace(*this);
+  } else {
+    for (const ThreadPostMortemTraceSP &thread : traced_threads) {
+      m_storage.thread_decoders.emplace(
+          thread->GetID(), std::make_unique<ThreadDecoder>(thread, *this));
+      if (const Optional<FileSpec> &trace_file = thread->GetTraceFile()) {
+        SetPostMortemThreadDataFile(
+            thread->GetID(), IntelPTDataKinds::kTraceBuffer, *trace_file);
+      }
     }
   }
 }
@@ -105,8 +118,12 @@ DecodedThreadSP TraceIntelPT::Decode(Thread &thread) {
         thread.shared_from_this(),
         createStringError(inconvertibleErrorCode(), error));
 
-  auto it = m_thread_decoders.find(thread.GetID());
-  if (it == m_thread_decoders.end())
+  Storage &storage = GetUpdatedStorage();
+  if (storage.multicore_decoder)
+    return storage.multicore_decoder->Decode(thread);
+
+  auto it = storage.thread_decoders.find(thread.GetID());
+  if (it == storage.thread_decoders.end())
     return std::make_shared<DecodedThread>(
         thread.shared_from_this(),
         createStringError(inconvertibleErrorCode(), "thread not traced"));
@@ -118,6 +135,8 @@ lldb::TraceCursorUP TraceIntelPT::GetCursor(Thread &thread) {
 }
 
 void TraceIntelPT::DumpTraceInfo(Thread &thread, Stream &s, bool verbose) {
+  Storage &storage = GetUpdatedStorage();
+
   lldb::tid_t tid = thread.GetID();
   s.Format("\nthread #{0}: tid = {1}", thread.GetIndexID(), thread.GetID());
   if (!IsTraced(tid)) {
@@ -126,60 +145,99 @@ void TraceIntelPT::DumpTraceInfo(Thread &thread, Stream &s, bool verbose) {
   }
   s << "\n";
 
-  Expected<size_t> raw_size = GetRawTraceSize(thread);
-  if (!raw_size) {
-    s.Format("  {0}\n", toString(raw_size.takeError()));
+  Expected<Optional<uint64_t>> raw_size_or_error = GetRawTraceSize(thread);
+  if (!raw_size_or_error) {
+    s.Format("  {0}\n", toString(raw_size_or_error.takeError()));
     return;
   }
+  Optional<uint64_t> raw_size = *raw_size_or_error;
 
   DecodedThreadSP decoded_trace_sp = Decode(thread);
-  size_t insn_len = decoded_trace_sp->GetInstructionsCount();
-  size_t mem_used = decoded_trace_sp->CalculateApproximateMemoryUsage();
 
-  s.Format("  Total number of instructions: {0}\n", insn_len);
+  /// Instruction stats
+  {
+    uint64_t insn_len = decoded_trace_sp->GetInstructionsCount();
+    uint64_t mem_used = decoded_trace_sp->CalculateApproximateMemoryUsage();
 
-  s << "\n  Memory usage:\n";
-  s.Format("    Raw trace size: {0} KiB\n", *raw_size / 1024);
-  s.Format(
-      "    Total approximate memory usage (excluding raw trace): {0:2} KiB\n",
-      (double)mem_used / 1024);
-  if (insn_len != 0)
-    s.Format("    Average memory usage per instruction (excluding raw trace): "
-             "{0:2} bytes\n",
-             (double)mem_used / insn_len);
+    s.Format("  Total number of instructions: {0}\n", insn_len);
 
-  s << "\n  Timing:\n";
-  GetTimer().ForThread(tid).ForEachTimedTask(
-      [&](const std::string &name, std::chrono::milliseconds duration) {
-        s.Format("    {0}: {1:2}s\n", name, duration.count() / 1000.0);
-      });
+    s << "\n  Memory usage:\n";
+    if (raw_size)
+      s.Format("    Raw trace size: {0} KiB\n", *raw_size / 1024);
 
-  const DecodedThread::EventsStats &events_stats =
-      decoded_trace_sp->GetEventsStats();
-  s << "\n  Events:\n";
-  s.Format("    Number of instructions with events: {0}\n",
-           events_stats.total_instructions_with_events);
-  s.Format("    Number of individual events: {0}\n", events_stats.total_count);
-  for (const auto &event_to_count : events_stats.events_counts) {
-    s.Format("      {0}: {1}\n",
-             trace_event_utils::EventToDisplayString(event_to_count.first),
-             event_to_count.second);
+    s.Format(
+        "    Total approximate memory usage (excluding raw trace): {0:2} KiB\n",
+        (double)mem_used / 1024);
+    if (insn_len != 0)
+      s.Format(
+          "    Average memory usage per instruction (excluding raw trace): "
+          "{0:2} bytes\n",
+          (double)mem_used / insn_len);
   }
 
-  s << "\n  Errors:\n";
-  const DecodedThread::LibiptErrorsStats &tsc_errors_stats =
-      decoded_trace_sp->GetTscErrorsStats();
-  s.Format("    Number of TSC decoding errors: {0}\n",
-           tsc_errors_stats.total_count);
-  for (const auto &error_message_to_count :
-       tsc_errors_stats.libipt_errors_counts) {
-    s.Format("      {0}: {1}\n", error_message_to_count.first,
-             error_message_to_count.second);
+  // Timing
+  {
+    s << "\n  Timing for this thread:\n";
+    auto print_duration = [&](const std::string &name,
+                              std::chrono::milliseconds duration) {
+      s.Format("    {0}: {1:2}s\n", name, duration.count() / 1000.0);
+    };
+    GetTimer().ForThread(tid).ForEachTimedTask(print_duration);
+
+    s << "\n  Timing for global tasks:\n";
+    GetTimer().ForGlobal().ForEachTimedTask(print_duration);
+  }
+
+  // Instruction events stats
+  {
+    const DecodedThread::EventsStats &events_stats =
+        decoded_trace_sp->GetEventsStats();
+    s << "\n  Events:\n";
+    s.Format("    Number of instructions with events: {0}\n",
+             events_stats.total_instructions_with_events);
+    s.Format("    Number of individual events: {0}\n",
+             events_stats.total_count);
+    for (const auto &event_to_count : events_stats.events_counts) {
+      s.Format("      {0}: {1}\n",
+               trace_event_utils::EventToDisplayString(event_to_count.first),
+               event_to_count.second);
+    }
+  }
+
+  // Multicode decoding stats
+  if (storage.multicore_decoder) {
+    s << "\n  Multi-core decoding:\n";
+    s.Format("    Total number of continuous executions found: {0}\n",
+             storage.multicore_decoder->GetTotalContinuousExecutionsCount());
+    s.Format(
+        "    Number of continuous executions for this thread: {0}\n",
+        storage.multicore_decoder->GetNumContinuousExecutionsForThread(tid));
+  }
+
+  // Errors
+  {
+    s << "\n  Errors:\n";
+    const DecodedThread::LibiptErrorsStats &tsc_errors_stats =
+        decoded_trace_sp->GetTscErrorsStats();
+    s.Format("    Number of TSC decoding errors: {0}\n",
+             tsc_errors_stats.total_count);
+    for (const auto &error_message_to_count :
+         tsc_errors_stats.libipt_errors_counts) {
+      s.Format("      {0}: {1}\n", error_message_to_count.first,
+               error_message_to_count.second);
+    }
   }
 }
 
-llvm::Expected<size_t> TraceIntelPT::GetRawTraceSize(Thread &thread) {
-  size_t size;
+llvm::Expected<Optional<uint64_t>>
+TraceIntelPT::GetRawTraceSize(Thread &thread) {
+  if (GetUpdatedStorage().multicore_decoder)
+    return None; // TODO: calculate the amount of intel pt raw trace associated
+                 // with the given thread.
+  if (GetLiveProcess())
+    return GetLiveThreadBinaryDataSize(thread.GetID(),
+                                       IntelPTDataKinds::kTraceBuffer);
+  uint64_t size;
   auto callback = [&](llvm::ArrayRef<uint8_t> data) {
     size = data.size();
     return Error::success();
@@ -255,20 +313,17 @@ Expected<pt_cpu> TraceIntelPT::GetCPUInfo() {
 
 llvm::Optional<LinuxPerfZeroTscConversion>
 TraceIntelPT::GetPerfZeroTscConversion() {
+  return GetUpdatedStorage().tsc_conversion;
+}
+
+TraceIntelPT::Storage &TraceIntelPT::GetUpdatedStorage() {
   RefreshLiveProcessState();
-  return m_tsc_conversion;
+  return m_storage;
 }
 
 Error TraceIntelPT::DoRefreshLiveProcessState(TraceGetStateResponse state,
                                               StringRef json_response) {
-  m_thread_decoders.clear();
-
-  for (const TraceThreadState &thread_state : state.traced_threads) {
-    ThreadSP thread_sp =
-        GetLiveProcess()->GetThreadList().FindThreadByID(thread_state.tid);
-    m_thread_decoders.emplace(
-        thread_state.tid, std::make_unique<ThreadDecoder>(thread_sp, *this));
-  }
+  m_storage = {};
 
   Expected<TraceIntelPTGetStateResponse> intelpt_state =
       json::parse<TraceIntelPTGetStateResponse>(json_response,
@@ -276,8 +331,31 @@ Error TraceIntelPT::DoRefreshLiveProcessState(TraceGetStateResponse state,
   if (!intelpt_state)
     return intelpt_state.takeError();
 
-  m_tsc_conversion = intelpt_state->tsc_perf_zero_conversion;
-  if (m_tsc_conversion) {
+  m_storage.tsc_conversion = intelpt_state->tsc_perf_zero_conversion;
+
+  if (!intelpt_state->cores) {
+    for (const TraceThreadState &thread_state : state.traced_threads) {
+      ThreadSP thread_sp =
+          GetLiveProcess()->GetThreadList().FindThreadByID(thread_state.tid);
+      m_storage.thread_decoders.emplace(
+          thread_state.tid, std::make_unique<ThreadDecoder>(thread_sp, *this));
+    }
+  } else {
+    std::vector<core_id_t> cores;
+    for (const TraceCoreState &core : *intelpt_state->cores)
+      cores.push_back(core.core_id);
+
+    std::vector<tid_t> tids;
+    for (const TraceThreadState &thread : intelpt_state->traced_threads)
+      tids.push_back(thread.tid);
+
+    if (!intelpt_state->tsc_perf_zero_conversion)
+      return createStringError(inconvertibleErrorCode(),
+                               "Missing perf time_zero conversion values");
+    m_storage.multicore_decoder.emplace(*this);
+  }
+
+  if (m_storage.tsc_conversion) {
     Log *log = GetLog(LLDBLog::Target);
     LLDB_LOG(log, "TraceIntelPT found TSC conversion information");
   }
@@ -285,8 +363,10 @@ Error TraceIntelPT::DoRefreshLiveProcessState(TraceGetStateResponse state,
 }
 
 bool TraceIntelPT::IsTraced(lldb::tid_t tid) {
-  RefreshLiveProcessState();
-  return m_thread_decoders.count(tid);
+  Storage &storage = GetUpdatedStorage();
+  if (storage.multicore_decoder)
+    return storage.multicore_decoder->TracesThread(tid);
+  return storage.thread_decoders.count(tid);
 }
 
 // The information here should match the description of the intel-pt section
@@ -322,25 +402,25 @@ const char *TraceIntelPT::GetStartConfigurationHelp() {
   return message->c_str();
 }
 
-Error TraceIntelPT::Start(size_t trace_buffer_size,
-                          size_t total_buffer_size_limit, bool enable_tsc,
-                          Optional<size_t> psb_period, bool per_core_tracing) {
+Error TraceIntelPT::Start(uint64_t trace_buffer_size,
+                          uint64_t total_buffer_size_limit, bool enable_tsc,
+                          Optional<uint64_t> psb_period,
+                          bool per_core_tracing) {
   TraceIntelPTStartRequest request;
   request.trace_buffer_size = trace_buffer_size;
   request.process_buffer_size_limit = total_buffer_size_limit;
   request.enable_tsc = enable_tsc;
-  request.psb_period =
-      psb_period.map([](size_t val) { return static_cast<uint64_t>(val); });
+  request.psb_period = psb_period;
   request.type = GetPluginName().str();
   request.per_core_tracing = per_core_tracing;
   return Trace::Start(toJSON(request));
 }
 
 Error TraceIntelPT::Start(StructuredData::ObjectSP configuration) {
-  size_t trace_buffer_size = kDefaultTraceBufferSize;
-  size_t process_buffer_size_limit = kDefaultProcessBufferSizeLimit;
+  uint64_t trace_buffer_size = kDefaultTraceBufferSize;
+  uint64_t process_buffer_size_limit = kDefaultProcessBufferSizeLimit;
   bool enable_tsc = kDefaultEnableTscValue;
-  Optional<size_t> psb_period = kDefaultPsbPeriod;
+  Optional<uint64_t> psb_period = kDefaultPsbPeriod;
   bool per_core_tracing = kDefaultPerCoreTracing;
 
   if (configuration) {
@@ -362,13 +442,12 @@ Error TraceIntelPT::Start(StructuredData::ObjectSP configuration) {
 }
 
 llvm::Error TraceIntelPT::Start(llvm::ArrayRef<lldb::tid_t> tids,
-                                size_t trace_buffer_size, bool enable_tsc,
-                                Optional<size_t> psb_period) {
+                                uint64_t trace_buffer_size, bool enable_tsc,
+                                Optional<uint64_t> psb_period) {
   TraceIntelPTStartRequest request;
   request.trace_buffer_size = trace_buffer_size;
   request.enable_tsc = enable_tsc;
-  request.psb_period =
-      psb_period.map([](size_t val) { return static_cast<uint64_t>(val); });
+  request.psb_period = psb_period;
   request.type = GetPluginName().str();
   request.tids.emplace();
   for (lldb::tid_t tid : tids)
@@ -401,4 +480,4 @@ Error TraceIntelPT::OnThreadBufferRead(lldb::tid_t tid,
   return OnThreadBinaryDataRead(tid, IntelPTDataKinds::kTraceBuffer, callback);
 }
 
-TaskTimer &TraceIntelPT::GetTimer() { return m_task_timer; }
+TaskTimer &TraceIntelPT::GetTimer() { return GetUpdatedStorage().task_timer; }

@@ -30,13 +30,13 @@ struct JSONModule {
 };
 
 struct JSONThread {
-  int64_t tid;
+  uint64_t tid;
   llvm::Optional<std::string> trace_buffer;
 };
 
 struct JSONProcess {
-  int64_t pid;
-  std::string triple;
+  uint64_t pid;
+  llvm::Optional<std::string> triple;
   std::vector<JSONThread> threads;
   std::vector<JSONModule> modules;
 };

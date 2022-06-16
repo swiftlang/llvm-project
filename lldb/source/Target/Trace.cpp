@@ -114,33 +114,36 @@ Expected<std::string> Trace::GetLiveProcessState() {
   return m_live_process->TraceGetState(GetPluginName());
 }
 
-Optional<size_t> Trace::GetLiveThreadBinaryDataSize(lldb::tid_t tid,
-                                                    llvm::StringRef kind) {
-  auto it = m_live_thread_data.find(tid);
-  if (it == m_live_thread_data.end())
+Optional<uint64_t> Trace::GetLiveThreadBinaryDataSize(lldb::tid_t tid,
+                                                      llvm::StringRef kind) {
+  Storage &storage = GetUpdatedStorage();
+  auto it = storage.live_thread_data.find(tid);
+  if (it == storage.live_thread_data.end())
     return None;
-  std::unordered_map<std::string, size_t> &single_thread_data = it->second;
+  std::unordered_map<std::string, uint64_t> &single_thread_data = it->second;
   auto single_thread_data_it = single_thread_data.find(kind.str());
   if (single_thread_data_it == single_thread_data.end())
     return None;
   return single_thread_data_it->second;
 }
 
-Optional<size_t> Trace::GetLiveCoreBinaryDataSize(lldb::core_id_t core_id,
-                                                  llvm::StringRef kind) {
-  auto it = m_live_core_data.find(core_id);
-  if (it == m_live_core_data.end())
+Optional<uint64_t> Trace::GetLiveCoreBinaryDataSize(lldb::core_id_t core_id,
+                                                    llvm::StringRef kind) {
+  Storage &storage = GetUpdatedStorage();
+  auto it = storage.live_core_data_sizes.find(core_id);
+  if (it == storage.live_core_data_sizes.end())
     return None;
-  std::unordered_map<std::string, size_t> &single_core_data = it->second;
+  std::unordered_map<std::string, uint64_t> &single_core_data = it->second;
   auto single_thread_data_it = single_core_data.find(kind.str());
   if (single_thread_data_it == single_core_data.end())
     return None;
   return single_thread_data_it->second;
 }
 
-Optional<size_t> Trace::GetLiveProcessBinaryDataSize(llvm::StringRef kind) {
-  auto data_it = m_live_process_data.find(kind.str());
-  if (data_it == m_live_process_data.end())
+Optional<uint64_t> Trace::GetLiveProcessBinaryDataSize(llvm::StringRef kind) {
+  Storage &storage = GetUpdatedStorage();
+  auto data_it = storage.live_process_data.find(kind.str());
+  if (data_it == storage.live_process_data.end())
     return None;
   return data_it->second;
 }
@@ -150,7 +153,7 @@ Trace::GetLiveThreadBinaryData(lldb::tid_t tid, llvm::StringRef kind) {
   if (!m_live_process)
     return createStringError(inconvertibleErrorCode(),
                              "Tracing requires a live process.");
-  llvm::Optional<size_t> size = GetLiveThreadBinaryDataSize(tid, kind);
+  llvm::Optional<uint64_t> size = GetLiveThreadBinaryDataSize(tid, kind);
   if (!size)
     return createStringError(
         inconvertibleErrorCode(),
@@ -167,7 +170,7 @@ Trace::GetLiveCoreBinaryData(lldb::core_id_t core_id, llvm::StringRef kind) {
   if (!m_live_process)
     return createStringError(inconvertibleErrorCode(),
                              "Tracing requires a live process.");
-  llvm::Optional<size_t> size = GetLiveCoreBinaryDataSize(core_id, kind);
+  llvm::Optional<uint64_t> size = GetLiveCoreBinaryDataSize(core_id, kind);
   if (!size)
     return createStringError(
         inconvertibleErrorCode(),
@@ -185,7 +188,7 @@ Trace::GetLiveProcessBinaryData(llvm::StringRef kind) {
   if (!m_live_process)
     return createStringError(inconvertibleErrorCode(),
                              "Tracing requires a live process.");
-  llvm::Optional<size_t> size = GetLiveProcessBinaryDataSize(kind);
+  llvm::Optional<uint64_t> size = GetLiveProcessBinaryDataSize(kind);
   if (!size)
     return createStringError(
         inconvertibleErrorCode(),
@@ -195,6 +198,11 @@ Trace::GetLiveProcessBinaryData(llvm::StringRef kind) {
                                     /*tid=*/None,          /*core_id*/ None,
                                     /*offset=*/0,          *size};
   return m_live_process->TraceGetBinaryData(request);
+}
+
+Trace::Storage &Trace::GetUpdatedStorage() {
+  RefreshLiveProcessState();
+  return m_storage;
 }
 
 const char *Trace::RefreshLiveProcessState() {
@@ -209,13 +217,11 @@ const char *Trace::RefreshLiveProcessState() {
   LLDB_LOG(log, "Trace::RefreshLiveProcessState invoked");
 
   m_stop_id = new_stop_id;
-  m_live_thread_data.clear();
-  m_live_refresh_error.reset();
-  m_cores.reset();
+  m_storage = Trace::Storage();
 
   auto HandleError = [&](Error &&err) -> const char * {
-    m_live_refresh_error = toString(std::move(err));
-    return m_live_refresh_error->c_str();
+    m_storage.live_refresh_error = toString(std::move(err));
+    return m_storage.live_refresh_error->c_str();
   };
 
   Expected<std::string> json_string = GetLiveProcessState();
@@ -235,18 +241,19 @@ const char *Trace::RefreshLiveProcessState() {
   for (const TraceThreadState &thread_state :
        live_process_state->traced_threads) {
     for (const TraceBinaryData &item : thread_state.binary_data)
-      m_live_thread_data[thread_state.tid][item.kind] = item.size;
+      m_storage.live_thread_data[thread_state.tid][item.kind] = item.size;
   }
 
   LLDB_LOG(log, "== Found {0} threads being traced",
            live_process_state->traced_threads.size());
 
   if (live_process_state->cores) {
-    m_cores.emplace();
+    m_storage.cores.emplace();
     for (const TraceCoreState &core_state : *live_process_state->cores) {
-      m_cores->push_back(core_state.core_id);
+      m_storage.cores->push_back(core_state.core_id);
       for (const TraceBinaryData &item : core_state.binary_data)
-        m_live_core_data[core_state.core_id][item.kind] = item.size;
+        m_storage.live_core_data_sizes[core_state.core_id][item.kind] =
+            item.size;
     }
     LLDB_LOG(log, "== Found {0} cpu cores being traced",
             live_process_state->cores->size());
@@ -254,7 +261,7 @@ const char *Trace::RefreshLiveProcessState() {
 
 
   for (const TraceBinaryData &item : live_process_state->process_binary_data)
-    m_live_process_data[item.kind] = item.size;
+    m_storage.live_process_data[item.kind] = item.size;
 
   if (Error err = DoRefreshLiveProcessState(std::move(*live_process_state),
                                             *json_string))
@@ -266,14 +273,14 @@ const char *Trace::RefreshLiveProcessState() {
 Trace::Trace(ArrayRef<ProcessSP> postmortem_processes,
              Optional<std::vector<lldb::core_id_t>> postmortem_cores) {
   for (ProcessSP process_sp : postmortem_processes)
-    m_postmortem_processes.push_back(process_sp.get());
-  m_cores = postmortem_cores;
+    m_storage.postmortem_processes.push_back(process_sp.get());
+  m_storage.cores = postmortem_cores;
 }
 
 Process *Trace::GetLiveProcess() { return m_live_process; }
 
 ArrayRef<Process *> Trace::GetPostMortemProcesses() {
-  return m_postmortem_processes;
+  return m_storage.postmortem_processes;
 }
 
 std::vector<Process *> Trace::GetAllProcesses() {
@@ -296,8 +303,9 @@ Trace::GetPostMortemThreadDataFile(lldb::tid_t tid, llvm::StringRef kind) {
                 tid, kind));
   };
 
-  auto it = m_postmortem_thread_data.find(tid);
-  if (it == m_postmortem_thread_data.end())
+  Storage &storage = GetUpdatedStorage();
+  auto it = storage.postmortem_thread_data.find(tid);
+  if (it == storage.postmortem_thread_data.end())
     return NotFoundError();
 
   std::unordered_map<std::string, FileSpec> &data_kind_to_file_spec_map =
@@ -318,8 +326,9 @@ Trace::GetPostMortemCoreDataFile(lldb::core_id_t core_id,
                 core_id, kind));
   };
 
-  auto it = m_postmortem_core_data.find(core_id);
-  if (it == m_postmortem_core_data.end())
+  Storage &storage = GetUpdatedStorage();
+  auto it = storage.postmortem_core_data.find(core_id);
+  if (it == storage.postmortem_core_data.end())
     return NotFoundError();
 
   std::unordered_map<std::string, FileSpec> &data_kind_to_file_spec_map =
@@ -332,13 +341,15 @@ Trace::GetPostMortemCoreDataFile(lldb::core_id_t core_id,
 
 void Trace::SetPostMortemThreadDataFile(lldb::tid_t tid, llvm::StringRef kind,
                                         FileSpec file_spec) {
-  m_postmortem_thread_data[tid][kind.str()] = file_spec;
+  Storage &storage = GetUpdatedStorage();
+  storage.postmortem_thread_data[tid][kind.str()] = file_spec;
 }
 
 void Trace::SetPostMortemCoreDataFile(lldb::core_id_t core_id,
                                       llvm::StringRef kind,
                                       FileSpec file_spec) {
-  m_postmortem_core_data[core_id][kind.str()] = file_spec;
+  Storage &storage = GetUpdatedStorage();
+  storage.postmortem_core_data[core_id][kind.str()] = file_spec;
 }
 
 llvm::Error
@@ -353,10 +364,20 @@ Trace::OnLiveThreadBinaryDataRead(lldb::tid_t tid, llvm::StringRef kind,
 llvm::Error Trace::OnLiveCoreBinaryDataRead(lldb::core_id_t core_id,
                                             llvm::StringRef kind,
                                             OnBinaryDataReadCallback callback) {
+  Storage &storage = GetUpdatedStorage();
+  auto core_data_entries = storage.live_core_data.find(core_id);
+  if (core_data_entries != storage.live_core_data.end()) {
+    auto core_data = core_data_entries->second.find(kind.str());
+    if (core_data != core_data_entries->second.end())
+      return callback(core_data->second);
+  }
+
   Expected<std::vector<uint8_t>> data = GetLiveCoreBinaryData(core_id, kind);
   if (!data)
     return data.takeError();
-  return callback(*data);
+  auto it =
+      storage.live_core_data[core_id].insert({kind.str(), std::move(*data)});
+  return callback(it.first->second);
 }
 
 llvm::Error Trace::OnDataFileRead(FileSpec file,
@@ -364,7 +385,9 @@ llvm::Error Trace::OnDataFileRead(FileSpec file,
   ErrorOr<std::unique_ptr<MemoryBuffer>> trace_or_error =
       MemoryBuffer::getFile(file.GetPath());
   if (std::error_code err = trace_or_error.getError())
-    return errorCodeToError(err);
+    return createStringError(
+        inconvertibleErrorCode(), "Failed fetching trace-related file %s. %s",
+        file.GetCString(), toString(errorCodeToError(err)).c_str());
 
   MemoryBuffer &data = **trace_or_error;
   ArrayRef<uint8_t> array_ref(
@@ -394,17 +417,39 @@ Trace::OnPostMortemCoreBinaryDataRead(lldb::core_id_t core_id,
 
 llvm::Error Trace::OnThreadBinaryDataRead(lldb::tid_t tid, llvm::StringRef kind,
                                           OnBinaryDataReadCallback callback) {
-  RefreshLiveProcessState();
   if (m_live_process)
     return OnLiveThreadBinaryDataRead(tid, kind, callback);
   else
     return OnPostMortemThreadBinaryDataRead(tid, kind, callback);
 }
 
+llvm::Error
+Trace::OnAllCoresBinaryDataRead(llvm::StringRef kind,
+                                OnCoresBinaryDataReadCallback callback) {
+  DenseMap<core_id_t, ArrayRef<uint8_t>> buffers;
+  Storage &storage = GetUpdatedStorage();
+  if (!storage.cores)
+    return Error::success();
+
+  std::function<Error(std::vector<core_id_t>::iterator)> process_core =
+      [&](std::vector<core_id_t>::iterator core_id) -> Error {
+    if (core_id == storage.cores->end())
+      return callback(buffers);
+
+    return OnCoreBinaryDataRead(*core_id, kind,
+                                [&](ArrayRef<uint8_t> data) -> Error {
+                                  buffers.try_emplace(*core_id, data);
+                                  auto next_id = core_id;
+                                  next_id++;
+                                  return process_core(next_id);
+                                });
+  };
+  return process_core(storage.cores->begin());
+}
+
 llvm::Error Trace::OnCoreBinaryDataRead(lldb::core_id_t core_id,
                                         llvm::StringRef kind,
                                         OnBinaryDataReadCallback callback) {
-  RefreshLiveProcessState();
   if (m_live_process)
     return OnLiveCoreBinaryDataRead(core_id, kind, callback);
   else
@@ -412,8 +457,20 @@ llvm::Error Trace::OnCoreBinaryDataRead(lldb::core_id_t core_id,
 }
 
 ArrayRef<lldb::core_id_t> Trace::GetTracedCores() {
-  RefreshLiveProcessState();
-  if (m_cores)
-    return *m_cores;
+  Storage &storage = GetUpdatedStorage();
+  if (storage.cores)
+    return *storage.cores;
   return {};
+}
+
+std::vector<Process *> Trace::GetTracedProcesses() {
+  std::vector<Process *> processes;
+  Storage &storage = GetUpdatedStorage();
+
+  for (Process *proc : storage.postmortem_processes)
+    processes.push_back(proc);
+
+  if (m_live_process)
+    processes.push_back(m_live_process);
+  return processes;
 }

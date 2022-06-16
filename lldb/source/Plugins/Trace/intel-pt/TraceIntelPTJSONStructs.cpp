@@ -49,8 +49,10 @@ bool fromJSON(const json::Value &value, JSONModule &module, Path path) {
 }
 
 json::Value toJSON(const JSONThread &thread) {
-  return json::Object{{"tid", thread.tid},
-                      {"traceBuffer", thread.trace_buffer}};
+  json::Object obj{{"tid", thread.tid}};
+  if (thread.trace_buffer)
+    obj["traceBuffer"] = *thread.trace_buffer;
+  return obj;
 }
 
 bool fromJSON(const json::Value &value, JSONThread &thread, Path path) {
@@ -132,6 +134,11 @@ bool fromJSON(const json::Value &value, JSONTraceSession &session, Path path) {
       !o.map("type", session.type) || !o.map("cores", session.cores) ||
       !o.map("tscPerfZeroConversion", session.tsc_perf_zero_conversion))
     return false;
+  if (session.cores && !session.tsc_perf_zero_conversion) {
+    path.report(
+        "\"tscPerfZeroConversion\" is required when \"cores\" is provided");
+    return false;
+  }
   // We have to do this because the compiler fails at doing it automatically
   // because pt_cpu is not in a namespace
   if (!fromJSON(*value.getAsObject()->get("cpuInfo"), session.cpu_info,

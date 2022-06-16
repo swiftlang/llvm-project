@@ -52,18 +52,22 @@ public:
   ///   errors, return a null pointer.
   llvm::Expected<lldb::TraceSP> Parse();
 
-  lldb::TraceSP
+  llvm::Expected<lldb::TraceSP>
   CreateTraceIntelPTInstance(JSONTraceSession &session,
                              std::vector<ParsedProcess> &parsed_processes);
 
 private:
-  /// Resolve non-absolute paths relative to the session file folder. It
-  /// modifies the given file_spec.
-  void NormalizePath(lldb_private::FileSpec &file_spec);
+  /// Resolve non-absolute paths relative to the session file folder.
+  FileSpec NormalizePath(const std::string &path);
 
   lldb::ThreadPostMortemTraceSP ParseThread(lldb::ProcessSP &process_sp,
                                             const JSONThread &thread);
 
+  /// Create the corresponding Threads and Process objects given the JSON
+  /// process definition.
+  ///
+  /// \param[in] process
+  ///   The JSON process definition
   llvm::Expected<ParsedProcess> ParseProcess(const JSONProcess &process);
 
   llvm::Error ParseModule(lldb::TargetSP &target_sp, const JSONModule &module);
@@ -82,8 +86,23 @@ private:
   llvm::Error CreateJSONError(llvm::json::Path::Root &root,
                               const llvm::json::Value &value);
 
+  /// Create the corresponding Process, Thread and Module objects given this
+  /// session file.
   llvm::Expected<std::vector<ParsedProcess>>
   ParseSessionFile(const JSONTraceSession &session);
+
+  /// When applicable, augment the list of threads in the session file by
+  /// inspecting the context switch trace. This only applies for threads of
+  /// processes already specified in this session file.
+  ///
+  /// \return
+  ///   An \a llvm::Error in case if failures, or \a llvm::Error::success
+  ///   otherwise.
+  llvm::Error AugmentThreadsFromContextSwitches(JSONTraceSession &session);
+
+  /// Modifiy the session file by normalizing all the paths relative to the
+  /// session file directory.
+  void NormalizeAllPaths(JSONTraceSession &session);
 
   Debugger &m_debugger;
   const llvm::json::Value &m_trace_session_file;
