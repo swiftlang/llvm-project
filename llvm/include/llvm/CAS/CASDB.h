@@ -231,7 +231,6 @@ public:
   ///
   /// Errors if the object cannot be loaded.
   virtual Expected<AnyObjectHandle> loadObject(ObjectRef Ref) = 0;
-
   /// Load the object called \p ID.
   ///
   /// Returns \c None if it's unknown in this CAS instance.
