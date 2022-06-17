@@ -11,8 +11,6 @@ from lldbsuite.test.lldbpexpect import PExpectTest
 
 class TestCase(PExpectTest):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def test(self):
         self.build(dictionary={"CXX_SOURCES":"cat.cpp"})
         self.launch(executable=self.getBuildArtifact(), timeout=5)

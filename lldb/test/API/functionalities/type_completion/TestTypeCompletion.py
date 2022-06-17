@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class TypeCompletionTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @expectedFailureAll(
         compiler="icc",
         bugnumber="often fails with 'NameAndAddress should be valid.")

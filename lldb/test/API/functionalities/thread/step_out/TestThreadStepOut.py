@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class ThreadStepOutTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     # Test occasionally times out on the Linux build bot
     @skipIfLinux
     @expectedFailureAll(

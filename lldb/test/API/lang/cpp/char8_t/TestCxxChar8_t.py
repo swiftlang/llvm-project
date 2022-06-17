@@ -12,8 +12,6 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class CxxChar8_tTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipIf(compiler="clang", compiler_version=['<', '7.0'])
     def test(self):
         """Test that C++ supports char8_t correctly."""

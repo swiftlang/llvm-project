@@ -12,8 +12,6 @@ import json
 
 class MTCSimpleTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipUnlessDarwin
     def test(self):
         self.mtc_dylib_path = findMainThreadCheckerDylib()

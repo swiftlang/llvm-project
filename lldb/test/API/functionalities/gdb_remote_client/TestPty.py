@@ -6,7 +6,6 @@ from gdbclientutils import *
 
 @skipIfWindows
 class TestPty(GDBRemoteTestBase):
-    mydir = TestBase.compute_mydir(__file__)
     server_socket_class = PtyServerSocket
 
     def get_term_attrs(self):

@@ -624,7 +624,6 @@ class GDBRemoteTestBase(TestBase):
     """
 
     NO_DEBUG_INFO_TESTCASE = True
-    mydir = TestBase.compute_mydir(__file__)
     server = None
     server_socket_class = TCPServerSocket
 

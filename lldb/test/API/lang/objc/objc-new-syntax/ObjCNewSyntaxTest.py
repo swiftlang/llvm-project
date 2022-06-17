@@ -8,8 +8,6 @@ from lldbsuite.test import lldbutil
 
 class ObjCNewSyntaxTest(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def runToBreakpoint(self):
         self.build()
         self.target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(

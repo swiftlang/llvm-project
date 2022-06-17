@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class LibcxxOptionalDataFormatterTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @add_test_categories(["libc++"])
     ## Clang 7.0 is the oldest Clang that can reliably parse newer libc++ versions
     ## with -std=c++17.
