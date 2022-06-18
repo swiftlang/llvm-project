@@ -5247,6 +5247,13 @@ bool SwiftASTContext::IsTypedefType(opaque_compiler_type_t type) {
   if (!type)
     return false;
   swift::Type swift_type(GetSwiftType(type));
+
+  swift::ExistentialType *existential_type  =
+      swift::dyn_cast<swift::ExistentialType>(swift_type.getPointer());
+  if (existential_type) {
+    swift_type = existential_type->getConstraintType();
+  }
+
   return swift::isa<swift::TypeAliasType>(swift_type.getPointer());
 }
 
@@ -5881,6 +5888,13 @@ CompilerType SwiftASTContext::GetTypedefedType(opaque_compiler_type_t type) {
   VALID_OR_RETURN_CHECK_TYPE(type, CompilerType());
 
   swift::Type swift_type(GetSwiftType({this, type}));
+
+  swift::ExistentialType *existential_type  =
+      swift::dyn_cast<swift::ExistentialType>(swift_type.getPointer());
+  if (existential_type) {
+    swift_type = existential_type->getConstraintType();
+  }
+
   swift::TypeAliasType *name_alias_type =
       swift::dyn_cast<swift::TypeAliasType>(swift_type.getPointer());
   if (name_alias_type) {

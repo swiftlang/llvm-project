@@ -6,7 +6,17 @@
 
 import Foundation
 let patatino = [1,2,3,4] as AnyObject
-// CHECK: patatino: __SwiftDeferredNSArray = 4 values {
+// CHECK: patatino: AnyObject = {
+// CHECK-NEXT: object = 4 values {
+// CHECK-NEXT:  [0] = 1
+// CHECK-NEXT:  [1] = 2
+// CHECK-NEXT:  [2] = 3
+// CHECK-NEXT:  [3] = 4
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+let deferred = [1,2,3,4] as Array as NSArray
+// CHECK: deferred: __SwiftDeferredNSArray = 4 values {
 // CHECK-NEXT:  [0] = 1
 // CHECK-NEXT:  [1] = 2
 // CHECK-NEXT:  [2] = 3
