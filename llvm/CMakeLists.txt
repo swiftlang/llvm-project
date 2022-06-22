@@ -1287,7 +1287,7 @@ endif()
 if (LLVM_ENABLE_ONDISK_CAS)
   # Disable OnDisk CAS on windows and non-Unix systems.
   if(WIN32 OR NOT UNIX)
-    set(LLVM_ENABLE_ONDISK_CAS OFF CACHE BOOL "Build OnDiskCAS.")
+    set(LLVM_ENABLE_ONDISK_CAS OFF CACHE BOOL "Build OnDiskCAS." FORCE)
   endif()
 endif()
 
