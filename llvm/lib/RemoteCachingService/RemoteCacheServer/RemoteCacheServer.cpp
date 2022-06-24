@@ -229,8 +229,6 @@ private:
   std::unique_ptr<Server> Server;
 };
 
-RemoteCacheServer::RemoteCacheServer(RemoteCacheServer &&) = default;
-
 RemoteCacheServer::~RemoteCacheServer() = default;
 
 void RemoteCacheServer::Start() { return Impl->Start(); }
