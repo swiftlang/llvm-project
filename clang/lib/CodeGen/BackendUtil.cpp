@@ -397,7 +397,6 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.UnsafeFPMath = LangOpts.UnsafeFPMath;
   Options.ApproxFuncFPMath = LangOpts.ApproxFunc;
   Options.UseCASBackend = CodeGenOpts.UseCASBackend;
-  Options.CASObjMode = CodeGenOpts.getCASObjMode();
 
   Options.BBSections =
       llvm::StringSwitch<llvm::BasicBlockSection>(CodeGenOpts.BBSections)
@@ -460,6 +459,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   // CASOpts.
   Options.MCOptions.CASDB = CASOpts.getOrCreateCAS(Diags);
   Options.MCOptions.ResultCallBack = CodeGenOpts.MCCallBack;
+  Options.MCOptions.CASObjMode = CodeGenOpts.getCASObjMode();
 
   Options.MCOptions.SplitDwarfFile = CodeGenOpts.SplitDwarfFile;
   Options.MCOptions.EmitDwarfUnwind = CodeGenOpts.getEmitDwarfUnwind();

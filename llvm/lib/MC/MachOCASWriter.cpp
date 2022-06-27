@@ -11,8 +11,6 @@
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/Utils.h"
-#include "llvm/ExecutionEngine/JITLink/JITLink.h"
-#include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
 #include "llvm/MC/CAS/MCCASFormatSchemaBase.h"
 #include "llvm/MC/CAS/MCCASObjectV1.h"
 #include "llvm/MC/MCAsmBackend.h"

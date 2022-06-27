@@ -13,8 +13,8 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCFixup.h"
+#include "llvm/MC/MCTargetOptions.h"
 #include "llvm/Support/Endian.h"
-#include "llvm/Target/TargetOptions.h"
 #include <cstdint>
 
 namespace llvm {

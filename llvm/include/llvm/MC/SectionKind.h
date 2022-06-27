@@ -177,14 +177,6 @@ public:
   bool isReadOnlyWithRel() const {
     return K == ReadOnlyWithRel;
   }
-
-  SectionKind::Kind get() const {
-    return K;
-  }
-
-  static SectionKind encode(uint8_t data) {
-    return get((Kind)data);
-  }
 private:
   static SectionKind get(Kind K) {
     SectionKind Res;

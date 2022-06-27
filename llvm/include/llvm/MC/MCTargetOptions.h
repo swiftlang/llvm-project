@@ -43,6 +43,16 @@ enum class EmitDwarfUnwindType {
   Default,         // Default behavior is based on the target
 };
 
+/// CAS Backend Mode.
+enum class CASBackendMode {
+  // Emit normal object file but serialized from CAS.
+  Native,
+  // Emit CASID output file.
+  CASID,
+  // Verify the output by comparing normal object writer with CAS object writer.
+  Verify,
+};
+
 class StringRef;
 
 class MCTargetOptions {
@@ -112,6 +122,8 @@ public:
 
   using ResultCallBackTy = std::function<Error(const cas::CASID &)>;
   Optional<ResultCallBackTy> ResultCallBack;
+
+  CASBackendMode CASObjMode;
 };
 
 } // end namespace llvm
