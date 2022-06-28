@@ -7097,3 +7097,7 @@ def fcgl : DXCFlag<"fcgl">, Alias<emit_pristine_llvm>;
 def enable_16bit_types : DXCFlag<"enable-16bit-types">, Alias<fnative_half_type>,
   HelpText<"Enable 16-bit types and disable min precision types."
            "Available in HLSL 2018 and shader model 6.2.">;
+
+def fsuppress_conflicting_types: Flag<["-"], "fsuppress-conflicting-types">, Group<f_Group>,
+  MarshallingInfoFlag<LangOpts<"IgnoreConflictingTypes">>,
+  HelpText<"Ignore errors from conflicting types in function declarations">, Flags<[CC1Option]>;

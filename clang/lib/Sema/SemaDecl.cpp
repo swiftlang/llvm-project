@@ -3911,7 +3911,8 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
     // we need to cover here is that the number of arguments agree as the
     // default argument promotion rules were already checked by
     // ASTContext::typesAreCompatible().
-    if (Old->hasPrototype() && !New->hasWrittenPrototype() && NewDeclIsDefn &&
+    if (!getLangOpts().IgnoreConflictingTypes && Old->hasPrototype() &&
+        !New->hasWrittenPrototype() && NewDeclIsDefn &&
         Old->getNumParams() != New->getNumParams()) {
       if (Old->hasInheritedPrototype())
         Old = Old->getCanonicalDecl();
@@ -3969,7 +3970,8 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       }
     }
 
-    if (Context.typesAreCompatible(OldQType, NewQType)) {
+    if (Context.typesAreCompatible(OldQType, NewQType) ||
+        getLangOpts().IgnoreConflictingTypes) {
       const FunctionType *OldFuncType = OldQType->getAs<FunctionType>();
       const FunctionType *NewFuncType = NewQType->getAs<FunctionType>();
       const FunctionProtoType *OldProto = nullptr;
