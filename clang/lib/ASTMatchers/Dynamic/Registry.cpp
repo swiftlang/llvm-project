@@ -503,6 +503,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(objcObjectPointerType);
   REGISTER_MATCHER(objcPropertyDecl);
   REGISTER_MATCHER(objcProtocolDecl);
+  REGISTER_MATCHER(objcStringLiteral);
   REGISTER_MATCHER(objcThrowStmt);
   REGISTER_MATCHER(objcTryStmt);
   REGISTER_MATCHER(ofClass);

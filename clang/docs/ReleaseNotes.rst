@@ -344,6 +344,9 @@ AST Matchers
 
 - Expanded ``isInline`` narrowing matcher to support c++17 inline variables.
 
+- Added ``objcStringLiteral`` matcher which matches ObjectiveC String
+  literal expressions.
+
 clang-format
 ------------
 
