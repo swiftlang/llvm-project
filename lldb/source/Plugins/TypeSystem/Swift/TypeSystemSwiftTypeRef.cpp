@@ -1862,15 +1862,19 @@ constexpr ExecutionContextScope *g_no_exe_ctx = nullptr;
     if ((TYPE) && !ReconstructType(TYPE))                                      \
       return result;                                                           \
     ExecutionContext _exe_ctx(EXE_CTX);                                        \
-    auto swift_scratch_ctx_lock = SwiftScratchContextLock(                         \
+    auto swift_scratch_ctx_lock = SwiftScratchContextLock(                     \
         _exe_ctx == ExecutionContext() ? nullptr : &_exe_ctx);                 \
     bool equivalent =                                                          \
         !ReconstructType(TYPE) /* missing .swiftmodule */ ||                   \
         (Equivalent(result, GetSwiftASTContext()->REFERENCE ARGS));            \
     if (!equivalent)                                                           \
       llvm::dbgs() << "failing type was " << (const char *)TYPE << "\n";       \
-    assert(equivalent &&                                                       \
-           "TypeSystemSwiftTypeRef diverges from SwiftASTContext");            \
+    /* Only assert if it's not an imported type. The typeref type system and   \
+    the ast context often have very different views of the same type           \
+     without there being anything nece wrong. */                               \
+    if (!IsImportedType(TYPE, nullptr))                                        \
+      assert(equivalent &&                                                     \
+             "TypeSystemSwiftTypeRef diverges from SwiftASTContext");          \
     return result;                                                             \
   } while (0)
 
