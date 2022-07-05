@@ -60,6 +60,7 @@ list(APPEND CLANG_TEST_DEPS
   c-index-test
   cache-build-session
   clang
+  clang-cache
   clang-cas-test
   clang-fuzzer-dictionary
   clang-resource-headers
