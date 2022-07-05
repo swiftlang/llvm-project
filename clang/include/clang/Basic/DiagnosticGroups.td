@@ -1369,6 +1369,9 @@ def CompileJobCacheHit : DiagGroup<"compile-job-cache-hit">;
 def CompileJobCache : DiagGroup<"compile-job-cache", [CompileJobCacheMiss,
                                                       CompileJobCacheHit]>;
 
+// clang-cache warnings.
+def ClangCache : DiagGroup<"clang-cache">;
+
 // Warnings and extensions to make preprocessor macro usage pedantic.
 def PedanticMacros : DiagGroup<"pedantic-macros",
                     [DeprecatedPragma,
