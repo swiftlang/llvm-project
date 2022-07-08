@@ -273,11 +273,10 @@ public:
                                                uint64_t AlignmentOffset,
                                                ArrayRef<Fixup> Fixups);
 
-  static Expected<BlockDataRef> createContent(const ObjectFileSchema &Schema,
-                                              StringRef Content,
-                                              uint64_t Alignment,
-                                              uint64_t AlignmentOffset,
-                                              ArrayRef<Fixup> Fixups);
+  static Expected<BlockDataRef>
+  createContent(const ObjectFileSchema &Schema, StringRef Content,
+                uint64_t Alignment, uint64_t AlignmentOffset,
+                ArrayRef<Fixup> Fixups, bool IsDebugInfoBlock = false);
 
   static Expected<BlockDataRef> create(const ObjectFileSchema &Schema,
                                        const jitlink::Block &Block,
@@ -288,11 +287,10 @@ private:
   explicit BlockDataRef(SpecificRefT Ref, data::BlockData Data)
       : SpecificRefT(Ref), Data(Data) {}
 
-  static Expected<BlockDataRef> createImpl(const ObjectFileSchema &Schema,
-                                           Optional<StringRef> Content,
-                                           uint64_t Size, uint64_t Alignment,
-                                           uint64_t AlignmentOffset,
-                                           ArrayRef<Fixup> Fixups);
+  static Expected<BlockDataRef>
+  createImpl(const ObjectFileSchema &Schema, Optional<StringRef> Content,
+             uint64_t Size, uint64_t Alignment, uint64_t AlignmentOffset,
+             ArrayRef<Fixup> Fixups, bool IsDebugInfoBlock = false);
 };
 
 /// A variant of SymbolRef and IndirectSymbolRef. The kind is cached.
@@ -521,7 +519,8 @@ public:
   static Expected<BlockRef>
   create(const ObjectFileSchema &Schema, const jitlink::Block &Block,
          function_ref<Expected<Optional<TargetRef>>(const jitlink::Symbol &)>
-             GetTargetRef);
+             GetTargetRef,
+         cas::CASID *AbbrevID = nullptr);
 
   static Expected<BlockRef> create(const ObjectFileSchema &Schema,
                                    SectionRef Section, BlockDataRef Data) {
@@ -535,7 +534,7 @@ public:
     return createImpl(Schema, Section, Data, TargetInfo, Targets, Fixups);
   }
 
-  static Expected<BlockRef> get(Expected<ObjectFormatObjectProxy> Ref);
+  static Expected<BlockRef> get(Expected<ObjectFormatObjectProxy> Ref, bool IsDebugInfoBlock = false);
   static Expected<BlockRef> get(const ObjectFileSchema &Schema,
                                 cas::ObjectRef ID) {
     return get(Schema.get(ID));
@@ -558,11 +557,11 @@ private:
 
   explicit BlockRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 
-  static Expected<BlockRef> createImpl(const ObjectFileSchema &Schema,
-                                       SectionRef Section, BlockDataRef Data,
-                                       ArrayRef<TargetInfo> TargetInfo,
-                                       ArrayRef<TargetRef> Targets,
-                                       ArrayRef<Fixup> Fixups);
+  static Expected<BlockRef>
+  createImpl(const ObjectFileSchema &Schema, SectionRef Section,
+             BlockDataRef Data, ArrayRef<TargetInfo> TargetInfo,
+             ArrayRef<TargetRef> Targets, ArrayRef<Fixup> Fixups,
+             cas::CASID *AbbrevID = nullptr, bool IsDebugInfoBlock = false);
 };
 
 /// A symbol.
@@ -693,7 +692,8 @@ public:
   static Expected<SymbolRef> create(const ObjectFileSchema &Schema,
                                     Optional<NameRef> SymbolName,
                                     SymbolDefinitionRef Definition,
-                                    uint64_t Offset, Flags F);
+                                    uint64_t Offset, Flags F,
+                                    bool IsDebugInfoSymbol = false);
 
   static Expected<SymbolRef>
   create(const ObjectFileSchema &Schema, const jitlink::Symbol &S,

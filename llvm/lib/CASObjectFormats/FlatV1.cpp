@@ -327,12 +327,12 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   if (!B)
     return B.takeError();
 
-  bool IsDebugInfoBlock = false;
   // If we are creating a cas block out of a debug_info jitlink::Block, add the
   // debug_abbrev cas block CAS ID as a refrence
   if (Block.getSection().getName() == "__DWARF,__debug_info") {
+    assert(AbbrevID &&
+           "The CAS ID for the abbrev section shouldn't be nullptr");
     B->IDs.push_back(*AbbrevID);
-    IsDebugInfoBlock = true;
   }
 
   // Encode Section.
@@ -376,9 +376,10 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
     BlockSize = Content->size();
   }
   SmallString<1024> EncodeContent;
-  data::BlockData::encode(BlockSize, Block.getAlignment(),
-                          Block.getAlignmentOffset(), Content, Fixups,
-                          EncodeContent, IsDebugInfoBlock);
+  data::BlockData::encode(
+      BlockSize, Block.getAlignment(), Block.getAlignmentOffset(), Content,
+      Fixups, EncodeContent,
+      Block.getSection().getName() == "__DWARF,__debug_info");
 
   StringRef BlockData(EncodeContent);
   // Encode content first with size and data.

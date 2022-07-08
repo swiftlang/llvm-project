@@ -425,15 +425,17 @@ cl::opt<size_t> MaxEdgesToEmbedInBlock(
     "max-edges-to-embed-in-block",
     cl::desc("Maximum number of edges to embed in a block."), cl::init(8));
 
-Expected<BlockDataRef> BlockDataRef::createImpl(
-    const ObjectFileSchema &Schema, Optional<StringRef> Content, uint64_t Size,
-    uint64_t Alignment, uint64_t AlignmentOffset, ArrayRef<Fixup> Fixups) {
+Expected<BlockDataRef>
+BlockDataRef::createImpl(const ObjectFileSchema &Schema,
+                         Optional<StringRef> Content, uint64_t Size,
+                         uint64_t Alignment, uint64_t AlignmentOffset,
+                         ArrayRef<Fixup> Fixups, bool IsDebugInfoBlock) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
     return B.takeError();
 
   data::BlockData::encode(Size, Alignment, AlignmentOffset, Content, Fixups,
-                          B->Data);
+                          B->Data, IsDebugInfoBlock);
   return get(B->build());
 }
 
@@ -490,7 +492,8 @@ Expected<BlockDataRef> BlockDataRef::create(const ObjectFileSchema &Schema,
     return std::move(E);
 
   return createContent(Schema, Content, Block.getAlignment(),
-                       Block.getAlignmentOffset(), Fixups);
+                       Block.getAlignmentOffset(), Fixups,
+                       Block.getSection().getName() == "__DWARF,__debug_info");
 }
 
 Expected<BlockDataRef>
@@ -503,7 +506,7 @@ BlockDataRef::createZeroFill(const ObjectFileSchema &Schema, uint64_t Size,
 Expected<BlockDataRef>
 BlockDataRef::createContent(const ObjectFileSchema &Schema, StringRef Content,
                             uint64_t Alignment, uint64_t AlignmentOffset,
-                            ArrayRef<Fixup> Fixups) {
+                            ArrayRef<Fixup> Fixups, bool IsDebugInfoBlock) {
   return createImpl(Schema, Content, Content.size(), Alignment, AlignmentOffset,
                     Fixups);
 }
@@ -808,7 +811,8 @@ static Error decomposeAndSortEdges(
 Expected<BlockRef> BlockRef::create(
     const ObjectFileSchema &Schema, const jitlink::Block &Block,
     function_ref<Expected<Optional<TargetRef>>(const jitlink::Symbol &)>
-        GetTargetRef) {
+        GetTargetRef,
+    cas::CASID *AbbrevID) {
   Expected<SectionRef> Section = SectionRef::create(Schema, Block.getSection());
   if (!Section)
     return Section.takeError();
@@ -828,7 +832,8 @@ Expected<BlockRef> BlockRef::create(
   Expected<BlockDataRef> Data = BlockDataRef::create(Schema, Block, Fixups);
   if (!Data)
     return Data.takeError();
-  return createImpl(Schema, *Section, *Data, TIs, Targets, Fixups);
+  return createImpl(Schema, *Section, *Data, TIs, Targets, Fixups, AbbrevID,
+                    Block.getSection().getName() == "__DWARF,__debug_info");
 }
 
 cl::opt<bool>
@@ -836,11 +841,11 @@ cl::opt<bool>
                            cl::desc("Whether to inline unary target lists."),
                            cl::init(true));
 
-Expected<BlockRef> BlockRef::createImpl(const ObjectFileSchema &Schema,
-                                        SectionRef Section, BlockDataRef Data,
-                                        ArrayRef<TargetInfo> TargetInfo,
-                                        ArrayRef<TargetRef> Targets,
-                                        ArrayRef<Fixup> Fixups) {
+Expected<BlockRef>
+BlockRef::createImpl(const ObjectFileSchema &Schema, SectionRef Section,
+                     BlockDataRef Data, ArrayRef<TargetInfo> TargetInfo,
+                     ArrayRef<TargetRef> Targets, ArrayRef<Fixup> Fixups,
+                     cas::CASID *AbbrevID, bool IsDebugInfoBlock) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
     return B.takeError();
@@ -898,15 +903,25 @@ Expected<BlockRef> BlockRef::createImpl(const ObjectFileSchema &Schema,
     B->Refs.push_back(TargetInfoRef->getRef());
   }
 
-  return get(B->build());
+  if (IsDebugInfoBlock) {
+    assert(AbbrevID &&
+           "The CAS ID for the abbrev section shouldn't be nullptr");
+    B->IDs.push_back(*AbbrevID);
+  }
+
+  return get(B->build(), IsDebugInfoBlock);
 }
 
-Expected<BlockRef> BlockRef::get(Expected<ObjectFormatObjectProxy> Ref) {
+Expected<BlockRef> BlockRef::get(Expected<ObjectFormatObjectProxy> Ref, bool IsDebugInfoBlock) {
   auto Specific = SpecificRefT::getSpecific(std::move(Ref));
   if (!Specific)
     return Specific.takeError();
 
-  if (Specific->getNumReferences() < 2 || Specific->getNumReferences() > 4 ||
+  // If it is a debug info block, it will have an additional reference to the
+  // debug_abbrev block
+  if (Specific->getNumReferences() < 2 ||
+      (IsDebugInfoBlock && Specific->getNumReferences() > 5) ||
+      (!IsDebugInfoBlock && Specific->getNumReferences() > 4) ||
       Specific->getData().size() < 1)
     return createStringError(inconvertibleErrorCode(), "corrupt block");
 
@@ -1108,7 +1123,8 @@ Expected<SymbolRef> SymbolRef::create(
 Expected<SymbolRef> SymbolRef::create(const ObjectFileSchema &Schema,
                                       Optional<NameRef> SymbolName,
                                       SymbolDefinitionRef Definition,
-                                      uint64_t Offset, Flags F) {
+                                      uint64_t Offset, Flags F,
+                                      bool IsDebugInfoSymbol) {
   // Anonymous symbols cannot be exported or merged by name.
   if (!SymbolName && (F.Scope != S_Local || (F.Merge & M_ByName)))
     return createStringError(inconvertibleErrorCode(),
@@ -1120,8 +1136,8 @@ Expected<SymbolRef> SymbolRef::create(const ObjectFileSchema &Schema,
 
   bool IsSymbolTemplate = false;
   if (Definition.getKind() == SymbolDefinitionRef::Block)
-    IsSymbolTemplate =
-        cantFail(BlockRef::get(Definition)).hasAbstractBackedge();
+    IsSymbolTemplate = cantFail(BlockRef::get(Definition, IsDebugInfoSymbol))
+                           .hasAbstractBackedge();
 
   static_assert(((uint8_t)DS_Max >> 2) == 0, "Not enough bits for dead-strip");
   static_assert(((uint8_t)S_Max >> 2) == 0, "Not enough bits for scope");
@@ -1431,7 +1447,8 @@ public:
   Error makeSymbols(const jitlink::LinkGraph &G);
 
   /// Create the given symbol and cache it.
-  Error createSymbol(const jitlink::Symbol &S);
+  Expected<SymbolRef> createSymbol(const jitlink::Symbol &S,
+                                   cas::CASID *AbbrevID = nullptr);
 
   /// Cache the symbol. Asserts that the result is not already cached.
   void cacheSymbol(const jitlink::Symbol &S, SymbolRef Ref);
@@ -1449,11 +1466,13 @@ public:
                     const jitlink::Block &SourceBlock);
 
   /// Get or create a block.
-  Expected<BlockRef> getOrCreateBlock(const jitlink::Block &B);
+  Expected<BlockRef> getOrCreateBlock(const jitlink::Block &B,
+                                      cas::CASID *AbbrevID = nullptr);
 
   /// Get or create a symbol definition.
   Expected<SymbolDefinitionRef>
-  getOrCreateSymbolDefinition(const jitlink::Symbol &S);
+  getOrCreateSymbolDefinition(const jitlink::Symbol &S,
+                              cas::CASID *AbbrevID = nullptr);
 
 private:
   /// Guaranteed to be called in post-order. All undefined targets must be
@@ -1462,8 +1481,23 @@ private:
 };
 } // namespace
 
+static bool compareSymbolBlocksByAddress(const jitlink::Symbol *LHS,
+                                         const jitlink::Symbol *RHS) {
+  if (LHS == RHS)
+    return false;
+
+  auto LAddr = LHS->getBlock().getAddress();
+  auto RAddr = RHS->getBlock().getAddress();
+  if (LAddr != RAddr)
+    return LAddr < RAddr;
+
+  return LHS->getBlock().getSize() < RHS->getBlock().getSize();
+}
+
 Error CompileUnitBuilder::makeSymbols(const jitlink::LinkGraph &G) {
   SmallPtrSet<const jitlink::Symbol *, 8> Visited;
+  SmallVector<const jitlink::Symbol *, 16> InfoSymbols;
+  SmallVector<const jitlink::Symbol *, 16> AbbrevSymbols;
 
   // Collect all the symbols, one section at a time with absolute symbols
   // (arbitrarily) last. Sort the symbols within each section by address to
@@ -1501,10 +1535,50 @@ Error CompileUnitBuilder::makeSymbols(const jitlink::LinkGraph &G) {
     // Use a simple post-order traversal, rather than treating members of an
     // SCC as peers, in order to build dominators of SCCs last.
     for (const jitlink::Symbol *S :
-         post_order_ext(SymbolGraph(*Entry), Visited))
-      if (!S->isExternal())
-        if (Error E = createSymbol(*S))
-          return E;
+         post_order_ext(SymbolGraph(*Entry), Visited)) {
+      if (!S->isExternal()) {
+        if (S->getBlock().getSection().getName() == "__DWARF,__debug_info")
+          InfoSymbols.push_back(S);
+        else if (S->getBlock().getSection().getName() ==
+                 "__DWARF,__debug_abbrev")
+          AbbrevSymbols.push_back(S);
+        else {
+          Expected<SymbolRef> Symbol = createSymbol(*S);
+          if (!Symbol)
+            return Symbol.takeError();
+        }
+      }
+    }
+  }
+
+  // If the number of debug_abbrev symbols are 1, we assume that the
+  // abbreviations could not be split up, and every debug_info compile unit
+  // should have a reference to the same abbreviation.
+  assert(AbbrevSymbols.size() == 1 ||
+         AbbrevSymbols.size() == InfoSymbols.size() &&
+             "The number of Abbreviation contributions should be equal to the "
+             "number of Compile Units");
+
+  llvm::sort(InfoSymbols.begin(), InfoSymbols.end(),
+             compareSymbolBlocksByAddress);
+  llvm::sort(AbbrevSymbols.begin(), AbbrevSymbols.end(),
+             compareSymbolBlocksByAddress);
+
+  SmallVector<cas::CASID, 16> AbbrevIDs;
+  for (auto *S : AbbrevSymbols) {
+    Expected<SymbolRef> Symbol = createSymbol(*S);
+    if (!Symbol)
+      return Symbol.takeError();
+    AbbrevIDs.push_back(Symbol->getReferenceID(0));
+  }
+
+  unsigned I = 0;
+  for (auto *S : InfoSymbols) {
+    Expected<SymbolRef> Symbol =
+        createSymbol(*S, AbbrevIDs.size() == 1 ? &AbbrevIDs[0] : &AbbrevIDs[I]);
+    if (!Symbol)
+      return Symbol.takeError();
+    I++;
   }
 
   // Fill the UnreferencedSymbols table.
@@ -1519,7 +1593,8 @@ cl::opt<bool> DropLeafSymbolNamesWithDot(
     "drop-leaf-symbol-names-with-dot",
     cl::desc("Drop symbol names with '.' in them from leafs."), cl::init(true));
 
-Error CompileUnitBuilder::createSymbol(const jitlink::Symbol &S) {
+Expected<SymbolRef> CompileUnitBuilder::createSymbol(const jitlink::Symbol &S,
+                                                     cas::CASID *AbbrevID) {
   assert(!S.isExternal());
   assert(!Symbols.lookup(&S).Symbol);
 
@@ -1529,7 +1604,8 @@ Error CompileUnitBuilder::createSymbol(const jitlink::Symbol &S) {
   Optional<NameRef> Name = Symbols.lookup(&S).Indirect;
   bool HasIndirectReference = bool(Name);
 
-  Expected<SymbolDefinitionRef> Definition = getOrCreateSymbolDefinition(S);
+  Expected<SymbolDefinitionRef> Definition =
+      getOrCreateSymbolDefinition(S, AbbrevID);
   if (!Definition)
     return Definition.takeError();
 
@@ -1552,8 +1628,9 @@ Error CompileUnitBuilder::createSymbol(const jitlink::Symbol &S) {
 
   SymbolRef::Flags F = SymbolRef::getFlags(S);
 
-  Expected<SymbolRef> Symbol =
-      SymbolRef::create(Schema, Name, *Definition, S.getOffset(), F);
+  Expected<SymbolRef> Symbol = SymbolRef::create(
+      Schema, Name, *Definition, S.getOffset(), F,
+      S.getBlock().getSection().getName() == "__DWARF,__debug_info");
   if (!Symbol)
     return Symbol.takeError();
 
@@ -1597,7 +1674,7 @@ Error CompileUnitBuilder::createSymbol(const jitlink::Symbol &S) {
   }
 
   cacheSymbol(S, *Symbol);
-  return Error::success();
+  return Symbol;
 }
 
 void CompileUnitBuilder::cacheSymbol(const jitlink::Symbol &S, SymbolRef Ref) {
@@ -1607,22 +1684,23 @@ void CompileUnitBuilder::cacheSymbol(const jitlink::Symbol &S, SymbolRef Ref) {
 }
 
 Expected<SymbolDefinitionRef>
-CompileUnitBuilder::getOrCreateSymbolDefinition(const jitlink::Symbol &S) {
+CompileUnitBuilder::getOrCreateSymbolDefinition(const jitlink::Symbol &S,
+                                                cas::CASID *AbbrevID) {
   // If the assertion in S.getBlock() starts failing, probably LinkGraph added
   // support for aliases to external symbols.
-  return SymbolDefinitionRef::get(getOrCreateBlock(S.getBlock()));
+  return SymbolDefinitionRef::get(getOrCreateBlock(S.getBlock(), AbbrevID));
 }
 
-Expected<BlockRef>
-CompileUnitBuilder::getOrCreateBlock(const jitlink::Block &B) {
+Expected<BlockRef> CompileUnitBuilder::getOrCreateBlock(const jitlink::Block &B,
+                                                        cas::CASID *AbbrevID) {
   auto Cached = Blocks.find(&B);
   if (Cached != Blocks.end())
     return Cached->second;
 
-  Expected<BlockRef> ExpectedBlock =
-      BlockRef::create(Schema, B, [&](const jitlink::Symbol &S) {
-        return getOrCreateTarget(S, B);
-      });
+  Expected<BlockRef> ExpectedBlock = BlockRef::create(
+      Schema, B,
+      [&](const jitlink::Symbol &S) { return getOrCreateTarget(S, B); },
+      AbbrevID);
   if (!ExpectedBlock)
     return ExpectedBlock.takeError();
   Cached = Blocks.insert(std::make_pair(&B, *ExpectedBlock)).first;
@@ -1979,6 +2057,13 @@ DefinedSymbolNodeRef::materialize(const NestedV1ObjectReader &Reader) const {
   SymbolRef::Flags Flags = Symbol.getFlags();
   bool MergeByContent = Flags.Merge & SymbolRef::M_ByContent;
 
+  Expected<SectionRef> Section =
+      SectionRef::get(Definition->getSchema(), Definition->getReferenceID(0));
+  if (!Section)
+    return Section.takeError();
+  Expected<NameRef> SectionName = Section->getName();
+  if (!SectionName)
+    return SectionName.takeError();
   // FIXME: Maybe go further here and use MergeableBlocks. Or maybe it's not
   // worth it (not ever going to succeed) when we're within a single compile
   // unit.
@@ -1988,8 +2073,13 @@ DefinedSymbolNodeRef::materialize(const NestedV1ObjectReader &Reader) const {
   // the same block (as is the case with aliases) or whether the linker *can*
   // use the same block contents if it desires so (e.g. the linker may share the
   // block for a release build but not for a debug build).
+
+  // If the Symbol belongs to the debug_info section, it can have 5 references
   Expected<CASBlockRef> Block = Reader.getOrCreateCASBlockRef(
-      *this, BlockRef::get(*Definition), KeptAliveBySymbol, MergeByContent);
+      *this,
+      BlockRef::get(*Definition,
+                    SectionName->getName() == "__DWARF,__debug_info"),
+      KeptAliveBySymbol, MergeByContent);
   if (!Block)
     return Block.takeError();
 
