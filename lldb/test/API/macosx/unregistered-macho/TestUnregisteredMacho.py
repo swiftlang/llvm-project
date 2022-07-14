@@ -11,6 +11,8 @@ from lldbsuite.test import lldbutil
 
 class TestUnregisteredMacho(TestBase):
 
+    mydir = TestBase.compute_mydir(__file__)
+
     # newer debugserver required for jGetLoadedDynamicLibrariesInfos 
     # to support this
     @skipIfOutOfTreeDebugserver  
