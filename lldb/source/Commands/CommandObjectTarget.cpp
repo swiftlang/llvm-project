@@ -57,6 +57,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendActions.h"
+#include "clang/Frontend/Utils.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
@@ -2179,7 +2180,7 @@ protected:
     compiler.createDiagnostics();
 
     const char *clang_args[] = {"clang", pcm_path};
-    compiler.setInvocation(clang::createInvocation(clang_args));
+    compiler.setInvocation(clang::createInvocationFromCommandLine(clang_args));
 
     clang::DumpModuleInfoAction dump_module_info;
     dump_module_info.OutputStream = &result.GetOutputStream().AsRawOstream();
