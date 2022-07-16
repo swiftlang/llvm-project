@@ -26,6 +26,7 @@ class AsanSwiftTestCase(lldbtest.TestBase):
     @decorators.swiftTest
     @decorators.skipIfLinux
     @decorators.skipUnlessSwiftAddressSanitizer
+    @decorators.expectedFailureAll
     def test_asan_swift(self):
         self.build()
         self.do_test()
