@@ -10,6 +10,7 @@
 #define LLVM_CASOBJECTFORMATS_FLATV1_H
 
 #include "llvm/CAS/CASID.h"
+#include "llvm/CAS/CASReference.h"
 #include "llvm/CASObjectFormats/CASObjectReader.h"
 #include "llvm/CASObjectFormats/Data.h"
 #include "llvm/CASObjectFormats/ObjectFormatSchemaBase.h"
@@ -209,7 +210,7 @@ public:
 
   static Expected<BlockRef> create(CompileUnitBuilder &CUB,
                                    const jitlink::Block &Block,
-                                   cas::CASID *AbbrevID = nullptr);
+                                   cas::ObjectRef *AbbrevRef = nullptr);
 
   static Expected<BlockRef> get(Expected<ObjectFormatObjectProxy> Ref);
   static Expected<BlockRef> get(const ObjectFileSchema &Schema,
@@ -314,8 +315,8 @@ public:
 
   Error createSection(const jitlink::Section &S);
   Error createBlock(const jitlink::Block &B);
-  Expected<cas::CASID> createAbbrevBlock(const jitlink::Block &B);
-  Error createInfoBlock(const jitlink::Block &B, cas::CASID *AbbrevID);
+  Expected<cas::ObjectRef> createAbbrevBlock(const jitlink::Block &B);
+  Error createInfoBlock(const jitlink::Block &B, cas::ObjectRef *AbbrevID);
   Error createSymbol(const jitlink::Symbol &S);
 
   // Lookup functions. The result must exist in the cache already.

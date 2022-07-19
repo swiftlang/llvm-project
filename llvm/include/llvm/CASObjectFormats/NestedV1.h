@@ -10,6 +10,7 @@
 #define LLVM_CASOBJECTFORMATS_NESTEDV1_H
 
 #include "llvm/CAS/CASID.h"
+#include "llvm/CAS/CASReference.h"
 #include "llvm/CASObjectFormats/Data.h"
 #include "llvm/CASObjectFormats/ObjectFormatSchemaBase.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
@@ -520,7 +521,7 @@ public:
   create(const ObjectFileSchema &Schema, const jitlink::Block &Block,
          function_ref<Expected<Optional<TargetRef>>(const jitlink::Symbol &)>
              GetTargetRef,
-         cas::CASID *AbbrevID = nullptr);
+         cas::ObjectRef *AbbrevRef = nullptr);
 
   static Expected<BlockRef> create(const ObjectFileSchema &Schema,
                                    SectionRef Section, BlockDataRef Data) {
@@ -557,11 +558,13 @@ private:
 
   explicit BlockRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 
-  static Expected<BlockRef>
-  createImpl(const ObjectFileSchema &Schema, SectionRef Section,
-             BlockDataRef Data, ArrayRef<TargetInfo> TargetInfo,
-             ArrayRef<TargetRef> Targets, ArrayRef<Fixup> Fixups,
-             cas::CASID *AbbrevID = nullptr, bool IsDebugInfoBlock = false);
+  static Expected<BlockRef> createImpl(const ObjectFileSchema &Schema,
+                                       SectionRef Section, BlockDataRef Data,
+                                       ArrayRef<TargetInfo> TargetInfo,
+                                       ArrayRef<TargetRef> Targets,
+                                       ArrayRef<Fixup> Fixups,
+                                       cas::ObjectRef *AbbrevRef = nullptr,
+                                       bool IsDebugInfoBlock = false);
 };
 
 /// A symbol.

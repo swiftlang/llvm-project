@@ -11,6 +11,7 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/CAS/CASReference.h"
 #include "llvm/CASObjectFormats/CASObjectReader.h"
 #include "llvm/CASObjectFormats/Encoding.h"
 #include "llvm/CASObjectFormats/ObjectFormatHelpers.h"
@@ -812,7 +813,7 @@ Expected<BlockRef> BlockRef::create(
     const ObjectFileSchema &Schema, const jitlink::Block &Block,
     function_ref<Expected<Optional<TargetRef>>(const jitlink::Symbol &)>
         GetTargetRef,
-    cas::CASID *AbbrevID) {
+    cas::ObjectRef *AbbrevRef) {
   Expected<SectionRef> Section = SectionRef::create(Schema, Block.getSection());
   if (!Section)
     return Section.takeError();
@@ -832,7 +833,7 @@ Expected<BlockRef> BlockRef::create(
   Expected<BlockDataRef> Data = BlockDataRef::create(Schema, Block, Fixups);
   if (!Data)
     return Data.takeError();
-  return createImpl(Schema, *Section, *Data, TIs, Targets, Fixups, AbbrevID,
+  return createImpl(Schema, *Section, *Data, TIs, Targets, Fixups, AbbrevRef,
                     Block.getSection().getName() == "__DWARF,__debug_info");
 }
 
@@ -845,7 +846,7 @@ Expected<BlockRef>
 BlockRef::createImpl(const ObjectFileSchema &Schema, SectionRef Section,
                      BlockDataRef Data, ArrayRef<TargetInfo> TargetInfo,
                      ArrayRef<TargetRef> Targets, ArrayRef<Fixup> Fixups,
-                     cas::CASID *AbbrevID, bool IsDebugInfoBlock) {
+                     cas::ObjectRef *AbbrevRef, bool IsDebugInfoBlock) {
   Expected<Builder> B = Builder::startNode(Schema, KindString);
   if (!B)
     return B.takeError();
@@ -904,9 +905,9 @@ BlockRef::createImpl(const ObjectFileSchema &Schema, SectionRef Section,
   }
 
   if (IsDebugInfoBlock) {
-    assert(AbbrevID &&
-           "The CAS ID for the abbrev section shouldn't be nullptr");
-    B->IDs.push_back(*AbbrevID);
+    assert(AbbrevRef &&
+           "The CAS Ref for the abbrev section shouldn't be nullptr");
+    B->Refs.push_back(*AbbrevRef);
   }
 
   return get(B->build(), IsDebugInfoBlock);
@@ -1448,7 +1449,7 @@ public:
 
   /// Create the given symbol and cache it.
   Expected<SymbolRef> createSymbol(const jitlink::Symbol &S,
-                                   cas::CASID *AbbrevID = nullptr);
+                                   cas::ObjectRef *AbbrevRef = nullptr);
 
   /// Cache the symbol. Asserts that the result is not already cached.
   void cacheSymbol(const jitlink::Symbol &S, SymbolRef Ref);
@@ -1467,12 +1468,12 @@ public:
 
   /// Get or create a block.
   Expected<BlockRef> getOrCreateBlock(const jitlink::Block &B,
-                                      cas::CASID *AbbrevID = nullptr);
+                                      cas::ObjectRef *AbbrevRef = nullptr);
 
   /// Get or create a symbol definition.
   Expected<SymbolDefinitionRef>
   getOrCreateSymbolDefinition(const jitlink::Symbol &S,
-                              cas::CASID *AbbrevID = nullptr);
+                              cas::ObjectRef *AbbrevRef = nullptr);
 
 private:
   /// Guaranteed to be called in post-order. All undefined targets must be
@@ -1564,18 +1565,18 @@ Error CompileUnitBuilder::makeSymbols(const jitlink::LinkGraph &G) {
   llvm::sort(AbbrevSymbols.begin(), AbbrevSymbols.end(),
              compareSymbolBlocksByAddress);
 
-  SmallVector<cas::CASID, 16> AbbrevIDs;
+  SmallVector<cas::ObjectRef, 16> AbbrevRefs;
   for (auto *S : AbbrevSymbols) {
     Expected<SymbolRef> Symbol = createSymbol(*S);
     if (!Symbol)
       return Symbol.takeError();
-    AbbrevIDs.push_back(Symbol->getReferenceID(0));
+    AbbrevRefs.push_back(Symbol->getReference(0));
   }
 
   unsigned I = 0;
   for (auto *S : InfoSymbols) {
-    Expected<SymbolRef> Symbol =
-        createSymbol(*S, AbbrevIDs.size() == 1 ? &AbbrevIDs[0] : &AbbrevIDs[I]);
+    Expected<SymbolRef> Symbol = createSymbol(
+        *S, AbbrevRefs.size() == 1 ? &AbbrevRefs[0] : &AbbrevRefs[I]);
     if (!Symbol)
       return Symbol.takeError();
     I++;
@@ -1593,8 +1594,9 @@ cl::opt<bool> DropLeafSymbolNamesWithDot(
     "drop-leaf-symbol-names-with-dot",
     cl::desc("Drop symbol names with '.' in them from leafs."), cl::init(true));
 
-Expected<SymbolRef> CompileUnitBuilder::createSymbol(const jitlink::Symbol &S,
-                                                     cas::CASID *AbbrevID) {
+Expected<SymbolRef>
+CompileUnitBuilder::createSymbol(const jitlink::Symbol &S,
+                                 cas::ObjectRef *AbbrevRef) {
   assert(!S.isExternal());
   assert(!Symbols.lookup(&S).Symbol);
 
@@ -1605,7 +1607,7 @@ Expected<SymbolRef> CompileUnitBuilder::createSymbol(const jitlink::Symbol &S,
   bool HasIndirectReference = bool(Name);
 
   Expected<SymbolDefinitionRef> Definition =
-      getOrCreateSymbolDefinition(S, AbbrevID);
+      getOrCreateSymbolDefinition(S, AbbrevRef);
   if (!Definition)
     return Definition.takeError();
 
@@ -1685,14 +1687,15 @@ void CompileUnitBuilder::cacheSymbol(const jitlink::Symbol &S, SymbolRef Ref) {
 
 Expected<SymbolDefinitionRef>
 CompileUnitBuilder::getOrCreateSymbolDefinition(const jitlink::Symbol &S,
-                                                cas::CASID *AbbrevID) {
+                                                cas::ObjectRef *AbbrevRef) {
   // If the assertion in S.getBlock() starts failing, probably LinkGraph added
   // support for aliases to external symbols.
-  return SymbolDefinitionRef::get(getOrCreateBlock(S.getBlock(), AbbrevID));
+  return SymbolDefinitionRef::get(getOrCreateBlock(S.getBlock(), AbbrevRef));
 }
 
-Expected<BlockRef> CompileUnitBuilder::getOrCreateBlock(const jitlink::Block &B,
-                                                        cas::CASID *AbbrevID) {
+Expected<BlockRef>
+CompileUnitBuilder::getOrCreateBlock(const jitlink::Block &B,
+                                     cas::ObjectRef *AbbrevRef) {
   auto Cached = Blocks.find(&B);
   if (Cached != Blocks.end())
     return Cached->second;
@@ -1700,7 +1703,7 @@ Expected<BlockRef> CompileUnitBuilder::getOrCreateBlock(const jitlink::Block &B,
   Expected<BlockRef> ExpectedBlock = BlockRef::create(
       Schema, B,
       [&](const jitlink::Symbol &S) { return getOrCreateTarget(S, B); },
-      AbbrevID);
+      AbbrevRef);
   if (!ExpectedBlock)
     return ExpectedBlock.takeError();
   Cached = Blocks.insert(std::make_pair(&B, *ExpectedBlock)).first;
@@ -2058,7 +2061,7 @@ DefinedSymbolNodeRef::materialize(const NestedV1ObjectReader &Reader) const {
   bool MergeByContent = Flags.Merge & SymbolRef::M_ByContent;
 
   Expected<SectionRef> Section =
-      SectionRef::get(Definition->getSchema(), Definition->getReferenceID(0));
+      SectionRef::get(Definition->getSchema(), Definition->getReference(0));
   if (!Section)
     return Section.takeError();
   Expected<NameRef> SectionName = Section->getName();

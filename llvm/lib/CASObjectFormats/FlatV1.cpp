@@ -11,6 +11,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASReference.h"
 #include "llvm/CASObjectFormats/Data.h"
 #include "llvm/CASObjectFormats/Encoding.h"
 #include "llvm/CASObjectFormats/ObjectFormatHelpers.h"
@@ -322,7 +323,7 @@ static Error decodeFixup(const FlatV1ObjectReader &Reader, StringRef &Data,
 
 Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
                                     const jitlink::Block &Block,
-                                    cas::CASID *AbbrevID) {
+                                    cas::ObjectRef *AbbrevRef) {
   Expected<Builder> B = Builder::startNode(CUB.Schema, KindString);
   if (!B)
     return B.takeError();
@@ -330,9 +331,9 @@ Expected<BlockRef> BlockRef::create(CompileUnitBuilder &CUB,
   // If we are creating a cas block out of a debug_info jitlink::Block, add the
   // debug_abbrev cas block CAS ID as a refrence
   if (Block.getSection().getName() == "__DWARF,__debug_info") {
-    assert(AbbrevID &&
-           "The CAS ID for the abbrev section shouldn't be nullptr");
-    B->IDs.push_back(*AbbrevID);
+    assert(AbbrevRef &&
+           "The CAS Ref for the abbrev section shouldn't be nullptr");
+    B->Refs.push_back(*AbbrevRef);
   }
 
   // Encode Section.
@@ -710,7 +711,7 @@ Error CompileUnitBuilder::createBlock(const jitlink::Block &B) {
   return Error::success();
 }
 
-Expected<cas::CASID>
+Expected<cas::ObjectRef>
 CompileUnitBuilder::createAbbrevBlock(const jitlink::Block &B) {
   // Store the current idx. It is created in order so just add in the end.
   BlockIndexStarts.push_back(Indexes.size());
@@ -718,11 +719,11 @@ CompileUnitBuilder::createAbbrevBlock(const jitlink::Block &B) {
   if (!Block)
     return Block.takeError();
   commitNode(*Block);
-  return Block->getID();
+  return Block->getRef();
 }
 
 Error CompileUnitBuilder::createInfoBlock(const jitlink::Block &B,
-                                          cas::CASID *AbbrevID) {
+                                          cas::ObjectRef *AbbrevID) {
   // Store the current idx. It is created in order so just add in the end.
   BlockIndexStarts.push_back(Indexes.size());
   auto Block = BlockRef::create(*this, B, AbbrevID);
@@ -866,17 +867,17 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
   }
 
   // Create BlockRefs for Abbrevs and Compile Units
-  SmallVector<cas::CASID, 16> AbbrevIDs;
+  SmallVector<cas::ObjectRef, 16> AbbrevRefs;
   for (auto *B : AbbrevBlocks) {
-    Expected<cas::CASID> ID = Builder.createAbbrevBlock(*B);
-    if (!ID)
-      return ID.takeError();
-    AbbrevIDs.push_back(*ID);
+    Expected<cas::ObjectRef> Ref = Builder.createAbbrevBlock(*B);
+    if (!Ref)
+      return Ref.takeError();
+    AbbrevRefs.push_back(*Ref);
   }
   unsigned I = 0;
   for (auto *B : InfoBlocks) {
     if (auto E = Builder.createInfoBlock(
-            *B, AbbrevIDs.size() == 1 ? &AbbrevIDs[0] : &AbbrevIDs[I]))
+            *B, AbbrevRefs.size() == 1 ? &AbbrevRefs[0] : &AbbrevRefs[I]))
       return std::move(E);
     I++;
   }
