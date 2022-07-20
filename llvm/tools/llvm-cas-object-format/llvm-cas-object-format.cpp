@@ -22,6 +22,7 @@
 #include "llvm/ExecutionEngine/JITLink/MachO.h"
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
 #include "llvm/MC/CAS/MCCASObjectV1.h"
+#include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileOutputBuffer.h"
@@ -34,6 +35,9 @@
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
+#include <vector>
+
+#define DEBUG_TYPE "jitlink"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -991,13 +995,144 @@ static Error SplitDebugLine(jitlink::LinkGraph &G) {
   return Error::success();
 }
 
+static Error processDebugInfoBlock(jitlink::LinkGraph &G, jitlink::Block &B,
+                                   std::vector<uint64_t> *AbbrevOffsets) {
+  LLVM_DEBUG(dbgs() << "  Processing block at " << B.getAddress() << "\n");
+
+  // Section should not contain zero-fill blocks.
+  if (B.isZeroFill())
+    return make_error<jitlink::JITLinkError>(
+        "Unexpected zero-fill block in __DWARF,__debug_info section");
+
+  if (B.getSize() == 0) {
+    LLVM_DEBUG(dbgs() << "    Block is empty. Skipping.\n");
+    return Error::success();
+  }
+
+  BinaryStreamReader BlockReader(
+      StringRef(B.getContent().data(), B.getContent().size()),
+      G.getEndianness());
+
+  while (true) {
+    uint64_t RecordStartOffset = BlockReader.getOffset();
+
+    LLVM_DEBUG({
+      dbgs() << "    Processing DWARF record at "
+             << formatv("{0:x16}", B.getAddress()) << "\n";
+    });
+
+    uint32_t Length;
+    if (auto Err = BlockReader.readInteger(Length))
+      return Err;
+    // If the block uses a 64-bit format, it will have the first 4 bytes be
+    // 0xffffffff followed by an 8-byte length, otherwise, the first 4 bytes
+    // will be the length, that is what we are checking for here
+    if (Length != 0xffffffff) {
+      uint32_t Offset;
+      // Skip the DWARF version.
+      if (auto Err = BlockReader.skip(2))
+        return Err;
+      // Read the offset into the abbreviation section and record it.
+      if (auto Err = BlockReader.readInteger(Offset))
+        return Err;
+      AbbrevOffsets->push_back(Offset);
+      // Skip the length of the block minus 6 bytes for the DWARF version and
+      // abbreviation offset.
+      if (auto Err = BlockReader.skip(Length - 6))
+        return Err;
+    } else {
+      uint64_t ExtendedLength;
+      if (auto Err = BlockReader.readInteger(ExtendedLength))
+        return Err;
+      uint64_t Offset;
+      // Skip the DWARF version, unit type, and address size.
+      if (auto Err = BlockReader.skip(4))
+        return Err;
+      // Read the offset into the abbreviation section and record it.
+      if (auto Err = BlockReader.readInteger(Offset))
+        return Err;
+      AbbrevOffsets->push_back(Offset);
+      // Skip the length of the block minus 10 bytes for the DWARF version, unit
+      // type, and address size, and abbreviation offset.
+      if (auto Err = BlockReader.skip(ExtendedLength - 12))
+        return Err;
+    }
+
+    // If this was the last block then there's nothing to split
+    if (BlockReader.empty()) {
+      LLVM_DEBUG(dbgs() << "      Extracted " << B << "\n");
+      return Error::success();
+    }
+
+    uint64_t BlockSize = BlockReader.getOffset() - RecordStartOffset;
+    auto &NewBlock = G.splitBlock(B, BlockSize);
+    (void)NewBlock;
+    LLVM_DEBUG(dbgs() << "      Extracted " << NewBlock << "\n");
+  }
+}
+
+static Error processDebugAbbrevBlock(jitlink::LinkGraph &G, jitlink::Block &B,
+                                     std::vector<uint64_t> *AbbrevOffsets) {
+  LLVM_DEBUG(dbgs() << "  Processing block at " << B.getAddress() << "\n");
+
+  // Section should not contain zero-fill blocks.
+  if (B.isZeroFill())
+    return make_error<jitlink::JITLinkError>(
+        "Unexpected zero-fill block in __DWARF,debug_abbrev section");
+
+  if (B.getSize() == 0) {
+    LLVM_DEBUG(dbgs() << "    Block is empty. Skipping.\n");
+    return Error::success();
+  }
+
+  BinaryStreamReader BlockReader(
+      StringRef(B.getContent().data(), B.getContent().size()),
+      G.getEndianness());
+
+  // Calculate the size of an Abbreviation contribution by subtracting the
+  // Abbreviation Offset of the next block from the previous one, this is why
+  // this loop skips the 0th iteration.
+  for (unsigned i = 1; i < AbbrevOffsets->size(); i++) {
+    uint64_t RecordStartOffset = BlockReader.getOffset();
+
+    LLVM_DEBUG({
+      dbgs() << "    Processing Abbrev Block record at "
+             << formatv("{0:x16}", B.getAddress()) << "\n";
+    });
+
+    if (auto Err =
+            BlockReader.skip((*AbbrevOffsets)[i] - (*AbbrevOffsets)[i - 1]))
+      return Err;
+
+    uint64_t BlockSize = BlockReader.getOffset() - RecordStartOffset;
+    if (BlockSize) {
+      auto &NewBlock = G.splitBlock(B, BlockSize);
+      (void)NewBlock;
+      LLVM_DEBUG(dbgs() << "      Extracted " << NewBlock << "\n");
+    }
+  }
+  LLVM_DEBUG(dbgs() << "      Extracted " << B << "\n");
+  return Error::success();
+}
+
 static Error SplitDebugInfoOrDebugAbbrev(jitlink::LinkGraph &G,
                                          StringRef SectionName,
                                          std::vector<uint64_t> *AbbrevOffsets) {
   removeRedundantSectionSymbol(G, SectionName);
-  llvm::jitlink::DWARFRecordSectionSplitter DRSS(SectionName);
-  if (auto E = DRSS(G, AbbrevOffsets))
-    return E;
+  auto *Section = G.findSectionByName(SectionName);
+  std::vector<jitlink::Block *> Blocks;
+  for (auto *B : Section->blocks())
+    Blocks.push_back(B);
+  for (auto *B : Blocks) {
+    auto &Block = *B;
+    if (SectionName == "__DWARF,__debug_info") {
+      if (auto E = processDebugInfoBlock(G, Block, AbbrevOffsets))
+        return E;
+    } else {
+      if (auto E = processDebugAbbrevBlock(G, Block, AbbrevOffsets))
+        return E;
+    }
+  }
   // Add an anonymous symbol so that the blocks don't get dropped
   if (auto *DLSec = G.findSectionByName(SectionName)) {
     for (auto *B : DLSec->blocks()) {

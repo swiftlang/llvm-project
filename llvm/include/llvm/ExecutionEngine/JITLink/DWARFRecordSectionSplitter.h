@@ -21,15 +21,10 @@ namespace jitlink {
 class DWARFRecordSectionSplitter {
 public:
   DWARFRecordSectionSplitter(StringRef SectionName);
-  Error operator()(LinkGraph &G,
-                   std::vector<uint64_t> *AbbrevOffsets = nullptr);
+  Error operator()(LinkGraph &G);
 
 private:
-  Error processBlock(LinkGraph &G, Block &B);
-  Error processDebugInfoBlock(LinkGraph &G, Block &B,
-                              std::vector<uint64_t> *AbbrevOffsets);
-  Error processDebugAbbrevBlock(LinkGraph &G, Block &B,
-                                std::vector<uint64_t> *AbbrevOffsets);
+  Error processBlock(LinkGraph &G, Block &B, LinkGraph::SplitBlockCache &Cache);
 
   StringRef SectionName;
 };
