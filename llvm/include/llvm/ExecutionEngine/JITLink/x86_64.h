@@ -414,6 +414,7 @@ inline Error writeOperand(const Edge::Kind &K, uint64_t OperandValue,
     // FIXME: Whether to error here could be client-dependent. Some clients
     // just want to zero it out, so no error for now.
 
+  case PCRel32:
   case BranchPCRel32:
   case BranchPCRel32ToPtrJumpStub:
   case BranchPCRel32ToPtrJumpStubBypassable:
