@@ -1298,6 +1298,11 @@ Expected<size_t> readNativeFileSlice(file_t FileHandle,
   return readNativeFileImpl(FileHandle, Buf, &Overlapped);
 }
 
+std::error_code getRealPathFromHandle(file_t Handle,
+                                      SmallVectorImpl<char> &RealPath) {
+  return realPathFromHandle(Handle, RealPath);
+}
+
 std::error_code tryLockFile(int FD, std::chrono::milliseconds Timeout) {
   DWORD Flags = LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY;
   OVERLAPPED OV = {};
