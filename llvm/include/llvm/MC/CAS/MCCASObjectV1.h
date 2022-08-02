@@ -241,7 +241,6 @@ protected:
     explicit MCFragmentName##Ref(SpecificRefT Ref) : SpecificRefT(Ref) {}      \
   };
 #include "llvm/MC/CAS/MCCASObjectV1.def"
-
 class PaddingRef : public SpecificRef<PaddingRef> {
   using SpecificRefT = SpecificRef<PaddingRef>;
   friend class SpecificRef<PaddingRef>;
@@ -379,6 +378,12 @@ private:
   /// CURefs. Otherwise, no objects are created and `success` is returned.
   Error createDebugInfoSection(ArrayRef<DebugInfoCURef> CURefs);
 
+  /// Decode Relocations and copy the relocations into a buffer, while zeroing
+  /// out the relocation in the acutal section contents. Create a Relocation
+  /// object to store the relocation bytes, which will be written back when the
+  /// object file is being written out.
+  Error createRelocAddendRefBlock(SmallVector<char, 0> &SectionContents);
+
   // If a DWARF String section exists, create a DebugStrRef CAS object per
   // string in the section.
   Error createDebugStrSection();
@@ -413,9 +418,19 @@ public:
     return Target.isLittleEndian() ? support::little : support::big;
   }
 
+  Triple::ArchType getArch() { return Target.getArch(); }
+
   Expected<uint64_t> materializeGroup(cas::ObjectRef ID);
   Expected<uint64_t> materializeSection(cas::ObjectRef ID);
   Expected<uint64_t> materializeAtom(cas::ObjectRef ID);
+  Expected<uint64_t>
+  materializeDebugLineSection(const SmallVector<cas::ObjectRef> &Refs,
+                              StringRef RelocData);
+  Expected<SmallVector<char, 0>>
+  applyRelocationAddends(const SmallVector<cas::ObjectRef> &Refs,
+                         StringRef RelocData, StringLiteral KindString,
+                         StringRef SectionName, bool &IsPaddingRefPresent);
+  Expected<bool> isDebugLineSection(const SmallVector<cas::ObjectRef> &Refs);
 
 private:
   const Triple &Target;

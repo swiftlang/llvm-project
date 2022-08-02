@@ -22,6 +22,7 @@
 // FIXME: Fix dependency here.
 #include "llvm/CASObjectFormats/Encoding.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Error.h"
 
 using namespace llvm;
 using namespace llvm::mccasformats;
@@ -63,6 +64,50 @@ cl::opt<RelEncodeLoc> RelocLocation(
     cl::values(clEnumVal(Atom, "In atom"), clEnumVal(Section, "In section"),
                clEnumVal(CompileUnit, "In compile unit")),
     cl::init(Atom));
+
+static bool isScatteredRelocation(const MachO::any_relocation_info &RelocInfo,
+                                  Triple::ArchType Arch) {
+  if (Arch == Triple::ArchType::x86_64)
+    return false;
+  return RelocInfo.r_word0 & MachO::R_SCATTERED;
+}
+
+static uint64_t getRelocationType(const MachO::any_relocation_info &RelocInfo,
+                                  support::endianness Endian) {
+  if (Endian == support::little ||
+      (Endian == support::native &&
+       support::endian::system_endianness() == support::little))
+    return RelocInfo.r_word1 >> 28;
+  return RelocInfo.r_word1 & 0xf;
+}
+
+static uint32_t getRelocationLength(const MachO::any_relocation_info &RelocInfo,
+                                    support::endianness Endian) {
+  if (Endian == support::little ||
+      (Endian == support::native &&
+       support::endian::system_endianness() == support::little))
+    return (RelocInfo.r_word1 >> 25) & 3;
+  return (RelocInfo.r_word1 >> 5) & 3;
+}
+
+static Expected<uint32_t> getRelocationSize(MachO::any_relocation_info Reloc,
+                                            support::endianness Endian,
+                                            Triple::ArchType Arch) {
+  uint32_t Size;
+  if (isScatteredRelocation(Reloc, Arch))
+    return createStringError(inconvertibleErrorCode(),
+                             "Scattered Relocations are not support in MCCAS");
+  uint64_t RelocType = getRelocationType(Reloc, Endian);
+  if ((Arch == Triple::ArchType::x86_64 &&
+       RelocType == MachO::X86_64_RELOC_UNSIGNED) ||
+      (Arch == Triple::ArchType::aarch64 &&
+       RelocType == MachO::ARM64_RELOC_UNSIGNED)) {
+    Size = 1 << getRelocationLength(Reloc, Endian);
+  } else {
+    llvm_unreachable("Unsupported relocation type!");
+  }
+  return Size;
+}
 
 Expected<cas::ObjectProxy>
 MCSchema::createFromMCAssemblerImpl(MachOCASWriter &ObjectWriter,
@@ -421,27 +466,132 @@ Expected<SectionRef> SectionRef::create(MCCASBuilder &MB,
   return get(B->build());
 }
 
+Expected<SmallVector<char, 0>> MCCASReader::applyRelocationAddends(
+    const SmallVector<cas::ObjectRef> &Refs, StringRef RelocData,
+    StringLiteral KindString, StringRef SectionName,
+    bool &IsPaddingRefPresent) {
+  if (auto E = decodeRelocations(*this, RelocData))
+    return std::move(E);
+  SmallVector<char, 0> SectionData;
+  auto RelocRef = MCObjectProxy::get(Schema, Schema.CAS.getProxy(Refs[0]));
+  if (!RelocRef)
+    return RelocRef.takeError();
+  if (auto R = RelocAddendRef::Cast(*RelocRef)) {
+    auto RelocationData = R->getData();
+    for (uint32_t I = 1; I < Refs.size(); I++) {
+      auto BlockRef = MCObjectProxy::get(Schema, Schema.CAS.getProxy(Refs[I]));
+      if (!BlockRef)
+        return BlockRef.takeError();
+      if (BlockRef->getKindString() == KindString) {
+        llvm::append_range(SectionData, BlockRef->getData());
+      } else if (auto P = PaddingRef::Cast(*BlockRef)) {
+        if (I != Refs.size() - 1)
+          return createStringError(
+              inconvertibleErrorCode(),
+              "PaddingRef must be the last reference of the Section");
+        IsPaddingRefPresent = true;
+      } else {
+        StringLiteral ErrorMsg =
+            "Every other reference to a {0}, must be a {1}, or {2} object!";
+        llvm::format(ErrorMsg.begin(), SectionName.data(), KindString.data(),
+                     PaddingRef::KindString.data());
+        return createStringError(inconvertibleErrorCode(), ErrorMsg.data());
+      }
+    }
+    uint32_t RelocDataIndex = 0;
+    for (auto Relocs : Relocations.back()) {
+      auto Size = getRelocationSize(Relocs, this->getEndian(), this->getArch());
+      if (!Size)
+        return Size.takeError();
+      if (*Size + RelocDataIndex > RelocationData.size()) {
+        return createStringError(inconvertibleErrorCode(),
+                                 "Relocation Data not encoded correctly, "
+                                 "reading past the end of the relocation data");
+      }
+      for (uint32_t I = 0; I < *Size; I++)
+        SectionData[Relocs.r_word0 + I] = RelocationData[RelocDataIndex + I];
+      RelocDataIndex += *Size;
+    }
+    return SectionData;
+  }
+  return createStringError(
+      inconvertibleErrorCode(),
+      "First reference to debug line section must be a RelocAddendRef object!");
+}
+
+Expected<uint64_t> MCCASReader::materializeDebugLineSection(
+    const SmallVector<cas::ObjectRef> &Refs, StringRef RelocData) {
+  bool IsPaddingRefPresent = false;
+  auto DebugLineData =
+      applyRelocationAddends(Refs, RelocData, DebugLineRef::KindString,
+                             "debug_line", IsPaddingRefPresent);
+  if (!DebugLineData)
+    return DebugLineData.takeError();
+  OS << *DebugLineData;
+  if (IsPaddingRefPresent) {
+    auto PadRef =
+        MCObjectProxy::get(Schema, Schema.CAS.getProxy(Refs[Refs.size() - 1]));
+    if (!PadRef)
+      return PadRef.takeError();
+    if (auto P = PaddingRef::Cast(*PadRef)) {
+      auto PadSize = P->materialize(OS);
+      if (!PadSize)
+        return PadSize.takeError();
+      return *PadSize + DebugLineData->size();
+    }
+  }
+  return DebugLineData->size();
+}
+
+Expected<bool>
+MCCASReader::isDebugLineSection(const SmallVector<cas::ObjectRef> &Refs) {
+  // The debug_line section must have at least 2 references, one for the
+  // relocation addends and the other for the debug_line section contents.
+  if (Refs.size() < 2)
+    return false;
+  auto RelocRef = MCObjectProxy::get(Schema, Schema.CAS.getProxy(Refs[0]));
+  if (!RelocRef)
+    return RelocRef.takeError();
+  if (auto R = RelocAddendRef::Cast(*RelocRef)) {
+    auto DbgLineRef = MCObjectProxy::get(Schema, Schema.CAS.getProxy(Refs[1]));
+    if (!DbgLineRef)
+      return DbgLineRef.takeError();
+    if (auto D = DebugLineRef::Cast(*DbgLineRef))
+      return true;
+  }
+  return false;
+}
+
 Expected<uint64_t> SectionRef::materialize(MCCASReader &Reader) const {
   // Start a new section for relocations.
   Reader.Relocations.emplace_back();
 
-  unsigned Size = 0;
   StringRef Remaining = getData();
   auto Refs = decodeReferences(*this, Remaining);
   if (!Refs)
     return Refs.takeError();
 
-  for (auto ID : *Refs) {
-    auto FragmentSize = Reader.materializeSection(ID);
-    if (!FragmentSize)
-      return FragmentSize.takeError();
-    Size += *FragmentSize;
+  auto IsDebugLineSection = Reader.isDebugLineSection(*Refs);
+  if (!IsDebugLineSection)
+    return IsDebugLineSection.takeError();
+
+  if (*IsDebugLineSection) {
+    // Handle Debug Line Section
+    return Reader.materializeDebugLineSection(*Refs, Remaining);
+  } else {
+    unsigned Size = 0;
+    for (auto ID : *Refs) {
+      auto FragmentSize = Reader.materializeSection(ID);
+      if (!FragmentSize)
+        return FragmentSize.takeError();
+      Size += *FragmentSize;
+    }
+
+    if (auto E = decodeRelocations(Reader, Remaining))
+      return std::move(E);
+
+    return Size;
   }
-
-  if (auto E = decodeRelocations(Reader, Remaining))
-    return std::move(E);
-
-  return Size;
 }
 
 Expected<AtomRef> AtomRef::create(MCCASBuilder &MB,
@@ -1084,6 +1234,12 @@ Error MCCASBuilder::createLineSection() {
 
   startSection(DwarfSections.Line);
 
+  // Create a block to the relocation addend values and zero the addends out in
+  // the section contents to improve deduplication.
+  if (auto E = createRelocAddendRefBlock(*DebugLineData)) {
+    return E;
+  }
+
   StringRef DebugLineStrRef(DebugLineData->data(), DebugLineData->size());
   BinaryStreamReader SectionReader(DebugLineStrRef, Asm.getBackend().Endian);
   // Iterate over the line section contents and split it up into individual cas
@@ -1103,6 +1259,26 @@ Error MCCASBuilder::createLineSection() {
   if (auto E = createPaddingRef(DwarfSections.Line))
     return E;
   return finalizeSection();
+}
+
+Error MCCASBuilder::createRelocAddendRefBlock(SmallVector<char, 0> &SectionContents) {
+  SmallVector<char, 0> RelocationData;
+  for (auto &Reloc : SectionRelocs) {
+    auto Size = getRelocationSize(Reloc, Asm.getBackend().Endian,
+                                  this->ObjectWriter.Target.getArch());
+    if (!Size)
+      return Size.takeError();
+    for (unsigned I = 0; I < *Size; I++) {
+      RelocationData.push_back(SectionContents[Reloc.r_word0 + I]);
+      SectionContents[Reloc.r_word0 + I] = 0;
+    }
+  }
+  StringRef RelocStrRef(RelocationData.data(), RelocationData.size());
+  auto RelocRef = RelocAddendRef::create(*this, RelocStrRef);
+  if (!RelocRef)
+    return RelocRef.takeError();
+  addNode(*RelocRef);
+  return Error::success();
 }
 
 Error MCCASBuilder::createDebugStrSection() {
