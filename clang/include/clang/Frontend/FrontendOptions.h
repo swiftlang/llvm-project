@@ -356,6 +356,9 @@ public:
   /// Output (and read) PCM files regardless of compiler errors.
   unsigned AllowPCMWithCompilerErrors : 1;
 
+  /// Whether to share the FileManager when building modules.
+  unsigned ModulesShareFileManager : 1;
+
   CodeCompleteOptions CodeCompleteOpts;
 
   /// Specifies the output format of the AST.
@@ -522,7 +525,8 @@ public:
         ASTDumpLookups(false), BuildingImplicitModule(false),
         BuildingImplicitModuleUsesLock(true), ModulesEmbedAllFiles(false),
         IncludeTimestamps(true), UseTemporary(true), CacheCompileJob(false),
-        AllowPCMWithCompilerErrors(false), TimeTraceGranularity(500) {}
+        AllowPCMWithCompilerErrors(false), ModulesShareFileManager(true),
+        TimeTraceGranularity(500) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
   /// extension. For example, "c" would return Language::C.
