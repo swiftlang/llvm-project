@@ -302,6 +302,12 @@ struct DwarfSectionsCache {
   MCSection *DebugInfo;
   MCSection *Line;
   MCSection *Str;
+  MCSection *Abbrev;
+};
+
+struct AbbrevAndDebugSplit {
+  SmallVector<DebugInfoCURef> CURefs;
+  SmallVector<DebugAbbrevRef> AbbrevRefs;
 };
 
 /// Queries `Asm` for all dwarf sections and returns an object with (possibly
@@ -368,16 +374,38 @@ private:
   Error createLineSection();
 
   /// If a DWARF Debug Info section exists, create a DebugInfoCURef CAS object
-  /// for each compile unit (CU) inside the section. An ordered container with
-  /// the CAS objects is returned.
-  /// The CAS objects appear in the same order as the CUs in the Debug Info
-  /// section.
+  /// for each compile unit (CU) inside the section, and a DebugAbbrevRef CAS
+  /// object for the corresponding abbreviation section.
+  /// A pair of vectors with the CAS objects is returned.
+  /// The CAS objects appear in the same order as in the object file.
   /// If the section doesn't exist, an empty container is returned.
-  Expected<SmallVector<DebugInfoCURef>> splitDebugInfoSection();
+  Expected<AbbrevAndDebugSplit> splitDebugInfoAndAbbrevSections();
 
   /// If CURefs is non-empty, create a SectionRef CAS object with edges to all
   /// CURefs. Otherwise, no objects are created and `success` is returned.
   Error createDebugInfoSection(ArrayRef<DebugInfoCURef> CURefs);
+
+  /// If AbbrevRefs is non-empty, create a SectionRef CAS object with edges to all
+  /// AbbrevRefs. Otherwise, no objects are created and `success` is returned.
+  Error createDebugAbbrevSection(ArrayRef<DebugAbbrevRef> AbbrevRefs);
+
+  /// Split the Dwarf Abbrev section using `AbbrevOffsets` (possibly unsorted)
+  /// as the split points for the section, creating one DebugAbbrevRef per
+  /// _unique_ offset in the input.
+  /// Returns a sequence of DebbugAbbrevRefs, sorted by the order in which they
+  /// should appear in the object file.
+  Expected<SmallVector<DebugAbbrevRef>>
+  splitAbbrevSection(ArrayRef<size_t> AbbrevOffsets);
+
+  struct CUSplit {
+    SmallVector<MutableArrayRef<char>> SplitCUData;
+    SmallVector<size_t> AbbrevOffsets;
+  };
+  /// Split the data of the __debug_info section it into multiple pieces, one
+  /// per Compile Unit(CU) and return them. The abbreviation offset for each CU
+  /// is also returned.
+  Expected<CUSplit>
+  splitDebugInfoSectionData(MutableArrayRef<char> DebugInfoData);
 
   // If a DWARF String section exists, create a DebugStrRef CAS object per
   // string in the section.
