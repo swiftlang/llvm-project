@@ -1882,7 +1882,7 @@ Expected<CASSymbolRef> NestedV1ObjectReader::getOrCreateCASSymbolRef(
     Expected<Optional<NameRef>> NameRef = Symbol->getName();
     if (!NameRef)
       return NameRef.takeError();
-    if (NameRef->hasValue())
+    if (NameRef->has_value())
       SymbolsByName[(*NameRef)->getName()] = CASSymbolRef{uint64_t(Ref.get())};
   }
   return CASSymbolRef{uint64_t(Ref.get())};
@@ -2085,7 +2085,7 @@ Error BlockNodeRef::materializeFixups(
 
     // Check for an abstract backedge.
     if (TI->Index == Targets->size()) {
-      assert(KeptAliveBySymbol.hasValue());
+      assert(KeptAliveBySymbol.has_value());
       CASBlockFixup CASFixup{F->Offset, F->Kind, TI->Addend,
                              *KeptAliveBySymbol};
       if (Error E = Callback(CASFixup))
@@ -2112,7 +2112,7 @@ Error BlockNodeRef::materializeFixups(
       if (!ExpectedName)
         return ExpectedName.takeError();
       StringRef Name = *ExpectedName;
-      TargetRef = Reader.getCASSymbolRefByName(Name).getValue();
+      TargetRef = *Reader.getCASSymbolRefByName(Name);
     }
 
     // Pass in this block's KeptAliveByBlock for edges.

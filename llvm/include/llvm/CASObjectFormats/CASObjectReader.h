@@ -65,7 +65,7 @@ struct CASBlock {
         Content(Content), SectionRef(SectionRef),
         BlockContentID(BlockContentID) {}
 
-  bool isZeroFill() const { return !Content.hasValue(); }
+  bool isZeroFill() const { return !Content.has_value(); }
 };
 
 struct CASBlockFixup {
@@ -86,7 +86,7 @@ struct CASSymbol {
   bool IsAutoHide;
   Optional<CASBlockRef> BlockRef;
 
-  bool isDefined() const { return BlockRef.hasValue(); }
+  bool isDefined() const { return BlockRef.has_value(); }
 };
 
 /// Provides information about the symbols/blocks/sections that a CAS schema
