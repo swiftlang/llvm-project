@@ -1,5 +1,5 @@
 ; RUN: llc -O0 --filetype=obj --cas-backend --cas=%t.casdb --mccas-casid -o %t.casid %s
-; RUN: llvm-cas-dump --cas=%t.casdb --dwarf-sections-only --casid-file %t.casid | FileCheck %s
+; RUN: llvm-cas-dump --cas=%t.casdb --dwarf-sections-only --debug-abbrev-offsets --casid-file %t.casid | FileCheck %s
 ; RUN: llvm-cas-dump --cas=%t.casdb --dwarf-sections-only --dwarf-dump --casid-file %t.casid | FileCheck %s --check-prefix=DWARF
 
 ; This test is created from a C program like:
@@ -12,6 +12,8 @@
 ; CHECK-NEXT:       mc:debug_abbrev  llvmcas://{{.*}}
 ; CHECK-NEXT:       mc:padding  llvmcas://{{.*}}
 ; CHECK-NEXT:     mc:section  llvmcas://{{.*}}
+; CHECK-NEXT:       mc:debug_abbrev_offsets  llvmcas://{{.*}}
+; CHECK-NEXT:         0
 ; CHECK-NEXT:       mc:debug_info_cu  llvmcas://{{.*}}
 ; CHECK-NEXT:       mc:padding  llvmcas://{{.*}}
 ; CHECK-NEXT:     mc:section  llvmcas://{{.*}}

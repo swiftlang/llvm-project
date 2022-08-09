@@ -28,6 +28,9 @@ cl::opt<bool> DwarfSectionsOnly("dwarf-sections-only",
                                 cl::desc("Only print DWARF related sections"));
 cl::opt<bool> DwarfDump("dwarf-dump",
                         cl::desc("Print the contents of DWARF sections"));
+cl::opt<bool> DebugAbbrevOffsets(
+    "debug-abbrev-offsets",
+    cl::desc("Print the contents of abbreviation offsets block"));
 
 namespace {
 
@@ -52,7 +55,7 @@ int main(int argc, char *argv[]) {
   ExitOnErr.setBanner(std::string(argv[0]) + ": ");
 
   cl::ParseCommandLineOptions(argc, argv);
-  PrinterOptions Options = {DwarfSectionsOnly, DwarfDump};
+  PrinterOptions Options = {DwarfSectionsOnly, DwarfDump, DebugAbbrevOffsets};
 
   std::unique_ptr<CASDB> CAS = ExitOnErr(createOnDiskCAS(CASPath));
   MCCASPrinter Printer(Options, *CAS, llvm::outs());

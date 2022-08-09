@@ -90,9 +90,26 @@ Error MCCASPrinter::printMCObject(MCObjectProxy MCObj, DWARFContext *DWARFCtx) {
   return printSimpleNested(MCObj, DWARFCtx);
 }
 
+static Error printAbbrevOffsets(raw_ostream &OS,
+                                DebugAbbrevOffsetsRef OffsetsRef) {
+  DebugAbbrevOffsetsRefAdaptor Adaptor(OffsetsRef);
+  Expected<SmallVector<size_t>> Offsets = Adaptor.decodeOffsets();
+  if (!Offsets)
+    return Offsets.takeError();
+  llvm::interleaveComma(*Offsets, OS);
+  OS << "\n";
+  return Error::success();
+}
+
 Error MCCASPrinter::printSimpleNested(MCObjectProxy AssemblerRef,
                                       DWARFContext *DWARFCtx) {
   IndentGuard Guard(Indent);
+
+  if (auto AbbrevOffsetsRef = DebugAbbrevOffsetsRef::Cast(AssemblerRef);
+      Options.DebugAbbrevOffsets && AbbrevOffsetsRef)
+    if (auto E = printAbbrevOffsets(OS, *AbbrevOffsetsRef))
+      return E;
+
   return AssemblerRef.forEachReference(
       [&](ObjectRef CASObj) { return printMCObject(CASObj, DWARFCtx); });
 }

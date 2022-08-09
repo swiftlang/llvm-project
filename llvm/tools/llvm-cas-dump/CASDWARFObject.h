@@ -20,10 +20,10 @@ namespace llvm {
 class CASDWARFObject : public DWARFObject {
   bool Is64Bit = true;
   bool IsLittleEndian = true;
-  uint32_t DebugAbbrevOffset = 0;
-  uint64_t DebugAbbrevSize = 0;
   SmallVector<uint8_t> DebugStringSection;
-  StringRef DebugAbbrevSection;
+
+  SmallVector<uint8_t> DebugAbbrevSection;
+
   const mccasformats::v1::MCSchema &Schema;
 
   Error discoverDwarfSections(cas::ObjectRef CASObj);
@@ -41,7 +41,9 @@ public:
   ArrayRef<SectionName> getSectionNames() const override { return {}; }
   bool isLittleEndian() const override { return IsLittleEndian; }
   uint8_t getAddressSize() const override { return Is64Bit ? 8 : 4; }
-  StringRef getAbbrevSection() const override { return DebugAbbrevSection; }
+  StringRef getAbbrevSection() const override {
+    return toStringRef(DebugAbbrevSection);
+  }
   StringRef getStrSection() const override {
     return llvm::toStringRef(DebugStringSection);
   }

@@ -27,8 +27,6 @@ namespace {
 struct MachOHeaderParser {
   bool Is64Bit = true;
   bool IsLittleEndian = true;
-  uint32_t DebugAbbrevOffset = 0;
-  uint64_t DebugAbbrevSize = 0;
 
   /// Stolen from MachOObjectfile.
   template <typename T>
@@ -59,34 +57,6 @@ struct MachOHeaderParser {
     } else {
       return make_error<object::GenericBinaryError>("Unsupported MachO format");
     }
-    // Iterate over load commands to find the __debug_abbrev section.
-    // This code can be removed once that section gets its own block kind.
-    for (unsigned I = 0; I < Header64->ncmds; ++I) {
-      auto LoadCmd = getStructOrErr<MachO::load_command>(Data, P);
-      if (!LoadCmd)
-        return LoadCmd.takeError();
-      if (LoadCmd->cmd != MachO::LC_SEGMENT_64) {
-        P += LoadCmd->cmdsize;
-        continue;
-      }
-      auto SegCmd = getStructOrErr<MachO::segment_command_64>(Data, P);
-      if (!SegCmd)
-        return SegCmd.takeError();
-      P += sizeof(MachO::segment_command_64);
-      for (unsigned J = 0; J < SegCmd->nsects; ++J) {
-        auto Section = getStructOrErr<MachO::section_64>(Data, P);
-        if (!Section)
-          return Section.takeError();
-        P += sizeof(MachO::section_64);
-        if (StringRef(Section->sectname,
-                      strnlen(Section->sectname, sizeof(Section->sectname))) ==
-            "__debug_abbrev") {
-          DebugAbbrevOffset = Section->offset - Data.size();
-          DebugAbbrevSize = Section->size;
-          return Error::success();
-        }
-      }
-    }
     return Error::success();
   }
 };
@@ -109,21 +79,10 @@ Error CASDWARFObject::discoverDwarfSections(MCObjectProxy MCObj) {
       return Err;
     Is64Bit = P.Is64Bit;
     IsLittleEndian = P.IsLittleEndian;
-    DebugAbbrevOffset = P.DebugAbbrevOffset;
-    DebugAbbrevSize = P.DebugAbbrevSize;
   }
-  if (DebugAbbrevSection.empty() &&
-      MCObj.getKindString().startswith("mc:data")) {
-    StringRef Data = MCObj.getData();
-    if (DebugAbbrevOffset < Data.size()) {
-      DebugAbbrevSection =
-          Data.drop_front(DebugAbbrevOffset).take_front(DebugAbbrevSize);
-    } else {
-      DebugAbbrevOffset -= Data.size();
-    }
-  }
-
-  if (DebugStrRef::Cast(MCObj)) {
+  else if (DebugAbbrevRef::Cast(MCObj))
+    append_range(DebugAbbrevSection, MCObj.getData());
+  else if (DebugStrRef::Cast(MCObj)) {
     DebugStringSection.append(Data.begin(), Data.end());
     DebugStringSection.push_back(0);
   }

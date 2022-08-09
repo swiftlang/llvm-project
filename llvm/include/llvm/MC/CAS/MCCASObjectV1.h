@@ -308,6 +308,23 @@ struct DwarfSectionsCache {
 struct AbbrevAndDebugSplit {
   SmallVector<DebugInfoCURef> CURefs;
   SmallVector<DebugAbbrevRef> AbbrevRefs;
+  Optional<DebugAbbrevOffsetsRef> AbbrevOffsetsRef;
+};
+
+/// Helper class to allow reusing the logic of encoding/decoding Abbreviation
+/// Offsets.
+struct DebugAbbrevOffsetsRefAdaptor {
+  DebugAbbrevOffsetsRefAdaptor(DebugAbbrevOffsetsRef Ref) : Ref(Ref) {}
+
+  /// Decode the offsets inside the CAS object and return them.
+  Expected<SmallVector<size_t>> decodeOffsets();
+
+  /// Encode the `Offsets` vector into data suitable for creating a
+  /// DebugAbbrevRef.
+  static SmallVector<char> encodeOffsets(ArrayRef<size_t> Offsets);
+
+private:
+  DebugAbbrevOffsetsRef Ref;
 };
 
 /// Queries `Asm` for all dwarf sections and returns an object with (possibly
@@ -383,7 +400,8 @@ private:
 
   /// If CURefs is non-empty, create a SectionRef CAS object with edges to all
   /// CURefs. Otherwise, no objects are created and `success` is returned.
-  Error createDebugInfoSection(ArrayRef<DebugInfoCURef> CURefs);
+  Error createDebugInfoSection(ArrayRef<DebugInfoCURef> CURefs,
+                               DebugAbbrevOffsetsRef AbbrevOffsetsRef);
 
   /// If AbbrevRefs is non-empty, create a SectionRef CAS object with edges to all
   /// AbbrevRefs. Otherwise, no objects are created and `success` is returned.

@@ -1066,11 +1066,13 @@ MCCASBuilder::splitDebugInfoSectionData(MutableArrayRef<char> DebugInfoData) {
   return Split;
 }
 
-Error MCCASBuilder::createDebugInfoSection(ArrayRef<DebugInfoCURef> CURefs) {
+Error MCCASBuilder::createDebugInfoSection(
+    ArrayRef<DebugInfoCURef> CURefs, DebugAbbrevOffsetsRef AbbrevOffsetsRef) {
   if (CURefs.empty())
     return Error::success();
 
   startSection(DwarfSections.DebugInfo);
+  addNode(AbbrevOffsetsRef);
   for (auto CURef : CURefs)
     addNode(CURef);
   if (auto E = createPaddingRef(DwarfSections.DebugInfo))
@@ -1130,6 +1132,27 @@ MCCASBuilder::splitAbbrevSection(ArrayRef<size_t> AbbrevOffsetVec) {
   return AbbrevRefs;
 }
 
+Expected<SmallVector<size_t>> DebugAbbrevOffsetsRefAdaptor::decodeOffsets() {
+  SmallVector<size_t>  DecodedOffsets;
+
+  for (StringRef Data = Ref.getData(); !Data.empty();) {
+    size_t Offset;
+    if (auto E = consumeVBR8(Data, Offset))
+      return std::move(E);
+    DecodedOffsets.push_back(Offset);
+  }
+
+  return DecodedOffsets;
+}
+
+SmallVector<char>
+DebugAbbrevOffsetsRefAdaptor::encodeOffsets(ArrayRef<size_t> Offsets) {
+  SmallVector<char> EncodedOffsets;
+  for (auto Offset : Offsets)
+    writeVBR8(Offset, EncodedOffsets);
+  return EncodedOffsets;
+}
+
 Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
   if (!DwarfSections.DebugInfo)
     return AbbrevAndDebugSplit{};
@@ -1158,7 +1181,15 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
     CURefs.push_back(*DbgInfoRef);
   }
 
-  return AbbrevAndDebugSplit{std::move(CURefs), std::move(*AbbrevRefs)};
+  SmallVector<char> EncodedOffsets =
+      DebugAbbrevOffsetsRefAdaptor::encodeOffsets(SplitInfo->AbbrevOffsets);
+  auto AbbrevOffsetsRef =
+      DebugAbbrevOffsetsRef::create(*this, toStringRef(EncodedOffsets));
+  if (!AbbrevOffsetsRef)
+    return AbbrevOffsetsRef.takeError();
+
+  return AbbrevAndDebugSplit{std::move(CURefs), std::move(*AbbrevRefs),
+                             *AbbrevOffsetsRef};
 }
 
 Error MCCASBuilder::createLineSection() {
@@ -1228,7 +1259,8 @@ Error MCCASBuilder::buildFragments() {
 
     // Handle Debug Info sections separately.
     if (&Sec == DwarfSections.DebugInfo) {
-      if (auto E = createDebugInfoSection(AbbrevAndCURefs->CURefs))
+      if (auto E = createDebugInfoSection(AbbrevAndCURefs->CURefs,
+                                          *AbbrevAndCURefs->AbbrevOffsetsRef))
         return E;
       continue;
     }
@@ -1604,6 +1636,9 @@ Expected<uint64_t> MCCASReader::materializeSection(cas::ObjectRef ID) {
     return F->materialize(OS);
   if (auto F = DebugAbbrevRef::Cast(*Node))
     return F->materialize(OS);
+  // TODO: handle this together with the section.
+  if (auto F = DebugAbbrevOffsetsRef::Cast(*Node))
+    return 0;
   return createStringError(inconvertibleErrorCode(),
                            "unsupported CAS node for atom");
 }

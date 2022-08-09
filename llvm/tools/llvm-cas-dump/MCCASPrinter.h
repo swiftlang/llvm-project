@@ -22,6 +22,7 @@ namespace v1 {
 struct PrinterOptions {
   bool DwarfSectionsOnly = false;
   bool DwarfDump = false;
+  bool DebugAbbrevOffsets = false;
 };
 
 struct MCCASPrinter {
