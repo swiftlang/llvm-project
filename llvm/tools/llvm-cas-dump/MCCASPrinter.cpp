@@ -34,6 +34,17 @@ bool isDwarfSection(MCObjectProxy MCObj) {
   if (!FirstMCRef)
     return false;
 
+  if (FirstMCRef->getKindString() == "reloc_addend") {
+    // The FirstRef is a RelocAddendRef, check the second reference if it
+    // exists.
+    if (MCObj.getNumReferences() < 2)
+      return false;
+    ObjectRef SecondRef = MCObj.getReference(1);
+    Expected<MCObjectProxy> SecondMCRef = Schema.get(SecondRef);
+    if (!SecondMCRef)
+      return false;
+    return SecondMCRef->getKindString().contains("debug");
+  }
   return FirstMCRef->getKindString().contains("debug");
 }
 } // namespace
