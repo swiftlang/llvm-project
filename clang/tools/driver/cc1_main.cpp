@@ -20,6 +20,7 @@
 #include "clang/Config/config.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
+#include "clang/Frontend/CASDependencyCollector.h"
 #include "clang/Frontend/ChainedDiagnosticConsumer.h"
 #include "clang/Frontend/CompileJobCacheKey.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -470,6 +471,7 @@ Optional<int> CompileJobCache::tryReplayCachedResult(CompilerInstance &Clang) {
 
   // Set up the output backend so we can save / cache the result after.
   CASOutputs = llvm::makeIntrusiveRefCnt<llvm::cas::CASOutputBackend>(*CAS);
+  Clang.setCASOutputBackend(CASOutputs);
   for (OutputKind K : getAllOutputKinds()) {
     StringRef OutPath = getPathForOutputKind(K);
     if (!OutPath.empty())
@@ -682,6 +684,7 @@ Optional<int> CompileJobCache::replayCachedResult(CompilerInstance &Clang,
 
   for (size_t I = 0, E = Outputs->getNumReferences(); I + 1 < E; I += 2) {
     llvm::cas::CASID PathID = Outputs->getReferenceID(I);
+    cas::ObjectRef BytesRef = Outputs->getReference(I + 1);
     llvm::cas::CASID BytesID = Outputs->getReferenceID(I + 1);
 
     Optional<llvm::cas::ObjectProxy> PathProxy;
@@ -727,6 +730,12 @@ Optional<int> CompileJobCache::replayCachedResult(CompilerInstance &Clang,
       Contents = ContentsStorage;
     } else if (JustComputedResult) {
       continue;
+    } else if (OutKind == OutputKind::Dependencies) {
+      llvm::raw_svector_ostream OS(ContentsStorage);
+      if (auto E = CASDependencyCollector::replay(
+              Clang.getDependencyOutputOpts(), *CAS, BytesRef, OS))
+        llvm::report_fatal_error(std::move(E));
+      Contents = ContentsStorage;
     } else {
       Optional<llvm::cas::ObjectProxy> Bytes;
       if (Error E = CAS->getProxy(BytesID).moveInto(Bytes))
