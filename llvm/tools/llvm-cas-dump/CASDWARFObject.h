@@ -23,6 +23,8 @@ class CASDWARFObject : public DWARFObject {
   SmallVector<uint8_t> DebugStringSection;
 
   SmallVector<uint8_t> DebugAbbrevSection;
+  SmallVector<size_t> DebugAbbrevOffsets;
+  DenseMap<cas::ObjectRef, size_t> CUToOffset;
 
   const mccasformats::v1::MCSchema &Schema;
 

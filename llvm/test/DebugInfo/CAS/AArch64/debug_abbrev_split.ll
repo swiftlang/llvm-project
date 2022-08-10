@@ -1,7 +1,7 @@
 ; RUN: llc -O0 --filetype=obj --cas-backend --cas=%t.casdb --mccas-verify -o %t.bin %s
 
 ; RUN: llc -O0 --filetype=obj --cas-backend --cas=%t.casdb --mccas-casid -o %t.casid %s
-; RUN: llvm-cas-dump --cas=%t.casdb --dwarf-sections-only --debug-abbrev-offsets --casid-file %t.casid | FileCheck %s
+; RUN: llvm-cas-dump --cas=%t.casdb --dwarf-dump --dwarf-sections-only --debug-abbrev-offsets --casid-file %t.casid | FileCheck %s
 
 target triple = "arm64-apple-macosx12.0.0"
 
@@ -24,7 +24,11 @@ entry:
 ; CHECK-NEXT:       mc:debug_abbrev_offsets llvmcas://
 ; CHECK-NEXT:         0, 55
 ; CHECK-NEXT:       mc:debug_info_cu llvmcas://
-; CHECK-NEXT:       mc:debug_info_cu llvmcas://
+; CHECK-NEXT:         Real abbr_offset: 0
+; CHECK-NEXT:         abbr_offset = 0x0000
+; CHECK:            mc:debug_info_cu llvmcas://
+; CHECK-NEXT:         Real abbr_offset: 55
+; CHECK-NEXT:         abbr_offset = 0x0000
 ; CHECK-NOT: debug_abbrev
 
 

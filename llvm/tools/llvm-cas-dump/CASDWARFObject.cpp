@@ -80,6 +80,17 @@ Error CASDWARFObject::discoverDwarfSections(MCObjectProxy MCObj) {
     Is64Bit = P.Is64Bit;
     IsLittleEndian = P.IsLittleEndian;
   }
+  else if (auto OffsetsRef = DebugAbbrevOffsetsRef::Cast(MCObj)) {
+    DebugAbbrevOffsetsRefAdaptor Adaptor(*OffsetsRef);
+    Expected<SmallVector<size_t>> DecodedOffsets = Adaptor.decodeOffsets();
+    if (!DecodedOffsets)
+      return DecodedOffsets.takeError();
+    DebugAbbrevOffsets = std::move(*DecodedOffsets);
+    // Reverse so that we can pop_back when assigning these to CURefs.
+    std::reverse(DebugAbbrevOffsets.begin(), DebugAbbrevOffsets.end());
+  }
+  if (auto CURef = DebugInfoCURef::Cast(MCObj))
+    CUToOffset[MCObj.getRef()] = DebugAbbrevOffsets.pop_back_val();
   else if (DebugAbbrevRef::Cast(MCObj))
     append_range(DebugAbbrevSection, MCObj.getData());
   else if (DebugStrRef::Cast(MCObj)) {
@@ -135,8 +146,16 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
     DWARFSection Section = {Data, Address};
     DWARFUnitHeader Header;
     DWARFDebugAbbrev Abbrev;
-    Abbrev.extract(
-        DataExtractor(getAbbrevSection(), isLittleEndian(), getAddressSize()));
+
+    auto CUOffset = CUToOffset.find(MCObj.getRef());
+    if (CUOffset == CUToOffset.end())
+      return createStringError(inconvertibleErrorCode(),
+                               "Missing debug abbrev offset information");
+
+    StringRef AbbrevSectionContribution =
+        getAbbrevSection().drop_front(CUOffset->second);
+    Abbrev.extract(DataExtractor(AbbrevSectionContribution, isLittleEndian(),
+                                 getAddressSize()));
     uint64_t offset_ptr = 0;
     Header.extract(
         DWARFCtx,
@@ -146,6 +165,7 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
                        &getLocSection(), getStrSection(),
                        getStrOffsetsSection(), &getAddrSection(),
                        getLocSection(), isLittleEndian(), false, UV);
+    OS << "Real abbr_offset: " << CUOffset->second << "\n";
     U.dump(OS, DumpOpts);
     // TODO: Dump more than just the CU.
   }

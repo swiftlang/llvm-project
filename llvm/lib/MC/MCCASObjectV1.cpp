@@ -15,6 +15,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/Support/BinaryStreamReader.h"
+#include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/EndianStream.h"
 #include <memory>
@@ -64,6 +65,14 @@ cl::opt<RelEncodeLoc> RelocLocation(
                clEnumVal(CompileUnit, "In compile unit")),
     cl::init(Atom));
 
+struct CUInfo {
+  size_t CUSize;
+  uint32_t AbbrevOffset;
+};
+static Expected<CUInfo>
+getAndSetDebugAbbrevOffsetAndSkip(MutableArrayRef<char> CUData,
+                                  support::endianness Endian,
+                                  uint32_t NewOffset = 0);
 Expected<cas::ObjectProxy>
 MCSchema::createFromMCAssemblerImpl(MachOCASWriter &ObjectWriter,
                                     MCAssembler &Asm, const MCAsmLayout &Layout,
@@ -421,6 +430,93 @@ Expected<SectionRef> SectionRef::create(MCCASBuilder &MB,
   return get(B->build());
 }
 
+// If `Refs` form a valid __debug_info section, materialize the section and
+// return the total size of the section.
+// Otherwise, `None` is returned, indicating that this is not a __debug_info
+// section.
+// FIXME: most of the code here is dealing with identifying whether this is a
+// valid debug section based on `Refs`. Instead, we should use a specialized
+// class different from SectionRef.
+static Expected<Optional<unsigned>>
+handleDebugSection(MCCASReader &Reader, const MCSchema &Schema,
+                   ArrayRef<cas::ObjectRef> Refs,
+                   StringRef RemainingSectionData) {
+  // The __debug_info section must have nodes.
+  if (Refs.empty())
+    return None;
+
+  auto FirstNode =
+      MCObjectProxy::get(Schema, Schema.CAS.getProxy(Refs.front()));
+  if (!FirstNode)
+    return FirstNode.takeError();
+
+  // The first node in a __debug_info section is a DebugAbbrevOffsetsRef.
+  auto AbbrevOffsetsRef = DebugAbbrevOffsetsRef::Cast(*FirstNode);
+  if (!AbbrevOffsetsRef)
+    return None;
+
+  // Extract the abbreviation offsets
+  DebugAbbrevOffsetsRefAdaptor OffsetsAdaptor(*AbbrevOffsetsRef);
+  Expected<SmallVector<size_t>> AbbrevOffsets = OffsetsAdaptor.decodeOffsets();
+  if (!AbbrevOffsets)
+    return AbbrevOffsets.takeError();
+
+  ArrayRef<cas::ObjectRef> CURefs = Refs.drop_front();
+  if (AbbrevOffsets->size() > CURefs.size())
+    return createStringError(
+        inconvertibleErrorCode(),
+        "Invalid number of abbreviation offsets or compilation units");
+
+  unsigned Size = 0;
+  // For each (AbbrevOffset, CURef), patch the offset and output the CURef.
+  for (auto [Offset, Ref] : llvm::zip_first(*AbbrevOffsets, CURefs)) {
+    auto CUProxy = MCObjectProxy::get(Schema, Schema.CAS.getProxy(Ref));
+    if (!CUProxy)
+      return CUProxy.takeError();
+
+    auto CURef = DebugInfoCURef::Cast(*CUProxy);
+    if (!CURef)
+      return createStringError(inconvertibleErrorCode(),
+                               "Unknown CAS object under __debug_info section");
+
+    // Copy the data so that we can modify the abbrev offset prior to printing.
+    auto CUData = to_vector(CURef->getData());
+    if (auto E = getAndSetDebugAbbrevOffsetAndSkip(CUData, Reader.getEndian(),
+                                                   Offset);
+        !E)
+      return E.takeError();
+    Reader.OS << CUData;
+    Size += CUData.size();
+  }
+
+  // If any Ref is left, it must be at most one and it must be a PaddingRef.
+  if (ArrayRef<cas::ObjectRef> LeftoverRefs =
+          CURefs.drop_front(AbbrevOffsets->size());
+      !LeftoverRefs.empty()) {
+    if (LeftoverRefs.size() != 1)
+      return createStringError(inconvertibleErrorCode(),
+                               "Unknown CAS object under __debug_info section");
+    auto CUProxy =
+        MCObjectProxy::get(Schema, Schema.CAS.getProxy(LeftoverRefs.front()));
+    if (!CUProxy)
+      return CUProxy.takeError();
+
+    auto Padding = PaddingRef::Cast(*CUProxy);
+    if (!Padding)
+      return createStringError(inconvertibleErrorCode(),
+                               "Unknown CAS object under __debug_info section");
+    auto PaddingSize = Padding->materialize(Reader.OS);
+    if (!PaddingSize)
+      return PaddingSize.takeError();
+    Size += *PaddingSize;
+  }
+
+  if (auto E = decodeRelocations(Reader, RemainingSectionData))
+    return std::move(E);
+
+  return Size;
+}
+
 Expected<uint64_t> SectionRef::materialize(MCCASReader &Reader) const {
   // Start a new section for relocations.
   Reader.Relocations.emplace_back();
@@ -430,6 +526,12 @@ Expected<uint64_t> SectionRef::materialize(MCCASReader &Reader) const {
   auto Refs = decodeReferences(*this, Remaining);
   if (!Refs)
     return Refs.takeError();
+
+  auto MaybeHandledDebug = handleDebugSection(Reader, getSchema(), *Refs, Remaining);
+  if (!MaybeHandledDebug)
+    return MaybeHandledDebug.takeError();
+  if (MaybeHandledDebug->has_value())
+    return MaybeHandledDebug->value();
 
   for (auto ID : *Refs) {
     auto FragmentSize = Reader.materializeSection(ID);
@@ -986,11 +1088,15 @@ getSizeFromDwarfHeaderAndSkip(BinaryStreamReader &Reader) {
   return Size;
 }
 
-/// Returns Abbreviation Offset field of a Dwarf Compilation Unit (CU)
-/// contained in Reader, assuming Reader is positioned at the beginning of the
-/// CU. The Reader's state is advanced to the first byte after the CU.
-static Expected<uint32_t>
-getDebugAbbrevOffsetAndSkip(BinaryStreamReader &Reader) {
+/// Returns the Abbreviation Offset field of a Dwarf Compilation Unit (CU)
+/// contained in CUData, as well as the total number of bytes taken by the CU.
+/// Note: this is different from the length field of the Dwarf header, which
+/// does not account for the header size.
+static Expected<CUInfo>
+getAndSetDebugAbbrevOffsetAndSkip(MutableArrayRef<char> CUData,
+                                  support::endianness Endian,
+                                  uint32_t NewOffset) {
+  BinaryStreamReader Reader(toStringRef(CUData), Endian);
   Expected<size_t> Size = getSizeFromDwarfHeader(Reader);
   if (!Size)
     return Size.takeError();
@@ -1008,15 +1114,25 @@ getDebugAbbrevOffsetAndSkip(BinaryStreamReader &Reader) {
                              "Expected Dwarf 4 input");
 
   // TODO: Handle Dwarf 64 format, which uses 8 bytes.
+  size_t AbbrevPosition = Reader.getOffset();
   uint32_t AbbrevOffset;
   if (auto E = Reader.readInteger(AbbrevOffset))
+    return std::move(E);
+
+  // Write NewOffset to the abbrev offset.
+  auto UnsignedData = makeMutableArrayRef(
+      // FIXME: this is safe, but ugly. Similar to: llvm::arrayRefFromStringRef.
+      reinterpret_cast<uint8_t *>(CUData.data()), CUData.size());
+  BinaryStreamWriter Writer(UnsignedData, Endian);
+  Writer.setOffset(AbbrevPosition);
+  if (auto E = Writer.writeInteger(NewOffset))
     return std::move(E);
 
   Reader.setOffset(AfterSizeOffset);
   if (auto E = Reader.skip(*Size))
     return std::move(E);
 
-  return AbbrevOffset;
+  return CUInfo{Reader.getOffset(), AbbrevOffset};
 }
 
 /// Given a list of MCFragments, return a vector with the concatenation of their
@@ -1048,19 +1164,16 @@ mergeMCFragmentContents(const MCSection::FragmentListType &FragmentList,
 
 Expected<MCCASBuilder::CUSplit>
 MCCASBuilder::splitDebugInfoSectionData(MutableArrayRef<char> DebugInfoData) {
-  BinaryStreamReader Reader(toStringRef(DebugInfoData),
-                            Asm.getBackend().Endian);
-
   CUSplit Split;
   // CU splitting loop.
-  while (!Reader.empty()) {
-    uint64_t StartOffset = Reader.getOffset();
-    Expected<uint32_t> AbbrevOffset = getDebugAbbrevOffsetAndSkip(Reader);
-    if (!AbbrevOffset)
-      return AbbrevOffset.takeError();
-    Split.SplitCUData.push_back(
-        DebugInfoData.slice(StartOffset, Reader.getOffset() - StartOffset));
-    Split.AbbrevOffsets.push_back(*AbbrevOffset);
+  while (!DebugInfoData.empty()) {
+    Expected<CUInfo> Info = getAndSetDebugAbbrevOffsetAndSkip(
+        DebugInfoData, Asm.getBackend().Endian);
+    if (!Info)
+      return Info.takeError();
+    Split.SplitCUData.push_back(DebugInfoData.take_front(Info->CUSize));
+    Split.AbbrevOffsets.push_back(Info->AbbrevOffset);
+    DebugInfoData = DebugInfoData.drop_front(Info->CUSize);
   }
 
   return Split;
