@@ -299,6 +299,7 @@ private:
   std::string SerialDiagsFile;
   std::string DependenciesFile;
   Optional<llvm::cas::CASID> MCOutputID;
+  Optional<llvm::cas::ObjectRef> DependenciesOutput;
   Optional<llvm::vfs::OutputFile> SerialDiagsOutput;
 };
 } // end anonymous namespace
@@ -471,7 +472,6 @@ Optional<int> CompileJobCache::tryReplayCachedResult(CompilerInstance &Clang) {
 
   // Set up the output backend so we can save / cache the result after.
   CASOutputs = llvm::makeIntrusiveRefCnt<llvm::cas::CASOutputBackend>(*CAS);
-  Clang.setCASOutputBackend(CASOutputs);
   for (OutputKind K : getAllOutputKinds()) {
     StringRef OutPath = getPathForOutputKind(K);
     if (!OutPath.empty())
@@ -489,6 +489,11 @@ Optional<int> CompileJobCache::tryReplayCachedResult(CompilerInstance &Clang) {
       FilterBackend, std::move(OnDiskOutputs)));
   ResultDiagsOS = std::make_unique<raw_mirroring_ostream>(
       llvm::errs(), std::make_unique<llvm::raw_svector_ostream>(ResultDiags));
+
+  if (!Clang.getDependencyOutputOpts().OutputFile.empty())
+    Clang.addDependencyCollector(std::make_shared<CASDependencyCollector>(
+        Clang.getDependencyOutputOpts(), *CAS,
+        [this](Optional<cas::ObjectRef> Deps) { DependenciesOutput = Deps; }));
 
   // FIXME: This should be saving/replaying structured diagnostics, not saving
   // stderr and a separate diagnostics file, thus using the current llvm::errs()
@@ -604,6 +609,11 @@ void CompileJobCache::finishComputedResult(CompilerInstance &Clang,
             SerialDiags->getRef()))
       llvm::report_fatal_error(std::move(E));
   }
+
+  if (DependenciesOutput)
+    if (auto E = CASOutputs->addObject(
+            getOutputKindName(OutputKind::Dependencies), *DependenciesOutput))
+      llvm::report_fatal_error(std::move(E));
 
   Expected<llvm::cas::ObjectProxy> Outputs = CASOutputs->getCASProxy();
   if (!Outputs)
