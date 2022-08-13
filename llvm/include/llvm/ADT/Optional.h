@@ -324,6 +324,12 @@ public:
 
   /// Apply a function to the value if present; otherwise return None.
   template <class Function>
+  auto transform(const Function &F) const & -> Optional<decltype(F(value()))> {
+    if (*this)
+      return F(value());
+    return None;
+  }
+  template <class Function>
   auto map(const Function &F) const & -> Optional<decltype(F(value()))> {
     if (*this)
       return F(value());
@@ -342,6 +348,13 @@ public:
   }
 
   /// Apply a function to the value if present; otherwise return None.
+  template <class Function>
+  auto transform(
+      const Function &F) && -> Optional<decltype(F(std::move(*this).value()))> {
+    if (*this)
+      return F(std::move(*this).value());
+    return None;
+  }
   template <class Function>
   auto map(const Function &F)
       && -> Optional<decltype(F(std::move(*this).value()))> {
