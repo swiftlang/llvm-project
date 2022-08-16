@@ -31,6 +31,7 @@ add_llvm_unittest(ADTTests
   FoldingSet.cpp
   FunctionExtrasTest.cpp
   FunctionRefTest.cpp
+  HashMappedTrieTest.cpp
   HashingTest.cpp
   IListBaseTest.cpp
   IListIteratorTest.cpp
