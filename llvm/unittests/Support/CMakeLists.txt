@@ -84,6 +84,7 @@ add_llvm_unittest(SupportTests
   TaskQueueTest.cpp
   ThreadLocalTest.cpp
   ThreadPool.cpp
+  ThreadSafeAllocatorTest.cpp
   Threading.cpp
   TimerTest.cpp
   ToolOutputFileTest.cpp
