@@ -34,13 +34,10 @@ namespace dependencies {
 
 class DependencyScanningWorkerFilesystem;
 
-class DependencyScanningConsumerBase {
+class DependencyConsumer {
 public:
-  virtual ~DependencyScanningConsumerBase() {}
-};
+  virtual ~DependencyConsumer() {}
 
-class DependencyConsumer : public DependencyScanningConsumerBase {
-public:
   virtual void
   handleDependencyOutputOpts(const DependencyOutputOptions &Opts) = 0;
 
@@ -55,7 +52,7 @@ public:
 
 // FIXME: This may need to merge with \p DependencyConsumer in order to support
 // clang modules for the include-tree.
-class PPIncludeActionsConsumer : public DependencyScanningConsumerBase {
+class PPIncludeActionsConsumer : public DependencyConsumer {
 public:
   virtual void enteredInclude(Preprocessor &PP, FileID FID) = 0;
 
@@ -63,6 +60,23 @@ public:
                              FileID Include, SourceLocation ExitLoc) = 0;
 
   virtual void handleHasIncludeCheck(Preprocessor &PP, bool Result) = 0;
+
+protected:
+  void handleDependencyOutputOpts(const DependencyOutputOptions &Opts) override {
+    llvm::report_fatal_error("unexpected callback for include-tree");
+  }
+  void handleFileDependency(StringRef Filename) override {
+    llvm::report_fatal_error("unexpected callback for include-tree");
+  }
+  void handlePrebuiltModuleDependency(PrebuiltModuleDep PMD) override {
+    llvm::report_fatal_error("unexpected callback for include-tree");
+  }
+  void handleModuleDependency(ModuleDeps MD) override {
+    llvm::report_fatal_error("unexpected callback for include-tree");
+  }
+  void handleContextHash(std::string Hash) override {
+    llvm::report_fatal_error("unexpected callback for include-tree");
+  }
 };
 
 /// An individual dependency scanning worker that is able to run on its own
@@ -85,7 +99,7 @@ public:
   /// occurred, success otherwise.
   llvm::Error computeDependencies(StringRef WorkingDirectory,
                                   const std::vector<std::string> &CommandLine,
-                                  DependencyScanningConsumerBase &Consumer,
+                                  DependencyConsumer &Consumer,
                                   llvm::Optional<StringRef> ModuleName = None);
 
   /// Scan from a compiler invocation.
@@ -95,7 +109,7 @@ public:
   /// \p DiagOpts.DiagnosticSerializationFile setting is set for the invocation.
   void computeDependenciesFromCompilerInvocation(
       std::shared_ptr<CompilerInvocation> Invocation,
-      StringRef WorkingDirectory, DependencyScanningConsumerBase &Consumer,
+      StringRef WorkingDirectory, DependencyConsumer &Consumer,
       DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
       bool DiagGenerationAsCompilation);
 

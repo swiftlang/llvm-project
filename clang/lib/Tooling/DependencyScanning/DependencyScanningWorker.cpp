@@ -195,7 +195,7 @@ public:
 class DependencyScanningAction : public tooling::ToolAction {
 public:
   DependencyScanningAction(
-      StringRef WorkingDirectory, DependencyScanningConsumerBase &Consumer,
+      StringRef WorkingDirectory, DependencyConsumer &Consumer,
       const CASOptions &CASOpts,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       llvm::IntrusiveRefCntPtr<DependencyScanningCASFilesystem> DepCASFS,
@@ -315,8 +315,7 @@ public:
     case ScanningOutputFormat::Tree:
       ScanInstance.addDependencyCollector(
           std::make_shared<DependencyConsumerForwarder>(
-              std::move(Opts), WorkingDirectory,
-              static_cast<DependencyConsumer &>(Consumer), EmitDependencyFile));
+              std::move(Opts), WorkingDirectory, Consumer, EmitDependencyFile));
       break;
     case ScanningOutputFormat::IncludeTree: {
       ScanInstance.addDependencyCollector(
@@ -328,8 +327,7 @@ public:
     case ScanningOutputFormat::Full:
     case ScanningOutputFormat::FullTree:
       ScanInstance.addDependencyCollector(std::make_shared<ModuleDepCollector>(
-          std::move(Opts), ScanInstance,
-          static_cast<DependencyConsumer &>(Consumer),
+          std::move(Opts), ScanInstance, Consumer,
           std::move(OriginalInvocation), OptimizeArgs));
       break;
     }
@@ -372,7 +370,7 @@ public:
 
 private:
   StringRef WorkingDirectory;
-  DependencyScanningConsumerBase &Consumer;
+  DependencyConsumer &Consumer;
   const CASOptions &CASOpts;
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
   llvm::IntrusiveRefCntPtr<DependencyScanningCASFilesystem> DepCASFS;
@@ -452,8 +450,7 @@ runWithDiags(DiagnosticOptions *DiagOpts,
 
 llvm::Error DependencyScanningWorker::computeDependencies(
     StringRef WorkingDirectory, const std::vector<std::string> &CommandLine,
-    DependencyScanningConsumerBase &Consumer,
-    llvm::Optional<StringRef> ModuleName) {
+    DependencyConsumer &Consumer, llvm::Optional<StringRef> ModuleName) {
   // Reset what might have been modified in the previous worker invocation.
   RealFS->setCurrentWorkingDirectory(WorkingDirectory);
   if (Files)
@@ -503,9 +500,8 @@ llvm::Error DependencyScanningWorker::computeDependencies(
 
 void DependencyScanningWorker::computeDependenciesFromCompilerInvocation(
     std::shared_ptr<CompilerInvocation> Invocation, StringRef WorkingDirectory,
-    DependencyScanningConsumerBase &DepsConsumer,
-    DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
-    bool DiagGenerationAsCompilation) {
+    DependencyConsumer &DepsConsumer, DiagnosticConsumer &DiagsConsumer,
+    raw_ostream *VerboseOS, bool DiagGenerationAsCompilation) {
   RealFS->setCurrentWorkingDirectory(WorkingDirectory);
 
   // Adjust the invocation.
