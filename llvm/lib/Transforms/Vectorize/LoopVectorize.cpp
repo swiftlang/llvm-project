@@ -574,7 +574,7 @@ protected:
 
   /// Create the exit value of first order recurrences in the middle block and
   /// update their users.
-  void fixFirstOrderRecurrence(VPFirstOrderRecurrencePHIRecipe *PhiR,
+  void fixFixedOrderRecurrence(VPFirstOrderRecurrencePHIRecipe *PhiR,
                                VPTransformState &State);
 
   /// Create code for the loop exit value of the reduction.
@@ -3722,11 +3722,11 @@ void InnerLoopVectorizer::fixCrossIterationPHIs(VPTransformState &State) {
     if (auto *ReductionPhi = dyn_cast<VPReductionPHIRecipe>(&R))
       fixReduction(ReductionPhi, State);
     else if (auto *FOR = dyn_cast<VPFirstOrderRecurrencePHIRecipe>(&R))
-      fixFirstOrderRecurrence(FOR, State);
+      fixFixedOrderRecurrence(FOR, State);
   }
 }
 
-void InnerLoopVectorizer::fixFirstOrderRecurrence(
+void InnerLoopVectorizer::fixFixedOrderRecurrence(
     VPFirstOrderRecurrencePHIRecipe *PhiR, VPTransformState &State) {
   // This is the second phase of vectorizing first-order recurrences. An
   // overview of the transformation is described below. Suppose we have the
@@ -4003,7 +4003,7 @@ void InnerLoopVectorizer::fixReduction(VPReductionPHIRecipe *PhiR,
 
   // We know that the loop is in LCSSA form. We need to update the PHI nodes
   // in the exit blocks.  See comment on analogous loop in
-  // fixFirstOrderRecurrence for a more complete explaination of the logic.
+  // fixFixedOrderRecurrence for a more complete explaination of the logic.
   if (!Cost->requiresScalarEpilogue(VF))
     for (PHINode &LCSSAPhi : LoopExitBlock->phis())
       if (llvm::is_contained(LCSSAPhi.incoming_values(), LoopExitInst))
@@ -4752,7 +4752,7 @@ void LoopVectorizationCostModel::collectLoopUniforms(ElementCount VF) {
       // First order recurrence Phi's should typically be considered
       // non-uniform.
       auto *OP = dyn_cast<PHINode>(OV);
-      if (OP && Legal->isFirstOrderRecurrence(OP))
+      if (OP && Legal->isFixedOrderRecurrence(OP))
         continue;
       // If all the users of the operand are uniform, then add the
       // operand into the uniform worklist.
@@ -5445,7 +5445,7 @@ bool LoopVectorizationCostModel::isCandidateForEpilogueVectorization(
   // Cross iteration phis such as reductions need special handling and are
   // currently unsupported.
   if (any_of(L.getHeader()->phis(),
-             [&](PHINode &Phi) { return Legal->isFirstOrderRecurrence(&Phi); }))
+             [&](PHINode &Phi) { return Legal->isFixedOrderRecurrence(&Phi); }))
     return false;
 
   // Phis with uses outside of the loop require special handling and are
@@ -7028,7 +7028,7 @@ LoopVectorizationCostModel::getInstructionCost(Instruction *I, ElementCount VF,
 
     // First-order recurrences are replaced by vector shuffles inside the loop.
     // NOTE: Don't use ToVectorTy as SK_ExtractSubvector expects a vector type.
-    if (VF.isVector() && Legal->isFirstOrderRecurrence(Phi))
+    if (VF.isVector() && Legal->isFixedOrderRecurrence(Phi))
       return TTI.getShuffleCost(
           TargetTransformInfo::SK_ExtractSubvector, cast<VectorType>(VectorTy),
           None, VF.getKnownMinValue() - 1, FixedVectorType::get(RetTy, 1));
@@ -8554,11 +8554,16 @@ VPRecipeBuilder::tryToCreateWidenRecipe(Instruction *Instr,
   if (auto Phi = dyn_cast<PHINode>(Instr)) {
     if (Phi->getParent() != OrigLoop->getHeader())
       return tryToBlend(Phi, Operands, Plan);
+
+    // Always record recipes for header phis. Later first-order recurrence phis
+    // can have earlier phis as incoming values.
+    recordRecipeOf(Phi);
+
     if ((Recipe = tryToOptimizeInductionPHI(Phi, Operands, *Plan, Range)))
       return toVPRecipeResult(Recipe);
 
     VPHeaderPHIRecipe *PhiRecipe = nullptr;
-    if (Legal->isReductionVariable(Phi) || Legal->isFirstOrderRecurrence(Phi)) {
+    if (Legal->isReductionVariable(Phi) || Legal->isFixedOrderRecurrence(Phi)) {
       VPValue *StartV = Operands[0];
       if (Legal->isReductionVariable(Phi)) {
         const RecurrenceDescriptor &RdxDesc =
@@ -8569,14 +8574,22 @@ VPRecipeBuilder::tryToCreateWidenRecipe(Instruction *Instr,
                                              CM.isInLoopReduction(Phi),
                                              CM.useOrderedReductions(RdxDesc));
       } else {
-        PhiRecipe = new VPFirstOrderRecurrencePHIRecipe(Phi, *StartV);
+      // TODO: Currently fixed-order recurrences are modeled as chains of
+      // first-order recurrences. If there are no users of the intermediate
+      // recurrences in the chain, the fixed order recurrence should be modeled
+      // directly, enabling more efficient codegen.
+      PhiRecipe = new VPFirstOrderRecurrencePHIRecipe(Phi, *StartV);
       }
 
-      // Record the incoming value from the backedge, so we can add the incoming
-      // value from the backedge after all recipes have been created.
-      recordRecipeOf(cast<Instruction>(
-          Phi->getIncomingValueForBlock(OrigLoop->getLoopLatch())));
-      PhisToFix.push_back(PhiRecipe);
+    // Record the incoming value from the backedge, so we can add the incoming
+    // value from the backedge after all recipes have been created.
+    auto *Inc = cast<Instruction>(
+        Phi->getIncomingValueForBlock(OrigLoop->getLoopLatch()));
+    auto RecipeIter = Ingredient2Recipe.find(Inc);
+    if (RecipeIter == Ingredient2Recipe.end())
+      recordRecipeOf(Inc);
+
+    PhisToFix.push_back(PhiRecipe);
     } else {
       // TODO: record backedge value for remaining pointer induction phis.
       assert(Phi->getType()->isPointerTy() &&
@@ -8587,7 +8600,6 @@ VPRecipeBuilder::tryToCreateWidenRecipe(Instruction *Instr,
       VPValue *Start = Plan->getOrAddVPValue(II.getStartValue());
       PhiRecipe = new VPWidenPHIRecipe(Phi, Start);
     }
-
     return toVPRecipeResult(PhiRecipe);
   }
 
@@ -8648,7 +8660,7 @@ void LoopVectorizationPlanner::buildVPlansWithVPRecipes(ElementCount MinVF,
       assert(
           SinkTarget != FirstInst &&
           "Must find a live instruction (at least the one feeding the "
-          "first-order recurrence PHI) before reaching beginning of the block");
+          "fixed-order recurrence PHI) before reaching beginning of the block");
       SinkTarget = SinkTarget->getPrevNode();
       assert(SinkTarget != P.first &&
              "sink source equals target, no sinking required");
@@ -8952,7 +8964,7 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
                              RecipeBuilder, Range.Start);
 
   // Introduce a recipe to combine the incoming and previous values of a
-  // first-order recurrence.
+  // fixed-order recurrence.
   for (VPRecipeBase &R :
        Plan->getVectorLoopRegion()->getEntryBasicBlock()->phis()) {
     auto *RecurPhi = dyn_cast<VPFirstOrderRecurrencePHIRecipe>(&R);
@@ -8960,6 +8972,11 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
       continue;
 
     VPRecipeBase *PrevRecipe = RecurPhi->getBackedgeRecipe();
+    // Fixed-order recurrences do not contain cycles, so this loop is guaranteed
+    // to terminate.
+    while (auto *PrevPhi =
+               dyn_cast<VPFirstOrderRecurrencePHIRecipe>(PrevRecipe))
+      PrevRecipe = PrevPhi->getBackedgeRecipe();
     VPBasicBlock *InsertBlock = PrevRecipe->getParent();
     auto *Region = GetReplicateRegion(PrevRecipe);
     if (Region)
