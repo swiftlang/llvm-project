@@ -134,10 +134,10 @@ std::error_code lld::tryCreateFile(StringRef path) {
 Expected<IntrusiveRefCntPtr<llvm::vfs::FileSystem>>
 lld::createFileSystem(cas::CASDB *CAS, Optional<StringRef> CASFileSystemRootID,
                       Optional<StringRef> CASFileSystemWorkingDirectory) {
-  if (!CAS || !CASFileSystemRootID.hasValue())
+  if (!CAS || !CASFileSystemRootID.has_value())
     return llvm::vfs::getRealFileSystem();
 
-  StringRef rootIDString = CASFileSystemRootID.getValue();
+  StringRef rootIDString = CASFileSystemRootID.value();
   Expected<llvm::cas::CASID> rootID = CAS->parseID(rootIDString);
   if (!rootID)
     return rootID.takeError();
@@ -148,9 +148,9 @@ lld::createFileSystem(cas::CASDB *CAS, Optional<StringRef> CASFileSystemRootID,
     return expectedFS.takeError();
   std::unique_ptr<llvm::vfs::FileSystem> fs = std::move(*expectedFS);
 
-  if (CASFileSystemWorkingDirectory.hasValue()) {
+  if (CASFileSystemWorkingDirectory.has_value()) {
     // Try to change directories.
-    StringRef cwd = CASFileSystemWorkingDirectory.getValue();
+    StringRef cwd = CASFileSystemWorkingDirectory.value();
     if (std::error_code ec = fs->setCurrentWorkingDirectory(cwd))
       return errorCodeToError(ec);
   }

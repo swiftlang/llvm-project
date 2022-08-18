@@ -1287,7 +1287,8 @@ MCCASBuilder::splitAbbrevSection(ArrayRef<size_t> AbbrevOffsetVec) {
   SmallVector<size_t> AbbrevOffsets(AbbrevOffsetVec);
   AbbrevOffsets.push_back(FullAbbrevData->size());
   sort(AbbrevOffsets);
-  AbbrevOffsets.erase(unique(AbbrevOffsets, std::equal_to()), AbbrevOffsets.end());
+  AbbrevOffsets.erase(unique(AbbrevOffsets, std::equal_to<size_t>()),
+                      AbbrevOffsets.end());
 
   size_t StartOffset = *AbbrevOffsets.begin();
   if (StartOffset != 0)
