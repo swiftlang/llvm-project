@@ -106,8 +106,7 @@ bool SwiftLanguageRuntime::IsSwiftAsyncFunctionSymbol(StringRef name) {
   if (!IsSwiftMangledName(name))
     return false;
   using namespace swift::Demangle;
-  Context ctx;
-  NodePointer node = ctx.demangleSymbolAsNode(name);
+  NodePointer node = SwiftLanguageRuntime::DemangleSymbolAsNode(name);
   return ::IsSwiftAsyncFunctionSymbol(node);
 }
 
@@ -116,8 +115,7 @@ bool SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
   if (!IsSwiftMangledName(name))
     return false;
   using namespace swift::Demangle;
-  Context ctx;
-  NodePointer node = ctx.demangleSymbolAsNode(name);
+  NodePointer node = SwiftLanguageRuntime::DemangleSymbolAsNode(name);
   return hasChild(node, Node::Kind::AsyncAwaitResumePartialFunction);
 }
 
@@ -125,8 +123,7 @@ bool SwiftLanguageRuntime::IsAnySwiftAsyncFunctionSymbol(StringRef name) {
   if (!IsSwiftMangledName(name))
     return false;
   using namespace swift::Demangle;
-  Context ctx;
-  NodePointer node = ctx.demangleSymbolAsNode(name);
+  NodePointer node = SwiftLanguageRuntime::DemangleSymbolAsNode(name);
   if (!node || node->getKind() != Node::Kind::Global || !node->getNumChildren())
     return false;
   auto marker = node->getFirstChild()->getKind();
@@ -140,7 +137,8 @@ static ThunkKind GetThunkKind(Symbol *symbol) {
 
   using namespace swift::Demangle;
   Context demangle_ctx;
-  NodePointer nodes = demangle_ctx.demangleSymbolAsNode(symbol_name);
+  NodePointer nodes =
+      SwiftLanguageRuntime::DemangleSymbolAsNode(symbol_name, &demangle_ctx);
   if (!nodes)
     return ThunkKind::Unknown;
 
@@ -502,9 +500,8 @@ static lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
     // of the function this protocol thunk is preparing to call, then
     // step into through the thunk, stopping if I end up in a frame
     // with that function name.
-    swift::Demangle::Context demangle_ctx;
-    swift::Demangle::NodePointer demangled_nodes =
-        demangle_ctx.demangleSymbolAsNode(symbol_name);
+    auto *demangled_nodes =
+        SwiftLanguageRuntime::DemangleSymbolAsNode(symbol_name);
 
     // Now find the ProtocolWitness node in the demangled result.
 
@@ -730,6 +727,17 @@ SwiftLanguageRuntime::DemangleSymbolAsString(StringRef symbol, DemangleMode mode
   return swift::Demangle::demangleSymbolAsString(symbol, options);
 }
 
+swift::Demangle::NodePointer
+SwiftLanguageRuntime::DemangleSymbolAsNode(llvm::StringRef symbol,
+                                           swift::Demangle::Context *ctx) {
+  LLDB_LOGF(GetLog(LLDBLog::Demangle), "demangle swift as node: '%s'",
+            symbol.str().data());
+  if (ctx)
+    ctx->demangleSymbolAsNode(symbol);
+  Context local_ctx;
+  return local_ctx.demangleSymbolAsNode(symbol);
+}
+
 bool SwiftLanguageRuntime::IsSwiftClassName(const char *name) {
   return swift::Demangle::isClass(name);
 }
@@ -934,9 +942,8 @@ bool SwiftLanguageRuntime::MethodName::ExtractFunctionBasenameFromMangled(
       // have to demangle the whole name to figure this out anyway.
       // I'm leaving the test here in case we actually need to do this
       // only to functions.
-      swift::Demangle::Context demangle_ctx;
       swift::Demangle::NodePointer node =
-          demangle_ctx.demangleSymbolAsNode(mangled_ref);
+          SwiftLanguageRuntime::DemangleSymbolAsNode(mangled_ref);
       StreamString identifier;
       if (node) {
         switch (node->getKind()) {
