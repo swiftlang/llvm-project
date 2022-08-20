@@ -835,6 +835,7 @@ public:
   }
 
   Optional<ObjectRef> getReference(const CASID &ID) const final;
+  Optional<ObjectRef> getReference(ArrayRef<uint8_t> Hash) const final;
   ObjectRef getReference(ObjectHandle Handle) const final {
     return getExternalReference(getInternalHandle(Handle).getRef());
   }
@@ -1447,6 +1448,16 @@ IndexProxy OnDiskCAS::getIndexProxyFromPointer(
 
 Optional<ObjectRef> OnDiskCAS::getReference(const CASID &ID) const {
   OnDiskHashMappedTrie::const_pointer P = getInternalIndexPointer(ID);
+  if (!P)
+    return None;
+  IndexProxy I = getIndexProxyFromPointer(P);
+  if (Optional<InternalRef> Ref = makeInternalRef(I.Offset, I.Ref.load()))
+    return getExternalReference(*Ref);
+  return None;
+}
+
+Optional<ObjectRef> OnDiskCAS::getReference(ArrayRef<uint8_t> Hash) const {
+  OnDiskHashMappedTrie::const_pointer P = Index.find(Hash);
   if (!P)
     return None;
   IndexProxy I = getIndexProxyFromPointer(P);

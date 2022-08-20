@@ -145,6 +145,9 @@ public:
   /// Returns \c None if not stored in this CAS.
   virtual Optional<ObjectRef> getReference(const CASID &ID) const = 0;
 
+  /// Get a reference to the object has the hash value \p Hash.
+  virtual Optional<ObjectRef> getReference(ArrayRef<uint8_t> Hash) const = 0;
+
   /// Get a Ref from Handle.
   virtual ObjectRef getReference(ObjectHandle Handle) const = 0;
 

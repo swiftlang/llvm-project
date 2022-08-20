@@ -272,6 +272,11 @@ public:
       return toReference(*Object);
     return None;
   }
+  Optional<ObjectRef> getReference(ArrayRef<uint8_t> Hash) const final {
+    if (InMemoryIndexT::const_pointer P = Index.find(Hash))
+      return toReference(*P->Data);
+    return None;
+  }
   ObjectRef getReference(ObjectHandle Handle) const final {
     return toReference(asInMemoryObject(Handle));
   }
