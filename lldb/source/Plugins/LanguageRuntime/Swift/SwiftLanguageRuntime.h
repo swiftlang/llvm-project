@@ -153,8 +153,7 @@ public:
   ///
   /// This is a central point of access, for purposes such as logging.
   static swift::Demangle::NodePointer
-  DemangleSymbolAsNode(llvm::StringRef symbol,
-                       swift::Demangle::Context *ctx = nullptr);
+  DemangleSymbolAsNode(llvm::StringRef symbol, swift::Demangle::Context &ctx);
 
   void DumpTyperef(CompilerType type, TypeSystemSwiftTypeRef *module_holder,
                    Stream *s);

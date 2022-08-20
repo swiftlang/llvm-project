@@ -1544,7 +1544,8 @@ bool SwiftLanguageRuntime::IsSelf(Variable &variable) {
   if (!function)
     return false;
   StringRef func_name = function->GetMangled().GetMangledName().GetStringRef();
-  auto *node_ptr = SwiftLanguageRuntime::DemangleSymbolAsNode(func_name);
+  Context ctx;
+  auto *node_ptr = SwiftLanguageRuntime::DemangleSymbolAsNode(func_name, ctx);
   if (!node_ptr)
     return false;
   if (node_ptr->getKind() != swift::Demangle::Node::Kind::Global)
