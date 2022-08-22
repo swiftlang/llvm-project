@@ -2,7 +2,7 @@
 // RUN: llvm-cas --cas %t/cas --ingest --data %s > %t/casid
 //
 // RUN: %clang -cc1 -triple x86_64-apple-macos11 -fcas-backend \
-// RUN:   -fcas-path %t/cas -fcas-fs @%t/casid -fcache-compile-job \
+// RUN:   -fcas-path %t/cas -faction-cache-path %t/cache -fcas-fs @%t/casid -fcache-compile-job \
 // RUN:   -Rcompile-job-cache -emit-obj -o %t/output.o \
 // RUN:   -debug-info-kind=standalone -dwarf-version=4 -debugger-tuning=lldb \
 // RUN:   -dependency-file %t/deps.d -MT %t/output.o 2>&1 \
@@ -13,7 +13,7 @@
 //
 // RUN: CLANG_CAS_BACKEND_SAVE_CASID_FILE=1 %clang -cc1 \
 // RUN:   -triple x86_64-apple-macos11 -fcas-backend \
-// RUN:   -fcas-path %t/cas -fcas-fs @%t/casid -fcache-compile-job \
+// RUN:   -fcas-path %t/cas -faction-cache-path %t/cache -fcas-fs @%t/casid -fcache-compile-job \
 // RUN:   -Rcompile-job-cache -emit-obj -o %t/output.o \
 // RUN:   -debug-info-kind=standalone -dwarf-version=4 -debugger-tuning=lldb \
 // RUN:   -dependency-file %t/deps.d -MT %t/output.o 2>&1 \

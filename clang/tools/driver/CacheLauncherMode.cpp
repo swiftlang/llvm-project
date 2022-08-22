@@ -144,6 +144,8 @@ clang::handleClangCacheInvocation(SmallVectorImpl<const char *> &Args,
     }
     if (const char *CASPath = ::getenv("LLVM_CACHE_CAS_PATH")) {
       Args.append({"-Xclang", "-fcas-path", "-Xclang", CASPath});
+      // Put ActionCache in the same directory as CAS.
+      Args.append({"-Xclang", "-faction-cache-path", "-Xclang", CASPath});
     }
     Args.append({"-greproducible", "-Xclang", "-fcas-token-cache"});
     return None;

@@ -15,60 +15,60 @@
 
 // Check result caching.
 
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-MISS
 // RUN: diff %t/exe %t/exe-normal
 
 // RUN: rm %t/exe
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-HIT
 // RUN: diff %t/exe %t/exe-normal
 
 // RUN: touch %t/main.o %t/alib/libt1.a %t/dlib/libt2.dylib
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-HIT
 
 // Check that changing output executable filename doesn't affect cache key for executables.
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe2 -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe2 -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-HIT
 // RUN: diff %t/exe2 %t/exe-normal
 
 // But changing output dylib filename affects cache key.
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose -dylib %t/main.o -o %t/exe1.dylib -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose -dylib %t/main.o -o %t/exe1.dylib -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-MISS
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose -dylib %t/main.o -o %t/exe2.dylib -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose -dylib %t/main.o -o %t/exe2.dylib -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-MISS
 // RUN: not diff %t/exe1.dylib %t/exe2.dylib
 
 // Check that re-exports in a dylib are handled for dependency scanning (libc++ re-exports libc++abi)
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose -lc++ %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose -lc++ %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-MISS
 
 // Change order of search paths.
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe -lt2 -lt1 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe -lt2 -lt1 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-MISS
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe -lt2 -lt1 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe -lt2 -lt1 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-HIT
 
 // Change .o contents
 // RUN: llvm-mc -filetype=obj -triple=x86_64-apple-macos %t/main2.s -o %t/main.o
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-MISS
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-HIT
 
 // Change .a and .dylib contents
 // RUN: llvm-ar rcs %t/alib/libt1.a %t/t2.o
 // RUN: %lld -dylib -o %t/dlib/libt2.dylib %t/t1.o
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-MISS
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose %t/main.o -o %t/exe -lt1 -lt2 -L%t/alib -L%t/dlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-HIT
 
 // Check using relative paths.
 
 // RUN: mv %t/exe %t/exe.bak; cd %t
-// RUN: %lld --fcas-builtin-path %t/cas --fcas-cache-results --verbose main.o -o exe -lt1 -lt2 -Lalib -Ldlib 2>&1 \
+// RUN: %lld --fcas-builtin-path %t/cas --faction-cache-path %t/cache --fcas-cache-results --verbose main.o -o exe -lt1 -lt2 -Lalib -Ldlib 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CACHE-HIT
 // RUN: diff %t/exe %t/exe.bak
 

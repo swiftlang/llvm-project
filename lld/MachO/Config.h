@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/Support/CachePruning.h"
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/VersionTuple.h"
@@ -25,6 +26,7 @@
 #include "llvm/TextAPI/Platform.h"
 #include "llvm/TextAPI/Target.h"
 
+#include <memory>
 #include <vector>
 
 namespace llvm {
@@ -200,6 +202,7 @@ struct Configuration {
 
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> fs;
   std::unique_ptr<llvm::cas::CASDB> CAS;
+  std::unique_ptr<llvm::cas::ActionCache> actionCache;
   std::unique_ptr<llvm::casobjectformats::ObjectFormatSchemaPool> CASSchemas;
   bool depScanning = false;
 

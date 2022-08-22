@@ -100,6 +100,10 @@ def cas_path : Separate<["--"], "fcas-builtin-path">,
     HelpText<"Path to a persistent on-disk backing store for the builtin CAS.">,
     MetaVarName<"<path>">,
     Group<grp_lld>;
+def cache_path : Separate<["--"], "faction-cache-path">,
+    HelpText<"Path to a persistent on-disk backing store for the action cache.">,
+    MetaVarName<"<path>">,
+    Group<grp_lld>;
 def fcas_fs : Separate<["--"], "fcas-fs">,
     HelpText<"Configure the filesystem to read from the provided CAS tree.">,
     MetaVarName<"<tree>">,

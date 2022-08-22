@@ -37,6 +37,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
@@ -1469,7 +1470,7 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
     // FIXME: Allow doing input scanning using a CAS-FS. Need to have a \p
     // CachingOnDiskFileSystem that can track accesses over a CAS tree, instead
     // of the real filesystem.
-    auto cacheFS = createCachingOnDiskFileSystem(CAS);
+    auto cacheFS = createCachingOnDiskFileSystem(CAS, *config->actionCache);
     if (!cacheFS) {
       error("error creating caching filesystem: " +
             toString(cacheFS.takeError()));
@@ -1507,11 +1508,12 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
   }
 
   CASID cacheKey = *optCacheKey;
-  Expected<CASID> result = config->CAS->getCachedResult(cacheKey);
+  Optional<ObjectRef> result = config->actionCache->get(cacheKey);
   if (result) {
-    log("Caching: cache hit, result: " + result->toString() +
+    CASID resultID = config->CAS->getID(*result);
+    log("Caching: cache hit, result: " + resultID.toString() +
         ", key: " + cacheKey.toString());
-    if (Error E = replayResult(CAS, std::move(*result))) {
+    if (Error E = replayResult(CAS, resultID)) {
       error("error replaying cached result: " + toString(std::move(E)));
       return false;
     }
@@ -1522,7 +1524,6 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
     TimeTraceScope timeScope("Caching: link after cache miss");
 
     log("Caching: cache miss, key: " + cacheKey.toString());
-    consumeError(result.takeError());
 
     SmallString<128> workingDirectory;
     if (std::error_code ec = sys::fs::current_path(workingDirectory)) {
@@ -1579,12 +1580,13 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
       return false;
     }
 
-    cas::CASID resultID = CAS.getID(*resultTree);
-    if (Error E = CAS.putCachedResult(cacheKey, resultID)) {
+    if (Error E =
+            config->actionCache->put(cacheKey, CAS.getReference(*resultTree))) {
       error("error storing cached result: " + toString(std::move(E)));
       return false;
     }
 
+    cas::CASID resultID = CAS.getID(*resultTree);
     log("Caching: cached result: " + resultID.toString());
   }
 
@@ -1766,6 +1768,15 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
       error("error loading CAS at path '" + path +
             "': " + toString(CAS.takeError()));
     }
+    std::string defaultCachePath = llvm::cas::getDefaultOnDiskActionCachePath();
+    StringRef cachePath =
+        args.getLastArgValue(OPT_cache_path, defaultCachePath);
+    auto cache = llvm::cas::createOnDiskActionCache(*config->CAS, cachePath);
+    if (cache)
+      config->actionCache = std::move(*cache);
+    else
+      error("error loading ActionCache at path '" + cachePath +
+            "': " + toString(cache.takeError()));
   }
   Optional<StringRef> CASFileSystemRootID;
   if (args.hasArg(OPT_fcas_fs))

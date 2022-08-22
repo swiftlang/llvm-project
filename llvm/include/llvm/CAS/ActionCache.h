@@ -85,10 +85,13 @@ private:
 /// Create an action cache in memory.
 std::unique_ptr<ActionCache> createInMemoryActionCache(CASDB &CAS);
 
+/// Get a reasonable default on-disk path for a persistent ActionCache for the
+/// current user.
+std::string getDefaultOnDiskActionCachePath();
+
 /// Create an action cache on disk.
 Expected<std::unique_ptr<ActionCache>> createOnDiskActionCache(CASDB &CAS,
                                                                StringRef Path);
-
 } // end namespace llvm::cas
 
 #endif // LLVM_CAS_CASACTIONCACHE_H

@@ -868,9 +868,6 @@ public:
 
   void print(raw_ostream &OS) const final;
 
-  Expected<CASID> getCachedResult(CASID InputID) final;
-  Error putCachedResult(CASID InputID, CASID OutputID) final;
-
   static Expected<std::unique_ptr<OnDiskCAS>> open(StringRef Path);
 
 private:
@@ -1933,65 +1930,6 @@ Error OnDiskCAS::forEachRef(ObjectHandle Node,
     if (Error E = Callback(getExternalReference(Ref)))
       return E;
   return Error::success();
-}
-
-Expected<CASID> OnDiskCAS::getCachedResult(CASID InputID) {
-  // Check that InputID is valid.
-  //
-  // FIXME: InputID check is silly; we should have a separate ActionKey.
-  if (!getReference(InputID))
-    return createUnknownObjectError(InputID);
-
-  // Check the result cache.
-  //
-  // FIXME: Failure here should not be an error.
-  OnDiskHashMappedTrie::pointer ActionP = ActionCache.find(InputID.getHash());
-  if (!ActionP)
-    return createResultCacheMissError(InputID);
-  const uint64_t Output =
-      reinterpret_cast<const ActionCacheResultT *>(ActionP->Data.data())
-          ->load();
-
-  // Return the result.
-  return getID(getExternalReference(InternalRef::getFromRawData(Output)));
-}
-
-Error OnDiskCAS::putCachedResult(CASID InputID, CASID OutputID) {
-  // Check that both IDs are valid.
-  //
-  // FIXME: InputID check is silly; we should have a separate ActionKey.
-  if (!getReference(InputID))
-    return createUnknownObjectError(InputID);
-
-  Optional<InternalRef> OutputRef;
-  if (Optional<ObjectRef> ExternalRef = getReference(OutputID))
-    OutputRef = getInternalRef(*ExternalRef);
-  else
-    return createUnknownObjectError(OutputID);
-
-  // Insert Input the result cache.
-  //
-  // FIXME: Consider templating OnDiskHashMappedTrie (really, renaming it to
-  // OnDiskHashMappedTrieBase and adding a type-safe layer on top).
-  const uint64_t Expected = OutputRef->getRawData();
-  OnDiskHashMappedTrie::pointer ActionP = ActionCache.insertLazy(
-      InputID.getHash(), [&](FileOffset TentativeOffset,
-                             OnDiskHashMappedTrie::ValueProxy TentativeValue) {
-        assert(TentativeValue.Data.size() == sizeof(ActionCacheResultT));
-        assert(isAddrAligned(Align::Of<ActionCacheResultT>(),
-                             TentativeValue.Data.data()));
-        new (TentativeValue.Data.data()) ActionCacheResultT(Expected);
-      });
-  const uint64_t Observed =
-      reinterpret_cast<const ActionCacheResultT *>(ActionP->Data.data())
-          ->load();
-
-  if (Expected == Observed)
-    return Error::success();
-
-  CASID ObservedID =
-      getID(getExternalReference(InternalRef::getFromRawData(Observed)));
-  return createResultCachePoisonedError(InputID, OutputID, ObservedID);
 }
 
 Expected<std::unique_ptr<OnDiskCAS>> OnDiskCAS::open(StringRef AbsPath) {

@@ -33,6 +33,7 @@
 #include "clang/FrontendTool/Utils.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CASOutputBackend.h"
@@ -61,6 +62,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include <cstdio>
+#include <memory>
 
 #ifdef CLANG_HAVE_RLIMITS
 #include <sys/resource.h>
@@ -288,6 +290,7 @@ private:
   bool ComputedJobNeedsReplay = false;
 
   std::shared_ptr<llvm::cas::CASDB> CAS;
+  std::shared_ptr<llvm::cas::ActionCache> Cache;
   SmallString<256> ResultDiags;
   bool WriteOutputAsCASID = false;
   bool UseCASBackend = false;
@@ -360,8 +363,12 @@ Optional<int> CompileJobCache::initialize(CompilerInstance &Clang) {
   //
   // TODO: Extract CASOptions.Path first if we need it later since it'll
   // disappear here.
-  CAS = Invocation.getCASOpts().getOrCreateCASAndHideConfig(Diags);
+  Invocation.getCASOpts().freezeConfig(Diags);
+  CAS = Invocation.getCASOpts().getOrCreateCAS(Diags);
   if (!CAS)
+    return 1; // Exit with error!
+  Cache = Invocation.getCASOpts().getOrCreateActionCache(Diags);
+  if (!Cache)
     return 1; // Exit with error!
 
   // Canonicalize Invocation and save things in a side channel.
@@ -439,23 +446,17 @@ Optional<int> CompileJobCache::tryReplayCachedResult(CompilerInstance &Clang) {
   if (!ResultCacheKey)
     return 1;
 
-  Expected<llvm::cas::CASID> Result = CAS->getCachedResult(*ResultCacheKey);
+  Optional<llvm::cas::ObjectRef> Result = Cache->get(*ResultCacheKey);
   if (Result) {
-    if (Optional<llvm::cas::ObjectRef> ResultRef = CAS->getReference(*Result)) {
-      Diags.Report(diag::remark_compile_job_cache_hit)
-          << ResultCacheKey->toString() << Result->toString();
-      Optional<int> Status =
-          replayCachedResult(Clang, *ResultRef, /*JustComputedResult=*/false);
-      assert(Status && "Expected a status for a cache hit");
-      return *Status;
-    }
-    Diags.Report(diag::remark_compile_job_cache_miss_result_not_found)
-        << ResultCacheKey->toString() << Result->toString();
-  } else {
-    llvm::consumeError(Result.takeError());
-    Diags.Report(diag::remark_compile_job_cache_miss)
-        << ResultCacheKey->toString();
+    Diags.Report(diag::remark_compile_job_cache_hit)
+        << ResultCacheKey->toString() << CAS->getID(*Result).toString();
+    Optional<int> Status =
+        replayCachedResult(Clang, *Result, /*JustComputedResult=*/false);
+    assert(Status && "Expected a status for a cache hit");
+    return *Status;
   }
+  Diags.Report(diag::remark_compile_job_cache_miss)
+      << ResultCacheKey->toString();
 
   // Create an on-disk backend for streaming the results live if we run the
   // computation. If we're writing the output as a CASID, skip it here, since
@@ -635,8 +636,7 @@ void CompileJobCache::finishComputedResult(CompilerInstance &Clang,
   Expected<llvm::cas::ObjectHandle> Result = Builder.create(*CAS);
   if (!Result)
     llvm::report_fatal_error(Result.takeError());
-  if (llvm::Error E =
-          CAS->putCachedResult(*ResultCacheKey, CAS->getID(*Result)))
+  if (llvm::Error E = Cache->put(*ResultCacheKey, CAS->getReference(*Result)))
     llvm::report_fatal_error(std::move(E));
 
   // Replay / decanonicalize as necessary.

@@ -20,6 +20,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/CAS/ActionCache.h"
+#include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CASID.h"
 #include "llvm/Support/Allocator.h"
@@ -98,6 +100,7 @@ class PTHManager {
   llvm::SpecificBumpPtrAllocator<IdentifierInfo *> IdentifierInfoCacheAlloc;
 
   llvm::cas::CASDB &CAS;
+  llvm::cas::ActionCache &Cache;
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS;
   LangOptions CanonicalLangOpts;
   Optional<llvm::cas::CASID> SerializedLangOpts;
@@ -120,7 +123,7 @@ public:
   ~PTHManager();
   PTHManager() = delete;
 
-  PTHManager(llvm::cas::CASDB &CAS,
+  PTHManager(llvm::cas::CASDB &CAS, llvm::cas::ActionCache &Cache,
              IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS, Preprocessor &PP);
 
   void setPreprocessor(Preprocessor *pp) { PP = pp; }

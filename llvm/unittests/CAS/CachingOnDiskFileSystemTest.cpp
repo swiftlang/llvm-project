@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/TreeSchema.h"
 #include "llvm/Support/Errc.h"
@@ -35,8 +36,10 @@ namespace {
 
 TEST(CachingOnDiskFileSystemTest, BasicRealFSIteration) {
   TempDir TestDirectory("virtual-file-system-test", /*Unique*/ true);
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<vfs::FileSystem> FS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
 
   std::error_code EC;
   vfs::directory_iterator I = FS->dir_begin(Twine(TestDirectory.path()), EC);
@@ -71,8 +74,10 @@ TEST(CachingOnDiskFileSystemTest, MultipleWorkingDirs) {
   TempLink C(ADir.path(), Root.path("c"));
   TempFile AA(ADir.path("aa"), "", "aaaa");
   TempFile BB(BDir.path("bb"), "", "bbbb");
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<vfs::FileSystem> BFS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
   IntrusiveRefCntPtr<vfs::FileSystem> CFS;
   //,
   //                                    CFS = cantFail(
@@ -137,8 +142,10 @@ TEST(CachingOnDiskFileSystemTest, MultipleWorkingDirs) {
 
 TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSIteration) {
   TempDir TestDirectory("virtual-file-system-test", /*Unique*/ true);
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<vfs::FileSystem> FS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
 
   TempLink _a("no_such_file", TestDirectory.path("a"));
   TempDir _b(TestDirectory.path("b"));
@@ -167,8 +174,10 @@ TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSIteration) {
 
 TEST(CachingOnDiskFileSystemTest, BasicRealFSRecursiveIteration) {
   TempDir TestDirectory("virtual-file-system-test", /*Unique*/ true);
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<vfs::FileSystem> FS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
 
   std::error_code EC;
   auto I =
@@ -217,8 +226,10 @@ TEST(CachingOnDiskFileSystemTest, BasicRealFSRecursiveIterationNoPush) {
   TempDir _ef(TestDirectory.path("e/f"));
   TempDir _g(TestDirectory.path("g"));
 
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<vfs::FileSystem> FS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
 
   // Test that calling no_push on entries without subdirectories has no effect.
   {
@@ -290,8 +301,10 @@ TEST(CachingOnDiskFileSystemTest, BasicRealFSRecursiveIterationNoPush) {
 
 TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSRecursiveIteration) {
   TempDir TestDirectory("virtual-file-system-test", /*Unique*/ true);
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<vfs::FileSystem> FS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
 
   TempLink _a("no_such_file", TestDirectory.path("a"));
   TempDir _b(TestDirectory.path("b"));
@@ -329,8 +342,10 @@ TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSRecursiveIteration) {
 
 TEST(CachingOnDiskFileSystemTest, TrackNewAccesses) {
   TempDir TestDirectory("virtual-file-system-test", /*Unique*/ true);
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
   ASSERT_FALSE(FS->setCurrentWorkingDirectory(TestDirectory.path()));
 
   TreePathPrefixMapper Remapper(FS);
@@ -376,8 +391,10 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccesses) {
 
 TEST(CachingOnDiskFileSystemTest, getRealPath) {
   TempDir D("caching-on-disk-file-system-test", /*Unique=*/true);
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
   ASSERT_FALSE(FS->setCurrentWorkingDirectory(D.path()));
 
   TempFile File(D.path("file"), "", "content");
@@ -391,8 +408,10 @@ TEST(CachingOnDiskFileSystemTest, getRealPath) {
 
 TEST(CachingOnDiskFileSystemTest, caseSensitivityFile) {
   TempDir D("caching-on-disk-file-system-test", /*Unique=*/true);
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
   ASSERT_FALSE(FS->setCurrentWorkingDirectory(D.path()));
 
   std::vector<std::pair<std::string, std::string>> Files = {{"file", "File"},
@@ -433,8 +452,10 @@ TEST(CachingOnDiskFileSystemTest, caseSensitivityFile) {
 
 TEST(CachingOnDiskFileSystemTest, caseSensitivityDir) {
   TempDir D("caching-on-disk-file-system-test", /*Unique=*/true);
+  auto CAS = cas::createInMemoryCAS();
+  auto Cache = cas::createInMemoryActionCache(*CAS);
   IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS =
-      cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS, *Cache));
   ASSERT_FALSE(FS->setCurrentWorkingDirectory(D.path()));
 
   TempDir Dir1(D.path("dir"));

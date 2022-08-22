@@ -19,6 +19,7 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
@@ -35,6 +36,7 @@
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/ScanDependencies.h"
 #include <algorithm>
+#include <memory>
 #include <system_error>
 using namespace llvm;
 using namespace llvm::tablegen;
@@ -252,6 +254,7 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
 namespace {
 struct TableGenCache {
   std::unique_ptr<cas::CASDB> CAS;
+  std::unique_ptr<cas::ActionCache> Cache;
   Optional<cas::ObjectRef> ExecutableID;
   Optional<cas::ObjectRef> IncludesTreeID;
   Optional<cas::ObjectRef> ActionID;
@@ -374,12 +377,18 @@ Error TableGenCache::lookupCachedResult(ArrayRef<const char *> Args) {
           cas::createOnDiskCAS(cas::getDefaultOnDiskCASPath()).moveInto(CAS))
     return E;
 
+  if (Error E = cas::createOnDiskActionCache(
+                    *CAS, cas::getDefaultOnDiskActionCachePath())
+                    .moveInto(Cache))
+    return E;
+
   if (Error E = createExecutableBlob(Args[0]).moveInto(ExecutableID))
     return E;
 
   OriginalInputFilename = InputFilename.getValue();
-  Expected<ScanIncludesResult> Scan = scanIncludesAndRemap(
-      *CAS, *ExecutableID, InputFilename, *&IncludeDirs, PrefixMappings);
+  Expected<ScanIncludesResult> Scan =
+      scanIncludesAndRemap(*CAS, *Cache, *ExecutableID, InputFilename,
+                           *&IncludeDirs, PrefixMappings);
   if (!Scan)
     return Scan.takeError();
 
@@ -393,9 +402,8 @@ Error TableGenCache::lookupCachedResult(ArrayRef<const char *> Args) {
     return E;
 
   // Not an error for the result to be missing.
-  if (Optional<cas::CASID> ID =
-          expectedToOptional(CAS->getCachedResult(CAS->getID(*ActionID))))
-    ResultID = CAS->getReference(*ID);
+  if (Optional<cas::ObjectRef> ID = Cache->get(CAS->getID(*ActionID)))
+    ResultID = *ID;
   return Error::success();
 }
 
@@ -479,7 +487,7 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
   Expected<cas::ObjectHandle> Tree = Builder.create(*CAS);
   if (!Tree)
     return Tree.takeError();
-  return CAS->putCachedResult(CAS->getID(*ActionID), CAS->getID(*Tree));
+  return Cache->put(CAS->getID(*ActionID), CAS->getReference(*Tree));
 }
 
 Error TableGenCache::replayResult() {

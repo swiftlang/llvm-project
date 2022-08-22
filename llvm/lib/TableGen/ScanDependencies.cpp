@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/TableGen/ScanDependencies.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrefixMapper.h"
@@ -74,7 +75,7 @@ void tablegen::scanTextForIncludes(StringRef Input,
 }
 
 static Error
-fetchCachedIncludedFiles(cas::CASDB &CAS, cas::CASID ID,
+fetchCachedIncludedFiles(cas::CASDB &CAS, cas::ObjectRef ID,
                          SmallVectorImpl<StringRef> &IncludedFiles) {
   Expected<cas::ObjectProxy> ExpectedBlob = CAS.getProxy(ID);
   if (!ExpectedBlob)
@@ -83,8 +84,8 @@ fetchCachedIncludedFiles(cas::CASDB &CAS, cas::CASID ID,
   return Error::success();
 }
 
-static Error computeIncludedFiles(cas::CASDB &CAS, cas::CASID Key,
-                                  StringRef Input,
+static Error computeIncludedFiles(cas::CASDB &CAS, cas::ActionCache &Cache,
+                                  cas::CASID Key, StringRef Input,
                                   SmallVectorImpl<StringRef> &IncludedFiles) {
   SmallString<256> ResultToCache;
   scanTextForIncludes(Input, IncludedFiles);
@@ -94,12 +95,13 @@ static Error computeIncludedFiles(cas::CASDB &CAS, cas::CASID Key,
       CAS.createProxy(None, ResultToCache);
   if (!ExpectedResult)
     return ExpectedResult.takeError();
-  if (Error E = CAS.putCachedResult(Key, *ExpectedResult))
+  if (Error E = Cache.put(Key, ExpectedResult->getRef()))
     return E;
   return Error::success();
 }
 
-Error tablegen::scanTextForIncludes(cas::CASDB &CAS, cas::ObjectRef ExecID,
+Error tablegen::scanTextForIncludes(cas::CASDB &CAS, cas::ActionCache &Cache,
+                                    cas::ObjectRef ExecID,
                                     const cas::ObjectProxy &Blob,
                                     SmallVectorImpl<StringRef> &Includes) {
   constexpr StringLiteral CacheKeyData = "llvm::tablegen::scanTextForIncludes";
@@ -110,10 +112,9 @@ Error tablegen::scanTextForIncludes(cas::CASDB &CAS, cas::ObjectRef ExecID,
     return Key.takeError();
 
   cas::CASID KeyID = CAS.getID(*Key);
-  if (Optional<cas::CASID> ResultID =
-          expectedToOptional(CAS.getCachedResult(KeyID)))
+  if (Optional<cas::ObjectRef> ResultID = Cache.get(KeyID))
     return fetchCachedIncludedFiles(CAS, *ResultID, Includes);
-  return computeIncludedFiles(CAS, KeyID, Blob.getData(), Includes);
+  return computeIncludedFiles(CAS, Cache, KeyID, Blob.getData(), Includes);
 }
 
 Optional<cas::ObjectRef>
@@ -140,6 +141,7 @@ Error tablegen::accessAllIncludes(cas::CachingOnDiskFileSystem &FS,
                                   ArrayRef<std::string> IncludeDirs,
                                   const cas::ObjectProxy &MainFileBlob) {
   cas::CASDB &CAS = FS.getCAS();
+  cas::ActionCache &Cache = FS.getCache();
 
   // Helper for adding to the worklist.
   SmallVector<cas::ObjectProxy> Worklist = {MainFileBlob};
@@ -160,8 +162,8 @@ Error tablegen::accessAllIncludes(cas::CachingOnDiskFileSystem &FS,
   SmallVector<StringRef> IncludedFiles;
   while (!Worklist.empty()) {
     IncludedFiles.clear();
-    if (Error E = scanTextForIncludes(CAS, ExecID, Worklist.pop_back_val(),
-                                      IncludedFiles))
+    if (Error E = scanTextForIncludes(CAS, Cache, ExecID,
+                                      Worklist.pop_back_val(), IncludedFiles))
       return E;
 
     // Add included files to the worklist. Ignore files not found, since the
@@ -202,12 +204,14 @@ Error tablegen::createMainFileError(StringRef MainFilename,
                                    "': " + EC.message());
 }
 
-Expected<ScanIncludesResult> tablegen::scanIncludes(
-    cas::CASDB &CAS, cas::ObjectRef ExecID, StringRef MainFilename,
-    ArrayRef<std::string> IncludeDirs, ArrayRef<MappedPrefix> PrefixMappings,
-    Optional<TreePathPrefixMapper> *CapturedPM) {
+Expected<ScanIncludesResult>
+tablegen::scanIncludes(cas::CASDB &CAS, cas::ActionCache &Cache,
+                       cas::ObjectRef ExecID, StringRef MainFilename,
+                       ArrayRef<std::string> IncludeDirs,
+                       ArrayRef<MappedPrefix> PrefixMappings,
+                       Optional<TreePathPrefixMapper> *CapturedPM) {
   IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS;
-  if (Error E = cas::createCachingOnDiskFileSystem(CAS).moveInto(FS))
+  if (Error E = cas::createCachingOnDiskFileSystem(CAS, Cache).moveInto(FS))
     return std::move(E);
 
   FS->trackNewAccesses();
@@ -239,13 +243,13 @@ Expected<ScanIncludesResult> tablegen::scanIncludes(
 }
 
 Expected<ScanIncludesResult>
-tablegen::scanIncludesAndRemap(cas::CASDB &CAS, cas::ObjectRef ExecID,
-                               std::string &MainFilename,
+tablegen::scanIncludesAndRemap(cas::CASDB &CAS, cas::ActionCache &Cache,
+                               cas::ObjectRef ExecID, std::string &MainFilename,
                                std::vector<std::string> &IncludeDirs,
                                ArrayRef<MappedPrefix> PrefixMappings) {
   Optional<TreePathPrefixMapper> PM;
-  auto Result =
-      scanIncludes(CAS, ExecID, MainFilename, IncludeDirs, PrefixMappings, &PM);
+  auto Result = scanIncludes(CAS, Cache, ExecID, MainFilename, IncludeDirs,
+                             PrefixMappings, &PM);
   if (!Result)
     return Result.takeError();
 

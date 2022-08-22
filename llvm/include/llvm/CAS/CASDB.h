@@ -170,13 +170,6 @@ public:
   virtual ArrayRef<char> getData(ObjectHandle Node,
                                  bool RequiresNullTerminator = false) const = 0;
 
-public:
-  /// ActionCache APIs.
-  // FIXME: Split out in the future. This should also be generic key-value
-  // storage interface, rather than CASID -> CASID.
-  virtual Expected<CASID> getCachedResult(CASID InputID) = 0;
-  virtual Error putCachedResult(CASID InputID, CASID OutputID) = 0;
-
 protected:
   virtual Expected<ObjectHandle>
   storeFromOpenFileImpl(sys::fs::file_t FD,

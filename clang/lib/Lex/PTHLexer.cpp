@@ -26,6 +26,7 @@
 #include "clang/Lex/Token.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/Support/DJB.h"
@@ -343,10 +344,10 @@ SourceLocation PTHLexer::getSourceLocation() {
 // PTHManager methods.
 //===----------------------------------------------------------------------===//
 
-PTHManager::PTHManager(llvm::cas::CASDB &CAS,
+PTHManager::PTHManager(llvm::cas::CASDB &CAS, llvm::cas::ActionCache &Cache,
                        IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                        Preprocessor &PP)
-    : CAS(CAS), FS(std::move(FS)), PP(&PP) {
+    : CAS(CAS), Cache(Cache), FS(std::move(FS)), PP(&PP) {
   // TODO: Allow the filesystem NOT to have a CAS instance, or (maybe?) to have
   // a different CAS instance. This requires ingesting files from FS into CAS.
 
@@ -613,9 +614,8 @@ Expected<llvm::cas::CASID> PTHManager::computePTH(llvm::cas::CASID InputFile) {
                llvm::cas::TreeEntry::Regular, "lang-opts");
 
   llvm::cas::CASID CacheKey = CAS.getID(llvm::cantFail(Builder.create(CAS)));
-  if (Optional<llvm::cas::CASID> CachedPTH =
-          expectedToOptional(CAS.getCachedResult(CacheKey)))
-    return *CachedPTH;
+  if (Optional<llvm::cas::ObjectRef> CachedPTH = Cache.get(CacheKey))
+    return CAS.getID(*CachedPTH);
 
   SmallString<256> PTHString;
   {
@@ -628,7 +628,7 @@ Expected<llvm::cas::CASID> PTHManager::computePTH(llvm::cas::CASID InputFile) {
                        CanonicalLangOpts);
   }
   auto PTH = llvm::cantFail(CAS.createProxy(None, PTHString));
-  llvm::cantFail(CAS.putCachedResult(CacheKey, PTH));
+  llvm::cantFail(Cache.put(CacheKey, PTH.getRef()));
   return PTH;
 }
 
