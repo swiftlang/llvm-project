@@ -76,7 +76,7 @@ private:
 /// defined in CASConfiguration to enable caching a CAS instance.
 ///
 /// CASOptions includes \a getOrCreateCAS() and \a
-/// getOrCreateActionCache() for creating CAS and ActionAction.
+/// getOrCreateActionCache() for creating CAS and ActionCache.
 ///
 /// FIXME: The the caching is done here, instead of as a field in \a
 /// CompilerInstance, in order to ensure that \a

@@ -2002,13 +2002,11 @@ Expected<std::unique_ptr<CASDB>> cas::createOnDiskCAS(const Twine &Path) {
 
 #endif /* LLVM_ENABLE_ONDISK_CAS */
 
-// FIXME: Proxy not portable. Maybe also error-prone?
-constexpr StringLiteral DefaultDirProxy = "/^llvm::cas::builtin::default";
-constexpr StringLiteral DefaultName = "llvm.cas.builtin.default";
+static constexpr StringLiteral DefaultName = "cas";
 
 void cas::getDefaultOnDiskCASStableID(SmallVectorImpl<char> &Path) {
   Path.assign(DefaultDirProxy.begin(), DefaultDirProxy.end());
-  llvm::sys::path::append(Path, DefaultName);
+  llvm::sys::path::append(Path, DefaultDir, DefaultName);
 }
 
 std::string cas::getDefaultOnDiskCASStableID() {
@@ -2021,7 +2019,7 @@ void cas::getDefaultOnDiskCASPath(SmallVectorImpl<char> &Path) {
   // FIXME: Should this return 'Error' instead of hard-failing?
   if (!llvm::sys::path::cache_directory(Path))
     report_fatal_error("cannot get default cache directory");
-  llvm::sys::path::append(Path, DefaultName);
+  llvm::sys::path::append(Path, DefaultDir, DefaultName);
 }
 
 std::string cas::getDefaultOnDiskCASPath() {

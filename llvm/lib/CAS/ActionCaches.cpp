@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "BuiltinCAS.h"
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/HashMappedTrie.h"
@@ -184,12 +185,13 @@ Error OnDiskActionCache::putImpl(ArrayRef<uint8_t> Key,
                                         Observed->getValue());
 }
 
-static constexpr StringLiteral DefaultName = "llvm.actioncache.builtin.default";
+static constexpr StringLiteral DefaultName = "actioncache";
+
 std::string cas::getDefaultOnDiskActionCachePath() {
   SmallString<128> Path;
   if (!llvm::sys::path::cache_directory(Path))
     report_fatal_error("cannot get default cache directory");
-  llvm::sys::path::append(Path, DefaultName);
+  llvm::sys::path::append(Path, builtin::DefaultDir, DefaultName);
   return Path.str().str();
 }
 

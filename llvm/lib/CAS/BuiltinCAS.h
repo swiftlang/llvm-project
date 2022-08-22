@@ -231,6 +231,10 @@ public:
   Error validate(const CASID &ID) final;
 };
 
+// FIXME: Proxy not portable. Maybe also error-prone?
+constexpr StringLiteral DefaultDirProxy = "/^llvm::cas::builtin::default";
+constexpr StringLiteral DefaultDir = "llvm.cas.builtin.default";
+
 } // end namespace builtin
 } // end namespace cas
 } // end namespace llvm
