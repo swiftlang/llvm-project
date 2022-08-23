@@ -112,7 +112,10 @@ Error tablegen::scanTextForIncludes(cas::CASDB &CAS, cas::ActionCache &Cache,
     return Key.takeError();
 
   cas::CASID KeyID = CAS.getID(*Key);
-  if (Optional<cas::ObjectRef> ResultID = Cache.get(KeyID))
+  auto Result = Cache.get(KeyID);
+  if (!Result)
+    return Result.takeError();
+  if (Optional<cas::ObjectRef> ResultID = *Result)
     return fetchCachedIncludedFiles(CAS, *ResultID, Includes);
   return computeIncludedFiles(CAS, Cache, KeyID, Blob.getData(), Includes);
 }

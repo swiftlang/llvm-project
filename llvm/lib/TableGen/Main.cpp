@@ -402,7 +402,10 @@ Error TableGenCache::lookupCachedResult(ArrayRef<const char *> Args) {
     return E;
 
   // Not an error for the result to be missing.
-  if (Optional<cas::ObjectRef> ID = Cache->get(CAS->getID(*ActionID)))
+  auto Result = Cache->get(CAS->getID(*ActionID));
+  if (!Result)
+    return Result.takeError();
+  if (Optional<cas::ObjectRef> ID = *Result)
     ResultID = *ID;
   return Error::success();
 }

@@ -1508,9 +1508,13 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
   }
 
   CASID cacheKey = *optCacheKey;
-  Optional<ObjectRef> result = config->actionCache->get(cacheKey);
-  if (result) {
-    CASID resultID = config->CAS->getID(*result);
+  auto result = config->actionCache->get(cacheKey);
+  if (!result) {
+    error("ActionCache lookup failed: " + toString(result.takeError()));
+    return false;
+  }
+  if (*result) {
+    CASID resultID = config->CAS->getID(**result);
     log("Caching: cache hit, result: " + resultID.toString() +
         ", key: " + cacheKey.toString());
     if (Error E = replayResult(CAS, resultID)) {

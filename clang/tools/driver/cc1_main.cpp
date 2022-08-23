@@ -446,7 +446,10 @@ Optional<int> CompileJobCache::tryReplayCachedResult(CompilerInstance &Clang) {
   if (!ResultCacheKey)
     return 1;
 
-  Optional<llvm::cas::ObjectRef> Result = Cache->get(*ResultCacheKey);
+  Optional<llvm::cas::ObjectRef> Result;
+  if (auto E = Cache->get(*ResultCacheKey).moveInto(Result))
+    consumeError(std::move(E)); // ignore error and treat it as a cache miss.
+
   if (Result) {
     Diags.Report(diag::remark_compile_job_cache_hit)
         << ResultCacheKey->toString() << CAS->getID(*Result).toString();

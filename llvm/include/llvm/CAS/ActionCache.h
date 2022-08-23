@@ -47,7 +47,7 @@ class ActionCache {
 
 public:
   /// Get a previously computed result for \p ActionKey.
-  Optional<ObjectRef> get(const CacheKey &ActionKey) const {
+  Expected<Optional<ObjectRef>> get(const CacheKey &ActionKey) const {
     return getImpl(arrayRefFromStringRef(ActionKey.getKey()));
   }
 
@@ -70,7 +70,8 @@ public:
   virtual ~ActionCache() = default;
 
 protected:
-  virtual Optional<ObjectRef> getImpl(ArrayRef<uint8_t> ResolvedKey) const = 0;
+  virtual Expected<Optional<ObjectRef>>
+  getImpl(ArrayRef<uint8_t> ResolvedKey) const = 0;
   virtual Error putImpl(ArrayRef<uint8_t> ResolvedKey,
                         const ObjectRef &Result) = 0;
 

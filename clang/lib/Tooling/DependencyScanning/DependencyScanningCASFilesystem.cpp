@@ -165,7 +165,8 @@ void DependencyScanningCASFilesystem::scanForDirectives(
   }
 
   // Check the result cache.
-  if (Optional<ObjectRef> OutputRef = Cache.get(*InputID)) {
+  if (Optional<ObjectRef> OutputRef =
+          reportAsFatalIfError(Cache.get(*InputID))) {
     reportAsFatalIfError(
         loadDepDirectives(CAS, *OutputRef, Tokens, Directives));
     return;
