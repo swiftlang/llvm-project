@@ -980,8 +980,7 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
 
   auto &CAS = Schema.CAS;
   if (JustBlobs)
-    return CAS.getReference(
-        ExitOnErr(CAS.storeFromString(None, FileContent.getBuffer())));
+    return ExitOnErr(CAS.storeFromString(None, FileContent.getBuffer()));
 
   if (CASIDFile) {
     auto ID = ExitOnErr(readCASIDBuffer(Schema.CAS, FileContent));
@@ -1067,9 +1066,9 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
       // Read dsym.
       auto DwarfBuffer =
           ExitOnErr(errorOrToExpected(MemoryBuffer::getFile(DsymFile.TmpName)));
-      Builder.push(CAS.getReference(ExitOnErr(
-                       CAS.storeFromString(None, DwarfBuffer->getBuffer()))),
-                   TreeEntry::Regular, S->getName());
+      Builder.push(
+          ExitOnErr(CAS.storeFromString(None, DwarfBuffer->getBuffer())),
+          TreeEntry::Regular, S->getName());
     }
     ExitOnErr(MapFile.discard());
     ExitOnErr(DsymFile.discard());

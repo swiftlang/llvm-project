@@ -470,10 +470,10 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
 
   cas::HierarchicalTreeBuilder Builder;
   auto addFile = [&](StringRef Name, StringRef Data) -> Error {
-    Expected<cas::ObjectHandle> ID = CAS->storeFromString(None, Data);
+    Expected<cas::ObjectRef> ID = CAS->storeFromString(None, Data);
     if (!ID)
       return ID.takeError();
-    Builder.push(CAS->getReference(*ID), cas::TreeEntry::Regular, Name);
+    Builder.push(*ID, cas::TreeEntry::Regular, Name);
     return Error::success();
   };
 

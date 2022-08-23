@@ -106,7 +106,7 @@ Error tablegen::scanTextForIncludes(cas::CASDB &CAS, cas::ActionCache &Cache,
                                     SmallVectorImpl<StringRef> &Includes) {
   constexpr StringLiteral CacheKeyData = "llvm::tablegen::scanTextForIncludes";
 
-  Expected<cas::ObjectHandle> Key =
+  Expected<cas::ObjectRef> Key =
       CAS.storeFromString({ExecID, Blob.getRef()}, CacheKeyData);
   if (!Key)
     return Key.takeError();
