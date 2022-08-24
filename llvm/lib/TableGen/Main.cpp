@@ -364,10 +364,10 @@ Error TableGenCache::createAction(ArrayRef<const char *> Args) {
   Builder.push(*MainFileID, cas::TreeEntry::Regular, "input");
   Builder.push(*ExecutableID, cas::TreeEntry::Regular, "executable");
   Builder.push(*CommandLineID, cas::TreeEntry::Regular, "command-line");
-  Expected<cas::ObjectHandle> Tree = Builder.create(*CAS);
+  Expected<cas::ObjectProxy> Tree = Builder.create(*CAS);
   if (!Tree)
     return Tree.takeError();
-  ActionID = CAS->getReference(*Tree);
+  ActionID = Tree->getRef();
   return Error::success();
 }
 
@@ -486,10 +486,10 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
     if (Error E = addFile("stderr", Diags.OS.str()))
       return E;
 
-  Expected<cas::ObjectHandle> Tree = Builder.create(*CAS);
+  Expected<cas::ObjectProxy> Tree = Builder.create(*CAS);
   if (!Tree)
     return Tree.takeError();
-  return Cache->put(CAS->getID(*ActionID), CAS->getReference(*Tree));
+  return Cache->put(CAS->getID(*ActionID), Tree->getRef());
 }
 
 Error TableGenCache::replayResult() {

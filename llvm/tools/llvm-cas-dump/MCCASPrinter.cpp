@@ -76,8 +76,7 @@ Error MCCASPrinter::printMCObject(MCObjectProxy MCObj, DWARFContext *DWARFCtx) {
 
   // Print CAS Id.
   OS.indent(Indent);
-  OS << formatv("{0, -15} {1} \n", MCObj.getKindString(),
-                MCSchema.CAS.getID(MCObj));
+  OS << formatv("{0, -15} {1} \n", MCObj.getKindString(), MCObj.getID());
   if (Options.HexDump) {
     auto data = MCObj.getData();
     while (!data.empty()) {

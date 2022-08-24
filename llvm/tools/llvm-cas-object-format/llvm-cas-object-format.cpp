@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
       auto Root = ExitOnErr(CAS->getProxy(ID));
       TreeSchema Schema(*CAS);
       SmallVector<NamedTreeEntry> Stack;
-      Stack.emplace_back(CAS->getReference(Root), TreeEntry::Tree, "/");
+      Stack.emplace_back(Root.getRef(), TreeEntry::Tree, "/");
       Optional<GlobPattern> GlobP;
       if (!CASGlob.empty())
         GlobP.emplace(ExitOnErr(GlobPattern::create(CASGlob)));
@@ -325,10 +325,10 @@ int main(int argc, char *argv[]) {
     for (auto &File : Files) {
       Builder.push(File.second, TreeEntry::Regular, File.first());
     }
-    ObjectProxy SummaryRef = ExitOnErr(CAS->getProxy(Builder.create(*CAS)));
+    ObjectProxy SummaryRef = ExitOnErr(Builder.create(*CAS));
     SummaryIDs.emplace_back(SummaryRef);
     MSG("summary tree: ");
-    outs() << CAS->getID(SummaryRef) << "\n";
+    outs() << SummaryRef.getID() << "\n";
   }
 
   if (ComputeStats.empty() || SummaryIDs.empty()) {
@@ -471,8 +471,7 @@ void StatCollector::visitPOT(ExitOnError &ExitOnErr,
 void StatCollector::visitPOTItem(ExitOnError &ExitOnErr, const POTItem &Item) {
   cas::ObjectRef ID = Item.ID;
   size_t NumPaths = Nodes.lookup(ID).NumPaths;
-  Optional<ObjectHandle> Object = ExitOnErr(CAS.load(ID));
-  assert(Object);
+  ObjectProxy Object = ExitOnErr(CAS.getProxy(ID));
 
   auto updateChild = [&](ObjectRef Child) {
     ++Nodes[Child].NumParents;
@@ -481,10 +480,10 @@ void StatCollector::visitPOTItem(ExitOnError &ExitOnErr, const POTItem &Item) {
 
   size_t NumParents = Nodes.lookup(ID).NumParents;
   TreeSchema Schema(CAS);
-  if (Schema.isNode(*Object)) {
+  if (Schema.isNode(Object)) {
     auto &Info = Stats["builtin:tree"];
     ++Info.Count;
-    TreeProxy Tree = ExitOnErr(Schema.load(*Object));
+    TreeProxy Tree = ExitOnErr(Schema.load(Object));
     Info.NumChildren += Tree.size();
     Info.NumParents += NumParents;
     Info.NumPaths += NumPaths;
@@ -501,17 +500,16 @@ void StatCollector::visitPOTItem(ExitOnError &ExitOnErr, const POTItem &Item) {
     return;
   }
 
-  ObjectProxy Node = ObjectProxy::load(CAS, *Object);
   auto addNodeStats = [&](ObjectKindInfo &Info) {
     ++Info.Count;
-    Info.NumChildren += Node.getNumReferences();
+    Info.NumChildren += Object.getNumReferences();
     Info.NumParents += NumParents;
     Info.NumPaths += NumPaths;
-    Info.DataSize += Node.getData().size();
-    if (!Node.getNumReferences())
+    Info.DataSize += Object.getData().size();
+    if (!Object.getNumReferences())
       Totals.NumPaths += NumPaths; // Count paths to leafs.
 
-    ExitOnErr(Node.forEachReference([&](ObjectRef Child) {
+    ExitOnErr(Object.forEachReference([&](ObjectRef Child) {
       updateChild(Child);
       return Error::success();
     }));
@@ -526,7 +524,7 @@ void StatCollector::visitPOTItem(ExitOnError &ExitOnErr, const POTItem &Item) {
   for (auto &S : Schemas) {
     if (Item.Schema != S.first)
       continue;
-    S.second(ExitOnErr, addNodeStats, Node);
+    S.second(ExitOnErr, addNodeStats, Object);
     return;
   }
   llvm_unreachable("schema not found");
@@ -684,16 +682,11 @@ static void computeStats(CASDB &CAS, ArrayRef<ObjectProxy> TopLevels,
     Worklist.back().Visited = true;
 
     // FIXME: Maybe this should just assert?
-    Optional<ObjectHandle> Object = ExitOnErr(CAS.load(ID));
-    assert(Object);
-    if (!Object) {
-      Worklist.pop_back();
-      continue;
-    }
+    ObjectProxy Object = ExitOnErr(CAS.getProxy(ID));
 
     TreeSchema TSchema(CAS);
-    if (TSchema.isNode(*Object)) {
-      TreeProxy Tree = ExitOnErr(TSchema.load(*Object));
+    if (TSchema.isNode(Object)) {
+      TreeProxy Tree = ExitOnErr(TSchema.load(Object));
       ExitOnErr(Tree.forEachEntry([&](const NamedTreeEntry &Entry) {
         SmallString<128> PathStorage = Name;
         sys::path::append(PathStorage, sys::path::Style::posix,
@@ -708,19 +701,18 @@ static void computeStats(CASDB &CAS, ArrayRef<ObjectProxy> TopLevels,
       continue;
     }
 
-    ObjectProxy Node = ObjectProxy::load(CAS, *Object);
     const NodeSchema *&Schema = Worklist.back().Schema;
 
     // Update the schema.
     if (!Schema) {
       for (auto &S : Collector.Schemas)
-        if (S.first->isRootNode(Node))
+        if (S.first->isRootNode(Object))
           Schema = S.first;
-    } else if (!Schema->isNode(Node)) {
+    } else if (!Schema->isNode(Object)) {
       Schema = nullptr;
     }
 
-    ExitOnErr(Node.forEachReference([&, Schema](ObjectRef Child) {
+    ExitOnErr(Object.forEachReference([&, Schema](ObjectRef Child) {
       push(Child, "", Schema);
       return Error::success();
     }));
@@ -746,7 +738,7 @@ void StatCollector::printToOuts(ArrayRef<ObjectProxy> TopLevels,
   }
   llvm::sort(Kinds);
 
-  CASID FirstID = CAS.getID(TopLevels.front());
+  CASID FirstID = TopLevels.front().getID();
   size_t NumHashBytes = FirstID.getHash().size();
   if (ObjectStatsFormat == FormatType::Pretty) {
     StatOS
@@ -1007,7 +999,7 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
     jitlink::Section *Text = G->findSectionByName("__TEXT,__text");
     TreeSchema Schema(CAS);
     if (!Text)
-      return CAS.getReference(ExitOnErr(Schema.create()));
+      return ExitOnErr(Schema.create()).getRef();
 
     auto MapFile = ExitOnErr(sys::fs::TempFile::create("/tmp/debug-%%%%%%%%.map"));
     auto DsymFile =
@@ -1072,7 +1064,7 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
     }
     ExitOnErr(MapFile.discard());
     ExitOnErr(DsymFile.discard());
-    return CAS.getReference(ExitOnErr(Builder.create(CAS)));
+    return ExitOnErr(Builder.create(CAS)).getRef();
   }
 
   if (Dump)

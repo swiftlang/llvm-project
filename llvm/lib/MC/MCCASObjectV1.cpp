@@ -1685,7 +1685,7 @@ template <typename T>
 static Expected<T> findSectionFromAsm(const MCAssemblerRef &Asm) {
   for (unsigned I = 1; I < Asm.getNumReferences(); ++I) {
     auto Node = MCObjectProxy::get(
-        Asm.getSchema(), Asm.getSchema().CAS.getProxy(Asm.getReferenceID(I)));
+        Asm.getSchema(), Asm.getSchema().CAS.getProxy(Asm.getReference(I)));
     if (!Node)
       return Node.takeError();
     if (auto Ref = T::Cast(*Node))

@@ -26,25 +26,6 @@ class MCFormatSchemaBase
 public:
   static char ID;
 
-  bool isRootNode(const cas::ObjectHandle &Node) const final {
-    return isRootNode(cas::ObjectProxy::load(CAS, Node));
-  }
-
-  bool isNode(const cas::ObjectHandle &Node) const final {
-    return isNode(cas::ObjectProxy::load(CAS, Node));
-  }
-
-  /// Check if \a Node is a root (entry node) for the schema. This is a strong
-  /// check, since it requires that the first reference matches a complete
-  /// type-id DAG.
-  virtual bool isRootNode(const cas::ObjectProxy &Node) const = 0;
-
-  /// Check if \a Node could be a node in the schema. This is a weak check,
-  /// since it only looks up the KindString associated with the first
-  /// character. The caller should ensure that the parent node is in the schema
-  /// before calling this.
-  virtual bool isNode(const cas::ObjectProxy &Node) const = 0;
-
   Expected<cas::ObjectProxy>
   createFromMCAssembler(llvm::MachOCASWriter &ObjectWriter,
                         llvm::MCAssembler &Asm, const llvm::MCAsmLayout &Layout,
@@ -83,7 +64,7 @@ public:
   /// therefore it cannot be used beyond the \p SchemaPool instance's lifetime.
   ///
   /// Thread-safe.
-  MCFormatSchemaBase *getSchemaForRoot(cas::ObjectHandle Node) const {
+  MCFormatSchemaBase *getSchemaForRoot(cas::ObjectProxy Node) const {
     return dyn_cast_or_null<MCFormatSchemaBase>(
         Pool.getSchemaForRoot(Node));
   }
@@ -95,7 +76,7 @@ private:
   cas::SchemaPool Pool;
 };
 
-} // namespace mccasformat
+} // namespace mccasformats
 } // namespace llvm
 
 #endif // LLVM_MC_CAS_MCCASFORMATSCHEMABASE_H

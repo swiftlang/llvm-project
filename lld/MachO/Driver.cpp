@@ -1426,7 +1426,7 @@ static CASID createResultCacheKey(CASDB &CAS, cas::ObjectRef rootID,
   builder.push(cantFail(CAS.createProxy(None, version)).getRef(),
                TreeEntry::Regular, "version");
 
-  return CAS.getID(cantFail(builder.create(CAS)));
+  return cantFail(builder.create(CAS)).getID();
 }
 
 static Error replayResult(CASDB &CAS, CASID resultID) {
@@ -1584,13 +1584,12 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
       return false;
     }
 
-    if (Error E =
-            config->actionCache->put(cacheKey, CAS.getReference(*resultTree))) {
+    if (Error E = config->actionCache->put(cacheKey, resultTree->getRef())) {
       error("error storing cached result: " + toString(std::move(E)));
       return false;
     }
 
-    cas::CASID resultID = CAS.getID(*resultTree);
+    cas::CASID resultID = resultTree->getID();
     log("Caching: cached result: " + resultID.toString());
   }
 

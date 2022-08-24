@@ -613,7 +613,7 @@ Expected<llvm::cas::CASID> PTHManager::computePTH(llvm::cas::CASID InputFile) {
   Builder.push(*CAS.getReference(*SerializedLangOpts),
                llvm::cas::TreeEntry::Regular, "lang-opts");
 
-  llvm::cas::CASID CacheKey = CAS.getID(llvm::cantFail(Builder.create(CAS)));
+  llvm::cas::CASID CacheKey = llvm::cantFail(Builder.create(CAS)).getID();
   auto Cached = Cache.get(CacheKey);
   if (!Cached)
     return Cached.takeError();
