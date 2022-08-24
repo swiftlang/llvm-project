@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Host/Config.h"
+#include "lldb/Host/common/HostInfoSwift.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Utility/FileSpec.h"
@@ -28,8 +29,8 @@ FileSpec HostInfoWindows::GetSwiftResourceDir() {
   static std::once_flag g_once_flag;
   static FileSpec g_swift_resource_dir;
   std::call_once(g_once_flag, []() {
-    FileSpec lldb_file_spec = HostInfoPosix::GetShlibDir();
-    HostInfoPosix::ComputeSwiftResourceDirectory(lldb_file_spec,
+    FileSpec lldb_file_spec = HostInfoWindows::GetShlibDir();
+    HostInfoWindows::ComputeSwiftResourceDirectory(lldb_file_spec,
                                                  g_swift_resource_dir, true);
     Log *log = GetLog(LLDBLog::Host);
     LLDB_LOG(log, "swift dir -> '{0}'", g_swift_resource_dir);
