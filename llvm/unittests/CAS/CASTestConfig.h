@@ -13,7 +13,6 @@
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
-#include <memory>
 
 #ifndef LLVM_UNITTESTS_CASTESTCONFIG_H
 #define LLVM_UNITTESTS_CASTESTCONFIG_H

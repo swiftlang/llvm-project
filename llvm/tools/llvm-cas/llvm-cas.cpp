@@ -46,9 +46,8 @@ static int makeBlob(CASDB &CAS, StringRef DataPath);
 static int makeNode(CASDB &CAS, ArrayRef<std::string> References, StringRef DataPath);
 static int diffGraphs(CASDB &CAS, CASID LHS, CASID RHS);
 static int traverseGraph(CASDB &CAS, CASID ID);
-static int ingestFileSystem(CASDB &CAS, ActionCache &Cache, StringRef Path);
-static int mergeTrees(CASDB &CAS, ActionCache &Cache,
-                      ArrayRef<std::string> Objects);
+static int ingestFileSystem(CASDB &CAS, StringRef Path);
+static int mergeTrees(CASDB &CAS, ArrayRef<std::string> Objects);
 static int getCASIDForFile(CASDB &CAS, CASID ID, StringRef Path);
 static int validateObject(CASDB &CAS, CASID ID);
 
@@ -58,9 +57,6 @@ int main(int Argc, char **Argv) {
   cl::list<std::string> Objects(cl::Positional, cl::desc("<object>..."));
   cl::opt<std::string> CASPath("cas", cl::desc("Path to CAS on disk."),
                                cl::value_desc("path"));
-  cl::opt<std::string> CachePath("cache",
-                                 cl::desc("Path to ActionCache on disk."),
-                                 cl::value_desc("path"));
   cl::opt<std::string> DataPath("data",
                                 cl::desc("Path to data or '-' for stdin."),
                                 cl::value_desc("path"));
@@ -123,12 +119,6 @@ int main(int Argc, char **Argv) {
     CAS = ExitOnErr(llvm::cas::createOnDiskCAS(CASPath));
   assert(CAS);
 
-  std::unique_ptr<ActionCache> Cache;
-  if (CachePath.empty())
-    Cache = llvm::cas::createInMemoryActionCache(*CAS);
-  else
-    Cache = ExitOnErr(llvm::cas::createOnDiskActionCache(*CAS, CachePath));
-
   if (Command == Dump)
     return dump(*CAS);
 
@@ -151,10 +141,10 @@ int main(int Argc, char **Argv) {
   }
 
   if (Command == IngestFileSystem)
-    return ingestFileSystem(*CAS, *Cache, DataPath);
+    return ingestFileSystem(*CAS, DataPath);
 
   if (Command == MergeTrees)
-    return mergeTrees(*CAS, *Cache, Objects);
+    return mergeTrees(*CAS, Objects);
 
   // Remaining commands need exactly one CAS object.
   if (Objects.empty())
@@ -411,8 +401,8 @@ static Error recursiveAccess(CachingOnDiskFileSystem &FS, StringRef Path) {
 }
 
 static Expected<ObjectProxy>
-ingestFileSystemImpl(CASDB &CAS, ActionCache &Cache, StringRef Path) {
-  auto FS = createCachingOnDiskFileSystem(CAS, Cache);
+ingestFileSystemImpl(CASDB &CAS, StringRef Path) {
+  auto FS = createCachingOnDiskFileSystem(CAS);
   if (!FS)
     return FS.takeError();
 
@@ -437,18 +427,17 @@ ingestFileSystemImpl(CASDB &CAS, ActionCache &Cache, StringRef Path) {
       });
 }
 
-int ingestFileSystem(CASDB &CAS, ActionCache &Cache, StringRef Path) {
+int ingestFileSystem(CASDB &CAS, StringRef Path) {
   ExitOnError ExitOnErr("llvm-cas: ingest: ");
   if (Path.empty())
     ExitOnErr(
         createStringError(inconvertibleErrorCode(), "missing --data=<path>"));
-  auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Cache, Path));
+  auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Path));
   outs() << Ref.getID() << "\n";
   return 0;
 }
 
-static int mergeTrees(CASDB &CAS, ActionCache &Cache,
-                      ArrayRef<std::string> Objects) {
+static int mergeTrees(CASDB &CAS, ArrayRef<std::string> Objects) {
   ExitOnError ExitOnErr("llvm-cas: merge: ");
 
   HierarchicalTreeBuilder Builder;
@@ -462,7 +451,7 @@ static int mergeTrees(CASDB &CAS, ActionCache &Cache,
                                     "unknown node with id: " + ID->toString()));
     } else {
       consumeError(ID.takeError());
-      auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Cache, Object));
+      auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Object));
       Builder.pushTreeContent(Ref.getRef(), "");
     }
   }

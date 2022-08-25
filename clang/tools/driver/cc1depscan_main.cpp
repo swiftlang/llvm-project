@@ -48,7 +48,6 @@
 #include "llvm/Support/VirtualOutputBackends.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdio>
-#include <memory>
 #include <mutex>
 #include <shared_mutex>
 
@@ -885,13 +884,13 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
 
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS;
   if (!ProduceIncludeTree)
-    FS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS, *Cache));
+    FS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
   tooling::dependencies::DependencyScanningService Service(
       tooling::dependencies::ScanningMode::DependencyDirectivesScan,
       ProduceIncludeTree
           ? tooling::dependencies::ScanningOutputFormat::IncludeTree
           : tooling::dependencies::ScanningOutputFormat::Tree,
-      CASOpts, FS,
+      CASOpts, Cache, FS,
       /*ReuseFileManager=*/false,
       /*SkipExcludedPPRanges=*/true);
 
@@ -1137,14 +1136,14 @@ static Expected<llvm::cas::CASID> scanAndUpdateCC1Inline(
     std::shared_ptr<llvm::cas::ActionCache> Cache) {
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS;
   if (!ProduceIncludeTree)
-    FS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*DB, *Cache));
+    FS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*DB));
 
   tooling::dependencies::DependencyScanningService Service(
       tooling::dependencies::ScanningMode::DependencyDirectivesScan,
       ProduceIncludeTree
           ? tooling::dependencies::ScanningOutputFormat::IncludeTree
           : tooling::dependencies::ScanningOutputFormat::Tree,
-      CASOpts, FS,
+      CASOpts, Cache, FS,
       /*ReuseFileManager=*/false,
       /*SkipExcludedPPRanges=*/true);
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> UnderlyingFS =

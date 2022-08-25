@@ -10,7 +10,6 @@
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "gtest/gtest.h"
-#include <memory>
 
 using namespace llvm;
 using namespace llvm::cas;

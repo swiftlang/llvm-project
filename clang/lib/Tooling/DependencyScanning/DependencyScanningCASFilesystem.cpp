@@ -9,6 +9,7 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningCASFilesystem.h"
 #include "clang/Basic/Version.h"
 #include "clang/Lex/DependencyDirectivesScanner.h"
+#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
@@ -34,9 +35,10 @@ static void reportAsFatalIfError(llvm::Error E) {
 using llvm::Error;
 
 DependencyScanningCASFilesystem::DependencyScanningCASFilesystem(
-    IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS)
-    : FS(WorkerFS), Entries(EntryAlloc), CAS(WorkerFS->getCAS()),
-      Cache(WorkerFS->getCache()) {}
+    IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS,
+    llvm::cas::ActionCache &Cache)
+    : FS(WorkerFS), Entries(EntryAlloc), CAS(WorkerFS->getCAS()), Cache(Cache) {
+}
 
 DependencyScanningCASFilesystem::~DependencyScanningCASFilesystem() = default;
 

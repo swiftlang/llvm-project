@@ -14,12 +14,10 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <map>
-#include <memory>
 
 namespace llvm {
 namespace cas {
 
-class ActionCache;
 class ObjectProxy;
 
 /// A mostly-thread-safe caching on-disk filesystem. The only unsafe operation
@@ -102,7 +100,6 @@ public:
   virtual std::unique_ptr<TreeBuilder> createTreeBuilder() = 0;
 
   CASDB &getCAS() const { return DB; }
-  ActionCache &getCache() const { return Cache; }
 
   /// Get a proxy FS that has an independent working directory but uses the
   /// same thread-safe cache.
@@ -113,23 +110,19 @@ public:
   }
 
 protected:
-  CachingOnDiskFileSystem(std::shared_ptr<CASDB> DB,
-                          std::shared_ptr<ActionCache> Cache);
-  CachingOnDiskFileSystem(CASDB &DB, ActionCache &Cache);
+  CachingOnDiskFileSystem(std::shared_ptr<CASDB> DB);
+  CachingOnDiskFileSystem(CASDB &DB);
   CachingOnDiskFileSystem(const CachingOnDiskFileSystem &) = default;
 
   CASDB &DB;
   std::shared_ptr<CASDB> OwnedDB;
-  ActionCache &Cache;
-  std::shared_ptr<ActionCache> OwnedCache;
 };
 
 Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
-createCachingOnDiskFileSystem(std::shared_ptr<CASDB> DB,
-                              std::shared_ptr<ActionCache> Cache);
+createCachingOnDiskFileSystem(std::shared_ptr<CASDB> DB);
 
 Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
-createCachingOnDiskFileSystem(CASDB &DB, ActionCache &Cache);
+createCachingOnDiskFileSystem(CASDB &DB);
 
 } // namespace cas
 } // namespace llvm

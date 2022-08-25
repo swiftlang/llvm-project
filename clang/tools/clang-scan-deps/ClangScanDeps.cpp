@@ -31,7 +31,6 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/Threading.h"
-#include <memory>
 #include <mutex>
 #include <thread>
 
@@ -793,10 +792,9 @@ int main(int argc, const char **argv) {
     if (!CAS)
       return 1;
     if (Format != ScanningOutputFormat::IncludeTree)
-      FS = llvm::cantFail(
-          llvm::cas::createCachingOnDiskFileSystem(*CAS, *Cache));
+      FS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
   }
-  DependencyScanningService Service(ScanMode, Format, CASOpts, FS,
+  DependencyScanningService Service(ScanMode, Format, CASOpts, Cache, FS,
                                     ReuseFileManager, OptimizeArgs,
                                     EagerLoadModules, OverrideCASTokenCache);
   llvm::ThreadPool Pool(llvm::hardware_concurrency(NumThreads));

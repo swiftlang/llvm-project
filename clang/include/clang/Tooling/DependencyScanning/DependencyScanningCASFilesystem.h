@@ -35,7 +35,8 @@ namespace dependencies {
 class DependencyScanningCASFilesystem : public llvm::cas::ThreadSafeFileSystem {
 public:
   DependencyScanningCASFilesystem(
-      IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS);
+      IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS,
+      llvm::cas::ActionCache &Cache);
 
   ~DependencyScanningCASFilesystem();
 

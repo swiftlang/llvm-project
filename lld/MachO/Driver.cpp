@@ -1470,7 +1470,7 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
     // FIXME: Allow doing input scanning using a CAS-FS. Need to have a \p
     // CachingOnDiskFileSystem that can track accesses over a CAS tree, instead
     // of the real filesystem.
-    auto cacheFS = createCachingOnDiskFileSystem(CAS, *config->actionCache);
+    auto cacheFS = createCachingOnDiskFileSystem(CAS);
     if (!cacheFS) {
       error("error creating caching filesystem: " +
             toString(cacheFS.takeError()));

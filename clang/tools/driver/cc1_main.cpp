@@ -62,7 +62,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include <cstdio>
-#include <memory>
 
 #ifdef CLANG_HAVE_RLIMITS
 #include <sys/resource.h>

@@ -140,11 +140,11 @@ tablegen::lookupIncludeID(cas::CachingOnDiskFileSystem &FS,
 }
 
 Error tablegen::accessAllIncludes(cas::CachingOnDiskFileSystem &FS,
+                                  cas::ActionCache &Cache,
                                   cas::ObjectRef ExecID,
                                   ArrayRef<std::string> IncludeDirs,
                                   const cas::ObjectProxy &MainFileBlob) {
   cas::CASDB &CAS = FS.getCAS();
-  cas::ActionCache &Cache = FS.getCache();
 
   // Helper for adding to the worklist.
   SmallVector<cas::ObjectProxy> Worklist = {MainFileBlob};
@@ -214,7 +214,7 @@ tablegen::scanIncludes(cas::CASDB &CAS, cas::ActionCache &Cache,
                        ArrayRef<MappedPrefix> PrefixMappings,
                        Optional<TreePathPrefixMapper> *CapturedPM) {
   IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS;
-  if (Error E = cas::createCachingOnDiskFileSystem(CAS, Cache).moveInto(FS))
+  if (Error E = cas::createCachingOnDiskFileSystem(CAS).moveInto(FS))
     return std::move(E);
 
   FS->trackNewAccesses();
@@ -223,7 +223,7 @@ tablegen::scanIncludes(cas::CASDB &CAS, cas::ActionCache &Cache,
     return MainBlob.takeError();
 
   // Helper for adding to the worklist.
-  if (Error E = accessAllIncludes(*FS, ExecID, IncludeDirs, *MainBlob))
+  if (Error E = accessAllIncludes(*FS, Cache, ExecID, IncludeDirs, *MainBlob))
     return std::move(E);
 
   Optional<TreePathPrefixMapper> LocalPM;

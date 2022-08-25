@@ -26,7 +26,6 @@
 #include "llvm/TextAPI/Platform.h"
 #include "llvm/TextAPI/Target.h"
 
-#include <memory>
 #include <vector>
 
 namespace llvm {

@@ -36,7 +36,6 @@
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/ScanDependencies.h"
 #include <algorithm>
-#include <memory>
 #include <system_error>
 using namespace llvm;
 using namespace llvm::tablegen;

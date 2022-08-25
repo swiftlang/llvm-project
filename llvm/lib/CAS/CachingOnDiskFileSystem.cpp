@@ -10,7 +10,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/CAS/HashMappedTrie.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
@@ -18,7 +17,6 @@
 #include "llvm/Support/AlignOf.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/FileSystem.h"
-#include <memory>
 #include <mutex>
 
 using namespace llvm;
@@ -126,13 +124,11 @@ public:
     return makeIntrusiveRefCnt<CachingOnDiskFileSystemImpl>(*this);
   }
 
-  CachingOnDiskFileSystemImpl(std::shared_ptr<CASDB> DB,
-                              std::shared_ptr<ActionCache> Cache)
-      : CachingOnDiskFileSystem(std::move(DB), std::move(Cache)) {
+  CachingOnDiskFileSystemImpl(std::shared_ptr<CASDB> DB)
+      : CachingOnDiskFileSystem(std::move(DB)) {
     initializeWorkingDirectory();
   }
-  CachingOnDiskFileSystemImpl(CASDB &DB, ActionCache &Cache)
-      : CachingOnDiskFileSystem(DB, Cache) {
+  CachingOnDiskFileSystemImpl(CASDB &DB) : CachingOnDiskFileSystem(DB) {
     initializeWorkingDirectory();
   }
 
@@ -188,13 +184,10 @@ private:
 };
 } // namespace
 
-CachingOnDiskFileSystem::CachingOnDiskFileSystem(
-    std::shared_ptr<CASDB> DB, std::shared_ptr<ActionCache> Cache)
-    : DB(*DB), OwnedDB(std::move(DB)), Cache(*Cache),
-      OwnedCache(std::move(Cache)) {}
+CachingOnDiskFileSystem::CachingOnDiskFileSystem(std::shared_ptr<CASDB> DB)
+    : DB(*DB), OwnedDB(std::move(DB)) {}
 
-CachingOnDiskFileSystem::CachingOnDiskFileSystem(CASDB &DB, ActionCache &Cache)
-    : DB(DB), Cache(Cache) {}
+CachingOnDiskFileSystem::CachingOnDiskFileSystem(CASDB &DB) : DB(DB) {}
 
 class CachingOnDiskFileSystemImpl::VFSFile : public vfs::File {
 public:
@@ -889,13 +882,11 @@ Error CachingOnDiskFileSystemImpl::TreeBuilder::push(const Twine &Path) {
 }
 
 Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
-cas::createCachingOnDiskFileSystem(std::shared_ptr<CASDB> DB,
-                                   std::shared_ptr<ActionCache> Cache) {
-  return std::make_unique<CachingOnDiskFileSystemImpl>(std::move(DB),
-                                                       std::move(Cache));
+cas::createCachingOnDiskFileSystem(std::shared_ptr<CASDB> DB) {
+  return std::make_unique<CachingOnDiskFileSystemImpl>(std::move(DB));
 }
 
 Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
-cas::createCachingOnDiskFileSystem(CASDB &DB, ActionCache &Cache) {
-  return std::make_unique<CachingOnDiskFileSystemImpl>(DB, Cache);
+cas::createCachingOnDiskFileSystem(CASDB &DB) {
+  return std::make_unique<CachingOnDiskFileSystemImpl>(DB);
 }

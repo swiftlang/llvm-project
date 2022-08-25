@@ -12,7 +12,6 @@
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/CASDB.h"
 #include "llvm/Support/Error.h"
-#include <memory>
 
 using namespace clang;
 using namespace llvm::cas;

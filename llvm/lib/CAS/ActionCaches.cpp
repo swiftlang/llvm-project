@@ -15,7 +15,6 @@
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/BLAKE3.h"
 #include "llvm/Support/Path.h"
-#include <memory>
 
 #define DEBUG_TYPE "action-caches"
 

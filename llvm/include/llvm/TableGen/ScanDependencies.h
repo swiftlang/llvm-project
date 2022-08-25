@@ -58,7 +58,8 @@ Optional<cas::ObjectRef> lookupIncludeID(cas::CachingOnDiskFileSystem &FS,
 ///
 /// \p ExecID is the Blob for the running executable. It can be used as part of
 /// the key for caching to avoid (fixed) bugs poisoning results.
-Error accessAllIncludes(cas::CachingOnDiskFileSystem &FS, cas::ObjectRef ExecID,
+Error accessAllIncludes(cas::CachingOnDiskFileSystem &FS,
+                        cas::ActionCache &Cache, cas::ObjectRef ExecID,
                         ArrayRef<std::string> IncludeDirs,
                         const cas::ObjectProxy &MainFileBlob);
 
