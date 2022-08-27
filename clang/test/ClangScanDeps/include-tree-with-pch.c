@@ -43,7 +43,7 @@ int n3 = 0;
 //--- cdb.json.template
 [{
   "directory" : "DIR",
-  "command" : "clang -fsyntax-only DIR/t.c -Xclang -include-pch -Xclang DIR/prefix.pch",
+  "command" : "clang -fsyntax-only DIR/t.c -isysroot DIR -Xclang -include-pch -Xclang DIR/prefix.pch",
   "file" : "DIR/t.c"
 }]
 
