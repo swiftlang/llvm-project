@@ -220,6 +220,14 @@ public:
   /// AST file imported by this AST file.
   virtual void visitImport(StringRef ModuleName, StringRef Filename) {}
 
+  /// Called for each module cache key.
+  ///
+  /// \returns true to indicate the key cannot be loaded.
+  virtual bool readModuleCacheKey(StringRef ModuleName, StringRef Filename,
+                                  StringRef CacheKey) {
+    return false;
+  }
+
   /// Indicates that a particular module file extension has been read.
   virtual void readModuleFileExtension(
                  const ModuleFileExtensionMetadata &Metadata) {}
@@ -265,6 +273,8 @@ public:
                        serialization::ModuleKind Kind) override;
   bool visitInputFile(StringRef Filename, bool isSystem,
                       bool isOverridden, bool isExplicitModule) override;
+  bool readModuleCacheKey(StringRef ModuleName, StringRef Filename,
+                          StringRef CacheKey) override;
   void readModuleFileExtension(
          const ModuleFileExtensionMetadata &Metadata) override;
 };
