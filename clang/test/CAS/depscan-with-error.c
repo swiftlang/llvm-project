@@ -11,12 +11,8 @@
 // RUN: not env LLVM_CACHE_CAS_PATH=%t/cas %clang-cache \
 // RUN:   %clang -target x86_64-apple-macos11 -c %s -o %t.o -arch=nonexistent --serialize-diagnostics %t/t2.diag \
 // RUN:   2>&1 | FileCheck %s -check-prefix=ERROR -check-prefix=DRIVER
-// RUN: not env LLVM_CACHE_CAS_PATH=%t/cas cache-build-session %clang-cache \
-// RUN:   %clang -target x86_64-apple-macos11 -c %s -o %t.o -arch=nonexistent --serialize-diagnostics %t/t3.diag \
-// RUN:   2>&1 | FileCheck %s -check-prefix=ERROR -check-prefix=DRIVER
 
 // RUN: diff %t/t1.diag %t/t2.diag
-// RUN: diff %t/t1.diag %t/t3.diag
 
 // DRIVER: warning: argument unused during compilation
 // ERROR: error: 'non-existent.h' file not found
@@ -27,11 +23,8 @@
 // RUN: echo "int y;" > %t/b.c
 // RUN: env LLVM_CACHE_CAS_PATH=%t/cas %clang-cache \
 // RUN:   %clang -target x86_64-apple-macos11 -c %t/a.c -o %t.o --serialize-diagnostics %t/t2.diag
-// RUN: env LLVM_CACHE_CAS_PATH=%t/cas cache-build-session %clang-cache \
-// RUN:   %clang -target x86_64-apple-macos11 -c %t/b.c -o %t.o --serialize-diagnostics %t/t3.diag
 
 // RUN: c-index-test -read-diagnostics %t/t2.diag 2>&1 | FileCheck %s -check-prefix=SERIAL
-// RUN: c-index-test -read-diagnostics %t/t3.diag 2>&1 | FileCheck %s -check-prefix=SERIAL
 // SERIAL: Number of diagnostics: 0
 
 // Make sure warnings are still emitted for normal compilation.
@@ -45,9 +38,6 @@
 // RUN: not %clang -target x86_64-apple-macos11 -c %s -o %t.o -fdiagnostics-color=always -fansi-escape-codes \
 // RUN:   2>&1 | FileCheck %s -check-prefix=COLOR-DIAG
 // RUN: not env LLVM_CACHE_CAS_PATH=%t/cas %clang-cache \
-// RUN:   %clang -target x86_64-apple-macos11 -c %s -o %t.o -fdiagnostics-color=always -fansi-escape-codes \
-// RUN:   2>&1 | FileCheck %s -check-prefix=COLOR-DIAG
-// RUN: not env LLVM_CACHE_CAS_PATH=%t/cas cache-build-session %clang-cache \
 // RUN:   %clang -target x86_64-apple-macos11 -c %s -o %t.o -fdiagnostics-color=always -fansi-escape-codes \
 // RUN:   2>&1 | FileCheck %s -check-prefix=COLOR-DIAG
 // COLOR-DIAG: [[RED:.\[0;1;31m]]fatal error: [[RESET:.\[0m]]
