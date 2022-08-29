@@ -522,6 +522,8 @@ Optional<int> CompileJobCache::tryReplayCachedResult(CompilerInstance &Clang) {
   if (!ResultCacheKey)
     return 1;
 
+  Clang.setCompileJobCacheKey(*ResultCacheKey);
+
   Expected<bool> ReplayedResult =
       CacheBackend->tryReplayCachedResult(*ResultCacheKey);
   if (!ReplayedResult)
