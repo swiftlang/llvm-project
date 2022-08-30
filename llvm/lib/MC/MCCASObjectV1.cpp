@@ -1311,11 +1311,13 @@ MCCASBuilder::splitDebugInfoSectionData(MutableArrayRef<char> DebugInfoData) {
 }
 
 Error MCCASBuilder::createDebugInfoSection(
-    ArrayRef<DebugInfoCURef> CURefs, DebugAbbrevOffsetsRef AbbrevOffsetsRef) {
+    ArrayRef<DebugInfoCURef> CURefs, DebugAbbrevOffsetsRef AbbrevOffsetsRef,
+    ArrayRef<MachObjectWriter::AddendsSizeAndOffset> FixupsRef) {
   if (CURefs.empty())
     return Error::success();
 
   startSection(DwarfSections.DebugInfo);
+  SectionAddends.append(FixupsRef.begin(), FixupsRef.end());
   addNode(AbbrevOffsetsRef);
   for (auto CURef : CURefs)
     addNode(CURef);
@@ -1335,24 +1337,16 @@ Error MCCASBuilder::createDebugAbbrevSection(
 }
 
 Expected<SmallVector<DebugAbbrevRef>>
-MCCASBuilder::splitAbbrevSection(ArrayRef<size_t> AbbrevOffsetVec) {
+MCCASBuilder::splitAbbrevSection(ArrayRef<size_t> AbbrevOffsetVec, MutableArrayRef<char> FullAbbrevData) {
   // If we are here, the Abbrev section _must_ exist.
   if (!DwarfSections.Abbrev)
     return createStringError(inconvertibleErrorCode(),
                              "Missing __debug_abbrev section");
 
-  const MCSection::FragmentListType &FragmentList =
-      DwarfSections.Abbrev->getFragmentList();
-
-  Expected<SmallVector<char, 0>> FullAbbrevData =
-      mergeMCFragmentContents(FragmentList);
-  if (!FullAbbrevData)
-    return FullAbbrevData.takeError();
-
   // Sorted container of offsets such that, for any iterator `it`, the interval
   // [*it, *(it+1)] describes where to find one Abbreviation contribution.
   SmallVector<size_t> AbbrevOffsets(AbbrevOffsetVec);
-  AbbrevOffsets.push_back(FullAbbrevData->size());
+  AbbrevOffsets.push_back(FullAbbrevData.size());
   sort(AbbrevOffsets);
   AbbrevOffsets.erase(unique(AbbrevOffsets, std::equal_to<size_t>()),
                       AbbrevOffsets.end());
@@ -1366,7 +1360,7 @@ MCCASBuilder::splitAbbrevSection(ArrayRef<size_t> AbbrevOffsetVec) {
   SmallVector<DebugAbbrevRef> AbbrevRefs;
   for (size_t EndOffset : drop_begin(AbbrevOffsets)) {
     StringRef AbbrevData =
-        toStringRef(*FullAbbrevData).slice(StartOffset, EndOffset);
+        toStringRef(FullAbbrevData).slice(StartOffset, EndOffset);
     auto AbbrevRef = DebugAbbrevRef::create(*this, AbbrevData);
     if (!AbbrevRef)
       return AbbrevRef.takeError();
@@ -1398,6 +1392,54 @@ DebugAbbrevOffsetsRefAdaptor::encodeOffsets(ArrayRef<size_t> Offsets) {
   return EncodedOffsets;
 }
 
+MachObjectWriter::AddendsSizeAndOffset
+InMemoryCASDWARFObject::zeroStmtListInCU(MutableArrayRef<char> DebugInfoData,
+                                         uint64_t AbbrevOffset,
+                                         uint64_t CUOffset) {
+  uint32_t StmtListOffset;
+  uint8_t StmtListNumBytes;
+  uint64_t Fixup;
+  DWARFUnitVector UV;
+  uint64_t Address = 0;
+  DWARFSection Section = {toStringRef(DebugInfoData), Address};
+  DWARFUnitHeader Header;
+  DWARFDebugAbbrev Abbrev;
+  StringRef AbbrevSectionContribution =
+      getAbbrevSection().drop_front(AbbrevOffset);
+  Abbrev.extract(DataExtractor(AbbrevSectionContribution, isLittleEndian(), 8));
+  auto DWARFObj = std::make_unique<InMemoryCASDWARFObject>(*this);
+  auto DWARFContextHolder = std::make_unique<DWARFContext>(std::move(DWARFObj));
+  auto *DWARFCtx = DWARFContextHolder.get();
+  uint64_t offset_ptr = 0;
+  Header.extract(*DWARFCtx,
+                 DWARFDataExtractor(*this, Section, isLittleEndian(), 8),
+                 &offset_ptr, DWARFSectionKind::DW_SECT_INFO);
+
+  DWARFCompileUnit U(*DWARFCtx, Section, Header, &Abbrev, &getRangesSection(),
+                     &getLocSection(), getStrSection(), getStrOffsetsSection(),
+                     &getAddrSection(), getLocSection(), isLittleEndian(),
+                     false, UV);
+
+  bool IsStmtListOffsetFound = false;
+  if (DWARFDie CUDie = U.getUnitDIE(false)) {
+    for (const DWARFAttribute &AttrValue : CUDie.attributes()) {
+      if (AttrValue.Attr == llvm::dwarf::DW_AT_stmt_list) {
+        IsStmtListOffsetFound = true;
+        StmtListOffset = AttrValue.Offset;
+        StmtListNumBytes = AttrValue.ByteSize;
+        break;
+      }
+    }
+  }
+  if (IsStmtListOffsetFound) {
+    std::memcpy(&Fixup, &DebugInfoData[StmtListOffset], StmtListNumBytes);
+    std::memset(&DebugInfoData[StmtListOffset], 0, StmtListNumBytes);
+    return {Fixup, static_cast<uint32_t>(StmtListOffset + CUOffset),
+            StmtListNumBytes};
+  }
+  return {};
+}
+
 Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
   if (!DwarfSections.DebugInfo)
     return AbbrevAndDebugSplit{};
@@ -1413,17 +1455,34 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
   if (!SplitInfo)
     return SplitInfo.takeError();
 
+  const MCSection::FragmentListType &AbbrevFragmentList =
+      DwarfSections.Abbrev->getFragmentList();
+
+  Expected<SmallVector<char, 0>> FullAbbrevData =
+      mergeMCFragmentContents(AbbrevFragmentList);
+  if (!FullAbbrevData)
+    return FullAbbrevData.takeError();
+
+  InMemoryCASDWARFObject CASObj(*FullAbbrevData);
+
   Expected<SmallVector<DebugAbbrevRef>> AbbrevRefs =
-      splitAbbrevSection(SplitInfo->AbbrevOffsets);
+      splitAbbrevSection(SplitInfo->AbbrevOffsets, *FullAbbrevData);
   if (!AbbrevRefs)
     return AbbrevRefs.takeError();
 
   SmallVector<DebugInfoCURef> CURefs;
+  SmallVector<MachObjectWriter::AddendsSizeAndOffset> Fixups;
+  unsigned I = 0;
+  uint64_t CUOffset = 0;
   for (MutableArrayRef<char> CUData : SplitInfo->SplitCUData) {
+    Fixups.push_back(
+        CASObj.zeroStmtListInCU(CUData, SplitInfo->AbbrevOffsets[I], CUOffset));
     auto DbgInfoRef = DebugInfoCURef::create(*this, toStringRef(CUData));
     if (!DbgInfoRef)
       return DbgInfoRef.takeError();
     CURefs.push_back(*DbgInfoRef);
+    I++;
+    CUOffset += DbgInfoRef->getData().size();
   }
 
   SmallVector<char> EncodedOffsets =
@@ -1434,7 +1493,7 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
     return AbbrevOffsetsRef.takeError();
 
   return AbbrevAndDebugSplit{std::move(CURefs), std::move(*AbbrevRefs),
-                             *AbbrevOffsetsRef};
+                             std::move(Fixups), *AbbrevOffsetsRef};
 }
 
 Error MCCASBuilder::createLineSection() {
@@ -1518,7 +1577,8 @@ Error MCCASBuilder::buildFragments() {
     // Handle Debug Info sections separately.
     if (&Sec == DwarfSections.DebugInfo) {
       if (auto E = createDebugInfoSection(AbbrevAndCURefs->CURefs,
-                                          *AbbrevAndCURefs->AbbrevOffsetsRef))
+                                          *AbbrevAndCURefs->AbbrevOffsetsRef,
+                                          AbbrevAndCURefs->Fixups))
         return E;
       continue;
     }

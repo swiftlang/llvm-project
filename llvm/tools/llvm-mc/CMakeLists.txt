@@ -7,6 +7,7 @@ set(LLVM_LINK_COMPONENTS
   MC
   MCParser
   Support
+  DebugInfoDWARF
   )
 
 add_llvm_tool(llvm-mc

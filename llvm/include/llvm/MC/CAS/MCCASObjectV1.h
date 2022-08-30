@@ -12,9 +12,15 @@
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/CAS/CASID.h"
 #include "llvm/CAS/ObjectStore.h"
+#include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
+#include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugAbbrev.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
 #include "llvm/MC/CAS/MCCASFormatSchemaBase.h"
 #include "llvm/MC/CAS/MCCASReader.h"
 #include "llvm/MC/MCAsmLayout.h"
+#include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Endian.h"
 
 namespace llvm {
@@ -310,6 +316,7 @@ struct DwarfSectionsCache {
 struct AbbrevAndDebugSplit {
   SmallVector<DebugInfoCURef> CURefs;
   SmallVector<DebugAbbrevRef> AbbrevRefs;
+  SmallVector<MachObjectWriter::AddendsSizeAndOffset> Fixups;
   Optional<DebugAbbrevOffsetsRef> AbbrevOffsetsRef;
 };
 
@@ -412,8 +419,9 @@ private:
 
   /// If CURefs is non-empty, create a SectionRef CAS object with edges to all
   /// CURefs. Otherwise, no objects are created and `success` is returned.
-  Error createDebugInfoSection(ArrayRef<DebugInfoCURef> CURefs,
-                               DebugAbbrevOffsetsRef AbbrevOffsetsRef);
+  Error createDebugInfoSection(
+      ArrayRef<DebugInfoCURef> CURefs, DebugAbbrevOffsetsRef AbbrevOffsetsRef,
+      ArrayRef<MachObjectWriter::AddendsSizeAndOffset> FixupsRef);
 
   /// If AbbrevRefs is non-empty, create a SectionRef CAS object with edges to all
   /// AbbrevRefs. Otherwise, no objects are created and `success` is returned.
@@ -425,7 +433,7 @@ private:
   /// Returns a sequence of DebbugAbbrevRefs, sorted by the order in which they
   /// should appear in the object file.
   Expected<SmallVector<DebugAbbrevRef>>
-  splitAbbrevSection(ArrayRef<size_t> AbbrevOffsets);
+  splitAbbrevSection(ArrayRef<size_t> AbbrevOffsets, MutableArrayRef<char> FullAbbrevData);
 
   struct CUSplit {
     SmallVector<MutableArrayRef<char>> SplitCUData;
@@ -483,6 +491,35 @@ public:
 private:
   const Triple &Target;
   const MCSchema &Schema;
+};
+
+class InMemoryCASDWARFObject : public DWARFObject {
+  SmallVector<char> DebugAbbrevSection;
+  bool IsLittleEndian = true;
+
+public:
+  InMemoryCASDWARFObject(MutableArrayRef<char> AbbrevContents) {
+    DebugAbbrevSection.append(AbbrevContents.begin(), AbbrevContents.end());
+  }
+  bool isLittleEndian() const override { return IsLittleEndian; }
+
+  StringRef getAbbrevSection() const override {
+    return toStringRef(DebugAbbrevSection);
+  }
+
+  Optional<RelocAddrEntry> find(const DWARFSection &Sec,
+                                uint64_t Pos) const override {
+    return {};
+  }
+
+  /// Zero-out the DW_AT_stmt_list in a compile unit and return it as an entry
+  /// into the Addend vector which will be fixed up when the object file is
+  /// emitted from the CAS. Addends are stored per section and DW_AT_stmt_list
+  /// offsets are stored per compile unit, so pass a /p CUOffset to store the
+  /// DW_AT_stmt_list offset in the section rather than in the compile unit.
+  MachObjectWriter::AddendsSizeAndOffset
+  zeroStmtListInCU(MutableArrayRef<char> DebugInfoData, uint64_t AbbrevOffset,
+                   uint64_t CUOffset);
 };
 
 } // namespace v1

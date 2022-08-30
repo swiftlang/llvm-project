@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS
   JITLink
   CAS
   CASObjectFormats
+  DebugInfoDWARF
   )
 
 add_llvm_tool(llvm-cas-object-format
