@@ -712,12 +712,8 @@ struct OnDiskContent {
 ///     - db/<prefix>.<offset>.leaf+0: a file storing a leaf object outside the
 ///       main "data" table, named by its offset into the "index" table, with
 ///       the format of \a TrieRecord::StorageKind::StandaloneLeaf0.
-/// - db/<prefix>.actions: a file for the "actions" table, named by \a
-///   getActionCacheTableName() and managed by \a HashMappedTrie. The contents
-///   are \a CASID::getInternalID(), stored as \a ActionCacheResultT;
-///   effectively, a pointer into the "index" table.
 ///
-/// The "index", "data", and "actions" tables could be stored in a single file,
+/// The "index", and "data" tables could be stored in a single file,
 /// (using a root record that points at the two types of stores), but splitting
 /// the files seems more convenient for now.
 ///
@@ -745,16 +741,9 @@ public:
         ("llvm.cas.data[" + getHashName() + "]").str();
     return Name;
   }
-  static StringRef getActionCacheTableName() {
-    static const std::string Name =
-        ("llvm.cas.actions[" + getHashName() + "->" + getHashName() + "]")
-            .str();
-    return Name;
-  }
 
   static constexpr StringLiteral IndexFile = "index";
   static constexpr StringLiteral DataPoolFile = "data";
-  static constexpr StringLiteral ActionCacheFile = "actions";
 
   static constexpr StringLiteral FilePrefix = "v5.";
   static constexpr StringLiteral FileSuffixData = ".data";
@@ -893,7 +882,7 @@ private:
                                                          CASID ID);
 
   OnDiskCAS(StringRef RootPath, OnDiskHashMappedTrie Index,
-            OnDiskDataAllocator DataPool, OnDiskHashMappedTrie ActionCache);
+            OnDiskDataAllocator DataPool);
 
   /// Mapping from hash to object reference.
   ///
@@ -916,13 +905,6 @@ private:
   /// FIXME: Figure out the right number of shards, if any.
   mutable StandaloneDataMap<16> StandaloneData;
 
-  /// Action cache.
-  ///
-  /// FIXME: Separate out. Likely change key to be independent from CASID and
-  /// stored separately.
-  OnDiskHashMappedTrie ActionCache;
-  using ActionCacheResultT = std::atomic<uint64_t>;
-
   std::string RootPath;
   std::string TempPrefix;
 };
@@ -931,7 +913,6 @@ private:
 
 constexpr StringLiteral OnDiskCAS::IndexFile;
 constexpr StringLiteral OnDiskCAS::DataPoolFile;
-constexpr StringLiteral OnDiskCAS::ActionCacheFile;
 constexpr StringLiteral OnDiskCAS::FilePrefix;
 constexpr StringLiteral OnDiskCAS::FileSuffixData;
 constexpr StringLiteral OnDiskCAS::FileSuffixLeaf;
@@ -1956,25 +1937,14 @@ Expected<std::unique_ptr<OnDiskCAS>> OnDiskCAS::open(StringRef AbsPath) {
                     .moveInto(DataPool))
     return std::move(E);
 
-  Optional<OnDiskHashMappedTrie> ActionCache;
-  if (Error E = OnDiskHashMappedTrie::create(
-                    AbsPath + Slash + FilePrefix + ActionCacheFile,
-                    getActionCacheTableName(), sizeof(HashType) * 8,
-                    /*DataSize=*/sizeof(ActionCacheResultT), /*MaxFileSize=*/GB,
-                    /*MinFileSize=*/MB)
-                    .moveInto(ActionCache))
-    return std::move(E);
-
-  return std::unique_ptr<OnDiskCAS>(new OnDiskCAS(AbsPath, std::move(*Index),
-                                                  std::move(*DataPool),
-                                                  std::move(*ActionCache)));
+  return std::unique_ptr<OnDiskCAS>(
+      new OnDiskCAS(AbsPath, std::move(*Index), std::move(*DataPool)));
 }
 
 OnDiskCAS::OnDiskCAS(StringRef RootPath, OnDiskHashMappedTrie Index,
-                     OnDiskDataAllocator DataPool,
-                     OnDiskHashMappedTrie ActionCache)
+                     OnDiskDataAllocator DataPool)
     : Index(std::move(Index)), DataPool(std::move(DataPool)),
-      ActionCache(std::move(ActionCache)), RootPath(RootPath.str()) {
+      RootPath(RootPath.str()) {
   SmallString<128> Temp = RootPath;
   sys::path::append(Temp, "tmp.");
   TempPrefix = Temp.str().str();

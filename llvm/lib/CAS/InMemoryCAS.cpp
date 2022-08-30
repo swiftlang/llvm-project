@@ -39,11 +39,6 @@ using InMemoryStringPoolT =
     ThreadSafeHashMappedTrie<LazyAtomicPointer<const InMemoryString>,
                              sizeof(HashType)>;
 
-/// Action cache type (map: Hash -> InMemoryObject*). Always refers to existing
-/// objects.
-using InMemoryCacheT =
-    ThreadSafeHashMappedTrie<const InMemoryIndexValueT *, sizeof(HashType)>;
-
 class InMemoryObject {
 public:
   enum class Kind {
@@ -309,9 +304,6 @@ private:
   /// String pool for trees.
   InMemoryStringPoolT StringPool;
 
-  /// Action cache (map: Hash -> InMemoryObject*).
-  InMemoryCacheT ActionCache;
-
   ThreadSafeAllocator<BumpPtrAllocator> Objects;
   ThreadSafeAllocator<BumpPtrAllocator> Strings;
   ThreadSafeAllocator<SpecificBumpPtrAllocator<sys::fs::mapped_file_region>>
@@ -337,8 +329,6 @@ void InMemoryCAS::print(raw_ostream &OS) const {
   Index.print(OS);
   OS << "strings: ";
   StringPool.print(OS);
-  OS << "action-cache: ";
-  ActionCache.print(OS);
 }
 
 Expected<ObjectRef>
