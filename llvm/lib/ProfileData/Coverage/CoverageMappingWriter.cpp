@@ -26,6 +26,8 @@
 using namespace llvm;
 using namespace coverage;
 
+// APPLE-INTERNAL: Not using ArrayRef<StringRef> for compatability with Swift's
+// GenCoverage.cpp.
 CoverageFilenamesSectionWriter::CoverageFilenamesSectionWriter(
     ArrayRef<std::string> Filenames)
     : Filenames(Filenames) {

@@ -24,6 +24,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <system_error>
+#include <unordered_map>
 
 using namespace llvm;
 

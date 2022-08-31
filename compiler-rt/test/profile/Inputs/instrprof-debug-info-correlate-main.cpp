@@ -1,7 +1,7 @@
 #include "instrprof-debug-info-correlate-bar.h"
 
 typedef int (*FP)(int);
-FP Fps[3] = {foo, bar, unused};
+FP Fps[2] = {foo, bar};
 
 int main() {
   for (int i = 0; i < 5; i++)

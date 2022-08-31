@@ -21,8 +21,8 @@
  */
 uint64_t __llvm_profile_get_size_for_buffer_internal(
     const __llvm_profile_data *DataBegin, const __llvm_profile_data *DataEnd,
-    const char *CountersBegin, const char *CountersEnd, const char *NamesBegin,
-    const char *NamesEnd);
+    const uint64_t *CountersBegin, const uint64_t *CountersEnd,
+    const char *NamesBegin, const char *NamesEnd);
 
 /*!
  * \brief Write instrumentation data to the given buffer, given explicit
@@ -35,8 +35,8 @@ uint64_t __llvm_profile_get_size_for_buffer_internal(
  */
 int __llvm_profile_write_buffer_internal(
     char *Buffer, const __llvm_profile_data *DataBegin,
-    const __llvm_profile_data *DataEnd, const char *CountersBegin,
-    const char *CountersEnd, const char *NamesBegin, const char *NamesEnd);
+    const __llvm_profile_data *DataEnd, const uint64_t *CountersBegin,
+    const uint64_t *CountersEnd, const char *NamesBegin, const char *NamesEnd);
 
 /*!
  * The data structure describing the data to be written by the
@@ -152,7 +152,8 @@ int lprofWriteData(ProfDataWriter *Writer, VPDataReaderType *VPDataReader,
 int lprofWriteDataImpl(ProfDataWriter *Writer,
                        const __llvm_profile_data *DataBegin,
                        const __llvm_profile_data *DataEnd,
-                       const char *CountersBegin, const char *CountersEnd,
+                       const uint64_t *CountersBegin,
+                       const uint64_t *CountersEnd,
                        VPDataReaderType *VPDataReader, const char *NamesBegin,
                        const char *NamesEnd, int SkipNameDataWrite);
 
@@ -191,11 +192,5 @@ COMPILER_RT_VISIBILITY extern uint32_t VPMaxNumValsPerSite;
 COMPILER_RT_VISIBILITY extern ValueProfNode *CurrentVNode;
 COMPILER_RT_VISIBILITY extern ValueProfNode *EndVNode;
 extern void (*VPMergeHook)(struct ValueProfData *, __llvm_profile_data *);
-
-/*
- * Write binary ids into profiles if writer is given.
- * Return -1 if an error occurs, otherwise, return total size of binary ids.
- */
-int __llvm_write_binary_ids(ProfDataWriter *Writer);
 
 #endif

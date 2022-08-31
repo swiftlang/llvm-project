@@ -1,9 +1,6 @@
 #include "memprof/memprof_rawprofile.h"
 
-#include <cstdint>
-#include <memory>
-
-#include "profile/MemProfData.inc"
+#include "memprof/memprof_meminfoblock.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_procmaps.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
@@ -11,15 +8,17 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include <memory>
+
 namespace {
 
+using ::__memprof::MemInfoBlock;
 using ::__memprof::MIBMapTy;
 using ::__memprof::SerializeToRawProfile;
 using ::__sanitizer::MemoryMappedSegment;
 using ::__sanitizer::MemoryMappingLayoutBase;
 using ::__sanitizer::StackDepotPut;
 using ::__sanitizer::StackTrace;
-using ::llvm::memprof::MemInfoBlock;
 using ::testing::_;
 using ::testing::Action;
 using ::testing::DoAll;
@@ -32,21 +31,21 @@ public:
   MOCK_METHOD(void, Reset, (), (override));
 };
 
-uint64_t PopulateFakeMap(const MemInfoBlock &FakeMIB, uint64_t StackPCBegin,
-                         MIBMapTy &FakeMap) {
+u64 PopulateFakeMap(const MemInfoBlock &FakeMIB, uptr StackPCBegin,
+                    MIBMapTy &FakeMap) {
   constexpr int kSize = 5;
-  uint64_t array[kSize];
+  uptr array[kSize];
   for (int i = 0; i < kSize; i++) {
     array[i] = StackPCBegin + i;
   }
   StackTrace St(array, kSize);
-  uint32_t Id = StackDepotPut(St);
+  u32 Id = StackDepotPut(St);
 
   InsertOrMerge(Id, FakeMIB, FakeMap);
   return Id;
 }
 
-template <class T = uint64_t> T Read(char *&Buffer) {
+template <class T = u64> T Read(char *&Buffer) {
   static_assert(std::is_pod<T>::value, "Must be a POD type.");
   assert(reinterpret_cast<size_t>(Buffer) % sizeof(T) == 0 &&
          "Unaligned read!");
@@ -82,15 +81,15 @@ TEST(MemProf, Basic) {
   // Since we want to override the constructor set vals to make it easier to
   // test.
   memset(&FakeMIB, 0, sizeof(MemInfoBlock));
-  FakeMIB.AllocCount = 0x1;
-  FakeMIB.TotalAccessCount = 0x2;
+  FakeMIB.alloc_count = 0x1;
+  FakeMIB.total_access_count = 0x2;
 
-  uint64_t FakeIds[2];
+  u64 FakeIds[2];
   FakeIds[0] = PopulateFakeMap(FakeMIB, /*StackPCBegin=*/2, FakeMap);
   FakeIds[1] = PopulateFakeMap(FakeMIB, /*StackPCBegin=*/3, FakeMap);
 
   char *Ptr = nullptr;
-  uint64_t NumBytes = SerializeToRawProfile(FakeMap, Layout, Ptr);
+  u64 NumBytes = SerializeToRawProfile(FakeMap, Layout, Ptr);
   const char *Buffer = Ptr;
 
   ASSERT_GT(NumBytes, 0ULL);
@@ -99,10 +98,10 @@ TEST(MemProf, Basic) {
   // Check the header.
   EXPECT_THAT(Read(Ptr), MEMPROF_RAW_MAGIC_64);
   EXPECT_THAT(Read(Ptr), MEMPROF_RAW_VERSION);
-  const uint64_t TotalSize = Read(Ptr);
-  const uint64_t SegmentOffset = Read(Ptr);
-  const uint64_t MIBOffset = Read(Ptr);
-  const uint64_t StackOffset = Read(Ptr);
+  const u64 TotalSize = Read(Ptr);
+  const u64 SegmentOffset = Read(Ptr);
+  const u64 MIBOffset = Read(Ptr);
+  const u64 StackOffset = Read(Ptr);
 
   // ============= Check sizes and padding.
   EXPECT_EQ(TotalSize, NumBytes);
@@ -116,7 +115,7 @@ TEST(MemProf, Basic) {
   EXPECT_EQ(MIBOffset - SegmentOffset, 64ULL);
 
   EXPECT_EQ(MIBOffset, 112ULL);
-  // We expect 2 mib entry, 8b for the count and sizeof(uint64_t) +
+  // We expect 2 mib entry, 8b for the count and sizeof(u64) +
   // sizeof(MemInfoBlock) contains stack id + MeminfoBlock.
   EXPECT_EQ(StackOffset - MIBOffset, 8 + 2 * (8 + sizeof(MemInfoBlock)));
 
@@ -128,22 +127,19 @@ TEST(MemProf, Basic) {
   EXPECT_GE(TotalSize - StackOffset, 8ULL + 2 * (8 + 8 + 5 * 8));
 
   // ============= Check contents.
-  // The Uuid field is not yet populated on Linux-Elf by the sanitizer procmaps
-  // library, so we expect it to be filled with 0 for now.
   unsigned char ExpectedSegmentBytes[64] = {
-      0x01, 0, 0, 0, 0, 0, 0, 0, // Number of entries
-      0x10, 0, 0, 0, 0, 0, 0, 0, // Start
-      0x20, 0, 0, 0, 0, 0, 0, 0, // End
-      0x10, 0, 0, 0, 0, 0, 0, 0, // Offset
-      0x0,                       // Uuid
+      0x01, 0,   0,   0,   0,   0,   0, 0, // Number of entries
+      0x10, 0,   0,   0,   0,   0,   0, 0, // Start
+      0x20, 0,   0,   0,   0,   0,   0, 0, // End
+      0x10, 0,   0,   0,   0,   0,   0, 0, // Offset
+      0x0C, 0x0, 0xF, 0xF, 0xE, 0xE,       // Uuid
   };
   EXPECT_EQ(memcmp(Buffer + SegmentOffset, ExpectedSegmentBytes, 64), 0);
 
   // Check that the number of entries is 2.
-  EXPECT_EQ(*reinterpret_cast<const uint64_t *>(Buffer + MIBOffset), 2ULL);
+  EXPECT_EQ(*reinterpret_cast<const u64 *>(Buffer + MIBOffset), 2ULL);
   // Check that stack id is set.
-  EXPECT_EQ(*reinterpret_cast<const uint64_t *>(Buffer + MIBOffset + 8),
-            FakeIds[0]);
+  EXPECT_EQ(*reinterpret_cast<const u64 *>(Buffer + MIBOffset + 8), FakeIds[0]);
 
   // Only check a few fields of the first MemInfoBlock.
   unsigned char ExpectedMIBBytes[sizeof(MemInfoBlock)] = {
@@ -161,9 +157,9 @@ TEST(MemProf, Basic) {
             0);
 
   // Check that the number of entries is 2.
-  EXPECT_EQ(*reinterpret_cast<const uint64_t *>(Buffer + StackOffset), 2ULL);
+  EXPECT_EQ(*reinterpret_cast<const u64 *>(Buffer + StackOffset), 2ULL);
   // Check that the 1st stack id is set.
-  EXPECT_EQ(*reinterpret_cast<const uint64_t *>(Buffer + StackOffset + 8),
+  EXPECT_EQ(*reinterpret_cast<const u64 *>(Buffer + StackOffset + 8),
             FakeIds[0]);
   // Contents are num pcs, value of each pc - 1.
   unsigned char ExpectedStackBytes[2][6 * 8] = {
@@ -186,7 +182,7 @@ TEST(MemProf, Basic) {
 
   // Check that the 2nd stack id is set.
   EXPECT_EQ(
-      *reinterpret_cast<const uint64_t *>(Buffer + StackOffset + 8 + 6 * 8 + 8),
+      *reinterpret_cast<const u64 *>(Buffer + StackOffset + 8 + 6 * 8 + 8),
       FakeIds[1]);
 
   EXPECT_EQ(memcmp(Buffer + StackOffset + 16 + 6 * 8 + 8, ExpectedStackBytes[1],

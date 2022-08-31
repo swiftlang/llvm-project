@@ -46,7 +46,6 @@ SET(MEMPROF_HEADERS
   )
 
 include_directories(..)
-include_directories(../../include)
 
 set(MEMPROF_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 set(MEMPROF_COMMON_DEFINITIONS "")

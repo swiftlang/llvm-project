@@ -19,21 +19,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-enum ValueKind {
-#define VALUE_PROF_KIND(Enumerator, Value, Descr) Enumerator = Value,
-#include "profile/InstrProfData.inc"
-};
-
-typedef struct __llvm_profile_header {
-#define INSTR_PROF_RAW_HEADER(Type, Name, Initializer) Type Name;
-#include "profile/InstrProfData.inc"
-} __llvm_profile_header;
-
-typedef void *IntPtrT;
-typedef struct __llvm_profile_data {
-#define INSTR_PROF_DATA(Type, LLVMType, Name, Initializer) Type Name;
-#include "profile/InstrProfData.inc"
-} __llvm_profile_data;
 
 void __llvm_profile_set_file_object(FILE* File, int EnableMerge);
 
@@ -57,11 +42,10 @@ int main(int argc, char** argv) {
     if (Buf == MAP_FAILED)
       bail("mmap");
 
-    __llvm_profile_header *Header = (__llvm_profile_header *)Buf;
-    __llvm_profile_data *SrcDataStart =
-        (__llvm_profile_data *)(Buf + sizeof(__llvm_profile_header) +
-                                Header->BinaryIdsSize);
-    memset(&SrcDataStart->CounterPtr, 0xAB, sizeof(SrcDataStart->CounterPtr));
+    // We're trying to make the first CounterPtr invalid.
+    // 10 64-bit words as header.
+    // CounterPtr is the third 64-bit word field.
+    memset(&Buf[10 * 8 + 2 * 8], 0xAB, 8);
 
     if (munmap(Buf, FileSize))
       bail("munmap");

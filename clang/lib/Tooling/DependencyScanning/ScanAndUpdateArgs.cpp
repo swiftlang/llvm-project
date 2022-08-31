@@ -208,7 +208,6 @@ static void updateCompilerInvocation(CompilerInvocation &Invocation,
   // Code generation options.
   auto &CodeGenOpts = Invocation.getCodeGenOpts();
   Mapper.mapInPlaceOrClear(CodeGenOpts.DebugCompilationDir);
-  Mapper.mapInPlaceOrClear(CodeGenOpts.CoverageCompilationDir);
 }
 
 Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(

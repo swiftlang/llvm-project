@@ -5,5 +5,3 @@ int foo(int a) {
     return 4 * a + 1;
   return bar(a);
 }
-
-int unused(int a) { return a * a; }

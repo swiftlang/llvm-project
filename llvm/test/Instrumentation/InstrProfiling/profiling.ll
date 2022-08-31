@@ -24,16 +24,12 @@
 @__profn_foo_inline = linkonce_odr hidden constant [10 x i8] c"foo_inline"
 @__profn_foo_extern = linkonce_odr hidden constant [10 x i8] c"foo_extern"
 
-; ELF: @__profc_foo = private global {{.*}} section "__llvm_prf_cnts", comdat
-; ELF: @__profd_foo = private global {{.*}} section "__llvm_prf_data", comdat($__profc_foo)
-; MACHO: @__profc_foo = private global
-; MACHO: @__profd_foo = private global
-; COFF: @__profc_foo = private global
-; COFF-NOT: comdat
-; COFF: @__profd_foo = private global
-; XCOFF: @__profc_foo = private global
-; XCOFF-NOT: comdat
-; XCOFF: @__profd_foo = private global
+; ELF:   @__profc_foo = private global [1 x i64] zeroinitializer, section "__llvm_prf_cnts", comdat, align 8
+; ELF:   @__profd_foo = private {{.*}}, section "__llvm_prf_data", comdat($__profc_foo), align 8
+; MACHO: @__profc_foo = private global [1 x i64] zeroinitializer, section "__DATA,__llvm_prf_cnts", align 8
+; MACHO: @__profd_foo = private {{.*}}, section "__DATA,__llvm_prf_data,regular,live_support", align 8
+; WIN:   @__profc_foo = private global [1 x i64] zeroinitializer, section ".lprfc$M", align 8
+; WIN:   @__profd_foo = private {{.*}}, section ".lprfd$M", align 8
 define void @foo() {
   call void @llvm.instrprof.increment(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @__profn_foo, i32 0, i32 0), i64 0, i32 1, i32 0)
   ret void
@@ -113,15 +109,18 @@ declare void @llvm.instrprof.increment(i8*, i64, i32, i32)
 
 ; ELF_GENERIC:      define internal void @__llvm_profile_register_functions() unnamed_addr {
 ; ELF_GENERIC-NEXT:   call void @__llvm_profile_register_function(i8* bitcast (i32* @__llvm_profile_runtime to i8*))
-; ELF_GENERIC-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64, i8*, i8*, i32, [{{.*}} x i16] }* @__profd_foo to i8*))
-; ELF_GENERIC-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64, i8*, i8*, i32, [{{.*}} x i16] }* @__profd_foo_weak to i8*))
-; ELF_GENERIC:        call void @__llvm_profile_register_names_function(i8* getelementptr inbounds {{.*}} @__llvm_prf_nm
+; ELF_GENERIC-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64*, i8*, i8*, i32, [2 x i16] }* @__profd_foo to i8*))
+; ELF_GENERIC-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64*, i8*, i8*, i32, [2 x i16] }* @__profd_foo_weak to i8*))
+; ELF_GENERIC-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64*, i8*, i8*, i32, [2 x i16] }* @"__profd_linkage.ll:foo_internal" to i8*))
+; ELF_GENERIC-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64*, i8*, i8*, i32, [2 x i16] }* @__profd_foo_inline to i8*))
+; ELF_GENERIC-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64*, i8*, i8*, i32, [2 x i16] }* @__profd_foo_extern to i8*))
+; ELF_GENERIC-NEXT:   call void @__llvm_profile_register_names_function(i8* getelementptr inbounds {{.*}} @__llvm_prf_nm
 ; ELF_GENERIC-NEXT:   ret void
 ; ELF_GENERIC-NEXT: }
 
 ; XCOFF:      define internal void @__llvm_profile_register_functions() unnamed_addr {
-; XCOFF-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64, i8*, i8*, i32, [{{.*}} x i16] }* @__profd_foo to i8*))
-; XCOFF-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64, i8*, i8*, i32, [{{.*}} x i16] }* @__profd_foo_weak to i8*))
-; XCOFF:   call void @__llvm_profile_register_names_function(i8* getelementptr inbounds {{.*}} @__llvm_prf_nm
+; XCOFF-NEXT:  call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64*, i8*, i8*, i32, [{{.*}} x i16] }* @__profd_foo to i8*))
+; XCOFF-NEXT:  call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64*, i8*, i8*, i32, [{{.*}} x i16] }* @__profd_foo_weak to i8*))
+; XCOFF:  call void @__llvm_profile_register_names_function(i8* getelementptr inbounds {{.*}} @__llvm_prf_nm
 ; XCOFF-NEXT:   ret void
 ; XCOFF-NEXT: }
