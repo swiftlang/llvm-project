@@ -117,8 +117,10 @@ Error tablegen::scanTextForIncludes(cas::ObjectStore &CAS,
   auto Result = Cache.get(KeyID);
   if (!Result)
     return Result.takeError();
-  if (Optional<cas::ObjectRef> ResultID = *Result)
-    return fetchCachedIncludedFiles(CAS, *ResultID, Includes);
+  if (*Result) {
+    if (Optional<cas::ObjectRef> ResultID = CAS.getReference(**Result))
+      return fetchCachedIncludedFiles(CAS, *ResultID, Includes);
+  }
   return computeIncludedFiles(CAS, Cache, KeyID, Blob.getData(), Includes);
 }
 

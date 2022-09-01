@@ -618,8 +618,10 @@ Expected<llvm::cas::CASID> PTHManager::computePTH(llvm::cas::CASID InputFile) {
   auto Cached = Cache.get(CacheKey);
   if (!Cached)
     return Cached.takeError();
-  if (Optional<llvm::cas::ObjectRef> CachedPTH = *Cached)
-    return CAS.getID(*CachedPTH);
+  if (*Cached) {
+    if (Optional<llvm::cas::ObjectRef> CachedPTH = CAS.getReference(**Cached))
+      return CAS.getID(*CachedPTH);
+  }
 
   SmallString<256> PTHString;
   {

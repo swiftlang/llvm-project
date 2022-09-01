@@ -404,8 +404,10 @@ Error TableGenCache::lookupCachedResult(ArrayRef<const char *> Args) {
   auto Result = Cache->get(CAS->getID(*ActionID));
   if (!Result)
     return Result.takeError();
-  if (Optional<cas::ObjectRef> ID = *Result)
-    ResultID = *ID;
+  if (*Result) {
+    if (Optional<cas::ObjectRef> ID = CAS->getReference(**Result))
+      ResultID = *ID;
+  }
   return Error::success();
 }
 

@@ -1519,7 +1519,7 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
     return false;
   }
   if (*result) {
-    CASID resultID = config->CAS->getID(**result);
+    CASID resultID = **result;
     log("Caching: cache hit, result: " + resultID.toString() +
         ", key: " + cacheKey.toString());
     if (Error E = replayResult(CAS, resultID)) {
