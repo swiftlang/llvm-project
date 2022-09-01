@@ -81,6 +81,7 @@ add_llvm_component_library(LLVMMC
   BinaryFormat
   CAS
   DebugInfoCodeView
+  DebugInfoDWARF
   )
 
 add_subdirectory(MCParser)

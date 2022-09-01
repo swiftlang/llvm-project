@@ -22,6 +22,7 @@
 #include "llvm/MC/MCAsmLayout.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Endian.h"
+#include <unordered_set>
 
 namespace llvm {
 namespace mccasformats {
@@ -421,7 +422,7 @@ private:
   /// CURefs. Otherwise, no objects are created and `success` is returned.
   Error createDebugInfoSection(
       ArrayRef<DebugInfoCURef> CURefs, DebugAbbrevOffsetsRef AbbrevOffsetsRef,
-      ArrayRef<MachObjectWriter::AddendsSizeAndOffset> FixupsRef);
+      ArrayRef<MachObjectWriter::AddendsSizeAndOffset> Fixups);
 
   /// If AbbrevRefs is non-empty, create a SectionRef CAS object with edges to all
   /// AbbrevRefs. Otherwise, no objects are created and `success` is returned.
@@ -433,7 +434,8 @@ private:
   /// Returns a sequence of DebbugAbbrevRefs, sorted by the order in which they
   /// should appear in the object file.
   Expected<SmallVector<DebugAbbrevRef>>
-  splitAbbrevSection(ArrayRef<size_t> AbbrevOffsets, MutableArrayRef<char> FullAbbrevData);
+  splitAbbrevSection(ArrayRef<size_t> AbbrevOffsets,
+                     ArrayRef<char> FullAbbrevData);
 
   struct CUSplit {
     SmallVector<MutableArrayRef<char>> SplitCUData;
@@ -494,13 +496,13 @@ private:
 };
 
 class InMemoryCASDWARFObject : public DWARFObject {
-  SmallVector<char> DebugAbbrevSection;
-  bool IsLittleEndian = true;
+  ArrayRef<char> DebugAbbrevSection;
+  bool IsLittleEndian;
 
 public:
-  InMemoryCASDWARFObject(MutableArrayRef<char> AbbrevContents) {
-    DebugAbbrevSection.append(AbbrevContents.begin(), AbbrevContents.end());
-  }
+  InMemoryCASDWARFObject(MutableArrayRef<char> AbbrevContents,
+                         bool IsLittleEndian)
+      : DebugAbbrevSection(AbbrevContents), IsLittleEndian(IsLittleEndian) {}
   bool isLittleEndian() const override { return IsLittleEndian; }
 
   StringRef getAbbrevSection() const override {
@@ -512,14 +514,16 @@ public:
     return {};
   }
 
-  /// Zero-out the DW_AT_stmt_list in a compile unit and return it as an entry
-  /// into the Addend vector which will be fixed up when the object file is
-  /// emitted from the CAS. Addends are stored per section and DW_AT_stmt_list
-  /// offsets are stored per compile unit, so pass a /p CUOffset to store the
+  /// Identify the Forms specified in /p FormsToFixup in the compile unit and
+  /// zero them out, while also saving them as Addends to the debug_info
+  /// section. Addends are stored per section and DW_AT_stmt_list offsets are
+  /// stored per compile unit, so pass a /p CUOffset to store the
   /// DW_AT_stmt_list offset in the section rather than in the compile unit.
-  MachObjectWriter::AddendsSizeAndOffset
-  zeroStmtListInCU(MutableArrayRef<char> DebugInfoData, uint64_t AbbrevOffset,
-                   uint64_t CUOffset);
+  SmallVector<MachObjectWriter::AddendsSizeAndOffset>
+  identifyFixupsInCU(MutableArrayRef<char> DebugInfoData, uint64_t AbbrevOffset,
+                     uint64_t CUOffset,
+                     std::unordered_set<llvm::dwarf::Form> &FormsToFixup,
+                     DWARFContext *Ctx);
 };
 
 } // namespace v1

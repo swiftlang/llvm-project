@@ -1312,12 +1312,12 @@ MCCASBuilder::splitDebugInfoSectionData(MutableArrayRef<char> DebugInfoData) {
 
 Error MCCASBuilder::createDebugInfoSection(
     ArrayRef<DebugInfoCURef> CURefs, DebugAbbrevOffsetsRef AbbrevOffsetsRef,
-    ArrayRef<MachObjectWriter::AddendsSizeAndOffset> FixupsRef) {
+    ArrayRef<MachObjectWriter::AddendsSizeAndOffset> Fixups) {
   if (CURefs.empty())
     return Error::success();
 
   startSection(DwarfSections.DebugInfo);
-  SectionAddends.append(FixupsRef.begin(), FixupsRef.end());
+  SectionAddends.append(Fixups.begin(), Fixups.end());
   addNode(AbbrevOffsetsRef);
   for (auto CURef : CURefs)
     addNode(CURef);
@@ -1337,7 +1337,8 @@ Error MCCASBuilder::createDebugAbbrevSection(
 }
 
 Expected<SmallVector<DebugAbbrevRef>>
-MCCASBuilder::splitAbbrevSection(ArrayRef<size_t> AbbrevOffsetVec, MutableArrayRef<char> FullAbbrevData) {
+MCCASBuilder::splitAbbrevSection(ArrayRef<size_t> AbbrevOffsetVec,
+                                 ArrayRef<char> FullAbbrevData) {
   // If we are here, the Abbrev section _must_ exist.
   if (!DwarfSections.Abbrev)
     return createStringError(inconvertibleErrorCode(),
@@ -1392,52 +1393,58 @@ DebugAbbrevOffsetsRefAdaptor::encodeOffsets(ArrayRef<size_t> Offsets) {
   return EncodedOffsets;
 }
 
-MachObjectWriter::AddendsSizeAndOffset
-InMemoryCASDWARFObject::zeroStmtListInCU(MutableArrayRef<char> DebugInfoData,
-                                         uint64_t AbbrevOffset,
-                                         uint64_t CUOffset) {
-  uint32_t StmtListOffset;
-  uint8_t StmtListNumBytes;
-  uint64_t Fixup;
-  DWARFUnitVector UV;
-  uint64_t Address = 0;
-  DWARFSection Section = {toStringRef(DebugInfoData), Address};
-  DWARFUnitHeader Header;
-  DWARFDebugAbbrev Abbrev;
-  StringRef AbbrevSectionContribution =
-      getAbbrevSection().drop_front(AbbrevOffset);
-  Abbrev.extract(DataExtractor(AbbrevSectionContribution, isLittleEndian(), 8));
-  auto DWARFObj = std::make_unique<InMemoryCASDWARFObject>(*this);
-  auto DWARFContextHolder = std::make_unique<DWARFContext>(std::move(DWARFObj));
-  auto *DWARFCtx = DWARFContextHolder.get();
-  uint64_t offset_ptr = 0;
-  Header.extract(*DWARFCtx,
-                 DWARFDataExtractor(*this, Section, isLittleEndian(), 8),
-                 &offset_ptr, DWARFSectionKind::DW_SECT_INFO);
+static void getFixupsForCuDie(
+    SmallVector<MachObjectWriter::AddendsSizeAndOffset> &FixupsVector,
+    std::unordered_set<llvm::dwarf::Form> &FormsToFixup, DWARFDie &CUDie,
+    MutableArrayRef<char> DebugInfoData, uint64_t CUOffset) {
 
-  DWARFCompileUnit U(*DWARFCtx, Section, Header, &Abbrev, &getRangesSection(),
-                     &getLocSection(), getStrSection(), getStrOffsetsSection(),
-                     &getAddrSection(), getLocSection(), isLittleEndian(),
-                     false, UV);
-
-  bool IsStmtListOffsetFound = false;
-  if (DWARFDie CUDie = U.getUnitDIE(false)) {
-    for (const DWARFAttribute &AttrValue : CUDie.attributes()) {
-      if (AttrValue.Attr == llvm::dwarf::DW_AT_stmt_list) {
-        IsStmtListOffsetFound = true;
-        StmtListOffset = AttrValue.Offset;
-        StmtListNumBytes = AttrValue.ByteSize;
-        break;
-      }
+  for (const DWARFAttribute &AttrValue : CUDie.attributes()) {
+    if (FormsToFixup.find(AttrValue.Value.getForm()) != FormsToFixup.end()) {
+      uint64_t Fixup;
+      std::memcpy(&Fixup, &DebugInfoData[AttrValue.Offset], AttrValue.ByteSize);
+      std::memset(&DebugInfoData[AttrValue.Offset], 0, AttrValue.ByteSize);
+      FixupsVector.push_back(
+          {Fixup, static_cast<uint32_t>(AttrValue.Offset + CUOffset),
+           static_cast<uint8_t>(AttrValue.ByteSize)});
     }
   }
-  if (IsStmtListOffsetFound) {
-    std::memcpy(&Fixup, &DebugInfoData[StmtListOffset], StmtListNumBytes);
-    std::memset(&DebugInfoData[StmtListOffset], 0, StmtListNumBytes);
-    return {Fixup, static_cast<uint32_t>(StmtListOffset + CUOffset),
-            StmtListNumBytes};
+
+  DWARFDie Child = CUDie.getFirstChild();
+  while (Child && Child.getAbbreviationDeclarationPtr()) {
+    getFixupsForCuDie(FixupsVector, FormsToFixup, Child, DebugInfoData,
+                      CUOffset);
+    Child = Child.getSibling();
   }
-  return {};
+}
+
+SmallVector<MachObjectWriter::AddendsSizeAndOffset>
+InMemoryCASDWARFObject::identifyFixupsInCU(
+    MutableArrayRef<char> DebugInfoData, uint64_t AbbrevOffset,
+    uint64_t CUOffset, std::unordered_set<llvm::dwarf::Form> &FormsToFixup,
+    DWARFContext *Ctx) {
+
+  StringRef AbbrevSectionContribution =
+      getAbbrevSection().drop_front(AbbrevOffset);
+  DWARFDebugAbbrev Abbrev;
+  Abbrev.extract(DataExtractor(AbbrevSectionContribution, isLittleEndian(), 8));
+  uint64_t OffsetPtr = 0;
+  DWARFUnitHeader Header;
+  DWARFSection Section = {toStringRef(DebugInfoData), 0 /*Address*/};
+  Header.extract(*Ctx, DWARFDataExtractor(*this, Section, isLittleEndian(), 8),
+                 &OffsetPtr, DWARFSectionKind::DW_SECT_INFO);
+
+  DWARFUnitVector UV;
+  DWARFCompileUnit DCU(*Ctx, Section, Header, &Abbrev, &getRangesSection(),
+                       &getLocSection(), getStrSection(),
+                       getStrOffsetsSection(), &getAddrSection(),
+                       getLocSection(), isLittleEndian(), false, UV);
+
+  SmallVector<MachObjectWriter::AddendsSizeAndOffset> FixupsVector;
+  if (DWARFDie CUDie = DCU.getUnitDIE(false)) {
+    getFixupsForCuDie(FixupsVector, FormsToFixup, CUDie, DebugInfoData,
+                      CUOffset);
+  }
+  return FixupsVector;
 }
 
 Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
@@ -1463,7 +1470,13 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
   if (!FullAbbrevData)
     return FullAbbrevData.takeError();
 
-  InMemoryCASDWARFObject CASObj(*FullAbbrevData);
+  InMemoryCASDWARFObject CASObj(
+      *FullAbbrevData, Asm.getBackend().Endian == support::endianness::little);
+  std::unordered_set<llvm::dwarf::Form> FormsToFixup;
+  FormsToFixup.insert(llvm::dwarf::DW_FORM_sec_offset);
+  auto DWARFObj = std::make_unique<InMemoryCASDWARFObject>(CASObj);
+  auto DWARFContextHolder = std::make_unique<DWARFContext>(std::move(DWARFObj));
+  auto *DWARFCtx = DWARFContextHolder.get();
 
   Expected<SmallVector<DebugAbbrevRef>> AbbrevRefs =
       splitAbbrevSection(SplitInfo->AbbrevOffsets, *FullAbbrevData);
@@ -1472,17 +1485,17 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
 
   SmallVector<DebugInfoCURef> CURefs;
   SmallVector<MachObjectWriter::AddendsSizeAndOffset> Fixups;
-  unsigned I = 0;
   uint64_t CUOffset = 0;
-  for (MutableArrayRef<char> CUData : SplitInfo->SplitCUData) {
-    Fixups.push_back(
-        CASObj.zeroStmtListInCU(CUData, SplitInfo->AbbrevOffsets[I], CUOffset));
+  for (auto [CUData, AbbrevOffset] :
+       llvm::zip(SplitInfo->SplitCUData, SplitInfo->AbbrevOffsets)) {
+    auto FixupsVec = CASObj.identifyFixupsInCU(CUData, AbbrevOffset, CUOffset,
+                                               FormsToFixup, DWARFCtx);
+    Fixups.append(FixupsVec.begin(), FixupsVec.end());
     auto DbgInfoRef = DebugInfoCURef::create(*this, toStringRef(CUData));
     if (!DbgInfoRef)
       return DbgInfoRef.takeError();
     CURefs.push_back(*DbgInfoRef);
-    I++;
-    CUOffset += DbgInfoRef->getData().size();
+    CUOffset += CUData.size();
   }
 
   SmallVector<char> EncodedOffsets =
