@@ -546,7 +546,7 @@ static Expected<InputFile *> addCASObject(ObjectFormatSchemaPool &CASSchemas,
 /// Reads a CAS tree of CAS object files.
 /// \param CAS CAS database.
 /// \param ID The CASID pointing to a tree of files.
-static Error addCASTree(ObjectFormatSchemaPool &CASSchemas, CASID ID) {
+static Error addCASTree(ObjectFormatSchemaPool &CASSchemas, const CASID &ID) {
   Optional<cas::ObjectRef> Object = CASSchemas.getCAS().getReference(ID);
   if (!Object)
     return createStringError(inconvertibleErrorCode(), "unknown tree root");
@@ -1434,7 +1434,7 @@ static CASID createResultCacheKey(ObjectStore &CAS, cas::ObjectRef rootID,
   return cantFail(builder.create(CAS)).getID();
 }
 
-static Error replayResult(ObjectStore &CAS, CASID resultID) {
+static Error replayResult(ObjectStore &CAS, const CASID &resultID) {
   TimeTraceScope timeScope("Caching: replay result");
 
   std::unique_ptr<vfs::FileSystem> fs;
