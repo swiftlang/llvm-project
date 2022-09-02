@@ -1589,7 +1589,7 @@ static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
       return false;
     }
 
-    if (Error E = config->actionCache->put(cacheKey, resultTree->getRef())) {
+    if (Error E = config->actionCache->put(cacheKey, *resultTree)) {
       error("error storing cached result: " + toString(std::move(E)));
       return false;
     }
@@ -1806,7 +1806,7 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     std::string defaultCachePath = llvm::cas::getDefaultOnDiskActionCachePath();
     StringRef cachePath =
         args.getLastArgValue(OPT_cache_path, defaultCachePath);
-    auto cache = llvm::cas::createOnDiskActionCache(*config->CAS, cachePath);
+    auto cache = llvm::cas::createOnDiskActionCache(cachePath);
     if (cache)
       config->actionCache = std::move(*cache);
     else

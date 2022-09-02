@@ -634,7 +634,7 @@ Expected<llvm::cas::CASID> PTHManager::computePTH(llvm::cas::CASID InputFile) {
                        CanonicalLangOpts);
   }
   auto PTH = llvm::cantFail(CAS.createProxy(None, PTHString));
-  llvm::cantFail(Cache.put(CacheKey, PTH.getRef()));
+  llvm::cantFail(Cache.put(CacheKey, PTH));
   return PTH;
 }
 

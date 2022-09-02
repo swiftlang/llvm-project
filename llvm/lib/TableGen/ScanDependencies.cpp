@@ -96,7 +96,7 @@ static Error computeIncludedFiles(cas::ObjectStore &CAS,
       CAS.createProxy(None, ResultToCache);
   if (!ExpectedResult)
     return ExpectedResult.takeError();
-  if (Error E = Cache.put(Key, ExpectedResult->getRef()))
+  if (Error E = Cache.put(Key, *ExpectedResult))
     return E;
   return Error::success();
 }

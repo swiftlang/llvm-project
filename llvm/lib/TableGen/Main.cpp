@@ -376,9 +376,9 @@ Error TableGenCache::lookupCachedResult(ArrayRef<const char *> Args) {
           cas::createOnDiskCAS(cas::getDefaultOnDiskCASPath()).moveInto(CAS))
     return E;
 
-  if (Error E = cas::createOnDiskActionCache(
-                    *CAS, cas::getDefaultOnDiskActionCachePath())
-                    .moveInto(Cache))
+  if (Error E =
+          cas::createOnDiskActionCache(cas::getDefaultOnDiskActionCachePath())
+              .moveInto(Cache))
     return E;
 
   if (Error E = createExecutableBlob(Args[0]).moveInto(ExecutableID))
@@ -491,7 +491,7 @@ Error TableGenCache::computeResult(TableGenMainFn *MainFn) {
   Expected<cas::ObjectProxy> Tree = Builder.create(*CAS);
   if (!Tree)
     return Tree.takeError();
-  return Cache->put(CAS->getID(*ActionID), Tree->getRef());
+  return Cache->put(CAS->getID(*ActionID), *Tree);
 }
 
 Error TableGenCache::replayResult() {
