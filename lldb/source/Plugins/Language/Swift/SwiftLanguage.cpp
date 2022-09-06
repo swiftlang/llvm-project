@@ -142,6 +142,28 @@ SwiftLanguage::GetMethodNameVariants(ConstString method_name) const {
   return variant_names;
 }
 
+Language::FunctionNameInfo
+SwiftLanguage::GetFunctionNameInfo(ConstString name) const {
+  FunctionNameInfo info;
+  info.func_name_type = eFunctionNameTypeNone;
+
+  if (SwiftLanguageRuntime::IsSwiftMangledName(name.GetStringRef())) {
+    info.func_name_type = eFunctionNameTypeFull;
+    return info;
+  }
+
+  SwiftLanguageRuntime::MethodName method(name);
+  llvm::StringRef basename = method.GetBasename();
+  if (basename.empty()) {
+    info.func_name_type |= eFunctionNameTypeFull;
+  } else {
+    info.basename = basename;
+    info.func_name_type |= (eFunctionNameTypeMethod | eFunctionNameTypeBase);
+  }
+
+  return info;
+}
+
 static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
   if (!swift_category_sp)
     return;
