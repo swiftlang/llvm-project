@@ -156,6 +156,7 @@ add_llvm_component_library(LLVMSupport
   FileUtilities.cpp
   FileOutputBuffer.cpp
   FoldingSet.cpp
+  Format.cpp
   FormattedStream.cpp
   FormatVariadic.cpp
   GlobPattern.cpp
