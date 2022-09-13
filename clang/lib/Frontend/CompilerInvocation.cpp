@@ -4807,6 +4807,10 @@ std::string CompilerInvocation::getModuleHash() const {
   if (!SanHash.empty())
     HBuilder.add(SanHash.Mask);
 
+  // Caching + implicit modules, which is only set in clang-scan-deps, puts
+  // additional CASIDs in the pcm.
+  HBuilder.add(getFrontendOpts().CacheCompileJob);
+
   llvm::MD5::MD5Result Result;
   HBuilder.getHasher().final(Result);
   uint64_t Hash = Result.high() ^ Result.low();

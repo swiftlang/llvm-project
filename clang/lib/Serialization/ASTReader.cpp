@@ -2967,6 +2967,10 @@ ASTReader::ReadControlBlock(ModuleFile &F,
     case MODULE_CACHE_KEY:
       F.ModuleCacheKey = Blob.str();
       break;
+
+    case CASFS_ROOT_ID:
+      F.CASFileSystemRootID = Blob.str();
+      break;
     }
   }
 }
@@ -5603,6 +5607,8 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
         CurrentModule->PresumedModuleMapFile = F.ModuleMapPath;
         if (!F.ModuleCacheKey.empty())
           CurrentModule->setModuleCacheKey(F.ModuleCacheKey);
+        if (!F.CASFileSystemRootID.empty())
+          CurrentModule->setCASFileSystemRootID(F.CASFileSystemRootID);
       }
 
       CurrentModule->Kind = Kind;
