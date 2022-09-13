@@ -6,3 +6,5 @@ endif()
 if (LLDB_ENABLE_LUA)
   add_subdirectory(Lua)
 endif()
+
+add_subdirectory(Swift)

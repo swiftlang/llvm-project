@@ -129,6 +129,8 @@ lldb::ScriptLanguage OptionArgParser::ToScriptLanguage(
     return eScriptLanguagePython;
   if (s.equals_insensitive("lua"))
     return eScriptLanguageLua;
+  if (s.equals_insensitive("swift"))
+    return eScriptLanguageSwift;
   if (s.equals_insensitive("default"))
     return eScriptLanguageDefault;
   if (s.equals_insensitive("none"))

@@ -305,6 +305,7 @@ are no syntax errors may indicate that a function was declared but never called.
         switch (m_script_language) {
         case eScriptLanguagePython:
         case eScriptLanguageLua:
+        case eScriptLanguageSwift:
           m_use_script_language = true;
           break;
         case eScriptLanguageNone:

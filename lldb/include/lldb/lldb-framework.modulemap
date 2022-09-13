@@ -1,0 +1,10 @@
+framework module LLDB {
+    requires cplusplus
+    umbrella header "LLDB.h"
+    
+    export *
+    module * {
+        export *
+    }
+}
+

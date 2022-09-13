@@ -32,6 +32,11 @@ static constexpr OptionEnumValueElement g_script_option_enumeration[] = {
         "Lua",
     },
     {
+        eScriptLanguageSwift,
+        "swift",
+        "Swift",
+    },
+    {
         eScriptLanguageNone,
         "default",
         "The default scripting language.",

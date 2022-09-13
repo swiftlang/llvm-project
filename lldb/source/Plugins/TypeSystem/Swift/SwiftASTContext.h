@@ -909,6 +909,7 @@ protected:
   SwiftEnumDescriptor *GetCachedEnumInfo(lldb::opaque_compiler_type_t type);
 
   friend class CompilerType;
+  friend class SwiftInterpreter;
 
   void ApplyDiagnosticOptions();
 
