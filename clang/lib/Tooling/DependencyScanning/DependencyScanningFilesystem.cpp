@@ -186,6 +186,35 @@ static bool shouldCacheStatFailures(StringRef Filename) {
   StringRef Ext = llvm::sys::path::extension(Filename);
   if (Ext.empty())
     return false; // This may be the module cache directory.
+
+  // Swift's generated headers can appear in a modulemap as an "excluded"
+  // header in order to break the dependency cycle of a module that depends
+  // on itself:
+  //
+  // 1. The non-Swift code of a module must be built first.
+  // 2. Then Swift code that uses (1) is built and generates an additional
+  //    header (-Swift.h).
+  // 3. This header is now a part of the module.
+  //
+  // To solve this, a build system can generate a temporary "unextended"
+  // modulemap that treats the generated header as "excluded", in order to
+  // build a module for use in (1). Once (1) is built and the header is
+  // emitted, the canonical modulemap can be used by clients, which includes
+  // the generated header.
+  //
+  // During a dependency scan with a peristent DependencyScanningService,
+  // An initial scan may discover the unextended modulemap and record
+  // the failure to stat the generated ("-Swift.h") header. A successive
+  // scan which reads the canonical modulemap will attempt to stat the
+  // same header, which is now likely to exist - which means that caching
+  // the original stat failure will lead to a false-negative by using
+  // the cached value.
+  //
+  // To work around this, avoid caching stat failures of Swift generated
+  // headers.
+  if (Ext == ".h" && Filename.endswith("-Swift.h"))
+    return false;
+
   // Only cache stat failures on source files.
   return shouldScanForDirectivesBasedOnExtension(Filename);
 }
