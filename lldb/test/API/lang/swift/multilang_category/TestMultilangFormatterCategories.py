@@ -24,7 +24,7 @@ class TestMultilangFormatterCategories(TestBase):
         frame = thread.frames[0]
         self.assertTrue(frame, "Frame 0 is valid.")
 
-        dic = frame.FindVariable("dic")
+        dic = frame.FindVariable("dic", lldb.eNoDynamicValues)
         lldbutil.check_variable(
             self,
             dic,
