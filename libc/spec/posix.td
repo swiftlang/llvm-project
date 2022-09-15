@@ -262,6 +262,11 @@ def POSIX : StandardSpec<"POSIX"> {
     [], // Enumerations
     [
         FunctionSpec<
+          "access",
+          RetValSpec<IntType>,
+          [ArgSpec<ConstCharPtr>, ArgSpec<IntType>]
+        >,
+        FunctionSpec<
           "chdir",
           RetValSpec<IntType>,
           [ArgSpec<ConstCharPtr>]
@@ -315,6 +320,16 @@ def POSIX : StandardSpec<"POSIX"> {
           "lseek",
           RetValSpec<OffTType>,
           [ArgSpec<IntType>, ArgSpec<OffTType>, ArgSpec<IntType>]
+        >,
+        FunctionSpec<
+          "pread",
+          RetValSpec<SSizeTType>,
+          [ArgSpec<IntType>, ArgSpec<VoidPtr>, ArgSpec<SizeTType>, ArgSpec<OffTType>]
+        >,
+        FunctionSpec<
+          "pwrite",
+          RetValSpec<SSizeTType>,
+          [ArgSpec<IntType>, ArgSpec<ConstVoidPtr>, ArgSpec<SizeTType>, ArgSpec<OffTType>]
         >,
         FunctionSpec<
           "read",

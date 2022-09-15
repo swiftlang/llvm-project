@@ -3,6 +3,13 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
 endif()
 
 add_entrypoint_object(
+  access
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.access
+)
+
+add_entrypoint_object(
   chdir
   ALIAS
   DEPENDS
@@ -77,6 +84,20 @@ add_entrypoint_object(
   ALIAS
   DEPENDS
     .${LIBC_TARGET_OS}.lseek
+)
+
+add_entrypoint_object(
+  pread
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.pread
+)
+
+add_entrypoint_object(
+  pwrite
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.pwrite
 )
 
 add_entrypoint_object(

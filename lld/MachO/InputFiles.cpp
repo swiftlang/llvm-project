@@ -284,6 +284,9 @@ static Optional<size_t> getRecordSize(StringRef segname, StringRef name) {
 
   if (name == section_names::objcClassRefs && segname == segment_names::data)
     return target->wordSize;
+
+  if (name == section_names::objcSelrefs && segname == segment_names::data)
+    return target->wordSize;
   return {};
 }
 
