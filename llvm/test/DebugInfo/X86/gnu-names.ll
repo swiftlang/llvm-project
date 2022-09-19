@@ -18,10 +18,8 @@
 ; RUN: llc -mtriple=x86_64-pc-linux -filetype=obj -generate-type-units -debugger-tune=lldb < %s \
 ; RUN:   | llvm-readobj --sections - | FileCheck --check-prefix=NONE %s
 
-; Debug types are ignored for non-ELF targets which means it shouldn't affect
-; accelerator table generation.
 ; RUN: llc -mtriple=x86_64-apple-darwin12 -generate-type-units -filetype=obj < %s \
-; RUN:   | llvm-readobj --sections - | FileCheck --check-prefix=APPLE %s
+; RUN:   | llvm-readobj --sections - | FileCheck --check-prefix=NONE %s
 
 ; APPLE-NOT: debug_names
 ; APPLE-NOT: debug{{.*}}pub

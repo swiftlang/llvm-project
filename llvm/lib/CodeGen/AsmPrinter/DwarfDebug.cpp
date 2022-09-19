@@ -416,7 +416,8 @@ DwarfDebug::DwarfDebug(AsmPrinter *A)
 
   // Don't generate type units for unsupported object file formats.
   GenerateTypeUnits = (A->TM.getTargetTriple().isOSBinFormatELF() ||
-                       A->TM.getTargetTriple().isOSBinFormatWasm()) &&
+                       A->TM.getTargetTriple().isOSBinFormatWasm() ||
+                       A->TM.getTargetTriple().isOSBinFormatMachO()) &&
                       GenerateDwarfTypeUnits;
 
   TheAccelTableKind = computeAccelTableKind(

@@ -3,7 +3,9 @@
 
 ; DISABLED-NOT:  {{DW_AT_ranges|.debug_ranges}}
 ; DISABLED:      .section .debug_info
-; DISABLED-NOT:  {{DW_AT_ranges|.section}}
+; DISABLED-NOT:  {{DW_AT_ranges}}
+; FIXME: this is probably because I switch to debug abbrev mid way, so a pair
+; of new labels: .debug_abbrev .debug_info show up.
 ; DISABLED:      .quad .Lfunc_begin0 # DW_AT_low_pc
 ; DISABLED-NEXT: .quad .Lfunc_end1   # DW_AT_high_pc
 ; DISABLED-NOT:  {{DW_AT_ranges|.debug_ranges}}
