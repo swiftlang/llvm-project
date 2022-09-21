@@ -26,22 +26,30 @@ void DwarfFile::addUnit(std::unique_ptr<DwarfCompileUnit> U) {
   CUs.push_back(std::move(U));
 }
 
+void DwarfFile::addUnit(std::unique_ptr<DwarfTypeUnit> U) {
+  TUs.push_back(std::move(U));
+}
+
 // Emit the various dwarf units to the unit section USection with
 // the abbreviations going into ASection.
 void DwarfFile::emitUnits(bool UseOffsets) {
   bool FirstContribution = true;
-  for (const auto &TheU : CUs) {
-    getOrCreateAbbrevSectionStart();
-    TheU.get()->setAbbrevSectionBegin(AbbrevSectionStart);
-    // If there is only one Abbreviation contribution or we are working with the
-    // first compile unit, we can avoid label arithmetic by setting the offset
-    // to the start of the section.
-    if (FirstContribution || Abbrevs.size() == 1) {
-      FirstContribution = false;
-      TheU.get()->setAbbrevOffset(AbbrevSectionStart);
+  auto Emit = [&FirstContribution, UseOffsets, this](auto &UnitCollection) {
+    for (const auto &TheU : UnitCollection) {
+      getOrCreateAbbrevSectionStart();
+      TheU.get()->setAbbrevSectionBegin(AbbrevSectionStart);
+      // If there is only one Abbreviation contribution or we are working with
+      // the first compile unit, we can avoid label arithmetic by setting the
+      // offset to the start of the section.
+      if (FirstContribution || Abbrevs.size() == 1) {
+        FirstContribution = false;
+        TheU.get()->setAbbrevOffset(AbbrevSectionStart);
+      }
+      emitUnit(TheU.get(), UseOffsets);
     }
-    emitUnit(TheU.get(), UseOffsets);
-  }
+  };
+  Emit(TUs);
+  Emit(CUs);
 }
 
 void DwarfFile::emitUnit(DwarfUnit *TheU, bool UseOffsets) {
@@ -77,30 +85,35 @@ void DwarfFile::computeSizeAndOffsets() {
   // Offset from the first CU in the debug info section is 0 initially.
   uint64_t SecOffset = 0;
 
-  // Iterate over each compile unit and set the size and offsets for each
-  // DIE within each compile unit. All offsets are CU relative.
-  for (const auto &TheU : CUs) {
-    if (TheU->getCUNode()->isDebugDirectivesOnly())
-      continue;
+  auto Compute = [&SecOffset, this](auto &UnitCollection) {
+    // Iterate over each compile unit and set the size and offsets for each
+    // DIE within each compile unit. All offsets are CU relative.
+    for (const auto &TheU : UnitCollection) {
+      if (TheU->getCUNode()->isDebugDirectivesOnly())
+        continue;
 
-    // Skip CUs that ended up not being needed (split CUs that were abandoned
-    // because they added no information beyond the non-split CU)
-    if (TheU->getUnitDie().values().empty())
-      return;
+      // Skip CUs that ended up not being needed (split CUs that were abandoned
+      // because they added no information beyond the non-split CU)
+      if (TheU->getUnitDie().values().empty())
+        return;
 
-    TheU->setDebugSectionOffset(SecOffset);
-    SecOffset += computeSizeAndOffsetsForUnit(TheU.get());
-    // Only push_back a new .debug_abbrev contribution when emitting
-    // CAS-friendly debug info, and make sure to not add an extra compile unit.
-    // An initial Abbreviation contribution is pushed back when the DwarfFile is
-    // created because there are cases where the compile units are emitted
-    // without computing size and offsets for each DIE.
-    if (Abbrevs.size() != CUs.size() &&
-        TheU->getCUNode()->getCasFriendlinessKind() ==
-            DICompileUnit::DebugAbbrev) {
-      Abbrevs.emplace_back(std::make_unique<DIEAbbrevSet>(AbbrevAllocator));
+      TheU->setDebugSectionOffset(SecOffset);
+      SecOffset += computeSizeAndOffsetsForUnit(TheU.get());
+      // Only push_back a new .debug_abbrev contribution when emitting
+      // CAS-friendly debug info, and make sure to not add an extra compile
+      // unit. An initial Abbreviation contribution is pushed back when the
+      // DwarfFile is created because there are cases where the compile units
+      // are emitted without computing size and offsets for each DIE.
+      auto MaxAbbrevs = CUs.size() + TUs.size();
+      if (Abbrevs.size() != MaxAbbrevs &&
+          TheU->getCUNode()->getCasFriendlinessKind() ==
+              DICompileUnit::DebugAbbrev) {
+        Abbrevs.emplace_back(std::make_unique<DIEAbbrevSet>(AbbrevAllocator));
+      }
     }
-  }
+  };
+  Compute(TUs);
+  Compute(CUs);
   if (SecOffset > UINT32_MAX && !Asm->isDwarf64())
     report_fatal_error("The generated debug information is too large "
                        "for the 32-bit DWARF format.");
@@ -139,6 +152,13 @@ void DwarfFile::emitAbbrevs(MCSection *Section) {
     if (Abbrevs[I]->isAbbreviationListEmpty())
       continue;
 
+    auto *TheU = [&]() -> DwarfUnit * {
+      if (I < TUs.size())
+        return TUs[I].get();
+      auto CUIndex = I - TUs.size();
+      return CUs[CUIndex].get();
+    }();
+
     Asm->OutStreamer->switchSection(Section);
     MCSymbol *AbbrevStartSym = getOrCreateAbbrevSectionStart();
     // Do not emit the same label again, AbbrevStartSym should be the same for
@@ -148,14 +168,14 @@ void DwarfFile::emitAbbrevs(MCSection *Section) {
       AbbrevStartEmitted = true;
       Asm->OutStreamer->emitLabel(AbbrevStartSym);
     }
-    CUs[I]->setAbbrevSectionBegin(AbbrevSectionStart);
+    TheU->setAbbrevSectionBegin(AbbrevSectionStart);
     // If this is the first abbreviation contribution, we do not emit label
     // differences, therefore the abbreviation offset is set to be the same
     // as the start of the abbreviation section.
     if (I == 0)
-      CUs[0]->setAbbrevOffset(AbbrevSectionStart);
+      TheU->setAbbrevOffset(AbbrevSectionStart);
     else
-      Asm->OutStreamer->emitLabel(CUs[I]->getOrCreateAbbrevOffset());
+      Asm->OutStreamer->emitLabel(TheU->getOrCreateAbbrevOffset());
     Abbrevs[I]->Emit(Asm);
   }
 }

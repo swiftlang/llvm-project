@@ -29,6 +29,7 @@ class DbgLabel;
 class DINode;
 class DwarfCompileUnit;
 class DwarfUnit;
+class DwarfTypeUnit;
 class LexicalScope;
 class MCSection;
 class MDNode;
@@ -66,6 +67,7 @@ class DwarfFile {
 
   // A pointer to all units in the section.
   SmallVector<std::unique_ptr<DwarfCompileUnit>, 1> CUs;
+  SmallVector<std::unique_ptr<DwarfTypeUnit>, 1> TUs;
 
   DwarfStringPool StrPool;
 
@@ -135,6 +137,7 @@ public:
 
   /// Add a unit to the list of CUs.
   void addUnit(std::unique_ptr<DwarfCompileUnit> U);
+  void addUnit(std::unique_ptr<DwarfTypeUnit> U);
 
   /// Emit all of the units to the section listed with the given
   /// abbreviation section.
