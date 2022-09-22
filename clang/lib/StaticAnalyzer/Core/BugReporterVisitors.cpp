@@ -1347,13 +1347,12 @@ static void showBRDiagnostics(llvm::raw_svector_ostream &OS, StoreInfo SI) {
 static void showBRParamDiagnostics(llvm::raw_svector_ostream &OS,
                                    StoreInfo SI) {
   const auto *VR = cast<VarRegion>(SI.Dest);
-  const auto *Param = cast<ParmVarDecl>(VR->getDecl());
+  const auto *D = VR->getDecl();
 
   OS << "Passing ";
 
-  if (SI.Value.getAs<loc::ConcreteInt>()) {
-    OS << (isObjCPointer(Param) ? "nil object reference"
-                                : "null pointer value");
+  if (isa<loc::ConcreteInt>(SI.Value)) {
+    OS << (isObjCPointer(D) ? "nil object reference" : "null pointer value");
 
   } else if (SI.Value.isUndef()) {
     OS << "uninitialized value";
@@ -1368,12 +1367,19 @@ static void showBRParamDiagnostics(llvm::raw_svector_ostream &OS,
     OS << "value";
   }
 
-  // Printed parameter indexes are 1-based, not 0-based.
-  unsigned Idx = Param->getFunctionScopeIndex() + 1;
-  OS << " via " << Idx << llvm::getOrdinalSuffix(Idx) << " parameter";
-  if (VR->canPrintPretty()) {
-    OS << " ";
-    VR->printPretty(OS);
+  if (const auto *Param = dyn_cast<ParmVarDecl>(VR->getDecl())) {
+    // Printed parameter indexes are 1-based, not 0-based.
+    unsigned Idx = Param->getFunctionScopeIndex() + 1;
+    OS << " via " << Idx << llvm::getOrdinalSuffix(Idx) << " parameter";
+    if (VR->canPrintPretty()) {
+      OS << " ";
+      VR->printPretty(OS);
+    }
+  } else if (const auto *ImplParam = dyn_cast<ImplicitParamDecl>(D)) {
+    if (ImplParam->getParameterKind() ==
+        ImplicitParamDecl::ImplicitParamKind::ObjCSelf) {
+      OS << " via implicit parameter 'self'";
+    }
   }
 }
 
