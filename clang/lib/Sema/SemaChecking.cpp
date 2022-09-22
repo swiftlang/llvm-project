@@ -1772,8 +1772,10 @@ static bool checkPointerAuthValue(Sema &S, Expr *&Arg,
 
 // The following functions use non-short-circuiting logic on the results of
 // `checkPointerAuthKey` and `checkPointerAuthValue`.
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wbitwise-instead-of-logical"
+#endif
 
 static ExprResult SemaPointerAuthStrip(Sema &S, CallExpr *Call) {
   if (checkArgCount(S, Call, 2)) return ExprError();
@@ -1838,7 +1840,9 @@ static ExprResult SemaPointerAuthAuthAndResign(Sema &S, CallExpr *Call) {
 }
 
 // Re-enable "-Wbitwise-instead-of-logical"
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 
 static ExprResult SemaPointerAuthStringDiscriminator(Sema &S, CallExpr *call) {
   if (checkPointerAuthEnabled(S, call)) return ExprError();
