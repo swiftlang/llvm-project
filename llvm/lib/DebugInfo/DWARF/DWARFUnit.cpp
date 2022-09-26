@@ -526,11 +526,14 @@ Error DWARFUnit::tryExtractDIEsIfNeeded(bool CUDieOnly) {
     auto StringOffsetOrError =
         IsDWO ? determineStringOffsetsTableContributionDWO(DA)
               : determineStringOffsetsTableContribution(DA);
-    if (!StringOffsetOrError)
-      return createStringError(errc::invalid_argument,
-                               "invalid reference to or invalid content in "
-                               ".debug_str_offsets[.dwo]: " +
-                                   toString(StringOffsetOrError.takeError()));
+    if (!StringOffsetOrError) {
+      toString(StringOffsetOrError.takeError());
+      return Error::success();
+      // return createStringError(errc::invalid_argument,
+      //                          "invalid reference to or invalid content in "
+      //                          ".debug_str_offsets[.dwo]: " +
+      //                              toString(StringOffsetOrError.takeError()));
+    }
 
     StringOffsetsTableContribution = *StringOffsetOrError;
   }
