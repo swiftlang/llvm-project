@@ -741,6 +741,7 @@ public:
   /// a pre-DWARF v5 implementation of split DWARF sections, which uses a
   /// monolithic string offsets table.
   bool useSegmentedStringOffsetsTable() const {
+    return false;
     return UseSegmentedStringOffsetsTable;
   }
 
