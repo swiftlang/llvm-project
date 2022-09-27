@@ -340,6 +340,7 @@ public:
     assert(!CompileJobCacheKey || CompileJobCacheKey == Key);
     CompileJobCacheKey = std::move(Key);
   }
+  bool isSourceNonReproducible() const;
 
   /// }
   /// @name Diagnostics Engine
