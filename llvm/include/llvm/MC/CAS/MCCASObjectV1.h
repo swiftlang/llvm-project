@@ -317,7 +317,7 @@ struct DwarfSectionsCache {
 /// cas object contains the information from every compile unit that will not
 /// deduplicate.
 struct AbbrevAndDebugSplit {
-  SmallVector<DebugInfoCURef> CURefs;
+  SmallVector<MCObjectProxy> CURefs;
   SmallVector<DebugAbbrevRef> AbbrevRefs;
   Optional<DebugAbbrevOffsetsRef> AbbrevOffsetsRef;
   Optional<DebugInfoDistinctDataRef> DebugDistinctDataRef;
@@ -427,7 +427,7 @@ private:
 
   /// If CURefs is non-empty, create a SectionRef CAS object with edges to all
   /// CURefs. Otherwise, no objects are created and `success` is returned.
-  Error createDebugInfoSection(ArrayRef<DebugInfoCURef> CURefs,
+  Error createDebugInfoSection(ArrayRef<MCObjectProxy> CURefs,
                                DebugAbbrevOffsetsRef AbbrevOffsetsRef,
                                DebugInfoDistinctDataRef DebugDistinctDataRef);
 
