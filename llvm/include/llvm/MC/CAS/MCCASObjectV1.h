@@ -562,7 +562,8 @@ public:
     SmallVector<char, 0> DebugInfoCURefData;
     SmallVector<char, 0> DistinctData;
     constexpr static std::array FormsToPartition{
-        llvm::dwarf::Form::DW_FORM_strp, llvm::dwarf::Form::DW_FORM_sec_offset};
+        llvm::dwarf::Form::DW_FORM_strp, llvm::dwarf::Form::DW_FORM_sec_offset,
+        llvm::dwarf::Form::DW_FORM_addr};
   };
 
   /// Create a DwarfCompileUnit that represents the compile unit at \p CUOffset

@@ -1106,6 +1106,8 @@ void MachObjectWriter::writeSymbolTable(MCAssembler &Asm,
 void MachObjectWriter::applyAddends(MCAssembler &Asm,
                                     const MCAsmLayout &Layout) {
   for (MCSection &Sec : Asm) {
+    if (Sec.getName() == "__debug_info")
+      continue;
     for (MCFragment &F : Sec) {
       MutableArrayRef<char> Contents;
       switch (F.getKind()) {
