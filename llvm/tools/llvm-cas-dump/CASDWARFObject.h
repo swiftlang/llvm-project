@@ -32,6 +32,7 @@ class CASDWARFObject : public DWARFObject {
   SmallVector<StringRef> CUDataVec;
   SmallVector<uint32_t> SecOffsetVals;
   unsigned LineTableOffset = 0;
+  DenseMap<cas::ObjectRef, unsigned> MapOfStringOffsets;
   unsigned CompileUnitIndex = 0;
 
   const mccasformats::v1::MCSchema &Schema;
@@ -77,6 +78,9 @@ public:
     return {};
   };
   ArrayRef<uint32_t> getSecOffsetVals() { return SecOffsetVals; }
+  DenseMap<cas::ObjectRef, unsigned> &getMapOfStringOffsets() {
+    return MapOfStringOffsets;
+  }
 };
 } // namespace llvm
 
