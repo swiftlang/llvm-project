@@ -724,7 +724,7 @@ void X86AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
   // Copy the Value at the fixup location and zero-out the fixup if it is
   // unresolved, this is done to improve deduplication with MCCAS. The fixup
   // will be applied later when the object file is being written out.
-  if (!IsResolved) {
+  if (!IsResolved && Fragment->getParent()->getName() != "__debug_info") {
     if (Asm.getWriter().addAddend(Fragment, Value, Fixup.getOffset(), Size)) {
       std::memset(&Data[Fixup.getOffset()], 0, Size);
     }
