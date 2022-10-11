@@ -15,10 +15,14 @@
 using namespace llvm;
 using namespace llvm::cas;
 
-namespace llvm::unittest::cas {
+namespace llvm {
+namespace unittest {
+namespace cas {
 void MockEnv::anchor() {}
 MockEnv::~MockEnv() {}
-} // namespace llvm::unittest::cas
+} // namespace cas
+} // namespace unittest
+} // namespace llvm
 
 TestingAndDir createInMemory(int I) {
   std::unique_ptr<ObjectStore> CAS = createInMemoryCAS();

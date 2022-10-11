@@ -12,7 +12,9 @@
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
 
-namespace llvm::cas {
+namespace llvm {
+namespace cas {
+
 /// Create GRPC ObjectStore from a path.
 Expected<std::unique_ptr<ObjectStore>> createGRPCRelayCAS(const Twine &Path);
 
@@ -25,6 +27,7 @@ public:
   RegisterGRPCCAS();
 };
 
-} // namespace llvm::cas
+} // namespace cas
+} // namespace llvm
 
 #endif

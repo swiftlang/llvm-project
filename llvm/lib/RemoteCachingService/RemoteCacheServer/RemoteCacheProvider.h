@@ -15,7 +15,8 @@
 #include "llvm/Support/Error.h"
 #include <memory>
 
-namespace llvm::cas {
+namespace llvm {
+namespace cas {
 
 class ActionCache;
 class ObjectStore;
@@ -71,6 +72,7 @@ createLLVMCASCacheProvider(StringRef TempPath, std::unique_ptr<ObjectStore> CAS,
                            std::unique_ptr<ActionCache> Cache);
 
 } // namespace remote
-} // namespace llvm::cas
+} // namespace cas
+} // namespace llvm
 
 #endif

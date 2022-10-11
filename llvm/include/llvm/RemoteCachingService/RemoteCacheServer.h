@@ -12,7 +12,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
-namespace llvm::cas {
+namespace llvm {
+namespace cas {
 
 class ActionCache;
 class ObjectStore;
@@ -41,6 +42,7 @@ private:
 };
 
 } // namespace remote
-} // namespace llvm::cas
+} // namespace cas
+} // namespace llvm
 
 #endif

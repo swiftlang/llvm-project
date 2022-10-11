@@ -17,14 +17,18 @@
 #ifndef LLVM_UNITTESTS_CASTESTCONFIG_H
 #define LLVM_UNITTESTS_CASTESTCONFIG_H
 
-namespace llvm::unittest::cas {
+namespace llvm {
+namespace unittest {
+namespace cas {
 class MockEnv {
   void anchor();
 
 public:
   virtual ~MockEnv();
 };
-} // namespace llvm::unittest::cas
+} // namespace cas
+} // namespace unittest
+} // namespace llvm
 
 struct TestingAndDir {
   std::unique_ptr<llvm::cas::ObjectStore> CAS;

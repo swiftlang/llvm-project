@@ -21,7 +21,9 @@
 #include <memory>
 #include <string>
 
-namespace llvm::cas::remote {
+namespace llvm {
+namespace cas {
+namespace remote {
 
 /// Used to optionally associate additional context with a particular request.
 class AsyncCallerContext {
@@ -322,6 +324,8 @@ createRemoteKeyValueClient(StringRef SocketPath);
 Expected<ClientServices>
 createCompilationCachingRemoteClient(StringRef SocketPath);
 
-} // namespace llvm::cas::remote
+} // namespace remote
+} // namespace cas
+} // namespace llvm
 
 #endif
