@@ -190,7 +190,7 @@ if ( CLANGD_BUILD_XPC )
 endif ()
 
 if (CLANGD_ENABLE_REMOTE)
-  include(FindGRPC)
+  include(AddGRPC)
 endif()
 
 if(CLANG_INCLUDE_TESTS)
