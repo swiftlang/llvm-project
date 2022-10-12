@@ -123,7 +123,13 @@ public:
     SmallVector<char, 0> DistinctData;
     UnitKind Kind;
     constexpr static std::array FormsToPartition{
-        llvm::dwarf::Form::DW_FORM_strp, llvm::dwarf::Form::DW_FORM_sec_offset};
+        llvm::dwarf::Form::DW_FORM_strp, llvm::dwarf::Form::DW_FORM_sec_offset,
+        dwarf::Form::DW_FORM_ref1,       dwarf::Form::DW_FORM_ref2,
+        dwarf::Form::DW_FORM_ref4,       dwarf::Form::DW_FORM_ref8,
+        dwarf::Form::DW_FORM_data1,      dwarf::Form::DW_FORM_data2,
+        dwarf::Form::DW_FORM_data4,      dwarf::Form::DW_FORM_data8,
+        dwarf::Form::DW_FORM_addrx,      dwarf::Form::DW_FORM_exprloc,
+    };
   };
 
   /// Create a DwarfCompileUnit that represents the compile unit at \p CUOffset
