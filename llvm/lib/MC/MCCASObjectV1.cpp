@@ -122,14 +122,28 @@ public:
     SmallVector<char, 0> DebugInfoCURefData;
     SmallVector<char, 0> DistinctData;
     UnitKind Kind;
-    constexpr static std::array FormsToPartition{
-        llvm::dwarf::Form::DW_FORM_strp, llvm::dwarf::Form::DW_FORM_sec_offset,
-        dwarf::Form::DW_FORM_ref1,       dwarf::Form::DW_FORM_ref2,
-        dwarf::Form::DW_FORM_ref4,       dwarf::Form::DW_FORM_ref8,
-        dwarf::Form::DW_FORM_data1,      dwarf::Form::DW_FORM_data2,
-        dwarf::Form::DW_FORM_data4,      dwarf::Form::DW_FORM_data8,
-        dwarf::Form::DW_FORM_addrx,      dwarf::Form::DW_FORM_exprloc,
-    };
+
+    static bool doesntDedup(dwarf::Form Form, dwarf::Attribute Attr) {
+      static const DenseMap<dwarf::Form, SmallVector<dwarf::Attribute>>
+          FormsToPartition{{dwarf::Form::DW_FORM_strp, {}},
+                           {dwarf::Form::DW_FORM_sec_offset, {}},
+                           {dwarf::Form::DW_FORM_ref1, {}},
+                           {dwarf::Form::DW_FORM_ref2, {}},
+                           {dwarf::Form::DW_FORM_ref4, {}},
+                           {dwarf::Form::DW_FORM_ref8, {}},
+                           {dwarf::Form::DW_FORM_data1, {}},
+                           {dwarf::Form::DW_FORM_data2, {}},
+                           {dwarf::Form::DW_FORM_data4, {}},
+                           {dwarf::Form::DW_FORM_data8, {}},
+                           {dwarf::Form::DW_FORM_addrx, {}},
+                           {dwarf::Form::DW_FORM_exprloc, {}}};
+      auto it = FormsToPartition.find(Form);
+      if (it == FormsToPartition.end())
+        return false;
+      if (it->second.empty())
+        return true;
+      return llvm::is_contained(it->second, Attr);
+    }
   };
 
   /// Create a DwarfCompileUnit that represents the compile unit at \p CUOffset
@@ -986,11 +1000,12 @@ static Error materializeCUDie(DWARFUnit &DCU,
   // file.
   for (unsigned I = 0; I < AbbrevDecl->getNumAttributes(); I++) {
     auto Form = AbbrevDecl->getFormByIndex(I);
+    auto Attr = AbbrevDecl->getAttrByIndex(I);
     auto *U = CUDie.getDwarfUnit();
     dwarf::FormParams FP = U->getFormParams();
-    bool FormInDistinctDataRef = is_contained(
-        InMemoryCASDWARFObject::PartitionedDebugInfoSection::FormsToPartition,
-        Form);
+    bool FormInDistinctDataRef =
+        InMemoryCASDWARFObject::PartitionedDebugInfoSection::doesntDedup(Form,
+                                                                         Attr);
     auto FormSize = getFormSize(
         Form, FP,
         FormInDistinctDataRef ? toStringRef(DistinctDataArrayRef) : CUData,
@@ -2036,9 +2051,8 @@ partitionCUDie(InMemoryCASDWARFObject::PartitionedDebugInfoSection &SplitData,
   append_range(SplitData.DebugInfoCURefData,
                DebugInfoData.slice(PrevOffset, Size));
   for (const DWARFAttribute &AttrValue : CUDie.attributes()) {
-    if (is_contained(InMemoryCASDWARFObject::PartitionedDebugInfoSection::
-                         FormsToPartition,
-                     AttrValue.Value.getForm()))
+    if (InMemoryCASDWARFObject::PartitionedDebugInfoSection::doesntDedup(
+            AttrValue.Value.getForm(), AttrValue.Attr))
       append_range(SplitData.DistinctData,
                    DebugInfoData.slice(AttrValue.Offset, AttrValue.ByteSize));
     else
