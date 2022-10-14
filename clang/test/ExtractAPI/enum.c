@@ -705,13 +705,13 @@ enum {
         "navigator": [
           {
             "kind": "identifier",
-            "spelling": "(anonymous)"
+            "spelling": "enum (unnamed)"
           }
         ],
-        "title": "(anonymous)"
+        "title": "enum (unnamed)"
       },
       "pathComponents": [
-        "(anonymous)"
+        "enum (unnamed)"
       ]
     },
     {
@@ -753,7 +753,7 @@ enum {
         "title": "Constant"
       },
       "pathComponents": [
-        "(anonymous)",
+        "enum (unnamed)",
         "Constant"
       ]
     },
@@ -793,13 +793,13 @@ enum {
         "navigator": [
           {
             "kind": "identifier",
-            "spelling": "(anonymous)"
+            "spelling": "enum (unnamed)"
           }
         ],
-        "title": "(anonymous)"
+        "title": "enum (unnamed)"
       },
       "pathComponents": [
-        "(anonymous)"
+        "enum (unnamed)"
       ]
     },
     {
@@ -841,7 +841,7 @@ enum {
         "title": "OtherConstant"
       },
       "pathComponents": [
-        "(anonymous)",
+        "enum (unnamed)",
         "OtherConstant"
       ]
     }

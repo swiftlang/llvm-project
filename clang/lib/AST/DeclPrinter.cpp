@@ -1694,7 +1694,7 @@ void DeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
       Out << OpName;
     } else {
       assert(D->getDeclName().isIdentifier());
-      D->printName(Out);
+      D->printName(Out, Policy);
     }
     Out << " : ";
     D->getType().print(Out, Policy);
@@ -1724,7 +1724,7 @@ void DeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
 void DeclPrinter::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
   if (!D->isInvalidDecl()) {
     Out << "#pragma omp declare mapper (";
-    D->printName(Out);
+    D->printName(Out, Policy);
     Out << " : ";
     D->getType().print(Out, Policy);
     Out << " ";
