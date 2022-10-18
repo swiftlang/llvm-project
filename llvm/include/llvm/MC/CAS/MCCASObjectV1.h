@@ -333,7 +333,8 @@ struct DebugAbbrevOffsetsRefAdaptor {
 
   /// Encode the `Offsets` vector into data suitable for creating a
   /// DebugAbbrevRef.
-  static SmallVector<char> encodeOffsets(ArrayRef<size_t> Offsets);
+  static SmallVector<char> encodeOffsets(ArrayRef<size_t> Offsets,
+                                         ArrayRef<size_t> HeaderLengthFields);
 
 private:
   DebugAbbrevOffsetsRef Ref;
@@ -447,6 +448,7 @@ private:
   struct CUSplit {
     SmallVector<MutableArrayRef<char>> SplitCUData;
     SmallVector<size_t> AbbrevOffsets;
+    SmallVector<size_t> HeaderLengthFields;
   };
   /// Split the data of the __debug_info section it into multiple pieces, one
   /// per Compile Unit(CU) and return them. The abbreviation offset for each CU

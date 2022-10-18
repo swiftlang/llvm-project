@@ -214,6 +214,7 @@ public:
 struct CUInfo {
   size_t CUSize;
   uint32_t AbbrevOffset;
+  size_t HeaderLengthField;
 };
 static Expected<CUInfo> getAndSetDebugAbbrevOffsetAndSkip(
     MutableArrayRef<char> CUData, support::endianness Endian,
@@ -744,14 +745,15 @@ DebugAbbrevSectionRef::create(MCCASBuilder &MB,
 struct LoadedDebugInfoSection {
   StringRef DistinctData;
   SmallVector<size_t, 0> AbbrevOffsets;
+  SmallVector<size_t, 0> HeaderLengths;
   SmallVector<StringRef, 0> CUData;
   Optional<PaddingRef> Padding;
   StringRef RelocationData;
 
-  /// Returns a range of (AbbrevOffset, CUData) pairs.
-  auto getOffsetAndCUDataRange() {
+  /// Returns a range of (AbbrevOffset, CUData, HeaderLengthField) pairs.
+  auto getOffsetAndCUDataRangeAndHeaderLengthField() {
     assert(CUData.size() == AbbrevOffsets.size());
-    return llvm::zip(AbbrevOffsets, CUData);
+    return llvm::zip(AbbrevOffsets, CUData, HeaderLengths);
   }
 
   static Expected<LoadedDebugInfoSection> load(DebugInfoSectionRef Section);
@@ -772,6 +774,11 @@ private:
         OffsetsAdaptor.decodeOffsets();
     if (!MaybeAbbrevOffsets)
       return MaybeAbbrevOffsets.takeError();
+    auto NumOffsets = MaybeAbbrevOffsets->size();
+    assert( NumOffsets% 2 == 0);
+    auto Mid = MaybeAbbrevOffsets->begin() + NumOffsets / 2;
+    HeaderLengths.append(Mid, MaybeAbbrevOffsets->end());
+    MaybeAbbrevOffsets->erase(Mid, MaybeAbbrevOffsets->end());
     AbbrevOffsets = std::move(*MaybeAbbrevOffsets);
     return Error::success();
   }
@@ -1194,6 +1201,15 @@ getDWARFUnit(UnitKind Kind, DWARFContext &DWARFCtx, const DWARFSection &Section,
   llvm_unreachable("unsupported unit type");
 }
 
+static Error setHeaderLength(MutableArrayRef<char> CUData, uint32_t Value,
+                             support::endianness Endian) {
+  // FIXME: safe but ugly cast. Similar to: llvm::arrayRefFromStringRef.
+  auto UnsignedData = makeMutableArrayRef(
+      reinterpret_cast<uint8_t *>(CUData.data()), CUData.size());
+  BinaryStreamWriter Writer(UnsignedData, Endian);
+  return Writer.writeInteger(Value);
+}
+
 Expected<uint64_t>
 DebugInfoSectionRef::materialize(MCCASReader &Reader,
                                  ArrayRef<char> AbbrevSectionContents,
@@ -1208,7 +1224,8 @@ DebugInfoSectionRef::materialize(MCCASReader &Reader,
   raw_svector_ostream SectionStream(SectionContents);
   unsigned Size = 0;
   SmallVector<SmallVector<char>> CUContents;
-  for (auto [AbbrevOffset, CUData] : LoadedSection->getOffsetAndCUDataRange()) {
+  for (auto [AbbrevOffset, CUData, HeaderLengthField] :
+       LoadedSection->getOffsetAndCUDataRangeAndHeaderLengthField()) {
     // Copy the data so that we can modify the abbrev offset prior to printing.
     // FIXME: do this with a zero-copy strategy.
     auto MutableCUData = to_vector(CUData);
@@ -1217,6 +1234,9 @@ DebugInfoSectionRef::materialize(MCCASReader &Reader,
             /* SkipData */ false);
         !E)
       return E.takeError();
+    if (auto E = setHeaderLength(MutableCUData, HeaderLengthField,
+                                 Reader.getEndian()))
+      return std::move(E);
     CUContents.push_back(MutableCUData);
   }
 
@@ -1962,7 +1982,7 @@ getAndSetDebugAbbrevOffsetAndSkip(MutableArrayRef<char> CUData,
     if (auto E = Reader.skip(*Size))
       return std::move(E);
   }
-  return CUInfo{Reader.getOffset(), AbbrevOffset};
+  return CUInfo{Reader.getOffset(), AbbrevOffset, *Size};
 }
 
 /// Given a list of MCFragments, return a vector with the concatenation of their
@@ -2002,6 +2022,7 @@ MCCASBuilder::splitDebugInfoSectionData(MutableArrayRef<char> DebugInfoData) {
       return Info.takeError();
     Split.SplitCUData.push_back(DebugInfoData.take_front(Info->CUSize));
     Split.AbbrevOffsets.push_back(Info->AbbrevOffset);
+    Split.HeaderLengthFields.push_back(Info->HeaderLengthField);
     DebugInfoData = DebugInfoData.drop_front(Info->CUSize);
   }
 
@@ -2083,11 +2104,13 @@ Expected<SmallVector<size_t>> DebugAbbrevOffsetsRefAdaptor::decodeOffsets() {
   return DecodedOffsets;
 }
 
-SmallVector<char>
-DebugAbbrevOffsetsRefAdaptor::encodeOffsets(ArrayRef<size_t> Offsets) {
+SmallVector<char> DebugAbbrevOffsetsRefAdaptor::encodeOffsets(
+    ArrayRef<size_t> Offsets, ArrayRef<size_t> HeaderLengthFields) {
   SmallVector<char> EncodedOffsets;
   for (auto Offset : Offsets)
     writeVBR8(Offset, EncodedOffsets);
+  for (auto Length : HeaderLengthFields)
+    writeVBR8(Length, EncodedOffsets);
   return EncodedOffsets;
 }
 
@@ -2206,6 +2229,9 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
         CASObj.splitUpCUData(CUData, AbbrevOffset, CUOffset, DWARFCtx);
     if (!SplitData)
       return SplitData.takeError();
+    if (auto E = setHeaderLength(SplitData->DebugInfoCURefData, 0,
+                                 Asm.getBackend().Endian))
+      return std::move(E);
     DistinctData.append(SplitData->DistinctData.begin(),
                         SplitData->DistinctData.end());
     auto CASObj = [&]() -> Expected<MCObjectProxy> {
@@ -2225,7 +2251,8 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
   }
 
   SmallVector<char> EncodedOffsets =
-      DebugAbbrevOffsetsRefAdaptor::encodeOffsets(SplitInfo->AbbrevOffsets);
+      DebugAbbrevOffsetsRefAdaptor::encodeOffsets(
+          SplitInfo->AbbrevOffsets, SplitInfo->HeaderLengthFields);
   auto AbbrevOffsetsRef =
       DebugAbbrevOffsetsRef::create(*this, toStringRef(EncodedOffsets));
   if (!AbbrevOffsetsRef)
