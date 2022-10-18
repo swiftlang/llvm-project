@@ -71,9 +71,14 @@ int main(int argc, char *argv[]) {
   ExitOnErr.setBanner(std::string(argv[0]) + ": ");
 
   cl::ParseCommandLineOptions(argc, argv);
-  PrinterOptions Options = {
-      DwarfSectionsOnly, DwarfDump, DebugAbbrevOffsets, HexDump, HexDumpOneLine,
-      ShowForm,          Verbose};
+  PrinterOptions Options = {DwarfSectionsOnly,
+                            DwarfDump,
+                            DebugAbbrevOffsets,
+                            HexDump,
+                            HexDumpOneLine,
+                            ShowForm,
+                            Verbose,
+                            DumpSameLinkageDifferentCU};
 
   std::unique_ptr<ObjectStore> CAS = ExitOnErr(createOnDiskCAS(CASPath));
   MCCASPrinter Printer(Options, *CAS, llvm::outs());
@@ -94,6 +99,8 @@ int main(int argc, char *argv[]) {
       ExitOnErr(Obj.takeError());
 
     ExitOnErr(Printer.printMCObject(*Ref, *Obj));
+    if (Options.DumpSameLinkageDifferentCU)
+      ExitOnErr(Printer.dumpSimilarCUs(*Obj));
   }
   return 0;
 }

@@ -51,6 +51,8 @@ struct MCCASPrinter {
 
   Expected<CASDWARFObject> discoverDwarfSections(cas::ObjectRef CASObj);
 
+  Error dumpSimilarCUs(CASDWARFObject &Obj);
+
 private:
   PrinterOptions Options;
   llvm::mccasformats::v1::MCSchema MCSchema;
