@@ -79,7 +79,7 @@ Error MCCASPrinter::printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj,
                                   DWARFContext *DWARFCtx) {
   // Initialize DWARFObj.
   std::unique_ptr<DWARFContext> DWARFContextHolder;
-  if (Options.DwarfDump && !DWARFCtx) {
+  if ((Options.DwarfDump || Options.DumpSameLinkageDifferentCU) && !DWARFCtx) {
     auto DWARFObj = std::make_unique<CASDWARFObject>(Obj);
     DWARFContextHolder = std::make_unique<DWARFContext>(std::move(DWARFObj));
     DWARFCtx = DWARFContextHolder.get();
@@ -116,8 +116,9 @@ Error MCCASPrinter::printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj,
   // Dwarfdump.
   if (DWARFCtx) {
     IndentGuard Guard(Indent);
-    if (Error Err = Obj.dump(OS, Indent, *DWARFCtx, MCObj, Options.ShowForm,
-                             Options.Verbose))
+    if (Error Err =
+            Obj.dump(OS, Indent, *DWARFCtx, MCObj, Options.ShowForm,
+                     Options.Verbose, Options.DumpSameLinkageDifferentCU))
       return Err;
   }
   return printSimpleNested(MCObj, Obj, DWARFCtx);

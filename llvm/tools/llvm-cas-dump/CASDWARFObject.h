@@ -33,6 +33,7 @@ class CASDWARFObject : public DWARFObject {
   SmallVector<uint32_t> SecOffsetVals;
   unsigned LineTableOffset = 0;
   DenseMap<cas::ObjectRef, unsigned> MapOfStringOffsets;
+  DenseMap<StringRef, SmallVector<cas::ObjectRef, 0>> MapOfLinkageNames;
   unsigned CompileUnitIndex = 0;
 
   const mccasformats::v1::MCSchema &Schema;
@@ -60,8 +61,8 @@ public:
 
   /// Dump MCObj as textual DWARF output.
   Error dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
-             mccasformats::v1::MCObjectProxy MCObj, bool ShowForm,
-             bool Verbose);
+             mccasformats::v1::MCObjectProxy MCObj, bool ShowForm, bool Verbose,
+             bool DumpSameLinkageDifferentCU);
 
   StringRef getFileName() const override { return "CAS"; }
   ArrayRef<SectionName> getSectionNames() const override { return {}; }

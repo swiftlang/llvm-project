@@ -28,6 +28,7 @@ struct PrinterOptions {
   bool HexDumpOneLine = false;
   bool ShowForm = false;
   bool Verbose = false;
+  bool DumpSameLinkageDifferentCU = false;
 };
 
 struct MCCASPrinter {
