@@ -1,6 +1,9 @@
 // RUN: rm -rf %t && mkdir %t
 // RUN: split-file %s %t
 
+// XFAIL: *
+// rdar://101268970
+
 //--- a.modulemap
 module a {}
 

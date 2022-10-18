@@ -909,7 +909,7 @@ public:
     Reader->visitInputFiles(
         ModFile, RecordOpts.RecordSystemDependencies,
         /*Complain=*/false,
-        [&](const serialization::InputFile &IF, bool isSystem) {
+        [&](const serialization::InputFile &IF, bool isSystem, bool) {
           auto FE = IF.getFile();
           if (!FE)
             return;

@@ -237,19 +237,19 @@ void ChainedASTReaderListener::visitModuleFile(StringRef Filename,
   Second->visitModuleFile(Filename, Kind);
 }
 
-bool ChainedASTReaderListener::visitInputFile(StringRef Filename,
-                                              bool isSystem,
+bool ChainedASTReaderListener::visitInputFile(StringRef Filename, bool isSystem,
                                               bool isOverridden,
+                                              bool isAffecting,
                                               bool isExplicitModule) {
   bool Continue = false;
   if (First->needsInputFileVisitation() &&
       (!isSystem || First->needsSystemInputFileVisitation()))
     Continue |= First->visitInputFile(Filename, isSystem, isOverridden,
-                                      isExplicitModule);
+                                      isAffecting, isExplicitModule);
   if (Second->needsInputFileVisitation() &&
       (!isSystem || Second->needsSystemInputFileVisitation()))
     Continue |= Second->visitInputFile(Filename, isSystem, isOverridden,
-                                       isExplicitModule);
+                                       isAffecting, isExplicitModule);
   return Continue;
 }
 
@@ -1523,6 +1523,12 @@ bool ASTReader::ReadSLocEntry(int ID) {
     // We will detect whether a file changed and return 'Failure' for it, but
     // we will also try to fail gracefully by setting up the SLocEntry.
     unsigned InputID = Record[4];
+
+    // It would make sense to assert that we're not trying to load source
+    // location in a non-affecting file. However, the binary search in
+    // SourceManager::getFileIDLoaded will end up deserializing such source
+    // locations as an implementation detail.
+
     InputFile IF = getInputFile(*F, InputID);
     Optional<FileEntryRef> File = IF.getFile();
     bool OverriddenBuffer = IF.isOverridden();
@@ -2283,6 +2289,7 @@ InputFileInfo ASTReader::getInputFileInfo(ModuleFile &F, unsigned ID) {
   R.Overridden = static_cast<bool>(Record[3]);
   R.Transient = static_cast<bool>(Record[4]);
   R.TopLevelModuleMap = static_cast<bool>(Record[5]);
+  R.Affecting = static_cast<bool>(Record[6]);
   R.Filename = std::string(Blob);
   ResolveImportedPath(F, R.Filename);
 
@@ -2674,9 +2681,9 @@ ASTReader::ReadControlBlock(ModuleFile &F,
         for (unsigned I = 0; I < N; ++I) {
           bool IsSystem = I >= NumUserInputs;
           InputFileInfo FI = getInputFileInfo(F, I + 1);
-          Listener->visitInputFile(FI.Filename, IsSystem, FI.Overridden,
-                                   F.Kind == MK_ExplicitModule ||
-                                   F.Kind == MK_PrebuiltModule);
+          Listener->visitInputFile(
+              FI.Filename, IsSystem, FI.Overridden, FI.Affecting,
+              F.Kind == MK_ExplicitModule || F.Kind == MK_PrebuiltModule);
         }
       }
 
@@ -5363,10 +5370,12 @@ bool ASTReader::readASTFileControlBlock(
           break;
         case INPUT_FILE:
           bool Overridden = static_cast<bool>(Record[3]);
+          bool Affecting = static_cast<bool>(Record[6]);
           std::string Filename = std::string(Blob);
           ResolveImportedPath(Filename, ModuleDir);
-          shouldContinue = Listener.visitInputFile(
-              Filename, isSystemFile, Overridden, /*IsExplicitModule*/false);
+          shouldContinue =
+              Listener.visitInputFile(Filename, isSystemFile, Overridden,
+                                      Affecting, /*IsExplicitModule*/ false);
           break;
         }
         if (!shouldContinue)
@@ -9205,28 +9214,27 @@ void ASTReader::ReadComments() {
 
 void ASTReader::visitInputFiles(serialization::ModuleFile &MF,
                                 bool IncludeSystem, bool Complain,
-                    llvm::function_ref<void(const serialization::InputFile &IF,
-                                            bool isSystem)> Visitor) {
+                                InputFileVisitor Visitor) {
   unsigned NumUserInputs = MF.NumUserInputFiles;
   unsigned NumInputs = MF.InputFilesLoaded.size();
   assert(NumUserInputs <= NumInputs);
   unsigned N = IncludeSystem ? NumInputs : NumUserInputs;
   for (unsigned I = 0; I < N; ++I) {
     bool IsSystem = I >= NumUserInputs;
+    InputFileInfo IFI = getInputFileInfo(MF, I + 1);
     InputFile IF = getInputFile(MF, I+1, Complain);
-    Visitor(IF, IsSystem);
+    Visitor(IF, IsSystem, IFI.Affecting);
   }
 }
 
-void ASTReader::visitTopLevelModuleMaps(
-    serialization::ModuleFile &MF,
-    llvm::function_ref<void(const FileEntry *FE)> Visitor) {
+void ASTReader::visitTopLevelModuleMaps(serialization::ModuleFile &MF,
+                                        ModuleMapVisitor Visitor) {
   unsigned NumInputs = MF.InputFilesLoaded.size();
   for (unsigned I = 0; I < NumInputs; ++I) {
     InputFileInfo IFI = getInputFileInfo(MF, I + 1);
     if (IFI.TopLevelModuleMap)
       if (auto FE = getInputFile(MF, I + 1).getFile())
-        Visitor(FE);
+        Visitor(FE, IFI.Affecting);
   }
 }
 

@@ -779,19 +779,24 @@ namespace {
     ///
     /// \returns true to continue receiving the next input file, false to stop.
     bool visitInputFile(StringRef Filename, bool isSystem,
-                        bool isOverridden, bool isExplicitModule) override {
+                        bool isOverridden, bool isAffecting, bool isExplicitModule) override {
 
       Out.indent(2) << "Input file: " << Filename;
 
-      if (isSystem || isOverridden || isExplicitModule) {
+      if (isSystem || isOverridden || isAffecting || isExplicitModule) {
         Out << " [";
         if (isSystem) {
           Out << "System";
-          if (isOverridden || isExplicitModule)
+          if (isOverridden || isAffecting || isExplicitModule)
             Out << ", ";
         }
         if (isOverridden) {
           Out << "Overridden";
+          if (isAffecting || isExplicitModule)
+            Out << ", ";
+        }
+        if (isAffecting) {
+          Out << "Affecting";
           if (isExplicitModule)
             Out << ", ";
         }

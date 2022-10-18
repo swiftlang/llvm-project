@@ -644,7 +644,7 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
           CI.getFrontendOpts().ModuleFiles.push_back(MF.FileName);
 
       ASTReader->visitTopLevelModuleMaps(
-          PrimaryModule, [&](const FileEntry *FE) {
+          PrimaryModule, [&](const FileEntry *FE, bool) {
             CI.getFrontendOpts().ModuleMapFiles.push_back(
                 std::string(FE->getName()));
           });

@@ -431,7 +431,10 @@ ModuleID ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
       MDC.ScanInstance.getASTReader()->getModuleManager().lookup(
           M->getASTFile());
   MDC.ScanInstance.getASTReader()->visitInputFiles(
-      *MF, true, true, [&](const serialization::InputFile &IF, bool isSystem) {
+      *MF, true, true,
+      [&](const serialization::InputFile &IF, bool IsSystem, bool IsAffecting) {
+        if (!IsAffecting)
+          return;
         // __inferred_module.map is the result of the way in which an implicit
         // module build handles inferred modules. It adds an overlay VFS with
         // this file in the proper directory and relies on the rest of Clang to
@@ -450,7 +453,9 @@ ModuleID ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
   addAllAffectingModules(M, MD, SeenDeps);
 
   MDC.ScanInstance.getASTReader()->visitTopLevelModuleMaps(
-      *MF, [&](const FileEntry *FE) {
+      *MF, [&](const FileEntry *FE, bool IsAffecting) {
+        if (!IsAffecting)
+          return;
         if (FE->getName().endswith("__inferred_module.map"))
           return;
         MD.ModuleMapFileDeps.emplace_back(FE->getName());

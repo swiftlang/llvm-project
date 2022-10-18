@@ -121,7 +121,8 @@ void ExpandModularHeadersPPCallbacks::handleModuleFile(
   // contents later.
   Compiler.getASTReader()->visitInputFiles(
       *MF, true, false,
-      [this](const serialization::InputFile &IF, bool /*IsSystem*/) {
+      [this](const serialization::InputFile &IF, bool /*IsSystem*/,
+             bool /*IsAffecting*/) {
         Recorder->addNecessaryFile(IF.getFile());
       });
   // Recursively handle all transitively imported modules.

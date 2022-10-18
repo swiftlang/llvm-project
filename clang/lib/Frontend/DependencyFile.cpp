@@ -151,8 +151,8 @@ struct DepCollectorASTListener : public ASTReaderListener {
                                    /*IsSystem*/false, /*IsModuleFile*/true,
                                    /*IsMissing*/false);
   }
-  bool visitInputFile(StringRef Filename, bool IsSystem,
-                      bool IsOverridden, bool IsExplicitModule) override {
+  bool visitInputFile(StringRef Filename, bool IsSystem, bool IsOverridden,
+                      bool IsAffecting, bool IsExplicitModule) override {
     if (IsOverridden || IsExplicitModule)
       return true;
 

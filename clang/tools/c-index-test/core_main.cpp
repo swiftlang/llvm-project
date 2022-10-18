@@ -271,9 +271,10 @@ static void dumpModuleFileInputs(serialization::ModuleFile &Mod,
                                  ASTReader &Reader,
                                  raw_ostream &OS) {
   OS << "---- Module Inputs ----\n";
-  Reader.visitInputFiles(Mod, /*IncludeSystem=*/true, /*Complain=*/false,
-                        [&](const serialization::InputFile &IF, bool isSystem) {
-    OS << (isSystem ? "system" : "user") << " | ";
+  Reader.visitInputFiles(
+      Mod, /*IncludeSystem=*/true, /*Complain=*/false,
+      [&](const serialization::InputFile &IF, bool IsSystem, bool IsAffecting) {
+        OS << (IsSystem ? "system" : "user") << " | ";
     OS << IF.getFile()->getName() << '\n';
   });
 }

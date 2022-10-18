@@ -209,7 +209,8 @@ public:
   ///
   /// \returns true to continue receiving the next input file, false to stop.
   virtual bool visitInputFile(StringRef Filename, bool isSystem,
-                              bool isOverridden, bool isExplicitModule) {
+                              bool isOverridden, bool isAffecting,
+                              bool isExplicitModule) {
     return true;
   }
 
@@ -272,8 +273,8 @@ public:
   bool needsSystemInputFileVisitation() override;
   void visitModuleFile(StringRef Filename,
                        serialization::ModuleKind Kind) override;
-  bool visitInputFile(StringRef Filename, bool isSystem,
-                      bool isOverridden, bool isExplicitModule) override;
+  bool visitInputFile(StringRef Filename, bool isSystem, bool isOverridden,
+                      bool isAffecting, bool isExplicitModule) override;
   bool readModuleCacheKey(StringRef ModuleName, StringRef Filename,
                           StringRef CacheKey) override;
   void readModuleFileExtension(
@@ -2302,17 +2303,19 @@ public:
   /// Loads comments ranges.
   void ReadComments() override;
 
+  using InputFileVisitor = llvm::function_ref<void(
+      const serialization::InputFile &IF, bool IsSystem, bool IsAffecting)>;
+  using ModuleMapVisitor =
+      llvm::function_ref<void(const FileEntry *, bool IsAffecting)>;
+
   /// Visit all the input files of the given module file.
-  void visitInputFiles(serialization::ModuleFile &MF,
-                       bool IncludeSystem, bool Complain,
-          llvm::function_ref<void(const serialization::InputFile &IF,
-                                  bool isSystem)> Visitor);
+  void visitInputFiles(serialization::ModuleFile &MF, bool IncludeSystem,
+                       bool Complain, InputFileVisitor Visitor);
 
   /// Visit all the top-level module maps loaded when building the given module
   /// file.
   void visitTopLevelModuleMaps(serialization::ModuleFile &MF,
-                               llvm::function_ref<
-                                   void(const FileEntry *)> Visitor);
+                               ModuleMapVisitor Visitor);
 
   bool isProcessingUpdateRecords() { return ProcessingUpdateRecords; }
 };

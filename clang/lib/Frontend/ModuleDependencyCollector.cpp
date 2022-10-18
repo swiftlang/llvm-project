@@ -32,8 +32,9 @@ public:
   bool needsInputFileVisitation() override { return true; }
   bool needsSystemInputFileVisitation() override { return true; }
   bool visitInputFile(StringRef Filename, bool IsSystem, bool IsOverridden,
-                      bool IsExplicitModule) override {
-    Collector.addFile(Filename);
+                      bool IsAffecting, bool IsExplicitModule) override {
+    if (IsAffecting)
+      Collector.addFile(Filename);
     return true;
   }
 };

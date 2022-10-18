@@ -84,7 +84,7 @@ public:
   }
 
   bool visitInputFile(StringRef Filename, bool isSystem, bool isOverridden,
-                      bool isExplicitModule) override {
+                      bool isAffecting, bool isExplicitModule) override {
     InputFiles.insert(Filename);
     return true;
   }

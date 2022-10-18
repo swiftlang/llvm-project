@@ -160,8 +160,8 @@ static TypeCode getTypeCodeForTypeClass(Type::TypeClass id) {
 
 namespace {
 
-std::set<const FileEntry *> GetAllModuleMaps(const HeaderSearch &HS,
-                                             Module *RootModule) {
+std::set<const FileEntry *> GetAffectingModuleMaps(const HeaderSearch &HS,
+                                                   Module *RootModule) {
   std::set<const FileEntry *> ModuleMaps{};
   std::set<const Module *> ProcessedModules;
   SmallVector<const Module *> ModulesToProcess{RootModule};
@@ -1498,7 +1498,7 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, ASTContext &Context,
   std::set<const FileEntry *> AffectingModuleMaps;
   if (WritingModule) {
     AffectingModuleMaps =
-        GetAllModuleMaps(PP.getHeaderSearchInfo(), WritingModule);
+        GetAffectingModuleMaps(PP.getHeaderSearchInfo(), WritingModule);
   }
 
   WriteInputFiles(Context.SourceMgr,
@@ -1516,6 +1516,7 @@ struct InputFileEntry {
   bool IsTransient;
   bool BufferOverridden;
   bool IsTopLevelModuleMap;
+  bool IsAffecting;
   uint32_t ContentHash[2];
 };
 
@@ -1537,6 +1538,7 @@ void ASTWriter::WriteInputFiles(
   IFAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Overridden
   IFAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Transient
   IFAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Module map
+  IFAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Affecting
   IFAbbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob)); // File name
   unsigned IFAbbrevCode = Stream.EmitAbbrev(std::move(IFAbbrev));
 
@@ -1563,14 +1565,16 @@ void ASTWriter::WriteInputFiles(
     if (!Cache->OrigEntry)
       continue;
 
+    bool IsAffecting = true;
     if (isModuleMap(File.getFileCharacteristic()) &&
         !isSystem(File.getFileCharacteristic()) &&
         !AffectingModuleMaps.empty() &&
         AffectingModuleMaps.find(Cache->OrigEntry) ==
             AffectingModuleMaps.end()) {
-      SkippedModuleMaps.insert(Cache->OrigEntry);
-      // Do not emit modulemaps that do not affect current module.
-      continue;
+      // TODO: Avoid serializing non-affecting files. Note that this requires
+      // adjustment of all SourceLocations we serialize to account for the shift
+      // in (absolute) offsets.
+      IsAffecting = false;
     }
 
     InputFileEntry Entry;
@@ -1580,6 +1584,7 @@ void ASTWriter::WriteInputFiles(
     Entry.BufferOverridden = Cache->BufferOverridden;
     Entry.IsTopLevelModuleMap = isModuleMap(File.getFileCharacteristic()) &&
                                 File.getIncludeLoc().isInvalid();
+    Entry.IsAffecting = IsAffecting;
 
     auto ContentHash = hash_code(-1);
     if (PP->getHeaderSearchInfo()
@@ -1635,7 +1640,8 @@ void ASTWriter::WriteInputFiles(
           (uint64_t)getTimestampForOutput(Entry.File),
           Entry.BufferOverridden,
           Entry.IsTransient,
-          Entry.IsTopLevelModuleMap};
+          Entry.IsTopLevelModuleMap,
+          Entry.IsAffecting};
 
       // FIXME: The path should be taken from the FileEntryRef.
       EmitRecordWithPath(IFAbbrevCode, Record, Entry.File->getName());
@@ -2085,12 +2091,7 @@ void ASTWriter::WriteSourceManagerBlock(SourceManager &SourceMgr,
     if (SLoc->isFile()) {
       const SrcMgr::FileInfo &File = SLoc->getFile();
       const SrcMgr::ContentCache *Content = &File.getContentCache();
-      if (Content->OrigEntry && !SkippedModuleMaps.empty() &&
-          SkippedModuleMaps.find(Content->OrigEntry) !=
-              SkippedModuleMaps.end()) {
-        // Do not emit files that were not listed as inputs.
-        continue;
-      }
+
       AddSourceLocation(File.getIncludeLoc(), Record);
       Record.push_back(File.getFileCharacteristic()); // FIXME: stable encoding
       Record.push_back(File.hasLineDirectives());

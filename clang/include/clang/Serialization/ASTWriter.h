@@ -444,9 +444,6 @@ private:
   std::vector<std::unique_ptr<ModuleFileExtensionWriter>>
       ModuleFileExtensionWriters;
 
-  /// User ModuleMaps skipped when writing control block.
-  std::set<const FileEntry *> SkippedModuleMaps;
-
   /// Retrieve or create a submodule ID for this module.
   unsigned getSubmoduleID(Module *Mod);
 

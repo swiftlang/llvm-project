@@ -68,6 +68,7 @@ struct InputFileInfo {
   bool Overridden;
   bool Transient;
   bool TopLevelModuleMap;
+  bool Affecting;
 };
 
 /// The input file that has been loaded from this AST file, along with
