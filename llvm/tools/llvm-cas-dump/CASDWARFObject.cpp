@@ -22,6 +22,10 @@ using namespace llvm;
 using namespace llvm::cas;
 using namespace llvm::mccasformats::v1;
 
+DenseMap<StringRef, DenseSet<std::pair<cas::ObjectRef, unsigned>>>
+    CASDWARFObject::MapOfLinkageNames =
+        DenseMap<StringRef, DenseSet<std::pair<cas::ObjectRef, unsigned>>>();
+
 namespace {
 /// Parse the MachO header to extract details such as endianness.
 /// Unfortunately object::MachOObjectfile() doesn't support parsing
@@ -164,7 +168,7 @@ void CASDWARFObject::addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
       StringRef LinkageName = CUDie.getLinkageName();
       if (MapOfLinkageNames.find(LinkageName) == MapOfLinkageNames.end())
         MapOfLinkageNames.try_emplace(LinkageName);
-      MapOfLinkageNames[LinkageName].push_back(
+      MapOfLinkageNames[LinkageName].insert(
           std::make_pair(MCObj.getRef(), CompileUnitIndex - 1));
       LinkageFound = true;
     }

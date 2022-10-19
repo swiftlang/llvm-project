@@ -53,7 +53,7 @@ MCCASPrinter::discoverDwarfSections(cas::ObjectRef CASObj) {
   if (!MCObj)
     return MCObj.takeError();
   CASDWARFObject DWARFObj(MCObj->getSchema());
-  if (Options.DwarfDump) {
+  if (Options.DwarfDump || Options.DumpSameLinkageDifferentCU) {
     if (Error E = DWARFObj.discoverDwarfSections(*MCObj))
       return std::move(E);
     if (Error E = DWARFObj.discoverDebugInfoSection(*MCObj, OS))
@@ -95,24 +95,26 @@ Error MCCASPrinter::printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj,
     return Error::success();
 
   // Print CAS Id.
-  OS.indent(Indent);
-  OS << formatv("{0, -15} {1} \n", MCObj.getKindString(), MCObj.getID());
-  if (Options.HexDump) {
-    auto data = MCObj.getData();
-    if (Options.HexDumpOneLine) {
-      OS.indent(Indent);
-      llvm::interleave(
-          data.take_front(data.size()), OS,
-          [this](unsigned char c) { OS << llvm::format_hex(c, 4); }, " ");
-      OS << "\n";
-    } else {
-      while (!data.empty()) {
+  if (!Options.DumpSameLinkageDifferentCU) {
+    OS.indent(Indent);
+    OS << formatv("{0, -15} {1} \n", MCObj.getKindString(), MCObj.getID());
+    if (Options.HexDump) {
+      auto data = MCObj.getData();
+      if (Options.HexDumpOneLine) {
         OS.indent(Indent);
         llvm::interleave(
-            data.take_front(8), OS,
+            data.take_front(data.size()), OS,
             [this](unsigned char c) { OS << llvm::format_hex(c, 4); }, " ");
         OS << "\n";
-        data = data.drop_front(data.size() < 8 ? data.size() : 8);
+      } else {
+        while (!data.empty()) {
+          OS.indent(Indent);
+          llvm::interleave(
+              data.take_front(8), OS,
+              [this](unsigned char c) { OS << llvm::format_hex(c, 4); }, " ");
+          OS << "\n";
+          data = data.drop_front(data.size() < 8 ? data.size() : 8);
+        }
       }
     }
   }
