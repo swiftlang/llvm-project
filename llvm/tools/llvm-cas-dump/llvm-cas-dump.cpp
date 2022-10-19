@@ -83,6 +83,7 @@ int main(int argc, char *argv[]) {
   std::unique_ptr<ObjectStore> CAS = ExitOnErr(createOnDiskCAS(CASPath));
   MCCASPrinter Printer(Options, *CAS, llvm::outs());
 
+  uint64_t count = 0;
   for (StringRef InputStr : InputStrings) {
     auto ID = getCASIDFromInput(*CAS, InputStr);
 
@@ -101,6 +102,7 @@ int main(int argc, char *argv[]) {
     ExitOnErr(Printer.printMCObject(*Ref, *Obj));
     if (Options.DumpSameLinkageDifferentCU)
       ExitOnErr(Printer.dumpSimilarCUs(*Obj));
+    count++;
   }
   return 0;
 }
