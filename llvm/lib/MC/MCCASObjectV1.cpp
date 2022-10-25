@@ -59,6 +59,10 @@ cl::opt<bool> SplitStringSections(
     "mc-cas-split-string-sections",
     cl::desc("Split String Sections (SymTable and DebugStr)"), cl::init(true));
 
+cl::opt<std::string>
+    LinkageNamesFilename("mc-cas-linkage-names-file",
+                         cl::desc("File where to dump linkage names"));
+
 enum RelEncodeLoc {
   Atom,
   Section,
@@ -98,15 +102,22 @@ enum class UnitKind { TU, CU };
 /// debug info.
 class InMemoryCASDWARFObject : public DWARFObject {
   ArrayRef<char> DebugAbbrevSection;
+  ArrayRef<char> DebugStrSection;
   bool IsLittleEndian;
 
 public:
-  InMemoryCASDWARFObject(ArrayRef<char> AbbrevContents, bool IsLittleEndian)
-      : DebugAbbrevSection(AbbrevContents), IsLittleEndian(IsLittleEndian) {}
+  InMemoryCASDWARFObject(ArrayRef<char> AbbrevContents,
+                         ArrayRef<char> StrContents, bool IsLittleEndian)
+      : DebugAbbrevSection(AbbrevContents), DebugStrSection(StrContents),
+        IsLittleEndian(IsLittleEndian) {}
   bool isLittleEndian() const override { return IsLittleEndian; }
 
   StringRef getAbbrevSection() const override {
     return toStringRef(DebugAbbrevSection);
+  }
+
+  StringRef getStrSection() const override {
+    return toStringRef(DebugStrSection);
   }
 
   Optional<RelocAddrEntry> find(const DWARFSection &Sec,
@@ -122,6 +133,7 @@ public:
     SmallVector<char, 0> DebugInfoCURefData;
     SmallVector<char, 0> DistinctData;
     UnitKind Kind;
+    Optional<StringRef> MaybeLinkageName;
 
     static bool doesntDedup(dwarf::Form Form, dwarf::Attribute Attr) {
       static const DenseMap<dwarf::Form, SmallVector<dwarf::Attribute>>
@@ -130,6 +142,7 @@ public:
                            {dwarf::Form::DW_FORM_strx2, {}},
                            {dwarf::Form::DW_FORM_strx4, {}},
                            {dwarf::Form::DW_FORM_strx, {}},
+                           {dwarf::Form::DW_FORM_rnglistx, {}},
                            {dwarf::Form::DW_FORM_sec_offset, {}},
                            {dwarf::Form::DW_FORM_ref_udata, {}},
                            {dwarf::Form::DW_FORM_ref1, {}},
@@ -1240,7 +1253,7 @@ DebugInfoSectionRef::materialize(MCCASReader &Reader,
     CUContents.push_back(MutableCUData);
   }
 
-  InMemoryCASDWARFObject CASObj(AbbrevSectionContents,
+  InMemoryCASDWARFObject CASObj(AbbrevSectionContents, "",
                                 Reader.getEndian() == support::little);
   auto DWARFObj = std::make_unique<InMemoryCASDWARFObject>(CASObj);
   auto DWARFContextHolder = std::make_unique<DWARFContext>(std::move(DWARFObj));
@@ -2114,7 +2127,7 @@ SmallVector<char> DebugAbbrevOffsetsRefAdaptor::encodeOffsets(
   return EncodedOffsets;
 }
 
-static void
+static Optional<StringRef>
 partitionCUDie(InMemoryCASDWARFObject::PartitionedDebugInfoSection &SplitData,
                DWARFDie &CUDie, ArrayRef<char> DebugInfoData,
                uint64_t &CUOffset, bool IsLittleEndian, uint8_t AddressSize) {
@@ -2127,7 +2140,18 @@ partitionCUDie(InMemoryCASDWARFObject::PartitionedDebugInfoSection &SplitData,
   auto Size = CUOffset - PrevOffset;
   append_range(SplitData.DebugInfoCURefData,
                DebugInfoData.slice(PrevOffset, Size));
+
+  bool SeenLowPc = false;
+  const char* TopName = nullptr;
+
   for (const DWARFAttribute &AttrValue : CUDie.attributes()) {
+    SeenLowPc |= AttrValue.Attr == dwarf::Attribute::DW_AT_low_pc;
+    if (AttrValue.Attr == dwarf::Attribute::DW_AT_linkage_name) {
+      auto Name = dwarf::toString(AttrValue.Value, nullptr);
+      assert(Name);
+      TopName = Name;
+    }
+
     if (InMemoryCASDWARFObject::PartitionedDebugInfoSection::doesntDedup(
             AttrValue.Value.getForm(), AttrValue.Attr))
       append_range(SplitData.DistinctData,
@@ -2138,16 +2162,25 @@ partitionCUDie(InMemoryCASDWARFObject::PartitionedDebugInfoSection &SplitData,
     CUOffset += AttrValue.ByteSize;
   }
 
+  if (!SeenLowPc)
+    TopName = nullptr;
+
+  Optional<StringRef> RetName = TopName ? Optional<StringRef>(TopName) : None;
   DWARFDie Child = CUDie.getFirstChild();
   while (Child && Child.getAbbreviationDeclarationPtr()) {
-    partitionCUDie(SplitData, Child, DebugInfoData, CUOffset, IsLittleEndian,
-                   AddressSize);
+    auto NewName = partitionCUDie(SplitData, Child, DebugInfoData, CUOffset,
+                                  IsLittleEndian, AddressSize);
+    //assert(!NewName || !RetName); good assert for split mode
+    if (NewName)
+      RetName = NewName;
     Child = Child.getSibling();
   }
   if (Child && !Child.getAbbreviationDeclarationPtr()) {
     SplitData.DebugInfoCURefData.push_back(DebugInfoData[CUOffset]);
     CUOffset++;
   }
+
+  return RetName;
 }
 
 Expected<InMemoryCASDWARFObject::PartitionedDebugInfoSection>
@@ -2180,10 +2213,35 @@ InMemoryCASDWARFObject::splitUpCUData(ArrayRef<char> DebugInfoData,
     CUOffset += HeaderInformation->CopiedAmount;
     SplitData.Kind =
         HeaderInformation->CopiedAmount > 12 ? UnitKind::TU : UnitKind::CU;
-    partitionCUDie(SplitData, CUDie, DebugInfoData, CUOffset, IsLittleEndian,
-                   DCU.getAddressByteSize());
+    auto MaybeName = partitionCUDie(SplitData, CUDie, DebugInfoData, CUOffset,
+                                    IsLittleEndian, DCU.getAddressByteSize());
+    if (MaybeName)
+      SplitData.MaybeLinkageName = MaybeName;
   }
   return SplitData;
+}
+
+void save(const ArrayRef<std::pair<StringRef, MCObjectProxy>> &map) {
+  llvm::outs() << " HERE = " << map.size() << "\n";
+  std::error_code EC;
+  auto Stream = raw_fd_ostream(LinkageNamesFilename, EC, sys::fs::OF_Append);
+  if (Stream.has_error() || EC)
+    llvm_unreachable("bad open file");
+
+  std::string OutString = "\n";
+  raw_string_ostream SS(OutString);
+  llvm::interleave(
+      map, SS,
+      [&](const auto &Pair) {
+        SS << Pair.first << " ";
+        Pair.second.getID().print(SS);
+      },
+      "\n");
+
+  if (auto Lock = Stream.lock())
+    Stream << OutString;
+  else
+    llvm_unreachable("bad lock");
 }
 
 Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
@@ -2209,8 +2267,13 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
   if (!FullAbbrevData)
     return FullAbbrevData.takeError();
 
+  Expected<SmallVector<char, 0>> FullStrData =
+      mergeMCFragmentContents(DwarfSections.Str->getFragmentList());
+  if (!FullStrData)
+    return FullStrData.takeError();
+
   InMemoryCASDWARFObject CASObj(
-      *FullAbbrevData, Asm.getBackend().Endian == support::endianness::little);
+      *FullAbbrevData, *FullStrData, Asm.getBackend().Endian == support::endianness::little);
   auto DWARFObj = std::make_unique<InMemoryCASDWARFObject>(CASObj);
   auto DWARFContextHolder = std::make_unique<DWARFContext>(std::move(DWARFObj));
   auto *DWARFCtx = DWARFContextHolder.get();
@@ -2220,6 +2283,7 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
   if (!AbbrevRefs)
     return AbbrevRefs.takeError();
 
+  SmallVector<std::pair<StringRef, MCObjectProxy>> LinkageNameToCAS;
   SmallVector<MCObjectProxy> CURefs;
   SmallVector<char> DistinctData;
   for (auto [CUData, AbbrevOffset] :
@@ -2248,7 +2312,10 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
     if (!CASObj)
       return CASObj.takeError();
     CURefs.push_back(*CASObj);
+    if (SplitData->MaybeLinkageName)
+      LinkageNameToCAS.emplace_back(*SplitData->MaybeLinkageName, *CASObj);
   }
+  save(LinkageNameToCAS);
 
   SmallVector<char> EncodedOffsets =
       DebugAbbrevOffsetsRefAdaptor::encodeOffsets(
