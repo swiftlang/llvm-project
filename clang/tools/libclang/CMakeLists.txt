@@ -20,6 +20,7 @@ set(SOURCES
   CRefactor.cpp
   CXComment.cpp
   CXCursor.cpp
+  CXExtractAPI.cpp
   CXIndexDataConsumer.cpp
   CXCompilationDatabase.cpp
   CXLoadedDiagnostic.cpp
@@ -52,6 +53,7 @@ set(LIBS
   clangBasic
   clangDependencyScanning
   clangDriver
+  clangExtractAPI
   clangFrontend
   clangIndex
   clangLex
