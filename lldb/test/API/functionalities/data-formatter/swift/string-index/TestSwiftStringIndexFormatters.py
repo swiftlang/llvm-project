@@ -22,6 +22,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestCase(TestBase):
+    @skipUnlessFoundation
     @swiftTest
     def test_swift_string_index_formatters(self):
         """Test String.Index summary strings."""
