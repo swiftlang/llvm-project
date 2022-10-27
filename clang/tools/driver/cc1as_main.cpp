@@ -144,6 +144,8 @@ struct AssemblerInvocation {
   /// otherwise.
   std::string TargetABI;
 
+  /// The name of a file to use with \c .secure_log_unique directives.
+  std::string AsSecureLogFile;
   /// @}
 
 public:
@@ -311,6 +313,8 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
                             .Default(0);
   }
 
+  Opts.AsSecureLogFile = Args.getLastArgValue(OPT_as_secure_log_file);
+
   return Success;
 }
 
@@ -361,6 +365,8 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
   assert(MRI && "Unable to create target register info!");
 
   MCTargetOptions MCOptions;
+  MCOptions.AsSecureLogFile = Opts.AsSecureLogFile;
+
   std::unique_ptr<MCAsmInfo> MAI(
       TheTarget->createMCAsmInfo(*MRI, Opts.Triple, MCOptions));
   assert(MAI && "Unable to create target asm info!");
