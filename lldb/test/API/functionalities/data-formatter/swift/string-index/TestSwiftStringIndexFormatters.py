@@ -57,7 +57,7 @@ class TestCase(TestBase):
         )
 
         self.expect(
-            "v utf8Indicies",
+            "v utf8Indices",
             substrs=[
                 "0[any]",
                 "1[utf8]",
@@ -74,7 +74,7 @@ class TestCase(TestBase):
         )
 
         self.expect(
-            "v utf16Indicies",
+            "v utf16Indices",
             substrs=[
                 "0[any]",
                 "1[utf8]",
@@ -114,7 +114,7 @@ class TestCase(TestBase):
         )
 
         self.expect(
-            "v utf8Indicies",
+            "v utf8Indices",
             substrs=[
                 "0[any]",
                 "1[utf16]",
@@ -131,7 +131,7 @@ class TestCase(TestBase):
         )
 
         self.expect(
-            "v utf16Indicies",
+            "v utf16Indices",
             substrs=[
                 "0[any]",
                 "1[utf16]",
