@@ -6,9 +6,6 @@ import unittest2
 
 class TestSwiftExprImport(TestBase):
     
-    def setUp(self):
-        TestBase.setUp(self)
-
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @swiftTest

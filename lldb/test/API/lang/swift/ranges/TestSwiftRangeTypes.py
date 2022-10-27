@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftRangeType(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     def test_swift_range_type(self):
         """Test the Swift.Range<T> type"""

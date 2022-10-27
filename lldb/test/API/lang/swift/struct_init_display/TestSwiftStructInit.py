@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftStructInit(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     @skipIf(oslist=['windows'])
     def test_swift_struct_init(self):

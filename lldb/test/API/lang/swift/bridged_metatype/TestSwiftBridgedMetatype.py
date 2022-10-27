@@ -11,9 +11,6 @@ import unittest2
 
 class TestSwiftBridgedMetatype(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     @skipUnlessFoundation
     def test_swift_bridged_metatype(self):

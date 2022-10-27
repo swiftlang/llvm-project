@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftAnyObjectType(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     def test_any_object_type(self):
         """Test the AnyObject type"""

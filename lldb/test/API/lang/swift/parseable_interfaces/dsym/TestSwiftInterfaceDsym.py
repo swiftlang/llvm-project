@@ -20,9 +20,6 @@ import unittest2
 
 class TestSwiftInterfaceDSYM(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     @skipIf(archs=no_match("x86_64"))
     @skipIf(debug_info=no_match(["dsym"]))

@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftLetIntSupport(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     def test_swift_let_int(self):
         """Test that a 'let' Int is formatted properly"""

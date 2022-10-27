@@ -8,9 +8,6 @@ from lldbsuite.test.decorators import *
 
 class TestDefaultProtocolExtensionNoSelfReference(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     def test_protocol_default_extension_no_self_reference(self):
         """

@@ -7,9 +7,6 @@ import unittest2
 
 class TestSwiftRewriteClangPaths(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @skipIfDarwinEmbedded
     @swiftTest

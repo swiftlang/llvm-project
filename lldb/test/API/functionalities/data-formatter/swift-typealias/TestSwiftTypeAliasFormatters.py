@@ -21,9 +21,6 @@ import os
 
 class TestSwiftTypeAliasFormatters(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     def test_swift_type_alias_formatters(self):
         """Test that Swift typealiases get formatted properly"""

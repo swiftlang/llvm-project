@@ -33,9 +33,6 @@ def execute_command(command):
 
 class TestNonREPLPlayground(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     @skipIf(

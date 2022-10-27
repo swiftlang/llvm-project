@@ -25,9 +25,6 @@ import unittest2
 
 class TestSwiftBridgedStringVariables(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     def test_swift_bridged_string_variables(self):

@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftMetatype(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     def test_metatype(self):
         """Test the formatting of Swift metatypes"""

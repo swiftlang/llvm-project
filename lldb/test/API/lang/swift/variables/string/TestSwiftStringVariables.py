@@ -25,9 +25,6 @@ import unittest2
 
 class TestSwiftStringVariables(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     def test_swift_string_variables(self):
         """Test that Swift.String formats properly"""

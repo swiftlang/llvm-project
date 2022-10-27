@@ -7,9 +7,6 @@ import unittest2
 
 class TestSwiftDeserializationFailure(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     def prepare(self):
         import shutil
         copied_source = self.getBuildArtifact("main.swift")

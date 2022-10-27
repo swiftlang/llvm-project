@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftTuple(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     def test_swift_tuples(self):
         """Test that LLDB understands tuple lowering"""

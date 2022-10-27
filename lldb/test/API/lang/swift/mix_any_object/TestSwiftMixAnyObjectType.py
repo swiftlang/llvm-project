@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftMixAnyObjectType(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     def test_any_object_type(self):

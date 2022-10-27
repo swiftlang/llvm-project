@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftCGImportedTypes(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     def test_swift_cg_imported_types(self):

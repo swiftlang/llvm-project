@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftieFormatting(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     def test_swiftie_formatting(self):

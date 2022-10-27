@@ -7,9 +7,6 @@ import unittest2
 
 class TestSwiftFoundationValueTypeGlobal(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     @skipUnlessFoundation
     def test(self):

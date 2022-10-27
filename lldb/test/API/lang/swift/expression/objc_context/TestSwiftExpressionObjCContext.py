@@ -19,9 +19,6 @@ import unittest2
 
 class TestSwiftExpressionObjCContext(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     def test(self):

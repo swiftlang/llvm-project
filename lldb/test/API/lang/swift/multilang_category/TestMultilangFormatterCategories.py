@@ -10,9 +10,6 @@ import os
 
 class TestMultilangFormatterCategories(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     @skipUnlessDarwin
     def test_multilang_formatter_categories(self):

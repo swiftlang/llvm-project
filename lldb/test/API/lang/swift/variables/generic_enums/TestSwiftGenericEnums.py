@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftGenericEnumTypes(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     def get_variable(self, name):
         var = self.frame().FindVariable(
             name).GetDynamicValue(lldb.eDynamicCanRunTarget)

@@ -37,9 +37,6 @@ def execute_command(command):
 
 class TestSwiftDifferentClangFlags(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     @skipIf(

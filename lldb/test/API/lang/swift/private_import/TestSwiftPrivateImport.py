@@ -5,9 +5,6 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftPrivateImport(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     def test_private_import(self):

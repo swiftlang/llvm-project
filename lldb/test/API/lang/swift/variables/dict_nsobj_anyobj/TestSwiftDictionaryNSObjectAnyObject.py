@@ -22,9 +22,6 @@ import unittest2
 
 class TestDictionaryNSObjectAnyObject(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     def test_dictionary_nsobject_any_object(self):

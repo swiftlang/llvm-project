@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftCrossModuleExtension(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @skipUnlessDarwin
     @swiftTest
     def test_cross_module_extension(self):

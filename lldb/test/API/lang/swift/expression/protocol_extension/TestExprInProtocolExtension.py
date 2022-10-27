@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftExprInProtocolExtension(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     def check_expression(self, expression, expected_result, use_summary=True):
         value = self.frame().EvaluateExpression(
             expression, lldb.eDynamicCanRunTarget)

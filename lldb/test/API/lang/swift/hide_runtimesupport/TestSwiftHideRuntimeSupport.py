@@ -22,9 +22,6 @@ import unittest2
 
 class TestSwiftHideRuntimeSupport(TestBase):
 
-    def setUp(self):
-        TestBase.setUp(self)
-
     @swiftTest
     def test_swift_hide_runtime_support(self):
         """Test that we hide runtime support values"""
