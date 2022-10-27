@@ -153,10 +153,11 @@ Error CASDWARFObject::discoverDwarfSections(MCObjectProxy MCObj) {
   if (DebugAbbrevRef::Cast(MCObj))
     append_range(DebugAbbrevSection, MCObj.getData());
   else if (DebugStrRef::Cast(MCObj)) {
+    MapOfStringOffsets.try_emplace(MCObj.getRef(), DebugStringSection.size());
     DebugStringSection.append(Data.begin(), Data.end());
     DebugStringSection.push_back(0);
-    MapOfStringOffsets.try_emplace(MCObj.getRef(), DebugStringSection.size());
-  }
+  } else if (DebugInfoCURef::Cast(MCObj))
+    return Error::success();
   return MCObj.forEachReference(
       [this](ObjectRef CASObj) { return discoverDwarfSections(CASObj); });
 }
