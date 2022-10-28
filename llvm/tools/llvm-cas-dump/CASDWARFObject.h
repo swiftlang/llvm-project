@@ -32,7 +32,7 @@ class CASDWARFObject : public DWARFObject {
   SmallVector<StringRef> CUDataVec;
   SmallVector<uint32_t> SecOffsetVals;
   unsigned LineTableOffset = 0;
-  DenseMap<StringRef, SmallVector<std::pair<cas::ObjectRef, unsigned>, 0>>
+  static DenseMap<StringRef, DenseSet<std::pair<cas::ObjectRef, unsigned>>>
       MapOfLinkageNames;
   unsigned CompileUnitIndex = 0;
 

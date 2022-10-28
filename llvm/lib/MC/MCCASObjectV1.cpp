@@ -398,9 +398,9 @@ static Error decodeRelocationsAndAddends(MCCASReader &Reader, StringRef Data) {
   return Error::success();
 }
 
-static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
-                              SmallVectorImpl<char> &Data,
-                              SmallVectorImpl<cas::ObjectRef> &IDs) {
+Error MCObjectProxy::encodeReferences(ArrayRef<cas::ObjectRef> Refs,
+                                      SmallVectorImpl<char> &Data,
+                                      SmallVectorImpl<cas::ObjectRef> &IDs) {
   DenseMap<cas::ObjectRef, unsigned> RefMap;
   SmallVector<cas::ObjectRef> CompactRefs;
   for (const auto &ID : Refs) {
@@ -430,8 +430,9 @@ static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
   return Error::success();
 }
 
-static Expected<SmallVector<cas::ObjectRef>>
-decodeReferences(const MCObjectProxy &Node, StringRef &Remaining) {
+Expected<SmallVector<cas::ObjectRef>>
+MCObjectProxy::decodeReferences(const MCObjectProxy &Node,
+                                StringRef &Remaining) {
   Expected<SmallVector<cas::ObjectRef>> MaybeRefs = loadReferences(Node);
   if (!MaybeRefs)
     return MaybeRefs.takeError();
@@ -507,7 +508,7 @@ Expected<LoadedDebugAbbrevSection>
 LoadedDebugAbbrevSection::load(DebugAbbrevSectionRef Section) {
 
   StringRef Remaining = Section.getData();
-  auto Refs = decodeReferences(Section, Remaining);
+  auto Refs = MCObjectProxy::decodeReferences(Section, Remaining);
   if (!Refs)
     return Refs.takeError();
 
@@ -552,7 +553,7 @@ Expected<LoadedDebugLineSection>
 LoadedDebugLineSection::load(DebugLineSectionRef Section) {
 
   StringRef Remaining = Section.getData();
-  auto Refs = decodeReferences(Section, Remaining);
+  auto Refs = MCObjectProxy::decodeReferences(Section, Remaining);
   if (!Refs)
     return Refs.takeError();
 

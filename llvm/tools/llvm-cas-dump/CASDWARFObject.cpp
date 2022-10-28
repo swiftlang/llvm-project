@@ -154,6 +154,19 @@ Error CASDWARFObject::discoverDwarfSections(MCObjectProxy MCObj) {
   else if (DebugStrRef::Cast(MCObj)) {
     DebugStringSection.append(Data.begin(), Data.end());
     DebugStringSection.push_back(0);
+  } else if (DebugInfoCURef::Cast(MCObj))
+    return Error::success();
+  if (DebugAbbrevSectionRef::Cast(MCObj) || GroupRef::Cast(MCObj) ||
+      SymbolTableRef::Cast(MCObj) || SectionRef::Cast(MCObj) ||
+      DebugLineSectionRef::Cast(MCObj) || AtomRef::Cast(MCObj)) {
+    auto Refs = MCObjectProxy::decodeReferences(MCObj, Data);
+    if (!Refs)
+      return Refs.takeError();
+    for (auto Ref : *Refs) {
+      if (Error E = discoverDwarfSections(Ref))
+        return E;
+    }
+    return Error::success();
   }
   return MCObj.forEachReference(
       [this](ObjectRef CASObj) { return discoverDwarfSections(CASObj); });
@@ -167,7 +180,8 @@ void CASDWARFObject::addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
     if (!Decl) {
       StringRef LinkageName = CUDie.getLinkageName();
       if (MapOfLinkageNames.find(LinkageName) == MapOfLinkageNames.end())
-        MapOfLinkageNames.try_emplace(LinkageName);
+        MapOfLinkageNames.try_emplace(
+            LinkageName, DenseSet<std::pair<cas::ObjectRef, unsigned>>());
       MapOfLinkageNames[LinkageName].insert(
           std::make_pair(MCObj.getRef(), CompileUnitIndex - 1));
       LinkageFound = true;
