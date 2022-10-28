@@ -12,7 +12,7 @@ class TestCase(TestBase):
     def test_swift_array_slice_formatters(self):
         """Test ArraySlice synthetic types."""
         self.build()
-        _, _, _, _ = lldbutil.run_to_source_breakpoint(
+        lldbutil.run_to_source_breakpoint(
             self, "break here", lldb.SBFileSpec("main.swift")
         )
 
