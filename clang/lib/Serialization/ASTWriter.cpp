@@ -2670,8 +2670,8 @@ unsigned ASTWriter::getSubmoduleID(Module *Mod) {
   // did not result in us loading a module file for that submodule. For
   // instance, a cross-top-level-module 'conflict' declaration will hit this.
   unsigned ID = getLocalOrImportedSubmoduleID(Mod);
-  //assert((ID || !Mod) &&
-  //       "asked for module ID for non-local, non-imported module");
+  assert((ID || !Mod) &&
+         "asked for module ID for non-local, non-imported module");
   return ID;
 }
 
