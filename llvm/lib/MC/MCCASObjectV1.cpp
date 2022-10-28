@@ -404,9 +404,9 @@ static Error decodeRelocationsAndAddends(MCCASReader &Reader, StringRef Data) {
   return Error::success();
 }
 
-static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
-                              SmallVectorImpl<char> &Data,
-                              SmallVectorImpl<cas::ObjectRef> &IDs) {
+Error MCObjectProxy::encodeReferences(ArrayRef<cas::ObjectRef> Refs,
+                                      SmallVectorImpl<char> &Data,
+                                      SmallVectorImpl<cas::ObjectRef> &IDs) {
   DenseMap<cas::ObjectRef, unsigned> RefMap;
   SmallVector<cas::ObjectRef> CompactRefs;
   for (const auto &ID : Refs) {
@@ -436,8 +436,9 @@ static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
   return Error::success();
 }
 
-static Expected<SmallVector<cas::ObjectRef>>
-decodeReferences(const MCObjectProxy &Node, StringRef &Remaining) {
+Expected<SmallVector<cas::ObjectRef>>
+MCObjectProxy::decodeReferences(const MCObjectProxy &Node,
+                                StringRef &Remaining) {
   Expected<SmallVector<cas::ObjectRef>> MaybeRefs = loadReferences(Node);
   if (!MaybeRefs)
     return MaybeRefs.takeError();
@@ -534,7 +535,7 @@ Expected<LoadedDebugAbbrevSection>
 LoadedDebugAbbrevSection::load(DebugAbbrevSectionRef Section) {
 
   StringRef Remaining = Section.getData();
-  auto Refs = decodeReferences(Section, Remaining);
+  auto Refs = MCObjectProxy::decodeReferences(Section, Remaining);
   if (!Refs)
     return Refs.takeError();
 
@@ -628,7 +629,7 @@ Expected<LoadedDebugStringSection>
 LoadedDebugStringSection::load(DebugStringSectionRef Section) {
 
   StringRef Remaining = Section.getData();
-  auto Refs = decodeReferences(Section, Remaining);
+  auto Refs = MCObjectProxy::decodeReferences(Section, Remaining);
   if (!Refs)
     return Refs.takeError();
 
@@ -899,7 +900,7 @@ private:
                                  "Invalid CURef after PaddingRef");
 
       StringRef Remaining = CURef->getData();
-      auto DebugStrRefs = decodeReferences(*Proxy, Remaining);
+      auto DebugStrRefs = MCObjectProxy::decodeReferences(*Proxy, Remaining);
       if (!DebugStrRefs)
         return DebugStrRefs.takeError();
       DebugStringRefs.resize(DebugStringRefs.size() + 1);
