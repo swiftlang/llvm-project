@@ -313,7 +313,7 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
                             .Default(0);
   }
 
-  Opts.AsSecureLogFile = Args.getLastArgValue(OPT_as_secure_log_file);
+  Opts.AsSecureLogFile = std::string(Args.getLastArgValue(OPT_as_secure_log_file));
 
   return Success;
 }
