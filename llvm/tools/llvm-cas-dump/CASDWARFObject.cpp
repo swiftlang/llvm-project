@@ -179,12 +179,14 @@ void CASDWARFObject::addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
     auto Decl = CUDie.findRecursively({dwarf::DW_AT_declaration});
     if (!Decl) {
       StringRef LinkageName = CUDie.getLinkageName();
-      if (MapOfLinkageNames.find(LinkageName) == MapOfLinkageNames.end())
-        MapOfLinkageNames.try_emplace(
-            LinkageName, DenseSet<std::pair<cas::ObjectRef, unsigned>>());
-      MapOfLinkageNames[LinkageName].insert(
-          std::make_pair(MCObj.getRef(), CompileUnitIndex - 1));
-      LinkageFound = true;
+      if (LinkageName.size()) {
+        if (MapOfLinkageNames.find(LinkageName) == MapOfLinkageNames.end())
+          MapOfLinkageNames.try_emplace(
+              LinkageName, DenseSet<std::pair<cas::ObjectRef, unsigned>>());
+        MapOfLinkageNames[LinkageName].insert(
+            std::make_pair(MCObj.getRef(), CompileUnitIndex - 1));
+        LinkageFound = true;
+      }
     }
   }
   DWARFDie Child = CUDie.getFirstChild();
@@ -197,7 +199,8 @@ void CASDWARFObject::addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
 Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
                            MCObjectProxy MCObj, bool ShowForm, bool Verbose,
                            bool DumpSameLinkageDifferentCU) {
-  OS.indent(Indent);
+  if (!DumpSameLinkageDifferentCU)
+    OS.indent(Indent);
   DIDumpOptions DumpOpts;
   DumpOpts.ShowChildren = true;
   DumpOpts.ShowForm = ShowForm;
@@ -206,7 +209,7 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
   StringRef Data = MCObj.getData();
   if (Data.empty())
     return Err;
-  if (DebugStrRef::Cast(MCObj)) {
+  if (DebugStrRef::Cast(MCObj) && !DumpSameLinkageDifferentCU) {
     // Dump __debug_str data.
     assert(Data.data()[Data.size()] == 0);
     DataExtractor StrData(StringRef(Data.data(), Data.size() + 1),
@@ -224,7 +227,7 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
       OS << "\"\n";
       StrOffset = Offset;
     }
-  } else if (DebugLineRef::Cast(MCObj)) {
+  } else if (DebugLineRef::Cast(MCObj) && !DumpSameLinkageDifferentCU) {
     // Dump __debug_line data.
     uint64_t Address = 0;
     DWARFDataExtractor LineData(*this, {Data, Address}, isLittleEndian(), 0);
@@ -269,6 +272,7 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
 Error CASDWARFObject::dumpSimilarCUs(
     llvm::mccasformats::v1::MCSchema &MCSchema) {
   for (auto KeyValue : MapOfLinkageNames) {
+    llvm::outs() << KeyValue.getFirst() << "\n";
     if (KeyValue.getSecond().size() != 1) {
       for (auto Pair : KeyValue.getSecond()) {
         Expected<MCObjectProxy> MCObj = MCSchema.get(Pair.first);
