@@ -22,9 +22,39 @@ using namespace llvm;
 using namespace llvm::cas;
 using namespace llvm::mccasformats::v1;
 
-DenseMap<StringRef, DenseSet<std::pair<cas::ObjectRef, unsigned>>>
+std::unordered_map<std::string, std::unordered_set<std::string>>
     CASDWARFObject::MapOfLinkageNames =
-        DenseMap<StringRef, DenseSet<std::pair<cas::ObjectRef, unsigned>>>();
+        std::unordered_map<std::string, std::unordered_set<std::string>>();
+
+// template <> struct DenseMapInfo<std::string> {
+//     static inline std::string getEmptyKey() {
+//       return std::string(
+//           reinterpret_cast<const char *>(~static_cast<uintptr_t>(0)), 0);
+//     }
+
+//     static inline std::string getTombstoneKey() {
+//       return std::string(
+//           reinterpret_cast<const char *>(~static_cast<uintptr_t>(1)), 0);
+//     }
+
+//     static unsigned getHashValue(std::string Val);
+
+//     static bool isEqual(std::string LHS, std::string RHS) {
+//       if (RHS.data() == getEmptyKey().data())
+//         return LHS.data() == getEmptyKey().data();
+//       if (RHS.data() == getTombstoneKey().data())
+//         return LHS.data() == getTombstoneKey().data();
+//       return LHS == RHS;
+//     }
+//   };
+
+// unsigned DenseMapInfo<std::string>::getHashValue(std::string  Val) {
+// assert(Val.data() != getEmptyKey().data() &&
+//        "Cannot hash the empty key!");
+// assert(Val.data() != getTombstoneKey().data() &&
+//        "Cannot hash the tombstone key!");
+// return (unsigned)(hash_value(Val));
+// }
 
 namespace {
 /// Parse the MachO header to extract details such as endianness.
@@ -174,31 +204,33 @@ Error CASDWARFObject::discoverDwarfSections(MCObjectProxy MCObj) {
 
 void CASDWARFObject::addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
                                                      MCObjectProxy MCObj,
-                                                     bool &LinkageFound) {
+                                                     bool &LinkageFound,
+                                                     std::string InputStr) {
   if (CUDie.getTag() == dwarf::DW_TAG_subprogram) {
     auto Decl = CUDie.findRecursively({dwarf::DW_AT_declaration});
     if (!Decl) {
       StringRef LinkageName = CUDie.getLinkageName();
       if (LinkageName.size()) {
-        if (MapOfLinkageNames.find(LinkageName) == MapOfLinkageNames.end())
-          MapOfLinkageNames.try_emplace(
-              LinkageName, DenseSet<std::pair<cas::ObjectRef, unsigned>>());
-        MapOfLinkageNames[LinkageName].insert(
-            std::make_pair(MCObj.getRef(), CompileUnitIndex - 1));
+        if (MapOfLinkageNames.find(LinkageName.data()) ==
+            MapOfLinkageNames.end())
+          MapOfLinkageNames.try_emplace(LinkageName.data(),
+                                        std::unordered_set<std::string>());
+        MapOfLinkageNames[LinkageName.data()].insert(InputStr);
         LinkageFound = true;
       }
     }
   }
   DWARFDie Child = CUDie.getFirstChild();
   while (Child && !LinkageFound) {
-    addLinkageNameAndObjectRefToMap(Child, MCObj, LinkageFound);
+    addLinkageNameAndObjectRefToMap(Child, MCObj, LinkageFound, InputStr);
     Child = Child.getSibling();
   }
 }
 
 Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
                            MCObjectProxy MCObj, bool ShowForm, bool Verbose,
-                           bool DumpSameLinkageDifferentCU) {
+                           bool DumpSameLinkageDifferentCU,
+                           std::string InputStr) {
   if (!DumpSameLinkageDifferentCU)
     OS.indent(Indent);
   DIDumpOptions DumpOpts;
@@ -261,7 +293,7 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
     if (DumpSameLinkageDifferentCU) {
       bool LinkageFound = false;
       if (DWARFDie CUDie = U.getUnitDIE(false))
-        addLinkageNameAndObjectRefToMap(CUDie, MCObj, LinkageFound);
+        addLinkageNameAndObjectRefToMap(CUDie, MCObj, LinkageFound, InputStr);
     } else {
       U.dump(OS, DumpOpts);
     }
@@ -272,39 +304,9 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
 Error CASDWARFObject::dumpSimilarCUs(
     llvm::mccasformats::v1::MCSchema &MCSchema) {
   for (auto KeyValue : MapOfLinkageNames) {
-    llvm::outs() << KeyValue.getFirst() << "\n";
-    if (KeyValue.getSecond().size() != 1) {
-      for (auto Pair : KeyValue.getSecond()) {
-        Expected<MCObjectProxy> MCObj = MCSchema.get(Pair.first);
-        if (!MCObj)
-          return MCObj.takeError();
-        auto DWARFObj = std::make_unique<CASDWARFObject>(*this);
-        std::unique_ptr<DWARFContext> DWARFContextHolder =
-            std::make_unique<DWARFContext>(std::move(DWARFObj));
-        DWARFContext *DWARFCtx = DWARFContextHolder.get();
-        if (DebugInfoCURef::Cast(*MCObj)) {
-          DIDumpOptions DumpOpts;
-          DumpOpts.ShowChildren = true;
-          DWARFUnitVector UV;
-          uint64_t Address = 0;
-          DWARFSection Section = {CUDataVec[Pair.second], Address};
-          DWARFUnitHeader Header;
-          DWARFDebugAbbrev Abbrev;
-
-          Abbrev.extract(DataExtractor(getAbbrevSection(), isLittleEndian(),
-                                       getAddressSize()));
-          uint64_t offset_ptr = 0;
-          Header.extract(*DWARFCtx,
-                         DWARFDataExtractor(*this, Section, isLittleEndian(),
-                                            getAddressSize()),
-                         &offset_ptr, DWARFSectionKind::DW_SECT_INFO);
-          DWARFCompileUnit U(
-              *DWARFCtx, Section, Header, &Abbrev, &getRangesSection(),
-              &getLocSection(), getStrSection(), getStrOffsetsSection(),
-              &getAddrSection(), getLocSection(), isLittleEndian(), false, UV);
-          U.dump(llvm::outs(), DumpOpts);
-        }
-      }
+    if (KeyValue.second.size() != 1) {
+      for (auto ID : KeyValue.second)
+        llvm::outs() << KeyValue.first << " " << ID << "\n";
     }
   }
   return Error::success();

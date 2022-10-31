@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
     if (!Obj)
       ExitOnErr(Obj.takeError());
 
-    ExitOnErr(Printer.printMCObject(*Ref, *Obj));
+    ExitOnErr(Printer.printMCObject(*Ref, *Obj, InputStr.data()));
     if (Options.DumpSameLinkageDifferentCU)
       ExitOnErr(Printer.dumpSimilarCUs(*Obj));
     count++;
