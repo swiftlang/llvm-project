@@ -580,7 +580,7 @@ Expected<LoadedDebugLineSection>
 LoadedDebugLineSection::load(DebugLineSectionRef Section) {
 
   StringRef Remaining = Section.getData();
-  auto Refs = decodeReferences(Section, Remaining);
+  auto Refs = MCObjectProxy::decodeReferences(Section, Remaining);
   if (!Refs)
     return Refs.takeError();
 
