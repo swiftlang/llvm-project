@@ -16,6 +16,8 @@
 #include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
 #include "llvm/DebugInfo/DWARF/DWARFObject.h"
 #include "llvm/MC/CAS/MCCASObjectV1.h"
+#include <unordered_map>
+#include <unordered_set>
 
 namespace llvm {
 
@@ -33,7 +35,7 @@ class CASDWARFObject : public DWARFObject {
   SmallVector<uint32_t> SecOffsetVals;
   unsigned LineTableOffset = 0;
   DenseMap<cas::ObjectRef, unsigned> MapOfStringOffsets;
-  static DenseMap<StringRef, DenseSet<std::pair<cas::ObjectRef, unsigned>>>
+  static std::unordered_map<std::string, std::unordered_set<std::string>>
       MapOfLinkageNames;
   unsigned CompileUnitIndex = 0;
 
@@ -50,7 +52,8 @@ class CASDWARFObject : public DWARFObject {
 
   void addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
                                        mccasformats::v1::MCObjectProxy MCObj,
-                                       bool &LinkageFound);
+                                       bool &LinkageFound,
+                                       std::string InputStr);
 
 public:
   CASDWARFObject(const mccasformats::v1::MCSchema &Schema) : Schema(Schema) {}
@@ -67,7 +70,7 @@ public:
   /// Dump MCObj as textual DWARF output.
   Error dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
              mccasformats::v1::MCObjectProxy MCObj, bool ShowForm, bool Verbose,
-             bool DumpSameLinkageDifferentCU);
+             bool DumpSameLinkageDifferentCU, std::string InputStr);
 
   StringRef getFileName() const override { return "CAS"; }
   ArrayRef<SectionName> getSectionNames() const override { return {}; }
