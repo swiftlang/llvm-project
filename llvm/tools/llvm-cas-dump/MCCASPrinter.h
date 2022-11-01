@@ -40,18 +40,14 @@ struct MCCASPrinter {
   /// If `CASObj` is an MCObject, prints its contents and all nodes referenced
   /// by it recursively. If CASObj or any of its children are not MCObjects, an
   /// error is returned.
-  Error printMCObject(cas::ObjectRef CASObj, CASDWARFObject &Obj,
-                      std::string InputStr, DWARFContext *DWARFCtx = nullptr);
+  Error printMCObject(cas::ObjectRef CASObj, CASDWARFObject &Obj, DWARFContext *DWARFCtx = nullptr);
 
   /// Prints the contents of `MCObject` and all nodes referenced by it
   /// recursively. If any of its children are not MCObjects, an error is
   /// returned.
-  Error printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj,
-                      std::string InputStr, DWARFContext *DWARFCtx);
+  Error printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj, DWARFContext *DWARFCtx);
 
   Expected<CASDWARFObject> discoverDwarfSections(cas::ObjectRef CASObj);
-
-  Error dumpSimilarCUs(CASDWARFObject &Obj);
 
 private:
   PrinterOptions Options;
@@ -60,7 +56,7 @@ private:
   raw_ostream &OS;
 
   Error printSimpleNested(MCObjectProxy AssemblerRef, CASDWARFObject &Obj,
-                          DWARFContext *DWARFCtx, std::string InputStr);
+                          DWARFContext *DWARFCtx);
 };
 } // namespace v1
 } // namespace mccasformats

@@ -99,10 +99,12 @@ int main(int argc, char *argv[]) {
     if (!Obj)
       ExitOnErr(Obj.takeError());
 
-    ExitOnErr(Printer.printMCObject(*Ref, *Obj, InputStr.data()));
-    if (Options.DumpSameLinkageDifferentCU)
-      ExitOnErr(Printer.dumpSimilarCUs(*Obj));
+    ExitOnErr(Printer.printMCObject(*Ref, *Obj));
     count++;
   }
+  
+  if (Options.DumpSameLinkageDifferentCU)
+      ExitOnErr(CASDWARFObject::dumpSimilarCUs());
+
   return 0;
 }
