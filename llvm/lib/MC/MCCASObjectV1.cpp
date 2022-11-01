@@ -1183,7 +1183,8 @@ materializeCUDie(DWARFCompileUnit &DCU, MutableArrayRef<char> SectionContents,
       continue;
     bool DidOverflow = false;
     if (FormInDistinctDataRef ||
-        AbbrevDecl->getAttrByIndex(I) == dwarf::DW_AT_name) {
+        AbbrevDecl->getAttrByIndex(I) == dwarf::DW_AT_name ||
+        AbbrevDecl->getAttrByIndex(I) == dwarf::DW_AT_linkage_name) {
       auto Value = SaturatingAdd(*FormSize, DistinctDataOffset, &DidOverflow);
       if (DidOverflow)
         return createStringError(
@@ -2238,9 +2239,11 @@ static void partitionCUDie(MCCASBuilder &Builder,
                DebugInfoData.slice(PrevOffset, Size));
   for (const DWARFAttribute &AttrValue : CUDie.attributes()) {
     if (is_contained(InMemoryCASDWARFObject::PartitionedDebugInfoSection::
-                         FormsToPartition, AttrValue.Value.getForm()) ||
-        AttrValue.Attr == llvm::dwarf::DW_AT_name) {
-        append_range(PartitionedData.DistinctData,
+                         FormsToPartition,
+                     AttrValue.Value.getForm()) ||
+        AttrValue.Attr == llvm::dwarf::DW_AT_name ||
+        AttrValue.Attr == llvm::dwarf::DW_AT_linkage_name) {
+      append_range(PartitionedData.DistinctData,
                    DebugInfoData.slice(AttrValue.Offset, AttrValue.ByteSize));
     } else if (AttrValue.Value.getForm() == llvm::dwarf::DW_FORM_strp) {
       // TODO: Add support for 64-bit DWARF
