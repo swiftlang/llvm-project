@@ -50,10 +50,9 @@ class CASDWARFObject : public DWARFObject {
   /// raw_ostream &OS);
   Error discoverDebugInfoSection(cas::ObjectRef CASObj, raw_ostream &OS);
 
-  void addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
+  void addLinkageNameAndObjectRefToMap(DWARFDie &CUDie,
                                        mccasformats::v1::MCObjectProxy MCObj,
-                                       bool &LinkageFound,
-                                       std::string InputStr);
+                                       bool &LinkageFound, DWARFUnit &U, DIDumpOptions &DumpOpts);
 
 public:
   CASDWARFObject(const mccasformats::v1::MCSchema &Schema) : Schema(Schema) {}
@@ -74,7 +73,7 @@ public:
   /// Dump MCObj as textual DWARF output.
   Error dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
              mccasformats::v1::MCObjectProxy MCObj, bool ShowForm, bool Verbose,
-             bool DumpSameLinkageDifferentCU, std::string InputStr);
+             bool DumpSameLinkageDifferentCU);
 
   StringRef getFileName() const override { return "CAS"; }
   ArrayRef<SectionName> getSectionNames() const override { return {}; }
@@ -92,7 +91,7 @@ public:
   };
   ArrayRef<uint32_t> getSecOffsetVals() { return SecOffsetVals; }
 
-  Error dumpSimilarCUs(llvm::mccasformats::v1::MCSchema &MCSchema);
+  static Error dumpSimilarCUs();
 };
 } // namespace llvm
 

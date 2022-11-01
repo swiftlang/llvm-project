@@ -62,12 +62,7 @@ MCCASPrinter::discoverDwarfSections(cas::ObjectRef CASObj) {
   return DWARFObj;
 }
 
-Error MCCASPrinter::dumpSimilarCUs(CASDWARFObject &Obj) {
-  return Obj.dumpSimilarCUs(MCSchema);
-}
-
 Error MCCASPrinter::printMCObject(ObjectRef CASObj, CASDWARFObject &Obj,
-                                  std::string InputStr,
                                   DWARFContext *DWARFCtx) {
   // The object identifying the schema is not considered an MCObject, as such we
   // don't attempt to cast or print it.
@@ -77,11 +72,10 @@ Error MCCASPrinter::printMCObject(ObjectRef CASObj, CASDWARFObject &Obj,
   Expected<MCObjectProxy> MCObj = MCSchema.get(CASObj);
   if (!MCObj)
     return MCObj.takeError();
-  return printMCObject(*MCObj, Obj, InputStr, DWARFCtx);
+  return printMCObject(*MCObj, Obj, DWARFCtx);
 }
 
 Error MCCASPrinter::printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj,
-                                  std::string InputStr,
                                   DWARFContext *DWARFCtx) {
   // Initialize DWARFObj.
   std::unique_ptr<DWARFContext> DWARFContextHolder;
@@ -126,10 +120,10 @@ Error MCCASPrinter::printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj,
     IndentGuard Guard(Indent);
     if (Error Err = Obj.dump(OS, Indent, *DWARFCtx, MCObj, Options.ShowForm,
                              Options.Verbose,
-                             Options.DumpSameLinkageDifferentCU, InputStr))
+                             Options.DumpSameLinkageDifferentCU))
       return Err;
   }
-  return printSimpleNested(MCObj, Obj, DWARFCtx, InputStr);
+  return printSimpleNested(MCObj, Obj, DWARFCtx);
 }
 
 static Error printAbbrevOffsets(raw_ostream &OS,
@@ -145,8 +139,7 @@ static Error printAbbrevOffsets(raw_ostream &OS,
 
 Error MCCASPrinter::printSimpleNested(MCObjectProxy AssemblerRef,
                                       CASDWARFObject &Obj,
-                                      DWARFContext *DWARFCtx,
-                                      std::string InputStr) {
+                                      DWARFContext *DWARFCtx) {
   IndentGuard Guard(Indent);
 
   if (auto AbbrevOffsetsRef = DebugAbbrevOffsetsRef::Cast(AssemblerRef);
@@ -163,12 +156,12 @@ Error MCCASPrinter::printSimpleNested(MCObjectProxy AssemblerRef,
     if (!Refs)
       return Refs.takeError();
     for (auto Ref : *Refs) {
-      if (Error E = printMCObject(Ref, Obj, InputStr, DWARFCtx))
+      if (Error E = printMCObject(Ref, Obj, DWARFCtx))
         return E;
     }
     return Error::success();
   }
   return AssemblerRef.forEachReference([&](ObjectRef CASObj) {
-    return printMCObject(CASObj, Obj, InputStr, DWARFCtx);
+    return printMCObject(CASObj, Obj, DWARFCtx);
   });
 }
