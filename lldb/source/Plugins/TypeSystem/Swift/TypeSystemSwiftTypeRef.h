@@ -86,6 +86,8 @@ public:
   bool SupportsLanguage(lldb::LanguageType language) override;
   Status IsCompatible() override;
 
+  llvm::Optional<llvm::json::Value> ReportStatistics() override;
+
   void DiagnoseWarnings(Process &process, Module &module) const override;
   DWARFASTParser *GetDWARFParser() override;
   // CompilerDecl functions

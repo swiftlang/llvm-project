@@ -105,6 +105,7 @@
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/Platform.h"
 #include "lldb/Target/Process.h"
+#include "lldb/Target/Statistics.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/FileSpec.h"
@@ -1042,6 +1043,25 @@ static void printASTValidationError(
            module_buf.size(), ext_ast_info.getSDKPath());
   for (StringRef ExtraOpt : ext_ast_info.getExtraClangImporterOptions())
     LLDB_LOG(log, "  -- {0}", ExtraOpt);
+}
+
+llvm::Optional<llvm::json::Value> SwiftASTContext::ReportStatistics() {
+  const auto &load_times = GetSwiftModuleLoadTimes();
+  llvm::json::Array swift_module_load_times;
+  StatsDuration swift_module_total_load_time;
+  for (const auto &entry : load_times) {
+    llvm::json::Object obj;
+    obj.try_emplace("name", entry.first().str());
+    obj.try_emplace("loadTime", entry.second.get().count());
+    swift_module_total_load_time += entry.second;
+    swift_module_load_times.emplace_back(std::move(obj));
+  }
+
+  llvm::json::Object obj;
+  obj.try_emplace("swiftmodules", std::move(swift_module_load_times));
+  obj.try_emplace("totalLoadTime", swift_module_total_load_time.get().count());
+  llvm::json::Value ret = std::move(obj);
+  return ret;
 }
 
 void SwiftASTContext::DiagnoseWarnings(Process &process, Module &module) const {
@@ -3203,6 +3223,10 @@ swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
       *cached = true;
     return module_decl;
   }
+
+  auto &load_time_map = GetSwiftModuleLoadTimes();
+  StatsDuration &load_time = load_time_map[module.path.front().GetStringRef()];
+  ElapsedTime elapsed(load_time);
 
   LLDB_SCOPED_TIMER();
   swift::ASTContext *ast = GetASTContext();

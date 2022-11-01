@@ -1510,6 +1510,13 @@ Status TypeSystemSwiftTypeRef::IsCompatible() {
   return {};
 }
 
+llvm::Optional<llvm::json::Value> TypeSystemSwiftTypeRef::ReportStatistics() {
+  if (auto *swift_ast_context = GetSwiftASTContextOrNull()) {
+    return swift_ast_context->ReportStatistics();
+  }
+  return llvm::None;
+}
+
 void TypeSystemSwiftTypeRef::DiagnoseWarnings(Process &process,
                                               Module &module) const {
   if (auto *swift_ast_context = GetSwiftASTContextOrNull())

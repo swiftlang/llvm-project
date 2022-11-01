@@ -20,10 +20,12 @@
 #include "swift/Parse/ParseVersion.h"
 #include "lldb/Core/SwiftForward.h"
 #include "lldb/Core/ThreadSafeDenseSet.h"
+#include "lldb/Target/Statistics.h"
 #include "lldb/Utility/Either.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/Support/JSON.h"
 
 namespace swift {
 enum class IRGenDebugInfoLevel : unsigned;
@@ -436,6 +438,14 @@ public:
   typedef llvm::StringMap<swift::ModuleDecl *> SwiftModuleMap;
 
   const SwiftModuleMap &GetModuleCache() { return m_swift_module_cache; }
+
+  typedef llvm::StringMap<StatsDuration> SwiftModuleLoadTimeMap;
+
+  SwiftModuleLoadTimeMap &GetSwiftModuleLoadTimes() {
+    return m_swift_module_load_time_map;
+  }
+
+  llvm::Optional<llvm::json::Value> ReportStatistics() override;
 
   void RaiseFatalError(std::string msg) { m_fatal_errors.SetErrorString(msg); }
   static bool HasFatalErrors(swift::ASTContext *ast_context);
@@ -865,6 +875,7 @@ protected:
       nullptr;
   swift::ClangImporter *m_clang_importer = nullptr;
   SwiftModuleMap m_swift_module_cache;
+  SwiftModuleLoadTimeMap m_swift_module_load_time_map;
   SwiftTypeFromMangledNameMap m_mangled_name_to_type_map;
   SwiftMangledNameFromTypeMap m_type_to_mangled_name_map;
   uint32_t m_pointer_byte_size = 0;
