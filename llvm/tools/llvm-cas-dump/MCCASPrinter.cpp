@@ -118,9 +118,9 @@ Error MCCASPrinter::printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj,
   // Dwarfdump.
   if (DWARFCtx) {
     IndentGuard Guard(Indent);
-    if (Error Err = Obj.dump(OS, Indent, *DWARFCtx, MCObj, Options.ShowForm,
-                             Options.Verbose,
-                             Options.DumpSameLinkageDifferentCU))
+    if (Error Err =
+            Obj.dump(OS, Indent, *DWARFCtx, MCObj, Options.ShowForm,
+                     Options.Verbose, Options.DumpSameLinkageDifferentCU))
       return Err;
   }
   return printSimpleNested(MCObj, Obj, DWARFCtx);
@@ -161,7 +161,6 @@ Error MCCASPrinter::printSimpleNested(MCObjectProxy AssemblerRef,
     }
     return Error::success();
   }
-  return AssemblerRef.forEachReference([&](ObjectRef CASObj) {
-    return printMCObject(CASObj, Obj, DWARFCtx);
-  });
+  return AssemblerRef.forEachReference(
+      [&](ObjectRef CASObj) { return printMCObject(CASObj, Obj, DWARFCtx); });
 }

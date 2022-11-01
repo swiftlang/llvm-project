@@ -102,9 +102,9 @@ int main(int argc, char *argv[]) {
     ExitOnErr(Printer.printMCObject(*Ref, *Obj));
     count++;
   }
-  
+
   if (Options.DumpSameLinkageDifferentCU)
-      ExitOnErr(CASDWARFObject::dumpSimilarCUs());
+    ExitOnErr(CASDWARFObject::dumpSimilarCUs());
 
   return 0;
 }

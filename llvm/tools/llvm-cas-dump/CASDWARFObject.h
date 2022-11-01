@@ -52,7 +52,8 @@ class CASDWARFObject : public DWARFObject {
 
   void addLinkageNameAndObjectRefToMap(DWARFDie &CUDie,
                                        mccasformats::v1::MCObjectProxy MCObj,
-                                       bool &LinkageFound, DWARFUnit &U, DIDumpOptions &DumpOpts);
+                                       bool &LinkageFound, DWARFUnit &U,
+                                       DIDumpOptions &DumpOpts);
 
 public:
   CASDWARFObject(const mccasformats::v1::MCSchema &Schema) : Schema(Schema) {}

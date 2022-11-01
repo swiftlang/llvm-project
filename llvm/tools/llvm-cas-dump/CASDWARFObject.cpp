@@ -214,7 +214,7 @@ static Optional<StringRef> getLinkageName(DWARFDie &CUDie) {
     }
   }
   DWARFDie Child = CUDie.getFirstChild();
-  while(Child) {
+  while (Child) {
     auto Name = getLinkageName(Child);
     Child = Child.getSibling();
     if (Name)
@@ -238,7 +238,10 @@ static void findStrpsInCompileUnit(DWARFDie &CUDie, raw_ostream &OS) {
 
 // void CASDWARFObject::addLinkageNameAndObjectRefToMap(DWARFDie &CUDie,
 //                                                      MCObjectProxy MCObj,
-//                                                      bool &LinkageFound, DWARFUnit &U, DIDumpOptions &DumpOpts) {
+//                                                      bool &LinkageFound,
+//                                                      DWARFUnit &U,
+//                                                      DIDumpOptions &DumpOpts)
+//                                                      {
 //   if (CUDie.getTag() == dwarf::DW_TAG_subprogram) {
 //     auto Decl = CUDie.findRecursively({dwarf::DW_AT_declaration});
 //     if (!Decl) {
@@ -334,7 +337,8 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
         raw_svector_ostream OS(StrpData);
         findStrpsInCompileUnit(CUDie, OS);
         if (MapOfLinkageNames.find(Name->data()) == MapOfLinkageNames.end())
-          MapOfLinkageNames.try_emplace(Name->data(), std::unordered_set<std::string>());
+          MapOfLinkageNames.try_emplace(Name->data(),
+                                        std::unordered_set<std::string>());
         MapOfLinkageNames[Name->data()].insert(StrpData.data());
       }
 
@@ -358,7 +362,10 @@ Error CASDWARFObject::dumpSimilarCUs() {
     if (KeyValue.second.size() == 2) {
       int count = 0;
       for (auto ID : KeyValue.second) {
-        if (count == 0) { count++; continue; }
+        if (count == 0) {
+          count++;
+          continue;
+        }
         llvm::outs() << KeyValue.first << " " << ID << "\n";
       }
     }
