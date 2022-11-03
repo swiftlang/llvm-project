@@ -44,11 +44,9 @@ void NoReturnFunctionChecker::checkPostCall(const CallEvent &CE,
   if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CE.getDecl()))
     BuildSinks = FD->hasAttr<AnalyzerNoReturnAttr>() || FD->isNoReturn();
 
-  if (const CallExpr *CExpr = dyn_cast_or_null<CallExpr>(CE.getOriginExpr());
-      CExpr && !BuildSinks) {
-    if (const Expr *C = CExpr->getCallee())
-      BuildSinks = getFunctionExtInfo(C->getType()).getNoReturn();
-  }
+  const Expr *Callee = CE.getOriginExpr();
+  if (!BuildSinks && Callee)
+    BuildSinks = getFunctionExtInfo(Callee->getType()).getNoReturn();
 
   if (!BuildSinks && CE.isGlobalCFunction()) {
     if (const IdentifierInfo *II = CE.getCalleeIdentifier()) {
