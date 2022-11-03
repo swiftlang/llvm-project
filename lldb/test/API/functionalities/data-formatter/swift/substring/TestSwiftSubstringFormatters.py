@@ -34,7 +34,7 @@ class TestCase(TestBase):
 
         process.Continue()
 
-        # Strings larger that 15 bytes (64-bit) or 10 bytes (32-bit) cannot be
+        # Strings larger than 15 bytes (64-bit) or 10 bytes (32-bit) cannot be
         # stored directly inside the String struct.
         alphabet = "abcdefghijklmnopqrstuvwxyz"
 
@@ -46,6 +46,6 @@ class TestCase(TestBase):
             "v substrings",
             substrs=[
                 f'[{i}] = "{substring}"'
-                for i, substring in zip(range(27), subalphabets)
+                for i, substring in enumerate(subalphabets)
             ],
         )
