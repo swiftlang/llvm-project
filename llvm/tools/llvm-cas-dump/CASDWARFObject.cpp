@@ -265,7 +265,7 @@ Error CASDWARFObject::dumpSimilarCUs(
           DumpOpts.ShowChildren = true;
           DWARFUnitVector UV;
           uint64_t Address = 0;
-          DWARFSection Section = {CUDataVec[CompileUnitIndex], Address};
+          DWARFSection Section = {CUDataVec[Pair.second], Address};
           DWARFUnitHeader Header;
           DWARFDebugAbbrev Abbrev;
 
