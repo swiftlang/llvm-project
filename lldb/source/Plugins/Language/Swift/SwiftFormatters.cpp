@@ -14,6 +14,7 @@
 #include "Plugins/Language/Swift/SwiftStringIndex.h"
 #include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
+#include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/DataFormatters/StringPrinter.h"
 #include "lldb/Target/Process.h"
@@ -23,6 +24,7 @@
 #include "lldb/Utility/Timer.h"
 #include "swift/AST/Types.h"
 #include "swift/Demangling/ManglingMacros.h"
+#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -71,6 +73,25 @@ bool lldb_private::formatters::swift::SwiftSharedString_SummaryProvider(
       StringPrinter::ReadStringAndDumpToStreamOptions());
 }
 
+using StringSlice = std::pair<uint64_t, uint64_t>;
+
+template <typename AddrT>
+static void applySlice(AddrT &address, uint64_t &length, StringSlice slice) {
+  // No slicing is performed when the slice starts beyond the string's bounds.
+  if (slice.first > length)
+    return;
+
+  auto offset = slice.first;
+  auto slice_length = slice.second - slice.first;
+
+  // Adjust from the start.
+  address += offset;
+  length -= offset;
+
+  // Reduce to the slice length, unless it's larger than the given length.
+  length = std::min(slice_length, length);
+}
+
 static bool readStringFromAddress(
     uint64_t startAddress, uint64_t length, ValueObject &valobj, Stream &stream,
     const TypeSummaryOptions &summary_options,
@@ -95,10 +116,11 @@ static bool readStringFromAddress(
       StringPrinter::StringElementType::UTF8>(read_options);
 };
 
-bool lldb_private::formatters::swift::StringGuts_SummaryProvider(
+static bool makeStringGutsSummary(
     ValueObject &valobj, Stream &stream,
     const TypeSummaryOptions &summary_options,
-    StringPrinter::ReadStringAndDumpToStreamOptions read_options) {
+    StringPrinter::ReadStringAndDumpToStreamOptions read_options,
+    StringSlice slice = {0, UINT64_MAX}) {
   LLDB_SCOPED_TIMER();
 
   static ConstString g__object("_object");
@@ -278,11 +300,13 @@ bool lldb_private::formatters::swift::StringGuts_SummaryProvider(
     if (count > maxCount)
       return false;
 
-    uint64_t buffer[2] = {raw0, raw1};
+    uint64_t rawBuffer[2] = {raw0, raw1};
+    auto *buffer = static_cast<uint8_t *>(static_cast<void *>(&rawBuffer));
+    applySlice(buffer, count, slice);
 
     StringPrinter::ReadBufferAndDumpToStreamOptions options(read_options);
-    options.SetData(
-        DataExtractor(buffer, count, process->GetByteOrder(), ptrSize));
+    options.SetData(lldb_private::DataExtractor(
+        buffer, count, process->GetByteOrder(), ptrSize));
     options.SetStream(&stream);
     options.SetSourceSize(count);
     options.SetBinaryZeroIsTerminator(false);
@@ -300,6 +324,7 @@ bool lldb_private::formatters::swift::StringGuts_SummaryProvider(
       return false;
     uint64_t bias = (ptrSize == 8 ? 32 : 20);
     auto address = objectAddress + bias;
+    applySlice(address, count, slice);
     return readStringFromAddress(
       address, count, valobj, stream, summary_options, read_options);
   }
@@ -315,6 +340,7 @@ bool lldb_private::formatters::swift::StringGuts_SummaryProvider(
     if (error.Fail())
       return false;
 
+    applySlice(address, count, slice);
     return readStringFromAddress(
       start, count, valobj, stream, summary_options, read_options);
   }
@@ -333,7 +359,8 @@ bool lldb_private::formatters::swift::StringGuts_SummaryProvider(
             lldb::eBasicTypeObjCID);
 
     // We may have an NSString pointer inline, so try formatting it directly.
-    DataExtractor DE(&objectAddress, ptrSize, process->GetByteOrder(), ptrSize);
+    lldb_private::DataExtractor DE(&objectAddress, ptrSize,
+                                   process->GetByteOrder(), ptrSize);
     auto nsstring = ValueObject::CreateValueObjectFromData(
         "nsstring", DE, valobj.GetExecutionContextRef(), id_type);
     if (!nsstring || nsstring->GetError().Fail())
@@ -350,6 +377,13 @@ bool lldb_private::formatters::swift::StringGuts_SummaryProvider(
 
   // Invalid discriminator.
   return false;
+}
+
+bool lldb_private::formatters::swift::StringGuts_SummaryProvider(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &summary_options,
+    StringPrinter::ReadStringAndDumpToStreamOptions read_options) {
+  return makeStringGutsSummary(valobj, stream, summary_options, read_options);
 }
 
 bool lldb_private::formatters::swift::String_SummaryProvider(
@@ -369,6 +403,53 @@ bool lldb_private::formatters::swift::String_SummaryProvider(
     return StringGuts_SummaryProvider(*guts_sp, stream, summary_options,
                                       read_options);
   return false;
+}
+
+bool lldb_private::formatters::swift::Substring_SummaryProvider(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &summary_options) {
+  static ConstString g__slice("_slice");
+  static ConstString g__base("_base");
+  static ConstString g__startIndex("_startIndex");
+  static ConstString g__endIndex("_endIndex");
+  static ConstString g__rawBits("_rawBits");
+  auto slice_sp = valobj.GetChildMemberWithName(g__slice, true);
+  if (!slice_sp)
+    return false;
+  auto base_sp = slice_sp->GetChildMemberWithName(g__base, true);
+  if (!base_sp)
+    return false;
+
+  auto get_index =
+      [&slice_sp](ConstString index_name) -> Optional<StringIndex> {
+    auto raw_bits_sp = slice_sp->GetChildAtNamePath({index_name, g__rawBits});
+    if (!raw_bits_sp)
+      return None;
+    bool success = false;
+    StringIndex index =
+        raw_bits_sp->GetSyntheticValue()->GetValueAsUnsigned(0, &success);
+    if (!success)
+      return None;
+    return index;
+  };
+
+  Optional<StringIndex> start_index = get_index(g__startIndex);
+  Optional<StringIndex> end_index = get_index(g__endIndex);
+  if (!start_index || !end_index)
+    return false;
+
+  if (!start_index->matchesEncoding(*end_index))
+    return false;
+
+  static ConstString g_guts("_guts");
+  auto guts_sp = base_sp->GetChildMemberWithName(g_guts, true);
+  if (!guts_sp)
+    return false;
+
+  StringPrinter::ReadStringAndDumpToStreamOptions read_options;
+  return makeStringGutsSummary(
+      *guts_sp, stream, summary_options, read_options,
+      {start_index->encodedOffset(), end_index->encodedOffset()});
 }
 
 bool lldb_private::formatters::swift::StringIndex_SummaryProvider(
