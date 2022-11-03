@@ -9,7 +9,6 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestCase(TestBase):
-    # @skipUnlessFoundation
     @swiftTest
     def test_swift_substring_formatters(self):
         """Test Subtring summary strings."""
@@ -31,19 +30,22 @@ class TestCase(TestBase):
             ],
         )
 
-        # Continue to second stop, to test non-small strings.
+        # Continue to the second stop, to test non-small strings.
 
         process.Continue()
 
         # Strings larger that 15 bytes (64-bit) or 10 bytes (32-bit) cannot be
         # stored directly inside the String struct.
         alphabet = "abcdefghijklmnopqrstuvwxyz"
-        subalphabets = [alphabet[i:] for i in range(len(alphabet) + 1)]
+
+        # Including the first full substring, and the final empty substring,
+        # there are 27 substrings.
+        subalphabets = [alphabet[i:] for i in range(27)]
 
         self.expect(
             "v substrings",
             substrs=[
                 f'[{i}] = "{substring}"'
-                for i, substring in zip(range(26), subalphabets)
+                for i, substring in zip(range(27), subalphabets)
             ],
         )
