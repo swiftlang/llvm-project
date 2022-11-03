@@ -108,7 +108,20 @@ public:
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
   bool isValidTuneCPUName(StringRef Name) const override;
   void fillValidTuneCPUList(SmallVectorImpl<StringRef> &Values) const override;
+  bool hasExtIntType() const override { return true; }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    switch (CC) {
+    case CC_Swift:
+      return CCCR_OK;
+    case CC_SwiftAsync:
+      return CCCR_Error;
+    default:
+      return CCCR_Warning;
+    }
+  }
 };
+
 class LLVM_LIBRARY_VISIBILITY RISCV32TargetInfo : public RISCVTargetInfo {
 public:
   RISCV32TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)

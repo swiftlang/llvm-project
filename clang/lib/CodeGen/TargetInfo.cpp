@@ -10844,8 +10844,9 @@ static bool getTypeString(SmallStringEnc &Enc, const Decl *D,
 //===----------------------------------------------------------------------===//
 
 namespace {
-class RISCVABIInfo : public DefaultABIInfo {
+class RISCVABIInfo : public SwiftABIInfo {
 private:
+  DefaultABIInfo defaultInfo;
   // Size of the integer ('x') registers in bits.
   unsigned XLen;
   // Size of the floating point ('f') registers in bits. Note that the target
@@ -10862,7 +10863,7 @@ private:
 
 public:
   RISCVABIInfo(CodeGen::CodeGenTypes &CGT, unsigned XLen, unsigned FLen)
-      : DefaultABIInfo(CGT), XLen(XLen), FLen(FLen) {}
+      : SwiftABIInfo(CGT), defaultInfo(CGT), XLen(XLen), FLen(FLen) {}
 
   // DefaultABIInfo's classifyReturnType and classifyArgumentType are
   // non-virtual, but computeInfo is virtual, so we overload it.
@@ -10885,6 +10886,14 @@ public:
                                                CharUnits Field1Off,
                                                llvm::Type *Field2Ty,
                                                CharUnits Field2Off) const;
+
+private:
+  bool shouldPassIndirectlyForSwift(ArrayRef<llvm::Type *> scalars,
+                                    bool asReturnValue) const override {
+    return occupiesMoreThan(CGT, scalars, /*total*/ 4);
+  }
+
+  bool isSwiftErrorInRegister() const override { return false; }
 };
 } // end anonymous namespace
 
