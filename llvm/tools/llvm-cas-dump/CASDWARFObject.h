@@ -32,7 +32,8 @@ class CASDWARFObject : public DWARFObject {
   SmallVector<StringRef> CUDataVec;
   SmallVector<uint32_t> SecOffsetVals;
   unsigned LineTableOffset = 0;
-  DenseMap<StringRef, SmallVector<cas::ObjectRef, 0>> MapOfLinkageNames;
+  DenseMap<StringRef, SmallVector<std::pair<cas::ObjectRef, unsigned>, 0>>
+      MapOfLinkageNames;
   unsigned CompileUnitIndex = 0;
 
   const mccasformats::v1::MCSchema &Schema;
@@ -58,6 +59,10 @@ public:
   Error discoverDebugInfoSection(mccasformats::v1::MCObjectProxy MCObj,
                                  raw_ostream &OS);
 
+  void addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
+                                       mccasformats::v1::MCObjectProxy MCObj,
+                                       bool &LinkageFound);
+
   /// Dump MCObj as textual DWARF output.
   Error dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
              mccasformats::v1::MCObjectProxy MCObj, bool ShowForm, bool Verbose,
@@ -78,6 +83,8 @@ public:
     return {};
   };
   ArrayRef<uint32_t> getSecOffsetVals() { return SecOffsetVals; }
+
+  Error dumpSimilarCUs(llvm::mccasformats::v1::MCSchema &MCSchema);
 };
 } // namespace llvm
 

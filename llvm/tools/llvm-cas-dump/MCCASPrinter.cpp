@@ -62,6 +62,10 @@ MCCASPrinter::discoverDwarfSections(cas::ObjectRef CASObj) {
   return DWARFObj;
 }
 
+Error MCCASPrinter::dumpSimilarCUs(CASDWARFObject &Obj) {
+  return Obj.dumpSimilarCUs(MCSchema);
+}
+
 Error MCCASPrinter::printMCObject(ObjectRef CASObj, CASDWARFObject &Obj,
                                   DWARFContext *DWARFCtx) {
   // The object identifying the schema is not considered an MCObject, as such we

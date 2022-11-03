@@ -155,6 +155,27 @@ Error CASDWARFObject::discoverDwarfSections(MCObjectProxy MCObj) {
       [this](ObjectRef CASObj) { return discoverDwarfSections(CASObj); });
 }
 
+void CASDWARFObject::addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
+                                                     MCObjectProxy MCObj,
+                                                     bool &LinkageFound) {
+  if (CUDie.getTag() == dwarf::DW_TAG_subprogram) {
+    auto Decl = CUDie.findRecursively({dwarf::DW_AT_declaration});
+    if (!Decl) {
+      StringRef LinkageName = CUDie.getLinkageName();
+      if (MapOfLinkageNames.find(LinkageName) == MapOfLinkageNames.end())
+        MapOfLinkageNames.try_emplace(LinkageName);
+      MapOfLinkageNames[LinkageName].push_back(
+          std::make_pair(MCObj.getRef(), CompileUnitIndex - 1));
+      LinkageFound = true;
+    }
+  }
+  DWARFDie Child = CUDie.getFirstChild();
+  while (Child && !LinkageFound) {
+    addLinkageNameAndObjectRefToMap(Child, MCObj, LinkageFound);
+    Child = Child.getSibling();
+  }
+}
+
 Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
                            MCObjectProxy MCObj, bool ShowForm, bool Verbose,
                            bool DumpSameLinkageDifferentCU) {
@@ -216,7 +237,53 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
                        &getLocSection(), getStrSection(),
                        getStrOffsetsSection(), &getAddrSection(),
                        getLocSection(), isLittleEndian(), false, UV);
-    U.dump(OS, DumpOpts);
+    if (DumpSameLinkageDifferentCU) {
+      bool LinkageFound = false;
+      if (DWARFDie CUDie = U.getUnitDIE(false))
+        addLinkageNameAndObjectRefToMap(CUDie, MCObj, LinkageFound);
+    } else {
+      U.dump(OS, DumpOpts);
+    }
   }
   return Err;
+}
+
+Error CASDWARFObject::dumpSimilarCUs(
+    llvm::mccasformats::v1::MCSchema &MCSchema) {
+  for (auto KeyValue : MapOfLinkageNames) {
+    if (KeyValue.getSecond().size() != 1) {
+      for (auto Pair : KeyValue.getSecond()) {
+        Expected<MCObjectProxy> MCObj = MCSchema.get(Pair.first);
+        if (!MCObj)
+          return MCObj.takeError();
+        auto DWARFObj = std::make_unique<CASDWARFObject>(*this);
+        std::unique_ptr<DWARFContext> DWARFContextHolder =
+            std::make_unique<DWARFContext>(std::move(DWARFObj));
+        DWARFContext *DWARFCtx = DWARFContextHolder.get();
+        if (DebugInfoCURef::Cast(*MCObj)) {
+          DIDumpOptions DumpOpts;
+          DumpOpts.ShowChildren = true;
+          DWARFUnitVector UV;
+          uint64_t Address = 0;
+          DWARFSection Section = {CUDataVec[CompileUnitIndex], Address};
+          DWARFUnitHeader Header;
+          DWARFDebugAbbrev Abbrev;
+
+          Abbrev.extract(DataExtractor(getAbbrevSection(), isLittleEndian(),
+                                       getAddressSize()));
+          uint64_t offset_ptr = 0;
+          Header.extract(*DWARFCtx,
+                         DWARFDataExtractor(*this, Section, isLittleEndian(),
+                                            getAddressSize()),
+                         &offset_ptr, DWARFSectionKind::DW_SECT_INFO);
+          DWARFCompileUnit U(
+              *DWARFCtx, Section, Header, &Abbrev, &getRangesSection(),
+              &getLocSection(), getStrSection(), getStrOffsetsSection(),
+              &getAddrSection(), getLocSection(), isLittleEndian(), false, UV);
+          U.dump(llvm::outs(), DumpOpts);
+        }
+      }
+    }
+  }
+  return Error::success();
 }
