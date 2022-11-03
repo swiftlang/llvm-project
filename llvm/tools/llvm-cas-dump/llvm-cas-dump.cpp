@@ -43,6 +43,11 @@ cl::opt<bool>
              cl::desc("Print out the DW_FORMs in the dwarfdump output"));
 cl::opt<bool> Verbose("v", cl::desc("Enable verbse output in the dwarfdump"));
 
+cl::opt<bool> DumpSameLinkageDifferentCU(
+    "dump-same-link-diff-cu",
+    cl::desc("Dwarfdump the compile units that have the same linkage name but "
+             "different compile units in the the CAS"));
+
 namespace {
 
 /// If the input is a file (--casid-file), open the file given by `InputStr`

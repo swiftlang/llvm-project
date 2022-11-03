@@ -156,7 +156,8 @@ Error CASDWARFObject::discoverDwarfSections(MCObjectProxy MCObj) {
 }
 
 Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
-                           MCObjectProxy MCObj, bool ShowForm, bool Verbose) {
+                           MCObjectProxy MCObj, bool ShowForm, bool Verbose,
+                           bool DumpSameLinkageDifferentCU) {
   OS.indent(Indent);
   DIDumpOptions DumpOpts;
   DumpOpts.ShowChildren = true;
