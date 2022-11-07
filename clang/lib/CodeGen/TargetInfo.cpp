@@ -4592,19 +4592,23 @@ bool AIXTargetCodeGenInfo::initDwarfEHRegSizeTable(
 // PowerPC-32
 namespace {
 /// PPC32_SVR4_ABIInfo - The 32-bit PowerPC ELF (SVR4) ABI information.
-class PPC32_SVR4_ABIInfo : public DefaultABIInfo {
+class PPC32_SVR4_ABIInfo final : public SwiftABIInfo {
   bool IsSoftFloatABI;
   bool IsRetSmallStructInRegABI;
 
   CharUnits getParamTypeAlignment(QualType Ty) const;
 
+private:
+  DefaultABIInfo defaultInfo;
+
 public:
   PPC32_SVR4_ABIInfo(CodeGen::CodeGenTypes &CGT, bool SoftFloatABI,
                      bool RetSmallStructInRegABI)
-      : DefaultABIInfo(CGT), IsSoftFloatABI(SoftFloatABI),
-        IsRetSmallStructInRegABI(RetSmallStructInRegABI) {}
+      : SwiftABIInfo(CGT), IsSoftFloatABI(SoftFloatABI),
+        IsRetSmallStructInRegABI(RetSmallStructInRegABI), defaultInfo(CGT) {}
 
   ABIArgInfo classifyReturnType(QualType RetTy) const;
+  ABIArgInfo classifyArgumentType(QualType Ty) const;
 
   void computeInfo(CGFunctionInfo &FI) const override {
     if (!getCXXABI().classifyReturnType(FI))
@@ -4615,6 +4619,15 @@ public:
 
   Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
                     QualType Ty) const override;
+
+private:
+  bool shouldPassIndirectlyForSwift(ArrayRef<llvm::Type *> scalars,
+                                    bool asReturnValue) const override {
+    return occupiesMoreThan(CGT, scalars, /*total*/ 4);
+  }
+  bool isSwiftErrorInRegister() const override { return false; }
+  bool isLegalVectorTypeForSwift(CharUnits totalSize, llvm::Type *eltTy,
+                                 unsigned elts) const override;
 };
 
 class PPC32TargetCodeGenInfo : public TargetCodeGenInfo {
@@ -4686,7 +4699,25 @@ ABIArgInfo PPC32_SVR4_ABIInfo::classifyReturnType(QualType RetTy) const {
     }
   }
 
-  return DefaultABIInfo::classifyReturnType(RetTy);
+  return defaultInfo.classifyArgumentType(RetTy);
+}
+
+ABIArgInfo PPC32_SVR4_ABIInfo::classifyArgumentType(QualType Ty) const {
+  return defaultInfo.classifyArgumentType(Ty);
+}
+
+bool PPC32_SVR4_ABIInfo::isLegalVectorTypeForSwift(CharUnits vectorSize,
+                                                   llvm::Type *eltTy,
+                                                   unsigned numElts) const {
+  if (!llvm::isPowerOf2_32(numElts))
+    return false;
+  unsigned size = getDataLayout().getTypeStoreSizeInBits(eltTy);
+  if (size > 64)
+    return false;
+  if (vectorSize.getQuantity() != 8 &&
+      (vectorSize.getQuantity() != 16 || numElts == 1))
+    return false;
+  return true;
 }
 
 // TODO: this implementation is now likely redundant with
