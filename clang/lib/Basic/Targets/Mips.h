@@ -407,6 +407,17 @@ public:
 
   bool validateTarget(DiagnosticsEngine &Diags) const override;
   bool hasExtIntType() const override { return true; }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    switch (CC) {
+    case CC_Swift:
+      return CCCR_OK;
+    case CC_SwiftAsync:
+      return CCCR_Error;
+    default:
+      return CCCR_Warning;
+    }
+  }
 };
 } // namespace targets
 } // namespace clang
