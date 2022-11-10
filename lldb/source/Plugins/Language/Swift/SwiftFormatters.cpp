@@ -73,22 +73,30 @@ bool lldb_private::formatters::swift::SwiftSharedString_SummaryProvider(
       StringPrinter::ReadStringAndDumpToStreamOptions());
 }
 
-using StringSlice = std::pair<uint64_t, uint64_t>;
+struct StringSlice {
+  uint64_t start, end;
+};
 
 template <typename AddrT>
-static void applySlice(AddrT &address, uint64_t &length, StringSlice slice) {
-  // No slicing is performed when the slice starts beyond the string's bounds.
-  if (slice.first > length)
+static void applySlice(AddrT &address, uint64_t &length,
+                       Optional<StringSlice> slice) {
+  if (!slice)
     return;
 
-  auto offset = slice.first;
-  auto slice_length = slice.second - slice.first;
+  // No slicing is performed when the slice starts beyond the string's bounds.
+  if (slice->start > length)
+    return;
+
+  // The slicing logic does handle the corner case where slice->start == length.
+
+  auto offset = slice->start;
+  auto slice_length = slice->end - slice->start;
 
   // Adjust from the start.
   address += offset;
   length -= offset;
 
-  // Reduce to the slice length, unless it's larger than the given length.
+  // Reduce to the slice length, unless it's larger than the remaining length.
   length = std::min(slice_length, length);
 }
 
@@ -120,7 +128,7 @@ static bool makeStringGutsSummary(
     ValueObject &valobj, Stream &stream,
     const TypeSummaryOptions &summary_options,
     StringPrinter::ReadStringAndDumpToStreamOptions read_options,
-    StringSlice slice = {0, UINT64_MAX}) {
+    Optional<StringSlice> slice = None) {
   LLDB_SCOPED_TIMER();
 
   static ConstString g__object("_object");
@@ -301,7 +309,7 @@ static bool makeStringGutsSummary(
       return false;
 
     uint64_t rawBuffer[2] = {raw0, raw1};
-    auto *buffer = static_cast<uint8_t *>(static_cast<void *>(&rawBuffer));
+    auto *buffer = (uint8_t *)&rawBuffer;
     applySlice(buffer, count, slice);
 
     StringPrinter::ReadBufferAndDumpToStreamOptions options(read_options);
@@ -447,9 +455,9 @@ bool lldb_private::formatters::swift::Substring_SummaryProvider(
     return false;
 
   StringPrinter::ReadStringAndDumpToStreamOptions read_options;
-  return makeStringGutsSummary(
-      *guts_sp, stream, summary_options, read_options,
-      {start_index->encodedOffset(), end_index->encodedOffset()});
+  StringSlice slice{start_index->encodedOffset(), end_index->encodedOffset()};
+  return makeStringGutsSummary(*guts_sp, stream, summary_options, read_options,
+                               slice);
 }
 
 bool lldb_private::formatters::swift::StringIndex_SummaryProvider(
