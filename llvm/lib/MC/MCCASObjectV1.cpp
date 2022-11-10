@@ -46,6 +46,7 @@ constexpr StringLiteral PaddingRef::KindString;
   constexpr StringLiteral MCFragmentName##Ref::KindString;
 #include "llvm/MC/CAS/MCCASObjectV1.def"
 constexpr StringLiteral DebugInfoSectionRef::KindString;
+constexpr StringLiteral DebugInfoCURef::KindString;
 
 constexpr unsigned Dwarf4HeaderSize32Bit = 11;
 
@@ -93,6 +94,10 @@ template <> struct llvm::DenseMapInfo<llvm::dwarf::Form> {
   }
 };
 
+DenseMap<unsigned, cas::ObjectRef>
+    MCCASBuilder::DebugStringSectionContents::MapOfStringRefs =
+        DenseMap<unsigned, cas::ObjectRef>();
+
 /// A DWARFObject implementation that can be used to dwarfdump CAS-formatted
 /// debug info.
 class InMemoryCASDWARFObject : public DWARFObject {
@@ -120,8 +125,8 @@ public:
   struct PartitionedDebugInfoSection {
     SmallVector<char, 0> DebugInfoCURefData;
     SmallVector<char, 0> DistinctData;
-    constexpr static std::array FormsToPartition{
-        llvm::dwarf::Form::DW_FORM_strp};
+    SmallVector<cas::ObjectRef, 0> DebugStringRefs;
+    constexpr static std::array FormsToPartition{0};
   };
 
   /// Create a DwarfCompileUnit that represents the compile unit at \p CUOffset
@@ -131,8 +136,8 @@ public:
   /// deduplicate. Store both kinds of Forms in their own buffers per compile
   /// unit.
   Expected<PartitionedDebugInfoSection>
-  partitionCUData(ArrayRef<char> DebugInfoData, uint64_t AbbrevOffset,
-                  uint64_t CUOffset, DWARFContext *Ctx);
+  partitionCUData(MCCASBuilder &Builder, ArrayRef<char> DebugInfoData, uint64_t AbbrevOffset,
+                  uint64_t CUOffset, DWARFContext *Ctx, ArrayRef<DebugStrRef> DebugStringRefs);
 };
 
 struct CUInfo {
@@ -191,6 +196,7 @@ Error MCSchema::fillCache() {
       PaddingRef::KindString,
       MCAssemblerRef::KindString,
       DebugInfoSectionRef::KindString,
+      DebugInfoCURef::KindString,
 #define CASV1_SIMPLE_DATA_REF(RefName, IdentifierName) RefName::KindString,
 #define CASV1_SIMPLE_GROUP_REF(RefName, IdentifierName) RefName::KindString,
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
@@ -398,9 +404,9 @@ static Error decodeRelocationsAndAddends(MCCASReader &Reader, StringRef Data) {
   return Error::success();
 }
 
-static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
-                              SmallVectorImpl<char> &Data,
-                              SmallVectorImpl<cas::ObjectRef> &IDs) {
+Error MCObjectProxy::encodeReferences(ArrayRef<cas::ObjectRef> Refs,
+                                      SmallVectorImpl<char> &Data,
+                                      SmallVectorImpl<cas::ObjectRef> &IDs) {
   DenseMap<cas::ObjectRef, unsigned> RefMap;
   SmallVector<cas::ObjectRef> CompactRefs;
   for (const auto &ID : Refs) {
@@ -430,8 +436,9 @@ static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
   return Error::success();
 }
 
-static Expected<SmallVector<cas::ObjectRef>>
-decodeReferences(const MCObjectProxy &Node, StringRef &Remaining) {
+Expected<SmallVector<cas::ObjectRef>>
+MCObjectProxy::decodeReferences(const MCObjectProxy &Node,
+                                StringRef &Remaining) {
   Expected<SmallVector<cas::ObjectRef>> MaybeRefs = loadReferences(Node);
   if (!MaybeRefs)
     return MaybeRefs.takeError();
@@ -458,6 +465,27 @@ decodeReferences(const MCObjectProxy &Node, StringRef &Remaining) {
   }
 
   return CompactRefs;
+}
+
+Expected<DebugInfoCURef> DebugInfoCURef::create(MCCASBuilder &MB,
+                                                StringRef Name,
+                                                ArrayRef<cas::ObjectRef> Refs) {
+  auto B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+
+  if (auto E = encodeReferences(Refs, B->Data, B->Refs))
+    return std::move(E);
+
+  B->Data.append(Name);
+  return get(B->build());
+}
+
+Expected<DebugInfoCURef> DebugInfoCURef::get(Expected<MCObjectProxy> Ref) {
+  auto Specific = SpecificRefT::getSpecific(std::move(Ref));
+  if (!Specific)
+    return Specific.takeError();
+  return DebugInfoCURef(*Specific);
 }
 
 Expected<GroupRef> GroupRef::create(MCCASBuilder &MB,
@@ -507,7 +535,7 @@ Expected<LoadedDebugAbbrevSection>
 LoadedDebugAbbrevSection::load(DebugAbbrevSectionRef Section) {
 
   StringRef Remaining = Section.getData();
-  auto Refs = decodeReferences(Section, Remaining);
+  auto Refs = MCObjectProxy::decodeReferences(Section, Remaining);
   if (!Refs)
     return Refs.takeError();
 
@@ -552,7 +580,7 @@ Expected<LoadedDebugLineSection>
 LoadedDebugLineSection::load(DebugLineSectionRef Section) {
 
   StringRef Remaining = Section.getData();
-  auto Refs = decodeReferences(Section, Remaining);
+  auto Refs = MCObjectProxy::decodeReferences(Section, Remaining);
   if (!Refs)
     return Refs.takeError();
 
@@ -576,9 +604,56 @@ LoadedDebugLineSection::load(DebugLineSectionRef Section) {
   return LoadedSection;
 }
 
+struct LoadedDebugStringSection {
+  DenseMap<cas::ObjectRef, unsigned> MapOfStringOffsets;
+
+  static Expected<LoadedDebugStringSection> load(DebugStringSectionRef Section);
+
+private:
+  /// Extracts the information contained in \p Proxy, which must be either an
+  /// StrRef or a PaddingNode.
+  Error addNode(Expected<MCObjectProxy> Proxy, unsigned &StringOffset) {
+    if (!Proxy)
+      return Proxy.takeError();
+    if (auto StrRef = DebugStrRef::Cast(*Proxy)) {
+      MapOfStringOffsets.try_emplace(StrRef->getRef(), StringOffset);
+      StringOffset += StrRef->getData().size() + 1;
+    } else
+      return createStringError(inconvertibleErrorCode(),
+                               "Invalid node for Debug Info section");
+    return Error::success();
+  }
+};
+
+Expected<LoadedDebugStringSection>
+LoadedDebugStringSection::load(DebugStringSectionRef Section) {
+
+  StringRef Remaining = Section.getData();
+  auto Refs = MCObjectProxy::decodeReferences(Section, Remaining);
+  if (!Refs)
+    return Refs.takeError();
+
+  const MCSchema &Schema = Section.getSchema();
+  cas::ObjectStore &CAS = Schema.CAS;
+  auto loadRef = [&](cas::ObjectRef Ref) {
+    return MCObjectProxy::get(Schema, CAS.getProxy(Ref));
+  };
+
+  LoadedDebugStringSection LoadedSection;
+  // TODO: Add support for 64 bit dwarf format
+  unsigned StringOffset = 0;
+  for (auto Ref : *Refs) {
+    if (auto E = LoadedSection.addNode(loadRef(Ref), StringOffset))
+      return std::move(E);
+  }
+
+  return LoadedSection;
+}
+
 struct DebugInfoMaterializationSecs {
   Optional<DebugAbbrevSectionRef> AbbrevSectionRef;
   Optional<DebugLineSectionRef> LineSectionRef;
+  Optional<DebugStringSectionRef> StringSectionRef;
 };
 
 Expected<DebugInfoMaterializationSecs>
@@ -592,6 +667,8 @@ findSectionRef(MCCASReader &Reader, ArrayRef<cas::ObjectRef> Refs) {
       DebugRefs.AbbrevSectionRef = AbbrevSectionRef;
     else if (auto LineSectionRef = DebugLineSectionRef::Cast(*Node))
       DebugRefs.LineSectionRef = LineSectionRef;
+    else if (auto StringSectionRef = DebugStringSectionRef::Cast(*Node))
+      DebugRefs.StringSectionRef = StringSectionRef;
   }
   if (!DebugRefs.AbbrevSectionRef)
     return createStringError(inconvertibleErrorCode(),
@@ -599,6 +676,9 @@ findSectionRef(MCCASReader &Reader, ArrayRef<cas::ObjectRef> Refs) {
   if (!DebugRefs.LineSectionRef)
     return createStringError(inconvertibleErrorCode(),
                              "Could not find a DebugLineSectionRef");
+  if (!DebugRefs.StringSectionRef)
+    return createStringError(inconvertibleErrorCode(),
+                             "Could not find a DebugStringSectionRef");
   return DebugRefs;
 }
 
@@ -616,13 +696,18 @@ materializeDebugInfoSection(MCCASReader &Reader, ArrayRef<cas::ObjectRef> Refs,
       LoadedDebugAbbrevSection::load(*DebugRefs->AbbrevSectionRef);
   if (!LoadedAbbrev)
     return LoadedAbbrev.takeError();
+  auto LoadedString =
+      LoadedDebugStringSection::load(*DebugRefs->StringSectionRef);
+  if (!LoadedString)
+    return LoadedString.takeError();
 
   auto LoadedLine = LoadedDebugLineSection::load(*DebugRefs->LineSectionRef);
   if (!LoadedLine)
     return LoadedLine.takeError();
 
   return DebugInfoRef.materialize(Reader, LoadedAbbrev->AbbrevContents,
-                                  LoadedLine->SecOffsetVals, &Reader.OS);
+                                  LoadedLine->SecOffsetVals,
+                                  LoadedString->MapOfStringOffsets, &Reader.OS);
 }
 
 Expected<uint64_t> GroupRef::materialize(MCCASReader &Reader,
@@ -746,11 +831,27 @@ DebugLineSectionRef::create(MCCASBuilder &MB,
   return get(B->build());
 }
 
+Expected<DebugStringSectionRef>
+DebugStringSectionRef::create(MCCASBuilder &MB,
+                              ArrayRef<cas::ObjectRef> Fragments) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+
+  if (auto E = encodeReferences(Fragments, B->Data, B->Refs))
+    return std::move(E);
+
+  writeRelocationsAndAddends(MB.getSectionRelocs(), MB.getSectionAddends(),
+                             B->Data);
+  return get(B->build());
+}
+
 /// Class that represents a fully verified DebugInfoSectionRef object loaded
 /// from the CAS.
 struct LoadedDebugInfoSection {
   StringRef DistinctData;
   SmallVector<size_t, 0> AbbrevOffsets;
+  SmallVector<SmallVector<cas::ObjectRef>> DebugStringRefs;
   SmallVector<StringRef, 0> CUData;
   Optional<PaddingRef> Padding;
   StringRef RelocationData;
@@ -797,7 +898,14 @@ private:
       if (Padding.has_value())
         return createStringError(inconvertibleErrorCode(),
                                  "Invalid CURef after PaddingRef");
-      CUData.push_back(CURef->getData());
+
+      StringRef Remaining = CURef->getData();
+      auto DebugStrRefs = MCObjectProxy::decodeReferences(*Proxy, Remaining);
+      if (!DebugStrRefs)
+        return DebugStrRefs.takeError();
+      DebugStringRefs.resize(DebugStringRefs.size() + 1);
+      DebugStringRefs.back().append(*DebugStrRefs);
+      CUData.push_back(Remaining);
     } else if (auto PaddingNode = PaddingRef::Cast(*Proxy)) {
       if (Padding.has_value())
         return createStringError(inconvertibleErrorCode(),
@@ -1021,10 +1129,10 @@ static Expected<uint64_t> getFormSize(dwarf::Form FormVal, dwarf::FormParams FP,
 
 static Error
 materializeCUDie(DWARFCompileUnit &DCU, MutableArrayRef<char> SectionContents,
-                 StringRef CUData, ArrayRef<char> DistinctDataArrayRef,
+                 StringRef CUData, ArrayRef<char> DistinctDataArrayRef, DenseMap<cas::ObjectRef, unsigned> &MapOfStringOffsets, ArrayRef<cas::ObjectRef> DebugStringRefsVec,
                  ArrayRef<uint32_t> SecOffsetVals, unsigned &SecOffsetIndex,
                  uint64_t &CUOffset, uint64_t &DistinctDataOffset,
-                 uint64_t &SectionOffset) {
+                 uint64_t &SectionOffset, unsigned &DebugStringIndex) {
   // Copy Abbrev Tag.
   DWARFDataExtractor DWARFExtractor(CUData, DCU.isLittleEndian(),
                                     DCU.getAddressByteSize());
@@ -1074,7 +1182,9 @@ materializeCUDie(DWARFCompileUnit &DCU, MutableArrayRef<char> SectionContents,
     if (!*FormSize)
       continue;
     bool DidOverflow = false;
-    if (FormInDistinctDataRef) {
+    if (FormInDistinctDataRef ||
+        AbbrevDecl->getAttrByIndex(I) == dwarf::DW_AT_name ||
+        AbbrevDecl->getAttrByIndex(I) == dwarf::DW_AT_linkage_name) {
       auto Value = SaturatingAdd(*FormSize, DistinctDataOffset, &DidOverflow);
       if (DidOverflow)
         return createStringError(
@@ -1097,6 +1207,15 @@ materializeCUDie(DWARFCompileUnit &DCU, MutableArrayRef<char> SectionContents,
       // sec_offsets.
       if (SecOffsetVals.size() > 1)
         SecOffsetIndex++;
+    } else if (Form == dwarf::DW_FORM_strp) {
+      auto StringOffsetIt =
+          MapOfStringOffsets.find(DebugStringRefsVec[DebugStringIndex]);
+      if (StringOffsetIt == MapOfStringOffsets.end())
+        return createStringError(inconvertibleErrorCode(),
+                                 "Could not find DebugStrRef offset in map");
+      // TODO: Add support for 64 bit DWARF
+      memcpy(&SectionContents[SectionOffset], &StringOffsetIt->second, 4);
+      DebugStringIndex++;
     } else {
       auto Value = SaturatingAdd(*FormSize, CUOffset, &DidOverflow);
       if (DidOverflow)
@@ -1116,7 +1235,9 @@ materializeCUDie(DWARFCompileUnit &DCU, MutableArrayRef<char> SectionContents,
 
 Expected<uint64_t> DebugInfoSectionRef::materialize(
     MCCASReader &Reader, ArrayRef<char> AbbrevSectionContents,
-    ArrayRef<uint32_t> SecOffsetVals, raw_ostream *Stream) const {
+    ArrayRef<uint32_t> SecOffsetVals,
+    DenseMap<cas::ObjectRef, unsigned> &MapOfStringOffsets,
+    raw_ostream *Stream) const {
   // Start a new section for relocations.
   Reader.Relocations.emplace_back();
   auto LoadedSection = LoadedDebugInfoSection::load(*this);
@@ -1149,7 +1270,11 @@ Expected<uint64_t> DebugInfoSectionRef::materialize(
                                Reader.getEndian() == support::little, 8));
   uint64_t DistinctDataOffset = 0;
   unsigned SecOffsetIndex = 0;
-  for (auto CUData : CUContents) {
+  assert(CUContents.size() == LoadedSection->DebugStringRefs.size() &&
+         "Number of Compile Units and number of DebugStringRef vectors must be "
+         "the same!");
+  for (auto [CUData, DebugStringRefVec] :
+       llvm::zip(CUContents, LoadedSection->DebugStringRefs)) {
 
     uint64_t OffsetPtr = 0;
     DWARFUnitHeader Header;
@@ -1203,12 +1328,14 @@ Expected<uint64_t> DebugInfoSectionRef::materialize(
                          CASObj.getStrSection(), CASObj.getStrOffsetsSection(),
                          &CASObj.getAddrSection(), CASObj.getLocSection(),
                          Reader.getEndian() == support::little, false, UV);
+    
+    unsigned DebugStringIndex = 0;
     while (SectionOffset < SectionData.size()) {
       auto Err = materializeCUDie(
           DCU, SectionData, toStringRef(CUData),
-          arrayRefFromStringRef<char>(LoadedSection->DistinctData),
+          arrayRefFromStringRef<char>(LoadedSection->DistinctData), MapOfStringOffsets, DebugStringRefVec, 
           SecOffsetVals, SecOffsetIndex, CUOffset, DistinctDataOffset,
-          SectionOffset);
+          SectionOffset, DebugStringIndex);
       if (Err)
         return std::move(Err);
     }
@@ -1306,6 +1433,39 @@ DebugAbbrevSectionRef::materialize(MCCASReader &Reader,
 
 Expected<uint64_t> DebugLineSectionRef::materialize(MCCASReader &Reader,
                                                     raw_ostream *Stream) const {
+// Start a new section for relocations.
+  Reader.Relocations.emplace_back();
+  SmallVector<char, 0> SectionContents;
+  raw_svector_ostream SectionStream(SectionContents);
+
+  unsigned Size = 0;
+  StringRef Remaining = getData();
+  auto Refs = decodeReferences(*this, Remaining);
+  if (!Refs)
+    return Refs.takeError();
+
+  for (auto ID : *Refs) {
+    auto FragmentSize = Reader.materializeSection(ID, &SectionStream);
+    if (!FragmentSize)
+      return FragmentSize.takeError();
+    Size += *FragmentSize;
+  }
+
+  if (auto E = decodeRelocationsAndAddends(Reader, Remaining))
+    return std::move(E);
+
+  if (auto E = applyAddends(Reader, SectionContents))
+    return std::move(E);
+
+  Reader.Addends.clear();
+  Reader.OS << SectionContents;
+
+  return Size;
+}
+
+Expected<uint64_t>
+DebugStringSectionRef::materialize(MCCASReader &Reader,
+                                   raw_ostream *Stream) const {
   // Start a new section for relocations.
   Reader.Relocations.emplace_back();
   SmallVector<char, 0> SectionContents;
@@ -1841,15 +2001,17 @@ Error MCCASBuilder::createPaddingRef(const MCSection *Sec) {
 }
 
 Error MCCASBuilder::createStringSection(
-    StringRef S, std::function<Error(StringRef)> CreateFn) {
+    StringRef S, std::function<Error(StringRef, unsigned)> CreateFn) {
   assert(S.endswith("\0") && "String sections are null terminated");
+  unsigned DebugStringOffset = 0;
   if (!SplitStringSections)
-    return CreateFn(S);
+    return CreateFn(S, DebugStringOffset);
 
   while (!S.empty()) {
     auto SplitSym = S.split('\0');
-    if (auto E = CreateFn(SplitSym.first))
+    if (auto E = CreateFn(SplitSym.first, DebugStringOffset))
       return E;
+    DebugStringOffset += SplitSym.first.size() + 1;
 
     S = SplitSym.second;
   }
@@ -2062,7 +2224,7 @@ DebugAbbrevOffsetsRefAdaptor::encodeOffsets(ArrayRef<size_t> Offsets) {
   return EncodedOffsets;
 }
 
-static void partitionCUDie(
+static void partitionCUDie(MCCASBuilder &Builder,
     InMemoryCASDWARFObject::PartitionedDebugInfoSection &PartitionedData,
     DWARFDie &CUDie, ArrayRef<char> DebugInfoData, uint64_t &CUOffset,
     bool IsLittleEndian, uint8_t AddressSize) {
@@ -2078,10 +2240,20 @@ static void partitionCUDie(
   for (const DWARFAttribute &AttrValue : CUDie.attributes()) {
     if (is_contained(InMemoryCASDWARFObject::PartitionedDebugInfoSection::
                          FormsToPartition,
-                     AttrValue.Value.getForm()))
+                     AttrValue.Value.getForm()) ||
+        AttrValue.Attr == llvm::dwarf::DW_AT_name ||
+        AttrValue.Attr == llvm::dwarf::DW_AT_linkage_name) {
       append_range(PartitionedData.DistinctData,
                    DebugInfoData.slice(AttrValue.Offset, AttrValue.ByteSize));
-    else if (AttrValue.Attr != llvm::dwarf::DW_AT_stmt_list)
+    } else if (AttrValue.Value.getForm() == llvm::dwarf::DW_FORM_strp) {
+      // TODO: Add support for 64-bit DWARF
+      uint32_t StringOffset;
+      memcpy(&StringOffset, &DebugInfoData[AttrValue.Offset], 4);
+      auto StringRef = Builder.getObjectRefFromStringMap(StringOffset);
+      if (!StringRef)
+        llvm_unreachable("Strp value not found in debug string section!");
+      PartitionedData.DebugStringRefs.push_back(*StringRef);
+    } else if (AttrValue.Attr != llvm::dwarf::DW_AT_stmt_list)
       append_range(PartitionedData.DebugInfoCURefData,
                    DebugInfoData.slice(AttrValue.Offset, AttrValue.ByteSize));
     CUOffset += AttrValue.ByteSize;
@@ -2089,7 +2261,7 @@ static void partitionCUDie(
 
   DWARFDie Child = CUDie.getFirstChild();
   while (Child && Child.getAbbreviationDeclarationPtr()) {
-    partitionCUDie(PartitionedData, Child, DebugInfoData, CUOffset,
+    partitionCUDie(Builder, PartitionedData, Child, DebugInfoData, CUOffset,
                    IsLittleEndian, AddressSize);
     Child = Child.getSibling();
   }
@@ -2100,9 +2272,9 @@ static void partitionCUDie(
 }
 
 Expected<InMemoryCASDWARFObject::PartitionedDebugInfoSection>
-InMemoryCASDWARFObject::partitionCUData(ArrayRef<char> DebugInfoData,
+InMemoryCASDWARFObject::partitionCUData(MCCASBuilder &Builder, ArrayRef<char> DebugInfoData,
                                         uint64_t AbbrevOffset,
-                                        uint64_t CUOffset, DWARFContext *Ctx) {
+                                        uint64_t CUOffset, DWARFContext *Ctx, ArrayRef<DebugStrRef> DebugStringRefs) {
 
   StringRef AbbrevSectionContribution =
       getAbbrevSection().drop_front(AbbrevOffset);
@@ -2153,13 +2325,14 @@ InMemoryCASDWARFObject::partitionCUData(ArrayRef<char> DebugInfoData,
     if (!C)
       return C.takeError();
 
-    partitionCUDie(PartitionedData, CUDie, DebugInfoData, CUOffset,
+    partitionCUDie(Builder, PartitionedData, CUDie, DebugInfoData, CUOffset,
                    IsLittleEndian, DCU.getAddressByteSize());
   }
   return PartitionedData;
 }
 
-Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
+Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections(
+    ArrayRef<DebugStrRef> DebugStringRefs) {
   if (!DwarfSections.DebugInfo)
     return AbbrevAndDebugSplit{};
 
@@ -2199,13 +2372,14 @@ Expected<AbbrevAndDebugSplit> MCCASBuilder::splitDebugInfoAndAbbrevSections() {
        llvm::zip(SplitInfo->SplitCUData, SplitInfo->AbbrevOffsets)) {
     uint64_t CUOffset = 0;
     auto PartitionedData =
-        CASObj.partitionCUData(CUData, AbbrevOffset, CUOffset, DWARFCtx);
+        CASObj.partitionCUData(*this, CUData, AbbrevOffset, CUOffset, DWARFCtx, DebugStringRefs);
     if (!PartitionedData)
       return PartitionedData.takeError();
     DistinctData.append(PartitionedData->DistinctData.begin(),
                         PartitionedData->DistinctData.end());
     auto DbgInfoRef = DebugInfoCURef::create(
-        *this, toStringRef(PartitionedData->DebugInfoCURefData));
+        *this, toStringRef(PartitionedData->DebugInfoCURefData),
+        PartitionedData->DebugStringRefs);
     if (!DbgInfoRef)
       return DbgInfoRef.takeError();
     CURefs.push_back(*DbgInfoRef);
@@ -2259,25 +2433,13 @@ Error MCCASBuilder::createLineSection() {
   return finalizeSection<DebugLineSectionRef>();
 }
 
-Error MCCASBuilder::createDebugStrSection() {
-  assert(DwarfSections.Str->getFragmentList().size() == 1 &&
-         "One fragment in debug str section");
+Error MCCASBuilder::createDebugStrSection(
+    ArrayRef<DebugStrRef> DebugStringRefs) {
 
   startSection(DwarfSections.Str);
-
-  ArrayRef<char> DebugStrData =
-      cast<MCDataFragment>(*DwarfSections.Str->begin()).getContents();
-  StringRef S(DebugStrData.data(), DebugStrData.size());
-  if (auto E = createStringSection(S, [&](StringRef S) -> Error {
-        auto Sym = DebugStrRef::create(*this, S);
-        if (!Sym)
-          return Sym.takeError();
-        addNode(*Sym);
-        return Error::success();
-      }))
-    return E;
-
-  return finalizeSection();
+  for (auto DebugStringRef : DebugStringRefs)
+    addNode(DebugStringRef);
+  return finalizeSection<DebugStringSectionRef>();
 }
 
 static void createAddendVector(
@@ -2293,11 +2455,41 @@ static void createAddendVector(
          Addend.Size});
 }
 
+Expected<MCCASBuilder::DebugStringSectionContents>
+MCCASBuilder::createDebugStringRefs() {
+  if (!DwarfSections.Str || !DwarfSections.Str->getFragmentList().size())
+    return DebugStringSectionContents{};
+
+  assert(DwarfSections.Str->getFragmentList().size() == 1 &&
+         "One fragment in debug str section");
+
+  DebugStringSectionContents DebugStringContents;
+  ArrayRef<char> DebugStrData =
+      cast<MCDataFragment>(*DwarfSections.Str->begin()).getContents();
+  StringRef S(DebugStrData.data(), DebugStrData.size());
+  if (auto E = createStringSection(
+          S, [&](StringRef S, unsigned DebugStringOffset) -> Error {
+            auto Sym = DebugStrRef::create(*this, S);
+            if (!Sym)
+              return Sym.takeError();
+            DebugStringContents.DebugStringRefs.push_back(*Sym);
+            DebugStringSectionContents::MapOfStringRefs.try_emplace(
+                DebugStringOffset, Sym->getRef());
+            return Error::success();
+          }))
+    return E;
+  return DebugStringContents;
+}
+
 Error MCCASBuilder::buildFragments() {
   startGroup();
 
+  auto DebugStringContents = createDebugStringRefs();
+  if (!DebugStringContents)
+    return DebugStringContents.takeError();
+
   Expected<AbbrevAndDebugSplit> AbbrevAndCURefs =
-      splitDebugInfoAndAbbrevSections();
+      splitDebugInfoAndAbbrevSections(DebugStringContents->DebugStringRefs);
   if (!AbbrevAndCURefs)
     return AbbrevAndCURefs.takeError();
 
@@ -2330,7 +2522,7 @@ Error MCCASBuilder::buildFragments() {
 
     // Handle Debug Str sections separately.
     if (&Sec == DwarfSections.Str) {
-      if (auto E = createDebugStrSection())
+      if (auto E = createDebugStrSection(DebugStringContents->DebugStringRefs))
         return E;
       continue;
     }
@@ -2410,13 +2602,14 @@ Error MCCASBuilder::buildSymbolTable() {
   ObjectWriter.writeSymbolTable(Asm, Layout);
   StringRef S = ObjectWriter.getContent();
   std::vector<cas::ObjectRef> CStrings;
-  if (auto E = createStringSection(S, [&](StringRef S) -> Error {
-        auto Sym = CStringRef::create(*this, S);
-        if (!Sym)
-          return Sym.takeError();
-        CStrings.push_back(Sym->getRef());
-        return Error::success();
-      }))
+  if (auto E = createStringSection(
+          S, [&](StringRef S, unsigned DebugStringOffset) -> Error {
+            auto Sym = CStringRef::create(*this, S);
+            if (!Sym)
+              return Sym.takeError();
+            CStrings.push_back(Sym->getRef());
+            return Error::success();
+          }))
     return E;
 
   auto Ref = SymbolTableRef::create(*this, CStrings);
@@ -2665,6 +2858,8 @@ Expected<uint64_t> MCCASReader::materializeGroup(cas::ObjectRef ID) {
 
   // Group can have sections, symbol table strs.
   if (auto F = SectionRef::Cast(*Node))
+    return F->materialize(*this);
+  if (auto F = DebugStringSectionRef::Cast(*Node))
     return F->materialize(*this);
   if (auto F = CStringRef::Cast(*Node)) {
     auto Size = F->materialize(OS);

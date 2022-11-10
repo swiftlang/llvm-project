@@ -145,6 +145,13 @@ public:
 
   MCObjectProxy() = delete;
 
+  static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
+                                SmallVectorImpl<char> &Data,
+                                SmallVectorImpl<cas::ObjectRef> &IDs);
+
+  static Expected<SmallVector<cas::ObjectRef>>
+  decodeReferences(const MCObjectProxy &Node, StringRef &Remaining);
+
 protected:
   MCObjectProxy(const MCSchema &Schema, const cas::ObjectProxy &Node)
       : cas::ObjectProxy(Node), Schema(&Schema) {}
@@ -402,6 +409,34 @@ private:
   MCAssemblerRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
 };
 
+class DebugInfoCURef : public SpecificRef<DebugInfoCURef> {
+  using SpecificRefT = SpecificRef<DebugInfoCURef>;
+  friend class SpecificRef<DebugInfoCURef>;
+
+public:
+  static constexpr StringLiteral KindString = "mc:debug_info_cu";
+  static Expected<DebugInfoCURef> create(MCCASBuilder &MB, StringRef Data,
+                                         ArrayRef<cas::ObjectRef> Refs);
+  static Expected<DebugInfoCURef> get(Expected<MCObjectProxy> Ref);
+  static Expected<DebugInfoCURef> get(const MCSchema &Schema,
+                                      cas::ObjectRef ID) {
+    return get(Schema.get(ID));
+  }
+  static Optional<DebugInfoCURef> Cast(MCObjectProxy Ref) {
+    auto Specific = SpecificRefT::Cast(Ref);
+    if (!Specific)
+      return None;
+    return DebugInfoCURef(*Specific);
+  }
+  Expected<uint64_t> materialize(raw_ostream &OS) const {
+    OS << getData();
+    return getData().size();
+  }
+
+private:
+  explicit DebugInfoCURef(SpecificRefT Ref) : SpecificRefT(Ref) {}
+};
+
 struct DwarfSectionsCache {
   MCSection *DebugInfo;
   MCSection *Line;
@@ -497,6 +532,15 @@ public:
     return AtomAddends;
   }
 
+  Optional<cas::ObjectRef>
+  getObjectRefFromStringMap(unsigned StringOffset) const {
+    auto StringRefIt =
+        DebugStringSectionContents::MapOfStringRefs.find(StringOffset);
+    if (StringRefIt != DebugStringSectionContents::MapOfStringRefs.end())
+      return StringRefIt->getSecond();
+    return None;
+  }
+
   // Scratch space
   SmallString<8> FragmentData;
   raw_svector_ostream FragmentOS;
@@ -510,7 +554,7 @@ private:
 
   // Helper functions.
   Error createStringSection(StringRef S,
-                            std::function<Error(StringRef)> CreateFn);
+                            std::function<Error(StringRef, unsigned)> CreateFn);
 
   // If a DWARF Line Section exists, create a DebugLineRef CAS object per
   // function contribution to the line table.
@@ -522,7 +566,8 @@ private:
   /// A pair of vectors with the CAS objects is returned.
   /// The CAS objects appear in the same order as in the object file.
   /// If the section doesn't exist, an empty container is returned.
-  Expected<AbbrevAndDebugSplit> splitDebugInfoAndAbbrevSections();
+  Expected<AbbrevAndDebugSplit>
+  splitDebugInfoAndAbbrevSections(ArrayRef<DebugStrRef> DebugStringRefs);
 
   /// If CURefs is non-empty, create a SectionRef CAS object with edges to all
   /// CURefs. Otherwise, no objects are created and `success` is returned.
@@ -543,6 +588,13 @@ private:
   splitAbbrevSection(ArrayRef<size_t> AbbrevOffsets,
                      ArrayRef<char> FullAbbrevData);
 
+  struct DebugStringSectionContents {
+    SmallVector<DebugStrRef, 0> DebugStringRefs;
+    static DenseMap<unsigned, cas::ObjectRef> MapOfStringRefs;
+  };
+
+  Expected<DebugStringSectionContents> createDebugStringRefs();
+
   struct CUSplit {
     SmallVector<MutableArrayRef<char>> SplitCUData;
     SmallVector<size_t> AbbrevOffsets;
@@ -555,7 +607,7 @@ private:
 
   // If a DWARF String section exists, create a DebugStrRef CAS object per
   // string in the section.
-  Error createDebugStrSection();
+  Error createDebugStrSection(ArrayRef<DebugStrRef> DebugStringRefs);
 
   /// If there is any padding between one section and the next, create a
   /// PaddingRef CAS object to represent the bytes of Padding between the two
@@ -632,10 +684,11 @@ public:
       return None;
     return DebugInfoSectionRef(*Specific);
   }
-  Expected<uint64_t> materialize(MCCASReader &Reader,
-                                 ArrayRef<char> AbbrevSectionContents,
-                                 ArrayRef<uint32_t> SecOffsetVals,
-                                 raw_ostream *Stream = nullptr) const;
+  
+  Expected<uint64_t>
+  materialize(MCCASReader &Reader, ArrayRef<char> AbbrevSectionContents, ArrayRef<uint32_t> SecOffsetVals,
+              DenseMap<cas::ObjectRef, unsigned> &MapOfStringOffsets,
+              raw_ostream *Stream = nullptr) const;
 
 private:
   explicit DebugInfoSectionRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
