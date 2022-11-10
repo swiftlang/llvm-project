@@ -218,6 +218,7 @@ static Optional<StringRef> getLinkageName(DWARFDie &CUDie) {
     if (Name)
       return Name;
   }
+  return None;
 }
 
 static void findStrpsInCompileUnit(DWARFDie &CUDie, raw_ostream &OS) {
@@ -270,12 +271,12 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
   DumpOpts.ShowChildren = true;
   DumpOpts.ShowForm = ShowForm;
   DumpOpts.Verbose = Verbose;
-  Error Err = Error::success();
   StringRef Data = MCObj.getData();
   if (Data.empty())
-    return Err;
+    return Error::success();
   if (DebugStrRef::Cast(MCObj) && !DumpSameLinkageDifferentCU) {
     // Dump __debug_str data.
+    Error Err = Error::success();
     assert(Data.data()[Data.size()] == 0);
     DataExtractor StrData(StringRef(Data.data(), Data.size() + 1),
                           isLittleEndian(), 0);
@@ -340,7 +341,7 @@ Error CASDWARFObject::dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
       U.dump(OS, DumpOpts);
     }
   }
-  return Err;
+  return Error::success();
 }
 
 Error CASDWARFObject::dumpSimilarCUs() {
