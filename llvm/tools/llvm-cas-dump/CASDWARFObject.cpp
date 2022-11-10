@@ -229,7 +229,7 @@ static void findStrpsInCompileUnit(DWARFDie &CUDie, raw_ostream &OS) {
     }
   }
   DWARFDie Child = CUDie.getFirstChild();
-  while (Child) {
+  while (Child && Child.getAbbreviationDeclarationPtr()) {
     findStrpsInCompileUnit(Child, OS);
     Child = Child.getSibling();
   }
