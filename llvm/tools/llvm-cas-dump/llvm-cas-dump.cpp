@@ -43,6 +43,11 @@ cl::opt<bool>
              cl::desc("Print out the DW_FORMs in the dwarfdump output"));
 cl::opt<bool> Verbose("v", cl::desc("Enable verbse output in the dwarfdump"));
 
+cl::opt<bool> DumpSameLinkageDifferentCU(
+    "dump-same-link-diff-cu",
+    cl::desc("Dwarfdump the compile units that have the same linkage name but "
+             "different compile units in the the CAS"));
+
 namespace {
 
 /// If the input is a file (--casid-file), open the file given by `InputStr`
@@ -66,13 +71,19 @@ int main(int argc, char *argv[]) {
   ExitOnErr.setBanner(std::string(argv[0]) + ": ");
 
   cl::ParseCommandLineOptions(argc, argv);
-  PrinterOptions Options = {
-      DwarfSectionsOnly, DwarfDump, DebugAbbrevOffsets, HexDump, HexDumpOneLine,
-      ShowForm,          Verbose};
+  PrinterOptions Options = {DwarfSectionsOnly,
+                            DwarfDump,
+                            DebugAbbrevOffsets,
+                            HexDump,
+                            HexDumpOneLine,
+                            ShowForm,
+                            Verbose,
+                            DumpSameLinkageDifferentCU};
 
   std::unique_ptr<ObjectStore> CAS = ExitOnErr(createOnDiskCAS(CASPath));
   MCCASPrinter Printer(Options, *CAS, llvm::outs());
 
+  uint64_t count = 0;
   for (StringRef InputStr : InputStrings) {
     auto ID = getCASIDFromInput(*CAS, InputStr);
 
@@ -89,6 +100,11 @@ int main(int argc, char *argv[]) {
       ExitOnErr(Obj.takeError());
 
     ExitOnErr(Printer.printMCObject(*Ref, *Obj));
+    count++;
   }
+  
+  if (Options.DumpSameLinkageDifferentCU)
+      ExitOnErr(CASDWARFObject::dumpSimilarCUs());
+
   return 0;
 }

@@ -145,6 +145,13 @@ public:
 
   MCObjectProxy() = delete;
 
+  static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
+                                SmallVectorImpl<char> &Data,
+                                SmallVectorImpl<cas::ObjectRef> &IDs);
+
+  static Expected<SmallVector<cas::ObjectRef>>
+  decodeReferences(const MCObjectProxy &Node, StringRef &Remaining);
+
 protected:
   MCObjectProxy(const MCSchema &Schema, const cas::ObjectProxy &Node)
       : cas::ObjectProxy(Node), Schema(&Schema) {}

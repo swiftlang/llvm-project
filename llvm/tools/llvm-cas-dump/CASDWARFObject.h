@@ -16,6 +16,8 @@
 #include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
 #include "llvm/DebugInfo/DWARF/DWARFObject.h"
 #include "llvm/MC/CAS/MCCASObjectV1.h"
+#include <unordered_map>
+#include <unordered_set>
 
 namespace llvm {
 
@@ -32,6 +34,9 @@ class CASDWARFObject : public DWARFObject {
   SmallVector<StringRef> CUDataVec;
   SmallVector<uint32_t> SecOffsetVals;
   unsigned LineTableOffset = 0;
+  DenseMap<cas::ObjectRef, unsigned> MapOfStringOffsets;
+  static std::unordered_map<std::string, std::unordered_set<std::string>>
+      MapOfLinkageNames;
   unsigned CompileUnitIndex = 0;
 
   const mccasformats::v1::MCSchema &Schema;
@@ -45,6 +50,10 @@ class CASDWARFObject : public DWARFObject {
   /// raw_ostream &OS);
   Error discoverDebugInfoSection(cas::ObjectRef CASObj, raw_ostream &OS);
 
+  void addLinkageNameAndObjectRefToMap(DWARFDie &CUDie,
+                                       mccasformats::v1::MCObjectProxy MCObj,
+                                       bool &LinkageFound, DWARFUnit &U, DIDumpOptions &DumpOpts);
+
 public:
   CASDWARFObject(const mccasformats::v1::MCSchema &Schema) : Schema(Schema) {}
 
@@ -57,10 +66,14 @@ public:
   Error discoverDebugInfoSection(mccasformats::v1::MCObjectProxy MCObj,
                                  raw_ostream &OS);
 
+  void addLinkageNameAndObjectRefToMap(DWARFDie CUDie,
+                                       mccasformats::v1::MCObjectProxy MCObj,
+                                       bool &LinkageFound);
+
   /// Dump MCObj as textual DWARF output.
   Error dump(raw_ostream &OS, int Indent, DWARFContext &DWARFCtx,
-             mccasformats::v1::MCObjectProxy MCObj, bool ShowForm,
-             bool Verbose);
+             mccasformats::v1::MCObjectProxy MCObj, bool ShowForm, bool Verbose,
+             bool DumpSameLinkageDifferentCU);
 
   StringRef getFileName() const override { return "CAS"; }
   ArrayRef<SectionName> getSectionNames() const override { return {}; }
@@ -77,6 +90,8 @@ public:
     return {};
   };
   ArrayRef<uint32_t> getSecOffsetVals() { return SecOffsetVals; }
+
+  static Error dumpSimilarCUs();
 };
 } // namespace llvm
 

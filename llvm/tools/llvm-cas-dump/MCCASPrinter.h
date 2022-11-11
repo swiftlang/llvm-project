@@ -28,6 +28,7 @@ struct PrinterOptions {
   bool HexDumpOneLine = false;
   bool ShowForm = false;
   bool Verbose = false;
+  bool DumpSameLinkageDifferentCU = false;
 };
 
 struct MCCASPrinter {
@@ -39,14 +40,12 @@ struct MCCASPrinter {
   /// If `CASObj` is an MCObject, prints its contents and all nodes referenced
   /// by it recursively. If CASObj or any of its children are not MCObjects, an
   /// error is returned.
-  Error printMCObject(cas::ObjectRef CASObj, CASDWARFObject &Obj,
-                      DWARFContext *DWARFCtx = nullptr);
+  Error printMCObject(cas::ObjectRef CASObj, CASDWARFObject &Obj, DWARFContext *DWARFCtx = nullptr);
 
   /// Prints the contents of `MCObject` and all nodes referenced by it
   /// recursively. If any of its children are not MCObjects, an error is
   /// returned.
-  Error printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj,
-                      DWARFContext *DWARFCtx);
+  Error printMCObject(MCObjectProxy MCObj, CASDWARFObject &Obj, DWARFContext *DWARFCtx);
 
   Expected<CASDWARFObject> discoverDwarfSections(cas::ObjectRef CASObj);
 
