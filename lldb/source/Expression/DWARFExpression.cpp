@@ -1127,9 +1127,9 @@ bool DWARFExpression::Evaluate(
       stack.back().SetValueType(Value::ValueType::FileAddress);
       // Convert the file address to a load address, so subsequent
       // DWARF operators can operate on it.
-      if (frame)
-        stack.back().ConvertToLoadAddress(module_sp.get(),
-                                          frame->CalculateTarget().get());
+      Target *target = exe_ctx->GetTargetPtr();
+      if (target)
+        stack.back().ConvertToLoadAddress(module_sp.get(), target);
       break;
 
     // The DW_OP_addr_sect_offset4 is used for any location expressions in
