@@ -74,6 +74,7 @@ void UnusedUsingDeclsCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(loc(templateSpecializationType(forEachTemplateArgument(
                          templateArgument().bind("used")))),
                      this);
+  Finder->addMatcher(userDefinedLiteral().bind("used"), this);
   // Cases where we can identify the UsingShadowDecl directly, rather than
   // just its target.
   // FIXME: cover more cases in this way, as the AST supports it.
@@ -170,7 +171,11 @@ void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
       if (const auto *USD = dyn_cast<UsingShadowDecl>(ND))
         removeFromFoundDecls(USD->getTargetDecl()->getCanonicalDecl());
     }
+    return;
   }
+  // Check user-defined literals
+  if (const auto *UDL = Result.Nodes.getNodeAs<UserDefinedLiteral>("used"))
+    removeFromFoundDecls(UDL->getCalleeDecl());
 }
 
 void UnusedUsingDeclsCheck::removeFromFoundDecls(const Decl *D) {
