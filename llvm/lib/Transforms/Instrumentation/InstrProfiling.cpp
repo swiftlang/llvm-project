@@ -1165,6 +1165,7 @@ bool InstrProfiling::emitRuntimeHook() {
                                   GlobalValue::LinkOnceODRLinkage,
                                   getInstrProfRuntimeHookVarUseFuncName(), M);
     User->addFnAttr(Attribute::NoInline);
+    User->addFnAttr(Attribute::OptimizeNone);
     if (Options.NoRedZone)
       User->addFnAttr(Attribute::NoRedZone);
     User->setVisibility(GlobalValue::HiddenVisibility);

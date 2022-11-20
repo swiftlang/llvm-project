@@ -99,10 +99,11 @@ declare void @llvm.instrprof.increment(i8*, i64, i32, i32)
 ; COFF:        @llvm.compiler.used = appending global {{.*}} @__llvm_profile_runtime_user {{.*}} @__profd_foo {{.*}}
 ; XCOFF:       @llvm.used = appending global {{.*}} @__llvm_profile_runtime_user {{.*}} @__profd_foo {{.*}}
 
-; MACHO: define linkonce_odr hidden i32 @__llvm_profile_runtime_user() {{.*}} {
+; MACHO: define linkonce_odr hidden i32 @__llvm_profile_runtime_user() [[ATTRS:#[0-9]+]] {
 ; MACHO:   %[[REG:.*]] = load i32, i32* @__llvm_profile_runtime
 ; MACHO:   ret i32 %[[REG]]
 ; MACHO: }
+; MACHO: [[ATTRS]] = {{.*}}optnone
 ; COFF: define linkonce_odr hidden i32 @__llvm_profile_runtime_user() {{.*}} comdat {
 ; ELF-NOT: define linkonce_odr hidden i32 @__llvm_profile_runtime_user() {{.*}} {
 ; ELF-NOT:   %[[REG:.*]] = load i32, i32* @__llvm_profile_runtime
