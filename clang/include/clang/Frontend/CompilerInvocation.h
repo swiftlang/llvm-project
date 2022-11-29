@@ -300,6 +300,7 @@ private:
                                const std::string &OutputFile,
                                const LangOptions &LangOptsRef,
                                const FileSystemOptions &FSOpts,
+                               const FrontendOptions &FEOpts,
                                const CASOptions &CASOpts);
 
   // Generate command line options from CodeGenOptions.
