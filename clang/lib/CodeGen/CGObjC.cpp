@@ -3727,6 +3727,12 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
     CharUnits Alignment = C.getTypeAlignInChars(Ty);
     llvm::Constant *Fn = getNonTrivialCStructMoveAssignmentOperator(
         CGM, Alignment, Alignment, Ty.isVolatileQualified(), Ty);
+    if (CGM.getCodeGenOpts().PointerAuth.ObjCAtomicPropertyGetterSetterHelpers)
+      Fn = CGM.getConstantSignedPointer(
+          Fn,
+          CGM.getCodeGenOpts()
+              .PointerAuth.ObjCAtomicPropertyGetterSetterHelpers,
+          nullptr, GlobalDecl(), QualType());
     return llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy);
   }
 
@@ -3826,6 +3832,13 @@ llvm::Constant *CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
     CharUnits Alignment = C.getTypeAlignInChars(Ty);
     llvm::Constant *Fn = getNonTrivialCStructCopyConstructor(
         CGM, Alignment, Alignment, Ty.isVolatileQualified(), Ty);
+
+    if (CGM.getCodeGenOpts().PointerAuth.ObjCAtomicPropertyGetterSetterHelpers)
+      Fn = CGM.getConstantSignedPointer(
+          Fn,
+          CGM.getCodeGenOpts()
+              .PointerAuth.ObjCAtomicPropertyGetterSetterHelpers,
+          nullptr, GlobalDecl(), QualType());
     return llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy);
   }
 
