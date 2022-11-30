@@ -7,6 +7,7 @@ set(CLANG_SONAME 13)
 set(SOURCES
   ARCMigrate.cpp
   BuildSystem.cpp
+  CCAS.cpp
   CDependencies.cpp
   CIndex.cpp
   CIndexCXX.cpp
