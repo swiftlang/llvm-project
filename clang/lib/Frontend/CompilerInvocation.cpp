@@ -1368,9 +1368,6 @@ static bool parsePointerAuthOptions(PointerAuthOptions &Opts,
       Opts.CXXMemberFunctionPointers =
         PointerAuthSchema(Key::CXXMemberFunctionPointers, false,
                           Discrimination::Type);
-      Opts.ObjCAtomicPropertyGetterSetterHelpers =
-          PointerAuthSchema(Key::ObjCAtomicPropertyGetterSetterHelpers, false,
-                            Discrimination::None);
       Opts.ThunkCXXVirtualMemberPointers = false;
     }
 
@@ -1404,8 +1401,6 @@ static bool parsePointerAuthOptions(PointerAuthOptions &Opts,
         PointerAuthSchema(Key::ASIA, true, Discrimination::Decl);
       Opts.CXXMemberFunctionPointers =
         PointerAuthSchema(Key::ASIA, false, Discrimination::Type);
-      Opts.ObjCAtomicPropertyGetterSetterHelpers =
-          PointerAuthSchema(Key::ASIA, false, Discrimination::None);
       Opts.ThunkCXXVirtualMemberPointers = false;
     }
 

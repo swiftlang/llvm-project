@@ -43,7 +43,6 @@ public:
     CXXVTablePointers = 4,
     CXXVirtualFunctionPointers = 5,
     CXXMemberFunctionPointers = 6,
-    ObjCAtomicPropertyGetterSetterHelpers = 7,
   };
 
   /// Hardware pointer-signing keys in ARM8.3.
@@ -197,9 +196,6 @@ struct PointerAuthOptions {
 
   /// The ABI for C++ member function pointers.
   PointerAuthSchema CXXMemberFunctionPointers;
-
-  /// The ABI for ObjC atomic property getter/setter copy helper functions.
-  PointerAuthSchema ObjCAtomicPropertyGetterSetterHelpers;
 };
 
 }  // end namespace clang
