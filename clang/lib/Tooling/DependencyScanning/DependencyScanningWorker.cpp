@@ -27,6 +27,7 @@
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/Host.h"
+#include "llvm/Support/SaveAndRestore.h"
 
 using namespace clang;
 using namespace tooling;
@@ -344,6 +345,11 @@ public:
     ScanInstance.createDiagnostics(DiagConsumer, /*ShouldOwnClient=*/false);
     if (!ScanInstance.hasDiagnostics())
       return false;
+
+    Optional<llvm::SaveAndRestore<DiagnosticsEngine *>> DepFSDiags;
+    if (DepCASFS)
+      DepFSDiags.emplace(DepCASFS->Diagnostics, &ScanInstance.getDiagnostics());
+
     if (VerboseOS)
       ScanInstance.setVerboseOutputStream(*VerboseOS);
 
@@ -676,6 +682,10 @@ bool DependencyScanningWorker::computeDependencies(
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags =
       CompilerInstance::createDiagnostics(DiagOpts.release(), &DC,
                                           /*ShouldOwnClient=*/false);
+
+  Optional<llvm::SaveAndRestore<DiagnosticsEngine *>> DepFSDiags;
+  if (DepCASFS)
+    DepFSDiags.emplace(DepCASFS->Diagnostics, Diags.get());
 
   // Although `Diagnostics` are used only for command-line parsing, the
   // custom `DiagConsumer` might expect a `SourceManager` to be present.
