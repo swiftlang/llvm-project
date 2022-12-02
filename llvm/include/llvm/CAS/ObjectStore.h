@@ -409,7 +409,8 @@ protected:
   uint64_t getDataSize(ObjectHandle Node) const override {
     return CAS->getDataSize(Node);
   }
-  Error forEachRef(ObjectHandle Node, function_ref<Error(ObjectRef)> Callback) const override {
+  Error forEachRef(ObjectHandle Node,
+                   function_ref<Error(ObjectRef)> Callback) const override {
     return CAS->forEachRef(Node, Callback);
   }
   ObjectRef readRef(ObjectHandle Node, size_t I) const override {
@@ -419,7 +420,7 @@ protected:
     return CAS->getNumRefs(Node);
   }
   ArrayRef<char> getData(ObjectHandle Node,
-                        bool RequiresNullTerminator = false) const override {
+                         bool RequiresNullTerminator = false) const override {
     return CAS->getData(Node, RequiresNullTerminator);
   }
   Expected<ObjectRef>

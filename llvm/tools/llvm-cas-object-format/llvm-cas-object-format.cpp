@@ -244,7 +244,7 @@ int main(int argc, char *argv[]) {
     case IngestFromCASTree: {
       auto ID = ExitOnErr(CAS->parseID(IF));
       auto Root = ExitOnErr(CAS->getProxy(ID));
-      TreeSchema Schema(*CAS);
+      TreeSchema Schema = ExitOnErr(TreeSchema::create(*CAS));
       SmallVector<NamedTreeEntry> Stack;
       Stack.emplace_back(Root.getRef(), TreeEntry::Tree, "/");
       Optional<GlobPattern> GlobP;
@@ -476,7 +476,7 @@ void StatCollector::visitPOTItem(ExitOnError &ExitOnErr, const POTItem &Item) {
   };
 
   size_t NumParents = Nodes.lookup(ID).NumParents;
-  TreeSchema Schema(CAS);
+  TreeSchema Schema = ExitOnErr(TreeSchema::create(CAS));
   if (Schema.isNode(Object)) {
     auto &Info = Stats["builtin:tree"];
     ++Info.Count;
@@ -681,7 +681,7 @@ static void computeStats(ObjectStore &CAS, ArrayRef<ObjectProxy> TopLevels,
     // FIXME: Maybe this should just assert?
     ObjectProxy Object = ExitOnErr(CAS.getProxy(ID));
 
-    TreeSchema TSchema(CAS);
+    TreeSchema TSchema = ExitOnErr(TreeSchema::create(CAS));
     if (TSchema.isNode(Object)) {
       TreeProxy Tree = ExitOnErr(TSchema.load(Object));
       ExitOnErr(Tree.forEachEntry([&](const NamedTreeEntry &Entry) {
@@ -825,13 +825,16 @@ static Error printCASObject(ObjectFormatSchemaPool &Pool, ObjectProxy ID,
 
 static Error printCASObjectOrTree(ObjectFormatSchemaPool &Pool, ObjectProxy ID,
                                   bool omitCASID) {
-  TreeSchema Schema(Pool.getCAS());
-  if (!Schema.isNode(ID)) {
+  auto Schema = TreeSchema::create(Pool.getCAS());
+  if (!Schema)
+    return Schema.takeError();
+
+  if (!Schema->isNode(ID)) {
     // Not a tree.
     return printCASObject(Pool, ID, omitCASID);
   }
 
-  return Schema.walkFileTreeRecursively(
+  return Schema->walkFileTreeRecursively(
       Pool.getCAS(), ID,
       [&](const NamedTreeEntry &entry, Optional<TreeProxy>) -> Error {
         if (entry.getKind() == TreeEntry::Tree)
@@ -849,8 +852,10 @@ static Error printCASObjectOrTree(ObjectFormatSchemaPool &Pool, ObjectProxy ID,
 }
 
 static Error materializeObjectsFromCASTree(ObjectStore &CAS, ObjectProxy ID) {
-  TreeSchema Schema(CAS);
-  return Schema.walkFileTreeRecursively(
+  auto Schema = TreeSchema::create(CAS);
+  if (!Schema)
+    return Schema.takeError();
+  return Schema->walkFileTreeRecursively(
       CAS, ID, [&](const NamedTreeEntry &Entry, Optional<TreeProxy>) -> Error {
         if (Entry.getKind() != TreeEntry::Regular &&
             Entry.getKind() != TreeEntry::Tree) {
@@ -994,7 +999,7 @@ static ObjectRef ingestFile(ObjectFormatSchemaBase &Schema, StringRef InputFile,
   if (!JustDsymutil.empty()) {
     // Create a map for each symbol in TEXT.
     jitlink::Section *Text = G->findSectionByName("__TEXT,__text");
-    TreeSchema Schema(CAS);
+    TreeSchema Schema = ExitOnErr(TreeSchema::create(CAS));
     if (!Text)
       return ExitOnErr(Schema.create()).getRef();
 

@@ -66,18 +66,20 @@ void HierarchicalTreeBuilder::pushTreeContent(ObjectRef Ref,
 }
 
 Expected<ObjectProxy> HierarchicalTreeBuilder::create(ObjectStore &CAS) {
+  auto Schema = TreeSchema::create(CAS);
+  if (!Schema)
+    return Schema.takeError();
+
   // FIXME: It is inefficient expanding the whole tree recursively like this,
   // use a more efficient algorithm to merge contents.
-  TreeSchema Schema(CAS);
   for (const auto &TreeContent : TreeContents) {
     Optional<ObjectProxy> LoadedTree;
     if (Error E = CAS.getProxy(*TreeContent.getRef()).moveInto(LoadedTree))
       return std::move(E);
     StringRef Path = TreeContent.getPath();
-    Error E = Schema.walkFileTreeRecursively(
+    Error E = Schema->walkFileTreeRecursively(
         CAS, *LoadedTree,
-        [&](const NamedTreeEntry &Entry,
-            Optional<TreeProxy> Tree) -> Error {
+        [&](const NamedTreeEntry &Entry, Optional<TreeProxy> Tree) -> Error {
           if (Entry.getKind() != TreeEntry::Tree) {
             pushImpl(Entry.getRef(), Entry.getKind(), Path + Entry.getName());
             return Error::success();
@@ -92,7 +94,7 @@ Expected<ObjectProxy> HierarchicalTreeBuilder::create(ObjectStore &CAS) {
   TreeContents.clear();
 
   if (Entries.empty())
-    return Schema.create();
+    return Schema->create();
 
   std::stable_sort(
       Entries.begin(), Entries.end(),
@@ -252,12 +254,12 @@ Expected<ObjectProxy> HierarchicalTreeBuilder::create(ObjectStore &CAS) {
     Worklist.pop_back();
     for (Node *N = T->First; N; N = N->Next)
       Entries.emplace_back(*N->Ref, N->Kind, N->Name);
-    Expected<TreeProxy> ExpectedTree = Schema.create(Entries);
+    Expected<TreeProxy> ExpectedTree = Schema->create(Entries);
     Entries.clear();
     if (!ExpectedTree)
       return ExpectedTree.takeError();
     T->Ref = ExpectedTree->getRef();
   }
 
-  return cantFail(CAS.getProxy(*Root.Ref));
+  return CAS.getProxy(*Root.Ref);
 }

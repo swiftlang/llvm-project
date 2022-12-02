@@ -21,6 +21,8 @@ class TreeProxy;
 class TreeSchema : public RTTIExtends<TreeSchema, NodeSchema> {
   void anchor() override;
 
+  TreeSchema(ObjectStore &CAS, ObjectRef TreeKindRef);
+
 public:
   static char ID;
   bool isRootNode(const ObjectProxy &Node) const final {
@@ -28,7 +30,7 @@ public:
   }
   bool isNode(const ObjectProxy &Node) const final;
 
-  TreeSchema(ObjectStore &CAS);
+  static Expected<TreeSchema> create(ObjectStore &CAS);
 
   size_t getNumTreeEntries(TreeProxy Tree) const;
 
@@ -59,11 +61,11 @@ public:
 
 private:
   static constexpr StringLiteral SchemaName = "llvm::cas::schema::tree::v1";
-  Optional<ObjectRef> TreeKindRef;
+  ObjectRef TreeKindRef;
 
   friend class TreeProxy;
 
-  ObjectRef getKindRef() const;
+  ObjectRef getKindRef() const { return TreeKindRef; }
 };
 
 class TreeProxy : public ObjectProxy {

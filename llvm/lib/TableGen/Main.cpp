@@ -501,8 +501,10 @@ Error TableGenCache::replayResult() {
   if (!Node)
     return Node.takeError();
 
-  llvm::cas::TreeSchema Schema(*CAS);
-  Expected<cas::TreeProxy> Tree = Schema.load(*Node);
+  auto Schema = cas::TreeSchema::create(*CAS);
+  if (!Schema)
+    return Schema.takeError();
+  Expected<cas::TreeProxy> Tree = Schema->load(*Node);
   if (!Tree)
     return Tree.takeError();
 

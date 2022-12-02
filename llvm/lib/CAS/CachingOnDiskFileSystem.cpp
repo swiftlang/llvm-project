@@ -162,10 +162,10 @@ private:
   void initializeWorkingDirectory();
 
   /// An empty CAS object.
-  ObjectRef getEmptyRef() {
+  Expected<ObjectRef> getEmptyRef() {
     if (!EmptyRef)
       if (auto Err = DB.store({}, {}).moveInto(EmptyRef))
-        llvm::report_fatal_error(std::move(Err));
+        return std::move(Err);
     return *EmptyRef;
   }
 
@@ -716,9 +716,12 @@ Expected<ObjectProxy> CachingOnDiskFileSystemImpl::createTreeFromNewAccesses(
     return false;
   };
 
-  TreeSchema Schema(DB);
+  auto Schema = TreeSchema::create(DB);
+  if (!Schema)
+    return Schema.takeError();
+
   if (TrackedAccesses.empty())
-    return Schema.create();
+    return Schema->create();
 
   HierarchicalTreeBuilder Builder;
   for (auto &&[Entry, State] : TrackedAccesses) {
@@ -734,8 +737,10 @@ Expected<ObjectProxy> CachingOnDiskFileSystemImpl::createTreeFromNewAccesses(
     } else {
       ObjectRef Ref = *Entry->getRef();
       // If the content is not needed, canonicalize as an empty file.
-      if (Entry->isFile() && !State.NeedContent)
-        Ref = getEmptyRef();
+      if (Entry->isFile() && !State.NeedContent) {
+        if (auto Err = getEmptyRef().moveInto(Ref))
+          return std::move(Err);
+      }
       Builder.push(Ref, getTreeEntryKind(*Entry), Path);
     }
   }

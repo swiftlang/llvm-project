@@ -314,5 +314,6 @@ TEST_P(CASTest, ProxyObjectStoreBasics) {
   Optional<ObjectRef> Ref2 = CAS.getReference(*ID2);
   ASSERT_TRUE(Ref2);
 
-  ASSERT_THAT_ERROR(CAS.createProxy({*Ref1, *Ref2}, "1").moveInto(ID1), Succeeded());
+  ASSERT_THAT_ERROR(CAS.createProxy({*Ref1, *Ref2}, "1").moveInto(ID1),
+                    Succeeded());
 }
