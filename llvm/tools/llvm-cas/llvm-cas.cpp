@@ -186,7 +186,7 @@ int main(int Argc, char **Argv) {
 int listTree(ObjectStore &CAS, const CASID &ID) {
   ExitOnError ExitOnErr("llvm-cas: ls-tree: ");
 
-  TreeSchema Schema(CAS);
+  TreeSchema Schema = ExitOnErr(TreeSchema::create(CAS));
   ObjectProxy TreeN = ExitOnErr(CAS.getProxy(ID));
   TreeProxy Tree = ExitOnErr(Schema.load(TreeN));
   ExitOnErr(Tree.forEachEntry([&](const NamedTreeEntry &Entry) {
@@ -199,7 +199,7 @@ int listTree(ObjectStore &CAS, const CASID &ID) {
 
 int listTreeRecursively(ObjectStore &CAS, const CASID &ID) {
   ExitOnError ExitOnErr("llvm-cas: ls-tree-recursively: ");
-  TreeSchema Schema(CAS);
+  TreeSchema Schema = ExitOnErr(TreeSchema::create(CAS));
   ExitOnErr(Schema.walkFileTreeRecursively(
       CAS, ExitOnErr(CAS.getProxy(ID)),
       [&](const NamedTreeEntry &Entry, Optional<TreeProxy> Tree) -> Error {
@@ -249,7 +249,8 @@ int catNodeData(ObjectStore &CAS, const CASID &ID) {
 }
 
 static StringRef getKindString(ObjectStore &CAS, ObjectProxy Object) {
-  TreeSchema Schema(CAS);
+  ExitOnError ExitOnErr("llvm-cas: getKindString");
+  TreeSchema Schema = ExitOnErr(TreeSchema::create(CAS));
   if (Schema.isNode(Object))
     return "tree";
   return "object";
@@ -322,7 +323,7 @@ static GraphInfo traverseObjectGraph(ObjectStore &CAS, const CASID &TopLevel) {
     CASID ID = Worklist.back().first;
     ObjectProxy Object = ExitOnErr(CAS.getProxy(ID));
 
-    TreeSchema Schema(CAS);
+    TreeSchema Schema = ExitOnErr(TreeSchema::create(CAS));
     if (Schema.isNode(Object)) {
       TreeProxy Tree = ExitOnErr(Schema.load(Object));
       ExitOnErr(Tree.forEachEntry([&](const NamedTreeEntry &Entry) {

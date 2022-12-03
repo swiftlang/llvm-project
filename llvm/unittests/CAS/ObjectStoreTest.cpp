@@ -293,3 +293,27 @@ TEST_P(CASTest, ManyNodes) {
   for (auto ID : CreatedNodes)
     ASSERT_THAT_ERROR(CAS->validate(CAS->getID(ID)), Succeeded());
 }
+
+TEST_P(CASTest, ProxyObjectStoreBasics) {
+  ProxyObjectStore CAS(createObjectStore());
+
+  Optional<CASID> ID1, ID2;
+  ASSERT_THAT_ERROR(CAS.createProxy(None, "1").moveInto(ID1), Succeeded());
+  ASSERT_THAT_ERROR(CAS.createProxy(None, "2").moveInto(ID2), Succeeded());
+  std::string PrintedID1 = ID1->toString();
+  std::string PrintedID2 = ID2->toString();
+
+  Optional<CASID> ParsedID1, ParsedID2;
+  ASSERT_THAT_ERROR(CAS.parseID(PrintedID1).moveInto(ParsedID1), Succeeded());
+  ASSERT_THAT_ERROR(CAS.parseID(PrintedID2).moveInto(ParsedID2), Succeeded());
+  EXPECT_EQ(ID1, ParsedID1);
+  EXPECT_EQ(ID2, ParsedID2);
+
+  Optional<ObjectRef> Ref1 = CAS.getReference(*ID1);
+  ASSERT_TRUE(Ref1);
+  Optional<ObjectRef> Ref2 = CAS.getReference(*ID2);
+  ASSERT_TRUE(Ref2);
+
+  ASSERT_THAT_ERROR(CAS.createProxy({*Ref1, *Ref2}, "1").moveInto(ID1),
+                    Succeeded());
+}

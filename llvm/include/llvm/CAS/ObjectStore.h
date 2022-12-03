@@ -127,6 +127,7 @@ class ObjectProxy;
 /// ObjectStore.
 class ObjectStore {
   friend class ObjectProxy;
+  friend class ProxyObjectStore;
   void anchor();
 
 public:
@@ -379,6 +380,63 @@ Expected<std::unique_ptr<ObjectStore>> createCASFromIdentifier(StringRef Path);
 using ObjectStoreCreateFuncTy =
     Expected<std::unique_ptr<ObjectStore>>(const Twine &);
 void registerCASURLScheme(StringRef Prefix, ObjectStoreCreateFuncTy *Func);
+
+/// By default, this delegates all calls to the underlying ObjectStore. This
+/// is useful when derived ObjectStores want to override some calls and still
+/// proxy other calls.
+class ProxyObjectStore : public ObjectStore {
+public:
+  explicit ProxyObjectStore(std::shared_ptr<ObjectStore> CAS)
+      : ObjectStore(CAS->getContext()), CAS(std::move(CAS)) {}
+
+  Expected<CASID> parseID(StringRef ID) override { return CAS->parseID(ID); }
+  Expected<ObjectRef> store(ArrayRef<ObjectRef> Refs,
+                            ArrayRef<char> Data) override {
+    return CAS->store(Refs, Data);
+  }
+  CASID getID(ObjectRef Ref) const override { return CAS->getID(Ref); }
+  CASID getID(ObjectHandle Handle) const override { return CAS->getID(Handle); }
+  Optional<ObjectRef> getReference(const CASID &ID) const override {
+    return CAS->getReference(ID);
+  }
+  Error validate(const CASID &ID) override { return CAS->validate(ID); }
+
+protected:
+  ObjectRef getReference(ObjectHandle Handle) const override {
+    return CAS->getReference(Handle);
+  }
+  Expected<ObjectHandle> load(ObjectRef Ref) override { return CAS->load(Ref); }
+  uint64_t getDataSize(ObjectHandle Node) const override {
+    return CAS->getDataSize(Node);
+  }
+  Error forEachRef(ObjectHandle Node,
+                   function_ref<Error(ObjectRef)> Callback) const override {
+    return CAS->forEachRef(Node, Callback);
+  }
+  ObjectRef readRef(ObjectHandle Node, size_t I) const override {
+    return CAS->readRef(Node, I);
+  }
+  size_t getNumRefs(ObjectHandle Node) const override {
+    return CAS->getNumRefs(Node);
+  }
+  ArrayRef<char> getData(ObjectHandle Node,
+                         bool RequiresNullTerminator = false) const override {
+    return CAS->getData(Node, RequiresNullTerminator);
+  }
+  Expected<ObjectRef>
+  storeFromOpenFileImpl(sys::fs::file_t FD,
+                        Optional<sys::fs::file_status> Status) override {
+    return CAS->storeFromOpenFileImpl(FD, Status);
+  }
+
+protected:
+  ObjectStore &getUnderlyingCAS() { return *CAS; }
+
+private:
+  std::shared_ptr<ObjectStore> CAS;
+
+  virtual void anchor();
+};
 
 } // namespace cas
 } // namespace llvm

@@ -183,8 +183,10 @@ Error CASFileSystem::loadDirectory(DirectoryEntry &Parent) {
   if (!Object)
     return Object.takeError();
 
-  TreeSchema Schema(DB);
-  if (!Schema.isNode(*Object))
+  auto Schema = TreeSchema::create(DB);
+  if (!Schema)
+    return Schema.takeError();
+  if (!Schema->isNode(*Object))
     report_fatal_error(createStringError(
         inconvertibleErrorCode(),
         "invalid tree '" + Object->getID().toString() + "'"));
@@ -194,7 +196,7 @@ Error CASFileSystem::loadDirectory(DirectoryEntry &Parent) {
   if (D.isComplete())
     return Error::success();
 
-  Expected<TreeProxy> Tree = Schema.load(*Object);
+  Expected<TreeProxy> Tree = Schema->load(*Object);
   if (!Tree)
     return Tree.takeError();
 

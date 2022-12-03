@@ -15,6 +15,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrefixMapper.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Testing/CAS/CASHelpers.h"
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gmock/gmock.h"
@@ -23,6 +24,7 @@
 #include <string>
 
 using namespace llvm;
+using llvm::cas::unittest::ErroringCAS;
 using llvm::sys::fs::UniqueID;
 using llvm::unittest::TempDir;
 using llvm::unittest::TempFile;
@@ -378,7 +380,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccesses) {
                           .moveInto(Tree),
                       Succeeded());
 
-    llvm::cas::TreeSchema Schema(FS->getCAS());
+    auto Schema = llvm::cantFail(llvm::cas::TreeSchema::create(FS->getCAS()));
     Optional<llvm::cas::TreeProxy> TreeNode;
     ASSERT_THAT_ERROR(Schema.load(Tree->getRef()).moveInto(TreeNode),
                       Succeeded());
@@ -427,7 +429,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesStack) {
                             })
                           .moveInto(Tree),
                       Succeeded());
-    llvm::cas::TreeSchema Schema(FS->getCAS());
+    auto Schema = llvm::cantFail(llvm::cas::TreeSchema::create(FS->getCAS()));
     Optional<llvm::cas::TreeProxy> TreeNode;
     ASSERT_THAT_ERROR(Schema.load(Tree->getRef()).moveInto(TreeNode),
                       Succeeded());
@@ -447,7 +449,8 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesStack) {
                             })
                           .moveInto(Tree),
                       Succeeded());
-    llvm::cas::TreeSchema Schema(FS->getCAS());
+    auto Schema = llvm::cantFail(llvm::cas::TreeSchema::create(FS->getCAS()));
+    ;
     Optional<llvm::cas::TreeProxy> TreeNode;
     ASSERT_THAT_ERROR(Schema.load(Tree->getRef()).moveInto(TreeNode),
                       Succeeded());
@@ -508,7 +511,8 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesExists) {
                             })
                           .moveInto(Tree),
                       Succeeded());
-    llvm::cas::TreeSchema Schema(FS->getCAS());
+    auto Schema = llvm::cantFail(llvm::cas::TreeSchema::create(FS->getCAS()));
+    ;
     Optional<llvm::cas::TreeProxy> TreeNode;
     ASSERT_THAT_ERROR(Schema.load(Tree->getRef()).moveInto(TreeNode),
                       Succeeded());
@@ -531,7 +535,8 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesExists) {
                             })
                           .moveInto(Tree),
                       Succeeded());
-    llvm::cas::TreeSchema Schema(FS->getCAS());
+    auto Schema = llvm::cantFail(llvm::cas::TreeSchema::create(FS->getCAS()));
+    ;
     Optional<llvm::cas::TreeProxy> TreeNode;
     ASSERT_THAT_ERROR(Schema.load(Tree->getRef()).moveInto(TreeNode),
                       Succeeded());
@@ -554,7 +559,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesExists) {
                             })
                           .moveInto(Tree),
                       Succeeded());
-    llvm::cas::TreeSchema Schema(FS->getCAS());
+    auto Schema = llvm::cantFail(llvm::cas::TreeSchema::create(FS->getCAS()));
     Optional<llvm::cas::TreeProxy> TreeNode;
     ASSERT_THAT_ERROR(Schema.load(Tree->getRef()).moveInto(TreeNode),
                       Succeeded());
@@ -572,7 +577,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesExists) {
   Optional<cas::ObjectProxy> Tree;
   ASSERT_THAT_ERROR(FS->createTreeFromAllAccesses().moveInto(Tree),
                     Succeeded());
-  llvm::cas::TreeSchema Schema(FS->getCAS());
+  auto Schema = llvm::cantFail(llvm::cas::TreeSchema::create(FS->getCAS()));
   Optional<llvm::cas::TreeProxy> TreeNode;
   ASSERT_THAT_ERROR(Schema.load(Tree->getRef()).moveInto(TreeNode),
                     Succeeded());
@@ -613,7 +618,7 @@ TEST(CachingOnDiskFileSystemTest, ExcludeFromTacking) {
   TempDir D1Sub(D1.path("sub"));
   TempFile D1SubF(D1Sub.path("file"), "", "content");
 
-  llvm::cas::TreeSchema Schema(FS->getCAS());
+  auto Schema = llvm::cantFail(llvm::cas::TreeSchema::create(FS->getCAS()));
 
   auto CreateTreeFromNewAccesses = [&]() -> Optional<llvm::cas::TreeProxy> {
     Optional<cas::ObjectProxy> Tree;
@@ -829,6 +834,72 @@ TEST(CachingOnDiskFileSystemTest, caseSensitivityDir) {
     EXPECT_EQ(File1Path, File2Path);
     EXPECT_EQ(StatF1.getUniqueID(), StatF2.getUniqueID());
   }
+}
+
+TEST(CachingOnDiskFileSystemTest, CASErrors) {
+  TempDir TestDirectory("virtual-file-system-test", /*Unique*/ true);
+  auto CAS = std::make_unique<ErroringCAS>(llvm::cas::createInMemoryCAS());
+  IntrusiveRefCntPtr<cas::CachingOnDiskFileSystem> FS =
+      cantFail(cas::createCachingOnDiskFileSystem(*CAS));
+  ASSERT_FALSE(FS->setCurrentWorkingDirectory(TestDirectory.path()));
+
+  TreePathPrefixMapper Remapper(FS);
+  ASSERT_THAT_ERROR(Remapper.add(MappedPrefix{TestDirectory.path(), "/"}),
+                    Succeeded());
+
+  TempFile Extra(TestDirectory.path("Extra"), "", "content");
+  SmallVector<TempFile> Temps;
+  for (size_t I = 0, E = 5; I != E; ++I)
+    Temps.emplace_back(TestDirectory.path(Twine(I).str()), "", "content");
+
+  // Trigger CAS errors after 0, 1, ... operations. Ensure there are no crashes
+  // due to incorrect use of cantFail, etc.
+  unsigned AllowCASOps = 0, MaxCASOps = 100;
+  unsigned ErrorCount = 0;
+  for (; AllowCASOps < MaxCASOps; ++AllowCASOps) {
+    CAS->setErrorCounter(AllowCASOps);
+
+    SmallString<256> Path;
+    FS->trackNewAccesses();
+    for (const auto &F : Temps)
+      if (FS->getRealPath(F.path(), Path))
+        ErrorCount += 1;
+
+    Optional<cas::ObjectProxy> Tree;
+    if (auto Err = FS->createTreeFromNewAccesses(
+                         [&](const vfs::CachedDirectoryEntry &Entry) {
+                           return Remapper.map(Entry);
+                         })
+                       .moveInto(Tree)) {
+      llvm::consumeError(std::move(Err));
+      ErrorCount += 1;
+      continue;
+    }
+
+    auto Schema = llvm::cas::TreeSchema::create(FS->getCAS());
+    if (!Schema) {
+      llvm::consumeError(Schema.takeError());
+      ErrorCount += 1;
+      continue;
+    }
+    Optional<llvm::cas::TreeProxy> TreeNode;
+    if (auto Err = Schema->load(Tree->getRef()).moveInto(TreeNode)) {
+      llvm::consumeError(std::move(Err));
+      ErrorCount += 1;
+      continue;
+    }
+
+    // Check that all the files are found.
+    EXPECT_EQ(Temps.size(), TreeNode->size());
+    for (const auto &F : Temps)
+      EXPECT_TRUE(TreeNode->lookup(sys::path::filename(F.path())));
+
+    // Succes! We're done.
+    break;
+  }
+  EXPECT_GT(AllowCASOps, 5u) << "tracking requires more CAS ops";
+  EXPECT_GE(ErrorCount, AllowCASOps);
+  EXPECT_LT(AllowCASOps, MaxCASOps) << "tracking never succeeded";
 }
 
 } // namespace

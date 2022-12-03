@@ -154,3 +154,5 @@ void cas::registerCASURLScheme(StringRef Prefix,
                                ObjectStoreCreateFuncTy *Func) {
   getRegisteredScheme().insert({Prefix, Func});
 }
+
+void ProxyObjectStore::anchor() {}

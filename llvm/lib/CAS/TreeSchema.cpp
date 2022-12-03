@@ -31,12 +31,15 @@ bool TreeSchema::isNode(const ObjectProxy &Node) const {
   return FirstRef == getKindRef();
 }
 
-TreeSchema::TreeSchema(cas::ObjectStore &CAS) : TreeSchema::RTTIExtends(CAS) {
-  auto Kind = cantFail(CAS.createProxy(None, SchemaName));
-  TreeKindRef.emplace(Kind.getRef());
-}
+TreeSchema::TreeSchema(cas::ObjectStore &CAS, ObjectRef TreeKindRef)
+    : TreeSchema::RTTIExtends(CAS), TreeKindRef(TreeKindRef) {}
 
-ObjectRef TreeSchema::getKindRef() const { return *TreeKindRef; }
+Expected<TreeSchema> TreeSchema::create(cas::ObjectStore &CAS) {
+  auto Kind = CAS.createProxy(None, SchemaName);
+  if (!Kind)
+    return Kind.takeError();
+  return TreeSchema(CAS, Kind->getRef());
+}
 
 size_t TreeSchema::getNumTreeEntries(TreeProxy Tree) const {
   return Tree.getNumReferences() - 1;

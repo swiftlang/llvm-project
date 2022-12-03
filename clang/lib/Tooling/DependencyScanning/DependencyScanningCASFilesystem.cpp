@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Tooling/DependencyScanning/DependencyScanningCASFilesystem.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticCAS.h"
 #include "clang/Basic/Version.h"
 #include "clang/Lex/DependencyDirectivesScanner.h"
 #include "llvm/CAS/ActionCache.h"
@@ -20,17 +22,6 @@
 using namespace clang;
 using namespace tooling;
 using namespace dependencies;
-
-template <typename T> static T reportAsFatalIfError(Expected<T> ValOrErr) {
-  if (!ValOrErr)
-    llvm::report_fatal_error(ValOrErr.takeError());
-  return std::move(*ValOrErr);
-}
-
-static void reportAsFatalIfError(llvm::Error E) {
-  if (E)
-    llvm::report_fatal_error(std::move(E));
-}
 
 using llvm::Error;
 
@@ -140,20 +131,36 @@ void DependencyScanningCASFilesystem::scanForDirectives(
   using namespace llvm;
   using namespace llvm::cas;
 
+  assert(Diagnostics && "must set Diagnostics before scanning");
+  auto reportCASError = [&](unsigned DiagID, Error Err) {
+    Tokens.clear();
+    Directives.clear();
+    Diagnostics->Report(DiagID) << std::move(Err);
+  };
+
   // Get a blob for the clang version string.
-  if (!ClangFullVersionID)
-    ClangFullVersionID =
-        reportAsFatalIfError(CAS.createProxy(None, getClangFullVersion()))
-            .getRef();
+  if (!ClangFullVersionID) {
+    auto Proxy = CAS.createProxy(None, getClangFullVersion());
+    if (!Proxy)
+      return reportCASError(diag::err_cas_store, Proxy.takeError());
+    ClangFullVersionID = Proxy->getRef();
+  }
 
   // Get a blob for the dependency directives scan command.
-  if (!DepDirectivesID)
-    DepDirectivesID =
-        reportAsFatalIfError(CAS.createProxy(None, "directives")).getRef();
+  if (!DepDirectivesID) {
+    auto Proxy = CAS.createProxy(None, "directives");
+    if (!Proxy)
+      return reportCASError(diag::err_cas_store, Proxy.takeError());
+    DepDirectivesID = Proxy->getRef();
+  }
 
   // Get an empty blob.
-  if (!EmptyBlobID)
-    EmptyBlobID = reportAsFatalIfError(CAS.createProxy(None, "")).getRef();
+  if (!EmptyBlobID) {
+    auto Proxy = CAS.createProxy(None, "");
+    if (!Proxy)
+      return reportCASError(diag::err_cas_store, Proxy.takeError());
+    EmptyBlobID = Proxy->getRef();
+  }
 
   // Construct a tree for the input.
   Optional<CASID> InputID;
@@ -162,36 +169,50 @@ void DependencyScanningCASFilesystem::scanForDirectives(
     Builder.push(*ClangFullVersionID, TreeEntry::Regular, "version");
     Builder.push(*DepDirectivesID, TreeEntry::Regular, "command");
     Builder.push(InputDataID, TreeEntry::Regular, "data");
-    InputID = reportAsFatalIfError(Builder.create(CAS)).getID();
+    auto Proxy = Builder.create(CAS);
+    if (!Proxy)
+      return reportCASError(diag::err_cas_store, Proxy.takeError());
+    InputID = Proxy->getID();
   }
 
   // Check the result cache.
-  if (Optional<CASID> OutputID =
-          reportAsFatalIfError(Cache.get(*InputID))) {
+  Optional<CASID> OutputID;
+  if (auto Err = Cache.get(*InputID).moveInto(OutputID))
+    return reportCASError(diag::err_cas_load, std::move(Err));
+
+  if (OutputID) {
     if (Optional<ObjectRef> OutputRef = CAS.getReference(*OutputID)) {
-      reportAsFatalIfError(
-          loadDepDirectives(CAS, *OutputRef, Tokens, Directives));
+      if (auto Err = loadDepDirectives(CAS, *OutputRef, Tokens, Directives))
+        reportCASError(diag::err_cas_load, std::move(Err));
       return;
     }
   }
 
-  StringRef InputData =
-      reportAsFatalIfError(CAS.getProxy(InputDataID)).getData();
+  StringRef InputData;
+  {
+    auto Proxy = CAS.getProxy(InputDataID);
+    if (!Proxy)
+      return reportCASError(diag::err_cas_load, Proxy.takeError());
+    InputData = Proxy->getData();
+  }
 
   if (scanSourceForDependencyDirectives(InputData, Tokens, Directives)) {
     // FIXME: Propagate the diagnostic if desired by the client.
     // Failure. Cache empty directives.
     Tokens.clear();
     Directives.clear();
-    reportAsFatalIfError(Cache.put(*InputID, CAS.getID(*EmptyBlobID)));
+    if (auto Err = Cache.put(*InputID, CAS.getID(*EmptyBlobID)))
+      reportCASError(diag::err_cas_store, std::move(Err));
     return;
   }
 
   // Success. Add to the CAS and get back persistent output data.
-  cas::ObjectRef DirectivesID =
-      reportAsFatalIfError(storeDepDirectives(CAS, Directives));
+  auto DirectivesID = storeDepDirectives(CAS, Directives);
+  if (!DirectivesID)
+    return reportCASError(diag::err_cas_store, DirectivesID.takeError());
   // Cache the computation.
-  reportAsFatalIfError(Cache.put(*InputID, CAS.getID(DirectivesID)));
+  if (auto Err = Cache.put(*InputID, CAS.getID(*DirectivesID)))
+    return reportCASError(diag::err_cas_store, std::move(Err));
 }
 
 Expected<StringRef>

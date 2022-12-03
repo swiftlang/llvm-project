@@ -25,15 +25,23 @@
 namespace llvm {
 namespace cas {
 class CachingOnDiskFileSystem;
+class DiagnosticsEngine;
 } // namespace cas
 } // namespace llvm
 
 namespace clang {
+class DiagnosticsEngine;
+
 namespace tooling {
 namespace dependencies {
 
 class DependencyScanningCASFilesystem : public llvm::cas::ThreadSafeFileSystem {
 public:
+  /// Set a \c DiagnosticsEngine to use if there are errors scanning for
+  /// directives. Must be set before scanning.
+  DiagnosticsEngine *Diagnostics = nullptr;
+
+  /// \note Diagnostics must be set before using this filesystem.
   DependencyScanningCASFilesystem(
       IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> WorkerFS,
       llvm::cas::ActionCache &Cache);

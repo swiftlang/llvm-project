@@ -163,10 +163,12 @@ static Error printFileSystem(ObjectStore &CAS, ObjectRef Ref, raw_ostream &OS) {
   if (!Root)
     return Root.takeError();
 
-  TreeSchema Schema(CAS);
-  return Schema.walkFileTreeRecursively(
-      CAS, *Root,
-      [&](const NamedTreeEntry &Entry, Optional<TreeProxy> Tree) {
+  auto Schema = TreeSchema::create(CAS);
+  if (!Schema)
+    return Schema.takeError();
+
+  return Schema->walkFileTreeRecursively(
+      CAS, *Root, [&](const NamedTreeEntry &Entry, Optional<TreeProxy> Tree) {
         if (Entry.getKind() != TreeEntry::Tree || Tree->empty()) {
           OS << "\n  ";
           Entry.print(OS, CAS);
@@ -181,8 +183,11 @@ static Error printCompileJobCacheKey(ObjectStore &CAS, ObjectProxy Node,
     return createStringError(inconvertibleErrorCode(), Err);
   };
 
-  TreeSchema Schema(CAS);
-  Expected<TreeProxy> Tree = Schema.load(Node);
+  auto Schema = TreeSchema::create(CAS);
+  if (!Schema)
+    return Schema.takeError();
+
+  Expected<TreeProxy> Tree = Schema->load(Node);
   if (!Tree)
     return Tree.takeError();
 
@@ -236,8 +241,10 @@ Error clang::printCompileJobCacheKey(ObjectStore &CAS, const CASID &Key,
   auto H = CAS.getProxy(Key);
   if (!H)
     return H.takeError();
-  TreeSchema Schema(CAS);
-  if (!Schema.isNode(*H)) {
+  auto Schema = TreeSchema::create(CAS);
+  if (!Schema)
+    return Schema.takeError();
+  if (!Schema->isNode(*H)) {
     std::string ErrStr;
     llvm::raw_string_ostream Err(ErrStr);
     Err << "expected cache key to be a CAS tree; got ";

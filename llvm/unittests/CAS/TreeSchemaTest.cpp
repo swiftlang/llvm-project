@@ -56,7 +56,7 @@ TEST(TreeSchemaTest, Trees) {
 
   SmallVector<ObjectRef> FlatRefs;
   SmallVector<CASID> FlatIDs;
-  TreeSchema Schema1(*CAS1);
+  TreeSchema Schema1 = llvm::cantFail(TreeSchema::create(*CAS1));
 
   for (ArrayRef<NamedTreeEntry> Entries : FlatTreeEntries) {
     Optional<TreeProxy> H;
@@ -98,7 +98,7 @@ TEST(TreeSchemaTest, Trees) {
   // Insert into the other CAS and confirm the IDs are stable.
   for (int I = FlatIDs.size(), E = 0; I != E; --I) {
     for (ObjectStore *CAS : {&*CAS1, &*CAS2}) {
-      TreeSchema Schema(*CAS);
+      TreeSchema Schema = llvm::cantFail(TreeSchema::create(*CAS));
       auto &ID = FlatIDs[I - 1];
       // Make a copy of the original entries and sort them.
       SmallVector<NamedTreeEntry> NewEntries;
@@ -174,7 +174,7 @@ TEST(TreeSchemaTest, Trees) {
       }
       llvm::sort(NewEntries);
 
-      TreeSchema Schema(*CAS);
+      TreeSchema Schema = llvm::cantFail(TreeSchema::create(*CAS));
       Optional<TreeProxy> Tree;
       ASSERT_THAT_ERROR(Schema.create(NewEntries).moveInto(Tree),
                         Succeeded());
@@ -206,7 +206,7 @@ TEST(TreeSchemaTest, Lookup) {
       NamedTreeEntry(Blob, TreeEntry::Regular, "d"),
   };
   Optional<TreeProxy> Tree;
-  TreeSchema Schema(*CAS);
+  TreeSchema Schema = llvm::cantFail(TreeSchema::create(*CAS));
   ASSERT_THAT_ERROR(Schema.create(FlatTreeEntries).moveInto(Tree),
                     Succeeded());
   ASSERT_EQ(Tree->size(), (size_t)6);
@@ -251,7 +251,7 @@ TEST(TreeSchemaTest, walkFileTreeRecursively) {
   };
   auto RemainingEntries = makeArrayRef(ExpectedEntries);
 
-  TreeSchema Schema(*CAS);
+  TreeSchema Schema = llvm::cantFail(TreeSchema::create(*CAS));
   Error E = Schema.walkFileTreeRecursively(
       *CAS, *Root,
       [&](const NamedTreeEntry &Entry, Optional<TreeProxy> Tree) -> Error {
