@@ -28,7 +28,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cstdint>
@@ -606,8 +605,7 @@ public:
   /// Ignores non-instrumented object files unless all are not instrumented.
   static Expected<std::unique_ptr<CoverageMapping>>
   load(ArrayRef<StringRef> ObjectFilenames, StringRef ProfileFilename,
-       vfs::FileSystem &FS, ArrayRef<StringRef> Arches = None,
-       StringRef CompilationDir = "");
+       ArrayRef<StringRef> Arches = None, StringRef CompilationDir = "");
 
   /// The number of functions that couldn't have their profiles mapped.
   ///

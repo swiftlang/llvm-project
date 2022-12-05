@@ -16,7 +16,6 @@
 
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include <string>
 
 namespace llvm {
@@ -28,8 +27,7 @@ class SampleProfileLoaderPass : public PassInfoMixin<SampleProfileLoaderPass> {
 public:
   SampleProfileLoaderPass(
       std::string File = "", std::string RemappingFile = "",
-      ThinOrFullLTOPhase LTOPhase = ThinOrFullLTOPhase::None,
-      IntrusiveRefCntPtr<vfs::FileSystem> FS = nullptr)
+      ThinOrFullLTOPhase LTOPhase = ThinOrFullLTOPhase::None)
       : ProfileFileName(File), ProfileRemappingFileName(RemappingFile),
         LTOPhase(LTOPhase) {}
 
@@ -39,7 +37,6 @@ private:
   std::string ProfileFileName;
   std::string ProfileRemappingFileName;
   ThinOrFullLTOPhase LTOPhase;
-  IntrusiveRefCntPtr<vfs::FileSystem> FS;
 };
 
 } // end namespace llvm

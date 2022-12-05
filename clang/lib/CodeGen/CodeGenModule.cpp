@@ -102,7 +102,7 @@ CodeGenModule::CodeGenModule(ASTContext &C,
                              const CodeGenOptions &CGO, llvm::Module &M,
                              DiagnosticsEngine &diags,
                              CoverageSourceInfo *CoverageInfo)
-    : Context(C), LangOpts(C.getLangOpts()), FS(FS),
+    : Context(C), LangOpts(C.getLangOpts()), FS(std::move(FS)),
       HeaderSearchOpts(HSO), PreprocessorOpts(PPO), CodeGenOpts(CGO),
       TheModule(M), Diags(diags), Target(C.getTargetInfo()),
       ABI(createCXXABI(*this)), VMContext(M.getContext()), Types(*this),
@@ -168,8 +168,7 @@ CodeGenModule::CodeGenModule(ASTContext &C,
 
   if (CodeGenOpts.hasProfileClangUse()) {
     auto ReaderOrErr = llvm::IndexedInstrProfReader::create(
-        CodeGenOpts.ProfileInstrumentUsePath, *FS,
-        CodeGenOpts.ProfileRemappingFile);
+        CodeGenOpts.ProfileInstrumentUsePath, CodeGenOpts.ProfileRemappingFile);
     if (auto E = ReaderOrErr.takeError()) {
       unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
                                               "Could not read profile %0: %1");

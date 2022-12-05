@@ -27,7 +27,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -345,9 +344,9 @@ static Error handleMaybeNoDataFoundError(Error E) {
 
 Expected<std::unique_ptr<CoverageMapping>>
 CoverageMapping::load(ArrayRef<StringRef> ObjectFilenames,
-                      StringRef ProfileFilename, vfs::FileSystem &FS,
-                      ArrayRef<StringRef> Arches, StringRef CompilationDir) {
-  auto ProfileReaderOrErr = IndexedInstrProfReader::create(ProfileFilename, FS);
+                      StringRef ProfileFilename, ArrayRef<StringRef> Arches,
+                      StringRef CompilationDir) {
+  auto ProfileReaderOrErr = IndexedInstrProfReader::create(ProfileFilename);
   if (Error E = ProfileReaderOrErr.takeError())
     return std::move(E);
   auto ProfileReader = std::move(ProfileReaderOrErr.get());

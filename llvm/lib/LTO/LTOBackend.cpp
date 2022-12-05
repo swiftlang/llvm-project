@@ -38,7 +38,6 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
@@ -211,22 +210,21 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
                            unsigned OptLevel, bool IsThinLTO,
                            ModuleSummaryIndex *ExportSummary,
                            const ModuleSummaryIndex *ImportSummary) {
-  auto FS = vfs::getRealFileSystem();
   Optional<PGOOptions> PGOOpt;
   if (!Conf.SampleProfile.empty())
-    PGOOpt = PGOOptions(Conf.SampleProfile, "", Conf.ProfileRemapping, FS,
+    PGOOpt = PGOOptions(Conf.SampleProfile, "", Conf.ProfileRemapping,
                         PGOOptions::SampleUse, PGOOptions::NoCSAction, true);
   else if (Conf.RunCSIRInstr) {
-    PGOOpt = PGOOptions("", Conf.CSIRProfile, Conf.ProfileRemapping, FS,
+    PGOOpt = PGOOptions("", Conf.CSIRProfile, Conf.ProfileRemapping,
                         PGOOptions::IRUse, PGOOptions::CSIRInstr,
                         Conf.AddFSDiscriminator);
   } else if (!Conf.CSIRProfile.empty()) {
-    PGOOpt = PGOOptions(Conf.CSIRProfile, "", Conf.ProfileRemapping, FS,
+    PGOOpt = PGOOptions(Conf.CSIRProfile, "", Conf.ProfileRemapping,
                         PGOOptions::IRUse, PGOOptions::CSIRUse,
                         Conf.AddFSDiscriminator);
     NoPGOWarnMismatch = !Conf.PGOWarnMismatch;
   } else if (Conf.AddFSDiscriminator) {
-    PGOOpt = PGOOptions("", "", "", nullptr, PGOOptions::NoAction,
+    PGOOpt = PGOOptions("", "", "", PGOOptions::NoAction,
                         PGOOptions::NoCSAction, true);
   }
   TM->setPGOOption(PGOOpt);

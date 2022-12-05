@@ -159,9 +159,8 @@ bool X86InsertPrefetch::doInitialization(Module &M) {
     return false;
 
   LLVMContext &Ctx = M.getContext();
-  auto FS = vfs::getRealFileSystem();
   ErrorOr<std::unique_ptr<SampleProfileReader>> ReaderOrErr =
-      SampleProfileReader::create(Filename, Ctx, *FS);
+      SampleProfileReader::create(Filename, Ctx);
   if (std::error_code EC = ReaderOrErr.getError()) {
     std::string Msg = "Could not open profile: " + EC.message();
     Ctx.diagnose(DiagnosticInfoSampleProfile(Filename, Msg,

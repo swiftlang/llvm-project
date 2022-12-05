@@ -15,7 +15,6 @@
 #define LLVM_SUPPORT_PGOOPTIONS_H
 
 #include "llvm/Support/Error.h"
-#include "llvm/Support/VirtualFileSystem.h"
 
 namespace llvm {
 
@@ -24,9 +23,8 @@ struct PGOOptions {
   enum PGOAction { NoAction, IRInstr, IRUse, SampleUse };
   enum CSPGOAction { NoCSAction, CSIRInstr, CSIRUse };
   PGOOptions(std::string ProfileFile = "", std::string CSProfileGenFile = "",
-             std::string ProfileRemappingFile = "",
-             IntrusiveRefCntPtr<vfs::FileSystem> FS = nullptr,
-             PGOAction Action = NoAction, CSPGOAction CSAction = NoCSAction,
+             std::string ProfileRemappingFile = "", PGOAction Action = NoAction,
+             CSPGOAction CSAction = NoCSAction,
              bool DebugInfoForProfiling = false,
              bool PseudoProbeForProfiling = false)
       : ProfileFile(ProfileFile), CSProfileGenFile(CSProfileGenFile),
@@ -34,7 +32,7 @@ struct PGOOptions {
         CSAction(CSAction), DebugInfoForProfiling(DebugInfoForProfiling ||
                                                   (Action == SampleUse &&
                                                    !PseudoProbeForProfiling)),
-        PseudoProbeForProfiling(PseudoProbeForProfiling), FS(FS) {
+        PseudoProbeForProfiling(PseudoProbeForProfiling) {
     // Note, we do allow ProfileFile.empty() for Action=IRUse LTO can
     // callback with IRUse action without ProfileFile.
 
@@ -53,9 +51,6 @@ struct PGOOptions {
     // PseudoProbeForProfiling needs to be true.
     assert(this->Action != NoAction || this->CSAction != NoCSAction ||
            this->DebugInfoForProfiling || this->PseudoProbeForProfiling);
-
-    // If we need to use the profile, the VFS cannot be nullptr.
-    assert(this->FS || !(this->Action == IRUse || this->CSAction == CSIRUse));
   }
   std::string ProfileFile;
   std::string CSProfileGenFile;
@@ -64,7 +59,6 @@ struct PGOOptions {
   CSPGOAction CSAction;
   bool DebugInfoForProfiling;
   bool PseudoProbeForProfiling;
-  IntrusiveRefCntPtr<vfs::FileSystem> FS;
 };
 } // namespace llvm
 

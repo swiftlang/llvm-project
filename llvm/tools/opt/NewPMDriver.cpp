@@ -31,7 +31,6 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
@@ -284,24 +283,22 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
                            bool EnableDebugify) {
   bool VerifyEachPass = VK == VK_VerifyEachPass;
 
-  auto FS = vfs::getRealFileSystem();
   Optional<PGOOptions> P;
   switch (PGOKindFlag) {
   case InstrGen:
-    P = PGOOptions(ProfileFile, "", "", FS, PGOOptions::IRInstr);
+    P = PGOOptions(ProfileFile, "", "", PGOOptions::IRInstr);
     break;
   case InstrUse:
-    P = PGOOptions(ProfileFile, "", ProfileRemappingFile, FS, PGOOptions::IRUse);
+    P = PGOOptions(ProfileFile, "", ProfileRemappingFile, PGOOptions::IRUse);
     break;
   case SampleUse:
-    P = PGOOptions(ProfileFile, "", ProfileRemappingFile, FS,
+    P = PGOOptions(ProfileFile, "", ProfileRemappingFile,
                    PGOOptions::SampleUse);
     break;
   case NoPGO:
     if (DebugInfoForProfiling || PseudoProbeForProfiling)
-      P = PGOOptions("", "", "", nullptr, PGOOptions::NoAction,
-                     PGOOptions::NoCSAction, DebugInfoForProfiling,
-                     PseudoProbeForProfiling);
+      P = PGOOptions("", "", "", PGOOptions::NoAction, PGOOptions::NoCSAction,
+                     DebugInfoForProfiling, PseudoProbeForProfiling);
     else
       P = None;
   }
@@ -316,7 +313,7 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
         P->CSAction = PGOOptions::CSIRInstr;
         P->CSProfileGenFile = CSProfileGenFile;
       } else
-        P = PGOOptions("", CSProfileGenFile, ProfileRemappingFile, FS,
+        P = PGOOptions("", CSProfileGenFile, ProfileRemappingFile,
                        PGOOptions::NoAction, PGOOptions::CSIRInstr);
     } else /* CSPGOKindFlag == CSInstrUse */ {
       if (!P)

@@ -863,6 +863,10 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
                                           Input.getIncludeTree());
     if (!Root)
       return reportError(Root.takeError());
+    auto IncludeTreeFS = cas::createIncludeTreeFileSystem(*Root);
+    if (!IncludeTreeFS)
+      return reportError(IncludeTreeFS.takeError());
+    CI.getFileManager().setVirtualFileSystem(std::move(*IncludeTreeFS));
 
     Expected<std::unique_ptr<PPCachedActions>> PPCachedAct =
         createPPActionsFromIncludeTree(*Root);

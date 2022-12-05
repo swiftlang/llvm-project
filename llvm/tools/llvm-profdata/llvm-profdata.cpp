@@ -35,7 +35,6 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/Threading.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -219,8 +218,7 @@ static void overlapInput(const std::string &BaseFilename,
                          OverlapStats &Overlap,
                          const OverlapFuncFilters &FuncFilter,
                          raw_fd_ostream &OS, bool IsCS) {
-  auto FS = vfs::getRealFileSystem();
-  auto ReaderOrErr = InstrProfReader::create(TestFilename, *FS);
+  auto ReaderOrErr = InstrProfReader::create(TestFilename);
   if (Error E = ReaderOrErr.takeError()) {
     // Skip the empty profiles by returning sliently.
     instrprof_error IPE = InstrProfError::take(std::move(E));
@@ -292,8 +290,7 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
     return;
   }
 
-  auto FS = vfs::getRealFileSystem();
-  auto ReaderOrErr = InstrProfReader::create(Input.Filename, *FS, Correlator);
+  auto ReaderOrErr = InstrProfReader::create(Input.Filename, Correlator);
   if (Error E = ReaderOrErr.takeError()) {
     // Skip the empty profiles by returning sliently.
     instrprof_error IPE = InstrProfError::take(std::move(E));
@@ -624,9 +621,8 @@ static void supplementInstrProfile(
 
   // Read sample profile.
   LLVMContext Context;
-  auto FS = vfs::getRealFileSystem();
   auto ReaderOrErr = sampleprof::SampleProfileReader::create(
-      SampleFilename.str(), Context, *FS, FSDiscriminatorPassOption);
+      SampleFilename.str(), Context, FSDiscriminatorPassOption);
   if (std::error_code EC = ReaderOrErr.getError())
     exitWithErrorCode(EC, SampleFilename);
   auto Reader = std::move(ReaderOrErr.get());
@@ -761,8 +757,7 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
   Optional<bool> ProfileIsProbeBased;
   Optional<bool> ProfileIsCSFlat;
   for (const auto &Input : Inputs) {
-    auto FS = vfs::getRealFileSystem();
-    auto ReaderOrErr = SampleProfileReader::create(Input.Filename, Context, *FS,
+    auto ReaderOrErr = SampleProfileReader::create(Input.Filename, Context,
                                                    FSDiscriminatorPassOption);
     if (std::error_code EC = ReaderOrErr.getError()) {
       warnOrExitGivenError(FailMode, EC, Input.Filename);
@@ -1971,13 +1966,12 @@ std::error_code SampleOverlapAggregator::loadProfiles() {
   using namespace sampleprof;
 
   LLVMContext Context;
-  auto FS = vfs::getRealFileSystem();
-  auto BaseReaderOrErr = SampleProfileReader::create(BaseFilename, Context, *FS,
+  auto BaseReaderOrErr = SampleProfileReader::create(BaseFilename, Context,
                                                      FSDiscriminatorPassOption);
   if (std::error_code EC = BaseReaderOrErr.getError())
     exitWithErrorCode(EC, BaseFilename);
 
-  auto TestReaderOrErr = SampleProfileReader::create(TestFilename, Context, *FS,
+  auto TestReaderOrErr = SampleProfileReader::create(TestFilename, Context,
                                                      FSDiscriminatorPassOption);
   if (std::error_code EC = TestReaderOrErr.getError())
     exitWithErrorCode(EC, TestFilename);
@@ -2150,8 +2144,7 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
                             const std::string &ShowFunction, bool TextFormat,
                             bool ShowBinaryIds, bool ShowCovered,
                             raw_fd_ostream &OS) {
-  auto FS = vfs::getRealFileSystem();
-  auto ReaderOrErr = InstrProfReader::create(Filename, *FS);
+  auto ReaderOrErr = InstrProfReader::create(Filename);
   std::vector<uint32_t> Cutoffs = std::move(DetailedSummaryCutoffs);
   if (ShowDetailedSummary && Cutoffs.empty()) {
     Cutoffs = ProfileSummaryBuilder::DefaultCutoffs;
@@ -2499,9 +2492,8 @@ static int showSampleProfile(const std::string &Filename, bool ShowCounts,
                              raw_fd_ostream &OS) {
   using namespace sampleprof;
   LLVMContext Context;
-  auto FS = vfs::getRealFileSystem();
-  auto ReaderOrErr = SampleProfileReader::create(Filename, Context, *FS,
-                                                 FSDiscriminatorPassOption);
+  auto ReaderOrErr =
+      SampleProfileReader::create(Filename, Context, FSDiscriminatorPassOption);
   if (std::error_code EC = ReaderOrErr.getError())
     exitWithErrorCode(EC, Filename);
 

@@ -17,7 +17,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/Support/Discriminator.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include <memory>
 #include <string>
 
@@ -42,8 +41,7 @@ public:
   /// FS bits will only use the '1' bits in the Mask.
   MIRProfileLoaderPass(std::string FileName = "",
                        std::string RemappingFileName = "",
-                       FSDiscriminatorPass P = FSDiscriminatorPass::Pass1,
-                       IntrusiveRefCntPtr<vfs::FileSystem> FS = nullptr);
+                       FSDiscriminatorPass P = FSDiscriminatorPass::Pass1);
 
   /// getMachineFunction - Return the last machine function computed.
   const MachineFunction *getMachineFunction() const { return MF; }
@@ -59,8 +57,6 @@ private:
   std::unique_ptr<MIRProfileLoader> MIRSampleLoader;
   /// Hold the information of the basic block frequency.
   MachineBlockFrequencyInfo *MBFI;
-
-  IntrusiveRefCntPtr<vfs::FileSystem> FS;
 };
 
 } // namespace llvm

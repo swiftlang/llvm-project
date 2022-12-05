@@ -26,7 +26,6 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SwapByteOrder.h"
 #include "llvm/Support/SymbolRemappingReader.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -64,9 +63,9 @@ static InstrProfKind getProfileKindFromVersion(uint64_t Version) {
 }
 
 static Expected<std::unique_ptr<MemoryBuffer>>
-setupMemoryBuffer(const Twine &Filename, vfs::FileSystem &FS) {
-  auto BufferOrErr = Filename.str() == "-" ? MemoryBuffer::getSTDIN()
-                                           : FS.getBufferForFile(Filename);
+setupMemoryBuffer(const Twine &Path) {
+  ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
+      MemoryBuffer::getFileOrSTDIN(Path, /*IsText=*/true);
   if (std::error_code EC = BufferOrErr.getError())
     return errorCodeToError(EC);
   return std::move(BufferOrErr.get());
@@ -77,10 +76,10 @@ static Error initializeReader(InstrProfReader &Reader) {
 }
 
 Expected<std::unique_ptr<InstrProfReader>>
-InstrProfReader::create(const Twine &Path, vfs::FileSystem &FS,
+InstrProfReader::create(const Twine &Path,
                         const InstrProfCorrelator *Correlator) {
   // Set up the buffer to read.
-  auto BufferOrError = setupMemoryBuffer(Path, FS);
+  auto BufferOrError = setupMemoryBuffer(Path);
   if (Error E = BufferOrError.takeError())
     return std::move(E);
   return InstrProfReader::create(std::move(BufferOrError.get()), Correlator);
@@ -117,10 +116,9 @@ InstrProfReader::create(std::unique_ptr<MemoryBuffer> Buffer,
 }
 
 Expected<std::unique_ptr<IndexedInstrProfReader>>
-IndexedInstrProfReader::create(const Twine &Path, vfs::FileSystem &FS,
-                               const Twine &RemappingPath) {
+IndexedInstrProfReader::create(const Twine &Path, const Twine &RemappingPath) {
   // Set up the buffer to read.
-  auto BufferOrError = setupMemoryBuffer(Path, FS);
+  auto BufferOrError = setupMemoryBuffer(Path);
   if (Error E = BufferOrError.takeError())
     return std::move(E);
 
@@ -128,7 +126,7 @@ IndexedInstrProfReader::create(const Twine &Path, vfs::FileSystem &FS,
   std::unique_ptr<MemoryBuffer> RemappingBuffer;
   std::string RemappingPathStr = RemappingPath.str();
   if (!RemappingPathStr.empty()) {
-    auto RemappingBufferOrError = setupMemoryBuffer(RemappingPathStr, FS);
+    auto RemappingBufferOrError = setupMemoryBuffer(RemappingPathStr);
     if (Error E = RemappingBufferOrError.takeError())
       return std::move(E);
     RemappingBuffer = std::move(RemappingBufferOrError.get());
