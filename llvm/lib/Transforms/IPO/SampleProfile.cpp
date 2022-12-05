@@ -551,7 +551,8 @@ public:
       ThinOrFullLTOPhase LTOPhase = ThinOrFullLTOPhase::None,
       IntrusiveRefCntPtr<vfs::FileSystem> FS = nullptr)
       : ModulePass(ID), SampleLoader(
-                            Name, SampleProfileRemappingFile, LTOPhase, FS,
+                            Name, SampleProfileRemappingFile, LTOPhase,
+                            FS ? FS : vfs::getRealFileSystem(),
                             [&](Function &F) -> AssumptionCache & {
                               return ACT->getAssumptionCache(F);
                             },
