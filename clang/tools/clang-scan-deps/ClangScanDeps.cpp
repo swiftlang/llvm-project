@@ -254,7 +254,7 @@ static bool emitCompilationDBWithCASTreeArguments(
     std::shared_ptr<llvm::cas::ObjectStore> DB,
     std::vector<tooling::CompileCommand> Inputs,
     DiagnosticConsumer &DiagsConsumer,
-    const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+    const DepscanPrefixMapping &PrefixMapping,
     DependencyScanningService &Service, llvm::ThreadPool &Pool,
     llvm::raw_ostream &OS) {
 
@@ -317,7 +317,7 @@ static bool emitCompilationDBWithCASTreeArguments(
           tooling::dependencies::DependencyScanningTool &WorkerTool;
           DiagnosticConsumer &DiagsConsumer;
           StringRef CWD;
-          const cc1depscand::DepscanPrefixMapping &PrefixMapping;
+          const DepscanPrefixMapping &PrefixMapping;
           SmallVectorImpl<const char *> &OutputArgs;
           llvm::StringSaver &Saver;
 
@@ -326,7 +326,7 @@ static bool emitCompilationDBWithCASTreeArguments(
               llvm::cas::ObjectStore &DB,
               tooling::dependencies::DependencyScanningTool &WorkerTool,
               DiagnosticConsumer &DiagsConsumer, StringRef CWD,
-              const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+              const DepscanPrefixMapping &PrefixMapping,
               SmallVectorImpl<const char *> &OutputArgs,
               llvm::StringSaver &Saver)
               : DB(DB), WorkerTool(WorkerTool), DiagsConsumer(DiagsConsumer),
@@ -840,7 +840,7 @@ int main(int argc, const char **argv) {
       return 1;
     }
     // FIXME: Configure this.
-    cc1depscand::DepscanPrefixMapping PrefixMapping;
+    DepscanPrefixMapping PrefixMapping;
     return emitCompilationDBWithCASTreeArguments(
         CAS, AdjustingCompilations->getAllCompileCommands(), *DiagsConsumer,
         PrefixMapping, Service, Pool, llvm::outs());
