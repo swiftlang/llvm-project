@@ -126,6 +126,8 @@ Bug Fixes
 - Unscoped and scoped enumeration types can no longer be initialized from a
   brace-init-list containing a single element of a different scoped enumeration
   type.
+- Fix issue using __attribute__((format)) on non-variadic functions that expect
+  more than one formatted argument.
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
