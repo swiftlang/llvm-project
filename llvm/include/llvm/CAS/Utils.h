@@ -13,6 +13,7 @@
 
 namespace llvm {
 class MemoryBufferRef;
+class raw_ostream;
 
 namespace cas {
 
