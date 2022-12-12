@@ -1888,6 +1888,9 @@ SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
       return ParseResult::unrecoverable_error;
     }
   } else {
+    if (m_options.GetPCMacroEnabled()) {
+      swift::performPCMacro(parsed_expr->source_file);
+    }
     swift::performPlaygroundTransform(
         parsed_expr->source_file,
         m_options.GetPlaygroundTransformHighPerformance());

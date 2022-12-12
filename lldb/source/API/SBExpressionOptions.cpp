@@ -183,6 +183,14 @@ void SBExpressionOptions::SetPlaygroundTransformHighPerformance(
   m_opaque_up->SetPlaygroundTransformHighPerformance(playground_transforms_hp);
 }
 
+bool SBExpressionOptions::GetPCMacroEnabled() const {
+  return m_opaque_up->GetPCMacroEnabled();
+}
+
+void SBExpressionOptions::SetPCMacroEnabled(bool pc_macro) {
+  m_opaque_up->SetPCMacroEnabled(pc_macro);
+}
+
 bool SBExpressionOptions::GetREPLMode() const {
   return m_opaque_up->GetREPLEnabled();
 }

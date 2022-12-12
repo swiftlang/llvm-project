@@ -79,6 +79,10 @@ public:
   void
   SetPlaygroundTransformHighPerformance(bool playground_transforms_hp = true);
 
+  bool GetPCMacroEnabled() const;
+
+  void SetPCMacroEnabled(bool enable_pc_macro = true);
+
   bool GetREPLMode() const;
 
   void SetREPLMode(bool enable_repl_mode = true);

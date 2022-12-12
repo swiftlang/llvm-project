@@ -98,6 +98,12 @@ public:
     SetPlaygroundTransformEnabled (bool enable_playground_transform = true);
 
     bool
+    GetPCMacroEnabled () const;
+
+    void
+    SetPCMacroEnabled (bool enable_pc_macro = true);
+
+    bool
     GetREPLMode () const;
     
     void
