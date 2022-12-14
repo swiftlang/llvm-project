@@ -59,6 +59,30 @@ public:
     unsigned GetType() override { return Type(); }
   };
 
+  class VariableMetadataPersistent
+      : public SwiftASTManipulatorBase::VariableMetadata {
+  public:
+    VariableMetadataPersistent(
+        lldb::ExpressionVariableSP &persistent_variable_sp)
+        : m_persistent_variable_sp(persistent_variable_sp) {}
+
+    static constexpr unsigned Type() { return 'Pers'; }
+    unsigned GetType() override { return Type(); }
+    lldb::ExpressionVariableSP m_persistent_variable_sp;
+  };
+
+class VariableMetadataVariable
+    : public SwiftASTManipulatorBase::VariableMetadata {
+public:
+  VariableMetadataVariable(lldb::VariableSP &variable_sp)
+      : m_variable_sp(variable_sp) {}
+
+  static constexpr unsigned Type() { return 'Vari'; }
+  unsigned GetType() override { return Type(); }
+  lldb::VariableSP m_variable_sp;
+};
+
+
   typedef std::shared_ptr<VariableMetadata> VariableMetadataSP;
 
   struct VariableInfo {
@@ -68,6 +92,9 @@ public:
     swift::VarDecl::Introducer GetVarIntroducer() const;
     bool GetIsCaptureList() const;
     bool IsMetadataPointer() const { return m_name.str().startswith("$τ"); }
+    bool IsOutermostMetadataPointer() const {
+      return m_name.str().startswith("$τ_0_");
+    }
     bool IsSelf() const {
       return !m_name.str().compare("$__lldb_injected_self");
     }
