@@ -29,4 +29,5 @@ add_llvm_component_library(LLVMCAS
 
   LINK_COMPONENTS
   BinaryFormat
+  Support
 )
