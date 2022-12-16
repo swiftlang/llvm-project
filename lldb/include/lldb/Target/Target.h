@@ -54,6 +54,8 @@ class SwiftASTContextForExpressions;
 
 OptionEnumValues GetDynamicValueTypes();
 
+OptionEnumValues GetBindGenericTypesOptions();
+
 enum InlineStrategy {
   eInlineBreakpointsNever = 0,
   eInlineBreakpointsHeaders,
@@ -171,8 +173,6 @@ public:
   FileSpecList GetSwiftModuleSearchPaths();
 
   llvm::StringRef GetSwiftExtraClangFlags() const;
-
-  bool GetSwiftCreateModuleContextsInParallel() const;
 
   bool GetSwiftReadMetadataFromFileCache() const;
 
@@ -433,6 +433,22 @@ public:
       m_language = lldb::eLanguageTypeSwift;
   }
 
+  lldb::BindGenericTypes GetBindGenericTypes() const {
+    return m_bind_generic_types;
+  }
+
+  void SetBindGenericTypes(lldb::BindGenericTypes b) {
+    m_bind_generic_types = b;
+  }
+
+  bool GetPlaygroundTransformHighPerformance() const {
+    return m_playground_transforms_hp;
+  }
+
+  void SetPlaygroundTransformHighPerformance(bool b) {
+    m_playground_transforms_hp = b;
+  }
+
   void SetCancelCallback(lldb::ExpressionCancelCallback callback, void *baton) {
     m_cancel_callback_baton = baton;
     m_cancel_callback = callback;
@@ -500,6 +516,7 @@ private:
   bool m_trap_exceptions = true;
   bool m_repl = false;
   bool m_playground = false;
+  bool m_playground_transforms_hp = true;
   bool m_generate_debug_info = false;
   bool m_ansi_color_errors = false;
   bool m_result_is_internal = false;
@@ -508,6 +525,8 @@ private:
   /// True if the executed code should be treated as utility code that is only
   /// used by LLDB internally.
   bool m_running_utility_expression = false;
+
+  lldb::BindGenericTypes m_bind_generic_types = lldb::eBindAuto;
 
   lldb::DynamicValueType m_use_dynamic = lldb::eNoDynamicValues;
   Timeout<std::micro> m_timeout = default_timeout;
@@ -1179,12 +1198,13 @@ public:
 
   PathMappingList &GetImageSearchPathList();
 
-  llvm::Expected<TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetScratchTypeSystemForLanguage(lldb::LanguageType language,
                                   bool create_on_demand = true,
                                   const char *compiler_options = nullptr);
 
-  std::vector<TypeSystem *> GetScratchTypeSystems(bool create_on_demand = true);
+  std::vector<lldb::TypeSystemSP>
+  GetScratchTypeSystems(bool create_on_demand = true);
 
   PersistentExpressionState *
   GetPersistentExpressionStateForLanguage(lldb::LanguageType language);

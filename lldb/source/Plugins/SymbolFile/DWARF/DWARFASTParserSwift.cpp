@@ -146,7 +146,7 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
           // For a typedef, store the once desugared type as the name.
           CompilerType type = desugared_type->GetForwardCompilerType();
           if (auto swift_ast_ctx =
-                  llvm::dyn_cast_or_null<TypeSystemSwift>(type.GetTypeSystem()))
+                  type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>())
             preferred_name =
                 swift_ast_ctx->GetMangledTypeName(type.GetOpaqueQualType());
         }
@@ -212,6 +212,12 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
   return type_sp;
 }
 
+ConstString
+DWARFASTParserSwift::ConstructDemangledNameFromDWARF(const DWARFDIE &die) {
+  // FIXME: Implement me.
+  return {};
+}
+
 Function *DWARFASTParserSwift::ParseFunctionFromDWARF(
     lldb_private::CompileUnit &comp_unit, const DWARFDIE &die,
     const lldb_private::AddressRange &func_range) {
@@ -226,7 +232,7 @@ Function *DWARFASTParserSwift::ParseFunctionFromDWARF(
   int call_file = 0;
   int call_line = 0;
   int call_column = 0;
-  DWARFExpression frame_base;
+  DWARFExpressionList frame_base;
 
   if (die.Tag() != DW_TAG_subprogram)
     return NULL;

@@ -56,6 +56,17 @@ macro(add_optional_dependency variable description package found)
   message(STATUS "${description}: ${${variable}}")
 endmacro()
 
+add_optional_dependency(LLDB_ENABLE_SWIG "Enable SWIG to generate LLDB bindings" SWIG SWIG_FOUND VERSION 3)
+
+# BEGIN SWIFT MOD
+if (LLDB_ENABLE_SWIG)
+  set(LLDB_ENABLE_STATIC_BINDINGS FALSE)
+else()
+  set(LLDB_ENABLE_STATIC_BINDINGS TRUE)
+endif()
+option(LLDB_USE_STATIC_BINDINGS "Use the static Python bindings." ${LLDB_ENABLE_STATIC_BINDINGS})
+# END SWIFT MOD
+
 add_optional_dependency(LLDB_ENABLE_LIBEDIT "Enable editline support in LLDB" LibEdit LibEdit_FOUND)
 add_optional_dependency(LLDB_ENABLE_CURSES "Enable curses support in LLDB" CursesAndPanel CURSESANDPANEL_FOUND)
 add_optional_dependency(LLDB_ENABLE_LZMA "Enable LZMA compression support in LLDB" LibLZMA LIBLZMA_FOUND)
@@ -74,7 +85,6 @@ option(LLDB_SKIP_DSYM "Whether to skip generating a dSYM when installing lldb." 
 
 # BEGIN SWIFT MOD
 option(LLDB_ENABLE_SWIFT_SUPPORT "Enable swift support" ON)
-option(LLDB_USE_STATIC_BINDINGS "Use the static Python bindings." OFF)
 option(LLDB_ENABLE_WERROR "Fail and stop if a warning is triggered." ${LLVM_ENABLE_WERROR})
 if(LLDB_ENABLE_SWIFT_SUPPORT)
   add_definitions( -DLLDB_ENABLE_SWIFT )
@@ -102,7 +112,13 @@ if(LLDB_BUILD_FRAMEWORK)
   set(LLDB_FRAMEWORK_VERSION A CACHE STRING "LLDB.framework version (default is A)")
   set(LLDB_FRAMEWORK_BUILD_DIR bin CACHE STRING "Output directory for LLDB.framework")
   set(LLDB_FRAMEWORK_INSTALL_DIR Library/Frameworks CACHE STRING "Install directory for LLDB.framework")
-  set(LLDB_FRAMEWORK_COPY_SWIFT_RESOURCES 1 CACHE BOOL "Copy the Swift headers into the resource directory of the LLDB.framework")
+  if (LLDB_ENABLE_SWIFT_SUPPORT)
+    set(should_copy_swift_resources ON)
+  else()
+    set(should_copy_swift_resources OFF)
+  endif()
+
+  set(LLDB_FRAMEWORK_COPY_SWIFT_RESOURCES ${should_copy_swift_resources} CACHE BOOL "Copy the Swift headers into the resource directory of the LLDB.framework")
 
   get_filename_component(LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR ${LLDB_FRAMEWORK_BUILD_DIR} ABSOLUTE
     BASE_DIR ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR})

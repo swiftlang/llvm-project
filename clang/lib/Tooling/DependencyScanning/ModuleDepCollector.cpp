@@ -8,10 +8,14 @@
 
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 
+#include "clang/Basic/DiagnosticCAS.h"
 #include "clang/Basic/MakeSupport.h"
+#include "clang/Frontend/CompileJobCacheKey.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
+#include "llvm/CAS/CASID.h"
+#include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/BLAKE3.h"
 #include "llvm/Support/StringSaver.h"
 
@@ -119,6 +123,9 @@ ModuleDepCollector::makeInvocationForModuleBuildWithoutOutputs(
   CI.getFrontendOpts().ProgramAction = frontend::GenerateModule;
   CI.getLangOpts()->ModuleName = Deps.ID.ModuleName;
   CI.getFrontendOpts().IsSystemModule = Deps.IsSystem;
+  CI.getCASOpts() = CASOpts;
+  CI.getFrontendOpts().CacheCompileJob = CacheCompileJob;
+  CI.getFrontendOpts().IncludeTimestamps = false;
 
   // Inputs
   InputKind ModuleMapInputKind(CI.getFrontendOpts().DashX.getLanguage(),
@@ -132,30 +139,34 @@ ModuleDepCollector::makeInvocationForModuleBuildWithoutOutputs(
 
   auto DepModuleMapFiles = collectModuleMapFiles(Deps.ClangModuleDeps);
   for (StringRef ModuleMapFile : Deps.ModuleMapFileDeps) {
+    // TODO: Track these as `FileEntryRef` to simplify the equality check below.
+    auto ModuleMapEntry = ScanInstance.getFileManager().getFile(ModuleMapFile);
+    assert(ModuleMapEntry && "module map file entry not found");
+
     // Don't report module maps describing eagerly-loaded dependency. This
     // information will be deserialized from the PCM.
     // TODO: Verify this works fine when modulemap for module A is eagerly
     // loaded from A.pcm, and module map passed on the command line contains
     // definition of a submodule: "explicit module A.Private { ... }".
-    if (EagerLoadModules && DepModuleMapFiles.contains(ModuleMapFile))
+    if (EagerLoadModules && DepModuleMapFiles.contains(*ModuleMapEntry))
       continue;
-
-    // TODO: Track these as `FileEntryRef` to simplify the equality check below.
-    auto ModuleMapEntry = ScanInstance.getFileManager().getFile(ModuleMapFile);
-    assert(ModuleMapEntry && "module map file entry not found");
 
     // Don't report module map file of the current module unless it also
     // describes a dependency (for symmetry).
     if (*ModuleMapEntry == *CurrentModuleMapEntry &&
-        !DepModuleMapFiles.contains(ModuleMapFile))
+        !DepModuleMapFiles.contains(*ModuleMapEntry))
       continue;
 
     CI.getFrontendOpts().ModuleMapFiles.emplace_back(ModuleMapFile);
   }
 
   // Report the prebuilt modules this module uses.
-  for (const auto &PrebuiltModule : Deps.PrebuiltModuleDeps)
+  for (const auto &PrebuiltModule : Deps.PrebuiltModuleDeps) {
     CI.getFrontendOpts().ModuleFiles.push_back(PrebuiltModule.PCMFile);
+    if (PrebuiltModule.ModuleCacheKey)
+      CI.getFrontendOpts().ModuleCacheKeys.emplace_back(
+          PrebuiltModule.PCMFile, *PrebuiltModule.ModuleCacheKey);
+  }
 
   // Remove any macro definitions that are explicitly ignored.
   if (!CI.getHeaderSearchOpts().ModulesIgnoreMacros.empty()) {
@@ -183,13 +194,16 @@ ModuleDepCollector::makeInvocationForModuleBuildWithoutOutputs(
   return CI;
 }
 
-llvm::StringSet<> ModuleDepCollector::collectModuleMapFiles(
+llvm::DenseSet<const FileEntry *> ModuleDepCollector::collectModuleMapFiles(
     ArrayRef<ModuleID> ClangModuleDeps) const {
-  llvm::StringSet<> ModuleMapFiles;
+  llvm::DenseSet<const FileEntry *> ModuleMapFiles;
   for (const ModuleID &MID : ClangModuleDeps) {
     ModuleDeps *MD = ModuleDepsByID.lookup(MID);
     assert(MD && "Inconsistent dependency info");
-    ModuleMapFiles.insert(MD->ClangModuleMapFile);
+    // TODO: Track ClangModuleMapFile as `FileEntryRef`.
+    auto FE = ScanInstance.getFileManager().getFile(MD->ClangModuleMapFile);
+    assert(FE && "Missing module map file that was previously found");
+    ModuleMapFiles.insert(*FE);
   }
   return ModuleMapFiles;
 }
@@ -211,6 +225,13 @@ void ModuleDepCollector::addModuleFiles(
   for (const ModuleID &MID : ClangModuleDeps) {
     std::string PCMPath =
         Consumer.lookupModuleOutput(MID, ModuleOutputKind::ModuleFile);
+
+    ModuleDeps *MD = ModuleDepsByID.lookup(MID);
+    assert(MD && "Inconsistent dependency info");
+    if (MD->ModuleCacheKey)
+      CI.getFrontendOpts().ModuleCacheKeys.emplace_back(PCMPath,
+                                                        *MD->ModuleCacheKey);
+
     if (EagerLoadModules)
       CI.getFrontendOpts().ModuleFiles.push_back(std::move(PCMPath));
     else
@@ -232,6 +253,15 @@ static bool needsModules(FrontendInputFile FIF) {
 
 void ModuleDepCollector::applyDiscoveredDependencies(CompilerInvocation &CI) {
   CI.clearImplicitModuleBuildOptions();
+
+  // FIXME: refactor to share common code with scanAndUpdateCC1InlineWithTool
+  // and apply prefix mappings, if available.
+  CI.getCASOpts() = CASOpts;
+  CI.getFrontendOpts().CacheCompileJob = CacheCompileJob;
+  if (auto ID = MainFileCASFileSystemRootID)
+    CI.getFileSystemOpts().CASFileSystemRootID = ID->toString();
+  if (CacheCompileJob)
+    CI.getFrontendOpts().IncludeTimestamps = false;
 
   if (llvm::any_of(CI.getFrontendOpts().Inputs, needsModules)) {
     Preprocessor &PP = ScanInstance.getPreprocessor();
@@ -256,6 +286,11 @@ void ModuleDepCollector::applyDiscoveredDependencies(CompilerInvocation &CI) {
     for (const auto &KV : DirectPrebuiltModularDeps)
       CI.getFrontendOpts().ModuleFiles.push_back(KV.second.PCMFile);
   }
+}
+
+void ModuleDepCollector::setMainFileCASFileSystemRootID(cas::CASID ID) {
+  assert(!MainFileCASFileSystemRootID || *MainFileCASFileSystemRootID == ID);
+  MainFileCASFileSystemRootID = std::move(ID);
 }
 
 static std::string getModuleContextHash(const ModuleDeps &MD,
@@ -416,6 +451,15 @@ ModuleID ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
   MD.ImplicitModulePCMPath = std::string(M->getASTFile()->getName());
   MD.IsSystem = M->IsSystem;
 
+  if (auto ID = M->getCASFileSystemRootID()) {
+    auto &CAS = MDC.ScanInstance.getOrCreateObjectStore();
+    if (auto Err = CAS.parseID(*ID).moveInto(MD.CASFileSystemRootID)) {
+      MDC.ScanInstance.getDiagnostics().Report(
+          diag::err_cas_cannot_parse_root_id_for_module)
+          << *ID << MD.ID.ModuleName;
+    }
+  }
+
   ModuleMap &ModMapInfo =
       MDC.ScanInstance.getPreprocessor().getHeaderSearchInfo().getModuleMap();
 
@@ -450,10 +494,10 @@ ModuleID ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
   addAllAffectingModules(M, MD, SeenDeps);
 
   MDC.ScanInstance.getASTReader()->visitTopLevelModuleMaps(
-      *MF, [&](const FileEntry *FE) {
-        if (FE->getName().endswith("__inferred_module.map"))
+      *MF, [&](FileEntryRef FE) {
+        if (FE.getNameAsRequested().endswith("__inferred_module.map"))
           return;
-        MD.ModuleMapFileDeps.emplace_back(FE->getName());
+        MD.ModuleMapFileDeps.emplace_back(FE.getNameAsRequested());
       });
 
   CompilerInvocation CI = MDC.makeInvocationForModuleBuildWithoutOutputs(
@@ -465,8 +509,23 @@ ModuleID ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
 
   MDC.associateWithContextHash(CI, MD);
 
+  // Set CAS filesystem root ID after we compute the module hash. The root ID
+  // represents the contents of the filesystem which is not part of the hash.
+  // FIXME: refactor to share common code with scanAndUpdateCC1InlineWithTool
+  // and apply prefix mappings, if available.
+  if (auto ID = MD.CASFileSystemRootID)
+    CI.getFileSystemOpts().CASFileSystemRootID = ID->toString();
+
   // Finish the compiler invocation. Requires dependencies and the context hash.
   MDC.addOutputPaths(CI, MD);
+
+  // Compute the cache key, if needed. Requires dependencies and outputs.
+  if (MDC.CacheCompileJob) {
+    auto &CAS = MDC.ScanInstance.getOrCreateObjectStore();
+    auto &Diags = MDC.ScanInstance.getDiagnostics();
+    if (auto Key = createCompileJobCacheKey(CAS, Diags, CI))
+      MD.ModuleCacheKey = Key->toString();
+  }
 
   MD.BuildArguments = CI.getCC1CommandLine();
 
@@ -559,8 +618,10 @@ ModuleDepCollector::ModuleDepCollector(
     CompilerInstance &ScanInstance, DependencyConsumer &C,
     CompilerInvocation OriginalCI, bool OptimizeArgs, bool EagerLoadModules)
     : ScanInstance(ScanInstance), Consumer(C), Opts(std::move(Opts)),
-      OriginalInvocation(std::move(OriginalCI)), OptimizeArgs(OptimizeArgs),
-      EagerLoadModules(EagerLoadModules) {}
+      OriginalInvocation(std::move(OriginalCI)),
+      CASOpts(ScanInstance.getCASOpts()),
+      CacheCompileJob(ScanInstance.getFrontendOpts().CacheCompileJob),
+      OptimizeArgs(OptimizeArgs), EagerLoadModules(EagerLoadModules) {}
 
 void ModuleDepCollector::attachToPreprocessor(Preprocessor &PP) {
   PP.addPPCallbacks(std::make_unique<ModuleDepCollectorPP>(*this));
@@ -580,23 +641,25 @@ bool ModuleDepCollector::isPrebuiltModule(const Module *M) {
   return true;
 }
 
-static StringRef makeAbsolute(CompilerInstance &CI, StringRef Path,
-                              SmallVectorImpl<char> &Storage) {
-  if (llvm::sys::path::is_absolute(Path))
+static StringRef makeAbsoluteAndPreferred(CompilerInstance &CI, StringRef Path,
+                                          SmallVectorImpl<char> &Storage) {
+  if (llvm::sys::path::is_absolute(Path) &&
+      !llvm::sys::path::is_style_windows(llvm::sys::path::Style::native))
     return Path;
   Storage.assign(Path.begin(), Path.end());
   CI.getFileManager().makeAbsolutePath(Storage);
+  llvm::sys::path::make_preferred(Storage);
   return StringRef(Storage.data(), Storage.size());
 }
 
 void ModuleDepCollector::addFileDep(StringRef Path) {
   llvm::SmallString<256> Storage;
-  Path = makeAbsolute(ScanInstance, Path, Storage);
+  Path = makeAbsoluteAndPreferred(ScanInstance, Path, Storage);
   FileDeps.push_back(std::string(Path));
 }
 
 void ModuleDepCollector::addFileDep(ModuleDeps &MD, StringRef Path) {
   llvm::SmallString<256> Storage;
-  Path = makeAbsolute(ScanInstance, Path, Storage);
+  Path = makeAbsoluteAndPreferred(ScanInstance, Path, Storage);
   MD.FileDeps.insert(Path);
 }

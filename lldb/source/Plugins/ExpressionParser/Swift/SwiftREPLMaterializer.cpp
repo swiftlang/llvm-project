@@ -161,8 +161,8 @@ public:
       Status read_error;
       // Handle resilient globals in fixed-size buffers.
       lldb::addr_t var_addr = variable->m_remote_addr;
-      if (auto *ast_ctx = llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(
-              m_type.GetTypeSystem()))
+      if (auto ast_ctx = m_type.GetTypeSystem()
+                             .dyn_cast_or_null<SwiftASTContextForExpressions>())
         if (!ast_ctx->IsFixedSize(m_type))
           var_addr = FixupResilientGlobal(var_addr, m_type, execution_unit,
                                           process_sp, read_error);
@@ -455,8 +455,8 @@ public:
       if (!err.Success()) {
         dump_stream.Printf("  <could not be read>\n");
       } else {
-        DumpHexBytes(&dump_stream, data.GetBytes(),
-                               data.GetByteSize(), 16, load_addr);
+        DumpHexBytes(&dump_stream, data.GetBytes(), data.GetByteSize(), 16,
+                     load_addr);
 
         dump_stream.PutChar('\n');
       }
@@ -465,7 +465,7 @@ public:
     {
       dump_stream.Printf("Target:\n");
 
-      lldb::addr_t target_address;
+      lldb::addr_t target_address = LLDB_INVALID_ADDRESS;
 
       map.ReadPointerFromMemory(&target_address, load_addr, err);
 
@@ -482,8 +482,8 @@ public:
         if (!err.Success()) {
           dump_stream.Printf("  <could not be read>\n");
         } else {
-          DumpHexBytes(&dump_stream, data.GetBytes(),
-                                 data.GetByteSize(), 16, target_address);
+          DumpHexBytes(&dump_stream, data.GetBytes(), data.GetByteSize(), 16,
+                       target_address);
 
           dump_stream.PutChar('\n');
         }

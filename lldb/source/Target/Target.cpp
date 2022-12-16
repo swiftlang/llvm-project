@@ -1458,7 +1458,8 @@ void Target::SetExecutableModule(ModuleSP &executable_sp,
     if (!m_arch.GetSpec().IsValid()) {
       m_arch = executable_sp->GetArchitecture();
       LLDB_LOG(log,
-               "setting architecture to {0} ({1}) based on executable file",
+               "Target::SetExecutableModule setting architecture to {0} ({1}) "
+               "based on executable file",
                m_arch.GetSpec().GetArchitectureName(),
                m_arch.GetSpec().GetTriple().getTriple());
     }
@@ -1558,7 +1559,9 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform,
     // specified
     if (replace_local_arch)
       m_arch = other;
-    LLDB_LOG(log, "set architecture to {0} ({1})",
+    LLDB_LOG(log,
+             "Target::SetArchitecture merging compatible arch; arch "
+             "is now {0} ({1})",
              m_arch.GetSpec().GetArchitectureName(),
              m_arch.GetSpec().GetTriple().getTriple());
     return true;
@@ -1566,9 +1569,13 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform,
 
   // If we have an executable file, try to reset the executable to the desired
   // architecture
-  LLDB_LOGF(log, "Target::SetArchitecture changing architecture to %s (%s)",
-            arch_spec.GetArchitectureName(),
-            arch_spec.GetTriple().getTriple().c_str());
+  LLDB_LOGF(
+      log,
+      "Target::SetArchitecture changing architecture to %s (%s) from %s (%s)",
+      arch_spec.GetArchitectureName(),
+      arch_spec.GetTriple().getTriple().c_str(),
+      m_arch.GetSpec().GetArchitectureName(),
+      m_arch.GetSpec().GetTriple().getTriple().c_str());
   m_arch = other;
   ModuleSP executable_sp = GetExecutableModule();
 
@@ -1670,11 +1677,11 @@ void Target::ModulesDidLoad(ModuleList &module_list) {
       m_process_sp->ModulesDidLoad(module_list);
     }
     // Notify all the ASTContext(s).
-    auto notify_callback = [&](TypeSystem *type_system) {
+    auto notify_callback = [&](lldb::TypeSystemSP type_system) {
 #ifdef LLDB_ENABLE_SWIFT
       auto *swift_scratch_ctx =
           llvm::dyn_cast_or_null<TypeSystemSwiftTypeRefForExpressions>(
-              type_system);
+              type_system.get());
       if (!swift_scratch_ctx)
         return true;
       auto *swift_ast_ctx =
@@ -1692,7 +1699,7 @@ void Target::ModulesDidLoad(ModuleList &module_list) {
     // it doens't matter in which order we notify the ASTContext(s).
     for (auto &language : m_scratch_typesystem_for_module) {
       TypeSystemSP type_system = language.second;
-      notify_callback(type_system.get());
+      notify_callback(type_system);
     }
 
     module_list.ClearModuleDependentCaches();
@@ -1724,6 +1731,34 @@ void Target::ModulesDidUnload(ModuleList &module_list, bool delete_locations) {
     m_breakpoint_list.UpdateBreakpoints(module_list, false, delete_locations);
     m_internal_breakpoint_list.UpdateBreakpoints(module_list, false,
                                                  delete_locations);
+
+    // If a module was torn down it will have torn down the 'TypeSystemClang's
+    // that we used as source 'ASTContext's for the persistent variables in
+    // the current target. Those would now be unsafe to access because the
+    // 'DeclOrigin' are now possibly stale. Thus clear all persistent
+    // variables. We only want to flush 'TypeSystem's if the module being
+    // unloaded was capable of describing a source type. JITted module unloads
+    // happen frequently for Objective-C utility functions or the REPL and rely
+    // on the persistent variables to stick around.
+    const bool should_flush_type_systems =
+        module_list.AnyOf([](lldb_private::Module &module) {
+          auto *object_file = module.GetObjectFile();
+
+          if (!object_file)
+            return false;
+
+          auto type = object_file->GetType();
+
+          // eTypeExecutable: when debugged binary was rebuilt
+          // eTypeSharedLibrary: if dylib was re-loaded
+          return module.FileHasChanged() &&
+                 (type == ObjectFile::eTypeObjectFile ||
+                  type == ObjectFile::eTypeExecutable ||
+                  type == ObjectFile::eTypeSharedLibrary);
+        });
+
+    if (should_flush_type_systems)
+      m_scratch_type_system_map.Clear();
   }
 }
 
@@ -2343,7 +2378,7 @@ void Target::ImageSearchPathsChanged(const PathMappingList &path_list,
     target->SetExecutableModule(exe_module_sp, eLoadDependentsYes);
 }
 
-llvm::Expected<TypeSystem &>
+llvm::Expected<lldb::TypeSystemSP>
 Target::GetScratchTypeSystemForLanguage(lldb::LanguageType language,
                                         bool create_on_demand,
                                         const char *compiler_options) {
@@ -2383,7 +2418,7 @@ Target::GetScratchTypeSystemForLanguage(lldb::LanguageType language,
   if (language == eLanguageTypeSwift) {
     if (auto *swift_scratch_ctx =
             llvm::dyn_cast_or_null<TypeSystemSwiftTypeRefForExpressions>(
-                &*type_system_or_err)) {
+                type_system_or_err->get())) {
       auto *swift_ast_ctx =
           llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(
               swift_scratch_ctx->GetSwiftASTContextOrNull());
@@ -2427,10 +2462,21 @@ Target::GetScratchTypeSystemForLanguage(lldb::LanguageType language,
 
           if (auto *new_swift_scratch_ctx =
                   llvm::dyn_cast_or_null<TypeSystemSwiftTypeRefForExpressions>(
-                      &*type_system_or_err)) {
+                      type_system_or_err->get())) {
+            auto report_error = [&](std::string message) {
+              m_cant_make_scratch_type_system[language] = true;
+              m_scratch_type_system_map.RemoveTypeSystemsForLanguage(language);
+              type_system_or_err = llvm::make_error<llvm::StringError>(
+                  message, llvm::inconvertibleErrorCode());
+            };
             auto *new_swift_ast_ctx =
                 new_swift_scratch_ctx->GetSwiftASTContext();
-            if (!new_swift_ast_ctx || new_swift_ast_ctx->HasFatalErrors()) {
+            if (!new_swift_ast_ctx)
+              report_error("Failed to construct SwiftASTContextForExpressions");
+            else if (new_swift_ast_ctx->HasFatalErrors()) {
+              DiagnosticManager diag_mgr;
+              new_swift_ast_ctx->PrintDiagnostics(diag_mgr);
+              std::string error_diagnostics = diag_mgr.GetString();
               if (StreamSP error_stream_sp =
                       GetDebugger().GetAsyncErrorStream()) {
                 error_stream_sp->PutCString(
@@ -2438,16 +2484,10 @@ Target::GetScratchTypeSystemForLanguage(lldb::LanguageType language,
                     "for this process after repeated "
                     "attempts.\n");
                 error_stream_sp->PutCString("Giving up.  Fatal errors:\n");
-                DiagnosticManager diag_mgr;
-                new_swift_ast_ctx->PrintDiagnostics(diag_mgr);
-                error_stream_sp->PutCString(diag_mgr.GetString().c_str());
+                error_stream_sp->PutCString(error_diagnostics.c_str());
                 error_stream_sp->Flush();
               }
-
-              m_cant_make_scratch_type_system[language] = true;
-              m_scratch_type_system_map.RemoveTypeSystemsForLanguage(language);
-              type_system_or_err = llvm::make_error<llvm::StringError>(
-                  "DIAF", llvm::inconvertibleErrorCode());
+              report_error(error_diagnostics);
             }
           }
         }
@@ -2478,14 +2518,15 @@ const TypeSystemMap &Target::GetTypeSystemMap() {
   return m_scratch_type_system_map;
 }
 
-std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
+std::vector<lldb::TypeSystemSP>
+Target::GetScratchTypeSystems(bool create_on_demand) {
   if (!m_valid)
     return {};
 
   // Some TypeSystem instances are associated with several LanguageTypes so
   // they will show up several times in the loop below. The SetVector filters
   // out all duplicates as they serve no use for the caller.
-  llvm::SetVector<TypeSystem *> scratch_type_systems;
+  std::vector<lldb::TypeSystemSP> scratch_type_systems;
 
   LanguageSet languages_for_expressions =
       Language::GetLanguagesSupportingTypeSystemsForExpressions();
@@ -2500,10 +2541,17 @@ std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
                      "system available",
                      Language::GetNameForLanguageType(language));
     else
-      scratch_type_systems.insert(&type_system_or_err.get());
+      if (auto ts = *type_system_or_err)
+        scratch_type_systems.push_back(ts);
   }
-
-  return scratch_type_systems.takeVector();
+  std::sort(scratch_type_systems.begin(), scratch_type_systems.end(),
+            [](lldb::TypeSystemSP a, lldb::TypeSystemSP b) {
+              return a.get() <= b.get();
+            });
+  scratch_type_systems.erase(
+      std::unique(scratch_type_systems.begin(), scratch_type_systems.end()),
+      scratch_type_systems.end());
+  return scratch_type_systems;
 }
 
 PersistentExpressionState *
@@ -2517,7 +2565,13 @@ Target::GetPersistentExpressionStateForLanguage(lldb::LanguageType language) {
     return nullptr;
   }
 
-  return type_system_or_err->GetPersistentExpressionState();
+  if (auto ts = *type_system_or_err)
+    return ts->GetPersistentExpressionState();
+
+  LLDB_LOG(GetLog(LLDBLog::Target),
+           "Unable to get persistent expression state for language {}",
+           Language::GetNameForLanguageType(language));
+  return nullptr;
 }
 
 #ifdef LLDB_ENABLE_SWIFT
@@ -2547,8 +2601,16 @@ UserExpression *Target::GetUserExpressionForLanguage(
     return nullptr;
   }
 
-  auto *user_expr = type_system_or_err->GetUserExpression(
-      expr, prefix, language, desired_type, options, ctx_obj);
+  auto ts = *type_system_or_err;
+  if (!ts) {
+    error.SetErrorStringWithFormat(
+        "Type system for language %s is no longer live",
+        Language::GetNameForLanguageType(language));
+    return nullptr;
+  }
+
+  auto *user_expr = ts->GetUserExpression(expr, prefix, language, desired_type,
+                                          options, ctx_obj);
   if (!user_expr)
     error.SetErrorStringWithFormat(
         "Could not create an expression for language %s",
@@ -2569,9 +2631,15 @@ FunctionCaller *Target::GetFunctionCallerForLanguage(
         llvm::toString(std::move(err)).c_str());
     return nullptr;
   }
-
-  auto *persistent_fn = type_system_or_err->GetFunctionCaller(
-      return_type, function_address, arg_value_list, name);
+  auto ts = *type_system_or_err;
+  if (!ts) {
+    error.SetErrorStringWithFormat(
+        "Type system for language %s is no longer live",
+        Language::GetNameForLanguageType(language));
+    return nullptr;
+  }
+  auto *persistent_fn = ts->GetFunctionCaller(return_type, function_address,
+                                              arg_value_list, name);
   if (!persistent_fn)
     error.SetErrorStringWithFormat(
         "Could not create an expression for language %s",
@@ -2587,10 +2655,15 @@ Target::CreateUtilityFunction(std::string expression, std::string name,
   auto type_system_or_err = GetScratchTypeSystemForLanguage(language);
   if (!type_system_or_err)
     return type_system_or_err.takeError();
-
+  auto ts = *type_system_or_err;
+  if (!ts)
+    return llvm::make_error<llvm::StringError>(
+        llvm::StringRef("Type system for language ") +
+            Language::GetNameForLanguageType(language) +
+            llvm::StringRef(" is no longer live"),
+        llvm::inconvertibleErrorCode());
   std::unique_ptr<UtilityFunction> utility_fn =
-      type_system_or_err->CreateUtilityFunction(std::move(expression),
-                                                std::move(name));
+      ts->CreateUtilityFunction(std::move(expression), std::move(name));
   if (!utility_fn)
     return llvm::make_error<llvm::StringError>(
         llvm::StringRef("Could not create an expression for language") +
@@ -2695,7 +2768,7 @@ llvm::Optional<SwiftScratchContextReader> Target::GetSwiftScratchContext(
 
     if (auto *global_scratch_ctx =
             llvm::cast_or_null<TypeSystemSwiftTypeRefForExpressions>(
-                &*type_system_or_err))
+                type_system_or_err->get()))
       if (auto *swift_ast_ctx =
               llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(
                   global_scratch_ctx->GetSwiftASTContext()))
@@ -2719,7 +2792,7 @@ llvm::Optional<SwiftScratchContextReader> Target::GetSwiftScratchContext(
     if (type_system_or_err)
       swift_scratch_ctx =
           llvm::cast_or_null<TypeSystemSwiftTypeRefForExpressions>(
-              &*type_system_or_err);
+              type_system_or_err->get());
     else
       llvm::consumeError(type_system_or_err.takeError());
   }
@@ -2869,8 +2942,13 @@ ExpressionResults Target::EvaluateExpression(
       LLDB_LOG_ERROR(GetLog(LLDBLog::Target), std::move(err),
                      "Unable to get scratch type system");
     } else {
-      persistent_var_sp =
-          type_system_or_err->GetPersistentExpressionState()->GetVariable(expr);
+      auto ts = *type_system_or_err;
+      if (!ts)
+        LLDB_LOG_ERROR(GetLog(LLDBLog::Target), std::move(err),
+                       "Scratch type system is no longer live");
+      else
+        persistent_var_sp =
+            ts->GetPersistentExpressionState()->GetVariable(expr);
     }
   }
   if (persistent_var_sp) {
@@ -2898,9 +2976,12 @@ ExpressionResults Target::EvaluateExpression(
 lldb::ExpressionVariableSP Target::GetPersistentVariable(ConstString name) {
   lldb::ExpressionVariableSP variable_sp;
   m_scratch_type_system_map.ForEach(
-      [name, &variable_sp](TypeSystem *type_system) -> bool {
+      [name, &variable_sp](TypeSystemSP type_system) -> bool {
+        auto ts = type_system.get();
+        if (!ts)
+          return true;
         if (PersistentExpressionState *persistent_state =
-                type_system->GetPersistentExpressionState()) {
+                ts->GetPersistentExpressionState()) {
           variable_sp = persistent_state->GetVariable(name);
 
           if (variable_sp)
@@ -2915,9 +2996,13 @@ lldb::addr_t Target::GetPersistentSymbol(ConstString name) {
   lldb::addr_t address = LLDB_INVALID_ADDRESS;
 
   m_scratch_type_system_map.ForEach(
-      [name, &address](TypeSystem *type_system) -> bool {
+      [name, &address](lldb::TypeSystemSP type_system) -> bool {
+        auto ts = type_system.get();
+        if (!ts)
+          return true;
+
         if (PersistentExpressionState *persistent_state =
-                type_system->GetPersistentExpressionState()) {
+                ts->GetPersistentExpressionState()) {
           address = persistent_state->LookupSymbol(name);
           if (address != LLDB_INVALID_ADDRESS)
             return false; // Stop iterating the ForEach
@@ -4146,6 +4231,30 @@ OptionEnumValues lldb_private::GetDynamicValueTypes() {
   return OptionEnumValues(g_dynamic_value_types);
 }
 
+static constexpr OptionEnumValueElement g_bind_generic_types[] = {
+    {
+        eBindAuto,
+        "auto",
+        "Attempt to run the expression with bound generic parameters first, "
+        "fallback to unbound generic parameters if binding the type parameters "
+        "fails",
+    },
+    {
+        eBind,
+        "true",
+        "Bind the generic type parameters.",
+    },
+    {
+        eDontBind,
+        "false",
+        "Don't bind the generic type parameters.",
+    },
+};
+
+OptionEnumValues lldb_private::GetBindGenericTypesOptions() {
+  return OptionEnumValues(g_bind_generic_types);
+}
+
 static constexpr OptionEnumValueElement g_inline_breakpoint_enums[] = {
     {
         eInlineBreakpointsNever,
@@ -4459,18 +4568,6 @@ void TargetProperties::SetInjectLocalVariables(ExecutionContext *exe_ctx,
   if (exp_values)
     exp_values->SetPropertyAtIndexAsBoolean(exe_ctx, ePropertyInjectLocalVars,
                                             true);
-}
-
-bool TargetProperties::GetSwiftCreateModuleContextsInParallel() const {
-  const Property *exp_property = m_collection_sp->GetPropertyAtIndex(
-      nullptr, false, ePropertyExperimental);
-  OptionValueProperties *exp_values =
-      exp_property->GetValue()->GetAsProperties();
-  if (exp_values)
-    return exp_values->GetPropertyAtIndexAsBoolean(
-        nullptr, ePropertySwiftCreateModuleContextsInParallel, true);
-  else
-    return true;
 }
 
 bool TargetProperties::GetSwiftReadMetadataFromFileCache() const {

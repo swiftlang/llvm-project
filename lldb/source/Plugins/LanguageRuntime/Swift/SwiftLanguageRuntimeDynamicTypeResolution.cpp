@@ -37,6 +37,7 @@
 #include "swift/Reflection/TypeRefBuilder.h"
 #include "swift/Remote/MemoryReader.h"
 #include "swift/RemoteAST/RemoteAST.h"
+#include "swift/Runtime/Metadata.h"
 
 #include <sstream>
 
@@ -45,20 +46,20 @@ using namespace lldb_private;
 
 namespace lldb_private {
 swift::Type GetSwiftType(CompilerType type) {
-  auto *ts = type.GetTypeSystem();
-  if (auto *tr = llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(ts))
+  auto ts = type.GetTypeSystem();
+  if (auto tr = ts.dyn_cast_or_null<TypeSystemSwiftTypeRef>())
     return tr->GetSwiftType(type);
-  if (auto *ast = llvm::dyn_cast_or_null<SwiftASTContext>(ts))
+  if (auto ast = ts.dyn_cast_or_null<SwiftASTContext>())
     return ast->GetSwiftType(type);
   return {};
 }
 
 swift::CanType GetCanonicalSwiftType(CompilerType type) {
   swift::Type swift_type = nullptr;
-  auto *ts = type.GetTypeSystem();
-  if (auto *tr = llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(ts))
+  auto ts = type.GetTypeSystem();
+  if (auto tr = ts.dyn_cast_or_null<TypeSystemSwiftTypeRef>())
     swift_type = tr->GetSwiftType(type);
-  if (auto *ast = llvm::dyn_cast_or_null<SwiftASTContext>(ts))
+  if (auto ast = ts.dyn_cast_or_null<SwiftASTContext>())
     swift_type = ast->GetSwiftType(type);
   return swift_type ? swift_type->getCanonicalType() : swift::CanType();
 }
@@ -484,7 +485,8 @@ SwiftLanguageRuntime::MetadataPromise::FulfillTypePromise(Status *error) {
           swift::remote::RemoteAddress(m_metadata_location));
 
   if (result) {
-    m_compiler_type = {swift_ast_ctx, result.getValue().getPointer()};
+    m_compiler_type = {swift_ast_ctx->weak_from_this(),
+                       result.getValue().getPointer()};
     if (log)
       log->Printf("[MetadataPromise] result is type %s",
                   m_compiler_type->GetTypeName().AsCString());
@@ -621,7 +623,7 @@ public:
 #endif
     ConstString mangled(wrapped);
     CompilerType swift_type = m_typesystem.GetTypeFromMangledTypename(mangled);
-    auto *ts = llvm::dyn_cast_or_null<TypeSystemSwift>(swift_type.GetTypeSystem());
+    auto ts = swift_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
     if (!ts)
       return nullptr;
     CompilerType clang_type;
@@ -699,7 +701,7 @@ SwiftLanguageRuntimeImpl::emplaceClangTypeInfo(
     CompilerType clang_type, llvm::Optional<uint64_t> byte_size,
     llvm::Optional<size_t> bit_align,
     llvm::ArrayRef<swift::reflection::FieldInfo> fields) {
-  std::lock_guard<std::recursive_mutex> locker(m_clang_type_info_mutex);
+  const std::lock_guard<std::recursive_mutex> locker(m_clang_type_info_mutex);
   if (!byte_size || !bit_align) {
     m_clang_type_info.insert({clang_type.GetOpaqueQualType(), llvm::None});
     return nullptr;
@@ -707,19 +709,28 @@ SwiftLanguageRuntimeImpl::emplaceClangTypeInfo(
   assert(*bit_align % 8 == 0 && "Bit alignment no a multiple of 8!");
   auto byte_align = *bit_align / 8;
   // The stride is the size rounded up to alignment.
-  size_t byte_stride = llvm::alignTo(*byte_size, byte_align);
+  const size_t byte_stride = llvm::alignTo(*byte_size, byte_align);
+  unsigned extra_inhabitants = 0;
+  if (clang_type.IsPointerType(nullptr)) {
+    lldb_assert(TypeSystemSwiftTypeRef::IsKnownSpecialImportedType(
+                    clang_type.GetDisplayTypeName().GetStringRef()),
+                "Expected clang pointer type to be a known special type!",
+              __FUNCTION__, __FILE__, __LINE__);
+    extra_inhabitants = swift::swift_getHeapObjectExtraInhabitantCount();
+  }
+
   if (fields.empty()) {
     auto it_b = m_clang_type_info.insert(
         {clang_type.GetOpaqueQualType(),
          swift::reflection::TypeInfo(swift::reflection::TypeInfoKind::Builtin,
-                                     *byte_size, byte_align, byte_stride, 0,
-                                     true)});
+                                     *byte_size, byte_align, byte_stride,
+                                     extra_inhabitants, true)});
     return &*it_b.first->second;
   }
   auto it_b = m_clang_record_type_info.insert(
       {clang_type.GetOpaqueQualType(),
        swift::reflection::RecordTypeInfo(
-           *byte_size, byte_align, byte_stride, 0, false,
+           *byte_size, byte_align, byte_stride, extra_inhabitants, false,
            swift::reflection::RecordKind::Struct, fields)});
   return &*it_b.first->second;
 }
@@ -728,8 +739,8 @@ llvm::Optional<uint64_t>
 SwiftLanguageRuntimeImpl::GetMemberVariableOffsetRemoteAST(
     CompilerType instance_type, ValueObject *instance,
     llvm::StringRef member_name) {
-  auto *scratch_ctx =
-      llvm::cast<SwiftASTContext>(instance_type.GetTypeSystem());
+  auto scratch_ctx =
+      instance_type.GetTypeSystem().dyn_cast_or_null<SwiftASTContext>();
   if (scratch_ctx->HasFatalErrors())
     return {};
 
@@ -821,8 +832,8 @@ llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffsetRemote
     CompilerType instance_type, ValueObject *instance, llvm::StringRef member_name,
     Status *error) {
   LLDB_LOGF(GetLog(LLDBLog::Types), "using remote mirrors");
-  auto *ts = llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(
-      instance_type.GetTypeSystem());
+  auto ts =
+      instance_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwiftTypeRef>();
   if (!ts) {
     if (error)
       error->SetErrorString("not a Swift type");
@@ -889,13 +900,13 @@ llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffset(
   // Using the module context for RemoteAST is cheaper bit only safe
   // when there is no dynamic type resolution involved.
   // If this is already in the expression context, ask RemoteAST.
-  if (llvm::isa<SwiftASTContext>(instance_type.GetTypeSystem()))
+  if (instance_type.GetTypeSystem().isa_and_nonnull<SwiftASTContext>())
     offset =
         GetMemberVariableOffsetRemoteAST(instance_type, instance, member_name);
   if (!offset) {
     // Convert to a TypeRef-type, if necessary.
-    if (auto *module_ctx = llvm::dyn_cast_or_null<SwiftASTContext>(
-            instance_type.GetTypeSystem()))
+    if (auto module_ctx =
+            instance_type.GetTypeSystem().dyn_cast_or_null<SwiftASTContext>())
       instance_type =
           module_ctx->GetTypeRefType(instance_type.GetOpaqueQualType());
 
@@ -904,8 +915,8 @@ llvm::Optional<uint64_t> SwiftLanguageRuntimeImpl::GetMemberVariableOffset(
 #ifndef NDEBUG
     {
       // Convert to an AST type, if necessary.
-      if (auto *ts = llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(
-              instance_type.GetTypeSystem()))
+      if (auto ts = instance_type.GetTypeSystem()
+                        .dyn_cast_or_null<TypeSystemSwiftTypeRef>())
         instance_type = ts->ReconstructType(instance_type);
       auto reference = GetMemberVariableOffsetRemoteAST(instance_type, instance,
                                                         member_name);
@@ -970,8 +981,7 @@ llvm::Optional<unsigned>
 SwiftLanguageRuntimeImpl::GetNumChildren(CompilerType type,
                                          ValueObject *valobj) {
   LLDB_SCOPED_TIMER();
-   auto *ts = llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(
-      type.GetTypeSystem());
+  auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwiftTypeRef>();
   if (!ts)
     return {};
 
@@ -1043,8 +1053,7 @@ SwiftLanguageRuntimeImpl::GetNumChildren(CompilerType type,
 llvm::Optional<unsigned>
 SwiftLanguageRuntimeImpl::GetNumFields(CompilerType type,
                                        ExecutionContext *exe_ctx) {
-  auto *ts =
-      llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(type.GetTypeSystem());
+  auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwiftTypeRef>();
   if (!ts)
     return {};
 
@@ -1190,8 +1199,7 @@ SwiftLanguageRuntimeImpl::GetIndexOfChildMemberWithName(
     CompilerType type, llvm::StringRef name, ExecutionContext *exe_ctx,
     bool omit_empty_base_classes, std::vector<uint32_t> &child_indexes) {
   LLDB_SCOPED_TIMER();
-  auto *ts =
-      llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(type.GetTypeSystem());
+  auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwiftTypeRef>();
   if (!ts)
     return {false, {}};
 
@@ -1283,8 +1291,7 @@ CompilerType SwiftLanguageRuntimeImpl::GetChildCompilerTypeAtIndex(
     uint32_t &child_bitfield_bit_offset, bool &child_is_base_class,
     bool &child_is_deref_of_parent, ValueObject *valobj,
     uint64_t &language_flags) {
-  auto *ts = llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(
-      type.GetTypeSystem());
+  auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwiftTypeRef>();
   if (!ts)
     return {};
 
@@ -1409,8 +1416,8 @@ CompilerType SwiftLanguageRuntimeImpl::GetChildCompilerTypeAtIndex(
     if (!reflection_ctx)
       return {};
     CompilerType instance_type = valobj->GetCompilerType();
-    auto *instance_ts =
-        llvm::dyn_cast_or_null<TypeSystemSwift>(instance_type.GetTypeSystem());
+    auto instance_ts =
+        instance_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
     if (!instance_ts)
       return {};
 
@@ -1523,8 +1530,7 @@ bool SwiftLanguageRuntimeImpl::ForEachSuperClassType(
   if (!reflection_ctx)
     return false;
   CompilerType instance_type = instance.GetCompilerType();
-  auto *ts =
-      llvm::dyn_cast_or_null<TypeSystemSwift>(instance_type.GetTypeSystem());
+  auto ts = instance_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
   if (!ts)
     return false;
 
@@ -1604,8 +1610,7 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Class(
   if (instance_ptr == LLDB_INVALID_ADDRESS || instance_ptr == 0)
     return false;
 
-  auto *tss =
-      llvm::dyn_cast_or_null<TypeSystemSwift>(class_type.GetTypeSystem());
+  auto tss = class_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
   if (!tss)
     return false;
   address.SetRawAddress(instance_ptr);
@@ -1797,8 +1802,8 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Protocol(
   };
 
   Log *log(GetLog(LLDBLog::Types));
-  auto *tss =
-      llvm::dyn_cast_or_null<TypeSystemSwift>(protocol_type.GetTypeSystem());
+  auto tss =
+      protocol_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
   if (!tss) {
     if (log)
       log->Printf("Could not get type system swift");
@@ -1890,7 +1895,7 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Protocol(
 llvm::Optional<lldb::addr_t>
 SwiftLanguageRuntimeImpl::GetTypeMetadataForTypeNameAndFrame(
     StringRef mdvar_name, StackFrame &frame) {
-  VariableList *var_list = frame.GetVariableList(false);
+  VariableList *var_list = frame.GetVariableList(false, nullptr);
   if (!var_list)
     return {};
 
@@ -1919,7 +1924,7 @@ SwiftLanguageRuntimeImpl::GetPromiseForTypeNameAndFrame(const char *type_name,
 
   StreamString type_metadata_ptr_var_name;
   type_metadata_ptr_var_name.Printf("$%s", type_name);
-  VariableList *var_list = frame->GetVariableList(false);
+  VariableList *var_list = frame->GetVariableList(false, nullptr);
   if (!var_list)
     return nullptr;
 
@@ -2075,8 +2080,8 @@ SwiftLanguageRuntimeImpl::BindGenericTypeParameters(StackFrame &stack_frame,
 
   // If this is a TypeRef type, bind that.
   auto sc = stack_frame.GetSymbolContext(lldb::eSymbolContextEverything);
-  if (auto *ts = llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(
-          base_type.GetTypeSystem()))
+  if (auto ts =
+          base_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwiftTypeRef>())
     return BindGenericTypeParameters(stack_frame, *ts,
                                      base_type.GetMangledTypeName());
 
@@ -2405,11 +2410,11 @@ SwiftLanguageRuntimeImpl::GetValueType(ValueObject &in_value,
     // object is a struct? (for a class, it's easy)
     if (static_type_flags.AllSet(eTypeIsSwift | eTypeIsProtocol) &&
         dynamic_type_flags.AnySet(eTypeIsStructUnion | eTypeIsEnumeration)) {
-      if (auto *ts = llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(
-              static_type.GetTypeSystem()))
+      if (auto ts = static_type.GetTypeSystem()
+                        .dyn_cast_or_null<TypeSystemSwiftTypeRef>())
         static_type = ts->ReconstructType(static_type);
-      SwiftASTContext *swift_ast_ctx =
-          llvm::dyn_cast_or_null<SwiftASTContext>(static_type.GetTypeSystem());
+      auto swift_ast_ctx =
+          static_type.GetTypeSystem().dyn_cast_or_null<SwiftASTContext>();
       if (!swift_ast_ctx)
         return {};
       if (swift_ast_ctx->IsErrorType(static_type.GetOpaqueQualType())) {
@@ -2664,7 +2669,7 @@ TypeAndOrName SwiftLanguageRuntimeImpl::FixUpDynamicType(
   CompilerType static_type = static_value.GetCompilerType();
   CompilerType dynamic_type = type_and_or_name.GetCompilerType();
   // The logic in this function only applies to static/dynamic Swift types.
-  if (llvm::isa<TypeSystemClang>(static_type.GetTypeSystem()))
+  if (static_type.GetTypeSystem().isa_and_nonnull<TypeSystemClang>())
     return type_and_or_name;
 
   bool should_be_made_into_ref = false;
@@ -2801,7 +2806,7 @@ SwiftLanguageRuntimeImpl::GetTypeRef(CompilerType type,
   // Demangle the mangled name.
   swift::Demangle::Demangler dem;
   ConstString mangled_name = type.GetMangledTypeName();
-  auto *ts = llvm::dyn_cast_or_null<TypeSystemSwift>(type.GetTypeSystem());
+  auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
   if (!ts)
     return nullptr;
   swift::Demangle::NodePointer node =
@@ -2826,7 +2831,7 @@ const swift::reflection::TypeInfo *
 SwiftLanguageRuntimeImpl::GetSwiftRuntimeTypeInfo(
     CompilerType type, ExecutionContextScope *exe_scope,
     swift::reflection::TypeRef const **out_tr) {
-  auto *ts = llvm::dyn_cast_or_null<TypeSystemSwift>(type.GetTypeSystem());
+  auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
   if (!ts)
     return nullptr;
 

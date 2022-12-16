@@ -369,7 +369,7 @@ void Module::SetUUID(const lldb_private::UUID &uuid) {
   }
 }
 
-llvm::Expected<TypeSystem &>
+llvm::Expected<TypeSystemSP>
 Module::GetTypeSystemForLanguage(LanguageType language) {
   return m_type_system_map.GetTypeSystemForLanguage(language, this, true);
 }
@@ -419,8 +419,6 @@ void Module::DumpSymbolContext(Stream *s) {
 
 size_t Module::GetNumCompileUnits() {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
-  LLDB_SCOPED_TIMERF("Module::GetNumCompileUnits (module = %p)",
-                     static_cast<void *>(this));
   if (SymbolFile *symbols = GetSymbolFile())
     return symbols->GetNumCompileUnits();
   return 0;
@@ -1179,7 +1177,7 @@ void Module::ReportWarningUnsupportedLanguage(
 void Module::ReportWarningCantLoadSwiftModule(
     std::string details, llvm::Optional<lldb::user_id_t> debugger_id) {
   StreamString ss;
-  ss << GetFileSpec().GetCString() << ": "
+  ss << GetFileSpec() << ": "
      << "Cannot load Swift type information: " << details;
   Debugger::ReportWarning(std::string(ss.GetString()), debugger_id,
                           &m_swift_import_warning);
@@ -1640,8 +1638,8 @@ bool Module::SetArchitecture(const ArchSpec &new_arch) {
       return true;
     }
 #ifdef LLDB_ENABLE_SWIFT
-    if (auto *ts =
-            llvm::dyn_cast_or_null<TypeSystemSwift>(&*type_system_or_err))
+    if (auto ts =
+            llvm::dyn_cast_or_null<TypeSystemSwift>(type_system_or_err->get()))
       ts->SetTriple(new_arch.GetTriple());
 #endif // LLDB_ENABLE_SWIFT
     return true;
@@ -1713,7 +1711,15 @@ Module::RemapSourceFile(llvm::StringRef path) const {
 void Module::RegisterXcodeSDK(llvm::StringRef sdk_name,
                               llvm::StringRef sysroot) {
   XcodeSDK sdk(sdk_name.str());
-  llvm::StringRef sdk_path(HostInfo::GetXcodeSDKPath(sdk));
+  auto sdk_path_or_err = HostInfo::GetXcodeSDKPath(sdk);
+
+  if (!sdk_path_or_err) {
+    Debugger::ReportError("Error while searching for Xcode SDK: " +
+                          toString(sdk_path_or_err.takeError()));
+    return;
+  }
+
+  auto sdk_path = *sdk_path_or_err;
   if (sdk_path.empty())
     return;
   // If the SDK changed for a previously registered source path, update it.
@@ -1768,13 +1774,14 @@ void Module::ClearModuleDependentCaches() {
   }
 
 #ifdef LLDB_ENABLE_SWIFT
-  if (auto *ts = llvm::dyn_cast_or_null<TypeSystemSwift>(&*type_system_or_err))
+  if (auto *ts =
+          llvm::dyn_cast_or_null<TypeSystemSwift>(type_system_or_err->get()))
     ts->ClearModuleDependentCaches();
 #endif // LLDB_ENABLE_SWIFT
 }
 
 void Module::ForEachTypeSystem(
-    std::function<bool(TypeSystem *)> const &callback) {
+    llvm::function_ref<bool(lldb::TypeSystemSP)> callback) {
   m_type_system_map.ForEach(callback);
 }
 

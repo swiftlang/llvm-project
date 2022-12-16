@@ -131,12 +131,6 @@ function(add_lldb_library name)
   # headers without negatively impacting much of anything.
   if(NOT LLDB_BUILT_STANDALONE)
     add_dependencies(${name} clang-tablegen-targets)
-
-    # BEGIN Swift Mods
-	if(swift IN_LIST LLVM_EXTERNAL_PROJECTS)
-      add_dependencies(${name} swift-syntax-generated-headers)
-    endif()
-    # END Swift Mods
   endif()
 
   # Add in any extra C++ compilation flags for this library.
@@ -154,7 +148,16 @@ function(add_lldb_library name)
 endfunction(add_lldb_library)
 
 # BEGIN Swift Mods
-function(add_properties_for_swift_modules target)
+function(add_properties_for_swift_modules target reldir)
+  # The relative directory for build can be passed as an optional
+  # extra argument. Retrieve it, or use reldir instead.
+  list(LENGTH ARGN num_optional_arguments)
+  if (${num_optional_arguments} GREATER 0)
+    list(GET ARGN 0 build_reldir)
+  else()
+    set(build_reldir ${reldir})
+  endif()
+
   if (NOT BOOTSTRAPPING_MODE)
     if (SWIFT_SWIFT_PARSER)
       set(APSM_BOOTSTRAPPING_MODE "HOSTTOOLS")
@@ -188,6 +191,13 @@ function(add_properties_for_swift_modules target)
 
     set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "${SWIFT_RPATH}")
     set_property(TARGET ${target} APPEND PROPERTY INSTALL_RPATH "${SWIFT_RPATH}")
+
+    if (SWIFT_SWIFT_PARSER)
+      set_property(TARGET ${target}
+        APPEND PROPERTY BUILD_RPATH "@loader_path/${build_reldir}lib/swift/host")
+      set_property(TARGET ${target}
+        APPEND PROPERTY INSTALL_RPATH "@loader_path/${reldir}lib/swift/host")
+    endif()
   endif()
 endfunction()
 # END Swift Mods

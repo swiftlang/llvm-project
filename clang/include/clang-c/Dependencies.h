@@ -21,6 +21,7 @@
 #define LLVM_CLANG_C_DEPENDENCIES_H
 
 #include "clang-c/BuildSystem.h"
+#include "clang-c/CAS.h"
 #include "clang-c/CXDiagnostic.h"
 #include "clang-c/CXErrorCode.h"
 #include "clang-c/CXString.h"
@@ -175,11 +176,61 @@ typedef enum {
 } CXDependencyMode;
 
 /**
+ * Options used to construct a \c CXDependencyScannerService.
+ */
+typedef struct CXOpaqueDependencyScannerServiceOptions
+    *CXDependencyScannerServiceOptions;
+
+/**
+ * Creates a default set of service options.
+ * Must be disposed with \c
+ * clang_experimental_DependencyScannerServiceOptions_dispose.
+ */
+CINDEX_LINKAGE CXDependencyScannerServiceOptions
+clang_experimental_DependencyScannerServiceOptions_create();
+
+/**
+ * Dispose of a \c CXDependencyScannerServiceOptions object.
+ */
+CINDEX_LINKAGE void clang_experimental_DependencyScannerServiceOptions_dispose(
+    CXDependencyScannerServiceOptions);
+
+/**
+ * Specify a \c CXDependencyMode in the given options.
+ */
+CINDEX_LINKAGE void
+clang_experimental_DependencyScannerServiceOptions_setDependencyMode(
+    CXDependencyScannerServiceOptions Opts, CXDependencyMode Mode);
+
+/**
+ * Specify a \c CXCASObjectStore in the given options. If an object store and
+ * action cache are available, the scanner will produce cached commands.
+ */
+CINDEX_LINKAGE void
+clang_experimental_DependencyScannerServiceOptions_setObjectStore(
+    CXDependencyScannerServiceOptions Opts, CXCASObjectStore CAS);
+
+/**
+ * Specify a \c CXCASActionCache in the given options. If an object store and
+ * action cache are available, the scanner will produce cached commands.
+ */
+CINDEX_LINKAGE void
+clang_experimental_DependencyScannerServiceOptions_setActionCache(
+    CXDependencyScannerServiceOptions Opts, CXCASActionCache Cache);
+
+/**
+ * See \c clang_experimental_DependencyScannerService_create_v1.
+ */
+CINDEX_LINKAGE CXDependencyScannerService
+clang_experimental_DependencyScannerService_create_v0(CXDependencyMode Format);
+
+/**
  * Create a \c CXDependencyScannerService object.
  * Must be disposed with \c clang_DependencyScannerService_dispose().
  */
 CINDEX_LINKAGE CXDependencyScannerService
-clang_experimental_DependencyScannerService_create_v0(CXDependencyMode Format);
+clang_experimental_DependencyScannerService_create_v1(
+    CXDependencyScannerServiceOptions Opts);
 
 /**
  * Dispose of a \c CXDependencyScannerService object.

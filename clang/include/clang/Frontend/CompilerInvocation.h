@@ -306,7 +306,10 @@ private:
                                InputKind IK, DiagnosticsEngine &Diags,
                                const llvm::Triple &T,
                                const std::string &OutputFile,
-                               const LangOptions &LangOptsRef);
+                               const LangOptions &LangOptsRef,
+                               const FileSystemOptions &FSOpts,
+                               const FrontendOptions &FEOpts,
+                               const CASOptions &CASOpts);
 
   // Generate command line options from CodeGenOptions.
   static void GenerateCodeGenArgs(const CodeGenOptions &Opts,
@@ -323,6 +326,11 @@ IntrusiveRefCntPtr<llvm::vfs::FileSystem> createVFSFromCompilerInvocation(
 IntrusiveRefCntPtr<llvm::vfs::FileSystem> createVFSFromCompilerInvocation(
     const CompilerInvocation &CI, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS);
+
+IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+createVFSFromOverlayFiles(ArrayRef<std::string> VFSOverlayFiles,
+                          DiagnosticsEngine &Diags,
+                          IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS);
 
 } // namespace clang
 

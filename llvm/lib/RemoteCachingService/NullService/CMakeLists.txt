@@ -1,3 +1,6 @@
-add_llvm_library(LLVMRemoteNullService
+add_llvm_component_library(LLVMRemoteNullService
   NullService.cpp
+
+  LINK_COMPONENTS
+  Support
 )

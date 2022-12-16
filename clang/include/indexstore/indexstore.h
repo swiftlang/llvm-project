@@ -25,7 +25,7 @@
  * INDEXSTORE_VERSION_MAJOR is intended for "major" source/ABI breaking changes.
  */
 #define INDEXSTORE_VERSION_MAJOR 0
-#define INDEXSTORE_VERSION_MINOR 13
+#define INDEXSTORE_VERSION_MINOR 14 /* added C++ concept */
 
 #define INDEXSTORE_VERSION_ENCODE(major, minor) ( \
       ((major) * 10000)                           \
@@ -127,6 +127,8 @@ typedef struct {
 
 INDEXSTORE_PUBLIC unsigned
 indexstore_format_version(void);
+
+INDEXSTORE_PUBLIC unsigned indexstore_version(void);
 
 typedef void *indexstore_t;
 typedef void *indexstore_creation_options_t;

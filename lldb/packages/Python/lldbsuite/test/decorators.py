@@ -81,7 +81,9 @@ def _match_decorator_property(expected, actual):
     if isinstance(expected, no_match):
         return not _match_decorator_property(expected.item, actual)
 
-    if isinstance(expected, (re.Pattern, str)):
+    # Python 3.6 doesn't declare a `re.Pattern` type, get the dynamic type.
+    pattern_type = type(re.compile(''))
+    if isinstance(expected, (pattern_type, str)):
         return re.search(expected, actual) is not None
 
     if hasattr(expected, "__iter__"):
@@ -647,7 +649,7 @@ def skipUnlessTargetAndroid(func):
 def swiftTest(func):
     """Decorate the item as a Swift test (Darwin/Linux only, no i386)."""
     def is_not_swift_compatible(self):
-        if not _get_bool_config("swift"):
+        if not _get_bool_config("swift", fail_value = False):
            return "Swift plugin not enabled"
         if self.getDebugInfo() == "gmodules":
             return "skipping (gmodules only makes sense for clang tests)"

@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CASUtils.h"
 #include "CXDiagnosticSetDiagnosticConsumer.h"
 #include "CXString.h"
 
@@ -24,6 +25,18 @@
 
 using namespace clang;
 using namespace clang::tooling::dependencies;
+
+namespace {
+struct DependencyScannerServiceOptions {
+  ScanningOutputFormat Format = ScanningOutputFormat::Full;
+  CASOptions CASOpts;
+  std::shared_ptr<cas::ObjectStore> CAS;
+  std::shared_ptr<cas::ActionCache> Cache;
+};
+} // end anonymous namespace
+
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(DependencyScannerServiceOptions,
+                                   CXDependencyScannerServiceOptions)
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(DependencyScanningService,
                                    CXDependencyScannerService)
@@ -67,6 +80,32 @@ void clang_experimental_ModuleDependencySet_dispose(
   delete MDS;
 }
 
+CXDependencyScannerServiceOptions
+clang_experimental_DependencyScannerServiceOptions_create() {
+  return wrap(new DependencyScannerServiceOptions);
+}
+
+void clang_experimental_DependencyScannerServiceOptions_dispose(
+    CXDependencyScannerServiceOptions Opts) {
+  delete unwrap(Opts);
+}
+
+void clang_experimental_DependencyScannerServiceOptions_setDependencyMode(
+    CXDependencyScannerServiceOptions Opts, CXDependencyMode Mode) {
+  unwrap(Opts)->Format = unwrap(Mode);
+}
+
+void clang_experimental_DependencyScannerServiceOptions_setObjectStore(
+    CXDependencyScannerServiceOptions Opts, CXCASObjectStore CAS) {
+  unwrap(Opts)->CAS = cas::unwrap(CAS)->CAS;
+  unwrap(Opts)->CASOpts.CASPath = cas::unwrap(CAS)->CASPath;
+}
+void clang_experimental_DependencyScannerServiceOptions_setActionCache(
+    CXDependencyScannerServiceOptions Opts, CXCASActionCache Cache) {
+  unwrap(Opts)->Cache = cas::unwrap(Cache)->Cache;
+  unwrap(Opts)->CASOpts.CachePath = cas::unwrap(Cache)->CachePath;
+}
+
 CXDependencyScannerService
 clang_experimental_DependencyScannerService_create_v0(CXDependencyMode Format) {
   // FIXME: Pass default CASOpts and nullptr as CachingOnDiskFileSystem now.
@@ -75,6 +114,25 @@ clang_experimental_DependencyScannerService_create_v0(CXDependencyMode Format) {
   return wrap(new DependencyScanningService(
       ScanningMode::DependencyDirectivesScan, unwrap(Format), CASOpts,
       /*ActionCache=*/nullptr, FS,
+      /*ReuseFilemanager=*/false));
+}
+
+CXDependencyScannerService
+clang_experimental_DependencyScannerService_create_v1(
+    CXDependencyScannerServiceOptions Opts) {
+  // FIXME: Pass default CASOpts and nullptr as CachingOnDiskFileSystem now.
+  std::shared_ptr<llvm::cas::ObjectStore> CAS = unwrap(Opts)->CAS;
+  std::shared_ptr<llvm::cas::ActionCache> Cache = unwrap(Opts)->Cache;
+  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS;
+  if (CAS && Cache) {
+    assert(unwrap(Opts)->CASOpts.getKind() != CASOptions::UnknownCAS &&
+           "CAS and ActionCache must match CASOptions");
+    FS = llvm::cantFail(
+        llvm::cas::createCachingOnDiskFileSystem(std::move(CAS)));
+  }
+  return wrap(new DependencyScanningService(
+      ScanningMode::DependencyDirectivesScan, unwrap(Opts)->Format,
+      unwrap(Opts)->CASOpts, std::move(Cache), std::move(FS),
       /*ReuseFilemanager=*/false));
 }
 

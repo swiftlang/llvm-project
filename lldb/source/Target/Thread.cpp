@@ -339,7 +339,7 @@ void Thread::FrameSelectedCallback(StackFrame *frame) {
   }
   SymbolContext msc = frame->GetSymbolContext(eSymbolContextModule);
   if (msc.module_sp)
-    msc.module_sp->ForEachTypeSystem([&](TypeSystem *ts) {
+    msc.module_sp->ForEachTypeSystem([&](lldb::TypeSystemSP ts) {
       if (ts)
         ts->DiagnoseWarnings(*GetProcess(), *msc.module_sp);
       return true;
@@ -1715,6 +1715,10 @@ addr_t Thread::GetThreadLocalData(const ModuleSP module,
 bool Thread::SafeToCallFunctions() {
   Process *process = GetProcess().get();
   if (process) {
+    DynamicLoader *loader = GetProcess()->GetDynamicLoader();
+    if (loader && loader->IsFullyInitialized() == false)
+      return false;
+
     SystemRuntime *runtime = process->GetSystemRuntime();
     if (runtime) {
       return runtime->SafeToCallFunctionsOnThisThread(shared_from_this());

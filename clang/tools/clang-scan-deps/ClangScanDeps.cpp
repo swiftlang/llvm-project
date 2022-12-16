@@ -233,6 +233,11 @@ llvm::cl::opt<bool> InMemoryCAS(
     llvm::cl::desc("Use an in-memory CAS instead of on-disk."),
     llvm::cl::init(false), llvm::cl::cat(DependencyScannerCategory));
 
+llvm::cl::opt<std::string>
+    ActionCachePath("action-cache-path",
+                    llvm::cl::desc("Path for on-disk action cache."),
+                    llvm::cl::cat(DependencyScannerCategory));
+
 llvm::cl::opt<bool> Verbose("v", llvm::cl::Optional,
                             llvm::cl::desc("Use verbose output."),
                             llvm::cl::init(false),
@@ -243,8 +248,8 @@ llvm::cl::opt<bool> Verbose("v", llvm::cl::Optional,
 static bool emitCompilationDBWithCASTreeArguments(
     std::shared_ptr<llvm::cas::ObjectStore> DB,
     std::vector<tooling::CompileCommand> Inputs,
-    DiagnosticConsumer &DiagsConsumer, const char *Exec,
-    const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+    DiagnosticConsumer &DiagsConsumer,
+    const DepscanPrefixMapping &PrefixMapping,
     DependencyScanningService &Service, llvm::ThreadPool &Pool,
     llvm::raw_ostream &OS) {
 
@@ -306,9 +311,8 @@ static bool emitCompilationDBWithCASTreeArguments(
           llvm::cas::ObjectStore &DB;
           tooling::dependencies::DependencyScanningTool &WorkerTool;
           DiagnosticConsumer &DiagsConsumer;
-          const char *Exec;
           StringRef CWD;
-          const cc1depscand::DepscanPrefixMapping &PrefixMapping;
+          const DepscanPrefixMapping &PrefixMapping;
           SmallVectorImpl<const char *> &OutputArgs;
           llvm::StringSaver &Saver;
 
@@ -316,14 +320,13 @@ static bool emitCompilationDBWithCASTreeArguments(
           ScanForCC1Action(
               llvm::cas::ObjectStore &DB,
               tooling::dependencies::DependencyScanningTool &WorkerTool,
-              DiagnosticConsumer &DiagsConsumer, const char *Exec,
-              StringRef CWD,
-              const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+              DiagnosticConsumer &DiagsConsumer, StringRef CWD,
+              const DepscanPrefixMapping &PrefixMapping,
               SmallVectorImpl<const char *> &OutputArgs,
               llvm::StringSaver &Saver)
               : DB(DB), WorkerTool(WorkerTool), DiagsConsumer(DiagsConsumer),
-                Exec(Exec), CWD(CWD), PrefixMapping(PrefixMapping),
-                OutputArgs(OutputArgs), Saver(Saver) {}
+                CWD(CWD), PrefixMapping(PrefixMapping), OutputArgs(OutputArgs),
+                Saver(Saver) {}
 
           bool
           runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
@@ -331,8 +334,8 @@ static bool emitCompilationDBWithCASTreeArguments(
                         std::shared_ptr<PCHContainerOperations> PCHContainerOps,
                         DiagnosticConsumer *DiagConsumer) override {
             Expected<llvm::cas::CASID> Root = scanAndUpdateCC1InlineWithTool(
-                WorkerTool, DiagsConsumer, /*VerboseOS*/ nullptr, Exec,
-                *Invocation, CWD, PrefixMapping, DB);
+                WorkerTool, DiagsConsumer, /*VerboseOS*/ nullptr, *Invocation,
+                CWD, PrefixMapping, DB);
             if (!Root) {
               llvm::consumeError(Root.takeError());
               return false;
@@ -348,8 +351,8 @@ static bool emitCompilationDBWithCASTreeArguments(
         SmallVector<const char *> OutputArgs;
         llvm::StringSaver &Saver = PerThreadStates[I]->Saver;
         OutputArgs.push_back(Saver.save(Input->CommandLine.front()).data());
-        ScanForCC1Action Action(*DB, WorkerTool, *IgnoringDiagsConsumer, Exec,
-                                CWD, PrefixMapping, OutputArgs, Saver);
+        ScanForCC1Action Action(*DB, WorkerTool, *IgnoringDiagsConsumer, CWD,
+                                PrefixMapping, OutputArgs, Saver);
 
         llvm::IntrusiveRefCntPtr<FileManager> FileMgr =
             WorkerTool.getOrCreateFileManager();
@@ -486,6 +489,10 @@ static bool outputFormatRequiresCAS() {
   }
 }
 
+static bool useCAS() {
+  return InMemoryCAS || !OnDiskCASPath.empty() || outputFormatRequiresCAS();
+}
+
 static llvm::json::Array toJSONSorted(const llvm::StringSet<> &Set) {
   std::vector<llvm::StringRef> Strings;
   for (auto &&I : Set)
@@ -564,6 +571,8 @@ public:
           {"clang-modulemap-file", MD.ClangModuleMapFile},
           {"command-line", MD.BuildArguments},
       };
+      if (MD.CASFileSystemRootID)
+        O.try_emplace("casfs-root-id", MD.CASFileSystemRootID->toString());
       OutModules.push_back(std::move(O));
     }
 
@@ -798,15 +807,17 @@ int main(int argc, const char **argv) {
   std::shared_ptr<llvm::cas::ObjectStore> CAS;
   std::shared_ptr<llvm::cas::ActionCache> Cache;
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS;
-  if (outputFormatRequiresCAS()) {
+  if (useCAS()) {
     if (!InMemoryCAS) {
       if (!OnDiskCASPath.empty())
         CASOpts.CASPath = OnDiskCASPath;
       else
         CASOpts.ensurePersistentCAS();
     }
+    if (!ActionCachePath.empty())
+      CASOpts.CachePath = ActionCachePath;
+
     CAS = CASOpts.getOrCreateObjectStore(Diags);
-    // FIXME: Cache is not used here so just create a dummy in-memory cache.
     Cache = CASOpts.getOrCreateActionCache(Diags);
     if (!CAS)
       return 1;
@@ -823,10 +834,10 @@ int main(int argc, const char **argv) {
       return 1;
     }
     // FIXME: Configure this.
-    cc1depscand::DepscanPrefixMapping PrefixMapping;
+    DepscanPrefixMapping PrefixMapping;
     return emitCompilationDBWithCASTreeArguments(
         CAS, AdjustingCompilations->getAllCompileCommands(), *DiagsConsumer,
-        argv[0], PrefixMapping, Service, Pool, llvm::outs());
+        PrefixMapping, Service, Pool, llvm::outs());
   }
 
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;

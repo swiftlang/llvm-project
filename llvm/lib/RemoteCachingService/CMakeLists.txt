@@ -18,6 +18,10 @@ set(LLVM_LINK_COMPONENTS
   )
 endif()
 
-add_llvm_library(LLVMRemoteCachingService
+add_llvm_component_library(LLVMRemoteCachingService
   RemoteCachingService.cpp
+
+  LINK_COMPONENTS
+  Support
+  CAS
 )
