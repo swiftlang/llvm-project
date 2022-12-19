@@ -252,7 +252,7 @@ ScanDaemon::constructAndShakeHands(StringRef BasePath, const char *Arg0,
 }
 
 Expected<ScanDaemon> ScanDaemon::connectToDaemonAndShakeHands(StringRef Path) {
-  auto Daemon = ScanDaemon::connectToExistingDaemon(Path);
+  auto Daemon = ScanDaemon::connectToDaemon(Path, /*ShouldWait=*/true);
   if (!Daemon)
     return Daemon.takeError();
 

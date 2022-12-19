@@ -712,16 +712,15 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   // Shutdown test mode. In shutdown test mode, daemon will open acception, but
   // not replying anything, just tear down the connect immediately.
   bool ShutDownTest = false;
-  bool KeepAlive = false;
   bool Detached = false;
   bool Debug = false;
   bool SingleCommandMode = false;
 
-  // Whether the daemon can safely stay alive a longer period of time.
+  // Daemon always needs a timeout to prevent leaking the daemon.
   // FIXME: Consider designing a mechanism to notify daemons, started for a
   // particular "build session", to shutdown, then have it stay alive until the
   // session is finished.
-  bool LongRunning = false;
+  uint64_t Timeout = 15;
 
   // List of cas options.
   ArrayRef<const char *> CASArgs;
@@ -733,7 +732,8 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
     else if (Arg == "-detach")
       Detached = true;
     else if (Arg == "-long-running")
-      LongRunning = true;
+      // Whether the daemon can safely stay alive a longer period of time.
+      Timeout = 45;
     else if (Arg == "-single-command")
       SingleCommandMode = true;
     else if (Arg == "-debug") {
@@ -769,7 +769,8 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
   }
 
   if (Command == "-start") {
-    KeepAlive = true;
+    // Running in server mode. Set a very long timeout period.
+    Timeout = 600;
     llvm::EnableStatistics(/*DoPrintOnExit=*/true);
     if (!Detached) {
       signal(SIGCHLD, SIG_IGN);
@@ -1088,26 +1089,25 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
       });
 #endif
       if (SingleCommandMode) {
+        // Exit immediately after finishing the single command.
         ShutdownCleanUp();
         ShutDown.store(true);
-        return;
+        ::exit(0);
       }
     }
   };
 
-  if (SingleCommandMode) {
-    // If in run once mode. Run it single thread then exit.
-    ServiceLoop(0);
-    ::exit(0);
-  }
 
-  for (unsigned I = 0; I < Pool.getThreadCount(); ++I)
+  // For single command mode, only need one thread.
+  unsigned NumThreads = SingleCommandMode ? 1 : Pool.getThreadCount();
+  for (unsigned I = 0; I < NumThreads; ++I)
     Pool.async(ServiceLoop, I);
 
   // Wait for the work to finish.
   const uint64_t SecondsBetweenAttempts = 5;
-  const uint64_t SecondsBeforeDestruction = LongRunning ? 45 : 15;
-  uint64_t SleepTime = SecondsBeforeDestruction;
+  const uint64_t SecondsBeforeDestruction = Timeout;
+  // Initial sleep 15 secs before checking.
+  uint64_t SleepTime = 15;
   while (true) {
     ::sleep(SleepTime);
     SleepTime = SecondsBetweenAttempts;
@@ -1117,9 +1117,6 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
 
     if (ShutDown.load())
       break;
-
-    if (KeepAlive)
-      continue;
 
     // Figure out the latest access time that we'll delete.
     uint64_t LastAccessToDestroy =
