@@ -240,12 +240,10 @@ tablegen::scanIncludes(cas::ObjectStore &CAS, cas::ActionCache &Cache,
     PM->sort();
   }
 
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
-
-  Expected<cas::ObjectProxy> Tree = FS->createTreeFromNewAccesses(
-      [&](const vfs::CachedDirectoryEntry &Entry) {
-        return PM ? PM->mapDirEntry(Entry, Saver) : Entry.getTreePath();
+  Expected<cas::ObjectProxy> Tree =
+      FS->createTreeFromNewAccesses([&](const vfs::CachedDirectoryEntry &Entry,
+                                        SmallVectorImpl<char> &Storage) {
+        return PM ? PM->mapDirEntry(Entry, Storage) : Entry.getTreePath();
       });
   if (!Tree)
     return Tree.takeError();
