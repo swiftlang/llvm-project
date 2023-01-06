@@ -103,7 +103,8 @@ public:
 
   /// Collect dependency tree.
   llvm::Expected<llvm::cas::ObjectProxy>
-  getDependencyTree(const std::vector<std::string> &CommandLine, StringRef CWD);
+  getDependencyTree(const std::vector<std::string> &CommandLine, StringRef CWD,
+                    DepscanPrefixMapping PrefixMapping = {});
 
   /// If \p DiagGenerationAsCompilation is true it will generate error
   /// diagnostics same way as the normal compilation, with "N errors generated"
@@ -150,7 +151,8 @@ public:
   getFullDependencies(const std::vector<std::string> &CommandLine,
                       StringRef CWD, const llvm::StringSet<> &AlreadySeen,
                       LookupModuleOutputCallback LookupModuleOutput,
-                      std::optional<StringRef> ModuleName = std::nullopt);
+                      std::optional<StringRef> ModuleName = std::nullopt,
+                      DepscanPrefixMapping PrefixMapping = {});
 
   ScanningOutputFormat getScanningFormat() const {
     return Worker.getScanningFormat();
