@@ -235,8 +235,7 @@ tablegen::scanIncludes(cas::ObjectStore &CAS, cas::ActionCache &Cache,
   Optional<TreePathPrefixMapper> &PM = CapturedPM ? *CapturedPM : LocalPM;
   if (!PrefixMappings.empty()) {
     PM.emplace(FS);
-    if (Error E = PM->addRange(PrefixMappings))
-      return std::move(E);
+    PM->addRange(PrefixMappings);
     PM->sort();
   }
 
@@ -265,16 +264,12 @@ tablegen::scanIncludesAndRemap(cas::ObjectStore &CAS, cas::ActionCache &Cache,
   if (!PM)
     return Result;
 
-  // Remap the main filename. Since it was already loaded and should be cached
-  // by the filesystem, an error here would be most surprising.
-  if (Error E = PM->mapInPlace(MainFilename))
-    return std::move(E);
+  // Remap the main filename.
+  PM->mapInPlace(MainFilename);
 
-  // Remap includes and strip invalid ones. If there have been no includes,
-  // it's possible these will be new accesses, but they won't be needed anyway.
-  // Clear and erase them.
+  // Remap includes.
   for (std::string &Dir : IncludeDirs)
-    PM->mapInPlaceOrClear(Dir);
+    PM->mapInPlace(Dir);
   llvm::erase_value(IncludeDirs, "");
 
   return Result;

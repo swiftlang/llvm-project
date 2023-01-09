@@ -122,8 +122,7 @@ static Error createDependencyFile(const StringSetT &Dependencies) {
     for (StringRef DepRef : Dependencies) {
       std::string Dep = DepRef.str();
       if (CreateDependencyFilePM)
-        if (Error E = CreateDependencyFilePM->mapInPlace(Dep))
-          return E;
+        CreateDependencyFilePM->mapInPlace(Dep);
       OS << ' ' << Dep;
     }
     OS << "\n";
@@ -283,19 +282,17 @@ struct TableGenCache {
   Error computeResult(TableGenMainFn *MainFn);
   Error replayResult();
 
-  Error createInversePrefixMap();
+  void createInversePrefixMap();
 };
 } // end namespace
 
-Error TableGenCache::createInversePrefixMap() {
+void TableGenCache::createInversePrefixMap() {
   if (PrefixMappings.empty())
-    return Error::success();
+    return;
 
   InversePM.emplace();
-  if (Error E = InversePM->addInverseRange(PrefixMappings))
-    return E;
+  InversePM->addInverseRange(PrefixMappings);
   CreateDependencyFilePM = &*InversePM;
-  return Error::success();
 }
 
 Expected<cas::ObjectRef> TableGenCache::createExecutableBlob(StringRef Argv0) {
@@ -564,8 +561,7 @@ int llvm::TableGenMain(ArrayRef<const char *> Args, TableGenMainFn *MainFn) {
   if (Error E =
           MappedPrefix::transformJoined(DepscanPrefixMap, Cache.PrefixMappings))
     return reportError(Args[0], std::move(E));
-  if (Error E = Cache.createInversePrefixMap())
-    return reportError(Args[0], std::move(E));
+  Cache.createInversePrefixMap();
 
   if (Error E = Cache.lookupCachedResult(Args))
     return reportError(Args[0], std::move(E));
