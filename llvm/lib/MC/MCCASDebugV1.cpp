@@ -275,8 +275,31 @@ mccasformats::v1::reconstructAbbrevSection(raw_ostream &OS,
     const uint64_t AbbrevCode = EntryIdx + 1;
     WrittenSize += encodeULEB128(AbbrevCode, OS);
 
-    OS << EntryData;
-    WrittenSize += EntryData.size();
+    BinaryStreamReader Reader(EntryData, support::endianness::little);
+    // [uleb(Tag), has_children]
+    uint64_t TagAsInt;
+    uint8_t HasChildren;
+    if (auto Err = Reader.readULEB128(TagAsInt))
+      handleAllErrors(std::move(Err));
+    if (auto Err = Reader.readInteger(HasChildren))
+      handleAllErrors(std::move(Err));
+    WrittenSize += encodeULEB128(TagAsInt, OS);
+    OS << HasChildren;
+    WrittenSize += 1;
+    assert(HasChildren == 0 || HasChildren == 1);
+
+    // [uleb(Attr), uleb(Form)]*
+    while (!Reader.empty()) {
+      uint64_t AttrAsInt;
+      uint64_t FormAsInt;
+      if (auto Err = Reader.readULEB128(AttrAsInt))
+        handleAllErrors(std::move(Err));
+      if (auto Err = Reader.readULEB128(FormAsInt))
+        handleAllErrors(std::move(Err));
+
+      WrittenSize += encodeULEB128(AttrAsInt, OS);
+      WrittenSize += encodeULEB128(FormAsInt, OS);
+    }
 
     // Dwarf 5: Section 7.5.3:
     // The series of attribute specifications ends with an entry containing 0
