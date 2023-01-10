@@ -2504,10 +2504,10 @@ static void writeDIEAttrs(DWARFDie &DIE, ArrayRef<char> DebugInfoData,
     dwarf::Form Form = AttrValue.Value.getForm();
     ArrayRef<char> FormData =
         DebugInfoData.slice(AttrValue.Offset, AttrValue.ByteSize);
-    if (doesntDedup(Form, Attr))
-      DistinctWriter.writeData(FormData);
-    else
-      DIEWriter.writeData(FormData);
+    auto &WriterToUse = doesntDedup(Form, Attr)
+                            ? static_cast<DataWriter &>(DistinctWriter)
+                            : DIEWriter;
+    WriterToUse.writeData(FormData);
   }
 }
 
