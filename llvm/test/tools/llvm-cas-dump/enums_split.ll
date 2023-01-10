@@ -7,7 +7,7 @@
 ; DWARF-DIE-NEXT:   DW_TAG_compile_unit  AbbrevIdx = 2
 ; DWARF-DIE:        CAS Block: llvmcas://{{.*}}
 ; DWARF-DIE-NEXT:   DW_TAG_enumeration_type     AbbrevIdx = 3
-; DWARF-DIE-NEXT:     DW_AT_type                     DW_FORM_ref4               [distinct] [47 0 0 0]
+; DWARF-DIE-NEXT:     DW_AT_type                     DW_FORM_ref4_cas           [distinct] [47]
 ; DWARF-DIE-NEXT:     DW_AT_enum_class               DW_FORM_flag_present       [dedups]   []
 ; DWARF-DIE-NEXT:     DW_AT_name                     DW_FORM_strp               [distinct] [88 0 0 0]
 ; DWARF-DIE-NEXT:     DW_AT_byte_size                DW_FORM_data1              [dedups]   [4]

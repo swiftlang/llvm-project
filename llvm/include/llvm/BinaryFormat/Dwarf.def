@@ -680,6 +680,8 @@ HANDLE_DW_FORM(0x1f20, GNU_ref_alt, 0, GNU)
 HANDLE_DW_FORM(0x1f21, GNU_strp_alt, 0, GNU)
 // LLVM addr+offset extension
 HANDLE_DW_FORM(0x2001, LLVM_addrx_offset, 0, LLVM)
+// CAS Extensions
+HANDLE_DW_FORM(0x7e, ref4_cas, 0, APPLE)
 
 // DWARF Expression operators.
 HANDLE_DW_OP(0x03, addr, 2, DWARF)

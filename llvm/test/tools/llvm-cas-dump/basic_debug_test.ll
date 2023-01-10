@@ -74,7 +74,7 @@
 ; DWARF-DIE-NEXT:       DW_AT_name                     DW_FORM_strp         [distinct]      [{{.*}}]
 ; DWARF-DIE-NEXT:       DW_AT_decl_file                DW_FORM_data1        [distinct]      [{{.*}}]
 ; DWARF-DIE-NEXT:       DW_AT_decl_line                DW_FORM_data1        [dedups]      [{{.*}}]
-; DWARF-DIE-NEXT:       DW_AT_type                     DW_FORM_ref4         [distinct]      [{{.*}}]
+; DWARF-DIE-NEXT:       DW_AT_type                     DW_FORM_ref4_cas     [distinct]      [{{.*}}]
 ; DWARF-DIE-NEXT:       DW_AT_external                 DW_FORM_flag_present [dedups]      []
 ; DWARF-DIE-NEXT:     DW_TAG_base_type  AbbrevIdx = 4
 ; DWARF-DIE-NEXT:       DW_AT_name                     DW_FORM_strp         [distinct]      [{{.*}}]
