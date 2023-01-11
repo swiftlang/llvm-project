@@ -112,6 +112,7 @@ mccasformats::v1::getFormSize(dwarf::Form Form, dwarf::FormParams FP,
     case dwarf::DW_FORM_udata:
     case dwarf::DW_FORM_ref_udata:
     case dwarf::DW_FORM_ref4_cas:
+    case dwarf::DW_FORM_strp_cas:
     case dwarf::DW_FORM_rnglistx:
     case dwarf::DW_FORM_loclistx:
     case dwarf::DW_FORM_GNU_addr_index:
@@ -199,6 +200,7 @@ bool mccasformats::v1::doesntDedup(dwarf::Form Form, dwarf::Attribute Attr) {
       FormsToPartition{
           {dwarf::Form::DW_FORM_ref_addr, {}},
           {dwarf::Form::DW_FORM_strp, {}},
+          {dwarf::Form::DW_FORM_strp_cas, {}},
           {dwarf::Form::DW_FORM_ref4, {}},
           {dwarf::Form::DW_FORM_ref4_cas, {}},
           {dwarf::Form::DW_FORM_data1,
@@ -248,6 +250,8 @@ void AbbrevEntryWriter::writeAbbrevEntry(DWARFDie DIE) {
     dwarf::Form Form = AttrValue.Value.getForm();
     if (Form == dwarf::Form::DW_FORM_ref4)
       Form = dwarf::Form::DW_FORM_ref4_cas;
+    if (Form == dwarf::Form::DW_FORM_strp)
+      Form = dwarf::Form::DW_FORM_strp_cas;
     writeULEB128(Form);
   }
 }
@@ -321,6 +325,8 @@ mccasformats::v1::reconstructAbbrevSection(raw_ostream &OS,
       auto Form = static_cast<dwarf::Form>(FormAsInt);
       if (Form == dwarf::Form::DW_FORM_ref4_cas)
         Form = dwarf::Form::DW_FORM_ref4;
+      if (Form == dwarf::Form::DW_FORM_strp_cas)
+        Form = dwarf::Form::DW_FORM_strp;
 
       WrittenSize += encodeULEB128(Form, OS);
     }

@@ -505,7 +505,8 @@ materializeDebugInfoFromTagImpl(MCCASReader &Reader,
 
   auto AttrCallback = [&](dwarf::Attribute, dwarf::Form Form,
                           StringRef FormData, bool) {
-    if (Form == dwarf::Form::DW_FORM_ref4_cas) {
+    if (Form == dwarf::Form::DW_FORM_ref4_cas ||
+        Form == dwarf::Form::DW_FORM_strp_cas) {
       auto Reader = BinaryStreamReader(FormData, support::endianness::little);
       uint64_t Data64;
       if (auto Err = Reader.readULEB128(Data64))
@@ -2516,7 +2517,7 @@ static void writeDIEAttrs(DWARFDie &DIE, ArrayRef<char> DebugInfoData,
     auto &WriterToUse = doesntDedup(Form, Attr)
                             ? static_cast<DataWriter &>(DistinctWriter)
                             : DIEWriter;
-    if (Form == dwarf::Form::DW_FORM_ref4)
+    if (Form == dwarf::Form::DW_FORM_ref4 || Form == dwarf::Form::DW_FORM_strp)
       convertFourByteFormDataToULEB(FormData, WriterToUse);
     else
       WriterToUse.writeData(FormData);
