@@ -142,7 +142,7 @@ public:
   }
   Optional<ArrayRef<char>> getContentArray() const {
     if (Optional<StringRef> Content = getContent())
-      return makeArrayRef(Content->begin(), Content->end());
+      return ArrayRef(Content->begin(), Content->end());
     return std::nullopt;
   }
   Optional<StringRef> getContent() const;

@@ -796,9 +796,9 @@ Expected<CompileUnitRef> CompileUnitRef::create(const ObjectFileSchema &Schema,
     appendBlocks(Section.blocks());
 
 #ifndef NDEBUG
-  for (auto *S : makeArrayRef(Symbols).slice(0, DefinedSymbolsSize))
+  for (auto *S : ArrayRef(Symbols).slice(0, DefinedSymbolsSize))
     assert(S->isDefined());
-  for (auto *S : makeArrayRef(Symbols).slice(DefinedSymbolsSize))
+  for (auto *S : ArrayRef(Symbols).slice(DefinedSymbolsSize))
     assert(!S->isDefined());
 #endif
 

@@ -34,8 +34,8 @@ TEST(ScanDependenciesTest, scanTextForIncludes) {
     scanTextForIncludes(T.first, Includes);
 
     // Include "T.first" so that it's included in failure output.
-    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
-              std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(std::make_pair(T.first, ArrayRef(T.second)),
+              std::make_pair(T.first, ArrayRef(Includes)));
   }
 }
 
@@ -60,8 +60,8 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesNotStart) {
     scanTextForIncludes(T.first, Includes);
 
     // Include "T.first" so that it's included in failure output.
-    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
-              std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(std::make_pair(T.first, ArrayRef(T.second)),
+              std::make_pair(T.first, ArrayRef(Includes)));
   }
 }
 
@@ -82,8 +82,8 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesSuffix) {
     scanTextForIncludes(T.first, Includes);
 
     // Include "T.first" so that it's included in failure output.
-    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
-              std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(std::make_pair(T.first, ArrayRef(T.second)),
+              std::make_pair(T.first, ArrayRef(Includes)));
   }
 }
 
@@ -98,8 +98,8 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesWithPrefix) {
     scanTextForIncludes(T.first, Includes);
 
     // Include "T.first" so that it's included in failure output.
-    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
-              std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(std::make_pair(T.first, ArrayRef(T.second)),
+              std::make_pair(T.first, ArrayRef(Includes)));
   }
 }
 
@@ -115,8 +115,8 @@ TEST(ScanDependenciesTest, scanFuzzyIncludesComments) {
     scanTextForIncludes(T.first, Includes);
 
     // Include "T.first" so that it's included in failure output.
-    EXPECT_EQ(std::make_pair(T.first, makeArrayRef(T.second)),
-              std::make_pair(T.first, makeArrayRef(Includes)));
+    EXPECT_EQ(std::make_pair(T.first, ArrayRef(T.second)),
+              std::make_pair(T.first, ArrayRef(Includes)));
   }
 }
 
@@ -139,8 +139,8 @@ TEST(ScanDependenciesTest, flattenStrings) {
     splitFlattenedStrings(T.second, Split);
 
     // Include "T.second" so that it's included in failure output.
-    EXPECT_EQ(std::make_pair(makeArrayRef(T.first), T.second),
-              std::make_pair(makeArrayRef(Split), T.second));
+    EXPECT_EQ(std::make_pair(ArrayRef(T.first), T.second),
+              std::make_pair(ArrayRef(Split), T.second));
   }
 }
 

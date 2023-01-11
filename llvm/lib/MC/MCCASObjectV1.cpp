@@ -549,7 +549,7 @@ Expected<uint64_t> GroupRef::materialize(MCCASReader &Reader,
       return Node.takeError();
     if (auto AbbrevRef = DebugAbbrevSectionRef::Cast(*Node)) {
       auto FragmentSize =
-          materializeAbbrevFromTagImpl(Reader, *AbbrevRef, makeArrayRef(*Refs));
+          materializeAbbrevFromTagImpl(Reader, *AbbrevRef, ArrayRef(*Refs));
       if (!FragmentSize)
         return FragmentSize.takeError();
       Size += *FragmentSize;

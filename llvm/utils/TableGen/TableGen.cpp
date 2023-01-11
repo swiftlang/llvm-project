@@ -288,7 +288,7 @@ int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
   cl::ParseCommandLineOptions(argc, argv);
 
-  return TableGenMain(makeArrayRef(argv, argc), &LLVMTableGenMain);
+  return TableGenMain(ArrayRef(argv, argc), &LLVMTableGenMain);
 }
 
 #ifndef __has_feature

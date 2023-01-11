@@ -2442,10 +2442,10 @@ Error CASSchemaFile::parse(ObjectFormatSchemaPool &CASSchemas, ObjectRef ID) {
     ArrayRef<uint8_t> data;
     if (block.isZeroFill()) {
       flags = S_ZEROFILL;
-      data = makeArrayRef((const uint8_t *)nullptr, block.Size);
+      data = ArrayRef((const uint8_t *)nullptr, block.Size);
     } else {
       StringRef content = *block.Content;
-      data = makeArrayRef((const uint8_t *)content.data(), content.size());
+      data = ArrayRef((const uint8_t *)content.data(), content.size());
       assert(block.Size == content.size());
     }
 

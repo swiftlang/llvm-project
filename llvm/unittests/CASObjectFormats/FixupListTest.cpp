@@ -36,7 +36,7 @@ TEST(FixupListTest, Single) {
   SmallString<128> Data;
   auto makeList = [&Data](Fixup &&F) {
     Data.clear();
-    FixupList::encode(makeArrayRef(F), Data);
+    FixupList::encode(ArrayRef(F), Data);
     return FixupList(Data);
   };
 
@@ -81,7 +81,7 @@ TEST(FixupListTest, Multiple) {
   FixupList FL(Data);
   EXPECT_EQ(false, FL.empty());
   SmallVector<Fixup, 16> Output(FL.begin(), FL.end());
-  EXPECT_EQ(makeArrayRef(Input), makeArrayRef(Output));
+  EXPECT_EQ(ArrayRef(Input), ArrayRef(Output));
 }
 
 } // end namespace

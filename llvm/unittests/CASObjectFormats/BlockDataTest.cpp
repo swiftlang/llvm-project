@@ -56,8 +56,8 @@ TEST(BlockDataTest, ZeroFill) {
           if (Offset >= A.value())
             continue;
           for (ArrayRef<Fixup> Fixups :
-               {ArrayRef<Fixup>(), makeArrayRef(TwoFixups[0]),
-                makeArrayRef(TwoFixups[1]), makeArrayRef(TwoFixups)}) {
+               {ArrayRef<Fixup>(), ArrayRef(TwoFixups[0]),
+                ArrayRef(TwoFixups[1]), ArrayRef(TwoFixups)}) {
             BlockData Data =
                 makeData(Alloc, Size, A.value(), Offset, Content, Fixups);
             EXPECT_EQ(!bool(Content), Data.isZeroFill());
@@ -68,7 +68,7 @@ TEST(BlockDataTest, ZeroFill) {
             {
               FixupList FL = Data.getFixups();
               EXPECT_EQ(Fixups,
-                        makeArrayRef(SmallVector<Fixup>(FL.begin(), FL.end())));
+                        ArrayRef(SmallVector<Fixup>(FL.begin(), FL.end())));
             }
 
             uint64_t DecodedSize;
@@ -84,7 +84,7 @@ TEST(BlockDataTest, ZeroFill) {
             EXPECT_EQ(A.value(), DecodedAlignment);
             EXPECT_EQ(Offset, DecodedAlignmentOffset);
             EXPECT_EQ(Content, DecodedContent);
-            EXPECT_EQ(Fixups, makeArrayRef(SmallVector<Fixup>(
+            EXPECT_EQ(Fixups, ArrayRef(SmallVector<Fixup>(
                                   DecodedFL.begin(), DecodedFL.end())));
           }
         }

@@ -493,7 +493,7 @@ int main(int argc, char **argv) {
 
   llvm_shutdown_obj Y;
 
-  return TableGenMain(makeArrayRef(argv, argc), &ClangTableGenMain);
+  return TableGenMain(ArrayRef(argv, argc), &ClangTableGenMain);
 }
 
 #ifdef __has_feature

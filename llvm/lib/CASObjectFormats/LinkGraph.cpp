@@ -122,7 +122,7 @@ Expected<Block *> LinkGraphBuilder::createBlock(const CASBlock &Info) {
                                     Info.Alignment, Info.AlignmentOffset)
           : LG->createContentBlock(
                 *SectionInfo->Section,
-                makeArrayRef(Info.Content->begin(), Info.Content->end()),
+                ArrayRef(Info.Content->begin(), Info.Content->end()),
                 Address, Info.Alignment, Info.AlignmentOffset);
   return &B;
 }

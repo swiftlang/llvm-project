@@ -41,7 +41,7 @@ TEST(TargetInfoListTest, Single) {
   SmallString<128> Data;
   auto makeList = [&Data](const TargetInfo &F) {
     Data.clear();
-    TargetInfoList::encode(makeArrayRef(F), Data);
+    TargetInfoList::encode(ArrayRef(F), Data);
     return TargetInfoList(Data);
   };
 
@@ -76,7 +76,7 @@ TEST(TargetInfoListTest, Multiple) {
   TargetInfoList::encode(Input, Data);
   TargetInfoList TIL(Data);
   SmallVector<TargetInfo, 16> Output(TIL.begin(), TIL.end());
-  EXPECT_EQ(makeArrayRef(Input), makeArrayRef(Output));
+  EXPECT_EQ(ArrayRef(Input), ArrayRef(Output));
 }
 
 } // end namespace
