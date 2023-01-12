@@ -12,6 +12,7 @@
 
 #include "llvm/ProfileData/SampleProfReader.h"
 #include "llvm/ProfileData/SampleProfWriter.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -40,7 +41,8 @@ static void CheckAssertFalse(std::error_code t) {
 static SampleProfileMap ReadInput(StringRef Input) {
   LLVMContext Context;
   auto InputBuffer = MemoryBuffer::getMemBufferCopy(Input);
-  auto ReaderOrErr = SampleProfileReader::create(InputBuffer, Context);
+  auto FS = vfs::getRealFileSystem();
+  auto ReaderOrErr = SampleProfileReader::create(InputBuffer, Context, *FS);
   CheckAssertFalse(ReaderOrErr.getError());
   auto Reader = std::move(ReaderOrErr.get());
   CheckAssertFalse(Reader->read());
