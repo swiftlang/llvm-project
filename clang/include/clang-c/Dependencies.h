@@ -219,6 +219,30 @@ clang_experimental_DependencyScannerServiceOptions_setActionCache(
     CXDependencyScannerServiceOptions Opts, CXCASActionCache Cache);
 
 /**
+ * Specify a new path to automatically remap the SDK (isysroot) to in the
+ * resulting command-line arguments. Requires the use of a CAS.
+ */
+CINDEX_LINKAGE void
+clang_experimental_DependencyScannerServiceOptions_setPrefixMapSDK(
+    CXDependencyScannerServiceOptions Opts, const char *New);
+
+/**
+ * Specify a new path to automatically remap the toolchain to in the
+ * resulting command-line arguments. Requires the use of a CAS.
+ */
+CINDEX_LINKAGE void
+clang_experimental_DependencyScannerServiceOptions_setPrefixMapToolchain(
+    CXDependencyScannerServiceOptions Opts, const char *New);
+
+/**
+ * Add a remapping from \p Old to \p New for paths in the resulting command-line
+ * arguments. Requires the use of a CAS.
+ */
+CINDEX_LINKAGE void
+clang_experimental_DependencyScannerServiceOptions_addPrefixMap(
+    CXDependencyScannerServiceOptions Opts, const char *Old, const char *New);
+
+/**
  * See \c clang_experimental_DependencyScannerService_create_v1.
  */
 CINDEX_LINKAGE CXDependencyScannerService

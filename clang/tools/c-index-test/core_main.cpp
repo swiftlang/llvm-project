@@ -145,6 +145,15 @@ static llvm::cl::opt<std::string>
 static llvm::cl::opt<std::string>
     CachePath("action-cache-path",
               llvm::cl::desc("Path for on-disk action cache."));
+static llvm::cl::opt<std::string>
+    PrefixMapToolchain("prefix-map-toolchain",
+                       llvm::cl::desc("Path to remap toolchain path to."));
+static llvm::cl::opt<std::string>
+    PrefixMapSDK("prefix-map-sdk",
+                 llvm::cl::desc("Path to remap SDK path to."));
+static llvm::cl::list<std::string>
+    PrefixMaps("prefix-map",
+               llvm::cl::desc("Path to remap, as \"<old>=<new>\"."));
 }
 } // anonymous namespace
 
@@ -688,6 +697,9 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
                     ArrayRef<std::string> DepTargets, std::string OutputPath,
                     Optional<std::string> CASPath,
                     Optional<std::string> CachePath,
+                    Optional<std::string> NewSDKPath,
+                    Optional<std::string> NewToolchainPath,
+                    ArrayRef<std::string> PrefixMaps,
                     Optional<std::string> ModuleName = std::nullopt) {
   CXDependencyScannerServiceOptions Opts =
       clang_experimental_DependencyScannerServiceOptions_create();
@@ -725,6 +737,19 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
       clang_experimental_DependencyScannerServiceOptions_setActionCache(Opts,
                                                                         Cache);
     }
+  }
+
+  if (NewSDKPath)
+    clang_experimental_DependencyScannerServiceOptions_setPrefixMapSDK(
+        Opts, NewSDKPath->c_str());
+  if (NewToolchainPath)
+    clang_experimental_DependencyScannerServiceOptions_setPrefixMapToolchain(
+        Opts, NewToolchainPath->c_str());
+  for (StringRef Mapping : PrefixMaps) {
+    auto [OldRef, NewRef] = Mapping.split('=');
+    SmallString<128> Old = OldRef, New = NewRef;
+    clang_experimental_DependencyScannerServiceOptions_addPrefixMap(
+        Opts, Old.c_str(), New.c_str());
   }
 
   CXDependencyScannerService Service =
@@ -1185,7 +1210,9 @@ int indextest_core_main(int argc, const char **argv) {
     }
     return scanDeps(CompArgs, options::InputFiles[0], options::SerializeDiags,
                     options::DependencyFile, options::DependencyTargets,
-                    options::OutputDir, CASPath, CachePath);
+                    options::OutputDir, CASPath, CachePath,
+                    options::PrefixMapSDK, options::PrefixMapToolchain,
+                    options::PrefixMaps);
   }
 
   if (options::Action == ActionType::ScanDepsByModuleName) {
@@ -1201,7 +1228,8 @@ int indextest_core_main(int argc, const char **argv) {
     return scanDeps(CompArgs, options::InputFiles[0], options::SerializeDiags,
                     options::DependencyFile, options::DependencyTargets,
                     options::OutputDir, CASPath, CachePath,
-                    options::ModuleName);
+                    options::PrefixMapSDK, options::PrefixMapToolchain,
+                    options::PrefixMaps, options::ModuleName);
   }
 
   if (options::Action == ActionType::WatchDir) {

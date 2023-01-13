@@ -21,6 +21,7 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
+#include "clang/Tooling/DependencyScanning/ScanAndUpdateArgs.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 
 using namespace clang;
@@ -32,15 +33,24 @@ struct DependencyScannerServiceOptions {
   CASOptions CASOpts;
   std::shared_ptr<cas::ObjectStore> CAS;
   std::shared_ptr<cas::ActionCache> Cache;
+  DepscanPrefixMapping PrefixMapping;
+};
+struct CXDependencyScanningServiceImpl {
+  DependencyScanningService Service;
+  DepscanPrefixMapping PrefixMapping;
+};
+struct CXDependencyScanningWorkerImpl {
+  DependencyScanningWorker Worker;
+  DepscanPrefixMapping PrefixMapping;
 };
 } // end anonymous namespace
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(DependencyScannerServiceOptions,
                                    CXDependencyScannerServiceOptions)
 
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(DependencyScanningService,
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(CXDependencyScanningServiceImpl,
                                    CXDependencyScannerService)
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(DependencyScanningWorker,
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(CXDependencyScanningWorkerImpl,
                                    CXDependencyScannerWorker)
 
 inline ScanningOutputFormat unwrap(CXDependencyMode Format) {
@@ -106,16 +116,32 @@ void clang_experimental_DependencyScannerServiceOptions_setActionCache(
   unwrap(Opts)->Cache = cas::unwrap(Cache)->Cache;
   unwrap(Opts)->CASOpts.CachePath = cas::unwrap(Cache)->CachePath;
 }
+void clang_experimental_DependencyScannerServiceOptions_setPrefixMapSDK(
+    CXDependencyScannerServiceOptions Opts, const char *New) {
+  unwrap(Opts)->PrefixMapping.NewSDKPath = New;
+}
+
+void clang_experimental_DependencyScannerServiceOptions_setPrefixMapToolchain(
+    CXDependencyScannerServiceOptions Opts, const char *New) {
+  unwrap(Opts)->PrefixMapping.NewToolchainPath = New;
+}
+
+void clang_experimental_DependencyScannerServiceOptions_addPrefixMap(
+    CXDependencyScannerServiceOptions Opts, const char *Old, const char *New) {
+  unwrap(Opts)->PrefixMapping.PrefixMap.push_back(
+      (llvm::Twine(Old) + "=" + New).str());
+}
 
 CXDependencyScannerService
 clang_experimental_DependencyScannerService_create_v0(CXDependencyMode Format) {
   // FIXME: Pass default CASOpts and nullptr as CachingOnDiskFileSystem now.
   CASOptions CASOpts;
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS;
-  return wrap(new DependencyScanningService(
-      ScanningMode::DependencyDirectivesScan, unwrap(Format), CASOpts,
-      /*ActionCache=*/nullptr, FS,
-      /*ReuseFilemanager=*/false));
+  return wrap(new CXDependencyScanningServiceImpl{
+      {ScanningMode::DependencyDirectivesScan, unwrap(Format), CASOpts,
+       /*ActionCache=*/nullptr, FS,
+       /*ReuseFilemanager=*/false},
+      /*PrefixMapping=*/{}});
 }
 
 CXDependencyScannerService
@@ -131,10 +157,11 @@ clang_experimental_DependencyScannerService_create_v1(
     FS = llvm::cantFail(
         llvm::cas::createCachingOnDiskFileSystem(std::move(CAS)));
   }
-  return wrap(new DependencyScanningService(
-      ScanningMode::DependencyDirectivesScan, unwrap(Opts)->Format,
-      unwrap(Opts)->CASOpts, std::move(Cache), std::move(FS),
-      /*ReuseFilemanager=*/false));
+  return wrap(new CXDependencyScanningServiceImpl{
+      {ScanningMode::DependencyDirectivesScan, unwrap(Opts)->Format,
+       unwrap(Opts)->CASOpts, std::move(Cache), std::move(FS),
+       /*ReuseFilemanager=*/false},
+      unwrap(Opts)->PrefixMapping});
 }
 
 void clang_experimental_DependencyScannerService_dispose_v0(
@@ -165,8 +192,9 @@ void clang_experimental_FileDependenciesList_dispose(
 
 CXDependencyScannerWorker clang_experimental_DependencyScannerWorker_create_v0(
     CXDependencyScannerService Service) {
-  return wrap(new DependencyScanningWorker(
-      *unwrap(Service), llvm::vfs::createPhysicalFileSystem()));
+  return wrap(new CXDependencyScanningWorkerImpl{
+      {unwrap(Service)->Service, llvm::vfs::createPhysicalFileSystem()},
+      unwrap(Service)->PrefixMapping});
 }
 
 void clang_experimental_DependencyScannerWorker_dispose_v0(
@@ -181,12 +209,13 @@ static CXErrorCode getFullDependencies(
     const char *WorkingDirectory, CXModuleDiscoveredCallback *MDC,
     void *Context, CXString *Error, DiagnosticConsumer *DiagConsumer,
     LookupModuleOutputCallback LookupOutput, bool DeprecatedDriverCommand,
-    std::optional<StringRef> ModuleName,
-    HandleFullDepsCallback HandleFullDeps) {
+    std::optional<StringRef> ModuleName, HandleFullDepsCallback HandleFullDeps,
+    DepscanPrefixMapping PrefixMapping) {
   llvm::StringSet<> AlreadySeen;
   FullDependencyConsumer DepConsumer(AlreadySeen, LookupOutput,
                                      Worker->shouldEagerLoadModules(),
-                                     Worker->getCASFS());
+                                     Worker->getCASFS(),
+                                     std::move(PrefixMapping));
 
   bool HasDiagConsumer = DiagConsumer;
   bool HasError = Error;
@@ -246,7 +275,7 @@ static CXErrorCode getFileDependencies(
   if (!W || argc < 2 || !argv)
     return CXError_InvalidArguments;
 
-  DependencyScanningWorker *Worker = unwrap(W);
+  DependencyScanningWorker *Worker = &unwrap(W)->Worker;
 
   if (Worker->getFormat() != ScanningOutputFormat::Full)
     return CXError_InvalidArguments;
@@ -255,7 +284,8 @@ static CXErrorCode getFileDependencies(
 
   return getFullDependencies(
       Worker, Compilation, WorkingDirectory, MDC, Context, Error, DiagConsumer,
-      LookupOutput, DeprecatedDriverCommand, ModuleName, HandleFullDeps);
+      LookupOutput, DeprecatedDriverCommand, ModuleName, HandleFullDeps,
+      unwrap(W)->PrefixMapping);
 }
 
 namespace {
