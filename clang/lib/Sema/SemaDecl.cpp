@@ -16592,7 +16592,8 @@ Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK, SourceLocation KWLoc,
                bool &IsDependent, SourceLocation ScopedEnumKWLoc,
                bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
                bool IsTypeSpecifier, bool IsTemplateParamOrArg,
-               OffsetOfKind OOK, SkipBodyInfo *SkipBody) {
+               OffsetOfKind OOK, UsingShadowDecl *&FoundUsingShadow,
+               SkipBodyInfo *SkipBody) {
   // If this is not a definition, it must have a name.
   IdentifierInfo *OrigName = Name;
   assert((Name != nullptr || TUK == TUK_Definition) &&
@@ -17027,6 +17028,7 @@ Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK, SourceLocation KWLoc,
     // redefinition if either context is within the other.
     if (auto *Shadow = dyn_cast<UsingShadowDecl>(DirectPrevDecl)) {
       auto *OldTag = dyn_cast<TagDecl>(PrevDecl);
+      FoundUsingShadow = Shadow;
       if (SS.isEmpty() && TUK != TUK_Reference && TUK != TUK_Friend &&
           isDeclInScope(Shadow, SearchDC, S, isMemberSpecialization) &&
           !(OldTag && isAcceptableTagRedeclContext(
@@ -17365,11 +17367,9 @@ CreateNewDecl:
                                cast_or_null<RecordDecl>(PrevDecl));
   }
 
-  if (OOK != OOK_Outside && TUK == TUK_Definition && !getLangOpts().CPlusPlus) {
+  if (OOK != OOK_Outside && TUK == TUK_Definition && !getLangOpts().CPlusPlus)
     Diag(New->getLocation(), diag::ext_type_defined_in_offsetof)
         << (OOK == OOK_Macro) << New->getSourceRange();
-    Invalid = true;
-  }
 
   // C++11 [dcl.type]p3:
   //   A type-specifier-seq shall not define a class or enumeration [...].
