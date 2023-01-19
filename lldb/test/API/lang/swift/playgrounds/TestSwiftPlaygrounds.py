@@ -145,10 +145,13 @@ class TestSwiftPlaygrounds(TestBase):
         self.assertTrue("=\\'11\\'" in playground_output)
 
         # Test concurrency
+        self.expect('log enable lldb all -f ' + self.getBuildArtifact('types.log'))
         contents = "error"
         with open('Concurrency.swift', 'r') as contents_file:
             contents = contents_file.read()
+        print("self.frame().EvaluateExpression(%s)"%contents, file=sys.stderr)
         res = self.frame().EvaluateExpression(contents, options)
+        print("self.frame().EvaluateExpression(%s)"%"get_output()", file=sys.stderr)
         ret = self.frame().EvaluateExpression("get_output()")
         playground_output = ret.GetSummary()
         self.assertTrue(playground_output is not None)
@@ -158,7 +161,9 @@ class TestSwiftPlaygrounds(TestBase):
         log = self.getBuildArtifact('types.log')
         self.expect('log enable lldb types -f ' + log)
         contents = "import Dylib\nf()\n"
+        print("self.frame().EvaluateExpression(%s)"%contents, file=sys.stderr)
         res = self.frame().EvaluateExpression(contents, options)
+        print("self.frame().EvaluateExpression(%s)"%"get_output()", file=sys.stderr)
         ret = self.frame().EvaluateExpression("get_output()")
         playground_output = ret.GetSummary()
         self.assertTrue(playground_output is not None)
