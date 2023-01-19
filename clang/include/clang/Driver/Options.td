@@ -941,10 +941,10 @@ def cuda_include_ptx_EQ : Joined<["--"], "cuda-include-ptx=">, Flags<[NoXarchOpt
 def no_cuda_include_ptx_EQ : Joined<["--"], "no-cuda-include-ptx=">, Flags<[NoXarchOption]>,
   HelpText<"Do not include PTX for the following GPU architecture (e.g. sm_35) or 'all'. May be specified more than once.">;
 def offload_arch_EQ : Joined<["--"], "offload-arch=">, Flags<[NoXarchOption]>,
-  HelpText<"CUDA offloading device architecture (e.g. sm_35), or HIP offloading target ID in the form of a "
-           "device architecture followed by target ID features delimited by a colon. Each target ID feature "
-           "is a pre-defined string followed by a plus or minus sign (e.g. gfx908:xnack+:sramecc-).  May be "
-           "specified more than once.">;
+  HelpText<"Specify an offloading device architecture for CUDA, HIP, or OpenMP. (e.g. sm_35). "
+           "If 'native' is used the compiler will detect locally installed architectures. "
+           "For HIP offloading, the device architecture can be followed by target ID features "
+           "delimited by a colon (e.g. gfx908:xnack+:sramecc-). May be specified more than once.">;
 def cuda_gpu_arch_EQ : Joined<["--"], "cuda-gpu-arch=">, Flags<[NoXarchOption]>,
   Alias<offload_arch_EQ>;
 def cuda_feature_EQ : Joined<["--"], "cuda-feature=">, HelpText<"Manually specify the CUDA feature to use">;
@@ -3365,6 +3365,8 @@ def iwithsysroot : JoinedOrSeparate<["-"], "iwithsysroot">, Group<clang_i_Group>
   HelpText<"Add directory to SYSTEM include search path, "
            "absolute paths are relative to -isysroot">, MetaVarName<"<directory>">,
   Flags<[CC1Option]>;
+def ivfsstatcache : JoinedOrSeparate<["-"], "ivfsstatcache">, Group<clang_i_Group>, Flags<[CC1Option]>,
+  HelpText<"Use the stat data cached in file instead of doing filesystem syscalls. See clang-stat-cache utility.">;
 def ivfsoverlay : JoinedOrSeparate<["-"], "ivfsoverlay">, Group<clang_i_Group>, Flags<[CC1Option]>,
   HelpText<"Overlay the virtual filesystem described by file over the real file system">;
 def imultilib : Separate<["-"], "imultilib">, Group<gfortran_Group>;

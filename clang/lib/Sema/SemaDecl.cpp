@@ -17365,11 +17365,9 @@ CreateNewDecl:
                                cast_or_null<RecordDecl>(PrevDecl));
   }
 
-  if (OOK != OOK_Outside && TUK == TUK_Definition && !getLangOpts().CPlusPlus) {
+  if (OOK != OOK_Outside && TUK == TUK_Definition && !getLangOpts().CPlusPlus)
     Diag(New->getLocation(), diag::ext_type_defined_in_offsetof)
         << (OOK == OOK_Macro) << New->getSourceRange();
-    Invalid = true;
-  }
 
   // C++11 [dcl.type]p3:
   //   A type-specifier-seq shall not define a class or enumeration [...].
