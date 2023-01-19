@@ -558,30 +558,15 @@ private:
     genAllocateObjectInit(box);
     if (alloc.hasCoarraySpec())
       TODO(loc, "coarray allocation");
+    if (alloc.getShapeSpecs().size() > 0 && sourceExv.rank() == 0)
+      TODO(loc, "allocate array object with scalar SOURCE specifier");
     // Set length of the allocate object if it has. Otherwise, get the length
     // from source for the deferred length parameter.
     if (lenParams.empty() && box.isCharacter() &&
         !box.hasNonDeferredLenParams())
       lenParams.push_back(fir::factory::readCharLen(builder, loc, sourceExv));
-    if (alloc.type.IsPolymorphic()) {
-      assert(sourceExpr->GetType() && "null type not expected");
-      if (alloc.type.IsUnlimitedPolymorphic() &&
-          sourceExpr->GetType()->IsUnlimitedPolymorphic())
-        TODO(loc, "allocate unlimited polymorphic entity from unlimited "
-                  "polymorphic source");
-
-      if (sourceExpr->GetType()->category() == TypeCategory::Derived) {
-        mlir::Type tdescType =
-            fir::TypeDescType::get(mlir::NoneType::get(builder.getContext()));
-        mlir::Value typeDescAddr = builder.create<fir::BoxTypeDescOp>(
-            loc, tdescType, fir::getBase(sourceExv));
-        genInitDerived(box, typeDescAddr, alloc.getSymbol().Rank());
-      } else {
-        genInitIntrinsic(box, sourceExpr->GetType()->category(),
-                         sourceExpr->GetType()->kind(),
-                         alloc.getSymbol().Rank());
-      }
-    }
+    if (alloc.type.IsPolymorphic())
+      genRuntimeAllocateApplyMold(builder, loc, box, sourceExv);
     genSetDeferredLengthParameters(alloc, box);
     genAllocateObjectBounds(alloc, box);
     mlir::Value stat =
