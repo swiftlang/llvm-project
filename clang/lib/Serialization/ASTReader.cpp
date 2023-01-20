@@ -1954,7 +1954,7 @@ HeaderFileInfoTrait::ReadData(internal_key_ref key, const unsigned char *d,
       Reader.ResolveImportedPath(M, Filename);
     // FIXME: NameAsWritten
     Module::Header H = {std::string(key.Filename), "",
-                        *FileMgr.getFile(Filename)};
+                        FileMgr.getOptionalFileRef(Filename)};
     ModMap.addHeader(Mod, H, HeaderRole, /*Imported*/true);
     HFI.isModuleHeader |= ModuleMap::isModular(HeaderRole);
   }
@@ -5702,7 +5702,7 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
       //        `Headers/`, so this path will never exist.
       std::string Filename = std::string(Blob);
       ResolveImportedPath(F, Filename);
-      if (auto Umbrella = PP.getFileManager().getFile(Filename)) {
+      if (auto Umbrella = PP.getFileManager().getOptionalFileRef(Filename)) {
         if (!CurrentModule->getUmbrellaHeader()) {
           // FIXME: NameAsWritten
           ModMap.setUmbrellaHeader(CurrentModule, *Umbrella, Blob, "");
@@ -6898,6 +6898,7 @@ void TypeLocReader::VisitPackExpansionTypeLoc(PackExpansionTypeLoc TL) {
 
 void TypeLocReader::VisitObjCInterfaceTypeLoc(ObjCInterfaceTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
+  TL.setNameEndLoc(readSourceLocation());
 }
 
 void TypeLocReader::VisitObjCTypeParamTypeLoc(ObjCTypeParamTypeLoc TL) {
@@ -7342,7 +7343,7 @@ void ASTReader::CompleteRedeclChain(const Decl *D) {
   //
   // FIXME: Merging a function definition should merge
   // all mergeable entities within it.
-  if (isa<TranslationUnitDecl, NamespaceDecl, CXXRecordDecl, EnumDecl>(DC)) {
+  if (isa<TranslationUnitDecl, NamespaceDecl, RecordDecl, EnumDecl>(DC)) {
     if (DeclarationName Name = cast<NamedDecl>(D)->getDeclName()) {
       if (!getContext().getLangOpts().CPlusPlus &&
           isa<TranslationUnitDecl>(DC)) {
@@ -9545,8 +9546,10 @@ void ASTReader::finishPendingActions() {
 
 void ASTReader::diagnoseOdrViolations() {
   if (PendingOdrMergeFailures.empty() && PendingOdrMergeChecks.empty() &&
+      PendingRecordOdrMergeFailures.empty() &&
       PendingFunctionOdrMergeFailures.empty() &&
       PendingEnumOdrMergeFailures.empty() &&
+      PendingObjCInterfaceOdrMergeFailures.empty() &&
       PendingObjCProtocolOdrMergeFailures.empty())
     return;
 
@@ -9567,6 +9570,25 @@ void ASTReader::diagnoseOdrViolations() {
       RD->bases_begin();
       RD->vbases_begin();
     }
+  }
+
+  // Trigger the import of the full definition of each record in C/ObjC.
+  auto RecordOdrMergeFailures = std::move(PendingRecordOdrMergeFailures);
+  PendingRecordOdrMergeFailures.clear();
+  for (auto &Merge : RecordOdrMergeFailures) {
+    Merge.first->decls_begin();
+    for (auto &D : Merge.second)
+      D->decls_begin();
+  }
+
+  // Trigger the import of the full interface definition.
+  auto ObjCInterfaceOdrMergeFailures =
+      std::move(PendingObjCInterfaceOdrMergeFailures);
+  PendingObjCInterfaceOdrMergeFailures.clear();
+  for (auto &Merge : ObjCInterfaceOdrMergeFailures) {
+    Merge.first->decls_begin();
+    for (auto &InterfacePair : Merge.second)
+      InterfacePair.first->decls_begin();
   }
 
   // Trigger the import of functions.
@@ -9686,8 +9708,10 @@ void ASTReader::diagnoseOdrViolations() {
     }
   }
 
-  if (OdrMergeFailures.empty() && FunctionOdrMergeFailures.empty() &&
-      EnumOdrMergeFailures.empty() && ObjCProtocolOdrMergeFailures.empty())
+  if (OdrMergeFailures.empty() && RecordOdrMergeFailures.empty() &&
+      FunctionOdrMergeFailures.empty() && EnumOdrMergeFailures.empty() &&
+      ObjCInterfaceOdrMergeFailures.empty() &&
+      ObjCProtocolOdrMergeFailures.empty())
     return;
 
   // Ensure we don't accidentally recursively enter deserialization while
@@ -9726,6 +9750,26 @@ void ASTReader::diagnoseOdrViolations() {
     }
   }
 
+  // Issue any pending ODR-failure diagnostics for RecordDecl in C/ObjC. Note
+  // that in C++ this is done as a part of CXXRecordDecl ODR checking.
+  for (auto &Merge : RecordOdrMergeFailures) {
+    // If we've already pointed out a specific problem with this class, don't
+    // bother issuing a general "something's different" diagnostic.
+    if (!DiagnosedOdrMergeFailures.insert(Merge.first).second)
+      continue;
+
+    RecordDecl *FirstRecord = Merge.first;
+    bool Diagnosed = false;
+    for (auto *SecondRecord : Merge.second) {
+      if (DiagsEmitter.diagnoseMismatch(FirstRecord, SecondRecord)) {
+        Diagnosed = true;
+        break;
+      }
+    }
+    (void)Diagnosed;
+    assert(Diagnosed && "Unable to emit ODR diagnostic.");
+  }
+
   // Issue ODR failures diagnostics for functions.
   for (auto &Merge : FunctionOdrMergeFailures) {
     FunctionDecl *FirstFunction = Merge.first;
@@ -9751,6 +9795,25 @@ void ASTReader::diagnoseOdrViolations() {
     bool Diagnosed = false;
     for (auto &SecondEnum : Merge.second) {
       if (DiagsEmitter.diagnoseMismatch(FirstEnum, SecondEnum)) {
+        Diagnosed = true;
+        break;
+      }
+    }
+    (void)Diagnosed;
+    assert(Diagnosed && "Unable to emit ODR diagnostic.");
+  }
+
+  for (auto &Merge : ObjCInterfaceOdrMergeFailures) {
+    // If we've already pointed out a specific problem with this interface,
+    // don't bother issuing a general "something's different" diagnostic.
+    if (!DiagnosedOdrMergeFailures.insert(Merge.first).second)
+      continue;
+
+    bool Diagnosed = false;
+    ObjCInterfaceDecl *FirstID = Merge.first;
+    for (auto &InterfacePair : Merge.second) {
+      if (DiagsEmitter.diagnoseMismatch(FirstID, InterfacePair.first,
+                                        InterfacePair.second)) {
         Diagnosed = true;
         break;
       }
@@ -10809,10 +10872,13 @@ void OMPClauseReader::VisitOMPDeviceClause(OMPDeviceClause *C) {
 
 void OMPClauseReader::VisitOMPMapClause(OMPMapClause *C) {
   C->setLParenLoc(Record.readSourceLocation());
+  bool HasIteratorModifier = false;
   for (unsigned I = 0; I < NumberOfOMPMapClauseModifiers; ++I) {
     C->setMapTypeModifier(
         I, static_cast<OpenMPMapModifierKind>(Record.readInt()));
     C->setMapTypeModifierLoc(I, Record.readSourceLocation());
+    if (C->getMapTypeModifier(I) == OMPC_MAP_MODIFIER_iterator)
+      HasIteratorModifier = true;
   }
   C->setMapperQualifierLoc(Record.readNestedNameSpecifierLoc());
   C->setMapperIdInfo(Record.readDeclarationNameInfo());
@@ -10836,6 +10902,9 @@ void OMPClauseReader::VisitOMPMapClause(OMPMapClause *C) {
   for (unsigned I = 0; I < NumVars; ++I)
     UDMappers.push_back(Record.readExpr());
   C->setUDMapperRefs(UDMappers);
+
+  if (HasIteratorModifier)
+    C->setIteratorModifier(Record.readExpr());
 
   SmallVector<ValueDecl *, 16> Decls;
   Decls.reserve(UniqueDecls);

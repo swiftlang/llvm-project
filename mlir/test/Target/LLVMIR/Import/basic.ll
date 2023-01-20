@@ -1,5 +1,5 @@
-; RUN: mlir-translate -import-llvm %s | FileCheck %s
-; RUN: mlir-translate -import-llvm -mlir-print-debuginfo %s | FileCheck %s --check-prefix=CHECK-DBG
+; RUN: mlir-translate -opaque-pointers=0 -import-llvm %s | FileCheck %s
+; RUN: mlir-translate -opaque-pointers=0 -import-llvm -mlir-print-debuginfo %s | FileCheck %s --check-prefix=CHECK-DBG
 
 ; CHECK-DBG: #[[MODULELOC:.+]] = loc({{.*}}basic.ll{{.*}}:0:0)
 
@@ -8,9 +8,8 @@
 ; CHECK: llvm.func @fe(i32) -> f32
 declare float @fe(i32)
 
-; FIXME: function attributes.
-; CHECK-LABEL: llvm.func internal @f1(%arg0: i64) -> i32 attributes {dso_local} {
-; CHECK-DBG: llvm.func internal @f1(%arg0: i64 loc({{.*}}basic.ll{{.*}}:0:0)) -> i32 attributes {dso_local} {
+; CHECK-LABEL: llvm.func internal @f1(%arg0: i64) -> i32 attributes {dso_local, passthrough = ["norecurse"]} {
+; CHECK-DBG: llvm.func internal @f1(%arg0: i64 loc({{.*}}basic.ll{{.*}}:0:0)) -> i32 attributes {dso_local, passthrough = ["norecurse"]} {
 ; CHECK: %[[c2:[0-9]+]] = llvm.mlir.constant(2 : i32) : i32
 ; CHECK: %[[c1:[0-9]+]] = llvm.mlir.constant(true) : i1
 ; CHECK: %[[c43:[0-9]+]] = llvm.mlir.constant(43 : i32) : i32
