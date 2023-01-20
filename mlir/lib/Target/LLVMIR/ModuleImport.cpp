@@ -32,6 +32,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/Support/ModRef.h"
 
 using namespace mlir;
 using namespace mlir::LLVM;
@@ -1405,13 +1406,80 @@ FlatSymbolRefAttr ModuleImport::getPersonalityAsAttr(llvm::Function *f) {
   return FlatSymbolRefAttr();
 }
 
+static void processMemoryEffects(llvm::Function *func, LLVMFuncOp funcOp) {
+  llvm::MemoryEffects memEffects = func->getMemoryEffects();
+
+  auto othermem = convertModRefInfoFromLLVM(
+      memEffects.getModRef(llvm::MemoryEffects::Location::Other));
+  auto argMem = convertModRefInfoFromLLVM(
+      memEffects.getModRef(llvm::MemoryEffects::Location::ArgMem));
+  auto inaccessibleMem = convertModRefInfoFromLLVM(
+      memEffects.getModRef(llvm::MemoryEffects::Location::InaccessibleMem));
+  auto memAttr = MemoryEffectsAttr::get(funcOp.getContext(), othermem, argMem,
+                                        inaccessibleMem);
+  // Only set the attr when it does not match the default value.
+  if (memAttr.isReadWrite())
+    return;
+  funcOp.setMemoryAttr(memAttr);
+}
+
+static void processPassthroughAttrs(llvm::Function *func, LLVMFuncOp funcOp) {
+  MLIRContext *context = funcOp.getContext();
+  SmallVector<Attribute> passthroughs;
+  llvm::AttributeSet funcAttrs = func->getAttributes().getAttributes(
+      llvm::AttributeList::AttrIndex::FunctionIndex);
+  for (llvm::Attribute attr : funcAttrs) {
+    // Skip the memory attribute since the LLVMFuncOp has an explicit memory
+    // attribute.
+    if (attr.hasAttribute(llvm::Attribute::Memory))
+      continue;
+
+    // Skip invalid type attributes.
+    if (attr.isTypeAttribute()) {
+      emitWarning(funcOp.getLoc(),
+                  "type attributes on a function are invalid, skipping it");
+      continue;
+    }
+
+    StringRef attrName;
+    if (attr.isStringAttribute())
+      attrName = attr.getKindAsString();
+    else
+      attrName = llvm::Attribute::getNameFromAttrKind(attr.getKindAsEnum());
+    auto keyAttr = StringAttr::get(context, attrName);
+
+    if (attr.isStringAttribute()) {
+      StringRef val = attr.getValueAsString();
+      if (val.empty()) {
+        passthroughs.push_back(keyAttr);
+        continue;
+      }
+      passthroughs.push_back(
+          ArrayAttr::get(context, {keyAttr, StringAttr::get(context, val)}));
+      continue;
+    }
+    if (attr.isIntAttribute()) {
+      auto val = std::to_string(attr.getValueAsInt());
+      passthroughs.push_back(
+          ArrayAttr::get(context, {keyAttr, StringAttr::get(context, val)}));
+      continue;
+    }
+    if (attr.isEnumAttribute()) {
+      passthroughs.push_back(keyAttr);
+      continue;
+    }
+
+    llvm_unreachable("unexpected attribute kind");
+  }
+
+  if (!passthroughs.empty())
+    funcOp.setPassthroughAttr(ArrayAttr::get(context, passthroughs));
+}
+
 void ModuleImport::processFunctionAttributes(llvm::Function *func,
                                              LLVMFuncOp funcOp) {
-  auto addNamedUnitAttr = [&](StringRef name) {
-    return funcOp->setAttr(name, UnitAttr::get(context));
-  };
-  if (func->doesNotAccessMemory())
-    addNamedUnitAttr(LLVMDialect::getReadnoneAttrName());
+  processMemoryEffects(func, funcOp);
+  processPassthroughAttrs(func, funcOp);
 }
 
 LogicalResult ModuleImport::processFunction(llvm::Function *func) {

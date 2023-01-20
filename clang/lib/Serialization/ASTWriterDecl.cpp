@@ -491,6 +491,10 @@ void ASTDeclWriter::VisitRecordDecl(RecordDecl *D) {
   Record.push_back(D->hasNonTrivialToPrimitiveCopyCUnion());
   Record.push_back(D->isParamDestroyedInCallee());
   Record.push_back(D->getArgPassingRestrictions());
+  // Only compute this for C/Objective-C, in C++ this is computed as part
+  // of CXXRecordDecl.
+  if (!isa<CXXRecordDecl>(D))
+    Record.push_back(D->getODRHash());
 
   if (D->getDeclContext() == D->getLexicalDeclContext() &&
       !D->hasAttrs() &&
@@ -642,6 +646,7 @@ void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
   Record.push_back(D->isTrivialForCall());
   Record.push_back(D->isDefaulted());
   Record.push_back(D->isExplicitlyDefaulted());
+  Record.push_back(D->isIneligibleOrNotSelected());
   Record.push_back(D->hasImplicitReturnZero());
   Record.push_back(static_cast<uint64_t>(D->getConstexprKind()));
   Record.push_back(D->usesSEHTry());
@@ -770,6 +775,7 @@ void ASTDeclWriter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *D) {
     Record.AddTypeSourceInfo(D->getSuperClassTInfo());
     Record.AddSourceLocation(D->getEndOfDefinitionLoc());
     Record.push_back(Data.HasDesignatedInitializers);
+    Record.push_back(D->getODRHash());
 
     // Write out the protocols that are directly referenced by the @interface.
     Record.push_back(Data.ReferencedProtocols.size());
@@ -2126,6 +2132,8 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1));
   // getArgPassingRestrictions
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2));
+  // ODRHash
+  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 26));
 
   // DC
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // LexicalOffset
@@ -2304,6 +2312,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // TrivialForCall
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Defaulted
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // ExplicitlyDefaulted
+  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // IsIneligibleOrNotSelected
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // ImplicitReturnZero
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2)); // Constexpr
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // UsesSEHTry

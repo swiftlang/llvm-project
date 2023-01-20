@@ -1011,6 +1011,12 @@ static void __kmp_fork_team_threads(kmp_root_t *root, kmp_team_t *team,
       __kmp_partition_places(team);
     }
 #endif
+
+    if (team->t.t_nproc > 1 &&
+        __kmp_barrier_gather_pattern[bs_forkjoin_barrier] == bp_dist_bar) {
+      team->t.b->update_num_threads(team->t.t_nproc);
+      __kmp_add_threads_to_team(team, team->t.t_nproc);
+    }
   }
 
   if (__kmp_display_affinity && team->t.t_display_affinity != 1) {
@@ -2479,12 +2485,6 @@ void __kmp_join_call(ident_t *loc, int gtid
       parent_team->t.t_stack_id = NULL;
     }
 #endif
-
-    if (team->t.t_nproc > 1 &&
-        __kmp_barrier_gather_pattern[bs_forkjoin_barrier] == bp_dist_bar) {
-      team->t.b->update_num_threads(team->t.t_nproc);
-      __kmp_add_threads_to_team(team, team->t.t_nproc);
-    }
   }
 
   KMP_MB();
@@ -2673,6 +2673,12 @@ void __kmp_join_call(ident_t *loc, int gtid
       master_th->th.th_task_state =
           master_th->th
               .th_task_state_memo_stack[master_th->th.th_task_state_top];
+    } else if (team != root->r.r_hot_team) {
+      // Reset the task state of primary thread if we are not hot team because
+      // in this case all the worker threads will be free, and their task state
+      // will be reset. If not reset the primary's, the task state will be
+      // inconsistent.
+      master_th->th.th_task_state = 0;
     }
     // Copy the task team from the parent team to the primary thread
     master_th->th.th_task_team =

@@ -1159,12 +1159,19 @@ private:
 
   using DataPointers =
       std::pair<CXXRecordDecl *, struct CXXRecordDecl::DefinitionData *>;
+  using ObjCInterfaceDataPointers =
+      std::pair<ObjCInterfaceDecl *,
+                struct ObjCInterfaceDecl::DefinitionData *>;
   using ObjCProtocolDataPointers =
       std::pair<ObjCProtocolDecl *, struct ObjCProtocolDecl::DefinitionData *>;
 
   /// Record definitions in which we found an ODR violation.
   llvm::SmallDenseMap<CXXRecordDecl *, llvm::SmallVector<DataPointers, 2>, 2>
       PendingOdrMergeFailures;
+
+  /// C/ObjC record definitions in which we found an ODR violation.
+  llvm::SmallDenseMap<RecordDecl *, llvm::SmallVector<RecordDecl *, 2>, 2>
+      PendingRecordOdrMergeFailures;
 
   /// Function definitions in which we found an ODR violation.
   llvm::SmallDenseMap<FunctionDecl *, llvm::SmallVector<FunctionDecl *, 2>, 2>
@@ -1173,6 +1180,11 @@ private:
   /// Enum definitions in which we found an ODR violation.
   llvm::SmallDenseMap<EnumDecl *, llvm::SmallVector<EnumDecl *, 2>, 2>
       PendingEnumOdrMergeFailures;
+
+  /// ObjCInterfaceDecl in which we found an ODR violation.
+  llvm::SmallDenseMap<ObjCInterfaceDecl *,
+                      llvm::SmallVector<ObjCInterfaceDataPointers, 2>, 2>
+      PendingObjCInterfaceOdrMergeFailures;
 
   /// ObjCProtocolDecl in which we found an ODR violation.
   llvm::SmallDenseMap<ObjCProtocolDecl *,

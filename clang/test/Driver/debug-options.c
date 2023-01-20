@@ -309,6 +309,10 @@
 // RUN:                         -check-prefix=G_DWARF4 \
 // RUN:                         -check-prefix=G_LLDB %s
 
+//
+// RUN: %clang -### -gmodules -gno-modules %s 2>&1 \
+// RUN:        | FileCheck -check-prefix=NOGEXTREFS %s
+//
 // NOG_PS: "-cc1"
 // NOG_PS-NOT: "-dwarf-version=
 // NOG_PS: "-generate-arange-section"
@@ -418,6 +422,7 @@
 //
 // GEXTREFS: "-dwarf-ext-refs" "-fmodule-format=obj"
 // GEXTREFS: "-debug-info-kind={{standalone|constructor}}"
+// NOGEXTREFS-NOT: -dwarf-ext-refs
 
 // RUN: not %clang -cc1 -debug-info-kind=watkind 2>&1 | FileCheck -check-prefix=BADSTRING1 %s
 // BADSTRING1: error: invalid value 'watkind' in '-debug-info-kind=watkind'
