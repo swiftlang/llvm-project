@@ -1,0 +1,27 @@
+// REQUIRES: swift
+
+// RUN: %lldb --repl='-enable-objc-interop -I %S/Inputs/custom-modules/IncompleteTypes' --repl-language swift < %s 2>&1  | FileCheck %s
+// RUN: %lldb --repl='-enable-objc-interop -I %S/Inputs/custom-modules/IncompleteTypes -swift-version 6' --repl-language swift < %s 2>&1  | FileCheck %s
+// RUN: %lldb --repl='-enable-objc-interop -I %S/Inputs/custom-modules/IncompleteTypes -enable-import-objc-forward-declarations' --repl-language swift < %s 2>&1  | FileCheck %s
+
+import Foo
+
+// CHECK-NOT: error: no such module 'Foo'
+
+getAFoo()
+
+// CHECK: error: cannot find 'getAFoo' in scope
+// CHECK: getAFoo()
+// CHECK: ^~~~~~~
+// CHECK: foo.h:{{[0-9]+}}:{{[0-9]+}}: note: function 'getAFoo' not imported
+// CHECK: Foo* getAFoo();
+// CHECK: ^
+// CHECK: foo.h:{{[0-9]+}}:{{[0-9]+}}: note: return type not imported
+// CHECK: Foo* getAFoo();
+// CHECK: ^
+// CHECK: foo.h:{{[0-9]+}}:{{[0-9]+}}: note: interface 'Foo' is incomplete
+// CHECK: Foo* getAFoo();
+// CHECK: ^
+// CHECK: foo.h:{{[0-9]+}}:{{[0-9]+}}: note: interface 'Foo' forward declared here
+// CHECK: @class Foo;
+// CHECK: ^
