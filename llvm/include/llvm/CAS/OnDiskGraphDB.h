@@ -12,6 +12,8 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/CAS/OnDiskHashMappedTrie.h"
 
+#if LLVM_ENABLE_ONDISK_CAS
+
 namespace llvm {
 namespace cas {
 namespace ondisk {
@@ -355,4 +357,5 @@ private:
 
 }}} // namespace llvm::cas::ondisk
 
+#endif // LLVM_ENABLE_ONDISK_CAS
 #endif // LLVM_CAS_ONDISKGRAPHDB_H
