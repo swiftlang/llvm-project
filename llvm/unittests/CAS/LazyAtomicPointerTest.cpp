@@ -60,7 +60,7 @@ TEST(LazyAtomicPointer, BusyState) {
 
   // Wait for busy state.
   std::unique_lock<std::mutex> LBusy(BusyLock);
-  Busy.wait(LBusy);
+  Busy.wait(LBusy, [&]() { return IsBusy; });
   int *ExistingValue = nullptr;
   // Busy state will not exchange the value.
   EXPECT_FALSE(Ptr.compare_exchange_weak(ExistingValue, nullptr));
