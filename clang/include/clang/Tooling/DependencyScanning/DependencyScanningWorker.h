@@ -39,7 +39,7 @@ struct Command {
 };
 
 using RemapPathCallback =
-    llvm::function_ref<StringRef(const llvm::vfs::CachedDirectoryEntry &)>;
+    llvm::function_ref<StringRef(const llvm::vfs::CachedDirectoryEntry &, SmallVectorImpl<char> &Storage)>;
 
 class DependencyConsumer {
 public:

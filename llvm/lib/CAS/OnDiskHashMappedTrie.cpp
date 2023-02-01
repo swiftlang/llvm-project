@@ -412,8 +412,7 @@ private:
   MutableArrayRef<SlotT> Slots;
 
   static MutableArrayRef<SlotT> getSlots(Header &H) {
-    return makeMutableArrayRef(reinterpret_cast<SlotT *>(&H + 1),
-                               1u << H.NumBits);
+    return makeMutableArrayRef(reinterpret_cast<SlotT *>(&H + 1), 1u << H.NumBits);
   }
 };
 

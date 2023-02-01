@@ -114,7 +114,7 @@ public:
       std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
       DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
       bool DiagGenerationAsCompilation,
-      llvm::function_ref<StringRef(const llvm::vfs::CachedDirectoryEntry &)>
+      llvm::function_ref<StringRef(const llvm::vfs::CachedDirectoryEntry &, SmallVectorImpl<char> &Storage)>
           RemapPath = nullptr);
 
   Expected<cas::IncludeTreeRoot>

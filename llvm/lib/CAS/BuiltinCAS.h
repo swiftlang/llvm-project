@@ -90,8 +90,6 @@ public:
 
   Expected<CASID> parseID(StringRef Reference) final;
 
-  virtual Expected<CASID> parseIDImpl(ArrayRef<uint8_t> Hash) = 0;
-
   Expected<ObjectRef> store(ArrayRef<ObjectRef> Refs,
                             ArrayRef<char> Data) final;
   virtual Expected<ObjectRef> storeImpl(ArrayRef<uint8_t> ComputedHash,
@@ -104,7 +102,8 @@ public:
   virtual Expected<ObjectRef>
   storeFromNullTerminatedRegion(ArrayRef<uint8_t> ComputedHash,
                                 sys::fs::mapped_file_region Map) {
-    return storeImpl(ComputedHash, None, makeArrayRef(Map.data(), Map.size()));
+    return storeImpl(ComputedHash, None,
+                     makeArrayRef(Map.data(), Map.size()));
   }
 
   /// Both builtin CAS implementations provide lifetime for free, so this can

@@ -230,3 +230,33 @@ TreeProxy::Builder::build(ArrayRef<NamedTreeEntry> Entries) {
 
   return TreeProxy::get(*Schema, Schema->CAS.createProxy(Refs, Data));
 }
+
+static void printTreeEntryKind(raw_ostream &OS, TreeEntry::EntryKind Kind) {
+  switch (Kind) {
+  case TreeEntry::Regular:
+    OS << "file";
+    break;
+  case TreeEntry::Executable:
+    OS << "exec";
+    break;
+  case TreeEntry::Symlink:
+    OS << "syml";
+    break;
+  case TreeEntry::Tree:
+    OS << "tree";
+    break;
+  }
+}
+
+void cas::NamedTreeEntry::print(raw_ostream &OS, ObjectStore &CAS) const {
+  printTreeEntryKind(OS, getKind());
+  OS << " " << CAS.getID(getRef()) << " " << Name;
+  if (getKind() == TreeEntry::Tree)
+    OS << "/";
+  if (getKind() == TreeEntry::Symlink) {
+    ObjectProxy Target = cantFail(CAS.getProxy(getRef()));
+    OS << " -> ";
+    OS << Target.getData();
+  }
+  OS << "\n";
+}

@@ -115,9 +115,8 @@ public:
 
   void trackNewAccesses() final;
   std::error_code excludeFromTracking(const Twine &Path) final;
-  Expected<ObjectProxy> createTreeFromNewAccesses(
-      llvm::function_ref<StringRef(const vfs::CachedDirectoryEntry &)>
-          RemapPath) final;
+  Expected<ObjectProxy>
+  createTreeFromNewAccesses(RemapPathCallback RemapPath) final;
   Expected<ObjectProxy> createTreeFromAllAccesses() final;
   std::unique_ptr<CachingOnDiskFileSystem::TreeBuilder>
   createTreeBuilder() final;
@@ -539,7 +538,8 @@ CachingOnDiskFileSystemImpl::getDirectoryIterator(const Twine &Path) {
   }
 
   for (StringRef TreePath : TreePaths)
-    if (Error E = makeEntry(*Entry, TreePath, /*KnownStatus=*/None).takeError())
+    if (Error E = makeEntry(*Entry, TreePath, /*KnownStatus=*/None)
+                      .takeError())
       return errorToErrorCode(std::move(E));
 
   return Cache->getCachedVFSDirIter(
@@ -694,8 +694,7 @@ CachingOnDiskFileSystemImpl::excludeFromTracking(const Twine &Path) {
 }
 
 Expected<ObjectProxy> CachingOnDiskFileSystemImpl::createTreeFromNewAccesses(
-    llvm::function_ref<StringRef(const vfs::CachedDirectoryEntry &)>
-        RemapPath) {
+    RemapPathCallback RemapPath) {
   DenseMap<const DirectoryEntry *, TrackingState> TrackedAccesses;
   DenseSet<const DirectoryEntry *> ExcludedAccesses;
   {
@@ -721,13 +720,13 @@ Expected<ObjectProxy> CachingOnDiskFileSystemImpl::createTreeFromNewAccesses(
     return Schema.create();
 
   HierarchicalTreeBuilder Builder;
-  for (auto &Access : TrackedAccesses) {
-    const DirectoryEntry *Entry = Access.first;
-    TrackingState State = Access.second;
+  for (auto &&[Entry, State] : TrackedAccesses) {
     if (IsExcluded(Entry))
       continue;
 
-    StringRef Path = RemapPath ? RemapPath(*Entry) : Entry->getTreePath();
+    SmallString<128> Storage;
+    StringRef Path =
+        RemapPath ? RemapPath(*Entry, Storage) : Entry->getTreePath();
 
     // FIXME: If Entry is a symbol link, the spelling of its target should be
     // remapped.

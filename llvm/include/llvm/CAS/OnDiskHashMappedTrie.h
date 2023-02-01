@@ -24,6 +24,7 @@
 namespace llvm {
 
 class MemoryBuffer;
+class raw_ostream;
 
 namespace cas {
 
@@ -207,9 +208,8 @@ public:
       return pointer(CP.getOffset(), *H);
     if (!CP)
       return pointer();
-    ValueProxy V{CP->Hash,
-                 makeMutableArrayRef(const_cast<char *>(CP->Data.data()),
-                                     CP->Data.size())};
+    ValueProxy V{CP->Hash, makeMutableArrayRef(const_cast<char *>(CP->Data.data()),
+                                           CP->Data.size())};
     return pointer(CP.getOffset(), V);
   }
 

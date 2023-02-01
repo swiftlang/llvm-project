@@ -33,8 +33,8 @@ class CachingOnDiskFileSystem : public ThreadSafeFileSystem {
 
 public:
   /// An extra API to pull out the \a CASID if \p Path refers to a file.
-  virtual ErrorOr<vfs::Status> statusAndFileID(const Twine &Path,
-                                               Optional<CASID> &FileID) = 0;
+  virtual ErrorOr<vfs::Status>
+  statusAndFileID(const Twine &Path, Optional<CASID> &FileID) = 0;
 
   /// Start tracking all stats (and other accesses). Only affects this
   /// filesystem instance, not current (or future) proxies.
@@ -53,6 +53,10 @@ public:
   /// issues. It is important to understand how the path not existing will
   /// behave when accessing the resulting \c CASFileSystem.
   virtual std::error_code excludeFromTracking(const Twine &Path) = 0;
+
+  /// Callback to adjust the given path.
+  using RemapPathCallback = llvm::function_ref<StringRef(
+      const vfs::CachedDirectoryEntry &, SmallVectorImpl<char> &Storage)>;
 
   /// Create a tree that represents all stats tracked since the call to \a
   /// trackNewAccesses(). Removes the current tracking scope.
@@ -82,9 +86,8 @@ public:
   ///     /new/filename
   ///     /new/sym2 -> filename
   ///     /new/sym3 -> /new/filename [broken]
-  virtual Expected<ObjectProxy> createTreeFromNewAccesses(
-      llvm::function_ref<StringRef(const vfs::CachedDirectoryEntry &)>
-          RemapPath = nullptr) = 0;
+  virtual Expected<ObjectProxy>
+  createTreeFromNewAccesses(RemapPathCallback RemapPath = nullptr) = 0;
 
   /// Create a tree that represents all known directories, files, and symlinks.
   virtual Expected<ObjectProxy> createTreeFromAllAccesses() = 0;
