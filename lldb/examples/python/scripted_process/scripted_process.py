@@ -196,7 +196,7 @@ class ScriptedProcess(metaclass=ABCMeta):
 
         Returns:
             Dict: A dictionary containing metadata for the scripted process.
-                  None is the process as no metadata.
+                  None if the process as no metadata.
         """
         return self.metadata
 
@@ -346,7 +346,7 @@ class ScriptedThread(metaclass=ABCMeta):
 
         Returns:
             List: A list containing the extended information for the scripted process.
-                  None is the thread as no extended information.
+                  None if the thread as no extended information.
         """
         return self.extended_info
 
