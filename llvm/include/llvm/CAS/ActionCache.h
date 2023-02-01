@@ -15,7 +15,8 @@
 #include "llvm/CAS/CASReference.h"
 #include "llvm/Support/Error.h"
 
-namespace llvm::cas {
+namespace llvm {
+namespace cas {
 
 class ObjectStore;
 class CASID;
@@ -84,6 +85,6 @@ std::string getDefaultOnDiskActionCachePath();
 
 /// Create an action cache on disk.
 Expected<std::unique_ptr<ActionCache>> createOnDiskActionCache(StringRef Path);
-} // end namespace llvm::cas
+}} // end namespace llvm::cas
 
 #endif // LLVM_CAS_CASACTIONCACHE_H

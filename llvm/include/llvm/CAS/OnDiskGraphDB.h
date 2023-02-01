@@ -14,7 +14,9 @@
 
 #if LLVM_ENABLE_ONDISK_CAS
 
-namespace llvm::cas::ondisk {
+namespace llvm {
+namespace cas {
+namespace ondisk {
 
 /// 8B reference.
 class InternalRef {
@@ -348,7 +350,7 @@ private:
   std::string RootPath;
 };
 
-} // namespace llvm::cas::ondisk
+}}} // namespace llvm::cas::ondisk
 
 #endif // LLVM_ENABLE_ONDISK_CAS
 #endif // LLVM_CAS_ONDISKGRAPHDB_H

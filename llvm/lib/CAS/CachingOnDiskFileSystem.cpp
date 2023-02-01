@@ -720,7 +720,9 @@ Expected<ObjectProxy> CachingOnDiskFileSystemImpl::createTreeFromNewAccesses(
     return Schema.create();
 
   HierarchicalTreeBuilder Builder;
-  for (auto &&[Entry, State] : TrackedAccesses) {
+  for (auto &Access : TrackedAccesses) {
+    const DirectoryEntry *Entry = Access.first;
+    TrackingState State = Access.second;
     if (IsExcluded(Entry))
       continue;
 
