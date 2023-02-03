@@ -109,6 +109,7 @@ class LLDB_API SBUnixSignals;
 typedef bool (*SBBreakpointHitCallback)(void *baton, SBProcess &process,
                                         SBThread &thread,
                                         lldb::SBBreakpointLocation &location);
+typedef void *ScriptedObject;
 }
 
 #endif // LLDB_API_SBDEFINES_H
