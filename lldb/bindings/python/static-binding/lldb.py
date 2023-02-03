@@ -744,6 +744,12 @@ eDynamicCanRunTarget = _lldb.eDynamicCanRunTarget
 
 eDynamicDontRunTarget = _lldb.eDynamicDontRunTarget
 
+eBindAuto = _lldb.eBindAuto
+
+eBind = _lldb.eBind
+
+eDontBind = _lldb.eDontBind
+
 eStopShowColumnAnsiOrCaret = _lldb.eStopShowColumnAnsiOrCaret
 
 eStopShowColumnAnsi = _lldb.eStopShowColumnAnsi
@@ -1311,6 +1317,8 @@ eTemplateArgumentKindNullPtr = _lldb.eTemplateArgumentKindNullPtr
 eFormatterMatchExact = _lldb.eFormatterMatchExact
 
 eFormatterMatchRegex = _lldb.eFormatterMatchRegex
+
+eFormatterMatchCallback = _lldb.eFormatterMatchCallback
 
 eLastFormatterMatchType = _lldb.eLastFormatterMatchType
 
