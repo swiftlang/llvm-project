@@ -1,0 +1,23 @@
+//===- OutputConfig.def - Output configuration definitions ------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef HANDLE_OUTPUT_CONFIG_FLAG
+#error "Missing macro definition of HANDLE_OUTPUT_CONFIG_FLAG"
+#endif
+
+// #define HANDLE_OUTPUT_CONFIG_FLAG(NAME, DEFAULT)
+
+HANDLE_OUTPUT_CONFIG_FLAG(Text, false)
+HANDLE_OUTPUT_CONFIG_FLAG(TextWithCRLF, false)
+HANDLE_OUTPUT_CONFIG_FLAG(Volatile, false)
+HANDLE_OUTPUT_CONFIG_FLAG(CrashCleanup, true)
+HANDLE_OUTPUT_CONFIG_FLAG(AtomicWrite, true)
+HANDLE_OUTPUT_CONFIG_FLAG(ImplyCreateDirectories, true)
+HANDLE_OUTPUT_CONFIG_FLAG(Overwrite, true)
+
+#undef HANDLE_OUTPUT_CONFIG_FLAG

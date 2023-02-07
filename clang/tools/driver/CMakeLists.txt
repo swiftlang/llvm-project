@@ -1,6 +1,7 @@
 set( LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   Analysis
+  CAS
   CodeGen
   Core
   IPO
@@ -29,6 +30,7 @@ add_clang_tool(clang
   cc1_main.cpp
   cc1as_main.cpp
   cc1gen_reproducer_main.cpp
+  cc1depscand_main.cpp
 
   DEPENDS
   intrinsics_gen
@@ -40,6 +42,7 @@ clang_target_link_libraries(clang
   clangBasic
   clangAPINotes
   clangCodeGen
+  clangDependencyScanning
   clangDriver
   clangFrontend
   clangFrontendTool
@@ -83,6 +86,7 @@ if (APPLE)
   set(TOOL_INFO_PLIST_OUT "${CMAKE_CURRENT_BINARY_DIR}/${TOOL_INFO_PLIST}")
   target_link_libraries(clang
     PRIVATE
+    -lutil # FIXME: Apple-only. Not portable
     "-Wl,-sectcreate,__TEXT,__info_plist,${TOOL_INFO_PLIST_OUT}")
   configure_file("${TOOL_INFO_PLIST}.in" "${TOOL_INFO_PLIST_OUT}" @ONLY)
 

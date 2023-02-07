@@ -197,6 +197,8 @@ static Error verifyOptions(const DsymutilOptions &Options) {
 static Expected<AccelTableKind> getAccelTableKind(opt::InputArgList &Args) {
   if (opt::Arg *Accelerator = Args.getLastArg(OPT_accelerator)) {
     StringRef S = Accelerator->getValue();
+    if (S == "None")
+      return AccelTableKind::None;
     if (S == "Apple")
       return AccelTableKind::Apple;
     if (S == "Dwarf")
@@ -205,10 +207,10 @@ static Expected<AccelTableKind> getAccelTableKind(opt::InputArgList &Args) {
       return AccelTableKind::Pub;
     if (S == "Default")
       return AccelTableKind::Default;
-    return make_error<StringError>(
-        "invalid accelerator type specified: '" + S +
-            "'. Support values are 'Apple', 'Dwarf', 'Pub' and 'Default'.",
-        inconvertibleErrorCode());
+    return make_error<StringError>("invalid accelerator type specified: '" + S +
+                                       "'. Support values are 'Apple', "
+                                       "'Dwarf', 'Pub', 'Default', and 'None'.",
+                                   inconvertibleErrorCode());
   }
   return AccelTableKind::Default;
 }

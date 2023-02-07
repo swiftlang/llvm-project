@@ -42,7 +42,7 @@ using namespace llvm;
 
 NewArchiveMember::NewArchiveMember(MemoryBufferRef BufRef)
     : Buf(MemoryBuffer::getMemBuffer(BufRef, false)),
-      MemberName(BufRef.getBufferIdentifier()) {}
+      MemberName(BufRef.getBufferIdentifier()), Contents(Buf->getBuffer()) {}
 
 Expected<NewArchiveMember>
 NewArchiveMember::getOldMember(const object::Archive::Child &OldMember,
@@ -54,6 +54,7 @@ NewArchiveMember::getOldMember(const object::Archive::Child &OldMember,
   NewArchiveMember M;
   M.Buf = MemoryBuffer::getMemBuffer(*BufOrErr, false);
   M.MemberName = M.Buf->getBufferIdentifier();
+  M.Contents = M.Buf->getBuffer();
   if (!Deterministic) {
     auto ModTimeOrErr = OldMember.getLastModified();
     if (!ModTimeOrErr)
@@ -104,6 +105,7 @@ Expected<NewArchiveMember> NewArchiveMember::getFile(StringRef FileName,
   NewArchiveMember M;
   M.Buf = std::move(*MemberBufferOrErr);
   M.MemberName = M.Buf->getBufferIdentifier();
+  M.Contents = M.Buf->getBuffer();
   if (!Deterministic) {
     M.ModTime = std::chrono::time_point_cast<std::chrono::seconds>(
         Status.getLastModificationTime());
@@ -509,7 +511,7 @@ computeMemberData(raw_ostream &StringTable, raw_ostream &SymNames,
     std::vector<unsigned> Symbols;
     if (NeedSymbols) {
       Expected<std::vector<unsigned>> SymbolsOrErr =
-          getSymbols(Buf, SymNames, HasObject);
+          getSymbols(M.getContentsBufferRef(), SymNames, HasObject);
       if (auto E = SymbolsOrErr.takeError())
         return std::move(E);
       Symbols = std::move(*SymbolsOrErr);

@@ -13,6 +13,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/MemoryBuffer.h"
 
@@ -47,15 +48,21 @@ enum {
 #undef OPTION
 };
 
-void parseLCLinkerOption(InputFile *, unsigned argc, StringRef data);
+void parseLCLinkerOption(StringRef inputName, unsigned argc, StringRef data);
 
-std::string createResponseFile(const llvm::opt::InputArgList &args);
+std::string createResponseFile(const llvm::opt::InputArgList &args,
+                               bool isForCacheKey = false);
+
+llvm::MachO::HeaderFileType getOutputType(const llvm::opt::InputArgList &args);
 
 // Check for both libfoo.dylib and libfoo.tbd (in that order).
 llvm::Optional<std::string> resolveDylibPath(llvm::StringRef path);
 
 DylibFile *loadDylib(llvm::MemoryBufferRef mbref, DylibFile *umbrella = nullptr,
                      bool isBundleLoader = false);
+
+/// Called after dependency scanning pass is finished, to reset to initial state for performing a normal link.
+void resetLoadedDylibs();
 
 // Search for all possible combinations of `{root}/{name}.{extension}`.
 // If \p extensions are not specified, then just search for `{root}/{name}`.

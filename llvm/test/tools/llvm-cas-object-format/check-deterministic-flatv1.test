@@ -1,0 +1,5 @@
+RUN: rm -rf %t && mkdir -p %t
+RUN: llc %S/Inputs/main.ll --filetype=obj -o %t/main.o
+
+// Ingest multiple times and check that we got the same CAS ID for all.
+RUN: llvm-cas-object-format --cas %t/cas %t/main.o -silent -ingest-schema=flatv1 -repeat 10

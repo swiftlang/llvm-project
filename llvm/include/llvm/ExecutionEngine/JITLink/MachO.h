@@ -26,6 +26,10 @@ namespace jitlink {
 Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromMachOObject(MemoryBufferRef ObjectBuffer);
 
+/// Get the edge kind name function for ARM64 Mach-O triples.
+Expected<LinkGraph::GetEdgeKindNameFunction>
+getGetEdgeKindNameFunctionForMachO(const Triple &TT);
+
 /// jit-link the given ObjBuffer, which must be a MachO object file.
 ///
 /// Uses conservative defaults for GOT and stub handling based on the target

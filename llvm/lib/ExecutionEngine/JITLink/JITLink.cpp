@@ -1,9 +1,8 @@
 //===------------- JITLink.cpp - Core Run-time JIT linker APIs ------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -214,7 +213,12 @@ Block &LinkGraph::splitBlock(Block &B, size_t SplitIndex,
     // Transfer all symbols with offset less than SplitIndex to NewBlock.
     while (!BlockSymbols.empty() &&
            BlockSymbols.back()->getOffset() < SplitIndex) {
-      BlockSymbols.back()->setBlock(NewBlock);
+      auto *Sym = BlockSymbols.back();
+      // If the symbol extends beyond the split, update the size to be within
+      // the new block.
+      if (Sym->getOffset() + Sym->getSize() > SplitIndex)
+        Sym->setSize(SplitIndex - Sym->getOffset());
+      Sym->setBlock(NewBlock);
       BlockSymbols.pop_back();
     }
 
@@ -389,6 +393,15 @@ Error makeTargetOutOfRangeError(const LinkGraph &G, const Block &B,
               << formatv("{0:x}", E.getOffset()) << ")";
   }
   return make_error<JITLinkError>(std::move(ErrMsg));
+}
+
+Expected<LinkGraph::GetEdgeKindNameFunction>
+getGetEdgeKindNameFunction(const Triple &TT) {
+  if (TT.isOSBinFormatMachO())
+    return getGetEdgeKindNameFunctionForMachO(TT);
+  if (TT.isOSBinFormatELF())
+    return getGetEdgeKindNameFunctionForELF(TT);
+  return make_error<JITLinkError>("Unsupported triple");
 }
 
 Expected<std::unique_ptr<LinkGraph>>

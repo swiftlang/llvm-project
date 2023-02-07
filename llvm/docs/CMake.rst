@@ -701,6 +701,13 @@ enabled sub-projects. Nearly all of these variable names begin with
   are ``Address``, ``Memory``, ``MemoryWithOrigins``, ``Undefined``, ``Thread``,
   ``DataFlow``, and ``Address;Undefined``. Defaults to empty string.
 
+**LLVM_ENABLE_EXPERIMENTAL_DEPSCAN**:BOOL
+  Turn on -fdepscan and related options to canonicalize the build. The
+  interface is experimental (including this configuration option).
+
+**LLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE**:BOOL
+  Cache tokens automatically using the CAS.
+
 **SPHINX_EXECUTABLE**:STRING
   The path to the ``sphinx-build`` executable detected by CMake.
   For installation instructions, see

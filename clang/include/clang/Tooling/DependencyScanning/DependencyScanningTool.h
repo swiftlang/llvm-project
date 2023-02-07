@@ -16,6 +16,12 @@
 #include "llvm/ADT/StringSet.h"
 #include <string>
 
+namespace llvm {
+namespace cas {
+class TreeRef;
+}
+} // namespace llvm
+
 namespace clang{
 namespace tooling{
 namespace dependencies{
@@ -85,6 +91,20 @@ public:
   llvm::Expected<std::string>
   getDependencyFile(const std::vector<std::string> &CommandLine, StringRef CWD,
                     llvm::Optional<StringRef> ModuleName = None);
+
+  /// Collect dependency tree.
+  llvm::Expected<llvm::cas::TreeRef>
+  getDependencyTree(const std::vector<std::string> &CommandLine, StringRef CWD);
+
+  llvm::Expected<llvm::cas::TreeRef> getDependencyTreeFromCompilerInvocation(
+      std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
+      DiagnosticConsumer &DiagsConsumer,
+      llvm::function_ref<StringRef(const llvm::vfs::CachedDirectoryEntry &)>
+          RemapPath = nullptr);
+
+  llvm::Expected<llvm::cas::TreeRef>
+  getDependencyTreeFromCC1CommandLine(ArrayRef<const char *> Args,
+                                      StringRef CWD);
 
   /// Collect the full module dependency graph for the input, ignoring any
   /// modules which have already been seen. If \p ModuleName isn't empty, this

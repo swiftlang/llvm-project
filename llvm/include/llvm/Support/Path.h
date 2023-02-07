@@ -27,6 +27,14 @@ namespace path {
 
 enum class Style { windows, posix, native };
 
+constexpr Style system_style() {
+#if defined(_WIN32)
+  return Style::windows;
+#else
+  return Style::posix;
+#endif
+}
+
 /// @name Lexical Component Iterator
 /// @{
 

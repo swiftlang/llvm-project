@@ -20,6 +20,10 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
 
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/Support/Error.h"
+
 using namespace clang;
 using namespace clang::tooling::dependencies;
 
@@ -53,8 +57,13 @@ void clang_experimental_ModuleDependencySet_dispose(
 
 CXDependencyScannerService
 clang_experimental_DependencyScannerService_create_v0(CXDependencyMode Format) {
+  // FIXME: Using default CAS path now.
+  auto CAS = llvm::cantFail(
+      llvm::cas::createOnDiskCAS(llvm::cas::getDefaultOnDiskCASPath()));
+  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS =
+      llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(std::move(CAS)));
   return wrap(new DependencyScanningService(
-      ScanningMode::MinimizedSourcePreprocessing, unwrap(Format),
+      ScanningMode::MinimizedSourcePreprocessing, unwrap(Format), FS,
       /*ReuseFilemanager=*/false));
 }
 

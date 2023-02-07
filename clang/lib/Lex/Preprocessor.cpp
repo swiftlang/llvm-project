@@ -44,6 +44,8 @@
 #include "clang/Lex/MacroArgs.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/ModuleLoader.h"
+#include "clang/Lex/PTHLexer.h"
+#include "clang/Lex/PTHManager.h"
 #include "clang/Lex/Pragma.h"
 #include "clang/Lex/PreprocessingRecord.h"
 #include "clang/Lex/PreprocessorLexer.h"
@@ -228,6 +230,10 @@ void Preprocessor::FinalizeForModelFile() {
   PragmaHandlers = std::move(PragmaHandlersBackup);
 }
 
+void Preprocessor::setPTHManager(std::unique_ptr<PTHManager> NewPTH) {
+  PTH = std::move(NewPTH);
+}
+
 void Preprocessor::DumpToken(const Token &Tok, bool DumpFlags) const {
   llvm::errs() << tok::getTokenName(Tok.getKind()) << " '"
                << getSpelling(Tok) << "'";
@@ -378,6 +384,8 @@ StringRef Preprocessor::getLastMacroWithSpelling(
 void Preprocessor::recomputeCurLexerKind() {
   if (CurLexer)
     CurLexerKind = CLK_Lexer;
+  else if (CurPTHLexer)
+    CurLexerKind = CLK_PTHLexer;
   else if (CurTokenLexer)
     CurLexerKind = CLK_TokenLexer;
   else
@@ -637,6 +645,9 @@ void Preprocessor::SkipTokensWhileUsingPCH() {
      break;
     case CLK_TokenLexer:
       CurTokenLexer->Lex(Tok);
+      break;
+    case CLK_PTHLexer: // FIXME: Is this correct?
+      CurPTHLexer->Lex(Tok);
       break;
     case CLK_CachingLexer:
       CachingLex(Tok);
@@ -898,6 +909,9 @@ void Preprocessor::Lex(Token &Result) {
     switch (CurLexerKind) {
     case CLK_Lexer:
       ReturnedToken = CurLexer->Lex(Result);
+      break;
+    case CLK_PTHLexer:
+      ReturnedToken = CurPTHLexer->Lex(Result);
       break;
     case CLK_TokenLexer:
       ReturnedToken = CurTokenLexer->Lex(Result);

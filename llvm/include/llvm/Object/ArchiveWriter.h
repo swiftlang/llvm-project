@@ -20,11 +20,18 @@ namespace llvm {
 struct NewArchiveMember {
   std::unique_ptr<MemoryBuffer> Buf;
   StringRef MemberName;
+  /// This can be different than \p Buf in the case of getting the contents
+  /// from a CAS ID.
+  StringRef Contents;
   sys::TimePoint<std::chrono::seconds> ModTime;
   unsigned UID = 0, GID = 0, Perms = 0644;
 
   NewArchiveMember() = default;
   NewArchiveMember(MemoryBufferRef BufRef);
+
+  MemoryBufferRef getContentsBufferRef() const {
+    return MemoryBufferRef(Contents, Buf->getBufferIdentifier());
+  }
 
   static Expected<NewArchiveMember>
   getOldMember(const object::Archive::Child &OldMember, bool Deterministic);

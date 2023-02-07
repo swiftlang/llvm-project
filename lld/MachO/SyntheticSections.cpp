@@ -943,12 +943,12 @@ void SymtabSection::finalizeContents() {
   // Local symbols aren't in the SymbolTable, so we walk the list of object
   // files to gather them.
   for (const InputFile *file : inputFiles) {
-    if (auto *objFile = dyn_cast<ObjFile>(file)) {
-      for (Symbol *sym : objFile->symbols) {
+    if (isa<ObjFile>(file) || isa<CASSchemaFile>(file)) {
+      for (Symbol *sym : file->symbols) {
         if (auto *defined = dyn_cast_or_null<Defined>(sym)) {
           if (!defined->isExternal() && defined->isLive()) {
             StringRef name = defined->getName();
-            if (!name.startswith("l") && !name.startswith("L"))
+            if (!name.empty() && !name.startswith("l") && !name.startswith("L"))
               addSymbol(localSymbols, sym);
           }
         }

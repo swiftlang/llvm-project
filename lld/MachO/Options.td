@@ -74,6 +74,29 @@ def thinlto_cache_policy: Joined<["--"], "thinlto-cache-policy=">,
 def O : JoinedOrSeparate<["-"], "O">,
     HelpText<"Optimize output file size">;
 
+// CAS-related options.
+// FIXME: Include missing CAS options from clang.
+
+def cas_path : Separate<["--"], "fcas-builtin-path">,
+    HelpText<"Path to a persistent on-disk backing store for the builtin CAS.">,
+    MetaVarName<"<path>">,
+    Group<grp_lld>;
+def fcas_fs : Separate<["--"], "fcas-fs">,
+    HelpText<"Configure the filesystem to read from the provided CAS tree.">,
+    MetaVarName<"<tree>">,
+    Group<grp_lld>;
+def fcas_fs_working_directory : Separate<["--"], "fcas-fs-working-directory">,
+    HelpText<"Working directory for -fcas-fs (if not the root).">,
+    MetaVarName<"<dir>">,
+    Group<grp_lld>;
+
+def fcas_cache_results: Flag<["--"], "fcas-cache-results">,
+    HelpText<"Use a result cache">,
+    Group<grp_lld>;
+def fcas_no_cache_results: Flag<["--"], "fcas-no-cache-results">,
+    HelpText<"Use a result cache">,
+    Group<grp_lld>;
+
 // This is a complete Options.td compiled from Apple's ld(1) manpage
 // dated 2018-03-07 and cross checked with ld64 source code in repo
 // https://github.com/apple-opensource/ld64 at git tag "512.4" dated

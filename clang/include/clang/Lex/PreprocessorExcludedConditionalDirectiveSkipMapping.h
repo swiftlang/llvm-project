@@ -23,7 +23,7 @@ using PreprocessorSkippedRangeMapping = llvm::DenseMap<unsigned, unsigned>;
 /// The datastructure that holds the mapping between the active memory buffers
 /// and the individual skip mappings.
 using ExcludedPreprocessorDirectiveSkipMapping =
-    llvm::DenseMap<const char *, const PreprocessorSkippedRangeMapping *>;
+    llvm::DenseMap<const char *, Optional<PreprocessorSkippedRangeMapping>>;
 
 } // end namespace clang
 

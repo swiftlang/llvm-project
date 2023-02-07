@@ -11,10 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "UpdateCC1Args.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/Stack.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/CC1DepScanDClient.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
@@ -24,6 +26,8 @@
 #include "clang/Frontend/SerializedDiagnosticPrinter.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
+#include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
+#include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -50,6 +54,18 @@
 #include <memory>
 #include <set>
 #include <system_error>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
+#if defined(__APPLE__) &&                                                      \
+    __has_include(<libproc.h>) && __has_include(<sys/proc_info.h>)
+#define USE_APPLE_LIBPROC_FOR_DEPSCAN_ANCESTORS
+#include <libproc.h>
+#include <sys/proc_info.h>
+#endif
+
 using namespace clang;
 using namespace clang::driver;
 using namespace llvm::opt;
@@ -205,6 +221,10 @@ static void ApplyQAOverride(SmallVectorImpl<const char*> &Args,
 
 extern int cc1_main(ArrayRef<const char *> Argv, const char *Argv0,
                     void *MainAddr);
+extern int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0,
+                            void *MainAddr);
+extern int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
+                           void *MainAddr);
 extern int cc1as_main(ArrayRef<const char *> Argv, const char *Argv0,
                       void *MainAddr);
 extern int cc1gen_reproducer_main(ArrayRef<const char *> Argv,
@@ -315,6 +335,12 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   void *GetExecutablePathVP = (void *)(intptr_t)GetExecutablePath;
   if (Tool == "-cc1")
     return cc1_main(makeArrayRef(ArgV).slice(1), ArgV[0], GetExecutablePathVP);
+  if (Tool == "-cc1depscand")
+    return cc1depscand_main(makeArrayRef(ArgV).slice(2), ArgV[0],
+                            GetExecutablePathVP);
+  if (Tool == "-cc1depscan")
+    return cc1depscan_main(makeArrayRef(ArgV).slice(2), ArgV[0],
+                           GetExecutablePathVP);
   if (Tool == "-cc1as")
     return cc1as_main(makeArrayRef(ArgV).slice(2), ArgV[0],
                       GetExecutablePathVP);
@@ -325,6 +351,205 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   llvm::errs() << "error: unknown integrated tool '" << Tool << "'. "
                << "Valid tools include '-cc1' and '-cc1as'.\n";
   return 1;
+}
+
+static cc1depscand::DepscanPrefixMapping
+parseCASFSAutoPrefixMappings(const Driver &D, const ArgList &Args) {
+  cc1depscand::DepscanPrefixMapping Mapping;
+  for (const Arg *A : Args.filtered(options::OPT_fdepscan_prefix_map_EQ)) {
+    StringRef Map = A->getValue();
+    size_t Equals = Map.find('=');
+    if (Equals == StringRef::npos)
+      D.Diag(diag::err_drv_invalid_argument_to_option)
+          << Map << A->getOption().getName();
+    else
+      Mapping.PrefixMap.push_back(Map);
+    A->claim();
+  }
+  if (const Arg *A = Args.getLastArg(options::OPT_fdepscan_prefix_map_sdk_EQ))
+    Mapping.NewSDKPath = A->getValue();
+  if (const Arg *A =
+          Args.getLastArg(options::OPT_fdepscan_prefix_map_toolchain_EQ))
+    Mapping.NewToolchainPath = A->getValue();
+
+  return Mapping;
+}
+
+static void addCC1ScanDepsArgsInline(
+    const char *Exec, SmallVectorImpl<const char *> &CC1Args,
+    const cc1depscand::DepscanPrefixMapping &PrefixMapping,
+    llvm::function_ref<const char *(const Twine &)> SaveArg) {
+  llvm::Error E =
+      updateCC1Args(Exec, CC1Args, CC1Args, PrefixMapping, SaveArg).takeError();
+
+  // FIXME: Use DiagnosticEngine somehow...
+  logAllUnhandledErrors(std::move(E), llvm::errs());
+  return;
+}
+
+namespace {
+/// FIXME: Move to LLVMSupport; probably llvm/Support/Process.h.
+///
+/// TODO: Get this working on Linux:
+/// - Reading `/proc/[pid]/comm` for the command names.
+/// - Walk up the `ppid` fields in `/proc/[pid]/stat`.
+struct ProcessAncestor {
+  uint64_t PID = ~0ULL;
+  uint64_t PPID = ~0ULL;
+  StringRef Name;
+};
+class ProcessAncestorIterator
+    : public llvm::iterator_facade_base<ProcessAncestorIterator,
+                                        std::forward_iterator_tag,
+                                        const ProcessAncestor> {
+
+public:
+  ProcessAncestorIterator() = default;
+
+  static uint64_t getThisPID();
+  static uint64_t getParentPID();
+
+  static ProcessAncestorIterator getThisBegin() {
+    return ProcessAncestorIterator().setPID(getThisPID());
+  }
+  static ProcessAncestorIterator getParentBegin() {
+    return ProcessAncestorIterator().setPID(getParentPID());
+  }
+
+  const ProcessAncestor &operator*() const { return Ancestor; }
+  ProcessAncestorIterator &operator++() { return setPID(Ancestor.PPID); }
+  bool operator==(const ProcessAncestorIterator &RHS) const {
+    return Ancestor.PID == RHS.Ancestor.PID;
+  }
+
+private:
+  ProcessAncestorIterator &setPID(uint64_t NewPID);
+
+  ProcessAncestor Ancestor;
+#ifdef USE_APPLE_LIBPROC_FOR_DEPSCAN_ANCESTORS
+  proc_bsdinfo ProcInfo;
+#endif
+};
+} // end namespace
+
+uint64_t ProcessAncestorIterator::getThisPID() {
+  // FIXME: Not portable.
+  return ::getpid();
+}
+
+uint64_t ProcessAncestorIterator::getParentPID() {
+  // FIXME: Not portable.
+  return ::getppid();
+}
+
+ProcessAncestorIterator &ProcessAncestorIterator::setPID(uint64_t NewPID) {
+  // Reset state in case NewPID isn't found.
+  Ancestor = ProcessAncestor();
+
+#ifdef USE_APPLE_LIBPROC_FOR_DEPSCAN_ANCESTORS
+  pid_t TypeCorrectPID = NewPID;
+  if (proc_pidinfo(TypeCorrectPID, PROC_PIDTBSDINFO, 0, &ProcInfo,
+                   sizeof(ProcInfo)) != sizeof(ProcInfo))
+    return *this; // Not found or no access.
+
+  Ancestor.PID = NewPID;
+  Ancestor.PPID = ProcInfo.pbi_ppid;
+  Ancestor.Name = StringRef(ProcInfo.pbi_name);
+#else
+  (void)NewPID;
+#endif
+  return *this;
+}
+
+namespace {
+struct DepscanSharing {
+  bool OnlyShareParent = false;
+  Optional<StringRef> Name;
+  Optional<StringRef> Stop;
+};
+} // end namespace;
+
+static Optional<std::string>
+makeDepscanDaemonKey(StringRef Mode, const DepscanSharing &Sharing) {
+  if (Mode == "inline")
+    return None;
+
+  auto makeKey = [](uint64_t PID) { return Twine(PID).str(); };
+
+  if (Sharing.Name) {
+    // Check for fast path, which doesn't need to look up process names:
+    // -fdepscan-share-parent without -fdepscan-share-stop.
+    if (Sharing.Name->empty() && !Sharing.Stop)
+      return makeKey(ProcessAncestorIterator::getParentPID());
+
+    // Check the parent's process name, and then process ancestors.
+    for (ProcessAncestorIterator I = ProcessAncestorIterator::getParentBegin(), IE;
+         I != IE; ++I) {
+      if (I->Name == Sharing.Stop)
+        break;
+      if (Sharing.Name->empty() || I->Name == *Sharing.Name)
+        return makeKey(I->PID);
+      if (Sharing.OnlyShareParent)
+        break;
+    }
+
+    // Fall through if the process to share isn't found.
+  }
+
+  // Still daemonize, but use the PID from this process as the key to avoid
+  // sharing state.
+  if (Mode == "daemon")
+    return makeKey(ProcessAncestorIterator::getThisPID());
+
+  // Mode == "auto".
+  //
+  // TODO: consider returning ThisPID (same as "daemon") once the daemon can
+  // share a CAS instance without sharing filesystem caching. Or maybe delete
+  // "auto" at that point and make "-fdepscan" default to "-fdepscan=daemon".
+  return None;
+}
+
+static void
+CC1ScanDeps(const Arg &A, const char *Exec,
+            SmallVectorImpl<const char *> &CC1Args, const Driver &D,
+            const ArgList &Args) {
+  StringRef Mode = A.getValue();
+
+  // Collect these before returning to ensure they're claimed.
+  DepscanSharing Sharing;
+  if (Arg *A = Args.getLastArg(options::OPT_fdepscan_share_stop_EQ))
+    Sharing.Stop = A->getValue();
+  if (Arg *A = Args.getLastArg(options::OPT_fdepscan_share_EQ,
+                               options::OPT_fdepscan_share_parent,
+                               options::OPT_fdepscan_share_parent_EQ,
+                               options::OPT_fno_depscan_share)) {
+    if (A->getOption().matches(options::OPT_fdepscan_share_EQ) ||
+        A->getOption().matches(options::OPT_fdepscan_share_parent_EQ)) {
+      Sharing.Name = A->getValue();
+      Sharing.OnlyShareParent =
+          A->getOption().matches(options::OPT_fdepscan_share_parent_EQ);
+    } else if (A->getOption().matches(options::OPT_fdepscan_share_parent)) {
+      Sharing.Name = "";
+      Sharing.OnlyShareParent = true;
+    }
+  }
+
+  if (Mode == "off")
+    return;
+
+  if (Mode != "daemon" && Mode != "inline" && Mode != "auto")
+    D.Diag(diag::err_drv_invalid_argument_to_option)
+      << Mode << A.getOption().getName();
+
+  cc1depscand::DepscanPrefixMapping PrefixMapping =
+      parseCASFSAutoPrefixMappings(D, Args);
+
+  auto SaveArg = [&Args](const Twine &T) { return Args.MakeArgString(T); };
+  if (Optional<std::string> DaemonKey = makeDepscanDaemonKey(Mode, Sharing))
+    cc1depscand::addCC1ScanDepsArgs(Exec, CC1Args, PrefixMapping, *DaemonKey,
+                                    SaveArg);
+  else
+    addCC1ScanDepsArgsInline(Exec, CC1Args, PrefixMapping, SaveArg);
 }
 
 int main(int Argc, const char **Argv) {
@@ -485,6 +710,9 @@ int main(int Argc, const char **Argv) {
     // Ensure the CC1Command actually catches cc1 crashes
     llvm::CrashRecoveryContext::Enable();
   }
+
+  // Always give a pointer to -cc1scandeps.
+  TheDriver.CC1ScanDeps = &CC1ScanDeps;
 
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(Args));
   int Res = 1;

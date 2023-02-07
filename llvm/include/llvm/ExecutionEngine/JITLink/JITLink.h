@@ -13,19 +13,19 @@
 #ifndef LLVM_EXECUTIONENGINE_JITLINK_JITLINK_H
 #define LLVM_EXECUTIONENGINE_JITLINK_JITLINK_H
 
-#include "JITLinkMemoryManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
+#include "llvm/ExecutionEngine/JITLink/MemoryFlags.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/Memory.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <map>
@@ -225,7 +225,7 @@ public:
 
   /// Get the content for this block. Block must not be a zero-fill block.
   ArrayRef<char> getContent() const {
-    assert(Data && "Section does not contain content");
+    assert(Data && "Block does not contain content");
     return ArrayRef<char>(Data, Size);
   }
 
@@ -233,6 +233,7 @@ public:
   /// Caller is responsible for ensuring the underlying bytes are not
   /// deallocated while pointed to by this block.
   void setContent(ArrayRef<char> Content) {
+    assert(Content.data() && "Setting null content");
     Data = Content.data();
     Size = Content.size();
     ContentMutable = false;
@@ -251,6 +252,7 @@ public:
   /// to call this on a block with immutable content -- consider using
   /// getMutableContent instead.
   MutableArrayRef<char> getAlreadyMutableContent() {
+    assert(Data && "Block does not contain content");
     assert(ContentMutable && "Content is not mutable");
     return MutableArrayRef<char>(const_cast<char *>(Data), Size);
   }
@@ -260,6 +262,7 @@ public:
   /// The caller is responsible for ensuring that the memory pointed to by
   /// MutableContent is not deallocated while pointed to by this block.
   void setMutableContent(MutableArrayRef<char> MutableContent) {
+    assert(MutableContent.data() && "Setting null content");
     Data = MutableContent.data();
     Size = MutableContent.size();
     ContentMutable = true;
@@ -295,6 +298,7 @@ public:
   /// Add an edge to this block.
   void addEdge(Edge::Kind K, Edge::OffsetT Offset, Symbol &Target,
                Edge::AddendT Addend) {
+    assert(!isZeroFill() && "Adding edge to zero-fill block?");
     Edges.push_back(Edge(K, Offset, Target, Addend));
   }
 
@@ -338,6 +342,12 @@ private:
   size_t Size = 0;
   std::vector<Edge> Edges;
 };
+
+// Align a JITTargetAddress to conform with block alignment requirements.
+inline JITTargetAddress alignToBlock(JITTargetAddress Addr, Block &B) {
+  uint64_t Delta = (B.getAlignmentOffset() - Addr) % B.getAlignment();
+  return Addr + Delta;
+}
 
 /// Describes symbol linkage. This can be used to make resolve definition
 /// clashes.
@@ -390,6 +400,7 @@ private:
     setScope(S);
     setLive(IsLive);
     setCallable(IsCallable);
+    setAutoHide(false);
   }
 
   static Symbol &constructCommon(void *SymStorage, Block &Base, StringRef Name,
@@ -468,6 +479,12 @@ public:
 
   /// Returns true if this symbol has a name.
   bool hasName() const { return !Name.empty(); }
+
+  /// Returns true if this symbol is safe to merge by content.
+  bool isAutoHide() const { return IsAutoHide; }
+
+  /// Change whether this symbol is set to be merged by content.
+  void setAutoHide(bool Val) { IsAutoHide = Val; }
 
   /// Returns the name of this symbol (empty if the symbol is anonymous).
   StringRef getName() const {
@@ -622,11 +639,12 @@ private:
   // FIXME: A char* or SymbolStringPtr may pack better.
   StringRef Name;
   Addressable *Base = nullptr;
-  uint64_t Offset : 59;
+  uint64_t Offset : 58;
   uint64_t L : 1;
   uint64_t S : 2;
   uint64_t IsLive : 1;
   uint64_t IsCallable : 1;
+  uint64_t IsAutoHide : 1;
   JITTargetAddress Size = 0;
 };
 
@@ -640,8 +658,7 @@ class Section {
   friend class LinkGraph;
 
 private:
-  Section(StringRef Name, sys::Memory::ProtectionFlags Prot,
-          SectionOrdinal SecOrdinal)
+  Section(StringRef Name, MemProt Prot, SectionOrdinal SecOrdinal)
       : Name(Name), Prot(Prot), SecOrdinal(SecOrdinal) {}
 
   using SymbolSet = DenseSet<Symbol *>;
@@ -666,12 +683,16 @@ public:
   StringRef getName() const { return Name; }
 
   /// Returns the protection flags for this section.
-  sys::Memory::ProtectionFlags getProtectionFlags() const { return Prot; }
+  MemProt getMemProt() const { return Prot; }
 
   /// Set the protection flags for this section.
-  void setProtectionFlags(sys::Memory::ProtectionFlags Prot) {
-    this->Prot = Prot;
-  }
+  void setMemProt(MemProt Prot) { this->Prot = Prot; }
+
+  /// Get the deallocation policy for this section.
+  MemDeallocPolicy getMemDeallocPolicy() const { return MDP; }
+
+  /// Set the deallocation policy for this section.
+  void setMemDeallocPolicy(MemDeallocPolicy MDP) { this->MDP = MDP; }
 
   /// Returns the ordinal for this section.
   SectionOrdinal getOrdinal() const { return SecOrdinal; }
@@ -686,6 +707,7 @@ public:
     return make_range(Blocks.begin(), Blocks.end());
   }
 
+  /// Returns the number of blocks in this section.
   BlockSet::size_type blocks_size() const { return Blocks.size(); }
 
   /// Returns an iterator over the symbols defined in this section.
@@ -734,7 +756,8 @@ private:
   }
 
   StringRef Name;
-  sys::Memory::ProtectionFlags Prot;
+  MemProt Prot;
+  MemDeallocPolicy MDP = MemDeallocPolicy::Standard;
   SectionOrdinal SecOrdinal = 0;
   BlockSet Blocks;
   SymbolSet Symbols;
@@ -838,6 +861,7 @@ private:
 
 public:
   using external_symbol_iterator = ExternalSymbolSet::iterator;
+  using const_external_symbol_iterator = ExternalSymbolSet::const_iterator;
 
   using section_iterator = pointee_iterator<SectionList::iterator>;
   using const_section_iterator = pointee_iterator<SectionList::const_iterator>;
@@ -916,6 +940,11 @@ public:
       : Name(std::move(Name)), TT(TT), PointerSize(PointerSize),
         Endianness(Endianness), GetEdgeKindName(std::move(GetEdgeKindName)) {}
 
+  LinkGraph(const LinkGraph &) = delete;
+  LinkGraph &operator=(const LinkGraph &) = delete;
+  LinkGraph(LinkGraph &&) = delete;
+  LinkGraph &operator=(LinkGraph &&) = delete;
+
   /// Returns the name of this graph (usually the name of the original
   /// underlying MemoryBuffer).
   const std::string &getName() const { return Name; }
@@ -962,7 +991,7 @@ public:
   }
 
   /// Create a section with the given name, protection flags, and alignment.
-  Section &createSection(StringRef Name, sys::Memory::ProtectionFlags Prot) {
+  Section &createSection(StringRef Name, MemProt Prot) {
     assert(llvm::find_if(Sections,
                          [&](std::unique_ptr<Section> &Sec) {
                            return Sec->getName() == Name;
@@ -1117,6 +1146,11 @@ public:
                       section_iterator(Sections.end()));
   }
 
+  iterator_range<const_section_iterator> sections() const {
+    return make_range(const_section_iterator(Sections.begin()),
+                      const_section_iterator(Sections.end()));
+  }
+
   SectionList::size_type sections_size() const { return Sections.size(); }
 
   /// Returns the section with the given name if it exists, otherwise returns
@@ -1142,7 +1176,15 @@ public:
     return make_range(ExternalSymbols.begin(), ExternalSymbols.end());
   }
 
+  iterator_range<const_external_symbol_iterator> external_symbols() const {
+    return make_range(ExternalSymbols.begin(), ExternalSymbols.end());
+  }
+
   iterator_range<external_symbol_iterator> absolute_symbols() {
+    return make_range(AbsoluteSymbols.begin(), AbsoluteSymbols.end());
+  }
+
+  iterator_range<const_external_symbol_iterator> absolute_symbols() const {
     return make_range(AbsoluteSymbols.begin(), AbsoluteSymbols.end());
   }
 
@@ -1225,6 +1267,20 @@ public:
     destroyAddressable(OldBase);
   }
 
+  /// Redefine an already-defined symbol.
+  void redefineSymbol(Symbol &Sym, Block &Content, JITTargetAddress Offset,
+                      JITTargetAddress Size, Linkage L, Scope S, bool IsLive) {
+    assert(Sym.isDefined() && "Sym not already a defined symbol");
+    Sym.getBlock().getSection().removeSymbol(Sym);
+    Sym.setBlock(Content);
+    Sym.setOffset(Offset);
+    Sym.setSize(Size);
+    Sym.setLinkage(L);
+    Sym.setScope(S);
+    Sym.setLive(IsLive);
+    Content.getSection().addSymbol(Sym);
+  }
+
   /// Transfer a defined symbol from one block to another.
   ///
   /// The symbol's offset within DestBlock is set to NewOffset.
@@ -1237,6 +1293,7 @@ public:
   void transferDefinedSymbol(Symbol &Sym, Block &DestBlock,
                              JITTargetAddress NewOffset,
                              Optional<JITTargetAddress> ExplicitNewSize) {
+    auto &OldSection = Sym.getBlock().getSection();
     Sym.setBlock(DestBlock);
     Sym.setOffset(NewOffset);
     if (ExplicitNewSize)
@@ -1245,6 +1302,10 @@ public:
       JITTargetAddress RemainingBlockSize = DestBlock.getSize() - NewOffset;
       if (Sym.getSize() > RemainingBlockSize)
         Sym.setSize(RemainingBlockSize);
+    }
+    if (&DestBlock.getSection() != &OldSection) {
+      OldSection.removeSymbol(Sym);
+      DestBlock.getSection().addSymbol(Sym);
     }
   }
 
@@ -1280,6 +1341,8 @@ public:
                      bool PreserveSrcSection = false) {
     if (&DstSection == &SrcSection)
       return;
+    for (auto *B : SrcSection.blocks())
+      B->setSection(DstSection);
     SrcSection.transferContentTo(DstSection);
     if (!PreserveSrcSection)
       removeSection(SrcSection);
@@ -1345,6 +1408,13 @@ public:
     Sections.erase(I);
   }
 
+  /// Accessor for the AllocActions object for this graph. This can be used to
+  /// register allocation action calls prior to finalization.
+  ///
+  /// Accessing this object after finalization will result in undefined
+  /// behavior.
+  JITLinkMemoryManager::AllocActions &allocActions() { return AAs; }
+
   /// Dump the graph.
   void dump(raw_ostream &OS);
 
@@ -1361,6 +1431,7 @@ private:
   SectionList Sections;
   ExternalSymbolSet ExternalSymbols;
   ExternalSymbolSet AbsoluteSymbols;
+  JITLinkMemoryManager::AllocActions AAs;
 };
 
 inline MutableArrayRef<char> Block::getMutableContent(LinkGraph &G) {
@@ -1650,8 +1721,7 @@ public:
   /// finalized (i.e. emitted to memory and memory permissions set). If all of
   /// this objects dependencies have also been finalized then the code is ready
   /// to run.
-  virtual void
-  notifyFinalized(std::unique_ptr<JITLinkMemoryManager::Allocation> A) = 0;
+  virtual void notifyFinalized(JITLinkMemoryManager::FinalizedAlloc Alloc) = 0;
 
   /// Called by JITLink prior to linking to determine whether default passes for
   /// the target should be added. The default implementation returns true.
@@ -1683,6 +1753,36 @@ Error markAllSymbolsLive(LinkGraph &G);
 Error makeTargetOutOfRangeError(const LinkGraph &G, const Block &B,
                                 const Edge &E);
 
+/// Base case for edge-visitors where the visitor-list is empty.
+inline void visitEdge(LinkGraph &G, Block *B, Edge &E) {}
+
+/// Applies the first visitor in the list to the given edge. If the visitor's
+/// visitEdge method returns true then we return immediately, otherwise we
+/// apply the next visitor.
+template <typename VisitorT, typename... VisitorTs>
+void visitEdge(LinkGraph &G, Block *B, Edge &E, VisitorT &&V,
+               VisitorTs &&...Vs) {
+  if (!V.visitEdge(G, B, E))
+    visitEdge(G, B, E, std::forward<VisitorTs>(Vs)...);
+}
+
+/// For each edge in the given graph, apply a list of visitors to the edge,
+/// stopping when the first visitor's visitEdge method returns true.
+///
+/// Only visits edges that were in the graph at call time: if any visitor
+/// adds new edges those will not be visited. Visitors are not allowed to
+/// remove edges (though they can change their kind, target, and addend).
+template <typename... VisitorTs>
+void visitExistingEdges(LinkGraph &G, VisitorTs &&...Vs) {
+  // We may add new blocks during this process, but we don't want to iterate
+  // over them, so build a worklist.
+  std::vector<Block *> Worklist(G.blocks().begin(), G.blocks().end());
+
+  for (auto *B : Worklist)
+    for (auto &E : B->edges())
+      visitEdge(G, B, E, std::forward<VisitorTs>(Vs)...);
+}
+
 /// Create a LinkGraph from the given object buffer.
 ///
 /// Note: The graph does not take ownership of the underlying buffer, nor copy
@@ -1690,6 +1790,10 @@ Error makeTargetOutOfRangeError(const LinkGraph &G, const Block &B,
 /// outlives the graph.
 Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromObject(MemoryBufferRef ObjectBuffer);
+
+/// Get the right edge kind name function for a target triple.
+Expected<LinkGraph::GetEdgeKindNameFunction>
+getGetEdgeKindNameFunction(const Triple &TT);
 
 /// Link the given graph.
 void link(std::unique_ptr<LinkGraph> G, std::unique_ptr<JITLinkContext> Ctx);

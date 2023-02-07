@@ -8,6 +8,7 @@
 
 #include "Config.h"
 #include "Driver.h"
+#include "FileSystem.h"
 #include "InputFiles.h"
 #include "ObjC.h"
 #include "Target.h"
@@ -19,17 +20,20 @@
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/Utils.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TextAPI/InterfaceFile.h"
 #include "llvm/TextAPI/TextAPIReader.h"
 
 using namespace llvm;
+using namespace llvm::cas;
 using namespace llvm::MachO;
 using namespace llvm::opt;
 using namespace llvm::sys;
@@ -114,7 +118,7 @@ void MachOOptTable::printHelp(const char *argv0, bool showHidden) const {
 }
 
 static std::string rewritePath(StringRef s) {
-  if (fs::exists(s))
+  if (macho::fs::exists(s))
     return relativeToRoot(s);
   return std::string(s);
 }
@@ -122,14 +126,15 @@ static std::string rewritePath(StringRef s) {
 static std::string rewriteInputPath(StringRef s) {
   // Don't bother rewriting "absolute" paths that are actually under the
   // syslibroot; simply rewriting the syslibroot is sufficient.
-  if (rerootPath(s) == s && fs::exists(s))
+  if (rerootPath(s) == s && macho::fs::exists(s))
     return relativeToRoot(s);
   return std::string(s);
 }
 
 // Reconstructs command line arguments so that so that you can re-run
 // the same command with the same inputs. This is for --reproduce.
-std::string macho::createResponseFile(const InputArgList &args) {
+std::string macho::createResponseFile(const InputArgList &args,
+                                      bool isForCacheKey) {
   SmallString<0> data;
   raw_svector_ostream os(data);
 
@@ -142,7 +147,15 @@ std::string macho::createResponseFile(const InputArgList &args) {
       os << quote(rewriteInputPath(arg->getValue())) << "\n";
       break;
     case OPT_o:
-      os << "-o " << quote(path::filename(arg->getValue())) << "\n";
+      if (isForCacheKey) {
+        if (getOutputType(args) != MH_EXECUTE) {
+          // Add the full filename since it can be part of the output for
+          // dylibs.
+          os << "-o " << arg->getValue() << "\n";
+        }
+      } else {
+        os << "-o " << quote(path::filename(arg->getValue())) << "\n";
+      }
       break;
     case OPT_filelist:
       if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
@@ -170,6 +183,16 @@ std::string macho::createResponseFile(const InputArgList &args) {
          << quote(arg->getValue(1)) << " "
          << quote(rewritePath(arg->getValue(2))) << "\n";
       break;
+    case OPT_verbose:
+    case OPT_time_trace:
+    case OPT_time_trace_granularity_eq:
+    case OPT_time_trace_file_eq:
+      if (isForCacheKey) {
+        // Useful to ignore so the option can be enabled/disabled without
+        // affecting the caching itself.
+        break;
+      }
+      LLVM_FALLTHROUGH;
     default:
       os << toString(*arg) << "\n";
     }
@@ -187,14 +210,14 @@ static void searchedDylib(const Twine &path, bool found) {
 Optional<std::string> macho::resolveDylibPath(StringRef dylibPath) {
   // TODO: if a tbd and dylib are both present, we should check to make sure
   // they are consistent.
-  bool dylibExists = fs::exists(dylibPath);
+  bool dylibExists = macho::fs::exists(dylibPath);
   searchedDylib(dylibPath, dylibExists);
   if (dylibExists)
     return std::string(dylibPath);
 
   SmallString<261> tbdPath = dylibPath;
   path::replace_extension(tbdPath, ".tbd");
-  bool tbdExists = fs::exists(tbdPath);
+  bool tbdExists = macho::fs::exists(tbdPath);
   searchedDylib(tbdPath, tbdExists);
   if (tbdExists)
     return std::string(tbdPath);
@@ -204,6 +227,10 @@ Optional<std::string> macho::resolveDylibPath(StringRef dylibPath) {
 // It's not uncommon to have multiple attempts to load a single dylib,
 // especially if it's a commonly re-exported core library.
 static DenseMap<CachedHashStringRef, DylibFile *> loadedDylibs;
+
+void macho::resetLoadedDylibs() {
+  loadedDylibs.clear();
+}
 
 DylibFile *macho::loadDylib(MemoryBufferRef mbref, DylibFile *umbrella,
                             bool isBundleLoader) {
@@ -257,7 +284,7 @@ macho::findPathCombination(const Twine &name,
     path::append(base, name);
     for (StringRef ext : extensions) {
       Twine location = base + ext;
-      bool exists = fs::exists(location);
+      bool exists = macho::fs::exists(location);
       searchedDylib(location, exists);
       if (exists)
         return saver.save(location.str());
@@ -285,17 +312,43 @@ Optional<InputFile *> macho::loadArchiveMember(MemoryBufferRef mb,
   if (config->zeroModTime)
     modTime = 0;
 
+  StringRef memberName = mb.getBufferIdentifier();
   switch (identify_magic(mb.getBuffer())) {
   case file_magic::macho_object:
     if (!objCOnly || hasObjCSection(mb))
       return make<ObjFile>(mb, modTime, archiveName);
     return None;
+  case file_magic::cas_id: {
+    if (!config->CAS) {
+      error(archiveName + ": archive member " + memberName +
+            " embedding a CAS-ID but CAS is not enabled");
+      return None;
+    }
+    CASDB &CAS = *config->CAS;
+    auto ID = readCASIDBuffer(CAS, mb);
+    if (!ID) {
+      error(archiveName + ": archive member " + memberName +
+            " failed reading CAS-ID: " + toString(ID.takeError()));
+      return None;
+    }
+    auto blobRef = CAS.getBlob(*ID);
+    if (!blobRef) {
+      consumeError(blobRef.takeError());
+      error(archiveName + ": archive member " + memberName +
+            " embedding a non-blob CAS-ID");
+      return None;
+    }
+    MemoryBufferRef objectMB(blobRef->getData(), memberName);
+    if (!objCOnly || hasObjCSection(objectMB))
+      return make<ObjFile>(objectMB, *blobRef, archiveName);
+    return None;
+  }
   case file_magic::bitcode:
     if (!objCOnly || check(isBitcodeContainingObjCCategory(mb)))
       return make<BitcodeFile>(mb, archiveName, offsetInArchive);
     return None;
   default:
-    error(archiveName + ": archive member " + mb.getBufferIdentifier() +
+    error(archiveName + ": archive member " + memberName +
           " has unhandled file type");
     return None;
   }
@@ -305,9 +358,9 @@ uint32_t macho::getModTime(StringRef path) {
   if (config->zeroModTime)
     return 0;
 
-  fs::file_status stat;
-  if (!fs::status(path, stat))
-    if (fs::exists(stat))
+  vfs::Status stat;
+  if (!macho::fs::status(path, stat))
+    if (stat.exists())
       return toTimeT(stat.getLastModificationTime());
 
   warn("failed to get modification time of " + path);
@@ -323,7 +376,7 @@ void macho::printArchiveMemberLoad(StringRef reason, const InputFile *f) {
 
 macho::DependencyTracker::DependencyTracker(StringRef path)
     : path(path), active(!path.empty()) {
-  if (active && fs::exists(path) && !fs::can_write(path)) {
+  if (active && sys::fs::exists(path) && !sys::fs::can_write(path)) {
     warn("Ignoring dependency_info option since specified path is not "
          "writeable.");
     active = false;
@@ -337,7 +390,7 @@ void macho::DependencyTracker::write(StringRef version,
     return;
 
   std::error_code ec;
-  raw_fd_ostream os(path, ec, fs::OF_None);
+  raw_fd_ostream os(path, ec, sys::fs::OF_None);
   if (ec) {
     warn("Error writing dependency info to file");
     return;

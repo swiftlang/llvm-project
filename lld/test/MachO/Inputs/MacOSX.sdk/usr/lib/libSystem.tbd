@@ -50,7 +50,7 @@ parent-umbrella:
     umbrella:     System
 exports:
   - targets:      [ x86_64-macos, x86_64-maccatalyst, arm64-macos ]
-    symbols:      [ ]
+    symbols:      [ _putchar ]
 --- !tapi-tbd
 tbd-version:      4
 targets:          [ x86_64-macos, x86_64-maccatalyst, arm64-macos ]

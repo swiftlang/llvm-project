@@ -142,6 +142,7 @@ class Command {
 
   /// See Command::setEnvironment
   std::vector<const char *> Environment;
+  std::vector<const char *> EnvironmentDisplay;
 
   /// Information on executable run provided by OS.
   mutable Optional<llvm::sys::ProcessStatistics> ProcStat;
@@ -206,6 +207,9 @@ public:
   ///         from the parent process will be used.
   virtual void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment);
 
+  /// Sets the environment to display in `-###`.
+  virtual void setEnvironmentDisplay(llvm::ArrayRef<const char *> Display);
+
   const char *getExecutable() const { return Executable; }
 
   const llvm::opt::ArgStringList &getArguments() const { return Arguments; }
@@ -229,6 +233,23 @@ protected:
 class CC1Command : public Command {
 public:
   CC1Command(const Action &Source, const Tool &Creator,
+             ResponseFileSupport ResponseSupport, const char *Executable,
+             const llvm::opt::ArgStringList &Arguments,
+             ArrayRef<InputInfo> Inputs, ArrayRef<InputInfo> Outputs = None);
+
+  void Print(llvm::raw_ostream &OS, const char *Terminator, bool Quote,
+             CrashReportInfo *CrashInfo = nullptr) const override;
+
+  int Execute(ArrayRef<Optional<StringRef>> Redirects, std::string *ErrMsg,
+              bool *ExecutionFailed) const override;
+
+  void setEnvironment(llvm::ArrayRef<const char *> NewEnvironment) override;
+};
+
+/// Automatically cache -cc1 commands when possible.
+class CachingCC1Command : public CC1Command {
+public:
+  CachingCC1Command(const Action &Source, const Tool &Creator,
              ResponseFileSupport ResponseSupport, const char *Executable,
              const llvm::opt::ArgStringList &Arguments,
              ArrayRef<InputInfo> Inputs, ArrayRef<InputInfo> Outputs = None);

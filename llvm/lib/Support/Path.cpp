@@ -12,6 +12,7 @@
 
 #include "llvm/Support/Path.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Errc.h"
@@ -37,11 +38,7 @@ namespace {
   using llvm::sys::path::Style;
 
   inline Style real_style(Style style) {
-#ifdef _WIN32
-    return (style == Style::posix) ? Style::posix : Style::windows;
-#else
-    return (style == Style::windows) ? Style::windows : Style::posix;
-#endif
+    return style == Style::native ? llvm::sys::path::system_style() : style;
   }
 
   inline const char *separators(Style style) {
@@ -1165,6 +1162,25 @@ char *mapped_file_region::data() const {
 const char *mapped_file_region::const_data() const {
   assert(Mapping && "Mapping failed but used anyway!");
   return reinterpret_cast<const char *>(Mapping);
+}
+
+Error readNativeFileToEOF(file_t FileHandle, SmallVectorImpl<char> &Buffer,
+                          ssize_t ChunkSize) {
+  // Install a handler to truncate the buffer to the correct size on exit.
+  size_t Size = Buffer.size();
+  auto TruncateOnExit = make_scope_exit([&]() { Buffer.truncate(Size); });
+
+  // Read into Buffer until we hit EOF.
+  for (;;) {
+    Buffer.resize_for_overwrite(Size + ChunkSize);
+    Expected<size_t> ReadBytes = readNativeFile(
+        FileHandle, makeMutableArrayRef(Buffer.begin() + Size, ChunkSize));
+    if (!ReadBytes)
+      return ReadBytes.takeError();
+    if (*ReadBytes == 0)
+      return Error::success();
+    Size += *ReadBytes;
+  }
 }
 
 } // end namespace fs

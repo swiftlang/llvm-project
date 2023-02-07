@@ -7,6 +7,7 @@ add_llvm_component_library(LLVMFrontendOpenACC
 
   DEPENDS
   acc_gen
+  ObjdumpOptsTableGen
 )
 
 target_link_libraries(LLVMFrontendOpenACC LLVMSupport)

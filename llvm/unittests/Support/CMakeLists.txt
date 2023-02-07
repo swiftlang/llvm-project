@@ -58,8 +58,11 @@ add_llvm_unittest(SupportTests
   MemoryTest.cpp
   NativeFormatTests.cpp
   OptimizedStructLayoutTest.cpp
+  OutputConfigTest.cpp
+  OutputBackendTest.cpp
   ParallelTest.cpp
   Path.cpp
+  PrefixMapperTest.cpp
   ProcessTest.cpp
   ProgramTest.cpp
   RegexTest.cpp

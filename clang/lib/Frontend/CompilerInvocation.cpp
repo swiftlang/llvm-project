@@ -14,6 +14,7 @@
 #include "clang/Basic/CommentOptions.h"
 #include "clang/Basic/DebugInfoOptions.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticCAS.h"
 #include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/FileSystemOptions.h"
@@ -61,6 +62,8 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Linker/Linker.h"
@@ -2216,6 +2219,42 @@ static bool checkVerifyPrefixes(const std::vector<std::string> &VerifyPrefixes,
   return Success;
 }
 
+static void GenerateCASArgs(const CASOptions &Opts,
+                            SmallVectorImpl<const char *> &Args,
+                            CompilerInvocation::StringAllocator SA) {
+  const CASOptions &CASOpts = Opts;
+
+#define CAS_OPTION_WITH_MARSHALLING(                                           \
+    PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
+    HELPTEXT, METAVAR, VALUES, SPELLING, SHOULD_PARSE, ALWAYS_EMIT, KEYPATH,   \
+    DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER,     \
+    MERGER, EXTRACTOR, TABLE_INDEX)                                            \
+  GENERATE_OPTION_WITH_MARSHALLING(                                            \
+      Args, SA, KIND, FLAGS, SPELLING, ALWAYS_EMIT, KEYPATH, DEFAULT_VALUE,    \
+      IMPLIED_CHECK, IMPLIED_VALUE, DENORMALIZER, EXTRACTOR, TABLE_INDEX)
+#include "clang/Driver/Options.inc"
+#undef CAS_OPTION_WITH_MARSHALLING
+}
+
+static bool ParseCASArgs(CASOptions &Opts, const ArgList &Args,
+                         DiagnosticsEngine &Diags) {
+  CASOptions &CASOpts = Opts;
+  bool Success = true;
+
+#define CAS_OPTION_WITH_MARSHALLING(                                           \
+    PREFIX_TYPE, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,        \
+    HELPTEXT, METAVAR, VALUES, SPELLING, SHOULD_PARSE, ALWAYS_EMIT, KEYPATH,   \
+    DEFAULT_VALUE, IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, DENORMALIZER,     \
+    MERGER, EXTRACTOR, TABLE_INDEX)                                            \
+  PARSE_OPTION_WITH_MARSHALLING(                                               \
+      Args, Diags, ID, FLAGS, PARAM, SHOULD_PARSE, KEYPATH, DEFAULT_VALUE,     \
+      IMPLIED_CHECK, IMPLIED_VALUE, NORMALIZER, MERGER, TABLE_INDEX)
+#include "clang/Driver/Options.inc"
+#undef CAS_OPTION_WITH_MARSHALLING
+
+  return Success;
+}
+
 static void GenerateFileSystemArgs(const FileSystemOptions &Opts,
                                    SmallVectorImpl<const char *> &Args,
                                    CompilerInvocation::StringAllocator SA) {
@@ -2506,7 +2545,7 @@ static const auto &getFrontendActionTable() {
       {frontend::MigrateSource, OPT_migrate},
       {frontend::RunPreprocessorOnly, OPT_Eonly},
       {frontend::PrintDependencyDirectivesSourceMinimizerOutput,
-          OPT_print_dependency_directives_minimized_source},
+       OPT_print_dependency_directives_minimized_source},
   };
 
   return Table;
@@ -4564,6 +4603,7 @@ bool CompilerInvocation::CreateFromArgsImpl(
           << ArgString << Nearest;
   }
 
+  ParseCASArgs(Res.getCASOpts(), Args, Diags);
   ParseFileSystemArgs(Res.getFileSystemOpts(), Args, Diags);
   ParseMigratorArgs(Res.getMigratorOpts(), Args, Diags);
   ParseAnalyzerArgs(*Res.getAnalyzerOpts(), Args, Diags);
@@ -4812,6 +4852,7 @@ void CompilerInvocation::generateCC1CommandLine(
     SmallVectorImpl<const char *> &Args, StringAllocator SA) const {
   llvm::Triple T(TargetOpts->Triple);
 
+  GenerateCASArgs(CASOpts, Args, SA);
   GenerateFileSystemArgs(FileSystemOpts, Args, SA);
   GenerateMigratorArgs(MigratorOpts, Args, SA);
   GenerateAnalyzerArgs(*AnalyzerOpts, Args, SA);
@@ -4831,11 +4872,109 @@ void CompilerInvocation::generateCC1CommandLine(
   GenerateDependencyOutputArgs(DependencyOutputOpts, Args, SA);
 }
 
+static std::shared_ptr<llvm::cas::CASDB>
+createBuiltinCASImpl(const CASOptions &Opts, DiagnosticsEngine &Diags) {
+  if (Opts.BuiltinPath.empty())
+    return llvm::cas::createInMemoryCAS();
+
+  // FIXME: Pass on the actual error from the CAS.
+  if (auto MaybeCAS = llvm::expectedToOptional(
+          llvm::cas::createOnDiskCAS(Opts.BuiltinPath)))
+    return std::move(*MaybeCAS);
+  Diags.Report(diag::err_builtin_cas_cannot_be_initialized) << Opts.BuiltinPath;
+  return nullptr;
+}
+
+/// Create a CAS, memoizing the result so they can be shared.
+///
+/// FIXME: Memoize for plugins as well as builtins.
+static std::shared_ptr<llvm::cas::CASDB> createCAS(const CASOptions &Opts,
+                                                   DiagnosticsEngine &Diags) {
+  assert(Opts.Kind != CASOptions::NoCAS && "Expected to need a CAS");
+  if (Opts.Kind == CASOptions::PluginCAS) {
+    // FIXME: Pass on the actual error text from the CAS.
+    if (auto MaybeCAS = llvm::expectedToOptional(
+            llvm::cas::createPluginCAS(Opts.PluginPath, Opts.PluginArgs)))
+      return std::move(*MaybeCAS);
+
+    // FIXME: Add notes with the plugin arguments?
+    Diags.Report(diag::err_cas_plugin_cannot_be_loaded) << Opts.PluginPath;
+    return nullptr;
+  }
+
+  static llvm::StringMap<std::weak_ptr<llvm::cas::CASDB>> SharedMap;
+  static std::mutex SharedMapMutex;
+  std::lock_guard<std::mutex> Lock(SharedMapMutex);
+
+  std::weak_ptr<llvm::cas::CASDB> &CachedDB = SharedMap[Opts.BuiltinPath];
+  if (std::shared_ptr<llvm::cas::CASDB> DB = CachedDB.lock())
+    return DB;
+
+  std::shared_ptr<llvm::cas::CASDB> DB = createBuiltinCASImpl(Opts, Diags);
+  CachedDB = DB;
+  return DB;
+}
+
+std::shared_ptr<llvm::cas::CASDB>
+clang::createCASFromCompilerInvocation(const CompilerInvocation &CI,
+                                       DiagnosticsEngine &Diags) {
+  const CASOptions &Opts = CI.getCASOpts();
+  if (Opts.Kind == CASOptions::NoCAS)
+    return nullptr;
+
+  return createCAS(Opts, Diags);
+}
+
+static IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+createBaseFS(const CASOptions &Opts, DiagnosticsEngine &Diags) {
+  if (Opts.Kind == CASOptions::NoCAS || Opts.CASFileSystemRootID.empty())
+    return llvm::vfs::getRealFileSystem();
+
+  // Helper for creating a valid (but empty) CASFS if an error is encountered.
+  auto makeEmptyCASFS = []() {
+    std::unique_ptr<llvm::cas::CASDB> CAS = llvm::cas::createInMemoryCAS();
+    llvm::cas::CASID EmptyRootID = llvm::cantFail(CAS->createTree(None));
+    return llvm::cantFail(
+        llvm::cas::createCASFileSystem(std::move(CAS), EmptyRootID));
+  };
+
+  std::shared_ptr<llvm::cas::CASDB> CAS = createCAS(Opts, Diags);
+  if (!CAS)
+    return makeEmptyCASFS(); // Error already reported.
+
+  StringRef RootIDString = Opts.CASFileSystemRootID;
+  Expected<llvm::cas::CASID> RootID = CAS->parseCASID(RootIDString);
+  if (!RootID) {
+    llvm::consumeError(RootID.takeError());
+    Diags.Report(diag::err_cas_cannot_parse_root_id) << RootIDString;
+    return makeEmptyCASFS();
+  }
+
+  Expected<std::unique_ptr<llvm::vfs::FileSystem>> ExpectedFS =
+      llvm::cas::createCASFileSystem(std::move(CAS), *RootID);
+  if (!ExpectedFS) {
+    llvm::consumeError(ExpectedFS.takeError());
+    Diags.Report(diag::err_cas_filesystem_cannot_be_initialized)
+        << RootIDString;
+    return makeEmptyCASFS();
+  }
+  std::unique_ptr<llvm::vfs::FileSystem> FS = std::move(*ExpectedFS);
+
+  // Try to change directories.
+  StringRef CWD = Opts.CASFileSystemWorkingDirectory;
+  if (!CWD.empty())
+    if (std::error_code EC = FS->setCurrentWorkingDirectory(CWD))
+      Diags.Report(diag::err_cas_filesystem_cannot_set_working_directory)
+          << CWD;
+
+  return std::move(FS);
+}
+
 IntrusiveRefCntPtr<llvm::vfs::FileSystem>
 clang::createVFSFromCompilerInvocation(const CompilerInvocation &CI,
                                        DiagnosticsEngine &Diags) {
   return createVFSFromCompilerInvocation(CI, Diags,
-                                         llvm::vfs::getRealFileSystem());
+                                         createBaseFS(CI.getCASOpts(), Diags));
 }
 
 IntrusiveRefCntPtr<llvm::vfs::FileSystem>

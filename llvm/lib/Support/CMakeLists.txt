@@ -153,8 +153,11 @@ add_llvm_component_library(LLVMSupport
   NativeFormatting.cpp
   OptimizedStructLayout.cpp
   Optional.cpp
+  OutputBackend.cpp
+  OutputConfig.cpp
   Parallel.cpp
   PluginLoader.cpp
+  PrefixMapper.cpp
   PrettyStackTrace.cpp
   RandomNumberGenerator.cpp
   Regex.cpp

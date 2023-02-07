@@ -283,7 +283,7 @@ if( LLVM_ENABLE_LLD )
     message(FATAL_ERROR "LLVM_ENABLE_LLD and LLVM_USE_LINKER can't be set at the same time")
   endif()
   # In case of MSVC cmake always invokes the linker directly, so the linker
-  # should be specified by CMAKE_LINKER cmake variable instead of by -fuse-ld
+  # should be specified by CMAKE_LINKER cmake variable instead of by --ld-path
   # compiler option.
   if ( NOT MSVC )
     set(LLVM_USE_LINKER "lld")
@@ -292,13 +292,13 @@ endif()
 
 if( LLVM_USE_LINKER )
   set(OLD_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
-  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -fuse-ld=${LLVM_USE_LINKER}")
+  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} --ld-path=${LLVM_USE_LINKER}")
   check_cxx_source_compiles("int main() { return 0; }" CXX_SUPPORTS_CUSTOM_LINKER)
   if ( NOT CXX_SUPPORTS_CUSTOM_LINKER )
-    message(FATAL_ERROR "Host compiler does not support '-fuse-ld=${LLVM_USE_LINKER}'")
+    message(FATAL_ERROR "Host compiler does not support '--ld-path=${LLVM_USE_LINKER}'")
   endif()
   set(CMAKE_REQUIRED_FLAGS ${OLD_CMAKE_REQUIRED_FLAGS})
-  append("-fuse-ld=${LLVM_USE_LINKER}"
+  append("--ld-path=${LLVM_USE_LINKER}"
     CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
 endif()
 
@@ -1232,6 +1232,109 @@ if(LLVM_USE_RELATIVE_PATHS_IN_FILES)
   append_if(SUPPORTS_FFILE_PREFIX_MAP "-ffile-prefix-map=${CMAKE_BINARY_DIR}=${relative_root}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   append_if(SUPPORTS_FFILE_PREFIX_MAP "-ffile-prefix-map=${source_root}/=${LLVM_SOURCE_PREFIX}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   add_flag_if_supported("-no-canonical-prefixes" NO_CANONICAL_PREFIXES)
+endif()
+
+set(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN OFF CACHE BOOL
+  "Use the experimental -fdepscan and related flags")
+set(LLVM_DEPSCAN_MODE "" CACHE STRING "Mode for -fdepscan if used")
+set(LLVM_CAS_BUILTIN_PATH "" CACHE STRING "Path to pass for -fcas-builtin-path")
+set(LLVM_CAS_BUILTIN_PATH_Default "/^llvm::cas::builtin::default/llvm.cas.builtin.default")
+if (LLVM_CAS_BUILTIN_PATH)
+  set(LLVM_CAS_BUILTIN_PATH_Default "${LLVM_CAS_BUILTIN_PATH}")
+endif()
+set(LLVM_CAS_ENABLE_CASID_OBJECT_OUTPUTS OFF CACHE BOOL
+  "When the experimental -fdepscan is enabled also enable writing CASIDs for object files")
+if(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN)
+  # Don't daemonize when running the check.
+  check_c_compiler_flag("-fdepscan=off" SUPPORTS_DEPSCAN)
+
+  # Check LLVM_DEPSCAN_MODE before entering if() in order to claim it.
+  if(LLVM_DEPSCAN_MODE)
+    append_if(SUPPORTS_DEPSCAN "-fdepscan=${LLVM_DEPSCAN_MODE}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  else()
+    append_if(SUPPORTS_DEPSCAN "-fdepscan" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  endif()
+
+  if(SUPPORTS_DEPSCAN)
+    check_c_compiler_flag("-fdepscan=off -fdepscan-share-stop=cmake" SUPPORTS_DEPSCAN_SHARE)
+    if(SUPPORTS_DEPSCAN_SHARE)
+      get_filename_component(CMAKE_MAKE_PROGRAM_NAME "${CMAKE_MAKE_PROGRAM}" NAME)
+      if(CMAKE_GENERATOR STREQUAL "Ninja")
+        # Ninja should always be direct parent of clang invocations (except
+        # during configuration). Avoid unnecessary ancestor searches.
+        set(fdepscan_share "-fdepscan-share-parent")
+      else()
+        # Other build systems may use subshells.
+        set(fdepscan_share "-fdepscan-share")
+      endif()
+
+      append("${fdepscan_share}=${CMAKE_MAKE_PROGRAM_NAME}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+      append("-fdepscan-share-stop=cmake" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    endif()
+
+    if(LLVM_ENABLE_PROJECTS_USED)
+      get_filename_component(source_root "${LLVM_MAIN_SRC_DIR}/.." ABSOLUTE)
+    else()
+      set(source_root "${LLVM_MAIN_SRC_DIR}")
+    endif()
+
+    append("-fdepscan-prefix-map-sdk=/^sdk" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append("-fdepscan-prefix-map-toolchain=/^toolchain" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append("-fdepscan-prefix-map=${source_root}=/^source" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append("-fdepscan-prefix-map=${CMAKE_BINARY_DIR}=/^build" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+
+    check_c_compiler_flag("-greproducible" SUPPORTS_GREPRODUCIBLE)
+    if(SUPPORTS_GREPRODUCIBLE)
+      append("-greproducible"
+        CMAKE_C_FLAGS CMAKE_CXX_FLAGS
+        CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+    endif()
+  endif()
+endif()
+
+set(LLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE OFF CACHE BOOL
+    "Cache tokens using -Xclang -fcas-cache-tokens")
+if(LLVM_ENABLE_EXPERIMENTAL_CAS_TOKEN_CACHE)
+  check_c_compiler_flag("-Xclang -fcas-token-cache" SUPPORTS_CAS_TOKEN_CACHE)
+  if(SUPPORTS_CAS_TOKEN_CACHE)
+    append("-Xclang" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    append("-fcas-token-cache" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  endif()
+endif()
+
+# Do depscan caching in tablegen.
+set(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN OFF CACHE BOOL
+  "Use the depscanning in tablegen")
+if(LLVM_ENABLE_EXPERIMENTAL_DEPSCAN_TABLEGEN)
+  list(APPEND LLVM_TABLEGEN_FLAGS "--depscan")
+
+  if(LLVM_ENABLE_PROJECTS_USED)
+    get_filename_component(source_root "${LLVM_MAIN_SRC_DIR}/.." ABSOLUTE)
+  else()
+    set(source_root "${LLVM_MAIN_SRC_DIR}")
+  endif()
+
+  list(APPEND LLVM_TABLEGEN_FLAGS "--depscan-prefix-map=${source_root}=/^source")
+  list(APPEND LLVM_TABLEGEN_FLAGS "--depscan-prefix-map=${CMAKE_BINARY_DIR}=/^build")
+endif()
+
+set(LLVM_ENABLE_EXPERIMENTAL_LINKER_RESULT_CACHE OFF CACHE BOOL
+  "Use the result cache for linker invocations")
+if(LLVM_ENABLE_EXPERIMENTAL_LINKER_RESULT_CACHE)
+  # FIXME: Do check that the linker supports these flags and error out if not.
+  append("-Xlinker --fcas-cache-results -Xlinker --fcas-builtin-path -Xlinker ${LLVM_CAS_BUILTIN_PATH_Default}"
+    CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+endif()
+
+if (LLVM_CAS_ENABLE_CASID_OBJECT_OUTPUTS)
+  # This needs to be enabled next to the linker becoming CAS-aware, otherwise
+  # compiler flag checks will fail.
+  if(NOT LLVM_ENABLE_EXPERIMENTAL_LINKER_RESULT_CACHE)
+    message(FATAL_ERROR "LLVM_CAS_ENABLE_CASID_OBJECT_OUTPUTS requires a CAS-aware linker")
+  endif()
+  append("-Xclang -fcasid-output" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  # FIXME: Do check that libtool supports embedded CASIDs and error out if not.
+  append("-fcas builtin -fcas-builtin-path ${LLVM_CAS_BUILTIN_PATH_Default}" CMAKE_STATIC_LINKER_FLAGS)
 endif()
 
 if(LLVM_INCLUDE_TESTS)

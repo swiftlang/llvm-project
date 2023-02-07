@@ -56,7 +56,8 @@ Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
   std::tie(s, wasInserted) = insert(name, file);
 
   assert(!isWeakDef || (isa<BitcodeFile>(file) && !isec) ||
-         (isa<ObjFile>(file) && file == isec->getFile()));
+         ((isa<ObjFile>(file) || isa<CASSchemaFile>(file)) &&
+          file == isec->getFile()));
 
   if (!wasInserted) {
     if (auto *defined = dyn_cast<Defined>(s)) {

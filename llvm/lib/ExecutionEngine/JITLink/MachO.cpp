@@ -1,9 +1,8 @@
 //===-------------- MachO.cpp - JIT linker function for MachO -------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -16,6 +15,7 @@
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/ExecutionEngine/JITLink/MachO_arm64.h"
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
+#include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SwapByteOrder.h"
@@ -71,6 +71,17 @@ createLinkGraphFromMachOObject(MemoryBufferRef ObjectBuffer) {
     return make_error<JITLinkError>("MachO-64 CPU type not valid");
   } else
     return make_error<JITLinkError>("Unrecognized MachO magic value");
+}
+
+Expected<LinkGraph::GetEdgeKindNameFunction>
+getGetEdgeKindNameFunctionForMachO(const Triple &TT) {
+  assert(TT.isOSBinFormatMachO());
+  if (TT.isAArch64()) // FIXME: Should this check for 64-bit pointers?
+    return getMachOARM64RelocationKindName;
+  if (TT.getArch() == Triple::x86_64)
+    return x86_64::getEdgeKindName;
+
+  return make_error<JITLinkError>("Unsupported mach-o triple");
 }
 
 void link_MachO(std::unique_ptr<LinkGraph> G,

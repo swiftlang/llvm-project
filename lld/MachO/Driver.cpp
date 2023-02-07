@@ -8,6 +8,7 @@
 
 #include "Driver.h"
 #include "Config.h"
+#include "FileSystem.h"
 #include "ICF.h"
 #include "InputFiles.h"
 #include "LTO.h"
@@ -25,6 +26,7 @@
 #include "lld/Common/Args.h"
 #include "lld/Common/Driver.h"
 #include "lld/Common/ErrorHandler.h"
+#include "lld/Common/Filesystem.h"
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Reproduce.h"
@@ -34,12 +36,17 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/CAS/CASDB.h"
+#include "llvm/CAS/CASFileSystem.h"
+#include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/CAS/HierarchicalTreeBuilder.h"
+#include "llvm/CAS/Utils.h"
+#include "llvm/CASObjectFormats/SchemaBase.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Parallel.h"
@@ -47,11 +54,14 @@
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TextAPI/PackedVersion.h"
 
 #include <algorithm>
 
 using namespace llvm;
+using namespace llvm::cas;
+using namespace llvm::casobjectformats;
 using namespace llvm::MachO;
 using namespace llvm::object;
 using namespace llvm::opt;
@@ -62,7 +72,7 @@ using namespace lld::macho;
 Configuration *macho::config;
 DependencyTracker *macho::depTracker;
 
-static HeaderFileType getOutputType(const InputArgList &args) {
+HeaderFileType macho::getOutputType(const InputArgList &args) {
   // TODO: -r, -dylinker, -preload...
   Arg *outputArg = args.getLastArg(OPT_bundle, OPT_dylib, OPT_execute);
   if (outputArg == nullptr)
@@ -104,10 +114,10 @@ static Optional<std::string> findFramework(StringRef name) {
       // NOTE: we must resolve the symlink before trying the suffixes, because
       // there are no symlinks for the suffixed paths.
       SmallString<260> location;
-      if (!fs::real_path(symlink, location)) {
+      if (!macho::fs::real_path(symlink, location)) {
         // only append suffix if realpath() succeeds
         Twine suffixed = location + suffix;
-        if (fs::exists(suffixed))
+        if (macho::fs::exists(suffixed))
           return suffixed.str();
       }
       // Suffix lookup failed, fall through to the no-suffix case.
@@ -120,10 +130,10 @@ static Optional<std::string> findFramework(StringRef name) {
 }
 
 static bool warnIfNotDirectory(StringRef option, StringRef path) {
-  if (!fs::exists(path)) {
+  if (!macho::fs::exists(path)) {
     warn("directory not found for option -" + option + path);
     return false;
-  } else if (!fs::is_directory(path)) {
+  } else if (!macho::fs::is_directory(path)) {
     warn("option -" + option + path + " references a non-directory path");
     return false;
   }
@@ -144,7 +154,7 @@ getSearchPaths(unsigned optionCode, InputArgList &args,
         SmallString<261> buffer(root);
         path::append(buffer, path);
         // Do not warn about paths that are computed via the syslib roots
-        if (fs::is_directory(buffer)) {
+        if (macho::fs::is_directory(buffer)) {
           paths.push_back(saver.save(buffer.str()));
           found = true;
         }
@@ -162,7 +172,7 @@ getSearchPaths(unsigned optionCode, InputArgList &args,
     for (const StringRef &root : roots) {
       SmallString<261> buffer(root);
       path::append(buffer, path);
-      if (fs::is_directory(buffer))
+      if (macho::fs::is_directory(buffer))
         paths.push_back(saver.save(buffer.str()));
     }
   }
@@ -267,7 +277,31 @@ static std::vector<ArchiveMember> getArchiveMembers(MemoryBufferRef mb) {
   return v;
 }
 
+static void handleFileForDepScanning(MemoryBufferRef mbref) {
+  assert(config->depScanning);
+
+  file_magic magic = identify_magic(mbref.getBuffer());
+
+  switch (magic) {
+  case file_magic::macho_object:
+    // A macho object may contain additional libraries/framework to link with.
+    ObjFile::parseLCLinkerOptions(mbref);
+    break;
+  case file_magic::macho_dynamically_linked_shared_lib:
+  case file_magic::macho_dynamically_linked_shared_lib_stub:
+  case file_magic::tapi_file:
+    // A dylib may have load commands for other dylibs.
+    loadDylib(mbref);
+    break;
+  default:
+    break;
+  }
+}
+
 static DenseMap<StringRef, ArchiveFile *> loadedArchives;
+
+static Expected<InputFile *> addCASObject(SchemaPool &CASSchemas, CASID ID,
+                                          StringRef path);
 
 static InputFile *addFile(StringRef path, bool forceLoadArchive,
                           bool isExplicit = true, bool isBundleLoader = false) {
@@ -275,11 +309,12 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
   if (!buffer)
     return nullptr;
   MemoryBufferRef mbref = *buffer;
-  InputFile *newFile = nullptr;
+  if (config->depScanning) {
+    handleFileForDepScanning(mbref);
+    return nullptr;
+  }
 
-  file_magic magic = identify_magic(mbref.getBuffer());
-  switch (magic) {
-  case file_magic::archive: {
+  auto addArchive = [&](MemoryBufferRef mbref) -> InputFile * {
     // Avoid loading archives twice. If the archives are being force-loaded,
     // loading them twice would create duplicate symbol errors. In the
     // non-force-loading case, this is just a minor performance optimization.
@@ -330,9 +365,16 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
       }
     }
 
-    newFile = loadedArchives[path] = make<ArchiveFile>(std::move(file));
+    return loadedArchives[path] = make<ArchiveFile>(std::move(file));
+  };
+
+  InputFile *newFile = nullptr;
+  file_magic magic = identify_magic(mbref.getBuffer());
+
+  switch (magic) {
+  case file_magic::archive:
+    newFile = addArchive(mbref);
     break;
-  }
   case file_magic::macho_object:
     newFile = make<ObjFile>(mbref, getModTime(path), "");
     break;
@@ -357,6 +399,43 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
     if (DylibFile *dylibFile = loadDylib(mbref, nullptr, isBundleLoader))
       newFile = dylibFile;
     break;
+  case file_magic::cas_id: {
+    if (!config->CAS) {
+      error(path + ": embedding a CAS-ID but CAS is not enabled");
+      break;
+    }
+    CASDB &CAS = *config->CAS;
+    Expected<CASID> expCASID = readCASIDBuffer(CAS, mbref);
+    if (!expCASID) {
+      error(path + ": failed reading: " + toString(expCASID.takeError()));
+      break;
+    }
+    CASID ID = std::move(*expCASID);
+    auto blobRef = CAS.getBlob(ID);
+    if (blobRef) {
+      MemoryBufferRef casMBRef(blobRef->getData(), path);
+      switch (identify_magic(casMBRef.getBuffer())) {
+      case file_magic::archive:
+        newFile = addArchive(casMBRef);
+        break;
+      case file_magic::macho_object:
+        newFile = make<ObjFile>(casMBRef, *blobRef, "");
+        break;
+      default:
+        error(path + ": unexpected CASID file type");
+        break;
+      }
+    } else {
+      consumeError(blobRef.takeError());
+      auto casFile = addCASObject(*config->CASSchemas, ID, path);
+      if (!casFile) {
+        error(path + ": " + toString(casFile.takeError()));
+        break;
+      }
+      newFile = *casFile;
+    }
+    break;
+  }
   default:
     error(path + ": unhandled file type");
   }
@@ -368,6 +447,53 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
     inputFiles.insert(newFile);
   }
   return newFile;
+}
+
+/// Reads a CAS object.
+/// \param CAS CAS database.
+/// \param ID The CASID pointing at the root node of the CAS object.
+/// \param path The object filename.
+static Expected<InputFile *> addCASObject(SchemaPool &CASSchemas, CASID ID,
+                                          StringRef path) {
+  // FIXME: Check format from the CAS data instead of using the filename.
+  if (!path.endswith(".o")) {
+    return createStringError(inconvertibleErrorCode(),
+                             "only supporting .o files, found: " + path);
+  }
+  InputFile *newFile = nullptr;
+
+  newFile = make<CASSchemaFile>(CASSchemas, ID, path);
+  if (Error E = cast<CASSchemaFile>(newFile)->parse())
+    return std::move(E);
+
+  if (newFile) {
+    if (config->printEachFile)
+      message(toString(newFile));
+    inputFiles.insert(newFile);
+  }
+  return newFile;
+}
+
+/// Reads a CAS tree of CAS object files.
+/// \param CAS CAS database.
+/// \param ID The CASID pointing to a tree of files.
+static Error addCASTree(SchemaPool &CASSchemas, CASID ID) {
+  return walkFileTreeRecursively(
+      CASSchemas.getCAS(), ID,
+      [&](const NamedTreeEntry &entry, Optional<TreeRef>) -> Error {
+        if (entry.getKind() == TreeEntry::Tree)
+          return Error::success();
+        if (entry.getKind() != TreeEntry::Regular) {
+          // FIXME: Handle symlinks?
+          return createStringError(inconvertibleErrorCode(),
+                                   "found non-regular entry: " +
+                                       entry.getName());
+        }
+        if (auto E = addCASObject(CASSchemas, entry.getID(), entry.getName())
+                         .takeError())
+          return E;
+        return Error::success();
+      });
 }
 
 static void addLibrary(StringRef name, bool isNeeded, bool isWeak,
@@ -410,7 +536,8 @@ static void addFramework(StringRef name, bool isNeeded, bool isWeak,
 
 // Parses LC_LINKER_OPTION contents, which can add additional command line
 // flags.
-void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
+void macho::parseLCLinkerOption(StringRef inputName, unsigned argc,
+                                StringRef data) {
   SmallVector<const char *, 4> argv;
   size_t offset = 0;
   for (unsigned i = 0; i < argc && offset < data.size(); ++i) {
@@ -418,7 +545,7 @@ void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
     offset += strlen(data.data() + offset) + 1;
   }
   if (argv.size() != argc || offset > data.size())
-    fatal(toString(f) + ": invalid LC_LINKER_OPTION");
+    fatal(inputName + ": invalid LC_LINKER_OPTION");
 
   MachOOptTable table;
   unsigned missingIndex, missingCount;
@@ -807,6 +934,12 @@ static const char *getReproduceOption(InputArgList &args) {
   return getenv("LLD_REPRODUCE");
 }
 
+static bool isVerboseOptionEnabled(const InputArgList &args) {
+  if (args.hasArg(OPT_verbose))
+    return true;
+  return getenv("LLD_VERBOSE");
+}
+
 static void parseClangOption(StringRef opt, const Twine &msg) {
   std::string err;
   raw_string_ostream os(err);
@@ -967,6 +1100,12 @@ static void handleSymbolPatterns(InputArgList &args,
     symbolPatterns.insert(arg->getValue());
   for (const Arg *arg : args.filtered(listFileOptionCode)) {
     StringRef path = arg->getValue();
+    if (config->depScanning) {
+      // Register the input path with the caching filesystem.
+      vfs::Status stat;
+      macho::fs::status(path, stat);
+      continue;
+    }
     Optional<MemoryBufferRef> buffer = readFile(path);
     if (!buffer) {
       error("Could not read symbol file: " + path);
@@ -991,9 +1130,23 @@ void createFiles(const InputArgList &args) {
     warnIfUnimplementedOption(opt);
 
     switch (opt.getID()) {
-    case OPT_INPUT:
+    case OPT_INPUT: {
+      if (config->CAS) {
+        StringRef casid = arg->getValue();
+        if (auto optCASID =
+                expectedToOptional(config->CAS->parseCASID(casid))) {
+          if (config->depScanning)
+            continue; // we'll record the casid as part of the options.
+          if (auto E = addCASTree(*config->CASSchemas, *optCASID)) {
+            error("error walking CAS tree with ID '" + casid +
+                  "': " + toString(std::move(E)));
+          }
+          break;
+        }
+      }
       addFile(rerootPath(arg->getValue()), /*forceLoadArchive=*/false);
       break;
+    }
     case OPT_needed_library:
       if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
               addFile(rerootPath(arg->getValue()), false)))
@@ -1102,6 +1255,216 @@ static void referenceStubBinder() {
   symtab->addUndefined("dyld_stub_binder", /*file=*/nullptr, /*isWeak=*/false);
 }
 
+static bool shouldCacheResults(InputArgList &args) {
+  const Arg *arg =
+      args.getLastArg(OPT_fcas_cache_results, OPT_fcas_no_cache_results);
+  if (!arg || arg->getOption().getID() == OPT_fcas_no_cache_results)
+    return false;
+  if (!config->CAS) {
+    error("--fcas-cache-results is used but CAS is disabled");
+    return false;
+  }
+  if (args.hasArg(OPT_fcas_fs)) {
+    // FIXME: Need to have a \p CachingOnDiskFileSystem that can track accesses
+    // over a CAS tree, instead of the real filesystem.
+    error("--fcas-cache-results is incompatible with --fcas-fs currently");
+    return false;
+  }
+  if (args.hasArg(OPT_map))
+    warn("-map not supported for caching");
+  if (args.hasArg(OPT_dependency_info))
+    warn("-dependency_info not supported for caching");
+  return true;
+}
+
+static bool link(InputArgList &args, bool canExitEarly, raw_ostream &stdoutOS,
+                 raw_ostream &stderrOS);
+
+static CASID createResultCacheKey(CASDB &CAS, CASID rootID,
+                                  const InputArgList &args) {
+  // Change this when the schema for caching changes. It will ensure creation of
+  // brand new cachets.
+  constexpr unsigned CACHE_FORMAT_VERSION = 1;
+
+  HierarchicalTreeBuilder builder;
+  builder.push(rootID, TreeEntry::Tree, "filesystem");
+  builder.push(cantFail(CAS.createBlob(
+                   createResponseFile(args, /*isForCacheKey=*/true))),
+               TreeEntry::Regular, "arguments");
+  std::string version = getLLDVersion();
+  { raw_string_ostream(version) << '-' << CACHE_FORMAT_VERSION; }
+  builder.push(cantFail(CAS.createBlob(version)), TreeEntry::Regular,
+               "version");
+
+  return cantFail(builder.create(CAS)).getID();
+}
+
+static Error replayResult(CASDB &CAS, CASID resultID) {
+  TimeTraceScope timeScope("Caching: replay result");
+
+  std::unique_ptr<vfs::FileSystem> fs;
+  if (Expected<std::unique_ptr<vfs::FileSystem>> expectedFS =
+          createCASFileSystem(CAS, resultID))
+    fs = std::move(*expectedFS);
+  else
+    return expectedFS.takeError();
+
+  // FIXME: portable? Maybe, since CASFileSystem maybe will always be posix?
+  auto contentOrErr = fs->getBufferForFile("/output");
+  if (!contentOrErr)
+    return errorCodeToError(contentOrErr.getError());
+  std::unique_ptr<MemoryBuffer> content = std::move(*contentOrErr);
+
+  std::unique_ptr<FileOutputBuffer> output;
+  if (auto expectedOutput =
+          FileOutputBuffer::create(config->outputFile, content->getBufferSize(),
+                                   FileOutputBuffer::F_executable))
+    output = std::move(*expectedOutput);
+  else
+    return expectedOutput.takeError();
+  llvm::copy(content->getBuffer(), output->getBufferStart());
+  return output->commit();
+}
+
+static bool linkWithResultCaching(InputArgList &args, bool canExitEarly,
+                                  raw_ostream &stdoutOS,
+                                  raw_ostream &stderrOS) {
+  assert(config->CAS);
+  CASDB &CAS = *config->CAS;
+
+  Optional<CASID> optCacheKey;
+  Optional<TreeRef> rootRef;
+  {
+    TimeTraceScope timeScope("Caching: create key");
+
+    // FIXME: Allow doing input scanning using a CAS-FS. Need to have a \p
+    // CachingOnDiskFileSystem that can track accesses over a CAS tree, instead
+    // of the real filesystem.
+    auto cacheFS = createCachingOnDiskFileSystem(CAS);
+    if (!cacheFS) {
+      error("error creating caching filesystem: " +
+            toString(cacheFS.takeError()));
+      return ::link(args, canExitEarly, stdoutOS, stderrOS);
+    }
+    (*cacheFS)->trackNewAccesses();
+    auto originalFS = std::move(config->fs);
+    config->fs = *cacheFS;
+
+    config->depScanning = true;
+    if (!::link(args, canExitEarly, stdoutOS, stderrOS)) {
+      // We are exiting with an initial set of errors but not all the errors
+      // that would be emitted if \p link() was run normally, but it shouldn't
+      // be an issue in practice. If it is important to get the full set of
+      // errors we could hide the initial set of errors, so they are not emitted
+      // twice, and run \p link() again.
+      return false;
+    }
+    if (!inputFiles.empty())
+      report_fatal_error("dependency scanning added new input file");
+    if (!symtab->getSymbols().empty())
+      report_fatal_error("dependency scanning added new symbol");
+    resetLoadedDylibs();
+    config->depScanning = false;
+    config->fs = std::move(originalFS);
+
+    auto expectedRootRef = (*cacheFS)->createTreeFromAllAccesses();
+    if (!expectedRootRef) {
+      error("error creating CAS tree for inputs: " +
+            toString(expectedRootRef.takeError()));
+      return false;
+    }
+
+    optCacheKey = createResultCacheKey(CAS, *expectedRootRef, args);
+    rootRef = *expectedRootRef;
+  }
+
+  CASID cacheKey = *optCacheKey;
+  Expected<CASID> result = config->CAS->getCachedResult(cacheKey);
+  if (result) {
+    log("Caching: cache hit, result: " +
+        cantFail(CAS.convertCASIDToString(*result)) +
+        ", key: " + cantFail(CAS.convertCASIDToString(cacheKey)));
+    if (Error E = replayResult(CAS, std::move(*result))) {
+      error("error replaying cached result: " + toString(std::move(E)));
+      return false;
+    }
+    return true;
+  }
+
+  {
+    TimeTraceScope timeScope("Caching: link after cache miss");
+
+    log("Caching: cache miss, key: " +
+        cantFail(CAS.convertCASIDToString(cacheKey)));
+    consumeError(result.takeError());
+
+    SmallString<128> workingDirectory;
+    if (std::error_code ec = sys::fs::current_path(workingDirectory)) {
+      report_fatal_error(errorCodeToError(ec));
+    }
+
+    auto rootFS = createCASFileSystem(CAS, *rootRef);
+    if (!rootFS) {
+      error("error creating CASFS for root inputs: " +
+            toString(rootFS.takeError()));
+      return false;
+    }
+    (*rootFS)->setCurrentWorkingDirectory(workingDirectory);
+    // For the normal execution restrict access only to the input files that
+    // were determined to be part of the dependency scanning pass. This ensures
+    // that no input gets used that was not accounted for as part of the
+    // cache-key.
+    config->fs = std::move(*rootFS);
+
+    if (!::link(args, /*canExitEarly=*/false, stdoutOS, stderrOS))
+      return false;
+  }
+
+  {
+    TimeTraceScope timeScope("Caching: cache result");
+
+    // Go back to the real filesystem for handling the output file.
+    config->fs = vfs::getRealFileSystem();
+
+    // Cache the result.
+    // FIXME: Cache and replay the warning diagnostics.
+    // FIXME: Include other outputs, see the warnings emitted in \p
+    // shouldCacheResults().
+
+    // FIXME: Get the memory buffer of the output directly, instead of
+    // round-tripping from disk.
+    Optional<MemoryBufferRef> outBuffer = readFile(config->outputFile);
+    if (!outBuffer) {
+      return false;
+    }
+
+    Expected<BlobRef> blob = CAS.createBlob(outBuffer->getBuffer());
+    if (!blob) {
+      error("error creating CAS blob for output: " +
+            toString(blob.takeError()));
+      return false;
+    }
+
+    HierarchicalTreeBuilder builder;
+    builder.push(*blob, TreeEntry::Executable, "/output");
+    auto resultID = builder.create(CAS);
+    if (!resultID) {
+      error("error creating result CASID: " + toString(resultID.takeError()));
+      return false;
+    }
+
+    if (Error E = CAS.putCachedResult(cacheKey, *resultID)) {
+      error("error storing cached result: " + toString(std::move(E)));
+      return false;
+    }
+
+    log("Caching: cached result: " +
+        cantFail(CAS.convertCASIDToString(*resultID)));
+  }
+
+  return true;
+}
+
 bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
                  raw_ostream &stdoutOS, raw_ostream &stderrOS) {
   lld::stdoutOS = &stdoutOS;
@@ -1119,7 +1482,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
       "too many errors emitted, stopping now "
       "(use --error-limit=0 to see all errors)";
   errorHandler().errorLimit = args::getInteger(args, OPT_error_limit_eq, 20);
-  errorHandler().verbose = args.hasArg(OPT_verbose);
+  errorHandler().verbose = isVerboseOptionEnabled(args);
 
   if (args.hasArg(OPT_help_hidden)) {
     parser.printHelp(argsArr[0], /*showHidden=*/true);
@@ -1140,8 +1503,42 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   depTracker =
       make<DependencyTracker>(args.getLastArgValue(OPT_dependency_info));
 
-  // Must be set before any InputSections and Symbols are created.
-  config->deadStrip = args.hasArg(OPT_dead_strip);
+  config->progName = argsArr[0];
+
+  config->outputFile = args.getLastArgValue(OPT_o, "a.out");
+  config->finalOutput =
+      args.getLastArgValue(OPT_final_output, config->outputFile);
+
+  // Do CAS and virtual filesystem setup early on so that it is available for
+  // filesystem calls.
+
+  // FIXME: Only supporting the \p BuiltinCAS currently, add same flags and
+  // mechanism as on the clang side to be able to use any kind of CAS.
+  if (args.hasArg(OPT_cas_path)) {
+    StringRef path = args.getLastArgValue(OPT_cas_path);
+    auto CAS = llvm::cas::createOnDiskCAS(path);
+    if (CAS) {
+      config->CAS = std::move(*CAS);
+      config->CASSchemas = std::make_unique<SchemaPool>(*config->CAS);
+    } else {
+      error("error loading CAS at path '" + path +
+            "': " + toString(CAS.takeError()));
+    }
+  }
+  Optional<StringRef> CASFileSystemRootID;
+  if (args.hasArg(OPT_fcas_fs))
+    CASFileSystemRootID = args.getLastArgValue(OPT_fcas_fs);
+  Optional<StringRef> CASFileSystemWorkingDirectory;
+  if (args.hasArg(OPT_fcas_fs_working_directory))
+    CASFileSystemRootID = args.getLastArgValue(OPT_fcas_fs_working_directory);
+  auto fs = lld::createFileSystem(config->CAS.get(), CASFileSystemRootID,
+                                  CASFileSystemWorkingDirectory);
+  if (fs) {
+    config->fs = std::move(*fs);
+  } else {
+    error("error creating file system: " + toString(fs.takeError()));
+    config->fs = llvm::vfs::getRealFileSystem();
+  }
 
   config->systemLibraryRoots = getSystemLibraryRoots(args);
   if (const char *path = getReproduceOption(args)) {
@@ -1157,6 +1554,27 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
       error("--reproduce: " + toString(errOrWriter.takeError()));
     }
   }
+
+  config->timeTraceEnabled = args.hasArg(
+      OPT_time_trace, OPT_time_trace_granularity_eq, OPT_time_trace_file_eq);
+  config->timeTraceGranularity =
+      args::getInteger(args, OPT_time_trace_granularity_eq, 500);
+
+  // Initialize time trace profiler.
+  if (config->timeTraceEnabled)
+    timeTraceProfilerInitialize(config->timeTraceGranularity, config->progName);
+
+  if (shouldCacheResults(args))
+    return linkWithResultCaching(args, canExitEarly, stdoutOS, stderrOS);
+
+  return ::link(args, canExitEarly, stdoutOS, stderrOS);
+}
+
+static bool link(InputArgList &args, bool canExitEarly, raw_ostream &stdoutOS,
+                 raw_ostream &stderrOS) {
+
+  // Must be set before any InputSections and Symbols are created.
+  config->deadStrip = args.hasArg(OPT_dead_strip);
 
   if (auto *arg = args.getLastArg(OPT_threads_eq)) {
     StringRef v(arg->getValue());
@@ -1182,9 +1600,6 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
 
   config->mapFile = args.getLastArgValue(OPT_map);
   config->optimize = args::getInteger(args, OPT_O, 1);
-  config->outputFile = args.getLastArgValue(OPT_o, "a.out");
-  config->finalOutput =
-      args.getLastArgValue(OPT_final_output, config->outputFile);
   config->astPaths = args.getAllArgValues(OPT_add_ast_path);
   config->headerPad = args::getHex(args, OPT_headerpad, /*Default=*/32);
   config->headerPadMaxInstallNames =
@@ -1275,7 +1690,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
 
   config->undefinedSymbolTreatment = getUndefinedSymbolTreatment(args);
 
-  if (config->outputType == MH_EXECUTE)
+  if (config->outputType == MH_EXECUTE && !config->depScanning)
     config->entry = symtab->addUndefined(args.getLastArgValue(OPT_e, "_main"),
                                          /*file=*/nullptr,
                                          /*isWeakRef=*/false);
@@ -1365,22 +1780,22 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
                  : "\n\t" + join(config->frameworkSearchPaths, "\n\t")));
   }
 
-  config->progName = argsArr[0];
-
-  config->timeTraceEnabled = args.hasArg(
-      OPT_time_trace, OPT_time_trace_granularity_eq, OPT_time_trace_file_eq);
-  config->timeTraceGranularity =
-      args::getInteger(args, OPT_time_trace_granularity_eq, 500);
-
-  // Initialize time trace profiler.
-  if (config->timeTraceEnabled)
-    timeTraceProfilerInitialize(config->timeTraceGranularity, config->progName);
-
   {
     TimeTraceScope timeScope("ExecuteLinker");
 
     initLLVM(); // must be run before any call to addFile()
     createFiles(args);
+
+    if (config->depScanning) {
+      for (const Arg *arg : args.filtered(OPT_sectcreate)) {
+        StringRef fileName = arg->getValue(2);
+        // Register the input path with the caching filesystem.
+        vfs::Status stat;
+        macho::fs::status(fileName, stat);
+      }
+      // Got all inputs, now we can stop.
+      return !errorCount();
+    }
 
     config->isPic = config->outputType == MH_DYLIB ||
                     config->outputType == MH_BUNDLE ||

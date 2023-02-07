@@ -1241,6 +1241,11 @@ public:
     return std::make_pair(FID, Loc.getOffset() - Entry->getOffset());
   }
 
+  /// FIXME: Added this API to allow PTHWriter to access this.
+  static unsigned getLocationOffset(SourceLocation Loc) {
+    return Loc.getOffset();
+  }
+
   /// Decompose the specified location into a raw FileID + Offset pair.
   ///
   /// If the location is an expansion record, walk through it until we find

@@ -46,6 +46,7 @@
 #include "Driver.h"
 #include "Dwarf.h"
 #include "ExportTrie.h"
+#include "FileSystem.h"
 #include "InputSection.h"
 #include "MachOStructs.h"
 #include "ObjC.h"
@@ -62,15 +63,20 @@
 #include "lld/Common/Reproduce.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/CASObjectFormats/SchemaBase.h"
+#include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TextAPI/Architecture.h"
 #include "llvm/TextAPI/InterfaceFile.h"
 
 using namespace llvm;
+using namespace llvm::cas;
+using namespace llvm::casobjectformats;
 using namespace llvm::MachO;
 using namespace llvm::support::endian;
 using namespace llvm::sys;
@@ -175,7 +181,8 @@ static bool checkCompatibility(const InputFile *input) {
 
 // Open a given file path and return it as a memory-mapped file.
 Optional<MemoryBufferRef> macho::readFile(StringRef path) {
-  ErrorOr<std::unique_ptr<MemoryBuffer>> mbOrErr = MemoryBuffer::getFile(path);
+  ErrorOr<std::unique_ptr<MemoryBuffer>> mbOrErr =
+      config->fs->getBufferForFile(path);
   if (std::error_code ec = mbOrErr.getError()) {
     error("cannot open " + path + ": " + ec.message());
     return None;
@@ -737,8 +744,34 @@ OpaqueFile::OpaqueFile(MemoryBufferRef mb, StringRef segName,
   subsections.push_back({{0, isec}});
 }
 
+template <class LP> static void parseLCLinkerOptionsImpl(MemoryBufferRef mb) {
+  using Header = typename LP::mach_header;
+  auto *hdr = reinterpret_cast<const Header *>(mb.getBufferStart());
+  for (auto *cmd : findCommands<linker_option_command>(hdr, LC_LINKER_OPTION)) {
+    StringRef data{reinterpret_cast<const char *>(cmd + 1),
+                   cmd->cmdsize - sizeof(linker_option_command)};
+    parseLCLinkerOption(mb.getBufferIdentifier(), cmd->count, data);
+  }
+}
+
+void ObjFile::parseLCLinkerOptions(MemoryBufferRef mb) {
+  if (target->wordSize == 8)
+    parseLCLinkerOptionsImpl<LP64>(std::move(mb));
+  else
+    parseLCLinkerOptionsImpl<ILP32>(std::move(mb));
+}
+
 ObjFile::ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName)
     : InputFile(ObjKind, mb), modTime(modTime) {
+  init(archiveName);
+}
+
+ObjFile::ObjFile(MemoryBufferRef mb, llvm::cas::CASID ID, StringRef archiveName)
+    : InputFile(ObjKind, mb), modTime(0), casID(std::move(ID)) {
+  init(archiveName);
+}
+
+void ObjFile::init(StringRef archiveName) {
   this->archiveName = std::string(archiveName);
   if (target->wordSize == 8)
     parse<LP64>();
@@ -769,7 +802,7 @@ template <class LP> void ObjFile::parse() {
   for (auto *cmd : findCommands<linker_option_command>(hdr, LC_LINKER_OPTION)) {
     StringRef data{reinterpret_cast<const char *>(cmd + 1),
                    cmd->cmdsize - sizeof(linker_option_command)};
-    parseLCLinkerOption(this, cmd->count, data);
+    parseLCLinkerOption(toString(this), cmd->count, data);
   }
 
   ArrayRef<Section> sectionHeaders;
@@ -877,7 +910,7 @@ static DylibFile *findDylib(StringRef path, DylibFile *umbrella,
     path::append(newPath, path::parent_path(config->outputFile), path);
     path = newPath;
   } else if (path.consume_front("@loader_path/")) {
-    fs::real_path(umbrella->getName(), newPath);
+    macho::fs::real_path(umbrella->getName(), newPath);
     path::remove_filename(newPath);
     path::append(newPath, path);
     path = newPath;
@@ -885,7 +918,7 @@ static DylibFile *findDylib(StringRef path, DylibFile *umbrella,
     for (StringRef rpath : umbrella->rpaths) {
       newPath.clear();
       if (rpath.consume_front("@loader_path/")) {
-        fs::real_path(umbrella->getName(), newPath);
+        macho::fs::real_path(umbrella->getName(), newPath);
         path::remove_filename(newPath);
       }
       path::append(newPath, rpath, path.drop_front(strlen("@rpath/")));
@@ -965,9 +998,11 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
     return;
   }
 
-  if (config->printEachFile)
-    message(toString(this));
-  inputFiles.insert(this);
+  if (!config->depScanning) {
+    if (config->printEachFile)
+      message(toString(this));
+    inputFiles.insert(this);
+  }
 
   deadStrippable = hdr->flags & MH_DEAD_STRIPPABLE_DYLIB;
 
@@ -983,6 +1018,8 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
 
   // Initialize symbols.
   exportingFile = isImplicitlyLinked(installName) ? this : this->umbrella;
+  if (config->depScanning)
+    return;
   if (const load_command *cmd = findCommand(hdr, LC_DYLD_INFO_ONLY)) {
     auto *c = reinterpret_cast<const dyld_info_command *>(cmd);
     parseTrie(buf + c->export_off, c->export_size,
@@ -1054,9 +1091,11 @@ DylibFile::DylibFile(const InterfaceFile &interface, DylibFile *umbrella,
   compatibilityVersion = interface.getCompatibilityVersion().rawValue();
   currentVersion = interface.getCurrentVersion().rawValue();
 
-  if (config->printEachFile)
-    message(toString(this));
-  inputFiles.insert(this);
+  if (!config->depScanning) {
+    if (config->printEachFile)
+      message(toString(this));
+    inputFiles.insert(this);
+  }
 
   if (!is_contained(skipPlatformChecks, installName) &&
       !is_contained(interface.targets(), config->platformInfo.target)) {
@@ -1068,6 +1107,8 @@ DylibFile::DylibFile(const InterfaceFile &interface, DylibFile *umbrella,
   checkAppExtensionSafety(interface.isApplicationExtensionSafe());
 
   exportingFile = isImplicitlyLinked(installName) ? this : umbrella;
+  if (config->depScanning)
+    return;
   auto addSymbol = [&](const Twine &name) -> void {
     symbols.push_back(symtab->addDylib(saver.save(name), exportingFile,
                                        /*isWeakDef=*/false,
@@ -1301,3 +1342,314 @@ BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
 }
 
 template void ObjFile::parse<LP64>();
+
+CASSchemaFile::CASSchemaFile(llvm::casobjectformats::SchemaPool &CASSchemas,
+                             CASID ID, StringRef filename)
+    : InputFile(CASSchemaKind, saver.save(filename)), CASSchemas(CASSchemas),
+      ID(std::move(ID)) {}
+
+CASSchemaFile::~CASSchemaFile() = default;
+
+static void applyArchRelocationProperties(jitlink::Edge::Kind kind,
+                                          bool isTextSection,
+                                          macho::Reloc &reloc) {
+  // FIXME: Handle arm64.
+  // FIXME: We could pass through the native relocation types once we create CAS
+  // objects without using JITLink as intermediary, then this code will go away.
+
+  using namespace jitlink::x86_64;
+
+  EdgeKind_x86_64 kind_x86_64 = (EdgeKind_x86_64)kind;
+
+  switch (kind_x86_64) {
+  case Pointer64:
+    reloc.type = X86_64_RELOC_UNSIGNED;
+    reloc.length = 3;
+    reloc.pcrel = false;
+    break;
+  case BranchPCRel32:
+    reloc.type = X86_64_RELOC_BRANCH;
+    reloc.length = 2;
+    reloc.pcrel = true;
+    break;
+  case Delta32:
+    reloc.type = X86_64_RELOC_SIGNED;
+    reloc.length = 2;
+    reloc.pcrel = true;
+    if (isTextSection) {
+      // Adjust to compensate for inaccurate addend from JITLink.
+      reloc.addend += 4;
+    }
+    break;
+  case RequestGOTAndTransformToPCRel32GOTLoadREXRelaxable:
+    reloc.type = X86_64_RELOC_GOT_LOAD;
+    reloc.length = 2;
+    reloc.pcrel = true;
+    break;
+  case RequestTLVPAndTransformToPCRel32TLVPLoadREXRelaxable:
+    reloc.type = X86_64_RELOC_TLV;
+    reloc.length = 2;
+    reloc.pcrel = true;
+    break;
+  default:
+    report_fatal_error("unhandled EdgeKind_x86_64");
+  }
+}
+
+Error CASSchemaFile::parse() {
+  Expected<cas::NodeRef> Ref = CASSchemas.getCAS().getNode(ID);
+  if (auto E = Ref.takeError())
+    return E;
+  SchemaBase *Schema = CASSchemas.getSchemaForRoot(*Ref);
+  if (!Schema)
+    return createStringError(inconvertibleErrorCode(),
+                             "CAS object is not a recognized object file");
+
+  // FIXME: We shouldn't need to create this here, it should be handled by
+  // the underlying schema at LinkGraph creation.
+  // For now use the triple of the running process.
+  Triple TT(getProcessTriple());
+  auto EdgeKindName = jitlink::getGetEdgeKindNameFunction(TT);
+  if (auto E = EdgeKindName.takeError())
+    return E;
+
+  {
+    TimeTraceScope timeScope("CAS: Create LinkGraph");
+    auto expLG = Schema->createLinkGraph(*Ref, getName(), *EdgeKindName);
+    if (auto E = expLG.takeError())
+      return E;
+    linkGraph = std::move(*expLG);
+  }
+
+  auto createSectionFromBlock =
+      [](const jitlink::Block &block, StringRef segname, StringRef subname,
+         bool containsPureInstructions, InputFile *file) -> InputSection * {
+    uint32_t align = block.getAlignment();
+    uint32_t flags = 0;
+    ArrayRef<uint8_t> data;
+    if (block.isZeroFill()) {
+      flags = S_ZEROFILL;
+      data = makeArrayRef((const uint8_t *)nullptr, block.getSize());
+    } else {
+      ArrayRef<char> content = block.getContent();
+      data = makeArrayRef((const uint8_t *)content.data(), content.size());
+      assert(block.getSize() == content.size());
+    }
+
+    if (segname == segment_names::data) {
+      if (subname == section_names::threadVars) {
+        flags = S_THREAD_LOCAL_VARIABLES;
+      } else if (subname == section_names::moduleInitFunc) {
+        flags = S_MOD_INIT_FUNC_POINTERS;
+      } else if (subname == section_names::threadPtrs) {
+        flags = S_THREAD_LOCAL_VARIABLE_POINTERS;
+      } else if (subname == "__thread_bss") {
+        flags = block.isZeroFill() ? S_THREAD_LOCAL_ZEROFILL
+                                   : S_THREAD_LOCAL_REGULAR;
+      }
+    }
+
+    if (containsPureInstructions) {
+      flags |= S_ATTR_PURE_INSTRUCTIONS;
+    }
+
+    InputSection *isec;
+    if (segname == segment_names::text && subname == section_names::cString) {
+      assert(!data.empty());
+      flags = S_CSTRING_LITERALS;
+      isec =
+          make<CStringInputSection>(segname, subname, file, data, align, flags);
+      // FIXME: Splitting should be redundant since CAS schema treats each
+      // string as separate block, but this needs to be called to set the
+      // initial piece at least.
+      cast<CStringInputSection>(isec)->splitIntoPieces();
+    } else {
+      isec =
+          make<ConcatInputSection>(segname, subname, file, data, align, flags);
+    }
+    return isec;
+  };
+
+  auto createDefinedSym = [](const jitlink::Symbol *sym, uint64_t size,
+                             InputSection *isec,
+                             InputFile *file) -> macho::Symbol * {
+    StringRef name = sym->getName();
+    uint64_t symbolOffset = 0;
+    bool isWeakDef = sym->getLinkage() == jitlink::Linkage::Weak;
+    // Follow the lld semantics about setting 'isPrivateExtern'. See comments
+    // in \p createDefined() function of this file.
+    bool isPrivateExtern =
+        sym->getScope() == jitlink::Scope::Hidden || sym->isAutoHide();
+    bool isThumb = false;
+    bool isReferencedDynamically = false;
+    bool noDeadStrip = false;
+    if (sym->getScope() != jitlink::Scope::Local) {
+      return symtab->addDefined(name, file, isec, symbolOffset, size, isWeakDef,
+                                isPrivateExtern, isThumb,
+                                isReferencedDynamically, noDeadStrip);
+    } else {
+      return make<Defined>(name, file, isec, symbolOffset, size, isWeakDef,
+                           /*isExternal=*/false, /*isPrivateExtern=*/false,
+                           isThumb, isReferencedDynamically, noDeadStrip);
+    }
+  };
+
+  auto createCommonSym = [](const jitlink::Symbol *sym, uint64_t size,
+                            uint32_t align,
+                            InputFile *file) -> macho::Symbol * {
+    bool isPrivateExtern = sym->getScope() == jitlink::Scope::Hidden;
+    return symtab->addCommon(sym->getName(), file, size, align,
+                             isPrivateExtern);
+  };
+
+  auto createExternalSym = [](const jitlink::Symbol *sym,
+                              InputFile *file) -> macho::Symbol * {
+    bool isWeakRef = sym->getLinkage() == jitlink::Linkage::Weak;
+    return symtab->addUndefined(sym->getName(), file, isWeakRef);
+  };
+
+  auto decomposeSectionName =
+      [](const jitlink::Section &section) -> std::pair<StringRef, StringRef> {
+    StringRef secName = section.getName();
+    StringRef segname, subname;
+    size_t commaIdx = secName.find(',');
+    if (commaIdx != StringRef::npos) {
+      segname = secName.substr(0, commaIdx);
+      subname = secName.substr(commaIdx + 1);
+    } else {
+      segname = secName;
+    }
+    return std::make_pair(segname, subname);
+  };
+
+  // There's code copied from \p LinkGraph::dump() for deterministic visitation
+  // of the graph.
+  // FIXME: Once we have a \p CASObjectReader interface to use, this should go
+  // away.
+
+  DenseMap<jitlink::Block *, std::vector<jitlink::Symbol *>> blockSymbols;
+
+  // Map from blocks to the symbols pointing at them.
+  for (auto *sym : linkGraph->defined_symbols())
+    blockSymbols[&sym->getBlock()].push_back(sym);
+
+  // For each block, sort its symbols by something approximating
+  // relevance.
+  for (auto &KV : blockSymbols)
+    llvm::sort(KV.second,
+               [](const jitlink::Symbol *LHS, const jitlink::Symbol *RHS) {
+                 if (LHS->getOffset() != RHS->getOffset())
+                   return LHS->getOffset() < RHS->getOffset();
+                 if (LHS->getLinkage() != RHS->getLinkage())
+                   return LHS->getLinkage() < RHS->getLinkage();
+                 if (LHS->getScope() != RHS->getScope())
+                   return LHS->getScope() < RHS->getScope();
+                 if (LHS->hasName()) {
+                   if (!RHS->hasName())
+                     return true;
+                   return LHS->getName() < RHS->getName();
+                 }
+                 return false;
+               });
+
+  DenseMap<const jitlink::Block *, macho::InputSection *> sectionsMap;
+  DenseMap<const jitlink::Symbol *, macho::Symbol *> symbolsMap;
+
+  for (const auto &section : linkGraph->sections()) {
+    if (section.getName().startswith("cas.o:"))
+      continue;
+    StringRef segname, subname;
+    std::tie(segname, subname) = decomposeSectionName(section);
+
+    if ((segname == segment_names::text && subname == section_names::ehFrame) ||
+        (segname == segment_names::ld &&
+         subname == section_names::compactUnwind)) {
+      // FIXME: Handle EH frames.
+      continue;
+    }
+
+    bool containsPureInstructions =
+        bool(section.getMemProt() & jitlink::MemProt::Exec) &&
+        !(unsigned(section.getMemProt()) & unsigned(jitlink::MemProt::Write));
+    bool isCommonSection = section.getName() == "__common";
+
+    std::vector<jitlink::Block *> sortedBlocks;
+    llvm::copy(section.blocks(), std::back_inserter(sortedBlocks));
+    llvm::sort(sortedBlocks,
+               [](const jitlink::Block *LHS, const jitlink::Block *RHS) {
+                 return LHS->getAddress() < RHS->getAddress();
+               });
+
+    for (const auto *block : sortedBlocks) {
+      InputSection *isec = createSectionFromBlock(
+          *block, segname, subname, containsPureInstructions, this);
+      sectionsMap[block] = isec;
+      // FIXME: Group the sections into subsections?
+      subsections.push_back({{0, isec}});
+
+      auto blockSymsI = blockSymbols.find(block);
+      if (blockSymsI != blockSymbols.end()) {
+        for (const auto &symbol : blockSymsI->second) {
+          macho::Symbol *sym;
+          if (isCommonSection) {
+            sym = createCommonSym(symbol, block->getSize(),
+                                  block->getAlignment(), this);
+          } else {
+            sym = createDefinedSym(symbol, block->getSize(), isec, this);
+          }
+          symbols.push_back(sym);
+          symbolsMap[symbol] = sym;
+        }
+      }
+    }
+  }
+
+  for (const auto &symbol : linkGraph->external_symbols()) {
+    macho::Symbol *sym = createExternalSym(symbol, this);
+    symbols.push_back(sym);
+    symbolsMap[symbol] = sym;
+  }
+
+  for (const auto &block : linkGraph->blocks()) {
+    std::vector<jitlink::Edge> relocations;
+    for (const auto &edge : block->edges()) {
+      if (!edge.isRelocation()) {
+        // FIXME: Handle EH frames.
+        continue;
+      }
+      relocations.push_back(edge);
+    }
+    if (relocations.empty())
+      continue;
+
+    StringRef segname, subname;
+    std::tie(segname, subname) = decomposeSectionName(block->getSection());
+    bool isTextSection = segname == segment_names::text;
+    if ((isTextSection && subname == section_names::ehFrame) ||
+        (segname == segment_names::ld &&
+         subname == section_names::compactUnwind)) {
+      // FIXME: Handle EH frames.
+      continue;
+    }
+
+    auto foundSec = sectionsMap.find(block);
+    assert(foundSec != sectionsMap.end());
+    InputSection *isec = foundSec->second;
+
+    for (const auto &edge : relocations) {
+      assert(edge.isRelocation());
+      const jitlink::Symbol &targetSym = edge.getTarget();
+      Reloc r;
+      r.offset = edge.getOffset();
+      r.addend = edge.getAddend();
+      applyArchRelocationProperties(edge.getKind(), isTextSection, r);
+      auto foundSym = symbolsMap.find(&targetSym);
+      assert(foundSym != symbolsMap.end());
+      macho::Symbol *sym = foundSym->second;
+      r.referent = sym;
+      isec->relocs.push_back(r);
+    }
+  }
+
+  return Error::success();
+}

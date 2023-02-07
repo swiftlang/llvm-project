@@ -23,6 +23,7 @@ enum class DwarfLinkerClient { Dsymutil, LLD, General };
 
 /// The kind of accelerator tables we should emit.
 enum class AccelTableKind {
+  None,    ///< Don't emit an accelerator table.
   Apple,   ///< .apple_names, .apple_namespaces, .apple_types, .apple_objc.
   Dwarf,   ///< DWARF v5 .debug_names.
   Default, ///< Dwarf for DWARF5 or later, Apple otherwise.

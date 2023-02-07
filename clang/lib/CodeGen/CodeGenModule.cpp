@@ -6159,7 +6159,10 @@ void CodeGenFunction::EmitDeclMetadata() {
 void CodeGenModule::EmitVersionIdentMetadata() {
   llvm::NamedMDNode *IdentMetadata =
     TheModule.getOrInsertNamedMetadata("llvm.ident");
-  std::string Version = getClangFullVersion();
+
+  // FIXME: Choose IncludeRevision based on command-line argument. Including
+  // the Git revision is bad for reproducible builds / caching.
+  std::string Version = getClangFullVersion(/*IncludeRevision=*/false);
   llvm::LLVMContext &Ctx = TheModule.getContext();
 
   llvm::Metadata *IdentNode[] = {llvm::MDString::get(Ctx, Version)};

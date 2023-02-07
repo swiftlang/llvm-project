@@ -10,6 +10,7 @@
 #define LLVM_CLANG_FRONTEND_COMPILERINVOCATION_H
 
 #include "clang/APINotes/APINotesOptions.h"
+#include "clang/Basic/CASOptions.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/FileSystemOptions.h"
@@ -21,8 +22,8 @@
 #include "clang/Frontend/MigratorOptions.h"
 #include "clang/Frontend/PreprocessorOutputOptions.h"
 #include "clang/StaticAnalyzer/Core/AnalyzerOptions.h"
-#include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include <memory>
 #include <string>
 
@@ -41,6 +42,12 @@ namespace vfs {
 class FileSystem;
 
 } // namespace vfs
+
+namespace cas {
+
+class CASDB;
+
+}
 
 } // namespace llvm
 
@@ -140,6 +147,9 @@ protected:
 
   /// Options controlling API notes.
   APINotesOptions APINotesOpts;
+
+  /// Options configuring the CAS.
+  CASOptions CASOpts;
 
   /// Options controlling IRgen and the backend.
   CodeGenOptions CodeGenOpts;
@@ -255,6 +265,48 @@ public:
   void generateCC1CommandLine(llvm::SmallVectorImpl<const char *> &Args,
                               StringAllocator SA) const;
 
+  /// @}
+  /// @name Option Subgroups
+  /// @{
+
+  CASOptions &getCASOpts() { return CASOpts; }
+  const CASOptions &getCASOpts() const { return CASOpts; }
+
+  AnalyzerOptionsRef getAnalyzerOpts() const { return AnalyzerOpts; }
+
+  MigratorOptions &getMigratorOpts() { return MigratorOpts; }
+  const MigratorOptions &getMigratorOpts() const { return MigratorOpts; }
+
+  CodeGenOptions &getCodeGenOpts() { return CodeGenOpts; }
+  const CodeGenOptions &getCodeGenOpts() const { return CodeGenOpts; }
+
+  DependencyOutputOptions &getDependencyOutputOpts() {
+    return DependencyOutputOpts;
+  }
+
+  const DependencyOutputOptions &getDependencyOutputOpts() const {
+    return DependencyOutputOpts;
+  }
+
+  FileSystemOptions &getFileSystemOpts() { return FileSystemOpts; }
+
+  const FileSystemOptions &getFileSystemOpts() const {
+    return FileSystemOpts;
+  }
+
+  FrontendOptions &getFrontendOpts() { return FrontendOpts; }
+  const FrontendOptions &getFrontendOpts() const { return FrontendOpts; }
+
+  PreprocessorOutputOptions &getPreprocessorOutputOpts() {
+    return PreprocessorOutputOpts;
+  }
+
+  const PreprocessorOutputOptions &getPreprocessorOutputOpts() const {
+    return PreprocessorOutputOpts;
+  }
+
+  /// @}
+
 private:
   static bool CreateFromArgsImpl(CompilerInvocation &Res,
                                  ArrayRef<const char *> CommandLineArgs,
@@ -271,12 +323,14 @@ private:
                             std::vector<std::string> &Includes,
                             DiagnosticsEngine &Diags);
 
+public:
   /// Generate command line options from LangOptions.
   static void GenerateLangArgs(const LangOptions &Opts,
                                SmallVectorImpl<const char *> &Args,
                                StringAllocator SA, const llvm::Triple &T,
                                InputKind IK);
 
+private:
   /// Parse command line options that map to CodeGenOptions.
   static bool ParseCodeGenArgs(CodeGenOptions &Opts, llvm::opt::ArgList &Args,
                                InputKind IK, DiagnosticsEngine &Diags,
@@ -299,6 +353,10 @@ createVFSFromCompilerInvocation(const CompilerInvocation &CI,
 IntrusiveRefCntPtr<llvm::vfs::FileSystem> createVFSFromCompilerInvocation(
     const CompilerInvocation &CI, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS);
+
+std::shared_ptr<llvm::cas::CASDB>
+createCASFromCompilerInvocation(const CompilerInvocation &CI,
+                                DiagnosticsEngine &Diags);
 
 } // namespace clang
 

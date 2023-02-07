@@ -42,15 +42,16 @@ namespace clang {
 
   /// Retrieves the full repository version that is an amalgamation of
   /// the information in getClangRepositoryPath() and getClangRevision().
-  std::string getClangFullRepositoryVersion();
+  std::string getClangFullRepositoryVersion(bool IncludeRevision = true);
 
   /// Retrieves a string representing the complete clang version,
   /// which includes the clang version number, the repository version,
   /// and the vendor tag.
-  std::string getClangFullVersion();
+  std::string getClangFullVersion(bool IncludeRevision = true);
 
   /// Like getClangFullVersion(), but with a custom tool name.
-  std::string getClangToolFullVersion(llvm::StringRef ToolName);
+  std::string getClangToolFullVersion(llvm::StringRef ToolName,
+                                      bool IncludedRevision = true);
 
   /// Retrieves a string representing the complete clang version suitable
   /// for use in the CPP __VERSION__ macro, which includes the clang version
