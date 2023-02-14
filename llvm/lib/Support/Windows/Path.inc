@@ -480,7 +480,8 @@ static std::error_code rename_internal(HANDLE FromHandle, const Twine &To,
     if (Error == ERROR_SUCCESS)
       Error = ERROR_CALL_NOT_IMPLEMENTED; // Wine doesn't always set error code.
     else if (Error == ERROR_INVALID_PARAMETER) {
-      // In a Docker container, the call fails for paths in mounted volumes.
+      // This operation can fail on file systems that do not properly support
+      // the extended POSIX semantics for renames.
       Error = ERROR_CALL_NOT_IMPLEMENTED;
     }
     return mapWindowsError(Error);
