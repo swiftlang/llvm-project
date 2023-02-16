@@ -1885,6 +1885,7 @@ TypeSystemSwiftTypeRef::RemangleAsType(swift::Demangle::Demangler &dem,
   if (!node)
     return {};
 
+  node->dump();
   using namespace swift::Demangle;
   assert(node->getKind() == Node::Kind::Type && "expected type node");
   auto global = dem.createNode(Node::Kind::Global);
