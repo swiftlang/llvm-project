@@ -68,7 +68,8 @@ SwiftArrayNativeBufferHandler::SwiftArrayNativeBufferHandler(
     : m_metadata_ptr(LLDB_INVALID_ADDRESS),
       m_reserved_word(LLDB_INVALID_ADDRESS), m_size(0), m_capacity(0),
       m_first_elem_ptr(LLDB_INVALID_ADDRESS), m_elem_type(elem_type),
-      m_element_size(0), m_element_stride(0),
+      m_element_size(std::numeric_limits<size_t>::max()),
+      m_element_stride(std::numeric_limits<size_t>::max()),
       m_exe_ctx_ref(valobj.GetExecutionContextRef()) {
   if (native_ptr == LLDB_INVALID_ADDRESS)
     return;
@@ -85,11 +86,13 @@ SwiftArrayNativeBufferHandler::SwiftArrayNativeBufferHandler(
   if (!process_sp)
     return;
   auto opt_size = elem_type.GetByteSize(process_sp.get());
-  if (opt_size)
-    m_element_size = *opt_size;
+  if (!opt_size)
+    return;
+  m_element_size = *opt_size;
   auto opt_stride = elem_type.GetByteStride(process_sp.get());
-  if (opt_stride)
-    m_element_stride = *opt_stride;
+  if (!opt_stride)
+    return;
+  m_element_stride = *opt_stride;
   size_t ptr_size = process_sp->GetAddressByteSize();
   Status error;
   lldb::addr_t next_read = native_ptr;
@@ -117,8 +120,10 @@ SwiftArrayNativeBufferHandler::SwiftArrayNativeBufferHandler(
 
 bool SwiftArrayNativeBufferHandler::IsValid() {
   return m_metadata_ptr != LLDB_INVALID_ADDRESS &&
-         m_first_elem_ptr != LLDB_INVALID_ADDRESS && m_capacity >= m_size &&
-         m_elem_type.IsValid();
+         m_first_elem_ptr != LLDB_INVALID_ADDRESS &&
+         m_element_size != std::numeric_limits<size_t>::max() &&
+         m_element_stride != std::numeric_limits<size_t>::max() &&
+         m_capacity >= m_size && m_elem_type.IsValid();
 }
 
 size_t SwiftArrayBridgedBufferHandler::GetCount() {
