@@ -78,6 +78,7 @@ add_llvm_unittest(SupportTests
   TarWriterTest.cpp
   TaskQueueTest.cpp
   ThreadPool.cpp
+  ThreadSafeAllocatorTest.cpp
   Threading.cpp
   TimerTest.cpp
   TimeProfilerTest.cpp

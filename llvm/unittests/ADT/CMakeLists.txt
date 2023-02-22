@@ -31,6 +31,7 @@ add_llvm_unittest(ADTTests
   FoldingSet.cpp
   FunctionExtrasTest.cpp
   FunctionRefTest.cpp
+  HashMappedTrieTest.cpp
   HashingTest.cpp
   IListBaseTest.cpp
   IListIteratorTest.cpp
@@ -46,6 +47,7 @@ add_llvm_unittest(ADTTests
   IntervalTreeTest.cpp
   IntrusiveRefCntPtrTest.cpp
   IteratorTest.cpp
+  LazyAtomicPointerTest.cpp
   MappedIteratorTest.cpp
   MapVectorTest.cpp
   MoveOnly.cpp
