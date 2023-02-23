@@ -3,9 +3,12 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsDescs
   AllTargetsDisassemblers
   AllTargetsInfos
+  CAS
   MC
+  MCCAS
   MCParser
   Support
+  DebugInfoDWARF
   )
 
 add_llvm_tool(llvm-mc

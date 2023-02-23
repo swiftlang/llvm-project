@@ -118,6 +118,7 @@ class MCDwarfLoc {
 private: // MCContext manages these
   friend class MCContext;
   friend class MCDwarfLineEntry;
+  friend class DwarfDebug; // MCCAS
 
   MCDwarfLoc(unsigned fileNum, unsigned line, unsigned column, unsigned flags,
              unsigned isa, unsigned discriminator)
@@ -190,13 +191,23 @@ private:
 
 public:
   // Constructor to create an MCDwarfLineEntry given a symbol and the dwarf loc.
-  MCDwarfLineEntry(MCSymbol *label, const MCDwarfLoc loc)
-      : MCDwarfLoc(loc), Label(label) {}
+  MCDwarfLineEntry(MCSymbol *label, const MCDwarfLoc loc,
+                   bool isEndOfFunction = false /*MCCAS*/)
+      : MCDwarfLoc(loc), Label(label),
+        IsEndOfFunction(isEndOfFunction) // MCCAS
+  {}
 
   MCSymbol *getLabel() const { return Label; }
 
   // This indicates the line entry is synthesized for an end entry.
   bool IsEndEntry = false;
+
+  // BEGIN MCCAS
+  // This indicated that the current line entry denotes the end of a function,
+  // it is used to emit a DW_LNE_end_sequnece to reset the state machine
+  // registers. To only be used for CasFriendly debug info.
+  bool IsEndOfFunction;
+  // END MCCAS
 
   // Override the label with the given EndLabel.
   void setEndLabel(MCSymbol *EndLabel) {
