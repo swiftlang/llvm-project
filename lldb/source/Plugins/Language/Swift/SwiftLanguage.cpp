@@ -914,7 +914,7 @@ SwiftLanguage::GetHardcodedSynthetics() {
           continue;
 
         auto name = var_decl->getName();
-        if (name != "__swift_mangled_name")
+        if (name != "$__swift_mangled_name")
           continue;
 
         const auto *typedef_type =
