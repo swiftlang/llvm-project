@@ -83,4 +83,33 @@ typedef enum {
   LLCAS_LOOKUP_RESULT_ERROR = 2,
 } llcas_lookup_result_t;
 
+/**
+ * Encompasses a set of (name -> object) pairs, essentially associating a name
+ * string with an \c llcas_objectid_t that can be materialized asynchronously.
+ */
+typedef struct llcas_actioncache_map_s *llcas_actioncache_map_t;
+
+/**
+ * A (name -> object) association.
+ */
+typedef struct {
+  const char *name;
+  llcas_objectid_t ref;
+} llcas_actioncache_map_entry;
+
+/**
+ * Callback for \c llcas_actioncache_map_get_entry_value_async.
+ *
+ * \param ctx pointer passed through from the
+ * \c llcas_actioncache_map_get_entry_value_async call.
+ * \param result one of \c llcas_lookup_result_t.
+ * \param entry contains the \c name that was associated with the originating
+ * \c llcas_actioncache_map_get_entry_value_async call no matter what the
+ * \p result is. The \c ref field is only valid to use if \p result is
+ * \c LLCAS_LOOKUP_RESULT_SUCCESS.
+ */
+typedef void (*llcas_actioncache_map_get_entry_value_callback)(
+    void *ctx, llcas_lookup_result_t result, llcas_actioncache_map_entry entry,
+    char *error);
+
 #endif /* LLVM_C_CAS_PLUGINAPI_TYPES_H */

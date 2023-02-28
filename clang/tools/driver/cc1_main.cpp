@@ -276,14 +276,25 @@ private:
   Error finishComputedResult(const llvm::cas::CASID &ResultCacheKey,
                              bool SkipCache) override;
 
-  Expected<llvm::cas::ObjectRef>
+  Expected<llvm::StringMap<llvm::cas::ObjectRef>>
   writeOutputs(const llvm::cas::CASID &ResultCacheKey);
 
   /// Replay a cache hit.
   ///
   /// Return status if should exit immediately, otherwise None.
-  std::optional<int> replayCachedResult(llvm::cas::ObjectRef ResultID,
-                                        bool JustComputedResult);
+  std::optional<int>
+  replayCachedResult(llvm::StringMap<llvm::cas::ObjectRef> Results,
+                     bool JustComputedResult);
+
+  /// Materializes all the outputs of the given \c ActionCacheMap concurrently
+  /// and returns them as \c ObjectRefs.
+  ///
+  /// \returns \c std::nullopt if any of the outputs is not found along with
+  /// emitting a diagnostic remark.
+  Expected<std::optional<llvm::StringMap<llvm::cas::ObjectRef>>>
+  materializeCachedOutputs(
+      std::unique_ptr<llvm::cas::ActionCacheMap> CachedOutputs,
+      const llvm::cas::CASID &ResultCacheKey);
 
   const bool ComputedJobNeedsReplay;
   std::optional<llvm::cas::CASID> &MCOutputID;
@@ -579,17 +590,18 @@ Expected<bool> ObjectStoreCachingOutputs::tryReplayCachedResult(
     const llvm::cas::CASID &ResultCacheKey) {
   DiagnosticsEngine &Diags = Clang.getDiagnostics();
 
-  std::optional<llvm::cas::CASID> Result;
+  std::optional<std::unique_ptr<llvm::cas::ActionCacheMap>> CachedOutputs;
   {
     llvm::ScopedDurationTimer ScopedTime([&Diags](double Seconds) {
       Diags.Report(diag::remark_compile_job_cache_timing_backend_key_query)
           << llvm::format("%.6fs", Seconds);
     });
-    if (Error E = Cache->get(ResultCacheKey).moveInto(Result))
+    if (Error E = Cache->getMap(ResultCacheKey, *CAS, /*Globally=*/true)
+                      .moveInto(CachedOutputs))
       return std::move(E);
   }
 
-  if (!Result) {
+  if (!CachedOutputs) {
     Diags.Report(diag::remark_compile_job_cache_miss)
         << ResultCacheKey.toString();
     return false;
@@ -600,17 +612,30 @@ Expected<bool> ObjectStoreCachingOutputs::tryReplayCachedResult(
         << llvm::format("%.6fs", Seconds);
   });
 
-  std::optional<llvm::cas::ObjectRef> ResultRef = CAS->getReference(*Result);
-  if (!ResultRef) {
-    Diags.Report(diag::remark_compile_job_cache_miss_result_not_found)
-        << ResultCacheKey.toString() << "result not in CAS";
-    return false;
+  std::optional<llvm::StringMap<llvm::cas::ObjectRef>> Result;
+  if (Error E =
+          materializeCachedOutputs(std::move(*CachedOutputs), ResultCacheKey)
+              .moveInto(Result))
+    return std::move(E);
+
+  if (!Result)
+    return false; // \c materializeCachedOutputs emitted a remark.
+
+  std::string MainOutputID;
+  StringRef MainOutName = clang::cas::CompileJobCacheResult::getOutputKindName(
+      clang::cas::CompileJobCacheResult::OutputKind::MainOutput);
+  auto MainI = Result->find(MainOutName);
+  if (MainI != Result->end()) {
+    MainOutputID = CAS->getID(MainI->second).toString();
+  } else {
+    // This can occur with -fsyntax-only.
+    MainOutputID = "<no main output>";
   }
 
   Diags.Report(diag::remark_compile_job_cache_hit)
-      << ResultCacheKey.toString() << CAS->getID(*ResultRef).toString();
+      << ResultCacheKey.toString() << MainOutputID;
   std::optional<int> Status =
-      replayCachedResult(*ResultRef, /*JustComputedResult=*/false);
+      replayCachedResult(std::move(*Result), /*JustComputedResult=*/false);
   assert(Status && "Expected a status for a cache hit");
   assert(*Status == 0 && "Expected success status for a cache hit");
   return true;
@@ -757,7 +782,8 @@ bool CompileJobCache::finishComputedResult(CompilerInstance &Clang,
   return true;
 }
 
-Expected<llvm::cas::ObjectRef> ObjectStoreCachingOutputs::writeOutputs(
+Expected<llvm::StringMap<llvm::cas::ObjectRef>>
+ObjectStoreCachingOutputs::writeOutputs(
     const llvm::cas::CASID &ResultCacheKey) {
   DiagnosticsEngine &Diags = Clang.getDiagnostics();
   llvm::ScopedDurationTimer ScopedTime([&Diags](double Seconds) {
@@ -794,12 +820,13 @@ Expected<llvm::cas::ObjectRef> ObjectStoreCachingOutputs::writeOutputs(
       return std::move(Err);
 
   // Cache the result.
-  return CachedResultBuilder.build(*CAS);
+  return CachedResultBuilder.build();
 }
 
 Error ObjectStoreCachingOutputs::finishComputedResult(
     const llvm::cas::CASID &ResultCacheKey, bool SkipCache) {
-  Expected<llvm::cas::ObjectRef> Result = writeOutputs(ResultCacheKey);
+  Expected<llvm::StringMap<llvm::cas::ObjectRef>> Result =
+      writeOutputs(ResultCacheKey);
   if (!Result)
     return Result.takeError();
 
@@ -810,33 +837,63 @@ Error ObjectStoreCachingOutputs::finishComputedResult(
       Diags.Report(diag::remark_compile_job_cache_timing_backend_key_update)
           << llvm::format("%.6fs", Seconds);
     });
-    if (llvm::Error E = Cache->put(ResultCacheKey, CAS->getID(*Result)))
+    if (llvm::Error E =
+            Cache->putMap(ResultCacheKey, *Result, *CAS, /*Globally=*/true))
       return E;
   }
 
   // Replay / decanonicalize as necessary.
-  std::optional<int> Status = replayCachedResult(*Result,
+  std::optional<int> Status = replayCachedResult(std::move(*Result),
                                                  /*JustComputedResult=*/true);
   (void)Status;
   assert(Status == std::nullopt);
   return Error::success();
 }
 
+Expected<std::optional<llvm::StringMap<llvm::cas::ObjectRef>>>
+ObjectStoreCachingOutputs::materializeCachedOutputs(
+    std::unique_ptr<llvm::cas::ActionCacheMap> CachedOutputs,
+    const llvm::cas::CASID &ResultCacheKey) {
+  llvm::StringMap<llvm::cas::ObjectRef> Outputs;
+  std::optional<Error> Err;
+  bool HasMissingOutput = false;
+  DiagnosticsEngine &Diags = Clang.getDiagnostics();
+
+  std::vector<std::pair<std::string, llvm::cas::ActionCacheMap::FutureValue>>
+      FutureOutputs = CachedOutputs->getAllValuesAsync();
+  for (auto &[Name, Future] : FutureOutputs) {
+    std::optional<llvm::cas::ObjectRef> Output;
+    if (Error E = Future.get().moveInto(Output)) {
+      Err = std::move(E);
+      continue;
+    }
+    if (!Output) {
+      Diags.Report(diag::remark_compile_job_cache_backend_output_not_found)
+          << Name << ResultCacheKey.toString() << "<no ID>";
+      HasMissingOutput = true;
+      continue;
+    }
+    Outputs.insert({Name, *Output});
+  }
+
+  if (Err)
+    return std::move(*Err);
+  if (HasMissingOutput)
+    return std::nullopt;
+  return Outputs;
+}
+
 /// Replay a result after a cache hit.
-std::optional<int>
-ObjectStoreCachingOutputs::replayCachedResult(llvm::cas::ObjectRef ResultID,
-                                              bool JustComputedResult) {
+std::optional<int> ObjectStoreCachingOutputs::replayCachedResult(
+    llvm::StringMap<llvm::cas::ObjectRef> Mappings, bool JustComputedResult) {
   if (JustComputedResult && !ComputedJobNeedsReplay)
     return std::nullopt;
 
   // FIXME: Stop calling report_fatal_error().
-  std::optional<clang::cas::CompileJobCacheResult> Result;
-  clang::cas::CompileJobResultSchema Schema(*CAS);
-  if (Error E = Schema.load(ResultID).moveInto(Result))
-    llvm::report_fatal_error(std::move(E));
+  clang::cas::CompileJobCacheResult Result(Mappings);
 
-  auto Err = Result->forEachOutput([&](clang::cas::CompileJobCacheResult::Output
-                                           O) -> Error {
+  auto Err = Result.forEachOutput([&](clang::cas::CompileJobCacheResult::Output
+                                          O) -> Error {
     if (O.Kind == OutputKind::SerializedDiagnostics) {
       std::optional<llvm::cas::ObjectProxy> DiagsObj;
       if (Error E = CAS->getProxy(O.Object).moveInto(DiagsObj))

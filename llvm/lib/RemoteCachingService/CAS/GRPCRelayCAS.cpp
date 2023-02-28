@@ -214,8 +214,10 @@ class GRPCActionCache : public ActionCache {
 public:
   GRPCActionCache(StringRef Path, Error &Err);
 
-  Expected<Optional<CASID>> getImpl(ArrayRef<uint8_t> ResolvedKey) const final;
-  Error putImpl(ArrayRef<uint8_t> ResolvedKey, const CASID &Result) final;
+  Expected<Optional<CASID>> getImpl(ArrayRef<uint8_t> ResolvedKey,
+                                    bool Globally) const final;
+  Error putImpl(ArrayRef<uint8_t> ResolvedKey, const CASID &Result,
+                bool Globally) final;
 
 private:
   std::unique_ptr<remote::KeyValueDBClient> KVDB;
@@ -396,7 +398,8 @@ GRPCActionCache::GRPCActionCache(StringRef Path, Error &Err)
 }
 
 Expected<Optional<CASID>>
-GRPCActionCache::getImpl(ArrayRef<uint8_t> ResolvedKey) const {
+GRPCActionCache::getImpl(ArrayRef<uint8_t> ResolvedKey,
+                         bool /*Globally*/) const {
   auto Response = KVDB->getValueSync(ResolvedKey);
   if (!Response)
     return Response.takeError();
@@ -413,7 +416,7 @@ GRPCActionCache::getImpl(ArrayRef<uint8_t> ResolvedKey) const {
 }
 
 Error GRPCActionCache::putImpl(ArrayRef<uint8_t> ResolvedKey,
-                               const CASID &Result) {
+                               const CASID &Result, bool /*Globally*/) {
   remote::KeyValueDBClient::ValueTy CompResult;
   CompResult["CASID"] = toStringRef(Result.getHash()).str();
   if (auto Err = KVDB->putValueSync(ResolvedKey, CompResult))

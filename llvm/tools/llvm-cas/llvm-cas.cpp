@@ -54,6 +54,8 @@ static int mergeTrees(ObjectStore &CAS, ArrayRef<std::string> Objects);
 static int getCASIDForFile(ObjectStore &CAS, const CASID &ID, StringRef Path);
 static int import(ObjectStore &CAS, ObjectStore &UpstreamCAS,
                   ArrayRef<std::string> Objects);
+static int import(ActionCache &AC, ActionCache &UpstreamAC,
+                  ArrayRef<std::string> Keys, ObjectStore &CAS);
 static int putCacheKey(ObjectStore &CAS, ActionCache &AC,
                        ArrayRef<std::string> Objects);
 static int validateObject(ObjectStore &CAS, const CASID &ID);
@@ -88,6 +90,7 @@ int main(int Argc, char **Argv) {
     MergeTrees,
     GetCASIDForFile,
     Import,
+    ImportKey,
     PutCacheKey,
     Validate,
   };
@@ -110,6 +113,7 @@ int main(int Argc, char **Argv) {
           clEnumValN(MergeTrees, "merge", "merge paths/cas-ids"),
           clEnumValN(GetCASIDForFile, "get-cas-id", "get cas id for file"),
           clEnumValN(Import, "import", "import objects from another CAS"),
+          clEnumValN(ImportKey, "import-key", "import keys from another CAS"),
           clEnumValN(PutCacheKey, "put-cache-key",
                      "set a value for a cache key"),
           clEnumValN(Validate, "validate", "validate the object for CASID")),
@@ -127,20 +131,23 @@ int main(int Argc, char **Argv) {
     ExitOnErr(
         createStringError(inconvertibleErrorCode(), "missing --cas=<path>"));
 
-  std::unique_ptr<ObjectStore> CAS;
-  std::unique_ptr<ActionCache> AC;
   std::optional<StringRef> CASFilePath;
-  if (sys::path::is_absolute(CASPath)) {
-    CASFilePath = CASPath;
-    std::tie(CAS, AC) = ExitOnErr(createOnDiskUnifiedCASDatabases(CASPath));
-  } else {
-    CAS = ExitOnErr(createCASFromIdentifier(CASPath));
-  }
+  auto createDatabases = [&](StringRef Path)
+      -> std::pair<std::unique_ptr<ObjectStore>, std::unique_ptr<ActionCache>> {
+    if (sys::path::is_absolute(Path)) {
+      CASFilePath = CASPath;
+      return ExitOnErr(createOnDiskUnifiedCASDatabases(Path));
+    }
+    return {ExitOnErr(createCASFromIdentifier(Path)), nullptr};
+  };
+
+  auto [CAS, AC] = createDatabases(CASPath);
   assert(CAS);
 
   std::unique_ptr<ObjectStore> UpstreamCAS;
+  std::unique_ptr<ActionCache> UpstreamAC;
   if (!UpstreamCASPath.empty())
-    UpstreamCAS = ExitOnErr(createCASFromIdentifier(UpstreamCASPath));
+    std::tie(UpstreamCAS, UpstreamAC) = createDatabases(UpstreamCASPath);
 
   if (Command == Dump)
     return dump(*CAS);
@@ -178,6 +185,13 @@ int main(int Argc, char **Argv) {
       ExitOnErr(createStringError(inconvertibleErrorCode(),
                                   "missing '-upstream-cas'"));
     return import(*CAS, *UpstreamCAS, Objects);
+  }
+
+  if (Command == ImportKey) {
+    if (!UpstreamAC)
+      ExitOnErr(createStringError(inconvertibleErrorCode(),
+                                  "missing '-upstream-cas'"));
+    return import(*AC, *UpstreamAC, Objects, *CAS);
   }
 
   if (Command == PutCacheKey) {
@@ -557,6 +571,21 @@ static int import(ObjectStore &CAS, ObjectStore &UpstreamCAS,
   for (StringRef Object : Objects) {
     CASID ID = ExitOnErr(CAS.parseID(Object));
     importNode(CAS, UpstreamCAS, ID);
+  }
+  return 0;
+}
+
+static int import(ActionCache &AC, ActionCache &UpstreamAC,
+                  ArrayRef<std::string> Keys, ObjectStore &CAS) {
+  ExitOnError ExitOnErr("llvm-cas: import key: ");
+
+  for (StringRef Key : Keys) {
+    CASID ID = ExitOnErr(CAS.parseID(Key));
+    Optional<CASID> Value = ExitOnErr(UpstreamAC.get(ID));
+    if (!Value)
+      ExitOnErr(createStringError(inconvertibleErrorCode(),
+                                  "key " + Key + "missing from upstream"));
+    ExitOnErr(AC.put(ID, *Value));
   }
   return 0;
 }

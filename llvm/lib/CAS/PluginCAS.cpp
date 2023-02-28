@@ -11,6 +11,7 @@
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/DynamicLibrary.h"
+#include "llvm/Support/Errc.h"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -322,9 +323,17 @@ namespace {
 
 class PluginActionCache : public ActionCache {
 public:
-  Expected<std::optional<CASID>>
-  getImpl(ArrayRef<uint8_t> ResolvedKey) const final;
-  Error putImpl(ArrayRef<uint8_t> ResolvedKey, const CASID &Result) final;
+  Expected<std::optional<CASID>> getImpl(ArrayRef<uint8_t> ResolvedKey,
+                                         bool Globally) const final;
+  Error putImpl(ArrayRef<uint8_t> ResolvedKey, const CASID &Result,
+                bool Globally) final;
+
+  Expected<std::optional<std::unique_ptr<ActionCacheMap>>>
+  getMap(const CacheKey &ActionKey, ObjectStore &CAS,
+         bool Globally) const final;
+
+  Error putMap(const CacheKey &ActionKey, const StringMap<ObjectRef> &Mappings,
+               ObjectStore &CAS, bool Globally) final;
 
   PluginActionCache(std::shared_ptr<PluginCASContext>);
 
@@ -335,12 +344,12 @@ private:
 } // anonymous namespace
 
 Expected<std::optional<CASID>>
-PluginActionCache::getImpl(ArrayRef<uint8_t> ResolvedKey) const {
+PluginActionCache::getImpl(ArrayRef<uint8_t> ResolvedKey, bool Globally) const {
   llcas_objectid_t c_value;
   char *c_err = nullptr;
   llcas_lookup_result_t c_result = Ctx->Functions.actioncache_get_for_digest(
       Ctx->c_cas, llcas_digest_t{ResolvedKey.data(), ResolvedKey.size()},
-      &c_value, &c_err);
+      &c_value, Globally, &c_err);
   switch (c_result) {
   case LLCAS_LOOKUP_RESULT_SUCCESS: {
     llcas_digest_t c_digest =
@@ -355,18 +364,140 @@ PluginActionCache::getImpl(ArrayRef<uint8_t> ResolvedKey) const {
 }
 
 Error PluginActionCache::putImpl(ArrayRef<uint8_t> ResolvedKey,
-                                 const CASID &Result) {
+                                 const CASID &Result, bool Globally) {
   ArrayRef<uint8_t> Hash = Result.getHash();
   llcas_objectid_t c_value;
   char *c_err = nullptr;
   if (Ctx->Functions.cas_get_objectid(Ctx->c_cas,
                                       llcas_digest_t{Hash.data(), Hash.size()},
                                       &c_value, &c_err))
-    report_fatal_error(Ctx->errorAndDispose(c_err));
+    return Ctx->errorAndDispose(c_err);
 
   if (Ctx->Functions.actioncache_put_for_digest(
           Ctx->c_cas, llcas_digest_t{ResolvedKey.data(), ResolvedKey.size()},
-          c_value, &c_err))
+          c_value, Globally, &c_err))
+    return Ctx->errorAndDispose(c_err);
+
+  return Error::success();
+}
+
+namespace {
+class PluginActionCacheMap : public ActionCacheMap {
+public:
+  std::shared_ptr<PluginCASContext> Ctx;
+  ObjectStore &CAS;
+  llcas_actioncache_map_t c_map;
+  SmallVector<std::string, 4> Names;
+
+  PluginActionCacheMap(std::shared_ptr<PluginCASContext> Ctx_, ObjectStore &CAS,
+                       llcas_actioncache_map_t c_map)
+      : Ctx(std::move(Ctx_)), CAS(CAS), c_map(c_map) {
+    size_t Count = Ctx->Functions.actioncache_map_get_entries_count(c_map);
+    for (unsigned I = 0; I != Count; ++I) {
+      Names.push_back(Ctx->Functions.actioncache_map_get_entry_name(c_map, I));
+    }
+  }
+
+  ~PluginActionCacheMap() { Ctx->Functions.actioncache_map_dispose(c_map); }
+
+  std::vector<std::string> getAllNames() final {
+    return {this->Names.begin(), this->Names.end()};
+  }
+
+  FutureValue getValueAsync(StringRef Name) final {
+    std::promise<Expected<std::optional<ObjectRef>>> Promise;
+    FutureValue Future = Promise.get_future();
+    auto FoundI = std::find(Names.begin(), Names.end(), Name);
+    if (FoundI == Names.end()) {
+      Promise.set_value(
+          createStringError(llvm::errc::invalid_argument,
+                            Name + " not part of action cache map"));
+      return Future;
+    }
+    size_t Index = std::distance(Names.begin(), FoundI);
+
+    struct GetValueCtx {
+      std::shared_ptr<PluginCASContext> CASCtx;
+      ObjectStore &CAS;
+      std::promise<Expected<std::optional<ObjectRef>>> Promise;
+
+      GetValueCtx(std::shared_ptr<PluginCASContext> Ctx, ObjectStore &CAS,
+                  std::promise<Expected<std::optional<ObjectRef>>> Promise)
+          : CASCtx(std::move(Ctx)), CAS(CAS), Promise(std::move(Promise)) {}
+    };
+    auto GetValueCB = [](void *c_ctx, llcas_lookup_result_t c_result,
+                         llcas_actioncache_map_entry c_entry, char *c_err) {
+      auto getValueAndDispose =
+          [&](GetValueCtx *Ctx) -> Expected<std::optional<ObjectRef>> {
+        auto _ = make_scope_exit([Ctx]() { delete Ctx; });
+        switch (c_result) {
+        case LLCAS_LOOKUP_RESULT_SUCCESS:
+          return ObjectRef::getFromInternalRef(Ctx->CAS, c_entry.ref.opaque);
+        case LLCAS_LOOKUP_RESULT_NOTFOUND:
+          return std::nullopt;
+        case LLCAS_LOOKUP_RESULT_ERROR:
+          return Ctx->CASCtx->errorAndDispose(c_err);
+        }
+      };
+
+      GetValueCtx *Ctx = static_cast<GetValueCtx *>(c_ctx);
+      auto Promise = std::move(Ctx->Promise);
+      Promise.set_value(getValueAndDispose(Ctx));
+    };
+
+    GetValueCtx *CallCtx = new GetValueCtx(Ctx, CAS, std::move(Promise));
+    Ctx->Functions.actioncache_map_get_entry_value_async(c_map, Index, CallCtx,
+                                                         GetValueCB);
+    return Future;
+  }
+};
+} // namespace
+
+Expected<std::optional<std::unique_ptr<ActionCacheMap>>>
+PluginActionCache::getMap(const CacheKey &ActionKey, ObjectStore &CAS,
+                          bool Globally) const {
+  if (LLVM_UNLIKELY(&CAS.getContext() != &getContext()))
+    return createStringError(llvm::errc::invalid_argument,
+                             "expected ObjectStore from plugin context");
+
+  auto ResolvedKey = arrayRefFromStringRef(ActionKey.getKey());
+
+  llcas_actioncache_map_t c_map;
+  char *c_err = nullptr;
+  llcas_lookup_result_t c_result =
+      Ctx->Functions.actioncache_get_map_for_digest(
+          Ctx->c_cas, llcas_digest_t{ResolvedKey.data(), ResolvedKey.size()},
+          &c_map, Globally, &c_err);
+  switch (c_result) {
+  case LLCAS_LOOKUP_RESULT_SUCCESS:
+    return std::make_unique<PluginActionCacheMap>(Ctx, CAS, c_map);
+  case LLCAS_LOOKUP_RESULT_NOTFOUND:
+    return std::nullopt;
+  case LLCAS_LOOKUP_RESULT_ERROR:
+    return Ctx->errorAndDispose(c_err);
+  }
+}
+
+Error PluginActionCache::putMap(const CacheKey &ActionKey,
+                                const StringMap<ObjectRef> &Mappings,
+                                ObjectStore &CAS, bool Globally) {
+  if (LLVM_UNLIKELY(&CAS.getContext() != &getContext()))
+    return createStringError(llvm::errc::invalid_argument,
+                             "expected ObjectStore from plugin context");
+
+  auto ResolvedKey = arrayRefFromStringRef(ActionKey.getKey());
+  SmallVector<llcas_actioncache_map_entry, 4> Entries;
+  for (const auto &Mapping : Mappings) {
+    llcas_actioncache_map_entry c_entry{
+        Mapping.getKeyData(),
+        llcas_objectid_t{Mapping.second.getInternalRef(CAS)}};
+    Entries.push_back(c_entry);
+  }
+
+  char *c_err = nullptr;
+  if (Ctx->Functions.actioncache_put_map_for_digest(
+          Ctx->c_cas, llcas_digest_t{ResolvedKey.data(), ResolvedKey.size()},
+          Entries.data(), Entries.size(), Globally, &c_err))
     return Ctx->errorAndDispose(c_err);
 
   return Error::success();

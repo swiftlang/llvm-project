@@ -75,10 +75,32 @@ struct llcas_functions_t {
   llcas_lookup_result_t (*actioncache_get_for_digest)(llcas_cas_t,
                                                       llcas_digest_t key,
                                                       llcas_objectid_t *p_value,
+                                                      bool globally,
                                                       char **error);
 
   bool (*actioncache_put_for_digest)(llcas_cas_t, llcas_digest_t key,
-                                     llcas_objectid_t value, char **error);
+                                     llcas_objectid_t value, bool globally,
+                                     char **error);
+
+  bool (*actioncache_put_map_for_digest)(
+      llcas_cas_t, llcas_digest_t key,
+      const llcas_actioncache_map_entry *entries, size_t entries_count,
+      bool globally, char **error);
+
+  llcas_lookup_result_t (*actioncache_get_map_for_digest)(
+      llcas_cas_t, llcas_digest_t key, llcas_actioncache_map_t *p_map,
+      bool globally, char **error);
+
+  size_t (*actioncache_map_get_entries_count)(llcas_actioncache_map_t);
+
+  const char *(*actioncache_map_get_entry_name)(llcas_actioncache_map_t,
+                                                size_t index);
+
+  void (*actioncache_map_get_entry_value_async)(
+      llcas_actioncache_map_t, size_t index, void *callback_ctx,
+      llcas_actioncache_map_get_entry_value_callback);
+
+  void (*actioncache_map_dispose)(llcas_actioncache_map_t);
 };
 
 #endif // LLVM_LIB_CAS_PLUGINAPI_H

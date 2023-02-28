@@ -2348,7 +2348,7 @@ static bool addCachedModuleFileToInMemoryCache(
     return true;
   }
 
-  auto Value = Cache.get(*ID);
+  auto Value = Cache.getMap(*ID, CAS, /*Globally=*/true);
   if (!Value || !*Value) {
     auto Diag = Diags.Report(diag::err_cas_cannot_get_module_cache_key)
                 << CacheKey << Provider;
@@ -2364,26 +2364,26 @@ static bool addCachedModuleFileToInMemoryCache(
     }
     return true;
   }
-  auto ValueRef = CAS.getReference(**Value);
-  if (!ValueRef) {
-    Diags.Report(diag::err_cas_cannot_get_module_cache_key)
-        << CacheKey << Provider << "result module doesn't exist in CAS";
 
+  auto FutureMainOutput =
+      (**Value)->getValueAsync(cas::CompileJobCacheResult::getOutputKindName(
+          cas::CompileJobCacheResult::OutputKind::MainOutput));
+  // FIXME: We wait to materialize each module file before proceeding, which
+  // introduces latency for a network CAS. Instead we should collect all the
+  // module keys and materialize them concurrently, for better network
+  // utilization.
+  Expected<std::optional<cas::ObjectRef>> MainOutput = FutureMainOutput.get();
+  if (!MainOutput || !*MainOutput) {
+    auto Diag = Diags.Report(diag::err_cas_cannot_get_module_cache_key)
+                << CacheKey << Provider;
+    if (!MainOutput) {
+      Diag << MainOutput.takeError();
+    } else {
+      Diag << "result module doesn't exist in CAS";
+    }
     return true;
   }
-
-  std::optional<cas::CompileJobCacheResult> Result;
-  cas::CompileJobResultSchema Schema(CAS);
-  if (llvm::Error E = Schema.load(*ValueRef).moveInto(Result)) {
-    Diags.Report(diag::err_cas_cannot_get_module_cache_key)
-        << CacheKey << Provider << std::move(E);
-    return true;
-  }
-  auto Output =
-      Result->getOutput(cas::CompileJobCacheResult::OutputKind::MainOutput);
-  if (!Output)
-    llvm::report_fatal_error("missing main output");
-  auto OutputProxy = CAS.getProxy(Output->Object);
+  auto OutputProxy = CAS.getProxy(**MainOutput);
   if (!OutputProxy) {
     Diags.Report(diag::err_cas_cannot_get_module_cache_key)
         << CacheKey << Provider << OutputProxy.takeError();

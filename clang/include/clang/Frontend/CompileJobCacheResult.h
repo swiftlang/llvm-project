@@ -10,14 +10,14 @@
 #define LLVM_CLANG_FRONTEND_COMPILEJOBCACHERESULT_H
 
 #include "clang/Basic/LLVM.h"
-#include "llvm/CAS/CASNodeSchema.h"
-#include "llvm/CAS/ObjectStore.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/CAS/CASReference.h"
+#include "llvm/Support/Error.h"
 
 namespace clang {
 namespace cas {
-class CompileJobResultSchema;
 
-class CompileJobCacheResult : public ObjectProxy {
+class CompileJobCacheResult {
 public:
   /// Categorization for the output kinds that is used to decouple the
   /// compilation cache key from the specific output paths.
@@ -26,6 +26,7 @@ public:
     SerializedDiagnostics,
     Dependencies,
   };
+  static const unsigned NumOutputKinds = 3;
 
   /// Returns all \c OutputKind values.
   static ArrayRef<OutputKind> getAllOutputKinds();
@@ -51,8 +52,12 @@ public:
   /// Retrieves a specific output specified by \p Kind, if it exists.
   std::optional<Output> getOutput(OutputKind Kind) const;
 
+  static StringRef getOutputKindName(OutputKind Kind);
+  /// \returns \c std::nullopt if \p Name doesn't match one of the output kind names.
+  static std::optional<OutputKind> getOutputKindForName(StringRef Name);
+
   /// Print this result to \p OS.
-  llvm::Error print(llvm::raw_ostream &OS);
+  llvm::Error print(llvm::raw_ostream &OS, const ObjectStore &CAS);
 
   /// Helper to build a \c CompileJobCacheResult from individual outputs.
   class Builder {
@@ -66,15 +71,17 @@ public:
     void addOutput(OutputKind Kind, ObjectRef Object);
     /// Add an output for the given \p Path. There must be a a kind map for it.
     llvm::Error addOutput(StringRef Path, ObjectRef Object);
-    /// Build a single \c ObjectRef representing the provided outputs. The
-    /// result can be used with \c CompileJobResultSchema to retrieve the
+    /// Build a single \c StringMap representing the provided outputs. The
+    /// result can be used with \c CompileJobCacheResult to retrieve the
     /// original outputs.
-    Expected<ObjectRef> build(ObjectStore &CAS);
+    llvm::StringMap<ObjectRef> build();
 
   private:
     struct PrivateImpl;
     PrivateImpl &Impl;
   };
+
+  CompileJobCacheResult(const llvm::StringMap<ObjectRef> &Mappings);
 
 private:
   ObjectRef getOutputObject(size_t I) const;
@@ -82,30 +89,7 @@ private:
   OutputKind getOutputKind(size_t I) const;
   Expected<ObjectRef> getOutputPath(size_t I) const;
 
-private:
-  friend class CompileJobResultSchema;
-  CompileJobCacheResult(const ObjectProxy &);
-};
-
-class CompileJobResultSchema
-    : public llvm::RTTIExtends<CompileJobResultSchema, llvm::cas::NodeSchema> {
-public:
-  static char ID;
-
-  CompileJobResultSchema(ObjectStore &CAS);
-
-  /// Attempt to load \p Ref as a \c CompileJobCacheResult if it matches the
-  /// schema.
-  Expected<CompileJobCacheResult> load(ObjectRef Ref) const;
-
-  bool isRootNode(const ObjectProxy &Node) const final;
-  bool isNode(const ObjectProxy &Node) const final;
-
-  /// Get this schema's marker node.
-  ObjectRef getKindRef() const { return KindRef; }
-
-private:
-  ObjectRef KindRef;
+  SmallVector<std::pair<OutputKind, ObjectRef>, NumOutputKinds> Outputs;
 };
 
 } // namespace cas

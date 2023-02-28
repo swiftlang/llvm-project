@@ -4,7 +4,13 @@
 // will be null. Order is lexicographically by name.
 
 CASPLUGINAPI_FUNCTION(actioncache_get_for_digest, true)
+CASPLUGINAPI_FUNCTION(actioncache_get_map_for_digest, true)
+CASPLUGINAPI_FUNCTION(actioncache_map_dispose, true)
+CASPLUGINAPI_FUNCTION(actioncache_map_get_entries_count, true)
+CASPLUGINAPI_FUNCTION(actioncache_map_get_entry_name, true)
+CASPLUGINAPI_FUNCTION(actioncache_map_get_entry_value_async, true)
 CASPLUGINAPI_FUNCTION(actioncache_put_for_digest, true)
+CASPLUGINAPI_FUNCTION(actioncache_put_map_for_digest, true)
 CASPLUGINAPI_FUNCTION(cas_contains_object, true)
 CASPLUGINAPI_FUNCTION(cas_create, true)
 CASPLUGINAPI_FUNCTION(cas_dispose, true)

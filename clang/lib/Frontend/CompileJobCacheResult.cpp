@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Frontend/CompileJobCacheResult.h"
+#include "llvm/ADT/StringSwitch.h"
+#include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace clang;
@@ -45,40 +47,62 @@ CompileJobCacheResult::getOutput(OutputKind Kind) const {
   return std::nullopt;
 }
 
-static void printOutputKind(llvm::raw_ostream &OS,
-                            CompileJobCacheResult::OutputKind Kind) {
+static constexpr llvm::StringLiteral MainOutputKindName = "main";
+static constexpr llvm::StringLiteral SerializedDiagnosticsKindName = "diags";
+static constexpr llvm::StringLiteral DependenciesOutputKindName = "deps";
+
+StringRef CompileJobCacheResult::getOutputKindName(OutputKind Kind) {
   switch (Kind) {
-  case CompileJobCacheResult::OutputKind::MainOutput:
-    OS << "main   ";
-    break;
-  case CompileJobCacheResult::OutputKind::Dependencies:
-    OS << "deps   ";
-    break;
-  case CompileJobCacheResult::OutputKind::SerializedDiagnostics:
-    OS << "diags  ";
-    break;
+  case OutputKind::MainOutput:
+    return MainOutputKindName;
+  case OutputKind::SerializedDiagnostics:
+    return SerializedDiagnosticsKindName;
+  case OutputKind::Dependencies:
+    return DependenciesOutputKindName;
   }
 }
 
-Error CompileJobCacheResult::print(llvm::raw_ostream &OS) {
+std::optional<CompileJobCacheResult::OutputKind>
+CompileJobCacheResult::getOutputKindForName(StringRef Name) {
+  return llvm::StringSwitch<std::optional<OutputKind>>(Name)
+      .Case(MainOutputKindName, OutputKind::MainOutput)
+      .Case(SerializedDiagnosticsKindName, OutputKind::SerializedDiagnostics)
+      .Case(DependenciesOutputKindName, OutputKind::Dependencies)
+      .Default(std::nullopt);
+}
+
+static void printOutputKind(llvm::raw_ostream &OS,
+                            CompileJobCacheResult::OutputKind Kind) {
+  OS << CompileJobCacheResult::getOutputKindName(Kind) << "  ";
+}
+
+Error CompileJobCacheResult::print(llvm::raw_ostream &OS,
+                                   const ObjectStore &CAS) {
   return forEachOutput([&](Output O) -> Error {
     printOutputKind(OS, O.Kind);
-    OS << ' ' << getCAS().getID(O.Object) << '\n';
+    OS << ' ' << CAS.getID(O.Object) << '\n';
     return Error::success();
   });
 }
 
-size_t CompileJobCacheResult::getNumOutputs() const { return getData().size(); }
+size_t CompileJobCacheResult::getNumOutputs() const { return Outputs.size(); }
 ObjectRef CompileJobCacheResult::getOutputObject(size_t I) const {
-  return getReference(I);
+  return Outputs[I].second;
 }
 CompileJobCacheResult::OutputKind
 CompileJobCacheResult::getOutputKind(size_t I) const {
-  return static_cast<OutputKind>(getData()[I]);
+  return Outputs[I].first;
 }
 
-CompileJobCacheResult::CompileJobCacheResult(const ObjectProxy &Obj)
-    : ObjectProxy(Obj) {}
+CompileJobCacheResult::CompileJobCacheResult(
+    const llvm::StringMap<ObjectRef> &Mappings) {
+  for (const auto &Mapping : Mappings) {
+    auto Kind = getOutputKindForName(Mapping.first());
+    if (!Kind)
+      llvm::report_fatal_error("unknown output kind: " + Mapping.first());
+    Outputs.emplace_back(*Kind, Mapping.second);
+  }
+}
 
 struct CompileJobCacheResult::Builder::PrivateImpl {
   SmallVector<ObjectRef> Objects;
@@ -105,10 +129,9 @@ void CompileJobCacheResult::Builder::addOutput(OutputKind Kind,
 }
 Error CompileJobCacheResult::Builder::addOutput(StringRef Path,
                                                 ObjectRef Object) {
-  Impl.Objects.push_back(Object);
   for (auto &KM : Impl.KindMaps) {
     if (KM.Path == Path) {
-      Impl.Kinds.push_back(KM.Kind);
+      addOutput(KM.Kind, Object);
       return Error::success();
     }
   }
@@ -117,43 +140,11 @@ Error CompileJobCacheResult::Builder::addOutput(StringRef Path,
                                      Path + "'");
 }
 
-Expected<ObjectRef> CompileJobCacheResult::Builder::build(ObjectStore &CAS) {
-  CompileJobResultSchema Schema(CAS);
-  // The resulting Refs contents are:
-  // Object 0...N, SchemaKind
-  SmallVector<ObjectRef> Refs;
-  std::swap(Impl.Objects, Refs);
-  Refs.push_back(Schema.getKindRef());
-  return CAS.store(Refs, {(char *)Impl.Kinds.begin(), Impl.Kinds.size()});
-}
-
-static constexpr llvm::StringLiteral CompileJobResultSchemaName =
-    "llvm::cas::schema::compile_job_result::v1";
-
-char CompileJobResultSchema::ID = 0;
-
-CompileJobResultSchema::CompileJobResultSchema(ObjectStore &CAS)
-    : CompileJobResultSchema::RTTIExtends(CAS),
-      KindRef(
-          llvm::cantFail(CAS.storeFromString({}, CompileJobResultSchemaName))) {
-}
-
-Expected<CompileJobCacheResult>
-CompileJobResultSchema::load(ObjectRef Ref) const {
-  auto Proxy = CAS.getProxy(Ref);
-  if (!Proxy)
-    return Proxy.takeError();
-  if (!isNode(*Proxy))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "not a compile job result");
-  return CompileJobCacheResult(*Proxy);
-}
-
-bool CompileJobResultSchema::isRootNode(const ObjectProxy &Node) const {
-  return isNode(Node);
-}
-
-bool CompileJobResultSchema::isNode(const ObjectProxy &Node) const {
-  size_t N = Node.getNumReferences();
-  return N && Node.getReference(N - 1) == getKindRef();
+llvm::StringMap<ObjectRef> CompileJobCacheResult::Builder::build() {
+  assert(Impl.Kinds.size() == Impl.Objects.size());
+  llvm::StringMap<ObjectRef> Mappings;
+  for (unsigned I = 0, E = Impl.Kinds.size(); I != E; ++I) {
+    Mappings.insert({getOutputKindName(Impl.Kinds[I]), Impl.Objects[I]});
+  }
+  return Mappings;
 }

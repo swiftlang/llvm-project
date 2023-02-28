@@ -234,18 +234,25 @@ LLCAS_PUBLIC llcas_objectid_t llcas_object_refs_get_id(llcas_cas_t,
  * Retrieves the \c llcas_objectid_t value associated with a \p key.
  *
  * \param p_value pointer to store the returned \c llcas_objectid_t object.
+ * \param globally if true it is a hint to the underlying implementation that
+ * the lookup is profitable to be done on a distributed caching level, not just
+ * locally. The implementation is free to ignore this flag.
  * \param error optional pointer to receive an error message if an error
  * occurred. If set, the memory it points to needs to be released via
  * \c llcas_string_dispose.
  * \returns one of \c llcas_lookup_result_t.
  */
 LLCAS_PUBLIC llcas_lookup_result_t llcas_actioncache_get_for_digest(
-    llcas_cas_t, llcas_digest_t key, llcas_objectid_t *p_value, char **error);
+    llcas_cas_t, llcas_digest_t key, llcas_objectid_t *p_value, bool globally,
+    char **error);
 
 /**
  * Associates a \c llcas_objectid_t \p value with a \p key. It is invalid to set
  * a different \p value to the same \p key.
  *
+ * \param globally if true it is a hint to the underlying implementation that
+ * the association is profitable to be done on a distributed caching level, not
+ * just locally. The implementation is free to ignore this flag.
  * \param error optional pointer to receive an error message if an error
  * occurred. If set, the memory it points to needs to be released via
  * \c llcas_string_dispose.
@@ -254,7 +261,76 @@ LLCAS_PUBLIC llcas_lookup_result_t llcas_actioncache_get_for_digest(
 LLCAS_PUBLIC bool llcas_actioncache_put_for_digest(llcas_cas_t,
                                                    llcas_digest_t key,
                                                    llcas_objectid_t value,
-                                                   char **error);
+                                                   bool globally, char **error);
+
+/**
+ * Associates a set of \c llcas_actioncache_map_entry pairs with a \p key. It is
+ * invalid to set different \p entries to the same \p key. It is invalid to pass
+ * two \c llcas_actioncache_map_entry pairs with the same \c name string. The
+ * implementation does not need to preserve the same order of \c name strings
+ * that \c llcas_actioncache_get_map_for_digest will return for the same \p key.
+ *
+ * \param globally if true it is a hint to the underlying implementation that
+ * the association is profitable to be done on a distributed caching level, not
+ * just locally. The implementation is free to ignore this flag.
+ * \param error optional pointer to receive an error message if an error
+ * occurred. If set, the memory it points to needs to be released via
+ * \c llcas_string_dispose.
+ * \returns true if there was an error, false otherwise.
+ */
+LLCAS_PUBLIC bool llcas_actioncache_put_map_for_digest(
+    llcas_cas_t, llcas_digest_t key, const llcas_actioncache_map_entry *entries,
+    size_t entries_count, bool globally, char **error);
+
+/**
+ * Retrieves the \c llcas_actioncache_map_t object associated with a \p key.
+ * The implementation does not need to preserve the same order of \c name
+ * strings that \c llcas_actioncache_put_map_for_digest associated for the same
+ * \p key.
+ *
+ * \param p_map pointer to store the returned \c llcas_actioncache_map_t object.
+ * Call \c llcas_actioncache_map_dispose to release the memory owned by the
+ * object.
+ * \param globally if true it is a hint to the underlying implementation that
+ * the lookup is profitable to be done on a distributed caching level, not just
+ * locally. The implementation is free to ignore this flag.
+ * \param error optional pointer to receive an error message if an error
+ * occurred. If set, the memory it points to needs to be released via
+ * \c llcas_string_dispose.
+ * \returns one of \c llcas_lookup_result_t.
+ */
+LLCAS_PUBLIC llcas_lookup_result_t llcas_actioncache_get_map_for_digest(
+    llcas_cas_t, llcas_digest_t key, llcas_actioncache_map_t *p_map,
+    bool globally, char **error);
+
+/**
+ * \returns the number of (name -> object) entries.
+ */
+LLCAS_PUBLIC
+size_t llcas_actioncache_map_get_entries_count(llcas_actioncache_map_t);
+
+/**
+ * Retrieves the name string of the entry at \p index. The string pointer is
+ * valid to use while the \c llcas_actioncache_map_t object is still valid.
+ */
+LLCAS_PUBLIC const char *
+llcas_actioncache_map_get_entry_name(llcas_actioncache_map_t, size_t index);
+
+/**
+ * Materializes the \c llcas_objectid_t object of the entry at \p index,
+ * asynchronously using a callback function.
+ *
+ * \param callback_ctx pointer to pass to the callback function.
+ */
+LLCAS_PUBLIC void llcas_actioncache_map_get_entry_value_async(
+    llcas_actioncache_map_t, size_t index, void *callback_ctx,
+    llcas_actioncache_map_get_entry_value_callback);
+
+/**
+ * Releases memory of \c llcas_actioncache_map_t. After calling this it is
+ * invalid to pass the object to the related functions.
+ */
+LLCAS_PUBLIC void llcas_actioncache_map_dispose(llcas_actioncache_map_t);
 
 LLVM_C_EXTERN_C_END
 

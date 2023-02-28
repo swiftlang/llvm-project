@@ -690,7 +690,6 @@ struct CachingDiagnosticsProcessor::DiagnosticsConsumer
     switch (Info.getID()) {
     case diag::remark_compile_job_cache_hit:
     case diag::remark_compile_job_cache_miss:
-    case diag::remark_compile_job_cache_miss_result_not_found:
     case diag::remark_compile_job_cache_backend_output_not_found:
     case diag::remark_compile_job_cache_skipped:
     case diag::remark_compile_job_cache_timing_backend_key_query:

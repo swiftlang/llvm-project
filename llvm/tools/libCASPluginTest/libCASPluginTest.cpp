@@ -259,7 +259,8 @@ llcas_objectid_t llcas_object_refs_get_id(llcas_cas_t c_cas,
 
 llcas_lookup_result_t
 llcas_actioncache_get_for_digest(llcas_cas_t c_cas, llcas_digest_t key,
-                                 llcas_objectid_t *p_value, char **error) {
+                                 llcas_objectid_t *p_value, bool globally,
+                                 char **error) {
   auto &DB = *unwrap(c_cas)->DB;
   Expected<std::optional<ObjectID>> Value =
       DB.KVGet(ArrayRef(key.data, key.size));
@@ -272,7 +273,8 @@ llcas_actioncache_get_for_digest(llcas_cas_t c_cas, llcas_digest_t key,
 }
 
 bool llcas_actioncache_put_for_digest(llcas_cas_t c_cas, llcas_digest_t key,
-                                      llcas_objectid_t c_value, char **error) {
+                                      llcas_objectid_t c_value, bool globally,
+                                      char **error) {
   auto &DB = *unwrap(c_cas)->DB;
   ObjectID Value = ObjectID::fromOpaqueData(c_value.opaque);
   Expected<ObjectID> Ret = DB.KVPut(ArrayRef(key.data, key.size), Value);
@@ -283,4 +285,108 @@ bool llcas_actioncache_put_for_digest(llcas_cas_t c_cas, llcas_digest_t key,
         createStringError(errc::invalid_argument, "cache poisoned"), error,
         true);
   return false;
+}
+
+bool llcas_actioncache_put_map_for_digest(
+    llcas_cas_t c_cas, llcas_digest_t key,
+    const llcas_actioncache_map_entry *c_entries, size_t c_entries_count,
+    bool globally, char **error) {
+  SmallVector<llcas_actioncache_map_entry> Entries(
+      ArrayRef(c_entries, c_entries_count));
+  // Sort the entries so that the value object we store is order independent.
+  llvm::sort(Entries,
+             [](const llcas_actioncache_map_entry &LHS,
+                const llcas_actioncache_map_entry &RHS) -> bool {
+               return StringRef(LHS.name) < StringRef(RHS.name);
+             });
+
+  SmallString<128> NamesBuf;
+  SmallVector<llcas_objectid_t, 6> Refs;
+  Refs.reserve(c_entries_count);
+  for (const auto &c_entry : Entries) {
+    assert(c_entry.name);
+    NamesBuf += c_entry.name;
+    NamesBuf.push_back(0);
+    Refs.push_back(c_entry.ref);
+  }
+
+  llcas_objectid_t c_value;
+  if (llcas_cas_store_object(c_cas,
+                             llcas_data_t{NamesBuf.data(), NamesBuf.size()},
+                             Refs.data(), Refs.size(), &c_value, error))
+    return true;
+
+  return llcas_actioncache_put_for_digest(c_cas, key, c_value, globally, error);
+}
+
+namespace {
+using ActionCacheMappings =
+    SmallVector<std::pair<std::string, llcas_objectid_t>>;
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(ActionCacheMappings, llcas_actioncache_map_t)
+} // namespace
+
+llcas_lookup_result_t
+llcas_actioncache_get_map_for_digest(llcas_cas_t c_cas, llcas_digest_t key,
+                                     llcas_actioncache_map_t *p_map,
+                                     bool globally, char **error) {
+  auto &DB = *unwrap(c_cas)->DB;
+  auto &CAS = DB.getGraphDB();
+
+  llcas_objectid_t c_value;
+  switch (
+      llcas_actioncache_get_for_digest(c_cas, key, &c_value, globally, error)) {
+  case LLCAS_LOOKUP_RESULT_SUCCESS:
+    break;
+  case LLCAS_LOOKUP_RESULT_NOTFOUND:
+    return LLCAS_LOOKUP_RESULT_NOTFOUND;
+  case LLCAS_LOOKUP_RESULT_ERROR:
+    return LLCAS_LOOKUP_RESULT_ERROR;
+  }
+
+  Expected<std::optional<ondisk::ObjectHandle>> Obj =
+      CAS.load(ObjectID::fromOpaqueData(c_value.opaque));
+  if (!Obj)
+    return reportError(Obj.takeError(), error, LLCAS_LOOKUP_RESULT_ERROR);
+  if (!*Obj)
+    return LLCAS_LOOKUP_RESULT_NOTFOUND;
+
+  auto *Mappings = new ActionCacheMappings();
+
+  StringRef RemainingNamesBuf = toStringRef(CAS.getObjectData(**Obj));
+  auto Refs = CAS.getObjectRefs(**Obj);
+  for (ObjectID Ref : Refs) {
+    StringRef Name = RemainingNamesBuf.data();
+    assert(!Name.empty());
+    Mappings->push_back(
+        {std::string(Name), llcas_objectid_t{Ref.getOpaqueData()}});
+    assert(Name.size() < RemainingNamesBuf.size());
+    assert(RemainingNamesBuf[Name.size()] == 0);
+    RemainingNamesBuf = RemainingNamesBuf.substr(Name.size() + 1);
+  }
+  *p_map = wrap(Mappings);
+  return LLCAS_LOOKUP_RESULT_SUCCESS;
+}
+
+size_t llcas_actioncache_map_get_entries_count(llcas_actioncache_map_t c_map) {
+  ActionCacheMappings &Mappings = *unwrap(c_map);
+  return Mappings.size();
+}
+
+const char *llcas_actioncache_map_get_entry_name(llcas_actioncache_map_t c_map,
+                                                 size_t index) {
+  ActionCacheMappings &Mappings = *unwrap(c_map);
+  return Mappings[index].first.c_str();
+}
+
+void llcas_actioncache_map_get_entry_value_async(
+    llcas_actioncache_map_t c_map, size_t index, void *callback_ctx,
+    llcas_actioncache_map_get_entry_value_callback callback) {
+  ActionCacheMappings &Mappings = *unwrap(c_map);
+  callback(callback_ctx, LLCAS_LOOKUP_RESULT_SUCCESS,
+           {Mappings[index].first.c_str(), Mappings[index].second},
+           /*error=*/nullptr);
+}
+
+void llcas_actioncache_map_dispose(llcas_actioncache_map_t c_map) {
+  delete unwrap(c_map);
 }

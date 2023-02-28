@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Frontend/CompileJobCacheResult.h"
+#include "llvm/CAS/ObjectStore.h"
 #include "llvm/Testing/Support/Error.h"
 
 #include "gmock/gmock.h"
@@ -25,20 +26,18 @@ std::vector<Output> getAllOutputs(CompileJobCacheResult Result) {
     Outputs.push_back(O);
     return llvm::Error::success();
   }));
+  llvm::sort(Outputs, [](const Output &LHS, const Output &RHS) -> bool {
+    return LHS.Kind < RHS.Kind;
+  });
   return Outputs;
 }
 
 TEST(CompileJobCacheResultTest, Empty) {
-  std::unique_ptr<ObjectStore> CAS = createInMemoryCAS();
   CompileJobCacheResult::Builder B;
-  std::optional<ObjectRef> Result;
-  ASSERT_THAT_ERROR(B.build(*CAS).moveInto(Result), Succeeded());
+  llvm::StringMap<ObjectRef> Result = B.build();
 
-  std::optional<CompileJobCacheResult> Proxy;
-  CompileJobResultSchema Schema(*CAS);
-  ASSERT_THAT_ERROR(Schema.load(*Result).moveInto(Proxy), Succeeded());
-
-  EXPECT_EQ(Proxy->getNumOutputs(), 0u);
+  CompileJobCacheResult Proxy(Result);
+  EXPECT_EQ(Proxy.getNumOutputs(), 0u);
 }
 
 TEST(CompileJobCacheResultTest, AddOutputs) {
@@ -56,15 +55,12 @@ TEST(CompileJobCacheResultTest, AddOutputs) {
   for (const auto &Output : Expected)
     B.addOutput(Output.Kind, Output.Object);
 
-  std::optional<ObjectRef> Result;
-  ASSERT_THAT_ERROR(B.build(*CAS).moveInto(Result), Succeeded());
+  llvm::StringMap<ObjectRef> Result = B.build();
 
-  std::optional<CompileJobCacheResult> Proxy;
-  CompileJobResultSchema Schema(*CAS);
-  ASSERT_THAT_ERROR(Schema.load(*Result).moveInto(Proxy), Succeeded());
+  CompileJobCacheResult Proxy(Result);
 
-  EXPECT_EQ(Proxy->getNumOutputs(), 2u);
-  auto Actual = getAllOutputs(*Proxy);
+  EXPECT_EQ(Proxy.getNumOutputs(), 2u);
+  auto Actual = getAllOutputs(Proxy);
 
   EXPECT_EQ(Actual, Expected);
 }
@@ -89,15 +85,12 @@ TEST(CompileJobCacheResultTest, AddKindMap) {
 
   EXPECT_THAT_ERROR(B.addOutput("/other", Obj3), llvm::Failed());
 
-  std::optional<ObjectRef> Result;
-  ASSERT_THAT_ERROR(B.build(*CAS).moveInto(Result), Succeeded());
+  llvm::StringMap<ObjectRef> Result = B.build();
 
-  std::optional<CompileJobCacheResult> Proxy;
-  CompileJobResultSchema Schema(*CAS);
-  ASSERT_THAT_ERROR(Schema.load(*Result).moveInto(Proxy), Succeeded());
+  CompileJobCacheResult Proxy(Result);
 
-  EXPECT_EQ(Proxy->getNumOutputs(), 2u);
-  auto Actual = getAllOutputs(*Proxy);
+  EXPECT_EQ(Proxy.getNumOutputs(), 2u);
+  auto Actual = getAllOutputs(Proxy);
 
   EXPECT_EQ(Actual, Expected);
 }

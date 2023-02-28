@@ -29,15 +29,12 @@
 // RUN: cat %t/cache-hit.out | sed \
 // RUN:   -e "s/^.*hit for '//" \
 // RUN:   -e "s/' .*$//" > %t/cache-key
-// RUN: cat %t/cache-hit.out | sed \
-// RUN:   -e "s/^.*=> '//" \
-// RUN:   -e "s/' .*$//" > %t/cache-result
 
 // Check for a handling error if the CAS is removed but not action cache.
 // First need to ingest the input file so the compile cache can be constructed.
 // RUN: llvm-cas --ingest --cas %t/cas.new --data %s
 // Add the 'key => result' association we got earlier.
-// RUN: llvm-cas --cas %t/cas.new --put-cache-key @%t/cache-key @%t/cache-result
+// RUN: llvm-cas --cas %t/cas.new --upstream-cas %t/cas.moved --import-key @%t/cache-key
 // RUN: %clang -cc1 -triple x86_64-apple-macos11 \
 // RUN:   -fcas-path %t/cas.new -fcas-fs @%t/casid -fcache-compile-job \
 // RUN:   -Rcompile-job-cache -emit-obj %s -o output.o 2>&1 \
@@ -47,4 +44,3 @@
 // CACHE-HIT: remark: compile job cache hit
 // CACHE-MISS-NOT: remark: compile job cache hit
 // CACHE-RESULT: remark: compile job cache miss
-// CACHE-RESULT-SAME: result not found
