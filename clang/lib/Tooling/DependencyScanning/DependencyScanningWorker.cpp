@@ -27,7 +27,6 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/CAS/ObjectStore.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/PrefixMapper.h"
 #include "llvm/TargetParser/Host.h"
 #include <optional>
