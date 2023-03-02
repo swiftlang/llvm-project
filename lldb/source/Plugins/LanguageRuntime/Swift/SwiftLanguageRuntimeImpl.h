@@ -14,6 +14,7 @@
 #define liblldb_SwiftLanguageRuntimeImpl_h_
 
 #include "LLDBMemoryReader.h"
+#include "LLDBTypeInfoProvider.h"
 #include "SwiftLanguageRuntime.h"
 #include "SwiftMetadataCache.h"
 #include "swift/RemoteInspection/TypeLowering.h"
@@ -371,6 +372,9 @@ private:
   /// Lazily initialize the reflection context. Return \p nullptr on failure.
   ReflectionContextInterface *GetReflectionContext();
 
+  /// Lazily initialize the type info provider. Return \p nullptr on failure.
+  LLDBTypeInfoProvider *GetTypeInfoProvider();
+
   /// Lazily initialize and return \p m_SwiftNativeNSErrorISA.
   llvm::Optional<lldb::addr_t> GetSwiftNativeNSErrorISA();
 
@@ -432,6 +436,8 @@ private:
 
   /// Swift native NSError isa.
   llvm::Optional<lldb::addr_t> m_SwiftNativeNSErrorISA;
+
+  std::unique_ptr<LLDBTypeInfoProvider> m_tip;
 
   SwiftLanguageRuntimeImpl(const SwiftLanguageRuntimeImpl &) = delete;
   const SwiftLanguageRuntimeImpl &

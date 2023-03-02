@@ -450,6 +450,21 @@ SwiftLanguageRuntimeImpl::GetReflectionContext() {
   return m_reflection_ctx.get();
 }
 
+LLDBTypeInfoProvider *SwiftLanguageRuntimeImpl::GetTypeInfoProvider() {
+  if (m_tip)
+    return m_tip.get();
+
+  auto scratch_context =
+      GetProcess().GetTarget().GetScratchTypeSystemForLanguage(
+          lldb::eLanguageTypeSwift);
+  if (!scratch_context)
+    return nullptr;
+
+  auto &type_system = llvm::cast<TypeSystemSwift>(**scratch_context);
+  m_tip = std::make_unique<LLDBTypeInfoProvider>(*this, type_system);
+  return m_tip.get();
+}
+
 SwiftMetadataCache *
 SwiftLanguageRuntimeImpl::GetSwiftMetadataCache() {
   if (!m_swift_metadata_cache.is_enabled())
