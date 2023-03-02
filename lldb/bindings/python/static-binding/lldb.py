@@ -1320,6 +1320,8 @@ eFormatterMatchExact = _lldb.eFormatterMatchExact
 
 eFormatterMatchRegex = _lldb.eFormatterMatchRegex
 
+eFormatterMatchCallback = _lldb.eFormatterMatchCallback
+
 eLastFormatterMatchType = _lldb.eLastFormatterMatchType
 
 eNullGenericKindType = _lldb.eNullGenericKindType
