@@ -482,6 +482,23 @@ Optional<int> CompileJobCache::initialize(CompilerInstance &Clang) {
   FrontendOptions &FrontendOpts = Invocation.getFrontendOpts();
   CacheCompileJob = FrontendOpts.CacheCompileJob;
 
+  // BEGIN MCCAS
+  Invocation.getCodeGenOpts().MCCallBack =
+      [&](const llvm::cas::CASID &ID) -> Error {
+    if (Invocation.getCodeGenOpts().getCASObjMode() ==
+            llvm::CASBackendMode::Native &&
+        !FrontendOpts.OutputFile.empty()) {
+      std::string CASIDPath = FrontendOpts.OutputFile + ".casid";
+      std::error_code EC;
+      llvm::raw_fd_ostream IDOS(CASIDPath, EC);
+      if (EC)
+        return llvm::errorCodeToError(EC);
+      writeCASIDBuffer(ID, IDOS);
+    }
+    return Error::success();
+  };
+  // END MCCAS
+
   // Nothing else to do if we're not caching.
   if (!CacheCompileJob)
     return None;

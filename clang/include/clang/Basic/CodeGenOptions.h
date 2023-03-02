@@ -150,6 +150,11 @@ public:
     Never,    // No loop is assumed to be finite.
   };
 
+  /// BEGIN MCCAS
+  /// The callback for mc result.
+  std::optional<llvm::MCTargetOptions::ResultCallBackTy> MCCallBack;
+  /// END MCCAS
+
   /// The code model to use (-mcmodel).
   std::string CodeModel;
 
