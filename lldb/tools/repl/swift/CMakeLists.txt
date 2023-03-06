@@ -26,11 +26,11 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL Linux)
       BUILD_RPATH ${SWIFT_LIBRARY_DIR}/swift/linux/powerpc64le)
   else()
     set_target_properties(repl_swift PROPERTIES
-      BUILD_RPATH ${SWIFT_LIBRARY_DIR}/swift/linux)
+      BUILD_RPATH ${SWIFT_LIBRARY_DIR}/swift/linux/${CMAKE_SYSTEM_PROCESSOR})
   endif()
   set_target_properties(repl_swift PROPERTIES
     BUILD_WITH_INSTALL_RPATH NO
-    INSTALL_RPATH "$ORIGIN/../lib/swift/linux")
+    INSTALL_RPATH "$ORIGIN/../lib/swift/linux/${CMAKE_SYSTEM_PROCESSOR}")
 endif()
 
 # The dummy repl executable is a C program, but we always look for a mangled

@@ -186,7 +186,7 @@ function(add_properties_for_swift_modules target reldir)
     elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
       string(REGEX MATCH "^[^-]*" arch ${LLVM_TARGET_TRIPLE})
       target_link_libraries(${target} PRIVATE swiftCore-linux-${arch})
-      set(SWIFT_RPATH "${LLDB_SWIFT_LIBS}/linux;$ORIGIN/../lib/swift/linux")
+      set(SWIFT_RPATH "${LLDB_SWIFT_LIBS}/linux/${arch};$ORIGIN/../lib/swift/linux/${arch}")
     endif()
 
     set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "${SWIFT_RPATH}")
