@@ -190,6 +190,7 @@ static bool replaceCoroEndAsync(AnyCoroEndInst *End) {
   }
 
   auto *MustTailCallFunc = EndAsync->getMustTailCallFunction();
+  auto Loc = EndAsync->getDebugLoc();
   if (!MustTailCallFunc) {
     Builder.CreateRetVoid();
     return true /*needs cleanup of coro.end block*/;
@@ -214,9 +215,28 @@ static bool replaceCoroEndAsync(AnyCoroEndInst *End) {
   BB->splitBasicBlock(End);
   BB->getTerminator()->eraseFromParent();
 
+  auto InlineRegionBlock = MustTailCall->getParent();
+  auto InlineRegionStart =
+      MustTailCall->getIterator() == InlineRegionBlock->begin()
+          ? None
+          : Optional<BasicBlock::iterator>(
+                std::prev(MustTailCall->getIterator()));
+
   auto InlineRes = InlineFunction(*MustTailCall, FnInfo);
   assert(InlineRes.isSuccess() && "Expected inlining to succeed");
   (void)InlineRes;
+
+  // Apply the debug location of the coro.end.async instruction to the inlined
+  // function.
+
+  auto InlineRegionBegin =
+      InlineRegionStart ? ++(*InlineRegionStart) : InlineRegionBlock->begin();
+  while (Loc) {
+    InlineRegionBegin->setDebugLoc(Loc);
+    if (InlineRegionBegin->isTerminator())
+      break;
+    ++InlineRegionBegin;
+  }
 
   // We have cleaned up the coro.end block above.
   return false;
@@ -1631,16 +1651,36 @@ static void splitAsyncCoroutine(Function &F, coro::Shape &Shape,
 
     // Insert the call to the tail call function and inline it.
     auto *Fn = Suspend->getMustTailCallFunction();
+    auto Loc = Suspend->getDebugLoc();
     SmallVector<Value *, 8> Args(Suspend->args());
     auto FnArgs = ArrayRef<Value *>(Args).drop_front(
         CoroSuspendAsyncInst::MustTailCallFuncArg + 1);
     auto *TailCall =
         coro::createMustTailCall(Suspend->getDebugLoc(), Fn, FnArgs, Builder);
     Builder.CreateRetVoid();
+
+    auto InlineRegionBlock = TailCall->getParent();
+    auto InlineRegionStart =
+        TailCall->getIterator() == InlineRegionBlock->begin()
+            ? None
+            : Optional<BasicBlock::iterator>(
+                  std::prev(TailCall->getIterator()));
+
     InlineFunctionInfo FnInfo;
     auto InlineRes = InlineFunction(*TailCall, FnInfo);
     assert(InlineRes.isSuccess() && "Expected inlining to succeed");
     (void)InlineRes;
+
+    // Apply the debug location of the async.suspend instruction to the inlined
+    // function.
+    auto InlineRegionBegin =
+        InlineRegionStart ? ++(*InlineRegionStart) : InlineRegionBlock->begin();
+    while (Loc) {
+      InlineRegionBegin->setDebugLoc(Loc);
+      if (InlineRegionBegin->isTerminator())
+        break;
+      ++InlineRegionBegin;
+    }
 
     // Replace the lvm.coro.async.resume intrisic call.
     replaceAsyncResumeFunction(Suspend, Continuation);
