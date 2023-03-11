@@ -117,11 +117,11 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
   // The following conditions are required:
   //   1. The command is `po` (or equivalently the `-O` flag is used)
   //   2. The current language is Swift
-  //   3. The expression is entirely a hex value
-  //   4. The hex value passes address/memory sanity checks
+  //   3. The expression is entirely a integer value (decimal or hex)
+  //   4. The integer passes sanity checks as a memory address
   //
   // The address sanity checks are:
-  //   1. The hex value is a readable memory address
+  //   1. The integer represents a readable memory address
   //
   // Future potential sanity checks:
   //   1. Accept tagged pointers/values
@@ -136,19 +136,16 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
     is_swift = frame && frame->GuessLanguage() == lldb::eLanguageTypeSwift;
   bool is_po = m_varobj_options.use_objc;
   if (is_swift && is_po) {
-    if (expr.startswith("0x")) {
-      lldb::addr_t addr;
-      bool is_hex = !expr.drop_front(2).getAsInteger(16, addr);
-      if (is_hex) {
-        MemoryRegionInfo mem_info;
-        m_exe_ctx.GetProcessRef().GetMemoryRegionInfo(addr, mem_info);
-        bool is_readable = mem_info.GetReadable() == MemoryRegionInfo::eYes;
-        if (is_readable) {
-          modified_expr_storage =
-              llvm::formatv("unsafeBitCast({0}, to: AnyObject.self)", expr)
-                  .str();
-          expr = modified_expr_storage;
-        }
+    lldb::addr_t addr;
+    bool is_integer = !expr.getAsInteger(0, addr);
+    if (is_integer) {
+      MemoryRegionInfo mem_info;
+      m_exe_ctx.GetProcessRef().GetMemoryRegionInfo(addr, mem_info);
+      bool is_readable = mem_info.GetReadable() == MemoryRegionInfo::eYes;
+      if (is_readable) {
+        modified_expr_storage =
+            llvm::formatv("unsafeBitCast({0}, to: AnyObject.self)", expr).str();
+        expr = modified_expr_storage;
       }
     }
   }

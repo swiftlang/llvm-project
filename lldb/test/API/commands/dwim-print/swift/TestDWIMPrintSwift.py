@@ -16,11 +16,12 @@ class TestCase(TestBase):
         )
         frame = thread.frame[0]
         addr = frame.FindVariable("object").GetLoadAddress()
-        hex_addr = f"0x{addr:x}"
-        self.expect(f"dwim-print -O -- {hex_addr}", substrs=[f"<Object: {hex_addr}>"])
+        hex_addr = f"{addr:x}"
+        self.expect(f"dwim-print -O -- 0x{hex_addr}", patterns=[f"Object@0x0*{hex_addr}"])
+        self.expect(f"dwim-print -O -- {addr}", patterns=[f"Object@0x0*{hex_addr}"])
 
     def test_swift_po_non_address_hex(self):
-        """No special handling of non-memory hex values."""
+        """No special handling of non-memory integer values."""
         self.build()
         lldbutil.run_to_source_breakpoint(
             self, "// break here", lldb.SBFileSpec("main.swift")
