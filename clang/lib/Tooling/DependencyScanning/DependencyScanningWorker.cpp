@@ -420,6 +420,7 @@ public:
     case ScanningOutputFormat::P1689:
     case ScanningOutputFormat::Full:
     case ScanningOutputFormat::FullTree:
+    case ScanningOutputFormat::FullIncludeTree:
       if (EmitDependencyFile) {
         auto DFG =
             std::make_shared<ReversePrefixMappingDependencyFileGenerator>(
@@ -543,7 +544,7 @@ DependencyScanningWorker::DependencyScanningWorker(
     llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS)
     : Format(Service.getFormat()), OptimizeArgs(Service.canOptimizeArgs()),
       EagerLoadModules(Service.shouldEagerLoadModules()),
-      CASOpts(Service.getCASOpts()), UseCAS(Service.useCASScanning()),
+      CASOpts(Service.getCASOpts()), CAS(Service.getCAS()),
       OverrideCASTokenCache(Service.overrideCASTokenCache()) {
   PCHContainerOps = std::make_shared<PCHContainerOperations>();
   PCHContainerOps->registerReader(
@@ -553,9 +554,9 @@ DependencyScanningWorker::DependencyScanningWorker(
   PCHContainerOps->registerWriter(
       std::make_unique<ObjectFilePCHContainerWriter>());
 
-  if (Service.useCASScanning()) {
+  if (Service.useCASFS()) {
     CacheFS = Service.getSharedFS().createProxyFS();
-    DepCASFS = new DependencyScanningCASFilesystem(CacheFS, Service.getCache());
+    DepCASFS = new DependencyScanningCASFilesystem(CacheFS, *Service.getCache());
     BaseFS = DepCASFS;
     return;
   }
