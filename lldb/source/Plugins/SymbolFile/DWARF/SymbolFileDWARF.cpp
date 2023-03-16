@@ -954,6 +954,16 @@ XcodeSDK SymbolFileDWARF::ParseXcodeSDK(CompileUnit &comp_unit) {
   return {sdk};
 }
 
+llvm::SmallVector<lldb::LanguageType, 1>
+SymbolFileDWARF::GetTranslationUnitLanguageTypes(
+    lldb_private::CompileUnit &comp_unit) {
+  auto *sym_file = GetDebugMapSymfile();
+  if (sym_file)
+    return sym_file->GetTranslationUnitLanguageTypes(comp_unit);
+
+  return {comp_unit.GetLanguage()};
+}
+
 size_t SymbolFileDWARF::ParseFunctions(CompileUnit &comp_unit) {
   LLDB_SCOPED_TIMER();
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());

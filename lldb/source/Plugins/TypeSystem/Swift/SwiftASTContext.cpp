@@ -1456,6 +1456,32 @@ static std::string GetSDKPathFromDebugInfo(std::string m_description,
   return GetSDKPath(m_description, sdk);
 }
 
+static bool IsCxxInteropEnabled(Module &module) {
+  SymbolFile *sym_file = module.GetSymbolFile();
+  if (!sym_file)
+    return false;
+
+  for (unsigned i = 0; i < sym_file->GetNumCompileUnits(); ++i) {
+    if (auto cu_sp = sym_file->GetCompileUnitAtIndex(i)) {
+      auto langs = sym_file->GetTranslationUnitLanguageTypes(*cu_sp);
+      for (auto &lang : langs) {
+        switch (lang) {
+        case lldb::eLanguageTypeC_plus_plus:
+        case lldb::eLanguageTypeC_plus_plus_03:
+        case lldb::eLanguageTypeC_plus_plus_11:
+        case lldb::eLanguageTypeC_plus_plus_14:
+        case lldb::eLanguageTypeObjC_plus_plus:
+          return true;
+        default:
+          break;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 /// Detect whether a Swift module was "imported" by DWARFImporter.
 /// All this *really* means is that it couldn't be loaded through any
 /// other mechanism.
@@ -1563,8 +1589,21 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
   swift_ast_sp->m_is_scratch_context = false;
   swift_ast_sp->m_module = &module;
   swift_ast_sp->GetLanguageOptions().EnableAccessControl = false;
-  swift_ast_sp->GetLanguageOptions().EnableCXXInterop =
-      Target::GetGlobalProperties().GetSwiftEnableCxxInterop();
+
+  if (target) {
+    const size_t num_images = target->GetImages().GetSize();
+
+    bool cxx_interop_enabled = false;
+    for (size_t mi = 0; mi != num_images && !cxx_interop_enabled; ++mi) {
+      ModuleSP module_sp = target->GetImages().GetModuleAtIndex(mi);
+      cxx_interop_enabled = IsCxxInteropEnabled(*module_sp.get());
+    }
+    swift_ast_sp->GetLanguageOptions().EnableCXXInterop = cxx_interop_enabled;
+  } else {
+    auto cxx_interop_enabled = IsCxxInteropEnabled(module);
+    swift_ast_sp->GetLanguageOptions().EnableCXXInterop = cxx_interop_enabled;
+  }
+
   bool found_swift_modules = false;
   SymbolFile *sym_file = module.GetSymbolFile();
 
@@ -1949,10 +1988,15 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
   // This is a scratch AST context, mark it as such.
   swift_ast_sp->m_is_scratch_context = true;
 
-  swift_ast_sp->GetLanguageOptions().EnableCXXInterop =
-      target.GetSwiftEnableCxxInterop();
   bool handled_sdk_path = false;
   const size_t num_images = target.GetImages().GetSize();
+
+  bool cxx_interop_enabled = false;
+  for (size_t mi = 0; mi != num_images && !cxx_interop_enabled; ++mi) {
+    ModuleSP module_sp = target.GetImages().GetModuleAtIndex(mi);
+    cxx_interop_enabled = IsCxxInteropEnabled(*module_sp.get());
+  }
+  swift_ast_sp->GetLanguageOptions().EnableCXXInterop = cxx_interop_enabled;
 
   // Set the SDK path prior to doing search paths.  Otherwise when we
   // create search path options we put in the wrong SDK path.

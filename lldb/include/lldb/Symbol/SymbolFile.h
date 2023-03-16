@@ -149,6 +149,12 @@ public:
   virtual lldb::LanguageType ParseLanguage(CompileUnit &comp_unit) = 0;
   /// Return the Xcode SDK comp_unit was compiled against.
   virtual XcodeSDK ParseXcodeSDK(CompileUnit &comp_unit) { return {}; }
+
+  virtual llvm::SmallVector<lldb::LanguageType, 1>
+  GetTranslationUnitLanguageTypes(CompileUnit &comp_unit) {
+    return {ParseLanguage(comp_unit)};
+  }
+
   virtual size_t ParseFunctions(CompileUnit &comp_unit) = 0;
   virtual bool ParseLineTable(CompileUnit &comp_unit) = 0;
   virtual bool ParseDebugMacros(CompileUnit &comp_unit) = 0;

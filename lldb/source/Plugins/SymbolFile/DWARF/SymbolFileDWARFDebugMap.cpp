@@ -688,6 +688,17 @@ XcodeSDK SymbolFileDWARFDebugMap::ParseXcodeSDK(CompileUnit &comp_unit) {
   return {};
 }
 
+llvm::SmallVector<lldb::LanguageType, 1>
+SymbolFileDWARFDebugMap::GetTranslationUnitLanguageTypes(
+    lldb_private::CompileUnit &comp_unit) {
+  llvm::SmallVector<lldb::LanguageType, 1> langs;
+  auto *info = GetCompUnitInfo(comp_unit);
+  for (auto &comp_unit : info->compile_units_sps) {
+    langs.emplace_back(comp_unit->GetLanguage());
+  }
+  return langs;
+}
+
 size_t SymbolFileDWARFDebugMap::ParseFunctions(CompileUnit &comp_unit) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   SymbolFileDWARF *oso_dwarf = GetSymbolFile(comp_unit);

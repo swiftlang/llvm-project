@@ -119,6 +119,12 @@ public:
   lldb_private::XcodeSDK
   ParseXcodeSDK(lldb_private::CompileUnit &comp_unit) override;
 
+  bool CompileUnitContainsLanguage(lldb_private::CompileUnit &comp_unit,
+                                   lldb::LanguageType language);
+
+  llvm::SmallVector<lldb::LanguageType, 1> GetTranslationUnitLanguageTypes(
+      lldb_private::CompileUnit &comp_unit) override;
+
   size_t ParseFunctions(lldb_private::CompileUnit &comp_unit) override;
 
   bool ParseLineTable(lldb_private::CompileUnit &comp_unit) override;
