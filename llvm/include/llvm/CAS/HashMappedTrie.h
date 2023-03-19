@@ -18,6 +18,7 @@
 namespace llvm {
 
 class MemoryBuffer;
+class raw_ostream;
 
 namespace cas {
 
@@ -90,10 +91,10 @@ protected:
 
   ThreadSafeHashMappedTrieBase() = delete;
 
-  ThreadSafeHashMappedTrieBase(size_t ContentAllocSize,
-                               size_t ContentAllocAlign, size_t ContentOffset,
-                               Optional<size_t> NumRootBits = None,
-                               Optional<size_t> NumSubtrieBits = None);
+  ThreadSafeHashMappedTrieBase(
+      size_t ContentAllocSize, size_t ContentAllocAlign, size_t ContentOffset,
+      Optional<size_t> NumRootBits = None,
+      Optional<size_t> NumSubtrieBits = None);
 
   /// Destructor, which asserts if there's anything to do. Subclasses should
   /// call \a destroyImpl().

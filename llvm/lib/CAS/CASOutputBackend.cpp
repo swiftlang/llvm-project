@@ -8,7 +8,6 @@
 
 #include "llvm/CAS/CASOutputBackend.h"
 #include "llvm/CAS/ObjectStore.h"
-#include "llvm/CAS/Utils.h"
 #include "llvm/Support/AlignOf.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/StringSaver.h"
@@ -57,7 +56,8 @@ CASOutputBackend::createFileImpl(StringRef ResolvedPath,
   return std::make_unique<CASOutputFile>(
       ResolvedPath, [&](StringRef Path, StringRef Bytes) -> Error {
         Optional<ObjectRef> BytesRef;
-        if (Error E = CAS.storeFromString(None, Bytes).moveInto(BytesRef))
+        if (Error E =
+                CAS.storeFromString(None, Bytes).moveInto(BytesRef))
           return E;
         // FIXME: Should there be a lock taken before modifying Outputs?
         Outputs.push_back({std::string(Path), *BytesRef});

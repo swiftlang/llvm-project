@@ -289,7 +289,7 @@ Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(
                     std::move(ScanInvocation), WorkingDirectory, DiagsConsumer,
                     VerboseOS,
                     /*DiagGenerationAsCompilation*/ true,
-                    [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
+                    [&](const llvm::vfs::CachedDirectoryEntry &Entry, SmallVectorImpl<char> &Storage) {
                       return static_cast<llvm::TreePathPrefixMapper &>(Mapper)
                           .mapDirEntry(Entry, Saver);
                     })

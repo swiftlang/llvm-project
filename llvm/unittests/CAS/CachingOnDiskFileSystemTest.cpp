@@ -388,7 +388,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccesses) {
 
     Optional<cas::ObjectProxy> Tree;
     ASSERT_THAT_ERROR(FS->createTreeFromNewAccesses(
-                            [&](const vfs::CachedDirectoryEntry &Entry) {
+                            [&](const vfs::CachedDirectoryEntry &Entry, SmallVectorImpl<char> &Storage) {
                               return Remapper.map(Entry);
                             })
                           .moveInto(Tree),
@@ -438,7 +438,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesStack) {
   {
     Optional<cas::ObjectProxy> Tree;
     ASSERT_THAT_ERROR(FS->createTreeFromNewAccesses(
-                            [&](const vfs::CachedDirectoryEntry &Entry) {
+                            [&](const vfs::CachedDirectoryEntry &Entry, SmallVectorImpl<char> &Storage) {
                               return Remapper.map(Entry);
                             })
                           .moveInto(Tree),
@@ -458,7 +458,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesStack) {
   {
     Optional<cas::ObjectProxy> Tree;
     ASSERT_THAT_ERROR(FS->createTreeFromNewAccesses(
-                            [&](const vfs::CachedDirectoryEntry &Entry) {
+                            [&](const vfs::CachedDirectoryEntry &Entry, SmallVectorImpl<char> &Storage) {
                               return Remapper.map(Entry);
                             })
                           .moveInto(Tree),
@@ -519,7 +519,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesExists) {
   {
     Optional<cas::ObjectProxy> Tree;
     ASSERT_THAT_ERROR(FS->createTreeFromNewAccesses(
-                            [&](const vfs::CachedDirectoryEntry &Entry) {
+                            [&](const vfs::CachedDirectoryEntry &Entry, SmallVectorImpl<char> &Storage) {
                               return Remapper.map(Entry);
                             })
                           .moveInto(Tree),
@@ -542,7 +542,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesExists) {
   {
     Optional<cas::ObjectProxy> Tree;
     ASSERT_THAT_ERROR(FS->createTreeFromNewAccesses(
-                            [&](const vfs::CachedDirectoryEntry &Entry) {
+                            [&](const vfs::CachedDirectoryEntry &Entry, SmallVectorImpl<char> &Storage) {
                               return Remapper.map(Entry);
                             })
                           .moveInto(Tree),
@@ -565,7 +565,7 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesExists) {
   {
     Optional<cas::ObjectProxy> Tree;
     ASSERT_THAT_ERROR(FS->createTreeFromNewAccesses(
-                            [&](const vfs::CachedDirectoryEntry &Entry) {
+                            [&](const vfs::CachedDirectoryEntry &Entry, SmallVectorImpl<char> &Storage) {
                               return Remapper.map(Entry);
                             })
                           .moveInto(Tree),
@@ -634,7 +634,7 @@ TEST(CachingOnDiskFileSystemTest, ExcludeFromTacking) {
   auto CreateTreeFromNewAccesses = [&]() -> Optional<llvm::cas::TreeProxy> {
     Optional<cas::ObjectProxy> Tree;
     EXPECT_THAT_ERROR(FS->createTreeFromNewAccesses(
-                            [&](const vfs::CachedDirectoryEntry &Entry) {
+                            [&](const vfs::CachedDirectoryEntry &Entry, SmallVectorImpl<char> &Storage) {
                               return Remapper.map(Entry);
                             })
                           .moveInto(Tree),

@@ -85,8 +85,6 @@ std::string getDefaultOnDiskActionCachePath();
 
 /// Create an action cache on disk.
 Expected<std::unique_ptr<ActionCache>> createOnDiskActionCache(StringRef Path);
-
-} // namespace cas
-} // namespace llvm
+}} // end namespace llvm::cas
 
 #endif // LLVM_CAS_CASACTIONCACHE_H

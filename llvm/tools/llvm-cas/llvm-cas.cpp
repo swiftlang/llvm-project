@@ -418,7 +418,7 @@ static Expected<ObjectProxy> ingestFileSystemImpl(ObjectStore &CAS,
     return std::move(E);
 
   return (*FS)->createTreeFromNewAccesses(
-      [&](const llvm::vfs::CachedDirectoryEntry &Entry) {
+      [&](const llvm::vfs::CachedDirectoryEntry &Entry, SmallVectorImpl<char> &Storage) {
         return Mapper.mapDirEntry(Entry, Saver);
       });
 }
