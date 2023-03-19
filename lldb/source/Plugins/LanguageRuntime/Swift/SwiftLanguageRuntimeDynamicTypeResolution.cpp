@@ -1694,6 +1694,21 @@ bool SwiftLanguageRuntimeImpl::GetDynamicTypeAndAddress_Class(
     }
     return false;
   }
+  if (log && log->GetVerbose()) {
+    std::ostringstream string_stream;
+    typeref->dump(string_stream);
+    auto string = string_stream.str();
+    LLDB_LOGF(log,
+              "[GetDynamicTypeAndddress_Class] Found typeref: %s for type: %s ",
+              string.c_str(), class_type.GetMangledTypeName().GetCString());
+
+    StreamString in_value_stream;
+    in_value.Dump(in_value_stream);
+    LLDB_LOGF(log,
+              "[GetDynamicTypeAndddress_Class] and value object %s",
+              in_value_stream.GetString().data());
+  }
+
   swift::Demangle::Demangler dem;
   swift::Demangle::NodePointer node = typeref->getDemangling(dem);
   class_type_or_name.SetCompilerType(ts.RemangleAsType(dem, node));
