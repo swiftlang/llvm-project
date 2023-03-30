@@ -1962,9 +1962,36 @@ bool TypeSystemSwiftTypeRef::IsAggregateType(opaque_compiler_type_t type) {
     using namespace swift::Demangle;
     Demangler dem;
     NodePointer node = DemangleCanonicalType(dem, type);
-
     if (!node)
       return false;
+
+    // Peel off any storage node.
+    // Kind::«StorageType» > Kind::Type > Kind::«UnderlyingType»
+    switch (node->getKind()) {
+    case Node::Kind::Unmanaged:
+    case Node::Kind::Unowned:
+    case Node::Kind::Weak:
+      assert(node->hasChildren());
+      if (!node->hasChildren())
+        return false;
+      node = node->getFirstChild();
+      assert(node);
+      if (!node)
+        return false;
+      assert(node->getKind() == Node::Kind::Type);
+      if (node->getKind() != Node::Kind::Type)
+        return false;
+      assert(node->hasChildren());
+      if (!node->hasChildren())
+        return false;
+      node = node->getFirstChild();
+      if (!node)
+        return false;
+      break;
+    default:
+      break;
+    }
+
     switch (node->getKind()) {
     case Node::Kind::Structure:
     case Node::Kind::Class:
