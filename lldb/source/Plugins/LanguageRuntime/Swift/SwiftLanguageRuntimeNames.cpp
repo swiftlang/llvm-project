@@ -1172,5 +1172,82 @@ SwiftLanguageRuntime::GetStepThroughTrampolinePlan(Thread &thread,
                                                    bool stop_others) {
   return ::GetStepThroughTrampolinePlan(thread, stop_others);
 }
-  
+
+static llvm::StringRef
+GetModuleNameFromModuleDescriptor(llvm::StringRef mangled_name) {
+  if (mangled_name.empty())
+    return {};
+
+  static Demangler dem;
+  NodePointer global = dem.demangleSymbol(mangled_name);
+
+  if (!global || global->getKind() != Node::Kind::Global ||
+      global->getNumChildren() != 1)
+    return {};
+
+  NodePointer module_descriptor = global->getFirstChild();
+  if (global->getKind() != Node::Kind::ModuleDescriptor ||
+      global->getNumChildren() != 1)
+    return {};
+
+  NodePointer module = module_descriptor->getFirstChild();
+  if (module->getKind() != Node::Kind::Module || !module->hasText())
+    return {};
+  return module->getText();
+}
+
+llvm::SmallVector<llvm::StringRef, 1>
+SwiftLanguageRuntime::GetPossibleSwiftModuleNames(ModuleSP module) {
+  if (!module || !module->GetFileSpec())
+    return {};
+
+  auto filename =
+      module->GetFileSpec().GetFileNameStrippingExtension().GetStringRef();
+  // We know that "libswiftCore" contains the "Swift"  swift module.
+  if (filename == "libswiftCore")
+    filename = swift::STDLIB_NAME;
+  // We also know that "libswiftFoo" binaries we ship usually contain the "Foo"
+  // swift module.
+  if (filename.startswith("libswift"))
+    filename = filename.drop_front(8);
+  // "libFoo.dylib" is a common naming scheme for shipping dynamic libraries
+  // with a swift module "Foo".
+  if (filename.startswith("lib"))
+    filename = filename.drop_front(3);
+
+  SymbolContextList symbol_context_list;
+  // A module descriptor is mangled as the module mangling followed by 'MXM'.
+  module->FindSymbolsMatchingRegExAndType(
+      RegularExpression(".*MXM$"), lldb::SymbolType::eSymbolTypeData,
+      symbol_context_list, Mangled::ePreferMangled);
+
+  llvm::SmallVector<llvm::StringRef, 1> swift_module_names;
+  swift_module_names.emplace_back(filename);
+  for (size_t i = 0; i < symbol_context_list.GetSize(); ++i) {
+    SymbolContext sc;
+    if (symbol_context_list.GetContextAtIndex(i, sc) && sc.symbol) {
+      auto mangled_name =
+          sc.symbol->GetMangled().GetMangledName().GetStringRef();
+      auto module_name = GetModuleNameFromModuleDescriptor(mangled_name);
+
+      if (module_name.empty())
+        continue;
+
+      // Since almost every image will contain objc types, checking for that
+      // module name isn't a great filter.
+      if (module_name == swift::MANGLING_MODULE_OBJC ||
+          module_name == swift::MANGLING_MODULE_CLANG_IMPORTER)
+        continue;
+
+      // We already added the filename.
+      if (module_name == filename)
+        continue;
+
+      swift_module_names.emplace_back(module_name);
+    }
+  }
+
+  return swift_module_names;
+}
+
 } // namespace lldb_private

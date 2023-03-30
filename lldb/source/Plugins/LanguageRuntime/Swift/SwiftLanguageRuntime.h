@@ -355,6 +355,22 @@ public:
   lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
                                                   bool stop_others) override;
 
+  /// Return the possible swift module names for a given lldb module.
+  /// We have two sources of information we can use for guessing the swift
+  /// module's name(s) an image contains;
+  ///
+  /// 1 - Symbols that match the swift module mangling in the image.
+  /// Besides the "canonical" swift modules that belong in the image, this may
+  /// also return module descriptors that this image references. This also may
+  /// return nothing if the swift symbols were stripped.
+  ///
+  /// 2 - The image's file name.
+  ///
+  /// We use those two sources of information to come up with an educated guess
+  /// of what the swift module's names is (are).
+  static llvm::SmallVector<llvm::StringRef, 1>
+  GetPossibleSwiftModuleNames(lldb::ModuleSP module);
+
   StructuredDataImpl *GetLanguageSpecificData(StackFrame &frame) override;
 
   /// If you are at the initial instruction of the frame passed in,
