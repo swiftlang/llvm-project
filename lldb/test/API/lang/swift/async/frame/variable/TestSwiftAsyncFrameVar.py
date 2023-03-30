@@ -12,7 +12,18 @@ class TestCase(lldbtest.TestBase):
     def test(self):
         """Test `frame variable` in async functions"""
         self.build()
+        self.do_test()
 
+    @swiftTest
+    @skipIf(oslist=['windows', 'linux'])
+    def test_backdeploy(self):
+        """Test `frame variable` in async functions"""
+        self.build(dictionary={
+            'TARGET_SWIFTFLAGS': f'-target {self.getArchitecture()}-apple-macos11'
+        })
+        self.do_test()
+
+    def do_test(self):
         # Setting a breakpoint on "inner" results in a breakpoint at the start
         # of each coroutine "funclet" function.
         _, process, _, _ = lldbutil.run_to_name_breakpoint(self, 'inner')

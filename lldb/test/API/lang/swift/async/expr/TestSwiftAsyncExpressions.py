@@ -16,6 +16,20 @@ class TestSwiftAsyncExpressions(lldbtest.TestBase):
     def test_actor(self):
         """Test async unwind"""
         self.build()
+        self.do_test_actor()
+
+    @swiftTest
+    @skipIfWindows
+    @skipIfLinux
+    @skipIf(archs=no_match(["arm64", "arm64e", "arm64_32", "x86_64"]))
+    def test_actor_backdeploy(self):
+        """Test async unwind"""
+        self.build(dictionary={
+            'TARGET_SWIFTFLAGS': f'-target {self.getArchitecture()}-apple-macos11'
+        })
+        self.do_test_actor()
+
+    def do_test_actor(self):
         target, process, thread, main_bkpt = lldbutil.run_to_source_breakpoint(
             self, 'break here', lldb.SBFileSpec("main.swift"))
         self.expect("expr n", substrs=["42"])

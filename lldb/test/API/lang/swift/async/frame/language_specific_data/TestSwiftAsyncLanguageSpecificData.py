@@ -12,7 +12,18 @@ class TestCase(lldbtest.TestBase):
     def test(self):
         """Test SBFrame.GetLanguageSpecificData() in async functions"""
         self.build()
+        self.do_test()
 
+    @swiftTest
+    @skipIf(oslist=['windows', 'linux'])
+    def test_backdeploy(self):
+        """Test SBFrame.GetLanguageSpecificData() in async functions"""
+        self.build(dictionary={
+            'TARGET_SWIFTFLAGS': f'-target {self.getArchitecture()}-apple-macos11'
+        })
+        self.do_test()
+
+    def do_test(self):
         # This test uses "main" as a prefix for all functions, so that all will
         # be stopped at. Setting a breakpoint on "main" results in a breakpoint
         # at the start of each coroutine "funclet" function.

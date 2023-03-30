@@ -30,9 +30,35 @@ class TestSwiftAsyncBacktraceLocals(lldbtest.TestBase):
     @skipIfWindows
     @skipIfLinux
     @skipIf(archs=no_match(["arm64", "arm64e", "arm64_32", "x86_64"]))
+    def test_backdeploy(self):
+        """Test async unwind"""
+        self.build(dictionary={
+            'TARGET_SWIFTFLAGS': f'-target {self.getArchitecture()}-apple-macos11'
+        })
+        target, process, thread, main_bkpt = lldbutil.run_to_source_breakpoint(
+            self, 'main breakpoint', self.src)
+        self.run_fibo_tests(target, process)
+
+    @swiftTest
+    @skipIfWindows
+    @skipIfLinux
+    @skipIf(archs=no_match(["arm64", "arm64e", "arm64_32", "x86_64"]))
     def test_actor(self):
         """Test async unwind"""
         self.build()
+        target, process, thread, main_bkpt = lldbutil.run_to_source_breakpoint(
+            self, 'main actor breakpoint', self.src)
+        self.run_fibo_tests(target, process)
+
+    @swiftTest
+    @skipIfWindows
+    @skipIfLinux
+    @skipIf(archs=no_match(["arm64", "arm64e", "arm64_32", "x86_64"]))
+    def test_actor_backdeploy(self):
+        """Test async unwind"""
+        self.build(dictionary={
+            'TARGET_SWIFTFLAGS': f'-target {self.getArchitecture()}-apple-macos11'
+        })
         target, process, thread, main_bkpt = lldbutil.run_to_source_breakpoint(
             self, 'main actor breakpoint', self.src)
         self.run_fibo_tests(target, process)

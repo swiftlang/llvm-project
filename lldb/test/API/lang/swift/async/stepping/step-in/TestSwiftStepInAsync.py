@@ -13,6 +13,18 @@ class TestCase(lldbtest.TestBase):
     def test(self):
         """Test step-in to async functions"""
         self.build()
+        self.do_test()
+
+    @swiftTest
+    @skipIf(oslist=['windows', 'linux'])
+    def test_backdeploy(self):
+        """Test step-in to async functions"""
+        self.build(dictionary={
+            'TARGET_SWIFTFLAGS': f'-target {self.getArchitecture()}-apple-macos11'
+        })
+        self.do_test()
+
+    def do_test(self):
         src = lldb.SBFileSpec('main.swift')
         _, process, _, _ = lldbutil.run_to_source_breakpoint(self, 'await', src)
 
