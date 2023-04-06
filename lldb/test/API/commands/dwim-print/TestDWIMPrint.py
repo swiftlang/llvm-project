@@ -112,3 +112,27 @@ class TestCase(TestBase):
         lldbutil.run_to_name_breakpoint(self, "main")
         self._expect_cmd(f"dwim-print -l c++ -- argc", "frame variable")
         self._expect_cmd(f"dwim-print -l c++ -- argc + 1", "expression")
+
+    def test_empty_expression(self):
+        self.build()
+        lldbutil.run_to_name_breakpoint(self, "main")
+        error_msg = "error: 'dwim-print' takes a variable or expression"
+        self.expect(f"dwim-print", error=True, startstr=error_msg)
+        self.expect(f"dwim-print -- ", error=True, startstr=error_msg)
+
+    def test_nested_values(self):
+        """Test dwim-print with nested values (structs, etc)."""
+        self.build()
+        lldbutil.run_to_source_breakpoint(self, "// break here", lldb.SBFileSpec("main.c"))
+        self.runCmd("settings set auto-one-line-summaries false")
+        self._expect_cmd(f"dwim-print s", "frame variable")
+        self._expect_cmd(f"dwim-print (struct Structure)s", "expression")
+
+    def test_summary_strings(self):
+        """Test dwim-print with nested values (structs, etc)."""
+        self.build()
+        lldbutil.run_to_source_breakpoint(self, "// break here", lldb.SBFileSpec("main.c"))
+        self.runCmd("settings set auto-one-line-summaries false")
+        self.runCmd("type summary add -e -s 'stub summary' Structure")
+        self._expect_cmd(f"dwim-print s", "frame variable")
+        self._expect_cmd(f"dwim-print (struct Structure)s", "expression")

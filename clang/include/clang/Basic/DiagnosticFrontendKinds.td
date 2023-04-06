@@ -229,6 +229,8 @@ def err_missing_module_name : Error<
   DefaultFatal;
 def err_missing_module : Error<
   "no module named '%0' declared in module map file '%1'">, DefaultFatal;
+def err_missing_module_include_tree : Error<
+  "no module named '%0' declared in include-tree module map '%1'">, DefaultFatal;
 def err_no_submodule : Error<"no submodule named %0 in module '%1'">;
 def err_no_submodule_suggest : Error<
   "no submodule named %0 in module '%1'; did you mean '%2'?">;
@@ -250,8 +252,10 @@ def warn_module_config_macro_undef : Warning<
 def note_module_def_undef_here : Note<
   "macro was %select{defined|#undef'd}0 here">;
 def remark_module_build : Remark<"building module '%0' as '%1'">,
+  ShowInSystemHeader,
   InGroup<ModuleBuild>;
 def remark_module_build_done : Remark<"finished building module '%0'">,
+  ShowInSystemHeader,
   InGroup<ModuleBuild>;
 def remark_module_lock : Remark<"locking '%0' to build module '%1'">,
   InGroup<ModuleLock>;
