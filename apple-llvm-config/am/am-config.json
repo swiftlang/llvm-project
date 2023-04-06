@@ -12,6 +12,10 @@
   "upstream": "swift/release/5.8"
 },
 {
+  "target": "stable/20221013",
+  "upstream": "swift/release/5.9"
+},
+{
   "target": "experimental/cas/main",
   "upstream": "llvm.org/main",
   "test_commits_in_bundle": true
