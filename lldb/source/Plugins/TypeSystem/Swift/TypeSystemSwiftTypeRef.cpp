@@ -302,17 +302,23 @@ TypeSystemSwiftTypeRef::GetClangTypeNode(CompilerType clang_type,
   // ClangAdapter.
   struct Adapter {
     struct Context {
+      TypeSystemSwiftTypeRef *typeref_ts;
       swift::ASTContext *AST;
       llvm::StringRef getSwiftName(swift::KnownFoundationEntity entity) {
+        // Lazy load the SwiftASTContext.
+        if (!AST)
+          if (auto *ctx = typeref_ts->GetSwiftASTContext())
+            AST = ctx->GetASTContext();
+
         if (AST)
           return AST->getSwiftName(entity);
         return "<error: no Swift context>";
       }
-      Context(swift::ASTContext *ctx) : AST(ctx){};
+      Context(TypeSystemSwiftTypeRef *typeref_ts) : typeref_ts(typeref_ts){};
     } SwiftContext;
-    Adapter(swift::ASTContext *ctx) : SwiftContext(ctx){};
-  } Impl(GetSwiftASTContext() ? GetSwiftASTContext()->GetASTContext()
-                              : nullptr);
+    Adapter(TypeSystemSwiftTypeRef *typeref_ts) : SwiftContext(typeref_ts){};
+  } Impl(this); // `Impl` is referenced in MappedTypes.def
+
 #define MAP_TYPE(C_TYPE_NAME, C_TYPE_KIND, C_TYPE_BITWIDTH, SWIFT_MODULE_NAME, \
                  SWIFT_TYPE_NAME, CAN_BE_MISSING, C_NAME_MAPPING)              \
   if (clang_name.equals(C_TYPE_NAME)) {                                        \
@@ -321,6 +327,7 @@ TypeSystemSwiftTypeRef::GetClangTypeNode(CompilerType clang_type,
   } else
 #include "swift/../../lib/ClangImporter/MappedTypes.def"
 #undef MAP_TYPE
+
   // The last dangling else in the macro is for this switch.
   switch (clang_type.GetTypeClass()) {
   case eTypeClassClass:
