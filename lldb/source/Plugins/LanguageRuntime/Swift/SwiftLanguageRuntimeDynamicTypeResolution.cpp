@@ -3123,11 +3123,19 @@ TypeAndOrName SwiftLanguageRuntimeImpl::FixUpDynamicType(
 
 bool SwiftLanguageRuntimeImpl::IsTaggedPointer(lldb::addr_t addr,
                                                CompilerType type) {
-  swift::CanType swift_can_type = GetCanonicalSwiftType(type);
-  if (!swift_can_type)
+  Demangler dem;
+  auto *node = dem.demangleSymbol(type.GetMangledTypeName().GetStringRef());
+  Node::Kind kind_path[] = {Node::Kind::Global, Node::Kind::TypeMangling,
+                            Node::Kind::Type};
+  for (auto kind : kind_path) {
+    if (node->getKind() == kind && node->hasChildren()) {
+      node = node->getFirstChild();
+      continue;
+    }
     return false;
-  switch (swift_can_type->getKind()) {
-  case swift::TypeKind::UnownedStorage: {
+  }
+  switch (node->getKind()) {
+  case Node::Kind::Unowned: {
     Target &target = m_process.GetTarget();
     llvm::Triple triple = target.GetArchitecture().GetTriple();
     // On Darwin the Swift runtime stores unowned references to
