@@ -3128,7 +3128,7 @@ bool SwiftLanguageRuntimeImpl::IsTaggedPointer(lldb::addr_t addr,
   Node::Kind kind_path[] = {Node::Kind::Global, Node::Kind::TypeMangling,
                             Node::Kind::Type};
   for (auto kind : kind_path) {
-    if (node->getKind() == kind && node->hasChildren()) {
+    if (node && node->getKind() == kind && node->hasChildren()) {
       node = node->getFirstChild();
       continue;
     }
