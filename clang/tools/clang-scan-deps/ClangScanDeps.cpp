@@ -98,6 +98,7 @@ static std::vector<std::string> ModuleDepTargets;
 static bool DeprecatedDriverCommand;
 static ResourceDirRecipeKind ResourceDirRecipe;
 static bool Verbose;
+static bool BriefResult;
 static std::vector<const char *> CommandLine;
 static bool EmitCASCompDB;
 static std::string OnDiskCASPath;
@@ -239,6 +240,7 @@ static void ParseArgs(int argc, char **argv) {
                        A->getValues().end());
 
   Verbose = Args.hasArg(OPT_verbose);
+  BriefResult = Args.hasArg(OPT_brief_result);
 
   RoundTripArgs = Args.hasArg(OPT_round_trip_args);
 
@@ -738,6 +740,8 @@ public:
 
     OS << llvm::formatv("{0:2}\n", Value(std::move(Output)));
   }
+
+  size_t getNumModules() const { return Modules.size(); }
 
 private:
   struct IndexedModuleID {
@@ -1315,6 +1319,11 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
   if (RoundTripArgs)
     if (FD && FD->roundTripCommands(llvm::errs()))
       HadErrors = true;
+
+  if (BriefResult && FD) {
+    llvm::outs() << "num modules: " << FD->getNumModules() << '\n';
+    return HadErrors;
+  }
 
   std::sort(TreeResults.begin(), TreeResults.end(),
             [](const DepTreeResult &LHS, const DepTreeResult &RHS) -> bool {

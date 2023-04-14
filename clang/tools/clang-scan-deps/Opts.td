@@ -45,6 +45,8 @@ defm prefix_map : Eq<"prefix-map", "Path to remap, as \"<old>=<new>\".">;
 
 def verbose : F<"v", "Use verbose output">;
 
+def brief_result : F<"brief", "Use brief dependency info output">;
+
 def round_trip_args : F<"round-trip-args", "verify that command-line arguments are canonical by parsing and re-serializing">;
 
 def DASH_DASH : Option<["--"], "", KIND_REMAINING_ARGS>;
