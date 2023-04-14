@@ -14,7 +14,6 @@
 #define liblldb_SwiftDemangle_h_
 
 #include "swift/Demangling/Demangle.h"
-#include "swift/Demangling/Demangler.h"
 #include "llvm/ADT/ArrayRef.h"
 
 namespace lldb_private {
@@ -23,7 +22,7 @@ namespace swift_demangle {
 /// Access an inner node by following the given Node::Kind path.
 ///
 /// Note: The Node::Kind path is relative to the given root node. The root
-/// node's Node::Kind must not to be included in the path.
+/// node's Node::Kind must not be included in the path.
 inline swift::Demangle::NodePointer
 nodeAtPath(swift::Demangle::NodePointer root,
            llvm::ArrayRef<swift::Demangle::Node::Kind> kind_path) {
