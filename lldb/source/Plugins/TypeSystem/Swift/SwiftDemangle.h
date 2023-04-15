@@ -31,16 +31,19 @@ nodeAtPath(swift::Demangle::NodePointer root,
 
   auto *node = root;
   for (auto kind : kind_path) {
+    bool found = false;
     for (auto *child : *node) {
       assert(child && "swift::Demangle::Node has null child");
       if (child && child->getKind() == kind) {
         node = child;
+        found = true;
         break;
       }
     }
-    // The current step of the path (ie the current `kind`) was not found in the
-    // children of the current `node`. The requested path does not exist.
-    return nullptr;
+    // The current step (`kind`) of the path was not found in the children of
+    // the current `node`. The requested path does not exist.
+    if (!found)
+      return nullptr;
   }
 
   return node;
