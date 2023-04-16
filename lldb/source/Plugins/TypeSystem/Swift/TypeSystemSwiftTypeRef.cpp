@@ -3029,6 +3029,8 @@ CompilerType TypeSystemSwiftTypeRef::GetChildCompilerTypeAtIndex(
   if (!runtime)
     return impl();
 #ifndef NDEBUG
+  if (!ModuleList::GetGlobalModuleListProperties().GetSwiftValidateTypeSystem())
+    return impl();
   // FIXME:
   // No point comparing the results if the reflection data has more
   // information.  There's a nasty chicken & egg problem buried here:
@@ -3107,6 +3109,9 @@ size_t TypeSystemSwiftTypeRef::GetIndexOfChildMemberWithName(
 #ifndef NDEBUG
         // This block is a custom VALIDATE_AND_RETURN implementation to support
         // checking the return value, plus the by-ref `child_indexes`.
+        if (!ModuleList::GetGlobalModuleListProperties()
+                 .GetSwiftValidateTypeSystem())
+          return index_size;
         if (!GetSwiftASTContext())
           return index_size;
         auto swift_scratch_ctx_lock = SwiftScratchContextLock(exe_ctx);
@@ -3526,6 +3531,9 @@ CompilerType TypeSystemSwiftTypeRef::CreateTupleType(
 #ifndef NDEBUG
   {
     auto result = impl();
+    if (!ModuleList::GetGlobalModuleListProperties()
+             .GetSwiftValidateTypeSystem())
+      return result;
     if (!GetSwiftASTContext())
       return result;
     std::vector<TupleElement> ast_elements;
