@@ -3029,18 +3029,17 @@ CompilerType TypeSystemSwiftTypeRef::GetChildCompilerTypeAtIndex(
   if (!runtime)
     return impl();
 #ifndef NDEBUG
-  if (!ModuleList::GetGlobalModuleListProperties().GetSwiftValidateTypeSystem())
-    return impl();
   // FIXME:
   // No point comparing the results if the reflection data has more
   // information.  There's a nasty chicken & egg problem buried here:
   // Because the API deals out an index into a list of children we
   // can't mix&match between the two typesystems if there is such a
   // divergence. We'll need to replace all calls at once.
-  if (get_ast_num_children() <
-      runtime->GetNumChildren({weak_from_this(), type}, exe_scope)
-          .getValueOr(0))
-    return impl();
+  if (ModuleList::GetGlobalModuleListProperties().GetSwiftValidateTypeSystem())
+    if (get_ast_num_children() <
+        runtime->GetNumChildren({weak_from_this(), type}, exe_scope)
+            .getValueOr(0))
+      return impl();
   if (ShouldSkipValidation(type))
     return impl();
   std::string ast_child_name;
