@@ -916,7 +916,7 @@ SwiftLanguage::GetHardcodedSynthetics() {
               }
 
               ExecutionContext exe_ctx(valobj.GetExecutionContextRef());
-              if (is_imported && type.GetNumFields(&exe_ctx) == 0)
+              if (is_imported)
                 return true;
               if (valobj.IsBaseClass() && type.IsRuntimeGeneratedType()) {
                 auto parent(valobj.GetParent());
