@@ -16,6 +16,7 @@ class ExecTestCase(TestBase):
                         oslist=no_match(["freebsd"]),
                         bugnumber="rdar://28656532")
     @expectedFailureAll(oslist=["ios", "tvos", "watchos", "bridgeos"], bugnumber="rdar://problem/34559552") # this exec test has problems on ios systems
+    @expectedFailureDarwin(bugnumber="rdar://108198018")
     @expectedFailureNetBSD
     @skipIfAsan # rdar://problem/43756823
     @skipIfWindows
@@ -26,6 +27,7 @@ class ExecTestCase(TestBase):
                         oslist=no_match(["freebsd"]),
                         bugnumber="rdar://28656532")
     @expectedFailureAll(oslist=["ios", "tvos", "watchos", "bridgeos"], bugnumber="rdar://problem/34559552") # this exec test has problems on ios systems
+    @expectedFailureDarwin(bugnumber="rdar://108198018")
     @expectedFailureNetBSD
     @skipIfAsan # rdar://problem/43756823
     @skipIfWindows
