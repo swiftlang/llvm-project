@@ -2798,27 +2798,32 @@ uint32_t TypeSystemSwiftTypeRef::GetNumFields(opaque_compiler_type_t type,
                                               ExecutionContext *exe_ctx) {
   LLDB_SCOPED_TIMER();
   FALLBACK(GetNumFields, (ReconstructType(type), exe_ctx));
-  if (exe_ctx)
-    if (auto *runtime = SwiftLanguageRuntime::Get(exe_ctx->GetProcessSP()))
-      if (auto num_fields =
-              runtime->GetNumFields(GetCanonicalType(type), exe_ctx))
-        // Use a lambda to intercept & unwrap the `Optional` return value from
-        // `SwiftLanguageRuntime::GetNumFields`.
-        // Optional<uint32_t> uses more lax equivalency function.
-        return [&]() -> llvm::Optional<uint32_t> {
-          auto impl = [&]() -> llvm::Optional<uint32_t> {
-            if (!type)
-              return 0;
-            return num_fields;
-          };
-          ExecutionContext exe_ctx_obj;
-          if (exe_ctx)
-            exe_ctx_obj = *exe_ctx;
-          VALIDATE_AND_RETURN(impl, GetNumFields, type, exe_ctx_obj,
-                              (ReconstructType(type), exe_ctx),
-                              (ReconstructType(type), exe_ctx));
-        }()
-                            .getValueOr(0);
+
+  auto impl = [&]() -> llvm::Optional<uint32_t> {
+    if (exe_ctx)
+      if (auto *runtime = SwiftLanguageRuntime::Get(exe_ctx->GetProcessSP()))
+        if (auto num_fields =
+                runtime->GetNumFields(GetCanonicalType(type), exe_ctx))
+          return num_fields;
+
+    if (CompilerType clang_type = GetAsClangTypeOrNull(type))
+      return clang_type.GetNumFields(exe_ctx);
+    return {};
+  };
+  if (auto num_fields = impl()) {
+    // Use a lambda to intercept and unwrap the `Optional` return value.
+    // Optional<uint32_t> uses more lax equivalency function.
+    return [&]() -> llvm::Optional<uint32_t> {
+      auto impl = [&]() { return num_fields; };
+      ExecutionContext exe_ctx_obj;
+      if (exe_ctx)
+        exe_ctx_obj = *exe_ctx;
+      VALIDATE_AND_RETURN(impl, GetNumFields, type, exe_ctx_obj,
+                          (ReconstructType(type), exe_ctx),
+                          (ReconstructType(type), exe_ctx));
+    }()
+                        .getValueOr(0);
+  }
 
   LLDB_LOGF(GetLog(LLDBLog::Types),
             "Using SwiftASTContext::GetNumFields fallback for type %s",
