@@ -2813,7 +2813,7 @@ uint32_t TypeSystemSwiftTypeRef::GetNumFields(opaque_compiler_type_t type,
               switch (clang_type.GetTypeClass()) {
               case lldb::eTypeClassObjCInterface:
               case lldb::eTypeClassObjCObject:
-                // Imported clang types are treated as having no fields.
+                // Imported ObjC types are treated as having no fields.
                 return 0;
               default:
                 return clang_type.GetNumFields();
