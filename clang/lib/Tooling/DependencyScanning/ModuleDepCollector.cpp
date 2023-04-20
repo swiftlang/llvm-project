@@ -92,6 +92,7 @@ ModuleDepCollector::makeInvocationForModuleBuildWithoutOutputs(
 
   CI.resetNonModularOptions();
   CI.clearImplicitModuleBuildOptions();
+  CI.getLangOpts()->NeededByPCHOrCompilationUsesPCH = false;
 
   // Remove options incompatible with explicit module build or are likely to
   // differ between identical modules discovered from different translation
@@ -109,6 +110,7 @@ ModuleDepCollector::makeInvocationForModuleBuildWithoutOutputs(
     CI.getCodeGenOpts().CoverageCompilationDir.clear();
     CI.getCodeGenOpts().CoverageDataFile.clear();
     CI.getCodeGenOpts().CoverageNotesFile.clear();
+    CI.getCodeGenOpts().RelaxAll = false;
   }
 
   // Map output paths that affect behaviour to "-" so their existence is in the

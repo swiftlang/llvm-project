@@ -291,7 +291,30 @@ ASTReaderListener::~ASTReaderListener() = default;
 static bool checkLanguageOptions(const LangOptions &LangOpts,
                                  const LangOptions &ExistingLangOpts,
                                  DiagnosticsEngine *Diags,
-                                 bool AllowCompatibleDifferences = true) {
+                                 bool AllowCompatibleDifferences = true,
+                                 bool IsDependencyScanning = false) {
+  // For explicit modules workflow \c NeededByPCHOrCompilationUsesPCH is not a
+  // meaningful difference for the explicit modules and we canonicalize it away.
+  // Treat it as "benign" for this ASTReader check.
+  // NOTE: This can go away if we get rid of NeededByPCHOrCompilationUsesPCH.
+  bool IsExplicitModulesWorkflow =
+      IsDependencyScanning || !ExistingLangOpts.ImplicitModules;
+  bool ExistingNeededByPCHOrCompilationUsesPCH =
+      ExistingLangOpts.NeededByPCHOrCompilationUsesPCH;
+  if (IsExplicitModulesWorkflow) {
+    // Match NeededByPCHOrCompilationUsesPCH to make it "benign".
+    const_cast<LangOptions &>(ExistingLangOpts)
+        .NeededByPCHOrCompilationUsesPCH =
+        LangOpts.NeededByPCHOrCompilationUsesPCH;
+  }
+  auto _ = llvm::make_scope_exit([&] {
+    // Restore original value of NeededByPCHOrCompilationUsesPCH.
+    if (IsExplicitModulesWorkflow)
+      const_cast<LangOptions &>(ExistingLangOpts)
+          .NeededByPCHOrCompilationUsesPCH =
+          ExistingNeededByPCHOrCompilationUsesPCH;
+  });
+
 #define LANGOPT(Name, Bits, Default, Description)                 \
   if (ExistingLangOpts.Name != LangOpts.Name) {                   \
     if (Diags)                                                    \
@@ -459,7 +482,8 @@ PCHValidator::ReadLanguageOptions(const LangOptions &LangOpts,
   const LangOptions &ExistingLangOpts = PP.getLangOpts();
   return checkLanguageOptions(LangOpts, ExistingLangOpts,
                               Complain ? &Reader.Diags : nullptr,
-                              AllowCompatibleDifferences);
+                              AllowCompatibleDifferences,
+                              PP.getPreprocessorOpts().DependencyScanning);
 }
 
 bool PCHValidator::ReadTargetOptions(const TargetOptions &TargetOpts,
@@ -5241,7 +5265,8 @@ namespace {
     bool ReadLanguageOptions(const LangOptions &LangOpts, bool Complain,
                              bool AllowCompatibleDifferences) override {
       return checkLanguageOptions(ExistingLangOpts, LangOpts, nullptr,
-                                  AllowCompatibleDifferences);
+                                  AllowCompatibleDifferences,
+                                  ExistingPPOpts.DependencyScanning);
     }
 
     bool ReadTargetOptions(const TargetOptions &TargetOpts, bool Complain,
