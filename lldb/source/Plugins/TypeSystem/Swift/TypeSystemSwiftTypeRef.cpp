@@ -891,8 +891,6 @@ TypeSystemSwiftTypeRef::GetSwiftName(const clang::Decl *clang_decl,
   // swiftification rules.
   if (auto *importer = GetNameImporter())
     return importer->ImportName(named_decl);
-  if (auto *swift_ast_context = GetSwiftASTContext())
-    return swift_ast_context->ImportName(named_decl);
   return {};
 }
 
