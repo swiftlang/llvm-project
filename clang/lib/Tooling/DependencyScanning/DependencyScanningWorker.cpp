@@ -273,6 +273,7 @@ public:
                      FileManager *FileMgr,
                      std::shared_ptr<PCHContainerOperations> PCHContainerOps,
                      DiagnosticConsumer *DiagConsumer) override {
+    Invocation->getPreprocessorOpts().DependencyScanning = true;
     // Make a deep copy of the original Clang invocation.
     CompilerInvocation OriginalInvocation(*Invocation);
     // Restore the value of DisableFree, which may be modified by Tooling.

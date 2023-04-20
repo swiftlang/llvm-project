@@ -92,6 +92,7 @@ ModuleDepCollector::makeInvocationForModuleBuildWithoutOutputs(
 
   CI.resetNonModularOptions();
   CI.clearImplicitModuleBuildOptions();
+  CI.getLangOpts()->NeededByPCHOrCompilationUsesPCH = false;
 
   // Remove options incompatible with explicit module build or are likely to
   // differ between identical modules discovered from different translation

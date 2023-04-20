@@ -227,6 +227,13 @@ public:
       FileEntryRef)>
       DependencyDirectivesForFile;
 
+  /// True if doing dependency scanning.
+  ///
+  /// NOTE: Used for making \c LangOptions.NeededByPCHOrCompilationUsesPCH
+  /// benign in the context of explicit modules, it can be removed if
+  /// \c NeededByPCHOrCompilationUsesPCH is removed.
+  bool DependencyScanning = false;
+
   /// Set up preprocessor for RunAnalysis action.
   bool SetUpStaticAnalyzer = false;
 
