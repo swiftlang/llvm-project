@@ -1495,10 +1495,7 @@ swift::DWARFImporterDelegate &TypeSystemSwiftTypeRef::GetDWARFImporterDelegate()
   return *m_dwarf_importer_delegate_up;
 }
 
-ClangNameImporter *
-TypeSystemSwiftTypeRef::GetNameImporter() const {
-  if (llvm::isa<TypeSystemSwiftTypeRefForExpressions>(this) || !m_module)
-    return nullptr;
+ClangNameImporter *TypeSystemSwiftTypeRef::GetNameImporter() const {
   if (!m_name_importer_up) {
     swift::LangOptions lang_opts;
     lang_opts.setTarget(GetTriple());
@@ -1509,8 +1506,11 @@ TypeSystemSwiftTypeRef::GetNameImporter() const {
 }
 
 llvm::Triple TypeSystemSwiftTypeRef::GetTriple() const {
-  if (m_module)
-    return m_module->GetArchitecture().GetTriple();
+  if (auto *module = GetModule())
+    return module->GetArchitecture().GetTriple();
+  else if (auto target_sp = GetTargetWP().lock())
+    return target_sp->GetArchitecture().GetTriple();
+  llvm_unreachable("Expected module or target");
   return {};
 }
 
@@ -2282,14 +2282,7 @@ bool TypeSystemSwiftTypeRef::IsVoidType(opaque_compiler_type_t type) {
 // AST related queries
 uint32_t TypeSystemSwiftTypeRef::GetPointerByteSize() {
   auto impl = [&]() -> uint32_t {
-    llvm::Triple triple;
-    if (auto *module = GetModule())
-      triple = module->GetArchitecture().GetTriple();
-    else if (auto target_sp = GetTargetWP().lock())
-      triple = target_sp->GetArchitecture().GetTriple();
-    else
-      assert(false && "Expected module or target");
-
+    llvm::Triple triple = GetTriple();
     if (triple.isArch64Bit())
       return 8;
     if (triple.isArch32Bit())
