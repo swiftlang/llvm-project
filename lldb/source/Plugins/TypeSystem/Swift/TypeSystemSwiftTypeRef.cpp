@@ -2819,6 +2819,9 @@ uint32_t TypeSystemSwiftTypeRef::GetNumFields(opaque_compiler_type_t type,
     } else if (is_imported) {
       // A known imported type, but where clang has no info. Return early to
       // avoid loading Swift ASTContexts, only to return the same zero value.
+      LLDB_LOGF(GetLog(LLDBLog::Types),
+                "No CompilerType for imported Clang type %s",
+                AsMangledName(type));
       return 0;
     }
     return {};
