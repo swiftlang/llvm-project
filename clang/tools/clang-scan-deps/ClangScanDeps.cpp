@@ -660,6 +660,10 @@ public:
       ModuleIDs.push_back(M.first);
     llvm::sort(ModuleIDs);
 
+    llvm::sort(Inputs, [](const InputDeps &A, const InputDeps &B) {
+      return A.FileName < B.FileName;
+    });
+
     using namespace llvm::json;
 
     Array OutModules;
@@ -741,7 +745,8 @@ private:
     mutable size_t InputIndex;
 
     bool operator==(const IndexedModuleID &Other) const {
-      return ID == Other.ID;
+      return std::tie(ID.ModuleName, ID.ContextHash) ==
+             std::tie(Other.ID.ModuleName, Other.ID.ContextHash);
     }
 
     bool operator<(const IndexedModuleID &Other) const {
@@ -761,7 +766,7 @@ private:
 
     struct Hasher {
       std::size_t operator()(const IndexedModuleID &IMID) const {
-        return llvm::hash_value(IMID.ID);
+        return llvm::hash_combine(IMID.ID.ModuleName, IMID.ID.ContextHash);
       }
     };
   };
