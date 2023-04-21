@@ -1508,7 +1508,9 @@ llvm::Triple TypeSystemSwiftTypeRef::GetTriple() const {
     return module->GetArchitecture().GetTriple();
   else if (auto target_sp = GetTargetWP().lock())
     return target_sp->GetArchitecture().GetTriple();
-  llvm_unreachable("Expected module or target");
+  LLDB_LOGF(
+      GetLog(LLDBLog::Types),
+      "Cannot determine triple when no Module or no Target is available.");
   return {};
 }
 
