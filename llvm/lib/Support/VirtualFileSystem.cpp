@@ -278,12 +278,12 @@ public:
   explicit RealFileSystem(bool LinkCWDToProcess) {
     if (!LinkCWDToProcess) {
       SmallString<128> PWD, RealPWD;
-      if (llvm::sys::fs::current_path(PWD))
-        return; // Awful, but nothing to do here.
-      if (llvm::sys::fs::real_path(PWD, RealPWD))
-        WD = {PWD, PWD};
+      if (std::error_code EC = llvm::sys::fs::current_path(PWD))
+        WD = EC;
+      else if (llvm::sys::fs::real_path(PWD, RealPWD))
+        WD = WorkingDirectory{PWD, PWD};
       else
-        WD = {PWD, RealPWD};
+        WD = WorkingDirectory{PWD, RealPWD};
     }
   }
 
@@ -305,10 +305,10 @@ private:
   // If this FS has its own working dir, use it to make Path absolute.
   // The returned twine is safe to use as long as both Storage and Path live.
   Twine adjustPath(const Twine &Path, SmallVectorImpl<char> &Storage) const {
-    if (!WD)
+    if (!WD || !*WD)
       return Path;
     Path.toVector(Storage);
-    sys::fs::make_absolute(WD->Resolved, Storage);
+    sys::fs::make_absolute(WD->get().Resolved, Storage);
     return Storage;
   }
 
@@ -318,7 +318,7 @@ private:
     // The current working directory, with links resolved. (readlink .).
     SmallString<128> Resolved;
   };
-  Optional<WorkingDirectory> WD;
+  Optional<llvm::ErrorOr<WorkingDirectory>> WD;
 };
 
 } // namespace
@@ -344,8 +344,10 @@ RealFileSystem::openFileForRead(const Twine &Name) {
 }
 
 llvm::ErrorOr<std::string> RealFileSystem::getCurrentWorkingDirectory() const {
+  if (WD && *WD)
+    return std::string(WD->get().Specified.str());
   if (WD)
-    return std::string(WD->Specified.str());
+    return WD->getError();
 
   SmallString<128> Dir;
   if (std::error_code EC = llvm::sys::fs::current_path(Dir))
@@ -366,7 +368,7 @@ std::error_code RealFileSystem::setCurrentWorkingDirectory(const Twine &Path) {
     return std::make_error_code(std::errc::not_a_directory);
   if (auto Err = llvm::sys::fs::real_path(Absolute, Resolved))
     return Err;
-  WD = {Absolute, Resolved};
+  WD = WorkingDirectory{Absolute, Resolved};
   return std::error_code();
 }
 
