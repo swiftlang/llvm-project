@@ -2212,7 +2212,7 @@ void DwarfDebug::terminateLineTable(const DwarfCompileUnit *CU) {
       getDwarfCompileUnitIDForLineTable(*CU));
   // Add the last range label for the given CU.
   LineTable.getMCLineSections().addEndEntry(
-      const_cast<MCSymbol *>(CURanges.back().End));
+      const_cast<MCSymbol *>(CURanges.back().End), CasFriendlyDebugInfo);
 }
 
 void DwarfDebug::skippedNonDebugFunction() {

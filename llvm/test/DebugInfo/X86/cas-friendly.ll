@@ -27,7 +27,6 @@
 ; CHECK-NEXT: 0x{{[0-9a-z]+}}     10      2      1   0             0 
 ; CHECK-NEXT: 0x{{[0-9a-z]+}}     10      2      1   0             0  epilogue_begin
 ; CHECK-NEXT: 0x{{[0-9a-z]+}}     10      2      1   0             0  end_sequence
-; CHECK-NEXT: 0x{{[0-9a-z]+}}      1      0      1   0             0  is_stmt end_sequence
 
 ; ModuleID = './test.c'
 source_filename = "./test.c"
