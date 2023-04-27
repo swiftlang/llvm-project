@@ -466,6 +466,12 @@ ClangExpressionParser::ClangExpressionParser(
     m_compiler->getTargetOpts().Features.push_back("+sse2");
   }
 
+  if (m_compiler->getTargetOpts().Triple.find("arm64e") != std::string::npos) {
+    m_compiler->getLangOpts().PointerAuthIntrinsics = true;
+    m_compiler->getLangOpts().PointerAuthCalls = true;
+    m_compiler->getLangOpts().PointerAuthReturns = true;
+  }
+
   // Set the target CPU to generate code for. This will be empty for any CPU
   // that doesn't really need to make a special
   // CPU string.
@@ -576,6 +582,12 @@ ClangExpressionParser::ClangExpressionParser(
     break;
   }
 
+  if (m_compiler->getTargetOpts().Triple.find("arm64e") != std::string::npos) {
+    lang_opts.PointerAuthIntrinsics = true;
+    lang_opts.PointerAuthCalls = true;
+    lang_opts.PointerAuthReturns = true;
+  }
+
   lang_opts.Bool = true;
   lang_opts.WChar = true;
   lang_opts.Blocks = true;
@@ -651,6 +663,13 @@ ClangExpressionParser::ClangExpressionParser(
     m_compiler->getCodeGenOpts().setDebugInfo(codegenoptions::FullDebugInfo);
   else
     m_compiler->getCodeGenOpts().setDebugInfo(codegenoptions::NoDebugInfo);
+
+  if (target_sp) {
+    PointerAuthOptions &ptrauth_opts = m_compiler->getCodeGenOpts().PointerAuth;
+    const llvm::Triple &triple = target_arch.GetTriple();
+    clang::CompilerInvocation::setDefaultPointerAuthOptions(ptrauth_opts,
+                                                            lang_opts, triple);
+  }
 
   // Disable some warnings.
   SetupDefaultClangDiagnostics(*m_compiler);
@@ -1402,7 +1421,7 @@ lldb_private::Status ClangExpressionParser::PrepareForExecution(
     StreamString error_stream;
     IRForTarget ir_for_target(decl_map, m_expr.NeedsVariableResolution(),
                               *execution_unit_sp, error_stream,
-                              function_name.AsCString());
+                              execution_policy, function_name.AsCString());
 
     if (!ir_for_target.runOnModule(*execution_unit_sp->GetModule())) {
       err.SetErrorString(error_stream.GetString());

@@ -10,6 +10,7 @@
 
 #include "ClangExpressionDeclMap.h"
 #include "ClangUtil.h"
+#include "InjectPointerSigningFixups.h"
 
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "llvm/IR/Constants.h"
@@ -72,10 +73,11 @@ IRForTarget::IRForTarget(lldb_private::ClangExpressionDeclMap *decl_map,
                          bool resolve_vars,
                          lldb_private::IRExecutionUnit &execution_unit,
                          lldb_private::Stream &error_stream,
+                         lldb_private::ExecutionPolicy execution_policy,
                          const char *func_name)
     : m_resolve_vars(resolve_vars), m_func_name(func_name),
       m_decl_map(decl_map), m_error_stream(error_stream),
-      m_execution_unit(execution_unit),
+      m_execution_unit(execution_unit), m_policy(execution_policy),
       m_entry_instruction_finder(FindEntryInstruction) {}
 
 /* Handy utility functions used at several places in the code */
@@ -414,9 +416,8 @@ bool IRForTarget::RewriteObjCConstString(llvm::GlobalVariable *ns_str,
         "CFStringCreateWithBytes");
 
     bool missing_weak = false;
-    CFStringCreateWithBytes_addr =
-        m_execution_unit.FindSymbol(g_CFStringCreateWithBytes_str, 
-                                    missing_weak);
+    CFStringCreateWithBytes_addr = m_execution_unit.FindSymbol(
+        g_CFStringCreateWithBytes_str, missing_weak);
     if (CFStringCreateWithBytes_addr == LLDB_INVALID_ADDRESS || missing_weak) {
       LLDB_LOG(log, "Couldn't find CFStringCreateWithBytes in the target");
 
@@ -1978,6 +1979,13 @@ bool IRForTarget::runOnModule(Module &llvm_module) {
 
       return false;
     }
+  }
+
+  if (auto Err =
+          lldb_private::InjectPointerSigningFixupCode(*m_module, m_policy)) {
+    LLDB_LOGF(log, "InsertPointerSigningFixups() failed:\n\"%s\"",
+              toString(std::move(Err)).c_str());
+    return false;
   }
 
   if (log && log->GetVerbose()) {

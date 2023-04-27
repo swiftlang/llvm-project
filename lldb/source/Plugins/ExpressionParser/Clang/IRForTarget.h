@@ -80,11 +80,15 @@ public:
   /// \param[in] error_stream
   ///     If non-NULL, a stream on which errors can be printed.
   ///
+  /// \param[in] execution_policy
+  ///     The execution policy for any generated IR.
+  ///
   /// \param[in] func_name
   ///     The name of the function to prepare for execution in the target.
   IRForTarget(lldb_private::ClangExpressionDeclMap *decl_map, bool resolve_vars,
               lldb_private::IRExecutionUnit &execution_unit,
               lldb_private::Stream &error_stream,
+              lldb_private::ExecutionPolicy execution_policy,
               const char *func_name = "$__lldb_expr");
 
   /// Run this IR transformer on a single module
@@ -443,6 +447,8 @@ private:
   /// A placeholder that will be replaced by a pointer to the final location of
   /// the static allocation.
   llvm::GlobalVariable *m_reloc_placeholder = nullptr;
+
+  lldb_private::ExecutionPolicy m_policy;
 
   class FunctionValueCache {
   public:
