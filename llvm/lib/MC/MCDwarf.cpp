@@ -157,10 +157,10 @@ void MCLineSection::addEndEntry(MCSymbol *EndLabel, bool CasFriendlyDebugInfo) {
   if (I != MCLineDivisions.end()) {
     auto &Entries = I->second;
     auto EndEntry = Entries.back();
-    if (!CasFriendlyDebugInfo) {
+    // if (!CasFriendlyDebugInfo) {
       EndEntry.setEndLabel(EndLabel);
       Entries.push_back(EndEntry);
-    }
+    // }
   }
 }
 
