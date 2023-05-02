@@ -175,7 +175,7 @@ void MCDwarfLineTable::emitOne(
   unsigned FileNum, LastLine, Column, Flags, Isa, Discriminator;
   MCSymbol *LastLabel;
   auto init = [&]() {
-    FileNum = 1;
+    FileNum = MCOS->getGenerateCasFriendlyDebugInfo() ? 0 : 1;
     LastLine = 1;
     Column = 0;
     Flags = DWARF2_LINE_DEFAULT_IS_STMT ? DWARF2_FLAG_IS_STMT : 0;
@@ -193,24 +193,20 @@ void MCDwarfLineTable::emitOne(
     if (LineEntry.IsEndEntry || LineEntry.IsEndOfFunction) {
       MCOS->emitDwarfAdvanceLineAddr(INT64_MAX, LastLabel, Label,
                                      asmInfo->getCodePointerSize());
-      // unsigned PrevFileNum = FileNum;
       init();
-      // File number doesn't need to be reset and extra DW_LNS_set_file
-      // directives reduces deduplication
-      // if (LineEntry.IsEndOfFunction)
-        // FileNum = PrevFileNum;
+
       EndEntryEmitted = true;
       continue;
     }
 
     int64_t LineDelta = static_cast<int64_t>(LineEntry.getLine()) - LastLine;
 
-    if (FileNum != LineEntry.getFileNum() || LineEntry.IsEndOfFunction) {
+    if (FileNum != LineEntry.getFileNum()) {
       FileNum = LineEntry.getFileNum();
       MCOS->emitInt8(dwarf::DW_LNS_set_file);
       MCOS->emitULEB128IntValue(FileNum);
     }
-    if (Column != LineEntry.getColumn() || LineEntry.IsEndOfFunction) {
+    if (Column != LineEntry.getColumn()) {
       Column = LineEntry.getColumn();
       MCOS->emitInt8(dwarf::DW_LNS_set_column);
       MCOS->emitULEB128IntValue(Column);

@@ -379,9 +379,6 @@ class DwarfDebug : public DebugHandlerBase {
   /// Avoid using DW_OP_convert due to consumer incompatibilities.
   bool EnableOpConvert;
 
-  /// Generate debug info that is Cas Friendly
-  bool GenerateCasFriendlyDebugInfo;
-
 public:
   enum class MinimizeAddrInV5 {
     Default,

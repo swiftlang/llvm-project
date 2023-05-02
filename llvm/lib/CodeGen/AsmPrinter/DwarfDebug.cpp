@@ -464,7 +464,7 @@ DwarfDebug::DwarfDebug(AsmPrinter *A)
   Asm->OutStreamer->getContext().setDwarfFormat(Dwarf64 ? dwarf::DWARF64
                                                         : dwarf::DWARF32);
 
-  GenerateCasFriendlyDebugInfo = CasFriendlyDebugInfo;
+  Asm->OutStreamer->setGenerateCasFriendlyDebugInfo(CasFriendlyDebugInfo);
 }
 
 // Define out of line so we don't have to include DwarfUnit.h in DwarfDebug.h.
@@ -2212,7 +2212,8 @@ void DwarfDebug::terminateLineTable(const DwarfCompileUnit *CU) {
       getDwarfCompileUnitIDForLineTable(*CU));
   // Add the last range label for the given CU.
   LineTable.getMCLineSections().addEndEntry(
-      const_cast<MCSymbol *>(CURanges.back().End), CasFriendlyDebugInfo);
+      const_cast<MCSymbol *>(CURanges.back().End),
+      Asm->OutStreamer->getGenerateCasFriendlyDebugInfo());
 }
 
 void DwarfDebug::skippedNonDebugFunction() {
@@ -2308,7 +2309,7 @@ void DwarfDebug::endFunctionImpl(const MachineFunction *MF) {
   // we want to split up the line tables by function. To do this, we want to
   // emit a DW_LNE_end_sequence at the end of a function's contribution to the
   // line table.
-  if (GenerateCasFriendlyDebugInfo) {
+  if (Asm->OutStreamer->getGenerateCasFriendlyDebugInfo()) {
     MCSymbol *LineSym = Asm->OutStreamer->getContext().createTempSymbol();
     Asm->OutStreamer->emitLabel(LineSym);
     MCDwarfLoc DwarfLoc(
