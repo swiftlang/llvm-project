@@ -26,6 +26,20 @@ Expected<CASID> readCASIDBuffer(cas::ObjectStore &CAS,
 void writeCASIDBuffer(const CASID &ID, llvm::raw_ostream &OS);
 
 } // namespace cas
+
+namespace casobjectformats {
+
+namespace reader {
+class CASObjectReader;
+}
+
+Error printCASObject(const reader::CASObjectReader &Reader, raw_ostream &OS,
+                     bool omitCASID,
+                     std::function<const char *(uint8_t)> GetEdgeName,
+                     std::function<const char *(uint8_t)> GetScopeName,
+                     std::function<const char *(uint8_t)> GetLinkageName);
+
+} // end namespace casobjectformats
 } // end namespace llvm
 
 #endif // LLVM_CASOBJECTFORMATS_UTILS_H
