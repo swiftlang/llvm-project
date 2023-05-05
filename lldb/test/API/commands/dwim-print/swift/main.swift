@@ -16,7 +16,7 @@ func main() {
     let object = Object()
     let user = User()
     // break here
-    _ = (object, user)
+    print(object, user)
 }
 
 main()
