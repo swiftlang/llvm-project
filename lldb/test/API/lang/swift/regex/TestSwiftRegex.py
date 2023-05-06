@@ -27,6 +27,7 @@ class TestSwiftRegex(TestBase):
         self.main_source_spec = lldb.SBFileSpec(self.main_source)
 
     @swiftTest
+    @skipIf(macos_version=["<", "13"])
     def test_swift_regex_frame_var(self):
         """Test frame variable support for Swift regexes."""
         self.build()
@@ -38,6 +39,7 @@ class TestSwiftRegex(TestBase):
                     substrs=['(_StringProcessing.Regex<Substring>) dslRegex = {'])
 
     @swiftTest
+    @skipIf(macos_version=["<", "13"])
     def test_swift_regex_expr_desc(self):
         """Test expression object description support for Swift regexes."""
         self.build()
@@ -50,6 +52,7 @@ class TestSwiftRegex(TestBase):
                     substrs=['Regex<Substring>'])
 
     @swiftTest
+    @skipIf(macos_version=["<", "13"])
     def test_swift_regex_frame_var_desc(self):
         """Test frame variable object description support for Swift regexes."""
         self.build()
@@ -61,6 +64,7 @@ class TestSwiftRegex(TestBase):
                     substrs=['Regex<Substring>'])
 
     @swiftTest
+    @skipIf(macos_version=["<", "13"])
     def test_swift_regex_expr(self):
         """Test expression support for Swift regexes."""
         self.build()
@@ -69,7 +73,7 @@ class TestSwiftRegex(TestBase):
         self.expect('expr regex',
                     substrs=['_StringProcessing.Regex<(Substring, Substring, Substring, Substring)>) $R0 = {'])
         self.expect('expr dslRegex',
-                    substrs=['(_StringProcessing.Regex<Substring>) $R0 = {'])
+                    substrs=['(_StringProcessing.Regex<Substring>) $R1 = {'])
 
     @swiftTest
     @skipIf(macos_version=["<", "13"])
