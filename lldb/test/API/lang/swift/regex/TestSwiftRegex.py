@@ -34,12 +34,32 @@ class TestSwiftRegex(TestBase):
             self, 'Set breakpoint here', self.main_source_spec)
         self.expect('v regex',
                     substrs=['_StringProcessing.Regex<(Substring, Substring, Substring, Substring)>) regex = {'])
-        self.expect('po regex',
-                    substrs=['Regex<(Substring, Substring, Substring, Substring)>'])
+        # self.expect('po regex',
+        #             substrs=['Regex<(Substring, Substring, Substring, Substring)>'])
 
         self.expect('v dslRegex',
                     substrs=['(_StringProcessing.Regex<Substring>) dslRegex = {'])
-        self.expect('po dslRegex',
+        # self.expect('po dslRegex',
+        #             substrs=['Regex<Substring>'])
+
+    @swiftTest
+    def test_swift_regex1(self):
+        self.build()
+        lldbutil.run_to_source_breakpoint(
+            self, 'Set breakpoint here', self.main_source_spec)
+        self.expect('expr -O -- regex',
+                    substrs=['Regex<(Substring, Substring, Substring, Substring)>'])
+        self.expect('expr -O -- dslRegex',
+                    substrs=['Regex<Substring>'])
+
+    @swiftTest
+    def test_swift_regex2(self):
+        self.build()
+        lldbutil.run_to_source_breakpoint(
+            self, 'Set breakpoint here', self.main_source_spec)
+        self.expect('vo regex',
+                    substrs=['Regex<(Substring, Substring, Substring, Substring)>'])
+        self.expect('vo dslRegex',
                     substrs=['Regex<Substring>'])
 
     @swiftTest
