@@ -63,6 +63,16 @@ class TestSwiftRegex(TestBase):
                     substrs=['Regex<Substring>'])
 
     @swiftTest
+    def test_swift_regex3(self):
+        self.build()
+        lldbutil.run_to_source_breakpoint(
+            self, 'Set breakpoint here', self.main_source_spec)
+        self.expect('expr regex',
+                    substrs=['_StringProcessing.Regex<(Substring, Substring, Substring, Substring)>) regex = {'])
+        self.expect('expr dslRegex',
+                    substrs=['(_StringProcessing.Regex<Substring>) dslRegex = {'])
+
+    @swiftTest
     @skipIf(macos_version=["<", "13"])
     def test_swift_regex_in_exp(self):
         """Test Swift's regex support"""
