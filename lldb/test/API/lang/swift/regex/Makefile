@@ -1,10 +1,8 @@
-SWIFT_SOURCES := main.swift
-
-COMMON_SWIFTFLAGS := -enable-bare-slash-regex -Xfrontend -disable-availability-checking
 ifeq "$(OS)" "Darwin"
-	SWIFTFLAGS_EXTRAS := -target $(ARCH)-apple-macosx13.0 $(COMMON_SWIFTFLAGS)
-else
-	SWIFTFLAGS_EXTRAS := $(COMMON_SWIFTFLAGS)
+	OS_SWIFTFLAGS := -target $(ARCH)-apple-macosx13.0
 endif
+
+SWIFT_SOURCES := main.swift
+SWIFTFLAGS_EXTRAS := -enable-bare-slash-regex $(OS_SWIFTFLAGS)
 
 include Makefile.rules
