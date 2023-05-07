@@ -45,7 +45,6 @@ class TestSwiftRegex(TestBase):
         self.build()
         lldbutil.run_to_source_breakpoint(
             self, 'Set breakpoint here', self.main_source_spec)
-        self.runCmd("log enable lldb expr types")
         self.expect('expr -O -- regex',
                     substrs=['Regex<(Substring, Substring, Substring, Substring)>'])
         self.expect('expr -O -- dslRegex',
