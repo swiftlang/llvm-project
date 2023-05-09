@@ -82,6 +82,9 @@ add_llvm_component_library(LLVMMC
   CAS
   CASUtil
   DebugInfoCodeView
+
+  DEPENDS
+  intrinsics_gen
   )
 
 add_subdirectory(MCParser)
