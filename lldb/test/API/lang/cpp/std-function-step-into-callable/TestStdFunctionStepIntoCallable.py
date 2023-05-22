@@ -14,6 +14,7 @@ class LibCxxFunctionSteppingIntoCallableTestCase(TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
 
+    @skipIf(bugnumber="rdar://109655952") # Started failing after we compiled standalone tests against freshly built libcxx
     @add_test_categories(["libc++"])
     def test(self):
         """Test that std::function as defined by libc++ is correctly printed by LLDB"""
