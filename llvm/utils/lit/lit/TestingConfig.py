@@ -70,6 +70,7 @@ class TestingConfig(object):
                 "COMSPEC",
                 "INCLUDE",
                 "LIB",
+                "NUMBER_OF_PROCESSORS",
                 "PATHEXT",
                 "USERPROFILE",
             ]
