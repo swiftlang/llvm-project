@@ -84,6 +84,8 @@ public:
       return (m_is_cf == eLazyBoolYes);
     }
 
+    virtual bool IsSwift() const { return false; }
+
     virtual bool IsValid() = 0;
 
     /// There are two routines in the ObjC runtime that tagged pointer clients

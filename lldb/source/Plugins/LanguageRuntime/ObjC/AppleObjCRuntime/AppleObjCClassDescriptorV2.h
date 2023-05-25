@@ -34,6 +34,8 @@ public:
     return true; // any Objective-C v2 runtime class descriptor we vend is valid
   }
 
+  bool IsSwift() const override;
+
   // a custom descriptor is used for tagged pointers
   bool GetTaggedPointerInfo(uint64_t *info_bits = nullptr,
                             uint64_t *value_bits = nullptr,

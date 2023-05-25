@@ -530,6 +530,18 @@ uint64_t ClassDescriptorV2::GetInstanceSize() {
   return 0;
 }
 
+// From the ObjC runtime.
+static uint8_t IS_SWIFT_STABLE = 1U << 1;
+
+bool ClassDescriptorV2::IsSwift() const {
+  std::unique_ptr<objc_class_t> objc_class;
+  if (auto *process = m_runtime.GetProcess())
+    if (Read_objc_class(process, objc_class))
+      return objc_class->m_flags & IS_SWIFT_STABLE;
+
+  return false;
+}
+
 ClassDescriptorV2::iVarsStorage::iVarsStorage() : m_ivars(), m_mutex() {}
 
 size_t ClassDescriptorV2::iVarsStorage::size() { return m_ivars.size(); }

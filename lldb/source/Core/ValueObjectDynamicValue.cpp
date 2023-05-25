@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Core/ValueObjectDynamicValue.h"
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Symbol/CompilerType.h"
@@ -21,6 +22,7 @@
 #include "lldb/Utility/Scalar.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-types.h"
+#include "llvm/Support/Casting.h"
 
 #ifdef LLDB_ENABLE_SWIFT
 #include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
@@ -120,6 +122,26 @@ lldb::ValueType ValueObjectDynamicValue::GetValueType() const {
   return m_parent->GetValueType();
 }
 
+static bool UseSwiftRuntime(ValueObject &valobj,
+                            const ExecutionContext &exe_ctx) {
+  if (auto *frame = exe_ctx.GetFramePtr())
+    if (frame->GetLanguage() == lldb::eLanguageTypeSwift)
+      return true;
+
+  if (auto *process = exe_ctx.GetProcessPtr())
+    if (auto *runtime = llvm::dyn_cast_or_null<ObjCLanguageRuntime>(
+            process->GetLanguageRuntime(lldb::eLanguageTypeObjC)))
+      if (auto class_sp = runtime->GetClassDescriptor(valobj))
+        if (class_sp->IsSwift())
+          return true;
+
+  if (auto *target = exe_ctx.GetTargetPtr())
+    if (target->IsSwiftREPL())
+      return true;
+
+  return false;
+}
+
 bool ValueObjectDynamicValue::UpdateValue() {
   Log *log = GetLog(LLDBLog::Types);
 
@@ -165,17 +187,14 @@ bool ValueObjectDynamicValue::UpdateValue() {
   lldb::LanguageType known_type = m_parent->GetObjectRuntimeLanguage();
 
 #ifdef LLDB_ENABLE_SWIFT
-  // An Objective-C object inside a Swift frame.
-  if (known_type == eLanguageTypeObjC)
-    if ((exe_ctx.GetFramePtr() &&
-         exe_ctx.GetFramePtr()->GetLanguage() == lldb::eLanguageTypeSwift) ||
-        (exe_ctx.GetTargetPtr() && exe_ctx.GetTargetPtr()->IsSwiftREPL())) {
-      runtime = process->GetLanguageRuntime(lldb::eLanguageTypeSwift);
-      if (runtime)
-        found_dynamic_type = runtime->GetDynamicTypeAndAddress(
-            *m_parent, m_use_dynamic, class_type_or_name, dynamic_address,
-            value_type);
-    }
+  // An ObjC object in a Swift context, or a ObjC object implemented in Swift.
+  if (known_type == eLanguageTypeObjC && UseSwiftRuntime(*m_parent, exe_ctx)) {
+    runtime = process->GetLanguageRuntime(lldb::eLanguageTypeSwift);
+    if (runtime)
+      found_dynamic_type = runtime->GetDynamicTypeAndAddress(
+          *m_parent, m_use_dynamic, class_type_or_name, dynamic_address,
+          value_type);
+  }
 #endif // LLDB_ENABLE_SWIFT
   if (!found_dynamic_type &&
       known_type != lldb::eLanguageTypeUnknown &&
