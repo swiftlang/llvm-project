@@ -733,7 +733,7 @@ static Error
 handleExtendedOpcodesForLineTable(DWARFDataExtractor &LineTableDataReader,
                                   DWARFDataExtractor::Cursor &LineTableCursor,
                                   uint8_t SubOpcode, uint64_t Len,
-                                  bool &IsEndSequence) {
+                                  bool &IsEndSequence, bool &IsRelocation) {
   switch (SubOpcode) {
   case dwarf::DW_LNE_end_sequence: {
     // Takes no operand, it needs to be handled specially when materializing and
@@ -746,7 +746,7 @@ handleExtendedOpcodesForLineTable(DWARFDataExtractor &LineTableDataReader,
     if (LineTableDataReader.getAddressSize() != Len - 1)
       return createStringError(inconvertibleErrorCode(),
                                "Address size mismatch");
-    LineTableDataReader.getRelocatedAddress(LineTableCursor);
+    IsRelocation = true;
   } break;
   case dwarf::DW_LNE_define_file: {
     // Takes 4 arguments. The first is a null terminated string containing
@@ -775,7 +775,8 @@ handleExtendedOpcodesForLineTable(DWARFDataExtractor &LineTableDataReader,
 static Error
 handleStandardOpcodesForLineTable(DWARFDataExtractor &LineTableDataReader,
                                   DWARFDataExtractor::Cursor &LineTableCursor,
-                                  uint8_t Opcode, bool &IsSetFile) {
+                                  uint8_t Opcode, bool &IsSetFile,
+                                  bool &IsRelocation) {
   switch (Opcode) {
   case dwarf::DW_LNS_copy:
   case dwarf::DW_LNS_negate_stmt:
@@ -800,7 +801,7 @@ handleStandardOpcodesForLineTable(DWARFDataExtractor &LineTableDataReader,
   } break;
   case dwarf::DW_LNS_fixed_advance_pc: {
     // Takes a single uhalf operand, move cursor to the end of operand.
-    LineTableDataReader.getU16(LineTableCursor);
+    IsRelocation = true;
   } break;
   default:
     llvm_unreachable("Unknown standard opcode for line table");
@@ -829,10 +830,15 @@ getOpcodeAndOperandSize(StringRef DistinctData, StringRef LineTableData,
 
     uint8_t SubOpcode = LineTableDataReader.getU8(LineTableCursor);
     bool IsEndSequence = false;
+    bool IsRelocation = false;
     auto Err = handleExtendedOpcodesForLineTable(
-        LineTableDataReader, LineTableCursor, SubOpcode, Len, IsEndSequence);
+        LineTableDataReader, LineTableCursor, SubOpcode, Len, IsEndSequence,
+        IsRelocation);
     if (Err)
       return std::move(Err);
+    if (IsRelocation)
+      DistinctDataReader.getRelocatedAddress(DistinctCursor);
+
     if (IsEndSequence) {
       // The SubOpcode is a DW_LNE_end_sequence, it takes no operand, but check
       // if this is the end of the line table and return.
@@ -841,10 +847,14 @@ getOpcodeAndOperandSize(StringRef DistinctData, StringRef LineTableData,
     }
   } else if (Opcode < OpcodeBase) {
     bool IsSetFile = false;
+    bool IsRelocation = false;
     auto Err = handleStandardOpcodesForLineTable(
-        LineTableDataReader, LineTableCursor, Opcode, IsSetFile);
+        LineTableDataReader, LineTableCursor, Opcode, IsSetFile, IsRelocation);
     if (Err)
       return std::move(Err);
+    if (IsRelocation)
+      DistinctDataReader.getRelocatedValue(DistinctCursor, 2);
+
     if (IsSetFile) {
       // The Opcode is DW_LNS_set_file, this means we need to get the file
       // number from the DistinctData, which is stored as a ULEB.
@@ -1851,49 +1861,69 @@ Error MCCASBuilder::createOptimizedLineSection(StringRef DebugLineStrRef) {
   uint64_t *OffsetPtr = &Prologue->Offset;
   uint64_t End =
       Prologue->Length + (Prologue->Format == dwarf::DWARF32 ? 4 : 8);
-  uint64_t LineTableStartOffset = Prologue->Offset;
   while (*OffsetPtr < End) {
     DWARFDataExtractor::Cursor Cursor(*OffsetPtr);
     auto Opcode = LineTableDataReader.getU8(Cursor);
+    LineTableData.push_back(Opcode);
     if (Opcode == 0) {
       // Extended Opcodes always start with a zero opcode followed by
       // a uleb128 length so unknown opcodes can be skipped.
+      uint64_t CurrOffset = Cursor.tell();
       uint64_t Len = LineTableDataReader.getULEB128(Cursor);
       if (Len == 0)
         return createStringError(inconvertibleErrorCode(),
                                  "0 Length for an extended opcode is wrong");
+      copyData(LineTableData, DebugLineStrRef, CurrOffset, Cursor);
 
       uint8_t SubOpcode = LineTableDataReader.getU8(Cursor);
+      LineTableData.push_back(SubOpcode);
       bool IsEndSequence = false;
-      auto Err = handleExtendedOpcodesForLineTable(
-          LineTableDataReader, Cursor, SubOpcode, Len, IsEndSequence);
+      bool IsRelocation = false;
+      CurrOffset = Cursor.tell();
+      auto Err = handleExtendedOpcodesForLineTable(LineTableDataReader, Cursor,
+                                                   SubOpcode, Len,
+                                                   IsEndSequence, IsRelocation);
       if (Err)
         return Err;
+      if (IsRelocation) {
+        // Move cursor to end of relocation and copy.
+        LineTableDataReader.getRelocatedAddress(Cursor);
+        copyData(DistinctData, DebugLineStrRef, CurrOffset, Cursor);
+      } else
+        copyData(LineTableData, DebugLineStrRef, CurrOffset, Cursor);
+
       if (IsEndSequence) {
         // The current Opcode is a DW_LNE_end_sequence. It takes no operand,
         // create a cas block here.
-        copyData(LineTableData, DebugLineStrRef, LineTableStartOffset, Cursor);
         auto LineTable =
             DebugLineRef::create(*this, toStringRef(LineTableData));
         if (!LineTable)
           return LineTable.takeError();
         LineTableVector.push_back(*LineTable);
-        LineTableStartOffset = Cursor.tell();
         LineTableData.clear();
       }
     } else if (Opcode < Prologue->OpcodeBase) {
       bool IsSetFile = false;
-      auto Err = handleStandardOpcodesForLineTable(LineTableDataReader, Cursor,
-                                                   Opcode, IsSetFile);
+      bool IsRelocation = false;
+      uint64_t CurrOffset = Cursor.tell();
+      auto Err = handleStandardOpcodesForLineTable(
+          LineTableDataReader, Cursor, Opcode, IsSetFile, IsRelocation);
       if (Err)
         return Err;
+      if (IsRelocation) {
+        // Move cursor to end of relocation and copy.
+        LineTableDataReader.getRelocatedValue(Cursor, 2);
+        copyData(DistinctData, DebugLineStrRef, CurrOffset, Cursor);
+      } else
+        copyData(LineTableData, DebugLineStrRef, CurrOffset, Cursor);
+
       if (IsSetFile) {
         // The current Opcode is a DW_LNS_set_file. Store file numbers in the
         // distinct data.
-        copyData(LineTableData, DebugLineStrRef, LineTableStartOffset, Cursor);
+        uint64_t CurrOffset = Cursor.tell();
         LineTableDataReader.getULEB128(Cursor);
         // The file number doesn't dedupe, so store that in the DistinctData.
-        copyData(DistinctData, DebugLineStrRef, LineTableStartOffset, Cursor);
+        copyData(DistinctData, DebugLineStrRef, CurrOffset, Cursor);
       }
     } else {
       // Special Opcodes. Do nothing, move on.
