@@ -1,4 +1,3 @@
-; RUN: rm -rf %t.casdb
 ; RUN: llc -cas-friendly-debug-info -O0 --filetype=obj --cas-backend --cas=%t.casdb --mccas-casid -o %t.casid %s
 ; RUN: llvm-cas-dump --cas=%t.casdb --dwarf-sections-only --dwarf-dump --casid-file %t.casid | FileCheck %s --check-prefix=DWARF
 ; RUN: llvm-cas-dump --cas=%t.casdb --dwarf-sections-only --casid-file %t.casid | FileCheck %s
@@ -61,11 +60,11 @@
 ; DWARF-DIE-NEXT:     DW_AT_LLVM_sysroot             DW_FORM_strp_cas       [distinct]    [{{.*}}]
 ; DWARF-DIE-NEXT:     DW_AT_stmt_list                DW_FORM_sec_offset     [dedups]    [{{.*}}]
 ; DWARF-DIE-NEXT:     DW_AT_comp_dir                 DW_FORM_strp_cas       [distinct]    [{{.*}}]
-; DWARF-DIE-NEXT:     DW_AT_low_pc                   DW_FORM_addr           [distinct]    [{{.*}}]
+; DWARF-DIE-NEXT:     DW_AT_low_pc                   DW_FORM_addr           [dedups]    [{{.*}}]
 ; DWARF-DIE-NEXT:     DW_AT_high_pc                  DW_FORM_data4          [dedups]    [{{.*}}]
 ; DWARF-DIE-NEXT:     CAS Block: llvmcas://{{.*}}
 ; DWARF-DIE-NEXT:     DW_TAG_subprogram  AbbrevIdx = 3
-; DWARF-DIE-NEXT:       DW_AT_low_pc                   DW_FORM_addr         [distinct]      [{{.*}}]
+; DWARF-DIE-NEXT:       DW_AT_low_pc                   DW_FORM_addr         [dedups]      [{{.*}}]
 ; DWARF-DIE-NEXT:       DW_AT_high_pc                  DW_FORM_data4        [dedups]     [{{.*}}]
 ; DWARF-DIE-NEXT:       DW_AT_APPLE_omit_frame_ptr     DW_FORM_flag_present [dedups]      []
 ; DWARF-DIE-NEXT:       DW_AT_frame_base               DW_FORM_exprloc      [dedups]      [{{.*}}]

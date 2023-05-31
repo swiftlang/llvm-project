@@ -15,50 +15,28 @@
 /// deduplication.
 ///
 /// DebugLineSectionRef: The DebugLineSectionRef represents the .debug_line
-/// section, it contains the relocations for that section. A DebugLineSectionRef
-/// has edges to one or more DebugLineRef and one DistinctDataRef.
+/// section, it contains the relocations for that section as well as any addends
+/// and their offsets and sizes, that were zero-ed out for deduplication
+/// purposes. A DebugLineSectionRef has edges to one or more DebugLine Ref.
 ///
 /// DebugLineRef: The DebugLineRef represents one function's contribution to the
 /// debug_line section, or one line table. Each function has its own line
 /// table entry in the debug_line section when compiled with
-/// -fcas-friendly-debug-info=debug-line-only.
+/// -fcas-friendly-debug-info.
 ///
-/// DistinctDebugLineRef: The DistinctDebugLineRef contains any data that
-/// doesn't dedupe in the line table, which includes the line table header and
-/// the relocation addends.
-///
-///  ┌─────────────────────┐
-///  │                     │
-///  │   DebugLineRef      │
-///  │                     │
-///  │   [Line Table 1]    │
-///  │                     │
-///  │                     │
-///  └──────────▲──────────┘
-///             │                             ┌────────────────────────────┐
-///     .       │                             │                            │
-///     .       ├─────────────────────┬───────┤   DebugLineSectionRef      │
-///     .       │                     │       │                            │
-///             │                     │       │                            │
-///  ┌──────────▼──────────┐          │       │   [Relocations]            │
-///  │                     │          │       │                            │
-///  │   DebugLineRef      │          │       │                            │
-///  │                     │          │       └────────────────────────────┘
-///  │   [Line Table N]    │          │
-///  │                     │          │
-///  │                     │          │
-///  └─────────────────────┘          │
-///                                   │
-///                                   │
-///                                   │
-///  ┌─────────────────────┐          │
-///  │                     │          │
-///  │ DistinctDebugLineRef│          │
-///  │                     │          │
-///  │ [LineTablelHeader]  |◄─────────┘
-///  │ [Relocation Addends]│
-///  │                     │
-///  └─────────────────────┘
+/// ┌─────────────────┐
+/// │  DebugLineRef   │
+/// │  [Line Table 1] │
+/// │                 │         ┌──────────────────────┐
+/// └──────────▲──────┘         │  DebugLineSectionRef │
+///       .    ├────────────────┤                      │
+///       .    │                │     [Relocations]    │
+///       .    │                │     [Addends]        │
+/// ┌──────────▼──────┐         └──────────────────────┘
+/// │  DebugLineRef   │
+/// │  [Line Table N] │
+/// │                 │
+/// └─────────────────┘
 ///
 /// Debug String Section
 ///
@@ -125,48 +103,6 @@
 ///    │                           │
 ///    └───────────────────────────┘
 ///
-///
-/// Generic Section
-///
-/// SectionRef: This block represents the section, it may contain the
-/// relocations for that section depending on how the CAS was configured.
-///
-/// AddendsRef: This block contains all the relocation addends for the section,
-/// this block is expected to not deduplicate, there is only one of these per
-/// section.
-///
-/// AtomRef: This block represents an Atom, it may contain the relocations for
-/// that Atom depending on how the CAS was configured.
-///
-/// *FragmentRef: This is a block that represents a particular fragment, only
-/// the data that dedupes is part of this block, all the relocation addends go
-/// in the AddendsRef, the type of FragmentRef blocks can be found in
-/// MCCASObjectV1.def
-///
-/// MCMergedFragmentRef: This block contains the contents of two or more
-/// Fragments that can be merged into one block. This block only contains the
-/// data that dedupes, all the relocation addends go in the AddendsRef.
-///
-/// \verbatim
-///  ┌─────────────────┐     ┌─────────────────────────┐
-///  │  AddendsRef     │     │                         │
-///  │  [Relocation    ◄─────┤       SectionRef        │
-///  │  Addends]       │     │      [Relocations]      │
-///  └─────────────────┘     └───┬───────────────────┬─┘
-///                              │                   │
-///            ┌─────────────────▼─────┐      ┌──────▼────────────────┐
-///            │                       │      │                       │
-///            │        AtomRef        │      │        AtomRef        │
-///            │     [Relocations]     │      │     [Relocations]     │
-///            └──────┬────────────┬───┘      └─────────────────┬─────┘
-///                   │            │                            │
-///  ┌────────────────▼───┐  ┌─────▼─────────────┐  ┌───────────▼───────┐
-///  │    *FragmentRef    │  │   *FragmentRef    │  │  *FragmentRef     │
-///  │         or         │  │       or          │  │       or          │
-///  │ MCMergedFragmentRef│  │MCMergedFragmentRef│  │MCMergedFragmentRef│
-///  └────────────────────┘  └───────────────────┘  └───────────────────┘
-///
-/// \endverbatim
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_MC_CAS_MCCASOBJECTV1_H
@@ -393,7 +329,7 @@ protected:
     static constexpr StringLiteral KindString = #MCEnumIdentifier;             \
     static Expected<MCFragmentName##Ref>                                       \
     create(MCCASBuilder &MB, const MCFragmentName &Fragment,                   \
-           unsigned FragmentSize, ArrayRef<char> FragmentContents);            \
+           unsigned FragmentSize);                                             \
     static Expected<MCFragmentName##Ref> get(Expected<MCObjectProxy> Ref) {    \
       auto Specific = SpecificRefT::getSpecific(std::move(Ref));               \
       if (!Specific)                                                           \
@@ -407,7 +343,7 @@ protected:
     static Optional<MCFragmentName##Ref> Cast(MCObjectProxy Ref) {             \
       auto Specific = SpecificRefT::Cast(Ref);                                 \
       if (!Specific)                                                           \
-        return std::nullopt;                                                   \
+        return std::nullopt;                                                           \
       return MCFragmentName##Ref(*Specific);                                   \
     }                                                                          \
     Expected<uint64_t> materialize(MCCASReader &Reader,                        \
@@ -525,8 +461,7 @@ public:
   void addNode(cas::ObjectProxy Node);
   const MCSymbol *getCurrentAtom() const { return CurrentAtom; }
 
-  Error buildFragment(const MCFragment &F, unsigned FragmentSize,
-                      ArrayRef<char> FragmentContents);
+  Error buildFragment(const MCFragment &F, unsigned FragmentSize);
 
   ArrayRef<MachO::any_relocation_info> getSectionRelocs() const {
     return SectionRelocs;
@@ -604,7 +539,7 @@ private:
 
   SmallVector<MachO::any_relocation_info> AtomRelocs;
   SmallVector<MachO::any_relocation_info> SectionRelocs;
-  DenseMap<const MCFragment *, SmallVector<MachO::any_relocation_info>> RelMap;
+  DenseMap<const MCFragment *, std::vector<MachO::any_relocation_info>> RelMap;
 
   DwarfSectionsCache DwarfSections;
 };
@@ -614,10 +549,6 @@ public:
   raw_ostream &OS;
 
   std::vector<std::vector<MachO::any_relocation_info>> Relocations;
-  SmallVector<char, 0> Addends;
-  /// AddendBufferIndex: It denotes the index into the Addends that is used to
-  /// copy the Fragment contents into the section buffer.
-  uint64_t AddendBufferIndex = 0;
 
   MCCASReader(raw_ostream &OS, const Triple &Target, const MCSchema &Schema);
   support::endianness getEndian() {
@@ -636,9 +567,6 @@ public:
   Expected<uint64_t> materializeGroup(cas::ObjectRef ID);
   Expected<uint64_t> materializeSection(cas::ObjectRef ID, raw_ostream *Stream);
   Expected<uint64_t> materializeAtom(cas::ObjectRef ID, raw_ostream *Stream);
-  Expected<uint64_t> reconstructSection(SmallVectorImpl<char> &SectionBuffer,
-                                        ArrayRef<char> FragmentBuffer);
-  Error checkIfAddendRefExistsAndCopy(ArrayRef<cas::ObjectRef> Refs);
 
 private:
   const Triple &Target;
