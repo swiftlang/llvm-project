@@ -445,22 +445,37 @@ transform::ApplyPatternsOp::applyToOne(Operation *target,
                              ->getExtraData<transform::PatternRegistry>();
   for (Attribute attr : getPatterns())
     registry.populatePatterns(attr.cast<StringAttr>(), patterns);
+  if (!getRegion().empty()) {
+    for (Operation &op : getRegion().front()) {
+      cast<transform::PatternDescriptorOpInterface>(&op).populatePatterns(
+          patterns);
+    }
+  }
 
   // Configure the GreedyPatternRewriteDriver.
   ErrorCheckingTrackingListener listener(state, *this);
   GreedyRewriteConfig config;
   config.listener = &listener;
 
-  // Manually gather list of ops because the other GreedyPatternRewriteDriver
-  // overloads only accepts ops that are isolated from above. This way, patterns
-  // can be applied to ops that are not isolated from above.
-  SmallVector<Operation *> ops;
-  target->walk([&](Operation *nestedOp) {
-    if (target != nestedOp)
-      ops.push_back(nestedOp);
-  });
-  LogicalResult result =
-      applyOpPatternsAndFold(ops, std::move(patterns), config);
+  LogicalResult result = failure();
+  if (target->hasTrait<OpTrait::IsIsolatedFromAbove>()) {
+    // Op is isolated from above. Apply patterns and also perform region
+    // simplification.
+    result = applyPatternsAndFoldGreedily(target, std::move(patterns), config);
+  } else {
+    // Manually gather list of ops because the other GreedyPatternRewriteDriver
+    // overloads only accepts ops that are isolated from above. This way,
+    // patterns can be applied to ops that are not isolated from above. Regions
+    // are not being simplified. Furthermore, only a single greedy rewrite
+    // iteration is performed.
+    SmallVector<Operation *> ops;
+    target->walk([&](Operation *nestedOp) {
+      if (target != nestedOp)
+        ops.push_back(nestedOp);
+    });
+    result = applyOpPatternsAndFold(ops, std::move(patterns), config);
+  }
+
   // A failure typically indicates that the pattern application did not
   // converge.
   if (failed(result)) {
@@ -491,6 +506,17 @@ LogicalResult transform::ApplyPatternsOp::verify() {
     if (!registry.hasPatterns(strAttr))
       return emitOpError() << "patterns not registered: " << strAttr.strref();
   }
+  if (!getRegion().empty()) {
+    for (Operation &op : getRegion().front()) {
+      if (!isa<transform::PatternDescriptorOpInterface>(&op)) {
+        InFlightDiagnostic diag = emitOpError()
+                                  << "expected children ops to implement "
+                                     "PatternDescriptorOpInterface";
+        diag.attachNote(op.getLoc()) << "op without interface";
+        return diag;
+      }
+    }
+  }
   return success();
 }
 
@@ -498,6 +524,19 @@ void transform::ApplyPatternsOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   transform::onlyReadsHandle(getTarget(), effects);
   transform::modifiesPayload(effects);
+}
+
+//===----------------------------------------------------------------------===//
+// ApplyCanonicalizationPatternsOp
+//===----------------------------------------------------------------------===//
+
+void transform::ApplyCanonicalizationPatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  MLIRContext *ctx = patterns.getContext();
+  for (Dialect *dialect : ctx->getLoadedDialects())
+    dialect->getCanonicalizationPatterns(patterns);
+  for (RegisteredOperationName op : ctx->getRegisteredOperations())
+    op.getCanonicalizationPatterns(patterns, ctx);
 }
 
 //===----------------------------------------------------------------------===//
