@@ -3849,6 +3849,24 @@ SwiftASTContext::GetTypeFromMangledTypename(ConstString mangled_typename) {
 
 CompilerType SwiftASTContext::GetAsClangType(ConstString mangled_name) {
   LLDB_SCOPED_TIMER();
+
+  // If the type is already being processed  this is a recursive call (most
+  // likely from SwiftASTContext::GetAsClangType ->
+  // TypeSystemSwiftTypeRef::IsImportedType
+  // -> SwiftASTContext::ReconstructType, when the GetUseSwiftTypeRefTypeSystem
+  // setting is false) which would result in a stack overflow, so give up.
+  if (m_currently_processed_get_as_clang_type.contains(mangled_name)) {
+    LOG_VERBOSE_PRINTF(GetLog(LLDBLog::Types),
+                       "Giving up reconstructing type %s",
+                       mangled_name.GetCString());
+    return {};
+  }
+
+  m_currently_processed_get_as_clang_type.insert(mangled_name);
+  auto defer = llvm::make_scope_exit([&]() {
+    m_currently_processed_get_as_clang_type.erase(mangled_name);
+  });
+
   if (!swift::Demangle::isObjCSymbol(mangled_name.GetStringRef()))
     return {};
 
@@ -3914,8 +3932,8 @@ swift::TypeBase *SwiftASTContext::ReconstructType(ConstString mangled_typename,
   VALID_OR_RETURN(nullptr);
 
   const char *mangled_cstr = mangled_typename.AsCString();
-  if (mangled_typename.IsEmpty() ||
-      !SwiftLanguageRuntime::IsSwiftMangledName(mangled_typename.GetStringRef())) {
+  if (mangled_typename.IsEmpty() || !SwiftLanguageRuntime::IsSwiftMangledName(
+                                        mangled_typename.GetStringRef())) {
     error.SetErrorStringWithFormat(
         "typename \"%s\" is not a valid Swift mangled name", mangled_cstr);
     return {};

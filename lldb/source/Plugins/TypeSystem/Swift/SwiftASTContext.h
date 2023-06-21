@@ -927,6 +927,9 @@ protected:
       library_load_cache;
   /// A cache for GetCompileUnitImports();
   llvm::DenseSet<std::pair<Module *, lldb::user_id_t>> m_cu_imports;
+  
+  // A set of types currently being processed in GetAsClangType.
+  llvm::SmallSet<ConstString, 4> m_currently_processed_get_as_clang_type;
 
   typedef std::map<Module *, std::vector<lldb::DataBufferSP>> ASTFileDataMap;
   ASTFileDataMap m_ast_file_data_map;
