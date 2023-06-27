@@ -34,12 +34,15 @@ public:
 
 /// Preprocessor-based frontend action that also loads PCH files.
 class ReadPCHAndPreprocessAction : public FrontendAction {
+  ArrayRef<StringRef> ImportModules;
   void ExecuteAction() override;
 
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override;
 
 public:
+  ReadPCHAndPreprocessAction(ArrayRef<StringRef> ImportModules)
+      : ImportModules(ImportModules) {}
   bool usesPreprocessorOnly() const override { return false; }
 };
 
@@ -297,15 +300,6 @@ protected:
   void ExecuteAction() override;
 
   bool hasPCHSupport() const override { return true; }
-};
-
-class GetDependenciesByModuleNameAction : public PreprocessOnlyAction {
-  StringRef ModuleName;
-  void ExecuteAction() override;
-
-public:
-  GetDependenciesByModuleNameAction(StringRef ModuleName)
-      : ModuleName(ModuleName) {}
 };
 
 }  // end namespace clang

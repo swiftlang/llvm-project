@@ -260,7 +260,7 @@ public:
       bool DisableFree, bool EmitDependencyFile,
       bool DiagGenerationAsCompilation, const CASOptions &CASOpts,
       bool OverrideCASTokenCache,
-      std::optional<StringRef> ModuleName = std::nullopt,
+      ArrayRef<StringRef> ModuleNames = {},
       raw_ostream *VerboseOS = nullptr)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
         Controller(Controller),
@@ -270,7 +270,7 @@ public:
         CASOpts(CASOpts), OverrideCASTokenCache(OverrideCASTokenCache),
         EmitDependencyFile(EmitDependencyFile),
         DiagGenerationAsCompilation(DiagGenerationAsCompilation),
-        ModuleName(ModuleName), VerboseOS(VerboseOS) {}
+        ModuleNames(ModuleNames), VerboseOS(VerboseOS) {}
 
   bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
                      FileManager *FileMgr,
@@ -441,12 +441,8 @@ public:
     // context hashing.
     ScanInstance.getHeaderSearchOpts().ModulesStrictContextHash = true;
 
-    std::unique_ptr<FrontendAction> Action;
-
-    if (ModuleName)
-      Action = std::make_unique<GetDependenciesByModuleNameAction>(*ModuleName);
-    else
-      Action = std::make_unique<ReadPCHAndPreprocessAction>();
+    std::unique_ptr<FrontendAction> Action =
+        std::make_unique<ReadPCHAndPreprocessAction>(ModuleNames);
 
     // Normally this would be handled by GeneratePCHAction
     if (ScanInstance.getFrontendOpts().ProgramAction == frontend::GeneratePCH)
@@ -524,7 +520,7 @@ private:
   bool OverrideCASTokenCache;
   bool EmitDependencyFile = false;
   bool DiagGenerationAsCompilation;
-  std::optional<StringRef> ModuleName;
+  ArrayRef<StringRef> ModuleNames;
   std::optional<CompilerInstance> ScanInstanceStorage;
   std::shared_ptr<ModuleDepCollector> MDC;
   std::vector<std::string> LastCC1Arguments;
@@ -577,7 +573,8 @@ DependencyScanningWorker::getOrCreateFileManager() const {
 llvm::Error DependencyScanningWorker::computeDependencies(
     StringRef WorkingDirectory, const std::vector<std::string> &CommandLine,
     DependencyConsumer &Consumer, DependencyActionController &Controller,
-    std::optional<StringRef> ModuleName) {
+    ArrayRef<StringRef> ModuleNames,
+    std::optional<llvm::MemoryBufferRef> TUBuffer) {
   std::vector<const char *> CLI;
   for (const std::string &Arg : CommandLine)
     CLI.push_back(Arg.c_str());
@@ -591,7 +588,7 @@ llvm::Error DependencyScanningWorker::computeDependencies(
   TextDiagnosticPrinter DiagPrinter(DiagnosticsOS, DiagOpts.release());
 
   if (computeDependencies(WorkingDirectory, CommandLine, Consumer, Controller,
-                          DiagPrinter, ModuleName))
+                          DiagPrinter, ModuleNames, TUBuffer))
     return llvm::Error::success();
   return llvm::make_error<llvm::StringError>(DiagnosticsOS.str(),
                                              llvm::inconvertibleErrorCode());
@@ -637,29 +634,31 @@ static bool forEachDriverJob(
 bool DependencyScanningWorker::computeDependencies(
     StringRef WorkingDirectory, const std::vector<std::string> &CommandLine,
     DependencyConsumer &Consumer, DependencyActionController &Controller,
-    DiagnosticConsumer &DC, std::optional<StringRef> ModuleName) {
+    DiagnosticConsumer &DC, ArrayRef<StringRef> ModuleNames,
+    std::optional<llvm::MemoryBufferRef> TUBuffer) {
   // Reset what might have been modified in the previous worker invocation.
   BaseFS->setCurrentWorkingDirectory(WorkingDirectory);
 
   std::optional<std::vector<std::string>> ModifiedCommandLine;
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> ModifiedFS;
 
-  // If we're scanning based on a module name alone, we don't expect the client
-  // to provide us with an input file. However, the driver really wants to have
-  // one. Let's just make it up to make the driver happy.
-  if (ModuleName) {
+  // If the TU is passed as a buffer to the dependency scanner, overlay that
+  // with InMemoryFS and setup the input correctly in command-line.
+  if (TUBuffer) {
     auto OverlayFS =
         llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(BaseFS);
     auto InMemoryFS =
         llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
     InMemoryFS->setCurrentWorkingDirectory(WorkingDirectory);
 
-    SmallString<128> FakeInputPath;
-    // TODO: We should retry the creation if the path already exists.
-    llvm::sys::fs::createUniquePath(*ModuleName + "-%%%%%%%%.input",
-                                    FakeInputPath,
-                                    /*MakeAbsolute=*/false);
-    InMemoryFS->addFile(FakeInputPath, 0, llvm::MemoryBuffer::getMemBuffer(""));
+    // Use a stable name "<clang-module-imports>" as file name.
+    StringRef FakeInputPath = "<clang-module-imports>";
+    std::string FileContent = TUBuffer->getBuffer().str();
+    // Extend the buffer so it includes some null in the end as source location
+    // to import additional modules.
+    FileContent.resize(FileContent.size() + ModuleNames.size());
+    InMemoryFS->addFile(FakeInputPath, 0,
+                        llvm::MemoryBuffer::getMemBufferCopy(FileContent));
 
     llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> InMemoryOverlay =
         InMemoryFS;
@@ -708,7 +707,7 @@ bool DependencyScanningWorker::computeDependencies(
                                   /*EmitDependencyFile=*/false,
                                   /*DiagGenerationAsCompilation=*/false, getCASOpts(),
                                   OverrideCASTokenCache,
-                                  ModuleName);
+                                  ModuleNames);
   bool Success = forEachDriverJob(
       FinalCommandLine, *Diags, *FileMgr, [&](const driver::Command &Cmd) {
         if (StringRef(Cmd.getCreator().getName()) != "clang") {
@@ -787,7 +786,7 @@ void DependencyScanningWorker::computeDependenciesFromCompilerInvocation(
       /*OptimizeArgs=*/false, /*DisableFree=*/false, EagerLoadModules,
       /*EmitDependencyFile=*/!DepFile.empty(), DiagGenerationAsCompilation,
       getCASOpts(), OverrideCASTokenCache,
-      /*ModuleName=*/std::nullopt, VerboseOS);
+      /*ModuleNames=*/{}, VerboseOS);
 
   // Ignore result; we're just collecting dependencies.
   //

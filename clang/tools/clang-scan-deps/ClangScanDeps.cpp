@@ -30,12 +30,14 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/LLVMDriver.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/TargetParser/Host.h"
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -97,6 +99,8 @@ static unsigned NumThreads = 0;
 static std::string CompilationDB;
 static std::string ModuleName;
 static std::vector<std::string> ModuleDepTargets;
+static std::string TranslationUnitFile;
+static std::vector<std::string> AdditionalModules;
 static bool DeprecatedDriverCommand;
 static ResourceDirRecipeKind ResourceDirRecipe;
 static bool Verbose;
@@ -204,6 +208,12 @@ static void ParseArgs(int argc, char **argv) {
 
   for (const llvm::opt::Arg *A : Args.filtered(OPT_dependency_target_EQ))
     ModuleDepTargets.emplace_back(A->getValue());
+
+  if (const llvm::opt::Arg *A = Args.getLastArg(OPT_tu_path_EQ))
+    TranslationUnitFile = A->getValue();
+
+  for (const llvm::opt::Arg *A : Args.filtered(OPT_import_module_EQ))
+    AdditionalModules.emplace_back(A->getValue());
 
   DeprecatedDriverCommand = Args.hasArg(OPT_deprecated_driver_command);
 
@@ -1314,8 +1324,27 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
                                  LocalIndex, DependencyOS, Errs))
             HadErrors = true;
         } else {
+          std::unique_ptr<llvm::MemoryBuffer> TU;
+          std::optional<llvm::MemoryBufferRef> TUBuffer;
+          if (!TranslationUnitFile.empty()) {
+            auto MaybeTU = llvm::MemoryBuffer::getFile(TranslationUnitFile);
+            if (!MaybeTU) {
+              llvm::errs() << "cannot open input translation unit: "
+                           << MaybeTU.getError().message() << "\n";
+              HadErrors = true;
+              continue;
+            }
+            TU = std::move(*MaybeTU);
+            TUBuffer = TU->getMemBufferRef();
+          }
+          std::vector<StringRef> ImportModules;
+          llvm::for_each(AdditionalModules,
+                         [&ImportModules](const std::string &name) {
+                           ImportModules.push_back(name);
+                         });
           auto MaybeFullDeps = WorkerTools[I]->getTranslationUnitDependencies(
-              Input->CommandLine, CWD, AlreadySeenModules, LookupOutput);
+              Input->CommandLine, CWD, AlreadySeenModules, LookupOutput,
+              ImportModules, TUBuffer);
           if (handleTranslationUnitResult(Filename, MaybeFullDeps, *FD,
                                           LocalIndex, DependencyOS, Errs))
             HadErrors = true;

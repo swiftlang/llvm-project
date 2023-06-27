@@ -80,6 +80,22 @@ void ReadPCHAndPreprocessAction::ExecuteAction() {
   do {
     PP.Lex(Tok);
   } while (Tok.isNot(tok::eof));
+
+  // Import additional modules.
+  CompilerInstance &CI = getCompilerInstance();
+  SourceManager &SM = PP.getSourceManager();
+  FileID MainFileID = SM.getMainFileID();
+  PPCallbacks *CB = PP.getPPCallbacks();
+  unsigned Offset = -ImportModules.size() - 1;
+  for (auto Module : ImportModules) {
+    SourceLocation IncludeLoc =
+        SM.getLocForEndOfFile(MainFileID).getLocWithOffset(Offset++);
+    IdentifierInfo *ModuleID = PP.getIdentifierInfo(Module);
+    SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
+    Path.push_back(std::make_pair(ModuleID, IncludeLoc));
+    auto ModResult = CI.loadModule(IncludeLoc, Path, Module::Hidden, false);
+    CB->moduleImport(IncludeLoc, Path, ModResult);
+  }
 }
 
 std::unique_ptr<ASTConsumer>
@@ -1136,19 +1152,4 @@ void PrintDependencyDirectivesSourceMinimizerAction::ExecuteAction() {
   }
   printDependencyDirectivesAsSource(FromFile.getBuffer(), Directives,
                                     llvm::outs());
-}
-
-void GetDependenciesByModuleNameAction::ExecuteAction() {
-  CompilerInstance &CI = getCompilerInstance();
-  Preprocessor &PP = CI.getPreprocessor();
-  SourceManager &SM = PP.getSourceManager();
-  FileID MainFileID = SM.getMainFileID();
-  PP.EnterSourceFile(MainFileID, nullptr, SourceLocation());
-  SourceLocation FileStart = SM.getLocForStartOfFile(MainFileID);
-  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
-  IdentifierInfo *ModuleID = PP.getIdentifierInfo(ModuleName);
-  Path.push_back(std::make_pair(ModuleID, FileStart));
-  auto ModResult = CI.loadModule(FileStart, Path, Module::Hidden, false);
-  PPCallbacks *CB = PP.getPPCallbacks();
-  CB->moduleImport(SourceLocation(), Path, ModResult);
 }
