@@ -74,7 +74,7 @@ struct A { float x; }; // expected-error {{incompatible definitions}} expected-n
 // RUN: sed -e "s|DIR|%/t|g" %t/overlay.json.template > %t/overlay.json
 
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full -j 1 > %t/result.json
-// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t
+// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
 // CHECK:      {
 // CHECK:        "modules": [
 // CHECK:          {
@@ -96,7 +96,7 @@ struct A { float x; }; // expected-error {{incompatible definitions}} expected-n
 // CHECK:              "-fmodule-map-file=[[PREFIX]]/frameworks/A.framework/Modules/module.modulemap",
 // CHECK:              "-x"
 // CHECK-NEXT:         "objective-c"
-// CHECK-NEXT:         "[[PREFIX]]/frameworks/B.framework/Modules/module.modulemap"
+// CHECK-NEXT:         "[[PREFIX_EXPANDED]]/frameworks/B.framework/Modules/module.modulemap"
 // CHECK:            ]
 // CHECK:            "name": "B"
 // CHECK:          }
@@ -134,7 +134,7 @@ struct A { float x; }; // expected-error {{incompatible definitions}} expected-n
 // CHECK:                ]
 // CHECK:                "command-line": [
 // CHECK:                  "-fmodule-map-file=[[PREFIX]]/frameworks/A.framework/Modules/module.modulemap"
-// CHECK:                  "-fmodule-map-file=[[PREFIX]]/frameworks/B.framework/Modules/module.modulemap"
+// CHECK:                  "-fmodule-map-file=[[PREFIX_EXPANDED]]/frameworks/B.framework/Modules/module.modulemap"
 // CHECK:                  "-fmodule-name=A"
 // CHECK:                ],
 // CHECK:                "input-file": "[[PREFIX]]/tu3.m"

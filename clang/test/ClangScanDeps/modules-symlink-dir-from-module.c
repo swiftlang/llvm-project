@@ -14,13 +14,13 @@
 // RUN:   -format experimental-full  -mode=preprocess-dependency-directives \
 // RUN:   -optimize-args -module-files-dir %t/build > %t/deps.json
 
-// RUN: cat %t/deps.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t
+// RUN: cat %t/deps.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
 
 // CHECK: "modules": [
 // CHECK:   {
 // CHECK:     "command-line": [
 // CHECK-NOT: ]
-// CHECK:       "-fmodule-map-file=[[PREFIX]]/include/module/module.modulemap"
+// CHECK:       "-fmodule-map-file=[[DPREFIX_EXPANDED]]/include/module/module.modulemap"
 // CHECK:     ]
 // CHECK:     "name": "Foo"
 // CHECK:   }

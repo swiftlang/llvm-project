@@ -22,12 +22,12 @@ framework module FW_Private { umbrella header "FW_Private.h" }
 
 // RUN: sed -e "s|DIR|%/t|g" %t/cdb.json.template > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full > %t/result.json
-// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t
+// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
 // CHECK:      {
 // CHECK-NEXT:   "modules": [
 // CHECK-NEXT:     {
 // CHECK:            "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/frameworks/FW.framework/Modules/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/frameworks/FW.framework/Modules/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",
@@ -39,7 +39,7 @@ framework module FW_Private { umbrella header "FW_Private.h" }
 // CHECK:          },
 // CHECK:          {
 // CHECK:            "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/frameworks/FW.framework/Modules/module.private.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/frameworks/FW.framework/Modules/module.private.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",

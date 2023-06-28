@@ -6,22 +6,22 @@
 // RUN: cp %t/MyFramework.h %t/Frameworks/MyFramework.framework/Headers/
 // RUN: cp %t/MyHeader.h %t/Frameworks/MyFramework.framework/Headers/
 
-// RUN: sed -e "s@SRCROOT@%{/t:regex_replacement}@g" \
+// RUN: sed -e "s@SRCROOT@%>/t@g" \
 // RUN: %t/reference.output.json.in >> %t/reference.output.json
 
 // Headermap maps headers to the source root SRCROOT
-// RUN: sed -e "s@SRCROOT@%{/t:regex_replacement}@g" \
+// RUN: sed -e "s@SRCROOT@%>/t@g" \
 // RUN: %t/headermap.hmap.json.in >> %t/headermap.hmap.json
 // RUN: %hmaptool write %t/headermap.hmap.json %t/headermap.hmap
 
 // Input headers use paths to the framework root/DSTROOT
 // RUN: %clang_cc1 -extract-api -v --product-name=MyFramework \
 // RUN: -triple arm64-apple-macosx \
-// RUN: -iquote%t -I%t/headermap.hmap -F%t/Frameworks \
+// RUN: -iquote%>/t -I%t/headermap.hmap -F%>/t/Frameworks \
 // RUN: -x objective-c-header \
-// RUN: %t/Frameworks/MyFramework.framework/Headers/MyFramework.h \
-// RUN: %t/Frameworks/MyFramework.framework/Headers/MyHeader.h \
-// RUN: %t/QuotedHeader.h \
+// RUN: %>/t/Frameworks/MyFramework.framework/Headers/MyFramework.h \
+// RUN: %>/t/Frameworks/MyFramework.framework/Headers/MyHeader.h \
+// RUN: %>/t/QuotedHeader.h \
 // RUN: -o %t/output.json 2>&1 -verify | FileCheck -allow-empty %s
 
 // Generator version is not consistent across test runs, normalize it.

@@ -28,13 +28,13 @@ module Mod { header "Mod.h" }
 
 // RUN: sed -e "s|DIR|%/t|g" %t/cdb.json.template > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full > %t/result.json
-// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t
+// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
 
 // CHECK:      {
 // CHECK-NEXT:   "modules": [
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/mod/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/mod/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:              "-fmodule-map-file=[[PREFIX]]/frameworks/X.framework/Modules/module.modulemap"
 // CHECK-NOT:          "-fmodule-file={{.*}}"

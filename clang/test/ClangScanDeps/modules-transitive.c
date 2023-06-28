@@ -28,7 +28,7 @@ module third { header "third.h" }
 
 // RUN: sed "s|DIR|%/t|g" %t/cdb.json.template > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full > %t/result.json
-// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t
+// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
 
 // CHECK:      {
 // CHECK-NEXT:   "modules": [
@@ -39,7 +39,7 @@ module third { header "third.h" }
 // CHECK-NEXT:           "module-name": "second"
 // CHECK-NEXT:         }
 // CHECK-NEXT:       ],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/first/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/first/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1",
 // CHECK-NOT:          "-fmodule-map-file=[[PREFIX]]/third/module.modulemap"

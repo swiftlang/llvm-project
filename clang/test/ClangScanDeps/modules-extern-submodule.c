@@ -28,7 +28,7 @@ module third {}
 
 // RUN: sed "s|DIR|%/t|g" %t/cdb.json.template > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full > %t/result.json
-// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t
+// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
 
 // CHECK:       {
 // CHECK-NEXT:   "modules": [
@@ -39,7 +39,7 @@ module third {}
 // CHECK-NEXT:           "module-name": "second"
 // CHECK-NEXT:         }
 // CHECK-NEXT:       ],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/first/first/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/first/first/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1",
 // CHECK:              "-fmodule-map-file=[[PREFIX]]/second/second/module.modulemap"
@@ -63,7 +63,7 @@ module third {}
 // CHECK-NEXT:           "module-name": "third"
 // CHECK-NEXT:         }
 // CHECK-NEXT:       ],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/second/second/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/second/second/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1",
 // CHECK:              "-fmodule-map-file=[[PREFIX]]/third/module.modulemap",
@@ -80,7 +80,7 @@ module third {}
 // CHECK-NEXT:     },
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/third/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/third/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1",
 // CHECK-NOT:          "-fmodule-map-file=
@@ -106,7 +106,7 @@ module third {}
 // CHECK-NEXT:           ],
 // CHECK-NEXT:           "command-line": [
 // CHECK-NEXT:             "-cc1",
-// CHECK:                  "-fmodule-map-file=[[PREFIX]]/first/first/module.modulemap",
+// CHECK:                  "-fmodule-map-file=[[PREFIX_EXPANDED]]/first/first/module.modulemap",
 // CHECK:                  "-fmodule-file=first=[[PREFIX]]/cache/{{.*}}/first-{{.*}}.pcm",
 // CHECK:                ],
 // CHECK-NEXT:           "executable": "clang",
