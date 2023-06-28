@@ -47,10 +47,8 @@
 // CACHE_HIT: compile job cache hit
 
 // Check incompatible with -fapinotes
-// RUN: sed "s|DIR|%/t|g" %t/cdb_fail.json.template > %t/cdb_fail.json
-// RUN: not clang-scan-deps -compilation-database %t/cdb_fail.json \
-// RUN:   -cas-path %t/cas -module-files-dir %t/outputs \
-// RUN:   -format experimental-include-tree-full -mode preprocess-dependency-directives 2>&1 | \
+// RUN: not %clang -cc1 -fcas-include-tree @%t/Top.casid -fapinotes \
+// RUN:   -fcas-path %t/cas -fsyntax-only 2>&1 | \
 // RUN:   FileCheck %s -check-prefix=INCOMPATIBLE
 
 // INCOMPATIBLE: error: passing incompatible option '-fapinotes' with '-fcas-include-tree'
@@ -60,13 +58,6 @@
   "file": "DIR/tu.m",
   "directory": "DIR",
   "command": "clang -fsyntax-only DIR/tu.m -I DIR -fmodules -fimplicit-modules -fimplicit-module-maps -fmodules-cache-path=DIR/module-cache -Rcompile-job-cache -fapinotes-modules -iapinotes-modules DIR"
-}]
-
-//--- cdb_fail.json.template
-[{
-  "file": "DIR/tu.m",
-  "directory": "DIR",
-  "command": "clang -fsyntax-only DIR/tu.m -I DIR -fmodules -fimplicit-modules -fimplicit-module-maps -fmodules-cache-path=DIR/module-cache -Rcompile-job-cache -fapinotes"
 }]
 
 //--- module.modulemap
