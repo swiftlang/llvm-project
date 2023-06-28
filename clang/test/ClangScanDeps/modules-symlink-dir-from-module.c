@@ -20,7 +20,7 @@
 // CHECK:   {
 // CHECK:     "command-line": [
 // CHECK-NOT: ]
-// CHECK:       "-fmodule-map-file=[[DPREFIX_EXPANDED]]/include/module/module.modulemap"
+// CHECK:       "-fmodule-map-file=[[PREFIX_EXPANDED]]/include/module/module.modulemap"
 // CHECK:     ]
 // CHECK:     "name": "Foo"
 // CHECK:   }
