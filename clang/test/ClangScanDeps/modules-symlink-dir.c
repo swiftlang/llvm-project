@@ -64,7 +64,7 @@
 // CHECK:                }
 // CHECK-NEXT:         ]
 // CHECK:              "command-line": [
-// CHECK:                "-fmodule-map-file=[[DPREFIX_EXPANDED]]/module/module.modulemap"
+// CHECK:                "-fmodule-map-file=[[PREFIX_EXPANDED]]/module/module.modulemap"
 // CHECK:              ]
 // CHECK:              "clang-module-deps": [
 // CHECK:                {
