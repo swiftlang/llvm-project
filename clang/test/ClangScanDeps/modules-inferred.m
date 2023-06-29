@@ -37,9 +37,9 @@ inferred a = 0;
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",
 // CHECK-NEXT:       "file-deps": [
-// CHECK-NEXT:         "[[PREFIX]]/frameworks/Inferred.framework/Frameworks/Sub.framework/Headers/Sub.h",
-// CHECK-NEXT:         "[[PREFIX]]/frameworks/Inferred.framework/Headers/Inferred.h",
-// CHECK-NEXT:         "[[PREFIX]]/frameworks/module.modulemap"
+// CHECK-DAG:          "[[PREFIX]]/frameworks/Inferred.framework/Frameworks/Sub.framework/Headers/Sub.h"{{,?}}
+// CHECK-DAG:          "[[PREFIX]]/frameworks/Inferred.framework/Headers/Inferred.h"{{,?}}
+// CHECK-DAG:          "[[PREFIX_EXPANDED]]/frameworks/module.modulemap"{{,?}}
 // CHECK-NEXT:       ],
 // CHECK-NEXT:       "name": "Inferred"
 // CHECK-NEXT:     }
