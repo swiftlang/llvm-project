@@ -122,7 +122,7 @@ def parse_args():
         help="Additional paths to add to testing environment",
         action="append",
         default=[],
-        type=lit.util.safe_abs_path,
+        type=lit.util.abs_path_preserve_drive,
     )
     execution_group.add_argument(
         "--vg", dest="useValgrind", help="Run tests under valgrind", action="store_true"

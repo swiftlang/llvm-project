@@ -189,7 +189,7 @@ class LitConfig(object):
         f = inspect.currentframe()
         # Step out of _write_message, and then out of wrapper.
         f = f.f_back.f_back
-        file = lit.util.safe_abs_path(inspect.getsourcefile(f))
+        file = lit.util.abs_path_preserve_drive(inspect.getsourcefile(f))
         line = inspect.getlineno(f)
         sys.stderr.write(
             "%s: %s:%d: %s: %s\n" % (self.progname, file, line, kind, message)

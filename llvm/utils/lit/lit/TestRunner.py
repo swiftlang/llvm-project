@@ -74,7 +74,7 @@ class ShellEnvironment(object):
         if os.path.isabs(newdir):
             self.cwd = newdir
         else:
-            self.cwd = lit.util.safe_abs_path(os.path.join(self.cwd, newdir))
+            self.cwd = lit.util.abs_path_preserve_drive(os.path.join(self.cwd, newdir))
 
 
 class TimeoutHelper(object):
@@ -427,7 +427,7 @@ def executeBuiltinMkdir(cmd, cmd_shenv):
         dir = to_unicode(dir) if kIsWindows else to_bytes(dir)
         cwd = to_unicode(cwd) if kIsWindows else to_bytes(cwd)
         if not os.path.isabs(dir):
-            dir = lit.util.safe_abs_path(os.path.join(cwd, dir))
+            dir = lit.util.abs_path_preserve_drive(os.path.join(cwd, dir))
         if parent:
             lit.util.mkdir_p(dir)
         else:
@@ -473,7 +473,7 @@ def executeBuiltinRm(cmd, cmd_shenv):
         path = to_unicode(path) if kIsWindows else to_bytes(path)
         cwd = to_unicode(cwd) if kIsWindows else to_bytes(cwd)
         if not os.path.isabs(path):
-            path = lit.util.safe_abs_path(os.path.join(cwd, path))
+            path = lit.util.abs_path_preserve_drive(os.path.join(cwd, path))
         if force and not os.path.exists(path):
             continue
         try:
@@ -519,7 +519,7 @@ def executeBuiltinRm(cmd, cmd_shenv):
                     SHFileOperationW = windll.shell32.SHFileOperationW
                     SHFileOperationW.argtypes = [POINTER(SHFILEOPSTRUCTW)]
 
-                    path = lit.util.safe_abs_path(path)
+                    path = lit.util.abs_path_preserve_drive(path)
 
                     pFrom = create_unicode_buffer(path, len(path) + 2)
                     pFrom[len(path)] = pFrom[len(path) + 1] = "\0"
@@ -686,7 +686,7 @@ def _executeShCmd(cmd, shenv, results, timeoutHelper):
     named_temp_files = []
     builtin_commands = set(["cat", "diff"])
     builtin_commands_dir = os.path.join(
-        os.path.dirname(lit.util.safe_abs_path(__file__)), "builtin_commands"
+        os.path.dirname(lit.util.abs_path_preserve_drive(__file__)), "builtin_commands"
     )
     inproc_builtins = {
         "cd": executeBuiltinCd,
@@ -772,7 +772,7 @@ def _executeShCmd(cmd, shenv, results, timeoutHelper):
         # commands.
         if args[0] in builtin_commands:
             args.insert(0, sys.executable)
-            cmd_shenv.env["PYTHONPATH"] = os.path.dirname(lit.util.safe_abs_path(__file__))
+            cmd_shenv.env["PYTHONPATH"] = os.path.dirname(lit.util.abs_path_preserve_drive(__file__))
             args[1] = os.path.join(builtin_commands_dir, args[1] + ".py")
 
         # We had to search through the 'not' commands to find all the 'env'

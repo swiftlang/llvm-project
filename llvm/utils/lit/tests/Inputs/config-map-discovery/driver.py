@@ -2,7 +2,7 @@ import lit.util
 import os
 import sys
 
-main_config = lit.util.safe_abs_path(sys.argv[1])
+main_config = lit.util.abs_path_preserve_drive(sys.argv[1])
 
 config_map = {main_config: sys.argv[2]}
 builtin_parameters = {"config_map": config_map}

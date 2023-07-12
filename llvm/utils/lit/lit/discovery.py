@@ -56,7 +56,7 @@ def getTestSuite(item, litConfig, cache):
         # configuration to load instead.
         config_map = litConfig.params.get("config_map")
         if config_map:
-            cfgpath = util.safe_abs_path(cfgpath)
+            cfgpath = util.abs_path_preserve_drive(cfgpath)
             target = config_map.get(cfgpath)
             if target:
                 cfgpath = target
@@ -67,13 +67,13 @@ def getTestSuite(item, litConfig, cache):
 
         cfg = TestingConfig.fromdefaults(litConfig)
         cfg.load_from_path(cfgpath, litConfig)
-        source_root = util.safe_abs_path(cfg.test_source_root or path)
-        exec_root = util.safe_abs_path(cfg.test_exec_root or path)
+        source_root = util.abs_path_preserve_drive(cfg.test_source_root or path)
+        exec_root = util.abs_path_preserve_drive(cfg.test_exec_root or path)
         return Test.TestSuite(cfg.name, source_root, exec_root, cfg), ()
 
     def search(path):
         # Check for an already instantiated test suite.
-        real_path = util.safe_abs_path(path)
+        real_path = util.abs_path_preserve_drive(path)
         res = cache.get(real_path)
         if res is None:
             cache[real_path] = res = search1(path)

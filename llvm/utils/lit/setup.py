@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 # is nice to allow:
 #   python path/to/setup.py install
 # to work (for scripts, etc.)
-os.chdir(os.path.dirname(lit.util.safe_abs_path(__file__)))
+os.chdir(os.path.dirname(lit.util.abs_path_preserve_drive(__file__)))
 sys.path.insert(0, ".")
 
 import lit

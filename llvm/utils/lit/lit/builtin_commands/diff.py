@@ -281,7 +281,7 @@ def main(argv):
     try:
         for file in args:
             if file != "-" and not os.path.isabs(file):
-                file = util.safe_abs_path(file)
+                file = util.abs_path_preserve_drive(file)
 
             if flags.recursive_diff:
                 if file == "-":

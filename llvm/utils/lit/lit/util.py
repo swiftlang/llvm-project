@@ -127,7 +127,7 @@ def usable_core_count():
 
     return n
 
-def safe_abs_path(path):
+def abs_path_preserve_drive(path):
     """Return the absolute path without resolving drive mappings on Windows.
 
     """

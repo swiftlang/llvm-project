@@ -1715,7 +1715,7 @@ string(CONCAT LLVM_LIT_PATH_FUNCTION
   "import platform\n"
   "def path(p):\n"
   "    if not p: return ''\n"
-  "    # Follows lit.util.safe_abs_path, which cannot be imported here.\n"
+  "    # Follows lit.util.abs_path_preserve_drive, which cannot be imported here.\n"
   "    if platform.system() == 'Windows':\n"
   "        return os.path.abspath(os.path.join(os.path.dirname(__file__), p))\n"
   "    else:\n"
