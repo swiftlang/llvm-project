@@ -16,7 +16,7 @@
 // RUN:   -format experimental-full  -mode=preprocess-dependency-directives \
 // RUN:   -optimize-args -module-files-dir %t/build > %t/deps.json
 
-// RUN: cat %t/deps.json | sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t %s
+// RUN: cat %t/deps.json | sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real} %s
 
 // Check the module commands actually build.
 // RUN: %deps-to-rsp %t/deps.json --module-name=Mod > %t/Mod.rsp
@@ -27,7 +27,7 @@
 // CHECK:      "modules": [
 // CHECK:        {
 // CHECK:          "clang-module-deps": [],
-// CHECK:          "clang-modulemap-file": "[[PREFIX_EXPANDED]]/module/F.framework/Modules/module.modulemap"
+// CHECK:          "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module/F.framework/Modules/module.modulemap"
 // CHECK:          "command-line": [
 // CHECK-NOT: symlink-to-module
 // CHECK:            "[[PREFIX]]/module/F.framework/Modules/module.modulemap"
@@ -37,7 +37,7 @@
 // CHECK:          "name": "F"
 // CHECK-NEXT:   }
 // CHECK-NEXT:   {
-// CHECK:          "clang-modulemap-file": "[[PREFIX_EXPANDED]]/module/module.modulemap"
+// CHECK:          "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module/module.modulemap"
 // CHECK:          "command-line": [
 // CHECK-NOT: symlink-to-module
 // CHECK:            "[[PREFIX]]/module/module.modulemap"
@@ -55,7 +55,7 @@
 // CHECK:                }
 // CHECK-NEXT:         ],
 // CHECK:              "command-line": [
-// CHECK:                "-fmodule-map-file=[[PREFIX_EXPANDED]]/module/module.modulemap"
+// CHECK:                "-fmodule-map-file=[[SUBMODULE_PREFIX]]/module/module.modulemap"
 // CHECK:              ]
 // CHECK:              "clang-module-deps": [
 // CHECK:                {
@@ -64,7 +64,7 @@
 // CHECK:                }
 // CHECK-NEXT:         ]
 // CHECK:              "command-line": [
-// CHECK:                "-fmodule-map-file=[[PREFIX_EXPANDED]]/module/module.modulemap"
+// CHECK:                "-fmodule-map-file=[[SUBMODULE_PREFIX]]/module/module.modulemap"
 // CHECK:              ]
 // CHECK:              "clang-module-deps": [
 // CHECK:                {
@@ -73,7 +73,7 @@
 // CHECK:                }
 // CHECK-NEXT:         ]
 // CHECK:              "command-line": [
-// CHECK:                "-fmodule-map-file=[[PREFIX_EXPANDED]]/module/F.framework/Modules/module.modulemap"
+// CHECK:                "-fmodule-map-file=[[SUBMODULE_PREFIX]]/module/F.framework/Modules/module.modulemap"
 // CHECK:              ]
 // CHECK:              "clang-module-deps": [
 // CHECK:                {
@@ -82,7 +82,7 @@
 // CHECK:                }
 // CHECK-NEXT:         ]
 // CHECK:              "command-line": [
-// CHECK:                "-fmodule-map-file=[[PREFIX_EXPANDED]]/module/F.framework/Modules/module.modulemap"
+// CHECK:                "-fmodule-map-file=[[SUBMODULE_PREFIX]]/module/F.framework/Modules/module.modulemap"
 // CHECK:              ]
 
 //--- cdb.json.in

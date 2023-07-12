@@ -26,13 +26,13 @@ inferred a = 0;
 
 // RUN: sed "s|DIR|%/t|g" %t/cdb.json.template > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full > %t/result.json
-// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
+// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real}
 
 // CHECK:      {
 // CHECK-NEXT:   "modules": [
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/frameworks/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/frameworks/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",

@@ -31,13 +31,13 @@ module second { header "second.h" }
 
 // RUN: sed -e "s|DIR|%/t|g" -e "s|INPUTS|%/S/Inputs|g" %t/cdb.json.template > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full > %t/result.json
-// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
+// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real}
 
 // CHECK:      {
 // CHECK-NEXT:   "modules": [
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/first/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/first/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",
@@ -48,7 +48,7 @@ module second { header "second.h" }
 // CHECK-NEXT:     },
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/first/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/first/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",
@@ -65,7 +65,7 @@ module second { header "second.h" }
 // CHECK-NEXT:           "module-name": "first_other"
 // CHECK-NEXT:         }
 // CHECK-NEXT:       ],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/second/second.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/second/second.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",
@@ -87,7 +87,7 @@ module second { header "second.h" }
 // CHECK-NEXT:           "module-name": "second"
 // CHECK-NEXT:         }
 // CHECK-NEXT:       ],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/zeroth/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/zeroth/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",

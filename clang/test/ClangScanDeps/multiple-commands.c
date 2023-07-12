@@ -14,7 +14,7 @@
 // RUN:   -j 1 -format experimental-full -mode preprocess-dependency-directives \
 // RUN:   > %t/deps.json
 
-// RUN: cat %t/deps.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
+// RUN: cat %t/deps.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real}
 
 // Build the -save-temps + -fmodules case
 // RUN: %deps-to-rsp %t/deps.json --module-name=Mod > %t/Mod.rsp
@@ -35,7 +35,7 @@
 
 // CHECK:      "modules": [
 // CHECK-NEXT:   {
-// CHECK:          "clang-modulemap-file": "[[PREFIX_EXPANDED]]{{.}}module.modulemap"
+// CHECK:          "clang-modulemap-file": "[[SUBMODULE_PREFIX]]{{.}}module.modulemap"
 // CHECK:          "name": "Mod"
 // CHECK:        }
 // CHECK-NEXT: ]

@@ -17,14 +17,14 @@
 // RUN: clang-scan-deps -compilation-database %t/cdb_a.json -format experimental-full -j 1 >  %t/result_a.json
 // RUN: clang-scan-deps -compilation-database %t/cdb_b.json -format experimental-full -j 1 > %t/result_b.json
 // RUN: clang-scan-deps -compilation-database %t/cdb_b2.json -format experimental-full -j 1 > %t/result_b2.json
-// RUN: cat %t/result_a.json %t/result_b.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t -check-prefix=CHECK
+// RUN: cat %t/result_a.json %t/result_b.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real} -check-prefix=CHECK
 // RUN: cat %t/result_b.json %t/result_b2.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -check-prefix=FLAG_ONLY
 
 // CHECK:      {
 // CHECK-NEXT:   "modules": [
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1"
 // CHECK:              "-emit-module"
@@ -61,7 +61,7 @@
 // CHECK:       "modules": [
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1"
 // CHECK:              "-emit-module"

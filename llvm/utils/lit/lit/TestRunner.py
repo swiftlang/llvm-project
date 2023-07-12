@@ -1266,8 +1266,9 @@ def getDefaultSubstitutions(test, tmpDir, tmpBase, normalize_slashes=False):
         # as they are used to avoid MAX_PATH issues, but sometimes we do
         # need the fully expanded path.
         real_path = os.path.realpath(path)
-        substitutions.append(("%>" + letter, real_path))
-        substitutions.append(("%>/" + letter, real_path.replace("\\", "/")))
+        substitutions.append(("%{" + letter + ":real}", real_path))
+        substitutions.append(("%{/" + letter + ":real}",
+            real_path.replace("\\", "/")))
 
         # "%{/[STpst]:regex_replacement}" should be normalized like
         # "%/[STpst]" but we're also in a regex replacement context

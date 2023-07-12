@@ -3,7 +3,7 @@
 
 // RUN: sed "s|DIR|%/t|g" %S/Inputs/diagnostics/cdb.json.template > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full 2>&1 > %t/result.json
-// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DPREFIX_EXPANDED=%>/t
+// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real}
 
 // Check that the '-Wno-error=invalid-ios-deployment-target' option is being
 // respected and invalid arguments like '-target i386-apple-ios14.0-simulator'
@@ -14,7 +14,7 @@
 // CHECK-NEXT:   "modules": [
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1"
 // CHECK:            ],

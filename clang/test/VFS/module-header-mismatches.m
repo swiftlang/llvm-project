@@ -1,6 +1,6 @@
 // RUN: rm -rf %t
 // RUN: split-file %s %t
-// RUN: sed -e "s;TEST_DIR;%>/t;g" %t/sed-overlay.yaml > %t/overlay.yaml
+// RUN: sed -e "s;TEST_DIR;%{/t:real};g" %t/sed-overlay.yaml > %t/overlay.yaml
 
 // These tests first build with an overlay such that the header is resolved
 // to %t/other/Mismatch.h. They then build again with the header resolved
@@ -11,20 +11,20 @@
 // since this does happen in real projects (with a different copy of the same
 // file).
 
-// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/hf-mcp -ivfsoverlay %t/overlay.yaml -F %>t/header-frameworks -fsyntax-only -verify %t/use.m
-// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/hf-mcp -F %>t/header-frameworks -fsyntax-only -verify %t/use.m
+// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/hf-mcp -ivfsoverlay %t/overlay.yaml -F %{t:real}/header-frameworks -fsyntax-only -verify %t/use.m
+// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/hf-mcp -F %{t:real}/header-frameworks -fsyntax-only -verify %t/use.m
 // RUN: find %t/hf-mcp -name "Mismatch-*.pcm" | count 1
 
 // RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/df-mcp -ivfsoverlay %t/overlay.yaml -F %t/dir-frameworks -fsyntax-only -verify %t/use.m
 // RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/hf-mcp -F %t/dir-frameworks -fsyntax-only -verify %t/use.m
 // RUN: find %t/df-mcp -name "Mismatch-*.pcm" | count 1
 
-// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/nf-mcp -ivfsoverlay %t/overlay.yaml -F %>t/norm-frameworks -fsyntax-only -verify %t/use.m
-// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/nf-mcp -F %>t/norm-frameworks -fsyntax-only -verify %t/use.m
+// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/nf-mcp -ivfsoverlay %t/overlay.yaml -F %{t:real}/norm-frameworks -fsyntax-only -verify %t/use.m
+// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/nf-mcp -F %{t:real}/norm-frameworks -fsyntax-only -verify %t/use.m
 // RUN: find %t/nf-mcp -name "Mismatch-*.pcm" | count 1
 
-// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/m-mcp -ivfsoverlay %t/overlay.yaml -I %>t/mod -fsyntax-only -verify %t/use.m
-// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/m-mcp -I %>t/mod -fsyntax-only -verify %t/use.m
+// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/m-mcp -ivfsoverlay %t/overlay.yaml -I %{t:real}/mod -fsyntax-only -verify %t/use.m
+// RUN: %clang_cc1 -Werror -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/m-mcp -I %{t:real}/mod -fsyntax-only -verify %t/use.m
 // RUN: find %t/m-mcp -name "Mismatch-*.pcm" | count 1
 
 //--- use.m

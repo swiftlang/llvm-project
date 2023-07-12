@@ -11,7 +11,7 @@
 
 // RUN: clang-scan-deps -compilation-database %t.cdb -j 1 -format experimental-full \
 // RUN:   -mode preprocess-dependency-directives > %t.result
-// RUN: cat %t.result | sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t.dir -DPREFIX_EXPANDED=%>/t.dir --check-prefixes=CHECK %s
+// RUN: cat %t.result | sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t.dir -DSUBMODULE_PREFIX=%{/t:real}.dir --check-prefixes=CHECK %s
 
 #import "header3.h"
 #import "header.h"
@@ -20,7 +20,7 @@
 // CHECK-NEXT:   "modules": [
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": []
-// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX_EXPANDED]]/Inputs/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/Inputs/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "[[HASH_H2:[A-Z0-9]+]]",
