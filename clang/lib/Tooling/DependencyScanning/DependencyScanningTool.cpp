@@ -13,6 +13,7 @@
 #include "clang/Frontend/Utils.h"
 #include "clang/Tooling/DependencyScanning/ScanAndUpdateArgs.h"
 #include "llvm/CAS/ObjectStore.h"
+#include "llvm/Support/MemoryBuffer.h"
 
 using namespace clang;
 using namespace tooling;
@@ -270,11 +271,13 @@ llvm::Expected<TranslationUnitDeps>
 DependencyScanningTool::getTranslationUnitDependencies(
     const std::vector<std::string> &CommandLine, StringRef CWD,
     const llvm::StringSet<> &AlreadySeen,
-    LookupModuleOutputCallback LookupModuleOutput) {
+    LookupModuleOutputCallback LookupModuleOutput,
+    ArrayRef<StringRef> AddedModules,
+      std::optional<llvm::MemoryBufferRef> TUBuffer) {
   FullDependencyConsumer Consumer(AlreadySeen);
   auto Controller = createActionController(LookupModuleOutput);
-  llvm::Error Result =
-      Worker.computeDependencies(CWD, CommandLine, Consumer, *Controller);
+  llvm::Error Result = Worker.computeDependencies(
+      CWD, CommandLine, Consumer, *Controller, AddedModules, TUBuffer);
   if (Result)
     return std::move(Result);
   return Consumer.takeTranslationUnitDeps();
@@ -286,8 +289,12 @@ llvm::Expected<ModuleDepsGraph> DependencyScanningTool::getModuleDependencies(
     LookupModuleOutputCallback LookupModuleOutput) {
   FullDependencyConsumer Consumer(AlreadySeen);
   auto Controller = createActionController(LookupModuleOutput);
-  llvm::Error Result = Worker.computeDependencies(CWD, CommandLine, Consumer,
-                                                  *Controller, ModuleName);
+  // Need an empty input buffer because the input file is not in the
+  // command-line.
+  auto EmptyBuffer = llvm::MemoryBuffer::getMemBuffer("");
+  llvm::Error Result =
+      Worker.computeDependencies(CWD, CommandLine, Consumer, *Controller,
+                                 ModuleName, EmptyBuffer->getMemBufferRef());
   if (Result)
     return std::move(Result);
   return Consumer.takeModuleGraphDeps();
