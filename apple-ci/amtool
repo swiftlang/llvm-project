@@ -10,10 +10,19 @@ import shlex
 import subprocess
 import sys
 from typing import List, Optional
+from functools import cache
 
 log = logging.getLogger()
 
-REMOTE = 'https://github.com/apple/llvm-project.git'
+@cache
+def remote() -> str:
+    text = git("remote", "-v")
+    assert text is not None
+    # Access the remote via SSH if that's configured for the repo -- better authentication story
+    if "git@github.com:apple/llvm-project.git (fetch)" in text:
+        return "git@github.com:apple/llvm-project.git"
+    else:
+        return 'https://github.com/apple/llvm-project.git'
 
 class GitError(Exception):
     """
@@ -144,11 +153,11 @@ class MergeId:
 
     def fetch_ref_name(self):
         refspec = self.ref_name + ":" + self.ref_name
-        return self.fetch(REMOTE, self.target_branch, refspec)
+        return self.fetch(remote(), self.target_branch, refspec)
 
     def fetch_merge_candidate_ref_name(self):
         refspec = self.merge_candidate_ref_name + ":" + self.merge_candidate_ref_name
-        return self.fetch(REMOTE, refspec)
+        return self.fetch(remote(), refspec)
 
     @staticmethod
     def checkout(*args):
@@ -165,14 +174,14 @@ class MergeId:
 
     def checkout_target_branch(self):
         """Checkout the target branch for this merge ID."""
-        if self.fetch(REMOTE, self.target_branch):
+        if self.fetch(remote(), self.target_branch):
             return self.checkout('FETCH_HEAD')
         return (False, '')
 
     def get_source_branch_name(self):
         """Get the source branch name (upstream) for this target branch."""
         content = None
-        if self.fetch(REMOTE, 'repo/apple-llvm-config/am'):
+        if self.fetch(remote(), 'repo/apple-llvm-config/am'):
             content = git('cat-file', '-p',
                           'FETCH_HEAD:apple-llvm-config/am/am-config.json')
         if not content:
@@ -201,7 +210,7 @@ class MergeId:
 
     def push(self):
         try:
-            git('push', REMOTE, f'HEAD:{self.ref_name}')
+            git('push', remote(), f'HEAD:{self.ref_name}')
             return (True, '')
         except GitError as e:
             return (False, e.stdout)
