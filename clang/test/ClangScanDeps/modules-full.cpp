@@ -12,11 +12,11 @@
 //
 // RUN: clang-scan-deps -compilation-database %t.cdb -j 4 -format experimental-full \
 // RUN:   -mode preprocess-dependency-directives > %t.result
-// RUN: cat %t.result | sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t.dir -DSUBMODULE_PREFIX=%{/t:real}.dir %s
+// RUN: cat %t.result | sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t.dir %s
 //
 // RUN: clang-scan-deps -compilation-database %t_clangcl.cdb -j 4 -format experimental-full \
 // RUN:   -mode preprocess-dependency-directives > %t_clangcl.result
-// RUN: cat %t_clangcl.result | sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t.dir -DSUBMODULE_PREFIX=%{/t:real}.dir %s
+// RUN: cat %t_clangcl.result | sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t.dir %s
 
 #include "header.h"
 
@@ -29,7 +29,7 @@
 // CHECK-NEXT:           "module-name": "header2"
 // CHECK-NEXT:         }
 // CHECK-NEXT:       ],
-// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/Inputs/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/Inputs/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1"
 // CHECK:              "-emit-module"
@@ -47,7 +47,7 @@
 // CHECK-NEXT:     },
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/Inputs/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/Inputs/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1",
 // CHECK:              "-emit-module",
@@ -64,7 +64,7 @@
 // CHECK-NEXT:     },
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/Inputs/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/Inputs/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK-NEXT:         "-cc1",
 // CHECK:              "-emit-module",

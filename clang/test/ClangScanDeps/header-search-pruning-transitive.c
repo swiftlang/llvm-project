@@ -56,7 +56,7 @@ module X { header "X.h" }
 
 // RUN: clang-scan-deps -compilation-database %t/cdb_with_a.json    -format experimental-full -optimize-args >  %t/results.json
 // RUN: clang-scan-deps -compilation-database %t/cdb_without_a.json -format experimental-full -optimize-args >> %t/results.json
-// RUN: cat %t/results.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real}
+// RUN: cat %t/results.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t
 
 // CHECK:      {
 // CHECK-NEXT:   "modules": [
@@ -67,7 +67,7 @@ module X { header "X.h" }
 // CHECK-NEXT:           "module-name": "Y"
 // CHECK-NEXT:         }
 // CHECK-NEXT:       ],
-// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "[[HASH_X:.*]]",
@@ -79,7 +79,7 @@ module X { header "X.h" }
 // CHECK-NEXT:     },
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "[[HASH_Y_WITH_A]]",
@@ -119,7 +119,7 @@ module X { header "X.h" }
 // CHECK-NEXT:           "module-name": "Y"
 // CHECK-NEXT:         }
 // CHECK-NEXT:       ],
-// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // Here is the actual check that this module X (which imports different version of Y)
@@ -133,7 +133,7 @@ module X { header "X.h" }
 // CHECK-NEXT:     },
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "[[HASH_Y_WITHOUT_A]]",

@@ -13,13 +13,13 @@
 // RUN: sed "s|DIR|%/t|g" %S/Inputs/modules-pch-common-via-submodule/cdb_pch.json > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full \
 // RUN:   -module-files-dir %t/build > %t/result_pch.json
-// RUN: cat %t/result_pch.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real} -check-prefix=CHECK-PCH
+// RUN: cat %t/result_pch.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -check-prefix=CHECK-PCH
 //
 // CHECK-PCH:      {
 // CHECK-PCH-NEXT:   "modules": [
 // CHECK-PCH-NEXT:     {
 // CHECK-PCH-NEXT:       "clang-module-deps": [],
-// CHECK-PCH-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap",
+// CHECK-PCH-NEXT:       "clang-modulemap-file": "[[PREFIX]]/module.modulemap",
 // CHECK-PCH-NEXT:       "command-line": [
 // CHECK-PCH:            ],
 // CHECK-PCH-NEXT:       "context-hash": "[[HASH_MOD_COMMON:.*]]",
@@ -60,13 +60,13 @@
 // RUN: sed "s|DIR|%/t|g" %S/Inputs/modules-pch-common-via-submodule/cdb_tu.json > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full \
 // RUN:   -module-files-dir %t/build > %t/result_tu.json
-// RUN: cat %t/result_tu.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real} -check-prefix=CHECK-TU
+// RUN: cat %t/result_tu.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -check-prefix=CHECK-TU
 //
 // CHECK-TU:      {
 // CHECK-TU-NEXT:   "modules": [
 // CHECK-TU-NEXT:     {
 // CHECK-TU-NEXT:       "clang-module-deps": [],
-// CHECK-TU-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap",
+// CHECK-TU-NEXT:       "clang-modulemap-file": "[[PREFIX]]/module.modulemap",
 // CHECK-TU-NEXT:       "command-line": [
 // CHECK-TU:            ],
 // CHECK-TU-NEXT:       "context-hash": "[[HASH_MOD_TU:.*]]",

@@ -26,20 +26,20 @@ inferred a = 0;
 
 // RUN: sed "s|DIR|%/t|g" %t/cdb.json.template > %t/cdb.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full > %t/result.json
-// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real}
+// RUN: cat %t/result.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t
 
 // CHECK:      {
 // CHECK-NEXT:   "modules": [
 // CHECK-NEXT:     {
 // CHECK-NEXT:       "clang-module-deps": [],
-// CHECK-NEXT:       "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/frameworks/module.modulemap",
+// CHECK-NEXT:       "clang-modulemap-file": "[[PREFIX]]/frameworks/module.modulemap",
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",
 // CHECK-NEXT:       "file-deps": [
-// CHECK-NEXT:          "[[PREFIX]]/frameworks/Inferred.framework/Frameworks/Sub.framework/Headers/Sub.h",
-// CHECK-NEXT:          "[[PREFIX]]/frameworks/Inferred.framework/Headers/Inferred.h",
-// CHECK-NEXT:          "[[PREFIX]]/frameworks/module.modulemap"
+// CHECK-NEXT:         "[[PREFIX]]/frameworks/Inferred.framework/Frameworks/Sub.framework/Headers/Sub.h",
+// CHECK-NEXT:         "[[PREFIX]]/frameworks/Inferred.framework/Headers/Inferred.h",
+// CHECK-NEXT:         "[[PREFIX]]/frameworks/module.modulemap"
 // CHECK-NEXT:       ],
 // CHECK-NEXT:       "name": "Inferred"
 // CHECK-NEXT:     }

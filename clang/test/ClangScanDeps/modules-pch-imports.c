@@ -24,7 +24,7 @@
 // RUN:   -format experimental-full -mode preprocess-dependency-directives \
 // RUN:   > %t/deps.json
 
-// RUN: cat %t/deps.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t -DSUBMODULE_PREFIX=%{/t:real}
+// RUN: cat %t/deps.json | sed 's:\\\\\?:/:g' | FileCheck %s -DPREFIX=%/t
 
 // Verify that the only modular import in C is E and not the unrelated modules
 // A or B that come from the PCH.
@@ -37,7 +37,7 @@
 // CHECK:                "module-name": "E"
 // CHECK:              }
 // CHECK-NEXT:       ]
-// CHECK:            "clang-modulemap-file": "[[SUBMODULE_PREFIX]]/module.modulemap"
+// CHECK:            "clang-modulemap-file": "[[PREFIX]]/module.modulemap"
 // CHECK:            "command-line": [
 // CHECK-NOT:          "-fmodule-file=
 // CHECK:              "-fmodule-file={{(E=)?}}[[PREFIX]]/{{.*}}/E-{{.*}}.pcm"
