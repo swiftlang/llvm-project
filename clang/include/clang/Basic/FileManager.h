@@ -328,7 +328,14 @@ public:
   /// and should only be used when the physical layout of the file system is
   /// required, which is (almost) never.
   StringRef getCanonicalName(const FileEntry *File);
+  
+private:
+  /// Retrieve the canonical name for a given file or directory.
+  ///
+  /// The first param is a key in the CanonicalNames array.
+  StringRef getCanonicalName(const void *FileOrDir, StringRef Name);
 
+public:
   void PrintStats() const;
 };
 
