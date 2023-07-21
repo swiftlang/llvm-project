@@ -3796,6 +3796,8 @@ static bool RenderModulesOptions(Compilation &C, const Driver &D,
     if (Args.hasFlag(options::OPT_fprebuilt_implicit_modules,
                      options::OPT_fno_prebuilt_implicit_modules, false))
       CmdArgs.push_back("-fprebuilt-implicit-modules");
+    // Workaround for rdar://110154680.
+    CmdArgs.push_back("-fno-modules-validate-textual-header-includes");
     if (Args.hasFlag(options::OPT_fmodules_validate_input_files_content,
                      options::OPT_fno_modules_validate_input_files_content,
                      false))
