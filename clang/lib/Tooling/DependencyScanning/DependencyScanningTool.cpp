@@ -103,6 +103,8 @@ class EmptyDependencyConsumer : public DependencyConsumer {
 
   void handleModuleDependency(ModuleDeps MD) override {}
 
+  void handleDirectModuleDependency(ModuleID ID) override {}
+
   void handleContextHash(std::string Hash) override {}
 };
 
