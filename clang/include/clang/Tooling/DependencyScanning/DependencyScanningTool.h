@@ -14,9 +14,8 @@
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 #include "clang/Tooling/DependencyScanning/ScanAndUpdateArgs.h"
 #include "clang/Tooling/JSONCompilationDatabase.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/CAS/CASID.h"
 #include "llvm/Support/PrefixMapper.h"
 #include <optional>
@@ -172,17 +171,16 @@ public:
   llvm::Expected<TranslationUnitDeps>
   getTranslationUnitDependencies(const std::vector<std::string> &CommandLine,
                                  StringRef CWD,
-                                 const llvm::StringSet<> &AlreadySeen,
+                                 const llvm::DenseSet<ModuleID> &AlreadySeen,
                                  LookupModuleOutputCallback LookupModuleOutput);
 
   /// Given a compilation context specified via the Clang driver command-line,
   /// gather modular dependencies of module with the given name, and return the
   /// information needed for explicit build.
-  llvm::Expected<ModuleDepsGraph>
-  getModuleDependencies(StringRef ModuleName,
-                        const std::vector<std::string> &CommandLine,
-                        StringRef CWD, const llvm::StringSet<> &AlreadySeen,
-                        LookupModuleOutputCallback LookupModuleOutput);
+  llvm::Expected<ModuleDepsGraph> getModuleDependencies(
+      StringRef ModuleName, const std::vector<std::string> &CommandLine,
+      StringRef CWD, const llvm::DenseSet<ModuleID> &AlreadySeen,
+      LookupModuleOutputCallback LookupModuleOutput);
 
   ScanningOutputFormat getScanningFormat() const {
     return Worker.getScanningFormat();
@@ -215,7 +213,7 @@ private:
 
 class FullDependencyConsumer : public DependencyConsumer {
 public:
-  FullDependencyConsumer(const llvm::StringSet<> &AlreadySeen)
+  FullDependencyConsumer(const llvm::DenseSet<ModuleID> &AlreadySeen)
       : AlreadySeen(AlreadySeen) {}
 
   void handleBuildCommand(Command Cmd) override {
@@ -233,7 +231,7 @@ public:
   }
 
   void handleModuleDependency(ModuleDeps MD) override {
-    ClangModuleDeps[MD.ID.ContextHash + MD.ID.ModuleName] = std::move(MD);
+    ClangModuleDeps[MD.ID] = std::move(MD);
   }
 
   void handleDirectModuleDependency(ModuleID ID) override {
@@ -265,7 +263,7 @@ private:
   std::optional<std::string> CASFileSystemRootID;
   std::optional<std::string> IncludeTreeID;
   std::vector<std::string> OutputPaths;
-  const llvm::StringSet<> &AlreadySeen;
+  const llvm::DenseSet<ModuleID> &AlreadySeen;
 };
 
 /// A simple dependency action controller that uses a callback. If no callback

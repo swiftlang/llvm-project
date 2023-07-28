@@ -741,8 +741,7 @@ private:
     mutable size_t InputIndex;
 
     bool operator==(const IndexedModuleID &Other) const {
-      return std::tie(ID.ModuleName, ID.ContextHash) ==
-             std::tie(Other.ID.ModuleName, Other.ID.ContextHash);
+      return ID == Other.ID;
     }
 
     bool operator<(const IndexedModuleID &Other) const {
@@ -762,7 +761,7 @@ private:
 
     struct Hasher {
       std::size_t operator()(const IndexedModuleID &IMID) const {
-        return llvm::hash_combine(IMID.ID.ModuleName, IMID.ID.ContextHash);
+        return llvm::hash_value(IMID.ID);
       }
     };
   };
@@ -1225,15 +1224,25 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
   T.startTimer();
 
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I) {
-    Pool.async([&, I]() {
-      llvm::StringSet<> AlreadySeenModules;
-      while (auto MaybeInputIndex = GetNextInputIndex()) {
-        size_t LocalIndex = *MaybeInputIndex;
-        const tooling::CompileCommand *Input = &Inputs[LocalIndex];
-        std::string Filename = std::move(Input->Filename);
-        std::string CWD = std::move(Input->Directory);
-
-        std::optional<StringRef> MaybeModuleName;
+    Pool.async([I, &CAS, &Lock, &Index, &Inputs, &TreeResults,
+                &HadErrors, &FD, &WorkerTools, &DependencyOS, &Errs]() {
+      llvm::DenseSet<ModuleID> AlreadySeenModules;
+      while (true) {
+        const tooling::CompileCommand *Input;
+        std::string Filename;
+        std::string CWD;
+        size_t LocalIndex;
+        // Take the next input.
+        {
+          std::unique_lock<std::mutex> LockGuard(Lock);
+          if (Index >= Inputs.size())
+            return;
+          LocalIndex = Index;
+          Input = &Inputs[Index++];
+          Filename = std::move(Input->Filename);
+          CWD = std::move(Input->Directory);
+        }
+        Optional<StringRef> MaybeModuleName;
         if (!ModuleName.empty())
           MaybeModuleName = ModuleName;
 
