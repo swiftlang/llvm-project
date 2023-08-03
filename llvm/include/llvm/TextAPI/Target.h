@@ -9,9 +9,9 @@
 #ifndef LLVM_TEXTAPI_TARGET_H
 #define LLVM_TEXTAPI_TARGET_H
 
+#include "llvm/ADT/Triple.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VersionTuple.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/TextAPI/Architecture.h"
 #include "llvm/TextAPI/ArchitectureSet.h"
 #include "llvm/TextAPI/Platform.h"

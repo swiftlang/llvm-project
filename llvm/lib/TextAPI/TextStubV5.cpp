@@ -182,16 +182,16 @@ private:
 template <typename JsonT, typename StubT = JsonT>
 Expected<StubT> getRequiredValue(
     TBDKey Key, const Object *Obj,
-    std::function<std::optional<JsonT>(const Object *, StringRef)> GetValue,
-    std::function<std::optional<StubT>(JsonT)> Validate = nullptr) {
-  std::optional<JsonT> Val = GetValue(Obj, Keys[Key]);
+    std::function<llvm::Optional<JsonT>(const Object *, StringRef)> GetValue,
+    std::function<llvm::Optional<StubT>(JsonT)> Validate = nullptr) {
+  llvm::Optional<JsonT> Val = GetValue(Obj, Keys[Key]);
   if (!Val)
     return make_error<JSONStubError>(getParseErrorMsg(Key));
 
   if (Validate == nullptr)
     return static_cast<StubT>(*Val);
 
-  std::optional<StubT> Result = Validate(*Val);
+  llvm::Optional<StubT> Result = Validate(*Val);
   if (!Result.has_value())
     return make_error<JSONStubError>(getParseErrorMsg(Key));
   return Result.value();
@@ -200,13 +200,13 @@ Expected<StubT> getRequiredValue(
 template <typename JsonT, typename StubT = JsonT>
 Expected<StubT> getRequiredValue(
     TBDKey Key, const Object *Obj,
-    std::function<std::optional<JsonT>(const Object *, StringRef)> GetValue,
-    StubT DefaultValue, std::function<std::optional<StubT>(JsonT)> Validate) {
-  std::optional<JsonT> Val = GetValue(Obj, Keys[Key]);
+    std::function<llvm::Optional<JsonT>(const Object *, StringRef)> GetValue,
+    StubT DefaultValue, std::function<llvm::Optional<StubT>(JsonT)> Validate) {
+  llvm::Optional<JsonT> Val = GetValue(Obj, Keys[Key]);
   if (!Val)
     return DefaultValue;
 
-  std::optional<StubT> Result;
+  llvm::Optional<StubT> Result;
   Result = Validate(*Val);
   if (!Result.has_value())
     return make_error<JSONStubError>(getParseErrorMsg(Key));
@@ -238,7 +238,7 @@ namespace StubParser {
 Expected<FileType> getVersion(const Object *File) {
   auto VersionOrErr = getRequiredValue<int64_t, FileType>(
       TBDKey::TBDVersion, File, &Object::getInteger,
-      [](int64_t Val) -> std::optional<FileType> {
+      [](int64_t Val) -> llvm::Optional<FileType> {
         unsigned Result = Val;
         if (Result != 5)
           return std::nullopt;
@@ -528,7 +528,7 @@ Expected<PackedVersion> getPackedVersion(const Object *File, TBDKey Key) {
     if (!Obj)
       return make_error<JSONStubError>(getParseErrorMsg(Key));
 
-    auto ValidatePV = [](StringRef Version) -> std::optional<PackedVersion> {
+    auto ValidatePV = [](StringRef Version) -> llvm::Optional<PackedVersion> {
       PackedVersion PV;
       auto [success, truncated] = PV.parse64(Version);
       if (!success || truncated)
