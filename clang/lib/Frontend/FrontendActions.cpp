@@ -79,7 +79,7 @@ void ReadPCHAndPreprocessAction::ExecuteAction() {
   PP.EnterMainSourceFile();
   do {
     PP.Lex(Tok);
-  } while (Tok.isNot(tok::eof));
+  } while (Tok.isNot(tok::eof) && Tok.isNot(tok::annot_repl_input_end));
 }
 
 std::unique_ptr<ASTConsumer>
