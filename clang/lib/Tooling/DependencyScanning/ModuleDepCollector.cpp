@@ -479,7 +479,6 @@ ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
   ModuleDeps &MD = *ModI.first->second;
 
   MD.ID.ModuleName = M->getFullModuleName();
-  MD.ImplicitModulePCMPath = std::string(M->getASTFile()->getName());
   MD.IsSystem = M->IsSystem;
 
   ModuleMap &ModMapInfo =

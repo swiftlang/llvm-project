@@ -1230,7 +1230,7 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
 
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I) {
     Pool.async([I, &CAS, &Lock, &Index, &Inputs, &TreeResults,
-                &HadErrors, &FD, &WorkerTools, &DependencyOS, &Errs]() {
+                &HadErrors, &FD, &PD, &WorkerTools, &DependencyOS, &Errs]() {
       llvm::DenseSet<ModuleID> AlreadySeenModules;
       while (true) {
         const tooling::CompileCommand *Input;
@@ -1247,7 +1247,7 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
           Filename = std::move(Input->Filename);
           CWD = std::move(Input->Directory);
         }
-        Optional<StringRef> MaybeModuleName;
+        std::optional<StringRef> MaybeModuleName;
         if (!ModuleName.empty())
           MaybeModuleName = ModuleName;
 
