@@ -24,6 +24,7 @@ if (NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB )
 endif()
 
 add_lldb_library(lldbUtility
+  AddressableBits.cpp
   ArchSpec.cpp
   Args.cpp
   Baton.cpp
