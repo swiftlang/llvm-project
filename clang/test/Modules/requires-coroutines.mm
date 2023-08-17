@@ -4,10 +4,10 @@
 
 #ifdef COROUTINES
 @import DependsOnModule.Coroutines;
-// expected-error@module.map:29 {{module 'DependsOnModule.NotCoroutines' is incompatible with feature 'coroutines'}}
+// expected-error@Modules/module.modulemap:29 {{module 'DependsOnModule.NotCoroutines' is incompatible with feature 'coroutines'}}
 @import DependsOnModule.NotCoroutines; // expected-note {{module imported here}}
 #else
 @import DependsOnModule.NotCoroutines;
-// expected-error@module.map:25 {{module 'DependsOnModule.Coroutines' requires feature 'coroutines'}}
+// expected-error@Modules/module.modulemap:25 {{module 'DependsOnModule.Coroutines' requires feature 'coroutines'}}
 @import DependsOnModule.Coroutines; // expected-note {{module imported here}}
 #endif
