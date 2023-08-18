@@ -2219,7 +2219,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
         llvm::remarks::parseHotnessThresholdOption(arg->getValue());
 
     if (!ResultOrErr) {
-      Diags.Report(diag::err_drv_invalid_diagnotics_hotness_threshold)
+      Diags.Report(diag::err_drv_invalid_diagnostics_hotness_threshold)
           << "-fdiagnostics-hotness-threshold=";
     } else {
       Opts.DiagnosticsHotnessThreshold = *ResultOrErr;
@@ -2236,7 +2236,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     auto ResultOrErr = parseToleranceOption(arg->getValue());
 
     if (!ResultOrErr) {
-      Diags.Report(diag::err_drv_invalid_diagnotics_misexpect_tolerance)
+      Diags.Report(diag::err_drv_invalid_diagnostics_misexpect_tolerance)
           << "-fdiagnostics-misexpect-tolerance=";
     } else {
       Opts.DiagnosticsMisExpectTolerance = *ResultOrErr;

@@ -63,7 +63,7 @@ static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr, SMLoc loc,
 
 /// Convert the given TableGen diagnostic to the LSP form.
 static std::optional<lsp::Diagnostic>
-getLspDiagnoticFromDiag(const llvm::SMDiagnostic &diag,
+getLspDiagnosticFromDiag(const llvm::SMDiagnostic &diag,
                         const lsp::URIForFile &uri) {
   auto *sourceMgr = const_cast<llvm::SourceMgr *>(diag.getSourceMgr());
   if (!sourceMgr || !diag.getLoc().isValid())
@@ -457,7 +457,7 @@ void TableGenTextFile::initialize(const lsp::URIForFile &uri,
   sourceMgr.setDiagHandler(
       [](const llvm::SMDiagnostic &diag, void *rawHandlerContext) {
         auto *ctx = reinterpret_cast<DiagHandlerContext *>(rawHandlerContext);
-        if (auto lspDiag = getLspDiagnoticFromDiag(diag, ctx->uri))
+        if (auto lspDiag = getLspDiagnosticFromDiag(diag, ctx->uri))
           ctx->diagnostics.push_back(*lspDiag);
       },
       &handlerContext);

@@ -158,9 +158,9 @@ def err_drv_command_failure : Error<
   "unable to execute command: %0">;
 def err_drv_invalid_darwin_version : Error<
   "invalid Darwin version number: %0">;
-def err_drv_invalid_diagnotics_hotness_threshold : Error<
+def err_drv_invalid_diagnostics_hotness_threshold : Error<
   "invalid argument in '%0', only integer or 'auto' is supported">;
-def err_drv_invalid_diagnotics_misexpect_tolerance : Error<
+def err_drv_invalid_diagnostics_misexpect_tolerance : Error<
   "invalid argument in '%0', only integers are supported">;
 def err_drv_missing_argument : Error<
   "argument to '%0' is missing (expected %1 value%s1)">;
