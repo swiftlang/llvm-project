@@ -5346,7 +5346,6 @@ SwiftASTContext::GetTypeInfo(opaque_compiler_type_t type,
   case swift::TypeKind::InOut:
   case swift::TypeKind::Module:
   case swift::TypeKind::ElementArchetype:
-  case swift::TypeKind::OpaqueTypeArchetype:
   case swift::TypeKind::OpenedArchetype:
   case swift::TypeKind::ParameterizedProtocol:
   case swift::TypeKind::Placeholder:
@@ -5364,6 +5363,7 @@ SwiftASTContext::GetTypeInfo(opaque_compiler_type_t type,
     assert(false && "Internal compiler type");
     break;
   case swift::TypeKind::UnboundGeneric:
+  case swift::TypeKind::OpaqueTypeArchetype:
     break;
 
   case swift::TypeKind::GenericFunction:
