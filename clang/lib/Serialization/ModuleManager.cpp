@@ -450,7 +450,7 @@ bool ModuleManager::lookupModuleFile(StringRef FileName, off_t ExpectedSize,
   OptionalFileEntryRef FileOrErr =
       expectedToOptional(FileMgr.getFileRef(FileName, /*OpenFile=*/true,
                                             /*CacheFailure=*/false));
-#if !defined(__APPLE__)
+#if 0
   if (FileOrErr) {
     // On Linux ext4 FileManager's inode caching system does not
     // provide us correct behaviour for ModuleCache directories.
