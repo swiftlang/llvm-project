@@ -510,7 +510,8 @@ if( MSVC )
   if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # Enable standards-conforming preprocessor.
     # https://learn.microsoft.com/en-us/cpp/build/reference/zc-preprocessor
-    append("/Zc:preprocessor" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+    # TODO: rdar://113996252 -- Re-enable once CI has a newer Windows SDK
+    #append("/Zc:preprocessor" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   endif ()
 
   # Some projects use the __cplusplus preprocessor macro to check support for
