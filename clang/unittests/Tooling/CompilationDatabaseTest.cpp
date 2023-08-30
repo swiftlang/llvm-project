@@ -86,9 +86,9 @@ TEST(JSONCompilationDatabase, GetAllFiles) {
 
   std::vector<std::string> expected_files;
   SmallString<16> PathStorage;
-  llvm::sys::path::native("//net/dir/file1", PathStorage);
-  expected_files.push_back(std::string(PathStorage.str()));
   llvm::sys::path::native("//net/dir/file2", PathStorage);
+  expected_files.push_back(std::string(PathStorage.str()));
+  llvm::sys::path::native("//net/dir/file1", PathStorage);
   expected_files.push_back(std::string(PathStorage.str()));
   llvm::sys::path::native("//net/file1", PathStorage);
   expected_files.push_back(std::string(PathStorage.str()));
