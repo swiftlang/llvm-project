@@ -45,6 +45,9 @@ public:
   /// Returns true if the object refers to a valid library.
   bool isValid() const { return Data != &Invalid; }
 
+  /// Return the OS specific handle value.
+  void *getOSSpecificHandle() const { return Data; }
+
   /// Searches through the library for the symbol \p symbolName. If it is
   /// found, the address of that symbol is returned. If not, NULL is returned.
   /// Note that NULL will also be returned if the library failed to load.
