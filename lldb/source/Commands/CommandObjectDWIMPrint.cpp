@@ -27,6 +27,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FormatVariadic.h"
 
+#include <regex>
+
 using namespace llvm;
 using namespace lldb;
 using namespace lldb_private;
@@ -60,6 +62,36 @@ void CommandObjectDWIMPrint::HandleArgumentCompletion(
 
 bool CommandObjectDWIMPrint::DoExecute(StringRef command,
                                        CommandReturnObject &result) {
+  // BEGIN SWIFT
+  // Dump the contents of the valobj to result, possibly prepending it with
+  // a note telling the user that p is potentially better.
+  auto write_valobj_to_result =
+      [&](ValueObject &valobj, const DumpValueObjectOptions &dump_options) {
+        // Identify the default output of po "<Name: 0x...>.
+        // The regex is:
+        // - Start with "<".
+        // - Followed by 1 or more non-whitespace characters.
+        // - Followed by ": 0x".
+        // - Followed by 1 or more characters in the 0-9 or a-f range.
+        // - Followed by ">".
+        static const std::regex swift_class_regex("^<[^\\s]+: 0x[0-9a-f]+>");
+        StreamString temp_result_stream;
+        valobj.Dump(temp_result_stream, dump_options);
+
+        bool is_po = m_varobj_options.use_objc;
+        if (is_po && std::regex_search(temp_result_stream.GetData(),
+                                       swift_class_regex)) {
+          result.AppendMessage(
+              "note: object description requested, but type doesn't implement "
+              "a custom object description. "
+              "Consider using the default formatter (typically aliased to "
+              "\"p\") "
+              "as it may produce better output");
+        }
+
+        result.GetOutputStream() << temp_result_stream.GetData();
+      };
+  // END SWIFT
   m_option_group.NotifyOptionParsingStarting(&m_exe_ctx);
   OptionsWithRaw args{command};
   StringRef expr = args.GetRawPart();
@@ -126,7 +158,7 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
                                         flags, expr);
       }
 
-      valobj_sp->Dump(result.GetOutputStream(), dump_options);
+      write_valobj_to_result(*valobj_sp, dump_options);
       result.SetStatus(eReturnStatusSuccessFinishResult);
       return true;
     }
@@ -185,8 +217,8 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
                                         expr);
       }
 
-      if (valobj_sp->GetError().GetError() != UserExpression::kNoResult)
-        valobj_sp->Dump(result.GetOutputStream(), dump_options);
+      if (valobj_sp->GetError().GetError() != UserExpression::kNoResult) 
+        write_valobj_to_result(*valobj_sp, dump_options);
 
       if (suppress_result)
         if (auto result_var_sp =
