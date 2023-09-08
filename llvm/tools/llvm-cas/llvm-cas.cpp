@@ -35,6 +35,11 @@ static cl::opt<bool> AllTrees("all-trees",
 static cl::list<std::string> PrefixMapPaths(
     "prefix-map",
     cl::desc("prefix map for file system ingestion, -prefix-map BEFORE=AFTER"));
+static cl::opt<bool>
+    CASIDFile("casid-file",
+              cl::desc("Input is CASID file, just ingest CASID."));
+static cl::list<std::string> InputFiles(cl::Positional,
+                                        cl::desc("Input object"));
 
 static int dump(ObjectStore &CAS);
 static int listTree(ObjectStore &CAS, const CASID &ID);
@@ -50,20 +55,20 @@ static int diffGraphs(ObjectStore &CAS, const CASID &LHS, const CASID &RHS);
 static int traverseGraph(ObjectStore &CAS, const CASID &ID);
 static int ingestFileSystem(ObjectStore &CAS, std::optional<StringRef> CASPath,
                             StringRef Path);
-static int mergeTrees(ObjectStore &CAS, ArrayRef<std::string> Objects);
+static int mergeTrees(ObjectStore &CAS, ArrayRef<std::string> InputFiles);
 static int getCASIDForFile(ObjectStore &CAS, const CASID &ID, StringRef Path);
 static int import(ObjectStore &CAS, ObjectStore &UpstreamCAS,
-                  ArrayRef<std::string> Objects);
+                  ArrayRef<std::string> InputFiles);
 static int putCacheKey(ObjectStore &CAS, ActionCache &AC,
-                       ArrayRef<std::string> Objects);
+                       ArrayRef<std::string> InputFiles);
 static int getCacheResult(ObjectStore &CAS, ActionCache &AC, const CASID &ID);
 static int validateObject(ObjectStore &CAS, const CASID &ID);
+static int ingestFile(cas::ObjectStore &CAS);
 
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
   RegisterGRPCCAS Y;
 
-  cl::list<std::string> Objects(cl::Positional, cl::desc("<object>..."));
   cl::opt<std::string> CASPath("cas", cl::desc("Path to CAS on disk."),
                                cl::value_desc("path"));
   cl::opt<std::string> CASPluginPath("fcas-plugin-path",
@@ -168,17 +173,17 @@ int main(int Argc, char **Argv) {
     return makeBlob(*CAS, DataPath);
 
   if (Command == MakeNode)
-    return makeNode(*CAS, Objects, DataPath);
+    return makeNode(*CAS, InputFiles, DataPath);
 
   if (Command == DiffGraphs) {
     ExitOnError CommandErr("llvm-cas: diff-graphs");
 
-    if (Objects.size() != 2)
+    if (InputFiles.size() != 2)
       CommandErr(
           createStringError(inconvertibleErrorCode(), "expected 2 objects"));
 
-    CASID LHS = ExitOnErr(CAS->parseID(Objects[0]));
-    CASID RHS = ExitOnErr(CAS->parseID(Objects[1]));
+    CASID LHS = ExitOnErr(CAS->parseID(InputFiles[0]));
+    CASID RHS = ExitOnErr(CAS->parseID(InputFiles[1]));
     return diffGraphs(*CAS, LHS, RHS);
   }
 
@@ -186,9 +191,9 @@ int main(int Argc, char **Argv) {
     return ingestFileSystem(*CAS, CASFilePath, DataPath);
 
   if (Command == MergeTrees)
-    return mergeTrees(*CAS, Objects);
+    return mergeTrees(*CAS, InputFiles);
 
-  if (Objects.empty())
+  if (InputFiles.empty())
     ExitOnErr(createStringError(inconvertibleErrorCode(),
                                 "missing <object> to operate on"));
 
@@ -196,7 +201,7 @@ int main(int Argc, char **Argv) {
     if (!UpstreamCAS)
       ExitOnErr(createStringError(inconvertibleErrorCode(),
                                   "missing '-upstream-cas'"));
-    return import(*CAS, *UpstreamCAS, Objects);
+    return import(*CAS, *UpstreamCAS, InputFiles);
   }
 
   if (Command == PutCacheKey || Command == GetCacheResult) {
@@ -206,13 +211,13 @@ int main(int Argc, char **Argv) {
   }
 
   if (Command == PutCacheKey)
-    return putCacheKey(*CAS, *AC, Objects);
+    return putCacheKey(*CAS, *AC, InputFiles);
 
   // Remaining commands need exactly one CAS object.
-  if (Objects.size() > 1)
+  if (InputFiles.size() > 1)
     ExitOnErr(createStringError(inconvertibleErrorCode(),
                                 "too many <object>s, expected 1"));
-  CASID ID = ExitOnErr(CAS->parseID(Objects.front()));
+  CASID ID = ExitOnErr(CAS->parseID(InputFiles.front()));
 
   if (Command == GetCacheResult)
     return getCacheResult(*CAS, *AC, ID);
@@ -243,6 +248,29 @@ int main(int Argc, char **Argv) {
 
   assert(Command == CatBlob);
   return catBlob(*CAS, ID);
+}
+
+int ingestFile(cas::ObjectStore &CAS) {
+  ExitOnError ExitOnErr;
+  StringMap<ObjectRef> Files;
+  SmallVector<ObjectProxy> SummaryIDs;
+  for (StringRef IF : InputFiles) {
+    auto ObjBuffer = ExitOnErr(errorOrToExpected(MemoryBuffer::getFile(IF)));
+    auto ID = ExitOnErr(readCASIDBuffer(CAS, ObjBuffer->getMemBufferRef()));
+    auto Ref = ExitOnErr(CAS.getProxy(ID)).getRef();
+    assert(!Files.count(IF));
+    Files.try_emplace(IF, Ref);
+  }
+  if (!Files.empty()) {
+    HierarchicalTreeBuilder Builder;
+    for (auto &File : Files) {
+      Builder.push(File.second, TreeEntry::Regular, File.first());
+    }
+    ObjectProxy SummaryRef = ExitOnErr(Builder.create(CAS));
+    SummaryIDs.emplace_back(SummaryRef);
+    outs() << SummaryRef.getID() << "\n";
+  }
+  return 0;
 }
 
 int listTree(ObjectStore &CAS, const CASID &ID) {
@@ -339,13 +367,13 @@ int listObjectReferences(ObjectStore &CAS, const CASID &ID) {
   return 0;
 }
 
-static int makeNode(ObjectStore &CAS, ArrayRef<std::string> Objects,
+static int makeNode(ObjectStore &CAS, ArrayRef<std::string> InputFiles,
                     StringRef DataPath) {
   std::unique_ptr<MemoryBuffer> Data =
       ExitOnError("llvm-cas: make-node: data: ")(openBuffer(DataPath));
 
   SmallVector<ObjectRef> IDs;
-  for (StringRef Object : Objects) {
+  for (StringRef Object : InputFiles) {
     ExitOnError ObjectErr("llvm-cas: make-node: ref: ");
     std::optional<ObjectRef> ID =
         CAS.getReference(ObjectErr(CAS.parseID(Object)));
@@ -492,7 +520,10 @@ static Expected<ObjectProxy> ingestFileSystemImpl(ObjectStore &CAS,
   (*FS)->trackNewAccesses();
 
   llvm::DenseSet<llvm::sys::fs::UniqueID> SeenDirectories;
-  if (Error E = recursiveAccess(**FS, Path, SeenDirectories))
+  if (Path.empty())
+    for (auto &FilePath : InputFiles)
+      (**FS).status(FilePath);
+  else if (Error E = recursiveAccess(**FS, Path, SeenDirectories))
     return std::move(E);
 
   return (*FS)->createTreeFromNewAccesses(
@@ -522,21 +553,25 @@ Error checkCASIngestPath(StringRef CASPath, StringRef DataPath) {
 int ingestFileSystem(ObjectStore &CAS, std::optional<StringRef> CASPath,
                      StringRef Path) {
   ExitOnError ExitOnErr("llvm-cas: ingest: ");
-  if (Path.empty())
-    ExitOnErr(
-        createStringError(inconvertibleErrorCode(), "missing --data=<path>"));
-  if (CASPath)
+  if (CASIDFile) {
+    if (!Path.empty())
+      ExitOnErr(createStringError(
+          inconvertibleErrorCode(),
+          "incorrect usage of --data=<path> with --casid-file"));
+    return ingestFile(CAS);
+  }
+  if (CASPath && !Path.empty())
     ExitOnErr(checkCASIngestPath(*CASPath, Path));
   auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Path));
   outs() << Ref.getID() << "\n";
   return 0;
 }
 
-static int mergeTrees(ObjectStore &CAS, ArrayRef<std::string> Objects) {
+static int mergeTrees(ObjectStore &CAS, ArrayRef<std::string> InputFiles) {
   ExitOnError ExitOnErr("llvm-cas: merge: ");
 
   HierarchicalTreeBuilder Builder;
-  for (const auto &Object : Objects) {
+  for (const auto &Object : InputFiles) {
     auto ID = CAS.parseID(Object);
     if (ID) {
       if (std::optional<ObjectRef> Ref = CAS.getReference(*ID))
@@ -592,10 +627,10 @@ static ObjectRef importNode(ObjectStore &CAS, ObjectStore &UpstreamCAS,
 }
 
 static int import(ObjectStore &CAS, ObjectStore &UpstreamCAS,
-                  ArrayRef<std::string> Objects) {
+                  ArrayRef<std::string> InputFiles) {
   ExitOnError ExitOnErr("llvm-cas: import: ");
 
-  for (StringRef Object : Objects) {
+  for (StringRef Object : InputFiles) {
     CASID ID = ExitOnErr(CAS.parseID(Object));
     importNode(CAS, UpstreamCAS, ID);
   }
@@ -603,16 +638,16 @@ static int import(ObjectStore &CAS, ObjectStore &UpstreamCAS,
 }
 
 static int putCacheKey(ObjectStore &CAS, ActionCache &AC,
-                       ArrayRef<std::string> Objects) {
+                       ArrayRef<std::string> InputFiles) {
   ExitOnError ExitOnErr("llvm-cas: put-cache-key: ");
 
-  if (Objects.size() % 2 != 0)
+  if (InputFiles.size() % 2 != 0)
     ExitOnErr(createStringError(inconvertibleErrorCode(),
                                 "expected pairs of inputs"));
-  while (!Objects.empty()) {
-    CASID Key = ExitOnErr(CAS.parseID(Objects[0]));
-    CASID Result = ExitOnErr(CAS.parseID(Objects[1]));
-    Objects = Objects.drop_front(2);
+  while (!InputFiles.empty()) {
+    CASID Key = ExitOnErr(CAS.parseID(InputFiles[0]));
+    CASID Result = ExitOnErr(CAS.parseID(InputFiles[1]));
+    InputFiles = InputFiles.drop_front(2);
     ExitOnErr(AC.put(Key, Result));
   }
   return 0;
