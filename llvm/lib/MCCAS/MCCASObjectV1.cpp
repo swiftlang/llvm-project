@@ -553,10 +553,18 @@ Expected<uint64_t> GroupRef::materialize(MCCASReader &Reader,
     if (!Node)
       return Node.takeError();
     if (auto AbbrevRef = DebugAbbrevSectionRef::Cast(*Node)) {
+      bool DebugUnoptRefSeen = false;
       auto FragmentSize =
-          materializeAbbrevFromTagImpl(Reader, *AbbrevRef, ArrayRef(*Refs));
+          Reader.maybeMaterializeDebugAbbrevUnopt(*Node, DebugUnoptRefSeen);
       if (!FragmentSize)
         return FragmentSize.takeError();
+
+      if (!DebugUnoptRefSeen) {
+        FragmentSize =
+            materializeAbbrevFromTagImpl(Reader, *AbbrevRef, ArrayRef(*Refs));
+        if (!FragmentSize)
+          return FragmentSize.takeError();
+      }
       Size += *FragmentSize;
       continue;
     }
@@ -1745,6 +1753,17 @@ Error MCCASBuilder::createDebugInfoSection() {
 
 Error MCCASBuilder::createDebugAbbrevSection() {
   startSection(DwarfSections.Abbrev);
+  if (DebugInfoUnopt) {
+    Expected<SmallVector<char, 0>> DebugAbbrevData =
+        mergeMCFragmentContents(DwarfSections.Abbrev->getFragmentList(), true);
+    if (!DebugAbbrevData)
+      return DebugAbbrevData.takeError();
+    auto DbgAbbrevUnoptRef =
+        DebugAbbrevUnoptRef::create(*this, toStringRef(*DebugAbbrevData));
+    if (!DbgAbbrevUnoptRef)
+      return DbgAbbrevUnoptRef.takeError();
+    addNode(*DbgAbbrevUnoptRef);
+  }
   if (auto E = createPaddingRef(DwarfSections.Abbrev))
     return E;
   return finalizeSection<DebugAbbrevSectionRef>();
@@ -2598,6 +2617,42 @@ Expected<uint64_t> MCCASReader::materializeGroup(cas::ObjectRef ID) {
     return F->materialize(*this);
   return createStringError(inconvertibleErrorCode(),
                            "unsupported CAS node for group");
+}
+
+Expected<uint64_t>
+MCCASReader::maybeMaterializeDebugAbbrevUnopt(cas::ObjectProxy &Node,
+                                              bool &DebugUnoptRefSeen) {
+
+  auto Refs = loadReferences(Node);
+  SmallVector<char, 0> DebugAbbrevSection;
+  bool DebugAbbrevUnoptRefSeen = false;
+  for (auto Ref : Refs) {
+    auto Node = getObjectProxy(Ref);
+    if (!Node)
+      return Node.takeError();
+    if (auto F = DebugAbbrevUnoptRef::Cast(*Node)) {
+      assert(Refs.size() <= 2 &&
+             "If a DebugAbbrevUnoptRef is seen, there should be no more than 2 "
+             "CAS objects under the DebugAbbrevSectionRef!");
+      DebugAbbrevUnoptRefSeen = true;
+      auto Data = F->getData();
+      DebugAbbrevSection.append(Data.begin(), Data.end());
+      continue;
+    }
+    if (auto F = PaddingRef::Cast(*Node)) {
+      DebugUnoptRefSeen = DebugAbbrevUnoptRefSeen;
+      if (!DebugAbbrevUnoptRefSeen)
+        return 0;
+      raw_svector_ostream OS(DebugAbbrevSection);
+      auto Size = F->materialize(OS);
+      if (!Size)
+        return Size.takeError();
+      continue;
+    }
+    llvm_unreachable("Incorrect CAS Object in DebugAbbrevSection");
+  }
+  OS << DebugAbbrevSection;
+  return DebugAbbrevSection.size();
 }
 
 Expected<uint64_t> MCCASReader::materializeSection(cas::ObjectRef ID,
