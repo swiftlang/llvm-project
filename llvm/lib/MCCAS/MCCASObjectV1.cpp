@@ -478,51 +478,87 @@ Expected<uint64_t> materializeAbbrevFromTagImpl(MCCASReader &Reader,
   return Size + *MaybePaddingSize;
 }
 
+static Error materializeDebugInfoUnopt(MCCASReader &Reader,
+                                       ArrayRef<cas::ObjectRef> Refs,
+                                       SmallVectorImpl<char> &SectionContents) {
+
+  for (auto Ref : Refs) {
+    auto Node = Reader.getObjectProxy(Ref);
+    if (!Node)
+      return Node.takeError();
+    if (auto F = DebugInfoUnoptRef::Cast(*Node)) {
+      assert(Refs.size() <= 2 &&
+             "If a DebugInfoUnoptRef is seen, there should be no more than 2 "
+             "CAS objects under the DebugInfoSectionRef!");
+      auto Data = F->getData();
+      SectionContents.append(Data.begin(), Data.end());
+      continue;
+    }
+    if (auto F = PaddingRef::Cast(*Node)) {
+      raw_svector_ostream OS(SectionContents);
+      auto Size = F->materialize(OS);
+      if (!Size)
+        return Size.takeError();
+      continue;
+    }
+    llvm_unreachable("Incorrect CAS Object in SectionContents");
+  }
+  return Error::success();
+}
+
 static Expected<uint64_t>
 materializeDebugInfoFromTagImpl(MCCASReader &Reader,
                                 DebugInfoSectionRef SectionRef) {
   SmallVector<cas::ObjectRef> Refs = loadReferences(SectionRef);
-  auto MaybeTopRefs = findRefs<DIETopLevelRef>(Reader, Refs);
   SmallVector<char, 0> SectionContents;
   raw_svector_ostream SectionStream(SectionContents);
-
-  auto HeaderCallback = [&](StringRef HeaderData) {
-    SectionStream << HeaderData;
-  };
-
-  auto StartTagCallback = [&](dwarf::Tag, uint64_t AbbrevIdx) {
-    encodeULEB128(decodeAbbrevIndexAsDwarfAbbrevIdx(AbbrevIdx), SectionStream);
-  };
-
-  auto AttrCallback = [&](dwarf::Attribute, dwarf::Form Form,
-                          StringRef FormData, bool) {
-    if (Form == dwarf::Form::DW_FORM_ref4_cas ||
-        Form == dwarf::Form::DW_FORM_strp_cas) {
-      auto Reader = BinaryStreamReader(FormData, support::endianness::little);
-      uint64_t Data64;
-      if (auto Err = Reader.readULEB128(Data64))
-        handleAllErrors(std::move(Err));
-      uint32_t Data32 = Data64;
-      assert(Data32 == Data64 && Reader.empty());
-      SectionStream.write(reinterpret_cast<char *>(&Data32), sizeof(Data32));
-    } else
-      SectionStream << FormData;
-  };
-
-  auto EndTagCallback = [&](bool HadChildren) {
-    SectionStream.write_zeros(HadChildren);
-  };
-
-  if (!MaybeTopRefs)
-    return MaybeTopRefs.takeError();
-
-  SmallVector<StringRef, 0> TotAbbrevEntries;
-  for (auto MaybeTopRef : *MaybeTopRefs) {
-
-    if (auto E = visitDebugInfo(TotAbbrevEntries, std::move(MaybeTopRef),
-                                HeaderCallback, StartTagCallback, AttrCallback,
-                                EndTagCallback))
+  auto Node = Reader.getObjectProxy(Refs[0]);
+  if (!Node)
+    return Node.takeError();
+  if (auto UnoptRef = DebugInfoUnoptRef::Cast(*Node)) {
+    if (Error E = materializeDebugInfoUnopt(Reader, Refs, SectionContents))
       return std::move(E);
+  } else {
+    auto MaybeTopRefs = findRefs<DIETopLevelRef>(Reader, Refs);
+    auto HeaderCallback = [&](StringRef HeaderData) {
+      SectionStream << HeaderData;
+    };
+
+    auto StartTagCallback = [&](dwarf::Tag, uint64_t AbbrevIdx) {
+      encodeULEB128(decodeAbbrevIndexAsDwarfAbbrevIdx(AbbrevIdx),
+                    SectionStream);
+    };
+
+    auto AttrCallback = [&](dwarf::Attribute, dwarf::Form Form,
+                            StringRef FormData, bool) {
+      if (Form == dwarf::Form::DW_FORM_ref4_cas ||
+          Form == dwarf::Form::DW_FORM_strp_cas) {
+        auto Reader = BinaryStreamReader(FormData, support::endianness::little);
+        uint64_t Data64;
+        if (auto Err = Reader.readULEB128(Data64))
+          handleAllErrors(std::move(Err));
+        uint32_t Data32 = Data64;
+        assert(Data32 == Data64 && Reader.empty());
+        SectionStream.write(reinterpret_cast<char *>(&Data32), sizeof(Data32));
+      } else
+        SectionStream << FormData;
+    };
+
+    auto EndTagCallback = [&](bool HadChildren) {
+      SectionStream.write_zeros(HadChildren);
+    };
+
+    if (!MaybeTopRefs)
+      return MaybeTopRefs.takeError();
+
+    SmallVector<StringRef, 0> TotAbbrevEntries;
+    for (auto MaybeTopRef : *MaybeTopRefs) {
+
+      if (auto E = visitDebugInfo(TotAbbrevEntries, std::move(MaybeTopRef),
+                                  HeaderCallback, StartTagCallback,
+                                  AttrCallback, EndTagCallback))
+        return std::move(E);
+    }
   }
   Reader.Relocations.emplace_back();
   if (auto E = decodeRelocations(Reader, SectionRef.getData()))
@@ -1743,8 +1779,20 @@ MCCASBuilder::splitDebugInfoSectionData(MutableArrayRef<char> DebugInfoData) {
 Error MCCASBuilder::createDebugInfoSection() {
   startSection(DwarfSections.DebugInfo);
 
-  if (auto E = splitDebugInfoAndAbbrevSections())
-    return E;
+  if (DebugInfoUnopt) {
+    Expected<SmallVector<char, 0>> DebugInfoData = mergeMCFragmentContents(
+        DwarfSections.DebugInfo->getFragmentList(), true);
+    if (!DebugInfoData)
+      return DebugInfoData.takeError();
+    auto DbgInfoUnoptRef =
+        DebugInfoUnoptRef::create(*this, toStringRef(*DebugInfoData));
+    if (!DbgInfoUnoptRef)
+      return DbgInfoUnoptRef.takeError();
+    addNode(*DbgInfoUnoptRef);
+  } else {
+    if (auto E = splitDebugInfoAndAbbrevSections())
+      return E;
+  }
 
   if (auto E = createPaddingRef(DwarfSections.DebugInfo))
     return E;
