@@ -984,9 +984,8 @@ Expected<Object> serializeIF(const InterfaceFile *File) {
   return std::move(Library);
 }
 
-Expected<Object> getJSON(const InterfaceFile *File) {
-  assert(File->getFileType() == FileType::TBD_V5 &&
-         "unexpected json file format version");
+Expected<Object> getJSON(const InterfaceFile *File, const FileType FileKind) {
+  assert(FileKind == FileType::TBD_V5 && "unexpected json file format version");
   Object Root;
 
   auto MainLibOrErr = serializeIF(File);
@@ -1010,8 +1009,9 @@ Expected<Object> getJSON(const InterfaceFile *File) {
 
 Error MachO::serializeInterfaceFileToJSON(raw_ostream &OS,
                                           const InterfaceFile &File,
+                                          const FileType FileKind,
                                           bool Compact) {
-  auto TextFile = getJSON(&File);
+  auto TextFile = getJSON(&File, FileKind);
   if (!TextFile)
     return TextFile.takeError();
   if (Compact)
