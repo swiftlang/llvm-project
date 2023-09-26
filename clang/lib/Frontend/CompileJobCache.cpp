@@ -19,6 +19,7 @@
 #include "llvm/CAS/CASOutputBackend.h"
 #include "llvm/RemoteCachingService/Client.h"
 #include "llvm/Support/FileOutputBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/PrefixMapper.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/ScopedDurationTimer.h"
@@ -34,7 +35,8 @@ class CompileJobCache::CachingOutputs {
 public:
   using OutputKind = clang::cas::CompileJobCacheResult::OutputKind;
 
-  CachingOutputs(CompilerInstance &Clang, llvm::PrefixMapper Mapper);
+  CachingOutputs(CompilerInstance &Clang, StringRef Workingdir,
+                 llvm::PrefixMapper Mapper);
   virtual ~CachingOutputs() = default;
 
   /// \returns true if result was found and replayed, false otherwise.
@@ -73,10 +75,11 @@ namespace {
 /// \p llvm::cas::ActionCache.
 class ObjectStoreCachingOutputs : public CompileJobCache::CachingOutputs {
 public:
-  ObjectStoreCachingOutputs(CompilerInstance &Clang, llvm::PrefixMapper Mapper,
+  ObjectStoreCachingOutputs(CompilerInstance &Clang, StringRef WorkingDir,
+                            llvm::PrefixMapper Mapper,
                             std::shared_ptr<llvm::cas::ObjectStore> DB,
                             std::shared_ptr<llvm::cas::ActionCache> Cache)
-      : CachingOutputs(Clang, std::move(Mapper)), CAS(std::move(DB)),
+      : CachingOutputs(Clang, WorkingDir, std::move(Mapper)), CAS(std::move(DB)),
         Cache(std::move(Cache)) {
     if (CAS)
       CASOutputs = llvm::makeIntrusiveRefCnt<llvm::cas::CASOutputBackend>(*CAS);
@@ -167,9 +170,10 @@ private:
 /// and \p llvm::cas::KeyValueDBClient.
 class RemoteCachingOutputs : public CompileJobCache::CachingOutputs {
 public:
-  RemoteCachingOutputs(CompilerInstance &Clang, llvm::PrefixMapper Mapper,
+  RemoteCachingOutputs(CompilerInstance &Clang, StringRef WorkingDir,
+                       llvm::PrefixMapper Mapper,
                        llvm::cas::remote::ClientServices Clients)
-      : CachingOutputs(Clang, std::move(Mapper)) {
+      : CachingOutputs(Clang, WorkingDir, std::move(Mapper)) {
     RemoteKVClient = std::move(Clients.KVDB);
     RemoteCASClient = std::move(Clients.CASDB);
     CollectingOutputs = llvm::makeIntrusiveRefCnt<CollectingOutputBackend>();
@@ -219,13 +223,23 @@ CompileJobCache::CachingOutputs::getPathForOutputKind(OutputKind Kind) {
   }
 }
 
-static std::string fixupRelativePath(const std::string &Path, FileManager &FM) {
+static std::string fixupRelativePath(const std::string &Path, FileManager &FM,
+                                     StringRef WorkingDir) {
+  if (llvm::sys::path::is_absolute(Path) || Path.empty() || Path == "-")
+    return Path;
+
+  // Apply -working-dir compiler option.
   // FIXME: this needs to stay in sync with createOutputFileImpl. Ideally, clang
   // would create output files by their "kind" rather than by path.
-  if (!Path.empty() && Path != "-" && !llvm::sys::path::is_absolute(Path)) {
-    SmallString<128> PathStorage(Path);
-    if (FM.FixupRelativePath(PathStorage))
-      return std::string(PathStorage);
+  SmallString<128> PathStorage(Path);
+  if (FM.FixupRelativePath(PathStorage))
+    return std::string(PathStorage);
+
+  // Apply "normal" working directory.
+  if (!WorkingDir.empty()) {
+    SmallString<128> Tmp(Path);
+    llvm::sys::fs::make_absolute(WorkingDir, Tmp);
+    return std::string(Tmp);
   }
   return Path;
 }
@@ -290,16 +304,17 @@ std::optional<int> CompileJobCache::initialize(CompilerInstance &Clang) {
       return reportCachingBackendError(Clang.getDiagnostics(),
                                        Clients.takeError());
     CacheBackend = std::make_unique<RemoteCachingOutputs>(
-        Clang, std::move(PrefixMapper), std::move(*Clients));
+        Clang, /*WorkingDir=*/"", std::move(PrefixMapper), std::move(*Clients));
   } else {
     CacheBackend = std::make_unique<ObjectStoreCachingOutputs>(
-        Clang, std::move(PrefixMapper), CAS, Cache);
+        Clang, /*WorkingDir=*/"", std::move(PrefixMapper), CAS, Cache);
   }
 
   return std::nullopt;
 }
 
 CompileJobCache::CachingOutputs::CachingOutputs(CompilerInstance &Clang,
+                                                StringRef WorkingDir,
                                                 llvm::PrefixMapper Mapper)
     : Clang(Clang), PrefixMapper(std::move(Mapper)) {
   CompilerInvocation &Invocation = Clang.getInvocation();
@@ -307,9 +322,9 @@ CompileJobCache::CachingOutputs::CachingOutputs(CompilerInstance &Clang,
   if (!Clang.hasFileManager())
     Clang.createFileManager();
   FileManager &FM = Clang.getFileManager();
-  OutputFile = fixupRelativePath(FrontendOpts.OutputFile, FM);
-  DependenciesFile =
-      fixupRelativePath(Invocation.getDependencyOutputOpts().OutputFile, FM);
+  OutputFile = fixupRelativePath(FrontendOpts.OutputFile, FM, WorkingDir);
+  DependenciesFile = fixupRelativePath(
+      Invocation.getDependencyOutputOpts().OutputFile, FM, WorkingDir);
   DiagProcessor = std::make_unique<clang::cas::CachingDiagnosticsProcessor>(
       PrefixMapper, FM);
 }
@@ -491,8 +506,9 @@ bool CompileJobCache::finishComputedResult(CompilerInstance &Clang,
 }
 
 Expected<std::optional<int>> CompileJobCache::replayCachedResult(
-    std::shared_ptr<CompilerInvocation> Invok, const llvm::cas::CASID &CacheKey,
-    cas::CompileJobCacheResult &CachedResult, SmallVectorImpl<char> &DiagText) {
+    std::shared_ptr<CompilerInvocation> Invok, StringRef WorkingDir,
+    const llvm::cas::CASID &CacheKey, cas::CompileJobCacheResult &CachedResult,
+    SmallVectorImpl<char> &DiagText) {
   CompilerInstance Clang;
   Clang.setInvocation(std::move(Invok));
   llvm::raw_svector_ostream DiagOS(DiagText);
@@ -520,8 +536,9 @@ Expected<std::optional<int>> CompileJobCache::replayCachedResult(
 
   assert(!Clang.getDiagnostics().hasErrorOccurred());
 
-  ObjectStoreCachingOutputs CachingOutputs(Clang, std::move(PrefixMapper),
-                                           /*CAS*/ nullptr, /*Cache*/ nullptr);
+  ObjectStoreCachingOutputs CachingOutputs(
+      Clang, WorkingDir, std::move(PrefixMapper),
+      /*CAS*/ nullptr, /*Cache*/ nullptr);
 
   std::optional<int> Ret;
   if (Error E = CachingOutputs
