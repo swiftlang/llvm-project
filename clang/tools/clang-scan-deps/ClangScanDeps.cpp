@@ -225,6 +225,12 @@ llvm::cl::opt<bool> EmitCASCompDB(
 llvm::cl::opt<std::string>
     OnDiskCASPath("cas-path", llvm::cl::desc("Path for on-disk CAS."),
                   llvm::cl::cat(DependencyScannerCategory));
+llvm::cl::opt<std::string>
+    CASPluginPath("fcas-plugin-path", llvm::cl::desc("Path to a shared library implementing the LLVM CAS plugin API"),
+                  llvm::cl::cat(DependencyScannerCategory));
+llvm::cl::list<std::string>
+    CASPluginOptions("fcas-plugin-option", llvm::cl::desc("Option to pass to the CAS plugin"),
+                  llvm::cl::cat(DependencyScannerCategory));
 
 llvm::cl::opt<bool> InMemoryCAS(
     "in-memory-cas", llvm::cl::desc("Use an in-memory CAS instead of on-disk."),
@@ -898,16 +904,19 @@ int main(int argc, const char **argv) {
   Diags.setClient(DiagsConsumer.get(), /*ShouldOwnClient=*/false);
 
   CASOptions CASOpts;
+  CASOpts.CASPath = OnDiskCASPath;
+  CASOpts.PluginPath = CASPluginPath;
+  for (StringRef Arg : CASPluginOptions) {
+    auto [L, R] = Arg.split('=');
+    CASOpts.PluginOptions.emplace_back(std::string(L), std::string(R));
+  }
+
   std::shared_ptr<llvm::cas::ObjectStore> CAS;
   std::shared_ptr<llvm::cas::ActionCache> Cache;
   IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS;
   if (useCAS()) {
-    if (!InMemoryCAS) {
-      if (!OnDiskCASPath.empty())
-        CASOpts.CASPath = OnDiskCASPath;
-      else
-        CASOpts.ensurePersistentCAS();
-    }
+    if (!InMemoryCAS)
+      CASOpts.ensurePersistentCAS();
 
     std::tie(CAS, Cache) = CASOpts.getOrCreateDatabases(Diags);
     if (!CAS)
