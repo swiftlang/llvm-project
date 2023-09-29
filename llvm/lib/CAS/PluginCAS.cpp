@@ -69,8 +69,10 @@ Expected<std::shared_ptr<PluginCASContext>> PluginCASContext::create(
 
   SmallString<256> PathBuf = PluginPath;
   std::string ErrMsg;
-  sys::DynamicLibrary Lib =
-      sys::DynamicLibrary::getPermanentLibrary(PathBuf.c_str(), &ErrMsg);
+  // Note: we cannot close the dynamic library, because we may have a global
+  // reference that will call llcas_cas_dispose.
+  sys::DynamicLibrary Lib = sys::DynamicLibrary::getPermanentLibrary(
+      PathBuf.c_str(), &ErrMsg, /*CloseOnExit=*/false);
   if (!Lib.isValid())
     return reportError(ErrMsg);
 
