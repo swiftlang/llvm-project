@@ -548,6 +548,12 @@ int main(int argc, char **argv) {
   assert(MCII && "Unable to create instruction info!");
 
   MCInstPrinter *IP = nullptr;
+
+  if (UseMCCASBackend && FileType != OFT_ObjectFile) {
+    WithColor::error() << "-cas-backend is only compatible with -filetype=obj";
+    return 1;
+  }
+
   if (FileType == OFT_AssemblyFile) {
     IP = TheTarget->createMCInstPrinter(Triple(TripleName), OutputAsmVariant,
                                         *MAI, *MCII, *MRI);
