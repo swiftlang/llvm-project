@@ -367,6 +367,9 @@ AST Matchers
 - Added ``objcStringLiteral`` matcher which matches ObjectiveC String
   literal expressions.
 
+- Added ``objcStringLiteral`` matcher which matches ObjectiveC String
+  literal expressions.
+
 clang-format
 ------------
 
