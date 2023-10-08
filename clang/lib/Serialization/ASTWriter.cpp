@@ -2512,8 +2512,13 @@ unsigned ASTWriter::getSubmoduleID(Module *Mod) {
   // did not result in us loading a module file for that submodule. For
   // instance, a cross-top-level-module 'conflict' declaration will hit this.
   unsigned ID = getLocalOrImportedSubmoduleID(Mod);
-  assert((ID || !Mod) &&
-         "asked for module ID for non-local, non-imported module");
+#ifndef NDEBUG
+  if (!(ID || !Mod)) {
+    llvm::report_fatal_error(llvm::Twine("asked for module ID for non-local, "
+                                         "non-imported module '")
+                             + Mod->getFullModuleName() + "'");
+  }
+#endif
   return ID;
 }
 
@@ -4306,6 +4311,8 @@ ASTFileSignature ASTWriter::WriteAST(Sema &SemaRef,
                                      Module *WritingModule, StringRef isysroot,
                                      bool hasErrors,
                                      bool ShouldCacheASTInMemory) {
+  PrettyStackTraceModuleAction trace("Writing AST file for", WritingModule);
+
   WritingAST = true;
 
   ASTHasCompilerErrors = hasErrors;

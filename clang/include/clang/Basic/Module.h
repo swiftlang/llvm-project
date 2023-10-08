@@ -28,6 +28,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Support/PrettyStackTrace.h"
 #include <array>
 #include <cassert>
 #include <cstdint>
@@ -745,6 +746,15 @@ public:
   Module *getModuleOrNull() const { return ClangModule; }
 };
 
+class PrettyStackTraceModuleAction : public llvm::PrettyStackTraceEntry {
+  const char *Action;
+  const Module *SubjectModule;
+
+public:
+  PrettyStackTraceModuleAction(const char *Action, const Module *SubjectModule)
+      : Action(Action), SubjectModule(SubjectModule) {}
+  void print(raw_ostream &OS) const override;
+};
 
 } // namespace clang
 
