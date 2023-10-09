@@ -1378,8 +1378,9 @@ std::error_code getRealPathFromHandle(file_t Handle,
   return realPathFromHandle(Handle, RealPath);
 }
 
-std::error_code tryLockFile(int FD, std::chrono::milliseconds Timeout, bool Exclusive) {
-  DWORD Flags = Exclusive ? LOCKFILE_EXCLUSIVE_LOCK : 0;
+std::error_code tryLockFile(int FD, std::chrono::milliseconds Timeout,
+                            LockKind Kind) {
+  DWORD Flags = Kind == LockKind::Exclusive ? LOCKFILE_EXCLUSIVE_LOCK : 0;
   Flags |= LOCKFILE_FAIL_IMMEDIATELY;
   OVERLAPPED OV = {};
   file_t File = convertFDToNativeFile(FD);
@@ -1400,8 +1401,8 @@ std::error_code tryLockFile(int FD, std::chrono::milliseconds Timeout, bool Excl
   return mapWindowsError(ERROR_LOCK_VIOLATION);
 }
 
-std::error_code lockFile(int FD, bool Exclusive) {
-  DWORD Flags = Exclusive ? LOCKFILE_EXCLUSIVE_LOCK : 0;
+std::error_code lockFile(int FD, LockKind Kind) {
+  DWORD Flags = Kind == LockKind::Exclusive ? LOCKFILE_EXCLUSIVE_LOCK : 0;
   OVERLAPPED OV = {};
   file_t File = convertFDToNativeFile(FD);
   if (::LockFileEx(File, Flags, 0, MAXDWORD, MAXDWORD, &OV))
