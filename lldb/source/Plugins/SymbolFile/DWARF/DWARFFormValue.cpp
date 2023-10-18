@@ -151,7 +151,7 @@ bool DWARFFormValue::ExtractValue(const DWARFDataExtractor &data,
 struct FormSize {
   uint8_t valid:1, size:7;
 };
-static FormSize g_form_sizes[] = {
+static constexpr FormSize g_form_sizes[] = {
     {0, 0}, // 0x00 unused
     {0, 0}, // 0x01 DW_FORM_addr
     {0, 0}, // 0x02 unused
