@@ -14,7 +14,6 @@
 #define liblldb_SwiftLanguageRuntime_h_
 
 #include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntimeV2.h"
-#include "Plugins/LanguageRuntime/Swift/SwiftMetadataCache.h"
 #include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
 #include "lldb/Breakpoint/BreakpointPrecondition.h"
 #include "lldb/Core/PluginInterface.h"
@@ -51,7 +50,6 @@ class TypeBase;
 } // namespace swift
 
 namespace lldb_private {
-struct ThreadSafeReflectionContext;
 
 /// Statically cast a CompilerType to a Swift type.
 swift::Type GetSwiftType(CompilerType type);
@@ -60,7 +58,6 @@ swift::CanType GetCanonicalSwiftType(CompilerType type);
 
 class SwiftLanguageRuntimeStub;
 class SwiftLanguageRuntimeImpl;
-class ReflectionContextInterface;
 
 class SwiftLanguageRuntime : public LanguageRuntime {
 protected:
@@ -76,7 +73,6 @@ protected:
   std::unique_ptr<SwiftLanguageRuntimeImpl> m_impl;
 
 public:
-  ThreadSafeReflectionContext GetReflectionContext();
   static char ID;
 
   bool isA(const void *ClassID) const override {

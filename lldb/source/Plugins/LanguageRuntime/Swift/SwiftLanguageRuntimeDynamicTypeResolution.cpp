@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "LLDBMemoryReader.h"
-#include "ReflectionContextInterface.h"
 #include "SwiftLanguageRuntime.h"
 #include "SwiftLanguageRuntimeImpl.h"
 #include "SwiftMetadataCache.h"
@@ -220,6 +219,9 @@ lldb::addr_t SwiftLanguageRuntime::MaybeMaskNonTrivialReferencePointer(
 
   return addr & ~mask;
 }
+
+SwiftLanguageRuntimeImpl::ReflectionContextInterface::
+    ~ReflectionContextInterface() {}
 
 const CompilerType &SwiftLanguageRuntimeImpl::GetBoxMetadataType() {
   if (m_box_metadata_type.IsValid())
