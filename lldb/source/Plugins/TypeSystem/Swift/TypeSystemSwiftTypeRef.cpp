@@ -1576,6 +1576,27 @@ void TypeSystemSwiftTypeRef::SetCachedType(ConstString mangled,
   m_swift_type_map.Insert(mangled.GetCString(), type_sp);
 }
 
+std::optional<DIERef>
+TypeSystemSwiftTypeRef::GetCachedDie(ConstString mangled) {
+  DIERef ref(LLDB_INVALID_ADDRESS);
+  if (m_swift_die_map.Lookup(mangled, ref))
+    return ref;
+  return {};
+}
+
+void TypeSystemSwiftTypeRef::SetCachedDie(ConstString mangled,
+                                          const DIERef ref) {
+  m_swift_die_map.Insert(mangled, ref);
+}
+
+const swift::reflection::TypeInfo *
+TypeSystemSwiftTypeRef::LookupTypeInfoInSymbolFile(ConstString mangled_name,
+                                    lldb_private::ExecutionContext *exe_ctx,
+                                    swift::remote::TypeInfoProvider *provider) {
+  auto *parser = llvm::cast<DWARFASTParserSwift>(GetDWARFParser());
+  return parser->BuildTypeInfo(mangled_name, exe_ctx, provider);
+}
+
 bool TypeSystemSwiftTypeRef::SupportsLanguage(lldb::LanguageType language) {
   return language == eLanguageTypeSwift;
 }

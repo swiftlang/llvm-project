@@ -19,6 +19,15 @@
 class DWARFDebugInfoEntry;
 class DWARFDIECollection;
 
+namespace swift {
+namespace reflection {
+class TypeInfo;
+} // namespace reflection
+namespace remote {
+struct TypeInfoProvider;
+} // namespace remote
+} // namespace swift
+
 namespace lldb_private { class TypeSystemSwiftTypeRef; }
 
 class DWARFASTParserSwift : public DWARFASTParser {
@@ -66,6 +75,15 @@ public:
                     "yet been implemented");
     return lldb_private::ConstString();
   }
+
+  /// Build a type info from a mangled name. As an implementation detail, this
+  /// function and ReflectionContext::GetTypeInfo are co-recursive, as this
+  /// function may ask for the type infos of the type's members to build the
+  /// current type, and ReflectionContext::GetTypeInfo may query it back.
+  const swift::reflection::TypeInfo *
+  BuildTypeInfo(lldb_private::ConstString mangled_name,
+                const lldb_private::ExecutionContext *exe_ctx,
+                swift::remote::TypeInfoProvider *provider);
 
   static bool classof(const DWARFASTParser *Parser) {
     return Parser->GetKind() == Kind::DWARFASTParserSwift;
