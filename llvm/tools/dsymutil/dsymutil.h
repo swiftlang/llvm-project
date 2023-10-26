@@ -37,13 +37,15 @@ class BinaryHolder;
 ErrorOr<std::vector<std::unique_ptr<DebugMap>>>
 parseDebugMap(llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
               StringRef InputFile, ArrayRef<std::string> Archs,
-              StringRef PrependPath, bool PaperTrailWarnings, bool Verbose,
+              ArrayRef<std::string> DSYMSearchPaths, StringRef PrependPath,
+              StringRef VariantSuffix, bool PaperTrailWarnings, bool Verbose,
               bool InputIsYAML);
 
 /// Dump the symbol table.
 bool dumpStab(llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
               StringRef InputFile, ArrayRef<std::string> Archs,
-              StringRef PrependPath = "");
+              ArrayRef<std::string> DSYMSearchPaths, StringRef PrependPath = "",
+              StringRef VariantSuffix = "");
 
 } // end namespace dsymutil
 } // end namespace llvm
