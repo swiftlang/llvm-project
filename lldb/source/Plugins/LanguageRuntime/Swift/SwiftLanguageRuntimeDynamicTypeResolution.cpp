@@ -301,6 +301,9 @@ public:
 #endif
     ConstString mangled(wrapped);
     CompilerType swift_type = m_typesystem.GetTypeFromMangledTypename(mangled);
+    if (const auto *type_info = LookupTypeInfoInSymbolFile(mangled))
+      return type_info;
+
     auto ts = swift_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
     if (!ts)
       return nullptr;
@@ -317,6 +320,18 @@ public:
     return GetOrCreateTypeInfo(clang_type);
   }
 
+  const swift::reflection::TypeInfo *
+  LookupTypeInfoInSymbolFile(ConstString mangled_name) {
+    ExecutionContext exe_ctx;
+    m_runtime.GetProcess().CalculateExecutionContext(exe_ctx);
+    if (const auto *type_info =
+            m_typesystem.GetTypeSystemSwiftTypeRef().LookupTypeInfoInSymbolFile(
+                mangled_name, &exe_ctx, this))
+      return type_info;
+
+    return nullptr;
+  }
+  
   const swift::reflection::TypeInfo *
   GetOrCreateTypeInfo(CompilerType clang_type) {
     if (auto ti = m_runtime.lookupClangTypeInfo(clang_type))

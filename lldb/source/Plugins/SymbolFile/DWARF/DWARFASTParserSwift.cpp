@@ -32,6 +32,8 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 
+#include "swift/RemoteInspection/TypeLowering.h"
+
 #include "clang/AST/DeclObjC.h"
 
 using namespace lldb;
@@ -202,8 +204,10 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
 
   // Cache this type.
   if (type_sp && mangled_name &&
-      SwiftLanguageRuntime::IsSwiftMangledName(mangled_name.GetStringRef()))
+      SwiftLanguageRuntime::IsSwiftMangledName(mangled_name.GetStringRef())) {
     m_swift_typesystem.SetCachedType(mangled_name, type_sp);
+    m_swift_typesystem.SetCachedDie(mangled_name, *die.GetDIERef());
+  }
   die.GetDWARF()->GetDIEToType()[die.GetDIE()] = type_sp.get();
 
   return type_sp;
@@ -295,4 +299,11 @@ DWARFASTParserSwift::GetDeclContextForUIDFromDWARF(const DWARFDIE &die) {
 lldb_private::CompilerDeclContext
 DWARFASTParserSwift::GetDeclContextContainingUIDFromDWARF(const DWARFDIE &die) {
   return CompilerDeclContext();
+}
+
+const swift::reflection::TypeInfo *DWARFASTParserSwift::BuildTypeInfo(
+    ConstString mangled_name, const lldb_private::ExecutionContext *exe_ctx,
+    swift::remote::TypeInfoProvider *provider) {
+  // TODO: implement this.
+  return nullptr;
 }

@@ -13,6 +13,7 @@
 #ifndef liblldb_TypeSystemSwiftTypeRef_h_
 #define liblldb_TypeSystemSwiftTypeRef_h_
 
+#include "Plugins/SymbolFile/DWARF/DIERef.h"
 #include "Plugins/TypeSystem/Swift/TypeSystemSwift.h"
 #include "lldb/Core/SwiftForward.h"
 #include "lldb/Utility/ThreadSafeDenseMap.h"
@@ -30,6 +31,12 @@ class Node;
 using NodePointer = Node *;
 class Demangler;
 } // namespace Demangle
+namespace reflection {
+class TypeInfo;
+} // namespace reflection
+namespace remote {
+struct TypeInfoProvider;
+} // namespace remote
 } // namespace swift
 
 namespace lldb_private {
@@ -261,6 +268,15 @@ public:
   lldb::TypeSP GetCachedType(ConstString mangled);
   lldb::TypeSP GetCachedType(lldb::opaque_compiler_type_t type);
   void SetCachedType(ConstString mangled, const lldb::TypeSP &type_sp);
+
+  std::optional<DIERef> GetCachedDie(ConstString mangled);
+  void SetCachedDie(ConstString mangled, const DIERef ref);
+
+  const swift::reflection::TypeInfo *
+  LookupTypeInfoInSymbolFile(ConstString mangled_name,
+                            lldb_private::ExecutionContext *exe_ctx,
+                            swift::remote::TypeInfoProvider *provider);
+
   bool IsImportedType(lldb::opaque_compiler_type_t type,
                       CompilerType *original_type) override;
   /// Like \p IsImportedType(), but even returns Clang types that are also Swift
@@ -450,6 +466,8 @@ protected:
   ThreadSafeDenseMap<const char *, lldb::TypeSP> m_swift_type_map;
   /// Map ConstString Clang type identifiers to Clang types.
   ThreadSafeDenseMap<const char *, lldb::TypeSP> m_clang_type_cache;
+  /// Map from type's mangled names to their corresponding DIERefs.
+  ThreadSafeDenseMap<ConstString, DIERef> m_swift_die_map;
 };
 
 /// This one owns a SwiftASTContextForExpressions.
