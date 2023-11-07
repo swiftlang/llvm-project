@@ -135,6 +135,10 @@ public:
 
   void SetError(llvm::Error error);
 
+  lldb_private::Status GetStatus() const;
+
+  void SetStatus(lldb_private::Status status);
+
   lldb::ReturnStatus GetReturnStatus() const;
 
   void SetReturnStatus(lldb::ReturnStatus status);
@@ -161,6 +165,7 @@ private:
   StreamTee m_out_stream;
   StreamTee m_err_stream;
 
+  Status m_status;
   lldb::ReturnStatus m_return_status = lldb::eReturnStatusStarted;
 
   bool m_did_change_process_state = false;

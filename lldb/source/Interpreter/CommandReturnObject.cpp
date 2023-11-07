@@ -127,6 +127,10 @@ void CommandReturnObject::AppendRawError(llvm::StringRef in_string) {
   GetErrorStream() << in_string;
 }
 
+void CommandReturnObject::SetStatus(lldb_private::Status status) { m_status = status; }
+
+lldb_private::Status CommandReturnObject::GetStatus() const { return m_status; }
+
 void CommandReturnObject::SetReturnStatus(ReturnStatus status) { m_return_status = status; }
 
 ReturnStatus CommandReturnObject::GetReturnStatus() const { return m_return_status; }
