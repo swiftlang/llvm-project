@@ -88,7 +88,7 @@ protected:
   uint32_t m_compiler_id; // Compiler-specific diagnostic ID
 };
 
-typedef std::vector<std::unique_ptr<Diagnostic>> DiagnosticList;
+typedef std::vector<std::shared_ptr<Diagnostic>> DiagnosticList;
 
 class DiagnosticManager {
 public:
@@ -101,7 +101,7 @@ public:
 
   bool HasFixIts() const {
     return llvm::any_of(m_diagnostics,
-                        [](const std::unique_ptr<Diagnostic> &diag) {
+                        [](const std::shared_ptr<Diagnostic> &diag) {
                           return diag->HasFixIts();
                         });
   }
@@ -110,7 +110,7 @@ public:
                      DiagnosticOrigin origin,
                      uint32_t compiler_id = LLDB_INVALID_COMPILER_ID) {
     m_diagnostics.emplace_back(
-        std::make_unique<Diagnostic>(message, severity, origin, compiler_id));
+        std::make_shared<Diagnostic>(message, severity, origin, compiler_id));
   }
 
   void AddDiagnostic(std::unique_ptr<Diagnostic> diagnostic) {
