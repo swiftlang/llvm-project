@@ -9,6 +9,7 @@
 #ifndef LLDB_UTILITY_STATUS_H
 #define LLDB_UTILITY_STATUS_H
 
+#include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/lldb-defines.h"
 #include "lldb/lldb-enumerations.h"
 #include "llvm/ADT/StringRef.h"
@@ -189,12 +190,14 @@ public:
   ///     success (non-erro), \b false otherwise.
   bool Success() const;
 
+  DiagnosticManager &GetDiagnosticManager() const { return m_diagnostic_manager; }
 protected:
   /// Member variables
   ValueType m_code = 0; ///< Status code as an integer value.
   lldb::ErrorType m_type =
       lldb::eErrorTypeInvalid;  ///< The type of the above error code.
   mutable std::string m_string; ///< A string representation of the error code.
+  mutable DiagnosticManager m_diagnostic_manager;
 private:
   explicit Status(const llvm::formatv_object_base &payload) {
     SetErrorToGenericError();

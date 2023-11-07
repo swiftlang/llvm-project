@@ -37,10 +37,10 @@ class raw_ostream;
 using namespace lldb;
 using namespace lldb_private;
 
-Status::Status() : m_string() {}
+Status::Status() : m_string(), m_diagnostic_manager() {}
 
 Status::Status(ValueType err, ErrorType type)
-    : m_code(err), m_type(type), m_string() {}
+    : m_code(err), m_type(type), m_string(), m_diagnostic_manager() {}
 
 // This logic is confusing because c++ calls the traditional (posix) errno codes
 // "generic errors", while we use the term "generic" to mean completely
@@ -49,9 +49,10 @@ Status::Status(std::error_code EC)
     : m_code(EC.value()),
       m_type(EC.category() == std::generic_category() ? eErrorTypePOSIX
                                                       : eErrorTypeGeneric),
-      m_string(EC.message()) {}
+      m_string(EC.message()),
+      m_diagnostic_manager() {}
 
-Status::Status(const char *format, ...) : m_string() {
+Status::Status(const char *format, ...) : m_string(), m_diagnostic_manager() {
   va_list args;
   va_start(args, format);
   SetErrorToGenericError();
