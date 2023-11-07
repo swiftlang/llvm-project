@@ -275,7 +275,7 @@ UserExpression::Evaluate(ExecutionContext &exe_ctx,
     return lldb::eExpressionInterrupted;
   }
 
-  DiagnosticManager diagnostic_manager;
+  DiagnosticManager &diagnostic_manager = error.GetDiagnosticManager();
 
   bool parse_success =
       user_expression_sp->Parse(diagnostic_manager, exe_ctx, execution_policy,
