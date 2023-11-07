@@ -127,17 +127,17 @@ void CommandReturnObject::AppendRawError(llvm::StringRef in_string) {
   GetErrorStream() << in_string;
 }
 
-void CommandReturnObject::SetStatus(ReturnStatus status) { m_status = status; }
+void CommandReturnObject::SetStatus(ReturnStatus status) { m_return_status = status; }
 
-ReturnStatus CommandReturnObject::GetStatus() const { return m_status; }
+ReturnStatus CommandReturnObject::GetStatus() const { return m_return_status; }
 
 bool CommandReturnObject::Succeeded() const {
-  return m_status <= eReturnStatusSuccessContinuingResult;
+  return m_return_status <= eReturnStatusSuccessContinuingResult;
 }
 
 bool CommandReturnObject::HasResult() const {
-  return (m_status == eReturnStatusSuccessFinishResult ||
-          m_status == eReturnStatusSuccessContinuingResult);
+  return (m_return_status == eReturnStatusSuccessFinishResult ||
+          m_return_status == eReturnStatusSuccessContinuingResult);
 }
 
 void CommandReturnObject::Clear() {
@@ -148,7 +148,7 @@ void CommandReturnObject::Clear() {
   stream_sp = m_err_stream.GetStreamAtIndex(eStreamStringIndex);
   if (stream_sp)
     static_cast<StreamString *>(stream_sp.get())->Clear();
-  m_status = eReturnStatusStarted;
+  m_return_status = eReturnStatusStarted;
   m_did_change_process_state = false;
   m_suppress_immediate_output = false;
   m_interactive = true;
