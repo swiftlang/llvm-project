@@ -43,9 +43,9 @@ protected:
       file_path = args[0].ref();
 
     if (m_interpreter.SaveTranscript(result, file_path.str()))
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     else
-      result.SetStatus(eReturnStatusFailed);
+      result.SetReturnStatus(eReturnStatusFailed);
     return result.Succeeded();
   }
 };
@@ -131,14 +131,14 @@ protected:
     if (m_options.m_clear.GetCurrentValue() &&
         m_options.m_clear.OptionWasSet()) {
       m_interpreter.GetCommandHistory().Clear();
-      result.SetStatus(lldb::eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(lldb::eReturnStatusSuccessFinishNoResult);
     } else {
       if (m_options.m_start_idx.OptionWasSet() &&
           m_options.m_stop_idx.OptionWasSet() &&
           m_options.m_count.OptionWasSet()) {
         result.AppendError("--count, --start-index and --end-index cannot be "
                            "all specified in the same invocation");
-        result.SetStatus(lldb::eReturnStatusFailed);
+        result.SetReturnStatus(lldb::eReturnStatusFailed);
       } else {
         std::pair<bool, uint64_t> start_idx(
             m_options.m_start_idx.OptionWasSet(),

@@ -391,7 +391,7 @@ protected:
       return false;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     const size_t count = valid_wp_ids.size();
     for (size_t i = 0; i < count; ++i) {
       uint32_t cur_wp_id = valid_wp_ids.at(i);
@@ -499,7 +499,7 @@ protected:
       return false;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     const size_t count = valid_wp_ids.size();
     for (size_t i = 0; i < count; ++i) {
       uint32_t cur_wp_id = valid_wp_ids.at(i);
@@ -567,7 +567,7 @@ protected:
       return false;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     const size_t count = valid_wp_ids.size();
     for (size_t i = 0; i < count; ++i) {
       uint32_t cur_wp_id = valid_wp_ids.at(i);
@@ -591,7 +591,7 @@ protected:
                   cur_wp_id);
             }
           }
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendErrorWithFormat("Invalid watchpoint ID: %u.\n",
                                        cur_wp_id);

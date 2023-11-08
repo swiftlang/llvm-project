@@ -230,7 +230,7 @@ protected:
       return false;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 
@@ -274,7 +274,7 @@ public:
 
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     if (!args.empty()) {
       for (const auto &arg : args) {
@@ -518,7 +518,7 @@ public:
 
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     const size_t argc = args.GetArgumentCount();
     if (argc > 0) {
@@ -603,7 +603,7 @@ public:
 protected:
   bool DoExecute(llvm::StringRef command,
                  CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 
     Args cmd_args(command);
 
@@ -711,7 +711,7 @@ public:
 protected:
   bool DoExecute(llvm::StringRef command,
                  CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 
     Args cmd_args(command);
     const char *var_name = cmd_args.GetArgumentAtIndex(0);
@@ -731,7 +731,7 @@ protected:
       result.AppendError(error.AsCString());
       return false;
     } else {
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     }
 
     return result.Succeeded();
@@ -803,7 +803,7 @@ public:
 protected:
   bool DoExecute(llvm::StringRef command,
                  CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 
     Args cmd_args(command);
     const size_t argc = cmd_args.GetArgumentCount();
@@ -899,7 +899,7 @@ public:
 protected:
   bool DoExecute(llvm::StringRef command,
                  CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 
     Args cmd_args(command);
     const size_t argc = cmd_args.GetArgumentCount();
@@ -984,7 +984,7 @@ public:
 protected:
   bool DoExecute(llvm::StringRef command,
                  CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     Args cmd_args(command);
     const size_t argc = cmd_args.GetArgumentCount();
 
@@ -1090,7 +1090,7 @@ public:
 
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     const size_t argc = command.GetArgumentCount();
 
     if (m_options.m_clear_all) {

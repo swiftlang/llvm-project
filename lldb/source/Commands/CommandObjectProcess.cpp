@@ -77,14 +77,14 @@ protected:
                             m_new_process_action);
 
         if (!m_interpreter.Confirm(message, true)) {
-          result.SetStatus(eReturnStatusFailed);
+          result.SetReturnStatus(eReturnStatusFailed);
           return false;
         } else {
           if (process->GetShouldDetach()) {
             bool keep_stopped = false;
             Status detach_error(process->Detach(keep_stopped));
             if (detach_error.Success()) {
-              result.SetStatus(eReturnStatusSuccessFinishResult);
+              result.SetReturnStatus(eReturnStatusSuccessFinishResult);
               process = nullptr;
             } else {
               result.AppendErrorWithFormat(
@@ -94,7 +94,7 @@ protected:
           } else {
             Status destroy_error(process->Destroy(false));
             if (destroy_error.Success()) {
-              result.SetStatus(eReturnStatusSuccessFinishResult);
+              result.SetReturnStatus(eReturnStatusSuccessFinishResult);
               process = nullptr;
             } else {
               result.AppendErrorWithFormat("Failed to kill process: %s\n",
@@ -281,7 +281,7 @@ protected:
               "Process %" PRIu64 " launched: '%s' (%s)\n", process_sp->GetID(),
               exe_module_sp->GetFileSpec().GetPath().c_str(), archname);
         }
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         result.SetDidChangeProcessState(true);
       } else {
         result.AppendError(
@@ -373,7 +373,7 @@ protected:
       process_sp = target->GetProcessSP();
       if (process_sp) {
         result.AppendMessage(stream.GetString());
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
         result.SetDidChangeProcessState(true);
       } else {
         result.AppendError(
@@ -724,9 +724,9 @@ protected:
           result.AppendMessage(stream.GetString());
 
           result.SetDidChangeProcessState(true);
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
         } else {
-          result.SetStatus(eReturnStatusSuccessContinuingNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessContinuingNoResult);
         }
       } else {
         result.AppendErrorWithFormat("Failed to resume process: %s.\n",
@@ -823,7 +823,7 @@ protected:
 
     Status error(process->Detach(keep_stopped));
     if (error.Success()) {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendErrorWithFormat("Detach failed: %s\n", error.AsCString());
       return false;
@@ -1064,7 +1064,7 @@ protected:
         result.AppendMessageWithFormat(
             "Loading \"%s\"...ok\nImage %u loaded.\n", image_path.str().c_str(),
             image_token);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         result.AppendErrorWithFormat("failed to load '%s': %s",
                                      image_path.str().c_str(),
@@ -1130,7 +1130,7 @@ protected:
         if (error.Success()) {
           result.AppendMessageWithFormat(
               "Unloading shared library with index %u...ok\n", image_token);
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendErrorWithFormat("failed to unload image: %s",
                                        error.AsCString());
@@ -1203,7 +1203,7 @@ protected:
       } else {
         Status error(process->Signal(signo));
         if (error.Success()) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendErrorWithFormat("Failed to send signal %i: %s\n", signo,
                                        error.AsCString());
@@ -1243,7 +1243,7 @@ protected:
     bool clear_thread_plans = true;
     Status error(process->Halt(clear_thread_plans));
     if (error.Success()) {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendErrorWithFormat("Failed to halt process: %s\n",
                                    error.AsCString());
@@ -1276,7 +1276,7 @@ protected:
 
     Status error(process->Destroy(true));
     if (error.Success()) {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendErrorWithFormat("Failed to kill process: %s\n",
                                    error.AsCString());
@@ -1379,7 +1379,7 @@ protected:
                 "in this corefile.  Use --style full to include all "
                 "process memory.\n");
           }
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendErrorWithFormat(
               "Failed to save core file for process: %s\n", error.AsCString());
@@ -1453,7 +1453,7 @@ public:
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Stream &strm = result.GetOutputStream();
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 
     // No need to check "process" for validity as eCommandRequiresProcess
     // ensures it is valid
@@ -1728,7 +1728,7 @@ protected:
     // return:
     if (m_options.only_target_values) {
       target.PrintDummySignals(result.GetOutputStream(), signal_args);
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return true;
     }
 
@@ -1737,7 +1737,7 @@ protected:
       target.ClearDummySignals(signal_args);
       if (m_options.dummy)
         GetDummyTarget().ClearDummySignals(signal_args);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     }
 
@@ -1828,9 +1828,9 @@ protected:
           signal_args);
 
     if (num_signals_set > 0)
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     else
-      result.SetStatus(eReturnStatusFailed);
+      result.SetReturnStatus(eReturnStatusFailed);
 
     return result.Succeeded();
   }
@@ -1881,7 +1881,7 @@ public:
     if (llvm::Error err = trace_sp->Stop())
       result.AppendError(toString(std::move(err)));
     else
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     return result.Succeeded();
   }

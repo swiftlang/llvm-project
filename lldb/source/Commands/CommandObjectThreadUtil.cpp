@@ -36,7 +36,7 @@ CommandObjectMultipleThreads::CommandObjectMultipleThreads(
 
 bool CommandObjectIterateOverThreads::DoExecute(Args &command,
                                                 CommandReturnObject &result) {
-  result.SetStatus(m_success_return);
+  result.SetReturnStatus(m_success_return);
 
   bool all_threads = false;
   if (command.GetArgumentCount() == 0) {

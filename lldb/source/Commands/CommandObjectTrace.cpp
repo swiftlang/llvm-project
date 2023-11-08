@@ -121,7 +121,7 @@ protected:
             trace_sp->SaveToDisk(bundle_dir, m_options.m_compact)) {
       result.AppendMessageWithFormatv(
           "Trace bundle description file written to: {0}", *desc_file);
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendError(toString(desc_file.takeError()));
     }
@@ -218,7 +218,7 @@ protected:
                                       trace_or_err.get()->GetPluginName());
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 
@@ -280,7 +280,7 @@ protected:
     Status error;
     // TODO: fill in the dumping code here!
     if (error.Success()) {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendErrorWithFormat("%s\n", error.AsCString());
     }
@@ -372,7 +372,7 @@ protected:
     }
 
     if (error.Success()) {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendErrorWithFormat("%s\n", error.AsCString());
     }

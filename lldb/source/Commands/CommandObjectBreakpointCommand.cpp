@@ -654,7 +654,7 @@ protected:
                   id_str.GetData());
             }
           }
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendErrorWithFormat("Invalid breakpoint ID: %u.\n",
                                        cur_bp_id.GetBreakpointID());

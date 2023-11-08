@@ -44,7 +44,7 @@ CommandReturnObject::CommandReturnObject(bool colors)
     : m_out_stream(colors), m_err_stream(colors) {}
 
 void CommandReturnObject::AppendErrorWithFormat(const char *format, ...) {
-  SetStatus(eReturnStatusFailed);
+  SetReturnStatus(eReturnStatusFailed);
 
   if (!format)
     return;
@@ -98,7 +98,7 @@ void CommandReturnObject::AppendWarning(llvm::StringRef in_string) {
 }
 
 void CommandReturnObject::AppendError(llvm::StringRef in_string) {
-  SetStatus(eReturnStatusFailed);
+  SetReturnStatus(eReturnStatusFailed);
   if (in_string.empty())
     return;
   // Workaround to deal with already fully formatted compiler diagnostics.
@@ -122,12 +122,12 @@ void CommandReturnObject::SetError(llvm::Error error) {
 // append "\n" to the end of it.
 
 void CommandReturnObject::AppendRawError(llvm::StringRef in_string) {
-  SetStatus(eReturnStatusFailed);
+  SetReturnStatus(eReturnStatusFailed);
   assert(!in_string.empty() && "Expected a non-empty error message");
   GetErrorStream() << in_string;
 }
 
-void CommandReturnObject::SetStatus(ReturnStatus status) { m_return_status = status; }
+void CommandReturnObject::SetReturnStatus(ReturnStatus status) { m_return_status = status; }
 
 ReturnStatus CommandReturnObject::GetReturnStatus() const { return m_return_status; }
 

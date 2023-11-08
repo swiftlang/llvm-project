@@ -787,14 +787,14 @@ protected:
     auto process_sp = target.GetProcessSP();
     if (!process_sp) {
       // No active process, so there is nothing more to do right now.
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     }
 
     // If the process is no longer alive, we can't do this now. We'll catch it
     // the next time the process is started up.
     if (!process_sp->IsAlive()) {
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     }
 
@@ -831,7 +831,7 @@ protected:
       // Our configuration failed, so we're definitely disabled.
       plugin.SetEnabled(false);
     } else {
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       // Our configuration succeeded, so we're enabled/disabled per whichever
       // one this command is setup to do.
       plugin.SetEnabled(m_enable);
@@ -888,7 +888,7 @@ protected:
     auto options_sp = GetGlobalEnableOptions(debugger_sp);
     if (!options_sp) {
       // Nothing more to do.
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return true;
     }
 
@@ -921,7 +921,7 @@ protected:
     stream.Printf("no-match behavior: %s\n",
                   options_sp->GetFallthroughAccepts() ? "accept" : "reject");
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 };

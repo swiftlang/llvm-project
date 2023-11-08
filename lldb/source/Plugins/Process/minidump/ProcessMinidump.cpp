@@ -806,7 +806,7 @@ public:
 
     ProcessMinidump *process = static_cast<ProcessMinidump *>(
         m_interpreter.GetExecutionContext().GetProcessPtr());
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     Stream &s = result.GetOutputStream();
     MinidumpParser &minidump = *process->m_minidump_parser;
     if (DumpDirectory()) {

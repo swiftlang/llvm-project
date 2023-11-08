@@ -754,7 +754,7 @@ protected:
                                "actual locations.\n");
         }
       }
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else if (!bp_sp) {
       result.AppendError("Breakpoint creation failed: No breakpoint created.");
     }
@@ -932,7 +932,7 @@ protected:
       result.AppendMessageWithFormat("All breakpoints enabled. (%" PRIu64
                                      " breakpoints)\n",
                                      (uint64_t)num_breakpoints);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       // Particular breakpoint selected; enable that breakpoint.
       BreakpointIDList valid_bp_ids;
@@ -965,7 +965,7 @@ protected:
         }
         result.AppendMessageWithFormat("%d breakpoints enabled.\n",
                                        enable_count + loc_count);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       }
     }
 
@@ -1044,7 +1044,7 @@ protected:
       result.AppendMessageWithFormat("All breakpoints disabled. (%" PRIu64
                                      " breakpoints)\n",
                                      (uint64_t)num_breakpoints);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       // Particular breakpoint selected; disable that breakpoint.
       BreakpointIDList valid_bp_ids;
@@ -1078,7 +1078,7 @@ protected:
         }
         result.AppendMessageWithFormat("%d breakpoints disabled.\n",
                                        disable_count + loc_count);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       }
     }
 
@@ -1185,7 +1185,7 @@ protected:
 
     if (num_breakpoints == 0) {
       result.AppendMessage("No breakpoints currently set.");
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     }
 
@@ -1200,7 +1200,7 @@ protected:
           AddBreakpointDescription(&output_stream, breakpoint,
                                    m_options.m_level);
       }
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       // Particular breakpoints selected; show info about that breakpoint.
       BreakpointIDList valid_bp_ids;
@@ -1216,7 +1216,7 @@ protected:
           AddBreakpointDescription(&output_stream, breakpoint,
                                    m_options.m_level);
         }
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       } else {
         result.AppendError("Invalid breakpoint ID.");
       }
@@ -1358,7 +1358,7 @@ protected:
       output_stream.Printf("%d breakpoints cleared:\n", num_cleared);
       output_stream << ss.GetString();
       output_stream.EOL();
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError("Breakpoint clear: No breakpoint cleared.");
     }
@@ -1479,7 +1479,7 @@ protected:
             "All breakpoints removed. (%" PRIu64 " breakpoint%s)\n",
             (uint64_t)num_breakpoints, num_breakpoints > 1 ? "s" : "");
       }
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return result.Succeeded();
     }
  
@@ -1546,7 +1546,7 @@ protected:
     result.AppendMessageWithFormat(
         "%d breakpoints deleted; %d breakpoint locations disabled.\n",
         delete_count, disable_count);
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 
@@ -2401,7 +2401,7 @@ protected:
           BreakpointName::Permissions::PermissionKinds::listPerm);
 
       if (!result.Succeeded()) {
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
         return false;
       }
     }
@@ -2500,7 +2500,7 @@ void CommandObjectMultiwordBreakpoint::VerifyIDs(
     if (target->GetLastCreatedBreakpoint()) {
       valid_ids->AddBreakpointID(BreakpointID(
           target->GetLastCreatedBreakpoint()->GetID(), LLDB_INVALID_BREAK_ID));
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError(
           "No breakpoint specified and no last created breakpoint.");

@@ -573,27 +573,27 @@ protected:
     if (!m_options.symbol_name.empty()) {
       // Print lines for symbol.
       if (DumpLinesInFunctions(result))
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       else
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
     } else if (m_options.address != LLDB_INVALID_ADDRESS) {
       // Print lines for an address.
       if (DumpLinesForAddress(result))
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       else
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
     } else if (!m_options.file_name.empty()) {
       // Dump lines for a file.
       if (DumpLinesForFile(result))
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       else
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
     } else {
       // Dump the line for the current frame.
       if (DumpLinesForFrame(result))
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       else
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
     }
     return result.Succeeded();
   }
@@ -955,9 +955,9 @@ protected:
         }
       }
       if (displayed_something)
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       else
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
       return result.Succeeded();
     } else if (m_options.address != LLDB_INVALID_ADDRESS) {
       Address so_addr;
@@ -1059,7 +1059,7 @@ protected:
               sc.comp_unit->GetPrimaryFile(), sc.line_entry.line, column,
               lines_to_back_up, m_options.num_lines - lines_to_back_up, "->",
               &result.GetOutputStream(), GetBreakpointLocations());
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         }
       }
     } else if (m_options.file_name.empty()) {
@@ -1071,7 +1071,7 @@ protected:
         if (target->GetSourceManager().DisplayMoreWithLineNumbers(
                 &result.GetOutputStream(), m_options.num_lines,
                 m_options.reverse, GetBreakpointLocations())) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         }
       } else {
         if (m_options.num_lines == 0)
@@ -1100,7 +1100,7 @@ protected:
                     column,
                     "", // Don't mark "line"
                     &result.GetOutputStream(), GetBreakpointLocations())) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         }
       }
     } else {
@@ -1180,7 +1180,7 @@ protected:
               m_options.num_lines, "", &result.GetOutputStream(),
               GetBreakpointLocations());
 
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendErrorWithFormat("No comp unit found for: \"%s.\"\n",
                                        m_options.file_name.c_str());
@@ -1226,7 +1226,7 @@ protected:
       cache.Dump(result.GetOutputStream());
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -1249,7 +1249,7 @@ protected:
     if (ProcessSP process_sp = m_exe_ctx.GetProcessSP())
       process_sp->GetSourceFileCache().Clear();
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 };

@@ -143,7 +143,7 @@ protected:
       if (!source_dir) {
         result.AppendError("command source -C can only be specified "
                            "from a command file");
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
         return false;
       }
     }
@@ -154,7 +154,7 @@ protected:
       if (!cmd_file.IsRelative()) {
         result.AppendError("command source -C can only be used "
                            "with a relative path.");
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
         return false;
       }
       cmd_file.MakeAbsolute(source_dir);
@@ -506,7 +506,7 @@ protected:
         alias->SetHelp(m_command_options.m_help.GetCurrentValue());
       if (m_command_options.m_long_help.OptionWasSet())
         alias->SetHelpLong(m_command_options.m_long_help.GetCurrentValue());
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError("Unable to create requested alias.\n");
     }
@@ -604,7 +604,7 @@ protected:
         alias->SetHelp(m_command_options.m_help.GetCurrentValue());
       if (m_command_options.m_long_help.OptionWasSet())
         alias->SetHelpLong(m_command_options.m_long_help.GetCurrentValue());
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError("Unable to create requested alias.\n");
       return false;
@@ -697,7 +697,7 @@ protected:
       return false;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 };
@@ -771,7 +771,7 @@ protected:
       return false;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return true;
   }
 };
@@ -897,7 +897,7 @@ protected:
 
       if (io_handler_sp) {
         debugger.RunIOHandlerAsync(io_handler_sp);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       }
     } else {
       for (auto &entry : command.entries().drop_front()) {
@@ -1132,7 +1132,7 @@ protected:
 
     Status error;
 
-    result.SetStatus(eReturnStatusInvalid);
+    result.SetReturnStatus(eReturnStatusInvalid);
 
     if (!scripter || !scripter->RunScriptBasedCommand(
                          m_function_name.c_str(), raw_command_line, m_synchro,
@@ -1142,9 +1142,9 @@ protected:
       // Don't change the status if the command already set it...
       if (result.GetReturnStatus() == eReturnStatusInvalid) {
         if (result.GetOutputData().empty())
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
         else
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       }
     }
 
@@ -1228,7 +1228,7 @@ protected:
 
     Status error;
 
-    result.SetStatus(eReturnStatusInvalid);
+    result.SetReturnStatus(eReturnStatusInvalid);
 
     if (!scripter ||
         !scripter->RunScriptBasedCommand(m_cmd_obj_sp, raw_command_line,
@@ -1238,9 +1238,9 @@ protected:
       // Don't change the status if the command already set it...
       if (result.GetReturnStatus() == eReturnStatusInvalid) {
         if (result.GetOutputData().empty())
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
         else
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       }
     }
 
@@ -1365,7 +1365,7 @@ protected:
       if (GetDebugger().GetScriptInterpreter()->LoadScriptingModule(
               entry.c_str(), options, error, /*module_sp=*/nullptr,
               source_dir)) {
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       } else {
         result.AppendErrorWithFormat("module importing failed: %s",
                                      error.AsCString());
@@ -1646,7 +1646,7 @@ protected:
     }
     
     // Assume we're going to succeed...
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     if (!m_container) {
       Status add_error =
           m_interpreter.AddUserCommand(m_cmd_name, new_cmd_sp, m_overwrite);
@@ -1687,7 +1687,7 @@ public:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     m_interpreter.GetHelp(result, CommandInterpreter::eCommandTypesUserDef);
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     return true;
   }
@@ -1707,7 +1707,7 @@ protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     m_interpreter.RemoveAllUser();
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     return true;
   }
@@ -1784,7 +1784,7 @@ protected:
 
     if (command.GetArgumentCount() == 1) {
       m_interpreter.RemoveUser(root_cmd);
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return true;
     }
     // We're deleting a command from a multiword command.  Verify the command
@@ -1823,7 +1823,7 @@ protected:
       out_stream << command[idx].c_str();
     }
     out_stream << '\n';
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 };
@@ -1967,7 +1967,7 @@ protected:
                                      add_error.AsCString());
         return false;
       }
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     }
 
@@ -1995,7 +1995,7 @@ protected:
       return false;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return true;
   }
 
@@ -2076,7 +2076,7 @@ protected:
         return false;
       }
 
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     }
 
@@ -2099,7 +2099,7 @@ protected:
                                    llvm::toString(std::move(llvm_error)).c_str());
       return false;
     }
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return true;
   }
 };

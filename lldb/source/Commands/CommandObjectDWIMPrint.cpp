@@ -168,7 +168,7 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
       } else {
         valobj_sp->Dump(result.GetOutputStream(), dump_options);
       }
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return true;
     }
   }
@@ -257,7 +257,7 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
             persistent_state->RemovePersistentVariable(result_var_sp);
         }
 
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return true;
     } else {
       if (valobj_sp)

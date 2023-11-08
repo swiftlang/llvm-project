@@ -711,7 +711,7 @@ protected:
       category_sp->AddTypeFormat(arg_entry.ref(), match_type, entry);
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 };
@@ -850,7 +850,7 @@ protected:
             category_sp->Delete(typeCS, m_formatter_kind);
             return true;
           });
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return result.Succeeded();
     }
 
@@ -874,7 +874,7 @@ protected:
     }
 
     if (delete_category || extra_deletion) {
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return result.Succeeded();
     } else {
       result.AppendErrorWithFormat("no custom formatter for %s.\n", typeA);
@@ -964,7 +964,7 @@ protected:
 
     FormatterSpecificDeletion();
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -1149,10 +1149,10 @@ protected:
     }
 
     if (any_printed)
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     else {
       result.GetOutputStream().PutCString("no matching results found.\n");
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     }
     return result.Succeeded();
   }
@@ -1343,7 +1343,7 @@ bool CommandObjectTypeSummaryAdd::Execute_ScriptSummary(
         *this,              // IOHandlerDelegate
         options.release()); // Baton for the "io_handler" that will be passed
                             // back into our IOHandlerDelegate functions
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 
     return result.Succeeded();
   }
@@ -1442,7 +1442,7 @@ bool CommandObjectTypeSummaryAdd::Execute_StringSummary(
     }
   }
 
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
   return result.Succeeded();
 }
 
@@ -1794,7 +1794,7 @@ protected:
       }
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -1908,7 +1908,7 @@ protected:
     if (m_options.m_language != lldb::eLanguageTypeUnknown)
       DataVisualization::Categories::Enable(m_options.m_language);
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -1967,7 +1967,7 @@ protected:
         success = false; // keep deleting even if we hit an error
     }
     if (success) {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return result.Succeeded();
     } else {
       result.AppendError("cannot delete one or more categories\n");
@@ -2080,7 +2080,7 @@ protected:
     if (m_options.m_language != lldb::eLanguageTypeUnknown)
       DataVisualization::Categories::Disable(m_options.m_language);
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -2156,7 +2156,7 @@ protected:
           return true;
         });
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -2253,7 +2253,7 @@ bool CommandObjectTypeSynthAdd::Execute_HandwritePython(
       *this,              // IOHandlerDelegate
       options.release()); // Baton for the "io_handler" that will be passed back
                           // into our IOHandlerDelegate functions
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
   return result.Succeeded();
 }
 
@@ -2314,7 +2314,7 @@ bool CommandObjectTypeSynthAdd::Execute_PythonClass(
     }
   }
 
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
   return result.Succeeded();
 }
 
@@ -2632,7 +2632,7 @@ protected:
       }
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 };
@@ -2835,7 +2835,7 @@ public:
       result.AppendMessageWithFormat("no type was found matching '%s'\n",
                                      name_of_type);
 
-    result.SetStatus(any_found ? lldb::eReturnStatusSuccessFinishResult
+    result.SetReturnStatus(any_found ? lldb::eReturnStatusSuccessFinishResult
                                : lldb::eReturnStatusSuccessFinishNoResult);
     return true;
   }
@@ -2896,13 +2896,13 @@ protected:
             << m_formatter_name << " applied to ("
             << result_valobj_sp->GetDisplayTypeName().AsCString("<unknown>")
             << ") " << command << " is: " << description << "\n";
-        result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(lldb::eReturnStatusSuccessFinishResult);
       } else {
         result.GetOutputStream()
             << "no " << m_formatter_name << " applies to ("
             << result_valobj_sp->GetDisplayTypeName().AsCString("<unknown>")
             << ") " << command << "\n";
-        result.SetStatus(lldb::eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(lldb::eReturnStatusSuccessFinishNoResult);
       }
       return true;
     } else {

@@ -33,7 +33,7 @@ protected:
     }
 
     DebuggerStats::SetCollectingStats(true);
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 };
@@ -55,7 +55,7 @@ protected:
     }
 
     DebuggerStats::SetCollectingStats(false);
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 };
@@ -112,7 +112,7 @@ protected:
 
     result.AppendMessageWithFormatv(
         "{0:2}", DebuggerStats::ReportStatistics(GetDebugger(), target));
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 

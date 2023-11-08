@@ -138,7 +138,7 @@ bool CommandObject::ParseOptions(Args &args, CommandReturnObject &result) {
             GetCommandInterpreter().GetDebugger().GetTerminalWidth());
       }
     }
-    result.SetStatus(eReturnStatusFailed);
+    result.SetReturnStatus(eReturnStatusFailed);
     return false;
   }
   return true;
@@ -592,7 +592,7 @@ void CommandObject::FormatLongHelpText(Stream &output_strm,
 void CommandObject::GenerateHelpText(CommandReturnObject &result) {
   GenerateHelpText(result.GetOutputStream());
 
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 }
 
 void CommandObject::GenerateHelpText(Stream &output_strm) {

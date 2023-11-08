@@ -441,7 +441,7 @@ protected:
             result.AppendMessageWithFormatv(
                 "Core file '{0}' ({1}) was loaded.\n", core_file.GetPath(),
                 target_sp->GetArchitecture().GetArchitectureName());
-            result.SetStatus(eReturnStatusSuccessFinishNoResult);
+            result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
             on_error.release();
           }
         } else {
@@ -454,7 +454,7 @@ protected:
             "Current executable set to '%s' (%s).\n",
             file_spec.GetPath().c_str(),
             target_sp->GetArchitecture().GetArchitectureName());
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
         on_error.release();
       }
     } else {
@@ -498,7 +498,7 @@ protected:
                        show_stopped_process_status, strm) == 0) {
       strm.PutCString("No targets.\n");
     }
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -530,7 +530,7 @@ protected:
           Stream &strm = result.GetOutputStream();
           bool show_stopped_process_status = false;
           DumpTargetList(target_list, show_stopped_process_status, strm);
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           if (num_targets > 0) {
             result.AppendErrorWithFormat(
@@ -558,7 +558,7 @@ protected:
           Stream &strm = result.GetOutputStream();
           bool show_stopped_process_status = false;
           DumpTargetList(target_list, show_stopped_process_status, strm);
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendErrorWithFormat("invalid index string value '%s'\n",
                                        target_identifier);
@@ -669,7 +669,7 @@ protected:
     }
     result.GetOutputStream().Printf("%u targets deleted.\n",
                                     (uint32_t)num_targets_to_delete);
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     return true;
   }
@@ -709,7 +709,7 @@ protected:
     for (auto &KV : env_vector)
       strm.Format("{0}={1}\n", KV->first(), KV->second);
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -1083,7 +1083,7 @@ protected:
           bool last_pair = ((argc - i) == 2);
           target->GetImageSearchPathList().Append(
               from, to, last_pair); // Notify if this is the last pair
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
         } else {
           if (from[0])
             result.AppendError("<path-prefix> can't be empty\n");
@@ -1114,7 +1114,7 @@ protected:
     Target *target = &GetSelectedTarget();
     bool notify = true;
     target->GetImageSearchPathList().Clear(notify);
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 };
@@ -1211,7 +1211,7 @@ protected:
           bool last_pair = ((argc - i) == 2);
           target->GetImageSearchPathList().Insert(from, to, insert_idx,
                                                   last_pair);
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
         } else {
           if (from[0])
             result.AppendError("<path-prefix> can't be empty\n");
@@ -1246,7 +1246,7 @@ protected:
     Target *target = &GetSelectedTarget();
 
     target->GetImageSearchPathList().Dump(&result.GetOutputStream());
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -1292,7 +1292,7 @@ protected:
     else
       result.GetOutputStream().Printf("%s\n", orig.GetCString());
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -1914,7 +1914,7 @@ protected:
     }
 
     if (num_dumped > 0) {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendError("no matching executable images found");
     }
@@ -2053,7 +2053,7 @@ protected:
     }
 
     if (num_dumped > 0)
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     else {
       result.AppendError("no matching executable images found");
     }
@@ -2144,7 +2144,7 @@ protected:
     }
 
     if (num_dumped > 0)
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     else {
       result.AppendError("no matching executable images found");
     }
@@ -2202,7 +2202,7 @@ protected:
         std::make_unique<clang::ObjectFilePCHContainerReader>());
 
     if (compiler.ExecuteAction(dump_module_info))
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     return result.Succeeded();
   }
@@ -2245,7 +2245,7 @@ protected:
         if (SymbolFile *sf = module_sp->GetSymbolFile())
           sf->DumpClangAST(result.GetOutputStream());
       }
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return true;
     }
 
@@ -2275,7 +2275,7 @@ protected:
           sf->DumpClangAST(result.GetOutputStream());
       }
     }
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 };
@@ -2353,7 +2353,7 @@ protected:
     }
 
     if (num_dumped > 0)
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     else {
       result.AppendError("no matching executable images found");
     }
@@ -2429,7 +2429,7 @@ protected:
     }
 
     if (total_num_dumped > 0)
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     else {
       result.AppendError("no source filenames matched any command arguments");
     }
@@ -2559,7 +2559,7 @@ protected:
           ModuleSP module_sp(
               target->GetOrCreateModule(module_spec, true /* notify */));
           if (module_sp) {
-            result.SetStatus(eReturnStatusSuccessFinishResult);
+            result.SetReturnStatus(eReturnStatusSuccessFinishResult);
             return true;
           } else {
             StreamString strm;
@@ -2629,7 +2629,7 @@ protected:
           } else {
             flush = true;
           }
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           std::string resolved_path = file_spec.GetPath();
           if (resolved_path != entry.ref()) {
@@ -3013,7 +3013,7 @@ protected:
             ModuleSP module_sp(module_address.GetModule());
             if (module_sp) {
               PrintModule(target, module_sp.get(), 0, strm);
-              result.SetStatus(eReturnStatusSuccessFinishResult);
+              result.SetReturnStatus(eReturnStatusSuccessFinishResult);
             } else {
               result.AppendErrorWithFormat(
                   "Couldn't find module matching address: 0x%" PRIx64 ".",
@@ -3089,7 +3089,7 @@ protected:
           const size_t indent = strm.Printf("[%3u] ", image_idx);
           PrintModule(target, module, indent, strm);
         }
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         if (argc) {
           if (use_global_module_list)
@@ -3802,7 +3802,7 @@ public:
         if (LookupTypeHere(&GetSelectedTarget(), m_interpreter,
                            result.GetOutputStream(), *sym_ctx.module_sp,
                            m_options.m_str.c_str(), m_options.m_use_regex)) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
       }
@@ -3825,7 +3825,7 @@ public:
                          : 0),
                 m_options.m_addr, m_options.m_offset, m_options.m_verbose,
                 m_options.m_all_ranges)) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
       }
@@ -3837,7 +3837,7 @@ public:
                                  module, m_options.m_str.c_str(),
                                  m_options.m_use_regex, m_options.m_verbose,
                                  m_options.m_all_ranges)) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
       }
@@ -3850,7 +3850,7 @@ public:
                 m_options.m_file, m_options.m_line_number,
                 m_options.m_include_inlines, m_options.m_verbose,
                 m_options.m_all_ranges)) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
       }
@@ -3869,7 +3869,7 @@ public:
                                    m_options.m_use_regex, function_options,
                                    m_options.m_verbose,
                                    m_options.m_all_ranges)) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
       }
@@ -3880,7 +3880,7 @@ public:
         if (LookupTypeInModule(
                 &GetSelectedTarget(), m_interpreter, result.GetOutputStream(),
                 module, m_options.m_str.c_str(), m_options.m_use_regex)) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
       }
@@ -3894,7 +3894,7 @@ public:
       break;
     }
 
-    result.SetStatus(eReturnStatusFailed);
+    result.SetReturnStatus(eReturnStatusFailed);
     return false;
   }
 
@@ -3919,7 +3919,7 @@ protected:
         result.GetOutputStream().EOL();
         num_successful_lookups++;
         if (!m_options.m_print_all) {
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           return result.Succeeded();
         }
       }
@@ -3967,9 +3967,9 @@ protected:
     }
 
     if (num_successful_lookups > 0)
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     else
-      result.SetStatus(eReturnStatusFailed);
+      result.SetReturnStatus(eReturnStatusFailed);
     return result.Succeeded();
   }
 
@@ -4232,7 +4232,7 @@ protected:
             result.AppendWarning(feedback_stream.GetData());
 
           flush = true;
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
       }
@@ -4421,7 +4421,7 @@ protected:
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     Target *target = m_exe_ctx.GetTargetPtr();
-    result.SetStatus(eReturnStatusFailed);
+    result.SetReturnStatus(eReturnStatusFailed);
     bool flush = false;
     ModuleSpec module_spec;
     const bool uuid_option_set =
@@ -4910,7 +4910,7 @@ protected:
       m_interpreter.GetLLDBCommandsFromIOHandler("> ",   // Prompt
                                                  *this); // IOHandlerDelegate
     }
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 
     return result.Succeeded();
   }
@@ -4953,7 +4953,7 @@ protected:
     size_t num_args = command.GetArgumentCount();
     if (num_args == 0) {
       if (!m_interpreter.Confirm("Delete all stop hooks?", true)) {
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
         return false;
       } else {
         target.RemoveAllStopHooks();
@@ -4973,7 +4973,7 @@ protected:
         }
       }
     }
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 };
@@ -5028,7 +5028,7 @@ protected:
         }
       }
     }
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 
@@ -5064,7 +5064,7 @@ protected:
                                   eDescriptionLevelFull);
       }
     }
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -5121,7 +5121,7 @@ protected:
       if (ts)
         ts->Dump(result.GetOutputStream().AsRawOstream());
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -5144,7 +5144,7 @@ protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target &target = GetSelectedTarget();
     target.GetSectionLoadList().Dump(result.GetOutputStream(), &target);
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };

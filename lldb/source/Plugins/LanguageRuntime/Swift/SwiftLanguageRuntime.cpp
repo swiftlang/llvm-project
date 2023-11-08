@@ -2186,7 +2186,7 @@ protected:
         }
       }
     }
-    result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(lldb::eReturnStatusSuccessFinishResult);
     return true;
   }
 
@@ -2267,7 +2267,7 @@ protected:
     bool evalStatus = m_exe_ctx.GetTargetSP()->EvaluateExpression(
         command, frame_sp.get(), result_valobj_sp, options);
     if (evalStatus != eExpressionCompleted) {
-      result.SetStatus(lldb::eReturnStatusFailed);
+      result.SetReturnStatus(lldb::eReturnStatusFailed);
       if (result_valobj_sp && result_valobj_sp->GetError().Fail())
         result.AppendError(result_valobj_sp->GetError().AsCString());
       return false;
@@ -2282,7 +2282,7 @@ protected:
     CompilerType result_type(result_valobj_sp->GetCompilerType());
     if (!(result_type.GetTypeInfo() & lldb::eTypeInstanceIsPointer)) {
       result.AppendError("refcount only available for class types");
-      result.SetStatus(lldb::eReturnStatusFailed);
+      result.SetReturnStatus(lldb::eReturnStatusFailed);
       return false;
     }
 
@@ -2302,7 +2302,7 @@ protected:
         strong ? std::to_string(*strong).c_str() : unavailable.c_str(),
         unowned ? std::to_string(*unowned).c_str() : unavailable.c_str(),
         weak ? std::to_string(*weak).c_str() : unavailable.c_str());
-    result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(lldb::eReturnStatusSuccessFinishResult);
     return true;
   }
 };

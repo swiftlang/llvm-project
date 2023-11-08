@@ -229,7 +229,7 @@ protected:
 
     if (num_watchpoints == 0) {
       result.AppendMessage("No watchpoints currently set.");
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     }
 
@@ -242,7 +242,7 @@ protected:
         WatchpointSP watch_sp = watchpoints.GetByIndex(i);
         AddWatchpointDescription(output_stream, *watch_sp, m_options.m_level);
       }
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       // Particular watchpoints selected; enable them.
       std::vector<uint32_t> wp_ids;
@@ -257,7 +257,7 @@ protected:
         WatchpointSP watch_sp = watchpoints.FindByID(wp_ids[i]);
         if (watch_sp)
           AddWatchpointDescription(output_stream, *watch_sp, m_options.m_level);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       }
     }
 
@@ -320,7 +320,7 @@ protected:
       result.AppendMessageWithFormat("All watchpoints enabled. (%" PRIu64
                                      " watchpoints)\n",
                                      (uint64_t)num_watchpoints);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       // Particular watchpoints selected; enable them.
       std::vector<uint32_t> wp_ids;
@@ -336,7 +336,7 @@ protected:
         if (target->EnableWatchpointByID(wp_ids[i]))
           ++count;
       result.AppendMessageWithFormat("%d watchpoints enabled.\n", count);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     }
 
     return result.Succeeded();
@@ -395,7 +395,7 @@ protected:
         result.AppendMessageWithFormat("All watchpoints disabled. (%" PRIu64
                                        " watchpoints)\n",
                                        (uint64_t)num_watchpoints);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       } else {
         result.AppendError("Disable all watchpoints failed\n");
       }
@@ -414,7 +414,7 @@ protected:
         if (target->DisableWatchpointByID(wp_ids[i]))
           ++count;
       result.AppendMessageWithFormat("%d watchpoints disabled.\n", count);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     }
 
     return result.Succeeded();
@@ -518,7 +518,7 @@ protected:
                                        " watchpoints)\n",
                                        (uint64_t)num_watchpoints);
       }
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return result.Succeeded();
     }
 
@@ -536,7 +536,7 @@ protected:
       if (target->RemoveWatchpointByID(wp_ids[i]))
         ++count;
     result.AppendMessageWithFormat("%d watchpoints deleted.\n", count);
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 
     return result.Succeeded();
   }
@@ -638,7 +638,7 @@ protected:
       result.AppendMessageWithFormat("All watchpoints ignored. (%" PRIu64
                                      " watchpoints)\n",
                                      (uint64_t)num_watchpoints);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       // Particular watchpoints selected; ignore them.
       std::vector<uint32_t> wp_ids;
@@ -654,7 +654,7 @@ protected:
         if (target->IgnoreWatchpointByID(wp_ids[i], m_options.m_ignore_count))
           ++count;
       result.AppendMessageWithFormat("%d watchpoints ignored.\n", count);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     }
 
     return result.Succeeded();
@@ -762,7 +762,7 @@ protected:
     if (command.GetArgumentCount() == 0) {
       WatchpointSP watch_sp = target->GetLastCreatedWatchpoint();
       watch_sp->SetCondition(m_options.m_condition.c_str());
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       // Particular watchpoints selected; set condition on them.
       std::vector<uint32_t> wp_ids;
@@ -782,7 +782,7 @@ protected:
         }
       }
       result.AppendMessageWithFormat("%d watchpoints modified.\n", count);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     }
 
     return result.Succeeded();
@@ -993,7 +993,7 @@ protected:
     output_stream.Printf("Watchpoint created: ");
     watch_sp->GetDescription(&output_stream, lldb::eDescriptionLevelFull);
     output_stream.EOL();
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     return result.Succeeded();
   }
@@ -1165,7 +1165,7 @@ protected:
       output_stream.Printf("Watchpoint created: ");
       watch_sp->GetDescription(&output_stream, lldb::eDescriptionLevelFull);
       output_stream.EOL();
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendErrorWithFormat("Watchpoint creation failed (addr=0x%" PRIx64
                                    ", size=%" PRIu64 ").\n",

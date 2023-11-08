@@ -209,9 +209,9 @@ protected:
     result.GetErrorStream() << error_stream.str();
 
     if (success)
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     else
-      result.SetStatus(eReturnStatusFailed);
+      result.SetReturnStatus(eReturnStatusFailed);
     return result.Succeeded();
   }
 
@@ -269,13 +269,13 @@ protected:
     args.Shift(); // Shift off the channel
     if (channel == "all") {
       Log::DisableAllLogChannels();
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       std::string error;
       llvm::raw_string_ostream error_stream(error);
       if (Log::DisableLogChannel(channel, args.GetArgumentArrayRef(),
                                  error_stream))
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       result.GetErrorStream() << error_stream.str();
     }
     return result.Succeeded();
@@ -320,14 +320,14 @@ protected:
     llvm::raw_string_ostream output_stream(output);
     if (args.empty()) {
       Log::ListAllLogChannels(output_stream);
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       bool success = true;
       for (const auto &entry : args.entries())
         success =
             success && Log::ListChannelCategories(entry.ref(), output_stream);
       if (success)
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     }
     result.GetOutputStream() << output_stream.str();
     return result.Succeeded();
@@ -430,9 +430,9 @@ protected:
     std::string error;
     llvm::raw_string_ostream error_stream(error);
     if (Log::DumpLogChannel(channel, *stream_up, error_stream)) {
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
-      result.SetStatus(eReturnStatusFailed);
+      result.SetReturnStatus(eReturnStatusFailed);
       result.GetErrorStream() << error_stream.str();
     }
 
@@ -468,11 +468,11 @@ public:
 
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusFailed);
+    result.SetReturnStatus(eReturnStatusFailed);
 
     if (args.GetArgumentCount() == 0) {
       Timer::SetDisplayDepth(UINT32_MAX);
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else if (args.GetArgumentCount() == 1) {
       uint32_t depth;
       if (args[0].ref().consumeInteger(0, depth)) {
@@ -480,7 +480,7 @@ protected:
             "Could not convert enable depth to an unsigned integer.");
       } else {
         Timer::SetDisplayDepth(depth);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       }
     }
 
@@ -506,7 +506,7 @@ protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     Timer::DumpCategoryTimes(result.GetOutputStream());
     Timer::SetDisplayDepth(0);
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     if (!result.Succeeded()) {
       result.AppendError("Missing subcommand");
@@ -528,7 +528,7 @@ public:
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     Timer::DumpCategoryTimes(result.GetOutputStream());
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     if (!result.Succeeded()) {
       result.AppendError("Missing subcommand");
@@ -551,7 +551,7 @@ public:
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     Timer::ResetCategoryTimes();
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     if (!result.Succeeded()) {
       result.AppendError("Missing subcommand");
@@ -594,7 +594,7 @@ public:
 
 protected:
   bool DoExecute(Args &args, CommandReturnObject &result) override {
-    result.SetStatus(eReturnStatusFailed);
+    result.SetReturnStatus(eReturnStatusFailed);
 
     if (args.GetArgumentCount() == 1) {
       bool success;
@@ -603,7 +603,7 @@ protected:
 
       if (success) {
         Timer::SetQuiet(!increment);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       } else
         result.AppendError("Could not convert increment value to boolean.");
     }

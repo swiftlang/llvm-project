@@ -377,7 +377,7 @@ protected:
             // Toss all frames and anything else in the thread after a register
             // has been written.
             m_exe_ctx.GetThreadRef().Flush();
-            result.SetStatus(eReturnStatusSuccessFinishNoResult);
+            result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
             return true;
           }
         }
@@ -459,7 +459,7 @@ protected:
       DumpRegisterInfo(
           result.GetOutputStream(), *reg_ctx, *reg_info,
           GetCommandInterpreter().GetDebugger().GetTerminalWidth());
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else
       result.AppendErrorWithFormat("No register found with name '%s'.\n",
                                    reg_name.str().c_str());

@@ -472,7 +472,7 @@ bool CommandObjectDisassemble::DoExecute(Args &command,
     result.AppendWarningWithFormat(
         "invalid disassembler flavor \"%s\", using default.\n", flavor_string);
 
-  result.SetStatus(eReturnStatusSuccessFinishResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
   if (!command.empty()) {
     result.AppendErrorWithFormat(
@@ -526,7 +526,7 @@ bool CommandObjectDisassemble::DoExecute(Args &command,
             m_exe_ctx, cur_range.GetBaseAddress(), limit, m_options.show_mixed,
             m_options.show_mixed ? m_options.num_lines_context : 0, options,
             result.GetOutputStream())) {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       if (m_options.symbol_containing_addr != LLDB_INVALID_ADDRESS) {
         result.AppendErrorWithFormat(

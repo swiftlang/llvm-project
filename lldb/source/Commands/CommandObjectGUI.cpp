@@ -35,7 +35,7 @@ bool CommandObjectGUI::DoExecute(Args &args, CommandReturnObject &result) {
     IOHandlerSP io_handler_sp(new IOHandlerCursesGUI(debugger));
     if (io_handler_sp)
       debugger.RunIOHandlerAsync(io_handler_sp);
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
   } else {
     result.AppendError("the gui command requires an interactive terminal.");
   }

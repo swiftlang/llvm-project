@@ -171,7 +171,7 @@ lldb::ReturnStatus SBCommandReturnObject::GetStatus() {
 void SBCommandReturnObject::SetStatus(lldb::ReturnStatus status) {
   LLDB_INSTRUMENT_VA(this, status);
 
-  ref().SetStatus(status);
+  ref().SetReturnStatus(status);
 }
 
 bool SBCommandReturnObject::Succeeded() {

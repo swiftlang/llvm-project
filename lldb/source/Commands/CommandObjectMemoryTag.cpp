@@ -127,7 +127,7 @@ protected:
       addr = next_addr;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 };
@@ -295,7 +295,7 @@ protected:
       return false;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 

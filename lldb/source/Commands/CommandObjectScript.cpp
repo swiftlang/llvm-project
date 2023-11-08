@@ -101,15 +101,15 @@ bool CommandObjectScript::DoExecute(llvm::StringRef command,
 
   if (command.empty()) {
     script_interpreter->ExecuteInterpreterLoop();
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 
   // We can do better when reporting the status of one-liner script execution.
   if (script_interpreter->ExecuteOneLine(command, &result))
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
   else
-    result.SetStatus(eReturnStatusFailed);
+    result.SetReturnStatus(eReturnStatusFailed);
 
   return result.Succeeded();
 }

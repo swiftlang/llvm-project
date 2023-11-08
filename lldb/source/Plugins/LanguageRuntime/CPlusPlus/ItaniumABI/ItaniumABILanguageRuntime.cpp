@@ -368,7 +368,7 @@ protected:
       }
     }
 
-    result.SetStatus(
+    result.SetReturnStatus(
         error_any ? lldb::eReturnStatusFailed
                   : (demangled_any ? lldb::eReturnStatusSuccessFinishResult
                                    : lldb::eReturnStatusSuccessFinishNoResult));

@@ -77,7 +77,7 @@ bool CommandObjectRegexCommand::DoExecute(llvm::StringRef command,
                                          result, force_repeat_command);
     }
   }
-  result.SetStatus(eReturnStatusFailed);
+  result.SetReturnStatus(eReturnStatusFailed);
   if (!GetSyntax().empty())
     result.AppendError(GetSyntax());
   else

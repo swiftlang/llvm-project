@@ -137,7 +137,7 @@ public:
 
   lldb::ReturnStatus GetReturnStatus() const;
 
-  void SetStatus(lldb::ReturnStatus status);
+  void SetReturnStatus(lldb::ReturnStatus status);
 
   bool Succeeded() const;
 

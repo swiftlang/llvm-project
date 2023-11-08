@@ -241,7 +241,7 @@ void CommandInterpreter::ResolveCommand(const char *command_line,
   std::string command = command_line;
   if (ResolveCommandImpl(command, result) != nullptr) {
     result.AppendMessageWithFormat("%s", command.c_str());
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
   }
 }
 
@@ -1950,7 +1950,7 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
 
   if (empty_command) {
     if (!GetRepeatPreviousCommand()) {
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     }
 
@@ -1969,7 +1969,7 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
 
     add_to_history = false;
   } else if (comment_command) {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return true;
   }
 
@@ -2297,7 +2297,7 @@ void CommandInterpreter::BuildAliasCommandArgs(CommandObject *alias_cmd_obj,
     cmd_args.SetArguments(new_args.GetArgumentCount(),
                           new_args.GetConstArgumentVector());
   } else {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     // This alias was not created with any options; nothing further needs to be
     // done, unless it is a command that wants raw input, in which case we need
     // to clear the rest of the data from cmd_args, since its in the raw input
@@ -2310,7 +2310,7 @@ void CommandInterpreter::BuildAliasCommandArgs(CommandObject *alias_cmd_obj,
     return;
   }
 
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 }
 
 int CommandInterpreter::GetOptionArgumentPosition(const char *in_string) {
@@ -2385,7 +2385,7 @@ void CommandInterpreter::SourceInitFile(FileSpec file,
   assert(!m_skip_lldbinit_files);
 
   if (!FileSystem::Instance().Exists(file)) {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return;
   }
 
@@ -2404,14 +2404,14 @@ void CommandInterpreter::SourceInitFile(FileSpec file,
 
 void CommandInterpreter::SourceInitFileCwd(CommandReturnObject &result) {
   if (m_skip_lldbinit_files) {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return;
   }
 
   llvm::SmallString<128> init_file;
   GetCwdInitFile(init_file);
   if (!FileSystem::Instance().Exists(init_file)) {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return;
   }
 
@@ -2420,7 +2420,7 @@ void CommandInterpreter::SourceInitFileCwd(CommandReturnObject &result) {
 
   switch (should_load) {
   case eLoadCWDlldbinitFalse:
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     break;
   case eLoadCWDlldbinitTrue:
     SourceInitFile(FileSpec(init_file.str()), result);
@@ -2430,7 +2430,7 @@ void CommandInterpreter::SourceInitFileCwd(CommandReturnObject &result) {
     GetHomeInitFile(home_init_file);
     if (llvm::sys::path::parent_path(init_file) ==
         llvm::sys::path::parent_path(home_init_file)) {
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError(InitFileWarning);
     }
@@ -2445,7 +2445,7 @@ void CommandInterpreter::SourceInitFileCwd(CommandReturnObject &result) {
 void CommandInterpreter::SourceInitFileHome(CommandReturnObject &result,
                                             bool is_repl) {
   if (m_skip_lldbinit_files) {
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return;
   }
 
@@ -2481,7 +2481,7 @@ void CommandInterpreter::SourceInitFileGlobal(CommandReturnObject &result) {
     return;
   }
 #endif
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 }
 
 const char *CommandInterpreter::GetCommandPrefix() {
@@ -2649,7 +2649,7 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
                                          " '%s' continued the target.\n",
                                          (uint64_t)idx + 1, cmd);
 
-        result.SetStatus(tmp_result.GetReturnStatus());
+        result.SetReturnStatus(tmp_result.GetReturnStatus());
         m_debugger.SetAsyncExecution(old_async_execution);
 
         return;
@@ -2669,14 +2669,14 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
             "Command #%" PRIu64 " '%s' stopped with a signal or exception.\n",
             (uint64_t)idx + 1, cmd);
 
-      result.SetStatus(tmp_result.GetReturnStatus());
+      result.SetReturnStatus(tmp_result.GetReturnStatus());
       m_debugger.SetAsyncExecution(old_async_execution);
 
       return;
     }
   }
 
-  result.SetStatus(eReturnStatusSuccessFinishResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishResult);
   m_debugger.SetAsyncExecution(old_async_execution);
 }
 
@@ -2841,7 +2841,7 @@ void CommandInterpreter::HandleCommandsFromFile(FileSpec &cmd_file,
   m_command_source_dirs.pop_back();
   m_command_source_depth--;
 
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
   debugger.SetAsyncExecution(old_async_execution);
 }
 
@@ -3272,7 +3272,7 @@ bool CommandInterpreter::SaveTranscript(
     return error_out("Unable to write to destination file",
                      "Bytes written do not match transcript size.");
 
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
   result.AppendMessageWithFormat("Session's transcripts saved to %s\n",
                                  output_file->c_str());
 

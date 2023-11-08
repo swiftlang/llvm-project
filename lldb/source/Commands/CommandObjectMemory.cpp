@@ -829,7 +829,7 @@ protected:
       return true;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     DataExtractor data(data_sp, target->GetArchitecture().GetByteOrder(),
                        target->GetArchitecture().GetAddressByteSize(),
                        target->GetArchitecture().GetDataByteSize());
@@ -1115,7 +1115,7 @@ protected:
       if (found_location == LLDB_INVALID_ADDRESS) {
         if (!ever_found) {
           result.AppendMessage("data not found within the range.\n");
-          result.SetStatus(lldb::eReturnStatusSuccessFinishNoResult);
+          result.SetReturnStatus(lldb::eReturnStatusSuccessFinishNoResult);
         } else
           result.AppendMessage("no more matches within the range.\n");
         break;
@@ -1145,7 +1145,7 @@ protected:
       ever_found = true;
     }
 
-    result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(lldb::eReturnStatusSuccessFinishResult);
     return true;
   }
 
@@ -1355,14 +1355,14 @@ protected:
             result.GetOutputStream().Printf(
                 "%" PRIu64 " bytes were written to 0x%" PRIx64 "\n",
                 (uint64_t)bytes_written, addr);
-            result.SetStatus(eReturnStatusSuccessFinishResult);
+            result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           } else if (bytes_written > 0) {
             // Some byte written
             result.GetOutputStream().Printf(
                 "%" PRIu64 " bytes of %" PRIu64
                 " requested were written to 0x%" PRIx64 "\n",
                 (uint64_t)bytes_written, (uint64_t)length, addr);
-            result.SetStatus(eReturnStatusSuccessFinishResult);
+            result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           } else {
             result.AppendErrorWithFormat("Memory write to 0x%" PRIx64
                                          " failed: %s.\n",
@@ -1632,7 +1632,7 @@ protected:
       thread->GetStatus(*output_stream, 0, UINT32_MAX, 0, stop_format);
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     return true;
   }
@@ -1831,7 +1831,7 @@ protected:
         m_prev_end_addr = range.first.GetRange().GetRangeEnd();
       }
 
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return true;
     }
 

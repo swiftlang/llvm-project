@@ -207,7 +207,7 @@ public:
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     m_exe_ctx.GetFrameRef().DumpUsingSettingsFormat(&result.GetOutputStream());
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -380,7 +380,7 @@ protected:
         frame_idx, result.GetOutputStream());
     if (success) {
       m_exe_ctx.SetFrameSP(thread->GetSelectedFrame(SelectMostRelevantFrame));
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendErrorWithFormat("Frame index (%u) out of range.\n",
                                    frame_idx);
@@ -709,7 +709,7 @@ protected:
         }
       }
       if (result.GetReturnStatus() != eReturnStatusFailed)
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     }
 
     if (m_option_variable.show_recognized_args) {
@@ -933,7 +933,7 @@ bool CommandObjectFrameRecognizerAdd::DoExecute(Args &command,
   }
 #endif
 
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
   return result.Succeeded();
 }
 
@@ -950,7 +950,7 @@ protected:
     GetSelectedOrDummyTarget()
         .GetFrameRecognizerManager()
         .RemoveAllRecognizers();
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -1007,7 +1007,7 @@ protected:
       GetSelectedOrDummyTarget()
           .GetFrameRecognizerManager()
           .RemoveAllRecognizers();
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return result.Succeeded();
     }
 
@@ -1031,7 +1031,7 @@ protected:
                                    command.GetArgumentAtIndex(0));
       return false;
     }
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -1073,10 +1073,10 @@ protected:
         });
 
     if (any_printed)
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     else {
       result.GetOutputStream().PutCString("no matching results found.\n");
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     }
     return result.Succeeded();
   }
@@ -1151,7 +1151,7 @@ protected:
       output_stream << "not recognized by any recognizer";
     }
     output_stream.EOL();
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };

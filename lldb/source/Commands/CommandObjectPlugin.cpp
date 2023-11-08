@@ -58,7 +58,7 @@ protected:
     FileSystem::Instance().Resolve(dylib_fspec);
 
     if (GetDebugger().LoadPlugin(dylib_fspec, error))
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     else {
       result.AppendError(error.AsCString());
     }

@@ -95,7 +95,7 @@ protected:
 
     result.GetOutputStream() << "diagnostics written to " << *directory << '\n';
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 

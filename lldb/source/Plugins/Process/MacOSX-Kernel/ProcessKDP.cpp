@@ -933,7 +933,7 @@ public:
                   reply.GetDataStart(), reply.GetByteSize(),
                   endian::InlHostByteOrder(), endian::InlHostByteOrder());
               result.AppendMessage(packet.GetString());
-              result.SetStatus(eReturnStatusSuccessFinishResult);
+              result.SetReturnStatus(eReturnStatusSuccessFinishResult);
               return true;
             } else {
               const char *error_cstr = error.AsCString();

@@ -617,9 +617,9 @@ protected:
 
         process->GetThreadList().SetSelectedThreadByID(thread->GetID());
         result.SetDidChangeProcessState(true);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       } else {
-        result.SetStatus(eReturnStatusSuccessContinuingNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessContinuingNoResult);
       }
     } else {
       result.SetError(new_plan_status);
@@ -788,9 +788,9 @@ public:
             result.AppendMessage(stream.GetString());
 
           result.SetDidChangeProcessState(true);
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
         } else {
-          result.SetStatus(eReturnStatusSuccessContinuingNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessContinuingNoResult);
         }
       } else {
         result.AppendErrorWithFormat("Failed to resume process: %s\n",
@@ -1116,9 +1116,9 @@ protected:
             result.AppendMessage(stream.GetString());
 
           result.SetDidChangeProcessState(true);
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
         } else {
-          result.SetStatus(eReturnStatusSuccessContinuingNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessContinuingNoResult);
         }
       } else {
         result.AppendErrorWithFormat("Failed to resume process: %s.\n",
@@ -1198,7 +1198,7 @@ protected:
     }
 
     process->GetThreadList().SetSelectedThreadByID(new_thread->GetID(), true);
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 
     return result.Succeeded();
   }
@@ -1223,7 +1223,7 @@ public:
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Stream &strm = result.GetOutputStream();
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     Process *process = m_exe_ctx.GetProcessPtr();
     const bool only_threads_with_stop_reason = false;
     const uint32_t start_frame = 0;
@@ -1533,7 +1533,7 @@ protected:
         if (success) {
           m_exe_ctx.SetFrameSP(
               thread->GetSelectedFrame(DoNoSelectMostRelevantFrame));
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendErrorWithFormat(
               "Could not select 0th frame after unwinding expression.");
@@ -1585,7 +1585,7 @@ protected:
       return false;
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 
@@ -1719,7 +1719,7 @@ protected:
         result.AppendWarning(warnings.c_str());
     }
 
-    result.SetStatus(eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return true;
   }
 
@@ -1813,7 +1813,7 @@ public:
                                         : eDescriptionLevelFull;
       m_exe_ctx.GetProcessPtr()->DumpThreadPlans(
           strm, desc_level, m_options.m_internal, true, m_options.m_unreported);
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return true;
     } else {
       // Do any TID's that the user may have specified as TID, then do any
@@ -1923,7 +1923,7 @@ public:
     }
 
     if (thread->DiscardUserThreadPlansUpToIndex(thread_plan_idx)) {
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     } else {
       result.AppendErrorWithFormat(
@@ -1970,7 +1970,7 @@ public:
 
     if (args.GetArgumentCount() == 0) {
       process->PruneThreadPlans();
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       return true;
     }
 
@@ -1992,7 +1992,7 @@ public:
         return false;
       }
     }
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     return true;
   }
 };
@@ -2091,7 +2091,7 @@ public:
     if (llvm::Error err = trace_sp->Stop(tids))
       result.AppendError(toString(std::move(err)));
     else
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
     return result.Succeeded();
   }

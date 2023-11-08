@@ -70,7 +70,7 @@ bool CommandObjectQuit::DoExecute(Args &command, CommandReturnObject &result) {
                    "want to proceed",
                    (is_a_detach ? "detach from" : "kill"));
     if (!m_interpreter.Confirm(message.GetString(), true)) {
-      result.SetStatus(eReturnStatusFailed);
+      result.SetReturnStatus(eReturnStatusFailed);
       return false;
     }
   }
@@ -102,7 +102,7 @@ bool CommandObjectQuit::DoExecute(Args &command, CommandReturnObject &result) {
   const uint32_t event_type =
       CommandInterpreter::eBroadcastBitQuitCommandReceived;
   m_interpreter.BroadcastEvent(event_type);
-  result.SetStatus(eReturnStatusQuit);
+  result.SetReturnStatus(eReturnStatusQuit);
 
   return true;
 }

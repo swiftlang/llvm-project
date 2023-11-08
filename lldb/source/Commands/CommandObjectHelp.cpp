@@ -93,7 +93,7 @@ bool CommandObjectHelp::DoExecute(Args &command, CommandReturnObject &result) {
     if (m_options.m_show_hidden)
       cmd_types |= CommandInterpreter::eCommandTypesHidden;
 
-    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     m_interpreter.GetHelp(result, cmd_types); // General help
   } else {
     // Get command object for the first command argument. Only search built-in
@@ -187,7 +187,7 @@ bool CommandObjectHelp::DoExecute(Args &command, CommandReturnObject &result) {
       if (arg_type != eArgTypeLastArg) {
         Stream &output_strm = result.GetOutputStream();
         CommandObject::GetArgumentHelp(output_strm, arg_type, m_interpreter);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       } else {
         StreamString error_msg_stream;
         GenerateAdditionalHelpAvenuesMessage(&error_msg_stream, command_name,

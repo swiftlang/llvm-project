@@ -92,7 +92,7 @@ void BreakpointIDList::InsertStringArray(
     if (bp_id)
       m_breakpoint_ids.push_back(*bp_id);
   }
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 }
 
 //  This function takes OLD_ARGS, which is usually the result of breaking the
@@ -318,7 +318,7 @@ void BreakpointIDList::FindAndReplaceIDRanges(Args &old_args, Target *target,
     }
   }
 
-  result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
 }
 
 std::pair<llvm::StringRef, llvm::StringRef>

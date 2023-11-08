@@ -507,7 +507,7 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
                     target.GetPersistentExpressionStateForLanguage(language))
               persistent_state->RemovePersistentVariable(result_var_sp);
           }
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       }
     } else {
       if (result_valobj_sp->GetError().GetError() ==
@@ -516,7 +516,7 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
           error_stream.PutCString("(void)\n");
         }
 
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         const char *error_cstr = result_valobj_sp->GetError().AsCString();
         if (error_cstr && error_cstr[0]) {
@@ -531,7 +531,7 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
           error_stream.PutCString("error: unknown error\n");
         }
 
-        result.SetStatus(eReturnStatusFailed);
+        result.SetReturnStatus(eReturnStatusFailed);
       }
     }
   } else {
@@ -743,6 +743,6 @@ bool CommandObjectExpression::DoExecute(llvm::StringRef command,
     }
     return true;
   }
-  result.SetStatus(eReturnStatusFailed);
+  result.SetReturnStatus(eReturnStatusFailed);
   return false;
 }

@@ -83,7 +83,7 @@ bool CommandObjectApropos::DoExecute(Args &args, CommandReturnObject &result) {
               m_interpreter, result.GetOutputStream(), 0, dump_qualified_name);
       }
 
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError("'' is not a valid search word.\n");
     }

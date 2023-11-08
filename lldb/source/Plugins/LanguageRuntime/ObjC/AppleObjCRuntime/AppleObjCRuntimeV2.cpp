@@ -941,14 +941,14 @@ protected:
       if (!regex_up->IsValid()) {
         result.AppendError(
             "invalid argument - please provide a valid regular expression");
-        result.SetStatus(lldb::eReturnStatusFailed);
+        result.SetReturnStatus(lldb::eReturnStatusFailed);
         return false;
       }
       break;
     }
     default: {
       result.AppendError("please provide 0 or 1 arguments");
-      result.SetStatus(lldb::eReturnStatusFailed);
+      result.SetReturnStatus(lldb::eReturnStatusFailed);
       return false;
     }
     }
@@ -1009,11 +1009,11 @@ protected:
                          iterator->first);
         }
       }
-      result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(lldb::eReturnStatusSuccessFinishResult);
       return true;
     }
     result.AppendError("current process has no Objective-C runtime loaded");
-    result.SetStatus(lldb::eReturnStatusFailed);
+    result.SetReturnStatus(lldb::eReturnStatusFailed);
     return false;
   }
 
@@ -1050,7 +1050,7 @@ protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     if (command.GetArgumentCount() == 0) {
       result.AppendError("this command requires arguments");
-      result.SetStatus(lldb::eReturnStatusFailed);
+      result.SetReturnStatus(lldb::eReturnStatusFailed);
       return false;
     }
 
@@ -1060,7 +1060,7 @@ protected:
     ObjCLanguageRuntime *objc_runtime = ObjCLanguageRuntime::Get(*process);
     if (!objc_runtime) {
       result.AppendError("current process has no Objective-C runtime loaded");
-      result.SetStatus(lldb::eReturnStatusFailed);
+      result.SetReturnStatus(lldb::eReturnStatusFailed);
       return false;
     }
 
@@ -1068,7 +1068,7 @@ protected:
         objc_runtime->GetTaggedPointerVendor();
     if (!tagged_ptr_vendor) {
       result.AppendError("current process has no tagged pointer support");
-      result.SetStatus(lldb::eReturnStatusFailed);
+      result.SetReturnStatus(lldb::eReturnStatusFailed);
       return false;
     }
 
@@ -1083,7 +1083,7 @@ protected:
       if (arg_addr == 0 || arg_addr == LLDB_INVALID_ADDRESS || error.Fail()) {
         result.AppendErrorWithFormatv(
             "could not convert '{0}' to a valid address\n", arg_str);
-        result.SetStatus(lldb::eReturnStatusFailed);
+        result.SetReturnStatus(lldb::eReturnStatusFailed);
         return false;
       }
 
@@ -1096,7 +1096,7 @@ protected:
       if (!descriptor_sp) {
         result.AppendErrorWithFormatv(
             "could not get class descriptor for {0:x16}\n", arg_addr);
-        result.SetStatus(lldb::eReturnStatusFailed);
+        result.SetReturnStatus(lldb::eReturnStatusFailed);
         return false;
       }
 
@@ -1118,7 +1118,7 @@ protected:
       }
     }
 
-    result.SetStatus(lldb::eReturnStatusSuccessFinishResult);
+    result.SetReturnStatus(lldb::eReturnStatusSuccessFinishResult);
     return true;
   }
 };

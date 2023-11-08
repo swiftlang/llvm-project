@@ -183,7 +183,7 @@ protected:
           GetDebugger().GetPlatformList().SetSelectedPlatform(platform_sp);
 
           platform_sp->GetStatus(result.GetOutputStream());
-          result.SetStatus(eReturnStatusSuccessFinishResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         } else {
           result.AppendError(error.AsCString());
         }
@@ -234,7 +234,7 @@ protected:
     if (idx == 0) {
       result.AppendError("no platforms are available\n");
     } else
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();
   }
 };
@@ -263,7 +263,7 @@ protected:
     }
     if (platform_sp) {
       platform_sp->GetStatus(ostrm);
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendError("no platform is currently selected\n");
     }
@@ -295,7 +295,7 @@ protected:
       Status error(platform_sp->ConnectRemote(args));
       if (error.Success()) {
         platform_sp->GetStatus(ostrm);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
 
         platform_sp->ConnectToWaitingProcesses(GetDebugger(), error);
         if (error.Fail()) {
@@ -357,7 +357,7 @@ protected:
                            platform_sp->GetPluginName());
             else
               ostrm.Printf("Disconnected from \"%s\"\n", hostname.c_str());
-            result.SetStatus(eReturnStatusSuccessFinishResult);
+            result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           } else {
             result.AppendErrorWithFormat("%s", error.AsCString());
           }
@@ -446,7 +446,7 @@ public:
                lldb::eFilePermissionsWorldRX;
       Status error = platform_sp->MakeDirectory(FileSpec(cmd_line), mode);
       if (error.Success()) {
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         result.AppendError(error.AsCString());
       }
@@ -510,7 +510,7 @@ public:
           perms, error);
       if (error.Success()) {
         result.AppendMessageWithFormat("File Descriptor = %" PRIu64 "\n", fd);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         result.AppendError(error.AsCString());
       }
@@ -560,7 +560,7 @@ public:
       bool success = platform_sp->CloseFile(fd, error);
       if (success) {
         result.AppendMessageWithFormat("file %" PRIu64 " closed.\n", fd);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         result.AppendError(error.AsCString());
       }
@@ -607,7 +607,7 @@ public:
       if (retcode != UINT64_MAX) {
         result.AppendMessageWithFormat("Return = %" PRIu64 "\n", retcode);
         result.AppendMessageWithFormat("Data = \"%s\"\n", buffer.c_str());
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         result.AppendError(error.AsCString());
       }
@@ -702,7 +702,7 @@ public:
                                  m_options.m_data.size(), error);
       if (retcode != UINT64_MAX) {
         result.AppendMessageWithFormat("Return = %" PRIu64 "\n", retcode);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         result.AppendError(error.AsCString());
       }
@@ -858,7 +858,7 @@ public:
         result.AppendMessageWithFormat(
             "successfully get-file from %s (remote) to %s (host)\n",
             remote_file_path, local_file_path);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         result.AppendMessageWithFormat("get-file failed: %s\n",
                                        error.AsCString());
@@ -928,7 +928,7 @@ public:
         result.AppendMessageWithFormat("File size of %s (remote): %" PRIu64
                                        "\n",
                                        remote_file_path.c_str(), size);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else {
         result.AppendMessageWithFormat(
             "Error getting file size of %s (remote)\n",
@@ -1001,7 +1001,7 @@ public:
         result.AppendMessageWithFormat(
             "File permissions of %s (remote): 0o%04" PRIo32 "\n",
             remote_file_path.c_str(), permissions);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       } else
         result.AppendError(error.AsCString());
     } else {
@@ -1068,7 +1068,7 @@ public:
       result.AppendMessageWithFormat(
           "File %s (remote) %s\n",
           remote_file_path.c_str(), exists ? "exists" : "does not exist");
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendError("no platform currently selected\n");
     }
@@ -1127,7 +1127,7 @@ public:
     if (platform_sp) {
       Status error(platform_sp->PutFile(src_fs, dst_fs));
       if (error.Success()) {
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
       } else {
         result.AppendError(error.AsCString());
       }
@@ -1271,7 +1271,7 @@ protected:
         }
 
         if (process_sp && process_sp->IsAlive()) {
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
+          result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
           return true;
         }
       } else {
@@ -1333,7 +1333,7 @@ protected:
                                                  m_options.verbose);
             proc_info.DumpAsTableRow(ostrm, platform_sp->GetUserIDResolver(),
                                      m_options.show_args, m_options.verbose);
-            result.SetStatus(eReturnStatusSuccessFinishResult);
+            result.SetReturnStatus(eReturnStatusSuccessFinishResult);
           } else {
             result.AppendErrorWithFormat(
                 "no process found with pid = %" PRIu64 "\n", pid);
@@ -1669,7 +1669,7 @@ public:
       } else if (!remote_process_sp) {
         result.AppendError("could not attach: unknown reason");
       } else
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     } else {
       result.AppendError("no platform is currently selected");
     }
@@ -1854,7 +1854,7 @@ public:
     if (error.Fail()) {
       result.AppendError(error.AsCString());
     } else {
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
     }
     return true;
   }
@@ -1909,7 +1909,7 @@ public:
 
     Status error = platform_sp->Install(src, dst);
     if (error.Success()) {
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendErrorWithFormat("install failed: %s", error.AsCString());
     }

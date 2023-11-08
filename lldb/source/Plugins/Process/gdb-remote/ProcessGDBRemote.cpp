@@ -5203,14 +5203,14 @@ public:
         process->GetGDBRemote().TestPacketSpeed(
             num_packets, max_send, max_recv, k_recv_amount, json,
             output_stream_sp ? *output_stream_sp : result.GetOutputStream());
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         return true;
       }
     } else {
       result.AppendErrorWithFormat("'%s' takes no arguments",
                                    m_cmd_name.c_str());
     }
-    result.SetStatus(eReturnStatusFailed);
+    result.SetReturnStatus(eReturnStatusFailed);
     return false;
   }
 
@@ -5236,10 +5236,10 @@ public:
         (ProcessGDBRemote *)m_interpreter.GetExecutionContext().GetProcessPtr();
     if (process) {
       process->DumpPluginHistory(result.GetOutputStream());
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       return true;
     }
-    result.SetStatus(eReturnStatusFailed);
+    result.SetReturnStatus(eReturnStatusFailed);
     return false;
   }
 };
@@ -5276,11 +5276,11 @@ public:
       uint64_t user_specified_max = strtoul(packet_size, nullptr, 10);
       if (errno == 0 && user_specified_max != 0) {
         process->SetUserSpecifiedMaxMemoryTransferSize(user_specified_max);
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         return true;
       }
     }
-    result.SetStatus(eReturnStatusFailed);
+    result.SetReturnStatus(eReturnStatusFailed);
     return false;
   }
 };
@@ -5319,7 +5319,7 @@ public:
         StringExtractorGDBRemote response;
         process->GetGDBRemote().SendPacketAndWaitForResponse(
             packet_cstr, response, process->GetInterruptTimeout());
-        result.SetStatus(eReturnStatusSuccessFinishResult);
+        result.SetReturnStatus(eReturnStatusSuccessFinishResult);
         Stream &output_strm = result.GetOutputStream();
         output_strm.Printf("  packet: %s\n", packet_cstr);
         std::string response_str = std::string(response.GetStringRef());
@@ -5371,7 +5371,7 @@ public:
       process->GetGDBRemote().SendPacketAndReceiveResponseWithOutputSupport(
           packet.GetString(), response, process->GetInterruptTimeout(),
           [&output_strm](llvm::StringRef output) { output_strm << output; });
-      result.SetStatus(eReturnStatusSuccessFinishResult);
+      result.SetReturnStatus(eReturnStatusSuccessFinishResult);
       output_strm.Printf("  packet: %s\n", packet.GetData());
       const std::string &response_str = std::string(response.GetStringRef());
 
