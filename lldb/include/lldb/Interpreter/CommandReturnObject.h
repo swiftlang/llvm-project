@@ -135,7 +135,7 @@ public:
 
   void SetError(llvm::Error error);
 
-  lldb::ReturnStatus GetStatus() const;
+  lldb::ReturnStatus GetReturnStatus() const;
 
   void SetStatus(lldb::ReturnStatus status);
 

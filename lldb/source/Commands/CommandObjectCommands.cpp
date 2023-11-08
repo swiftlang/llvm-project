@@ -1140,7 +1140,7 @@ protected:
       result.AppendError(error.AsCString());
     } else {
       // Don't change the status if the command already set it...
-      if (result.GetStatus() == eReturnStatusInvalid) {
+      if (result.GetReturnStatus() == eReturnStatusInvalid) {
         if (result.GetOutputData().empty())
           result.SetStatus(eReturnStatusSuccessFinishNoResult);
         else
@@ -1236,7 +1236,7 @@ protected:
       result.AppendError(error.AsCString());
     } else {
       // Don't change the status if the command already set it...
-      if (result.GetStatus() == eReturnStatusInvalid) {
+      if (result.GetReturnStatus() == eReturnStatusInvalid) {
         if (result.GetOutputData().empty())
           result.SetStatus(eReturnStatusSuccessFinishNoResult);
         else

@@ -263,7 +263,7 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
         if (saved_prompt_on_quit)
           ci.SetPromptOnQuit(true);
 
-        if (result.GetStatus() == lldb::eReturnStatusQuit) {
+        if (result.GetReturnStatus() == lldb::eReturnStatusQuit) {
           did_quit = true;
           io_handler.SetIsDone(true);
           if (debugger.CheckTopIOHandlerTypes(

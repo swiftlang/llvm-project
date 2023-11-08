@@ -2632,8 +2632,8 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
     // into the command execution could be running (for instance in Breakpoint
     // Commands. So we check the return value to see if it is has running in
     // it.
-    if ((tmp_result.GetStatus() == eReturnStatusSuccessContinuingNoResult) ||
-        (tmp_result.GetStatus() == eReturnStatusSuccessContinuingResult)) {
+    if ((tmp_result.GetReturnStatus() == eReturnStatusSuccessContinuingNoResult) ||
+        (tmp_result.GetReturnStatus() == eReturnStatusSuccessContinuingResult)) {
       if (options.GetStopOnContinue()) {
         // If we caused the target to proceed, and we're going to stop in that
         // case, set the status in our real result before returning.  This is
@@ -2649,7 +2649,7 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
                                          " '%s' continued the target.\n",
                                          (uint64_t)idx + 1, cmd);
 
-        result.SetStatus(tmp_result.GetStatus());
+        result.SetStatus(tmp_result.GetReturnStatus());
         m_debugger.SetAsyncExecution(old_async_execution);
 
         return;
@@ -2669,7 +2669,7 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
             "Command #%" PRIu64 " '%s' stopped with a signal or exception.\n",
             (uint64_t)idx + 1, cmd);
 
-      result.SetStatus(tmp_result.GetStatus());
+      result.SetStatus(tmp_result.GetReturnStatus());
       m_debugger.SetAsyncExecution(old_async_execution);
 
       return;
@@ -3166,7 +3166,7 @@ void CommandInterpreter::IOHandlerInputComplete(IOHandler &io_handler,
 
   FinishHandlingCommand();
 
-  switch (result.GetStatus()) {
+  switch (result.GetReturnStatus()) {
   case eReturnStatusInvalid:
   case eReturnStatusSuccessFinishNoResult:
   case eReturnStatusSuccessFinishResult:

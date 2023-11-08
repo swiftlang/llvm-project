@@ -129,7 +129,7 @@ void CommandReturnObject::AppendRawError(llvm::StringRef in_string) {
 
 void CommandReturnObject::SetStatus(ReturnStatus status) { m_return_status = status; }
 
-ReturnStatus CommandReturnObject::GetStatus() const { return m_return_status; }
+ReturnStatus CommandReturnObject::GetReturnStatus() const { return m_return_status; }
 
 bool CommandReturnObject::Succeeded() const {
   return m_return_status <= eReturnStatusSuccessContinuingResult;

@@ -4378,7 +4378,7 @@ Target::StopHookCommandLine::HandleStop(ExecutionContext &exc_ctx,
   debugger.GetCommandInterpreter().HandleCommands(GetCommands(), exc_ctx,
                                                   options, result);
   debugger.SetAsyncExecution(old_async);
-  lldb::ReturnStatus status = result.GetStatus();
+  lldb::ReturnStatus status = result.GetReturnStatus();
   if (status == eReturnStatusSuccessContinuingNoResult ||
       status == eReturnStatusSuccessContinuingResult)
     return StopHookResult::AlreadyContinued;

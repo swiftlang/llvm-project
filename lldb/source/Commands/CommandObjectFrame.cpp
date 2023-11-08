@@ -708,7 +708,7 @@ protected:
           }
         }
       }
-      if (result.GetStatus() != eReturnStatusFailed)
+      if (result.GetReturnStatus() != eReturnStatusFailed)
         result.SetStatus(eReturnStatusSuccessFinishResult);
     }
 

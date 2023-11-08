@@ -2861,7 +2861,7 @@ bool ScriptInterpreterPythonImpl::RunScriptBasedCommand(
 
   if (!ret_val)
     error.SetErrorString("unable to execute script function");
-  else if (cmd_retobj.GetStatus() == eReturnStatusFailed)
+  else if (cmd_retobj.GetReturnStatus() == eReturnStatusFailed)
     return false;
 
   error.Clear();
@@ -2906,7 +2906,7 @@ bool ScriptInterpreterPythonImpl::RunScriptBasedCommand(
 
   if (!ret_val)
     error.SetErrorString("unable to execute script function");
-  else if (cmd_retobj.GetStatus() == eReturnStatusFailed)
+  else if (cmd_retobj.GetReturnStatus() == eReturnStatusFailed)
     return false;
 
   error.Clear();

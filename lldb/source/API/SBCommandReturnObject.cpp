@@ -165,7 +165,7 @@ void SBCommandReturnObject::Clear() {
 lldb::ReturnStatus SBCommandReturnObject::GetStatus() {
   LLDB_INSTRUMENT_VA(this);
 
-  return ref().GetStatus();
+  return ref().GetReturnStatus();
 }
 
 void SBCommandReturnObject::SetStatus(lldb::ReturnStatus status) {
@@ -220,7 +220,7 @@ bool SBCommandReturnObject::GetDescription(SBStream &description) {
   Stream &strm = description.ref();
 
   description.Printf("Error:  ");
-  lldb::ReturnStatus status = ref().GetStatus();
+  lldb::ReturnStatus status = ref().GetReturnStatus();
   if (status == lldb::eReturnStatusStarted)
     strm.PutCString("Started");
   else if (status == lldb::eReturnStatusInvalid)
