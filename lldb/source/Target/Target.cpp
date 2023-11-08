@@ -3211,14 +3211,14 @@ ExpressionResults Target::EvaluateExpression(
     execution_results = eExpressionCompleted;
   } else {
     llvm::StringRef prefix = GetExpressionPrefixContents();
-    Status error;
+    Status status;
     execution_results = UserExpression::Evaluate(exe_ctx, options, expr, prefix,
-                                                 result_valobj_sp, error,
+                                                 result_valobj_sp, status,
                                                  fixed_expression, ctx_obj);
     // Pass up the error by wrapping it inside an error result.
-    if (error.Fail() && !result_valobj_sp)
+    if (status.Fail() && !result_valobj_sp)
       result_valobj_sp = ValueObjectConstResult::Create(
-          exe_ctx.GetBestExecutionContextScope(), error);
+          exe_ctx.GetBestExecutionContextScope(), status);
   }
 
   if (execution_results == eExpressionCompleted)
