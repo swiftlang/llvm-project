@@ -89,7 +89,8 @@ public:
                            swift::remote::TypeInfoProvider *provider) override {
     if (!type_ref)
       return nullptr;
-    return m_type_converter.getClassInstanceTypeInfo(type_ref, 0, provider);
+    return m_type_converter.getClassInstanceTypeInfo(type_ref, 0, provider,
+                                                     nullptr);
   }
 
   const swift::reflection::TypeInfo *
@@ -108,7 +109,7 @@ public:
                 ss.str().c_str());
     }
 
-    auto type_info = m_reflection_ctx.getTypeInfo(type_ref, provider);
+    auto type_info = m_reflection_ctx.getTypeInfo(type_ref, provider, nullptr);
     if (log && !type_info) {
       std::stringstream ss;
       type_ref->dump(ss);
@@ -131,7 +132,7 @@ public:
   const swift::reflection::TypeInfo *
   GetTypeInfoFromInstance(lldb::addr_t instance,
                           swift::remote::TypeInfoProvider *provider) override {
-    return m_reflection_ctx.getInstanceTypeInfo(instance, provider);
+    return m_reflection_ctx.getInstanceTypeInfo(instance, provider, nullptr);
   }
 
   swift::reflection::MemoryReader &GetReader() override {
@@ -160,7 +161,8 @@ public:
       // if they need them.'
       auto metadata = *md_ptr;
       if (fn({[=]() -> const swift::reflection::RecordTypeInfo * {
-                auto *ti = m_reflection_ctx.getMetadataTypeInfo(metadata, tip);
+                auto *ti = m_reflection_ctx.getMetadataTypeInfo(metadata, tip,
+                                                                nullptr);
                 return llvm::dyn_cast_or_null<
                     swift::reflection::RecordTypeInfo>(ti);
               },
@@ -181,7 +183,7 @@ public:
                    swift::remote::TypeInfoProvider *provider) override {
     int32_t case_idx;
     if (m_reflection_ctx.projectEnumValue(enum_addr, enum_type_ref, &case_idx,
-                                          provider))
+                                          provider, nullptr))
       return case_idx;
     return {};
   }
