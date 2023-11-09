@@ -3103,6 +3103,117 @@ bool CommandInterpreter::EchoCommandNonInteractive(
 
   return true;
 }
+// MARK: - Diagnostic helpers functions
+
+static std::string RemoveErrorFromString(const llvm::StringRef message) {
+  // Remove the leading "error: ", if applicable.
+  std::string return_value;
+  const llvm::StringRef error_label_string("error: ");
+
+  // Split the spring around the next "error :" instance, if applicable.
+  const auto split_string = message.split(error_label_string);
+
+  return_value += split_string.first;
+  return_value += split_string.second;
+  return return_value;
+}
+
+static std::vector<std::string> SplitMessageLines(std::string message) {
+  const char newline = '\n';
+  std::vector<std::string> return_value;
+
+  std::stringstream splitter(message);
+  std::string split;
+
+  while (getline(splitter, split, newline)) {
+    return_value.push_back(split);
+  }
+
+  return return_value;
+}
+
+static std::string BuildDiagnosticsString(DiagnosticList &diagnostics,
+                                          llvm::StringRef prompt,
+                                          llvm::StringRef command_line) {
+  std::string diagnostic_string;
+  llvm::raw_string_ostream builder(diagnostic_string);
+
+  const size_t diagnostic_count = diagnostics.size();
+  const bool multiple_diagnostics = diagnostic_count > 1;
+  const std::string newline("\n");
+
+  if (multiple_diagnostics) {
+    builder << "Command has " << diagnostic_count;
+    builder << " diagnostics." << newline;
+  }
+
+  uint32_t diagnostic_index = 1;
+  for (auto &diagnostic : diagnostics) {
+    const auto message = diagnostic->GetMessage();
+    const auto severity = diagnostic->GetSeverity();
+    const auto stripped_message = RemoveErrorFromString(message);
+    auto message_lines = SplitMessageLines(stripped_message);
+    const bool multi_line_message = message_lines.size() >= 2;
+    const bool last_diagnostic = diagnostic_index == diagnostic_count;
+
+    // Print the total number of command issue
+    if (multiple_diagnostics) {
+      builder << (last_diagnostic ? "└" : "├");
+      builder << (multi_line_message ? "┬" : "─");
+      builder << "Diagnostic " <<diagnostic_index << "/" << diagnostic_count;
+      builder << newline;
+      diagnostic_index += 1;
+    }
+
+    std::string severity_string;
+    if (severity == lldb_private::eDiagnosticSeverityError)
+      severity_string = "error: ";
+    else if (severity == lldb_private::eDiagnosticSeverityWarning)
+      severity_string = "warning: ";
+
+    // For a single diagnostic, indent the next lines past the severity string.
+    std::string inset = std::string(severity_string.size(), ' ');
+
+    // For multipel diagnostics, replace the inset with the line art.
+    if (multiple_diagnostics) {
+      // The last line doesn't need line art.
+      inset = last_diagnostic ? " " : "│";
+
+      // Print line art ahead of the issue's first line.
+      builder << inset << "└" << (multi_line_message ? "┬" : "─");
+    }
+
+    // Print the first line of the issue and remove it from the list.
+    builder << message_lines.front() << newline;
+    message_lines.erase(message_lines.begin());
+
+    // Print additional lines, if applicable.
+    if (multi_line_message) {
+      const auto inset2 = inset + " │";
+      const auto inset3 = inset + " └";
+
+      if (message_lines.size() == 2 &&
+          command_line.find(message_lines[0]) != std::string::npos &&
+          message_lines[1].find('^') != std::string::npos) {
+        auto padding_size = prompt.size();
+        padding_size += command_line.size() - message_lines[0].size();
+        const auto padding = std::string(padding_size, ' ');
+
+        // Add a replica of LLDB prompt and developer's command.
+        builder << inset2 << prompt << command_line << newline;
+        builder << inset3 << padding << message_lines[1] << newline;
+      }
+      else
+        for (auto line : message_lines)
+          builder << inset2 << line << newline;
+    }
+
+    // Print a line with art after the issue's message, except for the last one.
+    if (!last_diagnostic)
+      builder << inset << newline;
+  }
+  return diagnostic_string;
+}
 
 void CommandInterpreter::IOHandlerInputComplete(IOHandler &io_handler,
                                                 std::string &line) {
@@ -3159,8 +3270,20 @@ void CommandInterpreter::IOHandlerInputComplete(IOHandler &io_handler,
 
     // Now emit the command error text from the command we just executed
     if (!result.GetImmediateErrorStream()) {
-      llvm::StringRef error = result.GetErrorData();
-      PrintCommandOutput(io_handler, error, false);
+      // Check for diagnostics first.
+      Status status = result.GetStatus();
+      DiagnosticManager diagnostic_manager = status.GetDiagnosticManager();
+      DiagnosticList diagnostic_list = diagnostic_manager.Diagnostics();
+      if (diagnostic_list.size() >= 1) {
+        auto diagnostic_string = BuildDiagnosticsString(diagnostic_list,
+                                                        GetDebugger().GetPrompt(),
+                                                        line);
+
+        result.AppendError(diagnostic_string);
+      }
+
+      llvm::StringRef error_string = result.GetErrorData();
+      PrintCommandOutput(io_handler, error_string, false);
     }
   }
 

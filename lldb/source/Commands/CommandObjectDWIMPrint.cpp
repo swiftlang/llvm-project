@@ -261,7 +261,7 @@ bool CommandObjectDWIMPrint::DoExecute(StringRef command,
       return true;
     } else {
       if (valobj_sp)
-        result.SetError(valobj_sp->GetError());
+        result.SetStatus(valobj_sp->GetError());
       else
         result.AppendErrorWithFormatv(
             "unknown error evaluating expression `{0}`", expr);
