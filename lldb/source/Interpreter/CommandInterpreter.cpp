@@ -3275,9 +3275,10 @@ void CommandInterpreter::IOHandlerInputComplete(IOHandler &io_handler,
       DiagnosticManager diagnostic_manager = status.GetDiagnosticManager();
       DiagnosticList diagnostic_list = diagnostic_manager.Diagnostics();
       if (diagnostic_list.size() >= 1) {
+        auto command_line = line.empty() ? m_repeat_command : line;
         auto diagnostic_string = BuildDiagnosticsString(diagnostic_list,
                                                         GetDebugger().GetPrompt(),
-                                                        line);
+                                                        command_line);
 
         result.AppendError(diagnostic_string);
       }
