@@ -8,28 +8,26 @@ import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 
-
 class TestSwiftProgressReporting(TestBase):
+
     mydir = TestBase.compute_mydir(__file__)
 
     def setUp(self):
         TestBase.setUp(self)
         self.broadcaster = self.dbg.GetBroadcaster()
-        self.listener = lldbutil.start_listening_from(
-            self.broadcaster, lldb.SBDebugger.eBroadcastBitProgress
-        )
+        self.listener = lldbutil.start_listening_from(self.broadcaster,
+                                        lldb.SBDebugger.eBroadcastBitProgress)
 
     # Don't run ClangImporter tests if Clangimporter is disabled.
-    @skipIf(setting=("symbols.use-swift-clangimporter", "false"))
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipUnlessDarwin
     @swiftTest
     def test_swift_progress_report(self):
         """Test that we are able to fetch swift type-system progress events"""
         self.build()
 
-        target, process, thread, _ = lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift")
-        )
+        target, process, thread, _ = lldbutil.run_to_source_breakpoint(self, 'break here',
+                                          lldb.SBFileSpec('main.swift'))
 
         self.assertGreater(thread.GetNumFrames(), 0)
         frame = thread.GetSelectedFrame()
@@ -39,19 +37,16 @@ class TestSwiftProgressReporting(TestBase):
         self.runCmd("expr boo")
         self.runCmd("v s")
 
-        beacons = [
-            "Loading Swift module",
-            "Caching Swift user imports from",
-            "Setting up Swift reflection",
-            "Getting Swift compile unit imports",
-            "Importing Swift modules",
-            "Importing Swift standard library modules",
-        ]
+        beacons = [ "Loading Swift module",
+                    "Importing module used in expression",
+                    "Setting up Swift reflection",
+                    "Importing module used by compile unit",
+                    "Importing Swift modules", "Importing Swift standard library modules"]
 
         while len(beacons):
             event = lldbutil.fetch_next_event(self, self.listener, self.broadcaster)
             ret_args = lldb.SBDebugger.GetProgressFromEvent(event)
-            self.trace((ret_args[0]))
+
             for beacon in beacons:
                 if beacon in ret_args[0]:
                     beacons.remove(beacon)
