@@ -3105,33 +3105,6 @@ bool CommandInterpreter::EchoCommandNonInteractive(
 }
 // MARK: - Diagnostic helpers functions
 
-static std::string RemoveErrorFromString(const llvm::StringRef message) {
-  // Remove the leading "error: ", if applicable.
-  std::string return_value;
-  const llvm::StringRef error_label_string("error: ");
-
-  // Split the spring around the next "error :" instance, if applicable.
-  const auto split_string = message.split(error_label_string);
-
-  return_value += split_string.first;
-  return_value += split_string.second;
-  return return_value;
-}
-
-static std::vector<std::string> SplitMessageLines(std::string message) {
-  const char newline = '\n';
-  std::vector<std::string> return_value;
-
-  std::stringstream splitter(message);
-  std::string split;
-
-  while (getline(splitter, split, newline)) {
-    return_value.push_back(split);
-  }
-
-  return return_value;
-}
-
 static std::string BuildDiagnosticsString(DiagnosticList &diagnostics,
                                           llvm::StringRef prompt,
                                           llvm::StringRef command_line) {
@@ -3142,6 +3115,33 @@ static std::string BuildDiagnosticsString(DiagnosticList &diagnostics,
   const bool multiple_diagnostics = diagnostic_count > 1;
   const std::string newline("\n");
 
+  auto remove_error_from_string =[&](const llvm::StringRef message) -> std::string {
+    // Remove the leading "error: ", if applicable.
+    std::string return_value;
+    const llvm::StringRef error_label_string("error: ");
+
+    // Split the spring around the next "error :" instance, if applicable.
+    const auto split_string = message.split(error_label_string);
+
+    return_value += split_string.first;
+    return_value += split_string.second;
+    return return_value;
+  };
+
+  auto split_message_lines = [&](std::string message) -> std::vector<std::string>  {
+    const char newline = '\n';
+    std::vector<std::string> return_value;
+
+    std::stringstream splitter(message);
+    std::string split;
+
+    while (getline(splitter, split, newline)) {
+      return_value.push_back(split);
+    }
+
+    return return_value;
+  };
+
   if (multiple_diagnostics) {
     builder << "Command has " << diagnostic_count;
     builder << " diagnostics." << newline;
@@ -3151,8 +3151,8 @@ static std::string BuildDiagnosticsString(DiagnosticList &diagnostics,
   for (auto &diagnostic : diagnostics) {
     const auto message = diagnostic->GetMessage();
     const auto severity = diagnostic->GetSeverity();
-    const auto stripped_message = RemoveErrorFromString(message);
-    auto message_lines = SplitMessageLines(stripped_message);
+    const auto stripped_message = remove_error_from_string(message);
+    auto message_lines = split_message_lines(stripped_message);
     const bool multi_line_message = message_lines.size() >= 2;
     const bool last_diagnostic = diagnostic_index == diagnostic_count;
 
