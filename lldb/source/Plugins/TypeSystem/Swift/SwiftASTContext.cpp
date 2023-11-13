@@ -8356,7 +8356,7 @@ bool SwiftASTContextForExpressions::CacheUserImports(
   source_file.walk(import_finder);
   
   for (const auto &attributed_import : src_file_imports) {
-    progress.Increment(++completion, source_file.getFilename().str());
+    progress.Increment(++completion, attributed_import.module.importedModule->getModuleFilename().str());
     swift::ModuleDecl *module = attributed_import.module.importedModule;
     if (module && import_finder.imports.count(module)) {
       std::string module_name;
