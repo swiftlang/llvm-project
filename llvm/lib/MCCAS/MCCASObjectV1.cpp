@@ -61,6 +61,10 @@ cl::opt<bool>
                             "just stored as one cas block per section"),
                    cl::init(false));
 
+cl::opt<bool> Experimental("experimental",
+                           cl::desc("Use experimental debug info storage"),
+                           cl::init(false));
+
 enum RelEncodeLoc {
   Atom,
   Section,
@@ -1893,7 +1897,9 @@ struct DIEDataWriter : public DataWriter {
 
   /// Saves the main data stream and any children to a new DIEDataRef node.
   Expected<DIEDataRef> getCASNode(MCCASBuilder &CASBuilder) {
-    return DIEDataRef::create(CASBuilder, Children, Data);
+    auto Ref = DIEDataRef::create(CASBuilder, Children, Data);
+    Data.clear();
+    return Ref;
   }
 
 private:
@@ -1973,13 +1979,15 @@ private:
   ArrayRef<char> DebugInfoData;
   MCCASBuilder &CASBuilder;
 
-  Expected<DIEDataRef> convertInNewDIEBlock(DWARFDie DIE,
-                                            DistinctDataWriter &DistinctWriter,
-                                            AbbrevSetWriter &AbbrevWriter);
+  Expected<DIEDataRef>
+  convertInNewDIEBlock(DWARFDie DIE, DistinctDataWriter &DistinctWriter,
+                       AbbrevSetWriter &AbbrevWriter,
+                       SmallVectorImpl<cas::ObjectRef> &DIERefs);
 
   Error convertImpl(DWARFDie &DIE, DIEDataWriter &DIEWriter,
                     DistinctDataWriter &DistinctWriter,
-                    AbbrevSetWriter &AbbrevWriter);
+                    AbbrevSetWriter &AbbrevWriter,
+                    SmallVectorImpl<cas::ObjectRef> &DIERefs);
 };
 
 Error InMemoryCASDWARFObject::partitionCUData(ArrayRef<char> DebugInfoData,
@@ -2026,6 +2034,7 @@ Error InMemoryCASDWARFObject::partitionCUData(ArrayRef<char> DebugInfoData,
 
     HeaderData = DebugInfoData.take_front(Dwarf4HeaderSize32Bit);
   }
+
   Expected<DIETopLevelRef> Converted =
       DIEToCASConverter(DebugInfoData, Builder)
           .convert(CUDie, HeaderData, AbbrevWriter);
@@ -2990,7 +2999,8 @@ static void writeDIEAttrs(DWARFDie &DIE, ArrayRef<char> DebugInfoData,
 /// according to the corresponding DIEAbbrevRefs block.
 Error DIEToCASConverter::convertImpl(DWARFDie &DIE, DIEDataWriter &DIEWriter,
                                      DistinctDataWriter &DistinctWriter,
-                                     AbbrevSetWriter &AbbrevWriter) {
+                                     AbbrevSetWriter &AbbrevWriter,
+                                     SmallVectorImpl<cas::ObjectRef> &DIERefs) {
   Expected<unsigned> MaybeAbbrevIndex =
       AbbrevWriter.createAbbrevEntry(DIE, CASBuilder);
   if (!MaybeAbbrevIndex)
@@ -3007,29 +3017,44 @@ Error DIEToCASConverter::convertImpl(DWARFDie &DIE, DIEDataWriter &DIEWriter,
       break;
     }
 
-    // FIXME: don't use recursion.
-    if (shouldCreateSeparateBlockFor(Child)) {
-      DistinctWriter.writeULEB128(getDIEInAnotherBlockMarker());
-      auto MaybeNode =
-          convertInNewDIEBlock(Child, DistinctWriter, AbbrevWriter);
-      if (!MaybeNode)
-        return MaybeNode.takeError();
-      DIEWriter.addRef(*MaybeNode);
-      continue;
-    }
+    if (Experimental) {
+      if (shouldCreateSeparateBlockFor(Child)) {
+        DistinctWriter.writeULEB128(getDIEInAnotherBlockMarker());
+        auto Ref = DIEWriter.getCASNode(CASBuilder);
+        if (!Ref)
+          return Ref.takeError();
+        DIERefs.push_back(Ref->getRef());
+      }
+      if (auto E = convertImpl(Child, DIEWriter, DistinctWriter, AbbrevWriter,
+                               DIERefs))
+        return E;
 
-    if (auto E = convertImpl(Child, DIEWriter, DistinctWriter, AbbrevWriter))
-      return E;
+    } else {
+      // FIXME: don't use recursion.
+      if (shouldCreateSeparateBlockFor(Child)) {
+        DistinctWriter.writeULEB128(getDIEInAnotherBlockMarker());
+        auto MaybeNode =
+            convertInNewDIEBlock(Child, DistinctWriter, AbbrevWriter, DIERefs);
+        if (!MaybeNode)
+          return MaybeNode.takeError();
+        DIEWriter.addRef(*MaybeNode);
+        continue;
+      }
+
+      if (auto E = convertImpl(Child, DIEWriter, DistinctWriter, AbbrevWriter,
+                               DIERefs))
+        return E;
+    }
   }
   return Error::success();
 }
 
-Expected<DIEDataRef>
-DIEToCASConverter::convertInNewDIEBlock(DWARFDie DIE,
-                                        DistinctDataWriter &DistinctWriter,
-                                        AbbrevSetWriter &AbbrevWriter) {
+Expected<DIEDataRef> DIEToCASConverter::convertInNewDIEBlock(
+    DWARFDie DIE, DistinctDataWriter &DistinctWriter,
+    AbbrevSetWriter &AbbrevWriter, SmallVectorImpl<cas::ObjectRef> &DIERefs) {
   DIEDataWriter DIEWriter;
-  if (auto E = convertImpl(DIE, DIEWriter, DistinctWriter, AbbrevWriter))
+  if (auto E =
+          convertImpl(DIE, DIEWriter, DistinctWriter, AbbrevWriter, DIERefs))
     return std::move(E);
   return DIEWriter.getCASNode(CASBuilder);
 }
@@ -3039,8 +3064,9 @@ DIEToCASConverter::convert(DWARFDie DIE, ArrayRef<char> HeaderData,
                            AbbrevSetWriter &AbbrevWriter) {
   DistinctDataWriter DistinctWriter;
   DistinctWriter.writeData(HeaderData);
+  SmallVector<cas::ObjectRef> DIERefs;
   Expected<DIEDataRef> MaybeDIE =
-      convertInNewDIEBlock(DIE, DistinctWriter, AbbrevWriter);
+      convertInNewDIEBlock(DIE, DistinctWriter, AbbrevWriter, DIERefs);
   if (!MaybeDIE)
     return MaybeDIE.takeError();
   Expected<DIEAbbrevSetRef> MaybeAbbrevSet =
@@ -3051,6 +3077,15 @@ DIEToCASConverter::convert(DWARFDie DIE, ArrayRef<char> HeaderData,
       DistinctWriter.getCASNode(CASBuilder);
   if (!MaybeDistinct)
     return MaybeDistinct.takeError();
+  if (Experimental) {
+    DIERefs.push_back(MaybeDIE->getRef());
+    auto TopDIERef = DIEDataRef::create(CASBuilder, DIERefs, {});
+    if (!TopDIERef)
+      return TopDIERef.takeError();
+    SmallVector<cas::ObjectRef, 3> Refs{
+        TopDIERef->getRef(), MaybeAbbrevSet->getRef(), MaybeDistinct->getRef()};
+    return DIETopLevelRef::create(CASBuilder, Refs);
+  }
   SmallVector<cas::ObjectRef, 3> Refs{
       MaybeDIE->getRef(), MaybeAbbrevSet->getRef(), MaybeDistinct->getRef()};
   return DIETopLevelRef::create(CASBuilder, Refs);
@@ -3158,6 +3193,67 @@ static AbbrevEntryReader getAbbrevEntryReader(ArrayRef<StringRef> AbbrevEntries,
 Error DIEVisitor::visitDIERef(BinaryStreamReader &DataReader,
                               unsigned AbbrevIdx, StringRef DIEData,
                               ArrayRef<DIEDataRef> &DIEChildrenStack) {
+  if (Experimental) {
+    // We can materialize iteratively. The current DIEData should be empty.
+    assert(!DIEData.size() &&
+           "Something is wrong, Top level DIEDataRef should be empty");
+
+    uint64_t Off = 0;
+    while (true) {
+      auto Data = DIEChildrenStack.empty() ? StringRef()
+                                           : DIEChildrenStack.front().getData();
+      BinaryStreamReader Reader(Data, llvm::endianness::little);
+      Reader.setOffset(Off);
+
+      AbbrevEntryReader AbbrevReader =
+          getAbbrevEntryReader(AbbrevEntries, AbbrevIdx);
+
+      if (Expected<dwarf::Tag> MaybeTag = AbbrevReader.readTag())
+        StartTagCallback(*MaybeTag, AbbrevIdx);
+      else
+        return MaybeTag.takeError();
+
+      Expected<bool> MaybeHasChildren = AbbrevReader.readHasChildren();
+      if (!MaybeHasChildren)
+        return MaybeHasChildren.takeError();
+
+      if (auto E = visitDIEAttrs(AbbrevReader, Reader, Data))
+        return E;
+
+      Off = Reader.getOffset();
+
+      if (!*MaybeHasChildren)
+        EndTagCallback(false /*HadChildren*/);
+
+      while (true) {
+        auto NextAbbrevIdx = readAbbrevIdx(DistinctReader);
+
+        if (!NextAbbrevIdx)
+          return NextAbbrevIdx.takeError();
+
+        if (*NextAbbrevIdx == getEndOfDIESiblingsMarker()) {
+          EndTagCallback(true /*HadChildren*/);
+          if (DistinctReader.empty())
+            break;
+          continue;
+        }
+        if (*NextAbbrevIdx == getDIEInAnotherBlockMarker()) {
+          DIEChildrenStack = DIEChildrenStack.drop_front();
+          Off = 0;
+          NextAbbrevIdx = readAbbrevIdx(DistinctReader);
+          if (!NextAbbrevIdx)
+            return NextAbbrevIdx.takeError();
+          AbbrevIdx = *NextAbbrevIdx;
+          break;
+        }
+        AbbrevIdx = *NextAbbrevIdx;
+        break;
+      }
+      if (DistinctReader.empty())
+        break;
+    }
+    return Error::success();
+  }
   AbbrevEntryReader AbbrevReader =
       getAbbrevEntryReader(AbbrevEntries, AbbrevIdx);
 
