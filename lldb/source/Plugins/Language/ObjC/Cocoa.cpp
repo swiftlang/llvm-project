@@ -153,8 +153,9 @@ bool lldb_private::formatters::NSTimeZoneSummaryProvider(
     }
 
     ValueObject &time_zone = dyn_valobj_sp ? *dyn_valobj_sp : valobj;
-    llvm::ArrayRef<llvm::StringRef> identifier_path = {
-        "some", "timeZone", "_timeZone", "some", "identifier"};
+    llvm::ArrayRef<ConstString> identifier_path = {
+        ConstString("some"), ConstString("timeZone"), ConstString("_timeZone"),
+        ConstString("some"), ConstString("identifier")};
     if (auto identifier_sp = time_zone.GetChildAtNamePath(identifier_path)) {
       std::string desc;
       if (identifier_sp->GetSummaryAsCString(desc, options)) {
