@@ -147,6 +147,9 @@ bool Sema::isSimpleTypeSpecifier(tok::TokenKind Kind) const {
   case tok::kw___auto_type:
     return true;
 
+  case tok::kw__Bool:
+    return getLangOpts().C99;
+
   case tok::annot_typename:
   case tok::kw_char16_t:
   case tok::kw_char32_t:
