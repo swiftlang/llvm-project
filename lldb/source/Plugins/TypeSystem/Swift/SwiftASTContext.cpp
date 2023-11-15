@@ -1998,6 +1998,12 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
         }
       }
 );
+
+    // Clear the callback function on scope exit to prevent an out-of-scope access of the progress local variable
+    auto on_exit = llvm::make_scope_exit([&](){
+      swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback([](llvm::StringRef module_name, bool is_overlay) {});
+    });
+
     swift::ModuleDecl *stdlib =
         swift_ast_sp->m_ast_context_ap->getStdlibModule(can_create);
     if (!stdlib || IsDWARFImported(*stdlib)) {
@@ -2498,6 +2504,11 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
         }
       }
 );
+
+    // Clear the callback function on scope exit to prevent an out-of-scope access of the progress local variable
+    auto on_exit = llvm::make_scope_exit([&](){
+      swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback([](llvm::StringRef module_name, bool is_overlay) {});
+    });
 
     swift::ModuleDecl *stdlib =
         swift_ast_sp->m_ast_context_ap->getStdlibModule(can_create);
@@ -3285,8 +3296,14 @@ swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
     }
 );
 
+  // Clear the callback function on scope exit to prevent an out-of-scope access of the progress local variable
+  auto on_exit = llvm::make_scope_exit([&](){
+      ast->SetPreModuleImportCallback([](llvm::StringRef module_name, bool is_overlay) {});
+    });
+
   // Perform the import.
   swift::ModuleDecl *module_decl = ast->getModuleByName(module_basename_sref);
+
   progress.reset();
 
   // Error handling.
