@@ -1990,12 +1990,12 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
   {
     LLDB_SCOPED_TIMERF("%s (getStdlibModule)", m_description.c_str());
     const bool can_create = true;
-    std::unique_ptr<lldb_private::Progress> progress = std::make_unique<lldb_private::Progress>("Importing Swift standard library modules");
+
+    // Report progress on module importing by using a callback function in swift::ASTContext
+    Progress progress("Importing Swift standard library modules");
     swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
       [&progress](llvm::StringRef module_name, bool is_overlay) {
-        if (progress) {
-          progress->Increment(1, (is_overlay ? module_name.str() : module_name.str() + " (overlay)"));
-        }
+        progress.Increment(1, (is_overlay ? module_name.str() + " (overlay)" : module_name.str()));
       }
 );
 
@@ -2010,7 +2010,6 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
       logError("couldn't load the Swift stdlib");
       return {};
     }
-    progress.reset();
   }
 
   std::vector<std::string> module_names;
@@ -2496,12 +2495,11 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     LLDB_SCOPED_TIMERF("%s (getStdlibModule)", m_description.c_str());
     const bool can_create = true;
 
-    std::unique_ptr<lldb_private::Progress> progress = std::make_unique<lldb_private::Progress>("Importing Swift standard library modules");
+    // Report progress on module importing by using a callback function in swift::ASTContext
+    Progress progress("Importing Swift standard library modules");
     swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
       [&progress](llvm::StringRef module_name, bool is_overlay) {
-        if (progress) {
-          progress->Increment(1, (is_overlay ? module_name.str() : module_name.str() + " (overlay)"));
-        }
+        progress.Increment(1, (is_overlay ? module_name.str() + " (overlay)" : module_name.str()));
       }
 );
 
@@ -2512,7 +2510,6 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
 
     swift::ModuleDecl *stdlib =
         swift_ast_sp->m_ast_context_ap->getStdlibModule(can_create);
-    progress.reset();
     if (!stdlib || IsDWARFImported(*stdlib)) {
       logError("couldn't load the Swift stdlib");
       return {};
@@ -3286,13 +3283,11 @@ swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
   // Create a diagnostic consumer for the diagnostics produced by the import.
   auto import_diags = getScopedDiagnosticConsumer();
 
-  // Report progress on module importing
-  std::unique_ptr<lldb_private::Progress> progress = std::make_unique<lldb_private::Progress>("Importing Swift modules");
+  // Report progress on module importing by using a callback function in swift::ASTContext
+  Progress progress("Importing Swift modules");
   ast->SetPreModuleImportCallback(
     [&progress](llvm::StringRef module_name, bool is_overlay) {
-      if (progress) {
-        progress->Increment(1, (is_overlay ? module_name.str() : module_name.str() + " (overlay)"));
-      }
+      progress.Increment(1, (is_overlay ? module_name.str() + " (overlay)" : module_name.str()));
     }
 );
 
@@ -3304,7 +3299,6 @@ swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
   // Perform the import.
   swift::ModuleDecl *module_decl = ast->getModuleByName(module_basename_sref);
 
-  progress.reset();
 
   // Error handling.
   if (import_diags->HasErrors()) {
