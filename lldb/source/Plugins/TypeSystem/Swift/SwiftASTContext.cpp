@@ -2000,9 +2000,11 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
                                             : module_name.str()));
         });
 
-    // Clear the callback function on scope exit to prevent an out-of-scope access of the progress local variable
-    auto on_exit = llvm::make_scope_exit([&](){
-      swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback([](llvm::StringRef module_name, bool is_overlay) {});
+    // Clear the callback function on scope exit to prevent an out-of-scope
+    // access of the progress local variable
+    auto on_exit = llvm::make_scope_exit([&]() {
+      swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
+          ReportModuleLoadingProgress);
     });
 
     swift::ModuleDecl *stdlib =
@@ -2505,9 +2507,11 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
                                             : module_name.str()));
         });
 
-    // Clear the callback function on scope exit to prevent an out-of-scope access of the progress local variable
-    auto on_exit = llvm::make_scope_exit([&](){
-      swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback([](llvm::StringRef module_name, bool is_overlay) {});
+    // Clear the callback function on scope exit to prevent an out-of-scope
+    // access of the progress local variable
+    auto on_exit = llvm::make_scope_exit([&]() {
+      swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
+          ReportModuleLoadingProgress);
     });
 
     swift::ModuleDecl *stdlib =
@@ -3234,6 +3238,12 @@ void SwiftASTContext::CacheModule(swift::ModuleDecl *module) {
   m_swift_module_cache.insert({ID, module});
 }
 
+bool SwiftASTContext::ReportModuleLoadingProgress(llvm::StringRef module_name,
+                                                  bool is_overlay) {
+  Progress progress("Importing Swift module");
+  return true;
+}
+
 swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
                                               Status &error, bool *cached) {
   if (cached)
@@ -3293,10 +3303,10 @@ swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
         1, (is_overlay ? module_name.str() + " (overlay)" : module_name.str()));
   });
 
-  // Clear the callback function on scope exit to prevent an out-of-scope access of the progress local variable
-  auto on_exit = llvm::make_scope_exit([&](){
-      ast->SetPreModuleImportCallback([](llvm::StringRef module_name, bool is_overlay) {});
-    });
+  // Clear the callback function on scope exit to prevent an out-of-scope access
+  // of the progress local variable
+  auto on_exit = llvm::make_scope_exit(
+      [&]() { ast->SetPreModuleImportCallback(ReportModuleLoadingProgress); });
 
   // Perform the import.
   swift::ModuleDecl *module_decl = ast->getModuleByName(module_basename_sref);

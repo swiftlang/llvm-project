@@ -293,6 +293,9 @@ public:
   swift::ModuleDecl *CreateModule(const SourceModule &module, Status &error,
                                   swift::ImplicitImportInfo importInfo);
 
+  /// Generic callback function used for progress reporting that gets
+  /// invoked by the Swift compiler and gets set upon scope exit when
+  /// a more detailed progress report was used as the callback
   static bool ReportModuleLoadingProgress(llvm::StringRef module_name,
                                           bool is_overlay);
 
