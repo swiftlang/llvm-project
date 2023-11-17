@@ -2216,7 +2216,9 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
   case Intrinsic::experimental_noalias_scope_decl:
   case Intrinsic::var_annotation:
   case Intrinsic::sideeffect:
-    // Discard annotate attributes, assumptions, and artificial side-effects.
+  case Intrinsic::objc_clang_arc_noop_use:
+    // Discard annotate attributes, assumptions, artificial side-effects and
+    // left over objc arc intrinsic.
     return true;
   case Intrinsic::read_volatile_register:
   case Intrinsic::read_register: {

@@ -1204,6 +1204,8 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
   case Intrinsic::assume:
   // Neither does the llvm.experimental.noalias.scope.decl intrinsic
   case Intrinsic::experimental_noalias_scope_decl:
+  // Neither does the llvm.objc.clang.arc.noop.use intrinsic.
+  case Intrinsic::objc_clang_arc_noop_use:
     return true;
   case Intrinsic::dbg_declare: {
     const DbgDeclareInst *DI = cast<DbgDeclareInst>(II);
