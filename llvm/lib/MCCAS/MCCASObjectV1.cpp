@@ -2940,6 +2940,7 @@ Expected<DIEDataRef> DIEDataRef::create(MCCASBuilder &MB,
 
 // Returns true if DIE should be placed in a separate CAS block.
 static bool shouldCreateSeparateBlockFor(DWARFDie &DIE) {
+  return true;
   dwarf::Tag Tag = DIE.getTag();
 
   if (Tag == dwarf::Tag::DW_TAG_subprogram) {
