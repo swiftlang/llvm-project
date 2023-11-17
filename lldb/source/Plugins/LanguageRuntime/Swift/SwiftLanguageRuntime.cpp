@@ -479,7 +479,8 @@ void SwiftLanguageRuntimeImpl::ProcessModulesToAdd() {
   // the target since this SwiftLanguageRuntime was created.
   modules_to_add_snapshot.ForEach([&](const ModuleSP &module_sp) -> bool {
     AddModuleToReflectionContext(module_sp);
-    progress.Increment(++completion, module_sp->GetFileSpec().GetFilename().AsCString());
+    progress.Increment(++completion,
+                       module_sp->GetFileSpec().GetFilename().AsCString());
     return true;
   });
 }
