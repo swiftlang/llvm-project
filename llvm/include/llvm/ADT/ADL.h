@@ -9,6 +9,9 @@
 #ifndef LLVM_ADT_ADL_H
 #define LLVM_ADT_ADL_H
 
+#if defined(_MSC_VER) && _MSC_VER < 1937
+#include <xtr1common>
+#endif
 #include <type_traits>
 #include <iterator>
 #include <utility>
