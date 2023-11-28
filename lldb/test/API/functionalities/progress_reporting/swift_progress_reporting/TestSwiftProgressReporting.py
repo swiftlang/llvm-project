@@ -43,7 +43,7 @@ class TestSwiftProgressReporting(TestBase):
             "Setting up Swift reflection",
             "Getting Swift compile unit imports for",
             "Importing Swift modules",
-            "Importing Swift standard library modules",
+            "Importing Swift standard library",
         ]
 
         while len(beacons):

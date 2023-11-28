@@ -1993,7 +1993,7 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
 
     // Report progress on module importing by using a callback function in
     // swift::ASTContext
-    Progress progress("Importing Swift standard library modules");
+    Progress progress("Importing Swift standard library");
     swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
         [&progress](llvm::StringRef module_name, bool is_overlay) {
           progress.Increment(1, (is_overlay ? module_name.str() + " (overlay)"
@@ -2005,7 +2005,7 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
     auto on_exit = llvm::make_scope_exit([&]() {
       swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
           [](llvm::StringRef module_name, bool is_overlay) {
-            Progress progress("Importing Swift modules");
+            Progress("Importing Swift modules");
           });
     });
 
@@ -2502,7 +2502,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
 
     // Report progress on module importing by using a callback function in
     // swift::ASTContext
-    Progress progress("Importing Swift standard library modules");
+    Progress progress("Importing Swift standard library");
     swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
         [&progress](llvm::StringRef module_name, bool is_overlay) {
           progress.Increment(1, (is_overlay ? module_name.str() + " (overlay)"
@@ -2514,7 +2514,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     auto on_exit = llvm::make_scope_exit([&]() {
       swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
           [](llvm::StringRef module_name, bool is_overlay) {
-            Progress progress("Importing Swift modules");
+            Progress("Importing Swift modules");
           });
     });
 
@@ -3306,7 +3306,7 @@ swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
   auto on_exit = llvm::make_scope_exit([&]() {
     ast->SetPreModuleImportCallback(
         [](llvm::StringRef module_name, bool is_overlay) {
-          Progress progress("Importing Swift modules");
+          Progress("Importing Swift modules");
         });
   });
 
@@ -3916,7 +3916,10 @@ void SwiftASTContext::ValidateSectionModules(
 
   Status error;
 
-  Progress progress("Loading Swift module", module_names.size());
+  Progress progress(
+      llvm::formatv("Loading Swift module '{0}'. Submodule",
+                    module.GetFileSpec().GetFilename().AsCString()),
+      module_names.size());
   size_t completion = 0;
 
   for (const std::string &module_name : module_names) {
@@ -3925,8 +3928,7 @@ void SwiftASTContext::ValidateSectionModules(
 
     // We have to increment the completion value even if we can't get the module
     // object to stay in-sync with the total progress reporting.
-    progress.Increment(++completion,
-                       module.GetFileSpec().GetFilename().AsCString());
+    progress.Increment(++completion, module_name);
     if (!GetModule(module_info, error))
       module.ReportWarning("unable to load swift module \"{0}\" ({1})",
                            module_name.c_str(), error.AsCString());
@@ -8363,7 +8365,7 @@ bool SwiftASTContextForExpressions::CacheUserImports(
 
   auto src_file_imports = source_file.getImports();
 
-  Progress progress("Importing module used in expression");
+  Progress progress("Importing modules used in expression");
   size_t completion = 0;
 
   /// Find all explicit imports in the expression.
