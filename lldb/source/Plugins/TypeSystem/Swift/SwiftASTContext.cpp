@@ -2004,7 +2004,9 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
     // access of the progress local variable
     auto on_exit = llvm::make_scope_exit([&]() {
       swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
-          ReportModuleLoadingProgress);
+          [](llvm::StringRef module_name, bool is_overlay) {
+            Progress progress("Importing Swift modules");
+          });
     });
 
     swift::ModuleDecl *stdlib =
@@ -2511,7 +2513,9 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     // access of the progress local variable
     auto on_exit = llvm::make_scope_exit([&]() {
       swift_ast_sp->m_ast_context_ap->SetPreModuleImportCallback(
-          ReportModuleLoadingProgress);
+          [](llvm::StringRef module_name, bool is_overlay) {
+            Progress progress("Importing Swift modules");
+          });
     });
 
     swift::ModuleDecl *stdlib =
@@ -3238,12 +3242,6 @@ void SwiftASTContext::CacheModule(swift::ModuleDecl *module) {
   m_swift_module_cache.insert({ID, module});
 }
 
-bool SwiftASTContext::ReportModuleLoadingProgress(llvm::StringRef module_name,
-                                                  bool is_overlay) {
-  Progress progress("Importing Swift module");
-  return true;
-}
-
 swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
                                               Status &error, bool *cached) {
   if (cached)
@@ -3305,8 +3303,12 @@ swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
 
   // Clear the callback function on scope exit to prevent an out-of-scope access
   // of the progress local variable
-  auto on_exit = llvm::make_scope_exit(
-      [&]() { ast->SetPreModuleImportCallback(ReportModuleLoadingProgress); });
+  auto on_exit = llvm::make_scope_exit([&]() {
+    ast->SetPreModuleImportCallback(
+        [](llvm::StringRef module_name, bool is_overlay) {
+          Progress progress("Importing Swift modules");
+        });
+  });
 
   // Perform the import.
   swift::ModuleDecl *module_decl = ast->getModuleByName(module_basename_sref);
@@ -8494,11 +8496,13 @@ bool SwiftASTContext::GetCompileUnitImportsImpl(
   if (cu_imports.size() == 0)
     return true;
 
-  Progress progress("Importing module used by compile unit");
+  Progress progress(
+      llvm::formatv("Getting Swift compile unit imports for '{0}'",
+                    compile_unit->GetPrimaryFile().GetFilename()),
+      cu_imports.size());
   size_t completion = 0;
   for (const SourceModule &module : cu_imports) {
-    progress.Increment(
-        ++completion, compile_unit->GetPrimaryFile().GetFilename().AsCString());
+    progress.Increment(++completion, module.path.back().GetStringRef().str());
     // When building the Swift stdlib with debug info these will
     // show up in "Swift.o", but we already imported them and
     // manually importing them will fail.
