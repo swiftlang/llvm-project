@@ -39,7 +39,7 @@ class TestSwiftProgressReporting(TestBase):
 
         beacons = [
             "Loading Swift module",
-            "Importing module used in expression",
+            "Importing modules used in expression",
             "Setting up Swift reflection",
             "Getting Swift compile unit imports for",
             "Importing Swift modules",

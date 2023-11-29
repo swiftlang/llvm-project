@@ -3917,7 +3917,7 @@ void SwiftASTContext::ValidateSectionModules(
   Status error;
 
   Progress progress(
-      llvm::formatv("Loading Swift module '{0}'. Submodule",
+      llvm::formatv("Loading Swift module '{0}' dependencies",
                     module.GetFileSpec().GetFilename().AsCString()),
       module_names.size());
   size_t completion = 0;
