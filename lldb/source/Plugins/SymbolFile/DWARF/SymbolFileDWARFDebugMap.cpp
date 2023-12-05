@@ -17,6 +17,8 @@
 #include "lldb/Core/Section.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Utility/DataBufferLLVM.h"
+#include "lldb/Utility/LLDBLog.h"
+#include "lldb/Utility/Log.h"
 #include "lldb/Utility/RangeMap.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Timer.h"
@@ -1565,10 +1567,12 @@ SymbolFileDWARFDebugMap::GetASTData(lldb::LanguageType language) {
                         __FUNCTION__, file_spec.GetPath().c_str());
         }
       } else {
-        if (log)
-          log->Printf("SymbolFileDWARFDebugMap::%s() - found reference to AST "
-                      "file %s, but could not find the file, ignoring",
-                      __FUNCTION__, file_spec.GetPath().c_str());
+        for (Log *current_log : {log, GetLog(LLDBLog::Types)})
+          if (current_log)
+            current_log->Printf("SymbolFileDWARFDebugMap::%s() - ignoring "
+                                "nonexistent AST file %s - referenced from %s",
+                                __FUNCTION__, file_spec.GetPath().c_str(),
+                                m_objfile_sp->GetFileSpec().GetPath().c_str());
       }
 
       // Regardless of whether we could find the specified file, start the next
