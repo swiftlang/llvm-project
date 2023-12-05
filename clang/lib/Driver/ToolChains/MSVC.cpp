@@ -1019,4 +1019,9 @@ void MSVCToolChain::addClangTargetOptions(
   if (DriverArgs.hasFlag(options::OPT_fno_rtti, options::OPT_frtti,
                          /*Default=*/false))
     CC1Args.push_back("-D_HAS_STATIC_RTTI=0");
+
+  // Temporary workaround for Swift not perfectly propagating this
+  // flag throughout their module interface loaders. All currently
+  // known msvc module maps require this flag anyway.
+  CC1Args.push_back("-fbuiltin-headers-in-system-modules");
 }
