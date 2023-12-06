@@ -219,6 +219,13 @@ bool StoringDiagnosticConsumer::HandleModuleRemark(
     LLDB_LOG(log, "Finished building Clang module {0}", module_name);
     return true;
   }
+  case clang::diag::remark_module_import: {
+    const auto &module_name = info.getArgStdStr(0);
+    const auto &module_path = info.getArgStdStr(1);
+    LLDB_LOG(log, "Importing Clang module {0} from {1}", module_name,
+             module_path);
+    return true;
+  }
   default:
     return false;
   }
@@ -670,7 +677,8 @@ ClangModulesDeclVendor::Create(Target &target) {
       arch.GetTriple().str(),
       "-fmodules-validate-system-headers",
       "-Werror=non-modular-include-in-framework-module",
-      "-Rmodule-build"};
+      "-Rmodule-build",
+      "-Rmodule-import"};
 
   target.GetPlatform()->AddClangModuleCompilationOptions(
       &target, compiler_invocation_arguments);
