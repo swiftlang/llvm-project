@@ -16,6 +16,7 @@
 #include "lldb/Utility/Log.h"
 #include "swift/Demangling/Demangle.h"
 #include "swift/RemoteInspection/DescriptorFinder.h"
+#include "swift/RemoteInspection/TypeLowering.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -63,25 +64,42 @@ class TargetReflectionContext : public ReflectionContextInterface {
   DescriptorFinderForwarder m_forwader;
   ReflectionContext m_reflection_ctx;
   swift::reflection::TypeConverter m_type_converter;
+#ifndef NDEBUG
+  ReflectionContext m_no_reflection_reflection_ctx;
+  ReflectionContext m_only_reflection_reflection_ctx;
+#endif
 
 public:
   TargetReflectionContext(
       std::shared_ptr<swift::reflection::MemoryReader> reader,
       SwiftMetadataCache *swift_metadata_cache)
       : m_reflection_ctx(reader, swift_metadata_cache, &m_forwader),
-        m_type_converter(m_reflection_ctx.getBuilder()) {}
+        m_type_converter(m_reflection_ctx.getBuilder()) 
+#ifndef NDEBUG
+        ,
+        m_no_reflection_reflection_ctx(reader, nullptr, &m_forwader),
+        m_only_reflection_reflection_ctx(reader, swift_metadata_cache, nullptr)
+#endif
+  {}
 
   llvm::Optional<uint32_t> AddImage(
       llvm::function_ref<std::pair<swift::remote::RemoteRef<void>, uint64_t>(
           swift::ReflectionSectionKind)>
           find_section,
       llvm::SmallVector<llvm::StringRef, 1> likely_module_names) override {
+#ifndef NDEBUG
+    m_only_reflection_reflection_ctx.addImage(find_section,
+                                              likely_module_names);
+#endif
     return m_reflection_ctx.addImage(find_section, likely_module_names);
   }
 
   llvm::Optional<uint32_t>
   AddImage(swift::remote::RemoteAddress image_start,
            llvm::SmallVector<llvm::StringRef, 1> likely_module_names) override {
+#ifndef NDEBUG
+    m_only_reflection_reflection_ctx.addImage(image_start, likely_module_names);
+#endif
     return m_reflection_ctx.addImage(image_start, likely_module_names);
   }
 
@@ -89,6 +107,10 @@ public:
       swift::remote::RemoteAddress ImageStart,
       llvm::Optional<llvm::sys::MemoryBlock> FileBuffer,
       llvm::SmallVector<llvm::StringRef, 1> likely_module_names = {}) override {
+#ifndef NDEBUG
+    m_only_reflection_reflection_ctx.readELF(ImageStart, FileBuffer,
+                                    likely_module_names);
+#endif
     return m_reflection_ctx.readELF(ImageStart, FileBuffer,
                                     likely_module_names);
   }
@@ -139,6 +161,35 @@ public:
     return m_type_converter.getClassInstanceTypeInfo(type_ref, 0, provider);
   }
 
+#ifndef NDEBUG
+  void ValidateTypeInfos(
+      const swift::reflection::TypeInfo *type_info_no_reflection,
+      const swift::reflection::TypeInfo *type_info_only_reflection) {
+    if (!swift::reflection::TypeInfo::areEqual(type_info_no_reflection,
+                                               type_info_only_reflection)) {
+      llvm::dbgs() << "Type infos from DWARF and reflection differ!\n";
+
+      llvm::dbgs() << "DWARF type info: \n";
+      if (type_info_no_reflection) {
+        std::stringstream ss;
+        type_info_no_reflection->dump(ss);
+        llvm::dbgs() << ss.str() << "\n";
+      } else {
+        llvm::dbgs() << "<null> \n";
+      }
+
+      llvm::dbgs() << "Reflection type info: \n";
+      if (type_info_only_reflection) {
+        std::stringstream ss;
+        type_info_only_reflection->dump(ss);
+        llvm::dbgs() << ss.str() << "\n";
+      } else {
+        llvm::dbgs() << "<null> \n";
+      }
+      llvm::dbgs() << "\n";
+    }
+  }
+#endif
   const swift::reflection::TypeInfo *
   GetTypeInfo(const swift::reflection::TypeRef *type_ref,
               swift::remote::TypeInfoProvider *provider,
@@ -174,6 +225,17 @@ public:
                   "type info:\n%s",
                   ss.str().c_str());
     }
+    
+#ifndef NDEBUG
+    if (Target::GetGlobalProperties().GetSwiftEnableFullDwarfDebugging() &&
+        Target::GetGlobalProperties().GetSwiftValidateFullDwarf()) {
+      auto type_info_no_reflection =
+          m_no_reflection_reflection_ctx.getTypeInfo(type_ref, provider);
+      auto type_info_only_reflection =
+          m_only_reflection_reflection_ctx.getTypeInfo(type_ref, provider);
+      ValidateTypeInfos(type_info_no_reflection, type_info_only_reflection);
+    }
+#endif
     return type_info;
   }
 
@@ -181,6 +243,18 @@ public:
       lldb::addr_t instance, swift::remote::TypeInfoProvider *provider,
       swift::reflection::DescriptorFinder *descriptor_finder) override {
     auto on_exit = SetDescriptorFinderAndClearOnExit(descriptor_finder);
+#ifndef NDEBUG
+    if (Target::GetGlobalProperties().GetSwiftEnableFullDwarfDebugging() &&
+        Target::GetGlobalProperties().GetSwiftValidateFullDwarf()) {
+      auto type_info_no_reflection =
+          m_no_reflection_reflection_ctx.getInstanceTypeInfo(instance,
+                                                             provider);
+      auto type_info_only_reflection =
+          m_only_reflection_reflection_ctx.getInstanceTypeInfo(instance,
+                                                               provider);
+      ValidateTypeInfos(type_info_no_reflection, type_info_only_reflection);
+    }
+#endif
     return m_reflection_ctx.getInstanceTypeInfo(instance, provider);
   }
 

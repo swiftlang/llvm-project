@@ -4896,6 +4896,19 @@ bool TargetProperties::GetSwiftEnableFullDwarfDebugging() const {
   return false;
 }
 
+bool TargetProperties::GetSwiftValidateFullDwarf() const {
+  const Property *exp_property =
+      m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
+  OptionValueProperties *exp_values =
+      exp_property->GetValue()->GetAsProperties();
+  if (exp_values)
+    return exp_values
+        ->GetPropertyAtIndexAs<bool>(ePropertySwiftValidateFullDwarf)
+        .value_or(false);
+
+  return false;
+}
+
 Args TargetProperties::GetSwiftPluginServerForPath() const {
   const uint32_t idx = ePropertySwiftPluginServerForPath;
 

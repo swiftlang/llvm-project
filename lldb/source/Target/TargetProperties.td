@@ -30,6 +30,9 @@ let Definition = "target_experimental" in {
   def SwiftEnableFullDwarfDebugging: Property<"swift-enable-full-dwarf-debugging", "Boolean">,
   DefaultFalse,
   Desc<"Read full debug information from DWARF for Swift debugging, whenever possible">;
+  def SwiftValidateFullDwarf: Property<"swift-validate-full-dwarf", "Boolean">,
+    DefaultFalse,
+    Desc<"Validate full DWARF against reflection metadata. Used for testing an asserts-enabled LLDB only.">;
 }
 
 let Definition = "target" in {
