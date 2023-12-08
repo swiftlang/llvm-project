@@ -27,6 +27,7 @@
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
+#include "lldb/DataFormatters/DataVisualization.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Expression/REPL.h"
@@ -1438,6 +1439,54 @@ static void LoadScriptingResourceForModule(const ModuleSP &module_sp,
                                                   feedback_stream.GetData());
 }
 
+static void LoadTypeSummariesForModule(ModuleSP module_sp) {
+  auto *sections = module_sp->GetSectionList();
+  if (!sections)
+    return;
+
+  llvm::Triple triple = module_sp->GetArchitecture().GetTriple();
+  SectionSP summaries_sp;
+  if (triple.isOSDarwin()) {
+    if (auto data_sp = sections->FindSectionByName(ConstString("__DATA_CONST")))
+      summaries_sp = data_sp->GetChildren().FindSectionByName(
+          ConstString("__lldbsummaries"));
+  } else if (triple.isOSLinux() || triple.isOSWindows()) {
+    summaries_sp = sections->FindSectionByName(ConstString(".lldbsummaries"));
+  }
+
+  if (!summaries_sp)
+    return;
+
+  TypeCategoryImplSP category;
+  DataVisualization::Categories::GetCategory(ConstString("default"), category);
+
+  DataExtractor extractor;
+  auto section_size = summaries_sp->GetSectionData(extractor);
+  lldb::offset_t offset = 0;
+  while (offset < section_size) {
+    uint64_t version = extractor.GetULEB128(&offset);
+    uint64_t record_size = extractor.GetULEB128(&offset);
+    if (version == 1) {
+      uint64_t type_size = extractor.GetULEB128(&offset);
+      llvm::StringRef type_name = extractor.GetCStr(&offset, type_size);
+      uint64_t summary_size = extractor.GetULEB128(&offset);
+      llvm::StringRef summary_string = extractor.GetCStr(&offset, summary_size);
+      if (!type_name.empty() && !summary_string.empty()) {
+        TypeSummaryImpl::Flags flags;
+        auto summary_sp =
+            std::make_shared<StringSummaryFormat>(flags, summary_string.data());
+        FormatterMatchType match_type = lldb::eFormatterMatchExact;
+        if (summary_string.front() == '^' && summary_string.back() == '$')
+          match_type = eFormatterMatchRegex;
+        category->AddTypeSummary(type_name, match_type, summary_sp);
+      }
+    } else {
+      // Skip unsupported record.
+      offset += record_size;
+    }
+  }
+}
+
 void Target::ClearModules(bool delete_locations) {
   ModulesDidUnload(m_images, delete_locations);
   m_section_load_history.Clear();
@@ -1682,6 +1731,7 @@ void Target::ModulesDidLoad(ModuleList &module_list) {
     for (size_t idx = 0; idx < num_images; ++idx) {
       ModuleSP module_sp(module_list.GetModuleAtIndex(idx));
       LoadScriptingResourceForModule(module_sp, this);
+      LoadTypeSummariesForModule(module_sp);
     }
     m_breakpoint_list.UpdateBreakpoints(module_list, true, false);
     m_internal_breakpoint_list.UpdateBreakpoints(module_list, true, false);
