@@ -1439,6 +1439,8 @@ static void LoadScriptingResourceForModule(const ModuleSP &module_sp,
                                                   feedback_stream.GetData());
 }
 
+// Load type summaries embedded in the binary. These are type summaries provided
+// by the authors of the code.
 static void LoadTypeSummariesForModule(ModuleSP module_sp) {
   auto *sections = module_sp->GetSectionList();
   if (!sections)
@@ -1457,8 +1459,26 @@ static void LoadTypeSummariesForModule(ModuleSP module_sp) {
   if (!summaries_sp)
     return;
 
+  Log *log = GetLog(LLDBLog::DataFormatters);
+  const char *module_name = module_sp->GetObjectName().GetCString();
+
   TypeCategoryImplSP category;
   DataVisualization::Categories::GetCategory(ConstString("default"), category);
+
+  // The type summary record is serialized as follows.
+  //
+  // Each record contains, in order:
+  //   * Version number of the record format
+  //   * The remaining size of the record
+  //   * The size of the type identifier
+  //   * The type identifier, either a type name, or a regex
+  //   * The size of the summary string
+  //   * The summary string
+  //
+  // Integers are encoded using ULEB.
+  //
+  // Strings are encoded with first a length (ULEB), then the string contents,
+  // and lastly a null terminator. The length includes the null.
 
   DataExtractor extractor;
   auto section_size = summaries_sp->GetSectionData(extractor);
@@ -1475,14 +1495,24 @@ static void LoadTypeSummariesForModule(ModuleSP module_sp) {
         TypeSummaryImpl::Flags flags;
         auto summary_sp =
             std::make_shared<StringSummaryFormat>(flags, summary_string.data());
-        FormatterMatchType match_type = lldb::eFormatterMatchExact;
+        FormatterMatchType match_type = eFormatterMatchExact;
         if (summary_string.front() == '^' && summary_string.back() == '$')
           match_type = eFormatterMatchRegex;
         category->AddTypeSummary(type_name, match_type, summary_sp);
+        LLDB_LOGF(log, "Loaded embedded type summary for '%s' from %s.",
+                  type_name.data(), module_name);
+      } else {
+        if (type_name.empty())
+          LLDB_LOGF(log, "Missing string(s) in embedded type summary in %s.",
+                    module_name);
       }
     } else {
       // Skip unsupported record.
       offset += record_size;
+      LLDB_LOGF(
+          log,
+          "Skipping unsupported embedded type summary of version %llu in %s.",
+          version, module_name);
     }
   }
 }
