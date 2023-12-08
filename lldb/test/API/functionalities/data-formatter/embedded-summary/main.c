@@ -6,12 +6,12 @@ struct Player {
 };
 
 __attribute__((used, section("__DATA_CONST,__lldbsummaries"))) unsigned char
-    _Movie_type_summary[] = "\x01"     // version
-                            "\x25"     // record size
-                            "\x07"     // type name size
-                            "Player\0" // type name
-                            "\x1c"     // summary string size
-                            "${var.name} (${var.number})"; // summary string
+    _Player_type_summary[] = "\x01"     // version
+                             "\x25"     // record size
+                             "\x07"     // type name size
+                             "Player\0" // type name
+                             "\x1c"     // summary string size
+                             "${var.name} (${var.number})"; // summary string
 
 int main() {
   struct Player player;
