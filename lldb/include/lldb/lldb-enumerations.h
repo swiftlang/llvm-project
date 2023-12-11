@@ -770,6 +770,7 @@ enum SectionType {
   eSectionTypeDWARFDebugLocListsDwo,
   eSectionTypeDWARFDebugTuIndex,
   eSectionTypeCTF,
+  eSectionTypeEmbeddedTypeSummaries,
 };
 
 FLAGS_ENUM(EmulateInstructionOptions){
