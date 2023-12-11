@@ -1446,16 +1446,8 @@ static void LoadTypeSummariesForModule(ModuleSP module_sp) {
   if (!sections)
     return;
 
-  llvm::Triple triple = module_sp->GetArchitecture().GetTriple();
-  SectionSP summaries_sp;
-  if (triple.isOSDarwin()) {
-    if (auto data_sp = sections->FindSectionByName(ConstString("__DATA_CONST")))
-      summaries_sp = data_sp->GetChildren().FindSectionByName(
-          ConstString("__lldbsummaries"));
-  } else if (triple.isOSLinux() || triple.isOSWindows()) {
-    summaries_sp = sections->FindSectionByName(ConstString(".lldbsummaries"));
-  }
-
+  auto summaries_sp =
+      sections->FindSectionByType(eSectionTypeEmbeddedTypeSummaries, true);
   if (!summaries_sp)
     return;
 
