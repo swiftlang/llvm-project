@@ -1447,7 +1447,7 @@ static void LoadTypeSummariesForModule(ModuleSP module_sp) {
     return;
 
   auto summaries_sp =
-      sections->FindSectionByType(eSectionTypeEmbeddedTypeSummaries, true);
+      sections->FindSectionByType(eSectionTypeLLDBTypeSummaries, true);
   if (!summaries_sp)
     return;
 
