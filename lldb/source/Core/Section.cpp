@@ -150,7 +150,7 @@ const char *Section::GetTypeAsCString() const {
   case eSectionTypeCTF:
     return "ctf";
   case eSectionTypeLLDBTypeSummaries:
-    return "embedded-type-summaries";
+    return "lldb-type-summaries";
   case eSectionTypeOther:
     return "regular";
 
