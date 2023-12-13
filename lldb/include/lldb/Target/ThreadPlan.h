@@ -555,6 +555,9 @@ protected:
 
   bool IsUsuallyUnexplainedStopReason(lldb::StopReason);
 
+  /// Determine if the first StackID is "younger" than the second.
+  bool IsYounger(const StackID &lhs, const StackID &rhs) const;
+
   Status m_status;
   Process &m_process;
   lldb::tid_t m_tid;
