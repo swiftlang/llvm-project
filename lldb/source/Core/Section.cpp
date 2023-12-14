@@ -152,7 +152,7 @@ const char *Section::GetTypeAsCString() const {
 
   // BEGIN SWIFT
   case eSectionTypeSwiftModules:
-    break;
+    return "swift-ast";
   // END SWIFT
   }
   return "unknown";
