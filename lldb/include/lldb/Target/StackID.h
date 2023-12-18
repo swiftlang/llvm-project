@@ -62,7 +62,8 @@ public:
   bool IsCFAOnStack(Process &process) const;
 
   /// Determine if the first StackID is "younger" than the second.
-  static bool IsYounger(const StackID &lhs, const StackID &rhs);
+  static bool IsYounger(const StackID &lhs, const StackID &rhs,
+                        Process &process);
 
 protected:
   friend class StackFrame;

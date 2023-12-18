@@ -73,7 +73,17 @@ bool lldb_private::operator!=(const StackID &lhs, const StackID &rhs) {
   return lhs_scope != rhs_scope;
 }
 
-bool StackID::IsYounger(const StackID &lhs, const StackID &rhs) {
+bool StackID::IsYounger(const StackID &lhs, const StackID &rhs,
+                        Process &process) {
+  // FIXME: rdar://76119439
+  // At the boundary between an async parent frame calling a regular child
+  // frame, the CFA of the parent async function is a heap addresses, and the
+  // CFA of concrete child function is a stack address. Therefore, if lhs is
+  // on stack, and rhs is not, lhs is considered less than rhs, independent of
+  // address values.
+  if (lhs.IsCFAOnStack(process) && !rhs.IsCFAOnStack(process))
+    return true;
+
   const lldb::addr_t lhs_cfa = lhs.GetCallFrameAddress();
   const lldb::addr_t rhs_cfa = rhs.GetCallFrameAddress();
 

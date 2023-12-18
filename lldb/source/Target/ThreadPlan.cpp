@@ -181,16 +181,7 @@ bool ThreadPlan::IsUsuallyUnexplainedStopReason(lldb::StopReason reason) {
 }
 
 bool ThreadPlan::IsYounger(const StackID &lhs, const StackID &rhs) const {
-  // FIXME: rdar://76119439
-  // At the boundary between an async parent frame calling a regular child
-  // frame, the CFA of the parent async function is a heap addresses, and the
-  // CFA of concrete child function is a stack addresses. Therefore, if lhs is
-  // on stack, and rhs is not, lhs is considered less than rhs, independent of
-  // address values.
-  if (lhs.IsCFAOnStack(m_process) && !rhs.IsCFAOnStack(m_process))
-    return true;
-
-  return StackID::IsYounger(lhs, rhs);
+  return StackID::IsYounger(lhs, rhs, m_process);
 }
 
 // ThreadPlanNull
