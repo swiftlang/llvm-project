@@ -702,6 +702,7 @@ std::string SwiftLanguageRuntime::DemangleSymbolAsString(
     break;
   case eTypeName:
     options.DisplayModuleNames = true;
+    options.DisplayObjCModule = false;
     options.ShowPrivateDiscriminators = false;
     options.DisplayExtensionContexts = false;
     options.DisplayLocalNameContexts = false;
