@@ -3038,8 +3038,7 @@ Error DIEToCASConverter::convertInNewDIEBlock(
   return Error::success();
 }
 
-Expected<DIETopLevelRef>
-DIEToCASConverter::convert(DWARFDie DIE, ArrayRef<char> HeaderData,
+Expected<DIETopLevelRef> DIEToCASConverter::convert(DWARFDie DIE, ArrayRef<char> HeaderData,
                            AbbrevSetWriter &AbbrevWriter) {
   DistinctDataWriter DistinctWriter;
   DistinctWriter.writeData(HeaderData);
