@@ -17,7 +17,9 @@ typedef decltype(nullptr) nullptr_t;
 }
 using ::std::nullptr_t;
 #endif
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+/* FIXME: This is using the placeholder dates Clang produces for these macros
+   in C2x mode; switch to the correct values once they've been published. */
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202000L
 typedef typeof(nullptr) nullptr_t;
 #endif
 
