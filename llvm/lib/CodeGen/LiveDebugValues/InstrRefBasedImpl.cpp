@@ -670,6 +670,7 @@ public:
 
     // Ignore non-register locations, we don't transfer those.
     if (MI.isUndefDebugValue() ||
+        MI.getDebugExpression()->isEntryValue() ||
         all_of(MI.debug_operands(),
                [](const MachineOperand &MO) { return !MO.isReg(); })) {
       auto It = ActiveVLocs.find(Var);
