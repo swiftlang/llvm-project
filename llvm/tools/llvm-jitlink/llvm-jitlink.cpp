@@ -888,13 +888,15 @@ static Expected<std::unique_ptr<ExecutorProcessControl>> connectToExecutor() {
 
 class PhonyExternalsGenerator : public DefinitionGenerator {
 public:
-  Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                      JITDylibLookupFlags JDLookupFlags,
-                      const SymbolLookupSet &LookupSet) override {
+  void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                     JITDylibLookupFlags JDLookupFlags,
+                     const SymbolLookupSet &LookupSet,
+                     NotifyCompleteFn NotifyComplete) override {
     SymbolMap PhonySymbols;
     for (auto &KV : LookupSet)
       PhonySymbols[KV.first] = {ExecutorAddr(), JITSymbolFlags::Exported};
-    return JD.define(absoluteSymbols(std::move(PhonySymbols)));
+    auto Err = JD.define(absoluteSymbols(std::move(PhonySymbols)));
+    NotifyComplete(std::move(LS), std::move(Err));
   }
 };
 

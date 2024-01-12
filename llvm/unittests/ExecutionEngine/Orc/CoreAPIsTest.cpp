@@ -11,6 +11,7 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/Shared/OrcError.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Testing/Support/Error.h"
 
 #include <deque>
@@ -339,9 +340,12 @@ TEST_F(CoreAPIsStandardTest, LookupWithGeneratorFailure) {
 
   class BadGenerator : public DefinitionGenerator {
   public:
-    Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &,
-                        JITDylibLookupFlags, const SymbolLookupSet &) override {
-      return make_error<StringError>("BadGenerator", inconvertibleErrorCode());
+    void tryToGenerate(LookupState LS, LookupKind K, JITDylib &,
+                       JITDylibLookupFlags, const SymbolLookupSet &,
+                       NotifyCompleteFn NotifyComplete) override {
+      NotifyComplete(
+          std::move(LS),
+          make_error<StringError>("BadGenerator", inconvertibleErrorCode()));
     }
   };
 
@@ -1040,9 +1044,10 @@ TEST_F(CoreAPIsStandardTest, GeneratorTest) {
   class TestGenerator : public DefinitionGenerator {
   public:
     TestGenerator(SymbolMap Symbols) : Symbols(std::move(Symbols)) {}
-    Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                        JITDylibLookupFlags JDLookupFlags,
-                        const SymbolLookupSet &Names) override {
+    void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                       JITDylibLookupFlags JDLookupFlags,
+                       const SymbolLookupSet &Names,
+                       NotifyCompleteFn NotifyComplete) override {
       SymbolMap NewDefs;
 
       for (const auto &KV : Names) {
@@ -1052,7 +1057,7 @@ TEST_F(CoreAPIsStandardTest, GeneratorTest) {
       }
 
       cantFail(JD.define(absoluteSymbols(std::move(NewDefs))));
-      return Error::success();
+      NotifyComplete(std::move(LS), Error::success());
     };
 
   private:
@@ -1088,13 +1093,16 @@ public:
                         JITDylibLookupFlags, const SymbolLookupSet &)>
       TryToGenerateOverride;
 
-  Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                      JITDylibLookupFlags JDLookupFlags,
-                      const SymbolLookupSet &Names) override {
-    if (TryToGenerateOverride)
-      return TryToGenerateOverride(LS, K, JD, JDLookupFlags, Names);
+  void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                     JITDylibLookupFlags JDLookupFlags,
+                     const SymbolLookupSet &Names,
+                     NotifyCompleteFn NotifyComplete) override {
+    if (TryToGenerateOverride) {
+      auto Err = TryToGenerateOverride(LS, K, JD, JDLookupFlags, Names);
+      return NotifyComplete(std::move(LS), std::move(Err));
+    }
     Lookup = SuspendedLookupInfo{std::move(LS), K, &JD, JDLookupFlags, Names};
-    return Error::success();
+    NotifyComplete(std::move(LS), Error::success());
   }
 
   SuspendedLookupInfo takeLookup() {

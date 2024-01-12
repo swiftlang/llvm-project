@@ -949,15 +949,18 @@ class DefinitionGenerator {
 public:
   virtual ~DefinitionGenerator();
 
+  using NotifyCompleteFn = unique_function<void(LookupState LS, Error)>;
+
   /// DefinitionGenerators should override this method to insert new
   /// definitions into the parent JITDylib. K specifies the kind of this
   /// lookup. JD specifies the target JITDylib being searched, and
   /// JDLookupFlags specifies whether the search should match against
   /// hidden symbols. Finally, Symbols describes the set of unresolved
   /// symbols and their associated lookup flags.
-  virtual Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                              JITDylibLookupFlags JDLookupFlags,
-                              const SymbolLookupSet &LookupSet) = 0;
+  virtual void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                             JITDylibLookupFlags JDLookupFlags,
+                             const SymbolLookupSet &LookupSet,
+                             NotifyCompleteFn NotifyComplete) = 0;
 
 private:
   std::mutex M;
@@ -2006,9 +2009,10 @@ public:
                      JITDylibLookupFlags SourceJDLookupFlags,
                      SymbolPredicate Allow = SymbolPredicate());
 
-  Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                      JITDylibLookupFlags JDLookupFlags,
-                      const SymbolLookupSet &LookupSet) override;
+  void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                     JITDylibLookupFlags JDLookupFlags,
+                     const SymbolLookupSet &LookupSet,
+                     NotifyCompleteFn NotifyComplete) override;
 
 private:
   JITDylib &SourceJD;

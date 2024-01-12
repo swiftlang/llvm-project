@@ -614,17 +614,18 @@ ReexportsGenerator::ReexportsGenerator(JITDylib &SourceJD,
     : SourceJD(SourceJD), SourceJDLookupFlags(SourceJDLookupFlags),
       Allow(std::move(Allow)) {}
 
-Error ReexportsGenerator::tryToGenerate(LookupState &LS, LookupKind K,
-                                        JITDylib &JD,
-                                        JITDylibLookupFlags JDLookupFlags,
-                                        const SymbolLookupSet &LookupSet) {
+void ReexportsGenerator::tryToGenerate(LookupState LS, LookupKind K,
+                                       JITDylib &JD,
+                                       JITDylibLookupFlags JDLookupFlags,
+                                       const SymbolLookupSet &LookupSet,
+                                       NotifyCompleteFn NotifyComplete) {
   assert(&JD != &SourceJD && "Cannot re-export from the same dylib");
 
   // Use lookupFlags to find the subset of symbols that match our lookup.
   auto Flags = JD.getExecutionSession().lookupFlags(
       K, {{&SourceJD, JDLookupFlags}}, LookupSet);
   if (!Flags)
-    return Flags.takeError();
+    return NotifyComplete(std::move(LS), Flags.takeError());
 
   // Create an alias map.
   orc::SymbolAliasMap AliasMap;
@@ -633,10 +634,11 @@ Error ReexportsGenerator::tryToGenerate(LookupState &LS, LookupKind K,
       AliasMap[KV.first] = SymbolAliasMapEntry(KV.first, KV.second);
 
   if (AliasMap.empty())
-    return Error::success();
+    return NotifyComplete(std::move(LS), Error::success());
 
   // Define the re-exports.
-  return JD.define(reexports(SourceJD, AliasMap, SourceJDLookupFlags));
+  auto Err = JD.define(reexports(SourceJD, AliasMap, SourceJDLookupFlags));
+  NotifyComplete(std::move(LS), std::move(Err));
 }
 
 LookupState::LookupState(std::unique_ptr<InProgressLookupState> IPLS)
@@ -2232,8 +2234,8 @@ void ExecutionSession::OL_applyQueryPhase1(
                << " remaining generators for "
                << IPLS->DefGeneratorCandidates.size() << " candidates\n";
     });
-    while (!IPLS->CurDefGeneratorStack.empty() &&
-           !IPLS->DefGeneratorCandidates.empty()) {
+    if (!IPLS->CurDefGeneratorStack.empty() &&
+        !IPLS->DefGeneratorCandidates.empty()) {
       auto DG = IPLS->CurDefGeneratorStack.back().lock();
 
       if (!DG)
@@ -2266,49 +2268,41 @@ void ExecutionSession::OL_applyQueryPhase1(
 
       // Run the generator. If the generator takes ownership of QA then this
       // will break the loop.
-      {
-        LLVM_DEBUG(dbgs() << "  Attempting to generate " << LookupSet << "\n");
-        LookupState LS(std::move(IPLS));
-        Err = DG->tryToGenerate(LS, K, JD, JDLookupFlags, LookupSet);
-        IPLS = std::move(LS.IPLS);
-      }
+      LLVM_DEBUG(dbgs() << "  Attempting to generate " << LookupSet << "\n");
+      DG->tryToGenerate(
+          std::move(IPLS), K, JD, JDLookupFlags, LookupSet,
+          [this](LookupState LS, Error Err) {
+            // If the lookup returned then pop the generator stack and unblock
+            // the next lookup on this generator (if any).
+            if (LS.IPLS)
+              OL_resumeLookupAfterGeneration(*LS.IPLS);
 
-      // If the lookup returned then pop the generator stack and unblock the
-      // next lookup on this generator (if any).
-      if (IPLS)
-        OL_resumeLookupAfterGeneration(*IPLS);
+            // If there was an error then fail the query.
+            if (Err) {
+              assert(LS.IPLS && "LS cannot be retained if error is returned");
+              LLVM_DEBUG({
+                auto &LookupSet = LS.IPLS->DefGeneratorCandidates;
+                dbgs() << "  Error attempting to generate " << LookupSet
+                       << "\n";
+              });
+              return LS.IPLS->fail(std::move(Err));
+            }
 
-      // If there was an error then fail the query.
-      if (Err) {
-        LLVM_DEBUG({
-          dbgs() << "  Error attempting to generate " << LookupSet << "\n";
-        });
-        assert(IPLS && "LS cannot be retained if error is returned");
-        return IPLS->fail(std::move(Err));
-      }
+            // Otherwise if QA was captured then break the loop.
+            if (!LS.IPLS) {
+              LLVM_DEBUG({
+                dbgs() << "  LookupState captured. Exiting phase1 for now.\n";
+              });
+              return;
+            }
 
-      // Otherwise if QA was captured then break the loop.
-      if (!IPLS) {
-        LLVM_DEBUG(
-            { dbgs() << "  LookupState captured. Exiting phase1 for now.\n"; });
-        return;
-      }
+            // Otherwise if we're continuing around the loop, reenter
+            // OL_applyQueryPhase1. Updating candidates is handled there.
+            dispatchTask(std::make_unique<LookupTask>(std::move(LS)));
+          });
 
-      // Otherwise if we're continuing around the loop then update candidates
-      // for the next round.
-      runSessionLocked([&] {
-        LLVM_DEBUG(dbgs() << "  Updating candidate set post-generation\n");
-        Err = IL_updateCandidatesFor(
-            JD, JDLookupFlags, IPLS->DefGeneratorCandidates,
-            JD.DefGenerators.empty() ? nullptr
-                                     : &IPLS->DefGeneratorNonCandidates);
-      });
-
-      // If updating candidates failed then fail the query.
-      if (Err) {
-        LLVM_DEBUG(dbgs() << "  Error encountered while updating candidates\n");
-        return IPLS->fail(std::move(Err));
-      }
+      // Continuation will resume query as necessary.
+      return;
     }
 
     if (IPLS->DefGeneratorCandidates.empty() &&

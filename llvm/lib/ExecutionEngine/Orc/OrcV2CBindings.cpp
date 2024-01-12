@@ -268,9 +268,10 @@ public:
       Dispose(Ctx);
   }
 
-  Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                      JITDylibLookupFlags JDLookupFlags,
-                      const SymbolLookupSet &LookupSet) override {
+  void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                     JITDylibLookupFlags JDLookupFlags,
+                     const SymbolLookupSet &LookupSet,
+                     NotifyCompleteFn NotifyComplete) override {
 
     // Take the lookup state.
     LLVMOrcLookupStateRef LSR = ::wrap(OrcV2CAPIHelper::extractLookupState(LS));
@@ -300,7 +301,7 @@ public:
     // Restore the lookup state.
     OrcV2CAPIHelper::resetLookupState(LS, ::unwrap(LSR));
 
-    return Err;
+    NotifyComplete(std::move(LS), std::move(Err));
   }
 
 private:

@@ -250,9 +250,10 @@ public:
                 std::move(AddAbsoluteSymbols));
   }
 
-  Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                      JITDylibLookupFlags JDLookupFlags,
-                      const SymbolLookupSet &Symbols) override;
+  void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                     JITDylibLookupFlags JDLookupFlags,
+                     const SymbolLookupSet &Symbols,
+                     NotifyCompleteFn NotifyComplete) override;
 
 private:
   sys::DynamicLibrary Dylib;
@@ -307,9 +308,10 @@ public:
     return ImportedDynamicLibraries;
   }
 
-  Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                      JITDylibLookupFlags JDLookupFlags,
-                      const SymbolLookupSet &Symbols) override;
+  void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                     JITDylibLookupFlags JDLookupFlags,
+                     const SymbolLookupSet &Symbols,
+                     NotifyCompleteFn NotifyComplete) override;
 
 private:
   StaticLibraryDefinitionGenerator(ObjectLayer &L,
@@ -343,9 +345,10 @@ public:
   static std::unique_ptr<DLLImportDefinitionGenerator>
   Create(ExecutionSession &ES, ObjectLinkingLayer &L);
 
-  Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                      JITDylibLookupFlags JDLookupFlags,
-                      const SymbolLookupSet &Symbols) override;
+  void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                     JITDylibLookupFlags JDLookupFlags,
+                     const SymbolLookupSet &Symbols,
+                     NotifyCompleteFn NotifyComplete) override;
 
 private:
   DLLImportDefinitionGenerator(ExecutionSession &ES, ObjectLinkingLayer &L)

@@ -60,9 +60,10 @@ public:
     return Load(ES, nullptr, std::move(Allow), std::move(AddAbsoluteSymbols));
   }
 
-  Error tryToGenerate(LookupState &LS, LookupKind K, JITDylib &JD,
-                      JITDylibLookupFlags JDLookupFlags,
-                      const SymbolLookupSet &Symbols) override;
+  void tryToGenerate(LookupState LS, LookupKind K, JITDylib &JD,
+                     JITDylibLookupFlags JDLookupFlags,
+                     const SymbolLookupSet &Symbols,
+                     NotifyCompleteFn NotifyComplete) override;
 
 private:
   ExecutorProcessControl &EPC;

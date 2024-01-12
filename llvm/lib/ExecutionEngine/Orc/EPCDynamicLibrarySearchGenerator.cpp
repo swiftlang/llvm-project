@@ -23,12 +23,13 @@ EPCDynamicLibrarySearchGenerator::Load(
       ES, *Handle, std::move(Allow), std::move(AddAbsoluteSymbols));
 }
 
-Error EPCDynamicLibrarySearchGenerator::tryToGenerate(
-    LookupState &LS, LookupKind K, JITDylib &JD,
-    JITDylibLookupFlags JDLookupFlags, const SymbolLookupSet &Symbols) {
+void EPCDynamicLibrarySearchGenerator::tryToGenerate(
+    LookupState LS, LookupKind K, JITDylib &JD,
+    JITDylibLookupFlags JDLookupFlags, const SymbolLookupSet &Symbols,
+    NotifyCompleteFn NotifyComplete) {
 
   if (Symbols.empty())
-    return Error::success();
+    return NotifyComplete(std::move(LS), Error::success());
 
   SymbolLookupSet LookupSymbols;
 
@@ -44,7 +45,7 @@ Error EPCDynamicLibrarySearchGenerator::tryToGenerate(
   ExecutorProcessControl::LookupRequest Request(H, LookupSymbols);
   auto Result = EPC.lookupSymbols(Request);
   if (!Result)
-    return Result.takeError();
+    return NotifyComplete(std::move(LS), Result.takeError());
 
   assert(Result->size() == 1 && "Results for more than one library returned");
   assert(Result->front().size() == LookupSymbols.size() &&
@@ -59,12 +60,14 @@ Error EPCDynamicLibrarySearchGenerator::tryToGenerate(
 
   // If there were no resolved symbols bail out.
   if (NewSymbols.empty())
-    return Error::success();
+    return NotifyComplete(std::move(LS), Error::success());
 
   // Define resolved symbols.
-  if (AddAbsoluteSymbols)
-    return AddAbsoluteSymbols(JD, std::move(NewSymbols));
-  return JD.define(absoluteSymbols(std::move(NewSymbols)));
+  Error Err = AddAbsoluteSymbols
+                  ? AddAbsoluteSymbols(JD, std::move(NewSymbols))
+                  : JD.define(absoluteSymbols(std::move(NewSymbols)));
+
+  NotifyComplete(std::move(LS), std::move(Err));
 }
 
 } // end namespace orc

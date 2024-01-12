@@ -16,6 +16,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/MachOUniversal.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Target/TargetMachine.h"
 #include <string>
@@ -237,9 +238,10 @@ DynamicLibrarySearchGenerator::Load(const char *FileName, char GlobalPrefix,
       std::move(AddAbsoluteSymbols));
 }
 
-Error DynamicLibrarySearchGenerator::tryToGenerate(
-    LookupState &LS, LookupKind K, JITDylib &JD,
-    JITDylibLookupFlags JDLookupFlags, const SymbolLookupSet &Symbols) {
+void DynamicLibrarySearchGenerator::tryToGenerate(
+    LookupState LS, LookupKind K, JITDylib &JD,
+    JITDylibLookupFlags JDLookupFlags, const SymbolLookupSet &Symbols,
+    NotifyCompleteFn NotifyComplete) {
   orc::SymbolMap NewSymbols;
 
   bool HasGlobalPrefix = (GlobalPrefix != '\0');
@@ -263,11 +265,13 @@ Error DynamicLibrarySearchGenerator::tryToGenerate(
   }
 
   if (NewSymbols.empty())
-    return Error::success();
+    return NotifyComplete(std::move(LS), Error::success());
 
-  if (AddAbsoluteSymbols)
-    return AddAbsoluteSymbols(JD, std::move(NewSymbols));
-  return JD.define(absoluteSymbols(std::move(NewSymbols)));
+  Error Err = AddAbsoluteSymbols
+                  ? AddAbsoluteSymbols(JD, std::move(NewSymbols))
+                  : JD.define(absoluteSymbols(std::move(NewSymbols)));
+
+  NotifyComplete(std::move(LS), std::move(Err));
 }
 
 Expected<std::unique_ptr<StaticLibraryDefinitionGenerator>>
@@ -379,17 +383,18 @@ StaticLibraryDefinitionGenerator::Create(
                                  inconvertibleErrorCode());
 }
 
-Error StaticLibraryDefinitionGenerator::tryToGenerate(
-    LookupState &LS, LookupKind K, JITDylib &JD,
-    JITDylibLookupFlags JDLookupFlags, const SymbolLookupSet &Symbols) {
+void StaticLibraryDefinitionGenerator::tryToGenerate(
+    LookupState LS, LookupKind K, JITDylib &JD,
+    JITDylibLookupFlags JDLookupFlags, const SymbolLookupSet &Symbols,
+    NotifyCompleteFn NotifyComplete) {
   // Don't materialize symbols from static archives unless this is a static
   // lookup.
   if (K != LookupKind::Static)
-    return Error::success();
+    return NotifyComplete(std::move(LS), Error::success());
 
   // Bail out early if we've already freed the archive.
   if (!Archive)
-    return Error::success();
+    return NotifyComplete(std::move(LS), Error::success());
 
   DenseSet<std::pair<StringRef, StringRef>> ChildBufferInfos;
 
@@ -408,14 +413,14 @@ Error StaticLibraryDefinitionGenerator::tryToGenerate(
 
     auto I = GetObjFileInterface(L.getExecutionSession(), ChildBufferRef);
     if (!I)
-      return I.takeError();
+      return NotifyComplete(std::move(LS), I.takeError());
 
     if (auto Err = L.add(JD, MemoryBuffer::getMemBuffer(ChildBufferRef, false),
                          std::move(*I)))
-      return Err;
+      return NotifyComplete(std::move(LS), std::move(Err));
   }
 
-  return Error::success();
+  NotifyComplete(std::move(LS), Error::success());
 }
 
 Error StaticLibraryDefinitionGenerator::buildObjectFilesMap() {
@@ -489,9 +494,10 @@ DLLImportDefinitionGenerator::Create(ExecutionSession &ES,
       new DLLImportDefinitionGenerator(ES, L));
 }
 
-Error DLLImportDefinitionGenerator::tryToGenerate(
-    LookupState &LS, LookupKind K, JITDylib &JD,
-    JITDylibLookupFlags JDLookupFlags, const SymbolLookupSet &Symbols) {
+void DLLImportDefinitionGenerator::tryToGenerate(
+    LookupState LS, LookupKind K, JITDylib &JD,
+    JITDylibLookupFlags JDLookupFlags, const SymbolLookupSet &Symbols,
+    NotifyCompleteFn NotifyComplete) {
   JITDylibSearchOrder LinkOrder;
   JD.withLinkOrderDo([&](const JITDylibSearchOrder &LO) {
     LinkOrder.reserve(LO.size());
@@ -524,12 +530,13 @@ Error DLLImportDefinitionGenerator::tryToGenerate(
   auto Resolved =
       ES.lookup(LinkOrder, LookupSet, LookupKind::DLSym, SymbolState::Resolved);
   if (!Resolved)
-    return Resolved.takeError();
+    return NotifyComplete(std::move(LS), Resolved.takeError());
 
   auto G = createStubsGraph(*Resolved);
   if (!G)
-    return G.takeError();
-  return L.add(JD, std::move(*G));
+    return NotifyComplete(std::move(LS), G.takeError());
+
+  NotifyComplete(std::move(LS), L.add(JD, std::move(*G)));
 }
 
 Expected<unsigned>
