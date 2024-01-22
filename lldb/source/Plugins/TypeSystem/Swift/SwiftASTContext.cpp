@@ -1155,6 +1155,14 @@ static std::string GetPluginServerForSDK(llvm::StringRef sdk_path) {
   return server_or_err->str();
 }
 
+namespace {
+  static constexpr std::array<std::string_view, 4> knownExplicitModulePrefixes =
+       {"-fmodule-map-file=",
+        "-fmodule-file=",
+        "-fno-implicit-modules",
+        "-fno-implicit-module-maps"};
+}
+
 /// Retrieve the serialized AST data blobs and initialize the compiler
 /// invocation with the concatenated search paths from the blobs.
 /// \returns true if an error was encountered.
@@ -1294,6 +1302,29 @@ static bool DeserializeAllCompilerFlags(swift::CompilerInvocation &invocation,
                 << getImportFailureString(result) << "\n";
           return false;
         }
+
+        // In case of explicit modules, for now fallback to implicit
+        // module loading.
+        // TODO: Incorporate loading explicit module dependencies to
+        // speedup dependency resolution.
+        if (llvm::find(invocation.getExtraClangArgs(), "-fno-implicit-modules")) {
+          auto matchExplicitBuildOption = [](StringRef &arg) {
+            for (const auto &option : knownExplicitModulePrefixes)
+              if (arg.starts_with(option))
+                return true;
+            return false;
+          };
+          std::vector<std::string> filteredArgs;
+          for (auto A : invocation.getExtraClangArgs()) {
+            StringRef arg(A);
+            if (matchExplicitBuildOption(arg))
+              continue;
+            else
+              filteredArgs.push_back(A);
+          }
+          invocation.setExtraClangArgs(filteredArgs);
+        }
+
         if (discover_implicit_search_paths) {
           for (auto &searchPath : searchPaths) {
             std::string path = remap(searchPath.Path);
