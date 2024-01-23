@@ -1507,8 +1507,8 @@ bool ConsumeIncludeOption(StringRef &arg, StringRef &prefix) {
 }
 
 std::array<StringRef, 2> macro_flags = { "-D", "-U" };
-std::array<StringRef, 5> multi_arg_flags =
-    { "-D", "-U", "-I", "-F", "-working-directory" };
+std::array<StringRef, 6> multi_arg_flags = {
+    "-D", "-U", "-I", "-F", "-working-directory", "-triple"};
 std::array<StringRef, 6> args_to_unique = {
     "-D", "-U", "-I", "-F", "-fmodule-file=", "-fmodule-map-file="};
 
@@ -1544,6 +1544,9 @@ void SwiftASTContext::AddExtraClangArgs(const std::vector<std::string> &source,
   llvm::SmallString<128> cur_working_dir;
   llvm::SmallString<128> clang_argument;
   for (const std::string &arg : source) {
+    if (clang_argument == "-triple")
+      continue;
+
     // Join multi-arg options for uniquing.
     clang_argument += arg;
     if (IsMultiArgClangFlag(clang_argument))
