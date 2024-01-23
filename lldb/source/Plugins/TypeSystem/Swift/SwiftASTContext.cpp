@@ -1544,8 +1544,10 @@ void SwiftASTContext::AddExtraClangArgs(const std::vector<std::string> &source,
   llvm::SmallString<128> cur_working_dir;
   llvm::SmallString<128> clang_argument;
   for (const std::string &arg : source) {
-    if (clang_argument == "-triple")
+    if (clang_argument == "-triple") {
+      clang_argument.clear();
       continue;
+    }
 
     // Join multi-arg options for uniquing.
     clang_argument += arg;
