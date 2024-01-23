@@ -1544,6 +1544,9 @@ void SwiftASTContext::AddExtraClangArgs(const std::vector<std::string> &source,
   llvm::SmallString<128> cur_working_dir;
   llvm::SmallString<128> clang_argument;
   for (const std::string &arg : source) {
+    // Ignore the `-triple` flag. First, this is not a driver flag, and second,
+    // lldb has its own logic to determine the target. Ignore now, before
+    // appending the argument.
     if (clang_argument == "-triple") {
       clang_argument.clear();
       continue;
