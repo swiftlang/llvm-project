@@ -6,10 +6,15 @@
 
 ; CHECK: DW_TAG_structure_type
 ; CHECK: DW_AT_APPLE_num_extra_inhabitants	(0x42)
+
+
+; CHECK: DW_TAG_pointer_type
+; CHECK: DW_AT_APPLE_num_extra_inhabitants	(0x64)
 target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 
 @p = common global i8* null, align 8, !dbg !0
 @q = common global i8* null, align 8, !dbg !8
+@r = common global i8* null, align 8, !dbg !12
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!6, !7}
@@ -19,7 +24,7 @@ target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 !2 = distinct !DICompileUnit(language: DW_LANG_C99, file: !3, emissionKind: FullDebug, globals: !5)
 !3 = !DIFile(filename: "/tmp/p.c", directory: "/")
 !4 = !{}
-!5 = !{!0, !8}
+!5 = !{!0, !8, !12}
 !6 = !{i32 2, !"Dwarf Version", i32 4}
 !7 = !{i32 2, !"Debug Info Version", i32 3}
 
@@ -27,4 +32,7 @@ target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 !9 = distinct !DIGlobalVariable(name: "q", scope: !2, file: !3, line: 1, type: !11, isLocal: false, isDefinition: true)
 !10 = !DIBasicType(name: "ExtraInhabitantBasicType", size: 1, encoding: DW_ATE_unsigned, num_extra_inhabitants: 254)
 !11 = !DICompositeType(tag: DW_TAG_structure_type, name: "ExtraInhabitantCompositeType", file: !3, size: 64, num_extra_inhabitants: 66, identifier: "MangledExtraInhabitantCompositeType")
+!12 = !DIGlobalVariableExpression(var: !13, expr: !DIExpression())
+!13 = distinct !DIGlobalVariable(name: "r", scope: !2, file: !3, line: 1, type: !14, isLocal: false, isDefinition: true)
+!14 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !11, size: 32, align: 32, dwarfAddressSpace: 1, num_extra_inhabitants: 100)
 

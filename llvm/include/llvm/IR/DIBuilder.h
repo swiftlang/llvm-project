@@ -264,7 +264,8 @@ namespace llvm {
     createPointerType(DIType *PointeeTy, uint64_t SizeInBits,
                       uint32_t AlignInBits = 0,
                       std::optional<unsigned> DWARFAddressSpace = std::nullopt,
-                      StringRef Name = "", DINodeArray Annotations = nullptr);
+                      StringRef Name = "", DINodeArray Annotations = nullptr,
+                      uint32_t NumExtraInhabitants = 0, DIScope *Scope = nullptr);
 
     /// Create a __ptrauth qualifier.
     DIDerivedType *createPtrAuthQualifiedType(DIType *FromTy, unsigned Key,

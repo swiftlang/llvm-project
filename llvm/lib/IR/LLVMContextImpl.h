@@ -544,6 +544,7 @@ template <> struct MDNodeKeyImpl<DIDerivedType> {
   Metadata *BaseType;
   uint64_t SizeInBits;
   uint64_t OffsetInBits;
+  uint32_t NumExtraInhabitants;
   uint32_t AlignInBits;
   std::optional<unsigned> DWARFAddressSpace;
   std::optional<DIDerivedType::PtrAuthData> PtrAuthData;
@@ -554,19 +555,22 @@ template <> struct MDNodeKeyImpl<DIDerivedType> {
   MDNodeKeyImpl(unsigned Tag, MDString *Name, Metadata *File, unsigned Line,
                 Metadata *Scope, Metadata *BaseType, uint64_t SizeInBits,
                 uint32_t AlignInBits, uint64_t OffsetInBits,
+                uint32_t NumExtraInhabitants,
                 std::optional<unsigned> DWARFAddressSpace,
                 std::optional<DIDerivedType::PtrAuthData> PtrAuthData,
                 unsigned Flags, Metadata *ExtraData, Metadata *Annotations)
       : Tag(Tag), Name(Name), File(File), Line(Line), Scope(Scope),
         BaseType(BaseType), SizeInBits(SizeInBits), OffsetInBits(OffsetInBits),
-        AlignInBits(AlignInBits), DWARFAddressSpace(DWARFAddressSpace),
-        PtrAuthData(PtrAuthData), Flags(Flags), ExtraData(ExtraData),
-        Annotations(Annotations) {}
+        NumExtraInhabitants(NumExtraInhabitants), AlignInBits(AlignInBits),
+        DWARFAddressSpace(DWARFAddressSpace), PtrAuthData(PtrAuthData),
+        Flags(Flags), ExtraData(ExtraData), Annotations(Annotations) {}
   MDNodeKeyImpl(const DIDerivedType *N)
       : Tag(N->getTag()), Name(N->getRawName()), File(N->getRawFile()),
         Line(N->getLine()), Scope(N->getRawScope()),
         BaseType(N->getRawBaseType()), SizeInBits(N->getSizeInBits()),
-        OffsetInBits(N->getOffsetInBits()), AlignInBits(N->getAlignInBits()),
+        OffsetInBits(N->getOffsetInBits()),
+        NumExtraInhabitants(N->getNumExtraInhabitants()),
+        AlignInBits(N->getAlignInBits()),
         DWARFAddressSpace(N->getDWARFAddressSpace()),
         PtrAuthData(N->getPtrAuthData()), Flags(N->getFlags()),
         ExtraData(N->getRawExtraData()), Annotations(N->getRawAnnotations()) {}
@@ -578,9 +582,11 @@ template <> struct MDNodeKeyImpl<DIDerivedType> {
            SizeInBits == RHS->getSizeInBits() &&
            AlignInBits == RHS->getAlignInBits() &&
            OffsetInBits == RHS->getOffsetInBits() &&
+           NumExtraInhabitants == RHS->getNumExtraInhabitants() &&
            DWARFAddressSpace == RHS->getDWARFAddressSpace() &&
            PtrAuthData == RHS->getPtrAuthData() && Flags == RHS->getFlags() &&
-           ExtraData == RHS->getRawExtraData() && Annotations == RHS->getRawAnnotations();
+           ExtraData == RHS->getRawExtraData() &&
+           Annotations == RHS->getRawAnnotations();
   }
 
   unsigned getHashValue() const {

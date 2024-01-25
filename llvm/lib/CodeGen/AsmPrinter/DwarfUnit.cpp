@@ -790,6 +790,15 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy) {
            && Tag != dwarf::DW_TAG_rvalue_reference_type)
     addUInt(Buffer, dwarf::DW_AT_byte_size, std::nullopt, Size);
 
+    // Add align info if available.
+  if (uint32_t AlignInBytes = DTy->getAlignInBytes())
+    addUInt(Buffer, dwarf::DW_AT_alignment, dwarf::DW_FORM_udata, AlignInBytes);
+
+  if (uint32_t NumExtraInhabitants = DTy->getNumExtraInhabitants()) {
+    addUInt(Buffer, dwarf::DW_AT_APPLE_num_extra_inhabitants, std::nullopt,
+            NumExtraInhabitants);
+  }
+
   if (Tag == dwarf::DW_TAG_ptr_to_member_type)
     addDIEEntry(Buffer, dwarf::DW_AT_containing_type,
                 *getOrCreateTypeDIE(cast<DIDerivedType>(DTy)->getClassType()));
