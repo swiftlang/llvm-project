@@ -602,18 +602,13 @@ public:
       cas::remote::ClientServices &Service, StringRef OutputPath,
       std::string Key,
       std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger)
-      : Service(Service), OutputPath(OutputPath.str()),
-        Logger(std::move(Logger)) {
-    ID = Key;
-  }
+      : Service(Service), ID(std::move(Key)), OutputPath(OutputPath.str()),
+        Logger(std::move(Logger)) {}
 
   std::string getEntryPath() final { return ID; }
 
   // Try loading the buffer for this cache entry.
   ErrorOr<std::unique_ptr<MemoryBuffer>> tryLoadingBuffer() final {
-    if (ID.empty())
-      return std::error_code();
-
     // Lookup the output value from KVDB.
     std::optional<cas::remote::KeyValueDBClient::ValueTy> GetResponse;
     {
@@ -672,9 +667,6 @@ public:
 
   // Cache the Produced object file
   void write(const MemoryBuffer &OutputBuffer) final {
-    if (ID.empty())
-      return;
-
     if (!ProducedOutput)
       cantFail(ModuleCacheEntry::writeObject(OutputBuffer, OutputPath));
 
