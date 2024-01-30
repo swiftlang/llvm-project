@@ -397,8 +397,8 @@ struct NullModuleCacheEntry : ModuleCacheEntry {
 
 class FileModuleCacheEntry : public ModuleCacheEntry {
 public:
-  static std::unique_ptr<ModuleCacheEntry> make(StringRef CachePath,
-                                                std::string Key) {
+  static std::unique_ptr<ModuleCacheEntry> create(StringRef CachePath,
+                                                  std::string Key) {
     if (CachePath.empty())
       return std::make_unique<NullModuleCacheEntry>();
     return std::make_unique<FileModuleCacheEntry>(CachePath, std::move(Key));
@@ -956,7 +956,7 @@ std::unique_ptr<ModuleCacheEntry> ThinLTOCodeGenerator::createModuleCacheEntry(
 
   switch (CacheOptions.Type) {
   case CachingOptions::CacheType::CacheDirectory:
-    return FileModuleCacheEntry::make(CacheOptions.Path, std::move(*Key));
+    return FileModuleCacheEntry::create(CacheOptions.Path, std::move(*Key));
   case CachingOptions::CacheType::CAS:
     return std::make_unique<CASModuleCacheEntry>(
         *CacheOptions.CAS, *CacheOptions.Cache, std::move(*Key),
