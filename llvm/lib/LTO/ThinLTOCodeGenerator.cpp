@@ -487,6 +487,17 @@ static void handleCASError(
     consumeError(std::move(E));
 }
 
+static cas::CASID createCASProxyOrAbort(cas::ObjectStore &CAS, StringRef Key) {
+  // Create the key by inserting cache key (SHA1) into CAS to create an ID for
+  // the correct context.
+  // TODO: We can have an alternative hashing function that doesn't need to
+  // store the key into CAS to get the CacheKey.
+  auto CASKey = CAS.createProxy(std::nullopt, Key);
+  if (!CASKey)
+    report_fatal_error(CASKey.takeError());
+  return CASKey->getID();
+}
+
 class CASModuleCacheEntry : public ModuleCacheEntry {
 public:
   // Create a cache entry. This compute a unique hash for the Module considering
@@ -495,33 +506,15 @@ public:
   CASModuleCacheEntry(
       cas::ObjectStore &CAS, cas::ActionCache &Cache, std::string Key,
       std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger)
-      : CAS(CAS), Cache(Cache), Logger(std::move(Logger)) {
-    // Create the key by inserting cache key (SHA1) into CAS to create a ID for
-    // the correct context.
-    // TODO: We can have an alternative hashing function that doesn't
-    // need to store the key into CAS to get the CacheKey.
-    auto CASKey = CAS.createProxy(std::nullopt, Key);
-    if (!CASKey) {
-      handleCASError(CASKey.takeError(), this->Logger);
-      // return as if the key doesn't exist, which will be treated as miss.
-      return;
-    }
-
-    ID = CASKey->getID();
-  }
+      : CAS(CAS), Cache(Cache), ID(createCASProxyOrAbort(CAS, Key)),
+        Logger(std::move(Logger)) {}
 
   std::string getEntryPath() final {
-    if (!ID)
-      return "";
-
-    return ID->toString();
+    return ID.toString();
   }
 
   // Try loading the buffer for this cache entry.
   ErrorOr<std::unique_ptr<MemoryBuffer>> tryLoadingBuffer() final {
-    if (!ID)
-      return std::error_code();
-
     std::optional<cas::CASID> MaybeKeyID;
     {
       ScopedDurationTimer ScopedTime([&](double Seconds) {
@@ -533,7 +526,7 @@ public:
         }
       });
 
-      if (Error E = Cache.get(*ID, /*Globally=*/true).moveInto(MaybeKeyID)) {
+      if (Error E = Cache.get(ID, /*Globally=*/true).moveInto(MaybeKeyID)) {
         handleCASError(std::move(E), Logger);
         // If handleCASError didn't abort, treat as miss.
         return std::error_code();
@@ -562,11 +555,8 @@ public:
     return MaybeObject->getMemoryBuffer("", /*NullTerminated=*/true);
   }
 
-  // Cache the Produced object file
+  // Cache the computed object file.
   void write(const MemoryBuffer &OutputBuffer) final {
-    if (!ID)
-      return;
-
     std::optional<cas::ObjectProxy> Proxy;
     {
       ScopedDurationTimer ScopedTime([&](double Seconds) {
@@ -592,14 +582,14 @@ public:
       }
     });
 
-    if (auto Err = Cache.put(*ID, Proxy->getID(), /*Globally=*/true))
+    if (auto Err = Cache.put(ID, Proxy->getID(), /*Globally=*/true))
       handleCASError(std::move(Err), Logger);
   }
 
 private:
   cas::ObjectStore &CAS;
   cas::ActionCache &Cache;
-  std::optional<cas::CASID> ID;
+  cas::CASID ID;
   std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger;
 };
 
