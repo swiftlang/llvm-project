@@ -2048,6 +2048,8 @@ static void writeDIDerivedType(raw_ostream &Out, const DIDerivedType *N,
     Printer.printBool("ptrAuthIsAddressDiscriminated", *AddrDisc);
   if (auto Disc = N->getPtrAuthExtraDiscriminator())
     Printer.printInt("ptrAuthExtraDiscriminator", *Disc);
+  if (auto NumExtraInhabitants = N->getNumExtraInhabitants())
+    Printer.printInt("num_extra_inhabitants", NumExtraInhabitants);
   Out << ")";
 }
 

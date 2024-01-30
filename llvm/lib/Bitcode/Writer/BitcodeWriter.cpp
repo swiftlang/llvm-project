@@ -1744,8 +1744,19 @@ void ModuleBitcodeWriter::writeDIDerivedType(const DIDerivedType *N,
     Record.push_back(0);
   Record.push_back(VE.getMetadataOrNullID(N->getAnnotations().get()));
 
-  if (auto PtrAuthData = N->getPtrAuthData())
+  auto NumExtraInhabitants = N->getNumExtraInhabitants();
+  auto PtrAuthData = N->getPtrAuthData();
+
+  if (PtrAuthData)
     Record.push_back(PtrAuthData->Payload.RawData);
+  else if (NumExtraInhabitants)
+    // If there is no PtrAuthData, but NumExtraInhabitants exists, emit
+    // PtrAuthData as UINT32_MAX as a representation of the null case. We need
+    // this to disambiguate between the two fields as they're both optional.
+    Record.push_back(UINT32_MAX);
+
+  if (NumExtraInhabitants)
+    Record.push_back(NumExtraInhabitants);
 
   Stream.EmitRecord(bitc::METADATA_DERIVED_TYPE, Record, Abbrev);
   Record.clear();
