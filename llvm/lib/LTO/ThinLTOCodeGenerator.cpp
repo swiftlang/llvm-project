@@ -387,31 +387,26 @@ std::unique_ptr<MemoryBuffer> codegenModule(Module &TheModule,
       std::move(OutputBuffer), /*RequiresNullTerminator=*/false);
 }
 
+struct NullModuleCacheEntry : ModuleCacheEntry {
+  std::string getEntryPath() override { return "<null>"; }
+  ErrorOr<std::unique_ptr<MemoryBuffer>> tryLoadingBuffer() override {
+    return std::error_code();
+  }
+  void write(const MemoryBuffer &OutputBuffer) override {}
+};
+
 class FileModuleCacheEntry : public ModuleCacheEntry {
 public:
   // Create a cache entry. This compute a unique hash for the Module considering
   // the current list of export/import, and offer an interface to query to
   // access the content in the cache.
-  FileModuleCacheEntry(
-      StringRef CachePath, const ModuleSummaryIndex &Index, StringRef ModuleID,
-      const FunctionImporter::ImportMapTy &ImportList,
-      const FunctionImporter::ExportSetTy &ExportList,
-      const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
-      const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
-      bool Freestanding, const TargetMachineBuilder &TMBuilder) {
+  FileModuleCacheEntry(StringRef CachePath, std::string Key) {
     if (CachePath.empty())
-      return;
-
-    std::optional<std::string> Key =
-        computeCacheKey(Index, ModuleID, ImportList, ExportList, ResolvedODR,
-                        DefinedGVSummaries, OptLevel, Freestanding, TMBuilder);
-
-    if (!Key)
       return;
 
     // This choice of file name allows the cache to be pruned (see pruneCache()
     // in include/llvm/Support/CachePruning.h).
-    sys::path::append(EntryPath, CachePath, "llvmcache-" + *Key);
+    sys::path::append(EntryPath, CachePath, "llvmcache-" + Key);
   }
 
   std::string getEntryPath() final { return EntryPath.str().str(); }
@@ -505,27 +500,14 @@ public:
   // the current list of export/import, and offer an interface to query to
   // access the content in the cache.
   CASModuleCacheEntry(
-      cas::ObjectStore &CAS, cas::ActionCache &Cache,
-      const ModuleSummaryIndex &Index, StringRef ModuleID,
-      const FunctionImporter::ImportMapTy &ImportList,
-      const FunctionImporter::ExportSetTy &ExportList,
-      const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
-      const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
-      bool Freestanding, const TargetMachineBuilder &TMBuilder,
+      cas::ObjectStore &CAS, cas::ActionCache &Cache, std::string Key,
       std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger)
       : CAS(CAS), Cache(Cache), Logger(std::move(Logger)) {
-    std::optional<std::string> Key =
-        computeCacheKey(Index, ModuleID, ImportList, ExportList, ResolvedODR,
-                        DefinedGVSummaries, OptLevel, Freestanding, TMBuilder);
-
-    if (!Key)
-      return;
-
     // Create the key by inserting cache key (SHA1) into CAS to create a ID for
     // the correct context.
     // TODO: We can have an alternative hashing function that doesn't
     // need to store the key into CAS to get the CacheKey.
-    auto CASKey = CAS.createProxy(std::nullopt, *Key);
+    auto CASKey = CAS.createProxy(std::nullopt, Key);
     if (!CASKey) {
       handleCASError(CASKey.takeError(), this->Logger);
       // return as if the key doesn't exist, which will be treated as miss.
@@ -634,24 +616,12 @@ public:
   // the current list of export/import, and offer an interface to query to
   // access the content in the cache.
   RemoteModuleCacheEntry(
-      cas::remote::ClientServices &Service, const ModuleSummaryIndex &Index,
-      StringRef ModuleID, StringRef OutputPath,
-      const FunctionImporter::ImportMapTy &ImportList,
-      const FunctionImporter::ExportSetTy &ExportList,
-      const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
-      const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
-      bool Freestanding, const TargetMachineBuilder &TMBuilder,
+      cas::remote::ClientServices &Service, StringRef OutputPath,
+      std::string Key,
       std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger)
       : Service(Service), OutputPath(OutputPath.str()),
         Logger(std::move(Logger)) {
-    std::optional<std::string> Key =
-        computeCacheKey(Index, ModuleID, ImportList, ExportList, ResolvedODR,
-                        DefinedGVSummaries, OptLevel, Freestanding, TMBuilder);
-
-    if (!Key)
-      return;
-
-    ID = *Key;
+    ID = Key;
   }
 
   std::string getEntryPath() final { return ID; }
@@ -1002,21 +972,24 @@ std::unique_ptr<ModuleCacheEntry> ThinLTOCodeGenerator::createModuleCacheEntry(
     const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
     bool Freestanding, const TargetMachineBuilder &TMBuilder,
     std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger) {
+  std::optional<std::string> Key = ModuleCacheEntry::computeCacheKey(
+      Index, ModuleID, ImportList, ExportList, ResolvedODR, DefinedGVSummaries,
+      OptLevel, Freestanding, TMBuilder);
+
+  if (!Key)
+    return std::make_unique<NullModuleCacheEntry>();
+
   switch (CacheOptions.Type) {
   case CachingOptions::CacheType::CacheDirectory:
-    return std::make_unique<FileModuleCacheEntry>(
-        CacheOptions.Path, Index, ModuleID, ImportList, ExportList, ResolvedODR,
-        DefinedGVSummaries, OptLevel, Freestanding, TMBuilder);
+    return std::make_unique<FileModuleCacheEntry>(CacheOptions.Path,
+                                                  std::move(*Key));
   case CachingOptions::CacheType::CAS:
     return std::make_unique<CASModuleCacheEntry>(
-        *CacheOptions.CAS, *CacheOptions.Cache, Index, ModuleID, ImportList,
-        ExportList, ResolvedODR, DefinedGVSummaries, OptLevel, Freestanding,
-        TMBuilder, std::move(Logger));
+        *CacheOptions.CAS, *CacheOptions.Cache, std::move(*Key),
+        std::move(Logger));
   case CachingOptions::CacheType::RemoteService:
     return std::make_unique<RemoteModuleCacheEntry>(
-        *CacheOptions.Service, Index, ModuleID, OutputPath, ImportList,
-        ExportList, ResolvedODR, DefinedGVSummaries, OptLevel, Freestanding,
-        TMBuilder, std::move(Logger));
+        *CacheOptions.Service, OutputPath, std::move(*Key), std::move(Logger));
   }
 }
 
