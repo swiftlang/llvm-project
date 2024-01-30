@@ -397,13 +397,18 @@ struct NullModuleCacheEntry : ModuleCacheEntry {
 
 class FileModuleCacheEntry : public ModuleCacheEntry {
 public:
+  static std::unique_ptr<ModuleCacheEntry> make(StringRef CachePath,
+                                                std::string Key) {
+    if (CachePath.empty())
+      return std::make_unique<NullModuleCacheEntry>();
+    return std::make_unique<FileModuleCacheEntry>(CachePath, std::move(Key));
+  }
+
   // Create a cache entry. This compute a unique hash for the Module considering
   // the current list of export/import, and offer an interface to query to
   // access the content in the cache.
   FileModuleCacheEntry(StringRef CachePath, std::string Key) {
-    if (CachePath.empty())
-      return;
-
+    assert(!CachePath.empty());
     // This choice of file name allows the cache to be pruned (see pruneCache()
     // in include/llvm/Support/CachePruning.h).
     sys::path::append(EntryPath, CachePath, "llvmcache-" + Key);
@@ -413,17 +418,11 @@ public:
 
   // Try loading the buffer for this cache entry.
   ErrorOr<std::unique_ptr<MemoryBuffer>> tryLoadingBuffer() final {
-    if (EntryPath.empty())
-      return std::error_code();
-
     return MemoryBuffer::getFile(EntryPath);
   }
 
   // Cache the Produced object file
   void write(const MemoryBuffer &OutputBuffer) final {
-    if (EntryPath.empty())
-      return;
-
     if (auto Err = llvm::writeToOutput(
             EntryPath, [&OutputBuffer](llvm::raw_ostream &OS) -> llvm::Error {
               OS << OutputBuffer.getBuffer();
@@ -438,30 +437,24 @@ public:
                     StringRef OutputPath) final {
     // Clear output file if exists for hard-linking.
     sys::fs::remove(OutputPath);
-    // Cache is enabled, hard-link the entry (or copy if hard-link fails).
-    std::string CacheEntryPath = getEntryPath();
-    if (!CacheEntryPath.empty()) {
-      auto Err = sys::fs::create_hard_link(CacheEntryPath, OutputPath);
-      if (!Err)
-        return Error::success();
-      // Hard linking failed, try to copy.
-      Err = sys::fs::copy_file(CacheEntryPath, OutputPath);
-      if (!Err)
-        return Error::success();
-      // Copy failed (could be because the CacheEntry was removed from the cache
-      // in the meantime by another process), fall back and try to write down
-      // the buffer to the output.
-      errs() << "remark: can't link or copy from cached entry '"
-             << CacheEntryPath << "' to '" << OutputPath << "'\n";
-    }
+    // Hard-link the entry (or copy if hard-link fails).
+    auto Err = sys::fs::create_hard_link(EntryPath, OutputPath);
+    if (!Err)
+      return Error::success();
+    // Hard linking failed, try to copy.
+    Err = sys::fs::copy_file(EntryPath, OutputPath);
+    if (!Err)
+      return Error::success();
+    // Copy failed (could be because the CacheEntry was removed from the cache
+    // in the meantime by another process), fall back and try to write down
+    // the buffer to the output.
+    errs() << "remark: can't link or copy from cached entry '" << EntryPath
+           << "' to '" << OutputPath << "'\n";
     // Fallback to default.
     return ModuleCacheEntry::writeObject(OutputBuffer, OutputPath);
   }
 
   std::optional<std::unique_ptr<MemoryBuffer>> getMappedBuffer() final {
-    if (getEntryPath().empty())
-      return std::nullopt;
-
     auto ReloadedBufferOrErr = tryLoadingBuffer();
     if (auto EC = ReloadedBufferOrErr.getError()) {
       // On error, keep the preexisting buffer and print a diagnostic.
@@ -981,8 +974,7 @@ std::unique_ptr<ModuleCacheEntry> ThinLTOCodeGenerator::createModuleCacheEntry(
 
   switch (CacheOptions.Type) {
   case CachingOptions::CacheType::CacheDirectory:
-    return std::make_unique<FileModuleCacheEntry>(CacheOptions.Path,
-                                                  std::move(*Key));
+    return FileModuleCacheEntry::make(CacheOptions.Path, std::move(*Key));
   case CachingOptions::CacheType::CAS:
     return std::make_unique<CASModuleCacheEntry>(
         *CacheOptions.CAS, *CacheOptions.Cache, std::move(*Key),
@@ -1690,7 +1682,7 @@ void ThinLTOCodeGenerator::run() {
             OS << "Update cached result for " << ModuleIdentifier << "\n";
           });
 
-        // Commit to the cache (if enabled)
+        // Commit to the cache.
         CacheEntry->write(*OutputBuffer);
 
         if (UseBufferAPI) {
