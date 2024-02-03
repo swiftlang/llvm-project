@@ -188,6 +188,8 @@ public:
 
   bool GetSwiftEnableFullDwarfDebugging() const;
 
+  bool GetSwiftValidateFullDwarf() const;
+
   Args GetSwiftPluginServerForPath() const;
 
   bool GetSwiftAutoImportFrameworks() const;
