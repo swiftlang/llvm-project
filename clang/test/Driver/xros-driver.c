@@ -3,7 +3,7 @@
 
 // RUN: %clang -target arm64-apple-xros1-simulator -c -### %s 2>&1 | FileCheck --check-prefix=VERSION1_ASi %s
 
-// RUN: not %clang -target arm64-apple-xros1000 -c -### %s 2>&1 | FileCheck --check-prefix=INVALID-VERSION %s
+// RUN: %clang -target arm64-apple-xros1000 -c -### %s 2>&1 | FileCheck --check-prefix=INVALID-VERSION %s
 
 // RUN: %clang -target arm64-apple-xros1  -### %s 2>&1 | FileCheck --check-prefix=LINK %s
 // RUN: %clang -target arm64-apple-xros1-simulator  -### %s 2>&1 | FileCheck --check-prefix=LINK-SIM %s
