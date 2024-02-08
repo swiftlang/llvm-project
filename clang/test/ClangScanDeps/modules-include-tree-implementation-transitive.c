@@ -66,7 +66,7 @@ static mod_int x;
 // RUN: FileCheck %s -input-file %t/tu-include-tree.txt -DPREFIX=%/t
 // CHECK:      [[PREFIX]]/tu.m llvmcas://
 // CHECK-NEXT: 1:1 <built-in> llvmcas://
-// CHECK-NEXT: 2:1 (Module) Spurious.Missing [[PREFIX]]/frameworks/Spurious.framework/Headers/Missing.h llvmcas://
+// CHECK-NEXT: 2:1 (Spurious import) (Module) Spurious.Missing [[PREFIX]]/frameworks/Spurious.framework/Headers/Missing.h llvmcas://
 // CHECK-NEXT: 3:1 (Module for visibility only) Mod
 
 // RUN: %clang @%t/cas-Mod.cc1.rsp

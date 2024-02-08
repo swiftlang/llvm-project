@@ -696,6 +696,7 @@ llvm::Error IncludeTree::SpuriousImport::print(llvm::raw_ostream &OS,
   auto IT = getIncludeTree();
   if (!IT)
     return IT.takeError();
+  OS << "(Spurious import) ";
   if (llvm::Error E = MI->print(OS, Indent, /*End=*/' '))
     return E;
   if (llvm::Error E = IT->print(OS, Indent))
