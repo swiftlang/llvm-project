@@ -1332,6 +1332,12 @@ enum CompletionType {
   eCustomCompletion = (1u << 25)
 };
 
+enum SymbolDownload {
+  eSymbolDownloadOff = 0,
+  eSymbolDownloadBackground = 1,
+  eSymbolDownloadForeground = 2,
+};
+
 } // namespace lldb
 
 #endif // LLDB_LLDB_ENUMERATIONS_H

@@ -400,12 +400,10 @@ Symbols::LocateExecutableSymbolFile(const ModuleSpec &module_spec,
 }
 
 void Symbols::DownloadSymbolFileAsync(const UUID &uuid) {
-  if (!ModuleList::GetGlobalModuleListProperties().GetEnableBackgroundLookup())
-    return;
-
   static llvm::SmallSet<UUID, 8> g_seen_uuids;
   static std::mutex g_mutex;
-  Debugger::GetThreadPool().async([=]() {
+
+  auto lookup = [=]() {
     {
       std::lock_guard<std::mutex> guard(g_mutex);
       if (g_seen_uuids.count(uuid))
@@ -417,15 +415,26 @@ void Symbols::DownloadSymbolFileAsync(const UUID &uuid) {
     ModuleSpec module_spec;
     module_spec.GetUUID() = uuid;
     if (!Symbols::DownloadObjectAndSymbolFile(module_spec, error,
-                                              /*force_lookup=*/true,
-                                              /*copy_executable=*/false))
+                                                    /*force_lookup=*/true,
+                                                    /*copy_executable=*/true))
       return;
 
     if (error.Fail())
       return;
 
     Debugger::ReportSymbolChange(module_spec);
-  });
+  };
+
+  switch (ModuleList::GetGlobalModuleListProperties().GetSymbolAutoDownload()) {
+  case eSymbolDownloadOff:
+    break;
+  case eSymbolDownloadBackground:
+    Debugger::GetThreadPool().async(lookup);
+    break;
+  case eSymbolDownloadForeground:
+    lookup();
+    break;
+  };
 }
 
 #if !defined(__APPLE__)
