@@ -2020,18 +2020,23 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
       }
     };
 
+    auto CheckLoadResult = [&](ModuleLoadResult Result) {
+      if (Result)
+        return true;
+      assert(hadModuleLoaderFatalFailure() && "unexpected failure kind");
+      if (hadModuleLoaderFatalFailure()) {
+        IncludeTok.setKind(tok::eof);
+        CurLexer->cutOffLexing();
+      }
+      return false;
+    };
+
     auto LoadModule = [&](const PPCachedActions::IncludeModule *Import) {
       auto Imported = TheModuleLoader.loadModule(
             IncludeTok.getLocation(), ArrayRef(Import->ImportPath).take_front(),
             Module::Hidden, /*IsInclusionDirective=*/true);
-      if (!Imported) {
-        assert(hadModuleLoaderFatalFailure() && "unexpected failure kind");
-        if (hadModuleLoaderFatalFailure()) {
-          IncludeTok.setKind(tok::eof);
-          CurLexer->cutOffLexing();
-        }
+      if (!CheckLoadResult(Imported))
         return;
-      }
 
       auto Path = Import->ImportPath;
       std::string PathStr = Path.front().first->getName().str();
@@ -2064,14 +2069,8 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
         Imported = TheModuleLoader.loadModule(
             IncludeTok.getLocation(), Import->ImportPath, Module::Hidden,
             /*IsIncludeDirective=*/true);
-        if (!Imported) {
-          assert(hadModuleLoaderFatalFailure() && "unexpected failure kind");
-          if (hadModuleLoaderFatalFailure()) {
-            IncludeTok.setKind(tok::eof);
-            CurLexer->cutOffLexing();
-          }
+        if (!CheckLoadResult(Imported))
           return;
-        }
       }
 
       makeModuleVisible(Imported, EndLoc);
