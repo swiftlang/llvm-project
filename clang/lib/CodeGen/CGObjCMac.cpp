@@ -1593,12 +1593,19 @@ private:
   }
 
   bool isClassLayoutKnownStatically(const ObjCInterfaceDecl *ID) {
+    if (!ID)
+      return false;
+
+    if (ID->getName() == "NSObject")
+      return true;
+
     // NSObject is a fixed size. If we can see the @implementation of a class
-    // which inherits from NSObject then we know that all it's offsets also must
-    // be fixed. FIXME: Can we do this if see a chain of super classes with
-    // implementations leading to NSObject?
-    return ID->getImplementation() && ID->getSuperClass() &&
-           ID->getSuperClass()->getName() == "NSObject";
+    // which inherits from NSObject, then we know that all its offsets must
+    // be fixed.
+
+    // Check recursively for all intermediate superclasses.
+    return ID->getImplementation() &&
+           isClassLayoutKnownStatically(ID->getSuperClass());
   }
 
 public:
