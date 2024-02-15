@@ -677,8 +677,17 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   Args.AddAllArgs(CmdArgs, options::OPT_T);
+  bool useLLD = false;
+  const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath(&useLLD));
+  if (useLLD) {
+    /// Workaround for https://reviews.llvm.org/D96914 breaking Swift.
+    /// Newer LLD versions change symbols, resulting in incorrect locations
+    /// for the type metadata tables. Forcing `-z nostart-stop-gc` on LLD so
+    /// that it does not munge the symbols.
+    CmdArgs.push_back("-z");
+    CmdArgs.push_back("nostart-stop-gc");
+  }
 
-  const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
   C.addCommand(std::make_unique<Command>(JA, *this,
                                          ResponseFileSupport::AtFileCurCP(),
                                          Exec, CmdArgs, Inputs, Output));
