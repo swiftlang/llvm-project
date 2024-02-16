@@ -1785,6 +1785,7 @@ void ModuleBitcodeWriter::writeDICompositeType(
   Record.push_back(VE.getMetadataOrNullID(N->getRawRank()));
   Record.push_back(VE.getMetadataOrNullID(N->getAnnotations().get()));
   Record.push_back(N->getNumExtraInhabitants());
+  Record.push_back(VE.getMetadataOrNullID(N->getRawSpecificationOf()));
 
 
   if (!SpareBitsMask.isZero()) {
