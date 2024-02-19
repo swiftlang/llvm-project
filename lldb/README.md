@@ -29,7 +29,7 @@ cd myswift
 git clone https://github.com/apple/swift.git swift
 ./swift/utils/update-checkout --clone
 ./llvm-project/lldb/scripts/macos-setup-codesign.sh
-./swift/utils/build-script -r --lldb
+./swift/utils/build-script -r --lldb --libcxx -- --skip-build-benchmarks
 ```
 
 Note: The codesigning setup script needs to be run only once. It's not required
