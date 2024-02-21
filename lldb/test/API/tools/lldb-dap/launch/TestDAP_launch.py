@@ -45,7 +45,8 @@ class TestDAP_launch(lldbdap_testcase.DAPTestCaseBase):
         self.dap_server.request_disconnect()
 
         # Wait until the underlying lldb-dap process dies.
-        self.dap_server.process.wait(timeout=10)
+        timeoutval = 10 * (10 if ('ASAN_OPTIONS' in os.environ) else 1)
+        self.dap_server.process.wait(timeout=timeoutval)
 
         # Check the return code
         self.assertEqual(self.dap_server.process.poll(), 0)
@@ -335,14 +336,15 @@ class TestDAP_launch(lldbdap_testcase.DAPTestCaseBase):
         # Get output from the console. This should contain both the
         # "stopCommands" that were run after the first breakpoint was hit
         self.continue_to_breakpoints(breakpoint_ids)
-        output = self.get_console(timeout=10)
+        timeoutval = 10 * (10 if ('ASAN_OPTIONS' in os.environ) else 1)
+        output = self.get_console(timeout=timeoutval)
         self.verify_commands("stopCommands", output, stopCommands)
 
         # Continue again and hit the second breakpoint.
         # Get output from the console. This should contain both the
         # "stopCommands" that were run after the second breakpoint was hit
         self.continue_to_breakpoints(breakpoint_ids)
-        output = self.get_console(timeout=10)
+        output = self.get_console(timeout=timeoutval)
         self.verify_commands("stopCommands", output, stopCommands)
 
         # Continue until the program exits
@@ -403,21 +405,22 @@ class TestDAP_launch(lldbdap_testcase.DAPTestCaseBase):
         self.verify_commands("launchCommands", output, launchCommands)
         # Verify the "stopCommands" here
         self.continue_to_next_stop()
-        output = self.get_console(timeout=10)
+        timeoutval = 10 * (10 if ('ASAN_OPTIONS' in os.environ) else 1)
+        output = self.get_console(timeout=timeoutval)
         self.verify_commands("stopCommands", output, stopCommands)
 
         # Continue and hit the second breakpoint.
         # Get output from the console. This should contain both the
         # "stopCommands" that were run after the first breakpoint was hit
         self.continue_to_next_stop()
-        output = self.get_console(timeout=10)
+        output = self.get_console(timeout=timeoutval)
         self.verify_commands("stopCommands", output, stopCommands)
 
         # Continue until the program exits
         self.continue_to_exit()
         # Get output from the console. This should contain both the
         # "exitCommands" that were run after the second breakpoint was hit
-        output = self.get_console(timeout=10)
+        output = self.get_console(timeout=timeoutval)
         self.verify_commands("exitCommands", output, exitCommands)
 
     @skipIfWindows
