@@ -367,11 +367,6 @@ CodeGenTypes::arrangeCXXStructorDeclaration(GlobalDecl GD) {
                                  argTypes, extInfo, paramInfos, required);
 }
 
-const CGFunctionInfo &CodeGen::arrangeCXXStructorDeclaration(CodeGenModule &CGM,
-                                                             GlobalDecl GD) {
-  return CGM.getTypes().arrangeCXXStructorDeclaration(GD);
-}
-
 static SmallVector<CanQualType, 16>
 getArgTypesForCall(ASTContext &ctx, const CallArgList &args) {
   SmallVector<CanQualType, 16> argTypes;
