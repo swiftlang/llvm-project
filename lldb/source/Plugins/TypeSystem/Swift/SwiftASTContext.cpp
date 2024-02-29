@@ -4273,7 +4273,7 @@ void SwiftASTContext::ValidateSectionModules(
 
   Status error;
 
-  Progress progress("Loading Swift module '{0}' dependencies",
+  Progress progress("Loading Swift module dependencies",
                     module.GetFileSpec().GetFilename().AsCString(),
                     module_names.size());
   size_t completion = 0;
