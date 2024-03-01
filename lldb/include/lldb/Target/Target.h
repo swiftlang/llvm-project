@@ -310,6 +310,10 @@ public:
   bool GetEnableTrampolineSupport() const;
 
 private:
+  std::optional<bool>
+  GetExperimentalPropertyValue(size_t idx,
+                               ExecutionContext *exe_ctx = nullptr) const;
+
   // Callbacks for m_launch_info.
   void Arg0ValueChangedCallback();
   void RunArgsValueChangedCallback();

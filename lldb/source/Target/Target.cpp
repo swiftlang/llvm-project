@@ -4874,18 +4874,22 @@ void TargetProperties::UpdateLaunchInfoFromProperties() {
   DisableSTDIOValueChangedCallback();
 }
 
-bool TargetProperties::GetInjectLocalVariables(
-    ExecutionContext *exe_ctx) const {
+std::optional<bool> TargetProperties::GetExperimentalPropertyValue(
+    size_t idx, ExecutionContext *exe_ctx) const {
   const Property *exp_property =
       m_collection_sp->GetPropertyAtIndex(ePropertyExperimental, exe_ctx);
   OptionValueProperties *exp_values =
       exp_property->GetValue()->GetAsProperties();
   if (exp_values)
-    return exp_values
-        ->GetPropertyAtIndexAs<bool>(ePropertyInjectLocalVars, exe_ctx)
-        .value_or(true);
-  else
-    return true;
+    return exp_values->GetPropertyAtIndexAs<bool>(idx, exe_ctx);
+
+  return std::nullopt;
+}
+
+bool TargetProperties::GetInjectLocalVariables(
+    ExecutionContext *exe_ctx) const {
+  return GetExperimentalPropertyValue(ePropertyInjectLocalVars, exe_ctx)
+      .value_or(true);
 }
 
 void TargetProperties::SetInjectLocalVariables(ExecutionContext *exe_ctx,
@@ -4899,68 +4903,28 @@ void TargetProperties::SetInjectLocalVariables(ExecutionContext *exe_ctx,
 }
 
 bool TargetProperties::GetSwiftReadMetadataFromFileCache() const {
-  const Property *exp_property =
-      m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
-  OptionValueProperties *exp_values =
-      exp_property->GetValue()->GetAsProperties();
-  if (exp_values)
-    return exp_values
-        ->GetPropertyAtIndexAs<bool>(ePropertySwiftReadMetadataFromFileCache)
-        .value_or(true);
-
-  return true;
+  return GetExperimentalPropertyValue(ePropertySwiftReadMetadataFromFileCache)
+      .value_or(true);
 }
 
 bool TargetProperties::GetSwiftUseReflectionSymbols() const {
-  const Property *exp_property =
-      m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
-  OptionValueProperties *exp_values =
-      exp_property->GetValue()->GetAsProperties();
-  if (exp_values)
-    return exp_values
-        ->GetPropertyAtIndexAs<bool>(ePropertySwiftUseReflectionSymbols)
-        .value_or(true);
-  else
-    return true;
+  return GetExperimentalPropertyValue(ePropertySwiftUseReflectionSymbols)
+      .value_or(true);
 }
 
 bool TargetProperties::GetSwiftReadMetadataFromDSYM() const {
-  const Property *exp_property =
-      m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
-  OptionValueProperties *exp_values =
-      exp_property->GetValue()->GetAsProperties();
-  if (exp_values)
-    return exp_values
-        ->GetPropertyAtIndexAs<bool>(ePropertySwiftReadMetadataFromDSYM)
-        .value_or(true);
-
-  return true;
+  return GetExperimentalPropertyValue(ePropertySwiftReadMetadataFromDSYM)
+      .value_or(true);
 }
 
 bool TargetProperties::GetSwiftDiscoverImplicitSearchPaths() const {
-  const Property *exp_property =
-      m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
-  OptionValueProperties *exp_values =
-      exp_property->GetValue()->GetAsProperties();
-  if (exp_values)
-    return exp_values
-        ->GetPropertyAtIndexAs<bool>(ePropertySwiftDiscoverImplicitSearchPaths)
-        .value_or(true);
-
-  return true;
+  return GetExperimentalPropertyValue(ePropertySwiftDiscoverImplicitSearchPaths)
+      .value_or(true);
 }
 
 bool TargetProperties::GetSwiftEnableBareSlashRegex() const {
-  const Property *exp_property =
-      m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
-  OptionValueProperties *exp_values =
-      exp_property->GetValue()->GetAsProperties();
-  if (exp_values)
-    return exp_values
-        ->GetPropertyAtIndexAs<bool>(ePropertySwiftEnableBareSlashRegex)
-        .value_or(true);
-
-  return true;
+  return GetExperimentalPropertyValue(ePropertySwiftEnableBareSlashRegex)
+      .value_or(true);
 }
 
 EnableSwiftCxxInterop TargetProperties::GetEnableSwiftCxxInterop() const {
@@ -4975,29 +4939,13 @@ EnableSwiftCxxInterop TargetProperties::GetEnableSwiftCxxInterop() const {
 }
 
 bool TargetProperties::GetSwiftEnableFullDwarfDebugging() const {
-  const Property *exp_property =
-      m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
-  OptionValueProperties *exp_values =
-      exp_property->GetValue()->GetAsProperties();
-  if (exp_values)
-    return exp_values
-        ->GetPropertyAtIndexAs<bool>(ePropertySwiftEnableFullDwarfDebugging)
-        .value_or(false);
-
-  return false;
+  return GetExperimentalPropertyValue(ePropertySwiftEnableFullDwarfDebugging)
+      .value_or(false);
 }
 
 bool TargetProperties::GetSwiftAllowExplicitModules() const {
-  const Property *exp_property =
-      m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
-  OptionValueProperties *exp_values =
-      exp_property->GetValue()->GetAsProperties();
-  if (exp_values)
-    return exp_values
-        ->GetPropertyAtIndexAs<bool>(ePropertySwiftAllowExplicitModules)
-        .value_or(false);
-
-  return false;
+  return GetExperimentalPropertyValue(ePropertySwiftAllowExplicitModules)
+      .value_or(false);
 }
 
 Args TargetProperties::GetSwiftPluginServerForPath() const {
