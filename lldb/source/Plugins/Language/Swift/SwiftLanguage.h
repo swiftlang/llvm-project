@@ -90,6 +90,8 @@ public:
 
   llvm::StringRef GetInstanceVariableName() override { return "self"; }
 
+  bool IgnoreForLineBreakpoints(const SymbolContext &sc) const override;
+
   //------------------------------------------------------------------
   // PluginInterface protocol
   //------------------------------------------------------------------
