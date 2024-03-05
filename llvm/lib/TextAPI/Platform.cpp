@@ -49,8 +49,6 @@ PlatformType mapToPlatformType(const Triple &Target) {
   case Triple::WatchOS:
     return Target.isSimulatorEnvironment() ? PLATFORM_WATCHOSSIMULATOR
                                            : PLATFORM_WATCHOS;
-  case Triple::BridgeOS:
-    return PLATFORM_BRIDGEOS;
   case Triple::DriverKit:
     return PLATFORM_DRIVERKIT;
   case Triple::XROS:
