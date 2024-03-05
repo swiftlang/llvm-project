@@ -220,6 +220,7 @@ static void sanitizeDiagOpts(DiagnosticOptions &DiagOpts) {
   llvm::erase_if(DiagOpts.Warnings, [](StringRef Warning) {
     return llvm::StringSwitch<bool>(Warning)
         .Cases("pch-vfs-diff", "error=pch-vfs-diff", false)
+        .StartsWith("no-error=", false)
         .Default(true);
   });
 }
