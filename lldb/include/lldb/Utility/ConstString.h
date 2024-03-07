@@ -435,6 +435,11 @@ protected:
 /// Stream the string value \a str to the stream \a s
 Stream &operator<<(Stream &s, ConstString str);
 
+inline std::string &operator+=(std::string &str, const lldb_private::ConstString &s) {
+  str += llvm::StringRef(s).str();
+  return str;
+}
+
 } // namespace lldb_private
 
 namespace llvm {
