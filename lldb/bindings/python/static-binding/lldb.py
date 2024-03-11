@@ -131,6 +131,10 @@ LLDB_WATCH_TYPE_READ = _lldb.LLDB_WATCH_TYPE_READ
 
 LLDB_WATCH_TYPE_WRITE = _lldb.LLDB_WATCH_TYPE_WRITE
 
+LLDB_WATCH_TYPE_MODIFY = _lldb.LLDB_WATCH_TYPE_MODIFY
+
+LLDB_INVALID_SITE_ID = _lldb.LLDB_INVALID_SITE_ID
+
 LLDB_REGNUM_GENERIC_PC = _lldb.LLDB_REGNUM_GENERIC_PC
 
 LLDB_REGNUM_GENERIC_SP = _lldb.LLDB_REGNUM_GENERIC_SP
@@ -156,6 +160,8 @@ LLDB_REGNUM_GENERIC_ARG6 = _lldb.LLDB_REGNUM_GENERIC_ARG6
 LLDB_REGNUM_GENERIC_ARG7 = _lldb.LLDB_REGNUM_GENERIC_ARG7
 
 LLDB_REGNUM_GENERIC_ARG8 = _lldb.LLDB_REGNUM_GENERIC_ARG8
+
+LLDB_REGNUM_GENERIC_TP = _lldb.LLDB_REGNUM_GENERIC_TP
 
 LLDB_INVALID_STOP_ID = _lldb.LLDB_INVALID_STOP_ID
 
@@ -190,6 +196,8 @@ LLDB_INVALID_COLUMN_NUMBER = _lldb.LLDB_INVALID_COLUMN_NUMBER
 LLDB_INVALID_QUEUE_ID = _lldb.LLDB_INVALID_QUEUE_ID
 
 LLDB_INVALID_CPU_ID = _lldb.LLDB_INVALID_CPU_ID
+
+LLDB_INVALID_WATCHPOINT_RESOURCE_ID = _lldb.LLDB_INVALID_WATCHPOINT_RESOURCE_ID
 
 LLDB_ARCH_DEFAULT = _lldb.LLDB_ARCH_DEFAULT
 
@@ -226,6 +234,8 @@ LLDB_OPT_SET_10 = _lldb.LLDB_OPT_SET_10
 LLDB_OPT_SET_11 = _lldb.LLDB_OPT_SET_11
 
 LLDB_OPT_SET_12 = _lldb.LLDB_OPT_SET_12
+
+LLDB_INVALID_ADDRESS_MASK = _lldb.LLDB_INVALID_ADDRESS_MASK
 
 eStateInvalid = _lldb.eStateInvalid
 
@@ -549,6 +559,10 @@ eValueTypeConstResult = _lldb.eValueTypeConstResult
 
 eValueTypeVariableThreadLocal = _lldb.eValueTypeVariableThreadLocal
 
+eValueTypeVTable = _lldb.eValueTypeVTable
+
+eValueTypeVTableEntry = _lldb.eValueTypeVTableEntry
+
 eInputReaderGranularityInvalid = _lldb.eInputReaderGranularityInvalid
 
 eInputReaderGranularityByte = _lldb.eInputReaderGranularityByte
@@ -646,6 +660,12 @@ eWatchpointEventTypeIgnoreChanged = _lldb.eWatchpointEventTypeIgnoreChanged
 eWatchpointEventTypeThreadChanged = _lldb.eWatchpointEventTypeThreadChanged
 
 eWatchpointEventTypeTypeChanged = _lldb.eWatchpointEventTypeTypeChanged
+
+eWatchpointWriteTypeDisabled = _lldb.eWatchpointWriteTypeDisabled
+
+eWatchpointWriteTypeAlways = _lldb.eWatchpointWriteTypeAlways
+
+eWatchpointWriteTypeOnModify = _lldb.eWatchpointWriteTypeOnModify
 
 eLanguageTypeUnknown = _lldb.eLanguageTypeUnknown
 
@@ -762,6 +782,8 @@ eInstrumentationRuntimeTypeUndefinedBehaviorSanitizer = _lldb.eInstrumentationRu
 eInstrumentationRuntimeTypeMainThreadChecker = _lldb.eInstrumentationRuntimeTypeMainThreadChecker
 
 eInstrumentationRuntimeTypeSwiftRuntimeReporting = _lldb.eInstrumentationRuntimeTypeSwiftRuntimeReporting
+
+eInstrumentationRuntimeTypeLibsanitizersAsan = _lldb.eInstrumentationRuntimeTypeLibsanitizersAsan
 
 eNumInstrumentationRuntimeTypes = _lldb.eNumInstrumentationRuntimeTypes
 
@@ -989,6 +1011,12 @@ eArgTypeBindGenTypeParamValue = _lldb.eArgTypeBindGenTypeParamValue
 
 eArgTypeCompletionType = _lldb.eArgTypeCompletionType
 
+eArgTypeRemotePath = _lldb.eArgTypeRemotePath
+
+eArgTypeRemoteFilename = _lldb.eArgTypeRemoteFilename
+
+eArgTypeModule = _lldb.eArgTypeModule
+
 eArgTypeLastArg = _lldb.eArgTypeLastArg
 
 eSymbolTypeAny = _lldb.eSymbolTypeAny
@@ -1131,8 +1159,6 @@ eSectionTypeELFDynamicLinkInfo = _lldb.eSectionTypeELFDynamicLinkInfo
 
 eSectionTypeEHFrame = _lldb.eSectionTypeEHFrame
 
-eSectionTypeSwiftModules = _lldb.eSectionTypeSwiftModules
-
 eSectionTypeARMexidx = _lldb.eSectionTypeARMexidx
 
 eSectionTypeARMextab = _lldb.eSectionTypeARMextab
@@ -1176,6 +1202,10 @@ eSectionTypeDWARFDebugLocListsDwo = _lldb.eSectionTypeDWARFDebugLocListsDwo
 eSectionTypeDWARFDebugTuIndex = _lldb.eSectionTypeDWARFDebugTuIndex
 
 eSectionTypeCTF = _lldb.eSectionTypeCTF
+
+eSectionTypeLLDBTypeSummaries = _lldb.eSectionTypeLLDBTypeSummaries
+
+eSectionTypeSwiftModules = _lldb.eSectionTypeSwiftModules
 
 eEmulateInstructionOptionNone = _lldb.eEmulateInstructionOptionNone
 
@@ -1350,6 +1380,8 @@ eTemplateArgumentKindExpression = _lldb.eTemplateArgumentKindExpression
 eTemplateArgumentKindPack = _lldb.eTemplateArgumentKindPack
 
 eTemplateArgumentKindNullPtr = _lldb.eTemplateArgumentKindNullPtr
+
+eTemplateArgumentKindStructuralValue = _lldb.eTemplateArgumentKindStructuralValue
 
 eFormatterMatchExact = _lldb.eFormatterMatchExact
 
@@ -1729,6 +1761,36 @@ eTypeCategoryNameCompletion = _lldb.eTypeCategoryNameCompletion
 
 eCustomCompletion = _lldb.eCustomCompletion
 
+eThreadIDCompletion = _lldb.eThreadIDCompletion
+
+eTerminatorCompletion = _lldb.eTerminatorCompletion
+
+ChildCacheState_eRefetch = _lldb.ChildCacheState_eRefetch
+
+ChildCacheState_eReuse = _lldb.ChildCacheState_eReuse
+
+eSymbolDownloadOff = _lldb.eSymbolDownloadOff
+
+eSymbolDownloadBackground = _lldb.eSymbolDownloadBackground
+
+eSymbolDownloadForeground = _lldb.eSymbolDownloadForeground
+
+eAddressMaskTypeCode = _lldb.eAddressMaskTypeCode
+
+eAddressMaskTypeData = _lldb.eAddressMaskTypeData
+
+eAddressMaskTypeAny = _lldb.eAddressMaskTypeAny
+
+eAddressMaskTypeAll = _lldb.eAddressMaskTypeAll
+
+eAddressMaskRangeLow = _lldb.eAddressMaskRangeLow
+
+eAddressMaskRangeHigh = _lldb.eAddressMaskRangeHigh
+
+eAddressMaskRangeAny = _lldb.eAddressMaskRangeAny
+
+eAddressMaskRangeAll = _lldb.eAddressMaskRangeAll
+
 class SBAddress(object):
     r"""
     A section + offset based address class.
@@ -1880,6 +1942,8 @@ class SBAddress(object):
         r"""__repr__(SBAddress self) -> std::string"""
         return _lldb.SBAddress___repr__(self)
 
+        # operator== is a free function, which swig does not handle, so we inject
+        # our own equality operator here
     def __eq__(self, other):
       return not self.__ne__(other)
 
@@ -2696,6 +2760,15 @@ class SBBreakpointList(object):
         r"""Clear(SBBreakpointList self)"""
         return _lldb.SBBreakpointList_Clear(self)
 
+    def __len__(self):
+        '''Return the number of breakpoints in a lldb.SBBreakpointList object.'''
+        return self.GetSize()
+
+    def __iter__(self):
+        '''Iterate over all breakpoints in a lldb.SBBreakpointList object.'''
+        return lldb_iter(self, 'GetSize', 'GetBreakpointAtIndex')
+
+
 # Register SBBreakpointList in _lldb:
 _lldb.SBBreakpointList_swigregister(SBBreakpointList)
 class SBBreakpointLocation(object):
@@ -2868,6 +2941,12 @@ class SBBreakpointLocation(object):
     def __repr__(self):
         r"""__repr__(SBBreakpointLocation self) -> std::string"""
         return _lldb.SBBreakpointLocation___repr__(self)
+
+        # operator== is a free function, which swig does not handle, so we inject
+        # our own equality operator here
+    def __eq__(self, other):
+      return not self.__ne__(other)
+
 
 # Register SBBreakpointLocation in _lldb:
 _lldb.SBBreakpointLocation_swigregister(SBBreakpointLocation)
@@ -3053,6 +3132,12 @@ class SBBreakpointName(object):
         r"""__repr__(SBBreakpointName self) -> std::string"""
         return _lldb.SBBreakpointName___repr__(self)
 
+        # operator== is a free function, which swig does not handle, so we inject
+        # our own equality operator here
+    def __eq__(self, other):
+      return not self.__ne__(other)
+
+
 # Register SBBreakpointName in _lldb:
 _lldb.SBBreakpointName_swigregister(SBBreakpointName)
 class SBBroadcaster(object):
@@ -3136,6 +3221,12 @@ class SBBroadcaster(object):
         r"""__lt__(SBBroadcaster self, SBBroadcaster rhs) -> bool"""
         return _lldb.SBBroadcaster___lt__(self, rhs)
 
+        # operator== is a free function, which swig does not handle, so we inject
+        # our own equality operator here
+    def __eq__(self, other):
+      return not self.__ne__(other)
+
+
     def __eq__(self, rhs):
         if not isinstance(rhs, type(self)):
             return False
@@ -3212,9 +3303,12 @@ class SBCommandInterpreter(object):
     eBroadcastBitAsynchronousErrorData = _lldb.SBCommandInterpreter_eBroadcastBitAsynchronousErrorData
     
 
-    def __init__(self, rhs):
-        r"""__init__(SBCommandInterpreter self, SBCommandInterpreter rhs) -> SBCommandInterpreter"""
-        _lldb.SBCommandInterpreter_swiginit(self, _lldb.new_SBCommandInterpreter(rhs))
+    def __init__(self, *args):
+        r"""
+        __init__(SBCommandInterpreter self) -> SBCommandInterpreter
+        __init__(SBCommandInterpreter self, SBCommandInterpreter rhs) -> SBCommandInterpreter
+        """
+        _lldb.SBCommandInterpreter_swiginit(self, _lldb.new_SBCommandInterpreter(*args))
     __swig_destroy__ = _lldb.delete_SBCommandInterpreter
 
     @staticmethod
@@ -3356,6 +3450,10 @@ class SBCommandInterpreter(object):
     def ResolveCommand(self, command_line, result):
         r"""ResolveCommand(SBCommandInterpreter self, char const * command_line, SBCommandReturnObject result)"""
         return _lldb.SBCommandInterpreter_ResolveCommand(self, command_line, result)
+
+    def GetStatistics(self):
+        r"""GetStatistics(SBCommandInterpreter self) -> SBStructuredData"""
+        return _lldb.SBCommandInterpreter_GetStatistics(self)
 
 # Register SBCommandInterpreter in _lldb:
 _lldb.SBCommandInterpreter_swigregister(SBCommandInterpreter)
@@ -3848,6 +3946,11 @@ class SBCompileUnit(object):
         r"""__repr__(SBCompileUnit self) -> std::string"""
         return _lldb.SBCompileUnit___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     def __iter__(self):
         '''Iterate over all line entries in a lldb.SBCompileUnit object.'''
         return lldb_iter(self, 'GetNumLineEntries', 'GetLineEntryAtIndex')
@@ -4053,6 +4156,8 @@ class SBData(object):
         r"""__repr__(SBData self) -> std::string"""
         return _lldb.SBData___repr__(self)
 
+    def __len__(self):
+        return self.GetByteSize()
 
     class read_data_helper:
         def __init__(self, sbdata, readerfunc, item_size):
@@ -4323,6 +4428,8 @@ class SBDebugger(object):
     eBroadcastBitWarning = _lldb.SBDebugger_eBroadcastBitWarning
     
     eBroadcastBitError = _lldb.SBDebugger_eBroadcastBitError
+    
+    eBroadcastBitProgressCategory = _lldb.SBDebugger_eBroadcastBitProgressCategory
     
 
     def __init__(self, *args):
@@ -4973,6 +5080,11 @@ class SBDeclaration(object):
         r"""__repr__(SBDeclaration self) -> std::string"""
         return _lldb.SBDeclaration___repr__(self)
 
+                # operator== is a free function, which swig does not handle, so we inject
+                # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     file = property(GetFileSpec, None, doc='''A read only property that returns an lldb object that represents the file (lldb.SBFileSpec) for this line entry.''')
     line = property(GetLine, None, doc='''A read only property that returns the 1 based line number for this line entry, a return value of zero indicates that no line information is available.''')
     column = property(GetColumn, None, doc='''A read only property that returns the 1 based column number for this line entry, a return value of zero indicates that no column information is available.''')
@@ -5114,6 +5226,9 @@ class SBError(object):
     def __repr__(self):
         r"""__repr__(SBError self) -> std::string"""
         return _lldb.SBError___repr__(self)
+
+    def __int__(self):
+        return self.GetError()
 
     value = property(GetError, None, doc='''A read only property that returns the same result as GetError().''')
     fail = property(Fail, None, doc='''A read only property that returns the same result as Fail().''')
@@ -5819,6 +5934,11 @@ class SBFileSpec(object):
         r"""__repr__(SBFileSpec self) -> std::string"""
         return _lldb.SBFileSpec___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     fullpath = property(str, None, doc='''A read only property that returns the fullpath as a python string.''')
     basename = property(GetFilename, None, doc='''A read only property that returns the path basename as a python string.''')
     dirname = property(GetDirectory, None, doc='''A read only property that returns the path directory name as a python string.''')
@@ -5831,7 +5951,6 @@ class SBFileSpecList(object):
     r"""Represents a list of :py:class:`SBFileSpec`."""
 
     thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
-    __repr__ = _swig_repr
 
     def __init__(self, *args):
         r"""
@@ -5868,6 +5987,19 @@ class SBFileSpecList(object):
     def GetFileSpecAtIndex(self, idx):
         r"""GetFileSpecAtIndex(SBFileSpecList self, uint32_t idx) -> SBFileSpec"""
         return _lldb.SBFileSpecList_GetFileSpecAtIndex(self, idx)
+
+    def __repr__(self):
+        r"""__repr__(SBFileSpecList self) -> std::string"""
+        return _lldb.SBFileSpecList___repr__(self)
+
+    def __len__(self):
+      '''Return the number of FileSpec in a lldb.SBFileSpecList object.'''
+      return self.GetSize()
+
+    def __iter__(self):
+      '''Iterate over all FileSpecs in a lldb.SBFileSpecList object.'''
+      return lldb_iter(self, 'GetSize', 'GetFileSpecAtIndex')
+
 
 # Register SBFileSpecList in _lldb:
 _lldb.SBFileSpecList_swigregister(SBFileSpecList)
@@ -6232,6 +6364,17 @@ class SBFrame(object):
         r"""__repr__(SBFrame self) -> std::string"""
         return _lldb.SBFrame___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
+    def __int__(self):
+        return self.GetFrameID()
+
+    def __hex__(self):
+        return self.GetPC()
+
     def get_all_variables(self):
         return self.GetVariables(True,True,True,True)
 
@@ -6440,6 +6583,11 @@ class SBFunction(object):
         r"""__repr__(SBFunction self) -> std::string"""
         return _lldb.SBFunction___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     def get_instructions_from_current_target (self):
         return self.GetInstructions (target)
 
@@ -6615,6 +6763,14 @@ class SBInstruction(object):
     def __repr__(self):
         r"""__repr__(SBInstruction self) -> std::string"""
         return _lldb.SBInstruction___repr__(self)
+
+    def __hex__(self):
+        """ Returns the address of the instruction. """
+        return self.GetAddress()
+
+    def __len__(self):
+        """ Returns the size of the instruction. """
+        return self.GetByteSize()
 
     def __mnemonic_property__ (self):
         return self.GetMnemonic (target)
@@ -7067,6 +7223,16 @@ class SBLineEntry(object):
         r"""__repr__(SBLineEntry self) -> std::string"""
         return _lldb.SBLineEntry___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
+    def __int__(self):
+        return self.GetLine()
+
+    def __hex__(self):
+        return self.GetStartAddress()
     file = property(GetFileSpec, None, doc='''A read only property that returns an lldb object that represents the file (lldb.SBFileSpec) for this line entry.''')
     line = property(GetLine, None, doc='''A read only property that returns the 1 based line number for this line entry, a return value of zero indicates that no line information is available.''')
     column = property(GetColumn, None, doc='''A read only property that returns the 1 based column number for this line entry, a return value of zero indicates that no column information is available.''')
@@ -7290,6 +7456,18 @@ class SBMemoryRegionInfo(object):
         r"""__repr__(SBMemoryRegionInfo self) -> std::string"""
         return _lldb.SBMemoryRegionInfo___repr__(self)
 
+        # operator== is a free function, which swig does not handle, so we inject
+        # our own equality operator here
+    def __eq__(self, other):
+      return not self.__ne__(other)
+
+    def __hex__(self):
+      return self.GetRegionBase()
+
+    def __len__(self):
+      return self.GetRegionEnd() - self.GetRegionBase()
+
+
 # Register SBMemoryRegionInfo in _lldb:
 _lldb.SBMemoryRegionInfo_swigregister(SBMemoryRegionInfo)
 class SBMemoryRegionInfoList(object):
@@ -7328,6 +7506,15 @@ class SBMemoryRegionInfoList(object):
     def Clear(self):
         r"""Clear(SBMemoryRegionInfoList self)"""
         return _lldb.SBMemoryRegionInfoList_Clear(self)
+
+    def __len__(self):
+      '''Return the number of memory region info in a lldb.SBMemoryRegionInfoList object.'''
+      return self.GetSize()
+
+    def __iter__(self):
+      '''Iterate over all the memory regions in a lldb.SBMemoryRegionInfoList object.'''
+      return lldb_iter(self, 'GetSize', 'GetMemoryRegionAtIndex')
+
 
 # Register SBMemoryRegionInfoList in _lldb:
 _lldb.SBMemoryRegionInfoList_swigregister(SBMemoryRegionInfoList)
@@ -7744,6 +7931,11 @@ class SBModule(object):
         r"""__repr__(SBModule self) -> std::string"""
         return _lldb.SBModule___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     def __len__(self):
         '''Return the number of symbols in a lldb.SBModule object.'''
         return self.GetNumSymbols()
@@ -8143,6 +8335,15 @@ class SBModuleSpecList(object):
         r"""__repr__(SBModuleSpecList self) -> std::string"""
         return _lldb.SBModuleSpecList___repr__(self)
 
+    def __len__(self):
+      '''Return the number of ModuleSpec in a lldb.SBModuleSpecList object.'''
+      return self.GetSize()
+
+    def __iter__(self):
+      '''Iterate over all ModuleSpecs in a lldb.SBModuleSpecList object.'''
+      return lldb_iter(self, 'GetSize', 'GetSpecAtIndex')
+
+
 # Register SBModuleSpecList in _lldb:
 _lldb.SBModuleSpecList_swigregister(SBModuleSpecList)
 class SBPlatformConnectOptions(object):
@@ -8384,6 +8585,14 @@ class SBPlatform(object):
     def Launch(self, launch_info):
         r"""Launch(SBPlatform self, SBLaunchInfo launch_info) -> SBError"""
         return _lldb.SBPlatform_Launch(self, launch_info)
+
+    def Attach(self, attach_info, debugger, target, error):
+        r"""Attach(SBPlatform self, SBAttachInfo attach_info, SBDebugger debugger, SBTarget target, SBError error) -> SBProcess"""
+        return _lldb.SBPlatform_Attach(self, attach_info, debugger, target, error)
+
+    def GetAllProcesses(self, error):
+        r"""GetAllProcesses(SBPlatform self, SBError error) -> SBProcessInfoList"""
+        return _lldb.SBPlatform_GetAllProcesses(self, error)
 
     def Kill(self, pid):
         r"""Kill(SBPlatform self, lldb::pid_t const pid) -> SBError"""
@@ -8837,7 +9046,7 @@ class SBProcess(object):
 
     @staticmethod
     def GetBroadcasterClass():
-        r"""GetBroadcasterClass() -> char const *"""
+        r"""Get default process broadcaster class name (lldb.process)."""
         return _lldb.SBProcess_GetBroadcasterClass()
 
     def GetDescription(self, description):
@@ -8936,6 +9145,26 @@ class SBProcess(object):
                 process_info.GetProcessID()
         """
         return _lldb.SBProcess_GetProcessInfo(self)
+
+    def GetCoreFile(self):
+        r"""GetCoreFile(SBProcess self) -> SBFileSpec"""
+        return _lldb.SBProcess_GetCoreFile(self)
+
+    def GetAddressMask(self, *args):
+        r"""GetAddressMask(SBProcess self, lldb::AddressMaskType type, lldb::AddressMaskRange addr_range=eAddressMaskRangeLow) -> lldb::addr_t"""
+        return _lldb.SBProcess_GetAddressMask(self, *args)
+
+    def SetAddressMask(self, *args):
+        r"""SetAddressMask(SBProcess self, lldb::AddressMaskType type, lldb::addr_t mask, lldb::AddressMaskRange addr_range=eAddressMaskRangeLow)"""
+        return _lldb.SBProcess_SetAddressMask(self, *args)
+
+    def SetAddressableBits(self, *args):
+        r"""SetAddressableBits(SBProcess self, lldb::AddressMaskType type, uint32_t num_bits, lldb::AddressMaskRange addr_range=eAddressMaskRangeLow)"""
+        return _lldb.SBProcess_SetAddressableBits(self, *args)
+
+    def FixAddress(self, *args):
+        r"""FixAddress(SBProcess self, lldb::addr_t addr, lldb::AddressMaskType type=eAddressMaskTypeAny) -> lldb::addr_t"""
+        return _lldb.SBProcess_FixAddress(self, *args)
 
     def AllocateMemory(self, size, permissions, error):
         r"""
@@ -9047,6 +9276,8 @@ class SBProcess(object):
         '''Return the number of threads in a lldb.SBProcess object.'''
         return self.GetNumThreads()
 
+    def __int__(self):
+        return self.GetProcessID()
 
     threads = property(get_process_thread_list, None, doc='''A read only property that returns a list() of lldb.SBThread objects for this process.''')
     thread = property(get_threads_access_object, None, doc='''A read only property that returns an object that can access threads by thread index (thread = lldb.process.thread[12]).''')
@@ -9149,6 +9380,43 @@ class SBProcessInfo(object):
 
 # Register SBProcessInfo in _lldb:
 _lldb.SBProcessInfo_swigregister(SBProcessInfo)
+class SBProcessInfoList(object):
+    r"""Proxy of C++ lldb::SBProcessInfoList class."""
+
+    thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
+    __repr__ = _swig_repr
+    __swig_destroy__ = _lldb.delete_SBProcessInfoList
+
+    def __init__(self, *args):
+        r"""
+        __init__(SBProcessInfoList self) -> SBProcessInfoList
+        __init__(SBProcessInfoList self, SBProcessInfoList rhs) -> SBProcessInfoList
+        """
+        _lldb.SBProcessInfoList_swiginit(self, _lldb.new_SBProcessInfoList(*args))
+
+    def GetSize(self):
+        r"""GetSize(SBProcessInfoList self) -> uint32_t"""
+        return _lldb.SBProcessInfoList_GetSize(self)
+
+    def GetProcessInfoAtIndex(self, idx, info):
+        r"""GetProcessInfoAtIndex(SBProcessInfoList self, uint32_t idx, SBProcessInfo info) -> bool"""
+        return _lldb.SBProcessInfoList_GetProcessInfoAtIndex(self, idx, info)
+
+    def Clear(self):
+        r"""Clear(SBProcessInfoList self)"""
+        return _lldb.SBProcessInfoList_Clear(self)
+
+    def __len__(self):
+      '''Return the number of process info in a lldb.SBProcessInfoListExtensions object.'''
+      return self.GetSize()
+
+    def __iter__(self):
+      '''Iterate over all the process info in a lldb.SBProcessInfoListExtensions object.'''
+      return lldb_iter(self, 'GetSize', 'GetProcessInfoAtIndex')
+
+
+# Register SBProcessInfoList in _lldb:
+_lldb.SBProcessInfoList_swigregister(SBProcessInfoList)
 class SBQueue(object):
     r"""Represents a libdispatch queue in the process."""
 
@@ -9275,6 +9543,10 @@ class SBQueueItem(object):
         r"""GetExtendedBacktraceThread(SBQueueItem self, char const * type) -> SBThread"""
         return _lldb.SBQueueItem_GetExtendedBacktraceThread(self, type)
 
+    def __hex__(self):
+      return self.GetAddress()
+
+
 # Register SBQueueItem in _lldb:
 _lldb.SBQueueItem_swigregister(SBQueueItem)
 class SBReproducer(object):
@@ -9345,6 +9617,11 @@ class SBScriptObject(object):
     def GetLanguage(self):
         r"""GetLanguage(SBScriptObject self) -> lldb::ScriptLanguage"""
         return _lldb.SBScriptObject_GetLanguage(self)
+
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
 
     ptr = property(GetPointer, None, doc='''A read only property that returns the underlying script object.''')
     lang = property(GetLanguage, None, doc='''A read only property that returns the script language associated with with this script object.''')
@@ -9490,6 +9767,11 @@ class SBSection(object):
         r"""__repr__(SBSection self) -> std::string"""
         return _lldb.SBSection___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     def __iter__(self):
         '''Iterate over all subsections in a lldb.SBSection object.'''
         return lldb_iter(self, 'GetNumSubSections', 'GetSubSectionAtIndex')
@@ -9578,6 +9860,52 @@ class SBSourceManager(object):
 
 # Register SBSourceManager in _lldb:
 _lldb.SBSourceManager_swigregister(SBSourceManager)
+class SBStatisticsOptions(object):
+    r"""A container for options to use when dumping statistics."""
+
+    thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
+    __repr__ = _swig_repr
+
+    def __init__(self, *args):
+        r"""
+        __init__(SBStatisticsOptions self) -> SBStatisticsOptions
+        __init__(SBStatisticsOptions self, SBStatisticsOptions rhs) -> SBStatisticsOptions
+        """
+        _lldb.SBStatisticsOptions_swiginit(self, _lldb.new_SBStatisticsOptions(*args))
+    __swig_destroy__ = _lldb.delete_SBStatisticsOptions
+
+    def SetSummaryOnly(self, b):
+        r"""
+        SetSummaryOnly(SBStatisticsOptions self, bool b)
+        Sets whether the statistics should only dump a summary.
+        """
+        return _lldb.SBStatisticsOptions_SetSummaryOnly(self, b)
+
+    def GetSummaryOnly(self):
+        r"""
+        GetSummaryOnly(SBStatisticsOptions self) -> bool
+        Gets whether the statistics only dump a summary.
+        """
+        return _lldb.SBStatisticsOptions_GetSummaryOnly(self)
+
+    def SetReportAllAvailableDebugInfo(self, b):
+        r"""
+        SetReportAllAvailableDebugInfo(SBStatisticsOptions self, bool b)
+
+            Sets whether the statistics will force loading all possible debug info.
+        """
+        return _lldb.SBStatisticsOptions_SetReportAllAvailableDebugInfo(self, b)
+
+    def GetReportAllAvailableDebugInfo(self):
+        r"""
+        GetReportAllAvailableDebugInfo(SBStatisticsOptions self) -> bool
+
+            Gets whether the statistics will force loading all possible debug info.
+        """
+        return _lldb.SBStatisticsOptions_GetReportAllAvailableDebugInfo(self)
+
+# Register SBStatisticsOptions in _lldb:
+_lldb.SBStatisticsOptions_swigregister(SBStatisticsOptions)
 class SBStream(object):
     r"""
     Represents a destination for streaming data output to. By default, a string
@@ -9670,6 +9998,10 @@ class SBStream(object):
         """
         return _lldb.SBStream_Clear(self)
 
+    def __len__(self):
+      return self.GetSize()
+
+
     def RedirectToFileHandle(self, file, transfer_fh_ownership):
         r"""DEPRECATED, use RedirectToFile"""
         return _lldb.SBStream_RedirectToFileHandle(self, file, transfer_fh_ownership)
@@ -9753,7 +10085,6 @@ class SBStructuredData(object):
     """
 
     thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
-    __repr__ = _swig_repr
 
     def __init__(self, *args):
         r"""
@@ -9840,6 +10171,22 @@ class SBStructuredData(object):
     def GetGenericValue(self):
         r"""GetGenericValue(SBStructuredData self) -> SBScriptObject"""
         return _lldb.SBStructuredData_GetGenericValue(self)
+
+    def __repr__(self):
+        r"""__repr__(SBStructuredData self) -> std::string"""
+        return _lldb.SBStructuredData___repr__(self)
+
+    def __int__(self):
+      return self.GetSignedInteger()
+
+    def __len__(self):
+      '''Return the number of element in a lldb.SBStructuredData object.'''
+      return self.GetSize()
+
+    def __iter__(self):
+        '''Iterate over all the elements in a lldb.SBStructuredData object.'''
+        return lldb_iter(self, 'GetSize', 'GetItemAtIndex')
+
 
 # Register SBStructuredData in _lldb:
 _lldb.SBStructuredData_swigregister(SBStructuredData)
@@ -9935,6 +10282,14 @@ class SBSymbol(object):
     def __repr__(self):
         r"""__repr__(SBSymbol self) -> std::string"""
         return _lldb.SBSymbol___repr__(self)
+
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
+    def __hex__(self):
+        return self.GetStartAddress()
 
     def get_instructions_from_current_target (self):
         return self.GetInstructions (target)
@@ -10273,7 +10628,7 @@ class SBTarget(object):
 
         Watchpoint 1: addr = 0x1034ca048 size = 4 state = enabled type = rw
             declare @ '/Volumes/data/lldb/svn/trunk/test/python_api/watchpoint/main.c:12'
-            hw_index = 0  hit_count = 2     ignore_count = 0
+            hit_count = 2     ignore_count = 0
     """
 
     thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
@@ -10343,9 +10698,12 @@ class SBTarget(object):
         r"""GetCollectingStats(SBTarget self) -> bool"""
         return _lldb.SBTarget_GetCollectingStats(self)
 
-    def GetStatistics(self):
-        r"""GetStatistics(SBTarget self) -> SBStructuredData"""
-        return _lldb.SBTarget_GetStatistics(self)
+    def GetStatistics(self, *args):
+        r"""
+        GetStatistics(SBTarget self) -> SBStructuredData
+        GetStatistics(SBTarget self, SBStatisticsOptions options) -> SBStructuredData
+        """
+        return _lldb.SBTarget_GetStatistics(self, *args)
 
     def GetPlatform(self):
         r"""
@@ -11052,9 +11410,13 @@ class SBTarget(object):
         r"""FindWatchpointByID(SBTarget self, lldb::watch_id_t watch_id) -> SBWatchpoint"""
         return _lldb.SBTarget_FindWatchpointByID(self, watch_id)
 
-    def WatchAddress(self, addr, size, read, write, error):
-        r"""WatchAddress(SBTarget self, lldb::addr_t addr, size_t size, bool read, bool write, SBError error) -> SBWatchpoint"""
-        return _lldb.SBTarget_WatchAddress(self, addr, size, read, write, error)
+    def WatchAddress(self, addr, size, read, modify, error):
+        r"""WatchAddress(SBTarget self, lldb::addr_t addr, size_t size, bool read, bool modify, SBError error) -> SBWatchpoint"""
+        return _lldb.SBTarget_WatchAddress(self, addr, size, read, modify, error)
+
+    def WatchpointCreateByAddress(self, addr, size, options, error):
+        r"""WatchpointCreateByAddress(SBTarget self, lldb::addr_t addr, size_t size, SBWatchpointOptions options, SBError error) -> SBWatchpoint"""
+        return _lldb.SBTarget_WatchpointCreateByAddress(self, addr, size, options, error)
 
     def EnableAllWatchpoints(self):
         r"""EnableAllWatchpoints(SBTarget self) -> bool"""
@@ -11221,6 +11583,11 @@ class SBTarget(object):
         r"""__repr__(SBTarget self) -> std::string"""
         return _lldb.SBTarget___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     class modules_access(object):
         '''A helper object that will lazily hand out lldb.SBModule objects for a target when supplied an index, or by full or partial path.'''
         def __init__(self, sbtarget):
@@ -11356,7 +11723,7 @@ class SBTarget(object):
         '''An accessor function that returns a list() that contains all watchpoints in a lldb.SBtarget object.'''
         watchpoints = []
         for idx in range(self.GetNumWatchpoints()):
-            bkpts.append(self.GetWatchpointAtIndex(idx))
+            watchpoints.append(self.GetWatchpointAtIndex(idx))
         return watchpoints
 
     modules = property(get_modules_array, None, doc='''A read only property that returns a list() of lldb.SBModule objects contained in this target. This list is a list all modules that the target currently is tracking (the main executable and all dependent shared libraries).''')
@@ -11870,6 +12237,11 @@ class SBThread(object):
         r"""__repr__(SBThread self) -> std::string"""
         return _lldb.SBThread___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     def __iter__(self):
         '''Iterate over all frames in a lldb.SBThread object.'''
         return lldb_iter(self, 'GetNumFrames', 'GetFrameAtIndex')
@@ -11968,6 +12340,16 @@ class SBThreadCollection(object):
     def GetThreadAtIndex(self, idx):
         r"""GetThreadAtIndex(SBThreadCollection self, size_t idx) -> SBThread"""
         return _lldb.SBThreadCollection_GetThreadAtIndex(self, idx)
+
+
+    def __iter__(self):
+        '''Iterate over all threads in a lldb.SBThreadCollection object.'''
+        return lldb_iter(self, 'GetSize', 'GetThreadAtIndex')
+
+    def __len__(self):
+        '''Return the number of threads in a lldb.SBThreadCollection object.'''
+        return self.GetSize()
+
 
 # Register SBThreadCollection in _lldb:
 _lldb.SBThreadCollection_swigregister(SBThreadCollection)
@@ -12319,6 +12701,11 @@ class SBTypeMember(object):
         r"""__repr__(SBTypeMember self) -> std::string"""
         return _lldb.SBTypeMember___repr__(self)
 
+            # operator== is a free function, which swig does not handle, so we inject
+            # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     name = property(GetName, None, doc='''A read only property that returns the name for this member as a string.''')
     type = property(GetType, None, doc='''A read only property that returns an lldb object that represents the type (lldb.SBType) for this member.''')
     byte_offset = property(GetOffsetInBytes, None, doc='''A read only property that returns offset in bytes for this member as an integer.''')
@@ -12391,6 +12778,13 @@ class SBTypeMemberFunction(object):
     def __repr__(self):
         r"""__repr__(SBTypeMemberFunction self) -> std::string"""
         return _lldb.SBTypeMemberFunction___repr__(self)
+
+          # operator== is a free function, which swig does not handle, so we inject
+          # our own equality operator here
+    def __eq__(self, other):
+      return not self.__ne__(other)
+
+
 
 # Register SBTypeMemberFunction in _lldb:
 _lldb.SBTypeMemberFunction_swigregister(SBTypeMemberFunction)
@@ -13248,6 +13642,17 @@ class SBType(object):
         r"""GetDescription(SBType self, SBStream description, lldb::DescriptionLevel description_level) -> bool"""
         return _lldb.SBType_GetDescription(self, description, description_level)
 
+    def FindDirectNestedType(self, name):
+        r"""
+        FindDirectNestedType(SBType self, char const * name) -> SBType
+        Searches for a directly nested type that has the provided name.
+
+            Returns the type if it was found.
+            Returns invalid type if nothing was found.
+
+        """
+        return _lldb.SBType_FindDirectNestedType(self, name)
+
     def __eq__(self, rhs):
         r"""__eq__(SBType self, SBType rhs) -> bool"""
         return _lldb.SBType___eq__(self, rhs)
@@ -13268,6 +13673,14 @@ class SBType(object):
                 template_args.append(self.GetTemplateArgumentType(i))
             return template_args
         return None
+
+    # operator== is a free function, which swig does not handle, so we inject
+    # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
+    def __len__(self):
+        return self.GetByteSize()
 
     module = property(GetModule, None, doc='''A read only property that returns the module in which type is defined.''')
     name = property(GetName, None, doc='''A read only property that returns the name for this type as a string.''')
@@ -13427,6 +13840,11 @@ class SBTypeList(object):
     def GetSize(self):
         r"""GetSize(SBTypeList self) -> uint32_t"""
         return _lldb.SBTypeList_GetSize(self)
+
+        # operator== is a free function, which swig does not handle, so we inject
+        # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
 
     def __iter__(self):
         '''Iterate over all types in a lldb.SBTypeList object.'''
@@ -13598,6 +14016,11 @@ class SBTypeCategory(object):
         r"""__repr__(SBTypeCategory self) -> std::string"""
         return _lldb.SBTypeCategory___repr__(self)
 
+                # operator== is a free function, which swig does not handle, so we inject
+                # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
 
     class formatters_access_class(object):
         '''A helper object that will lazily hand out formatters for a specific category.'''
@@ -13736,6 +14159,14 @@ class SBTypeEnumMember(object):
     def __repr__(self):
         r"""__repr__(SBTypeEnumMember self) -> std::string"""
         return _lldb.SBTypeEnumMember___repr__(self)
+
+    def __iter__(self):
+        '''Iterate over all members in a lldb.SBTypeEnumMemberList object.'''
+        return lldb_iter(self, 'GetSize', 'GetTypeEnumMemberAtIndex')
+
+    def __len__(self):
+        '''Return the number of members in a lldb.SBTypeEnumMemberList object.'''
+        return self.GetSize()
 
     name = property(GetName, None, doc='''A read only property that returns the name for this enum member as a string.''')
     type = property(GetType, None, doc='''A read only property that returns an lldb object that represents the type (lldb.SBType) for this enum member.''')
@@ -13890,6 +14321,11 @@ class SBTypeFilter(object):
         r"""__repr__(SBTypeFilter self) -> std::string"""
         return _lldb.SBTypeFilter___repr__(self)
 
+                # operator== is a free function, which swig does not handle, so we inject
+                # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     options = property(GetOptions, SetOptions)
     count = property(GetNumberOfExpressionPaths)
 
@@ -13978,6 +14414,11 @@ class SBTypeFormat(object):
         r"""__repr__(SBTypeFormat self) -> std::string"""
         return _lldb.SBTypeFormat___repr__(self)
 
+                # operator== is a free function, which swig does not handle, so we inject
+                # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     format = property(GetFormat, SetFormat)
     options = property(GetOptions, SetOptions)
 
@@ -14045,6 +14486,11 @@ class SBTypeNameSpecifier(object):
     def __repr__(self):
         r"""__repr__(SBTypeNameSpecifier self) -> std::string"""
         return _lldb.SBTypeNameSpecifier___repr__(self)
+
+                # operator== is a free function, which swig does not handle, so we inject
+                # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
 
     name = property(GetName)
     is_regex = property(IsRegex)
@@ -14205,6 +14651,11 @@ class SBTypeSummary(object):
         r"""__repr__(SBTypeSummary self) -> std::string"""
         return _lldb.SBTypeSummary___repr__(self)
 
+                # operator== is a free function, which swig does not handle, so we inject
+                # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     options = property(GetOptions, SetOptions)
     is_summary_string = property(IsSummaryString)
     is_function_name = property(IsFunctionName)
@@ -14308,6 +14759,11 @@ class SBTypeSynthetic(object):
         r"""__repr__(SBTypeSynthetic self) -> std::string"""
         return _lldb.SBTypeSynthetic___repr__(self)
 
+                # operator== is a free function, which swig does not handle, so we inject
+                # our own equality operator here
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
     options = property(GetOptions, SetOptions)
     contains_code = property(IsClassCode, None)
     synthetic_data = property(GetData, None)
@@ -14395,6 +14851,13 @@ class SBUnixSignals(object):
     def GetSignalAtIndex(self, index):
         r"""GetSignalAtIndex(SBUnixSignals self, int32_t index) -> int32_t"""
         return _lldb.SBUnixSignals_GetSignalAtIndex(self, index)
+
+    def __iter__(self):
+        '''Iterate over all signals in a lldb.SBUnixSignals object.'''
+        return lldb_iter(self, 'GetNumSignals', 'GetSignalAtIndex')
+
+    def __len__(self):
+        return self.GetNumSignals()
 
     def get_unix_signals_list(self):
         signals = []
@@ -14905,6 +15368,10 @@ class SBValue(object):
         """
         return _lldb.SBValue_WatchPointee(self, resolve_location, read, write, error)
 
+    def GetVTable(self):
+        r"""GetVTable(SBValue self) -> SBValue"""
+        return _lldb.SBValue_GetVTable(self)
+
     def __repr__(self):
         r"""__repr__(SBValue self) -> std::string"""
         return _lldb.SBValue___repr__(self)
@@ -14943,6 +15410,9 @@ class SBValue(object):
         for idx in range(len(accessor)):
             children.append(accessor[idx])
         return children
+
+    def __hex__(self):
+        return self.GetAddress()
 
     def __iter__(self):
         '''Iterate over all child values of a lldb.SBValue object.'''
@@ -15353,7 +15823,8 @@ class SBWatchpoint(object):
         r"""
         GetHardwareIndex(SBWatchpoint self) -> int32_t
 
-            With -1 representing an invalid hardware index.
+            Deprecated.  Previously: Return the hardware index of the 
+            watchpoint register.  Now: -1 is always returned.
         """
         return _lldb.SBWatchpoint_GetHardwareIndex(self)
 
@@ -15475,8 +15946,64 @@ class SBWatchpoint(object):
         r"""__repr__(SBWatchpoint self) -> std::string"""
         return _lldb.SBWatchpoint___repr__(self)
 
+          # operator== is a free function, which swig does not handle, so we inject
+          # our own equality operator here
+    def __eq__(self, other):
+      return not self.__ne__(other)
+
+    def __hex__(self):
+      return self.GetWatchAddress()
+
+    def __len__(self):
+      return self.GetWatchSize()
+
+
 # Register SBWatchpoint in _lldb:
 _lldb.SBWatchpoint_swigregister(SBWatchpoint)
+class SBWatchpointOptions(object):
+    r"""A container for options to use when creating watchpoints."""
+
+    thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
+    __repr__ = _swig_repr
+
+    def __init__(self, *args):
+        r"""
+        __init__(SBWatchpointOptions self) -> SBWatchpointOptions
+        __init__(SBWatchpointOptions self, SBWatchpointOptions rhs) -> SBWatchpointOptions
+        """
+        _lldb.SBWatchpointOptions_swiginit(self, _lldb.new_SBWatchpointOptions(*args))
+    __swig_destroy__ = _lldb.delete_SBWatchpointOptions
+
+    def SetWatchpointTypeRead(self, read):
+        r"""
+        SetWatchpointTypeRead(SBWatchpointOptions self, bool read)
+        Sets whether the watchpoint should stop on read accesses.
+        """
+        return _lldb.SBWatchpointOptions_SetWatchpointTypeRead(self, read)
+
+    def GetWatchpointTypeRead(self):
+        r"""
+        GetWatchpointTypeRead(SBWatchpointOptions self) -> bool
+        Gets whether the watchpoint should stop on read accesses.
+        """
+        return _lldb.SBWatchpointOptions_GetWatchpointTypeRead(self)
+
+    def SetWatchpointTypeWrite(self, write_type):
+        r"""
+        SetWatchpointTypeWrite(SBWatchpointOptions self, lldb::WatchpointWriteType write_type)
+        Sets whether the watchpoint should stop on write accesses. eWatchpointWriteTypeOnModify is the most commonly useful mode, where lldb will stop when the watched value has changed. eWatchpointWriteTypeAlways will stop on any write to the watched region, even if it's the value is the same.
+        """
+        return _lldb.SBWatchpointOptions_SetWatchpointTypeWrite(self, write_type)
+
+    def GetWatchpointTypeWrite(self):
+        r"""
+        GetWatchpointTypeWrite(SBWatchpointOptions self) -> lldb::WatchpointWriteType
+        Gets whether the watchpoint should stop on write accesses, returning WatchpointWriteType to indicate the type of write watching that is enabled, or eWatchpointWriteTypeDisabled.
+        """
+        return _lldb.SBWatchpointOptions_GetWatchpointTypeWrite(self)
+
+# Register SBWatchpointOptions in _lldb:
+_lldb.SBWatchpointOptions_swigregister(SBWatchpointOptions)
 
 # ==================================
 # Helper function for SBModule class
@@ -15537,8 +16064,15 @@ class value_iter(object):
     def next(self):
         return self.__next__()
 
+    def __eq__(self, other):
+        return not self.__ne__(other)
+
+    def __len__(self):
+        return self.length
+
     def __init__(self,value):
         self.index = 0
+        self.length = 0
         self.sbvalue = value
         if type(self.sbvalue) is value:
             self.sbvalue = self.sbvalue.sbvalue
@@ -15778,6 +16312,12 @@ class SBSyntheticValueProvider(object):
     def has_children(self):
         return False
 
+    def __len__(self):
+      return self.num_children()
+
+    def __iter__(self):
+      '''Iterate over all children in a lldb.SBSyntheticValueProvider object.'''
+      return lldb_iter(self, 'num_children', 'get_child_at_index')
 
 
 
