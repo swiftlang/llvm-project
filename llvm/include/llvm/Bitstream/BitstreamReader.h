@@ -374,6 +374,19 @@ class BitstreamCursor : SimpleBitstreamCursor {
 
   BitstreamBlockInfo *BlockInfo = nullptr;
 
+  // I have a strong opinion that this is not the optimal implementation as we
+  // are reading the entire bitstream from the CAS once. We will be changing
+  // this for sure to read in chunks lazily and properly map the BitstreamCursor
+  // to the CAS world. Once the project starts, we will have a quick brainstorm
+  // of ideas and come up with a better design for the Cursor.
+  static ArrayRef<uint8_t>
+  getArrayRefFromCASObject(cas::ObjectStore &CAS, cas::ObjectRef &RootNodeID) {
+    BitstreamObjectProxy objectProxy = CAS.getProxy(RootNodeID);
+    raw_ostream OS;
+    objectProxy.getSchema().serializeBitstreamFile(objectProxy, OS);
+    return arrayRefFromStringRef(OS.str());
+  }
+
 public:
   static const size_t MaxChunkSize = 32;
 
@@ -384,6 +397,8 @@ public:
       : SimpleBitstreamCursor(BitcodeBytes) {}
   explicit BitstreamCursor(MemoryBufferRef BitcodeBytes)
       : SimpleBitstreamCursor(BitcodeBytes) {}
+  explicit BitstreamCASCursor(cas::ObjectStore &CAS, cas::ObjectRef RootNodeID)
+      : SimpleBitstreamCursor(getArrayRefFromCASObject(CAS, RootNodeID)) {}
 
   using SimpleBitstreamCursor::AtEndOfStream;
   using SimpleBitstreamCursor::canSkipToPos;

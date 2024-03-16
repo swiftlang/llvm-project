@@ -18,6 +18,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Bitstream/BitCodes.h"
+#include "llvm/BitstreamCAS/BitstreamCASNode.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
@@ -25,9 +26,11 @@
 #include <optional>
 #include <vector>
 
+using namespace llvm::bitstreamcasformats::v1;
+
 namespace llvm {
 
-class BitstreamWriter {
+class BitstreamCASWriter {
   /// Out - The buffer that keeps unflushed bytes.
   SmallVectorImpl<char> &Out;
 
@@ -56,6 +59,23 @@ class BitstreamWriter {
   /// CurAbbrevs - Abbrevs installed at in this block.
   std::vector<std::shared_ptr<BitCodeAbbrev>> CurAbbrevs;
 
+  // We will move some of these data structures to the BitstreamCASBuilder
+  // eventually as create() methods of Ref take this argument.
+  std::shared_ptr<cas::Node> CurNode;
+  std::stack<std::shared_ptr<cas::Node>> NodeStack;
+  std::unordered_map<std::shared_ptr<cas::Node>,
+                     std::vector<std::shared_ptr<cas::Node>>>
+      DAG; // The refs are implicitly stored in the DAG.
+  std::unordered_map<unsigned, unsigned>
+      NextAvailableID; // Maps from block/record code to the next available ID.
+
+  bool insideBlock = false;
+  cas::ObjectStore CAS;
+  mc::CASBackendMode
+      CASMode; // Can be changed using a separate CASMode enum if preferred.
+  std::function<Error(cas::ObjectProxy, cas::ObjectStore &, raw_fd_stream &)>
+      SerializeBitstreamFile; // This will depend on BitstreamCASReader.
+
   struct Block {
     unsigned PrevCodeSize;
     size_t StartSizeWord;
@@ -75,6 +95,11 @@ class BitstreamWriter {
   std::vector<BlockInfo> BlockInfoRecords;
 
   void WriteWord(unsigned Value) {
+    if (!insideBlock) {
+      CurNode->Data.append(reinterpret_cast<const char *>(&Value),
+                           reinterpret_cast<const char *>(&Value + 1));
+      return;
+    }
     Value =
         support::endian::byte_swap<uint32_t, llvm::endianness::little>(Value);
     Out.append(reinterpret_cast<const char *>(&Value),
@@ -91,17 +116,6 @@ class BitstreamWriter {
     return Offset / 4;
   }
 
-  /// If the related file stream supports reading, seeking and writing, flush
-  /// the buffer if its size is above a threshold.
-  void FlushToFile() {
-    if (!FS)
-      return;
-    if (Out.size() < FlushThreshold)
-      return;
-    FS->write((char *)&Out.front(), Out.size());
-    Out.clear();
-  }
-
 public:
   /// Create a BitstreamWriter that writes to Buffer \p O.
   ///
@@ -110,12 +124,16 @@ public:
   ///
   /// \p FlushThreshold is the threshold (unit M) to flush \p O if \p FS is
   /// valid. Flushing only occurs at (sub)block boundaries.
-  BitstreamWriter(SmallVectorImpl<char> &O, raw_fd_stream *FS = nullptr,
-                  uint32_t FlushThreshold = 512)
-      : Out(O), FS(FS), FlushThreshold(uint64_t(FlushThreshold) << 20), CurBit(0),
-        CurValue(0), CurCodeSize(2) {}
+  BitstreamCASWriter(SmallVectorImpl<char> &O, raw_fd_stream *FS = nullptr,
+                     cas::ObjectStore &CAS, mc::CASBackendMode CASMode,
+                     std::function<Error(cas::ObjectProxy, cas::ObjectStore &,
+                                         raw_fd_stream &)>
+                         SerializeBitstreamFile)
+      : Out(O), FS(FS), CurBit(0), CurValue(0), CurCodeSize(2), CAS(CAS),
+        CASMode(CASMode), SerializeBitstreamFile(SerializeBitstreamFile),
+        CurNode(std::make_shared<cas::Node>()), NodeStack({CurNode}) {}
 
-  ~BitstreamWriter() {
+  ~BitstreamCASWriter() {
     assert(CurBit == 0 && "Unflushed data remaining");
     assert(BlockScope.empty() && CurAbbrevs.empty() && "Block imbalance");
   }
@@ -288,6 +306,8 @@ public:
   }
 
   void EnterSubblock(unsigned BlockID, unsigned CodeLen) {
+    insideBlock = true;
+    Out.clear();
     // Block header:
     //    [ENTER_SUBBLOCK, blockid, newcodelen, <align4bytes>, blocklen]
     EmitCode(bitc::ENTER_SUBBLOCK);
@@ -312,9 +332,14 @@ public:
     // to the abbrev list.
     if (BlockInfo *Info = getBlockInfo(BlockID))
       append_range(CurAbbrevs, Info->Abbrevs);
+    CurNode = std::make_shared<cas::Node>(BlockID, NextAvailableID[BlockID]++);
+    CurNode->Data.append(Out.begin(), Out.end());
+    NodeStack.push(CurNode); // As new block is entered, we push to stack.
+    Out.clear();
   }
 
   void ExitBlock() {
+    Out.clear();
     assert(!BlockScope.empty() && "Block scope imbalance!");
     const Block &B = BlockScope.back();
 
@@ -334,7 +359,55 @@ public:
     CurCodeSize = B.PrevCodeSize;
     CurAbbrevs = std::move(B.PrevAbbrevs);
     BlockScope.pop_back();
-    FlushToFile();
+    CurNode->Data.append(Out.begin(), Out.end());
+    Out.clear();
+
+    // Creating the block in CAS using the data and all the child node refs.
+    auto ref = CurNode->Code == bitc::BLOCKINFO_BLOCK_ID
+                   ? BlockInfoBlockRef::create(DAG[CurNode], CurNode->Data)
+                   : GenericBlockRef::create(DAG[CurNode], CurNode->Data);
+    CurNode->CASRef = std::move(ref);
+
+    // As the block is completed, we remove the CurNode from the stack.
+    NodeStack.pop();
+
+    // Now add the edge to the current node's parent.
+    auto parent = NodeStack.top();
+    DAG[parent].push_back(CurNode);
+
+    // Now the current block's parent might have some other nodes to be added.
+    // So we point to it.
+    CurNode = parent;
+    insideBlock = false;
+  }
+
+  /// Depending upon the CASMode, this method will either:
+  ///   - Serialize the bitstream and write the entire content to the file.
+  ///   - Write the CASID to the file.
+  ///   - Verify the content and write to the file.
+  void EndStream() {
+
+    // Note: Clients are expected to call this method after they are done with
+    // all the emission. This is just the first API change in addition to
+    // initializing the client in new way.
+    if (!FS)
+      return;
+
+    // Create the root node.
+    auto ref = BitstreamRef::create(DAG[CurNode], CurNode->Data);
+    CurNode->CASRef = std::move(ref);
+
+    switch (CASMode) {
+    case mc::CASBackendMode::Native:
+      FS->write(SerializeBitstreamFile(CurNode->CASRef, CAS, *FS));
+      break;
+    case mc::CASBackendMode::CASID:
+      FS->write(CurNode->CASRef.getCASID());
+      break;
+    case mc::CASBackendMode::Verify:
+      // Verify the content and write to the file.
+      break;
+    }
   }
 
   //===--------------------------------------------------------------------===//
@@ -496,6 +569,8 @@ public:
   /// we have one to compress the output.
   template <typename Container>
   void EmitRecord(unsigned Code, const Container &Vals, unsigned Abbrev = 0) {
+    Out.clear();
+    CurNode = std::make_shared<cas::Node>(Code, NextAvailableID[Code]++);
     if (!Abbrev) {
       // If we don't have an abbrev to use, emit this in its fully unabbreviated
       // form.
@@ -505,10 +580,35 @@ public:
       EmitVBR(Count, 6);
       for (unsigned i = 0, e = Count; i != e; ++i)
         EmitVBR64(Vals[i], 6);
+      CurNode->Data.append(Out.begin(), Out.end());
+      Out.clear();
+      addCurNodeToDAG(UnAbbrevRecordRef::create({}, CurNode->Data));
       return;
     }
 
     EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), StringRef(), Code);
+    CurNode->Data.append(Out.begin(), Out.end());
+    Out.clear();
+    BitstreamObjectProxy CASRef;
+    switch (Code) { // Only common record codes are considered as we are not
+                    // specializing per client currently.
+    case llvm::bitc::BLOCKINFO_CODE_SETBID:
+      CASRef = SetBidRecordRef::create({}, CurNode->Data);
+      break;
+    case llvm::bitc::BLOCKINFO_CODE_BLOCKNAME:
+      CASRef = BlockNameRecordRef::create({}, CurNode->Data);
+      break;
+    case llvm::bitc::BLOCKINFO_CODE_SETRECORDNAME:
+      CASRef = SetRecordNameRecordRef::create({}, CurNode->Data);
+      break;
+    case llvm::bitc::DEFINE_ABBREV:
+      CASRef = DefineAbbrevRecordRef::create({}, CurNode->Data);
+      break;
+    default:
+      CASRef = GenericRecordRef::create({}, CurNode->Data);
+      break;
+    }
+    addCurNodeToDAG(CASRef);
   }
 
   /// EmitRecordWithAbbrev - Emit a record with the specified abbreviation.
@@ -516,7 +616,12 @@ public:
   /// the first entry.
   template <typename Container>
   void EmitRecordWithAbbrev(unsigned Abbrev, const Container &Vals) {
+    Out.clear();
+    CurNode = std::make_shared<cas::Node>(Abbrev, NextAvailableID[Abbrev]++);
     EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), StringRef(), std::nullopt);
+    CurNode->Data.append(Out.begin(), Out.end());
+    Out.clear();
+    addCurNodeToDAG(GenericRecordWithAbbrevRef::create({}, CurNode->Data));
   }
 
   /// EmitRecordWithBlob - Emit the specified record to the stream, using an
@@ -527,13 +632,23 @@ public:
   template <typename Container>
   void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
                           StringRef Blob) {
+    Out.clear();
+    CurNode = std::make_shared<cas::Node>(Abbrev, NextAvailableID[Abbrev]++);
     EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), Blob, std::nullopt);
+    CurNode->Data.append(Out.begin(), Out.end());
+    Out.clear();
+    addCurNodeToDAG(GenericRecordWithBlobRef::create({}, CurNode->Data));
   }
   template <typename Container>
   void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
                           const char *BlobData, unsigned BlobLen) {
+    Out.clear();
+    CurNode = std::make_shared<cas::Node>(Abbrev, NextAvailableID[Abbrev]++);
     return EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals),
                                     StringRef(BlobData, BlobLen), std::nullopt);
+    CurNode->Data.append(Out.begin(), Out.end());
+    Out.clear();
+    addCurNodeToDAG(GenericRecordWithBlobRef::create({}, CurNode->Data));
   }
 
   /// EmitRecordWithArray - Just like EmitRecordWithBlob, works with records
@@ -541,13 +656,23 @@ public:
   template <typename Container>
   void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
                            StringRef Array) {
+    Out.clear();
+    CurNode = std::make_shared<cas::Node>(Abbrev, NextAvailableID[Abbrev]++);
     EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), Array, std::nullopt);
+    CurNode->Data.append(Out.begin(), Out.end());
+    Out.clear();
+    addCurNodeToDAG(GenericRecordWithArrayRef::create({}, CurNode->Data));
   }
   template <typename Container>
   void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
                            const char *ArrayData, unsigned ArrayLen) {
+    Out.clear();
+    CurNode = std::make_shared<cas::Node>(Abbrev, NextAvailableID[Abbrev]++);
     return EmitRecordWithAbbrevImpl(
         Abbrev, ArrayRef(Vals), StringRef(ArrayData, ArrayLen), std::nullopt);
+    CurNode->Data.append(Out.begin(), Out.end());
+    Out.clear();
+    addCurNodeToDAG(GenericRecordWithArrayRef::create({}, CurNode->Data));
   }
 
   //===--------------------------------------------------------------------===//
@@ -555,6 +680,13 @@ public:
   //===--------------------------------------------------------------------===//
 
 private:
+  void addCurNodeToDAG(BitstreamObjectProxy &CASRef) {
+    CurNode->CASRef = std::move(CASRef);
+    auto parent = NodeStack.top();
+    DAG[parent].push_back(CurNode);
+    CurNode = parent;
+  }
+
   // Emit the abbreviation as a DEFINE_ABBREV record.
   void EncodeAbbrev(const BitCodeAbbrev &Abbv) {
     EmitCode(bitc::DEFINE_ABBREV);
@@ -628,7 +760,6 @@ public:
     return Info.Abbrevs.size()-1+bitc::FIRST_APPLICATION_ABBREV;
   }
 };
-
 
 } // End llvm namespace
 
