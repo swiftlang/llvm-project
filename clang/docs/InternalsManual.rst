@@ -427,6 +427,17 @@ Description:
   This is useful when the argument could be a string in some cases, but
   another class in other cases, and it needs to be quoted consistently.
 
+**"unquoted" format**
+
+Example:
+  ``"conflicting attributes were '%select{__counted_by|__sized_by|__counted_by_or_null|__sized_by_or_null}0(%unquoted1)' and '%select{__counted_by|__sized_by|__counted_by_or_null|__sized_by_or_null}2(%unquoted3)'"``
+Class:
+  ``Expr, Decl``
+Description:
+  This is a simple formatter which omits the single quotes from a class
+  that would normally be printed quoted. This is useful when the diagnostic
+  uses the argument to construct a larger type or expression.
+
 .. _internals-producing-diag:
 
 Producing the Diagnostic

@@ -3016,6 +3016,10 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.HLSL().mergeVkConstantIdAttr(D, *CI, CI->getId());
   else if (const auto *SA = dyn_cast<HLSLShaderAttr>(Attr))
     NewAttr = S.HLSL().mergeShaderAttr(D, *SA, SA->getType());
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  else if (const auto *ASA = dyn_cast<AllocSizeAttr>(Attr))
+    NewAttr = S.mergeAllocSizeAttr(D, *ASA);
+  /* TO_UPSTREAM(BoundsSafety) OFF */
   else if (isa<SuppressAttr>(Attr))
     // Do nothing. Each redeclaration should be suppressed separately.
     NewAttr = nullptr;
@@ -3901,6 +3905,34 @@ static void fixBoundsSafetyFunctionDecl(Sema &S, Sema::SemaDiagnosticBuilder &D,
   }
 }
 
+static bool diagnoseConflictingAllocSizeAttribute(FunctionDecl *New,
+                                                  FunctionDecl *Old,
+                                                  Sema &Self) {
+  // System headers that haven't adopted bounds safety are allowed to break
+  // the rules for compatibility reasons, since errors there are hard to fix.
+  if (Self.allowBoundsUnsafeAssignment(New->getLocation()))
+    return true;
+
+  // Different alloc_size attributes will lead to mismatching __sized_by_or_null
+  // return types. Merging of attributes is done after type checking, but we
+  // want to emit the root cause of the type error rather than an error for
+  // mismatcing (implicit) return types.
+  if (auto OldASA = Old->getAttr<AllocSizeAttr>()) {
+    if (auto NewASA = New->getAttr<AllocSizeAttr>()) {
+      if (!OldASA->getElemSizeParam().equals(NewASA->getElemSizeParam()) ||
+          !OldASA->getNumElemsParam().equals(NewASA->getNumElemsParam())) {
+        Self.Diag(NewASA->getLoc(), diag::err_mismatched_alloc_size)
+            << NewASA->getRange();
+        Self.Diag(OldASA->getLoc(), diag::note_conflicting_attribute)
+            << OldASA->getRange();
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 /// diagnoseFunctionConflictWithDynamicBoundTypes - diagnose if \p New
 /// and \p Old have conflicting return or parameter types with repect to
 /// '__counted_by', '__sized_by', or '__ended_by' attributes.
@@ -3908,7 +3940,8 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
                                                           FunctionDecl *Old,
                                                           Sema &Self) {
   std::function<bool(const Expr*, const Expr*)> checkCompatibleBoundExprs;
-  checkCompatibleBoundExprs = [&](const Expr *NewExpr, const Expr *OldExpr) -> bool {
+  checkCompatibleBoundExprs = [&](const Expr *NewExpr,
+                                  const Expr *OldExpr) -> bool {
     llvm::FoldingSetNodeID NewID;
     llvm::FoldingSetNodeID OldID;
     if (NewExpr)
@@ -3919,7 +3952,28 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
       return true;
     return false;
   };
-  std::unique_ptr<Sema::SemaDiagnosticBuilder> D;
+
+  std::function<bool(FunctionDecl * New, FunctionDecl * Old)>
+      newFuncWillInheritOldReturnType = [](FunctionDecl *New,
+                                           FunctionDecl *Old) {
+        QualType NewRetTy = New->getReturnType();
+        if (!NewRetTy->isPointerType())
+          return false;
+        if (NewRetTy->isSafePointerType() &&
+            !NewRetTy->isImplicitSafePointerType())
+          return false;
+        QualType OldRetTy = Old->getReturnType();
+        if (!OldRetTy->isPointerType())
+          return false;
+        if (!OldRetTy->isImplicitSafePointerType())
+          return false;
+        assert(OldRetTy->isSafePointerType());
+
+        bool Ret =
+            !New->hasAttr<AllocSizeAttr>() && Old->hasAttr<AllocSizeAttr>();
+        return Ret;
+      };
+
   std::function<bool(QualType, QualType, TypeLoc, TypeLoc, SourceLocation,
                      SourceLocation)>
       checkCompatibleDynamicBoundTypes =
@@ -3931,6 +3985,8 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
     const auto *OldDCPTy = OldTy->getAs<CountAttributedType>();
     const auto *NewDRPTy = NewTy->getAs<DynamicRangePointerType>();
     const auto *OldDRPTy = OldTy->getAs<DynamicRangePointerType>();
+    const bool NewIsEndedBy = NewDRPTy && NewDRPTy->getEndPointer();
+    const bool OldIsEndedBy = OldDRPTy && OldDRPTy->getEndPointer();
     const auto *NewVTTy = NewTy->getAs<ValueTerminatedType>();
     const auto *OldVTTy = OldTy->getAs<ValueTerminatedType>();
     const unsigned CountDiagIndex = 0;
@@ -3941,14 +3997,11 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
     const unsigned TermDiagIndex = 5;
 
     auto ReportConflict = [&](const unsigned Index) {
-      {
-        if (!D)
-          D.reset(new Sema::SemaDiagnosticBuilder(
-            Self.Diag(NewLoc, diag::err_bounds_safety_dynamic_bound_redeclaration)
-            << Index << 0));
-        fixBoundsSafetyTypeLocs(Self, *D, NewTL, OldTL, NewTy, OldTy, New, Old);
-        fixBoundsSafetyTypeLocs(Self, *D, OldTL, NewTL, OldTy, NewTy, Old, New);
-      }
+      Sema::SemaDiagnosticBuilder D(
+          Self.Diag(NewLoc, diag::err_bounds_safety_dynamic_bound_redeclaration)
+          << Index << 0);
+        fixBoundsSafetyTypeLocs(Self, D, NewTL, OldTL, NewTy, OldTy, New, Old);
+        fixBoundsSafetyTypeLocs(Self, D, OldTL, NewTL, OldTy, NewTy, Old, New);
     };
     auto ReportCountConflict = [&](const CountAttributedType *DCPTy) {
       unsigned Index;
@@ -3971,12 +4024,41 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
       ReportConflict(Index);
     };
 
+    auto ReportCountBothConflict = [&](const CountAttributedType *NewDCPTy,
+                                       const CountAttributedType *OldDCPTy) {
+      ReportCountConflict(NewDCPTy);
+
+      Self.Diag(NewLoc, diag::note_bounds_safety_conflicting_count_attribute)
+          << OldDCPTy->getKind() << OldDCPTy->getCountExpr()
+          << NewDCPTy->getKind() << NewDCPTy->getCountExpr();
+
+      if (auto NewASA = New->getAttr<AllocSizeAttr>()) {
+        Self.Diag(NewASA->getLoc(),
+                  diag::note_bounds_safety_implicit_size_from_alloc_size_attr)
+            << !New->hasAttr<ReturnsNonNullAttr>() << NewASA->getRange();
+      }
+
+      if (auto OldASA = Old->getAttr<AllocSizeAttr>()) {
+        Self.Diag(OldASA->getLoc(),
+                  diag::note_bounds_safety_implicit_size_from_alloc_size_attr)
+            << !Old->hasAttr<ReturnsNonNullAttr>() << OldASA->getRange();
+      }
+    };
+
+    // Check bounds type present in New but not in Old first, then
+    // in Old but now in New. That way if a parameter or return type
+    // is e.g. __counted_by in Old and __null_terminated in New, we
+    // report an error for mismatch on __null_terminated rather than
+    // __counted_by, since it's more local to the error being emitted.
+
     if (NewDCPTy && !OldDCPTy) {
       ReportCountConflict(NewDCPTy);
       return false;
     }
 
-    if (NewDRPTy && !OldDRPTy) {
+    // If implicit __started_by is missing, we have already emitted an error for
+    // the __ended_by mismatch, so don't diagnose that.
+    if (NewIsEndedBy && !OldIsEndedBy) {
       ReportConflict(RangeDiagIndex);
       return false;
     }
@@ -3991,9 +4073,8 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
       ReportCountConflict(OldDCPTy);
       return false;
     }
-    // Implicit __started_by attributes have not yet been added to NewTy, so
-    // don't diagnose that.
-    if (!NewDRPTy && OldDRPTy && OldDRPTy->getEndPointer()) {
+
+    if (!NewIsEndedBy && OldIsEndedBy) {
       ReportConflict(RangeDiagIndex);
       return false;
     }
@@ -4005,27 +4086,31 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
 
     if (NewDCPTy && OldDCPTy) {
       if (!checkCompatibleBoundExprs(NewDCPTy->getCountExpr(), OldDCPTy->getCountExpr())) {
-        ReportCountConflict(NewDCPTy);
+        ReportCountBothConflict(NewDCPTy, OldDCPTy);
         return false;
       }
       // '__sized_by' and '__counted_by'
       if (NewDCPTy->isCountInBytes() != OldDCPTy->isCountInBytes()) {
         CharUnits NewPointeeSize = Self.Context.getTypeSizeInChars(NewDCPTy->getPointeeType());
         if (!NewPointeeSize.isOne() && !NewDCPTy->isVoidPointerType()) {
-          ReportCountConflict(NewDCPTy);
+          ReportCountBothConflict(NewDCPTy, OldDCPTy);
           return false;
         }
       }
       // '__counted_by_or_null' and '__counted_by'
       if (NewDCPTy->isOrNull() != OldDCPTy->isOrNull()) {
-        ReportCountConflict(NewDCPTy);
+        ReportCountBothConflict(NewDCPTy, OldDCPTy);
         return false;
       }
     }
-    if (NewDRPTy && OldDRPTy) {
+    if (NewIsEndedBy && OldIsEndedBy) {
       // Start pointers are implicit so we don't check it here.
       if (!checkCompatibleBoundExprs(NewDRPTy->getEndPointer(), OldDRPTy->getEndPointer())) {
         ReportConflict(RangeDiagIndex);
+        Self.Diag(NewLoc,
+                  diag::note_bounds_safety_conflicting_pointer_attribute_args)
+            << /* end */ 0 << OldDRPTy->getEndPointer()
+            << NewDRPTy->getEndPointer();
         return false;
       }
     }
@@ -4033,6 +4118,9 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
         !llvm::APSInt::isSameValue(NewVTTy->getTerminatorValue(Self.Context),
                                    OldVTTy->getTerminatorValue(Self.Context))) {
       ReportConflict(TermDiagIndex);
+      Self.Diag(NewLoc, diag::note_bounds_safety_conflicting_pointer_attribute_args)
+          << /* terminator */ 1 << OldVTTy->getTerminatorExpr()
+          << NewVTTy->getTerminatorExpr();
       return false;
     }
     TypeLoc NewSubTL, OldSubTL;
@@ -4056,9 +4144,10 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
     OldReturnTL = OldTL.getReturnLoc();
   if (auto NewTL = New->getFunctionTypeLoc())
     NewReturnTL = NewTL.getReturnLoc();
-  bool Compatible = checkCompatibleDynamicBoundTypes(
-          New->getReturnType(), Old->getReturnType(), NewReturnTL, OldReturnTL,
-          New->getBeginLoc(), Old->getBeginLoc());
+  bool Compatible = newFuncWillInheritOldReturnType(New, Old) ||
+                    checkCompatibleDynamicBoundTypes(
+                        New->getReturnType(), Old->getReturnType(), NewReturnTL,
+                        OldReturnTL, New->getBeginLoc(), Old->getBeginLoc());
 
   auto MinNumParams = std::min(New->getNumParams(), Old->getNumParams());
   for (unsigned i = 0; i < MinNumParams; ++i) {
@@ -4071,8 +4160,7 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
             NewParam->getBeginLoc(), OldParam->getBeginLoc());
   }
 
-  if (D) {
-    D.reset();
+  if (!Compatible) {
     Self.Diag(Old->getBeginLoc(), diag::note_previous_declaration);
   }
 
@@ -4667,7 +4755,11 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
     return true;
   }
 
-  /*TO_UPSTREAM(BoundsSafety) ON */
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  if (getLangOpts().BoundsSafety &&
+      !diagnoseConflictingAllocSizeAttribute(New, Old, *this))
+    return true;
+
   if (getLangOpts().BoundsSafetyAttributes) {
     // This is the same logic to suppress warnings in system headers.
     // In case of system functions, we want to inherit counted_by attributes
@@ -4678,7 +4770,9 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       if (!diagnoseFunctionConflictWithDynamicBoundTypes(New, Old, *this))
         return true;
     } else if (mergeFunctionDeclBoundsAttributes(New, Old, *this)) {
-      NewQType = New->getType();
+      // Stripping sugar is required to inherit alloc_size attribute.
+      // Bounds attributes are not stripped from the function decl.
+      NewQType = Context.getCanonicalType(New->getType());
     }
   }
 
@@ -4686,7 +4780,7 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       mergeFunctionDeclTerminatedByAttribute(New, Old, *this)) {
     // TODO: Merge __terminated_by() attributes in attribute-only mode.
     // rdar://137984921
-    NewQType = New->getType();
+    NewQType = Context.getCanonicalType(New->getType());
   }
   /*TO_UPSTREAM(BoundsSafety) OFF */
 
@@ -5115,8 +5209,19 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       = New->getType()->getAs<FunctionProtoType>();
 
     // Determine whether this is the GNU C extension.
-    QualType MergedReturn = Context.mergeTypes(OldProto->getReturnType(),
-                                               NewProto->getReturnType());
+    /* TO_UPSTREAM(BoundsSafety) ON
+     * Diff w/ upstream: reversed parameter order. This aligns better with other
+     * calls to mergeTypes, and makes sure that the new type is used if they are
+     * canonically the same. This is relevant for bounds safety when overriding an
+     * earlier declaration with different bounds. */
+    QualType MergedReturn;
+    if (getLangOpts().BoundsSafety)
+      MergedReturn = Context.mergeTypes(NewProto->getReturnType(),
+                                        OldProto->getReturnType());
+    else
+      /* TO_UPSTREAM(BoundsSafety) OFF */
+      MergedReturn = Context.mergeTypes(OldProto->getReturnType(),
+                                        NewProto->getReturnType());
     bool LooseCompatible = !MergedReturn.isNull();
     for (unsigned Idx = 0, End = Old->getNumParams();
          LooseCompatible && Idx != End; ++Idx) {
@@ -5235,7 +5340,17 @@ bool Sema::MergeCompatibleFunctionDecls(FunctionDecl *New, FunctionDecl *Old,
   // Merge the function types so the we get the composite types for the return
   // and argument types. Per C11 6.2.7/4, only update the type if the old decl
   // was visible.
-  QualType Merged = Context.mergeTypes(Old->getType(), New->getType());
+  /* TO_UPSTREAM(BoundsSafety) ON
+   * Diff w/ upstream: reversed parameter order. This aligns better with other
+   * calls to mergeTypes, and makes sure that the new type is used if they are
+   * canonically the same. This is relevant for bounds safety when overriding an
+   * earlier declaration with different bounds. */
+  QualType Merged;
+  if (getLangOpts().BoundsSafety)
+    Merged = Context.mergeTypes(New->getType(), Old->getType());
+  else
+    Merged = Context.mergeTypes(Old->getType(), New->getType());
+  /* TO_UPSTREAM(BoundsSafety) OFF */
   if (!Merged.isNull() && MergeTypeWithOld)
     New->setType(Merged);
 
@@ -7840,7 +7955,7 @@ void Sema::deduceBoundsSafetyPointerTypes(ValueDecl *Decl) {
       Decl->getType(), CurPointerAbi, ShouldAutoBound));
 }
 
-static QualType deduceBoundsSafetyFuncType(Sema &S, const FunctionDecl *Decl,
+static QualType deduceBoundsSafetyFuncType(Sema &S, FunctionDecl *Decl,
                                         QualType Ty) {
   if (const auto *AttrTy = Ty->getAs<AttributedType>()) {
     QualType ModTy =
@@ -7853,6 +7968,7 @@ static QualType deduceBoundsSafetyFuncType(Sema &S, const FunctionDecl *Decl,
   QualType NewRetTy = S.Context.getBoundsSafetyAutoPointerType(
       Decl->getReturnType(), S.CurPointerAbi,
       /*ShouldAutoBound=*/false);
+  NewRetTy = S.PostProcessBoundsSafetyAllocSizeAttribute(Decl, NewRetTy);
 
   if (NewRetTy == Decl->getReturnType())
     return Ty;
@@ -8171,8 +8287,9 @@ static void checkExternalBoundsRedeclaration(Sema &S, Decl *D) {
   if (!NewVD || NewVD->isFirstDecl())
     return;
 
-  if (NewVD->isFirstDecl())
-    return;
+  // Parameters are handled in diagnoseFunctionConflictWithDynamicBoundTypes().
+  assert(!isa<ParmVarDecl>(NewVD));
+
   VarDecl *PrevVD = NewVD->getFirstDecl();
 
   const auto *PrevTy = PrevVD->getType()->getAs<CountAttributedType>();

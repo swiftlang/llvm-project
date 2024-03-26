@@ -17,15 +17,15 @@
 */
 
 // CHECK: FunctionDecl {{.+}} foo 'void (int *__single __counted_by(len), int)'
-// CHECK: FunctionDecl {{.+}} foo 'void (int *__single __counted_by(len), int)'
+// CHECK: FunctionDecl {{.+}} foo 'void (int *__single __terminated_by(0), int)'
 // CHECK: FunctionDecl {{.+}} bar 'void (int *__single __terminated_by(0), int)'
 // XXX: rdar://127827450
-// CHECK: FunctionDecl {{.+}} bar 'void (int *__single __terminated_by(0), int)'
+// CHECK: FunctionDecl {{.+}} bar 'void (int *__single __counted_by(len), int)'
 
 void test() {
-  int arr[10];
-  foo(arr, 10);
-
   int *__null_terminated ptr = 0;
-  bar(ptr, 0);
+  foo(ptr, 10);
+
+  int arr[10];
+  bar(arr, 0);
 }

@@ -25798,17 +25798,12 @@ ExprResult Sema::ActOnBoundsSafetyCall(ExprResult Call) {
     return Call;
 
   // Bail out early if there's nothing to do. (There is something to do if
-  // there's a dynamic bound pointer type in this function prototype, or if
-  // it's annotated with `alloc_size`, in which case we can derive the
-  // equivalent.)
+  // there's a dynamic bound pointer type in this function prototype.)
   QualType FT = CallE->getCallee()->getType();
   if (auto PointerTy = FT->getAs<PointerType>())
     FT = PointerTy->getPointeeType();
-  if (!ContainsBoundsAttributedType::check(FT)) {
-    auto *FDecl = CallE->getDirectCallee();
-    if (!FDecl || !FDecl->getAttr<AllocSizeAttr>())
-      return CallE;
-  }
+  if (!ContainsBoundsAttributedType::check(FT))
+    return CallE;
 
   Expr *ResultExpr = CallE;
   SmallVector<OpaqueValueExpr *, 8> OVEs;
@@ -25941,32 +25936,6 @@ ExprResult Sema::ActOnBoundsSafetyCall(ExprResult Call) {
         *this, RD, ResultExpr);
     if (!(ResultExpr = Promoted.get()))
       return ExprError();
-  } else if (auto *FDecl = CallE->getDirectCallee()) {
-    if (auto Att = FDecl->getAttr<AllocSizeAttr>()) {
-      if (Att->getElemSizeParam().isValid()) {
-        Expr *SizeExpr = OVEs[Att->getElemSizeParam().getASTIndex()];
-        if (Att->getNumElemsParam().isValid()) {
-          Expr *CountExpr = OVEs[Att->getNumElemsParam().getASTIndex()];
-          ExprResult Product = CreateBuiltinBinOp(
-              CallE->getBeginLoc(), BO_Mul, SizeExpr, CountExpr);
-          if (!(SizeExpr = Product.get()))
-            return ExprError();
-        }
-
-        ExprResult SizeRValue = DefaultLvalueConversion(SizeExpr);
-        if (!SizeRValue.get())
-          return ExprError();
-
-        auto *PtrOVE = OpaqueValueExpr::EnsureWrapped(
-            Context, ResultExpr, OVEs);
-        auto *SizeOVE = OpaqueValueExpr::EnsureWrapped(
-            Context, SizeRValue.get(), OVEs);
-        ExprResult Promoted = PromoteBoundsSafetyPointerWithCount(
-            *this, PtrOVE, SizeOVE, true, true);
-        if (!(ResultExpr = Promoted.get()))
-          return ExprError();
-      }
-    }
   }
 
   if (!OVEs.empty()) {

@@ -7,6 +7,8 @@ struct T1 {
     int len;
     int len2;
     int *__counted_by(len) __counted_by(len+1) buf; // expected-error{{pointer cannot have more than one count attribute}}
+                                                    // expected-note@-1{{conflicting attributes were '__counted_by(len)' and '__counted_by(len + 1)'}}
+                                                    // expected-note@-2{{previous attribute is here}}
     int *__counted_by(len + len2) buf2;
     int *__bidi_indexable __counted_by(len) buf3; // expected-error{{pointer cannot be '__counted_by' and '__bidi_indexable' at the same time}}
     int *__counted_by(len) __bidi_indexable buf4; // expected-error{{pointer cannot be '__counted_by' and '__bidi_indexable' at the same time}}

@@ -11,7 +11,8 @@ char *__null_terminated test();
 
 // expected-note@+1{{previous declaration is here}}
 const char *test2();
-// expected-error@+1{{conflicting '__terminated_by' attribute with the previous function declaration}}
+// expected-error@+2{{conflicting '__terminated_by' attribute with the previous function declaration}}
+// expected-note@+1{{conflicting arguments for terminator were '0' and '-1'}}
 const char *__terminated_by(-1) test2();
 
 const char *test3();
@@ -24,7 +25,8 @@ void test4(int *arg);
 
 // expected-note@+1{{previous declaration is here}}
 void test5(int *__null_terminated arg);
-// expected-error@+1{{conflicting '__terminated_by' attribute with the previous function declaration}}
+// expected-error@+2{{conflicting '__terminated_by' attribute with the previous function declaration}}
+// expected-note@+1{{conflicting arguments for terminator were '0' and '-1'}}
 void test5(int *__terminated_by(-1) arg);
 
 // expected-note@+1{{previous declaration is here}}
@@ -44,7 +46,8 @@ void test8(int *__ended_by(end) buf, int *end);
 
 // expected-note@+1{{previous declaration is here}}
 void test9(int *__ended_by(end) buf, int *end);
-// expected-error@+1{{conflicting '__ended_by' attribute with the previous function declaration}}
+// expected-error@+2{{conflicting '__ended_by' attribute with the previous function declaration}}
+// expected-error@+1{{conflicting '__terminated_by' attribute with the previous function declaration}}
 void test9(int *buf, int *__null_terminated end);
 
 #include "terminated-by-redecl.h"

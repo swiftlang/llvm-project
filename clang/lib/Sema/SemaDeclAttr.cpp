@@ -569,6 +569,121 @@ static bool checkParamIsIntegerType(Sema &S, const Decl *D, const AttrInfo &AI,
   return true;
 }
 
+/* TO_UPSTREAM(BoundsSafety) ON */
+static QualType CreateImplicitCountAttributedType(Sema &S, unsigned Level,
+                                                  const StringRef DiagName, Expr *ArgExpr,
+                                                  SourceLocation Loc,
+                                                  bool CountInBytes,
+                                                  bool OrNull, QualType T,
+                                                  bool ScopeCheck = false);
+
+static ExprResult getAllocSizeExpr(Sema &S, Decl *D, ParamIdx SizeIdx,
+                                   ParamIdx NumberIdx) {
+  auto createParamDeclRef = [&S](Decl *FuncD, ParamIdx Idx) {
+    ParmVarDecl *Parm = getFunctionOrMethodParam(FuncD, Idx.getASTIndex());
+
+    return DeclRefExpr::Create(
+        S.Context, NestedNameSpecifierLoc{}, SourceLocation{}, Parm, false,
+        DeclarationNameInfo{Parm->getDeclName(), Parm->getLocation()},
+        Parm->getType(), VK_LValue);
+  };
+
+  Expr *SizeExpr = createParamDeclRef(D, SizeIdx);
+  if (NumberIdx.isValid()) {
+    Expr *NumExpr = createParamDeclRef(D, NumberIdx);
+    return S.CreateBuiltinBinOp(SourceLocation(), BO_Mul, SizeExpr, NumExpr);
+  }
+
+  return SizeExpr;
+}
+
+static QualType PostProcessBoundsSafetyAllocSizeAttributeImpl(
+    Sema &S, NamedDecl *D, const AllocSizeAttr &ASA, QualType FT) {
+  ExprResult SizeExpr =
+      getAllocSizeExpr(S, D, ASA.getElemSizeParam(), ASA.getNumElemsParam());
+  if (SizeExpr.isInvalid())
+    return FT;
+
+  unsigned Level = 0;
+  bool CountInBytes = true;
+  // returns_nonnull is allowed to change program semantics to assume
+  // it cannot return null. _Nonnull does not affect program semantics,
+  // only analysis/diagnostics, so ignore that here.
+  bool OrNull = !D->hasAttr<ReturnsNonNullAttr>();
+
+  const IdentifierInfo *AttrName = ASA.getAttrName();
+  return CreateImplicitCountAttributedType(S, Level, AttrName->getName(), SizeExpr.get(),
+                                           ASA.getLoc(), CountInBytes, OrNull, FT);
+}
+
+void diagnoseInvalidReturnTypeForAllocSize(Sema &S, FunctionDecl *D,
+                                           const AllocSizeAttr &ASA) {
+  ExprResult SizeExpr =
+      getAllocSizeExpr(S, D, ASA.getElemSizeParam(), ASA.getNumElemsParam());
+  if (SizeExpr.isInvalid())
+    return;
+  Expr *Size = SizeExpr.get();
+
+  QualType RetTy = D->getReturnType();
+  auto CATy = RetTy->getAs<CountAttributedType>();
+  if (!CATy || !CATy->isCountInBytes()) {
+    S.Diag(D->getBeginLoc(), diag::err_invalid_return_type_for_alloc_size)
+        << RetTy << Size << D->getReturnTypeSourceRange();
+    S.Diag(ASA.getLoc(), diag::note_attribute_inherited) << ASA.getRange();
+    return;
+  }
+
+  llvm::FoldingSetNodeID NewID;
+  llvm::FoldingSetNodeID OldID;
+  CATy->getCountExpr()->IgnoreParenImpCasts()->Profile(NewID, S.Context,
+                                                       /*Canonical*/ true);
+  Size->Profile(OldID, S.Context, /*Canonical*/ true);
+  if (NewID != OldID) {
+    S.Diag(D->getBeginLoc(), diag::err_invalid_return_type_for_alloc_size)
+        << RetTy << Size << D->getReturnTypeSourceRange();
+    S.Diag(ASA.getLoc(), diag::note_attribute_inherited) << ASA.getRange();
+  }
+}
+
+/// Note: this only checks alloc_size attributes on the same declaration.
+/// Because type merging is done before attribute merging, alloc_size
+/// attributes between redeclarations are checked in
+/// diagnoseFunctionConflictWithDynamicBoundTypes.
+static AllocSizeAttr *mergeAllocSizeAttrImpl(Sema &S, Decl *D,
+                                             const AttributeCommonInfo &CI,
+                                             ParamIdx ElemSizeParam,
+                                             ParamIdx NumElemsParam) {
+  if (S.getLangOpts().BoundsSafety) {
+    if (auto OldASA = D->getAttr<AllocSizeAttr>()) {
+      if (!OldASA->getElemSizeParam().equals(ElemSizeParam) ||
+          !OldASA->getNumElemsParam().equals(NumElemsParam)) {
+        S.Diag(CI.getLoc(), diag::err_mismatched_alloc_size) << CI.getRange();
+        S.Diag(OldASA->getLoc(), diag::note_conflicting_attribute)
+            << OldASA->getRange();
+      }
+      // Don't add a second attribute regardless, it is just redundant
+      return nullptr;
+    }
+  }
+
+  return ::new (S.Context)
+      AllocSizeAttr(S.Context, CI, ElemSizeParam, NumElemsParam);
+}
+
+AllocSizeAttr *Sema::mergeAllocSizeAttr(NamedDecl *D,
+                                        const AllocSizeAttr &ASA) {
+  assert(ASA.getElemSizeParam().isValid());
+  AllocSizeAttr *NewASA = mergeAllocSizeAttrImpl(
+      *this, D, ASA, ASA.getElemSizeParam(), ASA.getNumElemsParam());
+  if (getLangOpts().BoundsSafety)
+    // If we've reached the merging stage,
+    // PostProcessBoundsSafetyAllocSizeAttribute has already run. Here we check
+    // that the return type has bounds that match the semantics of alloc_size
+    diagnoseInvalidReturnTypeForAllocSize(*this, cast<FunctionDecl>(D), ASA);
+
+  return NewASA;
+}
+
 static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 2))
     return;
@@ -602,8 +717,16 @@ static void handleAllocSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     NumberArgNo = ParamIdx(Val, D);
   }
 
-  D->addAttr(::new (S.Context)
-                 AllocSizeAttr(S.Context, AL, SizeArgNo, NumberArgNo));
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  AllocSizeAttr *A = mergeAllocSizeAttrImpl(S, D, AL, SizeArgNo, NumberArgNo);
+  if (!A)
+    return;
+  // Implicit __sized_by_or_null return type will be inferred later in
+  // PostProcessBoundsSafetyAllocSizeAttribute. This guarantees that all
+  // explicit bounds attributes are applied first.
+  /* TO_UPSTREAM(BoundsSafety) OFF */
+
+  D->addAttr(A);
 }
 
 static bool checkTryLockFunAttrCommon(Sema &S, Decl *D, const ParsedAttr &AL,
@@ -5920,6 +6043,7 @@ protected:
   bool ScopeCheck;
   bool AllowRedecl;
   bool AutoPtrAttributed = false;
+  bool HasNonnullAttr = false;
   bool AtomicErrorEmitted = false;
 
 public:
@@ -6059,6 +6183,9 @@ public:
     llvm::SaveAndRestore<bool> AutoPtrAttributedLocal(AutoPtrAttributed);
     if (T->getAttrKind() == attr::PtrAutoAttr)
       AutoPtrAttributed = true;
+    SaveAndRestore<bool> HasNonnullAttrLocal(HasNonnullAttr);
+    if (T->getAttrKind() == attr::TypeNonNull)
+      HasNonnullAttr = true;
 
     QualType NewModTy = Visit(T->getModifiedType());
     if (NewModTy.isNull())
@@ -6093,16 +6220,21 @@ class ConstructCountAttributedType :
   public ConstructDynamicBoundType<ConstructCountAttributedType> {
   bool CountInBytes;
   bool OrNull;
+  // Apply PtrAutoAttr on top of the CountAttributedType if it's implicit.
+  // So far only alloc_size counts as implicit, while arrays with explicit sizes
+  // being converted to __counted_by pointers still count as explicit.
+  bool IsImplicit;
 
 public:
   explicit ConstructCountAttributedType(Sema &S, unsigned Level,
                                         const StringRef DiagName, Expr *ArgE,
                                         SourceLocation Loc, bool CountInBytes,
                                         bool OrNull, bool AllowRedecl,
-                                        bool ScopeCheck = false)
+                                        bool ScopeCheck = false,
+                                        bool IsImplicit = false)
       : ConstructDynamicBoundType(S, Level, DiagName, ArgE, Loc, ScopeCheck,
                                   AllowRedecl),
-        CountInBytes(CountInBytes), OrNull(OrNull) {
+        CountInBytes(CountInBytes), OrNull(OrNull), IsImplicit(IsImplicit) {
     if (!ArgExpr->getType()->isIntegralOrEnumerationType()) {
       S.Diag(Loc, diag::err_attribute_argument_type_for_bounds_safety_count)
           << DiagName;
@@ -6165,11 +6297,13 @@ public:
                                              OrNull, ScopeCheck);
     assert(ConstructedType == nullptr);
     ConstructedType = Ty->getAs<CountAttributedType>();
+    if (IsImplicit)
+      Ty = S.Context.getAttributedType(attr::PtrAutoAttr, Ty, Ty);
     return Ty;
   }
 
   QualType DiagnoseConflictingType(const CountAttributedType *T) {
-    if (AllowRedecl) {
+    if (AllowRedecl || IsImplicit || AutoPtrAttributed) {
       QualType NewTy = BuildDynamicBoundType(T->desugar());
       const auto *NewDCPTy = NewTy->getAs<CountAttributedType>();
       // We don't have a way to distinguish if '__counted_by' is conflicting or has been
@@ -6183,12 +6317,60 @@ public:
       if (const auto *OldCnt = T->getCountExpr())
         OldCnt->Profile(OldID, S.Context, /*Canonical*/ true);
 
-      if (NewID == OldID)
+      if (NewID == OldID && NewDCPTy->getKind() == T->getKind())
         return NewTy;
+
+      if (IsImplicit && NewID == OldID &&
+          NewDCPTy->isCountInBytes() == T->isCountInBytes()) {
+        assert(NewDCPTy->isCountInBytes() &&
+               "unexpected implicit __counted_by_or_null");
+
+        if (!NewDCPTy->isOrNull())
+          // Error already emitted for combining returns_nonnull with
+          // __sized_by_or_null. No need to clutter with this warning.
+          return QualType();
+
+        // Ignore implicit __sized_by_or_null when explicit __sized_by exists.
+        assert(!T->isOrNull());
+
+        if (HasNonnullAttr)
+          return QualType(); // warning silenced by combining __sized_by and
+                             // _Nonnull
+
+        S.Diag(Loc,
+               diag::warn_bounds_safety_ignored_implicit_sized_by_or_null);
+        S.Diag(Loc,
+               diag::note_bounds_safety_implicit_size_from_alloc_size_attr)
+            << OrNull;
+        S.Diag(T->getCountExpr()->getExprLoc(), diag::note_previous_attribute);
+        S.Diag(
+            T->getCountExpr()->getExprLoc(),
+            diag::note_bounds_safety_overriding_implicit_sized_by_or_null_silence);
+        return QualType();
+      }
     }
 
     S.Diag(Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
         << /* pointer */ T->isPointerType() << /* count */ 2;
+
+    unsigned DiagIdx = CountInBytes;
+    if (OrNull)
+      DiagIdx += 2;
+
+    S.Diag(Loc, diag::note_bounds_safety_conflicting_count_attribute)
+        << T->getKind() << T->getCountExpr() << DiagIdx << ArgExpr;
+
+    if (IsImplicit) {
+      S.Diag(Loc,
+             diag::note_bounds_safety_implicit_size_from_alloc_size_attr)
+          << OrNull;
+    }
+
+    S.Diag(T->getCountExpr()->getBeginLoc(), // FIXME: would like location and
+                                             // range of attribute instead of
+                                             // just count arg rdar://127087868
+           diag::note_previous_attribute);
+
     return QualType();
   }
 
@@ -6381,7 +6563,6 @@ public:
 
 class ConstructDynamicRangePointerType :
   public ConstructDynamicBoundType<ConstructDynamicRangePointerType> {
-  using BaseClass = ConstructDynamicBoundType<ConstructDynamicRangePointerType>;
   std::optional<TypeCoupledDeclRefInfo> StartPtrInfo;
 
 public:
@@ -6470,7 +6651,7 @@ public:
       ConstructedType = RetTy->getAs<BoundsAttributedType>();
       return RetTy;
     }
-    return BaseClass::VisitDynamicRangePointerType(T);
+    return VisitDynamicRangePointerType(T);
   }
 
   QualType DiagnoseConflictingType(const CountAttributedType *T) {
@@ -6500,6 +6681,18 @@ public:
   }
 };
 } // namespace
+
+static QualType CreateImplicitCountAttributedType(Sema &S, unsigned Level,
+                                                  const StringRef DiagName, Expr *ArgExpr,
+                                                  SourceLocation Loc,
+                                                  bool CountInBytes,
+                                                  bool OrNull, QualType T,
+                                                  bool ScopeCheck) {
+  return ConstructCountAttributedType(S, Level, DiagName, ArgExpr, Loc, CountInBytes,
+                                            OrNull, /* AllowRedecl */ false, ScopeCheck,
+                                            /* IsImplicit */ true)
+      .Visit(T);
+}
 
 Sema::LifetimeCheckKind Sema::getLifetimeCheckKind(const VarDecl *Var) {
   if (!Var)
@@ -9438,6 +9631,23 @@ bool Sema::ProcessAccessDeclAttributeList(
   }
   return false;
 }
+
+/* TO_UPSTREAM(BoundsSafety) ON */
+QualType Sema::PostProcessBoundsSafetyAllocSizeAttribute(FunctionDecl *D,
+                                                         QualType FT) {
+  if (getLangOpts().BoundsSafety) {
+    auto ASA = D->getAttr<AllocSizeAttr>();
+    if (!ASA)
+      return FT;
+    QualType NewDeclTy =
+        PostProcessBoundsSafetyAllocSizeAttributeImpl(*this, D, *ASA, FT);
+    if (NewDeclTy.isNull())
+      return FT;
+    return NewDeclTy;
+  }
+  return FT;
+}
+/* TO_UPSTREAM(BoundsSafety) OFF */
 
 /// checkUnusedDeclAttributes - Check a list of attributes to see if it
 /// contains any decl attributes that we should warn about.

@@ -535,6 +535,11 @@ void clang::FormatASTNodeDiagnosticArgument(
     }
   }
 
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  if (Modifier == "unquoted")
+    NeedQuotes = false;
+  /* TO_UPSTREAM(BoundsSafety) OFF */
+
   if (NeedQuotes) {
     Output.insert(Output.begin()+OldEnd, '\'');
     Output.push_back('\'');

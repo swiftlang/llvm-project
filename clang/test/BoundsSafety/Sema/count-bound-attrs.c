@@ -17,6 +17,8 @@ void Test(void) {
     int *__counted_by(len6) justCount;
     int len7;
     int *__counted_by(len7) __counted_by(len7+1) thinCountCount; // expected-error{{pointer cannot have more than one count attribute}}
+                                                                 // expected-note@-1{{conflicting attributes were '__counted_by(len7)' and '__counted_by(len7 + 1)'}}
+                                                                 // expected-note@-2{{previous attribute is here}}
 
     int len8;
     int *__counted_by(len8) __single countThin;

@@ -3464,6 +3464,9 @@ def err_attribute_only_once_per_parameter : Error<
   "%0 attribute can only be applied once per parameter">;
 def err_mismatched_uuid : Error<"uuid does not match previous declaration">;
 def note_previous_uuid : Note<"previous uuid specified here">;
+/* TO_UPSTREAM(BoundsSafety) ON */
+def err_mismatched_alloc_size : Error<"'alloc_size' attribute does not match previous declaration">;
+/* TO_UPSTREAM(BoundsSafety) OFF */
 def warn_attribute_pointers_only : Warning<
   "%0 attribute only applies to%select{| constant}1 pointer arguments">,
   InGroup<IgnoredAttributes>;
@@ -12953,7 +12956,19 @@ let CategoryName = "BoundsSafety Pointer Attributes Issue" in {
 def err_bounds_safety_conflicting_pointer_attributes : Error<
   "%select{array|pointer}0 cannot have more than one %select{bound|type|count|end|terminator}1 attribute">;
 def note_bounds_safety_conflicting_pointer_attribute_args : Note<
-  "conflicting arguments for %select{count|end|terminator}0 were %1 and %2">;
+  "conflicting arguments for %select{end|terminator}0 were %1 and %2">;
+def warn_bounds_safety_ignored_implicit_sized_by_or_null : Warning<
+  "implicit __sized_by_or_null attribute ignored because of explicit __sized_by">;
+def note_bounds_safety_overriding_implicit_sized_by_or_null_silence : Note<
+  "add _Nonnull qualifier to return type to silence this warning">;
+def note_bounds_safety_conflicting_count_attribute : Note<
+  "conflicting attributes were '%select{__counted_by|__sized_by|__counted_by_or_null|__sized_by_or_null}0(%unquoted1)' and '%select{__counted_by|__sized_by|__counted_by_or_null|__sized_by_or_null}2(%unquoted3)'">;
+def note_bounds_safety_implicit_size_from_alloc_size_attr : Note<
+  "function return type implicitly __sized_by%select{|_or_null}0 because of the function's 'alloc_size' %select{and 'returns_nonnull' attributes|attribute}0">;
+def err_invalid_return_type_for_alloc_size : Error<
+  "invalid return type %0 for function with alloc_size attribute; '__sized_by_or_null(%unquoted1)' or '__sized_by(%unquoted1)' required">;
+def note_attribute_inherited : Note<
+  "attribute inherited from previous declaration here">;
 def warn_bounds_safety_duplicate_pointer_attributes : Warning<
   "%select{array|pointer}0 annotated with %select{__unsafe_indexable|__bidi_indexable|__indexable|__single|__terminated_by}1 "
   "multiple times. Annotate only once to remove this warning">, InGroup<BoundsSafetyRedundantAttribute>;

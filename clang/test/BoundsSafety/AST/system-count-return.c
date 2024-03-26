@@ -43,11 +43,11 @@ int Test() {
 // CHECK: {{^}}    |   `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK: {{^}}    |     |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: {{^}}    |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK: {{^}}    |     | | |-OpaqueValueExpr [[ove_2:0x[^ ]+]] {{.*}} 'int *'
+// CHECK: {{^}}    |     | | |-OpaqueValueExpr [[ove_2:0x[^ ]+]] {{.*}} 'int *__single __sized_by_or_null(len)':'int *__single'
 // CHECK: {{^}}    |     | | |-ImplicitCastExpr {{.+}} 'int *' <BitCast>
 // CHECK: {{^}}    |     | | | `-BinaryOperator {{.+}} 'char *' '+'
 // CHECK: {{^}}    |     | | |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
-// CHECK: {{^}}    |     | | |   | `-OpaqueValueExpr [[ove_2]] {{.*}} 'int *'
+// CHECK: {{^}}    |     | | |   | `-OpaqueValueExpr [[ove_2]] {{.*}} 'int *__single __sized_by_or_null(len)':'int *__single'
 // CHECK: {{^}}    |     | | |   `-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'int'
 // CHECK: {{^}}    |     | |-OpaqueValueExpr [[ove_3]]
 // CHECK: {{^}}    |     | | `-ImplicitCastExpr {{.+}} 'int' <IntegralCast>
@@ -57,11 +57,11 @@ int Test() {
 // CHECK: {{^}}    |     | |       `-IntegerLiteral {{.+}} 10
 // CHECK: {{^}}    |     | `-OpaqueValueExpr [[ove_2]]
 // CHECK: {{^}}    |     |   `-CallExpr
-// CHECK: {{^}}    |     |     |-ImplicitCastExpr {{.+}} 'int *(*__single)(int)' <FunctionToPointerDecay>
+// CHECK: {{^}}    |     |     |-ImplicitCastExpr {{.+}} 'int *__single __sized_by_or_null(len)(*__single)(int)' <FunctionToPointerDecay>
 // CHECK: {{^}}    |     |     | `-DeclRefExpr {{.+}} [[func_alloc_attributed]]
 // CHECK: {{^}}    |     |     `-OpaqueValueExpr [[ove_3]] {{.*}} 'int'
 // CHECK: {{^}}    |     |-OpaqueValueExpr [[ove_3]] {{.*}} 'int'
-// CHECK: {{^}}    |     `-OpaqueValueExpr [[ove_2]] {{.*}} 'int *'
+// CHECK: {{^}}    |     `-OpaqueValueExpr [[ove_2]] {{.*}} 'int *__single __sized_by_or_null(len)':'int *__single'
 
     return bufBound[10];
 }

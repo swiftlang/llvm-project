@@ -388,6 +388,22 @@ public:
     assertComparable(I);
     return Idx == I.Idx;
   }
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  /// Unlike operator== which requires isValid to be true for both objects,
+  /// this relaxes that constraint and returns true when comparing two
+  /// invalid objects. An invalid object does not equal any valid object.
+  bool equals(const ParamIdx &I) const {
+    assert(HasThis == I.HasThis &&
+           "ParamIdx must be for the same function to be compared");
+    if (isValid() != I.isValid())
+      return false;
+    if (!isValid()) {
+      assert(!I.isValid());
+      return true;
+    }
+    return Idx == I.Idx;
+  }
+  /* TO_UPSTREAM(BoundsSafety) OFF */
   bool operator!=(const ParamIdx &I) const {
     assertComparable(I);
     return Idx != I.Idx;

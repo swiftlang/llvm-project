@@ -4,17 +4,34 @@
 #include <header-with-attr.h>
 #include <header-no-attr.h>
 
-// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc
+// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc 'void *__single __sized_by_or_null(function-parameter-0-0)(unsigned int)'
 // CHECK: {{^}}| |-ParmVarDecl
 // CHECK: {{^}}| `-AllocSizeAttr
-// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc
+// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc2 'void *__single __sized_by_or_null(size1)(unsigned int)'
+// CHECK: {{^}}| `-ParmVarDecl
+// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc3 'void *__single __sized_by_or_null(size1)(unsigned int)'
 // CHECK: {{^}}| |-ParmVarDecl
 // CHECK: {{^}}| `-AllocSizeAttr
+// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc4 'void *__single __sized_by_or_null(size1)(unsigned int)'
+// CHECK: {{^}}| `-ParmVarDecl
+// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc 'void *__single __sized_by_or_null(size2)(unsigned int)'
+// CHECK: {{^}}| |-ParmVarDecl
+// CHECK: {{^}}| `-AllocSizeAttr
+// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc2 'void *__single __sized_by_or_null(size2)(unsigned int)'
+// CHECK: {{^}}| `-ParmVarDecl
 // CHECK: {{^}}|-FunctionDecl {{.+}} memcpy
 // CHECK: {{^}}| |-ParmVarDecl
 // CHECK: {{^}}| |-ParmVarDecl
 // CHECK: {{^}}| `-ParmVarDecl
 // CHECK: {{^}}|   `-DependerDeclsAttr
+
+void * myalloc3(unsigned size2) { return (void*)0; }
+void * myalloc4(unsigned size2) { return (void*)0; }
+// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc3 'void *__single __sized_by_or_null(size2)(unsigned int)'
+// CHECK: {{^}}| |-ParmVarDecl
+// CHECK: {{^}}| `-AllocSizeAttr
+// CHECK: {{^}}|-FunctionDecl {{.+}} myalloc4 'void *__single __sized_by_or_null(size2)(unsigned int)'
+// CHECK: {{^}}| |-ParmVarDecl
 
 void Test(unsigned siz) {
 // CHECK: {{^}}`-FunctionDecl [[func_Test:0x[^ ]+]] {{.+}} Test
@@ -26,23 +43,23 @@ void Test(unsigned siz) {
 // CHECK: {{^}}    |   `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK: {{^}}    |     |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: {{^}}    |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'void *__bidi_indexable'
-// CHECK: {{^}}    |     | | |-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'void *'
+// CHECK: {{^}}    |     | | |-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'void *__single __sized_by_or_null(size2)':'void *__single'
 // CHECK: {{^}}    |     | | |   `-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'unsigned int'
 // CHECK: {{^}}    |     | | |-ImplicitCastExpr {{.+}} 'void *' <BitCast>
 // CHECK: {{^}}    |     | | | `-BinaryOperator {{.+}} 'char *' '+'
 // CHECK: {{^}}    |     | | |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
-// CHECK: {{^}}    |     | | |   | `-OpaqueValueExpr [[ove]] {{.*}} 'void *'
+// CHECK: {{^}}    |     | | |   | `-OpaqueValueExpr [[ove]] {{.*}} 'void *__single __sized_by_or_null(size2)':'void *__single'
 // CHECK: {{^}}    |     | | |   `-OpaqueValueExpr [[ove_1]] {{.*}} 'unsigned int'
 // CHECK: {{^}}    |     | |-OpaqueValueExpr [[ove_1]]
 // CHECK: {{^}}    |     | | `-ImplicitCastExpr {{.+}} 'unsigned int' <LValueToRValue>
 // CHECK: {{^}}    |     | |   `-DeclRefExpr {{.+}} [[var_siz]]
 // CHECK: {{^}}    |     | `-OpaqueValueExpr [[ove]]
 // CHECK: {{^}}    |     |   `-CallExpr
-// CHECK: {{^}}    |     |     |-ImplicitCastExpr {{.+}} 'void *(*__single)(unsigned int)' <FunctionToPointerDecay>
+// CHECK: {{^}}    |     |     |-ImplicitCastExpr {{.+}} 'void *__single __sized_by_or_null(size2)(*__single)(unsigned int)' <FunctionToPointerDecay>
 // CHECK: {{^}}    |     |     | `-DeclRefExpr {{.+}} 'myalloc'
 // CHECK: {{^}}    |     |     `-OpaqueValueExpr [[ove_1]] {{.*}} 'unsigned int'
 // CHECK: {{^}}    |     |-OpaqueValueExpr [[ove_1]] {{.*}} 'unsigned int'
-// CHECK: {{^}}    |     `-OpaqueValueExpr [[ove]] {{.*}} 'void *'
+// CHECK: {{^}}    |     `-OpaqueValueExpr [[ove]] {{.*}} 'void *__single __sized_by_or_null(size2)':'void *__single'
 
   void *dst = myalloc(siz);
 // CHECK: {{^}}    |-DeclStmt
@@ -50,23 +67,23 @@ void Test(unsigned siz) {
 // CHECK: {{^}}    |   `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK: {{^}}    |     |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: {{^}}    |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'void *__bidi_indexable'
-// CHECK: {{^}}    |     | | |-OpaqueValueExpr [[ove_2:0x[^ ]+]] {{.*}} 'void *'
+// CHECK: {{^}}    |     | | |-OpaqueValueExpr [[ove_2:0x[^ ]+]] {{.*}} 'void *__single __sized_by_or_null(size2)':'void *__single'
 // CHECK: {{^}}    |     | | |   `-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'unsigned int'
 // CHECK: {{^}}    |     | | |-ImplicitCastExpr {{.+}} 'void *' <BitCast>
 // CHECK: {{^}}    |     | | | `-BinaryOperator {{.+}} 'char *' '+'
 // CHECK: {{^}}    |     | | |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
-// CHECK: {{^}}    |     | | |   | `-OpaqueValueExpr [[ove_2]] {{.*}} 'void *'
+// CHECK: {{^}}    |     | | |   | `-OpaqueValueExpr [[ove_2]] {{.*}} 'void *__single __sized_by_or_null(size2)':'void *__single'
 // CHECK: {{^}}    |     | | |   `-OpaqueValueExpr [[ove_3]] {{.*}} 'unsigned int'
 // CHECK: {{^}}    |     | |-OpaqueValueExpr [[ove_3]]
 // CHECK: {{^}}    |     | | `-ImplicitCastExpr {{.+}} 'unsigned int' <LValueToRValue>
 // CHECK: {{^}}    |     | |   `-DeclRefExpr {{.+}} [[var_siz]]
 // CHECK: {{^}}    |     | `-OpaqueValueExpr [[ove_2]]
 // CHECK: {{^}}    |     |   `-CallExpr
-// CHECK: {{^}}    |     |     |-ImplicitCastExpr {{.+}} 'void *(*__single)(unsigned int)' <FunctionToPointerDecay>
+// CHECK: {{^}}    |     |     |-ImplicitCastExpr {{.+}} 'void *__single __sized_by_or_null(size2)(*__single)(unsigned int)' <FunctionToPointerDecay>
 // CHECK: {{^}}    |     |     | `-DeclRefExpr {{.+}} 'myalloc'
 // CHECK: {{^}}    |     |     `-OpaqueValueExpr [[ove_3]] {{.*}} 'unsigned int'
 // CHECK: {{^}}    |     |-OpaqueValueExpr [[ove_3]] {{.*}} 'unsigned int'
-// CHECK: {{^}}    |     `-OpaqueValueExpr [[ove_2]] {{.*}} 'void *'
+// CHECK: {{^}}    |     `-OpaqueValueExpr [[ove_2]] {{.*}} 'void *__single __sized_by_or_null(size2)':'void *__single'
 
   memcpy(dst, src, siz);
 // CHECK: {{^}}    `-MaterializeSequenceExpr {{.+}} <Unbind>

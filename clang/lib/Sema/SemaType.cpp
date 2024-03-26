@@ -9477,7 +9477,7 @@ static bool HandlePtrTerminatedByTypeAttr(TypeProcessingState &state,
           << T->isPointerType() << /* terminator */ 4;
       S.Diag(PAttr.getLoc(),
              diag::note_bounds_safety_conflicting_pointer_attribute_args)
-          << /* terminator */ 2 << VT->getTerminatorExpr() << TerminatorExpr;
+          << /* terminator */ 1 << VT->getTerminatorExpr() << TerminatorExpr;
       PAttr.setInvalid();
       return false;
     }

@@ -35,13 +35,13 @@ int foo() {
 // CHECK: {{^}}    |     `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK: {{^}}    |       |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: {{^}}    |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'void *__bidi_indexable'
-// CHECK: {{^}}    |       | | |-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'void *'
+// CHECK: {{^}}    |       | | |-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'void *__single __sized_by_or_null(count * size)':'void *__single'
 // CHECK: {{^}}    |       | | |   |-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'int'
 // CHECK: {{^}}    |       | | |   `-OpaqueValueExpr [[ove_2:0x[^ ]+]] {{.*}} 'int'
 // CHECK: {{^}}    |       | | |-ImplicitCastExpr {{.+}} 'void *' <BitCast>
 // CHECK: {{^}}    |       | | | `-BinaryOperator {{.+}} 'char *' '+'
 // CHECK: {{^}}    |       | | |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
-// CHECK: {{^}}    |       | | |   | `-OpaqueValueExpr [[ove]] {{.*}} 'void *'
+// CHECK: {{^}}    |       | | |   | `-OpaqueValueExpr [[ove]] {{.*}} 'void *__single __sized_by_or_null(count * size)':'void *__single'
 // CHECK: {{^}}    |       | | |   `-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'int'
 // CHECK: {{^}}    |       | |-OpaqueValueExpr [[ove_1]]
 // CHECK: {{^}}    |       | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
@@ -51,7 +51,7 @@ int foo() {
 // CHECK: {{^}}    |       | |   `-DeclRefExpr {{.+}} [[var_siz]]
 // CHECK: {{^}}    |       | |-OpaqueValueExpr [[ove]]
 // CHECK: {{^}}    |       | | `-CallExpr
-// CHECK: {{^}}    |       | |   |-ImplicitCastExpr {{.+}} 'void *(*__single)(int, int)' <FunctionToPointerDecay>
+// CHECK: {{^}}    |       | |   |-ImplicitCastExpr {{.+}} 'void *__single __sized_by_or_null(count * size)(*__single)(int, int)' <FunctionToPointerDecay>
 // CHECK: {{^}}    |       | |   | `-DeclRefExpr {{.+}} [[func_my_calloc]]
 // CHECK: {{^}}    |       | |   |-OpaqueValueExpr [[ove_1]] {{.*}} 'int'
 // CHECK: {{^}}    |       | |   `-OpaqueValueExpr [[ove_2]] {{.*}} 'int'
@@ -61,7 +61,7 @@ int foo() {
 // CHECK: {{^}}    |       |     `-OpaqueValueExpr [[ove_2]] {{.*}} 'int'
 // CHECK: {{^}}    |       |-OpaqueValueExpr [[ove_1]] {{.*}} 'int'
 // CHECK: {{^}}    |       |-OpaqueValueExpr [[ove_2]] {{.*}} 'int'
-// CHECK: {{^}}    |       |-OpaqueValueExpr [[ove]] {{.*}} 'void *'
+// CHECK: {{^}}    |       |-OpaqueValueExpr [[ove]] {{.*}} 'void *__single __sized_by_or_null(count * size)':'void *__single'
 // CHECK: {{^}}    |       `-OpaqueValueExpr [[ove_3]] {{.*}} 'int'
 // CHECK: {{^}}    |-DeclStmt
 // CHECK: {{^}}    | `-VarDecl [[var_ptr2:0x[^ ]+]]
@@ -71,13 +71,13 @@ int foo() {
 // CHECK: {{^}}    |   `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK: {{^}}    |     |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: {{^}}    |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'void *__bidi_indexable'
-// CHECK: {{^}}    |     | | |-OpaqueValueExpr [[ove_4:0x[^ ]+]] {{.*}} 'void *'
+// CHECK: {{^}}    |     | | |-OpaqueValueExpr [[ove_4:0x[^ ]+]] {{.*}} 'void *__single __sized_by_or_null(count * size)':'void *__single'
 // CHECK: {{^}}    |     | | |   |-OpaqueValueExpr [[ove_5:0x[^ ]+]] {{.*}} 'int'
 // CHECK: {{^}}    |     | | |   `-OpaqueValueExpr [[ove_6:0x[^ ]+]] {{.*}} 'int'
 // CHECK: {{^}}    |     | | |-ImplicitCastExpr {{.+}} 'void *' <BitCast>
 // CHECK: {{^}}    |     | | | `-BinaryOperator {{.+}} 'char *' '+'
 // CHECK: {{^}}    |     | | |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
-// CHECK: {{^}}    |     | | |   | `-OpaqueValueExpr [[ove_4]] {{.*}} 'void *'
+// CHECK: {{^}}    |     | | |   | `-OpaqueValueExpr [[ove_4]] {{.*}} 'void *__single __sized_by_or_null(count * size)':'void *__single'
 // CHECK: {{^}}    |     | | |   `-OpaqueValueExpr [[ove_7:0x[^ ]+]] {{.*}} 'int'
 // CHECK: {{^}}    |     | |-OpaqueValueExpr [[ove_5]]
 // CHECK: {{^}}    |     | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
@@ -87,7 +87,7 @@ int foo() {
 // CHECK: {{^}}    |     | |   `-DeclRefExpr {{.+}} [[var_siz]]
 // CHECK: {{^}}    |     | |-OpaqueValueExpr [[ove_4]]
 // CHECK: {{^}}    |     | | `-CallExpr
-// CHECK: {{^}}    |     | |   |-ImplicitCastExpr {{.+}} 'void *(*__single)(int, int)' <FunctionToPointerDecay>
+// CHECK: {{^}}    |     | |   |-ImplicitCastExpr {{.+}} 'void *__single __sized_by_or_null(count * size)(*__single)(int, int)' <FunctionToPointerDecay>
 // CHECK: {{^}}    |     | |   | `-DeclRefExpr {{.+}} [[func_my_calloc]]
 // CHECK: {{^}}    |     | |   |-OpaqueValueExpr [[ove_5]] {{.*}} 'int'
 // CHECK: {{^}}    |     | |   `-OpaqueValueExpr [[ove_6]] {{.*}} 'int'
@@ -97,7 +97,7 @@ int foo() {
 // CHECK: {{^}}    |     |     `-OpaqueValueExpr [[ove_6]] {{.*}} 'int'
 // CHECK: {{^}}    |     |-OpaqueValueExpr [[ove_5]] {{.*}} 'int'
 // CHECK: {{^}}    |     |-OpaqueValueExpr [[ove_6]] {{.*}} 'int'
-// CHECK: {{^}}    |     |-OpaqueValueExpr [[ove_4]] {{.*}} 'void *'
+// CHECK: {{^}}    |     |-OpaqueValueExpr [[ove_4]] {{.*}} 'void *__single __sized_by_or_null(count * size)':'void *__single'
 // CHECK: {{^}}    |     `-OpaqueValueExpr [[ove_7]] {{.*}} 'int'
 // CHECK: {{^}}    `-ReturnStmt
 // CHECK: {{^}}      `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
