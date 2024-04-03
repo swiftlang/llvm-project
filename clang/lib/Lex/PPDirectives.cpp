@@ -1995,6 +1995,33 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
     auto Include = CActions->handleIncludeDirective(
         *this, IncludePos, CurLexer->getSourceLocation());
 
+    auto InclusionCallback = [&](OptionalFileEntryRef FileRef,
+                                 const Module *SuggestedModule) {
+      if (!Callbacks || HashLoc.isInvalid())
+        return;
+
+      SmallString<128> FilenameBuffer;
+      StringRef Filename = getSpelling(FilenameTok, FilenameBuffer);
+      SourceLocation CharEnd = FilenameTok.getEndLoc();
+      CharSourceRange FilenameRange =
+          CharSourceRange::getCharRange(FilenameTok.getLocation(), CharEnd);
+      bool isAngled =
+          GetIncludeFilenameSpelling(FilenameTok.getLocation(), Filename);
+      SrcMgr::CharacteristicKind FileCharacter =
+          SourceMgr.getFileCharacteristic(FilenameTok.getLocation());
+      if (SuggestedModule)
+        Callbacks->InclusionDirective(HashLoc, IncludeTok, Filename, isAngled,
+                                      FilenameRange, OptionalFileEntryRef(),
+                                      /*SearchPath=*/"", /*RelativePath=*/"",
+                                      SuggestedModule,
+                                      /*ModuleImported=*/true, FileCharacter);
+      else
+        Callbacks->InclusionDirective(
+            HashLoc, IncludeTok, Filename, isAngled, FilenameRange, FileRef,
+            /*SearchPath=*/"", /*RelativePath=*/"", /*SuggestedModule=*/nullptr,
+            /*ModuleImported=*/false, FileCharacter);
+    };
+
     auto HandleIncludeFile = [&](const PPCachedActions::IncludeFile *File) {
       const FileEntry *FE = SourceMgr.getFileEntryForID(File->FID);
       bool IsImport =
@@ -2002,6 +2029,7 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
       if (FE && IsImport) {
         HeaderInfo.getFileInfo(FE).isImport = true;
       }
+      InclusionCallback(SourceMgr.getFileEntryRefForID(File->FID), nullptr);
       EnterSourceFile(File->FID, nullptr, FilenameTok.getLocation(),
                       /*IsFirstIncludeOfFile*/ true);
 
@@ -2068,6 +2096,7 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
           return;
       }
 
+      InclusionCallback({}, Imported);
       makeModuleVisible(Imported, EndLoc);
       if (IncludeTok.getIdentifierInfo()->getPPKeywordID() !=
           tok::pp___include_macros)
