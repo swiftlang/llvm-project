@@ -4,6 +4,7 @@ import lldbsuite.test.lldbtest as lldbtest
 import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftExprMissingType(lldbtest.TestBase):
+    # rdar://125857402
     @skipIfDarwin
     @skipIfLinux
     @swiftTest
