@@ -89,6 +89,12 @@ def generate_compiler_cmd(is_cpp=True, fuzzer_enabled=True, msan_enabled=False):
     if fuzzer_enabled:
         sanitizers.append("fuzzer")
     sanitizers_cmd = "-fsanitize=%s" % ",".join(sanitizers)
+
+    if "darwin" in config.available_features and getattr(
+        config, "darwin_linker_version", None
+    ):
+        extra_cmd = extra_cmd + " -mlinker-version=" + config.darwin_linker_version
+
     return " ".join(
         [
             compiler_cmd,
