@@ -1036,12 +1036,13 @@ macro(add_llvm_executable name)
     add_llvm_symbol_exports( ${name} ${LLVM_EXPORTED_SYMBOL_FILE} )
   endif(LLVM_EXPORTED_SYMBOL_FILE)
 
-  if (NOT LLVM_ENABLE_EXPORTED_SYMBOLS_IN_EXECUTABLES) 
+  if (DEFINED LLVM_ENABLE_EXPORTED_SYMBOLS_IN_EXECUTABLES AND 
+      NOT LLVM_ENABLE_EXPORTED_SYMBOLS_IN_EXECUTABLES)
     if(LLVM_LINKER_SUPPORTS_NO_EXPORTED_SYMBOLS)
       set_property(TARGET ${name} APPEND_STRING PROPERTY
         LINK_FLAGS " -Wl,-no_exported_symbols")
     else()
-      message(FATAL_ERROR 
+      message(FATAL_ERROR
         "LLVM_ENABLE_EXPORTED_SYMBOLS_IN_EXECUTABLES cannot be disabled when linker does not support \"-no_exported_symbols\"")
     endif()
   endif()
