@@ -366,6 +366,7 @@ constexpr const char unwindInfo[] = "__unwind_info";
 constexpr const char weakBinding[] = "__weak_binding";
 constexpr const char zeroFill[] = "__zerofill";
 constexpr const char addrSig[] = "__llvm_addrsig";
+constexpr const char condLive[] = "__llvm_condlive";
 
 } // namespace section_names
 

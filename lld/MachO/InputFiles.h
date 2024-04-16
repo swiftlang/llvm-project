@@ -172,6 +172,7 @@ public:
   llvm::DWARFUnit *compileUnit = nullptr;
   std::unique_ptr<lld::DWARFCache> dwarfCache;
   Section *addrSigSection = nullptr;
+  Section *condLiveSection = nullptr;
   const uint32_t modTime;
   bool forceHidden;
   std::vector<ConcatInputSection *> debugSections;

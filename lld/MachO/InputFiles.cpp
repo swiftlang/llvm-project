@@ -393,6 +393,8 @@ void ObjFile::parseSections(ArrayRef<SectionHeader> sectionHeaders) {
     } else {
       if (name == section_names::addrSig)
         addrSigSection = sections.back();
+      if (name == section_names::condLive)
+        condLiveSection = sections.back();
 
       auto *isec = make<ConcatInputSection>(section, data, align);
       if (isDebugSection(isec->getFlags()) &&

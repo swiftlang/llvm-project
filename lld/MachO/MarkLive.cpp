@@ -11,9 +11,11 @@
 #include "OutputSegment.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
+#include "Target.h"
 #include "UnwindInfoSection.h"
 
 #include "lld/Common/ErrorHandler.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/TimeProfiler.h"
 
 #include "mach-o/compact_unwind_encoding.h"
@@ -40,6 +42,49 @@ public:
   virtual void addSym(Symbol *s) = 0;
   virtual void markTransitively() = 0;
   virtual ~MarkLive() = default;
+  // The `target` will become alive when the count of `dependents` that are
+  // alive is equal to or exceeds the `requiredLives`.
+  struct CondLiveEntry {
+    uint64_t requiredLives = 0;
+    std::vector<Symbol *> dependents;
+  };
+  DenseMap<Symbol *, CondLiveEntry> condLiveEntries;
+
+  void parseCondLiveEntries() {
+    for (InputFile *file : inputFiles) {
+      ObjFile *obj = dyn_cast<ObjFile>(file);
+      if (!obj)
+        continue;
+
+      Section *condLiveSection = obj->condLiveSection;
+      if (!condLiveSection)
+        continue;
+
+      for (auto &sub : condLiveSection->subsections) {
+        const InputSection *isec = sub.isec;
+        unsigned size = isec->getFileSize();
+        assert(size >= 8 + 2 * target->wordSize &&
+               size % target->wordSize == 0);
+
+        uint64_t off = 0;
+        auto *targetReloc = isec->getRelocAt(off);
+        off += target->wordSize;
+        assert(targetReloc);
+        auto *targetSymbol = targetReloc->referent.dyn_cast<Symbol *>();
+        assert(targetSymbol);
+
+        CondLiveEntry entry;
+        entry.requiredLives =
+            *(reinterpret_cast<const uint64_t *>(&isec->data[off]));
+        for (off += 8; off < size; off += target->wordSize) {
+          auto *depReloc = isec->getRelocAt(off);
+          auto *dep = depReloc->referent.dyn_cast<Symbol *>();
+          entry.dependents.push_back(dep);
+        }
+        condLiveEntries[targetSymbol] = std::move(entry);
+      }
+    }
+  }
 };
 
 template <bool RecordWhyLive> class MarkLiveImpl : public MarkLive {
@@ -190,6 +235,33 @@ void MarkLiveImpl<RecordWhyLive>::markTransitively() {
       }
     }
 
+    // Handle conditional live entries to make targets alive.
+    for (const auto &it : condLiveEntries) {
+      Symbol *target = it.first;
+      const CondLiveEntry &entry = it.second;
+      unsigned lives = 0;
+      unsigned requiredLives = entry.requiredLives;
+      InputSection *referentIsec = nullptr;
+      for (auto *dep : entry.dependents) {
+        if (!dep)
+          continue;
+
+        if (auto *definedDep = dyn_cast<Defined>(dep)) {
+          if (dep->isLive()) {
+            ++lives;
+            referentIsec = definedDep->isec;
+          }
+        } else if (isa<Undefined>(dep) || isa<DylibSymbol>(dep)) {
+          ++lives;
+        }
+      }
+      if (lives >= requiredLives) {
+        auto *isec = dyn_cast<Defined>(target)->isec;
+        if (isec)
+          enqueue(isec, 0, makeEntry(referentIsec, nullptr));
+      }
+    }
+
     // S_ATTR_LIVE_SUPPORT could have marked additional sections live,
     // which in turn could mark additional S_ATTR_LIVE_SUPPORT sections live.
     // Iterate. In practice, the second iteration won't mark additional
@@ -207,6 +279,8 @@ void markLive() {
     marker = make<MarkLiveImpl<false>>();
   else
     marker = make<MarkLiveImpl<true>>();
+  // Initialize conditional live entries, if any.
+  marker->parseCondLiveEntries();
   // Add GC roots.
   if (config->entry)
     marker->addSym(config->entry);
@@ -224,7 +298,8 @@ void markLive() {
       }
 
       // public symbols explicitly marked .no_dead_strip
-      if (defined->referencedDynamically || defined->noDeadStrip) {
+      if (defined->referencedDynamically ||
+          (defined->noDeadStrip && !marker->condLiveEntries.count(defined))) {
         marker->addSym(defined);
         continue;
       }
@@ -253,7 +328,8 @@ void markLive() {
     if (auto *objFile = dyn_cast<ObjFile>(file))
       for (Symbol *sym : objFile->symbols)
         if (auto *defined = dyn_cast_or_null<Defined>(sym))
-          if (!defined->isExternal() && defined->noDeadStrip)
+          if (!defined->isExternal() && defined->noDeadStrip &&
+              !marker->condLiveEntries.count(defined))
             marker->addSym(defined);
   if (auto *stubBinder =
           dyn_cast_or_null<DylibSymbol>(symtab->find("dyld_stub_binder")))
