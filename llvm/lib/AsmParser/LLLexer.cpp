@@ -744,6 +744,10 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(callee);
   KEYWORD(params);
   KEYWORD(param);
+  KEYWORD(record);
+  KEYWORD(condLiveRecord);
+  KEYWORD(requiredLive);
+  KEYWORD(deps);
   KEYWORD(hotness);
   KEYWORD(unknown);
   KEYWORD(critical);

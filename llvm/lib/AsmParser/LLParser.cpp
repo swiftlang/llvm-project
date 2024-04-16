@@ -912,6 +912,75 @@ bool LLParser::skipModuleSummaryEntry() {
   return false;
 }
 
+/// LLVMUsedConditionalTarget ::= UInt64 '(' STRINGCONSTANT ')'
+bool LLParser::parseConditionallyLiveRecordTarget(GlobalValue::GUID &GUID) {
+  std::string GVName;
+  return parseUInt64(GUID) || parseToken(lltok::lparen, "expected '(' here") ||
+         parseStringConstant(GVName) ||
+         parseToken(lltok::rparen, "expected ')' here");
+}
+
+/// parseLLVMUsedConditionalEntry
+/// ::= 'llvmUsedConditional' ':' '(' 'type' ':' (0|1) ',' 'target' ':'
+/// LLVMUsedConditionalTarget ',' 'deps' ':' LLVMUsedConditionalTarget[','
+/// LLVMUsedConditionalTarget]* ')'
+bool LLParser::parseConditionallyLiveRecord() {
+  assert(Lex.getKind() == lltok::kw_condLiveRecord);
+  Lex.Lex();
+
+  if (parseToken(lltok::colon, "expected ':' here") ||
+      parseToken(lltok::lparen, "expected '(' here") ||
+      parseToken(lltok::kw_record, "expected 'record' here") ||
+      parseToken(lltok::colon, "expected ':' here"))
+    return true;
+
+  GlobalValue::GUID RecordGUID;
+  if (parseConditionallyLiveRecordTarget(RecordGUID))
+    return true;
+
+  if (parseToken(lltok::comma, "expected ',' here") ||
+      parseToken(lltok::kw_target, "expected 'target' here") ||
+      parseToken(lltok::colon, "expected ':' here"))
+    return true;
+
+  GlobalValue::GUID TargetGUID;
+  if (parseConditionallyLiveRecordTarget(TargetGUID))
+    return true;
+
+  if (parseToken(lltok::comma, "expected ',' here") ||
+      parseToken(lltok::kw_requiredLive, "expected 'type' here") ||
+      parseToken(lltok::colon, "expected ':' here"))
+    return true;
+
+  uint64_t RequiredLive = 0;
+  if (parseUInt64(RequiredLive))
+    return true;
+
+  if (parseToken(lltok::comma, "expected ',' here") ||
+      parseToken(lltok::kw_deps, "expected 'deps' here") ||
+      parseToken(lltok::colon, "expected ':' here"))
+    return true;
+
+  std::unordered_set<GlobalValue::GUID> Dependencies;
+  while (true) {
+    // There can be no deps
+    if (Lex.getKind() == lltok::rparen)
+      break;
+
+    GlobalValue::GUID DepGUID;
+    if (parseConditionallyLiveRecordTarget(DepGUID))
+      return true;
+
+    Dependencies.insert(DepGUID);
+    if (!EatIfPresent(lltok::comma))
+      break;
+  }
+
+  Index->insertConditionallyLiveRecord(RecordGUID, TargetGUID, RequiredLive,
+                                       Dependencies);
+  return parseToken(lltok::rparen, "expected ')' here");
+}
+
 /// SummaryEntry
 ///   ::= SummaryID '=' GVEntry | ModuleEntry | TypeIdEntry
 bool LLParser::parseSummaryEntry() {
@@ -949,6 +1018,9 @@ bool LLParser::parseSummaryEntry() {
     break;
   case lltok::kw_blockcount:
     result = parseBlockCount();
+    break;
+  case lltok::kw_condLiveRecord:
+    result = parseConditionallyLiveRecord();
     break;
   default:
     result = error(Lex.getLoc(), "unexpected summary kind");

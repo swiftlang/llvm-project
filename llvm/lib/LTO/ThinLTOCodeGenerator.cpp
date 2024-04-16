@@ -30,9 +30,9 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LLVMRemarkStreamer.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/PassTimingInfo.h"
 #include "llvm/IR/Verifier.h"
@@ -65,6 +65,7 @@
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 
 #include <memory>
 #include <numeric>
@@ -328,12 +329,15 @@ static void optimizeModule(Module &TheModule, TargetMachine &TM,
   MPM.run(TheModule, MAM);
 }
 
-static void
-addUsedSymbolToPreservedGUID(const lto::InputFile &File,
-                             DenseSet<GlobalValue::GUID> &PreservedGUID) {
+static void addUsedSymbolToPreservedGUID(
+    const lto::InputFile &File, DenseSet<GlobalValue::GUID> &PreservedGUID,
+    DenseSet<GlobalValue::GUID> &PreservedGUIDOnlyByLLVMUsed) {
   for (const auto &Sym : File.symbols()) {
     if (Sym.isUsed())
       PreservedGUID.insert(GlobalValue::getGUID(Sym.getIRName()));
+
+    if (Sym.isUsedOnlyByLLVMUsed())
+      PreservedGUIDOnlyByLLVMUsed.insert(GlobalValue::getGUID(Sym.getIRName()));
   }
 }
 
@@ -812,6 +816,8 @@ ProcessThinLTOModule(Module &TheModule, ModuleSummaryIndex &Index,
       TM.getRelocationModel() != Reloc::Static &&
       TheModule.getPIELevel() == PIELevel::Default;
 
+  resolveCLRDecisionsInModule(TheModule, DefinedGlobals, Index);
+
   if (!SingleModule) {
     promoteModule(TheModule, Index, ClearDSOLocalOnDeclarations);
 
@@ -1131,14 +1137,18 @@ struct IsPrevailing {
 
 static void computeDeadSymbolsInIndex(
     ModuleSummaryIndex &Index,
-    const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols) {
+    const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols,
+    const DenseSet<GlobalValue::GUID>
+        &GUIDPreservedSymbolsByLLVMUsedExclusively) {
   // We have no symbols resolution available. And can't do any better now in the
   // case where the prevailing symbol is in a native object. It can be refined
   // with linker information in the future.
   auto isPrevailing = [&](GlobalValue::GUID G) {
     return PrevailingType::Unknown;
   };
-  computeDeadSymbolsWithConstProp(Index, GUIDPreservedSymbols, isPrevailing,
+  computeDeadSymbolsWithConstProp(Index, GUIDPreservedSymbols,
+                                  GUIDPreservedSymbolsByLLVMUsedExclusively,
+                                  isPrevailing,
                                   /* ImportEnabled = */ true);
 }
 
@@ -1169,11 +1179,15 @@ void ThinLTOCodeGenerator::promote(Module &TheModule, ModuleSummaryIndex &Index,
   auto GUIDPreservedSymbols = computeGUIDPreservedSymbols(
       File, PreservedSymbols, Triple(TheModule.getTargetTriple()));
 
+  DenseSet<GlobalValue::GUID> GUIDPreservedSymbolsByLLVMUsedExclusively;
+
   // Add used symbol to the preserved symbols.
-  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
+  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols,
+                               GUIDPreservedSymbolsByLLVMUsedExclusively);
 
   // Compute "dead" symbols, we don't want to import/export these!
-  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols);
+  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols,
+                            GUIDPreservedSymbolsByLLVMUsedExclusively);
 
   // Compute prevailing symbols
   DenseMap<GlobalValue::GUID, const GlobalValueSummary *> PrevailingCopy;
@@ -1190,6 +1204,9 @@ void ThinLTOCodeGenerator::promote(Module &TheModule, ModuleSummaryIndex &Index,
   StringMap<std::map<GlobalValue::GUID, GlobalValue::LinkageTypes>> ResolvedODR;
   resolvePrevailingInIndex(Index, ResolvedODR, GUIDPreservedSymbols,
                            PrevailingCopy);
+
+  resolveCLRDecisionsInModule(
+      TheModule, ModuleToDefinedGVSummaries[ModuleIdentifier], Index);
 
   thinLTOFinalizeInModule(TheModule,
                           ModuleToDefinedGVSummaries[ModuleIdentifier],
@@ -1222,10 +1239,14 @@ void ThinLTOCodeGenerator::crossModuleImport(Module &TheModule,
   auto GUIDPreservedSymbols = computeGUIDPreservedSymbols(
       File, PreservedSymbols, Triple(TheModule.getTargetTriple()));
 
-  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
+  DenseSet<GlobalValue::GUID> GUIDPreservedSymbolsByLLVMUsedExclusively;
+
+  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols,
+                               GUIDPreservedSymbolsByLLVMUsedExclusively);
 
   // Compute "dead" symbols, we don't want to import/export these!
-  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols);
+  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols,
+                            GUIDPreservedSymbolsByLLVMUsedExclusively);
 
   // Compute prevailing symbols
   DenseMap<GlobalValue::GUID, const GlobalValueSummary *> PrevailingCopy;
@@ -1262,10 +1283,14 @@ void ThinLTOCodeGenerator::gatherImportedSummariesForModule(
   auto GUIDPreservedSymbols = computeGUIDPreservedSymbols(
       File, PreservedSymbols, Triple(TheModule.getTargetTriple()));
 
-  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
+  DenseSet<GlobalValue::GUID> GUIDPreservedSymbolsByLLVMUsedExclusively;
+
+  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols,
+                               GUIDPreservedSymbolsByLLVMUsedExclusively);
 
   // Compute "dead" symbols, we don't want to import/export these!
-  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols);
+  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols,
+                            GUIDPreservedSymbolsByLLVMUsedExclusively);
 
   // Compute prevailing symbols
   DenseMap<GlobalValue::GUID, const GlobalValueSummary *> PrevailingCopy;
@@ -1300,10 +1325,18 @@ void ThinLTOCodeGenerator::emitImports(Module &TheModule, StringRef OutputName,
   auto GUIDPreservedSymbols = computeGUIDPreservedSymbols(
       File, PreservedSymbols, Triple(TheModule.getTargetTriple()));
 
-  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
+  DenseSet<GlobalValue::GUID> GUIDPreservedSymbolsByLLVMUsedExclusively;
+
+  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols,
+                               GUIDPreservedSymbolsByLLVMUsedExclusively);
 
   // Compute "dead" symbols, we don't want to import/export these!
-  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols);
+  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols,
+                            GUIDPreservedSymbolsByLLVMUsedExclusively);
+  for (const GlobalValue::GUID PotentialDeadCLRTarget :
+       GUIDPreservedSymbolsByLLVMUsedExclusively)
+    if (!Index.isGUIDLive(PotentialDeadCLRTarget))
+      GUIDPreservedSymbols.erase(PotentialDeadCLRTarget);
 
   // Compute prevailing symbols
   DenseMap<GlobalValue::GUID, const GlobalValueSummary *> PrevailingCopy;
@@ -1343,14 +1376,22 @@ void ThinLTOCodeGenerator::internalize(Module &TheModule,
   auto GUIDPreservedSymbols =
       computeGUIDPreservedSymbols(File, PreservedSymbols, TMBuilder.TheTriple);
 
-  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
+  DenseSet<GlobalValue::GUID> GUIDPreservedSymbolsByLLVMUsedExclusively;
+
+  addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols,
+                               GUIDPreservedSymbolsByLLVMUsedExclusively);
 
   // Collect for each module the list of function it defines (GUID -> Summary).
   StringMap<GVSummaryMapTy> ModuleToDefinedGVSummaries(ModuleCount);
   Index.collectDefinedGVSummariesPerModule(ModuleToDefinedGVSummaries);
 
   // Compute "dead" symbols, we don't want to import/export these!
-  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols);
+  computeDeadSymbolsInIndex(Index, GUIDPreservedSymbols,
+                            GUIDPreservedSymbolsByLLVMUsedExclusively);
+  for (const GlobalValue::GUID PotentialDeadCLRTarget :
+       GUIDPreservedSymbolsByLLVMUsedExclusively)
+    if (!Index.isGUIDLive(PotentialDeadCLRTarget))
+      GUIDPreservedSymbols.erase(PotentialDeadCLRTarget);
 
   // Compute prevailing symbols
   DenseMap<GlobalValue::GUID, const GlobalValueSummary *> PrevailingCopy;
@@ -1382,6 +1423,9 @@ void ThinLTOCodeGenerator::internalize(Module &TheModule,
 
   // FIXME Set ClearDSOLocalOnDeclarations.
   promoteModule(TheModule, Index, /*ClearDSOLocalOnDeclarations=*/false);
+
+  resolveCLRDecisionsInModule(
+      TheModule, ModuleToDefinedGVSummaries[ModuleIdentifier], Index);
 
   // Internalization
   thinLTOFinalizeInModule(TheModule,
@@ -1524,16 +1568,23 @@ void ThinLTOCodeGenerator::run() {
   // Convert the preserved symbols set from string to GUID, this is needed for
   // computing the caching hash and the internalization.
   DenseSet<GlobalValue::GUID> GUIDPreservedSymbols;
+  DenseSet<GlobalValue::GUID> GUIDPreservedSymbolsByLLVMUsedExclusively;
   for (const auto &M : Modules)
     computeGUIDPreservedSymbols(*M, PreservedSymbols, TMBuilder.TheTriple,
                                 GUIDPreservedSymbols);
 
   // Add used symbol from inputs to the preserved symbols.
   for (const auto &M : Modules)
-    addUsedSymbolToPreservedGUID(*M, GUIDPreservedSymbols);
+    addUsedSymbolToPreservedGUID(*M, GUIDPreservedSymbols,
+                                 GUIDPreservedSymbolsByLLVMUsedExclusively);
 
   // Compute "dead" symbols, we don't want to import/export these!
-  computeDeadSymbolsInIndex(*Index, GUIDPreservedSymbols);
+  computeDeadSymbolsInIndex(*Index, GUIDPreservedSymbols,
+                            GUIDPreservedSymbolsByLLVMUsedExclusively);
+  for (const GlobalValue::GUID PotentialDeadCLRTarget :
+       GUIDPreservedSymbolsByLLVMUsedExclusively)
+    if (!Index->isGUIDLive(PotentialDeadCLRTarget))
+      GUIDPreservedSymbols.erase(PotentialDeadCLRTarget);
 
   // Synthesize entry counts for functions in the combined index.
   computeSyntheticCounts(*Index);

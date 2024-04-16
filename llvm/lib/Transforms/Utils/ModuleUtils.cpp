@@ -156,8 +156,9 @@ llvm::setUsedInitializer(GlobalVariable &V,
   return NV;
 }
 
-static void removeFromUsedList(Module &M, StringRef Name,
-                               function_ref<bool(Constant *)> ShouldRemove) {
+static void
+removeFromLLVMUsedList(Module &M, StringRef Name,
+                       function_ref<bool(Constant *)> ShouldRemove) {
   GlobalVariable *GV = M.getNamedGlobal(Name);
   if (!GV)
     return;
@@ -186,10 +187,22 @@ static void removeFromUsedList(Module &M, StringRef Name,
   GV->eraseFromParent();
 }
 
+void llvm::removeFromUsedList(Module &M,
+                              function_ref<bool(Constant *)> ShouldRemove) {
+
+  removeFromLLVMUsedList(M, "llvm.used", ShouldRemove);
+}
+
+void llvm::removeFromCompilerUsedList(
+    Module &M, function_ref<bool(Constant *)> ShouldRemove) {
+
+  removeFromLLVMUsedList(M, "llvm.compiler.used", ShouldRemove);
+}
+
 void llvm::removeFromUsedLists(Module &M,
                                function_ref<bool(Constant *)> ShouldRemove) {
-  removeFromUsedList(M, "llvm.used", ShouldRemove);
-  removeFromUsedList(M, "llvm.compiler.used", ShouldRemove);
+  llvm::removeFromUsedList(M, ShouldRemove);
+  llvm::removeFromCompilerUsedList(M, ShouldRemove);
 }
 
 void llvm::setKCFIType(Module &M, Function &F, StringRef MangledType) {

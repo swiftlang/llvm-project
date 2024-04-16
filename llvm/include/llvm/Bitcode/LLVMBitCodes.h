@@ -319,6 +319,7 @@ enum GlobalValueSummarySymtabCodes {
   //  numver x version]
   FS_COMBINED_ALLOC_INFO = 29,
   FS_STACK_IDS = 30,
+  FS_CONDITIONALLY_LIVE_RECORD = 31,
 };
 
 enum MetadataCodes {

@@ -7650,6 +7650,16 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
           AllocInfo(std::move(Versions), std::move(MIBs)));
       break;
     }
+
+    case bitc::FS_CONDITIONALLY_LIVE_RECORD: {
+      std::unordered_set<GlobalValue::GUID> Dependencies;
+      for (unsigned int I = 3; I < Record.size(); I++) {
+        Dependencies.insert(Record[I]);
+      }
+      TheIndex.insertConditionallyLiveRecord(Record[0], Record[1], Record[2],
+                                             Dependencies);
+      break;
+    }
     }
   }
   llvm_unreachable("Exit infinite loop");

@@ -362,6 +362,8 @@ namespace llvm {
     bool parseGVReference(ValueInfo &VI, unsigned &GVId);
     bool parseSummaryIndexFlags();
     bool parseBlockCount();
+    bool parseConditionallyLiveRecordTarget(GlobalValue::GUID &GUID);
+    bool parseConditionallyLiveRecord();
     bool parseGVEntry(unsigned ID);
     bool parseFunctionSummary(std::string Name, GlobalValue::GUID, unsigned ID);
     bool parseVariableSummary(std::string Name, GlobalValue::GUID, unsigned ID);

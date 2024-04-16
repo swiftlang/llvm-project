@@ -44,6 +44,7 @@
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/SplitModule.h"
 #include <optional>
 
@@ -600,6 +601,7 @@ Error lto::thinBackend(const Config &Conf, unsigned Task, AddStreamFn AddStream,
       Mod.getPIELevel() == PIELevel::Default;
   renameModuleForThinLTO(Mod, CombinedIndex, ClearDSOLocalOnDeclarations);
 
+  resolveCLRDecisionsInModule(Mod, DefinedGlobals, CombinedIndex);
   dropDeadSymbols(Mod, DefinedGlobals, CombinedIndex);
 
   thinLTOFinalizeInModule(Mod, DefinedGlobals, /*PropagateAttrs=*/true);

@@ -42,9 +42,11 @@
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <system_error>
@@ -912,6 +914,7 @@ void llvm::updateIndirectCalls(ModuleSummaryIndex &Index) {
 void llvm::computeDeadSymbolsAndUpdateIndirectCalls(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols,
+    const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbolsByLLVMUsedExcusively,
     function_ref<PrevailingType(GlobalValue::GUID)> isPrevailing) {
   assert(!Index.withGlobalValueDeadStripping());
   if (!ComputeDead ||
@@ -921,10 +924,28 @@ void llvm::computeDeadSymbolsAndUpdateIndirectCalls(
     updateIndirectCalls(Index);
     return;
   }
+
+  const std::unordered_map<GlobalValue::GUID,
+                           ModuleSummaryIndex::ConditionallyLiveRecord>
+      &ConditionallyLiveRecords = Index.getConditionallyLiveRecords();
+
+  std::unordered_map<GlobalValue::GUID, std::unordered_set<GlobalValue::GUID>>
+      DependenciesMap;
+  for (const auto &CLR : ConditionallyLiveRecords) {
+    for (const auto &Dependency : CLR.second.Dependencies) {
+      DependenciesMap[Dependency].insert(CLR.first);
+    }
+  }
+
+  std::optional<GlobalValue::GUID> LLVMUsedGUID;
+
   unsigned LiveSymbols = 0;
   SmallVector<ValueInfo, 128> Worklist;
   Worklist.reserve(GUIDPreservedSymbols.size() * 2);
   for (auto GUID : GUIDPreservedSymbols) {
+    if (GUIDPreservedSymbolsByLLVMUsedExcusively.contains(GUID) &&
+        Index.isConditionallyLiveTarget(GUID))
+      continue;
     ValueInfo VI = Index.getValueInfo(GUID);
     if (!VI)
       continue;
@@ -939,6 +960,8 @@ void llvm::computeDeadSymbolsAndUpdateIndirectCalls(
       if (auto *FS = dyn_cast<FunctionSummary>(S.get()))
         updateValueInfoForIndirectCalls(Index, FS);
       if (S->isLive()) {
+        if (VI.name().equals("llvm.used"))
+          LLVMUsedGUID = VI.getGUID();
         LLVM_DEBUG(dbgs() << "Live root: " << VI << "\n");
         Worklist.push_back(VI);
         ++LiveSymbols;
@@ -946,6 +969,48 @@ void llvm::computeDeadSymbolsAndUpdateIndirectCalls(
       }
     }
   }
+
+  auto isConditionallyLiveRecord =
+      [&Index, &ConditionallyLiveRecords](const GlobalValue::GUID CLR) {
+        auto VI = Index.getValueInfo(CLR);
+        return VI && ConditionallyLiveRecords.count(VI.getGUID());
+      };
+
+  auto isConditionallyLiveRecordLive =
+      [&Index, &ConditionallyLiveRecords](const GlobalValue::GUID CLR) {
+        assert(ConditionallyLiveRecords.count(CLR) &&
+               "isConditionallyLiveRecordLive should only be called on "
+               "conditional records");
+        unsigned int LiveDependencies = 0;
+        const unsigned int RequiredLiveDependencies =
+            ConditionallyLiveRecords.at(CLR).RequiredLive;
+        const std::unordered_set<GlobalValue::GUID> &Dependencies =
+            ConditionallyLiveRecords.at(CLR).Dependencies;
+
+        for (const GlobalValue::GUID Dependency : Dependencies) {
+          if (Index.isGUIDLive(Dependency))
+            LiveDependencies++;
+        }
+
+        return LiveDependencies >= RequiredLiveDependencies;
+      };
+
+  auto visitConditionallyLiveRecord = [&Index, &isConditionallyLiveRecordLive,
+                                       &Worklist, &ConditionallyLiveRecords](
+                                          const GlobalValue::GUID CLR) {
+    const GlobalValue::GUID Target = ConditionallyLiveRecords.at(CLR).Target;
+    if (Index.isGUIDLive(Target))
+      return;
+
+    if (isConditionallyLiveRecordLive(CLR)) {
+      // When marking a CDR live in the first pass of DCE,
+      // we should only propagate liveness to the target,
+      // and not the dependencies.
+      auto TargetVI = Index.getValueInfo(Target);
+      Index.markGUIDLive(Target);
+      Worklist.push_back(TargetVI);
+    }
+  };
 
   // Make value live and add it to the worklist if it was not live before.
   auto visit = [&](ValueInfo VI, bool IsAliasee) {
@@ -964,11 +1029,13 @@ void llvm::computeDeadSymbolsAndUpdateIndirectCalls(
                      }))
       return;
 
-    // We only keep live symbols that are known to be non-prevailing if any are
-    // available_externally, linkonceodr, weakodr. Those symbols are discarded
-    // later in the EliminateAvailableExternally pass and setting them to
-    // not-live could break downstreams users of liveness information (PR36483)
-    // or limit optimization opportunities.
+    if (isConditionallyLiveRecord(VI.getGUID()))
+      return visitConditionallyLiveRecord(VI.getGUID());
+    // We only keep live symbols that are known to be non-prevailing if any
+    // are available_externally, linkonceodr, weakodr. Those symbols are
+    // discarded later in the EliminateAvailableExternally pass and setting
+    // them to not-live could break downstreams users of liveness information
+    // (PR36483) or limit optimization opportunities.
     if (isPrevailing(VI.getGUID()) == PrevailingType::No) {
       bool KeepAliveLinkage = false;
       bool Interposable = false;
@@ -998,24 +1065,64 @@ void llvm::computeDeadSymbolsAndUpdateIndirectCalls(
     Worklist.push_back(VI);
   };
 
-  while (!Worklist.empty()) {
-    auto VI = Worklist.pop_back_val();
-    for (const auto &Summary : VI.getSummaryList()) {
-      if (auto *AS = dyn_cast<AliasSummary>(Summary.get())) {
-        // If this is an alias, visit the aliasee VI to ensure that all copies
-        // are marked live and it is added to the worklist for further
-        // processing of its references.
-        visit(AS->getAliaseeVI(), true);
-        continue;
+  Index.setWithGlobalValueDeadStripping();
+
+  auto processWorklist = [&]() {
+    while (!Worklist.empty()) {
+      auto VI = Worklist.pop_back_val();
+      for (const auto &Summary : VI.getSummaryList()) {
+        if (auto *AS = dyn_cast<AliasSummary>(Summary.get())) {
+          // If this is an alias, visit the aliasee VI to ensure that all copies
+          // are marked live and it is added to the worklist for further
+          // processing of its references.
+          visit(AS->getAliaseeVI(), true);
+          continue;
+        }
+        for (auto Ref : Summary->refs()) {
+          if (LLVMUsedGUID && LLVMUsedGUID.value() == VI.getGUID() &&
+              Index.isConditionallyLiveTarget(Ref.getGUID())) {
+            continue;
+          }
+          visit(Ref, false);
+        }
+        if (auto *FS = dyn_cast<FunctionSummary>(Summary.get()))
+          for (auto Call : FS->calls())
+            visit(Call.first, false);
       }
-      for (auto Ref : Summary->refs())
-        visit(Ref, false);
-      if (auto *FS = dyn_cast<FunctionSummary>(Summary.get()))
-        for (auto Call : FS->calls())
-          visit(Call.first, false);
+      for (const GlobalValue::GUID CLR : DependenciesMap[VI.getGUID()]) {
+        visitConditionallyLiveRecord(CLR);
+      }
+    }
+  };
+  processWorklist();
+
+  // Finally once we've reached a stable state, we make sure all
+  // dependencies of remaining conditionally live records are marked
+  // as live.
+  std::unordered_set<GlobalValue::GUID> CLRsToMarkLive;
+  for (const auto &CLR : ConditionallyLiveRecords) {
+    if (isConditionallyLiveRecordLive(CLR.first)) {
+      CLRsToMarkLive.insert(CLR.first);
     }
   }
-  Index.setWithGlobalValueDeadStripping();
+
+  // We must first identify all the live CLRs, then
+  // afterwards mark them and their dependencies live
+  // so that marking deps live does not interfere with
+  // identifying the liveness of other CLRs with common
+  // dependencies.
+  DependenciesMap.clear();
+  for (const GlobalValue::GUID CLR : CLRsToMarkLive) {
+    Index.markGUIDLive(CLR);
+    for (const GlobalValue::GUID Dependency :
+         ConditionallyLiveRecords.at(CLR).Dependencies) {
+      if (Index.isGUIDLive(Dependency))
+        continue;
+      Index.markGUIDLive(Dependency);
+      Worklist.push_back(Index.getValueInfo(Dependency));
+    }
+  }
+  processWorklist();
 
   unsigned DeadSymbols = Index.size() - LiveSymbols;
   LLVM_DEBUG(dbgs() << LiveSymbols << " symbols Live, and " << DeadSymbols
@@ -1028,10 +1135,12 @@ void llvm::computeDeadSymbolsAndUpdateIndirectCalls(
 void llvm::computeDeadSymbolsWithConstProp(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols,
+    const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbolsByLLVMUsedExcusively,
     function_ref<PrevailingType(GlobalValue::GUID)> isPrevailing,
     bool ImportEnabled) {
-  computeDeadSymbolsAndUpdateIndirectCalls(Index, GUIDPreservedSymbols,
-                                           isPrevailing);
+  computeDeadSymbolsAndUpdateIndirectCalls(
+      Index, GUIDPreservedSymbols, GUIDPreservedSymbolsByLLVMUsedExcusively,
+      isPrevailing);
   if (ImportEnabled)
     Index.propagateAttributes(GUIDPreservedSymbols);
 }
@@ -1285,6 +1394,35 @@ void llvm::thinLTOInternalizeModule(Module &TheModule,
   // FIXME: See if we can just internalize directly here via linkage changes
   // based on the index, rather than invoking internalizeModule.
   internalizeModule(TheModule, MustPreserveGV);
+}
+
+void llvm::resolveCLRDecisionsInModule(Module &TheModule,
+                                       const GVSummaryMapTy &DefinedGlobals,
+                                       const ModuleSummaryIndex &Index) {
+
+  removeFromUsedList(TheModule, [&](const Constant *Candidate) {
+    const GlobalValue *GV = dyn_cast<GlobalValue>(Candidate);
+    if (!GV)
+      return false;
+
+    if (!Index.isConditionallyLiveTarget(GV->getGUID()))
+      return false;
+
+    GlobalValueSummary *GVS = DefinedGlobals.lookup(GV->getGUID());
+    return !Index.isGlobalValueLive(GVS);
+  });
+
+  removeFromCompilerUsedList(TheModule, [&](const Constant *Candidate) {
+    const GlobalValue *GV = dyn_cast<GlobalValue>(Candidate);
+    if (!GV)
+      return false;
+
+    if (!GV->getSection().contains("__llvm_condlive"))
+      return false;
+
+    GlobalValueSummary *GVS = DefinedGlobals.lookup(GV->getGUID());
+    return !Index.isGlobalValueLive(GVS);
+  });
 }
 
 /// Make alias a clone of its aliasee.

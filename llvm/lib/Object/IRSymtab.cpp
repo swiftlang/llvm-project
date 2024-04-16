@@ -271,7 +271,8 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
   setStr(Sym.IRName, GV->getName());
 
   bool IsPreservedSymbol = llvm::is_contained(PreservedSymbols, GV->getName());
-
+  if (Used.count(GV) && !IsPreservedSymbol)
+    Sym.Flags |= 1 << storage::Symbol::FB_only_llvm_used;
   if (Used.count(GV) || IsPreservedSymbol)
     Sym.Flags |= 1 << storage::Symbol::FB_used;
   if (GV->isThreadLocal())

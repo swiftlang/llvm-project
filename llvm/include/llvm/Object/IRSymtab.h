@@ -108,6 +108,7 @@ struct Symbol {
     FB_common,
     FB_indirect,
     FB_used,
+    FB_only_llvm_used,
     FB_tls,
     FB_may_omit,
     FB_global,
@@ -200,6 +201,9 @@ struct Symbol {
   bool isCommon() const { return (Flags >> S::FB_common) & 1; }
   bool isIndirect() const { return (Flags >> S::FB_indirect) & 1; }
   bool isUsed() const { return (Flags >> S::FB_used) & 1; }
+  bool isUsedOnlyByLLVMUsed() const {
+    return (Flags >> S::FB_only_llvm_used) & 1;
+  }
   bool isTLS() const { return (Flags >> S::FB_tls) & 1; }
 
   bool canBeOmittedFromSymbolTable() const {

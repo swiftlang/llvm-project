@@ -202,6 +202,17 @@ bool ModuleSummaryIndex::isGUIDLive(GlobalValue::GUID GUID) const {
   return false;
 }
 
+void ModuleSummaryIndex::markGUIDLive(GlobalValue::GUID GUID) {
+  auto VI = getValueInfo(GUID);
+  if (!VI)
+    return;
+  const auto &SummaryList = VI.getSummaryList();
+  if (SummaryList.empty())
+    return;
+  for (auto &I : SummaryList)
+    I->setLive(true);
+}
+
 static void
 propagateAttributesToRefs(GlobalValueSummary *S,
                           DenseSet<ValueInfo> &MarkedNonReadWriteOnly) {

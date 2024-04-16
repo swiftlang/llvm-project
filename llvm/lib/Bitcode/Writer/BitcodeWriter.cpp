@@ -4080,6 +4080,27 @@ void ModuleBitcodeWriterBase::writeModuleLevelReferences(
   NameVals.clear();
 }
 
+static void writeConditionallyLiveRecords(const ModuleSummaryIndex *Index,
+                                          BitstreamWriter &Stream) {
+  for (auto &Entry : Index->getConditionallyLiveRecords()) {
+    const GlobalValue::GUID &RecordGUID = Entry.first;
+    const GlobalValue::GUID &Target = Entry.second.Target;
+    const unsigned int RequiredLive = Entry.second.RequiredLive;
+    const std::unordered_set<GlobalValue::GUID> &Dependencies =
+        Entry.second.Dependencies;
+    assert(!Dependencies.empty() && "A conditionally live record should always "
+                                    "have at least one dependency");
+    SmallVector<uint64_t, 4> SerializedRecord;
+    SerializedRecord.push_back(RecordGUID);
+    SerializedRecord.push_back(Target);
+    SerializedRecord.push_back(RequiredLive);
+    for (const GlobalValue::GUID Dependency : Dependencies) {
+      SerializedRecord.push_back(Dependency);
+    }
+    Stream.EmitRecord(bitc::FS_CONDITIONALLY_LIVE_RECORD, SerializedRecord);
+  }
+}
+
 /// Emit the per-module summary section alongside the rest of
 /// the module's bitcode.
 void ModuleBitcodeWriterBase::writePerModuleGlobalValueSummary() {
@@ -4269,6 +4290,8 @@ void ModuleBitcodeWriterBase::writePerModuleGlobalValueSummary() {
   if (Index->getBlockCount())
     Stream.EmitRecord(bitc::FS_BLOCK_COUNT,
                       ArrayRef<uint64_t>{Index->getBlockCount()});
+
+  writeConditionallyLiveRecords(Index, Stream);
 
   Stream.ExitBlock();
 }

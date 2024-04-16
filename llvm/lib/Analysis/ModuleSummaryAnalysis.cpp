@@ -781,6 +781,35 @@ static void setLiveRoot(ModuleSummaryIndex &Index, StringRef Name) {
       Summary->setLive(true);
 }
 
+static void computeConditionallyLiveSummary(ModuleSummaryIndex &Index,
+                                            const Module &M) {
+  for (auto &GV : M.globals()) {
+    if (!GV.getSection().contains("__llvm_condlive"))
+      continue;
+
+    std::unordered_set<GlobalValue::GUID> Dependencies;
+    GlobalValue::GUID Target;
+    unsigned int RequiredLive = 0;
+
+    const llvm::ConstantStruct *Record =
+        cast<ConstantStruct>(GV.getInitializer());
+    const unsigned int RecordSize = Record->getNumOperands();
+    Target = cast<GlobalVariable>(
+                 Record->getAggregateElement(static_cast<unsigned int>(0)))
+                 ->getGUID();
+    RequiredLive = cast<ConstantInt>(Record->getAggregateElement(
+                                         static_cast<unsigned int>(1)))
+                       ->getZExtValue();
+    for (unsigned int i = 2; i < RecordSize; i++) {
+      Dependencies.insert(
+          cast<GlobalValue>(Record->getAggregateElement(i)->stripPointerCasts())
+              ->getGUID());
+    }
+    Index.insertConditionallyLiveRecord(GV.getGUID(), Target, RequiredLive,
+                                        Dependencies);
+  }
+}
+
 ModuleSummaryIndex llvm::buildModuleSummaryIndex(
     const Module &M,
     std::function<BlockFrequencyInfo *(const Function &F)> GetBFICallback,
@@ -910,6 +939,8 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
                            !LocalsUsed.empty() || HasLocalInlineAsmSymbol,
                            CantBePromoted, IsThinLTO, GetSSICallback);
   }
+
+  computeConditionallyLiveSummary(Index, M);
 
   // Compute summaries for all variables defined in module, and save in the
   // index.

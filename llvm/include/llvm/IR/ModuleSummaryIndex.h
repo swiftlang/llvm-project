@@ -41,6 +41,8 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -1549,6 +1551,8 @@ public:
   }
   bool isGUIDLive(GlobalValue::GUID GUID) const;
 
+  void markGUIDLive(GlobalValue::GUID GUID);
+
   /// Return a ValueInfo for the index value_type (convenient when iterating
   /// index).
   ValueInfo getValueInfo(const GlobalValueSummaryMapTy::value_type &R) const {
@@ -1839,6 +1843,49 @@ public:
 
   /// Checks if we can import global variable from another module.
   bool canImportGlobalVar(const GlobalValueSummary *S, bool AnalyzeRefs) const;
+
+public:
+  struct ConditionallyLiveRecord {
+    GlobalValue::GUID Target;
+    unsigned int RequiredLive;
+    std::unordered_set<GlobalValue::GUID> Dependencies;
+
+    bool operator==(const ConditionallyLiveRecord &Other) const {
+      return Target == Other.Target && RequiredLive == Other.RequiredLive &&
+             Dependencies == Other.Dependencies;
+    }
+  };
+
+private:
+  // A map from a GUIDs identifier conditionally live record GVs
+  // to a struct containing the records information.
+  std::unordered_map<GlobalValue::GUID, ConditionallyLiveRecord>
+      ConditionallyLiveRecords;
+
+  DenseMap<GlobalValue::GUID, GlobalValue::GUID>
+      ConditionallyLiveTargetsToRecords;
+
+public:
+  void insertConditionallyLiveRecord(
+      GlobalValue::GUID record, GlobalValue::GUID target,
+      unsigned int requiredLive,
+      std::unordered_set<GlobalValue::GUID> &dependencies) {
+    ConditionallyLiveRecord CLR = {target, requiredLive, dependencies};
+    if (!ConditionallyLiveTargetsToRecords.try_emplace(target, record).second)
+      assert(CLR == ConditionallyLiveRecords
+                        [ConditionallyLiveTargetsToRecords[target]] &&
+             "Multiple conflicting CLRs emitted for the same target");
+    ConditionallyLiveRecords[record] = CLR;
+  }
+
+  const std::unordered_map<GlobalValue::GUID, ConditionallyLiveRecord> &
+  getConditionallyLiveRecords() const {
+    return ConditionallyLiveRecords;
+  }
+
+  bool isConditionallyLiveTarget(GlobalValue::GUID candidateTarget) const {
+    return ConditionallyLiveTargetsToRecords.count(candidateTarget);
+  }
 };
 
 /// GraphTraits definition to build SCC for the index

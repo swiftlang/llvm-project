@@ -2631,6 +2631,7 @@ public:
   void printGlobalVarSummary(const GlobalVarSummary *GS);
   void printFunctionSummary(const FunctionSummary *FS);
   void printTypeIdSummary(const TypeIdSummary &TIS);
+  void printConditionallyLiveRecords(int &NumSlots);
   void printTypeIdCompatibleVtableSummary(const TypeIdCompatibleVtableInfo &TI);
   void printTypeTestResolution(const TypeTestResolution &TTRes);
   void printArgs(const std::vector<uint64_t> &Args);
@@ -2961,6 +2962,8 @@ void AssemblyWriter::printModuleSummaryIndex() {
 
   Out << "^" << NumSlots << " = blockcount: " << TheIndex->getBlockCount()
       << "\n";
+
+  printConditionallyLiveRecords(NumSlots);
 }
 
 static const char *
@@ -3056,6 +3059,29 @@ void AssemblyWriter::printTypeIdCompatibleVtableSummary(
     Out << ")";
   }
   Out << ")";
+}
+
+void AssemblyWriter::printConditionallyLiveRecords(int &NumSlots) {
+  assert(TheIndex);
+  const std::unordered_map<GlobalValue::GUID,
+                           ModuleSummaryIndex::ConditionallyLiveRecord>
+      &ConditionallyLiveRecords = TheIndex->getConditionallyLiveRecords();
+  for (auto &Record : ConditionallyLiveRecords) {
+    Out << "^" << ++NumSlots << " = condLiveRecord: ";
+    Out << "(record: " << Record.first << " (\""
+        << TheIndex->getValueInfo(Record.first).name() << "\"), ";
+    Out << "target: " << Record.second.Target << " (\""
+        << TheIndex->getValueInfo(Record.second.Target).name() << "\"), ";
+    Out << "requiredLive: " << Record.second.RequiredLive << ", ";
+    Out << "deps: ";
+    for (auto It = Record.second.Dependencies.begin();
+         It != Record.second.Dependencies.end(); It++) {
+      Out << *It << " (\"" << TheIndex->getValueInfo(*It).name() << "\")";
+      if (std::next(It) != Record.second.Dependencies.end())
+        Out << ", ";
+    }
+    Out << ")\n";
+  }
 }
 
 void AssemblyWriter::printArgs(const std::vector<uint64_t> &Args) {

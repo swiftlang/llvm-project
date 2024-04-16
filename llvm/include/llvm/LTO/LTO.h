@@ -140,22 +140,23 @@ public:
   public:
     Symbol(const irsymtab::Symbol &S) : irsymtab::Symbol(S) {}
 
-    using irsymtab::Symbol::isUndefined;
-    using irsymtab::Symbol::isCommon;
-    using irsymtab::Symbol::isWeak;
-    using irsymtab::Symbol::isIndirect;
-    using irsymtab::Symbol::getName;
-    using irsymtab::Symbol::getIRName;
-    using irsymtab::Symbol::getVisibility;
     using irsymtab::Symbol::canBeOmittedFromSymbolTable;
-    using irsymtab::Symbol::isTLS;
-    using irsymtab::Symbol::getComdatIndex;
-    using irsymtab::Symbol::getCommonSize;
-    using irsymtab::Symbol::getCommonAlignment;
     using irsymtab::Symbol::getCOFFWeakExternalFallback;
+    using irsymtab::Symbol::getComdatIndex;
+    using irsymtab::Symbol::getCommonAlignment;
+    using irsymtab::Symbol::getCommonSize;
+    using irsymtab::Symbol::getIRName;
+    using irsymtab::Symbol::getName;
     using irsymtab::Symbol::getSectionName;
+    using irsymtab::Symbol::getVisibility;
+    using irsymtab::Symbol::isCommon;
     using irsymtab::Symbol::isExecutable;
+    using irsymtab::Symbol::isIndirect;
+    using irsymtab::Symbol::isTLS;
+    using irsymtab::Symbol::isUndefined;
     using irsymtab::Symbol::isUsed;
+    using irsymtab::Symbol::isUsedOnlyByLLVMUsed;
+    using irsymtab::Symbol::isWeak;
   };
 
   /// A range over the symbols in this InputFile.
@@ -361,6 +362,15 @@ private:
     /// (i.e. in either a regular object or a regular LTO module without a
     /// summary).
     bool VisibleOutsideSummary = false;
+
+    /// This symbol should be considered visible outside the summary,
+    /// because it has been included in llvm.used or llvm.compiler.used
+    /// and no other reason. If a symbol is to be considered visible for
+    /// this reason and no other, conditionally live stripping in thin-link
+    /// may still strip the symbol. However, if there is any other reason the
+    /// symbol needs to be live (ie. referenced from inline assembly, exported
+    /// etc), then it is not safe to remove the symbol.
+    bool VisibleOutsideSummaryExclusivelyDueToLLVMUsedMembership = false;
 
     /// The symbol was exported dynamically, and therefore could be referenced
     /// by a shared library not visible to the linker.

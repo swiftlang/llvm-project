@@ -199,6 +199,7 @@ void updateIndirectCalls(ModuleSummaryIndex &Index);
 void computeDeadSymbolsAndUpdateIndirectCalls(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols,
+    const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbolsByLLVMUsedExcusively,
     function_ref<PrevailingType(GlobalValue::GUID)> isPrevailing);
 
 /// Compute dead symbols and run constant propagation in combined index
@@ -206,6 +207,7 @@ void computeDeadSymbolsAndUpdateIndirectCalls(
 void computeDeadSymbolsWithConstProp(
     ModuleSummaryIndex &Index,
     const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols,
+    const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbolsByLLVMUsedExcusively,
     function_ref<PrevailingType(GlobalValue::GUID)> isPrevailing,
     bool ImportEnabled);
 
@@ -248,6 +250,12 @@ void thinLTOFinalizeInModule(Module &TheModule,
 /// during global summary-based analysis.
 void thinLTOInternalizeModule(Module &TheModule,
                               const GVSummaryMapTy &DefinedGlobals);
+
+/// Removes conditionally live record or conditionally live targets that have
+/// been identified as dead from llvm.compiler.used and llvm.used respectively.
+void resolveCLRDecisionsInModule(Module &TheModule,
+                                 const GVSummaryMapTy &DefinedGlobals,
+                                 const ModuleSummaryIndex &Index);
 
 } // end namespace llvm
 

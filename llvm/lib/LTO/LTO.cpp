@@ -679,6 +679,9 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
     GlobalRes.VisibleOutsideSummary |=
         (Res.VisibleToRegularObj || Sym.isUsed() || !InSummary);
 
+    GlobalRes.VisibleOutsideSummaryExclusivelyDueToLLVMUsedMembership |=
+        Sym.isUsedOnlyByLLVMUsed();
+
     GlobalRes.ExportDynamic |= Res.ExportDynamic;
   }
 }
@@ -1145,6 +1148,7 @@ Error LTO::checkPartiallySplit() {
 Error LTO::run(AddStreamFn AddStream, FileCache Cache) {
   // Compute "dead" symbols, we don't want to import/export these!
   DenseSet<GlobalValue::GUID> GUIDPreservedSymbols;
+  DenseSet<GlobalValue::GUID> GUIDPreservedSymbolsByLLVMUsedExcusively;
   DenseMap<GlobalValue::GUID, PrevailingType> GUIDPrevailingResolutions;
   for (auto &Res : GlobalResolutions) {
     // Normally resolution have IR name of symbol. We can do nothing here
@@ -1157,6 +1161,10 @@ Error LTO::run(AddStreamFn AddStream, FileCache Cache) {
 
     if (Res.second.VisibleOutsideSummary && Res.second.Prevailing)
       GUIDPreservedSymbols.insert(GUID);
+
+    if (Res.second.VisibleOutsideSummaryExclusivelyDueToLLVMUsedMembership &&
+        Res.second.Prevailing)
+      GUIDPreservedSymbolsByLLVMUsedExcusively.insert(GUID);
 
     if (Res.second.ExportDynamic)
       DynamicExportSymbols.insert(GUID);
@@ -1172,6 +1180,7 @@ Error LTO::run(AddStreamFn AddStream, FileCache Cache) {
     return It->second;
   };
   computeDeadSymbolsWithConstProp(ThinLTO.CombinedIndex, GUIDPreservedSymbols,
+                                  GUIDPreservedSymbolsByLLVMUsedExcusively,
                                   isPrevailing, Conf.OptLevel > 0);
 
   // Setup output file to emit statistics.

@@ -100,6 +100,17 @@ GlobalVariable *setUsedInitializer(GlobalVariable &V,
 void removeFromUsedLists(Module &M,
                          function_ref<bool(Constant *)> ShouldRemove);
 
+/// Resmoves global values from the llvm.used array. \p ShouldRemove
+/// should return true for any initializer field that should not be
+/// included in the replacement global.
+void removeFromUsedList(Module &M, function_ref<bool(Constant *)> ShouldRemove);
+
+/// Resmoves global values from the llvm.compiler.used array. \p ShouldRemove
+/// should return true for any initializer field that should not be
+/// included in the replacement global.
+void removeFromCompilerUsedList(Module &M,
+                                function_ref<bool(Constant *)> ShouldRemove);
+
 /// Filter out potentially dead comdat functions where other entries keep the
 /// entire comdat group alive.
 ///
