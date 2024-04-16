@@ -66,6 +66,7 @@ private:
   /// only contains vfuncs that are within the range specified in
   /// !vcall_visibility).
   DenseMap<GlobalValue *, SmallPtrSet<GlobalValue *, 8>> VFESafeVTablesAndFns;
+  DenseSet<GlobalVariable *> ConditionallyLiveRecords;
 
   void UpdateGVDependencies(GlobalValue &GV);
   void MarkLive(GlobalValue &GV,
@@ -80,8 +81,10 @@ private:
 
   void ComputeDependencies(Value *V, SmallPtrSetImpl<GlobalValue *> &U);
 
-  GlobalValue *TargetFromConditionalUsedIfLive(MDNode *M);
-  void PropagateLivenessToConditionallyUsed(Module &M);
+  bool RemoveCLRsFromUsedLists(Module &M);
+  GlobalValue *TargetFromCLRIfLive(const GlobalVariable *CLR) const;
+  bool IsCLRDependencyLive(const GlobalValue *CLRDependency) const;
+  void PropagateLivenessToCLRs(Module &M);
 };
 
 }

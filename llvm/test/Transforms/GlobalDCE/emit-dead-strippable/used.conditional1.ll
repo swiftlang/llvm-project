@@ -1,4 +1,4 @@
-; RUN: opt -S -passes=globaldce < %s | FileCheck %s
+; RUN: opt -S -passes='lto<O2>' < %s | FileCheck %s
 
 ;
 ; (1) a regular dead global referenced in @llvm.used is kept alive
@@ -29,6 +29,8 @@ define internal void @func_conditionally_used_and_dead() {
 @condition_live = internal unnamed_addr constant i64 42
 @condition_dead = internal unnamed_addr constant i64 42
 
+%clr = type { void()*, i64, i64* }
+
 @llvm.used = appending global [4 x i8*] [
    i8* bitcast (void ()* @func_marked_as_used to i8*),
    i8* bitcast (i64* @condition_live to i8*),
@@ -36,6 +38,10 @@ define internal void @func_conditionally_used_and_dead() {
    i8* bitcast (void ()* @func_conditionally_used_and_dead to i8*)
 ], section "llvm.metadata"
 
-!1 = !{void ()* @func_conditionally_used_and_live, i32 0, !{i64* @condition_live}}
-!2 = !{void ()* @func_conditionally_used_and_dead, i32 0, !{i64* @condition_dead}}
-!llvm.used.conditional = !{!1, !2}
+@llvm.compiler.used = appending global [2 x i8*] [
+    i8* bitcast (%clr* @conditionally_used_and_live_clr to i8*),
+    i8* bitcast (%clr* @conditionally_used_and_dead_clr to i8*)
+]
+
+@conditionally_used_and_live_clr = private constant %clr { void()* @func_conditionally_used_and_live, i64 1, i64* @condition_live }, section "__DATA,__llvm_condlive"
+@conditionally_used_and_dead_clr = private constant %clr { void()* @func_conditionally_used_and_dead, i64 1, i64* @condition_dead }, section "__DATA,__llvm_condlive"
