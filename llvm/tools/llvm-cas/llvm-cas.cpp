@@ -22,7 +22,10 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrefixMapper.h"
+#include "llvm/Support/RandomNumberGenerator.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/Threading.h"
+#include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
 #include <system_error>
@@ -63,7 +66,9 @@ static int putCacheKey(ObjectStore &CAS, ActionCache &AC,
                        ArrayRef<std::string> Objects);
 static int getCacheResult(ObjectStore &CAS, ActionCache &AC, const CASID &ID);
 static int validateObject(ObjectStore &CAS, const CASID &ID);
+static int validateCAS(ObjectStore &CAS);
 static int ingestCasIDFile(cas::ObjectStore &CAS, ArrayRef<std::string> CASIDs);
+static int stressTest(StringRef CASPath);
 
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
@@ -102,6 +107,8 @@ int main(int Argc, char **Argv) {
     PutCacheKey,
     GetCacheResult,
     Validate,
+    ValidateCAS,
+    StressTest,
   };
   cl::opt<CommandKind> Command(
       cl::desc("choose command action:"),
@@ -126,7 +133,9 @@ int main(int Argc, char **Argv) {
                      "set a value for a cache key"),
           clEnumValN(GetCacheResult, "get-cache-result",
                      "get the result value from a cache key"),
-          clEnumValN(Validate, "validate", "validate the object for CASID")),
+          clEnumValN(Validate, "validate", "validate the object for CASID"),
+          clEnumValN(ValidateCAS, "validate-cas", "validate the CAS"),
+          clEnumValN(StressTest, "stress-test", "stress test the CAS")),
       cl::init(CommandKind::Invalid));
 
   cl::ParseCommandLineOptions(Argc, Argv, "llvm-cas CAS tool\n");
@@ -140,6 +149,9 @@ int main(int Argc, char **Argv) {
   if (CASPath.empty())
     ExitOnErr(
         createStringError(inconvertibleErrorCode(), "missing --cas=<path>"));
+
+  if (Command == StressTest)
+    return stressTest(CASPath);
 
   std::shared_ptr<ObjectStore> CAS;
   std::shared_ptr<ActionCache> AC;
@@ -168,6 +180,9 @@ int main(int Argc, char **Argv) {
 
   if (Command == Dump)
     return dump(*CAS);
+
+  if (Command == ValidateCAS)
+    return validateCAS(*CAS);
 
   if (Command == MakeBlob)
     return makeBlob(*CAS, DataPath);
@@ -318,6 +333,12 @@ openBuffer(StringRef DataPath) {
 int dump(ObjectStore &CAS) {
   ExitOnError ExitOnErr("llvm-cas: dump: ");
   CAS.print(llvm::outs());
+  return 0;
+}
+
+int validateCAS(ObjectStore &CAS) {
+  ExitOnError ExitOnErr("llvm-cas: validate-cas: ");
+  ExitOnErr(CAS.validate());
   return 0;
 }
 
@@ -661,7 +682,62 @@ static int getCacheResult(ObjectStore &CAS, ActionCache &AC, const CASID &ID) {
 
 int validateObject(ObjectStore &CAS, const CASID &ID) {
   ExitOnError ExitOnErr("llvm-cas: validate: ");
-  ExitOnErr(CAS.validate(ID));
+  ExitOnErr(CAS.validateObject(ID));
   outs() << ID << ": validated successfully\n";
+  return 0;
+}
+
+int stressTest(StringRef CASPath) {
+  ExitOnError ExitOnErr("llvm-cas: stress test: ");
+  // Totally size to be inserted.
+  const uint64_t TotalSize = 4 * 1024LL * 1024LL * 1024LL;
+  // Biggest size for each item.
+  const size_t MaxItem = 4 * 1024LL;
+  // Timeout for the test in second.
+  unsigned Timeout = 15 * 60;
+  unsigned Iter = 0;
+  std::chrono::steady_clock::time_point Start =
+      std::chrono::steady_clock::now();
+
+  // Run multi-thread random insert till timeout is reached. Maybe should even
+  // spawn sub-processes and add more possibilities for insert collision?
+  while (true) {
+    if (std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - Start)
+            .count() > Timeout)
+      break;
+
+    llvm::outs() << "Start iteration: " << Iter << "\n";
+    auto EC = llvm::sys::fs::remove_directories(CASPath);
+    if (EC)
+      return 1;
+
+    StdThreadPool Pool;
+    const uint64_t SizePerThread = TotalSize / Pool.getMaxConcurrency();
+    auto CAS = ExitOnErr(createOnDiskUnifiedCASDatabases(CASPath));
+    for (unsigned I = 0; I < Pool.getMaxConcurrency(); ++ I) {
+      Pool.async([&]() {
+        uint64_t Allocated = 0;
+        std::vector<char> Buf;
+        Buf.resize(MaxItem);
+        while (Allocated < SizePerThread) {
+          unsigned Size = random() % MaxItem;
+          getRandomBytes(Buf.data(), Size);
+          StringRef Data(Buf.data(), Size);
+
+          // Maybe add some random children too.
+          ExitOnErr(CAS.first->storeFromString({}, Data));
+          Allocated += Size;
+        }
+      });
+    }
+
+    Pool.wait();
+    llvm::outs() << "Verify CAS (size: "
+                 << *ExitOnErr(CAS.first->getStorageSize()) << ")\n";
+    ExitOnErr(CAS.first->validate());
+    ++Iter;
+  }
+
   return 0;
 }

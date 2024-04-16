@@ -35,6 +35,8 @@ public:
 
   void print(raw_ostream &OS) const final;
 
+  Error validate(bool Shallow) final;
+
   static Expected<std::unique_ptr<OnDiskCAS>> open(StringRef Path);
 
   OnDiskCAS(std::shared_ptr<ondisk::UnifiedOnDiskCache> UniDB_)
@@ -83,6 +85,10 @@ private:
 } // end anonymous namespace
 
 void OnDiskCAS::print(raw_ostream &OS) const { DB->print(OS); }
+
+Error OnDiskCAS::validate(bool Shallow) {
+  return DB->validate(Shallow);
+}
 
 CASID OnDiskCAS::getID(ObjectRef Ref) const {
   ArrayRef<uint8_t> Hash = DB->getDigest(convertRef(Ref));

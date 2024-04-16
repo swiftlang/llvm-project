@@ -291,6 +291,9 @@ public:
     return make_range(Refs.begin(), Refs.end());
   }
 
+  /// Validate the CAS
+  Error validate(bool Shallow);
+
   /// \returns Total size of stored objects.
   ///
   /// NOTE: There's a possibility that the returned size is not including a
