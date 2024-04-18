@@ -165,6 +165,8 @@ public:
   storeFromNullTerminatedRegion(ArrayRef<uint8_t> ComputedHash,
                                 sys::fs::mapped_file_region Map) override;
 
+  Error validate(bool Shallow) final;
+
   CASID getID(const InMemoryIndexValueT &I) const {
     StringRef Hash = toStringRef(I.Hash);
     return CASID::create(&getContext(), Hash);
@@ -294,6 +296,10 @@ InMemoryCAS::storeFromNullTerminatedRegion(ArrayRef<uint8_t> ComputedHash,
       new (MemoryMaps.Allocate()) sys::fs::mapped_file_region(std::move(Map));
 
   return toReference(Node);
+}
+
+Error InMemoryCAS::validate(bool Shallow) {
+  return Error::success();
 }
 
 Expected<ObjectRef> InMemoryCAS::storeImpl(ArrayRef<uint8_t> ComputedHash,

@@ -143,7 +143,12 @@ public:
   size_t getNumRefs(ObjectHandle Node) const final;
   ArrayRef<char> getData(ObjectHandle Node,
                          bool RequiresNullTerminator = false) const final;
-  Error validate(const CASID &ID) final {
+  Error validateObject(const CASID &ID) final {
+    // Not supported yet. Always return success.
+    return Error::success();
+  }
+
+  Error validate(bool Shallow) final {
     // Not supported yet. Always return success.
     return Error::success();
   }

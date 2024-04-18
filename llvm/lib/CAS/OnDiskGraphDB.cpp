@@ -53,9 +53,11 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "on-disk-cas"
 
@@ -995,6 +997,30 @@ ArrayRef<char> OnDiskGraphDB::getObjectData(ObjectHandle Node) const {
     return *Content.Bytes;
   assert(Content.Record && "Expected record or bytes");
   return Content.Record->getData();
+}
+
+Error OnDiskGraphDB::validate(bool Shallow) {
+  llvm::raw_null_ostream Null;
+  Error Err = Error::success();
+  Index.print(Null, [&](ArrayRef<char> Data) {
+    assert(Data.size() == sizeof(TrieRecord));
+    assert(isAligned(Align::Of<TrieRecord>(), Data.size()));
+    auto *R = reinterpret_cast<const TrieRecord *>(Data.data());
+    TrieRecord::Data D = R->load();
+    if (D.SK == TrieRecord::StorageKind::Unknown) {
+      std::string ErrMsg;
+      llvm::raw_string_ostream SS(ErrMsg);
+      SS << "unknown record @ " << R << " offset: " << (void*) D.Offset.get();
+      if (Err)
+        Err = llvm::joinErrors(
+            std::move(Err),
+            createStringError(inconvertibleErrorCode(), SS.str()));
+      else
+        Err = createStringError(inconvertibleErrorCode(), SS.str());
+    }
+  });
+
+  return Err;
 }
 
 InternalRefArrayRef OnDiskGraphDB::getInternalRefs(ObjectHandle Node) const {
