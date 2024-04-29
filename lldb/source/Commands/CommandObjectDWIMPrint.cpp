@@ -98,17 +98,14 @@ void CommandObjectDWIMPrint::DoExecute(StringRef command,
       m_expr_options.m_verbosity, m_format_options.GetFormat());
   dump_options.SetHideRootName(suppress_result);
 
+  bool is_po = m_varobj_options.use_objc;
+
   StackFrame *frame = m_exe_ctx.GetFramePtr();
 
-  // BEGIN SWIFT
-  bool is_po = m_varobj_options.use_objc;
   // Either the language was explicitly specified, or we check the frame.
-  lldb::LanguageType language;
-  if (m_expr_options.language != lldb::eLanguageTypeUnknown)
-    language = m_expr_options.language;
-  else if (frame) 
-    language = frame->GuessLanguage();
-  // END SWIFT
+  lldb::LanguageType language = m_expr_options.language;
+  if (language == lldb::eLanguageTypeUnknown && frame)
+    language = frame->GuessLanguage().AsLanguageType();
   
   // Add a hint if object description was requested, but no description
   // function was implemented.
