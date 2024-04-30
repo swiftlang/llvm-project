@@ -1756,7 +1756,7 @@ Status TypeSystemSwiftTypeRefForExpressions::PerformCompileUnitImports(
 }
 
 UserExpression *TypeSystemSwiftTypeRefForExpressions::GetUserExpression(
-    llvm::StringRef expr, llvm::StringRef prefix, lldb::LanguageType language,
+    llvm::StringRef expr, llvm::StringRef prefix, SourceLanguage language,
     Expression::ResultType desired_type,
     const EvaluateExpressionOptions &options, ValueObject *ctx_obj) {
   TargetSP target_sp = GetTargetWP().lock();
