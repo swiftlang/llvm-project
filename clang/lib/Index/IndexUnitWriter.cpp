@@ -245,7 +245,17 @@ std::optional<bool> IndexUnitWriter::isUnitUpToDateForOutputFile(
 
   llvm::sys::fs::file_status UnitStat;
   if (std::error_code EC = llvm::sys::fs::status(UnitPath.c_str(), UnitStat)) {
-    if (EC != llvm::errc::no_such_file_or_directory) {
+    // On Windows, if a file is queried for attributes after another process marks that file for
+    // deletion but is still holding the file handle, the query will fail with a misleading
+    // "permission denied" error. This race happens frequently during index generation as many
+    // clang processes are racing to rename temporary index units to the same destination
+    // (incurring a delete on the destination file, which is queried in the status call just
+    // above). Seeing this error code here most likely means that the destination file is just
+    // marked for deletion, so treat it the same as a "no such file" error. A real permission
+    // error is unlikely, as the write to this file by another clang process would have already
+    // failed with "permission denied." Even if this error code is legitimate, the ensuing write
+    // will fail for the same reason.
+    if (EC != llvm::errc::no_such_file_or_directory && EC != llvm::errc::permission_denied) {
       llvm::raw_string_ostream Err(Error);
       Err << "could not access path '" << UnitPath
           << "': " << EC.message();
@@ -259,7 +269,9 @@ std::optional<bool> IndexUnitWriter::isUnitUpToDateForOutputFile(
 
   llvm::sys::fs::file_status CompareStat;
   if (std::error_code EC = llvm::sys::fs::status(*TimeCompareFilePath, CompareStat)) {
-    if (EC != llvm::errc::no_such_file_or_directory) {
+    // Treat permission denied errors the same as "no such file" errors, which the status function
+    // sometimes returns on Windows. See above for more detail.
+    if (EC != llvm::errc::no_such_file_or_directory && EC != llvm::errc::permission_denied) {
       llvm::raw_string_ostream Err(Error);
       Err << "could not access path '" << *TimeCompareFilePath
           << "': " << EC.message();
