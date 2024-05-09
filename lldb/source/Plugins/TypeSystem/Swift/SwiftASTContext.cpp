@@ -3926,10 +3926,14 @@ swift::ModuleDecl *SwiftASTContext::GetModule(const SourceModule &module,
         case swift::ASTContext::Overlay:
           progress->Increment(1, module_name.str() + " (overlay)");
           break;
-        case swift::ASTContext::BridgingHeader:
-          progress->Increment(1, "Compiling bridging header: " +
-                                     module_name.str());
+        case swift::ASTContext::BridgingHeader: {
+          std::string msg = "Compiling bridging header: " + module_name.str();
+          progress->Increment(1, msg);
+          // Module imports generate remarks, which are logged,
+          // bridging header imports need to be logged manually.
+          LLDB_LOG(GetLog(LLDBLog::Types), "%s", msg.c_str());
           break;
+        }
         }
       });
 
