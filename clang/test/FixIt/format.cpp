@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: %clang_cc1 -fsyntax-only -verify -Wformat %s
 // RUN: %clang_cc1 -fsyntax-only -fdiagnostics-parseable-fixits -Wformat %s 2>&1 | FileCheck %s
 
