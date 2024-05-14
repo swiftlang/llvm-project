@@ -28,6 +28,7 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Timer.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Casting.h"
 
 #include "swift/AST/ASTContext.h"
 #include "swift/AST/ASTMangler.h"
@@ -35,10 +36,11 @@
 #include "swift/AST/Decl.h"
 #include "swift/AST/Types.h"
 #include "swift/Demangling/Demangle.h"
-#include "swift/RemoteInspection/ReflectionContext.h"
-#include "swift/RemoteInspection/TypeRefBuilder.h"
 #include "swift/Remote/MemoryReader.h"
 #include "swift/RemoteAST/RemoteAST.h"
+#include "swift/RemoteInspection/ReflectionContext.h"
+#include "swift/RemoteInspection/TypeLowering.h"
+#include "swift/RemoteInspection/TypeRefBuilder.h"
 #include "swift/Runtime/Metadata.h"
 #include "swift/Strings.h"
 
@@ -1474,30 +1476,32 @@ CompilerType SwiftLanguageRuntimeImpl::GetChildCompilerTypeAtIndex(
   }
   // Enums.
   if (auto *eti = llvm::dyn_cast_or_null<swift::reflection::EnumTypeInfo>(ti)) {
-    unsigned i = 0;
-    for (auto &enum_case : eti->getCases()) {
-      // Skip non-payload cases.
-      if (!enum_case.TR)
-        continue;
-      if (i++ == idx) {
-        auto is_indirect = [](const swift::reflection::FieldInfo &field) {
-          // FIXME: This is by observation. What's the correct condition?
-          if (auto *tr =
-                  llvm::dyn_cast_or_null<swift::reflection::BuiltinTypeRef>(
-                      field.TR))
-            return llvm::StringRef(tr->getMangledName()).equals("Bo");
-          return false;
-        };
-        auto result = get_from_field_info(enum_case, {}, true);
-        if (is_indirect(enum_case))
-          language_flags |= TypeSystemSwift::LanguageFlags::eIsIndirectEnumCase;
-        return result;
+    using namespace swift::reflection;
+    int case_index;
+    swift::remote::RemoteAddress address{valobj->GetPointerValue()};
+    if (eti->projectEnumValue(*GetMemoryReader(), address, &case_index)) {
+      const auto &enum_case = eti->getCases()[case_index];
+      if (enum_case.TI.getKind() == TypeInfoKind::Reference) {
+        const auto &case_ti = llvm::cast<ReferenceTypeInfo>(enum_case.TI);
+        if (case_ti.getReferenceKind() == ReferenceKind::Strong) {
+          auto *reflection_ctx = GetReflectionContext();
+          auto &builder = reflection_ctx->getBuilder();
+          LLDBTypeInfoProvider tip(*this, *ts);
+          auto tc = TypeConverter(builder);
+          if (auto *case_ti =
+                  tc.getClassInstanceTypeInfo(enum_case.TR, 0, &tip)) {
+            auto *record_ti = llvm::dyn_cast<RecordTypeInfo>(case_ti);
+            // Indirect enum stores the payload as the first field of a closure
+            // context.
+            if (record_ti->getRecordKind() == RecordKind::ClosureContext)
+              language_flags |=
+                  TypeSystemSwift::LanguageFlags::eIsIndirectEnumCase;
+          }
+        }
       }
     }
-    LLDB_LOGF(GetLog(LLDBLog::Types), "index %zu is out of bounds (%d)", idx,
-              eti->getNumPayloadCases());
-    return {};
   }
+
   if (auto *rti =
           llvm::dyn_cast_or_null<swift::reflection::ReferenceTypeInfo>(ti)) {
     // Objects.
