@@ -251,6 +251,7 @@ cc_library(
     hdrs = glob([
         "include/llvm/Support/**/*.h",
         "include/llvm/ADT/*.h",
+        "include/llvm/CAS/*.h",
     ]) + [
         "include/llvm-c/Core.h",
         "include/llvm-c/DataTypes.h",
