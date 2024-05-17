@@ -51,7 +51,7 @@ class TestSwiftBackwardInteropStepping(TestBase):
         thread = self.setup("Break here for method - class")
         self.check_step_over(thread, "testMethod")
 
-    @expectedFailureAll(bugnumber="rdar://106670255")
+    @skipIf(bugnumber="rdar://106670255")
     @swiftTest
     def test_init_step_in_class(self):
         thread = self.setup("Break here for constructor - class")
@@ -114,7 +114,7 @@ class TestSwiftBackwardInteropStepping(TestBase):
         thread = self.setup("Break here for method - struct")
         self.check_step_over(thread, "testMethod")
 
-    @expectedFailureAll(bugnumber="rdar://106670255")
+    @skipIf(bugnumber="rdar://106670255")
     @swiftTest
     def test_init_step_in_struct_class(self):
         thread = self.setup("Break here for constructor - struct")
