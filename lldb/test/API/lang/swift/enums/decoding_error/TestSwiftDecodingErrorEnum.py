@@ -15,7 +15,7 @@ class TestCase(TestBase):
         )
 
         substrs = [
-            "(DecodingError) error = keyNotFound {",
+            "(DecodingError) ", " = keyNotFound {",
             'debugDescription = "No value associated with key CodingKeys(stringValue: \\"number\\", intValue: nil)',
         ]
         self.expect("frame variable error", substrs=substrs)
