@@ -506,6 +506,7 @@ Bug Fixes to C++ Support
 - Fix crash when inheriting from a cv-qualified type. Fixes:
   (`#35603 <https://github.com/llvm/llvm-project/issues/35603>`_)
 - Fix a crash when the using enum declaration uses an anonymous enumeration. Fixes (#GH86790).
+- Fix a crash when a variable is captured by a block nested inside a lambda. (Fixes #GH93625).
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
