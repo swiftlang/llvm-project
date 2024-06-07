@@ -203,7 +203,7 @@ public:
         } else if (auto *VD = B->getHoldingVar()) {
           // Holding vars are used to back the BindingDecls of tuple-like
           // types. The holding var declarations appear *after* this statement,
-          // so we have to create a location or them here to share with `B`. We
+          // so we have to create a location for them here to share with `B`. We
           // don't visit the binding, because we know it will be a DeclRefExpr
           // to `VD`.
           auto &VDLoc = Env.createStorageLocation(*VD);
@@ -347,6 +347,9 @@ public:
   }
 
   void VisitReturnStmt(const ReturnStmt *S) {
+    if (!Options.ContextSensitiveOpts)
+      return;
+
     auto *Ret = S->getRetValue();
     if (Ret == nullptr)
       return;
@@ -361,6 +364,10 @@ public:
 
     auto *Loc = Env.getReturnStorageLocation();
     assert(Loc != nullptr);
+    // FIXME: Support reference-type returns.
+    if (Loc->getType()->isReferenceType())
+      return;
+
     // FIXME: Model NRVO.
     Env.setValue(*Loc, *Val);
   }
@@ -396,10 +403,6 @@ public:
     auto *BaseLoc = cast_or_null<AggregateStorageLocation>(
         Env.getStorageLocation(*S->getBase(), SkipPast::ReferenceThenPointer));
     if (BaseLoc == nullptr)
-      return;
-
-    // FIXME: Add support for union types.
-    if (BaseLoc->getType()->isUnionType())
       return;
 
     auto &MemberLoc = BaseLoc->getChild(*Member);

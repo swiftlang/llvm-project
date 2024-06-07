@@ -58,8 +58,7 @@ struct DenseMapInfo<clang::tidy::RenamerClangTidyCheck::NamingCheckId> {
 
 } // namespace llvm
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 namespace {
 
@@ -562,5 +561,4 @@ void RenamerClangTidyCheck::onEndOfTranslationUnit() {
   }
 }
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

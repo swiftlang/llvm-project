@@ -10,10 +10,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Preprocessor.h"
 
-namespace clang {
-namespace tidy {
-namespace google {
-namespace readability {
+namespace clang::tidy::google::readability {
 
 class TodoCommentCheck::TodoCommentHandler : public CommentHandler {
 public:
@@ -63,7 +60,4 @@ void TodoCommentCheck::registerPPCallbacks(const SourceManager &SM,
   PP->addCommentHandler(Handler.get());
 }
 
-} // namespace readability
-} // namespace google
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::google::readability

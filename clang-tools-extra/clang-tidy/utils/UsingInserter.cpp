@@ -13,9 +13,7 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Lex/Lexer.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 
 using namespace ast_matchers;
 
@@ -83,6 +81,4 @@ StringRef UsingInserter::getShortName(ASTContext &Context,
   return QualifiedName;
 }
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils

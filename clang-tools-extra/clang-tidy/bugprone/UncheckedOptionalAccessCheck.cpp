@@ -24,9 +24,7 @@
 #include <memory>
 #include <vector>
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 using ast_matchers::MatchFinder;
 using dataflow::UncheckedOptionalAccessDiagnoser;
 using dataflow::UncheckedOptionalAccessModel;
@@ -43,7 +41,7 @@ analyzeFunction(const FunctionDecl &FuncDecl, ASTContext &ASTCtx,
   using llvm::Expected;
 
   Expected<ControlFlowContext> Context =
-      ControlFlowContext::build(&FuncDecl, FuncDecl.getBody(), &ASTCtx);
+      ControlFlowContext::build(&FuncDecl, *FuncDecl.getBody(), ASTCtx);
   if (!Context)
     return std::nullopt;
 
@@ -102,6 +100,4 @@ void UncheckedOptionalAccessCheck::check(
       diag(Loc, "unchecked access to optional value");
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

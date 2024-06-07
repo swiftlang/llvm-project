@@ -19,9 +19,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 
 namespace {
 
@@ -192,6 +190,4 @@ void UnnecessaryValueParamCheck::handleMoveFix(const ParmVarDecl &Var,
               SM.getFileID(CopyArgument.getBeginLoc()), "<utility>");
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

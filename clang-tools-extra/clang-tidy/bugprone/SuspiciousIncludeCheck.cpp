@@ -10,9 +10,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Lex/Preprocessor.h"
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 class SuspiciousIncludePPCallbacks : public PPCallbacks {
@@ -103,6 +101,4 @@ void SuspiciousIncludePPCallbacks::InclusionDirective(
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

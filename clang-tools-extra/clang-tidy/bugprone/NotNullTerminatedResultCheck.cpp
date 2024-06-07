@@ -16,9 +16,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 constexpr llvm::StringLiteral FunctionExprName = "FunctionExpr";
 constexpr llvm::StringLiteral CastExprName = "CastExpr";
@@ -1009,6 +1007,4 @@ void NotNullTerminatedResultCheck::xfrmFix(
   lengthArgHandle(LengthHandleKind::Increase, Result, Diag);
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

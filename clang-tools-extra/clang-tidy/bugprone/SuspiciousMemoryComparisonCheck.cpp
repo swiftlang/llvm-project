@@ -12,9 +12,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 static llvm::Optional<uint64_t> tryEvaluateSizeExpr(const Expr *SizeExpr,
                                                     const ASTContext &Ctx) {
@@ -80,6 +78,4 @@ void SuspiciousMemoryComparisonCheck::check(
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

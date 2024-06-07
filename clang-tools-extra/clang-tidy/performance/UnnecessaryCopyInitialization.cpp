@@ -15,9 +15,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/Basic/Diagnostic.h"
 
-namespace clang {
-namespace tidy {
-namespace performance {
+namespace clang::tidy::performance {
 namespace {
 
 using namespace ::clang::ast_matchers;
@@ -369,6 +367,4 @@ void UnnecessaryCopyInitialization::storeOptions(
                 utils::options::serializeStringList(ExcludedContainerTypes));
 }
 
-} // namespace performance
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::performance

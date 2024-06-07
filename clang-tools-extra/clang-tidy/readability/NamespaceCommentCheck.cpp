@@ -17,9 +17,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 NamespaceCommentCheck::NamespaceCommentCheck(StringRef Name,
                                              ClangTidyContext *Context)
@@ -203,6 +201,4 @@ void NamespaceCommentCheck::check(const MatchFinder::MatchResult &Result) {
       << NamespaceNameForDiag;
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

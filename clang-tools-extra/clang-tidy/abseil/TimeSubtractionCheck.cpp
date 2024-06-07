@@ -15,9 +15,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 // Returns `true` if `Range` is inside a macro definition.
 static bool insideMacroDefinition(const MatchFinder::MatchResult &Result,
@@ -196,6 +194,4 @@ void TimeSubtractionCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

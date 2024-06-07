@@ -12,8 +12,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/YAMLParser.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 ClangTidyCheck::ClangTidyCheck(StringRef CheckName, ClangTidyContext *Context)
     : CheckName(CheckName), Context(Context),
@@ -224,5 +223,4 @@ ClangTidyCheck::OptionsView::getLocalOrGlobal(StringRef LocalName,
                                               StringRef Default) const {
   return getLocalOrGlobal(LocalName).value_or(Default);
 }
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

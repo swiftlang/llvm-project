@@ -11,9 +11,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/Token.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 
 class IncludeInserterCallback : public PPCallbacks {
 public:
@@ -98,6 +96,4 @@ void IncludeInserter::addInclude(StringRef FileName, bool IsAngled,
   getOrCreate(FileID).addInclude(FileName, IsAngled, HashLocation, EndLocation);
 }
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils

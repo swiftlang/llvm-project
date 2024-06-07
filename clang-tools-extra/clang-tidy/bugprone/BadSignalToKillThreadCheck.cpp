@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 void BadSignalToKillThreadCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -69,6 +67,4 @@ void BadSignalToKillThreadCheck::registerPPCallbacks(
   PP = Pp;
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

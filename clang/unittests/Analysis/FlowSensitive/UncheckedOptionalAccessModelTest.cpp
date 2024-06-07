@@ -1273,7 +1273,6 @@ protected:
     ExpectDiagnosticsFor(SourceCode, ast_matchers::hasName("target"));
   }
 
-private:
   template <typename FuncDeclMatcher>
   void ExpectDiagnosticsFor(std::string SourceCode,
                             FuncDeclMatcher FuncMatcher) {
@@ -1494,6 +1493,23 @@ TEST_P(UncheckedOptionalAccessTest, NulloptConstructor) {
 
     void target() {
       $ns::$optional<int> opt($ns::nullopt);
+      opt.value(); // [[unsafe]]
+    }
+  )");
+}
+
+TEST_P(UncheckedOptionalAccessTest, NulloptConstructorWithSugaredType) {
+  ExpectDiagnosticsFor(
+      R"(
+    #include "unchecked_optional_access_test.h"
+    template <typename T>
+    using wrapper = T;
+
+    template <typename T>
+    wrapper<T> wrap(T);
+
+    void target() {
+      $ns::$optional<int> opt(wrap($ns::nullopt));
       opt.value(); // [[unsafe]]
     }
   )");
@@ -2937,6 +2953,38 @@ TEST_P(UncheckedOptionalAccessTest, StructuredBindingsFromTupleLikeType) {
       content ? *content : "";
     }
   )");
+}
+
+TEST_P(UncheckedOptionalAccessTest, CtorInitializerNullopt) {
+  using namespace ast_matchers;
+  ExpectDiagnosticsFor(
+      R"(
+    #include "unchecked_optional_access_test.h"
+
+    struct Target {
+      Target(): opt($ns::nullopt) {
+        opt.value(); // [[unsafe]]
+      }
+      $ns::$optional<int> opt;
+    };
+  )",
+      cxxConstructorDecl(ofClass(hasName("Target"))));
+}
+
+TEST_P(UncheckedOptionalAccessTest, CtorInitializerValue) {
+  using namespace ast_matchers;
+  ExpectDiagnosticsFor(
+      R"(
+    #include "unchecked_optional_access_test.h"
+
+    struct Target {
+      Target(): opt(3) {
+        opt.value();
+      }
+      $ns::$optional<int> opt;
+    };
+  )",
+      cxxConstructorDecl(ofClass(hasName("Target"))));
 }
 
 // FIXME: Add support for:

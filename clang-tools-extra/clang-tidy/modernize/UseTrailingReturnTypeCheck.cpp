@@ -18,9 +18,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace modernize {
+namespace clang::tidy::modernize {
 namespace {
 struct UnqualNameVisitor : public RecursiveASTVisitor<UnqualNameVisitor> {
 public:
@@ -495,6 +493,4 @@ void UseTrailingReturnTypeCheck::check(const MatchFinder::MatchResult &Result) {
       << FixItHint::CreateInsertion(InsertionLoc, " -> " + ReturnType);
 }
 
-} // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::modernize

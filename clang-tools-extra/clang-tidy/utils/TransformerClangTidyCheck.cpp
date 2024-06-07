@@ -11,9 +11,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/STLExtras.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
+namespace clang::tidy::utils {
 using transformer::RewriteRuleWith;
 
 #ifndef NDEBUG
@@ -156,6 +154,4 @@ void TransformerClangTidyCheck::storeOptions(
   Options.store(Opts, "IncludeStyle", Inserter.getStyle());
 }
 
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils

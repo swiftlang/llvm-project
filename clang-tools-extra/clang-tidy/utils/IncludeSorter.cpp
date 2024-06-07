@@ -11,8 +11,7 @@
 #include "clang/Lex/Lexer.h"
 #include <algorithm>
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace utils {
 
 namespace {
@@ -232,5 +231,4 @@ OptionEnumMapping<utils::IncludeSorter::IncludeStyle>::getEnumMapping() {
                    {utils::IncludeSorter::IS_Google_ObjC, "google-objc"}};
   return makeArrayRef(Mapping);
 }
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

@@ -14,9 +14,7 @@
 using namespace clang::ast_matchers;
 using namespace clang::tidy::matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 const char DefaultStringNames[] =
     "::std::basic_string_view;::std::basic_string";
@@ -161,6 +159,4 @@ void RedundantStringInitCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

@@ -21,10 +21,7 @@
 using namespace clang::ast_matchers;
 using namespace clang::tidy::utils;
 
-
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 namespace {
 
@@ -466,6 +463,4 @@ void UseAfterMoveCheck::check(const MatchFinder::MatchResult &Result) {
     emitDiagnostic(MovingCall, Arg, Use, this, Result.Context);
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

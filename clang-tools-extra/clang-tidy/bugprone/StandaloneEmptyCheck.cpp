@@ -25,9 +25,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 using ast_matchers::BoundNodes;
 using ast_matchers::callee;
@@ -99,6 +97,7 @@ void StandaloneEmptyCheck::check(const MatchFinder::MatchResult &Result) {
   const auto PParentStmtExpr = Result.Nodes.getNodeAs<Expr>("stexpr");
   const auto ParentCompStmt = Result.Nodes.getNodeAs<CompoundStmt>("parent");
   const auto *ParentCond = getCondition(Result.Nodes, "parent");
+  const auto *ParentReturnStmt = Result.Nodes.getNodeAs<ReturnStmt>("parent");
 
   if (const auto *MemberCall =
           Result.Nodes.getNodeAs<CXXMemberCallExpr>("empty")) {
@@ -109,6 +108,9 @@ void StandaloneEmptyCheck::check(const MatchFinder::MatchResult &Result) {
     // statement expression.
     if (PParentStmtExpr && ParentCompStmt &&
         ParentCompStmt->body_back() == MemberCall->getExprStmt())
+      return;
+    // Skip if it's a return statement
+    if (ParentReturnStmt)
       return;
 
     SourceLocation MemberLoc = MemberCall->getBeginLoc();
@@ -150,6 +152,8 @@ void StandaloneEmptyCheck::check(const MatchFinder::MatchResult &Result) {
       return;
     if (PParentStmtExpr && ParentCompStmt &&
         ParentCompStmt->body_back() == NonMemberCall->getExprStmt())
+      return;
+    if (ParentReturnStmt)
       return;
 
     SourceLocation NonMemberLoc = NonMemberCall->getExprLoc();
@@ -202,6 +206,4 @@ void StandaloneEmptyCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

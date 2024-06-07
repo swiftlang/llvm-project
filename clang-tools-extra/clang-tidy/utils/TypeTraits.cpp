@@ -11,10 +11,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
-namespace clang {
-namespace tidy {
-namespace utils {
-namespace type_traits {
+namespace clang::tidy::utils::type_traits {
 
 namespace {
 
@@ -161,7 +158,4 @@ bool hasNonTrivialMoveAssignment(QualType Type) {
          Record->hasNonTrivialMoveAssignment();
 }
 
-} // namespace type_traits
-} // namespace utils
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::utils::type_traits

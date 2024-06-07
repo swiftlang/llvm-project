@@ -16,8 +16,7 @@
 
 #define DEBUG_TYPE "clang-tidy-profiling"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 ClangTidyProfiling::StorageParams::StorageParams(llvm::StringRef ProfilePrefix,
                                                  llvm::StringRef SourceFile)
@@ -86,5 +85,4 @@ ClangTidyProfiling::~ClangTidyProfiling() {
     storeProfileData();
 }
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy

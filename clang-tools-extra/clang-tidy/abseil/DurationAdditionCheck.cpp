@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 void DurationAdditionCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -68,6 +66,4 @@ void DurationAdditionCheck::check(const MatchFinder::MatchResult &Result) {
   diag(Binop->getBeginLoc(), "perform addition in the duration domain") << Hint;
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

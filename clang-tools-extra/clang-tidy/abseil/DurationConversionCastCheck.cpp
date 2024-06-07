@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace abseil {
+namespace clang::tidy::abseil {
 
 void DurationConversionCastCheck::registerMatchers(MatchFinder *Finder) {
   auto CallMatcher = ignoringImpCasts(callExpr(
@@ -80,6 +78,4 @@ void DurationConversionCastCheck::check(
   }
 }
 
-} // namespace abseil
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::abseil

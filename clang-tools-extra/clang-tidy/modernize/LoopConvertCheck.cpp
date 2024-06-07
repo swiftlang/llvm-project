@@ -27,8 +27,7 @@
 using namespace clang::ast_matchers;
 using namespace llvm;
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 template <> struct OptionEnumMapping<modernize::Confidence::Level> {
   static llvm::ArrayRef<std::pair<modernize::Confidence::Level, StringRef>>
@@ -252,17 +251,18 @@ StatementMatcher makePseudoArrayLoopMatcher() {
   // functions called begin() and end() taking the container as an argument
   // are also allowed.
   TypeMatcher RecordWithBeginEnd = qualType(anyOf(
-      qualType(
-          isConstQualified(),
-          hasUnqualifiedDesugaredType(recordType(hasDeclaration(cxxRecordDecl(
-              hasMethod(cxxMethodDecl(hasName("begin"), isConst())),
-              hasMethod(cxxMethodDecl(hasName("end"),
-                                      isConst()))))   // hasDeclaration
-                                                 ))), // qualType
+      qualType(isConstQualified(),
+               hasUnqualifiedDesugaredType(recordType(hasDeclaration(
+                   cxxRecordDecl(isSameOrDerivedFrom(cxxRecordDecl(
+                       hasMethod(cxxMethodDecl(hasName("begin"), isConst())),
+                       hasMethod(cxxMethodDecl(hasName("end"),
+                                               isConst())))))) // hasDeclaration
+                                                      ))),     // qualType
       qualType(unless(isConstQualified()),
                hasUnqualifiedDesugaredType(recordType(hasDeclaration(
-                   cxxRecordDecl(hasMethod(hasName("begin")),
-                                 hasMethod(hasName("end"))))))) // qualType
+                   cxxRecordDecl(isSameOrDerivedFrom(cxxRecordDecl(
+                       hasMethod(hasName("begin")),
+                       hasMethod(hasName("end"))))))))) // qualType
       ));
 
   StatementMatcher SizeCallMatcher = cxxMemberCallExpr(
@@ -969,5 +969,4 @@ llvm::StringRef LoopConvertCheck::getReverseHeader() const {
 }
 
 } // namespace modernize
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy
