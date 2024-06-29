@@ -397,6 +397,51 @@ void clang_experimental_cas_loadObjectByString_async(
   WL->visit(*Ref, /*IsRootNode*/ true);
 }
 
+CXString clang_experimental_cas_storeObject(CXCASDatabases CDBs,
+                                            const char *const *IDStrings,
+                                            size_t IDStringsCount,
+                                            const char *Data, size_t DataSize,
+                                            CXError *OutError) {
+  WrappedCASDatabases &DBs = *unwrap(CDBs);
+  ObjectStore &CAS = *DBs.CAS;
+
+  SmallVector<ObjectRef, 1> Refs;
+  for (size_t i = 0; i < IDStringsCount; ++i) {
+    Expected<CASID> ID = CAS.parseID(IDStrings[i]);
+    if (!ID) {
+      *OutError = cxerror::create(ID.takeError());
+      return cxstring::createEmpty();
+    }
+    std::optional<ObjectRef> Ref = CAS.getReference(*ID);
+    if (!Ref) {
+      *OutError =
+          cxerror::create("Could not get reference for ID: " + ID->toString());
+      return cxstring::createEmpty();
+    }
+    Refs.push_back(*Ref);
+  }
+
+  Expected<ObjectRef> Ref = CAS.store(Refs, ArrayRef(Data, DataSize));
+  if (!Ref) {
+    *OutError = cxerror::create(Ref.takeError());
+    return cxstring::createEmpty();
+  }
+
+  return cxstring::createDup(CAS.getID(*Ref).toString());
+}
+
+CXStringSet *clang_experimental_cas_CASObject_getRefs(CXCASObject CObj) {
+  std::vector<std::string> Refs;
+  for (size_t i = 0; i < unwrap(CObj)->Obj.getNumReferences(); ++i) {
+    Refs.push_back(unwrap(CObj)->Obj.getReferenceID(i).toString());
+  }
+  return cxstring::createSet(Refs);
+}
+
+CXString clang_experimental_cas_CASObject_getData(CXCASObject CObj) {
+  return cxstring::createRef(unwrap(CObj)->Obj.getData());
+}
+
 void clang_experimental_cas_CASObject_dispose(CXCASObject CObj) {
   delete unwrap(CObj);
 }

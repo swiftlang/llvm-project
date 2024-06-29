@@ -9,11 +9,11 @@
 #include "JSONAggregation.h"
 #include "indexstore/IndexStoreCXX.h"
 #include "clang-c/Dependencies.h"
-#include "clang/DirectoryWatcher/DirectoryWatcher.h"
 #include "clang/AST/Mangle.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/PathRemapper.h"
 #include "clang/CodeGen/ObjectFilePCHContainerOperations.h"
+#include "clang/DirectoryWatcher/DirectoryWatcher.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
@@ -29,6 +29,7 @@
 #include "clang/Serialization/ASTReader.h"
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/Support/Base64.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
@@ -61,6 +62,8 @@ enum class ActionType {
   UploadCachedJob,
   MaterializeCachedJob,
   ReplayCachedJob,
+  CASStore,
+  CASLoad,
   PruneCAS,
   WatchDir,
 };
@@ -92,6 +95,10 @@ Action(cl::desc("Action:"), cl::init(ActionType::None),
                      "Materialize cached compilation data from upstream CAS"),
           clEnumValN(ActionType::ReplayCachedJob, "replay-cached-job",
                      "Replay a cached compilation from the CAS"),
+          clEnumValN(ActionType::CASStore, "cas-store",
+                     "Store an object in the CAS"),
+          clEnumValN(ActionType::CASLoad, "cas-load",
+                     "Load an object from the CAS"),
           clEnumValN(ActionType::PruneCAS, "prune-cas", "Prune CAS data"),
           clEnumValN(ActionType::WatchDir,
                      "watch-dir", "Watch directory for file events")),
@@ -155,6 +162,11 @@ static llvm::cl::opt<std::string>
     CASPluginPath("fcas-plugin-path", llvm::cl::desc("Path for CAS plugin"));
 static cl::list<std::string> CASPluginOpts("fcas-plugin-option",
                                            cl::desc("Plugin CAS Options"));
+static cl::list<std::string> CASObjectRefs("cas-object-ref",
+                                           cl::desc("CAS object ref"));
+static llvm::cl::opt<std::string>
+    CASObjectData("cas-object-data",
+                  llvm::cl::desc("CAS object data (base 64)"));
 static llvm::cl::opt<std::string>
     WorkingDir("working-dir", llvm::cl::desc("Path for working directory"));
 static cl::opt<bool> TestCASCancellation(
@@ -1096,6 +1108,58 @@ static int replayCachedJob(ArrayRef<const char *> Args,
   return 0;
 }
 
+static int casLoad(std::string CASID, CXCASDatabases DBs) {
+  CXError Err = nullptr;
+  CXCASObject Object =
+      clang_experimental_cas_loadObjectByString(DBs, CASID.c_str(), &Err);
+  if (Err) {
+    llvm::errs() << clang_Error_getDescription(Err) << "\n";
+    clang_Error_dispose(Err);
+    return 1;
+  }
+  CXStringSet *Refs = clang_experimental_cas_CASObject_getRefs(Object);
+  CXString Data = clang_experimental_cas_CASObject_getData(Object);
+  if (Refs->Count > 0) {
+    llvm::outs() << "Refs:\n";
+    for (unsigned i = 0; i < Refs->Count; ++i) {
+      llvm::outs() << clang_getCString(Refs->Strings[i]) << "\n";
+    }
+  }
+  llvm::outs() << "Data: \n"
+               << encodeBase64(StringRef(clang_getCString(Data))) << "\n";
+  clang_experimental_cas_CASObject_dispose(Object);
+  clang_disposeStringSet(Refs);
+  return 0;
+}
+
+static int casStore(ArrayRef<std::string> Refs, std::string Base64Data,
+                    CXCASDatabases DBs) {
+  std::vector<char *> CRefs;
+  for (std::string Ref : Refs) {
+    CRefs.push_back(strdup(Ref.c_str()));
+  }
+  std::vector<char> Data;
+  if (Error Err = decodeBase64(Base64Data, Data)) {
+    llvm::errs() << Err << "\n";
+    return 1;
+  }
+  CXError Err = nullptr;
+  CXString CASID = clang_experimental_cas_storeObject(
+      DBs, CRefs.data(), CRefs.size(), Data.data(), Data.size(), &Err);
+  for (char *CRef : CRefs) {
+    free(CRef);
+  }
+  if (Err) {
+    clang_disposeString(CASID);
+    llvm::errs() << clang_Error_getDescription(Err) << "\n";
+    clang_Error_dispose(Err);
+    return 1;
+  }
+  llvm::outs() << clang_getCString(CASID) << "\n";
+  clang_disposeString(CASID);
+  return 0;
+}
+
 static int pruneCAS(int64_t Limit, CXCASDatabases DBs) {
   CXError Err = nullptr;
   int64_t Size = clang_experimental_cas_Databases_get_storage_size(DBs, &Err);
@@ -1532,6 +1596,26 @@ int indextest_core_main(int argc, const char **argv) {
     }
     return replayCachedJob(CompArgs, options::WorkingDir,
                            options::InputFiles[0], DBs);
+  }
+
+  if (options::Action == ActionType::CASStore) {
+    if (!DBs) {
+      errs() << "error: CAS was not configured\n";
+      return 1;
+    }
+    return casStore(options::CASObjectRefs, options::CASObjectData, DBs);
+  }
+
+  if (options::Action == ActionType::CASLoad) {
+    if (!DBs) {
+      errs() << "error: CAS was not configured\n";
+      return 1;
+    }
+    if (options::InputFiles.size() != 1) {
+      errs() << "error: expected a single CAS ID as input\n";
+      return 1;
+    }
+    return casLoad(options::InputFiles[0], DBs);
   }
 
   if (options::Action == ActionType::PruneCAS) {

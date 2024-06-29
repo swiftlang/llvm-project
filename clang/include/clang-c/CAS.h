@@ -186,6 +186,35 @@ CINDEX_LINKAGE void clang_experimental_cas_loadObjectByString_async(
     CXCASCancellationToken *OutToken);
 
 /**
+ * Stores an object in the CAS.
+ *
+ * \param Refs The refs of the object to be stored.
+ * \param RefsCount The number of refs.
+ * \param Data The data of the object to be stored.
+ * \param DataSize The size of \Data.
+ * \param[out] OutError The error object to pass back to client (if any).
+ * If non-null the object must be disposed using \c clang_Error_dispose.
+ * \returns The CAS ID of the stored object, or an empty string if an
+ * error occurred. The ID should be disposed using
+ * \c clang_disposeString.
+ */
+CINDEX_LINKAGE CXString clang_experimental_cas_storeObject(
+    CXCASDatabases, const char *const *Refs, size_t RefsCount, const char *Data,
+    size_t DataSize, CXError *OutError);
+
+/**
+ * \returns the CAS object's refs.
+ */
+CINDEX_LINKAGE CXStringSet *
+    clang_experimental_cas_CASObject_getRefs(CXCASObject);
+
+/**
+ * \returns the CAS object's data, which is valid for the lifetime of the
+ * CXCASObject.
+ */
+CINDEX_LINKAGE CXString clang_experimental_cas_CASObject_getData(CXCASObject);
+
+/**
  * Dispose of a \c CXCASObject object.
  */
 CINDEX_LINKAGE void clang_experimental_cas_CASObject_dispose(CXCASObject);

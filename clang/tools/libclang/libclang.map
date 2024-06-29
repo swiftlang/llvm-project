@@ -484,6 +484,8 @@ LLVM_16 {
     clang_experimental_cas_CancellationToken_cancel;
     clang_experimental_cas_CancellationToken_dispose;
     clang_experimental_cas_CASObject_dispose;
+    clang_experimental_cas_CASObject_getData;
+    clang_experimental_cas_CASObject_getRefs;
     clang_experimental_cas_Databases_create;
     clang_experimental_cas_Databases_dispose;
     clang_experimental_cas_Databases_get_storage_size;
@@ -504,6 +506,7 @@ LLVM_16 {
     clang_experimental_cas_replayCompilation;
     clang_experimental_cas_ReplayResult_dispose;
     clang_experimental_cas_ReplayResult_getStderr;
+    clang_experimental_cas_storeObject;
     clang_experimental_DependencyScannerService_create_v1;
     clang_experimental_DependencyScannerServiceOptions_create;
     clang_experimental_DependencyScannerServiceOptions_dispose;
