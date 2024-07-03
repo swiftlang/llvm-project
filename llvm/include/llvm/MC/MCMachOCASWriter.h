@@ -69,13 +69,6 @@ public:
   }
 
   bool isSymbolRefDifferenceFullyResolvedImpl(const MCAssembler &Asm,
-                                              const MCSymbol &A,
-                                              const MCSymbol &B,
-                                              bool InSet) const override {
-    return MOW.isSymbolRefDifferenceFullyResolvedImpl(Asm, A, B, InSet);
-  }
-
-  bool isSymbolRefDifferenceFullyResolvedImpl(const MCAssembler &Asm,
                                               const MCSymbol &SymA,
                                               const MCFragment &FB, bool InSet,
                                               bool IsPCRel) const override {
