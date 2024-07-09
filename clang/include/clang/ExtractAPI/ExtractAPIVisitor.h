@@ -175,9 +175,18 @@ protected:
       // skip classes not inherited as public
       if (BaseSpecifier.getAccessSpecifier() != AccessSpecifier::AS_public)
         continue;
+      if (auto *StructTy = BaseSpecifier.getType()->getAsStructureType()) {
+        if (auto *BaseDecl = StructTy->getDecl())
+          Bases.emplace_back(createSymbolReferenceForDecl(*BaseDecl));
+      }
+
       SymbolReference BaseClass;
-      if (BaseSpecifier.getType().getTypePtr()->isTemplateTypeParmType()) {
-        BaseClass.Name = API.copyString(BaseSpecifier.getType().getAsString());
+      BaseClass.Name = API.copyString(BaseSpecifier.getType().getAsString(
+          Decl->getASTContext().getPrintingPolicy()));
+
+      if (BaseSpecifier.getType()
+                     .getTypePtr()
+                     ->isTemplateTypeParmType()) {
         if (auto *TTPTD = BaseSpecifier.getType()
                               ->getAs<TemplateTypeParmType>()
                               ->getDecl()) {
@@ -186,9 +195,6 @@ protected:
           BaseClass.USR = API.copyString(USR);
           BaseClass.Source = API.copyString(getOwningModuleName(*TTPTD));
         }
-      } else {
-        BaseClass = createSymbolReferenceForDecl(
-            *BaseSpecifier.getType().getTypePtr()->getAsCXXRecordDecl());
       }
       Bases.emplace_back(BaseClass);
     }
@@ -352,7 +358,7 @@ bool ExtractAPIVisitorBase<Derived>::VisitFunctionDecl(
     return true;
 
   // Collect symbol information.
-  StringRef Name = Decl->getName();
+  auto Name = Decl->getNameAsString();
   SmallString<128> USR;
   index::generateUSRForDecl(Decl, USR);
   PresumedLoc Loc =
@@ -666,7 +672,7 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXMethodDecl(
   if (FunctionTemplateDecl *TemplateDecl =
           Decl->getDescribedFunctionTemplate()) {
     API.createRecord<CXXMethodTemplateRecord>(
-        USR, Decl->getName(), createHierarchyInformationForDecl(*Decl), Loc,
+        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl), Loc,
         AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForFunctionTemplate(
             TemplateDecl),
@@ -675,7 +681,7 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXMethodDecl(
         Template(TemplateDecl), isInSystemHeader(Decl));
   } else if (Decl->getTemplateSpecializationInfo())
     API.createRecord<CXXMethodTemplateSpecializationRecord>(
-        USR, Decl->getName(), createHierarchyInformationForDecl(*Decl), Loc,
+        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl), Loc,
         AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::
             getFragmentsForFunctionTemplateSpecialization(Decl),
@@ -688,13 +694,13 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXMethodDecl(
         SubHeading, Signature, Access, isInSystemHeader(Decl));
   else if (Decl->isStatic())
     API.createRecord<CXXStaticMethodRecord>(
-        USR, Decl->getName(), createHierarchyInformationForDecl(*Decl), Loc,
+        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl), Loc,
         AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForCXXMethod(Decl), SubHeading,
         Signature, Access, isInSystemHeader(Decl));
   else
     API.createRecord<CXXInstanceMethodRecord>(
-        USR, Decl->getName(), createHierarchyInformationForDecl(*Decl), Loc,
+        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl), Loc,
         AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForCXXMethod(Decl), SubHeading,
         Signature, Access, isInSystemHeader(Decl));
@@ -977,7 +983,7 @@ bool ExtractAPIVisitorBase<Derived>::VisitFunctionTemplateDecl(
     return true;
 
   // Collect symbol information.
-  StringRef Name = Decl->getName();
+  auto Name = Decl->getNameAsString();
   SmallString<128> USR;
   index::generateUSRForDecl(Decl, USR);
   PresumedLoc Loc =
