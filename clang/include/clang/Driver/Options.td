@@ -4251,18 +4251,37 @@ defm strict_return : BoolFOption<"strict-return",
             " of a non-void function as unreachable">,
   PosFlag<SetTrue>>;
 
-let Group = f_Group in {
-  let Visibility = [ClangOption, CC1Option] in {
-    def fptrauth_indirect_gotos : Flag<["-"], "fptrauth-indirect-gotos">,
-      HelpText<"Enable signing and authentication of indirect goto targets">;
-    def fptrauth_soft : Flag<["-"], "fptrauth-soft">,
-      HelpText<"Enable software lowering of pointer authentication">;
-  }
-  def fno_ptrauth_indirect_gotos : Flag<["-"], "fno-ptrauth-indirect-gotos">;
-  def fno_ptrauth_soft : Flag<["-"], "fno-ptrauth-soft">;
+let Flags = [TargetSpecific] in {
+defm ptrauth_intrinsics : OptInCC1FFlag<"ptrauth-intrinsics", "Enable pointer authentication intrinsics">;
+defm ptrauth_calls : OptInCC1FFlag<"ptrauth-calls", "Enable signing and authentication of all indirect calls">;
+defm ptrauth_returns : OptInCC1FFlag<"ptrauth-returns", "Enable signing and authentication of return addresses">;
+defm ptrauth_auth_traps : OptInCC1FFlag<"ptrauth-auth-traps", "Enable traps on authentication failures">;
+defm ptrauth_vtable_pointer_address_discrimination :
+  OptInCC1FFlag<"ptrauth-vtable-pointer-address-discrimination", "Enable address discrimination of vtable pointers">;
+defm ptrauth_vtable_pointer_type_discrimination :
+  OptInCC1FFlag<"ptrauth-vtable-pointer-type-discrimination", "Enable type discrimination of vtable pointers">;
+defm ptrauth_init_fini : OptInCC1FFlag<"ptrauth-init-fini", "Enable signing of function pointers in init/fini arrays">;
+defm ptrauth_indirect_gotos : OptInCC1FFlag<"ptrauth-indirect-gotos",
+  "Enable signing and authentication of indirect goto targets">;
+defm ptrauth_function_pointer_type_discrimination : OptInCC1FFlag<"ptrauth-function-pointer-type-discrimination",
+  "Enable type discrimination on C function pointers">;
+defm ptrauth_block_descriptor_pointers : OptInCC1FFlag<"ptrauth-block-descriptor-pointers",
+  "Enable signing block descriptor pointers">;
+defm ptrauth_objc_isa : OptInCC1FFlag<"ptrauth-objc-isa",
+  "Enable signing and authentication of Objective-C object's 'isa' field">;
+defm ptrauth_objc_isa_masking : OptInCC1FFlag<"ptrauth-objc-isa-masking",
+  "Enable pre- and post-authentication masking mode of Objective-c isa pointers">;
 }
 
 let Group = f_Group in {
+  def fbranch_target_identification : Flag<["-"], "fbranch-target-identification">,
+      HelpText<"Emit branch target identification instructions for indirect branch destinations">;
+  def fno_branch_target_identification : Flag<["-"], "fno-branch-target-identification">;
+
+  def fptrauth_objc_isa_mode : Joined<["-"], "fptrauth-objc-isa-mode=">,
+      Visibility<[ClangOption, CC1Option, CC1AsOption]>,
+      HelpText<"Authentication mode for ObjC isa field. Full auth if unspecified">, Values<"strip,sign-and-strip,sign-and-auth">;
+
   def fptrauth_abi_version_EQ : Joined<["-"], "fptrauth-abi-version=">,
     Visibility<[ClangOption, CC1Option, CC1AsOption]>,
     HelpText<"Pointer Authentication ABI version">;
@@ -4274,18 +4293,11 @@ let Group = f_Group in {
     HelpText<"Enable Pointer Authentication kernel ABI version">;
   def fno_ptrauth_kernel_abi_version : Flag<["-"], "fno-ptrauth-kernel-abi-version">,
     HelpText<"Disable Pointer Authentication kernel ABI versioning">;
-}
 
-let Flags = [TargetSpecific] in {
-defm ptrauth_intrinsics : OptInCC1FFlag<"ptrauth-intrinsics", "Enable pointer authentication intrinsics">;
-defm ptrauth_calls : OptInCC1FFlag<"ptrauth-calls", "Enable signing and authentication of all indirect calls">;
-defm ptrauth_returns : OptInCC1FFlag<"ptrauth-returns", "Enable signing and authentication of return addresses">;
-defm ptrauth_auth_traps : OptInCC1FFlag<"ptrauth-auth-traps", "Enable traps on authentication failures">;
-defm ptrauth_vtable_pointer_address_discrimination :
-  OptInCC1FFlag<"ptrauth-vtable-pointer-address-discrimination", "Enable address discrimination of vtable pointers">;
-defm ptrauth_vtable_pointer_type_discrimination :
-  OptInCC1FFlag<"ptrauth-vtable-pointer-type-discrimination", "Enable type discrimination of vtable pointers">;
-defm ptrauth_init_fini : OptInCC1FFlag<"ptrauth-init-fini", "Enable signing of function pointers in init/fini arrays">;
+  def fptrauth_soft : Flag<["-"], "fptrauth-soft">,
+      Visibility<[ClangOption, CC1Option, CC1AsOption]>,
+      HelpText<"Enable software lowering of pointer authentication">;
+  def fno_ptrauth_soft : Flag<["-"], "fno-ptrauth-soft">;
 }
 
 def fenable_matrix : Flag<["-"], "fenable-matrix">, Group<f_Group>,

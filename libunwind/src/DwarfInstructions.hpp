@@ -22,6 +22,9 @@
 #include "dwarf2.h"
 #include "libunwind_ext.h"
 
+#if __has_feature(ptrauth_calls)
+#include <ptrauth.h>
+#endif
 
 namespace libunwind {
 
@@ -35,6 +38,7 @@ public:
   typedef typename A::sint_t sint_t;
 
   static int stepWithDwarf(A &addressSpace, pint_t pc, pint_t fdeStart,
+                           unw_word_t procInfoFlags,
                            R &registers, bool &isSignalFrame, bool stage2);
 
 private:
@@ -189,7 +193,9 @@ bool DwarfInstructions<A, R>::getRA_SIGN_STATE(A &addressSpace, R registers,
 
 template <typename A, typename R>
 int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
-                                           pint_t fdeStart, R &registers,
+                                           pint_t fdeStart,
+                                           unw_word_t procInfoFlags,
+                                           R &registers,
                                            bool &isSignalFrame, bool stage2) {
   FDE_Info fdeInfo;
   CIE_Info cieInfo;
@@ -245,7 +251,7 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
       // by a CFI directive later on.
       newRegisters.setSP(cfa);
 
-      pint_t returnAddress = 0;
+      typename R::reg_t returnAddress = 0;
       constexpr int lastReg = R::lastDwarfRegNum();
       static_assert(static_cast<int>(CFI_Parser<A>::kMaxRegisterNumber) >=
                         lastReg,
@@ -362,6 +368,8 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pint_t pc,
           newRegisters.setRegister(UNW_PPC64_R2, r2);
       }
 #endif
+
+      newRegisters.normalizeNewLinkRegister(returnAddress, procInfoFlags);
 
       // Return address is address after call site instruction, so setting IP to
       // that does simulates a return.

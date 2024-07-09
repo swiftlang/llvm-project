@@ -1526,8 +1526,8 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
        // mov $x0, $x1
        // XPACI $x0.
        MachineInstrBuilder DefMIB =
-           BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(AArch64::ORRXrs))
-               .addReg(LHS.getReg())
+           BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(AArch64::ORRXrs),
+                   LHS.getReg())
                .addReg(AArch64::XZR)
                .add(RHS)
                .addImm(0);

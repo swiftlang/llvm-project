@@ -18,6 +18,7 @@
 #include "CGDebugInfo.h"
 #include "CGHLSLRuntime.h"
 #include "CGOpenMPRuntime.h"
+#include "CGRecordLayout.h"
 #include "CodeGenModule.h"
 #include "CodeGenPGO.h"
 #include "TargetInfo.h"
@@ -195,34 +196,45 @@ CodeGenFunction::CGFPOptionsRAII::~CGFPOptionsRAII() {
   CGF.Builder.setDefaultConstrainedRounding(OldRounding);
 }
 
-static LValue MakeNaturalAlignAddrLValue(llvm::Value *V, QualType T,
-                                         bool ForPointeeType,
-                                         CodeGenFunction &CGF) {
+static LValue
+MakeNaturalAlignAddrLValue(llvm::Value *V, QualType T, bool ForPointeeType,
+                           bool MightBeSigned, CodeGenFunction &CGF,
+                           KnownNonNull_t IsKnownNonNull = NotKnownNonNull) {
   LValueBaseInfo BaseInfo;
   TBAAAccessInfo TBAAInfo;
   CharUnits Alignment =
       CGF.CGM.getNaturalTypeAlignment(T, &BaseInfo, &TBAAInfo, ForPointeeType);
-  Address Addr = Address(V, CGF.ConvertTypeForMem(T), Alignment);
+  Address Addr =
+      MightBeSigned
+          ? CGF.makeNaturalAddressForPointer(V, T, Alignment, false, nullptr,
+                                             nullptr, IsKnownNonNull)
+          : Address(V, CGF.ConvertTypeForMem(T), Alignment, IsKnownNonNull);
   return CGF.MakeAddrLValue(Addr, T, BaseInfo, TBAAInfo);
 }
 
-LValue CodeGenFunction::MakeNaturalAlignAddrLValue(llvm::Value *V, QualType T) {
-  return ::MakeNaturalAlignAddrLValue(V, T, /*ForPointeeType*/ false, *this);
+LValue
+CodeGenFunction::MakeNaturalAlignAddrLValue(llvm::Value *V, QualType T,
+                                            KnownNonNull_t IsKnownNonNull) {
+  return ::MakeNaturalAlignAddrLValue(V, T, /*ForPointeeType*/ false,
+                                      /*IsSigned*/ true, *this, IsKnownNonNull);
 }
 
 LValue
 CodeGenFunction::MakeNaturalAlignPointeeAddrLValue(llvm::Value *V, QualType T) {
-  return ::MakeNaturalAlignAddrLValue(V, T, /*ForPointeeType*/ true, *this);
+  return ::MakeNaturalAlignAddrLValue(V, T, /*ForPointeeType*/ true,
+                                      /*IsSigned*/ true, *this);
 }
 
 LValue CodeGenFunction::MakeNaturalAlignRawAddrLValue(llvm::Value *V,
                                                       QualType T) {
-  return ::MakeNaturalAlignAddrLValue(V, T, /*ForPointeeType*/ false, *this);
+  return ::MakeNaturalAlignAddrLValue(V, T, /*ForPointeeType*/ false,
+                                      /*IsSigned*/ false, *this);
 }
 
 LValue CodeGenFunction::MakeNaturalAlignPointeeRawAddrLValue(llvm::Value *V,
                                                              QualType T) {
-  return ::MakeNaturalAlignAddrLValue(V, T, /*ForPointeeType*/ true, *this);
+  return ::MakeNaturalAlignAddrLValue(V, T, /*ForPointeeType*/ true,
+                                      /*IsSigned*/ false, *this);
 }
 
 llvm::Type *CodeGenFunction::ConvertTypeForMem(QualType T) {
@@ -547,8 +559,11 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
     ReturnBlock.getBlock()->eraseFromParent();
   }
   if (ReturnValue.isValid()) {
+    // This only matters when ReturnValue isn't signed. ReturnValue is possibly
+    // signed only when the return is Indirect or InAlloca. In that case, a
+    // temporary alloca to store the return value isn't created.
     auto *RetAlloca =
-        dyn_cast<llvm::AllocaInst>(ReturnValue.emitRawPointer(*this));
+        dyn_cast_or_null<llvm::AllocaInst>(ReturnValue.getPointerIfNotSigned());
     if (RetAlloca && RetAlloca->use_empty()) {
       RetAlloca->eraseFromParent();
       ReturnValue = Address::invalid();
@@ -2095,6 +2110,87 @@ static void emitNonZeroVLAInit(CodeGenFunction &CGF, QualType baseType,
   CGF.EmitBlock(contBB);
 }
 
+void CodeGenFunction::EmitNullInitializersForAuthenticatedNullFields(
+    Address storageAddress, QualType Ty) {
+  assert(getContext().typeContainsAuthenticatedNull(Ty));
+  if (auto arrayType = getContext().getAsArrayType(Ty)) {
+    auto elementType = arrayType->getElementType();
+    auto llvmArrayType = cast<llvm::ArrayType>(storageAddress.getElementType());
+    CharUnits elementSize = getContext().getTypeSizeInChars(elementType);
+    CharUnits elementAlign =
+        storageAddress.getAlignment().alignmentOfArrayElement(elementSize);
+    llvm::Value *zero = llvm::ConstantInt::get(SizeTy, 0);
+    llvm::Value *indices[] = {zero, zero};
+    llvm::Value *one = llvm::ConstantInt::get(SizeTy, 1);
+    llvm::Value *count =
+        llvm::ConstantInt::get(SizeTy, llvmArrayType->getNumElements());
+    llvm::Value *ptr = storageAddress.emitRawPointer(*this);
+    llvm::Value *element = Builder.CreateInBoundsGEP(
+        llvmArrayType, ptr, indices, "array_authenticated_null_init.start");
+    llvm::Value *end = Builder.CreateInBoundsGEP(
+        llvmArrayType->getElementType(), element,
+        count, "array_authenticated_null_init.end");
+
+    llvm::BasicBlock *entryBB = Builder.GetInsertBlock();
+    llvm::BasicBlock *bodyBB =
+        createBasicBlock("array_authenticated_null_init.body");
+    EmitBlock(bodyBB);
+    llvm::PHINode *currentElement = Builder.CreatePHI(
+        element->getType(), 2, "array_authenticated_null_init.cur");
+    currentElement->addIncoming(element, entryBB);
+    auto elementAddress =
+      Address(currentElement, llvmArrayType->getElementType(), elementAlign);
+    EmitNullInitializersForAuthenticatedNullFields(elementAddress, elementType);
+    llvm::Value *nextElement = Builder.CreateInBoundsGEP(
+        llvmArrayType->getElementType(), currentElement, one,
+        "array_authenticated_null_init.next");
+    llvm::Value *done = Builder.CreateICmpEQ(
+        nextElement, end, "array_authenticated_null_init.done");
+    llvm::BasicBlock *endBB =
+        createBasicBlock("array_authenticated_null_init.end");
+    Builder.CreateCondBr(done, endBB, bodyBB);
+    currentElement->addIncoming(nextElement, Builder.GetInsertBlock());
+
+    EmitBlock(endBB);
+    return;
+  }
+  auto record = Ty->getAs<RecordType>();
+  if (!record) {
+    assert(Ty.getPointerAuth().authenticatesNullValues() &&
+           "Incorrectly selected non-null-signed field");
+    assert((Ty->isPointerType() || Ty->isIntegerType()) &&
+           "Invalid type for ptrauth");
+    auto info = EmitPointerAuthInfo(Ty.getPointerAuth(), storageAddress);
+    llvm::Constant *NullConstant = CGM.EmitNullConstant(Ty);
+    auto signedValue = EmitPointerAuthSign(info, NullConstant);
+    EmitStoreOfScalar(signedValue, storageAddress, false, Ty);
+    return;
+  }
+  auto &layout = CGM.getTypes().getCGRecordLayout(record->getDecl());
+  if (auto cxxRecord = record->getAsCXXRecordDecl()) {
+    for (const auto &base : cxxRecord->bases()) {
+      auto baseType = base.getType();
+      if (!getContext().typeContainsAuthenticatedNull(baseType))
+        continue;
+      const CXXRecordDecl *baseRecord =
+          cast<CXXRecordDecl>(baseType->castAs<RecordType>()->getDecl());
+      auto baseIndex = base.isVirtual()
+                           ? layout.getVirtualBaseIndex(baseRecord)
+                           : layout.getNonVirtualBaseLLVMFieldNo(baseRecord);
+      auto baseAddress = Builder.CreateStructGEP(storageAddress, baseIndex);
+      EmitNullInitializersForAuthenticatedNullFields(baseAddress, baseType);
+    }
+  }
+  for (auto field : record->getDecl()->fields()) {
+    auto fieldType = field->getType();
+    if (!getContext().typeContainsAuthenticatedNull(fieldType))
+      continue;
+    auto fieldIndex = layout.getLLVMFieldNo(field);
+    auto fieldAddress = Builder.CreateStructGEP(storageAddress, fieldIndex);
+    EmitNullInitializersForAuthenticatedNullFields(fieldAddress, fieldType);
+  }
+}
+
 void
 CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
   // Ignore empty classes in C++.
@@ -2105,6 +2201,7 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
     }
   }
 
+  auto originalDestPtr = DestPtr;
   if (DestPtr.getElementType() != Int8Ty)
     DestPtr = DestPtr.withElementType(Int8Ty);
 
@@ -2157,6 +2254,10 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
 
     // Get and call the appropriate llvm.memcpy overload.
     Builder.CreateMemCpy(DestPtr, SrcPtr, SizeVal, false);
+
+    if (getContext().typeContainsAuthenticatedNull(Ty))
+      EmitNullInitializersForAuthenticatedNullFields(originalDestPtr, Ty);
+
     return;
   }
 
@@ -3015,38 +3116,6 @@ llvm::DebugLoc CodeGenFunction::SourceLocToDebugLoc(SourceLocation Location) {
 }
 
 llvm::Value *
-CodeGenFunction::EmitPointerAuthResignCall(llvm::Value *value,
-                                           const CGPointerAuthInfo &curAuth,
-                                           const CGPointerAuthInfo &newAuth) {
-  assert(curAuth && newAuth);
-
-  // Convert the pointer to intptr_t before signing it.
-  auto origType = value->getType();
-  value = Builder.CreatePtrToInt(value, IntPtrTy);
-
-  auto curKey = Builder.getInt32(curAuth.getKey());
-  auto newKey = Builder.getInt32(newAuth.getKey());
-
-  llvm::Value *curDiscriminator = curAuth.getDiscriminator();
-  if (!curDiscriminator) curDiscriminator = Builder.getSize(0);
-
-  llvm::Value *newDiscriminator = newAuth.getDiscriminator();
-  if (!newDiscriminator) newDiscriminator = Builder.getSize(0);
-
-  // call i64 @llvm.ptrauth.resign(i64 %pointer,
-  //                               i32 %curKey, i64 %curDiscriminator,
-  //                               i32 %newKey, i64 %newDiscriminator)
-  auto intrinsic = CGM.getIntrinsic(llvm::Intrinsic::ptrauth_resign);
-  value = EmitRuntimeCall(intrinsic,
-                          { value, curKey, curDiscriminator,
-                            newKey, newDiscriminator });
-
-  // Convert back to the original type.
-  value = Builder.CreateIntToPtr(value, origType);
-  return value;
-}
-
-llvm::Value *
 CodeGenFunction::emitCondLikelihoodViaExpectIntrinsic(llvm::Value *Cond,
                                                     Stmt::Likelihood LH) {
   switch (LH) {
@@ -3102,6 +3171,11 @@ void CodeGenFunction::EmitPointerAuthOperandBundle(
   Bundles.emplace_back("ptrauth", Args);
 }
 
+llvm::Value *CodeGenFunction::getObjCIsaMask() {
+  llvm::Constant *maskAddress = CGM.getObjCIsaMaskAddress();
+  return Builder.CreatePtrToInt(maskAddress, IntPtrTy);
+}
+
 static llvm::Value *EmitPointerAuthCommon(CodeGenFunction &CGF,
                                           const CGPointerAuthInfo &PointerAuth,
                                           llvm::Value *Pointer,
@@ -3119,10 +3193,21 @@ static llvm::Value *EmitPointerAuthCommon(CodeGenFunction &CGF,
   // Convert the pointer to intptr_t before signing it.
   auto OrigType = Pointer->getType();
   Pointer = CGF.Builder.CreatePtrToInt(Pointer, CGF.IntPtrTy);
+  llvm::Value *MaskedBits = nullptr;
+  if (PointerAuth.isIsaPointer() &&
+      CGF.getLangOpts().PointerAuthObjcIsaMasking) {
+    llvm::Value *Mask = CGF.getObjCIsaMask();
+    llvm::Value *MaskedPointer = CGF.Builder.CreateAnd(Pointer, Mask);
+    MaskedBits = CGF.Builder.CreateXor(Pointer, MaskedPointer);
+    Pointer = MaskedPointer;
+  }
 
   // call i64 @llvm.ptrauth.sign.i64(i64 %pointer, i32 %key, i64 %discriminator)
   auto Intrinsic = CGF.CGM.getIntrinsic(IntrinsicID);
   Pointer = CGF.EmitRuntimeCall(Intrinsic, {Pointer, Key, Discriminator});
+
+  if (MaskedBits)
+    Pointer = CGF.Builder.CreateOr(Pointer, MaskedBits);
 
   // Convert back to the original type.
   Pointer = CGF.Builder.CreateIntToPtr(Pointer, OrigType);
@@ -3163,4 +3248,70 @@ CodeGenFunction::EmitPointerAuthAuth(const CGPointerAuthInfo &PointerAuth,
 
   return EmitPointerAuthCommon(*this, PointerAuth, Pointer,
                                llvm::Intrinsic::ptrauth_auth);
+}
+
+llvm::Value *CodeGenFunction::EmitPointerAuthSign(QualType pointeeType,
+                                                  llvm::Value *pointer) {
+  CGPointerAuthInfo pointerAuth =
+      CGM.getPointerAuthInfoForPointeeType(pointeeType);
+  return EmitPointerAuthSign(pointerAuth, pointer);
+}
+
+llvm::Value *CodeGenFunction::EmitPointerAuthAuth(QualType pointeeType,
+                                                  llvm::Value *pointer) {
+  CGPointerAuthInfo pointerAuth =
+      CGM.getPointerAuthInfoForPointeeType(pointeeType);
+  return EmitPointerAuthAuth(pointerAuth, pointer);
+}
+
+llvm::Value *
+CodeGenFunction::EmitPointerAuthResignCall(llvm::Value *value,
+                                           const CGPointerAuthInfo &curAuth,
+                                           const CGPointerAuthInfo &newAuth) {
+  assert(curAuth && newAuth);
+
+  if (curAuth.getAuthenticationMode() !=
+          PointerAuthenticationMode::SignAndAuth ||
+      newAuth.getAuthenticationMode() !=
+          PointerAuthenticationMode::SignAndAuth ||
+      curAuth.isIsaPointer() != newAuth.isIsaPointer()) {
+    auto authedValue = EmitPointerAuthAuth(curAuth, value);
+    return EmitPointerAuthSign(newAuth, authedValue);
+  }
+  // Convert the pointer to intptr_t before signing it.
+  auto origType = value->getType();
+  value = Builder.CreatePtrToInt(value, IntPtrTy);
+
+  llvm::Value *masked_bits = nullptr;
+  if (curAuth.isIsaPointer() && getLangOpts().PointerAuthObjcIsaMasking) {
+    llvm::Value *mask = getObjCIsaMask();
+    auto masked_value = Builder.CreateAnd(value, mask);
+    masked_bits = Builder.CreateXor(value, masked_value);
+    value = masked_value;
+  }
+
+  auto curKey = Builder.getInt32(curAuth.getKey());
+  auto newKey = Builder.getInt32(newAuth.getKey());
+
+  llvm::Value *curDiscriminator = curAuth.getDiscriminator();
+  if (!curDiscriminator)
+    curDiscriminator = Builder.getSize(0);
+
+  llvm::Value *newDiscriminator = newAuth.getDiscriminator();
+  if (!newDiscriminator)
+    newDiscriminator = Builder.getSize(0);
+
+  // call i64 @llvm.ptrauth.resign(i64 %pointer,
+  //                               i32 %curKey, i64 %curDiscriminator,
+  //                               i32 %newKey, i64 %newDiscriminator)
+  auto intrinsic = CGM.getIntrinsic(llvm::Intrinsic::ptrauth_resign);
+  value = EmitRuntimeCall(
+      intrinsic, {value, curKey, curDiscriminator, newKey, newDiscriminator});
+
+  if (masked_bits)
+    value = Builder.CreateOr(value, masked_bits);
+
+  // Convert back to the original type.
+  value = Builder.CreateIntToPtr(value, origType);
+  return value;
 }

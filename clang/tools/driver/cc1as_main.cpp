@@ -182,15 +182,15 @@ struct AssemblerInvocation {
   /// compilation
   llvm::VersionTuple DarwinTargetVariantSDKVersion;
 
+  /// The name of a file to use with \c .secure_log_unique directives.
+  std::string AsSecureLogFile;
+
   /// The ptrauth ABI version targeted by the backend.
   unsigned PointerAuthABIVersion;
   /// Whether the ptrauth ABI version represents a kernel ABI.
   unsigned PointerAuthKernelABIVersion : 1;
   /// Whether the assembler should encode the ptrauth ABI version.
   unsigned PointerAuthABIVersionEncoded : 1;
-
-  /// The name of a file to use with \c .secure_log_unique directives.
-  std::string AsSecureLogFile;
   /// @}
 
 public:

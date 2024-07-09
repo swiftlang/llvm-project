@@ -120,6 +120,24 @@ unsigned AArch64InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     // 4-byte insn.
     NumBytes = 4;
     break;
+  case AArch64::TCRETURNdi:
+  case AArch64::TCRETURNri:
+  case AArch64::TCRETURNriALL:
+  case AArch64::TCRETURNrix16x17:
+  case AArch64::TCRETURNrix17:
+  case AArch64::TCRETURNrinotx16:
+  case AArch64::AUTH_TCRETURN:
+  case AArch64::AUTH_TCRETURN_BTI: {
+    NumBytes = Desc.getSize() ? Desc.getSize() : 4;
+    // In some cases we prepend these with an LR auth-failure check, to
+    // emulate FPAC.  This adds size overhead of 2 insts.
+    const AArch64Subtarget &STI = MF->getSubtarget<AArch64Subtarget>();
+    if ((F.hasFnAttribute("ptrauth-auth-traps") ||
+         F.hasFnAttribute("ptrauth-returns")) &&
+        !STI.hasFPAC())
+      NumBytes += 8;
+    break;
+  }
   case TargetOpcode::STACKMAP:
     // The upper bound for a stackmap intrinsic is the full length of its shadow
     NumBytes = StackMapOpers(&MI).getNumPatchBytes();
@@ -8415,6 +8433,11 @@ AArch64InstrInfo::getOutliningCandidateInfo(
   unsigned FrameID = MachineOutlinerDefault;
   NumBytesToCreateFrame += 4;
 
+  // Check if we are in arm64e; if we are, we might need to sign + auth.
+  MachineFunction *MF =
+      RepeatedSequenceLocs[0].front().getParent()->getParent();
+  bool HaveARM64e = MF->getSubtarget().getTargetTriple().isArm64e();
+
   bool HasBTI = any_of(RepeatedSequenceLocs, [](outliner::Candidate &C) {
     return C.getMF()->getInfo<AArch64FunctionInfo>()->branchTargetEnforcement();
   });
@@ -8558,7 +8581,7 @@ AArch64InstrInfo::getOutliningCandidateInfo(
 
       // Is SP used in the sequence at all? If not, we don't have to modify
       // the stack, so we are guaranteed to get the same frame.
-      else if (C.isAvailableInsideSeq(AArch64::SP, TRI)) {
+      else if (C.isAvailableInsideSeq(AArch64::SP, TRI) && !HaveARM64e) {
         NumBytesNoStackCalls += 12;
         C.setCallInfo(MachineOutlinerDefault, 12);
         CandidatesWithoutStackFixups.push_back(C);
@@ -8581,6 +8604,12 @@ AArch64InstrInfo::getOutliningCandidateInfo(
       if (RepeatedSequenceLocs.size() < 2)
         return std::nullopt;
     } else {
+      if (HaveARM64e) {
+        // In the case that we have ARM64e, let's play it safe and not ever
+        // outline these.
+        RepeatedSequenceLocs.clear();
+        return std::nullopt;
+      }
       SetCandidateCallInfo(MachineOutlinerDefault, 12);
 
       // Bugzilla ID: 46767
@@ -8674,6 +8703,9 @@ AArch64InstrInfo::getOutliningCandidateInfo(
 
       // Save + restore LR.
       NumBytesToCreateFrame += 8;
+      if (HaveARM64e && FrameID != MachineOutlinerThunk &&
+          FrameID != MachineOutlinerTailCall)
+        NumBytesToCreateFrame += 4; // PACIBSP
     }
   }
 
@@ -8918,6 +8950,10 @@ AArch64InstrInfo::getOutliningTypeImpl(MachineBasicBlock::iterator &MIT,
       return outliner::InstrType::Illegal;
   }
 
+  // Don't outline pointer authentication instructions.
+  if (MI.getOpcode() == AArch64::PACIBSP)
+    return outliner::InstrType::Illegal;
+
   // Special cases for instructions that can always be outlined, but will fail
   // the later tests. e.g, ADRPs, which are PC-relative use LR, but can always
   // be outlined because they don't require a *specific* value to be in LR.
@@ -9047,12 +9083,19 @@ static void signOutlinedFunction(MachineFunction &MF, MachineBasicBlock &MBB,
 void AArch64InstrInfo::buildOutlinedFrame(
     MachineBasicBlock &MBB, MachineFunction &MF,
     const outliner::OutlinedFunction &OF) const {
+  // ARM64e could require authentication if we saved LR to the stack.
+  bool HaveARM64e = MF.getSubtarget().getTargetTriple().isArm64e();
+  bool SavedLRToStack = false;
+
+  // ARM64e: If we aren't inserting a return, we don't want to sign.
+  bool InsertsReturn = OF.FrameConstructionID != MachineOutlinerThunk &&
+                       OF.FrameConstructionID != MachineOutlinerTailCall;
 
   AArch64FunctionInfo *FI = MF.getInfo<AArch64FunctionInfo>();
 
-  if (OF.FrameConstructionID == MachineOutlinerTailCall)
+  if (OF.FrameConstructionID == MachineOutlinerTailCall) {
     FI->setOutliningStyle("Tail Call");
-  else if (OF.FrameConstructionID == MachineOutlinerThunk) {
+  } else if (OF.FrameConstructionID == MachineOutlinerThunk) {
     // For thunk outlining, rewrite the last instruction from a call to a
     // tail-call.
     MachineInstr *Call = &*--MBB.instr_end();
@@ -9071,6 +9114,24 @@ void AArch64InstrInfo::buildOutlinedFrame(
     Call->eraseFromParent();
 
     FI->setOutliningStyle("Thunk");
+  }
+
+  if (!InsertsReturn) {
+    // It ends with a tail call, so the outlined function might need to be told
+    // to authenticate LR first.
+    if (std::any_of(OF.Candidates.begin(), OF.Candidates.end(),
+                    [](auto &Candidate) {
+                      auto MF = Candidate.getMF();
+                      auto &Fn = MF->getFunction();
+                      return Fn.hasFnAttribute("ptrauth-auth-traps") &&
+                             Fn.hasFnAttribute("ptrauth-returns") &&
+                             MF->template getInfo<AArch64FunctionInfo>()
+                                 ->hasStackFrame();
+                    })) {
+      MF.getFunction().addFnAttr("ptrauth-auth-traps");
+      MF.getFunction().addFnAttr("ptrauth-returns");
+      MF.getFunction().addFnAttr("outlined-function");
+    }
   }
 
   bool IsLeafFunction = true;
@@ -9139,6 +9200,9 @@ void AArch64InstrInfo::buildOutlinedFrame(
                                  .addReg(AArch64::SP)
                                  .addImm(16);
     Et = MBB.insert(Et, LDRXpost);
+
+    // We need to authenticate LR.
+    SavedLRToStack = true;
   }
 
   bool ShouldSignReturnAddr = FI->shouldSignReturnAddress(!IsLeafFunction);
@@ -9150,15 +9214,25 @@ void AArch64InstrInfo::buildOutlinedFrame(
     return;
   }
 
-  // It's not a tail call, so we have to insert the return ourselves.
-
   // LR has to be a live in so that we can return to it.
   if (!MBB.isLiveIn(AArch64::LR))
     MBB.addLiveIn(AArch64::LR);
 
-  MachineInstr *ret = BuildMI(MF, DebugLoc(), get(AArch64::RET))
-                          .addReg(AArch64::LR);
-  MBB.insert(MBB.end(), ret);
+  // If we saved LR to the stack and are in ARM64e, then we need to insert a
+  // PACIBSP.
+  if (SavedLRToStack && HaveARM64e && InsertsReturn)
+    MBB.insert(MBB.begin(), BuildMI(MF, DebugLoc(), get(AArch64::PACIBSP)));
+
+  // If we're in ARM64e and we signed, insert a RETAB.
+  if (SavedLRToStack && HaveARM64e)
+    MBB.insert(MBB.end(), BuildMI(MF, DebugLoc(), get(AArch64::RETAB)));
+
+  // Otherwise, a normal return.
+  else {
+    MachineInstr *ret = BuildMI(MF, DebugLoc(), get(AArch64::RET))
+                            .addReg(AArch64::LR);
+    MBB.insert(MBB.end(), ret);
+  }
 
   signOutlinedFunction(MF, MBB, this, ShouldSignReturnAddr);
 

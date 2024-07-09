@@ -85,6 +85,7 @@
 #include "llvm/Support/InstructionCost.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/SipHash.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -509,6 +510,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SELECT_CC, MVT::f64, Custom);
   setOperationAction(ISD::BR_JT, MVT::Other, Custom);
   setOperationAction(ISD::JumpTable, MVT::i64, Custom);
+  setOperationAction(ISD::BRIND, MVT::Other, Custom);
   setOperationAction(ISD::SETCCCARRY, MVT::i64, Custom);
 
   setOperationAction(ISD::PtrAuthGlobalAddress, MVT::i64, Custom);
@@ -6694,6 +6696,8 @@ SDValue AArch64TargetLowering::LowerOperation(SDValue Op,
     return LowerJumpTable(Op, DAG);
   case ISD::BR_JT:
     return LowerBR_JT(Op, DAG);
+  case ISD::BRIND:
+    return LowerBRIND(Op, DAG);
   case ISD::ConstantPool:
     return LowerConstantPool(Op, DAG);
   case ISD::BlockAddress:
@@ -9254,8 +9258,7 @@ AArch64TargetLowering::LowerDarwinGlobalTLSAddress(SDValue Op,
   Ops.push_back(DAG.getRegister(AArch64::X0, MVT::i64));
   Ops.push_back(DAG.getRegisterMask(Mask));
   Ops.push_back(Chain.getValue(1));
-  Chain =
-    DAG.getNode(Opcode, DL, DAG.getVTList(MVT::Other, MVT::Glue), Ops);
+  Chain = DAG.getNode(Opcode, DL, DAG.getVTList(MVT::Other, MVT::Glue), Ops);
   return DAG.getCopyFromReg(Chain, DL, AArch64::X0, PtrVT, Chain.getValue(1));
 }
 
@@ -9564,8 +9567,7 @@ SDValue AArch64TargetLowering::LowerGlobalTLSAddress(SDValue Op,
 //   Load a signed pointer for symbol 'sym' from a stub slot named
 //   'sym$auth_ptr$key$disc' filled by dynamic linker during relocation
 //   resolving. This usually lowers to adrp+ldr, but also emits an entry into
-//   .data with an
-//   @AUTH relocation. See LowerLOADauthptrstatic.
+//   .data with an @AUTH relocation. See LowerLOADauthptrstatic.
 //
 // All 3 are pseudos that are expand late to longer sequences: this lets us
 // provide integrity guarantees on the to-be-signed intermediate values.
@@ -10697,18 +10699,18 @@ SDValue AArch64TargetLowering::LowerBR_JT(SDValue Op,
   auto *AFI = DAG.getMachineFunction().getInfo<AArch64FunctionInfo>();
   AFI->setJumpTableEntryInfo(JTI, 4, nullptr);
 
-  // With aarch64-hardened-codegen, we only expand the full jump table dispatch
+  // With jump-table-hardening, we only expand the full jump table dispatch
   // sequence later, to guarantee the integrity of the intermediate values.
   if (DAG.getMachineFunction().getFunction()
         .hasFnAttribute("jump-table-hardening") ||
-      Subtarget->getTargetTriple().getArchName() == "arm64e") {
-    if (getTargetMachine().getCodeModel() != CodeModel::Small)
-      report_fatal_error("Unsupported code-model for hardened jump-table");
-    SDValue Chain = DAG.getCopyToReg(DAG.getEntryNode(), DL, AArch64::X16,
-                                     Entry, SDValue());
+      Subtarget->getTargetTriple().isArm64e()) {
+    assert(Subtarget->isTargetMachO() &&
+           "hardened jump-table not yet supported on non-macho");
+    SDValue X16Copy = DAG.getCopyToReg(DAG.getEntryNode(), DL, AArch64::X16,
+                                       Entry, SDValue());
     SDNode *B = DAG.getMachineNode(AArch64::BR_JumpTable, DL, MVT::Other,
                                    DAG.getTargetJumpTable(JTI, MVT::i32),
-                                   Chain.getValue(0), Chain.getValue(1));
+                                   X16Copy.getValue(0), X16Copy.getValue(1));
     return SDValue(B, 0);
   }
 
@@ -10717,6 +10719,26 @@ SDValue AArch64TargetLowering::LowerBR_JT(SDValue Op,
                          Entry, DAG.getTargetJumpTable(JTI, MVT::i32));
   SDValue JTInfo = DAG.getJumpTableDebugInfo(JTI, Op.getOperand(0), DL);
   return DAG.getNode(ISD::BRIND, DL, MVT::Other, JTInfo, SDValue(Dest, 0));
+}
+
+SDValue AArch64TargetLowering::LowerBRIND(SDValue Op, SelectionDAG &DAG) const {
+  MachineFunction &MF = DAG.getMachineFunction();
+  std::optional<uint16_t> BADisc =
+      Subtarget->getPtrAuthBlockAddressDiscriminator(MF.getFunction());
+  if (!BADisc)
+    return SDValue();
+
+  SDLoc DL(Op);
+  SDValue Chain = Op.getOperand(0);
+  SDValue Dest = Op.getOperand(1);
+
+  SDValue Disc = DAG.getTargetConstant(*BADisc, DL, MVT::i64);
+  SDValue Key = DAG.getTargetConstant(AArch64PACKey::IA, DL, MVT::i32);
+  SDValue AddrDisc = DAG.getRegister(AArch64::XZR, MVT::i64);
+
+  SDNode *BrA = DAG.getMachineNode(AArch64::BRA, DL, MVT::Other,
+                                   {Dest, Key, Disc, AddrDisc, Chain});
+  return SDValue(BrA, 0);
 }
 
 SDValue AArch64TargetLowering::LowerConstantPool(SDValue Op,
@@ -10738,15 +10760,36 @@ SDValue AArch64TargetLowering::LowerConstantPool(SDValue Op,
 
 SDValue AArch64TargetLowering::LowerBlockAddress(SDValue Op,
                                                SelectionDAG &DAG) const {
-  BlockAddressSDNode *BA = cast<BlockAddressSDNode>(Op);
+  BlockAddressSDNode *BAN = cast<BlockAddressSDNode>(Op);
+  const BlockAddress *BA = BAN->getBlockAddress();
+
+  if (std::optional<uint16_t> BADisc =
+          Subtarget->getPtrAuthBlockAddressDiscriminator(*BA->getFunction())) {
+    SDLoc DL(Op);
+
+    // This isn't cheap, but BRIND is rare.
+    SDValue TargetBA = DAG.getTargetBlockAddress(BA, BAN->getValueType(0));
+
+    SDValue Disc = DAG.getTargetConstant(*BADisc, DL, MVT::i64);
+
+    SDValue Key = DAG.getTargetConstant(AArch64PACKey::IA, DL, MVT::i32);
+    SDValue AddrDisc = DAG.getRegister(AArch64::XZR, MVT::i64);
+
+    SDNode *MOV =
+        DAG.getMachineNode(AArch64::MOVaddrPAC, DL, {MVT::Other, MVT::Glue},
+                           {TargetBA, Key, AddrDisc, Disc});
+    return DAG.getCopyFromReg(SDValue(MOV, 0), DL, AArch64::X16, MVT::i64,
+                              SDValue(MOV, 1));
+  }
+
   CodeModel::Model CM = getTargetMachine().getCodeModel();
   if (CM == CodeModel::Large && !Subtarget->isTargetMachO()) {
     if (!getTargetMachine().isPositionIndependent())
-      return getAddrLarge(BA, DAG);
+      return getAddrLarge(BAN, DAG);
   } else if (CM == CodeModel::Tiny) {
-    return getAddrTiny(BA, DAG);
+    return getAddrTiny(BAN, DAG);
   }
-  return getAddr(BA, DAG);
+  return getAddr(BAN, DAG);
 }
 
 SDValue AArch64TargetLowering::LowerDarwin_VASTART(SDValue Op,

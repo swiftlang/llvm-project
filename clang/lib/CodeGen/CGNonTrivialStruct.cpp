@@ -272,6 +272,8 @@ struct GenBinaryFuncName : CopyStructVisitor<GenBinaryFuncName<IsMove>, IsMove>,
     PointerAuthQualifier PtrAuth = FT.getPointerAuth();
     this->appendStr(llvm::to_string(PtrAuth.getKey()) + "_");
     this->appendStr(llvm::to_string(PtrAuth.getExtraDiscriminator()) + "_");
+    if (PtrAuth.authenticatesNullValues())
+      this->appendStr("anv_");
     CharUnits FieldOffset = CurStructOffset + this->getFieldOffset(FD);
     this->appendStr(llvm::to_string(FieldOffset.getQuantity()));
   }

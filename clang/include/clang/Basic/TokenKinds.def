@@ -344,6 +344,7 @@ KEYWORD(__func__                    , KEYALL)
 KEYWORD(__objc_yes                  , KEYALL)
 KEYWORD(__objc_no                   , KEYALL)
 KEYWORD(__ptrauth                   , KEYALL)
+KEYWORD(__ptrauth_restricted_intptr , KEYALL)
 
 
 // C++ 2.11p1: Keywords.
@@ -595,6 +596,8 @@ KEYWORD(__private_extern__          , KEYALL)
 KEYWORD(__module_private__          , KEYALL)
 
 UNARY_EXPR_OR_TYPE_TRAIT(__builtin_ptrauth_type_discriminator, PtrAuthTypeDiscriminator, KEYALL)
+UNARY_EXPR_OR_TYPE_TRAIT(__builtin_ptrauth_struct_key, PtrAuthStructKey, KEYALL)
+UNARY_EXPR_OR_TYPE_TRAIT(__builtin_ptrauth_struct_disc, PtrAuthStructDiscriminator, KEYALL)
 
 // Extension that will be enabled for Microsoft, Borland and PS4, but can be
 // disabled via '-fno-declspec'.

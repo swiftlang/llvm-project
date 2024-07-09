@@ -64,6 +64,17 @@ enum class PointerAuthenticationMode : unsigned {
   SignAndAuth
 };
 
+static constexpr llvm::StringLiteral PointerAuthenticationOptionStrip = "strip";
+static constexpr llvm::StringLiteral PointerAuthenticationOptionSignAndStrip =
+    "sign-and-strip";
+static constexpr llvm::StringLiteral PointerAuthenticationOptionSignAndAuth =
+    "sign-and-auth";
+static constexpr llvm::StringLiteral
+    PointerAuthenticationOptionAuthenticatesNullValues =
+        "authenticates-null-values";
+static constexpr llvm::StringLiteral PointerAuthenticationOptionIsaPointer =
+    "isa-pointer";
+
 /// Bitfields of LangOptions, split out from LangOptions in order to ensure that
 /// this large collection of bitfields is a trivial class type.
 class LangOptionsBase {
@@ -73,6 +84,7 @@ class LangOptionsBase {
 public:
   using Visibility = clang::Visibility;
   using RoundingMode = llvm::RoundingMode;
+  using PointerAuthenticationMode = clang::PointerAuthenticationMode;
 
   enum GCMode { NonGC, GCOnly, HybridGC };
   enum StackProtectorMode { SSPOff, SSPOn, SSPStrong, SSPReq };

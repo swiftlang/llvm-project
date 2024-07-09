@@ -653,7 +653,6 @@ DEFINE_LIBUNWIND_FUNCTION(__libunwind_Registers_arm64_jumpto)
   ldp    x24,x25, [x0, #0x0C0]
   ldp    x26,x27, [x0, #0x0D0]
   ldp    x28,x29, [x0, #0x0E0]
-  ldr    x30,     [x0, #0x100]  // restore pc into lr
 
   ldp    d0, d1,  [x0, #0x110]
   ldp    d2, d3,  [x0, #0x120]
@@ -677,12 +676,26 @@ DEFINE_LIBUNWIND_FUNCTION(__libunwind_Registers_arm64_jumpto)
   // context struct, because it is allocated on the stack, and an exception
   // could clobber the de-allocated portion of the stack after sp has been
   // restored.
-  ldr    x16,     [x0, #0x0F8]
+
+  ldr    x16,     [x0, #0x0F8]  // load sp into scratch
+  ldr    lr,      [x0, #0x100]  // restore pc into lr
+#if __has_feature(ptrauth_calls)
+  // The LR is signed with its address inside the register state.  Time
+  // to resign to be a regular ROP signed pointer
+  add    x1, x0, #0x100
+  autib  lr, x1
+  pacib  lr, x16  // signed the scratch register for sp
+#endif
+
   ldp    x0, x1,  [x0, #0x000]  // restore x0,x1
   mov    sp,x16                 // restore sp
-  ret    x30                    // jump to pc
+#if __has_feature(ptrauth_calls)
+  retab
+#else
+  ret
+#endif
 
-#elif defined(__arm__) && !defined(__APPLE__)
+#elif defined(__arm__)
 
 #if !defined(__ARM_ARCH_ISA_ARM)
 #if (__ARM_ARCH_ISA_THUMB == 2)

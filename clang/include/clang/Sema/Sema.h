@@ -3456,7 +3456,21 @@ public:
                                     bool IsMemberSpecialization);
 
   void diagnosePointerAuthDisabled(SourceLocation loc, SourceRange range);
-  bool checkConstantPointerAuthKey(Expr *keyExpr, unsigned &key);
+  bool checkConstantPointerAuthKey(Expr *keyExpr, int &key);
+
+  enum PointerAuthDiscArgKind {
+    // Address discrimination argument of __ptrauth.
+    PADAK_AddrDiscPtrAuth,
+
+    // Extra discriminator argument of __ptrauth.
+    PADAK_ExtraDiscPtrAuth,
+
+    // Type discriminator argument of ptrauth_struct.
+    PADAK_TypeDiscPtrAuthStruct,
+  };
+
+  bool checkPointerAuthDiscriminatorArg(Expr *arg, PointerAuthDiscArgKind kind,
+                                        unsigned &intVal);
 
   /// Diagnose function specifiers on a declaration of an identifier that
   /// does not identify a function.
@@ -4480,6 +4494,9 @@ public:
   bool checkStringLiteralArgumentAttr(const ParsedAttr &Attr, unsigned ArgNum,
                                       StringRef &Str,
                                       SourceLocation *ArgLocation = nullptr);
+
+  void addPointerAuthStructAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *Key, Expr *Disc);
 
   /// Determine if type T is a valid subject for a nonnull and similar
   /// attributes. By default, we look through references (the behavior used by

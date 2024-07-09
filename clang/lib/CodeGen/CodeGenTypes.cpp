@@ -799,6 +799,8 @@ bool CodeGenTypes::isPointerZeroInitializable(QualType T) {
 }
 
 bool CodeGenTypes::isZeroInitializable(QualType T) {
+  if (CGM.getContext().typeContainsAuthenticatedNull(T))
+    return false;
   if (T->getAs<PointerType>())
     return Context.getTargetNullPointerValue(T) == 0;
 

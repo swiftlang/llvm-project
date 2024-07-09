@@ -226,6 +226,7 @@ private:
   bool selectTLSGlobalValue(MachineInstr &I, MachineRegisterInfo &MRI);
   bool selectPtrAuthGlobalValue(MachineInstr &I,
                                 MachineRegisterInfo &MRI) const;
+  bool selectAuthLoad(MachineInstr &I, MachineRegisterInfo &MRI);
   bool selectReduction(MachineInstr &I, MachineRegisterInfo &MRI);
   bool selectMOPS(MachineInstr &I, MachineRegisterInfo &MRI);
   bool selectUSMovFromExtend(MachineInstr &I, MachineRegisterInfo &MRI);
@@ -2547,6 +2548,15 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
     return selectCompareBranch(I, MF, MRI);
 
   case TargetOpcode::G_BRINDIRECT: {
+    if (std::optional<uint16_t> BADisc =
+            STI.getPtrAuthBlockAddressDiscriminator(MF.getFunction())) {
+      auto MI = MIB.buildInstr(AArch64::BRA, {}, {I.getOperand(0).getReg()});
+      MI.addImm(AArch64PACKey::IA);
+      MI.addImm(*BADisc);
+      MI.addReg(/*AddrDisc=*/AArch64::XZR);
+      I.eraseFromParent();
+      return constrainSelectedInstRegOperands(*MI, TII, TRI, RBI);
+    }
     I.setDesc(TII.get(AArch64::BR));
     return constrainSelectedInstRegOperands(I, TII, TRI, RBI);
   }
@@ -2852,6 +2862,10 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
 
   case TargetOpcode::G_PTRAUTH_GLOBAL_VALUE:
     return selectPtrAuthGlobalValue(I, MRI);
+
+  case AArch64::G_LDRA:
+  case AArch64::G_LDRApre:
+    return selectAuthLoad(I, MRI);
 
   case TargetOpcode::G_ZEXTLOAD:
   case TargetOpcode::G_LOAD:
@@ -3461,6 +3475,23 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
     return true;
   }
   case TargetOpcode::G_BLOCK_ADDR: {
+    Function *BAFn = I.getOperand(1).getBlockAddress()->getFunction();
+    if (std::optional<uint16_t> BADisc =
+            STI.getPtrAuthBlockAddressDiscriminator(*BAFn)) {
+      MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X16}, {});
+      MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X17}, {});
+      MIB.buildInstr(AArch64::MOVaddrPAC)
+          .addBlockAddress(I.getOperand(1).getBlockAddress())
+          .addImm(AArch64PACKey::IA)
+          .addReg(/*AddrDisc=*/AArch64::XZR)
+          .addImm(*BADisc)
+          .constrainAllUses(TII, TRI, RBI);
+      MIB.buildCopy(I.getOperand(0).getReg(), Register(AArch64::X16));
+      RBI.constrainGenericRegister(I.getOperand(0).getReg(),
+                                   AArch64::GPR64RegClass, MRI);
+      I.eraseFromParent();
+      return true;
+    }
     if (TM.getCodeModel() == CodeModel::Large && !TM.isPositionIndependent()) {
       materializeLargeCMVal(I, I.getOperand(1).getBlockAddress(), 0);
       I.eraseFromParent();
@@ -3597,10 +3628,22 @@ bool AArch64InstructionSelector::selectBrJT(MachineInstr &I,
   unsigned JTI = I.getOperand(1).getIndex();
   Register Index = I.getOperand(2).getReg();
 
+  MF->getInfo<AArch64FunctionInfo>()->setJumpTableEntryInfo(JTI, 4, nullptr);
+  if (MF->getFunction().hasFnAttribute("jump-table-hardening") ||
+      STI.getTargetTriple().isArm64e()) {
+    if (TM.getCodeModel() != CodeModel::Small)
+      report_fatal_error("Unsupported code-model for hardened jump-table");
+
+    MIB.buildCopy({AArch64::X16}, I.getOperand(2).getReg());
+    MIB.buildInstr(AArch64::BR_JumpTable)
+        .addJumpTableIndex(I.getOperand(1).getIndex());
+    I.eraseFromParent();
+    return true;
+  }
+
   Register TargetReg = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
   Register ScratchReg = MRI.createVirtualRegister(&AArch64::GPR64spRegClass);
 
-  MF->getInfo<AArch64FunctionInfo>()->setJumpTableEntryInfo(JTI, 4, nullptr);
   auto JumpTableInst = MIB.buildInstr(AArch64::JumpTableDest32,
                                       {TargetReg, ScratchReg}, {JTAddr, Index})
                            .addJumpTableIndex(JTI);
@@ -3653,7 +3696,15 @@ bool AArch64InstructionSelector::selectTLSGlobalValue(
   // TLS calls preserve all registers except those that absolutely must be
   // trashed: X0 (it takes an argument), LR (it's a call) and NZCV (let's not be
   // silly).
-  MIB.buildInstr(getBLRCallOpcode(MF), {}, {Load})
+  unsigned Opcode = getBLRCallOpcode(MF);
+
+  // With ptrauth-calls, the tlv access thunk pointer is authenticated (IA, 0).
+  if (MF.getFunction().hasFnAttribute("ptrauth-calls")) {
+    assert(Opcode == AArch64::BLR);
+    Opcode = AArch64::BLRAAZ;
+  }
+
+  MIB.buildInstr(Opcode, {}, {Load})
       .addUse(AArch64::X0, RegState::Implicit)
       .addDef(AArch64::X0, RegState::Implicit)
       .addRegMask(TRI.getTLSCallPreservedMask());
@@ -6495,6 +6546,64 @@ bool AArch64InstructionSelector::selectIntrinsic(MachineInstr &I,
     I.eraseFromParent();
     return true;
   }
+  case Intrinsic::ptrauth_resign: {
+    Register DstReg = I.getOperand(0).getReg();
+    Register ValReg = I.getOperand(2).getReg();
+    uint64_t AUTKey = I.getOperand(3).getImm();
+    Register AUTDisc = I.getOperand(4).getReg();
+    uint64_t PACKey = I.getOperand(5).getImm();
+    Register PACDisc = I.getOperand(6).getReg();
+
+    Register AUTAddrDisc = AUTDisc;
+    uint16_t AUTConstDiscC = 0;
+    std::tie(AUTConstDiscC, AUTAddrDisc) =
+        extractPtrauthBlendDiscriminators(AUTDisc, MRI);
+
+    Register PACAddrDisc = PACDisc;
+    uint16_t PACConstDiscC = 0;
+    std::tie(PACConstDiscC, PACAddrDisc) =
+        extractPtrauthBlendDiscriminators(PACDisc, MRI);
+
+    MIB.buildCopy({AArch64::X16}, {ValReg});
+    MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X17}, {});
+    MIB.buildInstr(AArch64::AUTPAC)
+        .addImm(AUTKey)
+        .addImm(AUTConstDiscC)
+        .addUse(AUTAddrDisc)
+        .addImm(PACKey)
+        .addImm(PACConstDiscC)
+        .addUse(PACAddrDisc)
+        .constrainAllUses(TII, TRI, RBI);
+    MIB.buildCopy({DstReg}, Register(AArch64::X16));
+
+    RBI.constrainGenericRegister(DstReg, AArch64::GPR64RegClass, MRI);
+    I.eraseFromParent();
+    return true;
+  }
+  case Intrinsic::ptrauth_auth: {
+    Register DstReg = I.getOperand(0).getReg();
+    Register ValReg = I.getOperand(2).getReg();
+    uint64_t AUTKey = I.getOperand(3).getImm();
+    Register AUTDisc = I.getOperand(4).getReg();
+
+    Register AUTAddrDisc = AUTDisc;
+    uint16_t AUTConstDiscC = 0;
+    std::tie(AUTConstDiscC, AUTAddrDisc) =
+        extractPtrauthBlendDiscriminators(AUTDisc, MRI);
+
+    MIB.buildCopy({AArch64::X16}, {ValReg});
+    MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X17}, {});
+    MIB.buildInstr(AArch64::AUT)
+        .addImm(AUTKey)
+        .addImm(AUTConstDiscC)
+        .addUse(AUTAddrDisc)
+        .constrainAllUses(TII, TRI, RBI);
+    MIB.buildCopy({DstReg}, Register(AArch64::X16));
+
+    RBI.constrainGenericRegister(DstReg, AArch64::GPR64RegClass, MRI);
+    I.eraseFromParent();
+    return true;
+  }
   case Intrinsic::frameaddress:
   case Intrinsic::returnaddress: {
     MachineFunction &MF = *I.getParent()->getParent();
@@ -6511,6 +6620,17 @@ bool AArch64InstructionSelector::selectIntrinsic(MachineInstr &I,
         MFI.setReturnAddressIsTaken(true);
         MFReturnAddr = getFunctionLiveInPhysReg(
             MF, TII, AArch64::LR, AArch64::GPR64RegClass, I.getDebugLoc());
+      }
+
+      if (STI.isTargetDarwin()) {
+        // If we're doing LR signing, we need to fixup ReturnAddr: strip it.
+        // If not, on Darwin, we know we will never seen a frame with a signed LR.
+        if (MF.getFunction().hasFnAttribute("ptrauth-returns"))
+          MIB.buildInstr(AArch64::XPACIuntied, {DstReg}, {MFReturnAddr});
+        else
+          MIB.buildCopy({DstReg}, {MFReturnAddr});
+        I.eraseFromParent();
+        return true;
       }
 
       if (STI.hasPAuth()) {
@@ -6540,6 +6660,19 @@ bool AArch64InstructionSelector::selectIntrinsic(MachineInstr &I,
     else {
       MFI.setReturnAddressIsTaken(true);
 
+      if (STI.isTargetDarwin()) {
+        // If we're doing LR signing, we need to fixup ReturnAddr: strip it.
+        // If not, on Darwin, we know we will never seen a frame with a signed LR.
+        if (MF.getFunction().hasFnAttribute("ptrauth-returns")) {
+          Register TmpReg = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
+          MIB.buildInstr(AArch64::LDRXui, {TmpReg}, {FrameAddr}).addImm(1);
+          MIB.buildInstr(AArch64::XPACIuntied, {DstReg}, {TmpReg});
+        } else {
+          MIB.buildInstr(AArch64::LDRXui, {DstReg}, {FrameAddr}).addImm(1);
+        }
+        I.eraseFromParent();
+        return true;
+      }
       if (STI.hasPAuth()) {
         Register TmpReg = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
         MIB.buildInstr(AArch64::LDRXui, {TmpReg}, {FrameAddr}).addImm(1);
@@ -6637,8 +6770,8 @@ bool AArch64InstructionSelector::selectPtrAuthGlobalValue(
         "constant discriminator in ptrauth global out of range [0, 0xffff]");
 
   // Choosing between 3 lowering alternatives is target-specific.
-  if (!STI.isTargetELF())
-    report_fatal_error("ptrauth global lowering is only implemented for ELF");
+  if (!STI.isTargetELF() && !STI.isTargetMachO())
+    report_fatal_error("ptrauth global lowering only supported on MachO/ELF");
 
   if (!MRI.hasOneDef(Addr))
     return false;
@@ -6727,6 +6860,72 @@ bool AArch64InstructionSelector::selectPtrAuthGlobalValue(
   I.eraseFromParent();
   return true;
 }
+
+bool AArch64InstructionSelector::selectAuthLoad(
+    MachineInstr &I, MachineRegisterInfo &MRI) {
+  bool Writeback = I.getOpcode() == AArch64::G_LDRApre;
+
+  Register ValReg = I.getOperand(0).getReg();
+  Register PtrReg = I.getOperand(1 + Writeback).getReg();
+  int64_t Offset = I.getOperand(2 + Writeback).getImm();
+  auto Key = static_cast<AArch64PACKey::ID>(I.getOperand(3 + Writeback).getImm());
+  uint64_t DiscImm = I.getOperand(4 + Writeback).getImm();
+  Register AddrDisc = I.getOperand(5 + Writeback).getReg();
+
+  bool IsDKey = Key == AArch64PACKey::DA || Key == AArch64PACKey::DB;
+  bool ZeroDisc = AddrDisc == AArch64::NoRegister && !DiscImm;
+
+  // If the discriminator is zero and the offset fits, we can use LDRAA/LDRAB.
+  // Do that here to avoid needlessly constraining regalloc into using X16.
+  if (ZeroDisc && isShiftedInt<10, 3>(Offset) && IsDKey) {
+    unsigned Opc = 0;
+    switch (Key) {
+    case AArch64PACKey::DA:
+      Opc = Writeback ? AArch64::LDRAAwriteback : AArch64::LDRAAindexed;
+      break;
+    case AArch64PACKey::DB:
+      Opc = Writeback ? AArch64::LDRABwriteback : AArch64::LDRABindexed;
+      break;
+    default:
+      llvm_unreachable("Invalid key for LDRAA/LDRAB");
+    }
+    // The LDRAA/LDRAB offset immediate is scaled.
+    Offset /= 8;
+    if (Writeback) {
+      MIB.buildInstr(Opc, {I.getOperand(1).getReg(), ValReg}, {PtrReg, Offset})
+        .constrainAllUses(TII, TRI, RBI);
+      RBI.constrainGenericRegister(I.getOperand(1).getReg(),
+                                   AArch64::GPR64spRegClass, MRI);
+    } else {
+      MIB.buildInstr(Opc, {ValReg}, {PtrReg, Offset})
+        .constrainAllUses(TII, TRI, RBI);
+    }
+    I.eraseFromParent();
+    return true;
+  }
+
+  if (AddrDisc == AArch64::NoRegister)
+    AddrDisc = AArch64::XZR;
+
+  // Otherwise, use the generalized LDRA pseudo.
+  MIB.buildCopy(AArch64::X16, PtrReg);
+  if (Writeback) {
+    MIB.buildInstr(AArch64::LDRApre, {ValReg},
+                   {Offset, uint64_t(Key), DiscImm, AddrDisc})
+        .constrainAllUses(TII, TRI, RBI);
+    MIB.buildCopy(I.getOperand(1).getReg(), (Register)AArch64::X16);
+    RBI.constrainGenericRegister(I.getOperand(1).getReg(),
+                                 AArch64::GPR64RegClass, MRI);
+  } else {
+    MIB.buildInstr(AArch64::LDRA, {ValReg},
+                   {Offset, uint64_t(Key), DiscImm, AddrDisc})
+        .constrainAllUses(TII, TRI, RBI);
+  }
+
+  I.eraseFromParent();
+  return true;
+}
+
 
 void AArch64InstructionSelector::SelectTable(MachineInstr &I,
                                              MachineRegisterInfo &MRI,

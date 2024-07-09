@@ -11,6 +11,7 @@
 #define __PTRAUTH_H
 
 typedef enum {
+  ptrauth_key_none = -1,
   ptrauth_key_asia = 0,
   ptrauth_key_asib = 1,
   ptrauth_key_asda = 2,
@@ -44,6 +45,10 @@ typedef enum {
      (or, in other words, the value of the stack pointer on function entry) */
   ptrauth_key_frame_pointer = ptrauth_key_process_dependent_data,
 
+  /* The key used to sign C++ v-table pointers.
+     The extra data is always 0. */
+  ptrauth_key_cxx_vtable_pointer = ptrauth_key_process_independent_data,
+
   /* The key used to sign block function pointers, including:
        invocation functions,
        block object copy functions,
@@ -55,11 +60,17 @@ typedef enum {
 
      Note that block object pointers themselves (i.e. the direct
      representations of values of block-pointer type) are not signed. */
-  ptrauth_key_block_function = ptrauth_key_asia,
+  ptrauth_key_block_function = ptrauth_key_process_independent_code,
 
-  /* The key used to sign C++ v-table pointers.
-     The extra data is always 0. */
-  ptrauth_key_cxx_vtable_pointer = ptrauth_key_process_independent_data,
+  /* The key used to sign Objective-C isa and super pointers. */
+  ptrauth_key_objc_isa_pointer = ptrauth_key_process_independent_data,
+  ptrauth_key_objc_super_pointer = ptrauth_key_process_independent_data,
+
+  /* The key used to sign block descriptor pointers. */
+  ptrauth_key_block_descriptor_pointer = ptrauth_key_process_independent_data,
+
+  /* The key used to sign metadata pointers to Objective-C method-lists. */
+  ptrauth_key_method_list_pointer = ptrauth_key_process_independent_data,
 
   /* Other pointers signed under the ABI use private ABI rules. */
 
@@ -97,6 +108,38 @@ typedef __UINTPTR_TYPE__ ptrauth_generic_signature_t;
    of these intrinsics.  This is not necessary when using the
    __ptrauth qualifier; the compiler will perform this check
    automatically. */
+
+#if __has_feature(ptrauth_qualifier_authentication_mode)
+/* We define these macros including the comma so we can no-op them in the future
+   without version locking with downstream projects
+*/
+  #if __has_feature(ptrauth_objc_isa_signs)
+    #if __has_feature(ptrauth_objc_isa_authenticates)
+      #define __ptrauth_isa_signing_mode , "sign-and-auth"
+    #elif __has_feature(ptrauth_objc_isa_strips)
+      #define __ptrauth_isa_signing_mode , "sign-and-strip"
+    #endif
+  #else
+    #if __has_feature(ptrauth_objc_isa_strips)
+      #define __ptrauth_isa_signing_mode , "strip"
+    #endif
+  #endif
+#endif
+
+#ifdef __ptrauth_isa_signing_mode
+  #if __has_feature(ptrauth_objc_isa_masking)
+    #define __ptrauth_isa_masking_mode ",isa-pointer"
+  #else
+    #define __ptrauth_isa_masking_mode
+  #endif
+#else
+  #define __ptrauth_isa_signing_mode
+  #if __has_feature(ptrauth_objc_isa_masking)
+    #define __ptrauth_isa_masking_mode "isa-pointer"
+  #else
+    #define __ptrauth_isa_masking_mode
+  #endif
+#endif
 
 #if __has_feature(ptrauth_intrinsics)
 
@@ -202,6 +245,24 @@ typedef __UINTPTR_TYPE__ ptrauth_generic_signature_t;
   ptrauth_auth_and_resign(__value, __old_key, __old_data,                      \
                           ptrauth_key_function_pointer, 0)
 
+/* Cast a pointer to the given type without changing any signature.
+
+   The type must be a pointer type.
+   The value must be an expression of function pointer type, and will be
+   converted to an rvalue prior to the cast.
+   The result has type given by the first argument.
+
+   The result has an identical bit-pattern to the input pointer. */
+#define ptrauth_nop_cast(__type, __value)                                      \
+  ({                                                                           \
+    union {                                                                    \
+      typeof(*(__value)) *__fptr;                                              \
+      typeof(__type) __opaque;                                                 \
+    } __storage;                                                               \
+    __storage.__fptr = (__value);                                              \
+    __storage.__opaque;                                                        \
+  })
+
 /* Authenticate a data pointer.
 
    The value must be an expression of non-function pointer type.
@@ -235,12 +296,28 @@ typedef __UINTPTR_TYPE__ ptrauth_generic_signature_t;
 
    If the type is a C++ member function pointer type, the result is
    the discriminator used to signed member function pointers of that
-   type.  This property is currently not true of other types.
+   type.  If the type is a function, function pointer, or function
+   reference type, the result is the discriminator used to sign
+   functions of that type.  It is ill-formed to use this macro with any
+   other type.
 
-   The argument must be a type.
    A call to this function is an integer constant expression. */
-#define ptrauth_type_discriminator(__type) \
+#define ptrauth_type_discriminator(__type)                                     \
   __builtin_ptrauth_type_discriminator(__type)
+
+/* Compute the constant discriminator used by Clang to sign pointers with the
+   given C function pointer type.
+
+   A call to this function is an integer constant expression*/
+#if __has_feature(ptrauth_function_pointer_type_discrimination)
+#define ptrauth_function_pointer_type_discriminator(__type)                    \
+  __builtin_ptrauth_type_discriminator(__type)
+#else
+#define ptrauth_function_pointer_type_discriminator(__type)                    \
+  ((ptrauth_extra_data_t)0)
+#endif
+
+
 
 /* Compute a signature for the given pair of pointer-sized values.
    The order of the arguments is significant.
@@ -307,6 +384,78 @@ typedef __UINTPTR_TYPE__ ptrauth_generic_signature_t;
   [[clang::ptrauth_vtable_pointer(key, address_discrimination,                 \
                                   extra_discrimination)]]
 
+
+/* Define some standard __ptrauth qualifiers used in the ABI. */
+#define __ptrauth_function_pointer(__typekey) \
+  __ptrauth(ptrauth_key_function_pointer,0,__typekey)
+#define __ptrauth_return_address              \
+  __ptrauth(ptrauth_key_return_address,1,0)
+#define __ptrauth_block_invocation_pointer    \
+  __ptrauth(ptrauth_key_function_pointer,1,0)
+#define __ptrauth_block_copy_helper           \
+  __ptrauth(ptrauth_key_function_pointer,1,0)
+#define __ptrauth_block_destroy_helper        \
+  __ptrauth(ptrauth_key_function_pointer,1,0)
+#define __ptrauth_block_byref_copy_helper     \
+  __ptrauth(ptrauth_key_function_pointer,1,0)
+#define __ptrauth_block_byref_destroy_helper  \
+  __ptrauth(ptrauth_key_function_pointer,1,0)
+#if __has_feature(ptrauth_signed_block_descriptors)
+#define __ptrauth_block_descriptor_pointer \
+  __ptrauth(ptrauth_key_block_descriptor_pointer,1,0xC0BB)
+#else
+#define __ptrauth_block_descriptor_pointer
+#endif
+#define __ptrauth_objc_method_list_imp        \
+  __ptrauth(ptrauth_key_function_pointer,1,0)
+#if __has_feature(ptrauth_objc_method_list_pointer)
+#define __ptrauth_objc_method_list_pointer \
+  __ptrauth(ptrauth_key_method_list_pointer,1,0xC310)
+#else
+#define __ptrauth_objc_method_list_pointer
+#endif
+#if !__has_feature(ptrauth_qualifier_authentication_mode) ||                   \
+      (__has_feature(ptrauth_objc_isa_signs) ||                                \
+       __has_feature(ptrauth_objc_isa_strips))
+#define __ptrauth_isa_discriminator 0x6AE1
+#define __ptrauth_super_discriminator 0xB5AB
+#define __ptrauth_objc_isa_pointer                                             \
+  __ptrauth(ptrauth_key_objc_isa_pointer, 1,                                   \
+            __ptrauth_isa_discriminator __ptrauth_isa_signing_mode             \
+                __ptrauth_isa_masking_mode)
+#define __ptrauth_objc_isa_uintptr                                             \
+  __ptrauth_restricted_intptr(                                                 \
+      ptrauth_key_objc_isa_pointer, 1,                                         \
+      __ptrauth_isa_discriminator __ptrauth_isa_signing_mode                   \
+          __ptrauth_isa_masking_mode)
+#define __ptrauth_objc_super_pointer                                           \
+  __ptrauth(ptrauth_key_objc_super_pointer, 1,                                 \
+            __ptrauth_super_discriminator __ptrauth_isa_signing_mode)
+#else
+#define __ptrauth_objc_isa_pointer
+#define __ptrauth_objc_isa_uintptr
+#define __ptrauth_objc_super_pointer
+#endif
+#define __ptrauth_cxx_vtable_pointer          \
+  __ptrauth(ptrauth_key_cxx_vtable_pointer,0,0)
+#define __ptrauth_cxx_vtt_vtable_pointer      \
+  __ptrauth(ptrauth_key_cxx_vtable_pointer,0,0)
+#define __ptrauth_swift_heap_object_destructor \
+  __ptrauth(ptrauth_key_function_pointer,1,0xbbbf)
+
+/* Some situations in the C++ and Swift ABIs use declaration-specific
+   or type-specific extra discriminators. */
+#define __ptrauth_cxx_virtual_function_pointer(__declkey) \
+  __ptrauth(ptrauth_key_function_pointer,1,__declkey)
+#define __ptrauth_swift_function_pointer(__typekey) \
+  __ptrauth(ptrauth_key_function_pointer,0,__typekey)
+#define __ptrauth_swift_class_method_pointer(__declkey) \
+  __ptrauth(ptrauth_key_function_pointer,1,__declkey)
+#define __ptrauth_swift_protocol_witness_function_pointer(__declkey) \
+  __ptrauth(ptrauth_key_function_pointer,1,__declkey)
+#define __ptrauth_swift_value_witness_function_pointer(__key) \
+  __ptrauth(ptrauth_key_function_pointer,1,__key)
+
 #else
 
 #define ptrauth_strip(__value, __key)                                          \
@@ -353,6 +502,8 @@ typedef __UINTPTR_TYPE__ ptrauth_generic_signature_t;
     __value;                                                                   \
   })
 
+#define ptrauth_nop_cast(__type, __value) (__type)(__value)
+
 #define ptrauth_auth_data(__value, __old_key, __old_data)                      \
   ({                                                                           \
     (void)__old_key;                                                           \
@@ -365,6 +516,11 @@ typedef __UINTPTR_TYPE__ ptrauth_generic_signature_t;
     (void)__string;                                                            \
     ((ptrauth_extra_data_t)0);                                                 \
   })
+
+#define ptrauth_type_discriminator(__type) ((ptrauth_extra_data_t)0)
+
+#define ptrauth_function_pointer_type_discriminator(__type)                    \
+  ((ptrauth_extra_data_t)0)
 
 #define ptrauth_sign_generic_data(__value, __data)                             \
   ({                                                                           \
@@ -395,6 +551,29 @@ typedef __UINTPTR_TYPE__ ptrauth_generic_signature_t;
 
 #define ptrauth_cxx_vtable_pointer(key, address_discrimination,                \
                                    extra_discrimination...)
+
+
+#define __ptrauth_function_pointer(__typekey)
+#define __ptrauth_return_address
+#define __ptrauth_block_invocation_pointer
+#define __ptrauth_block_copy_helper
+#define __ptrauth_block_destroy_helper
+#define __ptrauth_block_byref_copy_helper
+#define __ptrauth_block_byref_destroy_helper
+#define __ptrauth_block_descriptor_pointer
+#define __ptrauth_objc_method_list_imp
+#define __ptrauth_objc_method_list_pointer
+#define __ptrauth_objc_isa_pointer
+#define __ptrauth_objc_isa_uintptr
+#define __ptrauth_objc_super_pointer
+#define __ptrauth_cxx_vtable_pointer
+#define __ptrauth_cxx_vtt_vtable_pointer
+#define __ptrauth_swift_heap_object_destructor
+#define __ptrauth_cxx_virtual_function_pointer(__declkey)
+#define __ptrauth_swift_function_pointer(__typekey)
+#define __ptrauth_swift_class_method_pointer(__declkey)
+#define __ptrauth_swift_protocol_witness_function_pointer(__declkey)
+#define __ptrauth_swift_value_witness_function_pointer(__key)
 
 #endif /* __has_feature(ptrauth_intrinsics) */
 

@@ -14,6 +14,10 @@
 #include "config.h"
 #include "libunwind_ext.h"
 
+#if __has_feature(ptrauth_calls)
+#include <ptrauth.h>
+#endif
+
 #include <stdlib.h>
 
 // Define the __has_feature extension for compilers that do not support it so
@@ -94,6 +98,62 @@ _LIBUNWIND_HIDDEN int __unw_init_local(unw_cursor_t *cursor,
 }
 _LIBUNWIND_WEAK_ALIAS(__unw_init_local, unw_init_local)
 
+#if __has_feature(ptrauth_calls)
+extern "C" {
+__attribute__((noinline)) unw_word_t __unw_is_pointer_auth_enabled(void) {
+  static const size_t authenticated = __builtin_ptrauth_string_discriminator("__unw_is_pointer_auth_enabled authenticated");
+  static const size_t unauthenticated = __builtin_ptrauth_string_discriminator("__unw_is_pointer_auth_enabled unauthenticated");
+  static_assert(authenticated != unauthenticated, "authenticated and unauthenticated constants must differ");
+  static_assert(authenticated != 0, "authenticated constant must be non-zero");
+  static_assert(unauthenticated != 0, "unauthenticated constant must be non-zero");
+  static size_t __ptrauth_restricted_intptr(ptrauth_key_return_address, 1, __builtin_ptrauth_string_discriminator("libunwind __unw_is_pointer_auth_enabled")) mode;
+  if (!mode) {
+    // This isn't atomic, but the worst case is we end up doing this twice
+    int ptrauth_enabled;
+    size_t ptrauth_enabled_size = sizeof(ptrauth_enabled);
+    struct AuthenticatedValues {
+      // These are more or less arbitrary schemas, we're just trying to be reasonably confident
+      // that we'll get a non-zero signature in at least one case, which this should be more
+      // than sufficient for.
+      size_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_function_pointer, 1, "value1") value1;
+      size_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_function_pointer, 1, "value2") value2;
+      size_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_function_pointer, 1, "value3") value3;
+      size_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_function_pointer, 0, "value4") value4;
+    };
+    struct UnauthenticatedValues {
+      size_t value1;
+      size_t value2;
+      size_t value3;
+      size_t value4;
+    };
+    union {
+      AuthenticatedValues authenticated;
+      UnauthenticatedValues unauthenticated;
+    } u;
+    memset(&u, 0, sizeof(u));
+    u.authenticated.value1 = 1;
+    u.authenticated.value2 = 1;
+    u.authenticated.value3 = 1;
+    u.authenticated.value4 = 1;
+    size_t result = u.unauthenticated.value1;
+    result |= u.unauthenticated.value2;
+    result |= u.unauthenticated.value3;
+    result |= u.unauthenticated.value4;
+    ptrauth_enabled = result > 1;
+    if (ptrauth_enabled == 0)
+      mode = unauthenticated;
+    else
+      mode = authenticated;
+  }
+  if (mode == authenticated)
+    return 1;
+  if (mode == unauthenticated)
+    return 0;
+  _LIBUNWIND_ABORT("Invalid authentication state");
+}
+}
+#endif
+
 /// Get value of specified register at cursor position in stack frame.
 _LIBUNWIND_HIDDEN int __unw_get_reg(unw_cursor_t *cursor, unw_regnum_t regNum,
                                     unw_word_t *value) {
@@ -118,22 +178,86 @@ _LIBUNWIND_HIDDEN int __unw_set_reg(unw_cursor_t *cursor, unw_regnum_t regNum,
   typedef LocalAddressSpace::pint_t pint_t;
   AbstractUnwindCursor *co = (AbstractUnwindCursor *)cursor;
   if (co->validReg(regNum)) {
-    co->setReg(regNum, (pint_t)value);
     // special case altering IP to re-find info (being called by personality
     // function)
     if (regNum == UNW_REG_IP) {
       unw_proc_info_t info;
       // First, get the FDE for the old location and then update it.
       co->getInfo(&info);
-      co->setInfoBasedOnIPRegister(false);
+
+#if __has_feature(ptrauth_calls)
+      // It is only valid to set the IP within the current function.
+      // This is important for ptrauth, otherwise the IP cannot be correctly
+      // signed.
+      unw_word_t stripped_value = (unw_word_t)ptrauth_strip((void*)value, ptrauth_key_return_address);
+      assert(stripped_value >= info.start_ip && stripped_value <= info.end_ip);
+#endif
+
+      pint_t sp = (pint_t)co->getReg(UNW_REG_SP);
+
+#if __has_feature(ptrauth_calls)
+    // If we are in an arm64e frame, then the PC should have been signed with the sp
+    {
+        const mach_header_64 *mh = (const mach_header_64 *)info.extra;
+        // Note, if we don't have mh, we assume this was created by unw_init_local inside
+        // libunwind.dylib itself, and we know we are arm64e.
+        pint_t pc = (pint_t)co->getReg(UNW_REG_IP);
+        if ((mh->cpusubtype & ~CPU_SUBTYPE_MASK) == CPU_SUBTYPE_ARM64_E) {
+            if (ptrauth_auth_and_resign((void*)pc, ptrauth_key_return_address, sp,
+                                        ptrauth_key_return_address, sp) != (void*)pc) {
+                abort_report_np("Bad unwind through arm64e (0x%llX, 0x%llX)->0x%llX\n",
+                                pc, sp, (pint_t)ptrauth_auth_data((void*)pc, ptrauth_key_return_address, sp));
+            }
+        }
+    }
+#endif
+
+      pint_t orgArgSize = (pint_t)info.gp;
+      uint64_t orgFuncStart = info.start_ip;
+      // and adjust REG_SP if there was a DW_CFA_GNU_args_size
       // If the original call expects stack adjustment, perform this now.
       // Normal frame unwinding would have included the offset already in the
       // CFA computation.
       // Note: for PA-RISC and other platforms where the stack grows up,
       // this should actually be - info.gp. LLVM doesn't currently support
       // any such platforms and Clang doesn't export a macro for them.
-      if (info.gp)
-        co->setReg(UNW_REG_SP, co->getReg(UNW_REG_SP) + info.gp);
+      if ((orgFuncStart == info.start_ip) && (orgArgSize != 0)) {
+        co->setReg(UNW_REG_SP, sp + orgArgSize);
+#if __has_feature(ptrauth_calls)
+        if (!__unw_is_pointer_auth_enabled()) {
+          value = (pint_t)ptrauth_sign_unauthenticated((void*)stripped_value, ptrauth_key_return_address, sp + orgArgSize);
+          // We re-test the authentication state after authentication so an attacker that
+          // does manage to get to this oracle they have to have already completely bypassed
+          // ptrauth guards rather than having transitory control
+          __asm__ ("":::"memory");
+          if (__unw_is_pointer_auth_enabled()) {
+            value = (unw_word_t)-1;
+            // Force the optimizer to commit the update to value
+            __asm__ volatile ("":"+rm"(value),"+rm"(value)::"memory");
+            _LIBUNWIND_ABORT("Inconsistent invalid authentication state");
+          }
+        }
+#endif
+        co->setReg(UNW_REG_IP, value);
+      } else {
+#if __has_feature(ptrauth_calls)
+        if (!__unw_is_pointer_auth_enabled()) {
+          // Adding !__unw_is_pointer_auth_enabled() to the extra discriminator as above
+          value = (pint_t)ptrauth_sign_unauthenticated((void*)stripped_value, ptrauth_key_return_address, sp);
+          // As above
+          __asm__ ("":::"memory");
+          if (__unw_is_pointer_auth_enabled()) {
+            value = (unw_word_t)-1;
+            __asm__ volatile ("":"+rm"(value),"+rm"(value)::"memory");
+            _LIBUNWIND_ABORT("Inconsistent invalid authentication state");
+          }
+        }
+#endif
+          co->setReg(UNW_REG_IP, value);
+      }
+      co->setInfoBasedOnIPRegister(false);
+    } else {
+        co->setReg(regNum, (pint_t)value);
     }
     return UNW_ESUCCESS;
   }

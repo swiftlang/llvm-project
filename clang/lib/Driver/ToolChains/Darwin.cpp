@@ -1283,6 +1283,40 @@ void DarwinClang::addClangWarningOptions(ArgStringList &CC1Args) const {
   }
 }
 
+static bool useObjCIsaPtrauth(const Darwin &D) {
+  VersionTuple TargetVersion = D.getTripleTargetVersion();
+  if (D.isTargetMacCatalyst() || D.TargetEnvironment == Darwin::Simulator)
+    return true;
+  switch (D.TargetPlatform) {
+  case Darwin::IPhoneOS:
+  case Darwin::TvOS:
+    return TargetVersion >= VersionTuple(14, 5, 0);
+  case Darwin::WatchOS:
+  case Darwin::MacOS:
+  case Darwin::DriverKit:
+    return true;
+  case Darwin::XROS:
+    return true;
+  }
+}
+
+static bool useCXXVTablePtrTypeAddressDiscrimination(const Darwin& D) {
+  VersionTuple TargetVersion = D.getTripleTargetVersion();
+  if (D.isTargetMacCatalyst())
+    return true;
+  switch (D.TargetPlatform) {
+  case Darwin::IPhoneOS:
+  case Darwin::TvOS:
+    return TargetVersion >= VersionTuple(15, 0, 0);
+  case Darwin::WatchOS:
+  case Darwin::MacOS:
+  case Darwin::DriverKit:
+    return true;
+  case Darwin::XROS:
+    return true;
+  }
+}
+
 void DarwinClang::addClangTargetOptions(
   const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
   Action::OffloadKind DeviceOffloadKind) const{
@@ -1291,7 +1325,7 @@ void DarwinClang::addClangTargetOptions(
 
   // On arm64e, enable pointer authentication (for the return address and
   // indirect calls), as well as usage of the intrinsics.
-  if (getArchName() == "arm64e") {
+  if (getTriple().isArm64e()) {
     // The ptrauth ABI version is 0 by default, but can be overridden.
     static const constexpr unsigned DefaultPtrauthABIVersion = 0;
 
@@ -1343,6 +1377,68 @@ void DarwinClang::addClangTargetOptions(
     if (!DriverArgs.hasArg(options::OPT_fptrauth_auth_traps,
                            options::OPT_fno_ptrauth_auth_traps))
       CC1Args.push_back("-fptrauth-auth-traps");
+
+    if (!DriverArgs.hasArg(options::OPT_fassume_unique_vtables,
+                           options::OPT_fno_assume_unique_vtables))
+      CC1Args.push_back("-fno-assume-unique-vtables");
+
+    if (useCXXVTablePtrTypeAddressDiscrimination(*this)) {
+      if (!DriverArgs.hasArg(
+          options::OPT_fptrauth_vtable_pointer_address_discrimination,
+          options::OPT_fno_ptrauth_vtable_pointer_address_discrimination))
+        CC1Args.push_back("-fptrauth-vtable-pointer-address-discrimination");
+
+      if (!DriverArgs.hasArg(
+          options::OPT_fptrauth_vtable_pointer_type_discrimination,
+          options::OPT_fno_ptrauth_vtable_pointer_type_discrimination))
+        CC1Args.push_back("-fptrauth-vtable-pointer-type-discrimination");
+    }
+
+    if (!DriverArgs.hasArg(options::OPT_fptrauth_objc_isa,
+                           options::OPT_fno_ptrauth_objc_isa)) {
+      if (useObjCIsaPtrauth(*this))
+        CC1Args.push_back("-fptrauth-objc-isa-mode=sign-and-auth");
+      else
+        CC1Args.push_back("-fptrauth-objc-isa-mode=sign-and-strip");
+    }
+
+    if (DriverArgs.hasArg(options::OPT_fapple_kext) ||
+        DriverArgs.hasArg(options::OPT_mkernel) || isTargetDriverKit()) {
+      if (!DriverArgs.hasArg(
+              options::OPT_fptrauth_block_descriptor_pointers,
+              options::OPT_fno_ptrauth_block_descriptor_pointers))
+        CC1Args.push_back("-fptrauth-block-descriptor-pointers");
+
+      if (!DriverArgs.hasArg(
+              options::OPT_fptrauth_vtable_pointer_address_discrimination,
+              options::OPT_fno_ptrauth_vtable_pointer_address_discrimination))
+        CC1Args.push_back("-fptrauth-vtable-pointer-address-discrimination");
+
+      if (!DriverArgs.hasArg(
+              options::OPT_fptrauth_vtable_pointer_type_discrimination,
+              options::OPT_fno_ptrauth_vtable_pointer_type_discrimination))
+        CC1Args.push_back("-fptrauth-vtable-pointer-type-discrimination");
+
+      if (!DriverArgs.hasArg(
+              options::OPT_fptrauth_function_pointer_type_discrimination,
+              options::OPT_fno_ptrauth_function_pointer_type_discrimination))
+        CC1Args.push_back("-fptrauth-function-pointer-type-discrimination");
+    }
+
+    if (DriverArgs.hasArg(options::OPT_fapple_kext) ||
+        DriverArgs.hasArg(options::OPT_mkernel)) {
+      // -fbranch-target-identification is a driver flag and isn't honored
+      // by -cc1.  For arm64e, -mbranch-target-enforce is the -cc1 spelling,
+      // derived from non-arm64e -mbranch-protection=.
+      // Catch all 3 here anyway.
+      if (!DriverArgs.hasArg(options::OPT_fbranch_target_identification,
+                             options::OPT_fno_branch_target_identification) &&
+          !DriverArgs.hasArg(options::OPT_mbranch_target_enforce) &&
+          !DriverArgs.hasArg(options::OPT_mbranch_protection_EQ)) {
+        CC1Args.push_back("-mbranch-target-enforce");
+      }
+    }
+
   }
 }
 

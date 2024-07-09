@@ -249,4 +249,8 @@ FIELD(HasDeclaredCopyAssignmentWithConstParam, 1, MERGE_OR)
 /// base classes or fields have a no-return destructor
 FIELD(IsAnyDestructorNoReturn, 1, NO_MERGE)
 
+/// Whether this class or any of its direct or indirect base classes are
+/// annotated with `ptrauth_struct` that uses a key that isn't the none key.
+FIELD(HasSignedClassInHierarchy, 1, NO_MERGE)
+
 #undef FIELD

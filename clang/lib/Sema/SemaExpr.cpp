@@ -4098,17 +4098,6 @@ static bool CheckVecStepTraitOperandType(Sema &S, QualType T,
   return false;
 }
 
-static bool CheckPtrAuthTypeDiscriminatorOperandType(Sema &S, QualType T,
-                                                     SourceLocation Loc,
-                                                     SourceRange ArgRange) {
-  if (T->isVariablyModifiedType()) {
-    S.Diag(Loc, diag::err_ptrauth_type_disc_variably_modified) << T << ArgRange;
-    return true;
-  }
-
-  return false;
-}
-
 static bool CheckVectorElementsTraitOperandType(Sema &S, QualType T,
                                                 SourceLocation Loc,
                                                 SourceRange ArgRange) {
@@ -4118,6 +4107,27 @@ static bool CheckVectorElementsTraitOperandType(Sema &S, QualType T,
            << ""
            << "__builtin_vectorelements" << T << ArgRange;
 
+  return false;
+}
+
+static bool CheckPtrAuthTypeDiscriminatorOperandType(Sema &S, QualType T,
+                                                     SourceLocation Loc,
+                                                     SourceRange ArgRange) {
+  if (!T->isFunctionType() && !T->isFunctionPointerType() &&
+      !T->isFunctionReferenceType() && !T->isMemberFunctionPointerType()) {
+    S.Diag(Loc, diag::err_ptrauth_type_disc_undiscriminated) << T << ArgRange;
+    return true;
+  }
+
+  return false;
+}
+
+static bool CheckPtrAuthStructKeyOrDiscrminatorOperandType(
+    Sema &S, QualType T, SourceLocation Loc, SourceRange ArgRange) {
+  if (!T->isRecordType()) {
+    S.Diag(Loc, diag::err_ptrauth_struct_key_disc_not_record) << ArgRange;
+    return true;
+  }
   return false;
 }
 
@@ -4518,6 +4528,15 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(QualType ExprType,
     return CheckVectorElementsTraitOperandType(*this, ExprType, OpLoc,
                                                ExprRange);
 
+  if (ExprKind == UETT_PtrAuthTypeDiscriminator)
+    return CheckPtrAuthTypeDiscriminatorOperandType(
+        *this, ExprType, OpLoc, ExprRange);
+
+  if (ExprKind == UETT_PtrAuthStructKey ||
+      ExprKind == UETT_PtrAuthStructDiscriminator)
+    return CheckPtrAuthStructKeyOrDiscrminatorOperandType(*this, ExprType,
+                                                          OpLoc, ExprRange);
+
   // Explicitly list some types as extensions.
   if (!CheckExtensionTraitOperandType(*this, ExprType, OpLoc, ExprRange,
                                       ExprKind))
@@ -4593,9 +4612,16 @@ ExprResult Sema::CreateUnaryExprOrTypeTraitExpr(TypeSourceInfo *TInfo,
       TInfo->getType()->isVariablyModifiedType())
     TInfo = TransformToPotentiallyEvaluated(TInfo);
 
+  QualType ResultTy;
+  if (ExprKind == UETT_PtrAuthStructKey) {
+    ResultTy = Context.getSignedSizeType();
+  } else {
+    ResultTy = Context.getSizeType();
+  }
+
   // C99 6.5.3.4p4: the type (an unsigned integer type) is size_t.
   return new (Context) UnaryExprOrTypeTraitExpr(
-      ExprKind, TInfo, Context.getSizeType(), OpLoc, R.getEnd());
+      ExprKind, TInfo, ResultTy, OpLoc, R.getEnd());
 }
 
 ExprResult
@@ -7948,7 +7974,7 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
   lhQual.removeCVRQualifiers();
   rhQual.removeCVRQualifiers();
 
-  if (lhQual.getPointerAuth() != rhQual.getPointerAuth()) {
+  if (!lhQual.getPointerAuth().isEquivalent(rhQual.getPointerAuth())) {
     S.Diag(Loc, diag::err_typecheck_cond_incompatible_ptrauth)
       << LHSTy << RHSTy
       << LHS.get()->getSourceRange()
@@ -8872,7 +8898,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType,
       ConvTy = Sema::IncompatiblePointerDiscardsQualifiers;
 
     // Treat pointer-auth mismatches as fatal.
-    else if (lhq.getPointerAuth() != rhq.getPointerAuth())
+    else if (!lhq.getPointerAuth().isEquivalent(rhq.getPointerAuth()))
       ConvTy = Sema::IncompatiblePointerDiscardsQualifiers;
 
     // For GCC/MS compatibility, other qualifier mismatches are treated
@@ -16694,6 +16720,9 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
       break;
     } else if (lhq.getObjCLifetime() != rhq.getObjCLifetime()) {
       DiagKind = diag::err_typecheck_incompatible_ownership;
+      break;
+    } else if (!lhq.getPointerAuth().isEquivalent(rhq.getPointerAuth())) {
+      DiagKind = diag::err_typecheck_incompatible_ptrauth;
       break;
     }
 

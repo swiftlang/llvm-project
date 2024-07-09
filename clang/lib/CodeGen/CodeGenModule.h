@@ -629,6 +629,8 @@ private:
   std::optional<PointerAuthQualifier>
   computeVTPointerAuthentication(const CXXRecordDecl *ThisClass);
 
+  llvm::Constant *ObjCIsaMaskAddress = nullptr;
+
 public:
   CodeGenModule(ASTContext &C, IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                 const HeaderSearchOptions &headersearchopts,
@@ -976,16 +978,19 @@ public:
                                      QualType FunctionType,
                                      GlobalDecl GD = GlobalDecl());
 
-  CGPointerAuthInfo getFunctionPointerAuthInfo(QualType T);
-
   llvm::Constant *getMemberFunctionPointer(const FunctionDecl *FD,
                                            llvm::Type *Ty = nullptr);
 
-  llvm::Constant *getMemberFunctionPointer(llvm::Constant *pointer,
-                                           QualType functionType,
-                                           const FunctionDecl *FD = nullptr);
+  llvm::Constant *getMemberFunctionPointer(llvm::Constant *Pointer,
+                                           QualType FT);
 
-  CGPointerAuthInfo getMemberFunctionPointerAuthInfo(QualType functionType);
+  CGPointerAuthInfo getFunctionPointerAuthInfo(QualType T);
+
+  CGPointerAuthInfo getMemberFunctionPointerAuthInfo(QualType FT);
+
+  CGPointerAuthInfo getPointerAuthInfoForPointeeType(QualType type);
+
+  CGPointerAuthInfo getPointerAuthInfoForType(QualType type);
 
   bool shouldSignPointer(const PointerAuthSchema &Schema);
   llvm::Constant *getConstantSignedPointer(llvm::Constant *Pointer,
@@ -993,6 +998,9 @@ public:
                                            llvm::Constant *StorageAddress,
                                            GlobalDecl SchemaDecl,
                                            QualType SchemaType);
+
+  llvm::Constant *getConstantSignedPointer(llvm::Constant *Pointer,
+                                           QualType PointeeType);
 
   llvm::Constant *
   getConstantSignedPointer(llvm::Constant *Pointer, unsigned Key,
@@ -1012,7 +1020,13 @@ public:
   std::optional<PointerAuthQualifier>
   getVTablePointerAuthentication(const CXXRecordDecl *thisClass);
 
+  bool isFunctionPointerAuthenticated(QualType FunctionPointerTy,
+                                      const Expr *Key,
+                                      const Expr *Discriminator);
+
   CGPointerAuthInfo EmitPointerAuthInfo(const RecordDecl *RD);
+
+  llvm::Constant *getObjCIsaMaskAddress();
 
   // Return whether RTTI information should be emitted for this target.
   bool shouldEmitRTTI(bool ForEH = false) {

@@ -270,6 +270,8 @@ class LLVMSymbolizerProcess final : public SymbolizerProcess {
     const char *const kSymbolizerArch = "--default-arch=loongarch64";
 #elif SANITIZER_RISCV64
     const char *const kSymbolizerArch = "--default-arch=riscv64";
+#elif defined(__arm64e__)
+    const char* const kSymbolizerArch = "--default-arch=arm64e";
 #elif defined(__aarch64__)
     const char* const kSymbolizerArch = "--default-arch=arm64";
 #elif defined(__arm__)

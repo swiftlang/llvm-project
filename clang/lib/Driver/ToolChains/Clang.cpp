@@ -1796,6 +1796,23 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
       options::OPT_fno_ptrauth_vtable_pointer_type_discrimination);
   Args.addOptInFlag(CmdArgs, options::OPT_fptrauth_init_fini,
                     options::OPT_fno_ptrauth_init_fini);
+  Args.addOptInFlag(
+      CmdArgs, options::OPT_fptrauth_function_pointer_type_discrimination,
+      options::OPT_fno_ptrauth_function_pointer_type_discrimination);
+
+  if (Args.hasFlag(options::OPT_fptrauth_objc_isa,
+                   options::OPT_fno_ptrauth_objc_isa, false))
+    CmdArgs.push_back("-fptrauth-objc-isa-mode=sign-and-auth");
+
+  Args.addOptInFlag(CmdArgs, options::OPT_fptrauth_block_descriptor_pointers,
+                    options::OPT_fno_ptrauth_block_descriptor_pointers);
+
+  Args.addOptInFlag(CmdArgs, options::OPT_fptrauth_indirect_gotos,
+                    options::OPT_fno_ptrauth_indirect_gotos);
+
+  if (Args.hasArg(options::OPT_fbranch_target_identification,
+                  options::OPT_fno_branch_target_identification, false))
+    CmdArgs.push_back("-mbranch-target-enforce");
 }
 
 void Clang::AddLoongArchTargetArgs(const ArgList &Args,
@@ -7475,10 +7492,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
 
   // -fno-common is the default, set -fcommon only when that flag is set.
   Args.addOptInFlag(CmdArgs, options::OPT_fcommon, options::OPT_fno_common);
-
-  if (Args.hasFlag(options::OPT_fptrauth_indirect_gotos,
-                   options::OPT_fno_ptrauth_indirect_gotos, false))
-    CmdArgs.push_back("-fptrauth-indirect-gotos");
 
   if (Args.hasFlag(options::OPT_fptrauth_soft,
                    options::OPT_fno_ptrauth_soft, false))

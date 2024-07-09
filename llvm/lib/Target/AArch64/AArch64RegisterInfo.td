@@ -216,7 +216,10 @@ def GPR64all : RegisterClass<"AArch64", [i64], 64, (add GPR64common, XZR, SP)>;
 // For tail calls, we can't use callee-saved registers, as they are restored
 // to the saved value before the tail call, which would clobber a call address.
 // This is for indirect tail calls to store the address of the destination.
-def tcGPR64 : RegisterClass<"AArch64", [i64], 64, (sub GPR64common, X19, X20, X21,
+// Also, avoid X16 and X17 so that they will be available to check LR was
+// authenticated correctly.
+def tcGPR64 : RegisterClass<"AArch64", [i64], 64, (sub GPR64common, X16, X17,
+                                                     X19, X20, X21,
                                                      X22, X23, X24, X25, X26,
                                                      X27, X28, FP, LR)>;
 

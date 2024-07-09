@@ -25,6 +25,7 @@
 #ifndef LLVM_LIB_TRANSFORMS_COROUTINES_COROINSTR_H
 #define LLVM_LIB_TRANSFORMS_COROUTINES_COROINSTR_H
 
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/raw_ostream.h"
@@ -254,7 +255,16 @@ public:
   /// attributes, and calling convention of the continuation function(s)
   /// are taken from this declaration.
   Function *getPrototype() const {
-    return cast<Function>(getArgOperand(PrototypeArg)->stripPointerCasts());
+    Value *rawPrototype = getArgOperand(PrototypeArg)->stripPointerCasts();
+    if (auto CPA = dyn_cast<ConstantPtrAuth>(rawPrototype)) {
+      rawPrototype =
+        const_cast<Constant*>(CPA->getPointer()->stripPointerCasts());
+    }
+    return cast<Function>(rawPrototype);
+  }
+
+  ConstantPtrAuth *getPtrAuthInfo() const {
+    return dyn_cast<ConstantPtrAuth>(getArgOperand(PrototypeArg));
   }
 
   /// Return the function to use for allocating memory.

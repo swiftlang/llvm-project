@@ -1018,6 +1018,14 @@ public:
     return data().NeedOverloadResolutionForDestructor;
   }
 
+  bool hasSignedClassInHierarchy() const {
+    return data().HasSignedClassInHierarchy;
+  }
+
+  void setHasSignedClassInHierarchy() {
+    data().HasSignedClassInHierarchy = true;
+  }
+
   /// Determine whether this class describes a lambda function object.
   bool isLambda() const {
     // An update record can't turn a non-lambda into a lambda.

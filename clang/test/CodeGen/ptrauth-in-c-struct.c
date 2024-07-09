@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple arm64-apple-ios -fblocks -fptrauth-calls -fptrauth-returns -fptrauth-intrinsics -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -mllvm -ptrauth-emit-wrapper-globals=0 -triple arm64-apple-ios -fblocks -fptrauth-calls -fptrauth-returns -fptrauth-intrinsics -emit-llvm -o - %s | FileCheck %s
 
 #define AQ1_50 __ptrauth(1,1,50)
 #define AQ2_30 __ptrauth(2,1,30)
@@ -26,6 +26,8 @@ typedef struct {
 
 SA getSA(void);
 void calleeSA(SA);
+
+int g0;
 
 // CHECK: define void @test_copy_constructor_SA(ptr noundef %{{.*}})
 // CHECK: call void @__copy_constructor_8_8_t0w4_pa1_50_8(
@@ -149,4 +151,22 @@ void test_copy_constructor_SI(SI *s) {
 // CHECK: ret void
 
 void test_parameter_SI(SI a) {
+}
+
+// CHECK-LABEL: define void @test_array(
+// CHECK: %[[F1:.*]] = getelementptr inbounds %[[STRUCT_SA]], ptr %{{.*}}, i32 0, i32 1
+// CHECK: %[[V0:.*]] = ptrtoint ptr %[[F1]] to i64
+// CHECK: %[[V1:.*]] = call i64 @llvm.ptrauth.blend(i64 %[[V0]], i64 50)
+// CHECK: %[[V2:.*]] = call i64 @llvm.ptrauth.sign(i64 ptrtoint (ptr @g0 to i64), i32 1, i64 %[[V1]])
+// CHECK: %[[V3:.*]] = inttoptr i64 %[[V2]] to ptr
+// CHECK: store ptr %[[V3]], ptr %[[F1]], align 8
+// CHECK: %[[F12:.*]] = getelementptr inbounds %[[STRUCT_SA]], ptr %{{.*}}, i32 0, i32 1
+// CHECK: %[[V4:.*]] = ptrtoint ptr %[[F12]] to i64
+// CHECK: %[[V5:.*]] = call i64 @llvm.ptrauth.blend(i64 %[[V4]], i64 50)
+// CHECK: %[[V6:.*]] = call i64 @llvm.ptrauth.sign(i64 ptrtoint (ptr @g0 to i64), i32 1, i64 %[[V5]])
+// CHECK: %[[V7:.*]] = inttoptr i64 %[[V6]] to ptr
+// CHECK: store ptr %[[V7]], ptr %[[F12]], align 8
+
+void test_array(void) {
+  const SA a[] = {{0, &g0}, {1, &g0}};
 }

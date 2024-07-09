@@ -281,7 +281,19 @@ private:
   bool transformConstExprCastCall(CallBase &Call);
   Instruction *transformCallThroughTrampoline(CallBase &Call,
                                               IntrinsicInst &Tramp);
-  Instruction *tryCombinePtrAuthCall(CallBase &Call);
+
+  /// Try to optimize a call to the result of a ptrauth intrinsic, potentially
+  /// into the ptrauth call bundle:
+  /// - call(ptrauth.resign(p)), ["ptrauth"()] ->  call p, ["ptrauth"()]
+  /// - call(ptrauth.sign(p)),   ["ptrauth"()] ->  call p
+  /// - call(ptrauth.auth(p))                  ->  call p, ["ptrauth"()]
+  /// as long as the key/discriminator are the same in sign and auth-bundle.
+  Instruction *foldPtrAuthIntrinsicCallee(CallBase &Call);
+
+  /// Try to optimize a call to a ptrauth constant, into its ptrauth bundle:
+  ///   call(ptrauth(f)), ["ptrauth"()] ->  call f
+  /// as long as the key/discriminator are the same in constant and bundle.
+  Instruction *foldPtrAuthConstantCallee(CallBase &Call);
 
   // Return (a, b) if (LHS, RHS) is known to be (a, b) or (b, a).
   // Otherwise, return std::nullopt

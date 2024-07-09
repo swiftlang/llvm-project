@@ -1760,6 +1760,7 @@ Also see the documentation for `@available
 
 def PtrAuthDocs : Documentation {
   let Category = DocCatVariable;
+  let Heading = "__ptrauth, __ptrauth_restricted_intptr";
   let Content = [{
 The ``__ptrauth`` qualifier allows the programmer to directly control
 how pointers are signed when they are stored in a particular variable.
@@ -1914,6 +1915,47 @@ It is enabled whenever the ``ptrauth`` intrinsics are enabled.
 
 ``<ptrauth.h>`` provides predefined qualifiers for various language
 features that implicitly use pointer authentication.
+  }];
+}
+
+def PointerAuthStructDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+The ``ptrauth_struct`` attribute allows programmers to opt in to using signed
+pointers for all pointers to a particular struct, union, or C++ class type. In
+C++, this also includes references to the type.
+
+The attribute takes two arguments:
+
+- The first argument is the abstract signing key, which should be a constant
+  from ``<ptrauth.h>``.
+- The second argument is a constant discriminator.
+
+These arguments are identical to the arguments to the ``__ptrauth`` qualifier
+except that ``ptrauth_struct`` does not take an argument for enabling address
+diversity.
+
+.. code-block:: c++
+
+  // key=ptrauth_key_process_dependent_data,discriminator=100
+  struct __attribute__((ptrauth_struct(ptrauth_key_process_dependent_data,100))) S0 {
+    int f0[4];
+  };
+
+If a particular pointer to the type is qualified with a ``__ptrauth`` qualifier,
+that qualifier takes precedence over ptrauth_struct:
+
+.. code-block:: c++
+
+  struct __attribute__((ptrauth_struct(ptrauth_key_process_dependent_data,100))) S0 {
+    int f0[4];
+  };
+
+  void test(S0 *s0) {
+    // `p` is signed using `__ptrauth(ptrauth_key_process_dependent_data, 1, 200)`.
+    S0 * __ptrauth(ptrauth_key_process_dependent_data, 1, 200) p = s0;
+  }
+
   }];
 }
 

@@ -29,10 +29,8 @@ void test(int *dp, int (*fp)(int), int value) {
 
   int t2 = ptrauth_sign_generic_data(dp, 0);
   (void)t2;
-  t0 = ptrauth_type_discriminator(int (*)(int));
-  fp = ptrauth_auth_function(fp, VALID_CODE_KEY, 0);
 
-  void * __ptrauth_function_pointer p0;
+  void * __ptrauth_function_pointer(0) p0;
   (void)p0;
   void * __ptrauth_return_address p1;
   (void)p1;
@@ -62,6 +60,10 @@ void test(int *dp, int (*fp)(int), int value) {
   (void)p13;
   void * __ptrauth_swift_value_witness_function_pointer(VALID_CODE_KEY) p14;
   (void)p14;
+  void * __ptrauth_objc_method_list_pointer p15;
+  (void)p15;
+  void * __ptrauth_block_descriptor_pointer p16;
+  (void)p16;
 }
 
 void test_string_discriminator(int *dp) {
@@ -69,6 +71,18 @@ void test_string_discriminator(int *dp) {
   (void)t0;
 }
 
+void test_type_discriminator(int *dp) {
+  ptrauth_extra_data_t t0 = ptrauth_type_discriminator(int (*)(int));
+  (void)t0;
+}
+
 void test_sign_constant(int *dp) {
   dp = ptrauth_sign_constant(&dv, VALID_DATA_KEY, 0);
+}
+
+void test_function_pointer(int *dp, int (*fp)(int), int value) {
+  dp = ptrauth_sign_constant(&dv, VALID_DATA_KEY, 0);
+  fp = ptrauth_auth_function(fp, VALID_CODE_KEY, 0);
+  ptrauth_extra_data_t t0 = ptrauth_function_pointer_type_discriminator(int (*)(int));
+  (void)t0;
 }

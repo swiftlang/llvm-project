@@ -1300,7 +1300,7 @@ EOF
 				(CCOPTS= $CC_FOR_BUILD -E - 2>/dev/null) | \
 				grep IS_64BIT_ARCH >/dev/null
 			then
-				if (echo '#ifdef __PTRAUTH_INTRINSICS__'; echo HAS_AUTH; echo '#endif') | \
+				if (echo '#if __has_feature(ptrauth_intrinsics) || defined(__PTRAUTH_INTRINSICS__'; echo HAS_AUTH; echo '#endif') | \
 					(CCOPTS= $CC_FOR_BUILD -E - 2>/dev/null) | \
 					grep HAS_AUTH >/dev/null
 				then

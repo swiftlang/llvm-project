@@ -86,6 +86,6 @@ define void @pac_pc_enabled_force_x17(ptr %p) "sign-return-address"="all" "branc
 entry:
   %p_x17 = tail call ptr asm "", "={x17},{x17},~{lr}"(ptr %p)
   tail call void %p_x17()
-; CHECK: br x17
+; CHECK: br {{(x[0-9]|x1[0-578])$}}
   ret void
 }

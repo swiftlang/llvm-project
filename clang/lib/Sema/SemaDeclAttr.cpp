@@ -482,6 +482,28 @@ static bool checkAcquireOrderAttrCommon(Sema &S, Decl *D, const ParsedAttr &AL,
   return true;
 }
 
+static void handlePointerAuthStructAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
+  S.addPointerAuthStructAttr(D, AL, AL.getArgAsExpr(0), AL.getArgAsExpr(1));
+}
+
+void Sema::addPointerAuthStructAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *Key, Expr *Disc) {
+  int KeyValue = 0;
+  unsigned DiscValue;
+
+  if (!Key->isValueDependent())
+    if (checkConstantPointerAuthKey(Key, KeyValue))
+      return;
+
+  if (!Disc->isValueDependent())
+    if (!checkPointerAuthDiscriminatorArg(Disc, PADAK_TypeDiscPtrAuthStruct,
+                                          DiscValue))
+      return;
+
+  D->addAttr(::new (Context) PointerAuthStructAttr(Context, CI, Key, Disc));
+}
+
 static void handleAcquiredAfterAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   SmallVector<Expr *, 1> Args;
   if (!checkAcquireOrderAttrCommon(S, D, AL, Args))
@@ -6694,6 +6716,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_Mode:
     handleModeAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_PointerAuthStruct:
+    handlePointerAuthStructAttr(S, D, AL);
     break;
   case ParsedAttr::AT_NonNull:
     if (auto *PVD = dyn_cast<ParmVarDecl>(D))

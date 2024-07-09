@@ -1,14 +1,13 @@
-// RUN: %clang_cc1 -fptrauth-calls -fobjc-arc -fblocks -fobjc-runtime=ios-7 -triple arm64-apple-ios -emit-llvm %s  -o - | FileCheck %s
+// RUN: %clang_cc1 -mllvm -ptrauth-emit-wrapper-globals=0 -fptrauth-calls -fptrauth-objc-isa-mode=sign-and-strip -fobjc-arc -fblocks -fobjc-runtime=ios-7 -triple arm64-apple-ios -emit-llvm %s  -o - | FileCheck %s
+// RUN: %clang_cc1 -mllvm -ptrauth-emit-wrapper-globals=0 -fptrauth-calls -fptrauth-objc-isa-mode=sign-and-auth  -fobjc-arc -fblocks -fobjc-runtime=ios-7 -triple arm64-apple-ios -emit-llvm %s  -o - | FileCheck %s
 
 void (^blockptr)(void);
 
-// CHECK: [[INVOCATION_1:@.*]] =  private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ ptr, i32, i32, ptr, ptr }, ptr [[GLOBAL_BLOCK_1:@.*]], i32 0, i32 3) to i64), i64 0 }, section "llvm.ptrauth"
-// CHECK: [[GLOBAL_BLOCK_1]] = internal constant { ptr, i32, i32, ptr, ptr } { ptr @_NSConcreteGlobalBlock, i32 1342177280, i32 0, ptr [[INVOCATION_1]],
+
+// CHECK: [[GLOBAL_BLOCK_1:@.*]] = internal constant { ptr, i32, i32, ptr, ptr } { ptr ptrauth (ptr @_NSConcreteGlobalBlock, i32 2, i64 27361, ptr [[GLOBAL_BLOCK_1]]), i32 1342177280, i32 0, ptr ptrauth (ptr {{@.*}}, i32 0, i64 0, ptr getelementptr inbounds ({ ptr, i32, i32, ptr, ptr }, ptr [[GLOBAL_BLOCK_1]], i32 0, i32 3)),
 void (^globalblock)(void) = ^{};
 
-// CHECK: [[COPYDISPOSE_COPY:@.*]] = private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ i64, i64, ptr, ptr, ptr, i64 }, ptr [[COPYDISPOSE_DESCRIPTOR:@.*]], i32 0, i32 2) to i64), i64 0 }, section "llvm.ptrauth"
-// CHECK: [[COPYDISPOSE_DISPOSE:@.*]] = private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ i64, i64, ptr, ptr, ptr, i64 }, ptr [[COPYDISPOSE_DESCRIPTOR]], i32 0, i32 3) to i64), i64 0 }, section "llvm.ptrauth"
-// CHECK: [[COPYDISPOSE_DESCRIPTOR:@.*]] = linkonce_odr hidden unnamed_addr constant { i64, i64, ptr, ptr, ptr, i64 } { i64 0, i64 40, ptr [[COPYDISPOSE_COPY]], ptr [[COPYDISPOSE_DISPOSE]],
+// CHECK: [[COPYDISPOSE_DESCRIPTOR:@.*]] = linkonce_odr hidden unnamed_addr constant { i64, i64, ptr, ptr, ptr, i64 } { i64 0, i64 40, ptr ptrauth (ptr {{@.*}}, i32 0, i64 0, ptr getelementptr inbounds ({ i64, i64, ptr, ptr, ptr, i64 }, ptr [[COPYDISPOSE_DESCRIPTOR]], i32 0, i32 2)), ptr ptrauth (ptr {{@.*}}, i32 0, i64 0, ptr getelementptr inbounds ({ i64, i64, ptr, ptr, ptr, i64 }, ptr [[COPYDISPOSE_DESCRIPTOR]], i32 0, i32 3)),
 
 @interface A
 - (int) count;
@@ -30,6 +29,12 @@ void use_block(int (^)(void));
 void test_block_literal(int i) {
   // CHECK:      [[I:%.*]] = alloca i32,
   // CHECK-NEXT: [[BLOCK:%.*]] = alloca [[BLOCK_T:.*]], align
+  // CHECK:      [[ISAPTRADDR:%.*]] = getelementptr inbounds [[BLOCK_T]], ptr [[BLOCK]], i32 0, i32 0
+  // CHECK-NEXT: [[ISAPTRADDR_I:%.*]] = ptrtoint ptr [[ISAPTRADDR]] to i64
+  // CHECK-NEXT: [[ISADISCRIMINATOR:%.*]] = call i64 @llvm.ptrauth.blend(i64 [[ISAPTRADDR_I]], i64 27361)
+  // CHECK-NEXT: [[SIGNEDISA:%.*]] = call i64 @llvm.ptrauth.sign(i64 ptrtoint (ptr @_NSConcreteStackBlock to i64), i32 2, i64 [[ISADISCRIMINATOR]])
+  // CHECK-NEXT: [[SIGNEDISAPTR:%.*]] = inttoptr i64 [[SIGNEDISA]] to ptr
+  // CHECK-NEXT: store ptr [[SIGNEDISAPTR]], ptr [[ISAPTRADDR]], align 8
   // CHECK:      [[FNPTRADDR:%.*]] = getelementptr inbounds [[BLOCK_T]], ptr [[BLOCK]], i32 0, i32 3
   // CHECK-NEXT: [[DISCRIMINATOR:%.*]] = ptrtoint ptr [[FNPTRADDR]] to i64
   // CHECK-NEXT: [[SIGNED:%.*]] = call i64 @llvm.ptrauth.sign(i64 ptrtoint (ptr {{@.*}} to i64), i32 0, i64 [[DISCRIMINATOR]])
@@ -58,4 +63,12 @@ void test_byref_copy_destroy(A *a) {
   // CHECK-NEXT: store ptr [[T2]], ptr [[DISPOSE_FIELD]], align 8
   __block A *aweak = a;
   use_block(^{return [aweak count];});
+}
+
+void test_conversion_helper(id);
+
+void test_conversion(id a) {
+  test_conversion_helper(^{
+    (void)a;
+  });
 }

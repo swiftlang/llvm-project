@@ -3326,11 +3326,20 @@ def ObjCRequiresPropertyDefs : InheritableAttr {
 }
 
 def PointerAuth : TypeAttr {
-  let Spellings = [CustomKeyword<"__ptrauth">];
+  let Spellings = [CustomKeyword<"__ptrauth">,
+                   CustomKeyword<"__ptrauth_restricted_intptr">];
   let Args = [IntArgument<"Key">,
               BoolArgument<"AddressDiscriminated", 1>,
-              IntArgument<"ExtraDiscriminator", 1>];
+              IntArgument<"ExtraDiscriminator", 1>,
+              StringArgument<"AuthenticationMode", 1>];
   let Documentation = [PtrAuthDocs];
+}
+
+def PointerAuthStruct : InheritableAttr {
+  let Spellings = [Clang<"ptrauth_struct">];
+  let Args = [ExprArgument<"Key">, ExprArgument<"Discriminator">];
+  let Subjects = SubjectList<[Record]>;
+  let Documentation = [PointerAuthStructDocs];
 }
 
 def Unused : InheritableAttr {

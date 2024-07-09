@@ -1191,8 +1191,16 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
     // Perform an atomic load.  This does not impose ordering constraints.
     Address ivarAddr = LV.getAddress();
     ivarAddr = ivarAddr.withElementType(bitcastType);
-    llvm::LoadInst *load = Builder.CreateLoad(ivarAddr, "load");
-    load->setAtomic(llvm::AtomicOrdering::Unordered);
+    llvm::LoadInst *loadInst = Builder.CreateLoad(ivarAddr, "load");
+    loadInst->setAtomic(llvm::AtomicOrdering::Unordered);
+    llvm::Value *load = loadInst;
+    if (auto qualifier = ivar->getType().getPointerAuth()) {
+      CGPointerAuthInfo srcInfo = EmitPointerAuthInfo(qualifier, ivarAddr);
+      CGPointerAuthInfo targetInfo =
+          CGM.getPointerAuthInfoForType(getterMethod->getReturnType());
+      load = EmitPointerAuthResign(load, ivar->getType(), srcInfo, targetInfo,
+                                   /* isKnownNonNull */ false);
+    }
 
     // Store that value into the return address.  Doing this with a
     // bitcast is likely to produce some pretty ugly IR, but it's not
@@ -1214,6 +1222,14 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
   case PropertyImplStrategy::GetSetProperty: {
     llvm::FunctionCallee getPropertyFn =
         CGM.getObjCRuntime().GetPropertyGetFunction();
+    if (ivar->getType().getPointerAuth()) {
+      // This currently cannot be hit, but if we ever allow objc pointers
+      // to be signed, this will become possible. Reaching here would require
+      // a copy, weak, etc property backed by an authenticated pointer.
+      CGM.ErrorUnsupported(propImpl,
+                           "Obj-C getter requiring pointer authentication");
+      return;
+    }
     if (!getPropertyFn) {
       CGM.ErrorUnsupported(propImpl, "Obj-C getter requiring atomic copy");
       return;
@@ -1269,7 +1285,9 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
     LValue LV = EmitLValueForIvar(TypeOfSelfObject(), LoadObjCSelf(), ivar, 0);
 
     QualType ivarType = ivar->getType();
-    switch (getEvaluationKind(ivarType)) {
+    auto evaluationKind = getEvaluationKind(ivarType);
+    assert(!ivarType.getPointerAuth() || evaluationKind == TEK_Scalar);
+    switch (evaluationKind) {
     case TEK_Complex: {
       ComplexPairTy pair = EmitLoadOfComplex(LV, SourceLocation());
       EmitStoreOfComplex(pair, MakeAddrLValue(ReturnValue, ivarType),
@@ -1287,6 +1305,11 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
     case TEK_Scalar: {
       llvm::Value *value;
       if (propType->isReferenceType()) {
+        if (ivarType.getPointerAuth()) {
+          CGM.ErrorUnsupported(propImpl,
+                               "Obj-C getter for authenticated reference type");
+          return;
+        }
         value = LV.getAddress().emitRawPointer(*this);
       } else {
         // We want to load and autoreleaseReturnValue ARC __weak ivars.
@@ -1300,11 +1323,23 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
         // Otherwise we want to do a simple load, suppressing the
         // final autorelease.
         } else {
-          value = EmitLoadOfLValue(LV, SourceLocation()).getScalarVal();
+          if (auto qualifier = ivar->getType().getPointerAuth()) {
+            Address ivarAddr = LV.getAddress();
+            llvm::LoadInst *loadInst = Builder.CreateLoad(ivarAddr, "load");
+            llvm::Value *load = loadInst;
+            auto srcInfo = EmitPointerAuthInfo(qualifier, ivarAddr);
+            auto targetInfo =
+                CGM.getPointerAuthInfoForType(getterMethod->getReturnType());
+            load = EmitPointerAuthResign(load, ivarType, srcInfo, targetInfo,
+                                         /* isKnownNonNull */ false);
+            value = load;
+          } else {
+            value = EmitLoadOfLValue(LV, SourceLocation()).getScalarVal();
+          }
           AutoreleaseResult = false;
         }
 
-        value = Builder.CreateBitCast(
+        value = Builder.CreateBitOrPointerCast(
             value, ConvertType(GetterMethodDecl->getReturnType()));
       }
 
@@ -1453,6 +1488,7 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
     return;
   }
 
+  QualType propertyType = propImpl->getPropertyDecl()->getType();
   // Just use the setter expression if Sema gave us one and it's
   // non-trivial.
   if (!hasTrivialSetExpr(propImpl)) {
@@ -1490,6 +1526,13 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
 
     llvm::Value *load = Builder.CreateLoad(argAddr);
 
+    if (auto qualifier = ivar->getType().getPointerAuth()) {
+      CGPointerAuthInfo srcInfo = CGM.getPointerAuthInfoForType(propertyType);
+      CGPointerAuthInfo targetInfo = EmitPointerAuthInfo(qualifier, ivarAddr);
+      load = EmitPointerAuthResign(load, ivar->getType(), srcInfo, targetInfo,
+                                   /* isKnownNonNull */ false);
+    }
+
     // Perform an atomic store.  There are no memory ordering requirements.
     llvm::StoreInst *store = Builder.CreateStore(load, ivarAddr);
     store->setAtomic(llvm::AtomicOrdering::Unordered);
@@ -1498,7 +1541,13 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
 
   case PropertyImplStrategy::GetSetProperty:
   case PropertyImplStrategy::SetPropertyAndExpressionGet: {
-
+    if (ivar->getType().getPointerAuth()) {
+      // As with the getter case above this cannot currently be hit, but we
+      // include it to prevent us from ever producing incorrect code.
+      CGM.ErrorUnsupported(propImpl,
+                           "Obj-C setter requiring pointer authentication");
+      return;
+    }
     llvm::FunctionCallee setOptimizedPropertyFn = nullptr;
     llvm::FunctionCallee setPropertyFn = nullptr;
     if (UseOptimizedSetter(CGM)) {

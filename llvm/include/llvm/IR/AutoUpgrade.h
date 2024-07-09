@@ -55,7 +55,7 @@ namespace llvm {
 
   /// This checks for global variables which should be upgraded. If it requires
   /// upgrading, returns a pointer to the upgraded variable.
-  GlobalVariable *UpgradeGlobalVariable(GlobalVariable *GV);
+  bool UpgradeGlobalVariable(GlobalVariable *GV, GlobalVariable *&NewGV);
 
   /// This checks for module flags which should be upgraded. It returns true if
   /// module is modified.

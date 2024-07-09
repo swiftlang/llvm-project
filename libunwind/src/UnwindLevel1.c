@@ -31,6 +31,10 @@
 #include "libunwind_ext.h"
 #include "unwind.h"
 
+#if __has_feature(ptrauth_calls)
+#include <ptrauth.h>
+#endif
+
 #if !defined(_LIBUNWIND_ARM_EHABI) && !defined(__USING_SJLJ_EXCEPTIONS__) &&   \
     !defined(__wasm__)
 
@@ -131,8 +135,7 @@ unwind_phase1(unw_context_t *uc, unw_cursor_t *cursor, _Unwind_Exception *except
     // If there is a personality routine, ask it if it will want to stop at
     // this frame.
     if (frameInfo.handler != 0) {
-      _Unwind_Personality_Fn p =
-          (_Unwind_Personality_Fn)(uintptr_t)(frameInfo.handler);
+      _Unwind_Personality_Fn p = frameInfo->handler;
       _LIBUNWIND_TRACE_UNWINDING(
           "unwind_phase1(ex_obj=%p): calling personality function %p",
           (void *)exception_object, (void *)(uintptr_t)p);
@@ -251,8 +254,7 @@ unwind_phase2(unw_context_t *uc, unw_cursor_t *cursor, _Unwind_Exception *except
     ++framesWalked;
     // If there is a personality routine, tell it we are unwinding.
     if (frameInfo.handler != 0) {
-      _Unwind_Personality_Fn p =
-          (_Unwind_Personality_Fn)(uintptr_t)(frameInfo.handler);
+      _Unwind_Personality_Fn p = frameInfo->handler;
       _Unwind_Action action = _UA_CLEANUP_PHASE;
       if (sp == exception_object->private_2) {
         // Tell personality this was the frame it marked in phase 1.
@@ -365,8 +367,7 @@ unwind_phase2_forced(unw_context_t *uc, unw_cursor_t *cursor,
     ++framesWalked;
     // If there is a personality routine, tell it we are unwinding.
     if (frameInfo.handler != 0) {
-      _Unwind_Personality_Fn p =
-          (_Unwind_Personality_Fn)(intptr_t)(frameInfo.handler);
+      _Unwind_Personality_Fn p = frameInfo->handler;
       _LIBUNWIND_TRACE_UNWINDING(
           "unwind_phase2_forced(ex_obj=%p): calling personality function %p",
           (void *)exception_object, (void *)(uintptr_t)p);
@@ -569,6 +570,16 @@ _LIBUNWIND_EXPORT uintptr_t _Unwind_GetIP(struct _Unwind_Context *context) {
   unw_cursor_t *cursor = (unw_cursor_t *)context;
   unw_word_t result;
   __unw_get_reg(cursor, UNW_REG_IP, &result);
+
+#if __has_feature(ptrauth_calls)
+    // If we are in an arm64e frame, then the PC should have been signed with the sp
+    {
+        unw_word_t sp;
+        __unw_get_reg(cursor, UNW_REG_SP, &sp);
+        result = (unw_word_t)ptrauth_auth_data((void*)result, ptrauth_key_return_address, sp);
+    }
+#endif
+
   _LIBUNWIND_TRACE_API("_Unwind_GetIP(context=%p) => 0x%" PRIxPTR,
                        (void *)context, result);
   return (uintptr_t)result;

@@ -3345,12 +3345,26 @@ void Parser::ParseAlignmentSpecifier(ParsedAttributes &Attrs,
   }
 }
 
+void Parser::DistributeCLateParsedAttrs(Decl *Dcl,
+                                        LateParsedAttrList *LateAttrs) {
+  if (!LateAttrs)
+    return;
+
+  if (Dcl) {
+    for (auto *LateAttr : *LateAttrs) {
+      if (LateAttr->Decls.empty())
+        LateAttr->addDecl(Dcl);
+    }
+  }
+}
+
 /// type-qualifier:
-///    '__ptrauth' '(' constant-expression
+///    ('__ptrauth' | '__ptrauth_restricted_intptr') '(' constant-expression
 ///                    (',' constant-expression)[opt]
 ///                    (',' constant-expression)[opt] ')'
 void Parser::ParsePtrauthQualifier(ParsedAttributes &attrs) {
-  assert(Tok.is(tok::kw___ptrauth));
+  assert(Tok.is(tok::kw___ptrauth) ||
+         Tok.is(tok::kw___ptrauth_restricted_intptr));
 
   IdentifierInfo *kwName = Tok.getIdentifierInfo();
   SourceLocation kwLoc = ConsumeToken();
@@ -3377,20 +3391,6 @@ void Parser::ParsePtrauthQualifier(ParsedAttributes &attrs) {
                argExprs.size(),
                ParsedAttr::Form::Keyword(/*IsAlignAs=*/false,
                                          /*IsRegularKeywordAttribute=*/false));
-}
-
-
-void Parser::DistributeCLateParsedAttrs(Decl *Dcl,
-                                        LateParsedAttrList *LateAttrs) {
-  if (!LateAttrs)
-    return;
-
-  if (Dcl) {
-    for (auto *LateAttr : *LateAttrs) {
-      if (LateAttr->Decls.empty())
-        LateAttr->addDecl(Dcl);
-    }
-  }
 }
 
 /// Bounds attributes (e.g., counted_by):
@@ -4256,6 +4256,7 @@ void Parser::ParseDeclarationSpecifiers(
 
     // __ptrauth qualifier.
     case tok::kw___ptrauth:
+    case tok::kw___ptrauth_restricted_intptr:
       ParsePtrauthQualifier(DS.getAttributes());
       continue;
 
@@ -5958,6 +5959,7 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw___pascal:
   case tok::kw___unaligned:
   case tok::kw___ptrauth:
+  case tok::kw___ptrauth_restricted_intptr:
 
   case tok::kw__Nonnull:
   case tok::kw__Nullable:
@@ -6248,6 +6250,7 @@ bool Parser::isDeclarationSpecifier(
   case tok::kw___pascal:
   case tok::kw___unaligned:
   case tok::kw___ptrauth:
+  case tok::kw___ptrauth_restricted_intptr:
 
   case tok::kw__Nonnull:
   case tok::kw__Nullable:
@@ -6502,18 +6505,19 @@ void Parser::ParseTypeQualifierListOpt(
       ParseOpenCLQualifiers(DS.getAttributes());
       break;
 
-    // __ptrauth qualifier.
-    case tok::kw___ptrauth:
-      ParsePtrauthQualifier(DS.getAttributes());
-      EndLoc = PrevTokLocation;
-      continue;
-
     case tok::kw_groupshared:
     case tok::kw_in:
     case tok::kw_inout:
     case tok::kw_out:
       // NOTE: ParseHLSLQualifiers will consume the qualifier token.
       ParseHLSLQualifiers(DS.getAttributes());
+      continue;
+
+    // __ptrauth qualifier.
+    case tok::kw___ptrauth:
+    case tok::kw___ptrauth_restricted_intptr:
+      ParsePtrauthQualifier(DS.getAttributes());
+      EndLoc = PrevTokLocation;
       continue;
 
     case tok::kw___unaligned:

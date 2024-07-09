@@ -222,17 +222,18 @@ define preserve_nonecc i64 @callee_with_many_param(i64 %a1, i64 %a2, i64 %a3, i6
 ; DARWIN-NEXT:    .cfi_def_cfa_offset 16
 ; DARWIN-NEXT:    .cfi_offset w30, -8
 ; DARWIN-NEXT:    .cfi_offset w29, -16
-; DARWIN-NEXT:    mov x8, x15
+; DARWIN-NEXT:    mov x16, x15
+; DARWIN-NEXT:    mov x8, x25
+; DARWIN-NEXT:    mov x25, x26
 ; DARWIN-NEXT:    mov x15, x20
 ; DARWIN-NEXT:    mov x20, x21
 ; DARWIN-NEXT:    mov x21, x22
-; DARWIN-NEXT:    mov x22, x23
-; DARWIN-NEXT:    mov x23, x24
-; DARWIN-NEXT:    mov x24, x25
-; DARWIN-NEXT:    mov x25, x26
 ; DARWIN-NEXT:    mov x26, x27
 ; DARWIN-NEXT:    mov x27, x28
 ; DARWIN-NEXT:    mov x28, x0
+; DARWIN-NEXT:    mov x22, x23
+; DARWIN-NEXT:    mov x23, x24
+; DARWIN-NEXT:    mov x24, x8
 ; DARWIN-NEXT:    mov x0, x1
 ; DARWIN-NEXT:    mov x1, x2
 ; DARWIN-NEXT:    mov x2, x3
@@ -246,7 +247,7 @@ define preserve_nonecc i64 @callee_with_many_param(i64 %a1, i64 %a2, i64 %a3, i6
 ; DARWIN-NEXT:    mov x12, x13
 ; DARWIN-NEXT:    mov x13, x14
 ; DARWIN-NEXT:    mov x14, x9
-; DARWIN-NEXT:    mov x9, x8
+; DARWIN-NEXT:    mov x9, x16
 ; DARWIN-NEXT:    bl _callee_with_many_param2
 ; DARWIN-NEXT:    ldp x29, x30, [sp], #16 ; 16-byte Folded Reload
 ; DARWIN-NEXT:    ret
@@ -259,17 +260,18 @@ define preserve_nonecc i64 @callee_with_many_param(i64 %a1, i64 %a2, i64 %a3, i6
 ; WIN-NEXT:    str x30, [sp, #16] // 8-byte Folded Spill
 ; WIN-NEXT:    .seh_save_reg x30, 16
 ; WIN-NEXT:    .seh_endprologue
-; WIN-NEXT:    ldr x8, [sp, #32]
-; WIN-NEXT:    mov x15, x20
+; WIN-NEXT:    ldr x15, [sp, #32]
+; WIN-NEXT:    mov x8, x25
+; WIN-NEXT:    mov x25, x26
+; WIN-NEXT:    mov x16, x20
 ; WIN-NEXT:    mov x20, x21
 ; WIN-NEXT:    mov x21, x22
-; WIN-NEXT:    mov x22, x23
-; WIN-NEXT:    mov x23, x24
-; WIN-NEXT:    mov x24, x25
-; WIN-NEXT:    mov x25, x26
 ; WIN-NEXT:    mov x26, x27
 ; WIN-NEXT:    mov x27, x28
 ; WIN-NEXT:    mov x28, x0
+; WIN-NEXT:    mov x22, x23
+; WIN-NEXT:    mov x23, x24
+; WIN-NEXT:    mov x24, x8
 ; WIN-NEXT:    mov x0, x1
 ; WIN-NEXT:    mov x1, x2
 ; WIN-NEXT:    mov x2, x3
@@ -283,8 +285,8 @@ define preserve_nonecc i64 @callee_with_many_param(i64 %a1, i64 %a2, i64 %a3, i6
 ; WIN-NEXT:    mov x12, x13
 ; WIN-NEXT:    mov x13, x14
 ; WIN-NEXT:    mov x14, x9
-; WIN-NEXT:    mov x9, x8
-; WIN-NEXT:    str x15, [sp]
+; WIN-NEXT:    mov x9, x15
+; WIN-NEXT:    str x16, [sp]
 ; WIN-NEXT:    bl callee_with_many_param2
 ; WIN-NEXT:    .seh_startepilogue
 ; WIN-NEXT:    ldr x30, [sp, #16] // 8-byte Folded Reload
@@ -404,13 +406,13 @@ define i64 @caller3() {
 ; DARWIN-NEXT:    .cfi_offset b15, -160
 ; DARWIN-NEXT:    mov w20, #1 ; =0x1
 ; DARWIN-NEXT:    mov w21, #2 ; =0x2
+; DARWIN-NEXT:    mov w26, #7 ; =0x7
+; DARWIN-NEXT:    mov w27, #8 ; =0x8
+; DARWIN-NEXT:    mov w28, #9 ; =0x9
 ; DARWIN-NEXT:    mov w22, #3 ; =0x3
 ; DARWIN-NEXT:    mov w23, #4 ; =0x4
 ; DARWIN-NEXT:    mov w24, #5 ; =0x5
 ; DARWIN-NEXT:    mov w25, #6 ; =0x6
-; DARWIN-NEXT:    mov w26, #7 ; =0x7
-; DARWIN-NEXT:    mov w27, #8 ; =0x8
-; DARWIN-NEXT:    mov w28, #9 ; =0x9
 ; DARWIN-NEXT:    mov w0, #10 ; =0xa
 ; DARWIN-NEXT:    mov w1, #11 ; =0xb
 ; DARWIN-NEXT:    mov w2, #12 ; =0xc
@@ -438,6 +440,7 @@ define i64 @caller3() {
 ; DARWIN-NEXT:    ldp d13, d12, [sp, #16] ; 16-byte Folded Reload
 ; DARWIN-NEXT:    ldp d15, d14, [sp], #160 ; 16-byte Folded Reload
 ; DARWIN-NEXT:    ret
+
 ;
 ; WIN-LABEL: caller3:
 ; WIN:       .seh_proc caller3
@@ -468,13 +471,13 @@ define i64 @caller3() {
 ; WIN-NEXT:    mov w8, #24 // =0x18
 ; WIN-NEXT:    mov w20, #1 // =0x1
 ; WIN-NEXT:    mov w21, #2 // =0x2
+; WIN-NEXT:    mov w26, #7 // =0x7
+; WIN-NEXT:    mov w27, #8 // =0x8
+; WIN-NEXT:    mov w28, #9 // =0x9
 ; WIN-NEXT:    mov w22, #3 // =0x3
 ; WIN-NEXT:    mov w23, #4 // =0x4
 ; WIN-NEXT:    mov w24, #5 // =0x5
 ; WIN-NEXT:    mov w25, #6 // =0x6
-; WIN-NEXT:    mov w26, #7 // =0x7
-; WIN-NEXT:    mov w27, #8 // =0x8
-; WIN-NEXT:    mov w28, #9 // =0x9
 ; WIN-NEXT:    mov w0, #10 // =0xa
 ; WIN-NEXT:    mov w1, #11 // =0xb
 ; WIN-NEXT:    mov w2, #12 // =0xc

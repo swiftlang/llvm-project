@@ -840,6 +840,9 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy) {
       addFlag(Buffer, dwarf::DW_AT_LLVM_ptrauth_isa_pointer);
     if (PtrAuthData->authenticatesNullValues())
       addFlag(Buffer, dwarf::DW_AT_LLVM_ptrauth_authenticates_null_values);
+    if (PtrAuthData->authenticationMode() != 3)
+      addUInt(Buffer, dwarf::DW_AT_LLVM_ptrauth_authentication_mode,
+          dwarf::DW_FORM_data1, PtrAuthData->authenticationMode());
   }
 }
 

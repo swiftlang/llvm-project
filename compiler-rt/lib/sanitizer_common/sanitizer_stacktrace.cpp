@@ -17,6 +17,10 @@
 #include "sanitizer_platform.h"
 #include "sanitizer_ptrauth.h"
 
+#if __has_feature(ptrauth_returns)
+#include <ptrauth.h>
+#endif
+
 namespace __sanitizer {
 
 uptr StackTrace::GetNextInstructionPc(uptr pc) {
@@ -132,6 +136,9 @@ void BufferedStackTrace::UnwindFast(uptr pc, uptr bp, uptr stack_top,
     // a platform where this isn't true, we need to reconsider this check.
     if (pc1 < kPageSize)
       break;
+#if __has_feature(ptrauth_returns)
+    pc1 = (uhwptr)ptrauth_strip((void *)pc1, ptrauth_key_return_address);
+#endif
     if (pc1 != pc) {
       trace_buffer[size++] = (uptr) pc1;
     }

@@ -499,7 +499,7 @@ public:
 
   static int stepWithCompactEncoding(compact_unwind_encoding_t compactEncoding,
                                      uint64_t functionStart, A &addressSpace,
-                                     Registers_arm64 &registers);
+                                     unw_word_t procInfoFlags, Registers_arm64 &registers);
 
 private:
   typename A::pint_t pint_t;
@@ -507,23 +507,23 @@ private:
   static int
       stepWithCompactEncodingFrame(compact_unwind_encoding_t compactEncoding,
                                    uint64_t functionStart, A &addressSpace,
-                                   Registers_arm64 &registers);
+                                   unw_word_t procInfoFlags, Registers_arm64 &registers);
   static int stepWithCompactEncodingFrameless(
       compact_unwind_encoding_t compactEncoding, uint64_t functionStart,
-      A &addressSpace, Registers_arm64 &registers);
+      A &addressSpace, unw_word_t procInfoFlags, Registers_arm64 &registers);
 };
 
 template <typename A>
 int CompactUnwinder_arm64<A>::stepWithCompactEncoding(
     compact_unwind_encoding_t compactEncoding, uint64_t functionStart,
-    A &addressSpace, Registers_arm64 &registers) {
+    A &addressSpace, unw_word_t procInfoFlags, Registers_arm64 &registers) {
   switch (compactEncoding & UNWIND_ARM64_MODE_MASK) {
   case UNWIND_ARM64_MODE_FRAME:
     return stepWithCompactEncodingFrame(compactEncoding, functionStart,
-                                        addressSpace, registers);
+                                        addressSpace, procInfoFlags, registers);
   case UNWIND_ARM64_MODE_FRAMELESS:
     return stepWithCompactEncodingFrameless(compactEncoding, functionStart,
-                                            addressSpace, registers);
+                                            addressSpace, procInfoFlags, registers);
   }
   _LIBUNWIND_ABORT("invalid compact unwind encoding");
 }
@@ -531,6 +531,7 @@ int CompactUnwinder_arm64<A>::stepWithCompactEncoding(
 template <typename A>
 int CompactUnwinder_arm64<A>::stepWithCompactEncodingFrameless(
     compact_unwind_encoding_t encoding, uint64_t, A &addressSpace,
+    unw_word_t procInfoFlags,
     Registers_arm64 &registers) {
   uint32_t stackSize =
       16 * EXTRACT_BITS(encoding, UNWIND_ARM64_FRAMELESS_STACK_SIZE_MASK);
@@ -601,11 +602,15 @@ int CompactUnwinder_arm64<A>::stepWithCompactEncodingFrameless(
     savedRegisterLoc -= 8;
   }
 
+  Registers_arm64::reg_t linkRegister = registers.getRegister(UNW_AARCH64_LR);
+
   // subtract stack size off of sp
   registers.setSP(savedRegisterLoc);
 
+  registers.normalizeNewLinkRegister(linkRegister, procInfoFlags);
+
   // set pc to be value in lr
-  registers.setIP(registers.getRegister(UNW_AARCH64_LR));
+  registers.setIP(linkRegister);
 
   return UNW_STEP_SUCCESS;
 }
@@ -613,7 +618,7 @@ int CompactUnwinder_arm64<A>::stepWithCompactEncodingFrameless(
 template <typename A>
 int CompactUnwinder_arm64<A>::stepWithCompactEncodingFrame(
     compact_unwind_encoding_t encoding, uint64_t, A &addressSpace,
-    Registers_arm64 &registers) {
+    unw_word_t procInfoFlags, Registers_arm64 &registers) {
   uint64_t savedRegisterLoc = registers.getFP() - 8;
 
   if (encoding & UNWIND_ARM64_FRAME_X19_X20_PAIR) {
@@ -685,8 +690,13 @@ int CompactUnwinder_arm64<A>::stepWithCompactEncodingFrame(
   registers.setFP(addressSpace.get64(fp));
   // old sp is fp less saved fp and lr
   registers.setSP(fp + 16);
+
   // pop return address into pc
-  registers.setIP(addressSpace.get64(fp + 8));
+  Registers_arm64::reg_t linkRegister = addressSpace.get64(fp + 8);
+
+  registers.normalizeNewLinkRegister(linkRegister, procInfoFlags);
+
+  registers.setIP(linkRegister);
 
   return UNW_STEP_SUCCESS;
 }

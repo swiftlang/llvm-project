@@ -2098,6 +2098,18 @@ Value *ConstantPtrAuth::handleOperandChangeImpl(Value *From, Value *ToV) {
       Values, this, From, To, NumUpdated, OperandNo);
 }
 
+bool ConstantPtrAuth::hasSpecialAddressDiscriminator(uint64_t value) const {
+  auto *CastV = dyn_cast<ConstantExpr>(getAddrDiscriminator());
+  if (!CastV || CastV->getOpcode() != Instruction::IntToPtr)
+    return false;
+
+  auto IntVal = dyn_cast<ConstantInt>(CastV->getOperand(0));
+  if (!IntVal)
+    return false;
+
+  return IntVal->getValue() == value;
+}
+
 bool ConstantPtrAuth::isKnownCompatibleWith(const Value *Key,
                                             const Value *Discriminator,
                                             const DataLayout &DL) const {

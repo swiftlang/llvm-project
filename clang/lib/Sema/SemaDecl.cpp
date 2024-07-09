@@ -3060,6 +3060,19 @@ static void diagnoseMissingConstinit(Sema &S, const VarDecl *InitDecl,
   }
 }
 
+static void checkPtrAuthStructAttr(const NamedDecl *New, const Decl *Prev,
+                                   Sema &S) {
+  if (auto *NewRD = dyn_cast<RecordDecl>(New))
+    if (auto *PrevRD = dyn_cast<RecordDecl>(Prev))
+      if (S.Context.hasPointerAuthStructMismatch(NewRD, PrevRD)) {
+        S.Diag(NewRD->getLocation(), diag::err_ptrauth_struct_signing_mismatch)
+            << NewRD->getDeclName();
+        S.Diag(PrevRD->getLocation(),
+               diag::note_previous_ptrauth_struct_declaration)
+            << NewRD->getDeclName();
+      }
+}
+
 void Sema::mergeDeclAttributes(NamedDecl *New, Decl *Old,
                                AvailabilityMergeKind AMK) {
   if (UsedAttr *OldAttr = Old->getMostRecentDecl()->getAttr<UsedAttr>()) {
@@ -3164,6 +3177,8 @@ void Sema::mergeDeclAttributes(NamedDecl *New, Decl *Old,
          << 0 /*codeseg*/;
     Diag(Old->getLocation(), diag::note_previous_declaration);
   }
+
+  checkPtrAuthStructAttr(New, Old, *this);
 
   if (!Old->hasAttrs())
     return;
@@ -14296,6 +14311,16 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
     Diag(var->getLocation(), diag::err_constexpr_var_requires_const_init)
         << var;
 
+  if (GlobalStorage) {
+    auto supported = Context.tryTypeContainsAuthenticatedNull(var->getType());
+    if (supported && *supported) {
+      Diag(var->getLocation(),
+           diag::err_ptrauth_invalid_authenticated_null_global)
+          << var->isFileVarDecl();
+      var->setInvalidDecl();
+    }
+  }
+
   // Check whether the initializer is sufficiently constant.
   if ((getLangOpts().CPlusPlus || (getLangOpts().C23 && var->isConstexpr())) &&
       !type->isDependentType() && Init && !Init->isValueDependent() &&
@@ -15063,7 +15088,8 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
 
   // __ptrauth is forbidden on parameters.
   if (T.getPointerAuth()) {
-    Diag(NameLoc, diag::err_ptrauth_qualifier_param) << T;
+    Diag(NameLoc, diag::err_ptrauth_qualifier_invalid)
+        << T << (int)!T->isSignablePointerType() << 1;
     New->setInvalidDecl();
   }
 
@@ -19005,12 +19031,16 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
       if (const auto *RT = FT->getAs<RecordType>()) {
         if (RT->getDecl()->getArgPassingRestrictions() ==
             RecordArgPassingKind::CanNeverPassInRegs)
-          Record->setArgPassingRestrictions(RecordArgPassingKind::CanNeverPassInRegs);
+          Record->setArgPassingRestrictions(
+              RecordArgPassingKind::CanNeverPassInRegs);
       } else if (FT.getQualifiers().getObjCLifetime() == Qualifiers::OCL_Weak) {
-        Record->setArgPassingRestrictions(RecordArgPassingKind::CanNeverPassInRegs);
-      } else if (PointerAuthQualifier Q = FT.getPointerAuth()) {
+        Record->setArgPassingRestrictions(
+            RecordArgPassingKind::CanNeverPassInRegs);
+      } else if (PointerAuthQualifier Q =
+                     FT.getPointerAuth().withoutKeyNone()) {
         if (Q.isAddressDiscriminated())
-          Record->setArgPassingRestrictions(RecordArgPassingKind::CanNeverPassInRegs);
+          Record->setArgPassingRestrictions(
+            RecordArgPassingKind::CanNeverPassInRegs);
       }
     }
 

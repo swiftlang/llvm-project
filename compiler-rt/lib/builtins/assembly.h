@@ -118,7 +118,7 @@
 #define BTI_J
 #endif
 
-#if (BTI_FLAG | PAC_FLAG) != 0
+#if !defined(__APPLE__) && (BTI_FLAG | PAC_FLAG) != 0
 #define GNU_PROPERTY_BTI_PAC                                                   \
   GNU_PROPERTY(GNU_PROPERTY_AARCH64_FEATURE_1_AND, BTI_FLAG | PAC_FLAG)
 #else

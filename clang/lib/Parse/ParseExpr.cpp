@@ -780,6 +780,29 @@ ExprResult Parser::ParseBuiltinPtrauthTypeDiscriminator() {
       /*isType=*/true, Ty.get().getAsOpaquePtr(), SourceRange(Loc, EndLoc));
 }
 
+ExprResult Parser::ParseBuiltinPtrauthStructKeyOrDisc(bool ParseKey) {
+  SourceLocation Loc = ConsumeToken();
+
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.expectAndConsume())
+    return ExprError();
+
+  TypeResult Ty = ParseTypeName();
+  if (Ty.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  SourceLocation EndLoc = Tok.getLocation();
+  T.consumeClose();
+  UnaryExprOrTypeTrait ExprKind =
+      ParseKey ? UETT_PtrAuthStructKey : UETT_PtrAuthStructDiscriminator;
+
+  return Actions.ActOnUnaryExprOrTypeTraitExpr(
+      Loc, ExprKind,
+      /*isType=*/true, Ty.get().getAsOpaquePtr(), SourceRange(Loc, EndLoc));
+}
+
 /// Parse a cast-expression, or, if \pisUnaryExpression is true, parse
 /// a unary-expression.
 ///
@@ -1831,6 +1854,12 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
 
   case tok::kw___builtin_ptrauth_type_discriminator:
     return ParseBuiltinPtrauthTypeDiscriminator();
+
+  case tok::kw___builtin_ptrauth_struct_key:
+    return ParseBuiltinPtrauthStructKeyOrDisc(true);
+
+  case tok::kw___builtin_ptrauth_struct_disc:
+    return ParseBuiltinPtrauthStructKeyOrDisc(false);
 
   case tok::kw___is_lvalue_expr:
   case tok::kw___is_rvalue_expr:

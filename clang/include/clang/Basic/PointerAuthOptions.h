@@ -25,6 +25,22 @@ namespace clang {
 
 constexpr unsigned PointerAuthKeyNone = -1;
 
+/// Constant discriminator to be used with objective-c isa pointers. The value
+/// is ptrauth_string_discriminator("isa")
+constexpr uint16_t IsaPointerConstantDiscriminator = 0x6AE1;
+
+/// Constant discriminator to be used with objective-c superclass pointers.
+/// The value is ptrauth_string_discriminator("objc_class:superclass")
+constexpr uint16_t SuperPointerConstantDiscriminator = 0xB5AB;
+
+/// Constant discriminator to be used with block descriptor pointers. The value
+/// is ptrauth_string_discriminator("block_descriptor")
+constexpr uint16_t BlockDescriptorConstantDiscriminator = 0xC0BB;
+
+/// Constant discriminator to be used with method list pointers. The value is
+/// ptrauth_string_discriminator("method_list_t")
+constexpr uint16_t MethodListPointerConstantDiscriminator = 0xC310;
+
 class PointerAuthSchema {
 public:
   enum class Kind : unsigned {
@@ -43,6 +59,9 @@ public:
     CXXVTablePointers = 4,
     CXXVirtualFunctionPointers = 5,
     CXXMemberFunctionPointers = 6,
+    ObjCMethodListPointer = 7,
+    ObjCIsaPointer = 8,
+    BlockDescriptorPointers = 9,
   };
 
   /// Hardware pointer-signing keys in ARM8.3.
@@ -139,7 +158,6 @@ public:
                           OtherDiscrimination, ConstantDiscriminatorOrNone,
                           IsIsaPointer, AuthenticatesNullValues) {}
 
-
   Kind getKind() const { return TheKind; }
 
   explicit operator bool() const { return isEnabled(); }
@@ -203,10 +221,6 @@ public:
 };
 
 struct PointerAuthOptions {
-  /// Do member function pointers to virtual functions need to be built
-  /// as thunks?
-  bool ThunkCXXVirtualMemberPointers = false;
-
   /// Should return addresses be authenticated?
   bool ReturnAddresses = false;
 
@@ -250,8 +264,20 @@ struct PointerAuthOptions {
   /// The ABI for __block variable copy/destroy function pointers.
   PointerAuthSchema BlockByrefHelperFunctionPointers;
 
+  /// The ABI for pointers to block descriptors.
+  PointerAuthSchema BlockDescriptorPointers;
+
   /// The ABI for Objective-C method lists.
   PointerAuthSchema ObjCMethodListFunctionPointers;
+
+  /// The ABI for a reference to an Objective-C method list in _class_ro_t.
+  PointerAuthSchema ObjCMethodListPointer;
+
+  /// The ABI for Objective-C isa pointers.
+  PointerAuthSchema ObjCIsaPointers;
+
+  /// The ABI for Objective-C superclass pointers.
+  PointerAuthSchema ObjCSuperPointers;
 };
 
 } // end namespace clang

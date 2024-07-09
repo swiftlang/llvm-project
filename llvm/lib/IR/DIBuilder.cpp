@@ -302,14 +302,14 @@ DIDerivedType *DIBuilder::createQualifiedType(unsigned Tag, DIType *FromTy) {
 
 DIDerivedType *DIBuilder::createPtrAuthQualifiedType(
     DIType *FromTy, unsigned Key, bool IsAddressDiscriminated,
-    unsigned ExtraDiscriminator, bool IsaPointer,
-    bool AuthenticatesNullValues) {
+    unsigned ExtraDiscriminator, bool IsaPointer, bool AuthenticatesNullValues,
+    unsigned AuthenticationMode) {
   return DIDerivedType::get(VMContext, dwarf::DW_TAG_LLVM_ptrauth_type, "",
                             nullptr, 0, nullptr, FromTy, 0, 0, 0, std::nullopt,
                             std::optional<DIDerivedType::PtrAuthData>(
                                 std::in_place, Key, IsAddressDiscriminated,
                                 ExtraDiscriminator, IsaPointer,
-                                AuthenticatesNullValues),
+                                AuthenticatesNullValues, AuthenticationMode),
                             DINode::FlagZero);
 }
 

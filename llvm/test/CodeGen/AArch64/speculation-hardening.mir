@@ -155,10 +155,10 @@ body:             |
     ; CHECK:       mov x1, sp
     ; CHECK:       and x1, x1, x16
     ; CHECK:       mov sp, x1
-    ; CHECK:       br x17
+    ; CHECK:       br x18
     $x8 = ADRP target-flags(aarch64-page) @g
-    $x17 = LDRXui killed $x8, target-flags(aarch64-pageoff, aarch64-nc) @g
-    TCRETURNri killed $x17, 0, implicit $sp, implicit $x0
+    $x18 = LDRXui killed $x8, target-flags(aarch64-pageoff, aarch64-nc) @g
+    TCRETURNri killed $x18, 0, implicit $sp, implicit $x0
 ...
 ---
 name:           indirect_call_lr

@@ -3874,12 +3874,15 @@ Error BitcodeReader::globalCleanup() {
 
   // Look for global variables which need to be renamed.
   std::vector<std::pair<GlobalVariable *, GlobalVariable *>> UpgradedVariables;
-  for (GlobalVariable &GV : TheModule->globals())
-    if (GlobalVariable *Upgraded = UpgradeGlobalVariable(&GV))
+  for (GlobalVariable &GV : TheModule->globals()) {
+    GlobalVariable *Upgraded = nullptr;
+    if (UpgradeGlobalVariable(&GV, Upgraded))
       UpgradedVariables.emplace_back(&GV, Upgraded);
+  }
   for (auto &Pair : UpgradedVariables) {
     Pair.first->eraseFromParent();
-    TheModule->insertGlobalVariable(Pair.second);
+    if (Pair.second)
+      TheModule->insertGlobalVariable(Pair.second);
   }
 
   // Force deallocation of memory for these vectors to favor the client that

@@ -996,16 +996,20 @@ public:
     // - Bits 5..20: ExtraDiscriminator
     // - Bit  21:    IsaPointer
     // - Bit  22:    AuthenticatesNullValues
+    // - Bit  23..24 AuthenticationMode
     unsigned RawData;
 
     PtrAuthData(unsigned FromRawData) : RawData(FromRawData) {}
     PtrAuthData(unsigned Key, bool IsDiscr, unsigned Discriminator,
-                bool IsaPointer, bool AuthenticatesNullValues) {
+                bool IsaPointer, bool AuthenticatesNullValues,
+                unsigned AuthenticationMode) {
       assert(Key < 16);
       assert(Discriminator <= 0xffff);
+      assert(AuthenticationMode <= 3);
       RawData = (Key << 0) | (IsDiscr ? (1 << 4) : 0) | (Discriminator << 5) |
                 (IsaPointer ? (1 << 21) : 0) |
-                (AuthenticatesNullValues ? (1 << 22) : 0);
+                (AuthenticatesNullValues ? (1 << 22) : 0) |
+                (AuthenticationMode << 23);
     }
 
     unsigned key() { return (RawData >> 0) & 0b1111; }
@@ -1013,6 +1017,7 @@ public:
     unsigned extraDiscriminator() { return (RawData >> 5) & 0xffff; }
     bool isaPointer() { return (RawData >> 21) & 1; }
     bool authenticatesNullValues() { return (RawData >> 22) & 1; }
+    unsigned authenticationMode() { return (RawData >> 23) & 0b11;}
   };
 
 private:

@@ -604,4 +604,23 @@ void AnnotateIgnoreWritesEnd(const char *file, int line);
 #define LLVM_PREFERRED_TYPE(T)
 #endif
 
+#ifdef __cplusplus
+namespace llvm {
+
+/// \macro LLVM_MOVABLE_POLYMORPHIC_TYPE
+/// Configures vtable pointer authentication for a struct to allow the structs
+/// to be moved
+#if LLVM_HAS_CPP_ATTRIBUTE(clang::ptrauth_vtable_pointer) &&                   \
+    __has_feature(ptrauth_intrinsics)
+#define LLVM_MOVABLE_POLYMORPHIC_TYPE                                          \
+  [[clang::ptrauth_vtable_pointer(default_key, no_address_discrimination,      \
+                                  default_extra_discrimination)]]
+#else
+#define LLVM_MOVABLE_POLYMORPHIC_TYPE
+#endif
+
+} // End namespace llvm
+
+#endif // __cplusplus
+
 #endif

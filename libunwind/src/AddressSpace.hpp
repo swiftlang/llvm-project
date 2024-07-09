@@ -129,26 +129,26 @@ struct UnwindInfoSections {
     defined(_LIBUNWIND_SUPPORT_COMPACT_UNWIND) ||                              \
     defined(_LIBUNWIND_USE_DL_ITERATE_PHDR)
   // No dso_base for SEH.
-  uintptr_t       dso_base;
+  uintptr_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::dso_base") dso_base;
 #endif
 #if defined(_LIBUNWIND_USE_DL_ITERATE_PHDR)
-  size_t          text_segment_length;
+  size_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::text_segment_length") text_segment_length;
 #endif
 #if defined(_LIBUNWIND_SUPPORT_DWARF_UNWIND)
-  uintptr_t       dwarf_section;
-  size_t          dwarf_section_length;
+  uintptr_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::dwarf_section") dwarf_section;
+  size_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::dwarf_section_length") dwarf_section_length;
 #endif
 #if defined(_LIBUNWIND_SUPPORT_DWARF_INDEX)
-  uintptr_t       dwarf_index_section;
-  size_t          dwarf_index_section_length;
+  uintptr_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::dwarf_index_section") dwarf_index_section;
+  size_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::dwarf_index_section_length") dwarf_index_section_length;
 #endif
 #if defined(_LIBUNWIND_SUPPORT_COMPACT_UNWIND)
-  uintptr_t       compact_unwind_section;
-  size_t          compact_unwind_section_length;
+  uintptr_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::compact_unwind_section") compact_unwind_section;
+  size_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::compact_unwind_section_length") compact_unwind_section_length;
 #endif
 #if defined(_LIBUNWIND_ARM_EHABI)
-  uintptr_t       arm_section;
-  size_t          arm_section_length;
+  uintptr_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::arm_section") arm_section;
+  size_t _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "UnwindInfoSections::arm_section_length") arm_section_length;
 #endif
 };
 
@@ -196,7 +196,8 @@ public:
   static int64_t  getSLEB128(pint_t &addr, pint_t end);
 
   pint_t getEncodedP(pint_t &addr, pint_t end, uint8_t encoding,
-                     pint_t datarelBase = 0);
+                     pint_t datarelBase = 0,
+                     pint_t *resultAddr = nullptr);
   bool findFunctionName(pint_t addr, char *buf, size_t bufLen,
                         unw_word_t *offset);
   bool findUnwindSections(pint_t targetAddr, UnwindInfoSections &info);
@@ -269,7 +270,7 @@ inline int64_t LocalAddressSpace::getSLEB128(pint_t &addr, pint_t end) {
 
 inline LocalAddressSpace::pint_t
 LocalAddressSpace::getEncodedP(pint_t &addr, pint_t end, uint8_t encoding,
-                               pint_t datarelBase) {
+                               pint_t datarelBase, pint_t *resultAddr) {
   pint_t startAddr = addr;
   const uint8_t *p = (uint8_t *)addr;
   pint_t result;
@@ -353,8 +354,14 @@ LocalAddressSpace::getEncodedP(pint_t &addr, pint_t end, uint8_t encoding,
     break;
   }
 
-  if (encoding & DW_EH_PE_indirect)
+  if (encoding & DW_EH_PE_indirect) {
+    if (resultAddr)
+      *resultAddr = result;
     result = getP(result);
+  } else {
+    if (resultAddr)
+      *resultAddr = startAddr;
+  }
 
   return result;
 }

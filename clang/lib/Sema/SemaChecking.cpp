@@ -1515,11 +1515,11 @@ static bool checkPointerAuthKey(Sema &S, Expr *&Arg) {
   if (Arg->isValueDependent())
     return false;
 
-  unsigned KeyValue;
+  int KeyValue;
   return S.checkConstantPointerAuthKey(Arg, KeyValue);
 }
 
-bool Sema::checkConstantPointerAuthKey(Expr *Arg, unsigned &Result) {
+bool Sema::checkConstantPointerAuthKey(Expr *Arg, int &Result) {
   // Attempt to constant-evaluate the expression.
   std::optional<llvm::APSInt> KeyValue = Arg->getIntegerConstantExpr(Context);
   if (!KeyValue) {
@@ -1529,7 +1529,8 @@ bool Sema::checkConstantPointerAuthKey(Expr *Arg, unsigned &Result) {
   }
 
   // Ask the target to validate the key parameter.
-  if (!Context.getTargetInfo().validatePointerAuthKey(*KeyValue)) {
+  if (static_cast<unsigned>(KeyValue->getExtValue()) != PointerAuthKeyNone &&
+      !Context.getTargetInfo().validatePointerAuthKey(*KeyValue)) {
     llvm::SmallString<32> Value;
     {
       llvm::raw_svector_ostream Str(Value);
@@ -1541,8 +1542,59 @@ bool Sema::checkConstantPointerAuthKey(Expr *Arg, unsigned &Result) {
     return true;
   }
 
-  Result = KeyValue->getZExtValue();
+  Result = KeyValue->getExtValue();
   return false;
+}
+
+bool Sema::checkPointerAuthDiscriminatorArg(Expr *arg,
+                                            PointerAuthDiscArgKind kind,
+                                            unsigned &intVal) {
+  if (!arg) {
+    intVal = 0;
+    return true;
+  }
+
+  bool isPtrAuthStruct = kind == PADAK_TypeDiscPtrAuthStruct;
+
+  std::optional<llvm::APSInt> result = arg->getIntegerConstantExpr(Context);
+  if (!result) {
+    Diag(arg->getExprLoc(), diag::err_ptrauth_arg_not_ice) << isPtrAuthStruct;
+    return false;
+  }
+
+  unsigned max;
+  bool isAddrDiscArg = false;
+
+  switch (kind) {
+  case PADAK_AddrDiscPtrAuth:
+    max = 1;
+    isAddrDiscArg = true;
+    break;
+  case PADAK_ExtraDiscPtrAuth:
+  case PADAK_TypeDiscPtrAuthStruct:
+    max = PointerAuthQualifier::MaxDiscriminator;
+    break;
+  };
+
+  if (*result < 0 || *result > max) {
+    llvm::SmallString<32> value;
+    {
+      llvm::raw_svector_ostream str(value);
+      str << *result;
+    }
+
+    if (isAddrDiscArg)
+      Diag(arg->getExprLoc(), diag::err_ptrauth_address_discrimination_invalid)
+          << value;
+    else
+      Diag(arg->getExprLoc(), diag::err_ptrauth_extra_discriminator_invalid)
+          << value << max << isPtrAuthStruct;
+
+    return false;
+  };
+
+  intVal = result->getZExtValue();
+  return true;
 }
 
 static std::pair<const ValueDecl *, CharUnits>
@@ -3801,6 +3853,14 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
     return ExprError();
   }
 
+  auto PointerAuth = AtomTy.getPointerAuth().withoutKeyNone();
+  if (PointerAuth && PointerAuth.isAddressDiscriminated()) {
+    Diag(ExprRange.getBegin(),
+         diag::err_atomic_op_needs_non_address_discriminated_pointer)
+        << 0 << Ptr->getType() << Ptr->getSourceRange();
+    return ExprError();
+  }
+
   // For an arithmetic operation, the implied arithmetic must be well-formed.
   if (Form == Arithmetic) {
     // GCC does not enforce these rules for GNU atomics, but we do to help catch
@@ -4165,6 +4225,13 @@ ExprResult Sema::BuiltinAtomicOverloaded(ExprResult TheCallResult) {
       !ValType->isBlockPointerType()) {
     Diag(DRE->getBeginLoc(), diag::err_atomic_builtin_must_be_pointer_intptr)
         << FirstArg->getType() << 0 << FirstArg->getSourceRange();
+    return ExprError();
+  }
+  auto pointerAuth = ValType.getPointerAuth().withoutKeyNone();
+  if (pointerAuth && pointerAuth.isAddressDiscriminated()) {
+    Diag(FirstArg->getBeginLoc(),
+             diag::err_atomic_op_needs_non_address_discriminated_pointer)
+        << 1 << ValType << FirstArg->getSourceRange();
     return ExprError();
   }
 

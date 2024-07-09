@@ -73,7 +73,8 @@ namespace {
       //   value of the expression to the unqualified, non-atomic version of
       //   the named type.
       if (!S.Context.getLangOpts().ObjC && !DestType->isRecordType() &&
-          !DestType->isArrayType() && !DestType.getPointerAuth()) {
+          !DestType->isArrayType() &&
+          !DestType.getPointerAuth().withoutKeyNone()) {
         DestType = DestType.getAtomicUnqualifiedType();
       }
 

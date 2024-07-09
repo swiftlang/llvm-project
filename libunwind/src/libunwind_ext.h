@@ -121,6 +121,11 @@ extern int __unw_add_find_dynamic_unwind_sections(
 extern int __unw_remove_find_dynamic_unwind_sections(
     unw_find_dynamic_unwind_sections find_dynamic_unwind_sections);
 
+
+#if __has_feature(ptrauth_qualifier)
+extern unw_word_t __unw_is_pointer_auth_enabled(void);
+#endif
+
 #endif
 
 #if defined(_LIBUNWIND_ARM_EHABI)
@@ -133,5 +138,12 @@ extern _Unwind_Reason_Code _Unwind_VRS_Interpret(_Unwind_Context *context,
 #ifdef __cplusplus
 }
 #endif
+
+enum ProcInfoFlags {
+  ProcInfoFlags_NoFlags = 0,
+#if __has_feature(ptrauth_calls)
+  ProcInfoFlags_IsARM64Image = 1
+#endif
+};
 
 #endif // __LIBUNWIND_EXT__

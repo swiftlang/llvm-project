@@ -15,6 +15,7 @@
 #define LLVM_CLANG_LIB_CODEGEN_CGVALUE_H
 
 #include "Address.h"
+#include "CGPointerAuthInfo.h"
 #include "CodeGenTBAA.h"
 #include "EHScopeStack.h"
 #include "clang/AST/ASTContext.h"
@@ -78,6 +79,8 @@ public:
     return std::make_pair(Vals.first, Vals.second);
   }
 
+  bool isSignedAggregate() const { return AggregateAddr.isSigned(); }
+
   /// getAggregateAddr() - Return the Value* of the address of the aggregate.
   Address getAggregateAddress() const {
     assert(isAggregate() && "Not an aggregate!");
@@ -85,9 +88,7 @@ public:
   }
 
   llvm::Value *getAggregatePointer(QualType PointeeType,
-                                   CodeGenFunction &CGF) const {
-    return getAggregateAddress().getBasePointer();
-  }
+                                   CodeGenFunction &CGF) const;
 
   static RValue getIgnored() {
     // FIXME: should we make this a more explicit state?
@@ -233,9 +234,6 @@ class LValue {
   // this lvalue.
   bool Nontemporal : 1;
 
-  // The pointer is known not to be null.
-  bool IsKnownNonNull : 1;
-
   LValueBaseInfo BaseInfo;
   TBAAAccessInfo TBAAInfo;
 
@@ -263,7 +261,6 @@ private:
     this->ImpreciseLifetime = false;
     this->Nontemporal = false;
     this->ThreadLocalRef = false;
-    this->IsKnownNonNull = false;
     this->BaseIvarExp = nullptr;
   }
 
@@ -321,6 +318,8 @@ public:
   bool isNontemporal() const { return Nontemporal; }
   void setNontemporal(bool Value) { Nontemporal = Value; }
 
+  bool isPointerSigned() const { return Addr.isSigned(); }
+
   bool isObjCWeak() const {
     return Quals.getObjCGCAttr() == Qualifiers::Weak;
   }
@@ -349,27 +348,25 @@ public:
   LValueBaseInfo getBaseInfo() const { return BaseInfo; }
   void setBaseInfo(LValueBaseInfo Info) { BaseInfo = Info; }
 
-  KnownNonNull_t isKnownNonNull() const {
-    return (KnownNonNull_t)IsKnownNonNull;
-  }
+  KnownNonNull_t isKnownNonNull() const { return Addr.isKnownNonNull(); }
   LValue setKnownNonNull() {
-    IsKnownNonNull = true;
+    Addr.setKnownNonNull();
     return *this;
   }
 
   // simple lvalue
-  llvm::Value *getPointer(CodeGenFunction &CGF) const {
-    assert(isSimple());
-    return Addr.getBasePointer();
-  }
-  llvm::Value *emitRawPointer(CodeGenFunction &CGF) const {
-    assert(isSimple());
-    return Addr.isValid() ? Addr.emitRawPointer(CGF) : nullptr;
-  }
+  llvm::Value *getPointer(CodeGenFunction &CGF) const;
+  llvm::Value *emitResignedPointer(QualType PointeeTy,
+                                   CodeGenFunction &CGF) const;
+  llvm::Value *emitRawPointer(CodeGenFunction &CGF) const;
 
   Address getAddress() const { return Addr; }
 
   void setAddress(Address address) { Addr = address; }
+
+  CGPointerAuthInfo getPointerAuthInfo() const {
+    return Addr.getPointerAuthInfo();
+  }
 
   // vector elt lvalue
   Address getVectorAddress() const {
@@ -642,9 +639,7 @@ public:
 
   llvm::Value *getPointer(QualType PointeeTy, CodeGenFunction &CGF) const;
 
-  llvm::Value *emitRawPointer(CodeGenFunction &CGF) const {
-    return Addr.isValid() ? Addr.emitRawPointer(CGF) : nullptr;
-  }
+  llvm::Value *emitRawPointer(CodeGenFunction &CGF) const;
 
   Address getAddress() const {
     return Addr;

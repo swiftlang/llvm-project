@@ -40,6 +40,10 @@
 #define _LIBUNWIND_CHECK_LINUX_SIGRETURN 1
 #endif
 
+#if __has_feature(ptrauth_calls)
+#include <ptrauth.h>
+#endif
+
 #include "AddressSpace.hpp"
 #include "CompactUnwinder.hpp"
 #include "config.h"
@@ -1019,11 +1023,25 @@ private:
   bool getInfoFromDwarfSection(pint_t pc, const UnwindInfoSections &sects,
                                             uint32_t fdeSectionOffsetHint=0);
   int stepWithDwarfFDE(bool stage2) {
+    typename R::reg_t pc = this->getReg(UNW_REG_IP);
+    _registers.normalizeExistingLinkRegister(pc);
     return DwarfInstructions<A, R>::stepWithDwarf(
-        _addressSpace, (pint_t)this->getReg(UNW_REG_IP),
-        (pint_t)_info.unwind_info, _registers, _isSignalFrame, stage2);
+        _addressSpace, pc, (pint_t)_info.unwind_info,
+        _info.flags, _registers, _isSignalFrame, stage2);
   }
 #endif
+
+  void setProcInfoFlags() {
+#if __has_feature(ptrauth_calls)
+    // If the extra field is set, then it is set to the mach header and we can use
+    // that to determine which flags to set
+    if (_info.extra) {
+      const mach_header_64 *mh = (const mach_header_64 *)_info.extra;
+      if ((mh->cpusubtype & ~CPU_SUBTYPE_MASK) != CPU_SUBTYPE_ARM64_E)
+        _info.flags = ProcInfoFlags_IsARM64Image;
+    }
+#endif
+  }
 
 #if defined(_LIBUNWIND_SUPPORT_COMPACT_UNWIND)
   bool getInfoFromCompactEncodingSection(pint_t pc,
@@ -1645,6 +1663,7 @@ bool UnwindCursor<A, R>::getInfoFromFdeCie(
     _info.unwind_info       = fdeInfo.fdeStart;
     _info.unwind_info_size  = static_cast<uint32_t>(fdeInfo.fdeLength);
     _info.extra             = static_cast<unw_word_t>(dso_base);
+    setProcInfoFlags();
     return true;
   }
   return false;
@@ -1710,6 +1729,18 @@ bool UnwindCursor<A, R>::getInfoFromDwarfSection(pint_t pc,
 
 
 #if defined(_LIBUNWIND_SUPPORT_COMPACT_UNWIND)
+// This helper function handles setting the manually signed handler on
+// unw_proc_info without attempt to authenticate and/or re-sign
+namespace {
+template <typename T>
+void set_proc_info_handler(unw_proc_info_t &info, T signed_handler) {
+  static_assert(sizeof(info.handler) == sizeof(signed_handler),
+                "Signed handler is the wrong size");
+  memmove((void *)&info.handler, (void *)&signed_handler,
+          sizeof(signed_handler));
+}
+} // unnamed namespace
+
 template <typename A, typename R>
 bool UnwindCursor<A, R>::getInfoFromCompactEncodingSection(pint_t pc,
                                               const UnwindInfoSections &sects) {
@@ -1943,6 +1974,17 @@ bool UnwindCursor<A, R>::getInfoFromCompactEncodingSection(pint_t pc,
         personalityIndex * sizeof(uint32_t));
     pint_t personalityPointer = sects.dso_base + (pint_t)personalityDelta;
     personality = _addressSpace.getP(personalityPointer);
+#if __has_feature(ptrauth_calls)
+    // The GOT for the personality function was signed address authenticated.
+    // Resign is as a regular function pointer.
+    const auto discriminator = ptrauth_blend_discriminator(&_info.handler, __builtin_ptrauth_string_discriminator("unw_proc_info_t::handler"));
+    void* signedPtr = ptrauth_auth_and_resign((void*)personality,
+                                              ptrauth_key_function_pointer,
+                                              personalityPointer,
+                                              ptrauth_key_function_pointer,
+                                              discriminator);
+    personality = (__typeof(personality))signedPtr;
+#endif
     if (log)
       fprintf(stderr, "getInfoFromCompactEncodingSection(pc=0x%llX), "
                       "personalityDelta=0x%08X, personality=0x%08llX\n",
@@ -1956,13 +1998,14 @@ bool UnwindCursor<A, R>::getInfoFromCompactEncodingSection(pint_t pc,
   _info.start_ip = funcStart;
   _info.end_ip = funcEnd;
   _info.lsda = lsda;
-  _info.handler = personality;
+  set_proc_info_handler(_info, personality);
   _info.gp = 0;
   _info.flags = 0;
   _info.format = encoding;
   _info.unwind_info = 0;
   _info.unwind_info_size = 0;
   _info.extra = sects.dso_base;
+  setProcInfoFlags();
   return true;
 }
 #endif // defined(_LIBUNWIND_SUPPORT_COMPACT_UNWIND)
@@ -2555,18 +2598,21 @@ int UnwindCursor<A, R>::stepWithTBTable(pint_t pc, tbtable *TBTable,
 }
 #endif // defined(_LIBUNWIND_SUPPORT_TBTAB_UNWIND)
 
+
 template <typename A, typename R>
 void UnwindCursor<A, R>::setInfoBasedOnIPRegister(bool isReturnAddress) {
 #if defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN)
   _isSigReturn = false;
 #endif
 
-  pint_t pc = static_cast<pint_t>(this->getReg(UNW_REG_IP));
+  typename R::reg_t pc = this->getReg(UNW_REG_IP);
 #if defined(_LIBUNWIND_ARM_EHABI)
   // Remove the thumb bit so the IP represents the actual instruction address.
   // This matches the behaviour of _Unwind_GetIP on arm.
   pc &= (pint_t)~0x1;
 #endif
+
+  _registers.normalizeExistingLinkRegister(pc);
 
   // Exit early if at the top of the stack.
   if (pc == 0) {
@@ -2961,8 +3007,11 @@ void UnwindCursor<A, R>::getInfo(unw_proc_info_t *info) {
 template <typename A, typename R>
 bool UnwindCursor<A, R>::getFunctionName(char *buf, size_t bufLen,
                                                            unw_word_t *offset) {
-  return _addressSpace.findFunctionName((pint_t)this->getReg(UNW_REG_IP),
-                                         buf, bufLen, offset);
+  typename R::reg_t pc = this->getReg(UNW_REG_IP);
+
+  _registers.normalizeExistingLinkRegister(pc);
+
+  return _addressSpace.findFunctionName(pc, buf, bufLen, offset);
 }
 
 #if defined(_LIBUNWIND_CHECK_LINUX_SIGRETURN)

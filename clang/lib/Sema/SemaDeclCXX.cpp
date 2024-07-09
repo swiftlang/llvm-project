@@ -6663,6 +6663,32 @@ Sema::getDefaultedFunctionKind(const FunctionDecl *FD) {
   return DefaultedFunctionKind();
 }
 
+/// Set flag HasSignedClassInHierarchy and diagnose dynamic classes that have
+/// signed classes in their hierarchies.
+static void setHasSignedClassInHierarchy(CXXRecordDecl *RD, Sema &S) {
+  bool Known;
+  unsigned Key;
+  std::tie(Known, Key) = S.Context.getPointerAuthStructKey(RD);
+
+  if (Known && Key != PointerAuthKeyNone) {
+    RD->setHasSignedClassInHierarchy();
+  } else {
+    for (auto &B : RD->bases()) {
+      auto *Base = B.getType()->getAsCXXRecordDecl();
+      if (Base && !Base->isDependentType() &&
+          Base->hasSignedClassInHierarchy()) {
+        RD->setHasSignedClassInHierarchy();
+        break;
+      }
+    }
+  }
+
+  if (RD->hasSignedClassInHierarchy() && RD->isDynamicClass())
+    S.Diag(RD->getLocation(),
+           diag::err_ptrauth_invalid_struct_attr_dynamic_class)
+        << RD->getDeclName();
+}
+
 static void DefineDefaultedFunction(Sema &S, FunctionDecl *FD,
                                     SourceLocation DefaultLoc) {
   Sema::DefaultedFunctionKind DFK = S.getDefaultedFunctionKind(FD);
@@ -6887,6 +6913,8 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
       }
     }
   }
+
+  setHasSignedClassInHierarchy(Record, *this);
 
   // Warn if the class has virtual methods but non-virtual public destructor.
   if (Record->isPolymorphic() && !Record->isDependentType()) {
@@ -9423,20 +9451,20 @@ bool SpecialMemberDeletionInfo::shouldDeleteForVariantPtrAuthMember(
     FieldDecl *FD, QualType FieldType) {
   // Copy/move constructors/assignment operators are deleted if the field has an
   // address-discriminated ptrauth qualifier.
-  PointerAuthQualifier Q = FieldType.getPointerAuth();
+  PointerAuthQualifier Q = FieldType.getPointerAuth().withoutKeyNone();
 
   if (!Q || !Q.isAddressDiscriminated())
     return false;
 
-  if (CSM == CXXSpecialMemberKind::DefaultConstructor || CSM == CXXSpecialMemberKind::Destructor)
+  if (CSM == CXXSpecialMemberKind::DefaultConstructor ||
+      CSM == CXXSpecialMemberKind::Destructor)
     return false;
 
   if (Diagnose) {
     auto *ParentClass = cast<CXXRecordDecl>(FD->getParent());
-    S.Diag(FD->getLocation(),
-           diag::note_deleted_special_member_class_subobject)
-        << llvm::to_underlying(getEffectiveCSM()) << ParentClass << /*IsField*/true
-        << FD << 4 << /*IsDtorCallInCtor*/false << 2;
+    S.Diag(FD->getLocation(), diag::note_deleted_special_member_class_subobject)
+        << llvm::to_underlying(getEffectiveCSM()) << ParentClass
+        << /*IsField*/ true << FD << 4 << /*IsDtorCallInCtor*/ false << 2;
   }
 
   return true;

@@ -1,9 +1,8 @@
-// RUN: %clang_cc1 -triple arm64-apple-ios -fptrauth-calls -fptrauth-intrinsics -fblocks -emit-llvm %s  -o - | FileCheck %s
+// RUN: %clang_cc1 -mllvm -ptrauth-emit-wrapper-globals=0 -triple arm64-apple-ios -fptrauth-calls -fptrauth-intrinsics -fblocks -emit-llvm %s  -o - | FileCheck %s
 
 void (^blockptr)(void);
 
-// CHECK: [[INVOCATION_1:@.*]] =  private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ ptr, i32, i32, ptr, ptr }, ptr [[GLOBAL_BLOCK_1:@.*]], i32 0, i32 3) to i64), i64 0 }, section "llvm.ptrauth"
-// CHECK: [[GLOBAL_BLOCK_1]] = internal constant { ptr, i32, i32, ptr, ptr } { ptr @_NSConcreteGlobalBlock, i32 1342177280, i32 0, ptr [[INVOCATION_1]],
+// CHECK: [[GLOBAL_BLOCK_1:@.*]] = internal constant { ptr, i32, i32, ptr, ptr } { ptr @_NSConcreteGlobalBlock, i32 1342177280, i32 0, ptr ptrauth (ptr {{@.*}}, i32 0, i64 0, ptr getelementptr inbounds ({ ptr, i32, i32, ptr, ptr }, ptr [[GLOBAL_BLOCK_1]], i32 0, i32 3)), ptr {{@.*}}
 void (^globalblock)(void) = ^{};
 
 // CHECK-LABEL: define void @test_block_call()
@@ -29,8 +28,3 @@ void test_block_literal(int i) {
   // CHECK-NEXT: store ptr [[T0]], ptr [[FNPTRADDR]]
   use_block(^{return i;});
 }
-
-struct A {
-  int value;
-};
-struct A *createA(void);

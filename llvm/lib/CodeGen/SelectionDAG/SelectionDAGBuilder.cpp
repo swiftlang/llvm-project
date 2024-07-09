@@ -9419,7 +9419,7 @@ void SelectionDAGBuilder::LowerCallSiteWithPtrAuthBundle(
   assert(Discriminator->getType()->isIntegerTy(64) &&
          "Invalid ptrauth discriminator");
 
-  // Look through ptrauth globals to find the raw callee.
+  // Look through ptrauth constants to find the raw callee.
   // Do a direct unauthenticated call if we found it and everything matches.
   if (auto CalleePAI = GlobalPtrAuthInfo::analyze(CalleeV)) {
     // FIXME: bring back a static diagnostic when we can guarantee the mismatch
@@ -9429,6 +9429,14 @@ void SelectionDAGBuilder::LowerCallSiteWithPtrAuthBundle(
       return;
     }
   }
+
+  // Look through ptrauth globals to find the raw callee.
+  // Do a direct unauthenticated call if we found it and everything matches.
+  if (auto *CalleeCPA = dyn_cast<ConstantPtrAuth>(CalleeV))
+    if (CalleeCPA->isKnownCompatibleWith(Key, Discriminator,
+                                         DAG.getDataLayout()))
+      return LowerCallTo(CB, getValue(CalleeCPA->getPointer()), CB.isTailCall(),
+                         CB.isMustTailCall(), EHPadBB);
 
   // Functions should never be ptrauth-called directly.
   assert(!isa<Function>(CalleeV) && "invalid direct ptrauth call");

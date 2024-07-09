@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -triple arm64-apple-ios11.0 -fobjc-runtime=ios-11.0 -fptrauth-calls -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -mllvm -ptrauth-emit-wrapper-globals=0 -fptrauth-function-pointer-type-discrimination %s -triple arm64-apple-ios11.0 -fobjc-runtime=ios-11.0 -fptrauth-calls -emit-llvm -o - | FileCheck %s
 
 extern int DEFAULT();
 
@@ -27,10 +27,6 @@ struct TCPPObject
   @synthesize MyProperty1 = _cppObject1;
 @end
 
-// CHECK-LABEL: @__copy_helper_atomic_property_.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @__copy_helper_atomic_property_, i32 0, i64 0, i64 0 }, section "llvm.ptrauth", align 8
-
-// CHECK-LABEL: @__assign_helper_atomic_property_.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @__assign_helper_atomic_property_, i32 0, i64 0, i64 0 }, section "llvm.ptrauth", align 8
-
 // CHECK-LABEL: define internal void @__copy_helper_atomic_property_(ptr noundef %0, ptr noundef %1) #
 // CHECK: [[TWO:%.*]] = load ptr, ptr [[ADDR:%.*]], align 8
 // CHECK: [[THREE:%.*]] = load ptr, ptr [[ADDR1:%.*]], align 8
@@ -47,7 +43,7 @@ struct TCPPObject
 // CHECK: %[[IVAR:.*]] = load i32, ptr @"OBJC_IVAR_$_MyDocument._cppObject", align 8,
 // CHECK: %[[IVAR_CONV:.*]] = sext i32 %[[IVAR]] to i64
 // CHECK: %[[ADD_PTR:.*]] = getelementptr inbounds i8, ptr %[[V0]], i64 %[[IVAR_CONV]]
-// CHECK: call void @objc_copyCppObjectAtomic(ptr noundef %[[AGG_RESULT]], ptr noundef %[[ADD_PTR]], ptr noundef @__copy_helper_atomic_property_.ptrauth)
+// CHECK: call void @objc_copyCppObjectAtomic(ptr noundef %[[AGG_RESULT]], ptr noundef %[[ADD_PTR]], ptr noundef ptrauth (ptr @__copy_helper_atomic_property_, i32 0, i64 29656))
 
 // CHECK-LABEL: define internal void @__assign_helper_atomic_property_(ptr noundef %0, ptr noundef %1) #
 // CHECK: [[THREE:%.*]] = load ptr, ptr [[ADDR1:%.*]], align 8
@@ -64,5 +60,5 @@ struct TCPPObject
 // CHECK: %[[IVAR:.*]] = load i32, ptr @"OBJC_IVAR_$_MyDocument._cppObject", align 8,
 // CHECK: %[[IVAR_CONV:.*]] = sext i32 %[[IVAR]] to i64
 // CHECK: %[[ADD_PTR:.*]] = getelementptr inbounds i8, ptr %[[V0]], i64 %[[IVAR_CONV]]
-// CHECK: call void @objc_copyCppObjectAtomic(ptr noundef %[[ADD_PTR]], ptr noundef %[[MYPROPERTY]], ptr noundef @__assign_helper_atomic_property_.ptrauth)
+// CHECK: call void @objc_copyCppObjectAtomic(ptr noundef %[[ADD_PTR]], ptr noundef %[[MYPROPERTY]], ptr noundef ptrauth (ptr @__assign_helper_atomic_property_, i32 0, i64 29656))
 // CHECK: ret void

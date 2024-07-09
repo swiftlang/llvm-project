@@ -3513,7 +3513,8 @@ static llvm::Value *tryRemoveRetainOfSelf(CodeGenFunction &CGF,
   llvm::LoadInst *load =
     dyn_cast<llvm::LoadInst>(retainedValue->stripPointerCasts());
   if (!load || load->isAtomic() || load->isVolatile() ||
-      load->getPointerOperand() != CGF.GetAddrOfLocalVar(self).getBasePointer())
+      load->getPointerOperand() !=
+          CGF.GetAddrOfLocalVar(self).getPointerIfNotSigned())
     return nullptr;
 
   // Okay!  Burn it all down.  This relies for correctness on the
@@ -3550,7 +3551,8 @@ static llvm::Value *emitAutoreleaseOfResult(CodeGenFunction &CGF,
 
 /// Heuristically search for a dominating store to the return-value slot.
 static llvm::StoreInst *findDominatingStoreToReturnValue(CodeGenFunction &CGF) {
-  llvm::Value *ReturnValuePtr = CGF.ReturnValue.getBasePointer();
+  // This function shouldn't be called when ReturnValue is signed.
+  llvm::Value *ReturnValuePtr = CGF.ReturnValue.getUnsignedPointer();
 
   // Check if a User is a store which pointerOperand is the ReturnValue.
   // We are looking for stores to the ReturnValue, not for stores of the
@@ -4138,7 +4140,8 @@ static bool isProvablyNull(llvm::Value *addr) {
 }
 
 static bool isProvablyNonNull(Address Addr, CodeGenFunction &CGF) {
-  return llvm::isKnownNonZero(Addr.getBasePointer(), CGF.CGM.getDataLayout());
+  return !Addr.isSigned() && llvm::isKnownNonZero(Addr.getUnsignedPointer(),
+                                                  CGF.CGM.getDataLayout());
 }
 
 /// Emit the actual writing-back of a writeback.
@@ -4146,7 +4149,7 @@ static void emitWriteback(CodeGenFunction &CGF,
                           const CallArgList::Writeback &writeback) {
   const LValue &srcLV = writeback.Source;
   Address srcAddr = srcLV.getAddress();
-  assert(!isProvablyNull(srcAddr.getBasePointer()) &&
+  assert(!isProvablyNull(srcAddr.getPointerIfNotSigned()) &&
          "shouldn't have writeback for provably null argument");
 
   llvm::BasicBlock *contBB = nullptr;
@@ -4263,7 +4266,7 @@ static void emitWritebackArg(CodeGenFunction &CGF, CallArgList &args,
       CGF.ConvertTypeForMem(CRE->getType()->getPointeeType());
 
   // If the address is a constant null, just pass the appropriate null.
-  if (isProvablyNull(srcAddr.getBasePointer())) {
+  if (isProvablyNull(srcAddr.getPointerIfNotSigned())) {
     args.add(RValue::get(llvm::ConstantPointerNull::get(destType)),
              CRE->getType());
     return;
@@ -4736,7 +4739,7 @@ void CodeGenFunction::EmitCallArg(CallArgList &args, const Expr *E,
 
   if (HasAggregateEvalKind && isa<ImplicitCastExpr>(E) &&
       cast<CastExpr>(E)->getCastKind() == CK_LValueToRValue &&
-      !type.isNonTrivialToPrimitiveCopy() && !type->isArrayParameterType()) {
+      !type->isArrayParameterType() && !type.isNonTrivialToPrimitiveCopy()) {
     LValue L = EmitLValue(cast<CastExpr>(E)->getSubExpr());
     assert(L.isSimple());
     args.addUncopiedAggregate(L, type);
@@ -5104,8 +5107,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   llvm::Value *UnusedReturnSizePtr = nullptr;
   if (RetAI.isIndirect() || RetAI.isInAlloca() || RetAI.isCoerceAndExpand()) {
     if (IsVirtualFunctionPointerThunk && RetAI.isIndirect()) {
-      SRetPtr = Address(CurFn->arg_begin() + IRFunctionArgs.getSRetArgNo(),
-                        ConvertTypeForMem(RetTy), CharUnits::fromQuantity(1));
+      SRetPtr = makeNaturalAddressForPointer(CurFn->arg_begin() +
+                                                 IRFunctionArgs.getSRetArgNo(),
+                                             RetTy, CharUnits::fromQuantity(1));
     } else if (!ReturnValue.isNull()) {
       SRetPtr = ReturnValue.getAddress();
     } else {

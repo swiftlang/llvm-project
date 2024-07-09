@@ -20,6 +20,9 @@ At the IR level, it is represented using:
   (to sign globals)
 * a [signed pointer constant](#constant) (to sign globals)
 * a [call operand bundle](#operand-bundle) (to authenticate called pointers)
+* a [set of function attributes](#function-attributes) (to describe what
+  pointers are signed and how, to control implicit codegen in the backend, as
+  well as preserve invariants in the mid-level optimizer)
 
 The current implementation leverages the
 [Armv8.3-A PAuth/Pointer Authentication Code](#armv8-3-a-pauth-pointer-authentication-code)
@@ -320,6 +323,21 @@ this attribute, as they should already be annotated with the
 The ``ptrauth-calls`` attribute only describes calls emitted by the backend,
 as part of target-specific lowering (e.g., runtime calls for TLS accesses).
 
+#### ``ptrauth-indirect-gotos``
+
+``ptrauth-indirect-gotos`` specifies that indirect gotos in this function
+should authenticate their target.  At the IR level, no other change is needed.
+When lowering [``blockaddress`` constants](https://llvm.org/docs/LangRef.html#blockaddress),
+and [``indirectbr`` instructions](https://llvm.org/docs/LangRef.html#i-indirectbr),
+this tells the backend to respectively sign and authenticate the pointers.
+
+The specific scheme isn't ABI-visible.  Currently, the AArch64 backend
+signs blockaddresses using the `ASIA` key, with an integer discriminator
+derived from the parent function's name, using the SipHash stable discriminator:
+```
+  ptrauth_string_discriminator("<function_name> blockaddress")
+```
+
 
 ### Authenticated Global Relocation
 
@@ -450,7 +468,7 @@ as follows:
 
 ### arm64e
 
-Darwin supports ARMv8.3 Pointer Authentication Codes via the arm64e MachO
+Darwin supports Armv8.3-A Pointer Authentication Codes via the arm64e MachO
 architecture slice.
 
 #### CPU Subtype

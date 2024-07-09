@@ -188,6 +188,9 @@ def FeatureJS : ExtensionWithMArch<"jsconv", "JS", "FEAT_JSCVT",
 def FeatureCCIDX : Extension<"ccidx", "CCIDX", "FEAT_CCIDX",
   "Enable v8.3-A Extend of the CCSIDR number of sets">;
 
+def FeatureFPAC : Extension<"fpac", "FPAC", "FEAT_FPAC",
+    "Enable v8.3-A Pointer Authentication Faulting enhancement">;
+
 let ArchExtKindSpelling = "AEK_FCMA", UserVisibleName = "fcma" in
 def FeatureComplxNum : ExtensionWithMArch<"complxnum", "ComplxNum", "FEAT_FCMA",
   "Enable v8.3-A Floating-point complex number support",

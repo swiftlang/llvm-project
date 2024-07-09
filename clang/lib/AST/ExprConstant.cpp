@@ -48,7 +48,6 @@
 #include "clang/AST/OSLog.h"
 #include "clang/AST/OptionalDiagnostic.h"
 #include "clang/AST/RecordLayout.h"
-#include "clang/AST/StableHash.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/Builtins.h"
@@ -11523,13 +11522,15 @@ public:
     return Success(I, E, Result);
   }
 
-  bool Success(uint64_t Value, const Expr *E, APValue &Result) {
+  template <class T, class = std::enable_if_t<std::is_integral<T>::value>>
+  bool Success(T Value, const Expr *E, APValue &Result) {
     assert(E->getType()->isIntegralOrEnumerationType() &&
            "Invalid evaluation result.");
     Result = APValue(Info.Ctx.MakeIntValue(Value, E->getType()));
     return true;
   }
-  bool Success(uint64_t Value, const Expr *E) {
+  template <class T, class = std::enable_if_t<std::is_integral<T>::value>>
+  bool Success(T Value, const Expr *E) {
     return Success(Value, E, Result);
   }
 
@@ -14037,6 +14038,24 @@ bool IntExprEvaluator::VisitUnaryExprOrTypeTraitExpr(
       return false;
     return Success(
         Info.Ctx.getPointerAuthTypeDiscriminator(E->getArgumentType()), E);
+  }
+  case UETT_PtrAuthStructKey: {
+    if (E->getArgumentType()->isDependentType())
+      return false;
+    std::pair<bool, int> Key = Info.Ctx.getPointerAuthStructKey(
+        E->getArgumentType()->getAsRecordDecl());
+    assert(Key.first &&
+           "key argument of ptrauth_struct shouldn't be dependent");
+    return Success(Key.second, E);
+  }
+  case UETT_PtrAuthStructDiscriminator: {
+    if (E->getArgumentType()->isDependentType())
+      return false;
+    std::pair<bool, unsigned> Disc = Info.Ctx.getPointerAuthStructDisc(
+        E->getArgumentType()->getAsRecordDecl());
+    assert(Disc.first &&
+           "discriminator argument of ptrauth_struct shouldn't be dependent");
+    return Success(Disc.second, E);
   }
   case UETT_VecStep: {
     QualType Ty = E->getTypeOfArgument();

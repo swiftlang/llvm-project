@@ -792,6 +792,7 @@ public:
                    tok::kw__Atomic,
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) tok::kw___##Trait,
 #include "clang/Basic/TransformTypeTraits.def"
+                   tok::kw___ptrauth, tok::kw___ptrauth_restricted_intptr,
                    tok::kw_requires);
   }
 

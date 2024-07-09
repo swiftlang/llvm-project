@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=arm64-apple-ios -global-isel -o - %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-- -global-isel -o - %s | FileCheck %s
 
 define ptr @rt0(i32 %x) nounwind readnone {
 entry:
@@ -12,10 +12,9 @@ entry:
 define ptr @rt0_call_clobber(i32 %x) nounwind readnone {
 entry:
 ; CHECK-LABEL: rt0_call_clobber:
-; CHECK:       stp x20, x19, [sp, #-32]!
-; CHECK:       stp x29, x30, [sp, #16]
+; CHECK:       stp x30, x19, [sp, #-16]!
 ; CHECK:       mov x19, x30
-; CHECK:       bl _foo
+; CHECK:       bl foo
 ; CHECK:       mov x30, x19
 ; CHECK-NEXT:  hint #7
 ; CHECK-NEXT:  mov x0, x30

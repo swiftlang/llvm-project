@@ -45,6 +45,13 @@
 
 using namespace llvm;
 
+namespace llvm {
+// FIXME: Temporarily allow both ConstantPtrAuth and llvm.ptrauth emission.
+cl::opt<bool> PtrauthEmitWrapperGlobals(
+    "ptrauth-emit-wrapper-globals", llvm::cl::init(true), llvm::cl::Hidden,
+    llvm::cl::desc("Emit llvm.ptrauth globals rather than ptrauth Constants"));
+} // namespace llvm
+
 static cl::opt<bool>
     DisableAutoUpgradeDebugInfo("disable-auto-upgrade-debug-info",
                                 cl::desc("Disable autoupgrade of debug info"));
@@ -1474,17 +1481,66 @@ bool llvm::UpgradeIntrinsicFunction(Function *F, Function *&NewFn,
   return Upgraded;
 }
 
-GlobalVariable *llvm::UpgradeGlobalVariable(GlobalVariable *GV) {
+bool llvm::UpgradeGlobalVariable(GlobalVariable *GV, GlobalVariable *&NewGV) {
+  if (GV->getSection() == "llvm.ptrauth") {
+    auto &Ctx = GV->getContext();
+
+    // Temporarily allow opt-out from wrapper global to constant transition.
+    if (PtrauthEmitWrapperGlobals)
+      return false;
+
+    if (!GV->hasInitializer())
+      return false;
+
+    auto *Init = GV->getInitializer();
+    auto *Ty = dyn_cast<StructType>(GV->getInitializer()->getType());
+    if (!Ty)
+      return false;
+
+    auto *I64Ty = Type::getInt64Ty(Ctx);
+    auto *I32Ty = Type::getInt32Ty(Ctx);
+    auto *PtrTy = PointerType::get(Ctx, 0);
+    // Check that the struct matches its expected shape:
+    //   { ptr, i32, i64, i64 }
+    if (!Ty->isLayoutIdentical(
+            StructType::get(Ctx, {PtrTy, I32Ty, I64Ty, I64Ty})))
+      return false;
+
+    auto Pointer = cast<Constant>(Init->getOperand(0));
+    Pointer = Pointer->stripPointerCasts();
+
+    auto *Key = dyn_cast<ConstantInt>(Init->getOperand(1));
+    if (!Key)
+      return false;
+
+    auto *AddrDiscriminator = cast<Constant>(Init->getOperand(2));
+    if (!isa<ConstantInt>(AddrDiscriminator) &&
+        !isa<ConstantExpr>(AddrDiscriminator))
+      return false;
+
+    auto *Discriminator = dyn_cast<ConstantInt>(Init->getOperand(3));
+    if (!Discriminator)
+      return false;
+
+    AddrDiscriminator = ConstantExpr::getIntToPtr(AddrDiscriminator, PtrTy);
+    Discriminator = ConstantInt::get(I64Ty, Discriminator->getZExtValue());
+    auto *SP =
+        ConstantPtrAuth::get(Pointer, Key, Discriminator, AddrDiscriminator);
+
+    GV->replaceAllUsesWith(ConstantExpr::getBitCast(SP, GV->getType()));
+    return true;
+  }
+
   if (!(GV->hasName() && (GV->getName() == "llvm.global_ctors" ||
                           GV->getName() == "llvm.global_dtors")) ||
       !GV->hasInitializer())
-    return nullptr;
+    return false;
   ArrayType *ATy = dyn_cast<ArrayType>(GV->getValueType());
   if (!ATy)
-    return nullptr;
+    return false;
   StructType *STy = dyn_cast<StructType>(ATy->getElementType());
   if (!STy || STy->getNumElements() != 2)
-    return nullptr;
+    return false;
 
   LLVMContext &C = GV->getContext();
   IRBuilder<> IRB(C);
@@ -1501,8 +1557,9 @@ GlobalVariable *llvm::UpgradeGlobalVariable(GlobalVariable *GV) {
   }
   Constant *NewInit = ConstantArray::get(ArrayType::get(EltTy, N), NewCtors);
 
-  return new GlobalVariable(NewInit->getType(), false, GV->getLinkage(),
-                            NewInit, GV->getName());
+  NewGV = new GlobalVariable(NewInit->getType(), false, GV->getLinkage(),
+                             NewInit, GV->getName());
+  return true;
 }
 
 // Handles upgrading SSE2/AVX2/AVX512BW PSLLDQ intrinsics by converting them

@@ -109,9 +109,9 @@ CXXRecordDecl::DefinitionData::DefinitionData(CXXRecordDecl *D)
       ImplicitCopyAssignmentHasConstParam(true),
       HasDeclaredCopyConstructorWithConstParam(false),
       HasDeclaredCopyAssignmentWithConstParam(false),
-      IsAnyDestructorNoReturn(false), IsLambda(false),
-      IsParsingBaseSpecifiers(false), ComputedVisibleConversions(false),
-      HasODRHash(false), Definition(D) {}
+      IsAnyDestructorNoReturn(false), HasSignedClassInHierarchy(false),
+      IsLambda(false), IsParsingBaseSpecifiers(false),
+      ComputedVisibleConversions(false), HasODRHash(false), Definition(D) {}
 
 CXXBaseSpecifier *CXXRecordDecl::DefinitionData::getBasesSlowCase() const {
   return Bases.get(Definition->getASTContext().getExternalSource());
@@ -438,6 +438,9 @@ CXXRecordDecl::setBases(CXXBaseSpecifier const * const *Bases,
     //   B&', 'const volatile B&', or 'B' [...]
     if (!BaseClassDecl->hasCopyAssignmentWithConstParam())
       data().ImplicitCopyAssignmentHasConstParam = false;
+
+    if (BaseClassDecl->hasSignedClassInHierarchy())
+      setHasSignedClassInHierarchy();
 
     // A class has an Objective-C object member if... or any of its bases
     // has an Objective-C object member.
@@ -1072,7 +1075,7 @@ void CXXRecordDecl::addedMember(Decl *D) {
     // If a class has an address-discriminated signed pointer member, it is a
     // non-POD type and its copy constructor, move constructor, copy assignment
     // operator, move assignment operator are non-trivial.
-    if (PointerAuthQualifier Q = T.getPointerAuth()) {
+    if (PointerAuthQualifier Q = T.getPointerAuth().withoutKeyNone()) {
       if (Q.isAddressDiscriminated()) {
         struct DefinitionData &Data = data();
         Data.PlainOldData = false;

@@ -43,6 +43,17 @@
   #define LIBUNWIND_AVAIL
 #endif
 
+#if defined(__APPLE__) && defined(__arm64e__) && __has_feature(ptrauth_qualifier)
+#include <ptrauth.h>
+#define _LIBUNWIND_PTRAUTH(__key, __address_discriminated, __discriminator) \
+    __ptrauth(__key, __address_discriminated, __builtin_ptrauth_string_discriminator(__discriminator))
+#define _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(__key, __address_discriminated, __discriminator) \
+    __ptrauth_restricted_intptr(__key, __address_discriminated, __builtin_ptrauth_string_discriminator(__discriminator))
+#else
+#define _LIBUNWIND_PTRAUTH(__key, __address_discriminated, __discriminator)
+#define _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(__key, __address_discriminated, __discriminator)
+#endif
+
 #if defined(_WIN32) && defined(__SEH__)
   #define LIBUNWIND_CURSOR_ALIGNMENT_ATTR __attribute__((__aligned__(16)))
 #else
@@ -88,17 +99,17 @@ typedef double unw_fpreg_t;
 #endif
 
 struct unw_proc_info_t {
-  unw_word_t  start_ip;         /* start address of function */
-  unw_word_t  end_ip;           /* address after end of function */
-  unw_word_t  lsda;             /* address of language specific data area, */
+  unw_word_t  _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_independent_code, 1, "unw_proc_info_t::start_ip") start_ip;       /* start address of function */
+  unw_word_t  _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_independent_code, 1, "unw_proc_info_t::end_ip") end_ip;         /* address after end of function */
+  unw_word_t  _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "unw_proc_info_t::lsda") lsda;             /* address of language specific data area, */
                                 /*  or zero if not used */
-  unw_word_t  handler;          /* personality routine, or zero if not used */
+  unw_word_t  _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_function_pointer, 1, "unw_proc_info_t::handler") handler;                /* personality routine, or zero if not used */
   unw_word_t  gp;               /* not used */
-  unw_word_t  flags;            /* not used */
+  unw_word_t  _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "unw_proc_info_t::flags") flags;            /* not used */
   uint32_t    format;           /* compact unwind encoding, or zero if none */
   uint32_t    unwind_info_size; /* size of DWARF unwind info, or zero if none */
-  unw_word_t  unwind_info;      /* address of DWARF unwind info, or zero */
-  unw_word_t  extra;            /* mach_header of mach-o image containing func */
+  unw_word_t  _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "unw_proc_info_t::unwind_info") unwind_info;      /* address of DWARF unwind info, or zero */
+  unw_word_t  _LIBUNWIND_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_data, 1, "unw_proc_info_t::extra") extra;            /* mach_header of mach-o image containing func */
 };
 typedef struct unw_proc_info_t unw_proc_info_t;
 

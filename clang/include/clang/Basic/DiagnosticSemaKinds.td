@@ -944,29 +944,9 @@ def err_ptrauth_disabled_target :
 
 def err_ptrauth_string_not_literal : Error<
   "argument must be a string literal%select{| of char type}0">;
-def err_ptrauth_type_disc_variably_modified : Error<
-   "cannot pass variably-modified type %0 to "
-   "'__builtin_ptrauth_type_discriminator'">;
-
-// __ptrauth qualifier
-def err_ptrauth_qualifier_return : Error<
-  "return types may not be qualified with __ptrauth; type is %0">;
-def err_ptrauth_qualifier_param : Error<
-  "parameter types may not be qualified with __ptrauth; type is %0">;
-def err_ptrauth_qualifier_cast : Error<
-  "cast types may not be qualified with __ptrauth; type is %0">;
-def err_ptrauth_qualifier_nonpointer : Error<
-  "__ptrauth qualifier may only be applied to pointer types; type here is %0">;
-def err_ptrauth_qualifier_redundant : Error<
-  "type %0 is already __ptrauth-qualified">;
-def err_ptrauth_qualifier_bad_arg_count : Error<
-  "__ptrauth qualifier must take between 1 and 3 arguments">;
-def err_ptrauth_qualifier_arg_not_ice : Error<
-  "argument to __ptrauth must be an integer constant expression">;
-def err_ptrauth_qualifier_address_discrimination_invalid : Error<
-  "address discrimination flag for __ptrauth must be 0 or 1; value is %0">;
-def err_ptrauth_qualifier_extra_discriminator_invalid : Error<
-  "extra discriminator for __ptrauth must be between 0 and %1; value is %0">;
+def err_ptrauth_type_disc_undiscriminated : Error<
+  "cannot pass undiscriminated type %0 to "
+  "'__builtin_ptrauth_type_discriminator'">;
 
 def note_ptrauth_virtual_function_pointer_incomplete_arg_ret :
   Note<"cannot take an address of a virtual member function if its return or "
@@ -974,6 +954,61 @@ def note_ptrauth_virtual_function_pointer_incomplete_arg_ret :
 def note_ptrauth_virtual_function_incomplete_arg_ret_type :
   Note<"%0 is incomplete">;
 
+// __ptrauth qualifier
+def err_ptrauth_qualifier_invalid : Error<
+  "%select{return types|parameter types|properties}2 may not be qualified with %select{__ptrauth|__ptrauth_restricted_intptr}1; type is %0">;
+def err_ptrauth_qualifier_cast : Error<
+  "cast types may not be qualified with __ptrauth; type is %0">;
+def err_ptrauth_restricted_intptr_qualifier_pointer : Error<
+  "__ptrauth_restricted_intptr qualifier may only be applied to pointer sized integer types; type here is %0">;
+def err_ptrauth_qualifier_nonpointer : Error<
+  "__ptrauth qualifier may only be applied to pointer types; type here is %0">;
+def err_ptrauth_qualifier_redundant : Error<
+  "type %0 is already %1-qualified">;
+def err_ptrauth_qualifier_signed_pointer_type : Error<
+  "signed pointer types may not be qualified with __ptrauth(ptrauth_key_none); type is %0">;
+def err_ptrauth_qualifier_bad_arg_count : Error<
+  "%0 qualifier must take between 1 and 4 arguments">;
+def err_ptrauth_arg_not_ice : Error<
+  "argument to %select{__ptrauth|ptrauth_struct}0 must be an integer constant "
+  "expression">;
+def err_ptrauth_address_discrimination_invalid : Error<
+  "address discrimination flag for __ptrauth must be 0 or 1; value is %0">;
+def err_ptrauth_extra_discriminator_invalid : Error<
+  "extra discriminator for %select{__ptrauth|ptrauth_struct}2 must be between "
+  "0 and %1; value is %0">;
+def note_ptrauth_evaluating_options : Note<
+  "options parameter evaluated to '%0'">;
+
+def err_ptrauth_non_string_authentication_option : Error<
+  "__ptrauth options must be a string of comma separated flags, found '%0'">;
+def err_ptrauth_unknown_authentication_option : Error<
+  "unknown __ptrauth authentication option '%0'">;
+def err_ptrauth_repeated_authentication_option : Error<
+  "repeated __ptrauth authentication %select{mode|option}0">;
+def note_ptrauth_previous_authentication_option : Note<
+  "previous __ptrauth authentication %select{mode|option}0">;
+def err_ptrauth_empty_authentication_option : Error<
+  "empty __ptrauth authentication option">;
+def err_ptrauth_invalid_option_character : Error<
+  "invalid character in __ptrauth options">;
+def err_ptrauth_invalid_option_missing_comma : Error<
+  "missing comma between __ptrauth options"
+>;
+def err_ptrauth_invalid_authenticated_null_global : Error<
+  "%select{static locals|globals}0 with authenticated null values are currently unsupported"
+>;
+
+// ptrauth_struct attribute.
+def err_ptrauth_struct_key_disc_not_record : Error<
+  "attribute ptrauth_struct can only be used on a record type">;
+def err_ptrauth_struct_signing_mismatch : Error<
+  "%0 is signed differently from the previous declaration">;
+def note_previous_ptrauth_struct_declaration : Note<
+  "previous declaration of %0 is here">;
+def err_ptrauth_invalid_struct_attr_dynamic_class : Error<
+  "attribute ptrauth_struct cannot be used on class %0 or its subclasses "
+  "because it is a dynamic class">;
 
 /// main()
 // static main() is not an error in C, just in C++.
@@ -8982,6 +9017,9 @@ def err_atomic_op_needs_non_const_atomic : Error<
 def err_atomic_op_needs_non_const_pointer : Error<
   "address argument to atomic operation must be a pointer to non-const "
   "type (%0 invalid)">;
+def err_atomic_op_needs_non_address_discriminated_pointer : Error<
+  "address argument to %select{atomic|__sync}0 operation must be a pointer to a non address discriminated "
+  "type (%1 invalid)">;
 def err_atomic_op_needs_trivial_copy : Error<
   "address argument to atomic operation must be a pointer to a "
   "trivially-copyable type (%0 invalid)">;

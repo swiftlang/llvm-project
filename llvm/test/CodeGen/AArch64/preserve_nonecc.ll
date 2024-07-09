@@ -30,24 +30,26 @@ entry:
 ;ALL:       stp x17, x16
 ;ALL:       stp x20, x19
 ;ALL:       stp x22, x21
-;ALL:       stp x24, x23
-;ALL:       stp x26, x25
-;ALL:       stp x28, x27
+;ALL:       str x23
+;ALL:       stp x25, x24
+;ALL:       stp x27, x26
+;ALL:       str x28
 ;ALL:       stp d8, d7
 ;ALL:       stp d10, d9
 ;ALL:       stp d12, d11
 ;ALL:       stp d14, d13
 ;ALL:       stp d16, d15
-;ALL:       ldp x20, x19
-;ALL:       ldp x22, x21
-;ALL:       ldp x24, x23
-;ALL:       ldp x26, x25
-;ALL:       ldp x28, x27
+;ALL:       ldp x27, x26
+;ALL:       ldr x28
 ;ALL:       ldp d8, d7
+;ALL:       ldr x23
 ;ALL:       ldp d10, d9
 ;ALL:       ldp d12, d11
 ;ALL:       ldp d14, d13
 ;ALL:       ldp d16, d15
+;ALL:       ldp x20, x19
+;ALL:       ldp x22, x21
+;ALL:       ldp x25, x24
 ;ALL:       ldp x9, x8
 ;ALL:       ldp x11, x10
 ;ALL:       ldp x13, x12

@@ -22,6 +22,11 @@
 #include "private_typeinfo.h"
 #include "unwind.h"
 
+#if defined(__APPLE__) && defined(__arm64e__) && __has_feature(ptrauth_qualifier)
+#include <ptrauth.h>
+#include "libunwind.h"
+#endif
+
 // TODO: This is a temporary workaround for libc++abi to recognize that it's being
 // built against LLVM's libunwind. LLVM's libunwind started reporting _LIBUNWIND_VERSION
 // in LLVM 15 -- we can remove this workaround after shipping LLVM 17. Once we remove
@@ -527,12 +532,17 @@ get_thrown_object_ptr(_Unwind_Exception* unwind_exception)
 namespace
 {
 
+typedef const uint8_t* _LIBCXXABI_PTRAUTH(ptrauth_key_process_dependent_code, 1, "scan_results::languageSpecificData") lsd_ptr_t;
+typedef const uint8_t* _LIBCXXABI_PTRAUTH(ptrauth_key_process_dependent_code, 1, "scan_results::actionRecord") action_ptr_t;
+typedef uintptr_t _LIBCXXABI_PTRAUTH_RESTRICTED_INTPTR(ptrauth_key_process_dependent_code, 1, "scan_results::landingPad") landing_pad_t;
+typedef void* _LIBCXXABI_PTRAUTH(ptrauth_key_process_dependent_code, 1, "scan_results::landingPad") landing_pad_ptr_t;
+
 struct scan_results
 {
     int64_t        ttypeIndex;   // > 0 catch handler, < 0 exception spec handler, == 0 a cleanup
-    const uint8_t* actionRecord;         // Currently unused.  Retained to ease future maintenance.
-    const uint8_t* languageSpecificData;  // Needed only for __cxa_call_unexpected
-    uintptr_t      landingPad;   // null -> nothing found, else something found
+    action_ptr_t actionRecord;   // Currently unused.  Retained to ease future maintenance.
+    lsd_ptr_t languageSpecificData; // Needed only for __cxa_call_unexpected
+    landing_pad_t landingPad;       // null -> nothing found, else something found
     void*          adjustedPtr;  // Used in cxa_exception.cpp
     _Unwind_Reason_Code reason;  // One of _URC_FATAL_PHASE1_ERROR,
                                  //        _URC_FATAL_PHASE2_ERROR,
@@ -557,7 +567,18 @@ set_registers(_Unwind_Exception* unwind_exception, _Unwind_Context* context,
                 reinterpret_cast<uintptr_t>(unwind_exception));
   _Unwind_SetGR(context, __builtin_eh_return_data_regno(1),
                 static_cast<uintptr_t>(results.ttypeIndex));
+#if defined(__APPLE__) && defined(__arm64e__) && __has_feature(ptrauth_qualifier)
+  auto stack_pointer = _Unwind_GetGR(context, UNW_REG_SP);
+  const auto existingDiscriminator = ptrauth_blend_discriminator(&results.landingPad, __builtin_ptrauth_schema_extra_discriminator(decltype(results.landingPad)));
+  unw_word_t newIP = (unw_word_t)ptrauth_auth_and_resign(*(void**)&results.landingPad,
+      __builtin_ptrauth_schema_key(decltype(results.landingPad)),
+      existingDiscriminator,
+      ptrauth_key_return_address,
+	  stack_pointer);
+  _Unwind_SetIP(context, newIP);
+#else
   _Unwind_SetIP(context, results.landingPad);
+#endif
 }
 
 /*
@@ -691,12 +712,12 @@ static void scan_eh_tab(scan_results &results, _Unwind_Action actions,
         // The call sites are ordered in increasing value of start
         uintptr_t start = readEncodedPointer(&callSitePtr, callSiteEncoding);
         uintptr_t length = readEncodedPointer(&callSitePtr, callSiteEncoding);
-        uintptr_t landingPad = readEncodedPointer(&callSitePtr, callSiteEncoding);
+        landing_pad_t landingPad = readEncodedPointer(&callSitePtr, callSiteEncoding);
         uintptr_t actionEntry = readULEB128(&callSitePtr);
         if ((start <= ipOffset) && (ipOffset < (start + length)))
 #else  // __USING_SJLJ_EXCEPTIONS__ || __WASM_EXCEPTIONS__
         // ip is 1-based index into this table
-        uintptr_t landingPad = readULEB128(&callSitePtr);
+        landing_pad_t landingPad = readULEB128(&callSitePtr);
         uintptr_t actionEntry = readULEB128(&callSitePtr);
         if (--ip == 0)
 #endif // __USING_SJLJ_EXCEPTIONS__ || __WASM_EXCEPTIONS__
@@ -935,8 +956,7 @@ __gxx_personality_v0
         results.ttypeIndex = exception_header->handlerSwitchValue;
         results.actionRecord = exception_header->actionRecord;
         results.languageSpecificData = exception_header->languageSpecificData;
-        results.landingPad =
-            reinterpret_cast<uintptr_t>(exception_header->catchTemp);
+        set_landing_pad_as_ptr(results, exception_header->catchTemp);
         results.adjustedPtr = exception_header->adjustedPtr;
 
         // Jump to the handler.
@@ -970,7 +990,7 @@ __gxx_personality_v0
             exc->handlerSwitchValue = static_cast<int>(results.ttypeIndex);
             exc->actionRecord = results.actionRecord;
             exc->languageSpecificData = results.languageSpecificData;
-            exc->catchTemp = reinterpret_cast<void*>(results.landingPad);
+            exc->catchTemp = get_landing_pad_as_ptr(results);
             exc->adjustedPtr = results.adjustedPtr;
 #ifdef __WASM_EXCEPTIONS__
             // Wasm only uses a single phase (_UA_SEARCH_PHASE), so save the

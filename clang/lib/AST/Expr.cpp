@@ -3431,7 +3431,7 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
   }
   case ImplicitValueInitExprClass:
   case NoInitExprClass:
-    return true;
+    return !Ctx.typeContainsAuthenticatedNull(this->getType());
   case ParenExprClass:
     return cast<ParenExpr>(this)->getSubExpr()
       ->isConstantInitializer(Ctx, IsForRef, Culprit);

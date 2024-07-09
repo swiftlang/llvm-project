@@ -3979,7 +3979,9 @@ void UnwrappedLineParser::parseRecord(bool ParseAsExpr) {
   // it is often token-pasted.
   // An [[attribute]] can be before the identifier.
   while (FormatTok->isOneOf(tok::identifier, tok::coloncolon, tok::hashhash,
-                            tok::kw_alignas, tok::l_square) ||
+                            tok::kw_alignas, tok::l_square,
+                            tok::kw___ptrauth,
+                            tok::kw___ptrauth_restricted_intptr) ||
          FormatTok->isAttribute() ||
          ((Style.Language == FormatStyle::LK_Java || Style.isJavaScript()) &&
           FormatTok->isOneOf(tok::period, tok::comma))) {

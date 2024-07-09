@@ -1869,8 +1869,8 @@ TEST_F(DIDerivedTypeTest, get) {
   DIType *BaseType = getBasicType("basic");
   MDTuple *ExtraData = getTuple();
   unsigned DWARFAddressSpace = 8;
-  DIDerivedType::PtrAuthData PtrAuthData(1, false, 1234, true, true);
-  DIDerivedType::PtrAuthData PtrAuthData2(1, false, 1234, true, false);
+  DIDerivedType::PtrAuthData PtrAuthData(1, false, 1234, true, true, 2);
+  DIDerivedType::PtrAuthData PtrAuthData2(1, false, 1234, true, false, 3);
   DINode::DIFlags Flags5 = static_cast<DINode::DIFlags>(5);
   DINode::DIFlags Flags4 = static_cast<DINode::DIFlags>(4);
 
@@ -1880,6 +1880,9 @@ TEST_F(DIDerivedTypeTest, get) {
   auto *N1 = DIDerivedType::get(Context, dwarf::DW_TAG_LLVM_ptrauth_type, "",
                                 File, 1, Scope, N, 2, 3, 4, DWARFAddressSpace,
                                 PtrAuthData, Flags5, ExtraData);
+  auto *N2 = DIDerivedType::get(Context, dwarf::DW_TAG_LLVM_ptrauth_type, "",
+                                File, 1, Scope, N, 2, 3, 4, DWARFAddressSpace,
+                                PtrAuthData2, Flags5, ExtraData);
   EXPECT_EQ(dwarf::DW_TAG_pointer_type, N->getTag());
   EXPECT_EQ("something", N->getName());
   EXPECT_EQ(File, N->getFile());
@@ -1893,6 +1896,8 @@ TEST_F(DIDerivedTypeTest, get) {
   EXPECT_EQ(std::nullopt, N->getPtrAuthData());
   EXPECT_EQ(PtrAuthData, N1->getPtrAuthData());
   EXPECT_NE(PtrAuthData2, N1->getPtrAuthData());
+  EXPECT_NE(PtrAuthData, N2->getPtrAuthData());
+  EXPECT_EQ(PtrAuthData2, N2->getPtrAuthData());
   EXPECT_EQ(5u, N->getFlags());
   EXPECT_EQ(ExtraData, N->getExtraData());
   EXPECT_EQ(N, DIDerivedType::get(Context, dwarf::DW_TAG_pointer_type,
@@ -1978,7 +1983,7 @@ TEST_F(DIDerivedTypeTest, getWithLargeValues) {
   auto *N1 = DIDerivedType::get(
       Context, dwarf::DW_TAG_LLVM_ptrauth_type, "", File, 1, Scope, N,
       UINT64_MAX, UINT32_MAX - 1, UINT64_MAX - 2, UINT32_MAX - 3,
-      DIDerivedType::PtrAuthData(7, true, 0xffff, true, false), Flags,
+      DIDerivedType::PtrAuthData(7, true, 0xffff, true, false, 3), Flags,
       ExtraData);
   EXPECT_EQ(7U, N1->getPtrAuthData()->key());
   EXPECT_EQ(true, N1->getPtrAuthData()->isAddressDiscriminated());

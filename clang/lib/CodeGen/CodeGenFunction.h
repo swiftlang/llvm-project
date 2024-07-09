@@ -185,6 +185,11 @@ template <> struct DominatingValue<Address> {
     DominatingLLVMValue::saved_type BasePtr;
     llvm::Type *ElementType;
     CharUnits Alignment;
+    unsigned PtrAuthKey : 28;
+    PointerAuthenticationMode PtrAuthMode : 2;
+    bool IsIsaPointer : 1;
+    bool AuthenticatesNullValues : 1;
+    DominatingLLVMValue::saved_type PtrAuthDiscriminator;
     DominatingLLVMValue::saved_type Offset;
     llvm::PointerType *EffectiveType;
   };
@@ -193,16 +198,36 @@ template <> struct DominatingValue<Address> {
     if (DominatingLLVMValue::needsSaving(value.getBasePointer()) ||
         DominatingLLVMValue::needsSaving(value.getOffset()))
       return true;
+    CGPointerAuthInfo info = value.getPointerAuthInfo();
+    if (info.isSigned() &&
+        DominatingLLVMValue::needsSaving(info.getDiscriminator()))
+      return true;
     return false;
   }
   static saved_type save(CodeGenFunction &CGF, type value) {
+    bool isSigned = value.getPointerAuthInfo().isSigned();
     return {DominatingLLVMValue::save(CGF, value.getBasePointer()),
-            value.getElementType(), value.getAlignment(),
-            DominatingLLVMValue::save(CGF, value.getOffset()), value.getType()};
+            value.getElementType(),
+            value.getAlignment(),
+            isSigned ? value.getPointerAuthInfo().getKey() : 0,
+            value.getPointerAuthInfo().getAuthenticationMode(),
+            value.getPointerAuthInfo().isIsaPointer(),
+            value.getPointerAuthInfo().authenticatesNullValues(),
+            isSigned ? DominatingLLVMValue::save(
+                           CGF, value.getPointerAuthInfo().getDiscriminator())
+                     : DominatingLLVMValue::saved_type(),
+            DominatingLLVMValue::save(CGF, value.getOffset()),
+            value.getType()};
   }
   static type restore(CodeGenFunction &CGF, saved_type value) {
+    CGPointerAuthInfo info;
+    if (value.PtrAuthMode != PointerAuthenticationMode::None)
+      info = CGPointerAuthInfo{
+          value.PtrAuthKey, value.PtrAuthMode, value.IsIsaPointer,
+          value.AuthenticatesNullValues,
+          DominatingLLVMValue::restore(CGF, value.PtrAuthDiscriminator)};
     return Address(DominatingLLVMValue::restore(CGF, value.BasePtr),
-                   value.ElementType, value.Alignment,
+                   value.ElementType, value.Alignment, info,
                    DominatingLLVMValue::restore(CGF, value.Offset));
   }
 };
@@ -2278,6 +2303,8 @@ public:
                               const ObjCPropertyImplDecl *propImpl,
                               llvm::Constant *AtomicHelperFn);
 
+  llvm::Value *getObjCIsaMask();
+
   //===--------------------------------------------------------------------===//
   //                                  Block Bits
   //===--------------------------------------------------------------------===//
@@ -2665,15 +2692,7 @@ public:
                                           llvm::BasicBlock *LHSBlock,
                                           llvm::BasicBlock *RHSBlock,
                                           llvm::BasicBlock *MergeBlock,
-                                          QualType MergedType) {
-    Builder.SetInsertPoint(MergeBlock);
-    llvm::PHINode *PtrPhi = Builder.CreatePHI(LHS.getType(), 2, "cond");
-    PtrPhi->addIncoming(LHS.getBasePointer(), LHSBlock);
-    PtrPhi->addIncoming(RHS.getBasePointer(), RHSBlock);
-    LHS.replaceBasePointer(PtrPhi);
-    LHS.setAlignment(std::min(LHS.getAlignment(), RHS.getAlignment()));
-    return LHS;
-  }
+                                          QualType MergedType);
 
   /// Construct an address with the natural alignment of T. If a pointer to T
   /// is expected to be signed, the pointer passed to this function must have
@@ -2687,7 +2706,8 @@ public:
     if (Alignment.isZero())
       Alignment =
           CGM.getNaturalTypeAlignment(T, BaseInfo, TBAAInfo, ForPointeeType);
-    return Address(Ptr, ConvertTypeForMem(T), Alignment, nullptr,
+    return Address(Ptr, ConvertTypeForMem(T), Alignment,
+                   CGM.getPointerAuthInfoForPointeeType(T), nullptr,
                    IsKnownNonNull);
   }
 
@@ -2728,7 +2748,9 @@ public:
   /// an l-value with the natural pointee alignment of T.
   LValue MakeNaturalAlignPointeeAddrLValue(llvm::Value *V, QualType T);
 
-  LValue MakeNaturalAlignAddrLValue(llvm::Value *V, QualType T);
+  LValue
+  MakeNaturalAlignAddrLValue(llvm::Value *V, QualType T,
+                             KnownNonNull_t IsKnownNonNull = NotKnownNonNull);
 
   /// Same as MakeNaturalAlignPointeeAddrLValue except that the pointer is known
   /// to be unsigned.
@@ -3006,7 +3028,8 @@ public:
   /// null, If the type contains data member pointers, they will be initialized
   /// to -1 in accordance with the Itanium C++ ABI.
   void EmitNullInitialization(Address DestPtr, QualType Ty);
-
+  void EmitNullInitializersForAuthenticatedNullFields(Address storageAddress,
+                                                      QualType Ty);
   /// Emits a call to an LLVM variable-argument intrinsic, either
   /// \c llvm.va_start or \c llvm.va_end.
   /// \param ArgValue A reference to the \c va_list as emitted by either
@@ -4422,17 +4445,47 @@ public:
                                                CXXDtorType Type,
                                                const CXXRecordDecl *RD);
 
-  llvm::Value *EmitPointerAuthResign(llvm::Value *pointer,
-                                     QualType pointerType,
-                                     const CGPointerAuthInfo &curAuthInfo,
-                                     const CGPointerAuthInfo &newAuthInfo,
-                                     bool isKnownNonNull);
-  llvm::Value *EmitPointerAuthResignCall(llvm::Value *pointer,
-                                         const CGPointerAuthInfo &curInfo,
-                                         const CGPointerAuthInfo &newInfo);
+  bool isPointerKnownNonNull(const Expr *E);
+
+  /// Create the discriminator from the storage address and the entity hash.
+  llvm::Value *EmitPointerAuthBlendDiscriminator(llvm::Value *StorageAddress,
+                                                 llvm::Value *Discriminator);
+  CGPointerAuthInfo EmitPointerAuthInfo(const PointerAuthSchema &Schema,
+                                        llvm::Value *StorageAddress,
+                                        GlobalDecl SchemaDecl,
+                                        QualType SchemaType);
+
+  llvm::Value *EmitPointerAuthSign(QualType PointeeType, llvm::Value *Pointer);
+  llvm::Value *EmitPointerAuthSign(const CGPointerAuthInfo &Info,
+                                   llvm::Value *Pointer);
+
+  llvm::Value *EmitPointerAuthAuth(QualType PointeeType, llvm::Value *Pointer);
+  llvm::Value *EmitPointerAuthAuth(const CGPointerAuthInfo &Info,
+                                   llvm::Value *Pointer);
+
+  llvm::Value *EmitPointerAuthResign(llvm::Value *Pointer, QualType PointerType,
+                                     const CGPointerAuthInfo &CurAuthInfo,
+                                     const CGPointerAuthInfo &NewAuthInfo,
+                                     bool IsKnownNonNull);
+  llvm::Value *EmitPointerAuthResignCall(llvm::Value *Pointer,
+                                         const CGPointerAuthInfo &CurInfo,
+                                         const CGPointerAuthInfo &NewInfo);
+
+  void EmitPointerAuthOperandBundle(
+      const CGPointerAuthInfo &Info,
+      SmallVectorImpl<llvm::OperandBundleDef> &Bundles);
+
+  llvm::Value *AuthPointerToPointerCast(llvm::Value *ResultPtr,
+                                        QualType SourceType, QualType DestType);
+  Address AuthPointerToPointerCast(Address Ptr, QualType SourceType,
+                                   QualType DestType);
+
+  Address EmitPointerAuthSign(Address Addr, QualType PointeeType);
+  Address EmitPointerAuthAuth(Address Addr, QualType PointeeType);
 
   CGPointerAuthInfo EmitPointerAuthInfo(PointerAuthQualifier qualifier,
                                         Address storageAddress);
+
   llvm::Value *EmitPointerAuthQualify(PointerAuthQualifier qualifier,
                                       llvm::Value *pointer,
                                       QualType valueType,
@@ -4446,34 +4499,18 @@ public:
                                         QualType pointerType,
                                         Address storageAddress,
                                         bool isKnownNonNull);
+
   void EmitPointerAuthCopy(PointerAuthQualifier qualifier, QualType type,
                            Address destField, Address srcField);
 
-  std::pair<llvm::Value *, CGPointerAuthInfo>
-  EmitOrigPointerRValue(const Expr *E);
+  Address getAsNaturalAddressOf(Address Addr, QualType PointeeTy);
 
   llvm::Value *getAsNaturalPointerTo(Address Addr, QualType PointeeType) {
-    return Addr.getBasePointer();
+    return getAsNaturalAddressOf(Addr, PointeeType).getBasePointer();
   }
 
-  bool isPointerKnownNonNull(const Expr *E);
-
-  /// Create the discriminator from the storage address and the entity hash.
-  llvm::Value *EmitPointerAuthBlendDiscriminator(llvm::Value *StorageAddress,
-                                                 llvm::Value *Discriminator);
-  CGPointerAuthInfo EmitPointerAuthInfo(const PointerAuthSchema &Schema,
-                                        llvm::Value *StorageAddress,
-                                        GlobalDecl SchemaDecl,
-                                        QualType SchemaType);
-  llvm::Value *EmitPointerAuthSign(QualType PointeeType, llvm::Value *Pointer);
-  llvm::Value *EmitPointerAuthSign(const CGPointerAuthInfo &Info,
-                                   llvm::Value *Pointer);
-  llvm::Value *EmitPointerAuthAuth(const CGPointerAuthInfo &Info,
-                                   llvm::Value *Pointer);
-
-  void EmitPointerAuthOperandBundle(
-      const CGPointerAuthInfo &Info,
-      SmallVectorImpl<llvm::OperandBundleDef> &Bundles);
+  std::pair<llvm::Value *, CGPointerAuthInfo>
+  EmitOrigPointerRValue(const Expr *E);
 
   // Return the copy constructor name with the prefix "__copy_constructor_"
   // removed.
