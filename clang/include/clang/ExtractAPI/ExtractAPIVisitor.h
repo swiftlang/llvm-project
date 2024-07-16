@@ -175,28 +175,25 @@ protected:
       // skip classes not inherited as public
       if (BaseSpecifier.getAccessSpecifier() != AccessSpecifier::AS_public)
         continue;
-      if (auto *StructTy = BaseSpecifier.getType()->getAsStructureType()) {
-        if (auto *BaseDecl = StructTy->getDecl())
-          Bases.emplace_back(createSymbolReferenceForDecl(*BaseDecl));
-      }
+      if (auto *BaseDecl = BaseSpecifier.getType()->getAsTagDecl()) {
+        Bases.emplace_back(createSymbolReferenceForDecl(*BaseDecl));
+      } else {
+        SymbolReference BaseClass;
+        BaseClass.Name = API.copyString(BaseSpecifier.getType().getAsString(
+            Decl->getASTContext().getPrintingPolicy()));
 
-      SymbolReference BaseClass;
-      BaseClass.Name = API.copyString(BaseSpecifier.getType().getAsString(
-          Decl->getASTContext().getPrintingPolicy()));
-
-      if (BaseSpecifier.getType()
-                     .getTypePtr()
-                     ->isTemplateTypeParmType()) {
-        if (auto *TTPTD = BaseSpecifier.getType()
-                              ->getAs<TemplateTypeParmType>()
-                              ->getDecl()) {
-          SmallString<128> USR;
-          index::generateUSRForDecl(TTPTD, USR);
-          BaseClass.USR = API.copyString(USR);
-          BaseClass.Source = API.copyString(getOwningModuleName(*TTPTD));
+        if (BaseSpecifier.getType().getTypePtr()->isTemplateTypeParmType()) {
+          if (auto *TTPTD = BaseSpecifier.getType()
+                                ->getAs<TemplateTypeParmType>()
+                                ->getDecl()) {
+            SmallString<128> USR;
+            index::generateUSRForDecl(TTPTD, USR);
+            BaseClass.USR = API.copyString(USR);
+            BaseClass.Source = API.copyString(getOwningModuleName(*TTPTD));
+          }
         }
+        Bases.emplace_back(BaseClass);
       }
-      Bases.emplace_back(BaseClass);
     }
     return Bases;
   }
@@ -672,8 +669,8 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXMethodDecl(
   if (FunctionTemplateDecl *TemplateDecl =
           Decl->getDescribedFunctionTemplate()) {
     API.createRecord<CXXMethodTemplateRecord>(
-        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl), Loc,
-        AvailabilityInfo::createFromDecl(Decl), Comment,
+        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl),
+        Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForFunctionTemplate(
             TemplateDecl),
         SubHeading, DeclarationFragmentsBuilder::getFunctionSignature(Decl),
@@ -681,8 +678,8 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXMethodDecl(
         Template(TemplateDecl), isInSystemHeader(Decl));
   } else if (Decl->getTemplateSpecializationInfo())
     API.createRecord<CXXMethodTemplateSpecializationRecord>(
-        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl), Loc,
-        AvailabilityInfo::createFromDecl(Decl), Comment,
+        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl),
+        Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::
             getFragmentsForFunctionTemplateSpecialization(Decl),
         SubHeading, Signature, Access, isInSystemHeader(Decl));
@@ -694,14 +691,14 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXMethodDecl(
         SubHeading, Signature, Access, isInSystemHeader(Decl));
   else if (Decl->isStatic())
     API.createRecord<CXXStaticMethodRecord>(
-        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl), Loc,
-        AvailabilityInfo::createFromDecl(Decl), Comment,
+        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl),
+        Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForCXXMethod(Decl), SubHeading,
         Signature, Access, isInSystemHeader(Decl));
   else
     API.createRecord<CXXInstanceMethodRecord>(
-        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl), Loc,
-        AvailabilityInfo::createFromDecl(Decl), Comment,
+        USR, Decl->getNameAsString(), createHierarchyInformationForDecl(*Decl),
+        Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForCXXMethod(Decl), SubHeading,
         Signature, Access, isInSystemHeader(Decl));
 
