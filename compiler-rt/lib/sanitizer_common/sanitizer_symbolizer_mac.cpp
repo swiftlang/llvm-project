@@ -40,6 +40,7 @@ bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
   if (addr >= sym_addr) {
     stack->info.function_offset = addr - sym_addr;
   }
+  if (!info.dli_sname) return false;
 
   const char *demangled = DemangleSwiftAndCXX(info.dli_sname);
   if (!demangled)
@@ -51,7 +52,7 @@ bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
 bool DlAddrSymbolizer::SymbolizeData(uptr addr, DataInfo *datainfo) {
   Dl_info info;
   int result = dladdr((const void *)addr, &info);
-  if (!result) return false;
+  if (!result || !info.dli_sname) return false;
   const char *demangled = DemangleSwiftAndCXX(info.dli_sname);
   if (!demangled)
     demangled = info.dli_sname;
