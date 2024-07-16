@@ -433,7 +433,7 @@ void MemoryMappingLayout::DumpListOfModules(
   MemoryMappedSegmentData data;
   segment.data_ = &data;
   while (Next(&segment)) {
-    if (segment.filename[0] == '\0') continue;
+    if (segment.filename[0] == '\0' || internal_strcmp(data.name, "__PAGEZERO") == 0) continue;
     LoadedModule *cur_module = nullptr;
     if (!modules->empty() &&
         0 == internal_strcmp(segment.filename, modules->back().full_name())) {
