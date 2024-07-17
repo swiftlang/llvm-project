@@ -87,6 +87,7 @@ struct Entry {
     FunctionNameWithArgs,
     FunctionNameNoArgs,
     FunctionMangledName,
+    FunctionCFA,
     FunctionAddrOffset,
     FunctionAddrOffsetConcrete,
     FunctionLineOffset,

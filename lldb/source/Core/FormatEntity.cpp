@@ -8,6 +8,7 @@
 
 #include "lldb/Core/FormatEntity.h"
 
+#include "Utility/ARM64_DWARF_Registers.h"
 #include "lldb/Core/Address.h"
 #include "lldb/Core/AddressRange.h"
 #include "lldb/Core/Debugger.h"
@@ -115,6 +116,7 @@ constexpr Definition g_function_child_entries[] = {
     Definition("name-without-args", EntryType::FunctionNameNoArgs),
     Definition("name-with-args", EntryType::FunctionNameWithArgs),
     Definition("mangled-name", EntryType::FunctionMangledName),
+    Definition("cfa", EntryType::FunctionCFA),
     Definition("addr-offset", EntryType::FunctionAddrOffset),
     Definition("concrete-only-addr-offset-no-padding",
                EntryType::FunctionAddrOffsetConcrete),
@@ -342,6 +344,7 @@ const char *FormatEntity::Entry::TypeToCString(Type t) {
     ENUM_TO_CSTR(FunctionNameWithArgs);
     ENUM_TO_CSTR(FunctionNameNoArgs);
     ENUM_TO_CSTR(FunctionMangledName);
+    ENUM_TO_CSTR(FunctionCFA);
     ENUM_TO_CSTR(FunctionAddrOffset);
     ENUM_TO_CSTR(FunctionAddrOffsetConcrete);
     ENUM_TO_CSTR(FunctionLineOffset);
@@ -435,6 +438,15 @@ static bool DumpAddressAndContent(Stream &s, const SymbolContext *sc,
     return true;
   }
   return false;
+}
+
+lldb::addr_t GetAsyncContext(RegisterContext *regctx) {
+  if (!regctx)
+    return LLDB_INVALID_ADDRESS;
+  auto arch = regctx->CalculateTarget()->GetArchitecture();
+  auto reg = regctx->ConvertRegisterKindToRegisterNumber(
+      RegisterKind::eRegisterKindDWARF, arm64_dwarf::x22);
+  return regctx->ReadRegisterAsUnsigned(reg, LLDB_INVALID_ADDRESS);
 }
 
 static bool DumpAddressOffsetFromFunction(Stream &s, const SymbolContext *sc,
@@ -1796,6 +1808,36 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
     FormatInlinedBlock(s, sc->block);
     return true;
   }
+  case Entry::Type::FunctionCFA: {
+    if (exe_ctx) {
+      auto read_addr = [&](addr_t addr) {
+        auto *process = exe_ctx->GetProcessPtr();
+        lldb::addr_t value_read = LLDB_INVALID_ADDRESS;
+        Status error;
+        process->ReadMemory(addr, &value_read, 8, error);
+        return value_read;
+      };
+
+      if (auto *frame = exe_ctx->GetFramePtr()) {
+        s.Printf("x22 = 0x%" PRIx64, GetAsyncContext(frame->GetRegisterContext().get()));
+
+        auto stack_id = frame->GetStackID();
+        auto cfa = stack_id.GetCallFrameAddress();
+        s.Printf("  cfa = 0x%" PRIx64, cfa);
+        if (stack_id.IsCFAOnStack(exe_ctx->GetProcessRef()))
+          s.PutCString("[on stack]");
+        else {
+          s.PutCString("[on heap] ");
+          while (cfa && cfa != LLDB_INVALID_ADDRESS) {
+            cfa = read_addr(cfa);
+            s.Printf("-> 0x%" PRIx64, cfa);
+          }
+        }
+        return true;
+      }
+    }
+    return false;
+                                 }
   case Entry::Type::FunctionAddrOffset:
     if (addr) {
       if (DumpAddressOffsetFromFunction(s, sc, exe_ctx, *addr, false, false,
