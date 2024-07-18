@@ -155,12 +155,18 @@ TEST(rename, ExistingTemp) {
     ASSERT_NO_ERROR(fs::rename(SourceFileName, TargetFileName));
 
 #ifdef _WIN32
+    // Skip this test in swiftlang/llvm-project as this fails due to
+    // https://github.com/swiftlang/llvm-project/commit/101cf121c1104c58377a70ff1a654aab84ce1ad6
+    // where we use FILE_RENAME_FLAG_POSIX_SEMANTICS in
+    // rename_internal and this expected behavior doesn't happen.
+#if 0
     // Make sure that target was temporarily renamed to target.tmp1 on Windows.
     // This is signified by a permission denied error as opposed to no such file
     // or directory when trying to open it.
     int Tmp1FD;
     EXPECT_EQ(errc::permission_denied,
               fs::openFileForRead(TargetTmp1FileName, Tmp1FD));
+#endif
 #endif
   }
 
