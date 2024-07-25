@@ -2,7 +2,6 @@
 Test thread step-in, step-over and step-out work with the "Avoid no debug" option.
 """
 
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
