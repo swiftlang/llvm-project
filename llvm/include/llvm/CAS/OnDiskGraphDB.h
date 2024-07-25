@@ -337,13 +337,24 @@ private:
   class TempFile;
   class MappedTempFile;
 
-  enum ObjectPresence {
-    OP_Missing = 0,
-    OP_InPrimaryDB,
-    OP_OnlyInUpstreamDB,
+  enum class ObjectPresence {
+    Missing,
+    InPrimaryDB,
+    OnlyInUpstreamDB,
   };
 
-  ObjectPresence containsObject(ObjectID Ref, bool CheckUpstream) const;
+  ObjectPresence getObjectPresence(ObjectID Ref, bool CheckUpstream) const;
+
+  bool containsObject(ObjectID Ref, bool CheckUpstream) const {
+    switch (getObjectPresence(Ref, CheckUpstream)) {
+    case ObjectPresence::Missing:
+      return false;
+    case ObjectPresence::InPrimaryDB:
+      return true;
+    case ObjectPresence::OnlyInUpstreamDB:
+      return true;
+    }
+  }
 
   /// When \p load is called for a node that doesn't exist, this function tries
   /// to load it from the upstream store and copy it to the primary one.

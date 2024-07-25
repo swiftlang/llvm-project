@@ -1058,12 +1058,12 @@ OnDiskGraphDB::load(ObjectID ExternalRef) {
 }
 
 Expected<bool> OnDiskGraphDB::isMaterialized(ObjectID Ref) {
-  switch (containsObject(Ref, /*CheckUpstream=*/true)) {
-  case OP_Missing:
+  switch (getObjectPresence(Ref, /*CheckUpstream=*/true)) {
+  case ObjectPresence::Missing:
     return false;
-  case OP_InPrimaryDB:
+  case ObjectPresence::InPrimaryDB:
     return true;
-  case OP_OnlyInUpstreamDB:
+  case ObjectPresence::OnlyInUpstreamDB:
     if (auto FaultInResult = faultInFromUpstream(Ref); !FaultInResult)
       return FaultInResult.takeError();
     return true;
@@ -1071,17 +1071,19 @@ Expected<bool> OnDiskGraphDB::isMaterialized(ObjectID Ref) {
 }
 
 OnDiskGraphDB::ObjectPresence
-OnDiskGraphDB::containsObject(ObjectID ExternalRef, bool CheckUpstream) const {
+OnDiskGraphDB::getObjectPresence(ObjectID ExternalRef,
+                                 bool CheckUpstream) const {
   InternalRef Ref = getInternalRef(ExternalRef);
   IndexProxy I = getIndexProxyFromRef(Ref);
   TrieRecord::Data Object = I.Ref.load();
   if (Object.SK != TrieRecord::StorageKind::Unknown)
-    return OP_InPrimaryDB;
+    return ObjectPresence::InPrimaryDB;
   if (!CheckUpstream || !UpstreamDB)
-    return OP_Missing;
+    return ObjectPresence::Missing;
   std::optional<ObjectID> UpstreamID =
       UpstreamDB->getExistingReference(getDigest(I));
-  return UpstreamID.has_value() ? OP_OnlyInUpstreamDB : OP_Missing;
+  return UpstreamID.has_value() ? ObjectPresence::OnlyInUpstreamDB
+                                : ObjectPresence::Missing;
 }
 
 InternalRef OnDiskGraphDB::makeInternalRef(FileOffset IndexOffset) {
