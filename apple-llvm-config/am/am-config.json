@@ -14,17 +14,5 @@
 {
   "target": "stable/20230725",
   "upstream": "swift/release/6.0"
-},
-{
-  "target": "stable/20211026",
-  "upstream": "swift/release/5.7"
-},
-{
-  "target": "stable/20220421",
-  "upstream": "swift/release/5.8"
-},
-{
-  "target": "stable/20221013",
-  "upstream": "swift/release/5.9"
 }
 ]
