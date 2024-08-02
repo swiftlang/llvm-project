@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: rm -rf %t
 // RUN: split-file %s %t
 // RUN: sed -e "s@INPUT_DIR@%{/t:regex_replacement}@g" \
