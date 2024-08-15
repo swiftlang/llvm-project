@@ -344,7 +344,7 @@ public:
                                        StringRef Parent2) override {
     init();
     SmallString<128> Path;
-    sys::path::append(Path, D->path(), Parent1, Parent2, getFilePathToCreate());
+    sys::path::append(Path, D->path(), Parent1, Parent2, "file.data");
     return Path.str().str();
   }
 

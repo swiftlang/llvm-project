@@ -68,7 +68,13 @@ TEST(CachingOnDiskFileSystemTest, MultipleWorkingDirs) {
   TempDir Root("r", /*Unique*/ true);
   TempDir ADir(Root.path("a"));
   TempDir BDir(Root.path("b"));
+#ifndef _WIN32
   TempLink C(ADir.path(), Root.path("c"));
+#else
+  // As the create_link uses a hard link and a hard link cannot be a
+  // directory on Windows, this TempLink will fail.
+  TempLink C(ADir.path(), Root.path("c"), /*CheckError=*/ false);
+#endif
   TempFile AA(ADir.path("aa"), "", "aaaa");
   TempFile BB(BDir.path("bb"), "", "bbbb");
   IntrusiveRefCntPtr<vfs::FileSystem> BFS =
@@ -140,9 +146,19 @@ TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSIteration) {
   IntrusiveRefCntPtr<vfs::FileSystem> FS =
       cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
 
+#ifndef _WIN32
   TempLink _a("no_such_file", TestDirectory.path("a"));
   TempDir _b(TestDirectory.path("b"));
   TempLink _c("no_such_file", TestDirectory.path("c"));
+#else
+  // As the create_link uses a hard link on Windows, TempLink will
+  // fail if the target doesn't exist.
+  TempLink _a("no_such_file", TestDirectory.path("a"),
+              /*CheckError=*/ false);
+  TempDir _b(TestDirectory.path("b"));
+  TempLink _c("no_such_file", TestDirectory.path("c"),
+              /*CheckError=*/ false);
+#endif
 
   // Should get no iteration error, but a stat error for the broken symlinks.
   std::map<std::string, std::error_code> StatResults;
@@ -155,6 +171,7 @@ TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSIteration) {
     StatResults[std::string(sys::path::filename(I->path()))] =
         FS->status(I->path()).getError();
   }
+#ifndef _WIN32
   EXPECT_THAT(
       StatResults,
       testing::ElementsAre(
@@ -163,6 +180,14 @@ TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSIteration) {
           testing::Pair("b", std::error_code()),
           testing::Pair("c", std::make_error_code(
                                  std::errc::no_such_file_or_directory))));
+#else
+  EXPECT_THAT(
+      StatResults,
+      testing::ElementsAre(
+          // As the create_link uses a hard link on Windows, "a" and
+          // "b" do not show up in the directory iteration.
+          testing::Pair("b", std::error_code())));
+#endif
 }
 
 TEST(CachingOnDiskFileSystemTest, BasicRealFSRecursiveIteration) {
@@ -293,6 +318,7 @@ TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSRecursiveIteration) {
   IntrusiveRefCntPtr<vfs::FileSystem> FS =
       cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
 
+#ifndef _WIN32
   TempLink _a("no_such_file", TestDirectory.path("a"));
   TempDir _b(TestDirectory.path("b"));
   TempLink _ba("no_such_file", TestDirectory.path("b/a"));
@@ -303,6 +329,20 @@ TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSRecursiveIteration) {
   TempDir _dd(TestDirectory.path("d/d"));
   TempDir _ddd(TestDirectory.path("d/d/d"));
   TempLink _e("no_such_file", TestDirectory.path("e"));
+#else
+  // As the create_link uses a hard link on Windows, TempLink will
+  // fail if the target doesn't exist.
+  TempLink _a("no_such_file", TestDirectory.path("a"), /*CheckError=*/ false);
+  TempDir _b(TestDirectory.path("b"));
+  TempLink _ba("no_such_file", TestDirectory.path("b/a"), /*CheckError=*/ false);
+  TempDir _bb(TestDirectory.path("b/b"));
+  TempLink _bc("no_such_file", TestDirectory.path("b/c"), /*CheckError=*/ false);
+  TempLink _c("no_such_file", TestDirectory.path("c"), /*CheckError=*/ false);
+  TempDir _d(TestDirectory.path("d"));
+  TempDir _dd(TestDirectory.path("d/d"));
+  TempDir _ddd(TestDirectory.path("d/d/d"));
+  TempLink _e("no_such_file", TestDirectory.path("e"), /*CheckError=*/ false);
+#endif
 
   std::vector<std::string> VisitedBrokenSymlinks;
   std::vector<std::string> VisitedNonBrokenSymlinks;
@@ -317,10 +357,14 @@ TEST(CachingOnDiskFileSystemTest, BrokenSymlinkRealFSRecursiveIteration) {
   }
 
   // Check visited file names.
+#ifndef _WIN32
+  // As the create_link uses a hard link on Windows, the (broken) links will
+  // not be created.
   EXPECT_THAT(VisitedBrokenSymlinks,
               testing::UnorderedElementsAre(_a.path().str(), _ba.path().str(),
                                             _bc.path().str(), _c.path().str(),
                                             _e.path().str()));
+#endif
   EXPECT_THAT(VisitedNonBrokenSymlinks,
               testing::UnorderedElementsAre(_b.path().str(), _bb.path().str(),
                                             _d.path().str(), _dd.path().str(),
@@ -333,14 +377,23 @@ TEST(CachingOnDiskFileSystemTest, Exists) {
       cantFail(cas::createCachingOnDiskFileSystem(cas::createInMemoryCAS()));
 
   TempFile File(TestDirectory.path("file"), "", "content");
+#ifndef _WIN32
   TempLink Link("file", TestDirectory.path("symlink"));
   TempLink BrokenLink("no_file", TestDirectory.path("broken_symlink"));
+#else
+  // As the create_link uses a hard link on Windows, the full path is
+  // required for the link target and TempLink will fail if the target
+  // doesn't exist.
+  TempLink Link(TestDirectory.path("file"), TestDirectory.path("symlink"));
+  TempLink BrokenLink(TestDirectory.path("no_file"), TestDirectory.path("broken_symlink"),
+                      /*CheckError=*/ false);
+#endif
 
   EXPECT_TRUE(FS->exists(TestDirectory.path()));
   EXPECT_TRUE(FS->exists(File.path()));
   EXPECT_FALSE(FS->exists(TestDirectory.path("no_file")));
   EXPECT_TRUE(FS->exists(Link.path()));
-  EXPECT_FALSE(FS->exists(BrokenLink.path()));
+  EXPECT_FALSE(FS->exists(TestDirectory.path("broken_symlink")));
 }
 
 TEST(CachingOnDiskFileSystemTest, TrackNewAccesses) {
@@ -350,7 +403,8 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccesses) {
   ASSERT_FALSE(FS->setCurrentWorkingDirectory(TestDirectory.path()));
 
   TreePathPrefixMapper Remapper(FS);
-  Remapper.add(MappedPrefix{TestDirectory.path(), "/"});
+  Remapper.add(MappedPrefix{TestDirectory.path(),
+                            sys::path::root_path(TestDirectory.path())});
 
   TempFile Extra(TestDirectory.path("Extra"), "", "content");
   SmallVector<TempFile> Temps;
@@ -397,7 +451,8 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesStack) {
   ASSERT_FALSE(FS->setCurrentWorkingDirectory(TestDirectory.path()));
 
   TreePathPrefixMapper Remapper(FS);
-  Remapper.add(MappedPrefix{TestDirectory.path(), "/"});
+  Remapper.add(MappedPrefix{TestDirectory.path(),
+                            sys::path::root_path(TestDirectory.path())});
 
   TempFile Extra(TestDirectory.path("Extra"), "", "content");
   SmallVector<TempFile> Temps;
@@ -467,7 +522,8 @@ TEST(CachingOnDiskFileSystemTest, TrackNewAccessesExists) {
   ASSERT_FALSE(FS->setCurrentWorkingDirectory(TestDirectory.path()));
 
   TreePathPrefixMapper Remapper(FS);
-  Remapper.add(MappedPrefix{TestDirectory.path(), "/"});
+  Remapper.add(MappedPrefix{TestDirectory.path(),
+                            sys::path::root_path(TestDirectory.path())});
 
   SmallVector<TempFile> Temps;
   for (size_t I = 0, E = 4; I != E; ++I)
@@ -604,7 +660,8 @@ TEST(CachingOnDiskFileSystemTest, ExcludeFromTacking) {
   ASSERT_FALSE(FS->setCurrentWorkingDirectory(TestDirectory.path()));
 
   TreePathPrefixMapper Remapper(FS);
-  Remapper.add(MappedPrefix{TestDirectory.path(), "/"});
+  Remapper.add(MappedPrefix{TestDirectory.path(),
+                            sys::path::root_path(TestDirectory.path())});
 
   TempDir D1(TestDirectory.path("d1"));
   TempDir D2(TestDirectory.path("d2"));
@@ -723,7 +780,10 @@ TEST(CachingOnDiskFileSystemTest, getRealPath) {
   SmallString<128> FilePath, LinkPath;
   EXPECT_FALSE(FS->getRealPath(File.path(), FilePath));
   EXPECT_FALSE(FS->getRealPath(Link.path(), LinkPath));
+#ifndef _WIN32
+  // As the create_link uses a hard link on Windows, the paths don't match.
   EXPECT_EQ(FilePath, LinkPath);
+#endif
 }
 
 TEST(CachingOnDiskFileSystemTest, caseSensitivityFile) {
@@ -777,6 +837,11 @@ TEST(CachingOnDiskFileSystemTest, caseSensitivityDir) {
   TempDir Dir1(D.path("dir"));
   if (!llvm::sys::fs::exists(D.path("Dir")))
     return; // Case-sensitive filesystem.
+#ifdef _WIN32
+  // On windows, create_link uses a hard link and cannot handle a link
+  // to a directory. So, skip.
+  return;
+#endif
   llvm::vfs::Status StatD1, StatD2;
   ASSERT_THAT_ERROR(errorOrToExpected(FS->status(Dir1.path())).moveInto(StatD1),
                     Succeeded());

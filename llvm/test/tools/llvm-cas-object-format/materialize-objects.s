@@ -4,6 +4,8 @@
 // RUN: cd %t && llvm-cas --ingest --cas %t/cas --casid-file %t/test.o > %t/output.casid
 // RUN: llvm-cas-object-format --cas %t/cas --materialize-objects --output-prefix %t/output @%t/output.casid 
 
+// REQUIRES: ondisk_cas
+
         .text
 _foo:
         ret

@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
   if (!ComputeStats.empty()) {
     if (!Files.empty()) {
       llvm::errs() << "Making summary object...\n";
-      HierarchicalTreeBuilder Builder;
+      HierarchicalTreeBuilder Builder(sys::path::Style::native);
       for (auto &File : Files) {
         Builder.push(File.second, TreeEntry::Regular, File.first());
       }

@@ -7,6 +7,8 @@
 
 ; REQUIRES: aarch64-registered-target
 
+; REQUIRES: ondisk_cas
+
 ; This test is created from a C program like:
 ; int foo() { return 10; }
 

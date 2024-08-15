@@ -42,6 +42,9 @@
 ; CHECK-NEXT: mc:data_in_code llvmcas://
 ; CHECK-NEXT: mc:symbol_table llvmcas://
 ; CHECK-NEXT: mc:cstring      llvmcas://
+
+; REQUIRES: ondisk_cas
+
 define i32 @_Z3fooj(i32 noundef %0) #0 !dbg !10 {
   ret i32 1, !dbg !18
 }
