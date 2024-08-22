@@ -237,12 +237,11 @@ void ThreadPlanStepOut::GetDescription(Stream *s,
       s->Printf("Stepping out by stepping through inlined function.");
     else {
       s->Printf("Stepping out from ");
+      s->Printf("address 0x%" PRIx64 " ", (uint64_t)m_step_from_insn);
       Address tmp_address;
       if (tmp_address.SetLoadAddress(m_step_from_insn, &GetTarget())) {
         tmp_address.Dump(s, &m_process, Address::DumpStyleResolvedDescription,
                          Address::DumpStyleLoadAddress);
-      } else {
-        s->Printf("address 0x%" PRIx64 "", (uint64_t)m_step_from_insn);
       }
 
       // FIXME: find some useful way to present the m_return_id, since there may
@@ -250,11 +249,10 @@ void ThreadPlanStepOut::GetDescription(Stream *s,
       // same function on the stack.
 
       s->Printf(" returning to frame at ");
+      s->Printf("address 0x%" PRIx64 " ", (uint64_t)m_return_addr);
       if (tmp_address.SetLoadAddress(m_return_addr, &GetTarget())) {
         tmp_address.Dump(s, &m_process, Address::DumpStyleResolvedDescription,
                          Address::DumpStyleLoadAddress);
-      } else {
-        s->Printf("address 0x%" PRIx64 "", (uint64_t)m_return_addr);
       }
 
       if (level == eDescriptionLevelVerbose)

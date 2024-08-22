@@ -795,12 +795,16 @@ bool Thread::ShouldStop(Event *event_ptr) {
   SetShouldRunBeforePublicStop(false);
 
   if (log) {
+    auto &sc =
+        GetStackFrameAtIndex(0)->GetSymbolContext(eSymbolContextEverything);
+    auto *funcname = sc.GetFunctionName(Mangled::ePreferMangled).AsCString();
     LLDB_LOGF(log,
               "Thread::%s(%p) for tid = 0x%4.4" PRIx64 " 0x%4.4" PRIx64
-              ", pc = 0x%16.16" PRIx64,
+              ", pc = 0x%16.16" PRIx64 " (%s)",
               __FUNCTION__, static_cast<void *>(this), GetID(), GetProtocolID(),
               GetRegisterContext() ? GetRegisterContext()->GetPC()
-                                   : LLDB_INVALID_ADDRESS);
+                                   : LLDB_INVALID_ADDRESS,
+              funcname);
     LLDB_LOGF(log, "^^^^^^^^ Thread::ShouldStop Begin ^^^^^^^^");
     StreamString s;
     s.IndentMore();
