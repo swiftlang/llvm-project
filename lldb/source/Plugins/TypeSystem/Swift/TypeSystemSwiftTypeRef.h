@@ -14,6 +14,7 @@
 #define liblldb_TypeSystemSwiftTypeRef_h_
 
 #include "Plugins/TypeSystem/Swift/TypeSystemSwift.h"
+#include "Plugins/TypeSystem/Swift/SwiftDemangle.h"
 #include "lldb/Core/SwiftForward.h"
 #include "lldb/Utility/ThreadSafeDenseMap.h"
 
@@ -369,6 +370,11 @@ public:
   swift::Demangle::NodePointer
   GetCanonicalDemangleTree(swift::Demangle::Demangler &dem,
                            llvm::StringRef mangled_name);
+
+  /// Return the canonicalized Demangle tree for a Swift mangled type name.
+  swift_demangle::NodePointerWithDeps<swift_demangle::SharedDemangledNode>
+  GetCanonicalDemangleTreeWithCache(swift::Demangle::Demangler &dem, ConstString mangled_name);
+
   /// Return the base name of the topmost nominal type.
   static llvm::StringRef GetBaseName(swift::Demangle::NodePointer node);
 
@@ -420,9 +426,8 @@ protected:
   /// drill into the Global(TypeMangling(Type())).
   ///
   /// \return the child of Type or a nullptr.
-  swift::Demangle::NodePointer
-  DemangleCanonicalType(swift::Demangle::Demangler &dem,
-                        lldb::opaque_compiler_type_t type);
+  swift_demangle::SharedDemangledNode
+  DemangleCanonicalType(lldb::opaque_compiler_type_t type);
 
   /// If \p node is a Struct/Class/Typedef in the __C module, return a
   /// Swiftified node by looking up the name in the corresponding APINotes and
@@ -441,9 +446,9 @@ protected:
 
   /// Return the demangle tree representation with all "__C" module
   /// names with their actual Clang module names.
-  swift::Demangle::NodePointer
+  swift_demangle::NodePointerWithDeps<swift_demangle::SharedDemangledNode>
   GetDemangleTreeForPrinting(swift::Demangle::Demangler &dem,
-                             const char *mangled_name,
+                             ConstString mangled_name,
                              bool resolve_objc_module);
 
   /// Return an APINotes manager for the module with module id \id.

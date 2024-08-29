@@ -147,7 +147,7 @@ public:
 
   enum DemangleMode { eSimplified, eTypeName, eDisplayTypeName };
   static std::string
-  DemangleSymbolAsString(llvm::StringRef symbol, DemangleMode mode,
+  DemangleSymbolAsString(ConstString symbol, DemangleMode mode,
                          const SymbolContext *sc = nullptr,
                          const ExecutionContext *exe_ctx = nullptr);
 

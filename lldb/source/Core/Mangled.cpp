@@ -300,7 +300,7 @@ ConstString Mangled::GetDemangledName(// BEGIN SWIFT
         Log *log = GetLog(LLDBLog::Demangle);
         LLDB_LOGF(log, "demangle swift: %s", mangled_name);
         std::string demangled(SwiftLanguageRuntime::DemangleSymbolAsString(
-            mangled_name, SwiftLanguageRuntime::eTypeName, sc));
+            m_mangled, SwiftLanguageRuntime::eTypeName, sc));
         // Don't cache the demangled name the function isn't available yet.
         if (!sc || !sc->function) {
           LLDB_LOGF(log, "demangle swift: %s -> \"%s\" (not cached)",
@@ -344,7 +344,7 @@ ConstString Mangled::GetDisplayDemangledName(
   if (m_mangled &&
       SwiftLanguageRuntime::IsSwiftMangledName(m_mangled.GetStringRef()))
     return ConstString(SwiftLanguageRuntime::DemangleSymbolAsString(
-        m_mangled.GetStringRef(), SwiftLanguageRuntime::eSimplified, sc));
+        m_mangled, SwiftLanguageRuntime::eSimplified, sc));
 #endif // LLDB_ENABLE_SWIFT
 // END SWIFT
   if (Language *lang = Language::FindPlugin(GuessLanguage()))
