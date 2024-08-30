@@ -141,7 +141,7 @@ class TestSwiftInterfaceNoDebugInfo(TestBase):
         a_modules = glob.glob(os.path.join(swift_mod_cache, 'AA-*.swiftmodule'))
         b_modules = glob.glob(os.path.join(swift_mod_cache, 'BB-*.swiftmodule'))
         c_modules = glob.glob(os.path.join(swift_mod_cache, 'CC-*.swiftmodule'))
-        self.assertEqual(len(a_modules), 1)
+        self.assertEqual(len(a_modules), 2)
         self.assertEqual(len(b_modules), 1)
         self.assertEqual(len(c_modules), 0)
 
@@ -164,7 +164,7 @@ class TestSwiftInterfaceNoDebugInfo(TestBase):
         a_modules = glob.glob(os.path.join(swift_mod_cache, 'AA-*.swiftmodule'))
         b_modules = glob.glob(os.path.join(swift_mod_cache, 'BB-*.swiftmodule'))
         c_modules = glob.glob(os.path.join(swift_mod_cache, 'CC-*.swiftmodule'))
-        self.assertEqual(len(a_modules), 1,
+        self.assertEqual(len(a_modules), 2,
                          "unexpected number of swiftmodules for A.swift")
         self.assertEqual(len(b_modules), 1,
                          "unexpected number of swiftmodules for B.swift")
