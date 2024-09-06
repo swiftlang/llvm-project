@@ -1,5 +1,7 @@
 set(LLVM_NO_RTTI 1)
 
+add_subdirectory(SwiftHighlighter)
+
 add_lldb_library(lldbPluginSwiftLanguage PLUGIN
   FoundationValueTypes.cpp
   LogChannelSwift.cpp
@@ -9,6 +11,7 @@ add_lldb_library(lldbPluginSwiftLanguage PLUGIN
   SwiftDictionary.cpp
   SwiftFormatters.cpp
   SwiftHashedContainer.cpp
+  SwiftHighlighterBridge.cpp
   SwiftLanguage.cpp
   SwiftMetatype.cpp
   SwiftOptionSet.cpp
@@ -28,6 +31,7 @@ add_lldb_library(lldbPluginSwiftLanguage PLUGIN
     swiftAST
     swiftClangImporter
     clangAST
+    swiftHighlighter
 
   LINK_COMPONENTS
     Support
