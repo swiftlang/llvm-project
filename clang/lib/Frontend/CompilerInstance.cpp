@@ -676,8 +676,9 @@ void CompilerInstance::createPCHExternalASTSource(
       getASTContext(), getPCHContainerReader(),
       getFrontendOpts().ModuleFileExtensions, DependencyCollectors,
       DeserializationListener, OwnDeserializationListener, Preamble,
-      getFrontendOpts().UseGlobalModuleIndex,
-      getOrCreateObjectStore(), getOrCreateActionCache(), std::move(PCHBuffer));
+      getFrontendOpts().UseGlobalModuleIndex, getOrCreateObjectStore(),
+      getOrCreateActionCache(), getFrontendOpts().ModuleLoadIgnoreCAS,
+      std::move(PCHBuffer));
 }
 
 IntrusiveRefCntPtr<ASTReader> CompilerInstance::createPCHExternalASTSource(
@@ -690,7 +691,7 @@ IntrusiveRefCntPtr<ASTReader> CompilerInstance::createPCHExternalASTSource(
     ArrayRef<std::shared_ptr<DependencyCollector>> DependencyCollectors,
     void *DeserializationListener, bool OwnDeserializationListener,
     bool Preamble, bool UseGlobalModuleIndex,
-    cas::ObjectStore &CAS, cas::ActionCache &Cache,
+    cas::ObjectStore &CAS, cas::ActionCache &Cache, bool ignoreCAS,
     std::unique_ptr<llvm::MemoryBuffer> PCHBuffer) {
   HeaderSearchOptions &HSOpts = PP.getHeaderSearchInfo().getHeaderSearchOpts();
 
@@ -712,8 +713,9 @@ IntrusiveRefCntPtr<ASTReader> CompilerInstance::createPCHExternalASTSource(
   for (auto &Listener : DependencyCollectors)
     Listener->attachToASTReader(*Reader);
 
-  Reader->addListener(std::make_unique<CompileCacheASTReaderHelper>(
-      CAS, Cache, ModuleCache, PP.getDiagnostics()));
+  if (!ignoreCAS)
+    Reader->addListener(std::make_unique<CompileCacheASTReaderHelper>(
+        CAS, Cache, ModuleCache, PP.getDiagnostics()));
 
   auto Listener = std::make_unique<ReadModuleNames>(PP);
   auto &ListenerRef = *Listener;
@@ -1901,9 +1903,10 @@ void CompilerInstance::createASTReader() {
   for (auto &Listener : DependencyCollectors)
     Listener->attachToASTReader(*TheASTReader);
 
-  TheASTReader->addListener(std::make_unique<CompileCacheASTReaderHelper>(
-      getOrCreateObjectStore(), getOrCreateActionCache(), getModuleCache(),
-      getDiagnostics()));
+  if (!FEOpts.ModuleLoadIgnoreCAS)
+    TheASTReader->addListener(std::make_unique<CompileCacheASTReaderHelper>(
+        getOrCreateObjectStore(), getOrCreateActionCache(), getModuleCache(),
+        getDiagnostics()));
 }
 
 bool CompilerInstance::loadModuleFile(StringRef FileName) {
