@@ -57,6 +57,7 @@
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Lex/Preprocessor.h"
 
 #include "clang/Lex/PreprocessorOptions.h"
@@ -1573,21 +1574,7 @@ bool ShouldUnique(StringRef arg) {
 
 // static
 void SwiftASTContext::AddExtraClangArgs(const std::vector<std::string> &source,
-                                        std::vector<std::string> &dest,
-                                        bool cc1) {
-  // FIXME: Support for cc1 flags isn't complete.  The uniquing
-  // algortihm below does not work for cc1 flags. Since cc1 flags are
-  // not stable it's not feasible to keep a list of all multi-arg
-  // flags, for example. It also makes it difficult to correctly
-  // identify where workng directories and path remappings should
-  // applied. For all these reasons, using cc1 flags for anything but
-  // a local build with explicit modules and precise compiler
-  // invocations isn't supported yet.
-  if (cc1) {
-    dest.insert(dest.end(), source.begin(), source.end());
-    return;
-  }
-
+                                        std::vector<std::string> &dest) {
   llvm::StringSet<> unique_flags;
   for (auto &arg : dest)
     unique_flags.insert(arg);
@@ -1764,6 +1751,9 @@ static void applyOverrideOptions(std::vector<std::string> &args,
 
 void SwiftASTContext::AddExtraClangArgs(
     const std::vector<std::string> &ExtraArgs, StringRef overrideOpts) {
+  if (ExtraArgs.empty())
+    return;
+
   swift::ClangImporterOptions &importer_options = GetClangImporterOptions();
 
   // Detect cc1 flags.  When DirectClangCC1ModuleBuild is on then the
@@ -1771,16 +1761,27 @@ void SwiftASTContext::AddExtraClangArgs(
   // which are very specific to one compiler version and cannot
   // be merged with driver options.
   bool fresh_invocation = importer_options.ExtraArgs.empty();
-  if (fresh_invocation && !ExtraArgs.empty() && ExtraArgs.front() == "-cc1")
-    importer_options.DirectClangCC1ModuleBuild = true;
-  if (!importer_options.DirectClangCC1ModuleBuild && !ExtraArgs.empty() &&
-      ExtraArgs.front() == "-cc1")
+  bool invocation_direct_cc1 = ExtraArgs.front() == "-cc1";
+
+  // If it is not a fresh invocation, make sure the cc1 option matches.
+  if (!fresh_invocation &&
+      (importer_options.DirectClangCC1ModuleBuild != invocation_direct_cc1))
     AddDiagnostic(
         eSeverityWarning,
         "Mixing and matching of driver and cc1 Clang options detected");
 
-  AddExtraClangArgs(ExtraArgs, importer_options.ExtraArgs,
-                    importer_options.DirectClangCC1ModuleBuild);
+  importer_options.DirectClangCC1ModuleBuild = invocation_direct_cc1;
+
+  // If using direct cc1 flags, compute the arguments and return.
+  // Since this is cc1 flags, override options are driver flags and don't apply.
+  if (importer_options.DirectClangCC1ModuleBuild) {
+    if (!fresh_invocation)
+      importer_options.ExtraArgs.clear();
+    AddExtraClangCC1Args(ExtraArgs, importer_options.ExtraArgs);
+    return;
+  }
+
+  AddExtraClangArgs(ExtraArgs, importer_options.ExtraArgs);
   applyOverrideOptions(importer_options.ExtraArgs, overrideOpts);
   if (HasNonexistentExplicitModule(importer_options.ExtraArgs))
     RemoveExplicitModules(importer_options.ExtraArgs);
@@ -1790,6 +1791,78 @@ void SwiftASTContext::AddExtraClangArgs(
       llvm::any_of(importer_options.ExtraArgs, [](const std::string &arg) {
         return StringRef(arg).starts_with("-fmodule-file=");
       });
+}
+
+void SwiftASTContext::AddExtraClangCC1Args(
+    const std::vector<std::string> &source, std::vector<std::string> &dest) {
+  clang::CompilerInvocation invocation;
+  llvm::SmallVector<const char *> clangArgs;
+  clangArgs.reserve(source.size());
+  llvm::for_each(source, [&](const std::string &Arg) {
+    // Workaround for the extra driver argument embedded in the swiftmodule by
+    // some swift compiler version. It always starts with `--target=` and it is
+    // not a valid cc1 option.
+    if (!StringRef(Arg).starts_with("--target="))
+      clangArgs.push_back(Arg.c_str());
+  });
+
+  std::string diags;
+  llvm::raw_string_ostream os(diags);
+  auto diagOpts = llvm::makeIntrusiveRefCnt<clang::DiagnosticOptions>();
+  clang::DiagnosticsEngine clangDiags(
+      new clang::DiagnosticIDs(), diagOpts,
+      new clang::TextDiagnosticPrinter(os, diagOpts.get()));
+
+  if (!clang::CompilerInvocation::CreateFromArgs(invocation, clangArgs,
+                                                 clangDiags)) {
+    // If cc1 arguments failed to parse, report diagnostics and return
+    // immediately.
+    AddDiagnostic(eSeverityError, diags);
+    // Disable direct-cc1 build as fallback.
+    GetClangImporterOptions().DirectClangCC1ModuleBuild = false;
+    return;
+  }
+
+  // Clear module cache key and other CAS options to load modules from disk
+  // directly.
+  invocation.getFrontendOpts().ModuleCacheKeys.clear();
+  invocation.getCASOpts() = clang::CASOptions();
+
+  // Ignore CAS info inside modules when loading.
+  invocation.getFrontendOpts().ModuleLoadIgnoreCAS = true;
+
+  // Remove non-existing modules in a systematic way.
+  bool module_missing = false;
+  auto CheckFileExists = [&](const char *file) {
+    if (!llvm::sys::fs::exists(file)) {
+      std::string warn;
+      llvm::raw_string_ostream(warn)
+          << "Nonexistent explicit module file " << file;
+      AddDiagnostic(eSeverityWarning, warn);
+      module_missing = true;
+    }
+  };
+  llvm::for_each(invocation.getHeaderSearchOpts().PrebuiltModuleFiles,
+                 [&](const auto &mod) { CheckFileExists(mod.second.c_str()); });
+  llvm::for_each(invocation.getFrontendOpts().ModuleFiles,
+                 [&](const auto &mod) { CheckFileExists(mod.c_str()); });
+
+  // If missing, clear all the prebuilt module options and switch to implicit
+  // modules build.
+  if (module_missing) {
+    invocation.getHeaderSearchOpts().PrebuiltModuleFiles.clear();
+    invocation.getFrontendOpts().ModuleFiles.clear();
+    invocation.getLangOpts().ImplicitModules = true;
+    invocation.getHeaderSearchOpts().ImplicitModuleMaps = true;
+  }
+
+  invocation.generateCC1CommandLine(
+      [&](const llvm::Twine &arg) { dest.push_back(arg.str()); });
+
+  // If cc1 arguments are parsed and generated correctly, set explicitly-built
+  // module since only explicit module build can use direct cc1 mode.
+  m_has_explicit_modules = true;
+  return;
 }
 
 void SwiftASTContext::AddUserClangArgs(TargetProperties &props) {
@@ -1883,6 +1956,10 @@ void SwiftASTContext::RemapClangImporterOptions(
 
 void SwiftASTContext::FilterClangImporterOptions(
     std::vector<std::string> &extra_args, SwiftASTContext *ctx) {
+  // The direct cc1 mode do not need any extra audit.
+  if (ctx && ctx->GetClangImporterOptions().DirectClangCC1ModuleBuild)
+    return;
+
   std::string ivfs_arg;
   // Copy back a filtered version of ExtraArgs.
   std::vector<std::string> orig_args(std::move(extra_args));
@@ -1891,11 +1968,6 @@ void SwiftASTContext::FilterClangImporterOptions(
     // LLDB wants to control implicit/explicit modules build flags.
     if (arg_sr == "-fno-implicit-modules" ||
         arg_sr == "-fno-implicit-module-maps")
-      continue;
-
-    // This is not a cc1 option.
-    if (arg_sr.starts_with("--target=") && ctx &&
-        ctx->GetClangImporterOptions().DirectClangCC1ModuleBuild)
       continue;
 
     // The VFS options turn into fatal errors when the referenced file
@@ -2184,6 +2256,11 @@ ProcessModule(Module &module, std::string m_description,
   for (auto path : opts.getFrameworkSearchPaths())
     framework_search_paths.push_back({path.Path, path.IsSystem});
   auto &clang_opts = invocation.getClangImporterOptions().ExtraArgs;
+  // If the args embedded are cc1 args, they are not compatible with existing
+  // setting. Clear the previous args.
+  if (!clang_opts.empty() && clang_opts.front() == "-cc1")
+    extra_clang_args.clear();
+
   for (const std::string &arg : clang_opts) {
     extra_clang_args.push_back(arg);
     LOG_VERBOSE_PRINTF(GetLog(LLDBLog::Types), "adding Clang argument \"%s\".",
