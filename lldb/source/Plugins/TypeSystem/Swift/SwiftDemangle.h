@@ -72,6 +72,20 @@ GetDemangledType(swift::Demangle::Demangler &dem, llvm::StringRef name) {
   return GetType(dem.demangleSymbol(name));
 }
 
+/// Creates a copy of `node` using `dem` as a factory. Kind, text and index are
+/// copied but children aren't.
+static inline NodePointer
+CopyNodeWithoutChildren(swift::Demangle::Demangler &dem, const Node *node) {
+  if (!node)
+    return nullptr;
+  const auto kind = node->getKind();
+  if (node->hasText())
+    return dem.createNode(kind, node->getText());
+  if (node->hasIndex())
+    return dem.createNode(kind, node->getIndex());
+  return dem.createNode(kind);
+}
+
 /// Shared ownership wrapper for swift::Demangle::NodePointer
 ///
 /// Can be valid or invalid. A valid instance stores a non-null NodePointer and

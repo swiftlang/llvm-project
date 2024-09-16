@@ -932,13 +932,7 @@ swift::Demangle::NodePointer TypeSystemSwiftTypeRef::Transform(
   }
   if (changed) {
     // Create a new node with the transformed children.
-    auto kind = node->getKind();
-    if (node->hasText())
-      node = dem.createNodeWithAllocatedText(kind, node->getText());
-    else if (node->hasIndex())
-      node = dem.createNode(kind, node->getIndex());
-    else
-      node = dem.createNode(kind);
+    node = CopyNodeWithoutChildren(dem, node);
     for (NodePointer transformed_child : children)
       node->addChild(transformed_child, dem);
   }
@@ -1268,7 +1262,6 @@ swift::Demangle::NodePointer TypeSystemSwiftTypeRef::GetNodeForPrintingImpl(
     bool resolve_objc_module) {
   using namespace swift::Demangle;
   return Transform(dem, node, [&](NodePointer node) {
-    NodePointer canonical = node;
     auto kind = node->getKind();
     switch (kind) {
     case Node::Kind::Class:
@@ -1356,12 +1349,16 @@ swift::Demangle::NodePointer TypeSystemSwiftTypeRef::GetNodeForPrintingImpl(
             if (module->getKind() != Node::Kind::Module)
               break;
 
+            NodePointer canonical = CopyNodeWithoutChildren(dem, node);
+            for (NodePointer child : *node) {
+              canonical->addChild(child, dem);
+            }
             canonical->addChild(module, dem);
             canonical->addChild(identifier, dem);
             return canonical;
           }
     }
-    return canonical;
+    return node;
   });
 }
 
