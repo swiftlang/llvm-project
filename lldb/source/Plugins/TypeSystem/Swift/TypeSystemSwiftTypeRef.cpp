@@ -932,7 +932,7 @@ swift::Demangle::NodePointer TypeSystemSwiftTypeRef::Transform(
   }
   if (changed) {
     // Create a new node with the transformed children.
-    node = CopyNodeWithoutChildren(dem, node);
+    node = CopyNodeWithoutChildren(dem, *node);
     for (NodePointer transformed_child : children)
       node->addChild(transformed_child, dem);
   }
@@ -1349,10 +1349,9 @@ swift::Demangle::NodePointer TypeSystemSwiftTypeRef::GetNodeForPrintingImpl(
             if (module->getKind() != Node::Kind::Module)
               break;
 
-            NodePointer canonical = CopyNodeWithoutChildren(dem, node);
-            for (NodePointer child : *node) {
-              canonical->addChild(child, dem);
-            }
+            // `node` may be from the demangling cache, so we can't mutate it.
+            // Create a copy instead.
+            NodePointer canonical = CopyNodeWithChildrenReferences(dem, *node);
             canonical->addChild(module, dem);
             canonical->addChild(identifier, dem);
             return canonical;

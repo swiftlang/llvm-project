@@ -72,18 +72,30 @@ GetDemangledType(swift::Demangle::Demangler &dem, llvm::StringRef name) {
   return GetType(dem.demangleSymbol(name));
 }
 
-/// Creates a copy of `node` using `dem` as a factory. Kind, text and index are
-/// copied but children aren't.
+/// Creates a copy of `node` using `dem` as a factory. The kind, text, and index
+/// of the node are copied, but the children are not.
 static inline NodePointer
-CopyNodeWithoutChildren(swift::Demangle::Demangler &dem, const Node *node) {
-  if (!node)
-    return nullptr;
-  const auto kind = node->getKind();
-  if (node->hasText())
-    return dem.createNode(kind, node->getText());
-  if (node->hasIndex())
-    return dem.createNode(kind, node->getIndex());
+CopyNodeWithoutChildren(swift::Demangle::Demangler &dem, const Node &node) {
+  const auto kind = node.getKind();
+  if (node.hasText())
+    return dem.createNode(kind, node.getText());
+  if (node.hasIndex())
+    return dem.createNode(kind, node.getIndex());
   return dem.createNode(kind);
+}
+
+/// Creates a copy of `node` using `dem` as a factory. The kind, text, and index
+/// of the node are fully copied, but the children are copied by reference
+/// (shallow copy).
+static inline NodePointer
+CopyNodeWithChildrenReferences(swift::Demangle::Demangler &dem,
+                               const Node &node) {
+  NodePointer result = CopyNodeWithoutChildren(dem, node);
+  if (!result)
+    return nullptr;
+  for (NodePointer child : node)
+    result->addChild(child, dem);
+  return result;
 }
 
 /// Shared ownership wrapper for swift::Demangle::NodePointer
