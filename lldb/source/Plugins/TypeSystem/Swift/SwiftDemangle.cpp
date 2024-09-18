@@ -18,8 +18,18 @@ namespace swift_demangle {
 
 SharedDemangledNode GetCachedDemangledSymbol(ConstString name) {
   static LRUCache<SharedDemangledNode> g_shared_cache{10};
-  return g_shared_cache.GetOrCreate(
-      name, [name] { return SharedDemangledNode::FromMangledSymbol(name); });
+  auto factory = [name] {
+    return SharedDemangledNode::FromMangledSymbol(name);
+  };
+#ifndef NDEBUG
+  auto validation_result = factory();
+#endif
+  auto result = g_shared_cache.GetOrCreate(name, factory);
+#ifndef NDEBUG
+  assert(validation_result == result &&
+         "Cached SharedDemangledNode isn't equal to a fresh one");
+#endif
+  return result;
 }
 
 

@@ -124,6 +124,10 @@ public:
 
   explicit operator bool() const { return IsValid(); }
 
+  bool operator==(const SharedDemangledNode &other) const {
+    return Node::deepEquals(GetRawNode(), other.GetRawNode());
+  }
+
   /// Gets a raw pointer to the Node.
   swift::Demangle::NodePointer GetRawNode() const & { return m_node; }
 
