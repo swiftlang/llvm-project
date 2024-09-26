@@ -1665,7 +1665,7 @@ bool SwiftLanguage::GetFunctionDisplayName(
     if (sc->function->GetLanguage() != eLanguageTypeSwift)
       return false;
     std::string display_name = SwiftLanguageRuntime::DemangleSymbolAsString(
-        sc->function->GetMangled().GetMangledName().GetStringRef(),
+        sc->function->GetMangled().GetMangledName(),
         SwiftLanguageRuntime::eSimplified, sc, exe_ctx);
     if (display_name.empty())
       return false;
@@ -1678,7 +1678,7 @@ bool SwiftLanguage::GetFunctionDisplayName(
     if (sc->function->GetLanguage() != eLanguageTypeSwift)
       return false;
     std::string display_name = SwiftLanguageRuntime::DemangleSymbolAsString(
-        sc->function->GetMangled().GetMangledName().GetStringRef(),
+        sc->function->GetMangled().GetMangledName(),
         SwiftLanguageRuntime::eSimplified, sc, exe_ctx);
     if (display_name.empty())
       return false;

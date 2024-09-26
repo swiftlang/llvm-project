@@ -721,7 +721,7 @@ void SwiftLanguageRuntime::GetGenericParameterNamesForFunction(
 }
 
 std::string SwiftLanguageRuntime::DemangleSymbolAsString(
-    StringRef symbol, DemangleMode mode, const SymbolContext *sc,
+    ConstString symbol, DemangleMode mode, const SymbolContext *sc,
     const ExecutionContext *exe_ctx) {
   bool did_init = false;
   llvm::DenseMap<ArchetypePath, StringRef> dict;
@@ -775,7 +775,7 @@ std::string SwiftLanguageRuntime::DemangleSymbolAsString(
       return name;
     };
   }
-  return swift::Demangle::demangleSymbolAsString(symbol, options);
+  return swift_demangle::DemangleSymbolAsString(symbol, options);
 }
 
 swift::Demangle::NodePointer
