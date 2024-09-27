@@ -10,11 +10,11 @@ define <4 x float> @mul_triangle(<4 x float> %a, <4 x float> %b, ptr %p) {
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    movi v3.2d, #0000000000000000
 ; CHECK-NEXT:    movi v2.2d, #0000000000000000
-; CHECK-NEXT:    fcmla v3.4s, v1.4s, v0.4s, #0
-; CHECK-NEXT:    fcmla v3.4s, v1.4s, v0.4s, #90
-; CHECK-NEXT:    fcmla v2.4s, v0.4s, v3.4s, #0
+; CHECK-NEXT:    fcmla v3.4s, v0.4s, v1.4s, #0
+; CHECK-NEXT:    fcmla v3.4s, v0.4s, v1.4s, #90
+; CHECK-NEXT:    fcmla v2.4s, v3.4s, v0.4s, #0
 ; CHECK-NEXT:    str q3, [x0]
-; CHECK-NEXT:    fcmla v2.4s, v0.4s, v3.4s, #90
+; CHECK-NEXT:    fcmla v2.4s, v3.4s, v0.4s, #90
 ; CHECK-NEXT:    mov v0.16b, v2.16b
 ; CHECK-NEXT:    ret
 entry:
@@ -102,10 +102,10 @@ define <4 x float> @multiple_muls_shuffle_external(<4 x float> %a, <4 x float> %
 ; CHECK-NEXT:    zip1 v16.2s, v1.2s, v6.2s
 ; CHECK-NEXT:    zip2 v1.2s, v1.2s, v6.2s
 ; CHECK-NEXT:    ext v6.16b, v2.16b, v2.16b, #8
-; CHECK-NEXT:    fcmla v4.4s, v3.4s, v2.4s, #0
+; CHECK-NEXT:    fcmla v4.4s, v2.4s, v3.4s, #0
 ; CHECK-NEXT:    fmul v5.2s, v16.2s, v7.2s
 ; CHECK-NEXT:    fmul v7.2s, v1.2s, v7.2s
-; CHECK-NEXT:    fcmla v4.4s, v3.4s, v2.4s, #90
+; CHECK-NEXT:    fcmla v4.4s, v2.4s, v3.4s, #90
 ; CHECK-NEXT:    fmla v5.2s, v0.2s, v1.2s
 ; CHECK-NEXT:    fneg v1.2s, v7.2s
 ; CHECK-NEXT:    zip1 v7.2s, v2.2s, v6.2s
@@ -180,8 +180,8 @@ define <4 x float> @multiple_muls_shuffle_external_with_loads(ptr %ptr_a, ptr %p
 ; CHECK-NEXT:    fmla v3.2s, v5.2s, v1.2s
 ; CHECK-NEXT:    st2 { v3.2s, v4.2s }, [x5]
 ; CHECK-NEXT:    ldr q1, [x3]
-; CHECK-NEXT:    fcmla v0.4s, v1.4s, v6.4s, #0
-; CHECK-NEXT:    fcmla v0.4s, v1.4s, v6.4s, #90
+; CHECK-NEXT:    fcmla v0.4s, v6.4s, v1.4s, #0
+; CHECK-NEXT:    fcmla v0.4s, v6.4s, v1.4s, #90
 ; CHECK-NEXT:    ret
 entry:
   %a = load <4 x float>, ptr %ptr_a
@@ -297,28 +297,29 @@ entry:
 ;  u[i] = a[i] * b[i] - (c[i] * d[i] + g[i] * h[i]);
 ;  v[i] = e[i] * f[i] + (c[i] * d[i] + g[i] * h[i]);
 define void @mul_add_common_mul_add_mul(<4 x double> %a, <4 x double> %b, <4 x double> %c, <4 x double> %d, <4 x double> %e, <4 x double> %f, <4 x double> %g, <4 x double> %h, ptr %p1, ptr %p2) {
+
 ; CHECK-LABEL: mul_add_common_mul_add_mul:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    ldp q17, q16, [sp, #64]
+; CHECK-NEXT:    ldp q17, q16, [sp, #96]
 ; CHECK-NEXT:    movi v20.2d, #0000000000000000
 ; CHECK-NEXT:    movi v21.2d, #0000000000000000
 ; CHECK-NEXT:    movi v24.2d, #0000000000000000
 ; CHECK-NEXT:    movi v25.2d, #0000000000000000
-; CHECK-NEXT:    ldp q19, q18, [sp, #96]
-; CHECK-NEXT:    fcmla v24.2d, v2.2d, v0.2d, #0
-; CHECK-NEXT:    fcmla v25.2d, v3.2d, v1.2d, #0
+; CHECK-NEXT:    ldp q19, q18, [sp, #64]
+; CHECK-NEXT:    fcmla v24.2d, v0.2d, v2.2d, #0
+; CHECK-NEXT:    fcmla v25.2d, v1.2d, v3.2d, #0
 ; CHECK-NEXT:    fcmla v20.2d, v19.2d, v17.2d, #0
-; CHECK-NEXT:    fcmla v24.2d, v2.2d, v0.2d, #90
+; CHECK-NEXT:    fcmla v24.2d, v0.2d, v2.2d, #90
 ; CHECK-NEXT:    fcmla v21.2d, v18.2d, v16.2d, #0
-; CHECK-NEXT:    ldp q23, q22, [sp, #32]
+; CHECK-NEXT:    ldp q23, q22, [sp]
 ; CHECK-NEXT:    fcmla v20.2d, v19.2d, v17.2d, #90
-; CHECK-NEXT:    fcmla v25.2d, v3.2d, v1.2d, #90
+; CHECK-NEXT:    fcmla v25.2d, v1.2d, v3.2d, #90
 ; CHECK-NEXT:    fcmla v21.2d, v18.2d, v16.2d, #90
-; CHECK-NEXT:    fcmla v20.2d, v6.2d, v4.2d, #0
-; CHECK-NEXT:    ldp q1, q0, [sp]
-; CHECK-NEXT:    fcmla v21.2d, v7.2d, v5.2d, #0
-; CHECK-NEXT:    fcmla v20.2d, v6.2d, v4.2d, #90
-; CHECK-NEXT:    fcmla v21.2d, v7.2d, v5.2d, #90
+; CHECK-NEXT:    fcmla v20.2d, v4.2d, v6.2d, #0
+; CHECK-NEXT:    ldp q1, q0, [sp, #32]
+; CHECK-NEXT:    fcmla v21.2d, v5.2d, v7.2d, #0
+; CHECK-NEXT:    fcmla v20.2d, v4.2d, v6.2d, #90
+; CHECK-NEXT:    fcmla v21.2d, v5.2d, v7.2d, #90
 ; CHECK-NEXT:    fsub v2.2d, v24.2d, v20.2d
 ; CHECK-NEXT:    fcmla v20.2d, v1.2d, v23.2d, #0
 ; CHECK-NEXT:    fsub v3.2d, v25.2d, v21.2d
