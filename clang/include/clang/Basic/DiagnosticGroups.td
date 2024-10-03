@@ -1125,6 +1125,11 @@ def ThreadSafety : DiagGroup<"thread-safety",
 def ThreadSafetyVerbose : DiagGroup<"thread-safety-verbose">;
 def ThreadSafetyBeta : DiagGroup<"thread-safety-beta">;
 
+// Warnings and notes related to the function effects system which underlies
+// the nonblocking and nonallocating attributes.
+def FunctionEffects : DiagGroup<"function-effects">;
+def PerfConstraintImpliesNoexcept : DiagGroup<"perf-constraint-implies-noexcept">;
+
 // Uniqueness Analysis warnings
 def Consumed       : DiagGroup<"consumed">;
 
@@ -1133,7 +1138,7 @@ def Consumed       : DiagGroup<"consumed">;
 // DefaultIgnore in addition to putting it here.
 def All : DiagGroup<"all", [Most, Parentheses, Switch, SwitchBool,
                             MisleadingIndentation, PackedNonPod,
-                            VLACxxExtension]>;
+                            VLACxxExtension, PerfConstraintImpliesNoexcept]>;
 
 // Warnings that should be in clang-cl /w4.
 def : DiagGroup<"CL4", [All, Extra]>;
@@ -1560,10 +1565,6 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 // Warnings and fixes to support the "safe buffers" programming model.
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
-
-// Warnings and notes related to the function effects system underlying
-// the nonblocking and nonallocating attributes.
-def FunctionEffects : DiagGroup<"function-effects">;
 
 // Warnings and notes InstallAPI verification.
 def InstallAPIViolation : DiagGroup<"installapi-violation">;

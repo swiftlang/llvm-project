@@ -1395,6 +1395,11 @@ New features
 
 - Support C++23 static operator calls. (#GH84972)
 
+- Function effects, e.g. the ``nonblocking`` and ``nonallocating`` "performance constraint" 
+  attributes, are now verified. For example, for functions declared with the ``nonblocking`` 
+  attribute, the compiler can generate warnings about the use of any language features, or calls to
+  other functions, which may block.
+
 Crash and bug fixes
 ^^^^^^^^^^^^^^^^^^^
 
