@@ -48,7 +48,13 @@ using AsyncCASIDValue = AsyncValue<CASID>;
 struct AsyncErrorValue {
   Error take() { return std::move(Value); }
 
-  AsyncErrorValue() : Value(Error::success()) {}
+  AsyncErrorValue() : Value(Error::success()) {
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+    // Mark it checked to avoid an assertIsChecked failure when this
+    // default-initialized success Error is overwritten.
+    (void)(bool)Value;
+#endif
+  }
   AsyncErrorValue(Error &&E) : Value(std::move(E)) {}
 
 private:

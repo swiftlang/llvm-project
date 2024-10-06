@@ -269,7 +269,7 @@ int ingestCasIDFile(cas::ObjectStore &CAS, ArrayRef<std::string> CASIDs) {
     assert(!Files.count(IF));
     Files.try_emplace(IF, Ref);
   }
-  HierarchicalTreeBuilder Builder;
+  HierarchicalTreeBuilder Builder(sys::path::Style::native);
   for (auto &File : Files) {
     Builder.push(File.second, TreeEntry::Regular, File.first());
   }
@@ -571,7 +571,7 @@ int ingestFileSystem(ObjectStore &CAS, std::optional<StringRef> CASPath,
 static int mergeTrees(ObjectStore &CAS, ArrayRef<std::string> Objects) {
   ExitOnError ExitOnErr("llvm-cas: merge: ");
 
-  HierarchicalTreeBuilder Builder;
+  HierarchicalTreeBuilder Builder(sys::path::Style::native);
   for (const auto &Object : Objects) {
     auto ID = CAS.parseID(Object);
     if (ID) {

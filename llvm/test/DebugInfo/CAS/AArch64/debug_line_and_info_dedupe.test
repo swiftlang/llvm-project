@@ -5,6 +5,8 @@ RUN: llc -O0 -cas-friendly-debug-info --filetype=obj --cas-backend --cas=%t/cas 
 RUN: llc -O0 -cas-friendly-debug-info --filetype=obj --cas-backend --cas=%t/cas --mccas-casid %t/b.ll -o %t/b.id
 RUN: llvm-cas-dump --die-refs --cas=%t/cas --casid-file %t/a.id %t/b.id | FileCheck %s
 
+REQUIRES: ondisk_cas
+
 CHECK: mc:debug_DIE_top_level
 CHECK: CAS Block: llvmcas://
 CHECK-NEXT: DW_TAG_compile_unit

@@ -127,7 +127,13 @@ private:
 template <typename T> struct AsyncValue {
   Expected<std::optional<T>> take() { return std::move(Value); }
 
-  AsyncValue() : Value(std::nullopt) {}
+  AsyncValue() : Value(std::nullopt) {
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
+    // Mark it checked to avoid an assertIsChecked failure when this
+    // default-initialized success Expected is overwritten.
+    consumeError(Value.takeError());
+#endif
+  }
   AsyncValue(Error &&E) : Value(std::move(E)) {}
   AsyncValue(T &&V) : Value(std::move(V)) {}
   AsyncValue(std::nullopt_t) : Value(std::nullopt) {}

@@ -87,6 +87,12 @@ TEST(OnDiskActionCache, ActionCacheResultInvalid) {
   ASSERT_THAT_ERROR(CAS2->createProxy(std::nullopt, "1").moveInto(ID3),
                     Succeeded());
 
+#if !defined(LLVM_ENABLE_ONDISK_CAS)
+  // The following won't work without LLVM_ENABLE_ONDISK_CAS enabled.
+  // TODO: enable LLVM_ENABLE_ONDISK_CAS on windows
+  return;
+#endif
+
   std::unique_ptr<ActionCache> Cache1 =
       cantFail(createOnDiskActionCache(Temp.path()));
   // Test put and get.

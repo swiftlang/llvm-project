@@ -172,19 +172,23 @@ public:
 /// The link may be a soft or a hard link, depending on the platform.
 class TempLink {
   SmallString<128> Path;
+  bool CheckError;
 
 public:
   /// Creates a managed link at path Link pointing to Target.
-  TempLink(StringRef Target, StringRef Link) {
-    Path = Link;
+  TempLink(StringRef Target, StringRef Link, bool CheckError = true)
+      : Path(Link), CheckError(CheckError) {
     std::error_code EC = sys::fs::create_link(Target, Link);
     if (EC)
       Path.clear();
-    EXPECT_FALSE(EC);
+    if (CheckError)
+      EXPECT_FALSE(EC);
   }
   ~TempLink() {
     if (!Path.empty()) {
-      EXPECT_FALSE(llvm::sys::fs::remove(Path.str()));
+      std::error_code EC = llvm::sys::fs::remove(Path.str());
+      if (CheckError)
+        EXPECT_FALSE(EC);
     }
   }
 

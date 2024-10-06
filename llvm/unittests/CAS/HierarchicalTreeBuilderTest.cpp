@@ -39,7 +39,7 @@ TEST(HierarchicalTreeBuilderTest, Flat) {
     return *expectedToOptional(CAS->storeFromString(std::nullopt, Content));
   };
 
-  HierarchicalTreeBuilder Builder;
+  HierarchicalTreeBuilder Builder(sys::path::Style::posix);
   Builder.push(make("1"), TreeEntry::Regular, "/file1");
   Builder.push(make("1"), TreeEntry::Regular, "/1");
   Builder.push(make("2"), TreeEntry::Regular, "/2");
@@ -74,7 +74,7 @@ TEST(HierarchicalTreeBuilderTest, Nested) {
     return *expectedToOptional(CAS->storeFromString(std::nullopt, Content));
   };
 
-  HierarchicalTreeBuilder Builder;
+  HierarchicalTreeBuilder Builder(sys::path::Style::posix);
   Builder.push(make("blob2"), TreeEntry::Regular, "/d2");
   Builder.push(make("blob1"), TreeEntry::Regular, "/t1/d1");
   Builder.push(make("blob3"), TreeEntry::Regular, "/t3/d3");
@@ -120,7 +120,7 @@ TEST(HierarchicalTreeBuilderTest, MergeDirectories) {
 
   auto createRoot = [&](StringRef Blob, StringRef Path,
                         std::optional<ObjectRef> &Root) {
-    HierarchicalTreeBuilder Builder;
+    HierarchicalTreeBuilder Builder(sys::path::Style::posix);
     Builder.push(make(Blob), TreeEntry::Regular, Path);
 
     std::optional<ObjectProxy> H;
@@ -135,7 +135,7 @@ TEST(HierarchicalTreeBuilderTest, MergeDirectories) {
   std::optional<ObjectRef> Root3;
   createRoot("blob3", "/t1/nested/d1", Root3);
 
-  HierarchicalTreeBuilder Builder;
+  HierarchicalTreeBuilder Builder(sys::path::Style::posix);
   Builder.pushTreeContent(*Root1, "/");
   Builder.pushTreeContent(*Root2, "");
   Builder.pushTreeContent(*Root3, "/");
@@ -180,7 +180,7 @@ TEST(HierarchicalTreeBuilderTest, MergeDirectoriesConflict) {
 
   auto createRoot = [&](StringRef Blob, StringRef Path,
                         std::optional<ObjectProxy> &Root) {
-    HierarchicalTreeBuilder Builder;
+    HierarchicalTreeBuilder Builder(sys::path::Style::posix);
     Builder.push(make(Blob), TreeEntry::Regular, Path);
     ASSERT_THAT_ERROR(Builder.create(*CAS).moveInto(Root), Succeeded());
   };
@@ -193,7 +193,7 @@ TEST(HierarchicalTreeBuilderTest, MergeDirectoriesConflict) {
   createRoot("blob3", "/t1/d1/nested", Root3);
 
   {
-    HierarchicalTreeBuilder Builder;
+    HierarchicalTreeBuilder Builder(sys::path::Style::posix);
     Builder.pushTreeContent(Root1->getRef(), "");
     Builder.pushTreeContent(Root2->getRef(), "");
     std::optional<ObjectProxy> Root;
@@ -202,7 +202,7 @@ TEST(HierarchicalTreeBuilderTest, MergeDirectoriesConflict) {
         FailedWithMessage("duplicate path '/t1/d1' with different ID"));
   }
   {
-    HierarchicalTreeBuilder Builder;
+    HierarchicalTreeBuilder Builder(sys::path::Style::posix);
     Builder.pushTreeContent(Root1->getRef(), "");
     Builder.pushTreeContent(Root3->getRef(), "");
     std::optional<ObjectProxy> Root;
