@@ -180,7 +180,8 @@ public:
     M.reset(new llvm::Module(MainFileName, *VMContext));
     M->setDataLayout(Ctx->getTargetInfo().getDataLayoutString());
     Builder.reset(new CodeGen::CodeGenModule(
-        *Ctx, FS, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts, *M, Diags));
+        *Ctx, FS, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts, Ctx->getTargetInfo(),
+        *M, Diags));
 
     // Prepare CGDebugInfo to emit debug info for a clang module.
     auto *DI = Builder->getModuleDebugInfo();
