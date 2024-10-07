@@ -42,8 +42,5 @@ class TestCase(TestBase):
         # enabled, it can have the unwatned effect of suppressing failures
         # within the TypeRef type system.
         self.runCmd("settings set symbols.swift-enable-ast-context false")
-        self.addTearDownHook(
-            lambda: self.runCmd("settings set symbols.swift-enable-ast-context true")
-        )
 
         self.expect("frame variable measurement", substrs=["1.25 m"])
