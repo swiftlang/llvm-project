@@ -532,6 +532,53 @@ bool DWARFExpression::LinkThreadLocalStorage(
   return true;
 }
 
+static bool IsAsyncRegCtxExpr(DataExtractor &opcodes) {
+  offset_t offset = 0;
+  const uint8_t op_async_ctx_reg = opcodes.GetU8(&offset);
+  return op_async_ctx_reg ==
+         DW_OP_reg22; // todo also check this is the last operation.
+}
+
+static std::optional<DWARFExpressionList>
+SwiftAsyncEvaluate_DW_OP_entry_value(const DWARFUnit *dwarf_cu, Function &func,
+                                     const DataExtractor &opcodes,
+                                     offset_t &current_offset) {
+  auto func_name = func.GetMangled().GetMangledName().GetStringRef();
+  if (!SwiftLanguageRuntime::IsAnySwiftAsyncFunctionSymbol(func_name))
+    return {};
+
+  offset_t new_offset = current_offset;
+  const uint32_t subexpr_len = opcodes.GetULEB128(&new_offset);
+  const void *subexpr_data = opcodes.GetData(&new_offset, subexpr_len);
+  if (!subexpr_data)
+    return {};
+
+  // Look for DW_OP_reg22.
+  // TODO: x86
+  DataExtractor subexpr_extractor(
+      subexpr_data, subexpr_len, opcodes.GetByteOrder(),
+      opcodes.GetAddressByteSize(), opcodes.getTargetByteSize());
+  if (!IsAsyncRegCtxExpr(subexpr_extractor))
+    return {};
+
+  // Q funclets require an extra level of indirection.
+  if (SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
+          func_name)) {
+    const uint8_t maybe_op_deref = opcodes.GetU8(&new_offset);
+    if (maybe_op_deref != DW_OP_deref)
+      return {};
+  }
+
+  static const llvm::ArrayRef<uint8_t> cfa_opcode = {DW_OP_call_frame_cfa};
+  DataExtractor cfa_expr_data(
+      cfa_opcode.data(), cfa_opcode.size(), opcodes.GetByteOrder(),
+      opcodes.GetAddressByteSize(), opcodes.getTargetByteSize());
+  DWARFExpressionList cfa_expr(func.CalculateSymbolContextModule(),
+                               cfa_expr_data, dwarf_cu);
+  current_offset = new_offset;
+  return cfa_expr;
+}
+
 static llvm::Error
 Evaluate_DW_OP_entry_value(std::vector<Value> &stack, const DWARFUnit *dwarf_cu,
                            ExecutionContext *exe_ctx, RegisterContext *reg_ctx,
@@ -629,20 +676,29 @@ Evaluate_DW_OP_entry_value(std::vector<Value> &stack, const DWARFUnit *dwarf_cu,
   if (!current_func)
     return llvm::createStringError("no current function");
 
+  if (std::optional<DWARFExpressionList> cfa_expr =
+          SwiftAsyncEvaluate_DW_OP_entry_value(dwarf_cu, *current_func, opcodes,
+                                               opcode_offset)) {
+    llvm::Expected<Value> maybe_result =
+        cfa_expr->Evaluate(exe_ctx, current_frame->GetRegisterContext().get(),
+                           LLDB_INVALID_ADDRESS,
+                           /*initial_value_ptr=*/nullptr,
+                           /*object_address_ptr=*/nullptr);
+    if (!maybe_result) {
+      LLDB_LOG(log,
+               "Evaluate_DW_OP_entry_value: call site param evaluation failed");
+      return maybe_result.takeError();
+    }
+
+    stack.push_back(*maybe_result);
+    return llvm::Error::success();
+  }
+
   CallEdge *call_edge = nullptr;
   ModuleList &modlist = target.GetImages();
   ExecutionContext parent_exe_ctx = *exe_ctx;
   parent_exe_ctx.SetFrameSP(parent_frame);
   Function *parent_func = nullptr;
-#ifdef LLDB_ENABLE_SWIFT
-  // Swift async function arguments are represented relative to a
-  // DW_OP_entry_value that fetches the async context register. This
-  // register is known to the unwinder and can always be restored
-  // therefore it is not necessary to match up a call site parameter
-  // with it.
-  auto fn_name = current_func->GetMangled().GetMangledName().GetStringRef();
-  if (!SwiftLanguageRuntime::IsAnySwiftAsyncFunctionSymbol(fn_name)) {
-#endif
 
   parent_func =
     parent_frame->GetSymbolContext(eSymbolContextFunction).function;
@@ -677,25 +733,16 @@ Evaluate_DW_OP_entry_value(std::vector<Value> &stack, const DWARFUnit *dwarf_cu,
   if (!call_edge)
     return llvm::createStringError("no unambiguous edge from parent "
                                    "to current function");
-#ifdef LLDB_ENABLE_SWIFT
-  }
-#endif
 
   // 3. Attempt to locate the DW_OP_entry_value expression in the set of
   //    available call site parameters. If found, evaluate the corresponding
   //    parameter in the context of the parent frame.
   const uint32_t subexpr_len = opcodes.GetULEB128(&opcode_offset);
-#ifdef LLDB_ENABLE_SWIFT
-  lldb::offset_t subexpr_offset = opcode_offset;
-#endif
   const void *subexpr_data = opcodes.GetData(&opcode_offset, subexpr_len);
   if (!subexpr_data)
     return llvm::createStringError("subexpr could not be read");
 
   const CallSiteParameter *matched_param = nullptr;
-#ifdef LLDB_ENABLE_SWIFT
-  if (call_edge) {
-#endif
   for (const CallSiteParameter &param : call_edge->GetCallSiteParameters()) {
     DataExtractor param_subexpr_extractor;
     if (!param.LocationInCallee.GetExpressionData(param_subexpr_extractor))
@@ -721,25 +768,10 @@ Evaluate_DW_OP_entry_value(std::vector<Value> &stack, const DWARFUnit *dwarf_cu,
   }
   if (!matched_param)
     return llvm::createStringError("no matching call site param found");
-#ifdef LLDB_ENABLE_SWIFT
-  }
-  std::optional<DWARFExpressionList> subexpr;
-  if (!matched_param) {
-    auto *ctx_func = parent_func ? parent_func : current_func;
-    subexpr.emplace(ctx_func->CalculateSymbolContextModule(),
-                    DataExtractor(opcodes, subexpr_offset, subexpr_len),
-                    dwarf_cu);
-  }
-#endif
 
   // TODO: Add support for DW_OP_push_object_address within a DW_OP_entry_value
   // subexpresion whenever llvm does.
-#ifdef LLDB_ENABLE_SWIFT
-  const DWARFExpressionList &param_expr =
-      matched_param ? matched_param->LocationInCaller : *subexpr;
-#else
   const DWARFExpressionList &param_expr = matched_param->LocationInCaller;
-#endif
 
   llvm::Expected<Value> maybe_result = param_expr.Evaluate(
       &parent_exe_ctx, parent_frame->GetRegisterContext().get(),
