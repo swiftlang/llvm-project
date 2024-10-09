@@ -358,6 +358,12 @@ protected:
   CompilerType m_box_metadata_type;
 
 private:
+  /// Types with the @_originallyDefinedIn attribute are serialized with with
+  /// the original module name in reflection metadata. At the same time the type
+  /// is serialized with the swiftmodule name in debug info, but with a parent
+  /// module with the original module name. This function adjusts \type to look
+  /// up the type in reflection metadata if necessary.
+  CompilerType AdjustTypeForOriginallyDefinedInModule(CompilerType type);
   /// Don't call these directly.
   /// \{
   /// There is a global variable \p _swift_classIsSwiftMask that is
