@@ -13,6 +13,7 @@
 #ifndef liblldb_TypeSystemSwiftTypeRef_h_
 #define liblldb_TypeSystemSwiftTypeRef_h_
 
+#include "Plugins/TypeSystem/Swift/LRUCache.h"
 #include "Plugins/TypeSystem/Swift/TypeSystemSwift.h"
 #include "lldb/Core/SwiftForward.h"
 #include "lldb/Utility/ThreadSafeDenseMap.h"
@@ -500,6 +501,9 @@ protected:
 
   /// All lldb::Type pointers produced by DWARFASTParser Swift go here.
   ThreadSafeDenseMap<const char *, lldb::TypeSP> m_swift_type_map;
+
+  /// Fully resolved types produced by `GetCanonicalType` go here.
+  swift_demangle::LRUCache<CompilerType> m_canonical_types_cache{10};
 };
 
 /// This one owns a SwiftASTContextForExpressions.

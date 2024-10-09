@@ -2951,7 +2951,11 @@ TypeSystemSwiftTypeRef::GetCanonicalType(opaque_compiler_type_t type) {
   auto impl = [&]() {
     using namespace swift::Demangle;
     Demangler dem;
-    NodePointer canonical = GetCanonicalDemangleTree(dem, AsMangledName(type));
+    auto original_mangled_name = ConstString(AsMangledName(type));
+    if (auto cached = m_canonical_types_cache.Get(original_mangled_name))
+      return *cached;
+
+    NodePointer canonical = GetCanonicalDemangleTree(dem, original_mangled_name.GetStringRef());
     if (ContainsUnresolvedTypeAlias(canonical)) {
       // If this is a typealias defined in the expression evaluator,
       // then we don't have debug info to resolve it from.
@@ -2963,7 +2967,13 @@ TypeSystemSwiftTypeRef::GetCanonicalType(opaque_compiler_type_t type) {
     if (!mangling.isSuccess())
       return CompilerType();
     ConstString mangled(mangling.result());
-    return GetTypeFromMangledTypename(mangled);
+    auto result = GetTypeFromMangledTypename(mangled);
+    // Cache the result only when:
+    // 1) the type is fully resolved. Types with unresolved typealias will be
+    // processed by SwiftASTContext which has its own cache.
+    // 2) the type succesfully mangled.
+    m_canonical_types_cache.Put(original_mangled_name, result);
+    return result;
   };
   VALIDATE_AND_RETURN(impl, GetCanonicalType, type, g_no_exe_ctx,
                       (ReconstructType(type)), (ReconstructType(type)));
