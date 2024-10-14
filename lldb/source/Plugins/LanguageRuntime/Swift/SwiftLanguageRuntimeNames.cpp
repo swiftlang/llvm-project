@@ -215,6 +215,34 @@ static ThunkAction GetThunkAction(ThunkKind kind) {
   }
 }
 
+/// Given a thread that is stopped at the start of swift_task_switch, create
+/// thread plan that runs to the address of the resume function passed as the
+/// second argument of swift_task_switch.
+static ThreadPlanSP CreateRunThroughTaskSwitchThreadPlan(Thread &thread) {
+  // The signature for `swift_task_switch` is as follows:
+  //   SWIFT_CC(swiftasync)
+  //   void swift_task_switch(
+  //     SWIFT_ASYNC_CONTEXT AsyncContext *resumeContext,
+  //     TaskContinuationFunction *resumeFunction,
+  //     ExecutorRef newExecutor);
+  //
+  // The async context given as the first argument is not passed using the
+  // calling convention's first register, it's passed in the platform's async
+  // context register. This means the `resumeFunction` parameter uses the
+  // first ABI register (ex: x86-64: rdi, arm64: x0).
+  RegisterContextSP reg_ctx =
+      thread.GetStackFrameAtIndex(0)->GetRegisterContext();
+  constexpr unsigned resume_fn_regnum = LLDB_REGNUM_GENERIC_ARG1;
+  unsigned resume_fn_reg = reg_ctx->ConvertRegisterKindToRegisterNumber(
+      RegisterKind::eRegisterKindGeneric, resume_fn_regnum);
+  uint64_t resume_fn_ptr = reg_ctx->ReadRegisterAsUnsigned(resume_fn_reg, 0);
+  if (!resume_fn_ptr)
+    return {};
+
+  return std::make_shared<ThreadPlanRunToAddress>(thread, resume_fn_ptr,
+                                                  /*stop_others*/ false);
+}
+
 static lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
                                                        bool stop_others) {
   // Here are the trampolines we have at present.
@@ -244,7 +272,11 @@ static lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
   if (symbol_addr != cur_addr)
     return nullptr;
 
-  const char *symbol_name = symbol->GetMangled().GetMangledName().AsCString();
+  Mangled &mangled_symbol_name = symbol->GetMangled();
+  const char *symbol_name = mangled_symbol_name.GetMangledName().AsCString();
+
+  if (mangled_symbol_name.GetDemangledName() == "swift_task_switch")
+    return CreateRunThroughTaskSwitchThreadPlan(thread);
 
   ThunkKind thunk_kind = GetThunkKind(symbol);
   ThunkAction thunk_action = GetThunkAction(thunk_kind);
