@@ -196,7 +196,7 @@ static void printDefBlockName(raw_ostream &os,
 }
 
 /// Convert the given MLIR diagnostic to the LSP form.
-static lsp::Diagnostic getLspDiagnoticFromDiag(llvm::SourceMgr &sourceMgr,
+static lsp::Diagnostic getLspDiagnosticFromDiag(llvm::SourceMgr &sourceMgr,
                                                Diagnostic &diag,
                                                const lsp::URIForFile &uri) {
   lsp::Diagnostic lspDiag;
@@ -349,7 +349,7 @@ MLIRDocument::MLIRDocument(MLIRContext &context, const lsp::URIForFile &uri,
                            StringRef contents,
                            std::vector<lsp::Diagnostic> &diagnostics) {
   ScopedDiagnosticHandler handler(&context, [&](Diagnostic &diag) {
-    diagnostics.push_back(getLspDiagnoticFromDiag(sourceMgr, diag, uri));
+    diagnostics.push_back(getLspDiagnosticFromDiag(sourceMgr, diag, uri));
   });
 
   // Try to parsed the given IR string.
