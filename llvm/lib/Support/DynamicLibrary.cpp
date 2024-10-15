@@ -23,7 +23,13 @@ using namespace llvm::sys;
 
 // All methods for HandleSet should be used holding SymbolsMutex.
 class DynamicLibrary::HandleSet {
-  typedef std::vector<void *> HandleList;
+  struct HandleState {
+    void *Handle;
+    bool CloseOnExit;
+    bool operator==(void *Handle) const { return Handle == this->Handle; }
+  };
+
+  typedef std::vector<HandleState> HandleList;
   HandleList Handles;
   void *Process = nullptr;
 
@@ -41,8 +47,8 @@ public:
     return Handle == Process || Find(Handle) != Handles.end();
   }
 
-  bool AddLibrary(void *Handle, bool IsProcess = false, bool CanClose = true,
-                  bool AllowDuplicates = false) {
+  bool AddLibrary(void *Handle, bool CloseOnExit, bool IsProcess = false,
+                  bool CanClose = true, bool AllowDuplicates = false) {
 #ifdef _WIN32
     assert((Handle == this ? IsProcess : !IsProcess) && "Bad Handle.");
 #endif
@@ -51,11 +57,13 @@ public:
 
     if (LLVM_LIKELY(!IsProcess)) {
       if (!AllowDuplicates && Find(Handle) != Handles.end()) {
+        // Note: it is still correct to close here if CloseOnExit is false,
+        // because handles are reference counted on all supported platforms.
         if (CanClose)
           DLClose(Handle);
         return false;
       }
-      Handles.push_back(Handle);
+      Handles.push_back({Handle, CloseOnExit});
     } else {
 #ifndef _WIN32
       if (Process) {
@@ -80,13 +88,13 @@ public:
 
   void *LibLookup(const char *Symbol, DynamicLibrary::SearchOrdering Order) {
     if (Order & SO_LoadOrder) {
-      for (void *Handle : Handles) {
-        if (void *Ptr = DLSym(Handle, Symbol))
+      for (HandleState HS : Handles) {
+        if (void *Ptr = DLSym(HS.Handle, Symbol))
           return Ptr;
       }
     } else {
-      for (void *Handle : llvm::reverse(Handles)) {
-        if (void *Ptr = DLSym(Handle, Symbol))
+      for (HandleState HS : llvm::reverse(Handles)) {
+        if (void *Ptr = DLSym(HS.Handle, Symbol))
           return Ptr;
       }
     }
@@ -163,23 +171,26 @@ void DynamicLibrary::AddSymbol(StringRef SymbolName, void *SymbolValue) {
 }
 
 DynamicLibrary DynamicLibrary::getPermanentLibrary(const char *FileName,
-                                                   std::string *Err) {
+                                                   std::string *Err,
+                                                   bool CloseOnExit) {
   auto &G = getGlobals();
   void *Handle = HandleSet::DLOpen(FileName, Err);
   if (Handle != &Invalid) {
     SmartScopedLock<true> Lock(G.SymbolsMutex);
-    G.OpenedHandles.AddLibrary(Handle, /*IsProcess*/ FileName == nullptr);
+    G.OpenedHandles.AddLibrary(Handle, CloseOnExit,
+                               /*IsProcess*/ FileName == nullptr);
   }
 
   return DynamicLibrary(Handle);
 }
 
 DynamicLibrary DynamicLibrary::addPermanentLibrary(void *Handle,
-                                                   std::string *Err) {
+                                                   std::string *Err,
+                                                   bool CloseOnExit) {
   auto &G = getGlobals();
   SmartScopedLock<true> Lock(G.SymbolsMutex);
   // If we've already loaded this library, tell the caller.
-  if (!G.OpenedHandles.AddLibrary(Handle, /*IsProcess*/ false,
+  if (!G.OpenedHandles.AddLibrary(Handle, CloseOnExit, /*IsProcess*/ false,
                                   /*CanClose*/ false))
     *Err = "Library already loaded";
 
@@ -187,14 +198,15 @@ DynamicLibrary DynamicLibrary::addPermanentLibrary(void *Handle,
 }
 
 DynamicLibrary DynamicLibrary::getLibrary(const char *FileName,
-                                          std::string *Err) {
+                                          std::string *Err,
+                                          bool CloseOnExit) {
   assert(FileName && "Use getPermanentLibrary() for opening process handle");
   void *Handle = HandleSet::DLOpen(FileName, Err);
   if (Handle != &Invalid) {
     auto &G = getGlobals();
     SmartScopedLock<true> Lock(G.SymbolsMutex);
-    G.OpenedTemporaryHandles.AddLibrary(Handle, /*IsProcess*/ false,
-                                        /*CanClose*/ false,
+    G.OpenedTemporaryHandles.AddLibrary(Handle, CloseOnExit,
+                                        /*IsProcess*/ false, /*CanClose*/ false,
                                         /*AllowDuplicates*/ true);
   }
   return DynamicLibrary(Handle);

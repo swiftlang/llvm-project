@@ -22,8 +22,9 @@
 //===----------------------------------------------------------------------===//
 
 DynamicLibrary::HandleSet::~HandleSet() {
-  for (void *Handle : llvm::reverse(Handles))
-    FreeLibrary(HMODULE(Handle));
+  for (HandleState HS : llvm::reverse(Handles))
+    if (HS.CloseOnExit)
+      FreeLibrary(HMODULE(HS.Handle));
 
   // 'Process' should not be released on Windows.
   assert((!Process || Process == this) && "Bad Handle");

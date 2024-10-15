@@ -58,8 +58,9 @@ public:
 
   /// This function permanently loads the dynamic library at the given path
   /// using the library load operation from the host operating system. The
-  /// library instance will only be closed when global destructors run, and
-  /// there is no guarantee when the library will be unloaded.
+  /// library instance will only be closed when global destructors run unless
+  /// \p CloseOnExit is false, and there is no guarantee when the library will
+  /// be unloaded.
   ///
   /// This returns a valid DynamicLibrary instance on success and an invalid
   /// instance on failure (see isValid()). \p *errMsg will only be modified if
@@ -68,15 +69,17 @@ public:
   /// It is safe to call this function multiple times for the same library.
   /// Open a dynamic library permanently.
   static DynamicLibrary getPermanentLibrary(const char *filename,
-                                            std::string *errMsg = nullptr);
+                                            std::string *errMsg = nullptr,
+                                            bool CloseOnExit = true);
 
   /// Registers an externally loaded library. The library will be unloaded
-  /// when the program terminates.
+  /// when the program terminates unless \p CloseOnExit is false.
   ///
   /// It is safe to call this function multiple times for the same library,
   /// though ownership is only taken if there was no error.
   static DynamicLibrary addPermanentLibrary(void *handle,
-                                            std::string *errMsg = nullptr);
+                                            std::string *errMsg = nullptr,
+                                            bool CloseOnExit = true);
 
   /// This function permanently loads the dynamic library at the given path.
   /// Use this instead of getPermanentLibrary() when you won't need to get
@@ -84,14 +87,16 @@ public:
   ///
   /// It is safe to call this function multiple times for the same library.
   static bool LoadLibraryPermanently(const char *Filename,
-                                     std::string *ErrMsg = nullptr) {
-    return !getPermanentLibrary(Filename, ErrMsg).isValid();
+                                     std::string *ErrMsg = nullptr,
+                                     bool CloseOnExit = true) {
+    return !getPermanentLibrary(Filename, ErrMsg, CloseOnExit).isValid();
   }
 
   /// This function loads the dynamic library at the given path, using the
   /// library load operation from the host operating system. The library
   /// instance will be closed when closeLibrary is called or global destructors
-  /// are run, but there is no guarantee when the library will be unloaded.
+  /// are run (unless \p CloseOnExit is false), but there is no guarantee when
+  /// the library will be unloaded.
   ///
   /// This returns a valid DynamicLibrary instance on success and an invalid
   /// instance on failure (see isValid()). \p *Err will only be modified if the
@@ -99,7 +104,8 @@ public:
   ///
   /// It is safe to call this function multiple times for the same library.
   static DynamicLibrary getLibrary(const char *FileName,
-                                   std::string *Err = nullptr);
+                                   std::string *Err = nullptr,
+                                   bool CloseOnExit = true);
 
   /// This function closes the dynamic library at the given path, using the
   /// library close operation of the host operating system, and there is no
