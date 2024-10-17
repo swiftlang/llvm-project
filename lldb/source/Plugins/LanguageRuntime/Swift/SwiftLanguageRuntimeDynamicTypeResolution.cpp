@@ -22,6 +22,7 @@
 #include "Plugins/TypeSystem/Swift/SwiftDemangle.h"
 #include "lldb/Core/ValueObjectMemory.h"
 #include "lldb/Host/SafeMachO.h"
+#include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/Variable.h"
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/ProcessStructReader.h"
@@ -31,6 +32,7 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Timer.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Casting.h"
 
 #include "swift/AST/ASTContext.h"
 #include "swift/AST/ASTMangler.h"
@@ -2975,6 +2977,96 @@ SwiftLanguageRuntimeImpl::GetTypeRef(CompilerType type,
   return type_ref;
 }
 
+CompilerType SwiftLanguageRuntimeImpl::AdjustTypeForOriginallyDefinedInModule(
+    CompilerType type) {
+  auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
+  assert(ts);
+  if (!ts)
+    return type;
+
+  lldb::TypeSP lldb_type =
+      ts->GetTypeSystemSwiftTypeRef().GetCachedType(type.GetMangledTypeName());
+
+  if (!lldb_type) {
+    LLDB_LOGV(GetLog(LLDBLog::Types),
+              "[AdjustTypeForOriginallyDefinedInModule] Could not find lldb "
+              "type for type with mangled name {0}",
+              type.GetMangledTypeName());
+
+    return type;
+  }
+
+  std::vector<lldb_private::CompilerContext> declContext =
+      lldb_type->GetDeclContext();
+  if (declContext.empty() ||
+      declContext[0].kind != CompilerContextKind::Module) {
+    LLDB_LOG(GetLog(LLDBLog::Types),
+             "[AdjustTypeForOriginallyDefinedInModule] No module decl context "
+             "for type with mangled name {0}",
+             type.GetMangledTypeName());
+
+    return type;
+  }
+
+  auto module_context = declContext[0];
+
+  swift::Demangle::Demangler dem;
+  auto *node = dem.demangleSymbol(type.GetMangledTypeName());
+
+  assert(node && node->hasChildren());
+  if (!node || !node->hasChildren()) {
+    LLDB_LOG(GetLog(LLDBLog::Types),
+             "[AdjustTypeForOriginallyDefinedInModule] Unexpected node for "
+             "type with mangled name {0}",
+             type.GetMangledTypeName());
+
+    return type;
+  }
+
+  NodePointer parent = node;
+  NodePointer child = node->getFirstChild();
+
+  // Find the type's module node.
+  while (child && child->getKind() != Node::Kind::Module &&
+         child->hasChildren()) {
+    parent = child;
+    child = child->getFirstChild();
+  }
+
+  assert(child);
+  if (!child) {
+    LLDB_LOG(GetLog(LLDBLog::Types),
+             "[AdjustTypeForOriginallyDefinedInModule] Unexpected null child "
+             "for type with mangled name {0}",
+             type.GetMangledTypeName());
+    return type;
+  }
+
+  // If the mangled name's module and module context module match then there's nothing to do.
+  if (child->getText() == module_context.name)
+    return type;
+
+  // Otherwise this is a type who is originally defined in a separate module.
+  // Adjust the module name.
+  auto *adjusted_module_node =
+      dem.createNodeWithAllocatedText(Node::Kind::Module, module_context.name);
+  parent->replaceChild(0, adjusted_module_node);
+
+  auto mangling = mangleNode(node);
+  assert(mangling.isSuccess());
+  if (!mangling.isSuccess()) {
+    LLDB_LOG(GetLog(LLDBLog::Types),
+             "[AdjustTypeForOriginallyDefinedInModule] Unexpected mangling "
+             "error when mangling adjusted node for type with mangled name {0}",
+             type.GetMangledTypeName());
+
+    return type;
+  }
+
+  auto str = mangling.result();
+  return ts->GetTypeFromMangledTypename(ConstString(str));
+}
+
 const swift::reflection::TypeInfo *
 SwiftLanguageRuntimeImpl::GetSwiftRuntimeTypeInfo(
     CompilerType type, ExecutionContextScope *exe_scope,
@@ -3005,6 +3097,8 @@ SwiftLanguageRuntimeImpl::GetSwiftRuntimeTypeInfo(
       type = BindGenericTypeParameters(*frame, type);
     }
 
+
+  type = AdjustTypeForOriginallyDefinedInModule(type);
   // BindGenericTypeParameters imports the type into the scratch
   // context, but we need to resolve (any DWARF links in) the typeref
   // in the original module.
