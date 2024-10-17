@@ -7,7 +7,7 @@ override ARCH := $(shell uname -m)
 all: libbaz.dylib a.out
 
 libbaz.dylib: baz.cpp
-	$(MAKE) -f $(MAKEFILE_RULES) ARCH=$(ARCH) \
+	"$(MAKE)" -f $(MAKEFILE_RULES) ARCH=$(ARCH) \
 		DYLIB_ONLY=YES DYLIB_NAME=baz DYLIB_CXX_SOURCES=baz.cpp
 
 include Makefile.rules

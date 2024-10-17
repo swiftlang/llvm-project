@@ -49,6 +49,7 @@ arch = None
 compiler = None
 dsymutil = None
 sdkroot = None
+make_path = None
 swiftCompiler = None
 swiftLibrary = None
 python = sys.executable
