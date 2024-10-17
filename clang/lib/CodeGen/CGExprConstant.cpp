@@ -875,8 +875,9 @@ bool ConstStructBuilder::Build(const APValue &Val, const RecordDecl *RD,
       BaseInfo &Base = Bases[I];
 
       bool IsPrimaryBase = Layout.getPrimaryBase() == Base.Decl;
-      Build(Val.getStructBase(Base.Index), Base.Decl, IsPrimaryBase,
-            VTableClass, Offset + Base.Offset);
+      if (!Build(Val.getStructBase(Base.Index), Base.Decl, IsPrimaryBase,
+                 VTableClass, Offset + Base.Offset))
+        return false;
     }
   }
 

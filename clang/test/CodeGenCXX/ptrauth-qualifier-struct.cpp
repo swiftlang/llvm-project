@@ -1,10 +1,14 @@
-// RUN: %clang_cc1 -triple arm64-apple-ios -fptrauth-calls -fptrauth-intrinsics -std=c++11 -emit-llvm %s  -o - | FileCheck %s
+// RUN: %clang_cc1 -triple arm64-apple-ios -fptrauth-calls -fptrauth-intrinsics -std=c++20 -emit-llvm %s  -o - | FileCheck %s
 
 #define AQ __ptrauth(1,1,50)
 #define IQ __ptrauth(1,0,50)
 
 // CHECK: %[[STRUCT_SA:.*]] = type { ptr, ptr }
 // CHECK: %[[STRUCT_SI:.*]] = type { ptr }
+
+// CHECK: @_ZN14test_constexpr1gE = global i32 0, align 4
+// CHECK: @_ZN14test_constexpr1gE.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @_ZN14test_constexpr1gE, i32 1, i64 0, i64 50 }, section "llvm.ptrauth", align 8
+// CHECK: @__const._ZN14test_constexpr17testNoAddressDiscEv.d = private unnamed_addr constant { ptr, i64, i64, i64, i64 } { ptr @_ZN14test_constexpr1gE.ptrauth, i64 1, i64 1, i64 1, i64 1 }, align 8
 
 struct SA {
   int * AQ m0; // Signed using address discrimination.
@@ -128,6 +132,45 @@ void testMoveAssignment(SI a) {
   t = static_cast<SI &&>(a);
 }
 
+namespace test_constexpr {
+  int g;
+
+  struct BaseAddrDisc {
+    int * AQ ptr;
+    long long a, b, c, d;
+    constexpr BaseAddrDisc() { ptr = &g; a = b = c = d = 1;}
+  };
+
+  struct BaseNoAddrDisc {
+    int * IQ ptr;
+    long long a, b, c, d;
+    constexpr BaseNoAddrDisc() { ptr = &g; a = b = c = d = 1;}
+  };
+
+  template <class Base>
+  struct Derived : Base {};
+
+// clang cannot initialize 'd' using memcpy because the base class 'Base' has an
+// address-discriminated member.
+
+// CHECK-LABEL: define void @_ZN14test_constexpr15testAddressDiscEv()
+// CHECK: %[[D:.*]] = alloca %{{.*}}, align 8
+// CHECK-NEXT: call noundef ptr @_ZN14test_constexpr7DerivedINS_12BaseAddrDiscEEC1Ev(ptr noundef nonnull align 8 dereferenceable(40) %[[D]])
+// CHECK-NEXT: ret void
+
+  void testAddressDisc() {
+    constexpr Derived<BaseAddrDisc> d;
+  }
+
+// CHECK: define void @_ZN14test_constexpr17testNoAddressDiscEv()
+// CHECK: %[[D:.*]] = alloca %{{.*}}, align 8
+// CHECK: call void @llvm.memcpy.p0.p0.i64(ptr align 8 %[[D]], ptr align 8 @__const._ZN14test_constexpr17testNoAddressDiscEv.d, i64 40, i1 false)
+// CHECK: ret void
+
+  void testNoAddressDisc() {
+    constexpr Derived<BaseNoAddrDisc> d;
+  }
+}
 // CHECK: define linkonce_odr noundef ptr @_ZN2SAC2ERKS_(ptr noundef nonnull align 8 dereferenceable(16) %[[THIS:.*]], ptr noundef nonnull align 8 dereferenceable(16) %0)
 // CHECK: %[[RETVAL:.*]] = alloca ptr, align 8
 // CHECK: %[[THIS_ADDR:.*]] = alloca ptr, align 8
@@ -165,3 +208,30 @@ void testMoveAssignment(SI a) {
 // CHECK: %[[V6:.*]] = call i64 @llvm.ptrauth.blend(i64 %[[V5]], i64 50)
 // CHECK: %[[V8:.*]] = ptrtoint ptr %[[V2]] to i64
 // CHECK: %[[V9:.*]] = call i64 @llvm.ptrauth.resign(i64 %[[V8]], i32 1, i64 %[[V4]], i32 1, i64 %[[V6]])
+
+// CHECK: define linkonce_odr noundef ptr @_ZN14test_constexpr7DerivedINS_12BaseAddrDiscEEC2Ev(ptr noundef nonnull align 8 dereferenceable(40) %[[THIS:.*]])
+// CHECK: %[[THIS_ADDR:.*]] = alloca ptr, align 8
+// CHECK-NEXT: store ptr %[[THIS]], ptr %[[THIS_ADDR]], align 8
+// CHECK-NEXT: %[[THIS1:.*]] = load ptr, ptr %[[THIS_ADDR]], align 8
+// CHECK-NEXT: call noundef ptr @_ZN14test_constexpr12BaseAddrDiscC2Ev(ptr noundef nonnull align 8 dereferenceable(40) %[[THIS1]])
+// CHECK-NEXT: ret ptr %[[THIS1]]
+
+// CHECK: define linkonce_odr noundef ptr @_ZN14test_constexpr12BaseAddrDiscC2Ev(ptr noundef nonnull align 8 dereferenceable(40) %[[THIS:.*]])
+// CHECK: %[[THIS_ADDR:.*]] = alloca ptr, align 8
+// CHECK-NEXT: store ptr %[[THIS]], ptr %[[THIS_ADDR]], align 8
+// CHECK-NEXT: %[[THIS1:.*]] = load ptr, ptr %[[THIS_ADDR]], align 8
+// CHECK-NEXT: %[[PTR:.*]] = getelementptr inbounds %{{.*}}, ptr %[[THIS1]], i32 0, i32 0
+// CHECK-NEXT: %[[V0:.*]] = ptrtoint ptr %[[PTR]] to i64
+// CHECK-NEXT: %[[V1:.*]] = call i64 @llvm.ptrauth.blend(i64 %[[V0]], i64 50)
+// CHECK-NEXT: %[[V2:.*]] = call i64 @llvm.ptrauth.sign(i64 ptrtoint (ptr @_ZN14test_constexpr1gE to i64), i32 1, i64 %[[V1]])
+// CHECK-NEXT: %[[V3:.*]] = inttoptr i64 %[[V2]] to ptr
+// CHECK-NEXT: store ptr %[[V3]], ptr %[[PTR]], align 8
+// CHECK-NEXT: %[[D:.*]] = getelementptr inbounds %{{.*}}, ptr %[[THIS1]], i32 0, i32 4
+// CHECK-NEXT: store i64 1, ptr %[[D]], align 8
+// CHECK-NEXT: %[[C:.*]] = getelementptr inbounds %{{.*}}, ptr %[[THIS1]], i32 0, i32 3
+// CHECK-NEXT: store i64 1, ptr %[[C]], align 8
+// CHECK-NEXT: %[[B:.*]] = getelementptr inbounds %{{.*}}, ptr %[[THIS1]], i32 0, i32 2
+// CHECK-NEXT: store i64 1, ptr %[[B]], align 8
+// CHECK-NEXT: %[[A:.*]] = getelementptr inbounds %{{.*}}, ptr %[[THIS1]], i32 0, i32 1
+// CHECK-NEXT: store i64 1, ptr %[[A]], align 8
+// CHECK-NEXT: ret ptr %[[THIS1]]
