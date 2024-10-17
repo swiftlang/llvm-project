@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SwiftLanguage.h"
-
+#include "SwiftHighlighterBridge.h"
 #include "SwiftUnsafeTypes.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/PluginManager.h"
@@ -38,6 +38,7 @@
 #include "SwiftFormatters.h"
 
 #include <functional>
+#include <memory>
 #include <mutex>
 
 #include "lldb/lldb-enumerations.h"
@@ -61,6 +62,8 @@ using lldb_private::formatters::swift::DictionaryConfig;
 using lldb_private::formatters::swift::SetConfig;
 
 LLDB_PLUGIN_DEFINE(SwiftLanguage)
+
+SwiftLanguage::SwiftLanguage() : m_highlighter((std::make_unique<SwiftHighlighterBridge>()) ) {}
 
 void SwiftLanguage::Initialize() {
   LogChannelSwift::Initialize();

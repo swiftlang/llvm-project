@@ -27,7 +27,7 @@ class SwiftLanguage : public Language {
 public:
   virtual ~SwiftLanguage() = default;
 
-  SwiftLanguage() = default;
+  SwiftLanguage();
 
   lldb::LanguageType GetLanguageType() const override {
     return lldb::eLanguageTypeSwift;
@@ -75,6 +75,10 @@ public:
   ConstString
   GetDemangledFunctionNameWithoutArguments(Mangled mangled) const override;
 
+  const Highlighter *GetHighlighter() const override {
+    return m_highlighter.get();
+  }
+
   //------------------------------------------------------------------
   // Static Functions
   //------------------------------------------------------------------
@@ -94,6 +98,8 @@ public:
   // PluginInterface protocol
   //------------------------------------------------------------------
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
+private: 
+  std::unique_ptr<Highlighter> m_highlighter;
 };
 
 } // namespace lldb_private
