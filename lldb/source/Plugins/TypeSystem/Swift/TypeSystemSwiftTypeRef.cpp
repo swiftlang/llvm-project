@@ -1021,12 +1021,6 @@ TypeSystemSwiftTypeRef::GetCanonicalNode(swift::Demangle::Demangler &dem,
         return node;
       return Desugar(dem, node, Node::Kind::BoundGenericStructure,
                      Node::Kind::Structure, "Dictionary");
-    case Node::Kind::SugaredParen:
-      assert(node->getNumChildren() == 1);
-      if (node->getNumChildren() != 1)
-        return node;
-      return node->getFirstChild();
-
     case Node::Kind::BoundGenericTypeAlias:
     case Node::Kind::TypeAlias: {
       auto node_clangtype = ResolveTypeAlias(dem, node);
@@ -2179,21 +2173,6 @@ template <> bool Equivalent<uint32_t>(uint32_t l, uint32_t r) {
   return l == r;
 }
 
-/// Determine wether this demangle tree contains a sugar () node.
-static bool ContainsSugaredParen(swift::Demangle::NodePointer node) {
-  if (!node)
-    return false;
-
-  if (node->getKind() == swift::Demangle::Node::Kind::SugaredParen)
-    return true;
-
-  for (swift::Demangle::NodePointer child : *node)
-    if (ContainsSugaredParen(child))
-      return true;
-
-  return false;
-}
-
 /// Compare two swift types from different type systems by comparing their
 /// (canonicalized) mangled name.
 template <> bool Equivalent<CompilerType>(CompilerType l, CompilerType r) {
@@ -2228,7 +2207,7 @@ template <> bool Equivalent<CompilerType>(CompilerType l, CompilerType r) {
   auto l_node = GetDemangledType(dem, lhs.GetStringRef());
   auto r_node = GetDemangledType(dem, rhs.GetStringRef());
   if (ContainsUnresolvedTypeAlias(r_node) ||
-      ContainsGenericTypeParameter(r_node) || ContainsSugaredParen(r_node))
+      ContainsGenericTypeParameter(r_node))
     return true;
   auto l_mangling = swift::Demangle::mangleNode(
       TypeSystemSwiftTypeRef::CanonicalizeSugar(dem, l_node));
