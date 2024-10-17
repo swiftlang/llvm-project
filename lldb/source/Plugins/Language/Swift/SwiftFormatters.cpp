@@ -794,33 +794,6 @@ lldb_private::formatters::swift::EnumSyntheticFrontEndCreator(
   return (new EnumSyntheticFrontEnd(valobj_sp));
 }
 
-bool lldb_private::formatters::swift::ObjC_Selector_SummaryProvider(
-    ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
-  LLDB_SCOPED_TIMER();
-  static ConstString g_ptr("ptr");
-  static ConstString g__rawValue("_rawValue");
-
-  ValueObjectSP ptr_sp(valobj.GetChildAtNamePath({g_ptr, g__rawValue}));
-  if (!ptr_sp)
-    return false;
-
-  auto ptr_value = ptr_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
-
-  if (0 == ptr_value || LLDB_INVALID_ADDRESS == ptr_value)
-    return false;
-
-  StringPrinter::ReadStringAndDumpToStreamOptions read_options;
-  read_options.SetLocation(ptr_value);
-  read_options.SetTargetSP(valobj.GetTargetSP());
-  read_options.SetStream(&stream);
-  read_options.SetQuote('"');
-  read_options.SetNeedsZeroTermination(true);
-  read_options.SetEscapeStyle(StringPrinter::EscapeStyle::Swift);
-
-  return StringPrinter::ReadStringAndDumpToStream<
-      StringPrinter::StringElementType::ASCII>(read_options);
-}
-
 template <int Key> struct TypePreservingNSNumber;
 
 template <> struct TypePreservingNSNumber<0> {
