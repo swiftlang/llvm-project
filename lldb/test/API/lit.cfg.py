@@ -255,6 +255,9 @@ if is_configured("test_swift_compiler"):
 if is_configured("dsymutil"):
     dotest_cmd += ["--dsymutil", config.dsymutil]
 
+if is_configured("make"):
+    dotest_cmd += ["--make", config.make]
+
 if is_configured("llvm_tools_dir"):
     dotest_cmd += ["--llvm-tools-dir", config.llvm_tools_dir]
 
@@ -341,3 +344,6 @@ if "FREEBSD_LEGACY_PLUGIN" in os.environ:
 # Propagate XDG_CACHE_HOME
 if "XDG_CACHE_HOME" in os.environ:
     config.environment["XDG_CACHE_HOME"] = os.environ["XDG_CACHE_HOME"]
+
+if is_configured("use_vendor_packages"):
+    config.environment["LLDB_TEST_USE_VENDOR_PACKAGES"] = "1"

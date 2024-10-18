@@ -269,6 +269,9 @@ def parseOptionsAndInitTestdirs():
                     configuration.compiler = candidate
                     break
 
+    if args.make:
+        configuration.make_path = args.make
+
     if args.dsymutil:
         configuration.dsymutil = args.dsymutil
     elif platform_system == "Darwin":
