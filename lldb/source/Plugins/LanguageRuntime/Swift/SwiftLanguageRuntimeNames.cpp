@@ -957,6 +957,9 @@ static bool ParseGlobal(const swift::Demangle::NodePointer &node,
 
       case swift::Demangle::Node::Kind::Getter:
       case swift::Demangle::Node::Kind::Setter:
+        if (auto *variable_node = child->getFirstChild())
+          return ParseFunction(variable_node, identifier, parent_kind, kind);
+        break;
       case swift::Demangle::Node::Kind::Function:
         return ParseFunction(child, identifier, parent_kind, kind);
 
@@ -1020,9 +1023,6 @@ bool SwiftLanguageRuntime::MethodName::ExtractFunctionBasenameFromMangled(
 
     case swift::Demangle::Node::Kind::Getter:
     case swift::Demangle::Node::Kind::Setter:
-      // don't handle getters and setters right now...
-      return false;
-
     case swift::Demangle::Node::Kind::Function:
       switch (parent_kind) {
       case swift::Demangle::Node::Kind::BoundGenericClass:
