@@ -180,10 +180,8 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
   basic_synth_flags.SetCascades(true).SetSkipPointers(true).SetSkipReferences(
       true);
 
-  AddCXXSummary(swift_category_sp,
-                lldb_private::formatters::swift::ObjC_Selector_SummaryProvider,
-                "ObjectiveC.Selector", ConstString("ObjectiveC.Selector"),
-                summary_flags);
+  AddStringSummary(swift_category_sp, "${var.ptr._rawValue%s}",
+                   ConstString("ObjectiveC.Selector"), summary_flags);
 
   AddCXXSynthetic(
       swift_category_sp,

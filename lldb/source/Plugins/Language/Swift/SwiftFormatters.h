@@ -108,9 +108,6 @@ bool GLKit_SummaryProvider(ValueObject &valobj, Stream &stream,
 bool BuiltinObjC_SummaryProvider(ValueObject &valobj, Stream &stream,
                                  const TypeSummaryOptions &options);
 
-bool ObjC_Selector_SummaryProvider(ValueObject &valobj, Stream &stream,
-                                   const TypeSummaryOptions &options);
-
 bool TypePreservingNSNumber_SummaryProvider(ValueObject &valobj, Stream &stream,
                                             const TypeSummaryOptions &options);
 
