@@ -4750,6 +4750,15 @@ public:
   ///
   /// Triggered by declaration-attribute processing.
   void ProcessAPINotes(Decl *D);
+  void ApplyNullability(Decl *D, NullabilityKind Nullability);
+  void ApplyAPINotesType(Decl *D, StringRef TypeString);
+
+  /// Whether APINotes should be gathered for all
+  /// applicable Swift versions, without being applied. Leaving
+  /// clients of the current module to apply the correct version.
+  bool captureSwiftVersionIndependentAPINotes() {
+    return APINotes.captureVersionIndependentSwift();
+  }
 
   /// Determine if type T is a valid subject for a nonnull and similar
   /// attributes. By default, we look through references (the behavior used by

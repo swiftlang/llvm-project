@@ -1520,6 +1520,11 @@ defm apinotes_modules : BoolOption<"f", "apinotes-modules",
   PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [], "Disable">,
   BothFlags<[CC1Option], " module-based external API notes support">>,
   Group<f_clang_Group>;
+defm swift_version_independent_apinotes : BoolOption<"f", "swift-version-independent-apinotes",
+  LangOpts<"SwiftVersionIndependentAPINotes">, DefaultFalse,
+  PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [], "Disable">,
+  BothFlags<[CC1Option], " version-independent external API notes support">>,
+  Group<f_clang_Group>;
 def fapinotes_cache_path : Joined<["-"], "fapinotes-cache-path=">,
   Group<i_Group>, Flags<[NoXarchOption]>, MetaVarName<"<directory>">,
   HelpText<"Does nothing; API notes are no longer cached separately from modules">;
