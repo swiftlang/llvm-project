@@ -25,7 +25,9 @@
 #include <sys/utsname.h>
 #endif
 
+#if !defined(__wasi__)
 #include <signal.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 
@@ -153,8 +155,11 @@ COMPILER_RT_VISIBILITY int lprofLockFd(int fd) {
     }
   }
   return 0;
-#else
+#elif defined(COMPILER_RT_HAS_FLOCK) || defined(_WIN32)
+  // Windows doesn't have flock but WindowsMMap.h provides a shim
   flock(fd, LOCK_EX);
+  return 0;
+#else
   return 0;
 #endif
 }
@@ -178,8 +183,11 @@ COMPILER_RT_VISIBILITY int lprofUnlockFd(int fd) {
     }
   }
   return 0;
-#else
+#elif defined(COMPILER_RT_HAS_FLOCK) || defined(_WIN32)
+  // Windows doesn't have flock but WindowsMMap.h provides a shim
   flock(fd, LOCK_UN);
+  return 0;
+#else
   return 0;
 #endif
 }
@@ -332,6 +340,8 @@ COMPILER_RT_VISIBILITY void lprofInstallSignalHandler(int sig,
   if (err == SIG_ERR)
     PROF_WARN("Unable to install an exit signal handler for %d (errno = %d).\n",
               sig, errno);
+#elif defined(__wasi__)
+  // WASI doesn't support signal.
 #else
   struct sigaction sigact;
   memset(&sigact, 0, sizeof(sigact));
@@ -372,8 +382,8 @@ COMPILER_RT_VISIBILITY void lprofRestoreSigKill(void) {
 
 COMPILER_RT_VISIBILITY int lprofReleaseMemoryPagesToOS(uintptr_t Begin,
                                                        uintptr_t End) {
-#if defined(__ve__)
-  // VE doesn't support madvise.
+#if defined(__ve__) || defined(__wasi__)
+  // VE and WASI doesn't support madvise.
   return 0;
 #else
   size_t PageSize = getpagesize();
