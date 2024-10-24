@@ -1,0 +1,574 @@
+//===- BitstreamCASWriter.h - Low-level bitstream cas writer interface -*- C++
+//-*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This header defines the BitstreamCASWriter class.  This class can be used to
+// write an arbitrary bitstream, regardless of its contents into a CAS.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef LLVM_BITSTREAM_BITSTREAMCASWRITER_H
+#define LLVM_BITSTREAM_BITSTREAMCASWRITER_H
+
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Bitstream/BitCodes.h"
+#include "llvm/CAS/CASID.h"
+#include "llvm/CAS/CASReference.h"
+#include "llvm/CAS/ObjectStore.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/Endian.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/MathExtras.h"
+#include "llvm/Support/raw_ostream.h"
+#include <algorithm>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace llvm {
+
+class BitstreamCASWriter {
+  /// CAS - The object store that the bitstream is written to.
+  std::shared_ptr<cas::ObjectStore> &CAS;
+
+  struct BitstreamCASNode {
+    SmallVector<char> Data;
+    SmallVector<cas::ObjectRef> Refs;
+  };
+
+  /// NodeStack - This helps in tracking the parent node of the current node.
+  std::stack<BitstreamCASNode> NodeStack;
+
+  /// CurBit - Always between 0 and 31 inclusive, specifies the next bit to use.
+  unsigned CurBit = 0;
+
+  /// CurValue - The current value. Only bits < CurBit are valid.
+  uint32_t CurValue = 0;
+
+  /// CurCodeSize - This is the declared size of code values used for the
+  /// current block, in bits.
+  unsigned CurCodeSize = 2;
+
+  /// BlockInfoCurBID - When emitting a BLOCKINFO_BLOCK, this is the currently
+  /// selected BLOCK ID.
+  unsigned BlockInfoCurBID = 0;
+
+  /// CurAbbrevs - Abbrevs installed at in this block.
+  std::vector<std::shared_ptr<BitCodeAbbrev>> CurAbbrevs;
+
+  // Support for retrieving a section of the output, for purposes such as
+  // checksumming.
+  std::optional<size_t> BlockFlushingStartPos;
+
+  struct Block {
+    unsigned PrevCodeSize;
+    size_t StartSizeWord;
+    std::vector<std::shared_ptr<BitCodeAbbrev>> PrevAbbrevs;
+    Block(unsigned PCS, size_t SSW) : PrevCodeSize(PCS), StartSizeWord(SSW) {}
+  };
+
+  /// BlockScope - This tracks the current blocks that we have entered.
+  std::vector<Block> BlockScope;
+
+  /// BlockInfo - This contains information emitted to BLOCKINFO_BLOCK blocks.
+  /// These describe abbreviations that all blocks of the specified ID inherit.
+  struct BlockInfo {
+    unsigned BlockID;
+    std::vector<std::shared_ptr<BitCodeAbbrev>> Abbrevs;
+  };
+  std::vector<BlockInfo> BlockInfoRecords;
+
+  void WriteWord(unsigned Value) {
+    Value =
+        support::endian::byte_swap<uint32_t, llvm::endianness::little>(Value);
+    NodeStack.top().Data.append(reinterpret_cast<const char *>(&Value),
+                                reinterpret_cast<const char *>(&Value + 1));
+  }
+
+  size_t GetWordIndex() const {
+    size_t Offset = NodeStack.top().Data.size();
+    assert((Offset & 3) == 0 && "Not 32-bit aligned");
+    return Offset / 4;
+  }
+
+public:
+  /// Create a BitstreamCASWriter that writes to Content Addressable Storage.
+  /// \p CAS is the object store that the bitstream content is written to.
+  BitstreamCASWriter(std::shared_ptr<cas::ObjectStore> &CAS) : CAS(CAS) {
+    NodeStack.emplace(); // The root node for the bitstream.
+  }
+
+  ~BitstreamCASWriter() {
+    FlushToWord();
+    assert(BlockScope.empty() && CurAbbrevs.empty() && "Block imbalance");
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Basic Primitives for emitting bits to the stream.
+  //===--------------------------------------------------------------------===//
+
+  void Emit(uint32_t Val, unsigned NumBits) {
+    assert(NumBits && NumBits <= 32 && "Invalid value size!");
+    assert((Val & ~(~0U >> (32 - NumBits))) == 0 && "High bits set!");
+    CurValue |= Val << CurBit;
+    if (CurBit + NumBits < 32) {
+      CurBit += NumBits;
+      return;
+    }
+
+    // Add the current word.
+    WriteWord(CurValue);
+
+    if (CurBit)
+      CurValue = Val >> (32 - CurBit);
+    else
+      CurValue = 0;
+    CurBit = (CurBit + NumBits) & 31;
+  }
+
+  void FlushToWord() {
+    if (CurBit) {
+      WriteWord(CurValue);
+      CurBit = 0;
+      CurValue = 0;
+    }
+  }
+
+  void EmitVBR(uint32_t Val, unsigned NumBits) {
+    assert(NumBits <= 32 && "Too many bits to emit!");
+    uint32_t Threshold = 1U << (NumBits - 1);
+
+    // Emit the bits with VBR encoding, NumBits-1 bits at a time.
+    while (Val >= Threshold) {
+      Emit((Val & ((1U << (NumBits - 1)) - 1)) | (1U << (NumBits - 1)),
+           NumBits);
+      Val >>= NumBits - 1;
+    }
+
+    Emit(Val, NumBits);
+  }
+
+  void EmitVBR64(uint64_t Val, unsigned NumBits) {
+    assert(NumBits <= 32 && "Too many bits to emit!");
+    if ((uint32_t)Val == Val)
+      return EmitVBR((uint32_t)Val, NumBits);
+
+    uint32_t Threshold = 1U << (NumBits - 1);
+
+    // Emit the bits with VBR encoding, NumBits-1 bits at a time.
+    while (Val >= Threshold) {
+      Emit(((uint32_t)Val & ((1U << (NumBits - 1)) - 1)) |
+               (1U << (NumBits - 1)),
+           NumBits);
+      Val >>= NumBits - 1;
+    }
+
+    Emit((uint32_t)Val, NumBits);
+  }
+
+  /// EmitCode - Emit the specified code.
+  void EmitCode(unsigned Val) { Emit(Val, CurCodeSize); }
+
+  //===--------------------------------------------------------------------===//
+  // Block Manipulation
+  //===--------------------------------------------------------------------===//
+
+  /// getBlockInfo - If there is block info for the specified ID, return it,
+  /// otherwise return null.
+  BlockInfo *getBlockInfo(unsigned BlockID) {
+    // Common case, the most recent entry matches BlockID.
+    if (!BlockInfoRecords.empty() && BlockInfoRecords.back().BlockID == BlockID)
+      return &BlockInfoRecords.back();
+
+    for (BlockInfo &BI : BlockInfoRecords)
+      if (BI.BlockID == BlockID)
+        return &BI;
+    return nullptr;
+  }
+
+  void EnterSubblock(unsigned BlockID, unsigned CodeLen) {
+    NodeStack.emplace();
+    // Block header:
+    //    [ENTER_SUBBLOCK, blockid, newcodelen, <align4bytes>, blocklen]
+    EmitCode(bitc::ENTER_SUBBLOCK);
+    EmitVBR(BlockID, bitc::BlockIDWidth);
+    EmitVBR(CodeLen, bitc::CodeLenWidth);
+    FlushToWord();
+
+    size_t BlockSizeWordIndex = GetWordIndex();
+    unsigned OldCodeSize = CurCodeSize;
+
+    // Emit a placeholder, which will be replaced when the block is popped.
+    Emit(0, bitc::BlockSizeWidth);
+
+    CurCodeSize = CodeLen;
+
+    // Push the outer block's abbrev set onto the stack, start out with an
+    // empty abbrev set.
+    BlockScope.emplace_back(OldCodeSize, BlockSizeWordIndex);
+    BlockScope.back().PrevAbbrevs.swap(CurAbbrevs);
+
+    // If there is a blockinfo for this BlockID, add all the predefined abbrevs
+    // to the abbrev list.
+    if (BlockInfo *Info = getBlockInfo(BlockID))
+      append_range(CurAbbrevs, Info->Abbrevs);
+  }
+
+  void ExitBlock() {
+    assert(!BlockScope.empty() && "Block scope imbalance!");
+    const Block &B = BlockScope.back();
+
+    // Block tail:
+    //    [END_BLOCK, <align4bytes>]
+    EmitCode(bitc::END_BLOCK);
+    FlushToWord();
+
+    // Update the block size field in the header of this sub-block.
+    // BackpatchWord(BitNo, SizeInWords); // FIXME: Add support for backpatching
+    // in CAS or find a alternative way
+
+    // Restore the inner block's code size and abbrev table.
+    CurCodeSize = B.PrevCodeSize;
+    CurAbbrevs = std::move(B.PrevAbbrevs);
+    BlockScope.pop_back();
+    FlushToNodeStack();
+  }
+
+  /// EndStreaming - Stores the root node content in the CAS and returns the
+  /// RootCASID.
+  Expected<cas::CASID> EndStreaming() {
+    std::optional<cas::ObjectRef> Ref;
+    if (Error E = FlushToCAS().moveInto(Ref)) {
+      return std::move(E);
+    }
+    return CAS->getID(*Ref);
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Record Emission
+  //===--------------------------------------------------------------------===//
+
+private:
+  /// EmitAbbreviatedLiteral - Emit a literal value according to its abbrev
+  /// record.  This is a no-op, since the abbrev specifies the literal to use.
+  template <typename uintty>
+  void EmitAbbreviatedLiteral(const BitCodeAbbrevOp &Op, uintty V) {
+    assert(Op.isLiteral() && "Not a literal");
+    // If the abbrev specifies the literal value to use, don't emit
+    // anything.
+    assert(V == Op.getLiteralValue() && "Invalid abbrev for record!");
+  }
+
+  /// EmitAbbreviatedField - Emit a single scalar field value with the specified
+  /// encoding.
+  template <typename uintty>
+  void EmitAbbreviatedField(const BitCodeAbbrevOp &Op, uintty V) {
+    assert(!Op.isLiteral() && "Literals should use EmitAbbreviatedLiteral!");
+
+    // Encode the value as we are commanded.
+    switch (Op.getEncoding()) {
+    default:
+      llvm_unreachable("Unknown encoding!");
+    case BitCodeAbbrevOp::Fixed:
+      if (Op.getEncodingData())
+        Emit((unsigned)V, (unsigned)Op.getEncodingData());
+      break;
+    case BitCodeAbbrevOp::VBR:
+      if (Op.getEncodingData())
+        EmitVBR64(V, (unsigned)Op.getEncodingData());
+      break;
+    case BitCodeAbbrevOp::Char6:
+      Emit(BitCodeAbbrevOp::EncodeChar6((char)V), 6);
+      break;
+    }
+  }
+
+  /// EmitRecordWithAbbrevImpl - This is the core implementation of the record
+  /// emission code.  If BlobData is non-null, then it specifies an array of
+  /// data that should be emitted as part of the Blob or Array operand that is
+  /// known to exist at the end of the record. If Code is specified, then
+  /// it is the record code to emit before the Vals, which must not contain
+  /// the code.
+  template <typename uintty>
+  void EmitRecordWithAbbrevImpl(unsigned Abbrev, ArrayRef<uintty> Vals,
+                                StringRef Blob, std::optional<unsigned> Code) {
+    NodeStack.emplace();
+    const char *BlobData = Blob.data();
+    unsigned BlobLen = (unsigned)Blob.size();
+    unsigned AbbrevNo = Abbrev - bitc::FIRST_APPLICATION_ABBREV;
+    assert(AbbrevNo < CurAbbrevs.size() && "Invalid abbrev #!");
+    const BitCodeAbbrev *Abbv = CurAbbrevs[AbbrevNo].get();
+
+    EmitCode(Abbrev);
+
+    unsigned i = 0, e = static_cast<unsigned>(Abbv->getNumOperandInfos());
+    if (Code) {
+      assert(e && "Expected non-empty abbreviation");
+      const BitCodeAbbrevOp &Op = Abbv->getOperandInfo(i++);
+
+      if (Op.isLiteral())
+        EmitAbbreviatedLiteral(Op, *Code);
+      else {
+        assert(Op.getEncoding() != BitCodeAbbrevOp::Array &&
+               Op.getEncoding() != BitCodeAbbrevOp::Blob &&
+               "Expected literal or scalar");
+        EmitAbbreviatedField(Op, *Code);
+      }
+    }
+
+    unsigned RecordIdx = 0;
+    for (; i != e; ++i) {
+      const BitCodeAbbrevOp &Op = Abbv->getOperandInfo(i);
+      if (Op.isLiteral()) {
+        assert(RecordIdx < Vals.size() && "Invalid abbrev/record");
+        EmitAbbreviatedLiteral(Op, Vals[RecordIdx]);
+        ++RecordIdx;
+      } else if (Op.getEncoding() == BitCodeAbbrevOp::Array) {
+        // Array case.
+        assert(i + 2 == e && "array op not second to last?");
+        const BitCodeAbbrevOp &EltEnc = Abbv->getOperandInfo(++i);
+
+        // If this record has blob data, emit it, otherwise we must have record
+        // entries to encode this way.
+        if (BlobData) {
+          assert(RecordIdx == Vals.size() &&
+                 "Blob data and record entries specified for array!");
+          // Emit a vbr6 to indicate the number of elements present.
+          EmitVBR(static_cast<uint32_t>(BlobLen), 6);
+
+          // Emit each field.
+          for (unsigned i = 0; i != BlobLen; ++i)
+            EmitAbbreviatedField(EltEnc, (unsigned char)BlobData[i]);
+
+          // Know that blob data is consumed for assertion below.
+          BlobData = nullptr;
+        } else {
+          // Emit a vbr6 to indicate the number of elements present.
+          EmitVBR(static_cast<uint32_t>(Vals.size() - RecordIdx), 6);
+
+          // Emit each field.
+          for (unsigned e = Vals.size(); RecordIdx != e; ++RecordIdx)
+            EmitAbbreviatedField(EltEnc, Vals[RecordIdx]);
+        }
+      } else if (Op.getEncoding() == BitCodeAbbrevOp::Blob) {
+        // If this record has blob data, emit it, otherwise we must have record
+        // entries to encode this way.
+
+        if (BlobData) {
+          assert(RecordIdx == Vals.size() &&
+                 "Blob data and record entries specified for blob operand!");
+
+          assert(Blob.data() == BlobData && "BlobData got moved");
+          assert(Blob.size() == BlobLen && "BlobLen got changed");
+          emitBlob(Blob);
+          BlobData = nullptr;
+        } else {
+          emitBlob(Vals.slice(RecordIdx));
+        }
+      } else { // Single scalar field.
+        assert(RecordIdx < Vals.size() && "Invalid abbrev/record");
+        EmitAbbreviatedField(Op, Vals[RecordIdx]);
+        ++RecordIdx;
+      }
+    }
+    assert(RecordIdx == Vals.size() && "Not all record operands emitted!");
+    assert(BlobData == nullptr &&
+           "Blob data specified for record that doesn't use it!");
+    FlushToNodeStack();
+  }
+
+  /// FlushToCAS - Store the current node content in the CAS and return the
+  /// reference.
+  Expected<cas::ObjectRef> FlushToCAS() {
+    BitstreamCASNode CurNode = NodeStack.top();
+    NodeStack.pop();
+    return CAS->store(CurNode.Refs, CurNode.Data);
+  }
+
+  /// FlushToNodeStack - Store the current node content in the CAS and update
+  /// the parent node Refs.
+  void FlushToNodeStack() {
+    std::optional<cas::ObjectRef> Ref;
+    if (Error E = FlushToCAS().moveInto(Ref)) {
+      consumeError(std::move(E));
+      return;
+    }
+    NodeStack.top().Refs.push_back(*Ref);
+  }
+
+public:
+  /// Emit a blob, including flushing before and tail-padding.
+  template <class UIntTy>
+  void emitBlob(ArrayRef<UIntTy> Bytes, bool ShouldEmitSize = true) {
+    // Emit a vbr6 to indicate the number of elements present.
+    if (ShouldEmitSize)
+      EmitVBR(static_cast<uint32_t>(Bytes.size()), 6);
+
+    // Flush to a 32-bit alignment boundary.
+    FlushToWord();
+
+    // Emit literal bytes.
+    assert(llvm::all_of(Bytes, [](UIntTy B) { return isUInt<8>(B); }));
+    NodeStack.top().Data.append(Bytes.begin(), Bytes.end());
+
+    // Align end to 32-bits.
+    while (NodeStack.top().Data.size() & 3)
+      NodeStack.top().Data.push_back(0);
+  }
+  void emitBlob(StringRef Bytes, bool ShouldEmitSize = true) {
+    emitBlob(ArrayRef((const uint8_t *)Bytes.data(), Bytes.size()),
+             ShouldEmitSize);
+  }
+
+  /// EmitRecord - Emit the specified record to the stream, using an abbrev if
+  /// we have one to compress the output.
+  template <typename Container>
+  void EmitRecord(unsigned Code, const Container &Vals, unsigned Abbrev = 0) {
+    if (!Abbrev) {
+      NodeStack.emplace();
+      // If we don't have an abbrev to use, emit this in its fully unabbreviated
+      // form.
+      auto Count = static_cast<uint32_t>(std::size(Vals));
+      EmitCode(bitc::UNABBREV_RECORD);
+      EmitVBR(Code, 6);
+      EmitVBR(Count, 6);
+      for (unsigned i = 0, e = Count; i != e; ++i)
+        EmitVBR64(Vals[i], 6);
+      FlushToNodeStack();
+      return;
+    }
+
+    EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), StringRef(), Code);
+  }
+
+  /// EmitRecordWithAbbrev - Emit a record with the specified abbreviation.
+  /// Unlike EmitRecord, the code for the record should be included in Vals as
+  /// the first entry.
+  template <typename Container>
+  void EmitRecordWithAbbrev(unsigned Abbrev, const Container &Vals) {
+    EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), StringRef(), std::nullopt);
+  }
+
+  /// EmitRecordWithBlob - Emit the specified record to the stream, using an
+  /// abbrev that includes a blob at the end.  The blob data to emit is
+  /// specified by the pointer and length specified at the end.  In contrast to
+  /// EmitRecord, this routine expects that the first entry in Vals is the code
+  /// of the record.
+  template <typename Container>
+  void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
+                          StringRef Blob) {
+    EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), Blob, std::nullopt);
+  }
+  template <typename Container>
+  void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
+                          const char *BlobData, unsigned BlobLen) {
+    return EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals),
+                                    StringRef(BlobData, BlobLen), std::nullopt);
+  }
+
+  /// EmitRecordWithArray - Just like EmitRecordWithBlob, works with records
+  /// that end with an array.
+  template <typename Container>
+  void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
+                           StringRef Array) {
+    EmitRecordWithAbbrevImpl(Abbrev, ArrayRef(Vals), Array, std::nullopt);
+  }
+  template <typename Container>
+  void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
+                           const char *ArrayData, unsigned ArrayLen) {
+    return EmitRecordWithAbbrevImpl(
+        Abbrev, ArrayRef(Vals), StringRef(ArrayData, ArrayLen), std::nullopt);
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Abbrev Emission
+  //===--------------------------------------------------------------------===//
+
+private:
+  // Emit the abbreviation as a DEFINE_ABBREV record.
+  void EncodeAbbrev(const BitCodeAbbrev &Abbv) {
+    EmitCode(bitc::DEFINE_ABBREV);
+    EmitVBR(Abbv.getNumOperandInfos(), 5);
+    for (unsigned i = 0, e = static_cast<unsigned>(Abbv.getNumOperandInfos());
+         i != e; ++i) {
+      const BitCodeAbbrevOp &Op = Abbv.getOperandInfo(i);
+      Emit(Op.isLiteral(), 1);
+      if (Op.isLiteral()) {
+        EmitVBR64(Op.getLiteralValue(), 8);
+      } else {
+        Emit(Op.getEncoding(), 3);
+        if (Op.hasEncodingData())
+          EmitVBR64(Op.getEncodingData(), 5);
+      }
+    }
+  }
+
+public:
+  /// Emits the abbreviation \p Abbv to the stream.
+  unsigned EmitAbbrev(std::shared_ptr<BitCodeAbbrev> Abbv) {
+    EncodeAbbrev(*Abbv);
+    CurAbbrevs.push_back(std::move(Abbv));
+    return static_cast<unsigned>(CurAbbrevs.size()) - 1 +
+           bitc::FIRST_APPLICATION_ABBREV;
+  }
+
+  //===--------------------------------------------------------------------===//
+  // BlockInfo Block Emission
+  //===--------------------------------------------------------------------===//
+
+  /// EnterBlockInfoBlock - Start emitting the BLOCKINFO_BLOCK.
+  void EnterBlockInfoBlock() {
+    EnterSubblock(bitc::BLOCKINFO_BLOCK_ID, 2);
+    BlockInfoCurBID = ~0U;
+    BlockInfoRecords.clear();
+  }
+
+private:
+  /// SwitchToBlockID - If we aren't already talking about the specified block
+  /// ID, emit a BLOCKINFO_CODE_SETBID record.
+  void SwitchToBlockID(unsigned BlockID) {
+    if (BlockInfoCurBID == BlockID)
+      return;
+    SmallVector<unsigned, 2> V;
+    V.push_back(BlockID);
+    EmitRecord(bitc::BLOCKINFO_CODE_SETBID, V);
+    BlockInfoCurBID = BlockID;
+  }
+
+  BlockInfo &getOrCreateBlockInfo(unsigned BlockID) {
+    if (BlockInfo *BI = getBlockInfo(BlockID))
+      return *BI;
+
+    // Otherwise, add a new record.
+    BlockInfoRecords.emplace_back();
+    BlockInfoRecords.back().BlockID = BlockID;
+    return BlockInfoRecords.back();
+  }
+
+public:
+  /// EmitBlockInfoAbbrev - Emit a DEFINE_ABBREV record for the specified
+  /// BlockID.
+  unsigned EmitBlockInfoAbbrev(unsigned BlockID,
+                               std::shared_ptr<BitCodeAbbrev> Abbv) {
+    SwitchToBlockID(BlockID);
+    EncodeAbbrev(*Abbv);
+
+    // Add the abbrev to the specified block record.
+    BlockInfo &Info = getOrCreateBlockInfo(BlockID);
+    Info.Abbrevs.push_back(std::move(Abbv));
+
+    return Info.Abbrevs.size() - 1 + bitc::FIRST_APPLICATION_ABBREV;
+  }
+};
+
+} // namespace llvm
+
+#endif
