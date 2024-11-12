@@ -31,6 +31,7 @@ void FunctionScopeInfo::Clear() {
   HasFallthroughStmt = false;
   UsesFPIntrin = false;
   HasPotentialAvailabilityViolations = false;
+  HasPotentialFeatureAvailabilityViolations = false;
   ObjCShouldCallSuper = false;
   ObjCIsDesignatedInit = false;
   ObjCWarnForNoDesignatedInitChain = false;

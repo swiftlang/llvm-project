@@ -1226,6 +1226,15 @@ protected:
     unsigned ShouldCopy : 1;
   };
 
+  class ObjCAvailabilityCheckExprBitfields {
+    friend class ObjCAvailabilityCheckExpr;
+    LLVM_PREFERRED_TYPE(ExprBitfields)
+    unsigned : NumExprBits;
+
+    LLVM_PREFERRED_TYPE(bool)
+    unsigned HasDomainName : 1;
+  };
+
   //===--- Clang Extensions bitfields classes ---===//
 
   class OpaqueValueExprBitfields {
@@ -1324,6 +1333,7 @@ protected:
 
     // Obj-C Expressions
     ObjCIndirectCopyRestoreExprBitfields ObjCIndirectCopyRestoreExprBits;
+    ObjCAvailabilityCheckExprBitfields ObjCAvailabilityCheckExprBits;
 
     // Clang Extensions
     OpaqueValueExprBitfields OpaqueValueExprBits;

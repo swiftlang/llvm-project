@@ -3902,6 +3902,14 @@ static void RenderBuiltinOptions(const ToolChain &TC, const llvm::Triple &T,
     CmdArgs.push_back("-fno-math-builtin");
 }
 
+static void RenderFeatueAvailabilityOptions(const ArgList &Args,
+                                            ArgStringList &CmdArgs) {
+  for (const Arg *A : Args.filtered(options::OPT_ffeature_availability_EQ)) {
+    A->claim();
+    A->render(Args, CmdArgs);
+  }
+}
+
 bool Driver::getDefaultModuleCachePath(SmallVectorImpl<char> &Result) {
   if (const char *Str = std::getenv("CLANG_MODULE_CACHE_PATH")) {
     Twine Path{Str};
@@ -7177,6 +7185,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
     }
   }
   RenderBuiltinOptions(TC, RawTriple, Args, CmdArgs);
+
+  RenderFeatueAvailabilityOptions(Args, CmdArgs);
 
   Args.addOptOutFlag(CmdArgs, options::OPT_fassume_sane_operator_new,
                      options::OPT_fno_assume_sane_operator_new);

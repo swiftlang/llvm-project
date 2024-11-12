@@ -632,6 +632,8 @@ ObjCPropertyDecl *SemaObjC::CreatePropertyDecl(
 
   SemaRef.ProcessDeclAttributes(S, PDecl, FD.D);
 
+  SemaRef.copyFeatureAvailabilityCheck(PDecl, CDecl);
+
   if (Attributes & ObjCPropertyAttribute::kind_readonly)
     PDecl->setPropertyAttributes(ObjCPropertyAttribute::kind_readonly);
 
@@ -1302,6 +1304,8 @@ Decl *SemaObjC::ActOnPropertyImplDecl(
                                   PropertyIvarType, /*TInfo=*/nullptr,
                                   ObjCIvarDecl::Private,
                                   (Expr *)nullptr, true);
+      SemaRef.copyFeatureAvailabilityCheck(Ivar, property);
+      SemaRef.copyFeatureAvailabilityCheck(Ivar, ClassImpDecl);
       if (SemaRef.RequireNonAbstractType(PropertyIvarLoc, PropertyIvarType,
                                          diag::err_abstract_type_in_decl,
                                          Sema::AbstractSynthesizedIvarType)) {
@@ -1406,6 +1410,9 @@ Decl *SemaObjC::ActOnPropertyImplDecl(
                   : ObjCPropertyImplDecl::Dynamic),
       Ivar, PropertyIvarLoc);
 
+  SemaRef.copyFeatureAvailabilityCheck(PIDecl, property);
+  SemaRef.copyFeatureAvailabilityCheck(PIDecl, ClassImpDecl);
+
   if (CompleteTypeErr || !compat)
     PIDecl->setInvalidDecl();
 
@@ -1417,9 +1424,11 @@ Decl *SemaObjC::ActOnPropertyImplDecl(
       // If the method hasn't been overridden, create a synthesized implementation.
       ObjCMethodDecl *OMD = ClassImpDecl->getMethod(
           getterMethod->getSelector(), getterMethod->isInstanceMethod());
-      if (!OMD)
+      if (!OMD) {
         OMD = RedeclarePropertyAccessor(Context, IC, getterMethod, AtLoc,
                                         PropertyLoc);
+        SemaRef.copyFeatureAvailability(OMD, PIDecl);
+      }
       PIDecl->setGetterMethodDecl(OMD);
     }
 
@@ -1481,9 +1490,11 @@ Decl *SemaObjC::ActOnPropertyImplDecl(
     if (Synthesize) {
       ObjCMethodDecl *OMD = ClassImpDecl->getMethod(
           setterMethod->getSelector(), setterMethod->isInstanceMethod());
-      if (!OMD)
+      if (!OMD) {
         OMD = RedeclarePropertyAccessor(Context, IC, setterMethod,
                                         AtLoc, PropertyLoc);
+        SemaRef.copyFeatureAvailability(OMD, PIDecl);
+      }
       PIDecl->setSetterMethodDecl(OMD);
     }
 
@@ -2347,6 +2358,7 @@ static void AddPropertyAttrs(Sema &S, ObjCMethodDecl *PropertyMethod,
         isa<AvailabilityAttr>(A))
       PropertyMethod->addAttr(A->clone(S.Context));
   }
+  S.copyFeatureAvailabilityCheck(PropertyMethod, Property);
 }
 
 /// ProcessPropertyDecl - Make sure that any user-defined setter/getter methods
@@ -2475,6 +2487,7 @@ void SemaObjC::ProcessPropertyDecl(ObjCPropertyDecl *property) {
             : ObjCImplementationControl::Required);
     CD->addDecl(GetterMethod);
 
+    SemaRef.copyFeatureAvailability(GetterMethod, CD);
     AddPropertyAttrs(SemaRef, GetterMethod, property);
 
     if (property->isDirectProperty())
@@ -2554,6 +2567,7 @@ void SemaObjC::ProcessPropertyDecl(ObjCPropertyDecl *property) {
                                                   nullptr);
       SetterMethod->setMethodParams(Context, Argument, std::nullopt);
 
+      SemaRef.copyFeatureAvailability(SetterMethod, CD);
       AddPropertyAttrs(SemaRef, SetterMethod, property);
 
       if (property->isDirectProperty())

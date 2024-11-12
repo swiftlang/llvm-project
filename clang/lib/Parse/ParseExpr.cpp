@@ -3927,6 +3927,15 @@ static bool CheckAvailabilitySpecList(Parser &P,
   bool HasOtherPlatformSpec = false;
   bool Valid = true;
   for (const auto &Spec : AvailSpecs) {
+    if (Spec.isDomainName()) {
+      if (AvailSpecs.size() != 1) {
+        P.Diag(Spec.getBeginLoc(),
+               diag::err_feature_invalid_availability_check);
+        return true;
+      }
+      return false;
+    }
+
     if (Spec.isOtherPlatformSpec()) {
       if (HasOtherPlatformSpec) {
         P.Diag(Spec.getBeginLoc(), diag::err_availability_query_repeated_star);
@@ -3974,6 +3983,23 @@ std::optional<AvailabilitySpec> Parser::ParseAvailabilitySpec() {
       Actions.CodeCompletion().CodeCompleteAvailabilityPlatformName();
       return std::nullopt;
     }
+
+    if (Tok.is(tok::identifier) && GetLookAheadToken(1).is(tok::colon)) {
+      if (ParseIdentifierLoc()->Ident->getName() != "domain") {
+        return std::nullopt;
+      }
+
+      ConsumeToken(); // colon
+
+      if (Tok.isNot(tok::identifier)) {
+        return std::nullopt;
+      }
+
+      IdentifierLoc *DomainIdentifier = ParseIdentifierLoc();
+      return AvailabilitySpec(DomainIdentifier->Ident->getName(),
+                              DomainIdentifier->Loc);
+    }
+
     if (Tok.isNot(tok::identifier)) {
       Diag(Tok, diag::err_avail_query_expected_platform_name);
       return std::nullopt;
