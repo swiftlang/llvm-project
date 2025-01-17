@@ -2027,7 +2027,7 @@ private:
   /// Parse a __builtin_bit_cast(T, E), used to implement C++2a std::bit_cast.
   ExprResult ParseBuiltinBitCast();
 
-  /* TO_UPSTREAM(BoundsSafety) ON*/
+  /* TO_UPSTREAM(BoundsSafety) ON */
   //===--------------------------------------------------------------------===//
   /// BoundsSafety: __builtin_unsafe_forge_bidi_indexable(expr, size)
   ExprResult ParseUnsafeForgeBidiIndexable();
@@ -3970,6 +3970,25 @@ private:
   /// \param IncludeLoc The location at which this parse was triggered.
   TypeResult ParseTypeFromString(StringRef TypeStr, StringRef Context,
                                  SourceLocation IncludeLoc);
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  /// Parse the given string as an expression in the argument position for a
+  /// bounds safety attribute.
+  ///
+  /// This is a dangerous utility function currently employed only by API notes.
+  /// It is not a general entry-point for safely parsing expressions from
+  /// strings.
+  ///
+  /// \param ExprStr The string to be parsed as an expression.
+  /// \param Context The name of the context in which this string is being
+  /// parsed, which will be used in diagnostics.
+  /// \param ParentDecl If a function or method is provided, the parameters are
+  ///   added to the current parsing context.
+  /// \param IncludeLoc The location at which this parse was triggered.
+  ExprResult ParseBoundsAttributeArgFromString(StringRef ExprStr,
+                                               StringRef Context,
+                                               Decl *ParentDecl,
+                                               SourceLocation IncludeLoc);
+  /* TO_UPSTREAM(BoundsSafety) OFF */
 
   //===--------------------------------------------------------------------===//
   // Modules
