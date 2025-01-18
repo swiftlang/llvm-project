@@ -14,6 +14,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/BuryPointer.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -270,12 +271,17 @@ void Aggregator::dumpJSON(raw_ostream &OS) {
   for (unsigned i = 0, e = Symbols.size(); i != e; ++i) {
     OS.indent(4) << "{\n";
     SymbolInfo &symInfo = Symbols[i];
-    OS.indent(6) << "\"kind\": \"" << getSymbolKindString(symInfo.Kind) << "\",\n";
-    OS.indent(6) << "\"lang\": \"" << getSymbolLanguageString(symInfo.Lang) << "\",\n";
-    OS.indent(6) << "\"usr\": \"" << symInfo.USR << "\",\n";
-    OS.indent(6) << "\"name\": \"" << symInfo.Name << "\",\n";
+
+    OS.indent(6) << "\"kind\": "
+                 << json::Value(getSymbolKindString(symInfo.Kind)) << ",\n";
+    OS.indent(6) << "\"lang\": "
+                 << json::Value(getSymbolLanguageString(symInfo.Lang))
+                 << ",\n";
+    OS.indent(6) << "\"usr\": " << json::Value(symInfo.USR) << ",\n";
+    OS.indent(6) << "\"name\": " << json::Value(symInfo.Name) << ",\n";
     if (!symInfo.CodegenName.empty())
-      OS.indent(6) << "\"codegen\": \"" << symInfo.CodegenName << "\",\n";
+      OS.indent(6) << "\"codegen\": " << json::Value(symInfo.CodegenName)
+                   << ",\n";
     OS.indent(6) << "\"roles\": \"";
     printSymbolRoles(symInfo.Roles, OS);
     OS << '\"';
@@ -344,7 +350,7 @@ void Aggregator::dumpJSON(raw_ostream &OS) {
   for (unsigned i = 0, e = Units.size(); i != e; ++i) {
     OS.indent(4) << "{\n";
     UnitInfo &unit = *Units[i];
-    OS.indent(6) << "\"triple\": \"" << unit.Triple << "\",\n";
+    OS.indent(6) << "\"triple\": " << json::Value(unit.Triple) << ",\n";
     OS.indent(6) << "\"out-file\": " << unit.OutFile << ",\n";
     if (!unit.UnitDepends.empty()) {
       OS.indent(6) << "\"unit-dependencies\": [";
