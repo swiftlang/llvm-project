@@ -69,14 +69,18 @@ void test_builtin_elementwise_add_sat(int i, short s, double d, float4 v, int3 i
   // expected-error@-1 {{1st argument must be a vector of integers (was 'float4' (vector of 4 'float' values))}}
 
   s = __builtin_elementwise_add_sat(i, s);
+  // expected-error@-1 {{arguments are of different types ('int' vs 'short')}}
 
   enum e { one,
            two };
   i = __builtin_elementwise_add_sat(one, two);
 
+  i = __builtin_elementwise_add_sat(one, d);
+  // expected-error@-1 {{arguments are of different types ('int' vs 'double')}}
+
   enum f { three };
   enum f x = __builtin_elementwise_add_sat(one, three);
-  // expected-warning@-1 {{comparison of different enumeration types ('enum e' and 'enum f')}}
+  // expected-error@-1 {{invalid arithmetic between different enumeration types ('enum e' and 'enum f')}}
 
   _BitInt(32) ext; // expected-warning {{'_BitInt' in C17 and earlier is a Clang extension}}
   ext = __builtin_elementwise_add_sat(ext, ext);
@@ -128,14 +132,18 @@ void test_builtin_elementwise_sub_sat(int i, short s, double d, float4 v, int3 i
   // expected-error@-1 {{1st argument must be a vector of integers (was 'float4' (vector of 4 'float' values))}}
 
   s = __builtin_elementwise_sub_sat(i, s);
+  // expected-error@-1 {{arguments are of different types ('int' vs 'short')}}
 
   enum e { one,
            two };
   i = __builtin_elementwise_sub_sat(one, two);
 
+  i = __builtin_elementwise_sub_sat(one, d);
+  // expected-error@-1 {{arguments are of different types ('int' vs 'double')}}
+
   enum f { three };
   enum f x = __builtin_elementwise_sub_sat(one, three);
-  // expected-warning@-1 {{comparison of different enumeration types ('enum e' and 'enum f')}}
+  // expected-error@-1 {{invalid arithmetic between different enumeration types ('enum e' and 'enum f')}}
 
   _BitInt(32) ext; // expected-warning {{'_BitInt' in C17 and earlier is a Clang extension}}
   ext = __builtin_elementwise_sub_sat(ext, ext);
@@ -184,14 +192,18 @@ void test_builtin_elementwise_max(int i, short s, double d, float4 v, int3 iv, u
   // expected-error@-1 {{arguments are of different types ('unsigned3' (vector of 3 'unsigned int' values) vs 'int3' (vector of 3 'int' values))}}
 
   s = __builtin_elementwise_max(i, s);
+  // expected-error@-1 {{arguments are of different types ('int' vs 'short')}}
 
   enum e { one,
            two };
   i = __builtin_elementwise_max(one, two);
 
+  i = __builtin_elementwise_max(one, d);
+  // expected-error@-1 {{arguments are of different types ('int' vs 'double')}}
+
   enum f { three };
   enum f x = __builtin_elementwise_max(one, three);
-  // expected-warning@-1 {{comparison of different enumeration types ('enum e' and 'enum f')}}
+  // expected-error@-1 {{invalid arithmetic between different enumeration types ('enum e' and 'enum f')}}
 
   _BitInt(32) ext; // expected-warning {{'_BitInt' in C17 and earlier is a Clang extension}}
   ext = __builtin_elementwise_max(ext, ext);
@@ -240,14 +252,18 @@ void test_builtin_elementwise_min(int i, short s, double d, float4 v, int3 iv, u
   // expected-error@-1 {{arguments are of different types ('unsigned3' (vector of 3 'unsigned int' values) vs 'int3' (vector of 3 'int' values))}}
 
   s = __builtin_elementwise_min(i, s);
+  // expected-error@-1 {{arguments are of different types ('int' vs 'short')}}
 
   enum e { one,
            two };
   i = __builtin_elementwise_min(one, two);
 
+  i = __builtin_elementwise_min(one, d);
+  // expected-error@-1 {{arguments are of different types ('int' vs 'double')}}
+
   enum f { three };
   enum f x = __builtin_elementwise_min(one, three);
-  // expected-warning@-1 {{comparison of different enumeration types ('enum e' and 'enum f')}}
+  // expected-error@-1 {{invalid arithmetic between different enumeration types ('enum e' and 'enum f')}}
 
   _BitInt(32) ext; // expected-warning {{'_BitInt' in C17 and earlier is a Clang extension}}
   ext = __builtin_elementwise_min(ext, ext);
@@ -272,6 +288,7 @@ void test_builtin_elementwise_min(int i, short s, double d, float4 v, int3 iv, u
   c1 = __builtin_elementwise_min(c1, c2);
   // expected-error@-1 {{1st argument must be a vector, integer or floating point type (was '_Complex float')}}
 }
+
 
 void test_builtin_elementwise_bitreverse(int i, float f, double d, float4 v, int3 iv, unsigned u, unsigned4 uv) {
 
