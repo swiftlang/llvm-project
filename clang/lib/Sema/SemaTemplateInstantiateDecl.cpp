@@ -644,6 +644,43 @@ static void instantiateDependentSYCLKernelAttr(
   New->addAttr(Attr.clone(S.getASTContext()));
 }
 
+static void
+instantiateBoundsSafetyAttr(Sema &S,
+                            const MultiLevelTemplateArgumentList &TemplateArgs,
+                            const Attr *AL, Decl *New) {
+  int Level;
+  Expr *ArgExpr;
+  std::string Spelling;
+  if (auto A = dyn_cast<SizedByAttr>(AL)) {
+    Level = A->getNestedLevel();
+    ArgExpr = A->getSize();
+    Spelling = A->getSpelling();
+  } else if (auto A = dyn_cast<SizedByOrNullAttr>(AL)) {
+    Level = A->getNestedLevel();
+    ArgExpr = A->getSize();
+    Spelling = A->getSpelling();
+  } else if (auto A = dyn_cast<CountedByAttr>(AL)) {
+    Level = A->getNestedLevel();
+    ArgExpr = A->getCount();
+    Spelling = A->getSpelling();
+  } else if (auto A = dyn_cast<CountedByOrNullAttr>(AL)) {
+    Level = A->getNestedLevel();
+    ArgExpr = A->getCount();
+    Spelling = A->getSpelling();
+  } else if (auto A = dyn_cast<PtrEndedByAttr>(AL)) {
+    Level = A->getNestedLevel();
+    ArgExpr = A->getEndPtr();
+    Spelling = A->getSpelling();
+  } else
+    llvm_unreachable("unexpected late instantiated bounds safety attribute");
+
+  ExprResult InstantiatedArgExpr = S.SubstExpr(ArgExpr, TemplateArgs);
+  S.applyPtrCountedByEndedByAttr(
+      New, Level, AL->getParsedKind(), InstantiatedArgExpr.get(), AL->getLoc(),
+      AL->getRange(), "\'" + Spelling + "\'", /*from API notes*/ false,
+      /*in template instantiation*/ true);
+}
+
 /// Determine whether the attribute A might be relevant to the declaration D.
 /// If not, we can skip instantiating it. The attribute may or may not have
 /// been instantiated yet.
@@ -867,6 +904,12 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
 
     if (auto *A = dyn_cast<SYCLKernelAttr>(TmplAttr)) {
       instantiateDependentSYCLKernelAttr(*this, TemplateArgs, *A, New);
+      continue;
+    }
+
+    if (isa<SizedByAttr, SizedByOrNullAttr, CountedByAttr, CountedByOrNullAttr,
+            PtrEndedByAttr>(TmplAttr)) {
+      instantiateBoundsSafetyAttr(*this, TemplateArgs, TmplAttr, New);
       continue;
     }
 

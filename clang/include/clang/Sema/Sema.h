@@ -15509,7 +15509,8 @@ public:
                                     AttributeCommonInfo::Kind Kind,
                                     Expr *AttrArg, SourceLocation Loc,
                                     SourceRange Range, StringRef DiagName,
-                                    bool OriginatesInAPINotes = false);
+                                    bool OriginatesInAPINotes = false,
+                                    bool InInstantiatedTemplate = false);
 
   /// Perform Bounds Safety Semantic checks for assigning to a `__counted_by` or
   /// `__counted_by_or_null` pointer type \param LHSTy.

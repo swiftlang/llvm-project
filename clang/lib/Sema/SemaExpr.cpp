@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "DynamicCountPointerAssignmentAnalysis.h"
 #include "CheckExprLifetime.h"
+#include "DynamicCountPointerAssignmentAnalysis.h"
 #include "TreeTransform.h"
 #include "UsedDeclVisitor.h"
 #include "clang/AST/ASTConsumer.h"
@@ -1012,7 +1012,7 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E,
   // BoundsSafety: rvalue of pointers with dynamic count or range will
   // automatically form wide pointers.
   auto *DBPT = T->getAs<BoundsAttributedType>();
-  if (getLangOpts().BoundsSafety && DBPT) {
+  if (getLangOpts().BoundsSafety && DBPT && !CurContext->isDependentContext()) {
     CopyExpr Copy(*this);
     SmallVector<OpaqueValueExpr *, 2> OpaqueValues;
     // if the lvalue was a member access, it's possible its base expression
@@ -7858,7 +7858,7 @@ bool Sema::CheckDynamicCountSizeForAssignment(
 
     // The count expression might be valid, but the new value assigned may not
     // be, so check again after transforming
-    if (CountExpr->isValueDependent())
+    if (CountExpr->containsErrors())
       return false;
   }
   const auto &ReplacingValues = Transform.GetReplacingValues();
@@ -8819,7 +8819,8 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   }
 
   /* TO_UPSTREAM(BoundsSafety) ON*/
-  if (getLangOpts().BoundsSafetyAttributes && FDecl) {
+  if (getLangOpts().BoundsSafetyAttributes && FDecl &&
+      !CurContext->isDependentContext()) {
     // FIXME: We need to support function pointers and blocks that don't have
     // function decl.
     if (!checkDynamicCountPointerAsParameter(*this, FDecl, TheCall))
@@ -25071,6 +25072,10 @@ ExprResult Sema::ActOnForgeTerminatedBy(SourceLocation KWLoc, Expr *Addr,
 ExprResult Sema::ActOnBoundsSafetyCall(ExprResult Call) {
   CallExpr *CallE = dyn_cast_or_null<CallExpr>(Call.get());
   if (!CallE || CallE->containsErrors())
+    return Call;
+
+  // Only process instantiated versions of templates
+  if (CurContext->isDependentContext())
     return Call;
 
   // Bail out early if there's nothing to do. (There is something to do if
