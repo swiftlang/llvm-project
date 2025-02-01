@@ -50,6 +50,11 @@ def create_parser():
         ),
     )
     group.add_argument(
+        "--swift-compiler",
+        dest="swiftcompiler",
+        help="The path to a valid Swift compiler",
+    )
+    group.add_argument(
         "--sysroot",
         metavar="sysroot",
         dest="sysroot",
@@ -250,6 +255,12 @@ def create_parser():
         dest="clang_module_cache_dir",
         metavar="The clang module cache directory used by Clang",
         help="The clang module cache directory used in the Make files by Clang while building tests. Defaults to <test build directory>/module-cache-clang.",
+    )
+    group.add_argument(
+        "--swift-libs-dir",
+        dest="swift_libs_dir",
+        metavar="The lib directory inside the Swift build directory",
+        help="The lib directory inside the Swift build directory.",
     )
     group.add_argument(
         "--lldb-obj-root",

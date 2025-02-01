@@ -277,6 +277,8 @@ protected:
 
   unsigned ARMCDECoprocMask : 8;
 
+  unsigned PointerAuthSupported : 1;
+
   unsigned MaxOpenCLWorkGroupSize;
 
   std::optional<unsigned> MaxBitIntWidth;
@@ -1575,6 +1577,14 @@ public:
   /// Whether the target supports thread-local storage.
   bool isTLSSupported() const {
     return TLSSupported;
+  }
+
+  /// \brief Whether the target supports pointer authentication at all.
+  ///
+  /// Whether pointer authentication is actually being used is determined
+  /// by the language option.
+  bool isPointerAuthSupported() const {
+    return PointerAuthSupported;
   }
 
   /// Return the maximum alignment (in bits) of a TLS variable

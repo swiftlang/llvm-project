@@ -12,6 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/LTO/legacy/ThinLTOCodeGenerator.h"
+#include "llvm/CAS/ActionCache.h"
+#include "llvm/CAS/ObjectStore.h"
+#include "llvm/RemoteCachingService/Client.h"
 #include "llvm/Support/CommandLine.h"
 
 #include "llvm/ADT/ScopeExit.h"
@@ -47,7 +50,9 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/SHA1.h"
+#include "llvm/Support/ScopedDurationTimer.h"
 #include "llvm/Support/SmallVectorMemoryBuffer.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/Threading.h"
@@ -62,7 +67,9 @@
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
 
+#include <memory>
 #include <numeric>
+#include <queue>
 
 #if !defined(_MSC_VER) && !defined(__MINGW32__)
 #include <unistd.h>
@@ -91,6 +98,37 @@ namespace {
 // thred per core, as indicated by the usage of
 // heavyweight_hardware_concurrency() below.
 static cl::opt<int> ThreadCount("threads", cl::init(0));
+static cl::opt<bool> CacheLogging(
+    "thinlto-cache-logging", cl::desc("Enable logging for thinLTO caching"),
+    cl::init((bool)sys::Process::GetEnv("LLVM_THINLTO_CACHE_LOGGING")),
+    cl::Hidden);
+static cl::opt<bool> DeterministicCheck(
+    "thinlto-deterministic-check",
+    cl::desc("Enable deterministic check for thinLTO caching"),
+    cl::init((bool)sys::Process::GetEnv(
+        "LLVM_CACHE_CHECK_REPRODUCIBLE_CACHING_ISSUES")),
+    cl::Hidden);
+static cl::opt<bool> StrictCASErrors(
+    "thinlto-strict-cas-errors",
+    cl::desc("Treat CAS errors during ThinLTO as fatal errors"),
+    cl::init((bool)sys::Process::GetEnv("LLVM_THINLTO_STRICT_CAS_ERRORS")),
+    cl::Hidden);
+
+class LoggingStream {
+public:
+  LoggingStream(raw_ostream &OS) : OS(OS) {}
+  void applyLocked(llvm::function_ref<void(raw_ostream &OS)> Fn) {
+    std::unique_lock<std::mutex> LockGuard(Lock);
+    auto Now = std::chrono::system_clock::now();
+    OS << Now << ": ";
+    Fn(OS);
+    OS.flush();
+  }
+
+private:
+  std::mutex Lock;
+  raw_ostream &OS;
+};
 
 // Simple helper to save temporary files for debug.
 static void saveTempBitcode(const Module &TheModule, StringRef TempDir,
@@ -351,73 +389,42 @@ std::unique_ptr<MemoryBuffer> codegenModule(Module &TheModule,
       std::move(OutputBuffer), /*RequiresNullTerminator=*/false);
 }
 
-/// Manage caching for a single Module.
-class ModuleCacheEntry {
-  SmallString<128> EntryPath;
+struct NullModuleCacheEntry : ModuleCacheEntry {
+  std::string getEntryPath() override { return "<null>"; }
+  ErrorOr<std::unique_ptr<MemoryBuffer>> tryLoadingBuffer() override {
+    return std::error_code();
+  }
+  void write(const MemoryBuffer &OutputBuffer) override {}
+};
 
+class FileModuleCacheEntry : public ModuleCacheEntry {
 public:
+  static std::unique_ptr<ModuleCacheEntry> create(StringRef CachePath,
+                                                  std::string Key) {
+    if (CachePath.empty())
+      return std::make_unique<NullModuleCacheEntry>();
+    return std::make_unique<FileModuleCacheEntry>(CachePath, std::move(Key));
+  }
+
   // Create a cache entry. This compute a unique hash for the Module considering
   // the current list of export/import, and offer an interface to query to
   // access the content in the cache.
-  ModuleCacheEntry(
-      StringRef CachePath, const ModuleSummaryIndex &Index, StringRef ModuleID,
-      const FunctionImporter::ImportMapTy &ImportList,
-      const FunctionImporter::ExportSetTy &ExportList,
-      const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
-      const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
-      bool Freestanding, const TargetMachineBuilder &TMBuilder) {
-    if (CachePath.empty())
-      return;
-
-    if (!Index.modulePaths().count(ModuleID))
-      // The module does not have an entry, it can't have a hash at all
-      return;
-
-    if (all_of(Index.getModuleHash(ModuleID),
-               [](uint32_t V) { return V == 0; }))
-      // No hash entry, no caching!
-      return;
-
-    llvm::lto::Config Conf;
-    Conf.OptLevel = OptLevel;
-    Conf.Options = TMBuilder.Options;
-    Conf.CPU = TMBuilder.MCpu;
-    Conf.MAttrs.push_back(TMBuilder.MAttr);
-    Conf.RelocModel = TMBuilder.RelocModel;
-    Conf.CGOptLevel = TMBuilder.CGOptLevel;
-    Conf.Freestanding = Freestanding;
-    SmallString<40> Key;
-    computeLTOCacheKey(Key, Conf, Index, ModuleID, ImportList, ExportList,
-                       ResolvedODR, DefinedGVSummaries);
-
+  FileModuleCacheEntry(StringRef CachePath, std::string Key) {
+    assert(!CachePath.empty());
     // This choice of file name allows the cache to be pruned (see pruneCache()
     // in include/llvm/Support/CachePruning.h).
     sys::path::append(EntryPath, CachePath, "llvmcache-" + Key);
   }
 
-  // Access the path to this entry in the cache.
-  StringRef getEntryPath() { return EntryPath; }
+  std::string getEntryPath() final { return EntryPath.str().str(); }
 
   // Try loading the buffer for this cache entry.
-  ErrorOr<std::unique_ptr<MemoryBuffer>> tryLoadingBuffer() {
-    if (EntryPath.empty())
-      return std::error_code();
-    SmallString<64> ResultPath;
-    Expected<sys::fs::file_t> FDOrErr = sys::fs::openNativeFileForRead(
-        Twine(EntryPath), sys::fs::OF_UpdateAtime, &ResultPath);
-    if (!FDOrErr)
-      return errorToErrorCode(FDOrErr.takeError());
-    ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr = MemoryBuffer::getOpenFile(
-        *FDOrErr, EntryPath, /*FileSize=*/-1, /*RequiresNullTerminator=*/false);
-    sys::fs::closeFile(*FDOrErr);
-    return MBOrErr;
+  ErrorOr<std::unique_ptr<MemoryBuffer>> tryLoadingBuffer() final {
+    return MemoryBuffer::getFile(EntryPath);
   }
 
   // Cache the Produced object file
-  void write(const MemoryBuffer &OutputBuffer) {
-    if (EntryPath.empty())
-      return;
-
+  void write(const MemoryBuffer &OutputBuffer) final {
     if (auto Err = llvm::writeToOutput(
             EntryPath, [&OutputBuffer](llvm::raw_ostream &OS) -> llvm::Error {
               OS << OutputBuffer.getBuffer();
@@ -427,6 +434,446 @@ public:
                                        EntryPath,
                                        toString(std::move(Err)).c_str()));
   }
+
+  Error writeObject(const MemoryBuffer &OutputBuffer,
+                    StringRef OutputPath) final {
+    // Clear output file if exists for hard-linking.
+    sys::fs::remove(OutputPath);
+    // Hard-link the entry (or copy if hard-link fails).
+    auto Err = sys::fs::create_hard_link(EntryPath, OutputPath);
+    if (!Err)
+      return Error::success();
+    // Hard linking failed, try to copy.
+    Err = sys::fs::copy_file(EntryPath, OutputPath);
+    if (!Err)
+      return Error::success();
+    // Copy failed (could be because the CacheEntry was removed from the cache
+    // in the meantime by another process), fall back and try to write down
+    // the buffer to the output.
+    errs() << "remark: can't link or copy from cached entry '" << EntryPath
+           << "' to '" << OutputPath << "'\n";
+    // Fallback to default.
+    return ModuleCacheEntry::writeObject(OutputBuffer, OutputPath);
+  }
+
+  std::optional<std::unique_ptr<MemoryBuffer>> getMappedBuffer() final {
+    auto ReloadedBufferOrErr = tryLoadingBuffer();
+    if (auto EC = ReloadedBufferOrErr.getError()) {
+      // On error, keep the preexisting buffer and print a diagnostic.
+      errs() << "remark: can't reload cached file '" << getEntryPath()
+             << "': " << EC.message() << "\n";
+    }
+    return std::move(*ReloadedBufferOrErr);
+  }
+
+private:
+  SmallString<128> EntryPath;
+};
+
+struct CancellationToken {
+  std::atomic<bool> WantsToExit{false};
+  std::mutex Mutex;
+  std::condition_variable CondVar;
+  unsigned ExitBlockers{0};
+
+  void requestCancellation() {
+    WantsToExit = true;
+    std::unique_lock Lock(Mutex);
+    CondVar.wait(Lock, [&]() { return ExitBlockers == 0; });
+  }
+
+  [[nodiscard]] auto acquireHandle() {
+    auto ReleaseHandleOnScopeExit = llvm::make_scope_exit([this]() {
+      std::unique_lock Lock(Mutex);
+      --ExitBlockers;
+      CondVar.notify_one();
+    });
+
+    using RetTy = std::optional<decltype(ReleaseHandleOnScopeExit)>;
+
+    if (WantsToExit) {
+      ReleaseHandleOnScopeExit.release();
+      return RetTy{};
+    }
+
+    std::unique_lock Lock(Mutex);
+    ++ExitBlockers;
+
+    return RetTy{std::move(ReleaseHandleOnScopeExit)};
+  }
+};
+
+static void handleCASError(
+    Error E, llvm::function_ref<void(llvm::function_ref<void(raw_ostream &OS)>)>
+                 Logger) {
+  if (!E)
+    return;
+
+  // If strict CAS error, abort.
+  if (StrictCASErrors)
+    report_fatal_error(std::move(E));
+
+  // Otherwise, log the error message and return error_code.
+  if (Logger)
+    Logger([&](raw_ostream &OS) {
+      OS << "LTO CAS Error: '" << toString(std::move(E)) << "'\n";
+    });
+  else
+    consumeError(std::move(E));
+}
+
+static cas::CASID createCASProxyOrAbort(cas::ObjectStore &CAS, StringRef Key) {
+  // Create the key by inserting cache key (SHA1) into CAS to create an ID for
+  // the correct context.
+  // TODO: We can have an alternative hashing function that doesn't need to
+  // store the key into CAS to get the CacheKey.
+  auto CASKey = CAS.createProxy(std::nullopt, Key);
+  if (!CASKey)
+    report_fatal_error(CASKey.takeError());
+  return CASKey->getID();
+}
+
+// ThinLTOCacheEntry: manage caching for a single Module.
+class AsyncModuleCacheEntry {
+public:
+  // Access the path to this entry in the cache.
+  virtual std::string getEntryPath() = 0;
+
+  /// Attempt to asynchronously load the cached buffer and invoke the callback.
+  /// Cache miss is represented as std::error_code().
+  virtual void tryLoadingBuffer(
+      std::function<void(ErrorOr<std::unique_ptr<MemoryBuffer>>)> Cb) = 0;
+
+  /// Attempt to asynchronously write the computed buffer and invoke the
+  /// callback.
+  virtual void write(const MemoryBuffer &OutputBuffer,
+                     std::function<void()> Cb) = 0;
+
+  virtual Error writeObject(const MemoryBuffer &OutputBuffer,
+                            StringRef OutputPath) {
+    std::error_code Err;
+    raw_fd_ostream OS(OutputPath, Err, sys::fs::CD_CreateAlways);
+    if (Err)
+      return createStringError(Err, Twine("Can't open output '") + OutputPath);
+    OS << OutputBuffer.getBuffer();
+    return Error::success();
+  }
+
+  virtual std::optional<std::unique_ptr<MemoryBuffer>> getMappedBuffer() {
+    return std::nullopt;
+  }
+
+  /// Check whether the loaded and written results of this entry are identical.
+  /// This is only called when DeterministicCheck is enabled, and after both
+  /// \c tryLoadingBuffer() and \c write() have finished.
+  virtual bool areLoadedAndWrittenResultsIdentical() const { return true; }
+
+  virtual ~AsyncModuleCacheEntry() {}
+};
+
+struct NullAsyncModuleCacheEntry : AsyncModuleCacheEntry {
+  std::string getEntryPath() override { return "<null>"; }
+
+  void tryLoadingBuffer(
+      std::function<void(ErrorOr<std::unique_ptr<MemoryBuffer>>)> Cb) override {
+    return Cb(std::error_code());
+  }
+
+  void write(const MemoryBuffer &OutputBuffer,
+             std::function<void()> Cb) override {
+    return Cb();
+  }
+};
+
+class CASModuleCacheEntry : public AsyncModuleCacheEntry {
+public:
+  // Create a cache entry. This compute a unique hash for the Module considering
+  // the current list of export/import, and offer an interface to query to
+  // access the content in the cache.
+  CASModuleCacheEntry(
+      cas::ObjectStore &CAS, cas::ActionCache &Cache, std::string Key,
+      std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger)
+      : CAS(CAS), Cache(Cache), ID(createCASProxyOrAbort(CAS, Key)),
+        Logger(std::move(Logger)) {}
+
+  std::string getEntryPath() final {
+    return ID.toString();
+  }
+
+  void tryLoadingBuffer(
+      std::function<void(ErrorOr<std::unique_ptr<MemoryBuffer>>)> Cb) final {
+    auto LookupStart = std::chrono::steady_clock::now();
+    Cache.getAsync(ID, /*Globally=*/true, [=](auto KeyID) {
+      if (Logger) {
+        auto LookupEnd = std::chrono::steady_clock::now();
+        auto Seconds =
+            std::chrono::duration<double>(LookupEnd - LookupStart).count();
+        Logger([&](raw_ostream &OS) {
+          OS << "LTO cache lookup '" << ID << "' in "
+             << llvm::format("%.6fs", Seconds) << "\n";
+        });
+      }
+
+      std::optional<cas::CASID> MaybeKeyID;
+      if (auto E = std::move(KeyID).moveInto(MaybeKeyID)) {
+        handleCASError(std::move(E), Logger);
+        // If handleCASError didn't abort, treat as miss.
+        return Cb(std::error_code());
+      }
+
+      if (!MaybeKeyID)
+        return Cb(std::error_code());
+
+      auto LoadStart = std::chrono::steady_clock::now();
+      CAS.getProxyAsync(*MaybeKeyID, [=](auto MaybeObject) {
+        if (Logger) {
+          auto LoadEnd = std::chrono::steady_clock::now();
+          auto Seconds =
+              std::chrono::duration<double>(LoadEnd - LoadStart).count();
+          Logger([&](raw_ostream &OS) {
+            OS << "LTO cache load '" << ID << "' in "
+               << llvm::format("%.6fs", Seconds) << "\n";
+          });
+        }
+
+        if (!MaybeObject) {
+          handleCASError(MaybeObject.takeError(), Logger);
+          // If handleCASError didn't abort, treat as miss.
+          return Cb(std::error_code());
+        }
+        return Cb((*MaybeObject)->getMemoryBuffer("", /*NullTerminated=*/true));
+      });
+    });
+  }
+
+  void write(const MemoryBuffer &OutputBuffer, std::function<void()> Cb) final {
+    std::optional<cas::ObjectProxy> Proxy;
+    if (Error E =
+            CAS.createProxy({}, OutputBuffer.getBuffer()).moveInto(Proxy)) {
+      handleCASError(std::move(E), Logger);
+      return Cb();
+    }
+
+    auto UpdateStart = std::chrono::steady_clock::now();
+    Cache.putAsync(ID, Proxy->getID(), /*Globally=*/true, [=](auto Err) {
+      if (Logger) {
+        auto UpdateEnd = std::chrono::steady_clock::now();
+        auto Seconds =
+            std::chrono::duration<double>(UpdateEnd - UpdateStart).count();
+        Logger([&](raw_ostream &OS) {
+          OS << "LTO cache update '" << ID << "' in "
+             << llvm::format("%.6fs", Seconds) << "\n";
+        });
+      }
+
+      if (Err)
+        report_fatal_error(std::move(Err));
+      Cb();
+    });
+  }
+
+private:
+  cas::ObjectStore &CAS;
+  cas::ActionCache &Cache;
+  cas::CASID ID;
+  std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger;
+};
+
+class RemoteModuleCacheEntry : public AsyncModuleCacheEntry {
+public:
+  // Create a cache entry. This compute a unique hash for the Module considering
+  // the current list of export/import, and offer an interface to query to
+  // access the content in the cache.
+  RemoteModuleCacheEntry(
+      std::shared_ptr<CancellationToken> GetCancelTok,
+      std::shared_ptr<CancellationToken> PutCancelTok,
+      cas::remote::ClientServices &Service,
+      StringRef OutputPath, std::string Key,
+      std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger)
+      : GetCancelTok(GetCancelTok), PutCancelTok(PutCancelTok), Service(Service), ID(std::move(Key)),
+        OutputPath(OutputPath.str()), Logger(std::move(Logger)) {}
+
+  std::string getEntryPath() final { return ID; }
+
+  void tryLoadingBuffer(
+      std::function<void(ErrorOr<std::unique_ptr<MemoryBuffer>>)> Cb) final {
+    auto LookupStart = std::chrono::steady_clock::now();
+    Service.KVDB->getValueAsync(ID, [=, GetCancelTok = GetCancelTok](auto ErrOrGetResponse) {
+      auto CancelTokHandle = GetCancelTok->acquireHandle();
+      if (!CancelTokHandle) {
+        (void)expectedToOptional(std::move(ErrOrGetResponse));
+        return;
+      }
+
+      if (Logger) {
+        auto LookupEnd = std::chrono::steady_clock::now();
+        auto Seconds =
+            std::chrono::duration<double>(LookupEnd - LookupStart).count();
+        Logger([&](raw_ostream &OS) {
+          OS << "LTO cache lookup '" << ID << "' in "
+             << llvm::format("%.6fs", Seconds) << "\n";
+        });
+      }
+
+      // Use the KVDB to map the ThinLTO key onto the CAS ID.
+      std::optional<cas::remote::KeyValueDBClient::ValueTy> GetResponse;
+      if (Error E = std::move(ErrOrGetResponse).moveInto(GetResponse)) {
+        handleCASError(std::move(E), Logger);
+        // If handleCASError didn't abort, treat as miss.
+        return Cb(std::error_code());
+      }
+
+      // Cache Miss.
+      if (!GetResponse)
+        return Cb(std::error_code());
+
+      // Malformed output. Error.
+      auto Result = GetResponse->find("Output");
+      if (Result == GetResponse->end())
+        return Cb(std::make_error_code(std::errc::message_size));
+
+      LoadedCASID = Result->getValue();
+
+      std::string TmpPath = OutputPath + ".downloaded.tmp";
+
+      // Request the output buffer.
+      auto LoadStart = std::chrono::steady_clock::now();
+      Service.CASDB->loadAsync(
+          *LoadedCASID, TmpPath, [=, GetCancelTok = GetCancelTok](auto LoadResponse) {
+            auto CancelTokHandle = GetCancelTok->acquireHandle();
+            if (!CancelTokHandle) {
+              (void)expectedToOptional(std::move(LoadResponse));
+              return;
+            }
+
+            if (Logger) {
+              auto LoadEnd = std::chrono::steady_clock::now();
+              auto Seconds =
+                  std::chrono::duration<double>(LoadEnd - LoadStart).count();
+              Logger([&](raw_ostream &OS) {
+                OS << "LTO cache load '" << ID << "' in "
+                   << llvm::format("%.6fs", Seconds) << "\n";
+              });
+            }
+
+            if (!LoadResponse) {
+              handleCASError(LoadResponse.takeError(), Logger);
+              // If handleCASError didn't abort, treat as miss.
+              return Cb(std::error_code());
+            }
+
+            // Object not found. Treat it as a miss.
+            if (LoadResponse->KeyNotFound)
+              return Cb(std::error_code());
+
+            sys::fs::rename(TmpPath, OutputPath);
+            // Note: This might pick up the file created by rename in \c
+            // write().
+            return Cb(MemoryBuffer::getFile(OutputPath));
+          });
+    });
+  }
+
+  Error writeObject(const MemoryBuffer &OutputBuffer,
+                    StringRef OutputPath) final {
+    std::string TmpPath = this->OutputPath + ".computed.tmp";
+
+    if (Error E = AsyncModuleCacheEntry::writeObject(OutputBuffer, TmpPath))
+      return E;
+
+    if (auto EC = sys::fs::rename(TmpPath, OutputPath)) {
+      (void)sys::fs::remove(TmpPath); // Attempt to clean up.
+      return createStringError(
+          EC, "renaming of computed module object file failed");
+    }
+
+    return Error::success();
+  }
+
+  void write(const MemoryBuffer &OutputBuffer, std::function<void()> Cb) final {
+    std::string TmpPath = OutputPath + ".uploaded.tmp";
+
+    if (Error E = AsyncModuleCacheEntry::writeObject(OutputBuffer, TmpPath)) {
+      handleCASError(std::move(E), Logger);
+      return;
+    }
+
+    auto SaveStart = std::chrono::steady_clock::now();
+    // FIXME: Consider passing the buffer contents this in a string instead of file.
+    Service.CASDB->saveFileAsync(TmpPath, [=, PutCancelTok = PutCancelTok](auto MaybeWrittenCASID) {
+      sys::fs::remove(TmpPath);
+
+      auto CancelTokHandle = PutCancelTok->acquireHandle();
+      if (!CancelTokHandle) {
+        (void)expectedToOptional(std::move(MaybeWrittenCASID));
+        return;
+      }
+
+      if (Logger) {
+        auto SaveEnd = std::chrono::steady_clock::now();
+        auto Seconds =
+            std::chrono::duration<double>(SaveEnd - SaveStart).count();
+        Logger([&](raw_ostream &OS) {
+          OS << "LTO cache save '" << ID << "' in "
+             << llvm::format("%.6fs", Seconds) << "\n";
+        });
+      }
+
+      if (Error E = std::move(MaybeWrittenCASID).moveInto(WrittenCASID)) {
+        handleCASError(std::move(E), Logger);
+        return Cb();
+      }
+
+      cas::remote::KeyValueDBClient::ValueTy CompResult;
+      CompResult["Output"] = *WrittenCASID;
+
+      auto UpdateStart = std::chrono::steady_clock::now();
+      Service.KVDB->putValueAsync(ID, CompResult, [=, PutCancelTok = PutCancelTok](auto Err) {
+        auto CancelTokHandle = PutCancelTok->acquireHandle();
+        if (!CancelTokHandle) {
+          (void)consumeError(std::move(Err));
+          return;
+        }
+
+        if (Logger) {
+          auto UpdateEnd = std::chrono::steady_clock::now();
+          auto Seconds =
+              std::chrono::duration<double>(UpdateEnd - UpdateStart).count();
+          Logger([&](raw_ostream &OS) {
+            OS << "LTO cache update '" << ID << "' in "
+               << llvm::format("%.6fs", Seconds) << "\n";
+          });
+        }
+
+        if (Err)
+          handleCASError(std::move(Err), Logger);
+
+        return Cb();
+      });
+    });
+  }
+
+  bool areLoadedAndWrittenResultsIdentical() const override {
+    if (LoadedCASID && WrittenCASID && *LoadedCASID != *WrittenCASID) {
+      Error E = createStringError(
+          inconvertibleErrorCode(),
+          "ThinLTO deterministic check failed: " + *LoadedCASID +
+              " (expected) vs. " + *WrittenCASID + " (actual)");
+      handleCASError(std::move(E), Logger);
+      return false;
+    }
+    return true;
+  }
+
+private:
+  std::shared_ptr<CancellationToken> GetCancelTok;
+  std::shared_ptr<CancellationToken> PutCancelTok;
+  cas::remote::ClientServices &Service;
+  std::string ID;
+  std::string OutputPath;
+  std::optional<std::string> LoadedCASID;
+  std::optional<std::string> WrittenCASID;
+  std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger;
 };
 
 static std::unique_ptr<MemoryBuffer>
@@ -546,6 +993,133 @@ static void initTMBuilder(TargetMachineBuilder &TMBuilder,
 }
 
 } // end anonymous namespace
+
+std::optional<std::string> ModuleCacheEntry::computeCacheKey(
+    const ModuleSummaryIndex &Index, StringRef ModuleID,
+    const FunctionImporter::ImportMapTy &ImportList,
+    const FunctionImporter::ExportSetTy &ExportList,
+    const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
+    const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
+    bool Freestanding, const TargetMachineBuilder &TMBuilder) {
+  if (!Index.modulePaths().count(ModuleID))
+    // The module does not have an entry, it can't have a hash at all
+    return std::nullopt;
+
+  if (all_of(Index.getModuleHash(ModuleID), [](uint32_t V) { return V == 0; }))
+    // No hash entry, no caching!
+    return std::nullopt;
+
+  llvm::lto::Config Conf;
+  Conf.OptLevel = OptLevel;
+  Conf.Options = TMBuilder.Options;
+  Conf.CPU = TMBuilder.MCpu;
+  Conf.MAttrs.push_back(TMBuilder.MAttr);
+  Conf.RelocModel = TMBuilder.RelocModel;
+  Conf.CGOptLevel = TMBuilder.CGOptLevel;
+  Conf.Freestanding = Freestanding;
+  SmallString<40> Key;
+  computeLTOCacheKey(Key, Conf, Index, ModuleID, ImportList, ExportList,
+                     ResolvedODR, DefinedGVSummaries);
+
+  return Key.str().str();
+}
+
+Error ModuleCacheEntry::writeObject(const MemoryBuffer &OutputBuffer,
+                                    StringRef OutputPath) {
+  std::error_code Err;
+  raw_fd_ostream OS(OutputPath, Err, sys::fs::CD_CreateAlways);
+  if (Err)
+    return createStringError(Err, Twine("Can't open output '") + OutputPath);
+  OS << OutputBuffer.getBuffer();
+  return Error::success();
+}
+
+Error ThinLTOCodeGenerator::setCacheDir(std::string Path) {
+  // CacheDir can only be set once.
+  if (!CacheOptions.Path.empty())
+    return Error::success();
+
+  StringRef PathStr = Path;
+  // The environment overwrites the option parameter.
+  if (PathStr.consume_front("cas:")) {
+    CacheOptions.Type = CachingOptions::CacheType::CAS;
+    // Create ObjectStore and ActionCache.
+    auto MaybeCAS = cas::createOnDiskCAS(PathStr);
+    if (!MaybeCAS)
+      return MaybeCAS.takeError();
+    CacheOptions.CAS = std::move(*MaybeCAS);
+    auto MaybeCache = cas::createOnDiskActionCache(PathStr);
+    if (!MaybeCache)
+      return MaybeCache.takeError();
+    CacheOptions.Cache = std::move(*MaybeCache);
+    CacheOptions.Path = PathStr.str();
+  } else if (PathStr.consume_front("grpc:")) {
+    CacheOptions.Type = CachingOptions::CacheType::RemoteService;
+    auto MaybeService =
+        cas::remote::createCompilationCachingRemoteClient(PathStr);
+    if (!MaybeService)
+      return MaybeService.takeError();
+    CacheOptions.Service = std::move(*MaybeService);
+    CacheOptions.Path = PathStr.str();
+  } else {
+    CacheOptions.Type = CachingOptions::CacheType::CacheDirectory;
+    CacheOptions.Path = std::move(Path);
+  }
+
+  return Error::success();
+}
+
+std::unique_ptr<ModuleCacheEntry> ThinLTOCodeGenerator::createModuleCacheEntry(
+    const ModuleSummaryIndex &Index, StringRef ModuleID, StringRef OutputPath,
+    const FunctionImporter::ImportMapTy &ImportList,
+    const FunctionImporter::ExportSetTy &ExportList,
+    const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
+    const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
+    bool Freestanding, const TargetMachineBuilder &TMBuilder,
+    std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger) {
+  assert(CacheOptions.Type == CachingOptions::CacheType::CacheDirectory);
+
+  std::optional<std::string> Key = ModuleCacheEntry::computeCacheKey(
+      Index, ModuleID, ImportList, ExportList, ResolvedODR, DefinedGVSummaries,
+      OptLevel, Freestanding, TMBuilder);
+
+  if (!Key)
+    return std::make_unique<NullModuleCacheEntry>();
+
+  return FileModuleCacheEntry::create(CacheOptions.Path, std::move(*Key));
+}
+
+static std::unique_ptr<AsyncModuleCacheEntry> createAsyncModuleCacheEntry(
+    std::shared_ptr<CancellationToken> GetCancelTok,
+    std::shared_ptr<CancellationToken> PutCancelTok,
+    ThinLTOCodeGenerator::CachingOptions &CacheOptions,
+    const ModuleSummaryIndex &Index, StringRef ModuleID, StringRef OutputPath,
+    const FunctionImporter::ImportMapTy &ImportList,
+    const FunctionImporter::ExportSetTy &ExportList,
+    const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
+    const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
+    bool Freestanding, const TargetMachineBuilder &TMBuilder,
+    std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger) {
+  std::optional<std::string> Key = ModuleCacheEntry::computeCacheKey(
+      Index, ModuleID, ImportList, ExportList, ResolvedODR, DefinedGVSummaries,
+      OptLevel, Freestanding, TMBuilder);
+
+  if (!Key)
+    return std::make_unique<NullAsyncModuleCacheEntry>();
+
+  switch (CacheOptions.Type) {
+  case ThinLTOCodeGenerator::CachingOptions::CacheType::CAS:
+    return std::make_unique<CASModuleCacheEntry>(
+        *CacheOptions.CAS, *CacheOptions.Cache, std::move(*Key),
+        std::move(Logger));
+  case ThinLTOCodeGenerator::CachingOptions::CacheType::RemoteService:
+    return std::make_unique<RemoteModuleCacheEntry>(
+        GetCancelTok, PutCancelTok, *CacheOptions.Service, OutputPath,
+        std::move(*Key), std::move(Logger));
+  case ThinLTOCodeGenerator::CachingOptions::CacheType::CacheDirectory:
+    llvm_unreachable("creating async module cache entry in sync context");
+  }
+}
 
 void ThinLTOCodeGenerator::addModule(StringRef Identifier, StringRef Data) {
   MemoryBufferRef Buffer(Data, Identifier);
@@ -667,6 +1241,16 @@ static void computeDeadSymbolsInIndex(
   };
   computeDeadSymbolsWithConstProp(Index, GUIDPreservedSymbols, isPrevailing,
                                   /* ImportEnabled = */ true);
+}
+
+static std::string computeThinLTOOutputPath(unsigned count,
+                                            StringRef SavedObjectsDirectoryPath,
+                                            TargetMachineBuilder &TMBuilder) {
+  auto ArchName = TMBuilder.TheTriple.getArchName();
+  SmallString<128> OutputPath(SavedObjectsDirectoryPath);
+  llvm::sys::path::append(OutputPath,
+                          Twine(count) + "." + ArchName + ".thinlto.o");
+  return OutputPath.c_str(); // Ensure the string is null terminated.
 }
 
 /**
@@ -928,40 +1512,66 @@ void ThinLTOCodeGenerator::optimize(Module &TheModule) {
 /// OutputBuffer, preferring hard-link when possible.
 /// Returns the path to the generated file in SavedObjectsDirectoryPath.
 std::string
-ThinLTOCodeGenerator::writeGeneratedObject(int count, StringRef CacheEntryPath,
+ThinLTOCodeGenerator::writeGeneratedObject(StringRef OutputPath,
+                                           ModuleCacheEntry *CacheEntry,
                                            const MemoryBuffer &OutputBuffer) {
-  auto ArchName = TMBuilder.TheTriple.getArchName();
-  SmallString<128> OutputPath(SavedObjectsDirectoryPath);
-  llvm::sys::path::append(OutputPath,
-                          Twine(count) + "." + ArchName + ".thinlto.o");
-  OutputPath.c_str(); // Ensure the string is null terminated.
-  if (sys::fs::exists(OutputPath))
-    sys::fs::remove(OutputPath);
-
   // We don't return a memory buffer to the linker, just a list of files.
-  if (!CacheEntryPath.empty()) {
-    // Cache is enabled, hard-link the entry (or copy if hard-link fails).
-    auto Err = sys::fs::create_hard_link(CacheEntryPath, OutputPath);
-    if (!Err)
-      return std::string(OutputPath);
-    // Hard linking failed, try to copy.
-    Err = sys::fs::copy_file(CacheEntryPath, OutputPath);
-    if (!Err)
-      return std::string(OutputPath);
-    // Copy failed (could be because the CacheEntry was removed from the cache
-    // in the meantime by another process), fall back and try to write down the
-    // buffer to the output.
-    errs() << "remark: can't link or copy from cached entry '" << CacheEntryPath
-           << "' to '" << OutputPath << "'\n";
+  if (CacheEntry) {
+    Error Err = CacheEntry->writeObject(OutputBuffer, OutputPath);
+    if (Err)
+      report_fatal_error(std::move(Err));
+    return std::string(OutputPath);
   }
   // No cache entry, just write out the buffer.
   std::error_code Err;
-  raw_fd_ostream OS(OutputPath, Err, sys::fs::OF_None);
+  raw_fd_ostream OS(OutputPath, Err, sys::fs::CD_CreateAlways);
   if (Err)
     report_fatal_error(Twine("Can't open output '") + OutputPath + "'\n");
   OS << OutputBuffer.getBuffer();
   return std::string(OutputPath);
 }
+
+template <class T>
+class Awaitable {
+  T Value;
+  std::mutex Mutex;
+  std::condition_variable Channel;
+
+public:
+  explicit Awaitable(T Value) : Value(std::move(Value)) {}
+
+  bool check(llvm::function_ref<bool(const T &)> Cond) {
+    std::lock_guard Lock{Mutex};
+    return Cond(Value);
+  }
+
+  void wait(llvm::function_ref<bool(const T &)> Cond) {
+    std::unique_lock Lock{Mutex};
+    if (Cond(Value))
+      return;
+
+    Channel.wait(Lock, [&]() { return Cond(Value); });
+  }
+
+  template <class Duration>
+  bool waitFor(Duration MaxDuration, llvm::function_ref<bool(const T &)> Cond) {
+    std::unique_lock Lock{Mutex};
+    if (Cond(Value))
+      return true;
+
+    return Channel.wait_for(Lock, MaxDuration, [&]() { return Cond(Value); });
+  }
+
+  T apply(llvm::function_ref<void(T &)> Modifier) {
+    T Result = [&]() {
+      std::lock_guard Lock{Mutex};
+      Modifier(Value);
+      return Value;
+    }();
+    Channel.notify_one();
+    return Result;
+  }
+};
 
 // Main entry point for the ThinLTO processing
 void ThinLTOCodeGenerator::run() {
@@ -972,9 +1582,29 @@ void ThinLTOCodeGenerator::run() {
   });
   // Prepare the resulting object vector
   assert(ProducedBinaries.empty() && "The generator should not be reused");
+
+  // When using RemoteService caching, we will always create a saved object
+  // directory for remote service to pass back the cached object file.
+  // First, we need to remember whether the caller requests buffer API or file
+  // API based on if the SavedObjectsDirectoryPath was set or not.
+  bool UseBufferAPI = SavedObjectsDirectoryPath.empty();
   if (SavedObjectsDirectoryPath.empty())
+    SavedObjectsDirectoryPath = RemoteServiceTempsDir;
+  std::string TempDirectory;
+  if (CacheOptions.Type == CachingOptions::CacheType::RemoteService &&
+      SavedObjectsDirectoryPath.empty()) {
+    SmallString<128> TempPath;
+    std::error_code EC = llvm::sys::fs::createUniqueDirectory("temp", TempPath);
+    if (EC)
+      report_fatal_error("cannot create temp directory");
+    SavedObjectsDirectoryPath = TempPath.c_str();
+    TempDirectory = SavedObjectsDirectoryPath;
+  }
+
+  if (UseBufferAPI)
     ProducedBinaries.resize(Modules.size());
-  else {
+
+  if (!SavedObjectsDirectoryPath.empty()) {
     sys::fs::create_directories(SavedObjectsDirectoryPath);
     bool IsDir;
     sys::fs::is_directory(SavedObjectsDirectoryPath, IsDir);
@@ -982,6 +1612,11 @@ void ThinLTOCodeGenerator::run() {
       report_fatal_error(Twine("Unexistent dir: '") + SavedObjectsDirectoryPath + "'");
     ProducedBinaryFiles.resize(Modules.size());
   }
+
+  auto CleanTempDirAtExit = make_scope_exit([&]() {
+    if (!TempDirectory.empty())
+      llvm::sys::fs::remove_directories(TempDirectory);
+  });
 
   if (CodeGenOnly) {
     // Perform only parallel codegen and return.
@@ -992,17 +1627,20 @@ void ThinLTOCodeGenerator::run() {
         LLVMContext Context;
         Context.setDiscardValueNames(LTODiscardValueNames);
 
+        std::string OutputPath = computeThinLTOOutputPath(
+            count, SavedObjectsDirectoryPath, TMBuilder);
+
         // Parse module now
         auto TheModule = loadModuleFromInput(Mod.get(), Context, false,
                                              /*IsImporting*/ false);
 
         // CodeGen
         auto OutputBuffer = codegenModule(*TheModule, *TMBuilder.create());
-        if (SavedObjectsDirectoryPath.empty())
+        if (UseBufferAPI)
           ProducedBinaries[count] = std::move(OutputBuffer);
         else
           ProducedBinaryFiles[count] =
-              writeGeneratedObject(count, "", *OutputBuffer);
+              writeGeneratedObject(OutputPath, nullptr, *OutputBuffer);
       }, count++);
     }
 
@@ -1128,6 +1766,315 @@ void ThinLTOCodeGenerator::run() {
     llvm::timeTraceProfilerEnd();
 
   TimeTraceScopeExit.release();
+  LoggingStream CacheLogOS(llvm::errs());
+
+  // We can try running cache queries asynchronously.
+  if (CacheOptions.Type == CachingOptions::CacheType::CAS ||
+      CacheOptions.Type == CachingOptions::CacheType::RemoteService) {
+    enum ModuleState {
+      // Initial state, no guarantees.
+      MS_Empty = 0b0000,
+      // Computation is done, ComputedBuffer is valid.
+      MS_ComputationDone = 0b0001,
+      // Cache lookup is done, no other guarantees.
+      MS_CacheLookupDone = 0b0010,
+      // Cache lookup is done, CachedBuffer is valid.
+      MS_CacheLookupHit = 0b0100,
+    };
+    struct ModuleInfo {
+      std::unique_ptr<AsyncModuleCacheEntry> Entry;
+      std::atomic<unsigned> State = ModuleState::MS_Empty;
+      std::unique_ptr<MemoryBuffer> ComputedBuffer;
+      std::unique_ptr<MemoryBuffer> CachedBuffer;
+    };
+    std::vector<ModuleInfo> Infos(ModuleCount);
+
+    auto GetCancelTok = std::make_shared<CancellationToken>();
+    auto PutCancelTok = std::make_shared<CancellationToken>();
+
+    Awaitable<std::size_t> WrittenObjects{0};
+    Awaitable<std::size_t> HandledCacheReads{0};
+    Awaitable<std::size_t> HandledCacheWrites{0};
+    auto AllModules = [ModuleCount](std::size_t V) { return V == ModuleCount; };
+    auto Increment = [](std::size_t &V) { ++V; };
+
+    auto WriteObject = [&](int count, bool CacheHit) {
+      auto &Buffer =
+          CacheHit ? Infos[count].CachedBuffer : Infos[count].ComputedBuffer;
+
+      if (UseBufferAPI) {
+        ProducedBinaries[count] = std::move(Buffer);
+      } else {
+        std::string OutputPath = computeThinLTOOutputPath(
+            count, SavedObjectsDirectoryPath, TMBuilder);
+
+        Error Err = Infos[count].Entry->writeObject(*Buffer, OutputPath);
+        if (Err)
+          report_fatal_error(std::move(Err));
+        ProducedBinaryFiles[count] = std::string(OutputPath);
+      }
+
+      WrittenObjects.apply(Increment);
+    };
+
+    auto WriteCache = [&, PutCancelTok](int count) {
+      if (count == -1) {
+        HandledCacheWrites.apply(Increment);
+        return;
+      }
+
+      auto &OutputBuffer =
+          UseBufferAPI ? ProducedBinaries[count] : Infos[count].ComputedBuffer;
+
+      // Commit to the cache.
+      Infos[count].Entry->write(*OutputBuffer, [&, PutCancelTok]() {
+        auto CancelTokHandle = PutCancelTok->acquireHandle();
+        if (!CancelTokHandle)
+          return;
+
+        // TODO: With UseBufferAPI, we could try replacing ProducedBinaries[count]
+        //  with the buffer that's now cached on disk.
+
+        HandledCacheWrites.apply(Increment);
+      });
+    };
+
+    std::mutex WriteQueueMutex;
+    std::queue<int> WriteQueue;
+    auto EnqueueCacheWrite = [&](int count) {
+      std::scoped_lock Lock(WriteQueueMutex);
+      WriteQueue.push(count);
+      if (HandledCacheReads.check(AllModules)) {
+        while (!WriteQueue.empty()) {
+          WriteCache(WriteQueue.front());
+          WriteQueue.pop();
+        }
+      }
+    };
+
+    // Query the cache.
+    for (auto IndexCount : ModulesOrdering) {
+      auto &Mod = Modules[IndexCount];
+      auto ModuleIdentifier = Mod->getName();
+
+      std::string OutputPath = computeThinLTOOutputPath(
+          IndexCount, SavedObjectsDirectoryPath, TMBuilder);
+
+      auto &CacheEntry = Infos[IndexCount].Entry = createAsyncModuleCacheEntry(
+          GetCancelTok, PutCancelTok, CacheOptions, *Index, ModuleIdentifier,
+          OutputPath, ImportLists[ModuleIdentifier],
+          ExportLists[ModuleIdentifier], ResolvedODR[ModuleIdentifier],
+          ModuleToDefinedGVSummaries[ModuleIdentifier], OptLevel, Freestanding,
+          TMBuilder,
+          [&CacheLogOS](llvm::function_ref<void(raw_ostream & OS)> Log) {
+            if (CacheLogging)
+              CacheLogOS.applyLocked(Log);
+            else {
+              raw_null_ostream OS;
+              Log(OS);
+            }
+          });
+
+      CacheEntry->tryLoadingBuffer([&, IndexCount,
+                                    GetCancelTok](auto ErrOrBuffer) {
+        auto CancelTokHandle = GetCancelTok->acquireHandle();
+        if (!CancelTokHandle)
+          return;
+
+        bool CacheHit{ErrOrBuffer};
+        unsigned CacheBits = MS_CacheLookupDone;
+
+        if (CacheHit) {
+          Infos[IndexCount].CachedBuffer = std::move(ErrOrBuffer.get());
+          CacheBits |= MS_CacheLookupHit;
+        }
+
+        unsigned ComputationState = Infos[IndexCount].State.fetch_or(CacheBits);
+
+        // Consider writing the object file.
+        if (DeterministicCheck) {
+          // With deterministic checks, writing the object file is always
+          // responsibility of the compute task.
+        } else {
+          // Without deterministic checks, writing the object file is
+          // responsibility of whoever comes up with usable result first.
+          if (!(ComputationState & MS_ComputationDone) && CacheHit)
+            WriteObject(IndexCount, /*CacheHit=*/true);
+        }
+
+        HandledCacheReads.apply(Increment);
+
+        // Enqueueing cache write is responsibility of whoever lost the race.
+        if (DeterministicCheck) {
+          if (ComputationState & MS_ComputationDone)
+            EnqueueCacheWrite(IndexCount);
+        } else {
+          if (ComputationState & MS_ComputationDone) {
+            if (!CacheHit)
+              EnqueueCacheWrite(IndexCount);
+            else
+              EnqueueCacheWrite(-1);
+          }
+        }
+      });
+    }
+
+    // Parallel optimizer + codegen
+    {
+      DefaultThreadPool Pool(heavyweight_hardware_concurrency(ThreadCount));
+      for (auto count : ModulesOrdering) {
+        auto ModuleEntryPath = Infos[count].Entry->getEntryPath();
+        Pool.async([&, count, ModuleEntryPath, GetCancelTok] {
+          auto CancelTokHandle = GetCancelTok->acquireHandle();
+          if (!CancelTokHandle) {
+            if (CacheLogging)
+              CacheLogOS.applyLocked([&](raw_ostream &OS) {
+                OS << "LTO compute '" << ModuleEntryPath
+                   << "' skipped due to completion\n";
+              });
+            return;
+          }
+
+          auto &Mod = Modules[count];
+          StringRef ModuleIdentifier = Mod->getName();
+
+          if (!DeterministicCheck) {
+            unsigned CacheState = Infos[count].State;
+            if (CacheState & MS_CacheLookupHit) {
+              if (CacheLogging)
+                CacheLogOS.applyLocked([&](raw_ostream &OS) {
+                  OS << "LTO compute '" << Infos[count].Entry->getEntryPath()
+                     << "' skipped due to cache hit\n";
+                });
+              EnqueueCacheWrite(-1);
+              return;
+            }
+          }
+
+          if (CacheLogging)
+            CacheLogOS.applyLocked([&](raw_ostream &OS) {
+              OS << "LTO compute '" << Infos[count].Entry->getEntryPath()
+                 << "' started\n";
+            });
+          ScopedDurationTimer T([&](double Seconds) {
+            if (CacheLogging)
+              CacheLogOS.applyLocked([&](raw_ostream &OS) {
+                OS << "LTO compute '" << Infos[count].Entry->getEntryPath()
+                   << "' in " << llvm::format("%.6fs", Seconds) << "\n";
+              });
+          });
+
+          LLVMContext Context;
+          Context.setDiscardValueNames(LTODiscardValueNames);
+          Context.enableDebugTypeODRUniquing();
+          auto DiagFileOrErr = lto::setupLLVMOptimizationRemarks(
+              Context, RemarksFilename, RemarksPasses, RemarksFormat,
+              RemarksWithHotness, RemarksHotnessThreshold, count);
+          if (!DiagFileOrErr) {
+            errs() << "Error: " << toString(DiagFileOrErr.takeError()) << "\n";
+            report_fatal_error("ThinLTO: Can't get an output file for the "
+                               "remarks");
+          }
+
+          // Parse module now
+          auto TheModule = loadModuleFromInput(Mod.get(), Context, false,
+                                               /*IsImporting*/ false);
+
+          // Save temps: original file.
+          saveTempBitcode(*TheModule, SaveTempsDir, count, ".0.original.bc");
+
+          // Run the main process now, and generates a binary
+          auto OutputBuffer = ProcessThinLTOModule(
+              *TheModule, *Index, ModuleMap, *TMBuilder.create(),
+              ImportLists[ModuleIdentifier], ExportLists[ModuleIdentifier],
+              GUIDPreservedSymbols,
+              ModuleToDefinedGVSummaries[ModuleIdentifier], CacheOptions,
+              DisableCodeGen, SaveTempsDir, Freestanding, OptLevel, count,
+              DebugPassManager);
+
+          Infos[count].ComputedBuffer = std::move(OutputBuffer);
+
+          unsigned CacheState = Infos[count].State.fetch_or(MS_ComputationDone);
+          bool CacheHit = CacheState & MS_CacheLookupHit;
+
+          // Consider writing the object file.
+          if (DeterministicCheck) {
+            // With deterministic checks, writing the object file is always our
+            // responsibility.
+            WriteObject(count, /*CacheHit=*/false);
+          } else {
+            // Without deterministic checks, writing the object file is
+            // responsibility of whoever comes up with usable result first.
+            if (!(CacheState & MS_CacheLookupDone) || !CacheHit)
+              WriteObject(count, /*CacheHit=*/false);
+          }
+
+          // Enqueueing cache write is responsibility of whoever lost the race.
+          if (DeterministicCheck) {
+            if (CacheState & MS_CacheLookupDone)
+              EnqueueCacheWrite(count);
+          } else {
+            if (CacheState & MS_CacheLookupDone) {
+              if (!CacheHit)
+                EnqueueCacheWrite(count);
+              else
+                EnqueueCacheWrite(-1);
+            }
+          }
+        });
+      }
+
+      WrittenObjects.wait(AllModules);
+
+      {
+        if (CacheLogging)
+          CacheLogOS.applyLocked([&](raw_ostream &OS) {
+            OS << "Waiting for outstanding cache requests...\n";
+          });
+        ScopedDurationTimer T([&](double Seconds) {
+          if (CacheLogging)
+            CacheLogOS.applyLocked([&](raw_ostream &OS) {
+              OS << "Handled outstanding cache requests in "
+                 << llvm::format("%.6fs", Seconds) << "\n";
+            });
+        });
+        auto Start = std::chrono::steady_clock::now();
+        auto CacheTimeout = DeterministicCheck
+                                ? std::chrono::milliseconds::max()
+                                : std::chrono::milliseconds(5000);
+
+        if (!HandledCacheReads.waitFor(CacheTimeout, AllModules)) {
+          // If we were unable to finish all cache reads in time, just request
+          // their cancellation (we already have all objects written) and don't
+          // bother writing to the cache (that would probably be even slower
+          // than reading form it).
+          GetCancelTok->requestCancellation();
+        } else {
+          auto Now = std::chrono::steady_clock::now();
+          auto RemainingCacheTimeout = CacheTimeout - (Now - Start);
+          // If we finished all cache reads in time, request writes.
+          if (!HandledCacheWrites.waitFor(RemainingCacheTimeout, AllModules)) {
+            // If we were unable to finish all cache writes in time, request
+            // their cancellation. We don't want to hold up the link any longer.
+            PutCancelTok->requestCancellation();
+          }
+        }
+
+        if (DeterministicCheck)
+          for (int count : ModulesOrdering)
+            (void)Infos[count].Entry->areLoadedAndWrittenResultsIdentical();
+      }
+    }
+
+    pruneCache(CacheOptions.Path, CacheOptions.Policy, ProducedBinaries);
+
+    // If statistics were requested, print them out now.
+    if (llvm::AreStatisticsEnabled())
+      llvm::PrintStatistics();
+    reportAndResetTimings();
+
+    return;
+  }
 
   // Parallel optimizer + codegen
   {
@@ -1136,32 +2083,61 @@ void ThinLTOCodeGenerator::run() {
       auto &Mod = Modules[IndexCount];
       Pool.async([&](int count) {
         auto ModuleIdentifier = Mod->getName();
+        ScopedDurationTimer ScopedTime([&](double Seconds) {
+          if (CacheLogging) {
+            CacheLogOS.applyLocked([&](raw_ostream &OS) {
+              OS << "LTO processing '" << ModuleIdentifier << "' in "
+                 << llvm::format("%.6fs", Seconds) << "\n";
+            });
+          }
+        });
+
         auto &ExportList = ExportLists[ModuleIdentifier];
 
         auto &DefinedGVSummaries = ModuleToDefinedGVSummaries[ModuleIdentifier];
 
+        // Compute the output name.
+        std::string OutputPath = computeThinLTOOutputPath(
+            count, SavedObjectsDirectoryPath, TMBuilder);
+
         // The module may be cached, this helps handling it.
-        ModuleCacheEntry CacheEntry(CacheOptions.Path, *Index, ModuleIdentifier,
-                                    ImportLists[ModuleIdentifier], ExportList,
-                                    ResolvedODR[ModuleIdentifier],
-                                    DefinedGVSummaries, OptLevel, Freestanding,
-                                    TMBuilder);
-        auto CacheEntryPath = CacheEntry.getEntryPath();
+        auto CacheEntry = createModuleCacheEntry(
+            *Index, ModuleIdentifier, OutputPath, ImportLists[ModuleIdentifier],
+            ExportList, ResolvedODR[ModuleIdentifier], DefinedGVSummaries,
+            OptLevel, Freestanding, TMBuilder,
+            [&CacheLogOS](llvm::function_ref<void(raw_ostream & OS)> Log) {
+              if (CacheLogging)
+                CacheLogOS.applyLocked(Log);
+            });
+        auto CacheEntryPath = CacheEntry->getEntryPath();
 
         {
-          auto ErrOrBuffer = CacheEntry.tryLoadingBuffer();
+          if (CacheLogging)
+            CacheLogOS.applyLocked([&](raw_ostream &OS) {
+              OS << "Look up cache entry for " << ModuleIdentifier << "\n";
+            });
+
+          auto ErrOrBuffer = CacheEntry->tryLoadingBuffer();
           LLVM_DEBUG(dbgs() << "Cache " << (ErrOrBuffer ? "hit" : "miss")
                             << " '" << CacheEntryPath << "' for buffer "
                             << count << " " << ModuleIdentifier << "\n");
+          if (CacheLogging)
+            CacheLogOS.applyLocked([&](raw_ostream &OS) {
+              OS << "Cache " << (ErrOrBuffer ? "hit" : "miss") << " '"
+                 << CacheEntryPath << "' for buffer " << count << " "
+                 << ModuleIdentifier << "\n";
+            });
 
           if (ErrOrBuffer) {
             // Cache Hit!
-            if (SavedObjectsDirectoryPath.empty())
+            if (UseBufferAPI)
               ProducedBinaries[count] = std::move(ErrOrBuffer.get());
             else
               ProducedBinaryFiles[count] = writeGeneratedObject(
-                  count, CacheEntryPath, *ErrOrBuffer.get());
-            return;
+                  OutputPath, CacheEntry.get(), *ErrOrBuffer.get());
+
+            if (!DeterministicCheck)
+              return;
           }
         }
 
@@ -1193,32 +2169,31 @@ void ThinLTOCodeGenerator::run() {
             DisableCodeGen, SaveTempsDir, Freestanding, OptLevel, count,
             DebugPassManager);
 
-        // Commit to the cache (if enabled)
-        CacheEntry.write(*OutputBuffer);
+        if (CacheLogging)
+          CacheLogOS.applyLocked([&](raw_ostream &OS) {
+            OS << "Update cached result for " << ModuleIdentifier << "\n";
+          });
 
-        if (SavedObjectsDirectoryPath.empty()) {
+        // Commit to the cache.
+        CacheEntry->write(*OutputBuffer);
+
+        if (UseBufferAPI) {
           // We need to generated a memory buffer for the linker.
-          if (!CacheEntryPath.empty()) {
-            // When cache is enabled, reload from the cache if possible.
-            // Releasing the buffer from the heap and reloading it from the
-            // cache file with mmap helps us to lower memory pressure.
-            // The freed memory can be used for the next input file.
-            // The final binary link will read from the VFS cache (hopefully!)
-            // or from disk (if the memory pressure was too high).
-            auto ReloadedBufferOrErr = CacheEntry.tryLoadingBuffer();
-            if (auto EC = ReloadedBufferOrErr.getError()) {
-              // On error, keep the preexisting buffer and print a diagnostic.
-              errs() << "remark: can't reload cached file '" << CacheEntryPath
-                     << "': " << EC.message() << "\n";
-            } else {
-              OutputBuffer = std::move(*ReloadedBufferOrErr);
-            }
-          }
+          auto ReloadedBuffer = CacheEntry->getMappedBuffer();
+          // When cache is enabled, reload from the cache if possible.
+          // Releasing the buffer from the heap and reloading it from the
+          // cache file with mmap helps us to lower memory pressure.
+          // The freed memory can be used for the next input file.
+          // The final binary link will read from the VFS cache (hopefully!)
+          // or from disk (if the memory pressure was too high).
+          if (ReloadedBuffer)
+            OutputBuffer = std::move(*ReloadedBuffer);
+
           ProducedBinaries[count] = std::move(OutputBuffer);
           return;
         }
-        ProducedBinaryFiles[count] = writeGeneratedObject(
-            count, CacheEntryPath, *OutputBuffer);
+        ProducedBinaryFiles[count] =
+            writeGeneratedObject(OutputPath, CacheEntry.get(), *OutputBuffer);
       }, IndexCount);
     }
   }

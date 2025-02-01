@@ -548,7 +548,7 @@ public:
   }
 
   Value *VisitObjCAvailabilityCheckExpr(ObjCAvailabilityCheckExpr *E) {
-    VersionTuple Version = E->getVersion();
+    VersionTuple Version = E->getVersionAsWritten();
 
     // If we're checking for a platform older than our minimum deployment
     // target, we can fold the check away.
@@ -1995,8 +1995,8 @@ Value *ScalarExprEmitter::VisitMatrixSubscriptExpr(MatrixSubscriptExpr *E) {
 
   // Handle the vector case.  The base must be a vector, the index must be an
   // integer value.
-  Value *RowIdx = Visit(E->getRowIdx());
-  Value *ColumnIdx = Visit(E->getColumnIdx());
+  Value *RowIdx = CGF.EmitMatrixIndexExpr(E->getRowIdx());
+  Value *ColumnIdx = CGF.EmitMatrixIndexExpr(E->getColumnIdx());
 
   const auto *MatrixTy = E->getBase()->getType()->castAs<ConstantMatrixType>();
   unsigned NumRows = MatrixTy->getNumRows();
@@ -2194,6 +2194,58 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
     V = Builder.CreateInsertElement(V, Init, Idx, "vecinit");
   }
   return V;
+}
+
+static bool isDeclRefKnownNonNull(CodeGenFunction &CGF, const ValueDecl *D) {
+  return !D->isWeak();
+}
+
+static bool isLValueKnownNonNull(CodeGenFunction &CGF, const Expr *E) {
+  E = E->IgnoreParens();
+
+  if (auto UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Deref) {
+      return CGF.isPointerKnownNonNull(UO->getSubExpr());
+    }
+  }
+
+  if (auto DRE = dyn_cast<DeclRefExpr>(E)) {
+    return isDeclRefKnownNonNull(CGF, DRE->getDecl());
+  } else if (auto ME = dyn_cast<MemberExpr>(E)) {
+    if (isa<FieldDecl>(ME->getMemberDecl()))
+      return true;
+    return isDeclRefKnownNonNull(CGF, ME->getMemberDecl());
+  }
+
+  // Array subscripts?  Anything else?
+
+  return false;
+}
+
+bool CodeGenFunction::isPointerKnownNonNull(const Expr *E) {
+  assert(E->getType()->isPointerType());
+
+  E = E->IgnoreParens();
+
+  if (isa<CXXThisExpr>(E))
+    return true;
+
+  if (auto UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_AddrOf) {
+      return isLValueKnownNonNull(*this, UO->getSubExpr());
+    }
+  }
+
+  if (auto CE = dyn_cast<CastExpr>(E)) {
+    if (CE->getCastKind() == CK_FunctionToPointerDecay ||
+        CE->getCastKind() == CK_ArrayToPointerDecay) {
+      return isLValueKnownNonNull(*this, CE->getSubExpr());
+    }
+  }
+
+  // Maybe honor __nonnull?
+
+  return false;
 }
 
 bool CodeGenFunction::ShouldNullCheckClassCastValue(const CastExpr *CE) {
@@ -4801,6 +4853,20 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
 
   Value *RHS;
   LValue LHS;
+
+  if (auto ptrauth = E->getLHS()->getType().getPointerAuth()) {
+    LValue LV = CGF.EmitCheckedLValue(E->getLHS(), CodeGenFunction::TCK_Store);
+    LV.getQuals().removePointerAuth();
+    llvm::Value *RV = CGF.EmitPointerAuthQualify(ptrauth, E->getRHS(),
+                                                 LV.getAddress());
+    CGF.EmitNullabilityCheck(LV, RV, E->getExprLoc());
+    CGF.EmitStoreThroughLValue(RValue::get(RV), LV);
+
+    if (Ignore) return nullptr;
+    RV = CGF.EmitPointerAuthUnqualify(ptrauth, RV, LV.getType(),
+                                      LV.getAddress(), /*nonnull*/ false);
+    return RV;
+  }
 
   switch (E->getLHS()->getType().getObjCLifetime()) {
   case Qualifiers::OCL_Strong:

@@ -24,6 +24,15 @@
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Support/Compiler.h"
 
+#ifdef LLDB_ENABLE_SWIFT
+#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
+#include "llvm/ADT/DenseMap.h"
+#include "swift/Demangling/Demangle.h"
+#endif // LLDB_ENABLE_SWIFT
+// BEGIN SWIFT
+#include "lldb/Utility/ThreadSafeDenseMap.h"
+// END SWIFT
+
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -267,7 +276,10 @@ bool Mangled::GetRichManglingInfo(RichManglingContext &context,
 // class will need to use this accessor if it wishes to decode the demangled
 // name. The result is cached and will be kept until a new string value is
 // supplied to this object, or until the end of the object's lifetime.
-ConstString Mangled::GetDemangledName() const {
+ConstString Mangled::GetDemangledName(// BEGIN SWIFT
+                                      const SymbolContext *sc
+                                      // END SWIFT
+                                      ) const {
   // Check to make sure we have a valid mangled name and that we haven't
   // already decoded our mangled name.
   if (m_mangled && m_demangled.IsNull()) {
@@ -297,7 +309,30 @@ ConstString Mangled::GetDemangledName() const {
       case eManglingSchemeSwift:
         // Demangling a swift name requires the swift compiler. This is
         // explicitly unsupported on llvm.org.
-        break;
+#ifdef LLDB_ENABLE_SWIFT
+      {
+        Log *log = GetLog(LLDBLog::Demangle);
+        LLDB_LOGF(log, "demangle swift: %s", mangled_name);
+        std::string demangled(SwiftLanguageRuntime::DemangleSymbolAsString(
+            mangled_name, SwiftLanguageRuntime::eTypeName, sc));
+        // Don't cache the demangled name the function isn't available yet.
+        if (!sc || !sc->function) {
+          LLDB_LOGF(log, "demangle swift: %s -> \"%s\" (not cached)",
+                    mangled_name, demangled.c_str());
+          return ConstString(demangled);
+        }
+        if (demangled.empty()) {
+          LLDB_LOGF(log, "demangle swift: %s -> error: failed to demangle",
+                    mangled_name);
+        } else {
+          LLDB_LOGF(log, "demangle swift: %s -> \"%s\"", mangled_name,
+                    demangled.c_str());
+          m_demangled.SetStringWithMangledCounterpart(demangled, m_mangled);
+        }
+        return m_demangled;
+      }
+#endif // LLDB_ENABLE_SWIFT
+      break;
       case eManglingSchemeNone:
         llvm_unreachable("eManglingSchemeNone was handled already");
       }
@@ -317,9 +352,20 @@ ConstString Mangled::GetDemangledName() const {
   return m_demangled;
 }
 
-ConstString Mangled::GetDisplayDemangledName() const {
+ConstString Mangled::GetDisplayDemangledName(
+// BEGIN SWIFT
+    const SymbolContext *sc) const {
+#ifdef LLDB_ENABLE_SWIFT
+  if (m_mangled &&
+      SwiftLanguageRuntime::IsSwiftMangledName(m_mangled.GetStringRef()))
+    return ConstString(SwiftLanguageRuntime::DemangleSymbolAsString(
+        m_mangled.GetStringRef(), SwiftLanguageRuntime::eSimplified, sc));
+#endif // LLDB_ENABLE_SWIFT
+// END SWIFT
+
   if (Language *lang = Language::FindPlugin(GuessLanguage()))
-    return lang->GetDisplayDemangledName(*this);
+    if (ConstString display_name = lang->GetDisplayDemangledName(*this))
+      return display_name;
   return GetDemangledName();
 }
 
@@ -332,13 +378,17 @@ bool Mangled::NameMatches(const RegularExpression &regex) const {
 }
 
 // Get the demangled name if there is one, else return the mangled name.
-ConstString Mangled::GetName(Mangled::NamePreference preference) const {
+ConstString Mangled::GetName(Mangled::NamePreference preference,
+                             // BEGIN SWIFT
+                             const SymbolContext *sc
+                             // END SWIFT
+                             ) const {
   if (preference == ePreferMangled && m_mangled)
     return m_mangled;
 
   // Call the accessor to make sure we get a demangled name in case it hasn't
   // been demangled yet...
-  ConstString demangled = GetDemangledName();
+  ConstString demangled = GetDemangledName(sc);
 
   if (preference == ePreferDemangledWithoutArguments) {
     if (Language *lang = Language::FindPlugin(GuessLanguage())) {

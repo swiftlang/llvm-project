@@ -106,6 +106,8 @@ public:
 
   std::optional<uint64_t> GetSharedCacheImageHeaderVersion();
 
+  StructuredData::ObjectSP GetLanguageSpecificData(SymbolContext sc) override;
+
 protected:
   lldb::BreakpointResolverSP
   CreateExceptionResolver(const lldb::BreakpointSP &bkpt, bool catch_bp,
@@ -452,6 +454,7 @@ private:
   }
 
   friend class ClassDescriptorV2;
+  friend class SwiftLanguageRuntime;
 
   lldb::ModuleSP m_objc_module_sp;
 

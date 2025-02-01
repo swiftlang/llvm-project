@@ -22,7 +22,6 @@ class AArch64_ELFTargetObjectFile : public TargetLoweringObjectFileELF {
 public:
   AArch64_ELFTargetObjectFile() {
     PLTRelativeVariantKind = MCSymbolRefExpr::VK_PLT;
-    SupportIndirectSymViaGOTPCRel = true;
   }
 
   const MCExpr *getIndirectSymViaGOTPCRel(const GlobalValue *GV,
@@ -63,8 +62,9 @@ public:
 
   MCSymbol *getAuthPtrSlotSymbol(const TargetMachine &TM,
                                  MachineModuleInfo *MMI, const MCSymbol *RawSym,
-                                 AArch64PACKey::ID Key,
-                                 uint16_t Discriminator) const;
+                                 AArch64PACKey::ID Key, uint16_t Discriminator,
+                                 int64_t RawSymOffset = 0,
+                                 bool HasAddressDiversity = false) const;
 };
 
 /// This implementation is used for AArch64 COFF targets.

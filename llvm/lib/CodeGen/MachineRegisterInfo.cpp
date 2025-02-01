@@ -661,3 +661,20 @@ bool MachineRegisterInfo::isReservedRegUnit(unsigned Unit) const {
   }
   return false;
 }
+
+// BEGIN SWIFT
+bool llvm::isSwiftAsyncContext(const MachineFunction &MF, Register Reg) {
+  const llvm::Function &F = MF.getFunction();
+  if (!MF.getProperties().hasProperty(
+          MachineFunctionProperties::Property::TracksLiveness))
+    return false;
+  unsigned I = 0;
+  for (auto R : MF.getRegInfo().liveins()) {
+    if (R.first == (unsigned)Reg &&
+        F.hasParamAttribute(I, Attribute::SwiftAsync))
+      return true;
+    ++I;
+  }
+  return false;
+}
+// END SWIFT

@@ -9,7 +9,8 @@ how this invocation of the test suite should be run.
 
 # System modules
 import os
-
+import platform
+import sys
 
 # Third-party modules
 import unittest
@@ -26,7 +27,9 @@ categories_list = None
 # set to true if we are going to use categories for cherry-picking test cases
 use_categories = False
 # Categories we want to skip
-skip_categories = []
+skip_categories = ["frame-diagnose"]
+if platform.system() == 'Linux':
+    skip_categories.append('watchpoints')
 # Categories we expect to fail
 xfail_categories = []
 # use this to track per-category failures
@@ -44,8 +47,15 @@ compiler = None
 dsymutil = None
 sdkroot = None
 make_path = None
+swiftCompiler = None
+swiftLibrary = None
+python = sys.executable
 
 # The overriden dwarf verison.
+# Don't use this to test the current compiler's
+# DWARF version, as this won't be set if the
+# version isn't overridden.
+# Use lldbplatformutils.getDwarfVersion() instead.
 dwarf_version = 0
 
 # Any overridden settings.
@@ -110,6 +120,8 @@ test_build_dir = None
 lldb_module_cache_dir = None
 # The clang module cache directory used by clang.
 clang_module_cache_dir = None
+
+swift_libs_dir = None
 
 # Test results handling globals
 test_result = None

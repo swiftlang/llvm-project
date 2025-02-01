@@ -1448,7 +1448,7 @@ namespace {
     void writeHasChildren(raw_ostream &OS) const override { OS << "true"; }
   };
 
-  } // end anonymous namespace
+} // end anonymous namespace
 
 static std::unique_ptr<Argument>
 createArgument(const Record &Arg, StringRef Attr,

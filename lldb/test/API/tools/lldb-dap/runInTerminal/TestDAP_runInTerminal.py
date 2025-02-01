@@ -43,6 +43,7 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
         except:
             return False
 
+    @skipIfLinux # FIXME: doesn't seem to work on Ubuntu 16.04.
     @skipIfWindows
     @skipIf(archs=no_match(["x86_64"]))
     def test_runInTerminal(self):
@@ -90,6 +91,30 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
         env = self.dap_server.request_evaluate("foo")["body"]["result"]
         self.assertIn("bar", env)
 
+    @skipIf(archs=no_match(["x86_64"]))
+    def test_runInTerminalWithObjectEnv(self):
+        if not self.isTestSupported():
+            return
+        """
+            Tests the "runInTerminal" reverse request. It makes sure that the IDE can
+            launch the inferior with the correct environment variables using an object.
+        """
+        program = self.getBuildArtifact("a.out")
+        self.build_and_launch(program, runInTerminal=True, env={"FOO": "BAR"})
+
+        self.assertEqual(
+            len(self.dap_server.reverse_requests),
+            1,
+            "make sure we got a reverse request",
+        )
+
+        request = self.dap_server.reverse_requests[0]
+        request_envs = request["arguments"]["env"]
+
+        self.assertIn("FOO", request_envs)
+        self.assertEqual("BAR", request_envs["FOO"])
+
+    @skipIfLinux # FIXME: doesn't seem to work on Ubuntu 16.04.
     @skipIfWindows
     @skipIf(archs=no_match(["x86_64"]))
     def test_runInTerminalInvalidTarget(self):
@@ -109,6 +134,7 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
             response["message"],
         )
 
+    @skipIfLinux # FIXME: doesn't seem to work on Ubuntu 16.04.
     @skipIfWindows
     @skipIf(archs=no_match(["x86_64"]))
     def test_missingArgInRunInTerminalLauncher(self):
@@ -124,6 +150,7 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
             '"--launch-target" requires "--comm-file" to be specified', proc.stderr
         )
 
+    @skipIfLinux # FIXME: doesn't seem to work on Ubuntu 16.04.
     @skipIfWindows
     @skipIf(archs=no_match(["x86_64"]))
     def test_FakeAttachedRunInTerminalLauncherWithInvalidProgram(self):
@@ -151,6 +178,7 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
         _, stderr = proc.communicate()
         self.assertIn("No such file or directory", stderr)
 
+    @skipIfLinux # FIXME: doesn't seem to work on Ubuntu 16.04.
     @skipIfWindows
     @skipIf(archs=no_match(["x86_64"]))
     def test_FakeAttachedRunInTerminalLauncherWithValidProgram(self):
@@ -178,6 +206,7 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
         stdout, _ = proc.communicate()
         self.assertIn("foo", stdout)
 
+    @skipIfLinux # FIXME: doesn't seem to work on Ubuntu 16.04.
     @skipIfWindows
     @skipIf(archs=no_match(["x86_64"]))
     def test_FakeAttachedRunInTerminalLauncherAndCheckEnvironment(self):
@@ -199,6 +228,7 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
         stdout, _ = proc.communicate()
         self.assertIn("FOO=BAR", stdout)
 
+    @skipIfLinux # FIXME: doesn't seem to work on Ubuntu 16.04.
     @skipIfWindows
     @skipIf(archs=no_match(["x86_64"]))
     def test_NonAttachedRunInTerminalLauncher(self):

@@ -386,7 +386,7 @@ static void handleGslAnnotatedTypes(IndirectLocalPath &Path, Expr *Call,
   }
 }
 
-static bool implicitObjectParamIsLifetimeBound(const FunctionDecl *FD) {
+bool implicitObjectParamIsLifetimeBound(const FunctionDecl *FD) {
   const TypeSourceInfo *TSI = FD->getTypeSourceInfo();
   if (!TSI)
     return false;

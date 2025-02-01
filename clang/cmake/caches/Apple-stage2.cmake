@@ -56,6 +56,8 @@ set(LLVM_TOOLCHAIN_TOOLS
   llvm-size
   llvm-cxxfilt
   llvm-config
+  llvm-cas
+  llvm-cas-dump
   CACHE STRING "")
 
 set(LLVM_BUILD_UTILS ON CACHE BOOL "")
@@ -73,6 +75,7 @@ set(LLVM_DISTRIBUTION_COMPONENTS
   clang-format
   clang-resource-headers
   Remarks
+  clang-features-file
   ${LLVM_TOOLCHAIN_TOOLS}
   ${LLVM_TOOLCHAIN_UTILITIES}
   CACHE STRING "")

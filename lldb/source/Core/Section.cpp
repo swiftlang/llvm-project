@@ -25,6 +25,8 @@ class DataExtractor;
 using namespace lldb;
 using namespace lldb_private;
 
+char Section::ID;
+
 const char *Section::GetTypeAsCString() const {
   switch (m_type) {
   case eSectionTypeInvalid:
@@ -147,6 +149,8 @@ const char *Section::GetTypeAsCString() const {
     return "dwarf-gnu-debugaltlink";
   case eSectionTypeCTF:
     return "ctf";
+  case eSectionTypeLLDBTypeSummaries:
+    return "lldb-type-summaries";
   case eSectionTypeOther:
     return "regular";
   case eSectionTypeSwiftModules:
@@ -457,6 +461,7 @@ bool Section::ContainsOnlyDebugInfo() const {
   case eSectionTypeDWARFAppleObjC:
   case eSectionTypeDWARFGNUDebugAltLink:
   case eSectionTypeCTF:
+  case eSectionTypeLLDBTypeSummaries:
   case eSectionTypeSwiftModules:
     return true;
   }

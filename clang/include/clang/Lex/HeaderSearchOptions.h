@@ -35,9 +35,6 @@ enum IncludeDirGroup {
   /// Paths for '\#include <>' added by '-I'.
   Angled,
 
-  /// Like Angled, but marks header maps used when building frameworks.
-  IndexHeaderMap,
-
   /// Like Angled, but marks system directories.
   System,
 
@@ -258,6 +255,10 @@ public:
   LLVM_PREFERRED_TYPE(bool)
   unsigned ModulesHashContent : 1;
 
+  /// Whether AST files should only contain the preprocessor information.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned ModulesSerializeOnlyPreprocessor : 1;
+
   /// Whether we should include all things that could impact the module in the
   /// hash.
   ///
@@ -285,6 +286,7 @@ public:
         ModulesSkipHeaderSearchPaths(false),
         ModulesSkipPragmaDiagnosticMappings(false),
         ModulesPruneNonAffectingModuleMaps(true), ModulesHashContent(false),
+        ModulesSerializeOnlyPreprocessor(false),
         ModulesStrictContextHash(false), ModulesIncludeVFSUsage(false) {}
 
   /// AddPath - Add the \p Path path to the specified \p Group list.

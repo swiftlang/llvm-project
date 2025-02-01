@@ -75,6 +75,7 @@
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalIFunc.h"
 #include "llvm/IR/GlobalObject.h"
+#include "llvm/IR/GlobalPtrAuthInfo.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
@@ -2046,6 +2047,30 @@ static bool isGOTEquivalentCandidate(const GlobalVariable *GV,
       !isa<GlobalValue>(GV->getOperand(0)))
     return false;
 
+  // ptrauth globals are themselves an indirection pointing at another global.
+  // We currently can't express authentication when referencing PC-relative GOT
+  // entries, because the main GOT has no authentication.
+  //
+  // FIXME: the linker uses a special __auth_got (accessed by symbol stubs), and
+  // we could extend that to know about the compiler's __auth_ptr section.
+  // This would let us use the PC relative GOT trickery here.
+  // However, the __auth_got has a known signing scheme, and __auth_ptr doesn't,
+  // so we'd still need a way to express "an offset to the GOT entry that is
+  // signed this particular way".  The trick is that this would happen using
+  // the existing @AUTH relocations, and the __auth_ptr entries themselves.
+  // So the ptrauth equivalent of:
+  //   .long foo@GOTPCREL
+  //
+  // would be:
+  //   .long l_foo$auth$ia$42
+  //
+  // l_foo$auth$ia$42:
+  //   .quad _foo@AUTH(ia,42)
+  //
+  // where the the latter being in the __auth_ptr section makes it coalescable.
+  if (cast<GlobalValue>(GV->getOperand(0))->getSection() == "llvm.ptrauth")
+    return false;
+
   // To be a got equivalent, at least one of its users need to be a constant
   // expression used by another global variable.
   for (const auto *U : GV->users())
@@ -2851,6 +2876,10 @@ bool AsmPrinter::emitSpecialLLVMGlobal(const GlobalVariable *GV) {
       GV->hasAvailableExternallyLinkage())
     return true;
 
+  // Ignore ptrauth globals: they only represent references to other globals.
+  if (GV->getSection() == "llvm.ptrauth")
+    return true;
+
   if (GV->getName() == "llvm.arm64ec.symbolmap") {
     // For ARM64EC, print the table that maps between symbols and the
     // corresponding thunks to translate between x64 and AArch64 code.
@@ -3140,8 +3169,17 @@ const MCExpr *AsmPrinter::lowerConstant(const Constant *CV) {
   if (const ConstantPtrAuth *CPA = dyn_cast<ConstantPtrAuth>(CV))
     return lowerConstantPtrAuth(*CPA);
 
-  if (const GlobalValue *GV = dyn_cast<GlobalValue>(CV))
+  // FIXME: temporary support for both ConstantPtrAuth + llvm.ptrauth globals
+  if (const GlobalValue *GV = dyn_cast<GlobalValue>(CV)) {
+    if (auto *GVB = dyn_cast<GlobalVariable>(GV)) {
+      if (GVB->getSection() == "llvm.ptrauth") {
+        auto PAI = *GlobalPtrAuthInfo::analyze(GV);
+        return lowerPtrAuthGlobalConstant(PAI);
+      }
+    }
+
     return MCSymbolRefExpr::create(getSymbol(GV), Ctx);
+  }
 
   if (const BlockAddress *BA = dyn_cast<BlockAddress>(CV))
     return lowerBlockAddressConstant(*BA);

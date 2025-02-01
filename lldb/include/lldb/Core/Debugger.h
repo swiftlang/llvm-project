@@ -219,6 +219,10 @@ public:
   ///  Remove the given IO handler if it's currently active.
   bool RemoveIOHandler(const lldb::IOHandlerSP &reader_sp);
 
+  ///  Remove the given IO handlers if it's currently active.
+  uint32_t RemoveIOHandlers(const lldb::IOHandlerSP &reader1_sp,
+                        const lldb::IOHandlerSP &reader2_sp);
+
   bool IsTopIOHandler(const lldb::IOHandlerSP &reader_sp);
 
   bool CheckTopIOHandlerTypes(IOHandler::Type top_type,
@@ -279,6 +283,10 @@ public:
   uint64_t GetTerminalWidth() const;
 
   bool SetTerminalWidth(uint64_t term_width);
+
+  uint64_t GetTerminalHeight() const;
+
+  bool SetTerminalHeight(uint64_t term_height);
 
   llvm::StringRef GetPrompt() const;
 
@@ -364,6 +372,10 @@ public:
 
   const std::string &GetInstanceName() { return m_instance_name; }
 
+  bool GetShowInlineDiagnostics() const;
+
+  bool SetShowInlineDiagnostics(bool);
+
   bool LoadPlugin(const FileSpec &spec, Status &error);
 
   void RunIOHandlers();
@@ -377,6 +389,10 @@ public:
   bool IsHandlingEvents() const { return m_event_handler_thread.IsJoinable(); }
 
   Status RunREPL(lldb::LanguageType language, const char *repl_options);
+
+  bool REPLIsActive() { return m_io_handler_stack.REPLIsActive(); }
+
+  bool REPLIsEnabled() { return m_io_handler_stack.REPLIsEnabled(); }
 
   /// Interruption in LLDB:
   ///
@@ -598,6 +614,7 @@ public:
 
 protected:
   friend class CommandInterpreter;
+  friend class SwiftREPL;
   friend class REPL;
   friend class Progress;
   friend class ProgressManager;

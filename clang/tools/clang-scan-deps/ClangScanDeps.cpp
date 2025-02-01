@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/CAS/IncludeTree.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -14,10 +15,15 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
+#include "clang/Tooling/DependencyScanning/ScanAndUpdateArgs.h"
 #include "clang/Tooling/JSONCompilationDatabase.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/CAS/ActionCache.h"
+#include "llvm/CAS/CASProvidingFileSystem.h"
+#include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Format.h"
@@ -37,6 +43,7 @@
 #include "Opts.inc"
 
 using namespace clang;
+using namespace tooling;
 using namespace tooling::dependencies;
 
 namespace {
@@ -91,6 +98,14 @@ static bool PrintTiming;
 static llvm::BumpPtrAllocator Alloc;
 static llvm::StringSaver Saver{Alloc};
 static std::vector<const char *> CommandLine;
+static bool EmitCASCompDB;
+static std::string OnDiskCASPath;
+static std::string CASPluginPath;
+static std::vector<std::pair<std::string, std::string>> CASPluginOptions;
+static bool InMemoryCAS;
+static std::string PrefixMapToolchain;
+static std::string PrefixMapSDK;
+static std::vector<std::string> PrefixMaps;
 
 #ifndef NDEBUG
 static constexpr bool DoRoundTripDefault = true;
@@ -139,6 +154,10 @@ static void ParseArgs(int argc, char **argv) {
         llvm::StringSwitch<std::optional<ScanningOutputFormat>>(A->getValue())
             .Case("make", ScanningOutputFormat::Make)
             .Case("p1689", ScanningOutputFormat::P1689)
+            .Case("experimental-tree", ScanningOutputFormat::Tree)
+            .Case("experimental-tree-full", ScanningOutputFormat::FullTree)
+            .Case("experimental-include-tree", ScanningOutputFormat::IncludeTree)
+            .Case("experimental-include-tree-full", ScanningOutputFormat::FullIncludeTree)
             .Case("experimental-full", ScanningOutputFormat::Full)
             .Default(std::nullopt);
     if (!FormatType) {
@@ -220,6 +239,25 @@ static void ParseArgs(int argc, char **argv) {
   }
 
   PrintTiming = Args.hasArg(OPT_print_timing);
+
+  EmitCASCompDB = Args.hasArg(OPT_emit_cas_compdb);
+  InMemoryCAS = Args.hasArg(OPT_in_memory_cas);
+
+  if (const llvm::opt::Arg *A = Args.getLastArg(OPT_cas_path_EQ))
+    OnDiskCASPath = A->getValue();
+  if (const llvm::opt::Arg *A = Args.getLastArg(OPT_fcas_plugin_path_EQ))
+    CASPluginPath = A->getValue();
+  for (const llvm::opt::Arg *A : Args.filtered(OPT_fcas_plugin_option_EQ)) {
+    auto [L, R] = StringRef(A->getValue()).split('=');
+    CASPluginOptions.emplace_back(std::string(L), std::string(R));
+  }
+
+  if (const llvm::opt::Arg *A = Args.getLastArg(OPT_prefix_map_toolchain_EQ))
+    PrefixMapToolchain = A->getValue();
+  if (const llvm::opt::Arg *A = Args.getLastArg(OPT_prefix_map_sdk_EQ))
+    PrefixMapSDK = A->getValue();
+  for (const llvm::opt::Arg *A : Args.filtered(OPT_prefix_map_EQ))
+    PrefixMaps.emplace_back(A->getValue());
 
   Verbose = Args.hasArg(OPT_verbose);
 
@@ -308,6 +346,154 @@ private:
 
 } // end anonymous namespace
 
+static bool emitCompilationDBWithCASTreeArguments(
+    std::shared_ptr<llvm::cas::ObjectStore> DB,
+    std::vector<tooling::CompileCommand> Inputs,
+    DiagnosticConsumer &DiagsConsumer, DependencyScanningService &Service,
+    llvm::DefaultThreadPool &Pool, llvm::raw_ostream &OS) {
+
+  // Follow `-cc1depscan` and also ignore diagnostics.
+  // FIXME: Seems not a good idea to do this..
+  auto IgnoringDiagsConsumer = std::make_unique<IgnoringDiagConsumer>();
+
+  struct PerThreadState {
+    DependencyScanningTool Worker;
+    llvm::BumpPtrAllocator Alloc;
+    llvm::StringSaver Saver;
+    PerThreadState(DependencyScanningService &Service,
+                   std::unique_ptr<llvm::vfs::FileSystem> FS)
+        : Worker(Service, std::move(FS)), Saver(Alloc) {}
+  };
+  std::vector<std::unique_ptr<PerThreadState>> PerThreadStates;
+  for (unsigned I = 0, E = Pool.getMaxConcurrency(); I != E; ++I) {
+    std::unique_ptr<llvm::vfs::FileSystem> FS =
+        llvm::cas::createCASProvidingFileSystem(
+            DB, llvm::vfs::createPhysicalFileSystem());
+    PerThreadStates.push_back(
+        std::make_unique<PerThreadState>(Service, std::move(FS)));
+  }
+
+  std::atomic<bool> HadErrors(false);
+  std::mutex Lock;
+  size_t Index = 0;
+
+  struct CompDBEntry {
+    size_t Index;
+    std::string Filename;
+    std::string WorkDir;
+    SmallVector<const char *> Args;
+  };
+  std::vector<CompDBEntry> CompDBEntries;
+
+  for (unsigned I = 0, E = Pool.getMaxConcurrency(); I != E; ++I) {
+    Pool.async([&, I]() {
+      while (true) {
+        const tooling::CompileCommand *Input;
+        std::string Filename;
+        std::string CWD;
+        size_t LocalIndex;
+        // Take the next input.
+        {
+          std::unique_lock<std::mutex> LockGuard(Lock);
+          if (Index >= Inputs.size())
+            return;
+          LocalIndex = Index;
+          Input = &Inputs[Index++];
+          Filename = std::move(Input->Filename);
+          CWD = std::move(Input->Directory);
+        }
+
+        tooling::dependencies::DependencyScanningTool &WorkerTool =
+            PerThreadStates[I]->Worker;
+
+        class ScanForCC1Action : public ToolAction {
+          llvm::cas::ObjectStore &DB;
+          tooling::dependencies::DependencyScanningTool &WorkerTool;
+          DiagnosticConsumer &DiagsConsumer;
+          StringRef CWD;
+          SmallVectorImpl<const char *> &OutputArgs;
+          llvm::StringSaver &Saver;
+
+        public:
+          ScanForCC1Action(
+              llvm::cas::ObjectStore &DB,
+              tooling::dependencies::DependencyScanningTool &WorkerTool,
+              DiagnosticConsumer &DiagsConsumer, StringRef CWD,
+              SmallVectorImpl<const char *> &OutputArgs,
+              llvm::StringSaver &Saver)
+              : DB(DB), WorkerTool(WorkerTool), DiagsConsumer(DiagsConsumer),
+                CWD(CWD), OutputArgs(OutputArgs), Saver(Saver) {}
+
+          bool
+          runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                        FileManager *Files,
+                        std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                        DiagnosticConsumer *DiagConsumer) override {
+            Expected<llvm::cas::CASID> Root = scanAndUpdateCC1InlineWithTool(
+                WorkerTool, DiagsConsumer, /*VerboseOS*/ nullptr, *Invocation,
+                CWD, DB);
+            if (!Root) {
+              llvm::consumeError(Root.takeError());
+              return false;
+            }
+            OutputArgs.push_back("-cc1");
+            Invocation->generateCC1CommandLine(OutputArgs, [&](const Twine &T) {
+              return Saver.save(T).data();
+            });
+            return true;
+          }
+        };
+
+        SmallVector<const char *> OutputArgs;
+        llvm::StringSaver &Saver = PerThreadStates[I]->Saver;
+        OutputArgs.push_back(Saver.save(Input->CommandLine.front()).data());
+        ScanForCC1Action Action(*DB, WorkerTool, *IgnoringDiagsConsumer, CWD,
+                                OutputArgs, Saver);
+
+        llvm::IntrusiveRefCntPtr<FileManager> FileMgr =
+            WorkerTool.getOrCreateFileManager();
+        ToolInvocation Invocation(Input->CommandLine, &Action, FileMgr.get(),
+                                  std::make_shared<PCHContainerOperations>());
+        if (!Invocation.run()) {
+          HadErrors = true;
+          continue;
+        }
+
+        {
+          std::unique_lock<std::mutex> LockGuard(Lock);
+          CompDBEntries.push_back({LocalIndex, std::move(Filename),
+                                   std::move(CWD), std::move(OutputArgs)});
+        }
+      }
+    });
+  }
+  Pool.wait();
+
+  std::sort(CompDBEntries.begin(), CompDBEntries.end(),
+            [](const CompDBEntry &LHS, const CompDBEntry &RHS) -> bool {
+              return LHS.Index < RHS.Index;
+            });
+
+  llvm::json::OStream J(OS, /*IndentSize*/ 2);
+  J.arrayBegin();
+  for (const auto &Entry : CompDBEntries) {
+    J.objectBegin();
+    J.attribute("file", Entry.Filename);
+    J.attribute("directory", Entry.WorkDir);
+    J.attributeBegin("arguments");
+    J.arrayBegin();
+    for (const char *Arg : Entry.Args) {
+      J.value(Arg);
+    }
+    J.arrayEnd();
+    J.attributeEnd();
+    J.objectEnd();
+  }
+  J.arrayEnd();
+
+  return HadErrors;
+}
+
 /// Takes the result of a dependency scan and prints error / dependency files
 /// based on the result.
 ///
@@ -330,38 +516,108 @@ handleMakeDependencyToolResult(const std::string &Input,
   return false;
 }
 
-static llvm::json::Array toJSONSorted(const llvm::StringSet<> &Set) {
-  std::vector<llvm::StringRef> Strings;
-  for (auto &&I : Set)
-    Strings.push_back(I.getKey());
-  llvm::sort(Strings);
-  return llvm::json::Array(Strings);
+static bool handleTreeDependencyToolResult(
+    llvm::cas::ObjectStore &CAS, const std::string &Input,
+    llvm::Expected<llvm::cas::ObjectProxy> &MaybeTree, llvm::raw_ostream &OS,
+    SharedStream &Errs) {
+  if (!MaybeTree) {
+    llvm::handleAllErrors(
+        MaybeTree.takeError(), [&Input, &Errs](llvm::StringError &Err) {
+          Errs.applyLocked([&](raw_ostream &OS) {
+            OS << "Error while scanning dependencies for " << Input << ":\n";
+            OS << Err.getMessage();
+            OS << "\n";
+          });
+        });
+    return true;
+  }
+  OS << "tree " << MaybeTree->getID() << " for '" << Input << "'\n";
+  return false;
+}
+
+static bool
+handleIncludeTreeToolResult(llvm::cas::ObjectStore &CAS,
+                            const std::string &Input,
+                            Expected<cas::IncludeTreeRoot> &MaybeTree,
+                            llvm::raw_ostream &OS, SharedStream &Errs) {
+  if (!MaybeTree) {
+    llvm::handleAllErrors(
+        MaybeTree.takeError(), [&Input, &Errs](llvm::StringError &Err) {
+          Errs.applyLocked([&](raw_ostream &OS) {
+            OS << "Error while scanning dependencies for " << Input << ":\n";
+            OS << Err.getMessage();
+            OS << "\n";
+          });
+        });
+    return true;
+  }
+  auto printError = [&Errs](llvm::Error &&E) -> bool {
+    llvm::handleAllErrors(std::move(E), [&Errs](llvm::StringError &Err) {
+      Errs.applyLocked([&](raw_ostream &OS) {
+        OS << "Error while printing include tree: " << Err.getMessage() << "\n";
+      });
+    });
+    return true;
+  };
+
+  std::optional<llvm::Error> E;
+  MaybeTree->getID().print(OS);
+  OS << " - " << Input << "\n";
+  E = MaybeTree->print(OS);
+  if (*E)
+    return printError(std::move(*E));
+  return false;
+}
+
+static bool outputFormatRequiresCAS() {
+  switch (Format) {
+    case ScanningOutputFormat::Tree:
+    case ScanningOutputFormat::FullTree:
+    case ScanningOutputFormat::IncludeTree:
+    case ScanningOutputFormat::FullIncludeTree:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static bool useCAS() {
+  return InMemoryCAS || !OnDiskCASPath.empty() || outputFormatRequiresCAS();
+}
+
+template <typename Container>
+static auto toJSONStrings(llvm::json::OStream &JOS, Container &&Strings) {
+  return [&JOS, Strings = std::forward<Container>(Strings)] {
+    for (StringRef Str : Strings)
+      JOS.value(Str);
+  };
 }
 
 // Technically, we don't need to sort the dependency list to get determinism.
 // Leaving these be will simply preserve the import order.
-static llvm::json::Array toJSONSorted(std::vector<ModuleID> V) {
+static auto toJSONSorted(llvm::json::OStream &JOS, std::vector<ModuleID> V) {
   llvm::sort(V);
-
-  llvm::json::Array Ret;
-  for (const ModuleID &MID : V)
-    Ret.push_back(llvm::json::Object(
-        {{"module-name", MID.ModuleName}, {"context-hash", MID.ContextHash}}));
-  return Ret;
+  return [&JOS, V = std::move(V)] {
+    for (const ModuleID &MID : V)
+      JOS.object([&] {
+        JOS.attribute("context-hash", StringRef(MID.ContextHash));
+        JOS.attribute("module-name", StringRef(MID.ModuleName));
+      });
+  };
 }
 
-static llvm::json::Array
-toJSONSorted(llvm::SmallVector<Module::LinkLibrary, 2> &LinkLibs) {
-  llvm::sort(LinkLibs, [](const Module::LinkLibrary &lhs,
-                          const Module::LinkLibrary &rhs) {
-    return lhs.Library < rhs.Library;
+static auto toJSONSorted(llvm::json::OStream &JOS,
+                         SmallVector<Module::LinkLibrary, 2> LinkLibs) {
+  llvm::sort(LinkLibs, [](const auto &LHS, const auto &RHS) {
+    return LHS.Library < RHS.Library;
   });
-
-  llvm::json::Array Ret;
-  for (const Module::LinkLibrary &LL : LinkLibs)
-    Ret.push_back(llvm::json::Object(
-        {{"link-name", LL.Library}, {"isFramework", LL.IsFramework}}));
-  return Ret;
+  return [&JOS, LinkLibs = std::move(LinkLibs)] {
+    for (const auto &LL : LinkLibs)
+      JOS.object([&] {
+        JOS.attribute("isFramework", LL.IsFramework);
+        JOS.attribute("link-name", StringRef(LL.Library));
+      });
+  };
 }
 
 // Thread safe.
@@ -378,6 +634,8 @@ public:
     ID.ContextHash = std::move(TUDeps.ID.ContextHash);
     ID.FileDeps = std::move(TUDeps.FileDeps);
     ID.ModuleDeps = std::move(TUDeps.ClangModuleDeps);
+    ID.CASFileSystemRootID = std::move(TUDeps.CASFileSystemRootID);
+    ID.IncludeTreeID = std::move(TUDeps.IncludeTreeID);
     ID.DriverCommandLine = std::move(TUDeps.DriverCommandLine);
     ID.Commands = std::move(TUDeps.Commands);
 
@@ -450,58 +708,92 @@ public:
       ModuleIDs.push_back(M.first);
     llvm::sort(ModuleIDs);
 
-    using namespace llvm::json;
+    llvm::json::OStream JOS(OS, /*IndentSize=*/2);
 
-    Array OutModules;
-    for (auto &&ModID : ModuleIDs) {
-      auto &MD = Modules[ModID];
-      Object O{{"name", MD.ID.ModuleName},
-               {"context-hash", MD.ID.ContextHash},
-               {"file-deps", toJSONSorted(MD.FileDeps)},
-               {"clang-module-deps", toJSONSorted(MD.ClangModuleDeps)},
-               {"clang-modulemap-file", MD.ClangModuleMapFile},
-               {"command-line", MD.getBuildArguments()},
-               {"link-libraries", toJSONSorted(MD.LinkLibraries)}};
-      OutModules.push_back(std::move(O));
-    }
+    JOS.object([&] {
+      JOS.attributeArray("modules", [&] {
+        for (auto &&ModID : ModuleIDs) {
+          auto &MD = Modules[ModID];
+          JOS.object([&] {
+            if (MD.ModuleCacheKey)
+              JOS.attribute("cache-key", StringRef(*MD.ModuleCacheKey));
+            if (MD.IncludeTreeID)
+              JOS.attribute("cas-include-tree-id",
+                            StringRef(*MD.IncludeTreeID));
+            if (MD.CASFileSystemRootID)
+              JOS.attribute("casfs-root-id",
+                            StringRef(MD.CASFileSystemRootID->toString()));
 
-    Array TUs;
-    for (auto &&I : Inputs) {
-      Array Commands;
-      if (I.DriverCommandLine.empty()) {
-        for (const auto &Cmd : I.Commands) {
-          Object O{
-              {"input-file", I.FileName},
-              {"clang-context-hash", I.ContextHash},
-              {"file-deps", I.FileDeps},
-              {"clang-module-deps", toJSONSorted(I.ModuleDeps)},
-              {"executable", Cmd.Executable},
-              {"command-line", Cmd.Arguments},
-          };
-          Commands.push_back(std::move(O));
+            JOS.attributeArray("clang-module-deps",
+                               toJSONSorted(JOS, MD.ClangModuleDeps));
+            JOS.attribute("clang-modulemap-file",
+                          StringRef(MD.ClangModuleMapFile));
+            JOS.attributeArray("command-line",
+                               toJSONStrings(JOS, MD.getBuildArguments()));
+            JOS.attribute("context-hash", StringRef(MD.ID.ContextHash));
+            JOS.attributeArray("file-deps", [&] {
+              MD.forEachFileDep([&](StringRef FileDep) { JOS.value(FileDep); });
+            });
+            JOS.attributeArray("link-libraries",
+                               toJSONSorted(JOS, MD.LinkLibraries));
+            JOS.attribute("name", StringRef(MD.ID.ModuleName));
+          });
         }
-      } else {
-        Object O{
-            {"input-file", I.FileName},
-            {"clang-context-hash", I.ContextHash},
-            {"file-deps", I.FileDeps},
-            {"clang-module-deps", toJSONSorted(I.ModuleDeps)},
-            {"executable", "clang"},
-            {"command-line", I.DriverCommandLine},
-        };
-        Commands.push_back(std::move(O));
-      }
-      TUs.push_back(Object{
-          {"commands", std::move(Commands)},
       });
-    }
 
-    Object Output{
-        {"modules", std::move(OutModules)},
-        {"translation-units", std::move(TUs)},
-    };
+      JOS.attributeArray("translation-units", [&] {
+        for (auto &&I : Inputs) {
+          JOS.object([&] {
+            JOS.attributeArray("commands", [&] {
+              if (I.DriverCommandLine.empty()) {
+                for (const auto &Cmd : I.Commands) {
+                  JOS.object([&] {
+                    if (Cmd.TUCacheKey)
+                      JOS.attribute("cache-key", StringRef(*Cmd.TUCacheKey));
+                    if (I.IncludeTreeID)
+                      JOS.attribute("cas-include-tree-id",
+                                    StringRef(*I.IncludeTreeID));
+                    if (I.CASFileSystemRootID)
+                      JOS.attribute("casfs-root-id",
+                                    StringRef(*I.CASFileSystemRootID));
 
-    OS << llvm::formatv("{0:2}\n", Value(std::move(Output)));
+                    JOS.attribute("clang-context-hash",
+                                  StringRef(I.ContextHash));
+                    JOS.attributeArray("clang-module-deps",
+                                       toJSONSorted(JOS, I.ModuleDeps));
+                    JOS.attributeArray("command-line",
+                                       toJSONStrings(JOS, Cmd.Arguments));
+                    JOS.attribute("executable", StringRef(Cmd.Executable));
+                    JOS.attributeArray("file-deps",
+                                       toJSONStrings(JOS, I.FileDeps));
+                    JOS.attribute("input-file", StringRef(I.FileName));
+                  });
+                }
+              } else {
+                JOS.object([&] {
+                  if (I.CASFileSystemRootID)
+                    JOS.attribute("casfs-root-id",
+                                  StringRef(*I.CASFileSystemRootID));
+                  if (I.IncludeTreeID)
+                    JOS.attribute("cas-include-tree-id",
+                                  StringRef(*I.IncludeTreeID));
+
+                  JOS.attribute("clang-context-hash", StringRef(I.ContextHash));
+                  JOS.attributeArray("clang-module-deps",
+                                     toJSONSorted(JOS, I.ModuleDeps));
+                  JOS.attributeArray("command-line",
+                                     toJSONStrings(JOS, I.DriverCommandLine));
+                  JOS.attribute("executable", "clang");
+                  JOS.attributeArray("file-deps",
+                                     toJSONStrings(JOS, I.FileDeps));
+                  JOS.attribute("input-file", StringRef(I.FileName));
+                });
+              }
+            });
+          });
+        }
+      });
+    });
   }
 
 private:
@@ -544,6 +836,8 @@ private:
     std::string ContextHash;
     std::vector<std::string> FileDeps;
     std::vector<ModuleID> ModuleDeps;
+    std::optional<std::string> CASFileSystemRootID;
+    std::optional<std::string> IncludeTreeID;
     std::vector<std::string> DriverCommandLine;
     std::vector<Command> Commands;
   };
@@ -826,6 +1120,9 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
   AdjustingCompilations->appendArgumentsAdjuster(
       [&ResourceDirCache](const tooling::CommandLineArguments &Args,
                           StringRef FileName) {
+        if (EmitCASCompDB)
+          return Args; // Don't adjust.
+
         std::string LastO;
         bool HasResourceDir = false;
         bool ClangCLMode = false;
@@ -884,6 +1181,14 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
           }
         }
         AdjustedArgs.insert(AdjustedArgs.end(), FlagsEnd, Args.end());
+        if (!PrefixMapToolchain.empty())
+          AdjustedArgs.push_back("-fdepscan-prefix-map-toolchain=" +
+                                 PrefixMapToolchain);
+        if (!PrefixMapSDK.empty())
+          AdjustedArgs.push_back("-fdepscan-prefix-map-sdk=" + PrefixMapSDK);
+        for (StringRef Map : PrefixMaps) {
+          AdjustedArgs.push_back("-fdepscan-prefix-map=" + std::string(Map));
+        }
         return AdjustedArgs;
       });
 
@@ -908,6 +1213,43 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
   }();
   SharedStream DependencyOS(ThreadUnsafeDependencyOS);
 
+  auto DiagsConsumer = std::make_unique<TextDiagnosticPrinter>(
+      llvm::errs(), new DiagnosticOptions(), false);
+  DiagnosticsEngine Diags(new DiagnosticIDs(), new DiagnosticOptions());
+  Diags.setClient(DiagsConsumer.get(), /*ShouldOwnClient=*/false);
+
+  CASOptions CASOpts;
+  CASOpts.CASPath = OnDiskCASPath;
+  CASOpts.PluginPath = CASPluginPath;
+  CASOpts.PluginOptions = CASPluginOptions;
+
+  std::shared_ptr<llvm::cas::ObjectStore> CAS;
+  std::shared_ptr<llvm::cas::ActionCache> Cache;
+  IntrusiveRefCntPtr<llvm::cas::CachingOnDiskFileSystem> FS;
+  if (useCAS()) {
+    if (!InMemoryCAS)
+      CASOpts.ensurePersistentCAS();
+
+    std::tie(CAS, Cache) = CASOpts.getOrCreateDatabases(Diags);
+    if (!CAS)
+      return 1;
+    if (Format != ScanningOutputFormat::IncludeTree && Format != ScanningOutputFormat::FullIncludeTree)
+      FS = llvm::cantFail(llvm::cas::createCachingOnDiskFileSystem(*CAS));
+  }
+
+  if (EmitCASCompDB) {
+    if (!CAS) {
+      llvm::errs() << "'-emit-cas-compdb' needs CAS setup\n";
+      return 1;
+    }
+    DependencyScanningService Service(ScanMode, Format, CASOpts, CAS, Cache, FS,
+                                      OptimizeArgs, EagerLoadModules);
+    llvm::DefaultThreadPool Pool(llvm::hardware_concurrency(NumThreads));
+    return emitCompilationDBWithCASTreeArguments(
+        CAS, AdjustingCompilations->getAllCompileCommands(), *DiagsConsumer,
+        Service, Pool, llvm::outs());
+  }
+
   std::vector<tooling::CompileCommand> Inputs =
       AdjustingCompilations->getAllCompileCommands();
 
@@ -924,11 +1266,44 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
     return {};
   };
 
-  if (Format == ScanningOutputFormat::Full)
+  if (Format == ScanningOutputFormat::Full ||
+      Format == ScanningOutputFormat::FullTree ||
+      Format == ScanningOutputFormat::FullIncludeTree)
     FD.emplace(ModuleName.empty() ? Inputs.size() : 0);
 
+  struct DepTreeResult {
+    size_t Index;
+    std::string Filename;
+    std::optional<Expected<cas::ObjectProxy>> MaybeTree;
+    std::optional<Expected<cas::IncludeTreeRoot>> MaybeIncludeTree;
+
+    DepTreeResult(size_t Index, std::string Filename,
+                  Expected<cas::ObjectProxy> Tree)
+        : Index(Index), Filename(std::move(Filename)),
+          MaybeTree(std::move(Tree)) {}
+    DepTreeResult(size_t Index, std::string Filename,
+                  Expected<cas::IncludeTreeRoot> Tree)
+        : Index(Index), Filename(std::move(Filename)),
+          MaybeIncludeTree(std::move(Tree)) {}
+  };
+  SmallVector<DepTreeResult> TreeResults;
+
+  if (Format == ScanningOutputFormat::Full ||
+      Format == ScanningOutputFormat::FullTree)
+    FD.emplace(ModuleName.empty() ? Inputs.size() : 0);
+
+  std::atomic<size_t> NumStatusCalls = 0;
+  std::atomic<size_t> NumOpenFileForReadCalls = 0;
+  std::atomic<size_t> NumDirBeginCalls = 0;
+  std::atomic<size_t> NumGetRealPathCalls = 0;
+  std::atomic<size_t> NumExistsCalls = 0;
+  std::atomic<size_t> NumIsLocalCalls = 0;
+
   auto ScanningTask = [&](DependencyScanningService &Service) {
-    DependencyScanningTool WorkerTool(Service);
+    std::unique_ptr<llvm::vfs::FileSystem> FS = llvm::vfs::createPhysicalFileSystem();
+    if (CAS)
+      FS = llvm::cas::createCASProvidingFileSystem(CAS, std::move(FS));
+    DependencyScanningTool WorkerTool(Service, std::move(FS));
 
     llvm::DenseSet<ModuleID> AlreadySeenModules;
     while (auto MaybeInputIndex = GetNextInputIndex()) {
@@ -954,6 +1329,17 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
         if (handleMakeDependencyToolResult(Filename, MaybeFile, DependencyOS,
                                            Errs))
           HadErrors = true;
+      } else if (Format == ScanningOutputFormat::Tree) {
+        auto MaybeTree = WorkerTool.getDependencyTree(Input->CommandLine, CWD);
+        std::unique_lock<std::mutex> LockGuard(Lock);
+        TreeResults.emplace_back(LocalIndex, std::move(Filename),
+                                 std::move(MaybeTree));
+      } else if (Format == ScanningOutputFormat::IncludeTree) {
+        auto MaybeTree = WorkerTool.getIncludeTree(
+            *CAS, Input->CommandLine, CWD, LookupOutput);
+        std::unique_lock<std::mutex> LockGuard(Lock);
+        TreeResults.emplace_back(LocalIndex, std::move(Filename),
+                                 std::move(MaybeTree));
       } else if (Format == ScanningOutputFormat::P1689) {
         // It is useful to generate the make-format dependency output during
         // the scanning for P1689. Otherwise the users need to scan again for
@@ -1011,10 +1397,21 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
           HadErrors = true;
       }
     }
+
+    WorkerTool.getWorkerVFS().visit([&](llvm::vfs::FileSystem &VFS) {
+      if (auto *T = dyn_cast_or_null<llvm::vfs::TracingFileSystem>(&VFS)) {
+        NumStatusCalls += T->NumStatusCalls;
+        NumOpenFileForReadCalls += T->NumOpenFileForReadCalls;
+        NumDirBeginCalls += T->NumDirBeginCalls;
+        NumGetRealPathCalls += T->NumGetRealPathCalls;
+        NumExistsCalls += T->NumExistsCalls;
+        NumIsLocalCalls += T->NumIsLocalCalls;
+      }
+    });
   };
 
-  DependencyScanningService Service(ScanMode, Format, OptimizeArgs,
-                                    EagerLoadModules);
+  DependencyScanningService Service(ScanMode, Format, CASOpts, CAS, Cache, FS,
+                                  OptimizeArgs, EagerLoadModules, /*TraceVFS=*/Verbose);
 
   llvm::Timer T;
   T.startTimer();
@@ -1032,23 +1429,57 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
 
     for (unsigned I = 0; I < Pool.getMaxConcurrency(); ++I)
       Pool.async([ScanningTask, &Service]() { ScanningTask(Service); });
-
     Pool.wait();
   }
 
   T.stopTimer();
-  if (PrintTiming)
-    llvm::errs() << llvm::format(
-        "clang-scan-deps timing: %0.2fs wall, %0.2fs process\n",
-        T.getTotalTime().getWallTime(), T.getTotalTime().getProcessTime());
+
+  if (Verbose)
+    llvm::errs() << "\n*** Virtual File System Stats:\n"
+                 << NumStatusCalls << " status() calls\n"
+                 << NumOpenFileForReadCalls << " openFileForRead() calls\n"
+                 << NumDirBeginCalls << " dir_begin() calls\n"
+                 << NumGetRealPathCalls << " getRealPath() calls\n"
+                 << NumExistsCalls << " exists() calls\n"
+                 << NumIsLocalCalls << " isLocal() calls\n";
+
+  if (PrintTiming) {
+    llvm::errs() << "wall time [s]\t"
+                 << "process time [s]\t"
+                 << "instruction count\n";
+    const llvm::TimeRecord &R = T.getTotalTime();
+    llvm::errs() << llvm::format("%0.4f", R.getWallTime()) << "\t"
+                 << llvm::format("%0.4f", R.getProcessTime()) << "\t"
+                 << llvm::format("%llu", R.getInstructionsExecuted()) << "\n";
+  }
 
   if (RoundTripArgs)
     if (FD && FD->roundTripCommands(llvm::errs()))
       HadErrors = true;
 
-  if (Format == ScanningOutputFormat::Full)
+  std::sort(TreeResults.begin(), TreeResults.end(),
+            [](const DepTreeResult &LHS, const DepTreeResult &RHS) -> bool {
+              return LHS.Index < RHS.Index;
+            });
+  if (Format == ScanningOutputFormat::Tree) {
+    for (auto &TreeResult : TreeResults) {
+      if (handleTreeDependencyToolResult(*CAS, TreeResult.Filename,
+                                         *TreeResult.MaybeTree,
+                                         ThreadUnsafeDependencyOS, Errs))
+        HadErrors = true;
+    }
+  } else if (Format == ScanningOutputFormat::IncludeTree) {
+    for (auto &TreeResult : TreeResults) {
+      if (handleIncludeTreeToolResult(*CAS, TreeResult.Filename,
+                                      *TreeResult.MaybeIncludeTree,
+                                      ThreadUnsafeDependencyOS, Errs))
+        HadErrors = true;
+    }
+  } else if (Format == ScanningOutputFormat::Full ||
+             Format == ScanningOutputFormat::FullTree ||
+             Format == ScanningOutputFormat::FullIncludeTree) {
     FD->printFullOutput(ThreadUnsafeDependencyOS);
-  else if (Format == ScanningOutputFormat::P1689)
+  } else if (Format == ScanningOutputFormat::P1689)
     PD.printDependencies(ThreadUnsafeDependencyOS);
 
   return HadErrors;

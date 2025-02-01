@@ -18,6 +18,54 @@ let Definition = "modulelist" in {
     Global,
     DefaultStringValue<"">,
     Desc<"The path to the clang modules cache directory (-fmodules-cache-path).">;
+// BEGIN SWIFT
+  def UseSwiftClangImporter: Property<"use-swift-clangimporter", "Boolean">,
+    DefaultTrue,
+    Desc<"Reconstruct Clang module dependencies from headers when debugging Swift code">;
+  def UseSwiftDWARFImporter: Property<"use-swift-dwarfimporter", "Boolean">,
+    DefaultTrue,
+    Desc<"Reconstruct Clang module dependencies from DWARF when debugging Swift code">;
+  def SwiftValidateTypeSystem: Property<"swift-validate-typesystem", "Boolean">,
+    DefaultFalse,
+    Desc<"Validate all Swift typesystem queries. Used for testing an asserts-enabled LLDB only.">;
+  def SwiftLoadConformances: Property<"swift-load-conformances", "Boolean">,
+    DefaultFalse,
+    Desc<"Resolve type alias via the conformance section. Disabled for performance reasons">;
+  def SwiftModuleLoadingMode: Property<"swift-module-loading-mode", "Enum">,
+    DefaultEnumValue<"eSwiftModuleLoadingModePreferSerialized">,
+    EnumValues<"OptionEnumValues(g_swift_module_loading_mode_enums)">,
+    Desc<"The module loading mode to use when loading modules for Swift.">;
+  def EnableSwiftMetadataCache: Property<"enable-swift-metadata-cache", "Boolean">,
+    Global,
+    DefaultTrue,
+    Desc<"Enable caching for Swift reflection metadata in LLDB.">;
+  def SwiftMetadataCachePath: Property<"swift-metadata-cache-path", "FileSpec">,
+    Global,
+    DefaultStringValue<"">,
+    Desc<"The path to LLDB's Swift reflection cache directory.">;
+  def SwiftMetadataCacheMaxByteSize: Property<"swift-metadata-cache-max-byte-size", "UInt64">,
+    Global,
+    DefaultUnsignedValue<0>,
+    Desc<"The maximum size for LLDB's Swift reflection cache directory in bytes. A value over the amount of available space on the disk will be reduced to the amount of available space. A value of 0 disables the absolute size-based pruning.">;
+  def SwiftMetadataCacheExpirationDays: Property<"swift-metadata-cache-expiration-days", "UInt64">,
+    Global,
+    DefaultUnsignedValue<7>,
+    Desc<"The expiration time in days for a Swift reflection cache file. When a file hasn't been accessed for the specified amount of days, it is removed from the cache. A value of 0 disables the expiration-based pruning.">;
+  def SwiftEnableCxxInterop: Property<"swift-enable-cxx-interop", "Enum">,
+    Global,
+    DefaultEnumValue<"llvm::to_underlying(AutoBool::Auto)">,
+    EnumValues<"OptionEnumValues(g_enable_swift_cxx_interop_values)">,
+    Desc<"Passes the -enable-cxx-interop flag to the swift compiler.">;
+  def SwiftEnableFullDwarfDebugging: Property<"swift-enable-full-dwarf-debugging", "Enum">,
+    Global,
+    DefaultEnumValue<"llvm::to_underlying(AutoBool::Auto)">,
+    EnumValues<"OptionEnumValues(g_enable_full_dwarf_debugging)">,
+    Desc<"Read full debug information from DWARF for Swift debugging. By default LLDB will use DWARF debug information if it cannot use reflection metadata.">;
+  def SwiftEnableASTContext: Property<"swift-enable-ast-context", "Boolean">,
+    Global,
+    DefaultTrue,
+    Desc<"Enable instantiating Swift AST contexts.">;
+// END SWIFT
   def SymLinkPaths: Property<"debug-info-symlink-paths", "FileSpecList">,
     Global,
     DefaultStringValue<"">,
@@ -136,6 +184,10 @@ let Definition = "debugger" in {
     Global,
     DefaultUnsignedValue<80>,
     Desc<"The maximum number of columns to use for displaying text.">;
+  def TerminalHeight: Property<"term-height", "UInt64">,
+    Global,
+    DefaultUnsignedValue<24>,
+    Desc<"The number of rows used for displaying text.">;
   def ThreadFormat: Property<"thread-format", "FormatEntity">,
     Global,
     DefaultStringValue<"thread #${thread.index}: tid = ${thread.id%tid}{, ${frame.pc}}{ ${module.file.basename}{`${function.name-with-args}{${frame.no-debug}${function.pc-offset}}}}{ at ${ansi.fg.cyan}${line.file.basename}${ansi.normal}:${ansi.fg.yellow}${line.number}${ansi.normal}{:${ansi.fg.yellow}${line.column}${ansi.normal}}}{, name = ${ansi.fg.green}'${thread.name}'${ansi.normal}}{, queue = ${ansi.fg.green}'${thread.queue}'${ansi.normal}}{, activity = ${ansi.fg.green}'${thread.info.activity.name}'${ansi.normal}}{, ${thread.info.trace_messages} messages}{, stop reason = ${ansi.fg.red}${thread.stop-reason}${ansi.normal}}{\\\\nReturn value: ${thread.return-value}}{\\\\nCompleted expression: ${thread.completed-expression}}\\\\n">,
@@ -225,4 +277,8 @@ let Definition = "debugger" in {
     DefaultEnumValue<"eDWIMPrintVerbosityNone">,
     EnumValues<"OptionEnumValues(g_dwim_print_verbosities)">,
     Desc<"The verbosity level used by dwim-print.">;
+  def ShowInlineDiagnostics: Property<"show-inline-diagnostics", "Boolean">,
+    Global,
+    DefaultFalse,
+    Desc<"Controls whether diagnostics can refer directly to the command input, drawing arrows to it. If false, diagnostics will echo the input.">;
 }

@@ -166,6 +166,8 @@ void DirectCallEdge::ParseSymbolFileAndResolve(ModuleList &images) {
            lazy_callee.symbol_name);
 
   auto resolve_lazy_callee = [&]() -> Function * {
+    if (!lazy_callee.symbol_name)
+      return nullptr;
     ConstString callee_name{lazy_callee.symbol_name};
     SymbolContextList sc_list;
     images.FindFunctionSymbols(callee_name, eFunctionNameTypeAuto, sc_list);
@@ -257,11 +259,15 @@ Function *IndirectCallEdge::GetCallee(ModuleList &images,
 //
 Function::Function(CompileUnit *comp_unit, lldb::user_id_t func_uid,
                    lldb::user_id_t type_uid, const Mangled &mangled, Type *type,
-                   const AddressRange &range)
+                   const AddressRange &range, bool canThrow, bool is_generic_trampoline)
     : UserID(func_uid), m_comp_unit(comp_unit), m_type_uid(type_uid),
-      m_type(type), m_mangled(mangled), m_block(func_uid), m_range(range),
-      m_frame_base(), m_flags(), m_prologue_byte_size(0) {
+      m_type(type), m_mangled(mangled),
+      m_is_generic_trampoline(is_generic_trampoline), m_block(func_uid),
+      m_range(range), m_frame_base(), m_flags(), m_prologue_byte_size(0) {
   m_block.SetParentScope(this);
+  if (canThrow)
+    m_flags.Set(flagsFunctionCanThrow);
+    
   assert(comp_unit != nullptr);
 }
 
@@ -459,9 +465,9 @@ lldb::DisassemblerSP Function::GetInstructions(const ExecutionContext &exe_ctx,
                                                bool prefer_file_cache) {
   ModuleSP module_sp(GetAddressRange().GetBaseAddress().GetModule());
   if (module_sp && exe_ctx.HasTargetScope()) {
-    return Disassembler::DisassembleRange(module_sp->GetArchitecture(), nullptr,
-                                          flavor, exe_ctx.GetTargetRef(),
-                                          GetAddressRange(), !prefer_file_cache);
+    return Disassembler::DisassembleRange(
+        module_sp->GetArchitecture(), nullptr, nullptr, nullptr, flavor,
+        exe_ctx.GetTargetRef(), GetAddressRange(), !prefer_file_cache);
   }
   return lldb::DisassemblerSP();
 }
@@ -518,8 +524,10 @@ bool Function::IsTopLevelFunction() {
   return result;
 }
 
-ConstString Function::GetDisplayName() const {
-  return m_mangled.GetDisplayDemangledName();
+ConstString Function::GetDisplayName(const SymbolContext *sc) const {
+  if (!m_mangled)
+    return GetName();
+  return m_mangled.GetDisplayDemangledName(sc);
 }
 
 CompilerDeclContext Function::GetDeclContext() {
@@ -690,10 +698,10 @@ lldb::LanguageType Function::GetLanguage() const {
   return lldb::eLanguageTypeUnknown;
 }
 
-ConstString Function::GetName() const {
-  return m_mangled.GetName();
+ConstString Function::GetName(const SymbolContext *sc) const {
+  return m_mangled.GetName(Mangled::ePreferDemangled, sc);
 }
 
-ConstString Function::GetNameNoArguments() const {
-  return m_mangled.GetName(Mangled::ePreferDemangledWithoutArguments);
+ConstString Function::GetNameNoArguments(const SymbolContext *sc) const {
+  return m_mangled.GetName(Mangled::ePreferDemangledWithoutArguments, sc);
 }

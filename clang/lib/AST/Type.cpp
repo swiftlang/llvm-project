@@ -1241,8 +1241,8 @@ public:
           == T->getEquivalentType().getAsOpaquePtr())
       return QualType(T, 0);
 
-    return Ctx.getAttributedType(T->getAttrKind(), modifiedType,
-                                 equivalentType);
+    return Ctx.getAttributedType(T->getAttrKind(), modifiedType, equivalentType,
+                                 T->getAttr());
   }
 
   QualType VisitSubstTemplateTypeParmType(const SubstTemplateTypeParmType *T) {
@@ -1350,54 +1350,49 @@ struct SubstObjCTypeArgsVisitor
                            ObjCSubstitutionContext context)
       : BaseType(ctx), TypeArgs(typeArgs), SubstContext(context) {}
 
-  QualType VisitObjCTypeParamType(const ObjCTypeParamType *OTPTy) {
+  QualType VisitTypedefType(const TypedefType *typedefTy) {
     // Replace an Objective-C type parameter reference with the corresponding
     // type argument.
-    ObjCTypeParamDecl *typeParam = OTPTy->getDecl();
-    // If we have type arguments, use them.
-    if (!TypeArgs.empty()) {
-      QualType argType = TypeArgs[typeParam->getIndex()];
-      if (OTPTy->qual_empty())
+    if (auto *typeParam = dyn_cast<ObjCTypeParamDecl>(typedefTy->getDecl())) {
+      // If we have type arguments, use them.
+      if (!TypeArgs.empty()) {
+        // FIXME: Introduce SubstObjCTypeParamType ?
+        QualType argType = TypeArgs[typeParam->getIndex()];
         return argType;
+      }
 
-      // Apply protocol lists if exists.
-      bool hasError;
-      SmallVector<ObjCProtocolDecl *, 8> protocolsVec;
-      protocolsVec.append(OTPTy->qual_begin(), OTPTy->qual_end());
-      ArrayRef<ObjCProtocolDecl *> protocolsToApply = protocolsVec;
-      return Ctx.applyObjCProtocolQualifiers(
-          argType, protocolsToApply, hasError, true/*allowOnPointerType*/);
-    }
-
-    switch (SubstContext) {
-    case ObjCSubstitutionContext::Ordinary:
-    case ObjCSubstitutionContext::Parameter:
-    case ObjCSubstitutionContext::Superclass:
-      // Substitute the bound.
-      return typeParam->getUnderlyingType();
-
-    case ObjCSubstitutionContext::Result:
-    case ObjCSubstitutionContext::Property: {
-      // Substitute the __kindof form of the underlying type.
-      const auto *objPtr =
-          typeParam->getUnderlyingType()->castAs<ObjCObjectPointerType>();
-
-      // __kindof types, id, and Class don't need an additional
-      // __kindof.
-      if (objPtr->isKindOfType() || objPtr->isObjCIdOrClassType())
+      switch (SubstContext) {
+      case ObjCSubstitutionContext::Ordinary:
+      case ObjCSubstitutionContext::Parameter:
+      case ObjCSubstitutionContext::Superclass:
+        // Substitute the bound.
         return typeParam->getUnderlyingType();
 
-      // Add __kindof.
-      const auto *obj = objPtr->getObjectType();
-      QualType resultTy = Ctx.getObjCObjectType(
-          obj->getBaseType(), obj->getTypeArgsAsWritten(), obj->getProtocols(),
-          /*isKindOf=*/true);
+      case ObjCSubstitutionContext::Result:
+      case ObjCSubstitutionContext::Property: {
+        // Substitute the __kindof form of the underlying type.
+        const auto *objPtr =
+            typeParam->getUnderlyingType()->castAs<ObjCObjectPointerType>();
 
-      // Rebuild object pointer type.
-      return Ctx.getObjCObjectPointerType(resultTy);
+        // __kindof types, id, and Class don't need an additional
+        // __kindof.
+        if (objPtr->isKindOfType() || objPtr->isObjCIdOrClassType())
+          return typeParam->getUnderlyingType();
+
+        // Add __kindof.
+        const auto *obj = objPtr->getObjectType();
+        QualType resultTy = Ctx.getObjCObjectType(obj->getBaseType(),
+                                                  obj->getTypeArgsAsWritten(),
+                                                  obj->getProtocols(),
+                                                  /*isKindOf=*/true);
+
+        // Rebuild object pointer type.
+        return Ctx.getObjCObjectPointerType(resultTy);
+      }
+      }
+      llvm_unreachable("Unexpected ObjCSubstitutionContext!");
     }
-    }
-    llvm_unreachable("Unexpected ObjCSubstitutionContext!");
+    return BaseType::VisitTypedefType(typedefTy);
   }
 
   QualType VisitFunctionType(const FunctionType *funcType) {
@@ -1545,7 +1540,8 @@ struct SubstObjCTypeArgsVisitor
 
     // Rebuild the attributed type.
     return Ctx.getAttributedType(newAttrType->getAttrKind(),
-                                 newAttrType->getModifiedType(), newEquivType);
+                                 newAttrType->getModifiedType(), newEquivType,
+                                 newAttrType->getAttr());
   }
 };
 
@@ -2877,6 +2873,8 @@ QualType::PrimitiveCopyKind QualType::isNonTrivialToPrimitiveCopy() const {
   case Qualifiers::OCL_Weak:
     return PCK_ARCWeak;
   default:
+    if (hasAddressDiscriminatedPointerAuth())
+      return PCK_PtrAuth;
     return Qs.hasVolatile() ? PCK_VolatileTrivial : PCK_Trivial;
   }
 }
@@ -4096,6 +4094,10 @@ bool RecordType::hasConstFields() const {
   return false;
 }
 
+AttributedType::AttributedType(QualType canon, const Attr *attr,
+                               QualType modified, QualType equivalent)
+    : AttributedType(canon, attr->getKind(), attr, modified, equivalent) {}
+
 bool AttributedType::isQualifier() const {
   // FIXME: Generate this with TableGen.
   switch (getAttrKind()) {
@@ -5106,8 +5108,6 @@ FunctionEffect::Kind FunctionEffect::oppositeKind() const {
     return Kind::Allocating;
   case Kind::Allocating:
     return Kind::NonAllocating;
-  case Kind::None:
-    return Kind::None;
   }
   llvm_unreachable("unknown effect kind");
 }
@@ -5122,53 +5122,41 @@ StringRef FunctionEffect::name() const {
     return "blocking";
   case Kind::Allocating:
     return "allocating";
-  case Kind::None:
-    return "(none)";
   }
   llvm_unreachable("unknown effect kind");
 }
 
-bool FunctionEffect::canInferOnFunction(const Decl &Callee) const {
+std::optional<FunctionEffect> FunctionEffect::effectProhibitingInference(
+    const Decl &Callee, FunctionEffectKindSet CalleeFX) const {
   switch (kind()) {
   case Kind::NonAllocating:
   case Kind::NonBlocking: {
-    FunctionEffectsRef CalleeFX;
-    if (auto *FD = Callee.getAsFunction())
-      CalleeFX = FD->getFunctionEffects();
-    else if (auto *BD = dyn_cast<BlockDecl>(&Callee))
-      CalleeFX = BD->getFunctionEffects();
-    else
-      return false;
-    for (const FunctionEffectWithCondition &CalleeEC : CalleeFX) {
+    for (FunctionEffect Effect : CalleeFX) {
       // nonblocking/nonallocating cannot call allocating.
-      if (CalleeEC.Effect.kind() == Kind::Allocating)
-        return false;
+      if (Effect.kind() == Kind::Allocating)
+        return Effect;
       // nonblocking cannot call blocking.
-      if (kind() == Kind::NonBlocking &&
-          CalleeEC.Effect.kind() == Kind::Blocking)
-        return false;
+      if (kind() == Kind::NonBlocking && Effect.kind() == Kind::Blocking)
+        return Effect;
     }
-    return true;
+    return std::nullopt;
   }
 
   case Kind::Allocating:
   case Kind::Blocking:
-    return false;
-
-  case Kind::None:
-    assert(0 && "canInferOnFunction with None");
+    assert(0 && "effectProhibitingInference with non-inferable effect kind");
     break;
   }
   llvm_unreachable("unknown effect kind");
 }
 
 bool FunctionEffect::shouldDiagnoseFunctionCall(
-    bool Direct, ArrayRef<FunctionEffect> CalleeFX) const {
+    bool Direct, FunctionEffectKindSet CalleeFX) const {
   switch (kind()) {
   case Kind::NonAllocating:
   case Kind::NonBlocking: {
     const Kind CallerKind = kind();
-    for (const auto &Effect : CalleeFX) {
+    for (FunctionEffect Effect : CalleeFX) {
       const Kind EK = Effect.kind();
       // Does callee have same or stronger constraint?
       if (EK == CallerKind ||
@@ -5181,9 +5169,6 @@ bool FunctionEffect::shouldDiagnoseFunctionCall(
   case Kind::Allocating:
   case Kind::Blocking:
     return false;
-  case Kind::None:
-    assert(0 && "shouldDiagnoseFunctionCall with None");
-    break;
   }
   llvm_unreachable("unknown effect kind");
 }
@@ -5289,26 +5274,35 @@ FunctionEffectSet FunctionEffectSet::getUnion(FunctionEffectsRef LHS,
   return Combined;
 }
 
+namespace clang {
+
+raw_ostream &operator<<(raw_ostream &OS,
+                        const FunctionEffectWithCondition &CFE) {
+  OS << CFE.Effect.name();
+  if (Expr *E = CFE.Cond.getCondition()) {
+    OS << '(';
+    E->dump();
+    OS << ')';
+  }
+  return OS;
+}
+
+} // namespace clang
+
 LLVM_DUMP_METHOD void FunctionEffectsRef::dump(llvm::raw_ostream &OS) const {
   OS << "Effects{";
-  bool First = true;
-  for (const auto &CFE : *this) {
-    if (!First)
-      OS << ", ";
-    else
-      First = false;
-    OS << CFE.Effect.name();
-    if (Expr *E = CFE.Cond.getCondition()) {
-      OS << '(';
-      E->dump();
-      OS << ')';
-    }
-  }
+  llvm::interleaveComma(*this, OS);
   OS << "}";
 }
 
 LLVM_DUMP_METHOD void FunctionEffectSet::dump(llvm::raw_ostream &OS) const {
   FunctionEffectsRef(*this).dump(OS);
+}
+
+LLVM_DUMP_METHOD void FunctionEffectKindSet::dump(llvm::raw_ostream &OS) const {
+  OS << "Effects{";
+  llvm::interleaveComma(*this, OS);
+  OS << "}";
 }
 
 FunctionEffectsRef

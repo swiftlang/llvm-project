@@ -101,6 +101,16 @@ void has_ptrauth_init_fini() {}
 void no_ptrauth_init_fini() {}
 #endif
 
+#if __has_feature(ptrauth_qualifier)
+// QUAL: has_ptrauth_qualifier
+void has_ptrauth_qualifier() {}
+#else
+// NOQUAL: no_ptrauth_qualifier
+void no_ptrauth_qualifier() {}
+#endif
+
+#include <ptrauth.h>
+
 #if __has_feature(ptrauth_indirect_gotos)
 // GOTOS: has_ptrauth_indirect_gotos
 void has_ptrauth_indirect_gotos() {}

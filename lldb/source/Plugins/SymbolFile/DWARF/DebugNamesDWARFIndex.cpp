@@ -271,11 +271,6 @@ void DebugNamesDWARFIndex::GetCompleteObjCClass(
       // Report invalid
       continue;
     }
-    DWARFUnit *cu = die.GetCU();
-    if (!cu->Supports_DW_AT_APPLE_objc_complete_type()) {
-      incomplete_types.push_back(die);
-      continue;
-    }
 
     if (die.GetAttributeValueAsUnsigned(DW_AT_APPLE_objc_complete_type, 0)) {
       // If we find the complete version we're done.
@@ -432,7 +427,7 @@ void DebugNamesDWARFIndex::GetNamespaces(
     ConstString name, llvm::function_ref<bool(DWARFDIE die)> callback) {
   for (const DebugNames::Entry &entry :
        m_debug_names_up->equal_range(name.GetStringRef())) {
-    lldb_private::dwarf::Tag entry_tag = entry.tag();
+    Tag entry_tag = entry.tag();
     if (entry_tag == DW_TAG_namespace ||
         entry_tag == DW_TAG_imported_declaration) {
       if (!ProcessEntry(entry, callback))

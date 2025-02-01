@@ -1,5 +1,6 @@
 set(LLVM_LINK_COMPONENTS
   BinaryFormat
+  CAS
   MC
   Object
   Option
@@ -96,5 +97,6 @@ add_clang_library(clangDriver
 
   LINK_LIBS
   clangBasic
+  clangCAS
   ${system_libs}
   )

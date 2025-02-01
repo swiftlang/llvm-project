@@ -25,4 +25,5 @@ set(LLVM_DISTRIBUTION_COMPONENTS
   lldb-dap
   darwin-debug
   debugserver
+  repl_swift
   CACHE STRING "")

@@ -85,6 +85,10 @@ public:
 
   SBValue GetStopReturnValue();
 
+  SBValue GetStopErrorValue();
+
+  SBValue GetStopReturnOrErrorValue(bool &is_swift_error_value);
+
   lldb::tid_t GetThreadID() const;
 
   uint32_t GetIndexID() const;
@@ -233,6 +237,7 @@ private:
   friend class SBBreakpoint;
   friend class SBBreakpointLocation;
   friend class SBBreakpointCallbackBaton;
+  friend class SBSaveCoreOptions;
   friend class SBExecutionContext;
   friend class SBFrame;
   friend class SBProcess;
@@ -252,6 +257,8 @@ private:
 
   SBError ResumeNewPlan(lldb_private::ExecutionContext &exe_ctx,
                         lldb_private::ThreadPlan *new_plan);
+
+  lldb::ThreadSP GetSP() const;
 
   lldb::ExecutionContextRefSP m_opaque_sp;
 

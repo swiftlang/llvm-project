@@ -97,13 +97,25 @@ template <typename MachineModuleInfoTarget>
 static MCSymbol *getAuthPtrSlotSymbolHelper(
     MCContext &Ctx, const TargetMachine &TM, MachineModuleInfo *MMI,
     MachineModuleInfoTarget &TargetMMI, const MCSymbol *RawSym,
-    AArch64PACKey::ID Key, uint16_t Discriminator) {
+    AArch64PACKey::ID Key, uint16_t Discriminator,
+    int64_t RawSymOffset = 0, bool HasAddressDiversity = false) {
   const DataLayout &DL = MMI->getModule()->getDataLayout();
 
-  MCSymbol *StubSym = Ctx.getOrCreateSymbol(
-      DL.getLinkerPrivateGlobalPrefix() + RawSym->getName() +
-      Twine("$auth_ptr$") + AArch64PACKeyIDToString(Key) + Twine('$') +
-      Twine(Discriminator));
+  // Mangle the offset into the stub name.  Avoid '-' in symbols and extra logic
+  // by using the uint64_t representation for negative numbers.
+  uint64_t OffsetV = RawSymOffset;
+  std::string Suffix = "$";
+  if (OffsetV)
+    Suffix += utostr(OffsetV) + "$";
+  Suffix += (Twine("auth_ptr$") + AArch64PACKeyIDToString(Key) + "$" +
+             utostr(Discriminator))
+                .str();
+
+  if (HasAddressDiversity)
+    Suffix += "$addr";
+
+  MCSymbol *StubSym = Ctx.getOrCreateSymbol(DL.getLinkerPrivateGlobalPrefix() +
+                                            RawSym->getName() + Suffix);
 
   const MCExpr *&StubAuthPtrRef = TargetMMI.getAuthPtrStubEntry(StubSym);
 
@@ -112,9 +124,16 @@ static MCSymbol *getAuthPtrSlotSymbolHelper(
 
   const MCExpr *Sym = MCSymbolRefExpr::create(RawSym, Ctx);
 
-  StubAuthPtrRef =
-      AArch64AuthMCExpr::create(Sym, Discriminator, Key,
-                                /*HasAddressDiversity=*/false, Ctx);
+  // If there is an addend, turn that into the appropriate MCExpr.
+  if (RawSymOffset > 0)
+    Sym = MCBinaryExpr::createAdd(
+        Sym, MCConstantExpr::create(RawSymOffset, Ctx), Ctx);
+  else if (RawSymOffset < 0)
+    Sym = MCBinaryExpr::createSub(
+        Sym, MCConstantExpr::create(-RawSymOffset, Ctx), Ctx);
+
+  StubAuthPtrRef = AArch64AuthMCExpr::create(Sym, Discriminator, Key,
+                                             HasAddressDiversity, Ctx);
   return StubSym;
 }
 
@@ -128,8 +147,10 @@ MCSymbol *AArch64_ELFTargetObjectFile::getAuthPtrSlotSymbol(
 
 MCSymbol *AArch64_MachoTargetObjectFile::getAuthPtrSlotSymbol(
     const TargetMachine &TM, MachineModuleInfo *MMI, const MCSymbol *RawSym,
-    AArch64PACKey::ID Key, uint16_t Discriminator) const {
+    AArch64PACKey::ID Key, uint16_t Discriminator,
+    int64_t RawSymOffset, bool HasAddressDiversity) const {
   auto &MachOMMI = MMI->getObjFileInfo<MachineModuleInfoMachO>();
   return getAuthPtrSlotSymbolHelper(getContext(), TM, MMI, MachOMMI, RawSym,
-                                    Key, Discriminator);
+                                    Key, Discriminator, RawSymOffset,
+                                    HasAddressDiversity);
 }

@@ -2891,6 +2891,10 @@ salvageDebugInfoImpl(SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
         Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
     } else if (auto *StInst = dyn_cast<StoreInst>(Inst)) {
       Storage = StInst->getValueOperand();
+    } else if (auto *Phi = dyn_cast<PHINode>(Inst)) {
+      if (Phi->getNumIncomingValues() != 1)
+        return std::nullopt;
+      Storage = Phi->getIncomingValue(0);
     } else {
       SmallVector<uint64_t, 16> Ops;
       SmallVector<Value *, 0> AdditionalValues;
@@ -2944,6 +2948,7 @@ salvageDebugInfoImpl(SmallDenseMap<Argument *, AllocaInst *, 4> &ArgToAllocaMap,
     Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
   }
 
+  Expr = Expr->foldConstantMath();
   return {{*Storage, *Expr}};
 }
 

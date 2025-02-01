@@ -1703,6 +1703,17 @@ def PAUTH_BLEND : Pseudo<(outs GPR64:$disc),
 
 // These pointer authentication instructions require armv8.3a
 let Predicates = [HasPAuth] in {
+  multiclass SignAuth<bits<3> prefix, bits<3> prefix_z, string asm,
+                      SDPatternOperator op> {
+    def IA   : SignAuthOneData<prefix, 0b00, !strconcat(asm,  "ia"), op>;
+    def IB   : SignAuthOneData<prefix, 0b01, !strconcat(asm,  "ib"), op>;
+    def DA   : SignAuthOneData<prefix, 0b10, !strconcat(asm,  "da"), op>;
+    def DB   : SignAuthOneData<prefix, 0b11, !strconcat(asm,  "db"), op>;
+    def IZA  : SignAuthZero<prefix_z,  0b00, !strconcat(asm, "iza"), op>;
+    def DZA  : SignAuthZero<prefix_z,  0b10, !strconcat(asm, "dza"), op>;
+    def IZB  : SignAuthZero<prefix_z,  0b01, !strconcat(asm, "izb"), op>;
+    def DZB  : SignAuthZero<prefix_z,  0b11, !strconcat(asm, "dzb"), op>;
+  }
 
   // When PA is enabled, a better mnemonic should be emitted.
   def : InstAlias<"paciaz", (PACIAZ), 1>;
@@ -1719,24 +1730,16 @@ let Predicates = [HasPAuth] in {
   def : InstAlias<"autib1716", (AUTIB1716), 1>;
   def : InstAlias<"xpaclri", (XPACLRI), 1>;
 
-  multiclass SignAuth<bits<3> prefix, bits<3> prefix_z, string asm,
-                      SDPatternOperator op> {
-    def IA   : SignAuthOneData<prefix, 0b00, !strconcat(asm,  "ia"), op>;
-    def IB   : SignAuthOneData<prefix, 0b01, !strconcat(asm,  "ib"), op>;
-    def DA   : SignAuthOneData<prefix, 0b10, !strconcat(asm,  "da"), op>;
-    def DB   : SignAuthOneData<prefix, 0b11, !strconcat(asm,  "db"), op>;
-    def IZA  : SignAuthZero<prefix_z,  0b00, !strconcat(asm, "iza"), op>;
-    def DZA  : SignAuthZero<prefix_z,  0b10, !strconcat(asm, "dza"), op>;
-    def IZB  : SignAuthZero<prefix_z,  0b01, !strconcat(asm, "izb"), op>;
-    def DZB  : SignAuthZero<prefix_z,  0b11, !strconcat(asm, "dzb"), op>;
-  }
-
   defm PAC : SignAuth<0b000, 0b010, "pac", int_ptrauth_sign>;
   defm AUT : SignAuth<0b001, 0b011, "aut", null_frag>;
 
   def XPACI : ClearAuth<0, "xpaci">;
-  def : Pat<(int_ptrauth_strip GPR64:$Rd, 0), (XPACI GPR64:$Rd)>;
-  def : Pat<(int_ptrauth_strip GPR64:$Rd, 1), (XPACI GPR64:$Rd)>;
+  // Pseudo of the previous instruction with untied operands. Lowers to:
+  // mov $dst, $src
+  // xpaci $dst
+  def XPACIuntied : Pseudo<(outs GPR64:$dst), (ins GPR64:$src), []>, Sched<[]>;
+  def : Pat<(int_ptrauth_strip GPR64:$Rd, 0), (XPACIuntied GPR64:$Rd)>;
+  def : Pat<(int_ptrauth_strip GPR64:$Rd, 1), (XPACIuntied GPR64:$Rd)>;
 
   def XPACD : ClearAuth<1, "xpacd">;
   def : Pat<(int_ptrauth_strip GPR64:$Rd, 2), (XPACD GPR64:$Rd)>;
@@ -9823,6 +9826,16 @@ def : Pat<(i64x8 (LS64_BUILD GPR64:$x0, GPR64:$x1, GPR64:$x2, GPR64:$x3,
 foreach i = 0-7 in {
   def : Pat<(i64 (LS64_EXTRACT (i64x8 GPR64x8:$val), (i32 i))),
             (EXTRACT_SUBREG $val, !cast<SubRegIndex>("x8sub_"#i))>;
+}
+
+//-----------------------------------------------------------------------------
+// v8.3 Pointer Authentication late patterns
+
+let Predicates = [HasPAuth] in {
+def : Pat<(int_ptrauth_blend GPR64:$Rd, imm64_0_65535:$imm),
+          (MOVKXi GPR64:$Rd, (trunc_imm imm64_0_65535:$imm), 48)>;
+def : Pat<(int_ptrauth_blend GPR64:$Rd, GPR64:$Rn),
+          (BFMXri GPR64:$Rd, GPR64:$Rn, 16, 15)>;
 }
 
 let Predicates = [HasLS64] in {

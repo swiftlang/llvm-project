@@ -46,6 +46,13 @@ public:
   APINotesReader(const APINotesReader &) = delete;
   APINotesReader &operator=(const APINotesReader &) = delete;
 
+  /// Retrieve the name of the module for which this reader is providing API
+  /// notes.
+  llvm::StringRef getModuleName() const;
+
+  /// Retrieve the module options
+  ModuleOptions getModuleOptions() const;
+
   /// Captures the completed versioned information for a particular part of
   /// API notes, including both unversioned API notes and each versioned API
   /// note for that particular entity.
@@ -140,6 +147,13 @@ public:
   VersionedInfo<ObjCMethodInfo> lookupObjCMethod(ContextID CtxID,
                                                  ObjCSelectorRef Selector,
                                                  bool IsInstanceMethod);
+
+  /// Look for information regarding the given field of a C struct.
+  ///
+  /// \param Name The name of the field.
+  ///
+  /// \returns information about the field, if known.
+  VersionedInfo<FieldInfo> lookupField(ContextID CtxID, llvm::StringRef Name);
 
   /// Look for information regarding the given C++ method in the given C++ tag
   /// context.

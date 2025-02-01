@@ -21,6 +21,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CAS/CASReference.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -476,7 +477,7 @@ OptionalFileEntryRef FileManager::getBypassFile(FileEntryRef VF) {
 
   // If we've already bypassed just use the existing one.
   auto Insertion = SeenBypassFileEntries->insert(
-      {VF.getName(), std::errc::no_such_file_or_directory});
+      {VF.getNameAsRequested(), std::errc::no_such_file_or_directory});
   if (!Insertion.second)
     return FileEntryRef(*Insertion.first);
 
@@ -531,7 +532,8 @@ void FileManager::fillRealPathName(FileEntry *UFE, llvm::StringRef FileName) {
 llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
 FileManager::getBufferForFile(FileEntryRef FE, bool isVolatile,
                               bool RequiresNullTerminator,
-                              std::optional<int64_t> MaybeLimit) {
+                              std::optional<int64_t> MaybeLimit,
+                              std::optional<cas::ObjectRef> *CASContents) {
   const FileEntry *Entry = &FE.getFileEntry();
   // If the content is living on the file entry, return a reference to it.
   if (Entry->Content)
@@ -552,27 +554,44 @@ FileManager::getBufferForFile(FileEntryRef FE, bool isVolatile,
   if (Entry->File) {
     auto Result = Entry->File->getBuffer(Filename, FileSize,
                                          RequiresNullTerminator, isVolatile);
+    if (CASContents) {
+      auto CASRef = Entry->File->getObjectRefForContent();
+      if (!CASRef)
+        return CASRef.getError();
+      *CASContents = *CASRef;
+    }
     Entry->closeFile();
     return Result;
   }
 
   // Otherwise, open the file.
   return getBufferForFileImpl(Filename, FileSize, isVolatile,
-                              RequiresNullTerminator);
+                              RequiresNullTerminator, CASContents);
 }
 
 llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
 FileManager::getBufferForFileImpl(StringRef Filename, int64_t FileSize,
-                                  bool isVolatile,
-                                  bool RequiresNullTerminator) const {
+                                  bool isVolatile, bool RequiresNullTerminator,
+                                  std::optional<cas::ObjectRef> *CASContents) const {
   if (FileSystemOpts.WorkingDir.empty())
     return FS->getBufferForFile(Filename, FileSize, RequiresNullTerminator,
-                                isVolatile);
+                                isVolatile, CASContents);
 
   SmallString<128> FilePath(Filename);
   FixupRelativePath(FilePath);
   return FS->getBufferForFile(FilePath, FileSize, RequiresNullTerminator,
-                              isVolatile);
+                              isVolatile, CASContents);
+}
+
+llvm::ErrorOr<std::optional<cas::ObjectRef>>
+FileManager::getObjectRefForFileContent(const Twine &Filename) {
+  if (FileSystemOpts.WorkingDir.empty())
+    return FS->getObjectRefForFileContent(Filename);
+
+  SmallString<128> FilePath;
+  Filename.toVector(FilePath);
+  FixupRelativePath(FilePath);
+  return FS->getObjectRefForFileContent(FilePath);
 }
 
 /// getStatValue - Get the 'stat' information for the specified path,
@@ -691,6 +710,17 @@ void FileManager::PrintStats() const {
                << NumDirCacheMisses << " dir cache misses.\n";
   llvm::errs() << NumFileLookups << " file lookups, "
                << NumFileCacheMisses << " file cache misses.\n";
+
+  getVirtualFileSystem().visit([](llvm::vfs::FileSystem &VFS) {
+    if (auto *T = dyn_cast_or_null<llvm::vfs::TracingFileSystem>(&VFS))
+      llvm::errs() << "\n*** Virtual File System Stats:\n"
+                   << T->NumStatusCalls << " status() calls\n"
+                   << T->NumOpenFileForReadCalls << " openFileForRead() calls\n"
+                   << T->NumDirBeginCalls << " dir_begin() calls\n"
+                   << T->NumGetRealPathCalls << " getRealPath() calls\n"
+                   << T->NumExistsCalls << " exists() calls\n"
+                   << T->NumIsLocalCalls << " isLocal() calls\n";
+  });
 
   //llvm::errs() << PagesMapped << BytesOfPagesMapped << FSLookups;
 }

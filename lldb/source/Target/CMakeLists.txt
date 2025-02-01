@@ -36,6 +36,7 @@ add_lldb_library(lldbTarget
   RegisterFlags.cpp
   RegisterNumber.cpp
   RemoteAwarePlatform.cpp
+  ScriptedThreadPlan.cpp
   SectionLoadHistory.cpp
   SectionLoadList.cpp
   StackFrame.cpp
@@ -57,7 +58,6 @@ add_lldb_library(lldbTarget
   ThreadPlanCallFunctionUsingABI.cpp
   ThreadPlanCallOnFunctionExit.cpp
   ThreadPlanCallUserExpression.cpp
-  ThreadPlanPython.cpp
   ThreadPlanRunToAddress.cpp
   ThreadPlanShouldStopHere.cpp
   ThreadPlanStepInRange.cpp
@@ -67,6 +67,7 @@ add_lldb_library(lldbTarget
   ThreadPlanStepOverRange.cpp
   ThreadPlanStepRange.cpp
   ThreadPlanStepThrough.cpp
+  ThreadPlanStepThroughGenericTrampoline.cpp
   ThreadPlanStepUntil.cpp
   ThreadPlanTracer.cpp
   ThreadPlanStack.cpp
@@ -88,12 +89,18 @@ add_lldb_library(lldbTarget
     lldbInterpreter
     lldbSymbol
     lldbUtility
+    lldbValueObject
     lldbPluginProcessUtility
 
   LINK_COMPONENTS
     Support
     MC
   )
+if(CMAKE_CXX_COMPILER_ID STREQUAL Clang)
+  target_compile_options(lldbTarget PRIVATE -Wno-dollar-in-identifier-extension)
+elseif(MSVC)
+  target_compile_options(lldbTarget PRIVATE /permissive-)
+endif()
 
 add_dependencies(lldbTarget
   LLDBTargetPropertiesGen

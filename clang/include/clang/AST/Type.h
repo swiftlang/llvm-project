@@ -48,6 +48,7 @@
 #include "llvm/Support/PointerLikeTypeTraits.h"
 #include "llvm/Support/TrailingObjects.h"
 #include "llvm/Support/type_traits.h"
+#include <bitset>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -67,6 +68,7 @@ class ValueDecl;
 class TagDecl;
 class TemplateParameterList;
 class Type;
+class Attr;
 
 enum {
   TypeAlignmentInBits = 4,
@@ -118,6 +120,8 @@ class EnumDecl;
 class Expr;
 class ExtQualsTypeCommonBase;
 class FunctionDecl;
+class FunctionEffectsRef;
+class FunctionEffectKindSet;
 class FunctionEffectSet;
 class IdentifierInfo;
 class NamedDecl;
@@ -307,6 +311,12 @@ public:
     return Result;
   }
 
+  std::string getAsString() const;
+  std::string getAsString(const PrintingPolicy &Policy) const;
+
+  bool isEmptyWhenPrinted(const PrintingPolicy &Policy) const;
+  void print(raw_ostream &OS, const PrintingPolicy &Policy) const;
+
   void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(Data); }
 };
 
@@ -366,6 +376,8 @@ public:
     FastMask = (1 << FastWidth) - 1
   };
 
+  Qualifiers() : Mask(0) {}
+
   /// Returns the common set of qualifiers while removing them from
   /// the given sets.
   static Qualifiers removeCommonQualifiers(Qualifiers &L, Qualifiers &R) {
@@ -410,6 +422,7 @@ public:
       L.removeAddressSpace();
       R.removeAddressSpace();
     }
+
     return Q;
   }
 
@@ -475,22 +488,22 @@ public:
   unsigned getCVRQualifiers() const { return Mask & CVRMask; }
   unsigned getCVRUQualifiers() const { return Mask & (CVRMask | UMask); }
 
-  void setCVRQualifiers(unsigned mask) {
+  void setCVRQualifiers(uint64_t mask) {
     assert(!(mask & ~CVRMask) && "bitmask contains non-CVR bits");
     Mask = (Mask & ~CVRMask) | mask;
   }
-  void removeCVRQualifiers(unsigned mask) {
+  void removeCVRQualifiers(uint64_t mask) {
     assert(!(mask & ~CVRMask) && "bitmask contains non-CVR bits");
     Mask &= ~static_cast<uint64_t>(mask);
   }
   void removeCVRQualifiers() {
     removeCVRQualifiers(CVRMask);
   }
-  void addCVRQualifiers(unsigned mask) {
+  void addCVRQualifiers(uint64_t mask) {
     assert(!(mask & ~CVRMask) && "bitmask contains non-CVR bits");
     Mask |= mask;
   }
-  void addCVRUQualifiers(unsigned mask) {
+  void addCVRUQualifiers(uint64_t mask) {
     assert(!(mask & ~CVRMask & ~UMask) && "bitmask contains non-CVRU bits");
     Mask |= mask;
   }
@@ -556,7 +569,7 @@ public:
 
   bool hasAddressSpace() const { return Mask & AddressSpaceMask; }
   LangAS getAddressSpace() const {
-    return static_cast<LangAS>(Mask >> AddressSpaceShift);
+    return static_cast<LangAS>((Mask & AddressSpaceMask) >> AddressSpaceShift);
   }
   bool hasTargetSpecificAddressSpace() const {
     return isTargetAddressSpace(getAddressSpace());
@@ -604,25 +617,27 @@ public:
   // on a QualType object.
   bool hasFastQualifiers() const { return getFastQualifiers(); }
   unsigned getFastQualifiers() const { return Mask & FastMask; }
-  void setFastQualifiers(unsigned mask) {
+  void setFastQualifiers(uint64_t mask) {
     assert(!(mask & ~FastMask) && "bitmask contains non-fast qualifier bits");
     Mask = (Mask & ~FastMask) | mask;
   }
-  void removeFastQualifiers(unsigned mask) {
+  void removeFastQualifiers(uint64_t mask) {
     assert(!(mask & ~FastMask) && "bitmask contains non-fast qualifier bits");
     Mask &= ~static_cast<uint64_t>(mask);
   }
   void removeFastQualifiers() {
     removeFastQualifiers(FastMask);
   }
-  void addFastQualifiers(unsigned mask) {
+  void addFastQualifiers(uint64_t mask) {
     assert(!(mask & ~FastMask) && "bitmask contains non-fast qualifier bits");
     Mask |= mask;
   }
 
   /// Return true if the set contains any qualifiers which require an ExtQuals
   /// node to be allocated.
-  bool hasNonFastQualifiers() const { return Mask & ~FastMask; }
+  bool hasNonFastQualifiers() const {
+    return (Mask & ~FastMask);
+  }
   Qualifiers getNonFastQualifiers() const {
     Qualifiers Quals = *this;
     Quals.setFastQualifiers(0);
@@ -631,7 +646,7 @@ public:
 
   /// Return true if the set contains any qualifiers.
   bool hasQualifiers() const { return Mask; }
-  bool empty() const { return !Mask; }
+  bool empty() const { return !hasQualifiers(); }
 
   /// Add the qualifiers from the given set to this set.
   void addQualifiers(Qualifiers Q) {
@@ -821,11 +836,11 @@ private:
   static constexpr uint64_t GCAttrShift = 4;
   static constexpr uint64_t LifetimeMask = 0x1C0;
   static constexpr uint64_t LifetimeShift = 6;
-  static constexpr uint64_t AddressSpaceMask =
-      ~(CVRMask | UMask | GCAttrMask | LifetimeMask);
   static constexpr uint64_t AddressSpaceShift = 9;
   static constexpr uint64_t PtrAuthShift = 32;
   static constexpr uint64_t PtrAuthMask = uint64_t(0xffffffff) << PtrAuthShift;
+  static constexpr uint64_t AddressSpaceMask =
+      ~(CVRMask | UMask | GCAttrMask | LifetimeMask | PtrAuthMask);
 };
 
 class QualifiersAndAtomic {
@@ -1460,6 +1475,12 @@ public:
     return getQualifiers().getPointerAuth();
   }
 
+  bool hasAddressDiscriminatedPointerAuth() const {
+    if (auto ptrauth = getPointerAuth())
+      return ptrauth.isAddressDiscriminated();
+    return false;
+  }
+
   enum PrimitiveDefaultInitializeKind {
     /// The type does not fall into any of the following categories. Note that
     /// this case is zero-valued so that values of this enum can be used as a
@@ -1504,6 +1525,9 @@ public:
     /// The type is an Objective-C retainable pointer type that is qualified
     /// with the ARC __weak qualifier.
     PCK_ARCWeak,
+
+    /// The type is an address-discriminated signed pointer type.
+    PCK_PtrAuth,
 
     /// The type is a struct containing a field whose type is neither
     /// PCK_Trivial nor PCK_VolatileTrivial.
@@ -4674,12 +4698,13 @@ class FunctionEffect {
 public:
   /// Identifies the particular effect.
   enum class Kind : uint8_t {
-    None = 0,
-    NonBlocking = 1,
-    NonAllocating = 2,
-    Blocking = 3,
-    Allocating = 4
+    NonBlocking,
+    NonAllocating,
+    Blocking,
+    Allocating,
+    Last = Allocating
   };
+  constexpr static size_t KindCount = static_cast<size_t>(Kind::Last) + 1;
 
   /// Flags describing some behaviors of the effect.
   using Flags = unsigned;
@@ -4698,26 +4723,23 @@ public:
   };
 
 private:
-  LLVM_PREFERRED_TYPE(Kind)
-  unsigned FKind : 3;
+  Kind FKind;
 
   // Expansion: for hypothetical TCB+types, there could be one Kind for TCB,
   // then ~16(?) bits "SubKind" to map to a specific named TCB. SubKind would
   // be considered for uniqueness.
 
 public:
-  FunctionEffect() : FKind(unsigned(Kind::None)) {}
-
-  explicit FunctionEffect(Kind K) : FKind(unsigned(K)) {}
+  explicit FunctionEffect(Kind K) : FKind(K) {}
 
   /// The kind of the effect.
-  Kind kind() const { return Kind(FKind); }
+  Kind kind() const { return FKind; }
 
   /// Return the opposite kind, for effects which have opposites.
   Kind oppositeKind() const;
 
   /// For serialization.
-  uint32_t toOpaqueInt32() const { return FKind; }
+  uint32_t toOpaqueInt32() const { return uint32_t(FKind); }
   static FunctionEffect fromOpaqueInt32(uint32_t Value) {
     return FunctionEffect(Kind(Value));
   }
@@ -4736,8 +4758,6 @@ public:
     case Kind::Blocking:
     case Kind::Allocating:
       return 0;
-    case Kind::None:
-      break;
     }
     llvm_unreachable("unknown effect kind");
   }
@@ -4745,26 +4765,36 @@ public:
   /// The description printed in diagnostics, e.g. 'nonblocking'.
   StringRef name() const;
 
-  /// Return true if the effect is allowed to be inferred on the callee,
-  /// which is either a FunctionDecl or BlockDecl.
+  friend raw_ostream &operator<<(raw_ostream &OS,
+                                 const FunctionEffect &Effect) {
+    OS << Effect.name();
+    return OS;
+  }
+
+  /// Determine whether the effect is allowed to be inferred on the callee,
+  /// which is either a FunctionDecl or BlockDecl. If the returned optional
+  /// is empty, inference is permitted; otherwise it holds the effect which
+  /// blocked inference.
   /// Example: This allows nonblocking(false) to prevent inference for the
   /// function.
-  bool canInferOnFunction(const Decl &Callee) const;
+  std::optional<FunctionEffect>
+  effectProhibitingInference(const Decl &Callee,
+                             FunctionEffectKindSet CalleeFX) const;
 
   // Return false for success. When true is returned for a direct call, then the
   // FE_InferrableOnCallees flag may trigger inference rather than an immediate
   // diagnostic. Caller should be assumed to have the effect (it may not have it
   // explicitly when inferring).
   bool shouldDiagnoseFunctionCall(bool Direct,
-                                  ArrayRef<FunctionEffect> CalleeFX) const;
+                                  FunctionEffectKindSet CalleeFX) const;
 
-  friend bool operator==(const FunctionEffect &LHS, const FunctionEffect &RHS) {
+  friend bool operator==(FunctionEffect LHS, FunctionEffect RHS) {
     return LHS.FKind == RHS.FKind;
   }
-  friend bool operator!=(const FunctionEffect &LHS, const FunctionEffect &RHS) {
+  friend bool operator!=(FunctionEffect LHS, FunctionEffect RHS) {
     return !(LHS == RHS);
   }
-  friend bool operator<(const FunctionEffect &LHS, const FunctionEffect &RHS) {
+  friend bool operator<(FunctionEffect LHS, FunctionEffect RHS) {
     return LHS.FKind < RHS.FKind;
   }
 };
@@ -4792,13 +4822,14 @@ struct FunctionEffectWithCondition {
   FunctionEffect Effect;
   EffectConditionExpr Cond;
 
-  FunctionEffectWithCondition() = default;
-  FunctionEffectWithCondition(const FunctionEffect &E,
-                              const EffectConditionExpr &C)
+  FunctionEffectWithCondition(FunctionEffect E, const EffectConditionExpr &C)
       : Effect(E), Cond(C) {}
 
   /// Return a textual description of the effect, and its condition, if any.
   std::string description() const;
+
+  friend raw_ostream &operator<<(raw_ostream &OS,
+                                 const FunctionEffectWithCondition &CFE);
 };
 
 /// Support iteration in parallel through a pair of FunctionEffect and
@@ -4901,6 +4932,85 @@ public:
   }
 
   void dump(llvm::raw_ostream &OS) const;
+};
+
+/// A mutable set of FunctionEffect::Kind.
+class FunctionEffectKindSet {
+  // For now this only needs to be a bitmap.
+  constexpr static size_t EndBitPos = FunctionEffect::KindCount;
+  using KindBitsT = std::bitset<EndBitPos>;
+
+  KindBitsT KindBits{};
+
+  explicit FunctionEffectKindSet(KindBitsT KB) : KindBits(KB) {}
+
+  // Functions to translate between an effect kind, starting at 1, and a
+  // position in the bitset.
+
+  constexpr static size_t kindToPos(FunctionEffect::Kind K) {
+    return static_cast<size_t>(K);
+  }
+
+  constexpr static FunctionEffect::Kind posToKind(size_t Pos) {
+    return static_cast<FunctionEffect::Kind>(Pos);
+  }
+
+  // Iterates through the bits which are set.
+  class iterator {
+    const FunctionEffectKindSet *Outer = nullptr;
+    size_t Idx = 0;
+
+    // If Idx does not reference a set bit, advance it until it does,
+    // or until it reaches EndBitPos.
+    void advanceToNextSetBit() {
+      while (Idx < EndBitPos && !Outer->KindBits.test(Idx))
+        ++Idx;
+    }
+
+  public:
+    iterator();
+    iterator(const FunctionEffectKindSet &O, size_t I) : Outer(&O), Idx(I) {
+      advanceToNextSetBit();
+    }
+    bool operator==(const iterator &Other) const { return Idx == Other.Idx; }
+    bool operator!=(const iterator &Other) const { return Idx != Other.Idx; }
+
+    iterator operator++() {
+      ++Idx;
+      advanceToNextSetBit();
+      return *this;
+    }
+
+    FunctionEffect operator*() const {
+      assert(Idx < EndBitPos && "Dereference of end iterator");
+      return FunctionEffect(posToKind(Idx));
+    }
+  };
+
+public:
+  FunctionEffectKindSet() = default;
+  explicit FunctionEffectKindSet(FunctionEffectsRef FX) { insert(FX); }
+
+  iterator begin() const { return iterator(*this, 0); }
+  iterator end() const { return iterator(*this, EndBitPos); }
+
+  void insert(FunctionEffect Effect) { KindBits.set(kindToPos(Effect.kind())); }
+  void insert(FunctionEffectsRef FX) {
+    for (FunctionEffect Item : FX.effects())
+      insert(Item);
+  }
+  void insert(FunctionEffectKindSet Set) { KindBits |= Set.KindBits; }
+
+  bool empty() const { return KindBits.none(); }
+  bool contains(const FunctionEffect::Kind EK) const {
+    return KindBits.test(kindToPos(EK));
+  }
+  void dump(llvm::raw_ostream &OS) const;
+
+  static FunctionEffectKindSet difference(FunctionEffectKindSet LHS,
+                                          FunctionEffectKindSet RHS) {
+    return FunctionEffectKindSet(LHS.KindBits & ~RHS.KindBits);
+  }
 };
 
 /// A mutable set of FunctionEffects and possibly conditions attached to them.
@@ -5995,13 +6105,24 @@ public:
 private:
   friend class ASTContext; // ASTContext creates these
 
+  const Attr *Attribute;
+
   QualType ModifiedType;
   QualType EquivalentType;
 
   AttributedType(QualType canon, attr::Kind attrKind, QualType modified,
                  QualType equivalent)
+      : AttributedType(canon, attrKind, nullptr, modified, equivalent) {}
+
+  AttributedType(QualType canon, const Attr *attr, QualType modified,
+                 QualType equivalent);
+
+private:
+  AttributedType(QualType canon, attr::Kind attrKind, const Attr *attr,
+                 QualType modified, QualType equivalent)
       : Type(Attributed, canon, equivalent->getDependence()),
-        ModifiedType(modified), EquivalentType(equivalent) {
+        Attribute(attr), ModifiedType(modified),
+        EquivalentType(equivalent) {
     AttributedTypeBits.AttrKind = attrKind;
   }
 
@@ -6009,6 +6130,8 @@ public:
   Kind getAttrKind() const {
     return static_cast<Kind>(AttributedTypeBits.AttrKind);
   }
+
+  const Attr *getAttr() const { return Attribute; }
 
   QualType getModifiedType() const { return ModifiedType; }
   QualType getEquivalentType() const { return EquivalentType; }
@@ -6040,25 +6163,6 @@ public:
   bool isCallingConv() const;
 
   std::optional<NullabilityKind> getImmediateNullability() const;
-
-  /// Retrieve the attribute kind corresponding to the given
-  /// nullability kind.
-  static Kind getNullabilityAttrKind(NullabilityKind kind) {
-    switch (kind) {
-    case NullabilityKind::NonNull:
-      return attr::TypeNonNull;
-
-    case NullabilityKind::Nullable:
-      return attr::TypeNullable;
-
-    case NullabilityKind::NullableResult:
-      return attr::TypeNullableResult;
-
-    case NullabilityKind::Unspecified:
-      return attr::TypeNullUnspecified;
-    }
-    llvm_unreachable("Unknown nullability kind.");
-  }
 
   /// Strip off the top-level nullability annotation on the given
   /// type, if it's there.
@@ -8437,7 +8541,7 @@ inline bool Type::isUndeducedType() const {
 /// Determines whether this is a type for which one can define
 /// an overloaded operator.
 inline bool Type::isOverloadableType() const {
-  if (!CanonicalType->isDependentType())
+  if (!isDependentType())
     return isRecordType() || isEnumeralType();
   return !isArrayType() && !isFunctionType() && !isAnyPointerType() &&
          !isMemberPointerType();

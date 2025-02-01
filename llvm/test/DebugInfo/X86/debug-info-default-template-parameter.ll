@@ -13,8 +13,8 @@
 ;   return 0;
 ; }
 ;
-; RUN: llc -filetype=obj -dwarf-version=4 %s -o - | llvm-dwarfdump - --debug-info | FileCheck %s --check-prefixes=DWARF-DUMP,DWARFv4
-; RUN: llc -filetype=obj -dwarf-version=4 -strict-dwarf=true %s -o - | llvm-dwarfdump - --debug-info | FileCheck %s --check-prefixes=DWARF-DUMP,STRICT
+; RUN: llc -experimental-debug-variable-locations=true -experimental-debug-variable-locations=true -filetype=obj -dwarf-version=4 %s -o - | llvm-dwarfdump - --debug-info | FileCheck %s --check-prefixes=DWARF-DUMP,DWARFv4
+; RUN: llc -experimental-debug-variable-locations=true -filetype=obj -dwarf-version=4 -strict-dwarf=true %s -o - | llvm-dwarfdump - --debug-info | FileCheck %s --check-prefixes=DWARF-DUMP,STRICT
 
 ; DWARF-DUMP:       DW_TAG_class_type
 ; DWARF-DUMP-LABEL:   DW_AT_name      ("foo<char, 3, true, 1>")
@@ -58,7 +58,7 @@ entry:
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
 attributes #0 = { mustprogress noinline norecurse nounwind optnone "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+cx8,+mmx,+sse,+sse2,+x87" }
-attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn }
 
 !llvm.dbg.cu = !{!0}
 !llvm.linker.options = !{}

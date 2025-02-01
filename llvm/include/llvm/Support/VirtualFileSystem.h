@@ -18,6 +18,9 @@
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+// FIXME: Bringing in "CASReference.h" because Swift/C++ interop complains about
+// `ObjectRef` being undefined.
+#include "llvm/CAS/CASReference.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
@@ -26,6 +29,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/VirtualCachedDirectoryEntry.h"
 #include <cassert>
 #include <cstdint>
 #include <ctime>
@@ -41,6 +45,10 @@ namespace llvm {
 class MemoryBuffer;
 class MemoryBufferRef;
 class Twine;
+
+namespace cas {
+class ObjectRef;
+}
 
 namespace vfs {
 
@@ -130,6 +138,11 @@ public:
   virtual llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
   getBuffer(const Twine &Name, int64_t FileSize = -1,
             bool RequiresNullTerminator = true, bool IsVolatile = false) = 0;
+
+  /// Get the CAS reference for the contents of the file.
+  /// \returns \p None if the underlying \p FileSystem doesn't support providing
+  /// CAS references.
+  virtual llvm::ErrorOr<std::optional<cas::ObjectRef>> getObjectRefForContent();
 
   /// Closes the file.
   virtual std::error_code close() = 0;
@@ -279,7 +292,15 @@ public:
   /// closes the file.
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
   getBufferForFile(const Twine &Name, int64_t FileSize = -1,
-                   bool RequiresNullTerminator = true, bool IsVolatile = false);
+                   bool RequiresNullTerminator = true, bool IsVolatile = false,
+                   std::optional<cas::ObjectRef> *CASContents = nullptr);
+
+  /// This is a convenience method that opens a file, gets the \p cas::ObjectRef
+  /// for its contents if supported by the file system, and then closes the
+  /// file. If both the buffer and its `cas::ObjectRef` are needed use \p
+  /// getBufferForFile to avoid the extra file lookup.
+  llvm::ErrorOr<std::optional<cas::ObjectRef>>
+  getObjectRefForFileContent(const Twine &Name);
 
   /// Get a directory_iterator for \p Dir.
   /// \note The 'end' iterator is directory_iterator().
@@ -298,6 +319,46 @@ public:
   /// This returns errc::operation_not_permitted if not implemented by subclass.
   virtual std::error_code getRealPath(const Twine &Path,
                                       SmallVectorImpl<char> &Output);
+
+  /// Gets access to the directory entry for \p Path. Among other things, this
+  /// exposes the filesystem tree's actual path to \p Path.
+  ///
+  /// If \p FollowSymlinks and \p Path refers to a symbol link, this returns
+  /// the directory entry for the link's target, evaluated recursively (as if
+  /// calling \a getRealPath()). Otherwise, it returns the entry for the
+  /// symbolic link itself (as if \a getRealPath() had been called only on the
+  /// parent path).
+  ///
+  /// For example, given:
+  ///
+  ///     /a/sym -> b
+  ///     /a/b/c
+  ///
+  /// The following table explains the object returned, and its tree path:
+  ///
+  ///     Path      Follow     NoFollow
+  ///     ====      ======     ========
+  ///     /a/sym    /a/b       /a/sym
+  ///     /a/sym/   /a/b       /a/b
+  ///     /a/sym/c  /a/b/c     /a/b/c
+  ///
+  /// Paths are made absolute before lookup.
+  ///
+  /// FIXME: Make this non-const, since it can do work? (Why is \a
+  /// getRealPath() const?)
+  ///
+  /// FIXME: Add \a getCachedDirectoryEntry(), which is const-qualified and
+  /// never does work?
+  ///
+  /// FIXME: Follow symlinks by default (can make the virtual function end in
+  /// Impl to avoid virtual/default parameter shenanigans)?
+  virtual Expected<const CachedDirectoryEntry *>
+  getDirectoryEntry(const Twine &Path, bool FollowSymlinks) const {
+    // FIXME: Consider providing a defualt imlementation that calls \a
+    // getRealPath() on the parent path and reappending the filename (assuming
+    // it exists).
+    return createFileError(Path, make_error_code(std::errc::not_supported));
+  }
 
   /// Check whether \p Path exists. By default this uses \c status(), but
   /// filesystems may provide a more efficient implementation if available.
@@ -322,6 +383,9 @@ public:
   /// \returns true if \p A and \p B represent the same file, or an error or
   /// false if they do not.
   llvm::ErrorOr<bool> equivalent(const Twine &A, const Twine &B);
+
+  /// Check if files are loaded from a CAS.
+  virtual bool isCASFS() const { return false; }
 
   enum class PrintType { Summary, Contents, RecursiveContents };
   void print(raw_ostream &OS, PrintType Type = PrintType::Contents,
@@ -1130,6 +1194,60 @@ public:
   const std::vector<YAMLVFSEntry> &getMappings() const { return Mappings; }
 
   void write(llvm::raw_ostream &OS);
+};
+
+/// File system that tracks the number of calls to the underlying file system.
+/// This is particularly useful when wrapped around \c RealFileSystem to add
+/// lightweight tracking of expensive syscalls.
+class TracingFileSystem
+    : public llvm::RTTIExtends<TracingFileSystem, ProxyFileSystem> {
+public:
+  static const char ID;
+
+  std::size_t NumStatusCalls = 0;
+  std::size_t NumOpenFileForReadCalls = 0;
+  std::size_t NumDirBeginCalls = 0;
+  std::size_t NumGetRealPathCalls = 0;
+  std::size_t NumExistsCalls = 0;
+  std::size_t NumIsLocalCalls = 0;
+
+  TracingFileSystem(llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS)
+      : RTTIExtends(std::move(FS)) {}
+
+  ErrorOr<Status> status(const Twine &Path) override {
+    ++NumStatusCalls;
+    return ProxyFileSystem::status(Path);
+  }
+
+  ErrorOr<std::unique_ptr<File>> openFileForRead(const Twine &Path) override {
+    ++NumOpenFileForReadCalls;
+    return ProxyFileSystem::openFileForRead(Path);
+  }
+
+  directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override {
+    ++NumDirBeginCalls;
+    return ProxyFileSystem::dir_begin(Dir, EC);
+  }
+
+  std::error_code getRealPath(const Twine &Path,
+                              SmallVectorImpl<char> &Output) override {
+    ++NumGetRealPathCalls;
+    return ProxyFileSystem::getRealPath(Path, Output);
+  }
+
+  bool exists(const Twine &Path) override {
+    ++NumExistsCalls;
+    return ProxyFileSystem::exists(Path);
+  }
+
+  std::error_code isLocal(const Twine &Path, bool &Result) override {
+    ++NumIsLocalCalls;
+    return ProxyFileSystem::isLocal(Path, Result);
+  }
+
+protected:
+  void printImpl(raw_ostream &OS, PrintType Type,
+                 unsigned IndentLevel) const override;
 };
 
 } // namespace vfs

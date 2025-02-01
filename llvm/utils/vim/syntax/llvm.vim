@@ -184,6 +184,7 @@ syn keyword llvmKeyword
       \ sspstrong
       \ strictfp
       \ swiftcc
+      \ swifttailcc
       \ swifterror
       \ swifttailcc
       \ swiftself

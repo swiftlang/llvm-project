@@ -11,6 +11,7 @@
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/lldb-public.h"
 
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/API/SBBreakpoint.h"
 #include "lldb/API/SBDebugger.h"
 #include "lldb/API/SBEnvironment.h"
@@ -41,9 +42,6 @@
 #include "lldb/Core/SearchFilter.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Core/StructuredDataImpl.h"
-#include "lldb/Core/ValueObjectConstResult.h"
-#include "lldb/Core/ValueObjectList.h"
-#include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Symbol/DeclVendor.h"
 #include "lldb/Symbol/ObjectFile.h"
@@ -63,11 +61,18 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/RegularExpression.h"
+#include "lldb/ValueObject/ValueObjectConstResult.h"
+#include "lldb/ValueObject/ValueObjectList.h"
+#include "lldb/ValueObject/ValueObjectVariable.h"
 
 #include "Commands/CommandObjectBreakpoint.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Regex.h"
+
+// BEGIN SWIFT
+#include "lldb/Breakpoint/BreakpointPrecondition.h"
+// END SWIFT
 
 using namespace lldb;
 using namespace lldb_private;
@@ -85,8 +90,9 @@ static Status AttachToProcess(ProcessAttachInfo &attach_info, Target &target) {
       // listener, so if a valid listener is supplied, we need to error out to
       // let the client know.
       if (attach_info.GetListener())
-        return Status("process is connected and already has a listener, pass "
-                      "empty listener");
+        return Status::FromErrorString(
+            "process is connected and already has a listener, pass "
+            "empty listener");
     }
   }
 
@@ -452,7 +458,7 @@ lldb::SBProcess SBTarget::Attach(SBAttachInfo &sb_attach_info, SBError &error) {
         if (platform_sp->GetProcessInfo(attach_pid, instance_info)) {
           attach_info.SetUserID(instance_info.GetEffectiveUserID());
         } else {
-          error.ref().SetErrorStringWithFormat(
+          error.ref() = Status::FromErrorStringWithFormat(
               "no process found with process ID %" PRIu64, attach_pid);
           return sb_process;
         }
@@ -1027,6 +1033,20 @@ SBTarget::BreakpointCreateForException(lldb::LanguageType language,
                                        bool catch_bp, bool throw_bp) {
   LLDB_INSTRUMENT_VA(this, language, catch_bp, throw_bp);
 
+  // BEGIN SWIFT
+  SBStringList no_extra_args;
+  return BreakpointCreateForException(
+      language, catch_bp, throw_bp, no_extra_args);
+  // END SWIFT
+}
+
+// BEGIN SWIFT
+lldb::SBBreakpoint
+SBTarget::BreakpointCreateForException(lldb::LanguageType language,
+                                       bool catch_bp, bool throw_bp,
+                                       SBStringList &extra_args) {
+  LLDB_INSTRUMENT_VA(this, language, catch_bp, throw_bp, extra_args);
+
   SBBreakpoint sb_bp;
   TargetSP target_sp(GetSP());
   if (target_sp) {
@@ -1034,10 +1054,27 @@ SBTarget::BreakpointCreateForException(lldb::LanguageType language,
     const bool hardware = false;
     sb_bp = target_sp->CreateExceptionBreakpoint(language, catch_bp, throw_bp,
                                                   hardware);
+    size_t num_extra_args = extra_args.GetSize();
+    if (num_extra_args > 0) {
+      // Have to convert this to Args, and pass it to the precondition:
+      if (num_extra_args % 2 == 0) {
+        Args args;
+        for (size_t i = 0; i < num_extra_args; i += 2) {
+          args.AppendArgument(extra_args.GetStringAtIndex(i));
+          args.AppendArgument(extra_args.GetStringAtIndex(i + 1));
+        }
+        BreakpointSP bkpt = sb_bp.GetSP();
+        BreakpointPreconditionSP pre_condition_sp =
+            bkpt->GetPrecondition();
+        if (pre_condition_sp)
+          pre_condition_sp->ConfigurePrecondition(args);
+      }
+    }
   }
 
   return sb_bp;
 }
+// END SWIFT
 
 lldb::SBBreakpoint SBTarget::BreakpointCreateFromScript(
     const char *class_name, SBStructuredData &extra_args,
@@ -1368,7 +1405,7 @@ SBTarget::WatchpointCreateByAddress(lldb::addr_t addr, size_t size,
     CompilerType *type = nullptr;
     watchpoint_sp =
         target_sp->CreateWatchpoint(addr, size, type, watch_type, cw_error);
-    error.SetError(cw_error);
+    error.SetError(std::move(cw_error));
     sb_watchpoint.SetSP(watchpoint_sp);
   }
 
@@ -1655,9 +1692,9 @@ SBError SBTarget::SetLabel(const char *label) {
 
   TargetSP target_sp(GetSP());
   if (!target_sp)
-    return Status("Couldn't get internal target object.");
+    return Status::FromErrorString("Couldn't get internal target object.");
 
-  return Status(target_sp->SetLabel(label));
+  return Status::FromError(target_sp->SetLabel(label));
 }
 
 uint32_t SBTarget::GetDataByteSize() {
@@ -1824,15 +1861,26 @@ lldb::SBType SBTarget::FindFirstType(const char *typename_cstr) {
     if (type_sp)
       return SBType(type_sp);
     // Didn't find the type in the symbols; Try the loaded language runtimes.
+    // BEGIN SWIFT
+    // FIXME: This depends on clang, but should be able to support any
+    // TypeSystem/compiler.
     if (auto process_sp = target_sp->GetProcessSP()) {
       for (auto *runtime : process_sp->GetLanguageRuntimes()) {
         if (auto vendor = runtime->GetDeclVendor()) {
-          auto types = vendor->FindTypes(const_typename, /*max_matches*/ 1);
-          if (!types.empty())
-            return SBType(types.front());
+          std::vector<CompilerDecl> decls;
+          if (vendor->FindDecls(const_typename, /*append*/ true,
+                                /*max_matches*/ 1, decls) > 0) {
+            auto compiler_decl = decls.front();
+            auto *ctx = llvm::dyn_cast<TypeSystemClang>(compiler_decl.GetTypeSystem());
+            if (ctx)
+              if (CompilerType type =
+                      ctx->GetTypeForDecl(compiler_decl.GetOpaqueDecl()))
+                return SBType(type);
+          }
         }
       }
     }
+    // END SWIFT
 
     // No matches, search for basic typename matches.
     for (auto type_system_sp : target_sp->GetScratchTypeSystems())
@@ -1870,16 +1918,27 @@ lldb::SBTypeList SBTarget::FindTypes(const char *typename_cstr) {
       sb_type_list.Append(SBType(type_sp));
 
     // Try the loaded language runtimes
+    // BEGIN SWIFT
+    // FIXME: This depends on clang, but should be able to support any
+    // TypeSystem/compiler.
     if (auto process_sp = target_sp->GetProcessSP()) {
       for (auto *runtime : process_sp->GetLanguageRuntimes()) {
         if (auto *vendor = runtime->GetDeclVendor()) {
-          auto types =
-              vendor->FindTypes(const_typename, /*max_matches*/ UINT32_MAX);
-          for (auto type : types)
-            sb_type_list.Append(SBType(type));
+          std::vector<CompilerDecl> decls;
+          if (vendor->FindDecls(const_typename, /*append*/ true,
+                                /*max_matches*/ 1, decls) > 0) {
+            for (auto decl : decls) {
+              auto *ctx = llvm::dyn_cast<TypeSystemClang>(decl.GetTypeSystem());
+              if (ctx)
+                if (CompilerType type =
+                        ctx->GetTypeForDecl(decl.GetOpaqueDecl()))
+                  sb_type_list.Append(SBType(type));
+            }
+          }
         }
       }
     }
+    // END SWIFT
 
     if (sb_type_list.GetSize() == 0) {
       // No matches, search for basic typename matches
@@ -2013,7 +2072,8 @@ lldb::SBInstructionList SBTarget::ReadInstructions(lldb::SBAddress base_addr,
                                 error, force_live_memory, &load_addr);
       const bool data_from_file = load_addr == LLDB_INVALID_ADDRESS;
       sb_instructions.SetDisassembler(Disassembler::DisassembleBytes(
-          target_sp->GetArchitecture(), nullptr, flavor_string, *addr_ptr,
+          target_sp->GetArchitecture(), nullptr, target_sp->GetDisassemblyCPU(),
+          target_sp->GetDisassemblyFeatures(), flavor_string, *addr_ptr,
           data.GetBytes(), bytes_read, count, data_from_file));
     }
   }
@@ -2038,8 +2098,9 @@ lldb::SBInstructionList SBTarget::ReadInstructions(lldb::SBAddress start_addr,
       AddressRange range(start_load_addr, size);
       const bool force_live_memory = true;
       sb_instructions.SetDisassembler(Disassembler::DisassembleRange(
-          target_sp->GetArchitecture(), nullptr, flavor_string, *target_sp,
-          range, force_live_memory));
+          target_sp->GetArchitecture(), nullptr, flavor_string,
+          target_sp->GetDisassemblyCPU(), target_sp->GetDisassemblyFeatures(),
+          *target_sp, range, force_live_memory));
     }
   }
   return sb_instructions;
@@ -2071,8 +2132,9 @@ SBTarget::GetInstructionsWithFlavor(lldb::SBAddress base_addr,
     const bool data_from_file = true;
 
     sb_instructions.SetDisassembler(Disassembler::DisassembleBytes(
-        target_sp->GetArchitecture(), nullptr, flavor_string, addr, buf, size,
-        UINT32_MAX, data_from_file));
+        target_sp->GetArchitecture(), nullptr, flavor_string,
+        target_sp->GetDisassemblyCPU(), target_sp->GetDisassemblyFeatures(),
+        addr, buf, size, UINT32_MAX, data_from_file));
   }
 
   return sb_instructions;
@@ -2323,9 +2385,10 @@ lldb::SBValue SBTarget::EvaluateExpression(const char *expr,
           target->EvaluateExpression(expr, frame, expr_value_sp, options.ref());
         } else {
           Status error;
-          error.SetErrorString("can't evaluate expressions when the "
-                               "process is running.");
-          expr_value_sp = ValueObjectConstResult::Create(nullptr, error);
+          error = Status::FromErrorString("can't evaluate expressions when the "
+                                          "process is running.");
+          expr_value_sp =
+              ValueObjectConstResult::Create(nullptr, std::move(error));
         }
       } else {
         target->EvaluateExpression(expr, frame, expr_value_sp, options.ref());

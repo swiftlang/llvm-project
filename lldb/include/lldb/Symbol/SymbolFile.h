@@ -18,6 +18,8 @@
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/SourceModule.h"
+#include "lldb/Symbol/Symbol.h"
+#include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/TypeList.h"
 #include "lldb/Symbol/TypeSystem.h"
@@ -30,6 +32,7 @@
 #include "llvm/Support/Errc.h"
 
 #include <mutex>
+#include <vector>
 #include <optional>
 #include <unordered_map>
 
@@ -146,6 +149,9 @@ public:
 
   virtual Symtab *GetSymtab() = 0;
 
+  virtual llvm::VersionTuple GetProducerVersion(CompileUnit &comp_unit) {
+    return {};
+  }
   virtual lldb::LanguageType ParseLanguage(CompileUnit &comp_unit) = 0;
   /// Return the Xcode SDK comp_unit was compiled against.
   virtual XcodeSDK ParseXcodeSDK(CompileUnit &comp_unit) { return {}; }
@@ -301,6 +307,21 @@ public:
                              bool include_inlines, SymbolContextList &sc_list);
   virtual void FindFunctions(const RegularExpression &regex,
                              bool include_inlines, SymbolContextList &sc_list);
+  /// Finds imported declarations whose name match \p name.
+  ///
+  /// \param[in] name
+  ///     The name to search the imported declaration by.
+  ///
+  /// \param[in] results
+  ///     Any matching types will be populated into the \a results object.
+  ///
+  /// \param[in] find_one
+  ///     If set to true, the search will stop after the first imported
+  ///     declaration is found.
+  virtual void
+  FindImportedDeclaration(ConstString name,
+                          std::vector<ImportedDeclaration> &declarations,
+                          bool find_one) {}
 
   /// Find types using a type-matching object that contains all search
   /// parameters.
@@ -357,6 +378,32 @@ public:
   /// Notify the SymbolFile that the file addresses in the Sections
   /// for this module have been changed.
   virtual void SectionFileAddressesChanged() = 0;
+
+  virtual bool GetCompileOption(const char *option, std::string &value,
+                                CompileUnit *cu = nullptr) {
+    value.clear();
+    return false;
+  }
+
+  /// Retrieve all the AST data blobs from the SymbolFile.
+  ///
+  /// Symbol files can store AST data for any language that wants to
+  /// store the native AST format supported by the current compiler.
+  /// This information is often only usable by a compiler that is in
+  /// sync with the compiler sources that were used to build LLDB so
+  /// any data should be versioned appropriately so the compiler can
+  /// try to load the data and know if the data will be able to be
+  /// used.
+  ///
+  /// @param[in] language
+  ///   The language for which AST data is being requested.
+  ///   A given file can contain ASTs for more than one language.
+  ///
+  /// @return
+  ///   Zero or more buffers, each of which contain the raw data
+  ///   of an AST in the requested language.
+  virtual std::vector<lldb::DataBufferSP>
+  GetASTData(lldb::LanguageType language);
 
   struct RegisterInfoResolver {
     virtual ~RegisterInfoResolver(); // anchor

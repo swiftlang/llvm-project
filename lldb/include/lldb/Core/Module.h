@@ -12,6 +12,7 @@
 #include "lldb/Core/Address.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Core/ModuleSpec.h"
+#include "lldb/Symbol/ImportedDeclaration.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContextScope.h"
 #include "lldb/Symbol/TypeSystem.h"
@@ -30,7 +31,9 @@
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/StableHashing.h"
 #include "llvm/ADT/StringRef.h"
+#include <optional>
 #include "llvm/Support/Chrono.h"
 
 #include <atomic>
@@ -435,6 +438,21 @@ public:
   ///     TypeMap::InsertUnique(...).
   void FindTypes(const TypeQuery &query, TypeResults &results);
 
+  /// Finds imported declarations whose name match \p name.
+  ///
+  /// \param[in] name
+  ///     The name to search the imported declaration by.
+  ///
+  /// \param[in] results
+  ///     Any matching types will be populated into the \a results object.
+  ///
+  /// \param[in] find_one
+  ///     If set to true, the search will stop after the first imported
+  ///     declaration is found.
+  void FindImportedDeclarations(ConstString name,
+                                std::vector<ImportedDeclaration> &results,
+                                bool find_one);
+
   /// Get const accessor for the module architecture.
   ///
   /// \return
@@ -815,6 +833,16 @@ public:
   ReportWarningUnsupportedLanguage(lldb::LanguageType language,
                                    std::optional<lldb::user_id_t> debugger_id);
 
+#ifdef LLDB_ENABLE_SWIFT
+  void
+  ReportWarningToolchainMismatch(CompileUnit &comp_unit,
+                                 std::optional<lldb::user_id_t> debugger_id);
+
+  bool IsSwiftCxxInteropEnabled();
+
+  bool IsEmbeddedSwift();
+#endif
+
   // Return true if the file backing this module has changed since the module
   // was originally created  since we saved the initial file modification time
   // when the module first gets created.
@@ -864,6 +892,14 @@ public:
   ///     \a path was successfully located.
   std::optional<std::string> RemapSourceFile(llvm::StringRef path) const;
   bool RemapSourceFile(const char *, std::string &) const = delete;
+
+  void ClearModuleDependentCaches();
+
+  void SetTypeSystemMap(const TypeSystemMap &type_system_map) {
+    m_type_system_map = type_system_map;
+  }
+
+  std::vector<lldb::DataBufferSP> GetASTData(lldb::LanguageType language);
 
   /// Update the ArchSpec to a more specific variant.
   bool MergeArchitecture(const ArchSpec &arch_spec);
@@ -1021,9 +1057,9 @@ protected:
   lldb::ObjectFileSP m_objfile_sp; ///< A shared pointer to the object file
                                    /// parser for this module as it may or may
                                    /// not be shared with the SymbolFile
-  std::optional<UnwindTable> m_unwind_table; ///< Table of FuncUnwinders
-                                             /// objects created for this
-                                             /// Module's functions
+  UnwindTable m_unwind_table;      ///< Table of FuncUnwinders
+                                   /// objects created for this
+                                   /// Module's functions
   lldb::SymbolVendorUP
       m_symfile_up; ///< A pointer to the symbol vendor for this module.
   std::vector<lldb::SymbolVendorUP>
@@ -1057,8 +1093,14 @@ protected:
   /// time for the symbol tables can be aggregated here.
   StatsDuration m_symtab_index_time;
 
-  std::once_flag m_optimization_warning;
-  std::once_flag m_language_warning;
+#ifdef LLDB_ENABLE_SWIFT
+  std::once_flag m_toolchain_mismatch_warning;
+#endif
+  /// A set of hashes of all warnings and errors, to avoid reporting them
+  /// multiple times to the same Debugger.
+  llvm::DenseMap<llvm::stable_hash, std::unique_ptr<std::once_flag>>
+      m_shown_diagnostics;
+  std::recursive_mutex m_diagnostic_mutex;
 
   void SymbolIndicesToSymbolContextList(Symtab *symtab,
                                         std::vector<uint32_t> &symbol_indexes,
@@ -1086,6 +1128,11 @@ private:
   void ReportWarning(const llvm::formatv_object_base &payload);
   void ReportError(const llvm::formatv_object_base &payload);
   void ReportErrorIfModifyDetected(const llvm::formatv_object_base &payload);
+#ifdef LLDB_ENABLE_SWIFT
+  LazyBool m_is_swift_cxx_interop_enabled = eLazyBoolCalculate;
+  LazyBool m_is_embedded_swift = eLazyBoolCalculate;
+#endif
+  std::once_flag *GetDiagnosticOnceFlag(llvm::StringRef msg);
 };
 
 } // namespace lldb_private

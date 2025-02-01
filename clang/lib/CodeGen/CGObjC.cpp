@@ -3679,6 +3679,15 @@ void CodeGenFunction::EmitExtendGCLifetime(llvm::Value *object) {
   EmitNounwindRuntimeCall(extender, object);
 }
 
+/// Return 'void (void *, const void *)', which is the type of ObjC atomic
+/// property copy helper functions.
+static QualType getObjCAtomicPropertyCopyHelperFunctionType(ASTContext &Ctx) {
+  SmallVector<QualType, 2> ArgTys;
+  ArgTys.push_back(Ctx.VoidPtrTy);
+  ArgTys.push_back(Ctx.getPointerType(Ctx.VoidTy.withConst()));
+  return Ctx.getFunctionType(Ctx.VoidTy, ArgTys, {});
+}
+
 /// GenerateObjCAtomicSetterCopyHelperFunction - Given a c++ object type with
 /// non-trivial copy assignment function, produce following helper function.
 /// static void copyHelper(Ty *dest, const Ty *source) { *dest = *source; }
@@ -3699,6 +3708,8 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
     CharUnits Alignment = C.getTypeAlignInChars(Ty);
     llvm::Constant *Fn = getNonTrivialCStructMoveAssignmentOperator(
         CGM, Alignment, Alignment, Ty.isVolatileQualified(), Ty);
+    Fn = CGM.getFunctionPointer(Fn,
+                                getObjCAtomicPropertyCopyHelperFunctionType(C));
     return Fn;
   }
 
@@ -3779,7 +3790,8 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
   EmitStmt(TheCall);
 
   FinishFunction();
-  HelperFn = Fn;
+  HelperFn = CGM.getFunctionPointer(
+      Fn, getObjCAtomicPropertyCopyHelperFunctionType(C));
   CGM.setAtomicSetterHelperFnMap(Ty, HelperFn);
   return HelperFn;
 }
@@ -3797,6 +3809,8 @@ llvm::Constant *CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
     CharUnits Alignment = C.getTypeAlignInChars(Ty);
     llvm::Constant *Fn = getNonTrivialCStructCopyConstructor(
         CGM, Alignment, Alignment, Ty.isVolatileQualified(), Ty);
+    Fn = CGM.getFunctionPointer(Fn,
+                                getObjCAtomicPropertyCopyHelperFunctionType(C));
     return Fn;
   }
 
@@ -3898,7 +3912,8 @@ llvm::Constant *CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
                   AggValueSlot::IsNotAliased, AggValueSlot::DoesNotOverlap));
 
   FinishFunction();
-  HelperFn = Fn;
+  HelperFn = CGM.getFunctionPointer(
+      Fn, getObjCAtomicPropertyCopyHelperFunctionType(C));
   CGM.setAtomicGetterHelperFnMap(Ty, HelperFn);
   return HelperFn;
 }

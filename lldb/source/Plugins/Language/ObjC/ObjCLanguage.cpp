@@ -14,13 +14,13 @@
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/PluginManager.h"
-#include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/DataVisualization.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/StreamString.h"
+#include "lldb/ValueObject/ValueObject.h"
 
 #include "llvm/Support/Threading.h"
 
@@ -910,7 +910,8 @@ std::unique_ptr<Language::TypeScavenger> ObjCLanguage::GetTypeScavenger() {
 
     bool IsValid() override { return m_compiler_type.IsValid(); }
 
-    bool DumpToStream(Stream &stream, bool print_help_if_available) override {
+    bool DumpToStream(Stream &stream, bool print_help_if_available,
+                      ExecutionContextScope *exe_scope = nullptr) override {
       if (IsValid()) {
         m_compiler_type.DumpTypeDescription(&stream);
         stream.EOL();
@@ -1039,4 +1040,12 @@ bool ObjCLanguage::IsSourceFile(llvm::StringRef file_path) const {
       return true;
   }
   return false;
+}
+
+std::optional<bool>
+ObjCLanguage::GetBooleanFromString(llvm::StringRef str) const {
+  return llvm::StringSwitch<std::optional<bool>>(str)
+      .Case("YES", {true})
+      .Case("NO", {false})
+      .Default({});
 }

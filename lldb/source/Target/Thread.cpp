@@ -12,8 +12,6 @@
 #include "lldb/Core/FormatEntity.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/StructuredDataImpl.h"
-#include "lldb/Core/ValueObject.h"
-#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Interpreter/OptionValueFileSpecList.h"
 #include "lldb/Interpreter/OptionValueProperties.h"
@@ -25,6 +23,7 @@
 #include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
+#include "lldb/Target/ScriptedThreadPlan.h"
 #include "lldb/Target/StackFrameRecognizer.h"
 #include "lldb/Target/StopInfo.h"
 #include "lldb/Target/SystemRuntime.h"
@@ -32,7 +31,6 @@
 #include "lldb/Target/ThreadPlan.h"
 #include "lldb/Target/ThreadPlanBase.h"
 #include "lldb/Target/ThreadPlanCallFunction.h"
-#include "lldb/Target/ThreadPlanPython.h"
 #include "lldb/Target/ThreadPlanRunToAddress.h"
 #include "lldb/Target/ThreadPlanStack.h"
 #include "lldb/Target/ThreadPlanStepInRange.h"
@@ -41,6 +39,7 @@
 #include "lldb/Target/ThreadPlanStepOverBreakpoint.h"
 #include "lldb/Target/ThreadPlanStepOverRange.h"
 #include "lldb/Target/ThreadPlanStepThrough.h"
+#include "lldb/Target/ThreadPlanStepThroughGenericTrampoline.h"
 #include "lldb/Target/ThreadPlanStepUntil.h"
 #include "lldb/Target/ThreadSpec.h"
 #include "lldb/Target/UnwindLLDB.h"
@@ -50,7 +49,13 @@
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
+#include "lldb/ValueObject/ValueObject.h"
+#include "lldb/ValueObject/ValueObjectConstResult.h"
 #include "lldb/lldb-enumerations.h"
+
+#ifdef LLDB_ENABLE_SWIFT
+#include "Plugins/TypeSystem/Swift/TypeSystemSwiftTypeRef.h"
+#endif
 
 #include <memory>
 #include <optional>
@@ -330,12 +335,33 @@ void Thread::FrameSelectedCallback(StackFrame *frame) {
 
   if (frame->HasDebugInformation() &&
       (GetProcess()->GetWarningsOptimization() ||
-       GetProcess()->GetWarningsUnsupportedLanguage())) {
+       GetProcess()->GetWarningsUnsupportedLanguage()
+#ifdef LLDB_ENABLE_SWIFT
+       || GetProcess()->GetWarningsToolchainMismatch()
+#endif
+           )) {
     SymbolContext sc =
         frame->GetSymbolContext(eSymbolContextFunction | eSymbolContextModule);
     GetProcess()->PrintWarningOptimization(sc);
     GetProcess()->PrintWarningUnsupportedLanguage(sc);
+#ifdef LLDB_ENABLE_SWIFT
+    GetProcess()->PrintWarningToolchainMismatch(sc);
+#endif
   }
+#ifdef LLDB_ENABLE_SWIFT
+  {
+    SymbolContext msc =
+        frame->GetSymbolContext(eSymbolContextFunction | eSymbolContextModule);
+    Status error;
+    ExecutionContext exe_ctx;
+    frame->CalculateExecutionContext(exe_ctx);
+    if (auto *exe_scope = exe_ctx.GetBestExecutionContextScope())
+      if (auto target = frame->CalculateTarget())
+        if (auto swift_ast_ctx =
+                TypeSystemSwiftTypeRefForExpressions::GetForTarget(*target))
+          swift_ast_ctx->DiagnoseWarnings(*GetProcess(), msc);
+  }
+#endif
 }
 
 lldb::StopInfoSP Thread::GetStopInfo() {
@@ -363,8 +389,12 @@ lldb::StopInfoSP Thread::GetStopInfo() {
   if (have_valid_stop_info && !plan_overrides_trace && !plan_failed) {
     return m_stop_info_sp;
   } else if (completed_plan_sp) {
+    bool is_swift_error_value;
+    lldb::ValueObjectSP return_value_sp =
+        GetReturnValueObject(&is_swift_error_value);
     return StopInfo::CreateStopReasonWithPlan(
-        completed_plan_sp, GetReturnValueObject(), GetExpressionVariable());
+        completed_plan_sp, return_value_sp, GetExpressionVariable(),
+        is_swift_error_value);
   } else {
     GetPrivateStopInfo();
     return m_stop_info_sp;
@@ -613,6 +643,14 @@ void Thread::WillStop() {
 
 void Thread::SetupForResume() {
   if (GetResumeState() != eStateSuspended) {
+    // First check whether this thread is going to "actually" resume at all.
+    // For instance, if we're stepping from one level to the next of an
+    // virtual inlined call stack, we just change the inlined call stack index
+    // without actually running this thread.  In that case, for this thread we
+    // shouldn't push a step over breakpoint plan or do that work.
+    if (GetCurrentPlan()->IsVirtualStep())
+      return;
+
     // If we're at a breakpoint push the step-over breakpoint plan.  Do this
     // before telling the current plan it will resume, since we might change
     // what the current plan is.
@@ -727,8 +765,6 @@ void Thread::DidResume() {
 void Thread::DidStop() { SetState(eStateStopped); }
 
 bool Thread::ShouldStop(Event *event_ptr) {
-  ThreadPlan *current_plan = GetCurrentPlan();
-
   bool should_stop = true;
 
   Log *log = GetLog(LLDBLog::Step);
@@ -782,9 +818,6 @@ bool Thread::ShouldStop(Event *event_ptr) {
     LLDB_LOGF(log, "Plan stack initial state:\n%s", s.GetData());
   }
 
-  // The top most plan always gets to do the trace log...
-  current_plan->DoTraceLog();
-
   // First query the stop info's ShouldStopSynchronous.  This handles
   // "synchronous" stop reasons, for example the breakpoint command on internal
   // breakpoints.  If a synchronous stop reason says we should not stop, then
@@ -796,6 +829,16 @@ bool Thread::ShouldStop(Event *event_ptr) {
                    "stop, returning ShouldStop of false.");
     return false;
   }
+
+  // Call this after ShouldStopSynchronous.
+  ThreadPlan *current_plan;
+  if (auto plan = GetProcess()->FindDetachedPlanExplainingStop(*this, event_ptr))
+    current_plan = plan.get();
+  else
+    current_plan = GetCurrentPlan();
+
+  // The top most plan always gets to do the trace log…
+  current_plan->DoTraceLog();
 
   // If we've already been restarted, don't query the plans since the state
   // they would examine is not current.
@@ -1125,12 +1168,22 @@ ThreadPlan *Thread::GetCurrentPlan() const {
   return GetPlans().GetCurrentPlan().get();
 }
 
-ThreadPlanSP Thread::GetCompletedPlan() const {
-  return GetPlans().GetCompletedPlan();
+ValueObjectSP Thread::GetReturnValueObject(bool *is_swift_error_value) {
+  if (is_swift_error_value)
+    *is_swift_error_value = false;
+    
+  bool is_error;
+  ValueObjectSP return_valobj_sp = GetPlans().GetReturnValueObject(is_error);
+  if (return_valobj_sp) {
+    if (is_swift_error_value)
+      *is_swift_error_value = is_error;
+    return return_valobj_sp;
+  }
+  return ValueObjectSP();
 }
 
-ValueObjectSP Thread::GetReturnValueObject() const {
-  return GetPlans().GetReturnValueObject();
+ThreadPlanSP Thread::GetCompletedPlan() const {
+  return GetPlans().GetCompletedPlan();
 }
 
 ExpressionVariableSP Thread::GetExpressionVariable() const {
@@ -1160,8 +1213,7 @@ Status Thread::QueueThreadPlan(ThreadPlanSP &thread_plan_sp,
   if (!thread_plan_sp->ValidatePlan(&s)) {
     DiscardThreadPlansUpToPlan(thread_plan_sp);
     thread_plan_sp.reset();
-    status.SetErrorString(s.GetString());
-    return status;
+    return Status(s.GetString().str());
   }
 
   if (abort_other_plans)
@@ -1176,8 +1228,7 @@ Status Thread::QueueThreadPlan(ThreadPlanSP &thread_plan_sp,
   if (!thread_plan_sp->ValidatePlan(&s)) {
     DiscardThreadPlansUpToPlan(thread_plan_sp);
     thread_plan_sp.reset();
-    status.SetErrorString(s.GetString());
-    return status;
+    return Status(s.GetString().str());
   }
 
   return status;
@@ -1228,7 +1279,8 @@ Status Thread::UnwindInnermostExpression() {
   Status error;
   ThreadPlan *innermost_expr_plan = GetPlans().GetInnermostExpression();
   if (!innermost_expr_plan) {
-    error.SetErrorString("No expressions currently active on this thread");
+    error = Status::FromErrorString(
+        "No expressions currently active on this thread");
     return error;
   }
   DiscardThreadPlansUpToPlan(innermost_expr_plan);
@@ -1287,6 +1339,25 @@ ThreadPlanSP Thread::QueueThreadPlanForStepInRange(
       *this, range, addr_context, step_in_target, stop_other_threads,
       step_in_avoids_code_without_debug_info,
       step_out_avoids_code_without_debug_info));
+  status = QueueThreadPlan(thread_plan_sp, abort_other_plans);
+  return thread_plan_sp;
+}
+
+ThreadPlanSP Thread::QueueThreadPlanForStepInRangeNoShouldStop(
+    bool abort_other_plans, const AddressRange &range,
+    const SymbolContext &addr_context, const char *step_in_target,
+    lldb::RunMode stop_other_threads, Status &status,
+    LazyBool step_in_avoids_code_without_debug_info,
+    LazyBool step_out_avoids_code_without_debug_info) {
+  ThreadPlanSP thread_plan_sp(new ThreadPlanStepInRange(
+      *this, range, addr_context, step_in_target, stop_other_threads,
+      step_in_avoids_code_without_debug_info,
+      step_out_avoids_code_without_debug_info));
+
+  ThreadPlanStepInRange *plan =
+      static_cast<ThreadPlanStepInRange *>(thread_plan_sp.get());
+  plan->ClearShouldStopHereCallbacks();
+
   status = QueueThreadPlan(thread_plan_sp, abort_other_plans);
   return thread_plan_sp;
 }
@@ -1352,6 +1423,17 @@ ThreadPlanSP Thread::QueueThreadPlanForStepThrough(StackID &return_stack_id,
   return thread_plan_sp;
 }
 
+ThreadPlanSP Thread::QueueThreadPlanForStepThroughGenericTrampoline(
+    bool abort_other_plans, lldb::RunMode stop_other_threads, Status &status) {
+  ThreadPlanSP thread_plan_sp(
+      new ThreadPlanStepThroughGenericTrampoline(*this, stop_other_threads));
+
+  if (!thread_plan_sp || !thread_plan_sp->ValidatePlan(nullptr))
+    return ThreadPlanSP();
+  status = QueueThreadPlan(thread_plan_sp, abort_other_plans);
+  return thread_plan_sp;
+}
+
 ThreadPlanSP Thread::QueueThreadPlanForRunToAddress(bool abort_other_plans,
                                                     Address &target_addr,
                                                     bool stop_other_threads,
@@ -1378,7 +1460,7 @@ lldb::ThreadPlanSP Thread::QueueThreadPlanForStepScripted(
     StructuredData::ObjectSP extra_args_sp, bool stop_other_threads,
     Status &status) {
 
-  ThreadPlanSP thread_plan_sp(new ThreadPlanPython(
+  ThreadPlanSP thread_plan_sp(new ScriptedThreadPlan(
       *this, class_name, StructuredDataImpl(extra_args_sp)));
   thread_plan_sp->SetStopOthers(stop_other_threads);
   status = QueueThreadPlan(thread_plan_sp, abort_other_plans);
@@ -1431,7 +1513,7 @@ void Thread::ClearStackFrames() {
   // frames:
   // FIXME: At some point we can try to splice in the frames we have fetched
   // into the new frame as we make it, but let's not try that now.
-  if (m_curr_frames_sp && m_curr_frames_sp->GetAllFramesFetched())
+  if (m_curr_frames_sp && m_curr_frames_sp->WereAllFramesFetched())
     m_prev_frames_sp.swap(m_curr_frames_sp);
   m_curr_frames_sp.reset();
 
@@ -1450,7 +1532,7 @@ Status Thread::ReturnFromFrameWithIndex(uint32_t frame_idx,
   Status return_error;
 
   if (!frame_sp) {
-    return_error.SetErrorStringWithFormat(
+    return_error = Status::FromErrorStringWithFormat(
         "Could not find frame with index %d in thread 0x%" PRIx64 ".",
         frame_idx, GetID());
   }
@@ -1464,7 +1546,7 @@ Status Thread::ReturnFromFrame(lldb::StackFrameSP frame_sp,
   Status return_error;
 
   if (!frame_sp) {
-    return_error.SetErrorString("Can't return to a null frame.");
+    return_error = Status::FromErrorString("Can't return to a null frame.");
     return return_error;
   }
 
@@ -1472,14 +1554,15 @@ Status Thread::ReturnFromFrame(lldb::StackFrameSP frame_sp,
   uint32_t older_frame_idx = frame_sp->GetFrameIndex() + 1;
   StackFrameSP older_frame_sp = thread->GetStackFrameAtIndex(older_frame_idx);
   if (!older_frame_sp) {
-    return_error.SetErrorString("No older frame to return to.");
+    return_error = Status::FromErrorString("No older frame to return to.");
     return return_error;
   }
 
   if (return_value_sp) {
     lldb::ABISP abi = thread->GetProcess()->GetABI();
     if (!abi) {
-      return_error.SetErrorString("Could not find ABI to set return value.");
+      return_error =
+          Status::FromErrorString("Could not find ABI to set return value.");
       return return_error;
     }
     SymbolContext sc = frame_sp->GetSymbolContext(eSymbolContextFunction);
@@ -1527,13 +1610,14 @@ Status Thread::ReturnFromFrame(lldb::StackFrameSP frame_sp,
           BroadcastEvent(eBroadcastBitStackChanged, data_sp);
         }
       } else {
-        return_error.SetErrorString("Could not reset register values.");
+        return_error =
+            Status::FromErrorString("Could not reset register values.");
       }
     } else {
-      return_error.SetErrorString("Frame has no register context.");
+      return_error = Status::FromErrorString("Frame has no register context.");
     }
   } else {
-    return_error.SetErrorString("Returned past top frame.");
+    return_error = Status::FromErrorString("Returned past top frame.");
   }
   return return_error;
 }
@@ -1575,16 +1659,19 @@ Status Thread::JumpToLine(const FileSpec &file, uint32_t line,
   // Check if we got anything.
   if (candidates.empty()) {
     if (outside_function.empty()) {
-      return Status("Cannot locate an address for %s:%i.",
-                    file.GetFilename().AsCString(), line);
+      return Status::FromErrorStringWithFormat(
+          "Cannot locate an address for %s:%i.", file.GetFilename().AsCString(),
+          line);
     } else if (outside_function.size() == 1) {
-      return Status("%s:%i is outside the current function.",
-                    file.GetFilename().AsCString(), line);
+      return Status::FromErrorStringWithFormat(
+          "%s:%i is outside the current function.",
+          file.GetFilename().AsCString(), line);
     } else {
       StreamString sstr;
       DumpAddressList(sstr, outside_function, target);
-      return Status("%s:%i has multiple candidate locations:\n%s",
-                    file.GetFilename().AsCString(), line, sstr.GetData());
+      return Status::FromErrorStringWithFormat(
+          "%s:%i has multiple candidate locations:\n%s",
+          file.GetFilename().AsCString(), line, sstr.GetData());
     }
   }
 
@@ -1600,7 +1687,7 @@ Status Thread::JumpToLine(const FileSpec &file, uint32_t line,
   }
 
   if (!reg_ctx->SetPC(dest))
-    return Status("Cannot change PC to target address.");
+    return Status::FromErrorString("Cannot change PC to target address.");
 
   return Status();
 }
@@ -1735,7 +1822,7 @@ std::string Thread::RunModeAsString(lldb::RunMode mode) {
 
 size_t Thread::GetStatus(Stream &strm, uint32_t start_frame,
                          uint32_t num_frames, uint32_t num_frames_with_source,
-                         bool stop_format, bool only_stacks) {
+                         bool stop_format, bool show_hidden, bool only_stacks) {
 
   if (!only_stacks) {
     ExecutionContext exe_ctx(shared_from_this());
@@ -1782,7 +1869,7 @@ size_t Thread::GetStatus(Stream &strm, uint32_t start_frame,
 
     num_frames_shown = GetStackFrameList()->GetStatus(
         strm, start_frame, num_frames, show_frame_info, num_frames_with_source,
-        show_frame_unique, selected_frame_marker);
+        show_frame_unique, show_hidden, selected_frame_marker);
     if (num_frames == 1)
       strm.IndentLess();
     strm.IndentLess();
@@ -1880,9 +1967,11 @@ bool Thread::GetDescription(Stream &strm, lldb::DescriptionLevel level,
 
 size_t Thread::GetStackFrameStatus(Stream &strm, uint32_t first_frame,
                                    uint32_t num_frames, bool show_frame_info,
-                                   uint32_t num_frames_with_source) {
-  return GetStackFrameList()->GetStatus(
-      strm, first_frame, num_frames, show_frame_info, num_frames_with_source);
+                                   uint32_t num_frames_with_source,
+                                   bool show_hidden) {
+  return GetStackFrameList()->GetStatus(strm, first_frame, num_frames,
+                                        show_frame_info, num_frames_with_source,
+                                        /*show_unique*/ false, show_hidden);
 }
 
 Unwind &Thread::GetUnwinder() {
@@ -1948,7 +2037,7 @@ Status Thread::StepIn(bool source_step,
     process->GetThreadList().SetSelectedThreadByID(GetID());
     error = process->Resume();
   } else {
-    error.SetErrorString("process not stopped");
+    error = Status::FromErrorString("process not stopped");
   }
   return error;
 }
@@ -1981,7 +2070,7 @@ Status Thread::StepOver(bool source_step,
     process->GetThreadList().SetSelectedThreadByID(GetID());
     error = process->Resume();
   } else {
-    error.SetErrorString("process not stopped");
+    error = Status::FromErrorString("process not stopped");
   }
   return error;
 }
@@ -2005,7 +2094,7 @@ Status Thread::StepOut(uint32_t frame_idx) {
     process->GetThreadList().SetSelectedThreadByID(GetID());
     error = process->Resume();
   } else {
-    error.SetErrorString("process not stopped");
+    error = Status::FromErrorString("process not stopped");
   }
   return error;
 }
@@ -2051,14 +2140,16 @@ lldb::ValueObjectSP Thread::GetSiginfoValue() {
 
   CompilerType type = platform_sp->GetSiginfoType(arch.GetTriple());
   if (!type.IsValid())
-    return ValueObjectConstResult::Create(&target, Status("no siginfo_t for the platform"));
+    return ValueObjectConstResult::Create(
+        &target, Status::FromErrorString("no siginfo_t for the platform"));
 
   std::optional<uint64_t> type_size = type.GetByteSize(nullptr);
   assert(type_size);
   llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> data =
       GetSiginfo(*type_size);
   if (!data)
-    return ValueObjectConstResult::Create(&target, Status(data.takeError()));
+    return ValueObjectConstResult::Create(&target,
+                                          Status::FromError(data.takeError()));
 
   DataExtractor data_extractor{data.get()->getBufferStart(), data.get()->getBufferSize(),
     process_sp->GetByteOrder(), arch.GetAddressByteSize()};

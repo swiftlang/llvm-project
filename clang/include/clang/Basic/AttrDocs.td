@@ -1758,6 +1758,165 @@ Also see the documentation for `@available
   }];
 }
 
+def PtrAuthDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``__ptrauth`` qualifier allows the programmer to directly control
+how pointers are signed when they are stored in a particular variable.
+This can be used to strengthen the default protections of pointer
+authentication and make it more difficult for an attacker to escalate
+an ability to alter memory into full control of a process.
+
+.. code-block:: c
+
+  #include <ptrauth.h>
+
+  typedef void (*my_callback)(const void*);
+  my_callback __ptrauth(ptrauth_key_process_dependent_code, 1, 0xe27a) callback;
+
+The first argument to ``__ptrauth`` is the name of the signing key.
+Valid key names for the target are defined in ``<ptrauth.h>``.
+
+On ARM64, there are four keys:
+
+- ``ptrauth_key_process_independent_data``
+- ``ptrauth_key_process_dependent_data``
+- ``ptrauth_key_process_independent_code``
+- ``ptrauth_key_process_dependent_code``
+
+In general, prefer using a code key for function pointers and a data key
+for object pointers.  The ARM64 architecture allows loads and calls to
+execute more efficiently when the pointer is signed with an appropriate
+key.  Using code keys only for function pointers also substantially lessens
+the risk of creating a so-called "signing oracle" for function pointers;
+see the general pointer authentication language documentation.
+
+Using a process-dependent key provides stronger protection against
+cross-process attacks.  However, it also inhibits certain memory
+optimizations when a shared library is loaded into multiple processes.
+Using a process-independent key also allows signed pointers to be passed
+in shared memory.  Note that even the process-independent keys may change
+after a reboot, so signed values should never be serialized.
+
+The second argument to ``__ptrauth`` is a flag (0 or 1) specifying whether
+the object should use address discrimination.  If only one argument is
+given, the flag defaults to 0.  Address discrimination provides strong
+protection against attacks which copy signed pointers around in memory.
+An attacker cannot usefully copy an arbitrary signed pointer over an
+address-discriminated object.  Nor can a value taken from an
+address-discriminated object be usefully copied over some other signed
+pointer.  However, it is more expensive to copy values from one
+address-discriminated object to another, even if the other arguments to
+``__ptrauth`` are the same, and it is not valid to copy them with
+``memcpy``.  It is also not valid to map memory containing an
+address-discriminated object into different places in the address
+space, e.g. with ``mmap``.
+
+The third argument to ``__ptrauth`` is a small non-negative integer
+which allows additional discrimination between objects.  Using a
+unique extra discriminator provides strong protection against attacks
+which work by substituting one signed value for another.  For example,
+an attacker cannot usefully overwrite an object with a pointer from an
+object using a different extra discriminator; this protection is similar
+to the protection offered by address discrimination.  A unique extra
+discriminator also protects against "slide" attacks where an attacker
+alters a pointer instead of altering the memory that the pointer points to.
+The extra discriminator must be a constant expression.  On ARM64,
+its value must be between 0 and 65535.  If the argument is not provided,
+the default value is 0.  It is generally preferable not to use the value 0,
+especially with the process-independent keys, as this combination is used
+in various places in the standard language ABI.
+
+The type qualified by ``__ptrauth`` must be a pointer type.  Currently
+only C pointer types are allowed and not block pointers, Objective-C
+object pointers, or C++ references.  ``__ptrauth`` is parsed and interpreted
+using the same language rules as qualifiers like ``const`` and ``volatile``.
+For example:
+
+.. code-block:: c
+
+  __ptrauth(...) int *ex0;    /* invalid: qualifies 'int', which is not a pointer type */
+  int * __ptrauth(...) ex1;   /* valid: ex1 has qualified type */
+  int * __ptrauth(...) *ex2;  /* valid: ex2 is a pointer to a qualified object */
+
+  typedef int *intp;
+  __ptrauth(...) intp ex3;    /* valid: ex3 has qualified type */
+  intp __ptrauth(...) ex4;    /* valid: means the exact same thing as ex3 */
+
+Assigning a non-null pointer to a ``__ptrauth``-qualified l-value, or
+initializing a ``__ptrauth``-qualified object with a non-null pointer,
+causes the pointer to be signed according to the described schema before
+being stored into memory.  If such an initialization is a constant
+initialization, then the signing is also done as part of constant
+initialization: that is, it is done when the program is loaded, before
+any dynamic initialization occurs.  Loading a non-null pointer from a
+``__ptrauth``-qualified l-value causes the pointer to be authenticated
+according to the describe schema before being produced as the result
+of the expression.  A null pointer keeps its standard representation when
+stored in a ``__ptrauth``-qualified object; on a typical target where this
+is an all-zero pattern, this means that operations like ``bzero`` and
+``calloc`` do still correctly initialize objects with null.
+
+If a ``__ptrauth``-qualified l-value of function pointer type is
+used as the function operand of a call expression, the function pointer
+will be authenticated "atomically" with the call, such that an attacker
+will not be able to corrupt the destination of the call even in the
+presence of undefined behavior.  (That is, the compiler must not
+leave an un-signed pointer that it will later unconditionally trust
+in a place where it could be feasibly overwritten by an attacker,
+such as the stack or a callee-save register during an intervening call.
+The compiler is not required to protect against improbable attacks
+such as corruption of the register file, as might occur with a
+corrupted kernel.  It also need not guard against jumps to an arbitrary
+place in the instruction stream, since such jumps would require an
+attacker to already fully control the PC.)
+
+If the ABI specifies that a pointer is always signed --- that is,
+if the pointer is a function pointer and the target uses ABI function
+pointer authentication --- then signing and authenticating it as part
+of a load/store actually means resigning it to/from the standard ABI
+signature schema.  Similarly, if both operands of a simple assignment
+operator are ``__ptrauth``-qualified, the pointer copied by the
+assignment is resigned from the right-hand operand's schema to the
+left-hand operand's schema.  These resigning operations are also done
+"atomically" in the same sense as above.
+
+As a final guarantee, if the right-hand operand of an assignment or
+the expression used to initialize a ``__ptrauth``-qualified object is
+a direct reference to an object or function (e.g. ``&my_var``), the
+signing of that pointer is atomic with the evaluaton of the reference
+in this same sense.
+
+Otherwise, there are no guarantees of atomicity, and it is the
+programmer's responsibility to avoid allowing a store into a
+``__ptrauth``-qualified object to create a potential "signing oracle"
+which an attacker could use to sign an arbitrary pointer of their choice.
+Such oracles are particularly problematic when the signing uses a code
+key because the oracle could potentially be used to allow an attacker
+to construct a validly-signed function pointer, v-table entry, or
+return address that points to an arbitrary instruction, allowing them
+to completely take over the PC.  Programmers attempting to use
+``__ptrauth`` to protect a data pointer, or to protect function pointers
+on targets that do not use ABI function pointer authentication, should
+aim to maintain a "chain of authentication" from initialization all
+the way to the point at which the pointer is used.  If this is infeasible,
+they should consider using ``ptrauth_sign_generic_data`` instead.
+
+Types that are written in r-value positions, such as return types,
+parameter types, and cast types, may not be ``__ptrauth``-qualified
+at the outermost level.  This may be supported in the future.
+
+In C++, the arguments to ``__ptrauth`` may not be instantiation-dependent.
+This may be supported in the future.
+
+This feature may be tested for with ``__has_feature(ptrauth_qualifier)``.
+It is enabled whenever the ``ptrauth`` intrinsics are enabled.
+
+``<ptrauth.h>`` provides predefined qualifiers for various language
+features that implicitly use pointer authentication.
+  }];
+}
+
 def ExternalSourceSymbolDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
@@ -3654,6 +3813,75 @@ have their lifetimes extended.
   }];
 }
 
+def LifetimeCaptureByDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+    Similar to `lifetimebound`_, the ``lifetime_capture_by(X)`` attribute on a function
+parameter or implicit object parameter indicates that that objects that are referred to
+by that parameter may also be referred to by the capturing entity ``X``.
+
+By default, a reference is considered to refer to its referenced object, a
+pointer is considered to refer to its pointee, a ``std::initializer_list<T>``
+is considered to refer to its underlying array, and aggregates (arrays and
+simple ``struct``\s) are considered to refer to all objects that their
+transitive subobjects refer to.
+
+The capturing entity ``X`` can be one of the following:
+- Another (named) function parameter. 
+  
+  .. code-block:: c++
+
+    void addToSet(std::string_view a [[clang::lifetime_capture_by(s)]], std::set<std::string_view>& s) {
+      s.insert(a);
+    }
+
+- ``this`` (in case of member functions).
+  
+  .. code-block:: c++
+
+    class S {
+      void addToSet(std::string_view a [[clang::lifetime_capture_by(this)]]) {
+        s.insert(a);
+      }
+      std::set<std::string_view> s;
+    };
+
+- 'global', 'unknown' (without quotes).
+  
+  .. code-block:: c++
+
+    std::set<std::string_view> s;
+    void addToSet(std::string_view a [[clang::lifetime_capture_by(global)]]) {
+      s.insert(a);
+    }
+    void addSomewhere(std::string_view a [[clang::lifetime_capture_by(unknown)]]);
+
+The attribute can be applied to the implicit ``this`` parameter of a member
+function by writing the attribute after the function type:
+
+.. code-block:: c++
+
+  struct S {
+    const char *data(std::set<S*>& s) [[clang::lifetime_capture_by(s)]] {
+      s.insert(this);
+    }
+  };
+
+The attribute supports specifying more than one capturing entities:
+
+.. code-block:: c++
+  
+  void addToSets(std::string_view a [[clang::lifetime_capture_by(s1, s2)]],
+                 std::set<std::string_view>& s1,
+                 std::set<std::string_view>& s2) {
+    s1.insert(a);
+    s2.insert(a);
+  }
+
+.. _`lifetimebound`: https://clang.llvm.org/docs/AttributeReference.html#lifetimebound
+  }];
+}
+
 def TrivialABIDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
@@ -4416,8 +4644,8 @@ def SwiftAttrDocs : Documentation {
   let Heading = "swift_attr";
   let Content = [{
 The ``swift_attr`` provides a Swift-specific annotation for the declaration
-to which the attribute appertains to. It can be used on any declaration
-in Clang. This kind of annotation is ignored by Clang as it doesn't have any
+or type to which the attribute appertains to. It can be used on any declaration
+or type in Clang. This kind of annotation is ignored by Clang as it doesn't have any
 semantic meaning in languages supported by Clang. The Swift compiler can
 interpret these annotations according to its own rules when importing C or
 Objective-C declarations.
@@ -6774,77 +7002,103 @@ def UnsafeBufferUsageDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
 The attribute ``[[clang::unsafe_buffer_usage]]`` should be placed on functions
-that need to be avoided as they are prone to buffer overflows. It is designed to
-work together with the off-by-default compiler warning ``-Wunsafe-buffer-usage``
-to help codebases transition away from raw pointer based buffer management,
-in favor of safer abstractions such as C++20 ``std::span``. The attribute causes
-``-Wunsafe-buffer-usage`` to warn on every use of the function, and it may
-enable ``-Wunsafe-buffer-usage`` to emit automatic fix-it hints
-which would help the user replace such unsafe functions with safe
+that need to be avoided as they are prone to buffer overflows or unsafe buffer
+struct fields. It is designed to work together with the off-by-default compiler
+warning ``-Wunsafe-buffer-usage``to help codebases transition away from raw pointer
+based buffer management, in favor of safer abstractions such as C++20 ``std::span``.
+The attribute causes ``-Wunsafe-buffer-usage`` to warn on every use of the function or
+the field it is attached to, and it may also lead to emission of automatic fix-it
+hints which would help the user replace the use of unsafe functions(/fields) with safe
 alternatives, though the attribute can be used even when the fix can't be automated.
 
-The attribute does not suppress ``-Wunsafe-buffer-usage`` inside the function
-to which it is attached. These warnings still need to be addressed.
+* Attribute attached to functions: The attribute does not suppress 
+  ``-Wunsafe-buffer-usage`` inside the function to which it is attached. 
+  These warnings still need to be addressed.
 
-The attribute is warranted even if the only way a function can overflow
-the buffer is by violating the function's preconditions. For example, it
-would make sense to put the attribute on function ``foo()`` below because
-passing an incorrect size parameter would cause a buffer overflow:
+  The attribute is warranted even if the only way a function can overflow
+  the buffer is by violating the function's preconditions. For example, it
+  would make sense to put the attribute on function ``foo()`` below because
+  passing an incorrect size parameter would cause a buffer overflow:
 
-.. code-block:: c++
+  .. code-block:: c++
 
-  [[clang::unsafe_buffer_usage]]
-  void foo(int *buf, size_t size) {
-    for (size_t i = 0; i < size; ++i) {
-      buf[i] = i;
+    [[clang::unsafe_buffer_usage]]
+    void foo(int *buf, size_t size) {
+      for (size_t i = 0; i < size; ++i) {
+        buf[i] = i;
+      }
     }
-  }
 
-The attribute is NOT warranted when the function uses safe abstractions,
-assuming that these abstractions weren't misused outside the function.
-For example, function ``bar()`` below doesn't need the attribute,
-because assuming that the container ``buf`` is well-formed (has size that
-fits the original buffer it refers to), overflow cannot occur:
+  The attribute is NOT warranted when the function uses safe abstractions,
+  assuming that these abstractions weren't misused outside the function.
+  For example, function ``bar()`` below doesn't need the attribute,
+  because assuming that the container ``buf`` is well-formed (has size that
+  fits the original buffer it refers to), overflow cannot occur:
 
-.. code-block:: c++
+  .. code-block:: c++
 
-  void bar(std::span<int> buf) {
-    for (size_t i = 0; i < buf.size(); ++i) {
-      buf[i] = i;
+    void bar(std::span<int> buf) {
+      for (size_t i = 0; i < buf.size(); ++i) {
+        buf[i] = i;
+      }
     }
-  }
 
-In this case function ``bar()`` enables the user to keep the buffer
-"containerized" in a span for as long as possible. On the other hand,
-Function ``foo()`` in the previous example may have internal
-consistency, but by accepting a raw buffer it requires the user to unwrap
-their span, which is undesirable according to the programming model
-behind ``-Wunsafe-buffer-usage``.
+  In this case function ``bar()`` enables the user to keep the buffer
+  "containerized" in a span for as long as possible. On the other hand,
+  Function ``foo()`` in the previous example may have internal
+  consistency, but by accepting a raw buffer it requires the user to unwrap
+  their span, which is undesirable according to the programming model
+  behind ``-Wunsafe-buffer-usage``.
 
-The attribute is warranted when a function accepts a raw buffer only to
-immediately put it into a span:
+  The attribute is warranted when a function accepts a raw buffer only to
+  immediately put it into a span:
 
-.. code-block:: c++
+  .. code-block:: c++
 
-  [[clang::unsafe_buffer_usage]]
-  void baz(int *buf, size_t size) {
-    std::span<int> sp{ buf, size };
-    for (size_t i = 0; i < sp.size(); ++i) {
-      sp[i] = i;
+    [[clang::unsafe_buffer_usage]]
+    void baz(int *buf, size_t size) {
+      std::span<int> sp{ buf, size };
+      for (size_t i = 0; i < sp.size(); ++i) {
+        sp[i] = i;
+      }
     }
-  }
 
-In this case ``baz()`` does not contain any unsafe operations, but the awkward
-parameter type causes the caller to unwrap the span unnecessarily.
-Note that regardless of the attribute, code inside ``baz()`` isn't flagged
-by ``-Wunsafe-buffer-usage`` as unsafe. It is definitely undesirable,
-but if ``baz()`` is on an API surface, there is no way to improve it
-to make it as safe as ``bar()`` without breaking the source and binary
-compatibility with existing users of the function. In such cases
-the proper solution would be to create a different function (possibly
-an overload of ``baz()``) that accepts a safe container like ``bar()``,
-and then use the attribute on the original ``baz()`` to help the users
-update their code to use the new function.
+  In this case ``baz()`` does not contain any unsafe operations, but the awkward
+  parameter type causes the caller to unwrap the span unnecessarily.
+  Note that regardless of the attribute, code inside ``baz()`` isn't flagged
+  by ``-Wunsafe-buffer-usage`` as unsafe. It is definitely undesirable,
+  but if ``baz()`` is on an API surface, there is no way to improve it
+  to make it as safe as ``bar()`` without breaking the source and binary
+  compatibility with existing users of the function. In such cases
+  the proper solution would be to create a different function (possibly
+  an overload of ``baz()``) that accepts a safe container like ``bar()``,
+  and then use the attribute on the original ``baz()`` to help the users
+  update their code to use the new function.
+
+* Attribute attached to fields: The attribute should only be attached to 
+  struct fields, if the fields can not be updated to a safe type with bounds 
+  check, such as std::span. In other words, the buffers prone to unsafe accesses 
+  should always be updated to use safe containers/views and attaching the attribute 
+  must be last resort when such an update is infeasible.
+
+  The attribute can be placed on individual fields or a set of them as shown below.
+
+  .. code-block:: c++
+
+    struct A {
+      [[clang::unsafe_buffer_usage]]
+      int *ptr1;
+
+      [[clang::unsafe_buffer_usage]]
+      int *ptr2, buf[10];
+
+      [[clang::unsafe_buffer_usage]]
+      size_t sz;
+    };
+
+  Here, every read/write to the fields ptr1, ptr2, buf and sz will trigger a warning 
+  that the field has been explcitly marked as unsafe due to unsafe-buffer operations.
+
   }];
 }
 
@@ -7710,6 +7964,66 @@ As such, this function attribute is currently only supported on X86 targets.
   }];
 }
 
+def TransparentSteppingDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``transparent_stepping`` attribute is intended as a hint for debuggers that this 
+function itself is not interesting, but it calls a function that might be.  So, when 
+stepping in arrives at a function with this attribute, debuggers should transparently 
+step-in through it into the functions called by the annotated function (but not by 
+subsequent calls made by those functions), stopping at the first one its normal rules 
+for whether to stop says to stop at - or stepping out again if none qualify. Also, when 
+stepping out arrives at a function with this attribute, the debugger should continue 
+stepping out to its caller.
+
+For example:
+
+.. code-block:: c
+
+  int bar(void) {
+    return 42;
+  }
+
+  __attribute__((transparent_stepping))
+  int foo(void) {
+    return bar();
+  }
+
+  int caller(void) {
+    return foo();
+  }
+
+Stepping into ``foo`` should step directly into ``bar`` instead, and stepping out of ``bar`` 
+should stop in ``caller``.
+
+Functions with the ``transparent_stepping`` attribute can be chained together:
+
+.. code-block:: c
+
+  int baz(void) {
+    return 42;
+  }
+
+  __attribute__((transparent_stepping))
+  int bar(void) {
+    return baz();
+  }
+
+  __attribute__((transparent_stepping))
+  int foo(void) {
+    return bar();
+  }
+  
+  int caller(void) {
+    return foo();
+  }
+
+In this example, stepping into ``foo`` should step directly into ``baz``, and stepping out of 
+``baz`` should stop in ``caller``.
+  }];
+}
+
+
 def ReadOnlyPlacementDocs : Documentation {
   let Category = DocCatType;
   let Content = [{This attribute is attached to a structure, class or union declaration.
@@ -8231,9 +8545,9 @@ compiler warnings:
 - A redeclaration of a ``nonblocking`` or ``nonallocating`` function must also be declared with
   the same attribute (or a stronger one). A redeclaration may add an attribute.
 
-The warnings are controlled by ``-Wfunction-effects``, which is enabled by default.
+The warnings are controlled by ``-Wfunction-effects``, which is disabled by default.
 
-In a future commit, the compiler will diagnose function calls from ``nonblocking`` and ``nonallocating``
+The compiler also diagnoses function calls from ``nonblocking`` and ``nonallocating``
 functions to other functions which lack the appropriate attribute.
   }];
 }

@@ -6,10 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include "lldb/Expression/LLVMUserExpression.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Expression/IRExecutionUnit.h"
@@ -30,9 +28,11 @@
 #include "lldb/Target/ThreadPlan.h"
 #include "lldb/Target/ThreadPlanCallUserExpression.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/ErrorMessages.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
+#include "lldb/ValueObject/ValueObjectConstResult.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -91,6 +91,8 @@ LLVMUserExpression::DoExecute(DiagnosticManager &diagnostic_manager,
 
   lldb::addr_t function_stack_bottom = LLDB_INVALID_ADDRESS;
   lldb::addr_t function_stack_top = LLDB_INVALID_ADDRESS;
+
+  lldb::ValueObjectSP error_backstop_result_sp;
 
   if (m_can_interpret) {
     llvm::Module *module = m_execution_unit_sp->GetModule();
@@ -226,6 +228,22 @@ LLVMUserExpression::DoExecute(DiagnosticManager &diagnostic_manager,
           "Use \"thread return -x\" to return to the state before expression "
           "evaluation.");
       return execution_result;
+    } else if (execution_result == lldb::eExpressionCompleted) {
+      if (user_expression_plan->HitErrorBackstop()) {
+        // This should only happen in Playground & REPL.  The code threw an
+        // uncaught error, so we already rolled up
+        // the stack past our execution point.  We're not going to be able to
+        // get any or our expression variables
+        // since they've already gone out of scope.  But at least we can
+        // gather the error result...
+        if (user_expression_plan->GetReturnValueObject() &&
+            user_expression_plan->GetReturnValueObject()
+                ->GetError()
+                .Success()) {
+          error_backstop_result_sp =
+              user_expression_plan->GetReturnValueObject();
+        }
+      }
     } else if (execution_result == lldb::eExpressionThreadVanished) {
       diagnostic_manager.Printf(
           lldb::eSeverityError,
@@ -235,15 +253,31 @@ LLVMUserExpression::DoExecute(DiagnosticManager &diagnostic_manager,
           expr_thread_id);
       return execution_result;
     } else if (execution_result != lldb::eExpressionCompleted) {
-      diagnostic_manager.Printf(
-          lldb::eSeverityError, "Couldn't execute function; result was %s",
-          Process::ExecutionResultAsCString(execution_result));
+      diagnostic_manager.Printf(lldb::eSeverityError,
+                                "Couldn't execute function; result was %s",
+                                toString(execution_result).c_str());
       return execution_result;
     }
   }
 
-  if (FinalizeJITExecution(diagnostic_manager, exe_ctx, result,
-                           function_stack_bottom, function_stack_top)) {
+  if (error_backstop_result_sp) {
+    // This should only happen in Playground & REPL.  The code threw an
+    // uncaught error, so we already rolled up
+    // the stack past our execution point.  We're not going to be able to get
+    // any or our expression variables
+    // since they've already gone out of scope.  But at least we can gather
+    // the error result...
+    Target *target = exe_ctx.GetTargetPtr();
+    PersistentExpressionState *expression_state =
+        target->GetPersistentExpressionStateForLanguage(LanguageType());
+    if (expression_state)
+      result = expression_state->CreatePersistentVariable(
+          error_backstop_result_sp);
+
+    return lldb::eExpressionCompleted;
+  } else if (FinalizeJITExecution(diagnostic_manager, exe_ctx, result,
+                                  function_stack_bottom,
+                                  function_stack_top)) {
     return lldb::eExpressionCompleted;
   } else {
     return lldb::eExpressionResultUnavailable;

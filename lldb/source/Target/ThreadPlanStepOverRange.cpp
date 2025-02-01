@@ -11,6 +11,7 @@
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/LineTable.h"
+#include "lldb/Target/Language.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/Target.h"
@@ -101,6 +102,10 @@ void ThreadPlanStepOverRange::SetupAvoidNoDebug(
 
 bool ThreadPlanStepOverRange::IsEquivalentContext(
     const SymbolContext &context) {
+  if (Language *language = Language::FindPlugin(context.GetLanguage()))
+    if (std::optional<bool> maybe_equivalent =
+            language->AreEqualForFrameComparison(context, m_addr_context))
+      return *maybe_equivalent;
   // Match as much as is specified in the m_addr_context: This is a fairly
   // loose sanity check.  Note, sometimes the target doesn't get filled in so I
   // left out the target check.  And sometimes the module comes in as the .o
@@ -337,37 +342,6 @@ bool ThreadPlanStepOverRange::ShouldStop(Event *event_ptr) {
     return false;
 }
 
-bool ThreadPlanStepOverRange::DoPlanExplainsStop(Event *event_ptr) {
-  // For crashes, breakpoint hits, signals, etc, let the base plan (or some
-  // plan above us) handle the stop.  That way the user can see the stop, step
-  // around, and then when they are done, continue and have their step
-  // complete.  The exception is if we've hit our "run to next branch"
-  // breakpoint. Note, unlike the step in range plan, we don't mark ourselves
-  // complete if we hit an unexplained breakpoint/crash.
-
-  Log *log = GetLog(LLDBLog::Step);
-  StopInfoSP stop_info_sp = GetPrivateStopInfo();
-  bool return_value;
-
-  if (stop_info_sp) {
-    StopReason reason = stop_info_sp->GetStopReason();
-
-    if (reason == eStopReasonTrace) {
-      return_value = true;
-    } else if (reason == eStopReasonBreakpoint) {
-      return_value = NextRangeBreakpointExplainsStop(stop_info_sp);
-    } else {
-      if (log)
-        log->PutCString("ThreadPlanStepOverRange got asked if it explains the "
-                        "stop for some reason other than step.");
-      return_value = false;
-    }
-  } else
-    return_value = true;
-
-  return return_value;
-}
-
 bool ThreadPlanStepOverRange::DoWillResume(lldb::StateType resume_state,
                                            bool current_plan) {
   if (resume_state != eStateSuspended && m_first_resume) {
@@ -381,7 +355,7 @@ bool ThreadPlanStepOverRange::DoWillResume(lldb::StateType resume_state,
       if (in_inlined_stack) {
         Log *log = GetLog(LLDBLog::Step);
         LLDB_LOGF(log,
-                  "ThreadPlanStepInRange::DoWillResume: adjusting range to "
+                  "ThreadPlanStepOverRange::DoWillResume: adjusting range to "
                   "the frame at inlined depth %d.",
                   thread.GetCurrentInlinedDepth());
         StackFrameSP stack_sp = thread.GetStackFrameAtIndex(0);

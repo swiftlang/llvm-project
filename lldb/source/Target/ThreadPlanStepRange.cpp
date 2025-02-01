@@ -221,7 +221,7 @@ lldb::FrameComparison ThreadPlanStepRange::CompareCurrentFrameToStartFrame() {
 
   if (cur_frame_id == m_stack_id) {
     frame_order = eFrameCompareEqual;
-  } else if (cur_frame_id < m_stack_id) {
+  } else if (IsYounger(cur_frame_id, m_stack_id)) {
     frame_order = eFrameCompareYounger;
   } else {
     StackFrameSP cur_parent_frame = thread.GetStackFrameAtIndex(1);
@@ -266,9 +266,11 @@ InstructionList *ThreadPlanStepRange::GetInstructionsForAddress(
         // Disassemble the address range given:
         const char *plugin_name = nullptr;
         const char *flavor = nullptr;
+        const char *cpu = nullptr;
+        const char *features = nullptr;
         m_instruction_ranges[i] = Disassembler::DisassembleRange(
-            GetTarget().GetArchitecture(), plugin_name, flavor, GetTarget(),
-            m_address_ranges[i]);
+            GetTarget().GetArchitecture(), plugin_name, flavor, cpu, features,
+            GetTarget(), m_address_ranges[i]);
       }
       if (!m_instruction_ranges[i])
         return nullptr;
@@ -358,10 +360,10 @@ bool ThreadPlanStepRange::SetNextBranchBreakpoint() {
             !m_next_branch_bp_sp->HasResolvedLocations())
           m_could_not_resolve_hw_bp = true;
 
+        BreakpointLocationSP bp_loc =
+            m_next_branch_bp_sp->GetLocationAtIndex(0);
         if (log) {
           lldb::break_id_t bp_site_id = LLDB_INVALID_BREAK_ID;
-          BreakpointLocationSP bp_loc =
-              m_next_branch_bp_sp->GetLocationAtIndex(0);
           if (bp_loc) {
             BreakpointSiteSP bp_site = bp_loc->GetBreakpointSite();
             if (bp_site) {
@@ -374,7 +376,51 @@ bool ThreadPlanStepRange::SetNextBranchBreakpoint() {
                     m_next_branch_bp_sp->GetID(), bp_site_id,
                     run_to_address.GetLoadAddress(&m_process.GetTarget()));
         }
-
+        // The "next branch breakpoint might land on a virtual inlined call
+        // stack.  If that's true, we should always stop at the top of the
+        // inlined call stack.  Only virtual steps should walk deeper into the
+        // inlined call stack.
+        Block *block = run_to_address.CalculateSymbolContextBlock();
+        if (bp_loc && block) {
+          LineEntry top_most_line_entry;
+          lldb::addr_t run_to_addr = run_to_address.GetFileAddress();
+          for (Block *inlined_parent = block->GetContainingInlinedBlock();
+               inlined_parent;
+               inlined_parent = inlined_parent->GetInlinedParent()) {
+            AddressRange range;
+            if (!inlined_parent->GetRangeContainingAddress(run_to_address,
+                                                           range))
+              break;
+            Address range_start_address = range.GetBaseAddress();
+            // Only compare addresses here, we may have different symbol
+            // contexts (for virtual inlined stacks), but we just want to know
+            // that they are all at the same address.
+            if (range_start_address.GetFileAddress() != run_to_addr)
+              break;
+            const InlineFunctionInfo *inline_info =
+                inlined_parent->GetInlinedFunctionInfo();
+            if (!inline_info)
+              break;
+            const Declaration &call_site = inline_info->GetCallSite();
+            top_most_line_entry.line = call_site.GetLine();
+            top_most_line_entry.column = call_site.GetColumn();
+            FileSpec call_site_file_spec = call_site.GetFile();
+            top_most_line_entry.original_file_sp.reset(
+                new SupportFile(call_site_file_spec));
+            top_most_line_entry.range = range;
+            top_most_line_entry.file_sp.reset();
+            top_most_line_entry.ApplyFileMappings(
+                GetThread().CalculateTarget());
+            if (!top_most_line_entry.file_sp)
+              top_most_line_entry.file_sp =
+                  top_most_line_entry.original_file_sp;
+          }
+          if (top_most_line_entry.IsValid()) {
+            LLDB_LOG(log, "Setting preferred line entry: {0}:{1}",
+                     top_most_line_entry.GetFile(), top_most_line_entry.line);
+            bp_loc->SetPreferredLineEntry(top_most_line_entry);
+          }
+        }
         m_next_branch_bp_sp->SetThreadID(m_tid);
         m_next_branch_bp_sp->SetBreakpointKind("next-branch-location");
 
@@ -433,24 +479,24 @@ StateType ThreadPlanStepRange::GetPlanRunState() {
 }
 
 bool ThreadPlanStepRange::MischiefManaged() {
-  // If we have pushed some plans between ShouldStop & MischiefManaged, then
-  // we're not done...
-  // I do this check first because we might have stepped somewhere that will
-  // fool InRange into
-  // thinking it needs to step past the end of that line.  This happens, for
-  // instance, when stepping over inlined code that is in the middle of the
-  // current line.
-
-  if (!m_no_more_plans)
-    return false;
-
   bool done = true;
   if (!IsPlanComplete()) {
-    if (InRange()) {
+    // If we have pushed some plans between ShouldStop &
+    // MischiefManaged, then we're not done...  I do this check first
+    // because we might have stepped somewhere that will fool InRange
+    // into thinking it needs to step past the end of that line.  This
+    // happens, for instance, when stepping over inlined code that is
+    // in the middle of the current line.
+
+    if (!m_no_more_plans)
       done = false;
-    } else {
-      FrameComparison frame_order = CompareCurrentFrameToStartFrame();
-      done = (frame_order != eFrameCompareOlder) ? m_no_more_plans : true;
+    else {
+      if (InRange()) {
+        done = false;
+      } else {
+        FrameComparison frame_order = CompareCurrentFrameToStartFrame();
+        done = (frame_order != eFrameCompareOlder) ? m_no_more_plans : true;
+      }
     }
   }
 
@@ -494,4 +540,36 @@ bool ThreadPlanStepRange::IsPlanStale() {
     }
   }
   return false;
+}
+
+
+bool ThreadPlanStepRange::DoPlanExplainsStop(Event *event_ptr) {
+  // For crashes, breakpoint hits, signals, etc, let the base plan (or some
+  // plan above us) handle the stop.  That way the user can see the stop, step
+  // around, and then when they are done, continue and have their step
+  // complete.  The exception is if we've hit our "run to next branch"
+  // breakpoint. Note, unlike the step in range plan, we don't mark ourselves
+  // complete if we hit an unexplained breakpoint/crash.
+
+  Log *log = GetLog(LLDBLog::Step);
+  StopInfoSP stop_info_sp = GetPrivateStopInfo();
+  bool return_value;
+
+  if (stop_info_sp) {
+    StopReason reason = stop_info_sp->GetStopReason();
+
+    if (reason == eStopReasonTrace) {
+      return_value = true;
+    } else if (reason == eStopReasonBreakpoint) {
+      return_value = NextRangeBreakpointExplainsStop(stop_info_sp);
+    } else {
+      if (log)
+        log->PutCString("ThreadPlanStepRange got asked if it explains the "
+                        "stop for some reason other than step.");
+      return_value = false;
+    }
+  } else
+    return_value = true;
+
+  return return_value;
 }

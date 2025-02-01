@@ -55,6 +55,11 @@
 #include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
 #include "Plugins/Language/ObjC/ObjCLanguage.h"
 
+#ifdef LLDB_ENABLE_SWIFT
+#include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
+#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
+#endif // LLDB_ENABLE_SWIFT
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/DJB.h"
@@ -131,7 +136,8 @@ Module *Module::GetAllocatedModuleAtIndex(size_t idx) {
 }
 
 Module::Module(const ModuleSpec &module_spec)
-    : m_file_has_changed(false), m_first_file_changed_log(false) {
+    : m_unwind_table(*this), m_file_has_changed(false),
+      m_first_file_changed_log(false) {
   // Scope for locker below...
   {
     std::lock_guard<std::recursive_mutex> guard(
@@ -238,7 +244,8 @@ Module::Module(const FileSpec &file_spec, const ArchSpec &arch,
     : m_mod_time(FileSystem::Instance().GetModificationTime(file_spec)),
       m_arch(arch), m_file(file_spec), m_object_name(object_name),
       m_object_offset(object_offset), m_object_mod_time(object_mod_time),
-      m_file_has_changed(false), m_first_file_changed_log(false) {
+      m_unwind_table(*this), m_file_has_changed(false),
+      m_first_file_changed_log(false) {
   // Scope for locker below...
   {
     std::lock_guard<std::recursive_mutex> guard(
@@ -254,7 +261,9 @@ Module::Module(const FileSpec &file_spec, const ArchSpec &arch,
               m_object_name.AsCString(""), m_object_name.IsEmpty() ? "" : ")");
 }
 
-Module::Module() : m_file_has_changed(false), m_first_file_changed_log(false) {
+Module::Module()
+    : m_unwind_table(*this), m_file_has_changed(false),
+      m_first_file_changed_log(false) {
   std::lock_guard<std::recursive_mutex> guard(
       GetAllocationModuleCollectionMutex());
   GetModuleCollection().push_back(this);
@@ -294,7 +303,7 @@ ObjectFile *Module::GetMemoryObjectFile(const lldb::ProcessSP &process_sp,
                                         lldb::addr_t header_addr, Status &error,
                                         size_t size_to_read) {
   if (m_objfile_sp) {
-    error.SetErrorString("object file already exists");
+    error = Status::FromErrorString("object file already exists");
   } else {
     std::lock_guard<std::recursive_mutex> guard(m_mutex);
     if (process_sp) {
@@ -323,15 +332,18 @@ ObjectFile *Module::GetMemoryObjectFile(const lldb::ProcessSP &process_sp,
           // Augment the arch with the target's information in case
           // we are unable to extract the os/environment from memory.
           m_arch.MergeFrom(process_sp->GetTarget().GetArchitecture());
+
+          m_unwind_table.ModuleWasUpdated();
         } else {
-          error.SetErrorString("unable to find suitable object file plug-in");
+          error = Status::FromErrorString(
+              "unable to find suitable object file plug-in");
         }
       } else {
-        error.SetErrorStringWithFormat("unable to read header from memory: %s",
-                                       readmem_error.AsCString());
+        error = Status::FromErrorStringWithFormat(
+            "unable to read header from memory: %s", readmem_error.AsCString());
       }
     } else {
-      error.SetErrorString("invalid process");
+      error = Status::FromErrorString("invalid process");
     }
   }
   return m_objfile_sp.get();
@@ -646,6 +658,10 @@ Module::LookupInfo::LookupInfo(ConstString name,
               Language::LanguageIsObjC(language)) &&
              ObjCLanguage::IsPossibleObjCMethodName(name_cstr))
       m_name_type_mask = eFunctionNameTypeFull;
+#ifdef LLDB_ENABLE_SWIFT
+    else if (SwiftLanguageRuntime::IsSwiftMangledName(name.GetStringRef()))
+      m_name_type_mask = eFunctionNameTypeFull;
+#endif // LLDB_ENABLE_SWIFT
     else if (Language::LanguageIsC(language)) {
       m_name_type_mask = eFunctionNameTypeFull;
     } else {
@@ -655,7 +671,20 @@ Module::LookupInfo::LookupInfo(ConstString name,
         m_name_type_mask |= eFunctionNameTypeSelector;
 
       CPlusPlusLanguage::MethodName cpp_method(name);
-      basename = cpp_method.GetBasename();
+
+#ifdef LLDB_ENABLE_SWIFT
+      SwiftLanguageRuntime::MethodName swift_method(name, true);
+
+      if ((language == eLanguageTypeUnknown ||
+           language == eLanguageTypeSwift) &&
+          swift_method.IsValid())
+        basename = swift_method.GetBasename();
+#endif // LLDB_ENABLE_SWIFT
+      if ((language == eLanguageTypeUnknown ||
+           Language::LanguageIsCFamily(language)) &&
+           cpp_method.IsValid())
+        basename = cpp_method.GetBasename();
+
       if (basename.empty()) {
         if (CPlusPlusLanguage::ExtractContextAndIdentifier(name_cstr, context,
                                                            basename))
@@ -673,6 +702,13 @@ Module::LookupInfo::LookupInfo(ConstString name,
       // If they've asked for a CPP method or function name and it can't be
       // that, we don't even need to search for CPP methods or names.
       CPlusPlusLanguage::MethodName cpp_method(name);
+
+#ifdef LLDB_ENABLE_SWIFT
+      SwiftLanguageRuntime::MethodName swift_method(name, true);
+      if (swift_method.IsValid())
+        basename = swift_method.GetBasename();
+#endif // LLDB_ENABLE_SWIFT
+
       if (cpp_method.IsValid()) {
         basename = cpp_method.GetBasename();
 
@@ -771,7 +807,12 @@ void Module::LookupInfo::Prune(SymbolContextList &sc_list,
       if (!sc_list.GetContextAtIndex(i, sc))
         break;
 
+      bool is_trampoline =
+          Target::GetGlobalProperties().GetEnableTrampolineSupport() &&
+          sc.function && sc.function->IsGenericTrampoline();
+
       bool keep_it =
+          !is_trampoline &&
           NameMatchesLookupInfo(sc.GetFunctionName(), sc.GetLanguage());
       if (keep_it)
         ++i;
@@ -970,6 +1011,12 @@ void Module::FindTypes(const TypeQuery &query, TypeResults &results) {
   if (SymbolFile *symbols = GetSymbolFile())
     symbols->FindTypes(query, results);
 }
+void Module::FindImportedDeclarations(ConstString name,
+                                      std::vector<ImportedDeclaration> &results,
+                                      bool find_one) {
+  if (SymbolFile *symbols = GetSymbolFile())
+    symbols->FindImportedDeclaration(name, results, find_one);
+}
 
 static Debugger::DebuggerList
 DebuggersOwningModuleRequestingInterruption(Module &module) {
@@ -1009,8 +1056,7 @@ SymbolFile *Module::GetSymbolFile(bool can_create, Stream *feedback_strm) {
         m_symfile_up.reset(
             SymbolVendor::FindPlugin(shared_from_this(), feedback_strm));
         m_did_load_symfile = true;
-        if (m_unwind_table)
-          m_unwind_table->Update();
+        m_unwind_table.ModuleWasUpdated();
       }
     }
   }
@@ -1087,8 +1133,8 @@ void Module::ReportWarningOptimization(
   ss << file_name
      << " was compiled with optimization - stepping may behave "
         "oddly; variables may not be available.";
-  Debugger::ReportWarning(std::string(ss.GetString()), debugger_id,
-                          &m_optimization_warning);
+  llvm::StringRef msg = ss.GetString();
+  Debugger::ReportWarning(msg.str(), debugger_id, GetDiagnosticOnceFlag(msg));
 }
 
 void Module::ReportWarningUnsupportedLanguage(
@@ -1098,9 +1144,107 @@ void Module::ReportWarningUnsupportedLanguage(
      << Language::GetNameForLanguageType(language)
      << "\". "
         "Inspection of frame variables will be limited.";
-  Debugger::ReportWarning(std::string(ss.GetString()), debugger_id,
-                          &m_language_warning);
+  llvm::StringRef msg = ss.GetString();
+  Debugger::ReportWarning(msg.str(), debugger_id, GetDiagnosticOnceFlag(msg));
 }
+
+#ifdef LLDB_ENABLE_SWIFT
+static llvm::VersionTuple GetAdjustedVersion(llvm::VersionTuple version) {
+  return version;
+}
+
+void Module::ReportWarningToolchainMismatch(
+    CompileUnit &comp_unit, std::optional<lldb::user_id_t> debugger_id) {
+  if (SymbolFile *sym_file = GetSymbolFile()) {
+    llvm::VersionTuple sym_file_version =
+        GetAdjustedVersion(sym_file->GetProducerVersion(comp_unit));
+    llvm::VersionTuple swift_version =
+        GetAdjustedVersion(swift::version::getCurrentCompilerVersion());
+    if (sym_file_version != swift_version) {
+      std::string str = llvm::formatv(
+          "{0} was compiled with a different Swift compiler "
+          "(version '{1}') than the Swift compiler integrated into LLDB "
+          "(version '{2}'). Swift expression evaluation requires a matching "
+          "compiler and debugger from the same toolchain.",
+          GetFileSpec().GetFilename(), sym_file_version.getAsString(),
+          swift_version.getAsString());
+      Debugger::ReportWarning(str, debugger_id, &m_toolchain_mismatch_warning);
+    }
+  }
+}
+
+bool Module::IsSwiftCxxInteropEnabled() {
+  switch (m_is_swift_cxx_interop_enabled) {
+  case eLazyBoolYes:
+    return true;
+  case eLazyBoolNo:
+    return false;
+  case eLazyBoolCalculate:
+    break;
+  }
+  AutoBool interop_enabled =
+    ModuleList::GetGlobalModuleListProperties().GetSwiftEnableCxxInterop();
+  switch (interop_enabled) {
+  case AutoBool::True:
+    m_is_swift_cxx_interop_enabled = eLazyBoolYes;
+    break;
+  case AutoBool::False:
+    m_is_swift_cxx_interop_enabled = eLazyBoolNo;
+    break;
+  case AutoBool::Auto: {
+    // Look for the "-enable-experimental-cxx-interop" compile flag in the args
+    // of the compile units this module is composed of.
+    auto *sym_file = GetSymbolFile();
+    if (sym_file) {
+      auto options = sym_file->GetCompileOptions();
+      for (auto &[cu, args] : options) {
+        if (cu->GetLanguage() != eLanguageTypeSwift)
+          continue;
+        for (const char *arg : args.GetArgumentArrayRef()) {
+          if (strcmp(arg, "-enable-experimental-cxx-interop") == 0) {
+            m_is_swift_cxx_interop_enabled = eLazyBoolYes;
+            break;
+          }
+        }
+        if (m_is_swift_cxx_interop_enabled == eLazyBoolYes)
+          break;
+      }
+    }
+    if (m_is_swift_cxx_interop_enabled == eLazyBoolCalculate)
+      m_is_swift_cxx_interop_enabled = eLazyBoolNo;
+  }
+  }
+  return m_is_swift_cxx_interop_enabled == eLazyBoolYes;
+}
+
+bool Module::IsEmbeddedSwift() {
+  switch (m_is_embedded_swift) {
+  case eLazyBoolYes:
+    return true;
+  case eLazyBoolNo:
+    return false;
+  case eLazyBoolCalculate:
+    auto *sym_file = GetSymbolFile();
+    if (!sym_file)
+      return false;
+
+    m_is_embedded_swift = eLazyBoolNo;
+    auto options = sym_file->GetCompileOptions();
+    StringRef enable_embedded_swift("-enable-embedded-swift");
+    for (auto &[_, args] : options) {
+      for (const char *arg : args.GetArgumentArrayRef()) {
+        if (enable_embedded_swift == arg) {
+          m_is_embedded_swift = eLazyBoolYes;
+          return true;
+        }
+      }
+    }
+
+    return m_is_embedded_swift == eLazyBoolYes;
+  }
+}
+
+#endif
 
 void Module::ReportErrorIfModifyDetected(
     const llvm::formatv_object_base &payload) {
@@ -1119,20 +1263,29 @@ void Module::ReportErrorIfModifyDetected(
   }
 }
 
+std::once_flag *Module::GetDiagnosticOnceFlag(llvm::StringRef msg) {
+  std::lock_guard<std::recursive_mutex> guard(m_diagnostic_mutex);
+  auto &once_ptr = m_shown_diagnostics[llvm::stable_hash_name(msg)];
+  if (!once_ptr)
+    once_ptr = std::make_unique<std::once_flag>();
+  return once_ptr.get();
+}
+
 void Module::ReportError(const llvm::formatv_object_base &payload) {
   StreamString strm;
   GetDescription(strm.AsRawOstream(), lldb::eDescriptionLevelBrief);
-  strm.PutChar(' ');
-  strm.PutCString(payload.str());
-  Debugger::ReportError(strm.GetString().str());
+  std::string msg = payload.str();
+  strm << ' ' << msg;
+  Debugger::ReportError(strm.GetString().str(), {}, GetDiagnosticOnceFlag(msg));
 }
 
 void Module::ReportWarning(const llvm::formatv_object_base &payload) {
   StreamString strm;
   GetDescription(strm.AsRawOstream(), lldb::eDescriptionLevelFull);
-  strm.PutChar(' ');
-  strm.PutCString(payload.str());
-  Debugger::ReportWarning(std::string(strm.GetString()));
+  std::string msg = payload.str();
+  strm << ' ' << msg;
+  Debugger::ReportWarning(strm.GetString().str(), {},
+                          GetDiagnosticOnceFlag(msg));
 }
 
 void Module::LogMessage(Log *log, const llvm::formatv_object_base &payload) {
@@ -1210,6 +1363,8 @@ ObjectFile *Module::GetObjectFile() {
           // more specific than the generic COFF architecture, only merge in
           // those values that overwrite unspecified unknown values.
           m_arch.MergeFrom(m_objfile_sp->GetArchitecture());
+
+          m_unwind_table.ModuleWasUpdated();
         } else {
           ReportError("failed to load objfile for {0}\nDebugging will be "
                       "degraded for this module.",
@@ -1240,12 +1395,9 @@ void Module::SectionFileAddressesChanged() {
 }
 
 UnwindTable &Module::GetUnwindTable() {
-  if (!m_unwind_table) {
-    if (!m_symfile_spec)
-      SymbolLocator::DownloadSymbolFileAsync(GetUUID());
-    m_unwind_table.emplace(*this);
-  }
-  return *m_unwind_table;
+  if (!m_symfile_spec)
+    SymbolLocator::DownloadSymbolFileAsync(GetUUID());
+  return m_unwind_table;
 }
 
 SectionList *Module::GetUnifiedSectionList() {
@@ -1423,7 +1575,7 @@ bool Module::IsLoadedInTarget(Target *target) {
 bool Module::LoadScriptingResourceInTarget(Target *target, Status &error,
                                            Stream &feedback_stream) {
   if (!target) {
-    error.SetErrorString("invalid destination Target");
+    error = Status::FromErrorString("invalid destination Target");
     return false;
   }
 
@@ -1440,7 +1592,7 @@ bool Module::LoadScriptingResourceInTarget(Target *target, Status &error,
     PlatformSP platform_sp(target->GetPlatform());
 
     if (!platform_sp) {
-      error.SetErrorString("invalid Platform");
+      error = Status::FromErrorString("invalid Platform");
       return false;
     }
 
@@ -1478,7 +1630,7 @@ bool Module::LoadScriptingResourceInTarget(Target *target, Status &error,
           }
         }
       } else {
-        error.SetErrorString("invalid ScriptInterpreter");
+        error = Status::FromErrorString("invalid ScriptInterpreter");
         return false;
       }
     }
@@ -1489,6 +1641,17 @@ bool Module::LoadScriptingResourceInTarget(Target *target, Status &error,
 bool Module::SetArchitecture(const ArchSpec &new_arch) {
   if (!m_arch.IsValid()) {
     m_arch = new_arch;
+    auto type_system_or_err = m_type_system_map.GetTypeSystemForLanguage(
+        eLanguageTypeSwift, this, false);
+    if (!type_system_or_err) {
+      llvm::consumeError(type_system_or_err.takeError());
+      return true;
+    }
+#ifdef LLDB_ENABLE_SWIFT
+    if (auto ts =
+            llvm::dyn_cast_or_null<TypeSystemSwift>(type_system_or_err->get()))
+      ts->SetTriple(SymbolContext(shared_from_this()), new_arch.GetTriple());
+#endif // LLDB_ENABLE_SWIFT
     return true;
   }
   return m_arch.IsCompatibleMatch(new_arch);
@@ -1609,6 +1772,57 @@ bool Module::GetIsDynamicLinkEditor() {
 
   return false;
 }
+
+// BEGIN SWIFT
+void Module::ClearModuleDependentCaches() {
+  auto type_system_or_err = m_type_system_map.GetTypeSystemForLanguage(
+      eLanguageTypeSwift, this, false);
+  if (!type_system_or_err) {
+    llvm::consumeError(type_system_or_err.takeError());
+    return;
+  }
+
+#ifdef LLDB_ENABLE_SWIFT
+  if (auto *ts =
+          llvm::dyn_cast_or_null<TypeSystemSwift>(type_system_or_err->get()))
+    ts->ClearModuleDependentCaches();
+#endif // LLDB_ENABLE_SWIFT
+}
+
+std::vector<DataBufferSP>
+Module::GetASTData(lldb::LanguageType language) {
+  std::vector<DataBufferSP> ast_datas;
+
+  if (language != eLanguageTypeSwift)
+    return ast_datas;
+
+  // Sometimes the AST Section data is found from the module, so look there
+  // first:
+  SectionList *section_list = GetSectionList();
+
+  if (section_list) {
+    SectionSP section_sp(
+        section_list->FindSectionByType(eSectionTypeSwiftModules, true));
+    if (section_sp) {
+      DataExtractor section_data;
+
+      if (section_sp->GetSectionData(section_data)) {
+        ast_datas.push_back(DataBufferSP(
+            new DataBufferHeap((const char *)section_data.GetDataStart(),
+                               section_data.GetByteSize())));
+        return ast_datas;
+      }
+    }
+  }
+
+  // If we couldn't find it in the Module, then look for it in the SymbolFile:
+  SymbolFile *sym_file = GetSymbolFile();
+  if (sym_file)
+    ast_datas = sym_file->GetASTData(language);
+
+  return ast_datas;
+}
+// END SWIFT
 
 uint32_t Module::Hash() {
   std::string identifier;

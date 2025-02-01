@@ -12,6 +12,7 @@
 #include "lldb/Core/Address.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/UserSettingsController.h"
+#include "lldb/Symbol/ImportedDeclaration.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Iterable.h"
 #include "lldb/Utility/Status.h"
@@ -75,6 +76,26 @@ class ModuleListProperties : public Properties {
 
 public:
   ModuleListProperties();
+
+  // BEGIN SWIFT
+  bool GetUseSwiftClangImporter() const;
+  bool GetUseSwiftDWARFImporter() const;
+  bool SetUseSwiftDWARFImporter(bool new_value);
+  bool GetSwiftValidateTypeSystem() const;
+  bool GetSwiftLoadConformances() const;
+  SwiftModuleLoadingMode GetSwiftModuleLoadingMode() const;
+  bool SetSwiftModuleLoadingMode(SwiftModuleLoadingMode);
+
+  bool GetEnableSwiftMetadataCache() const;
+  uint64_t GetSwiftMetadataCacheMaxByteSize();
+  uint64_t GetSwiftMetadataCacheExpirationDays();
+  FileSpec GetSwiftMetadataCachePath() const;
+  bool SetSwiftMetadataCachePath(const FileSpec &path);
+
+  AutoBool GetSwiftEnableCxxInterop() const;
+  AutoBool GetSwiftEnableFullDwarfDebugging() const;
+  bool GetSwiftEnableASTContext() const;
+  // END SWIFT
 
   FileSpec GetClangModulesCachePath() const;
   bool SetClangModulesCachePath(const FileSpec &path);
@@ -378,6 +399,25 @@ public:
   void FindTypes(Module *search_first, const TypeQuery &query,
                  lldb_private::TypeResults &results) const;
 
+  /// Finds imported declarations whose name match \p name.
+  ///
+  /// \param[in] search_first
+  ///     If non-null, this module will be searched before any other
+  ///     modules.
+  ///
+  /// \param[in] name
+  ///     The name to search the imported declaration by.
+  ///
+  /// \param[in] results
+  ///     Any matching types will be populated into the \a results object.
+  ///
+  /// \param[in] find_one
+  ///     If set to true, the search will stop after the first imported
+  ///     declaration is found.
+  void FindImportedDeclarations(Module *search_first, ConstString name,
+                                std::vector<ImportedDeclaration> &results,
+                                bool find_one) const;
+
   bool FindSourceFile(const FileSpec &orig_spec, FileSpec &new_spec) const;
 
   /// Find addresses by file/line
@@ -489,6 +529,8 @@ public:
   /// This function is thread-safe.
   void ForEach(std::function<bool(const lldb::ModuleSP &module_sp)> const
                    &callback) const;
+
+  void ClearModuleDependentCaches();
 
   /// Returns true if 'callback' returns true for one of the modules
   /// in this ModuleList.

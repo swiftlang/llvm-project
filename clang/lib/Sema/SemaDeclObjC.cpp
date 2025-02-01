@@ -20,6 +20,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/Edit/RefactoringFixits.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/DelayedDiagnostic.h"
 #include "clang/Sema/Initialization.h"
@@ -1050,6 +1051,9 @@ ObjCInterfaceDecl *SemaObjC::ActOnStartClassInterface(
   ObjCInterfaceDecl *IDecl =
       ObjCInterfaceDecl::Create(Context, SemaRef.CurContext, AtInterfaceLoc,
                                 ClassName, typeParamList, PrevIDecl, ClassLoc);
+  SemaRef.ProcessDeclAttributeList(SemaRef.TUScope, IDecl, AttrList);
+  SemaRef.ProcessAPINotes(IDecl);
+
   if (PrevIDecl) {
     // Class already seen. Was it a definition?
     if (ObjCInterfaceDecl *Def = PrevIDecl->getDefinition()) {
@@ -1066,9 +1070,7 @@ ObjCInterfaceDecl *SemaObjC::ActOnStartClassInterface(
     }
   }
 
-  SemaRef.ProcessDeclAttributeList(SemaRef.TUScope, IDecl, AttrList);
   SemaRef.AddPragmaAttributes(SemaRef.TUScope, IDecl);
-  SemaRef.ProcessAPINotes(IDecl);
 
   // Merge attributes from previous declarations.
   if (PrevIDecl)
@@ -1179,8 +1181,9 @@ Decl *SemaObjC::ActOnCompatibilityAlias(SourceLocation AtLoc,
   }
 
   // Everything checked out, instantiate a new alias declaration AST.
-  ObjCCompatibleAliasDecl *AliasDecl = ObjCCompatibleAliasDecl::Create(
-      Context, SemaRef.CurContext, AtLoc, AliasName, CDecl);
+  ObjCCompatibleAliasDecl *AliasDecl =
+      ObjCCompatibleAliasDecl::Create(Context, SemaRef.CurContext, AliasLocation,
+                                      AliasName, CDecl, ClassLocation, AtLoc);
 
   if (!CheckObjCDeclScope(AliasDecl))
     SemaRef.PushOnScopeChains(AliasDecl, SemaRef.TUScope);
@@ -2710,7 +2713,8 @@ static void findProtocolsWithExplicitImpls(const ObjCInterfaceDecl *Super,
 static void CheckProtocolMethodDefs(
     Sema &S, ObjCImplDecl *Impl, ObjCProtocolDecl *PDecl, bool &IncompleteImpl,
     const SemaObjC::SelectorSet &InsMap, const SemaObjC::SelectorSet &ClsMap,
-    ObjCContainerDecl *CDecl, LazyProtocolNameSet &ProtocolsExplictImpl) {
+    ObjCContainerDecl *CDecl, LazyProtocolNameSet &ProtocolsExplictImpl,
+    llvm::SmallPtrSetImpl<ObjCProtocolDecl *> *MissingRequirements) {
   ObjCCategoryDecl *C = dyn_cast<ObjCCategoryDecl>(CDecl);
   ObjCInterfaceDecl *IDecl = C ? C->getClassInterface()
                                : dyn_cast<ObjCInterfaceDecl>(CDecl);
@@ -2769,6 +2773,7 @@ static void CheckProtocolMethodDefs(
   // protocol. This lookup is slow, but occurs rarely in correct code
   // and otherwise would terminate in a warning.
 
+  bool HasMissingRequirements = false;
   // check unimplemented instance methods.
   if (!NSIDecl)
     for (auto *method : PDecl->instance_methods()) {
@@ -2796,7 +2801,12 @@ static void CheckProtocolMethodDefs(
             continue;
         unsigned DIAG = diag::warn_unimplemented_protocol_method;
         if (!S.Diags.isIgnored(DIAG, Impl->getLocation())) {
-          WarnUndefinedMethod(S, Impl, method, IncompleteImpl, DIAG, PDecl);
+          if (MissingRequirements) {
+            if (!HasMissingRequirements)
+              HasMissingRequirements = shouldWarnUndefinedMethod(method);
+          } else {
+            WarnUndefinedMethod(S, Impl, method, IncompleteImpl, DIAG, PDecl);
+          }
         }
       }
     }
@@ -2818,14 +2828,23 @@ static void CheckProtocolMethodDefs(
 
       unsigned DIAG = diag::warn_unimplemented_protocol_method;
       if (!S.Diags.isIgnored(DIAG, Impl->getLocation())) {
-        WarnUndefinedMethod(S, Impl, method, IncompleteImpl, DIAG, PDecl);
+        if (MissingRequirements) {
+          if (!HasMissingRequirements)
+            HasMissingRequirements = shouldWarnUndefinedMethod(method);
+        } else {
+          WarnUndefinedMethod(S, Impl, method, IncompleteImpl, DIAG, PDecl);
+        }
       }
     }
+  }
+  if (HasMissingRequirements) {
+    assert(MissingRequirements != nullptr && "No missing requirements!");
+    MissingRequirements->insert(PDecl);
   }
   // Check on this protocols's referenced protocols, recursively.
   for (auto *PI : PDecl->protocols())
     CheckProtocolMethodDefs(S, Impl, PI, IncompleteImpl, InsMap, ClsMap, CDecl,
-                            ProtocolsExplictImpl);
+                            ProtocolsExplictImpl, MissingRequirements);
 }
 
 /// MatchAllMethodDeclarations - Check methods declared in interface
@@ -3039,22 +3058,50 @@ void SemaObjC::ImplMethodsVsClassMethods(Scope *S, ObjCImplDecl *IMPDecl,
 
   LazyProtocolNameSet ExplicitImplProtocols;
 
+  bool UseEditorDiagnostics = !getDiagnostics()
+                                   .getDiagnosticOptions()
+                                   .DiagnosticSerializationFile.empty() ||
+                              getLangOpts().AllowEditorPlaceholders;
+  llvm::SmallPtrSet<ObjCProtocolDecl *, 4> MissingRequirements;
   if (ObjCInterfaceDecl *I = dyn_cast<ObjCInterfaceDecl> (CDecl)) {
     for (auto *PI : I->all_referenced_protocols())
       CheckProtocolMethodDefs(SemaRef, IMPDecl, PI, IncompleteImpl, InsMap,
-                              ClsMap, I, ExplicitImplProtocols);
+                              ClsMap, I, ExplicitImplProtocols,
+                              UseEditorDiagnostics ? &MissingRequirements
+                                                   : nullptr);
   } else if (ObjCCategoryDecl *C = dyn_cast<ObjCCategoryDecl>(CDecl)) {
     // For extended class, unimplemented methods in its protocols will
     // be reported in the primary class.
     if (!C->IsClassExtension()) {
       for (auto *P : C->protocols())
         CheckProtocolMethodDefs(SemaRef, IMPDecl, P, IncompleteImpl, InsMap,
-                                ClsMap, CDecl, ExplicitImplProtocols);
+                                ClsMap, CDecl, ExplicitImplProtocols,
+                                UseEditorDiagnostics ? &MissingRequirements
+                                                     : nullptr);
       DiagnoseUnimplementedProperties(S, IMPDecl, CDecl,
                                       /*SynthesizeProperties=*/false);
     }
   } else
     llvm_unreachable("invalid ObjCContainerDecl type.");
+  if (!MissingRequirements.empty()) {
+    {
+      auto DB = Diag(IMPDecl->getLocation(),
+                     diag::warn_class_does_not_conform_protocol)
+                << (isa<ObjCCategoryDecl>(CDecl) ? /*category=*/1 : /*class=*/0)
+                << CDecl << (unsigned)MissingRequirements.size();
+      unsigned NumProtocols = 0;
+      for (const auto *PD : MissingRequirements) {
+        DB << PD;
+        if (++NumProtocols > 3)
+          break;
+      }
+    }
+    ASTContext &Context = getASTContext();
+    auto DB =
+        Diag(IMPDecl->getLocation(), diag::note_add_missing_protocol_stubs);
+    edit::fillInMissingProtocolStubs::addMissingProtocolStubs(
+        Context, IMPDecl, [&](const FixItHint &Hint) { DB << Hint; });
+  }
 }
 
 SemaObjC::DeclGroupPtrTy SemaObjC::ActOnForwardClassDeclaration(
@@ -4136,7 +4183,7 @@ Decl *SemaObjC::ActOnAtEnd(Scope *S, SourceRange AtEnd,
       if (IDecl->getSuperClass() == nullptr) {
         // This class has no superclass, so check that it has been marked with
         // __attribute((objc_root_class)).
-        if (!HasRootClassAttr) {
+        if (!HasRootClassAttr && !IDecl->hasAttr<ObjCCompleteDefinitionAttr>()) {
           SourceLocation DeclLoc(IDecl->getLocation());
           SourceLocation SuperClassLoc(SemaRef.getLocForEndOfToken(DeclLoc));
           Diag(DeclLoc, diag::warn_objc_root_class_missing)
@@ -4577,9 +4624,7 @@ static QualType mergeTypeNullabilityForRedecl(Sema &S, SourceLocation loc,
     return type;
 
   // Otherwise, provide the result with the same nullability.
-  return S.Context.getAttributedType(
-           AttributedType::getNullabilityAttrKind(*prevNullability),
-           type, type);
+  return S.Context.getAttributedType(*prevNullability, type, type);
 }
 
 /// Merge information from the declaration of a method in the \@interface
@@ -4725,13 +4770,67 @@ static void checkObjCDirectMethodClashes(Sema &S, ObjCInterfaceDecl *IDecl,
           diagClash(IMD);
 }
 
+ParmVarDecl *SemaObjC::ActOnMethodParmDeclaration(Scope *S,
+                                                  ObjCArgInfo &ArgInfo,
+                                                  int ParamIndex,
+                                                  bool MethodDefinition) {
+  ASTContext &Context = getASTContext();
+  QualType ArgType;
+  TypeSourceInfo *DI;
+
+  if (!ArgInfo.Type) {
+    ArgType = Context.getObjCIdType();
+    DI = nullptr;
+  } else {
+    ArgType = SemaRef.GetTypeFromParser(ArgInfo.Type, &DI);
+  }
+  LookupResult R(SemaRef, ArgInfo.Name, ArgInfo.NameLoc,
+                 Sema::LookupOrdinaryName,
+                 SemaRef.forRedeclarationInCurContext());
+  SemaRef.LookupName(R, S);
+  if (R.isSingleResult()) {
+    NamedDecl *PrevDecl = R.getFoundDecl();
+    if (S->isDeclScope(PrevDecl)) {
+      Diag(ArgInfo.NameLoc,
+           (MethodDefinition ? diag::warn_method_param_redefinition
+                             : diag::warn_method_param_declaration))
+          << ArgInfo.Name;
+      Diag(PrevDecl->getLocation(), diag::note_previous_declaration);
+    }
+  }
+  SourceLocation StartLoc =
+      DI ? DI->getTypeLoc().getBeginLoc() : ArgInfo.NameLoc;
+
+  // Temporarily put parameter variables in the translation unit. This is what
+  // ActOnParamDeclarator does in the case of C arguments to the Objective-C
+  // method too.
+  ParmVarDecl *Param = SemaRef.CheckParameter(
+      Context.getTranslationUnitDecl(), StartLoc, ArgInfo.NameLoc, ArgInfo.Name,
+      ArgType, DI, SC_None);
+  Param->setObjCMethodScopeInfo(ParamIndex);
+  Param->setObjCDeclQualifier(
+      CvtQTToAstBitMask(ArgInfo.DeclSpec.getObjCDeclQualifier()));
+
+  // Apply the attributes to the parameter.
+  SemaRef.ProcessDeclAttributeList(SemaRef.TUScope, Param, ArgInfo.ArgAttrs);
+  SemaRef.AddPragmaAttributes(SemaRef.TUScope, Param);
+  if (Param->hasAttr<BlocksAttr>()) {
+    Diag(Param->getLocation(), diag::err_block_on_nonlocal);
+    Param->setInvalidDecl();
+  }
+
+  S->AddDecl(Param);
+  SemaRef.IdResolver.AddDecl(Param);
+  return Param;
+}
+
 Decl *SemaObjC::ActOnMethodDeclaration(
     Scope *S, SourceLocation MethodLoc, SourceLocation EndLoc,
     tok::TokenKind MethodType, ObjCDeclSpec &ReturnQT, ParsedType ReturnType,
     ArrayRef<SourceLocation> SelectorLocs, Selector Sel,
     // optional arguments. The number of types/arguments is obtained
     // from the Sel.getNumArgs().
-    ObjCArgInfo *ArgInfo, DeclaratorChunk::ParamInfo *CParamInfo,
+    ParmVarDecl **ArgInfo, DeclaratorChunk::ParamInfo *CParamInfo,
     unsigned CNumArgs, // c-style args
     const ParsedAttributesView &AttrList, tok::ObjCKeywordKind MethodDeclKind,
     bool isVariadic, bool MethodDefinition) {
@@ -4773,60 +4872,10 @@ Decl *SemaObjC::ActOnMethodDeclaration(
       HasRelatedResultType);
 
   SmallVector<ParmVarDecl*, 16> Params;
-
-  for (unsigned i = 0, e = Sel.getNumArgs(); i != e; ++i) {
-    QualType ArgType;
-    TypeSourceInfo *DI;
-
-    if (!ArgInfo[i].Type) {
-      ArgType = Context.getObjCIdType();
-      DI = nullptr;
-    } else {
-      ArgType = SemaRef.GetTypeFromParser(ArgInfo[i].Type, &DI);
-    }
-
-    LookupResult R(SemaRef, ArgInfo[i].Name, ArgInfo[i].NameLoc,
-                   Sema::LookupOrdinaryName,
-                   SemaRef.forRedeclarationInCurContext());
-    SemaRef.LookupName(R, S);
-    if (R.isSingleResult()) {
-      NamedDecl *PrevDecl = R.getFoundDecl();
-      if (S->isDeclScope(PrevDecl)) {
-        Diag(ArgInfo[i].NameLoc,
-             (MethodDefinition ? diag::warn_method_param_redefinition
-                               : diag::warn_method_param_declaration))
-          << ArgInfo[i].Name;
-        Diag(PrevDecl->getLocation(),
-             diag::note_previous_declaration);
-      }
-    }
-
-    SourceLocation StartLoc = DI
-      ? DI->getTypeLoc().getBeginLoc()
-      : ArgInfo[i].NameLoc;
-
-    ParmVarDecl *Param =
-        SemaRef.CheckParameter(ObjCMethod, StartLoc, ArgInfo[i].NameLoc,
-                               ArgInfo[i].Name, ArgType, DI, SC_None);
-
-    Param->setObjCMethodScopeInfo(i);
-
-    Param->setObjCDeclQualifier(
-      CvtQTToAstBitMask(ArgInfo[i].DeclSpec.getObjCDeclQualifier()));
-
-    // Apply the attributes to the parameter.
-    SemaRef.ProcessDeclAttributeList(SemaRef.TUScope, Param,
-                                     ArgInfo[i].ArgAttrs);
-    SemaRef.AddPragmaAttributes(SemaRef.TUScope, Param);
+  for (unsigned I = 0; I < Sel.getNumArgs(); ++I) {
+    ParmVarDecl *Param = ArgInfo[I];
+    Param->setDeclContext(ObjCMethod);
     SemaRef.ProcessAPINotes(Param);
-
-    if (Param->hasAttr<BlocksAttr>()) {
-      Diag(Param->getLocation(), diag::err_block_on_nonlocal);
-      Param->setInvalidDecl();
-    }
-    S->AddDecl(Param);
-    SemaRef.IdResolver.AddDecl(Param);
-
     Params.push_back(Param);
   }
 

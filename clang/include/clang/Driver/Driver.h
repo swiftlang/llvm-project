@@ -379,8 +379,7 @@ public:
 
   /// Takes the path to a binary that's either in bin/ or lib/ and returns
   /// the path to clang's resource directory.
-  static std::string GetResourcesPath(StringRef BinaryPath,
-                                      StringRef CustomResourceDir = "");
+  static std::string GetResourcesPath(StringRef BinaryPath);
 
   Driver(StringRef ClangExecutable, StringRef TargetTriple,
          DiagnosticsEngine &Diags, std::string Title = "clang LLVM compiler",
@@ -752,6 +751,7 @@ private:
   /// compilation based on which -f(no-)?lto(=.*)? option occurs last.
   void setLTOMode(const llvm::opt::ArgList &Args);
 
+public:
   /// Retrieves a ToolChain for a particular \p Target triple.
   ///
   /// Will cache ToolChains for the life of the driver object, and create them
@@ -760,6 +760,7 @@ private:
                                 const llvm::Triple &Target) const;
 
   /// @}
+private:
 
   /// Retrieves a ToolChain for a particular device \p Target triple
   ///
@@ -844,6 +845,9 @@ bool IsClangCL(StringRef DriverMode);
 llvm::Error expandResponseFiles(SmallVectorImpl<const char *> &Args,
                                 bool ClangCLMode, llvm::BumpPtrAllocator &Alloc,
                                 llvm::vfs::FileSystem *FS = nullptr);
+
+/// Checks whether the value produced by getDriverMode is for 'cache' mode.
+bool isClangCache(StringRef DriverMode);
 
 /// Apply a space separated list of edits to the input argument lists.
 /// See applyOneOverrideOption.

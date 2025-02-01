@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple arm64-apple-ios   -fptrauth-calls -emit-llvm -std=c++11 %s -o - | FileCheck --check-prefixes=CHECK,DARWIN %s
-// RUN: %clang_cc1 -triple aarch64-linux-gnu -fptrauth-calls -emit-llvm -std=c++11 %s -o - | FileCheck --check-prefixes=CHECK,ELF    %s
+// RUN: %clang_cc1 -mllvm -ptrauth-emit-wrapper-globals=0 -triple arm64-apple-ios   -fptrauth-calls -emit-llvm -std=c++11 %s -o - | FileCheck --check-prefixes=CHECK,DARWIN %s
+// RUN: %clang_cc1 -mllvm -ptrauth-emit-wrapper-globals=0 -triple aarch64-linux-gnu -fptrauth-calls -emit-llvm -std=c++11 %s -o - | FileCheck --check-prefixes=CHECK,ELF    %s
 
 // Check virtual function pointers in vtables are signed.
 

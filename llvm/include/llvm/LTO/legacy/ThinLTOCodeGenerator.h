@@ -19,12 +19,16 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/LTO/LTO.h"
+#include "llvm/RemoteCachingService/Client.h"
+#include "llvm/RemoteCachingService/RemoteCachingService.h"
 #include "llvm/Support/CachePruning.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/TargetParser/Triple.h"
 
+#include <memory>
 #include <string>
 
 namespace llvm {
@@ -41,6 +45,31 @@ struct TargetMachineBuilder {
   CodeGenOptLevel CGOptLevel = CodeGenOptLevel::Aggressive;
 
   std::unique_ptr<TargetMachine> create() const;
+};
+
+// ThinLTOCacheEntry: manage caching for a single Module.
+class ModuleCacheEntry {
+public:
+  // Access the path to this entry in the cache.
+  virtual std::string getEntryPath() = 0;
+
+  virtual ErrorOr<std::unique_ptr<MemoryBuffer>> tryLoadingBuffer() = 0;
+  virtual void write(const MemoryBuffer &OutputBuffer) = 0;
+  virtual Error writeObject(const MemoryBuffer &OutputBuffer,
+                            StringRef OutputPath);
+  virtual std::optional<std::unique_ptr<MemoryBuffer>> getMappedBuffer() {
+    return std::nullopt;
+  }
+
+  virtual ~ModuleCacheEntry() {}
+
+  static std::optional<std::string> computeCacheKey(
+      const ModuleSummaryIndex &Index, StringRef ModuleID,
+      const FunctionImporter::ImportMapTy &ImportList,
+      const FunctionImporter::ExportSetTy &ExportList,
+      const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
+      const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
+      bool Freestanding, const TargetMachineBuilder &TMBuilder);
 };
 
 /// This class define an interface similar to the LTOCodeGenerator, but adapted
@@ -125,11 +154,30 @@ public:
   struct CachingOptions {
     std::string Path;                    // Path to the cache, empty to disable.
     CachePruningPolicy Policy;
+    enum class CacheType {
+      CacheDirectory,
+      CAS,
+      RemoteService,
+    } Type;
+    std::unique_ptr<cas::ObjectStore> CAS;
+    std::unique_ptr<cas::ActionCache> Cache;
+    std::optional<cas::remote::ClientServices> Service;
   };
 
   /// Provide a path to a directory where to store the cached files for
   /// incremental build.
-  void setCacheDir(std::string Path) { CacheOptions.Path = std::move(Path); }
+  Error setCacheDir(std::string Path);
+
+  /// Create a cache entry for the module
+  std::unique_ptr<ModuleCacheEntry> createModuleCacheEntry(
+      const ModuleSummaryIndex &Index, StringRef ModuleID, StringRef OutputPath,
+      const FunctionImporter::ImportMapTy &ImportList,
+      const FunctionImporter::ExportSetTy &ExportList,
+      const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
+      const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
+      bool Freestanding, const TargetMachineBuilder &TMBuilder,
+      std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger =
+          nullptr);
 
   /// Cache policy: interval (seconds) between two prunes of the cache. Set to a
   /// negative value to disable pruning. A value of 0 will force pruning to
@@ -186,6 +234,12 @@ public:
   /// Set the path to a directory where to save temporaries at various stages of
   /// the processing.
   void setSaveTempsDir(std::string Path) { SaveTempsDir = std::move(Path); }
+
+  /// Set the path to a directory where to save temporaries from the remote
+  /// service.
+  void setRemoteServiceTempsDir(std::string Path) {
+    RemoteServiceTempsDir = std::move(Path);
+  }
 
   /// Set the path to a directory where to save generated object files. This
   /// path can be used by a linker to request on-disk files instead of in-memory
@@ -295,7 +349,8 @@ public:
    * to Cache directory if needed. Returns the path to the generated file in
    * SavedObjectsDirectoryPath.
    */
-  std::string writeGeneratedObject(int count, StringRef CacheEntryPath,
+  std::string writeGeneratedObject(StringRef OutputPath,
+                                   ModuleCacheEntry *CacheEntry,
                                    const MemoryBuffer &OutputBuffer);
   /**@}*/
 
@@ -326,6 +381,9 @@ private:
 
   /// Path to a directory to save the temporary bitcode files.
   std::string SaveTempsDir;
+
+  /// Path to a directory to save the temporary remote service files.
+  std::string RemoteServiceTempsDir;
 
   /// Path to a directory to save the generated object files.
   std::string SavedObjectsDirectoryPath;

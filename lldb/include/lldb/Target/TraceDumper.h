@@ -8,6 +8,7 @@
 
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Target/TraceCursor.h"
+#include <deque>
 #include <optional>
 #include <stack>
 

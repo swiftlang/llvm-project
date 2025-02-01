@@ -3030,10 +3030,10 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
 
     // assume( (load addr) != null ) -> add 'nonnull' metadata to load
     // (if assume is valid at the load)
-    CmpInst::Predicate Pred;
     Instruction *LHS;
-    if (match(IIOperand, m_ICmp(Pred, m_Instruction(LHS), m_Zero())) &&
-        Pred == ICmpInst::ICMP_NE && LHS->getOpcode() == Instruction::Load &&
+    if (match(IIOperand, m_SpecificICmp(ICmpInst::ICMP_NE, m_Instruction(LHS),
+                                        m_Zero())) &&
+        LHS->getOpcode() == Instruction::Load &&
         LHS->getType()->isPointerTy() &&
         isValidAssumeForContext(II, LHS, &DT)) {
       MDNode *MD = MDNode::get(II->getContext(), std::nullopt);
@@ -3072,8 +3072,9 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     // into
     // call void @llvm.assume(i1 true) [ "nonnull"(i32* %PTR) ]
     if (EnableKnowledgeRetention &&
-        match(IIOperand, m_Cmp(Pred, m_Value(A), m_Zero())) &&
-        Pred == CmpInst::ICMP_NE && A->getType()->isPointerTy()) {
+        match(IIOperand,
+              m_SpecificICmp(ICmpInst::ICMP_NE, m_Value(A), m_Zero())) &&
+        A->getType()->isPointerTy()) {
       if (auto *Replacement = buildAssumeFromKnowledge(
               {RetainedKnowledge{Attribute::NonNull, 0, A}}, Next, &AC, &DT)) {
 
@@ -3093,9 +3094,9 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     uint64_t AlignMask;
     if (EnableKnowledgeRetention &&
         match(IIOperand,
-              m_Cmp(Pred, m_And(m_Value(A), m_ConstantInt(AlignMask)),
-                    m_Zero())) &&
-        Pred == CmpInst::ICMP_EQ) {
+              m_SpecificICmp(ICmpInst::ICMP_EQ,
+                             m_And(m_Value(A), m_ConstantInt(AlignMask)),
+                             m_Zero()))) {
       if (isPowerOf2_64(AlignMask + 1)) {
         uint64_t Offset = 0;
         match(A, m_Add(m_Value(A), m_ConstantInt(Offset)));
@@ -3765,6 +3766,81 @@ static IntrinsicInst *findInitTrampoline(Value *Callee) {
   return nullptr;
 }
 
+Instruction *InstCombinerImpl::tryCombinePtrAuthCall(CallBase &Call) {
+  Value *Callee = Call.getCalledOperand();
+  auto *IPC = dyn_cast<IntToPtrInst>(Callee);
+  if (!IPC || !IPC->isNoopCast(DL))
+    return nullptr;
+
+  IntrinsicInst *II = dyn_cast<IntrinsicInst>(IPC->getOperand(0));
+  if (!II)
+    return nullptr;
+
+  auto PtrAuthBundleOrNone = Call.getOperandBundle(LLVMContext::OB_ptrauth);
+  assert(Call.getNumOperandBundles() <= 1 &&
+         "unimplemented support for ptrauth and other bundle");
+
+  Value *NewCallee = nullptr;
+  SmallVector<OperandBundleDef, 1> NewBundles;
+  switch (II->getIntrinsicID()) {
+  default:
+    return nullptr;
+
+  // call(ptrauth_resign(p)), ["ptrauth"()] ->  call p, ["ptrauth"()]
+  // assuming the call bundle and the sign operands match.
+  case Intrinsic::ptrauth_resign: {
+    if (!PtrAuthBundleOrNone)
+      return nullptr;
+    auto PtrAuthBundle = *PtrAuthBundleOrNone;
+    if (II->getOperand(3) != PtrAuthBundle.Inputs[0] ||
+        II->getOperand(4) != PtrAuthBundle.Inputs[1])
+      return nullptr;
+
+    Value *NewBundleOps[] = {II->getOperand(1), II->getOperand(2)};
+    NewBundles.emplace_back("ptrauth", NewBundleOps);
+    NewCallee = II->getOperand(0);
+    break;
+  }
+
+  // call(ptrauth_sign(p)), ["ptrauth"()] ->  call p
+  // assuming the call bundle and the sign operands match.
+  case Intrinsic::ptrauth_sign: {
+    if (!PtrAuthBundleOrNone)
+      return nullptr;
+    auto PtrAuthBundle = *PtrAuthBundleOrNone;
+    if (II->getOperand(1) != PtrAuthBundle.Inputs[0] ||
+        II->getOperand(2) != PtrAuthBundle.Inputs[1])
+      return nullptr;
+    NewCallee = II->getOperand(0);
+    break;
+  }
+
+  // call(ptrauth_auth(p)) ->  call p, ["ptrauth"()]
+  case Intrinsic::ptrauth_auth: {
+    if (PtrAuthBundleOrNone)
+      return nullptr;
+    Value *NewBundleOps[] = {II->getOperand(1), II->getOperand(2)};
+    NewBundles.emplace_back("ptrauth", NewBundleOps);
+    NewCallee = II->getOperand(0);
+    break;
+  }
+  }
+
+  if (!NewCallee)
+    return nullptr;
+
+  NewCallee = Builder.CreateBitOrPointerCast(NewCallee, Callee->getType());
+  CallBase *NewCall = nullptr;
+  if (auto *CI = dyn_cast<CallInst>(&Call)) {
+    NewCall = CallInst::Create(CI, NewBundles);
+  } else {
+    auto *IKI = cast<InvokeInst>(&Call);
+    NewCall = InvokeInst::Create(IKI, NewBundles);
+  }
+  NewCall->setCalledOperand(NewCallee);
+  return NewCall;
+}
+
 bool InstCombinerImpl::annotateAnyAllocSite(CallBase &Call,
                                             const TargetLibraryInfo *TLI) {
   // Note: We only handle cases which can't be driven from generic attributes
@@ -3911,6 +3987,10 @@ Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
 
   if (IntrinsicInst *II = findInitTrampoline(Callee))
     return transformCallThroughTrampoline(Call, *II);
+
+  // Combine calls involving pointer authentication
+  if (Instruction *NewCall = tryCombinePtrAuthCall(Call))
+    return NewCall;
 
   if (isa<InlineAsm>(Callee) && !Call.doesNotThrow()) {
     InlineAsm *IA = cast<InlineAsm>(Callee);

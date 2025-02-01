@@ -280,7 +280,7 @@ namespace {
     QualType getAttributedType(Attr *A, QualType ModifiedType,
                                QualType EquivType) {
       QualType T =
-          sema.Context.getAttributedType(A->getKind(), ModifiedType, EquivType);
+          sema.Context.getAttributedType(A, ModifiedType, EquivType);
       AttrsForTypes.push_back({cast<AttributedType>(T.getTypePtr()), A});
       AttrsForTypesSorted = false;
       return T;
@@ -2522,6 +2522,12 @@ bool Sema::CheckFunctionReturnType(QualType T, SourceLocation Loc) {
     return true;
   }
 
+  // __ptrauth is illegal on a function return type.
+  if (T.getPointerAuth()) {
+    Diag(Loc, diag::err_ptrauth_qualifier_return) << T;
+    return true;
+  }
+
   if (T.hasNonTrivialToPrimitiveDestructCUnion() ||
       T.hasNonTrivialToPrimitiveCopyCUnion())
     checkNonTrivialCUnion(T, Loc, NTCUC_FunctionReturn,
@@ -2621,6 +2627,10 @@ QualType Sema::BuildFunctionType(QualType T,
       // Disallow half FP arguments.
       Diag(Loc, diag::err_parameters_retval_cannot_have_fp16_type) << 0 <<
         FixItHint::CreateInsertion(Loc, "*");
+      Invalid = true;
+    } else if (ParamType.getPointerAuth()) {
+      // __ptrauth is illegal on a function return type.
+      Diag(Loc, diag::err_ptrauth_qualifier_param) << T;
       Invalid = true;
     } else if (ParamType->isWebAssemblyTableType()) {
       Diag(Loc, diag::err_wasm_table_as_function_parameter);
@@ -4923,6 +4933,11 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         }
       }
 
+      // __ptrauth is illegal on a function return type.
+      if (T.getPointerAuth()) {
+        S.Diag(DeclType.Loc, diag::err_ptrauth_qualifier_return) << T;
+      }
+
       if (LangOpts.OpenCL) {
         // OpenCL v2.0 s6.12.5 - A block cannot be the return value of a
         // function.
@@ -7104,6 +7119,60 @@ static bool HandleWebAssemblyFuncrefAttr(TypeProcessingState &State,
   return false;
 }
 
+static void HandleSwiftAttr(TypeProcessingState &State, TypeAttrLocation TAL,
+                            QualType &QT, ParsedAttr &PAttr) {
+  if (TAL == TAL_DeclName)
+    return;
+
+  Sema &S = State.getSema();
+  auto &D = State.getDeclarator();
+
+  // If the attribute appears in declaration specifiers
+  // it should be handled as a declaration attribute,
+  // unless it's associated with a type or a function
+  // prototype (i.e. appears on a parameter or result type).
+  if (State.isProcessingDeclSpec()) {
+    if (!(D.isPrototypeContext() ||
+          D.getContext() == DeclaratorContext::TypeName))
+      return;
+
+    if (auto *chunk = D.getInnermostNonParenChunk()) {
+      moveAttrFromListToList(PAttr, State.getCurrentAttributes(),
+                             const_cast<DeclaratorChunk *>(chunk)->getAttrs());
+      return;
+    }
+  }
+
+  StringRef Str;
+  if (!S.checkStringLiteralArgumentAttr(PAttr, 0, Str)) {
+    PAttr.setInvalid();
+    return;
+  }
+
+  // If the attribute as attached to a paren move it closer to
+  // the declarator. This can happen in block declarations when
+  // an attribute is placed before `^` i.e. `(__attribute__((...)) ^)`.
+  //
+  // Note that it's actually invalid to use GNU style attributes
+  // in a block but such cases are currently handled gracefully
+  // but the parser and behavior should be consistent between
+  // cases when attribute appears before/after block's result
+  // type and inside (^).
+  if (TAL == TAL_DeclChunk) {
+    auto chunkIdx = State.getCurrentChunkIndex();
+    if (chunkIdx >= 1 &&
+        D.getTypeObject(chunkIdx).Kind == DeclaratorChunk::Paren) {
+      moveAttrFromListToList(PAttr, State.getCurrentAttributes(),
+                             D.getTypeObject(chunkIdx - 1).getAttrs());
+      return;
+    }
+  }
+
+  auto *A = ::new (S.Context) SwiftAttrAttr(S.Context, PAttr, Str);
+  QT = State.getAttributedType(A, QT, QT);
+  PAttr.setUsedAsTypeAttr();
+}
+
 /// Rebuild an attributed type without the nullability attribute on it.
 static QualType rebuildAttributedTypeWithoutNullability(ASTContext &Ctx,
                                                         QualType Type) {
@@ -7120,7 +7189,8 @@ static QualType rebuildAttributedTypeWithoutNullability(ASTContext &Ctx,
       Ctx, Attributed->getModifiedType());
   assert(Modified.getTypePtr() != Attributed->getModifiedType().getTypePtr());
   return Ctx.getAttributedType(Attributed->getAttrKind(), Modified,
-                               Attributed->getEquivalentType());
+                               Attributed->getEquivalentType(),
+                               Attributed->getAttr());
 }
 
 /// Map a nullability attribute kind to a nullability kind.
@@ -7162,8 +7232,8 @@ static bool CheckNullabilityTypeSpecifier(
           break;
 
         S.Diag(NullabilityLoc, diag::warn_nullability_duplicate)
-            << DiagNullabilityKind(Nullability, IsContextSensitive)
-            << FixItHint::CreateRemoval(NullabilityLoc);
+          << DiagNullabilityKind(Nullability, IsContextSensitive)
+          << FixItHint::CreateRemoval(NullabilityLoc);
 
         break;
       }
@@ -7171,8 +7241,8 @@ static bool CheckNullabilityTypeSpecifier(
       if (!OverrideExisting) {
         // Conflicting nullability.
         S.Diag(NullabilityLoc, diag::err_nullability_conflicting)
-            << DiagNullabilityKind(Nullability, IsContextSensitive)
-            << DiagNullabilityKind(*ExistingNullability, false);
+          << DiagNullabilityKind(Nullability, IsContextSensitive)
+          << DiagNullabilityKind(*ExistingNullability, false);
         return true;
       }
 
@@ -7190,8 +7260,8 @@ static bool CheckNullabilityTypeSpecifier(
   if (auto ExistingNullability = Desugared->getNullability()) {
     if (Nullability != *ExistingNullability && !Implicit) {
       S.Diag(NullabilityLoc, diag::err_nullability_conflicting)
-          << DiagNullabilityKind(Nullability, IsContextSensitive)
-          << DiagNullabilityKind(*ExistingNullability, false);
+        << DiagNullabilityKind(Nullability, IsContextSensitive)
+        << DiagNullabilityKind(*ExistingNullability, false);
 
       // Try to find the typedef with the existing nullability specifier.
       if (auto TT = Desugared->getAs<TypedefType>()) {
@@ -7201,7 +7271,7 @@ static bool CheckNullabilityTypeSpecifier(
                 AttributedType::stripOuterNullability(underlyingType)) {
           if (*typedefNullability == *ExistingNullability) {
             S.Diag(typedefDecl->getLocation(), diag::note_nullability_here)
-                << DiagNullabilityKind(*ExistingNullability, false);
+              << DiagNullabilityKind(*ExistingNullability, false);
           }
         }
       }
@@ -7215,7 +7285,7 @@ static bool CheckNullabilityTypeSpecifier(
       !(AllowOnArrayType && Desugared->isArrayType())) {
     if (!Implicit)
       S.Diag(NullabilityLoc, diag::err_nullability_nonpointer)
-          << DiagNullabilityKind(Nullability, IsContextSensitive) << QT;
+        << DiagNullabilityKind(Nullability, IsContextSensitive) << QT;
 
     return true;
   }
@@ -7234,11 +7304,11 @@ static bool CheckNullabilityTypeSpecifier(
                         pointeeType->isObjCObjectPointerType() ||
                         pointeeType->isMemberPointerType())) {
       S.Diag(NullabilityLoc, diag::err_nullability_cs_multilevel)
-          << DiagNullabilityKind(Nullability, true) << QT;
+        << DiagNullabilityKind(Nullability, true) << QT;
       S.Diag(NullabilityLoc, diag::note_nullability_type_specifier)
-          << DiagNullabilityKind(Nullability, false) << QT
-          << FixItHint::CreateReplacement(NullabilityLoc,
-                                          getNullabilitySpelling(Nullability));
+        << DiagNullabilityKind(Nullability, false) << QT
+        << FixItHint::CreateReplacement(NullabilityLoc,
+                                        getNullabilitySpelling(Nullability));
       return true;
     }
   }
@@ -7249,8 +7319,7 @@ static bool CheckNullabilityTypeSpecifier(
     Attr *A = createNullabilityAttr(S.Context, *PAttr, Nullability);
     QT = State->getAttributedType(A, QT, QT);
   } else {
-    attr::Kind attrKind = AttributedType::getNullabilityAttrKind(Nullability);
-    QT = S.Context.getAttributedType(attrKind, QT, QT);
+    QT = S.Context.getAttributedType(Nullability, QT, QT);
   }
   return false;
 }
@@ -8210,6 +8279,93 @@ static void HandleNeonVectorTypeAttr(QualType &CurType, const ParsedAttr &Attr,
   CurType = S.Context.getVectorType(CurType, numElts, VecKind);
 }
 
+/// Handle the __ptrauth qualifier.
+static void HandlePtrAuthQualifier(QualType &type, const ParsedAttr &attr,
+                                   Sema &S) {
+  if (attr.getNumArgs() < 1 || attr.getNumArgs() > 3) {
+    S.Diag(attr.getLoc(), diag::err_ptrauth_qualifier_bad_arg_count);
+    attr.setInvalid();
+    return;
+  }
+
+  Expr *keyArg =
+    attr.getArgAsExpr(0);
+  Expr *isAddressDiscriminatedArg =
+    attr.getNumArgs() >= 2 ? attr.getArgAsExpr(1) : nullptr;
+  Expr *extraDiscriminatorArg =
+    attr.getNumArgs() >= 3 ? attr.getArgAsExpr(2) : nullptr;
+
+  unsigned key;
+  if (S.checkConstantPointerAuthKey(keyArg, key)) {
+    attr.setInvalid();
+    return;
+  }
+  assert(key <= PointerAuthQualifier::MaxKey && "ptrauth key is out of range");
+
+  bool isInvalid = false;
+  auto checkArg = [&](Expr *arg, unsigned argIndex) -> unsigned {
+    if (!arg) return 0;
+
+    std::optional<llvm::APSInt> result = arg->getIntegerConstantExpr(S.Context);
+    if (!result) {
+      isInvalid = true;
+      S.Diag(arg->getExprLoc(), diag::err_ptrauth_qualifier_arg_not_ice);
+      return 0;
+    }
+
+    unsigned max =
+      (argIndex == 1 ? 1 : PointerAuthQualifier::MaxDiscriminator);
+    if (*result < 0 || *result > max) {
+      llvm::SmallString<32> value; {
+        llvm::raw_svector_ostream str(value);
+        str << *result;
+      }
+
+      if (argIndex == 1) {
+        S.Diag(arg->getExprLoc(),
+               diag::err_ptrauth_qualifier_address_discrimination_invalid)
+          << value;
+      } else {
+        S.Diag(arg->getExprLoc(),
+               diag::err_ptrauth_qualifier_extra_discriminator_invalid)
+          << value << max;
+      }
+      isInvalid = true;
+    }
+    return result->getZExtValue();
+  };
+  bool isAddressDiscriminated = checkArg(isAddressDiscriminatedArg, 1);
+  unsigned extraDiscriminator = checkArg(extraDiscriminatorArg, 2);
+  if (isInvalid) {
+    attr.setInvalid();
+    return;
+  }
+
+  if (!type->isPointerType()) {
+    S.Diag(attr.getLoc(), diag::err_ptrauth_qualifier_nonpointer) << type;
+    attr.setInvalid();
+    return;
+  }
+
+  if (type.getPointerAuth()) {
+    S.Diag(attr.getLoc(), diag::err_ptrauth_qualifier_redundant) << type;
+    attr.setInvalid();
+    return;
+  }
+
+  if (!S.getLangOpts().PointerAuthIntrinsics) {
+    S.diagnosePointerAuthDisabled(attr.getLoc(), attr.getRange());
+    attr.setInvalid();
+    return;
+  }
+
+  PointerAuthQualifier qual = PointerAuthQualifier::Create(
+      key, isAddressDiscriminated, extraDiscriminator,
+      /*AuthenticationMode*/ PointerAuthenticationMode::SignAndAuth,
+      /*IsIsaPointer*/ false, /*AuthenticatesNullValues*/ true);
+  type = S.Context.getPointerAuthType(type, qual);
+}
+
 /// HandleArmSveVectorBitsTypeAttr - The "arm_sve_vector_bits" attribute is
 /// used to create fixed-length versions of sizeless SVE types defined by
 /// the ACLE, such as svint32_t and svbool_t.
@@ -8481,6 +8637,15 @@ static void HandleLifetimeBoundAttr(TypeProcessingState &State,
   }
 }
 
+static void HandleLifetimeCaptureByAttr(TypeProcessingState &State,
+                                        QualType &CurType, ParsedAttr &PA) {
+  if (State.getDeclarator().isDeclarationOfFunction()) {
+    auto *Attr = State.getSema().ParseLifetimeCaptureByAttr(PA, "this");
+    if (Attr)
+      CurType = State.getAttributedType(Attr, CurType, CurType);
+  }
+}
+
 static void HandleHLSLParamModifierAttr(QualType &CurType,
                                         const ParsedAttr &Attr, Sema &S) {
   // Don't apply this attribute to template dependent types. It is applied on
@@ -8634,9 +8799,17 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       HandleOpenCLAccessAttr(type, attr, state.getSema());
       attr.setUsedAsTypeAttr();
       break;
+    case ParsedAttr::AT_PointerAuth:
+      HandlePtrAuthQualifier(type, attr, state.getSema());
+      attr.setUsedAsTypeAttr();
+      break;
     case ParsedAttr::AT_LifetimeBound:
       if (TAL == TAL_DeclChunk)
         HandleLifetimeBoundAttr(state, type, attr);
+      break;
+    case ParsedAttr::AT_LifetimeCaptureBy:
+      if (TAL == TAL_DeclChunk)
+        HandleLifetimeCaptureByAttr(state, type, attr);
       break;
 
     case ParsedAttr::AT_NoDeref: {
@@ -8671,6 +8844,11 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     case ParsedAttr::AT_HLSLParamModifier: {
       HandleHLSLParamModifierAttr(type, attr, state.getSema());
       attr.setUsedAsTypeAttr();
+      break;
+    }
+
+    case ParsedAttr::AT_SwiftAttr: {
+      HandleSwiftAttr(state, TAL, type, attr);
       break;
     }
 

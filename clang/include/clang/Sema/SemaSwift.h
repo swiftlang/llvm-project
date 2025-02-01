@@ -39,6 +39,7 @@ public:
   void handleAsyncError(Decl *D, const ParsedAttr &AL);
   void handleName(Decl *D, const ParsedAttr &AL);
   void handleAsyncName(Decl *D, const ParsedAttr &AL);
+  void handleTransparentStepping(Decl *D, const ParsedAttr &AL);
   void handleNewType(Decl *D, const ParsedAttr &AL);
 
   /// Do a check to make sure \p Name looks like a legal argument for the

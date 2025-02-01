@@ -28,6 +28,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/BinaryFormat/MachO.h"
@@ -43,6 +44,9 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/IR/GlobalPtrAuthInfo.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
@@ -99,6 +103,10 @@ public:
   bool lowerOperand(const MachineOperand &MO, MCOperand &MCOp) const {
     return MCInstLowering.lowerOperand(MO, MCOp);
   }
+
+  // FIXME: temporary support for both ConstantPtrAuth + llvm.ptrauth globals
+  const MCExpr *
+  lowerPtrAuthGlobalConstant(const GlobalPtrAuthInfo &PAI) override;
 
   const MCExpr *lowerConstantPtrAuth(const ConstantPtrAuth &CPA) override;
 
@@ -221,6 +229,9 @@ private:
   void emitGlobalAlias(const Module &M, const GlobalAlias &GA) override;
 
   MCSymbol *GetCPISymbol(unsigned CPID) const override;
+
+  void EmitPtrAuthVersion(Module &M);
+
   void emitEndOfAsmFile(Module &M) override;
 
   AArch64FunctionInfo *AArch64FI = nullptr;
@@ -282,6 +293,9 @@ void AArch64AsmPrinter::emitStartOfAsmFile(Module &M) {
     OutStreamer->emitAssignment(
         S, MCConstantExpr::create(Feat00Value, MMI->getContext()));
   }
+
+  if (TM.getTargetTriple().isOSBinFormatMachO())
+    EmitPtrAuthVersion(M);
 
   if (!TT.isOSBinFormatELF())
     return;
@@ -581,6 +595,59 @@ void AArch64AsmPrinter::LowerKCFI_CHECK(const MachineInstr &MI) {
   unsigned ESR = 0x8000 | ((TypeIndex & 31) << 5) | (AddrIndex & 31);
   EmitToStreamer(*OutStreamer, MCInstBuilder(AArch64::BRK).addImm(ESR));
   OutStreamer->emitLabel(Pass);
+}
+
+class PtrauthABIVersionDiagnosticInfo : public DiagnosticInfo {
+  int V1, V2;
+  bool K1, K2;
+public:
+  PtrauthABIVersionDiagnosticInfo(int V1, bool K1, int V2, bool K2)
+      : DiagnosticInfo(DK_Linker, DS_Warning), V1(V1), V2(V2), K1(K1), K2(K2) {}
+  void print(DiagnosticPrinter &DP) const override {
+    const char *Mode1 = K1 ? "kernel" : "user";
+    const char *Mode2 = K2 ? "kernel" : "user";
+    DP << "incompatible ptrauth ABI versions: " << V1 << " (" << Mode1
+       << ") and " << V2 << " (" << Mode2 << "), falling back to 63 (user)";
+  }
+};
+
+void AArch64AsmPrinter::EmitPtrAuthVersion(Module &M) {
+  // Emit the ptrauth ABI version, if any.
+  SmallVector<Module::PtrAuthABIVersion, 2> Versions =
+      M.getPtrAuthABIVersions();
+  if (Versions.size() == 0)
+    return;
+
+  // The ptrauth ABI version is an arm64e concept, only implemented for MachO.
+  const Triple &TT = TM.getTargetTriple();
+  if (!TT.isOSBinFormatMachO())
+    report_fatal_error("ptrauth ABI version support not yet implemented");
+
+  LLVMContext &Ctx = M.getContext();
+
+  Module::PtrAuthABIVersion V = Versions[0];
+  if (Versions.size() == 1) {
+    if (V.Version > 63) {
+      Ctx.emitError("invalid ptrauth ABI version: " + utostr(V.Version));
+      V.Version = 63;
+      V.Kernel = false;
+    }
+  }
+  // If there are multiple versions, there's a mismatch.  In that case, fall
+  // back to version "15", and emit a warning through the context.
+  if (Versions.size() == 2) {
+    int LV = Versions[0].Version;
+    bool LK = Versions[0].Kernel;
+    int RV = Versions[1].Version;
+    bool RK = Versions[1].Kernel;
+    V.Version = 63;
+    V.Kernel = false;
+    Ctx.diagnose(PtrauthABIVersionDiagnosticInfo(LV, LK, RV, RK));
+  }
+  assert(Versions.size() <= 2 &&
+         "Mismatch between more than two ptrauth abi versions.");
+
+  OutStreamer->EmitPtrAuthABIVersion(V.Version, V.Kernel);
 }
 
 void AArch64AsmPrinter::LowerHWASAN_CHECK_MEMACCESS(const MachineInstr &MI) {
@@ -1742,6 +1809,7 @@ void AArch64AsmPrinter::emitFMov0(const MachineInstr &MI) {
   }
 }
 
+
 unsigned AArch64AsmPrinter::emitPtrauthDiscriminator(uint16_t Disc,
                                                      unsigned AddrDisc,
                                                      unsigned &InstsEmitted) {
@@ -2036,6 +2104,52 @@ void AArch64AsmPrinter::emitPtrauthBranch(const MachineInstr *MI) {
   ++InstsEmitted;
 
   assert(STI->getInstrInfo()->getInstSizeInBytes(*MI) >= InstsEmitted * 4);
+}
+
+const MCExpr *
+AArch64AsmPrinter::lowerPtrAuthGlobalConstant(const GlobalPtrAuthInfo &PAI) {
+  MCContext &Ctx = OutContext;
+
+  // Figure out the base symbol and the addend, if any.
+  APInt Offset(64, 0);
+  const Value *BaseGV =
+    PAI.getPointer()->stripAndAccumulateConstantOffsets(
+      getDataLayout(), Offset, /*AllowNonInbounds=*/true);
+
+  auto *BaseGVB = dyn_cast<GlobalValue>(BaseGV);
+
+  // If we can't understand the referenced ConstantExpr, there's nothing
+  // else we can do: emit an error.
+  if (!BaseGVB) {
+    BaseGVB = PAI.getGV();
+
+    std::string Buf;
+    raw_string_ostream OS(Buf);
+    OS << "Couldn't resolve target base/addend of llvm.ptrauth global '"
+      << *BaseGVB << "'";
+    BaseGV->getContext().emitError(OS.str());
+  }
+
+  // If there is an addend, turn that into the appropriate MCExpr.
+  const MCExpr *Sym = MCSymbolRefExpr::create(getSymbol(BaseGVB), Ctx);
+  if (Offset.sgt(0))
+    Sym = MCBinaryExpr::createAdd(
+        Sym, MCConstantExpr::create(Offset.getSExtValue(), Ctx), Ctx);
+  else if (Offset.slt(0))
+    Sym = MCBinaryExpr::createSub(
+        Sym, MCConstantExpr::create((-Offset).getSExtValue(), Ctx), Ctx);
+
+  auto *Disc = PAI.getDiscriminator();
+  uint64_t KeyID = PAI.getKey()->getZExtValue();
+  if (!isUInt<2>(KeyID))
+    BaseGV->getContext().emitError(
+        "Invalid AArch64 PAC Key ID '" + utostr(KeyID) + "' in llvm.ptrauth global '" +
+        BaseGV->getName() + "'");
+
+  // Finally build the complete @AUTH expr.
+  return AArch64AuthMCExpr::create(Sym, Disc->getZExtValue(),
+                                   AArch64PACKey::ID(KeyID),
+                                   PAI.hasAddressDiversity(), Ctx);
 }
 
 const MCExpr *
@@ -2631,7 +2745,7 @@ void AArch64AsmPrinter::emitInstruction(const MachineInstr *MI) {
   case AArch64::JumpTableDest8:
     LowerJumpTableDest(*OutStreamer, *MI);
     return;
-
+  
   case AArch64::BR_JumpTable:
     LowerHardenedBRJumpTable(*MI);
     return;
@@ -3020,8 +3134,9 @@ void AArch64AsmPrinter::emitMachOIFuncStubHelperBody(Module &M,
 
 const MCExpr *AArch64AsmPrinter::lowerConstant(const Constant *CV) {
   if (const GlobalValue *GV = dyn_cast<GlobalValue>(CV)) {
-    return MCSymbolRefExpr::create(MCInstLowering.GetGlobalValueSymbol(GV, 0),
-                                   OutContext);
+    if (GV->getSection() != "llvm.ptrauth")
+      return MCSymbolRefExpr::create(MCInstLowering.GetGlobalValueSymbol(GV, 0),
+                                     OutContext);
   }
 
   return AsmPrinter::lowerConstant(CV);

@@ -21,6 +21,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/CAS/CASID.h"
 #include "llvm/Support/raw_ostream.h"
 #include <optional>
 #include <string>
@@ -39,11 +40,13 @@ struct PrebuiltModuleDep {
   std::string ModuleName;
   std::string PCMFile;
   std::string ModuleMapFile;
+  std::optional<std::string> ModuleCacheKey;
 
   explicit PrebuiltModuleDep(const Module *M)
       : ModuleName(M->getTopLevelModuleName()),
         PCMFile(M->getASTFile()->getName()),
-        ModuleMapFile(M->PresumedModuleMapFile) {}
+        ModuleMapFile(M->PresumedModuleMapFile),
+        ModuleCacheKey(M->getModuleCacheKey()) {}
 };
 
 /// This is used to identify a specific module.
@@ -120,10 +123,6 @@ struct ModuleDeps {
   /// additionally appear in \c FileDeps as a dependency.
   std::string ClangModuleMapFile;
 
-  /// A collection of absolute paths to files that this module directly depends
-  /// on, not including transitive dependencies.
-  llvm::StringSet<> FileDeps;
-
   /// A collection of absolute paths to module map files that this module needs
   /// to know about. The ordering is significant.
   std::vector<std::string> ModuleMapFileDeps;
@@ -139,16 +138,37 @@ struct ModuleDeps {
   /// determined that the differences are benign for this compilation.
   std::vector<ModuleID> ClangModuleDeps;
 
+  /// The CASID for the module input dependency tree, if any.
+  std::optional<llvm::cas::CASID> CASFileSystemRootID;
+
+  /// The CASID for the module include-tree, if any.
+  std::optional<std::string> IncludeTreeID;
+
+  /// The \c ActionCache key for this module, if any.
+  std::optional<std::string> ModuleCacheKey;
+
   /// The set of libraries or frameworks to link against when
   /// an entity from this module is used.
   llvm::SmallVector<Module::LinkLibrary, 2> LinkLibraries;
+
+  /// Invokes \c Cb for all file dependencies of this module. Each provided
+  /// \c StringRef is only valid within the individual callback invocation.
+  void forEachFileDep(llvm::function_ref<void(StringRef)> Cb) const;
 
   /// Get (or compute) the compiler invocation that can be used to build this
   /// module. Does not include argv[0].
   const std::vector<std::string> &getBuildArguments();
 
 private:
+  friend class ModuleDepCollector;
   friend class ModuleDepCollectorPP;
+
+  /// The base directory for relative paths in \c FileDeps.
+  std::string FileDepsBaseDir;
+
+  /// A collection of paths to files that this module directly depends on, not
+  /// including transitive dependencies.
+  std::vector<std::string> FileDeps;
 
   std::variant<std::monostate, CowCompilerInvocation, std::vector<std::string>>
       BuildInfo;

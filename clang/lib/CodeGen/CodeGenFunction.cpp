@@ -3028,7 +3028,7 @@ llvm::DebugLoc CodeGenFunction::SourceLocToDebugLoc(SourceLocation Location) {
 
 llvm::Value *
 CodeGenFunction::emitCondLikelihoodViaExpectIntrinsic(llvm::Value *Cond,
-                                                      Stmt::Likelihood LH) {
+                                                    Stmt::Likelihood LH) {
   switch (LH) {
   case Stmt::LH_None:
     return Cond;

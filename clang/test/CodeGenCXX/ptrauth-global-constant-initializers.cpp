@@ -1,6 +1,8 @@
 // RUN: %clang_cc1 -triple arm64-apple-ios   -fptrauth-calls -fno-rtti -fptrauth-vtable-pointer-type-discrimination \
+// RUN:   -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:   -fptrauth-vtable-pointer-address-discrimination -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,DARWIN
 // RUN: %clang_cc1 -triple aarch64-linux-gnu -fptrauth-calls -fno-rtti -fptrauth-vtable-pointer-type-discrimination \
+// RUN:   -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:   -fptrauth-vtable-pointer-address-discrimination -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,ELF
 
 // CHECK: %struct.Base1 = type { ptr }

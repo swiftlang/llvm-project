@@ -34,6 +34,12 @@ function(add_lldb_unittest test_name)
     COMMAND "${CMAKE_COMMAND}" -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/Inputs)
 
   target_link_libraries(${test_name} PRIVATE ${ARG_LINK_LIBS})
+
+  # BEGIN Swift Mods
+  if(SWIFT_BUILD_SWIFT_SYNTAX)
+    add_properties_for_swift_modules(${test_name} "../")
+  endif()
+# END Swift Mods
 endfunction()
 
 function(add_unittest_inputs test_name inputs)
@@ -67,8 +73,10 @@ add_subdirectory(Platform)
 add_subdirectory(Process)
 add_subdirectory(ScriptInterpreter)
 add_subdirectory(Signals)
+add_subdirectory(StackID)
 add_subdirectory(Symbol)
 add_subdirectory(SymbolFile)
+add_subdirectory(TypeSystem)
 add_subdirectory(Target)
 add_subdirectory(tools)
 add_subdirectory(UnwindAssembly)

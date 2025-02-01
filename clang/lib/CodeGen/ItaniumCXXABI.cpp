@@ -31,6 +31,7 @@
 #include "clang/AST/Type.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/GlobalPtrAuthInfo.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
@@ -881,6 +882,23 @@ llvm::Value *ItaniumCXXABI::EmitMemberDataPointerAddress(
 static llvm::Constant *pointerAuthResignConstant(
     llvm::Value *Ptr, const CGPointerAuthInfo &CurAuthInfo,
     const CGPointerAuthInfo &NewAuthInfo, CodeGenModule &CGM) {
+  std::optional<llvm::GlobalPtrAuthInfo> Info =
+      llvm::GlobalPtrAuthInfo::analyze(Ptr);
+
+  if (Info) {
+    if (!isa<llvm::Constant>(NewAuthInfo.getDiscriminator()))
+      return nullptr;
+
+    assert(Info->getKey()->getZExtValue() == CurAuthInfo.getKey() &&
+           Info->getAddrDiscriminator()->isZeroValue() &&
+           Info->getDiscriminator() == CurAuthInfo.getDiscriminator() &&
+           "unexpected key or discriminators");
+
+    return CGM.getConstantSignedPointer(
+      Info->getPointer(), NewAuthInfo.getKey(), nullptr,
+      cast<llvm::ConstantInt>(NewAuthInfo.getDiscriminator()));
+  }
+
   const auto *CPA = dyn_cast<llvm::ConstantPtrAuth>(Ptr);
 
   if (!CPA)
@@ -5105,7 +5123,7 @@ ItaniumCXXABI::getSignedVirtualMemberFunctionPointer(const CXXMethodDecl *MD) {
   llvm::Constant *thunk = getOrCreateVirtualFunctionPointerThunk(origMD);
   QualType funcType = CGM.getContext().getMemberPointerType(
       MD->getType(), MD->getParent()->getTypeForDecl());
-  return CGM.getMemberFunctionPointer(thunk, funcType);
+  return CGM.getMemberFunctionPointer(thunk, funcType, MD);
 }
 
 void WebAssemblyCXXABI::emitBeginCatch(CodeGenFunction &CGF,

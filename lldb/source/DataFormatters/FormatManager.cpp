@@ -9,7 +9,6 @@
 #include "lldb/DataFormatters/FormatManager.h"
 
 #include "lldb/Core/Debugger.h"
-#include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/DataFormatters/LanguageCategory.h"
 #include "lldb/Interpreter/ScriptInterpreter.h"
@@ -17,7 +16,12 @@
 #include "lldb/Target/Language.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/ValueObject/ValueObject.h"
 #include "llvm/ADT/STLExtras.h"
+
+// BEGIN SWIFT
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
+// END SWIFT
 
 using namespace lldb;
 using namespace lldb_private;
@@ -197,10 +201,17 @@ void FormatManager::GetPossibleMatches(
     entries.push_back({type_name, script_interpreter, TypeImpl(compiler_type),
                        current_flags});
 
-    ConstString display_type_name(compiler_type.GetTypeName());
+// BEGIN SWIFT
+    auto ts = compiler_type.GetTypeSystem();
+    if (ts && !ts.isa_and_nonnull<TypeSystemClang>()) {
+// END SWIFT
+    ConstString display_type_name(compiler_type.GetDisplayTypeName());
     if (display_type_name != type_name)
       entries.push_back({display_type_name, script_interpreter,
                          TypeImpl(compiler_type), current_flags});
+// BEGIN SWIFT
+    }
+// END SWIFT
   }
 
   for (bool is_rvalue_ref = true, j = true;
@@ -568,15 +579,23 @@ ConstString FormatManager::GetTypeForCache(ValueObject &valobj,
 std::vector<lldb::LanguageType>
 FormatManager::GetCandidateLanguages(lldb::LanguageType lang_type) {
   switch (lang_type) {
+  case lldb::eLanguageTypeSwift:
+    return {lldb::eLanguageTypeSwift, lldb::eLanguageTypeObjC};
+  case lldb::eLanguageTypeObjC:
+    return {lldb::eLanguageTypeObjC, lldb::eLanguageTypeSwift};
   case lldb::eLanguageTypeC:
   case lldb::eLanguageTypeC89:
   case lldb::eLanguageTypeC99:
   case lldb::eLanguageTypeC11:
+  // BEGIN SWIFT
+    return {lldb::eLanguageTypeC_plus_plus, lldb::eLanguageTypeObjC};
   case lldb::eLanguageTypeC_plus_plus:
   case lldb::eLanguageTypeC_plus_plus_03:
   case lldb::eLanguageTypeC_plus_plus_11:
   case lldb::eLanguageTypeC_plus_plus_14:
-    return {lldb::eLanguageTypeC_plus_plus, lldb::eLanguageTypeObjC};
+    // Swift can format C++ types due to Swift/C++ iterop.
+    return {lldb::eLanguageTypeC_plus_plus, lldb::eLanguageTypeObjC, lldb::eLanguageTypeSwift};
+  // END SWIFT
   default:
     return {lang_type};
   }
@@ -698,12 +717,20 @@ FormatManager::FormatManager()
       m_language_categories_map(), m_named_summaries_map(this),
       m_categories_map(this), m_default_category_name(ConstString("default")),
       m_system_category_name(ConstString("system")),
-      m_vectortypes_category_name(ConstString("VectorTypes")) {
+      m_vectortypes_category_name(ConstString("VectorTypes")),
+      m_runtime_synths_category_name(ConstString("runtime-synthetics")) {
   LoadSystemFormatters();
   LoadVectorFormatters();
 
+  GetCategory(m_runtime_synths_category_name); // EnableCategory() won't enable
+                                               // a non-existant category, so
+                                               // create this one first even if
+                                               // empty
+
   EnableCategory(m_vectortypes_category_name, TypeCategoryMap::Last,
                  lldb::eLanguageTypeObjC_plus_plus);
+  EnableCategory(m_runtime_synths_category_name, TypeCategoryMap::Last,
+                 {lldb::eLanguageTypeObjC_plus_plus, lldb::eLanguageTypeSwift});
   EnableCategory(m_system_category_name, TypeCategoryMap::Last,
                  lldb::eLanguageTypeObjC_plus_plus);
 }

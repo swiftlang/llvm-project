@@ -28,6 +28,10 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DJB.h"
 
+#ifdef LLDB_ENABLE_SWIFT
+#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
+#endif // LLDB_ENABLE_SWIFT
+
 using namespace lldb;
 using namespace lldb_private;
 
@@ -330,6 +334,9 @@ void Symtab::InitNameIndexes() {
       if (ConstString name = mangled.GetMangledName()) {
         name_to_index.Append(name, value);
 
+        // Now try and figure out the basename and figure out if the
+        // basename is a method, function, etc and put that in the
+        // appropriate table.
         if (symbol->ContainsLinkerAnnotations()) {
           // If the symbol has linker annotations, also add the version without
           // the annotations.
@@ -344,12 +351,34 @@ void Symtab::InitNameIndexes() {
             RegisterMangledNameEntry(value, class_contexts, backlog, rmc);
             continue;
           }
+#ifdef LLDB_ENABLE_SWIFT
+          else if (SwiftLanguageRuntime::IsSwiftMangledName(
+                       name.GetStringRef())) {
+            lldb_private::ConstString basename;
+            bool is_method = false;
+            ConstString mangled_name = mangled.GetMangledName();
+            if (SwiftLanguageRuntime::MethodName::
+                    ExtractFunctionBasenameFromMangled(mangled_name, basename,
+                                                       is_method)) {
+              if (basename && basename != mangled_name) {
+                if (is_method)
+                  method_to_index.Append(basename, value);
+                else
+                  basename_to_index.Append(basename, value);
+              }
+              continue;
+            }
+          }
+#endif // LLDB_ENABLE_SWIFT
         }
       }
 
       // Symbol name strings that didn't match a Mangled::ManglingScheme, are
       // stored in the demangled field.
-      if (ConstString name = mangled.GetDemangledName()) {
+      SymbolContext sc;
+      symbol->CalculateSymbolContext(&sc);
+      sc.module_sp = m_objfile->GetModule();
+      if (ConstString name = mangled.GetDemangledName(&sc)) {
         name_to_index.Append(name, value);
 
         if (symbol->ContainsLinkerAnnotations()) {

@@ -20,6 +20,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Threading.h"
 
+#include "lldb/Host/Config.h"
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Core/dwarf.h"
 #include "lldb/Expression/DWARFExpressionList.h"
@@ -40,10 +41,16 @@
 #include "UniqueDWARFASTType.h"
 
 class DWARFASTParserClang;
+class DWARFASTParserSwift;
 
 namespace llvm {
 class DWARFDebugAbbrev;
 } // namespace llvm
+
+namespace lldb_private {
+  class ClangASTImporter;
+  class SwiftASTContext;
+}
 
 namespace lldb_private::plugin {
 namespace dwarf {
@@ -83,6 +90,10 @@ public:
   friend class DWARFCompileUnit;
   friend class DWARFDIE;
   friend class DWARFASTParser;
+  friend class ::DWARFASTParserClang;
+#ifdef LLDB_ENABLE_SWIFT
+  friend class ::DWARFASTParserSwift;
+#endif
 
   // Static Functions
   static void Initialize();
@@ -108,6 +119,8 @@ public:
   void InitializeObject() override;
 
   // Compile Unit function calls
+  llvm::VersionTuple
+  GetProducerVersion(CompileUnit &comp_unit) override;
 
   lldb::LanguageType ParseLanguage(CompileUnit &comp_unit) override;
 
@@ -182,6 +195,10 @@ public:
   void FindFunctions(const RegularExpression &regex, bool include_inlines,
                      SymbolContextList &sc_list) override;
 
+  void FindImportedDeclaration(ConstString name,
+                               std::vector<ImportedDeclaration> &sc_list,
+                               bool find_one) override;
+
   void
   GetMangledNamesForFunction(const std::string &scope_qualified_name,
                              std::vector<ConstString> &mangled_names) override;
@@ -200,6 +217,9 @@ public:
   CompilerDeclContext FindNamespace(ConstString name,
                                     const CompilerDeclContext &parent_decl_ctx,
                                     bool only_root_namespaces) override;
+
+  bool GetCompileOption(const char *option, std::string &value,
+                        CompileUnit *cu = nullptr) override;
 
   void PreloadSymbols() override;
 
@@ -225,8 +245,6 @@ public:
 
   virtual void GetObjCMethods(ConstString class_name,
                               llvm::function_ref<bool(DWARFDIE die)> callback);
-
-  bool Supports_DW_AT_APPLE_objc_complete_type(DWARFUnit *cu);
 
   DebugMacrosSP ParseDebugMacros(lldb::offset_t *offset);
 
@@ -338,9 +356,7 @@ public:
     m_file_index = file_index;
   }
 
-  typedef llvm::DenseMap<const DWARFDebugInfoEntry *, Type *> DIEToTypePtr;
-
-  virtual DIEToTypePtr &GetDIEToType() { return m_die_to_type; }
+  virtual llvm::DenseMap<const DWARFDebugInfoEntry *, Type *> &GetDIEToType();
 
   virtual llvm::DenseMap<lldb::opaque_compiler_type_t, DIERef> &
   GetForwardDeclCompilerTypeToDIE();
@@ -492,6 +508,15 @@ protected:
 
   void UpdateExternalModuleListIfNeeded();
 
+  lldb_private::ClangASTImporter &GetClangASTImporter();
+
+  lldb_private::SwiftASTContext *
+  GetSwiftASTContextForCU(Status *error, DWARFCompileUnit &cu);
+
+  lldb::user_id_t GetTypeUIDFromTypeAttribute(const DWARFFormValue &type_attr);
+
+  lldb::TypeSP ResolveTypeFromAttribute(const DWARFFormValue &type_attr);
+
   void BuildCuTranslationTable();
   std::optional<uint32_t> GetDWARFUnitIndex(uint32_t cu_idx);
 
@@ -519,6 +544,7 @@ protected:
 
   std::unique_ptr<llvm::DWARFDebugAbbrev> m_abbr;
   std::unique_ptr<GlobalVariableMap> m_global_aranges_up;
+  std::unique_ptr<lldb_private::ClangASTImporter> m_clang_ast_importer_up;
 
   typedef std::unordered_map<lldb::offset_t, DebugMacrosSP> DebugMacrosMap;
   DebugMacrosMap m_debug_macros_map;
@@ -526,7 +552,6 @@ protected:
   ExternalTypeModuleMap m_external_type_modules;
   std::unique_ptr<DWARFIndex> m_index;
   bool m_fetched_external_modules : 1;
-  LazyBool m_supports_DW_AT_APPLE_objc_complete_type;
 
   typedef std::set<DIERef> DIERefSet;
   typedef llvm::StringMap<DIERefSet> NameToOffsetMap;
@@ -535,7 +560,7 @@ protected:
   UniqueDWARFASTTypeMap m_unique_ast_type_map;
   // A map from DIE to lldb_private::Type. For record type, the key might be
   // either declaration DIE or definition DIE.
-  DIEToTypePtr m_die_to_type;
+  llvm::DenseMap<const DWARFDebugInfoEntry *, Type *> m_die_to_type;
   DIEToVariableSP m_die_to_variable_sp;
   // A map from CompilerType to the struct/class/union/enum DIE (might be a
   // declaration or a definition) that is used to construct it.

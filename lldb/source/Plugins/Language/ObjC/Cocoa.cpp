@@ -13,8 +13,6 @@
 #include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntime.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Mangled.h"
-#include "lldb/Core/ValueObject.h"
-#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/DataFormatters/StringPrinter.h"
 #include "lldb/DataFormatters/TypeSummary.h"
@@ -27,6 +25,8 @@
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/Stream.h"
+#include "lldb/ValueObject/ValueObject.h"
+#include "lldb/ValueObject/ValueObjectConstResult.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/bit.h"
@@ -130,6 +130,36 @@ bool lldb_private::formatters::NSTimeZoneSummaryProvider(
     if (was_nsstring_ok && summary_stream.GetSize() > 0) {
       stream.Printf("%s", summary_stream.GetData());
       return true;
+    }
+  } else if (class_name == "_NSSwiftTimeZone") {
+    // CFTimeZoneRef is declared as follows:
+    //     typedef const struct CF_BRIDGED_TYPE(NSTimeZone) __CFTimeZone *
+    //     CFTimeZoneRef;
+    // From the available debug info, this appears to lldb as pointer to an
+    // opaque type, not an ObjC object. As a result, lldb does not correctly
+    // determine the correct dynamic type (because it doesn't try ObjC). With no
+    // dynamic type, this summary provider cannot access the inner `identifier`
+    // property.
+    //
+    // The fix here is to explicitly cast the value as `id`, and get the dynamic
+    // value from there.
+    ValueObjectSP dyn_valobj_sp;
+    if (valobj.GetTypeName() == "CFTimeZoneRef") {
+      auto id_type =
+          valobj.GetCompilerType().GetBasicTypeFromAST(lldb::eBasicTypeObjCID);
+      dyn_valobj_sp = valobj.Cast(id_type)->GetDynamicValue(
+          DynamicValueType::eDynamicDontRunTarget);
+    }
+
+    ValueObject &time_zone = dyn_valobj_sp ? *dyn_valobj_sp : valobj;
+    llvm::SmallVector<llvm::StringRef> identifier_path = {
+        "some", "timeZone", "_timeZone", "some", "identifier"};
+    if (auto identifier_sp = time_zone.GetChildAtNamePath(identifier_path)) {
+      std::string desc;
+      if (identifier_sp->GetSummaryAsCString(desc, options)) {
+        stream.PutCString(desc);
+        return true;
+      }
     }
   }
 

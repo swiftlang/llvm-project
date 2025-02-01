@@ -3,6 +3,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@skipIfLinux # Can't build std module rdar://138651439
 class TestCase(TestBase):
     @add_test_categories(["libc++"])
     @skipIf(compiler=no_match("clang"))

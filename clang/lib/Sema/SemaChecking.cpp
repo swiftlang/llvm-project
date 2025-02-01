@@ -1493,8 +1493,17 @@ bool Sema::checkPointerAuthEnabled(SourceLocation Loc, SourceRange Range) {
   if (getLangOpts().PointerAuthIntrinsics)
     return false;
 
-  Diag(Loc, diag::err_ptrauth_disabled) << Range;
+  diagnosePointerAuthDisabled(Loc, Range);
   return true;
+}
+
+void Sema::diagnosePointerAuthDisabled(SourceLocation loc, SourceRange range) {
+  if (!getLangOpts().SoftPointerAuth &&
+      !Context.getTargetInfo().isPointerAuthSupported()) {
+    Diag(loc, diag::err_ptrauth_disabled_target) << range;
+  } else {
+    Diag(loc, diag::err_ptrauth_disabled) << range;
+  }
 }
 
 static bool checkPointerAuthEnabled(Sema &S, Expr *E) {
@@ -1532,7 +1541,7 @@ bool Sema::checkConstantPointerAuthKey(Expr *Arg, unsigned &Result) {
     }
 
     Diag(Arg->getExprLoc(), diag::err_ptrauth_invalid_key)
-        << Value << Arg->getSourceRange();
+      << Value << Arg->getSourceRange();
     return true;
   }
 
@@ -2544,6 +2553,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     return PointerAuthSignGenericData(*this, TheCall);
   case Builtin::BI__builtin_ptrauth_auth_and_resign:
     return PointerAuthAuthAndResign(*this, TheCall);
+
   case Builtin::BI__builtin_ptrauth_string_discriminator:
     return PointerAuthStringDiscriminator(*this, TheCall);
   // OpenCL v2.0, s6.13.16 - Pipe functions
@@ -8513,6 +8523,9 @@ struct SearchNonTrivialToCopyField
     S.DiagRuntimeBehavior(SL, E, S.PDiag(diag::note_nontrivial_field) << 0);
   }
   void visitARCWeak(QualType FT, SourceLocation SL) {
+    S.DiagRuntimeBehavior(SL, E, S.PDiag(diag::note_nontrivial_field) << 0);
+  }
+  void visitPtrAuth(QualType FT, SourceLocation SL) {
     S.DiagRuntimeBehavior(SL, E, S.PDiag(diag::note_nontrivial_field) << 0);
   }
   void visitStruct(QualType FT, SourceLocation SL) {

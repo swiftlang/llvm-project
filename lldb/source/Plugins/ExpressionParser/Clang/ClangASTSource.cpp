@@ -11,6 +11,7 @@
 #include "ClangDeclVendor.h"
 #include "ClangModulesDeclVendor.h"
 
+#include "NameSearchContext.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Symbol/CompilerDeclContext.h"
@@ -21,6 +22,7 @@
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/Basic/SourceManager.h"
 
 #include "Plugins/ExpressionParser/Clang/ClangUtil.h"
@@ -281,8 +283,11 @@ void ClangASTSource::CompleteType(TagDecl *tag_decl) {
   if (!m_ast_importer_sp->CompleteTagDecl(tag_decl)) {
     // We couldn't complete the type.  Maybe there's a definition somewhere
     // else that can be completed.
-    if (TagDecl *alternate = FindCompleteType(tag_decl))
+    if (TagDecl *alternate = FindCompleteType(tag_decl)) {
+      assert(alternate->getDefinition() != nullptr &&
+             "Trying to complete a TagDecl from an incomplete origin");
       m_ast_importer_sp->CompleteTagDeclWithOrigin(tag_decl, alternate);
+    }
   }
 
   LLDB_LOG(log, "      [CTD] After:\n{0}", ClangUtil::DumpDecl(tag_decl));
@@ -293,7 +298,7 @@ void ClangASTSource::CompleteType(clang::ObjCInterfaceDecl *interface_decl) {
 
   LLDB_LOG(log,
            "    [CompleteObjCInterfaceDecl] on (ASTContext*){0:x} '{1}' "
-           "Completing an ObjCInterfaceDecl named {1}",
+           "Completing an ObjCInterfaceDecl named {2}",
            m_ast_context, m_clang_ast_context->getDisplayName(),
            interface_decl->getName());
   LLDB_LOG(log, "      [COID] Before:\n{0}",
@@ -321,6 +326,45 @@ void ClangASTSource::CompleteType(clang::ObjCInterfaceDecl *interface_decl) {
 
   LLDB_LOG(log, "      [COID] After:");
   LLDB_LOG(log, "      [COID] {0}", ClangUtil::DumpDecl(interface_decl));
+}
+
+void ClangASTSource::CompleteRedeclChain(const Decl *d) {
+  if (!TypeSystemClang::UseRedeclCompletion())
+    return;
+
+  if (const clang::TagDecl *td = llvm::dyn_cast<TagDecl>(d)) {
+    if (td->isBeingDefined())
+      return;
+
+    if (td->getDefinition())
+      return;
+
+    m_ast_importer_sp->CompleteTagDecl(const_cast<clang::TagDecl *>(td));
+    if (!td->getDefinition() && m_ast_importer_sp->GetDeclOrigin(td).Valid()) {
+      if (TagDecl *alternate = FindCompleteType(td))
+        m_ast_importer_sp->CompleteTagDeclWithOrigin(
+            const_cast<clang::TagDecl *>(td), alternate);
+    }
+  }
+  if (const auto *od = llvm::dyn_cast<ObjCInterfaceDecl>(d)) {
+    ClangASTImporter::DeclOrigin original =
+        m_ast_importer_sp->GetDeclOrigin(od);
+    if (ObjCInterfaceDecl *orig =
+            dyn_cast_or_null<ObjCInterfaceDecl>(original.decl)) {
+      if (ObjCInterfaceDecl *i = GetCompleteObjCInterface(orig)) {
+        if (i != orig) {
+          m_ast_importer_sp->SetDeclOrigin(d, i);
+          m_ast_importer_sp->CompleteObjCInterfaceDecl(
+              const_cast<clang::ObjCInterfaceDecl *>(od));
+          return;
+        }
+      }
+    }
+    if (od->getDefinition())
+      return;
+    m_ast_importer_sp->CompleteObjCInterfaceDecl(
+        const_cast<clang::ObjCInterfaceDecl *>(od));
+  }
 }
 
 clang::ObjCInterfaceDecl *ClangASTSource::GetCompleteObjCInterface(
@@ -360,8 +404,7 @@ clang::ObjCInterfaceDecl *ClangASTSource::GetCompleteObjCInterface(
     return nullptr;
 
   ObjCInterfaceDecl *complete_iface_decl(complete_interface_type->getDecl());
-
-  return complete_iface_decl;
+  return complete_iface_decl->getDefinition();
 }
 
 void ClangASTSource::FindExternalLexicalDecls(
@@ -572,6 +615,125 @@ bool ClangASTSource::IgnoreName(const ConstString name,
   return name_string_ref.empty() ||
          (ignore_all_dollar_names && name_string_ref.starts_with("$")) ||
          name_string_ref.starts_with("_$");
+}
+
+bool ClangASTSource::FindExternalVisibleMethodsByName(
+    const clang::DeclContext *DC, clang::DeclarationName Name) {
+  if (!TypeSystemClang::UseRedeclCompletion())
+    return true;
+
+  SmallVector<clang::NamedDecl *> decls;
+  NameSearchContext context(*m_clang_ast_context, decls, Name, DC);
+  FindExternalVisibleMethods(context);
+
+  return true;
+}
+
+void ClangASTSource::FindExternalVisibleMethods(NameSearchContext &context) {
+  assert(m_ast_context);
+
+  const ConstString name(context.m_decl_name.getAsString().c_str());
+  CompilerDeclContext namespace_decl;
+  FindExternalVisibleMethods(context, lldb::ModuleSP(), namespace_decl);
+}
+
+bool ClangASTSource::CompilerDeclContextsMatch(
+    CompilerDeclContext candidate_decl_ctx, DeclContext const *context,
+    TypeSystemClang &ts) {
+  auto CDC1 = candidate_decl_ctx.GetTypeSystem()->DeclContextGetCompilerContext(
+      candidate_decl_ctx.GetOpaqueDeclContext());
+
+  // Member functions have at least 2 entries (1
+  // for method name, 1 for parent class)
+  assert(CDC1.size() > 1);
+
+  // drop last entry (which is function name)
+  CDC1.pop_back();
+
+  const auto CDC2 = ts.DeclContextGetCompilerContext(
+      const_cast<clang::DeclContext *>(context));
+
+  // Quick by-name check of the entire context hierarchy.
+  if (CDC1 == CDC2)
+    return true;
+
+  // Otherwise, check whether the 'candidate_decl_ctx' is a base class of
+  // 'context'.
+  auto const *candidate_context =
+      (static_cast<clang::DeclContext *>(
+           candidate_decl_ctx.GetOpaqueDeclContext()))
+          ->getParent();
+
+  auto const *candidate_cxx_record =
+      dyn_cast<clang::CXXRecordDecl>(candidate_context);
+  if (!candidate_cxx_record)
+    return false;
+
+  auto const *cxx_record = dyn_cast<clang::CXXRecordDecl>(context);
+  if (!cxx_record)
+    return false;
+
+  // cxx_record comes from user expression AST. So we need to get origin
+  // to compare against candidate_context.
+  auto orig = GetDeclOrigin(cxx_record);
+  if (!orig.Valid())
+    return false;
+
+  if (llvm::cast<CXXRecordDecl>(orig.decl)->isDerivedFrom(candidate_cxx_record))
+    return true;
+
+  return false;
+}
+
+void ClangASTSource::FindExternalVisibleMethods(
+    NameSearchContext &context, lldb::ModuleSP module_sp,
+    CompilerDeclContext &namespace_decl) {
+  assert(m_ast_context);
+
+  SymbolContextList sc_list;
+  const ConstString name(context.m_decl_name.getAsString().c_str());
+  if (!m_target)
+    return;
+
+  if (context.m_found_type)
+    return;
+
+  ModuleFunctionSearchOptions function_options;
+  function_options.include_inlines = false;
+  function_options.include_symbols = false;
+  m_target->GetImages().FindFunctions(name, lldb::eFunctionNameTypeMethod,
+                                      function_options, sc_list);
+
+  auto num_matches = sc_list.GetSize();
+  if (num_matches == 0)
+    return;
+
+  for (const SymbolContext &sym_ctx : sc_list) {
+    assert(sym_ctx.function);
+    CompilerDeclContext decl_ctx = sym_ctx.function->GetDeclContext();
+    if (!decl_ctx)
+      continue;
+
+    assert(decl_ctx.IsClassMethod());
+
+    if (!CompilerDeclContextsMatch(decl_ctx, context.m_decl_context,
+                                   context.m_clang_ts))
+      continue;
+
+    clang::CXXMethodDecl *src_method = llvm::cast<CXXMethodDecl>(
+        static_cast<clang::DeclContext *>(decl_ctx.GetOpaqueDeclContext()));
+    Decl *copied_decl = CopyDecl(src_method);
+
+    if (!copied_decl)
+      continue;
+
+    CXXMethodDecl *copied_method_decl = dyn_cast<CXXMethodDecl>(copied_decl);
+
+    if (!copied_method_decl)
+      continue;
+
+    context.AddNamedDecl(copied_method_decl);
+  }
 }
 
 void ClangASTSource::FindExternalVisibleDecls(

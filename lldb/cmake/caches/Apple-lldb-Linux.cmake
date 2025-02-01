@@ -8,4 +8,5 @@ set(LLVM_DISTRIBUTION_COMPONENTS
   lldb-dap
   lldb-server
   lldb-python-scripts
+  repl_swift
   CACHE STRING "")

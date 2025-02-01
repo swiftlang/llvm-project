@@ -1,6 +1,6 @@
 // RUN: rm -rf %t && mkdir -p %t
 
-// RUN: %clang_cc1 -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/ModulesCache -fapinotes-modules -fsyntax-only -I %S/Inputs/Headers -F %S/Inputs/Frameworks %s -DFROM_FRAMEWORK=1 -verify
+// RUN: %clang_cc1 -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/ModulesCache -fapinotes-modules  -fsyntax-only -I %S/Inputs/Headers -F %S/Inputs/Frameworks %s -DFROM_FRAMEWORK=1 -verify
 
 // RUN: %clang_cc1 -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/ModulesCache -iapinotes-modules %S/Inputs/APINotes  -fsyntax-only -I %S/Inputs/Headers -F %S/Inputs/Frameworks %s -DFROM_SEARCH_PATH=1 -verify
 

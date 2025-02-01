@@ -60,6 +60,14 @@ public:
   virtual void moduleMapFileRead(SourceLocation FileStart, FileEntryRef File,
                                  bool IsSystem) {}
 
+  /// Called when a module map file matches a module lookup
+  ///
+  /// \param File The file itself.
+  /// \param M The module found that matches this module map.
+  /// \param IsSystem Whether this is a module map from a system include path.
+  virtual void moduleMapFoundForModule(FileEntryRef File, const Module *M,
+                                       bool IsSystem) {}
+
   /// Called when a header is added during module map parsing.
   ///
   /// \param Filename The header file itself.
@@ -93,9 +101,12 @@ class ModuleMap {
   /// named LangOpts::CurrentModule, if we've loaded it).
   Module *SourceModule = nullptr;
 
+  /// The allocator for all (sub)modules.
+  llvm::SpecificBumpPtrAllocator<Module> ModulesAlloc;
+
   /// Submodules of the current module that have not yet been attached to it.
-  /// (Ownership is transferred if/when we create an enclosing module.)
-  llvm::SmallVector<std::unique_ptr<Module>, 8> PendingSubmodules;
+  /// (Relationship is set up if/when we create an enclosing module.)
+  llvm::SmallVector<Module *, 8> PendingSubmodules;
 
   /// The top-level modules that are known.
   llvm::StringMap<Module *> Modules;
@@ -242,6 +253,9 @@ private:
     /// Whether this is an exhaustive set of configuration macros.
     LLVM_PREFERRED_TYPE(bool)
     unsigned IsExhaustive : 1;
+
+    /// \brief Whether this is a module who has its swift_names inferred.
+    unsigned IsSwiftInferImportAsMember : 1;
 
     /// Whether files in this module can only include non-modular headers
     /// and headers from used modules.
@@ -502,6 +516,8 @@ public:
   /// \returns The named module, if known; otherwise, returns null.
   Module *findModule(StringRef Name) const;
 
+  Module *findOrInferSubmodule(Module *Parent, StringRef Name);
+
   /// Retrieve a module with the given name using lexical name lookup,
   /// starting at the given context.
   ///
@@ -541,6 +557,17 @@ public:
   std::pair<Module *, bool> findOrCreateModule(StringRef Name, Module *Parent,
                                                bool IsFramework,
                                                bool IsExplicit);
+  /// Call \c ModuleMap::findOrCreateModule and throw away the information
+  /// whether the module was found or created.
+  Module *findOrCreateModuleFirst(StringRef Name, Module *Parent,
+                                  bool IsFramework, bool IsExplicit) {
+    return findOrCreateModule(Name, Parent, IsFramework, IsExplicit).first;
+  }
+  /// Create new submodule, assuming it does not exist. This function can only
+  /// be called when it is guaranteed that this submodule does not exist yet.
+  /// The parameters have same semantics as \c ModuleMap::findOrCreateModule.
+  Module *createModule(StringRef Name, Module *Parent, bool IsFramework,
+                       bool IsExplicit);
 
   /// Create a global module fragment for a C++ module unit.
   ///

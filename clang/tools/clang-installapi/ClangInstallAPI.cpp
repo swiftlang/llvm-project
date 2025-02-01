@@ -30,6 +30,7 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/VirtualOutputBackends.h"
 #include "llvm/TargetParser/Host.h"
 #include <memory>
 
@@ -151,12 +152,16 @@ static bool run(ArrayRef<const char *> Args, const char *ProgName) {
     return EXIT_FAILURE;
 
   // After symbols have been collected, prepare to write output.
-  auto Out = CI->createOutputFile(Ctx.OutputLoc, /*Binary=*/false,
-                                  /*RemoveFileOnSignal=*/false,
-                                  /*UseTemporary=*/false,
-                                  /*CreateMissingDirectories=*/false);
-  if (!Out)
+  llvm::vfs::OnDiskOutputBackend Backend;
+  std::optional<llvm::vfs::OutputFile> Out = llvm::expectedToOptional(
+      Backend.createFile(Ctx.OutputLoc, llvm::vfs::OutputConfig()
+                                            .setTextWithCRLF()
+                                            .setNoDiscardOnSignal()
+                                            .setNoAtomicWrite()));
+  if (!Out.has_value()) {
+    Diag->Report(diag::err_cannot_open_file) << Ctx.OutputLoc;
     return EXIT_FAILURE;
+  }
 
   // Assign attributes for serialization.
   InterfaceFile IF(Ctx.Verifier->takeExports());
@@ -181,14 +186,18 @@ static bool run(ArrayRef<const char *> Args, const char *ProgName) {
   assignLibAttrs(Ctx.Reexports, &InterfaceFile::addReexportedLibrary);
 
   // Write output file and perform CI cleanup.
-  if (auto Err = TextAPIWriter::writeToStream(*Out, IF, Ctx.FT)) {
+  if (auto Err = TextAPIWriter::writeToStream(Out->getOS(), IF, Ctx.FT)) {
     Diag->Report(diag::err_cannot_write_file)
         << Ctx.OutputLoc << std::move(Err);
-    CI->clearOutputFiles(/*EraseFiles=*/true);
+    if (auto Err = Out->discard())
+      llvm::consumeError(std::move(Err));
     return EXIT_FAILURE;
   }
-
-  CI->clearOutputFiles(/*EraseFiles=*/false);
+  if (auto Err = Out->keep()) {
+    Diag->Report(diag::err_cannot_write_file)
+        << Ctx.OutputLoc << std::move(Err);
+    return EXIT_FAILURE;
+  }
   return EXIT_SUCCESS;
 }
 

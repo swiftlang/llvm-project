@@ -37,9 +37,11 @@
 #include "clang/AST/Mangle.h"
 #include "clang/AST/MangleNumberingContext.h"
 #include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/ObjCMethodReferenceInfo.h"
 #include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/AST/RecordLayout.h"
+#include "clang/AST/StableHash.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtOpenACC.h"
 #include "clang/AST/TemplateBase.h"
@@ -65,6 +67,7 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetCXXABI.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/Version.h"
 #include "clang/Basic/XRayLists.h"
 #include "llvm/ADT/APFixedPoint.h"
 #include "llvm/ADT/APInt.h"
@@ -84,6 +87,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SipHash.h"
@@ -3406,7 +3410,6 @@ static void encodeTypeForFunctionPointerAuth(const ASTContext &Ctx,
     return;
   }
 }
-
 uint16_t ASTContext::getPointerAuthTypeDiscriminator(QualType T) {
   assert(!T->isDependentType() &&
          "cannot compute type discriminator of a dependent type");
@@ -3544,11 +3547,13 @@ QualType ASTContext::getFunctionTypeWithExceptionSpec(
         MQT->getMacroIdentifier());
 
   // Might have a calling-convention attribute.
-  if (const auto *AT = dyn_cast<AttributedType>(Orig))
+  if (const auto *AT = dyn_cast<AttributedType>(Orig)) {
     return getAttributedType(
         AT->getAttrKind(),
         getFunctionTypeWithExceptionSpec(AT->getModifiedType(), ESI),
-        getFunctionTypeWithExceptionSpec(AT->getEquivalentType(), ESI));
+        getFunctionTypeWithExceptionSpec(AT->getEquivalentType(), ESI),
+        AT->getAttr());
+  }
 
   // Anything else must be a function type. Rebuild it with the new exception
   // specification.
@@ -5161,7 +5166,8 @@ QualType ASTContext::getUnresolvedUsingType(
 
 QualType ASTContext::getAttributedType(attr::Kind attrKind,
                                        QualType modifiedType,
-                                       QualType equivalentType) const {
+                                       QualType equivalentType,
+                                       const Attr *attr) const {
   llvm::FoldingSetNodeID id;
   AttributedType::Profile(id, attrKind, modifiedType, equivalentType);
 
@@ -5169,14 +5175,43 @@ QualType ASTContext::getAttributedType(attr::Kind attrKind,
   AttributedType *type = AttributedTypes.FindNodeOrInsertPos(id, insertPos);
   if (type) return QualType(type, 0);
 
+  assert(!attr || attr->getKind() == attrKind);
+
   QualType canon = getCanonicalType(equivalentType);
   type = new (*this, alignof(AttributedType))
-      AttributedType(canon, attrKind, modifiedType, equivalentType);
+      AttributedType(canon, attrKind, attr, modifiedType, equivalentType);
 
   Types.push_back(type);
   AttributedTypes.InsertNode(type, insertPos);
 
   return QualType(type, 0);
+}
+
+QualType ASTContext::getAttributedType(const Attr *attr, QualType modifiedType,
+                                       QualType equivalentType) const {
+  return getAttributedType(attr->getKind(), modifiedType, equivalentType, attr);
+}
+
+QualType ASTContext::getAttributedType(NullabilityKind nullability,
+                                       QualType modifiedType,
+                                       QualType equivalentType) {
+  switch (nullability) {
+  case NullabilityKind::NonNull:
+    return getAttributedType(attr::TypeNonNull, modifiedType, equivalentType);
+
+  case NullabilityKind::Nullable:
+    return getAttributedType(attr::TypeNullable, modifiedType, equivalentType);
+
+  case NullabilityKind::NullableResult:
+    return getAttributedType(attr::TypeNullableResult, modifiedType,
+                             equivalentType);
+
+  case NullabilityKind::Unspecified:
+    return getAttributedType(attr::TypeNullUnspecified, modifiedType,
+                             equivalentType);
+  }
+
+  llvm_unreachable("Unknown nullability kind");
 }
 
 QualType ASTContext::getBTFTagAttributedType(const BTFTypeTagAttr *BTFAttr,
@@ -5781,10 +5816,6 @@ ASTContext::applyObjCProtocolQualifiers(QualType type,
                   bool allowOnPointerType) const {
   hasError = false;
 
-  if (const auto *objT = dyn_cast<ObjCTypeParamType>(type.getTypePtr())) {
-    return getObjCTypeParamType(objT->getDecl(), protocols);
-  }
-
   // Apply protocol qualifiers to ObjCObjectPointerType.
   if (allowOnPointerType) {
     if (const auto *objPtr =
@@ -5881,11 +5912,13 @@ void ASTContext::adjustObjCTypeParamBoundType(const ObjCTypeParamDecl *Orig,
                                               ObjCTypeParamDecl *New) const {
   New->setTypeSourceInfo(getTrivialTypeSourceInfo(Orig->getUnderlyingType()));
   // Update TypeForDecl after updating TypeSourceInfo.
-  auto NewTypeParamTy = cast<ObjCTypeParamType>(New->getTypeForDecl());
-  SmallVector<ObjCProtocolDecl *, 8> protocols;
-  protocols.append(NewTypeParamTy->qual_begin(), NewTypeParamTy->qual_end());
-  QualType UpdatedTy = getObjCTypeParamType(New, protocols);
-  New->setTypeForDecl(UpdatedTy.getTypePtr());
+  if (const Type *TypeForDecl = New->getTypeForDecl()) {
+    auto NewTypeParamTy = cast<ObjCTypeParamType>(TypeForDecl);
+    SmallVector<ObjCProtocolDecl *, 8> protocols;
+    protocols.append(NewTypeParamTy->qual_begin(), NewTypeParamTy->qual_end());
+    QualType UpdatedTy = getObjCTypeParamType(New, protocols);
+    New->setTypeForDecl(UpdatedTy.getTypePtr());
+  }
 }
 
 /// ObjCObjectAdoptsQTypeProtocols - Checks that protocols in IC's
@@ -7396,8 +7429,8 @@ QualType ASTContext::getArrayDecayedType(QualType Ty) const {
 
   // int x[_Nullable] -> int * _Nullable
   if (auto Nullability = Ty->getNullability()) {
-    Result = const_cast<ASTContext *>(this)->getAttributedType(
-        AttributedType::getNullabilityAttrKind(*Nullability), Result, Result);
+    Result = const_cast<ASTContext *>(this)->getAttributedType(*Nullability,
+                                                               Result, Result);
   }
   return Result;
 }
@@ -7961,6 +7994,9 @@ bool ASTContext::BlockRequiresCopying(QualType Ty,
 
     return true;
   }
+
+  if (Ty.hasAddressDiscriminatedPointerAuth())
+    return true;
 
   // The block needs copy/destroy helpers if Ty is non-trivial to destructively
   // move or destroy.
@@ -9206,6 +9242,136 @@ static TypedefDecl *CreateVoidPtrBuiltinVaListDecl(const ASTContext *Context) {
   // typedef void* __builtin_va_list;
   QualType T = Context->getPointerType(Context->VoidTy);
   return Context->buildImplicitTypedef(T, "__builtin_va_list");
+}
+
+bool ASTContext::isObjCMsgSendUsageFileSpecified() const {
+  if (!ObjCMsgSendUsageFile) {
+    if (const char *Filename =
+            std::getenv("CLANG_COMPILER_OBJC_MESSAGE_TRACE_PATH"))
+      ObjCMsgSendUsageFile = Filename;
+    else
+      return false;
+  }
+
+  return true;
+}
+
+std::string ASTContext::getObjCMsgSendUsageFilename() const {
+  if (isObjCMsgSendUsageFileSpecified())
+    return *ObjCMsgSendUsageFile;
+  return "";
+}
+
+void ASTContext::recordObjCMsgSendUsage(const ObjCMethodDecl *Method) {
+  ObjCMsgSendUsage.push_back(Method);
+}
+
+static StringRef selectMethodKey(const clang::ObjCMethodDecl *clangD) {
+  assert(clangD);
+  if (clangD->isInstanceMethod())
+    return "instance_method";
+  assert(clangD->isClassMethod() && "must be a class method");
+  return "class_method";
+}
+
+static std::array<std::pair<StringRef, StringRef>, 2>
+selectMethodOwnerKey(const clang::NamedDecl *clangD) {
+  assert(clangD);
+  if (isa<clang::ObjCInterfaceDecl>(clangD))
+    return {{{"interface_type", clangD->getName()}, {}}};
+  if (isa<clang::ObjCImplementationDecl>(clangD))
+    return {{{"implementation_type", clangD->getName()}, {}}};
+  if (auto *Cat = dyn_cast<clang::ObjCCategoryDecl>(clangD))
+    return {{{"interface_type", Cat->getClassInterface()->getName()},
+             {"category_type", Cat->getName()}}};
+  if (auto *Cat = dyn_cast<clang::ObjCCategoryImplDecl>(clangD))
+    return {{{"interface_type",
+              Cat->getCategoryDecl()->getClassInterface()->getName()},
+             {"category_implementation_type", Cat->getName()}}};
+  if (isa<clang::ObjCProtocolDecl>(clangD))
+    return {{{"protocol_type", clangD->getName()}, {}}};
+  llvm_unreachable("unknown method owner");
+}
+
+void clang::serializeObjCMethodReferencesAsJson(
+    const clang::ObjCMethodReferenceInfo &Info, llvm::raw_ostream &OS) {
+  llvm::json::OStream Out(OS, /*IndentSize=*/4);
+  Out.object([&] {
+    Out.attribute(Info.ToolName, Info.ToolVersion);
+    Out.attribute("format-version", Info.FormatVersion);
+    Out.attribute("target", Info.Target);
+    if (!Info.TargetVariant.empty())
+      Out.attribute("target-variant", Info.TargetVariant);
+    Out.attributeArray("references", [&] {
+      for (auto &Ref : Info.References) {
+        unsigned FileID = Ref.first;
+        for (const clang::ObjCMethodDecl *clangD : Ref.second) {
+          auto &SM = clangD->getASTContext().getSourceManager();
+          clang::SourceLocation Loc = clangD->getLocation();
+          if (!Loc.isValid())
+            continue;
+          Out.object([&] {
+            if (auto *parent =
+                    dyn_cast_or_null<clang::NamedDecl>(clangD->getParent())) {
+              std::array<std::pair<StringRef, StringRef>, 2> OwnerInfo =
+                  selectMethodOwnerKey(parent);
+              for (auto I : OwnerInfo)
+                if (I.first.data())
+                  Out.attribute(I.first, I.second);
+            }
+
+            std::string MangledMethodName;
+            llvm::raw_string_ostream Out2(MangledMethodName);
+            std::unique_ptr<MangleContext> Mangler(
+                clangD->getASTContext().createMangleContext());
+            Mangler->mangleObjCMethodName(clangD, Out2,
+                                          /*includePrefixByte=*/false, true);
+            Out.attribute(selectMethodKey(clangD), MangledMethodName);
+            Out.attribute("declared_at", Loc.printToString(SM));
+            Out.attribute("referenced_at_file_id", FileID);
+          });
+        }
+      }
+    });
+
+    Out.attributeArray("fileMap", [&] {
+      for (unsigned I = 0, N = Info.FilePaths.size(); I != N; I++) {
+        Out.object([&] {
+          Out.attribute("file_id", I + 1);
+          Out.attribute("file_path", Info.FilePaths[I]);
+        });
+      }
+    });
+  });
+}
+
+void ASTContext::writeObjCMsgSendUsages(const std::string &Filename) {
+  std::error_code EC;
+  auto FDS = std::make_unique<llvm::raw_fd_ostream>(
+      Filename, EC, llvm::sys::fs::OF_Text | llvm::sys::fs::OF_Append);
+  if (EC) {
+    unsigned ID = getDiagnostics().getCustomDiagID(
+        DiagnosticsEngine::Error,
+        "couldn't open objc message send tracing file %0");
+    getDiagnostics().Report(ID) << Filename;
+    return;
+  }
+
+  if (auto L = FDS->lock()) {
+    clang::ObjCMethodReferenceInfo Info;
+    OptionalFileEntryRef FE =
+        SourceMgr.getFileEntryRefForID(SourceMgr.getMainFileID());
+    SmallString<256> MainFile(FE->getName());
+    SourceMgr.getFileManager().makeAbsolutePath(MainFile);
+    Info.ToolName = "clang-compiler-version";
+    Info.ToolVersion = getClangFullVersion();
+    Info.Target = getTargetInfo().getTriple().str();
+    if (auto *VariantTriple = getTargetInfo().getDarwinTargetVariantTriple())
+      Info.TargetVariant = VariantTriple->str();
+    Info.FilePaths.push_back(MainFile.c_str());
+    Info.References[1] = ObjCMsgSendUsage;
+    serializeObjCMethodReferencesAsJson(Info, *FDS);
+  }
 }
 
 static TypedefDecl *
@@ -11032,6 +11198,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
     if (LQuals.getCVRQualifiers() != RQuals.getCVRQualifiers() ||
         LQuals.getAddressSpace() != RQuals.getAddressSpace() ||
         LQuals.getObjCLifetime() != RQuals.getObjCLifetime() ||
+        LQuals.getPointerAuth() != RQuals.getPointerAuth() ||
         LQuals.hasUnaligned() != RQuals.hasUnaligned())
       return {};
 
@@ -13561,7 +13728,8 @@ static QualType getCommonSugarTypeNode(ASTContext &Ctx, const Type *X,
       return QualType();
     // FIXME: It's inefficient to have to unify the modified types.
     return Ctx.getAttributedType(Kind, Ctx.getCommonSugaredType(MX, MY),
-                                 Ctx.getQualifiedType(Underlying));
+                                 Ctx.getQualifiedType(Underlying),
+                                 AX->getAttr());
   }
   case Type::BTFTagAttributed: {
     const auto *BX = cast<BTFTagAttributedType>(X);

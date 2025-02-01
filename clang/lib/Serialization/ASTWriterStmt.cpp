@@ -91,8 +91,9 @@ namespace clang {
     PakedBitsWriter CurrentPackingBits;
 
   public:
-    ASTStmtWriter(ASTWriter &Writer, ASTWriter::RecordData &Record)
-        : Writer(Writer), Record(Writer, Record),
+    ASTStmtWriter(ASTContext &Context, ASTWriter &Writer,
+                  ASTWriter::RecordData &Record)
+        : Writer(Writer), Record(Context, Writer, Record),
           Code(serialization::STMT_NULL_PTR), AbbrevToUse(0),
           CurrentPackingBits(this->Record) {}
 
@@ -1624,6 +1625,7 @@ void ASTStmtWriter::VisitObjCAvailabilityCheckExpr(ObjCAvailabilityCheckExpr *E)
   VisitExpr(E);
   Record.AddSourceRange(E->getSourceRange());
   Record.AddVersionTuple(E->getVersion());
+  Record.AddVersionTuple(E->getVersionAsWritten());
   Code = serialization::EXPR_OBJC_AVAILABILITY_CHECK;
 }
 
@@ -2104,7 +2106,7 @@ void ASTStmtWriter::VisitUnresolvedLookupExpr(UnresolvedLookupExpr *E) {
     // propagted.
     DeclarationName Name = E->getName();
     for (auto *Found :
-         Writer.getASTContext().getTranslationUnitDecl()->lookup(Name))
+         Record.getASTContext().getTranslationUnitDecl()->lookup(Name))
       if (Found->isFromASTFile())
         Writer.GetDeclRef(Found);
 
@@ -2926,9 +2928,9 @@ void ASTWriter::ClearSwitchCaseIDs() {
 
 /// Write the given substatement or subexpression to the
 /// bitstream.
-void ASTWriter::WriteSubStmt(Stmt *S) {
+void ASTWriter::WriteSubStmt(ASTContext &Context, Stmt *S) {
   RecordData Record;
-  ASTStmtWriter Writer(*this, Record);
+  ASTStmtWriter Writer(Context, *this, Record);
   ++NumStatements;
 
   if (!S) {
@@ -2977,7 +2979,7 @@ void ASTRecordWriter::FlushStmts() {
   assert(Writer->ParentStmts.empty() && "unexpected entries in parent stmt map");
 
   for (unsigned I = 0, N = StmtsToEmit.size(); I != N; ++I) {
-    Writer->WriteSubStmt(StmtsToEmit[I]);
+    Writer->WriteSubStmt(getASTContext(), StmtsToEmit[I]);
 
     assert(N == StmtsToEmit.size() && "record modified while being written!");
 
@@ -2998,7 +3000,7 @@ void ASTRecordWriter::FlushSubStmts() {
   // that a simple stack machine can be used when loading), and don't emit a
   // STMT_STOP after each one.
   for (unsigned I = 0, N = StmtsToEmit.size(); I != N; ++I) {
-    Writer->WriteSubStmt(StmtsToEmit[N - I - 1]);
+    Writer->WriteSubStmt(getASTContext(), StmtsToEmit[N - I - 1]);
     assert(N == StmtsToEmit.size() && "record modified while being written!");
   }
 

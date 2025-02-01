@@ -51,6 +51,7 @@ class PCHContainerGenerator : public ASTConsumer {
   CodeGenOptions CodeGenOpts;
   const TargetOptions TargetOpts;
   LangOptions LangOpts;
+  const CASOptions &CASOpts; // MCCAS
   std::unique_ptr<llvm::LLVMContext> VMContext;
   std::unique_ptr<llvm::Module> M;
   std::unique_ptr<CodeGen::CodeGenModule> Builder;
@@ -149,6 +150,7 @@ public:
         HeaderSearchOpts(CI.getHeaderSearchOpts()),
         PreprocessorOpts(CI.getPreprocessorOpts()),
         TargetOpts(CI.getTargetOpts()), LangOpts(CI.getLangOpts()),
+        CASOpts(CI.getCASOpts()), // MCCAS
         OS(std::move(OS)), Buffer(std::move(Buffer)) {
     // The debug info output isn't affected by CodeModel and
     // ThreadModel, but the backend expects them to be nonempty.
@@ -171,6 +173,10 @@ public:
   ~PCHContainerGenerator() override = default;
 
   void Initialize(ASTContext &Context) override {
+    Initialize(Context, Context.getTargetInfo());
+  }
+
+  void Initialize(ASTContext &Context, const TargetInfo &CodeGenTargetInfo) override {
     assert(!Ctx && "initialized multiple times");
 
     Ctx = &Context;
@@ -178,7 +184,8 @@ public:
     M.reset(new llvm::Module(MainFileName, *VMContext));
     M->setDataLayout(Ctx->getTargetInfo().getDataLayoutString());
     Builder.reset(new CodeGen::CodeGenModule(
-        *Ctx, FS, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts, *M, Diags));
+        *Ctx, FS, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts,
+        CodeGenTargetInfo, *M, Diags));
 
     // Prepare CGDebugInfo to emit debug info for a clang module.
     auto *DI = Builder->getModuleDebugInfo();
@@ -322,6 +329,7 @@ public:
       llvm::SmallString<0> Buffer;
       clang::EmitBackendOutput(
           Diags, HeaderSearchOpts, CodeGenOpts, TargetOpts, LangOpts,
+          CASOpts, // MCCAS
           Ctx.getTargetInfo().getDataLayoutString(), M.get(),
           BackendAction::Backend_EmitLL, FS,
           std::make_unique<llvm::raw_svector_ostream>(Buffer));
@@ -331,6 +339,7 @@ public:
     // Use the LLVM backend to emit the pch container.
     clang::EmitBackendOutput(Diags, HeaderSearchOpts, CodeGenOpts, TargetOpts,
                              LangOpts,
+                             CASOpts, // MCCAS
                              Ctx.getTargetInfo().getDataLayoutString(), M.get(),
                              BackendAction::Backend_EmitObj, FS, std::move(OS));
 

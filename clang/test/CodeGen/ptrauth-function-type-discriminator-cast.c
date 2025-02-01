@@ -1,19 +1,25 @@
 // RUN: %clang_cc1 %s -fptrauth-function-pointer-type-discrimination -triple arm64e-apple-ios13 -fptrauth-calls -fptrauth-intrinsics \
+// RUN:   -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:   -disable-llvm-passes -emit-llvm -o-       | FileCheck %s --check-prefixes=CHECK,TYPE
 
 // RUN: %clang_cc1 %s -fptrauth-function-pointer-type-discrimination -triple aarch64-linux-gnu  -fptrauth-calls -fptrauth-intrinsics \
+// RUN:   -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:   -disable-llvm-passes -emit-llvm -o-       | FileCheck %s --check-prefixes=CHECK,TYPE
 
 // RUN: %clang_cc1 %s                                                -triple arm64e-apple-ios13 -fptrauth-calls -fptrauth-intrinsics \
+// RUN:   -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:   -disable-llvm-passes -emit-llvm -o-       | FileCheck %s --check-prefixes=CHECK,ZERO
 
 // RUN: %clang_cc1 %s                                                -triple aarch64-linux-gnu  -fptrauth-calls -fptrauth-intrinsics \
+// RUN:   -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:   -disable-llvm-passes -emit-llvm -o-       | FileCheck %s --check-prefixes=CHECK,ZERO
 
 // RUN: %clang_cc1 %s -fptrauth-function-pointer-type-discrimination -triple arm64e-apple-ios13 -fptrauth-calls -fptrauth-intrinsics \
+// RUN:   -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:   -disable-llvm-passes -emit-llvm -xc++ -o- | FileCheck %s --check-prefixes=CHECK,CHECKCXX,TYPE,TYPECXX
 
 // RUN: %clang_cc1 %s -fptrauth-function-pointer-type-discrimination -triple aarch64-linux-gnu  -fptrauth-calls -fptrauth-intrinsics \
+// RUN:   -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:   -disable-llvm-passes -emit-llvm -xc++ -o- | FileCheck %s --check-prefixes=CHECK,CHECKCXX,TYPE,TYPECXX
 
 #ifdef __cplusplus

@@ -10,14 +10,32 @@
 #include "lldb/Symbol/Block.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Symbol/SymbolContext.h"
+#include "lldb/Target/MemoryRegionInfo.h"
+#include "lldb/Target/Process.h"
+#include "lldb/Target/Thread.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Stream.h"
 
 using namespace lldb_private;
 
+bool StackID::IsCFAOnStack(Process &process) const {
+  if (m_cfa_on_stack == eLazyBoolCalculate) {
+    // Conservatively assume stack memory
+    m_cfa_on_stack = eLazyBoolYes;
+    if (m_cfa != LLDB_INVALID_ADDRESS) {
+      MemoryRegionInfo mem_info;
+      if (process.GetMemoryRegionInfo(m_cfa, mem_info).Success())
+        if (mem_info.IsStackMemory() == MemoryRegionInfo::eNo)
+          m_cfa_on_stack = eLazyBoolNo;
+    }
+  }
+  return m_cfa_on_stack == eLazyBoolYes;
+}
+
 void StackID::Dump(Stream *s) {
   s->Printf("StackID (pc = 0x%16.16" PRIx64 ", cfa = 0x%16.16" PRIx64
-            ", symbol_scope = %p",
-            m_pc, m_cfa, static_cast<void *>(m_symbol_scope));
+            ", cfa_on_stack = %d, symbol_scope = %p",
+            m_pc, m_cfa, m_cfa_on_stack, static_cast<void *>(m_symbol_scope));
   if (m_symbol_scope) {
     SymbolContext sc;
 
@@ -57,7 +75,71 @@ bool lldb_private::operator!=(const StackID &lhs, const StackID &rhs) {
   return lhs_scope != rhs_scope;
 }
 
-bool lldb_private::operator<(const StackID &lhs, const StackID &rhs) {
+// BEGIN SWIFT
+enum class HeapCFAComparisonResult { Younger, Older, NoOpinion };
+/// If at least one of the stack IDs (lhs, rhs) is a heap CFA, perform the
+/// swift-specific async frame comparison. Otherwise, returns NoOpinion.
+static HeapCFAComparisonResult
+IsYoungerHeapCFAs(const StackID &lhs, const StackID &rhs, Process &process) {
+  const bool lhs_cfa_on_stack = lhs.IsCFAOnStack(process);
+  const bool rhs_cfa_on_stack = rhs.IsCFAOnStack(process);
+  if (lhs_cfa_on_stack && rhs_cfa_on_stack)
+    return HeapCFAComparisonResult::NoOpinion;
+
+  // If one of the frames has a CFA on the stack and the other doesn't, we are
+  // at the boundary between an asynchronous and a synchronous function.
+  // Synchronous functions cannot call asynchronous functions, therefore the
+  // synchronous frame is always younger.
+  if (lhs_cfa_on_stack && !rhs_cfa_on_stack)
+    return HeapCFAComparisonResult::Younger;
+  if (!lhs_cfa_on_stack && rhs_cfa_on_stack)
+    return HeapCFAComparisonResult::Older;
+
+  const lldb::addr_t lhs_cfa = lhs.GetCallFrameAddress();
+  const lldb::addr_t rhs_cfa = rhs.GetCallFrameAddress();
+  // If the cfas are the same, fallback to the usual scope comparison.
+  if (lhs_cfa == rhs_cfa)
+    return HeapCFAComparisonResult::NoOpinion;
+
+  // Both CFAs are on the heap and they are distinct.
+  // LHS is younger if and only if its continuation async context is (directly
+  // or indirectly) RHS. Chase continuation pointers to check this case, until
+  // we hit the end of the chain (parent_ctx == 0) or a safety limit in case of
+  // an invalid continuation chain.
+  auto max_num_frames = 512;
+  for (lldb::addr_t parent_ctx = lhs_cfa; parent_ctx && max_num_frames;
+       max_num_frames--) {
+    Status error;
+    lldb::addr_t old_parent_ctx = parent_ctx;
+    // The continuation's context is the first field of an async context.
+    parent_ctx = process.ReadPointerFromMemory(old_parent_ctx, error);
+    if (error.Fail()) {
+      Log *log = GetLog(LLDBLog::Unwind);
+      LLDB_LOGF(log, "Failed to read parent async context of: 0x%8.8" PRIx64,
+                old_parent_ctx);
+      break;
+    }
+    if (parent_ctx == rhs_cfa)
+      return HeapCFAComparisonResult::Younger;
+  }
+
+  return HeapCFAComparisonResult::NoOpinion;
+}
+// END SWIFT
+
+bool StackID::IsYounger(const StackID &lhs, const StackID &rhs,
+                        Process &process) {
+  // BEGIN SWIFT
+  switch (IsYoungerHeapCFAs(lhs, rhs, process)) {
+  case HeapCFAComparisonResult::Younger:
+    return true;
+  case HeapCFAComparisonResult::Older:
+    return false;
+  case HeapCFAComparisonResult::NoOpinion:
+    break;
+  }
+  // END SWIFT
+
   const lldb::addr_t lhs_cfa = lhs.GetCallFrameAddress();
   const lldb::addr_t rhs_cfa = rhs.GetCallFrameAddress();
 

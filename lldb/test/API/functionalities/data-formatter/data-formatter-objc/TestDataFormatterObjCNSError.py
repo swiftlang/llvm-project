@@ -23,13 +23,18 @@ class ObjCDataFormatterNSError(ObjCDataFormatterTestCase):
         self.appkit_tester_impl(self.nserror_data_formatter_commands, False)
 
     def nserror_data_formatter_commands(self):
-        self.expect("frame variable nserror", substrs=['domain: @"Foobar" - code: 12'])
-
         self.expect(
-            "frame variable nserrorptr", substrs=['domain: @"Foobar" - code: 12']
+            "frame variable nserror", substrs=['domain: @"Foobar" - code: -1234']
         )
 
-        self.expect("frame variable nserror->_userInfo", substrs=["2 key/value pairs"])
+        self.expect(
+            "frame variable nserrorptr", substrs=['domain: @"Foobar" - code: -1234']
+        )
+
+        # FIXME: <rdar://problem/25587546> On llvm.org this works without the `-d run`!
+        self.expect(
+            "frame variable -d run -- nserror->_userInfo", substrs=["2 key/value pairs"]
+        )
 
         self.expect(
             "frame variable nserror->_userInfo --ptr-depth 1 -d run-target",

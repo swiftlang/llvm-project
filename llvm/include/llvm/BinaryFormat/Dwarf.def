@@ -617,9 +617,9 @@ HANDLE_DW_AT(0x3e07, LLVM_apinotes, 0, APPLE)
 HANDLE_DW_AT(0x3e08, LLVM_ptrauth_isa_pointer, 0, LLVM)
 HANDLE_DW_AT(0x3e09, LLVM_ptrauth_authenticates_null_values, 0, LLVM)
 HANDLE_DW_AT(0x3e0a, LLVM_ptrauth_authentication_mode, 0, LLVM)
+HANDLE_DW_AT(0x3e0b, LLVM_num_extra_inhabitants, 0, LLVM)
 
 // Apple extensions.
-
 HANDLE_DW_AT(0x3fe1, APPLE_optimized, 0, APPLE)
 HANDLE_DW_AT(0x3fe2, APPLE_flags, 0, APPLE)
 HANDLE_DW_AT(0x3fe3, APPLE_isa, 0, APPLE)
@@ -692,6 +692,10 @@ HANDLE_DW_FORM(0x1f20, GNU_ref_alt, 0, GNU)
 HANDLE_DW_FORM(0x1f21, GNU_strp_alt, 0, GNU)
 // LLVM addr+offset extension
 HANDLE_DW_FORM(0x2001, LLVM_addrx_offset, 0, LLVM)
+// BEGIN MCCAS
+HANDLE_DW_FORM(0x7d, strp_cas, 0, APPLE)
+HANDLE_DW_FORM(0x7e, ref4_cas, 0, APPLE)
+// END MCCAS
 
 // DWARF Expression operators.
 HANDLE_DW_OP(0x03, addr, 1, 0, 2, DWARF)

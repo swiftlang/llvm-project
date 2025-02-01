@@ -51,6 +51,15 @@ public:
 
   enum { kDefaultTimeout = 500000u };
 
+  enum {
+    eLanguageFlagNeedsObjectPointer = 1 << 0,
+    eLanguageFlagEnforceValidObject = 1 << 1,
+    eLanguageFlagInCPlusPlusMethod = 1 << 2,
+    eLanguageFlagInObjectiveCMethod = 1 << 3,
+    eLanguageFlagInStaticMethod = 1 << 4,
+    eLanguageFlagConstObject = 1 << 5
+  };
+
   class ClangUserExpressionHelper
       : public llvm::RTTIExtends<ClangUserExpressionHelper,
                                  ClangExpressionHelper> {
@@ -176,6 +185,8 @@ public:
 
   /// Returns true iff this expression is using any imported C++ modules.
   bool DidImportCxxModules() const { return !m_imported_cpp_modules.empty(); }
+
+  llvm::StringRef GetFilename() const { return m_filename; }
 
 private:
   /// Populate m_in_cplusplus_method and m_in_objectivec_method based on the

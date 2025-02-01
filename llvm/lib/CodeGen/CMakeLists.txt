@@ -271,6 +271,7 @@ add_llvm_component_library(LLVMCodeGen
   Core
   MC
   ObjCARC
+  MCCAS
   ProfileData
   Scalar
   Support

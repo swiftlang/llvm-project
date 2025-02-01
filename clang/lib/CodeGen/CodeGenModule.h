@@ -437,6 +437,11 @@ private:
   // most up to date ValueDecl that will have all the inherited annotations.
   llvm::MapVector<StringRef, const ValueDecl *> DeferredAnnotations;
 
+  /// Signed constant pointers.
+  void *ConstantSignedPointersByDecl = nullptr;
+  void *SignedThunkPointers = nullptr;
+  void *ConstantSignedPointersByConstant = nullptr;
+
   /// Map used to get unique annotation strings.
   llvm::StringMap<llvm::Constant*> AnnotationStrings;
 
@@ -631,7 +636,9 @@ public:
   CodeGenModule(ASTContext &C, IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                 const HeaderSearchOptions &headersearchopts,
                 const PreprocessorOptions &ppopts,
-                const CodeGenOptions &CodeGenOpts, llvm::Module &M,
+                const CodeGenOptions &CodeGenOpts,
+                const TargetInfo &CodeGenTargetInfo,
+                llvm::Module &M,
                 DiagnosticsEngine &Diags,
                 CoverageSourceInfo *CoverageInfo = nullptr);
 
@@ -970,15 +977,17 @@ public:
 
   /// Return the ABI-correct function pointer value for a reference
   /// to the given function.  This will apply a pointer signature if
-  /// necessary.
+  /// necessary, but will only cache the result if \p GD is passed.
   llvm::Constant *getFunctionPointer(llvm::Constant *Pointer,
-                                     QualType FunctionType);
+                                     QualType FunctionType,
+                                     GlobalDecl GD = GlobalDecl());
 
   llvm::Constant *getMemberFunctionPointer(const FunctionDecl *FD,
                                            llvm::Type *Ty = nullptr);
 
   llvm::Constant *getMemberFunctionPointer(llvm::Constant *Pointer,
-                                           QualType FT);
+                                           QualType FT,
+                                           const FunctionDecl *FD);
 
   CGPointerAuthInfo getFunctionPointerAuthInfo(QualType T);
 
@@ -1851,6 +1860,8 @@ private:
   /// Check whether we can use a "simpler", more core exceptions personality
   /// function.
   void SimplifyPersonality();
+
+  void destroyConstantSignedPointerCaches();
 
   /// Helper function for getDefaultFunctionAttributes. Builds a set of function
   /// attributes which can be simply added to a function.

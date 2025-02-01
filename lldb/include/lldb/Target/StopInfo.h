@@ -77,6 +77,18 @@ public:
       m_description.clear();
   }
 
+  /// This gives the StopInfo a chance to suggest a stack frame to select.
+  /// Passing true for inlined_stack will request changes to the inlined
+  /// call stack.  Passing false will request changes to the real stack
+  /// frame.  The inlined stack gets adjusted before we call into the thread
+  /// plans so they can reason based on the correct values.  The real stack
+  /// adjustment is handled after the frame recognizers get a chance to adjust
+  /// the frame.
+  virtual std::optional<uint32_t>
+  GetSuggestedStackFrameIndex(bool inlined_stack) {
+    return {};
+  }
+
   virtual bool IsValidForOperatingSystemThread(Thread &thread) { return true; }
 
   /// A Continue operation can result in a false stop event
@@ -128,7 +140,8 @@ public:
   static lldb::StopInfoSP
   CreateStopReasonWithPlan(lldb::ThreadPlanSP &plan,
                            lldb::ValueObjectSP return_valobj_sp,
-                           lldb::ExpressionVariableSP expression_variable_sp);
+                           lldb::ExpressionVariableSP expression_variable_sp,
+                           bool return_is_swift_error_value = false);
 
   static lldb::StopInfoSP
   CreateStopReasonWithException(Thread &thread, const char *description);
@@ -149,7 +162,8 @@ public:
   static lldb::StopInfoSP CreateStopReasonVForkDone(Thread &thread);
 
   static lldb::ValueObjectSP
-  GetReturnValueObject(lldb::StopInfoSP &stop_info_sp);
+  GetReturnValueObject(lldb::StopInfoSP &stop_info_sp,
+                       bool &is_swift_error_result);
 
   static lldb::ExpressionVariableSP
   GetExpressionVariable(lldb::StopInfoSP &stop_info_sp);

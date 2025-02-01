@@ -42,12 +42,16 @@ public:
 
 class LLDB_API SBDebugger {
 public:
-  FLAGS_ANONYMOUS_ENUM(){
-      eBroadcastBitProgress = lldb::DebuggerBroadcastBit::eBroadcastBitProgress,
-      eBroadcastBitWarning = lldb::DebuggerBroadcastBit::eBroadcastBitWarning,
-      eBroadcastBitError = lldb::DebuggerBroadcastBit::eBroadcastBitError,
-      eBroadcastBitProgressCategory =
-          lldb::DebuggerBroadcastBit::eBroadcastBitProgressCategory,
+  FLAGS_ANONYMOUS_ENUM() {
+    eBroadcastBitProgress = lldb::DebuggerBroadcastBit::eBroadcastBitProgress,
+    eBroadcastBitWarning = lldb::DebuggerBroadcastBit::eBroadcastBitWarning,
+    eBroadcastBitError = lldb::DebuggerBroadcastBit::eBroadcastBitError,
+    eBroadcastBitProgressCategory =
+        lldb::DebuggerBroadcastBit::eBroadcastBitProgressCategory,
+    eBroadcastBitExternalProgress =
+        lldb::DebuggerBroadcastBit::eBroadcastBitExternalProgress,
+    eBroadcastBitExternalProgressCategory =
+        lldb::DebuggerBroadcastBit::eBroadcastBitExternalProgressCategory,
   };
   SBDebugger();
 
@@ -203,7 +207,7 @@ public:
   lldb::SBCommandInterpreter GetCommandInterpreter();
 
   void HandleCommand(const char *command);
-  
+
   void RequestInterrupt();
   void CancelInterruptRequest();
   bool InterruptRequested();
@@ -304,6 +308,8 @@ public:
 
   bool GetUseColor() const;
 
+  bool SetShowInlineDiagnostics(bool);
+
   bool SetUseSourceCache(bool use_source_cache);
 
   bool GetUseSourceCache() const;
@@ -379,6 +385,10 @@ public:
   uint32_t GetTerminalWidth() const;
 
   void SetTerminalWidth(uint32_t term_width);
+
+  uint32_t GetTerminalHeight() const;
+
+  void SetTerminalHeight(uint32_t term_height);
 
   lldb::user_id_t GetID();
 
@@ -506,6 +516,7 @@ private:
   friend class SBPlatform;
   friend class SBTarget;
   friend class SBTrace;
+  friend class SBProgress;
 
   lldb::SBTarget FindTargetWithLLDBProcess(const lldb::ProcessSP &processSP);
 

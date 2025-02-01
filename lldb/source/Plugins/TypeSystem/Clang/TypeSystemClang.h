@@ -146,10 +146,13 @@ public:
   static llvm::StringRef GetPluginNameStatic() { return "clang"; }
 
   static lldb::TypeSystemSP CreateInstance(lldb::LanguageType language,
-                                           Module *module, Target *target);
+                                           Module *module, Target *target,
+                                           const char *compiler_options);
 
   static LanguageSet GetSupportedLanguagesForTypes();
   static LanguageSet GetSupportedLanguagesForExpressions();
+
+  static void DebuggerInitialize(Debugger &debugger);
 
   static void Initialize();
 
@@ -252,7 +255,7 @@ public:
 
   CompilerType GetTypeForDecl(clang::TagDecl *decl);
 
-  CompilerType GetTypeForDecl(clang::ObjCInterfaceDecl *objc_decl);
+  CompilerType GetTypeForDecl(const clang::ObjCInterfaceDecl *objc_decl);
 
   CompilerType GetTypeForDecl(clang::ValueDecl *value_decl);
 
@@ -322,6 +325,7 @@ public:
   /// Synthesize a clang::Module and return its ID or a default-constructed ID.
   OptionalClangModuleID GetOrCreateClangModule(llvm::StringRef name,
                                                OptionalClangModuleID parent,
+                                               llvm::StringRef apinotes = {},
                                                bool is_framework = false,
                                                bool is_explicit = false);
 
@@ -333,6 +337,14 @@ public:
                                 ClangASTMetadata *metadata = nullptr,
                                 bool exports_symbols = false);
 
+  clang::NamedDecl *CreateRecordDecl(clang::DeclContext *decl_ctx,
+                                     OptionalClangModuleID owning_module,
+                                     lldb::AccessType access_type,
+                                     llvm::StringRef name, int kind,
+                                     lldb::LanguageType language,
+                                     ClangASTMetadata *metadata = nullptr,
+                                     bool exports_symbols = false);
+
   class TemplateParameterInfos {
   public:
     TemplateParameterInfos() = default;
@@ -342,10 +354,27 @@ public:
       assert(names.size() == args_in.size());
     }
 
-    TemplateParameterInfos(TemplateParameterInfos const &) = delete;
     TemplateParameterInfos(TemplateParameterInfos &&) = delete;
 
-    TemplateParameterInfos &operator=(TemplateParameterInfos const &) = delete;
+    TemplateParameterInfos(const TemplateParameterInfos &o)
+        : names(o.names), args(o.args), pack_name(o.pack_name) {
+      if (o.packed_args)
+        packed_args = std::make_unique<TemplateParameterInfos>(*o.packed_args);
+    }
+
+    TemplateParameterInfos &operator=(const TemplateParameterInfos &o) {
+      auto tmp = TemplateParameterInfos(o);
+      swap(tmp);
+      return *this;
+    }
+
+    void swap(TemplateParameterInfos &other) noexcept {
+      std::swap(names, other.names);
+      std::swap(args, other.args);
+      std::swap(pack_name, other.pack_name);
+      std::swap(packed_args, other.packed_args);
+    }
+
     TemplateParameterInfos &operator=(TemplateParameterInfos &&) = delete;
 
     ~TemplateParameterInfos() = default;
@@ -353,7 +382,7 @@ public:
     bool IsValid() const {
       // Having a pack name but no packed args doesn't make sense, so mark
       // these template parameters as invalid.
-      if (pack_name && !packed_args)
+      if (HasPackName() && !packed_args)
         return false;
       return args.size() == names.size() &&
              (!packed_args || !packed_args->packed_args);
@@ -394,14 +423,14 @@ public:
       return packed_args->GetArgs();
     }
 
-    bool HasPackName() const { return pack_name && pack_name[0]; }
+    bool HasPackName() const { return pack_name.has_value(); }
 
     llvm::StringRef GetPackName() const {
       assert(HasPackName());
-      return pack_name;
+      return pack_name.value();
     }
 
-    void SetPackName(char const *name) { pack_name = name; }
+    void SetPackName(char const *name) { pack_name.emplace(name); }
 
     void SetParameterPack(std::unique_ptr<TemplateParameterInfos> args) {
       packed_args = std::move(args);
@@ -413,7 +442,7 @@ public:
     llvm::SmallVector<const char *, 2> names;
     llvm::SmallVector<clang::TemplateArgument, 2> args;
 
-    const char * pack_name = nullptr;
+    std::optional<std::string> pack_name;
     std::unique_ptr<TemplateParameterInfos> packed_args;
   };
 
@@ -459,7 +488,16 @@ public:
                                clang::DeclContext *decl_ctx,
                                OptionalClangModuleID owning_module,
                                bool isForwardDecl, bool isInternal,
-                               ClangASTMetadata *metadata = nullptr);
+                               ClangASTMetadata *metadata = nullptr) {
+    clang::ObjCInterfaceDecl *d = CreateObjCDecl(
+        name, decl_ctx, owning_module, isForwardDecl, isInternal, metadata);
+    return GetTypeForDecl(d);
+  }
+
+  clang::ObjCInterfaceDecl *
+  CreateObjCDecl(llvm::StringRef name, clang::DeclContext *decl_ctx,
+                 OptionalClangModuleID owning_module, bool isForwardDecl,
+                 bool isInternal, ClangASTMetadata *metadata = nullptr);
 
   // Returns a mask containing bits from the TypeSystemClang::eTypeXXX
   // enumerations
@@ -501,12 +539,23 @@ public:
                                size_t element_count, bool is_vector);
 
   // Enumeration Types
+  clang::EnumDecl *CreateEnumerationDecl(llvm::StringRef name,
+                                         clang::DeclContext *decl_ctx,
+                                         OptionalClangModuleID owning_module,
+                                         const Declaration &decl,
+                                         const CompilerType &integer_qual_type,
+                                         bool is_scoped);
+
   CompilerType CreateEnumerationType(llvm::StringRef name,
                                      clang::DeclContext *decl_ctx,
                                      OptionalClangModuleID owning_module,
                                      const Declaration &decl,
                                      const CompilerType &integer_qual_type,
-                                     bool is_scoped);
+                                     bool is_scoped) {
+    clang::EnumDecl *enum_decl = CreateEnumerationDecl(
+        name, decl_ctx, owning_module, decl, integer_qual_type, is_scoped);
+    return GetType(getASTContext().getTagDeclType(enum_decl));
+  }
 
   // Integer type functions
 
@@ -524,10 +573,27 @@ public:
   PDBASTParser *GetPDBParser() override;
   npdb::PdbAstBuilder *GetNativePDBParser() override;
 
+  /// If true, then declarations are completed by completing their redeclaration
+  /// chain.
+  ///
+  /// Initially declarations might just be forward declared in an AST but have a
+  /// defining redeclaration (that might be lazily added to the AST via the
+  /// ExternalASTSource).
+  static bool UseRedeclCompletion();
+
   // TypeSystemClang callbacks for external source lookups.
   void CompleteTagDecl(clang::TagDecl *);
 
   void CompleteObjCInterfaceDecl(clang::ObjCInterfaceDecl *);
+
+  /// Creates a redeclaration for the declaration specified by the given type.
+  /// The redeclaration will be at the end of the redeclaration chain. The
+  /// passed declaration has to be created via a TypeSystemClang interface.
+  ///
+  /// \param type The type which declaration should be redeclared. Has to be
+  /// an Objective-C interface type (or Objective-C type), RecordType or
+  /// EnumType.
+  CompilerType CreateRedeclaration(CompilerType ct);
 
   bool LayoutRecordType(
       const clang::RecordDecl *record_decl, uint64_t &size, uint64_t &alignment,
@@ -739,7 +805,8 @@ public:
   ConstString GetTypeName(lldb::opaque_compiler_type_t type,
                           bool base_only) override;
 
-  ConstString GetDisplayTypeName(lldb::opaque_compiler_type_t type) override;
+  ConstString GetDisplayTypeName(lldb::opaque_compiler_type_t type,
+                                 const SymbolContext *sc = nullptr) override;
 
   uint32_t GetTypeInfo(lldb::opaque_compiler_type_t type,
                        CompilerType *pointee_or_element_compiler_type) override;
@@ -838,6 +905,12 @@ public:
   std::optional<uint64_t> GetBitSize(lldb::opaque_compiler_type_t type,
                                      ExecutionContextScope *exe_scope) override;
 
+  std::optional<uint64_t>
+  GetByteStride(lldb::opaque_compiler_type_t type,
+                ExecutionContextScope *exe_scope) override {
+    return {};
+  }
+
   lldb::Encoding GetEncoding(lldb::opaque_compiler_type_t type,
                              uint64_t &count) override;
 
@@ -863,7 +936,8 @@ public:
                          ConstString name,
                          const llvm::APSInt &value)> const &callback) override;
 
-  uint32_t GetNumFields(lldb::opaque_compiler_type_t type) override;
+  uint32_t GetNumFields(lldb::opaque_compiler_type_t type,
+                        ExecutionContext *exe_ctx = nullptr) override;
 
   CompilerType GetFieldAtIndex(lldb::opaque_compiler_type_t type, size_t idx,
                                std::string &name, uint64_t *bit_offset_ptr,
@@ -900,6 +974,7 @@ public:
   // member member names in "clang_type" only, not descendants.
   uint32_t GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
                                    llvm::StringRef name,
+                                   ExecutionContext *exe_ctx,
                                    bool omit_empty_base_classes) override;
 
   // Lookup a child member given a name. This function will match member names
@@ -910,7 +985,7 @@ public:
   // so we catch all names that match a given child name, not just the first.
   size_t
   GetIndexOfChildMemberWithName(lldb::opaque_compiler_type_t type,
-                                llvm::StringRef name,
+                                llvm::StringRef name, ExecutionContext *exe_ctx,
                                 bool omit_empty_base_classes,
                                 std::vector<uint32_t> &child_indexes) override;
 
@@ -1064,15 +1139,18 @@ public:
                      lldb::Format format, const DataExtractor &data,
                      lldb::offset_t data_offset, size_t data_byte_size,
                      uint32_t bitfield_bit_size, uint32_t bitfield_bit_offset,
-                     ExecutionContextScope *exe_scope) override;
+                     ExecutionContextScope *exe_scope,
+                     bool is_base_class) override;
 
   void DumpTypeDescription(
       lldb::opaque_compiler_type_t type,
-      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull) override;
+      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull,
+      ExecutionContextScope *exe_scope = nullptr) override;
 
   void DumpTypeDescription(
       lldb::opaque_compiler_type_t type, Stream &s,
-      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull) override;
+      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull,
+      ExecutionContextScope *exe_scope = nullptr) override;
 
   static void DumpTypeName(const CompilerType &type);
 
@@ -1211,6 +1289,18 @@ private:
   /// Maps CXXRecordDecl to their most recent added method/field's
   /// AccessSpecifier.
   CXXRecordDeclAccessMap m_cxx_record_decl_access;
+
+  /// The information we need to redeclare a class template but that we can't
+  /// gather from the forward declaration.
+  struct ClassTemplateRedeclInfo {
+    TemplateParameterInfos m_template_args;
+  };
+  typedef llvm::DenseMap<const clang::Decl *, ClassTemplateRedeclInfo>
+      ClassTemplateRedeclInfoMap;
+  // FIXME: This is in theory redundant. Instead we should change the way we
+  // create ClassTemplateSpecializationDecls in TypeSystemClang so that we can
+  // just pass the data from the forward declaration.
+  ClassTemplateRedeclInfoMap m_class_template_redecl_infos;
 
   /// The sema associated that is currently used to build this ASTContext.
   /// May be null if we are already done parsing this ASTContext or the

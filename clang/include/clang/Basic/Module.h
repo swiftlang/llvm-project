@@ -48,6 +48,7 @@ namespace clang {
 
 class FileManager;
 class LangOptions;
+class ModuleMap;
 class TargetInfo;
 
 /// Describes the name of a module.
@@ -99,6 +100,15 @@ struct ASTFileSignature : std::array<uint8_t, 20> {
   }
 };
 
+/// Required to construct a Module.
+///
+/// This tag type is only constructible by ModuleMap, guaranteeing it ownership
+/// of all Module instances.
+class ModuleConstructorTag {
+  explicit ModuleConstructorTag() = default;
+  friend ModuleMap;
+};
+
 /// Describes a module or submodule.
 ///
 /// Aligned to 8 bytes to allow for llvm::PointerIntPair<Module *, 3>.
@@ -120,6 +130,10 @@ public:
 
     /// This is a C++20 header unit.
     ModuleHeaderUnit,
+
+    /// This is a module that was defined by a module map and built out
+    /// of header files as part of an \c IncludeTree.
+    IncludeTreeModuleMap,
 
     /// This is a C++20 module interface unit.
     ModuleInterfaceUnit,
@@ -209,7 +223,9 @@ public:
 
   bool isPrivateModule() const { return Kind == PrivateModuleFragment; }
 
-  bool isModuleMapModule() const { return Kind == ModuleMapModule; }
+  bool isModuleMapModule() const {
+    return Kind == ModuleMapModule || Kind == IncludeTreeModuleMap;
+  }
 
 private:
   /// The submodules of this module, indexed by name.
@@ -217,11 +233,14 @@ private:
 
   /// A mapping from the submodule name to the index into the
   /// \c SubModules vector at which that submodule resides.
-  llvm::StringMap<unsigned> SubModuleIndex;
+  mutable llvm::StringMap<unsigned> SubModuleIndex;
 
   /// The AST file if this is a top-level module which has a
   /// corresponding serialized AST file, or null otherwise.
   OptionalFileEntryRef ASTFile;
+
+  /// The \c ActionCache key for this module, if any.
+  std::optional<std::string> ModuleCacheKey;
 
   /// The top-level headers associated with this module.
   llvm::SmallSetVector<FileEntryRef, 2> TopHeaders;
@@ -243,8 +262,6 @@ public:
     HK_PrivateTextual,
     HK_Excluded
   };
-  static const int NumHeaderKinds = HK_Excluded + 1;
-
   /// Information about a header directive as found in the module map
   /// file.
   struct Header {
@@ -253,16 +270,35 @@ public:
     FileEntryRef Entry;
   };
 
-  /// Information about a directory name as found in the module map
-  /// file.
+private:
+  static const int NumHeaderKinds = HK_Excluded + 1;
+  // The begin index for a HeaderKind also acts the end index of HeaderKind - 1.
+  // The extra element at the end acts as the end index of the last HeaderKind.
+  unsigned HeaderKindBeginIndex[NumHeaderKinds + 1] = {};
+  SmallVector<Header, 2> HeadersStorage;
+
+public:
+  ArrayRef<Header> getAllHeaders() const { return HeadersStorage; }
+  ArrayRef<Header> getHeaders(HeaderKind HK) const {
+    assert(HK < NumHeaderKinds && "Invalid Module::HeaderKind");
+    auto BeginIt = HeadersStorage.begin() + HeaderKindBeginIndex[HK];
+    auto EndIt = HeadersStorage.begin() + HeaderKindBeginIndex[HK + 1];
+    return {BeginIt, EndIt};
+  }
+  void addHeader(HeaderKind HK, Header H) {
+    assert(HK < NumHeaderKinds && "Invalid Module::HeaderKind");
+    auto EndIt = HeadersStorage.begin() + HeaderKindBeginIndex[HK + 1];
+    HeadersStorage.insert(EndIt, std::move(H));
+    for (unsigned HKI = HK + 1; HKI != NumHeaderKinds + 1; ++HKI)
+      ++HeaderKindBeginIndex[HKI];
+  }
+
+  /// Information about a directory name as found in the module map file.
   struct DirectoryName {
     std::string NameAsWritten;
     std::string PathRelativeToRootModuleDirectory;
     DirectoryEntryRef Entry;
   };
-
-  /// The headers that are part of this module.
-  SmallVector<Header, 2> Headers[5];
 
   /// Stored information about a header directive that was found in the
   /// module map file but has not been resolved to a file.
@@ -342,6 +378,11 @@ public:
   LLVM_PREFERRED_TYPE(bool)
   unsigned IsInferred : 1;
 
+  /// Whether this is an inferred submodule that's missing from the umbrella
+  /// header.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned IsInferredMissingFromUmbrellaHeader : 1;
+
   /// Whether we should infer submodules for this module based on
   /// the headers.
   ///
@@ -376,6 +417,9 @@ public:
   /// to a regular (public) module map.
   LLVM_PREFERRED_TYPE(bool)
   unsigned ModuleMapIsPrivate : 1;
+
+  /// \brief Whether this is a module who has its swift_names inferred.
+  unsigned IsSwiftInferImportAsMember : 1;
 
   /// Whether this C++20 named modules doesn't need an initializer.
   /// This is only meaningful for C++20 modules.
@@ -497,8 +541,9 @@ public:
   std::vector<Conflict> Conflicts;
 
   /// Construct a new module or submodule.
-  Module(StringRef Name, SourceLocation DefinitionLoc, Module *Parent,
-         bool IsFramework, bool IsExplicit, unsigned VisibilityID);
+  Module(ModuleConstructorTag, StringRef Name, SourceLocation DefinitionLoc,
+         Module *Parent, bool IsFramework, bool IsExplicit,
+         unsigned VisibilityID);
 
   ~Module();
 
@@ -584,7 +629,6 @@ public:
   void setParent(Module *M) {
     assert(!Parent);
     Parent = M;
-    Parent->SubModuleIndex[Name] = Parent->SubModules.size();
     Parent->SubModules.push_back(this);
   }
 
@@ -688,6 +732,15 @@ public:
     getTopLevelModule()->ASTFile = File;
   }
 
+  std::optional<std::string> getModuleCacheKey() const {
+    return getTopLevelModule()->ModuleCacheKey;
+  }
+
+  void setModuleCacheKey(std::string Key) {
+    assert(!getModuleCacheKey() || *getModuleCacheKey() == Key);
+    getTopLevelModule()->ModuleCacheKey = std::move(Key);
+  }
+
   /// Retrieve the umbrella directory as written.
   std::optional<DirectoryName> getUmbrellaDirAsWritten() const {
     if (const auto *Dir = std::get_if<DirectoryEntryRef>(&Umbrella))
@@ -749,7 +802,6 @@ public:
   ///
   /// \returns The submodule if found, or NULL otherwise.
   Module *findSubmodule(StringRef Name) const;
-  Module *findOrInferSubmodule(StringRef Name);
 
   /// Get the Global Module Fragment (sub-module) for this module, it there is
   /// one.

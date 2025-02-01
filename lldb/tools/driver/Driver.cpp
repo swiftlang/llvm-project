@@ -309,6 +309,16 @@ SBError Driver::ProcessArgs(const opt::InputArgList &args, bool &exiting) {
       m_option_data.m_repl_options = arg_value;
   }
 
+#ifdef LLDB_ENABLE_SWIFT
+  // For the Swift fork, we want to default to Swift if no REPL language is
+  // specified.
+  if (m_option_data.m_repl &&
+      m_option_data.m_repl_lang == eLanguageTypeUnknown) {
+    m_option_data.m_repl_lang = eLanguageTypeSwift;
+    m_debugger.SetREPLLanguage(eLanguageTypeSwift);
+  }
+#endif // LLDB_ENABLE_SWIFT
+
   // We need to process the options below together as their relative order
   // matters.
   for (auto *arg : args.filtered(OPT_source_on_crash, OPT_one_line_on_crash,
@@ -442,13 +452,10 @@ int Driver::MainLoop() {
   m_debugger.SetInputFileHandle(stdin, false);
 
   m_debugger.SetUseExternalEditor(m_option_data.m_use_external_editor);
+  m_debugger.SetShowInlineDiagnostics(true);
 
-  struct winsize window_size;
-  if ((isatty(STDIN_FILENO) != 0) &&
-      ::ioctl(STDIN_FILENO, TIOCGWINSZ, &window_size) == 0) {
-    if (window_size.ws_col > 0)
-      m_debugger.SetTerminalWidth(window_size.ws_col);
-  }
+  // Set the terminal dimensions.
+  UpdateWindowSize();
 
   SBCommandInterpreter sb_interpreter = m_debugger.GetCommandInterpreter();
 
@@ -624,18 +631,22 @@ int Driver::MainLoop() {
   return sb_interpreter.GetQuitStatus();
 }
 
-void Driver::ResizeWindow(unsigned short col) {
-  GetDebugger().SetTerminalWidth(col);
-}
-
-void sigwinch_handler(int signo) {
+void Driver::UpdateWindowSize() {
   struct winsize window_size;
   if ((isatty(STDIN_FILENO) != 0) &&
       ::ioctl(STDIN_FILENO, TIOCGWINSZ, &window_size) == 0) {
-    if ((window_size.ws_col > 0) && g_driver != nullptr) {
-      g_driver->ResizeWindow(window_size.ws_col);
-    }
+    if (window_size.ws_col > 0)
+      m_debugger.SetTerminalWidth(window_size.ws_col);
+#ifndef _WIN32
+    if (window_size.ws_row > 0)
+      m_debugger.SetTerminalHeight(window_size.ws_row);
+#endif
   }
+}
+
+void sigwinch_handler(int signo) {
+  if (g_driver != nullptr)
+    g_driver->UpdateWindowSize();
 }
 
 void sigint_handler(int signo) {

@@ -8,5 +8,7 @@ add_clang_library(clangAPINotes
   APINotesTypes.cpp
   APINotesWriter.cpp
   APINotesYAMLCompiler.cpp
+  Types.cpp
+
   LINK_LIBS
     clangBasic)

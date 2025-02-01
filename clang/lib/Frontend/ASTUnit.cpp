@@ -1814,6 +1814,9 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromCommandLine(
   if (ModuleFormat)
     CI->getHeaderSearchOpts().ModuleFormat = std::string(*ModuleFormat);
 
+  if (ForSerialization)
+    CI->getLangOpts().NeededByPCHOrCompilationUsesPCH = true;
+
   // Create the AST unit.
   std::unique_ptr<ASTUnit> AST;
   AST.reset(new ASTUnit(false));
@@ -2355,7 +2358,7 @@ bool ASTUnit::Save(StringRef File) {
 
 static bool serializeUnit(ASTWriter &Writer, SmallVectorImpl<char> &Buffer,
                           Sema &S, raw_ostream &OS) {
-  Writer.WriteAST(S, std::string(), nullptr, "");
+  Writer.WriteAST(&S, std::string(), nullptr, "");
 
   // Write the generated bitstream to "Out".
   if (!Buffer.empty())

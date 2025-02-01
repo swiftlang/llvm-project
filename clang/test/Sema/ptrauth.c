@@ -58,7 +58,6 @@ void test_string_discriminator(const char *str) {
   void *mismatch = __builtin_ptrauth_string_discriminator("test string"); // expected-error {{incompatible integer to pointer conversion initializing 'void *' with an expression of type 'unsigned long'}}
 }
 
-
 void test_sign_unauthenticated(int *dp, int (*fp)(int)) {
   __builtin_ptrauth_sign_unauthenticated(dp, VALID_DATA_KEY); // expected-error {{too few arguments}}
   __builtin_ptrauth_sign_unauthenticated(dp, VALID_DATA_KEY, dp, dp); // expected-error {{too many arguments}}

@@ -33,6 +33,11 @@
 #include <__stddef_header_macro.h>
 #include_next <stddef.h>
 
+#elif defined(__musl__)
+
+// On musl systems, use the system header
+#include_next <stddef.h>
+
 #else
 
 #if !defined(__need_ptrdiff_t) && !defined(__need_size_t) &&                   \
@@ -136,4 +141,4 @@ __WINT_TYPE__ directly; accommodate both by requiring __need_wint_t */
 #undef __need_wint_t
 #endif /* __need_wint_t */
 
-#endif /* __MVS__ */
+#endif /* !defined(__MVS__) && !defined(__musl__) */

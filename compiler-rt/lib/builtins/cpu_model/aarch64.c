@@ -14,7 +14,7 @@
 
 #include "aarch64.h"
 
-#if !defined(__aarch64__)
+#if !defined(__aarch64__) && !defined(__arm64__) && !defined(_M_ARM64)
 #error This file is intended only for aarch64-based targets
 #endif
 
@@ -30,8 +30,10 @@ typedef struct __ifunc_arg_t {
 
 // LSE support detection for out-of-line atomics
 // using HWCAP and Auxiliary vector
-_Bool __aarch64_have_lse_atomics
-    __attribute__((visibility("hidden"), nocommon)) = false;
+#if !defined(_MSC_VER)
+__attribute__((__visibility__("hidden"), __nocommon__))
+#endif
+_Bool __aarch64_have_lse_atomics = false;
 
 #if defined(__FreeBSD__)
 // clang-format off: should not reorder sys/auxv.h alphabetically
@@ -54,12 +56,17 @@ _Bool __aarch64_have_lse_atomics
 
 #if !defined(DISABLE_AARCH64_FMV)
 
-// Architecture features used
-// in Function Multi Versioning
+// Architecture features used in function multi-versioning
 struct {
   unsigned long long features;
   // As features grows new fields could be added
-} __aarch64_cpu_features __attribute__((visibility("hidden"), nocommon));
+} __aarch64_cpu_features
+#if defined(_MSC_VER)
+= { 0 }
+#else
+__attribute__((__visibility__("hidden"), __nocommon__))
+#endif
+;
 
 // The formatter wants to re-order these includes, but doing so is incorrect:
 // clang-format off

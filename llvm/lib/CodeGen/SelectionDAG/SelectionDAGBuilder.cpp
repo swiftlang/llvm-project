@@ -71,6 +71,8 @@
 #include "llvm/IR/EHPersonalities.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/GlobalPtrAuthInfo.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
@@ -1800,8 +1802,19 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
     if (const ConstantInt *CI = dyn_cast<ConstantInt>(C))
       return DAG.getConstant(*CI, getCurSDLoc(), VT);
 
-    if (const GlobalValue *GV = dyn_cast<GlobalValue>(C))
+    if (const GlobalValue *GV = dyn_cast<GlobalValue>(C)) {
+      if (const GlobalVariable *GVB = dyn_cast<GlobalVariable>(GV)) {
+        if (GVB->getSection() == "llvm.ptrauth") {
+          auto PAI = GlobalPtrAuthInfo::analyze(GVB);
+          return DAG.getNode(ISD::PtrAuthGlobalAddress, getCurSDLoc(), VT,
+                             getValue(PAI->getPointer()),
+                             getValue(PAI->getKey()),
+                             getValue(PAI->getAddrDiscriminator()),
+                             getValue(PAI->getDiscriminator()));
+        }
+      }
       return DAG.getGlobalAddress(GV, getCurSDLoc(), VT);
+    }
 
     if (const ConstantPtrAuth *CPA = dyn_cast<ConstantPtrAuth>(C)) {
       return DAG.getNode(ISD::PtrAuthGlobalAddress, getCurSDLoc(), VT,
@@ -9462,6 +9475,14 @@ void SelectionDAGBuilder::LowerCallSiteWithPtrAuthBundle(
     if (CalleeCPA->isKnownCompatibleWith(Key, Discriminator,
                                          DAG.getDataLayout()))
       return LowerCallTo(CB, getValue(CalleeCPA->getPointer()), CB.isTailCall(),
+                         CB.isMustTailCall(), EHPadBB);
+
+  // Look through ptrauth globals to find the raw callee.
+  // Do a direct unauthenticated call if we found it and everything matches.
+  if (auto CalleePAI = GlobalPtrAuthInfo::analyze(CalleeV))
+    // FIXME: bring back a static diagnostic when we can guarantee the mismatch
+    if (CalleePAI->isCompatibleWith(Key, Discriminator, DAG.getDataLayout()))
+      return LowerCallTo(CB, getValue(CalleePAI->getPointer()), CB.isTailCall(),
                          CB.isMustTailCall(), EHPadBB);
 
   // Functions should never be ptrauth-called directly.

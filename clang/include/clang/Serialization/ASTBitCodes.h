@@ -44,7 +44,7 @@ namespace serialization {
 /// Version 4 of AST files also requires that the version control branch and
 /// revision match exactly, since there is no backward compatibility of
 /// AST files at this time.
-const unsigned VERSION_MAJOR = 31;
+const unsigned VERSION_MAJOR = 33;
 
 /// AST file minor version number supported by this version of
 /// Clang.
@@ -54,7 +54,7 @@ const unsigned VERSION_MAJOR = 31;
 /// for the previous version could still support reading the new
 /// version by ignoring new kinds of subblocks), this number
 /// should be increased.
-const unsigned VERSION_MINOR = 1;
+const unsigned VERSION_MINOR = 0;
 
 /// An ID number that refers to an identifier in an AST file.
 ///
@@ -376,6 +376,17 @@ enum ControlRecordTypes {
 
   /// Record code for the module build directory.
   MODULE_DIRECTORY,
+
+  /// Record code for the (optional) \c ActionCache  key for this module.
+  MODULE_CACHE_KEY,
+
+  /// Record code for the (optional) CAS filesystem root ID for implicit modules
+  /// built with the dependency scanner.
+  CASFS_ROOT_ID,
+
+  /// Record code for the (optional) include-tree ID for implicit modules
+  /// built with the dependency scanner.
+  CAS_INCLUDE_TREE_ID,
 };
 
 /// Record types that occur within the options block inside
@@ -391,9 +402,6 @@ enum OptionsRecordTypes {
 
   /// Record code for the target options table.
   TARGET_OPTIONS,
-
-  /// Record code for the filesystem options table.
-  FILE_SYSTEM_OPTIONS,
 
   /// Record code for the headers search options table.
   HEADER_SEARCH_OPTIONS,
@@ -415,6 +423,9 @@ enum UnhashedControlBlockRecordTypes {
 
   /// Record code for the headers search paths.
   HEADER_SEARCH_PATHS,
+
+  /// Record code for the filesystem options table.
+  FILE_SYSTEM_OPTIONS,
 
   /// Record code for \#pragma diagnostic mappings.
   DIAG_PRAGMA_MAPPINGS,
@@ -724,6 +735,10 @@ enum ASTRecordTypes {
 
   /// Record code for vtables to emit.
   VTABLES_TO_EMIT = 70,
+
+  /// Record code for Sema's vector of functions/blocks with effects to
+  /// be verified.
+  DECLS_WITH_EFFECTS_TO_VERIFY = 72,
 };
 
 /// Record types used within a source manager block.

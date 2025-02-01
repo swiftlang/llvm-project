@@ -207,6 +207,12 @@ public:
                         const PointerAuthSchema &Schema, GlobalDecl CalleeDecl,
                         QualType CalleeType);
 
+  /// Add a signed pointer using the given pointer authentication schema.
+  void addSignedPointer(llvm::Constant *pointer,
+                        unsigned key,
+                        bool useAddressDiscrimination,
+                        llvm::ConstantInt *otherDiscriminator);
+
   /// Add a null pointer of a specific type.
   void addNullPointer(llvm::PointerType *ptrTy) {
     add(llvm::ConstantPointerNull::get(ptrTy));

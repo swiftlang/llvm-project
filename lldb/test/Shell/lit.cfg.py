@@ -51,7 +51,19 @@ llvm_config.with_system_environment(
 
 # Enable sanitizer runtime flags.
 if "Address" in config.llvm_use_sanitizer:
-    config.environment["ASAN_OPTIONS"] = "detect_stack_use_after_return=1"
+    # Begin Swift mod.
+    # Swift's libReflection builds without ASAN, which causes a known
+    # false positive in std::vector. We also want to support testing a sanitized
+    # lldb using unsanitized llvm, clang, and swift libraries.
+    config.environment[
+        "ASAN_OPTIONS"
+    ] = "detect_container_overflow=0:detect_stack_use_after_return=1"
+    # FIXME: This is the wrong place to disable this. This is working
+    # around the fact that the ci.swift.org scripts build only LLDB with
+    # asan and this creates an ODR violation in Allocator.h that breaks
+    # poisoning.
+    config.environment['ASAN_OPTIONS'] += ':' + 'allow_user_poisoning=0'
+    # End Swift mod.
     if platform.system() == "Darwin":
         config.environment["MallocNanoZone"] = "0"
 
@@ -115,7 +127,7 @@ for cachedir in [config.clang_module_cache, config.lldb_module_cache]:
 # lit complains if the value is set but it is not supported.
 supported, errormsg = lit_config.maxIndividualTestTimeIsSupported
 if supported:
-    lit_config.maxIndividualTestTime = 600
+    lit_config.maxIndividualTestTime = 900
 else:
     lit_config.warning("Could not set a default per-test timeout. " + errormsg)
 
@@ -141,6 +153,9 @@ if config.lldb_enable_python:
 
 if config.lldb_enable_lua:
     config.available_features.add("lua")
+
+if config.lldb_enable_swift:
+    config.available_features.add('swift')
 
 if config.lldb_enable_lzma:
     config.available_features.add("lzma")

@@ -766,7 +766,7 @@ TEST(VirtualFileSystemTest, BrokenSymlinkRealFSRecursiveIteration) {
 template <typename DirIter>
 static void checkContents(DirIter I, ArrayRef<StringRef> ExpectedOut) {
   std::error_code EC;
-  SmallVector<StringRef, 4> Expected(ExpectedOut.begin(), ExpectedOut.end());
+  SmallVector<StringRef, 4> Expected(ExpectedOut);
   SmallVector<std::string, 4> InputToCheck;
 
   // Do not rely on iteration order to check for contents, sort both
@@ -3332,6 +3332,128 @@ TEST(RedirectingFileSystemTest, PrintOutput) {
             Output);
 }
 
+TEST(RedirectingFileSystemTest, Exists) {
+  IntrusiveRefCntPtr<DummyFileSystem> Dummy(new NoStatusDummyFileSystem());
+  auto YAML =
+      MemoryBuffer::getMemBuffer("{\n"
+                                 "  'version': 0,\n"
+                                 "  'roots': [\n"
+                                 "    {\n"
+                                 "      'type': 'directory-remap',\n"
+                                 "      'name': '/dremap',\n"
+                                 "      'external-contents': '/a',\n"
+                                 "    },"
+                                 "    {\n"
+                                 "      'type': 'directory-remap',\n"
+                                 "      'name': '/dmissing',\n"
+                                 "      'external-contents': '/dmissing',\n"
+                                 "    },"
+                                 "    {\n"
+                                 "      'type': 'directory',\n"
+                                 "      'name': '/both',\n"
+                                 "      'contents': [\n"
+                                 "        {\n"
+                                 "          'type': 'file',\n"
+                                 "          'name': 'vfile',\n"
+                                 "          'external-contents': '/c'\n"
+                                 "        }\n"
+                                 "      ]\n"
+                                 "    },\n"
+                                 "    {\n"
+                                 "      'type': 'directory',\n"
+                                 "      'name': '/vdir',\n"
+                                 "      'contents': ["
+                                 "        {\n"
+                                 "          'type': 'directory-remap',\n"
+                                 "          'name': 'dremap',\n"
+                                 "          'external-contents': '/b'\n"
+                                 "        },\n"
+                                 "        {\n"
+                                 "          'type': 'file',\n"
+                                 "          'name': 'missing',\n"
+                                 "          'external-contents': '/missing'\n"
+                                 "        },\n"
+                                 "        {\n"
+                                 "          'type': 'file',\n"
+                                 "          'name': 'vfile',\n"
+                                 "          'external-contents': '/c'\n"
+                                 "        }]\n"
+                                 "    }]\n"
+                                 "}");
+
+  Dummy->addDirectory("/a");
+  Dummy->addRegularFile("/a/foo");
+  Dummy->addDirectory("/b");
+  Dummy->addRegularFile("/c");
+  Dummy->addRegularFile("/both/foo");
+
+  auto Redirecting = vfs::RedirectingFileSystem::create(
+      std::move(YAML), nullptr, "", nullptr, Dummy);
+
+  EXPECT_TRUE(Redirecting->exists("/dremap"));
+  EXPECT_FALSE(Redirecting->exists("/dmissing"));
+  EXPECT_FALSE(Redirecting->exists("/unknown"));
+  EXPECT_TRUE(Redirecting->exists("/both"));
+  EXPECT_TRUE(Redirecting->exists("/both/foo"));
+  EXPECT_TRUE(Redirecting->exists("/both/vfile"));
+  EXPECT_TRUE(Redirecting->exists("/vdir"));
+  EXPECT_TRUE(Redirecting->exists("/vdir/dremap"));
+  EXPECT_FALSE(Redirecting->exists("/vdir/missing"));
+  EXPECT_TRUE(Redirecting->exists("/vdir/vfile"));
+  EXPECT_FALSE(Redirecting->exists("/vdir/unknown"));
+}
+
+TEST(RedirectingFileSystemTest, ExistsFallback) {
+  IntrusiveRefCntPtr<DummyFileSystem> Dummy(new NoStatusDummyFileSystem());
+  auto YAML =
+      MemoryBuffer::getMemBuffer("{\n"
+                                 "  'version': 0,\n"
+                                 "  'redirecting-with': 'fallback',\n"
+                                 "  'roots': [\n"
+                                 "    {\n"
+                                 "      'type': 'file',\n"
+                                 "      'name': '/fallback',\n"
+                                 "      'external-contents': '/missing',\n"
+                                 "    },"
+                                 "  ]\n"
+                                 "}");
+
+  Dummy->addRegularFile("/fallback");
+
+  auto Redirecting = vfs::RedirectingFileSystem::create(
+      std::move(YAML), nullptr, "", nullptr, Dummy);
+
+  EXPECT_TRUE(Redirecting->exists("/fallback"));
+  EXPECT_FALSE(Redirecting->exists("/missing"));
+}
+
+TEST(RedirectingFileSystemTest, ExistsRedirectOnly) {
+  IntrusiveRefCntPtr<DummyFileSystem> Dummy(new NoStatusDummyFileSystem());
+  auto YAML =
+      MemoryBuffer::getMemBuffer("{\n"
+                                 "  'version': 0,\n"
+                                 "  'redirecting-with': 'redirect-only',\n"
+                                 "  'roots': [\n"
+                                 "    {\n"
+                                 "      'type': 'file',\n"
+                                 "      'name': '/vfile',\n"
+                                 "      'external-contents': '/a',\n"
+                                 "    },"
+                                 "  ]\n"
+                                 "}");
+
+  Dummy->addRegularFile("/a");
+  Dummy->addRegularFile("/b");
+
+  auto Redirecting = vfs::RedirectingFileSystem::create(
+      std::move(YAML), nullptr, "", nullptr, Dummy);
+
+  EXPECT_FALSE(Redirecting->exists("/a"));
+  EXPECT_FALSE(Redirecting->exists("/b"));
+  EXPECT_TRUE(Redirecting->exists("/vfile"));
+}
+
+
 TEST(RedirectingFileSystemTest, Used) {
   auto Dummy = makeIntrusiveRefCnt<DummyFileSystem>();
   auto YAML1 =
@@ -3445,123 +3567,116 @@ TEST(RedirectingFileSystemTest, ExternalPaths) {
   EXPECT_EQ(CheckFS->SeenPaths, Expected);
 }
 
-TEST(RedirectingFileSystemTest, Exists) {
-  IntrusiveRefCntPtr<DummyFileSystem> Dummy(new NoStatusDummyFileSystem());
-  auto YAML =
-    MemoryBuffer::getMemBuffer("{\n"
-                               "  'version': 0,\n"
-                               "  'roots': [\n"
-                               "    {\n"
-                               "      'type': 'directory-remap',\n"
-                               "      'name': '/dremap',\n"
-                               "      'external-contents': '/a',\n"
-                               "    },"
-                               "    {\n"
-                               "      'type': 'directory-remap',\n"
-                               "      'name': '/dmissing',\n"
-                               "      'external-contents': '/dmissing',\n"
-                               "    },"
-                               "    {\n"
-                               "      'type': 'directory',\n"
-                               "      'name': '/both',\n"
-                               "      'contents': [\n"
-                               "        {\n"
-                               "          'type': 'file',\n"
-                               "          'name': 'vfile',\n"
-                               "          'external-contents': '/c'\n"
-                               "        }\n"
-                               "      ]\n"
-                               "    },\n"
-                               "    {\n"
-                               "      'type': 'directory',\n"
-                               "      'name': '/vdir',\n"
-                               "      'contents': ["
-                               "        {\n"
-                               "          'type': 'directory-remap',\n"
-                               "          'name': 'dremap',\n"
-                               "          'external-contents': '/b'\n"
-                               "        },\n"
-                               "        {\n"
-                               "          'type': 'file',\n"
-                               "          'name': 'missing',\n"
-                               "          'external-contents': '/missing'\n"
-                               "        },\n"
-                               "        {\n"
-                               "          'type': 'file',\n"
-                               "          'name': 'vfile',\n"
-                               "          'external-contents': '/c'\n"
-                               "        }]\n"
-                               "    }]\n"
-                               "}");
+TEST(TracingFileSystemTest, TracingWorks) {
+  auto InMemoryFS = makeIntrusiveRefCnt<vfs::InMemoryFileSystem>();
+  auto TracingFS =
+      makeIntrusiveRefCnt<vfs::TracingFileSystem>(std::move(InMemoryFS));
 
-  Dummy->addDirectory("/a");
-  Dummy->addRegularFile("/a/foo");
-  Dummy->addDirectory("/b");
-  Dummy->addRegularFile("/c");
-  Dummy->addRegularFile("/both/foo");
+  EXPECT_EQ(TracingFS->NumStatusCalls, 0u);
+  EXPECT_EQ(TracingFS->NumOpenFileForReadCalls, 0u);
+  EXPECT_EQ(TracingFS->NumDirBeginCalls, 0u);
+  EXPECT_EQ(TracingFS->NumGetRealPathCalls, 0u);
+  EXPECT_EQ(TracingFS->NumExistsCalls, 0u);
+  EXPECT_EQ(TracingFS->NumIsLocalCalls, 0u);
 
-  auto Redirecting = vfs::RedirectingFileSystem::create(
-							std::move(YAML), nullptr, "", nullptr, Dummy);
+  (void)TracingFS->status("/foo");
+  EXPECT_EQ(TracingFS->NumStatusCalls, 1u);
+  EXPECT_EQ(TracingFS->NumOpenFileForReadCalls, 0u);
+  EXPECT_EQ(TracingFS->NumDirBeginCalls, 0u);
+  EXPECT_EQ(TracingFS->NumGetRealPathCalls, 0u);
+  EXPECT_EQ(TracingFS->NumExistsCalls, 0u);
+  EXPECT_EQ(TracingFS->NumIsLocalCalls, 0u);
 
-  EXPECT_TRUE(Redirecting->exists("/dremap"));
-  EXPECT_FALSE(Redirecting->exists("/dmissing"));
-  EXPECT_FALSE(Redirecting->exists("/unknown"));
-  EXPECT_TRUE(Redirecting->exists("/both"));
-  EXPECT_TRUE(Redirecting->exists("/both/foo"));
-  EXPECT_TRUE(Redirecting->exists("/both/vfile"));
-  EXPECT_TRUE(Redirecting->exists("/vdir"));
-  EXPECT_TRUE(Redirecting->exists("/vdir/dremap"));
-  EXPECT_FALSE(Redirecting->exists("/vdir/missing"));
-  EXPECT_TRUE(Redirecting->exists("/vdir/vfile"));
-  EXPECT_FALSE(Redirecting->exists("/vdir/unknown"));
+  (void)TracingFS->openFileForRead("/foo");
+  EXPECT_EQ(TracingFS->NumStatusCalls, 1u);
+  EXPECT_EQ(TracingFS->NumOpenFileForReadCalls, 1u);
+  EXPECT_EQ(TracingFS->NumDirBeginCalls, 0u);
+  EXPECT_EQ(TracingFS->NumGetRealPathCalls, 0u);
+  EXPECT_EQ(TracingFS->NumExistsCalls, 0u);
+  EXPECT_EQ(TracingFS->NumIsLocalCalls, 0u);
+
+  std::error_code EC;
+  (void)TracingFS->dir_begin("/foo", EC);
+  EXPECT_EQ(TracingFS->NumStatusCalls, 1u);
+  EXPECT_EQ(TracingFS->NumOpenFileForReadCalls, 1u);
+  EXPECT_EQ(TracingFS->NumDirBeginCalls, 1u);
+  EXPECT_EQ(TracingFS->NumGetRealPathCalls, 0u);
+  EXPECT_EQ(TracingFS->NumExistsCalls, 0u);
+  EXPECT_EQ(TracingFS->NumIsLocalCalls, 0u);
+
+  SmallString<128> RealPath;
+  (void)TracingFS->getRealPath("/foo", RealPath);
+  EXPECT_EQ(TracingFS->NumStatusCalls, 1u);
+  EXPECT_EQ(TracingFS->NumOpenFileForReadCalls, 1u);
+  EXPECT_EQ(TracingFS->NumDirBeginCalls, 1u);
+  EXPECT_EQ(TracingFS->NumGetRealPathCalls, 1u);
+  EXPECT_EQ(TracingFS->NumExistsCalls, 0u);
+  EXPECT_EQ(TracingFS->NumIsLocalCalls, 0u);
+
+  (void)TracingFS->exists("/foo");
+  EXPECT_EQ(TracingFS->NumStatusCalls, 1u);
+  EXPECT_EQ(TracingFS->NumOpenFileForReadCalls, 1u);
+  EXPECT_EQ(TracingFS->NumDirBeginCalls, 1u);
+  EXPECT_EQ(TracingFS->NumGetRealPathCalls, 1u);
+  EXPECT_EQ(TracingFS->NumExistsCalls, 1u);
+  EXPECT_EQ(TracingFS->NumIsLocalCalls, 0u);
+
+  bool IsLocal;
+  (void)TracingFS->isLocal("/foo", IsLocal);
+  EXPECT_EQ(TracingFS->NumStatusCalls, 1u);
+  EXPECT_EQ(TracingFS->NumOpenFileForReadCalls, 1u);
+  EXPECT_EQ(TracingFS->NumDirBeginCalls, 1u);
+  EXPECT_EQ(TracingFS->NumGetRealPathCalls, 1u);
+  EXPECT_EQ(TracingFS->NumExistsCalls, 1u);
+  EXPECT_EQ(TracingFS->NumIsLocalCalls, 1u);
 }
 
-TEST(RedirectingFileSystemTest, ExistsFallback) {
-  IntrusiveRefCntPtr<DummyFileSystem> Dummy(new NoStatusDummyFileSystem());
-  auto YAML =
-    MemoryBuffer::getMemBuffer("{\n"
-                               "  'version': 0,\n"
-                               "  'redirecting-with': 'fallback',\n"
-                               "  'roots': [\n"
-                               "    {\n"
-                               "      'type': 'file',\n"
-                               "      'name': '/fallback',\n"
-                               "      'external-contents': '/missing',\n"
-                               "    },"
-                               "  ]\n"
-                               "}");
+TEST(TracingFileSystemTest, PrintOutput) {
+  auto InMemoryFS = makeIntrusiveRefCnt<vfs::InMemoryFileSystem>();
+  auto TracingFS =
+      makeIntrusiveRefCnt<vfs::TracingFileSystem>(std::move(InMemoryFS));
 
-  Dummy->addRegularFile("/fallback");
+  (void)TracingFS->status("/foo");
 
-  auto Redirecting = vfs::RedirectingFileSystem::create(
-							std::move(YAML), nullptr, "", nullptr, Dummy);
+  (void)TracingFS->openFileForRead("/foo");
+  (void)TracingFS->openFileForRead("/foo");
 
-  EXPECT_TRUE(Redirecting->exists("/fallback"));
-  EXPECT_FALSE(Redirecting->exists("/missing"));
-}
+  std::error_code EC;
+  (void)TracingFS->dir_begin("/foo", EC);
+  (void)TracingFS->dir_begin("/foo", EC);
+  (void)TracingFS->dir_begin("/foo", EC);
 
-TEST(RedirectingFileSystemTest, ExistsRedirectOnly) {
-  IntrusiveRefCntPtr<DummyFileSystem> Dummy(new NoStatusDummyFileSystem());
-  auto YAML =
-    MemoryBuffer::getMemBuffer("{\n"
-                               "  'version': 0,\n"
-                               "  'redirecting-with': 'redirect-only',\n"
-                               "  'roots': [\n"
-                               "    {\n"
-                               "      'type': 'file',\n"
-                               "      'name': '/vfile',\n"
-                               "      'external-contents': '/a',\n"
-                               "    },"
-                               "  ]\n"
-                               "}");
+  llvm::SmallString<128> RealPath;
+  (void)TracingFS->getRealPath("/foo", RealPath);
+  (void)TracingFS->getRealPath("/foo", RealPath);
+  (void)TracingFS->getRealPath("/foo", RealPath);
+  (void)TracingFS->getRealPath("/foo", RealPath);
 
-  Dummy->addRegularFile("/a");
-  Dummy->addRegularFile("/b");
+  (void)TracingFS->exists("/foo");
+  (void)TracingFS->exists("/foo");
+  (void)TracingFS->exists("/foo");
+  (void)TracingFS->exists("/foo");
+  (void)TracingFS->exists("/foo");
 
-  auto Redirecting = vfs::RedirectingFileSystem::create(
-							std::move(YAML), nullptr, "", nullptr, Dummy);
+  bool IsLocal;
+  (void)TracingFS->isLocal("/foo", IsLocal);
+  (void)TracingFS->isLocal("/foo", IsLocal);
+  (void)TracingFS->isLocal("/foo", IsLocal);
+  (void)TracingFS->isLocal("/foo", IsLocal);
+  (void)TracingFS->isLocal("/foo", IsLocal);
+  (void)TracingFS->isLocal("/foo", IsLocal);
 
-  EXPECT_FALSE(Redirecting->exists("/a"));
-  EXPECT_FALSE(Redirecting->exists("/b"));
-  EXPECT_TRUE(Redirecting->exists("/vfile"));
+  std::string Output;
+  llvm::raw_string_ostream OS(Output);
+  TracingFS->print(OS);
+
+  ASSERT_EQ("TracingFileSystem\n"
+            "NumStatusCalls=1\n"
+            "NumOpenFileForReadCalls=2\n"
+            "NumDirBeginCalls=3\n"
+            "NumGetRealPathCalls=4\n"
+            "NumExistsCalls=5\n"
+            "NumIsLocalCalls=6\n"
+            "  InMemoryFileSystem\n",
+            Output);
 }

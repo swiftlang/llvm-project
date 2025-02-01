@@ -22,6 +22,7 @@
 #include "llvm/Support/VersionTuple.h"
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -125,16 +126,22 @@ private:
   /// The target specific Mach-O writer instance.
   std::unique_ptr<MCMachObjectTargetWriter> TargetObjectWriter;
 
+public:
   /// \name Relocation Data
   /// @{
 
   struct RelAndSymbol {
     const MCSymbol *Sym;
+    const MCFragment *F; // MCCAS
     MachO::any_relocation_info MRE;
-    RelAndSymbol(const MCSymbol *Sym, const MachO::any_relocation_info &MRE)
-        : Sym(Sym), MRE(MRE) {}
+    RelAndSymbol(const MCSymbol *Sym,
+                 const MCFragment *F, // MCCAS
+                 const MachO::any_relocation_info &MRE)
+        : Sym(Sym), F(F), // MCCAS
+          MRE(MRE) {}
   };
 
+private:
   DenseMap<const MCSection *, std::vector<RelAndSymbol>> Relocations;
   std::vector<IndirectSymbolData> IndirectSymbols;
   DenseMap<const MCSection *, unsigned> IndirectSymBase;
@@ -164,12 +171,23 @@ private:
   VersionInfoType VersionInfo{};
   VersionInfoType TargetVariantVersionInfo{};
 
+  std::optional<unsigned> PtrAuthABIVersion = std::nullopt;
+  bool PtrAuthKernelABIVersion = false;
+
   // The list of linker options for LC_LINKER_OPTION.
   std::vector<std::vector<std::string>> LinkerOptions;
 
   MachSymbolData *findSymbolData(const MCSymbol &Sym);
 
   void writeWithPadding(StringRef Str, uint64_t Size);
+
+  // BEGIN MCCAS
+  // Private data.
+  uint64_t LOHRawSize = 0;
+  uint64_t LOHSize = 0;
+  unsigned NumSymbols = 0;
+  unsigned SectionDataPadding = 0;
+  // END MCCAS
 
 public:
   MachObjectWriter(std::unique_ptr<MCMachObjectTargetWriter> MOTW,
@@ -252,6 +270,12 @@ public:
     TargetVariantVersionInfo.SDKVersion = SDKVersion;
   }
 
+  std::optional<unsigned> getPtrAuthABIVersion() const {
+    return PtrAuthABIVersion;
+  }
+  void setPtrAuthABIVersion(unsigned V) { PtrAuthABIVersion = V; }
+  bool getPtrAuthKernelABIVersion() const { return PtrAuthKernelABIVersion; }
+  void setPtrAuthKernelABIVersion(bool V) { PtrAuthKernelABIVersion = V; }
   std::vector<std::vector<std::string>> &getLinkerOptions() {
     return LinkerOptions;
   }
@@ -270,7 +294,9 @@ public:
   /// @}
 
   void writeHeader(MachO::HeaderFileType Type, unsigned NumLoadCommands,
-                   unsigned LoadCommandsSize, bool SubsectionsViaSymbols);
+                   unsigned LoadCommandsSize, bool SubsectionsViaSymbols,
+                   std::optional<unsigned> PtrAuthABIVersion,
+                   bool PtrAuthKernelABIVersion);
 
   /// Write a segment load command.
   ///
@@ -303,6 +329,12 @@ public:
 
   void writeLinkerOptionsLoadCommand(const std::vector<std::string> &Options);
 
+  // BEGIN MCCAS
+  DenseMap<const MCSection *, std::vector<RelAndSymbol>> &getRelocations() {
+    return Relocations;
+  }
+  // END MCCAS
+
   // FIXME: We really need to improve the relocation validation. Basically, we
   // want to implement a separate computation which evaluates the relocation
   // entry as the linker would, and verifies that the resultant fixup value is
@@ -324,9 +356,17 @@ public:
   // used.
   void addRelocation(const MCSymbol *RelSymbol, const MCSection *Sec,
                      MachO::any_relocation_info &MRE) {
-    RelAndSymbol P(RelSymbol, MRE);
+    RelAndSymbol P(RelSymbol, nullptr /* Fragment, MCCAS*/, MRE);
     Relocations[Sec].push_back(P);
   }
+
+  // BEGIN MCCAS
+  void addRelocation(const MCSymbol *RelSymbol, const MCFragment *F,
+                     MachO::any_relocation_info &MRE) {
+    RelAndSymbol P(RelSymbol, F, MRE);
+    Relocations[F->getParent()].push_back(P);
+  }
+  // END MCCAS
 
   void recordRelocation(MCAssembler &Asm, const MCFragment *Fragment,
                         const MCFixup &Fixup, MCValue Target,
@@ -350,6 +390,17 @@ public:
                                               bool IsPCRel) const override;
 
   void populateAddrSigSection(MCAssembler &Asm);
+
+  // BEGIN MCCAS
+  // FIXME: Break down writeObject into following stages for slicing the output.
+  // This is a very rough slicing and need to be improved.
+  void prepareObject(MCAssembler &Asm);
+  void writeMachOHeader(MCAssembler &Asm);
+  void writeSectionData(MCAssembler &Asm);
+  void writeRelocations(MCAssembler &Asm);
+  void writeDataInCodeRegion(MCAssembler &Asm);
+  void writeSymbolTable(MCAssembler &Asm);
+  // END MCCAS
 
   uint64_t writeObject(MCAssembler &Asm) override;
 };

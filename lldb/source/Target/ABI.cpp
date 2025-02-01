@@ -9,7 +9,6 @@
 #include "lldb/Target/ABI.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Value.h"
-#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/TypeSystem.h"
@@ -17,6 +16,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/ValueObject/ValueObjectConstResult.h"
 #include "llvm/MC/TargetRegistry.h"
 #include <cctype>
 
@@ -85,10 +85,11 @@ ValueObjectSP ABI::GetReturnValueObject(Thread &thread, CompilerType &ast_type,
   // work.
 
   if (persistent) {
+    lldb::LanguageType lang = ast_type.GetMinimumLanguage();
+    PersistentExpressionState *persistent_expression_state;
     Target &target = *thread.CalculateTarget();
-    PersistentExpressionState *persistent_expression_state =
-        target.GetPersistentExpressionStateForLanguage(
-            ast_type.GetMinimumLanguage());
+    persistent_expression_state =
+        target.GetPersistentExpressionStateForLanguage(lang);
 
     if (!persistent_expression_state)
       return {};
@@ -210,7 +211,7 @@ bool ABI::PrepareTrivialCall(Thread &thread, lldb::addr_t sp,
 
 bool ABI::GetFallbackRegisterLocation(
     const RegisterInfo *reg_info,
-    UnwindPlan::Row::RegisterLocation &unwind_regloc) {
+    UnwindPlan::Row::AbstractRegisterLocation &unwind_regloc) {
   // Did the UnwindPlan fail to give us the caller's stack pointer? The stack
   // pointer is defined to be the same as THIS frame's CFA, so return the CFA
   // value as the caller's stack pointer.  This is true on x86-32/x86-64 at

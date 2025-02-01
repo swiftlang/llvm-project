@@ -6,6 +6,7 @@
 ; CHECK-LABEL: define internal fastcc void @f.resume({{.*}})
 ; CHECK:       entry.resume:
 ; CHECK:        #dbg_declare(ptr %begin, ![[PROMISEVAR_RESUME:[0-9]+]], !DIExpression(
+; CHECK:        #dbg_declare(
 ;
 ; CHECK: ![[PROMISEVAR_RESUME]] = !DILocalVariable(name: "__promise"
 %promise_type = type { i32, i32, double }

@@ -9,6 +9,8 @@
 #ifndef LLDB_INTERPRETER_INTERFACES_SCRIPTEDINTERFACE_H
 #define LLDB_INTERPRETER_INTERFACES_SCRIPTEDINTERFACE_H
 
+#include "ScriptedInterfaceUsages.h"
+
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
@@ -46,7 +48,7 @@ public:
           llvm::Twine(llvm::Twine(" (") + llvm::Twine(detailed_error) +
                       llvm::Twine(")"))
               .str();
-    error.SetErrorString(full_error_message);
+    error = Status(std::move(full_error_message));
     return {};
   }
 
@@ -66,6 +68,11 @@ public:
       return ErrorWithMessage<bool>(caller, error.AsCString(), error);
 
     return true;
+  }
+
+  static bool CreateInstance(lldb::ScriptLanguage language,
+                             ScriptedInterfaceUsages usages) {
+    return false;
   }
 
 protected:

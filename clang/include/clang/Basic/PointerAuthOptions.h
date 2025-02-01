@@ -34,7 +34,20 @@ class PointerAuthSchema {
 public:
   enum class Kind : unsigned {
     None,
+    Soft,
     ARM8_3,
+  };
+
+  /// Software pointer-signing "keys". If you add a new key, make sure this->Key
+  /// has a large enough bit-width.
+  enum class SoftKey : unsigned {
+    FunctionPointers = 0,
+    BlockInvocationFunctionPointers = 1,
+    BlockHelperFunctionPointers = 2,
+    ObjCMethodListFunctionPointers = 3,
+    CXXVTablePointers = 4,
+    CXXVirtualFunctionPointers = 5,
+    CXXMemberFunctionPointers = 6,
   };
 
   /// Hardware pointer-signing keys in ARM8.3.
@@ -69,7 +82,7 @@ private:
   unsigned AuthenticatesNullValues : 1;
   PointerAuthenticationMode SelectedAuthenticationMode : 2;
   Discrimination DiscriminationKind : 2;
-  unsigned Key : 2;
+  unsigned Key : 3;
   unsigned ConstantDiscriminator : 16;
 
 public:
@@ -94,6 +107,24 @@ public:
   }
 
   PointerAuthSchema(
+      SoftKey Key, bool IsAddressDiscriminated,
+      PointerAuthenticationMode AuthenticationMode,
+      Discrimination OtherDiscrimination,
+      std::optional<uint16_t> ConstantDiscriminatorOrNone = std::nullopt,
+      bool IsIsaPointer = false, bool AuthenticatesNullValues = false)
+      : TheKind(Kind::Soft), IsAddressDiscriminated(IsAddressDiscriminated),
+        IsIsaPointer(IsIsaPointer),
+        AuthenticatesNullValues(AuthenticatesNullValues),
+        SelectedAuthenticationMode(AuthenticationMode),
+        DiscriminationKind(OtherDiscrimination), Key(unsigned(Key)) {
+    assert((getOtherDiscrimination() != Discrimination::Constant ||
+            ConstantDiscriminatorOrNone) &&
+           "constant discrimination requires a constant!");
+    if (ConstantDiscriminatorOrNone)
+      ConstantDiscriminator = *ConstantDiscriminatorOrNone;
+  }
+
+  PointerAuthSchema(
       ARM8_3Key Key, bool IsAddressDiscriminated,
       Discrimination OtherDiscrimination,
       std::optional<uint16_t> ConstantDiscriminatorOrNone = std::nullopt,
@@ -102,6 +133,17 @@ public:
                           PointerAuthenticationMode::SignAndAuth,
                           OtherDiscrimination, ConstantDiscriminatorOrNone,
                           IsIsaPointer, AuthenticatesNullValues) {}
+
+  PointerAuthSchema(
+      SoftKey Key, bool IsAddressDiscriminated,
+      Discrimination OtherDiscrimination,
+      std::optional<uint16_t> ConstantDiscriminatorOrNone = std::nullopt,
+      bool IsIsaPointer = false, bool AuthenticatesNullValues = false)
+      : PointerAuthSchema(Key, IsAddressDiscriminated,
+                          PointerAuthenticationMode::SignAndAuth,
+                          OtherDiscrimination, ConstantDiscriminatorOrNone,
+                          IsIsaPointer, AuthenticatesNullValues) {}
+
 
   Kind getKind() const { return TheKind; }
 
@@ -142,6 +184,8 @@ public:
     switch (getKind()) {
     case Kind::None:
       llvm_unreachable("calling getKey() on disabled schema");
+    case Kind::Soft:
+      return unsigned(getSoftKey());
     case Kind::ARM8_3:
       return llvm::to_underlying(getARM8_3Key());
     }
@@ -152,6 +196,11 @@ public:
     return SelectedAuthenticationMode;
   }
 
+  SoftKey getSoftKey() const {
+    assert(getKind() == Kind::Soft);
+    return SoftKey(Key);
+  }
+
   ARM8_3Key getARM8_3Key() const {
     assert(getKind() == Kind::ARM8_3);
     return ARM8_3Key(Key);
@@ -159,6 +208,10 @@ public:
 };
 
 struct PointerAuthOptions {
+  /// Do member function pointers to virtual functions need to be built
+  /// as thunks?
+  bool ThunkCXXVirtualMemberPointers = false;
+
   /// Should return addresses be authenticated?
   bool ReturnAddresses = false;
 
@@ -192,6 +245,18 @@ struct PointerAuthOptions {
 
   /// The ABI for C++ member function pointers.
   PointerAuthSchema CXXMemberFunctionPointers;
+
+  /// The ABI for block invocation function pointers.
+  PointerAuthSchema BlockInvocationFunctionPointers;
+
+  /// The ABI for block object copy/destroy function pointers.
+  PointerAuthSchema BlockHelperFunctionPointers;
+
+  /// The ABI for __block variable copy/destroy function pointers.
+  PointerAuthSchema BlockByrefHelperFunctionPointers;
+
+  /// The ABI for Objective-C method lists.
+  PointerAuthSchema ObjCMethodListFunctionPointers;
 };
 
 } // end namespace clang

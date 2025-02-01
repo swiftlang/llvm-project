@@ -185,6 +185,10 @@ public:
   MachineFunction &MF;
   const DebugVariableMap &DVMap;
   bool ShouldEmitDebugEntryValues;
+  // BEGIN SWIFT
+  /// Whether this is a Swift async function.
+  bool IsSwiftAsyncFunction = false;
+  // END SWIFT
 
   /// Record of all changes in variable locations at a block position. Awkwardly
   /// we allow inserting either before or after the point: MBB != nullptr
@@ -504,6 +508,15 @@ public:
 
     // Now map variables to their picked LocIdxes.
     for (const auto &Var : VLocs) {
+      // BEGIN SWIFT
+      // Async support: Don't track spills for entry values.
+      // TODO: Skipping all entry values is a big hammer, we really
+      // only want to to skip spills.
+      if (IsSwiftAsyncFunction && Var.second.Properties.DIExpr &&
+          Var.second.Properties.DIExpr->isEntryValue())
+        continue;
+      // END SWIFT
+
       loadVarInloc(MBB, DbgOpStore, ValueToLoc, Var.first, Var.second);
     }
     flushDbgValues(MBB.begin(), &MBB);
@@ -855,6 +868,13 @@ public:
       // was found, or the existing list with the substitution MLoc -> NewLoc
       // otherwise.
       SmallVector<ResolvedDbgOp> DbgOps;
+      // BEGIN SWIFT
+      // Async support: Don't track spills for entry values.
+      if (IsSwiftAsyncFunction && ActiveVLocIt->second.Properties.DIExpr &&
+          ActiveVLocIt->second.Properties.DIExpr->isEntryValue())
+        DbgOps.push_back(MLoc);
+      else
+      // END SWIFT
       if (NewLoc) {
         ResolvedDbgOp OldOp(MLoc);
         ResolvedDbgOp NewOp(*NewLoc);
@@ -930,9 +950,16 @@ public:
       auto ActiveVLocIt = ActiveVLocs.find(VarID);
       assert(ActiveVLocIt != ActiveVLocs.end());
 
-      // Update all instances of Src in the variable's tracked values to Dst.
-      std::replace(ActiveVLocIt->second.Ops.begin(),
-                   ActiveVLocIt->second.Ops.end(), SrcOp, DstOp);
+      // BEGIN SWIFT
+      // Async support: Don't track transfers for entry values.
+      if (IsSwiftAsyncFunction && ActiveVLocIt->second.Properties.DIExpr &&
+          ActiveVLocIt->second.Properties.DIExpr->isEntryValue()) {
+        // Leave SrcOp in-situ.
+      } else
+      // END SWIFT
+        // Update all instances of Src in the variable's tracked values to Dst.
+        std::replace(ActiveVLocIt->second.Ops.begin(),
+                     ActiveVLocIt->second.Ops.end(), SrcOp, DstOp);
 
       auto &[Var, DILoc] = DVMap.lookupDVID(VarID);
       MachineInstr *MI = MTracker->emitLoc(ActiveVLocIt->second.Ops, Var, DILoc,
@@ -1418,8 +1445,31 @@ bool InstrRefBasedLDV::transferDebugValue(const MachineInstr &MI) {
   // MLocTracker needs to know that this register is read, even if it's only
   // read by a debug inst.
   for (const MachineOperand &MO : MI.debug_operands())
-    if (MO.isReg() && MO.getReg() != 0)
-      (void)MTracker->readReg(MO.getReg());
+    if (MO.isReg() && MO.getReg() != 0) {
+      ValueIDNum RegId = MTracker->readReg(MO.getReg());
+
+      // BEGIN SWIFT
+      // Swift async function handling.
+      auto *Expr = MI.getDebugExpression();
+      const llvm::MachineFunction *MF = MI.getParent()->getParent();
+      if (isSwiftAsyncContext(*MF, MO.getReg())) {
+        // In Swift async functions entry values are preferred, since they
+        // can be evaluated in both live frames and virtual backtraces.
+        IsSwiftAsyncFunction = true;
+        if (TTracker)
+          TTracker->IsSwiftAsyncFunction = true;
+        if (!Expr || Expr->isEntryValue()) {
+          if (TTracker) {
+            const DILocalVariable *Var = MI.getDebugVariable();
+            const DILocation *InlinedAt = MI.getDebugLoc()->getInlinedAt();
+            DebugVariable V(Var, Expr, InlinedAt);
+            DebugVariableID VID = DVMap.insertDVID(V, InlinedAt);
+            TTracker->recoverAsEntryValue(VID, DbgValueProperties(MI), RegId);
+          }
+        }
+      }
+    }
+  // END SWIFT
 
   // If we're preparing for the second analysis (variables), the machine value
   // locations are already solved, and we report this DBG_VALUE and the value
@@ -3534,6 +3584,9 @@ bool InstrRefBasedLDV::depthFirstVLocAndEmit(
     const TargetPassConfig &TPC) {
   TTracker =
       new TransferTracker(TII, MTracker, MF, DVMap, *TRI, CalleeSavedRegs, TPC);
+  // BEGIN SWIFT
+  TTracker->IsSwiftAsyncFunction = IsSwiftAsyncFunction;
+  // END SWIFT
   unsigned NumLocs = MTracker->getNumLocs();
   VTracker = nullptr;
 
@@ -3705,6 +3758,9 @@ bool InstrRefBasedLDV::ExtendRanges(MachineFunction &MF,
       new MLocTracker(MF, *TII, *TRI, *MF.getSubtarget().getTargetLowering());
   VTracker = nullptr;
   TTracker = nullptr;
+  // BEGIN SWIFT
+  IsSwiftAsyncFunction = false;
+  // END SWIFT
 
   SmallVector<MLocTransferMap, 32> MLocTransfer;
   SmallVector<VLocTracker, 8> vlocs;

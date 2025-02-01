@@ -334,12 +334,14 @@ CodeGenModule::CodeGenModule(ASTContext &C,
                              IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                              const HeaderSearchOptions &HSO,
                              const PreprocessorOptions &PPO,
-                             const CodeGenOptions &CGO, llvm::Module &M,
+                             const CodeGenOptions &CGO,
+                             const TargetInfo &CGTI,
+                             llvm::Module &M,
                              DiagnosticsEngine &diags,
                              CoverageSourceInfo *CoverageInfo)
     : Context(C), LangOpts(C.getLangOpts()), FS(FS), HeaderSearchOpts(HSO),
       PreprocessorOpts(PPO), CodeGenOpts(CGO), TheModule(M), Diags(diags),
-      Target(C.getTargetInfo()), ABI(createCXXABI(*this)),
+      Target(CGTI), ABI(createCXXABI(*this)),
       VMContext(M.getContext()), VTables(*this),
       SanitizerMD(new SanitizerMetadata(*this)) {
 
@@ -355,19 +357,19 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   BFloatTy = llvm::Type::getBFloatTy(LLVMContext);
   FloatTy = llvm::Type::getFloatTy(LLVMContext);
   DoubleTy = llvm::Type::getDoubleTy(LLVMContext);
-  PointerWidthInBits = C.getTargetInfo().getPointerWidth(LangAS::Default);
+  PointerWidthInBits = Target.getPointerWidth(LangAS::Default);
   PointerAlignInBytes =
-      C.toCharUnitsFromBits(C.getTargetInfo().getPointerAlign(LangAS::Default))
+      C.toCharUnitsFromBits(Target.getPointerAlign(LangAS::Default))
           .getQuantity();
   SizeSizeInBytes =
-    C.toCharUnitsFromBits(C.getTargetInfo().getMaxPointerWidth()).getQuantity();
+    C.toCharUnitsFromBits(Target.getMaxPointerWidth()).getQuantity();
   IntAlignInBytes =
-    C.toCharUnitsFromBits(C.getTargetInfo().getIntAlign()).getQuantity();
+    C.toCharUnitsFromBits(Target.getIntAlign()).getQuantity();
   CharTy =
-    llvm::IntegerType::get(LLVMContext, C.getTargetInfo().getCharWidth());
-  IntTy = llvm::IntegerType::get(LLVMContext, C.getTargetInfo().getIntWidth());
+    llvm::IntegerType::get(LLVMContext, Target.getCharWidth());
+  IntTy = llvm::IntegerType::get(LLVMContext, Target.getIntWidth());
   IntPtrTy = llvm::IntegerType::get(LLVMContext,
-    C.getTargetInfo().getMaxPointerWidth());
+    Target.getMaxPointerWidth());
   Int8PtrTy = llvm::PointerType::get(LLVMContext,
                                      C.getTargetAddressSpace(LangAS::Default));
   const llvm::DataLayout &DL = M.getDataLayout();
@@ -452,7 +454,9 @@ CodeGenModule::CodeGenModule(ASTContext &C,
                               CodeGenOpts.NumRegisterParameters);
 }
 
-CodeGenModule::~CodeGenModule() {}
+CodeGenModule::~CodeGenModule() {
+  destroyConstantSignedPointerCaches();
+}
 
 void CodeGenModule::createObjCRuntime() {
   // This is just isGNUFamily(), but we want to force implementors of
@@ -1296,6 +1300,11 @@ void CodeGenModule::Release() {
   // HLSL related end of code gen work items.
   if (LangOpts.HLSL)
     getHLSLRuntime().finishCodeGen();
+
+  if (LangOpts.PointerAuthABIVersionEncoded)
+    TheModule.setPtrAuthABIVersion(
+        {static_cast<int>(LangOpts.PointerAuthABIVersion),
+         static_cast<bool>(LangOpts.PointerAuthKernelABIVersion)});
 
   if (uint32_t PLevel = Context.getLangOpts().PICLevel) {
     assert(PLevel < 3 && "Invalid PIC Level");

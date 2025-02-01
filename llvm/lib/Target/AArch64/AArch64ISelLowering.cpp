@@ -8763,6 +8763,10 @@ AArch64TargetLowering::LowerCall(CallLoweringInfo &CLI,
     if (OpFlags & AArch64II::MO_GOT) {
       Callee = DAG.getTargetGlobalAddress(GV, DL, PtrVT, 0, OpFlags);
       Callee = DAG.getNode(AArch64ISD::LOADgot, DL, PtrVT, Callee);
+    } else if (Subtarget->isTargetCOFF() && GV->hasDLLImportStorageClass()) {
+      assert(Subtarget->isTargetWindows() &&
+             "Windows is the only supported COFF target");
+      Callee = getGOT(G, DAG, AArch64II::MO_DLLIMPORT);
     } else {
       const GlobalValue *GV = G->getGlobal();
       Callee = DAG.getTargetGlobalAddress(GV, DL, PtrVT, 0, OpFlags);
@@ -10810,7 +10814,8 @@ SDValue AArch64TargetLowering::LowerBR_JT(SDValue Op,
   // With aarch64-jump-table-hardening, we only expand the jump table dispatch
   // sequence later, to guarantee the integrity of the intermediate values.
   if (DAG.getMachineFunction().getFunction().hasFnAttribute(
-          "aarch64-jump-table-hardening")) {
+          "aarch64-jump-table-hardening") ||
+      Subtarget->getTargetTriple().isArm64e()) {
     CodeModel::Model CM = getTargetMachine().getCodeModel();
     if (Subtarget->isTargetMachO()) {
       if (CM != CodeModel::Small && CM != CodeModel::Large)
@@ -11221,6 +11226,8 @@ SDValue AArch64TargetLowering::LowerRETURNADDR(SDValue Op,
   unsigned Depth = Op.getConstantOperandVal(0);
   SDValue ReturnAddress;
   if (Depth) {
+    SDNodeFlags Flags;
+    Flags.setNoUnsignedWrap(true);
     SDValue FrameAddr = LowerFRAMEADDR(Op, DAG);
     SDValue Offset = DAG.getConstant(8, DL, getPointerTy(DAG.getDataLayout()));
     ReturnAddress = DAG.getLoad(
@@ -11232,6 +11239,17 @@ SDValue AArch64TargetLowering::LowerRETURNADDR(SDValue Op,
     Register Reg = MF.addLiveIn(AArch64::LR, &AArch64::GPR64RegClass);
     ReturnAddress = DAG.getCopyFromReg(DAG.getEntryNode(), DL, Reg, VT);
   }
+
+  // If we're doing LR signing, we need to fixup ReturnAddr: strip it.
+  if (Subtarget->isTargetMachO() &&
+      MF.getFunction().hasFnAttribute("ptrauth-returns"))
+    return DAG.getNode(ISD::INTRINSIC_WO_CHAIN, DL, VT,
+                       DAG.getConstant(Intrinsic::ptrauth_strip, DL, MVT::i32),
+                       ReturnAddress,
+                       DAG.getConstant(AArch64PACKey::IB, DL, MVT::i32));
+  // If not, on Darwin, we know we will never seen a frame with a signed LR.
+  else if (Subtarget->isTargetDarwin())
+    return ReturnAddress;
 
   // The XPACLRI instruction assembles to a hint-space instruction before
   // Armv8.3-A therefore this instruction can be safely used for any pre
@@ -22435,10 +22453,15 @@ static SDValue performPostLD1Combine(SDNode *N,
   if (!VT.is128BitVector() && !VT.is64BitVector())
     return SDValue();
 
-  unsigned LoadIdx = IsLaneOp ? 1 : 0;
-  SDNode *LD = N->getOperand(LoadIdx).getNode();
   // If it is not LOAD, can not do such combine.
-  if (LD->getOpcode() != ISD::LOAD)
+  unsigned LoadIdx = IsLaneOp ? 1 : 0;
+  LoadSDNode *LD = dyn_cast<LoadSDNode>(N->getOperand(LoadIdx).getNode());
+  if (!LD)
+    return SDValue();
+
+  // If the Generic combiner already helped form a pre- or post-indexed load,
+  // skip forming one here.
+  if (LD->isIndexed())
     return SDValue();
 
   // The vector lane must be a constant in the LD1LANE opcode.

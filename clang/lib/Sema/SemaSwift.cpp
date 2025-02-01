@@ -73,11 +73,16 @@ static bool isValidSwiftErrorResultType(QualType Ty) {
 }
 
 void SemaSwift::handleAttrAttr(Decl *D, const ParsedAttr &AL) {
+  if (AL.isInvalid() || AL.isUsedAsTypeAttr())
+    return;
+
   // Make sure that there is a string literal as the annotation's single
   // argument.
   StringRef Str;
-  if (!SemaRef.checkStringLiteralArgumentAttr(AL, 0, Str))
+  if (!SemaRef.checkStringLiteralArgumentAttr(AL, 0, Str)) {
+    AL.setInvalid();
     return;
+  }
 
   D->addAttr(::new (getASTContext()) SwiftAttrAttr(getASTContext(), AL, Str));
 }
@@ -624,6 +629,11 @@ void SemaSwift::handleAsyncName(Decl *D, const ParsedAttr &AL) {
 
   D->addAttr(::new (getASTContext())
                  SwiftAsyncNameAttr(getASTContext(), AL, Name));
+}
+
+void SemaSwift::handleTransparentStepping(Decl *D, const ParsedAttr &AL) {
+  D->addAttr(::new (getASTContext())
+                 TransparentSteppingAttr(getASTContext(), AL));
 }
 
 void SemaSwift::handleNewType(Decl *D, const ParsedAttr &AL) {

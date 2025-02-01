@@ -8,6 +8,7 @@
 
 #include "ClangPersistentVariables.h"
 #include "ClangASTImporter.h"
+#include "lldb/Expression/IRExecutionUnit.h"
 #include "ClangModulesDeclVendor.h"
 
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
@@ -47,6 +48,9 @@ ExpressionVariableSP ClangPersistentVariables::CreatePersistentVariable(
 
 void ClangPersistentVariables::RemovePersistentVariable(
     lldb::ExpressionVariableSP variable) {
+  if (!variable)
+    return;
+
   RemoveVariable(variable);
 
   // Check if the removed variable was the last one that was created. If yes,

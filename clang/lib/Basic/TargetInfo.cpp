@@ -159,6 +159,7 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : Triple(T) {
   AllowAMDGPUUnsafeFPAtomics = false;
   HasUnalignedAccess = false;
   ARMCDECoprocMask = 0;
+  PointerAuthSupported = false;
 
   // Default to no types using fpret.
   RealTypeUsesObjCFPRetMask = 0;

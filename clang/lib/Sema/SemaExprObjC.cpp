@@ -550,9 +550,7 @@ ExprResult SemaObjC::BuildObjCBoxedExpr(SourceRange SR, Expr *ValueExpr) {
             const llvm::UTF8 *StrEnd = Str.bytes_end();
             // Check that this is a valid UTF-8 string.
             if (llvm::isLegalUTF8String(&StrBegin, StrEnd)) {
-              BoxedType = Context.getAttributedType(
-                  AttributedType::getNullabilityAttrKind(
-                      NullabilityKind::NonNull),
+              BoxedType = Context.getAttributedType(NullabilityKind::NonNull,
                   NSStringPointer, NSStringPointer);
               return new (Context) ObjCBoxedExpr(CE, BoxedType, nullptr, SR);
             }
@@ -604,9 +602,8 @@ ExprResult SemaObjC::BuildObjCBoxedExpr(SourceRange SR, Expr *ValueExpr) {
       std::optional<NullabilityKind> Nullability =
           BoxingMethod->getReturnType()->getNullability();
       if (Nullability)
-        BoxedType = Context.getAttributedType(
-            AttributedType::getNullabilityAttrKind(*Nullability), BoxedType,
-            BoxedType);
+        BoxedType =
+            Context.getAttributedType(*Nullability, BoxedType, BoxedType);
     }
   } else if (ValueType->isBuiltinType()) {
     // The other types we support are numeric, char and BOOL/bool. We could also
@@ -1409,12 +1406,8 @@ ExprResult SemaObjC::ParseObjCProtocolExpression(IdentifierInfo *ProtocolId,
   if (PDecl->isNonRuntimeProtocol())
     Diag(ProtoLoc, diag::err_objc_non_runtime_protocol_in_protocol_expr)
         << PDecl;
-  if (!PDecl->hasDefinition()) {
-    Diag(ProtoLoc, diag::err_atprotocol_protocol) << PDecl;
-    Diag(PDecl->getLocation(), diag::note_entity_declared_at) << PDecl;
-  } else {
+  if (PDecl->hasDefinition())
     PDecl = PDecl->getDefinition();
-  }
 
   QualType Ty = Context.getObjCProtoType();
   if (Ty.isNull())
@@ -1443,10 +1436,8 @@ static QualType stripObjCInstanceType(ASTContext &Context, QualType T) {
   QualType origType = T;
   if (auto nullability = AttributedType::stripOuterNullability(T)) {
     if (T == Context.getObjCInstanceType()) {
-      return Context.getAttributedType(
-               AttributedType::getNullabilityAttrKind(*nullability),
-               Context.getObjCIdType(),
-               Context.getObjCIdType());
+      return Context.getAttributedType(*nullability, Context.getObjCIdType(),
+                                       Context.getObjCIdType());
     }
 
     return origType;
@@ -1484,10 +1475,7 @@ static QualType getBaseMessageSendResultType(Sema &S,
       (void)AttributedType::stripOuterNullability(type);
 
       // Form a new attributed type using the method result type's nullability.
-      return Context.getAttributedType(
-               AttributedType::getNullabilityAttrKind(*nullability),
-               type,
-               type);
+      return Context.getAttributedType(*nullability, type, type);
     }
 
     return type;
@@ -1558,9 +1546,8 @@ QualType SemaObjC::getMessageSendResultType(const Expr *Receiver,
         QualType NewResultType = Context.getObjCObjectPointerType(
             Context.getObjCInterfaceType(MD->getClassInterface()));
         if (auto Nullability = resultType->getNullability())
-          NewResultType = Context.getAttributedType(
-              AttributedType::getNullabilityAttrKind(*Nullability),
-              NewResultType, NewResultType);
+          NewResultType = Context.getAttributedType(*Nullability, NewResultType,
+                                                    NewResultType);
         return NewResultType;
       }
     }
@@ -1622,9 +1609,7 @@ QualType SemaObjC::getMessageSendResultType(const Expr *Receiver,
   if (newResultNullabilityIdx > 0) {
     auto newNullability
       = static_cast<NullabilityKind>(newResultNullabilityIdx-1);
-    return Context.getAttributedType(
-             AttributedType::getNullabilityAttrKind(newNullability),
-             resultType, resultType);
+    return Context.getAttributedType(newNullability, resultType, resultType);
   }
 
   return resultType;
@@ -2754,6 +2739,10 @@ ExprResult SemaObjC::BuildClassMessage(
     if (!isImplicit)
       checkCocoaAPI(SemaRef, Result);
   }
+
+  if (Method && Context.isObjCMsgSendUsageFileSpecified())
+    Context.recordObjCMsgSendUsage(Method);
+
   if (Method)
     checkFoundationAPI(SemaRef, SelLoc, Method, ArrayRef(Args, NumArgs),
                        ReceiverType, /*IsClassObjectCall=*/true);
@@ -3345,6 +3334,10 @@ ExprResult SemaObjC::BuildInstanceMessage(
     if (!isImplicit)
       checkCocoaAPI(SemaRef, Result);
   }
+
+  if (Method && Context.isObjCMsgSendUsageFileSpecified())
+    Context.recordObjCMsgSendUsage(Method);
+
   if (Method) {
     bool IsClassObjectCall = ClassMessage;
     // 'self' message receivers in class methods should be treated as message
@@ -5159,8 +5152,8 @@ ExprResult SemaObjC::ActOnObjCAvailabilityCheckExpr(
     llvm::ArrayRef<AvailabilitySpec> AvailSpecs, SourceLocation AtLoc,
     SourceLocation RParen) {
   ASTContext &Context = getASTContext();
-  auto FindSpecVersion =
-      [&](StringRef Platform) -> std::optional<VersionTuple> {
+  auto FindSpecVersion = [&](StringRef Platform)
+      -> std::optional<ObjCAvailabilityCheckExpr::VersionAsWritten> {
     auto Spec = llvm::find_if(AvailSpecs, [&](const AvailabilitySpec &Spec) {
       return Spec.getPlatform() == Platform;
     });
@@ -5173,12 +5166,20 @@ ExprResult SemaObjC::ActOnObjCAvailabilityCheckExpr(
     }
     if (Spec == AvailSpecs.end())
       return std::nullopt;
-    return Spec->getVersion();
+    if (Platform == "macos") {
+      return ObjCAvailabilityCheckExpr::VersionAsWritten{
+          llvm::Triple::getCanonicalVersionForOS(llvm::Triple::MacOSX,
+                                                 Spec->getVersion()),
+          Spec->getVersion()};
+    }
+    return ObjCAvailabilityCheckExpr::VersionAsWritten{Spec->getVersion(),
+                                                       Spec->getVersion()};
   };
 
-  VersionTuple Version;
-  if (auto MaybeVersion =
-          FindSpecVersion(Context.getTargetInfo().getPlatformName()))
+  auto MaybeVersion =
+      FindSpecVersion(Context.getTargetInfo().getPlatformName());
+  ObjCAvailabilityCheckExpr::VersionAsWritten Version;
+  if (MaybeVersion)
     Version = *MaybeVersion;
 
   // The use of `@available` in the enclosing context should be analyzed to

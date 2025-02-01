@@ -15,7 +15,6 @@
 #include "CommandObjectThreadUtil.h"
 #include "CommandObjectTrace.h"
 #include "lldb/Core/PluginManager.h"
-#include "lldb/Core/ValueObject.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandOptionArgumentTable.h"
@@ -37,6 +36,7 @@
 #include "lldb/Target/Trace.h"
 #include "lldb/Target/TraceDumper.h"
 #include "lldb/Utility/State.h"
+#include "lldb/ValueObject/ValueObject.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -66,7 +66,7 @@ public:
       case 'c':
         if (option_arg.getAsInteger(0, m_count)) {
           m_count = UINT32_MAX;
-          error.SetErrorStringWithFormat(
+          error = Status::FromErrorStringWithFormat(
               "invalid integer value for option '%c': %s", short_option,
               option_arg.data());
         }
@@ -76,7 +76,7 @@ public:
         break;
       case 's':
         if (option_arg.getAsInteger(0, m_start))
-          error.SetErrorStringWithFormat(
+          error = Status::FromErrorStringWithFormat(
               "invalid integer value for option '%c': %s", short_option,
               option_arg.data());
         break;
@@ -85,10 +85,13 @@ public:
         m_extended_backtrace =
             OptionArgParser::ToBoolean(option_arg, false, &success);
         if (!success)
-          error.SetErrorStringWithFormat(
+          error = Status::FromErrorStringWithFormat(
               "invalid boolean value for option '%c': %s", short_option,
               option_arg.data());
       } break;
+      case 'u':
+        m_filtered_backtrace = false;
+        break;
       default:
         llvm_unreachable("Unimplemented option");
       }
@@ -99,6 +102,7 @@ public:
       m_count = UINT32_MAX;
       m_start = 0;
       m_extended_backtrace = false;
+      m_filtered_backtrace = true;
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
@@ -109,6 +113,7 @@ public:
     uint32_t m_count;
     uint32_t m_start;
     bool m_extended_backtrace;
+    bool m_filtered_backtrace;
   };
 
   CommandObjectThreadBacktrace(CommandInterpreter &interpreter)
@@ -121,7 +126,10 @@ public:
             "call stacks.\n"
             "Use 'settings set frame-format' to customize the printing of "
             "frames in the backtrace and 'settings set thread-format' to "
-            "customize the thread header.",
+            "customize the thread header.\n"
+            "Customizable frame recognizers may filter out less interesting "
+            "frames, which results in gaps in the numbering. "
+            "Use '-u' to see all frames.",
             nullptr,
             eCommandRequiresProcess | eCommandRequiresThread |
                 eCommandTryTargetAPILock | eCommandProcessMustBeLaunched |
@@ -199,7 +207,8 @@ protected:
           strm.PutChar('\n');
           if (ext_thread_sp->GetStatus(strm, m_options.m_start,
                                        m_options.m_count,
-                                       num_frames_with_source, stop_format)) {
+                                       num_frames_with_source, stop_format,
+                                       !m_options.m_filtered_backtrace)) {
             DoExtendedBacktrace(ext_thread_sp.get(), result);
           }
         }
@@ -228,7 +237,8 @@ protected:
     const uint32_t num_frames_with_source = 0;
     const bool stop_format = true;
     if (!thread->GetStatus(strm, m_options.m_start, m_options.m_count,
-                           num_frames_with_source, stop_format, only_stacks)) {
+                           num_frames_with_source, stop_format,
+                           !m_options.m_filtered_backtrace, only_stacks)) {
       result.AppendErrorWithFormat(
           "error displaying backtrace for thread: \"0x%4.4x\"\n",
           thread->GetIndexID());
@@ -278,7 +288,7 @@ public:
       bool avoid_no_debug =
           OptionArgParser::ToBoolean(option_arg, true, &success);
       if (!success)
-        error.SetErrorStringWithFormat(
+        error = Status::FromErrorStringWithFormat(
             "invalid boolean value for option '%c': %s", short_option,
             option_arg.data());
       else {
@@ -291,7 +301,7 @@ public:
       bool avoid_no_debug =
           OptionArgParser::ToBoolean(option_arg, true, &success);
       if (!success)
-        error.SetErrorStringWithFormat(
+        error = Status::FromErrorStringWithFormat(
             "invalid boolean value for option '%c': %s", short_option,
             option_arg.data());
       else {
@@ -301,7 +311,7 @@ public:
 
     case 'c':
       if (option_arg.getAsInteger(0, m_step_count))
-        error.SetErrorStringWithFormat(
+        error = Status::FromErrorStringWithFormat(
             "invalid integer value for option '%c': %s", short_option,
             option_arg.data());
       break;
@@ -318,8 +328,8 @@ public:
         break;
       }
       if (option_arg.getAsInteger(0, m_end_line))
-        error.SetErrorStringWithFormat("invalid end line number '%s'",
-                                       option_arg.str().c_str());
+        error = Status::FromErrorStringWithFormat(
+            "invalid end line number '%s'", option_arg.str().c_str());
       break;
 
     case 'r':
@@ -616,7 +626,7 @@ protected:
         result.SetStatus(eReturnStatusSuccessContinuingNoResult);
       }
     } else {
-      result.SetError(new_plan_status);
+      result.SetError(std::move(new_plan_status));
     }
   }
 
@@ -812,15 +822,15 @@ public:
       case 't':
         if (option_arg.getAsInteger(0, m_thread_idx)) {
           m_thread_idx = LLDB_INVALID_INDEX32;
-          error.SetErrorStringWithFormat("invalid thread index '%s'",
-                                         option_arg.str().c_str());
+          error = Status::FromErrorStringWithFormat("invalid thread index '%s'",
+                                                    option_arg.str().c_str());
         }
         break;
       case 'f':
         if (option_arg.getAsInteger(0, m_frame_idx)) {
           m_frame_idx = LLDB_INVALID_FRAME_ID;
-          error.SetErrorStringWithFormat("invalid frame index '%s'",
-                                         option_arg.str().c_str());
+          error = Status::FromErrorStringWithFormat("invalid frame index '%s'",
+                                                    option_arg.str().c_str());
         }
         break;
       case 'm': {
@@ -882,7 +892,7 @@ protected:
   void DoExecute(Args &command, CommandReturnObject &result) override {
     bool synchronous_execution = m_interpreter.GetSynchronous();
 
-    Target *target = &GetSelectedTarget();
+    Target *target = &GetTarget();
 
     Process *process = m_exe_ctx.GetProcessPtr();
     if (process == nullptr) {
@@ -1041,7 +1051,7 @@ protected:
           new_plan_sp->SetIsControllingPlan(true);
           new_plan_sp->SetOkayToDiscard(false);
         } else {
-          result.SetError(new_plan_status);
+          result.SetError(std::move(new_plan_status));
           return;
         }
       } else {
@@ -1113,7 +1123,8 @@ public:
       case 't': {
         if (option_arg.getAsInteger(0, m_thread_id)) {
           m_thread_id = LLDB_INVALID_THREAD_ID;
-          return Status("Invalid thread ID: '%s'.", option_arg.str().c_str());
+          return Status::FromErrorStringWithFormat("Invalid thread ID: '%s'.",
+                                                   option_arg.str().c_str());
         }
         break;
       }
@@ -1397,7 +1408,8 @@ public:
       const uint32_t num_frames_with_source = 0;
       const bool stop_format = false;
       exception_thread_sp->GetStatus(strm, 0, UINT32_MAX,
-                                     num_frames_with_source, stop_format);
+                                     num_frames_with_source, stop_format,
+                                     /*filtered*/ false);
     }
 
     return true;
@@ -1483,7 +1495,7 @@ public:
         if (success)
           m_from_expression = tmp_value;
         else {
-          error.SetErrorStringWithFormat(
+          error = Status::FromErrorStringWithFormat(
               "invalid boolean value '%s' for 'x' option",
               option_arg.str().c_str());
         }
@@ -1635,15 +1647,17 @@ public:
       case 'f':
         m_filenames.AppendIfUnique(FileSpec(option_arg));
         if (m_filenames.GetSize() > 1)
-          return Status("only one source file expected.");
+          return Status::FromErrorString("only one source file expected.");
         break;
       case 'l':
         if (option_arg.getAsInteger(0, m_line_num))
-          return Status("invalid line number: '%s'.", option_arg.str().c_str());
+          return Status::FromErrorStringWithFormat("invalid line number: '%s'.",
+                                                   option_arg.str().c_str());
         break;
       case 'b':
         if (option_arg.getAsInteger(0, m_line_offset))
-          return Status("invalid line offset: '%s'.", option_arg.str().c_str());
+          return Status::FromErrorStringWithFormat("invalid line offset: '%s'.",
+                                                   option_arg.str().c_str());
         break;
       case 'a':
         m_load_addr = OptionArgParser::ToAddress(execution_context, option_arg,
@@ -1725,7 +1739,7 @@ protected:
       Status err = thread->JumpToLine(file, line, m_options.m_force, &warnings);
 
       if (err.Fail()) {
-        result.SetError(err);
+        result.SetError(std::move(err));
         return;
       }
 
@@ -1768,7 +1782,8 @@ public:
       case 't':
         lldb::tid_t tid;
         if (option_arg.getAsInteger(0, tid))
-          return Status("invalid tid: '%s'.", option_arg.str().c_str());
+          return Status::FromErrorStringWithFormat("invalid tid: '%s'.",
+                                                   option_arg.str().c_str());
         m_tids.push_back(tid);
         break;
       case 'u':
@@ -2229,7 +2244,7 @@ public:
         int32_t count;
         if (option_arg.empty() || option_arg.getAsInteger(0, count) ||
             count < 0)
-          error.SetErrorStringWithFormat(
+          error = Status::FromErrorStringWithFormat(
               "invalid integer value for option '%s'",
               option_arg.str().c_str());
         else
@@ -2243,7 +2258,7 @@ public:
       case 's': {
         int32_t skip;
         if (option_arg.empty() || option_arg.getAsInteger(0, skip) || skip < 0)
-          error.SetErrorStringWithFormat(
+          error = Status::FromErrorStringWithFormat(
               "invalid integer value for option '%s'",
               option_arg.str().c_str());
         else
@@ -2253,7 +2268,7 @@ public:
       case 'i': {
         uint64_t id;
         if (option_arg.empty() || option_arg.getAsInteger(0, id))
-          error.SetErrorStringWithFormat(
+          error = Status::FromErrorStringWithFormat(
               "invalid integer value for option '%s'",
               option_arg.str().c_str());
         else

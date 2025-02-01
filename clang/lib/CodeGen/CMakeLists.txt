@@ -143,6 +143,7 @@ add_clang_library(clangCodeGen
   VarBypassDetector.cpp
 
   DEPENDS
+  vt_gen
   intrinsics_gen
   ClangDriverOptions
   # These generated headers are included transitively.

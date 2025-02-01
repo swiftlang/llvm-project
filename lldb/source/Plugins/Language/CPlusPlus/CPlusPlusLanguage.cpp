@@ -23,7 +23,6 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/UniqueCStringMap.h"
-#include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/DataFormatters/CXXFunctionPointer.h"
 #include "lldb/DataFormatters/DataVisualization.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
@@ -34,6 +33,7 @@
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
+#include "lldb/ValueObject/ValueObjectVariable.h"
 
 #include "BlockPointer.h"
 #include "CPlusPlusNameParser.h"
@@ -376,15 +376,17 @@ bool CPlusPlusLanguage::MethodName::ContainsPath(llvm::StringRef path) {
 }
 
 bool CPlusPlusLanguage::IsCPPMangledName(llvm::StringRef name) {
-  // FIXME!! we should really run through all the known C++ Language plugins
-  // and ask each one if this is a C++ mangled name
-
   Mangled::ManglingScheme scheme = Mangled::GetManglingScheme(name);
-
-  if (scheme == Mangled::eManglingSchemeNone)
+  switch (scheme) {
+  case Mangled::eManglingSchemeMSVC:
+  case Mangled::eManglingSchemeItanium:
+    return true;
+  case Mangled::eManglingSchemeNone:
+  case Mangled::eManglingSchemeRustV0:
+  case Mangled::eManglingSchemeD:
+  case Mangled::eManglingSchemeSwift:
     return false;
-
-  return true;
+  }
 }
 
 bool CPlusPlusLanguage::DemangledNameContainsPath(llvm::StringRef path,

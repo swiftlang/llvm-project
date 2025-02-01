@@ -2559,7 +2559,7 @@ def Rotl : MSLangBuiltin {
 def Lrotl : MSLangBuiltin {
   let Spellings = ["_lrotl"];
   let Attributes = [NoThrow, Constexpr];
-  let Prototype = "unsigned long int(unsigned long int, int)";
+  let Prototype = "msuint32_t(msuint32_t, int)";
 }
 
 def Rotl64 : MSLangBuiltin {
@@ -2589,7 +2589,7 @@ def Rotr : MSLangBuiltin {
 def Lrotr : MSLangBuiltin {
   let Spellings = ["_lrotr"];
   let Attributes = [NoThrow, Constexpr];
-  let Prototype = "unsigned long int(unsigned long int, int)";
+  let Prototype = "msuint32_t(msuint32_t, int)";
 }
 
 def Rotr64 : MSLangBuiltin {

@@ -16,6 +16,12 @@ if(LLDB_BUILD_FRAMEWORK)
   set(framework_arg --framework --target-platform Darwin)
 endif()
 
+if(${LLDB_USE_STATIC_BINDINGS})
+  set(PREPARE_BINDINGS_ARGS "--use-static-binding")
+else()
+  set(PREPARE_BINDINGS_ARGS "--swig-executable=${SWIG_EXECUTABLE}")
+endif()
+
 if(APPLE)
   set(DARWIN_EXTRAS "-D__APPLE__")
 else()
@@ -56,4 +62,14 @@ endif()
 
 if (LLDB_ENABLE_LUA)
   add_subdirectory(lua)
+endif()
+
+if(NOT ${LLDB_USE_STATIC_BINDINGS})
+  set(copy_static_bindings_script "${LLDB_SOURCE_DIR}/scripts/copy-static-bindings.py")
+  add_custom_target(update-static-bindings
+    COMMAND ${copy_static_bindings_script} ${CMAKE_BINARY_DIR}
+    COMMENT "Copying the generated bindings to the static bindings directory in source."
+    VERBATIM
+  )
+  add_dependencies(update-static-bindings swig_wrapper_python)
 endif()

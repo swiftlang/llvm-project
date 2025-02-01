@@ -1945,6 +1945,14 @@ static void getTrivialDefaultFunctionAttributes(
       FuncAttrs.addAttribute("stackrealign");
     if (CodeGenOpts.Backchain)
       FuncAttrs.addAttribute("backchain");
+    if (CodeGenOpts.PointerAuth.ReturnAddresses)
+      FuncAttrs.addAttribute("ptrauth-returns");
+    if (CodeGenOpts.PointerAuth.FunctionPointers)
+      FuncAttrs.addAttribute("ptrauth-calls");
+    if (CodeGenOpts.PointerAuth.IndirectGotos)
+      FuncAttrs.addAttribute("ptrauth-indirect-gotos");
+    if (CodeGenOpts.PointerAuth.AuthTraps)
+      FuncAttrs.addAttribute("ptrauth-auth-traps");
     if (CodeGenOpts.EnableSegmentedStacks)
       FuncAttrs.addAttribute("split-stack");
 
@@ -4711,7 +4719,7 @@ void CodeGenFunction::EmitCallArg(CallArgList &args, const Expr *E,
 
   if (HasAggregateEvalKind && isa<ImplicitCastExpr>(E) &&
       cast<CastExpr>(E)->getCastKind() == CK_LValueToRValue &&
-      !type->isArrayParameterType()) {
+      !type.isNonTrivialToPrimitiveCopy() && !type->isArrayParameterType()) {
     LValue L = EmitLValue(cast<CastExpr>(E)->getSubExpr());
     assert(L.isSimple());
     args.addUncopiedAggregate(L, type);
@@ -5735,7 +5743,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   if (CGM.getLangOpts().ObjCAutoRefCount)
     AddObjCARCExceptionMetadata(CI);
 
-  // Set tail call kind if necessary.
+  // Adjust tail call behavior based on TargetDecl's attributes and CallInfo.
   if (llvm::CallInst *Call = dyn_cast<llvm::CallInst>(CI)) {
     if (TargetDecl && TargetDecl->hasAttr<NotTailCalledAttr>())
       Call->setTailCallKind(llvm::CallInst::TCK_NoTail);

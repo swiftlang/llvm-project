@@ -13,11 +13,13 @@ llvm_canonicalize_cmake_booleans(
   ENABLE_BACKTRACES
   LLVM_BUILD_EXAMPLES
   LLVM_BYE_LINK_INTO_TOOLS
+  LLVM_CAS_ENABLE_REMOTE_CACHE
   LLVM_ENABLE_PLUGINS
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_ZSTD
   LLVM_ENABLE_PER_TARGET_RUNTIME_DIR
   LLVM_ENABLE_THREADS
+  LLVM_ENABLE_ONDISK_CAS
   LLVM_ENABLE_REVERSE_ITERATION
   LLVM_WITH_Z3
   PPC_LINUX_DEFAULT_IEEELONGDOUBLE
@@ -65,12 +67,15 @@ endif ()
 list(APPEND CLANG_TEST_DEPS
   apinotes-test
   c-index-test
+  cache-build-session
   clang
+  clang-cas-test
   clang-fuzzer-dictionary
   clang-resource-headers
   clang-format
   clang-tblgen
   clang-offload-bundler
+  clang-refactor-test
   clang-import-test
   clang-rename
   clang-refactor
@@ -84,7 +89,7 @@ list(APPEND CLANG_TEST_DEPS
   diagtool
   hmaptool
   )
-  
+
 if(CLANG_ENABLE_STATIC_ANALYZER)
   list(APPEND CLANG_TEST_DEPS
     clang-check
@@ -118,10 +123,13 @@ if( NOT CLANG_BUILT_STANDALONE )
   list(APPEND CLANG_TEST_DEPS
     llvm-config
     FileCheck count not
+    CASPluginTest
     llc
     llvm-ar
     llvm-as
     llvm-bcanalyzer
+    llvm-cas
+    llvm-cas-dump
     llvm-cat
     llvm-cxxfilt
     llvm-dis
@@ -149,6 +157,9 @@ if( NOT CLANG_BUILT_STANDALONE )
 
   if(TARGET llvm-lto)
     list(APPEND CLANG_TEST_DEPS llvm-lto)
+  endif()
+  if(TARGET llvm-remote-cache-test)
+    list(APPEND CLANG_TEST_DEPS llvm-remote-cache-test)
   endif()
 endif()
 

@@ -16,8 +16,6 @@
 #include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntime.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 
-#include "lldb/Core/ValueObject.h"
-#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/Target/Language.h"
 #include "lldb/Target/StackFrame.h"
@@ -26,6 +24,8 @@
 #include "lldb/Utility/Endian.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/Stream.h"
+#include "lldb/ValueObject/ValueObject.h"
+#include "lldb/ValueObject/ValueObjectConstResult.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -525,7 +525,7 @@ lldb_private::formatters::NSDictionarySyntheticFrontEndCreator(
   CompilerType valobj_type(valobj_sp->GetCompilerType());
   Flags flags(valobj_type.GetTypeInfo());
 
-  if (flags.IsClear(eTypeIsPointer)) {
+  if (flags.IsClear(eTypeIsPointer) && flags.IsClear(eTypeIsSwift)) {
     Status error;
     valobj_sp = valobj_sp->AddressOf(error);
     if (error.Fail() || !valobj_sp)

@@ -34,11 +34,16 @@ DependencyScanningWorkerFilesystem::readFile(StringRef Filename) {
     return MaybeBuffer.getError();
   auto Buffer = std::move(*MaybeBuffer);
 
+  auto MaybeCASContents = File->getObjectRefForContent();
+  if (!MaybeCASContents)
+    return MaybeCASContents.getError();
+  auto CASContents = std::move(*MaybeCASContents);
+
   // If the file size changed between read and stat, pretend it didn't.
   if (Stat.getSize() != Buffer->getBufferSize())
     Stat = llvm::vfs::Status::copyWithNewSize(Stat, Buffer->getBufferSize());
 
-  return TentativeEntry(Stat, std::move(Buffer));
+  return TentativeEntry(Stat, std::move(Buffer), std::move(CASContents));
 }
 
 bool DependencyScanningWorkerFilesystem::ensureDirectiveTokensArePopulated(
@@ -145,7 +150,8 @@ DependencyScanningFilesystemSharedCache::CacheShard::
 const CachedFileSystemEntry &
 DependencyScanningFilesystemSharedCache::CacheShard::getOrEmplaceEntryForUID(
     llvm::sys::fs::UniqueID UID, llvm::vfs::Status Stat,
-    std::unique_ptr<llvm::MemoryBuffer> Contents) {
+    std::unique_ptr<llvm::MemoryBuffer> Contents,
+    std::optional<cas::ObjectRef> CASContents) {
   std::lock_guard<std::mutex> LockGuard(CacheLock);
   auto [It, Inserted] = EntriesByUID.insert({UID, nullptr});
   auto &CachedEntry = It->getSecond();
@@ -153,7 +159,7 @@ DependencyScanningFilesystemSharedCache::CacheShard::getOrEmplaceEntryForUID(
     CachedFileContents *StoredContents = nullptr;
     if (Contents)
       StoredContents = new (ContentsStorage.Allocate())
-          CachedFileContents(std::move(Contents));
+          CachedFileContents(std::move(Contents), std::move(CASContents));
     CachedEntry = new (EntryStorage.Allocate())
         CachedFileSystemEntry(std::move(Stat), StoredContents);
   }
@@ -205,6 +211,19 @@ static bool shouldCacheStatFailures(StringRef Filename) {
   StringRef Ext = llvm::sys::path::extension(Filename);
   if (Ext.empty())
     return false; // This may be the module cache directory.
+
+  // rdar://127079541
+  // With Swift, misconfigured Xcode projects currently may fail with
+  // negative 'stat' caching of `.framework` directories enabled,
+  // because they do not always explicitly specify their target
+  // dependencies and may be either getting lucky wih build timing, or
+  // compiling against wrong dependencies a lot of the time: e.g. an
+  // SDK variant of a dependency module, instead of one in the
+  // project's own build directory. Temporarily disable negative
+  // 'stat' caching here until all such projects are fixed.
+  if (Ext == ".framework")
+    return false;
+
   return true;
 }
 
@@ -222,9 +241,9 @@ const CachedFileSystemEntry &
 DependencyScanningWorkerFilesystem::getOrEmplaceSharedEntryForUID(
     TentativeEntry TEntry) {
   auto &Shard = SharedCache.getShardForUID(TEntry.Status.getUniqueID());
-  return Shard.getOrEmplaceEntryForUID(TEntry.Status.getUniqueID(),
-                                       std::move(TEntry.Status),
-                                       std::move(TEntry.Contents));
+  return Shard.getOrEmplaceEntryForUID(
+      TEntry.Status.getUniqueID(), std::move(TEntry.Status),
+      std::move(TEntry.Contents), std::move(TEntry.CASContents));
 }
 
 const CachedFileSystemEntry *
@@ -318,8 +337,9 @@ namespace {
 class DepScanFile final : public llvm::vfs::File {
 public:
   DepScanFile(std::unique_ptr<llvm::MemoryBuffer> Buffer,
-              llvm::vfs::Status Stat)
-      : Buffer(std::move(Buffer)), Stat(std::move(Stat)) {}
+              std::optional<cas::ObjectRef> CASContents, llvm::vfs::Status Stat)
+      : Buffer(std::move(Buffer)), CASContents(std::move(CASContents)),
+        Stat(std::move(Stat)) {}
 
   static llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> create(EntryRef Entry);
 
@@ -331,10 +351,16 @@ public:
     return std::move(Buffer);
   }
 
+  llvm::ErrorOr<std::optional<cas::ObjectRef>>
+  getObjectRefForContent() override {
+    return CASContents;
+  }
+
   std::error_code close() override { return {}; }
 
 private:
   std::unique_ptr<llvm::MemoryBuffer> Buffer;
+  std::optional<cas::ObjectRef> CASContents;
   llvm::vfs::Status Stat;
 };
 
@@ -351,7 +377,7 @@ DepScanFile::create(EntryRef Entry) {
       llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
                                        Entry.getStatus().getName(),
                                        /*RequiresNullTerminator=*/false),
-      Entry.getStatus());
+      Entry.getObjectRefForContent(), Entry.getStatus());
 
   return llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>(
       std::unique_ptr<llvm::vfs::File>(std::move(Result)));

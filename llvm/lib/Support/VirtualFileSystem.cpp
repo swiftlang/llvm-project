@@ -21,6 +21,7 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/CAS/CASReference.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Chrono.h"
@@ -113,16 +114,35 @@ bool Status::exists() const {
 
 File::~File() = default;
 
+llvm::ErrorOr<std::optional<cas::ObjectRef>> File::getObjectRefForContent() {
+  return std::nullopt;
+}
+
 FileSystem::~FileSystem() = default;
 
 ErrorOr<std::unique_ptr<MemoryBuffer>>
 FileSystem::getBufferForFile(const llvm::Twine &Name, int64_t FileSize,
-                             bool RequiresNullTerminator, bool IsVolatile) {
+                             bool RequiresNullTerminator, bool IsVolatile,
+                             std::optional<cas::ObjectRef> *CASContents) {
   auto F = openFileForRead(Name);
   if (!F)
     return F.getError();
+  if (CASContents) {
+    auto CASRef = (*F)->getObjectRefForContent();
+    if (!CASRef)
+      return CASRef.getError();
+    *CASContents = *CASRef;
+  }
 
   return (*F)->getBuffer(Name, FileSize, RequiresNullTerminator, IsVolatile);
+}
+
+llvm::ErrorOr<std::optional<cas::ObjectRef>>
+FileSystem::getObjectRefForFileContent(const Twine &Name) {
+  auto F = openFileForRead(Name);
+  if (!F)
+    return F.getError();
+  return (*F)->getObjectRefForContent();
 }
 
 std::error_code FileSystem::makeAbsolute(SmallVectorImpl<char> &Path) const {
@@ -591,7 +611,7 @@ public:
 
   CombiningDirIterImpl(ArrayRef<directory_iterator> DirIters,
                        std::error_code &EC)
-      : IterList(DirIters.begin(), DirIters.end()) {
+      : IterList(DirIters) {
     EC = incrementImpl(true);
   }
 
@@ -2945,8 +2965,34 @@ recursive_directory_iterator::increment(std::error_code &EC) {
   return *this;
 }
 
+void TracingFileSystem::printImpl(raw_ostream &OS, PrintType Type,
+                                  unsigned IndentLevel) const {
+  printIndent(OS, IndentLevel);
+  OS << "TracingFileSystem\n";
+  if (Type == PrintType::Summary)
+    return;
+
+  printIndent(OS, IndentLevel);
+  OS << "NumStatusCalls=" << NumStatusCalls << "\n";
+  printIndent(OS, IndentLevel);
+  OS << "NumOpenFileForReadCalls=" << NumOpenFileForReadCalls << "\n";
+  printIndent(OS, IndentLevel);
+  OS << "NumDirBeginCalls=" << NumDirBeginCalls << "\n";
+  printIndent(OS, IndentLevel);
+  OS << "NumGetRealPathCalls=" << NumGetRealPathCalls << "\n";
+  printIndent(OS, IndentLevel);
+  OS << "NumExistsCalls=" << NumExistsCalls << "\n";
+  printIndent(OS, IndentLevel);
+  OS << "NumIsLocalCalls=" << NumIsLocalCalls << "\n";
+
+  if (Type == PrintType::Contents)
+    Type = PrintType::Summary;
+  getUnderlyingFS().print(OS, Type, IndentLevel + 1);
+}
+
 const char FileSystem::ID = 0;
 const char OverlayFileSystem::ID = 0;
 const char ProxyFileSystem::ID = 0;
 const char InMemoryFileSystem::ID = 0;
 const char RedirectingFileSystem::ID = 0;
+const char TracingFileSystem::ID = 0;

@@ -230,6 +230,7 @@ class Symtab;
 class SyntheticChildren;
 class SyntheticChildrenFrontEnd;
 class SystemRuntime;
+class Progress;
 class Target;
 class TargetList;
 class TargetProperties;

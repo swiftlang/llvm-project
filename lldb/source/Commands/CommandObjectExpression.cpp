@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/StringRef.h"
-
 #include "CommandObjectExpression.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Expression/ExpressionVariable.h"
@@ -22,8 +20,13 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
+#include "lldb/Utility/DiagnosticsRendering.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-private-enumerations.h"
+
+// BEGIN SWIFT
+#include "lldb/Symbol/CompileUnit.h"
+// END SWIFT
 
 using namespace lldb;
 using namespace lldb_private;
@@ -52,7 +55,7 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
                   option_arg.str().c_str());
 
       Language::PrintSupportedLanguagesForExpressions(sstr, "  ", "\n");
-      error.SetErrorString(sstr.GetString());
+      error = Status(sstr.GetString().str());
     }
     break;
 
@@ -61,7 +64,7 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
     bool result;
     result = OptionArgParser::ToBoolean(option_arg, true, &success);
     if (!success)
-      error.SetErrorStringWithFormat(
+      error = Status::FromErrorStringWithFormat(
           "invalid all-threads value setting: \"%s\"",
           option_arg.str().c_str());
     else
@@ -74,7 +77,7 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
     if (success)
       ignore_breakpoints = tmp_value;
     else
-      error.SetErrorStringWithFormat(
+      error = Status::FromErrorStringWithFormat(
           "could not convert \"%s\" to a boolean value.",
           option_arg.str().c_str());
     break;
@@ -86,7 +89,7 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
     if (success)
       allow_jit = tmp_value;
     else
-      error.SetErrorStringWithFormat(
+      error = Status::FromErrorStringWithFormat(
           "could not convert \"%s\" to a boolean value.",
           option_arg.str().c_str());
     break;
@@ -95,8 +98,8 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
   case 't':
     if (option_arg.getAsInteger(0, timeout)) {
       timeout = 0;
-      error.SetErrorStringWithFormat("invalid timeout setting \"%s\"",
-                                     option_arg.str().c_str());
+      error = Status::FromErrorStringWithFormat(
+          "invalid timeout setting \"%s\"", option_arg.str().c_str());
     }
     break;
 
@@ -106,7 +109,7 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
     if (success)
       unwind_on_error = tmp_value;
     else
-      error.SetErrorStringWithFormat(
+      error = Status::FromErrorStringWithFormat(
           "could not convert \"%s\" to a boolean value.",
           option_arg.str().c_str());
     break;
@@ -121,7 +124,7 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
         OptionArgParser::ToOptionEnum(
             option_arg, GetDefinitions()[option_idx].enum_values, 0, error);
     if (!error.Success())
-      error.SetErrorStringWithFormat(
+      error = Status::FromErrorStringWithFormat(
           "unrecognized value for description-verbosity '%s'",
           option_arg.str().c_str());
     break;
@@ -142,12 +145,11 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
     if (success)
       auto_apply_fixits = tmp_value ? eLazyBoolYes : eLazyBoolNo;
     else
-      error.SetErrorStringWithFormat(
+      error = Status::FromErrorStringWithFormat(
           "could not convert \"%s\" to a boolean value.",
           option_arg.str().c_str());
     break;
   }
-
   case '\x01': {
     bool success;
     bool persist_result =
@@ -155,11 +157,22 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
     if (success)
       suppress_persistent_result = !persist_result ? eLazyBoolYes : eLazyBoolNo;
     else
-      error.SetErrorStringWithFormat(
+      error = Status::FromErrorStringWithFormat(
           "could not convert \"%s\" to a boolean value.",
           option_arg.str().c_str());
     break;
   }
+
+  // BEGIN SWIFT
+  case '\x31': {
+    int32_t result;
+    result = OptionArgParser::ToOptionEnum(option_arg, BindGenTypeParamValue(),
+                                           0, error);
+    if (error.Success())
+      bind_generic_types = (BindGenericTypes)result;
+    break;
+  }
+  // END SWIFT
 
   default:
     llvm_unreachable("Unimplemented option");
@@ -190,6 +203,10 @@ void CommandObjectExpression::CommandOptions::OptionParsingStarting(
   top_level = false;
   allow_jit = true;
   suppress_persistent_result = eLazyBoolCalculate;
+  // BEGIN SWIFT
+  bind_generic_types = eBindAuto;
+  // END SWIFT
+
 }
 
 llvm::ArrayRef<OptionDefinition>
@@ -234,6 +251,10 @@ CommandObjectExpression::CommandOptions::GetEvaluateExpressionOptions(
     options.SetTimeout(std::chrono::microseconds(timeout));
   else
     options.SetTimeout(std::nullopt);
+
+  // BEGIN SWIFT
+  options.SetBindGenericTypes(bind_generic_types);
+  // END SWIFT
   return options;
 }
 
@@ -258,9 +279,11 @@ CommandObjectExpression::CommandObjectExpression(
                        eCommandProcessMustBePaused | eCommandTryTargetAPILock),
       IOHandlerDelegate(IOHandlerDelegate::Completion::Expression),
       m_format_options(eFormatDefault),
-      m_repl_option(LLDB_OPT_SET_1, false, "repl", 'r', "Drop into REPL", false,
-                    true),
-      m_expr_line_count(0) {
+      // BEGIN SWIFT
+      m_repl_option(LLDB_OPT_SET_1, false, "repl", 'r', "Drop into Swift REPL",
+                    false, true),
+      // END SWIFT
+      m_command_options(), m_expr_line_count(0) {
   SetHelpLong(
       R"(
 Single and multi-line expressions:
@@ -392,9 +415,9 @@ CanBeUsedForElementCountPrinting(ValueObject &valobj) {
   CompilerType type(valobj.GetCompilerType());
   CompilerType pointee;
   if (!type.IsPointerType(&pointee))
-    return Status("as it does not refer to a pointer");
+    return Status::FromErrorString("as it does not refer to a pointer");
   if (pointee.IsVoidType())
-    return Status("as it refers to a pointer to void");
+    return Status::FromErrorString("as it refers to a pointer to void");
   return Status();
 }
 
@@ -486,20 +509,8 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
 
         result.SetStatus(eReturnStatusSuccessFinishResult);
       } else {
-        const char *error_cstr = result_valobj_sp->GetError().AsCString();
-        if (error_cstr && error_cstr[0]) {
-          const size_t error_cstr_len = strlen(error_cstr);
-          const bool ends_with_newline = error_cstr[error_cstr_len - 1] == '\n';
-          if (strstr(error_cstr, "error:") != error_cstr)
-            error_stream.PutCString("error: ");
-          error_stream.Write(error_cstr, error_cstr_len);
-          if (!ends_with_newline)
-            error_stream.EOL();
-        } else {
-          error_stream.PutCString("error: unknown error\n");
-        }
-
         result.SetStatus(eReturnStatusFailed);
+        result.SetError(result_valobj_sp->GetError().ToError());
       }
     }
   } else {
@@ -519,10 +530,13 @@ void CommandObjectExpression::IOHandlerInputComplete(IOHandler &io_handler,
   CommandReturnObject return_obj(
       GetCommandInterpreter().GetDebugger().GetUseColor());
   EvaluateExpression(line.c_str(), *output_sp, *error_sp, return_obj);
+
   if (output_sp)
     output_sp->Flush();
-  if (error_sp)
+  if (error_sp) {
+    *error_sp << return_obj.GetErrorString();
     error_sp->Flush();
+  }
 }
 
 bool CommandObjectExpression::IOHandlerIsInputComplete(IOHandler &io_handler,
@@ -542,12 +556,38 @@ void CommandObjectExpression::GetMultilineExpression() {
   m_expr_lines.clear();
   m_expr_line_count = 0;
 
+  // BEGIN SWIFT
+  // If we didn't set the language, make sure we get the Swift language right
+  // if we are stopped in a swift compile unit. This will help us use the
+  // correct input reader name so our C/C++/ObjC expression history will be
+  // separate from the Swift expression history
+  if (m_command_options.language == eLanguageTypeUnknown) {
+    StackFrame *frame = m_exe_ctx.GetFramePtr();
+    if (frame) {
+      SymbolContext sym_ctx =
+          frame->GetSymbolContext(lldb::eSymbolContextCompUnit);
+      if (sym_ctx.comp_unit &&
+          sym_ctx.comp_unit->GetLanguage() == lldb::eLanguageTypeSwift)
+        m_command_options.language = lldb::eLanguageTypeSwift;
+    }
+  }
+  // END SWIFT
+  
   Debugger &debugger = GetCommandInterpreter().GetDebugger();
   bool color_prompt = debugger.GetUseColor();
   const bool multiple_lines = true; // Get multiple lines
+
+  // BEGIN SWIFT
+  const char *input_reader_name =
+      m_command_options.language == lldb::eLanguageTypeSwift ? "lldb-swift"
+  // END SWIFT
+                                                             : "lldb-expr";
+
   IOHandlerSP io_handler_sp(
       new IOHandlerEditline(debugger, IOHandler::Type::Expression,
-                            "lldb-expr", // Name of input reader for history
+                            // BEGIN SWIFT
+                            input_reader_name, // Name of input reader for history
+                            // END SWIFT
                             llvm::StringRef(), // No prompt
                             llvm::StringRef(), // Continuation prompt
                             multiple_lines, color_prompt,
@@ -605,7 +645,7 @@ void CommandObjectExpression::DoExecute(llvm::StringRef command,
       return;
 
     if (m_repl_option.GetOptionValue().GetCurrentValue()) {
-      Target &target = GetSelectedOrDummyTarget();
+      Target &target = GetTarget();
       // Drop into REPL
       m_expr_lines.clear();
       m_expr_line_count = 0;
@@ -632,8 +672,8 @@ void CommandObjectExpression::DoExecute(llvm::StringRef command,
           initialize = true;
           repl_sp = target.GetREPL(repl_error, m_command_options.language,
                                     nullptr, true);
-          if (!repl_error.Success()) {
-            result.SetError(repl_error);
+          if (repl_error.Fail()) {
+            result.SetError(std::move(repl_error));
             return;
           }
         }
@@ -650,10 +690,10 @@ void CommandObjectExpression::DoExecute(llvm::StringRef command,
           io_handler_sp->SetIsDone(false);
           debugger.RunIOHandlerAsync(io_handler_sp);
         } else {
-          repl_error.SetErrorStringWithFormat(
+          repl_error = Status::FromErrorStringWithFormat(
               "Couldn't create a REPL for %s",
               Language::GetNameForLanguageType(m_command_options.language));
-          result.SetError(repl_error);
+          result.SetError(std::move(repl_error));
           return;
         }
       }
@@ -665,7 +705,15 @@ void CommandObjectExpression::DoExecute(llvm::StringRef command,
     }
   }
 
-  Target &target = GetSelectedOrDummyTarget();
+  // Previously the indent was set up for diagnosing command line
+  // parsing errors. Now point it to the expression.
+  std::optional<uint16_t> indent;
+  size_t pos = m_original_command.rfind(expr);
+  if (pos != llvm::StringRef::npos)
+    indent = pos;
+  result.SetDiagnosticIndent(indent);
+
+  Target &target = GetTarget();
   if (EvaluateExpression(expr, result.GetOutputStream(),
                          result.GetErrorStream(), result)) {
 

@@ -13,6 +13,7 @@
 
 #include "Plugins/ExpressionParser/Clang/ClangASTImporter.h"
 #include "Plugins/ExpressionParser/Clang/NameSearchContext.h"
+#include "Plugins/TypeSystem/Clang/ImporterBackedASTSource.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Target/Target.h"
 #include "clang/AST/ExternalASTSource.h"
@@ -30,7 +31,7 @@ namespace lldb_private {
 /// knows the name it is looking for, but nothing else. The ExternalSemaSource
 /// class provides Decls (VarDecl, FunDecl, TypeDecl) to Clang for these
 /// names, consulting the ClangExpressionDeclMap to do the actual lookups.
-class ClangASTSource : public clang::ExternalASTSource,
+class ClangASTSource : public ImporterBackedASTSource,
                        public ClangASTImporter::MapCompleter {
 public:
   /// Constructor
@@ -85,6 +86,9 @@ public:
   ///     Whatever SetExternalVisibleDeclsForName returns.
   bool FindExternalVisibleDeclsByName(const clang::DeclContext *DC,
                                       clang::DeclarationName Name) override;
+
+  bool FindExternalVisibleMethodsByName(const clang::DeclContext *DC,
+                                        clang::DeclarationName Name) override;
 
   /// Enumerate all Decls in a given lexical context.
   ///
@@ -153,6 +157,8 @@ public:
   ///     The Decl to be completed in place.
   void CompleteType(clang::ObjCInterfaceDecl *Class) override;
 
+  void CompleteRedeclChain(clang::Decl const *D) override;
+
   /// Called on entering a translation unit.  Tells Clang by calling
   /// setHasExternalVisibleStorage() and setHasExternalLexicalStorage() that
   /// this object has something to say about undefined names.
@@ -194,6 +200,7 @@ public:
   /// \param[in] context
   ///     The NameSearchContext to use when filing results.
   virtual void FindExternalVisibleDecls(NameSearchContext &context);
+  virtual void FindExternalVisibleMethods(NameSearchContext &context);
 
   clang::Sema *getSema();
 
@@ -207,13 +214,19 @@ public:
   ///
   /// Clang AST contexts like to own their AST sources, so this is a state-
   /// free proxy object.
-  class ClangASTSourceProxy : public clang::ExternalASTSource {
+  class ClangASTSourceProxy : public ImporterBackedASTSource {
   public:
     ClangASTSourceProxy(ClangASTSource &original) : m_original(original) {}
 
     bool FindExternalVisibleDeclsByName(const clang::DeclContext *DC,
                                         clang::DeclarationName Name) override {
       return m_original.FindExternalVisibleDeclsByName(DC, Name);
+    }
+
+    bool
+    FindExternalVisibleMethodsByName(const clang::DeclContext *DC,
+                                     clang::DeclarationName Name) override {
+      return m_original.FindExternalVisibleMethodsByName(DC, Name);
     }
 
     void FindExternalLexicalDecls(
@@ -229,6 +242,10 @@ public:
 
     void CompleteType(clang::ObjCInterfaceDecl *Class) override {
       return m_original.CompleteType(Class);
+    }
+
+    void CompleteRedeclChain(clang::Decl const *D) override {
+      return m_original.CompleteRedeclChain(D);
     }
 
     bool layoutRecordType(
@@ -281,6 +298,9 @@ protected:
   void FindExternalVisibleDecls(NameSearchContext &context,
                                 lldb::ModuleSP module,
                                 CompilerDeclContext &namespace_decl);
+  void FindExternalVisibleMethods(NameSearchContext &context,
+                                  lldb::ModuleSP module,
+                                  CompilerDeclContext &namespace_decl);
 
   /// Find all Objective-C methods matching a given selector.
   ///
@@ -356,6 +376,10 @@ private:
   bool FindObjCPropertyAndIvarDeclsWithOrigin(
       NameSearchContext &context,
       DeclFromUser<const clang::ObjCInterfaceDecl> &origin_iface_decl);
+
+  bool CompilerDeclContextsMatch(CompilerDeclContext candidate_decl_ctx,
+                                 clang::DeclContext const *context,
+                                 TypeSystemClang &ts);
 
 protected:
   bool FindObjCMethodDeclsWithOrigin(

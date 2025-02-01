@@ -17,6 +17,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/MC/MCSymbol.h"
 #include <cassert>
 
 namespace llvm {
@@ -26,6 +27,13 @@ class MCSymbol;
 /// MachineModuleInfoMachO - This is a MachineModuleInfoImpl implementation
 /// for MachO targets.
 class MachineModuleInfoMachO : public MachineModuleInfoImpl {
+public:
+  /// The information specific to a Darwin '$auth_ptr' stub.
+  struct AuthStubInfo {
+    const MCExpr *AuthPtrRef;
+  };
+
+private:
   /// GVStubs - Darwin '$non_lazy_ptr' stubs.  The key is something like
   /// "Lfoo$non_lazy_ptr", the value is something like "_foo". The extra bit
   /// is true if this GV is external.

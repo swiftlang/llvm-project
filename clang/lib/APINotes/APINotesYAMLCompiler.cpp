@@ -23,10 +23,124 @@
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/YAMLTraits.h"
 #include <optional>
+#include <type_traits>
 #include <vector>
 
 using namespace clang;
 using namespace api_notes;
+
+/*
+
+ YAML Format specification.
+
+ Nullability should be expressed using one of the following values:
+   O - Optional (or Nullable)
+   N - Not Optional
+   S - Scalar
+   U - Unknown
+ Note, the API is considered 'audited' when at least the return value or a
+ parameter has a nullability value. For 'audited' APIs, we assume the default
+ nullability for any underspecified type.
+
+---
+ Name: AppKit             # The name of the framework
+
+ Availability: OSX        # Optional: Specifies which platform the API is
+                          # available on. [OSX / iOS / none/
+                          #                available / nonswift]
+
+ AvailabilityMsg: ""  # Optional: Custom availability message to display to
+                          # the user, when API is not available.
+
+ Classes:                 # List of classes
+ ...
+ Protocols:               # List of protocols
+ ...
+ Functions:               # List of functions
+ ...
+ Globals:                 # List of globals
+ ...
+ Enumerators:             # List of enumerators
+ ...
+ Tags:                    # List of tags (struct/union/enum/C++ class)
+ ...
+ Typedefs:                # List of typedef-names and C++11 type aliases
+ ...
+
+ Each class and protocol is defined as following:
+
+ - Name: NSView                       # The name of the class
+
+   AuditedForNullability: false       # Optional: Specifies if the whole class
+                                      # has been audited for nullability.
+                                      # If yes, we assume all the methods and
+                                      # properties of the class have default
+                                      # nullability unless it is overwritten by
+                                      # a method/property specific info below.
+                                      # This applies to all classes, extensions,
+                                      # and categories of the class defined in
+                                      # the current framework/module.
+                                      # (false/true)
+
+   Availability: OSX
+
+   AvailabilityMsg: ""
+
+   Methods:
+     - Selector: "setSubviews:"       # Full name
+
+       MethodKind: Instance           # [Class/Instance]
+
+       Nullability: [N, N, O, S]      # The nullability of parameters in
+                                      # the signature.
+
+       NullabilityOfRet: O            # The nullability of the return value.
+
+       Availability: OSX
+
+       AvailabilityMsg: ""
+
+       DesignatedInit: false          # Optional: Specifies if this method is a
+                                      # designated initializer (false/true)
+
+       Required: false                # Optional: Specifies if this method is a
+                                      # required initializer (false/true)
+
+   Properties:
+     - Name: window
+
+       Nullability: O
+
+       Availability: OSX
+
+       AvailabilityMsg: ""
+
+ The protocol definition format is the same as the class definition.
+
+ Each function definition is of the following form:
+
+ - Name: "myGlobalFunction"           # Full name
+
+   Nullability: [N, N, O, S]          # The nullability of parameters in
+                                      # the signature.
+
+   NullabilityOfRet: O                # The nullability of the return value.
+
+   Availability: OSX
+
+   AvailabilityMsg: ""
+
+Each global variable definition is of the following form:
+
+ - Name: MyGlobalVar
+
+   Nullability: O
+
+   Availability: OSX
+
+   AvailabilityMsg: ""
+
+*/
 
 namespace {
 enum class APIAvailability {
@@ -68,8 +182,9 @@ template <> struct ScalarEnumerationTraits<MethodKind> {
 
 namespace {
 struct Param {
-  unsigned Position;
+  int Position;
   std::optional<bool> NoEscape = false;
+  std::optional<bool> Lifetimebound = false;
   std::optional<NullabilityKind> Nullability;
   std::optional<RetainCountConventionKind> RetainCountConvention;
   StringRef Type;
@@ -121,6 +236,7 @@ template <> struct MappingTraits<Param> {
     IO.mapOptional("Nullability", P.Nullability, std::nullopt);
     IO.mapOptional("RetainCountConvention", P.RetainCountConvention);
     IO.mapOptional("NoEscape", P.NoEscape);
+    IO.mapOptional("Lifetimebound", P.Lifetimebound);
     IO.mapOptional("Type", P.Type, StringRef(""));
   }
 };
@@ -159,6 +275,7 @@ struct Method {
   bool DesignatedInit = false;
   bool Required = false;
   StringRef ResultType;
+  StringRef SwiftReturnOwnership;
 };
 
 typedef std::vector<Method> MethodsSeq;
@@ -193,6 +310,8 @@ template <> struct MappingTraits<Method> {
     IO.mapOptional("DesignatedInit", M.DesignatedInit, false);
     IO.mapOptional("Required", M.Required, false);
     IO.mapOptional("ResultType", M.ResultType, StringRef(""));
+    IO.mapOptional("SwiftReturnOwnership", M.SwiftReturnOwnership,
+                   StringRef(""));
   }
 };
 } // namespace yaml
@@ -288,6 +407,7 @@ struct Function {
   StringRef SwiftName;
   StringRef Type;
   StringRef ResultType;
+  StringRef SwiftReturnOwnership;
 };
 
 typedef std::vector<Function> FunctionsSeq;
@@ -310,6 +430,8 @@ template <> struct MappingTraits<Function> {
     IO.mapOptional("SwiftPrivate", F.SwiftPrivate);
     IO.mapOptional("SwiftName", F.SwiftName, StringRef(""));
     IO.mapOptional("ResultType", F.ResultType, StringRef(""));
+    IO.mapOptional("SwiftReturnOwnership", F.SwiftReturnOwnership,
+                   StringRef(""));
   }
 };
 } // namespace yaml
@@ -406,6 +528,41 @@ template <> struct ScalarEnumerationTraits<EnumConvenienceAliasKind> {
 } // namespace llvm
 
 namespace {
+struct Field {
+  StringRef Name;
+  std::optional<NullabilityKind> Nullability;
+  AvailabilityItem Availability;
+  std::optional<bool> SwiftPrivate;
+  StringRef SwiftName;
+  StringRef Type;
+};
+
+typedef std::vector<Field> FieldsSeq;
+} // namespace
+
+LLVM_YAML_IS_SEQUENCE_VECTOR(Field)
+
+namespace llvm {
+namespace yaml {
+template <> struct MappingTraits<Field> {
+  static void mapping(IO &IO, Field &F) {
+    IO.mapRequired("Name", F.Name);
+    IO.mapOptional("Nullability", F.Nullability, std::nullopt);
+    IO.mapOptional("Availability", F.Availability.Mode,
+                   APIAvailability::Available);
+    IO.mapOptional("AvailabilityMsg", F.Availability.Msg, StringRef(""));
+    IO.mapOptional("SwiftPrivate", F.SwiftPrivate);
+    IO.mapOptional("SwiftName", F.SwiftName, StringRef(""));
+    IO.mapOptional("Type", F.Type, StringRef(""));
+  }
+};
+} // namespace yaml
+} // namespace llvm
+
+namespace {
+struct Tag;
+typedef std::vector<Tag> TagsSeq;
+
 struct Tag {
   StringRef Name;
   AvailabilityItem Availability;
@@ -416,14 +573,19 @@ struct Tag {
   std::optional<std::string> SwiftImportAs;
   std::optional<std::string> SwiftRetainOp;
   std::optional<std::string> SwiftReleaseOp;
+  std::optional<std::string> SwiftConformance;
   std::optional<EnumExtensibilityKind> EnumExtensibility;
   std::optional<bool> FlagEnum;
   std::optional<EnumConvenienceAliasKind> EnumConvenienceKind;
   std::optional<bool> SwiftCopyable;
+  std::optional<bool> SwiftEscapable;
   FunctionsSeq Methods;
-};
+  FieldsSeq Fields;
 
-typedef std::vector<Tag> TagsSeq;
+  /// Tags that are declared within the current tag. Only the tags that have
+  /// corresponding API Notes will be listed.
+  TagsSeq Tags;
+};
 } // namespace
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(Tag)
@@ -451,11 +613,15 @@ template <> struct MappingTraits<Tag> {
     IO.mapOptional("SwiftImportAs", T.SwiftImportAs);
     IO.mapOptional("SwiftReleaseOp", T.SwiftReleaseOp);
     IO.mapOptional("SwiftRetainOp", T.SwiftRetainOp);
+    IO.mapOptional("SwiftConformsTo", T.SwiftConformance);
     IO.mapOptional("EnumExtensibility", T.EnumExtensibility);
     IO.mapOptional("FlagEnum", T.FlagEnum);
     IO.mapOptional("EnumKind", T.EnumConvenienceKind);
     IO.mapOptional("SwiftCopyable", T.SwiftCopyable);
+    IO.mapOptional("SwiftEscapable", T.SwiftEscapable);
     IO.mapOptional("Methods", T.Methods);
+    IO.mapOptional("Fields", T.Fields);
+    IO.mapOptional("Tags", T.Tags);
   }
 };
 } // namespace yaml
@@ -686,17 +852,24 @@ public:
     }
   }
 
-  void convertParams(const ParamsSeq &Params, FunctionInfo &OutInfo) {
+  void convertParams(const ParamsSeq &Params, FunctionInfo &OutInfo,
+                     std::optional<ParamInfo> &thisOrSelf) {
     for (const auto &P : Params) {
       ParamInfo PI;
       if (P.Nullability)
         PI.setNullabilityAudited(*P.Nullability);
       PI.setNoEscape(P.NoEscape);
+      PI.setLifetimebound(P.Lifetimebound);
       PI.setType(std::string(P.Type));
       PI.setRetainCountConvention(P.RetainCountConvention);
-      if (OutInfo.Params.size() <= P.Position)
+      if (static_cast<int>(OutInfo.Params.size()) <= P.Position)
         OutInfo.Params.resize(P.Position + 1);
-      OutInfo.Params[P.Position] |= PI;
+      if (P.Position == -1)
+        thisOrSelf = PI;
+      else if (P.Position >= 0)
+        OutInfo.Params[P.Position] |= PI;
+      else
+        emitError("invalid parameter position " + llvm::itostr(P.Position));
     }
   }
 
@@ -771,9 +944,10 @@ public:
       emitError("'FactoryAsInit' is no longer valid; use 'SwiftName' instead");
 
     MI.ResultType = std::string(M.ResultType);
+    MI.SwiftReturnOwnership = std::string(M.SwiftReturnOwnership);
 
     // Translate parameter information.
-    convertParams(M.Params, MI);
+    convertParams(M.Params, MI, MI.Self);
 
     // Translate nullability info.
     convertNullability(M.Nullability, M.NullabilityOfRet, MI, M.Selector);
@@ -783,6 +957,16 @@ public:
     // Write it.
     Writer.addObjCMethod(ClassID, Selector, M.Kind == MethodKind::Instance, MI,
                          SwiftVersion);
+  }
+
+  template <typename T>
+  void convertVariable(const T &Entity, VariableInfo &VI) {
+    convertAvailability(Entity.Availability, VI, Entity.Name);
+    VI.setSwiftPrivate(Entity.SwiftPrivate);
+    VI.SwiftName = std::string(Entity.SwiftName);
+    if (Entity.Nullability)
+      VI.setNullabilityAudited(*Entity.Nullability);
+    VI.setType(std::string(Entity.Type));
   }
 
   void convertContext(std::optional<ContextID> ParentContextID, const Class &C,
@@ -840,14 +1024,9 @@ public:
 
       // Translate from Property into ObjCPropertyInfo.
       ObjCPropertyInfo PI;
-      convertAvailability(Property.Availability, PI, Property.Name);
-      PI.setSwiftPrivate(Property.SwiftPrivate);
-      PI.SwiftName = std::string(Property.SwiftName);
-      if (Property.Nullability)
-        PI.setNullabilityAudited(*Property.Nullability);
+      convertVariable(Property, PI);
       if (Property.SwiftImportAsAccessors)
         PI.setSwiftImportAsAccessors(*Property.SwiftImportAsAccessors);
-      PI.setType(std::string(Property.Type));
 
       // Add both instance and class properties with this name.
       if (Property.Kind) {
@@ -876,14 +1055,22 @@ public:
                          TheNamespace.Items, SwiftVersion);
   }
 
-  void convertFunction(const Function &Function, FunctionInfo &FI) {
+  template <typename FuncOrMethodInfo>
+  void convertFunction(const Function &Function, FuncOrMethodInfo &FI) {
     convertAvailability(Function.Availability, FI, Function.Name);
     FI.setSwiftPrivate(Function.SwiftPrivate);
     FI.SwiftName = std::string(Function.SwiftName);
-    convertParams(Function.Params, FI);
+    std::optional<ParamInfo> This;
+    convertParams(Function.Params, FI, This);
+    if constexpr (std::is_same_v<FuncOrMethodInfo, CXXMethodInfo>)
+      FI.This = This;
+    else if (This)
+      emitError("implicit instance parameter is only permitted on C++ and "
+                "Objective-C methods");
     convertNullability(Function.Nullability, Function.NullabilityOfRet, FI,
                        Function.Name);
     FI.ResultType = std::string(Function.ResultType);
+    FI.SwiftReturnOwnership = std::string(Function.SwiftReturnOwnership);
     FI.setRetainCountConvention(Function.RetainCountConvention);
   }
 
@@ -914,9 +1101,13 @@ public:
       TI.SwiftRetainOp = T.SwiftRetainOp;
     if (T.SwiftReleaseOp)
       TI.SwiftReleaseOp = T.SwiftReleaseOp;
+    if (T.SwiftConformance)
+      TI.SwiftConformance = T.SwiftConformance;
 
     if (T.SwiftCopyable)
       TI.setSwiftCopyable(T.SwiftCopyable);
+    if (T.SwiftEscapable)
+      TI.setSwiftEscapable(T.SwiftEscapable);
 
     if (T.EnumConvenienceKind) {
       if (T.EnumExtensibility) {
@@ -958,12 +1149,23 @@ public:
     ContextInfo CI;
     auto TagCtxID = Writer.addContext(ParentContextID, T.Name, ContextKind::Tag,
                                       CI, SwiftVersion);
+    Context TagCtx(TagCtxID, ContextKind::Tag);
+
+    for (const auto &Field : T.Fields) {
+      FieldInfo FI;
+      convertVariable(Field, FI);
+      Writer.addField(TagCtxID, Field.Name, FI, SwiftVersion);
+    }
 
     for (const auto &CXXMethod : T.Methods) {
       CXXMethodInfo MI;
       convertFunction(CXXMethod, MI);
       Writer.addCXXMethod(TagCtxID, CXXMethod.Name, MI, SwiftVersion);
     }
+
+    // Convert nested tags.
+    for (const auto &Tag : T.Tags)
+      convertTagContext(TagCtx, Tag, SwiftVersion);
   }
 
   void convertTopLevelItems(std::optional<Context> Ctx,
@@ -1022,12 +1224,7 @@ public:
       }
 
       GlobalVariableInfo GVI;
-      convertAvailability(Global.Availability, GVI, Global.Name);
-      GVI.setSwiftPrivate(Global.SwiftPrivate);
-      GVI.SwiftName = std::string(Global.SwiftName);
-      if (Global.Nullability)
-        GVI.setNullabilityAudited(*Global.Nullability);
-      GVI.setType(std::string(Global.Type));
+      convertVariable(Global, GVI);
       Writer.addGlobalVariable(Ctx, Global.Name, GVI, SwiftVersion);
     }
 

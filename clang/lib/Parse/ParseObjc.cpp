@@ -232,6 +232,8 @@ void Parser::CheckNestedObjCContexts(SourceLocation AtLoc)
 ///     __attribute__((unavailable))
 ///     __attribute__((objc_exception)) - used by NSException on 64-bit
 ///     __attribute__((objc_root_class))
+///     __attribute__((objc_subclassing_restricted))
+///     __attribute__((objc_complete_definition))
 ///
 Decl *Parser::ParseObjCAtInterfaceDeclaration(SourceLocation AtLoc,
                                               ParsedAttributes &attrs) {
@@ -1453,7 +1455,7 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
 
   SmallVector<const IdentifierInfo *, 12> KeyIdents;
   SmallVector<SourceLocation, 12> KeyLocs;
-  SmallVector<SemaObjC::ObjCArgInfo, 12> ArgInfos;
+  SmallVector<ParmVarDecl *, 12> ObjCParamInfo;
   ParseScope PrototypeScope(this, Scope::FunctionPrototypeScope |
                             Scope::FunctionDeclarationScope | Scope::DeclScope);
 
@@ -1494,7 +1496,9 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
     ArgInfo.NameLoc = Tok.getLocation();
     ConsumeToken(); // Eat the identifier.
 
-    ArgInfos.push_back(ArgInfo);
+    ParmVarDecl *Param = Actions.ObjC().ActOnMethodParmDeclaration(
+        getCurScope(), ArgInfo, ObjCParamInfo.size(), MethodDefinition);
+    ObjCParamInfo.push_back(Param);
     KeyIdents.push_back(SelIdent);
     KeyLocs.push_back(selLoc);
 
@@ -1566,8 +1570,8 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
                                                    &KeyIdents[0]);
   Decl *Result = Actions.ObjC().ActOnMethodDeclaration(
       getCurScope(), mLoc, Tok.getLocation(), mType, DSRet, ReturnType, KeyLocs,
-      Sel, &ArgInfos[0], CParamInfo.data(), CParamInfo.size(), methodAttrs,
-      MethodImplKind, isVariadic, MethodDefinition);
+      Sel, ObjCParamInfo.data(), CParamInfo.data(), CParamInfo.size(),
+      methodAttrs, MethodImplKind, isVariadic, MethodDefinition);
 
   PD.complete(Result);
   return Result;

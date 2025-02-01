@@ -13,6 +13,7 @@
 
 #include "llvm-c/lto.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/CommandFlags.h"
@@ -88,6 +89,8 @@ struct LTOToolDiagnosticHandler : public DiagnosticHandler {
   }
 };
 
+static SmallVector<const char *> RuntimeLibcallSymbols;
+
 // Initialize the configured targets if they have not been initialized.
 static void lto_initialize() {
   if (!initialized) {
@@ -108,6 +111,7 @@ static void lto_initialize() {
     LTOContext = &Context;
     LTOContext->setDiagnosticHandler(
         std::make_unique<LTOToolDiagnosticHandler>(), true);
+    RuntimeLibcallSymbols = lto::LTO::getRuntimeLibcallSymbols(Triple());
     initialized = true;
   }
 }
@@ -533,6 +537,16 @@ thinlto_code_gen_t thinlto_create_codegen(void) {
     assert(CGOptLevelOrNone);
     CodeGen->setCodeGenOptLevel(*CGOptLevelOrNone);
   }
+  // Set up remote cache if environment is set.
+  if (sys::Process::GetEnv("LLVM_THINLTO_USE_REMOTE_CACHE")) {
+    if (auto CacheSocket =
+            sys::Process::GetEnv("LLVM_CACHE_REMOTE_SERVICE_SOCKET_PATH")) {
+      std::string Path = std::string("grpc:") + *CacheSocket;
+      auto Err = CodeGen->setCacheDir(Path);
+      if (Err)
+        report_fatal_error(std::move(Err));
+    }
+  }
   return wrap(CodeGen);
 }
 
@@ -605,7 +619,14 @@ void thinlto_codegen_set_cpu(thinlto_code_gen_t cg, const char *cpu) {
 
 void thinlto_codegen_set_cache_dir(thinlto_code_gen_t cg,
                                    const char *cache_dir) {
-  return unwrap(cg)->setCacheDir(cache_dir);
+  if (sys::Process::GetEnv("LLVM_THINLTO_USE_REMOTE_CACHE")) {
+    unwrap(cg)->setRemoteServiceTempsDir(cache_dir);
+    return;
+  }
+  // FIXME: need to return error somehow.
+  Error Err = unwrap(cg)->setCacheDir(cache_dir);
+  if (Err)
+    sLastErrorString = toString(std::move(Err));
 }
 
 void thinlto_codegen_set_cache_pruning_interval(thinlto_code_gen_t cg,
@@ -691,7 +712,6 @@ extern const char *lto_input_get_dependent_library(lto_input_t input,
 }
 
 extern const char *const *lto_runtime_lib_symbols_list(size_t *size) {
-  auto symbols = lto::LTO::getRuntimeLibcallSymbols(Triple());
-  *size = symbols.size();
-  return symbols.data();
+  *size = RuntimeLibcallSymbols.size();
+  return RuntimeLibcallSymbols.data();
 }

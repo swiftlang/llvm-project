@@ -366,6 +366,7 @@ AddressClass ObjectFile::GetAddressClass(addr_t file_addr) {
           case eSectionTypeDWARFAppleObjC:
           case eSectionTypeDWARFGNUDebugAltLink:
           case eSectionTypeCTF:
+          case eSectionTypeLLDBTypeSummaries:
           case eSectionTypeSwiftModules:
             return AddressClass::eDebug;
           case eSectionTypeEHFrame:
@@ -448,6 +449,8 @@ AddressClass ObjectFile::GetAddressClass(addr_t file_addr) {
         return AddressClass::eRuntime;
       case eSymbolTypeReExported:
         return AddressClass::eRuntime;
+      case eSymbolTypeASTFile:
+        return AddressClass::eDebug;
       }
     }
   }
@@ -562,6 +565,13 @@ size_t ObjectFile::ReadSectionData(Section *section,
   // data, so just use this
   return GetData(section->GetFileOffset(), GetSectionDataSize(section),
                  section_data);
+}
+
+const char *
+ObjectFile::GetCStrFromSection(Section *section,
+                               lldb::offset_t section_offset) const {
+  offset_t offset = section->GetOffset() + section_offset;
+  return m_data.GetCStr(&offset);
 }
 
 bool ObjectFile::SplitArchivePathWithObject(llvm::StringRef path_with_object,
@@ -731,7 +741,6 @@ void llvm::format_provider<ObjectFile::Strata>::format(
     break;
   }
 }
-
 
 Symtab *ObjectFile::GetSymtab() {
   ModuleSP module_sp(GetModule());

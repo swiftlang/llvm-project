@@ -110,8 +110,7 @@ public:
   /// Construct a callee.  Call this constructor directly when this
   /// isn't a direct call.
   CGCallee(const CGCalleeInfo &abstractInfo, llvm::Value *functionPtr,
-           /* FIXME: make parameter pointerAuthInfo mandatory */
-           const CGPointerAuthInfo &pointerAuthInfo = CGPointerAuthInfo())
+           const CGPointerAuthInfo &pointerAuthInfo)
       : KindOrFunctionPointer(
             SpecialKind(reinterpret_cast<uintptr_t>(functionPtr))) {
     OrdinaryInfo.AbstractInfo = abstractInfo;
@@ -136,12 +135,12 @@ public:
 
   static CGCallee forDirect(llvm::Constant *functionPtr,
                             const CGCalleeInfo &abstractInfo = CGCalleeInfo()) {
-    return CGCallee(abstractInfo, functionPtr);
+    return CGCallee(abstractInfo, functionPtr, CGPointerAuthInfo());
   }
 
   static CGCallee forDirect(llvm::FunctionCallee functionPtr,
                             const CGCalleeInfo &abstractInfo = CGCalleeInfo()) {
-    return CGCallee(abstractInfo, functionPtr.getCallee());
+    return CGCallee(abstractInfo, functionPtr.getCallee(), CGPointerAuthInfo());
   }
 
   static CGCallee forVirtual(const CallExpr *CE, GlobalDecl MD, Address Addr,
