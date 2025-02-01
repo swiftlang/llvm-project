@@ -24,6 +24,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/CharInfo.h"
@@ -6160,13 +6161,12 @@ getBoundsAttrKind(AttributeCommonInfo::Kind Kind) {
 }
 
 class EarlyLifetimeAndScopeCheck
-    : public RecursiveASTVisitor<EarlyLifetimeAndScopeCheck> {
+    : public StmtVisitor<EarlyLifetimeAndScopeCheck, bool> {
   Sema &SemaRef;
   bool ScopeCheck;
   Sema::LifetimeCheckKind LifetimeCheck;
   BoundsAttributedType::BoundsAttrKind AttrKind;
   bool IsArrayType;
-  bool HadError = false;
   llvm::SmallPtrSet<Decl *, 16> Visited;
 
 public:
@@ -6175,19 +6175,23 @@ public:
       : SemaRef(S), ScopeCheck(SC), LifetimeCheck(LC),
         AttrKind(getBoundsAttrKind(AK)), IsArrayType(IsArray) {}
 
+  bool VisitStmt(Stmt *S) {
+    bool HadError = false;
+    for (auto Child : S->children())
+      HadError |= Visit(Child);
+    return HadError;
+  }
+
   bool VisitDeclRefExpr(DeclRefExpr *E) {
     ValueDecl *VD = E->getDecl();
     bool IsNewVD = Visited.insert(VD).second;
-    if (IsNewVD) {
-      HadError |=
-          CheckArgLifetimeAndScope(SemaRef, VD, E->getExprLoc(), ScopeCheck,
-                                   LifetimeCheck, AttrKind, IsArrayType);
-    }
-    return true;
+    return IsNewVD &&
+           CheckArgLifetimeAndScope(SemaRef, VD, E->getExprLoc(), ScopeCheck,
+                                    LifetimeCheck, AttrKind, IsArrayType);
   }
 
   bool VisitMemberExpr(MemberExpr *E) {
-    TraverseStmt(E->getBase());
+    bool HadError = Visit(E->getBase());
     ValueDecl *VD = E->getMemberDecl();
     bool IsNewVD = Visited.insert(VD).second;
     if (IsNewVD) {
@@ -6195,10 +6199,8 @@ public:
           CheckArgLifetimeAndScope(SemaRef, VD, E->getExprLoc(), ScopeCheck,
                                    LifetimeCheck, AttrKind, IsArrayType);
     }
-    return true;
+    return HadError;
   }
-
-  bool hadError() { return HadError; }
 };
 
 static bool diagnoseBoundsAttrLifetimeAndScope(
@@ -6443,13 +6445,24 @@ diagnoseRangeDependentDecls(Sema &S, const ValueDecl *TheDepender,
   return HadError;
 }
 
+namespace {
 class DynamicBoundsAttrInfo {
 public:
+  TypedefNameDecl *TND;
+  ValueDecl *VD;
+  VarDecl *Var;
+  QualType DeclTy;
   QualType Ty;
   unsigned EffectiveLevel;
   bool IsFPtr;
+  Sema::LifetimeCheckKind LifetimeCheck = Sema::LifetimeCheckKind::None;
+  bool ScopeCheck;
 
-  DynamicBoundsAttrInfo(QualType DeclTy, unsigned Level) {
+  DynamicBoundsAttrInfo(Decl *D, unsigned Level) {
+    TND = dyn_cast<TypedefNameDecl>(D);
+    VD = dyn_cast<ValueDecl>(D);
+    Var = dyn_cast<VarDecl>(D);
+    DeclTy = TND ? TND->getUnderlyingType() : VD->getType();
     IsFPtr = false;
     EffectiveLevel = Level;
     Ty = DeclTy;
@@ -6463,8 +6476,12 @@ public:
         break;
       }
     }
+    if (!IsFPtr)
+      LifetimeCheck = Sema::getLifetimeCheckKind(Var);
+    ScopeCheck = (Var && Var->isLocalVarDecl()) || IsFPtr;
   }
 };
+} // namespace
 
 void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
                                         AttributeCommonInfo::Kind Kind,
@@ -6480,15 +6497,10 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
   if (D->isInvalidDecl())
     return;
 
-  auto *TND = dyn_cast<TypedefNameDecl>(D);
-  auto *VD = dyn_cast<ValueDecl>(D);
-  auto *Var = dyn_cast<VarDecl>(D);
-  QualType DeclTy = TND ? TND->getUnderlyingType() : VD->getType();
-
-  DynamicBoundsAttrInfo Info(DeclTy, Level);
+  DynamicBoundsAttrInfo Info(D, Level);
 
   // Don't allow typedefs with __counted_by on non-function types.
-  if (TND && (!DeclTy->isFunctionType() && !Info.IsFPtr)) {
+  if (Info.TND && (!Info.DeclTy->isFunctionType() && !Info.IsFPtr)) {
     Diag(Loc, diag::err_bounds_safety_typedef_dynamic_bound) << DiagName;
     return;
   }
@@ -6519,7 +6531,8 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
   if (!IsEndedBy) {
     // Nullability as indicated by _Nonnull or _Nullable. Does not impact
     // semantics, only warnings.
-    std::optional<NullabilityKind> AttrNullability = DeclTy->getNullability();
+    std::optional<NullabilityKind> AttrNullability =
+        Info.DeclTy->getNullability();
     if (OrNull) {
       // Function parameter/return value attribute that *does* impact semantics,
       // letting the compiler elide null checks. This could remove bounds safety
@@ -6554,8 +6567,8 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
     }
   }
 
-  if (VD) {
-    const auto *FD = dyn_cast<FieldDecl>(VD);
+  if (Info.VD) {
+    const auto *FD = dyn_cast<FieldDecl>(Info.VD);
     if (FD && FD->getParent()->isUnion()) {
       Diag(Loc, diag::err_invalid_decl_kind_bounds_safety_union_count)
           << DiagName;
@@ -6563,7 +6576,7 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
     }
 
     if (Info.EffectiveLevel != 0 &&
-        (!isa<ParmVarDecl>(VD) || DeclTy->isBoundsAttributedType())) {
+        (!isa<ParmVarDecl>(Info.VD) || Info.DeclTy->isBoundsAttributedType())) {
       Diag(Loc, diag::err_bounds_safety_nested_dynamic_bound) << DiagName;
       return;
     }
@@ -6574,7 +6587,7 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
     // case of ConstructCountAttributedType, which complains that the type
     // has two count attributes. See if we can produce a better diagnostic here
     // instead.
-    if (const auto *PVD = dyn_cast_or_null<ParmVarDecl>(Var)) {
+    if (const auto *PVD = dyn_cast_or_null<ParmVarDecl>(Info.Var)) {
       QualType TSITy = PVD->getTypeSourceInfo()->getType();
       if (IsEndedBy) {
         if (Level == 0 && TSITy->isArrayType()) {
@@ -6592,7 +6605,8 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
     }
 
     if (Info.Ty->isArrayType() && OrNull &&
-        (FD || Info.EffectiveLevel > 0 || (Var && Var->hasExternalStorage()))) {
+        (FD || Info.EffectiveLevel > 0 ||
+         (Info.Var && Info.Var->hasExternalStorage()))) {
       auto ErrDiag = Diag(Loc, diag::err_bounds_safety_nullable_fam);
       // Pointers to dynamic count types are only allowed for parameters, so any
       // FieldDecl containing a dynamic count type is a FAM. I.e. a struct field
@@ -6622,7 +6636,6 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
   }
 
   QualType NewDeclTy{};
-  bool ScopeCheck = (Var && Var->isLocalVarDecl()) || Info.IsFPtr;
   const BoundsAttributedType *ConstructedType = nullptr;
 
   bool HadAtomicError = false;
@@ -6641,22 +6654,22 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
     // Make started_by() pointers if VD is a field or variable. We don't want to
     // create started_by(X) pointers where X is a function etc.
     std::optional<TypeCoupledDeclRefInfo> StartPtrInfo;
-    if (VD && (isa<FieldDecl>(VD) || isa<VarDecl>(VD))) {
+    if (Info.VD && (isa<FieldDecl>(Info.VD) || isa<VarDecl>(Info.VD))) {
       assert(Level <= 1);
-      StartPtrInfo = TypeCoupledDeclRefInfo(VD, /*Deref=*/Level != 0);
+      StartPtrInfo = TypeCoupledDeclRefInfo(Info.VD, /*Deref=*/Level != 0);
     }
 
     auto TypeConstructor = ConstructDynamicRangePointerType(
-        *this, Level, DiagName, AttrArg, Loc, OriginatesInAPINotes, ScopeCheck,
-        StartPtrInfo);
-    NewDeclTy = TypeConstructor.Visit(DeclTy);
+        *this, Level, DiagName, AttrArg, Loc, OriginatesInAPINotes,
+        Info.ScopeCheck, StartPtrInfo);
+    NewDeclTy = TypeConstructor.Visit(Info.DeclTy);
     HadAtomicError = TypeConstructor.hadAtomicError();
     ConstructedType = TypeConstructor.getConstructedType();
   } else {
     auto TypeConstructor = ConstructCountAttributedType(
         *this, Level, DiagName, AttrArg, Loc, CountInBytes, OrNull,
-        OriginatesInAPINotes, ScopeCheck);
-    NewDeclTy = TypeConstructor.Visit(DeclTy);
+        OriginatesInAPINotes, Info.ScopeCheck);
+    NewDeclTy = TypeConstructor.Visit(Info.DeclTy);
     HadAtomicError = TypeConstructor.hadAtomicError();
     ConstructedType = TypeConstructor.getConstructedType();
   }
@@ -6670,44 +6683,43 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
   // nested type, so `ConstructedType` can be different from `NewDeclTy`.
   assert(ConstructedType);
 
-  auto LifetimeCheck = Info.IsFPtr ? Sema::LifetimeCheckKind::None
-                                   : Sema::getLifetimeCheckKind(Var);
   // Scope information is not available after template instantiation, so this
   // check has been performed earlier if this is a template instantiation.
   if (!InInstantiatedTemplate &&
-      diagnoseBoundsAttrLifetimeAndScope(*this, ConstructedType, ScopeCheck,
-                                         LifetimeCheck))
+      diagnoseBoundsAttrLifetimeAndScope(*this, ConstructedType,
+                                         Info.ScopeCheck, Info.LifetimeCheck))
     return;
 
-  if (VD && !isa<FunctionDecl>(VD) && !HadAtomicError) {
+  if (Info.VD && !isa<FunctionDecl>(Info.VD) && !HadAtomicError) {
     if (const auto *BDTy = dyn_cast<CountAttributedType>(ConstructedType)) {
-      if (!diagnoseCountDependentDecls(*this, VD, BDTy, Info.EffectiveLevel,
-                                       Info.IsFPtr))
-        AttachDependerDeclsAttr(VD, BDTy, Info.EffectiveLevel);
+      if (!diagnoseCountDependentDecls(*this, Info.VD, BDTy,
+                                       Info.EffectiveLevel, Info.IsFPtr))
+        AttachDependerDeclsAttr(Info.VD, BDTy, Info.EffectiveLevel);
     } else if (const auto *BDTy =
                    dyn_cast<DynamicRangePointerType>(ConstructedType)) {
-      diagnoseRangeDependentDecls(*this, VD, BDTy, Info.EffectiveLevel,
+      diagnoseRangeDependentDecls(*this, Info.VD, BDTy, Info.EffectiveLevel,
                                   Info.IsFPtr);
     } else {
       llvm_unreachable("Unexpected bounds attributed type");
     }
   }
 
-  if (TND) {
+  if (Info.TND) {
     // We need to create a TypeSourceInfo, as TypedefNameDecl is not a ValueDecl
     // and thus doesn't have setType() method.
-    SourceLocation Loc = TND->getTypeSourceInfo()->getTypeLoc().getBeginLoc();
-    TypeSourceInfo *Info = Context.getTrivialTypeSourceInfo(NewDeclTy, Loc);
-    TND->setTypeSourceInfo(Info);
+    SourceLocation Loc =
+        Info.TND->getTypeSourceInfo()->getTypeLoc().getBeginLoc();
+    TypeSourceInfo *TSI = Context.getTrivialTypeSourceInfo(NewDeclTy, Loc);
+    Info.TND->setTypeSourceInfo(TSI);
   } else {
-    VD->setType(NewDeclTy);
+    Info.VD->setType(NewDeclTy);
     // Reconstruct implicit cast for initializer after variable type change.
-    if (Var && Var->hasInit()) {
-      Expr *Init = Var->getInit();
+    if (Info.Var && Info.Var->hasInit()) {
+      Expr *Init = Info.Var->getInit();
       ExprResult Res = removeUnusedOVEs(*this, Init, Init->IgnoreImpCasts());
       if (Res.isInvalid())
         return;
-      AddInitializerToDecl(Var, Res.get(), Var->isDirectInit());
+      AddInitializerToDecl(Info.Var, Res.get(), Info.Var->isDirectInit());
     }
   }
 }
@@ -6740,21 +6752,14 @@ static void handlePtrCountedByEndedByAttr(Sema &S, Decl *D,
     return;
 
   if (D->getDescribedTemplate() || S.CurContext->isDependentContext()) {
-    auto *TND = dyn_cast<TypedefNameDecl>(D);
-    auto *VD = dyn_cast<ValueDecl>(D);
-    auto *Var = dyn_cast<VarDecl>(D);
-    QualType DeclTy = TND ? TND->getUnderlyingType() : VD->getType();
-    DynamicBoundsAttrInfo Info(DeclTy, Level);
+    DynamicBoundsAttrInfo Info(D, Level);
     // Scope information will be invalid by the time we instantiate the
     // template, so perform these checks now and delay the rest of the
     // processing until the point of instantiation.
-    auto LifetimeCheck = Info.IsFPtr ? Sema::LifetimeCheckKind::None
-                                     : Sema::getLifetimeCheckKind(Var);
-    bool ScopeCheck = (Var && Var->isLocalVarDecl()) || Info.IsFPtr;
-    EarlyLifetimeAndScopeCheck EarlyCheck(S, ScopeCheck, LifetimeCheck,
-                                          AL.getKind(), Info.Ty->isArrayType());
-    EarlyCheck.TraverseStmt(AL.getArgAsExpr(0));
-    if (EarlyCheck.hadError())
+    EarlyLifetimeAndScopeCheck EarlyCheck(S, Info.ScopeCheck,
+                                          Info.LifetimeCheck, AL.getKind(),
+                                          Info.Ty->isArrayType());
+    if (EarlyCheck.Visit(AL.getArgAsExpr(0)))
       return;
     attachLateInstantiatedCountedByEndedByAttr(S, D, AL, Level);
     return;
