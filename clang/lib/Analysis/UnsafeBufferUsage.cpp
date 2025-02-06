@@ -449,7 +449,20 @@ bool isSameMemberBase(const Expr *Self, const Expr *Other) {
 }
 
 // Impl of `isCompatibleWithCountExpr`.  See `isCompatibleWithCountExpr` for
-// document.
+// high-level document.
+//
+// This visitor compares two expressions in a tiny subset of the language,
+// including DRE of VarDecls, constants, binary operators, hardened subscripts,
+// dereferences, member accesses, and function calls.
+//
+// - For constants, they are literal constants and expressions have
+//   compile-time constant values.
+// - For a supported dereference expression, it can be either of the forms '*e'
+//   or '*&e', where 'e' is a supported expression.
+// - For a hardened subscript expression, it is the overloaded subscript
+//   operator of a hardened view/contatiner.
+// - For a function call expression, it must be a call to a 'const' member
+//   function with zero argument.  This is to ensure side-effect free.
 struct CompatibleCountExprVisitor
     : public ConstStmtVisitor<CompatibleCountExprVisitor, bool, const Expr *> {
   using BaseVisitor =
@@ -558,6 +571,11 @@ struct CompatibleCountExprVisitor
     if (const auto *DRE = dyn_cast<DeclRefExpr>(Other->IgnoreParenImpCasts()))
       return MemberBase && Self->getMemberDecl() == DRE->getDecl() &&
              isSameMemberBase(Self->getBase(), MemberBase);
+    if (const auto *OtherME =
+            dyn_cast<MemberExpr>(Other->IgnoreParenImpCasts())) {
+      return Self->getMemberDecl() == OtherME->getMemberDecl() &&
+             Visit(Self->getBase(), OtherME->getBase());
+    }
     return false;
   }
 
@@ -585,6 +603,51 @@ struct CompatibleCountExprVisitor
              Visit(SelfBO->getRHS(), OtherBO->getRHS());
     }
 
+    return false;
+  }
+
+  // Check overloaded subscript operator of hardened views/containers:
+  bool VisitCXXOperatorCallExpr(const CXXOperatorCallExpr *SelfOpCall,
+                                const Expr *Other) {
+    if (SelfOpCall->getOperator() != OverloadedOperatorKind::OO_Subscript)
+      return false;
+
+    const Expr *Obj = SelfOpCall->getArg(0);
+
+    if (const RecordDecl *ObjTyDecl = Obj->getType()->getAsRecordDecl()) {
+      std::string QualName = ObjTyDecl->getQualifiedNameAsString();
+      StringRef QualNameRef{QualName};
+
+      if (!(QualNameRef.ends_with("std::span") ||
+            QualNameRef.ends_with("std::array") ||
+            QualNameRef.ends_with("std::vector") ||
+            QualNameRef.ends_with("std::string") ||
+            QualNameRef.ends_with("std::string_view")))
+        return false;
+    }
+
+    if (const auto *OtherOpCall =
+            dyn_cast<CXXOperatorCallExpr>(Other->IgnoreParenImpCasts()))
+      if (SelfOpCall->getOperator() == OtherOpCall->getOperator()) {
+        return Visit(SelfOpCall->getArg(0), OtherOpCall->getArg(0)) &&
+               Visit(SelfOpCall->getArg(1), OtherOpCall->getArg(1));
+      }
+    return false;
+  }
+
+  bool VisitCXXMemberCallExpr(const CXXMemberCallExpr *SelfCall,
+                              const Expr *Other) {
+    const CXXMethodDecl *MD = SelfCall->getMethodDecl();
+
+    // The callee member function must be a const function with no parameter:
+    if (MD->isConst() && MD->param_empty()) {
+      if (auto *OtherCall =
+              dyn_cast<CXXMemberCallExpr>(Other->IgnoreParenImpCasts())) {
+        if (OtherCall->getMethodDecl() == MD)
+          return Visit(SelfCall->getImplicitObjectArgument(),
+                       OtherCall->getImplicitObjectArgument());
+      }
+    }
     return false;
   }
 };

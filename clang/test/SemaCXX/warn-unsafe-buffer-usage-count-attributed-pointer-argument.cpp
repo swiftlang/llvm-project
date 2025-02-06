@@ -7,9 +7,11 @@ namespace std {
 
 template <typename T, size_t N>
 struct array {
+  T * data_ptr;
   const T *data() const noexcept;
   T *data() noexcept;
   size_t size() const noexcept;
+  T& operator[](size_t idx) const {return *data_ptr;}
 };
 
 template <typename CharT>
@@ -40,6 +42,7 @@ struct span {
   span<T> first(size_t count) const noexcept;
   span<T> last(size_t count) const noexcept;
   span<T> subspan(size_t offset, size_t count) const noexcept;
+  T& operator[](size_t idx) const {return *data();};
 };
 
 template <typename T>
@@ -71,7 +74,7 @@ void cb_cchar_42(const char *__counted_by(42) s);
 // expected-note@+1 19{{consider using a safe container and passing '.data()' to the parameter 'p' and '.size()' to its dependent parameter 'count' or 'std::span' and passing '.first(...).data()' to the parameter 'p'}}
 void cb_int(int *__counted_by(count) p, size_t count);
 
-// expected-note@+1 11{{consider using a safe container and passing '.data()' to the parameter 'p' and '.size()' to its dependent parameter 'count' or 'std::span' and passing '.first(...).data()' to the parameter 'p'}}
+// expected-note@+1 25{{consider using a safe container and passing '.data()' to the parameter 'p' and '.size()' to its dependent parameter 'count' or 'std::span' and passing '.first(...).data()' to the parameter 'p'}}
 void cb_cint(const int *__counted_by(count) p, size_t count);
 
 // expected-note@+1 10{{consider using 'std::span' and passing '.first(...).data()' to the parameter 'p'}}
@@ -365,6 +368,85 @@ void single_variable() {
   sb_cvoid(&Arr, sizeof(Var));           // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
   sb_cvoid(&Arr, sizeof(int[11]));       // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
   sb_cvoid(&Arr, sizeof(decltype(Var))); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+}
+
+namespace test_hardened_subscript {
+  void foo(std::span<int> S) {
+    std::array<int, 10> A;
+
+    cb_cint(S.first(S[5]).data(), S[5]);
+    cb_cint(S.first(A[5]).data(), A[5]);
+    cb_cint(S.subspan(0, S[5]).data(), S[5]);
+    cb_cint(S.subspan(0, A[5]).data(), A[5]);
+    cb_cint(S.subspan(0, S[5]).data(), A[5]); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+    cb_cint(S.subspan(0, S[5]).data(), S[6]); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+
+    unsigned x;
+
+    cb_cint(S.first(S[x]).data(), S[x]);
+    cb_cint(S.first(A[x]).data(), A[x]);
+    cb_cint(S.subspan(0, S[x]).data(), S[x]);
+    cb_cint(S.subspan(0, A[x]).data(), A[x]);
+    cb_cint(S.first(S[x + 1]).data(), S[x + 1]);
+    cb_cint(S.subspan(0, A[x + 1]).data(), A[x + 1]);
+    cb_cint(S.first(A[A[x]]).data(), A[A[x]]);
+    cb_cint(S.first(A[A[x] + 1]).data(), A[A[x] + 1]);
+    cb_cint(S.first(S[x + 1]).data(), S[x - 1]);   // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+    cb_cint(S.first(A[A[x]]).data(), A[A[x] + 1]); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+
+    std::array<std::array<int, 10>, 10> A2d;
+
+    cb_cint(S.first(A2d[x][5]).data(), A2d[x][5]);
+    cb_cint(S.first(A2d[x][5]).data(), A2d[5][x]); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+
+    struct T {
+      std::array<int, 10> a;
+    } t, *tp;
+
+    struct TT {
+      struct T t;
+      struct T * tp;
+    } tt, *ttp;
+
+    cb_cint(S.first(t.a[x]).data(), t.a[x]);
+    cb_cint(S.first(tp->a[x]).data(), tp->a[x]);
+    cb_cint(S.first(tt.t.a[x]).data(), tt.t.a[x]);
+    cb_cint(S.first(ttp->t.a[x]).data(), ttp->t.a[x]);
+    cb_cint(S.first(tt.tp->a[x]).data(), tt.tp->a[x]);
+    cb_cint(S.first(ttp->tp->a[x]).data(), ttp->tp->a[x]);
+    cb_cint(S.first(t.a[x]).data(), tp->a[x]);     // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+    cb_cint(S.first(tt.t.a[x]).data(), tt.tp->a[x]); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+    cb_cint(S.first(ttp->t.a[x]).data(), ttp->tp->a[x]); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+  }
+}
+
+namespace test_function_call {
+  void foo(std::span<int> S1, std::span<int> S2) {
+    cb_cint(S1.first(S2.size()).data(), S2.size());
+    cb_cint(S1.first(S2.size()).data(), S1.size()); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+
+    struct T {
+      unsigned size() {return 0;}                   // missing 'const'
+      unsigned size(int x) const {return 0;}        // has arguments
+      unsigned supported_size() const {return 0;}
+    } t, *tp;
+
+    cb_cint(S1.first(t.supported_size()).data(), t.supported_size());
+    cb_cint(S1.first(tp->supported_size()).data(), tp->supported_size());
+    cb_cint(S1.first(t.size()).data(), t.size());   // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+    cb_cint(S1.first(t.size(0)).data(), t.size(0)); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
+    cb_cint(S1.first(t.supported_size()).data(), tp->supported_size()); // expected-warning{{unsafe assignment to function parameter of count-attributed}}
+
+    std::array<struct T, 10> Ts;
+    std::array<struct T*, 10> Tps;
+    unsigned x;
+
+    cb_cint(S1.first(Ts[5].supported_size()).data(), Ts[5].supported_size());
+    cb_cint(S1.first(Ts[x].supported_size()).data(), Ts[x].supported_size());
+    cb_cint(S1.first(Tps[5]->supported_size()).data(), Tps[5]->supported_size());
+    cb_cint(S1.first(Ts[x].supported_size()).data(), Ts[5].supported_size());  // expected-warning{{unsafe assignment to function parameter of count-attributed}}
+    cb_cint(S1.first(Ts[x].supported_size()).data(), Tps[x]->supported_size());// expected-warning{{unsafe assignment to function parameter of count-attributed}}
+  }
 }
 
 namespace test_member_access {
