@@ -651,23 +651,23 @@ instantiateBoundsSafetyAttr(Sema &S,
   int Level;
   Expr *ArgExpr;
   std::string Spelling;
-  if (auto A = dyn_cast<SizedByAttr>(AL)) {
+  if (const auto *A = dyn_cast<SizedByAttr>(AL)) {
     Level = A->getNestedLevel();
     ArgExpr = A->getSize();
     Spelling = A->getSpelling();
-  } else if (auto A = dyn_cast<SizedByOrNullAttr>(AL)) {
+  } else if (const auto *A = dyn_cast<SizedByOrNullAttr>(AL)) {
     Level = A->getNestedLevel();
     ArgExpr = A->getSize();
     Spelling = A->getSpelling();
-  } else if (auto A = dyn_cast<CountedByAttr>(AL)) {
+  } else if (const auto *A = dyn_cast<CountedByAttr>(AL)) {
     Level = A->getNestedLevel();
     ArgExpr = A->getCount();
     Spelling = A->getSpelling();
-  } else if (auto A = dyn_cast<CountedByOrNullAttr>(AL)) {
+  } else if (const auto *A = dyn_cast<CountedByOrNullAttr>(AL)) {
     Level = A->getNestedLevel();
     ArgExpr = A->getCount();
     Spelling = A->getSpelling();
-  } else if (auto A = dyn_cast<PtrEndedByAttr>(AL)) {
+  } else if (const auto *A = dyn_cast<PtrEndedByAttr>(AL)) {
     Level = A->getNestedLevel();
     ArgExpr = A->getEndPtr();
     Spelling = A->getSpelling();
@@ -675,6 +675,8 @@ instantiateBoundsSafetyAttr(Sema &S,
     llvm_unreachable("unexpected late instantiated bounds safety attribute");
 
   ExprResult InstantiatedArgExpr = S.SubstExpr(ArgExpr, TemplateArgs);
+  if (InstantiatedArgExpr.isInvalid())
+    return;
   S.applyPtrCountedByEndedByAttr(
       New, Level, AL->getParsedKind(), InstantiatedArgExpr.get(), AL->getLoc(),
       AL->getRange(), "\'" + Spelling + "\'", /*from API notes*/ false,

@@ -6161,13 +6161,13 @@ getBoundsAttrKind(AttributeCommonInfo::Kind Kind) {
 }
 
 class EarlyLifetimeAndScopeCheck
-    : public StmtVisitor<EarlyLifetimeAndScopeCheck, bool> {
+    : public ConstStmtVisitor<EarlyLifetimeAndScopeCheck, bool> {
   Sema &SemaRef;
   bool ScopeCheck;
   Sema::LifetimeCheckKind LifetimeCheck;
   BoundsAttributedType::BoundsAttrKind AttrKind;
   bool IsArrayType;
-  llvm::SmallPtrSet<Decl *, 16> Visited;
+  llvm::SmallPtrSet<const ValueDecl *, 16> Visited;
 
 public:
   EarlyLifetimeAndScopeCheck(Sema &S, bool SC, Sema::LifetimeCheckKind LC,
@@ -6175,22 +6175,22 @@ public:
       : SemaRef(S), ScopeCheck(SC), LifetimeCheck(LC),
         AttrKind(getBoundsAttrKind(AK)), IsArrayType(IsArray) {}
 
-  bool VisitStmt(Stmt *S) {
+  bool VisitStmt(const Stmt *S) {
     bool HadError = false;
-    for (auto Child : S->children())
+    for (const auto *Child : S->children())
       HadError |= Visit(Child);
     return HadError;
   }
 
-  bool VisitDeclRefExpr(DeclRefExpr *E) {
-    ValueDecl *VD = E->getDecl();
+  bool VisitDeclRefExpr(const DeclRefExpr *E) {
+    const ValueDecl *VD = E->getDecl();
     bool IsNewVD = Visited.insert(VD).second;
     return IsNewVD &&
            CheckArgLifetimeAndScope(SemaRef, VD, E->getExprLoc(), ScopeCheck,
                                     LifetimeCheck, AttrKind, IsArrayType);
   }
 
-  bool VisitMemberExpr(MemberExpr *E) {
+  bool VisitMemberExpr(const MemberExpr *E) {
     bool HadError = Visit(E->getBase());
     ValueDecl *VD = E->getMemberDecl();
     bool IsNewVD = Visited.insert(VD).second;
