@@ -408,46 +408,6 @@ getDependentValuesFromCall(const CountAttributedType *CAT,
   return {std::move(Values)};
 }
 
-// Checks if Self and Other are the same member bases. This supports only very
-// simple forms of member bases.
-bool isSameMemberBase(const Expr *Self, const Expr *Other) {
-  for (;;) {
-    if (Self == Other)
-      return true;
-
-    const auto *SelfICE = dyn_cast<ImplicitCastExpr>(Self);
-    const auto *OtherICE = dyn_cast<ImplicitCastExpr>(Other);
-    if (SelfICE && OtherICE &&
-        SelfICE->getCastKind() == OtherICE->getCastKind() &&
-        (SelfICE->getCastKind() == CK_LValueToRValue ||
-         SelfICE->getCastKind() == CK_UncheckedDerivedToBase)) {
-      Self = SelfICE->getSubExpr();
-      Other = OtherICE->getSubExpr();
-    }
-
-    const auto *SelfDRE = dyn_cast<DeclRefExpr>(Self);
-    const auto *OtherDRE = dyn_cast<DeclRefExpr>(Other);
-    if (SelfDRE && OtherDRE)
-      return SelfDRE->getDecl() == OtherDRE->getDecl();
-
-    if (isa<CXXThisExpr>(Self) && isa<CXXThisExpr>(Other)) {
-      // `Self` and `Other` should be evaluated at the same state so `this` must
-      // mean the same thing for both:
-      return true;
-    }
-
-    const auto *SelfME = dyn_cast<MemberExpr>(Self);
-    const auto *OtherME = dyn_cast<MemberExpr>(Other);
-    if (!SelfME || !OtherME ||
-        SelfME->getMemberDecl() != OtherME->getMemberDecl()) {
-      return false;
-    }
-
-    Self = SelfME->getBase();
-    Other = OtherME->getBase();
-  }
-}
-
 // Impl of `isCompatibleWithCountExpr`.  See `isCompatibleWithCountExpr` for
 // high-level document.
 //
@@ -563,7 +523,7 @@ struct CompatibleCountExprVisitor
     const auto *OtherME = dyn_cast<MemberExpr>(O);
     if (MemberBase && OtherME) {
       return OtherME->getMemberDecl() == SelfVD &&
-             isSameMemberBase(OtherME->getBase(), MemberBase);
+             Visit(OtherME->getBase(), MemberBase);
     }
 
     return false;
@@ -576,7 +536,7 @@ struct CompatibleCountExprVisitor
       return true;
     if (const auto *DRE = dyn_cast<DeclRefExpr>(Other->IgnoreParenImpCasts()))
       return MemberBase && Self->getMemberDecl() == DRE->getDecl() &&
-             isSameMemberBase(Self->getBase(), MemberBase);
+             Visit(Self->getBase(), MemberBase);
     if (const auto *OtherME =
             dyn_cast<MemberExpr>(Other->IgnoreParenImpCasts())) {
       return Self->getMemberDecl() == OtherME->getMemberDecl() &&
