@@ -452,17 +452,19 @@ bool isSameMemberBase(const Expr *Self, const Expr *Other) {
 // high-level document.
 //
 // This visitor compares two expressions in a tiny subset of the language,
-// including DRE of VarDecls, constants, binary operators, hardened subscripts,
-// dereferences, member accesses, and function calls.
+// including DRE of VarDecls, constants, binary operators, subscripts,
+// dereferences, member accesses, and member function calls.
 //
 // - For constants, they are literal constants and expressions have
 //   compile-time constant values.
 // - For a supported dereference expression, it can be either of the forms '*e'
 //   or '*&e', where 'e' is a supported expression.
-// - For a hardened subscript expression, it is the overloaded subscript
-//   operator of a hardened view/contatiner.
-// - For a function call expression, it must be a call to a 'const' member
-//   function with zero argument.  This is to ensure side-effect free.
+// - For a subscript expression, it can be either an array subscript or
+//   overloaded subscript operator.
+// - For a member function call, it must be a call to a 'const' (non-static)
+//   member function with zero argument.  This is to ensure side-effect free.
+//   Other kinds of function calls are not supported, so an expression of the
+//   form `f(...)` is not supported.
 struct CompatibleCountExprVisitor
     : public ConstStmtVisitor<CompatibleCountExprVisitor, bool, const Expr *> {
   using BaseVisitor =
@@ -536,6 +538,10 @@ struct CompatibleCountExprVisitor
     return false;
   }
 
+  bool VisitCXXThisExpr(const CXXThisExpr *SelfThis, const Expr *Other) {
+    return isa<CXXThisExpr>(Other->IgnoreParenImpCasts());
+  }
+
   bool VisitDeclRefExpr(const DeclRefExpr *SelfDRE, const Expr *Other) {
     const ValueDecl *SelfVD = SelfDRE->getDecl();
 
@@ -606,25 +612,15 @@ struct CompatibleCountExprVisitor
     return false;
   }
 
-  // Check overloaded subscript operator of hardened views/containers:
+  // Support any overloaded operator[] so long as it is a const method.
   bool VisitCXXOperatorCallExpr(const CXXOperatorCallExpr *SelfOpCall,
                                 const Expr *Other) {
     if (SelfOpCall->getOperator() != OverloadedOperatorKind::OO_Subscript)
       return false;
 
-    const Expr *Obj = SelfOpCall->getArg(0);
-
-    if (const RecordDecl *ObjTyDecl = Obj->getType()->getAsRecordDecl()) {
-      std::string QualName = ObjTyDecl->getQualifiedNameAsString();
-      StringRef QualNameRef{QualName};
-
-      if (!(QualNameRef.ends_with("std::span") ||
-            QualNameRef.ends_with("std::array") ||
-            QualNameRef.ends_with("std::vector") ||
-            QualNameRef.ends_with("std::string") ||
-            QualNameRef.ends_with("std::string_view")))
+    if (auto *MD = dyn_cast<CXXMethodDecl>(SelfOpCall->getCalleeDecl()))
+      if (!MD->isConst())
         return false;
-    }
 
     if (const auto *OtherOpCall =
             dyn_cast<CXXOperatorCallExpr>(Other->IgnoreParenImpCasts()))
@@ -635,6 +631,19 @@ struct CompatibleCountExprVisitor
     return false;
   }
 
+  // Support array/pointer subscript. Even though these operators are generally
+  // considered unsafe, they can be safely used on constant arrays with
+  // known-safe literal indexes.
+  bool VisitArraySubscriptExpr(const ArraySubscriptExpr *SelfAS,
+                               const Expr *Other) {
+    if (const auto *OtherAS =
+            dyn_cast<ArraySubscriptExpr>(Other->IgnoreParenImpCasts()))
+      return Visit(SelfAS->getLHS(), OtherAS->getLHS()) &&
+             Visit(SelfAS->getRHS(), OtherAS->getRHS());
+    return false;
+  }
+
+  // Support non-static member call:
   bool VisitCXXMemberCallExpr(const CXXMemberCallExpr *SelfCall,
                               const Expr *Other) {
     const CXXMethodDecl *MD = SelfCall->getMethodDecl();
@@ -643,9 +652,9 @@ struct CompatibleCountExprVisitor
     if (MD->isConst() && MD->param_empty()) {
       if (auto *OtherCall =
               dyn_cast<CXXMemberCallExpr>(Other->IgnoreParenImpCasts())) {
-        if (OtherCall->getMethodDecl() == MD)
-          return Visit(SelfCall->getImplicitObjectArgument(),
-                       OtherCall->getImplicitObjectArgument());
+        return OtherCall->getMethodDecl() == MD &&
+               Visit(SelfCall->getImplicitObjectArgument(),
+                     OtherCall->getImplicitObjectArgument());
       }
     }
     return false;
