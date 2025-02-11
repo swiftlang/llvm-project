@@ -578,10 +578,10 @@ struct CompatibleCountExprVisitor
     if (SelfOpCall->getOperator() != OverloadedOperatorKind::OO_Subscript)
       return false;
 
-    if (auto *MD = dyn_cast<CXXMethodDecl>(SelfOpCall->getCalleeDecl()))
-      if (!MD->isConst())
-        return false;
+    const auto *MD = dyn_cast<CXXMethodDecl>(SelfOpCall->getCalleeDecl());
 
+    if (!MD || !MD->isConst())
+      return false;
     if (const auto *OtherOpCall =
             dyn_cast<CXXOperatorCallExpr>(Other->IgnoreParenImpCasts()))
       if (SelfOpCall->getOperator() == OtherOpCall->getOperator()) {
