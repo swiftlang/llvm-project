@@ -1,6 +1,6 @@
 /* TO_UPSTREAM(BoundsSafety) ON */
-// RUN: %clang_cc1 -fsyntax-only -verify=expected,immediate %s
-// RUN: %clang_cc1 -fsyntax-only -fexperimental-late-parse-attributes %s -verify=expected,late
+// RUN: %clang_cc1 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsyntax-only -fexperimental-late-parse-attributes %s -verify
 
 #define __counted_by(f) __attribute__((counted_by(f)))
 #define __bdos(P) __builtin_dynamic_object_size(P, 0)
