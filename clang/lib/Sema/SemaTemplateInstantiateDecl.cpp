@@ -674,6 +674,20 @@ instantiateBoundsSafetyAttr(Sema &S,
   } else
     llvm_unreachable("unexpected late instantiated bounds safety attribute");
 
+  DeclContext *DC;
+  if (auto *FD = dyn_cast<FunctionDecl>(New)) {
+    DC = FD; // make sure we can refer to parameters in attribute
+  } else {
+    DC = New->getDeclContext();
+  }
+  Sema::ContextRAII SetContext(S, DC);
+  if (auto *RD = dyn_cast<CXXRecordDecl>(DC)) {
+    // Set `this` type as if we were in a decl scope lambda
+    // It's reset along with CurContext when SetContext goes out of scope
+    QualType ClassTy = S.Context.getTypeDeclType(RD);
+    S.CXXThisTypeOverride = S.Context.getPointerType(ClassTy);
+  }
+
   ExprResult InstantiatedArgExpr = S.SubstExpr(ArgExpr, TemplateArgs);
   if (InstantiatedArgExpr.isInvalid())
     return;

@@ -6751,7 +6751,7 @@ static void handlePtrCountedByEndedByAttr(Sema &S, Decl *D,
   if (!S.checkUInt32Argument(AL, AL.getArgAsExpr(1), Level))
     return;
 
-  if (D->getDescribedTemplate() || S.CurContext->isDependentContext()) {
+  if (D->isTemplated()) {
     DynamicBoundsAttrInfo Info(D, Level);
     // Scope information will be invalid by the time we instantiate the
     // template, so perform these checks now and delay the rest of the

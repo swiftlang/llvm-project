@@ -3484,8 +3484,8 @@ namespace clang {
 
 void DynamicCountPointerAssignmentAnalysis::run() {
   AnalysisDeclContext AC(/* AnalysisDeclContextManager */ nullptr, dcl);
-  if (isa<TemplateDecl>(dcl)) // delay processing until template has been
-                              // instantiated
+  if (dcl->isTemplated()) // delay processing until template has been
+                          // instantiated
     return;
 
   CFG *cfg = AC.getCFG();
