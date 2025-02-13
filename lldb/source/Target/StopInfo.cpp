@@ -1426,6 +1426,8 @@ protected:
 
 StopInfoSP StopInfo::CreateStopReasonWithBreakpointSiteID(Thread &thread,
                                                           break_id_t break_id) {
+  thread.SetThreadHitBreakpointSite();
+
   return StopInfoSP(new StopInfoBreakpoint(thread, break_id));
 }
 
