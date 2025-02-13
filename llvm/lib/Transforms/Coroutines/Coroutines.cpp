@@ -337,7 +337,7 @@ void coro::Shape::analyze(Function &F,
     RetconLowering.Dealloc = ContinuationId->getDeallocFunction();
     RetconLowering.ReturnBlock = nullptr;
     RetconLowering.IsFrameInlineInStorage = false;
-    this->RetconLowering.TypeId = ContinuationId->getTypeId();
+    RetconLowering.TypeId = ContinuationId->getTypeId();
     break;
   }
   default:
