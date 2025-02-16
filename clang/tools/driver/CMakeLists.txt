@@ -144,7 +144,7 @@ endif()
 
 # Add features.json file into usr/share/clang
 set(features_file_src "${CMAKE_CURRENT_SOURCE_DIR}/features.json")
-set(features_file_dest "${CMAKE_BINARY_DIR}/share/clang/features.json")
+set(features_file_dest "${LLVM_BINARY_DIR}/share/clang/features.json")
 
 configure_file(${features_file_src} ${features_file_dest} @ONLY)
 
