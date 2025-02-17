@@ -11,6 +11,7 @@ from lldbsuite.test import lldbutil
 
 class LibcxxChronoDataFormatterTestCase(TestBase):
     @add_test_categories(["libc++"])
+    @skipIf(oslist=["linux"])
     def test_with_run_command(self):
         """Test that that file and class static variables display correctly."""
         self.build()

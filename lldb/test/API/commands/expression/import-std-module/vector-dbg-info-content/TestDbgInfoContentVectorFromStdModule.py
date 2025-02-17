@@ -12,6 +12,7 @@ class TestDbgInfoContentVector(TestBase):
     @add_test_categories(["libc++"])
     @skipIf(compiler=no_match("clang"))
     @skipIf(compiler="clang", compiler_version=["<", "12.0"])
+    @skipIf(oslist=["linux"])
     @skipIf(macos_version=["<", "14.0"])
     @skipIf(setting=('plugin.typesystem.clang.experimental-redecl-completion', 'true'))
     def test(self):
