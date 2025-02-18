@@ -45,18 +45,21 @@ class TestCase(TestBase):
         return True
 
     @skipIf(compiler="clang", compiler_version=["<", "9.0"])
+    @skipIf(oslist=["linux"])
     def test_regcall(self):
         if not self.build_and_run("regcall.c"):
             return
         self.expect_expr("func(1, 2, 3, 4)", result_type="int", result_value="10")
 
     @skipIf(compiler="clang", compiler_version=["<", "9.0"])
+    @skipIf(oslist=["linux"])
     def test_ms_abi(self):
         if not self.build_and_run("ms_abi.c"):
             return
         self.expect_expr("func(1, 2, 3, 4)", result_type="int", result_value="10")
 
     @skipIf(compiler="clang", compiler_version=["<", "9.0"])
+    @skipIf(oslist=["linux"])
     def test_stdcall(self):
         if not self.build_and_run("stdcall.c"):
             return
@@ -71,17 +74,20 @@ class TestCase(TestBase):
         self.expect_expr("func(1.0)", result_type="int", result_value="1")
 
     @skipIf(compiler="clang", compiler_version=["<", "9.0"])
+    @skipIf(oslist=["linux"])
     def test_fastcall(self):
         if not self.build_and_run("fastcall.c"):
             return
         self.expect_expr("func(1, 2, 3, 4)", result_type="int", result_value="10")
 
     @skipIf(compiler="clang", compiler_version=["<", "9.0"])
+    @skipIf(oslist=["linux"])
     def test_pascal(self):
         if not self.build_and_run("pascal.c"):
             return
         self.expect_expr("func(1, 2, 3, 4)", result_type="int", result_value="10")
 
+    @skipIf(oslist=["linux"])
     def test_sysv_abi(self):
         if not self.build_and_run("sysv_abi.c"):
             return
