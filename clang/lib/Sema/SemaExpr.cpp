@@ -12186,12 +12186,38 @@ Sema::CheckValueTerminatedAssignmentConstraints(QualType LHSType,
              Context.hasSameUnqualifiedType(
                  Context.getCorrespondingSignedType(LPointee),
                  Context.getCorrespondingSignedType(RPointee)));
-        if (CompatiblePointees &&
+        if (CompatiblePointees && RHSExpr->isPRValue() &&
             RHSExpr->tryEvaluateTerminatorElement(Evald, Context) &&
             Evald.Val.isInt() &&
             llvm::APSInt::isSameValue(LVTT->getTerminatorValue(Context),
                                       Evald.Val.getInt())) {
           return Sema::Compatible;
+        }
+        // If in C++ Safe Buffers/Bounds Safety interoperation mode, the RHS can
+        // be 'std::string::c_str':
+        bool SafeBuffersEnabled = !Diags.isIgnored(
+            diag::warn_unsafe_assign_to_null_terminated_pointer,
+            RHSExpr->getBeginLoc());
+
+        if (LangOpts.CPlusPlus && SafeBuffersEnabled) {
+          if (const auto *MCE =
+                  dyn_cast<CXXMemberCallExpr>(RHSExpr->IgnoreParenImpCasts())) {
+            IdentifierInfo *MethodDeclII = nullptr, *ObjTypeII = nullptr;
+
+            if (MCE->getMethodDecl())
+              MethodDeclII = MCE->getMethodDecl()->getIdentifier();
+            if (const auto *RecordDecl =
+                    MCE->getObjectType()->getAsRecordDecl()) {
+              // If not in std namespace, let `ObjTypeII` be null so that the
+              // match fails:
+              if (RecordDecl->isInStdNamespace())
+                ObjTypeII = RecordDecl->getIdentifier();
+            }
+            if (MethodDeclII && ObjTypeII &&
+                MethodDeclII->getName() == "c_str" &&
+                ObjTypeII->getName() == "basic_string")
+              return Sema::Compatible;
+          }
         }
       }
       return Nested
@@ -20783,6 +20809,16 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
     const auto *DstPointerType = DstType->getAs<ValueTerminatedType>();
     IsDstNullTerm =
         DstPointerType->getTerminatorValue(getASTContext()).isZero();
+    if (getLangOpts().isBoundsSafetyAttributeOnlyMode() &&
+        getLangOpts().CPlusPlus &&
+        !Diags.isIgnored(diag::warn_unsafe_assign_to_null_terminated_pointer,
+                         Loc)) {
+      // In C++ Safe Buffers/Bounds Safety interop mode, the compiler reports a
+      // warning under -Wunsafe-buffer-usage:
+      DiagKind = diag::warn_unsafe_assign_to_null_terminated_pointer;
+      isInvalid = false;
+      break;
+    }
     if (getLangOpts().BoundsSafetyRelaxedSystemHeaders) {
       DiagKind =
           diag::warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by;

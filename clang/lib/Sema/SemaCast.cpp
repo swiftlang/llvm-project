@@ -205,7 +205,7 @@ namespace {
       /// int *__bidi_indexable p1;
       /// int *__indexable p2 = (int *__indexable)p1;
       /// \endcode
-      if (Self.getLangOpts().BoundsSafety) {
+      if (Self.getLangOpts().hasBoundsSafetyAttributes()) {
         unsigned DiagKind = 0;
         bool isInvalid = false;
         // The type error may be nested, so any pointer can result in VT errors
@@ -238,6 +238,17 @@ namespace {
           const auto *DstPointerType = DestType->getAs<ValueTerminatedType>();
           IsDstNullTerm =
               DstPointerType->getTerminatorValue(Self.Context).isZero();
+          if (Self.LangOpts.isBoundsSafetyAttributeOnlyMode() &&
+              Self.LangOpts.CPlusPlus &&
+              !Self.Diags.isIgnored(
+                  diag::warn_unsafe_assign_to_null_terminated_pointer,
+                  SrcExpr.get()->getExprLoc())) {
+            // In C++ Safe Buffers/Bounds Safety interop mode, the compiler
+            // reports a warning under -Wunsafe-buffer-usage:
+            DiagKind = diag::warn_unsafe_assign_to_null_terminated_pointer;
+            isInvalid = true;
+            break;
+          }
           if (Self.getLangOpts().BoundsSafetyRelaxedSystemHeaders) {
             DiagKind = diag::
                 warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by;
@@ -576,6 +587,17 @@ Sema::BuildCXXNamedCast(SourceLocation OpLoc, tok::TokenKind Kind,
 
   Op.checkQualifiedDestType();
 
+  // In C++ Safe Buffers/Bounds Safety interop mode, forbidding  for now all
+  // named cast to __null_terminated pointer type.
+  if (DestType->isPointerType() && LangOpts.hasBoundsSafetyAttributes() &&
+      !Diags.isIgnored(diag::warn_unsafe_named_cast_to_null_terminated_pointer,
+                       E->getBeginLoc())) {
+    if (DestType->getAs<ValueTerminatedType>()) {
+      Diag(E->getBeginLoc(),
+           diag::warn_unsafe_named_cast_to_null_terminated_pointer);
+      return ExprError();
+    }
+  }
   switch (Kind) {
   default: llvm_unreachable("Unknown C++ cast!");
 

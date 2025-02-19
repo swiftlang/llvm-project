@@ -13603,6 +13603,19 @@ def note_unsafe_count_attributed_pointer_argument : Note<
 def warn_unsafe_single_pointer_argument : Warning<
   "unsafe assignment to function parameter of __single pointer type">,
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_unsafe_assign_to_null_terminated_pointer : Warning<
+  "unsafe %select{assignment to a pointer of|"
+                  "assignment to a parameter of|"
+                  "return of|"
+                  "conversion to|"
+                  "initialization of a pointer of|"
+                  "assignment to a pointer of|"
+                  "casting to}2 '__null_terminated' type; "
+  "only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_unsafe_named_cast_to_null_terminated_pointer : Warning<
+  "C++ named cast to '__null_terminated' type is unsafe">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 #ifndef NDEBUG
 // Not a user-facing diagnostic. Useful for debugging false negatives in
 // -fsafe-buffer-usage-suggestions (i.e. lack of -Wunsafe-buffer-usage fixits).
