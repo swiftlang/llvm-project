@@ -1382,7 +1382,10 @@ private:
 
     void ParseLexedAttributes() override;
 
-    void addDecl(Decl *D) { Decls.push_back(D); }
+    void addDecl(Decl *D) {
+      assert(D && "cannot add null decl!");
+      Decls.push_back(D);
+    }
   };
 
   /// Contains the lexed tokens of a pragma with arguments that
@@ -1821,8 +1824,10 @@ private:
 
   bool isTokIdentifier_in() const;
 
+  // TO_UPSTREAM(BoundsSafety) Added LateParsedAttrs
   ParsedType ParseObjCTypeName(ObjCDeclSpec &DS, DeclaratorContext Ctx,
-                               ParsedAttributes *ParamAttrs);
+                               ParsedAttributes *ParamAttrs,
+                               LateParsedAttrList *LateParsedAttrs = nullptr);
   Decl *ParseObjCMethodPrototype(
             tok::ObjCKeywordKind MethodImplKind = tok::objc_not_keyword,
             bool MethodDefinition = true);
