@@ -12195,11 +12195,8 @@ Sema::CheckValueTerminatedAssignmentConstraints(QualType LHSType,
         }
         // If in C++ Safe Buffers/Bounds Safety interoperation mode, the RHS can
         // be 'std::string::c_str':
-        bool SafeBuffersEnabled = !Diags.isIgnored(
-            diag::warn_unsafe_assign_to_null_terminated_pointer,
-            RHSExpr->getBeginLoc());
-
-        if (LangOpts.CPlusPlus && SafeBuffersEnabled) {
+        if (LangOpts.CPlusPlus &&
+            isCXXSafeBuffersEnabledAt(RHSExpr->getBeginLoc())) {
           if (const auto *MCE =
                   dyn_cast<CXXMemberCallExpr>(RHSExpr->IgnoreParenImpCasts())) {
             IdentifierInfo *MethodDeclII = nullptr, *ObjTypeII = nullptr;
@@ -12207,12 +12204,11 @@ Sema::CheckValueTerminatedAssignmentConstraints(QualType LHSType,
             if (MCE->getMethodDecl())
               MethodDeclII = MCE->getMethodDecl()->getIdentifier();
             if (const auto *RecordDecl =
-                    MCE->getObjectType()->getAsRecordDecl()) {
+                    MCE->getObjectType()->getAsRecordDecl();
+                RecordDecl && RecordDecl->isInStdNamespace())
               // If not in std namespace, let `ObjTypeII` be null so that the
               // match fails:
-              if (RecordDecl->isInStdNamespace())
-                ObjTypeII = RecordDecl->getIdentifier();
-            }
+              ObjTypeII = RecordDecl->getIdentifier();
             if (MethodDeclII && ObjTypeII &&
                 MethodDeclII->getName() == "c_str" &&
                 ObjTypeII->getName() == "basic_string")
@@ -20810,9 +20806,7 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
     IsDstNullTerm =
         DstPointerType->getTerminatorValue(getASTContext()).isZero();
     if (getLangOpts().isBoundsSafetyAttributeOnlyMode() &&
-        getLangOpts().CPlusPlus &&
-        !Diags.isIgnored(diag::warn_unsafe_assign_to_null_terminated_pointer,
-                         Loc)) {
+        getLangOpts().CPlusPlus && isCXXSafeBuffersEnabledAt(Loc)) {
       // In C++ Safe Buffers/Bounds Safety interop mode, the compiler reports a
       // warning under -Wunsafe-buffer-usage:
       DiagKind = diag::warn_unsafe_assign_to_null_terminated_pointer;
@@ -21253,6 +21247,11 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
       }
     }
   }
+
+  /* TO_UPSTREAM(BoundsSafety) ON*/
+  if (DiagKind == diag::warn_unsafe_assign_to_null_terminated_pointer)
+    Diag(Loc, diag::note_unsafe_assign_to_null_terminated_pointer);
+  /* TO_UPSTREAM(BoundsSafety) OFF*/
 
   if (IsSrcNullTerm) {
     TryFixAssigningNullTerminatedToImplicitBidiIndexablePtr(Assignee, SrcExpr,

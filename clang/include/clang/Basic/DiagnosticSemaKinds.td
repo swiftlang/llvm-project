@@ -13610,12 +13610,11 @@ def warn_unsafe_assign_to_null_terminated_pointer : Warning<
                   "conversion to|"
                   "initialization of a pointer of|"
                   "assignment to a pointer of|"
-                  "casting to}2 '__null_terminated' type; "
-  "only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers">,
+                  "casting to}2 '__null_terminated' type">,
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
-def warn_unsafe_named_cast_to_null_terminated_pointer : Warning<
-  "C++ named cast to '__null_terminated' type is unsafe">,
-  InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def note_unsafe_assign_to_null_terminated_pointer : Note<
+  "the source pointer may not point to null-terminated data; "
+  "only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers">;
 #ifndef NDEBUG
 // Not a user-facing diagnostic. Useful for debugging false negatives in
 // -fsafe-buffer-usage-suggestions (i.e. lack of -Wunsafe-buffer-usage fixits).

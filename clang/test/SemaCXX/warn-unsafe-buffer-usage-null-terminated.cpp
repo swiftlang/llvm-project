@@ -43,23 +43,23 @@ void basics(const char * cstr, size_t cstr_len, std::string cxxstr) {
   p3 = p;                      // safe assignment
   p3 = get_nt(cstr, cstr_len); // safe assignment
 
-  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   const char * __null_terminated p4 = cstr;  // warn
 
-  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   nt_parm(cstr);                             // warn
-  // expected-warning@+1 {{unsafe assignment to a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe assignment to a pointer of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   p4 = cstr;                                 // warn
 
   std::string_view view{cxxstr};
 
-  // expected-warning@+1 {{unsafe assignment to a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe assignment to a pointer of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   p4 = view.data();                          // warn
-  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   nt_parm(view.data());                      // warn
 
   const char * __null_terminated p5 = 0;                 // nullptr is ok
-  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   const char * __null_terminated p6 = (const char *)1;   // other integer literal is unsafe
   // test arrays?
   // what if an NT pointer p gets p[n] = ...?
@@ -68,36 +68,59 @@ void basics(const char * cstr, size_t cstr_len, std::string cxxstr) {
 }
 
 void test_explicit_cast(char * p, const char * q) {
-    // expected-warning@+1 {{unsafe casting to '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+    // expected-warning@+1 {{unsafe casting to '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   const char * __null_terminated nt = (const char * __null_terminated) p;
-  // expected-warning@+1 {{C++ named cast to '__null_terminated' type is unsafe}}
-  const char * __null_terminated nt2 = reinterpret_cast<const char * __null_terminated> (p);
+  const char * __null_terminated nt2 = reinterpret_cast<const char * __null_terminated> (p); // FP for now
 
-    // expected-warning@+1 {{unsafe casting to '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+    // expected-warning@+1 {{unsafe casting to '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   nt = (const char * __null_terminated) p;
-  // expected-warning@+1 {{C++ named cast to '__null_terminated' type is unsafe}}
-  nt2 = reinterpret_cast<const char * __null_terminated> (p);
-  // expected-warning@+1 {{C++ named cast to '__null_terminated' type is unsafe}}
-  nt2 = static_cast<const char * __null_terminated> (p);
+  nt2 = reinterpret_cast<const char * __null_terminated> (p); // FP for now
+  // expected-warning@+1 {{unsafe casting to '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  nt2 = static_cast<const char * __null_terminated> (p);      // FP for now
 
-  // expected-warning@+1 {{unsafe casting to '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe casting to '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   const char * __null_terminated nt3 = (const char * __null_terminated) q;
-  // expected-warning@+1 {{C++ named cast to '__null_terminated' type is unsafe}}
-  const char * __null_terminated nt4 = reinterpret_cast<const char * __null_terminated> (q);
+  const char * __null_terminated nt4 = reinterpret_cast<const char * __null_terminated> (q); // FP for now
 
-  // expected-warning@+1 {{unsafe casting to '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe casting to '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   nt3 = (const char * __null_terminated) q;
-  // expected-warning@+1 {{C++ named cast to '__null_terminated' type is unsafe}}
-  nt4 = reinterpret_cast<const char * __null_terminated> (q);
-  // expected-warning@+1 {{C++ named cast to '__null_terminated' type is unsafe}}
+  nt4 = reinterpret_cast<const char * __null_terminated> (q); // FP for now
+  // expected-warning@+1 {{unsafe casting to '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   nt4 = static_cast<const char * __null_terminated> (q);
+
+  // OK cases for C-style casts
+  char * __null_terminated nt_p;
+  const char * __null_terminated nt_p2;
+  int * __null_terminated nt_p3;
+  const int * __null_terminated nt_p4;
+
+  const char * __null_terminated nt5 = (const char * __null_terminated) nt_p;
+  const char * __null_terminated nt6 = (const char * __null_terminated) nt_p2;
+  const char * __null_terminated nt7 = (const char * __null_terminated) nt_p3;
+  const char * __null_terminated nt8 = (const char * __null_terminated) nt_p4;
+
+  nt5 = (const char * __null_terminated) nt_p;
+  nt6 = (const char * __null_terminated) nt_p2;
+  nt7 = (const char * __null_terminated) nt_p3;
+  nt8 = (const char * __null_terminated) nt_p4;
+
+
+  char * __null_terminated nt9 = (char * __null_terminated) nt_p;
+  char * __null_terminated nt10 = (char * __null_terminated) nt_p2;
+  char * __null_terminated nt11 = (char * __null_terminated) nt_p3;
+  char * __null_terminated nt12 = (char * __null_terminated) nt_p4;
+
+  nt9 = (char * __null_terminated) nt_p;
+  nt10 = (char * __null_terminated) nt_p2;
+  nt11 = (char * __null_terminated) nt_p3;
+  nt12 = (char * __null_terminated) nt_p4;
 }
 
 const char * __null_terminated test_return(const char * p, char * q, std::string &str) {
   if (p)
-    return p; // expected-warning {{unsafe return of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+    return p; // expected-warning {{unsafe return of '__null_terminated' type}} expected-note{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   if (q)
-    return q; // expected-warning {{unsafe return of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+    return q; // expected-warning {{unsafe return of '__null_terminated' type}} expected-note{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   return str.c_str();
 }
 
@@ -106,10 +129,10 @@ void test_array(char * cstr) {
   // expected-error@+1 {{array 'arr2' with '__terminated_by' attribute is initialized with an incorrect terminator (expected: 0; got 'i')}}
   const char arr2[__null_terminated 2] = {'h', 'i'};
   const char * __null_terminated arr3[] = {"hello", "world"};
-  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   const char * __null_terminated arr4[] = {"hello", "world", cstr};
 
-  // expected-warning@+1 {{unsafe assignment to a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe assignment to a pointer of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   arr3[0] = cstr;
 }
 
@@ -126,42 +149,42 @@ void test_compound(char * cstr) {
   T t = {42, "hello"};
   T t2 = {.a = 42};
   T t3 = {.p = str.c_str()};
-  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   T t4 = {42, "hello", {.p = cstr}};
 
-  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   t4 = (struct T){42, "hello", {.p = cstr}};
 }
 
-  // expected-warning@+3 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+3 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+3{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
 class C {
   const char * __null_terminated p;
   const char * __null_terminated q = (char *) 1; // warn
   struct T t;
 public:
-  // expected-warning@+1 2{{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 2{{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+1 2{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   C(char * p): p(p), t({0, p}) {};
   C(const char * __null_terminated p, struct T t);
 };
 
 void f(const C &c);
 C test_class(char * cstr) {
-  // expected-warning@+2 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
-  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+2 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+2{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   C c{cstr, {0, cstr}};
-  // expected-warning@+2 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
-  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+2 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+2{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   C c1(cstr, {0, cstr});
-  // expected-warning@+2 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
-  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+2 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+2{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   C *c2 = new C(cstr, {0, cstr});
-  // expected-warning@+2 {{unsafe initialization of a pointer of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
-  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+2 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+2{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+  // expected-warning@+1 {{unsafe assignment to a parameter of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   f(C{cstr, {0, cstr}});
 
   C("hello", {0, "hello"});
   if (1-1)
-    return {cstr, {}}; // expected-warning {{unsafe assignment to a parameter of '__null_terminated' type; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
+    return {cstr, {}}; // expected-warning {{unsafe assignment to a parameter of '__null_terminated' type}} expected-note{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}
   return {"hello", {}};
 }
 
