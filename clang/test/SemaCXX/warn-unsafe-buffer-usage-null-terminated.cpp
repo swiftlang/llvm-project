@@ -65,6 +65,11 @@ void basics(const char * cstr, size_t cstr_len, std::string cxxstr) {
   // what if an NT pointer p gets p[n] = ...?
   // recognize of std::string::c_str() should be under Wunsafe-buffer-usage
   // Test compound initializer and constructor initializer
+
+
+  // (non-0)-terminated pointer is NOT compatible with 'std::string::c_str':
+  // expected-warning@+1 {{unsafe initialization of a pointer of '__null_terminated' type}} expected-note@+1{{the source pointer may not point to null-terminated data; only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers}}  
+  const char * __terminated_by(42) p7 = cxxstr.c_str();
 }
 
 void test_explicit_cast(char * p, const char * q) {

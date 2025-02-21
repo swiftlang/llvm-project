@@ -205,7 +205,7 @@ namespace {
       /// int *__bidi_indexable p1;
       /// int *__indexable p2 = (int *__indexable)p1;
       /// \endcode
-      if (Self.getLangOpts().hasBoundsSafetyAttributes()) {
+      if (Self.getLangOpts().BoundsSafetyAttributes) {
         unsigned DiagKind = 0;
         bool isInvalid = false;
         // The type error may be nested, so any pointer can result in VT errors

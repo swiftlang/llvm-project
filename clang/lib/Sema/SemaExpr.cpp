@@ -12195,8 +12195,10 @@ Sema::CheckValueTerminatedAssignmentConstraints(QualType LHSType,
         }
         // If in C++ Safe Buffers/Bounds Safety interoperation mode, the RHS can
         // be 'std::string::c_str':
+        bool isNullTerm = LVTT->getTerminatorValue(Context).isZero();
+
         if (LangOpts.CPlusPlus &&
-            isCXXSafeBuffersEnabledAt(RHSExpr->getBeginLoc())) {
+            isCXXSafeBuffersEnabledAt(RHSExpr->getBeginLoc()) && isNullTerm) {
           if (const auto *MCE =
                   dyn_cast<CXXMemberCallExpr>(RHSExpr->IgnoreParenImpCasts())) {
             IdentifierInfo *MethodDeclII = nullptr, *ObjTypeII = nullptr;

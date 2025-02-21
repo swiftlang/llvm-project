@@ -1562,7 +1562,7 @@ public:
   BoundsSafetyPointerAttributes CurPointerAbi;
 
   /// \returns true iff `-Wunsafe-buffer-usage` is enabled for `Loc`.
-  bool isCXXSafeBuffersEnabledAt(SourceLocation Loc) {
+  bool isCXXSafeBuffersEnabledAt(SourceLocation Loc) const {
     return !Diags.isIgnored(diag::warn_unsafe_buffer_operation, Loc);
   }
   /* TO_UPSTREAM(BoundsSafety) OFF */
