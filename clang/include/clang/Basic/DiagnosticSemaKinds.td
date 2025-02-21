@@ -13198,8 +13198,10 @@ def warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by : Warning
           "sending type to parameter of incompatible type}0,1|"
     "%diff{casting $ to incompatible type $|"
           "casting type to incompatible type}0,1|"
-  "}2 is an unsafe operation; use '%select{__unsafe_terminated_by_from_indexable|__unsafe_null_terminated_from_indexable}3()' "
-  "or '%select{__unsafe_forge_terminated_by|__unsafe_forge_null_terminated}3()' to perform this conversion">, InGroup<BoundsSafetyStrictTerminatedByCast>, DefaultError;
+  "}2 is an unsafe operation"
+  "%select{; use '__unsafe_terminated_by_from_indexable()' or '__unsafe_forge_terminated_by()' to perform this conversion|"
+  "; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion|"
+  "}3">, InGroup<BoundsSafetyStrictTerminatedByCast>, DefaultError;
 def err_bounds_safety_incompatible_non_terminated_by_to_terminated_by : Error<warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by.Summary>;
 def err_bounds_safety_incompatible_terminated_by_to_non_terminated_by_mismatch : Error<
   "%select{"
@@ -13603,18 +13605,6 @@ def note_unsafe_count_attributed_pointer_argument : Note<
 def warn_unsafe_single_pointer_argument : Warning<
   "unsafe assignment to function parameter of __single pointer type">,
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
-def warn_unsafe_assign_to_null_terminated_pointer : Warning<
-  "unsafe %select{assignment to a pointer of|"
-                  "assignment to a parameter of|"
-                  "return of|"
-                  "conversion to|"
-                  "initialization of a pointer of|"
-                  "assignment to a pointer of|"
-                  "casting to}2 '__null_terminated' type">,
-  InGroup<UnsafeBufferUsage>, DefaultIgnore;
-def note_unsafe_assign_to_null_terminated_pointer : Note<
-  "the source pointer may not point to null-terminated data; "
-  "only '__null_terminated' pointers, string literals, and 'std::string::c_str' calls are compatible with '__null_terminated' pointers">;
 #ifndef NDEBUG
 // Not a user-facing diagnostic. Useful for debugging false negatives in
 // -fsafe-buffer-usage-suggestions (i.e. lack of -Wunsafe-buffer-usage fixits).

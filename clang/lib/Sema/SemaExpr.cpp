@@ -20718,6 +20718,9 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
       AssignedVarFixIts;
   VarDecl *BoundsSafetyIncompatNestedPtrLocalVarToFix = nullptr;
   FixItHint BoundsSafetyIncompatNestedPtrFixIt;
+  bool InCXXBoundsSafetyMode = LangOpts.CPlusPlus &&
+                               LangOpts.isBoundsSafetyAttributeOnlyMode() &&
+                               isCXXSafeBuffersEnabledAt(Loc);
   /*TO_UPSTREAM(BoundsSafety) OFF*/
 
 
@@ -20807,15 +20810,8 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
     const auto *DstPointerType = DstType->getAs<ValueTerminatedType>();
     IsDstNullTerm =
         DstPointerType->getTerminatorValue(getASTContext()).isZero();
-    if (getLangOpts().isBoundsSafetyAttributeOnlyMode() &&
-        getLangOpts().CPlusPlus && isCXXSafeBuffersEnabledAt(Loc)) {
-      // In C++ Safe Buffers/Bounds Safety interop mode, the compiler reports a
-      // warning under -Wunsafe-buffer-usage:
-      DiagKind = diag::warn_unsafe_assign_to_null_terminated_pointer;
-      isInvalid = false;
-      break;
-    }
-    if (getLangOpts().BoundsSafetyRelaxedSystemHeaders) {
+
+    if (getLangOpts().BoundsSafetyRelaxedSystemHeaders || InCXXBoundsSafetyMode) {
       DiagKind =
           diag::warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by;
       isInvalid = false;
@@ -21093,8 +21089,11 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
           diag::
               warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by) {
     FDiag << FirstType << SecondType << ActionForDiag
-          << SrcExpr->getSourceRange() << 
-          (IsDstNullTerm ? /*null_terminated*/ 1 : /*terminated_by*/ 0);
+          << SrcExpr->getSourceRange()
+          << (!InCXXBoundsSafetyMode
+                  ? (IsDstNullTerm ? /*null_terminated*/ 1
+                                   : /*terminated_by*/ 0)
+                  : 2 /* cut message irrelevant to that mode*/);
   } else {
     FDiag << FirstType << SecondType << ActionForDiag
           << SrcExpr->getSourceRange();
@@ -21249,11 +21248,6 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
       }
     }
   }
-
-  /* TO_UPSTREAM(BoundsSafety) ON*/
-  if (DiagKind == diag::warn_unsafe_assign_to_null_terminated_pointer)
-    Diag(Loc, diag::note_unsafe_assign_to_null_terminated_pointer);
-  /* TO_UPSTREAM(BoundsSafety) OFF*/
 
   if (IsSrcNullTerm) {
     TryFixAssigningNullTerminatedToImplicitBidiIndexablePtr(Assignee, SrcExpr,
