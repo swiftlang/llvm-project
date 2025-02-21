@@ -12194,7 +12194,7 @@ Sema::CheckValueTerminatedAssignmentConstraints(QualType LHSType,
           return Sema::Compatible;
         }
         // If in C++ Safe Buffers/Bounds Safety interoperation mode, the RHS can
-        // be 'std::string::c_str':
+        // be 'std::string::c_str/data':
         bool isNullTerm = LVTT->getTerminatorValue(Context).isZero();
 
         if (LangOpts.CPlusPlus &&
@@ -12212,7 +12212,9 @@ Sema::CheckValueTerminatedAssignmentConstraints(QualType LHSType,
               // match fails:
               ObjTypeII = RecordDecl->getIdentifier();
             if (MethodDeclII && ObjTypeII &&
-                MethodDeclII->getName() == "c_str" &&
+                (MethodDeclII->getName() == "c_str" ||
+                 // std::string::data is also null-terminated since C++11:
+                 MethodDeclII->getName() == "data") &&
                 ObjTypeII->getName() == "basic_string")
               return Sema::Compatible;
           }
