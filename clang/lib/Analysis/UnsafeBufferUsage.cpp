@@ -366,6 +366,7 @@ isInUnspecifiedUntypedContext(internal::Matcher<Stmt> InnerMatcher) {
 
 namespace {
 
+/* TO_UPSTREAM(BoundsSafetyInterop) ON */
 // Finds the argument that is passed as dependent count.
 const Expr *findCountArg(const Expr *Count, const CallExpr *Call) {
   const auto *DRE = dyn_cast<DeclRefExpr>(Count->IgnoreParenImpCasts());
@@ -998,7 +999,7 @@ bool isSinglePointerArgumentSafe(ASTContext &Context, const Expr *Arg) {
 
   return false;
 }
-
+/* TO_UPSTREAM(BoundsSafetyInterop) OFF */
 } // namespace
 
 // Given a two-param std::span construct call, matches iff the call has the
