@@ -130,6 +130,7 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
     Function *Dealloc;
     BasicBlock *ReturnBlock;
     bool IsFrameInlineInStorage;
+    ConstantInt* TypeId;
   };
 
   struct AsyncLoweringStorage {

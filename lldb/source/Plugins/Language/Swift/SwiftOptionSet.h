@@ -35,6 +35,7 @@ struct SwiftOptionSetSummaryProvider : public TypeSummaryImpl {
                     const TypeSummaryOptions &options) override;
   std::string GetDescription() override;
   bool DoesPrintChildren(ValueObject *valobj) const override;
+  std::string GetName() override { return "SwiftOptionSetSummaryProvider"; }
 
 private:
   SwiftOptionSetSummaryProvider(const SwiftOptionSetSummaryProvider &) = delete;

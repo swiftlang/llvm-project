@@ -28,12 +28,14 @@ class AsanSwiftTestCase(lldbtest.TestBase):
     @swiftTest
     @skipIfLinux
     @skipUnlessSwiftAddressSanitizer
+    @skipIf(macos_version=["<", "15.3"])
     def test_asan_swift(self):
         self.build(make_targets=["asan"])
         self.do_test_asan()
 
     @skipIf(oslist=no_match(["macosx"]))
     @skipIf(macos_version=["<", "15.0"])
+    @skipIfDarwin #  rdar://142836595
     def test_libsanitizers_swift(self):
         try:
             self.build(make_targets=["libsanitizers"])
@@ -74,12 +76,14 @@ class AsanSwiftTestCase(lldbtest.TestBase):
             # interceptors.
             self.runCmd("continue")
 
+        self.runCmd("expr let $targetptr = ptr")
+
         # the stop reason of the thread should be breakpoint.
         self.expect("thread list", lldbtest.STOPPED_DUE_TO_BREAKPOINT,
                     substrs=['stopped', 'stop reason = breakpoint'])
 
         self.expect(
-            "memory history `ptr`",
+            "memory history $targetptr",
             substrs=[
                 'Memory allocated by Thread 1',
                 'main.swift'])
@@ -105,7 +109,7 @@ class AsanSwiftTestCase(lldbtest.TestBase):
                 break
 
         self.expect(
-            "memory history `ptr`",
+            "memory history $targetptr",
             substrs=[
                 'Memory allocated by Thread 1',
                 'main.swift'])
@@ -134,8 +138,10 @@ class AsanSwiftTestCase(lldbtest.TestBase):
             thread.GetStopReason(),
             lldb.eStopReasonInstrumentation)
 
+        self.runCmd("expr long $ar = (long)__asan_get_report_address()")
+
         self.expect(
-            "memory history `__asan_get_report_address()`",
+            "memory history $ar",
             substrs=[
                 'Memory allocated by Thread 1',
                 'main.swift'])

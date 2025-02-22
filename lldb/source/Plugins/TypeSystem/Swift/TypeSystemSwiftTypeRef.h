@@ -15,7 +15,10 @@
 
 #include "Plugins/TypeSystem/Swift/TypeSystemSwift.h"
 #include "lldb/Core/SwiftForward.h"
+#include "lldb/Symbol/SymbolContext.h"
+#include "lldb/Target/ExecutionContext.h"
 #include "lldb/Utility/ThreadSafeDenseMap.h"
+#include "swift/Demangling/ManglingFlavor.h"
 
 // FIXME: needed only for the DenseMap.
 #include "clang/APINotes/APINotesManager.h"
@@ -332,8 +335,9 @@ public:
   static bool IsBuiltinType(CompilerType type);
 
   /// Creates a GenericTypeParamType with the desired depth and index.
-  CompilerType CreateGenericTypeParamType(unsigned int depth,
-                                    unsigned int index) override;
+  CompilerType
+  CreateGenericTypeParamType(unsigned int depth, unsigned int index,
+                             swift::Mangle::ManglingFlavor flavor) override;
 
   /// Create a __C imported struct type.
   CompilerType CreateClangStructType(llvm::StringRef name);
@@ -370,7 +374,27 @@ public:
   CanonicalizeSugar(swift::Demangle::Demangler &dem,
                     swift::Demangle::NodePointer node);
 
+  /// Recursively desugars sugared types (arrays, dictionaries, optionals, etc.)
+  /// in a demangle tree.
+  swift::Demangle::NodePointer DesugarNode(swift::Demangle::Demangler &dem,
+                                           swift::Demangle::NodePointer node);
+
+  /// Finds the nominal type node (struct, class, enum) that contains the
+  /// module and identifier nodes for that type. If \p node is not a valid
+  /// type node, returns a nullptr.
+  static swift::Demangle::NodePointer
+  FindTypeWithModuleAndIdentifierNode(swift::Demangle::NodePointer node);
+
+  /// Types with the @_originallyDefinedIn attribute are serialized with with
+  /// the original module name in reflection metadata. At the same time the type
+  /// is serialized with the swiftmodule name in debug info, but with a parent
+  /// module with the original module name. This function adjusts \type to look
+  /// up the type in reflection metadata if necessary.
+  std::string
+  AdjustTypeForOriginallyDefinedInModule(llvm::StringRef mangled_typename);
+
   /// Return the canonicalized Demangle tree for a Swift mangled type name.
+  /// It resolves all type aliases and removes sugar.
   swift::Demangle::NodePointer
   GetCanonicalDemangleTree(swift::Demangle::Demangler &dem,
                            llvm::StringRef mangled_name);
@@ -386,7 +410,8 @@ public:
   /// Wrap \p node as \p Global(TypeMangling(node)), remangle the type
   /// and create a CompilerType from it.
   CompilerType RemangleAsType(swift::Demangle::Demangler &dem,
-                              swift::Demangle::NodePointer node);
+                              swift::Demangle::NodePointer node,
+                              swift::Mangle::ManglingFlavor flavor);
 
   /// Search the debug info for a non-nested Clang type with the specified name
   /// and cache the result. Users should prefer the version that takes in the
@@ -411,7 +436,19 @@ public:
   /// Lookup a type in the debug info.
   lldb::TypeSP FindTypeInModule(lldb::opaque_compiler_type_t type);
 
+  /// Returns the mangling flavor associated with the ASTContext corresponding
+  /// with this TypeSystem.
+  swift::Mangle::ManglingFlavor
+  GetManglingFlavor(ExecutionContext *exe_ctx = nullptr);
+
 protected:
+  /// Determine whether the fallback is enabled via setting.
+  bool UseSwiftASTContextFallback(const char *func_name,
+                                  lldb::opaque_compiler_type_t type);
+  /// Print a warning that a fallback was necessary.
+  void DiagnoseSwiftASTContextFallback(const char *func_name,
+                                       lldb::opaque_compiler_type_t type);
+
   /// Helper that creates an AST type from \p type.
   ///
   /// FIXME: This API is dangerous, it would be better to return a
@@ -424,7 +461,6 @@ protected:
   /// Cast \p opaque_type as a mangled name.
   static const char *AsMangledName(lldb::opaque_compiler_type_t type);
 
-
   /// Demangle the mangled name of the canonical type of \p type and
   /// drill into the Global(TypeMangling(Type())).
   ///
@@ -433,20 +469,43 @@ protected:
   DemangleCanonicalType(swift::Demangle::Demangler &dem,
                         lldb::opaque_compiler_type_t type);
 
+  /// Demangle the mangled name of \p type after canonicalizing its
+  /// outermost type node and drill into the
+  /// Global(TypeMangling(Type())).
+  ///
+  /// \return the child of Type or a nullptr.
+  swift::Demangle::NodePointer
+  DemangleCanonicalOutermostType(swift::Demangle::Demangler &dem,
+                                 lldb::opaque_compiler_type_t type);
+
+  /// Desugar to this node and if it is a type alias resolve it by
+  /// looking up its type in the debug info.
+  swift::Demangle::NodePointer
+  Canonicalize(swift::Demangle::Demangler &dem,
+               swift::Demangle::NodePointer node,
+               swift::Mangle::ManglingFlavor flavor);
+
+  /// Iteratively desugar and resolve all type aliases in \p node by
+  /// looking up their types in the debug info.
+  swift::Demangle::NodePointer
+  GetCanonicalNode(swift::Demangle::Demangler &dem,
+                   swift::Demangle::NodePointer node,
+                   swift::Mangle::ManglingFlavor flavor);
+
   /// If \p node is a Struct/Class/Typedef in the __C module, return a
   /// Swiftified node by looking up the name in the corresponding APINotes and
   /// optionally putting it into the correctly named module.
-  swift::Demangle::NodePointer GetSwiftified(swift::Demangle::Demangler &dem,
-                                             swift::Demangle::NodePointer node,
-                                             bool resolve_objc_module);
+  swift::Demangle::NodePointer
+  GetSwiftified(swift::Demangle::Demangler &dem,
+                swift::Demangle::NodePointer node,
+                swift::Mangle::ManglingFlavor flavor, bool resolve_objc_module);
 
   /// Replace all "__C" module names with their actual Clang module
   /// names.  This is the recursion step of \p
   /// GetDemangleTreeForPrinting(). Don't call it directly.
-  swift::Demangle::NodePointer
-  GetNodeForPrintingImpl(swift::Demangle::Demangler &dem,
-                         swift::Demangle::NodePointer node,
-                         bool resolve_objc_module);
+  swift::Demangle::NodePointer GetNodeForPrintingImpl(
+      swift::Demangle::Demangler &dem, swift::Demangle::NodePointer node,
+      swift::Mangle::ManglingFlavor flavor, bool resolve_objc_module);
 
   /// Return the demangle tree representation with all "__C" module
   /// names with their actual Clang module names.
@@ -463,17 +522,20 @@ protected:
   CompilerType LookupClangForwardType(llvm::StringRef name, 
                   llvm::ArrayRef<CompilerContext> decl_context);
 
-  std::pair<swift::Demangle::NodePointer, CompilerType>
-  ResolveTypeAlias(swift::Demangle::Demangler &dem,
-                   swift::Demangle::NodePointer node,
-                   bool prefer_clang_types = false);
-
-  swift::Demangle::NodePointer
-  GetCanonicalNode(swift::Demangle::Demangler &dem,
-                   swift::Demangle::NodePointer node);
+  /// Resolve a type alias node and return a demangle tree for the
+  /// resolved type. If the type alias resolves to a Clang type, return
+  /// a Clang CompilerType.
+  ///
+  /// \param prefer_clang_types if this is true, type aliases in the
+  ///                           __C module are resolved as Clang types.
+  ///
+  std::pair<swift::Demangle::NodePointer, CompilerType> ResolveTypeAlias(
+      swift::Demangle::Demangler &dem, swift::Demangle::NodePointer node,
+      swift::Mangle::ManglingFlavor flavor, bool prefer_clang_types = false);
 
   uint32_t CollectTypeInfo(swift::Demangle::Demangler &dem,
                            swift::Demangle::NodePointer node,
+                           swift::Mangle::ManglingFlavor flavor,
                            bool &unresolved_typealias);
 
   swift::Demangle::NodePointer
@@ -482,6 +544,11 @@ protected:
   swift::Demangle::NodePointer
   GetClangTypeTypeNode(swift::Demangle::Demangler &dem,
                        CompilerType clang_type);
+
+  /// Determine if this type contains a type from a module that looks
+  /// like it was JIT-compiled by LLDB.
+  bool IsExpressionEvaluatorDefined(lldb::opaque_compiler_type_t type);
+
 #ifndef NDEBUG
   /// Check whether the type being dealt with is tricky to validate due to
   /// discrepancies between TypeSystemSwiftTypeRef and SwiftASTContext.
@@ -497,6 +564,7 @@ protected:
     unsigned char retry_count = 0;
   };
 
+  std::once_flag m_fallback_warning;
   mutable std::mutex m_swift_ast_context_lock;
   /// The "precise" SwiftASTContexts managed by this scratch context. There
   /// exists one per Swift module. The keys in this map are module names.

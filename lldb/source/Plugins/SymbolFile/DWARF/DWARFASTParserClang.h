@@ -148,15 +148,6 @@ protected:
   DIEToRecordMap m_die_to_record_map;
   DIEToObjCInterfaceMap m_die_to_objc_interface_map;
   std::unique_ptr<lldb_private::ClangASTImporter> m_clang_ast_importer_up;
-
-  struct TypeToComplete {
-    lldb_private::CompilerType clang_type;
-    lldb_private::plugin::dwarf::DWARFDIE die;
-    lldb::TypeSP type;
-  };
-  std::vector<TypeToComplete> m_to_complete;
-  llvm::DenseSet<const lldb_private::plugin::dwarf::DWARFDebugInfoEntry *>
-      m_currently_parsed_record_dies;
   /// @}
 
   clang::DeclContext *
@@ -382,7 +373,6 @@ private:
       const lldb_private::CompilerType &class_clang_type);
 
   bool CompleteRecordType(const lldb_private::plugin::dwarf::DWARFDIE &die,
-                          lldb_private::Type *type,
                           lldb_private::CompilerType &clang_type);
   bool CompleteEnumType(const lldb_private::plugin::dwarf::DWARFDIE &die,
                         lldb_private::Type *type,
@@ -539,6 +529,10 @@ struct ParsedDWARFTypeAttributes {
       clang::RQ_None; ///< Indicates ref-qualifier of
                       ///< C++ member function if present.
                       ///< Is RQ_None otherwise.
+
+  ///< Has a value if this DIE represents an enum that was declared
+  ///< with enum_extensibility.
+  std::optional<clang::EnumExtensibilityAttr::Kind> enum_kind;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFASTPARSERCLANG_H

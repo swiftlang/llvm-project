@@ -152,11 +152,6 @@ public:
   virtual bool
   FindExternalVisibleDeclsByName(const DeclContext *DC, DeclarationName Name);
 
-  virtual bool FindExternalVisibleMethodsByName(const DeclContext *DC,
-                                                DeclarationName Name) {
-    return false;
-  }
-
   /// Ensures that the table of all visible declarations inside this
   /// context is up to date.
   ///

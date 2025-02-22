@@ -76,6 +76,14 @@ Parser::Parser(Preprocessor &pp, Sema &actions, bool skipFunctionBodies)
       [this](StringRef TypeStr, StringRef Context, SourceLocation IncludeLoc) {
         return this->ParseTypeFromString(TypeStr, Context, IncludeLoc);
       };
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  Actions.ParseBoundsAttributeArgFromStringCallback =
+      [this](StringRef ExprStr, StringRef Context, Decl *Parent,
+             SourceLocation IncludeLoc) {
+        return this->ParseBoundsAttributeArgFromString(ExprStr, Context, Parent,
+                                                       IncludeLoc);
+      };
+  /* TO_UPSTREAM(BoundsSafety) OFF */
 }
 
 DiagnosticBuilder Parser::Diag(SourceLocation Loc, unsigned DiagID) {
@@ -468,8 +476,9 @@ Parser::ParseScopeFlags::~ParseScopeFlags() {
 //===----------------------------------------------------------------------===//
 
 Parser::~Parser() {
-  // Clear out the parse-type-from-string callback.
+  // Clear out the parse-*-from-string callbacks.
   Actions.ParseTypeFromStringCallback = nullptr;
+  Actions.ParseBoundsAttributeArgFromStringCallback = nullptr;
 
   // If we still have scopes active, delete the scope tree.
   delete getCurScope();
@@ -1154,8 +1163,13 @@ Parser::DeclGroupPtrTy Parser::ParseDeclOrFunctionDefInternal(
   ParsedTemplateInfo TemplateInfo;
   MaybeParseMicrosoftAttributes(DS.getAttributes());
   // Parse the common declaration-specifiers piece.
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  LateParsedAttrList BoundsSafetyLateAttrs(
+      /*PSoon=*/true, /*LateAttrParseExperimentalExtOnly=*/true);
   ParseDeclarationSpecifiers(DS, TemplateInfo, AS,
-                             DeclSpecContext::DSC_top_level);
+                             DeclSpecContext::DSC_top_level,
+                             &BoundsSafetyLateAttrs);
+  /* TO_UPSTREAM(BoundsSafety) OFF */
 
   // If we had a free-standing type definition with a missing semicolon, we
   // may get this far before the problem becomes obvious.
@@ -1250,7 +1264,11 @@ Parser::DeclGroupPtrTy Parser::ParseDeclOrFunctionDefInternal(
     return Actions.ConvertDeclToDeclGroup(TheDecl);
   }
 
-  return ParseDeclGroup(DS, DeclaratorContext::File, Attrs, TemplateInfo);
+  return ParseDeclGroup(DS, DeclaratorContext::File, Attrs, TemplateInfo,
+                        /*DeclEnd=*/nullptr,
+                        /*FRI=*/nullptr,
+                        // TO_UPSTREAM(BoundsSafety)
+                        &BoundsSafetyLateAttrs);
 }
 
 Parser::DeclGroupPtrTy Parser::ParseDeclarationOrFunctionDefinition(
@@ -1292,7 +1310,9 @@ Parser::DeclGroupPtrTy Parser::ParseDeclarationOrFunctionDefinition(
 ///
 Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
                                       const ParsedTemplateInfo &TemplateInfo,
-                                      LateParsedAttrList *LateParsedAttrs) {
+                                      LateParsedAttrList *LateParsedAttrs,
+                                      // TO_UPSTREAM(BoundsSafety)
+                                      LateParsedAttrList *BoundsSafetyLateAttrs) {
   llvm::TimeTraceScope TimeScope("ParseFunctionDefinition", [&]() {
     return Actions.GetNameForDeclarator(D).getName().getAsString();
   });
@@ -1522,7 +1542,16 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   } else
     Actions.ActOnDefaultCtorInitializers(Res);
 
+  /*TO_UPSTREAM(BoundsSafety) ON*/
   // Late attributes are parsed in the same scope as the function body.
+  LateParsedAttrList BoundsSafetyAttrList(true);
+  if (!BoundsSafetyLateAttrs)
+    BoundsSafetyLateAttrs = &BoundsSafetyAttrList;
+  DistributeCLateParsedAttrs(D, Res, BoundsSafetyLateAttrs);
+  if (BoundsSafetyLateAttrs->size() > 0)
+    ParseLexedCAttributeList(*BoundsSafetyLateAttrs, false);
+  /*TO_UPSTREAM(BoundsSafety) OFF*/
+
   if (LateParsedAttrs)
     ParseLexedAttributeList(*LateParsedAttrs, Res, false, true);
 
@@ -2231,8 +2260,15 @@ bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(
     }
   }
 
-  if (SS.isEmpty())
+  if (SS.isEmpty()) {
+    if (getLangOpts().ObjC && !getLangOpts().CPlusPlus &&
+        Tok.is(tok::coloncolon)) {
+      // ObjectiveC does not allow :: as as a scope token.
+      Diag(ConsumeToken(), diag::err_expected_type);
+      return true;
+    }
     return false;
+  }
 
   // A C++ scope specifier that isn't followed by a typename.
   AnnotateScopeToken(SS, IsNewScope);

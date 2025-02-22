@@ -150,6 +150,33 @@ enum class APIAvailability {
 };
 } // namespace
 
+/* TO_UPSTREAM(BoundsSafety) ON */
+namespace {
+struct BoundsSafetyNotes {
+  BoundsSafetyInfo::BoundsSafetyKind Kind;
+  unsigned Level = 0;
+  StringRef BoundsExpr = "";
+};
+} // namespace
+
+namespace llvm {
+namespace yaml {
+template <> struct ScalarEnumerationTraits<BoundsSafetyInfo::BoundsSafetyKind> {
+  static void enumeration(IO &IO, BoundsSafetyInfo::BoundsSafetyKind &AA) {
+    IO.enumCase(AA, "counted_by",
+                BoundsSafetyInfo::BoundsSafetyKind::CountedBy);
+    IO.enumCase(AA, "counted_by_or_null",
+                BoundsSafetyInfo::BoundsSafetyKind::CountedByOrNull);
+    IO.enumCase(AA, "sized_by", BoundsSafetyInfo::BoundsSafetyKind::SizedBy);
+    IO.enumCase(AA, "sized_by_or_null",
+                BoundsSafetyInfo::BoundsSafetyKind::SizedByOrNull);
+    IO.enumCase(AA, "ended_by", BoundsSafetyInfo::BoundsSafetyKind::EndedBy);
+  }
+};
+} // namespace yaml
+} // namespace llvm
+/* TO_UPSTREAM(BoundsSafety) OFF */
+
 namespace llvm {
 namespace yaml {
 template <> struct ScalarEnumerationTraits<APIAvailability> {
@@ -187,6 +214,9 @@ struct Param {
   std::optional<bool> Lifetimebound = false;
   std::optional<NullabilityKind> Nullability;
   std::optional<RetainCountConventionKind> RetainCountConvention;
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  std::optional<BoundsSafetyNotes> BoundsSafety;
+  /* TO_UPSTREAM(BoundsSafety) OFF */
   StringRef Type;
 };
 
@@ -238,8 +268,21 @@ template <> struct MappingTraits<Param> {
     IO.mapOptional("NoEscape", P.NoEscape);
     IO.mapOptional("Lifetimebound", P.Lifetimebound);
     IO.mapOptional("Type", P.Type, StringRef(""));
+    /* TO_UPSTREAM(BoundsSafety) ON */
+    IO.mapOptional("BoundsSafety", P.BoundsSafety);
+    /* TO_UPSTREAM(BoundsSafety) OFF */
   }
 };
+
+/* TO_UPSTREAM(BoundsSafety) ON */
+template <> struct MappingTraits<BoundsSafetyNotes> {
+  static void mapping(IO &IO, BoundsSafetyNotes &BS) {
+    IO.mapRequired("Kind", BS.Kind);
+    IO.mapRequired("BoundedBy", BS.BoundsExpr);
+    IO.mapOptional("Level", BS.Level, 0);
+  }
+};
+/* TO_UPSTREAM(BoundsSafety) OFF */
 } // namespace yaml
 } // namespace llvm
 
@@ -275,6 +318,7 @@ struct Method {
   bool DesignatedInit = false;
   bool Required = false;
   StringRef ResultType;
+  StringRef SwiftReturnOwnership;
 };
 
 typedef std::vector<Method> MethodsSeq;
@@ -309,6 +353,8 @@ template <> struct MappingTraits<Method> {
     IO.mapOptional("DesignatedInit", M.DesignatedInit, false);
     IO.mapOptional("Required", M.Required, false);
     IO.mapOptional("ResultType", M.ResultType, StringRef(""));
+    IO.mapOptional("SwiftReturnOwnership", M.SwiftReturnOwnership,
+                   StringRef(""));
   }
 };
 } // namespace yaml
@@ -404,6 +450,7 @@ struct Function {
   StringRef SwiftName;
   StringRef Type;
   StringRef ResultType;
+  StringRef SwiftReturnOwnership;
 };
 
 typedef std::vector<Function> FunctionsSeq;
@@ -426,6 +473,8 @@ template <> struct MappingTraits<Function> {
     IO.mapOptional("SwiftPrivate", F.SwiftPrivate);
     IO.mapOptional("SwiftName", F.SwiftName, StringRef(""));
     IO.mapOptional("ResultType", F.ResultType, StringRef(""));
+    IO.mapOptional("SwiftReturnOwnership", F.SwiftReturnOwnership,
+                   StringRef(""));
   }
 };
 } // namespace yaml
@@ -856,6 +905,15 @@ public:
       PI.setLifetimebound(P.Lifetimebound);
       PI.setType(std::string(P.Type));
       PI.setRetainCountConvention(P.RetainCountConvention);
+      BoundsSafetyInfo BSI;
+      /* TO_UPSTREAM(BoundsSafety) ON */
+      if (P.BoundsSafety) {
+        BSI.setKindAudited(P.BoundsSafety->Kind);
+        BSI.setLevelAudited(P.BoundsSafety->Level);
+        BSI.ExternalBounds = P.BoundsSafety->BoundsExpr.str();
+      }
+      PI.BoundsSafety = BSI;
+      /* TO_UPSTREAM(BoundsSafety) OFF */
       if (static_cast<int>(OutInfo.Params.size()) <= P.Position)
         OutInfo.Params.resize(P.Position + 1);
       if (P.Position == -1)
@@ -938,6 +996,7 @@ public:
       emitError("'FactoryAsInit' is no longer valid; use 'SwiftName' instead");
 
     MI.ResultType = std::string(M.ResultType);
+    MI.SwiftReturnOwnership = std::string(M.SwiftReturnOwnership);
 
     // Translate parameter information.
     convertParams(M.Params, MI, MI.Self);
@@ -1063,6 +1122,7 @@ public:
     convertNullability(Function.Nullability, Function.NullabilityOfRet, FI,
                        Function.Name);
     FI.ResultType = std::string(Function.ResultType);
+    FI.SwiftReturnOwnership = std::string(Function.SwiftReturnOwnership);
     FI.setRetainCountConvention(Function.RetainCountConvention);
   }
 

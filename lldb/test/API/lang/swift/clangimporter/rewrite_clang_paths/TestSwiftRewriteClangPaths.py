@@ -20,7 +20,6 @@ import shutil
 class TestSwiftRewriteClangPaths(TestBase):
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
-    @skipIf(setting=('symbols.swift-precise-compiler-invocation', 'false'))
     @skipUnlessDarwin
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
@@ -29,7 +28,6 @@ class TestSwiftRewriteClangPaths(TestBase):
 
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
-    @skipIf(setting=('symbols.swift-precise-compiler-invocation', 'false'))
     @skipUnlessDarwin
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
@@ -47,6 +45,10 @@ class TestSwiftRewriteClangPaths(TestBase):
         self.build()
         log = self.getBuildArtifact("types.log")
         self.runCmd('log enable lldb types -f "%s"' % log)
+
+        # Because the bridging header isn't precompiled or in a module
+        # we don't have DWARF type information for the types it contains.
+        self.expect("settings set symbols.swift-typesystem-compiler-fallback true")
 
         # To ensure the module is rebuilt remove the cache to avoid caching.
         mod_cache = self.getBuildArtifact("my-clang-modules-cache")

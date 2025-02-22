@@ -1011,6 +1011,12 @@ void Module::FindTypes(const TypeQuery &query, TypeResults &results) {
   if (SymbolFile *symbols = GetSymbolFile())
     symbols->FindTypes(query, results);
 }
+void Module::FindImportedDeclarations(ConstString name,
+                                      std::vector<ImportedDeclaration> &results,
+                                      bool find_one) {
+  if (SymbolFile *symbols = GetSymbolFile())
+    symbols->FindImportedDeclaration(name, results, find_one);
+}
 
 static Debugger::DebuggerList
 DebuggersOwningModuleRequestingInterruption(Module &module) {
@@ -1750,6 +1756,14 @@ bool Module::MergeArchitecture(const ArchSpec &arch_spec) {
   // SetArchitecture() is a no-op if m_arch is already valid.
   m_arch = ArchSpec();
   return SetArchitecture(merged_arch);
+}
+
+void Module::ResetStatistics() {
+  m_symtab_parse_time.reset();
+  m_symtab_index_time.reset();
+  SymbolFile *sym_file = GetSymbolFile();
+  if (sym_file)
+    sym_file->ResetStatistics();
 }
 
 llvm::VersionTuple Module::GetVersion() {

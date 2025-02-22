@@ -17,17 +17,17 @@ void noescapeFunc4(__attribute__((noescape)) int &);
 void noescapeFunc2(int *); // expected-error {{conflicting types for 'noescapeFunc2'}}
 
 template <class T>
-void noescapeFunc5(__attribute__((noescape)) T); // expected-warning {{'noescape' attribute only applies to pointer arguments}}
+void noescapeFunc5(__attribute__((noescape)) T);
 template <class T>
 void noescapeFunc6(__attribute__((noescape)) const T &);
 template <class T>
 void noescapeFunc7(__attribute__((noescape)) T &&);
 
-void invalidFunc0(int __attribute__((noescape))); // expected-warning {{'noescape' attribute only applies to pointer arguments}}
+void invalidFunc0(int __attribute__((noescape))); // expected-warning {{'noescape' attribute only applies to a pointer, reference, class, struct, or union (0 is invalid)}}
 void invalidFunc1(int __attribute__((noescape(0)))); // expected-error {{'noescape' attribute takes no arguments}}
 void invalidFunc2(int0 *__attribute__((noescape))); // expected-error {{use of undeclared identifier 'int0'; did you mean 'int'?}}
-void invalidFunc3(__attribute__((noescape)) int (S::*Ty)); // expected-warning {{'noescape' attribute only applies to pointer arguments}}
-void invalidFunc4(__attribute__((noescape)) void (S::*Ty)()); // expected-warning {{'noescape' attribute only applies to pointer arguments}}
+void invalidFunc3(__attribute__((noescape)) int (S::*Ty)); // expected-warning {{'noescape' attribute only applies to a pointer, reference, class, struct, or union (0 is invalid)}}
+void invalidFunc4(__attribute__((noescape)) void (S::*Ty)()); // expected-warning {{'noescape' attribute only applies to a pointer, reference, class, struct, or union (0 is invalid)}}
 int __attribute__((noescape)) g; // expected-warning {{'noescape' attribute only applies to parameters}}
 
 struct S1 {
@@ -144,7 +144,7 @@ __attribute__((objc_root_class))
 
 struct S6 {
   S6();
-  S6(const S6 &) = delete; // expected-note 12 {{'S6' has been explicitly marked deleted here}}
+  S6(const S6 &) = delete; // expected-note 11 {{'S6' has been explicitly marked deleted here}}
   int f;
 };
 
@@ -161,7 +161,7 @@ void test1(C0 *c0) {
   __block S6 b6; // expected-error {{call to deleted constructor of 'S6'}}
   __block S6 b7; // expected-error {{call to deleted constructor of 'S6'}}
   __block S6 b8; // expected-error {{call to deleted constructor of 'S6'}}
-  __block S6 b9; // expected-error {{call to deleted constructor of 'S6'}}
+  __block S6 b9;
   __block S6 b10; // expected-error {{call to deleted constructor of 'S6'}}
   __block S6 b11; // expected-error {{call to deleted constructor of 'S6'}}
   __block S6 b12;
@@ -199,7 +199,6 @@ void test1(C0 *c0) {
     (void)b8;
   });
 
-  // FIXME: clang shouldn't reject this.
   noescapeFunc5(^{
     (void)b9;
   });

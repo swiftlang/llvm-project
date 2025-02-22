@@ -181,7 +181,10 @@ canonicalizeForCaching(llvm::cas::ObjectStore &CAS, DiagnosticsEngine &Diags,
   //
   // TODO: Extract CASOptions.Path first if we need it later since it'll
   // disappear here.
-  Invocation.getCASOpts().freezeConfig(Diags);
+  Invocation.getCASOpts() = {};
+  // Set the CASPath to the hash schema to match CASOptions::freezeConfig.
+  Invocation.getCASOpts().CASPath =
+      CAS.getContext().getHashSchemaIdentifier().str();
 
   // TODO: Canonicalize DiagnosticOptions here to be "serialized" only. Pass in
   // a hook to mirror diagnostics to stderr (when writing there), and handle
@@ -194,8 +197,20 @@ canonicalizeForCaching(llvm::cas::ObjectStore &CAS, DiagnosticsEngine &Diags,
 std::optional<llvm::cas::CASID> clang::canonicalizeAndCreateCacheKey(
     llvm::cas::ObjectStore &CAS, DiagnosticsEngine &Diags,
     CompilerInvocation &Invocation, CompileJobCachingOptions &Opts) {
+  // Preserve and freeze CASOptions so that we do not modify behaviour of
+  // Invocation.getCASOpts().getOrCreateDatabases().
+  CASOptions CASOpts(Invocation.getCASOpts());
+  CASOpts.freezeConfig(Diags);
+
   Opts = canonicalizeForCaching(CAS, Diags, Invocation);
-  return createCompileJobCacheKeyImpl(CAS, Diags, Invocation);
+  auto CacheKey = createCompileJobCacheKeyImpl(CAS, Diags, Invocation);
+  if (!CacheKey)
+    return std::nullopt;
+
+  assert(Invocation.getCASOpts().CASPath == CASOpts.CASPath &&
+         "cas instance has incompatible hash with cas options");
+  Invocation.getCASOpts() = std::move(CASOpts);
+  return CacheKey;
 }
 
 std::optional<llvm::cas::CASID>

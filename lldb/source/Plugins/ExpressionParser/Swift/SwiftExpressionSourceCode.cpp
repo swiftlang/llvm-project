@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SwiftExpressionSourceCode.h"
+#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "SwiftPersistentExpressionState.h"
 
 #include "Plugins/ExpressionParser/Swift/SwiftASTManipulator.h"
@@ -60,10 +61,14 @@ static llvm::Expected<std::string> TransformPackType(
   if (!ts)
     return llvm::createStringError(llvm::errc::not_supported,
                                    "no typeref typesystem");
+
+  auto mangled_name = type.GetMangledTypeName().GetStringRef();
+  auto flavor = SwiftLanguageRuntime::GetManglingFlavor(mangled_name);
+
   using namespace swift::Demangle;
   Demangler dem;
-  NodePointer node = ts->GetCanonicalDemangleTree(
-      dem, type.GetMangledTypeName().GetStringRef());
+
+  NodePointer node = ts->GetCanonicalDemangleTree(dem, mangled_name);
 
   node = TypeSystemSwiftTypeRef::Transform(dem, node, [](NodePointer n) {
     if (n->getKind() == Node::Kind::SILPackIndirect &&
@@ -76,7 +81,8 @@ static llvm::Expected<std::string> TransformPackType(
   });
 
   bool error = false;
-  ConstString type_name = ts->RemangleAsType(dem, node).GetMangledTypeName();
+  ConstString type_name =
+      ts->RemangleAsType(dem, node, flavor).GetMangledTypeName();
   swift::Demangle::DemangleOptions options;
   options = swift::Demangle::DemangleOptions::SimplifiedUIDemangleOptions();
   options.DisplayStdlibModule = false;
@@ -402,7 +408,8 @@ do {
         weak_self ? "Swift.Optional where Wrapped == " : "";
 
     // The expression text is inserted into the body of $__lldb_user_expr_%u.
-    if (options.GetBindGenericTypes() == lldb::eDontBind) {
+    if (!SwiftASTManipulator::ShouldBindGenericTypes(
+            options.GetBindGenericTypes())) {
       // A Swift program can't have types with non-bound generic type parameters
       // inside a non generic function. For example, the following program would
       // not compile as T is not part of foo's signature.
@@ -505,7 +512,8 @@ func $__lldb_expr(_ $__lldb_arg : UnsafeMutablePointer<Any>) {
                             wrapped_expr_text.GetData(), availability.c_str(),
                             current_counter);
     }
-  } else if (options.GetBindGenericTypes() == lldb::eDontBind) {
+  } else if (!SwiftASTManipulator::ShouldBindGenericTypes(
+                 options.GetBindGenericTypes())) {
     auto c = MakeGenericSignaturesAndCalls(local_variables, generic_sig,
                                            needs_object_ptr);
     if (!c) {

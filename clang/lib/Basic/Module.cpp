@@ -312,6 +312,13 @@ bool Module::directlyUses(const Module *Requested) {
   if (!Requested->Parent && Requested->Name == "ptrauth")
     return true;
 
+  /* TO_UPSTREAM(BoundsSafety) ON*/
+  // Darwin is allowed is to use our builtin 'ptrcheck.h' and its accompanying
+  // module.
+  if (!Requested->Parent && Requested->Name == "ptrcheck")
+    return true;
+  /* TO_UPSTREAM(BoundsSafety) OFF*/
+
   if (NoUndeclaredIncludes)
     UndeclaredUses.insert(Requested);
 
@@ -671,7 +678,8 @@ LLVM_DUMP_METHOD void Module::dump() const {
 }
 
 void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
-                                  VisibleCallback Vis, ConflictCallback Cb) {
+                                  bool IncludeExports, VisibleCallback Vis,
+                                  ConflictCallback Cb) {
   // We can't import a global module fragment so the location can be invalid.
   assert((M->isGlobalModule() || Loc.isValid()) &&
          "setVisible expects a valid import location");
@@ -697,12 +705,14 @@ void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
     Vis(V.M);
 
     // Make any exported modules visible.
-    SmallVector<Module *, 16> Exports;
-    V.M->getExportedModules(Exports);
-    for (Module *E : Exports) {
-      // Don't import non-importable modules.
-      if (!E->isUnimportable())
-        VisitModule({E, &V});
+    if (IncludeExports) {
+      SmallVector<Module *, 16> Exports;
+      V.M->getExportedModules(Exports);
+      for (Module *E : Exports) {
+        // Don't import non-importable modules.
+        if (!E->isUnimportable())
+          VisitModule({E, &V});
+      }
     }
 
     for (auto &C : V.M->Conflicts) {

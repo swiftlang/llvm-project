@@ -28,6 +28,14 @@ let Definition = "modulelist" in {
   def SwiftValidateTypeSystem: Property<"swift-validate-typesystem", "Boolean">,
     DefaultFalse,
     Desc<"Validate all Swift typesystem queries. Used for testing an asserts-enabled LLDB only.">;
+  def SwiftTypeSystemFallback
+      : Property<"swift-typesystem-compiler-fallback", "Boolean">,
+        DefaultTrue,
+        Desc<"If a query against reflection metadata / debug info fails, retry "
+             "using Swift modules.">;
+  def SwiftLoadConformances: Property<"swift-load-conformances", "Boolean">,
+    DefaultFalse,
+    Desc<"Resolve type alias via the conformance section. Disabled for performance reasons">;
   def SwiftModuleLoadingMode: Property<"swift-module-loading-mode", "Enum">,
     DefaultEnumValue<"eSwiftModuleLoadingModePreferSerialized">,
     EnumValues<"OptionEnumValues(g_swift_module_loading_mode_enums)">,
@@ -181,6 +189,10 @@ let Definition = "debugger" in {
     Global,
     DefaultUnsignedValue<80>,
     Desc<"The maximum number of columns to use for displaying text.">;
+  def TerminalHeight: Property<"term-height", "UInt64">,
+    Global,
+    DefaultUnsignedValue<24>,
+    Desc<"The number of rows used for displaying text.">;
   def ThreadFormat: Property<"thread-format", "FormatEntity">,
     Global,
     DefaultStringValue<"thread #${thread.index}: tid = ${thread.id%tid}{, ${frame.pc}}{ ${module.file.basename}{`${function.name-with-args}{${frame.no-debug}${function.pc-offset}}}}{ at ${ansi.fg.cyan}${line.file.basename}${ansi.normal}:${ansi.fg.yellow}${line.number}${ansi.normal}{:${ansi.fg.yellow}${line.column}${ansi.normal}}}{, name = ${ansi.fg.green}'${thread.name}'${ansi.normal}}{, queue = ${ansi.fg.green}'${thread.queue}'${ansi.normal}}{, activity = ${ansi.fg.green}'${thread.info.activity.name}'${ansi.normal}}{, ${thread.info.trace_messages} messages}{, stop reason = ${ansi.fg.red}${thread.stop-reason}${ansi.normal}}{\\\\nReturn value: ${thread.return-value}}{\\\\nCompleted expression: ${thread.completed-expression}}\\\\n">,

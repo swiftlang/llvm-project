@@ -21,6 +21,7 @@
 #include "lldb/Utility/Flags.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-private.h"
+#include "swift/Demangling/ManglingFlavor.h"
 
 namespace clang {
 class Decl;
@@ -169,9 +170,10 @@ public:
   GetNonTriviallyManagedReferenceKind(lldb::opaque_compiler_type_t type) = 0;
 
   /// Creates a GenericTypeParamType with the desired depth and index.
-  virtual CompilerType CreateGenericTypeParamType(unsigned int depth,
-                                                       unsigned int index) = 0;
-                                                       
+  virtual CompilerType
+  CreateGenericTypeParamType(unsigned int depth, unsigned int index,
+                             swift::Mangle::ManglingFlavor flavor) = 0;
+
   using TypeSystem::DumpTypeDescription;
   virtual void DumpTypeDescription(
       lldb::opaque_compiler_type_t type, bool print_help_if_available,
@@ -250,6 +252,14 @@ public:
                           CompilerType *function_pointer_type_ptr) override {
     return false;
   }
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  bool IsBoundsSafetyIndexable(lldb::opaque_compiler_type_t type) override {
+    return false;
+  }
+  bool IsBoundsSafetyBidiIndexable(lldb::opaque_compiler_type_t type) override {
+    return false;
+  }
+  /* TO_UPSTREAM(BoundsSafety) OFF */
   bool IsMemberFunctionPointerType(
           lldb::opaque_compiler_type_t type) override {
     return false;

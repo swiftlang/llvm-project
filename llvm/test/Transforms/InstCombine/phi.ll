@@ -2742,3 +2742,31 @@ for.cond:                                         ; preds = %for.cond, %entry
 exit:                                             ; preds = %for.cond
   ret i64 0
 }
+
+define void @phi_op_in_loop(i1 %c, i32 %x) {
+; CHECK-LABEL: @phi_op_in_loop(
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    br i1 [[C:%.*]], label [[IF:%.*]], label [[LOOP_LATCH:%.*]]
+; CHECK:       if:
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[X:%.*]], 1
+; CHECK-NEXT:    br label [[LOOP_LATCH]]
+; CHECK:       loop.latch:
+; CHECK-NEXT:    [[PHI:%.*]] = phi i32 [ [[TMP1]], [[IF]] ], [ 0, [[LOOP]] ]
+; CHECK-NEXT:    call void @use(i32 [[PHI]])
+; CHECK-NEXT:    br label [[LOOP]]
+;
+  br label %loop
+
+loop:
+  br i1 %c, label %if, label %loop.latch
+
+if:
+  br label %loop.latch
+
+loop.latch:
+  %phi = phi i32 [ %x, %if ], [ 0, %loop ]
+  %and = and i32 %phi, 1
+  call void @use(i32 %and)
+  br label %loop
+}

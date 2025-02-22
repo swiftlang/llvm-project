@@ -1,4 +1,6 @@
-#include <stdio.h>
+void puts(const char *);
+
+#define LLDBSUMMARY __attribute__((section("__TEXT,__lldbsummaries"), used))
 
 #define LLDBSUMMARY __attribute__((section("__TEXT,__lldbsummaries"), used))
 
@@ -19,6 +21,8 @@ struct Layer {
   char *name;
   int number;
 };
+
+LLDBSUMMARY unsigned char _padding[] = "\x00\x00";
 
 // Near copy of the record for `Player`, using a regex type name (`^Layer`).
 LLDBSUMMARY unsigned char _Layer_type_summary[] =

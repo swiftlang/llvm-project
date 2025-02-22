@@ -35,7 +35,6 @@
 #include "lldb/Host/ProcessLaunchInfo.h"
 #include "lldb/Host/ProcessRunLock.h"
 #include "lldb/Symbol/ObjectFile.h"
-#include "lldb/Symbol/SaveCoreOptions.h"
 #include "lldb/Target/ExecutionContextScope.h"
 #include "lldb/Target/InstrumentationRuntime.h"
 #include "lldb/Target/Memory.h"
@@ -735,9 +734,7 @@ public:
     }
   };
 
-  using CoreFileMemoryRanges =
-      lldb_private::RangeDataVector<lldb::addr_t, lldb::addr_t,
-                                    CoreFileMemoryRange>;
+  using CoreFileMemoryRanges = std::vector<CoreFileMemoryRange>;
 
   /// Helper function for Process::SaveCore(...) that calculates the address
   /// ranges that should be saved. This allows all core file plug-ins to save
@@ -2382,18 +2379,6 @@ bool PruneThreadPlansForTID(lldb::tid_t tid);
 
 /// Prune ThreadPlanStacks for all unreported threads.
 void PruneThreadPlans();
-
-  void SynchronizeThreadPlans();
-
-  /// From the detached thread plan stacks, find the first stack that explains
-  /// the stop represented by the thread and the event.
-  lldb::ThreadPlanSP FindDetachedPlanExplainingStop(Thread &thread, Event *event_ptr);
-
-  /// Helper function for FindDetachedPlanExplainingStop. Exists only to be
-  /// marked as a C++ friend of `ThreadPlan`.
-  lldb::ThreadPlanSP DoesStackExplainStopNoLock(ThreadPlanStack &stack,
-                                                Thread &thread,
-                                                Event *event_ptr);
 
   /// Find the thread plan stack associated with thread with \a tid.
   ///

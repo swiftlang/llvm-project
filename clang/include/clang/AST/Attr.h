@@ -380,6 +380,13 @@ inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
   DB.AddTaggedVal(reinterpret_cast<uint64_t>(At), DiagnosticsEngine::ak_attr);
   return DB;
 }
+
+/// Determine if type T is a valid subject for a nonnull and similar
+/// attributes. Dependent types are considered valid so they can be checked
+/// during instantiation time. By default, we look through references (the
+/// behavior used by nonnull), but if the second parameter is true, then we
+/// treat a reference type as valid.
+bool isValidPointerAttrType(QualType T, bool RefOkay = false);
 }  // end namespace clang
 
 #endif

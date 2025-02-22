@@ -24,6 +24,7 @@
 
 #include "swift/AST/Import.h"
 #include "swift/AST/Module.h"
+#include "swift/Demangling/ManglingFlavor.h"
 #include "swift/Parse/ParseVersion.h"
 #include "swift/Serialization/SerializationOptions.h"
 #include "swift/SymbolGraphGen/SymbolGraphOptions.h"
@@ -252,7 +253,7 @@ public:
   swift::SerializationOptions &GetSerializationOptions();
 
   void InitializeSearchPathOptions(
-      llvm::ArrayRef<std::string> module_search_paths,
+      llvm::ArrayRef<std::pair<std::string, bool>> module_search_paths,
       llvm::ArrayRef<std::pair<std::string, bool>> framework_search_paths);
 
   swift::ClangImporterOptions &GetClangImporterOptions();
@@ -276,13 +277,13 @@ public:
   /// apply the working directory to any relative paths.
   void AddExtraClangArgs(
       const std::vector<std::string> &ExtraArgs,
-      const std::vector<std::string> &module_search_paths,
+      const std::vector<std::pair<std::string, bool>> module_search_paths,
       const std::vector<std::pair<std::string, bool>> framework_search_paths,
       llvm::StringRef overrideOpts = "");
 
   void AddExtraClangCC1Args(
       const std::vector<std::string> &source,
-      const std::vector<std::string> &module_search_paths,
+      const std::vector<std::pair<std::string, bool>> module_search_paths,
       const std::vector<std::pair<std::string, bool>> framework_search_paths,
       std::vector<std::string> &dest);
   static void AddExtraClangArgs(const std::vector<std::string>& source,
@@ -467,8 +468,9 @@ public:
       lldb::opaque_compiler_type_t type) override;
 
   /// Creates a GenericTypeParamType with the desired depth and index.
-  CompilerType CreateGenericTypeParamType(unsigned int depth,
-                                               unsigned int index) override;
+  CompilerType
+  CreateGenericTypeParamType(unsigned int depth, unsigned int index,
+                             swift::Mangle::ManglingFlavor flavor) override;
 
   CompilerType GetErrorType() override;
 
@@ -859,6 +861,9 @@ public:
   /// Perform all the implicit imports for the current frame.
   void PerformCompileUnitImports(const SymbolContext &sc, lldb::ProcessSP process_sp,
                                  Status &error);
+
+  /// Returns the mangling flavor associated with this ASTContext.
+  swift::Mangle::ManglingFlavor GetManglingFlavor();
 
 protected:
   bool GetCompileUnitImportsImpl(

@@ -41,6 +41,7 @@
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/Broadcaster.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/RealpathPrefixes.h"
 #include "lldb/Utility/Timeout.h"
 #include "lldb/lldb-public.h"
 
@@ -138,6 +139,8 @@ public:
 
   InlineStrategy GetInlineStrategy() const;
 
+  RealpathPrefixes GetSourceRealpathPrefixes() const;
+
   llvm::StringRef GetArg0() const;
 
   void SetArg0(llvm::StringRef arg);
@@ -195,6 +198,8 @@ public:
   bool GetSwiftAllowExplicitModules() const;
 
   AutoBool GetSwiftPCMValidation() const;
+
+  bool GetSwiftUseTasksPlugin() const;
 
   Args GetSwiftPluginServerForPath() const;
 
@@ -1327,6 +1332,10 @@ public:
 
   void ClearAllLoadedSections();
 
+  lldb_private::SummaryStatisticsSP GetSummaryStatisticsSPForProviderName(
+      lldb_private::TypeSummaryImpl &summary_provider);
+  lldb_private::SummaryStatisticsCache &GetSummaryStatisticsCache();
+
   /// Set the \a Trace object containing processor trace information of this
   /// target.
   ///
@@ -1661,6 +1670,7 @@ protected:
   std::string m_label;
   ModuleList m_images; ///< The list of images for this process (shared
                        /// libraries and anything dynamically loaded).
+  SummaryStatisticsCache m_summary_statistics_cache;
   SectionLoadHistory m_section_load_history;
   BreakpointList m_breakpoint_list;
   BreakpointList m_internal_breakpoint_list;
@@ -1726,6 +1736,8 @@ public:
   ///     Returns a JSON value that contains all target metrics.
   llvm::json::Value
   ReportStatistics(const lldb_private::StatisticsOptions &options);
+
+  void ResetStatistics();
 
   TargetStats &GetStatistics() { return m_stats; }
 

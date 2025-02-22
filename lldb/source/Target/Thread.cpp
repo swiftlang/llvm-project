@@ -641,8 +641,16 @@ void Thread::WillStop() {
   current_plan->WillStop();
 }
 
-void Thread::SetupForResume() {
+bool Thread::SetupForResume() {
   if (GetResumeState() != eStateSuspended) {
+    // First check whether this thread is going to "actually" resume at all.
+    // For instance, if we're stepping from one level to the next of an
+    // virtual inlined call stack, we just change the inlined call stack index
+    // without actually running this thread.  In that case, for this thread we
+    // shouldn't push a step over breakpoint plan or do that work.
+    if (GetCurrentPlan()->IsVirtualStep())
+      return false;
+
     // If we're at a breakpoint push the step-over breakpoint plan.  Do this
     // before telling the current plan it will resume, since we might change
     // what the current plan is.
@@ -679,11 +687,13 @@ void Thread::SetupForResume() {
               step_bp_plan->SetAutoContinue(true);
             }
             QueueThreadPlan(step_bp_plan_sp, false);
+            return true;
           }
         }
       }
     }
   }
+  return false;
 }
 
 bool Thread::ShouldResume(StateType resume_state) {
@@ -757,6 +767,7 @@ void Thread::DidResume() {
 void Thread::DidStop() { SetState(eStateStopped); }
 
 bool Thread::ShouldStop(Event *event_ptr) {
+  ThreadPlan *current_plan = GetCurrentPlan();
   bool should_stop = true;
 
   Log *log = GetLog(LLDBLog::Step);
@@ -810,6 +821,9 @@ bool Thread::ShouldStop(Event *event_ptr) {
     LLDB_LOGF(log, "Plan stack initial state:\n%s", s.GetData());
   }
 
+  // The top most plan always gets to do the trace log...
+  current_plan->DoTraceLog();
+
   // First query the stop info's ShouldStopSynchronous.  This handles
   // "synchronous" stop reasons, for example the breakpoint command on internal
   // breakpoints.  If a synchronous stop reason says we should not stop, then
@@ -821,16 +835,6 @@ bool Thread::ShouldStop(Event *event_ptr) {
                    "stop, returning ShouldStop of false.");
     return false;
   }
-
-  // Call this after ShouldStopSynchronous.
-  ThreadPlan *current_plan;
-  if (auto plan = GetProcess()->FindDetachedPlanExplainingStop(*this, event_ptr))
-    current_plan = plan.get();
-  else
-    current_plan = GetCurrentPlan();
-
-  // The top most plan always gets to do the trace log…
-  current_plan->DoTraceLog();
 
   // If we've already been restarted, don't query the plans since the state
   // they would examine is not current.
@@ -848,7 +852,6 @@ bool Thread::ShouldStop(Event *event_ptr) {
   // decide whether they still need to do more work.
 
   bool done_processing_current_plan = false;
-
   if (!current_plan->PlanExplainsStop(event_ptr)) {
     if (current_plan->TracerExplainsStop()) {
       done_processing_current_plan = true;
@@ -1505,7 +1508,7 @@ void Thread::ClearStackFrames() {
   // frames:
   // FIXME: At some point we can try to splice in the frames we have fetched
   // into the new frame as we make it, but let's not try that now.
-  if (m_curr_frames_sp && m_curr_frames_sp->GetAllFramesFetched())
+  if (m_curr_frames_sp && m_curr_frames_sp->WereAllFramesFetched())
     m_prev_frames_sp.swap(m_curr_frames_sp);
   m_curr_frames_sp.reset();
 

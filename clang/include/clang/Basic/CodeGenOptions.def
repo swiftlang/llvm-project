@@ -321,6 +321,15 @@ CODEGENOPT(VectorizeLoop     , 1, 0) ///< Run loop vectorizer.
 CODEGENOPT(VectorizeSLP      , 1, 0) ///< Run SLP vectorizer.
 CODEGENOPT(ProfileSampleAccurate, 1, 0) ///< Sample profile is accurate.
 
+/* TO_UPSTREAM(BoundsSafety) ON*/
+CODEGENOPT(TrapFuncReturns   , 1, 0) ///< When true, the function specified with
+                                     ///< -ftrap-function may return normally
+CODEGENOPT(
+    UniqueTrapBlocks, 1,
+    0) ///< When true, basic blocks that contain traps they will be prevented
+       ///< from being merged by optimization passes and the backends.
+/* TO_UPSTREAM(BoundsSafety) OFF*/
+
 /// Treat loops as finite: language, always, never.
 ENUM_CODEGENOPT(FiniteLoops, FiniteLoopsKind, 2, FiniteLoopsKind::Language)
 
@@ -464,6 +473,10 @@ ENUM_CODEGENOPT(CASObjMode, llvm::CASBackendMode,
 /// Modify C++ ABI to returning `this` pointer from constructors and
 /// non-deleting destructors. (No effect on Microsoft ABI.)
 CODEGENOPT(CtorDtorReturnThis, 1, 0)
+
+/// Controls whether we generate code for static linking of libclosure
+/// (BlocksRuntime) on Windows.
+CODEGENOPT(StaticClosure, 1, 0)
 
 /// FIXME: Make DebugOptions its own top-level .def file.
 #include "DebugOptions.def"

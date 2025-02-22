@@ -543,6 +543,15 @@ public:
   bool enableWritePrefetching() const { return false; }
   bool shouldPrefetchAddressSpace(unsigned AS) const { return !AS; }
 
+  InstructionCost
+  getPartialReductionCost(unsigned Opcode, Type *InputTypeA, Type *InputTypeB,
+                          Type *AccumType, ElementCount VF,
+                          TTI::PartialReductionExtendKind OpAExtend,
+                          TTI::PartialReductionExtendKind OpBExtend,
+                          std::optional<unsigned> BinOp = std::nullopt) const {
+    return InstructionCost::getInvalid();
+  }
+
   unsigned getMaxInterleaveFactor(ElementCount VF) const { return 1; }
 
   InstructionCost getArithmeticInstrCost(
@@ -1389,7 +1398,7 @@ public:
 
         bool IsUnary = isa<UndefValue>(Operands[1]);
         NumSubElts = VecSrcTy->getElementCount().getKnownMinValue();
-        SmallVector<int, 16> AdjustMask(Mask.begin(), Mask.end());
+        SmallVector<int, 16> AdjustMask(Mask);
 
         // Widening shuffle - widening the source(s) to the new length
         // (treated as free - see above), and then perform the adjusted

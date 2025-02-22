@@ -86,6 +86,7 @@ FEATURE(attribute_overloadable, true)
 FEATURE(attribute_unavailable_with_message, true)
 FEATURE(attribute_unused_on_fields, true)
 FEATURE(attribute_diagnose_if_objc, true)
+FEATURE(attribute_noescape_nonpointer, true)
 FEATURE(blocks, LangOpts.Blocks)
 FEATURE(c_thread_safety_attributes, true)
 FEATURE(cxx_exceptions, LangOpts.CXXExceptions)
@@ -322,6 +323,13 @@ FEATURE(cxx_abi_relative_vtable, LangOpts.CPlusPlus && LangOpts.RelativeCXXABIVT
 // CUDA/HIP Features
 FEATURE(cuda_noinline_keyword, LangOpts.CUDA)
 EXTENSION(cuda_implicit_host_device_templates, LangOpts.CUDA && LangOpts.OffloadImplicitHostDeviceTemplates)
+
+// TODO(BoundsSafety): Deprecate this feature name
+FEATURE(bounds_attributes, LangOpts.BoundsSafety)
+/* TO_UPSTREAM(BoundsSafety) ON*/
+FEATURE(bounds_safety, LangOpts.BoundsSafety)
+FEATURE(bounds_safety_attributes, LangOpts.BoundsSafetyAttributes)
+/* TO_UPSTREAM(BoundsSafety) OFF*/
 
 #undef EXTENSION
 #undef FEATURE

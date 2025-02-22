@@ -36,7 +36,10 @@ adds `FOO=1` and `bar` to the environment:
   "name": "Debug",
   "program": "/tmp/a.out",
   "args": [ "one", "two", "three" ],
-  "env": [ "FOO=1", "BAR" ],
+  "env": {
+    "FOO": "1"
+    "BAR": ""
+  }
 }
 ```
 
@@ -286,6 +289,37 @@ is evaluated as a command.
 The initial repl-mode can be configured with the cli flag `--repl-mode=<mode>`
 and may also be adjusted at runtime using the lldb command
 `lldb-dap repl-mode <mode>`.
+
+#### `lldb-dap send-event`
+
+lldb-dap includes a command to trigger a Debug Adapter Protocol event
+from a script.
+
+The event maybe a custom DAP event or a standard event, if the event is not 
+handled internally by `lldb-dap`.
+
+This command has the format:
+
+```
+lldb-dap send-event <name> <body>?
+```
+
+For example you can use a launch configuration hook to trigger custom events like:
+
+```json
+{
+  "program": "exe",
+  "stopCommands": [
+    "lldb-dap send-event MyStopEvent",
+    "lldb-dap send-event MyStopEvent '{\"key\": 321}",
+  ]
+}
+```
+
+[See the specification](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_Event) 
+for more details on Debug Adapter Protocol events and the VS Code 
+[debug.onDidReceiveDebugSessionCustomEvent](https://code.visualstudio.com/api/references/vscode-api#debug.onDidReceiveDebugSessionCustomEvent) 
+API for handling a custom event from an extension.
 
 ## Contributing
 

@@ -680,7 +680,17 @@ bool ValueObject::GetSummaryAsCString(TypeSummaryImpl *summary_ptr,
       m_synthetic_value->UpdateValueIfNeeded(); // the summary might depend on
                                                 // the synthetic children being
                                                 // up-to-date (e.g. ${svar%#})
-    summary_ptr->FormatObject(this, destination, actual_options);
+
+    if (TargetSP target_sp = GetExecutionContextRef().GetTargetSP()) {
+      SummaryStatisticsSP stats_sp =
+          target_sp->GetSummaryStatisticsCache()
+              .GetSummaryStatisticsForProvider(*summary_ptr);
+
+      // Construct RAII types to time and collect data on summary creation.
+      SummaryStatistics::SummaryInvocation invocation(stats_sp);
+      summary_ptr->FormatObject(this, destination, actual_options);
+    } else
+      summary_ptr->FormatObject(this, destination, actual_options);
   }
   m_flags.m_is_getting_summary = false;
   return !destination.empty();
@@ -905,6 +915,22 @@ bool ValueObject::SetData(DataExtractor &data, Status &error) {
   // value.
   SetNeedsUpdate();
   return true;
+}
+
+llvm::ArrayRef<uint8_t> ValueObject::GetLocalBuffer() const {
+  if (m_value.GetValueType() != Value::ValueType::HostAddress)
+    return {};
+  auto start = m_value.GetScalar().ULongLong(LLDB_INVALID_ADDRESS);
+  if (start == LLDB_INVALID_ADDRESS)
+    return {};
+  // Does our pointer point to this value object's m_data buffer?
+  if ((uint64_t)m_data.GetDataStart() == start)
+    return m_data.GetData();
+  // Does our pointer point to the value's buffer?
+  if ((uint64_t)m_value.GetBuffer().GetBytes() == start)
+    return m_value.GetBuffer().GetData();
+  // Our pointer points to something else. We can't know what the size is.
+  return {};
 }
 
 static bool CopyStringDataToBufferSP(const StreamString &source,

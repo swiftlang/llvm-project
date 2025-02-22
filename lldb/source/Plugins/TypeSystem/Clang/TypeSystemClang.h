@@ -22,6 +22,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTFwd.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/Type.h"
@@ -151,8 +152,6 @@ public:
 
   static LanguageSet GetSupportedLanguagesForTypes();
   static LanguageSet GetSupportedLanguagesForExpressions();
-
-  static void DebuggerInitialize(Debugger &debugger);
 
   static void Initialize();
 
@@ -539,21 +538,22 @@ public:
                                size_t element_count, bool is_vector);
 
   // Enumeration Types
-  clang::EnumDecl *CreateEnumerationDecl(llvm::StringRef name,
-                                         clang::DeclContext *decl_ctx,
-                                         OptionalClangModuleID owning_module,
-                                         const Declaration &decl,
-                                         const CompilerType &integer_qual_type,
-                                         bool is_scoped);
+  clang::EnumDecl *CreateEnumerationDecl(
+      llvm::StringRef name, clang::DeclContext *decl_ctx,
+      OptionalClangModuleID owning_module, const Declaration &decl,
+      const CompilerType &integer_qual_type, bool is_scoped,
+      std::optional<clang::EnumExtensibilityAttr::Kind> enum_kind =
+          std::nullopt);
 
-  CompilerType CreateEnumerationType(llvm::StringRef name,
-                                     clang::DeclContext *decl_ctx,
-                                     OptionalClangModuleID owning_module,
-                                     const Declaration &decl,
-                                     const CompilerType &integer_qual_type,
-                                     bool is_scoped) {
-    clang::EnumDecl *enum_decl = CreateEnumerationDecl(
-        name, decl_ctx, owning_module, decl, integer_qual_type, is_scoped);
+  CompilerType CreateEnumerationType(
+      llvm::StringRef name, clang::DeclContext *decl_ctx,
+      OptionalClangModuleID owning_module, const Declaration &decl,
+      const CompilerType &integer_qual_type, bool is_scoped,
+      std::optional<clang::EnumExtensibilityAttr::Kind> enum_kind =
+          std::nullopt) {
+    clang::EnumDecl *enum_decl =
+        CreateEnumerationDecl(name, decl_ctx, owning_module, decl,
+                              integer_qual_type, is_scoped, enum_kind);
     return GetType(getASTContext().getTagDeclType(enum_decl));
   }
 
@@ -572,14 +572,6 @@ public:
   plugin::dwarf::DWARFASTParser *GetDWARFParser() override;
   PDBASTParser *GetPDBParser() override;
   npdb::PdbAstBuilder *GetNativePDBParser() override;
-
-  /// If true, then declarations are completed by completing their redeclaration
-  /// chain.
-  ///
-  /// Initially declarations might just be forward declared in an AST but have a
-  /// defining redeclaration (that might be lazily added to the AST via the
-  /// ExternalASTSource).
-  static bool UseRedeclCompletion();
 
   // TypeSystemClang callbacks for external source lookups.
   void CompleteTagDecl(clang::TagDecl *);
@@ -792,6 +784,11 @@ public:
 
   bool SupportsLanguage(lldb::LanguageType language) override;
 
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  bool IsBoundsSafetyIndexable(lldb::opaque_compiler_type_t type) override;
+  bool IsBoundsSafetyBidiIndexable(lldb::opaque_compiler_type_t type) override;
+  /* TO_UPSTREAM(BoundsSafety) OFF */
+
   static std::optional<std::string> GetCXXClassName(const CompilerType &type);
 
   // Type Completion
@@ -872,6 +869,12 @@ public:
   CompilerType AddVolatileModifier(lldb::opaque_compiler_type_t type) override;
 
   CompilerType AddRestrictModifier(lldb::opaque_compiler_type_t type) override;
+
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  CompilerType AddBoundsSafetyIndexableAttribute(lldb::opaque_compiler_type_t type) override;
+  CompilerType AddBoundsSafetyBidiIndexableAttribute(lldb::opaque_compiler_type_t type) override;
+  CompilerType AddBoundsSafetyUnspecifiedAttribute(lldb::opaque_compiler_type_t type) override;
+  /* TO_UPSTREAM(BoundsSafety) OFF */
 
   /// Using the current type, create a new typedef to that type using
   /// "typedef_name" as the name and "decl_ctx" as the decl context.

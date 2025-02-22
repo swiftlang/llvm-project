@@ -1,3 +1,8 @@
+// XFAIL: *
+// The test fails because the full parsing logic isn't upstreamed yet, and
+// in downstream we have separate functions to handle the counted_by attribute in parsing with
+// and without -f(experimental-)bounds-safety enabled. rdar://126708352
+
 // RUN: %clang_cc1 -fsyntax-only -fexperimental-bounds-safety -verify %s
 //
 // This is a portion of the `attr-counted-by-vla.c` test but is checked

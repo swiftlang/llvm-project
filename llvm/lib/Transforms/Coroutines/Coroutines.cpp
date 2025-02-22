@@ -343,6 +343,7 @@ void coro::Shape::buildFrom(Function &F) {
     this->RetconLowering.Dealloc = ContinuationId->getDeallocFunction();
     this->RetconLowering.ReturnBlock = nullptr;
     this->RetconLowering.IsFrameInlineInStorage = false;
+    this->RetconLowering.TypeId = ContinuationId->getTypeId();
 
     // Determine the result value types, and make sure they match up with
     // the values passed to the suspends.
@@ -465,7 +466,12 @@ Value *coro::Shape::emitAlloc(IRBuilder<> &Builder, Value *Size,
     Size = Builder.CreateIntCast(Size,
                                  Alloc->getFunctionType()->getParamType(0),
                                  /*is signed*/ false);
-    auto *Call = Builder.CreateCall(Alloc, Size);
+    ConstantInt* TypeId = RetconLowering.TypeId;
+    CallInst *Call;
+    if (TypeId == nullptr)
+      Call = Builder.CreateCall(Alloc, Size);
+    else
+      Call = Builder.CreateCall(Alloc, {Size, TypeId});
     propagateCallAttrsFromCallee(Call, Alloc);
     addCallToCallGraph(CG, Call, Alloc);
     return Call;
@@ -558,9 +564,14 @@ static void checkWFAlloc(const Instruction *I, Value *V) {
   if (!FT->getReturnType()->isPointerTy())
     fail(I, "llvm.coro.* allocator must return a pointer", F);
 
-  if (FT->getNumParams() != 1 ||
-      !FT->getParamType(0)->isIntegerTy())
-    fail(I, "llvm.coro.* allocator must take integer as only param", F);
+  if (FT->getNumParams() > 2 || FT->getNumParams() == 0)
+    fail(I, "llvm.coro.* allocator must take either one or two params", F);
+
+  if (FT->getNumParams() == 1 && !FT->getParamType(0)->isIntegerTy())
+    fail(I, "llvm.coro.* allocator must take integer as its first param", F);
+
+  if (FT->getNumParams() == 2 && !FT->getParamType(1)->isIntegerTy())
+    fail(I, "llvm.coro.* allocator must take uint64_t as its second param", F);
 }
 
 /// Check that the given value is a well-formed deallocator.

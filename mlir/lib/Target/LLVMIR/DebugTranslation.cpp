@@ -134,7 +134,7 @@ DebugTranslation::translateTemporaryImpl(DICompositeTypeAttr attr) {
       attr.getAlignInBits(),
       /*OffsetInBits=*/0,
       /*Flags=*/static_cast<llvm::DINode::DIFlags>(attr.getFlags()),
-      /*Elements=*/nullptr, /*RuntimeLang=*/0,
+      /*Elements=*/nullptr, /*RuntimeLang=*/0, /*EnumKind=*/std::nullopt,
       /*VTableHolder=*/nullptr);
 }
 
@@ -163,7 +163,7 @@ DebugTranslation::translateImpl(DICompositeTypeAttr attr) {
       /*OffsetInBits=*/0,
       /*Flags=*/static_cast<llvm::DINode::DIFlags>(attr.getFlags()),
       llvm::MDNode::get(llvmCtx, elements),
-      /*RuntimeLang=*/0, /*VTableHolder=*/nullptr,
+      /*RuntimeLang=*/0, /*EnumKind=*/std::nullopt, /*VTableHolder=*/nullptr,
       /*TemplateParams=*/nullptr, /*Identifier=*/nullptr,
       /*Discriminator=*/nullptr,
       getExpressionAttrOrNull(attr.getDataLocation()),

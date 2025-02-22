@@ -323,6 +323,22 @@ bool CompilerType::IsBeingDefined() const {
   return false;
 }
 
+/* TO_UPSTREAM(BoundsSafety) ON */
+bool CompilerType::IsBoundsSafetyIndexable() const {
+  if (IsValid())
+    if (auto type_system_sp = GetTypeSystem())
+      return type_system_sp->IsBoundsSafetyIndexable(m_type);
+  return false;
+}
+
+bool CompilerType::IsBoundsSafetyBidiIndexable() const {
+  if (IsValid())
+    if (auto type_system_sp = GetTypeSystem())
+      return type_system_sp->IsBoundsSafetyBidiIndexable(m_type);
+  return false;
+}
+/* TO_UPSTREAM(BoundsSafety) OFF */
+
 bool CompilerType::IsInteger() const {
   bool is_signed = false; // May be reset by the call below.
   return IsIntegerType(is_signed);
@@ -743,6 +759,29 @@ CompilerType CompilerType::AddRestrictModifier() const {
   return CompilerType();
 }
 
+/* TO_UPSTREAM(BoundsSafety) ON */
+CompilerType CompilerType::AddBoundsSafetyIndexableAttribute() const {
+  if (IsValid())
+    if (auto type_system_sp = GetTypeSystem())
+      return type_system_sp->AddBoundsSafetyIndexableAttribute(m_type);
+  return CompilerType();
+}
+
+CompilerType CompilerType::AddBoundsSafetyBidiIndexableAttribute() const {
+  if (IsValid())
+    if (auto type_system_sp = GetTypeSystem())
+      return type_system_sp->AddBoundsSafetyBidiIndexableAttribute(m_type);
+  return CompilerType();
+}
+
+CompilerType CompilerType::AddBoundsSafetyUnspecifiedAttribute() const {
+  if (IsValid())
+    if (auto type_system_sp = GetTypeSystem())
+      return type_system_sp->AddBoundsSafetyUnspecifiedAttribute(m_type);
+  return CompilerType();
+}
+/* TO_UPSTREAM(BoundsSafety) ON */
+
 CompilerType CompilerType::CreateTypedef(const char *name,
                                          const CompilerDeclContext &decl_ctx,
                                          uint32_t payload) const {
@@ -1119,8 +1158,11 @@ bool CompilerType::GetValueAsScalar(const lldb_private::DataExtractor &data,
       return false;
 
     std::optional<uint64_t> byte_size = GetByteSize(exe_scope);
-    if (!byte_size)
+    // A bit or byte size of 0 is not a bug, but it doesn't make sense to read a
+    // scalar of zero size.
+    if (!byte_size || *byte_size == 0)
       return false;
+
     lldb::offset_t offset = data_byte_offset;
     switch (encoding) {
     case lldb::eEncodingInvalid:

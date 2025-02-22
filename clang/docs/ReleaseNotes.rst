@@ -780,6 +780,9 @@ Improvements to Clang's diagnostics
 - Clang now diagnoses dangling references to fields of temporary objects. Fixes #GH81589.
 
 
+- Fixed a bug where Clang hung on an unsupported optional scope specifier ``::`` when parsing
+  Objective-C. Clang now emits a diagnostic message instead of hanging.
+
 Improvements to Clang's time-trace
 ----------------------------------
 

@@ -107,6 +107,7 @@
 #include "llvm/Transforms/Scalar/LoopRotation.h"
 #include "llvm/Transforms/Scalar/LoopSimplifyCFG.h"
 #include "llvm/Transforms/Scalar/LoopSink.h"
+#include "llvm/Transforms/Scalar/LoopTrapAnalysis.h"
 #include "llvm/Transforms/Scalar/LoopUnrollAndJamPass.h"
 #include "llvm/Transforms/Scalar/LoopUnrollPass.h"
 #include "llvm/Transforms/Scalar/LoopVersioningLICM.h"
@@ -283,6 +284,13 @@ static cl::opt<bool> EnableConstraintElimination(
     "enable-constraint-elimination", cl::init(true), cl::Hidden,
     cl::desc(
         "Enable pass to eliminate conditions based on linear constraints"));
+
+/* TO_UPSTREAM(BoundsSafety) ON */
+static cl::opt<bool> EnableLoopTrapAnalysis(
+    "enable-loop-trap-analysis", cl::init(false), cl::Hidden,
+    cl::desc("Enable pass to emit remarks about loops with "
+             "checks that can be hoisted out of the loop."));
+/* TO_UPSTREAM(BoundsSafety) OFF */
 
 static cl::opt<AttributorRunOption> AttributorRun(
     "attributor-enable", cl::Hidden, cl::init(AttributorRunOption::NONE),
@@ -1596,6 +1604,11 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
       PGOOpt->Action == PGOOptions::SampleUse)
     MPM.addPass(PseudoProbeUpdatePass());
 
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  if (EnableLoopTrapAnalysis)
+    MPM.addPass(createModuleToFunctionPassAdaptor(LoopTrapAnalysisPass()));
+  /* TO_UPSTREAM(BoundsSafety) OFF */
+
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
 
@@ -1672,6 +1685,11 @@ PassBuilder::buildThinLTOPreLinkDefaultPipeline(OptimizationLevel Level) {
   invokeOptimizerEarlyEPCallbacks(MPM, Level);
   invokeOptimizerLastEPCallbacks(MPM, Level);
 
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  if (EnableLoopTrapAnalysis)
+    MPM.addPass(createModuleToFunctionPassAdaptor(LoopTrapAnalysisPass()));
+  /* TO_UPSTREAM(BoundsSafety) OFF */
+
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
 
@@ -1729,6 +1747,11 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
   MPM.addPass(buildModuleOptimizationPipeline(
       Level, ThinOrFullLTOPhase::ThinLTOPostLink));
 
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  if (EnableLoopTrapAnalysis)
+    MPM.addPass(createModuleToFunctionPassAdaptor(LoopTrapAnalysisPass()));
+  /* TO_UPSTREAM(BoundsSafety) OFF */
+
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
 
@@ -1763,6 +1786,11 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
     MPM.addPass(LowerTypeTestsPass(nullptr, nullptr, true));
 
     invokeFullLinkTimeOptimizationLastEPCallbacks(MPM, Level);
+
+    /* TO_UPSTREAM(BoundsSafety) ON */
+    if (EnableLoopTrapAnalysis)
+      MPM.addPass(createModuleToFunctionPassAdaptor(LoopTrapAnalysisPass()));
+    /* TO_UPSTREAM(BoundsSafety) OFF */
 
     // Emit annotation remarks.
     addAnnotationRemarksPass(MPM);
@@ -1841,6 +1869,11 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
     MPM.addPass(LowerTypeTestsPass(nullptr, nullptr, true));
 
     invokeFullLinkTimeOptimizationLastEPCallbacks(MPM, Level);
+
+    /* TO_UPSTREAM(BoundsSafety) ON */
+    if (EnableLoopTrapAnalysis)
+      MPM.addPass(createModuleToFunctionPassAdaptor(LoopTrapAnalysisPass()));
+    /* TO_UPSTREAM(BoundsSafety) OFF */
 
     // Emit annotation remarks.
     addAnnotationRemarksPass(MPM);
@@ -2054,6 +2087,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
     MPM.addPass(CGProfilePass(/*InLTOPostLink=*/true));
 
   invokeFullLinkTimeOptimizationLastEPCallbacks(MPM, Level);
+  if (EnableLoopTrapAnalysis)
+    MPM.addPass(createModuleToFunctionPassAdaptor(LoopTrapAnalysisPass()));
 
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
@@ -2160,6 +2195,8 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   if (LTOPreLink)
     addRequiredLTOPreLinkPasses(MPM);
 
+  if (EnableLoopTrapAnalysis)
+    MPM.addPass(createModuleToFunctionPassAdaptor(LoopTrapAnalysisPass()));
   MPM.addPass(createModuleToFunctionPassAdaptor(AnnotationRemarksPass()));
 
   return MPM;
