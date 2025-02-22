@@ -4225,8 +4225,8 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
                                 const ImplicitConversionSequence &ICS,
                                 AssignmentAction Action,
                                 CheckedConversionKind CCK) {
-  if (ToType->isPointerType() && LangOpts.isBoundsSafetyAttributeOnlyMode() &&
-      isCXXSafeBuffersEnabledAt(From->getBeginLoc())) {
+  if (ToType->isPointerType() &&
+      isCXXSafeBuffersBoundsSafetyInteropEnabledAt(From->getBeginLoc())) {
     // In C++ Safe Buffers/Bounds Safety interop mode, warn about implicit
     // conversions from non-`__null_terminated` to `__null_terminated`:
     AssignConvertType ConvTy =

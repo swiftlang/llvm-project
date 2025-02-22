@@ -12197,8 +12197,8 @@ Sema::CheckValueTerminatedAssignmentConstraints(QualType LHSType,
         // be 'std::string::c_str/data':
         bool isNullTerm = LVTT->getTerminatorValue(Context).isZero();
 
-        if (LangOpts.CPlusPlus &&
-            isCXXSafeBuffersEnabledAt(RHSExpr->getBeginLoc()) && isNullTerm) {
+        if (isNullTerm && isCXXSafeBuffersBoundsSafetyInteropEnabledAt(
+                              RHSExpr->getBeginLoc())) {
           if (const auto *MCE =
                   dyn_cast<CXXMemberCallExpr>(RHSExpr->IgnoreParenImpCasts())) {
             IdentifierInfo *MethodDeclII = nullptr, *ObjTypeII = nullptr;
@@ -20720,9 +20720,6 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
       AssignedVarFixIts;
   VarDecl *BoundsSafetyIncompatNestedPtrLocalVarToFix = nullptr;
   FixItHint BoundsSafetyIncompatNestedPtrFixIt;
-  bool InCXXBoundsSafetyMode = LangOpts.CPlusPlus &&
-                               LangOpts.isBoundsSafetyAttributeOnlyMode() &&
-                               isCXXSafeBuffersEnabledAt(Loc);
   /*TO_UPSTREAM(BoundsSafety) OFF*/
 
 
@@ -20813,9 +20810,10 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
     IsDstNullTerm =
         DstPointerType->getTerminatorValue(getASTContext()).isZero();
 
-    if (getLangOpts().BoundsSafetyRelaxedSystemHeaders || InCXXBoundsSafetyMode) {
-      DiagKind =
-          diag::warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by;
+    if (getLangOpts().BoundsSafetyRelaxedSystemHeaders ||
+        isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)) {
+      DiagKind = diag::
+          warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by;
       isInvalid = false;
     } else {
       DiagKind =
@@ -21092,7 +21090,7 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
               warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by) {
     FDiag << FirstType << SecondType << ActionForDiag
           << SrcExpr->getSourceRange()
-          << (!InCXXBoundsSafetyMode
+          << (!isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)
                   ? (IsDstNullTerm ? /*null_terminated*/ 1
                                    : /*terminated_by*/ 0)
                   : 2 /* cut message irrelevant to that mode*/);

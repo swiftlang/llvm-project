@@ -1561,9 +1561,11 @@ public:
   /// __single in user code and __unsafe_indexable in system headers.
   BoundsSafetyPointerAttributes CurPointerAbi;
 
-  /// \returns true iff `-Wunsafe-buffer-usage` is enabled for `Loc`.
-  bool isCXXSafeBuffersEnabledAt(SourceLocation Loc) const {
-    return !Diags.isIgnored(diag::warn_unsafe_buffer_operation, Loc);
+  /// \return true iff `-Wunsafe-buffer-usage` is enabled for `Loc` and Bounds
+  /// Safety attribute-only mode is on.
+  bool isCXXSafeBuffersBoundsSafetyInteropEnabledAt(SourceLocation Loc) const {
+    return LangOpts.CPlusPlus && LangOpts.isBoundsSafetyAttributeOnlyMode() &&
+           !Diags.isIgnored(diag::warn_unsafe_buffer_operation, Loc);
   }
   /* TO_UPSTREAM(BoundsSafety) OFF */
 
