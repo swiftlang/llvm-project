@@ -153,13 +153,28 @@ std::vector<bool> HeaderSearch::collectVFSUsageAndClear() const {
   //       `createVFSFromOverlayFiles`.
   RootFS.visit([&](llvm::vfs::FileSystem &FS) {
     if (auto *RFS = dyn_cast<llvm::vfs::RedirectingFileSystem>(&FS)) {
-      VFSUsage.push_back(RFS->hasBeenUsed());
-      RFS->clearHasBeenUsed();
+      // Skip the `RedirectingFileSystem that was added by
+      // createClangInvocationFileMappingVFS, if any, since it's not
+      // created by createVFSFromOverlayFiles
+      if (!RFS->getOverlayFileDir().empty()) {
+        //        llvm::dbgs() << "createVFSFromOverlayFiles counting RedirectingFileSystem\n";
+        //        RFS->print(llvm::dbgs());
+        VFSUsage.push_back(RFS->hasBeenUsed());
+        RFS->clearHasBeenUsed();
+      } else {
+        //        llvm::dbgs() << "createVFSFromOverlayFiles skipping RedirectingFileSystem\n";
+        //        RFS->print(llvm::dbgs());
+      }
     }
   });
+  //
+  if (VFSUsage.size() != getHeaderSearchOpts().VFSOverlayFiles.size()) {
+      llvm::dbgs() << "HeaderSearch::collectVFSUsageAndClear VFSUsage.size() " << VFSUsage.size() << " != getHeaderSearchOpts().VFSOverlayFiles.size() " << getHeaderSearchOpts().VFSOverlayFiles.size() << "\n";
+  }
   assert(VFSUsage.size() == getHeaderSearchOpts().VFSOverlayFiles.size() &&
          "A different number of RedirectingFileSystem's were present than "
          "-ivfsoverlay options passed to Clang!");
+  //
   // VFS visit order is the opposite of VFSOverlayFiles order.
   std::reverse(VFSUsage.begin(), VFSUsage.end());
   return VFSUsage;

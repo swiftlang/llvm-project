@@ -103,9 +103,14 @@ optimizeHeaderSearchOpts(HeaderSearchOptions &Opts, ASTReader &Reader,
         };
     VisitMF(&MF);
 
+    //
+    if (VFSUsage.size() != VFSOverlayFiles.size()) {
+      llvm::dbgs() << "optimizeHeaderSearchOpts VFSUsage.size() " << VFSUsage.size() << " != VFSOverlayFiles.size() " << VFSOverlayFiles.size() << "\n";
+    }
     if (VFSUsage.size() != VFSOverlayFiles.size())
       llvm::report_fatal_error(
           "Inconsistent -ivfsoverlay options between modules detected");
+    //
 
     for (auto Idx : VFSUsage.set_bits())
       Opts.VFSOverlayFiles.push_back(std::move(VFSOverlayFiles[Idx]));
