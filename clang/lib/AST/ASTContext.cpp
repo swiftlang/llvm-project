@@ -942,6 +942,80 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
   addTranslationUnitDecl();
 }
 
+ASTContext::AvailabilityDomainInfo
+ASTContext::getFeatureAvailInfo(StringRef FeatureName) const {
+  AvailabilityDomainInfo Info;
+
+  for (auto &V : getLangOpts().FeatureAvailability) {
+    unsigned EndOfKey = V.find(':');
+    std::string Key = V.substr(0, EndOfKey);
+
+    if (Key != FeatureName)
+      continue;
+
+    unsigned EndOfKind = V.find(':', EndOfKey + 1);
+    std::string Kind = V.substr(EndOfKey + 1, EndOfKind - (EndOfKey + 1));
+
+    if (Kind == "on")
+      Info.Kind = FeatureAvailKind::Available;
+    else if (Kind == "off")
+      Info.Kind = FeatureAvailKind::Unavailable;
+    else if (Kind == "dyn") {
+      llvm_unreachable("dyn not supported");
+    } else
+      llvm_unreachable("invalid FeatureAvailKind");
+    return Info;
+  }
+
+  auto I = AvailabilityDomainMap.find(FeatureName);
+  if (I != AvailabilityDomainMap.end())
+    return I->second;
+
+  return {};
+}
+
+llvm::iterator_range<specific_attr_iterator<AvailabilityAttr>>
+ASTContext::getFeatureAvailabilityAttrs(const Decl *D) const {
+  auto Fn = [](const AvailabilityAttr *AA) { return !AA->getDomain().empty(); };
+  return llvm::make_range(
+      specific_attr_iterator<AvailabilityAttr>(D->attr_begin(), Fn),
+      specific_attr_iterator<AvailabilityAttr>(D->attr_end(), Fn));
+}
+
+std::pair<AvailabilityAttr *, bool>
+ASTContext::checkNewFeatureAvailability(Decl *D, StringRef NewDomainName,
+                                        bool NewUnavailable) {
+  assert(!NewDomainName.empty());
+
+  for (auto *AA : getFeatureAvailabilityAttrs(D)) {
+    if (AA->getDomain() != NewDomainName)
+      continue;
+    if (AA->getUnavailable() == NewUnavailable)
+      return {AA, true};
+    return {AA, false};
+  }
+
+  return {nullptr, true};
+}
+
+bool ASTContext::hasFeatureAvailabilityAttr(const Decl *D) const {
+  return !getFeatureAvailabilityAttrs(D).empty();
+}
+
+bool ASTContext::hasUnavailableFeature(const Decl *D) const {
+  if (D->hasAttrs())
+    for (auto *AA : getFeatureAvailabilityAttrs(D)) {
+      auto FeatureName = AA->getDomain();
+      auto FeatureInfo = getFeatureAvailInfo(FeatureName);
+      if (FeatureInfo.Kind == (AA->getUnavailable()
+                                   ? FeatureAvailKind::Available
+                                   : FeatureAvailKind::Unavailable))
+        return true;
+    }
+
+  return false;
+}
+
 void ASTContext::cleanup() {
   // Release the DenseMaps associated with DeclContext objects.
   // FIXME: Is this the ideal solution?

@@ -2855,13 +2855,15 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
   // previous decl", for example if the attribute needs to be consistent
   // between redeclarations, you need to call a custom merge function here.
   InheritableAttr *NewAttr = nullptr;
-  if (const auto *AA = dyn_cast<AvailabilityAttr>(Attr))
-    NewAttr = S.mergeAvailabilityAttr(
-        D, *AA, AA->getPlatform(), AA->isImplicit(), AA->getIntroduced(),
-        AA->getDeprecated(), AA->getObsoleted(), AA->getUnavailable(),
-        AA->getMessage(), AA->getStrict(), AA->getReplacement(), AMK,
-        AA->getPriority(), AA->getEnvironment());
-  else if (const auto *VA = dyn_cast<VisibilityAttr>(Attr))
+  if (const auto *AA = dyn_cast<AvailabilityAttr>(Attr)) {
+    StringRef Domain = AA->getDomain();
+    if (Domain.empty())
+      NewAttr = S.mergeAvailabilityAttr(
+          D, *AA, AA->getPlatform(), AA->isImplicit(), AA->getIntroduced(),
+          AA->getDeprecated(), AA->getObsoleted(), AA->getUnavailable(),
+          AA->getMessage(), AA->getStrict(), AA->getReplacement(), AMK,
+          AA->getPriority(), AA->getEnvironment());
+  } else if (const auto *VA = dyn_cast<VisibilityAttr>(Attr))
     NewAttr = S.mergeVisibilityAttr(D, *VA, VA->getVisibility());
   else if (const auto *VA = dyn_cast<TypeVisibilityAttr>(Attr))
     NewAttr = S.mergeTypeVisibilityAttr(D, *VA, VA->getVisibility());
@@ -3254,6 +3256,9 @@ void Sema::mergeDeclAttributes(NamedDecl *New, Decl *Old,
          << 0 /*codeseg*/;
     Diag(Old->getLocation(), diag::note_previous_declaration);
   }
+
+  if (auto *ND = dyn_cast<NamedDecl>(Old))
+    copyFeatureAvailabilityCheck(New, ND, true);
 
   if (!Old->hasAttrs())
     return;
@@ -15897,6 +15902,46 @@ void Sema::FinalizeDeclaration(Decl *ThisDecl) {
     }
   }
 
+  if (auto *Attr = VD->getAttr<AvailabilityDomainAttr>()) {
+    auto Name = Attr->getName()->getName();
+    auto *Init = cast<InitListExpr>(VD->getInit());
+    Expr::EvalResult Result;
+    ASTContext::FeatureAvailKind Kind;
+    ASTContext &Ctx = getASTContext();
+
+    if (Init->getInit(0)->IgnoreParenImpCasts()->EvaluateAsInt(Result, Ctx)) {
+      llvm::APSInt Res = Result.Val.getInt();
+      unsigned Val = Res.getExtValue();
+      switch (Val) {
+      case 0:
+        Kind = ASTContext::FeatureAvailKind::Available;
+        break;
+      case 1:
+        Kind = ASTContext::FeatureAvailKind::Unavailable;
+        break;
+      case 2:
+        Kind = ASTContext::FeatureAvailKind::Dynamic;
+        break;
+      default:
+        llvm_unreachable("invalid feature kind");
+      }
+    } else
+      llvm_unreachable("not integer");
+
+    ASTContext::AvailabilityDomainInfo Info{Kind, nullptr};
+
+    if (Kind == ASTContext::FeatureAvailKind::Dynamic) {
+      Expr *FnExpr = Init->getInit(1);
+      auto *Call = CallExpr::Create(Ctx, FnExpr, {}, Ctx.IntTy, VK_PRValue,
+                                    SourceLocation(), FPOptionsOverride());
+      Info.Call = ImplicitCastExpr::Create(Ctx, Ctx.BoolTy,
+                                           CK_IntegralToBoolean, Call, nullptr,
+                                           VK_PRValue, CurFPFeatureOverrides());
+    }
+
+    getASTContext().addAvailabilityDomainMap(Name, Info);
+  }
+
   const DeclContext *DC = VD->getDeclContext();
   // If there's a #pragma GCC visibility in scope, and this isn't a class
   // member, set the visibility of this variable.
@@ -17534,6 +17579,9 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
 
     if (Body && FSI->HasPotentialAvailabilityViolations)
       DiagnoseUnguardedAvailabilityViolations(dcl);
+
+    if (Body && FSI->HasPotentialFeatureAvailabilityViolations)
+      DiagnoseUnguardedFeatureAvailabilityViolations(dcl);
 
     assert(!FSI->ObjCShouldCallSuper &&
            "This should only be set for ObjC methods, which should have been "
@@ -19916,6 +19964,7 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
   if (D) {
     // FIXME: The current scope is almost... but not entirely... correct here.
     ProcessDeclAttributes(getCurScope(), NewFD, *D);
+    copyFeatureAvailabilityCheck(NewFD, Record);
 
     if (NewFD->hasAttrs())
       CheckAlignasUnderalignment(NewFD);
@@ -21065,6 +21114,7 @@ Decl *Sema::ActOnEnumConstant(Scope *S, Decl *theEnumDecl, Decl *lastEnumConst,
   // Process attributes.
   ProcessDeclAttributeList(S, New, Attrs);
   AddPragmaAttributes(S, New);
+  copyFeatureAvailabilityCheck(New, TheEnumDecl);
   ProcessAPINotes(New);
 
   // Register this decl in the current scope stack.

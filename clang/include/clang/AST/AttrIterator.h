@@ -19,6 +19,7 @@
 #include "llvm/Support/Casting.h"
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <iterator>
 #include <type_traits>
 
@@ -44,13 +45,17 @@ class specific_attr_iterator {
   /// past-the-end iterator when we move to a past-the-end position.
   mutable Iterator Current;
 
+  std::function<bool(const SpecificAttr *)> PredFn;
+
   void AdvanceToNext() const {
-    while (!isa<SpecificAttr>(*Current))
+    while (!isa<SpecificAttr>(*Current) ||
+           !PredFn(cast<SpecificAttr>(*Current)))
       ++Current;
   }
 
   void AdvanceToNext(Iterator I) const {
-    while (Current != I && !isa<SpecificAttr>(*Current))
+    while (Current != I && (!isa<SpecificAttr>(*Current) ||
+                            !PredFn(cast<SpecificAttr>(*Current))))
       ++Current;
   }
 
@@ -62,7 +67,10 @@ public:
   using difference_type = std::ptrdiff_t;
 
   specific_attr_iterator() = default;
-  explicit specific_attr_iterator(Iterator i) : Current(i) {}
+  explicit specific_attr_iterator(
+      Iterator i, std::function<bool(const SpecificAttr *)> P =
+                      [](const SpecificAttr *A) { return true; })
+      : Current(i), PredFn(P) {}
 
   reference operator*() const {
     AdvanceToNext();

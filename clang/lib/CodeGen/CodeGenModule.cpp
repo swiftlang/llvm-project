@@ -5341,6 +5341,9 @@ void CodeGenModule::EmitTentativeDefinition(const VarDecl *D) {
       return;
   }
 
+  if (Context.hasUnavailableFeature(D))
+    return;
+
   // The tentative definition is the only definition.
   EmitGlobalVarDefinition(D);
 }
@@ -6854,6 +6857,9 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
 void CodeGenModule::EmitObjCPropertyImplementations(const
                                                     ObjCImplementationDecl *D) {
   for (const auto *PID : D->property_impls()) {
+    if (Context.hasUnavailableFeature(PID->getPropertyDecl()))
+      continue;
+
     // Dynamic is just for type-checking.
     if (PID->getPropertyImplementation() == ObjCPropertyImplDecl::Synthesize) {
       ObjCPropertyDecl *PD = PID->getPropertyDecl();
@@ -7012,6 +7018,9 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
   if (auto *FD = dyn_cast<FunctionDecl>(D); FD && FD->isImmediateFunction())
     return;
 
+  if (Context.hasUnavailableFeature(D))
+    return;
+
   switch (D->getKind()) {
   case Decl::CXXConversion:
   case Decl::CXXMethod:
@@ -7142,6 +7151,8 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
   }
   case Decl::ObjCMethod: {
     auto *OMD = cast<ObjCMethodDecl>(D);
+    if (Context.hasUnavailableFeature(OMD->getClassInterface()))
+      break;
     // If this is not a prototype, emit the body.
     if (OMD->getBody())
       CodeGenFunction(*this).GenerateObjCMethod(OMD);

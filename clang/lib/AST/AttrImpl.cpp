@@ -270,4 +270,19 @@ unsigned AlignedAttr::getAlignment(ASTContext &Ctx) const {
   return Ctx.getTargetDefaultAlignForAttributeAligned();
 }
 
+AvailabilityAttr *AvailabilityAttr::getDomainAvailability(
+    StringRef DomainName, bool IsUnavailable, const AttributeCommonInfo &CI,
+    ASTContext &Ctx) {
+  return ::new (Ctx) AvailabilityAttr(
+      Ctx, CI, nullptr, VersionTuple(), VersionTuple(), VersionTuple(),
+      IsUnavailable, {}, false, {}, 0, nullptr, DomainName);
+}
+
+std::string AvailabilityAttr::getFeatureAttributeStr() const {
+  assert(!getDomain().empty() && "cannot be called if domain is empty");
+  std::string S = "__attribute__((availability(domain=";
+  S += getDomain().str() + ", " + (getUnavailable() ? '1' : '0') + ")))";
+  return S;
+}
+
 #include "clang/AST/AttrImpl.inc"

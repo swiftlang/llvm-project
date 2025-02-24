@@ -779,6 +779,9 @@ AvailabilityResult Decl::getAvailability(std::string *Message,
     }
 
     if (const auto *Availability = dyn_cast<AvailabilityAttr>(A)) {
+      if (!Availability->getDomain().empty())
+        continue;
+
       AvailabilityResult AR = CheckAvailability(getASTContext(), Availability,
                                                 Message, EnclosingVersion);
 
@@ -855,6 +858,15 @@ bool Decl::isWeakImported() const {
       return true;
 
     if (const auto *Availability = dyn_cast<AvailabilityAttr>(A)) {
+      auto DomainName = Availability->getDomain();
+
+      if (!DomainName.empty()) {
+        auto FeatureInfo = getASTContext().getFeatureAvailInfo(DomainName);
+        if (FeatureInfo.Kind == ASTContext::FeatureAvailKind::Dynamic)
+          return true;
+        continue;
+      }
+
       if (CheckAvailability(getASTContext(), Availability, nullptr,
                             VersionTuple()) == AR_NotYetIntroduced)
         return true;

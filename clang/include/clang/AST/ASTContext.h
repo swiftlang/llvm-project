@@ -827,6 +827,32 @@ public:
     return DiagAllocator;
   }
 
+  enum class FeatureAvailKind { None, Available, Unavailable, Dynamic };
+
+  struct AvailabilityDomainInfo {
+    FeatureAvailKind Kind = FeatureAvailKind::None;
+    ImplicitCastExpr *Call;
+    bool isInvalid() const { return Kind == FeatureAvailKind::None; }
+  };
+
+  std::map<StringRef, AvailabilityDomainInfo> AvailabilityDomainMap;
+
+  void addAvailabilityDomainMap(StringRef Name, AvailabilityDomainInfo Info) {
+    AvailabilityDomainMap[Name] = Info;
+  }
+
+  std::pair<AvailabilityAttr *, bool>
+  checkNewFeatureAvailability(Decl *D, StringRef DomainName, bool Unavailable);
+
+  llvm::iterator_range<specific_attr_iterator<AvailabilityAttr>>
+  getFeatureAvailabilityAttrs(const Decl *D) const;
+
+  bool hasFeatureAvailabilityAttr(const Decl *D) const;
+
+  AvailabilityDomainInfo getFeatureAvailInfo(StringRef FeatureName) const;
+
+  bool hasUnavailableFeature(const Decl *D) const;
+
   const TargetInfo &getTargetInfo() const { return *Target; }
   const TargetInfo *getAuxTargetInfo() const { return AuxTarget; }
 

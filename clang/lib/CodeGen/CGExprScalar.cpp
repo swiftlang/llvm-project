@@ -582,6 +582,13 @@ public:
   }
 
   Value *VisitObjCAvailabilityCheckExpr(ObjCAvailabilityCheckExpr *E) {
+    if (E->hasDomainName()) {
+      auto DomainName = E->getDomainName();
+      ASTContext::AvailabilityDomainInfo Info =
+          CGF.getContext().getFeatureAvailInfo(DomainName);
+      return CGF.EmitScalarExpr(Info.Call);
+    }
+
     VersionTuple Version = E->getVersionAsWritten();
 
     // If we're checking for a platform older than our minimum deployment
