@@ -95,21 +95,14 @@ class ConsecutiveBreakpointsTestCase(TestBase):
         """Test that single step stops, even though the second breakpoint is not valid."""
         self.prepare_test()
 
-        self.runCmd("thread list")
-        self.runCmd("bt all")
         # Choose a thread other than the current one. A non-existing thread is
         # fine.
         thread_index = self.process.GetNumThreads() + 1
         self.assertFalse(self.process.GetThreadAtIndex(thread_index).IsValid())
         self.breakpoint2.SetThreadIndex(thread_index)
 
-        self.runCmd("break list")
-
         step_over = False
         self.thread.StepInstruction(step_over)
-
-        self.runCmd("thread list")
-        self.runCmd("bt all")
 
         self.assertState(self.process.GetState(), lldb.eStateStopped)
         self.assertEqual(
@@ -124,8 +117,5 @@ class ConsecutiveBreakpointsTestCase(TestBase):
 
         # Hit our second breakpoint
         self.process.Continue()
-
-        self.runCmd("thread list")
-        self.runCmd("bt all")
 
         self.finish_test()
