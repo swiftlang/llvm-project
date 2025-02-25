@@ -296,4 +296,8 @@ bool clang::isValidPointerAttrType(QualType T, bool RefOkay) {
   return T->isAnyPointerType() || T->isBlockPointerType();
 }
 
+StringLiteral *FormatMatchesAttr::getFormatString() const {
+  return cast<StringLiteral>(getExpectedFormat());
+}
+
 #include "clang/AST/AttrImpl.inc"
