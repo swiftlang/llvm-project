@@ -39,6 +39,11 @@ int snprintf( char* __counted_by(buf_size) buffer, size_t buf_size, const char* 
 // expected-note@+1 2{{consider using a safe container and passing '.data()' to the parameter 'buffer' and '.size()' to its dependent parameter 'buf_size' or 'std::span' and passing '.first(...).data()' to the parameter 'buffer'}}
 int snwprintf( wchar_t* __counted_by(buf_size) buffer, size_t buf_size, const wchar_t* format, ... );
 int vsnprintf( char* __counted_by(buf_size) buffer, size_t buf_size, const char* format, ... );
+
+// The '__counted_by(10)' is not a correct bounds annotation for
+// 'sprintf'. It is used to test that even if 'sprintf' has bounds
+// annotations, the function will still be warned against as 'sprintf'
+// can't be safe.
 int sprintf( char* __counted_by(10) buffer, const char* format, ... );
 
 void test(char * p, char * q, const char * str,
