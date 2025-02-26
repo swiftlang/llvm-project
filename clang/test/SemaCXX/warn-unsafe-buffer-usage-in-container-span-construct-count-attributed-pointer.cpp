@@ -142,3 +142,11 @@ void span_from_output_parm(int * __counted_by(n)  *cb_p, size_t n,
   std::span<char>(sb_z, *l);  // no warn
   std::span<int>(*cb_q, n);   // expected-warning{{the two-parameter std::span construction is unsafe as it can introduce mismatch between buffer size and the bound information}}
 }
+
+size_t strlen( const char* __null_terminated str );
+size_t wcslen( const wchar_t* __null_terminated str );
+void test_span_ctor(const char * __null_terminated p,
+		    const wchar_t * __null_terminated wp) {
+  std::span S{p, strlen(p)};
+  std::span S2{wp, wcslen(wp)};
+}

@@ -806,15 +806,13 @@ static bool isCountAttributedPointerArgumentSafeImpl(
     const Expr * /* Nullable */ CountArg, const Type *CountedByPointerTy,
     const Expr * /* Nullable */ CountedByExpr, bool isSizedBy, bool isOrNull,
     const DependentValuesTy * /* Nullable */ DependentValueMap = nullptr) {
-  assert(CountedByExpr ||
-         CountArg &&
-             "Only one of them can be null. If the __counted_by information is "
-             "hardcoded, there must be an argument representing the actual "
-             "count.");
-  assert(CountedByExpr ||
-         !DependentValueMap &&
-             "If the __counted_by information is hardcoded, there is no "
-             "dependent value map.");
+  assert((CountedByExpr || CountArg) &&
+         "Only one of them can be null. If the __counted_by information is "
+         "hardcoded, there must be an argument representing the actual "
+         "count.");
+  assert((CountedByExpr || !DependentValueMap) &&
+         "If the __counted_by information is hardcoded, there is no "
+         "dependent value map.");
   const Expr *PtrArgNoImp = PtrArg->IgnoreParenImpCasts();
 
   // check form 0:
@@ -872,12 +870,12 @@ static bool isCountAttributedPointerArgumentSafeImpl(
     return false;
 
   if (!DependentValueMap && CountedByExpr)
-    // Bail if the map is not available for case (a). Becuase
+    // Bail if the map is not available for case (a). Because
     // we need the map to substitute parameters to arguments in case (a) but
     // not case(b).
     return false;
 
-  // the acutal count of the pointer inferred through patterns below:
+  // the actual count of the pointer inferred through patterns below:
   const Expr *ActualCount = nullptr;
   const Expr *MemberBase = nullptr;
 
@@ -891,7 +889,10 @@ static bool isCountAttributedPointerArgumentSafeImpl(
   } else if (const auto *ArgCAT =
                  PtrArgNoImp->getType()->getAs<CountAttributedType>()) {
     // Form 5.
-    if (ArgCAT->isOrNull() == isOrNull)
+    bool areBoundsAttributesCompatible =
+        (ArgCAT->isCountInBytes() == isSizedBy || (ArgInBytes && ParamInBytes));
+
+    if (ArgCAT->isOrNull() == isOrNull && areBoundsAttributesCompatible)
       ActualCount = ArgCAT->getCountExpr();
   } else {
     // Form 6-7.
@@ -935,7 +936,7 @@ static bool isCountAttributedPointerArgumentSafe(ASTContext &Context,
 
   return isCountAttributedPointerArgumentSafeImpl(
       Context, Arg, CountArg, CAT, CAT->getCountExpr(), CAT->isCountInBytes(),
-      CAT->isOrNull(), ValuesOpt ? &*ValuesOpt : nullptr);
+      CAT->isOrNull(), ValuesOpt.has_value() ? &*ValuesOpt : nullptr);
 }
 
 // Checks if arguments passed to a function, which has no annotation but
@@ -1013,7 +1014,7 @@ bool isSinglePointerArgumentSafe(ASTContext &Context, const Expr *Arg) {
 //   6. `std::span<T>{p, n}`, where `p` is a __counted_by(`n`)/__sized_by(`n`)
 //   pointer OR `std::span<char>{(char*)p, n}`, where `p` is a __sized_by(`n`)
 //   pointer.
-
+//   7. `std::span<char>{p, strlen(p)}` or `std::span<wchar_t>{p, wcslen(p)}`
 AST_MATCHER(CXXConstructExpr, isSafeSpanTwoParamConstruct) {
   assert(Node.getNumArgs() == 2 &&
          "expecting a two-parameter std::span constructor");
@@ -1071,7 +1072,7 @@ AST_MATCHER(CXXConstructExpr, isSafeSpanTwoParamConstruct) {
     break;
   }
 
-  QualType Arg0Ty = Arg0->IgnoreImplicit()->getType();
+  QualType Arg0Ty = Arg0->getType();
 
   if (auto *ConstArrTy =
           Finder->getASTContext().getAsConstantArrayType(Arg0Ty)) {
@@ -1126,6 +1127,20 @@ AST_MATCHER(CXXConstructExpr, isSafeSpanTwoParamConstruct) {
     return isCompatibleWithCountExpr(Arg1, CAT->getCountExpr(), MemberBase,
                                      /*DependentValues=*/nullptr,
                                      Finder->getASTContext());
+  }
+  // Check form 7:
+  if (const auto *Call = dyn_cast<CallExpr>(Arg1);
+      Call && Call->getNumArgs() == 1) {
+    if (const FunctionDecl *FD = Call->getDirectCallee();
+        FD && FD->getIdentifier()) {
+      StringRef FName = FD->getName();
+      const Expr *CallArg = Call->getArg(0)->IgnoreParenImpCasts();
+
+      // TODO: we can re-use `LibcFunNamePrefixSuffixParser` to support more
+      // variants, e.g., `strlen_s`
+      return (FName == "strlen" || FName == "wcslen") &&
+             AreSameDRE(Arg0, CallArg);
+    }
   }
 
   return false;
@@ -1630,11 +1645,15 @@ AST_MATCHER(CallExpr, hasUnsafeSnprintfBuffer) {
       !Size->getType()->isIntegerType())
     return false; // not an snprintf call
 
-  Buf = Buf->IgnoreParenImpCasts();
-  Size = Size->IgnoreParenImpCasts();
-  return !isHardcodedCountedByPointerArgumentSafe(
-      Finder->getASTContext(), Buf, Size, FirstParmTy.getTypePtr(), true,
-      false);
+  if (auto NumChars =
+          Finder->getASTContext().getTypeSizeInCharsIfKnown(FirstPteTy)) {
+    Buf = Buf->IgnoreParenImpCasts();
+    Size = Size->IgnoreParenImpCasts();
+    return !isHardcodedCountedByPointerArgumentSafe(
+        Finder->getASTContext(), Buf, Size, FirstParmTy.getTypePtr(),
+        NumChars->isOne(), false);
+  }
+  return false;
 }
 } // namespace libc_func_matchers
 
