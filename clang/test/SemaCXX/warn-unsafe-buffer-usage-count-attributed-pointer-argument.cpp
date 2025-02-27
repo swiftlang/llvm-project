@@ -646,3 +646,12 @@ namespace output_param_test {
   };
 
 } // namespace output_param_test
+
+
+static void previous_infinite_loop(int * __counted_by(n) p, size_t n) {
+  previous_infinite_loop(p, n);
+}
+
+static void previous_infinite_loop2(int * __counted_by(n + 10) p, size_t n) {
+  previous_infinite_loop2(p, n);
+}
