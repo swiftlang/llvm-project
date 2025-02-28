@@ -3644,25 +3644,6 @@ getAppleRuntimeUnrollPreferences(Loop *L, ScalarEvolution &SE,
     }
   }
 
-  // Small search loops with multiple exits can be highly beneficial to unroll.
-  if (!L->getExitBlock()) {
-    if (L->getNumBlocks() == 2 && Size < 6 &&
-        all_of(
-            L->getBlocks(),
-            [](BasicBlock *BB) {
-              return isa<BranchInst>(BB->getTerminator());
-            })) {
-      UP.RuntimeUnrollMultiExit = true;
-      UP.Runtime = true;
-      // Limit unroll count.
-      UP.DefaultUnrollRuntimeCount = 4;
-      // Allow slightly more costly trip-count expansion to catch search loops
-      // with pointer inductions.
-      UP.SCEVExpansionBudget = 5;
-    }
-    return;
-  }
-
   if (SE.getSymbolicMaxBackedgeTakenCount(L) != SE.getBackedgeTakenCount(L))
     return;
 
