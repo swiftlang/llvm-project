@@ -3,6 +3,7 @@
 #include <ptrcheck.h>
 typedef unsigned size_t;
 typedef struct {} FILE;
+typedef struct {} va_list;
 
 namespace std {
   template <typename T>
@@ -42,7 +43,7 @@ size_t strlen( const char* __null_terminated str );
 int snprintf( char* __counted_by(buf_size) buffer, size_t buf_size, const char* format, ... );
 // expected-note@+1 2{{consider using a safe container and passing '.data()' to the parameter 'buffer' and '.size()' to its dependent parameter 'buf_size' or 'std::span' and passing '.first(...).data()' to the parameter 'buffer'}}
 int snwprintf( wchar_t* __counted_by(buf_size) buffer, size_t buf_size, const wchar_t* format, ... );
-int vsnprintf( char* __counted_by(buf_size) buffer, size_t buf_size, const char* format, ... );
+int vsnprintf( char* __counted_by(buf_size) buffer, size_t buf_size, const char* format, va_list va_args);
 
 // The '__counted_by(10)' is not a correct bounds annotation for
 // 'sprintf'. It is used to test that even if 'sprintf' has bounds
@@ -68,8 +69,8 @@ void test(char * p, char * q, const char * str,
 
   // v-printf functions and sprintf are still warned about because
   // they cannot be fully safe:
-
-  vsnprintf(safe_p, n, "%s", safe_str); // expected-warning{{function 'vsnprintf' is unsafe}} expected-note{{'va_list' is unsafe}}
+  va_list vlist;
+  vsnprintf(safe_p, n, "%s", vlist); // expected-warning{{function 'vsnprintf' is unsafe}} expected-note{{'va_list' is unsafe}}
   sprintf(safe_ten, "%s", safe_str);    // expected-warning{{function 'sprintf' is unsafe}} expected-note{{change to 'snprintf' for explicit bounds checking}}
 
 }
@@ -100,7 +101,7 @@ int printf(const char*, ... );
 int fprintf (FILE*, const char*, ... );
 int snprintf( char*, size_t, const char*, ... );
 int snwprintf( wchar_t*, size_t, const wchar_t*, ... );
-int vsnprintf( char*, size_t, const char*, ... );
+int vsnprintf( char*, size_t, const char*, va_list va_args );
   // It is convenient to accept functions like `strlen` or `atoi` when
   // they take a __null_termianted argument.
 size_t strlen( const char* );
@@ -120,7 +121,8 @@ void test(const char * __null_terminated safe_str,
 
   // v-printf functions and sprintf are still warned about because
   // they cannot be fully safe:
-  vsnprintf(safe_p, n, "%s", safe_str); // expected-warning{{function 'vsnprintf' is unsafe}} expected-note{{'va_list' is unsafe}}
+  va_list vlist;
+  vsnprintf(safe_p, n, "%s", vlist); // expected-warning{{function 'vsnprintf' is unsafe}} expected-note{{'va_list' is unsafe}}
 }
 
 void test_wchar(const wchar_t * unsafe_wstr,
