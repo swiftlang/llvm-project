@@ -5,20 +5,24 @@ typedef unsigned size_t;
 typedef struct {} FILE;
 
 namespace std {
-  template<typename T>
+  template <typename T>
   struct span {
-    T * ptr;
-    T * data();
-    unsigned size_bytes();
-    unsigned size();
+    T *data() const noexcept;
+    size_t size() const noexcept;
+    size_t size_bytes() const noexcept;
+    span<T> first(size_t count) const noexcept;
+    span<T> last(size_t count) const noexcept;
+    span<T> subspan(size_t offset, size_t count) const noexcept;
+    const T &operator[](const size_t idx) const;
   };
 
-  template<typename T>
+  template <typename CharT>
   struct basic_string {
-    T* p;
-    T *c_str();
-    T *data();
-    unsigned size();
+    const CharT *data() const noexcept;
+    CharT *data() noexcept;
+    const CharT *c_str() const noexcept;
+    size_t size() const noexcept;
+    size_t length() const noexcept;
   };
 
   typedef basic_string<char> string;

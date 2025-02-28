@@ -759,7 +759,8 @@ static bool hasIntegeralConstant(const Expr *E, uint64_t Val, ASTContext &Ctx) {
 // Checks if the argument passed to count-attributed pointer is one of the
 // following forms:
 // 0. `NULL/nullptr`, if the argument to dependent count/size is `0`.
-// 1. `&var`, if `var` is a variable identifier and the dependent count is `1`.
+// 1. `&var`, if `var` is a variable identifier and (1.a.) the dependent count
+//     is `1`; or (1.b.) the counted_by expression is constant `1`
 // 2. `&var`, if `var` is a variable identifier and the dependent size is
 //     equivalent to `sizeof(var)`.
 // 3. `sp.data()` if the argument to dependent count is `sp.size()`.
@@ -832,14 +833,14 @@ static bool isCountAttributedPointerArgumentSafeImpl(
   if (auto *DRE = selectFirst<const DeclRefExpr>(
           "VarIdent", match(AddressofDRE, *PtrArgNoImp, Context))) {
     if (CountArg) {
-      if (!isSizedBy) // form 1:
+      if (!isSizedBy) // form 1.a.:
         return hasIntegeralConstant(CountArg, 1, Context);
       // form 2:
       if (auto TySize = Context.getTypeSizeInCharsIfKnown(DRE->getType()))
         return hasIntegeralConstant(CountArg, TySize->getQuantity(), Context);
     } else
-      // When there is no argument representing the count/size, it is safe iff
-      // the annotation is `__counted_by(1)`.
+      // form 1.b.: when there is no argument representing the count/size, it is
+      // safe iff the annotation is `__counted_by(1)`.
       return !isSizedBy && hasIntegeralConstant(CountedByExpr, 1, Context);
     return false;
   }
@@ -1645,7 +1646,7 @@ AST_MATCHER(CallExpr, hasUnsafeSnprintfBuffer) {
       !Size->getType()->isIntegerType())
     return false; // not an snprintf call
 
-  if (auto NumChars =
+  if (std::optional<CharUnits> NumChars =
           Finder->getASTContext().getTypeSizeInCharsIfKnown(FirstPteTy)) {
     Buf = Buf->IgnoreParenImpCasts();
     Size = Size->IgnoreParenImpCasts();
