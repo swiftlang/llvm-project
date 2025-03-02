@@ -428,13 +428,13 @@ getDependentValuesFromCall(const CountAttributedType *CAT,
 struct CompatibleCountExprVisitor
     : public ConstStmtVisitor<CompatibleCountExprVisitor, bool, const Expr *,
                               bool> {
-  // The third 'bool' type parameter for each visit method indicates whether a
-  // parameter has been substituted with its argument expression in the
-  // expression AST branch being visited.  Since the argument expression may
-  // contain DREs referencing to the same parameter Decl, the analysis may hit
-  // an infinite loop of not knowing whether the substitution has happened.  A
-  // typical example that could introduce infinite loop without this knowledge
-  // is shown below.
+  // The third 'bool' type parameter for each visit method indicates whether the
+  // current visiting expression is the result of the formal parameter to actual
+  // argument substitution.  Since the argument expression may contain DREs
+  // referencing to back to those parameters (in cases of recursive calls), the
+  // analysis may hit an infinite loop if not knowing whether the substitution
+  // has happened.  A typical example that could introduce infinite loop without
+  // this knowledge is shown below.
   // ```
   //  void f(int * __counted_by(n) p, size_t n) {
   //    f(p, n);
