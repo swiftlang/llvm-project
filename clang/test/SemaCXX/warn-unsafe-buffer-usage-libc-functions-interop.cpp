@@ -1,7 +1,8 @@
 // RUN: %clang_cc1 -std=c++20 -Wno-all -Wunsafe-buffer-usage -Wno-error=bounds-safety-strict-terminated-by-cast\
 // RUN:            -verify -fexperimental-bounds-safety-attributes %s
 #include <ptrcheck.h>
-typedef unsigned size_t;
+#include <stddef.h>
+
 typedef struct {} FILE;
 typedef struct {} va_list;
 
