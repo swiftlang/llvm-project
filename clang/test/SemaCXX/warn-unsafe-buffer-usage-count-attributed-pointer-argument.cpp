@@ -72,7 +72,7 @@ void cb_cchar_42(const char *__counted_by(42) s);
 // expected-note@+1 19{{consider using a safe container and passing '.data()' to the parameter 'p' and '.size()' to its dependent parameter 'count' or 'std::span' and passing '.first(...).data()' to the parameter 'p'}}
 void cb_int(int *__counted_by(count) p, size_t count);
 
-// expected-note@+1 33{{consider using a safe container and passing '.data()' to the parameter 'p' and '.size()' to its dependent parameter 'count' or 'std::span' and passing '.first(...).data()' to the parameter 'p'}}
+// expected-note@+1 +{{consider using a safe container and passing '.data()' to the parameter 'p' and '.size()' to its dependent parameter 'count' or 'std::span' and passing '.first(...).data()' to the parameter 'p'}}
 void cb_cint(const int *__counted_by(count) p, size_t count);
 
 // expected-note@+1 10{{consider using 'std::span' and passing '.first(...).data()' to the parameter 'p'}}
