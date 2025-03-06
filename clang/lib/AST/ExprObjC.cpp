@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 
 using namespace clang;
 
@@ -357,7 +358,7 @@ ObjCAvailabilityCheckExpr *ObjCAvailabilityCheckExpr::CreateEmpty(
       totalSizeToAlloc<char>(FeaturesLen + 1),
       alignof(ObjCAvailabilityCheckExpr));
   new (E) ObjCAvailabilityCheckExpr(Empty);
-  bzero(E->getTrailingObjects<char>(), FeaturesLen + 1);
+  memset(E->getTrailingObjects<char>(), 0, FeaturesLen + 1);
   return E;
 }
 
