@@ -104,6 +104,14 @@ static bool IsSwiftAsyncFunctionSymbol(swift::Demangle::NodePointer node) {
                       Node::Kind::AsyncAnnotation});
 }
 
+static bool NullSafeNodeDeepEquals(swift::Demangle::NodePointer node1,
+                                   swift::Demangle::NodePointer node2) {
+  if (!node1 || !node2) {
+    return node1 == node2;
+  }
+  return Node::deepEquals(node1, node2);
+}
+
 /// Returns true if closure1 and closure2 have the same number, type, and
 /// parent closures / function.
 static bool
@@ -112,12 +120,12 @@ AreFuncletsOfSameAsyncClosure(swift::Demangle::NodePointer closure1,
   using namespace swift::Demangle;
   NodePointer closure1_number = childAtPath(closure1, Node::Kind::Number);
   NodePointer closure2_number = childAtPath(closure2, Node::Kind::Number);
-  if (!Node::deepEquals(closure1_number, closure2_number))
+  if (!NullSafeNodeDeepEquals(closure1_number, closure2_number))
     return false;
 
   NodePointer closure1_type = childAtPath(closure1, Node::Kind::Type);
   NodePointer closure2_type = childAtPath(closure2, Node::Kind::Type);
-  if (!Node::deepEquals(closure1_type, closure2_type))
+  if (!NullSafeNodeDeepEquals(closure1_type, closure2_type))
     return false;
 
   // Because the tree is inverted, a parent closure (in swift code) is a child
@@ -126,14 +134,14 @@ AreFuncletsOfSameAsyncClosure(swift::Demangle::NodePointer closure1,
       childAtPath(closure1, Node::Kind::ExplicitClosure);
   NodePointer closure2_parent =
       childAtPath(closure2, Node::Kind::ExplicitClosure);
-  if (!Node::deepEquals(closure1_parent, closure2_parent))
+  if (!NullSafeNodeDeepEquals(closure1_parent, closure2_parent))
     return false;
 
   // If there are no ExplicitClosure as parents, there may still be a
   // Function. Also check that they are identical.
   NodePointer closure1_function = childAtPath(closure1, Node::Kind::Function);
   NodePointer closure2_function = childAtPath(closure2, Node::Kind::Function);
-  return Node::deepEquals(closure1_function, closure2_function);
+  return NullSafeNodeDeepEquals(closure1_function, closure2_function);
 }
 
 SwiftLanguageRuntime::FuncletComparisonResult
@@ -172,7 +180,7 @@ SwiftLanguageRuntime::AreFuncletsOfSameAsyncFunction(llvm::StringRef name1,
   // Otherwise, find the corresponding function and compare the two.
   NodePointer function1 = childAtPath(node1, Node::Kind::Function);
   NodePointer function2 = childAtPath(node2, Node::Kind::Function);
-  return Node::deepEquals(function1, function2)
+  return NullSafeNodeDeepEquals(function1, function2)
              ? FuncletComparisonResult::SameAsyncFunction
              : FuncletComparisonResult::DifferentAsyncFunctions;
 }
