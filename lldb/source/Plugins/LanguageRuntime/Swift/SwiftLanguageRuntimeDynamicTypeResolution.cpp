@@ -1831,7 +1831,8 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_Class(
         });
         return found;
       }
-      return false;
+      // Fall through. Swift-implemented Objective-C types may still
+      // be resolvable through the Swift class metadata.
     }
   Log *log(GetLog(LLDBLog::Types));
   // Scope reflection_ctx to minimize its lock scope.
