@@ -83,7 +83,7 @@ using namespace sema;
 bool Sema::isCXXSafeBuffersBoundsSafetyInteropEnabledAt(
     SourceLocation Loc) const {
   // Informations of '#pragma clang unsafe_buffer_usage begin/end' are stored
-  // Preprocessor.  So we need also check
+  // in the Preprocessor.  So we need also check
   // `getPreprocessor().isSafeBufferOptOut`.
   bool NotSupressedByPragmas =
       Loc.isInvalid() || !getPreprocessor().isSafeBufferOptOut(SourceMgr, Loc);
