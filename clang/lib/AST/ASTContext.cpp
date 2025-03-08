@@ -910,7 +910,7 @@ ASTContext::getFeatureAvailInfo(StringRef FeatureName) const {
 
   auto I = AvailabilityDomainMap.find(FeatureName);
   if (I != AvailabilityDomainMap.end())
-    return I->second;
+    return getFeatureAvailInfo(I->second).second;
 
   return {};
 }
@@ -13213,6 +13213,10 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
 
   const auto *VD = cast<VarDecl>(D);
   assert(VD->isFileVarDecl() && "Expected file scoped var");
+
+  // Variables annotated with availability_domain need to be deserialized.
+  if (VD->hasAttr<AvailabilityDomainAttr>())
+    return true;
 
   // If the decl is marked as `declare target to`, it should be emitted for the
   // host and for the device.

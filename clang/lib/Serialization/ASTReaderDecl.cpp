@@ -1683,6 +1683,10 @@ ASTDeclReader::RedeclarableResult ASTDeclReader::VisitVarDeclImpl(VarDecl *VD) {
   }
   }
 
+  if (auto *Attr = VD->getAttr<AvailabilityDomainAttr>())
+    Reader.getContext().addAvailabilityDomainMap(Attr->getName()->getName(),
+                                                 VD);
+
   return Redecl;
 }
 

@@ -808,10 +808,10 @@ public:
     bool isInvalid() const { return Kind == FeatureAvailKind::None; }
   };
 
-  std::map<StringRef, AvailabilityDomainInfo> AvailabilityDomainMap;
+  std::map<StringRef, VarDecl *> AvailabilityDomainMap;
 
-  void addAvailabilityDomainMap(StringRef Name, AvailabilityDomainInfo Info) {
-    AvailabilityDomainMap[Name] = Info;
+  void addAvailabilityDomainMap(StringRef Name, VarDecl *VD) {
+    AvailabilityDomainMap[Name] = VD;
   }
 
   std::pair<DomainAvailabilityAttr *, bool>
