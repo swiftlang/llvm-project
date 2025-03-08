@@ -1799,15 +1799,28 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_Class(
   if (!error.Success())
     return false;
 
+  bool is_clang_type = false;
   auto tss = class_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
+  if (!tss) {
+    is_clang_type = true;
+    auto module_sp = in_value.GetModule();
+    auto type_system_or_err =
+        module_sp->GetTypeSystemForLanguage(lldb::eLanguageTypeSwift);
+    if (!type_system_or_err) {
+      llvm::consumeError(type_system_or_err.takeError());
+      return false;
+    }
+    auto ts_sp = *type_system_or_err;
+    tss = llvm::cast<TypeSystemSwift>(ts_sp.get())->GetTypeSystemSwiftTypeRef();
+  }
   if (!tss)
     return false;
+
   address.SetRawAddress(instance_ptr);
   auto ts = tss->GetTypeSystemSwiftTypeRef();
   if (!ts)
     return false;
-  // Ask the Objective-C runtime about Objective-C types.
-  if (tss->IsImportedType(class_type.GetOpaqueQualType(), nullptr))
+  auto resolve_objc = [&]() {
     if (auto *objc_runtime =
             SwiftLanguageRuntime::GetObjCRuntime(GetProcess())) {
       Value::ValueType value_type;
@@ -1831,12 +1844,12 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_Class(
         });
         return found;
       }
-      // Fall through. Swift-implemented Objective-C types may still
-      // be resolvable through the Swift class metadata.
     }
-  Log *log(GetLog(LLDBLog::Types));
-  // Scope reflection_ctx to minimize its lock scope.
-  {
+    return false;
+  };
+
+  auto resolve_swift = [&]() {
+    // Scope reflection_ctx to minimize its lock scope.
     ThreadSafeReflectionContext reflection_ctx = GetReflectionContext();
     if (!reflection_ctx)
       return false;
@@ -1859,9 +1872,19 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_Class(
     swift::Demangle::Demangler dem;
     swift::Demangle::NodePointer node = typeref->getDemangling(dem);
     CompilerType dynamic_type = ts->RemangleAsType(dem, node);
-    LLDB_LOG(log, "dynamic type of instance_ptr {0:x} is {1}", instance_ptr,
+    LLDB_LOG(GetLog(LLDBLog::Types),
+             "dynamic type of instance_ptr {0:x} is {1}", instance_ptr,
              class_type.GetMangledTypeName());
     class_type_or_name.SetCompilerType(dynamic_type);
+    return true;
+  };
+
+  if (!resolve_swift()) {
+    // Ask the Objective-C runtime about Objective-C types.
+    if (is_clang_type || !tss->IsImportedType(class_type.GetOpaqueQualType(), nullptr))
+      if (resolve_objc())
+        return true;
+    return false;
   }
 
 #ifndef NDEBUG
@@ -2711,21 +2734,27 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress(
     return false;
 
   LLDB_SCOPED_TIMER();
+  CompilerType val_type(in_value.GetCompilerType());
+  Value::ValueType static_value_type = Value::ValueType::Invalid;
 
   // Try to import a Clang type into Swift.
-  if (in_value.GetObjectRuntimeLanguage() == eLanguageTypeObjC)
-    return GetDynamicTypeAndAddress_ClangType(
-        in_value, use_dynamic, class_type_or_name, address, value_type);
+  if (in_value.GetObjectRuntimeLanguage() == eLanguageTypeObjC) {
+    if (GetDynamicTypeAndAddress_ClangType(
+            in_value, use_dynamic, class_type_or_name, address, value_type))
+      return true;
+    else
+      return GetDynamicTypeAndAddress_Class(in_value, val_type, use_dynamic,
+                                            class_type_or_name, address,
+                                            static_value_type);
+  }
 
   if (!CouldHaveDynamicValue(in_value))
     return false;
 
-  CompilerType val_type(in_value.GetCompilerType());
   Flags type_info(val_type.GetTypeInfo());
   if (!type_info.AnySet(eTypeIsSwift))
     return false;
 
-  Value::ValueType static_value_type = Value::ValueType::Invalid;
   bool success = false;
   bool is_indirect_enum_case = IsIndirectEnumCase(in_value);
   // Type kinds with instance metadata don't need generic type resolution.
