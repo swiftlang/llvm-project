@@ -815,6 +815,8 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
       const char *ContextHash =
           clang_experimental_DepGraphModule_getContextHash(Mod);
       int CwdIgnored = clang_experimental_DepGraphModule_isCWDIgnored(Mod);
+      bool IsInStableDir =
+          clang_experimental_DepGraphModule_isInStableDirs(Mod);
       const char *ModuleMapPath =
           clang_experimental_DepGraphModule_getModuleMapPath(Mod);
       const char *ModuleIncludeTreeID =
@@ -835,6 +837,9 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
                    << "    cwd-ignored: " << CwdIgnored << "\n"
                    << "    module-map-path: "
                    << (ModuleMapPath ? ModuleMapPath : "<none>") << "\n";
+      if (IsInStableDir)
+        llvm::outs() << "    is-in-stable-directories: " << IsInStableDir
+                     << "\n";
       if (ModuleIncludeTreeID)
         llvm::outs() << "    include-tree-id: " << ModuleIncludeTreeID << "\n";
       if (ModuleCacheKey)
