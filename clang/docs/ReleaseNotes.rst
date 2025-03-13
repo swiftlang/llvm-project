@@ -1314,6 +1314,10 @@ Windows Support
   to ensure compatibility with msvc. Previously strict aliasing was only disabled if the
   driver mode was cl.
 
+- Clang now can process the `i128` and `ui128` integeral suffixes when MSVC
+  extensions are enabled. This allows for properly processing ``intsafe.h`` in
+  the Windows SDK.
+
 LoongArch Support
 ^^^^^^^^^^^^^^^^^
 
