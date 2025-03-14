@@ -10,14 +10,11 @@
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Process.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/Support/raw_ostream.h"
-#if LLVM_ON_UNIX
-#include <sys/time.h>
-#include <unistd.h>
-#endif
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -75,6 +72,18 @@ OnDiskCASLogger::open(const Twine &Path, bool LogAllocations) {
       new OnDiskCASLogger{*OS.release(), LogAllocations});
 }
 
+static uint64_t getTimestampMillis() {
+  #if __apple__
+    // Using chrono is roughly 50% slower.
+    gettimeofday(&tv, 0);
+    return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+  #else
+    auto Time = std::chrono::system_clock::now();
+    auto Millis = std::chrono::duration_cast<std::chrono::milliseconds>(Time.time_since_epoch());
+    return Millis.count();
+  #endif
+}
+
 namespace {
 /// Helper to log a single line that adds the timestamp, pid, and tid. The line
 /// is buffered and written in a single call to write() so that if the
@@ -91,14 +100,9 @@ public:
   }
 
   static void startLogMsg(raw_ostream &OS) {
-#if LLVM_ON_UNIX
-    struct timeval T;
-    gettimeofday(&T, nullptr);
-    uint64_t Tid;
-    pthread_threadid_np(NULL, &Tid);
-    OS << format("%d.%0.6d", T.tv_sec, T.tv_usec);
-    OS << ' ' << getpid() << ' ' << Tid << ": ";
-#endif
+    auto Millis = getTimestampMillis();
+    OS << format("%lld.%0.6lld", Millis / 1000, Millis % 1000);
+    OS << ' ' << sys::Process::getProcessId() << ' ' << get_threadid() << ": ";
   }
 
   static void finishLogMsg(raw_ostream &OS) { OS << '\n'; }
