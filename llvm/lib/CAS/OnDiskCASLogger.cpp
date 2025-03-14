@@ -12,6 +12,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/raw_ostream.h"
@@ -24,7 +25,7 @@ using namespace llvm::cas::ondisk;
 // in an incompatible way. It is currently a human-readable text file, so in
 // practice this would be if the log changed to binary or other machine-
 // readable format.
-static constexpr StringLiteral Filename = "/v1.log";
+static constexpr StringLiteral Filename = "v1.log";
 
 OnDiskCASLogger::OnDiskCASLogger(raw_fd_ostream &OS, bool LogAllocations)
     : OS(OS), LogAllocations(LogAllocations) {}
@@ -57,7 +58,8 @@ Expected<std::unique_ptr<OnDiskCASLogger>>
 OnDiskCASLogger::open(const Twine &Path, bool LogAllocations) {
   std::error_code EC;
   SmallString<128> FullPath;
-  (Path + Filename).toVector(FullPath);
+  Path.toVector(FullPath);
+  sys::path::append(FullPath, Filename);
 
   auto OS =
       std::make_unique<raw_fd_ostream>(FullPath, EC, sys::fs::CD_OpenAlways,
