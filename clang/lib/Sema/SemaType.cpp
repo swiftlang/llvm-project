@@ -10893,7 +10893,14 @@ public:
     // replace the MemberExpr by DeclRefExpr.
     // TODO: Check if this works for FAMs.
     // TODO: Add support for MemberExpr (rdar://134311605).
-    if (!IsArray && SemaRef.getLangOpts().CPlusPlus) {
+    if (SemaRef.getLangOpts().CPlusPlus) {
+      // The MemberExprs that are allowed in C++ but not in C are those having
+      // `this->` implicitly or explicitly as their bases:
+      const Expr *Base = E->getBase();
+
+      if (!(Base->isImplicitCXXThis() ||
+            isa<CXXThisExpr>(Base->IgnoreParenImpCasts())))
+        goto BOUNDS_SAFETY_CHECK_FAM_OR_ARROW_FOR_MEMBER;
       ValueDecl *VD = E->getMemberDecl();
       bool IsNewVD = Visited.insert(VD).second;
       if (IsNewVD)
@@ -10904,7 +10911,7 @@ public:
           VD->getType(), VK_LValue);
       return DRE;
     }
-
+  BOUNDS_SAFETY_CHECK_FAM_OR_ARROW_FOR_MEMBER:
     if (!IsArray) {
       SemaRef.Diag(
           E->getExprLoc(),
