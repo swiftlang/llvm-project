@@ -16,6 +16,9 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/raw_ostream.h"
+#ifdef __APPLE__
+#include <sys/time.h>
+#endif
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -75,10 +78,11 @@ OnDiskCASLogger::open(const Twine &Path, bool LogAllocations) {
 }
 
 static uint64_t getTimestampMillis() {
-  #if __apple__
+  #ifdef __APPLE__
     // Using chrono is roughly 50% slower.
-    gettimeofday(&tv, 0);
-    return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    struct timeval T;
+    gettimeofday(&T, 0);
+    return T.tv_sec * 1000 + T.tv_usec / 1000;
   #else
     auto Time = std::chrono::system_clock::now();
     auto Millis = std::chrono::duration_cast<std::chrono::milliseconds>(Time.time_since_epoch());
