@@ -107,7 +107,7 @@ public:
 
   static void startLogMsg(raw_ostream &OS) {
     auto Millis = getTimestampMillis();
-    OS << format("%lld.%0.6lld", Millis / 1000, Millis % 1000);
+    OS << format("%lld.%0.3lld", Millis / 1000, Millis % 1000);
     OS << ' ' << sys::Process::getProcessId() << ' ' << get_threadid() << ": ";
   }
 
