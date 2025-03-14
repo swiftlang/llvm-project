@@ -39,3 +39,29 @@ class FAM_ARROW {
   T *tp;
   int fam[__counted_by(tp->count)]; // expected-error{{arrow notation not allowed for struct member in count parameter}}
 };
+
+class FAM_THIS_ARROW_ARROW {
+  T *tp;
+  int fam[__counted_by(this->tp->count)]; // expected-error{{arrow notation not allowed for struct member in count parameter}}
+};
+
+class FAM_THIS_ARROW_DOT {
+  T t;
+  int fam[__counted_by(this->t.count)]; // dot-expressions in counted-by is ok for FAMs
+};
+
+class FAM_ARITHMETIC {
+  int count;
+  int offset;
+  int fam[__counted_by(count - offset)]; //  ok
+};
+
+class FAM_THIS_PTR_ARITHMETIC {
+  int count;
+  int fam[__counted_by((this + 1)->count)]; // expected-error{{arrow notation not allowed for struct member in count parameter}}
+};
+
+class FAM_THIS_PTR_DEREFERENCE {
+  int count;
+  int fam[__counted_by((*this).count)];     // expected-error{{invalid argument expression to bounds attribute}}
+};
