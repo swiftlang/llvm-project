@@ -850,12 +850,13 @@ public:
     }
     case 3: {
       if (!m_child_tasks_sp) {
-        const auto &tasks = m_task_info.childTasks;
+        using task_type = decltype(m_task_info.childTasks)::value_type;
+        const std::vector<task_type> &tasks = m_task_info.childTasks;
         std::string mangled_typename =
             mangledTypenameForTasksTuple(tasks.size());
         CompilerType tasks_tuple_type =
             m_ts->GetTypeFromMangledTypename(ConstString(mangled_typename));
-        DataExtractor data{tasks.data(), tasks.size() * sizeof(tasks[0]),
+        DataExtractor data{tasks.data(), tasks.size() * sizeof(task_type),
                            endian::InlHostByteOrder(), sizeof(void *)};
         m_child_tasks_sp = ValueObject::CreateValueObjectFromData(
             "children", data, m_backend.GetExecutionContextRef(),
@@ -1645,7 +1646,7 @@ bool lldb_private::formatters::swift::TaskPriority_SummaryProvider(
   return true;
 }
 
-static const std::pair<const char *, const char *> TASK_FLAGS[] = {
+static const std::pair<StringRef, StringRef> TASK_FLAGS[] = {
     {"isRunning", "running"},
     {"isCancelled", "cancelled"},
     {"isEscalated", "escalated"},
@@ -1668,7 +1669,7 @@ bool lldb_private::formatters::swift::Task_SummaryProvider(
 
   stream.Format("id:{0}", get_member("id"));
 
-  std::vector<const char *> flags;
+  std::vector<StringRef> flags;
   for (auto [member, flag] : TASK_FLAGS)
     if (get_member(member))
       flags.push_back(flag);
