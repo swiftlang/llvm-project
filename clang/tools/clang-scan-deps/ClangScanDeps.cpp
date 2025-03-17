@@ -732,6 +732,9 @@ public:
               JOS.attribute("casfs-root-id",
                             StringRef(MD.CASFileSystemRootID->toString()));
 
+            if (MD.IsInStableDirectories)
+              JOS.attribute("is-in-stable-directories",
+                            MD.IsInStableDirectories);
             JOS.attributeArray("clang-module-deps",
                                toJSONSorted(JOS, MD.ClangModuleDeps));
             JOS.attribute("clang-modulemap-file",
