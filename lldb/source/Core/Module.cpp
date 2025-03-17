@@ -1200,14 +1200,13 @@ bool Module::IsSwiftCxxInteropEnabled() {
       for (auto &[cu, args] : options) {
         if (cu->GetLanguage() != eLanguageTypeSwift)
           continue;
-        for (const char *arg : args.GetArgumentArrayRef()) {
-          if (strcmp(arg, "-enable-experimental-cxx-interop") == 0) {
+        for (llvm::StringRef arg : args.GetArgumentArrayRef()) {
+          if (arg.starts_with("-cxx-interoperability-mode=") ||
+              arg == "-enable-experimental-cxx-interop") {
             m_is_swift_cxx_interop_enabled = eLazyBoolYes;
-            break;
+            return true;
           }
         }
-        if (m_is_swift_cxx_interop_enabled == eLazyBoolYes)
-          break;
       }
     }
     if (m_is_swift_cxx_interop_enabled == eLazyBoolCalculate)
