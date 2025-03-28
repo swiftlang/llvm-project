@@ -15,9 +15,8 @@ class TestCase(TestBase):
             self, "break here", lldb.SBFileSpec("main.swift")
         )
         frame = thread.GetSelectedFrame()
-        self.expect(
-            "image list libswift_Concurrency.dylib", substrs=["just show me the output"]
-        )
+        actor_addr = frame.var("a").addr
+        self.expect(f"x/12g {actor_addr}", substrs=["just show me the output"])
         unprioritised_jobs = frame.var("a.$defaultActor.unprioritised_jobs")
         # There are 4 child tasks (async let), the first one occupies the actor
         # with a sleep, the next 3 go on to the queue.
