@@ -15,8 +15,12 @@ class TestCase(TestBase):
             self, "break here", lldb.SBFileSpec("main.swift")
         )
         frame = thread.GetSelectedFrame()
-        actor_addr = frame.var("a").addr
-        self.expect(f"x/12g {actor_addr}", substrs=["just show me the output"])
+        log_file = self.getBuildArtifact("lldb_logs.txt")
+        self.runCmd(f"log enable lldb formatters types -f {log_file}")
+        self.runCmd("p a")
+        with open(log_file) as f:
+            logs = f.read()
+        self.fail(logs)
         unprioritised_jobs = frame.var("a.$defaultActor.unprioritised_jobs")
         # There are 4 child tasks (async let), the first one occupies the actor
         # with a sleep, the next 3 go on to the queue.
