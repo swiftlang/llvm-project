@@ -1420,8 +1420,7 @@ public:
 
     if (status.Fail()) {
       LLDB_LOG(GetLog(LLDBLog::DataFormatters | LLDBLog::Types),
-               "could not read TaskGroup's child task pointers: {0}",
-               status.AsCString());
+               "could not read actor's job pointers: {0}", status.AsCString());
       return ChildCacheState::eReuse;
     }
 
