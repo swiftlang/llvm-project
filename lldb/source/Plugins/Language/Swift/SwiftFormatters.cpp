@@ -1322,23 +1322,23 @@ private:
   std::vector<ValueObjectSP> m_children;
 };
 
-// Offset of ActiveActorStatus from _$defaultActor_.
-//
-// The layout of DefaultActorImpl has the following labeled layout.
-//
-// DefaultActorImpl:
-//   0: HeapObject
-// $defaultActor:
-//   16/0: isDistributedRemoteActor
-//   17/1: <alignment padding>
-//   32/16: StatusStorage
-//
-// As shown, the $defaultActor field does not point to the start of the
-// DefaultActorImpl.
-//
-// The StatusStorage is at offset of +32 from the start of DefaultActorImpl, or
-// at +16 relative to $defaultActor. The formatters are based on $defaultActor,
-// and as such use the relative offset.
+/// Offset of ActiveActorStatus from _$defaultActor_.
+///
+/// DefaultActorImpl has the following (labeled) layout.
+///
+/// DefaultActorImpl:
+///   0: HeapObject
+/// $defaultActor:
+///   16/0: isDistributedRemoteActor
+///   17/1: <alignment padding>
+///   32/16: StatusStorage
+///
+/// As shown, the $defaultActor field does not point to the start of the
+/// DefaultActorImpl.
+///
+/// The StatusStorage is at offset of +32 from the start of DefaultActorImpl, or
+/// at +16 relative to $defaultActor. The formatters are based on $defaultActor,
+/// and as such use the relative offset.
 static constexpr offset_t ActiveActorStatusOffset = 16;
 
 class ActorSyntheticFrontEnd : public SyntheticChildrenFrontEnd {
@@ -1875,6 +1875,9 @@ bool lldb_private::formatters::swift::Actor_SummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
   static constexpr offset_t FlagsOffset = ActiveActorStatusOffset;
   auto addr = valobj.GetLoadAddress();
+  if (addr == LLDB_INVALID_ADDRESS)
+    return false;
+
   auto flags_addr = addr + FlagsOffset;
   Status status;
   uint64_t flags = 0;
@@ -1888,6 +1891,7 @@ bool lldb_private::formatters::swift::Actor_SummaryProvider(
 
   using namespace ::swift::concurrency::ActorFlagConstants;
   uint8_t state = flags & ActorStateMask;
+  static_assert(Zombie_ReadyForDeallocation == 3);
   if (state > Zombie_ReadyForDeallocation) {
     stream << "<unknown actor state: " << Twine(state).str() << ">";
     return true;
