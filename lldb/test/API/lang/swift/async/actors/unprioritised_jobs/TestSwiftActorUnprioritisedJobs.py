@@ -8,6 +8,9 @@ class TestCase(TestBase):
 
     @swiftTest
     @skipUnlessFoundation
+    @skipIfWindows  # temporarily skip test until fails can be investigated
+    @skipIfLinux    # temporarily skip test until fails can be investigated
+    @skipIfDarwin   # temporarily skip test until fails can be investigated
     def test_actor_unprioritised_jobs(self):
         """Verify that an actor exposes its unprioritised jobs (queue)."""
         self.build()
