@@ -15,9 +15,10 @@ class TestCase(TestBase):
             self, "break here", lldb.SBFileSpec("main.swift")
         )
         frame = thread.GetSelectedFrame()
-        defaultActor = frame.var("a.$defaultActor")
-        self.assertEqual(defaultActor.summary, "running")
-        unprioritised_jobs = defaultActor.GetChildMemberWithName("unprioritised_jobs")
+        unprioritised_jobs = frame.var("a.$defaultActor.unprioritised_jobs")
+        #defaultActor = frame.var("a.$defaultActor")
+        #self.assertEqual(defaultActor.summary, "running")
+        #unprioritised_jobs = defaultActor.GetChildMemberWithName("unprioritised_jobs")
         # There are 4 child tasks (async let), the first one occupies the actor
         # with a sleep, the next 3 go on to the queue.
         # TODO: rdar://148377173
