@@ -17,20 +17,20 @@ declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #0
 ; Function Attrs: nounwind
 define hidden swifttailcc void @"$ss23withCheckedContinuation8function_xSS_yScCyxs5NeverOGXEtYalFTQ0_"(ptr nocapture readonly %0) #1 {
 ; CHECK-LABEL: $ss23withCheckedContinuation8function_xSS_yScCyxs5NeverOGXEtYalFTQ0_:
+
 ; CHECK:       // %bb.0: // %entryresume.0
-; CHECK-NEXT:    sub sp, sp, #48
-; CHECK-NEXT:    stp x30, x29, [sp, #24] // 16-byte Folded Spill
-; CHECK-NEXT:    add x29, sp, #24
-; CHECK-NEXT:    str x19, [sp, #40] // 8-byte Folded Spill
-; CHECK-NEXT:    adrp x19, __imp_swift_task_dealloc
-; CHECK-NEXT:    str xzr, [sp, #16]
-; CHECK-NEXT:    ldr x8, [x0]
-; CHECK-NEXT:    stur x8, [x29, #-8]
-; CHECK-NEXT:    ldr x20, [x0]
-; CHECK-NEXT:    ldp x22, x0, [x8, #16]
-; CHECK-NEXT:    stur x20, [x29, #-8]
-; CHECK-NEXT:    ldr x19, [x19, :lo12:__imp_swift_task_dealloc]
-; CHECK-NEXT:    blr x19
+; CHECK-NEXT:    sub     sp, sp, #48
+; CHECK-NEXT:    stp     x30, x29, [sp, #24]             // 16-byte Folded Spill
+; CHECK-NEXT:    add     x29, sp, #24
+; CHECK-NEXT:    str     x19, [sp, #40]                  // 8-byte Folded Spill
+; CHECK-NEXT:    adrp    x19, __imp_swift_task_dealloc
+; CHECK-NEXT:    str     xzr, [sp, #16]
+; CHECK-NEXT:    ldr     x8, [x0]
+; CHECK-NEXT:    ldr     x20, [x0]
+; CHECK-NEXT:    ldp     x22, x0, [x8, #16]
+; CHECK-NEXT:    stur    x20, [x29, #-8]
+; CHECK-NEXT:    ldr     x19, [x19, :lo12:__imp_swift_task_dealloc]
+; CHECK-NEXT:    blr     x19
 ; CHECK-NEXT:    mov x0, x22
 ; CHECK-NEXT:    blr x19
 ; CHECK-NEXT:    ldp x30, x29, [sp, #24] // 16-byte Folded Reload

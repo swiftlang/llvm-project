@@ -807,7 +807,17 @@ def int_objc_arc_annotation_bottomup_bbend  : Intrinsic<[],
 // Returns the location of the Swift asynchronous context (usually stored just
 // before the frame pointer), and triggers the creation of a null context if it
 // would otherwise be unneeded.
-def int_swift_async_context_addr : Intrinsic<[llvm_ptr_ty], [], []>;
+// The intrinsics is used in partial functions to store the current async frame
+// -- the "caller's async frame" in the designated stack slot after returning
+// from the callee. The continutation partial function is passed the callee's
+// async frame pointer.
+// We expected there to be at most one call to this intrinic in await partial
+// function. The returned stack location is assumed no to alias with any program
+// accessible memory. This is valid if the frontend only emits one call to
+// the intrinsic per post coro split partial function. And furthermore, the
+// frontend needs to ensure that inlining of funclets is blocked.
+def int_swift_async_context_addr : Intrinsic<[llvm_ptr_ty], [],
+                                    [IntrInaccessibleMemOnly, NoAlias<RetIndex>]>;
 
 //===--------------------- Code Generator Intrinsics ----------------------===//
 //
