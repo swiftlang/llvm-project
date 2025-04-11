@@ -2457,6 +2457,8 @@ public:
 
   bool isObjCAvailabilityCheck() const;
 
+  bool isObjCAvailabilityCheckWithDomainName() const;
+
   SourceLocation getBeginLoc() const { return getIfLoc(); }
   SourceLocation getEndLoc() const LLVM_READONLY {
     if (getElse())
