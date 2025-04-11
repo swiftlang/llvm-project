@@ -3119,6 +3119,8 @@ static void PushProtocolProperties(
     SmallVectorImpl<const ObjCPropertyDecl *> &Properties,
     const ObjCProtocolDecl *Proto, bool IsClassProperty) {
   for (const auto *PD : Proto->properties()) {
+    if (Proto->getASTContext().hasUnavailableFeature(PD))
+      continue;
     if (IsClassProperty != PD->isClassProperty())
       continue;
     if (!PropertySet.insert(PD->getIdentifier()).second)
@@ -3160,6 +3162,8 @@ llvm::Constant *CGObjCCommonMac::EmitPropertyList(
   if (const ObjCInterfaceDecl *OID = dyn_cast<ObjCInterfaceDecl>(OCD))
     for (const ObjCCategoryDecl *ClassExt : OID->known_extensions())
       for (auto *PD : ClassExt->properties()) {
+        if (CGM.getContext().hasUnavailableFeature(PD))
+          continue;
         if (IsClassProperty != PD->isClassProperty())
           continue;
         if (PD->isDirectProperty())
@@ -3169,6 +3173,8 @@ llvm::Constant *CGObjCCommonMac::EmitPropertyList(
       }
 
   for (const auto *PD : OCD->properties()) {
+    if (CGM.getContext().hasUnavailableFeature(PD))
+      continue;
     if (IsClassProperty != PD->isClassProperty())
       continue;
     // Don't emit duplicate metadata for properties that were already in a
@@ -5222,6 +5228,9 @@ void IvarLayoutBuilder::visitAggregate(Iterator begin, Iterator end,
   for (; begin != end; ++begin) {
     auto field = *begin;
 
+    if (CGM.getContext().hasUnavailableFeature(field))
+      continue;
+
     // Skip over bitfields.
     if (field->isBitField()) {
       continue;
@@ -6644,6 +6653,9 @@ void CGObjCNonFragileABIMac::GenerateCategory(const ObjCCategoryImplDecl *OCD) {
 void CGObjCNonFragileABIMac::emitMethodConstant(ConstantArrayBuilder &builder,
                                                 const ObjCMethodDecl *MD,
                                                 bool forProtocol) {
+  if (CGM.getContext().hasUnavailableFeature(MD))
+    return;
+
   auto method = builder.beginStruct(ObjCTypes.MethodTy);
   method.add(GetMethodVarName(MD->getSelector()));
   method.add(GetMethodVarType(MD));
@@ -6839,6 +6851,9 @@ CGObjCNonFragileABIMac::EmitIvarList(const ObjCImplementationDecl *ID) {
        IVD = IVD->getNextIvar()) {
     // Ignore unnamed bit-fields.
     if (!IVD->getDeclName())
+      continue;
+
+    if (CGM.getContext().hasUnavailableFeature(IVD))
       continue;
 
     auto ivar = ivars.beginStruct(ObjCTypes.IvarnfABITy);
