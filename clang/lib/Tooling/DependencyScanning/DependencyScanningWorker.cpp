@@ -586,6 +586,11 @@ public:
     auto *FileMgr = ScanInstance.createFileManager(FS);
     ScanInstance.createSourceManager(*FileMgr);
 
+    // Initialize PrefixMapper incase mappings exist.
+    DepscanPrefixMapping::configurePrefixMapper(
+        ScanInstance.getFrontendOpts().PathPrefixMappings,
+        ScanInstance.getPrefixMapper());
+
     // Create a collection of stable directories derived from the ScanInstance
     // for determining whether module dependencies would fully resolve from
     // those directories.
@@ -594,6 +599,20 @@ public:
     if (!Sysroot.empty() &&
         (llvm::sys::path::root_directory(Sysroot) != Sysroot))
       StableDirs = {Sysroot, ScanInstance.getHeaderSearchOpts().ResourceDir};
+
+    // When remapping is disabled, the stable directory paths are references to
+    // strings tied to the CompilerInstance. Otherwise, these potentially mapped
+    // strings need to be allocated. To reduce the number of downstream changes
+    // required to this support allocation, tie the lifetime of these strings to
+    // visiting all dependencies of a prebuilt module.
+    llvm::PrefixMapper &Mapper = ScanInstance.getPrefixMapper();
+    llvm::BumpPtrAllocator Allocator;
+    llvm::StringSaver StableDirStorage(Allocator);
+    if (!StableDirs.empty() && !Mapper.empty()) {
+      StableDirs.push_back(StableDirStorage.save(Mapper.mapToString(Sysroot)));
+      StableDirs.push_back(StableDirStorage.save(
+          Mapper.mapToString(ScanInstance.getHeaderSearchOpts().ResourceDir)));
+    }
 
     // Store a mapping of prebuilt module files and their properties like header
     // search options. This will prevent the implicit build to create duplicate

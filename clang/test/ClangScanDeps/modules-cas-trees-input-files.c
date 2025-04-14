@@ -37,7 +37,7 @@
 [
   {
     "directory" : "DIR",
-    "command" : "clang_tool -I DIR -x c-header DIR/prefix.h -o DIR/prefix.h.pch -fmodules -fimplicit-modules -fimplicit-module-maps -fmodules-cache-path=DIR/module-cache -Rcompile-job-cache",
+    "command" : "clang -I DIR -x c-header DIR/prefix.h -o DIR/prefix.h.pch -fmodules -fimplicit-modules -fimplicit-module-maps -fmodules-cache-path=DIR/module-cache -Rcompile-job-cache",
     "file" : "DIR/prefix.h"
   },
 ]
@@ -46,7 +46,7 @@
 [
   {
     "directory" : "DIR",
-    "command" : "clang_tool -I DIR -fsyntax-only DIR/tu.c -include DIR/prefix.h -fmodules -fimplicit-modules -fimplicit-module-maps -fmodules-cache-path=DIR/module-cache -Rcompile-job-cache",
+    "command" : "clang -I DIR -fsyntax-only DIR/tu.c -include DIR/prefix.h -fmodules -fimplicit-modules -fimplicit-module-maps -fmodules-cache-path=DIR/module-cache -Rcompile-job-cache",
     "file" : "DIR/tu.c"
   },
 ]
