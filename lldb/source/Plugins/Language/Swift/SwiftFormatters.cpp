@@ -887,11 +887,10 @@ public:
         // Remove any bogus child tasks.
         // Very rarely, the child tasks include a bogus task which has an
         // invalid task id of 0.
-        llvm::remove_if(tasks, [&](auto task_ptr) {
-          auto task_info = m_reflection_ctx->asyncTaskInfo(task_ptr);
-          if (task_info)
+        llvm::erase_if(tasks, [&](auto task_ptr) {
+          if (auto task_info =
+                  expectedToOptional(m_reflection_ctx->asyncTaskInfo(task_ptr)))
             return task_info->id == 0;
-          consumeError(task_info.takeError());
           // Don't filter children with errors here. Let these tasks reach the
           // formatter's existing error handling.
           return false;
