@@ -10,6 +10,7 @@ class SwiftCompletionTest(PExpectTest):
     @skipIfAsan
     @skipUnlessDarwin
     @swiftTest
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false'), bugnumber='rdar://149326255')
     def test_basic_completion(self):
 
         self.launch(extra_args=["--repl"], executable=None, dimensions=(100,500))
@@ -40,6 +41,7 @@ class SwiftCompletionTest(PExpectTest):
     @skipIfAsan
     @skipIf(oslist=['windows'])
     @swiftTest
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false'), bugnumber='rdar://149326255')
     def test_lldb_command_completion(self):
 
         self.launch(extra_args=["--repl"], executable=None, dimensions=(100,500))
