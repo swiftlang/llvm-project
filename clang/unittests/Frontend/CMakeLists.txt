@@ -1,7 +1,6 @@
 set(LLVM_LINK_COMPONENTS
   Support
   TargetParser
-  TestingSupport
   )
 
 add_clang_unittest(FrontendTests
@@ -31,4 +30,8 @@ clang_target_link_libraries(FrontendTests
   clangFrontendTool
   clangSerialization
   clangTooling
+  )
+target_link_libraries(FrontendTests
+  PRIVATE
+  LLVMTestingSupport
   )
