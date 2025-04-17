@@ -604,7 +604,7 @@ public:
     // strings tied to the CompilerInstance. Otherwise, these potentially mapped
     // strings need to be allocated. To reduce the number of downstream changes
     // required to this support allocation, tie the lifetime of these strings to
-    // visiting all dependencies of a prebuilt module.
+    // the dependency scanning action.
     llvm::PrefixMapper &Mapper = ScanInstance.getPrefixMapper();
     llvm::BumpPtrAllocator Allocator;
     llvm::StringSaver StableDirStorage(Allocator);
