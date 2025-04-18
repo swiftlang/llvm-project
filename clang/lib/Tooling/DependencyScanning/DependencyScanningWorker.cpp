@@ -586,10 +586,14 @@ public:
     auto *FileMgr = ScanInstance.createFileManager(FS);
     ScanInstance.createSourceManager(*FileMgr);
 
-    // Initialize PrefixMapper incase mappings exist.
-    DepscanPrefixMapping::configurePrefixMapper(
-        ScanInstance.getFrontendOpts().PathPrefixMappings,
-        ScanInstance.getPrefixMapper());
+    auto reportError = [&ScanInstance](Error &&E) -> bool {
+      ScanInstance.getDiagnostics().Report(diag::err_cas_depscan_failed)
+          << std::move(E);
+      return false;
+    };
+
+    if (Error E = Controller.initialize(ScanInstance, OriginalInvocation))
+      return reportError(std::move(E));
 
     // Create a collection of stable directories derived from the ScanInstance
     // for determining whether module dependencies would fully resolve from
@@ -648,12 +652,6 @@ public:
       // getting the dependencies directly from \p DependencyFileGenerator.
       Opts->IncludeSystemHeaders = true;
     }
-
-    auto reportError = [&ScanInstance](Error &&E) -> bool {
-      ScanInstance.getDiagnostics().Report(diag::err_cas_depscan_failed)
-          << std::move(E);
-      return false;
-    };
 
     // FIXME: The caller APIs in \p DependencyScanningTool expect a specific
     // DependencyCollector to get attached to the preprocessor in order to
@@ -723,9 +721,6 @@ public:
     // Normally this would be handled by GeneratePCHAction
     if (ScanInstance.getFrontendOpts().ProgramAction == frontend::GeneratePCH)
       ScanInstance.getLangOpts().CompilingPCH = true;
-
-    if (Error E = Controller.initialize(ScanInstance, OriginalInvocation))
-      return reportError(std::move(E));
 
     if (ScanInstance.getDiagnostics().hasErrorOccurred())
       return false;
