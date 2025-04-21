@@ -605,6 +605,15 @@ llvm::Constant *CodeGenModule::getConstantSignedPointer(
                                   OtherDiscriminator);
 }
 
+llvm::Constant *
+CodeGen::getConstantSignedPointer(CodeGenModule &CGM,
+                                  llvm::Constant *pointer, unsigned key,
+                                  llvm::Constant *storageAddress,
+                                  llvm::ConstantInt *otherDiscriminator) {
+  return CGM.getConstantSignedPointer(pointer, key, storageAddress,
+                                      otherDiscriminator);
+}
+
 void CodeGenModule::destroyConstantSignedPointerCaches() {
   destroyCache<ByConstantCacheTy>(ConstantSignedPointersByConstant);
   destroyCache<ByDeclCacheTy>(ConstantSignedPointersByDecl);
