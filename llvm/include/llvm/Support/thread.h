@@ -211,6 +211,7 @@ namespace this_thread {
 
 #else // !LLVM_ENABLE_THREADS
 
+#include "llvm/Support/ErrorHandling.h"
 #include <utility>
 
 namespace llvm {

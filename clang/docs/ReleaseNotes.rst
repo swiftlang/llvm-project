@@ -451,6 +451,11 @@ Non-comprehensive list of changes in this release
   removed in Clang 20. ``__is_same(__remove_cv(T), decltype(nullptr))`` can be
   used instead to check whether a type ``T`` is a ``nullptr``.
 
+- Clang itself now uses split stacks instead of threads for allocating more
+  stack space when running on Apple AArch64 based platforms. This means that
+  stack traces of Clang from debuggers, crashes, and profilers may look
+  different than before.
+
 New Compiler Flags
 ------------------
 - ``-fsanitize=implicit-bitfield-conversion`` checks implicit truncation and

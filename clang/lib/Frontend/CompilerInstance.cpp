@@ -1421,7 +1421,7 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
 
   // Execute the action to actually build the module in-place. Use a separate
   // thread so that we get a stack large enough.
-  bool Crashed = !llvm::CrashRecoveryContext().RunSafelyOnThread(
+  bool Crashed = !llvm::CrashRecoveryContext().RunSafelyOnNewStack(
       [&]() {
         std::unique_ptr<FrontendAction> Action(
             new GenerateModuleFromModuleMapAction);
