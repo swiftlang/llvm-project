@@ -1,6 +1,5 @@
 # REQUIRES: swift
 # REQUIRES: system-darwin
-# REQUIRES: rdar150334469
 
 # RUN: rm -rf %t && mkdir %t
 # RUN: split-file %s %t
