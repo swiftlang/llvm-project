@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fbounds-safety -x objective-c -fbounds-attributes-objc-experimental -Wno-deprecated-declarations -Wno-return-type -Wno-objc-root-class -ast-dump %s 2>&1 | FileCheck --check-prefixes=COMMON-CHECK,BOUNDS-CHECK %s
+// RUN: %clang_cc1 -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -Wno-deprecated-declarations -Wno-return-type -Wno-objc-root-class -ast-dump %s 2>&1 | FileCheck --check-prefixes=COMMON-CHECK,BOUNDS-CHECK %s
 // RUN: %clang_cc1 -fexperimental-bounds-safety-attributes -x objective-c -Wno-deprecated-declarations -Wno-return-type -Wno-objc-root-class -ast-dump %s 2>&1 | FileCheck --check-prefixes=COMMON-CHECK,ATTR-CHECK %s
 
 #include <ptrcheck.h>

@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fexperimental-bounds-safety-attributes -verify %s
-// RUN: %clang_cc1 -fbounds-safety -fbounds-attributes-cxx-experimental -verify=expected,bounds-safety %s
+// RUN: %clang_cc1 -fbounds-safety -fexperimental-bounds-safety-cxx -verify=expected,bounds-safety %s
 
 #include <ptrcheck.h>
 

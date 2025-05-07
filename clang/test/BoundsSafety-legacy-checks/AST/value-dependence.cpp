@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fexperimental-bounds-safety-attributes -ast-dump %s 2>&1 | FileCheck %s --check-prefix=ATTR-ONLY
-// RUN: %clang_cc1 -fbounds-safety -fbounds-attributes-cxx-experimental -DBOUNDS_SAFETY -ast-dump %s 2>&1 | FileCheck %s --check-prefix=BOUNDS-CHECK
+// RUN: %clang_cc1 -fbounds-safety -fexperimental-bounds-safety-cxx -DBOUNDS_SAFETY -ast-dump %s 2>&1 | FileCheck %s --check-prefix=BOUNDS-CHECK
 
 #include <ptrcheck.h>
 

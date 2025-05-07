@@ -1,6 +1,6 @@
 
 // RUN: %clang_cc1 -analyze -fbounds-safety -w -verify -analyzer-checker=core %s
-// RUN: %clang_cc1 -analyze -fbounds-safety -x objective-c -fbounds-attributes-objc-experimental -w -verify -analyzer-checker=core %s
+// RUN: %clang_cc1 -analyze -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -w -verify -analyzer-checker=core %s
 
 // expected-no-diagnostics
 
