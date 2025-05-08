@@ -9,6 +9,7 @@
 // RUN:              -isysroot %S/Inputs/SDK                              \
 // RUN:              -resource-dir %S/Inputs/toolchain_dir/usr/lib/clang/1000 \
 // RUN:              -internal-isystem %S/Inputs/toolchain_dir/usr/lib/clang/1000/include \
+// RUN:              -internal-iframework %S/Inputs/SDK/Library/Frameworks \
 // RUN:              -working-directory %t.d                              \
 // RUN:              -fcas-path %t.d/cas                                  \
 // RUN:              -fdepscan-prefix-map=%S=/^source                     \
@@ -23,6 +24,7 @@
 // RUN:              -isysroot %S/Inputs/SDK                              \
 // RUN:              -resource-dir %S/Inputs/toolchain_dir/lib/clang/1000 \
 // RUN:              -internal-isystem %S/Inputs/toolchain_dir/lib/clang/1000/include \
+// RUN:              -internal-iframework %S/Inputs/SDK/Library/Frameworks \
 // RUN:              -working-directory %t.d                              \
 // RUN:              -fcas-path %t.d/cas                                  \
 // RUN:              -fdepscan-prefix-map=%S=/^source                     \
@@ -40,6 +42,7 @@
 // RUN:              -isysroot %S/Inputs/SDK                              \
 // RUN:              -resource-dir %S/Inputs/toolchain_dir/usr/lib/clang/1000 \
 // RUN:              -internal-isystem %S/Inputs/toolchain_dir/usr/lib/clang/1000/include \
+// RUN:              -internal-iframework %S/Inputs/SDK/Library/Frameworks \
 // RUN:              -working-directory %t.d                              \
 // RUN:              -fcas-path %t.d/cas                                  \
 // RUN:              -fdepscan-prefix-map=%S=/^source                     \

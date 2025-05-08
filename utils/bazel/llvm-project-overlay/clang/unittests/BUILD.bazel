@@ -240,6 +240,7 @@ cc_test(
         "//clang:lex",
         "//clang:sema",
         "//clang:serialization",
+        "//llvm:Option",
         "//llvm:Support",
         "//llvm:TargetParser",
         "//third-party/unittest:gmock",
