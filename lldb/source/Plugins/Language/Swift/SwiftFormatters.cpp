@@ -508,16 +508,8 @@ bool lldb_private::formatters::swift::StringIndex_SummaryProvider(
 }
 
 bool lldb_private::formatters::swift::StaticString_SummaryProvider(
-    ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
-  return StaticString_SummaryProvider(
-      valobj, stream, options,
-      StringPrinter::ReadStringAndDumpToStreamOptions());
-}
-
-bool lldb_private::formatters::swift::StaticString_SummaryProvider(
     ValueObject &valobj, Stream &stream,
-    const TypeSummaryOptions &summary_options,
-    StringPrinter::ReadStringAndDumpToStreamOptions read_options) {
+    const TypeSummaryOptions &summary_options) {
   LLDB_SCOPED_TIMER();
 
   static ConstString g__startPtrOrData("_startPtrOrData");
@@ -555,6 +547,7 @@ bool lldb_private::formatters::swift::StaticString_SummaryProvider(
     return true;
   }
 
+  StringPrinter::ReadStringAndDumpToStreamOptions read_options;
   read_options.SetTargetSP(valobj.GetTargetSP());
   read_options.SetLocation(start_ptr);
   read_options.SetSourceSize(size);

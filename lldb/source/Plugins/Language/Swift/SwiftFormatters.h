@@ -63,10 +63,6 @@ bool StringIndex_SummaryProvider(ValueObject &valobj, Stream &stream,
 bool StaticString_SummaryProvider(ValueObject &valobj, Stream &stream,
                                   const TypeSummaryOptions &options);
 
-bool StaticString_SummaryProvider(
-    ValueObject &valobj, Stream &stream, const TypeSummaryOptions &,
-    StringPrinter::ReadStringAndDumpToStreamOptions);
-
 bool SwiftSharedString_SummaryProvider(ValueObject &valobj, Stream &stream,
                                        const TypeSummaryOptions &options);
 bool SwiftSharedString_SummaryProvider_2(
