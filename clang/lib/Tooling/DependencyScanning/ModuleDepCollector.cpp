@@ -46,6 +46,13 @@ const std::vector<std::string> &ModuleDeps::getBuildArguments() const {
   return std::get<std::vector<std::string>>(BuildInfo);
 }
 
+
+CowCompilerInvocation ModuleDeps::getUnderlyingCompilerInvocation() const {
+  assert(std::holds_alternative<CowCompilerInvocation>(BuildInfo) &&
+         "ModuleDeps doesn't hold compiler invocation");
+  return *std::get_if<CowCompilerInvocation>(&BuildInfo);
+}
+
 static void
 optimizeHeaderSearchOpts(HeaderSearchOptions &Opts, ASTReader &Reader,
                          const serialization::ModuleFile &MF,
