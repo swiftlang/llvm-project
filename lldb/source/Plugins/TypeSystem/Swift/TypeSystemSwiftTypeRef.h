@@ -96,6 +96,8 @@ public:
   void ClearModuleDependentCaches() override;
   lldb::TargetWP GetTargetWP() const override { return {}; }
 
+  std::optional<llvm::json::Value> ReportStatistics() override;
+
   /// Return a SwiftASTContext type for type.
   CompilerType ReconstructType(CompilerType type,
                                const ExecutionContext *exe_ctx);

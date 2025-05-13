@@ -2342,6 +2342,15 @@ Status TypeSystemSwiftTypeRef::IsCompatible() {
   return {};
 }
 
+std::optional<llvm::json::Value> TypeSystemSwiftTypeRef::ReportStatistics() {
+  // This SymbolContext is not being used within the function GetSwiftASTContextOrNull
+  SymbolContext sc;
+  if (auto *swift_ast_context = GetSwiftASTContextOrNull(sc)) {
+    return swift_ast_context->ReportStatistics();
+  }
+  return std::nullopt;
+}
+
 void TypeSystemSwiftTypeRef::DiagnoseWarnings(Process &process,
                                               const SymbolContext &sc) const {
   // This gets called only from Thread::FrameSelectedCallback(StackFrame).

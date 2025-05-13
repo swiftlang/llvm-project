@@ -21,6 +21,8 @@
 #include "lldb/Core/ThreadSafeDenseSet.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Utility/Either.h"
+#include "lldb/Target/Statistics.h"
+#include "llvm/Support/JSON.h"
 
 #include "swift/AST/Import.h"
 #include "swift/AST/Module.h"
@@ -555,6 +557,15 @@ public:
 
   const SwiftModuleMap &GetModuleCache() { return m_swift_module_cache; }
 
+
+  typedef llvm::StringMap<StatsDuration> SwiftModuleLoadTimeMap;
+
+  SwiftModuleLoadTimeMap &GetSwiftModuleLoadTimes() {
+    return m_swift_module_load_time_map;
+  }
+
+  std::optional<llvm::json::Value> ReportStatistics() override;
+
   const swift::irgen::TypeInfo *
   GetSwiftTypeInfo(lldb::opaque_compiler_type_t type);
 
@@ -960,6 +971,7 @@ protected:
   std::shared_ptr<TypeSystemClang> m_clangimporter_typesystem;
   std::unique_ptr<swift::DWARFImporterDelegate> m_dwarfimporter_delegate_up;
   SwiftModuleMap m_swift_module_cache;
+  SwiftModuleLoadTimeMap m_swift_module_load_time_map;
   SwiftTypeFromMangledNameMap m_mangled_name_to_type_map;
   SwiftMangledNameFromTypeMap m_type_to_mangled_name_map;
   uint32_t m_pointer_byte_size = 0;

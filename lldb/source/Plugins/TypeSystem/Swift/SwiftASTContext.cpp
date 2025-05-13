@@ -1197,6 +1197,25 @@ static void printASTValidationError(
     LLDB_LOG(log, "  -- {0}", ExtraOpt);
 }
 
+std::optional<llvm::json::Value> SwiftASTContext::ReportStatistics() {
+  const auto &load_times = GetSwiftModuleLoadTimes();
+  llvm::json::Array swift_module_load_times;
+  StatsDuration swift_module_total_load_time;
+  for (const auto &entry : load_times) {
+    llvm::json::Object obj;
+    obj.try_emplace("name", entry.first().str());
+    obj.try_emplace("loadTime", entry.second.get().count());
+    swift_module_total_load_time += entry.second;
+    swift_module_load_times.emplace_back(std::move(obj));
+  }
+
+  llvm::json::Object obj;
+  obj.try_emplace("swiftmodules", std::move(swift_module_load_times));
+  obj.try_emplace("totalLoadTime", swift_module_total_load_time.get().count());
+  llvm::json::Value ret = std::move(obj);
+  return ret;
+}
+
 void SwiftASTContext::DiagnoseWarnings(Process &process,
                                        const SymbolContext &sc) const {
   if (!sc.module_sp || !HasDiagnostics())
@@ -3924,6 +3943,10 @@ SwiftASTContext::GetModule(const SourceModule &module, bool *cached) {
       *cached = true;
     return *module_decl;
   }
+
+  auto &load_time_map = GetSwiftModuleLoadTimes();
+  StatsDuration &load_time = load_time_map[module.path.front().GetStringRef()];
+  ElapsedTime elapsed(load_time);
 
   LLDB_SCOPED_TIMER();
   ThreadSafeASTContext ast = GetASTContext();
