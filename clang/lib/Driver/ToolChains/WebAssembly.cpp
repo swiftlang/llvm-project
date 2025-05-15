@@ -156,6 +156,11 @@ void wasm::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   ToolChain.addProfileRTLibs(Args, CmdArgs);
+  // Emscripten has its own libasan_rt.a but we use libclang_rt.asan-wasm32.a
+  // for other platforms like WASI.
+  if (!ToolChain.getTriple().isOSEmscripten()) {
+    addSanitizerRuntimes(ToolChain, Args, CmdArgs);
+  }
 
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
