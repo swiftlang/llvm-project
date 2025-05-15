@@ -42,7 +42,7 @@ set(ASAN_SOURCES
   wasi/memcpy.c
   )
 
-if (NOT WIN32 AND NOT APPLE)
+if (NOT WIN32 AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "WASI")
   list(APPEND ASAN_SOURCES
     asan_interceptors_vfork.S
     )
