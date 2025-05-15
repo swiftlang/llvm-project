@@ -20,6 +20,7 @@
 #  include <unistd.h>
 #  include <fcntl.h>
 #  include <time.h>
+#  include <errno.h>
 #  include <wasi/api.h>
 
 #  include "sanitizer_common.h"
@@ -31,9 +32,10 @@
 #  include "sanitizer_stacktrace.h"
 #  include "sanitizer_symbolizer_internal.h"
 
-#  include "../asan/wasi/dlmalloc.c"
-
 namespace __sanitizer {
+
+extern "C" void *__libc_malloc(uptr);
+extern "C" void __libc_free(void *);
 
 void InitializePlatformEarly() {}
 void InitTlsSize() {}
@@ -44,7 +46,7 @@ uptr GetPageSize() { return PAGESIZE; }
 
 void *MmapOrDie(uptr size, const char *mem_type, bool raw_report) {
   size = RoundUpTo(size, GetPageSize());
-  void *ptr = dlmalloc(size);
+  void *ptr = __libc_malloc(size);
   if (!ptr) {
     if (raw_report) {
       Report("MmapOrDie: failed to allocate %zu bytes\n", size);
@@ -55,7 +57,7 @@ void *MmapOrDie(uptr size, const char *mem_type, bool raw_report) {
 }
 
 void UnmapOrDie(void *addr, uptr size, bool raw_report) {
-  dlfree(addr);
+  __libc_free(addr);
 }
 
 void *MmapNoReserveOrDie(uptr size, const char *mem_type) {
@@ -68,12 +70,14 @@ void DumpProcessMap() {
 
 // Implement mandatory functions for ASan WASI build
 void CheckASLR() {}
+void PlatformPrepareForSandboxing(void *args) {}
 void DisableCoreDumperIfNecessary() {}
 void InstallDeadlySignalHandlers(void (*cb)(int, void *, void *)) {}
 int Atexit(void (*function)(void)) { return 0; }
 uptr GetMaxUserVirtualAddress() { return (1ULL << 30); } // 1GB for WASI
 uptr GetMmapGranularity() { return GetPageSize(); }
 uptr internal_sched_yield() { return 0; }
+void internal_join_thread(void *th) {}
 bool MemoryRangeIsAvailable(uptr beg, uptr size) { return true; }
 void GetThreadStackAndTls(bool main, uptr *stk_addr, uptr *stk_size,
                            uptr *tls_addr, uptr *tls_size) {
@@ -94,7 +98,7 @@ void Symbolizer::LateInitialize() {
 // Additional mandatory functions
 void *MmapOrDieOnFatalError(uptr size, const char *mem_type) {
   size = RoundUpTo(size, GetPageSizeCached()) + GetPageSizeCached();
-  void *ptr = dlmalloc(size);
+  void *ptr = __libc_malloc(size);
   if (!ptr) {
     Report("MmapOrDieOnFatalError: failed to allocate %zu bytes\n", size);
     Die();
