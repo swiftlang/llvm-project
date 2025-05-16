@@ -45,6 +45,7 @@ enum class ThunkKind {
   AllocatingInit,
   PartialApply,
   ObjCAttribute,
+  NonObjCAttributeOnCtor,
   Reabstraction,
   ProtocolConformance,
 };
@@ -55,6 +56,7 @@ enum class ThunkAction {
   StepIntoConformance,
   StepIntoAllocatingInit,
   StepThrough,
+  RunToObjcCInteropCtor,
 };
 
 } // namespace
@@ -313,6 +315,10 @@ static ThunkKind GetThunkKind(Symbol *symbol) {
   switch (main_node->getKind()) {
   case Node::Kind::ObjCAttribute:
     return ThunkKind::ObjCAttribute;
+  case Node::Kind::NonObjCAttribute:
+    if (hasChild(nodes, Node::Kind::Constructor))
+      return ThunkKind::NonObjCAttributeOnCtor;
+    break;
   case Node::Kind::ProtocolWitness:
     if (hasChild(main_node, Node::Kind::ProtocolConformance))
       return ThunkKind::ProtocolConformance;
@@ -342,6 +348,8 @@ static const char *GetThunkKindName(ThunkKind kind) {
     return "GetThunkTarget";
   case ThunkKind::ObjCAttribute:
     return "GetThunkTarget";
+  case ThunkKind::NonObjCAttributeOnCtor:
+    return "RunToObjcCInteropCtor";
   case ThunkKind::Reabstraction:
     return "GetThunkTarget";
   case ThunkKind::ProtocolConformance:
@@ -363,6 +371,8 @@ static ThunkAction GetThunkAction(ThunkKind kind) {
     return ThunkAction::StepThrough;
   case ThunkKind::ProtocolConformance:
     return ThunkAction::StepIntoConformance;
+  case ThunkKind::NonObjCAttributeOnCtor:
+    return ThunkAction::RunToObjcCInteropCtor;
   }
 }
 
@@ -536,6 +546,31 @@ static lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
           "Stepped to thunk \"%s\" (kind: %s) stepping to target: \"%s\".",
           symbol_name, GetThunkKindName(thunk_kind), thunk_target.c_str());
     return CreateRunToAddressPlan(thunk_target, thread, stop_others);
+  }
+  case ThunkAction::RunToObjcCInteropCtor: {
+    static constexpr auto class_path = {
+        Node::Kind::Constructor, Node::Kind::Class, Node::Kind::Identifier};
+    std::string class_name = FindClassName(symbol_name, class_path);
+    if (class_name.empty()) {
+      LLDB_LOGF(log,
+                "SwiftLanguageRuntime: could not derive class name from symbol "
+                "\"%s\".",
+                symbol_name);
+      return nullptr;
+    }
+    std::string ctor_name = llvm::formatv("{0} init", class_name);
+    LLDB_LOGF(log,
+              "SwiftLanguageRuntime: running to objective C constructor \"%s\" "
+              "from swift.",
+              ctor_name.c_str());
+
+    SymbolContextList sc_list;
+    ModuleFunctionSearchOptions options{/*include_symbols*/ true,
+                                        /*include_inlines*/ true};
+    ModuleList modules = thread.GetProcess()->GetTarget().GetImages();
+    modules.FindFunctions(RegularExpression(ctor_name), options, sc_list);
+
+    return CreateThreadPlanRunToSCInList(thread, sc_list, stop_others);
   }
   case ThunkAction::StepIntoConformance: {
     // The TTW symbols encode the protocol conformance requirements
