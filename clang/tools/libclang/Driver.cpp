@@ -40,15 +40,29 @@ clang_Driver_getExternalActionsForCommand_v0(int ArgC, const char **ArgV,
   if (ArgC < 1)
     return nullptr;
 
-  CXDiagnosticSetDiagnosticConsumer DiagConsumer;
-  auto DiagOpts = CreateAndPopulateDiagOpts(ArrayRef(ArgV, ArgC));
-
   // Use createPhysicalFileSystem instead of getRealFileSystem so that
   // setCurrentWorkingDirectory doesn't change the working directory of the
   // process.
   std::unique_ptr<llvm::vfs::FileSystem> VFS =
       llvm::vfs::createPhysicalFileSystem();
 
+  CXDiagnosticSetDiagnosticConsumer DiagConsumer;
+
+  SmallVector<const char *, 256> Args(ArgV, ArgV + ArgC);
+  llvm::BumpPtrAllocator Alloc;
+  if (llvm::Error E =
+      driver::expandResponseFiles(Args, /*CLMode=*/false, Alloc)) {
+    // Construct a default DiagnosticOptions to use to emit the failure.
+    DiagnosticOptions DiagOpts;
+    auto Diags = CompilerInstance::createDiagnostics(*VFS, &DiagOpts,
+                                                     &DiagConsumer, false);
+
+    Diags->Report(diag::err_drv_expand_response_file)
+        << llvm::toString(std::move(E));
+    return nullptr;
+  }
+
+  auto DiagOpts = CreateAndPopulateDiagOpts(Args);
   auto Diags = CompilerInstance::createDiagnostics(*VFS, DiagOpts.release(),
                                                    &DiagConsumer, false);
   if (WorkingDirectory)
@@ -65,7 +79,7 @@ clang_Driver_getExternalActionsForCommand_v0(int ArgC, const char **ArgV,
                            VFS.release());
   TheDriver.setCheckInputsExist(false);
   std::unique_ptr<driver::Compilation> C(
-      TheDriver.BuildCompilation(ArrayRef(ArgV, ArgC)));
+      TheDriver.BuildCompilation(Args));
   if (!C || Diags->hasErrorOccurred()) {
     if (OutDiags)
       *OutDiags = DiagConsumer.getDiagnosticSet();

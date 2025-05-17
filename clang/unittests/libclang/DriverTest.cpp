@@ -11,6 +11,8 @@
 #include "llvm/Support/Debug.h"
 #include "gtest/gtest.h"
 
+#include "TestUtils.h"
+
 #define DEBUG_TYPE "driver-test"
 
 TEST(DriverTests, Basic) {
@@ -125,6 +127,47 @@ TEST(DriverTests, DriverParsesDiagnosticsOptions) {
   ASSERT_GE(CompileAction->ArgC, 2);
   EXPECT_STREQ(CompileAction->ArgV[0], "clang");
   EXPECT_STREQ(CompileAction->ArgV[1], "-cc1");
+
+  clang_disposeDiagnosticSet(Diags);
+  clang_Driver_ExternalActionList_dispose(EAL);
+}
+
+class LibclangDriverResponseFileTest : public LibclangParseTest {};
+
+TEST_F(LibclangDriverResponseFileTest, DriverResponseFile) {
+  // Enable -Weverything (a flag not set by default) via a response file.
+  std::string ResponseFilename = "AdditionalOptions.resp";
+  WriteFile(ResponseFilename, "-Weverything\n");
+    
+  llvm::SmallString<256> ResponseArg("@");
+  ResponseArg.append(ResponseFilename);
+  
+  const char *ArgV[] = {"clang",
+                        ResponseArg.c_str(),
+                        "-c",
+                        "t.cpp",
+                        "-o",
+                        "t.o"};
+
+  CXDiagnosticSet Diags;
+  CXExternalActionList *EAL = clang_Driver_getExternalActionsForCommand_v0(
+      std::extent_v<decltype(ArgV)>, ArgV, nullptr, "/", &Diags);
+
+  ASSERT_NE(EAL, nullptr);
+  ASSERT_EQ(EAL->Count, 1);
+  ASSERT_EQ(nullptr, Diags);
+
+  auto *CompileAction = EAL->Actions[0];
+  ASSERT_GE(CompileAction->ArgC, 2);
+  EXPECT_STREQ(CompileAction->ArgV[0], "clang");
+  EXPECT_STREQ(CompileAction->ArgV[1], "-cc1");
+
+  const char **WFlag = std::find(CompileAction->ArgV,
+      CompileAction->ArgV + CompileAction->ArgC,
+       llvm::StringRef("-Weverything"));
+
+  ASSERT_NE(WFlag, CompileAction->ArgV + CompileAction->ArgC);
+  EXPECT_STREQ(*WFlag, "-Weverything");
 
   clang_disposeDiagnosticSet(Diags);
   clang_Driver_ExternalActionList_dispose(EAL);
