@@ -15,8 +15,9 @@ import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 
-class TestPOValueTypes(TestBase):
+class TestSwiftPOValueTypes(TestBase):
 
+    @swiftTest
     def test_value_types(self):
         """Test 'po' on a variety of value types with and without custom descriptions."""
         self.build()
@@ -33,6 +34,7 @@ class TestPOValueTypes(TestBase):
         self.expect("po (dm as Any, cm as Any,48 as Any)", substrs=['12', '24', '36', '48'])
         self.expect("po patatino", substrs=['foo'])
 
+    @swiftTest
     def test_ignore_bkpts_in_po(self):
         """Run a po expression with a breakpoint in the debugDescription, make sure we don't hit it."""
 
