@@ -41,14 +41,14 @@ asm(\".arch armv8-a+lse\");
 asm(\"cas w0, w1, [x2]\");
 ")
 
-builtin_check_c_compiler_source(COMPILER_RT_HAS_AARCH64_SME
+builtin_check_c_compiler_source_with_flags(COMPILER_RT_HAS_AARCH64_SME
 "
 void foo(void)  __arm_streaming_compatible {
   asm(\".arch armv9-a+sme2\\n\"
       \"smstart\\n\"
       \"ldr zt0, [sp]\");
 }
-")
+" "-target ${LLVM_TARGET_TRIPLE} -arch arm64")
 
 check_include_files("sys/auxv.h"    COMPILER_RT_HAS_AUXV)
 
