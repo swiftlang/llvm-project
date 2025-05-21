@@ -3391,12 +3391,6 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
     assert(Values.size() == 2);
     Opts.PathPrefixMappings.emplace_back(Values[0], Values[1]);
   }
-  for (const Arg *A : Args.filtered(OPT_fdepscan_prefix_map_EQ)) {
-    StringRef Val = A->getValue();
-    if (std::optional<llvm::MappedPrefix> mapping = llvm::MappedPrefix::getFromJoined(Val)) {
-      Opts.PathPrefixMappings.emplace_back(mapping->Old, mapping->New);
-    }
-  }
 
   if (Opts.ProgramAction != frontend::GenerateModule && Opts.IsSystemModule)
     Diags.Report(diag::err_drv_argument_only_allowed_with) << "-fsystem-module"
