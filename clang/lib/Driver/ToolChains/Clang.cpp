@@ -5082,22 +5082,16 @@ void Clang::AddPrefixMappingOptions(const ArgList &Args, ArgStringList &CmdArgs,
     }
   }
 
-  for (const Arg *A : Args.filtered(options::OPT_fdepscan_prefix_map_EQ)) {
+  for (const Arg *A : Args.filtered(options::OPT_fdepscan_prefix_map, options::OPT_fdepscan_prefix_map_EQ)) {
     A->claim();
-    StringRef Map = A->getValue();
-    StringRef Prefix = Map.split('=').first;
-    if (Prefix.size() == Map.size() || !IsPathApplicableAsPrefix(Prefix)) {
-      D.Diag(diag::err_drv_invalid_argument_to_option)
-          << A->getValue() << A->getOption().getName();
+    StringRef Prefix, MapTarget;
+    if (A->getOption().matches(options::OPT_fdepscan_prefix_map_EQ)) {
+      StringRef Map = A->getValue();
+      std::tie(Prefix, MapTarget) = Map.split('=');
     } else {
-      A->render(Args, CmdArgs);
+      Prefix = A->getValue(0);
+      MapTarget = A->getValue(1);
     }
-  }
-
-  for (const Arg *A : Args.filtered(options::OPT_fdepscan_prefix_map)) {
-    A->claim();
-    StringRef Prefix = A->getValue(0);
-    StringRef MapTarget = A->getValue(1);
     if (MapTarget.size() == 0 || !IsPathApplicableAsPrefix(Prefix)) {
       D.Diag(diag::err_drv_invalid_argument_to_option)
           << A->getValue() << A->getOption().getName();
