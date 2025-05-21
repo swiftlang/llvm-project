@@ -8839,8 +8839,12 @@ def fdepscan_prefix_map_EQ : Joined<["-"], "fdepscan-prefix-map=">,
     Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
     MetaVarName<"<old>=<new>">,
     HelpText<"With -fdepscan, seamlessly filter the CAS filesystem to"
-             " apply the given prefix, updating the command-line to match.">,
-    MarshallingInfoStringVector<FrontendOpts<"PathPrefixMappings">>;
+             " apply the given prefix, updating the command-line to match.">;
+def fdepscan_prefix_map : MultiArg<["-"], "fdepscan-prefix-map", 2>,
+    Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
+    MetaVarName<"<old> <new>">,
+    HelpText<"With -fdepscan, seamlessly filter the CAS filesystem to"
+             " apply the given prefix, updating the command-line to match.">;
 def fdepscan_prefix_map_sdk_EQ :
     Joined<["-"], "fdepscan-prefix-map-sdk=">,
     Group<f_Group>, MetaVarName<"<new>">,

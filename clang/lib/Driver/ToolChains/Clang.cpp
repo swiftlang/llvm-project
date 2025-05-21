@@ -5093,6 +5093,18 @@ void Clang::AddPrefixMappingOptions(const ArgList &Args, ArgStringList &CmdArgs,
       A->render(Args, CmdArgs);
     }
   }
+
+  for (const Arg *A : Args.filtered(options::OPT_fdepscan_prefix_map)) {
+    A->claim();
+    StringRef Prefix = A->getValue(0);
+    StringRef MapTarget = A->getValue(1);
+    if (MapTarget.size() == 0 || !IsPathApplicableAsPrefix(Prefix)) {
+      D.Diag(diag::err_drv_invalid_argument_to_option)
+          << A->getValue() << A->getOption().getName();
+    } else {
+      A->render(Args, CmdArgs);
+    }
+  }
 }
 
 static void addCachingOptions(ArgStringList &CmdArgs) {
