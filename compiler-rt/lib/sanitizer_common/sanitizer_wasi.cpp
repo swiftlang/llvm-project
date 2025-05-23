@@ -44,12 +44,94 @@ const char *GetEnv(const char *name) { return nullptr; }
 
 uptr GetPageSize() { return PAGESIZE; }
 
+class EmulatedMmap {
+
+  struct MmapEntry {
+    void *addr;
+    void *addr_to_free;
+    uptr size;
+    const char *mem_type;
+    MmapEntry *next;
+  } __attribute__((aligned(1)));
+
+  SpinMutex head_lock_;
+  MmapEntry *head_ SANITIZER_GUARDED_BY(head_lock_);
+
+public:
+  EmulatedMmap() : head_lock_(), head_(nullptr) {}
+
+  bool Unmap(void *addr, uptr size) {
+    SpinMutexLock l(&head_lock_);
+    MmapEntry *entry = head_;
+    MmapEntry *prev = nullptr;
+    while (entry) {
+      if (entry->addr == addr) {
+        // Remove the entry from the linked list
+        if (prev) {
+          prev->next = entry->next;
+        } else {
+          head_ = entry->next;
+        }
+        // Free the memory allocated for the entry
+        __libc_free(entry->addr_to_free);
+        return true;
+      }
+      prev = entry;
+      entry = entry->next;
+    }
+    return false;
+  }
+
+  void *Mmap(uptr size, const char *mem_type, uptr alignment = GetPageSize()) {
+    uptr mmap_size = size + alignment;
+    uptr malloc_size = mmap_size + sizeof(MmapEntry);
+    void *ptr = __libc_malloc(malloc_size);
+    if (!ptr) {
+      return nullptr;
+    }
+    MmapEntry *entry = (MmapEntry *)(((uptr)ptr) + mmap_size);
+    entry->addr = (void *)RoundUpTo((uptr)ptr, alignment);
+    entry->addr_to_free = ptr;
+    entry->size = size;
+    entry->mem_type = mem_type;
+    {
+      // Add the entry to the linked list
+      SpinMutexLock l(&head_lock_);
+      entry->next = head_;
+      head_ = entry;
+    }
+    return entry->addr;
+  }
+
+  void *MmapAligned(uptr size, const char *mem_type, uptr alignment) {
+    uptr mmap_size = size + alignment;
+    uptr malloc_size = mmap_size + sizeof(MmapEntry);
+    void *ptr = __libc_malloc(malloc_size);
+    if (!ptr) {
+      return nullptr;
+    }
+    MmapEntry *entry = (MmapEntry *)(((uptr)ptr) + mmap_size);
+    entry->addr = (void *)RoundUpTo((uptr)ptr, alignment);
+    entry->addr_to_free = ptr;
+    entry->size = size;
+    entry->mem_type = mem_type;
+    {
+      // Add the entry to the linked list
+      SpinMutexLock l(&head_lock_);
+      entry->next = head_;
+      head_ = entry;
+    }
+    return entry->addr;
+  }
+};
+
+static EmulatedMmap emulated_mmap;
+
 void *MmapOrDie(uptr size, const char *mem_type, bool raw_report) {
-  size = RoundUpTo(size, GetPageSize());
-  void *ptr = __libc_malloc(size);
+  void *ptr = emulated_mmap.Mmap(size, mem_type);
   if (!ptr) {
     if (raw_report) {
-      Report("MmapOrDie: failed to allocate %zu bytes\n", size);
+      Report("MmapOrDie: failed to allocate %u bytes\n", size);
     }
     Die();
   }
@@ -57,11 +139,17 @@ void *MmapOrDie(uptr size, const char *mem_type, bool raw_report) {
 }
 
 void UnmapOrDie(void *addr, uptr size, bool raw_report) {
-  __libc_free(addr);
+  if (!addr || !size) return;
+  if (!emulated_mmap.Unmap(addr, size)) {
+    if (raw_report) {
+      Report("UnmapOrDie: failed to unmap %u bytes at %p\n", size, addr);
+    }
+    Die();
+  }
 }
 
 void *MmapNoReserveOrDie(uptr size, const char *mem_type) {
-  return MmapOrDie(size, mem_type, false);
+  return emulated_mmap.Mmap(size, mem_type);
 }
 
 void DumpProcessMap() {
@@ -97,33 +185,21 @@ void Symbolizer::LateInitialize() {
 
 // Additional mandatory functions
 void *MmapOrDieOnFatalError(uptr size, const char *mem_type) {
-  size = RoundUpTo(size, GetPageSizeCached()) + GetPageSizeCached();
-  void *ptr = __libc_malloc(size);
+  void *ptr = emulated_mmap.Mmap(size, mem_type);
   if (!ptr) {
-    Report("MmapOrDieOnFatalError: failed to allocate %zu bytes\n", size);
+    Report("MmapOrDieOnFatalError: failed to allocate %u bytes\n", size);
     Die();
   }
   IncreaseTotalMmap(size);
-  ptr = (void *)RoundUpTo((uptr)ptr, GetPageSizeCached());
-  return (void *)ptr;
+  return ptr;
 }
 void *MmapAlignedOrDieOnFatalError(uptr size, uptr alignment, const char *mem_type) { 
   CHECK(IsPowerOfTwo(size));
   CHECK(IsPowerOfTwo(alignment));
-  uptr map_size = size + alignment;
-  // mmap maps entire pages and rounds up map_size needs to be a an integral
-  // number of pages.
-  // We need to be aware of this size for calculating end and for unmapping
-  // fragments before and after the alignment region.
-  map_size = RoundUpTo(map_size, GetPageSizeCached());
-  uptr map_res = (uptr)MmapOrDieOnFatalError(map_size, mem_type);
+  uptr map_res = (uptr)emulated_mmap.MmapAligned(size, mem_type, alignment);
   if (UNLIKELY(!map_res))
     return nullptr;
-  uptr res = map_res;
-  if (!IsAligned(res, alignment)) {
-    res = (map_res + alignment - 1) & ~(alignment - 1);
-  }
-  return (void*)res;
+  return (void*)map_res;
 }
 
 uptr ReadLongProcessName(char *buf, uptr buf_len) { 
@@ -265,7 +341,7 @@ void BufferedStackTrace::UnwindSlow(uptr pc, void *context, u32 max_depth) {
 }
 
 
-class WASISymbolizerTool : public SymbolizerTool {
+class WASISymbolizerTool final : public SymbolizerTool {
  public:
   bool SymbolizePC(uptr addr, SymbolizedStack *stack) override;
   bool SymbolizeData(uptr addr, DataInfo *info) override {
