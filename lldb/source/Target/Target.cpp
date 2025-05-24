@@ -1538,73 +1538,35 @@ void Target::SetExecutableModule(ModuleSP &executable_sp,
       break;
     }
 
-    if (executable_objfile && load_dependents) {
-      // FileSpecList is not thread safe and needs to be synchronized.
-      FileSpecList dependent_files;
-      std::mutex dependent_files_mutex;
+    if (!executable_objfile || !load_dependents)
+      return;
 
-      // ModuleList is thread safe.
-      ModuleList added_modules;
+    llvm::ThreadPoolTaskGroup task_group(Debugger::GetThreadPool());
+    ModuleList added_modules;
+    FileSpecList dependent_files;
+    executable_objfile->GetDependentModules(dependent_files);
+    
+    for (uint32_t i = 0; i < dependent_files.GetSize(); i++) {
+      auto dependent_file_spec = dependent_files.GetFileSpecAtIndex(i);
+      FileSpec platform_dependent_file_spec;
+      if (m_platform_sp)
+        m_platform_sp->GetFileWithUUID(dependent_file_spec, nullptr,
+                                       platform_dependent_file_spec);
+      else
+        platform_dependent_file_spec = dependent_file_spec;
 
-      auto GetDependentModules = [&](FileSpec dependent_file_spec) {
-        FileSpec platform_dependent_file_spec;
-        if (m_platform_sp)
-          m_platform_sp->GetFileWithUUID(dependent_file_spec, nullptr,
-                                         platform_dependent_file_spec);
-        else
-          platform_dependent_file_spec = dependent_file_spec;
-
-        ModuleSpec module_spec(platform_dependent_file_spec, m_arch.GetSpec());
-        ModuleSP image_module_sp(
-            GetOrCreateModule(module_spec, false /* notify */));
-        if (image_module_sp) {
-          added_modules.AppendIfNeeded(image_module_sp, false);
-          ObjectFile *objfile = image_module_sp->GetObjectFile();
-          if (objfile) {
-            // Create a local copy of the dependent file list so we don't have
-            // to lock for the whole duration of GetDependentModules.
-            FileSpecList dependent_files_copy;
-            {
-              std::lock_guard<std::mutex> guard(dependent_files_mutex);
-              dependent_files_copy = dependent_files;
-            }
-
-            // Remember the size of the local copy so we can append only the
-            // modules that have been added by GetDependentModules.
-            const size_t previous_dependent_files =
-                dependent_files_copy.GetSize();
-
-            objfile->GetDependentModules(dependent_files_copy);
-
-            {
-              std::lock_guard<std::mutex> guard(dependent_files_mutex);
-              for (size_t i = previous_dependent_files;
-                   i < dependent_files_copy.GetSize(); ++i)
-                dependent_files.AppendIfUnique(
-                    dependent_files_copy.GetFileSpecAtIndex(i));
-            }
-          }
-        }
-      };
-
-      executable_objfile->GetDependentModules(dependent_files);
-
-      llvm::ThreadPoolTaskGroup task_group(Debugger::GetThreadPool());
-      for (uint32_t i = 0; i < dependent_files.GetSize(); i++) {
-        // Process all currently known dependencies in parallel in the innermost
-        // loop. This may create newly discovered dependencies to be appended to
-        // dependent_files. We'll deal with these files during the next
-        // iteration of the outermost loop.
-        {
-          std::lock_guard<std::mutex> guard(dependent_files_mutex);
-          for (; i < dependent_files.GetSize(); i++)
-            task_group.async(GetDependentModules,
-                             dependent_files.GetFileSpecAtIndex(i));
-        }
-        task_group.wait();
+      ModuleSpec module_spec(platform_dependent_file_spec, m_arch.GetSpec());
+      auto image_module_sp = GetOrCreateModule(
+          module_spec, false /* notify */,
+          [&](auto preloadSymbols) { task_group.async(preloadSymbols); });
+      if (image_module_sp) {
+        added_modules.AppendIfNeeded(image_module_sp, false);
+        if (auto *objfile = image_module_sp->GetObjectFile())
+          objfile->GetDependentModules(dependent_files);
       }
-      ModulesDidLoad(added_modules);
     }
+    task_group.wait();
+    ModulesDidLoad(added_modules);
   }
 }
 
@@ -2249,6 +2211,15 @@ bool Target::ReadPointerFromMemory(const Address &addr, Status &error,
 
 ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
                                    Status *error_ptr) {
+  return GetOrCreateModule(module_spec, notify, [](auto preloadSymbols) {
+    preloadSymbols();
+  }, error_ptr);
+}
+
+ModuleSP Target::GetOrCreateModule(
+    const ModuleSpec &module_spec, bool notify,
+    llvm::function_ref<void(std::function<void()>)> scheduleSymbolsPreload,
+    Status *error_ptr) {
   ModuleSP module_sp;
 
   Status error;
@@ -2408,7 +2379,8 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
         // Preload symbols outside of any lock, so hopefully we can do this for
         // each library in parallel.
         if (GetPreloadSymbols())
-          module_sp->PreloadSymbols();
+          scheduleSymbolsPreload([module_sp] { module_sp->PreloadSymbols(); });
+
         llvm::SmallVector<ModuleSP, 1> replaced_modules;
         for (ModuleSP &old_module_sp : old_modules) {
           if (m_images.GetIndexForModule(old_module_sp.get()) !=
