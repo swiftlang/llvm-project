@@ -26,7 +26,8 @@ class TestSwiftPrivateGenericType(TestBase):
                 extra_images=['Public'])
         # Make sure this fails without generic expression evaluation.
         self.expect("expr --bind-generic-types true -- self", 
-                    substrs=["Couldn't realize Swift AST type of self."], 
+                    substrs=["note: type for self cannot be reconstructed",
+                             "Couldn't realize Swift AST type of all variables."],
                     error=True)
         # Test that not binding works.
         self.expect("expr --bind-generic-types false -- self", 
@@ -48,7 +49,8 @@ class TestSwiftPrivateGenericType(TestBase):
             'break here for class', lldb.SBFileSpec('Public.swift'), None)
         lldbutil.continue_to_breakpoint(process, breakpoint)
         self.expect("expr --bind-generic-types true -- self", 
-                    substrs=["Couldn't realize Swift AST type of self."], 
+                    substrs=["note: type for self cannot be reconstructed",
+                             "Couldn't realize Swift AST type of all variables."],
                     error=True)
         self.expect("expr --bind-generic-types false -- self", 
                     substrs=["Public.ClassWrapper<Private.InvisibleStruct>", 
@@ -67,7 +69,8 @@ class TestSwiftPrivateGenericType(TestBase):
             'break here for two generic parameters', lldb.SBFileSpec('Public.swift'), None)
         lldbutil.continue_to_breakpoint(process, breakpoint)
         self.expect("expr --bind-generic-types true -- self", 
-                    substrs=["Couldn't realize Swift AST type of self."], 
+                    substrs=["note: type for self cannot be reconstructed",
+                             "Couldn't realize Swift AST type of all variables."],
                     error=True)
         self.expect("expr --bind-generic-types false -- self", 
                     substrs=["Public.TwoGenericParameters",
@@ -96,7 +99,8 @@ class TestSwiftPrivateGenericType(TestBase):
             'break here for three generic parameters', lldb.SBFileSpec('Public.swift'), None)
         lldbutil.continue_to_breakpoint(process, breakpoint)
         self.expect("expr --bind-generic-types true -- self", 
-                    substrs=["Couldn't realize Swift AST type of self."], 
+                    substrs=["note: type for self cannot be reconstructed",
+                             "Couldn't realize Swift AST type of all variables."],
                     error=True)
         self.expect("expr --bind-generic-types false -- self", 
                     substrs=["Public.ThreeGenericParameters",
@@ -124,7 +128,8 @@ class TestSwiftPrivateGenericType(TestBase):
             'break here for four generic parameters', lldb.SBFileSpec('Public.swift'), None)
         lldbutil.continue_to_breakpoint(process, breakpoint)
         self.expect("expr --bind-generic-types true -- self", 
-                    substrs=["Couldn't realize Swift AST type of self."], 
+                    substrs=["note: type for self cannot be reconstructed",
+                             "Couldn't realize Swift AST type of all variables."],
                     error=True)
         self.expect("expr --bind-generic-types false -- self", 
                     substrs=["Public.FourGenericParameters",
@@ -168,5 +173,6 @@ class TestSwiftPrivateGenericType(TestBase):
         # Check that if both binding and not binding the generic type parameters fail, we report 
         # the "bind generic params" error message, as that's the default case that runs first.
         self.expect("expr --bind-generic-types auto -- self", 
-                    substrs=["Couldn't realize Swift AST type of self."], 
+                    substrs=["note: type for self cannot be reconstructed",
+                             "Couldn't realize Swift AST type of all variables."],
                     error=True)

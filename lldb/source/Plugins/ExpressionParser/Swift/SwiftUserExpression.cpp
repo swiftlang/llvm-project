@@ -486,7 +486,7 @@ static bool CollectVariablesInScope(SymbolContext &sc,
 }
 
 /// Create a \c VariableInfo record for each visible variable.
-static llvm::Error RegisterAllVariables(
+static std::pair<llvm::Error, lldb::VariableSP> RegisterAllVariables(
     SymbolContext &sc, lldb::StackFrameSP &stack_frame_sp,
     SwiftASTContextForExpressions &ast_context,
     llvm::SmallVectorImpl<SwiftASTManipulator::VariableInfo> &local_variables,
@@ -504,13 +504,14 @@ static llvm::Error RegisterAllVariables(
   // Proceed from the innermost scope outwards, adding all variables
   // not already shadowed by an inner declaration.
   llvm::SmallDenseSet<const char *, 8> processed_names;
-  for (size_t vi = 0, ve = variables.GetSize(); vi != ve; ++vi)
-    if (auto error =
-            AddVariableInfo({variables.GetVariableAtIndex(vi)}, stack_frame_sp,
-                            ast_context, language_runtime, processed_names,
-                            local_variables, use_dynamic, bind_generic_types))
-      return error;
-  return llvm::Error::success();
+  for (size_t vi = 0, ve = variables.GetSize(); vi != ve; ++vi) {
+    lldb::VariableSP var = variables.GetVariableAtIndex(vi);
+    if (auto error = AddVariableInfo(
+            {var}, stack_frame_sp, ast_context, language_runtime,
+            processed_names, local_variables, use_dynamic, bind_generic_types))
+      return {std::move(error), var};
+  }
+  return {llvm::Error::success(), nullptr};
 }
 
 /// Check if we can evaluate the expression as generic.
@@ -624,15 +625,17 @@ SwiftUserExpression::GetTextAndSetExpressionParser(
 
   llvm::SmallVector<SwiftASTManipulator::VariableInfo> local_variables;
 
-  if (llvm::Error error = RegisterAllVariables(
-          sc, stack_frame, *m_swift_ast_ctx, local_variables,
-          m_options.GetUseDynamic(), m_options.GetBindGenericTypes())) {
+  auto [error, bad_var] = RegisterAllVariables(
+      sc, stack_frame, *m_swift_ast_ctx, local_variables,
+      m_options.GetUseDynamic(), m_options.GetBindGenericTypes());
+  if (error) {
     diagnostic_manager.PutString(lldb::eSeverityInfo,
                                  llvm::toString(std::move(error)));
-    diagnostic_manager.PutString(
-        lldb::eSeverityError,
-        "Couldn't realize Swift AST type of self. Hint: using `v` to "
-        "directly inspect variables and fields may still work.");
+    std::string diag = llvm::formatv(
+        "Couldn't realize Swift AST type of variable '{0}'. Hint: using `v` to "
+        "directly inspect variables and fields may still work.",
+        bad_var->GetName());
+    diagnostic_manager.PutString(lldb::eSeverityError, diag);
     return ParseResult::retry_bind_generic_params;
   }
 
