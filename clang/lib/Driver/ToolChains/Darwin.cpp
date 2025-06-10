@@ -1816,10 +1816,14 @@ struct DarwinPlatform {
     UnderlyingOSVersion.reset();
     return Result;
   }
+  bool isValidOSVersion() const {
+    return llvm::Triple::isValidVersionForOS(getOSFromPlatform(Platform),
+                                             getOSVersion());
+  }
 
   VersionTuple getCanonicalOSVersion() const {
-    return llvm::Triple::getCanonicalVersionForOS(getOSFromPlatform(Platform),
-                                                  getOSVersion());
+    return llvm::Triple::getCanonicalVersionForOS(
+        getOSFromPlatform(Platform), getOSVersion(), /*IsInValidRange=*/true);
   }
 
   void setOSVersion(const VersionTuple &Version) {
@@ -2544,6 +2548,9 @@ void Darwin::AddDeploymentTarget(DerivedArgList &Args) const {
   }
 
   assert(PlatformAndVersion && "Unable to infer Darwin variant");
+  if (!PlatformAndVersion->isValidOSVersion())
+    getDriver().Diag(diag::err_drv_invalid_version_number)
+        << PlatformAndVersion->getAsString(Args, Opts);
   // After the deployment OS version has been resolved, set it to the canonical
   // version before further error detection and converting to a proper target
   // triple.
@@ -2645,6 +2652,12 @@ void Darwin::AddDeploymentTarget(DerivedArgList &Args) const {
     ZipperedOSVersion = PlatformAndVersion->getZipperedOSVersion();
   setTarget(Platform, Environment, Major, Minor, Micro, ZipperedOSVersion);
   TargetVariantTriple = PlatformAndVersion->getTargetVariantTriple();
+  if (TargetVariantTriple &&
+      !llvm::Triple::isValidVersionForOS(TargetVariantTriple->getOS(),
+                                         TargetVariantTriple->getOSVersion())) {
+    getDriver().Diag(diag::err_drv_invalid_version_number)
+        << TargetVariantTriple->str();
+  }
 
   if (const Arg *A = Args.getLastArg(options::OPT_isysroot)) {
     StringRef SDK = getSDKName(A->getValue());
