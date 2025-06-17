@@ -15543,6 +15543,17 @@ public:
   ///
   /// Triggered by declaration-attribute processing.
   void ProcessAPINotes(Decl *D);
+  /// ACTODO: Comment
+  void ApplyNullability(Decl *D, NullabilityKind Nullability);
+  /// ACTODO: Comment
+  void ApplyAPINotesType(Decl *D, StringRef TypeString);
+
+  /// Whether APINotes should be gathered for all
+  /// applicable Swift versions, without being applied. Leaving
+  /// clients of the current module to apply the correct version.
+  bool captureSwiftVersionIndependentAPINotes() {
+    return APINotes.captureVersionIndependentSwift();
+  }
 
   ///@}
 
