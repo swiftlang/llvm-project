@@ -59,7 +59,7 @@ void LogChannelSwift::Initialize() {
   Log::EnableLogChannel(log_handler_sp, 0, "swift", {"health"}, llvm::nulls());
   if (Log *log = GetSwiftHealthLog())
     log->Printf(
-        "==== LLDB swift-healthcheck log. ===\n"
+        "==== LLDB swift-healthcheck log. ====\n"
         "This file contains the configuration of LLDB's embedded Swift "
         "compiler to help diagnosing module import and search path issues. "
         "The swift-healthcheck command is meant to be run *after* an error "
