@@ -113,8 +113,7 @@ public:
   AreEqualForFrameComparison(const SymbolContext &sc1,
                              const SymbolContext &sc2) const override;
 
-  std::string
-  GetParentNameIfClosure(llvm::StringRef mangled_name) const override;
+  std::string GetParentNameIfClosure(Function &func) const override;
   //------------------------------------------------------------------
   // Static Functions
   //------------------------------------------------------------------

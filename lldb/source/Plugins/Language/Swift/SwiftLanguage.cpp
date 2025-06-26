@@ -2167,9 +2167,8 @@ SwiftLanguage::AreEqualForFrameComparison(const SymbolContext &sc1,
   llvm_unreachable("unhandled enumeration in AreEquivalentFunctions");
 }
 
-std::string
-SwiftLanguage::GetParentNameIfClosure(llvm::StringRef mangled_name) const {
-  return SwiftLanguageRuntime::GetParentNameIfClosure(mangled_name);
+std::string SwiftLanguage::GetParentNameIfClosure(Function &func) const {
+  return SwiftLanguageRuntime::GetParentNameIfClosure(func);
 }
 
 //------------------------------------------------------------------
