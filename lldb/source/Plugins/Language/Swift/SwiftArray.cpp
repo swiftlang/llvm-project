@@ -15,6 +15,7 @@
 #include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "Plugins/TypeSystem/Swift/TypeSystemSwiftTypeRef.h"
+#include "lldb/Core/Address.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
@@ -459,6 +460,21 @@ SwiftArrayBufferHandler::CreateBufferHandler(ValueObject &static_valobj) {
 
     lldb::addr_t storage_location =
         buffer_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
+
+    lldb_private::Address addr = Address();
+    addr.SetLoadAddress(storage_location, exe_ctx.GetTargetPtr());
+
+    // If the storage_location points to a swiftEmptyArrayStorage symbol, return
+    // a SwiftArrayEmptyBufferHandler.
+    if (auto *symbol = addr.CalculateSymbolContextSymbol()) {
+      auto mangledName = symbol->GetMangled().GetMangledName().GetStringRef();
+      if (mangledName == "$ss19__EmptyArrayStorageCN") {
+        CompilerType elem_type(
+            valobj.GetCompilerType().GetArrayElementType(exe_scope));
+        return std::unique_ptr<SwiftArrayBufferHandler>(
+            new SwiftArrayEmptyBufferHandler(elem_type));
+      }
+    }
 
     if (storage_location != LLDB_INVALID_ADDRESS) {
       ProcessSP process_sp(valobj.GetProcessSP());
