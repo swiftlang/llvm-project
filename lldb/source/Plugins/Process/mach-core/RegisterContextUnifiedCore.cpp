@@ -262,9 +262,7 @@ size_t RegisterContextUnifiedCore::GetRegisterCount() {
 
 const RegisterInfo *
 RegisterContextUnifiedCore::GetRegisterInfoAtIndex(size_t reg) {
-  if (reg < m_register_infos.size())
-    return &m_register_infos[reg];
-  return nullptr;
+  return &m_register_infos[reg];
 }
 
 size_t RegisterContextUnifiedCore::GetRegisterSetCount() {
@@ -272,9 +270,7 @@ size_t RegisterContextUnifiedCore::GetRegisterSetCount() {
 }
 
 const RegisterSet *RegisterContextUnifiedCore::GetRegisterSet(size_t set) {
-  if (set < m_register_sets.size())
-    return &m_register_sets[set];
-  return nullptr;
+  return &m_register_sets[set];
 }
 
 bool RegisterContextUnifiedCore::ReadRegister(
