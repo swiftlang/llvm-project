@@ -2707,7 +2707,6 @@ SwiftASTContext::CreateInstance(const SymbolContext &sc,
 
   CompileUnit *cu = sc.comp_unit;
   const char *key = TypeSystemSwiftTypeRef::DeriveKeyFor(sc);
-  bool swift_context = cu && cu->GetLanguage() == eLanguageTypeSwift;
   std::string m_description;
   {
     StreamString ss;
@@ -2715,10 +2714,10 @@ SwiftASTContext::CreateInstance(const SymbolContext &sc,
     if (for_expressions)
       ss << "ForExpressions";
     ss << "(module: " << '"' << key << "\", " << "cu: " << '"';
-    if (cu && swift_context)
+    if (cu)
       ss << cu->GetPrimaryFile().GetFilename();
     else
-      ss << "*";
+      ss << "null";
     ss << '"' << ')';
     m_description = ss.GetString();
   }
@@ -2798,8 +2797,7 @@ SwiftASTContext::CreateInstance(const SymbolContext &sc,
   ModuleList module_module;
   if (!target_sp)
     module_module.Append(module_sp);
-  ModuleList &modules =
-      (target_sp && swift_context) ? target_sp->GetImages() : module_module;
+  ModuleList &modules = target_sp ? target_sp->GetImages() : module_module;
   const size_t num_images = modules.GetSize();
 
   // Set the SDK path prior to doing search paths.  Otherwise when we
@@ -3135,8 +3133,7 @@ SwiftASTContext::CreateInstance(const SymbolContext &sc,
           }
         }
       };
-  if (swift_context)
-    scan_module(module_sp, 0);
+  scan_module(module_sp, 0);
   for (size_t mi = 0; mi != num_images; ++mi) {
     auto image_sp = modules.GetModuleAtIndex(mi);
     if (!visited_modules.count(image_sp.get()))
