@@ -21,6 +21,10 @@ public:
   static llvm::VersionTuple GetOSVersion();
   static std::optional<std::string> GetOSBuildString();
   static FileSpec GetProgramFileSpec();
+
+#ifdef LLDB_ENABLE_SWIFT
+  static llvm::Expected<llvm::StringRef> GetSDKRoot(SDKOptions options); 
+#endif
 };
 }
 

@@ -144,6 +144,12 @@ else()
       freebsd/Host.cpp
       freebsd/HostInfoFreeBSD.cpp
       )
+      
+      if(LLDB_ENABLE_SWIFT_SUPPORT)
+        add_host_subdirectory(posix
+	  freebsd/HostInfoFreeBSDSwift.cpp
+          )
+      endif()
 
   elseif (CMAKE_SYSTEM_NAME MATCHES "NetBSD")
     add_host_subdirectory(netbsd
