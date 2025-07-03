@@ -9268,10 +9268,6 @@ ExternalASTSource::ExtKind ASTReader::hasExternalDefinitions(const Decl *FD) {
   return I->second ? EK_Never : EK_Always;
 }
 
-bool ASTReader::hasInitializerWithSideEffects(const VarDecl *VD) const {
-  return InitSideEffectVars.count(VD);
-}
-
 Selector ASTReader::getLocalSelector(ModuleFile &M, unsigned LocalID) {
   return DecodeSelector(getGlobalSelectorID(M, LocalID));
 }
