@@ -107,6 +107,14 @@ MultiplexExternalSemaSource::hasExternalDefinitions(const Decl *D) {
   return EK_ReplyHazy;
 }
 
+bool MultiplexExternalSemaSource::hasInitializerWithSideEffects(
+    const VarDecl *VD) const {
+  for (const auto &S : Sources)
+    if (S->hasInitializerWithSideEffects(VD))
+      return true;
+  return false;
+}
+
 bool MultiplexExternalSemaSource::
 FindExternalVisibleDeclsByName(const DeclContext *DC, DeclarationName Name) {
   bool AnyDeclsFound = false;
