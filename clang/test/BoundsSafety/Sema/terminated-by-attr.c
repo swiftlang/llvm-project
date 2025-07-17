@@ -8,7 +8,7 @@
 void term(int val) {
   char a1[__terminated_by(0)] = "";
   char a2[__terminated_by(0x40 + 1)] = {'A'};
-  char a3[__terminated_by(val)] = ""; // expected-error{{'__terminated_by' attribute requires an integer constant}}
+  char a3[__terminated_by(val)] = ""; // expected-error{{'__terminated_by__' attribute requires an integer constant}}
 }
 
 void multiple_attrs(void) {

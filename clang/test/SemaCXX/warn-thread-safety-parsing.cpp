@@ -361,14 +361,14 @@ int gb_testfn(int y){
 }
 
 void gb_function_sys_macro() _SYS_GUARDED_BY(mu1); // \
-  // expected-warning {{'_SYS_GUARDED_BY' attribute only applies to}}
+  // expected-warning {{'pcs' attribute only applies to}}
 
 void gb_function_params_sys_macro(int gv_lvar _SYS_GUARDED_BY(mu1)); // \
-  // expected-warning {{'_SYS_GUARDED_BY' attribute only applies to}}
+  // expected-warning {{'pcs' attribute only applies to}}
 
 int gb_testfn_sys_macro(int y){
   int x _SYS_GUARDED_BY(mu1) = y; // \
-    // expected-warning {{'_SYS_GUARDED_BY' attribute only applies to}}
+    // expected-warning {{'pcs' attribute only applies to}}
   return x;
 }
 

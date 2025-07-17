@@ -373,9 +373,9 @@ class RefParamMustBePtrBadPartialU : public RefParamMustBePtrBadPartialBase<int*
 template <class V>
 class RefParamMustBePtrBadPartialV : public RefParamMustBePtrBadPartialBase<int, int, V> {
     public:
-    int __single ptr2; // expected-error{{'__single' attribute only applies to pointer arguments}}
+    int __single ptr2; // expected-error{{'__single__' attribute only applies to pointer arguments}}
     typeof(RefParamMustBePtrGoodPartialBase<int, int, V>::ptr0) ptr3;
-    int __single another_method() { return ptr2; } // expected-error{{'__single' attribute only applies to pointer arguments}}
+    int __single another_method() { return ptr2; } // expected-error{{'__single__' attribute only applies to pointer arguments}}
     V __single other; // no error
 };
 

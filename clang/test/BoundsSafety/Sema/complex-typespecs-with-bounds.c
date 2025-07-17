@@ -19,7 +19,7 @@ struct S {
 };
 
 void typeofexprs(struct S s) {
-    // expected-error@+1{{'__single' attribute only applies to pointer arguments}}
+    // expected-error@+1{{'__single__' attribute only applies to pointer arguments}}
     typeof(foo) __single p1;
     // expected-error@+1{{initializing 'typeof (foo())' (aka 'char *__single') with an expression of incompatible type 'char * _Nullable' casts away '__unsafe_indexable' qualifier; use '__unsafe_forge_single' or '__unsafe_forge_bidi_indexable' to perform this conversion}}
     typeof(foo()) __single p2 = foo();

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -I%S/Inputs -fsyntax-only -verify -triple x86_64-linux-gnu %s
+warn-thread-safety-parsing.cpp// RUN: %clang_cc1 -I%S/Inputs -fsyntax-only -verify -triple x86_64-linux-gnu %s
 
 #include <macro_defined_type.h>
 
@@ -33,7 +33,7 @@ struct A {
 };
 
 struct A_system_macro {
-  _SYS_LIBCPP_FLOAT_ABI int operator()() throw(); // expected-warning{{'_SYS_LIBCPP_FLOAT_ABI' calling convention is not supported for this target}}
+  _SYS_LIBCPP_FLOAT_ABI int operator()() throw(); // expected-warning{{'pcs' calling convention is not supported for this target}}
 };
 
 // Added test for fix for PR43315
