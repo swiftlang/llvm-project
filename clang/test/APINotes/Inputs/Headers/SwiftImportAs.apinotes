@@ -14,6 +14,10 @@ Tags:
   SwiftReleaseOp: RCRelease
   SwiftRetainOp: RCRetain
   SwiftConformsTo: MySwiftModule.MySwiftRefCountedProtocol
+- Name: OpaqueRefCountedType
+  SwiftImportAs: reference
+  SwiftReleaseOp: ORCRelease
+  SwiftRetainOp: ORCRetain
 - Name: NonCopyableType
   SwiftCopyable: false
   SwiftConformsTo: MySwiftModule.MySwiftNonCopyableProtocol
