@@ -19,3 +19,9 @@ struct CopyableType { int value; };
 
 struct NonEscapableType { int value; };
 struct EscapableType { int value; };
+
+
+struct OpaqueRefCountedType;
+
+inline void ORCRetain(struct OpaqueRefCountedType *x);
+inline void ORCRelease(struct OpaqueRefCountedType *x);
