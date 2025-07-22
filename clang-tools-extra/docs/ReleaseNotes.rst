@@ -564,6 +564,10 @@ Changes in existing checks
   usages of ``std::string_view::compare``. Added a `StringLikeClasses` option
   to detect usages of ``compare`` method in custom string-like classes.
 
+- Improved :doc:`bugprone-infinite-loop
+  <clang-tidy/checks/bugprone/infinite-loop>` check by adding detection for
+  variables introduced by structured bindings.
+
 Removed checks
 ^^^^^^^^^^^^^^
 
