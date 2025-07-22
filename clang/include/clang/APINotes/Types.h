@@ -141,6 +141,9 @@ class CommonTypeInfo : public CommonEntityInfo {
   /// The NS error domain for this type.
   std::optional<std::string> NSErrorDomain;
 
+  /// The Swift protocol that this type should be automatically conformed to.
+  std::optional<std::string> SwiftConformance;
+
 public:
   CommonTypeInfo() {}
 
@@ -165,6 +168,14 @@ public:
                            : std::nullopt;
   }
 
+  std::optional<std::string> getSwiftConformance() const {
+    return SwiftConformance;
+  }
+
+  void setSwiftConformance(std::optional<std::string> conformance) {
+    SwiftConformance = conformance;
+  }
+
   friend bool operator==(const CommonTypeInfo &, const CommonTypeInfo &);
 
   CommonTypeInfo &operator|=(const CommonTypeInfo &RHS) {
@@ -175,6 +186,8 @@ public:
       setSwiftBridge(RHS.getSwiftBridge());
     if (!NSErrorDomain)
       setNSErrorDomain(RHS.getNSErrorDomain());
+    if (SwiftConformance)
+      setSwiftConformance(RHS.getSwiftConformance());
 
     return *this;
   }
@@ -185,7 +198,8 @@ public:
 inline bool operator==(const CommonTypeInfo &LHS, const CommonTypeInfo &RHS) {
   return static_cast<const CommonEntityInfo &>(LHS) == RHS &&
          LHS.SwiftBridge == RHS.SwiftBridge &&
-         LHS.NSErrorDomain == RHS.NSErrorDomain;
+         LHS.NSErrorDomain == RHS.NSErrorDomain &&
+         LHS.SwiftConformance == RHS.SwiftConformance;
 }
 
 inline bool operator!=(const CommonTypeInfo &LHS, const CommonTypeInfo &RHS) {
@@ -824,9 +838,6 @@ public:
   std::optional<std::string> SwiftRetainOp;
   std::optional<std::string> SwiftReleaseOp;
 
-  /// The Swift protocol that this type should be automatically conformed to.
-  std::optional<std::string> SwiftConformance;
-
   std::optional<EnumExtensibilityKind> EnumExtensibility;
 
   TagInfo()
@@ -873,9 +884,6 @@ public:
     if (!SwiftReleaseOp)
       SwiftReleaseOp = RHS.SwiftReleaseOp;
 
-    if (!SwiftConformance)
-      SwiftConformance = RHS.SwiftConformance;
-
     if (!HasFlagEnum)
       setFlagEnum(RHS.isFlagEnum());
 
@@ -901,7 +909,6 @@ inline bool operator==(const TagInfo &LHS, const TagInfo &RHS) {
          LHS.SwiftImportAs == RHS.SwiftImportAs &&
          LHS.SwiftRetainOp == RHS.SwiftRetainOp &&
          LHS.SwiftReleaseOp == RHS.SwiftReleaseOp &&
-         LHS.SwiftConformance == RHS.SwiftConformance &&
          LHS.isFlagEnum() == RHS.isFlagEnum() &&
          LHS.isSwiftCopyable() == RHS.isSwiftCopyable() &&
          LHS.isSwiftEscapable() == RHS.isSwiftEscapable() &&
