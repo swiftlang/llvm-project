@@ -845,8 +845,10 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
                          &FileCacheName](llvm::raw_fd_ostream &OS,
                                          ArrayRef<std::string> Arguments) {
     OS << ReproExecutable;
-    for (int I = 0, E = Arguments.size(); I < E; ++I)
-      OS << ' ' << Arguments[I];
+    for (int I = 0, E = Arguments.size(); I < E; ++I) {
+      OS << ' ';
+      llvm::sys::printArg(OS, Arguments[I], /*Quote=*/true);
+    }
     OS << " -ivfsoverlay \"" << FileCacheName << "/vfs/vfs.yaml\"";
     OS << '\n';
   };
