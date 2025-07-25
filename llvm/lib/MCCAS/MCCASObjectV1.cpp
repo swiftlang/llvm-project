@@ -1577,7 +1577,7 @@ Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
   // hasEmitNops.
   if (!Count) {
     *Stream << Remaining;
-    return Remaining.size();
+    return Remaining.size() + FragContentSize;
   }
   int64_t Value;
   unsigned ValueSize;
@@ -1604,7 +1604,7 @@ Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
       break;
     }
   }
-  return Count * ValueSize;
+  return (Count * ValueSize) + FragContentSize;
 }
 
 Expected<MCBoundaryAlignFragmentRef>
