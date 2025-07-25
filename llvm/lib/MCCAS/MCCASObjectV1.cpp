@@ -2124,9 +2124,7 @@ MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
                                       bool IsDebugLineSection) {
   SmallVector<char, 0> mergedData;
   for (const MCFragment &Fragment : *Section) {
-    if (const auto *DataFragment = dyn_cast<MCDataFragment>(&Fragment))
-      llvm::append_range(mergedData, DataFragment->getContents());
-    else if (Fragment.getKind() == MCFragment::FT_Dwarf)
+    if (Fragment.getKind() == MCFragment::FT_Dwarf)
       if (IsDebugLineSection)
         llvm::append_range(mergedData, Fragment.getContents());
       else
