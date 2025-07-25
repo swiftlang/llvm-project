@@ -1919,11 +1919,10 @@ Error MCDataFragmentMerger::tryMerge(const MCFragment &F, unsigned Size,
   return Error::success();
 }
 
-static Error writeAlignFragment(MCCASBuilder &Builder,
-                                const MCAlignFragment &AF, raw_ostream &OS,
-                                unsigned FragmentSize) {
-  uint64_t Count = FragmentSize / AF.getFillLen();
-  if (AF.hasEmitNops()) {
+static Error writeAlignFragment(MCCASBuilder &Builder, const MCFragment &AF,
+                                raw_ostream &OS, unsigned FragmentSize) {
+  uint64_t Count = FragmentSize / AF.getAlignFillLen();
+  if (AF.hasAlignEmitNops()) {
     if (!Builder.Asm.getBackend().writeNopData(OS, Count,
                                                AF.getSubtargetInfo()))
       return createStringError(inconvertibleErrorCode(),
@@ -1934,20 +1933,20 @@ static Error writeAlignFragment(MCCASBuilder &Builder,
   auto Endian = Builder.ObjectWriter.Target.isLittleEndian() ? endianness::little
                                                              : endianness::big;
   for (uint64_t I = 0; I != Count; ++I) {
-    switch (AF.getFillLen()) {
+    switch (AF.getAlignFillLen()) {
     default:
       llvm_unreachable("Invalid size!");
     case 1:
-      OS << char(AF.getFill());
+      OS << char(AF.getAlignFill());
       break;
     case 2:
-      support::endian::write<uint16_t>(OS, AF.getFill(), Endian);
+      support::endian::write<uint16_t>(OS, AF.getAlignFill(), Endian);
       break;
     case 4:
-      support::endian::write<uint32_t>(OS, AF.getFill(), Endian);
+      support::endian::write<uint32_t>(OS, AF.getAlignFill(), Endian);
       break;
     case 8:
-      support::endian::write<uint64_t>(OS, AF.getFill(), Endian);
+      support::endian::write<uint64_t>(OS, AF.getAlignFill(), Endian);
       break;
     }
   }
@@ -2140,10 +2139,10 @@ MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
     else if (const auto *CVInlineLineTableFragment =
                  dyn_cast<MCCVInlineLineTableFragment>(&Fragment))
       llvm::append_range(mergedData, CVInlineLineTableFragment->getContents());
-    else if (const auto *AlignFragment = dyn_cast<MCAlignFragment>(&Fragment)) {
+    else if (Fragment.getKind() == MCFragment::FT_Align) {
       auto FragmentSize = Asm.computeFragmentSize(Fragment);
       raw_svector_ostream OS(mergedData);
-      if (auto E = writeAlignFragment(*this, *AlignFragment, OS, FragmentSize))
+      if (auto E = writeAlignFragment(*this, Fragment, OS, FragmentSize))
         return std::move(E);
     } else if (Fragment.getFixedSize() != 0)
       llvm::append_range(mergedData, Fragment.getContents());
