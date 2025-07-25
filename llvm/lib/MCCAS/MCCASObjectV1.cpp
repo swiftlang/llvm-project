@@ -48,7 +48,6 @@ constexpr StringLiteral PaddingRef::KindString;
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   constexpr StringLiteral MCFragmentName##Ref::KindString;
 #include "llvm/MCCAS/MCCASObjectV1.def"
-constexpr StringLiteral MCGenericFragmentRef::KindString;
 constexpr StringLiteral DebugInfoSectionRef::KindString;
 
 void MCSchema::anchor() {}
@@ -173,7 +172,6 @@ Error MCSchema::fillCache() {
       PaddingRef::KindString,
       MCAssemblerRef::KindString,
       DebugInfoSectionRef::KindString,
-      MCGenericFragmentRef::KindString,
 #define CASV1_SIMPLE_DATA_REF(RefName, IdentifierName) RefName::KindString,
 #define CASV1_SIMPLE_GROUP_REF(RefName, IdentifierName) RefName::KindString,
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
@@ -1533,16 +1531,16 @@ Expected<uint64_t> AtomRef::materialize(MCCASReader &Reader,
   return Size;
 }
 
-Expected<MCGenericFragmentRef>
-MCGenericFragmentRef::createGenericAlignFragmentRef(
-    MCCASBuilder &MB, const MCFragment &F, unsigned FragmentSize,
-    ArrayRef<char> FragmentContents) {
+Expected<MCAlignFragmentRef>
+MCAlignFragmentRef::create(MCCASBuilder &MB, const MCAlignFragment &F,
+                           unsigned FragmentSize,
+                           ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
 
-  uint64_t Count = FragmentSize / F.getAlignFillLen();
-  if (F.hasAlignEmitNops()) {
+  uint64_t Count = FragmentSize / F.getFillLen();
+  if (F.hasEmitNops()) {
     // Write 0 as size and use backend to emit nop.
     writeVBR8(0, B->Data);
     if (!MB.Asm.getBackend().writeNopData(MB.FragmentOS, Count,
@@ -1550,16 +1548,17 @@ MCGenericFragmentRef::createGenericAlignFragmentRef(
       report_fatal_error("unable to write nop sequence of " + Twine(Count) +
                          " bytes");
     B->Data.append(MB.FragmentData);
-    return get(B->build(), MCFragment::FT_Align);
+    return get(B->build());
   }
   writeVBR8(Count, B->Data);
-  writeVBR8(F.getAlignFill(), B->Data);
-  writeVBR8(F.getAlignFillLen(), B->Data);
-  return get(B->build(), MCFragment::FT_Align);
+  writeVBR8(F.getFill(), B->Data);
+  writeVBR8(F.getFillLen(), B->Data);
+  return get(B->build());
 }
 
-Expected<uint64_t> MCGenericFragmentRef::materializeGenericAlignFragmentRef(
-    MCCASReader &Reader, raw_ostream *Stream) const {
+Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
+                                                   raw_ostream *Stream) const
+                                                   {
   uint64_t Count;
   auto Remaining = getData();
   auto Endian = Reader.getEndian();
@@ -1687,74 +1686,21 @@ Expected<uint64_t> MCFillFragmentRef::materialize(MCCASReader &Reader,
   return Size;
 }
 
-Expected<MCGenericFragmentRef>
-MCGenericFragmentRef::createGenericLEBFragmentRef(
-    MCCASBuilder &MB, const MCFragment &F, unsigned FragmentSize,
-    ArrayRef<char> FragmentContents) {
+Expected<MCLEBFragmentRef>
+MCLEBFragmentRef::create(MCCASBuilder &MB, const MCLEBFragment &F,
+                         unsigned FragmentSize,
+                         ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
   llvm::append_range(B->Data, F.getContents());
-  return get(B->build(), MCFragment::FT_LEB);
+  return get(B->build());
 }
 
-Expected<uint64_t> MCGenericFragmentRef::materializeGenericLEBFragmentRef(
-    MCCASReader &Reader, raw_ostream *Stream) const {
+Expected<uint64_t> MCLEBFragmentRef::materialize(MCCASReader &Reader,
+                                                 raw_ostream *Stream) const {
   *Stream << getData();
   return getData().size();
-}
-
-Expected<MCGenericFragmentRef>
-MCGenericFragmentRef::create(MCCASBuilder &MB, const MCFragment &Fragment,
-                             unsigned int FragmentSize,
-                             ArrayRef<char> FragmentContents) {
-  auto FragType = Fragment.getKind();
-  switch (FragType) {
-  case MCFragment::FT_Align:
-    return createGenericAlignFragmentRef(MB, Fragment, FragmentSize,
-                                         FragmentContents);
-  case MCFragment::FT_LEB:
-    return createGenericLEBFragmentRef(MB, Fragment, FragmentSize,
-                                       FragmentContents);
-  case MCFragment::FT_Relaxable:
-  case MCFragment::FT_Data:
-  case MCFragment::FT_Dwarf:
-  case MCFragment::FT_DwarfFrame: {
-    Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
-    if (!B)
-      return B.takeError();
-    B->Data.append(MB.FragmentData);
-    B->Data.append(FragmentContents.begin(), FragmentContents.end());
-    assert(((MB.FragmentData.empty() && Fragment.getContents().empty()) ||
-            (MB.FragmentData.size() + Fragment.getContents().size() ==
-             FragmentSize)) &&
-           "Size should match");
-    return get(B->build(), FragType);
-  }
-  default:
-    llvm_unreachable("Other Fragment Kinds should be handled elsewhere!");
-  }
-}
-
-Expected<uint64_t>
-MCGenericFragmentRef::materialize(const MCFragment::FragmentType FragType,
-                                  MCCASReader &Reader,
-                                  raw_ostream *Stream) const {
-  switch (FragType) {
-  case MCFragment::FT_Align:
-    return materializeGenericAlignFragmentRef(Reader, Stream);
-  case MCFragment::FT_LEB:
-    return materializeGenericLEBFragmentRef(Reader, Stream);
-  case MCFragment::FT_Relaxable:
-  case MCFragment::FT_Data:
-  case MCFragment::FT_Dwarf:
-  case MCFragment::FT_DwarfFrame: {
-    *Stream << getData();
-    return getData().size();
-  }
-  default:
-    llvm_unreachable("Other Fragment Kinds should be handled elsewhere!");
-  }
 }
 
 Expected<MCNopsFragmentRef>
@@ -1912,18 +1858,6 @@ Error MCCASBuilder::buildFragment(const MCFragment &F, unsigned Size,
     return Error::success();                                                   \
   }
 #include "llvm/MCCAS/MCCASObjectV1.def"
-  case MCFragment::FT_Relaxable:
-  case MCFragment::FT_Data:
-  case MCFragment::FT_Align:
-  case MCFragment::FT_Dwarf:
-  case MCFragment::FT_DwarfFrame:
-  case MCFragment::FT_LEB: {
-    auto GF = MCGenericFragmentRef::create(*this, F, Size, FragmentContents);
-    if (!GF)
-      return GF.takeError();
-    addNode(*GF);
-    return Error::success();
-  }
   }
   llvm_unreachable("unknown fragment");
 }
@@ -2048,14 +1982,6 @@ Error MCDataFragmentMerger::emitMergedFragments() {
       if (auto E = writeAlignFragment(Builder, *Candidate.first, FragmentOS,
                                       Candidate.second))
         return E;
-      break;
-    }
-    case MCFragment::FT_Relaxable:
-    case MCFragment::FT_Data:
-    case MCFragment::FT_Dwarf:
-    case MCFragment::FT_DwarfFrame:
-    case MCFragment::FT_LEB: {
-      FragmentData.append(CandidateContents);
       break;
     }
     default:
@@ -2935,11 +2861,6 @@ static ArrayRef<char> getFragmentContents(const MCFragment &Fragment) {
         cast<MCCVInlineLineTableFragment>(Fragment);
     return SF.getContents();
   }
-  case MCFragment::FT_Relaxable:
-  case MCFragment::FT_Data:
-  case MCFragment::FT_Align:
-  case MCFragment::FT_Dwarf:
-  case MCFragment::FT_DwarfFrame:
   case MCFragment::FT_LEB: {
     return Fragment.getContents();
   }
@@ -3681,9 +3602,6 @@ Expected<uint64_t> MCCASReader::materializeAtom(cas::ObjectRef ID,
     return F->materialize(*Stream);
   if (auto F = MergedFragmentRef::Cast(*Node))
     return F->materialize(*Stream);
-  if (auto F = MCGenericFragmentRef::Cast(*Node)) {
-    return F->materialize(F->FragType, *this, Stream);
-  }
 
   return createStringError(inconvertibleErrorCode(),
                            "unsupported CAS node for fragment");

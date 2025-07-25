@@ -418,63 +418,6 @@ protected:
   };
 #include "llvm/MCCAS/MCCASObjectV1.def"
 
-class MCGenericFragmentRef : public SpecificRef<MCGenericFragmentRef> {
-  using SpecificRefT = SpecificRef<MCGenericFragmentRef>;
-  friend class SpecificRef<MCGenericFragmentRef>;
-
-public:
-  MCGenericFragmentRef(SpecificRefT ST, MCFragment::FragmentType FragType)
-      : SpecificRef<MCGenericFragmentRef>(ST), FragType(FragType) {}
-  MCFragment::FragmentType FragType;
-  static constexpr StringLiteral KindString = "mc:generic_fragment";
-  static Expected<MCGenericFragmentRef> create(MCCASBuilder &MB,
-                                               const MCFragment &Fragment,
-                                               unsigned FragmentSize,
-                                               ArrayRef<char> FragmentContents);
-  static Expected<MCGenericFragmentRef> get(Expected<MCObjectProxy> Ref,
-                                            MCFragment::FragmentType FragType) {
-    auto Specific = SpecificRefT::getSpecific(std::move(Ref));
-    if (!Specific)
-      return Specific.takeError();
-    return MCGenericFragmentRef(*Specific, FragType);
-  }
-  static Expected<MCGenericFragmentRef> get(const MCSchema &Schema,
-                                            cas::ObjectRef ID,
-                                            MCFragment::FragmentType FragType) {
-    return get(Schema.get(ID), FragType);
-  }
-  static std::optional<MCGenericFragmentRef> Cast(MCObjectProxy Ref) {
-    auto Specific = SpecificRefT::Cast(Ref);
-    if (!Specific)
-      return std::nullopt;
-    return MCGenericFragmentRef(*Specific);
-  }
-  Expected<uint64_t> materialize(const MCFragment::FragmentType FragType,
-                                 MCCASReader &Reader,
-                                 raw_ostream *Stream) const;
-
-  static Expected<MCGenericFragmentRef>
-  createGenericAlignFragmentRef(MCCASBuilder &MB, const MCFragment &F,
-                                unsigned FragmentSize,
-                                ArrayRef<char> FragmentContents);
-
-  static Expected<MCGenericFragmentRef>
-  createGenericLEBFragmentRef(MCCASBuilder &MB, const MCFragment &F,
-                              unsigned FragmentSize,
-                              ArrayRef<char> FragmentContents);
-
-  Expected<uint64_t>
-  materializeGenericAlignFragmentRef(MCCASReader &Reader,
-                                     raw_ostream *Stream) const;
-
-  Expected<uint64_t>
-  materializeGenericLEBFragmentRef(MCCASReader &Reader,
-                                   raw_ostream *Stream) const;
-
-private:
-  explicit MCGenericFragmentRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
-};
-
 class PaddingRef : public SpecificRef<PaddingRef> {
   using SpecificRefT = SpecificRef<PaddingRef>;
   friend class SpecificRef<PaddingRef>;

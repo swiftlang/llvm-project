@@ -85,4 +85,3 @@ MCFRAGMENT_NODE_REF(MCCVDefRangeFragment, FT_CVDefRange, mc:cv_def_range)
 
 #undef MCFRAGMENT_NODE_REF
 #endif /* MCFRAGMENT_NODE_REF */
-
