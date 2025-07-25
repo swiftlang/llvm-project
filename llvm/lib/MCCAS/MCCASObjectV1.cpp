@@ -2135,9 +2135,6 @@ MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
         return createStringError(
             inconvertibleErrorCode(),
             "Invalid MCDwarfLineAddrFragment in a non debug line section");
-    else if (const auto *DwarfCallFrameFragment =
-                 dyn_cast<MCDwarfCallFrameFragment>(&Fragment))
-      llvm::append_range(mergedData, DwarfCallFrameFragment->getContents());
     else if (const auto *CVDefRangeFragment =
                  dyn_cast<MCCVDefRangeFragment>(&Fragment))
       llvm::append_range(mergedData, CVDefRangeFragment->getContents());
