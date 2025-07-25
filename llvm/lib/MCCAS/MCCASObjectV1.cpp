@@ -2138,8 +2138,6 @@ MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
     else if (const auto *CVDefRangeFragment =
                  dyn_cast<MCCVDefRangeFragment>(&Fragment))
       llvm::append_range(mergedData, CVDefRangeFragment->getContents());
-    else if (const auto *LEBFragment = dyn_cast<MCLEBFragment>(&Fragment))
-      llvm::append_range(mergedData, LEBFragment->getContents());
     else if (const auto *CVInlineLineTableFragment =
                  dyn_cast<MCCVInlineLineTableFragment>(&Fragment))
       llvm::append_range(mergedData, CVInlineLineTableFragment->getContents());
