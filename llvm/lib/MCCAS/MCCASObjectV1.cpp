@@ -2127,9 +2127,6 @@ MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
   for (const MCFragment &Fragment : *Section) {
     if (const auto *DataFragment = dyn_cast<MCDataFragment>(&Fragment))
       llvm::append_range(mergedData, DataFragment->getContents());
-    else if (const auto *RelaxableFragment =
-                 dyn_cast<MCRelaxableFragment>(&Fragment))
-      llvm::append_range(mergedData, RelaxableFragment->getContents());
     else if (const auto *DwarfLineAddrFrag =
                  dyn_cast<MCDwarfLineAddrFragment>(&Fragment))
       if (IsDebugLineSection)
@@ -2157,7 +2154,9 @@ MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
       raw_svector_ostream OS(mergedData);
       if (auto E = writeAlignFragment(*this, *AlignFragment, OS, FragmentSize))
         return std::move(E);
-    } else
+    } else if (Fragment.getFixedSize() != 0)
+      llvm::append_range(mergedData, Fragment.getContents());
+    else
       // All other fragment types can be considered empty, see
       // getFragmentContents() for all fragments that have contents.
       continue;
