@@ -1978,9 +1978,8 @@ Error MCDataFragmentMerger::emitMergedFragments() {
 #define MCFRAGMENT_ENCODED_FRAGMENT_ONLY
 #include "llvm/MCCAS/MCCASObjectV1.def"
     case MCFragment::FT_Align: {
-      const MCAlignFragment *AF = cast<MCAlignFragment>(Candidate.first);
-      if (auto E =
-              writeAlignFragment(Builder, *AF, FragmentOS, Candidate.second))
+      if (auto E = writeAlignFragment(Builder, *Candidate.first, FragmentOS,
+                                      Candidate.second))
         return E;
       break;
     }
