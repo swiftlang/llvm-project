@@ -2127,14 +2127,13 @@ MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
   for (const MCFragment &Fragment : *Section) {
     if (const auto *DataFragment = dyn_cast<MCDataFragment>(&Fragment))
       llvm::append_range(mergedData, DataFragment->getContents());
-    else if (const auto *DwarfLineAddrFrag =
-                 dyn_cast<MCDwarfLineAddrFragment>(&Fragment))
+    else if (Fragment.getKind() == MCFragment::FT_Dwarf)
       if (IsDebugLineSection)
-        llvm::append_range(mergedData, DwarfLineAddrFrag->getContents());
+        llvm::append_range(mergedData, Fragment.getContents());
       else
         return createStringError(
             inconvertibleErrorCode(),
-            "Invalid MCDwarfLineAddrFragment in a non debug line section");
+            "Invalid  MCFragment::FT_Dwarf type in a non debug line section");
     else if (const auto *CVDefRangeFragment =
                  dyn_cast<MCCVDefRangeFragment>(&Fragment))
       llvm::append_range(mergedData, CVDefRangeFragment->getContents());
