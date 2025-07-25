@@ -1539,7 +1539,9 @@ MCAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
   if (!B)
     return B.takeError();
 
-  uint64_t Count = FragmentSize / F.getAlignFillLen();
+  writeVBR8(FragmentContents.size(), B->Data);
+  B->Data.append(FragmentContents.begin(), FragmentContents.end());
+  uint64_t Count = (FragmentSize - F.getFixedSize()) / F.getAlignFillLen();
   if (F.hasAlignEmitNops()) {
     // Write 0 as size and use backend to emit nop.
     writeVBR8(0, B->Data);
@@ -1559,9 +1561,16 @@ MCAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
 Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
                                                    raw_ostream *Stream) const
                                                    {
-  uint64_t Count;
+  uint64_t Count, FragContentSize;
   auto Remaining = getData();
   auto Endian = Reader.getEndian();
+  if (auto E = consumeVBR8(Remaining, FragContentSize))
+    return std::move(E);
+
+  *Stream << Remaining.substr(0, FragContentSize);
+
+  Remaining = Remaining.drop_front(FragContentSize);
+
   if (auto E = consumeVBR8(Remaining, Count))
     return std::move(E);
 
@@ -2867,6 +2876,9 @@ static ArrayRef<char> getFragmentContents(const MCFragment &Fragment) {
     return SF.getContents();
   }
   case MCFragment::FT_LEB: {
+    return Fragment.getContents();
+  }
+  case MCFragment::FT_Align: {
     return Fragment.getContents();
   }
   default:
