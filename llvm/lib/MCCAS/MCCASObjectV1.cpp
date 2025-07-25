@@ -1557,7 +1557,8 @@ MCAlignFragmentRef::create(MCCASBuilder &MB, const MCAlignFragment &F,
 }
 
 Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
-                                                   raw_ostream *Stream) const {
+                                                   raw_ostream *Stream) const
+                                                   {
   uint64_t Count;
   auto Remaining = getData();
   auto Endian = Reader.getEndian();
@@ -1887,7 +1888,7 @@ Error MCDataFragmentMerger::tryMerge(const MCFragment &F, unsigned Size,
   bool Oversized = CurrentSize + Size > MCDataMergeThreshold;
   // TODO: Try merge align fragment?
   bool IsMergeableFragment =
-      isa<MCEncodedFragment>(F) || F.getKind() == MCFragment::FT_Align;
+      F.isEncoded() || F.getKind() == MCFragment::FT_Align;
   // If not the same atom, flush merge candidate and return false.
   if (!IsSameAtom || !IsMergeableFragment || Oversized) {
     if (auto E = emitMergedFragments())
