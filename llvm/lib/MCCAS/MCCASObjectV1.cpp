@@ -1532,15 +1532,15 @@ Expected<uint64_t> AtomRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCAlignFragmentRef>
-MCAlignFragmentRef::create(MCCASBuilder &MB, const MCAlignFragment &F,
+MCAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                            unsigned FragmentSize,
                            ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
 
-  uint64_t Count = FragmentSize / F.getFillLen();
-  if (F.hasEmitNops()) {
+  uint64_t Count = FragmentSize / F.getAlignFillLen();
+  if (F.hasAlignEmitNops()) {
     // Write 0 as size and use backend to emit nop.
     writeVBR8(0, B->Data);
     if (!MB.Asm.getBackend().writeNopData(MB.FragmentOS, Count,
@@ -1551,8 +1551,8 @@ MCAlignFragmentRef::create(MCCASBuilder &MB, const MCAlignFragment &F,
     return get(B->build());
   }
   writeVBR8(Count, B->Data);
-  writeVBR8(F.getFill(), B->Data);
-  writeVBR8(F.getFillLen(), B->Data);
+  writeVBR8(F.getAlignFill(), B->Data);
+  writeVBR8(F.getAlignFillLen(), B->Data);
   return get(B->build());
 }
 
@@ -1598,9 +1598,10 @@ Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
   return Count * ValueSize;
 }
 
-Expected<MCBoundaryAlignFragmentRef> MCBoundaryAlignFragmentRef::create(
-    MCCASBuilder &MB, const MCBoundaryAlignFragment &F, unsigned FragmentSize,
-    ArrayRef<char> FragmentContents) {
+Expected<MCBoundaryAlignFragmentRef>
+MCBoundaryAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
+                                   unsigned FragmentSize,
+                                   ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
@@ -1619,9 +1620,10 @@ MCBoundaryAlignFragmentRef::materialize(MCCASReader &Reader,
   return getData().size();
 }
 
-Expected<MCCVInlineLineTableFragmentRef> MCCVInlineLineTableFragmentRef::create(
-    MCCASBuilder &MB, const MCCVInlineLineTableFragment &F,
-    unsigned FragmentSize, ArrayRef<char> FragmentContents) {
+Expected<MCCVInlineLineTableFragmentRef>
+MCCVInlineLineTableFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
+                                       unsigned FragmentSize,
+                                       ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
@@ -1637,15 +1639,16 @@ MCCVInlineLineTableFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCFillFragmentRef>
-MCFillFragmentRef::create(MCCASBuilder &MB, const MCFillFragment &F,
+MCFillFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                           unsigned FragmentSize,
                           ArrayRef<char> FragmentContents) {
+  auto *FillFrag = dyn_cast<MCFillFragment>(&F);
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
   writeVBR8(FragmentSize, B->Data);
-  writeVBR8(F.getValue(), B->Data);
-  writeVBR8(F.getValueSize(), B->Data);
+  writeVBR8(FillFrag->getValue(), B->Data);
+  writeVBR8(FillFrag->getValueSize(), B->Data);
   return get(B->build());
 }
 
@@ -1687,7 +1690,7 @@ Expected<uint64_t> MCFillFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCLEBFragmentRef>
-MCLEBFragmentRef::create(MCCASBuilder &MB, const MCLEBFragment &F,
+MCLEBFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                          unsigned FragmentSize,
                          ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
@@ -1704,14 +1707,15 @@ Expected<uint64_t> MCLEBFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCNopsFragmentRef>
-MCNopsFragmentRef::create(MCCASBuilder &MB, const MCNopsFragment &F,
+MCNopsFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                           unsigned FragmentSize,
                           ArrayRef<char> FragmentContents) {
+  auto *NopsFrag = dyn_cast<MCNopsFragment>(&F);
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
-  int64_t NumBytes = F.getNumBytes();
-  int64_t ControlledNopLength = F.getControlledNopLength();
+  int64_t NumBytes = NopsFrag->getNumBytes();
+  int64_t ControlledNopLength = NopsFrag->getControlledNopLength();
   int64_t MaximumNopLength =
       MB.Asm.getBackend().getMaximumNopSize(*F.getSubtargetInfo());
   if (ControlledNopLength > MaximumNopLength)
@@ -1740,14 +1744,15 @@ Expected<uint64_t> MCNopsFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCOrgFragmentRef>
-MCOrgFragmentRef::create(MCCASBuilder &MB, const MCOrgFragment &F,
+MCOrgFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                          unsigned FragmentSize,
                          ArrayRef<char> FragmentContents) {
+  auto *OrgFrag = dyn_cast<MCOrgFragment>(&F);
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
   writeVBR8(FragmentSize, B->Data);
-  writeVBR8((char)F.getValue(), B->Data);
+  writeVBR8((char)OrgFrag->getValue(), B->Data);
   return get(B->build());
 }
 
@@ -1758,13 +1763,14 @@ Expected<uint64_t> MCOrgFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCSymbolIdFragmentRef>
-MCSymbolIdFragmentRef::create(MCCASBuilder &MB, const MCSymbolIdFragment &F,
+MCSymbolIdFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                               unsigned FragmentSize,
                               ArrayRef<char> FragmentContents) {
+  auto *SymbolIDFrag = dyn_cast<MCSymbolIdFragment>(&F);
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
-  writeVBR8(F.getSymbol()->getIndex(), B->Data);
+  writeVBR8(SymbolIDFrag->getSymbol()->getIndex(), B->Data);
   return get(B->build());
 }
 
@@ -1777,7 +1783,7 @@ MCSymbolIdFragmentRef::materialize(MCCASReader &Reader,
 
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   Expected<MCFragmentName##Ref> MCFragmentName##Ref::create(                   \
-      MCCASBuilder &MB, const MCFragmentName &F, unsigned FragmentSize,        \
+      MCCASBuilder &MB, const MCFragment &F, unsigned FragmentSize,            \
       ArrayRef<char> FragmentContents) {                                       \
     Expected<Builder> B = Builder::startNode(MB.Schema, KindString);           \
     if (!B)                                                                    \
@@ -1850,8 +1856,7 @@ Error MCCASBuilder::buildFragment(const MCFragment &F, unsigned Size,
   switch (F.getKind()) {
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   case MCFragment::MCEnumName: {                                               \
-    const MCFragmentName &SF = cast<MCFragmentName>(F);                        \
-    auto FN = MCFragmentName##Ref::create(*this, SF, Size, FragmentContents);  \
+    auto FN = MCFragmentName##Ref::create(*this, F, Size, FragmentContents);   \
     if (!FN)                                                                   \
       return FN.takeError();                                                   \
     addNode(*FN);                                                              \
@@ -1922,7 +1927,8 @@ Error MCDataFragmentMerger::tryMerge(const MCFragment &F, unsigned Size,
 
 static Error writeAlignFragment(MCCASBuilder &Builder, const MCFragment &AF,
                                 raw_ostream &OS, unsigned FragmentSize) {
-  uint64_t Count = FragmentSize / AF.getAlignFillLen();
+  OS << StringRef(AF.getContents().data(), AF.getContents().size());
+  uint64_t Count = (FragmentSize - AF.getFixedSize()) / AF.getAlignFillLen();
   if (AF.hasAlignEmitNops()) {
     if (!Builder.Asm.getBackend().writeNopData(OS, Count,
                                                AF.getSubtargetInfo()))
@@ -2851,8 +2857,7 @@ static ArrayRef<char> getFragmentContents(const MCFragment &Fragment) {
   switch (Fragment.getKind()) {
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   case MCFragment::MCEnumName: {                                               \
-    const MCFragmentName &SF = cast<MCFragmentName>(Fragment);                 \
-    return SF.getContents();                                                   \
+    return Fragment.getContents();                                             \
   }
 #define MCFRAGMENT_ENCODED_FRAGMENT_ONLY
 #include "llvm/MCCAS/MCCASObjectV1.def"
