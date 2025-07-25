@@ -2861,8 +2861,7 @@ static ArrayRef<char> getFragmentContents(const MCFragment &Fragment) {
     return SF.getContents();
   }
   case MCFragment::FT_LEB: {
-    const MCLEBFragment &SF = cast<MCLEBFragment>(Fragment);
-    return SF.getContents();
+    return Fragment.getContents();
   }
   default:
     return ArrayRef<char>();
