@@ -1887,7 +1887,7 @@ Error MCDataFragmentMerger::tryMerge(const MCFragment &F, unsigned Size,
   bool Oversized = CurrentSize + Size > MCDataMergeThreshold;
   // TODO: Try merge align fragment?
   bool IsMergeableFragment =
-      isa<MCEncodedFragment>(F) || isa<MCAlignFragment>(F);
+      isa<MCEncodedFragment>(F) || F.getKind() == MCFragment::FT_Align;
   // If not the same atom, flush merge candidate and return false.
   if (!IsSameAtom || !IsMergeableFragment || Oversized) {
     if (auto E = emitMergedFragments())
