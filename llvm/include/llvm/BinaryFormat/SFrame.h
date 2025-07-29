@@ -16,6 +16,7 @@
 #define LLVM_BINARYFORMAT_SFRAME_H
 
 #include "llvm/ADT/BitmaskEnum.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/Endian.h"
 
