@@ -227,9 +227,11 @@ private:
       return *this;
     }
 
+#ifndef __swift__
     bool operator==(const DiffListIterator &Other) const {
       return List == Other.List;
     }
+#endif
   };
 
 public:
