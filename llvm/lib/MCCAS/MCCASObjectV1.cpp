@@ -2869,6 +2869,8 @@ static void getFragmentContents(const MCFragment &Fragment,
   case MCFragment::MCEnumName: {                                               \
     FragContents.append(Fragment.getContents().begin(),                        \
                         Fragment.getContents().end());                         \
+    FragContents.append(Fragment.getVarContents().begin(),                     \
+                        Fragment.getVarContents().end());                      \
     \ 
     return;                                                                    \
   }
