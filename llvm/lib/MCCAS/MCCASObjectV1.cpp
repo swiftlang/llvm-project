@@ -1543,8 +1543,8 @@ MCAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
   B->Data.append(FragmentContents.begin(), FragmentContents.end());
   uint64_t Count = (FragmentSize - F.getFixedSize()) / F.getAlignFillLen();
   if (F.hasAlignEmitNops()) {
-    // Write 0 as size and use backend to emit nop.
-    writeVBR8(0, B->Data);
+    // Write 1 to signify that it has nops.
+    writeVBR8(1, B->Data);
     if (!MB.Asm.getBackend().writeNopData(MB.FragmentOS, Count,
                                           F.getSubtargetInfo()))
       report_fatal_error("unable to write nop sequence of " + Twine(Count) +
@@ -1552,6 +1552,8 @@ MCAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
     B->Data.append(MB.FragmentData);
     return get(B->build());
   }
+  // Write 0 to signify that it has nops.
+  writeVBR8(0, B->Data);
   writeVBR8(Count, B->Data);
   writeVBR8(F.getAlignFill(), B->Data);
   writeVBR8(F.getAlignFillLen(), B->Data);
@@ -1561,7 +1563,7 @@ MCAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
 Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
                                                    raw_ostream *Stream) const
                                                    {
-  uint64_t Count, FragContentSize;
+  uint64_t Count, FragContentSize, HasNops;
   auto Remaining = getData();
   auto Endian = Reader.getEndian();
   if (auto E = consumeVBR8(Remaining, FragContentSize))
@@ -1571,14 +1573,18 @@ Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
 
   Remaining = Remaining.drop_front(FragContentSize);
 
-  if (auto E = consumeVBR8(Remaining, Count))
+  if (auto E = consumeVBR8(Remaining, HasNops))
     return std::move(E);
 
   // hasEmitNops.
-  if (!Count) {
+  if (HasNops) {
     *Stream << Remaining;
     return Remaining.size() + FragContentSize;
   }
+
+  if (auto E = consumeVBR8(Remaining, Count))
+    return std::move(E);
+
   int64_t Value;
   unsigned ValueSize;
   if (auto E = consumeVBR8(Remaining, Value))
@@ -2871,7 +2877,6 @@ static void getFragmentContents(const MCFragment &Fragment,
                         Fragment.getContents().end());                         \
     FragContents.append(Fragment.getVarContents().begin(),                     \
                         Fragment.getVarContents().end());                      \
-    \ 
     return;                                                                    \
   }
 #define MCFRAGMENT_ENCODED_FRAGMENT_ONLY
@@ -2880,13 +2885,14 @@ static void getFragmentContents(const MCFragment &Fragment,
     const MCCVInlineLineTableFragment &SF =
         cast<MCCVInlineLineTableFragment>(Fragment);
     FragContents.append(SF.getContents().begin(), SF.getContents().end());
+    FragContents.append(SF.getVarContents().begin(), SF.getVarContents().end());
     return;
   }
   case MCFragment::FT_LEB: {
-    auto FixedContent = Fragment.getContents();
-    auto VarContent = Fragment.getVarContents();
-    FragContents.append(FixedContent.begin(), FixedContent.end());
-    FragContents.append(VarContent.begin(), VarContent.end());
+    FragContents.append(Fragment.getContents().begin(),
+                        Fragment.getContents().end());
+    FragContents.append(Fragment.getVarContents().begin(),
+                        Fragment.getVarContents().end());
     return;
   }
   case MCFragment::FT_Align: {
