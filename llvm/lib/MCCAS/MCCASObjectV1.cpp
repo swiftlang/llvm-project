@@ -2150,6 +2150,8 @@ Expected<SmallVector<char, 0>>
 MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
                                       bool IsDebugLineSection) {
   SmallVector<char, 0> mergedData;
+  if (!Section->curFragList())
+    return mergedData;
   for (const MCFragment &Fragment : *Section) {
     if (Fragment.getKind() == MCFragment::FT_Dwarf)
       if (IsDebugLineSection)
