@@ -92,6 +92,15 @@ function(add_lldb_library name)
     ${pass_NO_INSTALL_RPATH}
   )
 
+  if(MSVC)
+    # LLDB libraries are always linked with Clang libraries statically, so turn
+    # off Clang visibility macros for both the library and its consumers.
+    target_compile_definitions(${name} PUBLIC CLANG_BUILD_STATIC)
+    if(TARGET "obj.${name}")
+      target_compile_definitions("obj.${name}" PUBLIC CLANG_BUILD_STATIC)
+    endif()
+  endif()
+
   if(CLANG_LINK_CLANG_DYLIB)
     target_link_libraries(${name} PRIVATE clang-cpp)
   else()
