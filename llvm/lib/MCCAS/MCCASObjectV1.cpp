@@ -2154,29 +2154,35 @@ MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
     return mergedData;
   for (const MCFragment &Fragment : *Section) {
     if (Fragment.getKind() == MCFragment::FT_Dwarf)
-      if (IsDebugLineSection)
+      if (IsDebugLineSection) {
         llvm::append_range(mergedData, Fragment.getContents());
-      else
+        llvm::append_range(mergedData, Fragment.getVarContents());
+      } else
         return createStringError(
             inconvertibleErrorCode(),
             "Invalid  MCFragment::FT_Dwarf type in a non debug line section");
     else if (const auto *CVDefRangeFragment =
-                 dyn_cast<MCCVDefRangeFragment>(&Fragment))
+                 dyn_cast<MCCVDefRangeFragment>(&Fragment)) {
       llvm::append_range(mergedData, CVDefRangeFragment->getContents());
+      llvm::append_range(mergedData, CVDefRangeFragment->getVarContents());
+    }
+
     else if (const auto *CVInlineLineTableFragment =
-                 dyn_cast<MCCVInlineLineTableFragment>(&Fragment))
+                 dyn_cast<MCCVInlineLineTableFragment>(&Fragment)) {
       llvm::append_range(mergedData, CVInlineLineTableFragment->getContents());
-    else if (Fragment.getKind() == MCFragment::FT_Align) {
+      llvm::append_range(mergedData,
+                         CVInlineLineTableFragment->getVarContents());
+    } else if (Fragment.getKind() == MCFragment::FT_Align) {
       auto FragmentSize = Asm.computeFragmentSize(Fragment);
       raw_svector_ostream OS(mergedData);
       if (auto E = writeAlignFragment(*this, Fragment, OS, FragmentSize))
         return std::move(E);
-    } else if (Fragment.getFixedSize() != 0)
-      llvm::append_range(mergedData, Fragment.getContents());
-    else
-      // All other fragment types can be considered empty, see
-      // getFragmentContents() for all fragments that have contents.
-      continue;
+    } else {
+      if (Fragment.getFixedSize() != 0)
+        llvm::append_range(mergedData, Fragment.getContents());
+      if (Fragment.getVarSize() != 0)
+        llvm::append_range(mergedData, Fragment.getVarContents());
+    }
   }
   return mergedData;
 }
