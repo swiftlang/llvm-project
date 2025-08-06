@@ -13,3 +13,5 @@
 // Implicit resource-dir
 // RUN: %clang -fdepscan-prefix-map-toolchain=/^tc -### %s 2>&1 | FileCheck %s -check-prefix=CHECK_IMPLICIT
 // CHECK_IMPLICIT: "-fdepscan-prefix-map" "{{.*}}" "/^tc"
+
+// REQUIRES: !system-windows

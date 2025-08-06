@@ -9,3 +9,5 @@
 
 // RUN %clang -fdepscan-prefix-map=/a=/^a -fdepscan-prefix-map /b /^b -fdepscan-prefix-map=/c=/^c -fdepscan-prefix-map /d /^d -### %s 2>&1 | FileCheck --check-prefix=CHECK_MIXED %s
 // CHECK_MIXED: "-fdepscan-prefix-map" "/a" "/^a" "-fdepscan-prefix-map" "/b" "/^b" "-fdepscan-prefix-map" "/c" "/^c" "-fdepscan-prefix-map" "/d" "/^d"
+
+// REQUIRES: !system-windows

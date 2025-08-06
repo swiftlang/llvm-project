@@ -754,7 +754,8 @@ static std::error_code fillStatus(int StatRet, const struct stat &Status,
   return std::error_code();
 }
 
-std::error_code status(const Twine &Path, file_status &Result, bool Follow) {
+std::error_code status(const Twine &Path, file_status &Result, bool Follow,
+                       bool UseWinFileIndex) {
   SmallString<128> PathStorage;
   StringRef P = Path.toNullTerminatedStringRef(PathStorage);
 

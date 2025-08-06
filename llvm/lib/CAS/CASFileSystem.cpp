@@ -128,10 +128,12 @@ private:
 };
 
 Error CASFileSystem::initialize(ObjectRef Root) {
-  Cache = makeIntrusiveRefCnt<FileSystemCache>(Root);
+  Cache = makeIntrusiveRefCnt<FileSystemCache>();
+  Cache->setPathStyle(sys::path::Style::posix);
 
   // Initial working directory is the root.
-  WorkingDirectory.Entry = &Cache->getRoot();
+  StringRef path_separator = get_separator(sys::path::Style::posix);
+  WorkingDirectory.Entry = &Cache->getRoot(path_separator, Root);
   WorkingDirectory.Path = WorkingDirectory.Entry->getTreePath().str();
 
   // Load the root to confirm it's really a tree.
@@ -141,7 +143,7 @@ Error CASFileSystem::initialize(ObjectRef Root) {
 std::error_code CASFileSystem::setCurrentWorkingDirectory(const Twine &Path) {
   SmallString<128> Storage;
   StringRef CanonicalPath = FileSystemCache::canonicalizeWorkingDirectory(
-      Path, WorkingDirectory.Path, Storage);
+      Path, sys::path::Style::posix, WorkingDirectory.Path, Storage);
 
   // Read and cache all the symlinks in the path by looking it up. Return any
   // error encountered.

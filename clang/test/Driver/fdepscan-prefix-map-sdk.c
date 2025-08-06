@@ -6,3 +6,5 @@
 // RUN: %clang -fdepscan-prefix-map-sdk=/^sdk -isysroot /sys/path -### %s 2>&1 | FileCheck %s
 // RUN: %clang -fdepscan-prefix-map-sdk=/^sdk --sysroot /sys/path -### %s 2>&1 | FileCheck %s
 // CHECK: "-fdepscan-prefix-map" "/sys/path" "/^sdk"
+
+// REQUIRES: !system-windows

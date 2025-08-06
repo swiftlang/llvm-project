@@ -76,7 +76,7 @@ SourceMgr::OpenIncludeFile(const std::string &Filename,
   for (unsigned i = 0, e = IncludeDirectories.size(); i != e && !NewBufOrErr;
        ++i) {
     Buffer = IncludeDirectories[i];
-    sys::path::append(Buffer, Filename);
+    sys::path::append(Buffer, sys::path::Style::posix, Filename);
     NewBufOrErr = getFile(Buffer);
   }
 

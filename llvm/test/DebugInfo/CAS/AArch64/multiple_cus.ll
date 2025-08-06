@@ -4,6 +4,7 @@
 
 ; RUN: llc -cas-friendly-debug-info -O0 --filetype=obj --cas-backend --cas=%t/cas --mccas-casid --mtriple=arm64-apple-darwin %s -o %t/multiple_cus.id
 ; RUN: llvm-cas-dump --cas %t/cas --casid-file %t/multiple_cus.id --die-refs --dwarf-sections-only | FileCheck %s --check-prefix=DUMP
+
 ; DUMP: mc:assembler    llvmcas://{{.*}} 
 ; DUMP-NEXT:   mc:header       llvmcas://{{.*}} 
 ; DUMP-NEXT:   mc:group        llvmcas://{{.*}} 

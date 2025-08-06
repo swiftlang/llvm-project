@@ -635,10 +635,13 @@ LLVM_ABI std::error_code is_other(const Twine &path, bool &result);
 /// @param result Set to the file status.
 /// @param follow When true, follows symlinks.  Otherwise, the symlink itself is
 ///               statted.
+/// @param UseWinFileIndex When true, use the file index as unique ID on
+///                        Windows. Ignored for Unix.
 /// @returns errc::success if result has been successfully set, otherwise a
 ///          platform-specific error_code.
 LLVM_ABI std::error_code status(const Twine &path, file_status &result,
-                                bool follow = true);
+                                bool follow = true,
+                                bool UseWinFileIndex = false);
 
 /// A version for when a file descriptor is already available.
 LLVM_ABI std::error_code status(int FD, file_status &Result);

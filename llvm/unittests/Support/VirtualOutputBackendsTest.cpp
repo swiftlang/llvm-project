@@ -346,7 +346,7 @@ public:
                                        StringRef Parent2) override {
     init();
     SmallString<128> Path;
-    sys::path::append(Path, D->path(), Parent1, Parent2, getFilePathToCreate());
+    sys::path::append(Path, D->path(), Parent1, Parent2, "file.data");
     return Path.str().str();
   }
 
@@ -417,7 +417,7 @@ INSTANTIATE_TEST_SUITE_P(VirtualOutput, BackendTest,
 
 std::optional<sys::fs::UniqueID> OnDiskFile::getCurrentUniqueID() {
   sys::fs::file_status Status;
-  sys::fs::status(Path, Status, /*follow=*/false);
+  sys::fs::status(Path, Status, /*follow=*/false, /*UseWinFileIndex=*/true);
   if (!sys::fs::is_regular_file(Status))
     return std::nullopt;
   return Status.getUniqueID();
@@ -561,6 +561,8 @@ Error OnDiskOutputBackendProvider::checkKept(StringRef FilePath,
 
   sys::fs::UniqueID UID =
       shouldUseTemporaries(*Info) ? *Info->TempUID : *Info->UID;
+  // For this check to pass on Windows, we need to use the
+  // UseWinFileIndex option in fs::status() call in getCurrentUniqueID()
   if (!Info->F->hasUniqueID(UID))
     return createStringError(inconvertibleErrorCode(),
                              "File not created by keep or changed UID");
@@ -786,7 +788,8 @@ TEST(OnDiskBackendTest, OnlyIfDifferent) {
   O1 << Data;
   EXPECT_THAT_ERROR(O1.keep(), Succeeded());
   EXPECT_FALSE(O1.isOpen());
-  EXPECT_FALSE(sys::fs::status(FilePath, Status1, /*follow=*/false));
+  EXPECT_FALSE(sys::fs::status(FilePath, Status1, /*follow=*/false,
+      /*UseWinFileIndex=*/true));
 
   // Write second with same content.
   EXPECT_THAT_ERROR(Backend->createFile(FilePath, Config).moveInto(O2),
@@ -794,7 +797,8 @@ TEST(OnDiskBackendTest, OnlyIfDifferent) {
   O2 << Data;
   EXPECT_THAT_ERROR(O2.keep(), Succeeded());
   EXPECT_FALSE(O2.isOpen());
-  EXPECT_FALSE(sys::fs::status(FilePath, Status2, /*follow=*/false));
+  EXPECT_FALSE(sys::fs::status(FilePath, Status2, /*follow=*/false,
+      /*UseWinFileIndex=*/true));
 
   // Make sure the output path file is not modified with same content.
   EXPECT_EQ(Status1.getUniqueID(), Status2.getUniqueID());
@@ -805,7 +809,8 @@ TEST(OnDiskBackendTest, OnlyIfDifferent) {
   O3 << Data << "\n";
   EXPECT_THAT_ERROR(O3.keep(), Succeeded());
   EXPECT_FALSE(O3.isOpen());
-  EXPECT_FALSE(sys::fs::status(FilePath, Status3, /*follow=*/false));
+  EXPECT_FALSE(sys::fs::status(FilePath, Status3, /*follow=*/false,
+      /*UseWinFileIndex=*/true));
 
   // This should overwrite the file and create a different UniqueID.
   EXPECT_NE(Status1.getUniqueID(), Status3.getUniqueID());

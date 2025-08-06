@@ -704,7 +704,8 @@ static perms perms_from_attrs(DWORD Attrs) {
   return (Attrs & FILE_ATTRIBUTE_READONLY) ? (all_read | all_exe) : all_all;
 }
 
-static std::error_code getStatus(HANDLE FileHandle, file_status &Result) {
+static std::error_code getStatus(HANDLE FileHandle, file_status &Result,
+                                 bool UseWinFileIndex = false) {
   SmallVector<wchar_t, MAX_PATH> ntPath;
   if (FileHandle == INVALID_HANDLE_VALUE)
     goto handle_status_error;
@@ -744,8 +745,11 @@ static std::error_code getStatus(HANDLE FileHandle, file_status &Result) {
   // drivers, such as ImDisk. (See
   // https://github.com/rust-lang/rust/pull/86447.)
   uint64_t PathHash;
-  if (std::error_code EC =
-          realPathFromHandle(FileHandle, ntPath, VOLUME_NAME_NT)) {
+  if (UseWinFileIndex) {
+    PathHash = (static_cast<uint64_t>(Info.nFileIndexHigh) << 32ULL) |
+               static_cast<uint64_t>(Info.nFileIndexLow);
+  } else if (std::error_code EC =
+                 realPathFromHandle(FileHandle, ntPath, VOLUME_NAME_NT)) {
     // If realPathFromHandle failed, fall back on the fields
     // nFileIndex{High,Low} instead. They're not necessarily stable on all file
     // systems as they're only documented as being unique/stable as long as the
@@ -777,7 +781,8 @@ handle_status_error:
   return Err;
 }
 
-std::error_code status(const Twine &path, file_status &result, bool Follow) {
+std::error_code status(const Twine &path, file_status &result, bool Follow,
+                       bool UseWinFileIndex) {
   SmallString<128> path_storage;
   SmallVector<wchar_t, 128> path_utf16;
 
@@ -794,7 +799,7 @@ std::error_code status(const Twine &path, file_status &result, bool Follow) {
   if (!Follow) {
     DWORD attr = ::GetFileAttributesW(path_utf16.begin());
     if (attr == INVALID_FILE_ATTRIBUTES)
-      return getStatus(INVALID_HANDLE_VALUE, result);
+      return getStatus(INVALID_HANDLE_VALUE, result, UseWinFileIndex);
 
     // Handle reparse points.
     if (attr & FILE_ATTRIBUTE_REPARSE_POINT)
@@ -806,9 +811,9 @@ std::error_code status(const Twine &path, file_status &result, bool Follow) {
                     FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                     NULL, OPEN_EXISTING, Flags, 0));
   if (!h)
-    return getStatus(INVALID_HANDLE_VALUE, result);
+    return getStatus(INVALID_HANDLE_VALUE, result, UseWinFileIndex);
 
-  return getStatus(h, result);
+  return getStatus(h, result, UseWinFileIndex);
 }
 
 std::error_code status(int FD, file_status &Result) {
@@ -1190,6 +1195,12 @@ static DWORD nativeAccess(FileAccess Access, OpenFlags Flags) {
     Result |= DELETE;
   if (Flags & OF_UpdateAtime)
     Result |= FILE_WRITE_ATTRIBUTES;
+  // If a combination of FA_Write and OF_Append are used, the supposed
+  // intent is to enable atomic appends, which requires using
+  // FILE_APPEND_DATA without GENERIC_WRITE. Otherwise, atomicity
+  // isn't enabled.
+  if (Access == FA_Write && Flags == OF_Append)
+    Result = FILE_APPEND_DATA;
   return Result;
 }
 
