@@ -1341,6 +1341,7 @@ public:
     return 2 + (TI.SwiftImportAs ? TI.SwiftImportAs->size() : 0) +
            2 + (TI.SwiftRetainOp ? TI.SwiftRetainOp->size() : 0) +
            2 + (TI.SwiftReleaseOp ? TI.SwiftReleaseOp->size() : 0) +
+           2 + (TI.SwiftDefaultOwnership ? TI.SwiftDefaultOwnership->size() : 0) +
            2 + (TI.SwiftConformance ? TI.SwiftConformance->size() : 0) +
            3 + getCommonTypeInfoSize(TI);
     // clang-format on
@@ -1386,6 +1387,12 @@ public:
     if (auto ReleaseOp = TI.SwiftReleaseOp) {
       writer.write<uint16_t>(ReleaseOp->size() + 1);
       OS.write(ReleaseOp->c_str(), ReleaseOp->size());
+    } else {
+      writer.write<uint16_t>(0);
+    }
+    if (auto DefaultOwnership = TI.SwiftDefaultOwnership) {
+      writer.write<uint16_t>(DefaultOwnership->size() + 1);
+      OS.write(DefaultOwnership->c_str(), DefaultOwnership->size());
     } else {
       writer.write<uint16_t>(0);
     }
