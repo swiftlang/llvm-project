@@ -3115,6 +3115,7 @@ Error MCCASBuilder::buildFragments() {
     ArrayRef<MachO::any_relocation_info> RelocationBuffer;
     MCDataFragmentMerger Merger(*this, &Sec);
     uint64_t RelocationBufferIndex = 0;
+    uint64_t TotalFragmentWithoutAddendsSize = 0;
     for (const MCFragment &F : Sec) {
       auto Relocs = RelMap.find(&F);
       if (RelocLocation == Atom) {
@@ -3158,6 +3159,7 @@ Error MCCASBuilder::buildFragments() {
       partitionFragment(Asm, Addends, FinalFragmentContents, RelocationBuffer,
                         F, RelocationBufferIndex,
                         ObjectWriter.Target.isLittleEndian());
+      TotalFragmentWithoutAddendsSize += FinalFragmentContents.size();
 
       if (auto E = Merger.tryMerge(F, Size, FinalFragmentContents))
         return E;
@@ -3182,6 +3184,7 @@ Error MCCASBuilder::buildFragments() {
 
     if (auto E = finalizeSection())
       return E;
+    TotalFragmentWithoutAddendsSize = 0;
   }
   return finalizeGroup();
 }
