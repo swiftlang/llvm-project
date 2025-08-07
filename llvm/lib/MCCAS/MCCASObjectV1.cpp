@@ -1947,8 +1947,13 @@ Error MCDataFragmentMerger::tryMerge(const MCFragment &F, unsigned Size,
 }
 
 static Error writeAlignFragment(MCCASBuilder &Builder, const MCFragment &AF,
-                                raw_ostream &OS, unsigned FragmentSize) {
-  OS << StringRef(AF.getContents().data(), AF.getContents().size());
+                                raw_ostream &OS, unsigned FragmentSize,
+                                bool WriteFragmentContents = true) {
+  // Do not always write the contents of the FT_Align fragment into the OS, this
+  // is because that data can contain addend values as well and is undesirable
+  // when creating AlignFragment CAS Objects.
+  if (WriteFragmentContents)
+    OS << StringRef(AF.getContents().data(), AF.getContents().size());
   uint64_t Count = (FragmentSize - AF.getFixedSize()) / AF.getAlignFillLen();
   if (AF.hasAlignEmitNops()) {
     if (!Builder.Asm.getBackend().writeNopData(OS, Count,
@@ -2006,8 +2011,14 @@ Error MCDataFragmentMerger::emitMergedFragments() {
 #define MCFRAGMENT_ENCODED_FRAGMENT_ONLY
 #include "llvm/MCCAS/MCCASObjectV1.def"
     case MCFragment::FT_Align: {
+      // Since an FT_Align can contain Addend Values, only write the
+      // post-fragment partitioned contents into the FragmentData and make sure
+      // that the writeAlignFragment function doesn't write any of the fragment
+      // data into FragmentData.
+      FragmentData.append(CandidateContents);
       if (auto E = writeAlignFragment(Builder, *Candidate.first, FragmentOS,
-                                      Candidate.second))
+                                      Candidate.second,
+                                      false /*WriteFragmentContents*/))
         return E;
       break;
     }
