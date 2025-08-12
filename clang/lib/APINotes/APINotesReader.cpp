@@ -670,6 +670,13 @@ public:
                                         ReleaseOpLength - 1);
       Data += ReleaseOpLength - 1;
     }
+    unsigned DestroyOpLength =
+        endian::readNext<uint16_t, llvm::endianness::little>(Data);
+    if (DestroyOpLength > 0) {
+      Info.SwiftDestroyOp = std::string(reinterpret_cast<const char *>(Data),
+                                        DestroyOpLength - 1);
+      Data += DestroyOpLength - 1;
+    }
 
     ReadCommonTypeInfo(Data, Info);
     return Info;

@@ -727,6 +727,9 @@ static void ProcessAPINotes(Sema &S, TagDecl *D, const api_notes::TagInfo &Info,
   if (auto ReleaseOp = Info.SwiftReleaseOp)
     D->addAttr(
         SwiftAttrAttr::Create(S.Context, "release:" + ReleaseOp.value()));
+  if (auto DestroyOp = Info.SwiftDestroyOp)
+    D->addAttr(
+        SwiftAttrAttr::Create(S.Context, "destroy:" + DestroyOp.value()));
 
   if (auto Copyable = Info.isSwiftCopyable()) {
     if (!*Copyable)
