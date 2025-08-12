@@ -25,3 +25,5 @@ struct OpaqueRefCountedType; // redeclaration
 
 inline void ORCRetain(struct OpaqueRefCountedType *x);
 inline void ORCRelease(struct OpaqueRefCountedType *x);
+
+typedef unsigned WrappedOptions;
