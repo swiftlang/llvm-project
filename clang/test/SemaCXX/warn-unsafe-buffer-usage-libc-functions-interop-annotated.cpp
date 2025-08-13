@@ -39,9 +39,9 @@ namespace std {
 // expected-note@+1{{consider using a safe container and passing '.data()' to the parameter 'src' and '.size()' to its dependent parameter 'size' or 'std::span' and passing '.first(...).data()' to the parameter 'src'}}
 void *memcpy(void * __sized_by(size) dst, const void * __sized_by(size) src, size_t size);
 size_t strlen( const char* __null_terminated str );
-// expected-note@+1{{consider using a safe container and passing '.data()' to the parameter 'buffer' and '.size()' to its dependent parameter 'buf_size' or 'std::span' and passing '.first(...).data()' to the parameter 'buffer'}}
-int snprintf( char* __counted_by(buf_size) buffer, size_t buf_size, const char* format, ... );
 // expected-note@+1 2{{consider using a safe container and passing '.data()' to the parameter 'buffer' and '.size()' to its dependent parameter 'buf_size' or 'std::span' and passing '.first(...).data()' to the parameter 'buffer'}}
+int snprintf( char* __counted_by(buf_size) buffer, size_t buf_size, const char* format, ... );
+// expected-note@+1 +{{consider using a safe container and passing '.data()' to the parameter 'buffer' and '.size()' to its dependent parameter 'buf_size' or 'std::span' and passing '.first(...).data()' to the parameter 'buffer'}}
 int snwprintf( wchar_t* __counted_by(buf_size) buffer, size_t buf_size, const wchar_t* format, ... );
 int vsnprintf( char* __counted_by(buf_size) buffer, size_t buf_size, const char* format, va_list va_args);
 
@@ -55,7 +55,8 @@ void test(char * p, char * q, const char * str,
 	  const char * __null_terminated safe_str,
 	  char * __counted_by(n) safe_p,
 	  size_t n,
-	  char * __counted_by(10) safe_ten) {
+	  char * __counted_by(10) safe_ten,
+	  char * __counted_by_or_null(n) null_p) {
   memcpy(p, q, 10);                  // expected-warning2{{unsafe assignment to function parameter of count-attributed type}}
   snprintf(p, 10, "%s", "hlo");      // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
 
@@ -73,6 +74,9 @@ void test(char * p, char * q, const char * str,
   vsnprintf(safe_p, n, "%s", vlist); // expected-warning{{function 'vsnprintf' is unsafe}} expected-note{{'va_list' is unsafe}}
   sprintf(safe_ten, "%s", safe_str);    // expected-warning{{function 'sprintf' is unsafe}} expected-note{{change to 'snprintf' for explicit bounds checking}}
 
+  // expected-warning@+2{{unsafe assignment to function parameter of count-attributed type}}
+  // expected-note@+1{{passing '__counted_by_or_null()' to '__counted_by()' while '__counted_by_or_null()' can be null with an arbirary count}}
+  snprintf(null_p, n, "%s", "hlo");
 }
 
 void test_wchar(wchar_t * p, wchar_t * q, const wchar_t * wstr,
@@ -80,6 +84,8 @@ void test_wchar(wchar_t * p, wchar_t * q, const wchar_t * wstr,
 	  wchar_t * __null_terminated nt_wstr,
 	  wchar_t * __counted_by(n) safe_p,
 	  wchar_t * __sized_by(n) sizedby_p,
+	  wchar_t * __counted_by_or_null(n) cbn,
+	  wchar_t * __sized_by_or_null(n) sbn,
 	  size_t n) {
   std::wstring cxx_wstr;
   std::span<wchar_t> cxx_wspan;
@@ -90,5 +96,11 @@ void test_wchar(wchar_t * p, wchar_t * q, const wchar_t * wstr,
   snwprintf(p, n, L"%ls", safe_wstr); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
   snwprintf(sizedby_p, n, L"%ls", safe_wstr); // expected-warning{{unsafe assignment to function parameter of count-attributed type}}
   snwprintf(safe_p, n, L"%ls", wstr); // expected-warning{{function 'snwprintf' is unsafe}} expected-note{{string argument is not guaranteed to be null-terminated}}
+  // expected-warning@+2{{unsafe assignment to function parameter of count-attributed type}}
+  // expected-note@+1{{passing '__sized_by_or_null()' to '__counted_by()' while '__sized_by_or_null()' can be null with an arbirary size}}
+  snwprintf(sbn, n, L"%ls", safe_wstr);
+  // expected-warning@+2{{unsafe assignment to function parameter of count-attributed type}}
+  // expected-note@+1{{passing '__counted_by_or_null()' to '__counted_by()' while '__counted_by_or_null()' can be null with an arbirary count}}
+  snwprintf(cbn, n, L"%ls", wstr);
 }
 
