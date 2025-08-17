@@ -1532,17 +1532,19 @@ Expected<uint64_t> AtomRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCAlignFragmentRef>
-MCAlignFragmentRef::create(MCCASBuilder &MB, const MCAlignFragment &F,
+MCAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                            unsigned FragmentSize,
                            ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
 
-  uint64_t Count = FragmentSize / F.getFillLen();
-  if (F.hasEmitNops()) {
-    // Write 0 as size and use backend to emit nop.
-    writeVBR8(0, B->Data);
+  writeVBR8(FragmentContents.size(), B->Data);
+  B->Data.append(FragmentContents.begin(), FragmentContents.end());
+  uint64_t Count = (FragmentSize - F.getFixedSize()) / F.getAlignFillLen();
+  if (F.hasAlignEmitNops()) {
+    // Write 1 to signify that it has nops.
+    writeVBR8(1, B->Data);
     if (!MB.Asm.getBackend().writeNopData(MB.FragmentOS, Count,
                                           F.getSubtargetInfo()))
       report_fatal_error("unable to write nop sequence of " + Twine(Count) +
@@ -1550,25 +1552,39 @@ MCAlignFragmentRef::create(MCCASBuilder &MB, const MCAlignFragment &F,
     B->Data.append(MB.FragmentData);
     return get(B->build());
   }
+  // Write 0 to signify that it has nops.
+  writeVBR8(0, B->Data);
   writeVBR8(Count, B->Data);
-  writeVBR8(F.getFill(), B->Data);
-  writeVBR8(F.getFillLen(), B->Data);
+  writeVBR8(F.getAlignFill(), B->Data);
+  writeVBR8(F.getAlignFillLen(), B->Data);
   return get(B->build());
 }
 
 Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
-                                                   raw_ostream *Stream) const {
-  uint64_t Count;
+                                                   raw_ostream *Stream) const
+                                                   {
+  uint64_t Count, FragContentSize, HasNops;
   auto Remaining = getData();
   auto Endian = Reader.getEndian();
-  if (auto E = consumeVBR8(Remaining, Count))
+  if (auto E = consumeVBR8(Remaining, FragContentSize))
+    return std::move(E);
+
+  *Stream << Remaining.substr(0, FragContentSize);
+
+  Remaining = Remaining.drop_front(FragContentSize);
+
+  if (auto E = consumeVBR8(Remaining, HasNops))
     return std::move(E);
 
   // hasEmitNops.
-  if (!Count) {
+  if (HasNops) {
     *Stream << Remaining;
-    return Remaining.size();
+    return Remaining.size() + FragContentSize;
   }
+
+  if (auto E = consumeVBR8(Remaining, Count))
+    return std::move(E);
+
   int64_t Value;
   unsigned ValueSize;
   if (auto E = consumeVBR8(Remaining, Value))
@@ -1594,12 +1610,13 @@ Expected<uint64_t> MCAlignFragmentRef::materialize(MCCASReader &Reader,
       break;
     }
   }
-  return Count * ValueSize;
+  return (Count * ValueSize) + FragContentSize;
 }
 
-Expected<MCBoundaryAlignFragmentRef> MCBoundaryAlignFragmentRef::create(
-    MCCASBuilder &MB, const MCBoundaryAlignFragment &F, unsigned FragmentSize,
-    ArrayRef<char> FragmentContents) {
+Expected<MCBoundaryAlignFragmentRef>
+MCBoundaryAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
+                                   unsigned FragmentSize,
+                                   ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
@@ -1618,9 +1635,10 @@ MCBoundaryAlignFragmentRef::materialize(MCCASReader &Reader,
   return getData().size();
 }
 
-Expected<MCCVInlineLineTableFragmentRef> MCCVInlineLineTableFragmentRef::create(
-    MCCASBuilder &MB, const MCCVInlineLineTableFragment &F,
-    unsigned FragmentSize, ArrayRef<char> FragmentContents) {
+Expected<MCCVInlineLineTableFragmentRef>
+MCCVInlineLineTableFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
+                                       unsigned FragmentSize,
+                                       ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
@@ -1636,15 +1654,16 @@ MCCVInlineLineTableFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCFillFragmentRef>
-MCFillFragmentRef::create(MCCASBuilder &MB, const MCFillFragment &F,
+MCFillFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                           unsigned FragmentSize,
                           ArrayRef<char> FragmentContents) {
+  auto *FillFrag = dyn_cast<MCFillFragment>(&F);
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
   writeVBR8(FragmentSize, B->Data);
-  writeVBR8(F.getValue(), B->Data);
-  writeVBR8(F.getValueSize(), B->Data);
+  writeVBR8(FillFrag->getValue(), B->Data);
+  writeVBR8(FillFrag->getValueSize(), B->Data);
   return get(B->build());
 }
 
@@ -1686,7 +1705,7 @@ Expected<uint64_t> MCFillFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCLEBFragmentRef>
-MCLEBFragmentRef::create(MCCASBuilder &MB, const MCLEBFragment &F,
+MCLEBFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                          unsigned FragmentSize,
                          ArrayRef<char> FragmentContents) {
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
@@ -1703,14 +1722,15 @@ Expected<uint64_t> MCLEBFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCNopsFragmentRef>
-MCNopsFragmentRef::create(MCCASBuilder &MB, const MCNopsFragment &F,
+MCNopsFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                           unsigned FragmentSize,
                           ArrayRef<char> FragmentContents) {
+  auto *NopsFrag = dyn_cast<MCNopsFragment>(&F);
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
-  int64_t NumBytes = F.getNumBytes();
-  int64_t ControlledNopLength = F.getControlledNopLength();
+  int64_t NumBytes = NopsFrag->getNumBytes();
+  int64_t ControlledNopLength = NopsFrag->getControlledNopLength();
   int64_t MaximumNopLength =
       MB.Asm.getBackend().getMaximumNopSize(*F.getSubtargetInfo());
   if (ControlledNopLength > MaximumNopLength)
@@ -1739,14 +1759,15 @@ Expected<uint64_t> MCNopsFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCOrgFragmentRef>
-MCOrgFragmentRef::create(MCCASBuilder &MB, const MCOrgFragment &F,
+MCOrgFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                          unsigned FragmentSize,
                          ArrayRef<char> FragmentContents) {
+  auto *OrgFrag = dyn_cast<MCOrgFragment>(&F);
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
   writeVBR8(FragmentSize, B->Data);
-  writeVBR8((char)F.getValue(), B->Data);
+  writeVBR8((char)OrgFrag->getValue(), B->Data);
   return get(B->build());
 }
 
@@ -1757,13 +1778,14 @@ Expected<uint64_t> MCOrgFragmentRef::materialize(MCCASReader &Reader,
 }
 
 Expected<MCSymbolIdFragmentRef>
-MCSymbolIdFragmentRef::create(MCCASBuilder &MB, const MCSymbolIdFragment &F,
+MCSymbolIdFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
                               unsigned FragmentSize,
                               ArrayRef<char> FragmentContents) {
+  auto *SymbolIDFrag = dyn_cast<MCSymbolIdFragment>(&F);
   Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
   if (!B)
     return B.takeError();
-  writeVBR8(F.getSymbol()->getIndex(), B->Data);
+  writeVBR8(SymbolIDFrag->getSymbol()->getIndex(), B->Data);
   return get(B->build());
 }
 
@@ -1776,7 +1798,7 @@ MCSymbolIdFragmentRef::materialize(MCCASReader &Reader,
 
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   Expected<MCFragmentName##Ref> MCFragmentName##Ref::create(                   \
-      MCCASBuilder &MB, const MCFragmentName &F, unsigned FragmentSize,        \
+      MCCASBuilder &MB, const MCFragment &F, unsigned FragmentSize,            \
       ArrayRef<char> FragmentContents) {                                       \
     Expected<Builder> B = Builder::startNode(MB.Schema, KindString);           \
     if (!B)                                                                    \
@@ -1849,8 +1871,7 @@ Error MCCASBuilder::buildFragment(const MCFragment &F, unsigned Size,
   switch (F.getKind()) {
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   case MCFragment::MCEnumName: {                                               \
-    const MCFragmentName &SF = cast<MCFragmentName>(F);                        \
-    auto FN = MCFragmentName##Ref::create(*this, SF, Size, FragmentContents);  \
+    auto FN = MCFragmentName##Ref::create(*this, F, Size, FragmentContents);   \
     if (!FN)                                                                   \
       return FN.takeError();                                                   \
     addNode(*FN);                                                              \
@@ -1886,8 +1907,14 @@ Error MCDataFragmentMerger::tryMerge(const MCFragment &F, unsigned Size,
   bool IsSameAtom = Builder.getCurrentAtom() == F.getAtom();
   bool Oversized = CurrentSize + Size > MCDataMergeThreshold;
   // TODO: Try merge align fragment?
-  bool IsMergeableFragment =
-      isa<MCEncodedFragment>(F) || isa<MCAlignFragment>(F);
+  bool IsMergeableFragment = F.getKind() == MCFragment::FT_Relaxable ||
+                             F.getKind() == MCFragment::FT_Data ||
+                             F.getKind() == MCFragment::FT_Align ||
+                             F.getKind() == MCFragment::FT_Dwarf ||
+                             F.getKind() == MCFragment::FT_DwarfFrame ||
+                             F.getKind() == MCFragment::FT_LEB ||
+                             F.getKind() == MCFragment::FT_CVInlineLines ||
+                             F.getKind() == MCFragment::FT_CVDefRange;
   // If not the same atom, flush merge candidate and return false.
   if (!IsSameAtom || !IsMergeableFragment || Oversized) {
     if (auto E = emitMergedFragments())
@@ -1919,11 +1946,16 @@ Error MCDataFragmentMerger::tryMerge(const MCFragment &F, unsigned Size,
   return Error::success();
 }
 
-static Error writeAlignFragment(MCCASBuilder &Builder,
-                                const MCAlignFragment &AF, raw_ostream &OS,
-                                unsigned FragmentSize) {
-  uint64_t Count = FragmentSize / AF.getFillLen();
-  if (AF.hasEmitNops()) {
+static Error writeAlignFragment(MCCASBuilder &Builder, const MCFragment &AF,
+                                raw_ostream &OS, unsigned FragmentSize,
+                                bool WriteFragmentContents = true) {
+  // Do not always write the contents of the FT_Align fragment into the OS, this
+  // is because that data can contain addend values as well and is undesirable
+  // when creating AlignFragment CAS Objects.
+  if (WriteFragmentContents)
+    OS << StringRef(AF.getContents().data(), AF.getContents().size());
+  uint64_t Count = (FragmentSize - AF.getFixedSize()) / AF.getAlignFillLen();
+  if (AF.hasAlignEmitNops()) {
     if (!Builder.Asm.getBackend().writeNopData(OS, Count,
                                                AF.getSubtargetInfo()))
       return createStringError(inconvertibleErrorCode(),
@@ -1934,20 +1966,20 @@ static Error writeAlignFragment(MCCASBuilder &Builder,
   auto Endian = Builder.ObjectWriter.Target.isLittleEndian() ? endianness::little
                                                              : endianness::big;
   for (uint64_t I = 0; I != Count; ++I) {
-    switch (AF.getFillLen()) {
+    switch (AF.getAlignFillLen()) {
     default:
       llvm_unreachable("Invalid size!");
     case 1:
-      OS << char(AF.getFill());
+      OS << char(AF.getAlignFill());
       break;
     case 2:
-      support::endian::write<uint16_t>(OS, AF.getFill(), Endian);
+      support::endian::write<uint16_t>(OS, AF.getAlignFill(), Endian);
       break;
     case 4:
-      support::endian::write<uint32_t>(OS, AF.getFill(), Endian);
+      support::endian::write<uint32_t>(OS, AF.getAlignFill(), Endian);
       break;
     case 8:
-      support::endian::write<uint64_t>(OS, AF.getFill(), Endian);
+      support::endian::write<uint64_t>(OS, AF.getAlignFill(), Endian);
       break;
     }
   }
@@ -1979,9 +2011,14 @@ Error MCDataFragmentMerger::emitMergedFragments() {
 #define MCFRAGMENT_ENCODED_FRAGMENT_ONLY
 #include "llvm/MCCAS/MCCASObjectV1.def"
     case MCFragment::FT_Align: {
-      const MCAlignFragment *AF = cast<MCAlignFragment>(Candidate.first);
-      if (auto E =
-              writeAlignFragment(Builder, *AF, FragmentOS, Candidate.second))
+      // Since an FT_Align can contain Addend Values, only write the
+      // post-fragment partitioned contents into the FragmentData and make sure
+      // that the writeAlignFragment function doesn't write any of the fragment
+      // data into FragmentData.
+      FragmentData.append(CandidateContents);
+      if (auto E = writeAlignFragment(Builder, *Candidate.first, FragmentOS,
+                                      Candidate.second,
+                                      false /*WriteFragmentContents*/))
         return E;
       break;
     }
@@ -2124,43 +2161,39 @@ Expected<SmallVector<char, 0>>
 MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
                                       bool IsDebugLineSection) {
   SmallVector<char, 0> mergedData;
+  if (!Section->curFragList())
+    return mergedData;
   for (const MCFragment &Fragment : *Section) {
-    if (const auto *DataFragment = dyn_cast<MCDataFragment>(&Fragment))
-      llvm::append_range(mergedData, DataFragment->getContents());
-    else if (const auto *RelaxableFragment =
-                 dyn_cast<MCRelaxableFragment>(&Fragment))
-      llvm::append_range(mergedData, RelaxableFragment->getContents());
-    else if (const auto *DwarfLineAddrFrag =
-                 dyn_cast<MCDwarfLineAddrFragment>(&Fragment))
-      if (IsDebugLineSection)
-        llvm::append_range(mergedData, DwarfLineAddrFrag->getContents());
-      else
+    if (Fragment.getKind() == MCFragment::FT_Dwarf)
+      if (IsDebugLineSection) {
+        llvm::append_range(mergedData, Fragment.getContents());
+        llvm::append_range(mergedData, Fragment.getVarContents());
+      } else
         return createStringError(
             inconvertibleErrorCode(),
-            "Invalid MCDwarfLineAddrFragment in a non debug line section");
-    else if (const auto *DwarfCallFrameFragment =
-                 dyn_cast<MCDwarfCallFrameFragment>(&Fragment))
-      llvm::append_range(mergedData, DwarfCallFrameFragment->getContents());
+            "Invalid  MCFragment::FT_Dwarf type in a non debug line section");
     else if (const auto *CVDefRangeFragment =
-                 dyn_cast<MCCVDefRangeFragment>(&Fragment))
+                 dyn_cast<MCCVDefRangeFragment>(&Fragment)) {
       llvm::append_range(mergedData, CVDefRangeFragment->getContents());
-    else if (const auto *PseudoProbeAddrFragment =
-                 dyn_cast<MCPseudoProbeAddrFragment>(&Fragment))
-      llvm::append_range(mergedData, PseudoProbeAddrFragment->getContents());
-    else if (const auto *LEBFragment = dyn_cast<MCLEBFragment>(&Fragment))
-      llvm::append_range(mergedData, LEBFragment->getContents());
+      llvm::append_range(mergedData, CVDefRangeFragment->getVarContents());
+    }
+
     else if (const auto *CVInlineLineTableFragment =
-                 dyn_cast<MCCVInlineLineTableFragment>(&Fragment))
+                 dyn_cast<MCCVInlineLineTableFragment>(&Fragment)) {
       llvm::append_range(mergedData, CVInlineLineTableFragment->getContents());
-    else if (const auto *AlignFragment = dyn_cast<MCAlignFragment>(&Fragment)) {
+      llvm::append_range(mergedData,
+                         CVInlineLineTableFragment->getVarContents());
+    } else if (Fragment.getKind() == MCFragment::FT_Align) {
       auto FragmentSize = Asm.computeFragmentSize(Fragment);
       raw_svector_ostream OS(mergedData);
-      if (auto E = writeAlignFragment(*this, *AlignFragment, OS, FragmentSize))
+      if (auto E = writeAlignFragment(*this, Fragment, OS, FragmentSize))
         return std::move(E);
-    } else
-      // All other fragment types can be considered empty, see
-      // getFragmentContents() for all fragments that have contents.
-      continue;
+    } else {
+      if (Fragment.getFixedSize() != 0)
+        llvm::append_range(mergedData, Fragment.getContents());
+      if (Fragment.getVarSize() != 0)
+        llvm::append_range(mergedData, Fragment.getVarContents());
+    }
   }
   return mergedData;
 }
@@ -2608,7 +2641,7 @@ Expected<SmallVector<DebugStrRef, 0>> MCCASBuilder::createDebugStringRefs() {
 
   SmallVector<DebugStrRef, 0> DebugStringRefs;
   ArrayRef<char> DebugStrData =
-      cast<MCDataFragment>(*DwarfSections.Str->begin()).getContents();
+      cast<MCFragment>(*DwarfSections.Str->begin()).getContents();
   StringRef S(DebugStrData.data(), DebugStrData.size());
   if (auto E = createStringSection(S, [&](StringRef S) -> Error {
         auto Sym = DebugStrRef::create(*this, S);
@@ -2860,26 +2893,40 @@ Error MCCASBuilder::createAppleObjCSection() {
   return finalizeSection<AppleObjCSectionRef>();
 }
 
-static ArrayRef<char> getFragmentContents(const MCFragment &Fragment) {
+static void getFragmentContents(const MCFragment &Fragment,
+                                SmallVectorImpl<char> &FragContents) {
   switch (Fragment.getKind()) {
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   case MCFragment::MCEnumName: {                                               \
-    const MCFragmentName &SF = cast<MCFragmentName>(Fragment);                 \
-    return SF.getContents();                                                   \
+    FragContents.append(Fragment.getContents().begin(),                        \
+                        Fragment.getContents().end());                         \
+    FragContents.append(Fragment.getVarContents().begin(),                     \
+                        Fragment.getVarContents().end());                      \
+    return;                                                                    \
   }
 #define MCFRAGMENT_ENCODED_FRAGMENT_ONLY
 #include "llvm/MCCAS/MCCASObjectV1.def"
   case MCFragment::FT_CVInlineLines: {
     const MCCVInlineLineTableFragment &SF =
         cast<MCCVInlineLineTableFragment>(Fragment);
-    return SF.getContents();
+    FragContents.append(SF.getContents().begin(), SF.getContents().end());
+    FragContents.append(SF.getVarContents().begin(), SF.getVarContents().end());
+    return;
   }
   case MCFragment::FT_LEB: {
-    const MCLEBFragment &SF = cast<MCLEBFragment>(Fragment);
-    return SF.getContents();
+    FragContents.append(Fragment.getContents().begin(),
+                        Fragment.getContents().end());
+    FragContents.append(Fragment.getVarContents().begin(),
+                        Fragment.getVarContents().end());
+    return;
+  }
+  case MCFragment::FT_Align: {
+    FragContents.append(Fragment.getContents().begin(),
+                        Fragment.getContents().end());
+    return;
   }
   default:
-    return ArrayRef<char>();
+    return;
   }
 }
 
@@ -2911,7 +2958,8 @@ partitionFragment(MCAssembler &Asm, SmallVector<char, 0> &Addends,
                   ArrayRef<MachO::any_relocation_info> RelocationBuffer,
                   const MCFragment &Fragment, uint64_t &RelocationBufferIndex,
                   bool IsLittleEndian) {
-  auto FragmentContents = getFragmentContents(Fragment);
+  SmallVector<char, 0> FragmentContents;
+  getFragmentContents(Fragment, FragmentContents);
   /// FragmentIndex: It denotes the index into the FragmentContents that is used
   /// to copy the data that deduplicates in the \p FinalFragmentContents.
   uint64_t FragmentIndex = 0;
@@ -2960,7 +3008,7 @@ Error MCCASBuilder::buildFragments() {
   startGroup();
 
   for (const MCSection &Sec : Asm) {
-    if (Sec.isVirtualSection())
+    if (Sec.isBssSection())
       continue;
 
     // Handle Debug Info sections separately.
@@ -3078,6 +3126,7 @@ Error MCCASBuilder::buildFragments() {
     ArrayRef<MachO::any_relocation_info> RelocationBuffer;
     MCDataFragmentMerger Merger(*this, &Sec);
     uint64_t RelocationBufferIndex = 0;
+    uint64_t TotalFragmentWithoutAddendsSize = 0;
     for (const MCFragment &F : Sec) {
       auto Relocs = RelMap.find(&F);
       if (RelocLocation == Atom) {
@@ -3121,6 +3170,7 @@ Error MCCASBuilder::buildFragments() {
       partitionFragment(Asm, Addends, FinalFragmentContents, RelocationBuffer,
                         F, RelocationBufferIndex,
                         ObjectWriter.Target.isLittleEndian());
+      TotalFragmentWithoutAddendsSize += FinalFragmentContents.size();
 
       if (auto E = Merger.tryMerge(F, Size, FinalFragmentContents))
         return E;
@@ -3145,6 +3195,7 @@ Error MCCASBuilder::buildFragments() {
 
     if (auto E = finalizeSection())
       return E;
+    TotalFragmentWithoutAddendsSize = 0;
   }
   return finalizeGroup();
 }
