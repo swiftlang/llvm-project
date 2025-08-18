@@ -105,6 +105,9 @@ static DirectoryEntry &makeLazyEntry(
     DirectoryEntry &Parent, FileSystemCache::Directory &D, StringRef TreePath,
     DirectoryEntry::EntryKind Kind, std::optional<ObjectRef> Ref,
     sys::path::Style PathStyle) {
+  llvm::dbgs() << "makeLazyEntry\n";
+  llvm::dbgs() << "TreePath " << TreePath << "\n";
+  llvm::dbgs() << "Parent.getTreePath() " << Parent.getTreePath() << "\n";
   assert(sys::path::parent_path(TreePath, PathStyle) == Parent.getTreePath());
   assert(!D.lookup(sys::path::filename(TreePath, PathStyle)));
   assert(!D.isComplete());
