@@ -371,6 +371,7 @@ if "XDG_CACHE_HOME" in os.environ:
 # Some steps required to initialize the tests dynamically link with python.dll
 # and need to know the location of the Python libraries. This ensures that we
 # use the same version of Python that was used to build lldb to run our tests.
+config.environment["PYTHONHOME"] = config.python_root_dir
 config.environment["PATH"] = os.path.pathsep.join(
     (config.python_root_dir, config.environment.get("PATH", ""))
 )
