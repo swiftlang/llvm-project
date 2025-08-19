@@ -1,9 +1,0 @@
-{
-"type": "github",
-"domain": "github.com",
-"user": "apple",
-"repo": "llvm-project",
-"test": {
-    "type":"swift-ci"
-}
-}
