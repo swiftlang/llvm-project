@@ -64,6 +64,8 @@ public:
 
   lldb::StopInfoSP GetStopInfoFromSiginfo(Thread &thread) override;
 
+  llvm::Expected<XcodeSDK> GetSDKPathFromDebugInfo(CompileUnit &unit) override;
+
   std::vector<ArchSpec> m_supported_architectures;
 
 private:

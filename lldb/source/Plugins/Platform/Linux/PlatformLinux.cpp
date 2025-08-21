@@ -17,6 +17,7 @@
 #include "Plugins/Process/Utility/LinuxSignals.h"
 #include "Utility/ARM64_DWARF_Registers.h"
 #include "lldb/Core/Debugger.h"
+#include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Symbol/UnwindPlan.h"
@@ -28,6 +29,9 @@
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
+#include "lldb/Symbol/SymbolFile.h"
+#include "lldb/Symbol/CompileUnit.h"
+#include "lldb/Utility/XcodeSDK.h"
 
 // Define these constants from Linux mman.h for use when targeting remote linux
 // systems even when host has different values.
@@ -600,4 +604,22 @@ lldb::StopInfoSP PlatformLinux::GetStopInfoFromSiginfo(Thread &thread) {
   return StopInfo::CreateStopReasonWithSignal(
       thread, signo_sp->GetValueAsUnsigned(-1), siginfo_description.c_str(),
       sicode_sp->GetValueAsUnsigned(0));
+}
+
+llvm::Expected<XcodeSDK>
+PlatformLinux::GetSDKPathFromDebugInfo(CompileUnit &unit) {
+  ModuleSP module_sp = unit.CalculateSymbolContextModule();
+  if (!module_sp)
+    return llvm::createStringError("compile unit has no module");
+
+  SymbolFile *sym_file = module_sp->GetSymbolFile();
+  if (!sym_file)
+    return llvm::createStringError(
+        llvm::formatv("No symbol file available for module '{0}'",
+                      module_sp->GetFileSpec().GetFilename()));
+
+  // For Linux, we don't have Xcode SDKs, but we can try to extract
+  // system library paths from debug info. This is particularly useful
+  // for Swift runtime libraries.
+  return sym_file->ParseXcodeSDK(unit);
 }
