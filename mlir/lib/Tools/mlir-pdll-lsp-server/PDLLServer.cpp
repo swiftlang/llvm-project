@@ -66,7 +66,7 @@ static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr, SMRange range,
 
 /// Convert the given MLIR diagnostic to the LSP form.
 static std::optional<lsp::Diagnostic>
-getLspDiagnoticFromDiag(llvm::SourceMgr &sourceMgr, const ast::Diagnostic &diag,
+getLspDiagnosticFromDiag(llvm::SourceMgr &sourceMgr, const ast::Diagnostic &diag,
                         const lsp::URIForFile &uri) {
   lsp::Diagnostic lspDiag;
   lspDiag.source = "pdll";
@@ -392,7 +392,7 @@ PDLDocument::PDLDocument(const lsp::URIForFile &uri, StringRef contents,
   sourceMgr.AddNewSourceBuffer(std::move(memBuffer), SMLoc());
 
   astContext.getDiagEngine().setHandlerFn([&](const ast::Diagnostic &diag) {
-    if (auto lspDiag = getLspDiagnoticFromDiag(sourceMgr, diag, uri))
+    if (auto lspDiag = getLspDiagnosticFromDiag(sourceMgr, diag, uri))
       diagnostics.push_back(std::move(*lspDiag));
   });
   astModule = parsePDLLAST(astContext, sourceMgr, /*enableDocumentation=*/true);
