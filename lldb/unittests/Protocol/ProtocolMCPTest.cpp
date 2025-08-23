@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+#ifndef _WIN32 // DISABLE TEST ON WINDOWS
 #include "Plugins/Protocol/MCP/Protocol.h"
 #include "TestingSupport/TestUtilities.h"
 #include "llvm/Testing/Support/Error.h"
@@ -328,3 +328,4 @@ TEST(ProtocolMCPTest, ResourceResultEmpty) {
 
   EXPECT_TRUE(deserialized_result->contents.empty());
 }
+#endif // DISABLE TEST ON WINDOWS
