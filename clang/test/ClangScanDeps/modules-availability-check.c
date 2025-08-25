@@ -13,6 +13,7 @@
 // RUN: %deps-to-rsp %t/deps.json --module-name=mod > %t/mod.rsp
 // RUN: %deps-to-rsp %t/deps.json --tu-index 0 > %t/tu.rsp
 // RUN: not %clang @%t/mod.rsp 2>&1 | FileCheck %s
+// RUN: false
 
 // CHECK: error: 'fUnavail' is unavailable
 
