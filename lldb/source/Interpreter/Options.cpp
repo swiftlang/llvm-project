@@ -262,7 +262,8 @@ Option *Options::GetLongOptions() {
 
 void Options::OutputFormattedUsageText(Stream &strm,
                                        const OptionDefinition &option_def,
-                                       uint32_t output_max_columns) {
+                                       uint32_t output_max_columns,
+                                       bool use_color) {
   std::string actual_text;
   if (option_def.validator) {
     const char *condition = option_def.validator->ShortConditionString();
@@ -279,7 +280,7 @@ void Options::OutputFormattedUsageText(Stream &strm,
   if (static_cast<uint32_t>(actual_text.length() + strm.GetIndentLevel()) <
       output_max_columns) {
     // Output it as a single line.
-    strm.Indent(actual_text);
+    strm.Indent(ansi::FormatAnsiTerminalCodes(actual_text, use_color));
     strm.EOL();
   } else {
     // We need to break it up into multiple lines.
@@ -313,7 +314,8 @@ void Options::OutputFormattedUsageText(Stream &strm,
       strm.Indent();
       assert(start < final_end);
       assert(start + sub_len <= final_end);
-      strm.Write(actual_text.c_str() + start, sub_len);
+      strm.PutCString(ansi::FormatAnsiTerminalCodes(
+          llvm::StringRef(actual_text.c_str() + start, sub_len), use_color));
       start = end + 1;
     }
     strm.EOL();
@@ -386,7 +388,7 @@ static bool PrintOption(const OptionDefinition &opt_def,
 }
 
 void Options::GenerateOptionUsage(Stream &strm, CommandObject &cmd,
-                                  uint32_t screen_width) {
+                                  uint32_t screen_width, bool use_color) {
   auto opt_defs = GetDefinitions();
   const uint32_t save_indent_level = strm.GetIndentLevel();
   llvm::StringRef name = cmd.GetCommandName();
@@ -528,7 +530,7 @@ void Options::GenerateOptionUsage(Stream &strm, CommandObject &cmd,
       strm.IndentMore(5);
 
       if (opt_def.usage_text)
-        OutputFormattedUsageText(strm, opt_def, screen_width);
+        OutputFormattedUsageText(strm, opt_def, screen_width, use_color);
       if (!opt_def.enum_values.empty()) {
         strm.Indent();
         strm.Printf("Values: ");
