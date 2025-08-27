@@ -190,6 +190,7 @@ Expected<ScanDaemon> ScanDaemon::launchDaemon(StringRef BasePath,
   static constexpr const char *PassThroughEnv[] = {
       "LLVM_CAS_LOG",
       "LLVM_CAS_DISABLE_VALIDATION",
+      "LLVM_CAS_MAX_MAPPING_SIZE",
   };
   SmallVector<const char *> EnvP;
   for (const char *Name : PassThroughEnv)

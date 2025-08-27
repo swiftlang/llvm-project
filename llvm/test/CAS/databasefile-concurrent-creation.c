@@ -1,5 +1,6 @@
 // REQUIRES: ondisk_cas, shell
 
+// RUN: rm -rf %t
 // RUN: mkdir -p %t
 
 // This uses a script that triggers parallel `llvm-cas` invocations on an empty directory.

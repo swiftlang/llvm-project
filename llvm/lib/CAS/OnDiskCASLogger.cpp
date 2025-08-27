@@ -160,18 +160,18 @@ void OnDiskCASLogger::log_HashMappedTrieHandle_createRecord(
   Log << " hash=" << format_bytes(Hash, std::nullopt, 32, 32);
 }
 
-void OnDiskCASLogger::log_MappedFileRegionBumpPtr_resizeFile(StringRef Path,
-                                                             size_t Before,
-                                                             size_t After) {
+void OnDiskCASLogger::log_MappedFileRegionArena_resizeFile(StringRef Path,
+                                                           size_t Before,
+                                                           size_t After) {
   TextLogLine Log(OS);
   Log << "resize mapped file '" << Path << "' from=" << Before
       << " to=" << After;
 }
 
-void OnDiskCASLogger::log_MappedFileRegionBumpPtr_create(StringRef Path, int FD,
-                                                         void *Region,
-                                                         size_t Capacity,
-                                                         size_t Size) {
+void OnDiskCASLogger::log_MappedFileRegionArena_create(StringRef Path, int FD,
+                                                       void *Region,
+                                                       size_t Capacity,
+                                                       size_t Size) {
   sys::fs::file_status Stat;
   std::error_code EC = status(FD, Stat);
 
@@ -183,21 +183,21 @@ void OnDiskCASLogger::log_MappedFileRegionBumpPtr_create(StringRef Path, int FD,
   Log << " size=" << Size << " capacity=" << Capacity;
 }
 
-void OnDiskCASLogger::log_MappedFileRegionBumpPtr_oom(StringRef Path,
-                                                      size_t Capacity,
-                                                      size_t Size,
-                                                      size_t AllocSize) {
+void OnDiskCASLogger::log_MappedFileRegionArena_oom(StringRef Path,
+                                                    size_t Capacity,
+                                                    size_t Size,
+                                                    size_t AllocSize) {
   TextLogLine Log(OS);
   Log << "oom '" << Path << "' old-size=" << Size << " capacity=" << Capacity
       << "alloc-size=" << AllocSize;
 }
-void OnDiskCASLogger::log_MappedFileRegionBumpPtr_close(StringRef Path) {
+void OnDiskCASLogger::log_MappedFileRegionArena_close(StringRef Path) {
   TextLogLine Log(OS);
   Log << "close mmap '" << Path << "'";
 }
-void OnDiskCASLogger::log_MappedFileRegionBumpPtr_allocate(void *Region,
-                                                           TrieOffset Off,
-                                                           size_t Size) {
+void OnDiskCASLogger::log_MappedFileRegionArena_allocate(void *Region,
+                                                         TrieOffset Off,
+                                                         size_t Size) {
   if (!LogAllocations)
     return;
   TextLogLine Log(OS);

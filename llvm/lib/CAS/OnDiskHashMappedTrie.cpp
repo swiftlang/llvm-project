@@ -11,7 +11,7 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/CAS/MappedFileRegionBumpPtr.h"
+#include "llvm/CAS/MappedFileRegionArena.h"
 #include "llvm/CAS/OnDiskCASLogger.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
@@ -38,7 +38,7 @@ static_assert(sizeof(std::atomic<int64_t>) == sizeof(uint64_t),
 // Generic database data structures.
 //===----------------------------------------------------------------------===//
 namespace {
-using MappedFileRegion = MappedFileRegionBumpPtr::RegionT;
+using MappedFileRegion = MappedFileRegionArena::RegionT;
 
 /// Generic handle for a table.
 ///
@@ -123,11 +123,10 @@ public:
     uint64_t Magic;
     uint64_t Version;
     std::atomic<int64_t> RootTableOffset;
-    std::atomic<int64_t> BumpPtr;
   };
 
   const Header &getHeader() { return *H; }
-  MappedFileRegionBumpPtr &getAlloc() { return Alloc; }
+  MappedFileRegionArena &getAlloc() { return Alloc; }
   MappedFileRegion &getRegion() { return Alloc.getRegion(); }
 
   /// Add a table.
@@ -147,7 +146,7 @@ public:
 
 private:
   static Expected<DatabaseFile>
-  get(std::unique_ptr<MappedFileRegionBumpPtr> Alloc) {
+  get(std::unique_ptr<MappedFileRegionArena> Alloc) {
     if (Error E = validate(Alloc->getRegion()))
       return std::move(E);
     return DatabaseFile(std::move(Alloc));
@@ -155,16 +154,16 @@ private:
 
   static Error validate(MappedFileRegion &Region);
 
-  DatabaseFile(MappedFileRegionBumpPtr &Alloc)
+  DatabaseFile(MappedFileRegionArena &Alloc)
       : H(reinterpret_cast<Header *>(Alloc.data())), Alloc(Alloc) {}
-  DatabaseFile(std::unique_ptr<MappedFileRegionBumpPtr> Alloc)
+  DatabaseFile(std::unique_ptr<MappedFileRegionArena> Alloc)
       : DatabaseFile(*Alloc) {
     OwnedAlloc = std::move(Alloc);
   }
 
   Header *H = nullptr;
-  MappedFileRegionBumpPtr &Alloc;
-  std::unique_ptr<MappedFileRegionBumpPtr> OwnedAlloc;
+  MappedFileRegionArena &Alloc;
+  std::unique_ptr<MappedFileRegionArena> OwnedAlloc;
 };
 
 } // end anonymous namespace
@@ -180,27 +179,27 @@ DatabaseFile::create(const Twine &Path, uint64_t Capacity,
                      std::shared_ptr<OnDiskCASLogger> Logger,
                      function_ref<Error(DatabaseFile &)> NewDBConstructor) {
   // Constructor for if the file doesn't exist.
-  auto NewFileConstructor = [&](MappedFileRegionBumpPtr &Alloc) -> Error {
-    if (Alloc.capacity() < sizeof(Header))
+  auto NewFileConstructor = [&](MappedFileRegionArena &Alloc) -> Error {
+    if (Alloc.capacity() <
+        sizeof(Header) + sizeof(MappedFileRegionArena::Header))
       return createTableConfigError(std::errc::argument_out_of_domain,
                                     Path.str(), "datafile",
                                     "Allocator too small for header");
-    (void)new (Alloc.data()) Header{getMagic(), getVersion(), {0}, {0}};
-    Alloc.initializeBumpPtr(offsetof(Header, BumpPtr));
+    (void)new (Alloc.data()) Header{getMagic(), getVersion(), {0}};
     DatabaseFile DB(Alloc);
     return NewDBConstructor(DB);
   };
 
   // Get or create the file.
-  MappedFileRegionBumpPtr Alloc;
-  if (Error E = MappedFileRegionBumpPtr::create(
-                    Path, Capacity, offsetof(Header, BumpPtr),
-                    std::move(Logger), NewFileConstructor)
-                    .moveInto(Alloc))
+  MappedFileRegionArena Alloc;
+  if (Error E =
+          MappedFileRegionArena::create(Path, Capacity, sizeof(Header),
+                                        std::move(Logger), NewFileConstructor)
+              .moveInto(Alloc))
     return std::move(E);
 
   return DatabaseFile::get(
-      std::make_unique<MappedFileRegionBumpPtr>(std::move(Alloc)));
+      std::make_unique<MappedFileRegionArena>(std::move(Alloc)));
 }
 
 void DatabaseFile::addTable(TableHandle Table) {
@@ -263,8 +262,10 @@ Error DatabaseFile::validate(MappedFileRegion &Region) {
     return createStringError(std::errc::invalid_argument,
                              "database: wrong version");
 
+  auto *MFH = reinterpret_cast<MappedFileRegionArena::Header *>(Region.data() +
+                                                                sizeof(Header));
   // Check the bump-ptr, which should point past the header.
-  if (H->BumpPtr.load() < (int64_t)sizeof(Header))
+  if (MFH->BumpPtr.load() < (int64_t)sizeof(Header))
     return createStringError(std::errc::invalid_argument,
                              "database: corrupt bump-ptr");
 
@@ -398,7 +399,7 @@ public:
   ///
   /// Returns the subtrie that now lives at \p I.
   Expected<SubtrieHandle> sink(size_t I, SubtrieSlotValue V,
-                               MappedFileRegionBumpPtr &Alloc,
+                               MappedFileRegionArena &Alloc,
                                size_t NumSubtrieBits,
                                SubtrieHandle &UnusedSubtrie, size_t NewI);
 
@@ -418,7 +419,7 @@ public:
   uint32_t getStartBit() const { return H->StartBit; }
   uint32_t getNumBits() const { return H->NumBits; }
 
-  static Expected<SubtrieHandle> create(MappedFileRegionBumpPtr &Alloc,
+  static Expected<SubtrieHandle> create(MappedFileRegionArena &Alloc,
                                         uint32_t StartBit, uint32_t NumBits,
                                         OnDiskCASLogger *Logger);
 
@@ -516,13 +517,13 @@ public:
   }
 
   RecordData getRecord(SubtrieSlotValue Offset);
-  Expected<RecordData> createRecord(MappedFileRegionBumpPtr &Alloc,
+  Expected<RecordData> createRecord(MappedFileRegionArena &Alloc,
                                     ArrayRef<uint8_t> Hash);
 
   explicit operator bool() const { return H; }
   const Header &getHeader() const { return *H; }
   SubtrieHandle getRoot() const;
-  Expected<SubtrieHandle> getOrCreateRoot(MappedFileRegionBumpPtr &Alloc);
+  Expected<SubtrieHandle> getOrCreateRoot(MappedFileRegionArena &Alloc);
   MappedFileRegion &getRegion() const { return *Region; }
 
   size_t getFlags() const { return H->Flags; }
@@ -542,7 +543,7 @@ public:
   }
 
   static Expected<HashMappedTrieHandle>
-  create(MappedFileRegionBumpPtr &Alloc, StringRef Name,
+  create(MappedFileRegionArena &Alloc, StringRef Name,
          std::optional<uint64_t> NumRootBits, uint64_t NumSubtrieBits,
          uint64_t NumHashBits, uint64_t RecordDataSize,
          std::shared_ptr<OnDiskCASLogger> Logger);
@@ -583,7 +584,7 @@ struct OnDiskHashMappedTrie::ImplType {
   HashMappedTrieHandle Trie;
 };
 
-Expected<SubtrieHandle> SubtrieHandle::create(MappedFileRegionBumpPtr &Alloc,
+Expected<SubtrieHandle> SubtrieHandle::create(MappedFileRegionArena &Alloc,
                                               uint32_t StartBit,
                                               uint32_t NumBits,
                                               OnDiskCASLogger *Logger) {
@@ -615,7 +616,7 @@ SubtrieHandle HashMappedTrieHandle::getRoot() const {
 }
 
 Expected<SubtrieHandle>
-HashMappedTrieHandle::getOrCreateRoot(MappedFileRegionBumpPtr &Alloc) {
+HashMappedTrieHandle::getOrCreateRoot(MappedFileRegionArena &Alloc) {
   assert(&Alloc.getRegion() == &getRegion());
   if (SubtrieHandle Root = getRoot())
     return Root;
@@ -639,7 +640,7 @@ HashMappedTrieHandle::getOrCreateRoot(MappedFileRegionBumpPtr &Alloc) {
 }
 
 Expected<HashMappedTrieHandle>
-HashMappedTrieHandle::create(MappedFileRegionBumpPtr &Alloc, StringRef Name,
+HashMappedTrieHandle::create(MappedFileRegionArena &Alloc, StringRef Name,
                              std::optional<uint64_t> NumRootBits,
                              uint64_t NumSubtrieBits, uint64_t NumHashBits,
                              uint64_t RecordDataSize,
@@ -688,7 +689,7 @@ HashMappedTrieHandle::getRecord(SubtrieSlotValue Offset) {
 }
 
 Expected<HashMappedTrieHandle::RecordData>
-HashMappedTrieHandle::createRecord(MappedFileRegionBumpPtr &Alloc,
+HashMappedTrieHandle::createRecord(MappedFileRegionArena &Alloc,
                                    ArrayRef<uint8_t> Hash) {
   assert(&Alloc.getRegion() == Region);
   assert(Hash.size() == getNumHashBytes());
@@ -729,7 +730,7 @@ OnDiskHashMappedTrie::recoverFromHashPointer(
 OnDiskHashMappedTrie::const_pointer
 OnDiskHashMappedTrie::recoverFromFileOffset(FileOffset Offset) const {
   // Check alignment.
-  if (!isAligned(MappedFileRegionBumpPtr::getAlign(), Offset.get()))
+  if (!isAligned(MappedFileRegionArena::getAlign(), Offset.get()))
     return const_pointer();
 
   // Check bounds.
@@ -793,7 +794,7 @@ OnDiskHashMappedTrie::insertLazy(ArrayRef<uint8_t> Hash,
   HashMappedTrieHandle Trie = Impl->Trie;
   assert(Hash.size() == Trie.getNumHashBytes() && "Invalid hash");
 
-  MappedFileRegionBumpPtr &Alloc = Impl->File.getAlloc();
+  MappedFileRegionArena &Alloc = Impl->File.getAlloc();
   std::optional<SubtrieHandle> S;
   auto Err = Trie.getOrCreateRoot(Alloc).moveInto(S);
   if (LLVM_UNLIKELY(Err))
@@ -872,7 +873,7 @@ OnDiskHashMappedTrie::insertLazy(ArrayRef<uint8_t> Hash,
 }
 
 Expected<SubtrieHandle> SubtrieHandle::sink(size_t I, SubtrieSlotValue V,
-                                            MappedFileRegionBumpPtr &Alloc,
+                                            MappedFileRegionArena &Alloc,
                                             size_t NumSubtrieBits,
                                             SubtrieHandle &UnusedSubtrie,
                                             size_t NewI) {
@@ -1280,7 +1281,7 @@ private:
   Error visitSlot(unsigned I, SubtrieHandle Subtrie, StringRef Prefix,
                   SubtrieSlotValue Slot) final {
     if (RecordVerifier && Slot.isData()) {
-      if (!isAligned(MappedFileRegionBumpPtr::getAlign(), Slot.asData()))
+      if (!isAligned(MappedFileRegionArena::getAlign(), Slot.asData()))
         return createInvalidTrieError(Slot.asData(), "mis-aligned data entry");
 
       HashMappedTrieHandle::RecordData Record =
@@ -1467,7 +1468,7 @@ public:
     return TableHandle(*Region, H->GenericHeader);
   }
 
-  Expected<MutableArrayRef<char>> allocate(MappedFileRegionBumpPtr &Alloc,
+  Expected<MutableArrayRef<char>> allocate(MappedFileRegionArena &Alloc,
                                            size_t DataSize) {
     assert(&Alloc.getRegion() == Region);
     auto Ptr = Alloc.allocate(DataSize);
@@ -1485,9 +1486,8 @@ public:
                            H->UserHeaderSize);
   }
 
-  static Expected<DataAllocatorHandle> create(MappedFileRegionBumpPtr &Alloc,
-                                              StringRef Name,
-                                              uint32_t UserHeaderSize);
+  static Expected<DataAllocatorHandle>
+  create(MappedFileRegionArena &Alloc, StringRef Name, uint32_t UserHeaderSize);
 
   DataAllocatorHandle() = default;
   DataAllocatorHandle(MappedFileRegion &Region, Header &H)
@@ -1510,7 +1510,7 @@ struct OnDiskDataAllocator::ImplType {
 };
 
 Expected<DataAllocatorHandle>
-DataAllocatorHandle::create(MappedFileRegionBumpPtr &Alloc, StringRef Name,
+DataAllocatorHandle::create(MappedFileRegionArena &Alloc, StringRef Name,
                             uint32_t UserHeaderSize) {
   // Allocate.
   auto Offset =

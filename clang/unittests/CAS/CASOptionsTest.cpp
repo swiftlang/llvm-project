@@ -65,15 +65,15 @@ TEST(CASOptionsTest, getOrCreateDatabases) {
   EXPECT_EQ(OnDiskAC, Opts.getOrCreateDatabases(Diags).second);
   EXPECT_EQ(CASOptions::OnDiskCAS, Opts.getKind());
 
-  // Create an on-disk CAS at an automatic location.
-  Opts.CASPath = "auto";
-  auto [AutoCAS, AutoAC] = Opts.getOrCreateDatabases(Diags);
-  EXPECT_NE(InMemoryCAS, AutoCAS);
-  EXPECT_NE(InMemoryAC, AutoAC);
-  EXPECT_NE(OnDiskCAS, AutoCAS);
-  EXPECT_NE(OnDiskAC, AutoAC);
-  EXPECT_EQ(AutoCAS, Opts.getOrCreateDatabases(Diags).first);
-  EXPECT_EQ(AutoAC, Opts.getOrCreateDatabases(Diags).second);
+  // Create an on-disk CAS at a different OnDisk location.
+  Opts.CASPath = Dir.path("cas2").str().str();
+  auto [OnDiskCAS2, OnDiskAC2] = Opts.getOrCreateDatabases(Diags);
+  EXPECT_NE(InMemoryCAS, OnDiskCAS2);
+  EXPECT_NE(InMemoryAC, OnDiskAC2);
+  EXPECT_NE(OnDiskCAS, OnDiskCAS2);
+  EXPECT_NE(OnDiskAC, OnDiskAC2);
+  EXPECT_EQ(OnDiskCAS2, Opts.getOrCreateDatabases(Diags).first);
+  EXPECT_EQ(OnDiskAC2, Opts.getOrCreateDatabases(Diags).second);
   EXPECT_EQ(CASOptions::OnDiskCAS, Opts.getKind());
 
   // Create another in-memory CAS. It won't be the same one.
@@ -83,8 +83,8 @@ TEST(CASOptionsTest, getOrCreateDatabases) {
   EXPECT_NE(InMemoryAC, InMemoryAC2);
   EXPECT_NE(OnDiskCAS, InMemoryCAS2);
   EXPECT_NE(OnDiskAC, InMemoryAC2);
-  EXPECT_NE(AutoCAS, InMemoryCAS2);
-  EXPECT_NE(AutoAC, InMemoryAC2);
+  EXPECT_NE(OnDiskCAS2, InMemoryCAS2);
+  EXPECT_NE(OnDiskAC2, InMemoryAC2);
   EXPECT_EQ(InMemoryCAS2, Opts.getOrCreateDatabases(Diags).first);
   EXPECT_EQ(InMemoryAC2, Opts.getOrCreateDatabases(Diags).second);
   EXPECT_EQ(CASOptions::InMemoryCAS, Opts.getKind());

@@ -6,6 +6,7 @@
 
 ; RUN: llc -O0 -mtriple=x86_64-apple-darwin -filetype=obj -o - %s | llvm-readobj --macho-linker-options - > %t
 ; RUN: FileCheck --check-prefix=CHECK-OBJ < %t %s
+; RUN: rm -rf %t.dir/cas
 ; RUN: mkdir -p %t.dir/cas
 ; RUN: llc -O0 -mtriple=x86_64-apple-darwin -filetype=obj --cas %t.dir/cas -cas-backend -o - %s | llvm-readobj --macho-linker-options - > %t
 

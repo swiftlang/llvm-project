@@ -81,7 +81,7 @@ static constexpr StringLiteral DataPoolTableName = "llvm.cas.data";
 static constexpr StringLiteral IndexFile = "index";
 static constexpr StringLiteral DataPoolFile = "data";
 
-static constexpr StringLiteral FilePrefix = "v9.";
+static constexpr StringLiteral FilePrefix = "v10.";
 static constexpr StringLiteral FileSuffixData = ".data";
 static constexpr StringLiteral FileSuffixLeaf = ".leaf";
 static constexpr StringLiteral FileSuffixLeaf0 = ".leaf+0";

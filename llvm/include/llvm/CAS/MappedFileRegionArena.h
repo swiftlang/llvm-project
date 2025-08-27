@@ -1,15 +1,20 @@
-//===- MappedFileRegionBumpPtr.h --------------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+/// \file
+/// This file declares interface for MappedFileRegionArena, a bump pointer
+/// allocator, backed by a memory-mapped file.
+///
+//===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CAS_MAPPEDFILEREGIONBUMPPTR_H
-#define LLVM_CAS_MAPPEDFILEREGIONBUMPPTR_H
+#ifndef LLVM_CAS_MAPPEDFILEREGIONARENA_H
+#define LLVM_CAS_MAPPEDFILEREGIONARENA_H
 
-#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/FileSystem.h"
 #include <atomic>
@@ -18,7 +23,7 @@ namespace llvm::cas {
 
 namespace ondisk {
 class OnDiskCASLogger;
-}
+} // namespace ondisk
 
 /// Allocator for an owned mapped file region that supports thread-safe and
 /// process-safe bump pointer allocation.
@@ -31,33 +36,39 @@ class OnDiskCASLogger;
 /// Process-safe. Uses file locks when resizing the file during initialization
 /// and destruction.
 ///
-/// Thread-safe, assuming all threads use the same instance to talk to a given
-/// file/mapping. Unsafe to have multiple instances talking to the same file
-/// in the same process since file locks will misbehave. Clients should
-/// coordinate (somehow).
-///
-/// \note Currently we allocate the whole file without sparseness on Windows.
+/// Thread-safe. Requires OS support thread-safe file lock.
 ///
 /// Provides 8-byte alignment for all allocations.
-class MappedFileRegionBumpPtr {
+class MappedFileRegionArena {
 public:
   using RegionT = sys::fs::mapped_file_region;
 
-  /// Create a \c MappedFileRegionBumpPtr.
+  /// Header for MappedFileRegionArena. It can be configured to be located
+  /// at any location within the file and the allocation will be appended after
+  /// the header.
+  struct Header {
+    // BumpPtr for new allocation.
+    std::atomic<uint64_t> BumpPtr;
+    // Allocated size on disk.
+    std::atomic<uint64_t> AllocatedSize;
+    // Capacity of the file.
+    std::atomic<uint64_t> Capacity;
+    // Offset from the beginning of the file to this header (for verification).
+    std::atomic<uint64_t> HeaderOffset;
+  };
+
+  /// Create a \c MappedFileRegionArena.
   ///
   /// \param Path the path to open the mapped region.
   /// \param Capacity the maximum size for the mapped file region.
-  /// \param BumpPtrOffset the offset at which to store the bump pointer.
+  /// \param HeaderOffset the offset at which to store the header. This is so
+  /// that information can be stored before the header, like a file magic.
   /// \param NewFileConstructor is for constructing new files. It has exclusive
   /// access to the file. Must call \c initializeBumpPtr.
-  static Expected<MappedFileRegionBumpPtr>
-  create(const Twine &Path, uint64_t Capacity, int64_t BumpPtrOffset,
+  static Expected<MappedFileRegionArena>
+  create(const Twine &Path, uint64_t Capacity, uint64_t HeaderOffset,
          std::shared_ptr<ondisk::OnDiskCASLogger> Logger,
-         function_ref<Error(MappedFileRegionBumpPtr &)> NewFileConstructor);
-
-  /// Finish initializing the bump pointer. Must be called by
-  /// \c NewFileConstructor.
-  void initializeBumpPtr(int64_t BumpPtrOffset);
+         function_ref<Error(MappedFileRegionArena &)> NewFileConstructor);
 
   /// Minimum alignment for allocations, currently hardcoded to 8B.
   static constexpr Align getAlign() {
@@ -83,22 +94,25 @@ public:
 
   RegionT &getRegion() { return Region; }
 
-  ~MappedFileRegionBumpPtr() { destroyImpl(); }
+  ~MappedFileRegionArena() { destroyImpl(); }
 
-  MappedFileRegionBumpPtr() = default;
-  MappedFileRegionBumpPtr(MappedFileRegionBumpPtr &&RHS) { moveImpl(RHS); }
-  MappedFileRegionBumpPtr &operator=(MappedFileRegionBumpPtr &&RHS) {
+  MappedFileRegionArena() = default;
+  MappedFileRegionArena(MappedFileRegionArena &&RHS) { moveImpl(RHS); }
+  MappedFileRegionArena &operator=(MappedFileRegionArena &&RHS) {
     destroyImpl();
     moveImpl(RHS);
     return *this;
   }
 
-  MappedFileRegionBumpPtr(const MappedFileRegionBumpPtr &) = delete;
-  MappedFileRegionBumpPtr &operator=(const MappedFileRegionBumpPtr &) = delete;
+  MappedFileRegionArena(const MappedFileRegionArena &) = delete;
+  MappedFileRegionArena &operator=(const MappedFileRegionArena &) = delete;
 
 private:
+  // initialize header from offset.
+  void initializeHeader(uint64_t HeaderOffset);
+
   void destroyImpl();
-  void moveImpl(MappedFileRegionBumpPtr &RHS) {
+  void moveImpl(MappedFileRegionArena &RHS) {
     std::swap(Region, RHS.Region);
     std::swap(H, RHS.H);
     std::swap(Path, RHS.Path);
@@ -108,18 +122,16 @@ private:
   }
 
 private:
-  struct Header {
-    std::atomic<int64_t> BumpPtr;
-    std::atomic<int64_t> AllocatedSize;
-  };
   RegionT Region;
   Header *H = nullptr;
   std::string Path;
+  // File descriptor for the main storage file.
   std::optional<int> FD;
+  // File descriptor for the file used as reader/writer lock.
   std::optional<int> SharedLockFD;
   std::shared_ptr<ondisk::OnDiskCASLogger> Logger = nullptr;
 };
 
 } // namespace llvm::cas
 
-#endif // LLVM_CAS_MAPPEDFILEREGIONBUMPPTR_H
+#endif // LLVM_CAS_MAPPEDFILEREGIONARENA_H

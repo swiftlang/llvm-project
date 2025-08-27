@@ -16,7 +16,7 @@ add_llvm_component_library(LLVMCAS
   FileSystemCache.cpp
   HierarchicalTreeBuilder.cpp
   InMemoryCAS.cpp
-  MappedFileRegionBumpPtr.cpp
+  MappedFileRegionArena.cpp
   ObjectStore.cpp
   OnDiskCAS.cpp
   OnDiskCASLogger.cpp

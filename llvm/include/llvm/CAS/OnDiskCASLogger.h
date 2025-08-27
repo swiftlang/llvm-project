@@ -52,15 +52,15 @@ public:
   void log_HashMappedTrieHandle_createRecord(void *Region,
                                              TrieOffset TrieOffset,
                                              ArrayRef<uint8_t> Hash);
-  void log_MappedFileRegionBumpPtr_resizeFile(StringRef Path, size_t Before,
-                                              size_t After);
-  void log_MappedFileRegionBumpPtr_create(StringRef Path, int FD, void *Region,
-                                          size_t Capacity, size_t Size);
-  void log_MappedFileRegionBumpPtr_oom(StringRef Path, size_t Capacity,
-                                       size_t Size, size_t AllocSize);
-  void log_MappedFileRegionBumpPtr_close(StringRef Path);
-  void log_MappedFileRegionBumpPtr_allocate(void *Region, TrieOffset Off,
-                                            size_t Size);
+  void log_MappedFileRegionArena_resizeFile(StringRef Path, size_t Before,
+                                            size_t After);
+  void log_MappedFileRegionArena_create(StringRef Path, int FD, void *Region,
+                                        size_t Capacity, size_t Size);
+  void log_MappedFileRegionArena_oom(StringRef Path, size_t Capacity,
+                                     size_t Size, size_t AllocSize);
+  void log_MappedFileRegionArena_close(StringRef Path);
+  void log_MappedFileRegionArena_allocate(void *Region, TrieOffset Off,
+                                          size_t Size);
   void log_UnifiedOnDiskCache_collectGarbage(StringRef Path);
   void log_UnifiedOnDiskCache_validateIfNeeded(
       StringRef Path, uint64_t BootTime, uint64_t ValidationTime,
