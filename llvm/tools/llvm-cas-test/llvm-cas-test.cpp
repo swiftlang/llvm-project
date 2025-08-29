@@ -90,11 +90,11 @@ struct Config {
 
   void constrainParameters() {
     // reduce the size of parameter if they are too big.
-    NumShards = NumShards % MaxShards;
-    NumChildren = NumChildren % MaxChildren;
-    TreeDepth = TreeDepth % MaxDepth;
-    DataLength = DataLength % MaxDataLength;
-    PrecentFile = PrecentFile % 100;
+    NumShards = OptNumShards ? OptNumShards : NumShards % MaxShards;
+    NumChildren = OptNumChildren ? OptNumChildren : NumChildren % MaxChildren;
+    TreeDepth = OptTreeDepth ? OptTreeDepth : TreeDepth % MaxDepth;
+    DataLength = OptDataLength ? OptDataLength : DataLength % MaxDataLength;
+    PrecentFile = OptPrecentFile ? OptPrecentFile : PrecentFile % 100;
 
     if (ForceKill) {
       Settings |= Fork;
