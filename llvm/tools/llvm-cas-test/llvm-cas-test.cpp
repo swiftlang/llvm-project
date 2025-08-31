@@ -103,7 +103,7 @@ struct Config {
   }
 
   bool extendToFile(uint8_t Seed) const {
-    return ((float)Seed / (float)UINT8_MAX) > ((float)PrecentFile / 100.0f);
+    return ((float)Seed / (float)UINT8_MAX) < ((float)PrecentFile / 100.0f);
   }
 
   void init() {
