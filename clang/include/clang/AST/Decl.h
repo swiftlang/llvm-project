@@ -732,6 +732,10 @@ public:
   bool isInitCapture() const;
 
   /* TO_UPSTREAM(BoundsSafety) ON */
+  bool isDependentValue() const;
+  bool isDependentValueWithoutDeref() const;
+  bool isDependentValueWithDeref() const;
+  bool isDependentValueThatIsUsedInInoutPointer() const;
   /// Whether this decl is a dependent parameter referred to by the return type
   /// that is a bounds-attributed type.
   bool isDependentParamOfReturnType(

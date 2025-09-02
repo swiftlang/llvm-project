@@ -2651,6 +2651,7 @@ public:
   bool isAnyVaListType(ASTContext &) const;
   bool isDynamicRangePointerType() const;
   bool isBoundsAttributedType() const;
+  bool isBoundsAttributedTypeDependingOnInoutValue() const;
   bool isValueTerminatedType() const;
   bool isImplicitlyNullTerminatedType(const ASTContext &) const;
   /* TO_UPSTREAM(BoundsSafety) OFF */

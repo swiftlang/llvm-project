@@ -18,6 +18,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/SourceLocation.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
 #include <set>
 
@@ -142,6 +143,53 @@ public:
                                                  ASTContext &Ctx) {
     handleUnsafeOperation(Arg, IsRelatedToDecl, Ctx);
   }
+
+  virtual void handleStandaloneAssign(const Expr *E, const ValueDecl *VD,
+                                      bool IsRelatedToDecl, ASTContext &Ctx) {
+    handleUnsafeOperation(E, IsRelatedToDecl, Ctx);
+  }
+
+  enum class AssignToImmutableObjectKind {
+    PointerToPointer,
+    PointerToDependentValue,
+    PointerDependingOnInoutValue,
+    DependentValueUsedInInoutPointer,
+  };
+
+  virtual void handleAssignToImmutableObject(const BinaryOperator *Assign,
+                                             const ValueDecl *VD,
+                                             AssignToImmutableObjectKind Kind,
+                                             bool IsRelatedToDecl,
+                                             ASTContext &Ctx) {
+    handleUnsafeOperation(Assign, IsRelatedToDecl, Ctx);
+  }
+
+  virtual void handleMissingAssignments(
+      const Expr *LastAssignInGroup,
+      const llvm::SmallPtrSetImpl<const ValueDecl *> &Required,
+      const llvm::SmallPtrSetImpl<const ValueDecl *> &Missing,
+      bool IsRelatedToDecl, ASTContext &Ctx) {
+    handleUnsafeOperation(LastAssignInGroup, IsRelatedToDecl, Ctx);
+  }
+
+  virtual void handleDuplicatedAssignment(const BinaryOperator *Assign,
+                                          const BinaryOperator *PrevAssign,
+                                          const ValueDecl *VD,
+                                          bool IsRelatedToDecl,
+                                          ASTContext &Ctx) {
+    handleUnsafeOperation(Assign, IsRelatedToDecl, Ctx);
+  }
+
+  virtual void handleAssignedAndUsed(const BinaryOperator *Assign,
+                                     const Expr *Use, const ValueDecl *VD,
+                                     bool IsRelatedToDecl, ASTContext &Ctx) {
+    handleUnsafeOperation(Assign, IsRelatedToDecl, Ctx);
+  }
+
+  virtual void handleUnsafeCountAttributedPointerAssignment(
+      const BinaryOperator *Assign, bool IsRelatedToDecl, ASTContext &Ctx) {
+    handleUnsafeOperation(Assign, IsRelatedToDecl, Ctx);
+  }
   /* TO_UPSTREAM(BoundsSafety) OFF */
 
   /// Invoked when a fix is suggested against a variable. This function groups
@@ -196,7 +244,8 @@ public:
 // This function invokes the analysis and allows the caller to react to it
 // through the handler class.
 void checkUnsafeBufferUsage(const Decl *D, UnsafeBufferUsageHandler &Handler,
-                            bool EmitSuggestions);
+                            bool EmitSuggestions,
+                            bool BoundsSafetyAttributes = false);
 
 namespace internal {
 // Tests if any two `FixItHint`s in `FixIts` conflict.  Two `FixItHint`s

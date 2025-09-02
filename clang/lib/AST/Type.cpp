@@ -829,6 +829,14 @@ bool Type::isBoundsAttributedType() const {
   return getAs<BoundsAttributedType>();
 }
 
+bool Type::isBoundsAttributedTypeDependingOnInoutValue() const {
+  const auto *BAT = getAs<BoundsAttributedType>();
+  return BAT &&
+         std::any_of(
+             BAT->dependent_decl_begin(), BAT->dependent_decl_end(),
+             [](const TypeCoupledDeclRefInfo &Info) { return Info.isDeref(); });
+}
+
 bool Type::isValueTerminatedType() const {
   return getAs<ValueTerminatedType>();
 }

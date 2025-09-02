@@ -2609,6 +2609,93 @@ public:
                                          ASTContext &Ctx) override {
     S.Diag(Arg->getBeginLoc(), diag::warn_unsafe_single_pointer_argument);
   }
+
+  void handleStandaloneAssign(const Expr *E, const ValueDecl *VD,
+                              bool IsRelatedToDecl, ASTContext &Ctx) override {
+    SourceLocation Loc = E->getBeginLoc();
+    if (const auto *BO = dyn_cast<BinaryOperator>(E))
+      Loc = BO->getOperatorLoc();
+
+    S.Diag(Loc, diag::warn_standalone_assign_to_bounds_attributed_object)
+        << VD->isDependentValue() << VD;
+  }
+
+  static int getBoundsAttributedObjectKind(const ValueDecl *VD) {
+    if (isa<ParmVarDecl>(VD))
+      return 1;
+    if (isa<FieldDecl>(VD))
+      return 2;
+    return 0; // variable
+  }
+
+  void handleAssignToImmutableObject(const BinaryOperator *Assign,
+                                     const ValueDecl *VD,
+                                     AssignToImmutableObjectKind Kind,
+                                     bool IsRelatedToDecl,
+                                     ASTContext &Ctx) override {
+    S.Diag(Assign->getOperatorLoc(),
+           diag::warn_cannot_assign_to_immutable_bounds_attributed_object)
+        << getBoundsAttributedObjectKind(VD) << VD << Kind;
+  }
+
+  static llvm::SmallString<64>
+  DeclSetToStr(const llvm::SmallPtrSetImpl<const ValueDecl *> &Set) {
+    llvm::SmallVector<const ValueDecl *, 4> V(Set.begin(), Set.end());
+    llvm::sort(V.begin(), V.end(), [](const ValueDecl *A, const ValueDecl *B) {
+      return A->getName().compare(B->getName()) < 0;
+    });
+    llvm::SmallString<64> Str;
+    for (const ValueDecl *VD : V) {
+      if (!Str.empty())
+        Str += ", ";
+      Str += VD->getName();
+    }
+    return Str;
+  }
+
+  void handleMissingAssignments(
+      const Expr *LastAssignInGroup,
+      const llvm::SmallPtrSetImpl<const ValueDecl *> &Required,
+      const llvm::SmallPtrSetImpl<const ValueDecl *> &Missing,
+      bool IsRelatedToDecl, ASTContext &Ctx) override {
+
+    llvm::SmallString<64> RequiredAssignments = DeclSetToStr(Required);
+    llvm::SmallString<64> MissingAssignments = DeclSetToStr(Missing);
+    auto Loc =
+        CharSourceRange::getTokenRange(LastAssignInGroup->getSourceRange())
+            .getEnd();
+
+    S.Diag(Loc, diag::warn_missing_assignments_in_bounds_attributed_group)
+        << RequiredAssignments << MissingAssignments;
+  }
+
+  void handleDuplicatedAssignment(const BinaryOperator *Assign,
+                                  const BinaryOperator *PrevAssign,
+                                  const ValueDecl *VD, bool IsRelatedToDecl,
+                                  ASTContext &Ctx) override {
+    S.Diag(Assign->getOperatorLoc(),
+           diag::warn_duplicated_assignment_in_bounds_attributed_group)
+        << getBoundsAttributedObjectKind(VD) << VD;
+    S.Diag(PrevAssign->getOperatorLoc(),
+           diag::note_bounds_safety_previous_assignment);
+  }
+
+  void handleAssignedAndUsed(const BinaryOperator *Assign, const Expr *Use,
+                             const ValueDecl *VD, bool IsRelatedToDecl,
+                             ASTContext &Ctx) override {
+    S.Diag(Assign->getOperatorLoc(),
+           diag::warn_assigned_and_used_in_bounds_attributed_group)
+        << getBoundsAttributedObjectKind(VD) << VD;
+    S.Diag(Use->getBeginLoc(), diag::note_used_here);
+  }
+
+  void
+  handleUnsafeCountAttributedPointerAssignment(const BinaryOperator *Assign,
+                                               bool IsRelatedToDecl,
+                                               ASTContext &Ctx) override {
+    S.Diag(Assign->getOperatorLoc(),
+           diag::warn_unsafe_count_attributed_pointer_assignment);
+  }
   /* TO_UPSTREAM(BoundsSafety) OFF */
 
   void handleUnsafeVariableGroup(const VarDecl *Variable,
@@ -3455,6 +3542,7 @@ void clang::sema::AnalysisBasedWarnings::IssueWarnings(
   bool UnsafeBufferUsageShouldSuggestSuggestions =
       UnsafeBufferUsageCanEmitSuggestions &&
       !DiagOpts.ShowSafeBufferUsageSuggestions;
+  bool BoundsSafetyAttributes = S.getLangOpts().BoundsSafetyAttributes;
   UnsafeBufferUsageReporter R(S, UnsafeBufferUsageShouldSuggestSuggestions);
 
   // The Callback function that performs analyses:
@@ -3472,7 +3560,8 @@ void clang::sema::AnalysisBasedWarnings::IssueWarnings(
         !Diags.isIgnored(diag::warn_unsafe_buffer_libc_call,
                          Node->getBeginLoc())) {
       clang::checkUnsafeBufferUsage(Node, R,
-                                    UnsafeBufferUsageShouldEmitSuggestions);
+                                    UnsafeBufferUsageShouldEmitSuggestions,
+                                    BoundsSafetyAttributes);
     }
 
     // More analysis ...

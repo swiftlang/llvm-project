@@ -29,6 +29,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -427,7 +428,8 @@ const Expr *findCountArg(const Expr *Count, const CallExpr *Call) {
 }
 
 // Mapping: dependent decl -> value.
-using DependentValuesTy = llvm::DenseMap<const ValueDecl *, const Expr *>;
+using DeclDerefPair = llvm::PointerIntPair<const ValueDecl *, 1, bool>;
+using DependentValuesTy = llvm::DenseMap<DeclDerefPair, const Expr *>;
 
 // Given the call expr, find the mapping from the dependent parameter to the
 // argument that is passed to that parameter.
@@ -445,7 +447,8 @@ getDependentValuesFromCall(const CountAttributedType *CAT,
       return std::nullopt;
 
     const Expr *Arg = Call->getArg(Index);
-    [[maybe_unused]] bool Inserted = Values.insert({PVD, Arg}).second;
+    [[maybe_unused]] bool Inserted =
+        Values.insert({{PVD, /*Deref=*/false}, Arg}).second;
     assert(Inserted);
   }
   return {std::move(Values)};
@@ -499,13 +502,16 @@ struct CompatibleCountExprVisitor
   const Expr *
   trySubstituteAndSimplify(const Expr *E, bool &hasBeenSubstituted,
                            const DependentValuesTy *DependentValues) const {
+    auto trySubstitute = [&](const ValueDecl *VD, bool Deref) -> const Expr * {
+      if (hasBeenSubstituted || !DependentValues)
+        return nullptr;
+      auto It = DependentValues->find({VD, Deref});
+      return It != DependentValues->end() ? It->second : nullptr;
+    };
+
     // Attempts to simplify `E`: if `E` has the form `*&e`, return `e`;
     // return `E` without change otherwise:
-    auto trySimplifyDerefAddressof =
-        [](const Expr *E,
-           const DependentValuesTy
-               *DependentValues, // Deref may need subsitution
-           bool &hasBeenSubstituted) -> const Expr * {
+    auto trySimplifyDerefAddressof = [&](const Expr *E) -> const Expr * {
       const auto *Deref = dyn_cast<UnaryOperator>(E->IgnoreParenImpCasts());
 
       if (!Deref || Deref->getOpcode() != UO_Deref)
@@ -513,36 +519,40 @@ struct CompatibleCountExprVisitor
 
       const Expr *DerefOperand = Deref->getSubExpr()->IgnoreParenImpCasts();
 
+      // Just simplify `*&...`.
       if (const auto *UO = dyn_cast<UnaryOperator>(DerefOperand))
         if (UO->getOpcode() == UO_AddrOf)
           return UO->getSubExpr();
-      if (const auto *DRE = dyn_cast<DeclRefExpr>(DerefOperand)) {
-        if (!DependentValues || hasBeenSubstituted)
-          return E;
 
-        if (auto I = DependentValues->find(DRE->getDecl());
-            I != DependentValues->end())
-          if (const auto *UO = dyn_cast<UnaryOperator>(
-                  I->getSecond()->IgnoreParenImpCasts()))
-            if (UO->getOpcode() == UO_AddrOf) {
-              hasBeenSubstituted = true;
-              return UO->getSubExpr();
-            }
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(DerefOperand)) {
+        // Substitute `*x`.
+        if (const auto *Sub = trySubstitute(DRE->getDecl(), /*Deref=*/true)) {
+          hasBeenSubstituted = true;
+          return Sub;
+        }
+
+        // Substitute `x` in `*x` if we have `x -> &...` in our mapping.
+        if (const auto *Sub = trySubstitute(DRE->getDecl(), /*Deref=*/false)) {
+          if (const auto *UO =
+                  dyn_cast<UnaryOperator>(Sub->IgnoreParenImpCasts());
+              UO && UO->getOpcode() == UO_AddrOf) {
+            hasBeenSubstituted = true;
+            return UO->getSubExpr();
+          }
+        }
       }
+
       return E;
     };
 
-    if (!hasBeenSubstituted && DependentValues) {
-      if (const auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts())) {
-        if (auto It = DependentValues->find(DRE->getDecl());
-            It != DependentValues->end()) {
-          hasBeenSubstituted = true;
-          return trySimplifyDerefAddressof(It->second, nullptr,
-                                           hasBeenSubstituted);
-        }
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts())) {
+      if (const auto *Sub = trySubstitute(DRE->getDecl(), /*Deref=*/false)) {
+        hasBeenSubstituted = true;
+        return trySimplifyDerefAddressof(Sub);
       }
     }
-    return trySimplifyDerefAddressof(E, DependentValues, hasBeenSubstituted);
+
+    return trySimplifyDerefAddressof(E);
   }
 
   explicit CompatibleCountExprVisitor(
@@ -5433,9 +5443,509 @@ static void applyGadgets(const Decl *D, FixableGadgetList FixableGadgets,
   }
 }
 
+// Checks if Self and Other are the same member bases. This supports only very
+// simple forms of member bases.
+static bool isSameMemberBase(const Expr *Self, const Expr *Other) {
+  for (;;) {
+    if (Self == Other)
+      return true;
+
+    const auto *SelfICE = dyn_cast<ImplicitCastExpr>(Self);
+    const auto *OtherICE = dyn_cast<ImplicitCastExpr>(Other);
+    if (SelfICE && OtherICE && SelfICE->getCastKind() == CK_LValueToRValue &&
+        OtherICE->getCastKind() == CK_LValueToRValue) {
+      Self = SelfICE->getSubExpr();
+      Other = OtherICE->getSubExpr();
+    }
+
+    const auto *SelfDRE = dyn_cast<DeclRefExpr>(Self);
+    const auto *OtherDRE = dyn_cast<DeclRefExpr>(Other);
+    if (SelfDRE && OtherDRE)
+      return SelfDRE->getDecl() == OtherDRE->getDecl();
+
+    const auto *SelfME = dyn_cast<MemberExpr>(Self);
+    const auto *OtherME = dyn_cast<MemberExpr>(Other);
+    if (!SelfME || !OtherME ||
+        SelfME->getMemberDecl() != OtherME->getMemberDecl()) {
+      return false;
+    }
+
+    Self = SelfME->getBase();
+    Other = OtherME->getBase();
+  }
+}
+
+using DependentDeclSetTy = llvm::SmallPtrSet<const ValueDecl *, 4>;
+
+static DependentDeclSetTy GetBoundsAttributedClosure(const ValueDecl *InitVD) {
+  DependentDeclSetTy Set;
+
+  llvm::SmallVector<const ValueDecl *, 4> WorkList;
+  WorkList.push_back(InitVD);
+
+  while (!WorkList.empty()) {
+    const ValueDecl *CurVD = WorkList.pop_back_val();
+    bool Inserted = Set.insert(CurVD).second;
+    if (!Inserted)
+      continue;
+
+    // If CurVD is a dependent decl, add the pointers that depend on CurVD.
+    for (const auto *Attr : CurVD->specific_attrs<DependerDeclsAttr>()) {
+      for (const Decl *D : Attr->dependerDecls()) {
+        if (const auto *VD = dyn_cast<ValueDecl>(D))
+          WorkList.push_back(VD);
+      }
+    }
+
+    // If CurVD is a bounds-attributed pointer (or pointer to it), add its
+    // dependent decls.
+    QualType Ty = CurVD->getType();
+    const auto *BAT = Ty->getAs<BoundsAttributedType>();
+    if (!BAT && Ty->isPointerType())
+      BAT = Ty->getPointeeType()->getAs<BoundsAttributedType>();
+    if (BAT) {
+      for (const auto &DI : BAT->dependent_decls())
+        WorkList.push_back(DI.getDecl());
+    }
+  }
+
+  return Set;
+}
+
+struct BoundsAttributedObject {
+  const ValueDecl *Decl = nullptr;
+  const Expr *MemberBase = nullptr;
+  int DerefLevel = 0;
+
+  bool operator==(const BoundsAttributedObject &Other) const {
+    if (Other.Decl != Decl || Other.DerefLevel != DerefLevel)
+      return false;
+    if (Other.MemberBase == MemberBase)
+      return true;
+    if (Other.MemberBase == nullptr || MemberBase == nullptr)
+      return false;
+    return isSameMemberBase(Other.MemberBase, MemberBase);
+  }
+};
+
+static std::optional<BoundsAttributedObject>
+getBoundsAttributedObject(const Expr *E) {
+  E = E->IgnoreParenCasts();
+
+  int DerefLevel = 0;
+  while (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Deref)
+      DerefLevel++;
+    else if (UO->getOpcode() == UO_AddrOf)
+      DerefLevel--;
+    else
+      break;
+    E = UO->getSubExpr()->IgnoreParenCasts();
+  }
+  assert(DerefLevel >= 0);
+
+  const ValueDecl *Decl;
+  const Expr *MemberBase = nullptr;
+
+  if (const auto *DRE = dyn_cast<DeclRefExpr>(E))
+    Decl = DRE->getDecl();
+  else if (const auto *ME = dyn_cast<MemberExpr>(E)) {
+    Decl = ME->getMemberDecl();
+    MemberBase = ME->getBase();
+  } else
+    return std::nullopt;
+
+  QualType Ty = Decl->getType();
+  bool IsBoundsAttributedPointer =
+      Ty->isBoundsAttributedType() ||
+      (Ty->isPointerType() && Ty->getPointeeType()->isBoundsAttributedType());
+  bool IsDependentDecl = Decl->hasAttr<DependerDeclsAttr>();
+  if (IsBoundsAttributedPointer || IsDependentDecl)
+    return {{Decl, MemberBase, DerefLevel}};
+
+  return std::nullopt;
+}
+
+struct BoundsAttributedAssignmentGroup {
+  DependentDeclSetTy DeclClosure;
+  llvm::SmallVector<const BinaryOperator *, 4> Assignments;
+  llvm::SmallVector<BoundsAttributedObject, 4> AssignedObjects;
+  using DeclUseTy = std::pair<const ValueDecl *, const Expr *>;
+  llvm::SmallVector<DeclUseTy, 4> Uses;
+  const Expr *MemberBase = nullptr;
+
+  void Init(const BoundsAttributedObject &Object) {
+    DeclClosure = GetBoundsAttributedClosure(Object.Decl);
+    MemberBase = Object.MemberBase;
+  }
+
+  void Clear() {
+    DeclClosure.clear();
+    Assignments.clear();
+    AssignedObjects.clear();
+    Uses.clear();
+    MemberBase = nullptr;
+  }
+
+  bool Empty() const {
+    return DeclClosure.empty();
+  }
+
+  bool IsPartOfGroup(const BoundsAttributedObject &Object) const {
+    if (!DeclClosure.contains(Object.Decl))
+      return false;
+    if (MemberBase)
+      return Object.MemberBase &&
+             isSameMemberBase(MemberBase, Object.MemberBase);
+    return true;
+  }
+
+  void AddAssignment(const BoundsAttributedObject &Object,
+                     const BinaryOperator *BO) {
+    Assignments.push_back(BO);
+    AssignedObjects.push_back(Object);
+  }
+
+  void AddUseIfPartOfGroup(const BoundsAttributedObject &Object,
+                           const Expr *E) {
+    if (IsPartOfGroup(Object))
+      Uses.emplace_back(Object.Decl, E);
+  }
+};
+
+struct BoundsAttributedGroupFinder
+    : public ConstStmtVisitor<BoundsAttributedGroupFinder> {
+  using GroupHandlerTy = void(const BoundsAttributedAssignmentGroup &Group);
+  using AssignHandlerTy = void(const Expr *, const ValueDecl *);
+  std::function<GroupHandlerTy> GroupHandler;
+  std::function<AssignHandlerTy> BadStandaloneAssignHandler;
+  BoundsAttributedAssignmentGroup CurGroup;
+
+  explicit BoundsAttributedGroupFinder(
+      std::function<GroupHandlerTy> GroupHandler,
+      std::function<AssignHandlerTy> BadStandaloneAssignHandler)
+      : GroupHandler(std::move(GroupHandler)),
+        BadStandaloneAssignHandler(std::move(BadStandaloneAssignHandler)) {}
+
+  void VisitChildren(const Stmt *S) {
+    for (const Stmt *Child : S->children())
+      Visit(Child);
+  }
+
+  void VisitStmt(const Stmt *S) { VisitChildren(S); }
+
+  void VisitCompoundStmt(const CompoundStmt *CS) {
+    for (const Stmt *Child : CS->children()) {
+      const Stmt *E = Child;
+
+      if (const auto *EWC = dyn_cast<ExprWithCleanups>(E))
+        E = EWC->getSubExpr();
+
+      const auto *BO = dyn_cast<BinaryOperator>(E);
+      if (BO && BO->getOpcode() == BO_Assign)
+        HandleAssignInCompound(BO);
+      else {
+        FinishGroup();
+        Visit(Child);
+      }
+    }
+
+    FinishGroup();
+  }
+
+  void HandleAssignInCompound(const BinaryOperator *AssignOp) {
+    const auto ObjectOpt = getBoundsAttributedObject(AssignOp->getLHS());
+    if (!ObjectOpt.has_value()) {
+      FinishGroup();
+      VisitChildren(AssignOp);
+      return;
+    }
+
+    if (!CurGroup.IsPartOfGroup(*ObjectOpt)) {
+      FinishGroup();
+      CurGroup.Init(*ObjectOpt);
+    }
+
+    CurGroup.AddAssignment(*ObjectOpt, AssignOp);
+    VisitChildren(AssignOp->getRHS());
+  }
+
+  void FinishGroup() {
+    if (CurGroup.Empty())
+      return;
+    GroupHandler(CurGroup);
+    CurGroup.Clear();
+  }
+
+  // Bad assigns.
+
+  void VisitBinaryOperator(const BinaryOperator *BO) {
+    VisitChildren(BO);
+
+    if (BO->isAssignmentOp())
+      CheckBadStandaloneAssign(BO->getLHS());
+  }
+
+  void VisitUnaryOperator(const UnaryOperator *UO) {
+    VisitChildren(UO);
+
+    if (UO->isIncrementDecrementOp())
+      CheckBadStandaloneAssign(UO->getSubExpr());
+  }
+
+  void CheckBadStandaloneAssign(const Expr *E) {
+    const auto DA = getBoundsAttributedObject(E);
+    if (DA.has_value())
+      BadStandaloneAssignHandler(E, DA->Decl);
+  }
+
+  // Collect uses.
+
+  void VisitDeclRefExpr(const DeclRefExpr *DRE) {
+    const auto DA = getBoundsAttributedObject(DRE);
+    if (DA.has_value())
+      CurGroup.AddUseIfPartOfGroup(*DA, DRE);
+  }
+
+  void VisitMemberExpr(const MemberExpr *ME) {
+    const auto DA = getBoundsAttributedObject(ME);
+    if (DA.has_value())
+      CurGroup.AddUseIfPartOfGroup(*DA, ME);
+
+    Visit(ME->getBase());
+  }
+};
+
+static bool checkImmutableBoundsAttributedObjects(
+    const BoundsAttributedAssignmentGroup &Group,
+    UnsafeBufferUsageHandler &Handler, ASTContext &Ctx) {
+  bool Ok = true;
+
+  for (size_t I = 0, N = Group.Assignments.size(); I < N; ++I) {
+    const BinaryOperator *Assign = Group.Assignments[I];
+    const BoundsAttributedObject &Object = Group.AssignedObjects[I];
+
+    const ValueDecl *VD = Object.Decl;
+    QualType Ty = VD->getType();
+    int DerefLevel = Object.DerefLevel;
+
+    using AssignKind = UnsafeBufferUsageHandler::AssignToImmutableObjectKind;
+
+    // void foo(int *__counted_by(*len) *p, int *len) {
+    //   p = ...;
+    // }
+    if (DerefLevel == 0 && Ty->isPointerType() &&
+        Ty->getPointeeType()->isBoundsAttributedType()) {
+      Handler.handleAssignToImmutableObject(Assign, VD,
+                                            AssignKind::PointerToPointer,
+                                            /*IsRelatedToDecl=*/false, Ctx);
+      Ok = false;
+    }
+
+    // void foo(int *__counted_by(*len) *p, int *len) {
+    //   len = ...;
+    // }
+    if (DerefLevel == 0 && VD->isDependentValueWithDeref()) {
+      Handler.handleAssignToImmutableObject(Assign, VD,
+                                            AssignKind::PointerToDependentValue,
+                                            /*IsRelatedToDecl=*/false, Ctx);
+      Ok = false;
+    }
+
+    // `p` below should be immutable, because updating `p` would not be visible
+    // on the call-site to `foo`, but `*len` would, which invalidates the
+    // relation between the pointer and its count.
+    // void foo(int *__counted_by(*len) p, int *len) {
+    //   p = ...;
+    // }
+    if (DerefLevel == 0 && Ty->isBoundsAttributedTypeDependingOnInoutValue()) {
+      Handler.handleAssignToImmutableObject(
+          Assign, VD, AssignKind::PointerDependingOnInoutValue,
+          /*IsRelatedToDecl=*/false, Ctx);
+      Ok = false;
+    }
+
+    // Same as above, we cannot update `len`, because it won't be visible on
+    // the call-site.
+    // void foo(int *__counted_by(len) *p, int *__counted_by(len) q, int len) {
+    //   len = ...; // bad because of p
+    // }
+    if (VD->isDependentValueWithoutDeref() &&
+        VD->isDependentValueThatIsUsedInInoutPointer()) {
+      assert(DerefLevel == 0);
+      Handler.handleAssignToImmutableObject(
+          Assign, VD, AssignKind::DependentValueUsedInInoutPointer,
+          /*IsRelatedToDecl=*/false, Ctx);
+      Ok = false;
+    }
+  }
+
+  return Ok;
+}
+
+static bool checkMissingAndDuplicatedAssignments(
+    const BoundsAttributedAssignmentGroup &Group,
+    UnsafeBufferUsageHandler &Handler, ASTContext &Ctx) {
+  llvm::SmallDenseMap<const ValueDecl *, const BinaryOperator *, 4>
+      AssignedDecls;
+
+  DependentDeclSetTy RequiredDecls = Group.DeclClosure;
+  for (const ValueDecl *VD : Group.DeclClosure) {
+    if (VD->isDependentValueWithoutDeref() &&
+        VD->isDependentValueThatIsUsedInInoutPointer()) {
+      // This value is immutable, so it's not required to be assigned.
+      RequiredDecls.erase(VD);
+    }
+  }
+
+  DependentDeclSetTy MissingDecls = RequiredDecls;
+
+  bool Ok = true;
+
+  for (size_t I = 0, N = Group.Assignments.size(); I < N; ++I) {
+    const BinaryOperator *Assign = Group.Assignments[I];
+    const ValueDecl *VD = Group.AssignedObjects[I].Decl;
+
+    const auto [It, Inserted] = AssignedDecls.insert({VD, Assign});
+    if (Inserted)
+      MissingDecls.erase(VD);
+    else {
+      const BinaryOperator *PrevAssign = It->second;
+      Handler.handleDuplicatedAssignment(Assign, PrevAssign, VD,
+                                         /*IsRelatedToDecl=*/false, Ctx);
+      Ok = false;
+    }
+  }
+
+  if (!MissingDecls.empty()) {
+    const Expr *LastAssign = Group.Assignments.back();
+    Handler.handleMissingAssignments(LastAssign, RequiredDecls, MissingDecls,
+                                     /*IsRelatedToDecl=*/false, Ctx);
+    Ok = false;
+  }
+
+  return Ok;
+}
+
+static bool checkAssignedAndUsed(const BoundsAttributedAssignmentGroup &Group,
+                                 UnsafeBufferUsageHandler &Handler,
+                                 ASTContext &Ctx) {
+  if (Group.Uses.empty())
+    return true;
+
+  llvm::SmallDenseMap<const ValueDecl *, const BinaryOperator *, 4> Assigns;
+  for (size_t I = 0, N = Group.AssignedObjects.size(); I < N; ++I) {
+    const BoundsAttributedObject &LHSObj = Group.AssignedObjects[I];
+    const BinaryOperator *Assign = Group.Assignments[I];
+
+    // Ignore self assignments, because they don't matter, since the value stays
+    // the same.
+    const auto RHSObj = getBoundsAttributedObject(Assign->getRHS());
+    bool IsSelfAssign = RHSObj.has_value() && *RHSObj == LHSObj;
+    if (IsSelfAssign)
+      continue;
+
+    const ValueDecl *VD = LHSObj.Decl;
+    [[maybe_unused]] bool Inserted = Assigns.insert({VD, Assign}).second;
+    assert(Inserted);
+  }
+
+  bool Ok = true;
+
+  for (const auto [VD, Use] : Group.Uses) {
+    const auto It = Assigns.find(VD);
+    if (It != Assigns.end()) {
+      Handler.handleAssignedAndUsed(It->second, Use, VD,
+                                    /*IsRelatedToDecl=*/false, Ctx);
+      Ok = false;
+    }
+  }
+
+  return Ok;
+}
+
+static bool
+checkAssignmentPatterns(const BoundsAttributedAssignmentGroup &Group,
+                        UnsafeBufferUsageHandler &Handler, ASTContext &Ctx) {
+  // Collect dependent values.
+  DependentValuesTy DependentValues;
+  for (size_t I = 0, N = Group.AssignedObjects.size(); I < N; ++I) {
+    const ValueDecl *VD = Group.AssignedObjects[I].Decl;
+    const auto *Attr = VD->getAttr<DependerDeclsAttr>();
+    if (!Attr)
+      continue;
+
+    const BinaryOperator *Assign = Group.Assignments[I];
+    const Expr *Value = Assign->getRHS();
+
+    [[maybe_unused]] bool Inserted =
+        DependentValues.insert({{VD, Attr->getIsDeref()}, Value}).second;
+    // Previous check should have validated that we have only a single
+    // assignment.
+    assert(Inserted);
+  }
+
+  bool Ok = true;
+
+  // Check every pointer in the group.
+  for (size_t I = 0, N = Group.AssignedObjects.size(); I < N; ++I) {
+    const ValueDecl *VD = Group.AssignedObjects[I].Decl;
+
+    QualType Ty = VD->getType();
+    const auto *CAT = Ty->getAs<CountAttributedType>();
+    if (!CAT && Ty->isPointerType())
+      CAT = Ty->getPointeeType()->getAs<CountAttributedType>();
+    if (!CAT)
+      continue;
+
+    const BinaryOperator *Assign = Group.Assignments[I];
+
+    // TODO: Move this logic to isCountAttributedPointerArgumentSafeImpl.
+    const Expr *CountArg =
+        DependentValues.size() == 1 ? DependentValues.begin()->second : nullptr;
+
+    bool IsSafe = isCountAttributedPointerArgumentSafeImpl(
+        Ctx, Assign->getRHS(), CountArg, CAT, CAT->getCountExpr(),
+        CAT->isCountInBytes(), CAT->isOrNull(), &DependentValues);
+    if (!IsSafe) {
+      Handler.handleUnsafeCountAttributedPointerAssignment(
+          Assign, /*IsRelatedToDecl=*/false, Ctx);
+      Ok = false;
+    }
+  }
+
+  return Ok;
+}
+
+static bool
+checkBoundsAttributedGroup(const BoundsAttributedAssignmentGroup &Group,
+                           UnsafeBufferUsageHandler &Handler, ASTContext &Ctx) {
+  if (!checkImmutableBoundsAttributedObjects(Group, Handler, Ctx))
+    return false;
+  if (!checkMissingAndDuplicatedAssignments(Group, Handler, Ctx))
+    return false;
+  if (!checkAssignedAndUsed(Group, Handler, Ctx))
+    return false;
+  return checkAssignmentPatterns(Group, Handler, Ctx);
+}
+
+static void checkBoundsSafetyAssignments(const Stmt *S,
+                                         UnsafeBufferUsageHandler &Handler,
+                                         ASTContext &Ctx) {
+  BoundsAttributedGroupFinder Finder(
+      [&](const BoundsAttributedAssignmentGroup &Group) {
+        checkBoundsAttributedGroup(Group, Handler, Ctx);
+      },
+      [&](const Expr *E, const ValueDecl *VD) {
+        Handler.handleStandaloneAssign(E, VD, /*IsRelatedToDecl=*/false, Ctx);
+      });
+  Finder.Visit(S);
+}
+
 void clang::checkUnsafeBufferUsage(const Decl *D,
                                    UnsafeBufferUsageHandler &Handler,
-                                   bool EmitSuggestions) {
+                                   bool EmitSuggestions,
+                                   bool BoundsSafetyAttributes) {
 #ifndef NDEBUG
   Handler.clearDebugNotes();
 #endif
@@ -5481,6 +5991,11 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
   for (Stmt *S : Stmts) {
     findGadgets(S, D->getASTContext(), Handler, EmitSuggestions, FixableGadgets,
                 WarningGadgets, Tracker);
+
+    // Run the bounds-safety assignment analysis if the attributes are enabled,
+    // otherwise don't waste cycles.
+    if (BoundsSafetyAttributes)
+      checkBoundsSafetyAssignments(S, Handler, D->getASTContext());
   }
   applyGadgets(D, std::move(FixableGadgets), std::move(WarningGadgets),
                std::move(Tracker), Handler, EmitSuggestions);

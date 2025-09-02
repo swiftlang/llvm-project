@@ -14236,6 +14236,29 @@ def note_unsafe_count_attributed_pointer_argument_null_to_nonnull : Note<
 def warn_unsafe_single_pointer_argument : Warning<
   "unsafe assignment to function parameter of __single pointer type">,
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_standalone_assign_to_bounds_attributed_object : Warning<
+  "assignment to %select{bounds-attributed pointer|dependent value}0 %1 "
+  "must be inside of a bounds-attributed group in a compound statement">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_cannot_assign_to_immutable_bounds_attributed_object : Warning<
+  "cannot assign to %select{variable|parameter|member}0 %1 because %select{"
+  "it points to a bounds-attributed pointer|"
+  "it points to a dependent value|"
+  "its type depends on an inout dependent value|"
+  "it's used as dependent value in an inout bounds-attributed pointer"
+  "}2">, InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_missing_assignments_in_bounds_attributed_group : Warning<
+  "bounds-attributed group requires assigning '%0', assignments to '%1' missing">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_duplicated_assignment_in_bounds_attributed_group : Warning<
+  "duplicated assignment to %select{variable|parameter|member}0 %1 in "
+  "bounds-attributed group">, InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_assigned_and_used_in_bounds_attributed_group : Warning<
+  "%select{variable|parameter|member}0 %1 is assigned and used in the same "
+  "bounds-attributed group">, InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_unsafe_count_attributed_pointer_assignment : Warning<
+  "unsafe assignment to count-attributed pointer">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 #ifndef NDEBUG
 // Not a user-facing diagnostic. Useful for debugging false negatives in
 // -fsafe-buffer-usage-suggestions (i.e. lack of -Wunsafe-buffer-usage fixits).
