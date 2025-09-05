@@ -31,9 +31,9 @@ class TestCase(TestBase):
             "thread backtrace",
             substrs=[
                 ".sleep(",
-                "`second() at main.swift:6:",
-                "`first() at main.swift:2:",
-                "`closure #1 in static Main.main() at main.swift:12:",
+                "`second() at main.swift:6",
+                "`first() at main.swift:2",
+                "`closure #1 in static Main.main() at main.swift:12",
             ],
         )
 
