@@ -575,11 +575,14 @@ struct CompatibleCountExprVisitor
                            bool hasOtherBeenSubstituted) {
     Other = trySubstituteAndSimplify(Other, hasOtherBeenSubstituted,
                                      DependentValuesOther);
-    if (const auto *IntLit =
-            dyn_cast<IntegerLiteral>(Other->IgnoreParenImpCasts())) {
-      return SelfIL == IntLit ||
-             llvm::APInt::isSameValue(SelfIL->getValue(), IntLit->getValue());
-    }
+
+    Expr::EvalResult SelfER, OtherER;
+
+    // If both are constants:
+    if (SelfIL->EvaluateAsInt(SelfER, Ctx) &&
+        Other->EvaluateAsInt(OtherER, Ctx))
+      return llvm::APInt::isSameValue(SelfER.Val.getInt(),
+                                      OtherER.Val.getInt());
     return false;
   }
 
@@ -592,15 +595,14 @@ struct CompatibleCountExprVisitor
     // If `Self` is a `sizeof` expression, try to evaluate and compare the two
     // expressions as constants:
     if (Self->getKind() == UnaryExprOrTypeTrait::UETT_SizeOf) {
-      Expr::EvalResult ER;
+      Expr::EvalResult SelfER, OtherER;
 
-      if (Self->EvaluateAsConstantExpr(ER, Ctx)) {
-        llvm::APInt SelfVal = ER.Val.getInt();
-
-        if (Other->getType()->isIntegerType())
-          if (Other->EvaluateAsConstantExpr(ER, Ctx))
-            return llvm::APInt::isSameValue(SelfVal, ER.Val.getInt());
-      }
+      // If both are constants:
+      if (Other->getType()->isIntegerType())
+        if (Self->EvaluateAsInt(SelfER, Ctx) &&
+            Other->EvaluateAsInt(OtherER, Ctx))
+          return llvm::APInt::isSameValue(SelfER.Val.getInt(),
+                                          OtherER.Val.getInt());
     }
     return false;
   }
@@ -770,8 +772,10 @@ struct CompatibleCountExprVisitor
   }
 
   bool VisitCXXDefaultArgExpr(const CXXDefaultArgExpr *SelfDAE,
-                              const Expr *Other, bool hasBeenSubstituted) {
-    return Visit(SelfDAE->getExpr(), Other, hasBeenSubstituted);
+                              const Expr *Other, bool hasSelfBeenSubstituted,
+                              bool hasOtherBeenSubstituted) {
+    return Visit(SelfDAE->getExpr(), Other, hasSelfBeenSubstituted,
+                 hasOtherBeenSubstituted);
   }
 };
 
