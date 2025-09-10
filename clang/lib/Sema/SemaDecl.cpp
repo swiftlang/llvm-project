@@ -3366,7 +3366,7 @@ void Sema::mergeDeclAttributes(NamedDecl *New, Decl *Old,
     Diag(Old->getLocation(), diag::note_previous_declaration);
   }
 
-  if (auto *ND = dyn_cast<NamedDecl>(Old))
+  if (auto *ND = dyn_cast<NamedDecl>(Old); ND && !isa<ObjCMethodDecl>(ND))
     copyFeatureAvailabilityCheck(New, ND, true);
 
   if (!Old->hasAttrs())
@@ -3399,6 +3399,9 @@ void Sema::mergeDeclAttributes(NamedDecl *New, Decl *Old,
 
     // Already handled.
     if (isa<UsedAttr>(I) || isa<RetainAttr>(I))
+      continue;
+
+    if (isa<ObjCMethodDecl>(Old) && isa<DomainAvailabilityAttr>(I))
       continue;
 
     if (isa<InferredNoReturnAttr>(I)) {
