@@ -30,7 +30,7 @@ struct Outer {
 // CHECK-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP2]], [[TMP1]], !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label [[CONT8:%.*]], label [[TRAP:%.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       cont8:
 // CHECK-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX]], align 1, !tbaa {{![0-9]+}}
@@ -43,7 +43,7 @@ char access(struct Outer *bar, int index) {
 
 
 // CHECK-LABEL: define dso_local ptr @assign(
-// CHECK-SAME: ptr dead_on_return noundef readonly captures(none) [[BAR:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr dead_on_return noundef readonly captures(none) [[BAR:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[BAR]], align 8
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_2_0_BAR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BAR]], i64 8
@@ -57,7 +57,7 @@ char access(struct Outer *bar, int index) {
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[AGG_TEMP1_SROA_0_0_COPYLOAD]], [[TMP0]], !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT]], label [[TRAP:%.*]], label [[CONT:%.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       cont:
 // CHECK-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], [[AGG_TEMP1_SROA_2_0_COPYLOAD]], !annotation {{![0-9]+}}
