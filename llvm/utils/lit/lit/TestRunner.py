@@ -1175,7 +1175,7 @@ def executeScriptInternal(
         ):
             for test_updater in litConfig.test_updaters:
                 try:
-                    update_output = test_updater(result, test)
+                    update_output = test_updater(result, test, commands)
                 except Exception as e:
                     output = out
                     output += err
