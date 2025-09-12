@@ -175,7 +175,7 @@ __attribute__((availability(domain:feature1, UNAVAIL)))
 @interface Base6 <P1, P2>
 @end
 
-void foo(id<P1>); // expected-error {{cannot use 'P1' because feature 'feature1' to be unavailable}}
+void foo(id<P1>); // expected-error {{cannot use 'P1' because feature 'feature1' is available in this context}}
 
 @interface Base8
 @property (copy) id x;
