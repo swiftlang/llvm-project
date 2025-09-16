@@ -47,7 +47,7 @@ int *__null_terminated indexable_indexable(int *__indexable ptr, int *__indexabl
 // CHECK-NEXT:    [[TERMINATED_BY_ONE_PAST_TERM_PTR:%.*]] = getelementptr i8, ptr [[PTR_TO_TERM]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_OVERFLOW:%.*]] = icmp ugt ptr [[TERMINATED_BY_ONE_PAST_TERM_PTR]], [[PTR_TO_TERM]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_LE_UPPER:%.*]] = icmp ule ptr [[TERMINATED_BY_ONE_PAST_TERM_PTR]], [[AGG_TEMP1_SROA_2_0_COPYLOAD]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_OVERFLOW]], i1 [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_LE_UPPER]], i1 false, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_OVERFLOW]], i1 [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_LE_UPPER]], i1 false, !prof [[PROF7]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label [[CONT8:%.*]], label [[TRAP]], !prof [[PROF7]], {{!annotation ![0-9]+}}
 // CHECK:       cont8:
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[PTR_TO_TERM]], align 4, {{!annotation ![0-9]+}}
@@ -102,7 +102,7 @@ int *__single *__terminated_by(-1) nested_indexable_indexable(int *__single *__i
 // CHECK-NEXT:    [[TERMINATED_BY_ONE_PAST_TERM_PTR:%.*]] = getelementptr i8, ptr [[PTR_TO_TERM]], i64 8, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_OVERFLOW:%.*]] = icmp ugt ptr [[TERMINATED_BY_ONE_PAST_TERM_PTR]], [[PTR_TO_TERM]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_LE_UPPER:%.*]] = icmp ule ptr [[TERMINATED_BY_ONE_PAST_TERM_PTR]], [[AGG_TEMP1_SROA_2_0_COPYLOAD]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_OVERFLOW]], i1 [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_LE_UPPER]], i1 false, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_OVERFLOW]], i1 [[TERMINATED_BY_CHECK_ONE_PAST_TERM_PTR_LE_UPPER]], i1 false, !prof [[PROF7]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label [[CONT8:%.*]], label [[TRAP]], !prof [[PROF7]], {{!annotation ![0-9]+}}
 // CHECK:       cont8:
 // CHECK-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[PTR_TO_TERM]], align 8, {{!annotation ![0-9]+}}

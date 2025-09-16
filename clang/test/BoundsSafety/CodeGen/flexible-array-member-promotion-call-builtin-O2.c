@@ -2,7 +2,6 @@
 // RUN: %clang_cc1 -O2 -triple arm64-apple-iphoneos -fbounds-safety -emit-llvm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -O2 -triple arm64-apple-iphoneos -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -emit-llvm %s -o - | FileCheck %s
 
-
 #include <ptrcheck.h>
 
 typedef struct {
@@ -29,7 +28,7 @@ typedef struct {
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP68_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP68_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND]], label [[TRAP:%.*]], label [[CONT:%.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[OR_COND]], label [[TRAP:%.*]], label [[CONT:%.*]], !prof [[PROF10:![0-9]+]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -38,7 +37,7 @@ typedef struct {
 // CHECK-NEXT:    [[DOTNOT89:%.*]] = icmp ne ptr [[FLEX]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT90:%.*]] = icmp eq i32 [[SIZE]], 0, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND91:%.*]] = and i1 [[DOTNOT89]], [[DOTNOT90]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND91]], label [[TRAP]], label [[CONT88:%.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[OR_COND91]], label [[TRAP]], label [[CONT88:%.*]], !prof [[PROF13:![0-9]+]], {{!annotation ![0-9]+}}
 // CHECK:       cont88:
 // CHECK-NEXT:    ret ptr [[FLEX]]
 //
@@ -76,13 +75,13 @@ void *set(flex_t *flex, unsigned size) {
 // CHECK-NEXT:    [[CMP84_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP84_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP102_NOT:%.*]] = icmp ugt ptr [[DEST]], [[AGG_TEMP2_SROA_3_0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND191:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP102_NOT]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND191:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP102_NOT]], !prof [[PROF14:![0-9]+]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_LHS_CAST154:%.*]] = ptrtoint ptr [[AGG_TEMP2_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_RHS_CAST155:%.*]] = ptrtoint ptr [[DEST]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB156:%.*]] = sub i64 [[SUB_PTR_LHS_CAST154]], [[SUB_PTR_RHS_CAST155]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP157_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB156]], [[CONV]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND192:%.*]] = select i1 [[OR_COND191]], i1 true, i1 [[CMP157_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND192]], label [[TRAP:%.*]], label [[CONT160:%.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND192:%.*]] = select i1 [[OR_COND191]], i1 true, i1 [[CMP157_NOT]], !prof [[PROF15:![0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[OR_COND192]], label [[TRAP:%.*]], label [[CONT160:%.*]], !prof [[PROF15]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -91,7 +90,7 @@ void *set(flex_t *flex, unsigned size) {
 // CHECK-NEXT:    [[DOTNOT189:%.*]] = icmp ne ptr [[DEST]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT190:%.*]] = icmp eq i32 [[SIZE]], 0, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND193:%.*]] = and i1 [[DOTNOT189]], [[DOTNOT190]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND193]], label [[TRAP]], label [[CONT186:%.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[OR_COND193]], label [[TRAP]], label [[CONT186:%.*]], !prof [[PROF13]], {{!annotation ![0-9]+}}
 // CHECK:       cont186:
 // CHECK-NEXT:    ret ptr [[DEST]]
 //
@@ -129,13 +128,13 @@ void *cpy(flex_t *dest, const flex_t *src, unsigned size) {
 // CHECK-NEXT:    [[CMP83_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP83_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP101_NOT:%.*]] = icmp ugt ptr [[DEST]], [[AGG_TEMP1_SROA_3_0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND176:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP101_NOT]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND176:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP101_NOT]], !prof [[PROF14]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_LHS_CAST153:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_RHS_CAST154:%.*]] = ptrtoint ptr [[DEST]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB155:%.*]] = sub i64 [[SUB_PTR_LHS_CAST153]], [[SUB_PTR_RHS_CAST154]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP156_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB155]], [[CONV]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND177:%.*]] = select i1 [[OR_COND176]], i1 true, i1 [[CMP156_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND177]], label [[TRAP:%.*]], label [[CONT159:%.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND177:%.*]] = select i1 [[OR_COND176]], i1 true, i1 [[CMP156_NOT]], !prof [[PROF15]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[OR_COND177]], label [[TRAP:%.*]], label [[CONT159:%.*]], !prof [[PROF15]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -178,13 +177,13 @@ void *__unsafe_indexable pcpy(flex_t *dest, const flex_t *src, unsigned size) {
 // CHECK-NEXT:    [[CMP84_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP84_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP102_NOT:%.*]] = icmp ugt ptr [[DEST]], [[AGG_TEMP2_SROA_3_0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND191:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP102_NOT]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND191:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP102_NOT]], !prof [[PROF14]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_LHS_CAST154:%.*]] = ptrtoint ptr [[AGG_TEMP2_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_RHS_CAST155:%.*]] = ptrtoint ptr [[DEST]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB156:%.*]] = sub i64 [[SUB_PTR_LHS_CAST154]], [[SUB_PTR_RHS_CAST155]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP157_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB156]], [[CONV]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND192:%.*]] = select i1 [[OR_COND191]], i1 true, i1 [[CMP157_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND192]], label [[TRAP:%.*]], label [[CONT160:%.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND192:%.*]] = select i1 [[OR_COND191]], i1 true, i1 [[CMP157_NOT]], !prof [[PROF15]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[OR_COND192]], label [[TRAP:%.*]], label [[CONT160:%.*]], !prof [[PROF15]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -193,7 +192,7 @@ void *__unsafe_indexable pcpy(flex_t *dest, const flex_t *src, unsigned size) {
 // CHECK-NEXT:    [[DOTNOT189:%.*]] = icmp ne ptr [[DEST]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT190:%.*]] = icmp eq i32 [[SIZE]], 0, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND193:%.*]] = and i1 [[DOTNOT189]], [[DOTNOT190]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND193]], label [[TRAP]], label [[CONT186:%.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[OR_COND193]], label [[TRAP]], label [[CONT186:%.*]], !prof [[PROF13]], {{!annotation ![0-9]+}}
 // CHECK:       cont186:
 // CHECK-NEXT:    ret ptr [[DEST]]
 //

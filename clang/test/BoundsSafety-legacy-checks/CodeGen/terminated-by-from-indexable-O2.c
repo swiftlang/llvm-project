@@ -10,7 +10,7 @@
 // CHECK-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[PTR_COERCE0:%.*]], [[PTR_COERCE1:%.*]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[TMP0]], label [[TERMINATED_BY_LOOP_COND:%.*]], label [[TRAP:%.*]], !prof [[PROF3:![0-9]+]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       terminated_by.loop_cond:
 // CHECK-NEXT:    [[TERMINATED_BY_CUR_0:%.*]] = phi ptr [ [[TERMINATED_BY_ONE_PAST_CUR:%.*]], [[CONT2:%.*]] ], [ [[PTR_COERCE0]], [[ENTRY:%.*]] ]
@@ -37,10 +37,10 @@ int *__null_terminated indexable(int *__indexable ptr) {
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP1_SROA_3_0_PTR_SROA_IDX]], align 8, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp uge ptr [[AGG_TEMP1_SROA_0_0_COPYLOAD]], [[AGG_TEMP1_SROA_3_0_COPYLOAD]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[AGG_TEMP1_SROA_0_0_COPYLOAD]], [[AGG_TEMP1_SROA_2_0_COPYLOAD]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[DOTNOT]], i1 [[TMP0]], i1 false, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND]], label [[TERMINATED_BY_LOOP_COND:%.*]], label [[TRAP:%.*]], !prof [[PROF13:![0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[DOTNOT]], i1 [[TMP0]], i1 false, !prof [[PROF13:![0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[OR_COND]], label [[TERMINATED_BY_LOOP_COND:%.*]], label [[TRAP:%.*]], !prof [[PROF13]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       terminated_by.loop_cond:
 // CHECK-NEXT:    [[TERMINATED_BY_CUR_0:%.*]] = phi ptr [ [[TERMINATED_BY_ONE_PAST_CUR:%.*]], [[CONT8:%.*]] ], [ [[AGG_TEMP1_SROA_0_0_COPYLOAD]], [[ENTRY:%.*]] ]
@@ -63,7 +63,7 @@ int *__null_terminated bidi_indexable(int *__bidi_indexable ptr) {
 // CHECK-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[PTR_COERCE0:%.*]], [[PTR_COERCE1:%.*]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[TMP0]], label [[TERMINATED_BY_LOOP_COND:%.*]], label [[TRAP:%.*]], !prof [[PROF3]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       terminated_by.loop_cond:
 // CHECK-NEXT:    [[TERMINATED_BY_CUR_0:%.*]] = phi ptr [ [[TERMINATED_BY_ONE_PAST_CUR:%.*]], [[CONT2:%.*]] ], [ [[PTR_COERCE0]], [[ENTRY:%.*]] ]

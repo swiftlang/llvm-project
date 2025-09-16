@@ -15,12 +15,12 @@ struct foo {
 // CHECK-NEXT:    [[AGG_TEMP_SROA_2_0_F_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[F]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_2_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_2_0_F_SROA_IDX]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_F_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[F]], i64 16
-// CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_F_SROA_IDX]], align 8
+// CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_F_SROA_IDX]], align 8, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], i64 12
 // CHECK-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], [[AGG_TEMP_SROA_2_0_COPYLOAD]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[AGG_TEMP_SROA_3_0_COPYLOAD]], [[AGG_TEMP_SROA_0_0_COPYLOAD]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND]], label [[CONT19:%.*]], label [[TRAP:%.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof [[PROF9:![0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[OR_COND]], label [[CONT19:%.*]], label [[TRAP:%.*]], !prof [[PROF9]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}

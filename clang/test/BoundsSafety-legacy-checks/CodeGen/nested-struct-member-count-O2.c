@@ -62,7 +62,7 @@ char access(struct Outer *bar, int index) {
 // CHECK:       cont:
 // CHECK-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], [[AGG_TEMP1_SROA_2_0_COPYLOAD]], !annotation {{![0-9]+}}
 // CHECK-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[AGG_TEMP1_SROA_3_0_COPYLOAD]], [[AGG_TEMP1_SROA_0_0_COPYLOAD]], !annotation {{![0-9]+}}
-// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !annotation {{![0-9]+}}
+// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label [[CONT18:%.*]], label [[TRAP]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       cont18:
 // CHECK-NEXT:    [[FLEX_COUNT_MINUS:%.*]] = icmp sgt i32 [[LEN]], -1, !annotation {{![0-9]+}}
@@ -71,9 +71,9 @@ char access(struct Outer *bar, int index) {
 // CHECK-NEXT:    [[FLEX_AVAIL_COUNT:%.*]] = sub nuw i64 [[UPPER_INTPTR]], [[FAM_INTPTR]], !annotation {{![0-9]+}}
 // CHECK-NEXT:    [[FLEX_COUNT_INTPTR:%.*]] = zext nneg i32 [[LEN]] to i64, !annotation {{![0-9]+}}
 // CHECK-NEXT:    [[FLEX_COUNT_CHECK:%.*]] = icmp uge i64 [[FLEX_AVAIL_COUNT]], [[FLEX_COUNT_INTPTR]], !annotation {{![0-9]+}}
-// CHECK-NEXT:    [[OR_COND49:%.*]] = select i1 [[FLEX_COUNT_MINUS]], i1 [[FLEX_COUNT_CHECK]], i1 false, !annotation {{![0-9]+}}
+// CHECK-NEXT:    [[OR_COND49:%.*]] = select i1 [[FLEX_COUNT_MINUS]], i1 [[FLEX_COUNT_CHECK]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    [[TMP3:%.*]] = icmp ult ptr [[AGG_TEMP1_SROA_0_0_COPYLOAD]], [[AGG_TEMP1_SROA_2_0_COPYLOAD]], !annotation {{![0-9]+}}
-// CHECK-NEXT:    [[OR_COND60:%.*]] = select i1 [[OR_COND49]], i1 [[TMP3]], i1 false, !annotation {{![0-9]+}}
+// CHECK-NEXT:    [[OR_COND60:%.*]] = select i1 [[OR_COND49]], i1 [[TMP3]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND60]], label [[BOUNDSCHECK_CONT:%.*]], label [[TRAP]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       boundscheck.cont.thread:
 // CHECK-NEXT:    store i32 [[LEN]], ptr inttoptr (i64 4 to ptr), align 4, !tbaa {{![0-9]+}}

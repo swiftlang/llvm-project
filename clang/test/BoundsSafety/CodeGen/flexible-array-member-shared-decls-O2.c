@@ -25,26 +25,26 @@ int * __counted_by(len) baz(int len);
 // CHECK-NEXT:    [[MUL:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META2:![0-9]+]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[LEN]], -5
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP]])
-// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]]
-// CHECK-NEXT:    [[ADD_PTR3:%.*]] = getelementptr i8, ptr [[TMP0]], i64 16
-// CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META4:![0-9]+]]
-// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META4]]
+// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]], !annotation [[META4:![0-9]+]]
+// CHECK-NEXT:    [[ADD_PTR3:%.*]] = getelementptr i8, ptr [[TMP0]], i64 16, !annotation [[META4]]
+// CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META5:![0-9]+]]
+// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], !annotation [[META5:![0-9]+]]
-// CHECK-NEXT:    unreachable, !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], !annotation [[META6:![0-9]+]]
+// CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META6:![0-9]+]]
-// CHECK-NEXT:    br i1 [[FLEX_BASE_NULL_CHECK_NOT]], label %[[CONT70:.*]], label %[[FLEX_BASE_NONNULL:.*]], !annotation [[META6]]
+// CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META7:![0-9]+]]
+// CHECK-NEXT:    br i1 [[FLEX_BASE_NULL_CHECK_NOT]], label %[[CONT70:.*]], label %[[FLEX_BASE_NONNULL:.*]], !annotation [[META7]]
 // CHECK:       [[FLEX_BASE_NONNULL]]:
 // CHECK-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[CALL1]], i64 16
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[CALL1]], [[TMP1]], !annotation [[META7:![0-9]+]]
-// CHECK-NEXT:    [[DOTNOT110:%.*]] = icmp ugt ptr [[TMP1]], [[ADD_PTR3]], !annotation [[META8:![0-9]+]]
-// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[DOTNOT]], i1 true, i1 [[DOTNOT110]], !annotation [[META8]]
-// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP]], label %[[CONT70]], !prof [[PROF9:![0-9]+]], !annotation [[META7]]
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[CALL1]], [[TMP1]], !annotation [[META8:![0-9]+]]
+// CHECK-NEXT:    [[DOTNOT110:%.*]] = icmp ugt ptr [[TMP1]], [[ADD_PTR3]], !annotation [[META9:![0-9]+]]
+// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[DOTNOT]], i1 true, i1 [[DOTNOT110]], !prof [[PROF10:![0-9]+]], !annotation [[META9]]
+// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP]], label %[[CONT70]], !prof [[PROF10]], !annotation [[META8]]
 // CHECK:       [[CONT70]]:
 // CHECK-NEXT:    [[LEN71:%.*]] = getelementptr inbounds nuw i8, ptr [[CALL1]], i64 8
-// CHECK-NEXT:    store i32 [[LEN]], ptr [[LEN71]], align 8, !tbaa [[TBAA10:![0-9]+]]
-// CHECK-NEXT:    store ptr [[CALL]], ptr [[CALL1]], align 8, !tbaa [[TBAA17:![0-9]+]]
+// CHECK-NEXT:    store i32 [[LEN]], ptr [[LEN71]], align 8, !tbaa [[TBAA11:![0-9]+]]
+// CHECK-NEXT:    store ptr [[CALL]], ptr [[CALL1]], align 8, !tbaa [[TBAA18:![0-9]+]]
 // CHECK-NEXT:    ret ptr [[CALL1]]
 //
 struct Outer *foo(int len) {
@@ -64,26 +64,26 @@ struct Outer *foo(int len) {
 // CHECK-NEXT:    [[MUL:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META2]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[LEN]], -5
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP]])
-// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]]
-// CHECK-NEXT:    [[ADD_PTR3:%.*]] = getelementptr i8, ptr [[TMP0]], i64 16
-// CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META4]]
-// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META4]]
+// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]], !annotation [[META4]]
+// CHECK-NEXT:    [[ADD_PTR3:%.*]] = getelementptr i8, ptr [[TMP0]], i64 16, !annotation [[META4]]
+// CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META5]]
+// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation [[META5]]
-// CHECK-NEXT:    unreachable, !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation [[META6]]
+// CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META6]]
-// CHECK-NEXT:    br i1 [[FLEX_BASE_NULL_CHECK_NOT]], label %[[CONT70:.*]], label %[[FLEX_BASE_NONNULL:.*]], !annotation [[META6]]
+// CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META7]]
+// CHECK-NEXT:    br i1 [[FLEX_BASE_NULL_CHECK_NOT]], label %[[CONT70:.*]], label %[[FLEX_BASE_NONNULL:.*]], !annotation [[META7]]
 // CHECK:       [[FLEX_BASE_NONNULL]]:
 // CHECK-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[CALL1]], i64 16
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[CALL1]], [[TMP1]], !annotation [[META7]]
-// CHECK-NEXT:    [[DOTNOT110:%.*]] = icmp ugt ptr [[TMP1]], [[ADD_PTR3]], !annotation [[META8]]
-// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[DOTNOT]], i1 true, i1 [[DOTNOT110]], !annotation [[META8]]
-// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP]], label %[[CONT70]], !prof [[PROF9]], !annotation [[META7]]
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[CALL1]], [[TMP1]], !annotation [[META8]]
+// CHECK-NEXT:    [[DOTNOT110:%.*]] = icmp ugt ptr [[TMP1]], [[ADD_PTR3]], !annotation [[META9]]
+// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[DOTNOT]], i1 true, i1 [[DOTNOT110]], !prof [[PROF10]], !annotation [[META9]]
+// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP]], label %[[CONT70]], !prof [[PROF10]], !annotation [[META8]]
 // CHECK:       [[CONT70]]:
-// CHECK-NEXT:    store ptr [[CALL]], ptr [[CALL1]], align 8, !tbaa [[TBAA17]]
+// CHECK-NEXT:    store ptr [[CALL]], ptr [[CALL1]], align 8, !tbaa [[TBAA18]]
 // CHECK-NEXT:    [[LEN79:%.*]] = getelementptr inbounds nuw i8, ptr [[CALL1]], i64 8
-// CHECK-NEXT:    store i32 [[LEN]], ptr [[LEN79]], align 8, !tbaa [[TBAA10]]
+// CHECK-NEXT:    store i32 [[LEN]], ptr [[LEN79]], align 8, !tbaa [[TBAA11]]
 // CHECK-NEXT:    ret ptr [[CALL1]]
 //
 struct Outer *foo2(int len) {
@@ -96,18 +96,19 @@ struct Outer *foo2(int len) {
 //.
 // CHECK: [[META2]] = !{[[META3:![0-9]+]]}
 // CHECK: [[META3]] = !{!"bounds-safety-missed-optimization-nuw", !"Check can not be removed because the arithmetic operation might wrap in the unsigned sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
-// CHECK: [[META4]] = !{!"bounds-safety-generic"}
-// CHECK: [[META5]] = !{!"bounds-safety-generic", !"bounds-safety-check-one-past-end-overflow", !"bounds-safety-check-ptr-lt-upper-bound", !"bounds-safety-check-ptr-ge-lower-bound", !"bounds-safety-check-count-negative", !"bounds-safety-check-ptr-le-upper-bound", !"bounds-safety-check-flexible-count-gt-bounds"}
-// CHECK: [[META6]] = !{!"bounds-safety-check-ptr-neq-null"}
-// CHECK: [[META7]] = !{!"bounds-safety-check-one-past-end-overflow"}
-// CHECK: [[META8]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
-// CHECK: [[PROF9]] = !{!"branch_weights", i32 12286, i32 -12288}
-// CHECK: [[TBAA10]] = !{[[META11:![0-9]+]], [[META16:![0-9]+]], i64 8}
-// CHECK: [[META11]] = !{!"Inner", [[META12:![0-9]+]], i64 0, [[META16]], i64 8}
-// CHECK: [[META12]] = !{!"p1 int", [[META13:![0-9]+]], i64 0}
-// CHECK: [[META13]] = !{!"any pointer", [[META14:![0-9]+]], i64 0}
-// CHECK: [[META14]] = !{!"omnipotent char", [[META15:![0-9]+]], i64 0}
-// CHECK: [[META15]] = !{!"Simple C/C++ TBAA"}
-// CHECK: [[META16]] = !{!"int", [[META14]], i64 0}
-// CHECK: [[TBAA17]] = !{[[META11]], [[META12]], i64 0}
+// CHECK: [[META4]] = !{!"bounds-safety-check-flexible-count-gt-bounds"}
+// CHECK: [[META5]] = !{!"bounds-safety-generic"}
+// CHECK: [[META6]] = !{!"bounds-safety-generic", !"bounds-safety-check-one-past-end-overflow", !"bounds-safety-check-ptr-lt-upper-bound", !"bounds-safety-check-ptr-ge-lower-bound", !"bounds-safety-check-count-negative", !"bounds-safety-check-ptr-le-upper-bound", !"bounds-safety-check-flexible-count-gt-bounds"}
+// CHECK: [[META7]] = !{!"bounds-safety-check-ptr-neq-null"}
+// CHECK: [[META8]] = !{!"bounds-safety-check-one-past-end-overflow"}
+// CHECK: [[META9]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
+// CHECK: [[PROF10]] = !{!"branch_weights", i32 12286, i32 -12288}
+// CHECK: [[TBAA11]] = !{[[META12:![0-9]+]], [[META17:![0-9]+]], i64 8}
+// CHECK: [[META12]] = !{!"Inner", [[META13:![0-9]+]], i64 0, [[META17]], i64 8}
+// CHECK: [[META13]] = !{!"p1 int", [[META14:![0-9]+]], i64 0}
+// CHECK: [[META14]] = !{!"any pointer", [[META15:![0-9]+]], i64 0}
+// CHECK: [[META15]] = !{!"omnipotent char", [[META16:![0-9]+]], i64 0}
+// CHECK: [[META16]] = !{!"Simple C/C++ TBAA"}
+// CHECK: [[META17]] = !{!"int", [[META15]], i64 0}
+// CHECK: [[TBAA18]] = !{[[META12]], [[META13]], i64 0}
 //.
