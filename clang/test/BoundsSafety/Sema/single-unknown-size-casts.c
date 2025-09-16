@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 
@@ -22,5 +20,5 @@ void foo(struct b b, struct a * a) {
 struct c;
 
 void bar(struct c * c, struct a * a) {
-    a = c; // expected-warning{{incompatible pointer types assigning to 'struct a *__single' from 'struct c *__single'}}
+    a = c; // expected-error{{incompatible pointer types assigning to 'struct a *__single' from 'struct c *__single'}}
 }

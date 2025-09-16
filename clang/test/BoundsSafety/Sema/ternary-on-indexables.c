@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -Wno-bounds-safety-single-to-indexable-bounds-truncated -verify %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -Wno-bounds-safety-single-to-indexable-bounds-truncated -x objective-c -fexperimental-bounds-safety-objc -verify %s
 #include <ptrcheck.h>
@@ -168,14 +167,14 @@ void Test(int sel) {
     z_ix_void = sel ? x_ix_void : y_uix; // expected-error-re{{assigning to '{{.+}}' from incompatible type '{{.+}}*__unsafe_indexable' casts away '__unsafe_indexable' qualifier}}
     z_ix_void = sel ? x_ix : y;
 
-    z_char = sel ? x_ix : y_ix; // expected-warning{{incompatible pointer types assigning}}
-    z_char = sel ? x_ix : y_sg; // expected-warning{{incompatible pointer types assigning}}
+    z_char = sel ? x_ix : y_ix; // expected-error{{incompatible pointer types assigning}}
+    z_char = sel ? x_ix : y_sg; // expected-error{{incompatible pointer types assigning}}
     z_char = sel ? x_ix : y_uix; // expected-error-re{{assigning to '{{.+}}' from incompatible type '{{.+}}*__unsafe_indexable' casts away '__unsafe_indexable' qualifier}}
     z_char = sel ? x_ix : y_ix_void;
 
-    z_char = sel ? x_sg : y; // expected-warning{{incompatible pointer types assigning}}
-    z_char = sel ? x_sg : y_ix; // expected-warning{{incompatible pointer types assigning}}
-    z_char = sel ? x_sg : y_sg; // expected-warning{{incompatible pointer types assigning}}
+    z_char = sel ? x_sg : y; // expected-error{{incompatible pointer types assigning}}
+    z_char = sel ? x_sg : y_ix; // expected-error{{incompatible pointer types assigning}}
+    z_char = sel ? x_sg : y_sg; // expected-error{{incompatible pointer types assigning}}
     z_char = sel ? x_sg : y_uix; // expected-error-re{{assigning to '{{.+}}' from incompatible type '{{.+}}*__unsafe_indexable' casts away '__unsafe_indexable' qualifier}}
     z_char = sel ? x_sg : y_ix_void;
 
@@ -323,14 +322,14 @@ void Test(int sel) {
     z_ix_void = x_ix_void ?: y_uix; // expected-error-re{{assigning to '{{.+}}' from incompatible type '{{.+}}*__unsafe_indexable' casts away '__unsafe_indexable' qualifier}}
     z_ix_void = x_ix ?: y;
 
-    z_char = x_ix ?: y_ix; // expected-warning{{incompatible pointer types assigning}}
-    z_char = x_ix ?: y_sg; // expected-warning{{incompatible pointer types assigning}}
+    z_char = x_ix ?: y_ix; // expected-error{{incompatible pointer types assigning}}
+    z_char = x_ix ?: y_sg; // expected-error{{incompatible pointer types assigning}}
     z_char = x_ix ?: y_uix; // expected-error-re{{assigning to '{{.+}}' from incompatible type '{{.+}}*__unsafe_indexable' casts away '__unsafe_indexable' qualifier}}
     z_char = x_ix ?: y_ix_void;
 
-    z_char = x_sg ?: y; // expected-warning{{incompatible pointer types assigning}}
-    z_char = x_sg ?: y_ix; // expected-warning{{incompatible pointer types assigning}}
-    z_char = x_sg ?: y_sg; // expected-warning{{incompatible pointer types assigning}}
+    z_char = x_sg ?: y; // expected-error{{incompatible pointer types assigning}}
+    z_char = x_sg ?: y_ix; // expected-error{{incompatible pointer types assigning}}
+    z_char = x_sg ?: y_sg; // expected-error{{incompatible pointer types assigning}}
     z_char = x_sg ?: y_uix; // expected-error-re{{assigning to '{{.+}}' from incompatible type '{{.+}}*__unsafe_indexable' casts away '__unsafe_indexable' qualifier}}
     z_char = x_sg ?: y_ix_void;
 

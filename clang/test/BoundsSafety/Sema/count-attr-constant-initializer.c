@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 
@@ -24,10 +23,10 @@ struct CountInt ci2 = {.p = ints, .len = sizeof(ints) / sizeof(int) - 1};
 struct CountInt ci3 = {.p = ints, .len = sizeof(ints) / sizeof(int) + 1};
 
 // expected-error@+2{{initializing 'ci4.p' of type 'int *__single __counted_by(len)' (aka 'int *__single') and size value of 64 with array 'chars' (which has 16 bytes) always fails}}
-// expected-warning@+1{{incompatible pointer types initializing 'int *__single __counted_by(len)' (aka 'int *__single') with an expression of type 'char[16]'}}
+// expected-error@+1{{incompatible pointer types initializing 'int *__single __counted_by(len)' (aka 'int *__single') with an expression of type 'char[16]'}}
 struct CountInt ci4 = {.p = chars, .len = sizeof(chars)};
 
-// expected-warning@+1{{incompatible pointer types initializing 'int *__single __counted_by(len)' (aka 'int *__single') with an expression of type 'char[16]'}}
+// expected-error@+1{{incompatible pointer types initializing 'int *__single __counted_by(len)' (aka 'int *__single') with an expression of type 'char[16]'}}
 struct CountInt ci5 = {.p = chars, .len = sizeof(chars) / sizeof(int)};
 
 struct CountChar {
@@ -38,10 +37,10 @@ struct CountChar {
 // ok
 struct CountChar cc1 = {.p = chars, .len = sizeof(chars)};
 
-// expected-warning@+1{{incompatible pointer types initializing 'char *__single __counted_by(len)' (aka 'char *__single') with an expression of type 'int[16]'}}
+// expected-error@+1{{incompatible pointer types initializing 'char *__single __counted_by(len)' (aka 'char *__single') with an expression of type 'int[16]'}}
 struct CountChar cc2 = {.p = ints, .len = sizeof(ints) / sizeof(int)};
 
-// expected-warning@+1{{incompatible pointer types initializing 'char *__single __counted_by(len)' (aka 'char *__single') with an expression of type 'int[16]'}}
+// expected-error@+1{{incompatible pointer types initializing 'char *__single __counted_by(len)' (aka 'char *__single') with an expression of type 'int[16]'}}
 struct CountChar cc3 = {.p = ints, .len = sizeof(ints)};
 
 struct NestedCount {

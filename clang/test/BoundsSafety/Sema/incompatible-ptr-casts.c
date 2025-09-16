@@ -32,18 +32,18 @@ void Test () {
 
     // expected-error@+1{{initializing 'int *__bidi_indexable*__single' with an expression of incompatible nested pointer type 'int *__single(*__bidi_indexable)[1]'}}
     int *__bidi_indexable *__single ptrBoundPtrThin2 = ptrThinAPtrBound;
-    // expected-warning@+1{{incompatible pointer types initializing 'int *__single*__bidi_indexable' with an expression of type 'int *__single(*__bidi_indexable)[1]'}}
+    // expected-error@+1{{incompatible pointer types initializing 'int *__single*__bidi_indexable' with an expression of type 'int *__single(*__bidi_indexable)[1]'}}
     int *__single *__bidi_indexable ptrThinPtrBound2 = ptrThinAPtrBound;
-    // expected-warning@+1{{incompatible pointer types initializing 'int *__single*__single' with an expression of type 'int *__single(*__bidi_indexable)[1]'}}
+    // expected-error@+1{{incompatible pointer types initializing 'int *__single*__single' with an expression of type 'int *__single(*__bidi_indexable)[1]'}}
     int *__single *__single ptrThinPtrThin2 = ptrThinAPtrBound;
     // expected-error@+1{{initializing 'int *__indexable*__single' with an expression of incompatible nested pointer type 'int *__single(*__bidi_indexable)[1]'}}
     int *__indexable *__single ptrArrayPtrThin2 = ptrThinAPtrBound;
 
     // expected-error@+1{{initializing 'int *__bidi_indexable(*__single)[1]' with an expression of incompatible nested pointer type 'int *__single*__bidi_indexable'}}
     int *__bidi_indexable(*__single ptrBoundAPtrThin2)[1] = &ptrThin;
-    // expected-warning@+1{{incompatible pointer types initializing 'int *__single(*__bidi_indexable)[1]' with an expression of type 'int *__single*__bidi_indexable'}}
+    // expected-error@+1{{incompatible pointer types initializing 'int *__single(*__bidi_indexable)[1]' with an expression of type 'int *__single*__bidi_indexable'}}
     int *__single(*__bidi_indexable ptrThinAPtrBound2)[1] = &ptrThin;
-    // expected-warning@+1{{incompatible pointer types initializing 'int *__single(*__single)[1]' with an expression of type 'int *__single*__bidi_indexable'}}
+    // expected-error@+1{{incompatible pointer types initializing 'int *__single(*__single)[1]' with an expression of type 'int *__single*__bidi_indexable'}}
     int *__single(*__single ptrThinAPtrThin2)[1] = &ptrThin;
     // expected-error@+1{{initializing 'int *__indexable(*__single)[1]' with an expression of incompatible nested pointer type 'int *__single*__bidi_indexable'}}
     int *__indexable(*__single ptrArrayAPtrThin2)[1] = &ptrThin;
@@ -89,18 +89,18 @@ void Test () {
     int *__bidi_indexable *__single ptrBoundPtrThin4 = (int *__bidi_indexable *__single)ptrThinAPtrBound;
     int *__bidi_indexable *__single implicitPtrBoundPtrThin4 = ptrThinAPtrBound; // expected-error{{initializing 'int *__bidi_indexable*__single' with an expression of incompatible nested pointer type 'int *__single(*__bidi_indexable)[1]'}}
     int *__single *__bidi_indexable ptrThinPtrBound4 = (int *__single *__bidi_indexable)ptrThinAPtrBound;
-    int *__single *__bidi_indexable implicitPtrThinPtrBound4 = ptrThinAPtrBound; // expected-warning{{incompatible pointer types initializing}}
+    int *__single *__bidi_indexable implicitPtrThinPtrBound4 = ptrThinAPtrBound; // expected-error{{incompatible pointer types initializing}}
     int *__single *__single ptrThinPtrThin4 = (int *__single *__single)ptrThinAPtrBound;
-    int *__single *__single implicitPtrThinPtrThin4 = ptrThinAPtrBound; // expected-warning{{incompatible pointer types initializing}}
+    int *__single *__single implicitPtrThinPtrThin4 = ptrThinAPtrBound; // expected-error{{incompatible pointer types initializing}}
     int *__indexable *__single ptrArrayPtrThin4 = (int *__indexable *__single)ptrThinAPtrBound;
     int *__indexable *__single implicitPtrArrayPtrThin4 = ptrThinAPtrBound; // expected-error{{initializing 'int *__indexable*__single' with an expression of incompatible nested pointer type 'int *__single(*__bidi_indexable)[1]'}}
 
     int *__bidi_indexable(*__single ptrBoundAPtrThin4)[1] = (int *__bidi_indexable(*__single)[1]) & ptrThin;
     int *__bidi_indexable(*__single implicitPtrBoundAPtrThin4)[1] = & ptrThin; // expected-error{{initializing 'int *__bidi_indexable(*__single)[1]' with an expression of incompatible nested pointer type 'int *__single*__bidi_indexable'}}
     int *__single(*__bidi_indexable ptrThinAPtrBound4)[1] = (int *__single(*__bidi_indexable)[1]) & ptrThin;
-    int *__single(*__bidi_indexable implicitPtrThinAPtrBound4)[1] = & ptrThin; // expected-warning{{incompatible pointer types initializing}}
+    int *__single(*__bidi_indexable implicitPtrThinAPtrBound4)[1] = & ptrThin; // expected-error{{incompatible pointer types initializing}}
     int *__single(*__single ptrThinAPtrThin4)[1] = (int *__single(*__single)[1]) & ptrThin;
-    int *__single(*__single implicitPtrThinAPtrThin4)[1] = & ptrThin; // expected-warning{{incompatible pointer types initializing}}
+    int *__single(*__single implicitPtrThinAPtrThin4)[1] = & ptrThin; // expected-error{{incompatible pointer types initializing}}
     int *__indexable(*__single ptrArrayAPtrThin4)[1] = (int *__indexable(*__single)[1]) & ptrThin;
     int *__indexable(*__single implicitPtrArrayAPtrThin4)[1] = & ptrThin; // expected-error{{initializing 'int *__indexable(*__single)[1]' with an expression of incompatible nested pointer type 'int *__single*__bidi_indexable'}}
 
@@ -154,11 +154,11 @@ void Test () {
     int *__single ptrThin2 = intVal;
 
     int **ptrPtr = (int**)ptr; // ok
-    // expected-warning@+1{{incompatible pointer types assigning}}
+    // expected-error@+1{{incompatible pointer types assigning}}
     ptrPtr = ptr;
 
     int ***ptrPtrPtr = (int***)ptr; // ok
-    // expected-warning@+1{{incompatible pointer types assigning}}
+    // expected-error@+1{{incompatible pointer types assigning}}
     ptrPtrPtr = ptr;
 
     // expected-error@+1{{conversion between pointers to functions with incompatible bound attributes}}

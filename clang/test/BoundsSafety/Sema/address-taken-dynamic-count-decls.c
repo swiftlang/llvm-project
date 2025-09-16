@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 
@@ -42,11 +41,11 @@ void bar(int *fake_out_len, int **fake_out_buf) {
 
 void * baz(struct V *v) {
   int *__single ptr_to_len = &v->len; // expected-error{{cannot take address of field referred to by __counted_by on a flexible array member}}
-  int **ptr_to_buf = &v->buf;         // expected-warning{{incompatible pointer types initializing 'int *__single*__bidi_indexable' with an expression of type 'int (*__bidi_indexable)[__counted_by(len)]' (aka 'int (*__bidi_indexable)[]')}}
+  int **ptr_to_buf = &v->buf;         // expected-error{{incompatible pointer types initializing 'int *__single*__bidi_indexable' with an expression of type 'int (*__bidi_indexable)[__counted_by(len)]' (aka 'int (*__bidi_indexable)[]')}}
                                       // expected-error@-1{{cannot take address of incomplete __counted_by array}}
                                       // expected-note@-2{{remove '&' to get address as 'int *' instead of 'int (*)[__counted_by(len)]'}}
   int **ptr_ptr_to_len = &ptr_to_len;
-  ptr_to_buf = &v->buf;  // expected-warning{{incompatible pointer types assigning to 'int *__single*__bidi_indexable' from 'int (*__bidi_indexable)[__counted_by(len)]' (aka 'int (*__bidi_indexable)[]')}}
+  ptr_to_buf = &v->buf;  // expected-error{{incompatible pointer types assigning to 'int *__single*__bidi_indexable' from 'int (*__bidi_indexable)[__counted_by(len)]' (aka 'int (*__bidi_indexable)[]')}}
                          // expected-error@-1{{cannot take address of incomplete __counted_by array}}
                          // expected-note@-2{{remove '&' to get address as 'int *' instead of 'int (*)[__counted_by(len)]'}}
   *ptr_to_len = &v->len; // expected-error{{cannot take address of field referred to by __counted_by on a flexible array member}}
@@ -60,7 +59,7 @@ void * baz(struct V *v) {
   int local_len = 10;
   foo(&local_len, &v->buf); // expected-error{{incompatible dynamic count pointer argument to parameter of type}}
                             // expected-error@-1{{cannot take address of incomplete __counted_by array}}
-                            // expected-warning@-2{{incompatible pointer types passing 'int (*__bidi_indexable)[__counted_by(len)]' (aka 'int (*__bidi_indexable)[]') to parameter of type 'int *__single __counted_by(*out_len)*__single' (aka 'int *__single*__single')}}
+                            // expected-error@-2{{incompatible pointer types passing 'int (*__bidi_indexable)[__counted_by(len)]' (aka 'int (*__bidi_indexable)[]') to parameter of type 'int *__single __counted_by(*out_len)*__single' (aka 'int *__single*__single')}}
                             // expected-note@-3{{remove '&' to get address as 'int *' instead of 'int (*)[__counted_by(len)]'}}
   bar(&v->len, &v->buf); // expected-error{{cannot take address of field referred to by __counted_by on a flexible array member}}
                          // expected-error@-1{{cannot take address of incomplete __counted_by array}}

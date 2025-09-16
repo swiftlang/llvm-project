@@ -199,7 +199,7 @@ void concrete_to_opaque(char *p) {
   // expected-note@+4{{cast to 'char *__bidi_indexable' first to keep bounds of 'p'}}
   // expected-note@+3{{silence by making the destination '__single'}}
   // expected-warning@+2{{casting 'char *__single' to 'struct s *__bidi_indexable' creates a '__bidi_indexable' pointer with zero length due to 'struct s' having unknown size)}}
-  // expected-warning@+1{{incompatible pointer types initializing 'struct s *__bidi_indexable' with an expression of type 'char *__single'}}
+  // expected-error@+1{{incompatible pointer types initializing 'struct s *__bidi_indexable' with an expression of type 'char *__single'}}
   struct s *l = p;
 }
 
@@ -217,12 +217,12 @@ struct flex {
 };
 
 void flexible_to_concrete_narrower(struct flex *p) {
-  // expected-warning@+1{{incompatible pointer types initializing 'char *__bidi_indexable' with an expression of type 'struct flex *__single'}}
+  // expected-error@+1{{incompatible pointer types initializing 'char *__bidi_indexable' with an expression of type 'struct flex *__single'}}
   char *l = p;
 }
 
 void flexible_to_concrete_narrower_apply_fixit1(struct flex *p) {
-  // expected-warning@+1{{incompatible pointer types initializing 'char *__bidi_indexable' with an expression of type 'struct flex *__bidi_indexable'}}
+  // expected-error@+1{{incompatible pointer types initializing 'char *__bidi_indexable' with an expression of type 'struct flex *__bidi_indexable'}}
   char *l = (struct flex *__bidi_indexable)p;
   }
 
@@ -231,12 +231,12 @@ void flexible_to_concrete_narrower_apply_fixit2(struct flex *p) {
 }
 
 void flexible_to_concrete_wider(struct flex *p) {
-  // expected-warning@+1{{incompatible pointer types initializing 'long long *__bidi_indexable' with an expression of type 'struct flex *__single'}}
+  // expected-error@+1{{incompatible pointer types initializing 'long long *__bidi_indexable' with an expression of type 'struct flex *__single'}}
   long long *l = p;
 }
 
 void flexible_to_concrete_match(struct flex *p) {
-  // expected-warning@+1{{incompatible pointer types initializing 'unsigned int *__bidi_indexable' with an expression of type 'struct flex *__single'}}
+  // expected-error@+1{{incompatible pointer types initializing 'unsigned int *__bidi_indexable' with an expression of type 'struct flex *__single'}}
   unsigned *l = p;
 }
 
@@ -250,12 +250,12 @@ void incomplete_to_flexible(void *p) {
 }
 
 void concrete_match_to_flexible(unsigned *p) {
-  // expected-warning@+1{{incompatible pointer types initializing 'struct flex *__bidi_indexable' with an expression of type 'unsigned int *__single'}}
+  // expected-error@+1{{incompatible pointer types initializing 'struct flex *__bidi_indexable' with an expression of type 'unsigned int *__single'}}
   struct flex *l = p;
 }
 
 void concrete_narrower_to_flexible(char *p) {
-  // expected-warning@+1{{incompatible pointer types initializing 'struct flex *__bidi_indexable' with an expression of type 'char *__single'}}
+  // expected-error@+1{{incompatible pointer types initializing 'struct flex *__bidi_indexable' with an expression of type 'char *__single'}}
   struct flex *l = p;
 }
 
@@ -263,12 +263,12 @@ void concrete_wider_to_flexible(long long *p) {
   // expected-note@+4{{cast to 'long long *__bidi_indexable' first to keep bounds of 'p'}}
   // expected-note@+3{{silence by making the destination '__single'}}
   // expected-warning@+2{{casting 'long long *__single' to 'struct flex *__bidi_indexable' creates a '__bidi_indexable' pointer with bounds containing only one 'struct flex'}}
-  // expected-warning@+1{{incompatible pointer types initializing 'struct flex *__bidi_indexable' with an expression of type 'long long *__single'}}
+  // expected-error@+1{{incompatible pointer types initializing 'struct flex *__bidi_indexable' with an expression of type 'long long *__single'}}
   struct flex *l = p;
   // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:20-[[@LINE-1]]:20}:"(long long *__bidi_indexable)"
 }
 
 void concrete_wider_to_flexible_apply_fixit(long long *p) {
-  // expected-warning@+1{{incompatible pointer types initializing 'struct flex *__bidi_indexable' with an expression of type 'long long *__bidi_indexable'}}
+  // expected-error@+1{{incompatible pointer types initializing 'struct flex *__bidi_indexable' with an expression of type 'long long *__bidi_indexable'}}
   struct flex *l = (long long *__bidi_indexable)p;
 }

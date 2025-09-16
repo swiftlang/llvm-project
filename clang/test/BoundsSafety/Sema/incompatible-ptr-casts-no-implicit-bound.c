@@ -38,11 +38,11 @@ void Test () {
     int *__single ptrThin2 = intVal;
 
     int **ptrPtr = (int**)ptr; // ok
-    // expected-warning@+1{{incompatible pointer types assigning}}
+    // expected-error@+1{{incompatible pointer types assigning}}
     ptrPtr = ptr;
 
     int ***ptrPtrPtr = (int***)ptr; // ok
-    // expected-warning@+1{{incompatible pointer types assigning}}
+    // expected-error@+1{{incompatible pointer types assigning}}
     ptrPtrPtr = ptr;
 
     // expected-error@+1{{conversion between pointers to functions with incompatible bound attributes}}

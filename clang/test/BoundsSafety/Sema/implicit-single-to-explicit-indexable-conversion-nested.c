@@ -228,7 +228,7 @@ void use(void) {
   int **implicit_bidi3 = SINGLE_EXPR;        // no warning
   // Note: This is a different warning than this test is really intended to test
   // but we test it here for completeness.
-  // expected-warning@+1{{incompatible pointer types initializing 'int *__single*__bidi_indexable' with an expression of type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single')}}
+  // expected-error@+1{{incompatible pointer types initializing 'int *__single*__bidi_indexable' with an expression of type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single')}}
   int **implicit_bidi4 = bigger_explicit_single0;
   int **implicit_bidi5 = returns_explicit_single(); // no warning
 
@@ -304,7 +304,7 @@ void use(void) {
   implicit_bidi = SINGLE_EXPR;        // no warning
   // Note: This is a different warning than this test is really intended to test
   // but we test it here for completeness.
-  // expected-warning@+1{{incompatible pointer types assigning to 'int *__single*__bidi_indexable' from 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single')}}
+  // expected-error@+1{{incompatible pointer types assigning to 'int *__single*__bidi_indexable' from 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single')}}
   implicit_bidi = bigger_explicit_single9;
   implicit_bidi = returns_explicit_single(); // no warning
 

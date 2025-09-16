@@ -1,5 +1,4 @@
-
-// RUN: %clang_cc1 -ast-dump -fbounds-safety %s 2> /dev/null | FileCheck %s
+// RUN: %clang_cc1 -ast-dump -fbounds-safety -Wno-error=incompatible-pointer-types %s 2> /dev/null | FileCheck %s
 
 #include <ptrcheck.h>
 
