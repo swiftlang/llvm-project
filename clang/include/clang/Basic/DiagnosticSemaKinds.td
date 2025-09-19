@@ -12958,7 +12958,7 @@ def err_bounds_safety_conflicting_pointer_attributes : Error<
 def note_bounds_safety_conflicting_pointer_attribute_args : Note<
   "conflicting arguments for %select{end|terminator}0 were %1 and %2">;
 def warn_bounds_safety_ignored_implicit_sized_by_or_null : Warning<
-  "implicit __sized_by_or_null attribute ignored because of explicit __sized_by">;
+  "implicit __sized_by_or_null attribute ignored because of explicit __sized_by">, InGroup<BoundsSafetyRedundantAttribute>;
 def note_bounds_safety_overriding_implicit_sized_by_or_null_silence : Note<
   "add _Nonnull qualifier to return type to silence this warning">;
 def note_bounds_safety_conflicting_count_attribute : Note<
