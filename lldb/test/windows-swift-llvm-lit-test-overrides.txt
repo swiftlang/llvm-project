@@ -10,7 +10,6 @@
 
 xfail lldb-api :: lang/cpp/unique-types4/TestUniqueTypes4.py
 xfail lldb-shell :: Recognizer/verbose_trap.test
-xfail lldb-shell :: Settings/TestEchoCommands.test
 xfail lldb-shell :: Swift/MissingVFSOverlay.test
 xfail lldb-shell :: Swift/No.swiftmodule.test
 xfail lldb-shell :: Swift/ToolchainMismatch.test
@@ -25,7 +24,6 @@ xfail lldb-shell :: SwiftREPL/OpenClass.test
 xfail lldb-shell :: SwiftREPL/OptionalUnowned.test
 xfail lldb-shell :: SwiftREPL/RedirectInputUnreadable.test
 xfail lldb-shell :: SwiftREPL/SwiftInterface.test
-xfail lldb-shell :: SymbolFile/DWARF/x86/dead-code-filtering.yaml
 
 ### Tests that pass locally, but fail in CI reliably ###
 
