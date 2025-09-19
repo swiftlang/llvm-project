@@ -1264,7 +1264,7 @@ static bool upgradeIntrinsicFunction1(Function *F, Function *&NewFn,
       // Mark debug intrinsics for upgrade to new debug format.
       if (CanUpgradeDebugIntrinsicsToRecords) {
         if (Name == "addr" || Name == "value" || Name == "assign" ||
-            Name == "declare" || Name == "label") {
+            Name == "declare" || Name == "label" || Name == "declare_value") {
           // There's no function to replace these with.
           NewFn = nullptr;
           // But we do want these to get upgraded.
@@ -4632,6 +4632,11 @@ static void upgradeDbgIntrinsicToDbgRecord(StringRef Name, CallBase *CI) {
         DbgVariableRecord::LocationType::Declare, unwrapMAVMetadataOp(CI, 0),
         unwrapMAVOp(CI, 1), unwrapMAVOp(CI, 2), nullptr, nullptr, nullptr,
         getDebugLocSafe(CI));
+  } else if (Name == "declare_value") {
+    DR = DbgVariableRecord::createUnresolvedDbgVariableRecord(
+        DbgVariableRecord::LocationType::DeclareValue,
+        unwrapMAVMetadataOp(CI, 0), unwrapMAVOp(CI, 1), unwrapMAVOp(CI, 2),
+        nullptr, nullptr, nullptr, getDebugLocSafe(CI));
   } else if (Name == "addr") {
     // Upgrade dbg.addr to dbg.value with DW_OP_deref.
     MDNode *ExprNode = unwrapMAVOp(CI, 2);
