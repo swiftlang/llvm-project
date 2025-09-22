@@ -1466,7 +1466,7 @@ void AArch64EpilogueEmitter::emitEpilogue() {
       break;
     } else if (IsSwiftCoroPartialReturn) {
       assert(!EmitCFI);
-      assert(AFL.hasFP(MF));
+      assert(HasFP);
       fixupCalleeSaveRestoreStackOffset(*FirstGPRRestoreI,
                                         AFI->getLocalStackSize());
       // if FP-based addressing, rewrite CSR restores from SP to FP
@@ -1693,6 +1693,10 @@ void AArch64EpilogueEmitter::emitEpilogue() {
 
 bool AArch64EpilogueEmitter::shouldCombineCSRLocalStackBump(
     uint64_t StackBumpBytes) const {
+
+  if (AFI->hasPoplessEpilogue())
+    return false;
+
   if (!AArch64PrologueEpilogueCommon::shouldCombineCSRLocalStackBump(
           StackBumpBytes))
     return false;
