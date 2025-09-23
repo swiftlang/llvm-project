@@ -1109,6 +1109,12 @@ class CursorKind(BaseEnumeration):
     # Represents a C++26 pack indexing expression.
     PACK_INDEXING_EXPR = 156
 
+    # TO_UPSTREAM(BoundsSafety) ON
+    FORGE_PTR_EXPR = 198
+    GET_BOUND_EXPR = 199
+    LAST_EXPR = GET_BOUND_EXPR
+    # TO_UPSTREAM(BoundsSafety) OFF
+
     # A statement whose specific kind is not exposed via this interface.
     #
     # Unexposed statements have the same operations as any other kind of
