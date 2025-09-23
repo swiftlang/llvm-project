@@ -577,9 +577,9 @@ static QualType CreateImplicitCountAttributedType(Sema &S, unsigned Level,
                                                   bool OrNull, QualType T,
                                                   bool ScopeCheck = false);
 
-static ExprResult getAllocSizeExpr(Sema &S, Decl *D, ParamIdx SizeIdx,
+static ExprResult getAllocSizeExpr(Sema &S, FunctionDecl *D, ParamIdx SizeIdx,
                                    ParamIdx NumberIdx) {
-  auto createParamDeclRef = [&S](Decl *FuncD, ParamIdx Idx) {
+  auto createParamDeclRef = [&S](FunctionDecl *FuncD, ParamIdx Idx) {
     ParmVarDecl *Parm = getFunctionOrMethodParam(FuncD, Idx.getASTIndex());
 
     return DeclRefExpr::Create(
@@ -598,7 +598,7 @@ static ExprResult getAllocSizeExpr(Sema &S, Decl *D, ParamIdx SizeIdx,
 }
 
 static QualType PostProcessBoundsSafetyAllocSizeAttributeImpl(
-    Sema &S, NamedDecl *D, const AllocSizeAttr &ASA, QualType FT) {
+    Sema &S, FunctionDecl *D, const AllocSizeAttr &ASA, QualType FT) {
   ExprResult SizeExpr =
       getAllocSizeExpr(S, D, ASA.getElemSizeParam(), ASA.getNumElemsParam());
   if (SizeExpr.isInvalid())
