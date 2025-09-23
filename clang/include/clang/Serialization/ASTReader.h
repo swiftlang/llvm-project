@@ -287,6 +287,14 @@ public:
     return false;
   }
 
+  /// Called for each module CASID.
+  ///
+  /// \returns true to indicate the key cannot be loaded.
+  virtual bool readModuleCASID(StringRef ModuleName, StringRef Filename,
+                               StringRef CASID) {
+    return false;
+  }
+
   /// Indicates that a particular module file extension has been read.
   virtual void readModuleFileExtension(
                  const ModuleFileExtensionMetadata &Metadata) {}
@@ -343,6 +351,8 @@ public:
   bool readIncludeTreeID(StringRef ID, bool Complain) override;
   bool readModuleCacheKey(StringRef ModuleName, StringRef Filename,
                           StringRef CacheKey) override;
+  bool readModuleCASID(StringRef ModuleName, StringRef Filename,
+                       StringRef CASID) override;
   void readModuleFileExtension(
          const ModuleFileExtensionMetadata &Metadata) override;
 };

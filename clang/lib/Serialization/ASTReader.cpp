@@ -276,6 +276,12 @@ bool ChainedASTReaderListener::readModuleCacheKey(StringRef ModuleName,
   return First->readModuleCacheKey(ModuleName, Filename, CacheKey) ||
          Second->readModuleCacheKey(ModuleName, Filename, CacheKey);
 }
+bool ChainedASTReaderListener::readModuleCASID(StringRef ModuleName,
+                                               StringRef Filename,
+                                               StringRef CASID) {
+  return First->readModuleCASID(ModuleName, Filename, CASID) ||
+         Second->readModuleCASID(ModuleName, Filename, CASID);
+}
 
 void ChainedASTReaderListener::readModuleFileExtension(
        const ModuleFileExtensionMetadata &Metadata) {
@@ -3378,7 +3384,8 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       std::string ImportedFile;
       std::string StoredFile;
       bool IgnoreImportedByNote = false;
-      StringRef ImportedCacheKey;
+      bool CASIDIsKey = false;
+      StringRef ImportedCASKey;
 
       // For prebuilt and explicit modules first consult the file map for
       // an override. Note that here we don't search prebuilt module
@@ -3398,6 +3405,7 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       if (!IsImportingStdCXXModule) {
         StoredSize = (off_t)Record[Idx++];
         StoredModTime = (time_t)Record[Idx++];
+        CASIDIsKey = (bool)Record[Idx++];
 
         StringRef SignatureBytes = Blob.substr(0, ASTFileSignature::size);
         StoredSignature = ASTFileSignature::create(SignatureBytes.begin(),
@@ -3426,17 +3434,31 @@ ASTReader::ReadControlBlock(ModuleFile &F,
           }
         }
 
-        ImportedCacheKey = ReadStringBlob(Record, Idx, Blob);
+        ImportedCASKey = ReadStringBlob(Record, Idx, Blob);
       }
 
-      if (!ImportedCacheKey.empty()) {
-        if (!Listener || Listener->readModuleCacheKey(
-                             ImportedName, ImportedFile, ImportedCacheKey)) {
+      if (!ImportedCASKey.empty()) {
+        if (!Listener) {
           Diag(diag::err_ast_file_not_found)
               << moduleKindForDiagnostic(ImportedKind) << ImportedFile << true
-              << ("missing or unloadable module cache key" + ImportedCacheKey)
+              << ("missing listener to read CAS reference" + ImportedCASKey)
                      .str();
           return Failure;
+        }
+        if (CASIDIsKey) {
+          assert(ImportedKind == MK_ImplicitModule &&
+                 "implicit module encodes cache key, not CASID");
+          if (Listener->readModuleCacheKey(ImportedName, ImportedFile,
+                                           ImportedCASKey)) {
+            // If the module cache key failed to read, treat the module as
+            // out-of-date so it can be rebuilt.
+            return OutOfDate;
+          }
+        } else {
+          if (Listener->readModuleCASID(ImportedName, ImportedFile,
+                                        ImportedCASKey)) {
+            return OutOfDate;
+          }
         }
       }
 
@@ -6148,11 +6170,17 @@ bool ASTReader::readASTFileControlBlock(
       // Skip signature.
       Blob = Blob.substr(ASTFileSignature::size);
 
+      bool CASIDIsKey = Record[Idx++];
+
       StringRef FilenameStr = ReadStringBlob(Record, Idx, Blob);
       auto Filename = ResolveImportedPath(PathBuf, FilenameStr, ModuleDir);
-      StringRef CacheKey = ReadStringBlob(Record, Idx, Blob);
-      if (!CacheKey.empty())
-        Listener.readModuleCacheKey(ModuleName, *Filename, CacheKey);
+      StringRef CASID = ReadStringBlob(Record, Idx, Blob);
+      if (!CASID.empty()) {
+        if (CASIDIsKey)
+          Listener.readModuleCacheKey(ModuleName, *Filename, CASID);
+        else
+          Listener.readModuleCASID(ModuleName, *Filename, CASID);
+      }
       Listener.visitImport(ModuleName, *Filename);
       break;
     }
@@ -6375,6 +6403,14 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
         CurrentModule->PresumedModuleMapFile = F.ModuleMapPath;
         if (!F.ModuleCacheKey.empty())
           CurrentModule->setModuleCacheKey(F.ModuleCacheKey);
+
+        // Set CASID for current module.
+        if (const auto *PCM =
+                ModuleMgr.getModuleCache().getInMemoryModuleCache().lookup(
+                    F.FileName)) {
+          CurrentModule->setCASID(PCM->CASID);
+          F.CASID = PCM->CASID;
+        }
       }
 
       CurrentModule->Kind = Kind;
@@ -9983,7 +10019,7 @@ std::optional<ASTSourceDescriptor> ASTReader::getSourceDescriptor(unsigned ID) {
     StringRef FileName = llvm::sys::path::filename(MF.FileName);
     return ASTSourceDescriptor(ModuleName,
                                llvm::sys::path::parent_path(MF.FileName),
-                               FileName, MF.Signature);
+                               FileName, MF.Signature, MF.CASID);
   }
   return std::nullopt;
 }
