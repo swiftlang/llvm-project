@@ -6340,6 +6340,7 @@ public:
           NewDCPTy->isCountInBytes() == T->isCountInBytes()) {
         assert(NewDCPTy->isCountInBytes() &&
                "unexpected implicit __counted_by_or_null");
+        assert(NewDCPTy->isOrNull() != T->isOrNull());
 
         if (!NewDCPTy->isOrNull())
           // Error already emitted for combining returns_nonnull with
