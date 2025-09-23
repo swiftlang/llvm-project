@@ -3742,6 +3742,7 @@ static void adjustDeclContextForDeclaratorDecl(DeclaratorDecl *NewD,
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON*/
+// FIXME: Rename to something more accurate
 struct TransposeDynamicBoundsExpr
     : public TreeTransform<TransposeDynamicBoundsExpr> {
   using BaseClass = TreeTransform<TransposeDynamicBoundsExpr>;
@@ -3749,7 +3750,9 @@ struct TransposeDynamicBoundsExpr
   FunctionDecl *NewFD;
   bool Success = true;
 
-  static bool Rewrite(Sema &SemaRef, FunctionDecl *NewFD, Expr *E,
+  /// Check that using the expr `E` in the signature of `NewFD` is okay. This
+  /// won't actually rewrite anything, so it's important to check the result!
+  static bool Check(Sema &SemaRef, FunctionDecl *NewFD, Expr *E,
                       std::string &Result) {
     bool Invalid;
     auto TokRange = CharSourceRange::getTokenRange(E->getSourceRange());
@@ -3758,9 +3761,9 @@ struct TransposeDynamicBoundsExpr
     if (Invalid)
       return false;
 
-    TransposeDynamicBoundsExpr Rewriter(SemaRef, NewFD);
-    Rewriter.TransformExpr(E);
-    return Rewriter.Success;
+    TransposeDynamicBoundsExpr Checker(SemaRef, NewFD);
+    Checker.TransformExpr(E);
+    return Checker.Success;
   }
 
   TransposeDynamicBoundsExpr(Sema &SemaRef, FunctionDecl *NewFD)
@@ -3780,7 +3783,48 @@ struct TransposeDynamicBoundsExpr
     // make them up–the header could be included by files that use macros with
     // the same name as the parameter names we would like to use.
     Success &= OldName == NewName;
+    // NB: don't use this return value for anything, it is not actually rewritten
     return E;
+  }
+};
+
+struct TransposeDynamicBoundsExprForReal
+    : public TreeTransform<TransposeDynamicBoundsExprForReal> {
+  using BaseClass = TreeTransform<TransposeDynamicBoundsExprForReal>;
+
+  FunctionDecl *NewFD;
+  bool Success = true;
+
+  /// Rewrite the expr `E` in the context of `NewFD`.
+  /// If `E` refers to any function parameters, the rewritten version will refer
+  /// to the corresponding parameters in `NewFD`.
+  static bool Rewrite(Sema &SemaRef, FunctionDecl *NewFD, Expr *E,
+                      std::string &Result) {
+
+    TransposeDynamicBoundsExprForReal Rewriter(SemaRef, NewFD);
+    ExprResult ExprRes = Rewriter.TransformExpr(E);
+    if (ExprRes.isInvalid())
+      return false;
+
+    llvm::raw_string_ostream SS(Result);
+    ExprRes.get()->printPretty(SS, nullptr,
+                               SemaRef.getASTContext().getPrintingPolicy());
+    return true;
+  }
+
+  TransposeDynamicBoundsExprForReal(Sema &SemaRef, FunctionDecl *NewFD)
+      : BaseClass(SemaRef), NewFD(NewFD) {}
+
+  ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
+    ASTContext &ctx = SemaRef.getASTContext();
+    assert(isa<ParmVarDecl>(E->getDecl()));
+    auto *OldParm = cast<ParmVarDecl>(E->getDecl());
+    auto *NewParm = NewFD->getParamDecl(OldParm->getFunctionScopeIndex());
+    if (!ctx.hasSameType(OldParm->getType(), NewParm->getType()))
+      return {};
+    return DeclRefExpr::Create(ctx, NestedNameSpecifierLoc(), SourceLocation(),
+                               NewParm, false, SourceLocation(),
+                               NewParm->getType(), E->getValueKind());
   }
 };
 
@@ -3849,7 +3893,7 @@ static void fixBoundsSafetyTypeLocs(Sema &S, Sema::SemaDiagnosticBuilder &D,
     KS << "__bidi_indexable";
   } else if (auto DCPTA = QA->getAs<CountAttributedType>()) {
     std::string Rewritten;
-    if (!TransposeDynamicBoundsExpr::Rewrite(S, BDecl, DCPTA->getCountExpr(),
+    if (!TransposeDynamicBoundsExpr::Check(S, BDecl, DCPTA->getCountExpr(),
                                              Rewritten))
       return;
     const char *Keyword =
@@ -3860,7 +3904,7 @@ static void fixBoundsSafetyTypeLocs(Sema &S, Sema::SemaDiagnosticBuilder &D,
     KS << '(' << Rewritten << ')';
   } else if (auto EndPointer = GetEndPointer(QA)) {
     std::string Rewritten;
-    if (!TransposeDynamicBoundsExpr::Rewrite(S, BDecl, EndPointer, Rewritten))
+    if (!TransposeDynamicBoundsExpr::Check(S, BDecl, EndPointer, Rewritten))
       return;
     KS << "__ended_by(" << Rewritten << ')';
   } else {
@@ -3879,6 +3923,36 @@ static void fixBoundsSafetyTypeLocs(Sema &S, Sema::SemaDiagnosticBuilder &D,
 
   KS.flush();
   D << FixItHint::CreateInsertion(FixItLoc, BoundsAnnotation);
+}
+
+/// Emit fixits on diagnostic D to adjust the CountAttributedType B/QB
+/// to match the bounds and kind indicated on CountAttributedType A/QA. A/QA
+/// is not reciprocally adjusted if B/QB has qualifiers; this function needs
+/// to be called once for each direction.
+void BoundsSafetyFixItUtils::fixCountAttributedTypeLocsInFunctionSignature(
+    Sema &S, Sema::SemaDiagnosticBuilder &D, QualType QA, QualType QB,
+    FunctionDecl *ADecl, FunctionDecl *BDecl, bool ExprMismatch,
+    bool KindMismatch) {
+  auto *ATy = QA->getAs<CountAttributedType>();
+  auto *BTy = QB->getAs<CountAttributedType>();
+  assert(ATy && BTy);
+  if (!ATy || !BTy)
+    return;
+
+  if (ADecl->getNumParams() != BDecl->getNumParams())
+    return;
+
+  if (ExprMismatch) {
+    std::string Rewritten;
+    if (!TransposeDynamicBoundsExprForReal::Rewrite(
+            S, BDecl, ATy->getCountExpr(), Rewritten))
+      return; // don't emit a KindMismatch fix-it either if this fails
+    D << FixItHint::CreateReplacement(BTy->getCountExpr()->getSourceRange(),
+                                      Rewritten);
+  }
+  if (KindMismatch) {
+    S.fixCountAttributedTypeKind(D, ATy, BTy);
+  }
 }
 
 static void fixBoundsSafetyFunctionDecl(Sema &S, Sema::SemaDiagnosticBuilder &D,
@@ -4024,27 +4098,6 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
       ReportConflict(Index);
     };
 
-    auto ReportCountBothConflict = [&](const CountAttributedType *NewDCPTy,
-                                       const CountAttributedType *OldDCPTy) {
-      ReportCountConflict(NewDCPTy);
-
-      Self.Diag(NewLoc, diag::note_bounds_safety_conflicting_count_attribute)
-          << OldDCPTy->getKind() << OldDCPTy->getCountExpr()
-          << NewDCPTy->getKind() << NewDCPTy->getCountExpr();
-
-      if (auto NewASA = New->getAttr<AllocSizeAttr>()) {
-        Self.Diag(NewASA->getLoc(),
-                  diag::note_bounds_safety_implicit_size_from_alloc_size_attr)
-            << !New->hasAttr<ReturnsNonNullAttr>() << NewASA->getRange();
-      }
-
-      if (auto OldASA = Old->getAttr<AllocSizeAttr>()) {
-        Self.Diag(OldASA->getLoc(),
-                  diag::note_bounds_safety_implicit_size_from_alloc_size_attr)
-            << !Old->hasAttr<ReturnsNonNullAttr>() << OldASA->getRange();
-      }
-    };
-
     // Check bounds type present in New but not in Old first, then
     // in Old but now in New. That way if a parameter or return type
     // is e.g. __counted_by in Old and __null_terminated in New, we
@@ -4085,24 +4138,54 @@ static bool diagnoseFunctionConflictWithDynamicBoundTypes(FunctionDecl *New,
     }
 
     if (NewDCPTy && OldDCPTy) {
-      if (!checkCompatibleBoundExprs(NewDCPTy->getCountExpr(), OldDCPTy->getCountExpr())) {
-        ReportCountBothConflict(NewDCPTy, OldDCPTy);
-        return false;
-      }
-      // '__sized_by' and '__counted_by'
+      // Always check both types of mismatch to provide better fix-its
+      bool ExprMismatch = !checkCompatibleBoundExprs(NewDCPTy->getCountExpr(), OldDCPTy->getCountExpr());
+
+      bool KindMismatch = false;
       if (NewDCPTy->isCountInBytes() != OldDCPTy->isCountInBytes()) {
+        // '__sized_by' and '__counted_by'
         CharUnits NewPointeeSize = Self.Context.getTypeSizeInChars(NewDCPTy->getPointeeType());
         if (!NewPointeeSize.isOne() && !NewDCPTy->isVoidPointerType()) {
-          ReportCountBothConflict(NewDCPTy, OldDCPTy);
-          return false;
+          KindMismatch = true;
         }
+      } else if (NewDCPTy->isOrNull() != OldDCPTy->isOrNull()) {
+        // '__counted_by_or_null' and '__counted_by'
+        KindMismatch = true;
       }
-      // '__counted_by_or_null' and '__counted_by'
-      if (NewDCPTy->isOrNull() != OldDCPTy->isOrNull()) {
-        ReportCountBothConflict(NewDCPTy, OldDCPTy);
+
+      if (ExprMismatch || KindMismatch) {
+        ReportCountConflict(NewDCPTy);
+        {
+          auto D = Self.Diag(NewLoc, diag::note_bounds_safety_conflicting_count_attribute)
+             << OldDCPTy->getKind() << OldDCPTy->getCountExpr()
+             << NewDCPTy->getKind() << NewDCPTy->getCountExpr();
+          if (!Old->hasAttr<AllocSizeAttr>()) {
+            BoundsSafetyFixItUtils::
+                fixCountAttributedTypeLocsInFunctionSignature(
+                    Self, D, NewTy, OldTy, New, Old, ExprMismatch,
+                    KindMismatch);
+          }
+          if (!New->hasAttr<AllocSizeAttr>()) {
+            BoundsSafetyFixItUtils::
+                fixCountAttributedTypeLocsInFunctionSignature(
+                    Self, D, OldTy, NewTy, Old, New, ExprMismatch,
+                    KindMismatch);
+          }
+        }
+        if (auto NewASA = New->getAttr<AllocSizeAttr>()) {
+          Self.Diag(NewASA->getLoc(),
+                    diag::note_bounds_safety_implicit_size_from_alloc_size_attr)
+              << !New->hasAttr<ReturnsNonNullAttr>() << NewASA->getRange();
+        }
+        if (auto OldASA = Old->getAttr<AllocSizeAttr>()) {
+          Self.Diag(OldASA->getLoc(),
+                    diag::note_bounds_safety_implicit_size_from_alloc_size_attr)
+              << !Old->hasAttr<ReturnsNonNullAttr>() << OldASA->getRange();
+        }
         return false;
       }
     }
+
     if (NewIsEndedBy && OldIsEndedBy) {
       // Start pointers are implicit so we don't check it here.
       if (!checkCompatibleBoundExprs(NewDRPTy->getEndPointer(), OldDRPTy->getEndPointer())) {

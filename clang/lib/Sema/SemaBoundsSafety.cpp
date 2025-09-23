@@ -271,7 +271,8 @@ bool Sema::CheckCountedByAttrOnField(FieldDecl *FD, Expr *E, bool CountInBytes,
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON*/
-static SourceRange SourceRangeFor(const CountAttributedType *CATy, Sema &S) {
+static SourceRange SourceRangeFor(const CountAttributedType *CATy,
+                                  const Sema &S, bool AttrNameOnly) {
   // Note: This implementation relies on `CountAttributedType` being unique.
   // E.g.:
   //
@@ -285,7 +286,8 @@ static SourceRange SourceRangeFor(const CountAttributedType *CATy, Sema &S) {
   // unique means the SourceLocation of the `counted_by` expression can be used
   // to find where the attribute was written.
 
-  auto Fallback = CATy->getCountExpr()->getSourceRange();
+  auto Fallback =
+      AttrNameOnly ? SourceRange() : CATy->getCountExpr()->getSourceRange();
   auto CountExprBegin = CATy->getCountExpr()->getBeginLoc();
 
   // FIXME: We currently don't support the count expression being a macro
@@ -347,6 +349,12 @@ static SourceRange SourceRangeFor(const CountAttributedType *CATy, Sema &S) {
 
     // Found the beginning of the `__counted_by` macro
     SourceLocation Begin = LastAttrCharToken.getLocation();
+
+    if (AttrNameOnly) {
+      auto End = S.getLocForEndOfToken(Begin, -1);
+      return SourceRange(Begin, End);
+    }
+
     // Now try to find the closing `)` of the macro.
     auto MaybeRParenTok = FindRParenTokenAfter();
     if (!MaybeRParenTok.has_value())
@@ -385,6 +393,11 @@ static SourceRange SourceRangeFor(const CountAttributedType *CATy, Sema &S) {
     // Found the beginning of the `counted_by`-like attribute
     auto SL = NonAffixedBeginToken.getLocation();
 
+    if (AttrNameOnly) {
+      auto End = S.getLocForEndOfToken(SL, -1);
+      return SourceRange(SL, End);
+    }
+
     // Now try to find the closing `)` of the attribute
     auto MaybeRParenTok = FindRParenTokenAfter();
     if (!MaybeRParenTok.has_value())
@@ -418,6 +431,12 @@ static SourceRange SourceRangeFor(const CountAttributedType *CATy, Sema &S) {
 
   // Found the beginning of the `__counted_by__`-like like attribute.
   auto SL = AffixedBeginToken.getLocation();
+
+  if (AttrNameOnly) {
+    auto End = S.getLocForEndOfToken(SL, -1);
+    return SourceRange(SL, End);
+  }
+
   // Now try to find the closing `)` of the attribute
   auto MaybeRParenTok = FindRParenTokenAfter();
   if (!MaybeRParenTok.has_value())
@@ -465,7 +484,7 @@ static void EmitIncompleteCountedByPointeeNotes(Sema &S,
   // TODO: Upstream probably won't accept `SourceRangeFor` so we should consider
   // removing it and its related tests.
   // SourceRange AttrSrcRange = CATy->getCountExpr()->getSourceRange();
-  SourceRange AttrSrcRange = SourceRangeFor(CATy, S);
+  SourceRange AttrSrcRange = SourceRangeFor(CATy, S, /*AttrNameOnly=*/false);
   /* TO_UPSTREAM(BoundsSafety) OFF*/
   S.Diag(AttrSrcRange.getBegin(), diag::note_counted_by_consider_using_sized_by)
       << CATy->isOrNull() << AttrSrcRange;
@@ -670,7 +689,7 @@ static bool BoundsSafetyCheckFunctionParamOrCountAttrWithIncompletePointeeTy(
   if (ParamDecl)
     ParamName = ParamDecl->getName();
 
-  auto SR = SourceRangeFor(CATy, S);
+  auto SR = SourceRangeFor(CATy, S, /*AttrNameOnly=*/false);
   S.Diag(SR.getBegin(),
          diag::err_bounds_safety_counted_by_on_incomplete_type_on_func_def)
       << /*0*/ CATy->getAttributeName(/*WithMacroPrefix*/ true)
@@ -706,7 +725,7 @@ BoundsSafetyCheckVarDeclCountAttrPtrWithIncompletePointeeTy(Sema &S,
   if (!CATy)
     return true;
 
-  SourceRange SR = SourceRangeFor(CATy, S);
+  SourceRange SR = SourceRangeFor(CATy, S, /*AttrNameOnly=*/false);
   S.Diag(SR.getBegin(),
          diag::err_bounds_safety_counted_by_on_incomplete_type_on_var_decl)
       << /*0*/ CATy->getAttributeName(/*WithMacroPrefix=*/true)
@@ -810,6 +829,17 @@ bool Sema::BoundsSafetyCheckCountAttributedTypeHasConstantCountForAssignmentOp(
     }
   }
   return true;
+}
+
+void Sema::fixCountAttributedTypeKind(Sema::SemaDiagnosticBuilder &D,
+                                      const CountAttributedType *ATy,
+                                      const CountAttributedType *BTy) const {
+  SourceRange SR = SourceRangeFor(BTy, *this, /*AttrNameOnly=*/true);
+  if (SR.isInvalid()) {
+    return;
+  }
+  D << FixItHint::CreateReplacement(
+      SR, ATy->getAttributeName(/*WithMacroPrefix=*/true));
 }
 
 } // namespace clang

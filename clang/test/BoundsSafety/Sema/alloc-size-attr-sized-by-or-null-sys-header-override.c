@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsyntax-only -Wno-strict-prototypes -fbounds-safety -verify %s
+// RUN: not %clang_cc1 -fsyntax-only -Wno-strict-prototypes -fbounds-safety -fdiagnostics-parseable-fixits %s 2>&1 | FileCheck %s --implicit-check-not fix-it
 // RUN: %clang_cc1 -fsyntax-only -Wno-strict-prototypes -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 
 #include <ptrcheck.h>
@@ -17,7 +18,8 @@ void * __sized_by_or_null(size) unnamed_param_inherit_attr(unsigned size) {
     return (void*)0;
 }
 
-// expected-error@+1{{invalid return type 'void *__single __sized_by_or_null(count * size)' (aka 'void *__single') for function with alloc_size attribute; '__sized_by_or_null(size * count)' or '__sized_by(size * count)' required}}
+// expected-error@+2{{invalid return type 'void *__single __sized_by_or_null(count * size)' (aka 'void *__single') for function with alloc_size attribute; '__sized_by_or_null(size * count)' or '__sized_by(size * count)' required}}
+// CHECK: fix-it:"{{.*}}alloc-size-attr-sized-by-or-null-sys-header-override.c":{[[@LINE+1]]:27-[[@LINE+1]]:39}:"size * count"
 void * __sized_by_or_null(count * size)
     unnamed_param_with_count_flipped(unsigned size, unsigned count) {
     return (void*)0;

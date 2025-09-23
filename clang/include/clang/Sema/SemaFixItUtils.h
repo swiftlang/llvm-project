@@ -13,6 +13,7 @@
 #define LLVM_CLANG_SEMA_SEMAFIXITUTILS_H
 
 #include "clang/AST/Expr.h"
+#include "clang/Sema/Sema.h"
 
 namespace clang {
 
@@ -154,6 +155,11 @@ public:
       const VarDecl *VD, const llvm::StringRef Attribute, Sema &S,
       llvm::SmallVectorImpl<std::tuple<FixItHint, const DeclaratorDecl *>>
           &FixIts);
+
+  static void fixCountAttributedTypeLocsInFunctionSignature(
+      Sema &S, Sema::SemaDiagnosticBuilder &D, QualType QA, QualType QB,
+      FunctionDecl *ADecl, FunctionDecl *BDecl, bool ExprMismatch,
+      bool KindMismatch);
 
 private:
   static FixItHint CreateAnnotateVarDeclOrFieldDeclFixIt(

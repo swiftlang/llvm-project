@@ -94,7 +94,7 @@ bool Sema::isCXXSafeBuffersBoundsSafetyInteropEnabledAt(
 }
 /* TO_UPSTREAM(BoundsSafety) OFF */
 
-SourceLocation Sema::getLocForEndOfToken(SourceLocation Loc, unsigned Offset) {
+SourceLocation Sema::getLocForEndOfToken(SourceLocation Loc, unsigned Offset) const {
   return Lexer::getLocForEndOfToken(Loc, Offset, SourceMgr, LangOpts);
 }
 

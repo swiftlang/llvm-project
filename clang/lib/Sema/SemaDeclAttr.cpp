@@ -626,7 +626,7 @@ void diagnoseInvalidReturnTypeForAllocSize(Sema &S, FunctionDecl *D,
 
   QualType RetTy = D->getReturnType();
   auto CATy = RetTy->getAs<CountAttributedType>();
-  if (!CATy || !CATy->isCountInBytes()) {
+  if (!CATy) {
     S.Diag(D->getBeginLoc(), diag::err_invalid_return_type_for_alloc_size)
         << RetTy << Size << D->getReturnTypeSourceRange();
     S.Diag(ASA.getLoc(), diag::note_attribute_inherited) << ASA.getRange();
@@ -638,9 +638,25 @@ void diagnoseInvalidReturnTypeForAllocSize(Sema &S, FunctionDecl *D,
   CATy->getCountExpr()->IgnoreParenImpCasts()->Profile(NewID, S.Context,
                                                        /*Canonical*/ true);
   Size->Profile(OldID, S.Context, /*Canonical*/ true);
-  if (NewID != OldID) {
-    S.Diag(D->getBeginLoc(), diag::err_invalid_return_type_for_alloc_size)
-        << RetTy << Size << D->getReturnTypeSourceRange();
+  bool ExprMismatch = NewID != OldID;
+  bool KindMismatch = !CATy->isCountInBytes();
+
+  if (ExprMismatch || KindMismatch) {
+    {
+      // FIXME: include CountAttributedType in TypeLocInfo
+      SourceRange FullReturnSourceRange(
+          D->getReturnTypeSourceRange().getBegin(),
+          CATy->getCountExpr()->getEndLoc());
+      auto Diag =
+          S.Diag(D->getBeginLoc(), diag::err_invalid_return_type_for_alloc_size)
+          << RetTy << Size << FullReturnSourceRange;
+
+      QualType ASATy = S.BuildCountAttributedType(
+          CATy->desugar(), Size, /*CountInBytes=*/true,
+          /*OrNull=*/CATy->isOrNull(), /*ScopeCheck=*/false);
+      BoundsSafetyFixItUtils::fixCountAttributedTypeLocsInFunctionSignature(
+          S, Diag, ASATy, RetTy, D, D, ExprMismatch, KindMismatch);
+    }
     S.Diag(ASA.getLoc(), diag::note_attribute_inherited) << ASA.getRange();
   }
 }

@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsyntax-only -Wno-strict-prototypes -fbounds-safety -verify %s
+// RUN: not %clang_cc1 -fsyntax-only -Wno-strict-prototypes -fbounds-safety -fdiagnostics-parseable-fixits %s 2>&1 | FileCheck %s --implicit-check-not fix-it
 // RUN: %clang_cc1 -fsyntax-only -Wno-strict-prototypes -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 
 #include <ptrcheck.h>
@@ -77,6 +78,20 @@ void * __sized_by_or_null(size * count)
 // expected-error@-1{{pointer cannot have more than one count attribute}}
 // expected-note@-2{{conflicting attributes were '__sized_by_or_null(size * count)' and '__sized_by_or_null(count * size)'}}
 // expected-note@-3{{function return type implicitly __sized_by_or_null because of the function's 'alloc_size' attribute}}
+
+void *
+// expected-note@-1{{previous declaration is here}}
+    explicitly_sized_with_count_flipped_redecl(int size, int count)
+    __attribute__((alloc_size(2, 1)));
+// expected-note@-1{{function return type implicitly __sized_by_or_null because of the function's 'alloc_size' attribute}}
+
+void *
+// expected-error@-1{{conflicting '__sized_by' attribute with the previous function declaration}}
+// expected-note@-2{{conflicting attributes were '__sized_by_or_null(count * size)' and '__sized_by(size * count)'}}
+    __sized_by(size * count)
+// CHECK: fix-it:"{{.*}}alloc-size-attr-sized-by-or-null.c":{[[@LINE-1]]:5-[[@LINE-1]]:15}:"__sized_by_or_null"
+// CHECK: fix-it:"{{.*}}alloc-size-attr-sized-by-or-null.c":{[[@LINE-2]]:16-[[@LINE-2]]:28}:"count * size"
+    explicitly_sized_with_count_flipped_redecl(int size, int count);
 
 void * __sized_by(size * count)
 // expected-note@-1{{previous attribute is here}}
@@ -171,6 +186,7 @@ void * unnamed_param_with_count_flipped(unsigned, unsigned)
 void * __sized_by_or_null(count * size)
     // expected-error@-1{{conflicting '__sized_by_or_null' attribute with the previous function declaration}}
     // expected-note@-2{{conflicting attributes were '__sized_by_or_null(function-parameter-0-0 * function-parameter-0-1)' and '__sized_by_or_null(count * size)'}}
+    // CHECK: fix-it:"{{.*}}alloc-size-attr-sized-by-or-null.c":{[[@LINE-3]]:27-[[@LINE-3]]:39}:"size * count"
     unnamed_param_with_count_flipped(unsigned size, unsigned count) {
     return (void*)0;
 }
