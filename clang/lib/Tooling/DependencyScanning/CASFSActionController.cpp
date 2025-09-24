@@ -56,6 +56,7 @@ Error CASFSActionController::initialize(CompilerInstance &ScanInstance,
   // Setup prefix mapping.
   Mapper.emplace(&CacheFS);
   DepscanPrefixMapping::configurePrefixMapper(NewInvocation, *Mapper);
+  ScanInstance.setPrefixMapper(*Mapper);
 
   const PreprocessorOptions &PPOpts = ScanInstance.getPreprocessorOpts();
   if (!PPOpts.Includes.empty() || !PPOpts.ImplicitPCHInclude.empty())

@@ -627,6 +627,15 @@ public:
 
     ScanInstance.createSourceManager(*FileMgr);
 
+    auto reportError = [&ScanInstance](Error &&E) -> bool {
+      ScanInstance.getDiagnostics().Report(diag::err_cas_depscan_failed)
+          << std::move(E);
+      return false;
+    };
+
+    if (Error E = Controller.initialize(ScanInstance, OriginalInvocation))
+      return reportError(std::move(E));
+
     // Create a collection of stable directories derived from the ScanInstance
     // for determining whether module dependencies would fully resolve from
     // those directories.
@@ -635,6 +644,20 @@ public:
     if (!Sysroot.empty() &&
         (llvm::sys::path::root_directory(Sysroot) != Sysroot))
       StableDirs = {Sysroot, ScanInstance.getHeaderSearchOpts().ResourceDir};
+
+    // When remapping is disabled, the stable directory paths are references to
+    // strings tied to the CompilerInstance. Otherwise, these potentially mapped
+    // strings need to be allocated. To reduce the number of downstream changes
+    // required to this support allocation, tie the lifetime of these strings to
+    // the dependency scanning action.
+    llvm::PrefixMapper &Mapper = ScanInstance.getPrefixMapper();
+    llvm::BumpPtrAllocator Allocator;
+    llvm::StringSaver StableDirStorage(Allocator);
+    if (!StableDirs.empty() && !Mapper.empty()) {
+      StableDirs.push_back(StableDirStorage.save(Mapper.mapToString(Sysroot)));
+      StableDirs.push_back(StableDirStorage.save(
+          Mapper.mapToString(ScanInstance.getHeaderSearchOpts().ResourceDir)));
+    }
 
     // Store a mapping of prebuilt module files and their properties like header
     // search options. This will prevent the implicit build to create duplicate
@@ -670,12 +693,6 @@ public:
       // getting the dependencies directly from \p DependencyFileGenerator.
       Opts->IncludeSystemHeaders = true;
     }
-
-    auto reportError = [&ScanInstance](Error &&E) -> bool {
-      ScanInstance.getDiagnostics().Report(diag::err_cas_depscan_failed)
-          << std::move(E);
-      return false;
-    };
 
     // FIXME: The caller APIs in \p DependencyScanningTool expect a specific
     // DependencyCollector to get attached to the preprocessor in order to
@@ -746,9 +763,6 @@ public:
     // Normally this would be handled by GeneratePCHAction
     if (ScanInstance.getFrontendOpts().ProgramAction == frontend::GeneratePCH)
       ScanInstance.getLangOpts().CompilingPCH = true;
-
-    if (Error E = Controller.initialize(ScanInstance, OriginalInvocation))
-      return reportError(std::move(E));
 
     if (ScanInstance.getDiagnostics().hasErrorOccurred())
       return false;

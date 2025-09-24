@@ -300,6 +300,7 @@ Expected<cas::IncludeTreeRoot> IncludeTreeActionController::getIncludeTree() {
 Error IncludeTreeActionController::initialize(
     CompilerInstance &ScanInstance, CompilerInvocation &NewInvocation) {
   DepscanPrefixMapping::configurePrefixMapper(NewInvocation, PrefixMapper);
+  ScanInstance.setPrefixMapper(PrefixMapper);
 
   auto ensurePathRemapping = [&]() {
     if (PrefixMapper.empty())

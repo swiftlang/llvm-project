@@ -238,12 +238,11 @@ bool dependencies::isPathInStableDir(const ArrayRef<StringRef> Directories,
 
 bool dependencies::areOptionsInStableDir(const ArrayRef<StringRef> Directories,
                                          const HeaderSearchOptions &HSOpts) {
-  // FIXME: This breaks CAS prefix mapping tests.
-  // assert(isPathInStableDir(Directories, HSOpts.Sysroot) &&
-  //       "Sysroots differ between module dependencies and current TU");
+  assert(isPathInStableDir(Directories, HSOpts.Sysroot) &&
+         "Sysroots differ between module dependencies and current TU");
 
-  // assert(isPathInStableDir(Directories, HSOpts.ResourceDir) &&
-  //        "ResourceDirs differ between module dependencies and current TU");
+  assert(isPathInStableDir(Directories, HSOpts.ResourceDir) &&
+         "ResourceDirs differ between module dependencies and current TU");
 
   for (const auto &Entry : HSOpts.UserEntries) {
     if (!Entry.IgnoreSysRoot)
