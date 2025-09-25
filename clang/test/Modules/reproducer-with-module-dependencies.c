@@ -16,7 +16,8 @@
 // Test the content of a reproducer script.
 // RUN: c-index-test core -gen-deps-reproducer -working-dir %t -o %t/repro-content \
 // RUN:   -- clang-executable -c %t/reproducer.c -o %t/reproducer.o \
-// RUN:      -fmodules -fmodules-cache-path=%t
+// RUN:      -fmodules -fmodules-cache-path=%t \
+// RUN:      -DMACRO="\$foo"
 // RUN: FileCheck %t/script-expectations.txt --input-file %t/repro-content/reproducer.sh
 
 //--- modular-header.h
@@ -40,3 +41,4 @@ void test(void) {
 //--- script-expectations.txt
 CHECK: CLANG:-clang-executable
 CHECK: -fmodule-file=Test=reproducer.cache/explicitly-built-modules/Test-{{.*}}.pcm
+CHECK: MACRO=\$foo
