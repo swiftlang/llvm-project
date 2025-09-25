@@ -597,26 +597,7 @@ static ExprResult getAllocSizeExpr(Sema &S, FunctionDecl *D, ParamIdx SizeIdx,
   return SizeExpr;
 }
 
-static QualType PostProcessBoundsSafetyAllocSizeAttributeImpl(
-    Sema &S, FunctionDecl *D, const AllocSizeAttr &ASA, QualType FT) {
-  ExprResult SizeExpr =
-      getAllocSizeExpr(S, D, ASA.getElemSizeParam(), ASA.getNumElemsParam());
-  if (SizeExpr.isInvalid())
-    return FT;
-
-  unsigned Level = 0;
-  bool CountInBytes = true;
-  // returns_nonnull is allowed to change program semantics to assume
-  // it cannot return null. _Nonnull does not affect program semantics,
-  // only analysis/diagnostics, so ignore that here.
-  bool OrNull = !D->hasAttr<ReturnsNonNullAttr>();
-
-  const IdentifierInfo *AttrName = ASA.getAttrName();
-  return CreateImplicitCountAttributedType(S, Level, AttrName->getName(), SizeExpr.get(),
-                                           ASA.getLoc(), CountInBytes, OrNull, FT);
-}
-
-void diagnoseInvalidReturnTypeForAllocSize(Sema &S, FunctionDecl *D,
+static void diagnoseInvalidReturnTypeForAllocSize(Sema &S, FunctionDecl *D,
                                            const AllocSizeAttr &ASA) {
   ExprResult SizeExpr =
       getAllocSizeExpr(S, D, ASA.getElemSizeParam(), ASA.getNumElemsParam());
@@ -625,7 +606,7 @@ void diagnoseInvalidReturnTypeForAllocSize(Sema &S, FunctionDecl *D,
   Expr *Size = SizeExpr.get();
 
   QualType RetTy = D->getReturnType();
-  auto CATy = RetTy->getAs<CountAttributedType>();
+  const auto *CATy = RetTy->getAs<CountAttributedType>();
   if (!CATy) {
     S.Diag(D->getBeginLoc(), diag::err_invalid_return_type_for_alloc_size)
         << RetTy << Size << D->getReturnTypeSourceRange();
@@ -670,8 +651,8 @@ static AllocSizeAttr *mergeAllocSizeAttrImpl(Sema &S, Decl *D,
                                              ParamIdx ElemSizeParam,
                                              ParamIdx NumElemsParam) {
   if (S.getLangOpts().BoundsSafety) {
-    if (auto OldASA = D->getAttr<AllocSizeAttr>()) {
-      if (!OldASA->getElemSizeParam().equals(ElemSizeParam) ||
+    if (const auto *OldASA = D->getAttr<AllocSizeAttr>()) {
+      if (OldASA->getElemSizeParam() != ElemSizeParam ||
           !OldASA->getNumElemsParam().equals(NumElemsParam)) {
         S.Diag(CI.getLoc(), diag::err_mismatched_alloc_size) << CI.getRange();
         S.Diag(OldASA->getLoc(), diag::note_conflicting_attribute)
@@ -9656,8 +9637,23 @@ QualType Sema::PostProcessBoundsSafetyAllocSizeAttribute(FunctionDecl *D,
     auto ASA = D->getAttr<AllocSizeAttr>();
     if (!ASA)
       return FT;
-    QualType NewDeclTy =
-        PostProcessBoundsSafetyAllocSizeAttributeImpl(*this, D, *ASA, FT);
+    ExprResult SizeExpr = getAllocSizeExpr(*this, D, ASA->getElemSizeParam(),
+                                           ASA->getNumElemsParam());
+    if (SizeExpr.isInvalid())
+      return FT;
+
+    unsigned Level = 0;
+    bool CountInBytes = true;
+    // returns_nonnull is allowed to change program semantics to assume
+    // it cannot return null. _Nonnull does not affect program semantics,
+    // only analysis/diagnostics, so ignore that here.
+    bool OrNull = !D->hasAttr<ReturnsNonNullAttr>();
+    const IdentifierInfo *AttrName = ASA->getAttrName();
+
+    QualType NewDeclTy = CreateImplicitCountAttributedType(
+        *this, Level, AttrName->getName(), SizeExpr.get(), ASA->getLoc(),
+        CountInBytes, OrNull, FT);
+
     if (NewDeclTy.isNull())
       return FT;
     return NewDeclTy;

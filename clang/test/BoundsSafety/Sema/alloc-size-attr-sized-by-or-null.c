@@ -242,3 +242,9 @@ void * override_nullability2(unsigned, unsigned)
 
 // expected-error@+1{{cannot combine '__sized_by_or_null' and 'returns_nonnull'; did you mean '__sized_by' instead?}}
 void * __sized_by_or_null(x * y) ignore_implicit_type_reverse_nullability(unsigned x, unsigned y) __attribute__((returns_nonnull)) __attribute__((alloc_size(1,2)));
+
+void * invalid_attr1(int) __attribute((alloc_size())); // expected-error{{'alloc_size' attribute takes at least 1 argument}}
+void * invalid_attr2(void) __attribute((alloc_size(1))); // expected-error{{'alloc_size' attribute parameter 1 is out of bounds}}
+void * invalid_attr3(int) __attribute((alloc_size(int))); // expected-error{{expected expression}}
+void invalid_attr4(int) __attribute((alloc_size(1))); // expected-warning{{'alloc_size' attribute only applies to return values that are pointers}}
+void * surprisingly_valid_attr(int) __attribute((alloc_size(sizeof(char))));
