@@ -12,11 +12,11 @@ __attribute__((alloc_size(1))) __attribute__((alloc_size(1))) void * dup_attr(un
 __attribute__((alloc_size(1, 2))) __attribute__((alloc_size(2, 1))) void * mismatch_attr(unsigned, unsigned);
 void * mismatch_attr(unsigned, unsigned);
 
-// CHECK-NEXT: |-FunctionDecl{{.*}} mismatch_attr 'void *__single __sized_by_or_null(function-parameter-0-0 * function-parameter-0-1)(unsigned int, unsigned int)'
+// CHECK-NEXT: |-FunctionDecl {{.*}} mismatch_attr 'void *__single __sized_by_or_null(function-parameter-0-0 * function-parameter-0-1)(unsigned int, unsigned int)'
 // CHECK-NEXT: | |-ParmVarDecl {{.*}} 'unsigned int'
 // CHECK-NEXT: | |-ParmVarDecl {{.*}} 'unsigned int'
 // CHECK-NEXT: | `-AllocSizeAttr {{.*}} 1 2
-// CHECK-NEXT: `-FunctionDecl {{.*}} mismatch_attr 'void *__single(unsigned int, unsigned int)'
+// CHECK-NEXT: `-FunctionDecl {{.*}} mismatch_attr 'void *__single __sized_by_or_null(function-parameter-0-0 * function-parameter-0-1)(unsigned int, unsigned int)'
 // CHECK-NEXT:   |-ParmVarDecl {{.*}} 'unsigned int'
 // CHECK-NEXT:   |-ParmVarDecl {{.*}} 'unsigned int'
 // CHECK-NEXT:   `-AllocSizeAttr {{.*}} Inherited 1 2

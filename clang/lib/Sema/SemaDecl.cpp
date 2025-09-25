@@ -5292,19 +5292,8 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       = New->getType()->getAs<FunctionProtoType>();
 
     // Determine whether this is the GNU C extension.
-    /* TO_UPSTREAM(BoundsSafety) ON
-     * Diff w/ upstream: reversed parameter order. This aligns better with other
-     * calls to mergeTypes, and makes sure that the new type is used if they are
-     * canonically the same. This is relevant for bounds safety when overriding an
-     * earlier declaration with different bounds. */
-    QualType MergedReturn;
-    if (getLangOpts().BoundsSafety)
-      MergedReturn = Context.mergeTypes(NewProto->getReturnType(),
-                                        OldProto->getReturnType());
-    else
-      /* TO_UPSTREAM(BoundsSafety) OFF */
-      MergedReturn = Context.mergeTypes(OldProto->getReturnType(),
-                                        NewProto->getReturnType());
+    QualType MergedReturn = Context.mergeTypes(OldProto->getReturnType(),
+                                               NewProto->getReturnType());
     bool LooseCompatible = !MergedReturn.isNull();
     for (unsigned Idx = 0, End = Old->getNumParams();
          LooseCompatible && Idx != End; ++Idx) {
@@ -5423,17 +5412,7 @@ bool Sema::MergeCompatibleFunctionDecls(FunctionDecl *New, FunctionDecl *Old,
   // Merge the function types so the we get the composite types for the return
   // and argument types. Per C11 6.2.7/4, only update the type if the old decl
   // was visible.
-  /* TO_UPSTREAM(BoundsSafety) ON
-   * Diff w/ upstream: reversed parameter order. This aligns better with other
-   * calls to mergeTypes, and makes sure that the new type is used if they are
-   * canonically the same. This is relevant for bounds safety when overriding an
-   * earlier declaration with different bounds. */
-  QualType Merged;
-  if (getLangOpts().BoundsSafety)
-    Merged = Context.mergeTypes(New->getType(), Old->getType());
-  else
-    Merged = Context.mergeTypes(Old->getType(), New->getType());
-  /* TO_UPSTREAM(BoundsSafety) OFF */
+  QualType Merged = Context.mergeTypes(Old->getType(), New->getType());
   if (!Merged.isNull() && MergeTypeWithOld)
     New->setType(Merged);
 
