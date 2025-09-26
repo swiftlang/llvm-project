@@ -56,6 +56,7 @@ if __name__ == '__main__':
     if lldb_build_intel_pt == "1":
         cmd.extend(['--enable-plugin', 'intel-pt'])
     cmd.extend(['--lldb-obj-root', lldb_obj_root])
+    cmd.extend(['--swift-libs-dir', swift_libs_dir])
     cmd.extend(wrapper_args)
     # Invoke dotest.py and return exit code.
     print(' '.join(cmd))
