@@ -401,6 +401,12 @@ indexstore_symbol_subkind_t index::getIndexStoreSubKind(SymbolSubKind K) {
     return INDEXSTORE_SYMBOL_SUBKIND_SWIFTACCESSORMUTABLEADDRESSOR;
   case SymbolSubKind::SwiftAccessorRead:
     return INDEXSTORE_SYMBOL_SUBKIND_SWIFTACCESSORREAD;
+  case SymbolSubKind::SwiftAccessorBorrow:
+    // New in Swift: _read accessor
+    return "borrow";
+    case SymbolSubKind::SwiftAccessorMutate:
+    // New in Swift: _modify accessor
+    return "mutate";
   case SymbolSubKind::SwiftAccessorModify:
     return INDEXSTORE_SYMBOL_SUBKIND_SWIFTACCESSORMODIFY;
   case SymbolSubKind::SwiftAccessorInit:
