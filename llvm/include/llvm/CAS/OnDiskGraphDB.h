@@ -10,7 +10,9 @@
 #define LLVM_CAS_ONDISKGRAPHDB_H
 
 #include "llvm/ADT/PointerUnion.h"
-#include "llvm/CAS/OnDiskHashMappedTrie.h"
+#include "llvm/CAS/OnDiskCASLogger.h"
+#include "llvm/CAS/OnDiskDataAllocator.h"
+#include "llvm/CAS/OnDiskTrieRawHashMap.h"
 
 namespace llvm::cas::ondisk {
 
@@ -266,7 +268,8 @@ public:
 
   /// \returns the hash bytes digest for the object reference.
   ArrayRef<uint8_t> getDigest(ObjectID Ref) const {
-    return getDigest(getInternalRef(Ref));
+    // ObjectID should be valid to fetch Digest.
+    return cantFail(getDigest(getInternalRef(Ref)));
   }
 
   /// Form a reference for the provided hash. The reference can be used as part
@@ -354,10 +357,16 @@ private:
     OnlyInUpstreamDB,
   };
 
-  ObjectPresence getObjectPresence(ObjectID Ref, bool CheckUpstream) const;
+  Expected<ObjectPresence> getObjectPresence(ObjectID Ref,
+                                             bool CheckUpstream) const;
 
   bool containsObject(ObjectID Ref, bool CheckUpstream) const {
-    switch (getObjectPresence(Ref, CheckUpstream)) {
+    auto Presence = getObjectPresence(Ref, CheckUpstream);
+    if (!Presence) {
+      consumeError(Presence.takeError());
+      return false;
+    }
+    switch (*Presence) {
     case ObjectPresence::Missing:
       return false;
     case ObjectPresence::InPrimaryDB:
@@ -393,15 +402,15 @@ private:
   void getStandalonePath(StringRef FileSuffix, const IndexProxy &I,
                          SmallVectorImpl<char> &Path) const;
 
-  ArrayRef<uint8_t> getDigest(InternalRef Ref) const;
+  Expected<ArrayRef<uint8_t>> getDigest(InternalRef Ref) const;
   ArrayRef<uint8_t> getDigest(const IndexProxy &I) const;
 
-  IndexProxy getIndexProxyFromRef(InternalRef Ref) const;
+  Expected<IndexProxy> getIndexProxyFromRef(InternalRef Ref) const;
 
   static InternalRef makeInternalRef(FileOffset IndexOffset);
 
   IndexProxy
-  getIndexProxyFromPointer(OnDiskHashMappedTrie::const_pointer P) const;
+  getIndexProxyFromPointer(OnDiskTrieRawHashMap::const_pointer P) const;
 
   InternalRefArrayRef getInternalRefs(ObjectHandle Node) const;
 
@@ -410,7 +419,7 @@ private:
   std::atomic<uint64_t> &getStandaloneStorageSize();
   uint64_t getStandaloneStorageSize() const;
 
-  OnDiskGraphDB(StringRef RootPath, OnDiskHashMappedTrie Index,
+  OnDiskGraphDB(StringRef RootPath, OnDiskTrieRawHashMap Index,
                 OnDiskDataAllocator DataPool,
                 std::unique_ptr<OnDiskGraphDB> UpstreamDB, FaultInPolicy Policy,
                 std::shared_ptr<OnDiskCASLogger> Logger);
@@ -418,7 +427,7 @@ private:
   /// Mapping from hash to object reference.
   ///
   /// Data type is TrieRecord.
-  OnDiskHashMappedTrie Index;
+  OnDiskTrieRawHashMap Index;
 
   /// Storage for most objects.
   ///

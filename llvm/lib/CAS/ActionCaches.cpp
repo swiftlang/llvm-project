@@ -16,7 +16,6 @@
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/CAS/OnDiskCASLogger.h"
 #include "llvm/CAS/OnDiskGraphDB.h"
-#include "llvm/CAS/OnDiskHashMappedTrie.h"
 #include "llvm/CAS/OnDiskKeyValueDB.h"
 #include "llvm/CAS/UnifiedOnDiskCache.h"
 #include "llvm/Config/llvm-config.h"

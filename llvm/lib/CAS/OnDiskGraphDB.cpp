@@ -52,7 +52,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/CAS/OnDiskCASLogger.h"
-#include "llvm/CAS/OnDiskHashMappedTrie.h"
+#include "llvm/CAS/OnDiskDataAllocator.h"
+#include "llvm/CAS/OnDiskTrieRawHashMap.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Errc.h"
@@ -63,6 +64,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
+#include <atomic>
+#include <mutex>
 #include <optional>
 
 #if __has_include(<sys/mount.h>)
@@ -81,14 +84,17 @@ static constexpr StringLiteral DataPoolTableName = "llvm.cas.data";
 static constexpr StringLiteral IndexFile = "index";
 static constexpr StringLiteral DataPoolFile = "data";
 
-static constexpr StringLiteral FilePrefix = "v10.";
+static constexpr StringLiteral FilePrefix = "v11.";
 static constexpr StringLiteral FileSuffixData = ".data";
 static constexpr StringLiteral FileSuffixLeaf = ".leaf";
 static constexpr StringLiteral FileSuffixLeaf0 = ".leaf+0";
 
-static Error createCorruptObjectError(ArrayRef<uint8_t> ID) {
+static Error createCorruptObjectError(Expected<ArrayRef<uint8_t>> ID) {
+  if (!ID)
+    return ID.takeError();
+
   return createStringError(llvm::errc::invalid_argument,
-                           "corrupt object '" + toHex(ID) + "'");
+                           "corrupt object '" + toHex(*ID) + "'");
 }
 
 namespace {
@@ -890,7 +896,7 @@ int64_t DataRecordHandle::getDataRelOffset() const {
 
 Error OnDiskGraphDB::validate(bool Deep, HashingFuncT Hasher) const {
   return Index.validate([&](FileOffset Offset,
-                            OnDiskHashMappedTrie::ConstValueProxy Record)
+                            OnDiskTrieRawHashMap::ConstValueProxy Record)
                             -> Error {
     auto formatError = [&](Twine Msg) {
       return createStringError(
@@ -917,6 +923,8 @@ Error OnDiskGraphDB::validate(bool Deep, HashingFuncT Hasher) const {
 
     auto Ref = InternalRef::getFromOffset(Offset);
     auto I = getIndexProxyFromRef(Ref);
+    if (!I)
+      return I.takeError();
 
     switch (D.SK) {
     case TrieRecord::StorageKind::Unknown:
@@ -936,7 +944,7 @@ Error OnDiskGraphDB::validate(bool Deep, HashingFuncT Hasher) const {
     case TrieRecord::StorageKind::StandaloneLeaf:
     case TrieRecord::StorageKind::StandaloneLeaf0:
       SmallString<256> Path;
-      getStandalonePath(TrieRecord::getStandaloneFileSuffix(D.SK), I, Path);
+      getStandalonePath(TrieRecord::getStandaloneFileSuffix(D.SK), *I, Path);
       // If need to validate the content of the file later, just load the
       // buffer here. Otherwise, just check the existance of the file.
       if (Deep) {
@@ -955,7 +963,7 @@ Error OnDiskGraphDB::validate(bool Deep, HashingFuncT Hasher) const {
 
     auto dataError = [&](Twine Msg) {
       return createStringError(llvm::errc::illegal_byte_sequence,
-                               "bad data for digest \'" + toHex(I.Hash) +
+                               "bad data for digest \'" + toHex(I->Hash) +
                                    "\': " + Msg.str());
     };
     SmallVector<ArrayRef<uint8_t>> Refs;
@@ -970,7 +978,9 @@ Error OnDiskGraphDB::validate(bool Deep, HashingFuncT Hasher) const {
         return dataError("data record span passed the end of the data pool");
       for (auto InternRef : DataRecord.getRefs()) {
         auto Index = getIndexProxyFromRef(InternRef);
-        Refs.push_back(Index.Hash);
+        if (!Index)
+          return Index.takeError();
+        Refs.push_back(Index->Hash);
       }
       StoredData = DataRecord.getData();
       break;
@@ -984,7 +994,9 @@ Error OnDiskGraphDB::validate(bool Deep, HashingFuncT Hasher) const {
             "data record span passed the end of the standalone file");
       for (auto InternRef : DataRecord.getRefs()) {
         auto Index = getIndexProxyFromRef(InternRef);
-        Refs.push_back(Index.Hash);
+        if (!Index)
+          return Index.takeError();
+        Refs.push_back(Index->Hash);
       }
       StoredData = DataRecord.getData();
       break;
@@ -1003,7 +1015,7 @@ Error OnDiskGraphDB::validate(bool Deep, HashingFuncT Hasher) const {
 
     SmallVector<uint8_t> ComputedHash;
     Hasher(Refs, StoredData, ComputedHash);
-    if (I.Hash != ArrayRef(ComputedHash))
+    if (I->Hash != ArrayRef(ComputedHash))
       return dataError("hash mismatch, got \'" + toHex(ComputedHash) +
                        "\' instead");
 
@@ -1015,7 +1027,7 @@ void OnDiskGraphDB::print(raw_ostream &OS) const {
   OS << "on-disk-root-path: " << RootPath << "\n";
 
   struct PoolInfo {
-    int64_t Offset;
+    uint64_t Offset;
   };
   SmallVector<PoolInfo> Pool;
 
@@ -1068,7 +1080,7 @@ Expected<OnDiskGraphDB::IndexProxy>
 OnDiskGraphDB::indexHash(ArrayRef<uint8_t> Hash) {
   auto P = Index.insertLazy(
       Hash, [](FileOffset TentativeOffset,
-               OnDiskHashMappedTrie::ValueProxy TentativeValue) {
+               OnDiskTrieRawHashMap::ValueProxy TentativeValue) {
         assert(TentativeValue.Data.size() == sizeof(TrieRecord));
         assert(
             isAddrAligned(Align::Of<TrieRecord>(), TentativeValue.Data.data()));
@@ -1082,7 +1094,7 @@ OnDiskGraphDB::indexHash(ArrayRef<uint8_t> Hash) {
 }
 
 OnDiskGraphDB::IndexProxy OnDiskGraphDB::getIndexProxyFromPointer(
-    OnDiskHashMappedTrie::const_pointer P) const {
+    OnDiskTrieRawHashMap::const_pointer P) const {
   assert(P);
   assert(P.getOffset());
   return IndexProxy{P.getOffset(), P->Hash,
@@ -1119,7 +1131,7 @@ OnDiskGraphDB::getExistingReference(ArrayRef<uint8_t> Digest) {
     return getExternalReference(*I);
   };
 
-  OnDiskHashMappedTrie::const_pointer P = Index.find(Digest);
+  OnDiskTrieRawHashMap::const_pointer P = Index.find(Digest);
   if (!P)
     return tryUpstream(std::nullopt);
   IndexProxy I = getIndexProxyFromPointer(P);
@@ -1129,18 +1141,19 @@ OnDiskGraphDB::getExistingReference(ArrayRef<uint8_t> Digest) {
   return getExternalReference(makeInternalRef(I.Offset));
 }
 
-OnDiskGraphDB::IndexProxy
+Expected<OnDiskGraphDB::IndexProxy>
 OnDiskGraphDB::getIndexProxyFromRef(InternalRef Ref) const {
-  OnDiskHashMappedTrie::const_pointer P =
-      Index.recoverFromFileOffset(Ref.getFileOffset());
+  auto P = Index.recoverFromFileOffset(Ref.getFileOffset());
   if (LLVM_UNLIKELY(!P))
-    report_fatal_error("OnDiskCAS: corrupt internal reference");
-  return getIndexProxyFromPointer(P);
+    return P.takeError();
+  return getIndexProxyFromPointer(*P);
 }
 
-ArrayRef<uint8_t> OnDiskGraphDB::getDigest(InternalRef Ref) const {
-  IndexProxy I = getIndexProxyFromRef(Ref);
-  return I.Hash;
+Expected<ArrayRef<uint8_t>> OnDiskGraphDB::getDigest(InternalRef Ref) const {
+  auto I = getIndexProxyFromRef(Ref);
+  if (!I)
+    return I.takeError();
+  return I->Hash;
 }
 
 ArrayRef<uint8_t> OnDiskGraphDB::getDigest(const IndexProxy &I) const {
@@ -1165,8 +1178,10 @@ InternalRefArrayRef OnDiskGraphDB::getInternalRefs(ObjectHandle Node) const {
 Expected<std::optional<ObjectHandle>>
 OnDiskGraphDB::load(ObjectID ExternalRef) {
   InternalRef Ref = getInternalRef(ExternalRef);
-  IndexProxy I = getIndexProxyFromRef(Ref);
-  TrieRecord::Data Object = I.Ref.load();
+  auto I = getIndexProxyFromRef(Ref);
+  if (!I)
+    return I.takeError();
+  TrieRecord::Data Object = I->Ref.load();
 
   if (Object.SK == TrieRecord::StorageKind::Unknown) {
     if (!UpstreamDB)
@@ -1187,7 +1202,7 @@ OnDiskGraphDB::load(ObjectID ExternalRef) {
   // There's corruption if standalone objects have offsets, or if we get here
   // for something that isn't standalone.
   if (Object.Offset)
-    return createCorruptObjectError(getDigest(I));
+    return createCorruptObjectError(getDigest(*I));
   switch (Object.SK) {
   case TrieRecord::StorageKind::Unknown:
   case TrieRecord::StorageKind::DataPool:
@@ -1204,19 +1219,23 @@ OnDiskGraphDB::load(ObjectID ExternalRef) {
   // suitably 0-padded. Requiring null-termination here would be too expensive
   // for extremely large objects that happen to be page-aligned.
   SmallString<256> Path;
-  getStandalonePath(TrieRecord::getStandaloneFileSuffix(Object.SK), I, Path);
+  getStandalonePath(TrieRecord::getStandaloneFileSuffix(Object.SK), *I, Path);
   ErrorOr<std::unique_ptr<MemoryBuffer>> OwnedBuffer = MemoryBuffer::getFile(
       Path, /*IsText=*/false, /*RequiresNullTerminator=*/false);
   if (!OwnedBuffer)
-    return createCorruptObjectError(getDigest(I));
+    return createCorruptObjectError(getDigest(*I));
 
-  return toObjectHandle(
-      InternalHandle(static_cast<StandaloneDataMapTy *>(StandaloneData)
-                         ->insert(I.Hash, Object.SK, std::move(*OwnedBuffer))));
+  return toObjectHandle(InternalHandle(
+      static_cast<StandaloneDataMapTy *>(StandaloneData)
+          ->insert(I->Hash, Object.SK, std::move(*OwnedBuffer))));
 }
 
 Expected<bool> OnDiskGraphDB::isMaterialized(ObjectID Ref) {
-  switch (getObjectPresence(Ref, /*CheckUpstream=*/true)) {
+  auto Presence = getObjectPresence(Ref, /*CheckUpstream=*/true);
+  if (!Presence)
+    return Presence.takeError();
+
+  switch (*Presence) {
   case ObjectPresence::Missing:
     return false;
   case ObjectPresence::InPrimaryDB:
@@ -1228,18 +1247,21 @@ Expected<bool> OnDiskGraphDB::isMaterialized(ObjectID Ref) {
   }
 }
 
-OnDiskGraphDB::ObjectPresence
+Expected<OnDiskGraphDB::ObjectPresence>
 OnDiskGraphDB::getObjectPresence(ObjectID ExternalRef,
                                  bool CheckUpstream) const {
   InternalRef Ref = getInternalRef(ExternalRef);
-  IndexProxy I = getIndexProxyFromRef(Ref);
-  TrieRecord::Data Object = I.Ref.load();
+  auto I = getIndexProxyFromRef(Ref);
+  if (!I)
+    return I.takeError();
+
+  TrieRecord::Data Object = I->Ref.load();
   if (Object.SK != TrieRecord::StorageKind::Unknown)
     return ObjectPresence::InPrimaryDB;
   if (!CheckUpstream || !UpstreamDB)
     return ObjectPresence::Missing;
   std::optional<ObjectID> UpstreamID =
-      UpstreamDB->getExistingReference(getDigest(I));
+      UpstreamDB->getExistingReference(getDigest(*I));
   return UpstreamID.has_value() ? ObjectPresence::OnlyInUpstreamDB
                                 : ObjectPresence::Missing;
 }
@@ -1375,18 +1397,20 @@ Error OnDiskGraphDB::createStandaloneLeaf(IndexProxy &I, ArrayRef<char> Data) {
 
 Error OnDiskGraphDB::store(ObjectID ID, ArrayRef<ObjectID> Refs,
                            ArrayRef<char> Data) {
-  IndexProxy I = getIndexProxyFromRef(getInternalRef(ID));
+  auto I = getIndexProxyFromRef(getInternalRef(ID));
+  if (LLVM_UNLIKELY(!I))
+    return I.takeError();
 
   // Early return in case the node exists.
   {
-    TrieRecord::Data Existing = I.Ref.load();
+    TrieRecord::Data Existing = I->Ref.load();
     if (Existing.SK != TrieRecord::StorageKind::Unknown)
       return Error::success();
   }
 
   // Big leaf nodes.
   if (Refs.empty() && Data.size() > TrieRecord::MaxEmbeddedSize)
-    return createStandaloneLeaf(I, Data);
+    return createStandaloneLeaf(*I, Data);
 
   // TODO: Check whether it's worth checking the index for an already existing
   // object (like storeTreeImpl() does) before building up the
@@ -1408,7 +1432,7 @@ Error OnDiskGraphDB::store(ObjectID ID, ArrayRef<ObjectID> Refs,
   auto AllocStandaloneFile = [&](size_t Size) -> Expected<char *> {
     getStandalonePath(TrieRecord::getStandaloneFileSuffix(
                           TrieRecord::StorageKind::Standalone),
-                      I, Path);
+                      *I, Path);
     if (Error E = createTempFile(Path, Size).moveInto(File))
       return std::move(E);
     assert(File->size() == Size);
@@ -1457,7 +1481,7 @@ Error OnDiskGraphDB::store(ObjectID ID, ArrayRef<ObjectID> Refs,
   //
   // Then decide what to do with the file. Better to discard than overwrite if
   // another thread/process has already added this.
-  TrieRecord::Data Existing = I.Ref.load();
+  TrieRecord::Data Existing = I->Ref.load();
   {
     TrieRecord::Data NewObject{SK, PoolOffset};
     if (File) {
@@ -1476,7 +1500,7 @@ Error OnDiskGraphDB::store(ObjectID ID, ArrayRef<ObjectID> Refs,
     // TODO: Find a way to reuse the storage from the new-but-abandoned record
     // handle.
     if (Existing.SK == TrieRecord::StorageKind::Unknown) {
-      if (I.Ref.compare_exchange_strong(Existing, NewObject)) {
+      if (I->Ref.compare_exchange_strong(Existing, NewObject)) {
         if (FileSize)
           recordStandaloneSizeIncrease(*FileSize);
         return Error::success();
@@ -1485,7 +1509,7 @@ Error OnDiskGraphDB::store(ObjectID ID, ArrayRef<ObjectID> Refs,
   }
 
   if (Existing.SK == TrieRecord::StorageKind::Unknown)
-    return createCorruptObjectError(getDigest(I));
+    return createCorruptObjectError(getDigest(*I));
 
   // Load existing object.
   return Error::success();
@@ -1558,9 +1582,9 @@ Expected<std::unique_ptr<OnDiskGraphDB>> OnDiskGraphDB::open(
   if (*CustomSize)
     MaxIndexSize = MaxDataPoolSize = **CustomSize;
 
-  std::optional<OnDiskHashMappedTrie> Index;
+  std::optional<OnDiskTrieRawHashMap> Index;
   if (Error E =
-          OnDiskHashMappedTrie::create(AbsPath + Slash + FilePrefix + IndexFile,
+          OnDiskTrieRawHashMap::create(AbsPath + Slash + FilePrefix + IndexFile,
                                        IndexTableName + "[" + HashName + "]",
                                        HashByteSize * CHAR_BIT,
                                        /*DataSize=*/sizeof(TrieRecord),
@@ -1591,7 +1615,7 @@ Expected<std::unique_ptr<OnDiskGraphDB>> OnDiskGraphDB::open(
                         std::move(UpstreamDB), Policy, std::move(Logger)));
 }
 
-OnDiskGraphDB::OnDiskGraphDB(StringRef RootPath, OnDiskHashMappedTrie Index,
+OnDiskGraphDB::OnDiskGraphDB(StringRef RootPath, OnDiskTrieRawHashMap Index,
                              OnDiskDataAllocator DataPool,
                              std::unique_ptr<OnDiskGraphDB> UpstreamDB,
                              FaultInPolicy Policy,

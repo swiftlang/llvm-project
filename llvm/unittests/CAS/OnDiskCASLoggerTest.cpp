@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/OnDiskCASLogger.h"
-#include "llvm/CAS/OnDiskHashMappedTrie.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/LineIterator.h"

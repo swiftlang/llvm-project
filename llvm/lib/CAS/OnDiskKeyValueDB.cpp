@@ -19,7 +19,7 @@ using namespace llvm::cas;
 using namespace llvm::cas::ondisk;
 
 static constexpr StringLiteral ActionCacheFile = "actions";
-static constexpr StringLiteral FilePrefix = "v5.";
+static constexpr StringLiteral FilePrefix = "v6.";
 
 Expected<ArrayRef<char>> OnDiskKeyValueDB::put(ArrayRef<uint8_t> Key,
                                                ArrayRef<char> Value) {
@@ -30,7 +30,7 @@ Expected<ArrayRef<char>> OnDiskKeyValueDB::put(ArrayRef<uint8_t> Key,
   assert(Value.size() == ValueSize);
   auto ActionP = Cache.insertLazy(
       Key, [&](FileOffset TentativeOffset,
-               OnDiskHashMappedTrie::ValueProxy TentativeValue) {
+               OnDiskTrieRawHashMap::ValueProxy TentativeValue) {
         assert(TentativeValue.Data.size() == ValueSize);
         llvm::copy(Value, TentativeValue.Data.data());
       });
@@ -42,7 +42,7 @@ Expected<ArrayRef<char>> OnDiskKeyValueDB::put(ArrayRef<uint8_t> Key,
 Expected<std::optional<ArrayRef<char>>>
 OnDiskKeyValueDB::get(ArrayRef<uint8_t> Key) {
   // Check the result cache.
-  OnDiskHashMappedTrie::const_pointer ActionP = Cache.find(Key);
+  OnDiskTrieRawHashMap::const_pointer ActionP = Cache.find(Key);
   if (!ActionP)
     return std::nullopt;
   assert(isAddrAligned(Align(8), ActionP->Data.data()));
@@ -68,8 +68,8 @@ OnDiskKeyValueDB::open(StringRef Path, StringRef HashName, unsigned KeySize,
   if (*CustomSize)
     MaxFileSize = **CustomSize;
 
-  std::optional<OnDiskHashMappedTrie> ActionCache;
-  if (Error E = OnDiskHashMappedTrie::create(
+  std::optional<OnDiskTrieRawHashMap> ActionCache;
+  if (Error E = OnDiskTrieRawHashMap::create(
                     CachePath,
                     "llvm.actioncache[" + HashName + "->" + ValueName + "]",
                     KeySize * 8,
@@ -85,7 +85,7 @@ OnDiskKeyValueDB::open(StringRef Path, StringRef HashName, unsigned KeySize,
 Error OnDiskKeyValueDB::validate(CheckValueT CheckValue) const {
   return Cache.validate(
       [&](FileOffset Offset,
-          OnDiskHashMappedTrie::ConstValueProxy Record) -> Error {
+          OnDiskTrieRawHashMap::ConstValueProxy Record) -> Error {
         auto formatError = [&](Twine Msg) {
           return createStringError(
               llvm::errc::illegal_byte_sequence,
