@@ -29,6 +29,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -426,8 +427,9 @@ const Expr *findCountArg(const Expr *Count, const CallExpr *Call) {
   return Call->getArg(Index);
 }
 
-// Mapping: dependent decl -> value.
-using DependentValuesTy = llvm::DenseMap<const ValueDecl *, const Expr *>;
+// Mapping: (DependentDecl, Deref) -> Value.
+using DeclDerefPair = llvm::PointerIntPair<const ValueDecl *, 1, bool>;
+using DependentValuesTy = llvm::DenseMap<DeclDerefPair, const Expr *>;
 
 // Given the call expr, find the mapping from the dependent parameter to the
 // argument that is passed to that parameter.
@@ -445,7 +447,8 @@ getDependentValuesFromCall(const CountAttributedType *CAT,
       return std::nullopt;
 
     const Expr *Arg = Call->getArg(Index);
-    [[maybe_unused]] bool Inserted = Values.insert({PVD, Arg}).second;
+    [[maybe_unused]] bool Inserted =
+        Values.insert({{PVD, /*Deref=*/false}, Arg}).second;
     assert(Inserted);
   }
   return {std::move(Values)};
@@ -499,13 +502,16 @@ struct CompatibleCountExprVisitor
   const Expr *
   trySubstituteAndSimplify(const Expr *E, bool &hasBeenSubstituted,
                            const DependentValuesTy *DependentValues) const {
+    auto trySubstitute = [&](const ValueDecl *VD, bool Deref) -> const Expr * {
+      if (hasBeenSubstituted || !DependentValues)
+        return nullptr;
+      auto It = DependentValues->find({VD, Deref});
+      return It != DependentValues->end() ? It->second : nullptr;
+    };
+
     // Attempts to simplify `E`: if `E` has the form `*&e`, return `e`;
     // return `E` without change otherwise:
-    auto trySimplifyDerefAddressof =
-        [](const Expr *E,
-           const DependentValuesTy
-               *DependentValues, // Deref may need subsitution
-           bool &hasBeenSubstituted) -> const Expr * {
+    auto trySimplifyDeref = [&](const Expr *E) -> const Expr * {
       const auto *Deref = dyn_cast<UnaryOperator>(E->IgnoreParenImpCasts());
 
       if (!Deref || Deref->getOpcode() != UO_Deref)
@@ -513,36 +519,40 @@ struct CompatibleCountExprVisitor
 
       const Expr *DerefOperand = Deref->getSubExpr()->IgnoreParenImpCasts();
 
+      // Just simplify `*&...`.
       if (const auto *UO = dyn_cast<UnaryOperator>(DerefOperand))
         if (UO->getOpcode() == UO_AddrOf)
           return UO->getSubExpr();
-      if (const auto *DRE = dyn_cast<DeclRefExpr>(DerefOperand)) {
-        if (!DependentValues || hasBeenSubstituted)
-          return E;
 
-        if (auto I = DependentValues->find(DRE->getDecl());
-            I != DependentValues->end())
-          if (const auto *UO = dyn_cast<UnaryOperator>(
-                  I->getSecond()->IgnoreParenImpCasts()))
-            if (UO->getOpcode() == UO_AddrOf) {
-              hasBeenSubstituted = true;
-              return UO->getSubExpr();
-            }
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(DerefOperand)) {
+        // Substitute `*x`.
+        if (const auto *Sub = trySubstitute(DRE->getDecl(), /*Deref=*/true)) {
+          hasBeenSubstituted = true;
+          return Sub;
+        }
+
+        // Substitute `x` in `*x` if we have `x -> &...` in our mapping.
+        if (const auto *Sub = trySubstitute(DRE->getDecl(), /*Deref=*/false)) {
+          if (const auto *UO =
+                  dyn_cast<UnaryOperator>(Sub->IgnoreParenImpCasts());
+              UO && UO->getOpcode() == UO_AddrOf) {
+            hasBeenSubstituted = true;
+            return UO->getSubExpr();
+          }
+        }
       }
+
       return E;
     };
 
-    if (!hasBeenSubstituted && DependentValues) {
-      if (const auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts())) {
-        if (auto It = DependentValues->find(DRE->getDecl());
-            It != DependentValues->end()) {
-          hasBeenSubstituted = true;
-          return trySimplifyDerefAddressof(It->second, nullptr,
-                                           hasBeenSubstituted);
-        }
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts())) {
+      if (const auto *Sub = trySubstitute(DRE->getDecl(), /*Deref=*/false)) {
+        hasBeenSubstituted = true;
+        return trySimplifyDeref(Sub);
       }
     }
-    return trySimplifyDerefAddressof(E, DependentValues, hasBeenSubstituted);
+
+    return trySimplifyDeref(E);
   }
 
   explicit CompatibleCountExprVisitor(
@@ -673,6 +683,13 @@ struct CompatibleCountExprVisitor
                           bool hasOtherBeenSubstituted) {
     if (SelfUO->getOpcode() != UO_Deref)
       return false; // We don't support any other unary operator
+
+    const auto *SimplifiedSelf = trySubstituteAndSimplify(
+        SelfUO, hasSelfBeenSubstituted, DependentValuesSelf);
+    if (SimplifiedSelf != SelfUO)
+      return Visit(SimplifiedSelf, Other, hasSelfBeenSubstituted,
+                   hasOtherBeenSubstituted);
+
     Other = trySubstituteAndSimplify(Other, hasOtherBeenSubstituted,
                                      DependentValuesOther);
     if (const auto *OtherUO =
@@ -681,13 +698,7 @@ struct CompatibleCountExprVisitor
         return Visit(SelfUO->getSubExpr(), OtherUO->getSubExpr(),
                      hasSelfBeenSubstituted, hasOtherBeenSubstituted);
     }
-    // If `Other` is not a dereference expression, try to simplify `SelfUO`:
-    const auto *SimplifiedSelf = trySubstituteAndSimplify(
-        SelfUO, hasSelfBeenSubstituted, DependentValuesSelf);
 
-    if (SimplifiedSelf != SelfUO)
-      return Visit(SimplifiedSelf, Other, hasSelfBeenSubstituted,
-                   hasOtherBeenSubstituted);
     return false;
   }
 
