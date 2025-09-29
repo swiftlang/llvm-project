@@ -8995,6 +8995,7 @@ def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
 // Driver CAS options.
 def fdepscan_EQ : Joined<["-"], "fdepscan=">,
     Group<f_Group>,
+    Visibility<[ClangOption, CLOption]>,
     HelpText<"Scan for dependencies ahead of compiling, generating a"
              " pruned CAS tree to send to -fcas-fs. Values are"
              " 'auto',"
@@ -9048,6 +9049,7 @@ def fdepscan_daemon_EQ : Joined<["-"], "fdepscan-daemon=">, Group<f_Group>,
              " parent processes.">;
 
 def fdepscan_include_tree : Flag<["-"], "fdepscan-include-tree">,
+    Visibility<[ClangOption, CLOption]>,
     Group<f_Group>, HelpText<"Set dep-scanner to produce the include tree">;
 
 // CAS prefix map options.
