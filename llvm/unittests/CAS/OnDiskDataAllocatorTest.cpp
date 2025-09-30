@@ -32,7 +32,7 @@ TEST(OnDiskDataAllocatorTest, Allocate) {
   // Allocate.
   {
     for (size_t Size = 1; Size < 16; ++Size) {
-      OnDiskDataAllocator::pointer P;
+      OnDiskDataAllocator::OnDiskPtr P;
       ASSERT_THAT_ERROR(Allocator->allocate(Size).moveInto(P), Succeeded());
       ASSERT_TRUE(
           isAligned(MappedFileRegionArena::getAlign(), P.getOffset().get()));
@@ -41,7 +41,7 @@ TEST(OnDiskDataAllocatorTest, Allocate) {
 
   // Out of space.
   {
-    OnDiskDataAllocator::pointer P;
+    OnDiskDataAllocator::OnDiskPtr P;
     ASSERT_THAT_ERROR(Allocator->allocate(MB).moveInto(P), Failed());
   }
 

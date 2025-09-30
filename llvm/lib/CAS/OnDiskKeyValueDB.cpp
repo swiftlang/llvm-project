@@ -42,7 +42,7 @@ Expected<ArrayRef<char>> OnDiskKeyValueDB::put(ArrayRef<uint8_t> Key,
 Expected<std::optional<ArrayRef<char>>>
 OnDiskKeyValueDB::get(ArrayRef<uint8_t> Key) {
   // Check the result cache.
-  OnDiskTrieRawHashMap::const_pointer ActionP = Cache.find(Key);
+  OnDiskTrieRawHashMap::ConstOnDiskPtr ActionP = Cache.find(Key);
   if (!ActionP)
     return std::nullopt;
   assert(isAddrAligned(Align(8), ActionP->Data.data()));

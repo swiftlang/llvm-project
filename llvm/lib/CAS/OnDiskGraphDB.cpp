@@ -336,6 +336,8 @@ struct DataRecordHandle {
     return DataRecordHandle(
         *reinterpret_cast<const DataRecordHandle::Header *>(Mem));
   }
+  static Expected<DataRecordHandle>
+  getFromDataPool(const OnDiskDataAllocator &Pool, FileOffset Offset);
 
   explicit operator bool() const { return H; }
   const Header &getHeader() const { return *H; }
@@ -643,6 +645,22 @@ bool TrieRecord::compare_exchange_strong(Data &Existing, Data New) {
 
 DataRecordHandle DataRecordHandle::construct(char *Mem, const Input &I) {
   return constructImpl(Mem, I, Layout(I));
+}
+
+Expected<DataRecordHandle>
+DataRecordHandle::getFromDataPool(const OnDiskDataAllocator &Pool,
+                                  FileOffset Offset) {
+  auto HeaderData = Pool.get(Offset, sizeof(DataRecordHandle::Header));
+  if (!HeaderData)
+    return HeaderData.takeError();
+
+  auto Record = DataRecordHandle::get(HeaderData->data());
+  if (Record.getTotalSize() + Offset.get() > Pool.size())
+    return createStringError(
+        make_error_code(std::errc::illegal_byte_sequence),
+        "data record span passed the end of the data pool");
+
+  return Record;
 }
 
 DataRecordHandle DataRecordHandle::constructImpl(char *Mem, const Input &I,
@@ -973,16 +991,17 @@ Error OnDiskGraphDB::validate(bool Deep, HashingFuncT Hasher) const {
     case TrieRecord::StorageKind::Unknown:
       llvm_unreachable("already handled");
     case TrieRecord::StorageKind::DataPool: {
-      auto DataRecord = DataRecordHandle::get(DataPool.beginData(D.Offset));
-      if (DataRecord.getTotalSize() + D.Offset.get() > DataPool.size())
-        return dataError("data record span passed the end of the data pool");
-      for (auto InternRef : DataRecord.getRefs()) {
+      auto DataRecord = DataRecordHandle::getFromDataPool(DataPool, D.Offset);
+      if (!DataRecord)
+        return dataError(toString(DataRecord.takeError()));
+
+      for (auto InternRef : DataRecord->getRefs()) {
         auto Index = getIndexProxyFromRef(InternRef);
         if (!Index)
           return Index.takeError();
         Refs.push_back(Index->Hash);
       }
-      StoredData = DataRecord.getData();
+      StoredData = DataRecord->getData();
       break;
     }
     case TrieRecord::StorageKind::Standalone: {
@@ -1068,11 +1087,15 @@ void OnDiskGraphDB::print(raw_ostream &OS) const {
       Pool, [](PoolInfo LHS, PoolInfo RHS) { return LHS.Offset < RHS.Offset; });
   for (PoolInfo PI : Pool) {
     OS << "- addr=" << (void *)PI.Offset << " ";
-    DataRecordHandle D =
-        DataRecordHandle::get(DataPool.beginData(FileOffset(PI.Offset)));
-    OS << "record refs=" << D.getNumRefs() << " data=" << D.getDataSize()
-       << " size=" << D.getTotalSize()
-       << " end=" << (void *)(PI.Offset + D.getTotalSize()) << "\n";
+    auto D = DataRecordHandle::getFromDataPool(DataPool, FileOffset(PI.Offset));
+    if (!D) {
+      OS << "error: " << toString(D.takeError());
+      return;
+    }
+
+    OS << "record refs=" << D->getNumRefs() << " data=" << D->getDataSize()
+       << " size=" << D->getTotalSize()
+       << " end=" << (void *)(PI.Offset + D->getTotalSize()) << "\n";
   }
 }
 
@@ -1094,7 +1117,7 @@ OnDiskGraphDB::indexHash(ArrayRef<uint8_t> Hash) {
 }
 
 OnDiskGraphDB::IndexProxy OnDiskGraphDB::getIndexProxyFromPointer(
-    OnDiskTrieRawHashMap::const_pointer P) const {
+    OnDiskTrieRawHashMap::ConstOnDiskPtr P) const {
   assert(P);
   assert(P.getOffset());
   return IndexProxy{P.getOffset(), P->Hash,
@@ -1131,7 +1154,7 @@ OnDiskGraphDB::getExistingReference(ArrayRef<uint8_t> Digest) {
     return getExternalReference(*I);
   };
 
-  OnDiskTrieRawHashMap::const_pointer P = Index.find(Digest);
+  OnDiskTrieRawHashMap::ConstOnDiskPtr P = Index.find(Digest);
   if (!P)
     return tryUpstream(std::nullopt);
   IndexProxy I = getIndexProxyFromPointer(P);
@@ -1289,8 +1312,8 @@ OnDiskContent OnDiskGraphDB::getContentFromHandle(ObjectHandle OH) const {
   if (Handle.SDIM)
     return Handle.SDIM->getContent();
 
-  auto DataHandle =
-      DataRecordHandle::get(DataPool.beginData(Handle.getAsFileOffset()));
+  auto DataHandle = cantFail(
+      DataRecordHandle::getFromDataPool(DataPool, Handle.getAsFileOffset()));
   assert(DataHandle.getData().end()[0] == 0 && "Null termination");
   return OnDiskContent{DataHandle, std::nullopt};
 }

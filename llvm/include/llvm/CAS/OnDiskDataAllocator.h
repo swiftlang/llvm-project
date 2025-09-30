@@ -33,7 +33,7 @@ public:
 
   /// An iterator-like return value for data insertion. Maybe it should be
   /// called \c iterator, but it has no increment.
-  class pointer {
+  class OnDiskPtr {
   public:
     FileOffset getOffset() const { return Offset; }
     explicit operator bool() const { return bool(getOffset()); }
@@ -46,21 +46,21 @@ public:
       return &Value;
     }
 
-    pointer() = default;
+    OnDiskPtr() = default;
 
   private:
     friend class OnDiskDataAllocator;
-    pointer(FileOffset Offset, ValueProxy Value)
+    OnDiskPtr(FileOffset Offset, ValueProxy Value)
         : Offset(Offset), Value(Value) {}
     FileOffset Offset;
     ValueProxy Value;
   };
 
   /// Look up the data stored at the given offset.
-  const char *beginData(FileOffset Offset) const;
+  Expected<ArrayRef<char>> get(FileOffset Offset, size_t Size) const;
 
   /// Allocate at least \p Size with 8-byte alignment.
-  Expected<pointer> allocate(size_t Size);
+  Expected<OnDiskPtr> allocate(size_t Size);
 
   /// \returns the buffer that was allocated at \p create time, with size
   /// \p UserHeaderSize.

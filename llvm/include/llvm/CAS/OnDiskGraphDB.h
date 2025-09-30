@@ -410,7 +410,7 @@ private:
   static InternalRef makeInternalRef(FileOffset IndexOffset);
 
   IndexProxy
-  getIndexProxyFromPointer(OnDiskTrieRawHashMap::const_pointer P) const;
+  getIndexProxyFromPointer(OnDiskTrieRawHashMap::ConstOnDiskPtr P) const;
 
   InternalRefArrayRef getInternalRefs(ObjectHandle Node) const;
 

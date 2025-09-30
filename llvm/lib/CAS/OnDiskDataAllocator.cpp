@@ -19,11 +19,6 @@ using namespace llvm;
 using namespace llvm::cas;
 using namespace llvm::cas::ondisk;
 
-OnDiskDataAllocator::OnDiskDataAllocator(OnDiskDataAllocator &&RHS) = default;
-OnDiskDataAllocator &
-OnDiskDataAllocator::operator=(OnDiskDataAllocator &&RHS) = default;
-OnDiskDataAllocator::~OnDiskDataAllocator() = default;
-
 #if LLVM_ENABLE_ONDISK_CAS
 
 //===----------------------------------------------------------------------===//
@@ -109,12 +104,16 @@ DataAllocatorHandle::create(MappedFileRegionArena &Alloc, StringRef Name,
   // Construct the header and the name.
   assert(Name.size() <= UINT16_MAX && "Expected smaller table name");
   auto *H = new (Alloc.getRegion().data() + *Offset)
-      Header{{TableHandle::TableKind::DataAllocator, (uint16_t)Name.size(),
-              (int32_t)(sizeof(Header) + UserHeaderSize)},
+      Header{{TableHandle::TableKind::DataAllocator,
+              static_cast<uint16_t>(Name.size()),
+              static_cast<int32_t>(sizeof(Header) + UserHeaderSize)},
              /*AllocatorOffset=*/{0},
              /*UserHeaderSize=*/UserHeaderSize};
-  memset(H + 1, 0, UserHeaderSize);
-  char *NameStorage = reinterpret_cast<char *>(H + 1) + UserHeaderSize;
+  // Memset UserHeader.
+  char *UserHeader = reinterpret_cast<char *>(H + 1);
+  memset(UserHeader, 0, UserHeaderSize);
+  // Write database file name (null-terminated).
+  char *NameStorage = UserHeader + UserHeaderSize;
   llvm::copy(Name, NameStorage);
   NameStorage[Name.size()] = 0;
   return DataAllocatorHandle(Alloc.getRegion(), *H);
@@ -168,21 +167,24 @@ Expected<OnDiskDataAllocator> OnDiskDataAllocator::create(
   return OnDiskDataAllocator(std::make_unique<ImplType>(std::move(Impl)));
 }
 
-Expected<OnDiskDataAllocator::pointer>
+Expected<OnDiskDataAllocator::OnDiskPtr>
 OnDiskDataAllocator::allocate(size_t Size) {
   auto Data = Impl->Store.allocate(Impl->File.getAlloc(), Size);
   if (LLVM_UNLIKELY(!Data))
     return Data.takeError();
 
-  return pointer(FileOffset(Data->data() - Impl->Store.getRegion().data()),
-                 *Data);
+  return OnDiskPtr(FileOffset(Data->data() - Impl->Store.getRegion().data()),
+                   *Data);
 }
 
-const char *OnDiskDataAllocator::beginData(FileOffset Offset) const {
+Expected<ArrayRef<char>> OnDiskDataAllocator::get(FileOffset Offset,
+                                                  size_t Size) const {
   assert(Offset);
   assert(Impl);
-  assert(Offset.get() < Impl->File.getAlloc().size());
-  return Impl->File.getRegion().data() + Offset.get();
+  if (Offset.get() + Size >= Impl->File.getAlloc().size())
+    return createStringError(make_error_code(std::errc::protocol_error),
+                             "requested size too large in allocator");
+  return ArrayRef{Impl->File.getRegion().data() + Offset.get(), Size};
 }
 
 MutableArrayRef<uint8_t> OnDiskDataAllocator::getUserHeader() {
@@ -204,7 +206,6 @@ struct OnDiskDataAllocator::ImplType {};
 Expected<OnDiskDataAllocator> OnDiskDataAllocator::create(
     const Twine &Path, const Twine &TableName, uint64_t MaxFileSize,
     std::optional<uint64_t> NewFileInitialSize, uint32_t UserHeaderSize,
-    std::shared_ptr<OnDiskCASLogger> Logger,
     function_ref<void(void *)> UserHeaderInit) {
   return createStringError(make_error_code(std::errc::not_supported),
                            "OnDiskDataAllocator is not supported");
@@ -226,3 +227,8 @@ size_t OnDiskDataAllocator::size() const { return 0; }
 size_t OnDiskDataAllocator::capacity() const { return 0; }
 
 #endif // LLVM_ENABLE_ONDISK_CAS
+
+OnDiskDataAllocator::OnDiskDataAllocator(OnDiskDataAllocator &&RHS) = default;
+OnDiskDataAllocator &
+OnDiskDataAllocator::operator=(OnDiskDataAllocator &&RHS) = default;
+OnDiskDataAllocator::~OnDiskDataAllocator() = default;
