@@ -18,7 +18,7 @@ void count_ok(int *__counted_by(len - 2) buf, int len) {
 
 // CHECK-LABEL: @negative_count_trap(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void negative_count_trap(int *__counted_by(len - 2) buf, int len) {
@@ -30,7 +30,7 @@ void negative_count_trap(int *__counted_by(len - 2) buf, int len) {
 
 // CHECK-LABEL: @too_big_count_trap(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void too_big_count_trap(int *__counted_by(len - 2) buf, int len) {
@@ -42,7 +42,7 @@ void too_big_count_trap(int *__counted_by(len - 2) buf, int len) {
 
 // CHECK-LABEL: @overflow_unsigned_count_trap(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_unsigned_count_trap(int *__counted_by(len - 2) buf, size_t len) {
@@ -76,7 +76,7 @@ void local_count_ok_2(void) {
 
 // CHECK-LABEL: @local_count_trap(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void local_count_trap(void) {
@@ -89,7 +89,7 @@ void local_count_trap(void) {
 // CHECK-LABEL: @loob_local_count_trap(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR7:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR6:[0-9]+]]
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 40
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARR]], i64 -4
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[UPPER]], {{!annotation ![0-9]+}}
@@ -97,10 +97,10 @@ void local_count_trap(void) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP16_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label [[TRAP:%.*]], label [[CONT:%.*]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
-// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       cont:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR7]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR6]]
 // CHECK-NEXT:    ret void
 //
 void loob_local_count_trap(void) {
@@ -111,7 +111,7 @@ void loob_local_count_trap(void) {
 
 // CHECK-LABEL: @uoob_local_count_trap(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void uoob_local_count_trap(void) {
@@ -122,7 +122,7 @@ void uoob_local_count_trap(void) {
 
 // CHECK-LABEL: @too_big_local_count_trap(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void too_big_local_count_trap(void) {
@@ -136,7 +136,7 @@ void too_big_local_count_trap(void) {
 
 // CHECK-LABEL: @overflow_local_unsigned_count_trap(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_local_unsigned_count_trap(void) {
@@ -159,7 +159,7 @@ void overflow_unsigned_count_size_ok(void *__sized_by(count * size) buf, size_t 
 
 // CHECK-LABEL: @overflow_unsigned_count_size_trap2(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_unsigned_count_size_trap2(void *__sized_by(count * size) buf, size_t count, size_t size) {
@@ -174,10 +174,7 @@ void overflow_unsigned_count_size_trap2(void *__sized_by(count * size) buf, size
 
 // CHECK-LABEL: @overflow_unsigned_count_size_index_trap(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[MUL:%.*]] = mul i64 [[SIZE:%.*]], [[COUNT:%.*]]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i64 [[MUL]], -1
-// CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP]])
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_unsigned_count_size_index_trap(int *__counted_by(count * size) buf, size_t count, size_t size) {
