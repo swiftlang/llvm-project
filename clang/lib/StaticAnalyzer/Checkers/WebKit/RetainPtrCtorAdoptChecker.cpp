@@ -388,6 +388,10 @@ public:
       if (RTC.isUnretained(RetValue->getType()))
         return;
     }
+    if (retainsRet && *retainsRet) {
+      CreateOrCopyFnCall.insert(RetValue);
+      return;
+    }
     if (auto *CE = dyn_cast<CallExpr>(RetValue)) {
       auto *Callee = CE->getDirectCallee();
       if (!Callee || !isCreateOrCopyFunction(Callee))
