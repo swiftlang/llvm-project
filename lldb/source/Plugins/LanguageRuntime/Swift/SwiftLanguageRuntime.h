@@ -921,7 +921,17 @@ public:
   llvm::Expected<lldb::addr_t>
   GetTaskAddrFromThreadLocalStorage(Thread &thread);
 
+  /// Inspects thread local storage to find the address of the currently
+  /// executing task, if any.
+  llvm::SmallVector<llvm::Expected<lldb::addr_t>>
+  GetTaskAddrFromThreadLocalStorage(llvm::ArrayRef<Thread *> threads);
+
 private:
+  /// For each thread in `threads`, return the location of the its task
+  /// pointer, if it exists.
+  llvm::SmallVector<llvm::Expected<lldb::addr_t>>
+  GetTaskAddrLocations(llvm::ArrayRef<Thread *> threads);
+
   llvm::DenseMap<uint64_t, lldb::addr_t> m_tid_to_task_addr_location;
 };
 
