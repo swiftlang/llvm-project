@@ -729,27 +729,33 @@ bool Module::LookupInfo::NameMatchesLookupInfo(
   if (m_name == function_name)
     return true;
 
-  // If function_name is mangled, we'll need to demangle it.
-  // In the pathologial case where the function name "looks" mangled but is
-  // actually demangled (e.g. a method named _Zonk), this operation should be
-  // relatively inexpensive since no demangling is actually occuring. See
-  // Mangled::SetValue for more context.
-  const bool function_name_may_be_mangled =
-      Mangled::GetManglingScheme(function_name) != Mangled::eManglingSchemeNone;
-  ConstString demangled_function_name = function_name;
-  if (function_name_may_be_mangled) {
-    Mangled mangled_function_name(function_name);
-    demangled_function_name = mangled_function_name.GetDemangledName();
-  }
+  // If function_name or m_name is mangled, we'll need to demangle it and
+  // compare with its counterpart. In the pathological case where the function
+  // name "looks" mangled but is actually demangled (e.g. a method named _Zonk),
+  // this operation should be relatively inexpensive since no demangling is
+  // actually occuring. See Mangled::SetValue for more context.
+  auto match_maybe_mangled_name = [&](ConstString maybe_mangled_name, ConstString function_name) {
+    const bool function_name_may_be_mangled =
+        Mangled::GetManglingScheme(maybe_mangled_name) !=
+        Mangled::eManglingSchemeNone;
+    ConstString demangled_function_name = maybe_mangled_name;
+    if (function_name_may_be_mangled) {
+      Mangled mangled_function_name(maybe_mangled_name);
+      demangled_function_name = mangled_function_name.GetDemangledName();
+    }
 
-  // If the symbol has a language, then let the language make the match.
-  // Otherwise just check that the demangled function name contains the
-  // demangled user-provided name.
-  if (Language *language = Language::FindPlugin(language_type))
-    return language->DemangledNameContainsPath(m_name, demangled_function_name);
+    // If the symbol has a language, then let the language make the match.
+    // Otherwise just check that the demangled function name contains the
+    // demangled user-provided name.
+    if (Language *language = Language::FindPlugin(language_type))
+      return language->DemangledNameContainsPath(function_name,
+                                                 demangled_function_name);
+    llvm::StringRef function_name_ref = demangled_function_name;
+    return function_name_ref.contains(m_name);
+  };
 
-  llvm::StringRef function_name_ref = demangled_function_name;
-  return function_name_ref.contains(m_name);
+  return match_maybe_mangled_name(function_name, m_name) ||
+         match_maybe_mangled_name(m_name, function_name);
 }
 
 void Module::LookupInfo::Prune(SymbolContextList &sc_list,
