@@ -14,7 +14,6 @@
 #include "DWARFDeclContext.h"
 #include "DWARFUnit.h"
 #include "LogChannelDWARF.h"
-#include "Plugins/TypeSystem/Swift/TypeSystemSwiftTypeRef.h"
 #include "lldb/Symbol/Type.h"
 
 #include "llvm/ADT/iterator.h"
@@ -22,6 +21,10 @@
 #include "llvm/DebugInfo/DWARF/DWARFAddressRange.h"
 #include "llvm/DebugInfo/DWARF/DWARFTypePrinter.h"
 #include "llvm/Support/raw_ostream.h"
+
+#ifdef LLDB_ENABLE_SWIFT
+#include "Plugins/TypeSystem/Swift/TypeSystemSwiftTypeRef.h"
+#endif
 
 using namespace lldb_private;
 using namespace lldb_private::plugin::dwarf;
@@ -441,6 +444,7 @@ static void GetDeclContextImpl(DWARFDIE die, bool derive_template_names,
 
     // Add this DIE's contribution at the end of the chain.
     auto push_ctx = [&](CompilerContextKind kind, llvm::StringRef name) {
+#ifdef LLDB_ENABLE_SWIFT
       // BEGIN SWIFT
       //
       // FIXME: This layering violation works around a limitation in
@@ -458,6 +462,7 @@ static void GetDeclContextImpl(DWARFDIE die, bool derive_template_names,
           name = base_name;
       }
       // END SWIFT
+#endif
       context.push_back({kind, ConstString(name)});
     };
     switch (die.Tag()) {
