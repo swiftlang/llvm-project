@@ -9015,10 +9015,9 @@ inline bool Type::isSafePointerType() const {
 }
 
 inline bool Type::isImplicitSafePointerType() const {
-  if (auto AT = this->getAs<AttributedType>()) {
+  if (const auto *AT = this->getAs<AttributedType>()) {
     if (AT->getAttrKind() == attr::PtrAutoAttr) {
-      assert(isSafePointerType());
-      return true;
+      return isSafePointerType();
     }
     return AT->getEquivalentType()->isImplicitSafePointerType();
   }

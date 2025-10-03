@@ -158,7 +158,7 @@ public:
 
   static void fixCountAttributedTypeLocsInFunctionSignature(
       Sema &S, Sema::SemaDiagnosticBuilder &D, QualType QA, QualType QB,
-      FunctionDecl *ADecl, FunctionDecl *BDecl, bool ExprMismatch,
+      const FunctionDecl *ADecl, FunctionDecl *BDecl, bool ExprMismatch,
       bool KindMismatch);
 
 private:

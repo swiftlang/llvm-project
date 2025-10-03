@@ -6561,6 +6561,7 @@ public:
 
 class ConstructDynamicRangePointerType :
   public ConstructDynamicBoundType<ConstructDynamicRangePointerType> {
+  using BaseClass = ConstructDynamicBoundType<ConstructDynamicRangePointerType>;
   std::optional<TypeCoupledDeclRefInfo> StartPtrInfo;
 
 public:
@@ -6649,7 +6650,7 @@ public:
       ConstructedType = RetTy->getAs<BoundsAttributedType>();
       return RetTy;
     }
-    return VisitDynamicRangePointerType(T);
+    return BaseClass::VisitDynamicRangePointerType(T);
   }
 
   QualType DiagnoseConflictingType(const CountAttributedType *T) {

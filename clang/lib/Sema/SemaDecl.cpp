@@ -3743,9 +3743,9 @@ static void adjustDeclContextForDeclaratorDecl(DeclaratorDecl *NewD,
 
 /* TO_UPSTREAM(BoundsSafety) ON*/
 // FIXME: Rename to something more accurate
-struct TransposeDynamicBoundsExpr
-    : public TreeTransform<TransposeDynamicBoundsExpr> {
-  using BaseClass = TreeTransform<TransposeDynamicBoundsExpr>;
+struct CheckSameParameterNames
+    : public TreeTransform<CheckSameParameterNames> {
+  using BaseClass = TreeTransform<CheckSameParameterNames>;
 
   FunctionDecl *NewFD;
   bool Success = true;
@@ -3761,12 +3761,12 @@ struct TransposeDynamicBoundsExpr
     if (Invalid)
       return false;
 
-    TransposeDynamicBoundsExpr Checker(SemaRef, NewFD);
+    CheckSameParameterNames Checker(SemaRef, NewFD);
     Checker.TransformExpr(E);
     return Checker.Success;
   }
 
-  TransposeDynamicBoundsExpr(Sema &SemaRef, FunctionDecl *NewFD)
+  CheckSameParameterNames(Sema &SemaRef, FunctionDecl *NewFD)
       : BaseClass(SemaRef), NewFD(NewFD) {}
 
   ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
@@ -3788,12 +3788,11 @@ struct TransposeDynamicBoundsExpr
   }
 };
 
-struct TransposeDynamicBoundsExprForReal
-    : public TreeTransform<TransposeDynamicBoundsExprForReal> {
-  using BaseClass = TreeTransform<TransposeDynamicBoundsExprForReal>;
+struct TransposeDynamicBoundsExpr
+    : public TreeTransform<TransposeDynamicBoundsExpr> {
+  using BaseClass = TreeTransform<TransposeDynamicBoundsExpr>;
 
   FunctionDecl *NewFD;
-  bool Success = true;
 
   /// Rewrite the expr `E` in the context of `NewFD`.
   /// If `E` refers to any function parameters, the rewritten version will refer
@@ -3801,7 +3800,7 @@ struct TransposeDynamicBoundsExprForReal
   static bool Rewrite(Sema &SemaRef, FunctionDecl *NewFD, Expr *E,
                       std::string &Result) {
 
-    TransposeDynamicBoundsExprForReal Rewriter(SemaRef, NewFD);
+    TransposeDynamicBoundsExpr Rewriter(SemaRef, NewFD);
     ExprResult ExprRes = Rewriter.TransformExpr(E);
     if (ExprRes.isInvalid())
       return false;
@@ -3812,16 +3811,15 @@ struct TransposeDynamicBoundsExprForReal
     return true;
   }
 
-  TransposeDynamicBoundsExprForReal(Sema &SemaRef, FunctionDecl *NewFD)
+  TransposeDynamicBoundsExpr(Sema &SemaRef, FunctionDecl *NewFD)
       : BaseClass(SemaRef), NewFD(NewFD) {}
 
   ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
-    ASTContext &ctx = SemaRef.getASTContext();
-    assert(isa<ParmVarDecl>(E->getDecl()));
-    auto *OldParm = cast<ParmVarDecl>(E->getDecl());
+    const ASTContext &ctx = SemaRef.getASTContext();
+    const auto *OldParm = cast<ParmVarDecl>(E->getDecl());
     auto *NewParm = NewFD->getParamDecl(OldParm->getFunctionScopeIndex());
     if (!ctx.hasSameType(OldParm->getType(), NewParm->getType()))
-      return {};
+      return ExprError();
     return DeclRefExpr::Create(ctx, NestedNameSpecifierLoc(), SourceLocation(),
                                NewParm, false, SourceLocation(),
                                NewParm->getType(), E->getValueKind());
@@ -3893,7 +3891,7 @@ static void fixBoundsSafetyTypeLocs(Sema &S, Sema::SemaDiagnosticBuilder &D,
     KS << "__bidi_indexable";
   } else if (auto DCPTA = QA->getAs<CountAttributedType>()) {
     std::string Rewritten;
-    if (!TransposeDynamicBoundsExpr::Check(S, BDecl, DCPTA->getCountExpr(),
+    if (!CheckSameParameterNames::Check(S, BDecl, DCPTA->getCountExpr(),
                                              Rewritten))
       return;
     const char *Keyword =
@@ -3904,7 +3902,7 @@ static void fixBoundsSafetyTypeLocs(Sema &S, Sema::SemaDiagnosticBuilder &D,
     KS << '(' << Rewritten << ')';
   } else if (auto EndPointer = GetEndPointer(QA)) {
     std::string Rewritten;
-    if (!TransposeDynamicBoundsExpr::Check(S, BDecl, EndPointer, Rewritten))
+    if (!CheckSameParameterNames::Check(S, BDecl, EndPointer, Rewritten))
       return;
     KS << "__ended_by(" << Rewritten << ')';
   } else {
@@ -3931,10 +3929,10 @@ static void fixBoundsSafetyTypeLocs(Sema &S, Sema::SemaDiagnosticBuilder &D,
 /// to be called once for each direction.
 void BoundsSafetyFixItUtils::fixCountAttributedTypeLocsInFunctionSignature(
     Sema &S, Sema::SemaDiagnosticBuilder &D, QualType QA, QualType QB,
-    FunctionDecl *ADecl, FunctionDecl *BDecl, bool ExprMismatch,
+    const FunctionDecl *ADecl, FunctionDecl *BDecl, bool ExprMismatch,
     bool KindMismatch) {
-  auto *ATy = QA->getAs<CountAttributedType>();
-  auto *BTy = QB->getAs<CountAttributedType>();
+  const auto *ATy = QA->getAs<CountAttributedType>();
+  const auto *BTy = QB->getAs<CountAttributedType>();
   assert(ATy && BTy);
   if (!ATy || !BTy)
     return;
@@ -3944,7 +3942,7 @@ void BoundsSafetyFixItUtils::fixCountAttributedTypeLocsInFunctionSignature(
 
   if (ExprMismatch) {
     std::string Rewritten;
-    if (!TransposeDynamicBoundsExprForReal::Rewrite(
+    if (!TransposeDynamicBoundsExpr::Rewrite(
             S, BDecl, ATy->getCountExpr(), Rewritten))
       return; // don't emit a KindMismatch fix-it either if this fails
     D << FixItHint::CreateReplacement(BTy->getCountExpr()->getSourceRange(),
@@ -3979,8 +3977,8 @@ static void fixBoundsSafetyFunctionDecl(Sema &S, Sema::SemaDiagnosticBuilder &D,
   }
 }
 
-static bool diagnoseConflictingAllocSizeAttribute(FunctionDecl *New,
-                                                  FunctionDecl *Old,
+static bool diagnoseConflictingAllocSizeAttribute(const FunctionDecl *New,
+                                                  const FunctionDecl *Old,
                                                   Sema &Self) {
   // System headers that haven't adopted bounds safety are allowed to break
   // the rules for compatibility reasons, since errors there are hard to fix.
@@ -3991,8 +3989,8 @@ static bool diagnoseConflictingAllocSizeAttribute(FunctionDecl *New,
   // return types. Merging of attributes is done after type checking, but we
   // want to emit the root cause of the type error rather than an error for
   // mismatcing (implicit) return types.
-  if (auto OldASA = Old->getAttr<AllocSizeAttr>()) {
-    if (auto NewASA = New->getAttr<AllocSizeAttr>()) {
+  if (const auto *OldASA = Old->getAttr<AllocSizeAttr>()) {
+    if (const auto *NewASA = New->getAttr<AllocSizeAttr>()) {
       if (!OldASA->getElemSizeParam().equals(NewASA->getElemSizeParam()) ||
           !OldASA->getNumElemsParam().equals(NewASA->getNumElemsParam())) {
         Self.Diag(NewASA->getLoc(), diag::err_mismatched_alloc_size)

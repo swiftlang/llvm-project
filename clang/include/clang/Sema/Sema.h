@@ -1204,7 +1204,7 @@ public:
   bool findMacroSpelling(SourceLocation &loc, StringRef name);
 
   /// Calls \c Lexer::getLocForEndOfToken()
-  SourceLocation getLocForEndOfToken(SourceLocation Loc, unsigned Offset = 0) const;
+  SourceLocation getLocForEndOfToken(SourceLocation Loc, unsigned Offset = 0);
 
   /// Calls \c Lexer::findNextToken() to find the next token, and if the
   /// locations of both ends of the token can be resolved it return that
@@ -2825,7 +2825,7 @@ public:
   /// Emit fix-it updating BTy to have the same CountAttributedType kind as ATy.
   void fixCountAttributedTypeKind(Sema::SemaDiagnosticBuilder &D,
                                   const CountAttributedType *ATy,
-                                  const CountAttributedType *BTy) const;
+                                  const CountAttributedType *BTy);
 
   /// Used to record or retrieve if a VarDecl/FieldDecl has a BoundsSafety FixIt
   /// emitted on it. The primary use case for this is preventing emitting

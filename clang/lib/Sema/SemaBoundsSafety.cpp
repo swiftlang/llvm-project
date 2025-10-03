@@ -272,7 +272,7 @@ bool Sema::CheckCountedByAttrOnField(FieldDecl *FD, Expr *E, bool CountInBytes,
 
 /* TO_UPSTREAM(BoundsSafety) ON*/
 static SourceRange SourceRangeFor(const CountAttributedType *CATy,
-                                  const Sema &S, bool AttrNameOnly) {
+                                  Sema &S, bool AttrNameOnly) {
   // Note: This implementation relies on `CountAttributedType` being unique.
   // E.g.:
   //
@@ -833,7 +833,7 @@ bool Sema::BoundsSafetyCheckCountAttributedTypeHasConstantCountForAssignmentOp(
 
 void Sema::fixCountAttributedTypeKind(Sema::SemaDiagnosticBuilder &D,
                                       const CountAttributedType *ATy,
-                                      const CountAttributedType *BTy) const {
+                                      const CountAttributedType *BTy) {
   SourceRange SR = SourceRangeFor(BTy, *this, /*AttrNameOnly=*/true);
   if (SR.isInvalid()) {
     return;
