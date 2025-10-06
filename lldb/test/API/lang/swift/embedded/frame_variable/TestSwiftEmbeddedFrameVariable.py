@@ -3,15 +3,14 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
-@skipIf(bugnumber = "rdar://159531308")
 class TestSwiftEmbeddedFrameVariable(TestBase):
-    @skipUnlessDarwin
+    @skipIfWindows
     @swiftTest
     def test(self):
         self.build()
         self.implementation(True)
 
-    @skipUnlessDarwin
+    @skipIfWindows
     @swiftTest
     def test_without_ast(self):
         """Run the test turning off instantion of  Swift AST contexts in order to ensure that all type information comes from DWARF"""
