@@ -21,7 +21,6 @@ add_lldb_unittest(LLDBCoreTests
   RichManglingContextTest.cpp
   SourceLocationSpecTest.cpp
   SourceManagerTest.cpp
-  SwiftDemanglingPartsTest.cpp
   TelemetryTest.cpp
   UniqueCStringMapTest.cpp
   Value.cpp
