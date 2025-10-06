@@ -84,6 +84,8 @@ if (LLDB_ENABLE_PYTHON)
     "Path to python interpreter exectuable, relative to python's install prefix")
   set(cachestring_LLDB_PYTHON_EXT_SUFFIX
     "Filename extension for native code python modules")
+  set(cachestring_LLDB_PYTHON_DLL_RELATIVE_PATH
+    "Path where python.dll is installed, relative to LLDB's install prefix")
 
   foreach(var LLDB_PYTHON_RELATIVE_PATH LLDB_PYTHON_EXE_RELATIVE_PATH LLDB_PYTHON_EXT_SUFFIX)
     if(NOT DEFINED ${var} AND NOT CMAKE_CROSSCOMPILING)
