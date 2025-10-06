@@ -2677,7 +2677,8 @@ public:
                                             bool IsUnavailable = false,
                                             const ParsedAttr *PA = nullptr);
 
-  llvm::SmallPtrSet<clang::MacroInfo *, 2> SimpleFeatureAvailabiltyMacros;
+  /// A map that indicates whether a macro is simple.
+  llvm::SmallDenseMap<clang::MacroInfo *, bool> SimpleFeatureAvailabiltyMacros;
 
   /// Retrieve the current function, if any, that should be analyzed for
   /// potential availability violations.

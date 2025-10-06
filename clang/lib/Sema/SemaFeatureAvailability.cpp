@@ -304,12 +304,18 @@ void Sema::diagnoseDeprecatedAvailabilityDomain(StringRef DomainName,
       MacroDefinition MD = PP.getMacroDefinition(MacroII);
       MacroInfo *Info = MD.getMacroInfo();
 
+      bool IsSimple;
+      auto It = SimpleFeatureAvailabiltyMacros.find(Info);
 
-      if (!SimpleFeatureAvailabiltyMacros.count(Info)) {
-        if (!isSimpleFeatureAvailabiltyMacro(Info))
-          return FixItHint{};
-        SimpleFeatureAvailabiltyMacros.insert(Info);
+      if (It == SimpleFeatureAvailabiltyMacros.end()) {
+        IsSimple = isSimpleFeatureAvailabiltyMacro(Info);
+        SimpleFeatureAvailabiltyMacros[Info] = IsSimple;
+      } else {
+        IsSimple = It->second;
       }
+
+      if (!IsSimple)
+        return FixItHint{};
 
       FileID FID = SourceMgr.getFileID(AvailLoc);
       const SrcMgr::ExpansionInfo *EI =
