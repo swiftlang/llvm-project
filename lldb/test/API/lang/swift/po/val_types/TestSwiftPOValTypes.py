@@ -29,14 +29,10 @@ class TestSwiftPOValueTypes(TestBase):
         self.expect("po cm", substrs=['12', '24'], matching=False)
         self.expect("po cs", substrs=['CustomDebugStringConvertible'])
         self.expect("po cs", substrs=['CustomStringConvertible'], matching=False)
-        def pair(key, value):
-            # match 'key = value', 'key: value', etc
-            return rf"\b{key}\b[[:blank:][:punct:]]+\b{value}\b"
-
-        self.expect("po cs", patterns=[pair("a", 12), pair("b", 24)], matching=False)
+        self.expect("po cs", substrs=["abc", "12", "def", "24"], matching=False)
         self.expect(
             "script lldb.frame.FindVariable('cs').GetObjectDescription()",
-            patterns=[pair("a", 12), pair("b", 24)],
+            patterns=["abc", "12", "def", "24"],
             matching=False,
         )
         self.expect("po (12,24,36,48)", substrs=['12', '24', '36', '48'])
