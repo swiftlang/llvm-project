@@ -31,7 +31,7 @@ class TestSwiftPOValueTypes(TestBase):
         self.expect("po cs", substrs=['CustomStringConvertible'], matching=False)
         def pair(key, value):
             # match 'key = value', 'key: value', etc
-            rf"\b{key}\b[[:blank:][:punct:]]+\b{value}\b"
+            return rf"\b{key}\b[[:blank:][:punct:]]+\b{value}\b"
 
         self.expect("po cs", patterns=[pair("a", 12), pair("b", 24)], matching=False)
         self.expect(
