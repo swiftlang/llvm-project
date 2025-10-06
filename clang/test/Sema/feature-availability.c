@@ -122,6 +122,12 @@ MY_FEATURE_AVAILABLE5(deprecated_feature1, void deprecated_feature1_avail_func9(
 // expected-warning@-2 {{attribute has no effect because 'deprecated_feature1' is always available}}
 // CHECK-NOT: fix-it:
 
+FEATURE_AVAILABLE(deprecated_feature1)
+void deprecated_feature1_avail_func10(void);
+// expected-warning@-2 {{availability domain 'deprecated_feature1' is deprecated}}
+// expected-warning@-3 {{attribute has no effect because 'deprecated_feature1' is always available}}
+// CHECK: fix-it:"{{.*}}feature-availability.c":{[[@LINE-4]]:1-[[@LINE-4]]:39}:""
+
 __attribute__((visibility("hidden")))
 __attribute__((availability(domain:deprecated_feature1, UNAVAIL)))
 void deprecated_feature1_unavail_func1(void);

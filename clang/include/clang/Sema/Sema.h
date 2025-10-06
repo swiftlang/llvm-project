@@ -142,6 +142,7 @@ class InitializedEntity;
 enum class LangAS : unsigned int;
 class LocalInstantiationScope;
 class LookupResult;
+class MacroInfo;
 class MangleNumberingContext;
 typedef ArrayRef<IdentifierLoc> ModuleIdPath;
 class ModuleLoader;
@@ -2675,6 +2676,8 @@ public:
                                             SourceLocation DomainLoc,
                                             bool IsUnavailable = false,
                                             const ParsedAttr *PA = nullptr);
+
+  llvm::SmallPtrSet<clang::MacroInfo *, 2> SimpleFeatureAvailabiltyMacros;
 
   /// Retrieve the current function, if any, that should be analyzed for
   /// potential availability violations.
