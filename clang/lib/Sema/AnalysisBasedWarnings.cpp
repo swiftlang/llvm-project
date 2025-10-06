@@ -985,10 +985,9 @@ static void DiagUninitUse(Sema &S, const VarDecl *VD, const UninitUse &Use,
   case UninitUse::AfterDecl:
   case UninitUse::AfterCall:
     S.Diag(VD->getLocation(), diag::warn_sometimes_uninit_var)
-      << VD->getDeclName() << IsCapturedByBlock
-      << (Use.getKind() == UninitUse::AfterDecl ? 4 : 5)
-      << const_cast<DeclContext*>(VD->getLexicalDeclContext())
-      << VD->getSourceRange();
+        << VD->getDeclName() << IsCapturedByBlock
+        << (Use.getKind() == UninitUse::AfterDecl ? 4 : 5)
+        << VD->getLexicalDeclContext() << VD->getSourceRange();
     S.Diag(Use.getUser()->getBeginLoc(), diag::note_uninit_var_use)
         << IsCapturedByBlock << Use.getUser()->getSourceRange();
     return;
@@ -2590,6 +2589,15 @@ public:
     SourceLocation DiagLoc =
         Arg->isDefaultArgument() ? Call->getRParenLoc() : Arg->getBeginLoc();
     S.Diag(DiagLoc, diag::warn_unsafe_count_attributed_pointer_argument);
+
+    if (const auto *ArgCATy = Arg->getType()->getAs<CountAttributedType>();
+        ArgCATy && ArgCATy->isOrNull() && !CATy->isOrNull()) {
+      S.Diag(
+          DiagLoc,
+          diag::note_unsafe_count_attributed_pointer_argument_null_to_nonnull)
+          << ArgCATy->isCountInBytes() << CATy->isCountInBytes();
+    }
+
     S.Diag(PVD->getBeginLoc(),
            diag::note_unsafe_count_attributed_pointer_argument)
         << IsSimpleCount << QualType(CATy, 0) << !PtrParamName.empty()

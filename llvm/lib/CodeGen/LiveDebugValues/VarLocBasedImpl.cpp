@@ -2232,7 +2232,7 @@ bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF,
   TFI->getCalleeSaves(MF, CalleeSavedRegs);
   this->ShouldEmitDebugEntryValues = ShouldEmitDebugEntryValues;
 
-  LS.initialize(MF);
+  LS.scanFunction(MF);
 
   bool Changed = false;
   bool OLChanged = false;

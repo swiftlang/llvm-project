@@ -17785,8 +17785,9 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
           return MPTy;
         }
       }
-    } else if (!isa<FunctionDecl, NonTypeTemplateParmDecl, BindingDecl,
-                    MSGuidDecl, UnnamedGlobalConstantDecl>(dcl))
+    } else if (!isa<FunctionDecl, TemplateParamObjectDecl,
+                    NonTypeTemplateParmDecl, BindingDecl, MSGuidDecl,
+                    UnnamedGlobalConstantDecl>(dcl))
       llvm_unreachable("Unknown/unexpected decl type");
   }
 
@@ -18862,6 +18863,12 @@ ExprResult Sema::BuildBinOp(Scope *S, SourceLocation OpLoc,
     ExprResult resolvedRHS = CheckPlaceholderExpr(RHSExpr);
     if (!resolvedRHS.isUsable()) return ExprError();
     RHSExpr = resolvedRHS.get();
+  }
+
+  if (getLangOpts().HLSL && (LHSExpr->getType()->isHLSLResourceRecord() ||
+                             LHSExpr->getType()->isHLSLResourceRecordArray())) {
+    if (!HLSL().CheckResourceBinOp(Opc, LHSExpr, RHSExpr, OpLoc))
+      return ExprError();
   }
 
   if (getLangOpts().CPlusPlus) {
@@ -19986,12 +19993,11 @@ ExprResult Sema::BuildVAArgExpr(SourceLocation BuiltinLoc,
   Expr *OrigExpr = E;
   bool IsMS = false;
 
-  // CUDA device code does not support varargs.
+  // CUDA device global function does not support varargs.
   if (getLangOpts().CUDA && getLangOpts().CUDAIsDevice) {
     if (const FunctionDecl *F = dyn_cast<FunctionDecl>(CurContext)) {
       CUDAFunctionTarget T = CUDA().IdentifyTarget(F);
-      if (T == CUDAFunctionTarget::Global || T == CUDAFunctionTarget::Device ||
-          T == CUDAFunctionTarget::HostDevice)
+      if (T == CUDAFunctionTarget::Global)
         return ExprError(Diag(E->getBeginLoc(), diag::err_va_arg_in_device));
     }
   }
@@ -21026,21 +21032,38 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
     break;
   }
   case AssignConvertType::IncompatibleStringLiteralToValueTerminatedPointer:
-    DiagKind = diag::err_bounds_safety_incompatible_string_literal_to_terminated_by;
-    isInvalid = true;
+    if (isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)) {
+      DiagKind = diag::warn_unsafe_incompatible_string_literal_to_terminated_by;
+      isInvalid = false;
+    } else {
+      DiagKind =
+          diag::err_bounds_safety_incompatible_string_literal_to_terminated_by;
+      isInvalid = true;
+    }
     break;
   case AssignConvertType::IncompatibleValueTerminatedTerminators:
-    DiagKind = diag::err_bounds_safety_incompatible_terminated_by_terminators;
-    isInvalid = true;
+    if (isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)) {
+      DiagKind = diag::warn_unsafe_incompatible_terminated_by_terminators;
+      isInvalid = false;
+    } else {
+      DiagKind = diag::err_bounds_safety_incompatible_terminated_by_terminators;
+      isInvalid = true;
+    }
     break;
   case AssignConvertType::
       IncompatibleValueTerminatedToNonValueTerminatedPointer: {
     const auto *SrcPointerType = SrcType->getAs<ValueTerminatedType>();
     IsSrcNullTerm =
         SrcPointerType->getTerminatorValue(getASTContext()).isZero();
-    DiagKind =
-        diag::err_bounds_safety_incompatible_terminated_by_to_non_terminated_by;
-    isInvalid = true;
+    if (isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)) {
+      DiagKind =
+          diag::warn_unsafe_incompatible_terminated_by_to_non_terminated_by;
+      isInvalid = false;
+    } else {
+      DiagKind = diag::
+          err_bounds_safety_incompatible_terminated_by_to_non_terminated_by;
+      isInvalid = true;
+    }
     break;
   }
   case AssignConvertType::
@@ -21048,9 +21071,11 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
     const auto *DstPointerType = DstType->getAs<ValueTerminatedType>();
     IsDstNullTerm =
         DstPointerType->getTerminatorValue(getASTContext()).isZero();
-
-    if (getLangOpts().BoundsSafetyRelaxedSystemHeaders ||
-        isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)) {
+    if (isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)) {
+      DiagKind =
+          diag::warn_unsafe_incompatible_non_terminated_by_to_terminated_by;
+      isInvalid = false;
+    } else if (getLangOpts().BoundsSafetyRelaxedSystemHeaders) {
       DiagKind = diag::
           warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by;
       isInvalid = false;
@@ -21063,13 +21088,23 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
   }
   case AssignConvertType::
       IncompatibleNestedValueTerminatedToNonValueTerminatedPointer:
-    DiagKind = diag::
-        err_bounds_safety_incompatible_terminated_by_to_non_terminated_by_mismatch;
-    isInvalid = true;
+    if (isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)) {
+      DiagKind = diag::
+          warn_unsafe_incompatible_terminated_by_to_non_terminated_by_mismatch;
+      isInvalid = false;
+    } else {
+      DiagKind = diag::
+          err_bounds_safety_incompatible_terminated_by_to_non_terminated_by_mismatch;
+      isInvalid = true;
+    }
     break;
   case AssignConvertType::
       IncompatibleNestedNonValueTerminatedToValueTerminatedPointer:
-    if (getLangOpts().BoundsSafetyRelaxedSystemHeaders) {
+    if (isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)) {
+      DiagKind = diag::
+          warn_unsafe_incompatible_non_terminated_by_to_terminated_by_mismatch;
+      isInvalid = false;
+    } else if (getLangOpts().BoundsSafetyRelaxedSystemHeaders) {
       DiagKind = diag::
           warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by_mismatch;
       isInvalid = false;
@@ -21320,24 +21355,31 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
              diag::warn_bounds_safety_implicit_conv_single_to_explicit_indexable) {
     SrcDecl = DiagnoseBoundsSafetyImplicitConversionFromSingleToExplicitIndexable(
         DstType, SrcType, SrcExpr, ActionForDiag, FirstType, SecondType, FDiag);
-  } else if (
-      DiagKind ==
-      diag::err_bounds_safety_incompatible_terminated_by_to_non_terminated_by) {
+  } else if (ConvTy ==
+             AssignConvertType::
+                 IncompatibleValueTerminatedToNonValueTerminatedPointer) {
     FDiag << FirstType << SecondType << ActionForDiag
           << SrcExpr->getSourceRange()
           << (IsSrcNullTerm ? /*null_terminated*/ 1 : /*terminated_by*/ 0);
-  } else if (
-      DiagKind ==
-          diag::err_bounds_safety_incompatible_non_terminated_by_to_terminated_by ||
-      DiagKind ==
-          diag::
-              warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by) {
+  } else if (ConvTy ==
+             AssignConvertType::
+                 IncompatibleNonValueTerminatedToValueTerminatedPointer) {
     FDiag << FirstType << SecondType << ActionForDiag
           << SrcExpr->getSourceRange()
           << (!isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)
                   ? (IsDstNullTerm ? /*null_terminated*/ 1
                                    : /*terminated_by*/ 0)
                   : 2 /* cut message irrelevant to that mode*/);
+  } else if (
+      ConvTy ==
+          AssignConvertType::
+              IncompatibleNestedValueTerminatedToNonValueTerminatedPointer ||
+      ConvTy ==
+          AssignConvertType::
+              IncompatibleNestedNonValueTerminatedToValueTerminatedPointer) {
+    FDiag << FirstType << SecondType << ActionForDiag
+          << isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)
+          << SrcExpr->getSourceRange();
   } else {
     FDiag << FirstType << SecondType << ActionForDiag
           << SrcExpr->getSourceRange();
@@ -24241,7 +24283,9 @@ static void DoMarkVarDeclReferenced(
       isPotentiallyConstantEvaluatedContext(SemaRef) && UsableInConstantExpr;
 
   bool NeedDefinition =
-      OdrUse == OdrUseContext::Used || NeededForConstantEvaluation;
+      OdrUse == OdrUseContext::Used || NeededForConstantEvaluation ||
+      (TSK != clang::TSK_Undeclared && !UsableInConstantExpr &&
+       Var->getType()->isUndeducedType());
 
   assert(!isa<VarTemplatePartialSpecializationDecl>(Var) &&
          "Can't instantiate a partial template specialization.");

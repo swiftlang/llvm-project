@@ -41,7 +41,7 @@ public:
 
   ~OnDiskCASLogger();
 
-  /// An offset into an \c OnDiskHashMappedTrie.
+  /// An offset into an \c OnDiskTrieRawHashMap.
   using TrieOffset = int64_t;
 
   void log_compare_exchange_strong(void *Region, TrieOffset Trie, size_t SlotI,

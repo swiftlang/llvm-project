@@ -49,7 +49,7 @@ bool Mangled::IsMangledName(llvm::StringRef name) {
   return Mangled::GetManglingScheme(name) != Mangled::eManglingSchemeNone;
 }
 
-Mangled::ManglingScheme Mangled::GetManglingScheme(llvm::StringRef const name) {
+Mangled::ManglingScheme Mangled::GetManglingScheme(llvm::StringRef name) {
   if (name.empty())
     return Mangled::eManglingSchemeNone;
 
@@ -168,21 +168,6 @@ GetSwiftDemangledStr(ConstString m_mangled, const SymbolContext *sc,
   }
   auto [demangled, info] = SwiftLanguageRuntime::TrackedDemangleSymbolAsString(
       mangled_name, demangle_mode, sc);
-  // TODO: The logic below should be in the NodePrinter.
-  info.PrefixRange.second =
-      std::min(info.BasenameRange.first, info.ArgumentsRange.first);
-  info.SuffixRange.first =
-      std::max(info.BasenameRange.second, info.ArgumentsRange.second);
-  info.SuffixRange.second = demangled.length();
-  if (info.hasBasename() && info.hasArguments()) {
-    if (info.hasTemplateArguments() && info.TemplateArgumentsRange.first > 0) {
-      info.NameQualifiersRange.second = std::min(
-          info.ArgumentsRange.first, info.TemplateArgumentsRange.first);
-    } else {
-      info.NameQualifiersRange.second = info.ArgumentsRange.first;
-    }
-    info.NameQualifiersRange.first = info.BasenameRange.second;
-  }
 
   // Don't cache the demangled name if the function isn't available yet.
   // Only cache eFullName demangled functions to keep the cache consistent.
@@ -524,9 +509,9 @@ lldb::LanguageType Mangled::GuessLanguage() const {
   Language::ForEach([this, &result](Language *l) {
     if (l->SymbolNameFitsToLanguage(*this)) {
       result = l->GetLanguageType();
-      return false;
+      return IterationAction::Stop;
     }
-    return true;
+    return IterationAction::Continue;
   });
   return result;
 }

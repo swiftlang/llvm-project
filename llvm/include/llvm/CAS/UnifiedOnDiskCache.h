@@ -11,6 +11,7 @@
 
 #include "llvm/CAS/BuiltinUnifiedCASDatabases.h"
 #include "llvm/CAS/OnDiskGraphDB.h"
+#include <atomic>
 
 namespace llvm::cas::ondisk {
 

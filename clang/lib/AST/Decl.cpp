@@ -3569,6 +3569,53 @@ void FunctionDecl::setIsTypeAwareOperatorNewOrDelete(bool IsTypeAware) {
   getASTContext().setIsTypeAwareOperatorNewOrDelete(this, IsTypeAware);
 }
 
+UsualDeleteParams FunctionDecl::getUsualDeleteParams() const {
+  UsualDeleteParams Params;
+
+  // This function should only be called for operator delete declarations.
+  assert(getDeclName().isAnyOperatorDelete());
+  if (!getDeclName().isAnyOperatorDelete())
+    return Params;
+
+  const FunctionProtoType *FPT = getType()->castAs<FunctionProtoType>();
+  auto AI = FPT->param_type_begin(), AE = FPT->param_type_end();
+
+  if (isTypeAwareOperatorNewOrDelete()) {
+    Params.TypeAwareDelete = TypeAwareAllocationMode::Yes;
+    assert(AI != AE);
+    ++AI;
+  }
+
+  // The first argument after the type-identity parameter (if any) is
+  // always a void* (or C* for a destroying operator delete for class
+  // type C).
+  ++AI;
+
+  // The next parameter may be a std::destroying_delete_t.
+  if (isDestroyingOperatorDelete()) {
+    assert(!isTypeAwareAllocation(Params.TypeAwareDelete));
+    Params.DestroyingDelete = true;
+    assert(AI != AE);
+    ++AI;
+  }
+
+  // Figure out what other parameters we should be implicitly passing.
+  if (AI != AE && (*AI)->isIntegerType()) {
+    Params.Size = true;
+    ++AI;
+  } else
+    assert(!isTypeAwareAllocation(Params.TypeAwareDelete));
+
+  if (AI != AE && (*AI)->isAlignValT()) {
+    Params.Alignment = AlignedAllocationMode::Yes;
+    ++AI;
+  } else
+    assert(!isTypeAwareAllocation(Params.TypeAwareDelete));
+
+  assert(AI == AE && "unexpected usual deallocation function parameter");
+  return Params;
+}
+
 LanguageLinkage FunctionDecl::getLanguageLinkage() const {
   return getDeclLanguageLinkage(*this);
 }
@@ -5193,6 +5240,10 @@ RecordDecl::field_iterator RecordDecl::field_begin() const {
   return field_iterator(decl_iterator(FirstDecl));
 }
 
+RecordDecl::field_iterator RecordDecl::noload_field_begin() const {
+  return field_iterator(decl_iterator(getDefinitionOrSelf()->FirstDecl));
+}
+
 /// completeDefinition - Notes that the definition of this type is now
 /// complete.
 void RecordDecl::completeDefinition() {
@@ -5498,6 +5549,27 @@ bool ValueDecl::isParameterPack() const {
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */
+bool ValueDecl::isDependentCount() const {
+  return hasAttr<DependerDeclsAttr>();
+}
+
+bool ValueDecl::isDependentCountWithoutDeref() const {
+  const auto *Att = getAttr<DependerDeclsAttr>();
+  return Att && !Att->getIsDeref();
+}
+
+bool ValueDecl::isDependentCountWithDeref() const {
+  const auto *Att = getAttr<DependerDeclsAttr>();
+  return Att && Att->getIsDeref();
+}
+
+bool ValueDecl::isDependentCountThatIsUsedInInoutPointer() const {
+  const auto *Att = getAttr<DependerDeclsAttr>();
+  return Att &&
+         std::any_of(Att->dependerLevels_begin(), Att->dependerLevels_end(),
+                     [](unsigned Level) { return Level > 0; });
+}
+
 bool ValueDecl::isDependentParamOfReturnType(
     const BoundsAttributedType **RetType,
     const TypeCoupledDeclRefInfo **Info) const {

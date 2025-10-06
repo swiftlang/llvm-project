@@ -2659,13 +2659,6 @@ public:
     return llvm::BasicBlock::Create(getLLVMContext(), name, parent, before);
   }
 
-  /* TO_UPSTREM(BoundsSafety) ON*/
-  llvm::BasicBlock *
-  createUnmergeableBasicBlock(const Twine &name = "",
-                              llvm::Function *parent = nullptr,
-                              llvm::BasicBlock *before = nullptr);
-  /* TO_UPSTREM(BoundsSafety) OFF*/
-
   /// getBasicBlockForLabel - Return the LLVM basicblock that the specified
   /// label maps to.
   JumpDest getJumpDestForLabel(const LabelDecl *S);
@@ -3956,6 +3949,7 @@ public:
   void EmitOMPUnrollDirective(const OMPUnrollDirective &S);
   void EmitOMPReverseDirective(const OMPReverseDirective &S);
   void EmitOMPInterchangeDirective(const OMPInterchangeDirective &S);
+  void EmitOMPFuseDirective(const OMPFuseDirective &S);
   void EmitOMPForDirective(const OMPForDirective &S);
   void EmitOMPForSimdDirective(const OMPForSimdDirective &S);
   void EmitOMPScopeDirective(const OMPScopeDirective &S);
@@ -4603,6 +4597,7 @@ public:
   LValue EmitBoundsSafetyPointerPromotionExprLValue(
                                         const BoundsSafetyPointerPromotionExpr *E);
   LValue EmitForgePtrExprLValue(const ForgePtrExpr *E);
+  LValue EmitTerminatedByToIndexableExprLValue(const TerminatedByToIndexableExpr *E);
   LValue EmitAssumptionExprLValue(const AssumptionExpr *E);
   /*TO_UPSTREAM(BoundsSafety) OFF*/
 

@@ -1158,9 +1158,6 @@ static const char *getImportFailureString(swift::serialization::Status status) {
   case swift::serialization::Status::RevisionIncompatible:
     return "The module file was built with library evolution enabled by a "
            "different version of the compiler.";
-  case swift::serialization::Status::NotInOSSA:
-    return "The module file was not compiled with -enable-ossa-modules when it "
-           "was required to do so.";
   case swift::serialization::Status::SDKMismatch:
     return "The module file was built with a different SDK version.";
   case swift::serialization::Status::ChannelIncompatible:
@@ -1347,7 +1344,7 @@ static bool DeserializeAllCompilerFlags(swift::CompilerInvocation &invocation,
       llvm::SmallVector<swift::serialization::SearchPath> searchPaths;
       swift::serialization::ExtendedValidationInfo extended_validation_info;
       info = swift::serialization::validateSerializedAST(
-          buf, invocation.getSILOptions().EnableOSSAModules,
+          buf,
           /*requiredSDK*/ StringRef(), &extended_validation_info,
           /*dependencies*/ nullptr, &searchPaths);
       bool invalid_ast = info.status != swift::serialization::Status::Valid;
@@ -3786,8 +3783,7 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
   m_ast_context_ap->addModuleInterfaceChecker(
     std::make_unique<swift::ModuleInterfaceCheckerImpl>(*m_ast_context_ap,
       moduleCachePath, prebuiltModuleCachePath,
-      swift::ModuleInterfaceLoaderOptions(),
-      swift::RequireOSSAModules_t(GetSILOptions())));
+      swift::ModuleInterfaceLoaderOptions()));
 
   // 2. Create and install the module interface loader.
   //
@@ -6141,7 +6137,6 @@ SwiftASTContext::GetTypeInfo(opaque_compiler_type_t type,
   case swift::TypeKind::SILMoveOnlyWrapped:
   case swift::TypeKind::SILToken:
   case swift::TypeKind::TypeVariable:
-  case swift::TypeKind::Unresolved:
   case swift::TypeKind::VariadicSequence:
     LOG_PRINTF(GetLog(LLDBLog::Types), "Unexpected type: %s",
                swift_can_type.getString().c_str());
@@ -6305,7 +6300,6 @@ lldb::TypeClass SwiftASTContext::GetTypeClass(opaque_compiler_type_t type) {
   case swift::TypeKind::SILPack:
   case swift::TypeKind::SILToken:
   case swift::TypeKind::PackArchetype:
-  case swift::TypeKind::Unresolved:
   case swift::TypeKind::VariadicSequence:
     assert(false && "Internal compiler type");
     break;
@@ -6658,7 +6652,7 @@ SwiftASTContext::GetBitSize(opaque_compiler_type_t type,
     // Check that the type has been bound successfully -- and if not,
     // log the event and bail out to avoid an infinite loop.
     swift::CanType swift_bound_type(GetCanonicalSwiftType(bound_type));
-    if (swift_bound_type && swift_bound_type->hasTypeParameter())
+    if (!swift_bound_type || swift_bound_type->hasTypeParameter())
       return llvm::createStringError("Cannot bind type: %s",
                                      bound_type.GetTypeName().AsCString(""));
 
@@ -6813,7 +6807,6 @@ lldb::Encoding SwiftASTContext::GetEncoding(opaque_compiler_type_t type,
   case swift::TypeKind::PackArchetype:
   case swift::TypeKind::TypeVariable:
   case swift::TypeKind::ErrorUnion:
-  case swift::TypeKind::Unresolved:
   case swift::TypeKind::VariadicSequence:
     break;
   case swift::TypeKind::BuiltinInteger:
@@ -6941,7 +6934,6 @@ SwiftASTContext::GetNumChildren(opaque_compiler_type_t type,
   case swift::TypeKind::SILPack:
   case swift::TypeKind::SILToken:
   case swift::TypeKind::TypeVariable:
-  case swift::TypeKind::Unresolved:
   case swift::TypeKind::VariadicSequence:
     break;
   case swift::TypeKind::UnmanagedStorage:
@@ -7070,7 +7062,6 @@ uint32_t SwiftASTContext::GetNumFields(opaque_compiler_type_t type,
   case swift::TypeKind::SILPack:
   case swift::TypeKind::SILToken:
   case swift::TypeKind::TypeVariable:
-  case swift::TypeKind::Unresolved:
   case swift::TypeKind::VariadicSequence:
     break;
   case swift::TypeKind::UnmanagedStorage:
@@ -7299,7 +7290,6 @@ CompilerType SwiftASTContext::GetFieldAtIndex(opaque_compiler_type_t type,
   case swift::TypeKind::SILPack:
   case swift::TypeKind::SILToken:
   case swift::TypeKind::TypeVariable:
-  case swift::TypeKind::Unresolved:
   case swift::TypeKind::VariadicSequence:
     break;
   case swift::TypeKind::UnmanagedStorage:
@@ -7518,7 +7508,6 @@ uint32_t SwiftASTContext::GetNumPointeeChildren(opaque_compiler_type_t type) {
   case swift::TypeKind::Tuple:
   case swift::TypeKind::TypeVariable:
   case swift::TypeKind::UnboundGeneric:
-  case swift::TypeKind::Unresolved:
   case swift::TypeKind::VariadicSequence:
     return 0;
   case swift::TypeKind::BuiltinInteger:
@@ -7671,7 +7660,6 @@ llvm::Expected<CompilerType> SwiftASTContext::GetChildCompilerTypeAtIndex(
   case swift::TypeKind::SILToken:
   case swift::TypeKind::TypeVariable:
   case swift::TypeKind::UnboundGeneric:
-  case swift::TypeKind::Unresolved:
   case swift::TypeKind::VariadicSequence:
     break;
 
@@ -8067,7 +8055,6 @@ size_t SwiftASTContext::GetIndexOfChildMemberWithName(
     case swift::TypeKind::SILToken:
     case swift::TypeKind::TypeVariable:
     case swift::TypeKind::UnboundGeneric:
-    case swift::TypeKind::Unresolved:
     case swift::TypeKind::VariadicSequence:
       break;
 
@@ -8460,7 +8447,6 @@ bool SwiftASTContext::DumpTypeValue(
   case swift::TypeKind::Tuple:
   case swift::TypeKind::TypeVariable:
   case swift::TypeKind::UnboundGeneric:
-  case swift::TypeKind::Unresolved:
   case swift::TypeKind::VariadicSequence:
     break;
 

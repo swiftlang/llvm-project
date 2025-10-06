@@ -9,7 +9,7 @@
 #ifndef LLVM_CAS_ONDISKKEYVALUEDB_H
 #define LLVM_CAS_ONDISKKEYVALUEDB_H
 
-#include "llvm/CAS/OnDiskHashMappedTrie.h"
+#include "llvm/CAS/OnDiskTrieRawHashMap.h"
 
 namespace llvm::cas::ondisk {
 
@@ -64,11 +64,11 @@ public:
   Error validate(CheckValueT CheckValue) const;
 
 private:
-  OnDiskKeyValueDB(size_t ValueSize, OnDiskHashMappedTrie Cache)
+  OnDiskKeyValueDB(size_t ValueSize, OnDiskTrieRawHashMap Cache)
       : ValueSize(ValueSize), Cache(std::move(Cache)) {}
 
   const size_t ValueSize;
-  OnDiskHashMappedTrie Cache;
+  OnDiskTrieRawHashMap Cache;
 };
 
 } // namespace llvm::cas::ondisk

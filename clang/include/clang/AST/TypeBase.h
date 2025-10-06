@@ -2651,6 +2651,10 @@ public:
   bool isAnyVaListType(ASTContext &) const;
   bool isDynamicRangePointerType() const;
   bool isBoundsAttributedType() const;
+  /// Whether this type is a count-attributed type that is depending on an
+  /// inout count. True for `__counted_by(*count)`, but false for
+  /// `__counted_by(len)`.
+  bool isCountAttributedTypeDependingOnInoutCount() const;
   bool isValueTerminatedType() const;
   bool isImplicitlyNullTerminatedType(const ASTContext &) const;
   /* TO_UPSTREAM(BoundsSafety) OFF */
@@ -3913,7 +3917,9 @@ protected:
 
   AdjustedType(TypeClass TC, QualType OriginalTy, QualType AdjustedTy,
                QualType CanonicalPtr)
-      : Type(TC, CanonicalPtr, OriginalTy->getDependence()),
+      : Type(TC, CanonicalPtr,
+             AdjustedTy->getDependence() |
+                 (OriginalTy->getDependence() & ~TypeDependence::Dependent)),
         OriginalTy(OriginalTy), AdjustedTy(AdjustedTy) {}
 
 public:
@@ -7118,15 +7124,21 @@ public:
     LLVM_PREFERRED_TYPE(bool)
     uint8_t RawBuffer : 1;
 
-    Attributes(llvm::dxil::ResourceClass ResourceClass, bool IsROV = false,
-               bool RawBuffer = false)
-        : ResourceClass(ResourceClass), IsROV(IsROV), RawBuffer(RawBuffer) {}
+    LLVM_PREFERRED_TYPE(bool)
+    uint8_t IsCounter : 1;
 
-    Attributes() : Attributes(llvm::dxil::ResourceClass::UAV, false, false) {}
+    Attributes(llvm::dxil::ResourceClass ResourceClass, bool IsROV = false,
+               bool RawBuffer = false, bool IsCounter = false)
+        : ResourceClass(ResourceClass), IsROV(IsROV), RawBuffer(RawBuffer),
+          IsCounter(IsCounter) {}
+
+    Attributes()
+        : Attributes(llvm::dxil::ResourceClass::UAV, false, false, false) {}
 
     friend bool operator==(const Attributes &LHS, const Attributes &RHS) {
-      return std::tie(LHS.ResourceClass, LHS.IsROV, LHS.RawBuffer) ==
-             std::tie(RHS.ResourceClass, RHS.IsROV, RHS.RawBuffer);
+      return std::tie(LHS.ResourceClass, LHS.IsROV, LHS.RawBuffer,
+                      LHS.IsCounter) == std::tie(RHS.ResourceClass, RHS.IsROV,
+                                                 RHS.RawBuffer, RHS.IsCounter);
     }
     friend bool operator!=(const Attributes &LHS, const Attributes &RHS) {
       return !(LHS == RHS);
@@ -7167,6 +7179,7 @@ public:
     ID.AddInteger(static_cast<uint32_t>(Attrs.ResourceClass));
     ID.AddBoolean(Attrs.IsROV);
     ID.AddBoolean(Attrs.RawBuffer);
+    ID.AddBoolean(Attrs.IsCounter);
   }
 
   static bool classof(const Type *T) {

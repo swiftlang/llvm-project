@@ -302,7 +302,6 @@ private:
   std::string ContextHash;
   std::optional<std::string> CASFileSystemRootID;
   std::optional<std::string> IncludeTreeID;
-  std::vector<std::string> OutputPaths;
   const llvm::DenseSet<ModuleID> &AlreadySeen;
 };
 

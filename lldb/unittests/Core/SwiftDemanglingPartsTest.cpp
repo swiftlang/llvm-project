@@ -1580,21 +1580,6 @@ TEST_P(SwiftDemanglingPartsTestFixture, SwiftDemanglingParts) {
   swift::Demangle::demangleSymbolAsString(std::string(mangled), printer);
   std::string demangled = printer.takeString();
   DemangledNameInfo nameInfo = printer.getInfo();
-  nameInfo.PrefixRange.second =
-      std::min(nameInfo.BasenameRange.first, nameInfo.ArgumentsRange.first);
-  nameInfo.SuffixRange.first =
-      std::max(nameInfo.BasenameRange.second, nameInfo.ArgumentsRange.second);
-  nameInfo.SuffixRange.second = demangled.length();
-  if (nameInfo.hasBasename() && nameInfo.hasArguments()) {
-    if (nameInfo.hasTemplateArguments() &&
-        nameInfo.TemplateArgumentsRange.first > 0) {
-      nameInfo.NameQualifiersRange.second = std::min(
-          nameInfo.ArgumentsRange.first, nameInfo.TemplateArgumentsRange.first);
-    } else {
-      nameInfo.NameQualifiersRange.second = info.ArgumentsRange.first;
-    }
-    nameInfo.NameQualifiersRange.first = info.BasenameRange.second;
-  }
 
   EXPECT_EQ(nameInfo.BasenameRange, info.BasenameRange);
   EXPECT_EQ(nameInfo.NameQualifiersRange, info.NameQualifiersRange);

@@ -13,6 +13,7 @@ add_llvm_component_library(LLVMCAS
   CASOutputBackend.cpp
   CASProvidingFileSystem.cpp
   CachingOnDiskFileSystem.cpp
+  DatabaseFile.cpp
   FileSystemCache.cpp
   HierarchicalTreeBuilder.cpp
   InMemoryCAS.cpp
@@ -21,8 +22,9 @@ add_llvm_component_library(LLVMCAS
   OnDiskCAS.cpp
   OnDiskCASLogger.cpp
   OnDiskCommon.cpp
+  OnDiskDataAllocator.cpp
   OnDiskGraphDB.cpp
-  OnDiskHashMappedTrie.cpp
+  OnDiskTrieRawHashMap.cpp
   OnDiskKeyValueDB.cpp
   PluginCAS.cpp
   TreeSchema.cpp
@@ -31,6 +33,9 @@ add_llvm_component_library(LLVMCAS
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/CAS
+
+  LINK_LIBS
+  ${LLVM_PTHREAD_LIB}
 
   LINK_COMPONENTS
   Support

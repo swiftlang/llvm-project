@@ -13,11 +13,9 @@
 Tests that we can break on a partial name of a Swift function
 Effectively tests our chopper of Swift demangled names
 """
-import lldb
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
-
 
 class SwiftPartialBreakTest(TestBase):
     @swiftTest

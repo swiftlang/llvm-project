@@ -29,6 +29,13 @@ public:
 
   lldb_private::DemangledNameInfo getInfo() { return info; }
 
+  void printRoot(NodePointer root) override {
+    NodePrinter::printRoot(root);
+    finalizePrefixRange();
+    finalizeSuffixRange();
+    finalizeNameQualifiersRange();
+  }
+
 private:
   lldb_private::DemangledNameInfo info;
   std::optional<unsigned> parametersDepth;
@@ -117,6 +124,30 @@ private:
     NodePrinter::printFunctionParameters(LabelList, ParameterType, depth,
                                          showTypes);
     endParameters(depth);
+  }
+
+  void finalizePrefixRange() {
+    info.PrefixRange.second =
+        std::min(info.BasenameRange.first, info.ArgumentsRange.first);
+  }
+
+  void finalizeSuffixRange() {
+    info.SuffixRange.first =
+        std::max(info.BasenameRange.second, info.ArgumentsRange.second);
+    info.SuffixRange.second = Printer.getStreamLength();
+  }
+
+  void finalizeNameQualifiersRange() {
+    if (!info.hasBasename() || !info.hasArguments())
+      return;
+
+    if (info.hasTemplateArguments() && info.TemplateArgumentsRange.first > 0) {
+      info.NameQualifiersRange.second = std::min(
+          info.ArgumentsRange.first, info.TemplateArgumentsRange.first);
+    } else {
+      info.NameQualifiersRange.second = info.ArgumentsRange.first;
+    }
+    info.NameQualifiersRange.first = info.BasenameRange.second;
   }
 };
 

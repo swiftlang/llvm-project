@@ -35,9 +35,8 @@ defm decomp_decl : CXX17Compat<"decomposition declarations are">;
 defm inline_variable : CXX17Compat<"inline variables are">;
 
 // C++20 compatibility with C++17 and earlier.
-defm decomp_decl_spec : CXX20Compat<
-  "decomposition declaration declared "
-  "%plural{1:'%1'|:with '%1' specifiers}0 is">;
+defm decomp_decl_spec
+    : CXX20Compat<"decomposition declaration declared '%0' is">;
 defm constexpr_local_var_no_init : CXX20Compat<
   "uninitialized variable in a constexpr %select{function|constructor}0 is">;
 defm constexpr_function_try_block : CXX20Compat<
@@ -593,9 +592,8 @@ def warn_modifying_shadowing_decl :
 // C++ decomposition declarations
 def err_decomp_decl_context : Error<
   "decomposition declaration not permitted in this context">;
-def err_decomp_decl_spec : Error<
-  "decomposition declaration cannot be declared "
-  "%plural{1:'%1'|:with '%1' specifiers}0">;
+def err_decomp_decl_spec
+    : Error<"decomposition declaration cannot be declared '%0'">;
 def err_decomp_decl_type : Error<
   "decomposition declaration cannot be declared with type %0; "
   "declared type must be 'auto' or reference to 'auto'">;
@@ -638,6 +636,9 @@ def err_decomp_decl_std_tuple_element_not_specialized : Error<
 def err_decomp_decl_std_tuple_size_not_constant : Error<
   "cannot decompose this type; 'std::tuple_size<%0>::value' "
   "is not a valid integral constant expression">;
+def err_decomp_decl_std_tuple_size_invalid
+    : Error<"cannot decompose this type; 'std::tuple_size<%0>::value' "
+            "is not a valid size: %1">;
 def note_in_binding_decl_init : Note<
   "in implicit initialization of binding declaration %0">;
 def err_arg_is_not_destructurable : Error<
@@ -1799,7 +1800,8 @@ def note_unsatisfied_trait
            "%Empty{empty}|"
            "%StandardLayout{standard-layout}|"
            "%Aggregate{aggregate}|"
-           "%Final{final}"
+           "%Final{final}|"
+           "%Abstract{abstract}"
            "}1">;
 
 def note_unsatisfied_trait_reason
@@ -1849,7 +1851,12 @@ def note_unsatisfied_trait_reason
            "%PrivateProtectedDirectDataMember{has a %select{private|protected}1 direct data member}|"
            "%PrivateProtectedDirectBase{has a %select{private|protected}1 direct base}|"
            "%NotClassOrUnion{is not a class or union type}|"
-           "%NotMarkedFinal{is not marked 'final'}"
+           "%NotMarkedFinal{is not marked 'final'}|"
+           "%PointerType{is a pointer type}|"
+           "%ArrayType{is an array type}|"
+           "%UnionType{is a union type}|"
+           "%NotStructOrClass{is not a struct or class type}|"
+           "%OverridesAllPureVirtual{overrides all pure virtual functions from base class %1}"
            "}0">;
 
 def warn_consteval_if_always_true : Warning<
@@ -4008,6 +4015,14 @@ def warn_sme_locally_streaming_has_vl_args_returns : Warning<
   "%select{returning|passing}0 a VL-dependent argument %select{from|to}0 a locally streaming function is undefined"
   " behaviour when the streaming and non-streaming vector lengths are different at runtime">,
   InGroup<AArch64SMEAttributes>, DefaultIgnore;
+def warn_sme_streaming_compatible_vl_mismatch : Warning<
+  "%select{returning|passing}0 a VL-dependent argument %select{from|to}0 a %select{non-streaming|streaming}1"
+  " function is undefined behaviour when the streaming-compatible caller is%select{| not}1 in streaming"
+  " mode, because the streaming vector length (%2 bit) and non-streaming vector length (%3 bit) differ">,
+  InGroup<AArch64SMEAttributes>, DefaultIgnore;
+def err_sme_streaming_transition_vl_mismatch : Error<
+  "%select{returning|passing}0 a VL-dependent argument %select{from|to}0 a function with a different"
+  " streaming-mode is undefined behaviour because the streaming vector length (%1 bit) and non-streaming vector length (%2 bit) differ">;
 def err_conflicting_attributes_arm_agnostic : Error<
   "__arm_agnostic(\"sme_za_state\") cannot share ZA state with its caller">;
 def err_conflicting_attributes_arm_state : Error<
@@ -4136,7 +4151,8 @@ def err_feature_invalid_for_decl : Error<
 def err_feature_merge_incompatible : Error<
   "cannot merge incompatible feature attribute to this decl">;
 def warn_new_feature_redeclaration : Warning<
-  "new domain availability attributes cannot be added to redeclarations">, DefaultError;
+  "new domain availability attributes cannot be added to redeclarations">,
+  InGroup<DiagGroup<"domain-availability-redeclaration">>, DefaultError;
 def err_feature_invalid_added : Error<
   "cannot add feature availability to this decl">;
 def note_feature_incompatible0 : Note<
@@ -5831,8 +5847,10 @@ def err_template_recursion_depth_exceeded : Error<
 def err_constraint_depends_on_self
     : Error<"satisfaction of constraint %0 depends on itself">,
       NoSFINAE;
-def note_template_recursion_depth : Note<
-  "use -ftemplate-depth=N to increase recursive template instantiation depth">;
+def note_template_recursion_depth
+    : Note<"use -ftemplate-depth=N to increase recursive template "
+           "instantiation depth">,
+      NoSFINAE;
 
 def err_template_instantiate_within_definition : Error<
   "%select{implicit|explicit}0 instantiation of template %1 within its"
@@ -10521,6 +10539,9 @@ def warn_format_conversion_argument_type_mismatch : Warning<
   "format specifies type %0 but the argument has "
   "%select{type|underlying type}2 %1">,
   InGroup<Format>;
+def err_format_conversion_argument_type_mismatch : Error<
+  "format specifies type %0 but the argument has "
+  "%select{type|underlying type}2 %1">;
 def warn_format_conversion_argument_type_mismatch_pedantic : Extension<
   warn_format_conversion_argument_type_mismatch.Summary>,
   InGroup<FormatPedantic>;
@@ -10570,6 +10591,8 @@ def warn_printf_asterisk_missing_arg : Warning<
 def warn_printf_asterisk_wrong_type : Warning<
   "field %select{width|precision}0 should have type %1, but argument has type %2">,
   InGroup<Format>;
+def err_printf_asterisk_wrong_type : Error<
+  "field %select{width|precision}0 should have type %1, but argument has type %2">;
 def warn_printf_nonsensical_optional_amount: Warning<
   "%select{field width|precision}0 used with '%1' conversion specifier, resulting in undefined behavior">,
   InGroup<Format>;
@@ -11785,6 +11808,10 @@ def err_omp_threadprivate_incomplete_type : Error<
   "threadprivate variable with incomplete type %0">;
 def err_omp_no_dsa_for_variable : Error<
   "variable %0 must have explicitly specified data sharing attributes">;
+def err_omp_groupprivate_incomplete_type : Error<
+  "groupprivate variable with incomplete type %0">;
+def err_omp_groupprivate_with_initializer : Error<
+  "variable %0 with initializer cannot appear in groupprivate directive">;
 def err_omp_defaultmap_no_attr_for_variable : Error<
   "variable %0 must have explicitly specified data sharing attributes, data mapping attributes, or in an is_device_ptr clause">;
 def note_omp_default_dsa_none : Note<
@@ -11814,6 +11841,18 @@ def note_omp_implicit_dsa : Note<
   "implicitly determined as %0">;
 def err_omp_loop_var_dsa : Error<
   "loop iteration variable in the associated loop of 'omp %1' directive may not be %0, predetermined as %2">;
+def err_omp_not_a_loop_sequence
+    : Error<"statement after '#pragma omp %0' must be a loop sequence "
+            "containing canonical loops or loop-generating constructs">;
+def err_omp_empty_loop_sequence
+    : Error<"loop sequence after '#pragma omp %0' must contain at least 1 "
+            "canonical loop or loop-generating construct">;
+def err_omp_invalid_looprange
+    : Error<"looprange clause selects loops from %1 to %2 but this exceeds the "
+            "number of loops (%3) in the loop sequence">;
+def warn_omp_redundant_fusion : Warning<"looprange clause selects a single "
+                                        "loop, resulting in redundant fusion">,
+                                InGroup<OpenMPClauses>;
 def err_omp_not_for : Error<
   "%select{statement after '#pragma omp %1' must be a for loop|"
   "expected %2 for loops after '#pragma omp %1'%select{|, but found only %4}3}0">;
@@ -13573,7 +13612,10 @@ def err_bounds_safety_ptrauth_on_indexable_pointer : Error<
 
 def err_bounds_safety_auto_dynamic_bound : Error<
   "passing %select{'__counted_by'|'__sized_by'|'__counted_by_or_null'|'__sized_by_or_null'|'__ended_by'|end}0 pointer "
-  "as __auto_type initializer is not yet supported">;
+  "as %select{'auto'|'decltype(auto)'|'__auto_type'}1 initializer is not yet supported">;
+def warn_bounds_safety_auto_dynamic_bound : Warning<
+  err_bounds_safety_auto_dynamic_bound.Summary>,
+  InGroup<DiagGroup<"bounds-safety-auto-bounds-attributed">>;
 
 def err_bounds_safety_unsupported_address_of_incomplete_array : Error<
   "cannot take address of incomplete __counted_by array">;
@@ -13619,6 +13661,9 @@ def err_bounds_safety_terminated_by_from_indexable_pointee_mismatch : Error<
 def err_bounds_safety_incompatible_string_literal_to_terminated_by : Error<
   "'__terminated_by' pointer converted from a string literal must be "
   "NUL-terminated">;
+def warn_unsafe_incompatible_string_literal_to_terminated_by : Warning<
+  err_bounds_safety_incompatible_string_literal_to_terminated_by.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 
 def note_fixit_null_terminated_to_indexable: Note<"consider using '%select{__null_terminated_to_indexable|__unsafe_null_terminated_to_indexable}0()' to perform this conversion. Note this conversion requires a linear scan of memory to find the null terminator and the resulting upper bound %select{excludes|includes}0 the null terminator">;
 def note_fixit_unsafe_null_terminated_from_indexable : Note<"consider using '__unsafe_null_terminated_from_indexable()' to perform this conversion. Note this performs a linear scan of memory to find the null terminator">;
@@ -13642,6 +13687,9 @@ def err_bounds_safety_incompatible_terminated_by_terminators : Error<
     "%diff{casting $ to incompatible type $|"
           "casting type to incompatible type}0,1|"
   "}2">;
+def warn_unsafe_incompatible_terminated_by_terminators : Warning<
+  err_bounds_safety_incompatible_terminated_by_terminators.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def err_bounds_safety_incompatible_terminated_by_to_non_terminated_by : Error<
   "%select{"
     "%diff{assigning to $ from incompatible type $|"
@@ -13660,6 +13708,9 @@ def err_bounds_safety_incompatible_terminated_by_to_non_terminated_by : Error<
           "casting type to incompatible type}0,1|"
   "}2 requires a linear search for the terminator; use "
   "'%select{__terminated_by_to_indexable|__null_terminated_to_indexable}3()' to perform this conversion explicitly">;
+def warn_unsafe_incompatible_terminated_by_to_non_terminated_by : Warning<
+  err_bounds_safety_incompatible_terminated_by_to_non_terminated_by.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by : Warning<
   "%select{"
     "%diff{assigning to $ from incompatible type $|"
@@ -13681,6 +13732,9 @@ def warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by : Warning
   "; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion|"
   "}3">, InGroup<BoundsSafetyStrictTerminatedByCast>, DefaultError;
 def err_bounds_safety_incompatible_non_terminated_by_to_terminated_by : Error<warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by.Summary>;
+def warn_unsafe_incompatible_non_terminated_by_to_terminated_by : Warning<
+  warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def err_bounds_safety_incompatible_terminated_by_to_non_terminated_by_mismatch : Error<
   "%select{"
     "%diff{assigning to $ from incompatible type $|"
@@ -13697,7 +13751,10 @@ def err_bounds_safety_incompatible_terminated_by_to_non_terminated_by_mismatch :
           "sending type to parameter of incompatible type}0,1|"
     "%diff{casting $ to incompatible type $|"
           "casting type to incompatible type}0,1|"
-  "}2 that discards '__terminated_by' attribute is not allowed">;
+  "}2 that discards '__terminated_by' attribute%select{ is not allowed|}3">;
+def warn_unsafe_incompatible_terminated_by_to_non_terminated_by_mismatch : Warning<
+  err_bounds_safety_incompatible_terminated_by_to_non_terminated_by_mismatch.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by_mismatch : Warning<
   "%select{"
     "%diff{assigning to $ from incompatible type $|"
@@ -13714,22 +13771,41 @@ def warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by_mismatch 
           "sending type to parameter of incompatible type}0,1|"
     "%diff{casting $ to incompatible type $|"
           "casting type to incompatible type}0,1|"
-  "}2 that adds '__terminated_by' attribute is not allowed">, InGroup<BoundsSafetyStrictTerminatedByCast>, DefaultError;
+  "}2 that adds '__terminated_by' attribute%select{ is not allowed|}3">,
+  InGroup<BoundsSafetyStrictTerminatedByCast>, DefaultError;
 def err_bounds_safety_incompatible_non_terminated_by_to_terminated_by_mismatch : Error<warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by_mismatch.Summary>;
+def warn_unsafe_incompatible_non_terminated_by_to_terminated_by_mismatch : Warning<
+  warn_bounds_safety_incompatible_non_terminated_by_to_terminated_by_mismatch.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 
 def err_bounds_safety_terminated_by_uninitialized : Error<
   "array '%0' with '__terminated_by' attribute must be initialized">;
+def warn_unsafe_terminated_by_uninitialized : Warning<
+  err_bounds_safety_terminated_by_uninitialized.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def err_bounds_safety_terminated_by_incomplete_array_empty_init : Error<
   "incomplete array '%0' with '__terminated_by' attribute must be initialized "
   "with at least one element">;
+def warn_unsafe_terminated_by_incomplete_array_empty_init : Warning<
+  err_bounds_safety_terminated_by_incomplete_array_empty_init.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def err_bounds_safety_terminated_by_terminator_in_array_must_be_const : Error<
   "terminator in array '%0' must be a compile-time constant">;
+def warn_unsafe_terminated_by_terminator_in_array_must_be_const : Warning<
+  err_bounds_safety_terminated_by_terminator_in_array_must_be_const.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def err_bounds_safety_terminated_by_wrong_initializer_kind : Error<
   "array '%0' with '__terminated_by' attribute must be initialized with a "
   "string literal or an initializer list">;
+def warn_unsafe_terminated_by_wrong_initializer_kind : Warning<
+  err_bounds_safety_terminated_by_wrong_initializer_kind.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def err_bounds_safety_terminated_by_terminator_mismatch : Error<
   "array '%0' with '__terminated_by' attribute is initialized with an "
   "incorrect terminator (expected: %quoted1; got %quoted2)">;
+def warn_unsafe_terminated_by_terminator_mismatch : Warning<
+  err_bounds_safety_terminated_by_terminator_mismatch.Summary>,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 
 def err_bounds_safety_irrecoverable_attr : Error<
   "bounds attribute '%select{__bidi_indexable|__indexable|__single|__unsafe_indexable}0' cannot be applied to attributed type %1 in this context%select{| due to the surrounding 'typeof' specifier}2">;
@@ -14129,6 +14205,8 @@ def note_hlsl_resource_range_here: Note<"overlapping resource range here">;
 
 def err_hlsl_incomplete_resource_array_in_function_param: Error<
   "incomplete resource array in a function parameter">;
+def err_hlsl_assign_to_global_resource: Error<
+  "assignment to global resource variable %0 is not allowed">;
 
 // Layout randomization diagnostics.
 def err_non_designated_init_used : Error<
@@ -14172,6 +14250,11 @@ def note_unsafe_count_attributed_pointer_argument : Note<
   "consider using %select{|a safe container and passing '.data()' to the "
   "parameter%select{| '%3'}2 and '.size()' to its dependent parameter '%4' or }0"
   "'std::span' and passing '.first(...).data()' to the parameter%select{| '%3'}2">;
+def note_unsafe_count_attributed_pointer_argument_null_to_nonnull : Note<
+  "passing '%select{__counted_by_or_null()|__sized_by_or_null()}0' to "
+  "'%select{__counted_by()|__sized_by()}1' while "
+  "'%select{__counted_by_or_null()|__sized_by_or_null()}0' can be null with an "
+  "arbirary %select{count|size}0">;
 def warn_unsafe_single_pointer_argument : Warning<
   "unsafe assignment to function parameter of __single pointer type">,
   InGroup<UnsafeBufferUsage>, DefaultIgnore;

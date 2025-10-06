@@ -2230,6 +2230,8 @@ LValue CodeGenFunction::EmitLValueHelper(const Expr *E,
     return EmitAssumptionExprLValue(cast<AssumptionExpr>(E));
   case Expr::ForgePtrExprClass:
     return EmitForgePtrExprLValue(cast<ForgePtrExpr>(E));
+  case Expr::TerminatedByToIndexableExprClass:
+    return EmitTerminatedByToIndexableExprLValue(cast<TerminatedByToIndexableExpr>(E));
   case Expr::BoundsSafetyPointerPromotionExprClass:
     return EmitBoundsSafetyPointerPromotionExprLValue(
         cast<BoundsSafetyPointerPromotionExpr>(E));
@@ -4710,7 +4712,6 @@ void CodeGenFunction::EmitTrapCheck(llvm::Value *Checked,
 
   /*TO_UPSTREAM(BoundsSafety) ON*/
   NoMerge |= CGM.getCodeGenOpts().TrapFuncReturns;
-  NoMerge |= CGM.getCodeGenOpts().UniqueTrapBlocks;
   /*TO_UPSTREAM(BoundsSafety) OFF*/
 
   if (TrapBB && !NoMerge) {
@@ -4739,11 +4740,7 @@ void CodeGenFunction::EmitTrapCheck(llvm::Value *Checked,
     /* TO_UPSTREAM(BoundsSafety) OFF*/
   } else {
     /*TO_UPSTREAM(BoundsSafety) ON*/
-    if (CGM.getCodeGenOpts().UniqueTrapBlocks &&
-        !CGM.getCodeGenOpts().TrapFuncReturns)
-      TrapBB = createUnmergeableBasicBlock("trap");
-    else
-      TrapBB = createBasicBlock("trap");
+    TrapBB = createBasicBlock("trap");
     auto *BrInst = Builder.CreateCondBr(Checked, Cont, TrapBB,
                          MDHelper.createLikelyBranchWeights());
 
@@ -4800,9 +4797,9 @@ void CodeGenFunction::EmitBoundsSafetyTrapCheck(llvm::Value *Checked,
   // We still need to pass `OptRemark` because not all emitted instructions
   // can be covered by BoundsSafetyOptRemarkScope. This is because EmitTrapCheck
   // caches basic blocks that contain instructions that need annotating.
-  EmitTrapCheck(Checked, SanitizerHandler::BoundsSafety, /*NoMerge=*/false,
-                /*TR=*/nullptr,
-                GetBoundsSafetyOptRemarkString(OptRemark),
+  EmitTrapCheck(Checked, SanitizerHandler::BoundsSafety,
+                /*NoMerge=*/CGM.getCodeGenOpts().BoundsSafetyUniqueTraps,
+                /*TR=*/nullptr, GetBoundsSafetyOptRemarkString(OptRemark),
                 GetBoundsSafetyTrapMessageSuffix(kind, TrapCtx));
 }
 
@@ -7189,14 +7186,8 @@ LValue CodeGenFunction::EmitMaterializeSequenceExprLValue(
                                            const MaterializeSequenceExpr *MSE) {
   if (MSE->isBinding()) {
     for (auto *OVE : MSE->opaquevalues()) {
-      if (CodeGenFunction::OpaqueValueMappingData::shouldBindAsLValue(OVE)) {
-        RValue PtrRV = EmitAnyExpr(OVE->getSourceExpr());
-        LValue LV = MakeAddrLValue(PtrRV.getAggregateAddress(), OVE->getType());
-        CodeGenFunction::OpaqueValueMappingData::bind(*this, OVE, LV);
-      } else {
-        CodeGenFunction::OpaqueValueMappingData::bind(
-            *this, OVE, OVE->getSourceExpr());
-      }
+      CodeGenFunction::OpaqueValueMappingData::bind(
+          *this, OVE, OVE->getSourceExpr());
     }
   }
 
@@ -7218,6 +7209,10 @@ LValue CodeGenFunction::EmitBoundsSafetyPointerPromotionExprLValue(
 LValue CodeGenFunction::EmitForgePtrExprLValue(const ForgePtrExpr *E) {
   if (!E->getType()->isPointerTypeWithBounds())
     return EmitUnsupportedLValue(E, "l-value expression");
+  return EmitAggExprToLValue(E);
+}
+
+LValue CodeGenFunction::EmitTerminatedByToIndexableExprLValue(const TerminatedByToIndexableExpr *E) {
   return EmitAggExprToLValue(E);
 }
 

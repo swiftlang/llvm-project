@@ -80,6 +80,7 @@ class TypeAliasTemplateDecl;
 class UnresolvedSetImpl;
 class VarTemplateDecl;
 enum class ImplicitParamKind;
+struct UsualDeleteParams;
 
 // Holds a constraint expression along with a pack expansion index, if
 // expanded.
@@ -732,6 +733,38 @@ public:
   bool isInitCapture() const;
 
   /* TO_UPSTREAM(BoundsSafety) ON */
+  /// Whether this decl is a dependent count. This returns true for dependent
+  /// counts with and without dereference:
+  ///   void foo(int *__counted_by(m) p, int m,
+  ///            int *__counted_by(*n) *q, int *n);
+  /// True for both `m` and `n`.
+  bool isDependentCount() const;
+
+  /// Whether this decl is a dependent count without a dereference:
+  ///   void foo(int *__counted_by(m) p, int m,
+  ///            int *__counted_by(*n) *q, int *n);
+  /// True for `m`, but false for `n`.
+  bool isDependentCountWithoutDeref() const;
+
+  /// Whether this decl is a dependent count with a dereference:
+  ///   void foo(int *__counted_by(m) p, int m,
+  ///            int *__counted_by(*n) *q, int *n);
+  /// False for `m`, but true for `n`.
+  bool isDependentCountWithDeref() const;
+
+  /// Whether this decl is a dependent count that is used at least once in a
+  /// count expression of an inout count-attributed pointer.
+  ///   void foo(int *__counted_by(a) p, int a,
+  ///            int *__counted_by(*b) q, int *b,
+  ///            int *__counted_by(c) *r, int c,
+  ///            int *__counted_by(*d) *s, int *d);
+  /// True for `c` and `d`, but false for `a` and `b`.
+  ///   void bar(int *__counted_by(count) in_p,
+  ///            int *__counted_by(count) *out_p,
+  ///            int count);
+  /// True for `count` (because of `out_p`).
+  bool isDependentCountThatIsUsedInInoutPointer() const;
+
   /// Whether this decl is a dependent parameter referred to by the return type
   /// that is a bounds-attributed type.
   bool isDependentParamOfReturnType(
@@ -2654,6 +2687,8 @@ public:
   bool isTypeAwareOperatorNewOrDelete() const;
   void setIsTypeAwareOperatorNewOrDelete(bool IsTypeAwareOperator = true);
 
+  UsualDeleteParams getUsualDeleteParams() const;
+
   /// Compute the language linkage.
   LanguageLinkage getLanguageLinkage() const;
 
@@ -4530,6 +4565,23 @@ public:
   // Whether there are any fields (non-static data members) in this record.
   bool field_empty() const {
     return field_begin() == field_end();
+  }
+
+  /// noload_fields - Iterate over the fields stored in this record
+  /// that are currently loaded; don't attempt to retrieve anything
+  /// from an external source.
+  field_range noload_fields() const {
+    return field_range(noload_field_begin(), noload_field_end());
+  }
+
+  field_iterator noload_field_begin() const;
+  field_iterator noload_field_end() const {
+    return field_iterator(decl_iterator());
+  }
+
+  // Whether there are any fields (non-static data members) in this record.
+  bool noload_field_empty() const {
+    return noload_field_begin() == noload_field_end();
   }
 
   /// Note that the definition of this type is now complete.

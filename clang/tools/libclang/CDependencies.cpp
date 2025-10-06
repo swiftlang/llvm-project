@@ -845,8 +845,10 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
                          &FileCacheName](llvm::raw_fd_ostream &OS,
                                          ArrayRef<std::string> Arguments) {
     OS << ReproExecutable;
-    for (int I = 0, E = Arguments.size(); I < E; ++I)
-      OS << ' ' << Arguments[I];
+    for (int I = 0, E = Arguments.size(); I < E; ++I) {
+      OS << ' ';
+      llvm::sys::printArg(OS, Arguments[I], /*Quote=*/true);
+    }
     OS << " -ivfsoverlay \"" << FileCacheName << "/vfs/vfs.yaml\"";
     OS << '\n';
   };
@@ -856,11 +858,14 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
   for (const Command &BuildCommand : TU.Commands)
     PrintArguments(ScriptOS, BuildCommand.Arguments);
 
+  auto RealFS = llvm::vfs::getRealFileSystem();
+  RealFS->setCurrentWorkingDirectory(*Opts.WorkingDirectory);
+
   SmallString<128> VFSCachePath = FileCachePath;
   llvm::sys::path::append(VFSCachePath, "vfs");
   std::string VFSCachePathStr = VFSCachePath.str().str();
   llvm::FileCollector FileCollector(VFSCachePathStr,
-                                    /*OverlayRoot=*/VFSCachePathStr);
+                                    /*OverlayRoot=*/VFSCachePathStr, RealFS);
   for (const auto &FileDep : TU.FileDeps) {
     FileCollector.addFile(FileDep);
   }

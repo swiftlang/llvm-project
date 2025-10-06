@@ -567,12 +567,11 @@ define void @annotate_intrinsics(ptr %var, ptr %ptr, i16 %int, ptr %annotation, 
 
 ; CHECK-LABEL:  llvm.func @trap_intrinsics
 define void @trap_intrinsics() {
-  ; CHECK: "llvm.intr.trap"() : () -> ()
+  ; CHECK: llvm.intr.trap
   call void @llvm.trap()
-  ; CHECK: "llvm.intr.debugtrap"() : () -> ()
+  ; CHECK: llvm.intr.debugtrap
   call void @llvm.debugtrap()
-  ; CHECK: "llvm.intr.ubsantrap"()
-  ; CHECK-SAME: failureKind = 1
+  ; CHECK: llvm.intr.ubsantrap <{failureKind = 1 : i8}>
   call void @llvm.ubsantrap(i8 1)
   ret void
 }
@@ -734,12 +733,12 @@ define void @assume(i1 %true) {
 }
 
 ; CHECK-LABEL: @assume_with_opbundles
-; CHECK-SAME:  %[[TRUE:[a-zA-Z0-9]+]]
 ; CHECK-SAME:  %[[PTR:[a-zA-Z0-9]+]]
-define void @assume_with_opbundles(i1 %true, ptr %p) {
+define void @assume_with_opbundles(ptr %p) {
+  ; CHECK: %[[TRUE:.+]] = llvm.mlir.constant(true) : i1
   ; CHECK: %[[ALIGN:.+]] = llvm.mlir.constant(8 : i32) : i32
   ; CHECK:  llvm.intr.assume %[[TRUE]] ["align"(%[[PTR]], %[[ALIGN]] : !llvm.ptr, i32)] : i1
-  call void @llvm.assume(i1 %true) ["align"(ptr %p, i32 8)]
+  call void @llvm.assume(i1 true) ["align"(ptr %p, i32 8)]
   ret void
 }
 

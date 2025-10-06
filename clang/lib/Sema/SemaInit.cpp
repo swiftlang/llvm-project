@@ -74,7 +74,13 @@ static void checkValueTerminatedInit(Sema &S, SourceLocation Loc,
     // pointers, __terminated_by() attributes are checked in
     // CheckValueTerminatedAssignmentConstraints.
     // TODO: We handle here only the basic case (rdar://103147634).
-    if (const auto *DRE = dyn_cast<DeclRefExpr>(Init))
+    const Expr *E = Init;
+    if (const auto *CE = dyn_cast<CXXConstructExpr>(E);
+        CE && CE->getConstructor()->isCopyOrMoveConstructor()) {
+      assert(CE->getNumArgs() == 1);
+      E = CE->getArg(0)->IgnoreParenImpCasts();
+    }
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(E))
       if (S.getASTContext().hasSameUnqualifiedType(DRE->getType(), T))
         return;
 
@@ -164,9 +170,12 @@ static void checkValueTerminatedInit(Sema &S, SourceLocation Loc,
     } else if (auto *ILE = dyn_cast<InitListExpr>(Init)) {
       unsigned NumInits = ILE->getNumInits();
       if (!Size && NumInits == 0) {
-        S.Diag(Loc,
-               diag::err_bounds_safety_terminated_by_incomplete_array_empty_init)
-            << Name.str();
+        unsigned DiagKind =
+            S.isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)
+                ? diag::warn_unsafe_terminated_by_incomplete_array_empty_init
+                : diag::
+                      err_bounds_safety_terminated_by_incomplete_array_empty_init;
+        S.Diag(Loc, DiagKind) << Name.str();
         return;
       }
       if (Size.isZero() || Size.ule(NumInits)) {
@@ -175,11 +184,14 @@ static void checkValueTerminatedInit(Sema &S, SourceLocation Loc,
         bool Ok = Init->EvaluateAsTerminatorValue(*ActualVal, S.Context,
                                                   Expr::SE_AllowSideEffects);
         if (!Ok) {
-          S.Diag(
-              Init->getBeginLoc(),
-              diag::
-                  err_bounds_safety_terminated_by_terminator_in_array_must_be_const)
-              << Name.str();
+          unsigned DiagKind =
+              S.isCXXSafeBuffersBoundsSafetyInteropEnabledAt(
+                  Init->getBeginLoc())
+                  ? diag::
+                        warn_unsafe_terminated_by_terminator_in_array_must_be_const
+                  : diag::
+                        err_bounds_safety_terminated_by_terminator_in_array_must_be_const;
+          S.Diag(Init->getBeginLoc(), DiagKind) << Name.str();
           return;
         }
         GotExpr = Init;
@@ -197,21 +209,31 @@ static void checkValueTerminatedInit(Sema &S, SourceLocation Loc,
       }
       Loc = SL->getBeginLoc();
     } else {
-      S.Diag(Init->getBeginLoc(),
-             diag::err_bounds_safety_terminated_by_wrong_initializer_kind)
-          << Name.str();
+      unsigned DiagKind =
+          S.isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Init->getBeginLoc())
+              ? diag::warn_unsafe_terminated_by_wrong_initializer_kind
+              : diag::err_bounds_safety_terminated_by_wrong_initializer_kind;
+      S.Diag(Init->getBeginLoc(), DiagKind) << Name.str();
       return;
     }
   }
 
   if (!ActualVal) {
-    S.Diag(Loc, diag::err_bounds_safety_terminated_by_uninitialized) << Name.str();
+    unsigned DiagKind =
+        S.isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)
+            ? diag::warn_unsafe_terminated_by_uninitialized
+            : diag::err_bounds_safety_terminated_by_uninitialized;
+    S.Diag(Loc, DiagKind) << Name.str();
     return;
   }
 
   if (*ActualVal != TermVal) {
+    unsigned DiagKind =
+        S.isCXXSafeBuffersBoundsSafetyInteropEnabledAt(Loc)
+            ? diag::warn_unsafe_terminated_by_terminator_mismatch
+            : diag::err_bounds_safety_terminated_by_terminator_mismatch;
     if (GotExpr) {
-      S.Diag(Loc, diag::err_bounds_safety_terminated_by_terminator_mismatch)
+      S.Diag(Loc, DiagKind)
           << Name.str() << VTT->getTerminatorExpr() << GotExpr;
     } else if (GotSL) {
       std::string Str;
@@ -237,12 +259,11 @@ static void checkValueTerminatedInit(Sema &S, SourceLocation Loc,
         break;
       }
       CharacterLiteral::print(GotSL->getCodeUnit(GotSLIndex), Kind, SS);
-      S.Diag(Loc, diag::err_bounds_safety_terminated_by_terminator_mismatch)
+      S.Diag(Loc, DiagKind)
           << Name.str() << VTT->getTerminatorExpr() << SS.str();
     } else {
-      S.Diag(Loc, diag::err_bounds_safety_terminated_by_terminator_mismatch)
-          << Name.str() << VTT->getTerminatorExpr()
-          << toString(*ActualVal, 10, TermVal.isSigned());
+      S.Diag(Loc, DiagKind) << Name.str() << VTT->getTerminatorExpr()
+                            << toString(*ActualVal, 10, TermVal.isSigned());
     }
   }
 }
@@ -7845,7 +7866,7 @@ PerformConstructorInitialization(Sema &S,
 
   // Only check access if all of that succeeded.
   S.CheckConstructorAccess(Loc, Constructor, Step.Function.FoundDecl, Entity);
-  if (S.DiagnoseUseOfDecl(Step.Function.FoundDecl, Loc))
+  if (S.DiagnoseUseOfOverloadedDecl(Constructor, Loc))
     return ExprError();
 
   if (const ArrayType *AT = S.Context.getAsArrayType(Entity.getType()))
@@ -8398,7 +8419,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
 
         S.CheckConstructorAccess(Kind.getLocation(), Constructor, FoundFn,
                                  Entity);
-        if (S.DiagnoseUseOfDecl(FoundFn, Kind.getLocation()))
+        if (S.DiagnoseUseOfOverloadedDecl(Constructor, Kind.getLocation()))
           return ExprError();
 
         CastKind = CK_ConstructorConversion;
@@ -8408,7 +8429,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
         CXXConversionDecl *Conversion = cast<CXXConversionDecl>(Fn);
         S.CheckMemberOperatorAccess(Kind.getLocation(), CurInit.get(), nullptr,
                                     FoundFn);
-        if (S.DiagnoseUseOfDecl(FoundFn, Kind.getLocation()))
+        if (S.DiagnoseUseOfOverloadedDecl(Conversion, Kind.getLocation()))
           return ExprError();
 
         CurInit = S.BuildCXXMemberCallExpr(CurInit.get(), FoundFn, Conversion,
@@ -8525,8 +8546,8 @@ ExprResult InitializationSequence::Perform(Sema &S,
       // InitializeTemporary entity for our target type.
       QualType Ty = Step->Type;
       bool IsTemporary = !S.Context.hasSameType(Entity.getType(), Ty);
-      InitializedEntity TempEntity = InitializedEntity::InitializeTemporary(Ty);
-      InitializedEntity InitEntity = IsTemporary ? TempEntity : Entity;
+      InitializedEntity InitEntity =
+          IsTemporary ? InitializedEntity::InitializeTemporary(Ty) : Entity;
       InitListChecker PerformInitList(S, InitEntity,
           InitList, Ty, /*VerifyOnly=*/false,
           /*TreatUnavailableAsInvalid=*/false);
@@ -8552,7 +8573,6 @@ ExprResult InitializationSequence::Perform(Sema &S,
 
       InitListExpr *StructuredInitList =
           PerformInitList.getFullyStructuredList();
-      CurInit.get();
       CurInit = shouldBindAsTemporary(InitEntity)
           ? S.MaybeBindToTemporary(StructuredInitList)
           : StructuredInitList;
