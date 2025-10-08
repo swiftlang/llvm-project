@@ -14,7 +14,7 @@
 #include "llvm/CAS/ActionCache.h"
 #include "CASTestConfig.h"
 #include "llvm/CAS/ObjectStore.h"
-#include "llvm/Support/FileSystem.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
@@ -74,8 +74,7 @@ TEST_P(CASTest, ActionCacheRewrite) {
   ASSERT_THAT_ERROR(Cache->put(*ID1, *ID1), Succeeded());
 }
 
-#if LLVM_ENABLE_ONDISK_CAS
-TEST(OnDiskActionCache, ActionCacheResultInvalid) {
+TEST_F(OnDiskCASTest, ActionCacheResultInvalid) {
   unittest::TempDir Temp("on-disk-cache", /*Unique=*/true);
   std::unique_ptr<ObjectStore> CAS1 = createInMemoryCAS();
   std::unique_ptr<ObjectStore> CAS2 = createInMemoryCAS();
@@ -85,12 +84,7 @@ TEST(OnDiskActionCache, ActionCacheResultInvalid) {
   ASSERT_THAT_ERROR(CAS1->createProxy({}, "2").moveInto(ID2), Succeeded());
   ASSERT_THAT_ERROR(CAS2->createProxy({}, "1").moveInto(ID3), Succeeded());
 
-#if !defined(LLVM_ENABLE_ONDISK_CAS)
-  // The following won't work without LLVM_ENABLE_ONDISK_CAS enabled.
-  // TODO: enable LLVM_ENABLE_ONDISK_CAS on windows
-  return;
-#endif
-
+#if LLVM_ENABLE_ONDISK_CAS
   std::unique_ptr<ActionCache> Cache1 =
       cantFail(createOnDiskActionCache(Temp.path()));
   // Test put and get.
@@ -109,8 +103,8 @@ TEST(OnDiskActionCache, ActionCacheResultInvalid) {
   ASSERT_FALSE(CAS2->getReference(*Result2));
   // Write a different value will cause error.
   ASSERT_THAT_ERROR(Cache2->put(*ID3, *ID3), Failed());
-}
 #endif
+}
 
 TEST_P(CASTest, ActionCacheAsync) {
   std::shared_ptr<ObjectStore> CAS = createObjectStore();

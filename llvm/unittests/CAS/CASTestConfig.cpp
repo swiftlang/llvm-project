@@ -1,4 +1,4 @@
-//===- CASTestConfig.cpp --------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,8 +9,10 @@
 #include "CASTestConfig.h"
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/RemoteCachingService/RemoteCachingService.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 #include <mutex>
 

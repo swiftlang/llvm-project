@@ -1,4 +1,4 @@
-//===- llvm/unittest/CAS/PluginCASTest.cpp --------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,8 +13,6 @@
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
-
-#if LLVM_ENABLE_ONDISK_CAS
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -104,5 +102,3 @@ TEST(PluginCASTest, isMaterialized) {
     EXPECT_TRUE(IsMaterialized);
   }
 }
-
-#endif // LLVM_ENABLE_ONDISK_CAS

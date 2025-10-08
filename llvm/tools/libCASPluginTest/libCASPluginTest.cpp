@@ -591,7 +591,7 @@ bool llcas_cas_store_object(llcas_cas_t c_cas, llcas_data_t c_data,
 llcas_data_t llcas_loaded_object_get_data(llcas_cas_t c_cas,
                                           llcas_loaded_object_t c_obj) {
   auto &CAS = unwrap(c_cas)->DB->getGraphDB();
-  ondisk::ObjectHandle Obj = ondisk::ObjectHandle::fromOpaqueData(c_obj.opaque);
+  ondisk::ObjectHandle Obj = ondisk::ObjectHandle(c_obj.opaque);
   auto Data = CAS.getObjectData(Obj);
   return llcas_data_t{Data.data(), Data.size()};
 }
@@ -599,7 +599,7 @@ llcas_data_t llcas_loaded_object_get_data(llcas_cas_t c_cas,
 llcas_object_refs_t llcas_loaded_object_get_refs(llcas_cas_t c_cas,
                                                  llcas_loaded_object_t c_obj) {
   auto &CAS = unwrap(c_cas)->DB->getGraphDB();
-  ondisk::ObjectHandle Obj = ondisk::ObjectHandle::fromOpaqueData(c_obj.opaque);
+  ondisk::ObjectHandle Obj = ondisk::ObjectHandle(c_obj.opaque);
   auto Refs = CAS.getObjectRefs(Obj);
   return llcas_object_refs_t{Refs.begin().getOpaqueData(),
                              Refs.end().getOpaqueData()};

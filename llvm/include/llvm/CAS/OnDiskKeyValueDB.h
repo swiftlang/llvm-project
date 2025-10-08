@@ -1,8 +1,14 @@
-//===- OnDiskKeyValueDB.h ---------------------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+/// \file
+/// This declares OnDiskKeyValueDB, a key value storage database of fixed size
+/// key and value.
 //
 //===----------------------------------------------------------------------===//
 
@@ -35,9 +41,7 @@ public:
   Expected<std::optional<ArrayRef<char>>> get(ArrayRef<uint8_t> Key);
 
   /// \returns Total size of stored data.
-  size_t getStorageSize() const {
-    return Cache.size();
-  }
+  size_t getStorageSize() const { return Cache.size(); }
 
   /// \returns The precentage of space utilization of hard space limits.
   ///
@@ -60,7 +64,10 @@ public:
        StringRef ValueName, size_t ValueSize,
        std::shared_ptr<OnDiskCASLogger> Logger = nullptr);
 
-  using CheckValueT = function_ref<Error(FileOffset Offset, ArrayRef<char>)>;
+  using CheckValueT =
+      function_ref<Error(FileOffset Offset, ArrayRef<char> Data)>;
+  /// Validate the storage with a callback \p CheckValue to check the stored
+  /// value.
   Error validate(CheckValueT CheckValue) const;
 
 private:

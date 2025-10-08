@@ -7,13 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "OnDiskCommon.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Config/config.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Process.h"
-#include <limits>
 #include <mutex>
-#include <optional>
 #include <thread>
 
 #if __has_include(<sys/file.h>)
@@ -27,6 +24,10 @@
 
 #if __has_include(<fcntl.h>)
 #include <fcntl.h>
+#endif
+
+#if __has_include(<sys/mount.h>)
+#include <sys/mount.h> // statfs
 #endif
 
 using namespace llvm;
@@ -117,21 +118,22 @@ cas::ondisk::tryLockFileThreadSafe(int FD, std::chrono::milliseconds Timeout,
 #endif
 }
 
-Expected<size_t> cas::ondisk::preallocateFileTail(int FD, size_t CurrentSize, size_t NewSize) {
+Expected<size_t> cas::ondisk::preallocateFileTail(int FD, size_t CurrentSize,
+                                                  size_t NewSize) {
   auto CreateError = [&](std::error_code EC) -> Expected<size_t> {
     if (EC == std::errc::not_supported)
       // Ignore ENOTSUP in case the filesystem cannot preallocate.
       return NewSize;
 #if defined(HAVE_POSIX_FALLOCATE)
-    if (EC == std::errc::invalid_argument &&
-        CurrentSize < NewSize && // len > 0
+    if (EC == std::errc::invalid_argument && CurrentSize < NewSize && // len > 0
         NewSize < std::numeric_limits<off_t>::max()) // 0 <= offset, len < max
       // Prior to 2024, POSIX required EINVAL for cases that should be ENOTSUP,
       // so handle it the same as above if it is not one of the other ways to
       // get EINVAL.
       return NewSize;
 #endif
-    return createStringError(EC, "failed to allocate to CAS file: " + EC.message());
+    return createStringError(EC,
+                             "failed to allocate to CAS file: " + EC.message());
   };
 #if defined(HAVE_POSIX_FALLOCATE)
   // Note: posix_fallocate returns its error directly, not via errno.
@@ -156,6 +158,24 @@ Expected<size_t> cas::ondisk::preallocateFileTail(int FD, size_t CurrentSize, si
   assert(CurrentSize + FAlloc.fst_bytesalloc >= NewSize);
   return CurrentSize + FAlloc.fst_bytesalloc;
 #else
-  return NewSize; // Pretend it worked.
+  (void)CreateError; // Silence unused variable.
+  return NewSize;    // Pretend it worked.
 #endif
+}
+
+bool cas::ondisk::useSmallMappingSize(const Twine &P) {
+  // Add exceptions to use small database file here.
+#if defined(__APPLE__) && __has_include(<sys/mount.h>)
+  // macOS tmpfs does not support sparse tails.
+  SmallString<128> PathStorage;
+  StringRef Path = P.toNullTerminatedStringRef(PathStorage);
+  struct statfs StatFS;
+  if (statfs(Path.data(), &StatFS) != 0)
+    return false;
+
+  if (strcmp(StatFS.f_fstypename, "tmpfs") == 0)
+    return true;
+#endif
+  // Default to use regular database file.
+  return false;
 }

@@ -1,4 +1,13 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include "llvm/CAS/BuiltinUnifiedCASDatabases.h"
+#include "CASTestConfig.h"
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Testing/Support/Error.h"
@@ -8,9 +17,7 @@
 using namespace llvm;
 using namespace llvm::cas;
 
-#if LLVM_ENABLE_ONDISK_CAS
-TEST(BuiltinUnifiedCASDatabases,
-     MaterializationCheckPreventsGarbageCollection) {
+TEST_F(OnDiskCASTest, UnifiedCASMaterializationCheckPreventsGarbageCollection) {
   unittest::TempDir Temp("on-disk-unified-cas", /*Unique=*/true);
 
   auto WithCAS = [&](llvm::function_ref<void(ObjectStore &)> Action) {
@@ -58,4 +65,3 @@ TEST(BuiltinUnifiedCASDatabases,
     ASSERT_TRUE(IsMaterialized);
   });
 }
-#endif

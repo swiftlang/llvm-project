@@ -1,4 +1,4 @@
-//===- ObjectStoreTest.cpp ------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -348,7 +348,7 @@ TEST_P(CASTest, BlobsBigParallel) {
 
 #if LLVM_ENABLE_ONDISK_CAS
 #ifndef _WIN32 // create_link won't work for directories on Windows
-TEST(OnDiskCASTest, BlobsParallelMultiCAS) {
+TEST_F(OnDiskCASTest, OnDiskCASBlobsParallelMultiCAS) {
   // This test intentionally uses symlinked paths to the same CAS to subvert the
   // shared memory mappings that would normally be created within a single
   // process. This breaks the lock file guarantees, so we must be careful not
@@ -377,7 +377,8 @@ TEST(OnDiskCASTest, BlobsParallelMultiCAS) {
   uint64_t Size = 1ULL * 1024;
   ASSERT_NO_FATAL_FAILURE(testBlobsParallel(*CAS1, *CAS2, *CAS3, *CAS4, Size));
 }
-TEST(OnDiskCASTest, BlobsBigParallelMultiCAS) {
+
+TEST_F(OnDiskCASTest, OnDiskCASBlobsBigParallelMultiCAS) {
   // See comment in BlobsParallelMultiCAS.
   unittest::TempDir Temp("on-disk-cas", /*Unique=*/true);
   ASSERT_EQ(sys::fs::create_directory(Temp.path("real_cas")),
@@ -405,8 +406,7 @@ TEST(OnDiskCASTest, BlobsBigParallelMultiCAS) {
 }
 #endif // _WIN32
 
-TEST(OnDiskCASTest, DiskSize) {
-  setMaxOnDiskCASMappingSize();
+TEST_F(OnDiskCASTest, OnDiskCASDiskSize) {
   unittest::TempDir Temp("on-disk-cas", /*Unique=*/true);
   std::unique_ptr<ObjectStore> CAS;
   ASSERT_THAT_ERROR(createOnDiskCAS(Temp.path()).moveInto(CAS), Succeeded());
@@ -419,7 +419,8 @@ TEST(OnDiskCASTest, DiskSize) {
     std::error_code EC;
     for (sys::fs::directory_iterator I(Temp.path(), EC), E; I != E && !EC;
          I.increment(EC)) {
-      if (StringRef(I->path()).ends_with(".index")) {
+      StringRef Filename = sys::path::filename(I->path());
+      if (Filename.starts_with("index.") && !Filename.ends_with(".shared")) {
         FoundIndex = true;
         ASSERT_TRUE(I->status());
         if (Mapped)
@@ -427,7 +428,7 @@ TEST(OnDiskCASTest, DiskSize) {
         else
           EXPECT_LT(I->status()->getSize(), MaxSize);
       }
-      if (StringRef(I->path()).ends_with(".data")) {
+      if (Filename.starts_with("data.") && !Filename.ends_with(".shared")) {
         FoundData = true;
         ASSERT_TRUE(I->status());
         if (Mapped)

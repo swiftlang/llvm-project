@@ -187,7 +187,7 @@ Expected<ArrayRef<char>> OnDiskDataAllocator::get(FileOffset Offset,
   return ArrayRef<char>{Impl->File.getRegion().data() + Offset.get(), Size};
 }
 
-MutableArrayRef<uint8_t> OnDiskDataAllocator::getUserHeader() {
+MutableArrayRef<uint8_t> OnDiskDataAllocator::getUserHeader() const {
   return Impl->Store.getUserHeader();
 }
 
@@ -204,7 +204,7 @@ OnDiskDataAllocator::OnDiskDataAllocator(std::unique_ptr<ImplType> Impl)
 struct OnDiskDataAllocator::ImplType {};
 
 Expected<OnDiskDataAllocator> OnDiskDataAllocator::create(
-    const Twine &PathTwine, const Twine &TableNameTwine, uint64_t MaxFileSize,
+    const Twine &Path, const Twine &TableName, uint64_t MaxFileSize,
     std::optional<uint64_t> NewFileInitialSize, uint32_t UserHeaderSize,
     std::shared_ptr<ondisk::OnDiskCASLogger> Logger,
     function_ref<void(void *)> UserHeaderInit) {
@@ -224,7 +224,9 @@ Expected<ArrayRef<char>> OnDiskDataAllocator::get(FileOffset Offset,
                            "OnDiskDataAllocator is not supported");
 }
 
-MutableArrayRef<uint8_t> OnDiskDataAllocator::getUserHeader() { return {}; }
+MutableArrayRef<uint8_t> OnDiskDataAllocator::getUserHeader() const {
+  return {};
+}
 
 size_t OnDiskDataAllocator::size() const { return 0; }
 size_t OnDiskDataAllocator::capacity() const { return 0; }

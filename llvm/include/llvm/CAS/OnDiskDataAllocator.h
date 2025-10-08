@@ -31,8 +31,7 @@ class OnDiskDataAllocator {
 public:
   using ValueProxy = MutableArrayRef<char>;
 
-  /// An iterator-like return value for data insertion. Maybe it should be
-  /// called \c iterator, but it has no increment.
+  /// A pointer to data stored on disk.
   class OnDiskPtr {
   public:
     FileOffset getOffset() const { return Offset; }
@@ -56,7 +55,9 @@ public:
     ValueProxy Value;
   };
 
-  /// Look up the data stored at the given offset.
+  /// Get the data of \p Size stored at the given \p Offset. Note the allocator
+  /// doesn't keep track of the allocation size, thus \p Size doesn't need to
+  /// match the size of allocation but needs to be smaller.
   Expected<ArrayRef<char>> get(FileOffset Offset, size_t Size) const;
 
   /// Allocate at least \p Size with 8-byte alignment.
@@ -64,7 +65,7 @@ public:
 
   /// \returns the buffer that was allocated at \p create time, with size
   /// \p UserHeaderSize.
-  MutableArrayRef<uint8_t> getUserHeader();
+  MutableArrayRef<uint8_t> getUserHeader() const;
 
   size_t size() const;
   size_t capacity() const;

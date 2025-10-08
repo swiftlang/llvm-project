@@ -52,7 +52,7 @@ private:
   }
 
   ondisk::ObjectHandle convertHandle(ObjectHandle Node) const {
-    return ondisk::ObjectHandle::fromOpaqueData(Node.getInternalRef(*this));
+    return ondisk::ObjectHandle(Node.getInternalRef(*this));
   }
 
   ObjectRef convertRef(ondisk::ObjectID Ref) const {

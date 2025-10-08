@@ -11,7 +11,6 @@
 
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
-#include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
 #include <memory>
@@ -34,6 +33,16 @@ struct CASTestingEnv {
 
 void setMaxOnDiskCASMappingSize();
 
+// Test fixture for on-disk data base tests.
+class OnDiskCASTest : public ::testing::Test {
+protected:
+  void SetUp() override {
+    // Use a smaller database size for testing to conserve disk space.
+    setMaxOnDiskCASMappingSize();
+  }
+};
+
+// Parametered test fixture for ObjectStore and ActionCache tests.
 class CASTest
     : public testing::TestWithParam<std::function<CASTestingEnv(int)>> {
 protected:

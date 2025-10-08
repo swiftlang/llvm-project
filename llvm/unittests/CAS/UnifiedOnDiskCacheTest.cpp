@@ -1,4 +1,4 @@
-//===- llvm/unittest/CAS/UnifiedOnDiskCacheTest.cpp -----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,12 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/UnifiedOnDiskCache.h"
+#include "CASTestConfig.h"
 #include "OnDiskCommonUtils.h"
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
-
-#if LLVM_ENABLE_ONDISK_CAS
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -43,7 +42,7 @@ static Expected<size_t> countFileSizes(StringRef Path) {
   return TotalSize;
 }
 
-TEST(UnifiedOnDiskCacheTest, Basic) {
+TEST_F(OnDiskCASTest, UnifiedOnDiskCacheTest) {
   unittest::TempDir Temp("ondisk-unified", /*Unique=*/true);
   std::unique_ptr<UnifiedOnDiskCache> UniDB;
 
@@ -190,5 +189,3 @@ TEST(UnifiedOnDiskCacheTest, Basic) {
     EXPECT_FALSE(Val.has_value());
   }
 }
-
-#endif // LLVM_ENABLE_ONDISK_CAS
