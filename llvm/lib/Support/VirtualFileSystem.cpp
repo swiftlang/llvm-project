@@ -2551,6 +2551,11 @@ public:
   std::error_code close() override { return InnerFile->close(); }
 
   void setPath(const Twine &Path) override { S = S.copyWithNewName(S, Path); }
+
+  llvm::ErrorOr<std::optional<cas::ObjectRef>> getObjectRefForContent()
+      override {
+    return InnerFile->getObjectRefForContent();
+  }
 };
 
 } // namespace
