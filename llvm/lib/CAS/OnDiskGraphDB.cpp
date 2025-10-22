@@ -597,6 +597,14 @@ Error TempFile::keep(const Twine &Name) {
   Done = true;
   // Always try to close and rename.
   std::error_code RenameEC = sys::fs::rename(TmpName, Name);
+  if (RenameEC) {
+    // If the rename fails we assume we have not created all the required
+    // intermediate directories, so we'll try to do that now, and then
+    // retry the rename.
+    RenameEC = sys::fs::create_directories(sys::path::parent_path(Name.str()));
+    if (!RenameEC)
+      RenameEC = sys::fs::rename(TmpName, Name);
+  }
 
   if (Logger)
     Logger->log_TempFile_keep(TmpName, Name.str(), RenameEC);
@@ -955,19 +963,22 @@ Error OnDiskGraphDB::validate(bool Deep, HashingFuncT Hasher) const {
     case TrieRecord::StorageKind::Standalone:
     case TrieRecord::StorageKind::StandaloneLeaf:
     case TrieRecord::StorageKind::StandaloneLeaf0:
-      SmallString<256> Path;
-      getStandalonePath(TrieRecord::getStandaloneFilePrefix(D.SK), *I, Path);
+      SmallString<256> PersistentPath;
+      getStandalonePath(TrieRecord::getStandaloneFilePrefix(D.SK), *I,
+                        PersistentPath);
       // If need to validate the content of the file later, just load the
       // buffer here. Otherwise, just check the existance of the file.
       if (Deep) {
-        auto File = MemoryBuffer::getFile(Path, /*IsText=*/false,
+        auto File = MemoryBuffer::getFile(PersistentPath, /*IsText=*/false,
                                           /*RequiresNullTerminator=*/false);
         if (!File || !*File)
-          return formatError("record file \'" + Path + "\' does not exist");
+          return formatError("record file \'" + PersistentPath +
+                             "\' does not exist");
 
         FileBuffer = std::move(*File);
-      } else if (!llvm::sys::fs::exists(Path))
-        return formatError("record file \'" + Path + "\' does not exist");
+      } else if (!llvm::sys::fs::exists(PersistentPath))
+        return formatError("record file \'" + PersistentPath +
+                           "\' does not exist");
     }
 
     if (!Deep)
@@ -1247,12 +1258,13 @@ OnDiskGraphDB::load(ObjectID ExternalRef) {
   // Note: Creation logic guarantees that data that needs null-termination is
   // suitably 0-padded. Requiring null-termination here would be too expensive
   // for extremely large objects that happen to be page-aligned.
-  SmallString<256> Path;
-  getStandalonePath(TrieRecord::getStandaloneFilePrefix(Object.SK), *I, Path);
+  SmallString<256> PersistentPath;
+  getStandalonePath(TrieRecord::getStandaloneFilePrefix(Object.SK), *I,
+                    PersistentPath);
 
-  auto File = sys::fs::openNativeFileForRead(Path);
+  auto File = sys::fs::openNativeFileForRead(PersistentPath);
   if (!File)
-    return createFileError(Path, File.takeError());
+    return createFileError(PersistentPath, File.takeError());
 
   auto CloseFile = make_scope_exit([&]() { sys::fs::closeFile(*File); });
 
@@ -1313,10 +1325,59 @@ InternalRef OnDiskGraphDB::makeInternalRef(FileOffset IndexOffset) {
 }
 
 void OnDiskGraphDB::getStandalonePath(StringRef Prefix, const IndexProxy &I,
-                                      SmallVectorImpl<char> &Path) const {
-  Path.assign(RootPath.begin(), RootPath.end());
-  sys::path::append(Path,
-                    Prefix + Twine(I.Offset.get()) + "." + CASFormatVersion);
+                                      SmallVectorImpl<char> &PersistentPath,
+                                      SmallVectorImpl<char> *TempPath) const {
+  PersistentPath.assign(RootPath.begin(), RootPath.end());
+  if (TempPath)
+    TempPath->assign(RootPath.begin(), RootPath.end());
+
+  // 10 bits of entropy should be sufficient, we could go higher, but increasing
+  // this starts increasing the likelihood of collisions in filesystem hash
+  // structures. We could possibly go lower as well, but changing this would
+  // require a version bump, so 10 bits seems like a reasonable balance of
+  // number of fs entries vs path misses.
+  // If we find we need to increase the entropy, other implementations of
+  // directory fanning don't appear to use more than 16 bits of entropy in a
+  // single directory before starting to introduce additional fanning layers.
+  static const unsigned EntropyForShardingDir = 10;
+  static_assert(EntropyForShardingDir < 32,
+                "The logic below requires `EntropyForShardingDir` to be "
+                "less than 32 bits.");
+
+  // We're using hex, so we get 4 bits per character
+  // We intentionally use a different set of the bits in the hash from that used
+  // in the filenames to reduce correlation between the sharding directories and
+  // the filenames.
+  //
+  // We also jump through some hoops to emit each nibble in the order they're
+  // emitted in the hash strings dumped during tests. This makes the tests
+  // much more robust and complete.
+
+  static const unsigned CharactersForShardingDirName =
+      (EntropyForShardingDir + 3) / 4;
+  const unsigned FirstNibble = I.Hash.size() * 2 - CharactersForShardingDirName;
+  char DirNameCharacters[CharactersForShardingDirName];
+  for (unsigned CharIdx = 0; CharIdx < CharactersForShardingDirName;
+       ++CharIdx) {
+    const unsigned NibbleIdx = FirstNibble + CharIdx;
+    const unsigned SelectedByte = I.Hash[NibbleIdx / 2];
+    const unsigned SelectedNibble =
+        (SelectedByte >> (((NibbleIdx + 1) % 2) * 4)) % 16;
+    DirNameCharacters[CharIdx] = hexdigit(SelectedNibble, /*LowerCase=*/true);
+  }
+
+  StringRef ShardingDirName =
+      StringRef(DirNameCharacters, CharactersForShardingDirName);
+  sys::path::append(PersistentPath, ShardingDirName);
+
+  // Use a lambda here so that we can safely use a Twine repeatedly rather than
+  // performing an allocation, or duplicating the file name construction.
+  auto AppendFileName = [&](Twine FileName) {
+    sys::path::append(PersistentPath, FileName);
+    if (TempPath)
+      sys::path::append(*TempPath, FileName);
+  };
+  AppendFileName(Prefix + Twine(I.Offset.get()) + "." + CASFormatVersion);
 }
 
 OnDiskContent StandaloneDataInMemory::getContent() const {
@@ -1384,13 +1445,16 @@ Error OnDiskGraphDB::createStandaloneLeaf(IndexProxy &I, ArrayRef<char> Data) {
   TrieRecord::StorageKind SK = Leaf0 ? TrieRecord::StorageKind::StandaloneLeaf0
                                      : TrieRecord::StorageKind::StandaloneLeaf;
 
-  SmallString<256> Path;
+  SmallString<256> PersistentPath;
+  SmallString<256> TempPath;
   int64_t FileSize = Data.size() + Leaf0;
-  getStandalonePath(TrieRecord::getStandaloneFilePrefix(SK), I, Path);
+  getStandalonePath(TrieRecord::getStandaloneFilePrefix(SK), I, PersistentPath,
+                    &TempPath);
 
   // Write the file. Don't reuse this mapped_file_region, which is read/write.
   // Let load() pull up one that's read-only.
-  Expected<MappedTempFile> File = createTempFile(Path, FileSize, Logger.get());
+  Expected<MappedTempFile> File =
+      createTempFile(TempPath, FileSize, Logger.get());
   if (!File)
     return File.takeError();
   assert(File->size() == (uint64_t)FileSize);
@@ -1398,7 +1462,7 @@ Error OnDiskGraphDB::createStandaloneLeaf(IndexProxy &I, ArrayRef<char> Data) {
   if (Leaf0)
     File->data()[Data.size()] = 0;
   assert(File->data()[Data.size()] == 0);
-  if (Error E = File->keep(Path))
+  if (Error E = File->keep(PersistentPath))
     return E;
 
   // Store the object reference.
@@ -1449,14 +1513,15 @@ Error OnDiskGraphDB::store(ObjectID ID, ArrayRef<ObjectID> Refs,
   // Compute the storage kind, allocate it, and create the record.
   TrieRecord::StorageKind SK = TrieRecord::StorageKind::Unknown;
   FileOffset PoolOffset;
-  SmallString<256> Path;
+  SmallString<256> PersistentPath;
+  SmallString<256> TempPath;
   std::optional<MappedTempFile> File;
   std::optional<uint64_t> FileSize;
   auto AllocStandaloneFile = [&](size_t Size) -> Expected<char *> {
     getStandalonePath(TrieRecord::getStandaloneFilePrefix(
                           TrieRecord::StorageKind::Standalone),
-                      *I, Path);
-    if (Error E = createTempFile(Path, Size, Logger.get()).moveInto(File))
+                      *I, PersistentPath, &TempPath);
+    if (Error E = createTempFile(TempPath, Size, Logger.get()).moveInto(File))
       return std::move(E);
     assert(File->size() == Size);
     FileSize = Size;
@@ -1510,7 +1575,7 @@ Error OnDiskGraphDB::store(ObjectID ID, ArrayRef<ObjectID> Refs,
     if (File) {
       if (Existing.SK == TrieRecord::StorageKind::Unknown) {
         // Keep the file!
-        if (Error E = File->keep(Path))
+        if (Error E = File->keep(PersistentPath))
           return E;
       } else {
         File.reset();

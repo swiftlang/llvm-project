@@ -399,7 +399,8 @@ private:
 
   /// Get path for creating standalone data file.
   void getStandalonePath(StringRef FileSuffix, const IndexProxy &I,
-                         SmallVectorImpl<char> &Path) const;
+                         SmallVectorImpl<char> &PersistentPath,
+                         SmallVectorImpl<char> *TempPath = nullptr) const;
   /// Create a standalone leaf file.
   Error createStandaloneLeaf(IndexProxy &I, ArrayRef<char> Data);
 
