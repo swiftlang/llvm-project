@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -triple arm64-apple-iphoneos -O0 -fbounds-safety -emit-llvm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -triple  arm64-apple-iphoneos -O0 -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -emit-llvm %s -o - | FileCheck %s
 
@@ -14,5 +12,5 @@ struct s *__bidi_indexable g4 = __unsafe_forge_bidi_indexable(void *, 4, sizeof(
 
 // CHECK: @g1 = global ptr inttoptr (i64 1 to ptr), align 8
 // CHECK: @g2 = global ptr inttoptr (i64 2 to ptr), align 8
-// CHECK: @g3 = global %"__bounds_safety::wide_ptr.bidi_indexable" { ptr inttoptr (i64 3 to ptr), ptr inttoptr (i64 13 to ptr), ptr inttoptr (i64 3 to ptr) }, align 8
-// CHECK: @g4 = global %"__bounds_safety::wide_ptr.bidi_indexable{{.*}}" { ptr inttoptr (i64 4 to ptr), ptr inttoptr (i64 52 to ptr), ptr inttoptr (i64 4 to ptr) }, align 8
+// CHECK: @g3 = global %"__bounds_safety::wide_ptr.bidi_indexable" { ptr inttoptr (i64 3 to ptr), ptr inttoptr (i64 add (i64 ptrtoint (ptr inttoptr (i64 3 to ptr) to i64), i64 10) to ptr), ptr inttoptr (i64 3 to ptr) }, align 8
+// CHECK: @g4 = global %"__bounds_safety::wide_ptr.bidi_indexable{{.*}}" { ptr inttoptr (i64 4 to ptr), ptr inttoptr (i64 add (i64 ptrtoint (ptr inttoptr (i64 4 to ptr) to i64), i64 48) to ptr), ptr inttoptr (i64 4 to ptr) }, align 8

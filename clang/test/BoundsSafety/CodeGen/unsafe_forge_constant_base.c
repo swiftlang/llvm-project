@@ -8,7 +8,7 @@ void f1(void *__sized_by(size) ptr, unsigned size);
 
 //.
 // X86_64: @static_single.p_compile_time_constant_single = internal constant ptr inttoptr (i64 123400004321 to ptr), align 8
-// X86_64: @static_bidi.p_compile_time_constant_bidi = internal constant %"__bounds_safety::wide_ptr.bidi_indexable.1" { ptr inttoptr (i64 12300321 to ptr), ptr inttoptr (i64 12300333 to ptr), ptr inttoptr (i64 12300321 to ptr) }, align 8
+// X86_64: @static_bidi.p_compile_time_constant_bidi = internal constant %"__bounds_safety::wide_ptr.bidi_indexable.1" { ptr inttoptr (i64 12300321 to ptr), ptr inttoptr (i64 add (i64 ptrtoint (ptr inttoptr (i64 12300321 to ptr) to i64), i64 12) to ptr), ptr inttoptr (i64 12300321 to ptr) }, align 8
 //.
 // X86_64-LABEL: define dso_local void @f2(
 // X86_64-SAME: ) #[[ATTR0:[0-9]+]] {

@@ -52,13 +52,13 @@ int *__bidi_indexable ptrBidiIndexable2 = __unsafe_forge_single(int *, &arr[0]);
 int *__bidi_indexable ptrBidiIndexable3 = __unsafe_forge_single(int *, 0x1234);
 // CHECKBS-LABEL: ptrBidiIndexable3:
 // CHECKBS:   .quad   4660
-// CHECKBS:   .quad   4664
+// CHECKBS:   .quad   4660+4
 // CHECKBS:   .quad   4660
 
 int *__bidi_indexable ptrBidiIndexable4 = __unsafe_forge_bidi_indexable(int *, 8000, 16);
 // CHECKBS-LABEL: ptrBidiIndexable4:
 // CHECKBS:   .quad   8000
-// CHECKBS:   .quad   8016
+// CHECKBS:   .quad   8000+16
 // CHECKBS:   .quad   8000
 
 // (4 * 80) + 8 + 4 * 9 = 364
