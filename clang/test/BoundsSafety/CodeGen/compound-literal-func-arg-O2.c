@@ -8,11 +8,11 @@ void foo(char tag[3]);
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL:%.*]] = alloca [3 x i8], align 1
-// CHECK-NEXT:    store i8 65, ptr [[DOTCOMPOUNDLITERAL]], align 1, !tbaa [[TBAA2:![0-9]+]]
+// CHECK-NEXT:    store i8 65, ptr [[DOTCOMPOUNDLITERAL]], align 1, !tbaa [[TBAA6:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYINIT_ELEMENT:%.*]] = getelementptr inbounds nuw i8, ptr [[DOTCOMPOUNDLITERAL]], i64 1
-// CHECK-NEXT:    store i8 66, ptr [[ARRAYINIT_ELEMENT]], align 1, !tbaa [[TBAA2]]
+// CHECK-NEXT:    store i8 66, ptr [[ARRAYINIT_ELEMENT]], align 1, !tbaa [[TBAA6]]
 // CHECK-NEXT:    [[ARRAYINIT_ELEMENT1:%.*]] = getelementptr inbounds nuw i8, ptr [[DOTCOMPOUNDLITERAL]], i64 2
-// CHECK-NEXT:    store i8 67, ptr [[ARRAYINIT_ELEMENT1]], align 1, !tbaa [[TBAA2]]
+// CHECK-NEXT:    store i8 67, ptr [[ARRAYINIT_ELEMENT1]], align 1, !tbaa [[TBAA6]]
 // CHECK-NEXT:    call void @foo(ptr noundef nonnull [[DOTCOMPOUNDLITERAL]]) #[[ATTR2:[0-9]+]]
 // CHECK-NEXT:    ret void
 //
@@ -20,7 +20,7 @@ void bar(void) {
   foo((char[3]){'A', 'B', 'C'});
 }
 //.
-// CHECK: [[TBAA2]] = !{[[META3:![0-9]+]], [[META3]], i64 0}
-// CHECK: [[META3]] = !{!"omnipotent char", [[META4:![0-9]+]], i64 0}
-// CHECK: [[META4]] = !{!"Simple C/C++ TBAA"}
+// CHECK: [[META4:![0-9]+]] = !{!"omnipotent char", [[META5:![0-9]+]], i64 0}
+// CHECK: [[META5]] = !{!"Simple C/C++ TBAA"}
+// CHECK: [[TBAA6]] = !{[[META4]], [[META4]], i64 0}
 //.

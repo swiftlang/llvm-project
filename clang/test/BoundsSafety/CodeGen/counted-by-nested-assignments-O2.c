@@ -9,25 +9,25 @@
 // CHECK-SAME: ptr noundef writeonly captures(address) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[COUNT]] to i64
-// CHECK-NEXT:    [[ADD_PTR_IDX:%.*]] = shl nuw nsw i64 [[IDX_EXT]], 2, !annotation [[META2:![0-9]+]]
-// CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw i8, ptr [[X]], i64 [[ADD_PTR_IDX]], !annotation [[META2]]
+// CHECK-NEXT:    [[ADD_PTR_IDX:%.*]] = shl nuw nsw i64 [[IDX_EXT]], 2, !annotation [[META6:![0-9]+]]
+// CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw i8, ptr [[X]], i64 [[ADD_PTR_IDX]], !annotation [[META6]]
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[X]], i64 4
-// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[ADD_PTR]], !annotation [[META2]]
-// CHECK-NEXT:    [[CMP15_NOT:%.*]] = icmp ugt ptr [[X]], [[BOUND_PTR_ARITH]], !annotation [[META2]]
-// CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP15_NOT]], [[CMP_NOT]], !annotation [[META2]]
-// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META2]]
+// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[ADD_PTR]], !annotation [[META6]]
+// CHECK-NEXT:    [[CMP15_NOT:%.*]] = icmp ugt ptr [[X]], [[BOUND_PTR_ARITH]], !annotation [[META6]]
+// CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP15_NOT]], [[CMP_NOT]], !annotation [[META6]]
+// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
-// CHECK-NEXT:    [[SUB:%.*]] = add i32 [[COUNT]], -1, !annotation [[META3:![0-9]+]]
-// CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SUB]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[GEPDIFF:%.*]] = add nsw i64 [[ADD_PTR_IDX]], -4, !annotation [[META5:![0-9]+]]
-// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[GEPDIFF]], 2, !annotation [[META2]]
-// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp slt i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META2]]
-// CHECK-NEXT:    br i1 [[CMP26_NOT]], label %[[TRAP]], label %[[CONT:.*]], !prof [[PROF7:![0-9]+]], !annotation [[META2]]
+// CHECK-NEXT:    [[SUB:%.*]] = add i32 [[COUNT]], -1, !annotation [[META7:![0-9]+]]
+// CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SUB]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[GEPDIFF:%.*]] = add nsw i64 [[ADD_PTR_IDX]], -4, !annotation [[META9:![0-9]+]]
+// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[GEPDIFF]], 2, !annotation [[META6]]
+// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp slt i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META6]]
+// CHECK-NEXT:    br i1 [[CMP26_NOT]], label %[[TRAP]], label %[[CONT:.*]], !prof [[PROF11:![0-9]+]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], !annotation [[META2]]
-// CHECK-NEXT:    unreachable, !annotation [[META2]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], !annotation [[META6]]
+// CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    store i32 0, ptr [[X]], align 4, !tbaa [[TBAA8:![0-9]+]]
+// CHECK-NEXT:    store i32 0, ptr [[X]], align 4, !tbaa [[TBAA2:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
 // WITHOUT-LABEL: define dso_local void @foo(
@@ -50,27 +50,27 @@ void foo(int *__counted_by(count) x, unsigned count) {
 // CHECK-SAME: ptr noundef writeonly captures(address) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[COUNT]] to i64
-// CHECK-NEXT:    [[ADD_PTR_IDX:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META5]]
-// CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds i8, ptr [[X]], i64 [[ADD_PTR_IDX]], !annotation [[META2]]
+// CHECK-NEXT:    [[ADD_PTR_IDX:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META9]]
+// CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds i8, ptr [[X]], i64 [[ADD_PTR_IDX]], !annotation [[META6]]
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[X]], i64 4
-// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[ADD_PTR]], !annotation [[META2]]
-// CHECK-NEXT:    [[CMP15_NOT:%.*]] = icmp ugt ptr [[X]], [[BOUND_PTR_ARITH]], !annotation [[META2]]
-// CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP15_NOT]], [[CMP_NOT]], !annotation [[META2]]
-// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META2]]
+// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[ADD_PTR]], !annotation [[META6]]
+// CHECK-NEXT:    [[CMP15_NOT:%.*]] = icmp ugt ptr [[X]], [[BOUND_PTR_ARITH]], !annotation [[META6]]
+// CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP15_NOT]], [[CMP_NOT]], !annotation [[META6]]
+// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[SUB:%.*]] = add nsw i32 [[COUNT]], -1, !annotation [[META12:![0-9]+]]
-// CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[SUB]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[GEPDIFF:%.*]] = add nsw i64 [[ADD_PTR_IDX]], -4, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[GEPDIFF]], 2, !annotation [[META2]]
-// CHECK-NEXT:    [[CMP26:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META2]]
-// CHECK-NEXT:    [[CMP29:%.*]] = icmp sgt i32 [[COUNT]], 0, !annotation [[META2]]
+// CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[SUB]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[GEPDIFF:%.*]] = add nsw i64 [[ADD_PTR_IDX]], -4, !annotation [[META9]]
+// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[GEPDIFF]], 2, !annotation [[META6]]
+// CHECK-NEXT:    [[CMP26:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META6]]
+// CHECK-NEXT:    [[CMP29:%.*]] = icmp sgt i32 [[COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP29]], [[CMP26]]
-// CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], !prof [[PROF13:![0-9]+]], !annotation [[META2]]
+// CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], !prof [[PROF13:![0-9]+]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], !annotation [[META2]]
-// CHECK-NEXT:    unreachable, !annotation [[META2]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], !annotation [[META6]]
+// CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    store i32 0, ptr [[BOUND_PTR_ARITH]], align 4, !tbaa [[TBAA8]]
+// CHECK-NEXT:    store i32 0, ptr [[BOUND_PTR_ARITH]], align 4, !tbaa [[TBAA2]]
 // CHECK-NEXT:    ret void
 //
 // WITHOUT-LABEL: define dso_local void @bar(
@@ -91,17 +91,17 @@ void bar(int *__counted_by(count) x, int count) {
 }
 
 //.
-// CHECK: [[META2]] = !{!"bounds-safety-generic"}
-// CHECK: [[META3]] = !{[[META4:![0-9]+]]}
-// CHECK: [[META4]] = !{!"bounds-safety-missed-optimization-nsw", !"Check can not be removed because the arithmetic operation might wrap in the signed sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
-// CHECK: [[META5]] = !{!"bounds-safety-generic", [[META6:![0-9]+]]}
-// CHECK: [[META6]] = !{!"bounds-safety-missed-optimization-nuw", !"Check can not be removed because the arithmetic operation might wrap in the unsigned sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
-// CHECK: [[PROF7]] = !{!"branch_weights", i32 1, i32 1048575}
-// CHECK: [[TBAA8]] = !{[[META9:![0-9]+]], [[META9]], i64 0}
-// CHECK: [[META9]] = !{!"int", [[META10:![0-9]+]], i64 0}
-// CHECK: [[META10]] = !{!"omnipotent char", [[META11:![0-9]+]], i64 0}
-// CHECK: [[META11]] = !{!"Simple C/C++ TBAA"}
-// CHECK: [[META12]] = !{[[META6]]}
+// CHECK: [[TBAA2]] = !{[[META3:![0-9]+]], [[META3]], i64 0}
+// CHECK: [[META3]] = !{!"int", [[META4:![0-9]+]], i64 0}
+// CHECK: [[META4]] = !{!"omnipotent char", [[META5:![0-9]+]], i64 0}
+// CHECK: [[META5]] = !{!"Simple C/C++ TBAA"}
+// CHECK: [[META6]] = !{!"bounds-safety-generic"}
+// CHECK: [[META7]] = !{[[META8:![0-9]+]]}
+// CHECK: [[META8]] = !{!"bounds-safety-missed-optimization-nsw", !"Check can not be removed because the arithmetic operation might wrap in the signed sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
+// CHECK: [[META9]] = !{!"bounds-safety-generic", [[META10:![0-9]+]]}
+// CHECK: [[META10]] = !{!"bounds-safety-missed-optimization-nuw", !"Check can not be removed because the arithmetic operation might wrap in the unsigned sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
+// CHECK: [[PROF11]] = !{!"branch_weights", i32 1, i32 1048575}
+// CHECK: [[META12]] = !{[[META10]]}
 // CHECK: [[PROF13]] = !{!"branch_weights", i32 1048575, i32 1}
 //.
 // WITHOUT: [[TBAA2]] = !{[[META3:![0-9]+]], [[META3]], i64 0}

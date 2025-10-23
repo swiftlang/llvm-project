@@ -54,12 +54,12 @@
 // OPT2-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // OPT2-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
 // OPT2-NEXT:    [[AGG_TEMP:%.*]] = alloca %"__bounds_safety::wide_ptr.bidi_indexable", align 8
-// OPT2-NEXT:    store ptr [[PTR]], ptr [[PTR_INDIRECT_ADDR]], align 8, !tbaa [[TBAA2:![0-9]+]]
-// OPT2-NEXT:    store i32 [[IDX]], ptr [[IDX_ADDR]], align 4, !tbaa [[TBAA8:![0-9]+]]
+// OPT2-NEXT:    store ptr [[PTR]], ptr [[PTR_INDIRECT_ADDR]], align 8, !tbaa [[TBAA6:![0-9]+]]
+// OPT2-NEXT:    store i32 [[IDX]], ptr [[IDX_ADDR]], align 4, !tbaa [[TBAA2:![0-9]+]]
 // OPT2-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 8 [[AGG_TEMP]], ptr align 8 [[PTR]], i64 24, i1 false), !tbaa.struct [[TBAA_STRUCT10:![0-9]+]]
 // OPT2-NEXT:    [[WIDE_PTR_PTR_ADDR:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP]], i32 0, i32 0
 // OPT2-NEXT:    [[WIDE_PTR_PTR:%.*]] = load ptr, ptr [[WIDE_PTR_PTR_ADDR]], align 8
-// OPT2-NEXT:    [[TMP0:%.*]] = load i32, ptr [[IDX_ADDR]], align 4, !tbaa [[TBAA8]]
+// OPT2-NEXT:    [[TMP0:%.*]] = load i32, ptr [[IDX_ADDR]], align 4, !tbaa [[TBAA2]]
 // OPT2-NEXT:    [[IDXPROM:%.*]] = sext i32 [[TMP0]] to i64
 // OPT2-NEXT:    [[ARRAYIDX:%.*]] = getelementptr i32, ptr [[WIDE_PTR_PTR]], i64 [[IDXPROM]]
 // OPT2-NEXT:    [[WIDE_PTR_UB_ADDR:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP]], i32 0, i32 1
@@ -79,7 +79,7 @@
 // OPT2-NEXT:    [[TMP4:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], !annotation [[META16:![0-9]+]]
 // OPT2-NEXT:    br i1 [[TMP4]], label %[[CONT2:.*]], label %[[TRAP]], !prof [[PROF14]], !annotation [[META16]]
 // OPT2:       [[CONT2]]:
-// OPT2-NEXT:    [[TMP5:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA8]]
+// OPT2-NEXT:    [[TMP5:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA2]]
 // OPT2-NEXT:    ret i32 [[TMP5]]
 //
 int consume(int* __bidi_indexable ptr, int idx) {
@@ -105,16 +105,16 @@ int consume(int* __bidi_indexable ptr, int idx) {
 // OPT2: [[META0:![0-9]+]] = !{i32 1, !"wchar_size", i32 4}
 // OPT2: [[META1:![0-9]+]] = !{!"{{.*}}clang version {{.*}}"}
 // OPT2: [[TBAA2]] = !{[[META3:![0-9]+]], [[META3]], i64 0}
-// OPT2: [[META3]] = !{!"p2 int", [[META4:![0-9]+]], i64 0}
-// OPT2: [[META4]] = !{!"any p2 pointer", [[META5:![0-9]+]], i64 0}
-// OPT2: [[META5]] = !{!"any pointer", [[META6:![0-9]+]], i64 0}
-// OPT2: [[META6]] = !{!"omnipotent char", [[META7:![0-9]+]], i64 0}
-// OPT2: [[META7]] = !{!"Simple C/C++ TBAA"}
-// OPT2: [[TBAA8]] = !{[[META9:![0-9]+]], [[META9]], i64 0}
-// OPT2: [[META9]] = !{!"int", [[META6]], i64 0}
+// OPT2: [[META3]] = !{!"int", [[META4:![0-9]+]], i64 0}
+// OPT2: [[META4]] = !{!"omnipotent char", [[META5:![0-9]+]], i64 0}
+// OPT2: [[META5]] = !{!"Simple C/C++ TBAA"}
+// OPT2: [[TBAA6]] = !{[[META7:![0-9]+]], [[META7]], i64 0}
+// OPT2: [[META7]] = !{!"p2 int", [[META8:![0-9]+]], i64 0}
+// OPT2: [[META8]] = !{!"any p2 pointer", [[META9:![0-9]+]], i64 0}
+// OPT2: [[META9]] = !{!"any pointer", [[META4]], i64 0}
 // OPT2: [[TBAA_STRUCT10]] = !{i64 0, i64 24, [[META11:![0-9]+]]}
 // OPT2: [[META11]] = !{[[META12:![0-9]+]], [[META12]], i64 0}
-// OPT2: [[META12]] = !{!"p1 int", [[META5]], i64 0}
+// OPT2: [[META12]] = !{!"p1 int", [[META9]], i64 0}
 // OPT2: [[META13]] = !{!"bounds-safety-check-ptr-le-upper-bound"}
 // OPT2: [[PROF14]] = !{!"branch_weights", i32 1048575, i32 1}
 // OPT2: [[META15]] = !{!"bounds-safety-check-ptr-le-upper-bound", !"bounds-safety-check-ptr-ge-lower-bound"}

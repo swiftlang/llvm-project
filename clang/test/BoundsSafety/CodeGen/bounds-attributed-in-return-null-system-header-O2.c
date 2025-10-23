@@ -9,11 +9,11 @@ void consume(int* __bidi_indexable);
 // CHECK-SAME: i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[BYVAL_TEMP:%.*]] = alloca %"__bounds_safety::wide_ptr.bidi_indexable", align 8
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp eq i32 [[COUNT]], 0, !annotation [[META2:![0-9]+]]
-// CHECK-NEXT:    br i1 [[CMP_I]], label %[[INLINE_HEADER_FUNC_UNSPECIFIED_PTR_EXIT:.*]], label %[[TRAP_I:.*]], !prof [[PROF3:![0-9]+]], !annotation [[META2]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp eq i32 [[COUNT]], 0, !annotation [[META6:![0-9]+]]
+// CHECK-NEXT:    br i1 [[CMP_I]], label %[[INLINE_HEADER_FUNC_UNSPECIFIED_PTR_EXIT:.*]], label %[[TRAP_I:.*]], !prof [[PROF7:![0-9]+]], !annotation [[META6]]
 // CHECK:       [[TRAP_I]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], !annotation [[META2]]
-// CHECK-NEXT:    unreachable, !annotation [[META2]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], !annotation [[META6]]
+// CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[INLINE_HEADER_FUNC_UNSPECIFIED_PTR_EXIT]]:
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR6:[0-9]+]]
 // CHECK-NEXT:    call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(24) [[BYVAL_TEMP]], i8 0, i64 24, i1 false)
@@ -32,7 +32,7 @@ void consume(int* __bidi_indexable);
 // LEGACY-NEXT:    [[PTR_SROA_4_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 8
 // LEGACY-NEXT:    store ptr [[ADD_PTR]], ptr [[PTR_SROA_4_0_BYVAL_TEMP_SROA_IDX]], align 8
 // LEGACY-NEXT:    [[PTR_SROA_5_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 16
-// LEGACY-NEXT:    store ptr null, ptr [[PTR_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 8, !tbaa [[TBAA2:![0-9]+]]
+// LEGACY-NEXT:    store ptr null, ptr [[PTR_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 8, !tbaa [[TBAA6:![0-9]+]]
 // LEGACY-NEXT:    call void @consume(ptr dead_on_return noundef nonnull [[BYVAL_TEMP]]) #[[ATTR3]]
 // LEGACY-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR3]]
 // LEGACY-NEXT:    ret void
@@ -46,11 +46,11 @@ void use_inline_header_func_unspecified_ptr(int count) {
 // CHECK-SAME: i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[BYVAL_TEMP:%.*]] = alloca %"__bounds_safety::wide_ptr.bidi_indexable", align 8
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp eq i32 [[COUNT]], 0, !annotation [[META2]]
-// CHECK-NEXT:    br i1 [[CMP_I]], label %[[INLINE_HEADER_FUNC_UNSAFE_INDEXABLE_PTR_EXIT:.*]], label %[[TRAP_I:.*]], !prof [[PROF3]], !annotation [[META2]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp eq i32 [[COUNT]], 0, !annotation [[META6]]
+// CHECK-NEXT:    br i1 [[CMP_I]], label %[[INLINE_HEADER_FUNC_UNSAFE_INDEXABLE_PTR_EXIT:.*]], label %[[TRAP_I:.*]], !prof [[PROF7]], !annotation [[META6]]
 // CHECK:       [[TRAP_I]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation [[META2]]
-// CHECK-NEXT:    unreachable, !annotation [[META2]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation [[META6]]
+// CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[INLINE_HEADER_FUNC_UNSAFE_INDEXABLE_PTR_EXIT]]:
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR6]]
 // CHECK-NEXT:    call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(24) [[BYVAL_TEMP]], i8 0, i64 24, i1 false)
@@ -69,7 +69,7 @@ void use_inline_header_func_unspecified_ptr(int count) {
 // LEGACY-NEXT:    [[PTR_SROA_4_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 8
 // LEGACY-NEXT:    store ptr [[ADD_PTR]], ptr [[PTR_SROA_4_0_BYVAL_TEMP_SROA_IDX]], align 8
 // LEGACY-NEXT:    [[PTR_SROA_5_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 16
-// LEGACY-NEXT:    store ptr null, ptr [[PTR_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 8, !tbaa [[TBAA2]]
+// LEGACY-NEXT:    store ptr null, ptr [[PTR_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 8, !tbaa [[TBAA6]]
 // LEGACY-NEXT:    call void @consume(ptr dead_on_return noundef nonnull [[BYVAL_TEMP]]) #[[ATTR3]]
 // LEGACY-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR3]]
 // LEGACY-NEXT:    ret void
@@ -79,12 +79,12 @@ void use_inline_header_func_unsafe_indexable_ptr(int count) {
   consume(ptr);
 }
 //.
-// CHECK: [[META2]] = !{!"bounds-safety-generic"}
-// CHECK: [[PROF3]] = !{!"branch_weights", i32 1048575, i32 1}
+// CHECK: [[META6]] = !{!"bounds-safety-generic"}
+// CHECK: [[PROF7]] = !{!"branch_weights", i32 1048575, i32 1}
 //.
-// LEGACY: [[TBAA2]] = !{[[META3:![0-9]+]], [[META3]], i64 0}
-// LEGACY: [[META3]] = !{!"p1 int", [[META4:![0-9]+]], i64 0}
-// LEGACY: [[META4]] = !{!"any pointer", [[META5:![0-9]+]], i64 0}
-// LEGACY: [[META5]] = !{!"omnipotent char", [[META6:![0-9]+]], i64 0}
-// LEGACY: [[META6]] = !{!"Simple C/C++ TBAA"}
+// LEGACY: [[META4:![0-9]+]] = !{!"omnipotent char", [[META5:![0-9]+]], i64 0}
+// LEGACY: [[META5]] = !{!"Simple C/C++ TBAA"}
+// LEGACY: [[TBAA6]] = !{[[META7:![0-9]+]], [[META7]], i64 0}
+// LEGACY: [[META7]] = !{!"p1 int", [[META8:![0-9]+]], i64 0}
+// LEGACY: [[META8]] = !{!"any pointer", [[META4]], i64 0}
 //.

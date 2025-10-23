@@ -10,18 +10,18 @@
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[END]], i64 -4
 // CHECK-NEXT:    [[BOUND_PTR_ARITH3:%.*]] = getelementptr i8, ptr [[START]], i64 4
-// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[END]], !annotation [[META2:![0-9]+]]
-// CHECK-NEXT:    [[CMP22_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH3]], [[BOUND_PTR_ARITH]], !annotation [[META2]]
-// CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP22_NOT]], !annotation [[META2]]
-// CHECK-NEXT:    [[CMP33_NOT:%.*]] = icmp ugt ptr [[START]], [[BOUND_PTR_ARITH3]], !annotation [[META2]]
-// CHECK-NEXT:    [[OR_COND41:%.*]] = or i1 [[CMP33_NOT]], [[OR_COND]], !annotation [[META2]]
-// CHECK-NEXT:    br i1 [[OR_COND41]], label %[[TRAP:.*]], label %[[CONT:.*]], !prof [[PROF3:![0-9]+]], !annotation [[META2]]
+// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[END]], !annotation [[META6:![0-9]+]]
+// CHECK-NEXT:    [[CMP22_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH3]], [[BOUND_PTR_ARITH]], !annotation [[META6]]
+// CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP22_NOT]], !annotation [[META6]]
+// CHECK-NEXT:    [[CMP33_NOT:%.*]] = icmp ugt ptr [[START]], [[BOUND_PTR_ARITH3]], !annotation [[META6]]
+// CHECK-NEXT:    [[OR_COND41:%.*]] = or i1 [[CMP33_NOT]], [[OR_COND]], !annotation [[META6]]
+// CHECK-NEXT:    br i1 [[OR_COND41]], label %[[TRAP:.*]], label %[[CONT:.*]], !prof [[PROF7:![0-9]+]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], !annotation [[META2]]
-// CHECK-NEXT:    unreachable, !annotation [[META2]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], !annotation [[META6]]
+// CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    store i32 0, ptr [[END]], align 4, !tbaa [[TBAA4:![0-9]+]]
-// CHECK-NEXT:    store i32 0, ptr [[START]], align 4, !tbaa [[TBAA4]]
+// CHECK-NEXT:    store i32 0, ptr [[END]], align 4, !tbaa [[TBAA2:![0-9]+]]
+// CHECK-NEXT:    store i32 0, ptr [[START]], align 4, !tbaa [[TBAA2]]
 // CHECK-NEXT:    ret void
 //
 // WITHOUT-LABEL: define dso_local void @foo(
@@ -41,18 +41,18 @@ void foo(int *__ended_by(end) start, int * end) {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[START]], i64 4
 // CHECK-NEXT:    [[BOUND_PTR_ARITH3:%.*]] = getelementptr i8, ptr [[END]], i64 -4
-// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH3]], [[END]], !annotation [[META2]]
-// CHECK-NEXT:    [[CMP22_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[BOUND_PTR_ARITH3]], !annotation [[META2]]
-// CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP22_NOT]], !annotation [[META2]]
-// CHECK-NEXT:    [[CMP33_NOT:%.*]] = icmp ugt ptr [[START]], [[BOUND_PTR_ARITH]], !annotation [[META2]]
-// CHECK-NEXT:    [[OR_COND52:%.*]] = or i1 [[CMP33_NOT]], [[OR_COND]], !annotation [[META2]]
-// CHECK-NEXT:    br i1 [[OR_COND52]], label %[[TRAP:.*]], label %[[CONT:.*]], !prof [[PROF3]], !annotation [[META2]]
+// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH3]], [[END]], !annotation [[META6]]
+// CHECK-NEXT:    [[CMP22_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[BOUND_PTR_ARITH3]], !annotation [[META6]]
+// CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP22_NOT]], !annotation [[META6]]
+// CHECK-NEXT:    [[CMP33_NOT:%.*]] = icmp ugt ptr [[START]], [[BOUND_PTR_ARITH]], !annotation [[META6]]
+// CHECK-NEXT:    [[OR_COND52:%.*]] = or i1 [[CMP33_NOT]], [[OR_COND]], !annotation [[META6]]
+// CHECK-NEXT:    br i1 [[OR_COND52]], label %[[TRAP:.*]], label %[[CONT:.*]], !prof [[PROF7]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], !annotation [[META2]]
-// CHECK-NEXT:    unreachable, !annotation [[META2]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], !annotation [[META6]]
+// CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    store i32 0, ptr [[BOUND_PTR_ARITH]], align 4, !tbaa [[TBAA4]]
-// CHECK-NEXT:    store i32 0, ptr [[BOUND_PTR_ARITH3]], align 4, !tbaa [[TBAA4]]
+// CHECK-NEXT:    store i32 0, ptr [[BOUND_PTR_ARITH]], align 4, !tbaa [[TBAA2]]
+// CHECK-NEXT:    store i32 0, ptr [[BOUND_PTR_ARITH3]], align 4, !tbaa [[TBAA2]]
 // CHECK-NEXT:    ret void
 //
 // WITHOUT-LABEL: define dso_local void @bar(
@@ -69,12 +69,12 @@ void bar(int *__ended_by(end) start, int * end) {
     *(end = end-1) = 0;
 }
 //.
-// CHECK: [[META2]] = !{!"bounds-safety-generic"}
-// CHECK: [[PROF3]] = !{!"branch_weights", i32 1048577, i32 1048575}
-// CHECK: [[TBAA4]] = !{[[META5:![0-9]+]], [[META5]], i64 0}
-// CHECK: [[META5]] = !{!"int", [[META6:![0-9]+]], i64 0}
-// CHECK: [[META6]] = !{!"omnipotent char", [[META7:![0-9]+]], i64 0}
-// CHECK: [[META7]] = !{!"Simple C/C++ TBAA"}
+// CHECK: [[TBAA2]] = !{[[META3:![0-9]+]], [[META3]], i64 0}
+// CHECK: [[META3]] = !{!"int", [[META4:![0-9]+]], i64 0}
+// CHECK: [[META4]] = !{!"omnipotent char", [[META5:![0-9]+]], i64 0}
+// CHECK: [[META5]] = !{!"Simple C/C++ TBAA"}
+// CHECK: [[META6]] = !{!"bounds-safety-generic"}
+// CHECK: [[PROF7]] = !{!"branch_weights", i32 1048577, i32 1048575}
 //.
 // WITHOUT: [[TBAA2]] = !{[[META3:![0-9]+]], [[META3]], i64 0}
 // WITHOUT: [[META3]] = !{!"int", [[META4:![0-9]+]], i64 0}
