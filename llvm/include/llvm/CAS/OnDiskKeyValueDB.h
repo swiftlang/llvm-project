@@ -19,6 +19,8 @@
 
 namespace llvm::cas::ondisk {
 
+class UnifiedOnDiskCache;
+
 /// An on-disk key-value data store with the following properties:
 /// * Keys are fixed length binary hashes with expected normal distribution.
 /// * Values are buffers of the same size, specified at creation time.
@@ -59,9 +61,13 @@ public:
   /// \param KeySize Size for the key hash bytes.
   /// \param ValueName Identifier name for the values.
   /// \param ValueSize Size for the value bytes.
+  /// \param UnifiedCache An optional UnifiedOnDiskCache that manages the size
+  /// and lifetime of the CAS instance and it must owns current initializing
+  /// KeyValueDB after initialized.
   static Expected<std::unique_ptr<OnDiskKeyValueDB>>
   open(StringRef Path, StringRef HashName, unsigned KeySize,
        StringRef ValueName, size_t ValueSize,
+       UnifiedOnDiskCache *UnifiedCache = nullptr,
        std::shared_ptr<OnDiskCASLogger> Logger = nullptr);
 
   using CheckValueT =
@@ -71,11 +77,14 @@ public:
   Error validate(CheckValueT CheckValue) const;
 
 private:
-  OnDiskKeyValueDB(size_t ValueSize, OnDiskTrieRawHashMap Cache)
-      : ValueSize(ValueSize), Cache(std::move(Cache)) {}
+  OnDiskKeyValueDB(size_t ValueSize, OnDiskTrieRawHashMap Cache,
+                   UnifiedOnDiskCache *UnifiedCache)
+      : ValueSize(ValueSize), Cache(std::move(Cache)),
+        UnifiedCache(UnifiedCache) {}
 
   const size_t ValueSize;
   OnDiskTrieRawHashMap Cache;
+  UnifiedOnDiskCache *UnifiedCache = nullptr;
 };
 
 } // namespace llvm::cas::ondisk

@@ -5,6 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file
+/// This file contains the declaration of the ObjectStore class.
+///
+//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CAS_OBJECTSTORE_H
 #define LLVM_CAS_OBJECTSTORE_H
@@ -246,7 +251,7 @@ public:
   /// Set the size for limiting growth of on-disk storage. This has an effect
   /// for when the instance is closed.
   ///
-  /// Implementations may be not have this implemented.
+  /// Implementations may leave this unimplemented.
   virtual Error setSizeLimit(std::optional<uint64_t> SizeLimit) {
     return Error::success();
   }
@@ -262,7 +267,7 @@ public:
   /// Prune local storage to reduce its size according to the desired size
   /// limit. Pruning can happen concurrently with other operations.
   ///
-  /// Implementations may be not have this implemented.
+  /// Implementations may leave this unimplemented.
   virtual Error pruneStorageData() { return Error::success(); }
 
   /// Validate the whole node tree.
@@ -291,13 +296,9 @@ private:
 /// Reference to an abstract hierarchical node, with data and references.
 /// Reference is passed by value and is expected to be valid as long as the \a
 /// ObjectStore is.
-///
-/// TODO: Expose \a ObjectStore::readData() and only call \a
-/// ObjectStore::getDataString() when asked.
 class ObjectProxy {
 public:
-  const ObjectStore &getCAS() const { return *CAS; }
-  ObjectStore &getCAS() { return *CAS; }
+  ObjectStore &getCAS() const { return *CAS; }
   CASID getID() const { return CAS->getID(Ref); }
   ObjectRef getRef() const { return Ref; }
   size_t getNumReferences() const { return CAS->getNumRefs(H); }
@@ -352,12 +353,13 @@ private:
   ObjectHandle H;
 };
 
+/// Create an in memory CAS.
 std::unique_ptr<ObjectStore> createInMemoryCAS();
 
 /// \returns true if \c LLVM_ENABLE_ONDISK_CAS configuration was enabled.
 bool isOnDiskCASEnabled();
 
-/// Gets or creates a persistent on-disk path at \p Path.
+/// Create a persistent on-disk path at \p Path.
 Expected<std::unique_ptr<ObjectStore>> createOnDiskCAS(const Twine &Path);
 
 /// Set \p Path to a reasonable default on-disk path for a persistent CAS for

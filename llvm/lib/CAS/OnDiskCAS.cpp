@@ -43,8 +43,8 @@ public:
 
   static Expected<std::unique_ptr<OnDiskCAS>> open(StringRef Path);
 
-  OnDiskCAS(std::shared_ptr<ondisk::UnifiedOnDiskCache> UniDB_)
-      : UniDB(std::move(UniDB_)), DB(&UniDB->getGraphDB()) {}
+  OnDiskCAS(std::shared_ptr<ondisk::UnifiedOnDiskCache> UniDB)
+      : UnifiedDB(std::move(UniDB)), DB(&UnifiedDB->getGraphDB()) {}
 
 private:
   ObjectHandle convertHandle(ondisk::ObjectHandle Node) const {
@@ -67,10 +67,12 @@ private:
     auto RefsRange = DB->getObjectRefs(convertHandle(Node));
     return std::distance(RefsRange.begin(), RefsRange.end());
   }
+
   ObjectRef readRef(ObjectHandle Node, size_t I) const final {
     auto RefsRange = DB->getObjectRefs(convertHandle(Node));
     return convertRef(RefsRange.begin()[I]);
   }
+
   Error forEachRef(ObjectHandle Node,
                    function_ref<Error(ObjectRef)> Callback) const final;
 
@@ -78,11 +80,11 @@ private:
   Expected<std::optional<uint64_t>> getStorageSize() const final;
   Error pruneStorageData() final;
 
-  OnDiskCAS(std::unique_ptr<ondisk::OnDiskGraphDB> DB_)
-      : OwnedDB(std::move(DB_)), DB(OwnedDB.get()) {}
+  OnDiskCAS(std::unique_ptr<ondisk::OnDiskGraphDB> GraphDB)
+      : OwnedDB(std::move(GraphDB)), DB(OwnedDB.get()) {}
 
   std::unique_ptr<ondisk::OnDiskGraphDB> OwnedDB;
-  std::shared_ptr<ondisk::UnifiedOnDiskCache> UniDB;
+  std::shared_ptr<ondisk::UnifiedOnDiskCache> UnifiedDB;
   ondisk::OnDiskGraphDB *DB;
 };
 
@@ -99,8 +101,6 @@ Error OnDiskCAS::validate(bool CheckHash) const {
 
   if (auto E = DB->validate(CheckHash, Hasher))
     return E;
-  if (UniDB && UniDB->getUpstreamGraphDB())
-    return UniDB->getUpstreamGraphDB()->validate(CheckHash, Hasher);
 
   return Error::success();
 }
@@ -165,15 +165,15 @@ Error OnDiskCAS::forEachRef(ObjectHandle Node,
 }
 
 Error OnDiskCAS::setSizeLimit(std::optional<uint64_t> SizeLimit) {
-  UniDB->setSizeLimit(SizeLimit);
+  UnifiedDB->setSizeLimit(SizeLimit);
   return Error::success();
 }
 
 Expected<std::optional<uint64_t>> OnDiskCAS::getStorageSize() const {
-  return UniDB->getStorageSize();
+  return UnifiedDB->getStorageSize();
 }
 
-Error OnDiskCAS::pruneStorageData() { return UniDB->collectGarbage(); }
+Error OnDiskCAS::pruneStorageData() { return UnifiedDB->collectGarbage(); }
 
 Expected<std::unique_ptr<OnDiskCAS>> OnDiskCAS::open(StringRef AbsPath) {
   std::shared_ptr<ondisk::OnDiskCASLogger> Logger;

@@ -13,6 +13,7 @@
 #include "llvm-c/CAS/PluginAPI_functions.h"
 #include "llvm/CAS/BuiltinObjectHasher.h"
 #include "llvm/CAS/CASID.h"
+#include "llvm/CAS/OnDiskKeyValueDB.h"
 #include "llvm/CAS/UnifiedOnDiskCache.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/Errc.h"
@@ -318,13 +319,33 @@ Expected<ObjectID> CASWrapper::downstreamNode(ObjectID Node) {
   return importNode(Node, FromDB, ToDB);
 }
 
+static Expected<ObjectID> cachePut(OnDiskKeyValueDB &DB, ArrayRef<uint8_t> Key,
+                                   ObjectID ID) {
+  auto Value = UnifiedOnDiskCache::getValueFromObjectID(ID);
+  auto Result = DB.put(Key, Value);
+  if (!Result)
+    return Result.takeError();
+  return UnifiedOnDiskCache::getObjectIDFromValue(*Result);
+}
+
+static Expected<std::optional<ObjectID>> cacheGet(OnDiskKeyValueDB &DB,
+                                                  ArrayRef<uint8_t> Key) {
+  auto Result = DB.get(Key);
+  if (!Result)
+    return Result.takeError();
+  if (!*Result)
+    return std::nullopt;
+  return UnifiedOnDiskCache::getObjectIDFromValue(**Result);
+}
+
 Error CASWrapper::upstreamKey(ArrayRef<uint8_t> Key, ObjectID Value) {
   if (!UpstreamDB)
     return Error::success();
   Expected<ObjectID> UpstreamVal = upstreamNode(Value);
   if (!UpstreamVal)
     return UpstreamVal.takeError();
-  Expected<ObjectID> PutValue = UpstreamDB->KVPut(Key, *UpstreamVal);
+  Expected<ObjectID> PutValue =
+      cachePut(UpstreamDB->getKeyValueDB(), Key, *UpstreamVal);
   if (!PutValue)
     return PutValue.takeError();
   assert(*PutValue == *UpstreamVal);
@@ -336,7 +357,8 @@ CASWrapper::downstreamKey(ArrayRef<uint8_t> Key) {
   if (!UpstreamDB)
     return std::nullopt;
   std::optional<ObjectID> UpstreamValue;
-  if (Error E = UpstreamDB->KVGet(Key).moveInto(UpstreamValue))
+  if (Error E =
+          cacheGet(UpstreamDB->getKeyValueDB(), Key).moveInto(UpstreamValue))
     return std::move(E);
   if (!UpstreamValue)
     return std::nullopt;
@@ -345,7 +367,7 @@ CASWrapper::downstreamKey(ArrayRef<uint8_t> Key) {
       UpstreamDB->getGraphDB().getDigest(*UpstreamValue));
   if (!Value)
     return Value.takeError();
-  Expected<ObjectID> PutValue = DB->KVPut(Key, *Value);
+  Expected<ObjectID> PutValue = cachePut(DB->getKeyValueDB(), Key, *Value);
   if (!PutValue)
     return PutValue.takeError();
   assert(*PutValue == *Value);
@@ -628,7 +650,7 @@ llcas_actioncache_get_for_digest(llcas_cas_t c_cas, llcas_digest_t c_key,
   auto &DB = *Wrap.DB;
   ArrayRef Key(c_key.data, c_key.size);
   std::optional<ObjectID> Value;
-  if (Error E = DB.KVGet(Key).moveInto(Value))
+  if (Error E = cacheGet(DB.getKeyValueDB(), Key).moveInto(Value))
     return reportError(std::move(E), error, LLCAS_LOOKUP_RESULT_ERROR);
   if (!Value) {
     if (!globally)
@@ -684,7 +706,7 @@ bool llcas_actioncache_put_for_digest(llcas_cas_t c_cas, llcas_digest_t c_key,
   auto &DB = *Wrap.DB;
   ObjectID Value = ObjectID::fromOpaqueData(c_value.opaque);
   ArrayRef Key(c_key.data, c_key.size);
-  Expected<ObjectID> Ret = DB.KVPut(Key, Value);
+  Expected<ObjectID> Ret = cachePut(DB.getKeyValueDB(), Key, Value);
   if (!Ret)
     return reportError(Ret.takeError(), error, true);
   if (*Ret != Value)
