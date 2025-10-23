@@ -46,7 +46,7 @@ int main() {
 
 // IR-DAG: ![[ANNOT_LE_UB_AND_CONV_TO_COUNT]] = !{!"bounds-safety-generic"}
 
-// IR-DAG: ![[LOC_FOO:[0-9]+]] = !DILocation(line: 10, column: 14, scope: !5)
+// IR-DAG: ![[LOC_FOO:[0-9]+]] = !DILocation(line: 10, column: 14, scope: !{{.+}})
 // IR-DAG: ![[ANNOT_LE_UB]] = !{!"bounds-safety-check-ptr-le-upper-bound"}
 // IR-DAG: ![[ANNOT_GE_LB]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
 // IR-DAG: ![[ANNOT_COMBINED]] = !{!"bounds-safety-check-ptr-le-upper-bound", !"bounds-safety-check-ptr-ge-lower-bound"}
