@@ -18,8 +18,9 @@
 
 // RUN: %clang -cc1depscand -execute %{clang-daemon-dir}/%basename_t      \
 // RUN:   -cas-args -fcas-path %t/cas -- %t/cmd.sh
-// RUN: (cd %t && %clang -target x86_64-apple-macos11 -MD -MF %t/test2.d  \
-// RUN:    -Iinclude -fsyntax-only -x c %s)
+// RUN: cd %t
+// RUN: %clang -target x86_64-apple-macos11 -MD -MF %t/test2.d            \
+// RUN:    -Iinclude -fsyntax-only -x c %s
 // RUN: diff %t/test.d %t/test2.d
 
 #include "test.h"

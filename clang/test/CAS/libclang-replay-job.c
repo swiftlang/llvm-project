@@ -12,9 +12,10 @@
 
 // RUN: %deps-to-rsp %t/deps.json --tu-index 0 > %t/cc1.rsp
 
-// RUN: (cd %t; %clang @%t/cc1.rsp)
-// RUN: (cd %t; %clang @%t/cc1.rsp -Rcompile-job-cache-hit \
-// RUN:   -serialize-diagnostic-file %t/t1.dia 2> %t/output1.txt)
+// RUN: cd %t
+// RUN: %clang @%t/cc1.rsp
+// RUN: %clang @%t/cc1.rsp -Rcompile-job-cache-hit \
+// RUN:   -serialize-diagnostic-file %t/t1.dia 2> %t/output1.txt
 
 // Verify the warning was recorded and we compare populated .dia files.
 // RUN: c-index-test -read-diagnostics %t/t1.dia 2>&1 | FileCheck %s --check-prefix=DIAGS
