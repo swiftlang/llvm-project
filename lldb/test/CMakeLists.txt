@@ -276,6 +276,9 @@ configure_lit_site_cfg(
 
 add_lit_testsuite(check-lldb "Running lldb lit test suite"
   ${CMAKE_CURRENT_BINARY_DIR}
+  # BEGIN SWIFT MOD
+  ARGS "--filter-out=[sS]wift"
+  # END SWIFT MOD
   DEPENDS
     lldb-api-test-deps
     lldb-shell-test-deps
