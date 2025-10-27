@@ -12,7 +12,7 @@ void foo(int i);
 // Also check for empty record files.
 // RUN: rm -rf %t/idx2
 // RUN: %clang_cc1 -index-store-path %t/idx2 %s -o %t.o
-// RUN: cp %t.empty $(find %t/idx2 -name "empty-unit.c-*")
+// RUN: find %t/idx2 -name "empty-unit.c-*" -exec cp %t.empty "{}" ";"
 // RUN: not c-index-test core -print-record %t/idx2 2> %t2.err
 // RUN: FileCheck %s -input-file %t2.err -check-prefix ERR-RECORD
 // ERR-RECORD: error loading record: empty file
