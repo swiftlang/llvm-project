@@ -536,14 +536,6 @@ void AArch64PrologueEmitter::verifyPrologueClobbers() const {
 }
 #endif
 
-static bool shouldAuthenticateLR(const MachineFunction &MF) {
-  // Return address authentication can be enabled at the function level, using
-  // the "ptrauth-returns" attribute.
-  const AArch64Subtarget &Subtarget = MF.getSubtarget<AArch64Subtarget>();
-  return Subtarget.isTargetMachO() &&
-         MF.getFunction().hasFnAttribute("ptrauth-returns");
-}
-
 void AArch64PrologueEmitter::determineLocalsStackSize(
     uint64_t StackSize, uint64_t PrologueSaveSize) {
   AFI->setLocalStackSize(StackSize - PrologueSaveSize);
@@ -724,18 +716,6 @@ void AArch64PrologueEmitter::emitPrologue() {
   if (EmitCFI && AFI->isMTETagged())
     BuildMI(MBB, PrologueBeginI, DL, TII->get(AArch64::EMITMTETAGGED))
         .setMIFlag(MachineInstr::FrameSetup);
-
-  // If we're saving LR, sign it first.
-  if (shouldAuthenticateLR(MF)) {
-    if (LLVM_UNLIKELY(!Subtarget.hasPAuth()))
-      report_fatal_error("arm64e LR authentication requires ptrauth");
-    for (const CalleeSavedInfo &Info : MFI.getCalleeSavedInfo()) {
-      if (Info.getReg() != AArch64::LR)
-        continue;
-      BuildMI(MBB, PrologueBeginI, DL, TII->get(AArch64::PACIBSP))
-          .setMIFlags(MachineInstr::FrameSetup);
-    }
-  }
 
   // We signal the presence of a Swift extended frame to external tools by
   // storing FP with 0b0001 in bits 63:60. In normal userland operation a simple
@@ -1436,66 +1416,6 @@ void AArch64EpilogueEmitter::emitEpilogue() {
   if (MF.getFunction().getCallingConv() == CallingConv::GHC)
     return;
 
-  // If we're restoring LR, authenticate it before returning.
-  // Use scope_exit to ensure we do that last on all return paths.
-  auto InsertAuthLROnExit = make_scope_exit([&]() {
-    if (shouldAuthenticateLR(MF)) {
-      if (LLVM_UNLIKELY(!Subtarget.hasPAuth()))
-        report_fatal_error("arm64e LR authentication requires ptrauth");
-      for (const CalleeSavedInfo &Info : MFI.getCalleeSavedInfo()) {
-        if (Info.getReg() != AArch64::LR)
-          continue;
-        MachineBasicBlock::iterator TI = MBB.getFirstTerminator();
-
-        // When we're doing a popless ret (i.e., that doesn't restore SP), we
-        // can't rely on the exit SP being the same as the entry, but they need
-        // to match for the LR auth to succeed.  Instead, derive the entry SP
-        // from our FP (using a -16 static offset for the size of the frame
-        // record itself), save that into X16, and use that as the discriminator
-        // in an AUTIB.
-        if (IsSwiftCoroPartialReturn) {
-          const auto *TRI = Subtarget.getRegisterInfo();
-
-          MachineBasicBlock::iterator EpilogStartI = MBB.getFirstTerminator();
-          MachineBasicBlock::iterator Begin = MBB.begin();
-          while (EpilogStartI != Begin) {
-            --EpilogStartI;
-            if (!EpilogStartI->getFlag(MachineInstr::FrameDestroy)) {
-              ++EpilogStartI;
-              break;
-            }
-            if (EpilogStartI->readsRegister(AArch64::X16, TRI) ||
-                EpilogStartI->modifiesRegister(AArch64::X16, TRI))
-              report_fatal_error("unable to use x16 for popless ret LR auth");
-          }
-
-          emitFrameOffset(MBB, EpilogStartI, DL, AArch64::X16, AArch64::FP,
-                          StackOffset::getFixed(16), TII,
-                          MachineInstr::FrameDestroy);
-          BuildMI(MBB, TI, DL, TII->get(AArch64::AUTIB), AArch64::LR)
-              .addUse(AArch64::LR)
-              .addUse(AArch64::X16)
-              .setMIFlag(MachineInstr::FrameDestroy);
-          return;
-        }
-
-        if (TI != MBB.end() && TI->getOpcode() == AArch64::RET_ReallyLR) {
-          // If there is a terminator and it's a RET, we can fold AUTH into it.
-          // Be careful to keep the implicitly returned registers.
-          // By now, we don't need the ReallyLR pseudo, since it's only there
-          // to make it possible for LR to be used for non-RET purposes, and
-          // that happens in RA and PEI.
-          BuildMI(MBB, TI, DL, TII->get(AArch64::RETAB)).copyImplicitOps(*TI);
-          MBB.erase(TI);
-        } else {
-          // Otherwise, we could be in a shrink-wrapped or tail-calling block.
-          BuildMI(MBB, TI, DL, TII->get(AArch64::AUTIBSP));
-        }
-      }
-    }
-  });
-
-
   // How much of the stack used by incoming arguments this function is expected
   // to restore in this particular epilogue.
   int64_t ArgumentStackToRestore = AFL.getArgumentStackToRestore(MF, MBB);
@@ -1923,6 +1843,7 @@ void AArch64EpilogueEmitter::finalizeEpilogue() const {
   }
   if (EmitCFI)
     emitCalleeSavedGPRRestores(MBB.getFirstTerminator());
+
   if (AFI->shouldSignReturnAddress(MF)) {
     // If pac-ret+leaf is in effect, PAUTH_EPILOGUE pseudo instructions
     // are inserted by emitPacRetPlusLeafHardening().

@@ -14,8 +14,11 @@
 #include "AArch64Subtarget.h"
 #include "llvm/CodeGen/CFIInstBuilder.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/IR/CallingConv.h"
 
 using namespace llvm;
 using namespace llvm::AArch64PAuth;
@@ -96,6 +99,9 @@ static void emitPACCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
   if (!EmitCFI)
     return;
 
+  if (MBB.getParent()->getTarget().getTargetTriple().isOSBinFormatMachO())
+    return;
+
   auto &MF = *MBB.getParent();
   auto &MFnI = *MF.getInfo<AArch64FunctionInfo>();
 
@@ -116,7 +122,7 @@ void AArch64PointerAuth::signLR(MachineFunction &MF,
   // Debug location must be unknown, see AArch64FrameLowering::emitPrologue.
   DebugLoc DL;
 
-  if (UseBKey) {
+  if (UseBKey && !MF.getTarget().getTargetTriple().isOSBinFormatMachO()) {
     BuildMI(MBB, MBBI, DL, TII->get(AArch64::EMITBKEY))
         .setMIFlag(MachineInstr::FrameSetup);
   }
@@ -133,8 +139,7 @@ void AArch64PointerAuth::signLR(MachineFunction &MF,
   if (MFnI.branchProtectionPAuthLR() && Subtarget->hasPAuthLR()) {
     emitPACCFI(MBB, MBBI, MachineInstr::FrameSetup, EmitCFI);
     BuildMI(MBB, MBBI, DL,
-            TII->get(MFnI.shouldSignWithBKey() ? AArch64::PACIBSPPC
-                                               : AArch64::PACIASPPC))
+            TII->get(UseBKey ? AArch64::PACIBSPPC : AArch64::PACIASPPC))
         .setMIFlag(MachineInstr::FrameSetup)
         ->setPreInstrSymbol(MF, MFnI.getSigningInstrLabel());
   } else {
@@ -142,8 +147,7 @@ void AArch64PointerAuth::signLR(MachineFunction &MF,
     if (MFnI.branchProtectionPAuthLR())
       emitPACCFI(MBB, MBBI, MachineInstr::FrameSetup, EmitCFI);
     BuildMI(MBB, MBBI, DL,
-            TII->get(MFnI.shouldSignWithBKey() ? AArch64::PACIBSP
-                                               : AArch64::PACIASP))
+            TII->get(UseBKey ? AArch64::PACIBSP : AArch64::PACIASP))
         .setMIFlag(MachineInstr::FrameSetup)
         ->setPreInstrSymbol(MF, MFnI.getSigningInstrLabel());
     if (!MFnI.branchProtectionPAuthLR())
@@ -178,11 +182,41 @@ void AArch64PointerAuth::authenticateLR(
   // instructions, namely RETA{A,B}, that can be used instead. In this case the
   // DW_CFA_AARCH64_negate_ra_state can't be emitted.
   bool TerminatorIsCombinable =
-      TI != MBB.end() && TI->getOpcode() == AArch64::RET;
+      TI != MBB.end() && (TI->getOpcode() == AArch64::RET ||
+                          TI->getOpcode() == AArch64::RET_ReallyLR);
   MCSymbol *PACSym = MFnI->getSigningInstrLabel();
 
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  bool IsLRSpilled =
+      llvm::any_of(MFI.getCalleeSavedInfo(), [](const CalleeSavedInfo &Info) {
+        return Info.getReg() == AArch64::LR;
+      });
+
+  // In functions with popless epilogues (swiftcorocc calling convention with
+  // llvm.ret.popless), some returns don't restore SP, so we can't use RETAB
+  // because the authenticating discriminator (SP) won't match the signing
+  // discriminator. We need to check if this specific block restores SP.
+  // If SP is restored before the return, we can use RETAB; otherwise we need
+  // to compute the discriminator from FP and use AUTIB + separate RET.
+  bool IsSwiftCoroPartialReturn = [&]() {
+    if (!MFnI->hasPoplessEpilogue())
+      return false;
+
+    // Check if any instruction in the epilogue modifies SP.
+    if (llvm::any_of(make_range(MBB.begin(), MBB.getFirstTerminator()),
+                     [&](const MachineInstr &I) {
+                       return I.getFlag(MachineInstr::FrameDestroy) &&
+                              I.modifiesRegister(AArch64::SP,
+                                                 Subtarget->getRegisterInfo());
+                     }))
+      return false;
+
+    return true;
+  }();
+
   if (Subtarget->hasPAuth() && TerminatorIsCombinable && !NeedsWinCFI &&
-      !MF.getFunction().hasFnAttribute(Attribute::ShadowCallStack)) {
+      !MF.getFunction().hasFnAttribute(Attribute::ShadowCallStack) &&
+      !IsSwiftCoroPartialReturn) {
     if (MFnI->branchProtectionPAuthLR() && Subtarget->hasPAuthLR()) {
       assert(PACSym && "No PAC instruction to refer to");
       emitPACSymOffsetIntoX16(*TII, MBB, MBBI, DL, PACSym);
@@ -198,6 +232,31 @@ void AArch64PointerAuth::authenticateLR(
           .setMIFlag(MachineInstr::FrameDestroy);
     }
     MBB.erase(TI);
+  } else if (IsSwiftCoroPartialReturn && IsLRSpilled) {
+    // For popless epilogues that don't restore SP, we can't use RETAB because
+    // SP doesn't match. Instead, compute the correct discriminator from FP.
+    const auto *TRI = Subtarget->getRegisterInfo();
+
+    MachineBasicBlock::iterator EpilogStartI = MBB.getFirstTerminator();
+    MachineBasicBlock::iterator Begin = MBB.begin();
+    while (EpilogStartI != Begin) {
+      --EpilogStartI;
+      if (!EpilogStartI->getFlag(MachineInstr::FrameDestroy)) {
+        ++EpilogStartI;
+        break;
+      }
+      if (EpilogStartI->readsRegister(AArch64::X16, TRI) ||
+          EpilogStartI->modifiesRegister(AArch64::X16, TRI))
+        report_fatal_error("unable to use x16 for popless ret LR auth");
+    }
+
+    emitFrameOffset(MBB, EpilogStartI, DL, AArch64::X16, AArch64::FP,
+                    StackOffset::getFixed(16), TII, MachineInstr::FrameDestroy);
+    emitPACCFI(MBB, MBBI, MachineInstr::FrameDestroy, EmitAsyncCFI);
+    BuildMI(MBB, TI, DL, TII->get(AArch64::AUTIB), AArch64::LR)
+        .addUse(AArch64::LR)
+        .addUse(AArch64::X16)
+        .setMIFlag(MachineInstr::FrameDestroy);
   } else {
     if (MFnI->branchProtectionPAuthLR() && Subtarget->hasPAuthLR()) {
       assert(PACSym && "No PAC instruction to refer to");

@@ -86,8 +86,7 @@ static std::pair<bool, bool> GetSignReturnAddress(const Function &F,
 }
 
 static bool ShouldSignWithBKey(const Function &F, const AArch64Subtarget &STI) {
-  if (!STI.getTargetTriple().isOSBinFormatMachO() &&
-      F.hasFnAttribute("ptrauth-returns"))
+  if (F.hasFnAttribute("ptrauth-returns"))
     return true;
   if (!F.hasFnAttribute("sign-return-address-key")) {
     if (STI.getTargetTriple().isOSWindows())
@@ -173,7 +172,18 @@ MachineFunctionInfo *AArch64FunctionInfo::clone(
   return DestMF.cloneInfo<AArch64FunctionInfo>(*this);
 }
 
-bool AArch64FunctionInfo::shouldSignReturnAddress(bool SpillsLR) const {
+static bool shouldAuthenticateLR(const MachineFunction &MF) {
+  // Return address authentication can be enabled at the function level, using
+  // the "ptrauth-returns" attribute.
+  const AArch64Subtarget &Subtarget = MF.getSubtarget<AArch64Subtarget>();
+  return Subtarget.isTargetMachO() &&
+         MF.getFunction().hasFnAttribute("ptrauth-returns");
+}
+
+bool AArch64FunctionInfo::shouldSignReturnAddress(const MachineFunction &MF,
+                                                  bool SpillsLR) const {
+  if (SpillsLR && shouldAuthenticateLR(MF))
+    return true;
   if (!SignReturnAddress)
     return false;
   if (SignReturnAddressAll)
@@ -189,7 +199,7 @@ static bool isLRSpilled(const MachineFunction &MF) {
 
 bool AArch64FunctionInfo::shouldSignReturnAddress(
     const MachineFunction &MF) const {
-  return shouldSignReturnAddress(isLRSpilled(MF));
+  return shouldSignReturnAddress(MF, isLRSpilled(MF));
 }
 
 bool AArch64FunctionInfo::needsShadowCallStackPrologueEpilogue(

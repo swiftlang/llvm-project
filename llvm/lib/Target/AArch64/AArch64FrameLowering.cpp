@@ -723,7 +723,8 @@ void AArch64FrameLowering::resetCFIToInitialState(
   CFIBuilder.buildDefCFA(AArch64::SP, 0);
 
   // Flip the RA sign state.
-  if (MFI.shouldSignReturnAddress(MF))
+  if (MFI.shouldSignReturnAddress(MF) &&
+      !MF.getTarget().getTargetTriple().isOSBinFormatMachO())
     MFI.branchProtectionPAuthLR() ? CFIBuilder.buildNegateRAStateWithPC()
                                   : CFIBuilder.buildNegateRAState();
 
@@ -984,7 +985,8 @@ bool AArch64FrameLowering::shouldSignReturnAddressEverywhere(
   if (MF.getTarget().getMCAsmInfo()->usesWindowsCFI())
     return false;
   const AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
-  bool SignReturnAddressAll = AFI->shouldSignReturnAddress(/*SpillsLR=*/false);
+  bool SignReturnAddressAll =
+      AFI->shouldSignReturnAddress(MF, /*SpillsLR=*/false);
   return SignReturnAddressAll;
 }
 
