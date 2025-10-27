@@ -4,7 +4,7 @@ void foo(int i);
 // RUN: %clang_cc1 -index-store-path %t/idx %s -o %t.o
 // RUN: touch %t.empty
 
-// RUN: cp %t.empty $(find %t/idx -name "empty-unit.c*o*")
+// RUN: find %t/idx -name "empty-unit.c*o*" -exec cp %t.empty "{}" ";"
 // RUN: not c-index-test core -print-unit %t/idx 2> %t.err
 // RUN: FileCheck %s -input-file %t.err -check-prefix ERR-UNIT
 // ERR-UNIT: error loading unit: empty file
@@ -17,4 +17,3 @@ void foo(int i);
 // RUN: FileCheck %s -input-file %t2.err -check-prefix ERR-RECORD
 // ERR-RECORD: error loading record: empty file
 
-// REQUIRES: shell
