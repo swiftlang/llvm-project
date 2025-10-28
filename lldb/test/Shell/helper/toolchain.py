@@ -233,6 +233,9 @@ def use_support_substitutions(config):
         # Required in SwiftREPL tests
         sdk_path = os.environ.get("SDKROOT")
         if sdk_path:
+            # Wrap in quotes so that paths with spaces don't get mangled into
+            # multiple arguments when used as an arg.
+            sdk_path = f"'{sdk_path}'"
             llvm_config.lit_config.note(f"using SDKROOT: {sdk_path}")
             llvm_config.with_environment("SDKROOT", sdk_path)
         else:
@@ -258,7 +261,7 @@ def use_support_substitutions(config):
         ),
     ]
     swift_driver_args = []
-    if platform.system() in ["Darwin"]:
+    if platform.system() in ["Darwin", "Windows"]:
         swift_args += ["-sdk", sdk_path]
     tools = [
         ToolSubst(
