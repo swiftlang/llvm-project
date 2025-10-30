@@ -30,9 +30,13 @@ RUN: FileCheck %s --input-file %t/cas/v1.log --check-prefix=STANDALONE
 // CHECK: validate-if-needed '{{.*}}cas' boot=[[BOOT:[0-9]+]] last-valid=0 check-hash=1 allow-recovery=0 force=0 llvm-cas={{.*}}llvm-cas
 // CHECK: validate-if-needed '{{.*}}cas' boot=[[BOOT]] last-valid=[[BOOT]] check-hash=0 allow-recovery=1 force=1 llvm-cas={{.*}}llvm-cas
 
-// STANDALONE: standalone file create '[[PATH:.*leaf.[0-9a-f]*.v[0-9]+]].[[SUFFIX:[0-9a-f]*]]'
-// STANDALONE: standalone file rename '[[PATH]].[[SUFFIX]]' to '[[PATH]]'
-
+// STANDALONE: standalone file create '[[PATH_PREFIX:.*]][[FILE_NAME:leaf.[0-9a-f]*.v[0-9]+]].[[SUFFIX:[0-9a-f]*]]'
+// We only check the first two characters of the sharding directory as the last
+// is currently truncated to 2 bits as we're only using 10 bits of entropy for
+// the shard
+// STANDALONE: standalone file rename '[[PATH_PREFIX]][[FILE_NAME]].[[SUFFIX]]' to '[[PATH_PREFIX]][[SHARD_PREFIX:[0-9a-f][0-9a-f]]]{{[0-9a-f]}}/[[FILE_NAME]]'
+// STANDALONE-NEXT:  alloc [[REGION_ID:0x[0-9a-f]+]]
+// STANDAlONE: create record region=[[REGION_ID]]{{.*}}hash={{[0-9a-z]+}}[[SHARD_PREFIX]]{{[0-9a-z][^0-9a-z]}}
 //--- input/a
 Input 1
 

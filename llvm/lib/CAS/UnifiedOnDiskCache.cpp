@@ -496,8 +496,10 @@ UnifiedOnDiskCache::open(StringRef RootPath, std::optional<uint64_t> SizeLimit,
   SmallVector<std::string, 4> DBDirs;
   if (Error E = getAllDBDirs(RootPath, DBDirs))
     return std::move(E);
-  if (DBDirs.empty())
+  if (DBDirs.empty()) {
+    // Fixme: What is the correct way to change this now?
     DBDirs.push_back((Twine(DBDirPrefix) + "1").str());
+  }
 
   assert(!DBDirs.empty());
 
