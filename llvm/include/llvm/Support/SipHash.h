@@ -48,6 +48,7 @@ LLVM_ABI void getSipHash_2_4_128(ArrayRef<uint8_t> In, const uint8_t (&K)[16],
 /// in the ABI that use a constant zero.
 LLVM_ABI uint16_t getPointerAuthStableSipHash(StringRef S);
 
+template <typename UInt> UInt getPointerAuthStableSipHashImpl(StringRef Str);
 } // end namespace llvm
 
 #endif
