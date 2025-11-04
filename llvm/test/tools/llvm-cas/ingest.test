@@ -27,7 +27,7 @@ CHECK: syml
 CHECK-SAME: sym_dir -> directory
 
 RUN: llvm-cas --cas %t/cas --get-cas-id --data %S/Inputs/directory/file @%t/cas.id > %t/file.casid
-RUN: llvm-cas --cas %t/cas --cat-blob @%t/file.casid | FileCheck %s --check-prefix=CHECK-TEST-FILE
+RUN: llvm-cas --cas %t/cas --cat-node-data @%t/file.casid | FileCheck %s --check-prefix=CHECK-TEST-FILE
 
 CHECK-TEST-FILE: test
 

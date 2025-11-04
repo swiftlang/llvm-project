@@ -1,9 +1,13 @@
-//===- llvm-cas.cpp - CAS tool --------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
+//===----------------------------------------------------------------------===//
+///
+/// \file A utility for operating on LLVM CAS.
+///
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/ActionCache.h"
@@ -13,9 +17,10 @@
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/CAS/TreeSchema.h"
-#include "llvm/CAS/UnifiedOnDiskCache.h"
 #include "llvm/CAS/Utils.h"
-#include "llvm/RemoteCachingService/RemoteCachingService.h"
+#include "llvm/Option/Arg.h"
+#include "llvm/Option/ArgList.h"
+#include "llvm/Option/Option.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -30,34 +35,147 @@
 using namespace llvm;
 using namespace llvm::cas;
 
-static cl::opt<bool> AllTrees("all-trees",
-                              cl::desc("Print all trees, not just empty ones, for ls-tree-recursive"));
-static cl::list<std::string> PrefixMapPaths(
-    "prefix-map",
-    cl::desc("prefix map for file system ingestion, -prefix-map BEFORE=AFTER"));
-static cl::opt<bool>
-    CASIDFile("casid-file",
-              cl::desc("Input is CASID file, just ingest CASID."));
-static cl::list<std::string> Inputs(cl::Positional, cl::desc("Input object"));
+namespace {
+enum ID {
+  OPT_INVALID = 0, // This is not an option ID.
+#define OPTION(...) LLVM_MAKE_OPT_ID(__VA_ARGS__),
+#include "Options.inc"
+#undef OPTION
+};
+
+#define OPTTABLE_STR_TABLE_CODE
+#include "Options.inc"
+#undef OPTTABLE_STR_TABLE_CODE
+
+#define OPTTABLE_PREFIXES_TABLE_CODE
+#include "Options.inc"
+#undef OPTTABLE_PREFIXES_TABLE_CODE
+
+using namespace llvm::opt;
+static constexpr opt::OptTable::Info InfoTable[] = {
+#define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
+#include "Options.inc"
+#undef OPTION
+};
+
+class LLVMCASOptTable : public opt::GenericOptTable {
+public:
+  LLVMCASOptTable()
+      : opt::GenericOptTable(OptionStrTable, OptionPrefixesTable, InfoTable) {}
+};
+
+enum class CommandKind {
+  Invalid,
+  Dump,
+  CatNodeData,
+  DiffGraphs,
+  TraverseGraph,
+  MakeBlob,
+  MakeNode,
+  ListTree,
+  ListTreeRecursive,
+  ListObjectReferences,
+  IngestFileSystem,
+  MergeTrees,
+  GetCASIDForFile,
+  Import,
+  PutCacheKey,
+  GetCacheResult,
+  Validate,
+  ValidateObject,
+  ValidateIfNeeded,
+  Prune,
+};
+
+struct CommandOptions {
+  CommandKind Command = CommandKind::Invalid;
+  std::vector<std::string> Inputs;
+  std::string CASPath;
+  std::string CASPluginPath;
+  std::vector<std::string> CASPluginOpts;
+  std::string UpstreamCASPath;
+  std::string DataPath;
+  std::vector<std::string> PrefixMapPaths;
+  bool CheckHash;
+  bool AllowRecovery;
+  bool Force;
+  bool InProcess;
+  bool AllTrees;
+  bool CASIDFile;
+
+  static CommandKind getCommandKind(opt::Arg &A) {
+    switch (A.getOption().getID()) {
+    case OPT_cas_dump:
+      return CommandKind::Dump;
+    case OPT_cat_node_data:
+      return CommandKind::CatNodeData;
+    case OPT_diff_graph:
+      return CommandKind::DiffGraphs;
+    case OPT_traverse_graph:
+      return CommandKind::TraverseGraph;
+    case OPT_make_blob:
+      return CommandKind::MakeBlob;
+    case OPT_make_node:
+      return CommandKind::MakeNode;
+    case OPT_ls_tree:
+      return CommandKind::ListTree;
+    case OPT_ls_tree_recursive:
+      return CommandKind::ListTreeRecursive;
+    case OPT_ls_node_refs:
+      return CommandKind::ListObjectReferences;
+    case OPT_ingest:
+      return CommandKind::IngestFileSystem;
+    case OPT_merge_tree:
+      return CommandKind::MergeTrees;
+    case OPT_get_cas_id:
+      return CommandKind::GetCASIDForFile;
+    case OPT_import:
+      return CommandKind::Import;
+    case OPT_put_cache_key:
+      return CommandKind::PutCacheKey;
+    case OPT_get_cache_result:
+      return CommandKind::GetCacheResult;
+    case OPT_validate:
+      return CommandKind::Validate;
+    case OPT_validate_object:
+      return CommandKind::ValidateObject;
+    case OPT_validate_if_needed:
+      return CommandKind::ValidateIfNeeded;
+    case OPT_prune:
+      return CommandKind::Prune;
+    }
+    return CommandKind::Invalid;
+  }
+
+  // Command requires input.
+  static bool requiresInput(CommandKind Kind) {
+    return Kind != CommandKind::ValidateIfNeeded &&
+           Kind != CommandKind::Validate && Kind != CommandKind::MakeBlob &&
+           Kind != CommandKind::MakeNode && Kind != CommandKind::Dump &&
+           Kind != CommandKind::Prune && Kind != CommandKind::MergeTrees;
+  }
+};
+} // namespace
 
 static int dump(ObjectStore &CAS);
 static int listTree(ObjectStore &CAS, const CASID &ID);
-static int listTreeRecursively(ObjectStore &CAS, const CASID &ID);
+static int listTreeRecursively(ObjectStore &CAS, const CASID &ID,
+                               bool AllTrees);
 static int listObjectReferences(ObjectStore &CAS, const CASID &ID);
-static int catBlob(ObjectStore &CAS, const CASID &ID);
 static int catNodeData(ObjectStore &CAS, const CASID &ID);
-static int printKind(ObjectStore &CAS, const CASID &ID);
 static int makeBlob(ObjectStore &CAS, StringRef DataPath);
 static int makeNode(ObjectStore &CAS, ArrayRef<std::string> References,
                     StringRef DataPath);
 static int diffGraphs(ObjectStore &CAS, const CASID &LHS, const CASID &RHS);
 static int traverseGraph(ObjectStore &CAS, const CASID &ID);
 static int ingestFileSystem(ObjectStore &CAS, std::optional<StringRef> CASPath,
-                            ArrayRef<std::string> Paths);
+                            ArrayRef<std::string> Paths,
+                            ArrayRef<std::string> PrefixMapPaths,
+                            bool CASIDFile);
 static int mergeTrees(ObjectStore &CAS, ArrayRef<std::string> Objects);
 static int getCASIDForFile(ObjectStore &CAS, const CASID &ID,
                            ArrayRef<std::string> Path);
-static int import(ObjectStore &CAS, ObjectStore &UpstreamCAS,
+static int import(ObjectStore &FromCAS, ObjectStore &ToCAS,
                   ArrayRef<std::string> Objects);
 static int putCacheKey(ObjectStore &CAS, ActionCache &AC,
                        ArrayRef<std::string> Objects);
@@ -71,215 +189,173 @@ static int validateIfNeeded(StringRef Path, StringRef PluginPath,
 static int ingestCasIDFile(cas::ObjectStore &CAS, ArrayRef<std::string> CASIDs);
 static int prune(cas::ObjectStore &CAS);
 
+static Expected<CommandOptions> parseOptions(int Argc, char **Argv) {
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+  SmallVector<const char *> ExpanedArgs;
+  if (!cl::expandResponseFiles(Argc, Argv, nullptr, Saver, ExpanedArgs))
+    return createStringError("cannot expand response file");
+
+  LLVMCASOptTable T;
+  unsigned MI, MC;
+  opt::InputArgList Args = T.ParseArgs(ExpanedArgs, MI, MC);
+
+  for (auto *Arg : Args.filtered(OPT_UNKNOWN)) {
+    llvm::errs() << "ignoring unknown option: " << Arg->getSpelling() << '\n';
+  }
+
+  if (Args.hasArg(OPT_help)) {
+    T.printHelp(
+        outs(),
+        (std::string(Argv[0]) + " [action] [options] <input files>").c_str(),
+        "llvm-cas tool that performs CAS actions.", false);
+    exit(0);
+  }
+
+  CommandOptions Opts;
+  for (auto *A : Args.filtered(OPT_grp_action))
+    Opts.Command = CommandOptions::getCommandKind(*A);
+
+  if (Opts.Command == CommandKind::Invalid)
+    return createStringError("no command action is specified");
+
+  for (auto *File : Args.filtered(OPT_INPUT))
+    Opts.Inputs.push_back(File->getValue());
+  Opts.CASPath = Args.getLastArgValue(OPT_cas_path);
+  Opts.CASPluginPath = Args.getLastArgValue(OPT_cas_plugin_path);
+  Opts.CASPluginOpts = Args.getAllArgValues(OPT_cas_plugin_option);
+  Opts.UpstreamCASPath = Args.getLastArgValue(OPT_upstream_cas);
+  Opts.DataPath = Args.getLastArgValue(OPT_data);
+  Opts.PrefixMapPaths = Args.getAllArgValues(OPT_prefix_map);
+  Opts.CheckHash = Args.hasArg(OPT_check_hash);
+  Opts.AllowRecovery = Args.hasArg(OPT_allow_recovery);
+  Opts.Force = Args.hasArg(OPT_force);
+  Opts.InProcess = Args.hasArg(OPT_in_process);
+  Opts.AllTrees = Args.hasArg(OPT_all_trees);
+  Opts.CASIDFile = Args.hasArg(OPT_casid_file);
+
+  // Validate options.
+  if (Opts.CASPath.empty())
+    return createStringError("missing --cas <path>");
+
+  if (Opts.Inputs.empty() && CommandOptions::requiresInput(Opts.Command))
+    return createStringError("missing <input> to operate on");
+
+  return Opts;
+}
+
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
-  RegisterGRPCCAS Y;
 
-  cl::opt<std::string> CASPath("cas", cl::desc("Path to CAS on disk."),
-                               cl::value_desc("path"));
-  cl::opt<std::string> CASPluginPath("fcas-plugin-path",
-                                     cl::desc("Path to plugin CAS library"),
-                                     cl::value_desc("path"));
-  cl::list<std::string> CASPluginOpts("fcas-plugin-option",
-                                      cl::desc("Plugin CAS Options"));
-  cl::opt<std::string> UpstreamCASPath(
-      "upstream-cas", cl::desc("Path to another CAS."), cl::value_desc("path"));
-  cl::opt<std::string> DataPath("data",
-                                cl::desc("Path to data or '-' for stdin."),
-                                cl::value_desc("path"));
-  cl::opt<bool> CheckHash("check-hash",
-                          cl::desc("check all hashes during validation"));
-  cl::opt<bool> AllowRecovery("allow-recovery",
-                              cl::desc("allow recovery of cas data"));
-  cl::opt<bool> Force("force",
-                      cl::desc("force validation even if unnecessary"));
-  cl::opt<bool> InProcess("in-process", cl::desc("validate in-process"));
+  ExitOnError ExitOnErr;
+  auto Opts = ExitOnErr(parseOptions(Argc, Argv));
 
-  enum CommandKind {
-    Invalid,
-    Dump,
-    PrintKind,
-    CatBlob,
-    CatNodeData,
-    DiffGraphs,
-    TraverseGraph,
-    MakeBlob,
-    MakeNode,
-    ListTree,
-    ListTreeRecursive,
-    ListObjectReferences,
-    IngestFileSystem,
-    MergeTrees,
-    GetCASIDForFile,
-    Import,
-    PutCacheKey,
-    GetCacheResult,
-    Validate,
-    ValidateObject,
-    ValidateIfNeeded,
-    Prune,
-  };
-  cl::opt<CommandKind> Command(
-      cl::desc("choose command action:"),
-      cl::values(
-          clEnumValN(Dump, "dump", "dump internal contents"),
-          clEnumValN(PrintKind, "print-kind", "print kind"),
-          clEnumValN(CatBlob, "cat-blob", "cat blob"),
-          clEnumValN(CatNodeData, "cat-node-data", "cat node data"),
-          clEnumValN(DiffGraphs, "diff-graphs", "diff graphs"),
-          clEnumValN(TraverseGraph, "traverse-graph", "traverse graph"),
-          clEnumValN(MakeBlob, "make-blob", "make blob"),
-          clEnumValN(MakeNode, "make-node", "make node"),
-          clEnumValN(ListTree, "ls-tree", "list tree"),
-          clEnumValN(ListTreeRecursive, "ls-tree-recursive",
-                     "list tree recursive"),
-          clEnumValN(ListObjectReferences, "ls-node-refs", "list node refs"),
-          clEnumValN(IngestFileSystem, "ingest", "ingest file system"),
-          clEnumValN(MergeTrees, "merge", "merge paths/cas-ids"),
-          clEnumValN(GetCASIDForFile, "get-cas-id", "get cas id for file"),
-          clEnumValN(Import, "import", "import objects from another CAS"),
-          clEnumValN(PutCacheKey, "put-cache-key",
-                     "set a value for a cache key"),
-          clEnumValN(GetCacheResult, "get-cache-result",
-                     "get the result value from a cache key"),
-          clEnumValN(Validate, "validate", "validate ObjectStore"),
-          clEnumValN(ValidateObject, "validate-object",
-                     "validate the object for CASID"),
-          clEnumValN(ValidateIfNeeded, "validate-if-needed",
-                     "validate cas contents if needed"),
-          clEnumValN(Prune, "prune", "prune local cas storage")),
-      cl::init(CommandKind::Invalid));
-
-  cl::ParseCommandLineOptions(Argc, Argv, "llvm-cas CAS tool\n");
-  ExitOnError ExitOnErr("llvm-cas: ");
-
-  if (Command == CommandKind::Invalid)
-    ExitOnErr(createStringError(inconvertibleErrorCode(),
-                                "no command action is specified"));
-
-  // FIXME: Consider creating an in-memory CAS.
-  if (CASPath.empty())
-    ExitOnErr(
-        createStringError(inconvertibleErrorCode(), "missing --cas=<path>"));
-
-  if (Command == ValidateIfNeeded)
-    return validateIfNeeded(CASPath, CASPluginPath, CASPluginOpts, CheckHash,
-                            Force, AllowRecovery, InProcess, Argv[0]);
+  if (Opts.Command == CommandKind::ValidateIfNeeded)
+    return validateIfNeeded(Opts.CASPath, Opts.CASPluginPath,
+                            Opts.CASPluginOpts, Opts.CheckHash, Opts.Force,
+                            Opts.AllowRecovery, Opts.InProcess, Argv[0]);
 
   std::shared_ptr<ObjectStore> CAS;
   std::shared_ptr<ActionCache> AC;
   std::optional<StringRef> CASFilePath;
-  if (sys::path::is_absolute(CASPath)) {
-    CASFilePath = CASPath;
-    if (!CASPluginPath.empty()) {
+  if (sys::path::is_absolute(Opts.CASPath)) {
+    CASFilePath = Opts.CASPath;
+    if (!Opts.CASPluginPath.empty()) {
       SmallVector<std::pair<std::string, std::string>> PluginOptions;
-      for (const auto &PluginOpt : CASPluginOpts) {
+      for (const auto &PluginOpt : Opts.CASPluginOpts) {
         auto [Name, Val] = StringRef(PluginOpt).split('=');
         PluginOptions.push_back({std::string(Name), std::string(Val)});
       }
-      std::tie(CAS, AC) = ExitOnErr(
-          createPluginCASDatabases(CASPluginPath, CASPath, PluginOptions));
+      std::tie(CAS, AC) = ExitOnErr(createPluginCASDatabases(
+          Opts.CASPluginPath, Opts.CASPath, PluginOptions));
     } else {
-      std::tie(CAS, AC) = ExitOnErr(createOnDiskUnifiedCASDatabases(CASPath));
+      std::tie(CAS, AC) =
+          ExitOnErr(createOnDiskUnifiedCASDatabases(Opts.CASPath));
     }
   } else {
-    CAS = ExitOnErr(createCASFromIdentifier(CASPath));
+    CAS = ExitOnErr(createCASFromIdentifier(Opts.CASPath));
   }
   assert(CAS);
 
-  std::shared_ptr<ObjectStore> UpstreamCAS;
-  if (!UpstreamCASPath.empty())
-    UpstreamCAS = ExitOnErr(createCASFromIdentifier(UpstreamCASPath));
-
-  if (Command == Dump)
+  if (Opts.Command == CommandKind::Dump)
     return dump(*CAS);
 
-  if (Command == Validate)
-    return validate(*CAS, *AC, CheckHash);
+  if (Opts.Command == CommandKind::Validate)
+    return validate(*CAS, *AC, Opts.CheckHash);
 
-  if (Command == MakeBlob)
-    return makeBlob(*CAS, DataPath);
+  if (Opts.Command == CommandKind::MakeBlob)
+    return makeBlob(*CAS, Opts.DataPath);
 
-  if (Command == MakeNode)
-    return makeNode(*CAS, Inputs, DataPath);
+  if (Opts.Command == CommandKind::MakeNode)
+    return makeNode(*CAS, Opts.Inputs, Opts.DataPath);
 
-  if (Command == DiffGraphs) {
+  if (Opts.Command == CommandKind::DiffGraphs) {
     ExitOnError CommandErr("llvm-cas: diff-graphs");
 
-    if (Inputs.size() != 2)
-      CommandErr(
-          createStringError(inconvertibleErrorCode(), "expected 2 objects"));
+    if (Opts.Inputs.size() != 2)
+      CommandErr(createStringError("expected 2 objects"));
 
-    CASID LHS = ExitOnErr(CAS->parseID(Inputs[0]));
-    CASID RHS = ExitOnErr(CAS->parseID(Inputs[1]));
+    CASID LHS = ExitOnErr(CAS->parseID(Opts.Inputs[0]));
+    CASID RHS = ExitOnErr(CAS->parseID(Opts.Inputs[1]));
     return diffGraphs(*CAS, LHS, RHS);
   }
 
-  if (Command == IngestFileSystem)
-    return ingestFileSystem(*CAS, CASFilePath, Inputs);
+  if (Opts.Command == CommandKind::IngestFileSystem)
+    return ingestFileSystem(*CAS, CASFilePath, Opts.Inputs, Opts.PrefixMapPaths,
+                            Opts.CASIDFile);
 
-  if (Command == MergeTrees)
-    return mergeTrees(*CAS, Inputs);
+  if (Opts.Command == CommandKind::MergeTrees)
+    return mergeTrees(*CAS, Opts.Inputs);
 
-  if (Command == Prune)
+  if (Opts.Command == CommandKind::Prune)
     return prune(*CAS);
 
-  if (Inputs.empty())
-    ExitOnErr(createStringError(inconvertibleErrorCode(),
-                                "missing <object> to operate on"));
+  if (Opts.Command == CommandKind::Import) {
+    if (Opts.UpstreamCASPath.empty())
+      ExitOnErr(createStringError("missing '-upstream-cas'"));
 
-  if (Command == Import) {
-    if (!UpstreamCAS)
-      ExitOnErr(createStringError(inconvertibleErrorCode(),
-                                  "missing '-upstream-cas'"));
+    auto UpstreamCAS = ExitOnErr(createCASFromIdentifier(Opts.UpstreamCASPath));
 
-    return import(*UpstreamCAS, *CAS, Inputs);
+    return import(*UpstreamCAS, *CAS, Opts.Inputs);
   }
 
-  if (Command == PutCacheKey || Command == GetCacheResult) {
+  if (Opts.Command == CommandKind::PutCacheKey ||
+      Opts.Command == CommandKind::GetCacheResult) {
     if (!AC)
-      ExitOnErr(createStringError(inconvertibleErrorCode(),
-                                  "no action-cache available"));
+      ExitOnErr(createStringError("no action-cache available"));
   }
 
-  if (Command == PutCacheKey)
-    return putCacheKey(*CAS, *AC, Inputs);
+  if (Opts.Command == CommandKind::PutCacheKey)
+    return putCacheKey(*CAS, *AC, Opts.Inputs);
 
   // Remaining commands need exactly one CAS object.
-  if (Inputs.size() > 1)
-    ExitOnErr(createStringError(inconvertibleErrorCode(),
-                                "too many <object>s, expected 1"));
-  CASID ID = ExitOnErr(CAS->parseID(Inputs.front()));
+  if (Opts.Inputs.size() > 1)
+    ExitOnErr(createStringError("too many <object>s, expected 1"));
+  CASID ID = ExitOnErr(CAS->parseID(Opts.Inputs.front()));
 
-  if (Command == GetCacheResult)
+  if (Opts.Command == CommandKind::GetCacheResult)
     return getCacheResult(*CAS, *AC, ID);
 
-  if (Command == TraverseGraph)
+  if (Opts.Command == CommandKind::TraverseGraph)
     return traverseGraph(*CAS, ID);
 
-  if (Command == ListTree)
+  if (Opts.Command == CommandKind::ListTree)
     return listTree(*CAS, ID);
 
-  if (Command == ListTreeRecursive)
-    return listTreeRecursively(*CAS, ID);
+  if (Opts.Command == CommandKind::ListTreeRecursive)
+    return listTreeRecursively(*CAS, ID, Opts.AllTrees);
 
-  if (Command == ListObjectReferences)
+  if (Opts.Command == CommandKind::ListObjectReferences)
     return listObjectReferences(*CAS, ID);
 
-  if (Command == CatNodeData)
+  if (Opts.Command == CommandKind::CatNodeData)
     return catNodeData(*CAS, ID);
 
-  if (Command == PrintKind)
-    return printKind(*CAS, ID);
+  if (Opts.Command == CommandKind::GetCASIDForFile)
+    return getCASIDForFile(*CAS, ID, Opts.DataPath);
 
-  if (Command == GetCASIDForFile)
-    return getCASIDForFile(*CAS, ID, DataPath);
-
-  if (Command == ValidateObject)
-    return validateObject(*CAS, ID);
-
-  assert(Command == CatBlob);
-  return catBlob(*CAS, ID);
+  assert(Opts.Command == CommandKind::ValidateObject);
+  return validateObject(*CAS, ID);
 }
 
 int ingestCasIDFile(cas::ObjectStore &CAS, ArrayRef<std::string> CASIDs) {
@@ -317,7 +393,7 @@ int listTree(ObjectStore &CAS, const CASID &ID) {
   return 0;
 }
 
-int listTreeRecursively(ObjectStore &CAS, const CASID &ID) {
+int listTreeRecursively(ObjectStore &CAS, const CASID &ID, bool AllTrees) {
   ExitOnError ExitOnErr("llvm-cas: ls-tree-recursively: ");
   TreeSchema Schema(CAS);
   ObjectProxy TreeN = ExitOnErr(CAS.getProxy(ID));
@@ -336,15 +412,12 @@ int listTreeRecursively(ObjectStore &CAS, const CASID &ID) {
   return 0;
 }
 
-int catBlob(ObjectStore &CAS, const CASID &ID) { return catNodeData(CAS, ID); }
-
-static Expected<std::unique_ptr<MemoryBuffer>>
-openBuffer(StringRef DataPath) {
+static Expected<std::unique_ptr<MemoryBuffer>> openBuffer(StringRef DataPath) {
   if (DataPath.empty())
-    return createStringError(inconvertibleErrorCode(), "--data missing");
-  return errorOrToExpected(
-      DataPath == "-" ? llvm::MemoryBuffer::getSTDIN()
-                      : llvm::MemoryBuffer::getFile(DataPath));
+    return createStringError("--data missing");
+  return errorOrToExpected(DataPath == "-"
+                               ? llvm::MemoryBuffer::getSTDIN()
+                               : llvm::MemoryBuffer::getFile(DataPath));
 }
 
 int dump(ObjectStore &CAS) {
@@ -375,14 +448,6 @@ static StringRef getKindString(ObjectStore &CAS, ObjectProxy Object) {
   return "object";
 }
 
-int printKind(ObjectStore &CAS, const CASID &ID) {
-  ExitOnError ExitOnErr("llvm-cas: print-kind: ");
-  ObjectProxy Object = ExitOnErr(CAS.getProxy(ID));
-
-  llvm::outs() << getKindString(CAS, Object) << "\n";
-  return 0;
-}
-
 int listObjectReferences(ObjectStore &CAS, const CASID &ID) {
   ExitOnError ExitOnErr("llvm-cas: ls-node-refs: ");
 
@@ -406,8 +471,7 @@ static int makeNode(ObjectStore &CAS, ArrayRef<std::string> Objects,
     std::optional<ObjectRef> ID =
         CAS.getReference(ObjectErr(CAS.parseID(Object)));
     if (!ID)
-      ObjectErr(createStringError(inconvertibleErrorCode(),
-                                  "unknown object '" + Object + "'"));
+      ObjectErr(createStringError("unknown object '" + Object + "'"));
     IDs.push_back(*ID);
   }
 
@@ -531,8 +595,9 @@ recursiveAccess(CachingOnDiskFileSystem &FS, StringRef Path,
   return Error::success();
 }
 
-static Expected<ObjectProxy> ingestFileSystemImpl(ObjectStore &CAS,
-                                                  ArrayRef<std::string> Paths) {
+static Expected<ObjectProxy>
+ingestFileSystemImpl(ObjectStore &CAS, ArrayRef<std::string> Paths,
+                     ArrayRef<std::string> PrefixMapPaths) {
   auto FS = createCachingOnDiskFileSystem(CAS);
   if (!FS)
     return FS.takeError();
@@ -561,7 +626,7 @@ static Expected<ObjectProxy> ingestFileSystemImpl(ObjectStore &CAS,
 
 /// Check that we are not attempting to ingest the CAS into itself, which can
 /// accidentally create a weird or large cas.
-Error checkCASIngestPath(StringRef CASPath, StringRef DataPath) {
+static Error checkCASIngestPath(StringRef CASPath, StringRef DataPath) {
   SmallString<128> RealCAS, RealData;
   if (std::error_code EC = sys::fs::real_path(StringRef(CASPath), RealCAS))
     return createFileError(CASPath, EC);
@@ -570,22 +635,23 @@ Error checkCASIngestPath(StringRef CASPath, StringRef DataPath) {
   if (RealCAS.starts_with(RealData) &&
       (RealCAS.size() == RealData.size() ||
        sys::path::is_separator(RealCAS[RealData.size()])))
-    return createStringError(inconvertibleErrorCode(),
-                             "-cas is inside -data directory, which would "
+    return createStringError("-cas is inside -data directory, which would "
                              "ingest the cas into itself");
   return Error::success();
 }
 
-int ingestFileSystem(ObjectStore &CAS, std::optional<StringRef> CASPath,
-                     ArrayRef<std::string> Paths) {
+static int ingestFileSystem(ObjectStore &CAS, std::optional<StringRef> CASPath,
+                            ArrayRef<std::string> Paths,
+                            ArrayRef<std::string> PrefixMapPaths,
+                            bool CASIDFile) {
   ExitOnError ExitOnErr("llvm-cas: ingest: ");
   if (CASIDFile)
-    return ingestCasIDFile(CAS, Inputs);
+    return ingestCasIDFile(CAS, Paths);
   if (CASPath)
-    for (auto File : Inputs)
+    for (auto File : Paths)
       ExitOnErr(checkCASIngestPath(*CASPath, File));
 
-  auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Paths));
+  auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Paths, PrefixMapPaths));
   outs() << Ref.getID() << "\n";
 
   return 0;
@@ -601,11 +667,10 @@ static int mergeTrees(ObjectStore &CAS, ArrayRef<std::string> Objects) {
       if (std::optional<ObjectRef> Ref = CAS.getReference(*ID))
         Builder.pushTreeContent(*Ref, "");
       else
-        ExitOnErr(createStringError(inconvertibleErrorCode(),
-                                    "unknown node with id: " + ID->toString()));
+        ExitOnErr(createStringError("unknown node with id: " + ID->toString()));
     } else {
       consumeError(ID.takeError());
-      auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Object));
+      auto Ref = ExitOnErr(ingestFileSystemImpl(CAS, Object, {}));
       Builder.pushTreeContent(Ref.getRef(), "");
     }
   }
@@ -640,11 +705,8 @@ static int import(ObjectStore &FromCAS, ObjectStore &ToCAS,
   for (StringRef Object : Objects) {
     CASID ID = ExitOnErr(FromCAS.parseID(Object));
     auto Ref = FromCAS.getReference(ID);
-    if (!Ref) {
-      ExitOnErr(createStringError(inconvertibleErrorCode(),
-                                  "input not found: " + ID.toString()));
-      return 1;
-    }
+    if (!Ref)
+      ExitOnErr(createStringError("input not found: " + ID.toString()));
 
     auto Imported = ExitOnErr(ToCAS.importObject(FromCAS, *Ref));
     llvm::outs() << ToCAS.getID(Imported).toString() << "\n";
@@ -657,8 +719,7 @@ static int putCacheKey(ObjectStore &CAS, ActionCache &AC,
   ExitOnError ExitOnErr("llvm-cas: put-cache-key: ");
 
   if (Objects.size() % 2 != 0)
-    ExitOnErr(createStringError(inconvertibleErrorCode(),
-                                "expected pairs of inputs"));
+    ExitOnErr(createStringError("expected pairs of inputs"));
   while (!Objects.empty()) {
     CASID Key = ExitOnErr(CAS.parseID(Objects[0]));
     CASID Result = ExitOnErr(CAS.parseID(Objects[1]));

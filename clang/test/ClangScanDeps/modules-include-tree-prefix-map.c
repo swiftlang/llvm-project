@@ -39,7 +39,7 @@
 
 // RUN: clang-cas-test -cas %t/cas -print-include-tree @%t/System.casid | grep '<module-includes>' | sed 's|.* llvmcas|llvmcas|' > %t/system-module-includes.casid
 // RUN: echo "System module-includes" >> %t/result.txt
-// RUN: llvm-cas -cas %t/cas -cat-blob @%t/system-module-includes.casid >> %t/result.txt
+// RUN: llvm-cas -cas %t/cas -cat-node-data @%t/system-module-includes.casid >> %t/result.txt
 
 // RUN: FileCheck %s -input-file %t/result.txt -DPREFIX=%/t -check-prefix=NO_PATHS
 // NO_PATHS-NOT: [[PREFIX]]
