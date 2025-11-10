@@ -11,6 +11,13 @@
 /// (e.g. `counted_by`)
 ///
 //===----------------------------------------------------------------------===//
+#include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/StmtVisitor.h"
+#include "clang/AST/TypeBase.h"
+#include "clang/AST/TypeLoc.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Sema/Initialization.h"
@@ -284,166 +291,69 @@ bool Sema::CheckCountedByAttrOnField(FieldDecl *FD, Expr *E, bool CountInBytes,
   return false;
 }
 
-/* TO_UPSTREAM(BoundsSafety) ON*/
-static SourceRange SourceRangeFor(const CountAttributedType *CATy, Sema &S) {
-  // Note: This implementation relies on `CountAttributedType` being unique.
-  // E.g.:
-  //
-  // struct Foo {
-  //   int count;
-  //   char* __counted_by(count) buffer;
-  //   char* __counted_by(count) buffer2;
-  // };
-  //
-  // The types of `buffer` and `buffer2` are unique. The types being
-  // unique means the SourceLocation of the `counted_by` expression can be used
-  // to find where the attribute was written.
-
-  auto Fallback = CATy->getCountExpr()->getSourceRange();
-  auto CountExprBegin = CATy->getCountExpr()->getBeginLoc();
-
-  // FIXME: We currently don't support the count expression being a macro
-  // itself. E.g.:
-  //
-  // #define ZERO 0
-  // int* __counted_by(ZERO) x;
-  //
-  if (S.SourceMgr.isMacroBodyExpansion(CountExprBegin))
-    return Fallback;
-
-  auto FetchIdentifierTokenFromOffset =
-      [&](ssize_t Offset) -> std::optional<Token> {
-    SourceLocation OffsetLoc = CountExprBegin.getLocWithOffset(Offset);
-    Token Result;
-    if (Lexer::getRawToken(OffsetLoc, Result, S.SourceMgr, S.getLangOpts()))
-      return std::optional<Token>(); // Failed
-
-    if (!Result.isAnyIdentifier())
-      return std::optional<Token>(); // Failed
-
-    return Result; // Success
-  };
-
-  auto CountExprEnd = CATy->getCountExpr()->getEndLoc();
-  auto FindRParenTokenAfter = [&]() -> std::optional<Token> {
-    auto CountExprEndSpelling = S.SourceMgr.getSpellingLoc(CountExprEnd);
-    auto MaybeRParenTok = Lexer::findNextToken(
-        CountExprEndSpelling, S.getSourceManager(), S.getLangOpts());
-
-    if (!MaybeRParenTok.has_value())
-      return std::nullopt;
-
-    if (!MaybeRParenTok->is(tok::r_paren))
-      return std::nullopt;
-
-    return *MaybeRParenTok;
-  };
-
-  // Step back two characters to point at the last character of the attribute
-  // text.
-  //
-  // __counted_by(count)
-  //            ^ ^
-  //            | |
-  //            ---
-  auto MaybeLastAttrCharToken = FetchIdentifierTokenFromOffset(-2);
-  if (!MaybeLastAttrCharToken)
-    return Fallback;
-
-  auto LastAttrCharToken = MaybeLastAttrCharToken.value();
-
-  if (LastAttrCharToken.getLength() > 1) {
-    // Special case: When the character is part of a macro the Token we get
-    // is the whole macro name (e.g. `__counted_by`).
-    if (LastAttrCharToken.getRawIdentifier() !=
-        CATy->getAttributeName(/*WithMacroPrefix=*/true))
-      return Fallback;
-
-    // Found the beginning of the `__counted_by` macro
-    SourceLocation Begin = LastAttrCharToken.getLocation();
-    // Now try to find the closing `)` of the macro.
-    auto MaybeRParenTok = FindRParenTokenAfter();
-    if (!MaybeRParenTok.has_value())
-      return Fallback;
-
-    return SourceRange(Begin, MaybeRParenTok->getLocation());
-  }
-
-  assert(LastAttrCharToken.getLength() == 1);
-  // The Token we got back is just the last character of the identifier.
-  // This means a macro is not being used and instead the attribute is being
-  // used directly. We need to find the beginning of the identifier. We support
-  // two cases:
-  //
-  // * Non-affixed version. E.g: `counted_by`
-  // * Affixed version. E.g.: `__counted_by__`
-
-  // Try non-affixed version. E.g.:
-  //
-  // __attribute__((counted_by(count)))
-  //                ^          ^
-  //                |          |
-  //                ------------
-
-  // +1 is for `(`
-  const ssize_t NonAffixedSkipCount =
-      CATy->getAttributeName(/*WithMacroPrefix=*/false).size() + 1;
-  auto MaybeNonAffixedBeginToken =
-      FetchIdentifierTokenFromOffset(-NonAffixedSkipCount);
-  if (!MaybeNonAffixedBeginToken)
-    return Fallback;
-
-  auto NonAffixedBeginToken = MaybeNonAffixedBeginToken.value();
-  if (NonAffixedBeginToken.getRawIdentifier() ==
-      CATy->getAttributeName(/*WithMacroPrefix=*/false)) {
-    // Found the beginning of the `counted_by`-like attribute
-    auto SL = NonAffixedBeginToken.getLocation();
-
-    // Now try to find the closing `)` of the attribute
-    auto MaybeRParenTok = FindRParenTokenAfter();
-    if (!MaybeRParenTok.has_value())
-      return Fallback;
-
-    return SourceRange(SL, MaybeRParenTok->getLocation());
-  }
-
-  // Try affixed version. E.g.:
-  //
-  // __attribute__((__counted_by__(count)))
-  //                ^              ^
-  //                |              |
-  //                ----------------
-  std::string AffixedTokenStr =
-      (llvm::Twine("__") + CATy->getAttributeName(/*WithMacroPrefix=*/false) +
-       llvm::Twine("__"))
-          .str();
-  // +1 is for `(`
-  // +4 is for the 4 `_` characters
-  const ssize_t AffixedSkipCount =
-      CATy->getAttributeName(/*WithMacroPrefix=*/false).size() + 1 + 4;
-  auto MaybeAffixedBeginToken =
-      FetchIdentifierTokenFromOffset(-AffixedSkipCount);
-  if (!MaybeAffixedBeginToken)
-    return Fallback;
-
-  auto AffixedBeginToken = MaybeAffixedBeginToken.value();
-  if (AffixedBeginToken.getRawIdentifier() != AffixedTokenStr)
-    return Fallback;
-
-  // Found the beginning of the `__counted_by__`-like like attribute.
-  auto SL = AffixedBeginToken.getLocation();
-  // Now try to find the closing `)` of the attribute
-  auto MaybeRParenTok = FindRParenTokenAfter();
-  if (!MaybeRParenTok.has_value())
-    return Fallback;
-
-  return SourceRange(SL, MaybeRParenTok->getLocation());
+// FIXME: for some reason diagnostics highlight the end character, while
+// getSourceText() does not include the end character.
+static SourceRange getAttrNameRangeImpl(Sema &S, SourceLocation Begin,
+                                        bool IsForDiagnostics) {
+  SourceManager &SM = S.getSourceManager();
+  SourceLocation TokenStart = Begin;
+  while (TokenStart.isMacroID())
+    TokenStart = SM.getImmediateExpansionRange(TokenStart).getBegin();
+  unsigned Offset = IsForDiagnostics ? 1 : 0;
+  SourceLocation End = S.getLocForEndOfToken(TokenStart, Offset);
+  return {TokenStart, End};
 }
-/* TO_UPSTREAM(BoundsSafety) OFF*/
+
+StringRef BoundsAttributedTypeLoc::getAttrNameAsWritten(Sema &S) const {
+  SourceRange Range = getAttrNameRangeImpl(S, getAttrRange().getBegin(), false);
+  CharSourceRange NameRange = CharSourceRange::getCharRange(Range);
+  return Lexer::getSourceText(NameRange, S.getSourceManager(), S.getLangOpts());
+}
+
+SourceRange BoundsAttributedTypeLoc::getAttrNameRange(Sema &S) const {
+  return getAttrNameRangeImpl(S, getAttrRange().getBegin(), true);
+}
+
+static TypeSourceInfo *getTSI(const Decl *D) {
+  if (const auto* DD = dyn_cast<DeclaratorDecl>(D)) {
+    return DD->getTypeSourceInfo();
+  }
+  return nullptr;
+}
+
+struct TypeLocFinder : public ConstStmtVisitor<TypeLocFinder, TypeLoc> {
+  TypeLoc VisitParenExpr(const ParenExpr* E) {
+    return Visit(E->getSubExpr());
+  }
+
+  TypeLoc VisitDeclRefExpr(const DeclRefExpr *E) {
+    return getTSI(E->getDecl())->getTypeLoc();
+  }
+
+  TypeLoc VisitMemberExpr(const MemberExpr *E) {
+    return getTSI(E->getMemberDecl())->getTypeLoc();
+  }
+
+  TypeLoc VisitExplicitCastExpr(const ExplicitCastExpr *E) {
+    return E->getTypeInfoAsWritten()->getTypeLoc();
+  }
+
+  TypeLoc VisitCallExpr(const CallExpr *E) {
+    if (const auto *D = E->getCalleeDecl()) {
+      FunctionTypeLoc FTL = getTSI(D)->getTypeLoc().getAs<FunctionTypeLoc>();
+      if (FTL.isNull()) {
+        return FTL;
+      }
+      return FTL.getReturnLoc();
+    }
+    return {};
+  }
+};
 
 static void EmitIncompleteCountedByPointeeNotes(Sema &S,
                                                 const CountAttributedType *CATy,
-                                                NamedDecl *IncompleteTyDecl) {
+                                                NamedDecl *IncompleteTyDecl,
+                                                TypeLoc TL) {
   assert(IncompleteTyDecl == nullptr || isa<TypeDecl>(IncompleteTyDecl));
 
   if (IncompleteTyDecl) {
@@ -463,26 +373,36 @@ static void EmitIncompleteCountedByPointeeNotes(Sema &S,
         << CATy->getPointeeType();
   }
 
-  // Suggest using __sized_by(_or_null) instead of __counted_by(_or_null) as
-  // __sized_by(_or_null) doesn't have the complete type restriction.
-  //
-  // We use the source range of the expression on the CountAttributedType as an
-  // approximation for the source range of the attribute. This isn't quite right
-  // but isn't easy to fix right now.
-  //
-  // TODO: Implement logic to find the relevant TypeLoc for the attribute and
-  // get the SourceRange from that (#113582).
-  //
-  // TODO: We should emit a fix-it here.
+  CountAttributedTypeLoc CATL;
+  if (!TL.isNull())
+    CATL = TL.getAs<CountAttributedTypeLoc>();
 
-  /* TO_UPSTREAM(BoundsSafety) ON*/
-  // TODO: Upstream probably won't accept `SourceRangeFor` so we should consider
-  // removing it and its related tests.
-  // SourceRange AttrSrcRange = CATy->getCountExpr()->getSourceRange();
-  SourceRange AttrSrcRange = SourceRangeFor(CATy, S);
-  /* TO_UPSTREAM(BoundsSafety) OFF*/
+  if (CATL.isNull()) {
+    // Fall back to pointing to the count expr - not great, but close enough.
+    // This should happen rarely, if ever.
+    S.Diag(CATy->getCountExpr()->getExprLoc(),
+           diag::note_counted_by_consider_using_sized_by)
+        << CATy->isOrNull();
+    return;
+  }
+  SourceRange AttrSrcRange = CATL.getAttrNameRange(S);
+
+  StringRef Spelling = CATL.getAttrNameAsWritten(S);
+  StringRef FixedSpelling;
+  if (Spelling == "__counted_by")
+    FixedSpelling = "__sized_by";
+  else if (Spelling == "counted_by")
+    FixedSpelling = "sized_by";
+  else if (Spelling == "__counted_by_or_null")
+    FixedSpelling = "__sized_by_or_null";
+  else if (Spelling == "counted_by_or_null")
+    FixedSpelling = "sized_by_or_null";
+  FixItHint Fix;
+  if (!FixedSpelling.empty())
+    Fix = FixItHint::CreateReplacement(AttrSrcRange, FixedSpelling);
+
   S.Diag(AttrSrcRange.getBegin(), diag::note_counted_by_consider_using_sized_by)
-      << CATy->isOrNull() << AttrSrcRange;
+      << CATy->isOrNull() << AttrSrcRange << Fix;
 }
 
 static std::tuple<const CountAttributedType *, QualType>
@@ -551,7 +471,11 @@ static bool CheckAssignmentToCountAttrPtrWithIncompletePointeeTy(
       << CATy->getAttributeName(/*WithMacroPrefix=*/true) << PointeeTy
       << CATy->isOrNull() << RHSExpr->getSourceRange();
 
-  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl);
+  TypeLoc TL;
+  if (TypeSourceInfo *TSI = getTSI(Assignee))
+    TL = TSI->getTypeLoc();
+
+  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TL);
   return false; // check failed
 }
 
@@ -624,7 +548,8 @@ bool Sema::BoundsSafetyCheckUseOfCountAttrPtr(const Expr *E) {
       << CATy->getAttributeName(/*WithMacroPrefix=*/true) << CATy->isOrNull()
       << E->getSourceRange();
 
-  EmitIncompleteCountedByPointeeNotes(*this, CATy, IncompleteTyDecl);
+  TypeLoc TL = TypeLocFinder().Visit(E);
+  EmitIncompleteCountedByPointeeNotes(*this, CATy, IncompleteTyDecl, TL);
   return false;
 }
 
