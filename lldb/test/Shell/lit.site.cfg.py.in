@@ -24,7 +24,7 @@ config.python_executable = "@Python3_EXECUTABLE@"
 config.python_root_dir = "@Python3_ROOT_DIR@"
 config.swiftc = "@LLDB_SWIFTC@"
 config.swift_libs_dir = '@LLDB_SWIFT_LIBS@'
-_swift_driver_flags = lit_config.substitute("@LLDB_WINDOWS_SWIFT_DRIVER_EXTRA_FLAGS@")
+_swift_driver_flags = lit_config.substitute("@LLDB_SWIFT_DRIVER_EXTRA_FLAGS@")
 config.swift_driver_extra_args = [
     flag.strip()
     for flag in _swift_driver_flags.split(";")
