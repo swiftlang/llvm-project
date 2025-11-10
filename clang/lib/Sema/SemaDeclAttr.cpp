@@ -12,10 +12,12 @@
 
 #include "DynamicCountPointerAssignmentAnalysis.h"
 #include "TreeTransform.h"
+#include "TypeLocBuilder.h"
 #include "clang/AST/APValue.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTMutationListener.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -29,6 +31,8 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeVisitor.h"
+#include "clang/AST/TypeBase.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/DarwinSDKInfo.h"
@@ -8372,9 +8376,14 @@ static void handleCountedByAttrField(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (S.CheckCountedByAttrOnField(FD, CountExpr, CountInBytes, OrNull))
     return;
 
+  TypeLocBuilder TLB;
   QualType CAT = S.BuildCountAttributedArrayOrPointerType(
       FD->getType(), CountExpr, CountInBytes, OrNull);
+  TLB.pushFullCopy(FD->getTypeSourceInfo()->getTypeLoc());
+  CountAttributedTypeLoc CATL = TLB.push<CountAttributedTypeLoc>(CAT);
+  CATL.setAttrRange(AL.getRange());
   FD->setType(CAT);
+  FD->setTypeSourceInfo(TLB.getTypeSourceInfo(S.getASTContext(), CAT));
 }
 
 static void handleFunctionReturnThunksAttr(Sema &S, Decl *D,
