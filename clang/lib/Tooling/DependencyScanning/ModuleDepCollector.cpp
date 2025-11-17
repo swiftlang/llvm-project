@@ -615,10 +615,8 @@ static std::string getModuleContextHash(const ModuleDeps &MD,
 
   // Save and restore options that should not affect the hash, e.g. the exact
   // contents of input files, or prefix mappings.
-  auto &FSOpts = const_cast<FileSystemOptions &>(CI.getFileSystemOpts());
   auto &FEOpts = const_cast<FrontendOptions &>(CI.getFrontendOpts());
   auto &CASOpts = const_cast<CASOptions &>(CI.getCASOpts());
-  llvm::SaveAndRestore RestoreCASFSRootID(FSOpts.CASFileSystemRootID, {});
   llvm::SaveAndRestore RestorePrefixMappings(FEOpts.PathPrefixMappings, {});
   llvm::SaveAndRestore RestoreCASOptions(CASOpts, {});
 
@@ -885,9 +883,6 @@ ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
 
   if (!MF->IncludeTreeID.empty())
     MD.IncludeTreeID = MF->IncludeTreeID;
-
-  if (!MF->CASFileSystemRootID.empty())
-    MD.CASFileSystemRootID = MF->CASFileSystemRootID;
 
   bool IgnoreCWD = false;
   CowCompilerInvocation CI =

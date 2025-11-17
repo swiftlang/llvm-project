@@ -1529,7 +1529,7 @@ createBaseFS(const FileSystemOptions &FSOpts, const FrontendOptions &FEOpts,
              const CASOptions &CASOpts, DiagnosticsEngine &Diags,
              IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS,
              std::shared_ptr<llvm::cas::ObjectStore> OverrideCAS) {
-  if (FSOpts.CASFileSystemRootID.empty() && FEOpts.CASIncludeTreeID.empty())
+  if (FEOpts.CASIncludeTreeID.empty())
     return BaseFS;
 
   // If no CAS was provided, create one with CASOptions.
@@ -1537,7 +1537,7 @@ createBaseFS(const FileSystemOptions &FSOpts, const FrontendOptions &FEOpts,
   if (!CAS)
     CAS = CASOpts.getOrCreateDatabases(Diags).first;
 
-  // Helper for creating a valid (but empty) CASFS if an error is encountered.
+  // Helper for creating a valid (but empty) CAS FS if an error is encountered.
   auto makeEmptyCASFS = [&CAS]() {
     // Try to use the configured CAS, if any.
     std::optional<llvm::cas::CASID> EmptyRootID;
@@ -1564,15 +1564,10 @@ createBaseFS(const FileSystemOptions &FSOpts, const FrontendOptions &FEOpts,
   if (!CAS)
     return makeEmptyCASFS();
 
-  auto IsIncludeTreeFS = !FEOpts.CASIncludeTreeID.empty();
-
-  StringRef RootIDString =
-      IsIncludeTreeFS ? FEOpts.CASIncludeTreeID : FSOpts.CASFileSystemRootID;
-
-  Expected<llvm::cas::CASID> RootID = CAS->parseID(RootIDString);
+  Expected<llvm::cas::CASID> RootID = CAS->parseID(FEOpts.CASIncludeTreeID);
   if (!RootID) {
     llvm::consumeError(RootID.takeError());
-    Diags.Report(diag::err_cas_cannot_parse_root_id) << RootIDString;
+    Diags.Report(diag::err_cas_cannot_parse_root_id) << FEOpts.CASIncludeTreeID;
     return makeEmptyCASFS();
   }
 
@@ -1582,7 +1577,7 @@ createBaseFS(const FileSystemOptions &FSOpts, const FrontendOptions &FEOpts,
     std::optional<llvm::cas::ObjectRef> Ref = CAS->getReference(ID);
     if (!Ref)
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "RootID does not exist");
+                                     "include-tree CASID does not exist");
     auto Root = cas::IncludeTreeRoot::get(*CAS, *Ref);
     if (!Root)
       return Root.takeError();
@@ -1592,33 +1587,15 @@ createBaseFS(const FileSystemOptions &FSOpts, const FrontendOptions &FEOpts,
 
     return cas::createIncludeTreeFileSystem(*FileList);
   };
-  auto makeCASFS = [&](std::shared_ptr<llvm::cas::ObjectStore> CAS,
-                       llvm::cas::CASID &ID)
-      -> Expected<IntrusiveRefCntPtr<llvm::vfs::FileSystem>> {
-    Expected<std::unique_ptr<llvm::vfs::FileSystem>> ExpectedFS =
-        llvm::cas::createCASFileSystem(std::move(CAS), ID);
-    if (!ExpectedFS)
-      return ExpectedFS.takeError();
-    return std::move(*ExpectedFS);
-  };
 
-  auto ExpectedFS = IsIncludeTreeFS ? makeIncludeTreeFS(std::move(CAS), *RootID)
-                                    : makeCASFS(std::move(CAS), *RootID);
+  auto ExpectedFS = makeIncludeTreeFS(std::move(CAS), *RootID);
   if (!ExpectedFS) {
     Diags.Report(diag::err_cas_filesystem_cannot_be_initialized)
-        << RootIDString << llvm::toString(ExpectedFS.takeError());
+        << FEOpts.CASIncludeTreeID << llvm::toString(ExpectedFS.takeError());
     return makeEmptyCASFS();
   }
-  IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS = std::move(*ExpectedFS);
 
-  // Try to change directories.
-  StringRef CWD = FSOpts.CASFileSystemWorkingDirectory;
-  if (!CWD.empty())
-    if (std::error_code EC = FS->setCurrentWorkingDirectory(CWD))
-      Diags.Report(diag::err_cas_filesystem_cannot_set_working_directory)
-          << CWD;
-
-  return FS;
+  return *ExpectedFS;
 }
 
 void CompilerInvocation::setDefaultPointerAuthOptions(
