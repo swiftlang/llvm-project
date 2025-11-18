@@ -1058,10 +1058,7 @@ void SwiftASTContext::SetCompilerInvocationLLDBOverrides() {
   // In the JIT we don't benefit from the indexed indirections in DWARF 5.
   ir_gen_opts.DWARFVersion = 4;
   ir_gen_opts.DebugInfoFormat = swift::IRGenDebugInfoFormat::DWARF;
-  // Allow deserializing @_implementationOnly dependencies
-  // to avoid crashing due to module recovery issues.
   swift::LangOptions &lang_opts = m_compiler_invocation_ap->getLangOptions();
-  lang_opts.AllowDeserializingImplementationOnly = true;
   lang_opts.DebuggerSupport = true;
 
   // ModuleFileSharedCore::getTransitiveLoadingBehavior() has a
