@@ -62,6 +62,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "aarch64-instr-info"
+
 #define GET_INSTRINFO_CTOR_DTOR
 #include "AArch64GenInstrInfo.inc"
 
@@ -7499,7 +7501,7 @@ static bool mayAlias(const MachineInstr &MIa,
                      AliasAnalysis *AA) {
   for (const MachineInstr *MIb : MemInstrs) {
     if (MIa.mayAlias(AA, *MIb, /*UseTBAA*/ false)) {
-      MIb->dump();
+      LLVM_DEBUG(MIb->dump());
       return true;
     }
   }
