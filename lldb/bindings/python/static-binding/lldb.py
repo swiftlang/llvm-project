@@ -39,7 +39,12 @@ try:
     import _lldb
 except ImportError:
     # Relative import should work if we are being loaded by Python.
-    from . import _lldb
+    # The cpython module built by swig is pushed one level down into
+    # the native submodule, because at this point the interpreter
+    # is still constructing the lldb module itself.
+    # Simply importing anything using `from . import` constitutes
+    # a cyclic importing.
+    from .native import _lldb
 
 try:
     import builtins as __builtin__
@@ -7603,6 +7608,13 @@ class SBFrame(object):
         else:
             return SBFrame()
 
+    def get_child_frame(self):
+        child_idx = self.idx - 1
+        if child_idx >= 0:
+            return self.thread.frame[child_idx]
+        else:
+            return SBFrame()
+
     def get_arguments(self):
         return self.GetVariables(True,False,False,False)
 
@@ -7671,10 +7683,113 @@ class SBFrame(object):
     register = property(get_registers_access, None, doc='''A read only property that returns an helper object providing a flattened indexable view of the CPU registers for this stack frame.''')
     reg = property(get_registers_access, None, doc='''A read only property that returns an helper object providing a flattened indexable view of the CPU registers for this stack frame''')
     parent = property(get_parent_frame, None, doc='''A read only property that returns the parent (caller) frame of the current frame.''')
+    child = property(get_child_frame, None, doc='''A read only property that returns the child (callee) frame of the current frame.''')
 
 
 # Register SBFrame in _lldb:
 _lldb.SBFrame_swigregister(SBFrame)
+class SBFrameList(object):
+    r"""
+    Represents a list of SBFrame objects.
+
+    SBFrameList provides a way to iterate over stack frames lazily,
+    materializing frames on-demand as they are accessed. This is more
+    efficient than eagerly creating all frames upfront.
+    """
+
+    thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
+    __repr__ = _swig_repr
+
+    def __init__(self, *args):
+        r"""
+        __init__(SBFrameList self) -> SBFrameList
+        __init__(SBFrameList self, SBFrameList rhs) -> SBFrameList
+        """
+        _lldb.SBFrameList_swiginit(self, _lldb.new_SBFrameList(*args))
+    __swig_destroy__ = _lldb.delete_SBFrameList
+
+    def __nonzero__(self):
+        return _lldb.SBFrameList___nonzero__(self)
+    __bool__ = __nonzero__
+
+
+
+    def IsValid(self):
+        r"""IsValid(SBFrameList self) -> bool"""
+        return _lldb.SBFrameList_IsValid(self)
+
+    def GetSize(self):
+        r"""Returns the number of frames in the list."""
+        return _lldb.SBFrameList_GetSize(self)
+
+    def GetFrameAtIndex(self, idx):
+        r"""
+        Returns the frame at the given index.
+
+        :type idx: int, in
+        :param idx:
+                The index of the frame to retrieve (0-based).
+
+        :rtype: :py:class:`SBFrame`
+        :return: 
+                An SBFrame object for the frame at the specified index.
+                Returns an invalid SBFrame if idx is out of range.
+        """
+        return _lldb.SBFrameList_GetFrameAtIndex(self, idx)
+
+    def GetThread(self):
+        r"""
+        Get the thread associated with this frame list.
+
+        :rtype: :py:class:`SBThread`
+        :return: 
+                An SBThread object representing the thread.
+        """
+        return _lldb.SBFrameList_GetThread(self)
+
+    def Clear(self):
+        r"""Clear all frames from this list."""
+        return _lldb.SBFrameList_Clear(self)
+
+    def GetDescription(self, description):
+        r"""
+        Get a description of this frame list.
+
+        :type description: :py:class:`SBStream`, in
+        :param description:
+                The stream to write the description to.
+
+        :rtype: boolean
+        :return: 
+                True if the description was successfully written.
+        """
+        return _lldb.SBFrameList_GetDescription(self, description)
+
+    def __str__(self):
+        r"""__str__(SBFrameList self) -> std::string"""
+        return _lldb.SBFrameList___str__(self)
+
+    def __iter__(self):
+        '''Iterate over all frames in a lldb.SBFrameList object.'''
+        return lldb_iter(self, 'GetSize', 'GetFrameAtIndex')
+
+    def __len__(self):
+        return int(self.GetSize())
+
+    def __getitem__(self, key):
+        if type(key) is not int:
+            return None
+        if key < 0:
+            count = len(self)
+            if -count <= key < count:
+                key %= count
+
+        frame = self.GetFrameAtIndex(key)
+        return frame if frame.IsValid() else None
+
+
+# Register SBFrameList in _lldb:
+_lldb.SBFrameList_swigregister(SBFrameList)
 class SBFunction(object):
     r"""
     Represents a generic function, which can be inlined or not.
@@ -9914,6 +10029,21 @@ class SBModuleSpec(object):
         r"""GetDescription(SBModuleSpec self, SBStream description) -> bool"""
         return _lldb.SBModuleSpec_GetDescription(self, description)
 
+    def GetTarget(self):
+        r"""GetTarget(SBModuleSpec self) -> SBTarget"""
+        return _lldb.SBModuleSpec_GetTarget(self)
+
+    def SetTarget(self, target):
+        r"""
+        Set the target to be used when resolving a module.
+
+        A target can help locate a module specified by a SBModuleSpec. The
+        target settings, like the executable and debug info search paths, can
+        be essential. The target's platform can also be used to locate or download
+        the specified module.
+        """
+        return _lldb.SBModuleSpec_SetTarget(self, target)
+
     def __repr__(self):
         r"""__repr__(SBModuleSpec self) -> std::string"""
         return _lldb.SBModuleSpec___repr__(self)
@@ -11691,7 +11821,7 @@ class SBSection(object):
     SBSection supports iteration through its subsection, represented as SBSection
     as well.  For example, ::
 
-        for sec in exe_module:
+        for sec in exe_module.section_iter():
             if sec.GetName() == '__TEXT':
                 print sec
                 break
@@ -14734,6 +14864,10 @@ class SBThread(object):
         r"""GetFrameAtIndex(SBThread self, uint32_t idx) -> SBFrame"""
         return _lldb.SBThread_GetFrameAtIndex(self, idx)
 
+    def GetFrames(self):
+        r"""GetFrames(SBThread self) -> SBFrameList"""
+        return _lldb.SBThread_GetFrames(self)
+
     def GetSelectedFrame(self):
         r"""GetSelectedFrame(SBThread self) -> SBFrame"""
         return _lldb.SBThread_GetSelectedFrame(self)
@@ -14917,7 +15051,8 @@ class SBThread(object):
     def get_thread_frames(self):
         '''An accessor function that returns a list() that contains all frames in a lldb.SBThread object.'''
         frames = []
-        for frame in self:
+        frame_list = self.GetFrames()
+        for frame in frame_list:
             frames.append(frame)
         return frames
 
