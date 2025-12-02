@@ -3,11 +3,14 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/SymbolContext.h"
+#include "lldb/Target/Platform.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StackFrameRecognizer.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 
+#include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
@@ -222,6 +225,66 @@ public:
   }
 };
 
+/// A frame recognizer for Swift exception breakpoints.
+class SwiftExceptionBreakpointFrameRecognizer : public StackFrameRecognizer {
+public:
+  class SwiftExceptionFrame : public RecognizedStackFrame {
+  public:
+    SwiftExceptionFrame(StackFrameSP frame) : m_frame_sp(frame) {
+      m_stop_desc = "Swift exception breakpoint";
+    }
+
+    StackFrameSP GetMostRelevantFrame() override {
+      if (!m_frame_sp)
+        return {};
+
+      auto thread_sp = m_frame_sp->GetThread();
+      if (!thread_sp)
+        return {};
+
+      StringRef symbol_name;
+      {
+        const SymbolContext &sc =
+            m_frame_sp->GetSymbolContext(eSymbolContextSymbol);
+        if (!sc.symbol)
+          return {};
+        symbol_name = sc.symbol->GetName();
+      }
+
+      StackFrameSP relevant_frame_sp;
+      if (symbol_name == "swift_willThrow")
+        relevant_frame_sp = thread_sp->GetStackFrameAtIndex(1);
+      else if (symbol_name == "swift_willThrowTypedImpl")
+        relevant_frame_sp = thread_sp->GetStackFrameAtIndex(2);
+      else {
+        assert(false && "unexpected frame name");
+        return {};
+      }
+
+      if (relevant_frame_sp) {
+        // Select the relevant frame only if source is available.
+        const SymbolContext &sc =
+            relevant_frame_sp->GetSymbolContext(eSymbolContextCompUnit);
+        if (sc.comp_unit)
+          return relevant_frame_sp;
+      }
+
+      return {};
+    }
+
+  private:
+    StackFrameSP m_frame_sp;
+  };
+
+  RecognizedStackFrameSP RecognizeFrame(StackFrameSP frame) override {
+    return std::make_shared<SwiftExceptionFrame>(frame);
+  };
+
+  std::string GetName() override {
+    return "Swift exception breakpoint frame recognizer";
+  }
+};
+
 void RegisterSwiftFrameRecognizers(Process &process) {
   RegularExpressionSP module_regex_sp = nullptr;
   auto &manager = process.GetTarget().GetFrameRecognizerManager();
@@ -245,6 +308,16 @@ void RegisterSwiftFrameRecognizers(Process &process) {
     auto symbol_regex_sp = std::make_shared<RegularExpression>("^\\$s.*");
     auto srf_sp = std::make_shared<SwiftHiddenFrameRecognizer>();
     manager.AddRecognizer(srf_sp, module_regex_sp, symbol_regex_sp,
+                          Mangled::NamePreference::ePreferMangled, false);
+  }
+  {
+    auto srf_sp = std::make_shared<SwiftExceptionBreakpointFrameRecognizer>();
+    ConstString module_name = ConstString("swiftCore");
+    if (auto platform_sp = process.GetTarget().GetPlatform())
+      module_name = platform_sp->GetFullNameForDylib(module_name);
+    manager.AddRecognizer(srf_sp, module_name,
+                          {ConstString("swift_willThrow"),
+                           ConstString("swift_willThrowTypedImpl")},
                           Mangled::NamePreference::ePreferMangled, false);
   }
 }
