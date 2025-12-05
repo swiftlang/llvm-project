@@ -3,12 +3,17 @@
 int returnsInt()  {
   return 42;
 }
+void returnsVoid() {}
 
 int returnsIntUnused() {
   return 37;
 }
 
 void throwException() {
+  throw "Division by zero condition!";
+}
+
+int throwException2() {
   throw "Division by zero condition!";
 }
 

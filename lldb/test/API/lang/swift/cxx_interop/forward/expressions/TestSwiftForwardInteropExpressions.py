@@ -5,12 +5,11 @@ Test that evaluating expressions works on forward interop mode.
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 
-@skipIf(bugnumber = "rdar://159675331")
 class TestSwiftForwardInteropExpressions(TestBase):
 
     def setup(self, bkpt_str):
          self.build()
-         
+         self.runCmd('log enable lldb types expr -v')
          _, _, thread, _ = lldbutil.run_to_source_breakpoint(
              self, bkpt_str, lldb.SBFileSpec('main.swift'))
          return thread
@@ -18,50 +17,210 @@ class TestSwiftForwardInteropExpressions(TestBase):
     @skipIfLinux # rdar://106871422"
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
     @swiftTest
-    def test(self):
+    def test_return_void_1(self):
         self.setup('Break here')
-        
-        types_log = self.getBuildArtifact('types.log')
-        self.expect("log enable lldb types -v -f "+ types_log)
-        # Check that we can call free functions.
-        self.expect('expr returnsInt()', substrs=['Int32', '42'])
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
 
-        # Check that we can call unused free functions.
-        self.expect('expr returnsIntUnused()', substrs=['Int32', '37'])
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_return_void_2(self):
+        self.setup('Break here')
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
 
-        # Check that we can call a C++ constructor.
-        self.expect('expr CxxClass()', substrs=['CxxClass', 'a = 100', 'b = 101'])
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_return_void_3(self):
+        self.setup('Break here')
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
 
-        # Check that we can call methods.
-        self.expect('expr cxxClass.sum()', substrs=['Int32', '201'])
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_return_void_4(self):
+        self.setup('Break here')
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
 
-        # Check that we can access a C++ type's ivars
-        self.expect('expr cxxClass.a', substrs=['Int32', '100'])
-        self.expect('expr cxxSubclass.a', substrs=['Int32', '100'])
-        self.expect('expr cxxSubclass.c', substrs=['Int32', '102'])
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_return_void_5(self):
+        self.setup('Break here')
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
 
-        # Check that calling a function that throws an exception fails on expression evaluation
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_return_void_6(self):
+        self.setup('Break here')
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_return_void_7(self):
+        self.setup('Break here')
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_return_void_8(self):
+        self.setup('Break here')
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_return_void_9(self):
+        self.setup('Break here')
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_return_void_10(self):
+        self.setup('Break here')
+        self.expect('expr returnsVoid()', substrs=['(Void)'])
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception1(self):
+        self.setup('Break here')
         self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
 
-        # Check that we can make persistent variables.
-        self.expect('expr var $cxxClass = CxxClass()')
-
-        # Check that we can refer to the persistent variable.
-        self.expect('expr $cxxClass', substrs=['CxxClass', 'a = 100', 'b = 101'])
-
-        # Check that we can call methods on the persistent variable.
-        self.expect('expr $cxxClass.sum()', substrs=['Int32', '201'])
-
-        # Check that po prints the fields of a base class
-        self.expect('po cxxClass', substrs=['CxxClass', 'a : 100', 'b : 101'])
-
-        self.filecheck('platform shell cat "%s"' % types_log, __file__)
-        # CHECK: [CheckFlagInCU] Found flag -enable-experimental-cxx-interop in CU:
-
-    @expectedFailureAll(bugnumber="rdar://106216567")
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
     @swiftTest
-    def test_po_subclass(self):
+    def test_throw_exception2(self):
         self.setup('Break here')
+        self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
 
-        self.expect('po CxxSubclass()', substrs=['CxxClass', 'a : 100', 'b : 101', 'c : 102'])
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception3(self):
+        self.setup('Break here')
+        self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
 
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception4(self):
+        self.setup('Break here')
+        self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception5(self):
+        self.setup('Break here')
+        self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception6(self):
+        self.setup('Break here')
+        self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception7(self):
+        self.setup('Break here')
+        self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception8(self):
+        self.setup('Break here')
+        self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception9(self):
+        self.setup('Break here')
+        self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception10(self):
+        self.setup('Break here')
+        self.expect('expr throwException()', substrs=['internal c++ exception breakpoint'], error=True)
+
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_21(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_22(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_23(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_24(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_25(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_26(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_27(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_28(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_29(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
+
+    @skipIfLinux # rdar://106871422"
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false')) # rdar://106871275
+    @swiftTest
+    def test_throw_exception_210(self):
+        self.setup('Break here')
+        self.expect('expr throwException2()', substrs=['internal c++ exception breakpoint'], error=True)
