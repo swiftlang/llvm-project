@@ -24,6 +24,13 @@
 // RUN:      -MMD -MT dependencies -MF %t/deps.d
 // RUN: FileCheck %t/script-expectations.txt --input-file %t/repro-content/reproducer.sh
 
+// Test the content of a reproducer script with CAS enabled.
+// RUN: c-index-test core -gen-deps-reproducer -working-dir %t -cas-path %t/cas -o %t/repro-cas-content \
+// RUN:   -- clang-executable -c %t/reproducer.c -o %t/reproducer.o \
+// RUN:      -fmodules -fmodules-cache-path=%t.cas \
+// RUN:      -I %t/include
+// RUN: FileCheck %t/cas-script-expectations.txt --input-file %t/repro-cas-content/reproducer.sh
+
 //--- include/modular-header.h
 void fn_in_modular_header(void);
 
@@ -76,3 +83,8 @@ CHECK: -ivfsoverlay "reproducer.cache/vfs/vfs.yaml"
 CHECK: "-ivfsoverlay" "{{.*}}/existing.yaml"
 CHECK: MACRO=\$foo
 CHECK: "-dependency-file" "reproducer.cache/deps.d"
+
+//--- cas-script-expectations.txt
+CHECK: -fcas-path "reproducer.cache/cas"
+CHECK: "-fcas-include-tree" "llvmcas://
+CHECKL "-fmodule-file-cache-key" "reproducer.cache/explicitly-built-modules/Test-{{.*}}.pcm" "llvmcas://
