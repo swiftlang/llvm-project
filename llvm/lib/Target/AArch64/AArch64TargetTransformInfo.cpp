@@ -4929,6 +4929,7 @@ void AArch64TTIImpl::getUnrollingPreferences(
   case AArch64Subtarget::AppleA15:
   case AArch64Subtarget::AppleA16:
   case AArch64Subtarget::AppleM4:
+  case AArch64Subtarget::AppleM5:
     getAppleRuntimeUnrollPreferences(L, SE, UP, *this);
     break;
   case AArch64Subtarget::Falkor:
