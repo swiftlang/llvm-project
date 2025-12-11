@@ -29,6 +29,13 @@ add_custom_target(swig_wrapper_python ALL DEPENDS
   ${CMAKE_CURRENT_BINARY_DIR}/lldb.py
 )
 
+add_custom_command (TARGET swig_wrapper_python POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "=== WrapPython File Contents ==="
+    COMMAND ${CMAKE_COMMAND} -E cat "${CMAKE_CURRENT_BINARY_DIR}/LLDBWrapPython.cpp"
+    COMMAND ${CMAKE_COMMAND} -E echo "== End of File =="
+    COMMENT "Printing Wrappython after building swig_wrapper"
+)
+
 if (NOT WIN32)
 add_custom_command(
   OUTPUT  ${LLVM_RUNTIME_OUTPUT_INTDIR}/lldb-python
