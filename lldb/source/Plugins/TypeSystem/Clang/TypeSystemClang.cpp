@@ -632,10 +632,10 @@ void TypeSystemClang::SetTargetTriple(llvm::StringRef target_triple) {
 }
 
 void TypeSystemClang::SetExternalSource(
-    llvm::IntrusiveRefCntPtr<ExternalASTSource> &ast_source_up) {
+    llvm::IntrusiveRefCntPtr<ExternalASTSource> ast_source_sp) {
   ASTContext &ast = getASTContext();
   ast.getTranslationUnitDecl()->setHasExternalLexicalStorage(true);
-  ast.setExternalSource(ast_source_up);
+  ast.setExternalSource(std::move(ast_source_sp));
 }
 
 ASTContext &TypeSystemClang::getASTContext() const {
@@ -682,10 +682,9 @@ void TypeSystemClang::CreateASTContext() {
   m_file_manager_up = std::make_unique<clang::FileManager>(
       file_system_options, FileSystem::Instance().GetVirtualFileSystem());
 
-  llvm::IntrusiveRefCntPtr<DiagnosticIDs> diag_id_sp(new DiagnosticIDs());
   m_diagnostic_options_up = std::make_unique<DiagnosticOptions>();
-  m_diagnostics_engine_up =
-      std::make_unique<DiagnosticsEngine>(diag_id_sp, *m_diagnostic_options_up);
+  m_diagnostics_engine_up = std::make_unique<DiagnosticsEngine>(
+      DiagnosticIDs::create(), *m_diagnostic_options_up);
 
   m_source_manager_up = std::make_unique<clang::SourceManager>(
       *m_diagnostics_engine_up, *m_file_manager_up);
@@ -719,9 +718,9 @@ void TypeSystemClang::CreateASTContext() {
 
   GetASTMap().Insert(m_ast_up.get(), this);
 
-  llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> ast_source_up(
-      new ClangExternalASTSourceCallbacks(*this));
-  SetExternalSource(ast_source_up);
+  auto ast_source_sp =
+      llvm::makeIntrusiveRefCnt<ClangExternalASTSourceCallbacks>(*this);
+  SetExternalSource(ast_source_sp);
 }
 
 TypeSystemClang *TypeSystemClang::GetASTContext(clang::ASTContext *ast) {
@@ -988,6 +987,8 @@ CompilerType TypeSystemClang::GetBuiltinTypeForDWARFEncodingAndBitSize(
 
   case DW_ATE_signed:
     if (!type_name.empty()) {
+      if (type_name.starts_with("_BitInt"))
+        return GetType(ast.getBitIntType(/*Unsigned=*/false, bit_size));
       if (type_name == "wchar_t" &&
           QualTypeMatchesBitSize(bit_size, ast, ast.WCharTy) &&
           (getTargetInfo() &&
@@ -1044,6 +1045,8 @@ CompilerType TypeSystemClang::GetBuiltinTypeForDWARFEncodingAndBitSize(
 
   case DW_ATE_unsigned:
     if (!type_name.empty()) {
+      if (type_name.starts_with("unsigned _BitInt"))
+        return GetType(ast.getBitIntType(/*Unsigned=*/true, bit_size));
       if (type_name == "wchar_t") {
         if (QualTypeMatchesBitSize(bit_size, ast, ast.WCharTy)) {
           if (!(getTargetInfo() &&
@@ -1186,18 +1189,11 @@ CompilerType TypeSystemClang::GetTypeForDecl(clang::NamedDecl *decl) {
 }
 
 CompilerType TypeSystemClang::GetTypeForDecl(TagDecl *decl) {
-  // Create the type for the TagDecl. Pass the previous decl to make sure that
-  // all redeclarations share the same type.
-  return GetType(
-      getASTContext().getTypeDeclType(decl, decl->getPreviousDecl()));
+  return GetType(getASTContext().getTagDeclType(decl));
 }
 
 CompilerType TypeSystemClang::GetTypeForDecl(const ObjCInterfaceDecl *decl) {
-  // FIXME: getObjCInterfaceType second parameter could be const.
-  // Create the type for the ObjCInterfaceDecl. Pass the previous decl to make
-  // sure that all redeclarations share the same type.
-  return GetType(getASTContext().getObjCInterfaceType(
-      decl, const_cast<ObjCInterfaceDecl *>(decl->getPreviousDecl())));
+  return GetType(getASTContext().getObjCInterfaceType(decl));
 }
 
 CompilerType TypeSystemClang::GetTypeForDecl(clang::ValueDecl *value_decl) {
@@ -1715,13 +1711,6 @@ TypeSystemClang::CreateClassTemplateSpecializationDecl(
 
   class_template_specialization_decl->setSpecializationKind(
       TSK_ExplicitSpecialization);
-
-  // Store the information that is needed to later redeclare this exact
-  // template specialization.
-  ClassTemplateRedeclInfo redecl_info;
-  redecl_info.m_template_args = template_param_infos;
-  m_class_template_redecl_infos[class_template_specialization_decl] =
-      redecl_info;
 
   return class_template_specialization_decl;
 }
@@ -2539,17 +2528,9 @@ void TypeSystemClang::SetMetadataAsUserID(const clang::Type *type,
   SetMetadata(type, meta_data);
 }
 
-/// Returns the Decl in a redeclaration chain that is used to store the
-/// the ClangASTMetadata in the metadata map.
-static const clang::Decl *GetDeclForMetadataStorage(const clang::Decl *d) {
-  // Only the first Decl never changes and never requires any loading from
-  // the ExternalASTSource, so it can be a stable key for the map.
-  return ClangUtil::GetFirstDecl(d);
-}
-
 void TypeSystemClang::SetMetadata(const clang::Decl *object,
                                   ClangASTMetadata metadata) {
-  m_decl_metadata[GetDeclForMetadataStorage(object)] = metadata;
+  m_decl_metadata[object] = metadata;
 }
 
 void TypeSystemClang::SetMetadata(const clang::Type *object,
@@ -2559,7 +2540,7 @@ void TypeSystemClang::SetMetadata(const clang::Type *object,
 
 std::optional<ClangASTMetadata>
 TypeSystemClang::GetMetadata(const clang::Decl *object) {
-  auto It = m_decl_metadata.find(GetDeclForMetadataStorage(object));
+  auto It = m_decl_metadata.find(object);
   if (It != m_decl_metadata.end())
     return It->second;
 
@@ -3506,7 +3487,7 @@ bool TypeSystemClang::IsReferenceType(lldb::opaque_compiler_type_t type,
 }
 
 bool TypeSystemClang::IsFloatingPointType(lldb::opaque_compiler_type_t type,
-                                          uint32_t &count, bool &is_complex) {
+                                          bool &is_complex) {
   if (type) {
     clang::QualType qual_type(GetCanonicalQualType(type));
 
@@ -3515,30 +3496,26 @@ bool TypeSystemClang::IsFloatingPointType(lldb::opaque_compiler_type_t type,
       clang::BuiltinType::Kind kind = BT->getKind();
       if (kind >= clang::BuiltinType::Float &&
           kind <= clang::BuiltinType::LongDouble) {
-        count = 1;
         is_complex = false;
         return true;
       }
     } else if (const clang::ComplexType *CT =
                    llvm::dyn_cast<clang::ComplexType>(
                        qual_type->getCanonicalTypeInternal())) {
-      if (IsFloatingPointType(CT->getElementType().getAsOpaquePtr(), count,
+      if (IsFloatingPointType(CT->getElementType().getAsOpaquePtr(),
                               is_complex)) {
-        count = 2;
         is_complex = true;
         return true;
       }
     } else if (const clang::VectorType *VT = llvm::dyn_cast<clang::VectorType>(
                    qual_type->getCanonicalTypeInternal())) {
-      if (IsFloatingPointType(VT->getElementType().getAsOpaquePtr(), count,
+      if (IsFloatingPointType(VT->getElementType().getAsOpaquePtr(),
                               is_complex)) {
-        count = VT->getNumElements();
         is_complex = false;
         return true;
       }
     }
   }
-  count = 0;
   is_complex = false;
   return false;
 }
@@ -3948,6 +3925,13 @@ TypeSystemClang::GetTypeInfo(lldb::opaque_compiler_type_t type,
                            ->getModifiedType()
                            .getAsOpaquePtr(),
                        pointee_or_element_clang_type);
+  case clang::Type::BitInt: {
+    uint32_t type_flags = eTypeIsScalar | eTypeIsInteger | eTypeHasValue;
+    if (qual_type->isSignedIntegerType())
+      type_flags |= eTypeIsSigned;
+
+    return type_flags;
+  }
   case clang::Type::Builtin: {
     const clang::BuiltinType *builtin_type =
         llvm::cast<clang::BuiltinType>(qual_type->getCanonicalTypeInternal());
@@ -4020,9 +4004,9 @@ TypeSystemClang::GetTypeInfo(lldb::opaque_compiler_type_t type,
     if (complex_type) {
       clang::QualType complex_element_type(complex_type->getElementType());
       if (complex_element_type->isIntegerType())
-        complex_type_flags |= eTypeIsFloat;
-      else if (complex_element_type->isFloatingType())
         complex_type_flags |= eTypeIsInteger;
+      else if (complex_element_type->isFloatingType())
+        complex_type_flags |= eTypeIsFloat;
     }
     return complex_type_flags;
   } break;
@@ -4118,12 +4102,17 @@ TypeSystemClang::GetTypeInfo(lldb::opaque_compiler_type_t type,
     uint32_t vector_type_flags = eTypeHasChildren | eTypeIsVector;
     const clang::VectorType *vector_type = llvm::dyn_cast<clang::VectorType>(
         qual_type->getCanonicalTypeInternal());
-    if (vector_type) {
-      if (vector_type->isIntegerType())
-        vector_type_flags |= eTypeIsFloat;
-      else if (vector_type->isFloatingType())
-        vector_type_flags |= eTypeIsInteger;
-    }
+    if (!vector_type)
+      return 0;
+
+    QualType element_type = vector_type->getElementType();
+    if (element_type.isNull())
+      return 0;
+
+    if (element_type->isIntegerType())
+      vector_type_flags |= eTypeIsInteger;
+    else if (element_type->isFloatingType())
+      vector_type_flags |= eTypeIsFloat;
     return vector_type_flags;
   }
   default:
@@ -4978,12 +4967,10 @@ TypeSystemClang::GetTypeBitAlign(lldb::opaque_compiler_type_t type,
   return {};
 }
 
-lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
-                                            uint64_t &count) {
+lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type) {
   if (!type)
     return lldb::eEncodingInvalid;
 
-  count = 1;
   clang::QualType qual_type = RemoveWrappingTypes(GetCanonicalQualType(type));
 
   switch (qual_type->getTypeClass()) {
@@ -5019,7 +5006,6 @@ lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
   case clang::Type::DependentVector:
   case clang::Type::ExtVector:
   case clang::Type::Vector:
-    // TODO: Set this to more than one???
     break;
 
   case clang::Type::BitInt:
@@ -5219,11 +5205,10 @@ lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
       const clang::ComplexType *complex_type =
           qual_type->getAsComplexIntegerType();
       if (complex_type)
-        encoding = GetType(complex_type->getElementType()).GetEncoding(count);
+        encoding = GetType(complex_type->getElementType()).GetEncoding();
       else
         encoding = lldb::eEncodingSint;
     }
-    count = 2;
     return encoding;
   }
 
@@ -5279,7 +5264,7 @@ lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
   case clang::Type::HLSLInlineSpirv:
     break;
   }
-  count = 0;
+
   return lldb::eEncodingInvalid;
 }
 
@@ -8463,11 +8448,7 @@ bool TypeSystemClang::StartTagDeclarationDefinition(const CompilerType &type) {
     if (tag_type) {
       clang::TagDecl *tag_decl = tag_type->getDecl();
       if (tag_decl) {
-        // There are several declarations in the redeclaration chain that could
-        // define this type. The most logical declaration that we could turn
-        // into a definition is the most recent one.
-        clang::TagDecl *def = tag_decl->getMostRecentDecl();
-        def->startDefinition();
+        tag_decl->startDefinition();
         return true;
       }
     }
@@ -8477,11 +8458,7 @@ bool TypeSystemClang::StartTagDeclarationDefinition(const CompilerType &type) {
     if (object_type) {
       clang::ObjCInterfaceDecl *interface_decl = object_type->getInterface();
       if (interface_decl) {
-        // There are several declarations in the redeclaration chain that could
-        // define this type. The most logical declaration that we could turn
-        // into a definition is the most recent one.
-        clang::ObjCInterfaceDecl *def = interface_decl->getMostRecentDecl();
-        def->startDefinition();
+        interface_decl->startDefinition();
         return true;
       }
     }
@@ -9154,87 +9131,6 @@ void TypeSystemClang::CompleteObjCInterfaceDecl(
   }
 }
 
-/// Appends an existing declaration to the redeclaration chain.
-/// \param ts The TypeSystemClang that contains the two declarations.
-/// \param prev The most recent existing declaration.
-/// \param redecl The new declaration which should be appended to the end of
-/// redeclaration chain.
-template <typename T>
-static void ConnectRedeclToPrev(TypeSystemClang &ts, T *prev, T *redecl) {
-  assert(&ts.getASTContext() == &prev->getASTContext() && "Not ");
-  redecl->setPreviousDecl(prev);
-  // Now that the redecl chain is done, create the type explicitly via
-  // the TypeSystemClang interface that will reuse the type of the previous
-  // decl.
-  ts.GetTypeForDecl(redecl);
-  // The previous decl and the redeclaration both declare the same type.
-  // FIXME: rdar://123500660, this is causing large number of test failures.
-  // assert(prev->getTypeForDecl() == redecl->getTypeForDecl());
-}
-
-/// Returns the ClangModuleID for the given declaration.
-static OptionalClangModuleID GetModuleForDecl(clang::Decl *d) {
-  if (!d->isFromASTFile() || !d->getOwningModuleID())
-    return OptionalClangModuleID();
-  return OptionalClangModuleID(d->getOwningModuleID());
-}
-
-CompilerType TypeSystemClang::CreateRedeclaration(CompilerType ct) {
-  // All the cases below just check for a specific declaration kind, create
-  // a new declaration with matching data. We don't care about metadata which
-  // should only be tracked in the first redeclaration and should be identical
-  // for all redeclarations.
-
-  if (clang::ObjCInterfaceDecl *interface = ClangUtil::GetAsObjCDecl(ct)) {
-    clang::NamedDecl *res = CreateObjCDecl(
-        interface->getName(), interface->getDeclContext()->getRedeclContext(),
-        GetModuleForDecl(interface), interface->isImplicit());
-    clang::ObjCInterfaceDecl *redecl = llvm::cast<ObjCInterfaceDecl>(res);
-    ConnectRedeclToPrev(*this, interface, redecl);
-    return GetTypeForDecl(redecl);
-  }
-
-  clang::TagDecl *tag_decl = ClangUtil::GetAsTagDecl(ct);
-  if (!tag_decl)
-    return {};
-
-  if (clang::EnumDecl *enum_decl = dyn_cast<EnumDecl>(tag_decl)) {
-    Declaration decl;
-    clang::EnumDecl *redecl = CreateEnumerationDecl(
-        enum_decl->getNameAsString().c_str(),
-        tag_decl->getDeclContext()->getRedeclContext(),
-        GetModuleForDecl(enum_decl), decl, GetType(enum_decl->getIntegerType()),
-        enum_decl->isScoped());
-    ConnectRedeclToPrev(*this, enum_decl, redecl);
-    return GetTypeForDecl(redecl);
-  }
-
-  if (auto *template_decl =
-          dyn_cast<ClassTemplateSpecializationDecl>(tag_decl)) {
-    auto redecl_info = m_class_template_redecl_infos.find(template_decl);
-    // If we are asked to redeclare a template that we haven't declared, then
-    // there is nothing we can do.
-    assert(redecl_info != m_class_template_redecl_infos.end());
-    TemplateParameterInfos template_infos = redecl_info->second.m_template_args;
-    auto *redecl = CreateClassTemplateSpecializationDecl(
-        tag_decl->getDeclContext()->getRedeclContext(),
-        GetModuleForDecl(template_decl),
-        template_decl->getSpecializedTemplate(),
-        llvm::to_underlying(tag_decl->getTagKind()), template_infos);
-    ConnectRedeclToPrev(*this, template_decl, redecl);
-    return GetType(clang::QualType(redecl->getTypeForDecl(), 0U));
-  }
-
-  assert(llvm::isa<RecordDecl>(tag_decl));
-  clang::NamedDecl *redecl_record = CreateRecordDecl(
-      tag_decl->getDeclContext()->getRedeclContext(),
-      GetModuleForDecl(tag_decl), lldb::eAccessPublic, tag_decl->getName(),
-      llvm::to_underlying(tag_decl->getTagKind()), eLanguageTypeC_plus_plus);
-  clang::TagDecl *redecl = llvm::cast<TagDecl>(redecl_record);
-  ConnectRedeclToPrev(*this, tag_decl, redecl);
-  return GetTypeForDecl(redecl);
-}
-
 DWARFASTParser *TypeSystemClang::GetDWARFParser() {
   if (!m_dwarf_ast_parser_up)
     m_dwarf_ast_parser_up = std::make_unique<DWARFASTParserClang>(*this);
@@ -9839,8 +9735,8 @@ public:
         m_scratch_ast_source_up(std::move(ast_source)) {
     // Setup the ClangASTSource to complete this AST.
     m_scratch_ast_source_up->InstallASTContext(*this);
-    llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> proxy_ast_source(
-        m_scratch_ast_source_up->CreateProxy());
+    llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> proxy_ast_source =
+        m_scratch_ast_source_up->CreateProxy();
     SetExternalSource(proxy_ast_source);
   }
 
@@ -9860,8 +9756,8 @@ ScratchTypeSystemClang::ScratchTypeSystemClang(Target &target,
           new ClangPersistentVariables(target.shared_from_this())) {
   m_scratch_ast_source_up = CreateASTSource();
   m_scratch_ast_source_up->InstallASTContext(*this);
-  llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> proxy_ast_source(
-      m_scratch_ast_source_up->CreateProxy());
+  llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> proxy_ast_source =
+      m_scratch_ast_source_up->CreateProxy();
   SetExternalSource(proxy_ast_source);
 }
 

@@ -98,8 +98,9 @@ bool CompilerInstance::shouldBuildGlobalModuleIndex() const {
          !DisableGeneratingGlobalModuleIndex;
 }
 
-void CompilerInstance::setDiagnostics(DiagnosticsEngine *Value) {
-  Diagnostics = Value;
+void CompilerInstance::setDiagnostics(
+    llvm::IntrusiveRefCntPtr<DiagnosticsEngine> Value) {
+  Diagnostics = std::move(Value);
 }
 
 bool CompilerInstance::isSourceNonReproducible() const {
@@ -172,24 +173,24 @@ bool CompilerInstance::createTarget() {
   return true;
 }
 
-llvm::vfs::FileSystem &CompilerInstance::getVirtualFileSystem() const {
-  return getFileManager().getVirtualFileSystem();
+void CompilerInstance::setFileManager(IntrusiveRefCntPtr<FileManager> Value) {
+  assert(Value == nullptr ||
+         getVirtualFileSystemPtr() == Value->getVirtualFileSystemPtr());
+  FileMgr = std::move(Value);
 }
 
-void CompilerInstance::setFileManager(FileManager *Value) {
-  FileMgr = Value;
-}
-
-void CompilerInstance::setSourceManager(SourceManager *Value) {
-  SourceMgr = Value;
+void CompilerInstance::setSourceManager(
+    llvm::IntrusiveRefCntPtr<SourceManager> Value) {
+  SourceMgr = std::move(Value);
 }
 
 void CompilerInstance::setPreprocessor(std::shared_ptr<Preprocessor> Value) {
   PP = std::move(Value);
 }
 
-void CompilerInstance::setASTContext(ASTContext *Value) {
-  Context = Value;
+void CompilerInstance::setASTContext(
+    llvm::IntrusiveRefCntPtr<ASTContext> Value) {
+  Context = std::move(Value);
 
   if (Context && Consumer)
     getASTConsumer().Initialize(getASTContext());
@@ -276,22 +277,33 @@ static void collectIncludePCH(CompilerInstance &CI,
 
 static void collectVFSEntries(CompilerInstance &CI,
                               std::shared_ptr<ModuleDependencyCollector> MDC) {
-  if (CI.getHeaderSearchOpts().VFSOverlayFiles.empty())
-    return;
-
   // Collect all VFS found.
   SmallVector<llvm::vfs::YAMLVFSEntry, 16> VFSEntries;
-  for (const std::string &VFSFile : CI.getHeaderSearchOpts().VFSOverlayFiles) {
-    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Buffer =
-        llvm::MemoryBuffer::getFile(VFSFile);
-    if (!Buffer)
-      return;
-    llvm::vfs::collectVFSFromYAML(std::move(Buffer.get()),
-                                  /*DiagHandler*/ nullptr, VFSFile, VFSEntries);
-  }
+  CI.getVirtualFileSystem().visit([&](llvm::vfs::FileSystem &VFS) {
+    if (auto *RedirectingVFS = dyn_cast<llvm::vfs::RedirectingFileSystem>(&VFS))
+      llvm::vfs::collectVFSEntries(*RedirectingVFS, VFSEntries);
+  });
 
   for (auto &E : VFSEntries)
     MDC->addFile(E.VPath, E.RPath);
+}
+
+void CompilerInstance::createVirtualFileSystem(
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS, DiagnosticConsumer *DC) {
+  DiagnosticOptions DiagOpts;
+  DiagnosticsEngine Diags(DiagnosticIDs::create(), DiagOpts, DC,
+                          /*ShouldOwnClient=*/false);
+
+  std::tie(CAS, ActionCache) =
+      getInvocation().getCASOpts().getOrCreateDatabases(
+          Diags, /*CreateEmptyCASOnFailure=*/false);
+
+  VFS = createVFSFromCompilerInvocation(getInvocation(), Diags,
+                                        std::move(BaseFS), CAS);
+  // FIXME: Should this go into createVFSFromCompilerInvocation?
+  if (getFrontendOpts().ShowStats)
+    VFS =
+        llvm::makeIntrusiveRefCnt<llvm::vfs::TracingFileSystem>(std::move(VFS));
 }
 
 // Diagnostics
@@ -345,20 +357,18 @@ static void SetupSerializedDiagnostics(DiagnosticOptions &DiagOpts,
   }
 }
 
-void CompilerInstance::createDiagnostics(llvm::vfs::FileSystem &VFS,
-                                         DiagnosticConsumer *Client,
+void CompilerInstance::createDiagnostics(DiagnosticConsumer *Client,
                                          bool ShouldOwnClient) {
-  Diagnostics = createDiagnostics(VFS, getDiagnosticOpts(), Client,
-                                  ShouldOwnClient, &getCodeGenOpts());
+  Diagnostics = createDiagnostics(getVirtualFileSystem(), getDiagnosticOpts(),
+                                  Client, ShouldOwnClient, &getCodeGenOpts());
 }
 
 IntrusiveRefCntPtr<DiagnosticsEngine> CompilerInstance::createDiagnostics(
     llvm::vfs::FileSystem &VFS, DiagnosticOptions &Opts,
     DiagnosticConsumer *Client, bool ShouldOwnClient,
     const CodeGenOptions *CodeGenOpts) {
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  IntrusiveRefCntPtr<DiagnosticsEngine> Diags(
-      new DiagnosticsEngine(DiagID, Opts));
+  auto Diags = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(
+      DiagnosticIDs::create(), Opts);
 
   // Create the diagnostic client for reporting errors or for
   // implementing -verify.
@@ -388,24 +398,18 @@ IntrusiveRefCntPtr<DiagnosticsEngine> CompilerInstance::createDiagnostics(
 
 // File Manager
 
-FileManager *CompilerInstance::createFileManager(
-    IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS) {
-  if (!VFS)
-    VFS = FileMgr ? &FileMgr->getVirtualFileSystem()
-                  : createVFSFromCompilerInvocation(getInvocation(),
-                                                    getDiagnostics(), CAS);
-  assert(VFS && "FileManager has no VFS?");
-  if (getFrontendOpts().ShowStats)
-    VFS =
-        llvm::makeIntrusiveRefCnt<llvm::vfs::TracingFileSystem>(std::move(VFS));
-  FileMgr = new FileManager(getFileSystemOpts(), std::move(VFS));
-  return FileMgr.get();
+void CompilerInstance::createFileManager() {
+  assert(VFS && "CompilerInstance needs a VFS for creating FileManager");
+  FileMgr = llvm::makeIntrusiveRefCnt<FileManager>(getFileSystemOpts(), VFS);
 }
 
 // Source Manager
 
-void CompilerInstance::createSourceManager(FileManager &FileMgr) {
-  SourceMgr = new SourceManager(getDiagnostics(), FileMgr);
+void CompilerInstance::createSourceManager() {
+  assert(Diagnostics && "DiagnosticsEngine needed for creating SourceManager");
+  assert(FileMgr && "FileManager needed for creating SourceManager");
+  SourceMgr = llvm::makeIntrusiveRefCnt<SourceManager>(getDiagnostics(),
+                                                       getFileManager());
 }
 
 // Initialize the remapping of files to alternative contents, e.g.,
@@ -517,7 +521,7 @@ void CompilerInstance::createPreprocessor(TranslationUnitKind TUKind) {
   // then we're the top level compiler instance and need to create one.
   if (!ModuleDepCollector && !DepOpts.ModuleDependencyOutputDir.empty()) {
     ModuleDepCollector = std::make_shared<ModuleDependencyCollector>(
-        DepOpts.ModuleDependencyOutputDir);
+        DepOpts.ModuleDependencyOutputDir, getVirtualFileSystemPtr());
   }
 
   // If there is a module dep collector, register with other dep collectors
@@ -559,8 +563,12 @@ void CompilerInstance::createPreprocessor(TranslationUnitKind TUKind) {
 }
 
 std::string CompilerInstance::getSpecificModuleCachePath(StringRef ModuleHash) {
+  assert(FileMgr && "Specific module cache path requires a FileManager");
+
   // Set up the module path, including the hash for the module-creation options.
-  SmallString<256> SpecificModuleCache(getHeaderSearchOpts().ModuleCachePath);
+  SmallString<256> SpecificModuleCache;
+  normalizeModuleCachePath(*FileMgr, getHeaderSearchOpts().ModuleCachePath,
+                           SpecificModuleCache);
   if (!SpecificModuleCache.empty() && !getHeaderSearchOpts().DisableModuleHash)
     llvm::sys::path::append(SpecificModuleCache, ModuleHash);
   return std::string(SpecificModuleCache);
@@ -570,11 +578,11 @@ std::string CompilerInstance::getSpecificModuleCachePath(StringRef ModuleHash) {
 
 void CompilerInstance::createASTContext() {
   Preprocessor &PP = getPreprocessor();
-  auto *Context = new ASTContext(getLangOpts(), PP.getSourceManager(),
-                                 PP.getIdentifierTable(), PP.getSelectorTable(),
-                                 PP.getBuiltinInfo(), PP.TUKind);
+  auto Context = llvm::makeIntrusiveRefCnt<ASTContext>(
+      getLangOpts(), PP.getSourceManager(), PP.getIdentifierTable(),
+      PP.getSelectorTable(), PP.getBuiltinInfo(), PP.TUKind);
   Context->InitBuiltinTypes(getTarget(), getAuxTarget());
-  setASTContext(Context);
+  setASTContext(std::move(Context));
 }
 
 // ExternalASTSource
@@ -599,13 +607,13 @@ struct ReadModuleNames : ASTReaderListener {
     ModuleMap &MM = PP.getHeaderSearchInfo().getModuleMap();
     for (const std::string &LoadedModule : LoadedModules)
       MM.cacheModuleLoad(*PP.getIdentifierInfo(LoadedModule),
-                         MM.findOrLoadModule(LoadedModule));
+                         MM.findModule(LoadedModule));
     LoadedModules.clear();
   }
 
   void markAllUnavailable() {
     for (const std::string &LoadedModule : LoadedModules) {
-      if (Module *M = PP.getHeaderSearchInfo().getModuleMap().findOrLoadModule(
+      if (Module *M = PP.getHeaderSearchInfo().getModuleMap().findModule(
               LoadedModule)) {
         M->HasIncompatibleModuleFile = true;
 
@@ -636,6 +644,8 @@ public:
   bool readIncludeTreeID(StringRef ID, bool Complain) override;
   bool readModuleCacheKey(StringRef ModuleName, StringRef Filename,
                           StringRef CacheKey) override;
+  bool readModuleCASID(StringRef ModuleName, StringRef Filename,
+                       StringRef CASID) override;
 
 private:
   bool checkCASID(bool Complain, StringRef RootID, unsigned ParseDiagID,
@@ -679,17 +689,17 @@ IntrusiveRefCntPtr<ASTReader> CompilerInstance::createPCHExternalASTSource(
   const HeaderSearchOptions &HSOpts =
       PP.getHeaderSearchInfo().getHeaderSearchOpts();
 
-  IntrusiveRefCntPtr<ASTReader> Reader(new ASTReader(
+  auto Reader = llvm::makeIntrusiveRefCnt<ASTReader>(
       PP, ModCache, &Context, PCHContainerRdr, Extensions,
       Sysroot.empty() ? "" : Sysroot.data(), DisableValidation,
       AllowPCHWithCompilerErrors, /*AllowConfigurationMismatch*/ false,
       HSOpts.ModulesValidateSystemHeaders,
       HSOpts.ModulesForceValidateUserHeaders,
-      HSOpts.ValidateASTInputFilesContent, UseGlobalModuleIndex));
+      HSOpts.ValidateASTInputFilesContent, UseGlobalModuleIndex);
 
   // We need the external source to be set up before we read the AST, because
   // eagerly-deserialized declarations may use it.
-  Context.setExternalSource(Reader.get());
+  Context.setExternalSource(Reader);
 
   Reader->setDeserializationListener(
       static_cast<ASTDeserializationListener *>(DeserializationListener),
@@ -875,7 +885,7 @@ void CompilerInstance::createSema(TranslationUnitKind TUKind,
 
   // Attach the external sema source if there is any.
   if (ExternalSemaSrc) {
-    TheSema->addExternalSource(ExternalSemaSrc.get());
+    TheSema->addExternalSource(ExternalSemaSrc);
     ExternalSemaSrc->InitializeSema(*TheSema);
   }
 }
@@ -959,7 +969,7 @@ llvm::vfs::OutputBackend &CompilerInstance::getOrCreateOutputBackend() {
 
 std::pair<std::shared_ptr<llvm::cas::ObjectStore>,
           std::shared_ptr<llvm::cas::ActionCache>>
-CompilerInstance::createCASDatabases() {
+CompilerInstance::getOrCreateCASDatabases() {
   // Create a new CAS databases from the CompilerInvocation. Future calls to
   // createFileManager() will use the same CAS.
   std::tie(CAS, ActionCache) =
@@ -971,13 +981,13 @@ CompilerInstance::createCASDatabases() {
 
 llvm::cas::ObjectStore &CompilerInstance::getOrCreateObjectStore() {
   if (!CAS)
-    createCASDatabases();
+    getOrCreateCASDatabases();
   return *CAS;
 }
 
 llvm::cas::ActionCache &CompilerInstance::getOrCreateActionCache() {
   if (!ActionCache)
-    createCASDatabases();
+    getOrCreateCASDatabases();
   return *ActionCache;
 }
 
@@ -1388,27 +1398,28 @@ std::unique_ptr<CompilerInstance> CompilerInstance::cloneForModuleCompileImpl(
   auto &Inv = Instance.getInvocation();
 
   if (ThreadSafeConfig) {
-    Instance.createFileManager(ThreadSafeConfig->getVFS());
+    Instance.setVirtualFileSystem(ThreadSafeConfig->getVFS());
+    Instance.createFileManager();
   } else if (FrontendOpts.ModulesShareFileManager) {
-    Instance.setFileManager(&getFileManager());
+    Instance.setVirtualFileSystem(getVirtualFileSystemPtr());
+    Instance.setFileManager(getFileManagerPtr());
   } else {
-    Instance.createFileManager(&getVirtualFileSystem());
+    Instance.setVirtualFileSystem(getVirtualFileSystemPtr());
+    Instance.createFileManager();
   }
 
   if (ThreadSafeConfig) {
-    Instance.createDiagnostics(Instance.getVirtualFileSystem(),
-                               &ThreadSafeConfig->getDiagConsumer(),
+    Instance.createDiagnostics(&ThreadSafeConfig->getDiagConsumer(),
                                /*ShouldOwnClient=*/false);
   } else {
     Instance.createDiagnostics(
-        Instance.getVirtualFileSystem(),
         new ForwardingDiagnosticConsumer(getDiagnosticClient()),
         /*ShouldOwnClient=*/true);
   }
   if (llvm::is_contained(DiagOpts.SystemHeaderWarningsModules, ModuleName))
     Instance.getDiagnostics().setSuppressSystemWarnings(false);
 
-  Instance.createSourceManager(Instance.getFileManager());
+  Instance.createSourceManager();
   SourceManager &SourceMgr = Instance.getSourceManager();
 
   if (ThreadSafeConfig) {
@@ -1838,90 +1849,6 @@ static void checkConfigMacros(Preprocessor &PP, Module *M,
   }
 }
 
-/// Write a new timestamp file with the given path.
-static void writeTimestampFile(StringRef TimestampFile) {
-  std::error_code EC;
-  llvm::raw_fd_ostream Out(TimestampFile.str(), EC, llvm::sys::fs::OF_None);
-}
-
-/// Prune the module cache of modules that haven't been accessed in
-/// a long time.
-static void pruneModuleCache(const HeaderSearchOptions &HSOpts) {
-  llvm::sys::fs::file_status StatBuf;
-  llvm::SmallString<128> TimestampFile;
-  TimestampFile = HSOpts.ModuleCachePath;
-  assert(!TimestampFile.empty());
-  llvm::sys::path::append(TimestampFile, "modules.timestamp");
-
-  // Try to stat() the timestamp file.
-  if (std::error_code EC = llvm::sys::fs::status(TimestampFile, StatBuf)) {
-    // If the timestamp file wasn't there, create one now.
-    if (EC == std::errc::no_such_file_or_directory) {
-      writeTimestampFile(TimestampFile);
-    }
-    return;
-  }
-
-  // Check whether the time stamp is older than our pruning interval.
-  // If not, do nothing.
-  time_t TimeStampModTime =
-      llvm::sys::toTimeT(StatBuf.getLastModificationTime());
-  time_t CurrentTime = time(nullptr);
-  if (CurrentTime - TimeStampModTime <= time_t(HSOpts.ModuleCachePruneInterval))
-    return;
-
-  // Write a new timestamp file so that nobody else attempts to prune.
-  // There is a benign race condition here, if two Clang instances happen to
-  // notice at the same time that the timestamp is out-of-date.
-  writeTimestampFile(TimestampFile);
-
-  // Walk the entire module cache, looking for unused module files and module
-  // indices.
-  std::error_code EC;
-  for (llvm::sys::fs::directory_iterator Dir(HSOpts.ModuleCachePath, EC),
-       DirEnd;
-       Dir != DirEnd && !EC; Dir.increment(EC)) {
-    // If we don't have a directory, there's nothing to look into.
-    if (!llvm::sys::fs::is_directory(Dir->path()))
-      continue;
-
-    // Walk all of the files within this directory.
-    for (llvm::sys::fs::directory_iterator File(Dir->path(), EC), FileEnd;
-         File != FileEnd && !EC; File.increment(EC)) {
-      // We only care about module and global module index files.
-      StringRef Extension = llvm::sys::path::extension(File->path());
-      if (Extension != ".pcm" && Extension != ".timestamp" &&
-          llvm::sys::path::filename(File->path()) != "modules.idx")
-        continue;
-
-      // Look at this file. If we can't stat it, there's nothing interesting
-      // there.
-      if (llvm::sys::fs::status(File->path(), StatBuf))
-        continue;
-
-      // If the file has been used recently enough, leave it there.
-      time_t FileAccessTime = llvm::sys::toTimeT(StatBuf.getLastAccessedTime());
-      if (CurrentTime - FileAccessTime <=
-              time_t(HSOpts.ModuleCachePruneAfter)) {
-        continue;
-      }
-
-      // Remove the file.
-      llvm::sys::fs::remove(File->path());
-
-      // Remove the timestamp file.
-      std::string TimpestampFilename = File->path() + ".timestamp";
-      llvm::sys::fs::remove(TimpestampFilename);
-    }
-
-    // If we removed all of the files in the directory, remove the directory
-    // itself.
-    if (llvm::sys::fs::directory_iterator(Dir->path(), EC) ==
-            llvm::sys::fs::directory_iterator() && !EC)
-      llvm::sys::fs::remove(Dir->path());
-  }
-}
-
 void CompilerInstance::createASTReader() {
   if (TheASTReader)
     return;
@@ -1932,11 +1859,10 @@ void CompilerInstance::createASTReader() {
   // If we're implicitly building modules but not currently recursively
   // building a module, check whether we need to prune the module cache.
   if (getSourceManager().getModuleBuildStack().empty() &&
-      !getPreprocessor().getHeaderSearchInfo().getModuleCachePath().empty() &&
-      getHeaderSearchOpts().ModuleCachePruneInterval > 0 &&
-      getHeaderSearchOpts().ModuleCachePruneAfter > 0) {
-    pruneModuleCache(getHeaderSearchOpts());
-  }
+      !getPreprocessor().getHeaderSearchInfo().getModuleCachePath().empty())
+    ModCache->maybePrune(getHeaderSearchOpts().ModuleCachePath,
+                         getHeaderSearchOpts().ModuleCachePruneInterval,
+                         getHeaderSearchOpts().ModuleCachePruneAfter);
 
   HeaderSearchOptions &HSOpts = getHeaderSearchOpts();
   std::string Sysroot = HSOpts.Sysroot;
@@ -1947,16 +1873,17 @@ void CompilerInstance::createASTReader() {
   if (timerGroup)
     ReadTimer = std::make_unique<llvm::Timer>("reading_modules",
                                               "Reading modules", *timerGroup);
-  TheASTReader = new ASTReader(
+  TheASTReader = llvm::makeIntrusiveRefCnt<ASTReader>(
       getPreprocessor(), getModuleCache(), &getASTContext(),
       getPCHContainerReader(), getFrontendOpts().ModuleFileExtensions,
       Sysroot.empty() ? "" : Sysroot.c_str(),
       PPOpts.DisablePCHOrModuleValidation,
       /*AllowASTWithCompilerErrors=*/FEOpts.AllowPCMWithCompilerErrors,
-      /*AllowConfigurationMismatch=*/false, HSOpts.ModulesValidateSystemHeaders,
-      HSOpts.ModulesForceValidateUserHeaders,
-      HSOpts.ValidateASTInputFilesContent,
-      getFrontendOpts().UseGlobalModuleIndex, std::move(ReadTimer));
+      /*AllowConfigurationMismatch=*/false,
+      +HSOpts.ModulesValidateSystemHeaders,
+      +HSOpts.ModulesForceValidateUserHeaders,
+      +HSOpts.ValidateASTInputFilesContent,
+      +getFrontendOpts().UseGlobalModuleIndex, std::move(ReadTimer));
   if (hasASTConsumer()) {
     TheASTReader->setDeserializationListener(
         getASTConsumer().GetASTDeserializationListener());
@@ -2597,25 +2524,51 @@ void CompilerInstance::setExternalSemaSource(
   ExternalSemaSrc = std::move(ESS);
 }
 
-static bool addCachedModuleFileToInMemoryCache(
-    StringRef Path, StringRef CacheKey, StringRef Provider,
-    cas::ObjectStore &CAS, cas::ActionCache &Cache,
-    ModuleCache &ModCache, DiagnosticsEngine &Diags) {
+static bool addCachedModuleFileToInMemoryCache(StringRef Path,
+                                               cas::ObjectStore &CAS,
+                                               cas::ObjectRef Object,
+                                               ModuleCache &ModCache,
+                                               DiagnosticsEngine &Diags) {
+  // FIXME: We wait to materialize each module file before proceeding, which
+  // introduces latency for a network CAS. Instead we should collect all the
+  // module keys and materialize them concurrently using \c getProxyFuture, for
+  // better network utilization.
+  auto OutputProxy = CAS.getProxy(Object);
+  if (!OutputProxy) {
+    Diags.Report(diag::err_cas_unloadable_module)
+        << Path << 0 << CAS.getID(Object).toString() << OutputProxy.takeError();
+    return true;
+  }
 
-  if (ModCache.getInMemoryModuleCache().lookupPCM(Path))
+  auto PCMID = OutputProxy->getID().toString();
+  if (const auto *PCM = ModCache.getInMemoryModuleCache().lookup(Path)) {
+    // If the CASID in the module cache differs, return error.
+    if (!PCM->CASID.empty() && PCM->CASID != PCMID)
+      return true;
+
     return false;
+  }
 
+  ModCache.getInMemoryModuleCache().addPCM(Path, OutputProxy->getMemoryBuffer(),
+                                           OutputProxy->getID().toString());
+  return false;
+}
+
+static bool addCachedModuleFileToInMemoryCacheFromKey(
+    StringRef Path, StringRef CacheKey, StringRef Provider,
+    cas::ObjectStore &CAS, cas::ActionCache &Cache, ModuleCache &ModCache,
+    DiagnosticsEngine &Diags) {
   auto ID = CAS.parseID(CacheKey);
   if (!ID) {
     Diags.Report(diag::err_cas_unloadable_module)
-        << Path << CacheKey << ID.takeError();
+        << Path << 1 << CacheKey << ID.takeError();
     return true;
   }
 
   auto Value = Cache.get(*ID);
   if (!Value) {
     Diags.Report(diag::err_cas_unloadable_module)
-        << Path << CacheKey << Value.takeError();
+        << Path << 1 << CacheKey << Value.takeError();
     return true;
   }
   if (!*Value) {
@@ -2636,7 +2589,7 @@ static bool addCachedModuleFileToInMemoryCache(
   auto ValueRef = CAS.getReference(**Value);
   if (!ValueRef) {
     Diags.Report(diag::err_cas_unloadable_module)
-        << Path << CacheKey << "result module cannot be loaded from CAS";
+        << Path << 1 << CacheKey << "result module cannot be loaded from CAS";
 
     return true;
   }
@@ -2645,42 +2598,66 @@ static bool addCachedModuleFileToInMemoryCache(
   cas::CompileJobResultSchema Schema(CAS);
   if (llvm::Error E = Schema.load(*ValueRef).moveInto(Result)) {
     Diags.Report(diag::err_cas_unloadable_module)
-        << Path << CacheKey << std::move(E);
+        << Path << 1 << CacheKey << std::move(E);
     return true;
   }
   auto Output =
       Result->getOutput(cas::CompileJobCacheResult::OutputKind::MainOutput);
   if (!Output)
     llvm::report_fatal_error("missing main output");
-  // FIXME: We wait to materialize each module file before proceeding, which
-  // introduces latency for a network CAS. Instead we should collect all the
-  // module keys and materialize them concurrently using \c getProxyFuture, for
-  // better network utilization.
-  auto OutputProxy = CAS.getProxy(Output->Object);
-  if (!OutputProxy) {
+
+  return addCachedModuleFileToInMemoryCache(Path, CAS, Output->Object, ModCache,
+                                            Diags);
+}
+
+static bool addCachedModuleFileToInMemoryCacheFromID(StringRef Filename,
+                                                     cas::ObjectStore &CAS,
+                                                     StringRef CASID,
+                                                     ModuleCache &ModCache,
+                                                     DiagnosticsEngine &Diags) {
+  auto ID = CAS.parseID(CASID);
+  if (!ID) {
     Diags.Report(diag::err_cas_unloadable_module)
-        << Path << CacheKey << OutputProxy.takeError();
+        << Filename << 0 << CASID << ID.takeError();
+    return true;
+  }
+  auto ModuleRef = CAS.getReference(*ID);
+  if (!ModuleRef) {
+    Diags.Report(diag::err_cas_unloadable_module)
+        << Filename << 1 << CASID << "does not exist in CAS";
+
     return true;
   }
 
-  ModCache.getInMemoryModuleCache().addPCM(Path,
-                                           OutputProxy->getMemoryBuffer());
-  return false;
+  return addCachedModuleFileToInMemoryCache(Filename, CAS, *ModuleRef, ModCache,
+                                            Diags);
 }
 
-bool CompilerInstance::addCachedModuleFile(StringRef Path, StringRef CacheKey,
-                                           StringRef Provider) {
-  return addCachedModuleFileToInMemoryCache(
-      Path, CacheKey, Provider, getOrCreateObjectStore(),
-      getOrCreateActionCache(), getModuleCache(), getDiagnostics());
+bool CompilerInstance::addCachedModuleFile(StringRef Path, StringRef CASID,
+                                           StringRef Provider, bool IsKey) {
+  if (IsKey)
+    return addCachedModuleFileToInMemoryCacheFromKey(
+        Path, CASID, Provider, getOrCreateObjectStore(),
+        getOrCreateActionCache(), getModuleCache(), getDiagnostics());
+
+  return addCachedModuleFileToInMemoryCacheFromID(
+      Path, getOrCreateObjectStore(), CASID, getModuleCache(),
+      getDiagnostics());
 }
 
 bool CompileCacheASTReaderHelper::readModuleCacheKey(StringRef ModuleName,
                                                      StringRef Filename,
                                                      StringRef CacheKey) {
   // FIXME: add name/path of the importing module?
-  return addCachedModuleFileToInMemoryCache(
+  return addCachedModuleFileToInMemoryCacheFromKey(
       Filename, CacheKey, "imported module", CAS, Cache, ModCache, Diags);
+}
+
+bool CompileCacheASTReaderHelper::readModuleCASID(StringRef ModuleName,
+                                                  StringRef Filename,
+                                                  StringRef CASID) {
+  return addCachedModuleFileToInMemoryCacheFromID(Filename, CAS, CASID,
+                                                  ModCache, Diags);
 }
 
 /// Verify that ID is in the CAS. Otherwise the module cache probably was

@@ -66,7 +66,6 @@
 #include "lldb/Target/ThreadPlanCallFunction.h"
 #include "lldb/Target/ThreadPlanStack.h"
 #include "lldb/Target/UnixSignals.h"
-#include "lldb/Target/VerboseTrapFrameRecognizer.h"
 #include "lldb/Utility/AddressableBits.h"
 #include "lldb/Utility/Event.h"
 #include "lldb/Utility/LLDBLog.h"
@@ -527,7 +526,6 @@ Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp,
   // We should have a plugin do the registration instead, for example, a
   // common C LanguageRuntime plugin.
   RegisterAssertFrameRecognizer(this);
-  RegisterVerboseTrapFrameRecognizer(*this);
 }
 
 Process::~Process() {
@@ -2111,6 +2109,49 @@ size_t Process::ReadMemory(addr_t addr, void *buf, size_t size, Status &error) {
   }
 }
 
+llvm::SmallVector<llvm::MutableArrayRef<uint8_t>>
+Process::ReadMemoryRanges(llvm::ArrayRef<Range<lldb::addr_t, size_t>> ranges,
+                          llvm::MutableArrayRef<uint8_t> buffer) {
+  auto total_ranges_len = llvm::sum_of(
+      llvm::map_range(ranges, [](auto range) { return range.size; }));
+  // If the buffer is not large enough, this is a programmer error.
+  // In production builds, gracefully fail by returning a length of 0 for all
+  // ranges.
+  assert(buffer.size() >= total_ranges_len && "provided buffer is too short");
+  if (buffer.size() < total_ranges_len) {
+    llvm::MutableArrayRef<uint8_t> empty;
+    return {ranges.size(), empty};
+  }
+
+  llvm::SmallVector<llvm::MutableArrayRef<uint8_t>> results;
+
+  // While `buffer` has space, take the next requested range and read
+  // memory into a `buffer` piece, then slice it to remove the used memory.
+  for (auto [addr, range_len] : ranges) {
+    Status status;
+    size_t num_bytes_read =
+        ReadMemoryFromInferior(addr, buffer.data(), range_len, status);
+    // FIXME: ReadMemoryFromInferior promises to return 0 in case of errors, but
+    // it doesn't; it never checks for errors.
+    if (status.Fail())
+      num_bytes_read = 0;
+
+    assert(num_bytes_read <= range_len && "read more than requested bytes");
+    if (num_bytes_read > range_len) {
+      // In production builds, gracefully fail by returning length zero for this
+      // range.
+      results.emplace_back();
+      continue;
+    }
+
+    results.push_back(buffer.take_front(num_bytes_read));
+    // Slice buffer to remove the used memory.
+    buffer = buffer.drop_front(num_bytes_read);
+  }
+
+  return results;
+}
+
 void Process::DoFindInMemory(lldb::addr_t start_addr, lldb::addr_t end_addr,
                              const uint8_t *buf, size_t size,
                              AddressRanges &matches, size_t alignment,
@@ -2386,6 +2427,45 @@ uint64_t Process::ReadUnsignedIntegerFromMemory(lldb::addr_t vm_addr,
   return fail_value;
 }
 
+llvm::SmallVector<std::optional<uint64_t>>
+Process::ReadUnsignedIntegersFromMemory(llvm::ArrayRef<addr_t> addresses,
+                                        unsigned integer_byte_size) {
+  if (addresses.empty())
+    return {};
+  // Like ReadUnsignedIntegerFromMemory, this only supports a handful
+  // of widths.
+  if (!llvm::is_contained({1u, 2u, 4u, 8u}, integer_byte_size))
+    return llvm::SmallVector<std::optional<uint64_t>>(addresses.size(),
+                                                      std::nullopt);
+
+  llvm::SmallVector<Range<addr_t, size_t>> ranges{
+      llvm::map_range(addresses, [=](addr_t ptr) {
+        return Range<addr_t, size_t>(ptr, integer_byte_size);
+      })};
+
+  std::vector<uint8_t> buffer(integer_byte_size * addresses.size(), 0);
+  llvm::SmallVector<llvm::MutableArrayRef<uint8_t>> memory =
+      ReadMemoryRanges(ranges, buffer);
+
+  llvm::SmallVector<std::optional<uint64_t>> result;
+  result.reserve(addresses.size());
+  const uint32_t addr_size = GetAddressByteSize();
+  const ByteOrder byte_order = GetByteOrder();
+
+  for (llvm::MutableArrayRef<uint8_t> range : memory) {
+    if (range.size() != integer_byte_size) {
+      result.push_back(std::nullopt);
+      continue;
+    }
+
+    DataExtractor data(range.data(), integer_byte_size, byte_order, addr_size);
+    offset_t offset = 0;
+    result.push_back(data.GetMaxU64(&offset, integer_byte_size));
+    assert(offset == integer_byte_size);
+  }
+  return result;
+}
+
 int64_t Process::ReadSignedIntegerFromMemory(lldb::addr_t vm_addr,
                                              size_t integer_byte_size,
                                              int64_t fail_value,
@@ -2403,6 +2483,12 @@ addr_t Process::ReadPointerFromMemory(lldb::addr_t vm_addr, Status &error) {
                                   error))
     return scalar.ULongLong(LLDB_INVALID_ADDRESS);
   return LLDB_INVALID_ADDRESS;
+}
+
+llvm::SmallVector<std::optional<addr_t>>
+Process::ReadPointersFromMemory(llvm::ArrayRef<addr_t> ptr_locs) {
+  const size_t ptr_size = GetAddressByteSize();
+  return ReadUnsignedIntegersFromMemory(ptr_locs, ptr_size);
 }
 
 bool Process::WritePointerToMemory(lldb::addr_t vm_addr, lldb::addr_t ptr_value,
@@ -3355,6 +3441,7 @@ Status Process::ConnectRemote(llvm::StringRef remote_url) {
       if (state == eStateStopped || state == eStateCrashed) {
         // If we attached and actually have a process on the other end, then
         // this ended up being the equivalent of an attach.
+        SetShouldDetach(true);
         CompleteAttach();
 
         // This delays passing the stopped event to listeners till

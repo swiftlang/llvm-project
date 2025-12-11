@@ -17,6 +17,7 @@
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "gtest/gtest.h"
+#include <cstdint>
 
 using namespace lldb_private;
 using namespace lldb;
@@ -224,4 +225,239 @@ TEST_F(MemoryTest, TesetMemoryCacheRead) {
   ASSERT_TRUE(process->m_bytes_left == l2_cache_size); // Verify that we re-read
                                                        // instead of using an
                                                        // old cache
+}
+
+/// A process class that, when asked to read memory from some address X, returns
+/// the least significant byte of X.
+class DummyReaderProcess : public Process {
+public:
+  // If true, `DoReadMemory` will not return all requested bytes.
+  // It's not possible to control exactly how many bytes will be read, because
+  // Process::ReadMemoryFromInferior tries to fulfill the entire request by
+  // reading smaller chunks until it gets nothing back.
+  bool read_less_than_requested = false;
+  bool read_more_than_requested = false;
+
+  size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
+                      Status &error) override {
+    if (read_less_than_requested && size > 0)
+      size--;
+    if (read_more_than_requested)
+      size *= 2;
+    uint8_t *buffer = static_cast<uint8_t *>(buf);
+    for (size_t addr = vm_addr; addr < vm_addr + size; addr++)
+      buffer[addr - vm_addr] = static_cast<uint8_t>(addr); // LSB of addr.
+    return size;
+  }
+  // Boilerplate, nothing interesting below.
+  DummyReaderProcess(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp)
+      : Process(target_sp, listener_sp) {}
+  bool CanDebug(lldb::TargetSP, bool) override { return true; }
+  Status DoDestroy() override { return {}; }
+  void RefreshStateAfterStop() override {}
+  bool DoUpdateThreadList(ThreadList &, ThreadList &) override { return false; }
+  llvm::StringRef GetPluginName() override { return "Dummy"; }
+};
+
+TEST_F(MemoryTest, TestReadMemoryRanges) {
+  ArchSpec arch("x86_64-apple-macosx-");
+
+  Platform::SetHostPlatform(PlatformRemoteMacOSX::CreateInstance(true, &arch));
+
+  DebuggerSP debugger_sp = Debugger::CreateInstance();
+  ASSERT_TRUE(debugger_sp);
+
+  TargetSP target_sp = CreateTarget(debugger_sp, arch);
+  ASSERT_TRUE(target_sp);
+
+  ListenerSP listener_sp(Listener::MakeListener("dummy"));
+  ProcessSP process_sp =
+      std::make_shared<DummyReaderProcess>(target_sp, listener_sp);
+  ASSERT_TRUE(process_sp);
+
+  {
+    llvm::SmallVector<uint8_t, 0> buffer(1024, 0);
+    // Read 8 ranges of 128 bytes with arbitrary base addresses.
+    llvm::SmallVector<Range<addr_t, size_t>> ranges = {
+        {0x12345, 128},      {0x11112222, 128}, {0x77777777, 128},
+        {0xffaabbccdd, 128}, {0x0, 128},        {0x4242424242, 128},
+        {0x17171717, 128},   {0x99999, 128}};
+
+    llvm::SmallVector<llvm::MutableArrayRef<uint8_t>> read_results =
+        process_sp->ReadMemoryRanges(ranges, buffer);
+
+    for (auto [range, memory] : llvm::zip(ranges, read_results)) {
+      ASSERT_EQ(memory.size(), 128u);
+      addr_t range_base = range.GetRangeBase();
+      for (auto [idx, byte] : llvm::enumerate(memory))
+        ASSERT_EQ(byte, static_cast<uint8_t>(range_base + idx));
+    }
+  }
+
+  auto &dummy_process = static_cast<DummyReaderProcess &>(*process_sp);
+  dummy_process.read_less_than_requested = true;
+  {
+    llvm::SmallVector<uint8_t, 0> buffer(1024, 0);
+    llvm::SmallVector<Range<addr_t, size_t>> ranges = {
+        {0x12345, 128}, {0x11112222, 128}, {0x77777777, 128}};
+    llvm::SmallVector<llvm::MutableArrayRef<uint8_t>> read_results =
+        dummy_process.ReadMemoryRanges(ranges, buffer);
+    for (auto [range, memory] : llvm::zip(ranges, read_results)) {
+      ASSERT_LT(memory.size(), 128u);
+      addr_t range_base = range.GetRangeBase();
+      for (auto [idx, byte] : llvm::enumerate(memory))
+        ASSERT_EQ(byte, static_cast<uint8_t>(range_base + idx));
+    }
+  }
+}
+
+using MemoryDeathTest = MemoryTest;
+
+TEST_F(MemoryDeathTest, TestReadMemoryRangesReturnsTooMuch) {
+  ArchSpec arch("x86_64-apple-macosx-");
+  Platform::SetHostPlatform(PlatformRemoteMacOSX::CreateInstance(true, &arch));
+  DebuggerSP debugger_sp = Debugger::CreateInstance();
+  ASSERT_TRUE(debugger_sp);
+  TargetSP target_sp = CreateTarget(debugger_sp, arch);
+  ASSERT_TRUE(target_sp);
+  ListenerSP listener_sp(Listener::MakeListener("dummy"));
+  ProcessSP process_sp =
+      std::make_shared<DummyReaderProcess>(target_sp, listener_sp);
+  ASSERT_TRUE(process_sp);
+
+  auto &dummy_process = static_cast<DummyReaderProcess &>(*process_sp);
+  dummy_process.read_more_than_requested = true;
+  llvm::SmallVector<uint8_t, 0> buffer(1024, 0);
+  llvm::SmallVector<Range<addr_t, size_t>> ranges = {{0x12345, 128}};
+
+  llvm::SmallVector<llvm::MutableArrayRef<uint8_t>> read_results;
+  ASSERT_DEBUG_DEATH(
+      { read_results = process_sp->ReadMemoryRanges(ranges, buffer); },
+      "read more than requested bytes");
+#ifdef NDEBUG
+  // With asserts off, the read should return empty ranges.
+  ASSERT_EQ(read_results.size(), 1u);
+  ASSERT_TRUE(read_results[0].empty());
+#endif
+}
+
+TEST_F(MemoryDeathTest, TestReadMemoryRangesWithShortBuffer) {
+  ArchSpec arch("x86_64-apple-macosx-");
+  Platform::SetHostPlatform(PlatformRemoteMacOSX::CreateInstance(true, &arch));
+  DebuggerSP debugger_sp = Debugger::CreateInstance();
+  ASSERT_TRUE(debugger_sp);
+  TargetSP target_sp = CreateTarget(debugger_sp, arch);
+  ASSERT_TRUE(target_sp);
+  ListenerSP listener_sp(Listener::MakeListener("dummy"));
+  ProcessSP process_sp =
+      std::make_shared<DummyReaderProcess>(target_sp, listener_sp);
+  ASSERT_TRUE(process_sp);
+
+  llvm::SmallVector<uint8_t, 0> short_buffer(10, 0);
+  llvm::SmallVector<Range<addr_t, size_t>> ranges = {{0x12345, 128},
+                                                     {0x11, 128}};
+  llvm::SmallVector<llvm::MutableArrayRef<uint8_t>> read_results;
+  ASSERT_DEBUG_DEATH(
+      { read_results = process_sp->ReadMemoryRanges(ranges, short_buffer); },
+      "provided buffer is too short");
+#ifdef NDEBUG
+  // With asserts off, the read should return empty ranges.
+  ASSERT_EQ(read_results.size(), ranges.size());
+  for (llvm::MutableArrayRef<uint8_t> result : read_results)
+    ASSERT_TRUE(result.empty());
+#endif
+}
+TEST_F(MemoryTest, TestReadPointersFromMemory) {
+  ArchSpec arch("x86_64-apple-macosx-");
+  Platform::SetHostPlatform(PlatformRemoteMacOSX::CreateInstance(true, &arch));
+  DebuggerSP debugger_sp = Debugger::CreateInstance();
+  ASSERT_TRUE(debugger_sp);
+  TargetSP target_sp = CreateTarget(debugger_sp, arch);
+  ASSERT_TRUE(target_sp);
+  ListenerSP listener_sp(Listener::MakeListener("dummy"));
+  ProcessSP process =
+      std::make_shared<DummyReaderProcess>(target_sp, listener_sp);
+  ASSERT_TRUE(process);
+
+  // Read pointers at arbitrary addresses.
+  llvm::SmallVector<addr_t> ptr_locs = {0x0, 0x100, 0x2000, 0x123400};
+  // Because of how DummyReaderProcess works, each byte of a memory read result
+  // is its address modulo 256:
+  constexpr addr_t expected_result = 0x0706050403020100;
+
+  llvm::SmallVector<std::optional<addr_t>> read_results =
+      process->ReadPointersFromMemory(ptr_locs);
+
+  for (std::optional<addr_t> maybe_ptr : read_results) {
+    ASSERT_TRUE(maybe_ptr.has_value());
+    EXPECT_EQ(*maybe_ptr, expected_result);
+  }
+}
+
+TEST_F(MemoryTest, TestReadUnsignedIntegersFromMemory) {
+  ArchSpec arch("x86_64-apple-macosx-");
+
+  Platform::SetHostPlatform(PlatformRemoteMacOSX::CreateInstance(true, &arch));
+  DebuggerSP debugger_sp = Debugger::CreateInstance();
+  ASSERT_TRUE(debugger_sp);
+  TargetSP target_sp = CreateTarget(debugger_sp, arch);
+  ASSERT_TRUE(target_sp);
+  ListenerSP listener_sp(Listener::MakeListener("dummy"));
+  ProcessSP process =
+      std::make_shared<DummyReaderProcess>(target_sp, listener_sp);
+  ASSERT_TRUE(process);
+
+  { // Test reads of size 1
+    llvm::SmallVector<addr_t> locs = {0x0, 0x101, 0x2002, 0x123403};
+    llvm::SmallVector<std::optional<addr_t>> read_results =
+        process->ReadUnsignedIntegersFromMemory(locs, /*byte_size=*/1);
+
+    for (auto [maybe_int, loc] : llvm::zip(read_results, locs)) {
+      ASSERT_TRUE(maybe_int.has_value());
+      EXPECT_EQ(*maybe_int, static_cast<uint8_t>(loc));
+    }
+  }
+
+  { // Test reads of size 2
+    llvm::SmallVector<addr_t> locs = {0x0, 0x101, 0x2002, 0x123403};
+    llvm::SmallVector<std::optional<addr_t>> read_results =
+        process->ReadUnsignedIntegersFromMemory(locs, /*byte_size=*/2);
+
+    for (auto [maybe_int, loc] : llvm::zip(read_results, locs)) {
+      ASSERT_TRUE(maybe_int.has_value());
+      uint64_t lsb = static_cast<uint8_t>(loc);
+      uint64_t expected_result = ((lsb + 1) << 8) | lsb;
+      EXPECT_EQ(*maybe_int, expected_result);
+    }
+  }
+
+  { // Test reads of size 4
+    llvm::SmallVector<addr_t> locs = {0x0, 0x101, 0x2002, 0x123403};
+    llvm::SmallVector<std::optional<addr_t>> read_results =
+        process->ReadUnsignedIntegersFromMemory(locs, /*byte_size=*/4);
+
+    for (auto [maybe_int, loc] : llvm::zip(read_results, locs)) {
+      ASSERT_TRUE(maybe_int.has_value());
+      uint64_t lsb = static_cast<uint8_t>(loc);
+      uint64_t expected_result =
+          ((lsb + 3) << 24) | ((lsb + 2) << 16) | ((lsb + 1) << 8) | lsb;
+      EXPECT_EQ(*maybe_int, expected_result);
+    }
+  }
+
+  { // Test reads of size 8
+    llvm::SmallVector<addr_t> locs = {0x0, 0x101, 0x2002, 0x123403};
+    llvm::SmallVector<std::optional<addr_t>> read_results =
+        process->ReadUnsignedIntegersFromMemory(locs, /*byte_size=*/8);
+
+    for (auto [maybe_int, loc] : llvm::zip(read_results, locs)) {
+      ASSERT_TRUE(maybe_int.has_value());
+      uint64_t lsb = static_cast<uint8_t>(loc);
+      uint64_t expected_result = ((lsb + 7) << 56) | ((lsb + 6) << 48) |
+                                 ((lsb + 5) << 40) | ((lsb + 4) << 32) |
+                                 ((lsb + 3) << 24) | ((lsb + 2) << 16) |
+                                 ((lsb + 1) << 8) | lsb;
+      EXPECT_EQ(*maybe_int, expected_result);
+    }
+  }
 }

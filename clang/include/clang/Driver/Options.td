@@ -2045,6 +2045,47 @@ defm bounds_safety_legacy_unique_traps : BoolOptionWithoutMarshalling<"f", "uniq
   NegFlag<SetFalse, [], [ClangOption],
     "legacy alias for -fno-bounds-safety-unique-traps">>;
 
+def fbounds_safety_debug_trap_reasons_EQ
+  : Joined<["-"], "fbounds-safety-debug-trap-reasons=">, Group<f_Group>,
+    Visibility<[ClangOption, CC1Option]>,
+    HelpText<"Set how trap reasons are emitted. "
+      "`none` - Not emitted. This gives the smallest debug info; "
+      "`basic` - Emit a fixed trap message per check type. This increases the "
+      "debug info size but not as much as `detailed`; "
+      "`detailed` - Emit a more detailed trap message. This increases the "
+      "debug info size the most. Default is `detailed`.">,
+    Values<"none,basic,detailed">,
+    NormalizedValuesScope<"CodeGenOptions::SanitizeDebugTrapReasonKind">,
+    NormalizedValues<["None", "Basic", "Detailed"]>,
+    MarshallingInfoEnum<CodeGenOpts<"BoundsSafetyDebugTrapReasons">, "Detailed">;
+
+def fbounds_safety_soft_traps_EQ
+  : Joined<["-"], "fbounds-safety-soft-traps=">, Group<f_Group>,
+    Visibility<[ClangOption, CC1Option]>,
+    HelpText<"Enables soft traps which causes the compiler to emit a non-fatal "
+      "instruction sequence when a bounds check fails. After this instruction "
+      "sequence execution resumes as if the bounds check had succeeded."
+      "For `call-*` modes see 'bounds_safety_soft_traps.h' for the runtime"
+      " function interface. This option supports the following modes: "
+      "`none` - No soft traps, i.e. use hard traps (default)."
+      "`call-with-str` - Emit a call to a runtime function that receives the "
+      "trap reason as a string."
+      "`call-minimal` - Emit a call to a runtime function that takes no "
+      "arguments and uses a custom calling convention if possible. This is "
+      "better for codesize than `call-with-str` but is harder to debug if debug"
+      " info is missing.">,
+    Values<"none,call-with-str,call-minimal">,
+    NormalizedValuesScope<"CodeGenOptions::BoundsSafetyTrapModeKind">,
+    NormalizedValues<["Hard", "SoftCallWithTrapString", "SoftCallMinimal"]>,
+    MarshallingInfoEnum<CodeGenOpts<"BoundsSafetyTrapMode">, "Hard">;
+
+def fbounds_safety_soft_trap_function_EQ : Joined<["-"],
+  "fbounds-safety-soft-trap-function=">,
+  Group<f_Group>, Visibility<[CC1Option]>,
+  HelpText<"Set the name of the BoundsSafety soft trap function. See the "
+  "'bounds_safety_soft_traps.h' file for the API of this function.">,
+  MarshallingInfoString<CodeGenOpts<"BoundsSafetySoftTrapFuncName">>;
+
 // TO_UPSTREAM(BoundsSafety) OFF
 
 defm lifetime_safety : BoolFOption<
@@ -2270,8 +2311,12 @@ defm dollars_in_identifiers : BoolFOption<"dollars-in-identifiers",
   PosFlag<SetTrue, [], [ClangOption], "Allow">,
   NegFlag<SetFalse, [], [ClangOption], "Disallow">,
   BothFlags<[], [ClangOption, CC1Option], " '$' in identifiers">>;
-def fdwarf2_cfi_asm : Flag<["-"], "fdwarf2-cfi-asm">, Group<clang_ignored_f_Group>;
-def fno_dwarf2_cfi_asm : Flag<["-"], "fno-dwarf2-cfi-asm">, Group<clang_ignored_f_Group>;
+
+defm dwarf2_cfi_asm
+    : BoolFOption<"dwarf2-cfi-asm", CodeGenOpts<"Dwarf2CFIAsm">, DefaultFalse,
+                  PosFlag<SetTrue, [], [ClangOption, CC1Option]>,
+                  NegFlag<SetFalse>>;
+
 defm dwarf_directory_asm : BoolFOption<"dwarf-directory-asm",
   CodeGenOpts<"NoDwarfDirectoryAsm">, DefaultFalse,
   NegFlag<SetTrue, [], [ClangOption, CC1Option]>,
@@ -3399,7 +3444,8 @@ defm declspec : BoolOption<"f", "declspec",
 def fmodules_cache_path : Joined<["-"], "fmodules-cache-path=">, Group<i_Group>,
   Flags<[]>, Visibility<[ClangOption, CC1Option]>,
   MetaVarName<"<directory>">,
-  HelpText<"Specify the module cache path">;
+  HelpText<"Specify the module cache path">,
+  MarshallingInfoString<HeaderSearchOpts<"ModuleCachePath">>;
 def fmodules_user_build_path : Separate<["-"], "fmodules-user-build-path">, Group<i_Group>,
   Flags<[]>, Visibility<[ClangOption, CC1Option]>,
   MetaVarName<"<directory>">,
@@ -8083,6 +8129,11 @@ def fprofile_instrument_path_EQ : Joined<["-"], "fprofile-instrument-path=">,
     HelpText<"Generate instrumented code to collect execution counts into "
              "<file> (overridden by LLVM_PROFILE_FILE env var)">,
     MarshallingInfoString<CodeGenOpts<"InstrProfileOutput">>;
+def fprofile_instrument_use_EQ : Joined<["-"], "fprofile-instrument-use=">,
+    HelpText<"Enable PGO use instrumentation">, Values<"none,clang,llvm,csllvm,sample-coldcov">,
+    NormalizedValuesScope<"llvm::driver::ProfileInstrKind">,
+    NormalizedValues<["ProfileNone", "ProfileClangInstr", "ProfileIRInstr", "ProfileCSIRInstr", "ProfileIRSampleColdCov"]>,
+    MarshallingInfoEnum<CodeGenOpts<"ProfileUse">, "ProfileNone">;
 def fprofile_instrument_use_path_EQ :
     Joined<["-"], "fprofile-instrument-use-path=">,
     HelpText<"Specify the profile path in PGO use compilation">,
@@ -8886,7 +8937,8 @@ def fopenmp_is_target_device : Flag<["-"], "fopenmp-is-target-device">,
   HelpText<"Generate code only for an OpenMP target device.">;
 def : Flag<["-"], "fopenmp-is-device">, Alias<fopenmp_is_target_device>;
 def fopenmp_host_ir_file_path : Separate<["-"], "fopenmp-host-ir-file-path">,
-  HelpText<"Path to the IR file produced by the frontend for the host.">;
+  HelpText<"Path to the IR file produced by the frontend for the host.">,
+  MarshallingInfoString<LangOpts<"OMPHostIRFile">>;
 
 } // let Visibility = [CC1Option, FC1Option]
 

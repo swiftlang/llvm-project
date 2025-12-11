@@ -1028,7 +1028,8 @@ static bool isCountAttributedPointerArgumentSafeImpl(
     PtrArgNoImp = DAE->getExpr()->IgnoreParenImpCasts();
 
   // check form 0:
-  if (PtrArgNoImp->getType()->isNullPtrType()) {
+  if (PtrArgNoImp->isNullPointerConstant(Context,
+                                         Expr::NPC_ValueDependentIsNotNull)) {
     if (isOrNull)
       return true;
     if (CountArg)
@@ -1649,11 +1650,27 @@ static bool hasAnyBoundsAttributes(const FunctionDecl *FD) {
          });
 }
 
+// Constant fold a conditional expression 'cond ? A : B' to
+// - 'A', if 'cond' has constant true value;
+// - 'B', if 'cond' has constant false value.
+static const Expr *tryConstantFoldConditionalExpr(const Expr *E,
+                                                  const ASTContext &Ctx) {
+  // FIXME: more places can use this function
+  if (const auto *CE = dyn_cast<ConditionalOperator>(E)) {
+    bool CondEval;
+
+    if (CE->getCond()->EvaluateAsBooleanCondition(CondEval, Ctx))
+      return CondEval ? CE->getLHS() : CE->getRHS();
+  }
+  return E;
+}
+
 // A pointer type expression is known to be null-terminated, if
 //  1. it is a string literal or `PredefinedExpr` (e.g., `__func__`);
 //  2. it has the form: E.c_str(), for any expression E of `std::string` type;
 //  3. it has `__null_terminated` type
 static bool isNullTermPointer(const Expr *Ptr, ASTContext &Ctx) {
+  Ptr = tryConstantFoldConditionalExpr(Ptr, Ctx);
   if (isa<clang::StringLiteral>(Ptr->IgnoreParenImpCasts()))
     return true;
   if (isa<PredefinedExpr>(Ptr->IgnoreParenImpCasts()))
@@ -3532,6 +3549,65 @@ public:
   }
 };
 
+// Represents an assignment to a __single pointer.
+class SinglePointerAssignmentGadget : public WarningGadget {
+private:
+  static constexpr const char *const AssignTag = "SinglePointerAssignment_Assign";
+  const BinaryOperator *Assign;
+
+public:
+  explicit SinglePointerAssignmentGadget(const MatchResult &Result)
+      : WarningGadget(Kind::SinglePointerAssignment),
+        Assign(Result.getNodeAs<BinaryOperator>(AssignTag)) {
+    assert(Assign != nullptr && "Expecting a non-null matching result");
+  }
+
+  static bool classof(const Gadget *G) {
+    return G->getKind() == Kind::SinglePointerAssignment;
+  }
+
+  static bool matches(const Stmt *S, ASTContext &Ctx,
+                      llvm::SmallVectorImpl<MatchResult> &Results) {
+    bool Found = false;
+    findStmtsInUnspecifiedUntypedContext(
+        S, [&Results, &Ctx, &Found](const Stmt *S) {
+          const auto *E = dyn_cast<Expr>(S);
+          if (!E)
+            return;
+          const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreImpCasts());
+          if (!BO || BO->getOpcode() != BO_Assign)
+            return;
+          QualType LHSTy = BO->getLHS()->getType();
+          if (!LHSTy->isSinglePointerType())
+            return;
+          if (isSinglePointerArgumentSafe(Ctx, LHSTy, BO->getRHS()))
+            return;
+          Results.emplace_back(AssignTag, DynTypedNode::create(*BO));
+          Found = true;
+        });
+    return Found;
+  }
+
+  void handleUnsafeOperation(UnsafeBufferUsageHandler &Handler,
+                             bool IsRelatedToDecl,
+                             ASTContext &Ctx) const override {
+    Handler.handleUnsafeSinglePointerAssignment(Assign, IsRelatedToDecl, Ctx);
+  }
+
+  SourceLocation getSourceLoc() const override {
+    return Assign->getOperatorLoc();
+  }
+
+  virtual DeclUseList getClaimedVarUseSites() const override {
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(Assign->getLHS())) {
+      return {DRE};
+    }
+    return {};
+  }
+
+  SmallVector<const Expr *, 1> getUnsafePtrs() const override { return {}; }
+};
+
 /// Scan the function and return a list of gadgets found with provided kits.
 class WarningGadgetMatcher : public FastMatcher {
 
@@ -5384,8 +5460,10 @@ static bool isSameMemberBase(const Expr *Self, const Expr *Other) {
 
     const auto *SelfICE = dyn_cast<ImplicitCastExpr>(Self);
     const auto *OtherICE = dyn_cast<ImplicitCastExpr>(Other);
-    if (SelfICE && OtherICE && SelfICE->getCastKind() == CK_LValueToRValue &&
-        OtherICE->getCastKind() == CK_LValueToRValue) {
+    if (SelfICE && OtherICE &&
+        SelfICE->getCastKind() == OtherICE->getCastKind() &&
+        (SelfICE->getCastKind() == CK_LValueToRValue ||
+         SelfICE->getCastKind() == CK_UncheckedDerivedToBase)) {
       Self = SelfICE->getSubExpr();
       Other = OtherICE->getSubExpr();
     }
@@ -5394,6 +5472,12 @@ static bool isSameMemberBase(const Expr *Self, const Expr *Other) {
     const auto *OtherDRE = dyn_cast<DeclRefExpr>(Other);
     if (SelfDRE && OtherDRE)
       return SelfDRE->getDecl() == OtherDRE->getDecl();
+
+    if (isa<CXXThisExpr>(Self) && isa<CXXThisExpr>(Other)) {
+      // `Self` and `Other` should be evaluated at the same state so `this` must
+      // mean the same thing for both:
+      return true;
+    }
 
     const auto *SelfME = dyn_cast<MemberExpr>(Self);
     const auto *OtherME = dyn_cast<MemberExpr>(Other);
@@ -5456,6 +5540,16 @@ struct BoundsAttributedObject {
   const ValueDecl *Decl = nullptr;
   const Expr *MemberBase = nullptr;
   int DerefLevel = 0;
+
+  bool operator==(const BoundsAttributedObject &Other) const {
+    if (Other.Decl != Decl || Other.DerefLevel != DerefLevel)
+      return false;
+    if (Other.MemberBase == MemberBase)
+      return true;
+    if (Other.MemberBase == nullptr || MemberBase == nullptr)
+      return false;
+    return isSameMemberBase(Other.MemberBase, MemberBase);
+  }
 };
 
 static std::optional<BoundsAttributedObject>
@@ -5499,7 +5593,7 @@ struct BoundsAttributedAssignmentGroup {
   DependentDeclSetTy DeclClosure;
   llvm::SmallVector<const BinaryOperator *, 4> Assignments;
   llvm::SmallVector<BoundsAttributedObject, 4> AssignedObjects;
-  using DeclUseTy = std::pair<const ValueDecl *, const Expr *>;
+  llvm::SmallDenseMap<const ValueDecl *, const Expr *, 4> Uses;
   const Expr *MemberBase = nullptr;
 
   void init(const BoundsAttributedObject &Object) {
@@ -5511,6 +5605,7 @@ struct BoundsAttributedAssignmentGroup {
     DeclClosure.clear();
     Assignments.clear();
     AssignedObjects.clear();
+    Uses.clear();
     MemberBase = nullptr;
   }
 
@@ -5652,7 +5747,266 @@ struct BoundsAttributedGroupFinder
     if (DA.has_value())
       TooComplexAssignHandler(E, DA->Decl);
   }
+
+  // Collect uses of decls belonging to the current group by visiting all DREs
+  // and MemberExprs.
+
+  void addUseIfPartOfCurGroup(const Expr *E) {
+    const auto DA = getBoundsAttributedObject(E);
+    if (DA.has_value() && CurGroup.isPartOfGroup(*DA))
+      CurGroup.Uses.insert({DA->Decl, E});
+  }
+
+  void VisitDeclRefExpr(const DeclRefExpr *DRE) { addUseIfPartOfCurGroup(DRE); }
+
+  void VisitMemberExpr(const MemberExpr *ME) {
+    addUseIfPartOfCurGroup(ME);
+    Visit(ME->getBase());
+  }
 };
+
+// Checks if the bounds-attributed group does not assign to implicitly
+// immutable objects (check below which patterns are considered immutable).
+// This function returns false iff at least one assignment modifies
+// bounds-attributed object that should be immutable.
+static bool checkImmutableBoundsAttributedObjects(
+    const BoundsAttributedAssignmentGroup &Group,
+    UnsafeBufferUsageHandler &Handler, ASTContext &Ctx) {
+  bool IsGroupSafe = true;
+
+  for (size_t I = 0, N = Group.Assignments.size(); I < N; ++I) {
+    const BinaryOperator *Assign = Group.Assignments[I];
+    const BoundsAttributedObject &Object = Group.AssignedObjects[I];
+
+    const ValueDecl *VD = Object.Decl;
+    QualType Ty = VD->getType();
+    int DerefLevel = Object.DerefLevel;
+
+    using AssignKind = UnsafeBufferUsageHandler::AssignToImmutableObjectKind;
+
+    // void foo(int *__counted_by(*len) *p, int *len) {
+    //   p = ...;
+    // }
+    if (DerefLevel == 0 && Ty->isPointerType() &&
+        Ty->getPointeeType()->isBoundsAttributedType()) {
+      Handler.handleAssignToImmutableObject(Assign, VD,
+                                            AssignKind::PointerToPointer,
+                                            /*IsRelatedToDecl=*/false, Ctx);
+      IsGroupSafe = false;
+    }
+
+    // void foo(int *__counted_by(*len) *p, int *len) {
+    //   len = ...;
+    // }
+    if (DerefLevel == 0 && VD->isDependentCountWithDeref()) {
+      Handler.handleAssignToImmutableObject(Assign, VD,
+                                            AssignKind::PointerToDependentCount,
+                                            /*IsRelatedToDecl=*/false, Ctx);
+      IsGroupSafe = false;
+    }
+
+    // `p` below should be immutable, because updating `p` would not be visible
+    // on the call-site to `foo`, but `*len` would, which invalidates the
+    // relation between the pointer and its count.
+    // void foo(int *__counted_by(*len) p, int *len) {
+    //   p = ...;
+    // }
+    if (DerefLevel == 0 && Ty->isCountAttributedTypeDependingOnInoutCount()) {
+      Handler.handleAssignToImmutableObject(
+          Assign, VD, AssignKind::PointerDependingOnInoutCount,
+          /*IsRelatedToDecl=*/false, Ctx);
+      IsGroupSafe = false;
+    }
+
+    // Same as above, we cannot update `len`, because it won't be visible on
+    // the call-site.
+    // void foo(int *__counted_by(len) *p, int *__counted_by(len) q, int len) {
+    //   len = ...; // bad because of p
+    // }
+    if (VD->isDependentCountWithoutDeref() &&
+        VD->isDependentCountThatIsUsedInInoutPointer()) {
+      assert(DerefLevel == 0);
+      Handler.handleAssignToImmutableObject(
+          Assign, VD, AssignKind::DependentCountUsedInInoutPointer,
+          /*IsRelatedToDecl=*/false, Ctx);
+      IsGroupSafe = false;
+    }
+  }
+
+  return IsGroupSafe;
+}
+
+// Checks if the bounds-attributed group has missing or duplicated assignments.
+// Each assignable decl in the group must be assigned exactly once.
+//
+// For example:
+//   void foo(int *__counted_by(a + b) p, int a, int b) {
+//     p = ...;
+//     p = ...; // duplicated
+//     a = ...;
+//     // b missing
+//   }
+// Note that the group consists of a, b, and p.
+//
+// The function returns true iff each assignable decl in the group is assigned
+// exactly once.
+static bool checkMissingAndDuplicatedAssignments(
+    const BoundsAttributedAssignmentGroup &Group,
+    UnsafeBufferUsageHandler &Handler, ASTContext &Ctx) {
+  llvm::SmallDenseMap<const ValueDecl *, const BinaryOperator *, 4>
+      AssignedDecls;
+
+  DependentDeclSetTy RequiredDecls = Group.DeclClosure;
+  for (const ValueDecl *VD : Group.DeclClosure) {
+    if (VD->isDependentCountWithoutDeref() &&
+        VD->isDependentCountThatIsUsedInInoutPointer()) {
+      // This value is immutable, so it's not required to be assigned.
+      RequiredDecls.erase(VD);
+    }
+  }
+
+  DependentDeclSetTy MissingDecls = RequiredDecls;
+
+  bool IsGroupSafe = true;
+
+  for (size_t I = 0, N = Group.Assignments.size(); I < N; ++I) {
+    const BinaryOperator *Assign = Group.Assignments[I];
+    const ValueDecl *VD = Group.AssignedObjects[I].Decl;
+
+    const auto [It, Inserted] = AssignedDecls.insert({VD, Assign});
+    if (Inserted)
+      MissingDecls.erase(VD);
+    else {
+      const BinaryOperator *PrevAssign = It->second;
+      Handler.handleDuplicatedAssignment(Assign, PrevAssign, VD,
+                                         /*IsRelatedToDecl=*/false, Ctx);
+      IsGroupSafe = false;
+    }
+  }
+
+  if (!MissingDecls.empty()) {
+    const Expr *LastAssign = Group.Assignments.back();
+    Handler.handleMissingAssignments(LastAssign, RequiredDecls, MissingDecls,
+                                     /*IsRelatedToDecl=*/false, Ctx);
+    IsGroupSafe = false;
+  }
+
+  return IsGroupSafe;
+}
+
+// Checks if the bounds-attributed group has assignments to objects that are
+// also used in the same group. In those cases, the correctness of the group
+// might depend on the order of assignments. We conservatively disallow such
+// assignments.
+//
+// In the example below, the bounds-check in `sp.first()` uses the value of `b`
+// before the later update, which can lead to OOB if `b` was less than 42.
+//   void foo(int *__counted_by(a + b) p, int a, int b, std::span<int> sp) {
+//     p = sp.first(b + 42).data();
+//     b = 42; // b is assigned and used
+//     a = b;
+//   }
+static bool checkAssignedAndUsed(const BoundsAttributedAssignmentGroup &Group,
+                                 UnsafeBufferUsageHandler &Handler,
+                                 ASTContext &Ctx) {
+  const auto &Uses = Group.Uses;
+  if (Uses.empty())
+    return true;
+
+  bool IsGroupSafe = true;
+
+  for (size_t I = 0, N = Group.AssignedObjects.size(); I < N; ++I) {
+    const BoundsAttributedObject &LHSObj = Group.AssignedObjects[I];
+    const BinaryOperator *Assign = Group.Assignments[I];
+
+    // Ignore self assignments, because they don't matter, since the value stays
+    // the same.
+    const auto RHSObj = getBoundsAttributedObject(Assign->getRHS());
+    bool IsSelfAssign = RHSObj.has_value() && *RHSObj == LHSObj;
+    if (IsSelfAssign)
+      continue;
+
+    const ValueDecl *VD = LHSObj.Decl;
+    const auto It = Uses.find(VD);
+    if (It == Uses.end())
+      continue;
+
+    const Expr *Use = It->second;
+    Handler.handleAssignedAndUsed(Assign, Use, VD,
+                                  /*IsRelatedToDecl=*/false, Ctx);
+    IsGroupSafe = false;
+  }
+
+  return IsGroupSafe;
+}
+
+// Checks if each assignment to count-attributed pointer in the group is safe.
+static bool
+checkAssignmentPatterns(const BoundsAttributedAssignmentGroup &Group,
+                        UnsafeBufferUsageHandler &Handler, ASTContext &Ctx) {
+  // Collect dependent values.
+  DependentValuesTy DependentValues;
+  for (size_t I = 0, N = Group.AssignedObjects.size(); I < N; ++I) {
+    const ValueDecl *VD = Group.AssignedObjects[I].Decl;
+    const auto *Attr = VD->getAttr<DependerDeclsAttr>();
+    if (!Attr)
+      continue;
+
+    const BinaryOperator *Assign = Group.Assignments[I];
+    const Expr *Value = Assign->getRHS();
+
+    [[maybe_unused]] bool Inserted =
+        DependentValues.insert({{VD, Attr->getIsDeref()}, Value}).second;
+    // Previous checks in `checkBoundsAttributedGroup` should have validated
+    // that we have only a single assignment.
+    assert(Inserted);
+  }
+
+  bool IsGroupSafe = true;
+
+  // Check every pointer in the group.
+  for (size_t I = 0, N = Group.AssignedObjects.size(); I < N; ++I) {
+    const ValueDecl *VD = Group.AssignedObjects[I].Decl;
+
+    QualType Ty = VD->getType();
+    const auto *CAT = Ty->getAs<CountAttributedType>();
+    if (!CAT && Ty->isPointerType())
+      CAT = Ty->getPointeeType()->getAs<CountAttributedType>();
+    if (!CAT)
+      continue;
+
+    const BinaryOperator *Assign = Group.Assignments[I];
+
+    // TODO: Move this logic to isCountAttributedPointerArgumentSafeImpl.
+    const Expr *CountArg =
+        DependentValues.size() == 1 ? DependentValues.begin()->second : nullptr;
+
+    bool IsSafe = isCountAttributedPointerArgumentSafeImpl(
+        Ctx, Assign->getRHS(), CountArg, CAT, CAT->getCountExpr(),
+        CAT->isCountInBytes(), CAT->isOrNull(), &DependentValues);
+    if (!IsSafe) {
+      Handler.handleUnsafeCountAttributedPointerAssignment(
+          Assign, /*IsRelatedToDecl=*/false, Ctx);
+      IsGroupSafe = false;
+    }
+  }
+
+  return IsGroupSafe;
+}
+
+// Checks if the bounds-attributed group is safe. This function returns false
+// iff the assignment group is unsafe and diagnostics have been emitted.
+static bool
+checkBoundsAttributedGroup(const BoundsAttributedAssignmentGroup &Group,
+                           UnsafeBufferUsageHandler &Handler, ASTContext &Ctx) {
+  if (!checkImmutableBoundsAttributedObjects(Group, Handler, Ctx))
+    return false;
+  if (!checkMissingAndDuplicatedAssignments(Group, Handler, Ctx))
+    return false;
+  if (!checkAssignedAndUsed(Group, Handler, Ctx))
+    return false;
+  return checkAssignmentPatterns(Group, Handler, Ctx);
+}
 
 static void
 diagnoseTooComplexAssignToBoundsAttributed(const Expr *E, const ValueDecl *VD,
@@ -5679,7 +6033,7 @@ static void checkBoundsSafetyAssignments(const Stmt *S,
                                          ASTContext &Ctx) {
   BoundsAttributedGroupFinder Finder(
       [&](const BoundsAttributedAssignmentGroup &Group) {
-        // TODO: Check group constraints.
+        checkBoundsAttributedGroup(Group, Handler, Ctx);
       },
       [&](const Expr *E, const ValueDecl *VD) {
         diagnoseTooComplexAssignToBoundsAttributed(E, VD, Handler, Ctx);

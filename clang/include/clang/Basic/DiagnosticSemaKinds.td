@@ -4131,6 +4131,10 @@ def note_feature_incompatible0 : Note<
   "feature attribute %0">;
 def note_feature_incompatible1 : Note<
   "is incompatible with %0">;
+def note_silence_unguarded_availability_domain : Note<
+  "enclose %0 in %select{an @available|a __builtin_available}1 check to silence "
+  "this warning">;
+
 def warn_unguarded_availability_unavailable :
   Warning<"%0 is unavailable">,
   InGroup<UnguardedAvailability>, DefaultIgnore;
@@ -14110,9 +14114,31 @@ def note_unsafe_count_attributed_pointer_argument_null_to_nonnull : Note<
 def warn_unsafe_single_pointer_argument : Warning<
   "unsafe assignment to function parameter of __single pointer type">,
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_unsafe_single_pointer_assignment : Warning<
+  "unsafe assignment to __single pointer type">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def warn_assign_to_count_attributed_must_be_simple_stmt : Warning<
   "assignment to %select{count-attributed pointer|dependent count}0 '%1' "
   "must be a simple statement '%1 = ...'">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_cannot_assign_to_immutable_bounds_attributed_object : Warning<
+  "cannot assign to %select{variable|parameter|member}0 %1 because %select{"
+  "it points to a count-attributed pointer|"
+  "it points to a dependent count|"
+  "its type depends on an inout dependent count|"
+  "it's used as dependent count in an inout count-attributed pointer"
+  "}2">, InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_missing_assignments_in_bounds_attributed_group : Warning<
+  "bounds-attributed group requires assigning '%0', assignments to '%1' missing">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_duplicated_assignment_in_bounds_attributed_group : Warning<
+  "duplicated assignment to %select{variable|parameter|member}0 %1 in "
+  "bounds-attributed group">, InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_assigned_and_used_in_bounds_attributed_group : Warning<
+  "%select{variable|parameter|member}0 %1 is assigned and used in the same "
+  "bounds-attributed group">, InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_unsafe_count_attributed_pointer_assignment : Warning<
+  "unsafe assignment to count-attributed pointer">,
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
 #ifndef NDEBUG
 // Not a user-facing diagnostic. Useful for debugging false negatives in
@@ -14454,4 +14480,12 @@ def err_acc_device_type_multiple_archs
 // AMDGCN builtins diagnostics
 def err_amdgcn_load_lds_size_invalid_value : Error<"invalid size value">;
 def note_amdgcn_load_lds_size_valid_value : Note<"size must be %select{1, 2, or 4|1, 2, 4, 12 or 16}0">;
+
+def warn_comparison_in_enum_initializer : Warning<
+  "comparison operator '%0' is potentially a typo for a shift operator '%1'">,
+  InGroup<DiagGroup<"enum-compare-typo">>;
+
+def note_enum_compare_typo_suggest : Note<
+  "use '%0' to perform a bitwise shift">;
+
 } // end of sema component.

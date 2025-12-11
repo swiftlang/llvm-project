@@ -267,6 +267,12 @@ bool ChainedASTReaderListener::readModuleCacheKey(StringRef ModuleName,
   return First->readModuleCacheKey(ModuleName, Filename, CacheKey) ||
          Second->readModuleCacheKey(ModuleName, Filename, CacheKey);
 }
+bool ChainedASTReaderListener::readModuleCASID(StringRef ModuleName,
+                                               StringRef Filename,
+                                               StringRef CASID) {
+  return First->readModuleCASID(ModuleName, Filename, CASID) ||
+         Second->readModuleCASID(ModuleName, Filename, CASID);
+}
 
 void ChainedASTReaderListener::readModuleFileExtension(
        const ModuleFileExtensionMetadata &Metadata) {
@@ -612,8 +618,7 @@ bool PCHValidator::ReadDiagnosticOptions(DiagnosticOptions &DiagOpts,
                                          bool Complain) {
   DiagnosticsEngine &ExistingDiags = PP.getDiagnostics();
   IntrusiveRefCntPtr<DiagnosticIDs> DiagIDs(ExistingDiags.getDiagnosticIDs());
-  IntrusiveRefCntPtr<DiagnosticsEngine> Diags(
-      new DiagnosticsEngine(DiagIDs, DiagOpts));
+  auto Diags = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(DiagIDs, DiagOpts);
   // This should never fail, because we would have processed these options
   // before writing them to an ASTFile.
   ProcessWarningOptions(*Diags, DiagOpts,
@@ -1935,9 +1940,10 @@ bool ASTReader::ReadSLocEntry(int ID) {
   }
 
   case SM_SLOC_EXPANSION_ENTRY: {
-    SourceLocation SpellingLoc = ReadSourceLocation(*F, Record[1]);
-    SourceLocation ExpansionBegin = ReadSourceLocation(*F, Record[2]);
-    SourceLocation ExpansionEnd = ReadSourceLocation(*F, Record[3]);
+    LocSeq::State Seq;
+    SourceLocation SpellingLoc = ReadSourceLocation(*F, Record[1], Seq);
+    SourceLocation ExpansionBegin = ReadSourceLocation(*F, Record[2], Seq);
+    SourceLocation ExpansionEnd = ReadSourceLocation(*F, Record[3], Seq);
     SourceMgr.createExpansionLoc(SpellingLoc, ExpansionBegin, ExpansionEnd,
                                  Record[5], Record[4], ID,
                                  BaseOffset + Record[0]);
@@ -3106,6 +3112,10 @@ ASTReader::ReadControlBlock(ModuleFile &F,
             F.Kind == MK_ImplicitModule)
           N = ForceValidateUserInputs ? NumUserInputs : 0;
 
+        if (N != 0)
+          Diag(diag::remark_module_validation)
+              << N << F.ModuleName << F.FileName;
+
         for (unsigned I = 0; I < N; ++I) {
           InputFile IF = getInputFile(F, I+1, Complain);
           if (!IF.getFile() || IF.isOutOfDate())
@@ -3287,7 +3297,8 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       std::string ImportedFile;
       std::string StoredFile;
       bool IgnoreImportedByNote = false;
-      StringRef ImportedCacheKey;
+      bool CASIDIsKey = false;
+      StringRef ImportedCASKey;
 
       // For prebuilt and explicit modules first consult the file map for
       // an override. Note that here we don't search prebuilt module
@@ -3307,6 +3318,7 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       if (!IsImportingStdCXXModule) {
         StoredSize = (off_t)Record[Idx++];
         StoredModTime = (time_t)Record[Idx++];
+        CASIDIsKey = (bool)Record[Idx++];
 
         StringRef SignatureBytes = Blob.substr(0, ASTFileSignature::size);
         StoredSignature = ASTFileSignature::create(SignatureBytes.begin(),
@@ -3335,17 +3347,31 @@ ASTReader::ReadControlBlock(ModuleFile &F,
           }
         }
 
-        ImportedCacheKey = ReadStringBlob(Record, Idx, Blob);
+        ImportedCASKey = ReadStringBlob(Record, Idx, Blob);
       }
 
-      if (!ImportedCacheKey.empty()) {
-        if (!Listener || Listener->readModuleCacheKey(
-                             ImportedName, ImportedFile, ImportedCacheKey)) {
+      if (!ImportedCASKey.empty()) {
+        if (!Listener) {
           Diag(diag::err_ast_file_not_found)
               << moduleKindForDiagnostic(ImportedKind) << ImportedFile << true
-              << ("missing or unloadable module cache key" + ImportedCacheKey)
+              << ("missing listener to read CAS reference" + ImportedCASKey)
                      .str();
           return Failure;
+        }
+        if (CASIDIsKey) {
+          assert(ImportedKind == MK_ImplicitModule &&
+                 "implicit module encodes cache key, not CASID");
+          if (Listener->readModuleCacheKey(ImportedName, ImportedFile,
+                                           ImportedCASKey)) {
+            // If the module cache key failed to read, treat the module as
+            // out-of-date so it can be rebuilt.
+            return OutOfDate;
+          }
+        } else {
+          if (Listener->readModuleCASID(ImportedName, ImportedFile,
+                                        ImportedCASKey)) {
+            return OutOfDate;
+          }
         }
       }
 
@@ -6042,11 +6068,17 @@ bool ASTReader::readASTFileControlBlock(
       // Skip signature.
       Blob = Blob.substr(ASTFileSignature::size);
 
+      bool CASIDIsKey = Record[Idx++];
+
       StringRef FilenameStr = ReadStringBlob(Record, Idx, Blob);
       auto Filename = ResolveImportedPath(PathBuf, FilenameStr, ModuleDir);
-      StringRef CacheKey = ReadStringBlob(Record, Idx, Blob);
-      if (!CacheKey.empty())
-        Listener.readModuleCacheKey(ModuleName, *Filename, CacheKey);
+      StringRef CASID = ReadStringBlob(Record, Idx, Blob);
+      if (!CASID.empty()) {
+        if (CASIDIsKey)
+          Listener.readModuleCacheKey(ModuleName, *Filename, CASID);
+        else
+          Listener.readModuleCASID(ModuleName, *Filename, CASID);
+      }
       Listener.visitImport(ModuleName, *Filename);
       break;
     }
@@ -6268,6 +6300,14 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
         CurrentModule->PresumedModuleMapFile = F.ModuleMapPath;
         if (!F.ModuleCacheKey.empty())
           CurrentModule->setModuleCacheKey(F.ModuleCacheKey);
+
+        // Set CASID for current module.
+        if (const auto *PCM =
+                ModuleMgr.getModuleCache().getInMemoryModuleCache().lookup(
+                    F.FileName)) {
+          CurrentModule->setCASID(PCM->CASID);
+          F.CASID = PCM->CASID;
+        }
       }
 
       CurrentModule->Kind = Kind;
@@ -7192,10 +7232,13 @@ QualType ASTReader::readTypeRecord(TypeID ID) {
 namespace clang {
 
 class TypeLocReader : public TypeLocVisitor<TypeLocReader> {
-  ASTRecordReader &Reader;
+  using LocSeq = SourceLocationSequence;
 
-  SourceLocation readSourceLocation() { return Reader.readSourceLocation(); }
-  SourceRange readSourceRange() { return Reader.readSourceRange(); }
+  ASTRecordReader &Reader;
+  LocSeq *Seq;
+
+  SourceLocation readSourceLocation() { return Reader.readSourceLocation(Seq); }
+  SourceRange readSourceRange() { return Reader.readSourceRange(Seq); }
 
   TypeSourceInfo *GetTypeSourceInfo() {
     return Reader.readTypeSourceInfo();
@@ -7210,7 +7253,8 @@ class TypeLocReader : public TypeLocVisitor<TypeLocReader> {
   }
 
 public:
-  TypeLocReader(ASTRecordReader &Reader) : Reader(Reader) {}
+  TypeLocReader(ASTRecordReader &Reader, LocSeq *Seq)
+      : Reader(Reader), Seq(Seq) {}
 
   // We want compile-time assurance that we've enumerated all of
   // these, so unfortunately we have to declare them first, then
@@ -7585,8 +7629,9 @@ void TypeLocReader::VisitDependentBitIntTypeLoc(
   TL.setNameLoc(readSourceLocation());
 }
 
-void ASTRecordReader::readTypeLoc(TypeLoc TL) {
-  TypeLocReader TLR(*this);
+void ASTRecordReader::readTypeLoc(TypeLoc TL, LocSeq *ParentSeq) {
+  LocSeq::State Seq(ParentSeq);
+  TypeLocReader TLR(*this, Seq);
   for (; !TL.isNull(); TL = TL.getNextTypeLoc())
     TLR.Visit(TL);
 }
@@ -9848,7 +9893,7 @@ std::optional<ASTSourceDescriptor> ASTReader::getSourceDescriptor(unsigned ID) {
     StringRef FileName = llvm::sys::path::filename(MF.FileName);
     return ASTSourceDescriptor(ModuleName,
                                llvm::sys::path::parent_path(MF.FileName),
-                               FileName, MF.Signature);
+                               FileName, MF.Signature, MF.CASID);
   }
   return std::nullopt;
 }
@@ -10157,9 +10202,9 @@ ASTRecordReader::readNestedNameSpecifierLoc() {
 }
 
 SourceRange ASTReader::ReadSourceRange(ModuleFile &F, const RecordData &Record,
-                                       unsigned &Idx) {
-  SourceLocation beg = ReadSourceLocation(F, Record, Idx);
-  SourceLocation end = ReadSourceLocation(F, Record, Idx);
+                                       unsigned &Idx, LocSeq *Seq) {
+  SourceLocation beg = ReadSourceLocation(F, Record, Idx, Seq);
+  SourceLocation end = ReadSourceLocation(F, Record, Idx, Seq);
   return SourceRange(beg, end);
 }
 

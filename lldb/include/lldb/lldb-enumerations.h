@@ -518,6 +518,7 @@ enum LanguageType {
   eLanguageTypeAssembly = 0x0031,
   eLanguageTypeC_sharp = 0x0032,
   eLanguageTypeMojo = 0x0033,
+  eLanguageTypeLastStandardLanguage = eLanguageTypeMojo,
 
   // Vendor Extensions
   // Note: Language::GetNameForLanguageType
@@ -537,6 +538,7 @@ enum InstrumentationRuntimeType {
   eInstrumentationRuntimeTypeMainThreadChecker = 0x0003,
   eInstrumentationRuntimeTypeSwiftRuntimeReporting = 0x0004,
   eInstrumentationRuntimeTypeLibsanitizersAsan = 0x0005,
+  eInstrumentationRuntimeTypeBoundsSafety = 0x0006,
   eNumInstrumentationRuntimeTypes
 };
 

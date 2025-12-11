@@ -621,25 +621,30 @@ def FeatureZCRegMoveGPR64 : SubtargetFeature<"zcm-gpr64", "HasZeroCycleRegMoveGP
 def FeatureZCRegMoveGPR32 : SubtargetFeature<"zcm-gpr32", "HasZeroCycleRegMoveGPR32", "true",
                                         "Has zero-cycle register moves for GPR32 registers">;
 
+def FeatureZCRegMoveFPR128 : SubtargetFeature<"zcm-fpr128", "HasZeroCycleRegMoveFPR128", "true",
+                                        "Has zero-cycle register moves for FPR128 registers">;
+
 def FeatureZCRegMoveFPR64 : SubtargetFeature<"zcm-fpr64", "HasZeroCycleRegMoveFPR64", "true",
                                         "Has zero-cycle register moves for FPR64 registers">;
 
 def FeatureZCRegMoveFPR32 : SubtargetFeature<"zcm-fpr32", "HasZeroCycleRegMoveFPR32", "true",
                                         "Has zero-cycle register moves for FPR32 registers">;
 
-def FeatureZCZeroingGP : SubtargetFeature<"zcz-gp", "HasZeroCycleZeroingGP", "true",
-                                        "Has zero-cycle zeroing instructions for generic registers">;
+def FeatureZCZeroingGPR64 : SubtargetFeature<"zcz-gpr64", "HasZeroCycleZeroingGPR64", "true",
+                                        "Has zero-cycle zeroing instructions for GPR64 registers">;
+
+def FeatureZCZeroingGPR32 : SubtargetFeature<"zcz-gpr32", "HasZeroCycleZeroingGPR32", "true",
+                                        "Has zero-cycle zeroing instructions for GPR32 registers">;
+
+def FeatureZCZeroingFPR128 : SubtargetFeature<"zcz-fpr128", "HasZeroCycleZeroingFPR128", "true",
+                                        "Has zero-cycle zeroing instructions for FPR128 registers">;
 
 // It is generally beneficial to rewrite "fmov s0, wzr" to "movi d0, #0".
 // as movi is more efficient across all cores. Newer cores can eliminate
 // fmovs early and there is no difference with movi, but this not true for
 // all implementations.
-def FeatureNoZCZeroingFP : SubtargetFeature<"no-zcz-fp", "HasZeroCycleZeroingFP", "false",
-                                        "Has no zero-cycle zeroing instructions for FP registers">;
-
-def FeatureZCZeroing : SubtargetFeature<"zcz", "HasZeroCycleZeroing", "true",
-                                        "Has zero-cycle zeroing instructions",
-                                        [FeatureZCZeroingGP]>;
+def FeatureNoZCZeroingFPR64 : SubtargetFeature<"no-zcz-fpr64", "HasZeroCycleZeroingFPR64", "false",
+                                        "Has no zero-cycle zeroing instructions for FPR64 registers">;
 
 /// ... but the floating-point version doesn't quite work in rare cases on older
 /// CPUs.
@@ -923,8 +928,8 @@ def HasV9_5aOps : Architecture64<9, 5, "a", "v9.5a",
   [HasV9_4aOps, FeatureCPA],
   !listconcat(HasV9_4aOps.DefaultExts, [FeatureCPA,  FeatureLUT, FeatureFAMINMAX])>;
 def HasV9_6aOps : Architecture64<9, 6, "a", "v9.6a",
-  [HasV9_5aOps, FeatureCMPBR, FeatureFPRCVT, FeatureSVE2p2, FeatureLSUI, FeatureOCCMO],
-  !listconcat(HasV9_5aOps.DefaultExts, [FeatureCMPBR, FeatureFPRCVT, FeatureSVE2p2,
+  [HasV9_5aOps, FeatureCMPBR, FeatureLSUI, FeatureOCCMO],
+  !listconcat(HasV9_5aOps.DefaultExts, [FeatureCMPBR,
     FeatureLSUI, FeatureOCCMO])>;
 def HasV8_0rOps : Architecture64<8, 0, "r", "v8r",
   [ //v8.1

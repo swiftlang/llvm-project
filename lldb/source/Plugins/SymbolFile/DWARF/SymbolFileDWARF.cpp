@@ -795,12 +795,12 @@ lldb::CompUnitSP SymbolFileDWARF::ParseCompileUnit(DWARFCompileUnit &dwarf_cu) {
     } else {
       ModuleSP module_sp(m_objfile_sp->GetModule());
       if (module_sp) {
-        auto initialize_cu = [&](lldb::SupportFileSP support_file_sp,
+        auto initialize_cu = [&](SupportFileNSP support_file_nsp,
                                  LanguageType cu_language,
                                  SupportFileList &&support_files = {}) {
           BuildCuTranslationTable();
           cu_sp = std::make_shared<CompileUnit>(
-              module_sp, &dwarf_cu, support_file_sp,
+              module_sp, &dwarf_cu, support_file_nsp,
               *GetDWARFUnitIndex(dwarf_cu.GetID()), cu_language,
               eLazyBoolCalculate, std::move(support_files));
 
@@ -1573,8 +1573,8 @@ bool SymbolFileDWARF::HasForwardDeclForCompilerType(
   auto clang_type_system = compiler_type.GetTypeSystem<TypeSystemClang>();
   if (!clang_type_system)
     return false;
-  DWARFASTParserClang *ast_parser =
-      static_cast<DWARFASTParserClang *>(clang_type_system->GetDWARFParser());
+  auto *ast_parser =
+      llvm::cast<DWARFASTParserClang>(clang_type_system->GetDWARFParser());
   return ast_parser->GetClangASTImporter().CanImport(compiler_type);
 }
 
@@ -1582,8 +1582,8 @@ bool SymbolFileDWARF::CompleteType(CompilerType &compiler_type) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   auto clang_type_system = compiler_type.GetTypeSystem<TypeSystemClang>();
   if (clang_type_system) {
-    DWARFASTParserClang *ast_parser =
-        static_cast<DWARFASTParserClang *>(clang_type_system->GetDWARFParser());
+    auto *ast_parser =
+        llvm::cast<DWARFASTParserClang>(clang_type_system->GetDWARFParser());
     if (ast_parser &&
         ast_parser->GetClangASTImporter().CanImport(compiler_type))
       return ast_parser->GetClangASTImporter().CompleteType(compiler_type);
@@ -1627,8 +1627,7 @@ bool SymbolFileDWARF::CompleteType(CompilerType &compiler_type) {
 
   if (decl_die != def_die) {
     GetDIEToType()[def_die.GetDIE()] = type;
-    DWARFASTParserClang *ast_parser =
-        static_cast<DWARFASTParserClang *>(dwarf_ast);
+    auto *ast_parser = llvm::cast<DWARFASTParserClang>(dwarf_ast);
     ast_parser->MapDeclDIEToDefDIE(decl_die, def_die);
   }
 
@@ -2004,6 +2003,23 @@ void SymbolFileDWARF::UpdateExternalModuleListIfNeeded() {
       continue;
 
     ModuleSpec dwo_module_spec;
+
+    dwo_module_spec.GetArchitecture() =
+        m_objfile_sp->GetModule()->GetArchitecture();
+
+    // Try load from CAS, if loaded, continue to next one.
+    auto loaded = ModuleList::GetSharedModuleFromCAS(
+        const_name, dwo_path, GetObjectFile()->GetFileSpec(), dwo_module_spec,
+        module_sp);
+    if (!loaded)
+      GetObjectFile()->GetModule()->ReportWarning(
+          "Failed to load module '{0}' from CAS: {1}", const_name,
+          toString(loaded.takeError()));
+
+    // succeed, loaded next module.
+    if (*loaded)
+      continue;
+
     dwo_module_spec.GetFileSpec().SetFile(dwo_path, FileSpec::Style::native);
     if (dwo_module_spec.GetFileSpec().IsRelative()) {
       const char *comp_dir =
@@ -2015,8 +2031,6 @@ void SymbolFileDWARF::UpdateExternalModuleListIfNeeded() {
         dwo_module_spec.GetFileSpec().AppendPathComponent(dwo_path);
       }
     }
-    dwo_module_spec.GetArchitecture() =
-        m_objfile_sp->GetModule()->GetArchitecture();
 
     // When LLDB loads "external" modules it looks at the presence of
     // DW_AT_dwo_name. However, when the already created module
@@ -2501,7 +2515,7 @@ bool SymbolFileDWARF::ResolveFunction(const DWARFDIE &orig_die,
         sc.block = function_block.FindBlockByID(inlined_die.GetOffset());
     }
 
-    sc_list.Append(sc);
+    sc_list.AppendIfUnique(sc, /*merge_symbol_into_function=*/true);
     return true;
   }
 
@@ -2567,11 +2581,11 @@ SymbolFileDWARF::FindFunctionDefinition(const FunctionCallLabel &label,
                                         const DWARFDIE &declaration) {
   auto do_lookup = [this](llvm::StringRef lookup_name) -> DWARFDIE {
     DWARFDIE found;
-    Module::LookupInfo info(ConstString(lookup_name),
-                            lldb::eFunctionNameTypeFull,
-                            lldb::eLanguageTypeUnknown);
+    auto lookup_infos = Module::LookupInfo::MakeLookupInfos(
+        ConstString(lookup_name), lldb::eFunctionNameTypeFull,
+        lldb::eLanguageTypeUnknown);
 
-    m_index->GetFunctions(info, *this, {}, [&](DWARFDIE entry) {
+    m_index->GetFunctions(lookup_infos, *this, {}, [&](DWARFDIE entry) {
       if (entry.GetAttributeValueAsUnsigned(llvm::dwarf::DW_AT_declaration, 0))
         return IterationAction::Continue;
 
@@ -4637,13 +4651,16 @@ SymbolFileDWARF::GetContainingDeclContext(const DWARFDIE &die) {
 }
 
 LanguageType SymbolFileDWARF::LanguageTypeFromDWARF(uint64_t val) {
+  if (val <= eLanguageTypeLastStandardLanguage)
+    return static_cast<LanguageType>(val);
+
   // Note: user languages between lo_user and hi_user must be handled
   // explicitly here.
   switch (val) {
   case DW_LANG_Mips_Assembler:
     return eLanguageTypeMipsAssembler;
   default:
-    return static_cast<LanguageType>(val);
+    return eLanguageTypeUnknown;
   }
 }
 

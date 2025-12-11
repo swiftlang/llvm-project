@@ -20,6 +20,7 @@
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/StackFrameRecognizer.h"
 #include "lldb/Target/StopInfo.h"
+#include "lldb/Target/SyntheticFrameProvider.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/Unwind.h"
@@ -55,6 +56,49 @@ StackFrameList::~StackFrameList() {
   Clear();
 }
 
+SyntheticStackFrameList::SyntheticStackFrameList(
+    Thread &thread, lldb::StackFrameListSP input_frames,
+    const lldb::StackFrameListSP &prev_frames_sp, bool show_inline_frames)
+    : StackFrameList(thread, prev_frames_sp, show_inline_frames),
+      m_input_frames(std::move(input_frames)) {}
+
+bool SyntheticStackFrameList::FetchFramesUpTo(
+    uint32_t end_idx, InterruptionControl allow_interrupt) {
+
+  size_t num_synthetic_frames = 0;
+  // Check if the thread has a synthetic frame provider.
+  if (auto provider_sp = m_thread.GetFrameProvider()) {
+    // Use the synthetic frame provider to generate frames lazily.
+    // Keep fetching until we reach end_idx or the provider returns an error.
+    for (uint32_t idx = m_frames.size(); idx <= end_idx; idx++) {
+      if (allow_interrupt &&
+          m_thread.GetProcess()->GetTarget().GetDebugger().InterruptRequested())
+        return true;
+      auto frame_or_err = provider_sp->GetFrameAtIndex(idx);
+      if (!frame_or_err) {
+        // Provider returned error - we've reached the end.
+        LLDB_LOG_ERROR(GetLog(LLDBLog::Thread), frame_or_err.takeError(),
+                       "Frame provider reached end at index {0}: {1}", idx);
+        SetAllFramesFetched();
+        break;
+      }
+      StackFrameSP frame_sp = *frame_or_err;
+      if (frame_sp->IsSynthetic())
+        frame_sp->GetStackID().SetCFA(num_synthetic_frames++,
+                                      GetThread().GetProcess().get());
+      // Set the frame list weak pointer so ExecutionContextRef can resolve
+      // the frame without calling Thread::GetStackFrameList().
+      frame_sp->m_frame_list_wp = shared_from_this();
+      m_frames.push_back(frame_sp);
+    }
+
+    return false; // Not interrupted.
+  }
+
+  // If no provider, fall back to the base implementation.
+  return StackFrameList::FetchFramesUpTo(end_idx, allow_interrupt);
+}
+
 void StackFrameList::CalculateCurrentInlinedDepth() {
   uint32_t cur_inlined_depth = GetCurrentInlinedDepth();
   if (cur_inlined_depth == UINT32_MAX) {
@@ -85,23 +129,6 @@ void StackFrameList::ResetCurrentInlinedDepth() {
   if (!m_show_inlined_frames)
     return;
 
-  GetFramesUpTo(0, DoNotAllowInterruption);
-  if (m_frames.empty())
-    return;
-  if (!m_frames[0]->IsInlined()) {
-    m_current_inlined_depth = UINT32_MAX;
-    m_current_inlined_pc = LLDB_INVALID_ADDRESS;
-    Log *log = GetLog(LLDBLog::Step);
-    if (log && log->GetVerbose())
-      LLDB_LOGF(
-          log,
-          "ResetCurrentInlinedDepth: Invalidating current inlined depth.\n");
-    return;
-  }
-
-  m_current_inlined_pc = LLDB_INVALID_ADDRESS;
-  m_current_inlined_depth = UINT32_MAX;
-
   StopInfoSP stop_info_sp = m_thread.GetStopInfo();
   if (!stop_info_sp)
     return;
@@ -111,6 +138,7 @@ void StackFrameList::ResetCurrentInlinedDepth() {
   // We're only adjusting the inlined stack here.
   Log *log = GetLog(LLDBLog::Step);
   if (inline_depth) {
+    std::lock_guard<std::mutex> guard(m_inlined_depth_mutex);
     m_current_inlined_depth = *inline_depth;
     m_current_inlined_pc = m_thread.GetRegisterContext()->GetPC();
 
@@ -120,6 +148,9 @@ void StackFrameList::ResetCurrentInlinedDepth() {
                 "depth: %d 0x%" PRIx64 ".\n",
                 m_current_inlined_depth, m_current_inlined_pc);
   } else {
+    std::lock_guard<std::mutex> guard(m_inlined_depth_mutex);
+    m_current_inlined_pc = LLDB_INVALID_ADDRESS;
+    m_current_inlined_depth = UINT32_MAX;    
     if (log && log->GetVerbose())
       LLDB_LOGF(
           log,
@@ -334,14 +365,16 @@ void StackFrameList::SynthesizeTailCallFrames(StackFrame &next_frame) {
     addr_t pc = calleeInfo.address;
     // If the callee address refers to the call instruction, we do not want to
     // subtract 1 from this value.
+    const bool artificial = true;
     const bool behaves_like_zeroth_frame =
         calleeInfo.address_type == CallEdge::AddrType::Call;
     SymbolContext sc;
     callee->CalculateSymbolContext(&sc);
     auto synth_frame = std::make_shared<StackFrame>(
         m_thread.shared_from_this(), frame_idx, concrete_frame_idx, cfa,
-        cfa_is_valid, pc, StackFrame::Kind::Artificial,
+        cfa_is_valid, pc, StackFrame::Kind::Regular, artificial,
         behaves_like_zeroth_frame, &sc);
+    synth_frame->m_frame_list_wp = shared_from_this();
     m_frames.push_back(synth_frame);
     LLDB_LOG(log, "Pushed frame {0} at {1:x}", callee->GetDisplayName(), pc);
   }
@@ -457,6 +490,7 @@ bool StackFrameList::FetchFramesUpTo(uint32_t end_idx,
           unwind_frame_sp = std::make_shared<StackFrame>(
               m_thread.shared_from_this(), m_frames.size(), idx, reg_ctx_sp,
               cfa, pc, behaves_like_zeroth_frame, nullptr);
+          unwind_frame_sp->m_frame_list_wp = shared_from_this();
           m_frames.push_back(unwind_frame_sp);
         }
       } else {
@@ -483,13 +517,15 @@ bool StackFrameList::FetchFramesUpTo(uint32_t end_idx,
       const bool cfa_is_valid = true;
       unwind_frame_sp = std::make_shared<StackFrame>(
           m_thread.shared_from_this(), m_frames.size(), idx, cfa, cfa_is_valid,
-          pc, StackFrame::Kind::Regular, behaves_like_zeroth_frame, nullptr);
+          pc, StackFrame::Kind::Regular, false, behaves_like_zeroth_frame,
+          nullptr);
 
       // Create synthetic tail call frames between the previous frame and the
       // newly-found frame. The new frame's index may change after this call,
       // although its concrete index will stay the same.
       SynthesizeTailCallFrames(*unwind_frame_sp.get());
 
+      unwind_frame_sp->m_frame_list_wp = shared_from_this();
       m_frames.push_back(unwind_frame_sp);
     }
 
@@ -514,6 +550,7 @@ bool StackFrameList::FetchFramesUpTo(uint32_t end_idx,
             unwind_frame_sp->GetRegisterContextSP(), cfa, next_frame_address,
             behaves_like_zeroth_frame, &next_frame_sc));
 
+        frame_sp->m_frame_list_wp = shared_from_this();
         m_frames.push_back(frame_sp);
         unwind_sc = next_frame_sc;
         curr_frame_address = next_frame_address;
@@ -570,6 +607,7 @@ bool StackFrameList::FetchFramesUpTo(uint32_t end_idx,
       prev_frame->UpdatePreviousFrameFromCurrentFrame(*curr_frame);
       // Now copy the fixed up previous frame into the current frames so the
       // pointer doesn't change.
+      prev_frame_sp->m_frame_list_wp = shared_from_this();
       m_frames[curr_frame_idx] = prev_frame_sp;
 
 #if defined(DEBUG_STACK_FRAMES)
@@ -689,6 +727,13 @@ StackFrameList::GetFrameWithConcreteFrameIndex(uint32_t unwind_idx) {
   return frame_sp;
 }
 
+static bool CompareStackID(const StackFrameSP &stack_sp,
+                           const StackID &stack_id) {
+  ProcessSP process_sp = stack_sp->CalculateProcess();
+  assert(process_sp && "StackFrames must have a process");
+  return StackID::IsYounger(stack_sp->GetStackID(), stack_id, *(process_sp.get()));
+}
+
 StackFrameSP StackFrameList::GetFrameWithStackID(const StackID &stack_id) {
   StackFrameSP frame_sp;
 
@@ -698,17 +743,11 @@ StackFrameSP StackFrameList::GetFrameWithStackID(const StackID &stack_id) {
       // First see if the frame is already realized.  This is the scope for
       // the shared mutex:
       std::shared_lock<std::shared_mutex> guard(m_list_mutex);
-      // Do a search in case the stack frame is already in our cache.
-      collection::const_iterator begin = m_frames.begin();
-      collection::const_iterator end = m_frames.end();
-      if (begin != end) {
-        collection::const_iterator pos =
-            std::find_if(begin, end, [&](StackFrameSP frame_sp) {
-              return frame_sp->GetStackID() == stack_id;
-            });
-        if (pos != end)
-          return *pos;
-      } 
+      // Do a binary search in case the stack frame is already in our cache
+      collection::const_iterator pos =
+          llvm::lower_bound(m_frames, stack_id, CompareStackID);
+      if (pos != m_frames.end() && (*pos)->GetStackID() == stack_id)
+        return *pos;
     }
     // If we needed to add more frames, we would get to here.
     do {
@@ -762,7 +801,7 @@ void StackFrameList::SelectMostRelevantFrame() {
   }
   LLDB_LOG(log, "Frame #0 not recognized");
 
-  // If this thread has a non-trivial StopInof, then let it suggest
+  // If this thread has a non-trivial StopInfo, then let it suggest
   // a most relevant frame:
   StopInfoSP stop_info_sp = m_thread.GetStopInfo();
   uint32_t stack_idx = 0;

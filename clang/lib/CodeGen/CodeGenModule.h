@@ -689,6 +689,10 @@ private:
   // The list is sorted for binary-searching.
   std::vector<std::string> MSHotPatchFunctions;
 
+  /* TO_UPSTREAM(BoundsSafety) ON*/
+  llvm::StringMap<llvm::Constant *> CachedGlobalStrings;
+  /* TO_UPSTREAM(BoundsSafety) OFF*/
+
 public:
   CodeGenModule(ASTContext &C, IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                 const HeaderSearchOptions &headersearchopts,
@@ -1754,6 +1758,11 @@ public:
                         const VarDecl *D,
                         ForDefinition_t IsForDefinition = NotForDefinition);
 
+  /* TO_UPSTREAM(BoundsSafety) ON*/
+  llvm::Constant *GetOrCreateGlobalStr(StringRef Value, CGBuilderTy &Builder,
+                                       const Twine &Name = "");
+  /* TO_UPSTREAM(BoundsSafety) OFF*/
+
   // FIXME: Hardcoding priority here is gross.
   void AddGlobalCtor(llvm::Function *Ctor, int Priority = 65535,
                      unsigned LexOrder = ~0U,
@@ -1838,6 +1847,15 @@ public:
   TrapReasonBuilder BuildTrapReason(unsigned DiagID, TrapReason &TR) {
     return TrapReasonBuilder(&getDiags(), DiagID, TR);
   }
+
+  /* TO_UPSTREAM(BoundsSafety) ON*/
+  PartialDiagnostic BuildPartialTrapReason() {
+    // When building trap reasons we sometimes don't know exactly
+    // which diagnostic is going to be emitted so we just specify
+    // `0` as place holder.
+    return PartialDiagnostic(0, getContext().getDiagAllocator());
+  }
+  /* TO_UPSTREAM(BoundsSafety) OFF*/
 
 private:
   bool shouldDropDLLAttribute(const Decl *D, const llvm::GlobalValue *GV) const;

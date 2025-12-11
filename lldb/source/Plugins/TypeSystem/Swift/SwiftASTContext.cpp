@@ -913,6 +913,31 @@ static std::string GetClangModulesCacheProperty() {
   return std::string(path);
 }
 
+static void ConfigureCASStorage(SwiftASTContext *m_ast_context,
+                                FileSpec CandidateConfigSearchPath) {
+  std::string m_description;
+  auto cas_config = ModuleList::GetCASConfiguration(CandidateConfigSearchPath);
+  if (!cas_config) {
+    HEALTH_LOG_PRINTF("no CAS available");
+    return;
+  }
+  auto maybe_cas = cas_config->createDatabases();
+  if (!maybe_cas) {
+    Debugger::ReportWarning("failed to create CAS: " +
+                            toString(maybe_cas.takeError()));
+    return;
+  }
+  m_ast_context->SetCASStorage(std::move(maybe_cas->first),
+                               std::move(maybe_cas->second));
+  m_ast_context->GetCASOptions().CASOpts.CASPath = cas_config->CASPath;
+  m_ast_context->GetCASOptions().CASOpts.PluginPath = cas_config->PluginPath;
+  m_ast_context->GetCASOptions().CASOpts.PluginOptions =
+      cas_config->PluginOptions;
+  LOG_PRINTF(GetLog(LLDBLog::Types),
+             "Setup CAS from module list properties with cas path: %s",
+             cas_config->CASPath.c_str());
+}
+
 SwiftASTContext::ScopedDiagnostics::ScopedDiagnostics(
     swift::DiagnosticConsumer &consumer)
     : m_consumer(consumer),
@@ -986,13 +1011,13 @@ SwiftASTContext::ScopedDiagnostics::~ScopedDiagnostics() {
 std::unique_ptr<SwiftASTContext::ScopedDiagnostics>
 SwiftASTContext::getScopedDiagnosticConsumer() {
   auto &consumer =
-      *static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_ap.get());
+      *static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_up.get());
   return std::make_unique<SwiftASTContext::ScopedDiagnostics>(consumer);
 }
 
 #ifndef NDEBUG
 SwiftASTContext::SwiftASTContext()
-    : m_diagnostic_consumer_ap(new StoringDiagnosticConsumer(*this)) {
+    : m_diagnostic_consumer_up(new StoringDiagnosticConsumer(*this)) {
   llvm::dbgs() << "Initialized mock SwiftASTContext\n";
 }
 #endif
@@ -1000,8 +1025,8 @@ SwiftASTContext::SwiftASTContext()
 SwiftASTContext::SwiftASTContext(std::string description, ModuleSP module_sp,
                                  TypeSystemSwiftTypeRefSP typeref_typesystem)
     : TypeSystemSwift(), m_typeref_typesystem(typeref_typesystem),
-      m_compiler_invocation_ap(new swift::CompilerInvocation()),
-      m_diagnostic_consumer_ap(new StoringDiagnosticConsumer(*this)) {
+      m_compiler_invocation_up(new swift::CompilerInvocation()),
+      m_diagnostic_consumer_up(new StoringDiagnosticConsumer(*this)) {
   assert(
       ModuleList::GetGlobalModuleListProperties().GetSwiftEnableASTContext() &&
       "Swift AST context instantiation is disabled!");
@@ -1010,7 +1035,7 @@ SwiftASTContext::SwiftASTContext(std::string description, ModuleSP module_sp,
   m_module = module_sp.get();
 
   // Set the clang modules cache path.
-  m_compiler_invocation_ap->setClangModuleCachePath(
+  m_compiler_invocation_up->setClangModuleCachePath(
       GetClangModulesCacheProperty());
 }
 
@@ -1030,7 +1055,7 @@ static std::string DerivePlatformPluginPath(StringRef sdk_path) {
 
 void SwiftASTContext::SetCompilerInvocationLLDBOverrides() {
   swift::IRGenOptions &ir_gen_opts =
-      m_compiler_invocation_ap->getIRGenOptions();
+      m_compiler_invocation_up->getIRGenOptions();
   ir_gen_opts.OutputKind = swift::IRGenOutputKind::Module;
   ir_gen_opts.UseJIT = true;
   // In the JIT we don't benefit from the indexed indirections in DWARF 5.
@@ -1038,7 +1063,7 @@ void SwiftASTContext::SetCompilerInvocationLLDBOverrides() {
   ir_gen_opts.DebugInfoFormat = swift::IRGenDebugInfoFormat::DWARF;
   // Allow deserializing @_implementationOnly dependencies
   // to avoid crashing due to module recovery issues.
-  swift::LangOptions &lang_opts = m_compiler_invocation_ap->getLangOptions();
+  swift::LangOptions &lang_opts = m_compiler_invocation_up->getLangOptions();
   lang_opts.AllowDeserializingImplementationOnly = true;
   lang_opts.DebuggerSupport = true;
 
@@ -1070,13 +1095,13 @@ void SwiftASTContext::SetCompilerInvocationLLDBOverrides() {
   // Platform plugin path (macOS hosts only).
   swift::PluginSearchOption::ExternalPluginPath platform_plugins;
   platform_plugins.SearchPath =
-      DerivePlatformPluginPath(m_compiler_invocation_ap->getSDKPath());
+      DerivePlatformPluginPath(m_compiler_invocation_up->getSDKPath());
   if (!platform_plugins.SearchPath.empty()) {
     platform_plugins.ServerPath = GetPluginServer(platform_plugins.SearchPath);
     if (!platform_plugins.ServerPath.empty()) {
       if (FileSystem::Instance().Exists(platform_plugins.SearchPath) &&
           FileSystem::Instance().Exists(platform_plugins.ServerPath))
-        m_compiler_invocation_ap->getSearchPathOptions()
+        m_compiler_invocation_up->getSearchPathOptions()
             .PluginSearchOpts.push_back(platform_plugins);
     }
   }
@@ -1085,7 +1110,7 @@ void SwiftASTContext::SetCompilerInvocationLLDBOverrides() {
 SwiftASTContext::~SwiftASTContext() {
 #ifndef NDEBUG
   m_ast_context_mutex.lock();
-  if (swift::ASTContext *ctx = m_ast_context_ap.get())
+  if (swift::ASTContext *ctx = m_ast_context_up.get())
     // A RemoteASTContext associated with this swift::ASTContext has
     // to be destroyed before the swift::ASTContext is destroyed.
     assert(!GetASTMap().Lookup(ctx) && "ast context still in global map");
@@ -1161,7 +1186,9 @@ static const char *getImportFailureString(swift::serialization::Status status) {
   case swift::serialization::Status::SDKMismatch:
     return "The module file was built with a different SDK version.";
   case swift::serialization::Status::ChannelIncompatible:
-    return "The distribution channel doesn't match.";
+    return "The distribution channel doesn't match."
+           " This version of LLDB is most likely from a different toolchain"
+           " than the Swift compiler that built this module.";
   }
 }
 
@@ -1874,6 +1901,22 @@ void SwiftASTContext::AddExtraClangArgs(
     RemoveExplicitModules(importer_options.ExtraArgs);
 }
 
+bool SwiftASTContext::IsModuleAvailableInCAS(const std::string &key) {
+  auto id = m_cas->parseID(key);
+  if (!id) {
+    HEALTH_LOG_PRINTF("failed to parse CASID when loading module: %s",
+                      toString(id.takeError()).c_str());
+    return false;
+  }
+  auto lookup = m_action_cache->get(*id);
+  if (!lookup) {
+    HEALTH_LOG_PRINTF("module lookup failure through action cache: %s",
+                      toString(lookup.takeError()).c_str());
+    return false;
+  }
+  return (bool)*lookup;
+};
+
 void SwiftASTContext::AddExtraClangCC1Args(
     const std::vector<std::string> &source,
     const std::vector<std::pair<std::string, bool>> module_search_paths,
@@ -1930,41 +1973,64 @@ void SwiftASTContext::AddExtraClangCC1Args(
     return;
   }
 
-  // Clear module cache key and other CAS options to load modules from disk
-  // directly.
-  invocation.getFrontendOpts().ModuleCacheKeys.clear();
-  invocation.getCASOpts() = clang::CASOptions();
-
-  // Ignore CAS info inside modules when loading.
-  invocation.getFrontendOpts().ModuleLoadIgnoreCAS = true;
-
-  // Add options to allow clang importer to do implicit module build.
+  // Add options to allow ClangImporter to do implicit module build.
+  // This allows expression evaluator to load addition modules if needed.
   invocation.getLangOpts().ImplicitModules = true;
   invocation.getHeaderSearchOpts().ImplicitModuleMaps = true;
   invocation.getHeaderSearchOpts().ModuleCachePath =
       GetCompilerInvocation().getClangModuleCachePath().str();
 
-  // Remove non-existing modules in a systematic way.
-  auto CheckFileExists = [&](const std::string &file) -> bool {
-    if (llvm::sys::fs::exists(file))
-      return true;
-    std::string warn;
-    llvm::raw_string_ostream(warn)
-        << "Nonexistent explicit module file " << file;
-    AddDiagnostic(eSeverityWarning, warn);
-    return false;
-  };
-  for (auto it = invocation.getHeaderSearchOpts().PrebuiltModuleFiles.begin();
-       it != invocation.getHeaderSearchOpts().PrebuiltModuleFiles.end();) {
-    if (!CheckFileExists(it->second))
-      it = invocation.getHeaderSearchOpts().PrebuiltModuleFiles.erase(it);
-    else
-      ++it;
+  bool use_cas_module = m_cas && m_action_cache;
+  if (use_cas_module) {
+    // Load from CAS.
+    invocation.getCASOpts().CASPath = GetCASOptions().CASOpts.CASPath;
+    invocation.getCASOpts().PluginPath = GetCASOptions().CASOpts.PluginPath;
+    invocation.getCASOpts().PluginOptions =
+        GetCASOptions().CASOpts.PluginOptions;
+
+    use_cas_module = llvm::all_of(
+        invocation.getFrontendOpts().ModuleCacheKeys, [&](const auto &entry) {
+          bool exist = IsModuleAvailableInCAS(entry.second);
+          if (!exist)
+            HEALTH_LOG_PRINTF("module '%s' cannot be load "
+                              "from CAS using key: %s, fallback to "
+                              "load from file system",
+                              entry.first.c_str(), entry.second.c_str());
+          return exist;
+        });
   }
-  invocation.getFrontendOpts().ModuleFiles.erase(
-      llvm::remove_if(invocation.getFrontendOpts().ModuleFiles,
-                      [&](const auto &mod) { return !CheckFileExists(mod); }),
-      invocation.getFrontendOpts().ModuleFiles.end());
+
+  if (!use_cas_module) {
+    // Clear module cache key and other CAS options to load modules from disk
+    // directly.
+    invocation.getFrontendOpts().ModuleCacheKeys.clear();
+    invocation.getCASOpts() = clang::CASOptions();
+
+    // Ignore CAS info inside modules when loading.
+    invocation.getFrontendOpts().ModuleLoadIgnoreCAS = true;
+
+    // Remove non-existing modules in a systematic way.
+    auto CheckFileExists = [&](const std::string &file) -> bool {
+      if (llvm::sys::fs::exists(file))
+        return true;
+      std::string warn;
+      llvm::raw_string_ostream(warn)
+          << "Nonexistent explicit module file " << file;
+      AddDiagnostic(eSeverityWarning, warn);
+      return false;
+    };
+    for (auto it = invocation.getHeaderSearchOpts().PrebuiltModuleFiles.begin();
+         it != invocation.getHeaderSearchOpts().PrebuiltModuleFiles.end();) {
+      if (!CheckFileExists(it->second))
+        it = invocation.getHeaderSearchOpts().PrebuiltModuleFiles.erase(it);
+      else
+        ++it;
+    }
+    invocation.getFrontendOpts().ModuleFiles.erase(
+        llvm::remove_if(invocation.getFrontendOpts().ModuleFiles,
+                        [&](const auto &mod) { return !CheckFileExists(mod); }),
+        invocation.getFrontendOpts().ModuleFiles.end());
+  }
 
   invocation.generateCC1CommandLine(
       [&](const llvm::Twine &arg) { dest.push_back(arg.str()); });
@@ -2546,6 +2612,8 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
     }
   }
 
+  ConfigureCASStorage(swift_ast_sp.get(), module.GetFileSpec());
+
   // The serialized triple is the triple of the last binary
   // __swiftast section that was processed. Instead of relying on
   // the section contents order, we overwrite the triple in the
@@ -2973,7 +3041,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
           {
             llvm::raw_svector_ostream os(buffer);
             os << preferred_triple.getArchName() << '-';
-            os << preferred_triple.getVendorName() << '-';
+            os << llvm::Triple::getVendorTypeName(preferred_triple.getVendor()) << '-';
             os << llvm::Triple::getOSTypeName(preferred_triple.getOS());
             os << platform_version.getAsString();
           }
@@ -3026,6 +3094,8 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
       LOG_PRINTF(GetLog(LLDBLog::Types), "Using SDK: %s", sdk_path.c_str());
     }
   }
+
+  ConfigureCASStorage(swift_ast_sp.get(), sc.module_sp->GetFileSpec());
 
   std::string resource_dir = HostInfo::GetSwiftResourceDir(
       triple, swift_ast_sp->GetPlatformSDKPath());
@@ -3277,7 +3347,7 @@ Status SwiftASTContext::GetAllDiagnostics() const {
     PrintDiagnostics(diagnostic_manager);
     // FIXME: Use diagnostic_manager.GetAsError()
     error = Status(diagnostic_manager.GetString());
-    static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_ap.get())
+    static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_up.get())
         ->Clear();
   }
   return error;
@@ -3299,16 +3369,16 @@ void SwiftASTContext::LogFatalErrors() const {
 }
 
 swift::IRGenOptions &SwiftASTContext::GetIRGenOptions() {
-  return m_compiler_invocation_ap->getIRGenOptions();
+  return m_compiler_invocation_up->getIRGenOptions();
 }
 
 swift::TBDGenOptions &SwiftASTContext::GetTBDGenOptions() {
-  return m_compiler_invocation_ap->getTBDGenOptions();
+  return m_compiler_invocation_up->getTBDGenOptions();
 }
 
 llvm::Triple SwiftASTContext::GetTriple() const {
   VALID_OR_RETURN(llvm::Triple());
-  return llvm::Triple(m_compiler_invocation_ap->getTargetTriple());
+  return llvm::Triple(m_compiler_invocation_up->getTargetTriple());
 }
 
 llvm::Triple SwiftASTContext::GetSwiftFriendlyTriple(llvm::Triple triple) {
@@ -3361,7 +3431,7 @@ bool SwiftASTContext::SetTriple(const llvm::Triple triple, Module *module) {
     return false;
 
   // The triple may change up until a swift::irgen::IRGenModule is created.
-  if (m_ir_gen_module_ap.get()) {
+  if (m_ir_gen_module_up.get()) {
     LOG_PRINTF(GetLog(LLDBLog::Types),
                "(\"%s\") ignoring triple "
                "since the IRGenModule has already been created",
@@ -3421,7 +3491,7 @@ bool SwiftASTContext::SetTriple(const llvm::Triple triple, Module *module) {
   LOG_PRINTF(GetLog(LLDBLog::Types), "(\"%s\") setting to \"%s\"",
              triple.str().c_str(), adjusted_triple.str().c_str());
 
-  m_compiler_invocation_ap->setTargetTriple(adjusted_triple);
+  m_compiler_invocation_up->setTargetTriple(adjusted_triple);
 
 #ifndef NDEBUG
   assert(GetTriple() == adjusted_triple);
@@ -3429,8 +3499,8 @@ bool SwiftASTContext::SetTriple(const llvm::Triple triple, Module *module) {
   // m_initialized_search_path_options and  m_initialized_clang_importer_options
   // need to be initialized before initializing the AST context.
   m_ast_context_mutex.lock();
-  assert(!m_ast_context_ap ||
-         (llvm::Triple(m_ast_context_ap->LangOpts.Target.getTriple()) ==
+  assert(!m_ast_context_up ||
+         (llvm::Triple(m_ast_context_up->LangOpts.Target.getTriple()) ==
           adjusted_triple));
   m_ast_context_mutex.unlock();
 #endif
@@ -3443,7 +3513,7 @@ bool SwiftASTContext::SetTriple(const llvm::Triple triple, Module *module) {
 }
 
 swift::CompilerInvocation &SwiftASTContext::GetCompilerInvocation() {
-  return *m_compiler_invocation_ap;
+  return *m_compiler_invocation_up;
 }
 
 swift::SourceManager &SwiftASTContext::GetSourceManager() {
@@ -3475,20 +3545,20 @@ swift::SerializationOptions &SwiftASTContext::GetSerializationOptions() {
 }
 
 swift::DiagnosticEngine &SwiftASTContext::GetDiagnosticEngine() {
-  if (!m_diagnostic_engine_ap) {
-    m_diagnostic_engine_ap.reset(
+  if (!m_diagnostic_engine_up) {
+    m_diagnostic_engine_up.reset(
         new swift::DiagnosticEngine(GetSourceManager()));
 
     // The following diagnostics are fatal, but they are diagnosed at
     // a very early point where the AST isn't yet destroyed beyond repair.
-    m_diagnostic_engine_ap->ignoreDiagnostic(
+    m_diagnostic_engine_up->ignoreDiagnostic(
         swift::diag::serialization_module_too_old.ID);
-    m_diagnostic_engine_ap->ignoreDiagnostic(
+    m_diagnostic_engine_up->ignoreDiagnostic(
         swift::diag::serialization_module_too_new.ID);
-    m_diagnostic_engine_ap->ignoreDiagnostic(
+    m_diagnostic_engine_up->ignoreDiagnostic(
         swift::diag::serialization_module_language_version_mismatch.ID);
   }
-  return *m_diagnostic_engine_ap;
+  return *m_diagnostic_engine_up;
 }
 
 swift::SILOptions &SwiftASTContext::GetSILOptions() {
@@ -3659,10 +3729,10 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
 
   m_ast_context_mutex.lock();
 
-  if (m_ast_context_ap.get())
-    return {m_ast_context_ap.get(), m_ast_context_mutex};
+  if (m_ast_context_up.get())
+    return {m_ast_context_up.get(), m_ast_context_mutex};
 
-  m_ast_context_ap.reset(swift::ASTContext::get(
+  m_ast_context_up.reset(swift::ASTContext::get(
       GetLanguageOptions(), GetTypeCheckerOptions(), GetSILOptions(),
       GetSearchPathOptions(), GetClangImporterOptions(),
       GetSymbolGraphOptions(), GetCASOptions(), GetSerializationOptions(),
@@ -3678,9 +3748,8 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
   // Create the ClangImporter and determine the Clang module cache path.
   std::string moduleCachePath =
       GetCompilerInvocation().getClangModuleCachePath().str();
-  std::unique_ptr<swift::ClangImporter> clang_importer_ap;
-  auto &clang_importer_options = GetClangImporterOptions();
-  if (!m_ast_context_ap->SearchPathOpts.getSDKPath().empty() ||
+  std::unique_ptr<swift::ClangImporter> clang_importer_up;
+  if (!m_ast_context_up->SearchPathOpts.getSDKPath().empty() ||
       TargetHasNoSDK()) {
     // Create the DWARFImporterDelegate.
     const auto &props = ModuleList::GetGlobalModuleListProperties();
@@ -3688,12 +3757,12 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
       m_dwarfimporter_delegate_up =
           std::make_unique<SwiftDWARFImporterDelegate>(*this);
     auto importer_diags = getScopedDiagnosticConsumer();
-    clang_importer_ap = swift::ClangImporter::create(
-        *m_ast_context_ap, "", m_dependency_tracker.get(),
+    clang_importer_up = swift::ClangImporter::create(
+        *m_ast_context_up, "", m_dependency_tracker.get(),
         m_dwarfimporter_delegate_up.get());
 
     // Handle any errors.
-    if (!clang_importer_ap || importer_diags->HasErrors()) {
+    if (!clang_importer_up || importer_diags->HasErrors()) {
       AddDiagnostic(eSeverityError, "failed to create ClangImporter");
       if (GetLog(LLDBLog::Types)) {
         DiagnosticManager diagnostic_manager;
@@ -3703,9 +3772,9 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
                           underlying_error.c_str());
       }
     }
-    if (clang_importer_ap) {
+    if (clang_importer_up) {
       auto clangModuleCache = swift::getModuleCachePathFromClang(
-          clang_importer_ap->getClangInstance());
+          clang_importer_up->getClangInstance());
       if (!clangModuleCache.empty())
         moduleCachePath = clangModuleCache;
     }
@@ -3717,11 +3786,11 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
   // <resource-dir>/<platform>/prebuilt-modules/<version>
   llvm::Triple triple(GetTriple());
   std::optional<llvm::VersionTuple> sdk_version =
-      m_ast_context_ap->LangOpts.SDKVersion;
+      m_ast_context_up->LangOpts.SDKVersion;
   if (!sdk_version) {
     auto SDKInfoOrErr = clang::parseDarwinSDKInfo(
         *llvm::vfs::getRealFileSystem(),
-        m_ast_context_ap->SearchPathOpts.getSDKPath());
+        m_ast_context_up->SearchPathOpts.getSDKPath());
     if (SDKInfoOrErr) {
       if (auto SDKInfo = *SDKInfoOrErr)
         sdk_version = swift::getTargetSDKVersion(*SDKInfo, triple);
@@ -3768,26 +3837,45 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
   // The order here matters due to fallback behaviors:
   //
   // 1. Create and install the memory buffer serialized module loader.
-  std::unique_ptr<swift::ModuleLoader> memory_buffer_loader_ap(
+  std::unique_ptr<swift::ModuleLoader> memory_buffer_loader_up(
       swift::MemoryBufferSerializedModuleLoader::create(
-          *m_ast_context_ap, m_dependency_tracker.get(), loading_mode,
+          *m_ast_context_up, m_dependency_tracker.get(), loading_mode,
           /*IgnoreSwiftSourceInfo*/ false, /*BypassResilience*/ true));
-  if (memory_buffer_loader_ap) {
+  if (memory_buffer_loader_up) {
     m_memory_buffer_module_loader =
         static_cast<swift::MemoryBufferSerializedModuleLoader *>(
-            memory_buffer_loader_ap.get());
-    m_ast_context_ap->addModuleLoader(std::move(memory_buffer_loader_ap));
+            memory_buffer_loader_up.get());
+    m_ast_context_up->addModuleLoader(std::move(memory_buffer_loader_up));
+  }
+
+  // 2. Create the explicit swift module loader.
+  if (props.GetUseSwiftExplicitModuleLoader()) {
+    auto &search_path_opts = GetCompilerInvocation().getSearchPathOptions();
+    std::unique_ptr<swift::ModuleLoader> esml_up =
+        swift::ExplicitSwiftModuleLoader::create(
+            *m_ast_context_up, m_dependency_tracker.get(), loading_mode,
+            search_path_opts.ExplicitSwiftModuleMapPath,
+            search_path_opts.ExplicitSwiftModuleInputs,
+            /*IgnoreSwiftSourceInfo*/ false);
+    if (esml_up) {
+      m_explicit_swift_module_loader =
+          static_cast<swift::ExplicitSwiftModuleLoader *>(esml_up.get());
+      m_ast_context_up->addModuleLoader(std::move(esml_up), /*isClang=*/false,
+                                        /*isDwarf=*/false,
+                                        /*isInterface=*/false,
+                                        /*isExplicit=*/true);
+    }
   }
 
   // Add a module interface checker.
-  m_ast_context_ap->addModuleInterfaceChecker(
-    std::make_unique<swift::ModuleInterfaceCheckerImpl>(*m_ast_context_ap,
-      moduleCachePath, prebuiltModuleCachePath,
-      swift::ModuleInterfaceLoaderOptions()));
+  m_ast_context_up->addModuleInterfaceChecker(
+      std::make_unique<swift::ModuleInterfaceCheckerImpl>(
+          *m_ast_context_up, moduleCachePath, prebuiltModuleCachePath,
+          swift::ModuleInterfaceLoaderOptions()));
 
-  // 2. Create and install the module interface loader.
+  // 3. Create and install the module interface loader.
   //
-  // The ordering of 2-4 is the same as the Swift compiler's 1-3,
+  // The ordering of 2-4 is the same as the Swift compiler's 2-4,
   // where unintuitively the serialized module loader comes before the
   // module interface loader. The reason for this is that the module
   // interface loader is actually 2-in-1 and secretly attempts to load
@@ -3795,28 +3883,29 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
   // module loader, if it is not usable. Contrary to the proper
   // serialized module loader it does this without emitting a
   // diagnostic in the failure case.
-  std::unique_ptr<swift::ModuleLoader> module_interface_loader_ap;
+  std::unique_ptr<swift::ModuleLoader> module_interface_loader_up;
   if (loading_mode != swift::ModuleLoadingMode::OnlySerialized) {
-    std::unique_ptr<swift::ModuleLoader> module_interface_loader_ap(
+    std::unique_ptr<swift::ModuleLoader> module_interface_loader_up(
         swift::ModuleInterfaceLoader::create(
-          *m_ast_context_ap, *static_cast<swift::ModuleInterfaceCheckerImpl*>(
-            m_ast_context_ap->getModuleInterfaceChecker()), m_dependency_tracker.get(),
-          loading_mode));
-    if (module_interface_loader_ap)
-      m_ast_context_ap->addModuleLoader(std::move(module_interface_loader_ap));
+            *m_ast_context_up,
+            *static_cast<swift::ModuleInterfaceCheckerImpl *>(
+                m_ast_context_up->getModuleInterfaceChecker()),
+            m_dependency_tracker.get(), loading_mode));
+    if (module_interface_loader_up)
+      m_ast_context_up->addModuleLoader(std::move(module_interface_loader_up));
   }
 
-  // 3. Create and install the serialized module loader.
-  std::unique_ptr<swift::ModuleLoader> serialized_module_loader_ap(
+  // 4. Create and install the serialized module loader.
+  std::unique_ptr<swift::ModuleLoader> serialized_module_loader_up(
       swift::ImplicitSerializedModuleLoader::create(
-          *m_ast_context_ap, m_dependency_tracker.get(), loading_mode));
-  if (serialized_module_loader_ap)
-    m_ast_context_ap->addModuleLoader(std::move(serialized_module_loader_ap));
+          *m_ast_context_up, m_dependency_tracker.get(), loading_mode));
+  if (serialized_module_loader_up)
+    m_ast_context_up->addModuleLoader(std::move(serialized_module_loader_up));
 
-  // 4. Install the clang importer.
-  if (clang_importer_ap) {
-    m_clangimporter = (swift::ClangImporter *)clang_importer_ap.get();
-    m_ast_context_ap->addModuleLoader(std::move(clang_importer_ap),
+  // 5. Install the clang importer.
+  if (clang_importer_up) {
+    m_clangimporter = (swift::ClangImporter *)clang_importer_up.get();
+    m_ast_context_up->addModuleLoader(std::move(clang_importer_up),
                                       /*isClang=*/true);
     m_clangimporter_typesystem = std::make_shared<TypeSystemClang>(
         "ClangImporter-owned clang::ASTContext for '" + m_description,
@@ -3824,24 +3913,24 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
   }
 
   // Set up the plugin loader.
-  m_ast_context_ap->setPluginLoader(std::make_unique<swift::PluginLoader>(
-      *m_ast_context_ap, m_dependency_tracker.get()));
+  m_ast_context_up->setPluginLoader(std::make_unique<swift::PluginLoader>(
+      *m_ast_context_up, m_dependency_tracker.get()));
 
   // Set up the required state for the evaluator in the TypeChecker.
-  registerIDERequestFunctions(m_ast_context_ap->evaluator);
-  registerParseRequestFunctions(m_ast_context_ap->evaluator);
-  registerTypeCheckerRequestFunctions(m_ast_context_ap->evaluator);
-  registerClangImporterRequestFunctions(m_ast_context_ap->evaluator);
-  registerSILGenRequestFunctions(m_ast_context_ap->evaluator);
-  registerSILOptimizerRequestFunctions(m_ast_context_ap->evaluator);
-  registerTBDGenRequestFunctions(m_ast_context_ap->evaluator);
-  registerIRGenRequestFunctions(m_ast_context_ap->evaluator);
-  registerIRGenSILTransforms(*m_ast_context_ap);
+  registerIDERequestFunctions(m_ast_context_up->evaluator);
+  registerParseRequestFunctions(m_ast_context_up->evaluator);
+  registerTypeCheckerRequestFunctions(m_ast_context_up->evaluator);
+  registerClangImporterRequestFunctions(m_ast_context_up->evaluator);
+  registerSILGenRequestFunctions(m_ast_context_up->evaluator);
+  registerSILOptimizerRequestFunctions(m_ast_context_up->evaluator);
+  registerTBDGenRequestFunctions(m_ast_context_up->evaluator);
+  registerIRGenRequestFunctions(m_ast_context_up->evaluator);
+  registerIRGenSILTransforms(*m_ast_context_up);
 
-  GetASTMap().Insert(m_ast_context_ap.get(), this);
+  GetASTMap().Insert(m_ast_context_up.get(), this);
 
   VALID_OR_RETURN(ThreadSafeASTContext());
-  return {m_ast_context_ap.get(), m_ast_context_mutex};
+  return {m_ast_context_up.get(), m_ast_context_mutex};
 }
 
 ThreadSafeASTContext SwiftASTContext::GetASTContext() const {
@@ -4011,6 +4100,23 @@ SwiftASTContext::GetModule(const SourceModule &module, bool *cached) {
   // Create a diagnostic consumer for the diagnostics produced by the import.
   auto import_diags = getScopedDiagnosticConsumer();
 
+  // Is this an explicitly specified explicit Swift module?
+  StringRef module_path = module.search_path.GetStringRef();
+  bool is_esml_module = (module_path.ends_with(".swiftmodule") &&
+                         llvm::sys::fs::exists(module_path)) ||
+                        (m_cas && IsModuleAvailableInCAS(module_path.str()));
+  if (is_esml_module) {
+    std::string path = module_path.str();
+    bool unloaded = false;
+    if (m_explicit_swift_module_loader) {
+      ast->addExplicitModulePath(module_name, path);
+      if (auto *memory_loader = GetMemoryBufferModuleLoader())
+        unloaded = memory_loader->unregisterMemoryBuffer(module_name);
+    }
+    HEALTH_LOG_PRINTF("found explicit module \"%s\"%s", path.c_str(),
+                      unloaded ? "; replacing AST section module" : "");
+  }
+
   swift::ModuleDecl *module_decl = ast->getModuleByName(module_name);
 
   // Error handling.
@@ -4032,6 +4138,16 @@ SwiftASTContext::GetModule(const SourceModule &module, bool *cached) {
   }
   LOG_PRINTF(GetLog(LLDBLog::Types), "(\"%s\") -- found %s",
              module_name.c_str(), module_decl->getName().str().str().c_str());
+
+  if (is_esml_module) {
+    // Simulate the effect of the BypassResilience flag in the
+    // MemoryBufferSerializedModuleLoader.  Explicitly specified
+    // modules are not typically produced from textual interfaces. By
+    // disabling resilience, the debugger can directly access private
+    // members.
+    //if (!module_decl->isBuiltFromInterface())
+    //  module_decl->setBypassResilience();
+  }
 
   m_swift_module_cache.insert({module_name, *module_decl});
   return *module_decl;
@@ -4506,7 +4622,7 @@ void SwiftASTContext::LoadExtraDylibs(Process &process, Status &error) {
       StreamString errors;
 
       std::vector<std::string> search_paths = GetLibrarySearchPaths(
-          m_compiler_invocation_ap->getSearchPathOptions());
+          m_compiler_invocation_up->getSearchPathOptions());
 
       bool success = LoadLibraryUsingPaths(process, library_name, search_paths,
                                            false, errors);
@@ -5209,10 +5325,10 @@ void SwiftASTContext::SetGenerateDebugInfo(swift::IRGenDebugInfoLevel b) {
 }
 
 llvm::TargetOptions *SwiftASTContext::getTargetOptions() {
-  if (m_target_options_ap.get() == NULL) {
-    m_target_options_ap.reset(new llvm::TargetOptions());
+  if (m_target_options_up.get() == NULL) {
+    m_target_options_up.reset(new llvm::TargetOptions());
   }
-  return m_target_options_ap.get();
+  return m_target_options_up.get();
 }
 
 swift::ModuleDecl *SwiftASTContext::GetScratchModule() {
@@ -5229,34 +5345,34 @@ swift::ModuleDecl *SwiftASTContext::GetScratchModule() {
 swift::Lowering::TypeConverter *SwiftASTContext::GetSILTypes() {
   VALID_OR_RETURN(nullptr);
 
-  if (m_sil_types_ap.get() == NULL)
-    m_sil_types_ap.reset(
+  if (m_sil_types_up.get() == NULL)
+    m_sil_types_up.reset(
         new swift::Lowering::TypeConverter(*GetScratchModule()));
 
-  return m_sil_types_ap.get();
+  return m_sil_types_up.get();
 }
 
 swift::SILModule *SwiftASTContext::GetSILModule() {
   VALID_OR_RETURN(nullptr);
 
-  if (m_sil_module_ap.get() == NULL)
-    m_sil_module_ap = swift::SILModule::createEmptyModule(
+  if (m_sil_module_up.get() == NULL)
+    m_sil_module_up = swift::SILModule::createEmptyModule(
         GetScratchModule(), *GetSILTypes(), GetSILOptions());
-  return m_sil_module_ap.get();
+  return m_sil_module_up.get();
 }
 
 swift::irgen::IRGenerator &
 SwiftASTContext::GetIRGenerator(swift::IRGenOptions &opts,
                                 swift::SILModule &module) {
-  if (m_ir_generator_ap.get() == nullptr) {
-    m_ir_generator_ap.reset(new swift::irgen::IRGenerator(opts, module));
+  if (m_ir_generator_up.get() == nullptr) {
+    m_ir_generator_up.reset(new swift::irgen::IRGenerator(opts, module));
   }
 
-  return *m_ir_generator_ap.get();
+  return *m_ir_generator_up.get();
 }
 
 swift::irgen::IRGenModule &SwiftASTContext::GetIRGenModule() {
-  VALID_OR_RETURN(*m_ir_gen_module_ap);
+  VALID_OR_RETURN(*m_ir_gen_module_up);
 
   llvm::call_once(m_ir_gen_module_once, [this]() {
     // Make sure we have a good ClangImporter.
@@ -5294,17 +5410,17 @@ swift::irgen::IRGenModule &SwiftASTContext::GetIRGenModule() {
 
         std::lock_guard<std::recursive_mutex> global_context_locker(
             IRExecutionUnit::GetLLVMGlobalContextMutex());
-        m_ir_gen_module_ap.reset(new swift::irgen::IRGenModule(
+        m_ir_gen_module_up.reset(new swift::irgen::IRGenModule(
             ir_generator, ir_generator.createTargetMachine(), nullptr,
             ir_gen_opts.ModuleName, PSPs.OutputFilename,
             PSPs.MainInputFilenameForDebugInfo, ""));
-        llvm::Module *llvm_module = m_ir_gen_module_ap->getModule();
+        llvm::Module *llvm_module = m_ir_gen_module_up->getModule();
         llvm_module->setDataLayout(data_layout.getStringRepresentation());
         llvm_module->setTargetTriple(llvm_triple);
       }
     }
   });
-  return *m_ir_gen_module_ap;
+  return *m_ir_gen_module_up;
 }
 
 CompilerType
@@ -5339,7 +5455,7 @@ bool SwiftASTContext::IsTupleType(lldb::opaque_compiler_type_t type) {
   VALID_OR_RETURN(false);
 
   auto swift_type = GetSwiftType(type);
-  return llvm::isa<::swift::TupleType>(swift_type);
+  return swift_type->is<swift::TupleType>();
 }
 
 std::optional<TypeSystemSwift::NonTriviallyManagedReferenceKind>
@@ -5399,15 +5515,15 @@ uint32_t SwiftASTContext::GetPointerByteSize() {
 }
 
 bool SwiftASTContext::HasDiagnostics() const {
-  assert(m_diagnostic_consumer_ap);
+  assert(m_diagnostic_consumer_up);
   return (
-      static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_ap.get())
+      static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_up.get())
           ->HasDiagnostics());
 }
 bool SwiftASTContext::HasClangImporterErrors() const {
-  assert(m_diagnostic_consumer_ap);
+  assert(m_diagnostic_consumer_up);
   return (
-      static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_ap.get())
+      static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_up.get())
           ->NumClangErrors() != 0);
 }
 
@@ -5428,14 +5544,14 @@ void SwiftASTContext::AddDiagnostic(lldb::Severity severity,
     }
   }
 
-  assert(m_diagnostic_consumer_ap);
-  if (!m_diagnostic_consumer_ap.get())
+  assert(m_diagnostic_consumer_up);
+  if (!m_diagnostic_consumer_up.get())
     return;
 
   auto diagnostic = std::make_unique<Diagnostic>(
       eDiagnosticOriginLLDB, LLDB_INVALID_COMPILER_ID,
       DiagnosticDetail{{}, severity, message.str(), message.str()});
-  static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_ap.get())
+  static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_up.get())
       ->AddDiagnostic(std::move(diagnostic));
 }
 
@@ -5454,9 +5570,9 @@ void SwiftASTContext::PrintDiagnostics(DiagnosticManager &diagnostic_manager,
 
   // Forward diagnostics into diagnostic_manager.
   // If there is a fatal error, also copy the error into m_fatal_errors.
-  assert(m_diagnostic_consumer_ap);
+  assert(m_diagnostic_consumer_up);
   auto &diags =
-      *static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_ap.get());
+      *static_cast<StoringDiagnosticConsumer *>(m_diagnostic_consumer_up.get());
   if (GetASTContext()->Diags.hasFatalErrorOccurred() &&
       !m_reported_fatal_error) {
     DiagnosticManager fatal_diagnostics;
@@ -5949,8 +6065,7 @@ SwiftASTContext::GetStaticSelfType(lldb::opaque_compiler_type_t type) {
   VALID_OR_RETURN_CHECK_TYPE(type, CompilerType());
 
   swift::Type swift_type = GetSwiftType(type);
-  if (auto *dyn_self =
-          llvm::dyn_cast_or_null<swift::DynamicSelfType>(swift_type))
+  if (auto *dyn_self = swift_type->getAs<swift::DynamicSelfType>())
     return ToCompilerType({dyn_self->getSelfType().getPointer()});
   return {weak_from_this(), type};
 }
@@ -6120,6 +6235,7 @@ SwiftASTContext::GetTypeInfo(opaque_compiler_type_t type,
   case swift::TypeKind::BuiltinRawUnsafeContinuation:
   case swift::TypeKind::BuiltinTuple:
   case swift::TypeKind::BuiltinUnboundGeneric:
+  case swift::TypeKind::BuiltinImplicitActor:
   case swift::TypeKind::ElementArchetype:
   case swift::TypeKind::Error:
   case swift::TypeKind::ErrorUnion:
@@ -6287,6 +6403,7 @@ lldb::TypeClass SwiftASTContext::GetTypeClass(opaque_compiler_type_t type) {
   case swift::TypeKind::BuiltinPackIndex:    
   case swift::TypeKind::BuiltinTuple:
   case swift::TypeKind::BuiltinUnboundGeneric:
+  case swift::TypeKind::BuiltinImplicitActor:
   case swift::TypeKind::Locatable:
   case swift::TypeKind::Integer:
   case swift::TypeKind::Pack:
@@ -6648,12 +6765,14 @@ SwiftASTContext::GetBitSize(opaque_compiler_type_t type,
     exe_scope->CalculateExecutionContext(exe_ctx);
     CompilerType bound_type =
         BindGenericTypeParameters({weak_from_this(), type}, exe_scope);
+    if (!bound_type)
+      return llvm::createStringError("Cannot bind type.");
 
     // Check that the type has been bound successfully -- and if not,
     // log the event and bail out to avoid an infinite loop.
     swift::CanType swift_bound_type(GetCanonicalSwiftType(bound_type));
     if (!swift_bound_type || swift_bound_type->hasTypeParameter())
-      return llvm::createStringError("Cannot bind type: %s",
+      return llvm::createStringError("Cannot canonicalize: %s",
                                      bound_type.GetTypeName().AsCString(""));
 
     // Note that the bound type may be in a different AST context.
@@ -6773,11 +6892,9 @@ SwiftASTContext::GetTypeBitAlign(opaque_compiler_type_t type,
   return {};
 }
 
-lldb::Encoding SwiftASTContext::GetEncoding(opaque_compiler_type_t type,
-                                            uint64_t &count) {
+lldb::Encoding SwiftASTContext::GetEncoding(opaque_compiler_type_t type) {
   VALID_OR_RETURN_CHECK_TYPE(type, lldb::eEncodingInvalid);
 
-  count = 1;
   swift::CanType swift_can_type(GetCanonicalSwiftType(type));
 
   const swift::TypeKind type_kind = swift_can_type->getKind();
@@ -6788,6 +6905,7 @@ lldb::Encoding SwiftASTContext::GetEncoding(opaque_compiler_type_t type,
   case swift::TypeKind::BuiltinJob:
   case swift::TypeKind::BuiltinTuple:
   case swift::TypeKind::BuiltinRawUnsafeContinuation:
+  case swift::TypeKind::BuiltinImplicitActor:
   case swift::TypeKind::Error:
   case swift::TypeKind::InOut:
   case swift::TypeKind::Locatable:
@@ -6839,7 +6957,7 @@ lldb::Encoding SwiftASTContext::GetEncoding(opaque_compiler_type_t type,
   case swift::TypeKind::UnownedStorage:
   case swift::TypeKind::WeakStorage:
     return ToCompilerType(swift_can_type->getReferenceStorageReferent())
-        .GetEncoding(count);
+        .GetEncoding();
     break;
 
   case swift::TypeKind::ExistentialMetatype:
@@ -6874,7 +6992,6 @@ lldb::Encoding SwiftASTContext::GetEncoding(opaque_compiler_type_t type,
     assert(false && "Not a canonical type");
     break;
   }
-  count = 0;
   return lldb::eEncodingInvalid;
 }
 
@@ -6904,6 +7021,7 @@ SwiftASTContext::GetNumChildren(opaque_compiler_type_t type,
   case swift::TypeKind::BuiltinUnboundGeneric:
   case swift::TypeKind::BuiltinUnsafeValueBuffer:
   case swift::TypeKind::BuiltinVector:
+  case swift::TypeKind::BuiltinImplicitActor:
   case swift::TypeKind::DependentMember:
   case swift::TypeKind::DynamicSelf:
   case swift::TypeKind::ElementArchetype:
@@ -7043,6 +7161,7 @@ uint32_t SwiftASTContext::GetNumFields(opaque_compiler_type_t type,
   case swift::TypeKind::BuiltinUnboundGeneric:
   case swift::TypeKind::BuiltinUnsafeValueBuffer:
   case swift::TypeKind::BuiltinVector:
+  case swift::TypeKind::BuiltinImplicitActor:
   case swift::TypeKind::Error:
   case swift::TypeKind::ErrorUnion:
   case swift::TypeKind::InOut:
@@ -7271,6 +7390,7 @@ CompilerType SwiftASTContext::GetFieldAtIndex(opaque_compiler_type_t type,
   case swift::TypeKind::BuiltinUnboundGeneric:
   case swift::TypeKind::BuiltinUnsafeValueBuffer:
   case swift::TypeKind::BuiltinVector:
+  case swift::TypeKind::BuiltinImplicitActor:
   case swift::TypeKind::Error:
   case swift::TypeKind::ErrorUnion:
   case swift::TypeKind::InOut:
@@ -7470,6 +7590,7 @@ uint32_t SwiftASTContext::GetNumPointeeChildren(opaque_compiler_type_t type) {
   case swift::TypeKind::BuiltinRawUnsafeContinuation:
   case swift::TypeKind::BuiltinTuple:
   case swift::TypeKind::BuiltinUnboundGeneric:
+  case swift::TypeKind::BuiltinImplicitActor:
   case swift::TypeKind::Class:
   case swift::TypeKind::DependentMember:
   case swift::TypeKind::DynamicSelf:
@@ -7629,6 +7750,7 @@ llvm::Expected<CompilerType> SwiftASTContext::GetChildCompilerTypeAtIndex(
   case swift::TypeKind::BuiltinUnboundGeneric:
   case swift::TypeKind::BuiltinUnsafeValueBuffer:
   case swift::TypeKind::BuiltinVector:
+  case swift::TypeKind::BuiltinImplicitActor:
   case swift::TypeKind::DependentMember:
   case swift::TypeKind::DynamicSelf:
   case swift::TypeKind::ElementArchetype:
@@ -8026,6 +8148,7 @@ size_t SwiftASTContext::GetIndexOfChildMemberWithName(
     case swift::TypeKind::BuiltinUnboundGeneric:
     case swift::TypeKind::BuiltinUnsafeValueBuffer:
     case swift::TypeKind::BuiltinVector:
+    case swift::TypeKind::BuiltinImplicitActor:
     case swift::TypeKind::DynamicSelf:
     case swift::TypeKind::ElementArchetype:
     case swift::TypeKind::Error:
@@ -8318,7 +8441,7 @@ CompilerType SwiftASTContext::GetUnboundGenericType(opaque_compiler_type_t type,
     llvm::ArrayRef<swift::GenericTypeParamType *> params =
         generic_sig.getGenericParams();
     swift::Type paramTy = params[idx];
-    return ToCompilerType({nominal_type_decl->mapTypeIntoContext(paramTy)
+    return ToCompilerType({nominal_type_decl->mapTypeIntoEnvironment(paramTy)
                                ->castTo<swift::ArchetypeType>()});
   }
 
@@ -8423,6 +8546,7 @@ bool SwiftASTContext::DumpTypeValue(
   case swift::TypeKind::BuiltinTuple:
   case swift::TypeKind::BuiltinUnboundGeneric:
   case swift::TypeKind::BuiltinVector:
+  case swift::TypeKind::BuiltinImplicitActor:
   case swift::TypeKind::DynamicSelf:
   case swift::TypeKind::Error:
   case swift::TypeKind::ErrorUnion:

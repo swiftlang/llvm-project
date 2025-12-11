@@ -212,8 +212,8 @@ bool runToolOnCodeWithArgs(
   SmallString<16> FileNameStorage;
   StringRef FileNameRef = FileName.toNullTerminatedStringRef(FileNameStorage);
 
-  llvm::IntrusiveRefCntPtr<FileManager> Files(
-      new FileManager(FileSystemOptions(), VFS));
+  llvm::IntrusiveRefCntPtr<FileManager> Files =
+      llvm::makeIntrusiveRefCnt<FileManager>(FileSystemOptions(), VFS);
   ArgumentsAdjuster Adjuster = getClangStripDependencyFileAdjuster();
   ToolInvocation Invocation(
       getSyntaxOnlyToolArgs(ToolName, Adjuster(Args, FileNameRef), FileNameRef),
@@ -445,6 +445,7 @@ bool FrontendActionFactory::runInvocation(
     DiagnosticConsumer *DiagConsumer) {
   // Create a compiler instance to handle the actual work.
   CompilerInstance Compiler(std::move(Invocation), std::move(PCHContainerOps));
+  Compiler.setVirtualFileSystem(Files->getVirtualFileSystemPtr());
   Compiler.setFileManager(Files);
 
   // The FrontendAction can have lifetime requirements for Compiler or its
@@ -453,12 +454,11 @@ bool FrontendActionFactory::runInvocation(
   std::unique_ptr<FrontendAction> ScopedToolAction(create());
 
   // Create the compiler's actual diagnostics engine.
-  Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
-                             /*ShouldOwnClient=*/false);
+  Compiler.createDiagnostics(DiagConsumer, /*ShouldOwnClient=*/false);
   if (!Compiler.hasDiagnostics())
     return false;
 
-  Compiler.createSourceManager(*Files);
+  Compiler.createSourceManager();
 
   const bool Success = Compiler.ExecuteAction(*ScopedToolAction);
 
@@ -476,7 +476,8 @@ ClangTool::ClangTool(const CompilationDatabase &Compilations,
       OverlayFileSystem(new llvm::vfs::OverlayFileSystem(std::move(BaseFS))),
       InMemoryFileSystem(new llvm::vfs::InMemoryFileSystem),
       Files(Files ? Files
-                  : new FileManager(FileSystemOptions(), OverlayFileSystem)) {
+                  : llvm::makeIntrusiveRefCnt<FileManager>(FileSystemOptions(),
+                                                           OverlayFileSystem)) {
   OverlayFileSystem->pushOverlay(InMemoryFileSystem);
   appendArgumentsAdjuster(getClangStripOutputAdjuster());
   appendArgumentsAdjuster(getClangSyntaxOnlyAdjuster());
@@ -697,8 +698,9 @@ std::unique_ptr<ASTUnit> buildASTFromCodeWithArgs(
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
       new llvm::vfs::InMemoryFileSystem);
   OverlayFileSystem->pushOverlay(InMemoryFileSystem);
-  llvm::IntrusiveRefCntPtr<FileManager> Files(
-      new FileManager(FileSystemOptions(), OverlayFileSystem));
+  llvm::IntrusiveRefCntPtr<FileManager> Files =
+      llvm::makeIntrusiveRefCnt<FileManager>(FileSystemOptions(),
+                                             OverlayFileSystem);
 
   ToolInvocation Invocation(
       getSyntaxOnlyToolArgs(ToolName, Adjuster(Args, FileName), FileName),

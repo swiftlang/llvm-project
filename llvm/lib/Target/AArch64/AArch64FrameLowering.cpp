@@ -1407,14 +1407,24 @@ static MachineBasicBlock::iterator InsertSEH(MachineBasicBlock::iterator MBBI,
   case AArch64::LDPXi: {
     Register Reg0 = MBBI->getOperand(0).getReg();
     Register Reg1 = MBBI->getOperand(1).getReg();
+
+    int SEHReg0 = RegInfo->getSEHRegNum(Reg0);
+    int SEHReg1 = RegInfo->getSEHRegNum(Reg1);
+
     if (Reg0 == AArch64::FP && Reg1 == AArch64::LR)
       MIB = BuildMI(MF, DL, TII.get(AArch64::SEH_SaveFPLR))
                 .addImm(Imm * 8)
                 .setMIFlag(Flag);
-    else
+    else if (SEHReg0 >= 19 && SEHReg1 >= 19)
       MIB = BuildMI(MF, DL, TII.get(AArch64::SEH_SaveRegP))
-                .addImm(RegInfo->getSEHRegNum(Reg0))
-                .addImm(RegInfo->getSEHRegNum(Reg1))
+                .addImm(SEHReg0)
+                .addImm(SEHReg1)
+                .addImm(Imm * 8)
+                .setMIFlag(Flag);
+    else
+      MIB = BuildMI(MF, DL, TII.get(AArch64::SEH_SaveAnyRegIP))
+                .addImm(SEHReg0)
+                .addImm(SEHReg1)
                 .addImm(Imm * 8)
                 .setMIFlag(Flag);
     break;
@@ -1422,10 +1432,16 @@ static MachineBasicBlock::iterator InsertSEH(MachineBasicBlock::iterator MBBI,
   case AArch64::STRXui:
   case AArch64::LDRXui: {
     int Reg = RegInfo->getSEHRegNum(MBBI->getOperand(0).getReg());
-    MIB = BuildMI(MF, DL, TII.get(AArch64::SEH_SaveReg))
-              .addImm(Reg)
-              .addImm(Imm * 8)
-              .setMIFlag(Flag);
+    if (Reg >= 19)
+      MIB = BuildMI(MF, DL, TII.get(AArch64::SEH_SaveReg))
+                .addImm(Reg)
+                .addImm(Imm * 8)
+                .setMIFlag(Flag);
+    else
+      MIB = BuildMI(MF, DL, TII.get(AArch64::SEH_SaveAnyRegI))
+                .addImm(Reg)
+                .addImm(Imm * 8)
+                .setMIFlag(Flag);
     break;
   }
   case AArch64::STRDui:
@@ -1479,6 +1495,8 @@ static void fixupSEHOpcode(MachineBasicBlock::iterator MBBI,
   case AArch64::SEH_SaveReg:
   case AArch64::SEH_SaveFRegP:
   case AArch64::SEH_SaveFReg:
+  case AArch64::SEH_SaveAnyRegI:
+  case AArch64::SEH_SaveAnyRegIP:
   case AArch64::SEH_SaveAnyRegQP:
   case AArch64::SEH_SaveAnyRegQPX:
     ImmOpnd = &MBBI->getOperand(ImmIdx);
@@ -3319,8 +3337,10 @@ static bool produceCompactUnwindFrame(MachineFunction &MF) {
          !requiresSaveVG(MF) && !AFI->isSVECC();
 }
 
-static bool invalidateWindowsRegisterPairing(unsigned Reg1, unsigned Reg2,
-                                             bool NeedsWinCFI, bool IsFirst,
+static bool invalidateWindowsRegisterPairing(bool SpillExtendedVolatile,
+                                             unsigned SpillCount, unsigned Reg1,
+                                             unsigned Reg2, bool NeedsWinCFI,
+                                             bool IsFirst,
                                              const TargetRegisterInfo *TRI) {
   // If we are generating register pairs for a Windows function that requires
   // EH support, then pair consecutive registers only.  There are no unwind
@@ -3333,8 +3353,18 @@ static bool invalidateWindowsRegisterPairing(unsigned Reg1, unsigned Reg2,
     return true;
   if (!NeedsWinCFI)
     return false;
+
+  // ARM64EC introduced `save_any_regp`, which expects 16-byte alignment.
+  // This is handled by only allowing paired spills for registers spilled at
+  // even positions (which should be 16-byte aligned, as other GPRs/FPRs are
+  // 8-bytes). We carve out an exception for {FP,LR}, which does not require
+  // 16-byte alignment in the uop representation.
   if (TRI->getEncodingValue(Reg2) == TRI->getEncodingValue(Reg1) + 1)
-    return false;
+    return SpillExtendedVolatile
+               ? !((Reg1 == AArch64::FP && Reg2 == AArch64::LR) ||
+                   (SpillCount % 2) == 0)
+               : false;
+
   // If pairing a GPR with LR, the pair can be described by the save_lrpair
   // opcode. If this is the first register pair, it would end up with a
   // predecrement, but there's no save_lrpair_x opcode, so we can only do this
@@ -3350,12 +3380,15 @@ static bool invalidateWindowsRegisterPairing(unsigned Reg1, unsigned Reg2,
 /// WindowsCFI requires that only consecutive registers can be paired.
 /// LR and FP need to be allocated together when the frame needs to save
 /// the frame-record. This means any other register pairing with LR is invalid.
-static bool invalidateRegisterPairing(unsigned Reg1, unsigned Reg2,
-                                      bool UsesWinAAPCS, bool NeedsWinCFI,
-                                      bool NeedsFrameRecord, bool IsFirst,
+static bool invalidateRegisterPairing(bool SpillExtendedVolatile,
+                                      unsigned SpillCount, unsigned Reg1,
+                                      unsigned Reg2, bool UsesWinAAPCS,
+                                      bool NeedsWinCFI, bool NeedsFrameRecord,
+                                      bool IsFirst,
                                       const TargetRegisterInfo *TRI) {
   if (UsesWinAAPCS)
-    return invalidateWindowsRegisterPairing(Reg1, Reg2, NeedsWinCFI, IsFirst,
+    return invalidateWindowsRegisterPairing(SpillExtendedVolatile, SpillCount,
+                                            Reg1, Reg2, NeedsWinCFI, IsFirst,
                                             TRI);
 
   // If we need to store the frame record, don't pair any register
@@ -3451,6 +3484,23 @@ static void computeCalleeSaveRegisterPairs(
   bool FPAfterSVECalleeSaves = IsWindows && AFI->getSVECalleeSavedStackSize();
   int ScalableByteOffset =
       FPAfterSVECalleeSaves ? 0 : AFI->getSVECalleeSavedStackSize();
+
+  // Windows AAPCS has x9-x15 as volatile registers, x16-x17 as intra-procedural
+  // scratch, x18 as platform reserved. However, clang has extended calling
+  // convensions such as preserve_most and preserve_all which treat these as
+  // CSR. As such, the ARM64 unwind uOPs bias registers by 19. We use ARM64EC
+  // uOPs which have separate restrictions. We need to check for that.
+  //
+  // NOTE: we currently do not account for the D registers as LLVM does not
+  // support non-ABI compliant D register spills.
+  bool SpillExtendedVolatile =
+      IsWindows && std::any_of(std::begin(CSI), std::end(CSI),
+                               [](const CalleeSavedInfo &CSI) {
+                                 const auto &Reg = CSI.getReg();
+                                 return Reg >= AArch64::X0 &&
+                                        Reg <= AArch64::X18;
+                               });
+
   bool NeedGapToAlignStack = AFI->hasCalleeSaveStackFreeSpace();
   Register LastReg = 0;
 
@@ -3493,17 +3543,19 @@ static void computeCalleeSaveRegisterPairs(
     if (unsigned(i + RegInc) < Count && !AFI->hasStackHazardSlotIndex()) {
       MCRegister NextReg = CSI[i + RegInc].getReg();
       bool IsFirst = i == FirstReg;
+      unsigned SpillCount = NeedsWinCFI ? FirstReg - i : i;
       switch (RPI.Type) {
       case RegPairInfo::GPR:
         if (AArch64::GPR64RegClass.contains(NextReg) &&
-            !invalidateRegisterPairing(RPI.Reg1, NextReg, IsWindows,
-                                       NeedsWinCFI, NeedsFrameRecord, IsFirst,
-                                       TRI))
+            !invalidateRegisterPairing(
+                SpillExtendedVolatile, SpillCount, RPI.Reg1, NextReg, IsWindows,
+                NeedsWinCFI, NeedsFrameRecord, IsFirst, TRI))
           RPI.Reg2 = NextReg;
         break;
       case RegPairInfo::FPR64:
         if (AArch64::FPR64RegClass.contains(NextReg) &&
-            !invalidateWindowsRegisterPairing(RPI.Reg1, NextReg, NeedsWinCFI,
+            !invalidateWindowsRegisterPairing(SpillExtendedVolatile, SpillCount,
+                                              RPI.Reg1, NextReg, NeedsWinCFI,
                                               IsFirst, TRI))
           RPI.Reg2 = NextReg;
         break;

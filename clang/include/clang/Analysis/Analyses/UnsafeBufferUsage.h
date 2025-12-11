@@ -143,11 +143,60 @@ public:
     handleUnsafeOperation(Arg, IsRelatedToDecl, Ctx);
   }
 
+  /// Invoked when an unsafe assignment to __single pointer is found.
+  virtual void handleUnsafeSinglePointerAssignment(const BinaryOperator *Assign,
+                                                   bool IsRelatedToDecl,
+                                                   ASTContext &Ctx) {
+    handleUnsafeOperation(Assign, IsRelatedToDecl, Ctx);
+  }
+
   virtual void handleTooComplexCountAttributedAssign(const Expr *E,
                                                      const ValueDecl *VD,
                                                      bool IsRelatedToDecl,
                                                      ASTContext &Ctx) {
     handleUnsafeOperation(E, IsRelatedToDecl, Ctx);
+  }
+
+  enum class AssignToImmutableObjectKind {
+    PointerToPointer,
+    PointerToDependentCount,
+    PointerDependingOnInoutCount,
+    DependentCountUsedInInoutPointer,
+  };
+
+  virtual void handleAssignToImmutableObject(const BinaryOperator *Assign,
+                                             const ValueDecl *VD,
+                                             AssignToImmutableObjectKind Kind,
+                                             bool IsRelatedToDecl,
+                                             ASTContext &Ctx) {
+    handleUnsafeOperation(Assign, IsRelatedToDecl, Ctx);
+  }
+
+  virtual void handleMissingAssignments(
+      const Expr *LastAssignInGroup,
+      const llvm::SmallPtrSetImpl<const ValueDecl *> &Required,
+      const llvm::SmallPtrSetImpl<const ValueDecl *> &Missing,
+      bool IsRelatedToDecl, ASTContext &Ctx) {
+    handleUnsafeOperation(LastAssignInGroup, IsRelatedToDecl, Ctx);
+  }
+
+  virtual void handleDuplicatedAssignment(const BinaryOperator *Assign,
+                                          const BinaryOperator *PrevAssign,
+                                          const ValueDecl *VD,
+                                          bool IsRelatedToDecl,
+                                          ASTContext &Ctx) {
+    handleUnsafeOperation(Assign, IsRelatedToDecl, Ctx);
+  }
+
+  virtual void handleAssignedAndUsed(const BinaryOperator *Assign,
+                                     const Expr *Use, const ValueDecl *VD,
+                                     bool IsRelatedToDecl, ASTContext &Ctx) {
+    handleUnsafeOperation(Assign, IsRelatedToDecl, Ctx);
+  }
+
+  virtual void handleUnsafeCountAttributedPointerAssignment(
+      const BinaryOperator *Assign, bool IsRelatedToDecl, ASTContext &Ctx) {
+    handleUnsafeOperation(Assign, IsRelatedToDecl, Ctx);
   }
   /* TO_UPSTREAM(BoundsSafety) OFF */
 

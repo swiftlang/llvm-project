@@ -5574,16 +5574,17 @@ bool LLParser::parseDIBasicType(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(name, MDStringField, );                                             \
   OPTIONAL(size, MDUnsignedOrMDField, (0, UINT64_MAX));                        \
   OPTIONAL(align, MDUnsignedField, (0, UINT32_MAX));                           \
+  OPTIONAL(dataSize, MDUnsignedField, (0, UINT32_MAX));                        \
   OPTIONAL(encoding, DwarfAttEncodingField, );                                 \
   OPTIONAL(num_extra_inhabitants, MDUnsignedField, (0, UINT32_MAX));           \
   OPTIONAL(flags, DIFlagField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
-  Result = GET_OR_DISTINCT(DIBasicType, (Context, tag.Val, name.Val,
-                                         size.getValueAsMetadata(Context),
-                                         align.Val, encoding.Val,
-                                         num_extra_inhabitants.Val, flags.Val));
+  Result = GET_OR_DISTINCT(
+      DIBasicType,
+      (Context, tag.Val, name.Val, size.getValueAsMetadata(Context), align.Val,
+       encoding.Val, num_extra_inhabitants.Val, dataSize.Val, flags.Val));
   return false;
 }
 
@@ -6256,8 +6257,8 @@ bool LLParser::parseDIObjCProperty(MDNode *&Result, bool IsDistinct) {
 #undef VISIT_MD_FIELDS
 
   Result = GET_OR_DISTINCT(DIObjCProperty,
-                           (Context, name.Val, file.Val, line.Val, setter.Val,
-                            getter.Val, attributes.Val, type.Val));
+                           (Context, name.Val, file.Val, line.Val, getter.Val,
+                            setter.Val, attributes.Val, type.Val));
   return false;
 }
 
@@ -7052,7 +7053,8 @@ bool LLParser::parseDebugRecord(DbgRecord *&DR, PerFunctionState &PFS) {
                               .Case("declare", RecordKind::ValueKind)
                               .Case("value", RecordKind::ValueKind)
                               .Case("assign", RecordKind::ValueKind)
-                              .Case("label", RecordKind::LabelKind);
+                              .Case("label", RecordKind::LabelKind)
+                              .Case("declare_value", RecordKind::ValueKind);
 
   // Parsing labels is trivial; parse here and early exit, otherwise go into the
   // full DbgVariableRecord processing stage.
@@ -7077,7 +7079,8 @@ bool LLParser::parseDebugRecord(DbgRecord *&DR, PerFunctionState &PFS) {
   LocType ValueType = StringSwitch<LocType>(Lex.getStrVal())
                           .Case("declare", LocType::Declare)
                           .Case("value", LocType::Value)
-                          .Case("assign", LocType::Assign);
+                          .Case("assign", LocType::Assign)
+                          .Case("declare_value", LocType::DeclareValue);
 
   Lex.Lex();
   if (parseToken(lltok::lparen, "Expected '(' here"))

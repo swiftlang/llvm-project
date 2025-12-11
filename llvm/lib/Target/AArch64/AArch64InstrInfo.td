@@ -4301,6 +4301,64 @@ def : Pat <(v1i64 (scalar_to_vector (i64
                (load (ro64.Xpat GPR64sp:$Rn, GPR64:$Rm, ro64.Xext:$extend))))),
            (LDRDroX GPR64sp:$Rn, GPR64:$Rm, ro64.Xext:$extend)>;
 
+// Patterns for bitconvert or scalar_to_vector of load operations.
+// Enables direct SIMD register loads for small integer types (i8/i16) that are
+// naturally zero-extended to i32/i64.
+multiclass ExtLoad8_16AllModes<ValueType OutTy, ValueType InnerTy,
+                                SDPatternOperator OuterOp,
+                                PatFrags LoadOp8, PatFrags LoadOp16> {
+  // 8-bit loads.
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp8 (am_indexed8 GPR64sp:$Rn, uimm12s1:$offset))))),
+            (SUBREG_TO_REG (i64 0), (LDRBui GPR64sp:$Rn, uimm12s1:$offset), bsub)>;
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp8 (am_unscaled8 GPR64sp:$Rn, simm9:$offset))))),
+            (SUBREG_TO_REG (i64 0), (LDURBi GPR64sp:$Rn, simm9:$offset), bsub)>;
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp8 (ro8.Wpat GPR64sp:$Rn, GPR32:$Rm, ro8.Wext:$extend))))),
+            (SUBREG_TO_REG (i64 0), (LDRBroW GPR64sp:$Rn, GPR32:$Rm, ro8.Wext:$extend), bsub)>;
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp8 (ro8.Xpat GPR64sp:$Rn, GPR64:$Rm, ro8.Xext:$extend))))),
+            (SUBREG_TO_REG (i64 0), (LDRBroX GPR64sp:$Rn, GPR64:$Rm, ro8.Xext:$extend), bsub)>;
+
+  // 16-bit loads.
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp16 (am_indexed16 GPR64sp:$Rn, uimm12s2:$offset))))),
+            (SUBREG_TO_REG (i64 0), (LDRHui GPR64sp:$Rn, uimm12s2:$offset), hsub)>;
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp16 (am_unscaled16 GPR64sp:$Rn, simm9:$offset))))),
+            (SUBREG_TO_REG (i64 0), (LDURHi GPR64sp:$Rn, simm9:$offset), hsub)>;
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp16 (ro16.Wpat GPR64sp:$Rn, GPR32:$Rm, ro16.Wext:$extend))))),
+            (SUBREG_TO_REG (i64 0), (LDRHroW GPR64sp:$Rn, GPR32:$Rm, ro16.Wext:$extend), hsub)>;
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp16 (ro16.Xpat GPR64sp:$Rn, GPR64:$Rm, ro16.Xext:$extend))))),
+            (SUBREG_TO_REG (i64 0), (LDRHroX GPR64sp:$Rn, GPR64:$Rm, ro16.Xext:$extend), hsub)>;
+}
+
+// Extended multiclass that includes 32-bit loads in addition to 8-bit and 16-bit.
+multiclass ExtLoad8_16_32AllModes<ValueType OutTy, ValueType InnerTy,
+                                   SDPatternOperator OuterOp,
+                                   PatFrags LoadOp8, PatFrags LoadOp16, PatFrags LoadOp32> {
+  defm : ExtLoad8_16AllModes<OutTy, InnerTy, OuterOp, LoadOp8, LoadOp16>;
+
+  // 32-bit loads.
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp32 (am_indexed32 GPR64sp:$Rn, uimm12s4:$offset))))),
+            (SUBREG_TO_REG (i64 0), (LDRSui GPR64sp:$Rn, uimm12s4:$offset), ssub)>;
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp32 (am_unscaled32 GPR64sp:$Rn, simm9:$offset))))),
+            (SUBREG_TO_REG (i64 0), (LDURSi GPR64sp:$Rn, simm9:$offset), ssub)>;
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp32 (ro32.Wpat GPR64sp:$Rn, GPR32:$Rm, ro32.Wext:$extend))))),
+            (SUBREG_TO_REG (i64 0), (LDRSroW GPR64sp:$Rn, GPR32:$Rm, ro32.Wext:$extend), ssub)>;
+  def : Pat<(OutTy (OuterOp (InnerTy (LoadOp32 (ro32.Xpat GPR64sp:$Rn, GPR64:$Rm, ro32.Xext:$extend))))),
+            (SUBREG_TO_REG (i64 0), (LDRSroX GPR64sp:$Rn, GPR64:$Rm, ro32.Xext:$extend), ssub)>;
+}
+
+// Instantiate bitconvert patterns for floating-point types.
+defm : ExtLoad8_16AllModes<f32, i32, bitconvert, zextloadi8, zextloadi16>;
+defm : ExtLoad8_16_32AllModes<f64, i64, bitconvert, zextloadi8, zextloadi16, zextloadi32>;
+
+// Instantiate scalar_to_vector patterns for all vector types.
+defm : ExtLoad8_16AllModes<v16i8, i32, scalar_to_vector, zextloadi8, zextloadi16>;
+defm : ExtLoad8_16AllModes<v16i8, i32, scalar_to_vector, extloadi8, extloadi16>;
+defm : ExtLoad8_16AllModes<v8i16, i32, scalar_to_vector, zextloadi8, zextloadi16>;
+defm : ExtLoad8_16AllModes<v8i16, i32, scalar_to_vector, extloadi8, extloadi16>;
+defm : ExtLoad8_16AllModes<v4i32, i32, scalar_to_vector, zextloadi8, zextloadi16>;
+defm : ExtLoad8_16AllModes<v4i32, i32, scalar_to_vector, extloadi8, extloadi16>;
+defm : ExtLoad8_16_32AllModes<v2i64, i64, scalar_to_vector, zextloadi8, zextloadi16, zextloadi32>;
+defm : ExtLoad8_16_32AllModes<v2i64, i64, scalar_to_vector, extloadi8, extloadi16, extloadi32>;
+
 // Pre-fetch.
 defm PRFUM : PrefetchUnscaled<0b11, 0, 0b10, "prfum",
                   [(AArch64Prefetch timm:$Rt,
@@ -5634,6 +5692,8 @@ let isPseudo = 1 in {
   def SEH_EpilogStart : Pseudo<(outs), (ins), []>, Sched<[]>;
   def SEH_EpilogEnd : Pseudo<(outs), (ins), []>, Sched<[]>;
   def SEH_PACSignLR : Pseudo<(outs), (ins), []>, Sched<[]>;
+  def SEH_SaveAnyRegI : Pseudo<(outs), (ins i32imm:$reg0, i32imm:$offs), []>, Sched<[]>;
+  def SEH_SaveAnyRegIP : Pseudo<(outs), (ins i32imm:$reg0, i32imm:$reg1, i32imm:$offs), []>, Sched<[]>;
   def SEH_SaveAnyRegQP : Pseudo<(outs), (ins i32imm:$reg0, i32imm:$reg1, i32imm:$offs), []>, Sched<[]>;
   def SEH_SaveAnyRegQPX : Pseudo<(outs), (ins i32imm:$reg0, i32imm:$reg1, i32imm:$offs), []>, Sched<[]>;
   def SEH_AllocZ : Pseudo<(outs), (ins i32imm:$offs), []>, Sched<[]>;
@@ -6643,6 +6703,15 @@ def : Pat<(f16 (any_sint_to_fp (i32 (any_fp_to_sint f16:$Rn)))),
 def : Pat<(f16 (any_uint_to_fp (i32 (any_fp_to_uint f16:$Rn)))),
           (UCVTFv1i16 (f16 (FCVTZUv1f16 f16:$Rn)))>;
 }
+
+def : Pat<(v4i32 (any_fp_to_sint (v4f32 (scalar_to_vector (f32 FPR32:$src))))),
+          (v4i32 (INSERT_SUBREG (IMPLICIT_DEF), (i32 (FCVTZSv1i32 (f32 FPR32:$src))), ssub))>;
+def : Pat<(v4i32 (any_fp_to_uint (v4f32 (scalar_to_vector (f32 FPR32:$src))))),
+          (v4i32 (INSERT_SUBREG (IMPLICIT_DEF), (i32 (FCVTZUv1i32 (f32 FPR32:$src))), ssub))>;
+def : Pat<(v2i64 (any_fp_to_sint (v2f64 (scalar_to_vector (f64 FPR64:$src))))),
+          (v2i64 (INSERT_SUBREG (IMPLICIT_DEF), (i64 (FCVTZSv1i64 (f64 FPR64:$src))), dsub))>;
+def : Pat<(v2i64 (any_fp_to_uint (v2f64 (scalar_to_vector (f64 FPR64:$src))))),
+          (v2i64 (INSERT_SUBREG (IMPLICIT_DEF), (i64 (FCVTZUv1i64 (f64 FPR64:$src))), dsub))>;
 
 // int -> float conversion of value in lane 0 of simd vector should use
 // correct cvtf variant to avoid costly fpr <-> gpr register transfers.

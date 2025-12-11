@@ -38,6 +38,7 @@ struct DependencyScannerServiceOptions {
   ScanningOptimizations OptimizeArgs = ScanningOptimizations::Default;
   std::shared_ptr<cas::ObjectStore> CAS;
   std::shared_ptr<cas::ActionCache> Cache;
+  std::optional<bool> CacheNegativeStats;
 
   ScanningOutputFormat getFormat() const;
 };
@@ -161,6 +162,11 @@ void clang_experimental_DependencyScannerServiceOptions_setActionCache(
   unwrap(Opts)->CASOpts.CASPath = cas::unwrap(Cache)->CachePath;
 }
 
+void clang_experimental_DependencyScannerServiceOptions_setCacheNegativeStats(
+    CXDependencyScannerServiceOptions Opts, bool CacheNegativeStats) {
+  unwrap(Opts)->CacheNegativeStats = CacheNegativeStats;
+}
+
 CXDependencyScannerService
 clang_experimental_DependencyScannerService_create_v0(CXDependencyMode Format) {
   // FIXME: Pass default CASOpts and nullptr as CachingOnDiskFileSystem now.
@@ -207,7 +213,10 @@ clang_experimental_DependencyScannerService_create_v1(
   return wrap(new DependencyScanningService(
       ScanningMode::DependencyDirectivesScan, Format, unwrap(Opts)->CASOpts,
       std::move(CAS), std::move(Cache), std::move(FS),
-      unwrap(Opts)->OptimizeArgs));
+      unwrap(Opts)->OptimizeArgs, /*EagerLoadModules=*/false,
+      /*TraceVFS=*/false, llvm::sys::toTimeT(std::chrono::system_clock::now()),
+      unwrap(Opts)->CacheNegativeStats ? *unwrap(Opts)->CacheNegativeStats
+                                       : shouldCacheNegativeStatsDefault()));
 }
 
 void clang_experimental_DependencyScannerService_dispose_v0(
@@ -362,14 +371,25 @@ enum CXErrorCode clang_experimental_DependencyScannerWorker_getDepGraph(
   auto Controller = DependencyScanningTool::createActionController(
       *Worker, std::move(LookupOutputs));
 
-  bool Result = ModuleName
-                    ? Worker->computeDependencies(WorkingDirectory, Compilation,
-                                                  DepConsumer, *Controller,
-                                                  *SerialDiagConsumer,
-                                                  StringRef(ModuleName))
-                    : Worker->computeDependencies(WorkingDirectory, Compilation,
-                                                  DepConsumer, *Controller,
-                                                  *SerialDiagConsumer);
+  bool Result = false;
+  if (ModuleName) {
+    Result = Worker->initializeCompilerInstanceWithContext(
+        WorkingDirectory, Compilation, SerialDiagConsumer.get());
+    if (!Result)
+      return CXError_Failure;
+    Result = Worker->computeDependenciesByNameWithContext(
+        StringRef(ModuleName), DepConsumer, *Controller);
+    if (!Result)
+      return CXError_Failure;
+    Result = Worker->finalizeCompilerInstance();
+    if (!Result)
+      return CXError_Failure;
+  } else {
+    Result =
+        Worker->computeDependencies(WorkingDirectory, Compilation, DepConsumer,
+                                    *Controller, *SerialDiagConsumer);
+  }
+
   if (!Result)
     return CXError_Failure;
 
@@ -856,11 +876,14 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
   for (const Command &BuildCommand : TU.Commands)
     PrintArguments(ScriptOS, BuildCommand.Arguments);
 
+  auto RealFS = llvm::vfs::getRealFileSystem();
+  RealFS->setCurrentWorkingDirectory(*Opts.WorkingDirectory);
+
   SmallString<128> VFSCachePath = FileCachePath;
   llvm::sys::path::append(VFSCachePath, "vfs");
   std::string VFSCachePathStr = VFSCachePath.str().str();
   llvm::FileCollector FileCollector(VFSCachePathStr,
-                                    /*OverlayRoot=*/VFSCachePathStr);
+                                    /*OverlayRoot=*/VFSCachePathStr, RealFS);
   for (const auto &FileDep : TU.FileDeps) {
     FileCollector.addFile(FileDep);
   }

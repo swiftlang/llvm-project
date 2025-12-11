@@ -167,6 +167,8 @@ public:
 
   virtual bool IsLoad() = 0;
 
+  virtual bool IsBarrier() = 0;
+
   virtual bool IsAuthenticated() = 0;
 
   bool CanSetBreakpoint ();
@@ -297,6 +299,10 @@ public:
 
   lldb::InstructionSP GetInstructionAtIndex(size_t idx) const;
 
+  llvm::ArrayRef<lldb::InstructionSP> Instructions() const {
+    return m_instructions;
+  }
+
   /// Get the instruction at the given address.
   ///
   /// \return
@@ -363,6 +369,8 @@ public:
   bool HasDelaySlot() override;
 
   bool IsLoad() override;
+
+  bool IsBarrier() override;
 
   bool IsAuthenticated() override;
 

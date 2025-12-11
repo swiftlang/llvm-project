@@ -57,6 +57,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/Version.h"
+#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/MacroInfo.h"
@@ -330,13 +331,19 @@ public:
 };
 
 class TypeLocWriter : public TypeLocVisitor<TypeLocWriter> {
-  ASTRecordWriter &Record;
+  using LocSeq = SourceLocationSequence;
 
-  void addSourceLocation(SourceLocation Loc) { Record.AddSourceLocation(Loc); }
-  void addSourceRange(SourceRange Range) { Record.AddSourceRange(Range); }
+  ASTRecordWriter &Record;
+  LocSeq *Seq;
+
+  void addSourceLocation(SourceLocation Loc) {
+    Record.AddSourceLocation(Loc, Seq);
+  }
+  void addSourceRange(SourceRange Range) { Record.AddSourceRange(Range, Seq); }
 
 public:
-  TypeLocWriter(ASTRecordWriter &Record) : Record(Record) {}
+  TypeLocWriter(ASTRecordWriter &Record, LocSeq *Seq)
+      : Record(Record), Seq(Seq) {}
 
 #define ABSTRACT_TYPELOC(CLASS, PARENT)
 #define TYPELOC(CLASS, PARENT) \
@@ -1617,6 +1624,7 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, StringRef isysroot) {
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Standard C++ mod
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // File size
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // File timestamp
+    Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // CASIDIsKey
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // File name len
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Cache key len
     Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob)); // Strings
@@ -1646,16 +1654,27 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, StringRef isysroot) {
         Record.push_back(0);
         // FIXME: cache support for standard C++ modules.
         Record.push_back(0);
+        Record.push_back(0);
       } else {
         // If we have calculated signature, there is no need to store
         // the size or timestamp.
         Record.push_back(M.Signature ? 0 : M.File.getSize());
         Record.push_back(M.Signature ? 0 : getTimestampForOutput(M.File));
+        // Encode CacheKey if it is implicit module, otherwise encode CASID of
+        // module file.
+        bool CASIDIsKey = M.Kind == serialization::MK_ImplicitModule;
+        Record.push_back(CASIDIsKey);
 
         llvm::append_range(Blob, M.Signature);
 
         AddPathBlob(M.FileName, Record, Blob);
-        AddStringBlob(M.ModuleCacheKey, Record, Blob);
+        if (CASIDIsKey)
+          AddStringBlob(M.ModuleCacheKey, Record, Blob);
+        else {
+          assert(!(M.CASID.empty() && !M.ModuleCacheKey.empty()) &&
+                 "should not have module cache key without CASID");
+          AddStringBlob(M.CASID, Record, Blob);
+        }
       }
 
       Stream.EmitRecordWithBlob(AbbrevCode, Record, Blob);
@@ -1725,9 +1744,13 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, StringRef isysroot) {
   const HeaderSearchOptions &HSOpts =
       PP.getHeaderSearchInfo().getHeaderSearchOpts();
 
+  SmallString<256> HSOpts_ModuleCachePath;
+  normalizeModuleCachePath(PP.getFileManager(), HSOpts.ModuleCachePath,
+                           HSOpts_ModuleCachePath);
+
   AddString(HSOpts.Sysroot, Record);
   AddString(HSOpts.ResourceDir, Record);
-  AddString(HSOpts.ModuleCachePath, Record);
+  AddString(HSOpts_ModuleCachePath, Record);
   AddString(HSOpts.ModuleUserBuildPath, Record);
   Record.push_back(HSOpts.DisableModuleHash);
   Record.push_back(HSOpts.ImplicitModuleMaps);
@@ -2493,12 +2516,13 @@ void ASTWriter::WriteSourceManagerBlock(SourceManager &SourceMgr) {
       SLocEntryOffsets.push_back(Offset);
       // Starting offset of this entry within this module, so skip the dummy.
       Record.push_back(getAdjustedOffset(SLoc->getOffset()) - 2);
-      AddSourceLocation(Expansion.getSpellingLoc(), Record);
-      AddSourceLocation(Expansion.getExpansionLocStart(), Record);
+      LocSeq::State Seq;
+      AddSourceLocation(Expansion.getSpellingLoc(), Record, Seq);
+      AddSourceLocation(Expansion.getExpansionLocStart(), Record, Seq);
       AddSourceLocation(Expansion.isMacroArgExpansion()
                             ? SourceLocation()
                             : Expansion.getExpansionLocEnd(),
-                        Record);
+                        Record, Seq);
       Record.push_back(Expansion.isExpansionTokenRange());
 
       // Compute the token length for this macro expansion.
@@ -4449,8 +4473,7 @@ private:
     // parent of parent. We DON'T remove the enum constant from its parent. So
     // we don't need to care about merging problems here.
     if (auto *ECD = dyn_cast<EnumConstantDecl>(D);
-        ECD && DC.isFileContext() && ECD->getOwningModule() &&
-        ECD->getTopLevelOwningNamedModule()->isNamedModule()) {
+        ECD && DC.isFileContext() && ECD->getTopLevelOwningNamedModule()) {
       if (llvm::all_of(
               DC.noload_lookup(
                   cast<EnumDecl>(ECD->getDeclContext())->getDeclName()),
@@ -6757,8 +6780,8 @@ void ASTWriter::AddFileID(FileID FID, RecordDataImpl &Record) {
 }
 
 SourceLocationEncoding::RawLocEncoding
-ASTWriter::getRawSourceLocationEncoding(SourceLocation Loc) {
-  SourceLocation::UIntTy BaseOffset = 0;
+ASTWriter::getRawSourceLocationEncoding(SourceLocation Loc, LocSeq *Seq) {
+  unsigned BaseOffset = 0;
   unsigned ModuleFileIndex = 0;
 
   // See SourceLocationEncoding.h for the encoding details.
@@ -6776,17 +6799,19 @@ ASTWriter::getRawSourceLocationEncoding(SourceLocation Loc) {
     assert(&getChain()->getModuleManager()[F->Index] == F);
   }
 
-  return SourceLocationEncoding::encode(Loc, BaseOffset, ModuleFileIndex);
+  return SourceLocationEncoding::encode(Loc, BaseOffset, ModuleFileIndex, Seq);
 }
 
-void ASTWriter::AddSourceLocation(SourceLocation Loc, RecordDataImpl &Record) {
+void ASTWriter::AddSourceLocation(SourceLocation Loc, RecordDataImpl &Record,
+                                  SourceLocationSequence *Seq) {
   Loc = getAdjustedLocation(Loc);
-  Record.push_back(getRawSourceLocationEncoding(Loc));
+  Record.push_back(getRawSourceLocationEncoding(Loc, Seq));
 }
 
-void ASTWriter::AddSourceRange(SourceRange Range, RecordDataImpl &Record) {
-  AddSourceLocation(Range.getBegin(), Record);
-  AddSourceLocation(Range.getEnd(), Record);
+void ASTWriter::AddSourceRange(SourceRange Range, RecordDataImpl &Record,
+                               SourceLocationSequence *Seq) {
+  AddSourceLocation(Range.getBegin(), Record, Seq);
+  AddSourceLocation(Range.getEnd(), Record, Seq);
 }
 
 void ASTRecordWriter::AddAPFloat(const llvm::APFloat &Value) {
@@ -6906,8 +6931,9 @@ void ASTRecordWriter::AddTypeSourceInfo(TypeSourceInfo *TInfo) {
   AddTypeLoc(TInfo->getTypeLoc());
 }
 
-void ASTRecordWriter::AddTypeLoc(TypeLoc TL) {
-  TypeLocWriter TLW(*this);
+void ASTRecordWriter::AddTypeLoc(TypeLoc TL, LocSeq *OuterSeq) {
+  LocSeq::State Seq(OuterSeq);
+  TypeLocWriter TLW(*this, Seq);
   for (; !TL.isNull(); TL = TL.getNextTypeLoc())
     TLW.Visit(TL);
 }

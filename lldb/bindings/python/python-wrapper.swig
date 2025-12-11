@@ -422,6 +422,42 @@ void *lldb_private::python::LLDBSWIGPython_CastPyObjectToSBBreakpoint(PyObject *
   return sb_ptr;
 }
 
+void *lldb_private::python::LLDBSWIGPython_CastPyObjectToSBThread(PyObject * data) {
+  lldb::SBThread *sb_ptr = nullptr;
+
+  int valid_cast =
+      SWIG_ConvertPtr(data, (void **)&sb_ptr, SWIGTYPE_p_lldb__SBThread, 0);
+
+  if (valid_cast == -1)
+    return NULL;
+
+  return sb_ptr;
+}
+
+void *lldb_private::python::LLDBSWIGPython_CastPyObjectToSBFrame(PyObject * data) {
+  lldb::SBFrame *sb_ptr = nullptr;
+
+  int valid_cast =
+      SWIG_ConvertPtr(data, (void **)&sb_ptr, SWIGTYPE_p_lldb__SBFrame, 0);
+
+  if (valid_cast == -1)
+    return NULL;
+
+  return sb_ptr;
+}
+
+void *lldb_private::python::LLDBSWIGPython_CastPyObjectToSBBreakpointLocation(PyObject * data) {
+  lldb::SBBreakpointLocation *sb_ptr = nullptr;
+
+  int valid_cast =
+      SWIG_ConvertPtr(data, (void **)&sb_ptr, SWIGTYPE_p_lldb__SBBreakpointLocation, 0);
+
+  if (valid_cast == -1)
+    return NULL;
+
+  return sb_ptr;
+}
+
 void *lldb_private::python::LLDBSWIGPython_CastPyObjectToSBAttachInfo(PyObject * data) {
   lldb::SBAttachInfo *sb_ptr = nullptr;
 
@@ -525,6 +561,18 @@ void *lldb_private::python::LLDBSWIGPython_CastPyObjectToSBExecutionContext(PyOb
 
   int valid_cast = SWIG_ConvertPtr(data, (void **)&sb_ptr,
                                    SWIGTYPE_p_lldb__SBExecutionContext, 0);
+
+  if (valid_cast == -1)
+    return NULL;
+
+  return sb_ptr;
+}
+
+void *lldb_private::python::LLDBSWIGPython_CastPyObjectToSBFrameList(PyObject *data) {
+  lldb::SBFrameList *sb_ptr = NULL;
+
+  int valid_cast = SWIG_ConvertPtr(data, (void **)&sb_ptr,
+                                   SWIGTYPE_p_lldb__SBFrameList, 0);
 
   if (valid_cast == -1)
     return NULL;

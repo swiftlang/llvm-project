@@ -94,6 +94,7 @@ Clang Frontend Potentially Breaking Changes
 
 Clang Python Bindings Potentially Breaking Changes
 --------------------------------------------------
+- Return ``None`` instead of null cursors from ``Token.cursor``
 - ``Cursor.from_location`` now returns ``None`` instead of a null cursor.
   This eliminates the last known source of null cursors.
 - Almost all ``Cursor`` methods now assert that they are called on non-null cursors.
@@ -387,6 +388,8 @@ Non-comprehensive list of changes in this release
   into the same trap instruction) the trap reasons might be removed. To prevent
   this build without optimizations (i.e. use `-O0` or use the `optnone` function
   attribute) or use the `fno-sanitize-merge=` flag in optimized builds.
+
+- ``__builtin_assume_dereferenceable`` now accepts non-constant size operands.
 
 New Compiler Flags
 ------------------
@@ -748,6 +751,10 @@ Improvements to Clang's diagnostics
   the ``[[noreturn]]`` attribute when the function body is ended with a call via
   pointer, provided it can be proven that the pointer only points to
   ``[[noreturn]]`` functions.
+
+- A new warning ``-Wenum-compare-typo`` has been added to detect potential erroneous
+  comparison operators when mixed with bitwise operators in enum value initializers.
+  This can be locally disabled by explicitly casting the initializer value.
 
 Improvements to Clang's time-trace
 ----------------------------------
@@ -1193,6 +1200,8 @@ NetBSD Support
 
 WebAssembly Support
 ^^^^^^^^^^^^^^^^^^^
+
+- Fix a bug so that ``__has_attribute(musttail)`` is no longer true when WebAssembly's tail-call is not enabled. (#GH163256)
 
 AVR Support
 ^^^^^^^^^^^

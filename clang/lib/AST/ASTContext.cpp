@@ -12364,6 +12364,12 @@ QualType ASTContext::mergeTagDefinitions(QualType LHS, QualType RHS) {
   if (LangOpts.CPlusPlus || !LangOpts.C23)
     return {};
 
+  // Nameless tags are comparable only within outer definitions. At the top
+  // level they are not comparable.
+  const TagDecl *LTagD = LHS->getAsTagDecl(), *RTagD = RHS->getAsTagDecl();
+  if (!LTagD->getIdentifier() || !RTagD->getIdentifier())
+    return {};
+
   // C23, on the other hand, requires the members to be "the same enough", so
   // we use a structural equivalence check.
   StructuralEquivalenceContext::NonEquivalentDeclSet NonEquivalentDecls;
@@ -12840,7 +12846,7 @@ bool ASTContext::mergeExtParameterInfo(
 void ASTContext::ResetObjCLayout(const ObjCInterfaceDecl *D) {
   if (auto It = ObjCLayouts.find(D); It != ObjCLayouts.end()) {
     It->second = nullptr;
-    for (auto *SubClass : ObjCSubClasses[D])
+    for (auto *SubClass : ObjCSubClasses.lookup(D))
       ResetObjCLayout(SubClass);
   }
 }

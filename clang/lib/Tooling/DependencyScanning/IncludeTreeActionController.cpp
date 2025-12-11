@@ -282,10 +282,11 @@ void dependencies::addReversePrefixMappingFileSystem(
   llvm::PrefixMapper ReverseMapper;
   ReverseMapper.addInverseRange(PrefixMapper.getMappings());
   ReverseMapper.sort();
-  std::unique_ptr<llvm::vfs::FileSystem> FS =
+  IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS =
       llvm::vfs::createPrefixMappingFileSystem(
           std::move(ReverseMapper), &ScanInstance.getVirtualFileSystem());
 
+  ScanInstance.setVirtualFileSystem(FS);
   ScanInstance.getFileManager().setVirtualFileSystem(std::move(FS));
 }
 
@@ -700,17 +701,12 @@ IncludeTreeBuilder::finishIncludeTree(CompilerInstance &ScanInstance,
     if (PPOpts.ImplicitPCHInclude.empty())
       return Error::success(); // no need for additional work.
 
-    llvm::ErrorOr<std::optional<cas::ObjectRef>> CASContents =
+    llvm::ErrorOr<cas::ObjectRef> CASContents =
         FM.getObjectRefForFileContent(PPOpts.ImplicitPCHInclude);
     if (!CASContents)
       return llvm::errorCodeToError(CASContents.getError());
 
-    StringRef PCHFilename = "<PCH>";
-    if (NewInvocation.getFrontendOpts().IncludeTreePreservePCHPath)
-      PCHFilename = PPOpts.ImplicitPCHInclude;
-
-    auto PCHFile =
-        cas::IncludeTree::File::create(DB, PCHFilename, **CASContents);
+    auto PCHFile = cas::IncludeTree::File::create(DB, "<PCH>", *CASContents);
     if (!PCHFile)
       return PCHFile.takeError();
     PCHRef = PCHFile->getRef();
@@ -897,15 +893,14 @@ Expected<cas::ObjectRef> IncludeTreeBuilder::addToFileList(FileManager &FM,
     Filename = PathStorage;
   }
 
-  llvm::ErrorOr<std::optional<cas::ObjectRef>> CASContents =
+  llvm::ErrorOr<cas::ObjectRef> CASContents =
       FM.getObjectRefForFileContent(Filename);
   if (!CASContents)
     return llvm::errorCodeToError(CASContents.getError());
-  assert(*CASContents);
 
   auto addFile = [&](StringRef Filename) -> Expected<cas::ObjectRef> {
     assert(!Filename.empty());
-    auto FileNode = createIncludeFile(Filename, **CASContents);
+    auto FileNode = createIncludeFile(Filename, *CASContents);
     if (!FileNode)
       return FileNode.takeError();
     IncludedFiles.push_back(

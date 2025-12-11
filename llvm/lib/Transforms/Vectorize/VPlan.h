@@ -34,6 +34,7 @@
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/Analysis/IVDescriptors.h"
+#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/FMF.h"
@@ -588,7 +589,7 @@ public:
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   /// Print this VPSingleDefRecipe to dbgs() (for debugging).
-  LLVM_DUMP_METHOD void dump() const;
+  LLVM_ABI_FOR_TEST LLVM_DUMP_METHOD void dump() const;
 #endif
 };
 
@@ -805,6 +806,9 @@ public:
 
   GEPNoWrapFlags getGEPNoWrapFlags() const { return GEPFlags; }
 
+  /// Returns true if the recipe has a comparison predicate.
+  bool hasPredicate() const { return OpType == OperationType::Cmp; }
+
   /// Returns true if the recipe has fast-math flags.
   bool hasFastMathFlags() const { return OpType == OperationType::FPMathOp; }
 
@@ -898,6 +902,10 @@ struct VPRecipeWithIRFlags : public VPSingleDefRecipe, public VPIRFlags {
   }
 
   void execute(VPTransformState &State) override = 0;
+
+  /// Compute the cost for this recipe for \p VF, using \p Opcode and \p Ctx.
+  InstructionCost getCostForRecipeWithOpcode(unsigned Opcode, ElementCount VF,
+                                             VPCostContext &Ctx) const;
 };
 
 /// Helper to access the operand that contains the unroll part for this recipe
@@ -931,12 +939,28 @@ public:
   /// Copy constructor for cloning.
   VPIRMetadata(const VPIRMetadata &Other) : Metadata(Other.Metadata) {}
 
+  VPIRMetadata &operator=(const VPIRMetadata &Other) {
+    Metadata = Other.Metadata;
+    return *this;
+  }
+
   /// Add all metadata to \p I.
   void applyMetadata(Instruction &I) const;
 
   /// Add metadata with kind \p Kind and \p Node.
   void addMetadata(unsigned Kind, MDNode *Node) {
     Metadata.emplace_back(Kind, Node);
+  }
+
+  /// Intersect this VPIRMetada object with \p MD, keeping only metadata
+  /// nodes that are common to both.
+  void intersect(const VPIRMetadata &MD);
+
+  /// Get metadata of kind \p Kind. Returns nullptr if not found.
+  MDNode *getMetadata(unsigned Kind) const {
+    auto It =
+        find_if(Metadata, [Kind](const auto &P) { return P.first == Kind; });
+    return It != Metadata.end() ? It->second : nullptr;
   }
 };
 
@@ -994,7 +1018,8 @@ public:
     // Returns a scalar boolean value, which is true if any lane of its
     // (boolean) vector operands is true. It produces the reduced value across
     // all unrolled iterations. Unrolling will add all copies of its original
-    // operand as additional operands.
+    // operand as additional operands. AnyOf is poison-safe as all operands
+    // will be frozen.
     AnyOf,
     // Calculates the first active lane index of the vector predicate operands.
     // It produces the lane index across all unrolled iterations. Unrolling will
@@ -2361,7 +2386,8 @@ public:
 /// or stores into one wide load/store and shuffles. The first operand of a
 /// VPInterleave recipe is the address, followed by the stored values, followed
 /// by an optional mask.
-class LLVM_ABI_FOR_TEST VPInterleaveRecipe : public VPRecipeBase {
+class LLVM_ABI_FOR_TEST VPInterleaveRecipe : public VPRecipeBase,
+                                             public VPIRMetadata {
   const InterleaveGroup<Instruction> *IG;
 
   /// Indicates if the interleave group is in a conditional block and requires a
@@ -2375,10 +2401,8 @@ class LLVM_ABI_FOR_TEST VPInterleaveRecipe : public VPRecipeBase {
 public:
   VPInterleaveRecipe(const InterleaveGroup<Instruction> *IG, VPValue *Addr,
                      ArrayRef<VPValue *> StoredValues, VPValue *Mask,
-                     bool NeedsMaskForGaps, DebugLoc DL)
-      : VPRecipeBase(VPDef::VPInterleaveSC, {Addr},
-                     DL),
-
+                     bool NeedsMaskForGaps, const VPIRMetadata &MD, DebugLoc DL)
+      : VPRecipeBase(VPDef::VPInterleaveSC, {Addr}, DL), VPIRMetadata(MD),
         IG(IG), NeedsMaskForGaps(NeedsMaskForGaps) {
     // TODO: extend the masked interleaved-group support to reversed access.
     assert((!Mask || !IG->isReverse()) &&
@@ -2401,7 +2425,7 @@ public:
 
   VPInterleaveRecipe *clone() override {
     return new VPInterleaveRecipe(IG, getAddr(), getStoredValues(), getMask(),
-                                  NeedsMaskForGaps, getDebugLoc());
+                                  NeedsMaskForGaps, *this, getDebugLoc());
   }
 
   VP_CLASSOF_IMPL(VPDef::VPInterleaveSC)
@@ -3238,8 +3262,8 @@ public:
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   /// Print the recipe.
-  void print(raw_ostream &O, const Twine &Indent,
-             VPSlotTracker &SlotTracker) const override;
+  LLVM_ABI_FOR_TEST void print(raw_ostream &O, const Twine &Indent,
+                               VPSlotTracker &SlotTracker) const override;
 #endif
 
   /// Returns the scalar type of the induction.
@@ -3338,8 +3362,8 @@ public:
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   /// Print the recipe.
-  void print(raw_ostream &O, const Twine &Indent,
-             VPSlotTracker &SlotTracker) const override;
+  LLVM_ABI_FOR_TEST void print(raw_ostream &O, const Twine &Indent,
+                               VPSlotTracker &SlotTracker) const override;
 #endif
 };
 
@@ -4051,6 +4075,10 @@ public:
   /// Returns VF * UF of the vector loop region.
   VPValue &getVFxUF() { return VFxUF; }
 
+  LLVMContext &getContext() const {
+    return getScalarHeader()->getIRBasicBlock()->getContext();
+  }
+
   void addVF(ElementCount VF) { VFs.insert(VF); }
 
   void setVF(ElementCount VF) {
@@ -4133,10 +4161,10 @@ public:
   void printLiveIns(raw_ostream &O) const;
 
   /// Print this VPlan to \p O.
-  void print(raw_ostream &O) const;
+  LLVM_ABI_FOR_TEST void print(raw_ostream &O) const;
 
   /// Print this VPlan in DOT format to \p O.
-  void printDOT(raw_ostream &O) const;
+  LLVM_ABI_FOR_TEST void printDOT(raw_ostream &O) const;
 
   /// Dump the plan to stderr (for debugging).
   LLVM_DUMP_METHOD void dump() const;
@@ -4163,7 +4191,7 @@ public:
 
   /// Clone the current VPlan, update all VPValues of the new VPlan and cloned
   /// recipes to refer to the clones, and return it.
-  VPlan *duplicate();
+  LLVM_ABI_FOR_TEST VPlan *duplicate();
 
   /// Create a new VPBasicBlock with \p Name and containing \p Recipe if
   /// present. The returned block is owned by the VPlan and deleted once the

@@ -11,7 +11,6 @@
 #include "Plugins/ExpressionParser/Clang/ClangASTMetadata.h"
 #include "Plugins/ExpressionParser/Clang/ClangUtil.h"
 #include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
-#include "Plugins/TypeSystem/Clang/ImporterBackedASTSource.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
@@ -25,7 +24,7 @@
 using namespace lldb_private;
 
 class lldb_private::AppleObjCExternalASTSource
-    : public ImporterBackedASTSource {
+    : public clang::ExternalASTSource {
 public:
   AppleObjCExternalASTSource(AppleObjCDeclVendor &decl_vendor)
       : m_decl_vendor(decl_vendor) {}
@@ -146,9 +145,9 @@ AppleObjCDeclVendor::AppleObjCDeclVendor(ObjCLanguageRuntime &runtime)
   m_ast_ctx = std::make_shared<TypeSystemClang>(
       "AppleObjCDeclVendor AST",
       runtime.GetProcess()->GetTarget().GetArchitecture().GetTriple());
-  m_external_source = new AppleObjCExternalASTSource(*this);
-  llvm::IntrusiveRefCntPtr<clang::ExternalASTSource> external_source_owning_ptr(
-      m_external_source);
+  auto external_source_owning_ptr =
+      llvm::makeIntrusiveRefCnt<AppleObjCExternalASTSource>(*this);
+  m_external_source = external_source_owning_ptr.get();
   m_ast_ctx->getASTContext().setExternalSource(external_source_owning_ptr);
 }
 

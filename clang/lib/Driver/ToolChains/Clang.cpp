@@ -41,6 +41,7 @@
 #include "llvm/Frontend/Debug/Options.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/ProfileData/InstrProfReader.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Compression.h"
@@ -502,19 +503,47 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
   }
 
   if (ProfileUseArg) {
+    SmallString<128> UsePathBuf;
+    StringRef UsePath;
     if (ProfileUseArg->getOption().matches(options::OPT_fprofile_instr_use_EQ))
-      CmdArgs.push_back(Args.MakeArgString(
-          Twine("-fprofile-instrument-use-path=") + ProfileUseArg->getValue()));
+      UsePath = ProfileUseArg->getValue();
     else if ((ProfileUseArg->getOption().matches(
                   options::OPT_fprofile_use_EQ) ||
               ProfileUseArg->getOption().matches(
                   options::OPT_fprofile_instr_use))) {
-      SmallString<128> Path(
-          ProfileUseArg->getNumValues() == 0 ? "" : ProfileUseArg->getValue());
-      if (Path.empty() || llvm::sys::fs::is_directory(Path))
-        llvm::sys::path::append(Path, "default.profdata");
+      UsePathBuf =
+          ProfileUseArg->getNumValues() == 0 ? "" : ProfileUseArg->getValue();
+      if (UsePathBuf.empty() || llvm::sys::fs::is_directory(UsePathBuf))
+        llvm::sys::path::append(UsePathBuf, "default.profdata");
+      UsePath = UsePathBuf;
+    }
+    auto ReaderOrErr =
+        llvm::IndexedInstrProfReader::create(UsePath, D.getVFS());
+    if (auto E = ReaderOrErr.takeError()) {
+      auto DiagID = D.getDiags().getCustomDiagID(
+          DiagnosticsEngine::Error, "Error in reading profile %0: %1");
+      llvm::handleAllErrors(std::move(E), [&](const llvm::ErrorInfoBase &EI) {
+        D.Diag(DiagID) << UsePath.str() << EI.message();
+      });
+    } else {
+      std::unique_ptr<llvm::IndexedInstrProfReader> PGOReader =
+          std::move(ReaderOrErr.get());
+      StringRef UseKind;
+      // Currently memprof profiles are only added at the IR level. Mark the
+      // profile type as IR in that case as well and the subsequent matching
+      // needs to detect which is available (might be one or both).
+      if (PGOReader->isIRLevelProfile() || PGOReader->hasMemoryProfile()) {
+        if (PGOReader->hasCSIRLevelProfile())
+          UseKind = "csllvm";
+        else
+          UseKind = "llvm";
+      } else
+        UseKind = "clang";
+
       CmdArgs.push_back(
-          Args.MakeArgString(Twine("-fprofile-instrument-use-path=") + Path));
+          Args.MakeArgString("-fprofile-instrument-use=" + UseKind));
+      CmdArgs.push_back(
+          Args.MakeArgString("-fprofile-instrument-use-path=" + UsePath));
     }
   }
 
@@ -7136,6 +7165,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
       CmdArgs.push_back("-fbounds-safety-unique-traps");
     }
   }
+
+  Args.AddLastArg(CmdArgs, options::OPT_fbounds_safety_debug_trap_reasons_EQ);
+  Args.AddLastArg(CmdArgs, options::OPT_fbounds_safety_soft_traps_EQ);
   /* TO_UPSTREAM(BoundsSafety) OFF*/
 
   // Handle -f[no-]wrapv and -f[no-]strict-overflow, which are used by both
@@ -8296,10 +8328,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
                        !TC.getTriple().isAndroid() && TC.useIntegratedAs()))
     CmdArgs.push_back("-faddrsig");
 
-  if ((Triple.isOSBinFormatELF() || Triple.isOSBinFormatMachO()) &&
+  const bool HasDefaultDwarf2CFIASM =
+      (Triple.isOSBinFormatELF() || Triple.isOSBinFormatMachO()) &&
       (EH || UnwindTables || AsyncUnwindTables ||
-       DebugInfoKind != llvm::codegenoptions::NoDebugInfo))
-    CmdArgs.push_back("-D__GCC_HAVE_DWARF2_CFI_ASM=1");
+       DebugInfoKind != llvm::codegenoptions::NoDebugInfo);
+  if (Args.hasFlag(options::OPT_fdwarf2_cfi_asm,
+                   options::OPT_fno_dwarf2_cfi_asm, HasDefaultDwarf2CFIASM))
+    CmdArgs.push_back("-fdwarf2-cfi-asm");
 
   if (Arg *A = Args.getLastArg(options::OPT_fsymbol_partition_EQ)) {
     std::string Str = A->getAsString(Args);

@@ -46,6 +46,9 @@
 using namespace lldb;
 using namespace lldb_private;
 
+// LLVM RTTI support.
+char StackFrame::ID;
+
 // The first bits in the flags are reserved for the SymbolContext::Scope bits
 // so we know if we have tried to look up information in our internal symbol
 // context (m_sc) already.
@@ -58,14 +61,14 @@ using namespace lldb_private;
 StackFrame::StackFrame(const ThreadSP &thread_sp, user_id_t frame_idx,
                        user_id_t unwind_frame_index, addr_t cfa,
                        bool cfa_is_valid, addr_t pc, StackFrame::Kind kind,
-                       bool behaves_like_zeroth_frame,
+                       bool artificial, bool behaves_like_zeroth_frame,
                        const SymbolContext *sc_ptr)
     : m_thread_wp(thread_sp), m_frame_index(frame_idx),
       m_concrete_frame_index(unwind_frame_index), m_reg_context_sp(),
       m_id(pc, cfa, nullptr, thread_sp->GetProcess().get()),
       m_frame_code_addr(pc), m_sc(), m_flags(), m_frame_base(),
       m_frame_base_error(), m_cfa_is_valid(cfa_is_valid),
-      m_stack_frame_kind(kind),
+      m_stack_frame_kind(kind), m_artificial(artificial),
       m_behaves_like_zeroth_frame(behaves_like_zeroth_frame),
       m_variable_list_sp(), m_variable_list_value_objects(),
       m_recognized_frame_sp(), m_disassembly(), m_mutex() {
@@ -93,7 +96,7 @@ StackFrame::StackFrame(const ThreadSP &thread_sp, user_id_t frame_idx,
       m_id(pc, cfa, nullptr, thread_sp->GetProcess().get()),
       m_frame_code_addr(pc), m_sc(), m_flags(), m_frame_base(),
       m_frame_base_error(), m_cfa_is_valid(true),
-      m_stack_frame_kind(StackFrame::Kind::Regular),
+      m_stack_frame_kind(StackFrame::Kind::Regular), m_artificial(false),
       m_behaves_like_zeroth_frame(behaves_like_zeroth_frame),
       m_variable_list_sp(), m_variable_list_value_objects(),
       m_recognized_frame_sp(), m_disassembly(), m_mutex() {
@@ -121,7 +124,7 @@ StackFrame::StackFrame(const ThreadSP &thread_sp, user_id_t frame_idx,
            nullptr, thread_sp->GetProcess().get()),
       m_frame_code_addr(pc_addr), m_sc(), m_flags(), m_frame_base(),
       m_frame_base_error(), m_cfa_is_valid(true),
-      m_stack_frame_kind(StackFrame::Kind::Regular),
+      m_stack_frame_kind(StackFrame::Kind::Regular), m_artificial(false),
       m_behaves_like_zeroth_frame(behaves_like_zeroth_frame),
       m_variable_list_sp(), m_variable_list_value_objects(),
       m_recognized_frame_sp(), m_disassembly(), m_mutex() {
@@ -328,6 +331,13 @@ StackFrame::GetSymbolContext(SymbolContextItem resolve_scope) {
     // following the function call instruction...
     Address lookup_addr(GetFrameCodeAddressForSymbolication());
 
+    // For PC-less frames (e.g., scripted frames), skip PC-based symbol
+    // resolution and preserve any already-populated SymbolContext fields.
+    if (!lookup_addr.IsValid()) {
+      m_flags.Set(resolve_scope | resolved);
+      return m_sc;
+    }
+
     if (m_sc.module_sp) {
       // We have something in our stack frame symbol context, lets check if we
       // haven't already tried to lookup one of those things. If we haven't
@@ -479,20 +489,13 @@ VariableList *StackFrame::GetVariableList(bool get_file_globals,
 }
 
 // BEGIN SWIFT
-// Implement LanguageCPlusPlus::GetParentNameIfClosure and upstream this.
-// rdar://152321823
-
-/// If `sc` represents a "closure-like" function according to `lang`, and
-/// `missing_var_name` can be found in a parent context, create a diagnostic
-/// explaining that this variable is available but not captured by the closure.
-static std::string
-GetVariableNotCapturedDiagnostic(SymbolContext &sc, SourceLanguage lang,
-                                 ConstString missing_var_name) {
-  Language *lang_plugin = Language::FindPlugin(lang.AsLanguageType());
+std::string
+StackFrame::GetVariableNotCapturedDiagnostic(llvm::StringRef missing_var_name) {
+  Language *lang_plugin = Language::FindPlugin(GetLanguage().AsLanguageType());
   if (lang_plugin == nullptr)
     return "";
   Function *parent_func =
-      lang_plugin->FindParentOfClosureWithVariable(missing_var_name, sc);
+      lang_plugin->FindParentOfClosureWithVariable(missing_var_name, m_sc);
   if (!parent_func)
     return "";
   return llvm::formatv("A variable named '{0}' existed in function '{1}', but "
@@ -708,8 +711,8 @@ ValueObjectSP StackFrame::LegacyGetValueForVariableExpressionPath(
     // BEGIN SWIFT
     // Implement LanguageCPlusPlus::GetParentNameIfClosure and upstream this.
     // rdar://152321823
-    if (std::string message = GetVariableNotCapturedDiagnostic(
-            m_sc, GetLanguage(), name_const_string);
+    if (std::string message =
+            GetVariableNotCapturedDiagnostic(name_const_string);
         !message.empty())
       error = Status::FromErrorString(message.c_str());
     else
@@ -1305,9 +1308,11 @@ bool StackFrame::IsHistorical() const {
   return m_stack_frame_kind == StackFrame::Kind::History;
 }
 
-bool StackFrame::IsArtificial() const {
-  return m_stack_frame_kind == StackFrame::Kind::Artificial;
+bool StackFrame::IsSynthetic() const {
+  return m_stack_frame_kind == StackFrame::Kind::Synthetic;
 }
+
+bool StackFrame::IsArtificial() const { return m_artificial; }
 
 bool StackFrame::IsHidden() {
   if (auto recognized_frame_sp = GetRecognizedFrame())
@@ -2113,10 +2118,10 @@ bool StackFrame::GetStatus(Stream &strm, bool show_frame_info, bool show_source,
       disasm_display = debugger.GetStopDisassemblyDisplay();
 
       GetSymbolContext(eSymbolContextCompUnit | eSymbolContextLineEntry);
-      if (m_sc.comp_unit && m_sc.line_entry.IsValid()) {
+      if (m_sc.comp_unit || m_sc.line_entry.IsValid()) {
         have_debuginfo = true;
         if (source_lines_before > 0 || source_lines_after > 0) {
-          SupportFileSP source_file_sp = m_sc.line_entry.file_sp;
+          SupportFileNSP source_file_sp = m_sc.line_entry.file_sp;
           uint32_t start_line = m_sc.line_entry.line;
           if (!start_line && m_sc.function) {
             m_sc.function->GetStartLineSourceInfo(source_file_sp, start_line);

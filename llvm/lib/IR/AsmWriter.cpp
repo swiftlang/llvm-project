@@ -2235,6 +2235,7 @@ static void writeDIBasicType(raw_ostream &Out, const DIBasicType *N,
   Printer.printString("name", N->getName());
   Printer.printMetadataOrInt("size", N->getRawSizeInBits(), true);
   Printer.printInt("align", N->getAlignInBits());
+  Printer.printInt("dataSize", N->getDataSizeInBits());
   Printer.printDwarfEnum("encoding", N->getEncoding(),
                          dwarf::AttributeEncodingString);
   Printer.printInt("num_extra_inhabitants", N->getNumExtraInhabitants());
@@ -4876,8 +4877,8 @@ void AssemblyWriter::printDbgVariableRecord(const DbgVariableRecord &DVR) {
   case DbgVariableRecord::LocationType::Declare:
     Out << "declare";
     break;
-  case DbgVariableRecord::LocationType::CoroFrameEntry:
-    Out << "coroframe_entry";
+  case DbgVariableRecord::LocationType::DeclareValue:
+    Out << "declare_value";
     break;
   case DbgVariableRecord::LocationType::Assign:
     Out << "assign";

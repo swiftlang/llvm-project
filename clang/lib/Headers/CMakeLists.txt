@@ -4,6 +4,9 @@
 set(core_files
   builtins.h
   float.h
+  __float_float.h
+  __float_header_macro.h
+  __float_infinity_nan.h
   inttypes.h
   iso646.h
   limits.h
@@ -337,6 +340,7 @@ set(files
 
 # TO_UPSTREAM(BoundsSafety)
 list(APPEND files ptrcheck.h)
+list(APPEND files bounds_safety_soft_traps.h)
 
 # TO_UPSTREAM(Lifetimebound)
 list(APPEND files lifetimebound.h)

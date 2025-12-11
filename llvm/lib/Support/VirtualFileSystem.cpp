@@ -22,6 +22,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/CAS/CASReference.h"
+#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Chrono.h"
@@ -113,36 +114,17 @@ bool Status::exists() const {
 
 File::~File() = default;
 
-llvm::ErrorOr<std::optional<cas::ObjectRef>> File::getObjectRefForContent() {
-  return std::nullopt;
-}
-
 FileSystem::~FileSystem() = default;
 
 ErrorOr<std::unique_ptr<MemoryBuffer>>
 FileSystem::getBufferForFile(const llvm::Twine &Name, int64_t FileSize,
                              bool RequiresNullTerminator, bool IsVolatile,
-                             bool IsText,
-                             std::optional<cas::ObjectRef> *CASContents) {
+                             bool IsText) {
   auto F = IsText ? openFileForRead(Name) : openFileForReadBinary(Name);
   if (!F)
     return F.getError();
-  if (CASContents) {
-    auto CASRef = (*F)->getObjectRefForContent();
-    if (!CASRef)
-      return CASRef.getError();
-    *CASContents = *CASRef;
-  }
 
   return (*F)->getBuffer(Name, FileSize, RequiresNullTerminator, IsVolatile);
-}
-
-llvm::ErrorOr<std::optional<cas::ObjectRef>>
-FileSystem::getObjectRefForFileContent(const Twine &Name) {
-  auto F = openFileForRead(Name);
-  if (!F)
-    return F.getError();
-  return (*F)->getObjectRefForContent();
 }
 
 std::error_code FileSystem::makeAbsolute(SmallVectorImpl<char> &Path) const {
@@ -153,7 +135,7 @@ std::error_code FileSystem::makeAbsolute(SmallVectorImpl<char> &Path) const {
   if (!WorkingDir)
     return WorkingDir.getError();
 
-  llvm::sys::fs::make_absolute(WorkingDir.get(), Path);
+  sys::path::make_absolute(WorkingDir.get(), Path);
   return {};
 }
 
@@ -320,7 +302,7 @@ private:
     if (!WD || !*WD)
       return Path;
     Path.toVector(Storage);
-    sys::fs::make_absolute(WD->get().Resolved, Storage);
+    sys::path::make_absolute(WD->get().Resolved, Storage);
     return Storage;
   }
 
@@ -1927,7 +1909,12 @@ private:
           FullPath = FS->getOverlayFileDir();
           assert(!FullPath.empty() &&
                  "External contents prefix directory must exist");
-          llvm::sys::path::append(FullPath, Value);
+          SmallString<256> AbsFullPath = Value;
+          if (FS->makeAbsolute(FullPath, AbsFullPath)) {
+            error(N, "failed to make 'external-contents' absolute");
+            return nullptr;
+          }
+          FullPath = AbsFullPath;
         } else {
           FullPath = Value;
         }
@@ -1992,7 +1979,7 @@ private:
           EC = FS->makeAbsolute(FullPath, Name);
           Name = canonicalize(Name);
         } else {
-          EC = sys::fs::make_absolute(Name);
+          EC = FS->makeAbsolute(Name);
         }
         if (EC) {
           assert(NameValueNode && "Name presence should be checked earlier");
@@ -2223,7 +2210,7 @@ RedirectingFileSystem::create(std::unique_ptr<MemoryBuffer> Buffer,
     //  FS->OverlayFileDir => /<absolute_path_to>/dummy.cache/vfs
     //
     SmallString<256> OverlayAbsDir = sys::path::parent_path(YAMLFilePath);
-    std::error_code EC = llvm::sys::fs::make_absolute(OverlayAbsDir);
+    std::error_code EC = FS->makeAbsolute(OverlayAbsDir);
     assert(!EC && "Overlay dir final path must be absolute");
     (void)EC;
     FS->setOverlayFileDir(OverlayAbsDir);
@@ -2553,6 +2540,33 @@ public:
   void setPath(const Twine &Path) override { S = S.copyWithNewName(S, Path); }
 };
 
+
+class CASFileWithFixedStatus : public cas::CASBackedFile {
+  std::unique_ptr<cas::CASBackedFile> InnerFile;
+  Status S;
+
+public:
+  CASFileWithFixedStatus(std::unique_ptr<CASBackedFile> InnerFile, Status S)
+      : InnerFile(std::move(InnerFile)), S(std::move(S)) {}
+
+  ErrorOr<Status> status() override { return S; }
+  ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
+
+  getBuffer(const Twine &Name, int64_t FileSize, bool RequiresNullTerminator,
+            bool IsVolatile) override {
+    return InnerFile->getBuffer(Name, FileSize, RequiresNullTerminator,
+                                IsVolatile);
+  }
+
+  std::error_code close() override { return InnerFile->close(); }
+
+  void setPath(const Twine &Path) override { S = S.copyWithNewName(S, Path); }
+
+  cas::ObjectRef getObjectRefForContent() override {
+    return InnerFile->getObjectRefForContent();
+  }
+};
+
 } // namespace
 
 ErrorOr<std::unique_ptr<File>>
@@ -2626,6 +2640,12 @@ RedirectingFileSystem::openFileForRead(const Twine &OriginalPath) {
   // replace the underlying path if the external name is being used.
   Status S = getRedirectedFileStatus(
       OriginalPath, RE->useExternalName(UseExternalNames), *ExternalStatus);
+
+  if (std::unique_ptr<cas::CASBackedFile> CASFile =
+          dyn_cast<cas::CASBackedFile>(*ExternalFile)) {
+    return std::unique_ptr<File>(
+        std::make_unique<CASFileWithFixedStatus>(std::move(CASFile), S));
+  }
   return std::unique_ptr<File>(
       std::make_unique<FileWithFixedStatus>(std::move(*ExternalFile), S));
 }
@@ -2726,19 +2746,9 @@ static void getVFSEntries(RedirectingFileSystem::Entry *SrcE,
   Entries.push_back(YAMLVFSEntry(VPath.c_str(), FE->getExternalContentsPath()));
 }
 
-void vfs::collectVFSFromYAML(std::unique_ptr<MemoryBuffer> Buffer,
-                             SourceMgr::DiagHandlerTy DiagHandler,
-                             StringRef YAMLFilePath,
-                             SmallVectorImpl<YAMLVFSEntry> &CollectedEntries,
-                             void *DiagContext,
-                             IntrusiveRefCntPtr<FileSystem> ExternalFS) {
-  std::unique_ptr<RedirectingFileSystem> VFS = RedirectingFileSystem::create(
-      std::move(Buffer), DiagHandler, YAMLFilePath, DiagContext,
-      std::move(ExternalFS));
-  if (!VFS)
-    return;
-  ErrorOr<RedirectingFileSystem::LookupResult> RootResult =
-      VFS->lookupPath("/");
+void vfs::collectVFSEntries(RedirectingFileSystem &VFS,
+                            SmallVectorImpl<YAMLVFSEntry> &CollectedEntries) {
+  ErrorOr<RedirectingFileSystem::LookupResult> RootResult = VFS.lookupPath("/");
   if (!RootResult)
     return;
   SmallVector<StringRef, 8> Components;
@@ -3003,9 +3013,14 @@ void TracingFileSystem::printImpl(raw_ostream &OS, PrintType Type,
   getUnderlyingFS().print(OS, Type, IndentLevel + 1);
 }
 
+const char File::ID = 0;
 const char FileSystem::ID = 0;
 const char OverlayFileSystem::ID = 0;
 const char ProxyFileSystem::ID = 0;
 const char InMemoryFileSystem::ID = 0;
 const char RedirectingFileSystem::ID = 0;
 const char TracingFileSystem::ID = 0;
+
+// FIXME: Temporarily put the CASBackedFile::ID in Support library to workaround
+// the layer issue that `dyn_cast` check for the type needs to happen here.
+const char cas::CASBackedFile::ID = 0;

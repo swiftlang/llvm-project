@@ -627,8 +627,8 @@ static bool loadModuleMapForModuleBuild(CompilerInstance &CI, bool IsSystem,
   }
 
   // Load the module map file.
-  if (HS.parseAndLoadModuleMapFile(*ModuleMap, IsSystem, ModuleMapID, &Offset,
-                                   PresumedModuleMapFile))
+  if (HS.loadModuleMapFile(*ModuleMap, IsSystem, ModuleMapID, &Offset,
+                           PresumedModuleMapFile))
     return true;
 
   if (SrcMgr.getBufferOrFake(ModuleMapID).getBufferSize() == Offset)
@@ -892,11 +892,11 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   // If we're replaying the build of an AST file, import it and set up
   // the initial state from its build.
   if (ReplayASTFile) {
-    IntrusiveRefCntPtr<DiagnosticsEngine> Diags(&CI.getDiagnostics());
+    IntrusiveRefCntPtr<DiagnosticsEngine> Diags = CI.getDiagnosticsPtr();
 
     // The AST unit populates its own diagnostics engine rather than ours.
-    IntrusiveRefCntPtr<DiagnosticsEngine> ASTDiags(new DiagnosticsEngine(
-        Diags->getDiagnosticIDs(), Diags->getDiagnosticOptions()));
+    auto ASTDiags = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(
+        Diags->getDiagnosticIDs(), Diags->getDiagnosticOptions());
     ASTDiags->setClient(Diags->getClient(), /*OwnsClient*/false);
 
     // FIXME: What if the input is a memory buffer?
@@ -904,7 +904,8 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
 
     std::unique_ptr<ASTUnit> AST = ASTUnit::LoadFromASTFile(
         InputFile, CI.getPCHContainerReader(), ASTUnit::LoadPreprocessorOnly,
-        nullptr, ASTDiags, CI.getFileSystemOpts(), CI.getHeaderSearchOpts());
+        CI.getVirtualFileSystemPtr(), nullptr, ASTDiags, CI.getFileSystemOpts(),
+        CI.getHeaderSearchOpts());
     if (!AST)
       return false;
 
@@ -916,8 +917,9 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
 
     // Set the shared objects, these are reset when we finish processing the
     // file, otherwise the CompilerInstance will happily destroy them.
-    CI.setFileManager(&AST->getFileManager());
-    CI.createSourceManager(CI.getFileManager());
+    CI.setVirtualFileSystem(AST->getFileManager().getVirtualFileSystemPtr());
+    CI.setFileManager(AST->getFileManagerPtr());
+    CI.createSourceManager();
     CI.getSourceManager().initializeForReplay(AST->getSourceManager());
 
     // Preload all the module files loaded transitively by the AST unit. Also
@@ -964,15 +966,15 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     assert(hasASTFileSupport() &&
            "This action does not have AST file support!");
 
-    IntrusiveRefCntPtr<DiagnosticsEngine> Diags(&CI.getDiagnostics());
+    IntrusiveRefCntPtr<DiagnosticsEngine> Diags = CI.getDiagnosticsPtr();
 
     // FIXME: What if the input is a memory buffer?
     StringRef InputFile = Input.getFile();
 
     std::unique_ptr<ASTUnit> AST = ASTUnit::LoadFromASTFile(
-        InputFile, CI.getPCHContainerReader(), ASTUnit::LoadEverything, nullptr,
-        Diags, CI.getFileSystemOpts(), CI.getHeaderSearchOpts(),
-        &CI.getLangOpts());
+        InputFile, CI.getPCHContainerReader(), ASTUnit::LoadEverything,
+        CI.getVirtualFileSystemPtr(), nullptr, Diags, CI.getFileSystemOpts(),
+        CI.getHeaderSearchOpts(), &CI.getLangOpts());
 
     if (!AST)
       return false;
@@ -983,13 +985,14 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
 
     // Set the shared objects, these are reset when we finish processing the
     // file, otherwise the CompilerInstance will happily destroy them.
-    CI.setFileManager(&AST->getFileManager());
-    CI.setSourceManager(&AST->getSourceManager());
+    CI.setVirtualFileSystem(AST->getFileManager().getVirtualFileSystemPtr());
+    CI.setFileManager(AST->getFileManagerPtr());
+    CI.setSourceManager(AST->getSourceManagerPtr());
     CI.setPreprocessor(AST->getPreprocessorPtr());
     Preprocessor &PP = CI.getPreprocessor();
     PP.getBuiltinInfo().initializeBuiltins(PP.getIdentifierTable(),
                                            PP.getLangOpts());
-    CI.setASTContext(&AST->getASTContext());
+    CI.setASTContext(AST->getASTContextPtr());
 
     setCurrentInput(Input, std::move(AST));
 
@@ -1006,14 +1009,13 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     return true;
   }
 
-  // Set up the file and source managers, if needed.
-  if (!CI.hasFileManager()) {
-    if (!CI.createFileManager()) {
-      return false;
-    }
-  }
+  // Set up the file system, file and source managers, if needed.
+  if (!CI.hasVirtualFileSystem())
+    CI.createVirtualFileSystem();
+  if (!CI.hasFileManager())
+    CI.createFileManager();
   if (!CI.hasSourceManager()) {
-    CI.createSourceManager(CI.getFileManager());
+    CI.createSourceManager();
     if (CI.getDiagnosticOpts().getFormat() == DiagnosticOptions::SARIF) {
       static_cast<SARIFDiagnosticPrinter *>(&CI.getDiagnosticClient())
           ->setSarifWriter(
@@ -1248,8 +1250,8 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   // If we were asked to load any module map files, do so now.
   for (const auto &Filename : CI.getFrontendOpts().ModuleMapFiles) {
     if (auto File = CI.getFileManager().getOptionalFileRef(Filename))
-      CI.getPreprocessor().getHeaderSearchInfo().parseAndLoadModuleMapFile(
-          *File, /*IsSystem*/ false);
+      CI.getPreprocessor().getHeaderSearchInfo().loadModuleMapFile(
+          *File, /*IsSystem*/false);
     else
       CI.getDiagnostics().Report(diag::err_module_map_not_found) << Filename;
   }
@@ -1257,7 +1259,8 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   // Provide any modules from the action cache.
   for (const auto &KeyPair : CI.getFrontendOpts().ModuleCacheKeys)
     if (CI.addCachedModuleFile(KeyPair.first, KeyPair.second,
-                               "-fmodule-file-cache-key"))
+                               "-fmodule-file-cache-key",
+                               /*IsKey=*/true))
       return false;
 
 
@@ -1295,11 +1298,12 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
 
     if (!CI.getPreprocessorOpts().ChainedIncludes.empty()) {
       // Convert headers to PCH and chain them.
-      IntrusiveRefCntPtr<ExternalSemaSource> source, FinalReader;
+      IntrusiveRefCntPtr<ExternalSemaSource> source;
+      IntrusiveRefCntPtr<ASTReader> FinalReader;
       source = createChainedIncludesSource(CI, FinalReader);
       if (!source)
         return false;
-      CI.setASTReader(static_cast<ASTReader *>(FinalReader.get()));
+      CI.setASTReader(FinalReader);
       CI.getASTContext().setExternalSource(source);
     } else if (CI.getLangOpts().Modules ||
                !CI.getPreprocessorOpts().ImplicitPCHInclude.empty() ||
@@ -1321,9 +1325,10 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
             DeserialListener, DeleteDeserialListener);
         DeleteDeserialListener = true;
       }
+      std::string PCHCASID;
       if (!CI.getPreprocessorOpts().ImplicitPCHInclude.empty() ||
           IncludeTreePCH) {
-        StringRef PCHPath;
+        std::string PCHPath;
         DisableValidationForModuleKind DisableValidation;
         std::unique_ptr<llvm::MemoryBuffer> PCHBuffer;
         if (IncludeTreePCH) {
@@ -1332,7 +1337,11 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
           if (llvm::Error E =
                   IncludeTreePCH->getMemoryBuffer().moveInto(PCHBuffer))
             return reportError(std::move(E));
-          PCHPath = PCHBuffer->getBufferIdentifier();
+          auto PCHFile = IncludeTreePCH->getContents();
+          if (!PCHFile)
+            return reportError(PCHFile.takeError());
+          PCHCASID = PCHFile->getID().toString();
+          PCHPath = PCHCASID;
         } else {
           PCHPath = CI.getPreprocessorOpts().ImplicitPCHInclude;
           DisableValidation =
@@ -1344,6 +1353,12 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
             DeserialListener, DeleteDeserialListener, std::move(PCHBuffer));
         if (!CI.getASTContext().getExternalSource())
           return false;
+
+        // After loading PCH, set its CASID for content.
+        if (!PCHCASID.empty()) {
+          auto &MF = CI.getASTReader()->getModuleManager().getPrimaryModule();
+          MF.CASID = PCHCASID;
+        }
       }
       // If modules are enabled, create the AST reader before creating
       // any builtins, so that all declarations know that they might be
@@ -1395,23 +1410,21 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   // provides the layouts from that file.
   if (!CI.getFrontendOpts().OverrideRecordLayoutsFile.empty() &&
       CI.hasASTContext() && !CI.getASTContext().getExternalSource()) {
-    IntrusiveRefCntPtr<ExternalASTSource>
-      Override(new LayoutOverrideSource(
-                     CI.getFrontendOpts().OverrideRecordLayoutsFile));
+    auto Override = llvm::makeIntrusiveRefCnt<LayoutOverrideSource>(
+        CI.getFrontendOpts().OverrideRecordLayoutsFile);
     CI.getASTContext().setExternalSource(Override);
   }
 
   // Setup HLSL External Sema Source
   if (CI.getLangOpts().HLSL && CI.hasASTContext()) {
-    IntrusiveRefCntPtr<ExternalSemaSource> HLSLSema(
-        new HLSLExternalSemaSource());
-    if (auto *SemaSource = dyn_cast_if_present<ExternalSemaSource>(
-            CI.getASTContext().getExternalSource())) {
-      IntrusiveRefCntPtr<ExternalSemaSource> MultiSema(
-          new MultiplexExternalSemaSource(SemaSource, HLSLSema.get()));
-      CI.getASTContext().setExternalSource(MultiSema);
+    auto HLSLSema = llvm::makeIntrusiveRefCnt<HLSLExternalSemaSource>();
+    if (auto SemaSource = dyn_cast_if_present<ExternalSemaSource>(
+            CI.getASTContext().getExternalSourcePtr())) {
+      auto MultiSema = llvm::makeIntrusiveRefCnt<MultiplexExternalSemaSource>(
+          std::move(SemaSource), std::move(HLSLSema));
+      CI.getASTContext().setExternalSource(std::move(MultiSema));
     } else
-      CI.getASTContext().setExternalSource(HLSLSema);
+      CI.getASTContext().setExternalSource(std::move(HLSLSema));
   }
 
   FailureCleanup.release();
@@ -1539,7 +1552,6 @@ void ASTFrontendAction::ExecuteAction() {
 
   if (!CI.hasSema())
     CI.createSema(getTranslationUnitKind(), CompletionConsumer);
-
   ParseAST(CI.getSema(), CI.getFrontendOpts().ShowStats,
            CI.getFrontendOpts().SkipFunctionBodies);
 }

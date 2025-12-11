@@ -1474,10 +1474,6 @@ let IntrProperties = [IntrNoMem, IntrSpeculatable] in {
                                         llvm_metadata_ty]>;
   def int_dbg_label        : DefaultAttrsIntrinsic<[],
                                        [llvm_metadata_ty]>;
-  def int_dbg_coroframe_entry : DefaultAttrsIntrinsic<[],
-                                       [llvm_metadata_ty,
-                                        llvm_metadata_ty,
-                                        llvm_metadata_ty]>;
 }
 
 //===------------------ Exception Handling Intrinsics----------------------===//
@@ -1771,7 +1767,7 @@ def int_coro_id_retcon_once : Intrinsic<[llvm_token_ty],
     []>;
 def int_coro_id_retcon_once_dynamic : Intrinsic<[llvm_token_ty],
     [llvm_i32_ty, llvm_i32_ty, llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
-     llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty],
+     llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty, llvm_i64_ty],
     []>;
 def int_coro_alloc : Intrinsic<[llvm_i1_ty], [llvm_token_ty], []>;
 def int_coro_id_async : Intrinsic<[llvm_token_ty],
@@ -1818,8 +1814,11 @@ def int_coro_prepare_retcon : Intrinsic<[llvm_ptr_ty], [llvm_ptr_ty],
                                         [IntrNoMem]>;
 def int_coro_alloca_alloc : Intrinsic<[llvm_token_ty],
                                       [llvm_anyint_ty, llvm_i32_ty], []>;
+def int_coro_alloca_alloc_frame : Intrinsic<[llvm_token_ty],
+                                      [llvm_anyint_ty, llvm_i32_ty, llvm_i64_ty], []>;
 def int_coro_alloca_get : Intrinsic<[llvm_ptr_ty], [llvm_token_ty], []>;
 def int_coro_alloca_free : Intrinsic<[], [llvm_token_ty], []>;
+def int_coro_alloca_free_frame : Intrinsic<[], [llvm_token_ty], []>;
 
 // Coroutine Manipulation Intrinsics.
 

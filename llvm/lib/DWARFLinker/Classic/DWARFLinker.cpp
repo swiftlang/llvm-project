@@ -150,22 +150,84 @@ static bool isTypeTag(uint16_t Tag) {
   return false;
 }
 
-bool DWARFLinker::DIECloner::getDIENames(const DWARFDie &Die,
-                                         AttributesInfo &Info,
-                                         OffsetsStringPool &StringPool,
-                                         bool StripTemplate) {
+/// Recurse through the input DIE's canonical references until we find a
+/// DW_AT_name.
+llvm::StringRef
+DWARFLinker::DIECloner::getCanonicalDIEName(DWARFDie Die, const DWARFFile &File,
+                                            CompileUnit *Unit) {
+  if (!Die)
+    return {};
+
+  std::optional<DWARFFormValue> Ref;
+
+  auto GetDieName = [](const DWARFDie &D) -> llvm::StringRef {
+    auto NameForm = D.find(llvm::dwarf::DW_AT_name);
+    if (!NameForm)
+      return {};
+
+    auto NameOrErr = NameForm->getAsCString();
+    if (!NameOrErr) {
+      llvm::consumeError(NameOrErr.takeError());
+      return {};
+    }
+
+    return *NameOrErr;
+  };
+
+  llvm::StringRef Name = GetDieName(Die);
+  if (!Name.empty())
+    return Name;
+
+  while (true) {
+    if (!(Ref = Die.find(llvm::dwarf::DW_AT_specification)) &&
+        !(Ref = Die.find(llvm::dwarf::DW_AT_abstract_origin)))
+      break;
+
+    Die = Linker.resolveDIEReference(File, CompileUnits, *Ref, Die, Unit);
+    if (!Die)
+      break;
+
+    assert(Unit);
+
+    unsigned SpecIdx = Unit->getOrigUnit().getDIEIndex(Die);
+    CompileUnit::DIEInfo &SpecInfo = Unit->getInfo(SpecIdx);
+    if (SpecInfo.Ctxt && SpecInfo.Ctxt->hasCanonicalDIE()) {
+      if (!SpecInfo.Ctxt->getCanonicalName().empty()) {
+        Name = SpecInfo.Ctxt->getCanonicalName();
+        break;
+      }
+    }
+
+    Name = GetDieName(Die);
+    if (!Name.empty())
+      break;
+  }
+
+  return Name;
+}
+
+bool DWARFLinker::DIECloner::getDIENames(
+    const DWARFDie &Die, AttributesInfo &Info, OffsetsStringPool &StringPool,
+    const DWARFFile &File, CompileUnit &Unit, bool StripTemplate) {
   // This function will be called on DIEs having low_pcs and
   // ranges. As getting the name might be more expansive, filter out
   // blocks directly.
   if (Die.getTag() == dwarf::DW_TAG_lexical_block)
     return false;
 
+  // The mangled name of an specification DIE will by virtue of the
+  // uniquing algorithm be the same as the one it got uniqued into.
+  // So just use the input DIE's linkage name.
   if (!Info.MangledName)
     if (const char *MangledName = Die.getLinkageName())
       Info.MangledName = StringPool.getEntry(MangledName);
 
+  // For subprograms with linkage names, we unique on the linkage name,
+  // so DW_AT_name's may differ between the input and canonical DIEs.
+  // Use the name of the canonical DIE.
   if (!Info.Name)
-    if (const char *Name = Die.getShortName())
+    if (llvm::StringRef Name = getCanonicalDIEName(Die, File, &Unit);
+        !Name.empty())
       Info.Name = StringPool.getEntry(Name);
 
   if (!Info.MangledName)
@@ -1827,7 +1889,7 @@ DIE *DWARFLinker::DIECloner::cloneDIE(const DWARFDie &InputDIE,
   // accelerator tables too. For now stick with dsymutil's behavior.
   if ((Info.InDebugMap || AttrInfo.HasLowPc || AttrInfo.HasRanges) &&
       Tag != dwarf::DW_TAG_compile_unit &&
-      getDIENames(InputDIE, AttrInfo, DebugStrPool,
+      getDIENames(InputDIE, AttrInfo, DebugStrPool, File, Unit,
                   Tag != dwarf::DW_TAG_inlined_subroutine)) {
     if (AttrInfo.MangledName && AttrInfo.MangledName != AttrInfo.Name)
       Unit.addNameAccelerator(Die, AttrInfo.MangledName,
@@ -1850,7 +1912,7 @@ DIE *DWARFLinker::DIECloner::cloneDIE(const DWARFDie &InputDIE,
   } else if (Tag == dwarf::DW_TAG_imported_declaration && AttrInfo.Name) {
     Unit.addNamespaceAccelerator(Die, AttrInfo.Name);
   } else if (isTypeTag(Tag) && !AttrInfo.IsDeclaration) {
-    bool Success = getDIENames(InputDIE, AttrInfo, DebugStrPool);
+    bool Success = getDIENames(InputDIE, AttrInfo, DebugStrPool, File, Unit);
     uint64_t RuntimeLang =
         dwarf::toUnsigned(InputDIE.find(dwarf::DW_AT_APPLE_runtime_class))
             .value_or(0);
@@ -2611,6 +2673,7 @@ bool DWARFLinker::registerModuleReference(const DWARFDie &CUDie,
                                           LinkContext &Context,
                                           ObjFileLoaderTy Loader,
                                           CompileUnitHandlerTy OnCUDieLoaded,
+                                          CASLoaderTy CASLoader,
                                           unsigned Indent) {
   std::string PCMFile = getPCMFile(CUDie, Options.ObjectPrefixMap);
   std::pair<bool, bool> IsClangModuleRef =
@@ -2630,47 +2693,62 @@ bool DWARFLinker::registerModuleReference(const DWARFDie &CUDie,
   ClangModules.insert({PCMFile, getDwoId(CUDie)});
 
   if (Error E = loadClangModule(Loader, CUDie, PCMFile, Context, OnCUDieLoaded,
-                                Indent + 2)) {
+                                CASLoader, Indent + 2)) {
     consumeError(std::move(E));
     return false;
   }
   return true;
 }
 
-Error DWARFLinker::loadClangModule(
-    ObjFileLoaderTy Loader, const DWARFDie &CUDie, const std::string &PCMFile,
-    LinkContext &Context, CompileUnitHandlerTy OnCUDieLoaded, unsigned Indent) {
+Error DWARFLinker::loadClangModule(ObjFileLoaderTy Loader,
+                                   const DWARFDie &CUDie,
+                                   const std::string &PCMFile,
+                                   LinkContext &Context,
+                                   CompileUnitHandlerTy OnCUDieLoaded,
+                                   CASLoaderTy CASLoader, unsigned Indent) {
 
   uint64_t DwoId = getDwoId(CUDie);
   std::string ModuleName = dwarf::toString(CUDie.find(dwarf::DW_AT_name), "");
 
-  /// Using a SmallString<0> because loadClangModule() is recursive.
-  SmallString<0> Path(Options.PrependPath);
-  if (sys::path::is_relative(PCMFile))
-    resolveRelativeObjectPath(Path, CUDie);
-  sys::path::append(Path, PCMFile);
-  // Don't use the cached binary holder because we have no thread-safety
-  // guarantee and the lifetime is limited.
-
-  if (Loader == nullptr) {
-    reportError("Could not load clang module: loader is not specified.\n",
-                Context.File);
-    return Error::success();
+  DWARFFile *PCM = nullptr;
+  if (CASLoader) {
+    auto LoadPCM = CASLoader(PCMFile, Context.File.FileName);
+    if (!LoadPCM)
+      return LoadPCM.takeError();
+    PCM = *LoadPCM;
   }
 
-  auto ErrOrObj = Loader(Context.File.FileName, Path);
-  if (!ErrOrObj)
-    return Error::success();
+  if (!PCM) {
+    /// Using a SmallString<0> because loadClangModule() is recursive.
+    SmallString<0> Path(Options.PrependPath);
+    if (sys::path::is_relative(PCMFile))
+      resolveRelativeObjectPath(Path, CUDie);
+    sys::path::append(Path, PCMFile);
+    // Don't use the cached binary holder because we have no thread-safety
+    // guarantee and the lifetime is limited.
+
+    if (Loader == nullptr) {
+      reportError("Could not load clang module: loader is not specified.\n",
+                  Context.File);
+      return Error::success();
+    }
+
+    auto ErrOrObj = Loader(Context.File.FileName, Path);
+    if (!ErrOrObj)
+      return Error::success();
+
+    PCM = &*ErrOrObj;
+  }
 
   std::unique_ptr<CompileUnit> Unit;
-  for (const auto &CU : ErrOrObj->Dwarf->compile_units()) {
+  for (const auto &CU : PCM->Dwarf->compile_units()) {
     OnCUDieLoaded(*CU);
     // Recursively get all modules imported by this one.
     auto ChildCUDie = CU->getUnitDIE();
     if (!ChildCUDie)
       continue;
     if (!registerModuleReference(ChildCUDie, Context, Loader, OnCUDieLoaded,
-                                 Indent)) {
+                                 CASLoader, Indent)) {
       if (Unit) {
         std::string Err =
             (PCMFile +
@@ -2700,7 +2778,7 @@ Error DWARFLinker::loadClangModule(
   }
 
   if (Unit)
-    Context.ModuleUnits.emplace_back(RefModuleUnit{*ErrOrObj, std::move(Unit)});
+    Context.ModuleUnits.emplace_back(RefModuleUnit{*PCM, std::move(Unit)});
 
   return Error::success();
 }
@@ -2807,7 +2885,8 @@ void DWARFLinker::copyInvariantDebugSection(DWARFContext &Dwarf) {
 }
 
 void DWARFLinker::addObjectFile(DWARFFile &File, ObjFileLoaderTy Loader,
-                                CompileUnitHandlerTy OnCUDieLoaded) {
+                                CompileUnitHandlerTy OnCUDieLoaded,
+                                CASLoaderTy CASLoader) {
   ObjectContexts.emplace_back(LinkContext(File));
 
   if (ObjectContexts.back().File.Dwarf) {
@@ -2822,7 +2901,7 @@ void DWARFLinker::addObjectFile(DWARFFile &File, ObjFileLoaderTy Loader,
 
       if (!LLVM_UNLIKELY(Options.Update))
         registerModuleReference(CUDie, ObjectContexts.back(), Loader,
-                                OnCUDieLoaded);
+                                OnCUDieLoaded, CASLoader);
     }
   }
 }

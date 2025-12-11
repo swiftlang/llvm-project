@@ -188,6 +188,25 @@ public:
               ///< larger debug info than `Basic`.
   };
 
+  /* TO_UPSTREAM(BoundsSafety) ON*/
+  enum class BoundsSafetyTrapModeKind {
+    Hard,                   ///< Emit a fatal trap instruction (default).
+    SoftCallWithTrapString, ///< Emit a non-fatal call. The call
+                            ///< is passed a string description of the failed
+                            ///< bounds check.
+    SoftCallMinimal,        ///< Emit a non-fatal call. The call
+                            ///< has no arguments. The reason for trapping is
+                            ///< intended to be inferred from the trap reason
+                            ///< being embedded in the debug info.
+  };
+
+  /// The name of the function to call for BoundsSafety soft traps. This is used
+  /// with `BoundsSafetyTrapModeKind::SoftCallWithTrapString` and
+  // `BoundsSafetyTrapModeKind::SoftCallMinimal`.
+  std::string BoundsSafetySoftTrapFuncName;
+
+  /* TO_UPSTREAM(BoundsSafety) OFF*/
+
   /// The code model to use (-mcmodel).
   std::string CodeModel;
 

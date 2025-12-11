@@ -154,7 +154,7 @@ public:
   bool IsBoundsSafetyBidiIndexable() const;
   /* TO_UPSTREAM(BoundsSafety) OFF */
 
-  bool IsFloatingPointType(uint32_t &count, bool &is_complex) const;
+  bool IsFloatingPointType(bool &is_complex) const;
 
   bool IsFunctionType() const;
 
@@ -433,7 +433,7 @@ public:
   std::optional<uint64_t>
   GetByteStride(ExecutionContextScope *exe_scope) const;
   
-  lldb::Encoding GetEncoding(uint64_t &count) const;
+  lldb::Encoding GetEncoding() const;
 
   lldb::Format GetFormat() const;
 

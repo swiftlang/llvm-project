@@ -47,7 +47,7 @@ ModularizeUtilities::ModularizeUtilities(std::vector<std::string> &InputPaths,
       ProblemFilesPath(ProblemFilesListPath), HasModuleMap(false),
       MissingHeaderCount(0),
       // Init clang stuff needed for loading the module map and preprocessing.
-      LangOpts(new LangOptions()), DiagIDs(new DiagnosticIDs()),
+      LangOpts(new LangOptions()), DiagIDs(DiagnosticIDs::create()),
       DC(llvm::errs(), DiagnosticOpts),
       Diagnostics(new DiagnosticsEngine(DiagIDs, DiagnosticOpts, &DC, false)),
       TargetOpts(new ModuleMapTargetOptions()),
@@ -287,7 +287,7 @@ std::error_code ModularizeUtilities::loadModuleMap(
     Target.get(), *HeaderInfo));
 
   // Parse module.modulemap file into module map.
-  if (ModMap->parseAndLoadModuleMapFile(ModuleMapEntry, false, Dir)) {
+  if (ModMap->loadModuleMapFile(ModuleMapEntry, false, Dir)) {
     return std::error_code(1, std::generic_category());
   }
 

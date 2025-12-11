@@ -278,6 +278,9 @@ public:
 
   void ConfigureModuleValidation(std::vector<std::string> &extra_args);
 
+  /// Check whether a module with key \c key is available in CAS.
+  bool IsModuleAvailableInCAS(const std::string &key);
+
   /// Add a list of Clang arguments to the ClangImporter options and
   /// apply the working directory to any relative paths.
   void AddExtraClangArgs(
@@ -309,6 +312,12 @@ public:
 
   void SetPlatformSDKPath(llvm::StringRef path) {
     m_platform_sdk_path = path.str();
+  }
+
+  void SetCASStorage(std::shared_ptr<llvm::cas::ObjectStore> cas,
+                     std::shared_ptr<llvm::cas::ActionCache> action_cache) {
+    m_cas = std::move(cas);
+    m_action_cache = std::move(action_cache);
   }
 
   /// \return the ExtraArgs of the ClangImporterOptions.
@@ -501,7 +510,7 @@ public:
   static bool HasFatalErrors(swift::ASTContext *ast_context);
   bool HasFatalErrors() const {
     return m_logged_fatal_error || m_fatal_errors.Fail() ||
-           HasFatalErrors(m_ast_context_ap.get());
+           HasFatalErrors(m_ast_context_up.get());
   }
 
   /// Return only fatal errors.
@@ -727,8 +736,7 @@ public:
   GetByteStride(lldb::opaque_compiler_type_t type,
                 ExecutionContextScope *exe_scope) override;
 
-  lldb::Encoding GetEncoding(lldb::opaque_compiler_type_t type,
-                             uint64_t &count) override;
+  lldb::Encoding GetEncoding(lldb::opaque_compiler_type_t type) override;
 
   llvm::Expected<uint32_t>
   GetNumChildren(lldb::opaque_compiler_type_t type,
@@ -946,27 +954,28 @@ protected:
   /// Data members.
   /// @{
   std::weak_ptr<TypeSystemSwiftTypeRef> m_typeref_typesystem;
-  std::unique_ptr<swift::CompilerInvocation> m_compiler_invocation_ap;
+  std::unique_ptr<swift::CompilerInvocation> m_compiler_invocation_up;
   std::unique_ptr<swift::SourceManager> m_source_manager_up;
-  std::unique_ptr<swift::DiagnosticEngine> m_diagnostic_engine_ap;
+  std::unique_ptr<swift::DiagnosticEngine> m_diagnostic_engine_up;
   // CompilerInvocation, SourceMgr, and DiagEngine must come before
   // the ASTContext, so they get deallocated *after* the ASTContext.
-  std::unique_ptr<swift::ASTContext> m_ast_context_ap;
+  std::unique_ptr<swift::ASTContext> m_ast_context_up;
   std::recursive_mutex m_ast_context_mutex;
-  std::unique_ptr<llvm::TargetOptions> m_target_options_ap;
-  std::unique_ptr<swift::irgen::IRGenerator> m_ir_generator_ap;
-  std::unique_ptr<swift::irgen::IRGenModule> m_ir_gen_module_ap;
+  std::unique_ptr<llvm::TargetOptions> m_target_options_up;
+  std::unique_ptr<swift::irgen::IRGenerator> m_ir_generator_up;
+  std::unique_ptr<swift::irgen::IRGenModule> m_ir_gen_module_up;
   llvm::once_flag m_ir_gen_module_once;
   mutable std::once_flag m_swift_import_warning;
   mutable std::once_flag m_swift_warning_streamed;
-  std::unique_ptr<swift::DiagnosticConsumer> m_diagnostic_consumer_ap;
+  std::unique_ptr<swift::DiagnosticConsumer> m_diagnostic_consumer_up;
   std::unique_ptr<swift::DependencyTracker> m_dependency_tracker;
   swift::ModuleDecl *m_scratch_module = nullptr;
-  std::unique_ptr<swift::Lowering::TypeConverter> m_sil_types_ap;
-  std::unique_ptr<swift::SILModule> m_sil_module_ap;
+  std::unique_ptr<swift::Lowering::TypeConverter> m_sil_types_up;
+  std::unique_ptr<swift::SILModule> m_sil_module_up;
   /// Owned by the AST.
   swift::MemoryBufferSerializedModuleLoader *m_memory_buffer_module_loader =
       nullptr;
+  swift::ModuleLoader *m_explicit_swift_module_loader = nullptr;
   swift::ClangImporter *m_clangimporter = nullptr;
   /// Wraps the clang::ASTContext owned by ClangImporter.
   std::shared_ptr<TypeSystemClang> m_clangimporter_typesystem;
@@ -987,6 +996,9 @@ protected:
       library_load_cache;
   /// A cache for GetCompileUnitImports();
   llvm::DenseSet<std::pair<Module *, lldb::user_id_t>> m_cu_imports;
+  /// ObjectStore and ActionCache;
+  std::shared_ptr<llvm::cas::ObjectStore> m_cas;
+  std::shared_ptr<llvm::cas::ActionCache> m_action_cache;
 
   typedef std::map<Module *, std::vector<lldb::DataBufferSP>> ASTFileDataMap;
   ASTFileDataMap m_ast_file_data_map;
