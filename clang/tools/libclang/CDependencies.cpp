@@ -982,28 +982,28 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
                       "' include tree due to "
                << toString(std::move(Err));
     }
-  } else {
-    SmallString<128> VFSCachePath = FileCachePath;
-    llvm::sys::path::append(VFSCachePath, "vfs");
-    std::string VFSCachePathStr = VFSCachePath.str().str();
-    llvm::FileCollector FileCollector(VFSCachePathStr,
-                                      /*OverlayRoot=*/VFSCachePathStr);
-    for (const auto &FileDep : TU.FileDeps) {
-      FileCollector.addFile(FileDep);
-    }
-    for (ModuleDeps &ModuleDep : TU.ModuleGraph) {
-      ModuleDep.forEachFileDep([&FileCollector](StringRef FileDep) {
-        FileCollector.addFile(FileDep);
-      });
-    }
-    if (FileCollector.copyFiles(/*StopOnError=*/true))
-      return ReportFailure()
-             << "failed to copy the files used for the compilation";
-    SmallString<128> VFSOverlayPath = VFSCachePath;
-    llvm::sys::path::append(VFSOverlayPath, "vfs.yaml");
-    if (FileCollector.writeMapping(VFSOverlayPath))
-      return ReportFailure() << "failed to write a VFS overlay mapping";
+} else {
+  SmallString<128> VFSCachePath = FileCachePath;
+  llvm::sys::path::append(VFSCachePath, "vfs");
+  std::string VFSCachePathStr = VFSCachePath.str().str();
+  llvm::FileCollector FileCollector(VFSCachePathStr,
+                                    /*OverlayRoot=*/VFSCachePathStr, RealFS);
+  for (const auto &FileDep : TU.FileDeps) {
+    FileCollector.addFile(FileDep);
   }
+  for (ModuleDeps &ModuleDep : TU.ModuleGraph) {
+    ModuleDep.forEachFileDep([&FileCollector](StringRef FileDep) {
+      FileCollector.addFile(FileDep);
+    });
+  }
+  if (FileCollector.copyFiles(/*StopOnError=*/true))
+    return ReportFailure()
+           << "failed to copy the files used for the compilation";
+  SmallString<128> VFSOverlayPath = VFSCachePath;
+  llvm::sys::path::append(VFSOverlayPath, "vfs.yaml");
+  if (FileCollector.writeMapping(VFSOverlayPath))
+    return ReportFailure() << "failed to write a VFS overlay mapping";
+}
 
   return Report(CXError_Success)
          << "Created a reproducer. Sources and associated run script(s) are "
