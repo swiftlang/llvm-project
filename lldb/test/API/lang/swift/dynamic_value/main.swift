@@ -39,6 +39,22 @@ class YetAnotherClass : SomeOtherClass {
 		y = 0xDEAD
 	}
 }
+enum WhichClass {
+     case SomeClass
+     case SomeOtherClass
+     case YetAnotherClass
+}
+
+func MakeASomeClass(_ which : WhichClass) -> SomeClass {
+    switch which {
+      case .SomeClass:
+        return SomeClass()
+      case .SomeOtherClass:
+        return SomeOtherClass()
+      case .YetAnotherClass:
+        return YetAnotherClass()
+    }
+}
 
 class AWrapperClass {
 	var aWrappedObject : SomeClass
@@ -64,7 +80,9 @@ class Derived <A> : Base<A> {
 	}
 }
 
+
 func app() -> () {
+        var uses_make_a_some_class = MakeASomeClass(.SomeOtherClass)
 	var aWrapper = AWrapperClass()
 	var anItem : SomeClass = aWrapper.aWrappedObject
 	var aBase : Base<Int> = Derived(3)

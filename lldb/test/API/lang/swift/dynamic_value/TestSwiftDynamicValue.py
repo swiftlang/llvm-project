@@ -27,7 +27,7 @@ class SwiftDynamicValueTest(TestBase):
 
     def dynamic_val_commands(self):
         """Tests that dynamic values work correctly for Swift"""
-        lldbutil.run_to_source_breakpoint(self, "// Set a breakpoint here", lldb.SBFileSpec("main.swift"))
+        target, process, thread, _ = lldbutil.run_to_source_breakpoint(self, "// Set a breakpoint here", lldb.SBFileSpec("main.swift"))
 
         self.expect(
             "frame variable -d no-dynamic",
@@ -50,6 +50,30 @@ class SwiftDynamicValueTest(TestBase):
                 ".Base<Swift.Int> = {",
                 "v = 449493530",
                 "q = 3735928559"])
+
+        # Also test expression variables:
+        frame = thread.frames[0]
+
+        # Try a result variable:
+        varobj = frame.EvaluateExpression("MakeASomeClass(.YetAnotherClass)")
+        type = varobj.GetType()
+        self.assertIn("YetAnotherClass", type.name, "Expression result dynamic type")
+        z_var = varobj.GetChildMemberWithName("z")
+        self.assertTrue(z_var.error.success, "Got the z ivar")
+        z_val = z_var.GetValueAsSigned()
+        self.assertEqual(z_val, 0xBEEF, "z had the right value")
+
+        # Try a persistent expression variable as well:
+        self.runCmd("expr var $test_var = MakeASomeClass(.SomeOtherClass)")
+        persistent_var = frame.FindValue("$test_var", lldb.eValueTypeConstResult)
+        self.assertTrue(persistent_var.error.success, "Got $test_var")
+        type = persistent_var.GetType()
+        self.assertIn("SomeOtherClass", type.name, "Got the right class")
+        y_var = persistent_var.GetChildMemberWithName("y")
+        self.assertTrue(y_var.error.success, "Got the y ivar")
+        y_val = y_var.GetValueAsSigned()
+        self.assertEqual(y_val, 0xFF, "Got y_val correctly")
+        
         self.runCmd("continue")
         self.expect(
             "frame variable -d no-dynamic",
