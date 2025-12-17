@@ -58,5 +58,5 @@ class TestSwiftGenericEnumTypes(TestBase):
             value,
             use_dynamic=True,
             summary='"Now with Content"',
-            typename='Swift.Optional<Swift.String>')
+            typename='Swift.String')
 
