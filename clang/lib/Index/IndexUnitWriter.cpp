@@ -243,11 +243,10 @@ std::optional<bool> IndexUnitWriter::isUnitUpToDateForOutputFile(
   SmallString<256> UnitPath;
   getUnitPathForOutputFile(FilePath, UnitPath);
 
-  auto &VFS = FileMgr.getVirtualFileSystem();
+  auto BypassSandbox = sys::sandbox::scopedDisable();
 
-  auto UnitStatOrErr = VFS.status(UnitPath);
-  if (!UnitStatOrErr) {
-    std::error_code EC = UnitStatOrErr.getError();
+  llvm::sys::fs::file_status UnitStat;
+  if (std::error_code EC = llvm::sys::fs::status(UnitPath.c_str(), UnitStat)) {
     if (EC != llvm::errc::no_such_file_or_directory && EC != llvm::errc::delete_pending) {
       llvm::raw_string_ostream Err(Error);
       Err << "could not access path '" << UnitPath
@@ -260,9 +259,8 @@ std::optional<bool> IndexUnitWriter::isUnitUpToDateForOutputFile(
   if (!TimeCompareFilePath)
     return true;
 
-  auto CompareStatOrErr = VFS.status(*TimeCompareFilePath);
-  if (!CompareStatOrErr) {
-    std::error_code EC = CompareStatOrErr.getError();
+  llvm::sys::fs::file_status CompareStat;
+  if (std::error_code EC = llvm::sys::fs::status(*TimeCompareFilePath, CompareStat)) {
     if (EC != llvm::errc::no_such_file_or_directory && EC != llvm::errc::delete_pending) {
       llvm::raw_string_ostream Err(Error);
       Err << "could not access path '" << *TimeCompareFilePath
@@ -274,8 +272,7 @@ std::optional<bool> IndexUnitWriter::isUnitUpToDateForOutputFile(
 
   // Return true (unit is up-to-date) if the file to compare is older than the
   // unit file.
-  return CompareStatOrErr->getLastModificationTime() <=
-         UnitStatOrErr->getLastModificationTime();
+  return CompareStat.getLastModificationTime() <= UnitStat.getLastModificationTime();
 }
 
 void IndexUnitWriter::getUnitNameForAbsoluteOutputFile(StringRef FilePath,
