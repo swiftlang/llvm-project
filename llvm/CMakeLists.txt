@@ -886,7 +886,11 @@ option (LLVM_ENABLE_TELEMETRY "Enable the telemetry library. If set to OFF, libr
 
 option(LLVM_CAS_ENABLE_REMOTE_CACHE "Build remote CAS service" OFF)
 if(LLVM_CAS_ENABLE_REMOTE_CACHE)
+  # There's a `c-ares` library whose CMake file sets the `PACKAGE_VERSION` variable.
+  # Preserve the original `PACKAGE_VERSION` value and restore it.
+  set(PACKAGE_VERSION_PREV "${PACKAGE_VERSION}")
   include(FindGRPC)
+  set(PACKAGE_VERSION "${PACKAGE_VERSION_PREV}")
 endif()
 
 set(LLVM_INSTALL_DOXYGEN_HTML_DIR "${CMAKE_INSTALL_DOCDIR}/llvm/doxygen-html"
