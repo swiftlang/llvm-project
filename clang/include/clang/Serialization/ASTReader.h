@@ -244,7 +244,7 @@ public:
   /// \returns true to continue receiving the next input file, false to stop.
   virtual bool visitInputFile(StringRef FilenameAsRequested, StringRef Filename,
                               bool isSystem, bool isOverridden,
-                              bool isExplicitModule) {
+                              time_t StoredTime, bool isExplicitModule) {
     return true;
   }
 

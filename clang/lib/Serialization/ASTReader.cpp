@@ -6015,6 +6015,7 @@ bool ASTReader::readASTFileControlBlock(
         case INPUT_FILE_HASH:
           break;
         case INPUT_FILE:
+          time_t StoredTime = static_cast<time_t>(Record[2]);
           bool Overridden = static_cast<bool>(Record[3]);
           auto [UnresolvedFilenameAsRequested, UnresolvedFilename] =
               getUnresolvedInputFilenames(Record, Blob);
@@ -6030,7 +6031,7 @@ bool ASTReader::readASTFileControlBlock(
           }
           shouldContinue = Listener.visitInputFile(
               *FilenameAsRequestedBuf, Filename, isSystemFile, Overridden,
-              /*IsExplicitModule=*/false);
+              StoredTime, /*IsExplicitModule=*/false);
           break;
         }
         if (!shouldContinue)

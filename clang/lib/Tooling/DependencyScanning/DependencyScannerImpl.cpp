@@ -120,7 +120,7 @@ public:
   /// stable directory. Traversal is stopped if the current module is not
   /// considered stable.
   bool visitInputFile(StringRef FilenameAsRequested, StringRef Filename,
-                      bool isSystem, bool isOverridden,
+                      bool isSystem, bool isOverridden, time_t StoredTime,
                       bool isExplicitModule) override {
     if (StableDirs.empty())
       return false;
