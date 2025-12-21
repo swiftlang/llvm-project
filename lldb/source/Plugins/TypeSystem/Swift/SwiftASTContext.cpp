@@ -1925,8 +1925,8 @@ void SwiftASTContext::AddExtraClangCC1Args(
     const std::vector<std::pair<std::string, bool>> framework_search_paths,
     std::vector<std::string> &dest) {
   clang::CompilerInvocation invocation;
-  std::vector<std::string> default_paths = {"/usr/include",
-                                            "/user/local/include"};
+  std::vector<std::string> default_paths = {
+      "/usr/include", "/usr/local/include", "/usr/lib/swift/shims"};
   llvm::SmallVector<const char *> clangArgs;
   clangArgs.reserve(source.size() + module_search_paths.size() * 2 +
                     framework_search_paths.size() * 2 +
@@ -1982,34 +1982,42 @@ void SwiftASTContext::AddExtraClangCC1Args(
   invocation.getHeaderSearchOpts().ModuleCachePath =
       GetCompilerInvocation().getClangModuleCachePath().str();
 
-  bool use_cas_module = m_cas && m_action_cache;
-  if (use_cas_module) {
-    // Load from CAS.
-    invocation.getCASOpts().CASPath = GetCASOptions().CASOpts.CASPath;
-    invocation.getCASOpts().PluginPath = GetCASOptions().CASOpts.PluginPath;
-    invocation.getCASOpts().PluginOptions =
-        GetCASOptions().CASOpts.PluginOptions;
-
-    use_cas_module = llvm::all_of(
-        invocation.getFrontendOpts().ModuleCacheKeys, [&](const auto &entry) {
-          bool exist = IsModuleAvailableInCAS(entry.second);
-          if (!exist)
-            HEALTH_LOG_PRINTF("module '%s' cannot be load "
-                              "from CAS using key: %s, fallback to "
-                              "load from file system",
-                              entry.first.c_str(), entry.second.c_str());
-          return exist;
-        });
-  }
-
-  if (!use_cas_module) {
-    // Clear module cache key and other CAS options to load modules from disk
-    // directly.
+  auto ClearCASOptions = [&]() {
     invocation.getFrontendOpts().ModuleCacheKeys.clear();
     invocation.getCASOpts() = clang::CASOptions();
-
-    // Ignore CAS info inside modules when loading.
     invocation.getFrontendOpts().ModuleLoadIgnoreCAS = true;
+  };
+
+  bool use_cas_modules = m_cas && m_action_cache &&
+                         !invocation.getFrontendOpts().ModuleCacheKeys.empty();
+  if (use_cas_modules) {
+    if (llvm::all_of(invocation.getFrontendOpts().ModuleCacheKeys,
+                     [&](const auto &entry) {
+                       if (!IsModuleAvailableInCAS(entry.second)) {
+                         std::string warn;
+                         llvm::raw_string_ostream(warn)
+                             << "Failed to load module '" << entry.first
+                             << "' from CAS using key: " << entry.second;
+                         AddDiagnostic(eSeverityWarning, warn);
+                         return false;
+                       }
+                       return true;
+                     })) {
+      // Load from CAS.
+      invocation.getCASOpts().CASPath = GetCASOptions().CASOpts.CASPath;
+      invocation.getCASOpts().PluginPath = GetCASOptions().CASOpts.PluginPath;
+      invocation.getCASOpts().PluginOptions =
+          GetCASOptions().CASOpts.PluginOptions;
+    } else {
+      // Failed to load from CAS.
+      ClearCASOptions();
+      invocation.getHeaderSearchOpts().PrebuiltModuleFiles.clear();
+      invocation.getFrontendOpts().ModuleFiles.clear();
+    }
+  } else {
+    // Clear module cache key and other CAS options to load modules from disk
+    // directly.
+    ClearCASOptions();
 
     // Remove non-existing modules in a systematic way.
     auto CheckFileExists = [&](const std::string &file) -> bool {
@@ -3853,12 +3861,27 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
   // 2. Create the explicit swift module loader.
   if (props.GetUseSwiftExplicitModuleLoader()) {
     auto &search_path_opts = GetCompilerInvocation().getSearchPathOptions();
-    std::unique_ptr<swift::ModuleLoader> esml_up =
-        swift::ExplicitSwiftModuleLoader::create(
-            *m_ast_context_up, m_dependency_tracker.get(), loading_mode,
+    std::unique_ptr<swift::ModuleLoader> esml_up = nullptr;
+    if (m_cas && m_action_cache) {
+      if (auto casid = m_cas->parseID(search_path_opts.ExplicitSwiftModuleMapPath)) {
+        esml_up = swift::ExplicitCASModuleLoader::create(
+            *m_ast_context_up, *m_cas, *m_action_cache,
+            m_dependency_tracker.get(), loading_mode,
             search_path_opts.ExplicitSwiftModuleMapPath,
             search_path_opts.ExplicitSwiftModuleInputs,
             /*IgnoreSwiftSourceInfo*/ false);
+      } else {
+        // Not CASID, ignore error and treat as a file based moduel map.
+        llvm::consumeError(casid.takeError());
+      }
+    }
+    if (!esml_up) {
+      esml_up = swift::ExplicitSwiftModuleLoader::create(
+          *m_ast_context_up, m_dependency_tracker.get(), loading_mode,
+          search_path_opts.ExplicitSwiftModuleMapPath,
+          search_path_opts.ExplicitSwiftModuleInputs,
+          /*IgnoreSwiftSourceInfo*/ false);
+    }
     if (esml_up) {
       m_explicit_swift_module_loader =
           static_cast<swift::ExplicitSwiftModuleLoader *>(esml_up.get());
