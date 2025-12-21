@@ -1,3 +1,6 @@
+// REQUIRES: rdar16330424
+// This test relies on C23 - WG14 N3037 implementation.
+
 // RUN: %clang_cc1 -std=c23 -verify %s
 
 /* WG14 N3006: Yes

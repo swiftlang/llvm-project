@@ -3,29 +3,19 @@
 
 #define CFI_UNCHECKED_CALLEE __attribute__((cfi_unchecked_callee))
 
-#if __STDC_VERSION__ >= 202311L
-// expected-no-diagnostics
-#endif
-
-#if __STDC_VERSION__ < 202311L
-// expected-note@+2 2 {{previous definition is here}}
-#endif
+// expected-note@+1 2 {{previous definition is here}}
 struct field_attr_test {
   void (CFI_UNCHECKED_CALLEE *func)(void);
 };
 
-#if __STDC_VERSION__ < 202311L
-// expected-error@+2{{redefinition of 'field_attr_test'}}
-#endif
+// expected-error@+1{{redefinition of 'field_attr_test'}}
 struct field_attr_test {
   void (CFI_UNCHECKED_CALLEE *func)(void);
 };
 
 typedef void (CFI_UNCHECKED_CALLEE func_t)(void);
 
-#if __STDC_VERSION__ < 202311L
-// expected-error@+2{{redefinition of 'field_attr_test'}}
-#endif
+// expected-error@+1{{redefinition of 'field_attr_test'}}
 struct field_attr_test {
   func_t *func;
 };
