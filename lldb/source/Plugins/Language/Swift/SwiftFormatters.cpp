@@ -262,6 +262,8 @@ static bool makeStringGutsSummary(
   /*
   On 64-bit platforms, the discriminator is the most significant 4 bits of the
   bridge object.
+  On Android AArch64, the most significant byte is reserved by the OS. The
+  discriminator is in the next most significant 4 bits.
 
   ┌─────────────────────╥─────┬─────┬─────┬─────┐
   │ Form                ║ b63 │ b62 │ b61 │ b60 │
@@ -324,10 +326,18 @@ static bool makeStringGutsSummary(
  count: stores the number of code units, corresponds to `endIndex`.
   */
 
-  uint8_t discriminator = raw1 >> 56;
+  uint64_t discriminatorShift = 56;
+  TargetSP target_sp = valobj.GetTargetSP();
+  if (target_sp) {
+    const llvm::Triple &triple = target_sp->GetArchitecture().GetTriple();
+    if (triple.isAndroid() && triple.getArch() == llvm::Triple::aarch64)
+      discriminatorShift = 48;
+  }
+
+  uint8_t discriminator = raw1 >> discriminatorShift;
 
   if ((discriminator & 0b1011'0000) == 0b1010'0000) { // 1x10xxxx: Small string
-    uint64_t count = (raw1 >> 56) & 0b1111;
+    uint64_t count = discriminator & 0b1111;
     uint64_t maxCount = (ptrSize == 8 ? 15 : 10);
     if (count > maxCount)
       return error("count > maxCount");
@@ -349,7 +359,8 @@ static bool makeStringGutsSummary(
 
   uint64_t count = raw0 & 0x0000FFFFFFFFFFFF;
   uint16_t flags = raw0 >> 48;
-  lldb::addr_t objectAddress = (raw1 & 0x0FFFFFFFFFFFFFFF);
+  uint64_t addressMask = ~((uint64_t)0b1111'0000 << discriminatorShift);
+  lldb::addr_t objectAddress = raw1 & addressMask;
   // Catch a zero-initialized string.
   if (!objectAddress) {
     stream << "<uninitialized>";
