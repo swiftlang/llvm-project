@@ -72,6 +72,7 @@ MaskMaybeBridgedPointer(Process &process, lldb::addr_t addr,
                         lldb::addr_t *masked_bits = nullptr) {
   const ArchSpec &arch_spec(process.GetTarget().GetArchitecture());
   const llvm::Triple &triple = arch_spec.GetTriple();
+  bool is_android = triple.isAndroid();
   bool is_arm = false;
   bool is_intel = false;
   bool is_s390x = false;
@@ -100,7 +101,9 @@ MaskMaybeBridgedPointer(Process &process, lldb::addr_t addr,
 
   lldb::addr_t mask = 0;
 
-  if (is_arm && is_64)
+  if (is_arm && is_64 && is_android)
+    mask = SWIFT_ABI_ANDROID_ARM64_SWIFT_SPARE_BITS_MASK;
+  else if (is_arm && is_64)
     mask = SWIFT_ABI_ARM64_SWIFT_SPARE_BITS_MASK;
   else if (is_arm && is_32)
     mask = SWIFT_ABI_ARM_SWIFT_SPARE_BITS_MASK;
@@ -3423,6 +3426,8 @@ SwiftLanguageRuntime::FixupPointerValue(lldb::addr_t addr, CompilerType type) {
   llvm::Triple triple = target.GetArchitecture().GetTriple();
   switch (triple.getArch()) {
   case llvm::Triple::ArchType::aarch64:
+    if (triple.isAndroid())
+      return {addr & ~SWIFT_ABI_ANDROID_ARM64_SWIFT_SPARE_BITS_MASK, false};
     return {addr & ~SWIFT_ABI_ARM64_SWIFT_SPARE_BITS_MASK, false};
   case llvm::Triple::ArchType::arm:
     return {addr & ~SWIFT_ABI_ARM_SWIFT_SPARE_BITS_MASK, false};
