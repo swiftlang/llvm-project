@@ -17,13 +17,13 @@
 #include <vector>
 
 namespace llvm {
-  class BitstreamWriter;
+class BitstreamWriter;
 }
 
 namespace clang {
-  class FileEntry;
-  class FileManager;
-  class PathRemapper;
+class FileEntry;
+class FileManager;
+class PathRemapper;
 
 namespace index {
 
@@ -41,7 +41,8 @@ struct ModuleInfo {
   StringRef Name;
 };
 
-typedef llvm::function_ref<ModuleInfo(OpaqueModule, SmallVectorImpl<char> &Scratch)>
+typedef llvm::function_ref<ModuleInfo(OpaqueModule,
+                                      SmallVectorImpl<char> &Scratch)>
     ModuleInfoWriterCallback;
 } // end namespace writer
 
@@ -63,7 +64,8 @@ class IndexUnitWriter {
   std::string SysrootPath;
   const PathRemapper &Remapper;
   std::function<writer::ModuleInfo(writer::OpaqueModule,
-                            SmallVectorImpl<char> &Scratch)> GetInfoForModuleFn;
+                                   SmallVectorImpl<char> &Scratch)>
+      GetInfoForModuleFn;
   struct FileInclude {
     int Index;
     unsigned Line;
@@ -113,9 +115,17 @@ public:
                             bool withoutUnitName = false);
   void addUnitDependency(StringRef UnitFile, OptionalFileEntryRef File,
                          bool IsSystem, writer::OpaqueModule Mod);
-  bool addInclude(const FileEntry *Source, unsigned Line, const FileEntry *Target);
+  bool addInclude(const FileEntry *Source, unsigned Line,
+                  const FileEntry *Target);
 
   bool write(std::string &Error);
+
+  /// Set the provider version for this unit.
+  /// This allows overriding the provider version after construction,
+  /// which is useful for setting compiler version information.
+  void setProviderVersion(StringRef Version) {
+    ProviderVersion = std::string(Version);
+  }
 
   void getUnitNameForOutputFile(StringRef FilePath, SmallVectorImpl<char> &Str);
   void getUnitPathForOutputFile(StringRef FilePath, SmallVectorImpl<char> &Str);
@@ -125,7 +135,8 @@ public:
   isUnitUpToDateForOutputFile(StringRef FilePath,
                               std::optional<StringRef> TimeCompareFilePath,
                               std::string &Error);
-  static void getUnitNameForAbsoluteOutputFile(StringRef FilePath, SmallVectorImpl<char> &Str,
+  static void getUnitNameForAbsoluteOutputFile(StringRef FilePath,
+                                               SmallVectorImpl<char> &Str,
                                                const PathRemapper &Remapper);
   static bool initIndexDirectory(StringRef StorePath, std::string &Error);
 
