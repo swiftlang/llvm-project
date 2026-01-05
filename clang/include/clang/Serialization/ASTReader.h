@@ -2020,14 +2020,12 @@ public:
 
   /// Determine whether the given AST file is acceptable to load into a
   /// translation unit with the given language and target options.
-  static bool isAcceptableASTFile(StringRef Filename, FileManager &FileMgr,
-                                  const ModuleCache &ModCache,
-                                  const PCHContainerReader &PCHContainerRdr,
-                                  const LangOptions &LangOpts,
-                                  const TargetOptions &TargetOpts,
-                                  const PreprocessorOptions &PPOpts,
-                                  StringRef ExistingModuleCachePath,
-                                  bool RequireStrictOptionMatches = false);
+  static bool isAcceptableASTFile(
+      StringRef Filename, FileManager &FileMgr, const ModuleCache &ModCache,
+      const PCHContainerReader &PCHContainerRdr, const LangOptions &LangOpts,
+      const TargetOptions &TargetOpts, const PreprocessorOptions &PPOpts,
+      const HeaderSearchOptions &HSOpts, StringRef ExistingModuleCachePath,
+      bool RequireStrictOptionMatches = false);
 
   /// Returns the suggested contents of the predefines buffer,
   /// which contains a (typically-empty) subset of the predefines
