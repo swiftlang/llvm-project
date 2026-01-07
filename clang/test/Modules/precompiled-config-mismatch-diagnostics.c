@@ -26,7 +26,7 @@
 // RUN:   -include-pch %t/BuildDir/h1.h.pch \
 // RUN:   %t/client.c 2>&1 | FileCheck %s --check-prefix=CACHEPATH
 
-// OPTMODE: OptimizationLevel differs in precompiled file
+// OPTMODE: __OPTIMIZE__ predefined macro was disabled in precompiled file '{{.*}}' but is currently enabled
 // CONFIG: h1.h.pch' cannot be loaded due to a configuration mismatch
 // CACHEPATH: h1.h.pch' was compiled with module cache path '{{.*}}', but the path is currently '{{.*}}'
 
