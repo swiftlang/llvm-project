@@ -18,6 +18,7 @@
 #define LLVM_ADT_STLFORWARDCOMPAT_H
 
 #include <optional>
+#include <tuple>
 #include <type_traits>
 
 namespace llvm {
@@ -48,6 +49,15 @@ struct type_identity // NOLINT(readability-identifier-naming)
 template <typename T>
 using type_identity_t // NOLINT(readability-identifier-naming)
     = typename llvm::type_identity<T>::type;
+
+/// C++20 constexpr invoke. This uses `std::apply` (constexpr in C++17) to
+/// achieve constexpr invocation.
+template <typename FnT, typename... ArgsT>
+constexpr std::invoke_result_t<FnT, ArgsT...>
+invoke(FnT &&Fn, ArgsT &&...Args) { // NOLINT(readability-identifier-naming)
+  return std::apply(std::forward<FnT>(Fn),
+                    std::forward_as_tuple(std::forward<ArgsT>(Args)...));
+}
 
 //===----------------------------------------------------------------------===//
 //     Features from C++23
