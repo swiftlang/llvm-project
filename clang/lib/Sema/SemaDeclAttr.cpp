@@ -2524,6 +2524,17 @@ AvailabilityAttr *Sema::mergeAvailabilityAttr(
   return nullptr;
 }
 
+namespace clang {
+
+/// Returns true if the given availability attribute should be inferred, and
+/// adjusts the value of the attribute as necessary to facilitate that.
+bool shouldInferAvailabilityAttribute(
+    const llvm::Triple &TT, const DarwinSDKInfo *SDKInfo,
+    const ASTContext &Context, IdentifierInfo *&II, bool &IsUnavailable,
+    VersionTuple &Introduced, VersionTuple &Deprecated, VersionTuple &Obsolete);
+
+} // end namespace clang
+
 static void handleFeatureAvailabilityAttr(Sema &S, Decl *D,
                                           const ParsedAttr &AL) {
   if (S.getLangOpts().CPlusPlus) {
@@ -2704,6 +2715,32 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       AvailabilityMergeKind::None, PriorityModifier, IIEnvironment);
   if (NewAttr)
     D->addAttr(NewAttr);
+
+  /* TO_UPSTREAM(XROS) ON */
+  if (S.Context.getTargetInfo().getTriple().getOS() == llvm::Triple::XROS) {
+    // Infer availability attributes using platform-specific logic, driven by
+    // the SDKSettings if necessary.
+    IdentifierInfo *NewII = II;
+    bool NewIsUnavailable = IsUnavailable;
+    VersionTuple NewIntroduced = Introduced.Version;
+    VersionTuple NewDeprecated = Deprecated.Version;
+    VersionTuple NewObsoleted = Obsoleted.Version;
+    if (shouldInferAvailabilityAttribute(S.Context.getTargetInfo().getTriple(),
+                                         S.getDarwinSDKInfoForAvailabilityChecking(AL.getRange().getBegin(), "ios"),
+                                         S.Context, NewII,
+                                         NewIsUnavailable, NewIntroduced,
+                                         NewDeprecated, NewObsoleted)) {
+      AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(
+          ND, AL, NewII, true /*Implicit*/, NewIntroduced, NewDeprecated,
+          NewObsoleted, NewIsUnavailable, Str, IsStrict, Replacement,
+          AvailabilityMergeKind::None, PriorityModifier + Sema::AP_InferredFromOtherPlatform,
+          IIEnvironment);
+      if (NewAttr)
+        D->addAttr(NewAttr);
+    }
+  }
+
+  /* TO_UPSTREAM(XROS) OFF */
 
   // Transcribe "ios" to "watchos" (and add a new attribute) if the versioning
   // matches before the start of the watchOS platform.

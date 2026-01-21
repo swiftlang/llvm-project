@@ -1,0 +1,47 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "clang/AST/ASTContext.h"
+#include "clang/Basic/DarwinSDKInfo.h"
+#include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LLVM.h"
+#include "llvm/Support/VersionTuple.h"
+#include "llvm/TargetParser/Triple.h"
+
+namespace clang {
+
+/// Returns true if the given availability attribute should be inferred, and
+/// adjusts the value of the attribute as necessary to facilitate that.
+bool shouldInferAvailabilityAttribute(const llvm::Triple &TT,
+                                      const DarwinSDKInfo *SDKInfo,
+                                      const ASTContext &Context,
+                                      IdentifierInfo *&II,
+                                      bool &IsUnavailable,
+                                      VersionTuple &Introduced,
+                                      VersionTuple &Deprecated,
+                                      VersionTuple &Obsolete) {
+  for (const auto &f : {
+    // function ptr promotion
+    +([] (const llvm::Triple &TT,
+    const DarwinSDKInfo *SDKInfo,
+    const ASTContext &Context,
+    IdentifierInfo *&II,
+    bool &IsUnavailable,
+    VersionTuple &Introduced,
+    VersionTuple &Deprecated,
+    VersionTuple &Obsolete) -> bool { return false; }),
+    @TEMPLATE_INCLUDES_INFER_AVAILABILITY_ATTRIBUTE@
+  }) {
+    if (f(TT, SDKInfo, Context, II, IsUnavailable, Introduced, Deprecated,
+          Obsolete))
+      return true;
+  }
+  return false;
+}
+
+} // end namespace clang

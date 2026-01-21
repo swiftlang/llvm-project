@@ -170,6 +170,10 @@ if ("flang" IN_LIST LLVM_ENABLE_PROJECTS)
   endif ()
 endif()
 
+# This variable is referenced for generating custom platform support before it can be recognized
+# in SDKSettings. It also helps drive fall-back availability inferences that is often used for platform bringup.
+set(LLVM_SUPPORTED_PLATFORMS "xros" CACHE STRING "Additional supported platfroms")
+
 if ("lldb" IN_LIST LLVM_ENABLE_PROJECTS)
   if (NOT "clang" IN_LIST LLVM_ENABLE_PROJECTS)
     message(STATUS "Enabling clang as a dependency of lldb")

@@ -69,6 +69,11 @@ config.have_vc_rev = @LLVM_APPEND_VC_REV@
 config.force_vc_rev = "@LLVM_FORCE_VC_REVISION@"
 config.has_logf128 = @LLVM_HAS_LOGF128@
 
+# Add additional features for each additional supported platform.
+for platform in "@LLVM_SUPPORTED_PLATFORMS@".split(';'):
+    if platform:
+        config.available_features.add('platform-' + platform)
+
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
 

@@ -53,6 +53,11 @@ config.substitutions.append(("%llvm-version-major", "@LLVM_VERSION_MAJOR@"))
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
+# Add additional features for each additional supported platform.
+for platform in "@LLVM_SUPPORTED_PLATFORMS@".split(';'):
+    if platform:
+        config.available_features.add('platform-' + platform)
+
 # Let the main config do the real work.
 lit_config.load_config(
     config, os.path.join(config.clang_src_dir, "test/lit.cfg.py"))
