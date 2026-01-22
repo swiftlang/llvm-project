@@ -46,6 +46,10 @@ let Definition = "modulelist" in {
     Global,
     DefaultFalse,
     Desc<"Enable on demand symbol loading in LLDB. LLDB will load debug info on demand for each module based on various conditions (e.g. matched breakpoint, resolved stack frame addresses and matched global variables/function symbols in symbol table) to improve performance. Please refer to docs/use/ondemand.rst for details.">;
+  def InjectVarLocListError: Property<"inject-variable-location-error", "Boolean">,
+    Global,
+    DefaultFalse,
+    Desc<"Used for testing LLDB only. Hide locations of local variables.">;
 }
 
 let Definition = "debugger" in {

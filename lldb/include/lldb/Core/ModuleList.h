@@ -88,12 +88,10 @@ public:
   uint64_t GetLLDBIndexCacheExpirationDays();
   FileSpec GetLLDBIndexCachePath() const;
   bool SetLLDBIndexCachePath(const FileSpec &path);
-
-  bool GetLoadSymbolOnDemand();
-
+  bool GetLoadSymbolOnDemand() const;
   lldb::SymbolDownload GetSymbolAutoDownload() const;
-
   PathMappingList GetSymlinkMappings() const;
+  bool GetInjectVarLocListError() const;
 };
 
 /// \class ModuleList ModuleList.h "lldb/Core/ModuleList.h"
