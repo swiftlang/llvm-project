@@ -1,6 +1,5 @@
 // Test generating a reproducer for a modular build where required modules are
 // built explicitly as separate steps.
-// REQUIRES: shell
 
 // RUN: rm -rf %t
 // RUN: split-file %s %t
