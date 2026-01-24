@@ -14,9 +14,13 @@
 // RUN:            -verify -fexperimental-bounds-safety-attributes %t/interop_test.cpp
 // RUN: %clang_cc1 -std=c++20 -Wno-all -Wunsafe-buffer-usage-in-libc-call -Wno-gcc-compat\
 // RUN:            -verify -fexperimental-bounds-safety-attributes %t/test.cpp -DTEST_STD_NS
+// RUN: %clang_cc1 -std=c++20 -Wno-all -Wunsafe-buffer-usage -Wunsafe-buffer-usage-in-format-attr-call -Wno-gcc-compat\
+// RUN:            -verify %t/format_attr_test.cpp
+// RUN: %clang_cc1 -std=c++20 -Wno-all -Wunsafe-buffer-usage -Wunsafe-buffer-usage-in-format-attr-call -Wno-gcc-compat\
+// RUN:            -verify -fexperimental-bounds-safety-attributes %t/format_attr_test.cpp
 
 
-//--- test.cpp
+//--- test.h
 typedef struct {} FILE;
 typedef unsigned int size_t;
 
@@ -88,6 +92,10 @@ namespace std {
   typedef basic_string_view<char> string_view;
   typedef basic_string_view<wchar_t> wstring_view;
 }
+
+//--- test.cpp
+
+#include "test.h"
 
 void f(char * p, char * q, std::span<char> s, std::span<char> s2) {
   typedef FILE * _Nullable aligned_file_ptr_t __attribute__((align_value(64)));
@@ -271,7 +279,9 @@ void dontCrashForInvalidFormatString() {
   snprintf(nullptr, 0, "\0");
 }
 
+//--- format_attr_test.cpp
 
+#include "test.h"
 // Also warn about unsafe printf/scanf-like functions:
 void myprintf(const char *, ...) __attribute__((__format__ (__printf__, 1, 2)));
 void myprintf_2(const char *, int, const char *) __attribute__((__format__ (__printf__, 1, 3)));
@@ -382,6 +392,7 @@ void test_format_attr_invalid_arg_idx(char * Str, std::string StdStr) {
   myprintf(Str); // expected-warning{{formatting function 'myprintf' is unsafe}} expected-note{{string argument is not guaranteed to be null-terminated}}
   myprintf(StdStr.c_str());
 }
+
 //--- interop_test.cpp
 
 #include <ptrcheck.h>
