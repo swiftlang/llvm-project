@@ -39,6 +39,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/MCCAS/MCCASObjectV1.h"
 #include "llvm/Pass.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/CommandLine.h"
@@ -361,18 +362,9 @@ static std::shared_ptr<cas::ObjectStore> getCAS() {
 /// Returns true if the LLC should use a CAS backend.
 static bool shouldUseCASBackend(const Triple &TheTriple) {
   return UseMCCASBackend ||
-         ((TheTriple.getObjectFormat() == Triple::MachO) &&
-          llvm::sys::Process::GetEnv("LLVM_TEST_CAS_BACKEND"));
-}
-
-/// Exits the program if a CAS backend is requested but would not be honored.
-static void verifyCASOptions(const Triple &TheTriple) {
-  bool CASRequested = shouldUseCASBackend(TheTriple);
-
-  if (CASRequested && codegen::getFileType() != CodeGenFileType::ObjectFile)
-    reportError("CAS Backend requires .obj output");
-  if (CASRequested && TheTriple.getObjectFormat() != Triple::MachO)
-    reportError("CAS Backend requires MachO format");
+         (mccasformats::v1::isSupportedTarget(TheTriple) &&
+          codegen::getFileType() == CodeGenFileType::ObjectFile &&
+          !CompileTwice && llvm::sys::Process::GetEnv("LLVM_TEST_CAS_BACKEND"));
 }
 // END MCCAS
 
@@ -587,7 +579,6 @@ static int compileModule(char **argv, LLVMContext &Context,
 
     // BEGIN MCCAS
     // This is used for testing llc with a CAS backend.
-    verifyCASOptions(TheTriple);
     Options.UseCASBackend = shouldUseCASBackend(TheTriple);
     Options.MCOptions.CAS = getCAS();
     Options.MCOptions.CASObjMode = MCCASBackendMode;
