@@ -11,12 +11,13 @@
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCDXContainerWriter.h"
 #include "llvm/MC/MCELFObjectWriter.h"
-#include "llvm/MC/MCMachOCASWriter.h"
 #include "llvm/MC/MCGOFFObjectWriter.h"
+#include "llvm/MC/MCMachOCASWriter.h"
 #include "llvm/MC/MCMachObjectWriter.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSPIRVObjectWriter.h"
 #include "llvm/MC/MCWasmObjectWriter.h"
+#include "llvm/MC/MCWinCOFFCASWriter.h"
 #include "llvm/MC/MCWinCOFFObjectWriter.h"
 #include "llvm/MC/MCXCOFFObjectWriter.h"
 #include <cassert>
@@ -82,6 +83,11 @@ std::unique_ptr<MCObjectWriter> MCAsmBackend::createCASObjectWriter(
                                 TT, CAS, Mode, OS, Endian == endianness::little,
                                 CreateFromMcAssembler, SerializeObjectFile,
                                 MCOpts.ResultCallBack, CasIDOS);
+  case Triple::COFF:
+    return createCOFFCASWriter(cast<MCWinCOFFObjectTargetWriter>(std::move(TW)),
+                               TT, CAS, Mode, OS, CreateFromMcAssembler,
+                               SerializeObjectFile, MCOpts.ResultCallBack,
+                               CasIDOS);
   default:
     llvm_unreachable("unexpected object format");
   }
