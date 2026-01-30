@@ -211,11 +211,11 @@ CodeGenTargetMachineImpl::createMCStreamer(raw_pwrite_stream &Out,
     // BEGIN MCCAS
     std::unique_ptr<MCObjectWriter> CASBackendWriter;
     if (Options.UseCASBackend) {
-      std::function<const cas::ObjectProxy(llvm::MachOCASWriter &,
+      std::function<const cas::ObjectProxy(llvm::MCObjectWriter &,
                                            llvm::MCAssembler &,
                                            cas::ObjectStore &, raw_ostream *)>
           CreateFromMcAssembler =
-              [](llvm::MachOCASWriter &Writer, llvm::MCAssembler &Asm,
+              [](llvm::MCObjectWriter &Writer, llvm::MCAssembler &Asm,
                  cas::ObjectStore &CAS,
                  raw_ostream *DebugOS = nullptr) -> const cas::ObjectProxy {
         auto Schema = std::make_unique<mccasformats::v1::MCSchema>(CAS);

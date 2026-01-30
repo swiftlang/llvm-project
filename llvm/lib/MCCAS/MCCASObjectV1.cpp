@@ -126,8 +126,9 @@ struct CUInfo {
 static Expected<CUInfo> getAndSetDebugAbbrevOffsetAndSkip(
     MutableArrayRef<char> CUData, endianness Endian,
     std::optional<uint32_t> NewOffset, uint8_t AddressSize);
+
 Expected<cas::ObjectProxy>
-MCSchema::createFromMCAssemblerImpl(MachOCASWriter &ObjectWriter,
+MCSchema::createFromMCAssemblerImpl(MCObjectWriter &ObjectWriter,
                                     MCAssembler &Asm,
                                     raw_ostream *DebugOS) const {
   return MCAssemblerRef::create(*this, ObjectWriter, Asm, DebugOS);
@@ -3309,7 +3310,7 @@ void MCCASBuilder::addNode(cas::ObjectProxy Node) {
 }
 
 Expected<MCAssemblerRef> MCAssemblerRef::create(const MCSchema &Schema,
-                                                MachOCASWriter &ObjectWriter,
+                                                MCObjectWriter &ObjectWriter,
                                                 MCAssembler &Asm,
                                                 raw_ostream *DebugOS) {
   MCCASBuilder Builder(Schema, ObjectWriter, Asm, DebugOS);

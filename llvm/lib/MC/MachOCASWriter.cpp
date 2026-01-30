@@ -43,7 +43,7 @@ MachOCASWriter::MachOCASWriter(
     std::unique_ptr<MCMachObjectTargetWriter> MOTW, const Triple &TT,
     cas::ObjectStore &CAS, CASBackendMode Mode, raw_pwrite_stream &OS,
     bool IsLittleEndian,
-    std::function<const cas::ObjectProxy(llvm::MachOCASWriter &,
+    std::function<const cas::ObjectProxy(llvm::MCObjectWriter &,
                                          llvm::MCAssembler &,
                                          cas::ObjectStore &, raw_ostream *)>
         CreateFromMcAssembler,
@@ -110,7 +110,7 @@ std::unique_ptr<MCObjectWriter> llvm::createMachOCASWriter(
     std::unique_ptr<MCMachObjectTargetWriter> MOTW, const Triple &TT,
     cas::ObjectStore &CAS, CASBackendMode Mode, raw_pwrite_stream &OS,
     bool IsLittleEndian,
-    std::function<const cas::ObjectProxy(llvm::MachOCASWriter &,
+    std::function<const cas::ObjectProxy(llvm::MCObjectWriter &,
                                          llvm::MCAssembler &,
                                          cas::ObjectStore &, raw_ostream *)>
         CreateFromMcAssembler,

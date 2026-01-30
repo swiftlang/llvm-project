@@ -27,7 +27,7 @@ public:
   static char ID;
 
   Expected<cas::ObjectProxy>
-  createFromMCAssembler(llvm::MachOCASWriter &ObjectWriter,
+  createFromMCAssembler(llvm::MCObjectWriter &ObjectWriter,
                         llvm::MCAssembler &Asm,
                         raw_ostream *DebugOS = nullptr) const {
     return createFromMCAssemblerImpl(ObjectWriter, Asm, DebugOS);
@@ -38,7 +38,7 @@ public:
 
 protected:
   virtual Expected<cas::ObjectProxy>
-  createFromMCAssemblerImpl(llvm::MachOCASWriter &ObjectWriter,
+  createFromMCAssemblerImpl(llvm::MCObjectWriter &ObjectWriter,
                             llvm::MCAssembler &Asm,
                             raw_ostream *DebugOS) const = 0;
 

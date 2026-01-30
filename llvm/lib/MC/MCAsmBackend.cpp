@@ -68,7 +68,7 @@ MCAsmBackend::createObjectWriter(raw_pwrite_stream &OS) const {
 std::unique_ptr<MCObjectWriter> MCAsmBackend::createCASObjectWriter(
     raw_pwrite_stream &OS, const Triple &TT, cas::ObjectStore &CAS,
     const MCTargetOptions &MCOpts, CASBackendMode Mode,
-    std::function<const cas::ObjectProxy(llvm::MachOCASWriter &,
+    std::function<const cas::ObjectProxy(llvm::MCObjectWriter &,
                                          llvm::MCAssembler &,
                                          cas::ObjectStore &, raw_ostream *)>
         CreateFromMcAssembler,
