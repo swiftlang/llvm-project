@@ -83,15 +83,14 @@ class InMemoryCASDWARFObject : public DWARFObject {
   ArrayRef<char> DebugAbbrevSection;
   DWARFSection DebugStringOffsetsSection;
   bool IsLittleEndian;
-  uint8_t AddressSize;
 
 public:
   InMemoryCASDWARFObject(ArrayRef<char> AbbrevContents,
                          ArrayRef<char> StringOffsetsContents,
-                         bool IsLittleEndian, uint8_t AddressSize)
+                         bool IsLittleEndian)
       : DebugAbbrevSection(AbbrevContents),
         DebugStringOffsetsSection({toStringRef(StringOffsetsContents)}),
-        IsLittleEndian(IsLittleEndian), AddressSize(AddressSize) {}
+        IsLittleEndian(IsLittleEndian) {}
   bool isLittleEndian() const override { return IsLittleEndian; }
 
   StringRef getAbbrevSection() const override {
@@ -1827,17 +1826,20 @@ DwarfSectionsCache mccasformats::v1::getDwarfSections(MCAssembler &Asm) {
 }
 
 Error MCCASBuilder::prepare() {
-  ObjectWriter.resetBuffer();
-  ObjectWriter.prepareObject(Asm);
-  assert(ObjectWriter.getContent().empty() &&
-         "prepare stage writes no content");
+  // FIXME: this needs a mixin
+  MachOCASWriter &Writer = static_cast<MachOCASWriter &>(ObjectWriter);
+  Writer.resetBuffer();
+  Writer.prepareObject(Asm);
+  assert(Writer.getContent().empty() && "prepare stage writes no content");
   return Error::success();
 }
 
 Error MCCASBuilder::buildMachOHeader() {
-  ObjectWriter.resetBuffer();
-  ObjectWriter.writeMachOHeader(Asm);
-  auto Header = HeaderRef::create(*this, ObjectWriter.getContent());
+  MachOCASWriter &Writer = static_cast<MachOCASWriter &>(ObjectWriter);
+
+  Writer.resetBuffer();
+  Writer.writeMachOHeader(Asm);
+  auto Header = HeaderRef::create(*this, Writer.getContent());
   if (!Header)
     return Header.takeError();
 
@@ -1933,8 +1935,9 @@ static Error writeAlignFragment(MCCASBuilder &Builder,
                                    Twine(Count) + " bytes");
     return Error::success();
   }
-  auto Endian = Builder.ObjectWriter.Target.isLittleEndian() ? endianness::little
-                                                             : endianness::big;
+
+  const Triple &Target = Builder.ObjectWriter.getContext().getTargetTriple();
+  auto Endian = Target.isLittleEndian() ? endianness::little : endianness::big;
   for (uint64_t I = 0; I != Count; ++I) {
     switch (AF.getFillLen()) {
     default:
@@ -2026,7 +2029,8 @@ void MCDataFragmentMerger::reset() {
 }
 
 Error MCCASBuilder::createPaddingRef(const MCSection *Sec) {
-  uint64_t Pad = ObjectWriter.getPaddingSize(Asm, Sec);
+  MachObjectWriter &Writer = static_cast<MachObjectWriter &>(ObjectWriter);
+  uint64_t Pad = Writer.getPaddingSize(Asm, Sec);
   auto Fill = PaddingRef::create(*this, Pad);
   if (!Fill)
     return Fill.takeError();
@@ -2186,12 +2190,15 @@ MCCASBuilder::mergeMCFragmentContents(const MCSection *Section,
 
 Expected<MCCASBuilder::CUSplit>
 MCCASBuilder::splitDebugInfoSectionData(MutableArrayRef<char> DebugInfoData) {
+  const Triple &Target = ObjectWriter.getContext().getTargetTriple();
+  const uint8_t AddressSize = Target.isArch32Bit() ? 4 : 8;
+
   CUSplit Split;
   // CU splitting loop.
   while (!DebugInfoData.empty()) {
     Expected<CUInfo> Info = getAndSetDebugAbbrevOffsetAndSkip(
         DebugInfoData, Asm.getBackend().Endian, /*NewOffset*/ 0,
-        ObjectWriter.getAddressSize());
+        AddressSize);
     if (!Info)
       return Info.takeError();
     Split.SplitCUData.push_back(DebugInfoData.take_front(Info->CUSize));
@@ -2361,18 +2368,19 @@ Error InMemoryCASDWARFObject::partitionCUData(ArrayRef<char> DebugInfoData,
                                               MCCASBuilder &Builder,
                                               AbbrevSetWriter &AbbrevWriter,
                                               uint16_t DwarfVersion) {
+  const Triple &Target = Builder.ObjectWriter.getContext().getTargetTriple();
+  uint8_t AddressSize = Target.isArch32Bit() ? 4 : 8;
+
   StringRef AbbrevSectionContribution =
       getAbbrevSection().drop_front(AbbrevOffset);
-  DataExtractor Data(AbbrevSectionContribution, isLittleEndian(),
-                     Builder.ObjectWriter.getAddressSize());
+  DataExtractor Data(AbbrevSectionContribution, isLittleEndian(), AddressSize);
   DWARFDebugAbbrev Abbrev(Data);
   uint64_t OffsetPtr = 0;
   DWARFUnitHeader Header;
   DWARFSection Section = {toStringRef(DebugInfoData), 0 /*Address*/};
   if (Error E = Header.extract(
           *Ctx,
-          DWARFDataExtractor(*this, Section, isLittleEndian(),
-                             Builder.ObjectWriter.getAddressSize()),
+          DWARFDataExtractor(*this, Section, isLittleEndian(), AddressSize),
           &OffsetPtr, DWARFSectionKind::DW_SECT_INFO))
     return E;
 
@@ -2441,9 +2449,9 @@ Error MCCASBuilder::splitDebugInfoAndAbbrevSections() {
   if (!FullStringOffsetsData)
     return FullStringOffsetsData.takeError();
 
+  const Triple &Target = ObjectWriter.getContext().getTargetTriple();
   InMemoryCASDWARFObject CASObj(*FullAbbrevData, *FullStringOffsetsData,
-                                Asm.getBackend().Endian == endianness::little,
-                                ObjectWriter.getAddressSize());
+                                Target.isLittleEndian());
   auto DWARFObj = std::make_unique<InMemoryCASDWARFObject>(CASObj);
   auto DWARFContextHolder = std::make_unique<DWARFContext>(std::move(DWARFObj));
   auto *DWARFCtx = DWARFContextHolder.get();
@@ -2471,9 +2479,11 @@ MCCASBuilder::createOptimizedLineSection(StringRef DebugLineStrRef) {
   auto Endian = Asm.getBackend().Endian;
   assert((Endian == endianness::big || Endian == endianness::little) &&
          "Endian must be either big or little");
+  const Triple &Target = ObjectWriter.getContext().getTargetTriple();
+  uint8_t AddressSize = Target.isArch32Bit() ? 4 : 8;
   DWARFDataExtractor LineTableDataReader(DebugLineStrRef,
                                          Endian == endianness::little,
-                                         ObjectWriter.getAddressSize());
+                                         AddressSize);
   auto Prologue = parseLineTableHeaderAndSkip(LineTableDataReader);
   if (!Prologue)
     return Prologue.takeError();
@@ -3128,18 +3138,19 @@ Error MCCASBuilder::buildFragments() {
         continue;
 
       SmallVector<char, 0> FinalFragmentContents;
+      const Triple &Target = ObjectWriter.getContext().getTargetTriple();
+      uint8_t AddressSize = Target.isArch32Bit() ? 4 : 8;
       // Set the RelocationBuffer to be an empty ArrayRef, and the
       // RelocationBufferIndex to zero if the architecture is 32-bit, because we
       // do not support relocation partitioning on 32-bit platforms. With this,
       // partitionFragment will put all the fragment contents in the
       // FinalFragmentContents, and the Addends buffer will be empty.
-      if (ObjectWriter.getAddressSize() == 4) {
+      if (AddressSize == 4) {
         RelocationBuffer = ArrayRef<MachO::any_relocation_info>();
         RelocationBufferIndex = 0;
       }
       partitionFragment(Asm, Addends, FinalFragmentContents, RelocationBuffer,
-                        F, RelocationBufferIndex,
-                        ObjectWriter.Target.isLittleEndian());
+                        F, RelocationBufferIndex, Target.isLittleEndian());
 
       if (auto E = Merger.tryMerge(F, Size, FinalFragmentContents))
         return E;
@@ -3169,13 +3180,14 @@ Error MCCASBuilder::buildFragments() {
 }
 
 Error MCCASBuilder::buildRelocations() {
-  ObjectWriter.resetBuffer();
-  if (ObjectWriter.Mode == CASBackendMode::Verify ||
-      RelocLocation == CompileUnit)
-    ObjectWriter.writeRelocations(Asm);
+  MachOCASWriter &Writer = static_cast<MachOCASWriter &>(ObjectWriter);
+
+  Writer.resetBuffer();
+  if (Writer.Mode == CASBackendMode::Verify || RelocLocation == CompileUnit)
+    Writer.writeRelocations(Asm);
 
   if (RelocLocation == CompileUnit) {
-    auto Relocs = RelocationsRef::create(*this, ObjectWriter.getContent());
+    auto Relocs = RelocationsRef::create(*this, Writer.getContent());
     if (!Relocs)
       return Relocs.takeError();
 
@@ -3186,9 +3198,11 @@ Error MCCASBuilder::buildRelocations() {
 }
 
 Error MCCASBuilder::buildDataInCodeRegion() {
-  ObjectWriter.resetBuffer();
-  ObjectWriter.writeDataInCodeRegion(Asm);
-  auto Data = DataInCodeRef::create(*this, ObjectWriter.getContent());
+  MachOCASWriter &Writer = static_cast<MachOCASWriter &>(ObjectWriter);
+
+  Writer.resetBuffer();
+  Writer.writeDataInCodeRegion(Asm);
+  auto Data = DataInCodeRef::create(*this, Writer.getContent());
   if (!Data)
     return Data.takeError();
 
@@ -3197,9 +3211,11 @@ Error MCCASBuilder::buildDataInCodeRegion() {
 }
 
 Error MCCASBuilder::buildSymbolTable() {
-  ObjectWriter.resetBuffer();
-  ObjectWriter.writeSymbolTable(Asm);
-  StringRef S = ObjectWriter.getContent();
+  MachOCASWriter &Writer = static_cast<MachOCASWriter &>(ObjectWriter);
+
+  Writer.resetBuffer();
+  Writer.writeSymbolTable(Asm);
+  StringRef S = Writer.getContent();
   std::vector<cas::ObjectRef> CStrings;
   if (auto E = createStringSection(S, [&](StringRef S) -> Error {
         auto Sym = CStringRef::create(*this, S);
@@ -3239,10 +3255,11 @@ void MCCASBuilder::startSection(const MCSection *Sec) {
 
   CurrentSection = Sec;
   CurrentContext = &SectionContext;
+  MachObjectWriter &Writer = static_cast<MachObjectWriter &>(ObjectWriter);
 
   if (RelocLocation == Atom) {
     // Build a map for lookup.
-    for (auto R : ObjectWriter.getRelocations()[Sec]) {
+    for (auto R : Writer.getRelocations()[Sec]) {
       // For the Dwarf Sections, just append the relocations to the
       // SectionRelocs. No Atoms are considered for this section.
       if (R.F && Sec != DwarfSections.Line && Sec != DwarfSections.DebugInfo &&
@@ -3262,7 +3279,7 @@ void MCCASBuilder::startSection(const MCSection *Sec) {
   }
 
   if (RelocLocation == Section) {
-    for (auto R : ObjectWriter.getRelocations()[Sec])
+    for (auto R : Writer.getRelocations()[Sec])
       SectionRelocs.push_back(R.MRE);
   }
 }
@@ -3314,6 +3331,7 @@ Expected<MCAssemblerRef> MCAssemblerRef::create(const MCSchema &Schema,
                                                 MCAssembler &Asm,
                                                 raw_ostream *DebugOS) {
   MCCASBuilder Builder(Schema, ObjectWriter, Asm, DebugOS);
+  MachOCASWriter &Writer = static_cast<MachOCASWriter &>(ObjectWriter);
 
   if (auto E = Builder.prepare())
     return std::move(E);
@@ -3326,8 +3344,8 @@ Expected<MCAssemblerRef> MCAssemblerRef::create(const MCSchema &Schema,
 
   // Only need to do this for verify mode so we compare the output byte by
   // byte.
-  if (ObjectWriter.Mode == CASBackendMode::Verify) {
-    ObjectWriter.writeSectionData(Asm);
+  if (Writer.Mode == CASBackendMode::Verify) {
+    Writer.writeSectionData(Asm);
   }
 
   if (auto E = Builder.buildRelocations())
@@ -3346,7 +3364,8 @@ Expected<MCAssemblerRef> MCAssemblerRef::create(const MCSchema &Schema,
   // Put Header, Relocations, SymbolTable, etc. in the front.
   B->Refs.append(Builder.Sections.begin(), Builder.Sections.end());
 
-  std::string NormalizedTriple = ObjectWriter.Target.normalize();
+  const Triple &Target = ObjectWriter.getContext().getTargetTriple();
+  std::string NormalizedTriple = Target.normalize();
   writeVBR8(uint32_t(NormalizedTriple.size()), B->Data);
   B->Data.append(NormalizedTriple);
 
