@@ -1,5 +1,6 @@
 // Test generating a reproducer for a modular build where required modules are
 // built explicitly as separate steps.
+// REQUIRES: crash-recovery, system-darwin
 
 // RUN: rm -rf %t
 // RUN: split-file %s %t

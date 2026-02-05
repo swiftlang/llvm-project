@@ -789,7 +789,7 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
            << "non-unique reproducer is allowed only in a custom location";
 
   std::shared_ptr<llvm::cas::ObjectStore> UpstreamCAS = Opts.CAS;
-  bool IsReproducerCASBased(UpstreamCAS);
+  bool IsReproducerCASBased{UpstreamCAS};
   DependencyScanningService DepsService(
       ScanningMode::DependencyDirectivesScan,
       IsReproducerCASBased ? ScanningOutputFormat::FullIncludeTree
