@@ -80,8 +80,8 @@ public:
 
     void ResetDeclMap(ExecutionContext &exe_ctx,
                       Materializer::PersistentVariableDelegate &result_delegate,
-                      bool keep_result_in_memory,
-                      ValueObject *ctx_obj);
+                      bool keep_result_in_memory, ValueObject *ctx_obj,
+                      bool ignore_context_qualifiers);
 
     /// Return the object that the parser should allow to access ASTs. May be
     /// NULL if the ASTs do not need to be transformed.
@@ -175,9 +175,9 @@ public:
   void ResetDeclMap(ExecutionContext &exe_ctx,
                     Materializer::PersistentVariableDelegate &result_delegate,
                     bool keep_result_in_memory) {
-    m_type_system_helper.ResetDeclMap(exe_ctx, result_delegate,
-                                      keep_result_in_memory,
-                                      m_ctx_obj);
+    m_type_system_helper.ResetDeclMap(
+        exe_ctx, result_delegate, keep_result_in_memory, m_ctx_obj,
+        m_options.GetCppIgnoreContextQualifiers());
   }
 
   lldb::ExpressionVariableSP
@@ -187,6 +187,10 @@ public:
   bool DidImportCxxModules() const { return !m_imported_cpp_modules.empty(); }
 
   llvm::StringRef GetFilename() const { return m_filename; }
+
+protected:
+  void FixupParseErrorDiagnostics(
+      DiagnosticManager &diagnostic_manager) const override;
 
 private:
   /// Populate m_in_cplusplus_method and m_in_objectivec_method based on the
@@ -216,6 +220,9 @@ private:
 
   lldb::addr_t GetCppObjectPointer(lldb::StackFrameSP frame,
                                    llvm::StringRef object_name, Status &err);
+
+  void
+  FixupCVRParseErrorDiagnostics(DiagnosticManager &diagnostic_manager) const;
 
   /// Defines how the current expression should be wrapped.
   ClangExpressionSourceCode::WrapKind GetWrapKind() const;

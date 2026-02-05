@@ -61,6 +61,7 @@
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/InstrProfReader.h"
 #include "llvm/ProfileData/SampleProf.h"
+#include "llvm/Support/ARMBuildAttributes.h"
 #include "llvm/Support/CRC.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
@@ -224,7 +225,9 @@ createTargetCodeGenInfo(CodeGenModule &CGM) {
     return createMSP430TargetCodeGenInfo(CGM);
 
   case llvm::Triple::riscv32:
-  case llvm::Triple::riscv64: {
+  case llvm::Triple::riscv64:
+  case llvm::Triple::riscv32be:
+  case llvm::Triple::riscv64be: {
     StringRef ABIStr = Target.getABI();
     unsigned XLen = Target.getPointerWidth(LangAS::Default);
     unsigned ABIFLen = 0;
@@ -954,6 +957,22 @@ static bool isStackProtectorOn(const LangOptions &LangOpts,
   return LangOpts.getStackProtector() == Mode;
 }
 
+std::optional<llvm::Attribute::AttrKind>
+CodeGenModule::StackProtectorAttribute(const Decl *D) const {
+  if (D && D->hasAttr<NoStackProtectorAttr>())
+    ; // Do nothing.
+  else if (D && D->hasAttr<StrictGuardStackCheckAttr>() &&
+           isStackProtectorOn(LangOpts, getTriple(), LangOptions::SSPOn))
+    return llvm::Attribute::StackProtectStrong;
+  else if (isStackProtectorOn(LangOpts, getTriple(), LangOptions::SSPOn))
+    return llvm::Attribute::StackProtect;
+  else if (isStackProtectorOn(LangOpts, getTriple(), LangOptions::SSPStrong))
+    return llvm::Attribute::StackProtectStrong;
+  else if (isStackProtectorOn(LangOpts, getTriple(), LangOptions::SSPReq))
+    return llvm::Attribute::StackProtectReq;
+  return std::nullopt;
+}
+
 void CodeGenModule::Release() {
   Module *Primary = getContext().getCurrentNamedModule();
   if (CXX20ModuleInits && Primary && !Primary->isHeaderLikeModule())
@@ -1401,6 +1420,36 @@ void CodeGenModule::Release() {
       }
     }
   }
+  if ((T.isARM() || T.isThumb()) && getTriple().isTargetAEABI() &&
+      getTriple().isOSBinFormatELF()) {
+    uint32_t TagVal = 0;
+    llvm::Module::ModFlagBehavior DenormalTagBehavior = llvm::Module::Max;
+    if (getCodeGenOpts().FPDenormalMode ==
+        llvm::DenormalMode::getPositiveZero()) {
+      TagVal = llvm::ARMBuildAttrs::PositiveZero;
+    } else if (getCodeGenOpts().FPDenormalMode ==
+               llvm::DenormalMode::getIEEE()) {
+      TagVal = llvm::ARMBuildAttrs::IEEEDenormals;
+      DenormalTagBehavior = llvm::Module::Override;
+    } else if (getCodeGenOpts().FPDenormalMode ==
+               llvm::DenormalMode::getPreserveSign()) {
+      TagVal = llvm::ARMBuildAttrs::PreserveFPSign;
+    }
+    getModule().addModuleFlag(DenormalTagBehavior, "arm-eabi-fp-denormal",
+                              TagVal);
+
+    if (getLangOpts().getDefaultExceptionMode() !=
+        LangOptions::FPExceptionModeKind::FPE_Ignore)
+      getModule().addModuleFlag(llvm::Module::Min, "arm-eabi-fp-exceptions",
+                                llvm::ARMBuildAttrs::Allowed);
+
+    if (getLangOpts().NoHonorNaNs && getLangOpts().NoHonorInfs)
+      TagVal = llvm::ARMBuildAttrs::AllowIEEENormal;
+    else
+      TagVal = llvm::ARMBuildAttrs::AllowIEEE754;
+    getModule().addModuleFlag(llvm::Module::Min, "arm-eabi-fp-number-model",
+                              TagVal);
+  }
 
   if (CodeGenOpts.StackClashProtector)
     getModule().addModuleFlag(
@@ -1591,16 +1640,39 @@ void CodeGenModule::Release() {
   setVisibilityFromDLLStorageClass(LangOpts, getModule());
 
   // Check the tail call symbols are truly undefined.
-  if (getTriple().isPPC() && !MustTailCallUndefinedGlobals.empty()) {
-    for (auto &I : MustTailCallUndefinedGlobals) {
-      if (!I.first->isDefined())
-        getDiags().Report(I.second, diag::err_ppc_impossible_musttail) << 2;
-      else {
-        StringRef MangledName = getMangledName(GlobalDecl(I.first));
-        llvm::GlobalValue *Entry = GetGlobalValue(MangledName);
-        if (!Entry || Entry->isWeakForLinker() ||
-            Entry->isDeclarationForLinker())
+  if (!MustTailCallUndefinedGlobals.empty()) {
+    if (getTriple().isPPC()) {
+      for (auto &I : MustTailCallUndefinedGlobals) {
+        if (!I.first->isDefined())
           getDiags().Report(I.second, diag::err_ppc_impossible_musttail) << 2;
+        else {
+          StringRef MangledName = getMangledName(GlobalDecl(I.first));
+          llvm::GlobalValue *Entry = GetGlobalValue(MangledName);
+          if (!Entry || Entry->isWeakForLinker() ||
+              Entry->isDeclarationForLinker())
+            getDiags().Report(I.second, diag::err_ppc_impossible_musttail) << 2;
+        }
+      }
+    } else if (getTriple().isMIPS()) {
+      for (auto &I : MustTailCallUndefinedGlobals) {
+        const FunctionDecl *FD = I.first;
+        StringRef MangledName = getMangledName(GlobalDecl(FD));
+        llvm::GlobalValue *Entry = GetGlobalValue(MangledName);
+
+        if (!Entry)
+          continue;
+
+        bool CalleeIsLocal;
+        if (Entry->isDeclarationForLinker()) {
+          // For declarations, only visibility can indicate locality.
+          CalleeIsLocal =
+              Entry->hasHiddenVisibility() || Entry->hasProtectedVisibility();
+        } else {
+          CalleeIsLocal = Entry->isDSOLocal();
+        }
+
+        if (!CalleeIsLocal)
+          getDiags().Report(I.second, diag::err_mips_impossible_musttail) << 1;
       }
     }
   }
@@ -2745,17 +2817,10 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
   if (!hasUnwindExceptions(LangOpts))
     B.addAttribute(llvm::Attribute::NoUnwind);
 
-  if (D && D->hasAttr<NoStackProtectorAttr>())
-    ; // Do nothing.
-  else if (D && D->hasAttr<StrictGuardStackCheckAttr>() &&
-           isStackProtectorOn(LangOpts, getTriple(), LangOptions::SSPOn))
-    B.addAttribute(llvm::Attribute::StackProtectStrong);
-  else if (isStackProtectorOn(LangOpts, getTriple(), LangOptions::SSPOn))
-    B.addAttribute(llvm::Attribute::StackProtect);
-  else if (isStackProtectorOn(LangOpts, getTriple(), LangOptions::SSPStrong))
-    B.addAttribute(llvm::Attribute::StackProtectStrong);
-  else if (isStackProtectorOn(LangOpts, getTriple(), LangOptions::SSPReq))
-    B.addAttribute(llvm::Attribute::StackProtectReq);
+  if (std::optional<llvm::Attribute::AttrKind> Attr =
+          StackProtectorAttribute(D)) {
+    B.addAttribute(*Attr);
+  }
 
   if (!D) {
     // Non-entry HLSL functions must always be inlined.

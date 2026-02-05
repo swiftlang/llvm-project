@@ -46,7 +46,7 @@ let Definition = "target_experimental" in {
     DefaultTrue,
     Desc<"Enables caching of task pointers inside the swift tasks plugin">;
   def SwiftUseContextFreePrintObject: Property<"swift-use-context-free-po", "Boolean">,
-    DefaultFalse,
+    DefaultTrue,
     Desc<"If true, use the context-free po implementation for Swift.">;
   def UseDIL : Property<"use-DIL", "Boolean">,
     Global, DefaultTrue,
@@ -143,7 +143,7 @@ let Definition = "target" in {
     DefaultUnsignedValue<24>,
     Desc<"Maximum number of children to expand in any level of depth.">;
   def MaxChildrenDepth: Property<"max-children-depth", "UInt64">,
-    DefaultUnsignedValue<4>,
+    DefaultUnsignedValue<5>,
     Desc<"Maximum depth to expand children.">;
   def MaxSummaryLength: Property<"max-string-summary-length", "UInt64">,
     DefaultUnsignedValue<1024>,
@@ -266,9 +266,11 @@ let Definition = "target" in {
   def SwiftAutoImportFrameworks : Property<"swift-auto-import-frameworks", "Boolean">,
      DefaultFalse,
      Desc<"Automatically import all frameworks and dynamic libraries that are autolinked by Swift modules in the target.">;
-  def UseAllCompilerFlags: Property<"use-all-compiler-flags", "Boolean">,
-    DefaultTrue,
-    Desc<"Try to use compiler flags for all modules when setting up the Swift expression parser, not just the main executable.">;
+  def UseAllCompilerFlags
+      : Property<"use-all-compiler-flags", "Boolean">,
+        DefaultFalse,
+        Desc<"Try to use compiler flags for all modules when setting up the "
+             "Swift expression parser, not just the main executable.">;
   def SDKPath: Property<"sdk-path", "FileSpec">,
     DefaultStringValue<"">,
     Desc<"The path to the SDK used to build the current target.">;

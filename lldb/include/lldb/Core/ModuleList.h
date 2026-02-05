@@ -137,11 +137,8 @@ public:
   uint64_t GetLLDBIndexCacheExpirationDays();
   FileSpec GetLLDBIndexCachePath() const;
   bool SetLLDBIndexCachePath(const FileSpec &path);
-
-  bool GetLoadSymbolOnDemand();
-
+  bool GetLoadSymbolOnDemand() const;
   lldb::SymbolDownload GetSymbolAutoDownload() const;
-
   PathMappingList GetSymlinkMappings() const;
 };
 
@@ -566,8 +563,10 @@ public:
   ///    in the CAS, error if there are any errors happened during the loading
   ///    process.
   static llvm::Expected<bool>
-  GetSharedModuleFromCAS(llvm::StringRef cas_id, const lldb::ModuleSP &nearby,
-                         ModuleSpec &module_spec, lldb::ModuleSP &module_sp);
+  GetSharedModuleFromCAS(llvm::StringRef cas_id,
+                         llvm::StringRef name_for_diagnostics,
+                         const lldb::ModuleSP &nearby, ModuleSpec &module_spec,
+                         lldb::ModuleSP &module_sp);
   // END CAS
 
   static bool RemoveSharedModule(lldb::ModuleSP &module_sp);

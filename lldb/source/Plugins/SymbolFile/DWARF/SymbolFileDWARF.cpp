@@ -520,12 +520,7 @@ SymbolFileDWARF::GetTypeSystemForLanguage(LanguageType language) {
   if (SymbolFileDWARFDebugMap *debug_map_symfile = GetDebugMapSymfile())
     return debug_map_symfile->GetTypeSystemForLanguage(language);
 
-  auto type_system_or_err =
-      m_objfile_sp->GetModule()->GetTypeSystemForLanguage(language);
-  if (type_system_or_err)
-    if (auto ts = *type_system_or_err)
-      ts->SetSymbolFile(this);
-  return type_system_or_err;
+  return SymbolFileCommon::GetTypeSystemForLanguage(language);
 }
 
 void SymbolFileDWARF::InitializeObject() {
@@ -2013,7 +2008,8 @@ void SymbolFileDWARF::UpdateExternalModuleListIfNeeded() {
       LLDB_LOG(GetLog(LLDBLog::Symbols | LLDBLog::Modules),
                "Loading module '{0}' from CAS at {1}...", const_name, dwo_path);
       auto loaded = ModuleList::GetSharedModuleFromCAS(
-          dwo_path, GetObjectFile()->GetModule(), dwo_module_spec, module_sp);
+          dwo_path, const_name, GetObjectFile()->GetModule(), dwo_module_spec,
+          module_sp);
       if (!loaded)
         GetObjectFile()->GetModule()->ReportWarning(
             "Failed to load module '{0}' from CAS: {1}", const_name,

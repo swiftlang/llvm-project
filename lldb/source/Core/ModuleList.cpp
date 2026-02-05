@@ -154,7 +154,6 @@ ModuleListProperties::ModuleListProperties() {
     llvm::sys::path::append(path, "IndexCache");
     lldbassert(SetLLDBIndexCachePath(FileSpec(path)));
   }
-
 }
 
 bool ModuleListProperties::GetEnableExternalLookup() const {
@@ -394,7 +393,7 @@ PathMappingList ModuleListProperties::GetSymlinkMappings() const {
   return m_symlink_paths;
 }
 
-bool ModuleListProperties::GetLoadSymbolOnDemand() {
+bool ModuleListProperties::GetLoadSymbolOnDemand() const {
   const uint32_t idx = ePropertyLoadSymbolOnDemand;
   return GetPropertyAtIndexAs<bool>(
       idx, g_modulelist_properties[idx].default_uint_value != 0);
@@ -1463,18 +1462,26 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
   if (module_sp)
     return error;
 
-  // Try target's platform locate module callback before second attempt.
+  // Try platform's locate module callback before second attempt.
+  // The platform can come from either the Target (if available) or directly
+  // from the ModuleSpec (useful when Target is not yet created, e.g., during
+  // target creation for launch mode).
   if (invoke_locate_callback) {
-    TargetSP target_sp = module_spec.GetTargetSP();
-    if (target_sp && target_sp->IsValid()) {
-      if (PlatformSP platform_sp = target_sp->GetPlatform()) {
-        FileSpec symbol_file_spec;
-        platform_sp->CallLocateModuleCallbackIfSet(
-            module_spec, module_sp, symbol_file_spec, did_create_ptr);
-        if (module_sp) {
-          // The callback found a module.
-          return error;
-        }
+    PlatformSP platform_sp;
+    if (TargetSP target_sp = module_spec.GetTargetSP()) {
+      if (target_sp->IsValid())
+        platform_sp = target_sp->GetPlatform();
+    }
+    if (!platform_sp)
+      platform_sp = module_spec.GetPlatformSP();
+
+    if (platform_sp) {
+      FileSpec symbol_file_spec;
+      platform_sp->CallLocateModuleCallbackIfSet(
+          module_spec, module_sp, symbol_file_spec, did_create_ptr);
+      if (module_sp) {
+        // The callback found a module.
+        return error;
       }
     }
   }
@@ -1672,18 +1679,23 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
   return error;
 }
 
-static llvm::Expected<ModuleSpec>
-loadModuleFromCASImpl(llvm::StringRef cas_id, const lldb::ModuleSP &nearby,
-                      const UUID &uuid, const ArchSpec &arch) {
-  auto maybe_cas = ModuleList::GetOrCreateCAS(nearby);
-  if (!maybe_cas)
-    return maybe_cas.takeError();
+static llvm::Expected<ModuleSpec> loadModuleFromCASImpl(
+    llvm::StringRef cas_id, llvm::StringRef name_for_diagnostics,
+    const lldb::ModuleSP &nearby, const UUID &uuid, const ArchSpec &arch) {
+  llvm::Expected<ModuleList::CAS> maybe_cas =
+      ModuleList::GetOrCreateCAS(nearby);
+  if (!maybe_cas) {
+    LLDB_LOG_ERROR(GetLog(LLDBLog::Modules), maybe_cas.takeError(),
+                   "Failed to load module '{1}' at '{2}' from CAS: {0}",
+                   name_for_diagnostics, cas_id);
+    return ModuleSpec();
+  }
 
   auto cas = std::move(maybe_cas->object_store);
   if (!cas) {
     LLDB_LOG(GetLog(LLDBLog::Modules),
-             "skip loading module '{0}' from CAS: CAS is not available",
-             cas_id);
+             "Failed to load '{0}' at '{1}' from CAS: CAS is not available",
+             name_for_diagnostics, cas_id);
     return ModuleSpec();
   }
 
@@ -1705,7 +1717,8 @@ loadModuleFromCASImpl(llvm::StringRef cas_id, const lldb::ModuleSP &nearby,
   FileSpec cas_spec;
   cas_spec.SetDirectory(ConstString(maybe_cas->configuration.CASPath));
   cas_spec.SetFilename(ConstString(cas_id));
-  ModuleSpec loaded(cas_spec, uuid, std::move(file_buffer));
+  DataExtractorSP extractor_sp = std::make_shared<DataExtractor>(file_buffer);
+  ModuleSpec loaded(cas_spec, uuid, extractor_sp);
   loaded.GetArchitecture() = arch;
 
   LLDB_LOG(GetLog(LLDBLog::Modules), "loading module using CASID '{0}'",
@@ -1716,8 +1729,9 @@ loadModuleFromCASImpl(llvm::StringRef cas_id, const lldb::ModuleSP &nearby,
 /// Load the module referenced by \c cas_id from a CAS located
 /// near \c nearby.
 static llvm::Expected<ModuleSpec>
-loadModuleFromCAS(llvm::StringRef cas_id, const lldb::ModuleSP &nearby,
-                  const UUID &uuid, const ArchSpec &arch) {
+loadModuleFromCAS(llvm::StringRef cas_id, llvm::StringRef name_for_diagnostics,
+                  const lldb::ModuleSP &nearby, const UUID &uuid,
+                  const ArchSpec &arch) {
   static llvm::StringMap<ModuleSpec> g_cache;
   static std::recursive_mutex g_cache_lock;
   std::scoped_lock<std::recursive_mutex> lock(g_cache_lock);
@@ -1725,7 +1739,8 @@ loadModuleFromCAS(llvm::StringRef cas_id, const lldb::ModuleSP &nearby,
   if (cached != g_cache.end())
     return cached->second;
 
-  auto spec_or_err = loadModuleFromCASImpl(cas_id, nearby, uuid, arch);
+  auto spec_or_err =
+      loadModuleFromCASImpl(cas_id, name_for_diagnostics, nearby, uuid, arch);
   g_cache.try_emplace(cas_id, spec_or_err ? *spec_or_err : ModuleSpec());
 
   return spec_or_err;
@@ -1835,10 +1850,12 @@ ModuleList::GetOrCreateCAS(const ModuleSP &module_sp) {
 }
 
 llvm::Expected<bool> ModuleList::GetSharedModuleFromCAS(
-    llvm::StringRef cas_id, const lldb::ModuleSP &nearby,
-    ModuleSpec &module_spec, lldb::ModuleSP &module_sp) {
-  auto loaded = loadModuleFromCAS(cas_id, nearby, module_spec.GetUUID(),
-                                  module_spec.GetArchitecture());
+    llvm::StringRef cas_id, llvm::StringRef name_for_diagnostics,
+    const lldb::ModuleSP &nearby, ModuleSpec &module_spec,
+    lldb::ModuleSP &module_sp) {
+  auto loaded =
+      loadModuleFromCAS(cas_id, name_for_diagnostics, nearby,
+                        module_spec.GetUUID(), module_spec.GetArchitecture());
   if (!loaded)
     return loaded.takeError();
 
