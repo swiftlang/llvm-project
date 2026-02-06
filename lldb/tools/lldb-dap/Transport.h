@@ -36,7 +36,8 @@ class Transport final
           ProtocolDescriptor> {
 public:
   Transport(llvm::StringRef client_name, lldb_dap::Log *log,
-            lldb::IOObjectSP input, lldb::IOObjectSP output);
+            lldb_private::MainLoop &loop, lldb::IOObjectSP input,
+            lldb::IOObjectSP output);
   virtual ~Transport() = default;
 
   void Log(llvm::StringRef message) override;

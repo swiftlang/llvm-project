@@ -496,7 +496,7 @@ serveConnection(const Socket::SocketProtocol &protocol, const std::string &name,
                         &dap_sessions]() {
       llvm::set_thread_name(client_name + ".runloop");
       MainLoop loop;
-      Transport transport(client_name, log, io, io);
+      Transport transport(client_name, log, loop, io, io);
       DAP dap(log, default_repl_mode, pre_init_commands, client_name, transport,
               loop);
 
@@ -796,7 +796,7 @@ int main(int argc, char *argv[]) {
 
   constexpr llvm::StringLiteral client_name = "stdio";
   MainLoop loop;
-  Transport transport(client_name, log.get(), input, output);
+  Transport transport(client_name, log.get(), loop, input, output);
   DAP dap(log.get(), default_repl_mode, pre_init_commands, client_name,
           transport, loop);
 

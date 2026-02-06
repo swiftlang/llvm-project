@@ -1033,9 +1033,8 @@ void DAP::TransportHandler() {
     m_queue_cv.notify_all();
   });
 
-  auto handle = transport.RegisterMessageHandler(m_loop, *this);
-  if (!handle) {
-    DAP_LOG_ERROR(log, handle.takeError(),
+  if (llvm::Error err = transport.RegisterMessageHandler(*this)) {
+    DAP_LOG_ERROR(log, std::move(err),
                   "({1}) registering message handler failed: {0}",
                   m_client_name);
     std::lock_guard<std::mutex> guard(m_queue_mutex);
