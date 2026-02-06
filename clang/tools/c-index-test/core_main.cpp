@@ -954,7 +954,8 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
 
 static int generateDepsReproducer(ArrayRef<const char *> Args,
                                   std::string WorkingDirectory,
-                                  std::string ReproLocation) {
+                                  std::string ReproLocation,
+                                  CXCASDatabases DBs) {
   CXDependencyScannerReproducerOptions Opts =
       clang_experimental_DependencyScannerReproducerOptions_create(
           Args.size(), Args.data(), /*ModuleName=*/nullptr,
@@ -964,6 +965,8 @@ static int generateDepsReproducer(ArrayRef<const char *> Args,
   auto DisposeOpts = llvm::make_scope_exit([&] {
     clang_experimental_DependencyScannerReproducerOptions_dispose(Opts);
   });
+  clang_experimental_DependencyScannerReproducerOptions_setCASOptions(Opts, DBs,
+                                                                      nullptr);
   CXString MessageString;
   auto DisposeMessageString = llvm::make_scope_exit([&]() {
     clang_disposeString(MessageString);
@@ -1610,7 +1613,7 @@ int indextest_core_main(int argc, const char **argv) {
       return 1;
     }
     return generateDepsReproducer(CompArgs, options::WorkingDir,
-                                  options::OutputFile);
+                                  options::OutputFile, DBs);
   }
 
   if (options::Action == ActionType::UploadCachedJob) {
