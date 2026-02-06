@@ -8,6 +8,7 @@ from lldbsuite.test.decorators import *
 class TestSwiftBackwardInteropExpressions(TestBase):
 
     @swiftTest
+    @skipIfWindows
     def test_func_step_in(self):
         self.build()
         lldbutil.run_to_source_breakpoint(
