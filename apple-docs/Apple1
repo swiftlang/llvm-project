@@ -5,7 +5,7 @@ This document explains the various important branches in
 how they relate to one another, and how they correspond to branches in the
 [apple/swift](https://github.com/apple/swift) repository.
 
-These are the most important branches to know about:
+These are the most important branches to know about In this Apple Project:
 
 - [next](https://github.com/apple/llvm-project/tree/next)
   is aligned with Swift's
@@ -17,7 +17,7 @@ These are the most important branches to know about:
 - `swift/*` branches are aligned with the corresponding Swift branch without
   the `swift/` prefix.
 
-## Upstream branches
+## These are Upstream branches:
 
 The `llvm.org/*` branches are forwarded, unchanged, from
 [github.com/llvm/llvm-project](https://github.com/llvm/llvm-project).  These
