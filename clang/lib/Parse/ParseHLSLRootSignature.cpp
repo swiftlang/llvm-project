@@ -8,6 +8,7 @@
 
 #include "clang/Parse/ParseHLSLRootSignature.h"
 
+#include "clang/AST/ASTContext.h"
 #include "clang/Lex/LiteralSupport.h"
 
 using namespace llvm::hlsl::rootsig;

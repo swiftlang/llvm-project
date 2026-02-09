@@ -8,6 +8,7 @@
 
 #include "InterpShared.h"
 #include "clang/AST/Attr.h"
+#include "clang/AST/ASTContext.h"
 #include "llvm/ADT/BitVector.h"
 
 namespace clang {
