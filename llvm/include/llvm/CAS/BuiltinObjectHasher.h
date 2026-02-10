@@ -40,7 +40,7 @@ public:
     return H.finish();
   }
 
-  static Expected<HashT> hashFile(StringRef FilePath);
+  LLVM_ABI static Expected<HashT> hashFile(StringRef FilePath);
 
 private:
   HashT finish() { return Hasher.final(); }

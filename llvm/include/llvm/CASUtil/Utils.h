@@ -20,8 +20,8 @@ namespace cas {
 class ObjectStore;
 class CASID;
 
-Expected<CASID> readCASIDBuffer(cas::ObjectStore &CAS,
-                                llvm::MemoryBufferRef Buffer);
+LLVM_ABI Expected<CASID> readCASIDBuffer(cas::ObjectStore &CAS,
+                                         llvm::MemoryBufferRef Buffer);
 
 LLVM_ABI void writeCASIDBuffer(const CASID &ID, llvm::raw_ostream &OS);
 
@@ -33,7 +33,7 @@ LLVM_ABI void writeCASIDBuffer(const CASID &ID, llvm::raw_ostream &OS);
 /// * Null-terminated hash schema name, e.g. llvm.builtin.v2[BLAKE3]
 /// * Hash length (4 bytes little-endian, e.g. 32)
 /// * Hash bytes
-Error writeCASHashXAttr(const CASID &ID, const llvm::Twine &Path);
+LLVM_ABI Error writeCASHashXAttr(const CASID &ID, const llvm::Twine &Path);
 
 } // namespace cas
 

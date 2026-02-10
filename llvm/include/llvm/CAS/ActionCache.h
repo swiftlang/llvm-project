@@ -72,8 +72,8 @@ public:
   }
 
   /// Asynchronous version of \c get.
-  std::future<AsyncCASIDValue> getFuture(const CacheKey &ActionKey,
-                                         bool Globally = false) const;
+  LLVM_ABI std::future<AsyncCASIDValue> getFuture(const CacheKey &ActionKey,
+                                                  bool Globally = false) const;
 
   /// Asynchronous version of \c get.
   void getAsync(const CacheKey &ActionKey, bool Globally,
@@ -97,9 +97,9 @@ public:
   }
 
   /// Asynchronous version of \c put.
-  std::future<AsyncErrorValue> putFuture(const CacheKey &ActionKey,
-                                         const CASID &Result,
-                                         bool Globally = false);
+  LLVM_ABI std::future<AsyncErrorValue> putFuture(const CacheKey &ActionKey,
+                                                  const CASID &Result,
+                                                  bool Globally = false);
 
   /// Asynchronous version of \c put.
   /// \param[out] CancelObj Optional pointer to receive a cancellation object.

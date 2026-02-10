@@ -30,8 +30,8 @@ public:
   /// \param Path The parent directory of the log file.
   /// \param LogAllocations Whether to log all low-level allocations. This is
   ///                       on the order of twice as expensive to log.
-  static Expected<std::unique_ptr<OnDiskCASLogger>> open(const Twine &Path,
-                                                         bool LogAllocations);
+  LLVM_ABI static Expected<std::unique_ptr<OnDiskCASLogger>>
+  open(const Twine &Path, bool LogAllocations);
 
   /// Create or append to a log file inside the given CAS directory \p Path if
   /// logging is enabled by the environment variable \c LLVM_CAS_LOG. If
@@ -39,37 +39,41 @@ public:
   static Expected<std::unique_ptr<OnDiskCASLogger>>
   openIfEnabled(const Twine &Path);
 
-  ~OnDiskCASLogger();
+  LLVM_ABI ~OnDiskCASLogger();
 
   /// An offset into an \c OnDiskHashMappedTrie.
   using TrieOffset = int64_t;
 
-  void log_compare_exchange_strong(void *Region, TrieOffset Trie, size_t SlotI,
-                                   TrieOffset Expected, TrieOffset New,
-                                   TrieOffset Previous);
-  void log_SubtrieHandle_create(void *Region, TrieOffset Trie,
-                                uint32_t StartBit, uint32_t NumBits);
-  void log_HashMappedTrieHandle_createRecord(void *Region,
-                                             TrieOffset TrieOffset,
-                                             ArrayRef<uint8_t> Hash);
-  void log_MappedFileRegionBumpPtr_resizeFile(StringRef Path, size_t Before,
-                                              size_t After);
-  void log_MappedFileRegionBumpPtr_create(StringRef Path, int FD, void *Region,
-                                          size_t Capacity, size_t Size);
-  void log_MappedFileRegionBumpPtr_oom(StringRef Path, size_t Capacity,
-                                       size_t Size, size_t AllocSize);
-  void log_MappedFileRegionBumpPtr_close(StringRef Path);
-  void log_MappedFileRegionBumpPtr_allocate(void *Region, TrieOffset Off,
-                                            size_t Size);
-  void log_UnifiedOnDiskCache_collectGarbage(StringRef Path);
-  void log_UnifiedOnDiskCache_validateIfNeeded(
-      StringRef Path, uint64_t BootTime, uint64_t ValidationTime,
-      bool CheckHash, bool AllowRecovery, bool Force,
-      std::optional<StringRef> LLVMCas, StringRef ValidationError, bool Skipped,
-      bool Recovered);
-  void log_TempFile_create(StringRef Name);
-  void log_TempFile_keep(StringRef TmpName, StringRef Name, std::error_code EC);
-  void log_TempFile_remove(StringRef TmpName, std::error_code EC);
+  LLVM_ABI void log_compare_exchange_strong(void *Region, TrieOffset Trie,
+                                            size_t SlotI, TrieOffset Expected,
+                                            TrieOffset New,
+                                            TrieOffset Previous);
+ LLVM_ABI void log_SubtrieHandle_create(void *Region, TrieOffset Trie,
+                                        uint32_t StartBit, uint32_t NumBits);
+ LLVM_ABI void log_HashMappedTrieHandle_createRecord(void *Region,
+                                                     TrieOffset TrieOffset,
+                                                     ArrayRef<uint8_t> Hash);
+ LLVM_ABI void log_MappedFileRegionBumpPtr_resizeFile(StringRef Path,
+                                                      size_t Before,
+                                                      size_t After);
+ LLVM_ABI void log_MappedFileRegionBumpPtr_create(StringRef Path, int FD,
+                                                  void *Region, size_t Capacity,
+                                                  size_t Size);
+ LLVM_ABI void log_MappedFileRegionBumpPtr_oom(StringRef Path, size_t Capacity,
+                                               size_t Size, size_t AllocSize);
+ LLVM_ABI void log_MappedFileRegionBumpPtr_close(StringRef Path);
+ LLVM_ABI void log_MappedFileRegionBumpPtr_allocate(void *Region,
+                                                    TrieOffset Off,
+                                                    size_t Size);
+ LLVM_ABI void log_UnifiedOnDiskCache_collectGarbage(StringRef Path);
+ LLVM_ABI void log_UnifiedOnDiskCache_validateIfNeeded(
+     StringRef Path, uint64_t BootTime, uint64_t ValidationTime, bool CheckHash,
+     bool AllowRecovery, bool Force, std::optional<StringRef> LLVMCas,
+     StringRef ValidationError, bool Skipped, bool Recovered);
+ LLVM_ABI void log_TempFile_create(StringRef Name);
+ LLVM_ABI void log_TempFile_keep(StringRef TmpName, StringRef Name,
+                                 std::error_code EC);
+ LLVM_ABI void log_TempFile_remove(StringRef TmpName, std::error_code EC);
 
 private:
   OnDiskCASLogger(raw_fd_ostream &OS, bool LogAllocations);

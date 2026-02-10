@@ -22,7 +22,7 @@ Expected<std::unique_ptr<ActionCache>> createGRPCActionCache(StringRef Path);
 // Register GRPC CAS.
 class RegisterGRPCCAS {
 public:
-  RegisterGRPCCAS();
+  LLVM_ABI RegisterGRPCCAS();
 };
 
 } // namespace llvm::cas

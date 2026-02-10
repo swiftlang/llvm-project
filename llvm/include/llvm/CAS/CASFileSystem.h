@@ -36,7 +36,8 @@ public:
   /// open the file twice.
   /// The IsText parameter is used to distinguish whether the file should be
   /// opened as a binary or text file.
-  llvm::Expected<std::pair<std::unique_ptr<llvm::MemoryBuffer>, cas::ObjectRef>>
+  LLVM_ABI llvm::Expected<
+      std::pair<std::unique_ptr<llvm::MemoryBuffer>, cas::ObjectRef>>
   getBufferAndObjectRefForFile(const Twine &Name, int64_t FileSize = -1,
                                bool RequiresNullTerminator = true,
                                bool IsVolatile = false, bool IsText = true);

@@ -78,7 +78,7 @@ public:
   ///   * Calling push() for every non-tree
   ///
   /// Allows merging the contents of multiple directories.
-  void pushTreeContent(ObjectRef Ref, const Twine &Path);
+  LLVM_ABI void pushTreeContent(ObjectRef Ref, const Twine &Path);
 
   /// Drop all entries.
   void clear() { Entries.clear(); }

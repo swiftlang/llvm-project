@@ -181,7 +181,7 @@ public:
     return pointer(CP.getOffset(), V);
   }
 
-  const_pointer find(ArrayRef<uint8_t> Hash) const;
+  LLVM_ABI const_pointer find(ArrayRef<uint8_t> Hash) const;
   pointer find(ArrayRef<uint8_t> Hash) {
     return getMutablePointer(
         const_cast<const OnDiskHashMappedTrie *>(this)->find(Hash));
@@ -194,7 +194,7 @@ public:
             HashBegin));
   }
 
-  const_pointer recoverFromFileOffset(FileOffset Offset) const;
+  LLVM_ABI const_pointer recoverFromFileOffset(FileOffset Offset) const;
   pointer recoverFromFileOffset(FileOffset Offset) {
     return getMutablePointer(
         const_cast<const OnDiskHashMappedTrie *>(this)->recoverFromFileOffset(
@@ -221,9 +221,10 @@ public:
   /// The in-memory \a HashMappedTrie uses LazyAtomicPointer to synchronize
   /// simultaneous writes, but that seems dangerous to use in a memory-mapped
   /// file in case a process crashes in the busy state.
-  Expected<pointer> insertLazy(ArrayRef<uint8_t> Hash,
-                               LazyInsertOnConstructCB OnConstruct = nullptr,
-                               LazyInsertOnLeakCB OnLeak = nullptr);
+  LLVM_ABI Expected<pointer>
+  insertLazy(ArrayRef<uint8_t> Hash,
+             LazyInsertOnConstructCB OnConstruct = nullptr,
+             LazyInsertOnLeakCB OnLeak = nullptr);
 
   Expected<pointer> insert(const ConstValueProxy &Value) {
     return insertLazy(Value.Hash, [&](FileOffset, ValueProxy Allocated) {
@@ -253,7 +254,7 @@ public:
   /// adding more tables to a single file.
   ///
   /// FIXME: Rename to getOrCreate().
-  static Expected<OnDiskHashMappedTrie>
+  LLVM_ABI static Expected<OnDiskHashMappedTrie>
   create(const Twine &Path, const Twine &TrieName, size_t NumHashBits,
          uint64_t DataSize, uint64_t MaxFileSize,
          std::optional<uint64_t> NewFileInitialSize,
@@ -261,9 +262,9 @@ public:
          std::optional<size_t> NewTableNumRootBits = std::nullopt,
          std::optional<size_t> NewTableNumSubtrieBits = std::nullopt);
 
-  OnDiskHashMappedTrie(OnDiskHashMappedTrie &&RHS);
-  OnDiskHashMappedTrie &operator=(OnDiskHashMappedTrie &&RHS);
-  ~OnDiskHashMappedTrie();
+  LLVM_ABI OnDiskHashMappedTrie(OnDiskHashMappedTrie &&RHS);
+  LLVM_ABI OnDiskHashMappedTrie &operator=(OnDiskHashMappedTrie &&RHS);
+  LLVM_ABI ~OnDiskHashMappedTrie();
 
 private:
   struct ImplType;
@@ -329,7 +330,7 @@ public:
   size_t size() const;
   size_t capacity() const;
 
-  static Expected<OnDiskDataAllocator>
+  LLVM_ABI static Expected<OnDiskDataAllocator>
   create(const Twine &Path, const Twine &TableName, uint64_t MaxFileSize,
          std::optional<uint64_t> NewFileInitialSize,
          uint32_t UserHeaderSize = 0,

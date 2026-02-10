@@ -42,12 +42,14 @@ struct MappedPrefix {
   LLVM_ABI static std::optional<MappedPrefix>
   getFromJoined(StringRef JoinedMapping);
 
-  static Error transformJoined(ArrayRef<StringRef> Joined,
-                               SmallVectorImpl<MappedPrefix> &Split);
-  static Error transformJoined(ArrayRef<std::string> Joined,
-                               SmallVectorImpl<MappedPrefix> &Split);
-  static void transformJoinedIfValid(ArrayRef<StringRef> Joined,
-                                     SmallVectorImpl<MappedPrefix> &Split);
+  LLVM_ABI static Error transformJoined(ArrayRef<StringRef> Joined,
+                                        SmallVectorImpl<MappedPrefix> &Split);
+  LLVM_ABI static Error transformJoined(ArrayRef<std::string> Joined,
+                                        SmallVectorImpl<MappedPrefix> &Split);
+  LLVM_ABI static void
+  transformJoinedIfValid(ArrayRef<StringRef> Joined,
+                         SmallVectorImpl<MappedPrefix> &Split);
+  LLVM_ABI
   static void transformJoinedIfValid(ArrayRef<std::string> Joined,
                                      SmallVectorImpl<MappedPrefix> &Split);
   LLVM_ABI static void
@@ -176,7 +178,7 @@ private:
   std::optional<StringRef> getTreePath(StringRef Path);
 
 public:
-  void add(const MappedPrefix &Mapping) override;
+  LLVM_ABI void add(const MappedPrefix &Mapping) override;
 
   LLVM_ABI StringRef mapDirEntry(const vfs::CachedDirectoryEntry &Entry,
                                  SmallVectorImpl<char> &Storage);

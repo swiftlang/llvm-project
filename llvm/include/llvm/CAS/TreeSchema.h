@@ -69,8 +69,8 @@ private:
 
 class TreeProxy : public ObjectProxy {
 public:
-  static Expected<TreeProxy> get(const TreeSchema &Schema,
-                                     Expected<ObjectProxy> Ref);
+  LLVM_ABI static Expected<TreeProxy> get(const TreeSchema &Schema,
+                                          Expected<ObjectProxy> Ref);
 
   static Expected<TreeProxy> create(TreeSchema &Schema,
                                         ArrayRef<NamedTreeEntry> Entries);

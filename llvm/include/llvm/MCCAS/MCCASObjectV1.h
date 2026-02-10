@@ -194,9 +194,9 @@ class MCCASReader;
 // FIXME: Using the same structure from ObjectV1 from CASObjectFormat.
 class MCObjectProxy : public cas::ObjectProxy {
 public:
-  static Expected<MCObjectProxy> get(const MCSchema &Schema,
-                                     Expected<cas::ObjectProxy> Ref);
-  StringRef getKindString() const;
+  LLVM_ABI static Expected<MCObjectProxy> get(const MCSchema &Schema,
+                                              Expected<cas::ObjectProxy> Ref);
+  LLVM_ABI StringRef getKindString() const;
 
   /// Return the data skipping the type-id character.
   StringRef getData() const { return cas::ObjectProxy::getData().drop_front(); }
@@ -213,7 +213,7 @@ public:
                                 SmallVectorImpl<char> &Data,
                                 SmallVectorImpl<cas::ObjectRef> &IDs);
 
-  static Expected<SmallVector<cas::ObjectRef>>
+  LLVM_ABI static Expected<SmallVector<cas::ObjectRef>>
   decodeReferences(const MCObjectProxy &Node, StringRef &Remaining);
 
 protected:
@@ -371,14 +371,14 @@ protected:
     static Expected<RefName> get(const MCSchema &Schema, cas::ObjectRef ID) {  \
       return get(Schema.get(ID));                                              \
     }                                                                          \
-    static std::optional<RefName> Cast(MCObjectProxy Ref) {                         \
+    static std::optional<RefName> Cast(MCObjectProxy Ref) {                    \
       auto Specific = SpecificRefT::Cast(Ref);                                 \
       if (!Specific)                                                           \
         return std::nullopt;                                                   \
       return RefName(*Specific);                                               \
     }                                                                          \
-    Expected<uint64_t> materialize(MCCASReader &Reader,                        \
-                                   raw_ostream *Stream = nullptr) const;       \
+    LLVM_ABI Expected<uint64_t>                                                \
+    materialize(MCCASReader &Reader, raw_ostream *Stream = nullptr) const;     \
                                                                                \
   private:                                                                     \
     explicit RefName(SpecificRefT Ref) : SpecificRefT(Ref) {}                  \
@@ -683,7 +683,8 @@ public:
   /// copy the Fragment contents into the section buffer.
   uint64_t AddendBufferIndex = 0;
 
-  MCCASReader(raw_ostream &OS, const Triple &Target, const MCSchema &Schema);
+  LLVM_ABI MCCASReader(raw_ostream &OS, const Triple &Target,
+                       const MCSchema &Schema);
   endianness getEndian() {
     return Target.isLittleEndian() ? endianness::little : endianness::big;
   }
@@ -795,7 +796,7 @@ Expected<SmallVector<RefTy>> loadAllRefs(MCObjectProxy Obj) {
 /// HadChildren is provided to indicate whether this Tag had children DIE.
 /// * NewBlockCallback is called to indicate that data from a new CAS block is
 /// about to be read.
-Error visitDebugInfo(
+LLVM_ABI Error visitDebugInfo(
     SmallVectorImpl<StringRef> &TotAbbrevEntries,
     Expected<DIETopLevelRef> TopLevelRef,
     std::function<void(StringRef)> HeaderCallback,
@@ -807,7 +808,7 @@ Error visitDebugInfo(
     std::function<void(StringRef)> NewBlockCallback = [](StringRef) {});
 
 /// If MCCAS supports the target.
-bool isSupportedTarget(Triple Triple);
+LLVM_ABI bool isSupportedTarget(Triple Triple);
 
 } // namespace v1
 } // namespace mccasformats
