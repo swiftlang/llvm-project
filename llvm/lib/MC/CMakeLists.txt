@@ -36,6 +36,7 @@ add_llvm_component_library(LLVMMC
   MCMachOStreamer.cpp
   MCMachObjectTargetWriter.cpp
   MachOCASWriter.cpp
+  COFFCASWriter.cpp
   MCNullStreamer.cpp
   MCObjectFileInfo.cpp
   MCObjectStreamer.cpp

@@ -655,11 +655,11 @@ int main(int argc, char **argv) {
                           llvm::sys::Process::GetEnv("LLVM_TEST_CAS_BACKEND"));
 
     if (UseCASBackend) {
-      std::function<const cas::ObjectProxy(llvm::MachOCASWriter &,
+      std::function<const cas::ObjectProxy(llvm::MCObjectWriter &,
                                            llvm::MCAssembler &,
                                            cas::ObjectStore &, raw_ostream *)>
           CreateFromMcAssembler =
-              [](llvm::MachOCASWriter &Writer, llvm::MCAssembler &Asm,
+              [](llvm::MCObjectWriter &Writer, llvm::MCAssembler &Asm,
                  cas::ObjectStore &CAS,
                  raw_ostream *DebugOS = nullptr) -> const cas::ObjectProxy {
         auto Schema = std::make_unique<mccasformats::v1::MCSchema>(CAS);

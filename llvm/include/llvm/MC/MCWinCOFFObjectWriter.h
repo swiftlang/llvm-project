@@ -45,7 +45,7 @@ public:
 
 class WinCOFFWriter;
 
-class WinCOFFObjectWriter final : public MCObjectWriter {
+class WinCOFFObjectWriter : public MCObjectWriter {
   friend class WinCOFFWriter;
 
   std::unique_ptr<MCWinCOFFObjectTargetWriter> TargetObjectWriter;
@@ -57,6 +57,7 @@ public:
                       raw_pwrite_stream &OS);
   WinCOFFObjectWriter(std::unique_ptr<MCWinCOFFObjectTargetWriter> MOTW,
                       raw_pwrite_stream &OS, raw_pwrite_stream &DwoOS);
+  ~WinCOFFObjectWriter();
 
   // MCObjectWriter interface implementation.
   void reset() override;

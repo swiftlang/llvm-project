@@ -267,7 +267,7 @@ public:
   bool isNode(const cas::ObjectProxy &Node) const override;
 
   Expected<cas::ObjectProxy>
-  createFromMCAssemblerImpl(llvm::MachOCASWriter &ObjectWriter,
+  createFromMCAssemblerImpl(llvm::MCObjectWriter &ObjectWriter,
                             llvm::MCAssembler &Asm,
                             raw_ostream *DebugOS) const override;
 
@@ -458,7 +458,7 @@ public:
   }
 
   static Expected<MCAssemblerRef> create(const MCSchema &Schema,
-                                         MachOCASWriter &ObjectWriter,
+                                         MCObjectWriter &ObjectWriter,
                                          MCAssembler &Asm,
                                          raw_ostream *DebugOS = nullptr);
 
@@ -505,12 +505,12 @@ Expected<size_t> getSizeFromDwarfHeaderAndSkip(BinaryStreamReader &Reader);
 class MCCASBuilder {
 public:
   cas::ObjectStore &CAS;
-  MachOCASWriter &ObjectWriter;
+  MCObjectWriter &ObjectWriter;
   const MCSchema &Schema;
   MCAssembler &Asm;
   raw_ostream *DebugOS;
 
-  MCCASBuilder(const MCSchema &Schema, MachOCASWriter &ObjectWriter,
+  MCCASBuilder(const MCSchema &Schema, MCObjectWriter &ObjectWriter,
                MCAssembler &Asm, raw_ostream *DebugOS)
       : CAS(Schema.CAS), ObjectWriter(ObjectWriter), Schema(Schema), Asm(Asm),
         DebugOS(DebugOS), FragmentOS(FragmentData), CurrentContext(&Sections),
