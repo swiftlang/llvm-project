@@ -188,9 +188,11 @@ clang_experimental_DependencyScannerService_create_v1(
   std::shared_ptr<llvm::cas::ObjectStore> CAS = unwrap(Opts)->CAS;
   std::shared_ptr<llvm::cas::ActionCache> Cache = unwrap(Opts)->Cache;
   return wrap(new DependencyScanningService(
-      ScanningMode::DependencyDirectivesScan, unwrap(Opts)->getFormat(), unwrap(Opts)->CASOpts,
-      std::move(CAS), std::move(Cache), unwrap(Opts)->OptimizeArgs, /*EagerLoadModules=*/false,
-      /*TraceVFS=*/false, llvm::sys::toTimeT(std::chrono::system_clock::now()),
+      ScanningMode::DependencyDirectivesScan, unwrap(Opts)->getFormat(),
+      unwrap(Opts)->CASOpts, std::move(CAS), std::move(Cache),
+      unwrap(Opts)->OptimizeArgs, /*EagerLoadModules=*/false,
+      /*TraceVFS=*/false, /*AsyncScanModules=*/false,
+      llvm::sys::toTimeT(std::chrono::system_clock::now()),
       unwrap(Opts)->CacheNegativeStats ? *unwrap(Opts)->CacheNegativeStats
                                        : shouldCacheNegativeStatsDefault()));
 }

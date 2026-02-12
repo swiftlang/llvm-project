@@ -383,7 +383,9 @@ TEST(DependencyScanner, NoNegativeCache) {
       ScanningMode::DependencyDirectivesScan, ScanningOutputFormat::Make,
       CASOptions(), nullptr, nullptr, ScanningOptimizations::All,
       /*EagerLoadModules=*/false,
-      /*TraceVFS=*/false, llvm::sys::toTimeT(std::chrono::system_clock::now()),
+      /*TraceVFS=*/false,
+      /*AsyncScanModules=*/false,
+      llvm::sys::toTimeT(std::chrono::system_clock::now()),
       /*CacheNegativeStats=*/false);
   DependencyScanningTool ScanTool(Service, VFS);
 
@@ -438,10 +440,13 @@ TEST(DependencyScanner, NoNegativeCacheCAS) {
                llvm::MemoryBuffer::getMemBuffer("#include \"header.h\""));
 
   DependencyScanningService Service(
-      ScanningMode::DependencyDirectivesScan, ScanningOutputFormat::FullIncludeTree,
-      CASOptions(), DB, Cache, ScanningOptimizations::Default,
+      ScanningMode::DependencyDirectivesScan,
+      ScanningOutputFormat::FullIncludeTree, CASOptions(), DB, Cache,
+      ScanningOptimizations::Default,
       /*EagerLoadModules=*/false,
-      /*TraceVFS=*/false, llvm::sys::toTimeT(std::chrono::system_clock::now()),
+      /*TraceVFS=*/false,
+      /*AsyncScanModules=*/false,
+      llvm::sys::toTimeT(std::chrono::system_clock::now()),
       /*CacheNegativeStats=*/false);
   DependencyScanningTool ScanTool(Service, VFS);
 
