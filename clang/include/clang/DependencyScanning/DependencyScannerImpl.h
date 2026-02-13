@@ -34,17 +34,13 @@ class DependencyScanningAction {
 public:
   DependencyScanningAction(
       DependencyScanningService &Service, StringRef WorkingDirectory,
-      DependencyConsumer &Consumer, DependencyActionController &Controller,
+      DependencyConsumer &Consumer,
+      MakeDependencyActionController MakeController,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       bool EmitDependencyFile, bool DiagGenerationAsCompilation,
       const CASOptions &CASOpts,
       std::optional<StringRef> ModuleName = std::nullopt,
-      raw_ostream *VerboseOS = nullptr)
-      : Service(Service), WorkingDirectory(WorkingDirectory),
-        Consumer(Consumer), Controller(Controller), DepFS(std::move(DepFS)),
-        CASOpts(CASOpts), EmitDependencyFile(EmitDependencyFile),
-        DiagGenerationAsCompilation(DiagGenerationAsCompilation),
-        VerboseOS(VerboseOS) {}
+      raw_ostream *VerboseOS = nullptr);
   bool runInvocation(std::string Executable,
                      std::shared_ptr<CompilerInvocation> Invocation,
                      IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
@@ -58,6 +54,11 @@ private:
   DependencyScanningService &Service;
   StringRef WorkingDirectory;
   DependencyConsumer &Consumer;
+  /// Besides creating the main controller instance, this is used in the "async
+  /// scan modules" mode.
+  MakeDependencyActionController MakeController;
+  /// The main controller instance.
+  std::unique_ptr<DependencyActionController> ControllerPtr;
   DependencyActionController &Controller;
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
   const CASOptions &CASOpts;
