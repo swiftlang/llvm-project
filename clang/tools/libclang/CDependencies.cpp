@@ -20,11 +20,15 @@
 
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/SerializedDiagnosticPrinter.h"
+#include "clang/Driver/Options.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/CAS/CASProvidingFileSystem.h"
+#include "llvm/CAS/CachingOnDiskFileSystem.h"
+#include "llvm/Option/ArgList.h"
+#include "llvm/Option/OptTable.h"
 #include "llvm/Support/Process.h"
 
 using namespace clang;
@@ -690,6 +694,9 @@ struct DependencyScannerReproducerOptions {
   std::optional<std::string> WorkingDirectory;
   std::optional<std::string> ReproducerLocation;
   bool UseUniqueReproducerName;
+  CASOptions CASOpts;
+  std::shared_ptr<cas::ObjectStore> CAS;
+  std::shared_ptr<cas::ActionCache> Cache;
 
   DependencyScannerReproducerOptions(int argc, const char *const *argv,
                                      const char *ModuleName,
@@ -746,6 +753,20 @@ clang_experimental_DependencyScannerReproducerOptions_create(
       UseUniqueReproducerName});
 }
 
+void clang_experimental_DependencyScannerReproducerOptions_setCASOptions(
+    CXDependencyScannerReproducerOptions CXOptions, CXCASDatabases CDBs,
+    CXCASOptions CASOpts) {
+  DependencyScannerReproducerOptions &Opts = *unwrap(CXOptions);
+  if (CDBs) {
+    cas::WrappedCASDatabases &DBs = *cas::unwrap(CDBs);
+    Opts.CASOpts = DBs.CASOpts;
+    Opts.CAS = DBs.CAS;
+    Opts.Cache = DBs.Cache;
+  }
+  if (CASOpts)
+    Opts.CASOpts = *cas::unwrap(CASOpts);
+}
+
 void clang_experimental_DependencyScannerReproducerOptions_dispose(
     CXDependencyScannerReproducerOptions Options) {
   delete unwrap(Options);
@@ -753,6 +774,7 @@ void clang_experimental_DependencyScannerReproducerOptions_dispose(
 
 enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
     CXDependencyScannerReproducerOptions CXOptions, CXString *MessageOut) {
+  using namespace clang::driver;
   auto Report = [MessageOut](CXErrorCode ErrorCode) -> MessageEmitter {
     return MessageEmitter(ErrorCode, MessageOut);
   };
@@ -769,11 +791,18 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
     return Report(CXError_InvalidArguments)
            << "non-unique reproducer is allowed only in a custom location";
 
-  CASOptions CASOpts;
+  std::shared_ptr<llvm::cas::ObjectStore> UpstreamCAS = Opts.CAS;
+  bool IsReproducerCASBased{UpstreamCAS};
   DependencyScanningService DepsService(
-      ScanningMode::DependencyDirectivesScan, ScanningOutputFormat::Full,
-      CASOpts, /*CAS=*/nullptr, /*ActionCache=*/nullptr);
-  DependencyScanningTool DepsTool(DepsService);
+      ScanningMode::DependencyDirectivesScan,
+      IsReproducerCASBased ? ScanningOutputFormat::FullIncludeTree
+                           : ScanningOutputFormat::Full,
+      Opts.CASOpts, UpstreamCAS, Opts.Cache);
+  IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS =
+      llvm::vfs::createPhysicalFileSystem();
+  if (UpstreamCAS)
+    FS = llvm::cas::createCASProvidingFileSystem(UpstreamCAS, std::move(FS));
+  DependencyScanningTool DepsTool(DepsService, FS);
 
   llvm::SmallString<128> ReproScriptPath;
   int ScriptFD;
@@ -802,10 +831,20 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
   std::string FileCacheName = llvm::sys::path::filename(FileCachePath).str();
   auto LookupOutput = [&FileCacheName](const ModuleDeps &MD,
                                        ModuleOutputKind MOK) -> std::string {
-    if (MOK != ModuleOutputKind::ModuleFile)
+    if (MOK == ModuleOutputKind::DependencyTargets)
+      return "reproducerdependencytargets";
+    std::string CommonPrefix = FileCacheName + "/explicitly-built-modules/" +
+                               MD.ID.ModuleName + "-" + MD.ID.ContextHash;
+    switch (MOK) {
+    case ModuleOutputKind::ModuleFile:
+      return CommonPrefix + ".pcm";
+    case ModuleOutputKind::DependencyFile:
+      return CommonPrefix + ".d";
+    case ModuleOutputKind::DiagnosticSerializationFile:
+      return CommonPrefix + ".dia";
+    default:
       return "";
-    return FileCacheName + "/explicitly-built-modules/" +
-           MD.ID.ModuleName + "-" + MD.ID.ContextHash + ".pcm";
+    }
   };
 
   llvm::DenseSet<ModuleID> AlreadySeen;
@@ -823,49 +862,148 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
     ScriptOS << ' ' << Arg;
   ScriptOS << "\n\n";
 
+  const llvm::opt::OptTable &ClangOpts = getDriverOptTable();
+
   ScriptOS << "# Dependencies:\n";
   // Output the executable as an environment variable with a default value, so
   // it is easier to run the reproducer with a different compiler and to
   // simplify running an individual command manually.
   std::string ReproExecutable = "\"${CLANG:-" + Opts.BuildArgs.front() + "}\"";
-  auto PrintArguments = [&ReproExecutable,
-                         &FileCacheName](llvm::raw_fd_ostream &OS,
-                                         ArrayRef<std::string> Arguments) {
+  auto PrintArguments = [IsReproducerCASBased, &ReproExecutable, &FileCacheName,
+                         &ClangOpts](llvm::raw_fd_ostream &OS,
+                                     ArrayRef<std::string> Arguments,
+                                     bool RedirectOutput) {
+    std::vector<const char *> CharArgs(Arguments.size());
+    for (const std::string &Arg : Arguments)
+      CharArgs.push_back(Arg.c_str());
+    unsigned MissingArgIndex, MissingArgCount;
+    llvm::opt::InputArgList ParsedArgs =
+        ClangOpts.ParseArgs(CharArgs, MissingArgIndex, MissingArgCount,
+                            llvm::opt::Visibility(options::CC1Option));
+
+    // CAS-based reproducer doesn't use VFS overlays.
+    bool DidAddVFSOverlay = IsReproducerCASBased;
     OS << ReproExecutable;
-    for (int I = 0, E = Arguments.size(); I < E; ++I)
-      OS << ' ' << Arguments[I];
-    OS << " -ivfsoverlay \"" << FileCacheName << "/vfs/vfs.yaml\"";
+    for (const llvm::opt::Arg *Arg : ParsedArgs) {
+      const llvm::opt::Option &Opt = Arg->getOption();
+      if (Opt.matches(options::OPT_ivfsoverlay)) {
+        if (!DidAddVFSOverlay) {
+          OS << " -ivfsoverlay \"" << FileCacheName << "/vfs/vfs.yaml\"";
+          DidAddVFSOverlay = true;
+        }
+      }
+      if (Opt.matches(options::OPT_fcas_path)) {
+        OS << " -fcas-path \"" << FileCacheName << "/cas\"";
+        continue;
+      }
+      bool IsOutputArg = Opt.matches(options::OPT_o) ||
+                         Opt.matches(options::OPT_dependency_file);
+      llvm::opt::ArgStringList OutArgs;
+      Arg->render(ParsedArgs, OutArgs);
+      bool IsArgValue = false;
+      for (const auto &OutArg : OutArgs) {
+        OS << ' ';
+        if (RedirectOutput && IsOutputArg && IsArgValue) {
+          StringRef OutputFileName = llvm::sys::path::filename(OutArg);
+          OS << " \"" << FileCacheName << '/' << OutputFileName << '"';
+        } else {
+          llvm::sys::printArg(OS, OutArg, /*Quote=*/true);
+        }
+        IsArgValue = true;
+      }
+    }
+    if (!DidAddVFSOverlay) {
+      OS << " -ivfsoverlay \"" << FileCacheName << "/vfs/vfs.yaml\"";
+      DidAddVFSOverlay = true;
+    }
     OS << '\n';
   };
+  // Redirect the output to keep reproducers relocatable. But don't redirect
+  // modules as they are already in the appropriate place (see `LookupOutput`).
   for (ModuleDeps &Dep : TU.ModuleGraph)
-    PrintArguments(ScriptOS, Dep.getBuildArguments());
+    PrintArguments(ScriptOS, Dep.getBuildArguments(), /*RedirectOutput=*/false);
   ScriptOS << "\n# Translation unit:\n";
   for (const Command &BuildCommand : TU.Commands)
-    PrintArguments(ScriptOS, BuildCommand.Arguments);
+    PrintArguments(ScriptOS, BuildCommand.Arguments, /*RedirectOutput=*/true);
 
   auto RealFS = llvm::vfs::getRealFileSystem();
   RealFS->setCurrentWorkingDirectory(*Opts.WorkingDirectory);
 
-  SmallString<128> VFSCachePath = FileCachePath;
-  llvm::sys::path::append(VFSCachePath, "vfs");
-  std::string VFSCachePathStr = VFSCachePath.str().str();
-  llvm::FileCollector FileCollector(VFSCachePathStr,
-                                    /*OverlayRoot=*/VFSCachePathStr, RealFS);
-  for (const auto &FileDep : TU.FileDeps) {
-    FileCollector.addFile(FileDep);
-  }
-  for (ModuleDeps &ModuleDep : TU.ModuleGraph) {
-    ModuleDep.forEachFileDep([&FileCollector](StringRef FileDep) {
+  if (IsReproducerCASBased) {
+    SmallString<128> CASPath = FileCachePath;
+    llvm::sys::path::append(CASPath, "cas");
+    clang::CASOptions ReproducerCASOpts;
+    ReproducerCASOpts.CASPath = CASPath.str();
+    ReproducerCASOpts.PluginPath = Opts.CASOpts.PluginPath;
+    ReproducerCASOpts.PluginOptions = Opts.CASOpts.PluginOptions;
+    auto DBsOrErr = ReproducerCASOpts.getOrCreateDatabases();
+    if (!DBsOrErr)
+      return ReportFailure() << "failed to create a CAS database\n"
+                             << toString(DBsOrErr.takeError());
+    std::shared_ptr<llvm::cas::ObjectStore> ReproCAS = DBsOrErr->first;
+
+    auto transplantCASIncludeTree =
+        [UpstreamCAS, ReproCAS](
+            const std::optional<std::string> &IncludeTreeID) -> llvm::Error {
+      if (!IncludeTreeID.has_value())
+        // Missing `IncludeTreeID` likely indicates a problem but ignore it, so
+        // can capture enough data to reproduce it later.
+        return llvm::Error::success();
+      auto IDOrErr = UpstreamCAS->parseID(*IncludeTreeID);
+      if (!IDOrErr)
+        return llvm::make_error<llvm::StringError>(
+            "failure to parse include tree id '" + *IncludeTreeID +
+                "':" + toString(IDOrErr.takeError()),
+            llvm::inconvertibleErrorCode());
+      std::optional<cas::ObjectRef> UpstreamRef =
+          UpstreamCAS->getReference(*IDOrErr);
+      if (!UpstreamRef.has_value())
+        return llvm::make_error<llvm::StringError>(
+            "missing include tree with ID '" + *IncludeTreeID +
+                "' in the provided CAS object storage",
+            llvm::inconvertibleErrorCode());
+      auto ReproRefOrErr = ReproCAS->importObject(*UpstreamCAS, *UpstreamRef);
+      if (!ReproRefOrErr)
+        return llvm::make_error<llvm::StringError>(
+            "failure to import an include tree with id '" + *IncludeTreeID +
+                "':" + toString(ReproRefOrErr.takeError()),
+            llvm::inconvertibleErrorCode());
+      return llvm::Error::success();
+    };
+
+    if (auto Err = transplantCASIncludeTree(TU.IncludeTreeID))
+      return ReportFailure()
+             << "failed to transplant a translation unit include tree due to "
+             << toString(std::move(Err));
+    for (const ModuleDeps &ModuleDep : TU.ModuleGraph) {
+      if (auto Err = transplantCASIncludeTree(ModuleDep.IncludeTreeID))
+        return ReportFailure()
+               << "failed to transplant a module '" + ModuleDep.ID.ModuleName +
+                      "' include tree due to "
+               << toString(std::move(Err));
+    }
+  } else {
+    SmallString<128> VFSCachePath = FileCachePath;
+    llvm::sys::path::append(VFSCachePath, "vfs");
+    std::string VFSCachePathStr = VFSCachePath.str().str();
+    llvm::FileCollector FileCollector(VFSCachePathStr,
+                                      /*OverlayRoot=*/VFSCachePathStr, RealFS);
+    for (const auto &FileDep : TU.FileDeps) {
       FileCollector.addFile(FileDep);
-    });
+    }
+    for (ModuleDeps &ModuleDep : TU.ModuleGraph) {
+      ModuleDep.forEachFileDep([&FileCollector](StringRef FileDep) {
+        FileCollector.addFile(FileDep);
+      });
+    }
+    if (FileCollector.copyFiles(/*StopOnError=*/true))
+      return ReportFailure()
+             << "failed to copy the files used for the compilation";
+    SmallString<128> VFSOverlayPath = VFSCachePath;
+    llvm::sys::path::append(VFSOverlayPath, "vfs.yaml");
+    if (FileCollector.writeMapping(VFSOverlayPath))
+      return ReportFailure() << "failed to write a VFS overlay mapping";
   }
-  if (FileCollector.copyFiles(/*StopOnError=*/true))
-    return ReportFailure()
-           << "failed to copy the files used for the compilation";
-  SmallString<128> VFSOverlayPath = VFSCachePath;
-  llvm::sys::path::append(VFSOverlayPath, "vfs.yaml");
-  if (FileCollector.writeMapping(VFSOverlayPath))
-    return ReportFailure() << "failed to write a VFS overlay mapping";
 
   return Report(CXError_Success)
          << "Created a reproducer. Sources and associated run script(s) are "
