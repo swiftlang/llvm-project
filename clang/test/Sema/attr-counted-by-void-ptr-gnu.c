@@ -4,9 +4,6 @@
 
 // expected-nowarn-no-diagnostics
 
-// FIXME: We don't allow `counted_by` on `void *` yet, unlike upstream.
-// See: https://github.com/swiftlang/llvm-project/issues/11807
-
 #define NULL (void*)0
 #define __counted_by(f)  __attribute__((counted_by(f)))
 #define __counted_by_or_null(f)  __attribute__((counted_by_or_null(f)))
@@ -18,7 +15,6 @@
 
 struct test_void_ptr_gnu {
   int count;
-  // expected-bounds-error@+3{{cannot apply '__counted_by' attribute to 'void *' because 'void' has unknown size; did you mean to use '__sized_by' instead?}}
   // expected-warn-warning@+2{{'counted_by' on a pointer to void is a GNU extension, treated as 'sized_by'}}
   // expected-warn-note@+1{{use '__sized_by' to suppress this warning}}
   void* buf __counted_by(count);
@@ -26,7 +22,6 @@ struct test_void_ptr_gnu {
 
 struct test_const_void_ptr_gnu {
   int count;
-  // expected-bounds-error@+3{{cannot apply '__counted_by' attribute to 'const void *' because 'const void' has unknown size; did you mean to use '__sized_by' instead?}}
   // expected-warn-warning@+2{{'counted_by' on a pointer to void is a GNU extension, treated as 'sized_by'}}
   // expected-warn-note@+1{{use '__sized_by' to suppress this warning}}
   const void* buf __counted_by(count);
@@ -34,7 +29,6 @@ struct test_const_void_ptr_gnu {
 
 struct test_volatile_void_ptr_gnu {
   int count;
-  // expected-bounds-error@+3{{cannot apply '__counted_by' attribute to 'volatile void *' because 'volatile void' has unknown size; did you mean to use '__sized_by' instead?}}
   // expected-warn-warning@+2{{'counted_by' on a pointer to void is a GNU extension, treated as 'sized_by'}}
   // expected-warn-note@+1{{use '__sized_by' to suppress this warning}}
   volatile void* buf __counted_by(count);
@@ -42,7 +36,6 @@ struct test_volatile_void_ptr_gnu {
 
 struct test_const_volatile_void_ptr_gnu {
   int count;
-  // expected-bounds-error@+3{{cannot apply '__counted_by' attribute to 'const volatile void *' because 'const volatile void' has unknown size; did you mean to use '__sized_by' instead?}}
   // expected-warn-warning@+2{{'counted_by' on a pointer to void is a GNU extension, treated as 'sized_by'}}
   // expected-warn-note@+1{{use '__sized_by' to suppress this warning}}
   const volatile void* buf __counted_by(count);
@@ -60,7 +53,6 @@ struct test_sized_by_void_ptr {
 
 struct test_void_ptr_or_null_gnu {
   int count;
-  // expected-bounds-error@+3{{cannot apply '__counted_by_or_null' attribute to 'void *' because 'void' has unknown size; did you mean to use '__sized_by_or_null' instead?}}
   // expected-warn-warning@+2{{'counted_by_or_null' on a pointer to void is a GNU extension, treated as 'sized_by_or_null'}}
   // expected-warn-note@+1{{use '__sized_by_or_null' to suppress this warning}}
   void* buf __counted_by_or_null(count);
@@ -68,7 +60,6 @@ struct test_void_ptr_or_null_gnu {
 
 struct test_const_void_ptr_or_null_gnu {
   int count;
-  // expected-bounds-error@+3{{cannot apply '__counted_by_or_null' attribute to 'const void *' because 'const void' has unknown size; did you mean to use '__sized_by_or_null' instead?}}
   // expected-warn-warning@+2{{'counted_by_or_null' on a pointer to void is a GNU extension, treated as 'sized_by_or_null'}}
   // expected-warn-note@+1{{use '__sized_by_or_null' to suppress this warning}}
   const void* buf __counted_by_or_null(count);

@@ -6,7 +6,7 @@
 // CHECK: VarDecl {{.*}} fptr 'int *__single*__single __counted_by(len)(*__single)(int)'
 int **__counted_by(len) (*fptr)(int len);
 
-// expected-error@+1{{cannot apply '__counted_by' attribute to 'void *' because 'void' has unknown size; did you mean to use '__sized_by' instead?}}
+// void *__counted_by is allowed (treated as byte count)
 void *__counted_by(len) (*fptr1)(int len);
 
 // expected-error@+1{{'__counted_by' attribute on nested pointer type is only allowed on indirect parameters}}
