@@ -704,12 +704,12 @@ dependencies::initializeScanInstanceDependencyCollector(
 
 struct SingleModuleWithAsyncModuleCompiles : PreprocessOnlyAction {
   DependencyScanningService &Service;
-  DependencyActionController &RootController;
+  DependencyActionController &Controller;
 
   SingleModuleWithAsyncModuleCompiles(
       DependencyScanningService &Service,
-      DependencyActionController &RootController)
-      : Service(Service), RootController(RootController) {}
+      DependencyActionController &Controller)
+      : Service(Service), Controller(Controller) {}
 
   bool BeginSourceFileAction(CompilerInstance &CI) override;
 };
@@ -719,11 +719,11 @@ struct SingleModuleWithAsyncModuleCompiles : PreprocessOnlyAction {
 struct AsyncModuleCompile : PPCallbacks {
   CompilerInstance &CI;
   DependencyScanningService &Service;
-  DependencyActionController &RootController;
+  DependencyActionController &Controller;
 
   AsyncModuleCompile(CompilerInstance &CI, DependencyScanningService &Service,
-                     DependencyActionController &RootController)
-      : CI(CI), Service(Service), RootController(RootController) {}
+                     DependencyActionController &Controller)
+      : CI(CI), Service(Service), Controller(Controller) {}
 
   void moduleLoadSkipped(Module *M) override {
     M = M->getTopLevelModule();
@@ -787,6 +787,8 @@ struct AsyncModuleCompile : PPCallbacks {
     auto ModCI2 = CI.cloneForModuleCompile(SourceLocation(), M, ModuleFileName,
                                            CloneConfig);
 
+    auto ModController = Controller.clone();
+
     // FIXME: Have the service own a thread pool and use that instead.
     // FIXME: This lock belongs to a module cache that might not outlive the
     // thread. (This should work for now, because the in-process lock only
@@ -794,22 +796,22 @@ struct AsyncModuleCompile : PPCallbacks {
     // thread.)
     std::thread([Lock = std::move(Lock), ModCI1 = std::move(ModCI1),
                  ModCI2 = std::move(ModCI2), DC = std::move(DC),
-                 Service = &Service, RootController = &RootController] {
+                 Service = &Service, ModController = std::move(ModController)] {
       llvm::CrashRecoveryContext CRC;
       (void)CRC.RunSafely([&] {
         // Quickly discovers and compiles modules for the real scan below.
-        SingleModuleWithAsyncModuleCompiles Action1(*Service, *RootController);
+        SingleModuleWithAsyncModuleCompiles Action1(*Service, *ModController);
         (void)ModCI1->ExecuteAction(Action1);
         // The real scan below.
         ModCI2->getPreprocessorOpts().SingleModuleParseMode = false;
-        auto Controller = RootController->clone();
         auto Action2 = std::make_unique<WrapScanModuleBuildAction>(
-            std::make_unique<GenerateModuleFromModuleMapAction>(), *Controller);
+            std::make_unique<GenerateModuleFromModuleMapAction>(),
+            *ModController);
         ModCI2->setGenModuleActionWrapper(
             [&](const FrontendOptions &,
                 std::unique_ptr<FrontendAction> Wrapped) {
               return std::make_unique<WrapScanModuleBuildAction>(
-                  std::move(Wrapped), *Controller);
+                  std::move(Wrapped), *ModController);
             });
         (void)ModCI2->ExecuteAction(*Action2);
       });
@@ -821,16 +823,16 @@ struct AsyncModuleCompile : PPCallbacks {
 /// modules asynchronously without blocking or importing them.
 struct SingleTUWithAsyncModuleCompiles : PreprocessOnlyAction {
   DependencyScanningService &Service;
-  DependencyActionController &RootController;
+  DependencyActionController &Controller;
 
   SingleTUWithAsyncModuleCompiles(DependencyScanningService &Service,
-                                  DependencyActionController &RootController)
-      : Service(Service), RootController(RootController) {}
+                                  DependencyActionController &Controller)
+      : Service(Service), Controller(Controller) {}
 
   bool BeginSourceFileAction(CompilerInstance &CI) override {
     CI.getInvocation().getPreprocessorOpts().SingleModuleParseMode = true;
     CI.getPreprocessor().addPPCallbacks(
-        std::make_unique<AsyncModuleCompile>(CI, Service, RootController));
+        std::make_unique<AsyncModuleCompile>(CI, Service, Controller));
     return true;
   }
 };
@@ -839,7 +841,7 @@ bool SingleModuleWithAsyncModuleCompiles::BeginSourceFileAction(
     CompilerInstance &CI) {
   CI.getInvocation().getPreprocessorOpts().SingleModuleParseMode = true;
   CI.getPreprocessor().addPPCallbacks(
-      std::make_unique<AsyncModuleCompile>(CI, Service, RootController));
+      std::make_unique<AsyncModuleCompile>(CI, Service, Controller));
   return true;
 }
 
