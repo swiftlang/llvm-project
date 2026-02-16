@@ -12,20 +12,6 @@
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/Support/Compiler.h"
 
-// FIXME: Temporarily disable split stacks. rdar://154158529
-#if 0
-// LLVM_HAS_SPLIT_STACKS is exposed in the header because CrashRecoveryContext
-// needs to know if it's running on another thread or not.
-//
-// Currently only Apple AArch64 is known to support split stacks in the debugger
-// and other tooling.
-#if defined(__APPLE__) && defined(__MACH__) && defined(__aarch64__) &&         \
-    __has_extension(gnu_asm)
-# define LLVM_HAS_SPLIT_STACKS
-# define LLVM_HAS_SPLIT_STACKS_AARCH64
-#endif
-#endif
-
 namespace llvm {
 
 /// \returns an address close to the current value of the stack pointer.
