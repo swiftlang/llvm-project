@@ -908,6 +908,7 @@ bool DependencyScanningAction::runInvocation(
         std::make_shared<CompilerInvocation>(*ScanInvocation), PCHContainerOps,
         std::move(ModCache));
     CompilerInstance &ScanInstance = *ScanInstanceStorage;
+    ScanInstance.getInvocation().getCASOpts() = CASOpts;
 
     DiagnosticConsumer DiagConsumer;
     initializeScanCompilerInstance(ScanInstance, FS, &DiagConsumer, Service,
