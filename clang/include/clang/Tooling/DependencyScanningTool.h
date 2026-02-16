@@ -233,7 +233,7 @@ bool computeDependencies(
     dependencies::DependencyScanningWorker &Worker, StringRef WorkingDirectory,
     ArrayRef<std::string> CommandLine,
     dependencies::DependencyConsumer &Consumer,
-    dependencies::MakeDependencyActionController MakeController,
+    dependencies::DependencyActionController &Controller,
     DiagnosticConsumer &DiagConsumer,
     llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFS = nullptr);
 

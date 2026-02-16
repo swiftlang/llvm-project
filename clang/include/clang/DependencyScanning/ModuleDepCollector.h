@@ -35,13 +35,6 @@ class DependencyActionController;
 class DependencyConsumer;
 class PrebuiltModuleASTAttrs;
 
-/// The function invoked to create action controllers for the TU and imported
-/// modules. This function must be thread-safe whenever
-/// \c DependencyScanningService::AsyncScanModules is true, the controller may
-/// not be thread-safe.
-using MakeDependencyActionController =
-    llvm::function_ref<std::unique_ptr<DependencyActionController>()>;
-
 /// Modular dependency that has already been built prior to the dependency scan.
 struct PrebuiltModuleDep {
   std::string ModuleName;

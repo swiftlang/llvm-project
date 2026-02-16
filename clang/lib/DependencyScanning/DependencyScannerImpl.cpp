@@ -704,12 +704,12 @@ dependencies::initializeScanInstanceDependencyCollector(
 
 struct SingleModuleWithAsyncModuleCompiles : PreprocessOnlyAction {
   DependencyScanningService &Service;
-  MakeDependencyActionController MakeController;
+  DependencyActionController &RootController;
 
   SingleModuleWithAsyncModuleCompiles(
       DependencyScanningService &Service,
-      MakeDependencyActionController MakeController)
-      : Service(Service), MakeController(MakeController) {}
+      DependencyActionController &RootController)
+      : Service(Service), RootController(RootController) {}
 
   bool BeginSourceFileAction(CompilerInstance &CI) override;
 };
@@ -719,11 +719,11 @@ struct SingleModuleWithAsyncModuleCompiles : PreprocessOnlyAction {
 struct AsyncModuleCompile : PPCallbacks {
   CompilerInstance &CI;
   DependencyScanningService &Service;
-  MakeDependencyActionController MakeController;
+  DependencyActionController &RootController;
 
   AsyncModuleCompile(CompilerInstance &CI, DependencyScanningService &Service,
-                     MakeDependencyActionController MakeController)
-      : CI(CI), Service(Service), MakeController(MakeController) {}
+                     DependencyActionController &RootController)
+      : CI(CI), Service(Service), RootController(RootController) {}
 
   void moduleLoadSkipped(Module *M) override {
     M = M->getTopLevelModule();
@@ -794,15 +794,15 @@ struct AsyncModuleCompile : PPCallbacks {
     // thread.)
     std::thread([Lock = std::move(Lock), ModCI1 = std::move(ModCI1),
                  ModCI2 = std::move(ModCI2), DC = std::move(DC),
-                 Service = &Service, MakeController = MakeController] {
+                 Service = &Service, RootController = &RootController] {
       llvm::CrashRecoveryContext CRC;
       (void)CRC.RunSafely([&] {
         // Quickly discovers and compiles modules for the real scan below.
-        SingleModuleWithAsyncModuleCompiles Action1(*Service, MakeController);
+        SingleModuleWithAsyncModuleCompiles Action1(*Service, *RootController);
         (void)ModCI1->ExecuteAction(Action1);
         // The real scan below.
         ModCI2->getPreprocessorOpts().SingleModuleParseMode = false;
-        auto Controller = MakeController();
+        auto Controller = RootController->clone();
         auto Action2 = std::make_unique<WrapScanModuleBuildAction>(
             std::make_unique<GenerateModuleFromModuleMapAction>(), *Controller);
         ModCI2->setGenModuleActionWrapper(
@@ -821,16 +821,16 @@ struct AsyncModuleCompile : PPCallbacks {
 /// modules asynchronously without blocking or importing them.
 struct SingleTUWithAsyncModuleCompiles : PreprocessOnlyAction {
   DependencyScanningService &Service;
-  MakeDependencyActionController MakeController;
+  DependencyActionController &RootController;
 
   SingleTUWithAsyncModuleCompiles(DependencyScanningService &Service,
-                                  MakeDependencyActionController MakeController)
-      : Service(Service), MakeController(MakeController) {}
+                                  DependencyActionController &RootController)
+      : Service(Service), RootController(RootController) {}
 
   bool BeginSourceFileAction(CompilerInstance &CI) override {
     CI.getInvocation().getPreprocessorOpts().SingleModuleParseMode = true;
     CI.getPreprocessor().addPPCallbacks(
-        std::make_unique<AsyncModuleCompile>(CI, Service, MakeController));
+        std::make_unique<AsyncModuleCompile>(CI, Service, RootController));
     return true;
   }
 };
@@ -839,23 +839,9 @@ bool SingleModuleWithAsyncModuleCompiles::BeginSourceFileAction(
     CompilerInstance &CI) {
   CI.getInvocation().getPreprocessorOpts().SingleModuleParseMode = true;
   CI.getPreprocessor().addPPCallbacks(
-      std::make_unique<AsyncModuleCompile>(CI, Service, MakeController));
+      std::make_unique<AsyncModuleCompile>(CI, Service, RootController));
   return true;
 }
-
-DependencyScanningAction::DependencyScanningAction(
-    DependencyScanningService &Service, StringRef WorkingDirectory,
-    DependencyConsumer &Consumer, MakeDependencyActionController MakeController,
-    llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
-    bool EmitDependencyFile, bool DiagGenerationAsCompilation,
-    const CASOptions &CASOpts, std::optional<StringRef> ModuleName,
-    raw_ostream *VerboseOS)
-    : Service(Service), WorkingDirectory(WorkingDirectory), Consumer(Consumer),
-      MakeController(MakeController), ControllerPtr(MakeController()),
-      Controller(*ControllerPtr), DepFS(std::move(DepFS)), CASOpts(CASOpts),
-      EmitDependencyFile(EmitDependencyFile),
-      DiagGenerationAsCompilation(DiagGenerationAsCompilation),
-      VerboseOS(VerboseOS) {}
 
 bool DependencyScanningAction::runInvocation(
     std::string Executable,
@@ -925,7 +911,7 @@ bool DependencyScanningAction::runInvocation(
     if (ScanInstance.getFrontendOpts().ProgramAction == frontend::GeneratePCH)
       ScanInstance.getLangOpts().CompilingPCH = true;
 
-    SingleTUWithAsyncModuleCompiles Action(Service, MakeController);
+    SingleTUWithAsyncModuleCompiles Action(Service, Controller);
     (void)ScanInstance.ExecuteAction(Action);
   }
   auto ModCache = makeInProcessModuleCache(Service.getModuleCacheEntries());

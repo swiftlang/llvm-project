@@ -135,8 +135,7 @@ buildCC1CommandLine(const driver::Command &Cmd) {
 static bool computeDependenciesForDriverCommandLine(
     DependencyScanningWorker &Worker, StringRef WorkingDirectory,
     ArrayRef<std::string> CommandLine, DependencyConsumer &Consumer,
-    MakeDependencyActionController MakeController,
-    DiagnosticConsumer &DiagConsumer,
+    DependencyActionController &Controller, DiagnosticConsumer &DiagConsumer,
     IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFS) {
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS = nullptr;
   if (OverlayFS) {
@@ -164,7 +163,7 @@ static bool computeDependenciesForDriverCommandLine(
       FrontendCommandLines.begin(), FrontendCommandLines.end());
 
   return Worker.computeDependencies(WorkingDirectory, FrontendCommandLinesView,
-                                    Consumer, MakeController, DiagConsumer,
+                                    Consumer, Controller, DiagConsumer,
                                     OverlayFS);
 }
 
@@ -177,16 +176,15 @@ static llvm::Error makeErrorFromDiagnosticsOS(
 bool tooling::computeDependencies(
     DependencyScanningWorker &Worker, StringRef WorkingDirectory,
     ArrayRef<std::string> CommandLine, DependencyConsumer &Consumer,
-    MakeDependencyActionController MakeController,
-    DiagnosticConsumer &DiagConsumer,
+    DependencyActionController &Controller, DiagnosticConsumer &DiagConsumer,
     llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFS) {
   const auto IsCC1Input = (CommandLine.size() >= 2 && CommandLine[1] == "-cc1");
   return IsCC1Input ? Worker.computeDependencies(WorkingDirectory, CommandLine,
-                                                 Consumer, MakeController,
+                                                 Consumer, Controller,
                                                  DiagConsumer, OverlayFS)
                     : computeDependenciesForDriverCommandLine(
                           Worker, WorkingDirectory, CommandLine, Consumer,
-                          MakeController, DiagConsumer, OverlayFS);
+                          Controller, DiagConsumer, OverlayFS);
 }
 
 std::optional<std::string>
@@ -194,11 +192,9 @@ DependencyScanningTool::getDependencyFile(ArrayRef<std::string> CommandLine,
                                           StringRef CWD,
                                           DiagnosticConsumer &DiagConsumer) {
   MakeDependencyPrinterConsumer DepConsumer;
-  auto MakeController = [] {
-    return std::make_unique<CallbackActionController>(nullptr);
-  };
-  if (!computeDependencies(Worker, CWD, CommandLine, DepConsumer,
-                           MakeController, DiagConsumer))
+  CallbackActionController Controller(nullptr);
+  if (!computeDependencies(Worker, CWD, CommandLine, DepConsumer, Controller,
+                           DiagConsumer))
     return std::nullopt;
   std::string Output;
   DepConsumer.printDependencies(Output);
@@ -272,8 +268,8 @@ Expected<cas::IncludeTreeRoot> DependencyScanningTool::getIncludeTree(
     StringRef CWD, LookupModuleOutputCallback LookupModuleOutput,
     DiagnosticConsumer &DiagsConsumer) {
   GetIncludeTree Consumer(DB);
-  auto MakeController = [&] { return createIncludeTreeActionController(LookupModuleOutput, DB); };
-  if (!computeDependencies(Worker, CWD, CommandLine, Consumer, MakeController,
+  auto Controller = createIncludeTreeActionController(LookupModuleOutput, DB);
+  if (!computeDependencies(Worker, CWD, CommandLine, Consumer, *Controller,
                            DiagsConsumer))
     return llvm::make_error<AlreadyReportedDiagnosticError>();
   return Consumer.getIncludeTree();
@@ -286,9 +282,9 @@ DependencyScanningTool::getIncludeTreeFromCompilerInvocation(
     DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
     bool DiagGenerationAsCompilation) {
   GetIncludeTree Consumer(DB);
-  auto MakeController = [&] { return createIncludeTreeActionController(LookupModuleOutput, DB); };
+  auto Controller = createIncludeTreeActionController(LookupModuleOutput, DB);
   Worker.computeDependenciesFromCompilerInvocation(
-      std::move(Invocation), CWD, Consumer, MakeController, DiagsConsumer,
+      std::move(Invocation), CWD, Consumer, *Controller, DiagsConsumer,
       VerboseOS, DiagGenerationAsCompilation);
   return Consumer.getIncludeTree();
 }
@@ -332,13 +328,17 @@ std::optional<P1689Rule> DependencyScanningTool::getP1689ModuleDependencyFile(
                                    ModuleOutputKind Kind) override {
       return "";
     }
+
+    std::unique_ptr<DependencyActionController> clone() const override {
+      return std::make_unique<P1689ActionController>();
+    }
   };
 
   P1689Rule Rule;
   P1689ModuleDependencyPrinterConsumer Consumer(Rule, Command);
-  auto MakeController = [] { return std::make_unique<P1689ActionController>(); };
+  P1689ActionController Controller;
   if (!computeDependencies(Worker, CWD, Command.CommandLine, Consumer,
-                           MakeController, DiagConsumer))
+                           Controller, DiagConsumer))
     return std::nullopt;
 
   MakeformatOutputPath = Consumer.getMakeFormatDependencyOutputPath();
@@ -355,9 +355,7 @@ DependencyScanningTool::getTranslationUnitDependencies(
     LookupModuleOutputCallback LookupModuleOutput,
     std::optional<llvm::MemoryBufferRef> TUBuffer) {
   FullDependencyConsumer Consumer(AlreadySeen);
-  auto MakeController = [&] {
-    return createActionController(LookupModuleOutput);
-  };
+  auto Controller = createActionController(LookupModuleOutput);
 
   // If we are scanning from a TUBuffer, create an overlay filesystem with the
   // input as an in-memory file and add it to the command line.
@@ -370,7 +368,7 @@ DependencyScanningTool::getTranslationUnitDependencies(
     CommandLine = CommandLineWithTUBufferInput;
   }
 
-  if (!computeDependencies(Worker, CWD, CommandLine, Consumer, MakeController,
+  if (!computeDependencies(Worker, CWD, CommandLine, Consumer, *Controller,
                            DiagConsumer, OverlayFS))
     return std::nullopt;
   return Consumer.takeTranslationUnitDeps();

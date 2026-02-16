@@ -61,19 +61,17 @@ static bool createAndRunToolInvocation(
 
 bool DependencyScanningWorker::computeDependencies(
     StringRef WorkingDirectory, ArrayRef<std::string> CommandLine,
-    DependencyConsumer &DepConsumer,
-    MakeDependencyActionController MakeController,
+    DependencyConsumer &DepConsumer, DependencyActionController &Controller,
     DiagnosticConsumer &DiagConsumer,
     llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFS) {
-  return computeDependencies(
-      WorkingDirectory, ArrayRef<ArrayRef<std::string>>(CommandLine),
-      DepConsumer, MakeController, DiagConsumer, OverlayFS);
+  return computeDependencies(WorkingDirectory,
+                             ArrayRef<ArrayRef<std::string>>(CommandLine),
+                             DepConsumer, Controller, DiagConsumer, OverlayFS);
 }
 
 bool DependencyScanningWorker::computeDependencies(
     StringRef WorkingDirectory, ArrayRef<ArrayRef<std::string>> CommandLines,
-    DependencyConsumer &DepConsumer,
-    MakeDependencyActionController MakeController,
+    DependencyConsumer &DepConsumer, DependencyActionController &Controller,
     DiagnosticConsumer &DiagConsumer,
     llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFS) {
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS = nullptr;
@@ -91,7 +89,7 @@ bool DependencyScanningWorker::computeDependencies(
   }
 
   DependencyScanningAction Action(
-      Service, WorkingDirectory, DepConsumer, MakeController, DepFS,
+      Service, WorkingDirectory, DepConsumer, Controller, DepFS,
       /*EmitDependencyFile=*/false,
       /*DiagGenerationAsCompilation=*/false, getCASOpts());
 
@@ -122,8 +120,7 @@ bool DependencyScanningWorker::computeDependencies(
 
 void DependencyScanningWorker::computeDependenciesFromCompilerInvocation(
     std::shared_ptr<CompilerInvocation> Invocation, StringRef WorkingDirectory,
-    DependencyConsumer &DepsConsumer,
-    MakeDependencyActionController MakeController,
+    DependencyConsumer &DepsConsumer, DependencyActionController &Controller,
     DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
     bool DiagGenerationAsCompilation) {
   DepFS->setCurrentWorkingDirectory(WorkingDirectory);
@@ -151,7 +148,7 @@ void DependencyScanningWorker::computeDependenciesFromCompilerInvocation(
   // FIXME: EmitDependencyFile should only be set when it's for a real
   // compilation.
   DependencyScanningAction Action(Service, WorkingDirectory, DepsConsumer,
-                                  MakeController, DepFS,
+                                  Controller, DepFS,
                                   /*EmitDependencyFile=*/!DepFile.empty(),
                                   DiagGenerationAsCompilation, getCASOpts(),
                                   /*ModuleName=*/std::nullopt, VerboseOS);
