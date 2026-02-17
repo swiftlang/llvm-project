@@ -6428,7 +6428,7 @@ public:
       // see `HasCountedByAttrOnIncompletePointee()`. This allows the counted_by
       // attribute to be used on code that prefers to keep its pointees
       // incomplete until they need to be used.
-      //
+
       // NOTE: we treat void as if it has an implicit size of 1 byte for pointer
       // arithmetic (following GNU convention). Therefore, counted_by on void*
       // is allowed and behaves equivalently to sized_by (treating the count as
