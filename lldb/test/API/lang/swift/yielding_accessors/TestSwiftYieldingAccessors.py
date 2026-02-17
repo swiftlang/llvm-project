@@ -52,6 +52,7 @@ class TestSwiftStepping(lldbtest.TestBase):
         self.assertEqual(breakpoint.GetNumLocations(), 1, breakpoint)
 
     @swiftTest
+    @skipIf(oslist=["linux"], archs=no_match("x86_64")) # rdar://170532470
     def test_step_over_starting_inside_coroutine(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
