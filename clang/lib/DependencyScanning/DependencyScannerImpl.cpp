@@ -802,16 +802,16 @@ struct AsyncModuleCompile : PPCallbacks {
         (void)ModCI1->ExecuteAction(Action1);
         // The real scan below.
         ModCI2->getPreprocessorOpts().SingleModuleParseMode = false;
-        auto Action2 = std::make_unique<WrapScanModuleBuildAction>(
-            std::make_unique<GenerateModuleFromModuleMapAction>(),
-            *ModController);
         ModCI2->setGenModuleActionWrapper(
             [&](const FrontendOptions &,
                 std::unique_ptr<FrontendAction> Wrapped) {
               return std::make_unique<WrapScanModuleBuildAction>(
                   std::move(Wrapped), *ModController);
             });
-        (void)ModCI2->ExecuteAction(*Action2);
+        WrapScanModuleBuildAction Action2(
+            std::make_unique<GenerateModuleFromModuleMapAction>(),
+            *ModController);
+        (void)ModCI2->ExecuteAction(Action2);
       });
     }).detach();
   }
