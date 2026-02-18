@@ -794,7 +794,7 @@ struct AsyncModuleCompile : PPCallbacks {
     // thread.)
     std::thread([Lock = std::move(Lock), ModCI1 = std::move(ModCI1),
                  ModCI2 = std::move(ModCI2), DC = std::move(DC),
-                 Service = &Service, ModController = std::move(ModController)] {
+                 ModController = std::move(ModController), Service = &Service] {
       llvm::CrashRecoveryContext CRC;
       (void)CRC.RunSafely([&] {
         // Quickly discovers and compiles modules for the real scan below.
