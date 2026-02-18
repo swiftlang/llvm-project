@@ -19,8 +19,6 @@
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/ScopeExit.h"
-// FIXME: Remove once upstream #181424 lands.
-#include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/Support/AdvisoryLock.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/VirtualFileSystem.h"
