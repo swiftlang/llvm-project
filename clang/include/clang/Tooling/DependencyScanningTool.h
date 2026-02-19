@@ -182,7 +182,7 @@ public:
 
   llvm::vfs::FileSystem &getWorkerVFS() const { return Worker.getVFS(); }
 
-  const CASOptions &getCASOpts() const { return Worker.getCASOpts(); }
+  CASOptions getCASOpts() const { return Worker.getCASOpts(); }
 
   static std::unique_ptr<clang::dependencies::DependencyActionController>
   createActionController(

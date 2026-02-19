@@ -221,12 +221,11 @@ public:
     return Service.getOpts().Format;
   }
 
-  const CASOptions &getCASOpts() const {
+  CASOptions getCASOpts() const {
     if (auto *IncludeTree =
             std::get_if<IncludeTreeCompilation>(&Service.getOpts().Compilation))
       return IncludeTree->CASOpts;
-    static CASOptions Default;
-    return Default;
+    return {};
   }
 
   std::shared_ptr<cas::ObjectStore> getCAS() const {
