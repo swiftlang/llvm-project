@@ -19,5 +19,5 @@ Framework.framework: Framework.swift
 		SWIFT_OBJC_INTEROP=1 \
 		SWIFTFLAGS_EXTRAS="$(FOO_FLAGS)" \
 		FRAMEWORK=Framework
-	rm -f $(BUILDDIR)/Framework.swiftmodule
-	ln -s $(BUILDDIR)/Framework.framework/Framework $(BUILDDIR)/Framework # FIXME
+	$(call RM_F,$(BUILDDIR)/Framework.swiftmodule)
+	$(call LN_SF,$(BUILDDIR)/Framework.framework/Framework,$(BUILDDIR)/Framework) #FIXME
