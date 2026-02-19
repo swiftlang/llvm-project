@@ -335,9 +335,8 @@ enum CXErrorCode clang_experimental_DependencyScannerWorker_getDepGraph(
 
   DependencyScanningWorker *Worker = unwrap(W);
 
-  if (Worker->getService().getOpts().Format != ScanningOutputFormat::Full &&
-      Worker->getService().getOpts().Format !=
-          ScanningOutputFormat::FullIncludeTree)
+  if (Worker->getScanningFormat() != ScanningOutputFormat::Full &&
+      Worker->getScanningFormat() != ScanningOutputFormat::FullIncludeTree)
     return CXError_InvalidArguments;
 
   std::vector<std::string> Compilation{argv, argv + argc};

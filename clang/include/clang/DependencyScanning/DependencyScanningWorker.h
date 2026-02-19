@@ -217,7 +217,24 @@ public:
       DependencyActionController &Controller, DiagnosticConsumer &DiagsConsumer,
       raw_ostream *VerboseOS, bool DiagGenerationAsCompilation);
 
-  const DependencyScanningService &getService() const { return Service; }
+  ScanningOutputFormat getScanningFormat() const {
+    return Service.getOpts().Format;
+  }
+
+  const CASOptions &getCASOpts() const {
+    if (auto *IncludeTree =
+            std::get_if<IncludeTreeCompilation>(&Service.getOpts().Compilation))
+      return IncludeTree->CASOpts;
+    static CASOptions Default;
+    return Default;
+  }
+
+  std::shared_ptr<cas::ObjectStore> getCAS() const {
+    if (auto *IncludeTree =
+            std::get_if<IncludeTreeCompilation>(&Service.getOpts().Compilation))
+      return IncludeTree->CAS;
+    return nullptr;
+  }
 
   llvm::vfs::FileSystem &getVFS() const { return *DepFS; }
 

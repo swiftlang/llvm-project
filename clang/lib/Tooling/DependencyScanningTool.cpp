@@ -362,13 +362,9 @@ DependencyScanningTool::getTranslationUnitDependencies(
   IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFS = nullptr;
   std::vector<std::string> CommandLineWithTUBufferInput;
   if (TUBuffer) {
-    std::shared_ptr<cas::ObjectStore> CAS;
-    if (auto *IncludeTree = std::get_if<IncludeTreeCompilation>(
-            &Worker.getService().getOpts().Compilation))
-      CAS = IncludeTree->CAS;
     std::tie(OverlayFS, CommandLineWithTUBufferInput) =
         initVFSForTUBufferScanning(&Worker.getVFS(), CommandLine, CWD,
-                                   *TUBuffer, CAS);
+                                   *TUBuffer, Worker.getCAS());
     CommandLine = CommandLineWithTUBufferInput;
   }
 
@@ -430,12 +426,8 @@ bool DependencyScanningTool::initializeWorkerCIWithContextFromCommandline(
   // The input command line is either a driver-style command line, or
   // ill-formed. In this case, we will first call the Driver to build a -cc1
   // command line for this compilation or diagnose any ill-formed input.
-  std::shared_ptr<cas::ObjectStore> CAS;
-  if (auto *IncludeTree = std::get_if<IncludeTreeCompilation>(
-          &Worker.getService().getOpts().Compilation))
-    CAS = IncludeTree->CAS;
   auto [OverlayFS, ModifiedCommandLine] = initVFSForByNameScanning(
-      &Worker.getVFS(), CommandLine, CWD, "ScanningByName", CAS);
+      &Worker.getVFS(), CommandLine, CWD, "ScanningByName", Worker.getCAS());
   auto DiagEngineWithCmdAndOpts =
       std::make_unique<DiagnosticsEngineWithDiagOpts>(ModifiedCommandLine,
                                                       OverlayFS, DC);
@@ -489,10 +481,9 @@ std::unique_ptr<DependencyActionController>
 DependencyScanningTool::createActionController(
     DependencyScanningWorker &Worker,
     LookupModuleOutputCallback LookupModuleOutput) {
-  if (auto *IncludeTree = std::get_if<IncludeTreeCompilation>(
-          &Worker.getService().getOpts().Compilation))
+  if (Worker.getScanningFormat() == ScanningOutputFormat::FullIncludeTree)
     return createIncludeTreeActionController(LookupModuleOutput,
-                                             *IncludeTree->CAS);
+                                             *Worker.getCAS());
   return std::make_unique<CallbackActionController>(LookupModuleOutput);
 }
 
@@ -506,14 +497,9 @@ Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(
     DependencyScanningTool &Tool, DiagnosticConsumer &DiagsConsumer,
     raw_ostream *VerboseOS, CompilerInvocation &Invocation,
     StringRef WorkingDirectory, llvm::cas::ObjectStore &DB) {
-  CASOptions CASOpts;
-  if (auto *IncludeTree = std::get_if<IncludeTreeCompilation>(
-          &Tool.getService().getOpts().Compilation))
-    CASOpts = IncludeTree->CASOpts;
-
   // Override the CASOptions. They may match (the caller having sniffed them
   // out of InputArgs) but if they have been overridden we want the new ones.
-  Invocation.getCASOpts() = CASOpts;
+  Invocation.getCASOpts() = Tool.getCASOpts();
 
   llvm::PrefixMapper Mapper;
   DepscanPrefixMapping::configurePrefixMapper(Invocation, Mapper);
@@ -537,7 +523,7 @@ Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(
   // Turn off dependency outputs. Should have already been emitted.
   Invocation.getDependencyOutputOpts().OutputFile.clear();
 
-  configureInvocationForCaching(Invocation, CASOpts, Root->toString(),
+  configureInvocationForCaching(Invocation, Tool.getCASOpts(), Root->toString(),
                                 CachingInputKind::IncludeTree,
                                 WorkingDirectory.str());
   DepscanPrefixMapping::remapInvocationPaths(Invocation, Mapper);

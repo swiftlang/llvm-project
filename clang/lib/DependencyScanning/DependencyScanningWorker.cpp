@@ -87,14 +87,10 @@ bool DependencyScanningWorker::computeDependencies(
     FS->setCurrentWorkingDirectory(WorkingDirectory);
   }
 
-  CASOptions CASOpts;
-  if (auto *IncludeTree =
-          std::get_if<IncludeTreeCompilation>(&Service.getOpts().Compilation))
-    CASOpts = IncludeTree->CASOpts;
   DependencyScanningAction Action(
       Service, WorkingDirectory, DepConsumer, Controller, DepFS,
       /*EmitDependencyFile=*/false,
-      /*DiagGenerationAsCompilation=*/false, CASOpts);
+      /*DiagGenerationAsCompilation=*/false, getCASOpts());
 
   const bool Success = llvm::all_of(CommandLines, [&](const auto &Cmd) {
     if (StringRef(Cmd[1]) != "-cc1") {
@@ -148,16 +144,12 @@ void DependencyScanningWorker::computeDependenciesFromCompilerInvocation(
     DepFile = Path.str().str();
   }
 
-  CASOptions CASOpts;
-  if (auto *IncludeTree =
-          std::get_if<IncludeTreeCompilation>(&Service.getOpts().Compilation))
-    CASOpts = IncludeTree->CASOpts;
   // FIXME: EmitDependencyFile should only be set when it's for a real
   // compilation.
   DependencyScanningAction Action(Service, WorkingDirectory, DepsConsumer,
                                   Controller, DepFS,
                                   /*EmitDependencyFile=*/!DepFile.empty(),
-                                  DiagGenerationAsCompilation, CASOpts,
+                                  DiagGenerationAsCompilation, getCASOpts(),
                                   /*ModuleName=*/std::nullopt, VerboseOS);
 
   // Ignore result; we're just collecting dependencies.
@@ -169,12 +161,8 @@ void DependencyScanningWorker::computeDependenciesFromCompilerInvocation(
 
 bool DependencyScanningWorker::initializeCompilerInstanceWithContext(
     StringRef CWD, ArrayRef<std::string> CommandLine, DiagnosticConsumer &DC) {
-  std::shared_ptr<cas::ObjectStore> CAS;
-  if (auto *IncludeTree =
-          std::get_if<IncludeTreeCompilation>(&Service.getOpts().Compilation))
-    CAS = IncludeTree->CAS;
-  auto [OverlayFS, ModifiedCommandLine] =
-      initVFSForByNameScanning(DepFS, CommandLine, CWD, "ScanningByName", CAS);
+  auto [OverlayFS, ModifiedCommandLine] = initVFSForByNameScanning(
+      DepFS, CommandLine, CWD, "ScanningByName", getCAS());
   auto DiagEngineWithCmdAndOpts =
       std::make_unique<DiagnosticsEngineWithDiagOpts>(ModifiedCommandLine,
                                                       OverlayFS, DC);
