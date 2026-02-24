@@ -1029,12 +1029,19 @@ static bool isCountAttributedPointerArgumentSafeImpl(
          "dependent value map.");
 
   const Expr *PtrArgNoImp = PtrArg->IgnoreParenImpCasts();
+
   if (const auto *DAE = dyn_cast<CXXDefaultArgExpr>(PtrArgNoImp))
     PtrArgNoImp = DAE->getExpr()->IgnoreParenImpCasts();
 
   // check form 0:
-  if (PtrArgNoImp->isNullPointerConstant(Context,
-                                         Expr::NPC_ValueDependentIsNotNull)) {
+  const Expr *PtrArgNoCast = PtrArgNoImp;
+
+  // For any type 'T', expression '(T *) nullptr' satisfies form 0. So we can
+  // ignore the cast:
+  if (const auto *CE = dyn_cast<CastExpr>(PtrArgNoCast))
+    PtrArgNoCast = CE->getSubExpr();
+  if (PtrArgNoCast->isNullPointerConstant(Context,
+                                          Expr::NPC_ValueDependentIsNotNull)) {
     if (isOrNull)
       return true;
     if (CountArg)
