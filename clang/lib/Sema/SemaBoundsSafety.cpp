@@ -619,14 +619,26 @@ static bool BoundsSafetyCheckFunctionParamOrCountAttrWithIncompletePointeeTy(
   if (ParamDecl)
     ParamName = ParamDecl->getName();
 
-  auto SR = SourceRangeFor(CATy, S);
+  TypeLoc TL;
+  if (ParamDecl)
+    if (auto *TSI = getTSI(ParamDecl))
+      TL = TSI->getTypeLoc();
+
+  CountAttributedTypeLoc CATL;
+  if (!TL.isNull())
+    CATL = TL.getAs<CountAttributedTypeLoc>();
+
+  SourceRange SR = CATL.isNull()
+  	? CATy->getCountExpr()->getSourceRange()
+  	: CATL.getAttrNameRange(S.getASTContext());
+
   S.Diag(SR.getBegin(),
          diag::err_bounds_safety_counted_by_on_incomplete_type_on_func_def)
       << /*0*/ CATy->getAttributeName(/*WithMacroPrefix*/ true)
       << /*1*/ (ParamDecl ? 1 : 0) << /*2*/ (ParamName.size() > 0)
       << /*3*/ ParamName << /*4*/ Ty << /*5*/ PointeeTy << SR;
 
-  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl);
+  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TL);
   return false;
 }
 
@@ -655,7 +667,19 @@ BoundsSafetyCheckVarDeclCountAttrPtrWithIncompletePointeeTy(Sema &S,
   if (!CATy)
     return true;
 
-  SourceRange SR = SourceRangeFor(CATy, S);
+  TypeLoc TL;
+  if (VD)
+    if (auto *TSI = getTSI(VD))
+      TL = TSI->getTypeLoc();
+
+  CountAttributedTypeLoc CATL;
+  if (!TL.isNull())
+    CATL = TL.getAs<CountAttributedTypeLoc>();
+
+  SourceRange SR = CATL.isNull()
+  	? CATy->getCountExpr()->getSourceRange()
+  	: CATL.getAttrNameRange(S.getASTContext());
+
   S.Diag(SR.getBegin(),
          diag::err_bounds_safety_counted_by_on_incomplete_type_on_var_decl)
       << /*0*/ CATy->getAttributeName(/*WithMacroPrefix=*/true)
@@ -664,7 +688,7 @@ BoundsSafetyCheckVarDeclCountAttrPtrWithIncompletePointeeTy(Sema &S,
       << /*2*/ VD->getName() << /*3*/ VD->getType() << /*4*/ PointeeTy
       << /*5*/ CATy->isOrNull() << SR;
 
-  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl);
+  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TL);
   return false;
 }
 
