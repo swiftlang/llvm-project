@@ -44,6 +44,7 @@
 #include "swift/Demangling/ManglingFlavor.h"
 #include "swift/RemoteInspection/DescriptorFinder.h"
 #include "swift/RemoteInspection/ReflectionContext.h"
+#include "swift/RemoteInspection/TypeLowering.h"
 #include "swift/RemoteInspection/TypeRefBuilder.h"
 #include "swift/Strings.h"
 
@@ -1551,6 +1552,63 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
           return err;
     return success;
   }
+
+  if (auto *bti = llvm::dyn_cast_or_null<swift::reflection::BorrowTypeInfo>(ti)) {
+    if (count_only)
+      return 1;
+    
+    CompilerType rep_type;
+    const char *child_name;
+    
+
+    auto flavor = SwiftLanguageRuntime::GetManglingFlavor(
+        m_type.GetMangledTypeName().GetStringRef());
+
+    if (bti->usesValueRepresentation()) {
+      swift::Demangle::Demangler dem;
+      swift::Demangle::NodePointer global =
+          dem.demangleSymbol(m_type.GetMangledTypeName().GetStringRef());
+      using Kind = Node::Kind;
+      auto *dem_target_type = swift_demangle::ChildAtPath(
+          global, {Kind::TypeMangling, Kind::Type, Kind::BuiltinBorrow});
+      if (!dem_target_type || dem_target_type->getNumChildren() != 1)
+        return llvm::createStringError("Expected borrow, but found: " +
+                                       m_type.GetMangledTypeName().GetString());
+      rep_type =
+          ts.RemangleAsType(dem, dem_target_type->getChild(0), flavor);
+      child_name = "targetValue";
+    } else {
+      auto ts =
+          m_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwiftTypeRef>();
+      if (!ts)
+        return llvm::createStringError("no type system");
+      rep_type = ts->GetRawPointerType(flavor);
+      child_name = "targetPointer";
+    }
+
+    auto get_name = [&]() -> std::string { return child_name; };
+    auto get_info = [&]() -> llvm::Expected<ChildInfo> {
+      ChildInfo child;
+      child.byte_size = bti->getSize();
+      child.byte_offset = 0;
+
+      child.bitfield_bit_size = 0;
+      child.bitfield_bit_offset = 0;
+      child.is_base_class = false;
+      child.is_deref_of_parent = false;
+      child.language_flags = 0;
+      return child;
+    };
+
+    if (!visit_only || *visit_only == 0) {
+      if (auto err = visit_callback(rep_type, 0, get_name, get_info)) {
+        return err;
+      }
+    }
+
+    return success;
+  }
+
   if (llvm::dyn_cast_or_null<swift::reflection::BuiltinTypeInfo>(ti)) {
     // Clang enums have an artificial rawValue property. We could
     // consider handling them here, but

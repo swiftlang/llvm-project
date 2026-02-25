@@ -2316,6 +2316,11 @@ uint32_t TypeSystemSwiftTypeRef::CollectTypeInfo(
     case Node::Kind::SILPackIndirect:
       swift_flags |= eTypeIsPack;
       return swift_flags;
+
+    case Node::Kind::BuiltinBorrow:
+      swift_flags |= eTypeHasChildren;
+      break;
+  
     default:
       break;
     }
