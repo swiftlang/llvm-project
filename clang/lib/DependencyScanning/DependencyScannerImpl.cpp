@@ -549,6 +549,7 @@ void dependencies::initializeScanCompilerInstance(
 static std::shared_ptr<CompilerInvocation>
 createScanCompilerInvocation(const CompilerInvocation &Invocation,
                              const DependencyScanningService &Service,
+                             DependencyActionController &Controller,
                              bool DiagGenerationAsCompilation) {
   auto ScanInvocation = std::make_shared<CompilerInvocation>(Invocation);
 
@@ -590,6 +591,8 @@ createScanCompilerInvocation(const CompilerInvocation &Invocation,
   // Ensure that the scanner does not create new dependency collectors,
   // and thus won't write out the extra '.d' files to disk.
   ScanInvocation->getDependencyOutputOpts() = {};
+
+  Controller.initialize(*ScanInvocation);
 
   return ScanInvocation;
 }
@@ -917,7 +920,7 @@ bool DependencyScanningAction::runInvocation(
 
   // Create a compiler instance to handle the actual work.
   auto ScanInvocation = createScanCompilerInvocation(
-      *OriginalInvocation, Service, DiagGenerationAsCompilation);
+      *OriginalInvocation, Service, Controller, DiagGenerationAsCompilation);
 
   // Quickly discovers and compiles modules for the real scan below.
   std::optional<AsyncModuleCompiles> AsyncCompiles;
@@ -1019,6 +1022,7 @@ bool DependencyScanningAction::runInvocation(
 }
 
 bool CompilerInstanceWithContext::initialize(
+    DependencyActionController &Controller,
     std::unique_ptr<DiagnosticsEngineWithDiagOpts> DiagEngineWithDiagOpts,
     IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFS) {
   assert(DiagEngineWithDiagOpts && "Valid diagnostics engine required!");
@@ -1052,11 +1056,11 @@ bool CompilerInstanceWithContext::initialize(
       makeInProcessModuleCache(Worker.Service.getModuleCacheEntries());
   CIPtr = std::make_unique<CompilerInstance>(
       createScanCompilerInvocation(*OriginalInvocation, Worker.Service,
+                                   Controller,
                                    /*DiagGenerationAsCompilation=*/false),
       Worker.PCHContainerOps, std::move(ModCache));
   auto &CI = *CIPtr;
 
-  CI.getInvocation().getCASOpts() = Worker.getCASOpts();
   initializeScanCompilerInstance(
       CI, OverlayFS, DiagEngineWithCmdAndOpts->DiagEngine->getClient(),
       Worker.Service, Worker.DepFS);

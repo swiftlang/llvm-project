@@ -264,11 +264,13 @@ char AlreadyReportedDiagnosticError::ID = 0;
 } // namespace
 
 Expected<cas::IncludeTreeRoot> DependencyScanningTool::getIncludeTree(
-    cas::ObjectStore &DB, const std::vector<std::string> &CommandLine,
-    StringRef CWD, LookupModuleOutputCallback LookupModuleOutput,
+    CASOptions CASOpts, cas::ObjectStore &DB,
+    const std::vector<std::string> &CommandLine, StringRef CWD,
+    LookupModuleOutputCallback LookupModuleOutput,
     DiagnosticConsumer &DiagsConsumer) {
   GetIncludeTree Consumer(DB);
-  auto Controller = createIncludeTreeActionController(LookupModuleOutput, DB);
+  auto Controller = createIncludeTreeActionController(LookupModuleOutput,
+                                                      std::move(CASOpts), DB);
   if (!computeDependencies(Worker, CWD, CommandLine, Consumer, *Controller,
                            DiagsConsumer))
     return llvm::make_error<AlreadyReportedDiagnosticError>();
@@ -277,12 +279,14 @@ Expected<cas::IncludeTreeRoot> DependencyScanningTool::getIncludeTree(
 
 Expected<cas::IncludeTreeRoot>
 DependencyScanningTool::getIncludeTreeFromCompilerInvocation(
-    cas::ObjectStore &DB, std::shared_ptr<CompilerInvocation> Invocation,
-    StringRef CWD, LookupModuleOutputCallback LookupModuleOutput,
+    CASOptions CASOpts, cas::ObjectStore &DB,
+    std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
+    LookupModuleOutputCallback LookupModuleOutput,
     DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
     bool DiagGenerationAsCompilation) {
   GetIncludeTree Consumer(DB);
-  auto Controller = createIncludeTreeActionController(LookupModuleOutput, DB);
+  auto Controller = createIncludeTreeActionController(LookupModuleOutput,
+                                                      std::move(CASOpts), DB);
   Worker.computeDependenciesFromCompilerInvocation(
       std::move(Invocation), CWD, Consumer, *Controller, DiagsConsumer,
       VerboseOS, DiagGenerationAsCompilation);
@@ -379,8 +383,8 @@ DependencyScanningTool::getModuleDependencies(
     StringRef ModuleName, ArrayRef<std::string> CommandLine, StringRef CWD,
     const llvm::DenseSet<ModuleID> &AlreadySeen,
     LookupModuleOutputCallback LookupModuleOutput) {
-  if (auto Error =
-          initializeCompilerInstanceWithContextOrError(CWD, CommandLine))
+  if (auto Error = initializeCompilerInstanceWithContextOrError(
+          CWD, CommandLine, LookupModuleOutput))
     return Error;
 
   return computeDependenciesByNameWithContextOrError(ModuleName, AlreadySeen,
@@ -411,11 +415,13 @@ static std::optional<SmallVector<std::string, 0>> getFirstCC1CommandLine(
 
 bool DependencyScanningTool::initializeWorkerCIWithContextFromCommandline(
     DependencyScanningWorker &Worker, StringRef CWD,
-    ArrayRef<std::string> CommandLine, DiagnosticConsumer &DC) {
+    ArrayRef<std::string> CommandLine, DependencyActionController &Controller,
+    DiagnosticConsumer &DC) {
   if (CommandLine.size() >= 2 && CommandLine[1] == "-cc1") {
     // The input command line is already a -cc1 invocation; initialize the
     // compiler instance directly from it.
-    return Worker.initializeCompilerInstanceWithContext(CWD, CommandLine, DC);
+    return Worker.initializeCompilerInstanceWithContext(CWD, CommandLine,
+                                                        Controller, DC);
   }
 
   // The input command line is either a driver-style command line, or
@@ -433,17 +439,23 @@ bool DependencyScanningTool::initializeWorkerCIWithContextFromCommandline(
     return false;
 
   return Worker.initializeCompilerInstanceWithContext(
-      CWD, *MaybeFirstCC1, std::move(DiagEngineWithCmdAndOpts), OverlayFS);
+      CWD, *MaybeFirstCC1, Controller, std::move(DiagEngineWithCmdAndOpts),
+      OverlayFS);
 }
 
 llvm::Error
 DependencyScanningTool::initializeCompilerInstanceWithContextOrError(
-    StringRef CWD, ArrayRef<std::string> CommandLine) {
+    StringRef CWD, ArrayRef<std::string> CommandLine,
+    LookupModuleOutputCallback LookupModuleOutput) {
+  // It might seem wasteful to create fresh controller just for initializing the
+  // compiler instance, but repeated uses of the instance do that as well, so
+  // this gets amortized.
+  auto Controller = createActionController(LookupModuleOutput);
   DiagPrinterWithOS =
       std::make_unique<TextDiagnosticsPrinterWithOutput>(CommandLine);
 
   bool Result = initializeWorkerCIWithContextFromCommandline(
-      Worker, CWD, CommandLine, DiagPrinterWithOS->DiagPrinter);
+      Worker, CWD, CommandLine, *Controller, DiagPrinterWithOS->DiagPrinter);
 
   if (Result)
     return llvm::Error::success();
@@ -470,8 +482,8 @@ DependencyScanningTool::createActionController(
     DependencyScanningWorker &Worker,
     LookupModuleOutputCallback LookupModuleOutput) {
   if (Worker.getScanningFormat() == ScanningOutputFormat::FullIncludeTree)
-    return createIncludeTreeActionController(LookupModuleOutput,
-                                             *Worker.getCAS());
+    return createIncludeTreeActionController(
+        LookupModuleOutput, Worker.getCASOpts(), *Worker.getCAS());
   return std::make_unique<CallbackActionController>(LookupModuleOutput);
 }
 
@@ -485,10 +497,6 @@ Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(
     DependencyScanningTool &Tool, DiagnosticConsumer &DiagsConsumer,
     raw_ostream *VerboseOS, CompilerInvocation &Invocation,
     StringRef WorkingDirectory, llvm::cas::ObjectStore &DB) {
-  // Override the CASOptions. They may match (the caller having sniffed them
-  // out of InputArgs) but if they have been overridden we want the new ones.
-  Invocation.getCASOpts() = Tool.getCASOpts();
-
   llvm::PrefixMapper Mapper;
   DepscanPrefixMapping::configurePrefixMapper(Invocation, Mapper);
 
@@ -500,12 +508,12 @@ Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(
   LookupModuleOutputCallback Lookup;
 
   std::optional<llvm::cas::CASID> Root;
-  if (Error E =
-          Tool.getIncludeTreeFromCompilerInvocation(
-                  DB, std::move(ScanInvocation), WorkingDirectory,
-                  /*LookupModuleOutput=*/nullptr, DiagsConsumer, VerboseOS,
-                  /*DiagGenerationAsCompilation*/ true)
-              .moveInto(Root))
+  if (Error E = Tool.getIncludeTreeFromCompilerInvocation(
+                        Tool.getCASOpts(), DB, std::move(ScanInvocation),
+                        WorkingDirectory, /*LookupModuleOutput=*/nullptr,
+                        DiagsConsumer, VerboseOS,
+                        /*DiagGenerationAsCompilation=*/true)
+                    .moveInto(Root))
     return std::move(E);
 
   // Turn off dependency outputs. Should have already been emitted.

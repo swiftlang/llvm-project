@@ -17,7 +17,8 @@ using namespace clang::tooling;
 
 TEST(IncludeTree, IncludeTreeScan) {
   StringRef PathSep = llvm::sys::path::get_separator();
-  std::shared_ptr<ObjectStore> DB = llvm::cas::createInMemoryCAS();
+  CASOptions CASOpts;
+  auto [DB, Cache] = llvm::cantFail(CASOpts.getOrCreateDatabases());
   auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
   FS->setCurrentWorkingDirectory("/root");
   auto add = [&](StringRef Path, StringRef Contents) {
@@ -48,7 +49,7 @@ TEST(IncludeTree, IncludeTreeScan) {
   add("sys_indirect.h", "");
 
   DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [DB, FS] {
+  Opts.MakeVFS = [DB = DB, FS] {
     return llvm::cas::createCASProvidingFileSystem(DB, FS);
   };
   Opts.Format = ScanningOutputFormat::IncludeTree;
@@ -67,11 +68,9 @@ TEST(IncludeTree, IncludeTreeScan) {
                                           "-o"
                                           "t.cpp.o"};
   std::optional<IncludeTreeRoot> Root;
-  ASSERT_THAT_ERROR(
-      ScanTool
-          .getIncludeTree(*DB, CommandLine, /*CWD*/ "", nullptr, DiagConsumer)
-          .moveInto(Root),
-      llvm::Succeeded());
+  Expected<IncludeTreeRoot> ExpectedRoot = ScanTool.getIncludeTree(
+      CASOpts, *DB, CommandLine, /*CWD*/ "", nullptr, DiagConsumer);
+  ASSERT_THAT_ERROR(std::move(ExpectedRoot).moveInto(Root), llvm::Succeeded());
 
   std::optional<IncludeTree::File> MainFile;
   std::optional<IncludeTree::File> A1File;
