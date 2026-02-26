@@ -37,11 +37,11 @@ public:
       DependencyConsumer &Consumer, DependencyActionController &Controller,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       bool EmitDependencyFile, bool DiagGenerationAsCompilation,
-      CASOptions CASOpts, std::optional<StringRef> ModuleName = std::nullopt,
+      std::optional<StringRef> ModuleName = std::nullopt,
       raw_ostream *VerboseOS = nullptr)
       : Service(Service), WorkingDirectory(WorkingDirectory),
         Consumer(Consumer), Controller(Controller), DepFS(std::move(DepFS)),
-        CASOpts(std::move(CASOpts)), EmitDependencyFile(EmitDependencyFile),
+        EmitDependencyFile(EmitDependencyFile),
         DiagGenerationAsCompilation(DiagGenerationAsCompilation),
         VerboseOS(VerboseOS) {}
   bool runInvocation(std::string Executable,
@@ -58,7 +58,6 @@ private:
   DependencyConsumer &Consumer;
   DependencyActionController &Controller;
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
-  CASOptions CASOpts;
   bool EmitDependencyFile = false;
   bool DiagGenerationAsCompilation;
   std::optional<StringRef> ModuleName;
