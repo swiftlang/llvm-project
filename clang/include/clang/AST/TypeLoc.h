@@ -1346,6 +1346,7 @@ public:
   }
   void setAttrRange(SourceRange Range) { getLocalData()->Range = Range; }
   SourceRange getAttrRange() const { return getLocalData()->Range; }
+  SourceRange getLocalSourceRange() const { return getAttrRange(); }
 
   StringRef getAttrNameAsWritten(const ASTContext &Ctx) const;
   SourceRange getAttrNameRange(const ASTContext &Ctx) const;
