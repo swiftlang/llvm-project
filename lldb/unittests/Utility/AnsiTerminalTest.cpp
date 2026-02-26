@@ -116,6 +116,18 @@ TEST(AnsiTerminal, TrimAndPad) {
   EXPECT_EQ("    ❤️", ansi::TrimAndPad("    ❤️", 5));
   EXPECT_EQ("12❤️4❤️", ansi::TrimAndPad("12❤️4❤️", 5));
   EXPECT_EQ("12❤️45", ansi::TrimAndPad("12❤️45❤️", 5));
+
+  // This string previously triggered a bug in handling incomplete Unicode
+  // characters, when we had already accumulated some previous parts of the
+  // string.
+  const char *quick = "The \x1B[0mquick\x1B[0m 💨\x1B[0m";
+  EXPECT_EQ(ansi::TrimAndPad(quick, 0), "");
+  EXPECT_EQ(ansi::TrimAndPad(quick, 9), "The \x1B[0mquick\x1B[0m");
+  EXPECT_EQ(ansi::TrimAndPad(quick, 10), "The \x1B[0mquick\x1B[0m ");
+  // The emoji is 2 columns, so 11 is not quite enough.
+  EXPECT_EQ(ansi::TrimAndPad(quick, 11, '_'), "The \x1B[0mquick\x1B[0m _");
+  // 12 exactly enough to include the emoji and proceeding ANSI code.
+  EXPECT_EQ(ansi::TrimAndPad(quick, 12), quick);
 }
 
 TEST(AnsiTerminal, TrimAtWordBoundary) {
