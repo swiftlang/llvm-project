@@ -4576,6 +4576,10 @@ bool SwiftASTContext::LoadOneImage(Process &process, FileSpec &link_lib_spec,
 
   error.Clear();
 
+  // LoadImage calls dlopen and can fail if called from two threads simultaneously.
+  static std::mutex g_dlopen_mutex;
+  std::lock_guard<std::mutex> locker(g_dlopen_mutex);
+  
   PlatformSP platform_sp = process.GetTarget().GetPlatform();
   if (platform_sp)
     return platform_sp->LoadImage(&process, FileSpec(), link_lib_spec, error) !=
