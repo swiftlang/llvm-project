@@ -1,4 +1,4 @@
-import textwrap
+import platfrom
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -16,10 +16,15 @@ class TestCase(TestBase):
         self.expect("v task", patterns=[r'"Chore" id:[1-9]'])
 
     @swiftTest
-    @skipIfLinux  # rdar://151471067
     def test_thread_contains_name(self):
         self.build()
         _, _, thread, _ = lldbutil.run_to_source_breakpoint(
             self, "break inside", lldb.SBFileSpec("main.swift")
         )
-        self.assertRegex(thread.name, r"Chore \(Task [1-9]\)")
+
+        expected_name = (
+            r"DispatchWorker"
+            if platform.system() == "Linux"
+            else r"Chore \(Task [1-9]\)"
+        )
+        self.assertRegex(thread.name, expected_name)
