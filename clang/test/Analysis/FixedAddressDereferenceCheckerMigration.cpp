@@ -56,6 +56,14 @@
 // RUN: %clang_analyze_cc1 -analyzer-checker=core -verify=default-optin-not-enabled %s
 // default-optin-not-enabled-no-diagnostics
 
+// Test that -Werror does not transform this warning into an error.
+// -Werror, +old => warn to use the new checker name; not an ERROR!
+// RUN: %clang_analyze_cc1 -analyzer-checker=core %s 2>&1 \
+// RUN:   -Werror \
+// RUN:   -analyzer-checker=core.FixedAddressDereference \
+// RUN:   -analyzer-disable-checker=optin.core.FixedAddressDereference \
+// RUN: | FileCheck %s --check-prefix=WARN-USE-NEW-CHECKER-NAME
+
 void test() {
   int *p = (int *)0x020;
   int x = p[0]; // optin-core-checker-warning {{dereference of a fixed address [optin.core.FixedAddressDereference]}}
