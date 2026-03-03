@@ -1199,6 +1199,18 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
     for (const StringRef &CheckerOrPackage : CheckersAndPackages)
       Opts.CheckersAndPackages.emplace_back(std::string(CheckerOrPackage),
                                             IsEnabled);
+
+    // If the command-line explicitly enabled the old checker name, warn them
+    // that they should explicitly enable the new name instead.
+    bool ExplicitlyEnablingTheOldChecker =
+        IsEnabled &&
+        llvm::is_contained(CheckersAndPackages, "core.FixedAddressDereference");
+    if (ExplicitlyEnablingTheOldChecker) {
+      Diags.Report(
+          diag::warn_drv_analyzer_explicitly_enabled_checker_was_renamed)
+          << "core.FixedAddressDereference"
+          << "optin.core.FixedAddressDereference";
+    }
   }
 
   // Go through the analyzer configuration options.

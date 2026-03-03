@@ -253,6 +253,18 @@ def NonnullGlobalConstantsChecker: Checker<"NonnilStringConstants">,
   Documentation<NotDocumented>,
   Hidden;
 
+// This is a temporary checker to make the old spelling of the checker valid.
+def MigrateOldUsesOfCoreFixedAddressDereferenceChecker :
+  Checker<"FixedAddressDereference">,
+  HelpText<
+    "This is a temporary checker to make the old spelling of the checker valid. "
+    "Users should migrate from using 'core.FixedAddressDereference' to "
+    "'optin.core.FixedAddressDereference' who wish to keep using the checker. "
+    "This placeholder checker will be removed in the future."
+  >,
+  Documentation<NotDocumented>,
+  Hidden;
+
 } // end "core"
 
 let ParentPackage = CoreAlpha in {

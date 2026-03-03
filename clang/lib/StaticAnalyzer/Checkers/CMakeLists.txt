@@ -140,6 +140,9 @@ add_clang_library(clangStaticAnalyzerCheckers
   WebKit/RawPtrRefLocalVarsChecker.cpp
   WebKit/RawPtrRefMemberChecker.cpp
 
+  # This is a temporary checker to make the old spelling of the checker valid.
+  MigrateOldUsesOfCoreFixedAddressDereferenceChecker.cpp
+
   LINK_LIBS
   clangAST
   clangASTMatchers
