@@ -10,7 +10,7 @@
 // RUN: %clang_analyze_cc1 -analyzer-checker=core %s 2>&1 \
 // RUN:   -analyzer-checker=core.FixedAddressDereference \
 // RUN: | FileCheck %s --check-prefix=WARN-USE-NEW-CHECKER-NAME
-// WARN-USE-NEW-CHECKER-NAME:      checker 'core.FixedAddressDereference' was renamed to 'optin.core.FixedAddressDereference'.
+// WARN-USE-NEW-CHECKER-NAME:      warning: checker 'core.FixedAddressDereference' was renamed to 'optin.core.FixedAddressDereference'.
 // WARN-USE-NEW-CHECKER-NAME-SAME: Enable the new checker name or stop explicitly enabling the old checker name
 
 // -new => no-warning
