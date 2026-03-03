@@ -32,7 +32,7 @@
 // RUN:   -verify=disabled-old-disabled-new %s
 // disabled-old-disabled-new-no-diagnostics
 
-// +old,-new => no-warning
+// +old,-new => warn to use the new checker name
 // RUN: %clang_analyze_cc1 -analyzer-checker=core %s 2>&1 \
 // RUN:   -analyzer-checker=core.FixedAddressDereference \
 // RUN:   -analyzer-disable-checker=optin.core.FixedAddressDereference \
