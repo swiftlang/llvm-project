@@ -253,7 +253,6 @@ def NonnullGlobalConstantsChecker: Checker<"NonnilStringConstants">,
   Documentation<NotDocumented>,
   Hidden;
 
-// This is a temporary checker to make the old spelling of the checker valid.
 def MigrateOldUsesOfCoreFixedAddressDereferenceChecker :
   Checker<"FixedAddressDereference">,
   HelpText<
