@@ -4402,8 +4402,15 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
         const types::ID HeaderType = lookupHeaderTypeForSourceType(InputType);
         // Build the pipeline for the pch file.
         Action *ClangClPch = C.MakeAction<InputAction>(*InputArg, HeaderType);
-        for (phases::ID Phase : types::getCompilationPhases(HeaderType))
+        auto PL = types::getCompilationPhases(HeaderType);
+        // Add depscan if necessary
+        if (PL.front() == phases::Preprocess)
+          if (Arg *A = Args.getLastArg(options::OPT_fdepscan_EQ))
+            if (A->getValue() != llvm::StringLiteral("off"))
+              PL.insert(PL.begin(), phases::Depscan);
+        for (phases::ID Phase : PL) {
           ClangClPch = ConstructPhaseAction(C, Args, Phase, ClangClPch);
+        }
         assert(ClangClPch);
         Actions.push_back(ClangClPch);
         // The driver currently exits after the first failed command.  This

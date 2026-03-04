@@ -1077,6 +1077,13 @@ static std::string computeFilename(StringRef Name, IncludeTreeFileSystem &FS) {
   return Filename.str().str();
 }
 
+static void addCurrentDirectory(IncludeTreeFileSystem &FS) {
+  auto &DirEntry = FS.Directories["."];
+  if (DirEntry == llvm::sys::fs::UniqueID()) {
+    DirEntry = llvm::vfs::getNextVirtualUniqueID();
+  }
+}
+
 Expected<IntrusiveRefCntPtr<llvm::vfs::FileSystem>>
 cas::createIncludeTreeFileSystem(
     llvm::cas::ObjectStore &CAS,
@@ -1112,6 +1119,10 @@ cas::createIncludeTreeFileSystem(
                                          llvm::vfs::getNextVirtualUniqueID()}));
   }
 
+  // Add the current directory "." to avoid when queried as it may be
+  // used as a fallback directory.
+  addCurrentDirectory(*IncludeTreeFS);
+
   return IncludeTreeFS;
 }
 
@@ -1135,6 +1146,10 @@ cas::createIncludeTreeFileSystem(IncludeTree::FileList &List) {
                                          llvm::vfs::getNextVirtualUniqueID()}));
         return llvm::Error::success();
       });
+
+  // Add the current directory "." to avoid when queried as it may be
+  // used as a fallback directory.
+  addCurrentDirectory(*IncludeTreeFS);
 
   if (E)
     return std::move(E);
