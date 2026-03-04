@@ -53,6 +53,7 @@ TEST(IncludeTree, IncludeTreeScan) {
     return llvm::cas::createCASProvidingFileSystem(DB, FS);
   };
   Opts.Format = ScanningOutputFormat::IncludeTree;
+  Opts.Compilation = IncludeTreeCompilation{CASOpts, DB, Cache};
   DependencyScanningService Service(std::move(Opts));
   DependencyScanningTool ScanTool(Service);
 
@@ -68,8 +69,8 @@ TEST(IncludeTree, IncludeTreeScan) {
                                           "-o"
                                           "t.cpp.o"};
   std::optional<IncludeTreeRoot> Root;
-  Expected<IncludeTreeRoot> ExpectedRoot = ScanTool.getIncludeTree(
-      CASOpts, *DB, CommandLine, /*CWD*/ "", nullptr, DiagConsumer);
+  Expected<IncludeTreeRoot> ExpectedRoot =
+      ScanTool.getIncludeTree(CommandLine, /*CWD*/ "", nullptr, DiagConsumer);
   ASSERT_THAT_ERROR(std::move(ExpectedRoot).moveInto(Root), llvm::Succeeded());
 
   std::optional<IncludeTree::File> MainFile;

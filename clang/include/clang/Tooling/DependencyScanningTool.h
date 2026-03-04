@@ -88,8 +88,7 @@ public:
   }
 
   Expected<cas::IncludeTreeRoot>
-  getIncludeTree(CASOptions CASOpts, cas::ObjectStore &DB,
-                 const std::vector<std::string> &CommandLine, StringRef CWD,
+  getIncludeTree(const std::vector<std::string> &CommandLine, StringRef CWD,
                  dependencies::LookupModuleOutputCallback LookupModuleOutput,
                  DiagnosticConsumer &DiagConsumer);
 
@@ -98,7 +97,6 @@ public:
   /// message and the serialized diagnostics file emitted if the
   /// \p DiagOpts.DiagnosticSerializationFile setting is set for the invocation.
   Expected<cas::IncludeTreeRoot> getIncludeTreeFromCompilerInvocation(
-      CASOptions CASOpts, cas::ObjectStore &DB,
       std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
       clang::dependencies::LookupModuleOutputCallback LookupModuleOutput,
       DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
@@ -235,8 +233,7 @@ bool computeDependencies(
 Expected<llvm::cas::CASID> scanAndUpdateCC1InlineWithTool(
     tooling::DependencyScanningTool &Tool,
     DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
-    CompilerInvocation &Invocation, StringRef WorkingDirectory,
-    llvm::cas::ObjectStore &DB);
+    CompilerInvocation &Invocation, StringRef WorkingDirectory);
 
 } // end namespace clang
 

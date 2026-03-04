@@ -264,13 +264,12 @@ char AlreadyReportedDiagnosticError::ID = 0;
 } // namespace
 
 Expected<cas::IncludeTreeRoot> DependencyScanningTool::getIncludeTree(
-    CASOptions CASOpts, cas::ObjectStore &DB,
     const std::vector<std::string> &CommandLine, StringRef CWD,
     LookupModuleOutputCallback LookupModuleOutput,
     DiagnosticConsumer &DiagsConsumer) {
-  GetIncludeTree Consumer(DB);
-  auto Controller = createIncludeTreeActionController(LookupModuleOutput,
-                                                      std::move(CASOpts), DB);
+  GetIncludeTree Consumer(*Worker.getCAS());
+  auto Controller = createIncludeTreeActionController(
+      LookupModuleOutput, getCASOpts(), *Worker.getCAS());
   if (!computeDependencies(Worker, CWD, CommandLine, Consumer, *Controller,
                            DiagsConsumer))
     return llvm::make_error<AlreadyReportedDiagnosticError>();
@@ -279,14 +278,13 @@ Expected<cas::IncludeTreeRoot> DependencyScanningTool::getIncludeTree(
 
 Expected<cas::IncludeTreeRoot>
 DependencyScanningTool::getIncludeTreeFromCompilerInvocation(
-    CASOptions CASOpts, cas::ObjectStore &DB,
     std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
     LookupModuleOutputCallback LookupModuleOutput,
     DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
     bool DiagGenerationAsCompilation) {
-  GetIncludeTree Consumer(DB);
-  auto Controller = createIncludeTreeActionController(LookupModuleOutput,
-                                                      std::move(CASOpts), DB);
+  GetIncludeTree Consumer(*Worker.getCAS());
+  auto Controller = createIncludeTreeActionController(
+      LookupModuleOutput, getCASOpts(), *Worker.getCAS());
   Worker.computeDependenciesFromCompilerInvocation(
       std::move(Invocation), CWD, Consumer, *Controller, DiagsConsumer,
       VerboseOS, DiagGenerationAsCompilation);
@@ -496,7 +494,7 @@ DependencyScanningTool::createActionController(
 Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(
     DependencyScanningTool &Tool, DiagnosticConsumer &DiagsConsumer,
     raw_ostream *VerboseOS, CompilerInvocation &Invocation,
-    StringRef WorkingDirectory, llvm::cas::ObjectStore &DB) {
+    StringRef WorkingDirectory) {
   llvm::PrefixMapper Mapper;
   DepscanPrefixMapping::configurePrefixMapper(Invocation, Mapper);
 
@@ -508,11 +506,11 @@ Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(
   LookupModuleOutputCallback Lookup;
 
   std::optional<llvm::cas::CASID> Root;
-  if (Error E = Tool.getIncludeTreeFromCompilerInvocation(
-                        Tool.getCASOpts(), DB, std::move(ScanInvocation),
-                        WorkingDirectory, /*LookupModuleOutput=*/nullptr,
-                        DiagsConsumer, VerboseOS,
-                        /*DiagGenerationAsCompilation=*/true)
+  if (Error E =
+          Tool.getIncludeTreeFromCompilerInvocation(
+                  std::move(ScanInvocation), WorkingDirectory,
+                  /*LookupModuleOutput=*/nullptr, DiagsConsumer, VerboseOS,
+                  /*DiagGenerationAsCompilation=*/true)
                     .moveInto(Root))
     return std::move(E);
 
