@@ -36,7 +36,7 @@ public:
 private:
   std::unique_ptr<DependencyActionController> clone() const override;
 
-  void initialize(CompilerInvocation &ScanInvocation) override;
+  void initializeScanInvocation(CompilerInvocation &ScanInvocation) override;
   Error initialize(CompilerInstance &ScanInstance,
                    CompilerInvocation &NewInvocation) override;
   Error finalize(CompilerInstance &ScanInstance,
@@ -307,7 +307,7 @@ IncludeTreeActionController::clone() const {
                                                        LookupModuleOutput);
 }
 
-void IncludeTreeActionController::initialize(
+void IncludeTreeActionController::initializeScanInvocation(
     CompilerInvocation &ScanInvocation) {
   // Enable include-tree in scanning PCMs and caching in the resulting commands.
   ScanInvocation.getFrontendOpts().CacheCompileJob = true;

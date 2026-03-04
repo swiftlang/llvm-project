@@ -83,7 +83,7 @@ public:
   virtual std::string lookupModuleOutput(const ModuleDeps &MD,
                                          ModuleOutputKind Kind) = 0;
 
-  virtual void initialize(CompilerInvocation &ScanInvocation) {}
+  virtual void initializeScanInvocation(CompilerInvocation &ScanInvocation) {}
 
   virtual llvm::Error initialize(CompilerInstance &ScanInstance,
                                  CompilerInvocation &NewInvocation) {

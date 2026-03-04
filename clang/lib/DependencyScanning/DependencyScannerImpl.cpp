@@ -592,7 +592,7 @@ createScanCompilerInvocation(const CompilerInvocation &Invocation,
   // and thus won't write out the extra '.d' files to disk.
   ScanInvocation->getDependencyOutputOpts() = {};
 
-  Controller.initialize(*ScanInvocation);
+  Controller.initializeScanInvocation(*ScanInvocation);
 
   return ScanInvocation;
 }
