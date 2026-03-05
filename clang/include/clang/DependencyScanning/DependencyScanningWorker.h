@@ -88,14 +88,14 @@ public:
 
   virtual void initializeScanInvocation(CompilerInvocation &ScanInvocation) {}
 
-  virtual llvm::Error initialize(CompilerInstance &ScanInstance,
-                                 CompilerInvocation &NewInvocation) {
-    return llvm::Error::success();
+  virtual bool initialize(CompilerInstance &ScanInstance,
+                          CompilerInvocation &NewInvocation) {
+    return true;
   }
 
-  virtual llvm::Error finalize(CompilerInstance &ScanInstance,
-                               CompilerInvocation &NewInvocation) {
-    return llvm::Error::success();
+  virtual bool finalize(CompilerInstance &ScanInstance,
+                        CompilerInvocation &NewInvocation) {
+    return true;
   }
 
   virtual std::optional<std::string>
@@ -103,19 +103,18 @@ public:
     return std::nullopt;
   }
 
-  virtual llvm::Error
-  initializeModuleBuild(CompilerInstance &ModuleScanInstance) {
-    return llvm::Error::success();
+  virtual bool initializeModuleBuild(CompilerInstance &ModuleScanInstance) {
+    return true;
   }
 
-  virtual llvm::Error
-  finalizeModuleBuild(CompilerInstance &ModuleScanInstance) {
-    return llvm::Error::success();
+  virtual bool finalizeModuleBuild(CompilerInstance &ModuleScanInstance) {
+    return true;
   }
 
-  virtual llvm::Error finalizeModuleInvocation(CowCompilerInvocation &CI,
-                                               const ModuleDeps &MD) {
-    return llvm::Error::success();
+  virtual bool finalizeModuleInvocation(CompilerInstance &ScanInstance,
+                                        CowCompilerInvocation &CI,
+                                        const ModuleDeps &MD) {
+    return true;
   }
 };
 
