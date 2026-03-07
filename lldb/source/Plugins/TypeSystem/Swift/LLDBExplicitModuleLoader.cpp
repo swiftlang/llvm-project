@@ -32,6 +32,14 @@ LLDBExplicitSwiftModuleLoader::LLDBExplicitSwiftModuleLoader(
       m_cas(cas), m_action_cache(action_cache), m_casml(std::move(casml)),
       m_esml(std::move(esml)) {}
 
+template <typename Map, typename Entry>
+void sortEntry(Map &cas_map, Map &esml_map, const Entry &entry) {
+  if (entry.getValue().moduleCacheKey)
+    cas_map.insert({entry.getKey(), entry.getValue()});
+  else
+    esml_map.insert({entry.getKey(), entry.getValue()});
+}
+
 std::unique_ptr<LLDBExplicitSwiftModuleLoader>
 LLDBExplicitSwiftModuleLoader::create(
     swift::ASTContext &ctx, std::shared_ptr<llvm::cas::ObjectStore> cas,
@@ -45,22 +53,43 @@ LLDBExplicitSwiftModuleLoader::create(
     std::unique_ptr<swift::ExplicitClangModuleMap> ExplicitClangModuleMap) {
   if (!MainSwiftModuleMap || !ExplicitSwiftModuleMap || !ExplicitClangModuleMap)
     return {};
+
+  std::unique_ptr<swift::ExplicitSwiftModuleMap> cas_swift_map, esml_swift_map;
+  std::unique_ptr<swift::ExplicitClangModuleMap> cas_clang_map, esml_clang_map;
+
+  // Filter the map for the approriate module loader. In practice, an
+  // explicit module map should be either all CAS or all paths, so it
+  // may be possible to optimize this into a check of the first
+  // element and and assigment.
+  cas_swift_map = std::make_unique<swift::ExplicitSwiftModuleMap>();
+  esml_swift_map = std::make_unique<swift::ExplicitSwiftModuleMap>();
+  cas_clang_map = std::make_unique<swift::ExplicitClangModuleMap>();
+  esml_clang_map = std::make_unique<swift::ExplicitClangModuleMap>();
+
+  for (auto &entry : *MainSwiftModuleMap)
+    sortEntry(*cas_swift_map, *esml_swift_map, entry);
+
+  for (auto &entry : *ExplicitSwiftModuleMap)
+    sortEntry(*cas_swift_map, *esml_swift_map, entry);
+
+  for (auto &entry : *ExplicitClangModuleMap)
+    sortEntry(*cas_clang_map, *esml_clang_map, entry);
+
   std::unique_ptr<swift::ExplicitCASModuleLoader> casml;
   if (cas && action_cache) {
     casml = swift::ExplicitCASModuleLoader::create(
         ctx, *cas, *action_cache, tracker, loadMode, ExplicitSwiftModuleMapPath,
         ExplicitSwiftModuleInputs, IgnoreSwiftSourceInfoFile,
-        std::move(ExplicitSwiftModuleMap), std::move(ExplicitClangModuleMap));
+        std::move(cas_swift_map), std::move(cas_clang_map));
+  } else if (cas_swift_map->size() || cas_clang_map->size()) {
+    LLDB_LOG(
+        GetLog(LLDBLog::Types),
+        "explicit Swift module map contains cache keys, but no CAS available");
   }
-  if (!ExplicitSwiftModuleMap)
-    ExplicitSwiftModuleMap = std::move(MainSwiftModuleMap);
-  else
-    for (auto &entry : *MainSwiftModuleMap)
-      ExplicitSwiftModuleMap->insert({entry.getKey(), entry.getValue()});
   auto esml = swift::ExplicitSwiftModuleLoader::create(
       ctx, tracker, loadMode, ExplicitSwiftModuleMapPath,
       ExplicitSwiftModuleInputs, IgnoreSwiftSourceInfoFile,
-      std::move(ExplicitSwiftModuleMap), std::move(ExplicitClangModuleMap));
+      std::move(esml_swift_map), std::move(esml_clang_map));
   return std::make_unique<LLDBExplicitSwiftModuleLoader>(
       ctx, cas, action_cache, tracker, loadMode, IgnoreSwiftSourceInfoFile,
       std::move(casml), std::move(esml));

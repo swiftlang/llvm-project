@@ -22,6 +22,15 @@
 # CAS-LOAD:      LogConfiguration() --     -fmodule-file-cache-key
 # CHECK:         (Int) ${{.*}} = 1
 
+## Test that the presence of a cache doesn't break regular debugging.
+# RUN: %target-swiftc -g -Onone -save-temps \
+# RUN:          -module-cache-path %t/cache %t/main.swift \
+# RUN:          -explicit-module-build \
+# RUN:          -module-name main -o %t/main
+# RUN: %lldb %t/main -s %t/lldb.script 2>&1 | FileCheck %s --check-prefix=UNCACHED
+# UNCACHED:  SwiftASTContextForExpressions(module: "main", cu: "main.swift")::LoadOneModule() -- Imported module main from {kind = Serialized Swift AST, filename = "{{.*}}main{{.*}}.swiftmodule";}
+# UNCACHED:         (Int) ${{.*}} = 1
+
 //--- main.swift
 func test() {
   print("break here")
@@ -29,8 +38,6 @@ func test() {
 test()
 
 //--- lldb.script.template
-# Force loading from interface to simulate no binary module available.
-settings set symbols.swift-module-loading-mode prefer-interface
 settings set symbols.cas-path DIR/cas
 log enable lldb types
 b test
