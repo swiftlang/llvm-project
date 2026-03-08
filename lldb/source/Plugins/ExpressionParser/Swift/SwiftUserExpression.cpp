@@ -288,7 +288,8 @@ void SwiftUserExpression::ScanContext(ExecutionContext &exe_ctx, Status &err) {
       m_is_weak_self = true;
     }
 
-  m_needs_object_ptr = !m_in_static_method;
+  m_needs_object_ptr =
+      !m_in_static_method && !m_options.GetUseContextFreeSwiftPrintObject();
 
   LLDB_LOGF(log, "  [SUE::SC] Containing class name: %s",
             info.type.GetTypeName().AsCString());
