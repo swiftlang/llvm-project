@@ -290,6 +290,8 @@ void SwiftUserExpression::ScanContext(ExecutionContext &exe_ctx, Status &err) {
 
   m_needs_object_ptr =
       !m_in_static_method && !m_options.GetUseContextFreeSwiftPrintObject();
+  LLDB_LOGF(log, "  [SUE::SC] Expression captures self: %s",
+            m_needs_object_ptr ? "true" : "false");
 
   LLDB_LOGF(log, "  [SUE::SC] Containing class name: %s",
             info.type.GetTypeName().AsCString());
@@ -637,17 +639,18 @@ SwiftUserExpression::GetTextAndSetExpressionParser(
 
   llvm::SmallVector<SwiftASTManipulator::VariableInfo> local_variables;
 
-  if (llvm::Error error = RegisterAllVariables(
-          sc, stack_frame, *m_swift_ast_ctx, local_variables,
-          m_options.GetUseDynamic(), m_options.GetBindGenericTypes())) {
-    diagnostic_manager.PutString(lldb::eSeverityInfo,
-                                 llvm::toString(std::move(error)));
-    diagnostic_manager.PutString(
-        lldb::eSeverityError,
-        "Couldn't realize Swift AST type of self. Hint: using `v` to "
-        "directly inspect variables and fields may still work.");
-    return ParseResult::retry_bind_generic_params;
-  }
+  if (!m_options.GetUseContextFreeSwiftPrintObject())
+    if (llvm::Error error = RegisterAllVariables(
+            sc, stack_frame, *m_swift_ast_ctx, local_variables,
+            m_options.GetUseDynamic(), m_options.GetBindGenericTypes())) {
+      diagnostic_manager.PutString(lldb::eSeverityInfo,
+                                   llvm::toString(std::move(error)));
+      diagnostic_manager.PutString(
+          lldb::eSeverityError,
+          "Couldn't realize Swift AST type of self. Hint: using `v` to "
+          "directly inspect variables and fields may still work.");
+      return ParseResult::retry_bind_generic_params;
+    }
 
   auto ts = m_swift_ast_ctx->GetTypeSystemSwiftTypeRef();
   if (ts && stack_frame) {

@@ -1456,7 +1456,8 @@ SwiftExpressionParser::ParseAndImport(
         local_context_is_swift = false;
     }
 
-    if (local_context_is_swift) {
+    if (local_context_is_swift &&
+        !m_options.GetUseContextFreeSwiftPrintObject()) {
       llvm::Error error = AddRequiredAliases(
           m_sc.block, stack_frame_sp, m_swift_ast_ctx, *code_manipulator,
           m_options.GetUseDynamic(), m_options.GetBindGenericTypes());
