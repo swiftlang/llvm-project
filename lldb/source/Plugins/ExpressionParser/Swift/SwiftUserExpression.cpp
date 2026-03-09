@@ -639,7 +639,7 @@ SwiftUserExpression::GetTextAndSetExpressionParser(
 
   llvm::SmallVector<SwiftASTManipulator::VariableInfo> local_variables;
 
-  if (!m_options.GetUseContextFreeSwiftPrintObject())
+  if (!m_options.GetUseContextFreeSwiftPrintObject()) {
     if (llvm::Error error = RegisterAllVariables(
             sc, stack_frame, *m_swift_ast_ctx, local_variables,
             m_options.GetUseDynamic(), m_options.GetBindGenericTypes())) {
@@ -652,25 +652,26 @@ SwiftUserExpression::GetTextAndSetExpressionParser(
       return ParseResult::retry_bind_generic_params;
     }
 
-  auto ts = m_swift_ast_ctx->GetTypeSystemSwiftTypeRef();
-  if (ts && stack_frame) {
-    // Extract the generic signature of the context.
-    ConstString func_name =
-        stack_frame->GetSymbolContext(lldb::eSymbolContextFunction)
-            .GetFunctionName(Mangled::ePreferMangled);
-    m_generic_signature = SwiftLanguageRuntime::GetGenericSignature(
-        func_name.GetStringRef(), *ts);
-  }
+    auto ts = m_swift_ast_ctx->GetTypeSystemSwiftTypeRef();
+    if (ts && stack_frame) {
+      // Extract the generic signature of the context.
+      ConstString func_name =
+          stack_frame->GetSymbolContext(lldb::eSymbolContextFunction)
+              .GetFunctionName(Mangled::ePreferMangled);
+      m_generic_signature = SwiftLanguageRuntime::GetGenericSignature(
+          func_name.GetStringRef(), *ts);
+    }
 
-  if (!SwiftASTManipulator::ShouldBindGenericTypes(
-          m_options.GetBindGenericTypes()) &&
-      !CanEvaluateExpressionWithoutBindingGenericParams(
-          local_variables, m_generic_signature, *m_swift_ast_ctx, sc.block,
-          *stack_frame.get())) {
-    diagnostic_manager.PutString(
-        lldb::eSeverityError,
-        "Could not evaluate the expression without binding generic types.");
-    return ParseResult::retry_bind_generic_params_not_supported;
+    if (!SwiftASTManipulator::ShouldBindGenericTypes(
+            m_options.GetBindGenericTypes()) &&
+        !CanEvaluateExpressionWithoutBindingGenericParams(
+            local_variables, m_generic_signature, *m_swift_ast_ctx, sc.block,
+            *stack_frame.get())) {
+      diagnostic_manager.PutString(
+          lldb::eSeverityError,
+          "Could not evaluate the expression without binding generic types.");
+      return ParseResult::retry_bind_generic_params_not_supported;
+    }
   }
 
   uint32_t first_body_line = 0;
