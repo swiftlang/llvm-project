@@ -368,6 +368,11 @@ uint32_t SymbolFileNativePDB::CalculateAbilities() {
     if (!pdb_file)
       return 0;
 
+    LLDB_LOG(
+        GetLog(LLDBLog::Symbols), "Loading {0} for {1}",
+        pdb_file->getFilePath(),
+        m_objfile_sp->GetModule()->GetObjectFile()->GetFileSpec().GetPath());
+
     auto expected_index = PdbIndex::create(pdb_file);
     if (!expected_index) {
       llvm::consumeError(expected_index.takeError());
