@@ -158,8 +158,15 @@ static bool checkCompatibility(const InputFile *input) {
     return true;
 
   // Swift LLVM fork downstream change start
-  error("This version of lld does not support linking for platform " + getPlatformName(platformInfos.front().target.Platform));
+  #if defined(__APPLE__)
+  error("This version of lld does not support linking for platform " + getPlatformName(platformInfos.front().target.Platform) + 
+        ". Please use /usr/bin/ld instead.");
   return false;
+  #else
+  // we can't point non-macOS users to /usr/bin/ld, but we should warn them anyway.
+  warn("This version of lld does not support linking for platform " + getPlatformName(platformInfos.front().target.Platform) + 
+       ". Proceed at your own risk.");
+  #endif
   // Swift LLVM fork downstream change end
 
   auto it = find_if(platformInfos, [&](const PlatformInfo &info) {
