@@ -2813,14 +2813,17 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
   std::optional<XcodeSDK> sdk;
   if (cu)
     if (auto platform_sp = Platform::GetHostPlatform()) {
-      auto sdk_or_err = platform_sp->GetSDKPathFromDebugInfo(*cu);
-      if (!sdk_or_err)
-        Debugger::ReportError("Error while parsing SDK path from debug info: " +
-                              toString(sdk_or_err.takeError()));
-      else {
-        sdk = *sdk_or_err;
-        LOG_PRINTF(GetLog(LLDBLog::Types), "Using precise SDK: %s",
-                   sdk->GetString().str().c_str());
+      if (platform_sp->GetName() != PlatformDarwin::GetPluginNameStatic()) {
+        auto sdk_or_err = platform_sp->GetSDKPathFromDebugInfo(*cu);
+        if (!sdk_or_err)
+          Debugger::ReportError(
+              "Error while parsing SDK path from debug info: " +
+              toString(sdk_or_err.takeError()));
+        else {
+          sdk = *sdk_or_err;
+          LOG_PRINTF(GetLog(LLDBLog::Types), "Using precise SDK: %s",
+                     sdk->GetString().str().c_str());
+        }
       }
     }
 
