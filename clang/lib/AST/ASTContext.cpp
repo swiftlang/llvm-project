@@ -9972,7 +9972,7 @@ selectMethodOwnerKey(const clang::NamedDecl *clangD) {
 
 void clang::serializeObjCMethodReferencesAsJson(
     const clang::ObjCMethodReferenceInfo &Info, llvm::raw_ostream &OS) {
-  llvm::json::OStream Out(OS, /*IndentSize=*/4);
+  llvm::json::OStream Out(OS);
   Out.object([&] {
     Out.attribute(Info.ToolName, Info.ToolVersion);
     Out.attribute("format-version", Info.FormatVersion);
@@ -10004,7 +10004,9 @@ void clang::serializeObjCMethodReferencesAsJson(
             Mangler->mangleObjCMethodName(clangD, Out2,
                                           /*includePrefixByte=*/false, true);
             Out.attribute(selectMethodKey(clangD), MangledMethodName);
-            Out.attribute("declared_at", Loc.printToString(SM));
+            if (Loc.isMacroID())
+              Out.attribute("declared_by_macro", SM.getFilename(SM.getSpellingLoc(Loc)));
+            Out.attribute("declared_at", SM.getFilename(SM.getExpansionLoc(Loc)));
             Out.attribute("referenced_at_file_id", FileID);
           });
         }
