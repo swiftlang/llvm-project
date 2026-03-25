@@ -137,7 +137,7 @@ public:
 
   static DynamicAllocOrForgedPtrLValue getFromOpaqueValue(void *Value) {
     DynamicAllocOrForgedPtrLValue V;
-    V.Val = reinterpret_cast<intptr_t>(Value);
+    V.Val = decltype(V.Val)::getFromOpaqueValue(Value);
     return V;
   }
 };
