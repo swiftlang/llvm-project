@@ -2612,7 +2612,7 @@ SwiftASTContextSP TypeSystemSwiftTypeRefForExpressions::GetSwiftASTContext(
       if (target_sp) {
         if (StreamSP errs_sp = target_sp->GetDebugger().GetAsyncErrorStream())
           errs_sp->Printf(
-              "Could not import Swift modules for translation unit: %s",
+              "Could not import Swift modules for translation unit: %s\n",
               llvm::toString(std::move(error)).c_str());
       } else
         llvm::consumeError(std::move(error));
