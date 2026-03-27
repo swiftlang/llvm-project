@@ -647,42 +647,35 @@ elementwise to the input.
 
 Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±infinity
 
-=========================================== ================================================================ =========================================
-         Name                                Operation                                                        Supported element types
-=========================================== ================================================================ =========================================
- T __builtin_elementwise_abs(T x)            return the absolute value of a number x; the absolute value of   signed integer and floating point types
-                                             the most negative integer remains the most negative integer
- T __builtin_elementwise_fma(T x, T y, T z)  fused multiply add, (x * y) +  z.                                floating point types
- T __builtin_elementwise_ceil(T x)           return the smallest integral value greater than or equal to x    floating point types
- T __builtin_elementwise_sin(T x)            return the sine of x interpreted as an angle in radians          floating point types
- T __builtin_elementwise_cos(T x)            return the cosine of x interpreted as an angle in radians        floating point types
- T __builtin_elementwise_tan(T x)            return the tangent of x interpreted as an angle in radians       floating point types
- T __builtin_elementwise_asin(T x)           return the arcsine of x interpreted as an angle in radians       floating point types
- T __builtin_elementwise_acos(T x)           return the arccosine of x interpreted as an angle in radians     floating point types
- T __builtin_elementwise_atan(T x)           return the arctangent of x interpreted as an angle in radians    floating point types
- T __builtin_elementwise_sinh(T x)           return the hyperbolic sine of angle x in radians                 floating point types
- T __builtin_elementwise_cosh(T x)           return the hyperbolic cosine of angle x in radians               floating point types
- T __builtin_elementwise_tanh(T x)           return the hyperbolic tangent of angle x in radians              floating point types
- T __builtin_elementwise_floor(T x)          return the largest integral value less than or equal to x        floating point types
- T __builtin_elementwise_log(T x)            return the natural logarithm of x                                floating point types
- T __builtin_elementwise_log2(T x)           return the base 2 logarithm of x                                 floating point types
- T __builtin_elementwise_log10(T x)          return the base 10 logarithm of x                                floating point types
- T __builtin_elementwise_pow(T x, T y)       return x raised to the power of y                                floating point types
- T __builtin_elementwise_bitreverse(T x)     return the integer represented after reversing the bits of x     integer types
- T __builtin_elementwise_exp(T x)            returns the base-e exponential, e^x, of the specified value      floating point types
- T __builtin_elementwise_exp2(T x)           returns the base-2 exponential, 2^x, of the specified value      floating point types
+No implicit promotion of integer types takes place. The mixing of integer types
+of different sizes and signs is forbidden in binary and ternary builtins.
 
- T __builtin_elementwise_sqrt(T x)           return the square root of a floating-point number                floating point types
- T __builtin_elementwise_roundeven(T x)      round x to the nearest integer value in floating point format,   floating point types
-                                             rounding halfway cases to even (that is, to the nearest value
-                                             that is an even integer), regardless of the current rounding
-                                             direction.
- T __builtin_elementwise_round(T x)          round x to the nearest  integer value in floating point format,      floating point types
-                                             rounding halfway cases away from zero, regardless of the
-                                             current rounding direction. May raise floating-point
-                                             exceptions.
- T __builtin_elementwise_trunc(T x)          return the integral value nearest to but no larger in            floating point types
-                                             magnitude than x
+============================================== ====================================================================== =========================================
+         Name                                   Operation                                                             Supported element types
+============================================== ====================================================================== =========================================
+ T __builtin_elementwise_abs(T x)               return the absolute value of a number x; the absolute value of         signed integer and floating point types
+                                                the most negative integer remains the most negative integer
+ T __builtin_elementwise_fma(T x, T y, T z)     fused multiply add, (x * y) +  z.                                      floating point types
+ T __builtin_elementwise_ceil(T x)              return the smallest integral value greater than or equal to x          floating point types
+ T __builtin_elementwise_sin(T x)               return the sine of x interpreted as an angle in radians                floating point types
+ T __builtin_elementwise_cos(T x)               return the cosine of x interpreted as an angle in radians              floating point types
+ T __builtin_elementwise_tan(T x)               return the tangent of x interpreted as an angle in radians             floating point types
+ T __builtin_elementwise_asin(T x)              return the arcsine of x interpreted as an angle in radians             floating point types
+ T __builtin_elementwise_acos(T x)              return the arccosine of x interpreted as an angle in radians           floating point types
+ T __builtin_elementwise_atan(T x)              return the arctangent of x interpreted as an angle in radians          floating point types
+ T __builtin_elementwise_atan2(T y, T x)        return the arctangent of y/x                                           floating point types
+ T __builtin_elementwise_sinh(T x)              return the hyperbolic sine of angle x in radians                       floating point types
+ T __builtin_elementwise_cosh(T x)              return the hyperbolic cosine of angle x in radians                     floating point types
+ T __builtin_elementwise_tanh(T x)              return the hyperbolic tangent of angle x in radians                    floating point types
+ T __builtin_elementwise_floor(T x)             return the largest integral value less than or equal to x              floating point types
+ T __builtin_elementwise_log(T x)               return the natural logarithm of x                                      floating point types
+ T __builtin_elementwise_log2(T x)              return the base 2 logarithm of x                                       floating point types
+ T __builtin_elementwise_log10(T x)             return the base 10 logarithm of x                                      floating point types
+ T __builtin_elementwise_popcount(T x)          return the number of 1 bits in x                                       integer types
+ T __builtin_elementwise_pow(T x, T y)          return x raised to the power of y                                      floating point types
+ T __builtin_elementwise_bitreverse(T x)        return the integer represented after reversing the bits of x           integer types
+ T __builtin_elementwise_exp(T x)               returns the base-e exponential, e^x, of the specified value            floating point types
+ T __builtin_elementwise_exp2(T x)              returns the base-2 exponential, 2^x, of the specified value            floating point types
 
   T __builtin_elementwise_nearbyint(T x)     round x to the nearest  integer value in floating point format,      floating point types
                                              rounding according to the current rounding direction.
