@@ -1,0 +1,9 @@
+{
+  "DefaultVariant": "xrOS", "DisplayName": "xrOS",
+  "Version": "1.0",
+  "CanonicalName": "xros1.0",
+  "MaximumDeploymentTarget": "1.0.99",
+  "VersionMap": {
+    "iOS_xrOS":{"15.0":"1.0"}
+  }
+}

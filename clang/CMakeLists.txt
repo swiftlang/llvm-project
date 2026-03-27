@@ -364,6 +364,8 @@ endif()
 
 include(CMakeParseArguments)
 include(AddClang)
+include(AddDarwinPlatform)
+clang_add_additional_platform()
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 

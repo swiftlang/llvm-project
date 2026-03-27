@@ -1,0 +1,108 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+//  This platform-specific template implements inferral of
+//  __attribute__((availability(platform, unavailable))) from a base platform
+//  attribute __attribute__((availability(fallback platform, unavailable))).
+//
+// INPUTS:
+//    PLATFORM_TRIPLE_OS_VALUE - the name of the target OS enum in the Triple.
+//    FALLBACK_PLATFORM_TRIPLE_OS_VALUE - the name of the fallback target OS
+//                                        enum in the Triple.
+//    PLATFORM_AVAILABILITY_NAME - the name of availability platform.
+//    FALLBACK_PLATFORM_AVAILABILITY_NAME - the name of availability for the
+//                                          fallback platform.
+//
+//===----------------------------------------------------------------------===//
+
+// FIXME: This is now doing more than 'unavailable', the docs have to be updated.
+
+// x introduced := map(ios introduced, 1.0, None)
+//                     None           -> x unavailable
+//                     <version>      -> x introduced <version>
+
+// x deprecated := map(ios deprecated, 1.0, MaximumDeploymentVersion)
+//                        None -> None
+//                        <version> -> x deprecated <version>
+
+// x obsoleted := map(ios obsoleted, 1.0, MaximumDeploymentVersion)
+//                    None -> x unavailable
+//                    <version> -> x obsoleted <version>
+
+/// Returns true if the given availability attribute should be inferred.
++([] (const llvm::Triple &TT,
+    const DarwinSDKInfo *SDKInfo,
+    const ASTContext &Context,
+    IdentifierInfo *&II,
+    bool &IsUnavailable,
+    VersionTuple &Introduced,
+    VersionTuple &Deprecated,
+    VersionTuple &Obsolete) -> bool {
+  if (TT.getOS() != llvm::Triple::@PLATFORM_TRIPLE_OS_VALUE@)
+    return false;
+  IdentifierInfo *NewII = nullptr;
+  if (II->getName() == "@FALLBACK_PLATFORM_AVAILABILITY_NAME@")
+    NewII = &Context.Idents.get("@PLATFORM_AVAILABILITY_NAME@");
+  else if (II->getName() == "@FALLBACK_PLATFORM_AVAILABILITY_NAME@_app_extension")
+    NewII = &Context.Idents.get("@PLATFORM_AVAILABILITY_NAME@_app_extension");
+  if (!NewII)
+    return false;
+  II = NewII;
+
+  auto MakeUnavailable = [&]() {
+    IsUnavailable = true;
+    // Reset introduced, deprecated, obsoleted.
+    Introduced = VersionTuple();
+    Deprecated = VersionTuple();
+    Obsolete = VersionTuple();
+  };
+
+  if (!SDKInfo) {
+    MakeUnavailable();
+    return true;
+  }
+  // Map from the fallback platform availability to the current platform
+  // availability.
+  const auto *Mapping = SDKInfo->getVersionMapping(
+                           DarwinSDKInfo::OSEnvPair(
+                             llvm::Triple::@FALLBACK_PLATFORM_TRIPLE_OS_VALUE@,
+                             llvm::Triple::UnknownEnvironment,
+                             llvm::Triple::@PLATFORM_TRIPLE_OS_VALUE@,
+                             llvm::Triple::UnknownEnvironment));
+  if (!Mapping) {
+    MakeUnavailable();
+    return true;
+  }
+
+  if (Introduced) {
+    auto NewIntroduced = Mapping->mapIntroducedAvailabilityVersion(Introduced);
+    if (!NewIntroduced) {
+      MakeUnavailable();
+      return true;
+    }
+    Introduced = *NewIntroduced;
+  }
+
+  if (Obsolete) {
+    auto NewObsolete =
+        Mapping->mapDeprecatedObsoletedAvailabilityVersion(Obsolete);
+    if (!NewObsolete) {
+      MakeUnavailable();
+      return true;
+    }
+    Obsolete = *NewObsolete;
+  }
+
+  if (Deprecated) {
+    auto NewDeprecated =
+        Mapping->mapDeprecatedObsoletedAvailabilityVersion(Deprecated);
+    Deprecated = NewDeprecated ? *NewDeprecated : VersionTuple();
+  }
+
+  return true;
+}),
