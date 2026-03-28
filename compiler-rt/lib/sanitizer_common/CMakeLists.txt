@@ -41,6 +41,7 @@ set(SANITIZER_SOURCES_NOTERMINATION
   sanitizer_thread_arg_retval.cpp
   sanitizer_thread_registry.cpp
   sanitizer_type_traits.cpp
+  sanitizer_wasi.cpp
   sanitizer_win.cpp
   )
 
