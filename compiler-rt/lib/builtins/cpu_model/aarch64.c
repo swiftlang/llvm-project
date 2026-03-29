@@ -47,7 +47,7 @@ _Bool __aarch64_have_lse_atomics = false;
 #elif defined(__ANDROID__)
 #include "aarch64/hwcap.inc"
 #include "aarch64/lse_atomics/android.inc"
-#elif __has_include(<sys/auxv.h>)
+#elif defined(__linux__) && __has_include(<sys/auxv.h>)
 #include "aarch64/hwcap.inc"
 #include "aarch64/lse_atomics/sysauxv.inc"
 #else
@@ -80,7 +80,7 @@ __attribute__((__visibility__("hidden"), __nocommon__))
 #elif defined(__ANDROID__)
 #include "aarch64/fmv/mrs.inc"
 #include "aarch64/fmv/android.inc"
-#elif __has_include(<sys/auxv.h>)
+#elif defined(__linux__) && __has_include(<sys/auxv.h>)
 #include "aarch64/fmv/mrs.inc"
 #include "aarch64/fmv/sysauxv.inc"
 #else
