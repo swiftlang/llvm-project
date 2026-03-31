@@ -984,6 +984,19 @@ def swiftTest(func):
 
     return skipTestIfFn(is_not_swift_compatible)(func)
 
+def skipEmbeddedSwift(func):
+    def skip_fn(swift_embedded=None, **kwargs):
+        if swift_embedded == "swift_embedded":
+            return "not supported in embedded Swift"
+        return None
+    return _skipForVariant("swift_embedded", skip_fn, func)
+
+def skipUnlessEmbeddedSwift(func):
+    def skip_fn(swift_embedded=None, **kwargs):
+        if swift_embedded != "swift_embedded":
+            return "Only supported in embedded Swift"
+        return None
+    return _skipForVariant("swift_embedded", skip_fn, func)
 
 def skipIfHostIncompatibleWithTarget(func):
     """Decorate the item to skip tests when the host and target are incompatible."""
