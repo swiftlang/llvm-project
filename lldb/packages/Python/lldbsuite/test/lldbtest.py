@@ -576,6 +576,8 @@ class Base(unittest.TestCase):
         if not cls.mydir:
             raise Exception("Subclasses must override the 'mydir' attribute.")
 
+        cls.extra_make_flags = {}
+
         # Save old working directory.
         cls.oldcwd = os.getcwd()
 
@@ -1539,6 +1541,8 @@ class Base(unittest.TestCase):
         if command is None:
             raise Exception("Don't know how to build binary")
 
+        command += [f"{k}={v}" for k, v in self.extra_make_flags.items()]
+
         self.runBuildCommand(command)
 
     def runBuildCommand(self, command):
@@ -1944,6 +1948,14 @@ def _swift_module_importer_setup(test_instance, variant_value):
     elif variant_value == "clangimporter":
         test_instance.runCmd("settings set symbols.use-swift-clangimporter true")
 
+def _embedded_swift_setup(test_instance, variant_value):
+    if variant_value == "swift_embedded":
+        test_instance.extra_make_flags["SWIFT_EMBEDDED_MODE"] = "1"
+    elif variant_value == "swift":
+        test_instance.extra_make_flags["SWIFT_EMBEDDED_MODE"] = "0"
+    else:
+        assert False, f"Unknown variant: {variant_value}"
+
 
 _test_variants = [
     TestVariant(
@@ -1951,6 +1963,13 @@ _test_variants = [
         values=test_categories.swift_module_importer_categories,
         predicate=lambda m: getattr(m, "__swift_test__", False),
         setup_fn=_swift_module_importer_setup,
+        attrs_to_preserve=("debug_info",),
+    ),
+    TestVariant(
+        name="swift_embedded",
+        values=test_categories.embedded_swift_categories,
+        predicate=lambda m: getattr(m, "__swift_test__", False),
+        setup_fn=_embedded_swift_setup,
         attrs_to_preserve=("debug_info",),
     ),
 ]

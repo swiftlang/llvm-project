@@ -25,6 +25,11 @@ swift_module_importer_categories = {
     "dwarfimporter": True,
 }
 
+embedded_swift_categories = {
+    "swift": True,
+    "swift_embedded": True,
+}
+
 all_categories = {
     "basic_process": "Basic process execution sniff tests.",
     "cmdline": "Tests related to the LLDB command-line interface",
@@ -56,6 +61,8 @@ all_categories = {
     "watchpoint": "Watchpoint-related tests",
     "clangimporter": "Tests run with the Swift ClangImporter",
     "dwarfimporter": "Tests run with the Swift DWARFImporter",
+    "swift_embedded": "Tests are compiled as embedded Swift",
+    "swift": "Tests are compiled as normal Swift",
 }
 
 
