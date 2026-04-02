@@ -373,6 +373,15 @@ void Symtab::InitNameIndexes() {
         }
       }
 
+#ifdef LLDB_ENABLE_SWIFT
+      // Skip demangling of remaining Swift symbols. The preceeding block
+      // demangles Swift symbols into node trees, to extract method names. The
+      // subsequent block demangles symbols into strings, and for Swift this
+      // serves no purpose.
+      if (SwiftLanguageRuntime::IsSwiftMangledName(mangled.GetMangledName()))
+        continue;
+#endif
+
       // Symbol name strings that didn't match a Mangled::ManglingScheme, are
       // stored in the demangled field.
       SymbolContext sc;
