@@ -1324,9 +1324,11 @@ Error TrieVisitor::visit() {
       SubtrieHandle S(Trie.getRegion(), Slot, Trie.getLogger());
       Subs.push_back(S);
       Prefixes.push_back(SubtriePrefix);
-    }
-    if (auto Err = visitSlot(I, Root, SubtriePrefix, Slot))
-      return Err;
+    } else if (Slot.isData()) {
+      if (auto Err = visitSlot(I, Root, SubtriePrefix, Slot))
+        return Err;
+    } else
+      return createInvalidTrieError(Offset, "invalid slot value");
   }
 
   for (size_t I = 0, E = Subs.size(); I != E; ++I) {
