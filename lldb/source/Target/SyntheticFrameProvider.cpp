@@ -27,17 +27,17 @@ void ScriptedFrameProviderDescriptor::Dump(Stream *s) const {
   if (!s)
     return;
 
-  s->Format("  ID: {0}\n", GetID());
-  s->Format("  Name: {0}\n", GetName());
+  s->Format("  ID: {0:x}\n", GetID());
+  s->Printf("  Name: %s\n", GetName().str().c_str());
 
   std::string description = GetDescription();
   if (!description.empty())
-    s->Format("  Description: {0}\n", description);
+    s->Printf("  Description: %s\n", description.c_str());
 
   // Show priority information.
   std::optional<uint32_t> priority = GetPriority();
   if (priority.has_value())
-    s->Format("  Priority: {0}\n", *priority);
+    s->Printf("  Priority: %u\n", *priority);
   else
     s->PutCString("  Priority: Default (no priority specified)\n");
 
@@ -45,21 +45,21 @@ void ScriptedFrameProviderDescriptor::Dump(Stream *s) const {
   if (thread_specs.empty()) {
     s->PutCString("  Thread Filter: (applies to all threads)\n");
   } else {
-    s->Format("  Thread Filter: {0} specification(s)\n", thread_specs.size());
+    s->Printf("  Thread Filter: %zu specification(s)\n", thread_specs.size());
     for (size_t i = 0; i < thread_specs.size(); ++i) {
       const ThreadSpec &spec = thread_specs[i];
-      s->Format("    [{0}] ", i);
+      s->Printf("    [%zu] ", i);
       spec.GetDescription(s, lldb::eDescriptionLevelVerbose);
-      s->EOL();
+      s->PutChar('\n');
     }
   }
 }
 
-uint32_t ScriptedFrameProviderDescriptor::GetHash() const {
+uint32_t ScriptedFrameProviderDescriptor::GetID() const {
   if (!scripted_metadata_sp)
     return 0;
 
-  return scripted_metadata_sp->GetHash();
+  return scripted_metadata_sp->GetID();
 }
 
 std::string ScriptedFrameProviderDescriptor::GetDescription() const {
