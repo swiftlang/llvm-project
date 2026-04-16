@@ -5,10 +5,23 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+/// \file
+/// This file implements OnDiskKeyValueDB, an ondisk key value database.
+///
+/// The KeyValue database file is named `actions.<version>` inside the CAS
+/// directory. The database stores a mapping between a fixed-sized key and a
+/// fixed-sized value, where the size of key and value can be configured when
+/// opening the database.
+///
+//
+//===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/OnDiskKeyValueDB.h"
 #include "OnDiskCommon.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/CAS/OnDiskTrieRawHashMap.h"
+#include "llvm/CAS/UnifiedOnDiskCache.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Errc.h"
@@ -18,8 +31,7 @@ using namespace llvm;
 using namespace llvm::cas;
 using namespace llvm::cas::ondisk;
 
-static constexpr StringLiteral ActionCacheFile = "actions";
-static constexpr StringLiteral FilePrefix = "v4.";
+static constexpr StringLiteral ActionCacheFile = "actions.";
 
 Expected<ArrayRef<char>> OnDiskKeyValueDB::put(ArrayRef<uint8_t> Key,
                                                ArrayRef<char> Value) {
@@ -30,7 +42,7 @@ Expected<ArrayRef<char>> OnDiskKeyValueDB::put(ArrayRef<uint8_t> Key,
   assert(Value.size() == ValueSize);
   auto ActionP = Cache.insertLazy(
       Key, [&](FileOffset TentativeOffset,
-               OnDiskHashMappedTrie::ValueProxy TentativeValue) {
+               OnDiskTrieRawHashMap::ValueProxy TentativeValue) {
         assert(TentativeValue.Data.size() == ValueSize);
         llvm::copy(Value, TentativeValue.Data.data());
       });
@@ -42,22 +54,28 @@ Expected<ArrayRef<char>> OnDiskKeyValueDB::put(ArrayRef<uint8_t> Key,
 Expected<std::optional<ArrayRef<char>>>
 OnDiskKeyValueDB::get(ArrayRef<uint8_t> Key) {
   // Check the result cache.
-  OnDiskHashMappedTrie::const_pointer ActionP = Cache.find(Key);
-  if (!ActionP)
+  OnDiskTrieRawHashMap::ConstOnDiskPtr ActionP = Cache.find(Key);
+  if (ActionP) {
+    assert(isAddrAligned(Align(8), ActionP->Data.data()));
+    return ActionP->Data;
+  }
+  if (!UnifiedCache || !UnifiedCache->UpstreamKVDB)
     return std::nullopt;
-  assert(isAddrAligned(Align(8), ActionP->Data.data()));
-  return ActionP->Data;
+
+  // Try to fault in from upstream.
+  return UnifiedCache->faultInFromUpstreamKV(Key);
 }
 
 Expected<std::unique_ptr<OnDiskKeyValueDB>>
 OnDiskKeyValueDB::open(StringRef Path, StringRef HashName, unsigned KeySize,
                        StringRef ValueName, size_t ValueSize,
+                       UnifiedOnDiskCache *Cache,
                        std::shared_ptr<OnDiskCASLogger> Logger) {
   if (std::error_code EC = sys::fs::create_directories(Path))
     return createFileError(Path, EC);
 
   SmallString<256> CachePath(Path);
-  sys::path::append(CachePath, FilePrefix + ActionCacheFile);
+  sys::path::append(CachePath, ActionCacheFile + CASFormatVersion);
   constexpr uint64_t MB = 1024ull * 1024ull;
   constexpr uint64_t GB = 1024ull * 1024ull * 1024ull;
 
@@ -68,8 +86,8 @@ OnDiskKeyValueDB::open(StringRef Path, StringRef HashName, unsigned KeySize,
   if (*CustomSize)
     MaxFileSize = **CustomSize;
 
-  std::optional<OnDiskHashMappedTrie> ActionCache;
-  if (Error E = OnDiskHashMappedTrie::create(
+  std::optional<OnDiskTrieRawHashMap> ActionCache;
+  if (Error E = OnDiskTrieRawHashMap::create(
                     CachePath,
                     "llvm.actioncache[" + HashName + "->" + ValueName + "]",
                     KeySize * 8,
@@ -79,13 +97,14 @@ OnDiskKeyValueDB::open(StringRef Path, StringRef HashName, unsigned KeySize,
     return std::move(E);
 
   return std::unique_ptr<OnDiskKeyValueDB>(
-      new OnDiskKeyValueDB(ValueSize, std::move(*ActionCache)));
+      new OnDiskKeyValueDB(ValueSize, std::move(*ActionCache), Cache));
 }
 
-Error OnDiskKeyValueDB::validate(CheckValueT CheckValue) const {
+static Error validateOnDiskKeyValueDB(const OnDiskTrieRawHashMap &Cache,
+                                      size_t ValueSize, OnDiskGraphDB *CAS) {
   return Cache.validate(
       [&](FileOffset Offset,
-          OnDiskHashMappedTrie::ConstValueProxy Record) -> Error {
+          OnDiskTrieRawHashMap::ConstValueProxy Record) -> Error {
         auto formatError = [&](Twine Msg) {
           return createStringError(
               llvm::errc::illegal_byte_sequence,
@@ -96,10 +115,28 @@ Error OnDiskKeyValueDB::validate(CheckValueT CheckValue) const {
 
         if (Record.Data.size() != ValueSize)
           return formatError("wrong cache value size");
-        if (!isAligned(Align(8), Record.Data.size()))
+        if (!isAddrAligned(Align(8), Record.Data.data()))
           return formatError("wrong cache value alignment");
-        if (CheckValue)
-          return CheckValue(Offset, Record.Data);
+        if (CAS) {
+          auto ID =
+              ondisk::UnifiedOnDiskCache::getObjectIDFromValue(Record.Data);
+          if (Error E = CAS->validateObjectID(ID))
+            return formatError(llvm::toString(std::move(E)));
+        }
         return Error::success();
       });
+}
+
+Error OnDiskKeyValueDB::validate() const {
+  if (UnifiedCache && UnifiedCache->UpstreamKVDB) {
+    assert(UnifiedCache->UpstreamGraphDB &&
+           "upstream cache and cas must be paired");
+    if (auto E = validateOnDiskKeyValueDB(UnifiedCache->UpstreamKVDB->Cache,
+                                          UnifiedCache->UpstreamKVDB->ValueSize,
+                                          UnifiedCache->UpstreamGraphDB.get()))
+      return E;
+  }
+  return validateOnDiskKeyValueDB(
+      Cache, ValueSize,
+      UnifiedCache ? UnifiedCache->PrimaryGraphDB.get() : nullptr);
 }

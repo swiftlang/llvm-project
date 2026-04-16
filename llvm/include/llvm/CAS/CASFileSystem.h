@@ -20,7 +20,7 @@ class CASID;
 /// Abstract class represents an open file backed by a CAS.
 class CASBackedFile : public RTTIExtends<CASBackedFile, vfs::File> {
 public:
-  LLVM_ABI static const char ID;
+  static const char ID;
   /// Get the CAS reference for the contents of the file.
   virtual cas::ObjectRef getObjectRefForContent() = 0;
 };
@@ -29,7 +29,7 @@ public:
 class CASBackedFileSystem
     : public llvm::RTTIExtends<CASBackedFileSystem, vfs::FileSystem> {
 public:
-  LLVM_ABI static const char ID;
+  static const char ID;
 
   /// This is a convenience method that opens a file, gets its content and then
   /// closes the file. It returns MemoryBuffer and ObjectRef in one call to avoid
@@ -42,8 +42,7 @@ public:
                                bool IsVolatile = false, bool IsText = true);
 
   /// Get ObjectRef of a file from its path.
-  LLVM_ABI llvm::Expected<cas::ObjectRef>
-  getObjectRefForFileContent(const Twine &Name);
+  llvm::Expected<cas::ObjectRef> getObjectRefForFileContent(const Twine &Name);
 
   /// Implementation for openFileForRead using CASBackedFile.
   ErrorOr<std::unique_ptr<vfs::File>>
@@ -63,11 +62,11 @@ public:
   createThreadSafeProxyFS() = 0;
 };
 
-LLVM_ABI Expected<std::unique_ptr<vfs::FileSystem>>
+Expected<std::unique_ptr<vfs::FileSystem>>
 createCASFileSystem(std::shared_ptr<ObjectStore> DB, const CASID &RootID,
                     sys::path::Style PathStyle = sys::path::Style::native);
 
-LLVM_ABI Expected<std::unique_ptr<vfs::FileSystem>>
+Expected<std::unique_ptr<vfs::FileSystem>>
 createCASFileSystem(ObjectStore &DB, const CASID &RootID,
                     sys::path::Style PathStyle = sys::path::Style::native);
 

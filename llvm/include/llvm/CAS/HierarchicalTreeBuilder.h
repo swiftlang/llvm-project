@@ -50,8 +50,8 @@ class HierarchicalTreeBuilder {
   SmallVector<HierarchicalEntry, 8> Entries;
   SmallVector<HierarchicalEntry, 0> TreeContents;
 
-  LLVM_ABI void pushImpl(std::optional<ObjectRef> Ref,
-                         TreeEntry::EntryKind Kind, const Twine &Path);
+  void pushImpl(std::optional<ObjectRef> Ref, TreeEntry::EntryKind Kind,
+                const Twine &Path);
 
 public:
   HierarchicalTreeBuilder(sys::path::Style PathStyle = sys::path::Style::native)
@@ -85,7 +85,7 @@ public:
 
   /// Recursively create the trees implied by calls to \a push(), return the
   /// top-level \a CASID.
-  LLVM_ABI Expected<ObjectProxy> create(ObjectStore &CAS);
+  Expected<ObjectProxy> create(ObjectStore &CAS);
 };
 
 } // namespace cas

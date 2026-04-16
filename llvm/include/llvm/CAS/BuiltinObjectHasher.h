@@ -9,13 +9,12 @@
 #ifndef LLVM_CAS_BUILTINOBJECTHASHER_H
 #define LLVM_CAS_BUILTINOBJECTHASHER_H
 
-#include "llvm/ADT/StringRef.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/Endian.h"
 
-namespace llvm {
-namespace cas {
+namespace llvm::cas {
 
+/// Hasher for stored objects in builtin CAS.
 template <class HasherT> class BuiltinObjectHasher {
 public:
   using HashT = decltype(HasherT::hash(std::declval<ArrayRef<uint8_t> &>()));
@@ -66,13 +65,13 @@ private:
 
   void updateArray(ArrayRef<char> Bytes) {
     updateArray(ArrayRef(reinterpret_cast<const uint8_t *>(Bytes.data()),
-                             Bytes.size()));
+                         Bytes.size()));
   }
 
   void updateSize(uint64_t Size) {
     Size = support::endian::byte_swap(Size, endianness::little);
-    Hasher.update(ArrayRef(reinterpret_cast<const uint8_t *>(&Size),
-                                sizeof(Size)));
+    Hasher.update(
+        ArrayRef(reinterpret_cast<const uint8_t *>(&Size), sizeof(Size)));
   }
 
   BuiltinObjectHasher() = default;
@@ -80,7 +79,6 @@ private:
   HasherT Hasher;
 };
 
-} // namespace cas
-} // namespace llvm
+} // namespace llvm::cas
 
 #endif // LLVM_CAS_BUILTINOBJECTHASHER_H

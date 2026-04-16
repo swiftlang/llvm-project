@@ -146,10 +146,10 @@ protected:
   std::shared_ptr<ObjectStore> OwnedDB;
 };
 
-LLVM_ABI Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
+Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
 createCachingOnDiskFileSystem(std::shared_ptr<ObjectStore> DB);
 
-LLVM_ABI Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
+Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
 createCachingOnDiskFileSystem(ObjectStore &DB);
 
 } // namespace cas
