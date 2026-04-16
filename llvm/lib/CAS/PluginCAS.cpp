@@ -87,7 +87,7 @@ Expected<std::shared_ptr<PluginCASContext>> PluginCASContext::create(
 #undef CASPLUGINAPI_FUNCTION
 
   llcas_cas_options_t c_opts = Functions.cas_options_create();
-  auto _ = make_scope_exit([&]() { Functions.cas_options_dispose(c_opts); });
+  llvm::scope_exit _([&]() { Functions.cas_options_dispose(c_opts); });
 
   Functions.cas_options_set_client_version(c_opts, LLCAS_VERSION_MAJOR,
                                            LLCAS_VERSION_MINOR);
@@ -129,6 +129,8 @@ public:
   Expected<CASID> parseID(StringRef ID) final;
   Expected<ObjectRef> store(ArrayRef<ObjectRef> Refs,
                             ArrayRef<char> Data) final;
+  Expected<ObjectRef> storeFromFile(StringRef Path) final;
+  Error exportDataToFile(ObjectHandle Node, StringRef Path) const final;
   CASID getID(ObjectRef Ref) const final;
   std::optional<ObjectRef> getReference(const CASID &ID) const final;
   Expected<bool> isMaterialized(ObjectRef Ref) const final;
@@ -224,6 +226,35 @@ Expected<ObjectRef> PluginObjectStore::store(ArrayRef<ObjectRef> Refs,
   return ObjectRef::getFromInternalRef(*this, c_stored_id.opaque);
 }
 
+Expected<ObjectRef> PluginObjectStore::storeFromFile(StringRef Path) {
+  if (!Ctx->Functions.cas_store_from_filepath)
+    return ObjectStore::storeFromFile(Path);
+
+  llcas_objectid_t c_stored_id;
+  char *c_err = nullptr;
+  std::string PathStr = Path.str();
+  if (Ctx->Functions.cas_store_from_filepath(Ctx->c_cas, PathStr.c_str(),
+                                             &c_stored_id, &c_err))
+    return Ctx->errorAndDispose(c_err);
+
+  return ObjectRef::getFromInternalRef(*this, c_stored_id.opaque);
+}
+
+Error PluginObjectStore::exportDataToFile(ObjectHandle Node,
+                                          StringRef Path) const {
+  if (!Ctx->Functions.loaded_object_export_data_to_filepath)
+    return ObjectStore::exportDataToFile(Node, Path);
+
+  char *c_err = nullptr;
+  std::string PathStr = Path.str();
+  if (Ctx->Functions.loaded_object_export_data_to_filepath(
+          Ctx->c_cas, llcas_loaded_object_t{Node.getInternalRef(*this)},
+          PathStr.c_str(), &c_err))
+    return Ctx->errorAndDispose(c_err);
+
+  return Error::success();
+}
+
 static StringRef toStringRef(llcas_digest_t c_digest) {
   return StringRef((const char *)c_digest.data, c_digest.size);
 }
@@ -298,7 +329,7 @@ void PluginObjectStore::loadIfExistsAsync(
                       llcas_loaded_object_t c_obj, char *c_err) {
     auto getObjAndDispose =
         [&](LoadObjCtx *Ctx) -> Expected<std::optional<ObjectHandle>> {
-      auto _ = make_scope_exit([Ctx]() { delete Ctx; });
+      llvm::scope_exit _([Ctx]() { delete Ctx; });
       switch (c_result) {
       case LLCAS_LOOKUP_RESULT_SUCCESS:
         return Ctx->CAS->makeObjectHandle(c_obj.opaque);
@@ -502,7 +533,7 @@ void PluginActionCache::getImplAsync(
                        llcas_objectid_t c_value, char *c_err) {
     auto getValueAndDispose =
         [&](CacheGetCtx *Ctx) -> Expected<std::optional<CASID>> {
-      auto _ = make_scope_exit([Ctx]() { delete Ctx; });
+      llvm::scope_exit _([Ctx]() { delete Ctx; });
       switch (c_result) {
       case LLCAS_LOOKUP_RESULT_SUCCESS: {
         llcas_digest_t c_digest = Ctx->CASCtx->Functions.objectid_get_digest(
@@ -570,7 +601,7 @@ void PluginActionCache::putImplAsync(ArrayRef<uint8_t> ResolvedKey,
   };
   auto CachePutCB = [](void *c_ctx, bool failed, char *c_err) {
     auto checkForErrorAndDispose = [&](CachePutCtx *Ctx) -> Error {
-      auto _ = make_scope_exit([Ctx]() { delete Ctx; });
+      llvm::scope_exit _([Ctx]() { delete Ctx; });
       if (failed)
         return Ctx->CASCtx->errorAndDispose(c_err);
       return Error::success();

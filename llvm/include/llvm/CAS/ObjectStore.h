@@ -5,6 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file
+/// This file contains the declaration of the ObjectStore class.
+///
+//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CAS_OBJECTSTORE_H
 #define LLVM_CAS_OBJECTSTORE_H
@@ -12,9 +17,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CAS/CASID.h"
 #include "llvm/CAS/CASReference.h"
-#include "llvm/CAS/TreeEntry.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/FileSystem.h" // FIXME: Split out sys::fs::file_status.
+#include "llvm/Support/FileSystem.h"
 #include <cstddef>
 #include <future>
 
@@ -73,6 +77,9 @@ using AsyncProxyValue = AsyncValue<ObjectProxy>;
 ///   wraps access APIs to avoid having to pass extra parameters. It is the
 ///   object used for accessing underlying data and refs by CAS users.
 ///
+/// Both ObjectRef and ObjectHandle are lightweight, wrapping a `uint64_t` and
+/// are only valid with the associated ObjectStore instance.
+///
 /// There are a few options for accessing content of objects, with different
 /// lifetime tradeoffs:
 ///
@@ -83,50 +90,6 @@ using AsyncProxyValue = AsyncValue<ObjectProxy>;
 ///   long as \a ObjectStore.
 /// - \a readRef() and \a forEachRef() iterate through the references in an
 ///   object. There is no lifetime assumption.
-///
-/// Both ObjectRef and ObjectHandle are lightweight, wrapping a `uint64_t`.
-/// Doing anything with them requires a ObjectStore. As a convenience:
-///
-///
-/// TODO: Remove CASID.
-///
-/// Here's how to remove CASID:
-///
-/// - Add APIs for bypassing CASID when parsing:
-///     - Validate an ID without doing anything else (current check done by
-///       `parseID()`).
-///     - Get the hash for an object or StringRef-based ID.
-///     - Get an ObjectRef or load an ObjectHandle from a StringRef-based ID.
-/// - Update existing code using CASID to use the new ObjectRef,
-///   ObjectHandle, and StringRef APIs.
-/// - Remove CASID, changing `getObjectID()` to return `std::string`.
-///
-/// TODO: Consider optimizing small and/or string-like leaf objects:
-///
-/// - \a NodeBuilder and \a NodeReader interfaces can bring some of the same
-///   gains without adding complexity to \a ObjectStore. E.g., \a NodeBuilder
-///   could have an API to add a named field to a node under construction; if
-///   the name is small enough, it's stored locally in the node's own data, but
-///   if it's bigger then it's outlined to a separate CAS object. \a NodeReader
-///   could handle the complications of reading.
-/// - Implementations can do fast lookups of small objects by adding a
-///   content-based index for them (prefix tree / suffix tree of content),
-///   amortizing overhead of hash computation in \a storeNode().
-/// - Implementations could remove small leaf objects from the main index,
-///   indexing them separately with a partial hash (e.g., 4B prefix), to
-///   optimize storage overhead (32B hash is big for small objects!). Lookups
-///   by UID that miss the main index would get more expensive, requiring a
-///   hash computation for each small object with a matching partial hash, but
-///   maybe this would be rare. To mitigate this cost, small leaf objects could
-///   get added to the main index lazily on first lookup-by-UID, lazily adding
-///   the full overhead of the hash storage only when used by clients.
-/// - NOTE: we tried adding an API to store "raw data" that can be optimized,
-///   but it was very complicated to reason about.
-///     - Introduced many opportunities for implementation bugs.
-///     - Introduced many complications in the API.
-///
-/// FIXME: Split out ActionCache as a separate concept, and rename this
-/// ObjectStore.
 class ObjectStore {
   friend class ObjectProxy;
   void anchor();
@@ -202,7 +165,8 @@ protected:
   /// Get the size of some data.
   virtual uint64_t getDataSize(ObjectHandle Node) const = 0;
 
-  /// Methods for handling objects.
+  /// Methods for handling objects. CAS implementations need to override to
+  /// provide functions to access stored CAS objects and references.
   virtual Error forEachRef(ObjectHandle Node,
                            function_ref<Error(ObjectRef)> Callback) const = 0;
   virtual ObjectRef readRef(ObjectHandle Node, size_t I) const = 0;
@@ -270,7 +234,7 @@ public:
     return storeFromOpenFileImpl(FD, Status);
   }
 
-  LLVM_ABI static Error createUnknownObjectError(const CASID &ID);
+  static Error createUnknownObjectError(const CASID &ID);
 
   /// Create ObjectProxy from CASID. If the object doesn't exist, get an error.
   LLVM_ABI Expected<ObjectProxy> getProxy(const CASID &ID);
@@ -279,10 +243,10 @@ public:
   LLVM_ABI Expected<ObjectProxy> getProxy(ObjectRef Ref);
 
   /// \returns \c std::nullopt if the object is missing from the CAS.
-  LLVM_ABI Expected<std::optional<ObjectProxy>> getProxyIfExists(ObjectRef Ref);
+  Expected<std::optional<ObjectProxy>> getProxyIfExists(ObjectRef Ref);
 
   /// Asynchronous version of \c getProxyIfExists.
-  LLVM_ABI std::future<AsyncProxyValue> getProxyFuture(ObjectRef Ref);
+  std::future<AsyncProxyValue> getProxyFuture(ObjectRef Ref);
 
   /// Asynchronous version of \c getProxyIfExists using a callback.
   /// \param[out] CancelObj Optional pointer to receive a cancellation object.
@@ -291,7 +255,7 @@ public:
       unique_function<void(Expected<std::optional<ObjectProxy>>)> Callback,
       std::unique_ptr<Cancellable> *CancelObj = nullptr);
   /// Asynchronous version of \c getProxyIfExists using a callback.
-  LLVM_ABI void getProxyAsync(
+  void getProxyAsync(
       ObjectRef Ref,
       unique_function<void(Expected<std::optional<ObjectProxy>>)> Callback,
       std::unique_ptr<Cancellable> *CancelObj = nullptr);
@@ -309,7 +273,7 @@ public:
   /// Set the size for limiting growth of on-disk storage. This has an effect
   /// for when the instance is closed.
   ///
-  /// Implementations may be not have this implemented.
+  /// Implementations may leave this unimplemented.
   virtual Error setSizeLimit(std::optional<uint64_t> SizeLimit) {
     return Error::success();
   }
@@ -325,7 +289,7 @@ public:
   /// Prune local storage to reduce its size according to the desired size
   /// limit. Pruning can happen concurrently with other operations.
   ///
-  /// Implementations may be not have this implemented.
+  /// Implementations may leave this unimplemented.
   virtual Error pruneStorageData() { return Error::success(); }
 
   /// Validate the whole node tree.
@@ -355,19 +319,14 @@ private:
 /// Reference to an abstract hierarchical node, with data and references.
 /// Reference is passed by value and is expected to be valid as long as the \a
 /// ObjectStore is.
-///
-/// TODO: Expose \a ObjectStore::readData() and only call \a
-/// ObjectStore::getDataString() when asked.
 class ObjectProxy {
 public:
-  const ObjectStore &getCAS() const { return *CAS; }
-  ObjectStore &getCAS() { return *CAS; }
+  ObjectStore &getCAS() const { return *CAS; }
   CASID getID() const { return CAS->getID(Ref); }
   ObjectRef getRef() const { return Ref; }
   size_t getNumReferences() const { return CAS->getNumRefs(H); }
   ObjectRef getReference(size_t I) const { return CAS->readRef(H, I); }
 
-  // FIXME: Remove this.
   operator CASID() const { return getID(); }
   CASID getReferenceID(size_t I) const {
     std::optional<CASID> ID = getCAS().getID(getReference(I));
@@ -381,7 +340,7 @@ public:
     return CAS->forEachRef(H, Callback);
   }
 
-  LLVM_ABI std::unique_ptr<MemoryBuffer>
+  std::unique_ptr<MemoryBuffer>
   getMemoryBuffer(StringRef Name = "",
                   bool RequiresNullTerminator = true) const;
 
@@ -428,31 +387,21 @@ LLVM_ABI std::unique_ptr<ObjectStore> createInMemoryCAS();
 /// \returns true if \c LLVM_ENABLE_ONDISK_CAS configuration was enabled.
 bool isOnDiskCASEnabled();
 
-/// Gets or creates a persistent on-disk path at \p Path.
-///
-/// Deprecated: if \p Path resolves to \a getDefaultOnDiskCASStableID(),
-/// automatically opens \a getDefaultOnDiskCASPath() instead.
-///
-/// FIXME: Remove the special behaviour for getDefaultOnDiskCASStableID(). The
-/// client should handle this logic, if/when desired.
+/// Create a persistent on-disk path at \p Path.
 LLVM_ABI Expected<std::unique_ptr<ObjectStore>>
 createOnDiskCAS(const Twine &Path);
 
 /// Set \p Path to a reasonable default on-disk path for a persistent CAS for
 /// the current user.
-LLVM_ABI void getDefaultOnDiskCASPath(SmallVectorImpl<char> &Path);
+Error getDefaultOnDiskCASPath(SmallVectorImpl<char> &Path);
 
 /// Get a reasonable default on-disk path for a persistent CAS for the current
 /// user.
-LLVM_ABI std::string getDefaultOnDiskCASPath();
+llvm::Expected<std::string> getDefaultOnDiskCASPath();
 
-/// FIXME: Remove.
-void getDefaultOnDiskCASStableID(SmallVectorImpl<char> &Path);
+class ActionCache;
 
-/// FIXME: Remove.
-std::string getDefaultOnDiskCASStableID();
-
-/// Create ObjectStore from a string identifier.
+/// Create ObjectStore and ActionCache from a string identifier.
 /// Currently the string identifier is using URL scheme with following supported
 /// schemes:
 ///  * InMemory CAS: mem://
@@ -467,18 +416,17 @@ std::string getDefaultOnDiskCASStableID();
 /// on-disk directory that the plugin should use, otherwise the default
 /// OnDiskCAS location will be used.
 /// FIXME: Need to implement proper URL encoding scheme that allows "%".
-Expected<std::shared_ptr<ObjectStore>> createCASFromIdentifier(StringRef Path);
+Expected<std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
+createCASFromIdentifier(StringRef Path);
 
 /// Register a URL scheme to CAS Identifier.
-using ObjectStoreCreateFuncTy =
-    Expected<std::shared_ptr<ObjectStore>>(const Twine &);
+using ObjectStoreCreateFuncTy = Expected<
+    std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>(
+    const Twine &);
 void registerCASURLScheme(StringRef Prefix, ObjectStoreCreateFuncTy *Func);
-
-class ActionCache;
 
 /// Create \c ObjectStore and \c ActionCache instances using the plugin
 /// interface.
-LLVM_ABI
 Expected<std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
 createPluginCASDatabases(
     StringRef PluginPath, StringRef OnDiskPath,

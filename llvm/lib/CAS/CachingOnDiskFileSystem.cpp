@@ -9,15 +9,13 @@
 #include "llvm/CAS/CachingOnDiskFileSystem.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/ScopeExit.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/CAS/FileSystemCache.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/CAS/TreePath.h"
 #include "llvm/Config/config.h"
-#include "llvm/Support/AlignOf.h"
-#include "llvm/Support/Allocator.h"
 #include "llvm/Support/FileSystem.h"
+
 #include <mutex>
 
 using namespace llvm;
@@ -124,6 +122,9 @@ public:
   IntrusiveRefCntPtr<CachingOnDiskFileSystem> createProxyFS() final {
     return makeIntrusiveRefCnt<CachingOnDiskFileSystemImpl>(*this);
   }
+
+  void printImpl(raw_ostream &OS, PrintType Type,
+                 unsigned IndentLevel) const final;
 
   CachingOnDiskFileSystemImpl(std::shared_ptr<ObjectStore> DB)
       : CachingOnDiskFileSystem(std::move(DB)) {
@@ -402,7 +403,7 @@ CachingOnDiskFileSystemImpl::makeEntry(
   if (!F)
     return F.takeError();
 
-  auto CloseOnExit = make_scope_exit([&F]() { sys::fs::closeFile(*F); });
+  llvm::scope_exit CloseOnExit([&F]() { sys::fs::closeFile(*F); });
   return makeFile(Parent, TreePathStorage.Path, *F, Status);
 }
 
@@ -546,6 +547,7 @@ CachingOnDiskFileSystemImpl::getDirectoryIterator(const Twine &Path) {
 Expected<FileSystemCache::DirectoryEntry *>
 CachingOnDiskFileSystemImpl::preloadRealPath(DirectoryEntry &From,
                                              StringRef Remaining) {
+
   PathStorage RemainingStorage(Remaining);
   SmallString<256> ExpectedRealTreePath;
   ExpectedRealTreePath = From.getTreePath();
@@ -629,7 +631,7 @@ CachingOnDiskFileSystemImpl::preloadRealPath(DirectoryEntry &From,
     llvm::consumeError(FD.takeError());
     return nullptr;
   }
-  auto CloseOnExit = make_scope_exit([&FD]() { sys::fs::closeFile(*FD); });
+  llvm::scope_exit CloseOnExit([&FD]() { sys::fs::closeFile(*FD); });
 
   auto F = makeFile(*State.Entry, RealTreePath, *FD, Status);
   if (F)
@@ -898,6 +900,13 @@ public:
 std::unique_ptr<CachingOnDiskFileSystem::TreeBuilder>
 CachingOnDiskFileSystemImpl::createTreeBuilder() {
   return std::make_unique<TreeBuilder>(*this);
+}
+
+void CachingOnDiskFileSystemImpl::printImpl(raw_ostream &OS, PrintType Type,
+                                            unsigned IndentLevel) const {
+  printIndent(OS, IndentLevel);
+  OS << "CachingOnDiskFileSystem\n";
+  // FIXME: print contents
 }
 
 void CachingOnDiskFileSystemImpl::TreeBuilder::pushSymlink(

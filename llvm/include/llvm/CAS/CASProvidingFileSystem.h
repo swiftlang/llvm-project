@@ -23,7 +23,7 @@ class ObjectStore;
 /// Implements \p vfs::File::getObjectRefForContent() by ingesting the file
 /// buffer into the \p DB, unless the \p UnderlyingFS already supports \p
 /// vfs::File::getObjectRefForContent().
-LLVM_ABI std::unique_ptr<llvm::vfs::FileSystem> createCASProvidingFileSystem(
+std::unique_ptr<llvm::vfs::FileSystem> createCASProvidingFileSystem(
     std::shared_ptr<ObjectStore> DB,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> UnderlyingFS);
 

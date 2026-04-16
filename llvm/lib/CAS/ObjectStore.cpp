@@ -11,15 +11,16 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/CAS/UnifiedOnDiskCache.h"
+#include "llvm/CAS/ActionCache.h"
+#include "llvm/CAS/BuiltinUnifiedCASDatabases.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/SmallVectorMemoryBuffer.h"
 #include <deque>
 
 using namespace llvm;
@@ -181,23 +182,18 @@ Expected<ObjectProxy> ObjectStore::createProxy(ArrayRef<ObjectRef> Refs,
 Expected<ObjectRef>
 ObjectStore::storeFromOpenFileImpl(sys::fs::file_t FD,
                                    std::optional<sys::fs::file_status> Status) {
-  // Copy the file into an immutable memory buffer and call \c store on that.
-  // Using \c mmap would be unsafe because there's a race window between when we
-  // get the digest hash for the \c mmap contents and when we store the data; if
-  // the file changes in-between we will create an invalid object.
-
-  // FIXME: For the on-disk CAS implementation use cloning to store it as a
+  // TODO: For the on-disk CAS implementation use cloning to store it as a
   // standalone file if the file-system supports it and the file is large.
+  uint64_t Size = Status ? Status->getSize() : -1;
+  auto Buffer = MemoryBuffer::getOpenFile(FD, /*Filename=*/"", Size);
+  if (!Buffer)
+    return errorCodeToError(Buffer.getError());
 
-  constexpr size_t ChunkSize = 4 * 4096;
-  SmallString<0> Data;
-  Data.reserve(ChunkSize * 2);
-  if (Error E = sys::fs::readNativeFileToEOF(FD, Data, ChunkSize))
-    return std::move(E);
-  return store({}, ArrayRef(Data.data(), Data.size()));
+  return store({}, arrayRefFromStringRef<char>((*Buffer)->getBuffer()));
 }
 
 Expected<ObjectRef> ObjectStore::storeFromFile(StringRef Path) {
+
   sys::fs::file_t FD;
   if (Error E = sys::fs::openNativeFileForRead(Path).moveInto(FD))
     return E;
@@ -206,6 +202,7 @@ Expected<ObjectRef> ObjectStore::storeFromFile(StringRef Path) {
 }
 
 Error ObjectStore::exportDataToFile(ObjectHandle Node, StringRef Path) const {
+
   SmallString<256> TmpPath;
   SmallString<256> Model;
   Model += sys::path::parent_path(Path);
@@ -315,10 +312,13 @@ Expected<ObjectRef> ObjectStore::importObject(ObjectStore &Upstream,
 
       // Remove the current node and its IDs from the stack.
       PrimaryRefStack.truncate(PrimaryRefStack.size() - Cur.RefsCount);
-      CursorStack.pop_back();
 
+      // Push new node into created objects.
       PrimaryRefStack.push_back(*NewNode);
       CreatedObjects.try_emplace(Cur.Ref, *NewNode);
+
+      // Pop the cursor in the end after all uses.
+      CursorStack.pop_back();
       continue;
     }
 
@@ -350,17 +350,21 @@ ObjectProxy::getMemoryBuffer(StringRef Name,
   return CAS->getMemoryBuffer(H, Name, RequiresNullTerminator);
 }
 
-static Expected<std::shared_ptr<ObjectStore>>
+static Expected<
+    std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
 createOnDiskCASImpl(const Twine &Path) {
-  return createOnDiskCAS(Path);
+  SmallString<128> Buffer;
+  return createOnDiskUnifiedCASDatabases(Path.toStringRef(Buffer));
 }
 
-static Expected<std::shared_ptr<ObjectStore>>
+static Expected<
+    std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
 createInMemoryCASImpl(const Twine &) {
-  return createInMemoryCAS();
+  return std::make_pair(createInMemoryCAS(), createInMemoryActionCache());
 }
 
-static Expected<std::shared_ptr<ObjectStore>>
+static Expected<
+    std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
 createPluginCASImpl(const Twine &URL) {
   // Format used is
   //   plugin://${PATH_TO_PLUGIN}?${OPT1}=${VAL1}&${OPT2}=${VAL2}..
@@ -381,15 +385,14 @@ createPluginCASImpl(const Twine &URL) {
     }
   }
 
-  if (OnDiskPath.empty())
-    OnDiskPath = getDefaultOnDiskCASPath();
+  if (OnDiskPath.empty()) {
+    auto Path = getDefaultOnDiskCASPath();
+    if (!Path)
+      return Path.takeError();
+    OnDiskPath = *Path;
+  }
 
-  std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>> CASDBs;
-  if (Error E = createPluginCASDatabases(PluginPath, OnDiskPath, PluginArgs)
-                    .moveInto(CASDBs))
-    return std::move(E);
-
-  return std::move(CASDBs.first);
+  return createPluginCASDatabases(PluginPath, OnDiskPath, PluginArgs);
 }
 
 static ManagedStatic<StringMap<ObjectStoreCreateFuncTy *>> RegisteredScheme;
@@ -403,7 +406,7 @@ static StringMap<ObjectStoreCreateFuncTy *> &getRegisteredScheme() {
   return *RegisteredScheme;
 }
 
-Expected<std::shared_ptr<ObjectStore>>
+Expected<std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
 cas::createCASFromIdentifier(StringRef Path) {
   for (auto &Scheme : getRegisteredScheme()) {
     if (Path.consume_front(Scheme.getKey()))
@@ -417,15 +420,13 @@ cas::createCASFromIdentifier(StringRef Path) {
   // FIXME: some current default behavior.
   SmallString<256> PathBuf;
   if (Path == "auto") {
-    getDefaultOnDiskCASPath(PathBuf);
+    if (auto E = getDefaultOnDiskCASPath(PathBuf))
+      return std::move(E);
     Path = PathBuf;
   }
 
   // Fallback is to create UnifiedOnDiskCache.
-  auto UniDB = builtin::createBuiltinUnifiedOnDiskCache(Path);
-  if (!UniDB)
-    return UniDB.takeError();
-  return builtin::createObjectStoreFromUnifiedOnDiskCache(std::move(*UniDB));
+  return createOnDiskUnifiedCASDatabases(Path);
 }
 
 void cas::registerCASURLScheme(StringRef Prefix,

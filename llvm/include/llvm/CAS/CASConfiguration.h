@@ -51,11 +51,7 @@ public:
     return !(LHS == RHS);
   }
 
-  // Get resolved CASPath.
-  void getResolvedCASPath(llvm::SmallVectorImpl<char> &Result) const;
-
   // Create CASDatabase from the CASConfiguration.
-  LLVM_ABI
   llvm::Expected<std::pair<std::shared_ptr<llvm::cas::ObjectStore>,
                            std::shared_ptr<llvm::cas::ActionCache>>>
   createDatabases() const;
@@ -71,12 +67,14 @@ public:
   ///
   /// Returns the path to configuration file and its corresponding
   /// CASConfiguration.
-  LLVM_ABI
   static std::optional<std::pair<std::string, CASConfiguration>>
   createFromSearchConfigFile(
       StringRef Path,
       llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS = nullptr);
 
+  /// Get resolved CASPath.
+  Error getResolvedCASPath(llvm::SmallVectorImpl<char> &Result) const;
+ 
   /// DenseMap support \{
   static cas::CASConfiguration getDenseMapEmptyKey() { return {}; }
 

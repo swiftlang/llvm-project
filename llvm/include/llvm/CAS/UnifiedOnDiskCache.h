@@ -1,4 +1,4 @@
-//===- UnifiedOnDiskCache.h -------------------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,6 +11,7 @@
 
 #include "llvm/CAS/OnDiskGraphDB.h"
 #include "llvm/CAS/ValidationResult.h"
+#include <atomic>
 
 namespace llvm::cas::ondisk {
 
@@ -32,7 +33,7 @@ class OnDiskKeyValueDB;
 /// Usage patterns should be that an instance of \p UnifiedOnDiskCache is open
 /// for a limited period of time, e.g. for the duration of a build operation.
 /// For long-living processes that need periodic access to a
-/// \p UnifiedOnDiskCache, the client should device a scheme where access is
+/// \p UnifiedOnDiskCache, the client should devise a scheme where access is
 /// performed within some defined period. For example, if a service is designed
 /// to continuously wait for requests that access a \p UnifiedOnDiskCache, it
 /// could keep the instance alive while new requests are coming in but close it
@@ -45,28 +46,11 @@ public:
   /// The \p OnDiskGraphDB instance for the open directory.
   const OnDiskGraphDB &getGraphDB() const { return *PrimaryGraphDB; }
 
-  /// Associate an \p ObjectID, of the \p OnDiskGraphDB instance, with a key.
-  ///
-  /// \param Key the hash bytes for the key.
-  /// \param Value the \p ObjectID value.
-  ///
-  /// \returns the \p ObjectID associated with the \p Key. It may be different
-  /// than \p Value if another value was already associated with this key.
-  Expected<ObjectID> KVPut(ArrayRef<uint8_t> Key, ObjectID Value);
+  /// The \p OnDiskGraphDB instance for the open directory.
+  OnDiskKeyValueDB &getKeyValueDB() { return *PrimaryKVDB; }
 
-  /// Associate an \p ObjectID, of the \p OnDiskGraphDB instance, with a key.
-  /// An \p ObjectID as a key is equivalent to its digest bytes.
-  ///
-  /// \param Key the \p ObjectID for the key.
-  /// \param Value the \p ObjectID value.
-  ///
-  /// \returns the \p ObjectID associated with the \p Key. It may be different
-  /// than \p Value if another value was already associated with this key.
-  Expected<ObjectID> KVPut(ObjectID Key, ObjectID Value);
-
-  /// \returns the \p ObjectID, of the \p OnDiskGraphDB instance, associated
-  /// with the \p Key, or \p std::nullopt if the key does not exist.
-  Expected<std::optional<ObjectID>> KVGet(ArrayRef<uint8_t> Key);
+  /// The \p OnDiskGraphDB instance for the open directory.
+  const OnDiskKeyValueDB &getKeyValueDB() const { return *PrimaryKVDB; }
 
   /// Open a \p UnifiedOnDiskCache instance for a directory.
   ///
@@ -115,6 +99,9 @@ public:
                    bool AllowRecovery, bool ForceValidation,
                    std::optional<StringRef> LLVMCasBinary);
 
+  /// Validate the action cache only.
+  LLVM_ABI_FOR_TEST Error validateActionCache() const;
+
   /// This is called implicitly at destruction time, so it is not required for a
   /// client to call this. After calling \p close the only method that is valid
   /// to call is \p needsGarbageCollection.
@@ -153,18 +140,23 @@ public:
   LLVM_ABI_FOR_TEST static Error
   collectGarbage(StringRef Path, ondisk::OnDiskCASLogger *Logger = nullptr);
 
+  /// Remove unused data from the current UnifiedOnDiskCache.
   Error collectGarbage();
+
+  /// Helper function to convert the value stored in KeyValueDB and ObjectID.
+  LLVM_ABI_FOR_TEST static ObjectID getObjectIDFromValue(ArrayRef<char> Value);
+
+  using ValueBytes = std::array<char, sizeof(uint64_t)>;
+  LLVM_ABI_FOR_TEST static ValueBytes getValueFromObjectID(ObjectID ID);
 
   LLVM_ABI_FOR_TEST ~UnifiedOnDiskCache();
 
-  Error validateActionCache();
-
-  OnDiskGraphDB *getUpstreamGraphDB() const { return UpstreamGraphDB; }
-
 private:
+  friend class OnDiskGraphDB;
+  friend class OnDiskKeyValueDB;
   UnifiedOnDiskCache();
 
-  Expected<std::optional<ObjectID>>
+  Expected<std::optional<ArrayRef<char>>>
   faultInFromUpstreamKV(ArrayRef<uint8_t> Key);
 
   /// \returns the storage size of the primary directory.
@@ -178,7 +170,7 @@ private:
   std::atomic<bool> NeedsGarbageCollection;
   std::string PrimaryDBDir;
 
-  OnDiskGraphDB *UpstreamGraphDB = nullptr;
+  std::unique_ptr<OnDiskGraphDB> UpstreamGraphDB;
   std::unique_ptr<OnDiskGraphDB> PrimaryGraphDB;
 
   std::unique_ptr<OnDiskKeyValueDB> UpstreamKVDB;

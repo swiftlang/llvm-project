@@ -61,7 +61,7 @@ public:
   NamedTreeEntry(ObjectRef Ref, EntryKind Kind, StringRef Name)
       : TreeEntry(Ref, Kind), Name(Name) {}
 
-  LLVM_ABI void print(raw_ostream &OS, ObjectStore &CAS) const;
+  void print(raw_ostream &OS, ObjectStore &CAS) const;
 
 private:
   StringRef Name;

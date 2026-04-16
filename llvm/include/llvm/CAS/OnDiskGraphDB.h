@@ -1,8 +1,15 @@
-//===- OnDiskGraphDB.h ------------------------------------------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+/// \file
+/// This declares OnDiskGraphDB, an ondisk CAS database with a fixed length
+/// hash. This is the class that implements the database storage scheme without
+/// exposing the hashing algorithm.
 //
 //===----------------------------------------------------------------------===//
 
@@ -10,20 +17,20 @@
 #define LLVM_CAS_ONDISKGRAPHDB_H
 
 #include "llvm/ADT/PointerUnion.h"
-#include "llvm/CAS/OnDiskHashMappedTrie.h"
+#include "llvm/CAS/OnDiskCASLogger.h"
+#include "llvm/CAS/OnDiskDataAllocator.h"
+#include "llvm/CAS/OnDiskTrieRawHashMap.h"
+#include <atomic>
 
 namespace llvm::cas::ondisk {
 
-/// 8B reference.
+/// Standard 8 byte reference inside OnDiskGraphDB.
 class InternalRef {
 public:
-  FileOffset getFileOffset() const { return FileOffset(getRawOffset()); }
-
+  FileOffset getFileOffset() const { return FileOffset(Data); }
   uint64_t getRawData() const { return Data; }
-  uint64_t getRawOffset() const { return Data; }
 
   static InternalRef getFromRawData(uint64_t Data) { return InternalRef(Data); }
-
   static InternalRef getFromOffset(FileOffset Offset) {
     return InternalRef(Offset.get());
   }
@@ -38,19 +45,17 @@ private:
   uint64_t Data;
 };
 
-/// 4B reference.
+/// Compact 4 byte reference inside OnDiskGraphDB for smaller references.
 class InternalRef4B {
 public:
   FileOffset getFileOffset() const { return FileOffset(Data); }
-
   uint32_t getRawData() const { return Data; }
 
   /// Shrink to 4B reference.
   static std::optional<InternalRef4B> tryToShrink(InternalRef Ref) {
-    uint64_t Offset = Ref.getRawOffset();
+    uint64_t Offset = Ref.getRawData();
     if (Offset > UINT32_MAX)
       return std::nullopt;
-
     return InternalRef4B(Offset);
   }
 
@@ -146,10 +151,9 @@ public:
     if (is4B()) {
       auto *B = cast<const InternalRef4B *>(Begin);
       return ArrayRef((const uint8_t *)B, sizeof(InternalRef4B) * Size);
-    } else {
-      auto *B = cast<const InternalRef *>(Begin);
-      return ArrayRef((const uint8_t *)B, sizeof(InternalRef) * Size);
     }
+    auto *B = cast<const InternalRef *>(Begin);
+    return ArrayRef((const uint8_t *)B, sizeof(InternalRef) * Size);
   }
 
   InternalRefArrayRef(std::nullopt_t = std::nullopt) {
@@ -169,8 +173,6 @@ private:
   PointerUnion<const InternalRef *, const InternalRef4B *> Begin;
   size_t Size = 0;
 };
-
-struct OnDiskContent;
 
 /// Reference to a node. The node's data may not be stored in the database.
 /// An \p ObjectID instance can only be used with the \p OnDiskGraphDB instance
@@ -197,11 +199,11 @@ private:
 /// Handle for a loaded node object.
 class ObjectHandle {
 public:
+  explicit ObjectHandle(uint64_t Opaque) : Opaque(Opaque) {}
   uint64_t getOpaqueData() const { return Opaque; }
 
-  static ObjectHandle fromOpaqueData(uint64_t Opaque) {
-    return ObjectHandle(Opaque);
-  }
+  static ObjectHandle fromFileOffset(FileOffset Offset);
+  static ObjectHandle fromMemory(uintptr_t Ptr);
 
   friend bool operator==(const ObjectHandle &LHS, const ObjectHandle &RHS) {
     return LHS.Opaque == RHS.Opaque;
@@ -211,10 +213,10 @@ public:
   }
 
 private:
-  explicit ObjectHandle(uint64_t Opaque) : Opaque(Opaque) {}
   uint64_t Opaque;
 };
 
+/// Iterator for ObjectID.
 class object_refs_iterator
     : public iterator_facade_base<object_refs_iterator,
                                   std::random_access_iterator_tag, ObjectID> {
@@ -280,7 +282,8 @@ public:
 
   /// \returns the hash bytes digest for the object reference.
   ArrayRef<uint8_t> getDigest(ObjectID Ref) const {
-    return getDigest(getInternalRef(Ref));
+    // ObjectID should be valid to fetch Digest.
+    return cantFail(getDigest(getInternalRef(Ref)));
   }
 
   /// Form a reference for the provided hash. The reference can be used as part
@@ -300,7 +303,12 @@ public:
   /// Check whether the object associated with \p Ref is stored in the CAS.
   /// Note that this function does not fault-in.
   bool containsObject(ObjectID Ref, bool CheckUpstream = true) const {
-    switch (getObjectPresence(Ref, CheckUpstream)) {
+    auto Presence = getObjectPresence(Ref, CheckUpstream);
+    if (!Presence) {
+      consumeError(Presence.takeError());
+      return false;
+    }
+    switch (*Presence) {
     case ObjectPresence::Missing:
       return false;
     case ObjectPresence::InPrimaryDB:
@@ -308,11 +316,13 @@ public:
     case ObjectPresence::OnlyInUpstreamDB:
       return true;
     }
+    llvm_unreachable("Unknown ObjectPresence enum");
   }
 
   /// \returns the data part of the provided object handle.
   LLVM_ABI_FOR_TEST ArrayRef<char> getObjectData(ObjectHandle Node) const;
 
+  /// \returns the object referenced by the provided object handle.
   object_refs_range getObjectRefs(ObjectHandle Node) const {
     InternalRefArrayRef Refs = getInternalRefs(Node);
     return make_range(Refs.begin(), Refs.end());
@@ -359,6 +369,13 @@ public:
   /// Hashing function type for validation.
   using HashingFuncT = function_ref<void(
       ArrayRef<ArrayRef<uint8_t>>, ArrayRef<char>, SmallVectorImpl<uint8_t> &)>;
+
+  /// Validate the OnDiskGraphDB.
+  ///
+  /// \param Deep if true, rehash all the objects to ensure no data
+  /// corruption in stored objects, otherwise just validate the structure of
+  /// CAS database.
+  /// \param Hasher is the hashing function used for objects inside CAS.
   Error validate(bool Deep, HashingFuncT Hasher) const;
 
   /// Checks that \p ID exists in the index. It is allowed to not have data
@@ -382,22 +399,24 @@ public:
   /// \param HashByteSize Size for the object digest hash bytes.
   /// \param UpstreamDB Optional on-disk store to be used for faulting-in nodes
   /// if they don't exist in the primary store. The upstream store is only used
-  /// for reading nodes, new nodes are only written to the primary store.
+  /// for reading nodes, new nodes are only written to the primary store. User
+  /// need to make sure \p UpstreamDB outlives current instance of
+  /// OnDiskGraphDB and the common usage is to have an \p UnifiedOnDiskCache to
+  /// manage both.
   /// \param Policy If \p UpstreamDB is provided, controls how nodes are copied
   /// to primary store. This is recorded at creation time and subsequent opens
   /// need to pass the same policy otherwise the \p open will fail.
   LLVM_ABI_FOR_TEST static Expected<std::unique_ptr<OnDiskGraphDB>>
   open(StringRef Path, StringRef HashName, unsigned HashByteSize,
-       std::unique_ptr<OnDiskGraphDB> UpstreamDB = nullptr,
+       OnDiskGraphDB *UpstreamDB = nullptr,
        std::shared_ptr<OnDiskCASLogger> Logger = nullptr,
        FaultInPolicy Policy = FaultInPolicy::FullTree);
 
   LLVM_ABI_FOR_TEST ~OnDiskGraphDB();
 
 private:
+  /// Forward declaration for a proxy for an ondisk index record.
   struct IndexProxy;
-  class TempFile;
-  class MappedTempFile;
 
   enum class ObjectPresence {
     Missing,
@@ -406,13 +425,16 @@ private:
   };
 
   /// Check if object exists and if it is on upstream only.
-  LLVM_ABI_FOR_TEST ObjectPresence
+  LLVM_ABI_FOR_TEST Expected<ObjectPresence>
   getObjectPresence(ObjectID Ref, bool CheckUpstream) const;
 
   /// When \p load is called for a node that doesn't exist, this function tries
   /// to load it from the upstream store and copy it to the primary one.
   Expected<std::optional<ObjectHandle>> faultInFromUpstream(ObjectID PrimaryID);
+
+  /// Import the entire tree from upstream with \p UpstreamNode as root.
   Error importFullTree(ObjectID PrimaryID, ObjectHandle UpstreamNode);
+  /// Import only the \param UpstreamNode.
   Error importSingleNode(ObjectID PrimaryID, ObjectHandle UpstreamNode);
   Error importUpstreamData(ObjectID PrimaryID, ArrayRef<ObjectID> PrimaryRefs,
                            ObjectHandle UpstreamNode);
@@ -422,6 +444,7 @@ private:
   Error storeFile(ObjectID ID, StringRef FilePath,
                   std::optional<InternalUpstreamImportKind> ImportKind);
 
+  /// Found the IndexProxy for the hash.
   Expected<IndexProxy> indexHash(ArrayRef<uint8_t> Hash);
 
   /// Get path for creating standalone data file.
@@ -430,64 +453,71 @@ private:
   /// Create a standalone leaf file.
   Error createStandaloneLeaf(IndexProxy &I, ArrayRef<char> Data);
 
-  Expected<MappedTempFile> createTempFile(StringRef FinalPath, uint64_t Size);
-
+  /// \name Helper functions for internal data structures.
+  /// \{
   static InternalRef getInternalRef(ObjectID Ref) {
     return InternalRef::getFromRawData(Ref.getOpaqueData());
   }
+
   static ObjectID getExternalReference(InternalRef Ref) {
     return ObjectID::fromOpaqueData(Ref.getRawData());
   }
 
   static ObjectID getExternalReference(const IndexProxy &I);
 
-  LLVM_ABI_FOR_TEST ArrayRef<uint8_t>
+  static InternalRef makeInternalRef(FileOffset IndexOffset);
+
+  LLVM_ABI_FOR_TEST Expected<ArrayRef<uint8_t>>
   getDigest(InternalRef Ref) const;
 
   ArrayRef<uint8_t> getDigest(const IndexProxy &I) const;
 
-  IndexProxy getIndexProxyFromRef(InternalRef Ref) const;
-
-  // FIXME: on newer branches we have refactored getIndexProxyFromRef to return
-  // Expected<IndexProxy>. As a stop gap, provide a checked API.
-  Expected<IndexProxy> getIndexProxyFromRefChecked(InternalRef Ref) const;
-
-  static InternalRef makeInternalRef(FileOffset IndexOffset);
+  Expected<IndexProxy> getIndexProxyFromRef(InternalRef Ref) const;
 
   IndexProxy
-  getIndexProxyFromPointer(OnDiskHashMappedTrie::const_pointer P) const;
+  getIndexProxyFromPointer(OnDiskTrieRawHashMap::ConstOnDiskPtr P) const;
 
   LLVM_ABI_FOR_TEST InternalRefArrayRef
   getInternalRefs(ObjectHandle Node) const;
+  /// \}
 
+  /// Get the atomic variable that keeps track of the standalone data storage
+  /// size.
+  std::atomic<uint64_t> &standaloneStorageSize() const;
+
+  /// Increase the standalone data size.
   void recordStandaloneSizeIncrease(size_t SizeIncrease);
-
-  std::atomic<uint64_t> &getStandaloneStorageSize();
+  /// Get the standalone data size.
   uint64_t getStandaloneStorageSize() const;
 
-  OnDiskGraphDB(StringRef RootPath, OnDiskHashMappedTrie Index,
-                OnDiskDataAllocator DataPool,
-                std::unique_ptr<OnDiskGraphDB> UpstreamDB, FaultInPolicy Policy,
-                std::shared_ptr<OnDiskCASLogger> Logger);
+  // Private constructor.
+  OnDiskGraphDB(StringRef RootPath, OnDiskTrieRawHashMap Index,
+                OnDiskDataAllocator DataPool, OnDiskGraphDB *UpstreamDB,
+                FaultInPolicy Policy, std::shared_ptr<OnDiskCASLogger> Logger);
 
   /// Mapping from hash to object reference.
   ///
   /// Data type is TrieRecord.
-  OnDiskHashMappedTrie Index;
+  OnDiskTrieRawHashMap Index;
 
   /// Storage for most objects.
   ///
   /// Data type is DataRecordHandle.
   OnDiskDataAllocator DataPool;
 
-  void *StandaloneData; // a StandaloneDataMap.
+  /// A StandaloneDataMap.
+  void *StandaloneData = nullptr;
 
+  /// Path to the root directory.
   std::string RootPath;
 
   /// Optional on-disk store to be used for faulting-in nodes.
-  std::unique_ptr<OnDiskGraphDB> UpstreamDB;
+  OnDiskGraphDB* UpstreamDB = nullptr;
+
+  /// The policy used to fault in data from upstream.
   FaultInPolicy FIPolicy;
 
+  /// Debug Logger.
   std::shared_ptr<OnDiskCASLogger> Logger;
 };
 
