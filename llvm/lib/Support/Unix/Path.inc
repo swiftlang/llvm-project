@@ -604,7 +604,7 @@ std::error_code resize_file_sparse(int FD, uint64_t Size) {
   // On Unix, this is the same as `resize_file`.
   return resize_file(FD, Size);
 }
->>>>>>> f9cd2ee119ff ([CAS] Add MappedFileRegionArena (#114099))
+
 static int convertAccessMode(AccessMode Mode) {
   switch (Mode) {
   case AccessMode::Exist:

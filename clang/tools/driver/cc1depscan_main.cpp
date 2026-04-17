@@ -941,7 +941,7 @@ void ScanServer::start(bool Exclusive, ArrayRef<const char *> CASArgs) {
       return;
     SmallString<64> LLVMCasStorage;
     SmallString<64> CASPath;
-    CASOpts.getResolvedCASPath(CASPath);
+    ExitOnErr(CASOpts.getResolvedCASPath(CASPath));
     ExitOnErr(llvm::cas::validateOnDiskUnifiedCASDatabasesIfNeeded(
         CASPath, /*CheckHash=*/true,
         /*AllowRecovery=*/true,
@@ -961,7 +961,8 @@ void ScanServer::start(bool Exclusive, ArrayRef<const char *> CASArgs) {
 
     // Try to lock; failure means there's another daemon running.
     if (std::error_code EC = llvm::sys::fs::tryLockFile(
-            PidFD, std::chrono::milliseconds(0), /*Exclusive=*/true)) {
+            PidFD, std::chrono::milliseconds(0),
+            llvm::sys::fs::LockKind::Exclusive)) {
       if (Exclusive)
         reportError("another daemon using the base path");
       ::exit(0);

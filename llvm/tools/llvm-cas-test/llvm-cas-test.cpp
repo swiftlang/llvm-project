@@ -10,6 +10,8 @@
 #include "llvm/CAS/BuiltinUnifiedCASDatabases.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/CrashRecoveryContext.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/RandomNumberGenerator.h"
@@ -36,9 +38,7 @@ static cl::opt<CommandKind>
 // CAS configuration.
 static cl::opt<std::string>
     CASPath("cas", cl::desc("CAS path on disk for testing"), cl::Required);
-static cl::opt<bool>
-    PrintConfig("print-config",
-                cl::desc("print randomly generated configuration"));
+static cl::opt<bool> Verbose("v", cl::desc("verbose output"));
 static cl::opt<bool>
     ForceKill("force-kill",
               cl::desc("force kill subprocess to test termination"));
@@ -46,19 +46,12 @@ static cl::opt<bool> KeepLog("keep-log",
                              cl::desc("keep log and do not rotate the log"));
 
 // CAS stress test parameters.
-static cl::opt<unsigned>
-    OptNumShards("num-shards", cl::desc("number of shards"), cl::init(0));
-static cl::opt<unsigned> OptTreeDepth("tree-depth", cl::desc("tree depth"),
-                                      cl::init(0));
-static cl::opt<unsigned> OptNumChildren("num-children",
-                                        cl::desc("number of child nodes"),
-                                        cl::init(0));
-static cl::opt<unsigned> OptDataLength("data-length", cl::desc("data length"),
-                                       cl::init(0));
-static cl::opt<unsigned> OptPrecentFile(
-    "precent-file",
-    cl::desc("percentage of nodes that is long enough to be file based"),
-    cl::init(0));
+#define CONFIG(NAME, TYPE, DEFAULT_VAL, MIN_VAL, MAX_VAL, OPT_NAME, OPT_DESC)  \
+  static cl::opt<unsigned> Opt##NAME(#OPT_NAME, cl::desc(OPT_DESC),            \
+                                     cl::init(0));
+#include "Config.def"
+#undef CONFIG
+
 // Default size to be 100MB.
 static cl::opt<uint64_t>
     SizeLimit("size-limit", cl::desc("CAS size limit (in MB)"), cl::init(100));
@@ -77,24 +70,19 @@ enum CASFuzzingSettings : uint8_t {
 
 struct Config {
   CASFuzzingSettings Settings = Default;
-  uint8_t NumShards;
-  uint8_t NumChildren;
-  uint8_t TreeDepth;
-  uint16_t DataLength;
-  uint16_t PrecentFile;
-
-  static constexpr unsigned MaxShards = 20;
-  static constexpr unsigned MaxChildren = 32;
-  static constexpr unsigned MaxDepth = 8;
-  static constexpr unsigned MaxDataLength = 1024 * 4;
+#define CONFIG(NAME, TYPE, DEFAULT_VAL, MIN_VAL, MAX_VAL, OPT_NAME, OPT_DESC)  \
+  TYPE NAME;
+#include "Config.def"
+#undef CONFIG
 
   void constrainParameters() {
-    // reduce the size of parameter if they are too big.
-    NumShards = NumShards % MaxShards;
-    NumChildren = NumChildren % MaxChildren;
-    TreeDepth = TreeDepth % MaxDepth;
-    DataLength = DataLength % MaxDataLength;
-    PrecentFile = PrecentFile % 100;
+    // Reduce the size of parameter if they are too big. If the value is not
+    // passed in as parameter, constrain the value between MIN_VAL and MAX_VAL.
+#define CONFIG(NAME, TYPE, DEFAULT_VAL, MIN_VAL, MAX_VAL, OPT_NAME, OPT_DESC)  \
+  NAME = Opt##NAME >= MIN_VAL ? Opt##NAME                                      \
+                              : (NAME % (MAX_VAL - MIN_VAL) + MIN_VAL);
+#include "Config.def"
+#undef CONFIG
 
     if (ForceKill) {
       Settings |= Fork;
@@ -103,34 +91,32 @@ struct Config {
   }
 
   bool extendToFile(uint8_t Seed) const {
-    return ((float)Seed / (float)UINT8_MAX) > ((float)PrecentFile / 100.0f);
+    return ((float)Seed / (float)UINT8_MAX) < ((float)PrecentFile / 100.0f);
   }
 
   void init() {
-    NumShards = OptNumShards ? OptNumShards : MaxShards;
-    NumChildren = OptNumChildren ? OptNumChildren : MaxChildren;
-    TreeDepth = OptTreeDepth ? OptTreeDepth : MaxDepth;
-    DataLength = OptDataLength ? OptDataLength : MaxDataLength;
-    PrecentFile = OptPrecentFile;
+#define CONFIG(NAME, TYPE, DEFAULT_VAL, MIN_VAL, MAX_VAL, OPT_NAME, OPT_DESC)  \
+  NAME = Opt##NAME >= MIN_VAL ? Opt##NAME : DEFAULT_VAL;
+#include "Config.def"
+#undef CONFIG
   }
 
   void appendCommandLineOpts(std::vector<std::string> &Cmd) {
-    Cmd.push_back("--num-shards=" + utostr(NumShards));
-    Cmd.push_back("--num-children=" + utostr(NumChildren));
-    Cmd.push_back("--tree-depth=" + utostr(TreeDepth));
-    Cmd.push_back("--data-length=" + utostr(DataLength));
-    Cmd.push_back("--precent-file=" + utostr(PrecentFile));
+#define CONFIG(NAME, TYPE, DEFAULT_VAL, MIN_VAL, MAX_VAL, OPT_NAME, OPT_DESC)  \
+  Cmd.push_back(std::string("--") + #OPT_NAME + "=" + utostr(NAME));
+#include "Config.def"
+#undef CONFIG
   }
 
   void dump() {
     llvm::errs() << "## Configuration:"
                  << " Fork: " << (bool)(Settings & Fork)
                  << " Kill: " << (bool)(Settings & CheckTermination)
-                 << " NumShards: " << (unsigned)NumShards
-                 << " TreeDepth: " << (unsigned)TreeDepth
-                 << " NumChildren: " << (unsigned)NumChildren
-                 << " DataLength: " << (unsigned)DataLength
-                 << " PrecentFile: " << (unsigned)PrecentFile << "\n";
+#define CONFIG(NAME, TYPE, DEFAULT_VAL, MIN_VAL, MAX_VAL, OPT_NAME, OPT_DESC)  \
+  << " " << #NAME << ": " << (unsigned)NAME
+#include "Config.def"
+#undef CONFIG
+                 << "\n";
   }
 };
 
@@ -140,34 +126,42 @@ static void fillData(ObjectStore &CAS, ActionCache &AC, const Config &Conf) {
   DefaultThreadPool ThreadPool(hardware_concurrency());
   for (size_t I = 0; I != Conf.NumShards; ++I) {
     ThreadPool.async([&] {
-      std::vector<ObjectRef> Refs;
-      for (unsigned Depth = 0; Depth < Conf.TreeDepth; ++Depth) {
-        unsigned NumNodes = (Conf.TreeDepth - Depth + 1) * Conf.NumChildren + 1;
-        std::vector<ObjectRef> Created;
-        Created.reserve(NumNodes);
-        ArrayRef<ObjectRef> PreviouslyCreated(Refs);
-        for (unsigned I = 0; I < NumNodes; ++I) {
-          std::vector<char> Data(Conf.DataLength);
-          getRandomBytes(Data.data(), Data.size());
-          // Use the first byte that generated to decide if we should make it
-          // 64KB bigger and force that into a file based storage.
-          if (Conf.extendToFile(Data[0]))
-            Data.resize(64LL * 1024LL + Conf.DataLength);
+      CrashRecoveryContext CRC;
+      auto Success = CRC.RunSafely([&]() {
+        std::vector<ObjectRef> Refs;
+        for (unsigned Depth = 0; Depth < Conf.TreeDepth; ++Depth) {
+          unsigned NumNodes =
+              (Conf.TreeDepth - Depth + 1) * Conf.NumChildren + 1;
+          std::vector<ObjectRef> Created;
+          Created.reserve(NumNodes);
+          ArrayRef<ObjectRef> PreviouslyCreated(Refs);
+          for (unsigned I = 0; I < NumNodes; ++I) {
+            assert(Conf.DataLength > 0);
+            std::vector<char> Data(Conf.DataLength);
+            getRandomBytes(Data.data(), Data.size());
+            // Use the first byte that generated to decide if we should make it
+            // 64KB bigger and force that into a file based storage.
+            if (Conf.extendToFile(Data[0]))
+              Data.resize(64LL * 1024LL + Conf.DataLength);
 
-          if (Depth == 0) {
-            auto Ref = ExitOnErr(CAS.store({}, Data));
-            Created.push_back(Ref);
-          } else {
-            auto Parent = PreviouslyCreated.slice(I, Conf.NumChildren);
-            auto Ref = ExitOnErr(CAS.store(Parent, Data));
-            Created.push_back(Ref);
+            if (Depth == 0) {
+              auto Ref = ExitOnErr(CAS.store({}, Data));
+              Created.push_back(Ref);
+            } else {
+              auto Parent = PreviouslyCreated.slice(I, Conf.NumChildren);
+              auto Ref = ExitOnErr(CAS.store(Parent, Data));
+              Created.push_back(Ref);
+            }
           }
+          // Put a self mapping in action cache to avoid cache poisoning.
+          if (!Created.empty())
+            ExitOnErr(
+                AC.put(CAS.getID(Created.back()), CAS.getID(Created.back())));
+          Refs.swap(Created);
         }
-        // Put a self mapping in action cache to avoid cache poisoning.
-        if (!Created.empty())
-          ExitOnErr(
-              AC.put(CAS.getID(Created.back()), CAS.getID(Created.back())));
-        Refs.swap(Created);
+      });
+      if (!Success) {
+        ExitOnErr(createStringError("fillData crashed"));
       }
     });
   }
@@ -182,7 +176,6 @@ static int genData() {
 
   auto DB = ExitOnErr(cas::createOnDiskUnifiedCASDatabases(CASPath));
   fillData(*DB.first, *DB.second, Conf);
-
   return 0;
 }
 
@@ -193,7 +186,7 @@ static int runOneTest(const char *Argv0) {
   getRandomBytes(&Conf, sizeof(Conf));
   Conf.constrainParameters();
 
-  if (PrintConfig)
+  if (Verbose)
     Conf.dump();
 
   // Start with fresh log if --keep-log is not used.
@@ -201,7 +194,7 @@ static int runOneTest(const char *Argv0) {
     static constexpr StringLiteral LogFile = "v1.log";
     SmallString<256> LogPath(CASPath);
     llvm::sys::path::append(LogPath, LogFile);
-    llvm::sys::fs::remove(LogPath);
+    llvm::sys::fs::rename(LogPath, LogPath + ".old");
   }
 
   auto DB = ExitOnErr(cas::createOnDiskUnifiedCASDatabases(CASPath));
@@ -226,25 +219,52 @@ static int runOneTest(const char *Argv0) {
         Subprocesses.push_back(SP);
     }
 
-    if (Conf.Settings & CheckTermination) {
-      for_each(Subprocesses, [](auto &P) {
-        // Wait 1 second and killed the process.
-        auto WP = sys::Wait(P, 1);
-        if (WP.ReturnCode)
-          llvm::errs() << "subprocess killed successfully\n";
-      });
-    } else {
-      for_each(Subprocesses, [](auto &P) { sys::Wait(P, std::nullopt); });
-    }
+    std::optional<unsigned> Timeout;
+    // Wait 1 second and killed the process if CheckTermination.
+    if (Conf.Settings & CheckTermination)
+      Timeout = 1;
 
+    auto HasError = any_of(Subprocesses, [&](auto &P) {
+      std::string ErrMsg;
+      auto WP = sys::Wait(P, Timeout, /*ErrMsg=*/&ErrMsg);
+      if (WP.ReturnCode == 0)
+        return false;
+      if (Timeout) {
+        if (WP.ReturnCode == -2 &&
+            StringRef(ErrMsg).starts_with("Child timed out")) {
+          if (Verbose)
+            llvm::errs() << "subprocess killed successfully\n";
+          return false;
+        }
+        if (WP.ReturnCode == -1 &&
+            StringRef(ErrMsg).ends_with("No child processes")) {
+          // The child process ended in the window between check and kill.
+          return false;
+        }
+      }
+      llvm::errs() << "subprocess failed with error code (" << WP.ReturnCode
+                   << "): " << ErrMsg << "\n";
+      return true;
+    });
+    if (HasError) {
+      llvm::errs() << "end of stress test due to an error in subprocess\n";
+      return 1;
+    }
   } else {
     // in-process fill data.
     fillData(CAS, AC, Conf);
   }
+  if (Verbose)
+    llvm::errs() << "Finished filling data, start validating\n";
 
   // validate and prune in the end.
   ExitOnErr(CAS.validate(true));
+  if (Verbose)
+    llvm::errs() << "Finished validating, start pruning storage if needed\n";
+
   ExitOnErr(CAS.pruneStorageData());
+  if (Verbose)
+    llvm::errs() << "Finished pruning, end of iteration\n";
 
   return 0;
 }
@@ -265,7 +285,7 @@ static int checkLockFiles() {
   ExitOnError ExitOnErr("llvm-cas-test: check-lock-files: ");
 
   SmallString<128> DataPoolPath(CASPath);
-  sys::path::append(DataPoolPath, "v1.1/v9.data");
+  sys::path::append(DataPoolPath, "v1.1/data.v1");
 
   auto OpenCASAndGetDataPoolSize = [&]() -> Expected<uint64_t> {
     auto Result = createOnDiskUnifiedCASDatabases(CASPath);
@@ -300,6 +320,7 @@ static int checkLockFiles() {
 }
 
 int main(int argc, char **argv) {
+  InitLLVM X(argc, argv);
   cl::ParseCommandLineOptions(argc, argv, "llvm-cas-test CAS testing tool\n");
 
   switch (Command) {

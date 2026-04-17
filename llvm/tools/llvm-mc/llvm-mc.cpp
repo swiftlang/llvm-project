@@ -575,7 +575,7 @@ int main(int argc, char **argv) {
       WithColor::error() << toString(MaybeCAS.takeError()) << "\n";
       return 1;
     }
-    CAS = std::move(*MaybeCAS);
+    CAS = std::move(MaybeCAS->first);
   }
   // END MCCAS
 
