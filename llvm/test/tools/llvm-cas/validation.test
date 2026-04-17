@@ -12,7 +12,10 @@ RUN: llvm-cas --cas %t/cas --ingest %S/Inputs > %t/cas.id
 RUN: llvm-cas --cas %t/cas --validate
 RUN: llvm-cas --cas %t/cas --validate --check-hash
 
-RUN: rm %t/cas/v1.1/v9.data
+# Check that validation works with a relative path.
+RUN: cd %t && llvm-cas --cas cas --validate --check-hash
+
+RUN: rm %t/cas/v1.1/data.v1
 RUN: not llvm-cas --cas %t/cas --validate
 RUN: not llvm-cas --cas %t/cas --validate --check-hash
 
@@ -35,13 +38,13 @@ RUN: llvm-cas --cas %t/ac --get-cache-result @%t/abc.casid
 RUN: llvm-cas --cas %t/ac --validate
 
 # Check that validation fails if the objects referenced are missing.
-RUN: mv %t/ac/v1.1/v9.index %t/tmp.v9.index
+RUN: mv %t/ac/v1.1/index.v1 %t/tmp.index.v1
 RUN: not llvm-cas --cas %t/ac --validate
 
-RUN: mv %t/tmp.v9.index %t/ac/v1.1/v9.index
+RUN: mv %t/tmp.index.v1 %t/ac/v1.1/index.v1
 RUN: llvm-cas --cas %t/ac --validate
 
 # Note: records are 40 bytes (32 hash bytes + 8 byte value), so trim the last
 # allocated record, leaving it invalid.
-RUN: truncate -s -40 %t/ac/v1.1/v4.actions
+RUN: truncate -s -40 %t/ac/v1.1/actions.v1
 RUN: not llvm-cas --cas %t/ac --validate
