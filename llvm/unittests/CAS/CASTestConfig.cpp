@@ -1,4 +1,4 @@
-//===- CASTestConfig.cpp --------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,9 +10,11 @@
 #include "OnDiskCommonUtils.h"
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/RemoteCachingService/RemoteCachingService.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/SHA1.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 #include <mutex>
 
@@ -59,10 +61,9 @@ void MockEnv::anchor() {}
 MockEnv::~MockEnv() {}
 } // namespace llvm::unittest::cas
 
-TestingAndDir createInMemory(int I) {
-  std::unique_ptr<ObjectStore> CAS = createInMemoryCAS();
-  std::unique_ptr<ActionCache> Cache = createInMemoryActionCache();
-  return TestingAndDir{std::move(CAS), std::move(Cache), nullptr, std::nullopt};
+static CASTestingEnv createInMemory(int I) {
+  return CASTestingEnv{createInMemoryCAS(), createInMemoryActionCache(),
+                       nullptr, std::nullopt};
 }
 
 INSTANTIATE_TEST_SUITE_P(InMemoryCAS, CASTest,
@@ -79,14 +80,14 @@ void unittest::cas::setMaxOnDiskCASMappingSize() {
       Flag, [] { llvm::cas::ondisk::setMaxMappingSize(100 * 1024 * 1024); });
 }
 
-TestingAndDir createOnDisk(int I) {
+CASTestingEnv createOnDisk(int I) {
   unittest::TempDir Temp("on-disk-cas", /*Unique=*/true);
   std::unique_ptr<ObjectStore> CAS;
   EXPECT_THAT_ERROR(createOnDiskCAS(Temp.path()).moveInto(CAS), Succeeded());
   std::unique_ptr<ActionCache> Cache;
   EXPECT_THAT_ERROR(createOnDiskActionCache(Temp.path()).moveInto(Cache),
                     Succeeded());
-  return TestingAndDir{std::move(CAS), std::move(Cache), nullptr,
+  return CASTestingEnv{std::move(CAS), std::move(Cache), nullptr,
                        std::move(Temp)};
 }
 INSTANTIATE_TEST_SUITE_P(OnDiskCAS, CASTest, ::testing::Values(createOnDisk));
@@ -123,7 +124,7 @@ void unittest::cas::setMaxOnDiskCASMappingSize() {}
 std::unique_ptr<unittest::cas::MockEnv> createGRPCEnv(StringRef Socket,
                                                       StringRef TempDir);
 
-static TestingAndDir createGRPCCAS(int I) {
+static CASTestingEnv createGRPCCAS(int I) {
   std::shared_ptr<ObjectStore> CAS;
   unittest::TempDir Temp("daemon", /*Unique=*/true);
   SmallString<100> DaemonPath(Temp.path());
@@ -133,7 +134,7 @@ static TestingAndDir createGRPCCAS(int I) {
   std::unique_ptr<ActionCache> Cache;
   EXPECT_THAT_ERROR(createGRPCActionCache(DaemonPath).moveInto(Cache),
                     Succeeded());
-  return TestingAndDir{std::move(CAS), std::move(Cache), std::move(Env),
+  return CASTestingEnv{std::move(CAS), std::move(Cache), std::move(Env),
                        std::move(Temp)};
 }
 INSTANTIATE_TEST_SUITE_P(GRPCRelayCAS, CASTest,

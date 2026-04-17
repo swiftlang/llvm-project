@@ -1,4 +1,4 @@
-//===- llvm/unittest/CAS/OnDiskCASLoggerTest.cpp --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/OnDiskCASLogger.h"
-#include "llvm/CAS/OnDiskHashMappedTrie.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -18,11 +18,71 @@
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
+#if defined(__APPLE__)
+#include <crt_externs.h>
+#elif !defined(_MSC_VER)
+// Forward declare environ in case it's not provided by stdlib.h.
+extern char **environ;
+#endif
 
 using namespace llvm;
 using namespace llvm::cas;
 using namespace llvm::cas::ondisk;
 using namespace llvm::sys;
+
+class OnDiskCASLoggerTest : public testing::Test {
+  std::vector<StringRef> EnvTable;
+  std::vector<std::string> EnvStorage;
+
+protected:
+  void SetUp() override {
+    auto EnvP = [] {
+#if defined(_WIN32)
+      _wgetenv(L"TMP"); // Populate _wenviron, initially is null
+      return _wenviron;
+#elif defined(__APPLE__)
+      return *_NSGetEnviron();
+#else
+      return environ;
+#endif
+    }();
+    ASSERT_TRUE(EnvP);
+
+    auto prepareEnvVar = [this](decltype(*EnvP) Var) -> StringRef {
+#if defined(_WIN32)
+      // On Windows convert UTF16 encoded variable to UTF8
+      auto Len = wcslen(Var);
+      ArrayRef<char> Ref{reinterpret_cast<char const *>(Var),
+                         Len * sizeof(*Var)};
+      EnvStorage.emplace_back();
+      auto convStatus = llvm::convertUTF16ToUTF8String(Ref, EnvStorage.back());
+      EXPECT_TRUE(convStatus);
+      return EnvStorage.back();
+#else
+      (void)this;
+      return StringRef(Var);
+#endif
+    };
+
+    while (*EnvP != nullptr) {
+      auto S = prepareEnvVar(*EnvP);
+      if (!StringRef(S).starts_with("GTEST_"))
+        EnvTable.emplace_back(S);
+      ++EnvP;
+    }
+  }
+
+  void TearDown() override {
+    EnvTable.clear();
+    EnvStorage.clear();
+  }
+
+  void addEnvVar(StringRef Var) { EnvTable.emplace_back(Var); }
+
+  ArrayRef<StringRef> getEnviron() const { return EnvTable; }
+};
+
+#ifndef _WIN32 // windows doesn't support logging yet.
 
 static void writeToLog(OnDiskCASLogger *Logger, int NumOpens, int NumEntries) {
   StringRef Path = "/fake_cas/index";
@@ -32,22 +92,22 @@ static void writeToLog(OnDiskCASLogger *Logger, int NumOpens, int NumEntries) {
   void *Region = &Logger;
 
   for (int J = 0; J < NumOpens; ++J) {
-    Logger->log_MappedFileRegionBumpPtr_create(Path, 0, Region, 100, 7);
-    Logger->log_MappedFileRegionBumpPtr_resizeFile(Path, 7, 100);
-    Logger->log_MappedFileRegionBumpPtr_allocate(Region, 0, 50);
-    Logger->log_MappedFileRegionBumpPtr_oom(Path, 100, 51, 50);
+    Logger->logMappedFileRegionArenaCreate(Path, 0, Region, 100, 7);
+    Logger->logMappedFileRegionArenaResizeFile(Path, 7, 100);
+    Logger->logMappedFileRegionArenaAllocate(Region, 0, 50);
+    Logger->logMappedFileRegionArenaOom(Path, 100, 51, 50);
     for (int K = 0; K < NumEntries; ++K) {
-      Logger->log_MappedFileRegionBumpPtr_allocate(Region, K, 10);
-      Logger->log_HashMappedTrieHandle_createRecord(Region, K, Hash);
-      Logger->log_MappedFileRegionBumpPtr_allocate(Region, K, 20);
-      Logger->log_SubtrieHandle_create(Region, K, 1, 2);
-      Logger->log_compare_exchange_strong(Region, K, J, -3, -1, -2);
+      Logger->logMappedFileRegionArenaAllocate(Region, K, 10);
+      Logger->logHashMappedTrieHandleCreateRecord(Region, K, Hash);
+      Logger->logMappedFileRegionArenaAllocate(Region, K, 20);
+      Logger->logSubtrieHandleCreate(Region, K, 1, 2);
+      Logger->logSubtrieHandleCmpXchg(Region, K, J, -3, -1, -2);
     }
-    Logger->log_TempFile_create(Path);
-    Logger->log_TempFile_keep(Path, Path, std::error_code());
-    Logger->log_TempFile_remove(Path, std::error_code());
-    Logger->log_MappedFileRegionBumpPtr_close(Path);
-    Logger->log_UnifiedOnDiskCache_collectGarbage(Path);
+    Logger->logTempFileCreate(Path);
+    Logger->logTempFileKeep(Path, Path, std::error_code());
+    Logger->logTempFileRemove(Path, std::error_code());
+    Logger->logMappedFileRegionArenaClose(Path);
+    Logger->logUnifiedOnDiskCacheCollectGarbage(Path);
   }
 }
 
@@ -96,7 +156,7 @@ static Error checkLog(StringRef Dir) {
   return Error::success();
 }
 
-TEST(OnDiskCASLoggerTest, MultiThread) {
+TEST_F(OnDiskCASLoggerTest, MultiThread) {
   unittest::TempDir Dir("OnDiskCASLoggerTest_MultiThread", /*Unique=*/true);
   llvm::DefaultThreadPool Pool(llvm::hardware_concurrency());
 
@@ -132,7 +192,7 @@ static cl::opt<std::string> CASLogDir("cas-log-dir");
 // From TestMain.cpp.
 extern const char *TestMainArgv0;
 
-TEST(OnDiskCASLoggerTest, MultiProcess) {
+TEST_F(OnDiskCASLoggerTest, MultiProcess) {
   if (!CASLogDir.empty()) {
     // Child process.
     std::unique_ptr<OnDiskCASLogger> Logger;
@@ -159,7 +219,7 @@ TEST(OnDiskCASLoggerTest, MultiProcess) {
   SmallVector<ProcessInfo> PIs;
   for (int I = 0; I < 5; ++I) {
     bool ExecutionFailed;
-    auto PI = ExecuteNoWait(Executable, Argv, ArrayRef<StringRef>{}, {}, 0, &Error,
+    auto PI = ExecuteNoWait(Executable, Argv, getEnviron(), {}, 0, &Error,
                             &ExecutionFailed);
     ASSERT_FALSE(ExecutionFailed) << Error;
     PIs.push_back(std::move(PI));
@@ -175,3 +235,5 @@ TEST(OnDiskCASLoggerTest, MultiProcess) {
 
   ASSERT_THAT_ERROR(checkLog(Dir.path()), Succeeded());
 }
+
+#endif // _WIN32

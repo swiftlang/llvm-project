@@ -1,5 +1,7 @@
-// REQUIRES: ondisk_cas, shell
+// REQUIRES: ondisk_cas
+// UNSUPPORTED: system-windows
 
+// RUN: rm -rf %t
 // RUN: mkdir -p %t
 
 // This uses a script that triggers parallel `llvm-cas` invocations on an empty directory.
