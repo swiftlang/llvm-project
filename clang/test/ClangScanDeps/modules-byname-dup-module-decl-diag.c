@@ -19,6 +19,12 @@
 // RUN:   experimental-full -module-names=B,A 2>&1 | \
 // RUN:   sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t %s
 
+// Same test with CAS/include-tree format.
+// RUN: not clang-scan-deps -compilation-database %t/cdb.json \
+// RUN:   -cas-path %t/cas -format experimental-include-tree-full \
+// RUN:   -module-names=B,A 2>&1 | \
+// RUN:   sed 's:\\\\\?:/:g' | FileCheck -DPREFIX=%/t %s
+
 // CHECK: A.framework/Modules/module.modulemap:7:8: error: redefinition of module 'B'
 // CHECK: include/B/module.modulemap:1:8: note: previously defined here
 

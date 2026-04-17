@@ -1773,11 +1773,23 @@ void ModuleMapLoader::handleModuleDecl(const modulemap::ModuleDecl &MD) {
           Map.getContainingModuleMapFile(Existing);
       OptionalFileEntryRef CurrentModMapFile =
           SourceMgr.getFileEntryRefForID(ModuleMapFID);
-      if (ExistingModMapFile && CurrentModMapFile &&
-          *ExistingModMapFile == *CurrentModMapFile)
+      if (ExistingModMapFile && CurrentModMapFile) {
+        LoadedFromASTFile = (*ExistingModMapFile == *CurrentModMapFile);
+      } else if (!ExistingModMapFile) {
+        // If we cannot determine the existing module's module map file
+        // (e.g. Existing is a module loaded from a PCH built with include
+        // tree), we cannot tell whether this is a same-file or cross-file
+        // redefinition. We conservatively treat this case as Existing
+        // is loaded from a correct AST file, and do not check for duplicating
+        // declarations.
+        assert(Existing->Kind == Module::IncludeTreeModuleMap &&
+               Existing->DefinitionLoc.isInvalid() &&
+               "Expected include-tree module with invalid DefinitionLoc; "
+               "other module kinds should have a valid module map file");
         LoadedFromASTFile = true;
-      else
+      } else {
         LoadedFromASTFile = false;
+      }
     }
     //  - If we previously inferred this module from different module map file.
     bool Inferred = Existing->IsInferred;
