@@ -1,4 +1,4 @@
-//===- ObjectStoreTest.cpp ------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,12 +8,13 @@
 
 #include "llvm/CAS/ObjectStore.h"
 #include "OnDiskCommonUtils.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/RandomNumberGenerator.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Testing/Support/Error.h"
-#include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
 
 #include "CASTestConfig.h"
@@ -274,7 +275,7 @@ TEST_P(CASTest, NodesBig) {
 }
 
 TEST_P(CASTest, FileAPIs) {
-  std::shared_ptr<ObjectStore> CAS = createObjectStore();
+  auto CAS = createObjectStore();
 
   auto runCommonTests =
       [&CAS](function_ref<std::unique_ptr<unittest::TempFile>(char)>
@@ -314,24 +315,20 @@ TEST_P(CASTest, FileAPIs) {
   runCommonTests(createLargePageAlignedFile);
 }
 
+#if LLVM_ENABLE_THREADS
 /// Common test functionality for creating blobs in parallel. You can vary which
 /// cas instances are the same or different, and the size of the created blobs.
 static void testBlobsParallel(ObjectStore &Read1, ObjectStore &Read2,
                               ObjectStore &Write1, ObjectStore &Write2,
                               uint64_t BlobSize) {
-  SCOPED_TRACE(testBlobsParallel);
+  SCOPED_TRACE("testBlobsParallel");
   unsigned BlobCount = 100;
   std::vector<std::string> Blobs;
   Blobs.reserve(BlobCount);
   for (unsigned I = 0; I < BlobCount; ++I) {
     std::string Blob;
-    Blob.reserve(BlobSize);
-    while (Blob.size() < BlobSize) {
-      auto R = sys::Process::GetRandomNumber();
-      Blob.append((char *)&R, sizeof(R));
-    }
-    assert(Blob.size() >= BlobSize);
     Blob.resize(BlobSize);
+    getRandomBytes(Blob.data(), BlobSize);
     Blobs.push_back(std::move(Blob));
   }
 
@@ -366,17 +363,17 @@ static void testBlobsParallel(ObjectStore &Read1, ObjectStore &Read2,
 
   DefaultThreadPool Threads;
   for (unsigned I = 0; I < BlobCount; ++I) {
-    Threads.async(Consumer, I, &Read1);
-    Threads.async(Consumer, I, &Read2);
     Threads.async(Producer, I, &Write1);
     Threads.async(Producer, I, &Write2);
+    Threads.async(Consumer, I, &Read1);
+    Threads.async(Consumer, I, &Read2);
   }
 
   Threads.wait();
 }
 
 static void testBlobsParallel1(ObjectStore &CAS, uint64_t BlobSize) {
-  SCOPED_TRACE(testBlobsParallel1);
+  SCOPED_TRACE("testBlobsParallel1");
   testBlobsParallel(CAS, CAS, CAS, CAS, BlobSize);
 }
 
@@ -395,7 +392,7 @@ TEST_P(CASTest, BlobsBigParallel) {
 
 #if LLVM_ENABLE_ONDISK_CAS
 #ifndef _WIN32 // create_link won't work for directories on Windows
-TEST(OnDiskCASTest, BlobsParallelMultiCAS) {
+TEST_F(OnDiskCASTest, OnDiskCASBlobsParallelMultiCAS) {
   // This test intentionally uses symlinked paths to the same CAS to subvert the
   // shared memory mappings that would normally be created within a single
   // process. This breaks the lock file guarantees, so we must be careful not
@@ -424,7 +421,8 @@ TEST(OnDiskCASTest, BlobsParallelMultiCAS) {
   uint64_t Size = 1ULL * 1024;
   ASSERT_NO_FATAL_FAILURE(testBlobsParallel(*CAS1, *CAS2, *CAS3, *CAS4, Size));
 }
-TEST(OnDiskCASTest, BlobsBigParallelMultiCAS) {
+
+TEST_F(OnDiskCASTest, OnDiskCASBlobsBigParallelMultiCAS) {
   // See comment in BlobsParallelMultiCAS.
   unittest::TempDir Temp("on-disk-cas", /*Unique=*/true);
   ASSERT_EQ(sys::fs::create_directory(Temp.path("real_cas")),
@@ -452,8 +450,7 @@ TEST(OnDiskCASTest, BlobsBigParallelMultiCAS) {
 }
 #endif // _WIN32
 
-TEST(OnDiskCASTest, DiskSize) {
-  setMaxOnDiskCASMappingSize();
+TEST_F(OnDiskCASTest, OnDiskCASDiskSize) {
   unittest::TempDir Temp("on-disk-cas", /*Unique=*/true);
   std::unique_ptr<ObjectStore> CAS;
   ASSERT_THAT_ERROR(createOnDiskCAS(Temp.path()).moveInto(CAS), Succeeded());
@@ -466,7 +463,8 @@ TEST(OnDiskCASTest, DiskSize) {
     std::error_code EC;
     for (sys::fs::directory_iterator I(Temp.path(), EC), E; I != E && !EC;
          I.increment(EC)) {
-      if (StringRef(I->path()).ends_with(".index")) {
+      StringRef Filename = sys::path::filename(I->path());
+      if (Filename.starts_with("index.") && !Filename.ends_with(".shared")) {
         FoundIndex = true;
         ASSERT_TRUE(I->status());
         if (Mapped)
@@ -474,7 +472,7 @@ TEST(OnDiskCASTest, DiskSize) {
         else
           EXPECT_LT(I->status()->getSize(), MaxSize);
       }
-      if (StringRef(I->path()).ends_with(".data")) {
+      if (Filename.starts_with("data.") && !Filename.ends_with(".shared")) {
         FoundData = true;
         ASSERT_TRUE(I->status());
         if (Mapped)
@@ -500,3 +498,5 @@ TEST(OnDiskCASTest, DiskSize) {
   CheckFileSizes(/*Mapped=*/false);
 }
 #endif // LLVM_ENABLE_ONDISK_CAS
+#endif // LLVM_ENABLE_THREADS
+

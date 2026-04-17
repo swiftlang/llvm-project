@@ -1,4 +1,4 @@
-//===- llvm/unittest/CAS/UnifiedOnDiskCacheTest.cpp -----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,8 +12,6 @@
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
-
-#if LLVM_ENABLE_ONDISK_CAS
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -88,14 +86,18 @@ TEST_P(CustomHasherOnDiskCASTest, UnifiedOnDiskCacheTest) {
 
     Key1Hash = digest("key1");
     std::optional<ObjectID> Val;
-    ASSERT_THAT_ERROR(UniDB->KVPut(Key1Hash, *IDRoot).moveInto(Val),
-                      Succeeded());
+    ASSERT_THAT_ERROR(
+        cachePut(UniDB->getKeyValueDB(), Key1Hash, *IDRoot).moveInto(Val),
+        Succeeded());
     EXPECT_EQ(IDRoot, Val);
 
     Key2Hash = digest("key2");
     std::optional<ObjectID> KeyID;
     ASSERT_THAT_ERROR(DB.getReference(Key2Hash).moveInto(KeyID), Succeeded());
-    ASSERT_THAT_ERROR(UniDB->KVPut(*KeyID, *ID1).moveInto(Val), Succeeded());
+    ASSERT_THAT_ERROR(cachePut(UniDB->getKeyValueDB(),
+                               UniDB->getGraphDB().getDigest(*KeyID), *ID1)
+                          .moveInto(Val),
+                      Succeeded());
   }
 
   auto checkTree = [&](const HashType &Digest, StringRef ExpectedTree) {
@@ -114,7 +116,9 @@ TEST_P(CustomHasherOnDiskCASTest, UnifiedOnDiskCacheTest) {
   auto checkKey = [&](const HashType &Key, StringRef ExpectedData) {
     OnDiskGraphDB &DB = UniDB->getGraphDB();
     std::optional<ObjectID> Val;
-    ASSERT_THAT_ERROR(UniDB->KVGet(Key).moveInto(Val), Succeeded());
+    ASSERT_THAT_ERROR(cacheGet(UniDB->getKeyValueDB(), Key).moveInto(Val),
+                      Succeeded());
+
     ASSERT_TRUE(Val.has_value());
     std::optional<ondisk::ObjectHandle> Obj;
     ASSERT_THAT_ERROR(DB.load(*Val).moveInto(Obj), Succeeded());
@@ -202,9 +206,8 @@ TEST_P(CustomHasherOnDiskCASTest, UnifiedOnDiskCacheTest) {
     ASSERT_THAT_ERROR(DB.getReference(OtherHash).moveInto(ID), Succeeded());
     EXPECT_FALSE(DB.containsObject(*ID));
     std::optional<ObjectID> Val;
-    ASSERT_THAT_ERROR(UniDB->KVGet(Key2Hash).moveInto(Val), Succeeded());
+    ASSERT_THAT_ERROR(cacheGet(UniDB->getKeyValueDB(), Key2Hash).moveInto(Val),
+                      Succeeded());
     EXPECT_FALSE(Val.has_value());
   }
 }
-
-#endif // LLVM_ENABLE_ONDISK_CAS

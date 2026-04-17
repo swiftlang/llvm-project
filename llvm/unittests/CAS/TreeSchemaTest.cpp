@@ -1,4 +1,4 @@
-//===- TreeSchemaTest.cpp -------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,10 +9,7 @@
 #include "llvm/CAS/TreeSchema.h"
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
 #include "llvm/CAS/ObjectStore.h"
-#include "llvm/Config/llvm-config.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Testing/Support/Error.h"
-#include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;

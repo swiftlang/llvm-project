@@ -11,11 +11,14 @@
 
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
 #include <memory>
+
+#ifdef _WIN32
+#include "llvm/Support/VersionTuple.h"
+#include "llvm/Support/Windows/WindowsSupport.h"
+#endif
 
 namespace llvm::cas::ondisk {
 class ObjectID;
@@ -33,7 +36,7 @@ public:
   virtual ~MockEnv();
 };
 
-struct TestingAndDir {
+struct CASTestingEnv {
   std::shared_ptr<llvm::cas::ObjectStore> CAS;
   std::unique_ptr<llvm::cas::ActionCache> Cache;
   std::unique_ptr<llvm::unittest::cas::MockEnv> Env;
@@ -41,6 +44,15 @@ struct TestingAndDir {
 };
 
 void setMaxOnDiskCASMappingSize();
+
+// Test fixture for on-disk data base tests.
+class OnDiskCASTest : public ::testing::Test {
+protected:
+  void SetUp() override {
+    // Use a smaller database size for testing to conserve disk space.
+    setMaxOnDiskCASMappingSize();
+  }
+};
 
 struct CustomHasherParam {
   std::function<void(ArrayRef<ArrayRef<uint8_t>>, ArrayRef<char>,
@@ -72,8 +84,9 @@ protected:
   HashType digest(StringRef Data);
 };
 
+// Parametered test fixture for ObjectStore and ActionCache tests.
 class CASTest
-    : public testing::TestWithParam<std::function<TestingAndDir(int)>> {
+    : public testing::TestWithParam<std::function<CASTestingEnv(int)>> {
 protected:
   std::optional<int> NextCASIndex;
 
@@ -97,11 +110,16 @@ protected:
       Envs.emplace_back(std::move(TD.Env));
     return std::move(TD.Cache);
   }
-  void SetUp() {
+  void SetUp() override {
+#ifdef _WIN32
+    // Temporarily disable CAS tests on pre windows 11 OS.
+    if (llvm::GetWindowsOSVersion() < llvm::VersionTuple(10, 0, 0, 22000))
+      GTEST_SKIP() << "CAS tests skipped on older windows version";
+#endif
     NextCASIndex = 0;
     setMaxOnDiskCASMappingSize();
   }
-  void TearDown() {
+  void TearDown() override {
     NextCASIndex = std::nullopt;
     Dirs.clear();
     Envs.clear();
