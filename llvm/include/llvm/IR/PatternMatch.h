@@ -2267,6 +2267,35 @@ m_ZExtOrSExtOrSelf(const OpTy &Op) {
   return m_CombineOr(m_ZExtOrSExt(Op), Op);
 }
 
+template <typename LHS_t, typename RHS_t> struct ICmpLike_match {
+  CmpPredicate &Pred;
+  LHS_t L;
+  RHS_t R;
+
+  ICmpLike_match(CmpPredicate &P, const LHS_t &Left, const RHS_t &Right)
+      : Pred(P), L(Left), R(Right) {}
+
+  template <typename OpTy> bool match(OpTy *V) const {
+    if (PatternMatch::match(V, m_ICmp(Pred, L, R)))
+      return true;
+    Value *A;
+    // trunc nuw x to i1 is equivalent to icmp ne x, 0
+    if (V->getType()->isIntOrIntVectorTy(1) &&
+        PatternMatch::match(V, m_NUWTrunc(m_Value(A))) && L.match(A) &&
+        R.match(ConstantInt::getNullValue(A->getType()))) {
+      Pred = ICmpInst::ICMP_NE;
+      return true;
+    }
+    return false;
+  }
+};
+
+template <typename LHS, typename RHS>
+inline ICmpLike_match<LHS, RHS> m_ICmpLike(CmpPredicate &Pred, const LHS &L,
+                                           const RHS &R) {
+  return ICmpLike_match<LHS, RHS>(Pred, L, R);
+}
+
 template <typename OpTy>
 inline CastInst_match<OpTy, UIToFPInst> m_UIToFP(const OpTy &Op) {
   return CastInst_match<OpTy, UIToFPInst>(Op);
