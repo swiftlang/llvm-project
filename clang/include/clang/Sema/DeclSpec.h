@@ -1275,7 +1275,9 @@ private:
 ///
 /// This is intended to be a small value object.
 struct DeclaratorChunk {
-  DeclaratorChunk() : LateAttrList(/*ParseSoon*/true, /*LateAttrParseExperimentalExtOnly*/true) {};
+  DeclaratorChunk()
+      : LateAttrList(/*PSoon=*/true,
+                     /*LateAttrParseExperimentalExtOnly=*/true) {};
 
   enum {
     Pointer, Reference, Array, Function, BlockPointer, MemberPointer, Paren, Pipe

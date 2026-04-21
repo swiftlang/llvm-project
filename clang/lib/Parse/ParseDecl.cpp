@@ -3281,12 +3281,12 @@ void Parser::DistributeCLateParsedAttrs(Declarator &D, Decl *Dcl,
     unsigned Index = 0;
   } FuncInfo;
   std::unique_ptr<ParseScope> ProtoScope;
-  LateParsedAttrList ProtoLateAttrs(/*ParseSoon*/true);
+  LateParsedAttrList ProtoLateAttrs(/*ParseSoon=*/true);
 
   for (unsigned i = 0; i < D.getNumTypeObjects(); ++i) {
     DeclaratorChunk &DC = D.getTypeObject(i);
 
-    LateParsedAttrList DCLateAttrs(/*ParseSoon*/true);
+    LateParsedAttrList DCLateAttrs(/*ParseSoon=*/true);
     switch (DC.Kind) {
     case DeclaratorChunk::Pointer:
       DCLateAttrs.append(DC.LateAttrList);
@@ -3315,7 +3315,7 @@ void Parser::DistributeCLateParsedAttrs(Declarator &D, Decl *Dcl,
       }
       LateAttrs = &ProtoLateAttrs;
     }
-    for (auto *LA : DCLateAttrs) {
+    for (LateParsedAttribute *LA : DCLateAttrs) {
       LA->NestedTypeLevel = NestedLevel;
       if (Dcl)
         LA->addDecl(Dcl);
