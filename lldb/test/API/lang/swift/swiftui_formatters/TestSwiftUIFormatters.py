@@ -5,6 +5,7 @@ from lldbsuite.test import lldbutil
 
 
 @skipIf(archs=["x86_64"], bugnumber="rdar://174750739")
+@skipIfDarwinEmbedded
 class TestCase(TestBase):
 
     @skipUnlessDarwin
