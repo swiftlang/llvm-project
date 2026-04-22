@@ -439,7 +439,11 @@ StackFrame::GetSymbolContext(SymbolContextItem resolve_scope) {
 }
 
 VariableList *StackFrame::GetVariableList(bool get_file_globals,
+                                          bool include_synthetic_vars,
                                           Status *error_ptr) {
+  // We don't have 'synthetic variables' in the base stack frame.
+  (void)include_synthetic_vars;
+
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
   if (m_flags.IsClear(RESOLVED_VARIABLES)) {
     m_flags.Set(RESOLVED_VARIABLES);
@@ -508,7 +512,11 @@ StackFrame::GetVariableNotCapturedDiagnostic(llvm::StringRef missing_var_name) {
 
 VariableListSP
 StackFrame::GetInScopeVariableList(bool get_file_globals,
+                                   bool include_synthetic_vars,
                                    bool must_have_valid_location) {
+  // We don't have synthetic variables in the base stack frame.
+  (void)include_synthetic_vars;
+
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
   // We can't fetch variable information for a history stack frame.
   if (IsHistorical())
@@ -1272,7 +1280,8 @@ StackFrame::GetValueObjectForFrameVariable(const VariableSP &variable_sp,
     if (IsHistorical()) {
       return valobj_sp;
     }
-    VariableList *var_list = GetVariableList(true, nullptr);
+    VariableList *var_list = GetVariableList(
+        /*get_file_globals=*/true, /*include_synthetic_vars=*/true, nullptr);
     if (var_list) {
       // Make sure the variable is a frame variable
       const uint32_t var_idx = var_list->FindIndexForVariable(variable_sp.get());
@@ -1911,7 +1920,12 @@ lldb::ValueObjectSP StackFrame::GuessValueForRegisterAndOffset(ConstString reg,
   }
 
   const bool get_file_globals = false;
-  VariableList *variables = GetVariableList(get_file_globals, nullptr);
+  // Keep this as 'false' here because if we're inspecting a register, it's
+  // HIGHLY unlikely that we have an synthetic variable. Indeed, since we're not
+  // in a synthetic frame, it's probably actually impossible here.
+  const bool include_synthetic_vars = false;
+  VariableList *variables =
+      GetVariableList(get_file_globals, include_synthetic_vars, nullptr);
 
   if (!variables) {
     return ValueObjectSP();

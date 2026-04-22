@@ -2821,7 +2821,8 @@ CompilerType SwiftLanguageRuntime::GetTypeFromMetadata(TypeSystemSwift &ts,
 std::optional<lldb::addr_t>
 SwiftLanguageRuntime::GetTypeMetadataForTypeNameAndFrame(StringRef mdvar_name,
                                                          StackFrame &frame) {
-  VariableList *var_list = frame.GetVariableList(false, nullptr);
+  VariableList *var_list = frame.GetVariableList(
+      /*get_file_globals=*/false, /*include_synthetic_vars=*/false, nullptr);
   if (!var_list)
     return {};
 
