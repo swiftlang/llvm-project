@@ -1449,3 +1449,14 @@ def skipIfBuildType(types: list[str]):
         and configuration.cmake_build_type.lower() in types,
         "skip on {} build type(s)".format(", ".join(types)),
     )
+
+
+def skipUnlessPackageAvailable(name):
+    """Skip the test case if the named package is not available on the system."""
+    available = True
+    try:
+        __import__(name)
+    except ImportError:
+        available = False
+
+    return unittest.skipUnless(available, f"requires the '{name}' package")
