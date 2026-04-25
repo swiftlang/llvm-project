@@ -11,12 +11,10 @@ int len;
 //------------------------------------------------------------------------------
 // void pointer
 //------------------------------------------------------------------------------
-// CHECK: fix-it:"{{.+}}":{[[@LINE+2]]:7-[[@LINE+2]]:19}:"__sized_by"
-// expected-error@+1{{cannot apply '__counted_by' attribute to 'void *' because 'void' has unknown size; did you mean to use '__sized_by' instead?}}
+// void *__counted_by is allowed (treated as byte count)
 void *__counted_by(len) voidPtr;
 
-// CHECK: fix-it:"{{.+}}":{[[@LINE+2]]:7-[[@LINE+2]]:27}:"__sized_by_or_null"
-// expected-error@+1{{cannot apply '__counted_by_or_null' attribute to 'void *' because 'void' has unknown size; did you mean to use '__sized_by_or_null' instead?}}
+// void *__counted_by is allowed (treated as byte count)
 void *__counted_by_or_null(len) voidPtrOrNull;
 
 //------------------------------------------------------------------------------
