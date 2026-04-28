@@ -11,7 +11,7 @@
 
 #include "lldb/Utility/Log.h"
 #include "llvm/ADT/BitmaskEnum.h"
-#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace lldb_private {
 
@@ -31,7 +31,7 @@ struct LogChannelSwift {
 template <> Log::Channel &LogChannelFor<SwiftLog>();
 
 Log *GetSwiftHealthLog();
-llvm::StringRef GetSwiftHealthLogData();
+void DumpSwiftHealthLog(llvm::raw_ostream &stream);
 } // namespace lldb_private
 
 #endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_LOGCHANNELDWARF_H

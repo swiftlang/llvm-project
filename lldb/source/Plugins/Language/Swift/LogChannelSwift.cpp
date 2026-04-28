@@ -8,8 +8,10 @@
 
 #include "LogChannelSwift.h"
 #include "lldb/Host/Host.h"
+#include "lldb/Utility/Diagnostics.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Version/Version.h"
+#include "llvm/Support/FileSystem.h"
 
 using namespace lldb_private;
 
@@ -21,39 +23,20 @@ static constexpr Log::Category g_categories[] = {
 
 static Log::Channel g_channel(g_categories, SwiftLog::Health);
 
-static std::string g_swift_log_buffer;
+static constexpr size_t g_health_log_size = 5000;
+static std::shared_ptr<RotatingLogHandler> g_health_log_handler;
+static std::optional<Diagnostics::CallbackID> g_diagnostics_callback_id;
 
 template <> Log::Channel &lldb_private::LogChannelFor<SwiftLog>() {
   return g_channel;
 }
 
-class StringLogHandler : public LogHandler {
-public:
-  StringLogHandler(std::string& str) : m_string(str) {}
-
-  void Emit(llvm::StringRef message) override {
-    std::lock_guard<std::mutex> guard(m_mutex);
-    m_string += std::string(message);
-  }
-
-  bool isA(const void *ClassID) const override { return ClassID == &ID; }
-  static bool classof(const LogHandler *obj) { return obj->isA(&ID); }
-
-private:
-  std::mutex m_mutex;
-  std::string& m_string;
-  static char ID;
-};
-
-char StringLogHandler::ID;
-
 void LogChannelSwift::Initialize() {
   Log::Register("swift", g_channel);
 
-  auto string_log_handler_sp =
-      std::make_shared<StringLogHandler>(g_swift_log_buffer);
+  g_health_log_handler = std::make_shared<RotatingLogHandler>(g_health_log_size);
   auto system_log_handler_sp = std::make_shared<SystemLogHandler>();
-  auto log_handler_sp = std::make_shared<TeeLogHandler>(string_log_handler_sp,
+  auto log_handler_sp = std::make_shared<TeeLogHandler>(g_health_log_handler,
                                                         system_log_handler_sp);
 
   Log::EnableLogChannel(log_handler_sp, 0, "swift", {"health"}, llvm::nulls());
@@ -65,12 +48,34 @@ void LogChannelSwift::Initialize() {
         "The swift-healthcheck command is meant to be run *after* an error "
         "has occurred.\n%s",
         lldb_private::GetVersion());
+
+  if (Diagnostics::Enabled()) {
+    g_diagnostics_callback_id = Diagnostics::Instance().AddCallback(
+        [](const FileSpec &dir) -> llvm::Error {
+          FileSpec log_file =
+              dir.CopyByAppendingPathComponent("swift-healthcheck.log");
+          std::error_code ec;
+          llvm::raw_fd_ostream stream(log_file.GetPath(), ec);
+          if (ec)
+            return llvm::errorCodeToError(ec);
+          if (g_health_log_handler)
+            g_health_log_handler->Dump(stream);
+          return llvm::Error::success();
+        });
+  }
 }
 
-void LogChannelSwift::Terminate() { Log::Unregister("swift"); }
+void LogChannelSwift::Terminate() {
+  if (g_diagnostics_callback_id && Diagnostics::Enabled())
+    Diagnostics::Instance().RemoveCallback(*g_diagnostics_callback_id);
+  g_diagnostics_callback_id.reset();
+  g_health_log_handler.reset();
+  Log::Unregister("swift");
+}
 
 Log *lldb_private::GetSwiftHealthLog() { return GetLog(SwiftLog::Health); }
 
-llvm::StringRef lldb_private::GetSwiftHealthLogData() {
-  return g_swift_log_buffer;
+void lldb_private::DumpSwiftHealthLog(llvm::raw_ostream &stream) {
+  if (g_health_log_handler)
+    g_health_log_handler->Dump(stream);
 }
