@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestArchetypeInExpression(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Tests that a user can refer to the archetypes in their expressions"""         

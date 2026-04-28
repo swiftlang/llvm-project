@@ -7,10 +7,11 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedEmptyArray(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         """Test empty array formatting in embedded Swift."""
         self.build()
-        # Disable the ast context so we don't pass the test by silently falling 
+        # Disable the ast context so we don't pass the test by silently falling
         # back to the ast context implementation.
         self.runCmd("setting set symbols.swift-enable-ast-context false")
 

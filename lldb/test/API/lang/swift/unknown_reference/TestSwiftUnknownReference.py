@@ -28,6 +28,7 @@ class TestSwiftUnknownReference(lldbtest.TestBase):
         lldbutil.check_variable(self, m_string, summary='"world"')
 
     
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessFoundation
     def test_unknown_objc_ref(self):

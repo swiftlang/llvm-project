@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftAsyncBreakpoints(lldbtest.TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     @skipIfLinux

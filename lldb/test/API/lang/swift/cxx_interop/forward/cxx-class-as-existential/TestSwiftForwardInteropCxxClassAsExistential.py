@@ -8,6 +8,7 @@ from lldbsuite.test.decorators import *
 
 class TestSwiftForwardInteropCxxClassAsExistential(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test(self):

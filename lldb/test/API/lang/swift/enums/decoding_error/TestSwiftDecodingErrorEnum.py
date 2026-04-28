@@ -6,6 +6,7 @@ import os
 
 
 class TestCase(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessFoundation
     def test_swift_decoding_error(self):

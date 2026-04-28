@@ -33,60 +33,70 @@ class TestSwiftBackwardInteropSteppingStruct(TestBase):
         name = thread.frames[0].GetFunctionName()
         self.assertIn(func, name)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_method_step_in_struct(self):
         thread = self.setup("Break here for method - struct")
         self.check_step_in(thread, "testMethod", "SwiftStruct.swiftMethod")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_method_step_over_struct(self):
         thread = self.setup("Break here for method - struct")
         self.check_step_over(thread, "testMethod")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_init_step_in_struct(self):
         thread = self.setup("Break here for constructor - struct")
         self.check_step_in(thread, "testConstructor", "SwiftStruct.init")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_init_step_over_struct(self):
         thread = self.setup("Break here for constructor - struct")
         self.check_step_over(thread, "testConstructor")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_static_method_step_in_struct(self):
         thread = self.setup("Break here for static method - struct")
         self.check_step_in(thread, "testStaticMethod", "SwiftStruct.swiftStaticMethod")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_static_method_step_over_struct(self):
         thread = self.setup("Break here for static method - struct")
         self.check_step_over(thread, "testStaticMethod")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_getter_step_in_struct(self):
         thread = self.setup("Break here for getter - struct")
         self.check_step_in(thread, "testGetter", "SwiftStruct.swiftProperty.getter")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_getter_step_over_struct(self):
         thread = self.setup("Break here for getter - struct")
         self.check_step_over(thread, "testGetter")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_setter_step_in_struct(self):
         thread = self.setup("Break here for setter - struct")
         self.check_step_in(thread, "testSetter", "SwiftStruct.swiftProperty.setter")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_setter_step_over_struct(self):

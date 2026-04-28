@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftSymbolicExtendedExistential(lldbtest.TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Test symbolic extended existentials"""

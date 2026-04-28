@@ -7,6 +7,7 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     def test_unsafe_continuation_printing(self):
@@ -34,6 +35,7 @@ class TestCase(TestBase):
             ],
         )
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     def test_checked_continuation_printing(self):

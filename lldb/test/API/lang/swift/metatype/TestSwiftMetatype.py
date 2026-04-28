@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftMetatype(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_metatype(self):
         """Test the formatting of Swift metatypes"""

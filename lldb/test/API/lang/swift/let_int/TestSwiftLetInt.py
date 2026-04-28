@@ -21,6 +21,7 @@ import os
 
 class TestSwiftLetIntSupport(TestBase):
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test_swift_let_int(self):
         """Test that a 'let' Int is formatted properly"""
         self.build()

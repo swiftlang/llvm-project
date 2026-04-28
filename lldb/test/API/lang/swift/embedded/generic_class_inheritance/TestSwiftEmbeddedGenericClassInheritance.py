@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedGenericClassInheritance(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test_generic_derived(self):
         self.build()
         self.runCmd("setting set symbols.swift-enable-ast-context false")

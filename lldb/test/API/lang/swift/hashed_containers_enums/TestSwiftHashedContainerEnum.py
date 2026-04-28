@@ -11,6 +11,7 @@ import lldbsuite.test.lldbutil as lldbutil
 import os
 
 class TestSwiftHashedContainerEnum(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://173243316
     def test_any_object_type(self):

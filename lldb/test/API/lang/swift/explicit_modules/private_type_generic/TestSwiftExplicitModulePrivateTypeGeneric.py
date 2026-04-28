@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftExplicitModulePrivateTypeGeneric(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test(self):

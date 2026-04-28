@@ -23,6 +23,7 @@ class TestCase(TestBase):
         bugnumber="rdar://60396797",
         setting=("symbols.use-swift-clangimporter", "false"),
     )
+    @skipEmbeddedSwift
     def test_measurement(self):
         self.build()
         lldbutil.run_to_source_breakpoint(
@@ -30,6 +31,7 @@ class TestCase(TestBase):
         )
         self.expect("expr -- measurement", substrs=["1.25 m"])
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     def test_measurement_without_swift_ast_context(self):

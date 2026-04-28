@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedGenericClassProtocolConstraint(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         self.build()
         self.runCmd("setting set symbols.swift-enable-ast-context false")

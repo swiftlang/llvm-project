@@ -7,6 +7,7 @@ class TestSwiftExpressionErrorReporting(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @swiftTest
+    @skipEmbeddedSwift
     def test_missing_location(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
@@ -31,6 +32,7 @@ class TestSwiftExpressionErrorReporting(TestBase):
         self.assertIn("no location for 'self' in debug info", all_messages)
 
     @swiftTest
+    @skipEmbeddedSwift
     def test_missing_var(self):
         """Test error reporting in expressions reports
         only diagnostics in user code"""
@@ -85,6 +87,7 @@ class TestSwiftExpressionErrorReporting(TestBase):
         check(value)
 
     @swiftTest
+    @skipEmbeddedSwift
     def test_missing_type(self):
         """Test error reporting in expressions reports
         only diagnostics in user code"""
@@ -115,6 +118,7 @@ class TestSwiftExpressionErrorReporting(TestBase):
                     substrs=['self', 'not', 'found'])
 
     @swiftTest
+    @skipEmbeddedSwift
     def test_syntax(self):
         """Test syntax errors are being diagnosed"""
         self.build()

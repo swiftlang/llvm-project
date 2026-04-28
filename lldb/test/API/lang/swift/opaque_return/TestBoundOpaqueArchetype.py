@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestBoundOpaqueArchetype(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Tests that a type bound to an opaque archetype can be resolved correctly"""         

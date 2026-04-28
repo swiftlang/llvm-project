@@ -9,6 +9,7 @@ class TestSwiftOtherArchDylib(TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     @skipIfDarwinEmbedded

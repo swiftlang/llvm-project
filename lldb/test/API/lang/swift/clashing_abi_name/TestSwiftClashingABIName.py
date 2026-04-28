@@ -4,6 +4,7 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftClashingABIName(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     def test(self):
@@ -22,6 +23,7 @@ class TestSwiftClashingABIName(TestBase):
 
         self.expect('expr --bind-generic-types true -- generic3',
                     substrs=['a.Generic2<a.Generic<a.One>>', 't2 =', 't =', 'j = 98'])
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     def test_in_self(self):

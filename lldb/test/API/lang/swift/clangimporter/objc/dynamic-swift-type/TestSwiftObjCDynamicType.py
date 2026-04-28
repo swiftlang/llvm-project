@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestCase(TestBase):
+    @skipEmbeddedSwift
     @skipUnlessFoundation
     @swiftTest
     def test(self):

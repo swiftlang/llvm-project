@@ -114,6 +114,7 @@ class TestSwiftForwardInteropStepping(TestBase):
         name = thread.frames[0].GetFunctionName()
         self.assertIn('testContructor', name)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_step_into_extension(self):

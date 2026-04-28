@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftOptionalCStruct(TestBase):
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test(self):
         self.build()
         self.runCmd("settings set symbols.swift-enable-ast-context false")

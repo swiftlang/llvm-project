@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 import os
 
 class TestSwiftFoundationValueTypeGlobal(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessFoundation
     def test(self):

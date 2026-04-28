@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftExplicitModules(lldbtest.TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test(self):
@@ -21,6 +22,7 @@ class TestSwiftExplicitModules(lldbtest.TestBase):
         # CHECK: SwiftASTContextForExpressions(module: "a", cu: "main.swift"){{.*}} Discovered main module {{.*}}a.swiftmodule
         # CHECK: SwiftASTContextForExpressions(module: "a", cu: "main.swift"){{.*}} Module import remark: loaded module 'a'; source: '{{.*}}a.swiftmodule', loaded: '{{.*}}a.swiftmodule'
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_disable_esml(self):
@@ -40,6 +42,7 @@ class TestSwiftExplicitModules(lldbtest.TestBase):
         # DISABLED: SwiftASTContextForExpressions(module: "a", cu: "main.swift"){{.*}} Module import remark: loaded module 'a'; source: 'a', loaded: 'a'
 
         
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     @skipUnlessDarwin

@@ -3,6 +3,7 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftLateDylib(TestBase):
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     @skipIfDarwinEmbedded 

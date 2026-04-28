@@ -21,6 +21,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftBool(TestBase):
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test_swift_bool(self):
         """Test that we can inspect various Swift bools"""
         self.build()

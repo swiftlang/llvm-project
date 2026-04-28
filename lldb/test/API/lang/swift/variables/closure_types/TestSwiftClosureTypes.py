@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftClosureTypes(TestBase):
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test(self):
         self.build()
 

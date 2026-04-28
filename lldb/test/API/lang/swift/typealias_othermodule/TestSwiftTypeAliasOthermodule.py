@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftTypeAliasOtherModule(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_frame_variable(self):
@@ -18,6 +19,7 @@ class TestSwiftTypeAliasOtherModule(TestBase):
         self.expect("continue")
         self.expect("frame variable -- payload", substrs=["Bool", "true"])
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_expression(self):

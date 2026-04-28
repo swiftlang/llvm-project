@@ -8,6 +8,7 @@ import os
 class TestSwiftExpressionAccessControl(TestBase):
 
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test_swift_expression_access_control(self):
         """Make sure expressions ignore access control"""
         self.build()

@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftResilienceSwiftInterface(TestBase):
 
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test(self):

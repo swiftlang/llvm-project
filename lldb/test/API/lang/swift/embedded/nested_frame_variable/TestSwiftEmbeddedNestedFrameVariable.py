@@ -7,12 +7,14 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedNestedFrameVariable(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         self.build()
         self.implementation()
 
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test_without_ast(self):
         """Run the test turning off instantion of  Swift AST contexts in order to ensure that all type information comes from DWARF"""
         self.build()

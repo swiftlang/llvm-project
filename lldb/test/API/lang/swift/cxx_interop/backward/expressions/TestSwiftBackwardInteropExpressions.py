@@ -8,6 +8,7 @@ from lldbsuite.test.decorators import *
 class TestSwiftBackwardInteropExpressions(TestBase):
 
     @skipIfLinux
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_func_step_in(self):

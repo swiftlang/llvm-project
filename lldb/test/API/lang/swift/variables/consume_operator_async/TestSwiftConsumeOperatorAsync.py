@@ -24,6 +24,7 @@ def stderr_print(line):
     sys.stderr.write(line + "\n")
 
 class TestSwiftConsumeOperatorAsyncType(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_swift_consume_operator_async(self):
         """Check that we properly show variables at various points of the CFG while

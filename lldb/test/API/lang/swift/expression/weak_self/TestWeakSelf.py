@@ -12,12 +12,13 @@
 #
 import lldb
 from lldbsuite.test.lldbtest import *
-from lldbsuite.test.decorators import *	
+from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 
 
 class TestSwiftGenericExtension(TestBase):
+     @skipEmbeddedSwift
      @swiftTest
      def test(self):
         self.build()

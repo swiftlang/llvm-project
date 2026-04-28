@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftExpressionsInClassFunctions(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_expressions_in_class_functions(self):
         """Test expressions in class func contexts"""

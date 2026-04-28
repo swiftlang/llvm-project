@@ -15,6 +15,7 @@ class TestSwiftUnsafeTypes(TestBase):
         self.assertEqual(child.GetSummary(), 'nil')
 
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test(self):
         """Test formatters for unsafe types"""
         self.build()

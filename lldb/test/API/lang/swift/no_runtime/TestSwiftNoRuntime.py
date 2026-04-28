@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftNoRuntime(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Test running a Swift expression in a C program"""

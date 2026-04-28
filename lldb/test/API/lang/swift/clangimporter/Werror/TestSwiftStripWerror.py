@@ -7,6 +7,7 @@ class TestSwiftWerror(TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
 
+    @skipEmbeddedSwift
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipUnlessDarwin

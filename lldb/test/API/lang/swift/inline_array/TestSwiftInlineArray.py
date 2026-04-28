@@ -6,9 +6,10 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftInlineArray(lldbtest.TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
-    
+
     @swiftTest
     @skipIfWindows
+    @skipUnlessEmbeddedSwift
     def test(self):
         """Test the inline array synthetic child provider and summary"""
         self.build()

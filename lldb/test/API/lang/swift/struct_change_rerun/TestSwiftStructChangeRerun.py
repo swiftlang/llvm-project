@@ -21,6 +21,7 @@ import shutil
 
 
 class TestSwiftStructChangeRerun(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_swift_struct_change_rerun(self):
         """Test that we display self correctly for an inline-initialized struct"""

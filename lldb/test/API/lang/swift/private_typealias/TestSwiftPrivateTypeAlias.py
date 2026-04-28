@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftPrivateTypeAlias(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://173243316
     def test_swift_private_typealias(self):

@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedSet(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         """Test Set data formatter in embedded Swift."""
         self.build()
@@ -28,6 +29,6 @@ class TestSwiftEmbeddedSet(TestBase):
             child = s.GetChildAtIndex(i)
             elements.add(int(child.GetValue()))
         self.assertEqual(elements, {1, 2, 3, 4, 5})
-        
+
         emptySet = frame.FindVariable("emptySet")
         lldbutil.check_variable(self, emptySet, False, summary="0 values")

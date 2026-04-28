@@ -34,7 +34,7 @@ class TestExpressionErrors(TestBase):
 
         self.checkCanThrow("IThrowObjectOver10", True)
         self.checkCanThrow("ClassError.SomeMethod", False)
- 
+
     def checkCanThrow(self, name, expected):
         sc_list = self.target.FindFunctions(name)
         self.assertEqual(sc_list.GetSize(), 1, "Error looking for %s"%(name))

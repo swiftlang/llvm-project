@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftCoreGraphicsTypes(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     def test_swift_coregraphics_types(self):

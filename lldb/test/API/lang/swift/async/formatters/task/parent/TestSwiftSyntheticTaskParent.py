@@ -9,6 +9,7 @@ ADDR_PATTERN = "(0x[0-9a-f]{6,})"
 
 class TestCase(TestBase):
 
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test(self):

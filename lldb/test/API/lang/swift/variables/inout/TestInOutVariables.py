@@ -18,6 +18,7 @@ import os
 
 
 class TestInOutVariables(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://173243316
     def test_in_out_variables(self):

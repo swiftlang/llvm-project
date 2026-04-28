@@ -20,12 +20,14 @@ import os
 
 
 class TestIndirectEnumVariables(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_indirect_cases_variables(self):
         """Tests that indirect Enum variables display correctly when cases are indirect"""
         self.build()
         self.do_test("indirect case break here")
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_indirect_enum_variables(self):
         """Tests that indirect Enum variables display correctly when enum is indirect"""

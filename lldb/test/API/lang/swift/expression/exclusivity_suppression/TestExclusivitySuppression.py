@@ -29,6 +29,7 @@ def execute_command(command):
     return exit_status
 
 class TestExclusivitySuppression(TestBase):
+    @skipEmbeddedSwift
     # Test that we can evaluate w.s.i at Breakpoint 1 without triggering
     # a failure due to exclusivity
     @swiftTest
@@ -44,6 +45,7 @@ class TestExclusivitySuppression(TestBase):
 
         lldbutil.check_expression(self, frame, "w.s.i", "8", use_summary=False)
 
+    @skipEmbeddedSwift
     # Test that we properly handle nested expression evaluations by:
     # (1) Breaking at breakpoint 1
     # (2) Running 'expr get()' (which will hit breakpoint 2)

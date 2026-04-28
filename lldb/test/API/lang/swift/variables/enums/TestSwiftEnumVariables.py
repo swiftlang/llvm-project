@@ -20,6 +20,7 @@ import os
 
 
 class TestEnumVariables(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_enum_variables(self):
         """Tests that Enum variables display correctly"""

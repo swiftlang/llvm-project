@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftObjCOptionalType(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     def test_swift_objc_optional_type(self):

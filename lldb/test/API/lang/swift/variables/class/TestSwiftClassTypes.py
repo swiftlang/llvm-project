@@ -21,6 +21,7 @@ import os
 
 class TestSwiftClassTypes(TestBase):
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test_swift_class_types(self):
         """Test swift Class types"""
         self.build()

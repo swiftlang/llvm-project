@@ -19,6 +19,7 @@ import os
 
 
 class TestSwiftBacktracePrinting(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_swift_backtrace_printing(self):
         """Test printing Swift backtrace"""

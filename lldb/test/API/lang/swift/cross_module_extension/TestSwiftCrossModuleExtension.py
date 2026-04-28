@@ -20,6 +20,7 @@ import os
 import os.path
 
 class TestSwiftCrossModuleExtension(TestBase):
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test_cross_module_extension(self):

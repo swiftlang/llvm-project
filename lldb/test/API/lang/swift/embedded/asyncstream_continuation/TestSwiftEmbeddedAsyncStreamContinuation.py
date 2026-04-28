@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedAsyncStreamContinuation(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         """Test frame variable on an AsyncStream continuation in embedded Swift."""
         self.build()

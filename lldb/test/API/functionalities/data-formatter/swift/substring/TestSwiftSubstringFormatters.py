@@ -9,6 +9,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestCase(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_swift_substring_formatters(self):
         """Test Subtring summary strings."""

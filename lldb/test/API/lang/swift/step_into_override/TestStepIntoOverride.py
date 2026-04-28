@@ -8,6 +8,7 @@ import platform
 class TestStepIntoOverride(lldbtest.TestBase):
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_swift_stepping(self):
         self.build()

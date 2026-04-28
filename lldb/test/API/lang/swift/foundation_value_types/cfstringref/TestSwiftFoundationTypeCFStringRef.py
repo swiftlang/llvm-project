@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftFoundationTypeCFStringRef(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessFoundation
     def test(self):

@@ -6,6 +6,7 @@ import re
 
 
 class TestCase(lldbtest.TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=["windows", "linux"])
     def test(self):

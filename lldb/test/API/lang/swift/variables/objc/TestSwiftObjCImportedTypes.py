@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftObjCImportedTypes(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     def test_swift_objc_imported_types(self):

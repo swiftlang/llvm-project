@@ -10,6 +10,7 @@ class TestSwiftLazyFramework(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=no_match(["macosx"]))
     # FIXME: Without the ClangImporter, transitive module dependencies can't be

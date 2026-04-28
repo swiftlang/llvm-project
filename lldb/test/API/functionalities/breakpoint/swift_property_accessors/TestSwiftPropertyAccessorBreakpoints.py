@@ -4,6 +4,7 @@ from lldbsuite.test.decorators import *
 
 
 class TestCase(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Test that a breakpoint on a property accessor can be set by name."""

@@ -9,6 +9,7 @@ class TestSwiftOptimizedBoundGenericEnum(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Test the bound generic enum types in "optimized" code."""

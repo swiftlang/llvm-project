@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftClassBaseClass(TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://173245096
     def test(self):

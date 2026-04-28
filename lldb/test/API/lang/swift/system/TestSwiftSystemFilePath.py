@@ -9,6 +9,7 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test import lldbutil
 
 class TestSwiftSystemFilePath(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     def test(self):

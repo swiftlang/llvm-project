@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestDisableLanguageUnwinder(lldbtest.TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=['windows', 'linux'])
     def test(self):

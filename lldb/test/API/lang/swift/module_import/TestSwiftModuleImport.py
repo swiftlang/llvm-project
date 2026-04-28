@@ -9,6 +9,7 @@ class TestSwiftModuleImport(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(

@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftGlobals(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_swift_globals(self):
         """Check that we can examine module globals in the expression parser"""

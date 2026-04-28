@@ -21,6 +21,7 @@ import platform
 
 class TestSwiftTypes(TestBase):
     @swiftTest
+    @skipEmbeddedSwift
     @skipIfWindows
     def test_swift_types(self):
         """Test that we can inspect basic Swift types"""

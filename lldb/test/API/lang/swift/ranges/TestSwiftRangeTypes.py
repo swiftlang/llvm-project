@@ -21,6 +21,7 @@ import os
 
 class TestSwiftRangeType(TestBase):
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test_swift_range_type(self):
         """Test the Swift.Range<T> type"""
         self.build()

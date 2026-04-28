@@ -19,6 +19,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class SwiftDynamicTypeGenericsTest(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_genericresolution_commands(self):
         """Check that we can correctly figure out the dynamic type of generic things"""

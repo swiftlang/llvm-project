@@ -7,6 +7,7 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_top_level_task(self):
         """Test Task synthetic child provider for top-level Task."""
@@ -33,6 +34,7 @@ class TestCase(TestBase):
             ],
         )
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfLinux
     def test_current_task(self):

@@ -51,6 +51,7 @@ class TestCase(lldbtest.TestBase):
         for expected_name, actual_name in zip(expected_funcnames, actual_funcnames):
             self.assertIn(expected_name, actual_name, f"Unexpected backtrace: {frames}")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=["windows", "linux"])
     def test(self):

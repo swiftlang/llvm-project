@@ -15,7 +15,7 @@ from lldbsuite.test.decorators import *
 lldbinline.MakeInlineTest(
     __file__,
     globals(),
-    decorators=[
+    decorators=[skipEmbeddedSwift,
         swiftTest,
         skipUnlessFoundation,
         skipIf(oslist=["windows"]),

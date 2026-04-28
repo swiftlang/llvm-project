@@ -11,6 +11,7 @@ import sys
 
 
 class TestCase(TestBase):
+    @skipEmbeddedSwift
     @skipUnlessFoundation
     @swiftTest
     def test_swift_date_formatters(self):

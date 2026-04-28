@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftOpaqueReturnResilientCollection(TestBase):
     @swiftTest
+    @skipEmbeddedSwift
     @skipIfWindows
     def test(self):
         self.build()

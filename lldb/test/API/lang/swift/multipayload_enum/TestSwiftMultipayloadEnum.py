@@ -21,6 +21,7 @@ import os
 
 class TestSwiftMultipayloadEnum(TestBase):
     @swiftTest
+    @skipEmbeddedSwiftOnWindows
     def test_swift_multipayload_enum(self):
         """Test that LLDB understands generic enums with more than one payload type"""
         self.build()

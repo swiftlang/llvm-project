@@ -26,6 +26,7 @@ import os.path
 
 
 class TestSwiftInterfaceNoDebugInfo(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_swift_interface(self):
@@ -33,6 +34,7 @@ class TestSwiftInterfaceNoDebugInfo(TestBase):
         self.build()
         self.do_test()
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_swift_interface_fallback(self):
@@ -45,6 +47,7 @@ class TestSwiftInterfaceNoDebugInfo(TestBase):
             open(self.getBuildArtifact(module), 'w').close()
         self.do_test()
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     @skipUnlessPlatform(["macosx"])

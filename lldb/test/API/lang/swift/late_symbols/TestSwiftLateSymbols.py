@@ -6,6 +6,7 @@ import shutil
 import os
 
 class TestSwiftLateSymbols(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     @skipIf(debug_info=no_match(["dsym"]))

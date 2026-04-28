@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftArrayUninitialized(lldbtest.TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Test unitialized global arrays"""
