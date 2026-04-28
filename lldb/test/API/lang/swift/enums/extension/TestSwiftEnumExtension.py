@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
     @swiftTest
+    @skipEmbeddedSwiftOnLinux # Linker failure with arc4random_buf
     def test(self):
         """Test indirect enums"""
         self.build()

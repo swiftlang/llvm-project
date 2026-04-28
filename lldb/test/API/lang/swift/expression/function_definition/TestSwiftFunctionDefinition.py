@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftFunctionDefinition(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Test that persistent variables are mutable."""

@@ -52,6 +52,7 @@ class TestSwiftStepping(lldbtest.TestBase):
         )
         self.assertEqual(breakpoint.GetNumLocations(), 1, breakpoint)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://173245044
     @skipIf(oslist=["linux"], archs=no_match("x86_64")) # rdar://170532470
@@ -69,6 +70,7 @@ class TestSwiftStepping(lldbtest.TestBase):
         thread.StepOver()
         self.hit_correct_line(thread, "last main line")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://173245044
     def test_step_in_and_out_callsite(self):

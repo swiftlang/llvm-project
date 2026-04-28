@@ -83,6 +83,7 @@ class TestSwiftStdlibDictionary(TestBase):
                 found, ("found a not expected child for '%s':'%s'" %
                         (key_str, value_str)))
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://173243316
     # @skipIfLinux  # bugs.swift.org/SR-844

@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftConstrainedExistential(lldbtest.TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Test constrained existential types"""

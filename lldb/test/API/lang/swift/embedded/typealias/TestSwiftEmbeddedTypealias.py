@@ -8,6 +8,7 @@ class TestSwiftEmbeddedTypealias(TestBase):
 
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         self.build()
         self.runCmd("setting set symbols.swift-enable-ast-context false")

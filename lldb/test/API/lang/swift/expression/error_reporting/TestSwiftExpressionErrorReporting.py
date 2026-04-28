@@ -87,6 +87,7 @@ class TestSwiftExpressionErrorReporting(TestBase):
             "ceciNestPasUnVar", options)
         check(value)
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_missing_type(self):
         """Test error reporting in expressions reports

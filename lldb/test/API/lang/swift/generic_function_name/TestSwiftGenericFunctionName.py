@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftGenericFunction(lldbtest.TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Test display of generic function names"""

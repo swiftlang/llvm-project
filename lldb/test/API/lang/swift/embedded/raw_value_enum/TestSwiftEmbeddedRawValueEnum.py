@@ -11,6 +11,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedRawValueEnum(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         """Test that raw value enums display correctly in embedded Swift."""
         self.build()

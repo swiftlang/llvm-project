@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipUnlessDarwin
     def test(self):

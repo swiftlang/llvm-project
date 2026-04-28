@@ -4,6 +4,7 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftPOObjC(TestBase):
+    @skipEmbeddedSwift
     #NO_DEBUG_INFO_TESTCASE = True
     @skipUnlessDarwin
     @swiftTest

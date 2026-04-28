@@ -23,6 +23,7 @@ class TestSwiftAnyType(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_any_type(self):
         """Test the Any type"""

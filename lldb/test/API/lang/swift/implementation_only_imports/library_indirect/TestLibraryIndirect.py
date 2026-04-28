@@ -36,6 +36,7 @@ class TestLibraryIndirect(TestBase):
 
         return info
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_implementation_only_import_library(self):
@@ -70,6 +71,7 @@ class TestLibraryIndirect(TestBase):
         self.expect("expr container.wrapped", substrs=["(SomeLibrary.BoxedTwoInts)", "0x", "value = (first = 2, second = 3)"])
         self.expect("expr container.wrapped.value", substrs=["(SomeLibraryCore.TwoInts)", "(first = 2, second = 3)"])
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_implementation_only_import_library_no_library_module(self):

@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftArchetypeResolution(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://173245096
     def test_swift_archetype_resolution(self):

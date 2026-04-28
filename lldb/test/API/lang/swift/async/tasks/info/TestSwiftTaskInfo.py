@@ -13,6 +13,7 @@ def _tail(output):
 
 class TestCase(TestBase):
 
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test_compare_printed_task_variable_to_task_info(self):
@@ -27,6 +28,7 @@ class TestCase(TestBase):
         task_info_output = self.res.GetOutput()
         self.assertEqual(_tail(task_info_output), _tail(frame_variable_output))
 
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test_compare_printed_task_variable_to_task_info_with_address(self):

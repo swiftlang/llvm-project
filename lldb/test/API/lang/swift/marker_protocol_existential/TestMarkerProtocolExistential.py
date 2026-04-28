@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestMarkerProtocolExistential(lldbtest.TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_marker_only(self):
         self.build()
@@ -17,6 +18,7 @@ class TestMarkerProtocolExistential(lldbtest.TestBase):
         x = s.GetChildMemberWithName("x")
         lldbutil.check_variable(self, x, value="42")
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_marker_composition(self):
         self.build()
@@ -28,6 +30,7 @@ class TestMarkerProtocolExistential(lldbtest.TestBase):
         a = t.GetChildMemberWithName("a")
         lldbutil.check_variable(self, a, value="10")
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_two_markers(self):
         self.build()
@@ -40,6 +43,7 @@ class TestMarkerProtocolExistential(lldbtest.TestBase):
         b = u.GetChildMemberWithName("b")
         lldbutil.check_variable(self, b, value="20")
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_any_and_marker(self):
         self.build()
@@ -52,6 +56,7 @@ class TestMarkerProtocolExistential(lldbtest.TestBase):
         x = s.GetChildMemberWithName("x")
         lldbutil.check_variable(self, x, value="42")
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_any_marker_and_non_marker(self):
         self.build()

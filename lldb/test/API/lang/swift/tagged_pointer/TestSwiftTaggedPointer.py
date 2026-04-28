@@ -7,6 +7,7 @@ class TestSwiftTaggedPointer(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     # This test depends on NSObject, so it is not available on non-Darwin
     # platforms.

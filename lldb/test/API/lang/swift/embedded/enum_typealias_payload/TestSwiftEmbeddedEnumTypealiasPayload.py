@@ -11,6 +11,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedEnumTypealiasPayload(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         """Test enums with typealiased payload types."""
         self.build()

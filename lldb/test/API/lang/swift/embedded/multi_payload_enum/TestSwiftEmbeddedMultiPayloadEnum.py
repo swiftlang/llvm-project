@@ -11,6 +11,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedMultiPayloadEnum(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test_multi_payload_enum(self):
         """Test that multi-payload enums display the correct case."""
         self.build()
@@ -37,6 +38,7 @@ class TestSwiftEmbeddedMultiPayloadEnum(TestBase):
 
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test_same_size_payloads(self):
         """Test enums where cases have same-sized payloads."""
         self.build()
@@ -58,6 +60,7 @@ class TestSwiftEmbeddedMultiPayloadEnum(TestBase):
 
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test_mixed_payload_enum(self):
         """Test enums mixing no-payload and various payload cases."""
         self.build()
@@ -89,6 +92,7 @@ class TestSwiftEmbeddedMultiPayloadEnum(TestBase):
 
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test_struct_payload_enum(self):
         """Test enums with struct payloads of different sizes."""
         self.build()

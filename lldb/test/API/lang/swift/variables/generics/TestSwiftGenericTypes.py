@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftGenericTypes(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_swift_generic_types(self):
         """Test support for generic types"""

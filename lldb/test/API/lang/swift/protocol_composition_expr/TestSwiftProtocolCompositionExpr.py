@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftProtocolCompositionExpr(lldbtest.TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Test that expression evaluation can call functions in protocol composition existentials"""

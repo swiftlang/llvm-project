@@ -8,6 +8,7 @@ class TestSwiftResiliencePrivateField(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         self.build()

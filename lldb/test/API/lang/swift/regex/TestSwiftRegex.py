@@ -24,6 +24,7 @@ class TestSwiftRegex(TestBase):
         self.main_source = "main.swift"
         self.main_source_spec = lldb.SBFileSpec(self.main_source)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(macos_version=["<", "13"])
     @expectedFailureWindows
@@ -49,6 +50,7 @@ class TestSwiftRegex(TestBase):
         self.expect('expr -O -- dslRegex',
                     substrs=['Regex<Substring>'])
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(macos_version=["<", "13"])
     def test_swift_regex_frame_var_desc(self):
@@ -61,6 +63,7 @@ class TestSwiftRegex(TestBase):
         self.expect('vo dslRegex',
                     substrs=['Regex<Substring>'])
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(macos_version=["<", "13"])
     @expectedFailureWindows
@@ -74,6 +77,7 @@ class TestSwiftRegex(TestBase):
         self.expect('expr dslRegex',
                     substrs=['(_StringProcessing.Regex<Substring>) $R1 = {'])
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(macos_version=["<", "13"])
     def test_swift_regex_in_exp(self):

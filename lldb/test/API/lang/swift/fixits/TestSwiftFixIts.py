@@ -19,6 +19,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftFixIts(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_swift_fixits(self):
         """Test applying fixits to expressions"""

@@ -37,6 +37,7 @@ class TestCase(TestBase):
         self._filecheck("STRING")
         # CHECK-STRING: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "SSD")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     def test_struct(self):
@@ -48,6 +49,7 @@ class TestCase(TestBase):
         self._filecheck("STRUCT")
         # CHECK-STRUCT: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "1a6StructVD")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     def test_class(self):
@@ -59,6 +61,7 @@ class TestCase(TestBase):
         self._filecheck("CLASS")
         # CHECK-CLASS: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "1a5ClassCD")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     def test_enum(self):
@@ -70,6 +73,7 @@ class TestCase(TestBase):
         self._filecheck("ENUM")
         # CHECK-ENUM: stringForPrintObject(UnsafeRawPointer(bitPattern: {{.*}}), mangledTypeName: "1a4EnumOD")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     def test_generic_struct(self):
@@ -81,6 +85,7 @@ class TestCase(TestBase):
         self._filecheck("GEN-STRUCT")
         # CHECK-GEN-STRUCT: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "1a13GenericStructVySSGD")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     def test_generic_class(self):
@@ -92,6 +97,7 @@ class TestCase(TestBase):
         self._filecheck("GEN-CLASS")
         # CHECK-GEN-CLASS: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "1a12GenericClassCySSGD")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     def test_generic_enum(self):

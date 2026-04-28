@@ -20,6 +20,7 @@ import os
 
 
 class TestDefiningOverloadedFunctions(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_simple_overload_expressions(self):
         """Test defining overloaded functions"""

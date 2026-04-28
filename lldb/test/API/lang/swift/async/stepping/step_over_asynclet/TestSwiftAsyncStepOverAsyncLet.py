@@ -12,6 +12,7 @@ class TestCase(lldbtest.TestBase):
         line_entry = frame.GetLineEntry()
         self.assertEqual(linenum, line_entry.GetLine())
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=["windows", "linux"])
     def test_nothrow(self):
@@ -31,6 +32,7 @@ class TestCase(lldbtest.TestBase):
             self.assertStopReason(stop_reason, lldb.eStopReasonPlanComplete)
             self.check_is_in_line(thread, expected_line_num)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=["windows", "linux"])
     def test_throw(self):

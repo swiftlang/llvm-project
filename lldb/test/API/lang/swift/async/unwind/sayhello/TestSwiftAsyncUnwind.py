@@ -12,6 +12,7 @@ class TestSwiftAsyncUnwind(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=['windows', 'linux'])
     def test(self):

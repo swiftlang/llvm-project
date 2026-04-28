@@ -7,6 +7,7 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     def test_top_level_task(self):
@@ -34,6 +35,7 @@ class TestCase(TestBase):
             ],
         )
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows # rdar://176009590
     @skipIfLinux

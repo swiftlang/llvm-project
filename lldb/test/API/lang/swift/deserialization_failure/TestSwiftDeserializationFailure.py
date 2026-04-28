@@ -30,6 +30,7 @@ class TestSwiftDeserializationFailure(TestBase):
         # FIXME: this is formatted incorrectly.
         self.expect("fr var -d no-dynamic t", substrs=["(T)"]) #, "world"])
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=['windows'])
     @skipIf(debug_info=no_match(["dwarf"]))
@@ -39,6 +40,7 @@ class TestSwiftDeserializationFailure(TestBase):
         target, process, _, _ = lldbutil.run_to_name_breakpoint(self, 'main')
         self.run_tests(target, process)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=['windows'])
     @skipIf(debug_info=no_match(["dwarf"]))

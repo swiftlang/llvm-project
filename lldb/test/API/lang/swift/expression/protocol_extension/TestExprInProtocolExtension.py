@@ -31,6 +31,7 @@ class TestSwiftExprInProtocolExtension(TestBase):
         self.continue_to_bkpt(self.process, bkpt)
         self.target.BreakpointDelete(bkpt.GetID())
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_protocol_extension(self):
         """Tests that swift expressions in protocol extension functions behave correctly"""

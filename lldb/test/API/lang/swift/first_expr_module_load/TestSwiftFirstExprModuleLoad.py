@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftFirstExprModuleLoad(lldbtest.TestBase):
 
+    @skipEmbeddedSwift
     @skipIf(oslist='windows')
     @swiftTest
     @skipUnlessFoundation

@@ -42,6 +42,7 @@ class TestMainExecutable(TestBase):
         setting=("symbols.use-swift-clangimporter", "false"),
     )
     @swiftTest
+    @skipEmbeddedSwift
     @skipIfWindows
     def test_implementation_only_import_main_executable(self):
         """Test `@_implementationOnly import` in the main executable
@@ -67,6 +68,7 @@ class TestMainExecutable(TestBase):
         setting=("symbols.use-swift-clangimporter", "false"),
     )
     @swiftTest
+    @skipEmbeddedSwift
     @skipIfWindows
     @skipIfLinux # rdar://problem/67348391
     def test_implementation_only_import_main_executable_no_library_module(self):
@@ -99,6 +101,7 @@ class TestMainExecutable(TestBase):
         self.runCmd("settings set symbols.use-swift-dwarfimporter true")
 
     @swiftTest
+    @skipEmbeddedSwift
     @skipIfWindows
     @expectedFailureAll(oslist=["windows"])
     def test_implementation_only_import_main_executable_resilient(self):
@@ -121,6 +124,7 @@ class TestMainExecutable(TestBase):
         self.expect("expr TwoInts(4, 5)", substrs=["(SomeLibrary.TwoInts)", "= (first = 4, second = 5)"])
 
     @swiftTest
+    @skipEmbeddedSwift
     @skipIfWindows
     @expectedFailureOS(no_match(["macosx"])) # Requires Remote Mirrors support
     def test_implementation_only_import_main_executable_resilient_no_library_module(self):

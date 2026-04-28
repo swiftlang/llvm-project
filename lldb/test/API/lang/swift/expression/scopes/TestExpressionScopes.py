@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftExpressionScopes(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     def test_expression_scopes(self):
         """Tests that swift expressions resolve scoped variables correctly"""
