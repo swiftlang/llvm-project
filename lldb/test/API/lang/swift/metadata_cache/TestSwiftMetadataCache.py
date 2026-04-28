@@ -40,6 +40,7 @@ class TestSwiftMetadataCache(TestBase):
         return False
             
         
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_metadata_cache(self):

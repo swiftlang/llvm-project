@@ -7,6 +7,7 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_print_task_group(self):
@@ -17,6 +18,7 @@ class TestCase(TestBase):
         )
         self.do_test_print()
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_print_throwing_task_group(self):
@@ -61,6 +63,7 @@ class TestCase(TestBase):
             ],
         )
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_api_task_group(self):
@@ -71,6 +74,7 @@ class TestCase(TestBase):
         )
         self.do_test_api(process)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_api_throwing_task_group(self):

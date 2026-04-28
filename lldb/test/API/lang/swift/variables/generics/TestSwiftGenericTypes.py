@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftGenericTypes(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_generic_types(self):

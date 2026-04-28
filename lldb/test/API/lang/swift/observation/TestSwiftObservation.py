@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftObservation(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

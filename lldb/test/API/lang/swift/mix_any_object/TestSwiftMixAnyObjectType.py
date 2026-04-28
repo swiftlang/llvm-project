@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftMixAnyObjectType(TestBase):
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test_any_object_type(self):

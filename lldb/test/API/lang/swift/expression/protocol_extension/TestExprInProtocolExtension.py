@@ -31,6 +31,7 @@ class TestSwiftExprInProtocolExtension(TestBase):
         self.continue_to_bkpt(self.process, bkpt)
         self.target.BreakpointDelete(bkpt.GetID())
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_protocol_extension(self):

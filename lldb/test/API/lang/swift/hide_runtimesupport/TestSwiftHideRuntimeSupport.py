@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftHideRuntimeSupport(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_hide_runtime_support(self):

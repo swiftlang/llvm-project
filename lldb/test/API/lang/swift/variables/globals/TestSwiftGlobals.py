@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftGlobals(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_globals(self):

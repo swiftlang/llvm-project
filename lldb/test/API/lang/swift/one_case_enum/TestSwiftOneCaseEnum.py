@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftOneCaseEnum(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_one_case_enum(self):

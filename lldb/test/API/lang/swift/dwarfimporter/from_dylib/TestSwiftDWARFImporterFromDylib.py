@@ -8,6 +8,7 @@ class TestSwiftDWARFImporterFromDylib(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     # This test needs a working Remote Mirrors implementation.
     @skipIf(oslist=['linux', 'windows'])

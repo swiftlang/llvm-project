@@ -35,6 +35,7 @@ class TestSwiftGenericExpressions(lldbtest.TestBase):
         self.build()
         self.do_test()
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_ivars_in_generic_expressions(self):

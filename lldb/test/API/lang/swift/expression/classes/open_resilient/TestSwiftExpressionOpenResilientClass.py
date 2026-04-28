@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestExpressionOpenResilientClass(TestBase):
     NO_DEBUG_INFO_TEST = True
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

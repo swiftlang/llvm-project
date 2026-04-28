@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftArchetypeResolution(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_archetype_resolution(self):

@@ -19,6 +19,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class SwiftDynamicTypeGenericsTest(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_genericresolution_commands(self):

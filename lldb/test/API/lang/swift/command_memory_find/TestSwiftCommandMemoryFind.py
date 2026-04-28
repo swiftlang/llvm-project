@@ -18,6 +18,7 @@ class TestSwiftCommandMemoryFind(TestBase):
         self.expect(f'memory find -e "{expr}" {hex(addr)} {hex(addr + 8)}',
                     substrs=["data found at location"])
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

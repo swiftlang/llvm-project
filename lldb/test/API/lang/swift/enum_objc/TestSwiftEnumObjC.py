@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftDWARFImporterC(lldbtest.TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     @expectedFailureAll(oslist=["linux"], bugnumber="rdar://83444822")

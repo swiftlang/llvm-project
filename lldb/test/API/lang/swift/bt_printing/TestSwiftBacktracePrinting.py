@@ -19,6 +19,7 @@ import os
 
 
 class TestSwiftBacktracePrinting(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_backtrace_printing(self):

@@ -23,6 +23,7 @@ class TestSwiftSplitDebug(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_split_debug_info(self):

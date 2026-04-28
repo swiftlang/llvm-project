@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftMetatype(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_metatype(self):

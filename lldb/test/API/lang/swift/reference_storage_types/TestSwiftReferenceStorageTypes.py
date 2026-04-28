@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftReferenceStorageTypes(TestBase):
+    @skipEmbeddedSwift
     @decorators.skipIf(archs=['ppc64le']) #SR-10215
     @swiftTest
     @expectedFailureWindows

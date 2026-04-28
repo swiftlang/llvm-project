@@ -23,6 +23,7 @@ class TestSwiftDWARFImporter_Swift(lldbtest.TestBase):
         self.assertTrue(os.path.isdir(include))
         shutil.rmtree(include)
 
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test(self):

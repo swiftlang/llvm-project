@@ -14,6 +14,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 
 class TestClassConstrainedProtocol(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_extension_weak_self(self):
@@ -21,6 +22,7 @@ class TestClassConstrainedProtocol(TestBase):
         self.build()
         self.do_self_test("Break here for weak self", needs_dynamic=False)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_extension_self (self):
@@ -28,6 +30,7 @@ class TestClassConstrainedProtocol(TestBase):
         self.build()
         self.do_self_test("Break here in class protocol", needs_dynamic=False)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_method_weak_self(self):
@@ -35,6 +38,7 @@ class TestClassConstrainedProtocol(TestBase):
         self.build()
         self.do_self_test("Break here for method weak self", needs_dynamic=False)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_method_self(self):

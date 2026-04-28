@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftErrorHandlingMissingTypes(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     @skipIf(swift_module_importer="clangimporter")

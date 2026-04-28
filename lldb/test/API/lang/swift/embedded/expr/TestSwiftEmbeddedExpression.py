@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftEmbeddedExpression(TestBase):
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         self.build()
 

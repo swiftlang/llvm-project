@@ -9,6 +9,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestCase(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_substring_formatters(self):

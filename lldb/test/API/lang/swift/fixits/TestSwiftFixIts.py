@@ -19,6 +19,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftFixIts(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_fixits(self):

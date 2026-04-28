@@ -34,6 +34,7 @@ class TestAvailability(TestBase):
         # Call super's setUp().
         TestBase.setUp(self)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=['linux', 'windows'])
     def testAvailability(self):

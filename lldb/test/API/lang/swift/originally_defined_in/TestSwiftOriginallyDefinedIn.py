@@ -37,6 +37,7 @@ class TestSwiftOriginallyDefinedIn(lldbtest.TestBase):
             ],
         )
     
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_expr(self):
@@ -66,6 +67,7 @@ class TestSwiftOriginallyDefinedIn(lldbtest.TestBase):
             ],
         )
     
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_expr_from_generic(self):

@@ -20,6 +20,7 @@ import os
 
 
 class TestIndirectEnumVariables(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_indirect_cases_variables(self):
@@ -27,6 +28,7 @@ class TestIndirectEnumVariables(TestBase):
         self.build()
         self.do_test("indirect case break here")
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_indirect_enum_variables(self):

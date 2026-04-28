@@ -9,6 +9,7 @@ class TestSwiftReflectionOnly(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test(self):

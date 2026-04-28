@@ -15,6 +15,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestClosureShortcuts(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

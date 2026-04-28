@@ -8,6 +8,7 @@ class TestSwiftEmbeddedUnsafeRawBufferPointer(TestBase):
     @skipIf(bugnumber="rdar://170883698")
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         """Test UnsafeRawBufferPointer formatter in embedded Swift."""
         self.build()

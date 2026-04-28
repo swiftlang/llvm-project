@@ -7,6 +7,7 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_summary_contains_name(self):
@@ -16,6 +17,7 @@ class TestCase(TestBase):
         )
         self.expect("v task", patterns=[r'"Chore" id:[1-9]'])
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     @skipIfLinux  # rdar://151471067

@@ -18,6 +18,7 @@ import os
 
 
 class TestInOutVariables(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_in_out_variables(self):

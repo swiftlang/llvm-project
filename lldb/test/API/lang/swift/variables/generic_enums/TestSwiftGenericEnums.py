@@ -26,6 +26,7 @@ class TestSwiftGenericEnumTypes(TestBase):
         var.SetPreferSyntheticValue(True)
         return var
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_generic_enum_types(self):

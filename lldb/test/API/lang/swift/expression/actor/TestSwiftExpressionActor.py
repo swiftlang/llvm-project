@@ -6,6 +6,7 @@ import os
 
 
 class TestSwiftExpressionActor(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_static_func(self):
@@ -16,6 +17,7 @@ class TestSwiftExpressionActor(TestBase):
 
         self.expect("expr self", substrs=["A.Type"])
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_func(self):

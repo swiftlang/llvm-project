@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftExpressionsInClassFunctions(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_expressions_in_class_functions(self):

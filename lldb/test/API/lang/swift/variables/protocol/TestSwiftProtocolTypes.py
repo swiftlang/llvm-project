@@ -19,6 +19,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftProtocolTypes(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_protocol_types(self):
