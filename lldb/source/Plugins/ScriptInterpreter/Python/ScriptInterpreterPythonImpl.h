@@ -94,6 +94,8 @@ public:
 
   lldb::ScriptedStopHookInterfaceSP CreateScriptedStopHookInterface() override;
 
+  lldb::ScriptedHookInterfaceSP CreateScriptedHookInterface() override;
+
   lldb::ScriptedBreakpointInterfaceSP
   CreateScriptedBreakpointInterface() override;
 
