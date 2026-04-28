@@ -9,6 +9,7 @@ import os
 
 
 class TestSwiftActorTypes(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_class_types(self):

@@ -6,6 +6,7 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_actor_unprioritised_jobs(self):

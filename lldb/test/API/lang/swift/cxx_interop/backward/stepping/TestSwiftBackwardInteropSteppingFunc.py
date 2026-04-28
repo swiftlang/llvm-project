@@ -33,12 +33,14 @@ class TestSwiftBackwardInteropSteppingFunc(TestBase):
         name = thread.frames[0].GetFunctionName()
         self.assertIn(func, name)
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_func_step_in(self):
         thread = self.setup("Break here for func")
         self.check_step_in(thread, "testFunc", "swiftFunc")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_func_step_over(self):

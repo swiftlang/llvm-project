@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftPrivateTypeAlias(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_private_typealias(self):

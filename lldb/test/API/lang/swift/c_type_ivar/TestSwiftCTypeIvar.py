@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftCTypeIvar(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     @skipIf(setting=("symbols.use-swift-clangimporter", "false"))

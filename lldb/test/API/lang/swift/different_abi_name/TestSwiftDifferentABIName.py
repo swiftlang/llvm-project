@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftDifferentABIName(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

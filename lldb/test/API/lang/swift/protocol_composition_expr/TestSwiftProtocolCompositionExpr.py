@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftProtocolCompositionExpr(lldbtest.TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

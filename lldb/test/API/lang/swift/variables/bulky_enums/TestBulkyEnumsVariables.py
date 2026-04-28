@@ -20,6 +20,7 @@ import os
 
 
 class TestBulkyEnumVariables(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_bulky_enum_variables(self):

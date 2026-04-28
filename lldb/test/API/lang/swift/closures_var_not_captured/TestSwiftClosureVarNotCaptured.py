@@ -51,6 +51,7 @@ class TestSwiftClosureVarNotCaptured(TestBase):
         target.BreakpointDelete(bkpt.GetID())
         return (target, process, thread)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_simple_closure(self):
@@ -60,6 +61,7 @@ class TestSwiftClosureVarNotCaptured(TestBase):
         check_not_captured_error(self, thread.frames[0], "arg", "func_1(arg:)")
         check_no_enhanced_diagnostic(self, thread.frames[0], "dont_find_me")
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_nested_closure(self):
@@ -85,6 +87,7 @@ class TestSwiftClosureVarNotCaptured(TestBase):
         )
         check_no_enhanced_diagnostic(self, thread.frames[0], "dont_find_me")
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     # Async variable inspection on Linux/Windows are still problematic.
@@ -109,6 +112,7 @@ class TestSwiftClosureVarNotCaptured(TestBase):
         )
         check_no_enhanced_diagnostic(self, thread.frames[0], "dont_find_me")
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     # Async variable inspection on Linux/Windows are still problematic.
@@ -122,6 +126,7 @@ class TestSwiftClosureVarNotCaptured(TestBase):
             self, thread.frames[0], "x", "task_inside_non_async_function()"
         )
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_ctor_class_closure(self):
@@ -180,6 +185,7 @@ class TestSwiftClosureVarNotCaptured(TestBase):
         )
         check_no_enhanced_diagnostic(self, thread.frames[0], "dont_find_me")
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_ctor_struct_closure(self):
@@ -238,6 +244,7 @@ class TestSwiftClosureVarNotCaptured(TestBase):
         )
         check_no_enhanced_diagnostic(self, thread.frames[0], "dont_find_me")
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_ctor_enum_closure(self):

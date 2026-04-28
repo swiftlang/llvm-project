@@ -22,6 +22,7 @@ class TestSwiftHeadermapConflict(TestBase):
         bugnumber="rdar://60396797",
         setting=("symbols.use-swift-clangimporter", "false"),
     )
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test(self):

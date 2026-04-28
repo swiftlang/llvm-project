@@ -24,6 +24,7 @@ def stderr_print(line):
     sys.stderr.write(line + "\n")
 
 class TestSwiftConsumeOperatorAsyncType(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_consume_operator_async(self):

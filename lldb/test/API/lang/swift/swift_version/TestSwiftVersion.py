@@ -21,6 +21,7 @@ import os.path
 import time
 
 class TestSwiftVersion(TestBase):
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test_cross_module_extension(self):

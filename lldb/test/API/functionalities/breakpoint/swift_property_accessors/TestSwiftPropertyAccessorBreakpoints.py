@@ -4,6 +4,7 @@ from lldbsuite.test.decorators import *
 
 
 class TestCase(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

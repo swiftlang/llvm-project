@@ -23,6 +23,7 @@ class TestSwiftInstancePointerSetSP(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_instancepointerset_sp(self):

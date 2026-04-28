@@ -19,6 +19,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class SwiftTypeMetadataTest(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_type_metadata(self):

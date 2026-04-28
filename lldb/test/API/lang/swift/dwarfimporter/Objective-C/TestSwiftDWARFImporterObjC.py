@@ -34,6 +34,7 @@ class TestSwiftDWARFImporterObjC(lldbtest.TestBase):
         self.assertTrue(os.path.isdir(include))
         shutil.rmtree(include)
 
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test(self):
@@ -60,6 +61,7 @@ class TestSwiftDWARFImporterObjC(lldbtest.TestBase):
         #self.expect("target var -d run proto", substrs=["(ProtoImpl)", "proto"])
         #self.expect("target var -O proto", substrs=["<ProtoImpl"])
 
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test_expr(self):
@@ -81,6 +83,7 @@ class TestSwiftDWARFImporterObjC(lldbtest.TestBase):
                                                 "private_ivar", "42"])
 
 
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @swiftTest
     def test_eager_member_completion(self):

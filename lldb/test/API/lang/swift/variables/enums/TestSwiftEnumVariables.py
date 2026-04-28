@@ -20,6 +20,7 @@ import os
 
 
 class TestEnumVariables(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_enum_variables(self):

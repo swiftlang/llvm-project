@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestCase(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_missing_explicit_modules(self):
@@ -31,6 +32,7 @@ class TestCase(lldbtest.TestBase):
         # CHECK: Nonexistent explicit module file
         # CHECK: Explicit modules : false (downgraded
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_sanity(self):
@@ -59,6 +61,7 @@ class TestCase(lldbtest.TestBase):
         # CHECK-SANITY: Turning off implicit modules
         # CHECK-SANITY: Turning on implicit modules
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_setting(self):

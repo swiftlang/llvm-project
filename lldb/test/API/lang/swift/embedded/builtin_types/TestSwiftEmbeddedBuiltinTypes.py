@@ -11,6 +11,7 @@ class TestSwiftEmbeddedBuiltinTypes(TestBase):
 
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test_without_ast(self):
         self.build()
         self.runCmd("setting set symbols.swift-enable-ast-context false")

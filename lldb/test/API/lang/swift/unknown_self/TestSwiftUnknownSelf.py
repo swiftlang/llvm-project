@@ -33,6 +33,7 @@ class TestSwiftUnknownSelf(lldbtest.TestBase):
                     substrs=["hello"])
 
 
+    @skipEmbeddedSwift
     @skipIf(bugnumber="SR-10216", archs=['ppc64le'])
     @swiftTest
     @skipUnlessFoundation

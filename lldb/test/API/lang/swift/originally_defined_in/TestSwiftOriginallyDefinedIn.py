@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftOriginallyDefinedIn(lldbtest.TestBase):
     @swiftTest
+    @skipEmbeddedSwift
     @expectedFailureWindows
     def test(self):
         """Test that types with the @_originallyDefinedIn attribute can still be found in metadata"""
@@ -36,12 +37,13 @@ class TestSwiftOriginallyDefinedIn(lldbtest.TestBase):
                 "t = (i = 50)",
             ],
         )
-    
+
     @swiftTest
+    @skipEmbeddedSwift
     @expectedFailureWindows
     def test_expr(self):
         """Test that types with the @_originallyDefinedIn attribute can still be found in metadata"""
-    
+
         self.build()
         filespec = lldb.SBFileSpec("main.swift")
         target, process, thread, breakpoint1 = lldbutil.run_to_source_breakpoint(
@@ -65,8 +67,9 @@ class TestSwiftOriginallyDefinedIn(lldbtest.TestBase):
                 "t = (i = 50)",
             ],
         )
-    
+
     @swiftTest
+    @skipEmbeddedSwift
     @expectedFailureWindows
     def test_expr_from_generic(self):
          """Test that types with the @_originallyDefinedIn attribute can still be found in metadata"""

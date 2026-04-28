@@ -17,6 +17,7 @@ from lldbsuite.test.decorators import *
 
 class TestSwiftPOValueTypes(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_value_types(self):
@@ -39,6 +40,7 @@ class TestSwiftPOValueTypes(TestBase):
         self.expect("po (dm as Any, cm as Any,48 as Any)", substrs=['12', '24', '36', '48'])
         self.expect("po patatino", substrs=['foo'])
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_ignore_bkpts_in_po(self):

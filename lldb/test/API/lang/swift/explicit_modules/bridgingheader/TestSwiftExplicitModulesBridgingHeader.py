@@ -33,6 +33,7 @@ class TestSwiftExplicitModules(lldbtest.TestBase):
         # CHECK-NOT: secret
         # CHECK: Import 
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'), bugnumber='rdar://157258485')

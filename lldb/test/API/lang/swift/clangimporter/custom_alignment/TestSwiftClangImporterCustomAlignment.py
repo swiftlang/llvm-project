@@ -20,6 +20,7 @@ class TestSwiftClangImporterCustomAlignment(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))

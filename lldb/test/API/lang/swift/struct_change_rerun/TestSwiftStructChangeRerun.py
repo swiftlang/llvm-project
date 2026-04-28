@@ -21,6 +21,7 @@ import shutil
 
 
 class TestSwiftStructChangeRerun(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_struct_change_rerun(self):

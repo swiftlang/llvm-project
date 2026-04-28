@@ -4,15 +4,17 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftEmbeddedFrameVariable(TestBase):
- 
+
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test(self):
         self.build()
         self.implementation(True)
 
     @skipUnlessDarwin
     @swiftTest
+    @skipUnlessEmbeddedSwift
     def test_without_ast(self):
         """Run the test turning off instantion of  Swift AST contexts in order to ensure that all type information comes from DWARF"""
         self.build()
@@ -35,7 +37,7 @@ class TestSwiftEmbeddedFrameVariable(TestBase):
         alias1 = frame.FindVariable("alias1")
         field = alias1.GetChildMemberWithName("t")
         lldbutil.check_variable(self, field, False, value='1')
- 
+
         alias2 = frame.FindVariable("alias2")
         a3 = alias2.GetChildMemberWithName("a3")
         lldbutil.check_variable(self, a3.GetChildAtIndex(0), False, value='3')
@@ -63,7 +65,7 @@ class TestSwiftEmbeddedFrameVariable(TestBase):
         lldbutil.check_variable(self, q2t.GetChildAtIndex(0), False, value='12')
         lldbutil.check_variable(self, q2t.GetChildAtIndex(1), False, value='13')
 
-        
+
         array = frame.FindVariable("array")
         lldbutil.check_variable(self, array, False, num_children=4)
         for i in range(4):
@@ -128,14 +130,14 @@ class TestSwiftEmbeddedFrameVariable(TestBase):
         fullMultipayloadEnum2 = frame.FindVariable("fullMultipayloadEnum2")
         two = fullMultipayloadEnum2.GetChildMemberWithName("two")
         lldbutil.check_variable(self, two, False, value="9.5")
-        
+
         bigFullMultipayloadEnum1 = frame.FindVariable("bigFullMultipayloadEnum1")
         one = bigFullMultipayloadEnum1.GetChildMemberWithName("one")
         first = one.GetChildAtIndex(0)
         second = one.GetChildAtIndex(1)
         lldbutil.check_variable(self, first, False, value="209")
         lldbutil.check_variable(self, second, False, value="315")
-        
+
         bigFullMultipayloadEnum2 = frame.FindVariable("bigFullMultipayloadEnum2")
         two = bigFullMultipayloadEnum2.GetChildMemberWithName("two")
         first = two.GetChildAtIndex(0)

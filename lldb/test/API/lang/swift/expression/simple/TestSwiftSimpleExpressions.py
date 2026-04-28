@@ -21,6 +21,7 @@ import sys
 
 
 class TestSwiftSimpleExpressions(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_simple_swift_expressions(self):

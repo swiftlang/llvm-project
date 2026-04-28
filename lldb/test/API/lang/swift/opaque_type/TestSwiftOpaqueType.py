@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftOpaque(TestBase):
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

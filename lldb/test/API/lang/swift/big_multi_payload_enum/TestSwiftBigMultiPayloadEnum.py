@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftBigMultiPayloadEnum(TestBase):
     @swiftTest
+    @skipEmbeddedSwiftOnLinux # Linker failure with arc4random_buf
     @expectedFailureWindows
     def test(self):
         self.build()

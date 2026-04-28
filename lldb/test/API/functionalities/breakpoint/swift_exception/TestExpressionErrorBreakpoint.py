@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftErrorBreakpoint(TestBase):
+    @skipEmbeddedSwift
     @decorators.skipIfLinux  # <rdar://problem/30909618>
     @swiftTest
     @expectedFailureWindows
@@ -28,6 +29,7 @@ class TestSwiftErrorBreakpoint(TestBase):
         self.build()
         self.do_tests(None)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_error_matching_base_typename(self):
@@ -35,6 +37,7 @@ class TestSwiftErrorBreakpoint(TestBase):
         self.build()
         self.do_tests("EnumError")
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_error_matching_full_typename(self):
@@ -42,6 +45,7 @@ class TestSwiftErrorBreakpoint(TestBase):
         self.build()
         self.do_tests("a.EnumError")
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIfWindows
     def test_swift_error_bogus_typename(self):

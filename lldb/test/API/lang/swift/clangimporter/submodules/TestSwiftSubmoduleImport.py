@@ -4,6 +4,7 @@ import lldbsuite.test.lldbtest as lldbtest
 import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftSubmoduleImport(lldbtest.TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

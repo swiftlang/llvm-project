@@ -17,7 +17,7 @@ class TestSwiftImportSearchPaths(lldbtest.TestBase):
     @skipIfWindows
     def test_negative(self):
         self.do_test('false')
-        
+
     def do_test(self, flag):
         """Test a .swiftmodule that was compiled with serialized debugging
            options, using a search path to another module it imports. We then

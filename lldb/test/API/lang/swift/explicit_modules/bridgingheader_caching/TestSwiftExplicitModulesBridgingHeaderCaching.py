@@ -22,6 +22,7 @@ class TestSwiftExplicitModules(lldbtest.TestBase):
         self.expect("expression s", substrs=['i = 23'])
         self.expect("expression m", substrs=['j = 42'])
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'), bugnumber='rdar://157258485')
     @skipUnlessDarwin

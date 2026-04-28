@@ -8,6 +8,7 @@ class TestSwiftFModuleFlags(TestBase):
     @skipIf(macos_version=["<", "14.0"])
     @skipIfDarwinEmbedded
     @swiftTest
+    @skipEmbeddedSwiftOnLinux # Failed to load SwiftCore.so
     @skipIfWindows
     def test(self):
         """Test that -fmodule flags get stripped out"""

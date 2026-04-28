@@ -22,6 +22,7 @@ import re
 import shutil
 
 class TestObjCIVarDiscovery(TestBase):
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @skipIf(debug_info=no_match("dsym"))
     @swiftTest
@@ -30,6 +31,7 @@ class TestObjCIVarDiscovery(TestBase):
         shutil.rmtree(self.getBuildArtifact("aTestFramework.framework/Versions/A/aTestFramework.dSYM"))
         self.do_test(False)
 
+    @skipEmbeddedSwift
     @skipUnlessDarwin
     @skipIf(debug_info=no_match("dsym"))
     @swiftTest

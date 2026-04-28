@@ -8,6 +8,7 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 class TestCase(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_po_address(self):
@@ -21,6 +22,7 @@ class TestCase(TestBase):
         self.expect(f"dwim-print -O -- 0x{hex_addr}", patterns=[f"Object@0x0*{hex_addr}"])
         self.expect(f"dwim-print -O -- {addr}", patterns=[f"Object@0x0*{hex_addr}"])
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_po_non_address_hex(self):
@@ -31,6 +33,7 @@ class TestCase(TestBase):
         )
         self.expect(f"dwim-print -O -- 0x1000", substrs=["4096"])
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_print_swift_object_does_not_show_name(self):

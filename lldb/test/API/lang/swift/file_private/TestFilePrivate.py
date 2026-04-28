@@ -29,6 +29,7 @@ class TestFilePrivate(TestBase):
         self.main_source = "main.swift"
         self.main_source_spec = lldb.SBFileSpec(self.main_source)
 
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test(self):

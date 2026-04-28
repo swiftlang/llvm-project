@@ -20,6 +20,7 @@ import os
 
 
 class TestSwiftTypeLookup(TestBase):
+    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureWindows
     def test_swift_type_lookup(self):
