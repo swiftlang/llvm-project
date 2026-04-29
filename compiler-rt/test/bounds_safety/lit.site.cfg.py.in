@@ -1,0 +1,34 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+config.name_suffix = "@CONFIG_NAME@"
+config.target_cflags = "@BOUNDS_SAFETY_TEST_TARGET_CFLAGS@"
+config.target_arch = "@BOUNDS_SAFETY_TEST_TARGET_ARCH@"
+config.optimized = @BOUNDS_SAFETY_TEST_OPTIMIZED_PYBOOL@
+config.use_debugger = @BOUNDS_SAFETY_TEST_USE_DEBUGGER_PYBOOL@
+config.trap_kind = "@BOUNDS_SAFETY_TEST_TRAP_KIND@"
+config.lldb_python_path = "@BOUNDS_SAFETY_LLDB_PYTHON_PATH@"
+config.apple_platform = "@BOUNDS_SAFETY_TEST_APPLE_PLATFORM@"
+config.apple_platform_min_deployment_target_flag = "@BOUNDS_SAFETY_TEST_MIN_DEPLOYMENT_TARGET_FLAG@"
+config.apple_target_is_host = @BOUNDS_SAFETY_TEST_APPLE_TARGET_IS_HOST_PYBOOL@
+
+# FIXME: Commented out because the performance is terrible due to the lit files
+# doing lots of work that should not be done at test time (spawning
+# processes for things that won't change). There are lots of variants of this
+# test suite and there's no caching so this work gets done for each test suite.
+# We should fix this so we can take advantage of the infrastructure
+# for running outside of the host machine.
+#lit_config.load_config(config, "@COMPILER_RT_BINARY_DIR@/test/lit.common.configured")
+
+# HACK: These should come from loading
+# "@COMPILER_RT_BINARY_DIR@/test/lit.common.configured"
+# but we've commented out loading it so we have to manually set these to get
+# things to work.
+config.compiler_rt_obj_root = "@COMPILER_RT_BINARY_DIR@"
+config.clang = "@COMPILER_RT_RESOLVED_TEST_COMPILER@"
+config.python_executable = "@Python3_EXECUTABLE@"
+# Setup test format.
+import lit
+config.test_format = lit.formats.ShTest(execute_external=False)
+
+# Consume this configuration and setup subscriptions, features, etc.
+lit_config.load_config(config, "@BOUNDS_SAFETY_LIT_SOURCE_DIR@/lit.cfg.py")

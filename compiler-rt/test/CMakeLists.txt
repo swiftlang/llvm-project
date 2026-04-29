@@ -117,6 +117,17 @@ if(COMPILER_RT_CAN_EXECUTE_TESTS)
   # ShadowCallStack does not yet provide a runtime with compiler-rt, the tests
   # include their own minimal runtime
   add_subdirectory(shadowcallstack)
+
+  # TO_UPSTREAM(BoundsSafety)
+  # -fbounds-safety doesn't have a runtime in compiler-rt so guarding with
+  # `COMPILER_RT_HAS_BOUNDS_SAFETY` is unnecessary so that is why
+  # `compiler_rt_test_runtime` is not used here.
+  if(COMPILER_RT_INCLUDE_TESTS)
+    option(COMPILER_RT_TEST_BOUNDS_SAFETY "Include -fbounds-safety runtime tests" ON)
+    if(COMPILER_RT_TEST_BOUNDS_SAFETY)
+      add_subdirectory(bounds_safety)
+    endif()
+  endif()
 endif()
 
 # Now that we've traversed all the directories and know all the lit testsuites,
