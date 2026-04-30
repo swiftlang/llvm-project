@@ -391,3 +391,5 @@ module lifetimebound {
   export *
 }
 /* TO_UPSTREAM(Lifetimebound) OFF */
+
+extern module SwiftBridging "swift/bridging.modulemap"
