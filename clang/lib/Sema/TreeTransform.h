@@ -7856,7 +7856,8 @@ QualType TreeTransform<Derived>::TransformCountAttributedType(
     }
   }
 
-  TLB.push<CountAttributedTypeLoc>(Result);
+  CountAttributedTypeLoc NewTL = TLB.push<CountAttributedTypeLoc>(Result);
+  NewTL.setAttrRange(TL.getAttrRange());
   return Result;
 }
 
