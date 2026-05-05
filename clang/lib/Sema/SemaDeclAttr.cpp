@@ -6418,6 +6418,377 @@ static void handleXRayLogArgsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 /* TO_UPSTREAM(BoundsSafety) ON*/
 namespace {
 
+// Shared context used by the flat pre-checkers to track state while walking
+// nested pointer types.
+class LateBoundsAttrDiagContext {
+public:
+  Sema &S;
+  StringRef DiagName;
+  SourceLocation Loc;
+  unsigned Level;
+  bool AutoPtrAttributed = false;
+};
+
+// Pre-check for base class. Return true if and only if no diagnostics are
+// emitted here.
+//
+// Emits:
+// - err_bounds_safety_conflicting_count_bound_attributes
+// - err_bounds_safety_terminated_by_wrong_pointer_type
+static bool diagnoseDynamicBoundTypeShape(LateBoundsAttrDiagContext &Ctx,
+                                          QualType DeclTy) {
+  Sema &S = Ctx.S;
+  const Type *T = DeclTy.split().Ty;
+
+  // Desugar and descend.
+  if (const auto *PT = dyn_cast<ParenType>(T))
+    return diagnoseDynamicBoundTypeShape(Ctx, PT->getInnerType());
+  if (const auto *MQT = dyn_cast<MacroQualifiedType>(T))
+    return diagnoseDynamicBoundTypeShape(Ctx, MQT->desugar());
+  if (const auto *FPT = dyn_cast<FunctionProtoType>(T))
+    return diagnoseDynamicBoundTypeShape(Ctx, FPT->getReturnType());
+  if (const auto *FPT = dyn_cast<FunctionNoProtoType>(T))
+    return diagnoseDynamicBoundTypeShape(Ctx, FPT->getReturnType());
+  if (const auto *AT = dyn_cast<AttributedType>(T)) {
+    llvm::SaveAndRestore<bool> Local(Ctx.AutoPtrAttributed);
+    if (AT->getAttrKind() == attr::PtrAutoAttr)
+      Ctx.AutoPtrAttributed = true;
+    return diagnoseDynamicBoundTypeShape(Ctx, AT->getModifiedType());
+  }
+
+  if (const auto *VTT = dyn_cast<ValueTerminatedType>(T)) {
+    // A __terminated_by pointer cannot also carry a count or range attribute
+    // unless the terminator was auto-inferred via __ptrauto (see
+    // VisitValueTerminatedType in the visitor for the drop behavior).
+    if (Ctx.Level == 0 && !Ctx.AutoPtrAttributed) {
+      S.Diag(Ctx.Loc, diag::err_bounds_safety_terminated_by_wrong_pointer_type);
+      return false;
+    }
+    return diagnoseDynamicBoundTypeShape(Ctx, VTT->desugar());
+  }
+
+  // Use getAs to desugar typedefs, elaborated types, etc.
+  if (const auto *PT = T->getAs<PointerType>()) {
+    auto FAttr = PT->getPointerAttributes();
+    if (FAttr.hasUpperBound() && !Ctx.AutoPtrAttributed) {
+      S.Diag(Ctx.Loc,
+             diag::err_bounds_safety_conflicting_count_bound_attributes)
+          << Ctx.DiagName << (FAttr.hasLowerBound() ? 0 : 1);
+      return false;
+    }
+    if (Ctx.Level == 0)
+      return true;
+    --Ctx.Level;
+    llvm::SaveAndRestore<bool> Local(Ctx.AutoPtrAttributed, false);
+    return diagnoseDynamicBoundTypeShape(Ctx, PT->getPointeeType());
+  }
+
+  return true;
+}
+
+// Pre-check for counted_by family. Sets CountIntBytes = true for pointers
+// whose pointee has unknown size, and AllowRedecl = true when descending into
+// a function-prototype subwalk.
+//
+// Emits:
+// - err_attribute_pointers_only
+// - err_bounds_safety_atomic_unsupported_attribute
+// - err_bounds_safety_conflicting_pointer_attributes
+// - err_bounds_safety_conflicting_count_range_attributes
+// - err_bounds_safety_complete_array_with_count
+// - err_bounds_safety_sized_by_array
+// - err_multiple_coupled_decls_in_bounds_safety_dynamic_count
+// - err_bounds_safety_counted_by_without_size
+static bool diagnoseCountAttributedTypeShape(LateBoundsAttrDiagContext &Ctx,
+                                             QualType DeclTy,
+                                             bool &CountInBytes, bool OrNull,
+                                             bool AllowRedecl) {
+  Sema &S = Ctx.S;
+  const Type *T = DeclTy.split().Ty;
+
+  // Desugar and descend.
+  if (const auto *PT = dyn_cast<ParenType>(T))
+    return diagnoseCountAttributedTypeShape(Ctx, PT->getInnerType(),
+                                            CountInBytes, OrNull, AllowRedecl);
+  if (const auto *MQT = dyn_cast<MacroQualifiedType>(T))
+    return diagnoseCountAttributedTypeShape(Ctx, MQT->desugar(), CountInBytes,
+                                            OrNull, AllowRedecl);
+  // Function prototypes force AllowRedecl=true for the sub-walk.
+  if (const auto *FPT = dyn_cast<FunctionProtoType>(T))
+    return diagnoseCountAttributedTypeShape(Ctx, FPT->getReturnType(),
+                                            CountInBytes, OrNull,
+                                            /*AllowRedecl=*/true);
+  if (const auto *FPT = dyn_cast<FunctionNoProtoType>(T))
+    return diagnoseCountAttributedTypeShape(Ctx, FPT->getReturnType(),
+                                            CountInBytes, OrNull,
+                                            /*AllowRedecl=*/true);
+  if (const auto *AT = dyn_cast<AttributedType>(T)) {
+    llvm::SaveAndRestore<bool> Local(Ctx.AutoPtrAttributed);
+    if (AT->getAttrKind() == attr::PtrAutoAttr)
+      Ctx.AutoPtrAttributed = true;
+    return diagnoseCountAttributedTypeShape(Ctx, AT->getModifiedType(),
+                                            CountInBytes, OrNull, AllowRedecl);
+  }
+
+  // Base walker already handled the Level 0 __terminated_by check.
+  if (const auto *VTT = dyn_cast<ValueTerminatedType>(T))
+    return diagnoseCountAttributedTypeShape(Ctx, VTT->desugar(), CountInBytes,
+                                            OrNull, AllowRedecl);
+
+  // An AtomicType wrapping a pointer: emit the diagnostic but return true so
+  // the visitor still constructs the atomic type. Its shape prevents
+  // `ConstructBoundsSafetyPointerType::VisitAtomicTypeLoc` from re-emitting
+  // the same diagnostic.
+  if (const auto *ATy = dyn_cast<AtomicType>(T)) {
+    if (ATy->getValueType()->isPointerType()) {
+      unsigned DiagIndex = CountInBytes ? 3 : 2;
+      if (OrNull)
+        DiagIndex += 2;
+      S.Diag(Ctx.Loc, diag::err_bounds_safety_atomic_unsupported_attribute)
+          << DiagIndex;
+      return true;
+    }
+    // Atomic of non-pointer falls through to the leaf check below.
+  }
+
+  // At Level 0 we diagnose or pass through to the visitor's Profile compare
+  // (see TODO in DiagnoseConflictingType).
+  if (const auto *CAT = T->getAs<CountAttributedType>()) {
+    if (Ctx.Level == 0) {
+      if (!AllowRedecl) {
+        S.Diag(Ctx.Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
+            << /*pointer*/ CAT->isPointerType() << /*count*/ 2;
+        return false;
+      }
+      return true;
+    }
+    return diagnoseCountAttributedTypeShape(Ctx, CAT->desugar(), CountInBytes,
+                                            OrNull, AllowRedecl);
+  }
+
+  if (const auto *DRPT = T->getAs<DynamicRangePointerType>()) {
+    if (Ctx.Level == 0) {
+      S.Diag(Ctx.Loc,
+             diag::err_bounds_safety_conflicting_count_range_attributes);
+      return false;
+    }
+    return diagnoseCountAttributedTypeShape(Ctx, DRPT->desugar(), CountInBytes,
+                                            OrNull, AllowRedecl);
+  }
+
+  // Use getAsArrayType to desugar.
+  if (const auto *AT = S.Context.getAsArrayType(DeclTy)) {
+    if (Ctx.Level == 0) {
+      if (AT->hasAttr(attr::ArrayDecayDiscardsCountInParameters))
+        return diagnoseCountAttributedTypeShape(
+            Ctx, S.Context.getArrayDecayedType(QualType(AT, 0)), CountInBytes,
+            OrNull, AllowRedecl);
+      if (isa<IncompleteArrayType>(AT)) {
+        if (CountInBytes) {
+          S.Diag(Ctx.Loc, diag::err_bounds_safety_sized_by_array)
+              << Ctx.DiagName;
+          return false;
+        }
+        return true;
+      }
+      S.Diag(Ctx.Loc, diag::err_bounds_safety_complete_array_with_count);
+      return false;
+    }
+    --Ctx.Level;
+    llvm::SaveAndRestore<bool> Local(Ctx.AutoPtrAttributed, false);
+    bool InnerOK = diagnoseCountAttributedTypeShape(
+        Ctx, AT->getElementType(), CountInBytes, OrNull, AllowRedecl);
+    if (!InnerOK)
+      return false;
+    // Count attributes on the element of an array type are not supported yet
+    S.Diag(Ctx.Loc,
+           diag::err_multiple_coupled_decls_in_bounds_safety_dynamic_count);
+    return false;
+  }
+
+  // Check the pointee for counted_by-without-size.
+  //
+  // NOTE: We don't error for incomplete types that might be later completed
+  // (e.g. a struct forward declaration). Instead for those
+  // completable-incomplete types we delay checking until the type is used
+  // see `HasCountedByAttrOnIncompletePointee()`. This allows the counted_by
+  // attribute to be used on code that prefers to keep its pointees
+  // incomplete until they need to be used.
+  if (const auto *PT = T->getAs<PointerType>()) {
+    if (Ctx.Level == 0) {
+      if (!CountInBytes) {
+        QualType PointeeTy = QualType(PT, 0)->getPointeeType();
+        if (PointeeTy->isAlwaysIncompleteType() ||
+            PointeeTy->isFunctionType() || PointeeTy->isSizelessType() ||
+            PointeeTy->isStructureTypeWithFlexibleArrayMember()) {
+          // Use unspecified pointer attributes for diagnostic purposes.
+          QualType Unsp = S.Context.getBoundsSafetyPointerType(
+              QualType(PT, 0), BoundsSafetyPointerAttributes::unspecified());
+
+          auto PD = S.PDiag(diag::err_bounds_safety_counted_by_without_size);
+          PD << Unsp << Unsp->getPointeeType() << OrNull;
+          // Suggest `__sized_by` if the `__counted_by` macro was used.
+          // We intentionally don't suggest a fixit if the attribute is used
+          // directly (i.e. without the macro) because it is not expected that
+          // users will use it.
+          int SuggestFixIt = 0; // Default don't suggest __sized_by
+          if (Ctx.Loc.isMacroID()) {
+            // FIXME(dliew): Use `AL.MacroII` to get the name. Unfortunately
+            // `AL.MacroII` is not set so we can't simply check the macro name
+            // is what we expect. So instead we have the lexer tell us the
+            // contents of the token and check against that.
+            // rdar://100631458
+            auto MacroName =
+                Lexer::getImmediateMacroName(Ctx.Loc, S.SourceMgr, S.LangOpts);
+            if (MacroName == "__counted_by") {
+              SuggestFixIt = 1; // Emit text to suggest __sized_by
+              auto MacroLoc = S.SourceMgr.getExpansionLoc(Ctx.Loc);
+              PD << FixItHint::CreateReplacement(MacroLoc, "__sized_by");
+            } else if (MacroName == "__counted_by_or_null") {
+              SuggestFixIt = 1; // Emit text to suggest __sized_by_or_null
+              auto MacroLoc = S.SourceMgr.getExpansionLoc(Ctx.Loc);
+              PD << FixItHint::CreateReplacement(MacroLoc,
+                                                 "__sized_by_or_null");
+            }
+          }
+          PD << SuggestFixIt;
+          S.Diag(Ctx.Loc, PD);
+
+          // Recover by assuming a byte count.
+          CountInBytes = true;
+        }
+      }
+      return true;
+    }
+    --Ctx.Level;
+    llvm::SaveAndRestore<bool> Local(Ctx.AutoPtrAttributed, false);
+    return diagnoseCountAttributedTypeShape(Ctx, PT->getPointeeType(),
+                                            CountInBytes, OrNull, AllowRedecl);
+  }
+
+  // Fallback for pointers_only.
+  S.Diag(Ctx.Loc, diag::err_attribute_pointers_only) << Ctx.DiagName << 0;
+  return false;
+}
+
+// Pre-check for ended-by.
+//
+// Emits:
+// - err_attribute_pointers_only
+// - err_bounds_safety_atomic_unsupported_attribute
+// - err_bounds_safety_conflicting_count_range_attributes
+// - err_bounds_safety_conflicting_pointer_attributes
+static bool diagnoseDynamicRangePointerTypeShape(LateBoundsAttrDiagContext &Ctx,
+                                                 QualType DeclTy,
+                                                 bool AllowRedecl) {
+  Sema &S = Ctx.S;
+  const Type *T = DeclTy.split().Ty;
+
+  // Desugar and descend.
+  if (const auto *PT = dyn_cast<ParenType>(T))
+    return diagnoseDynamicRangePointerTypeShape(Ctx, PT->getInnerType(),
+                                                AllowRedecl);
+  if (const auto *MQT = dyn_cast<MacroQualifiedType>(T))
+    return diagnoseDynamicRangePointerTypeShape(Ctx, MQT->desugar(),
+                                                AllowRedecl);
+  if (const auto *FPT = dyn_cast<FunctionProtoType>(T))
+    return diagnoseDynamicRangePointerTypeShape(Ctx, FPT->getReturnType(),
+                                                AllowRedecl);
+  if (const auto *FPT = dyn_cast<FunctionNoProtoType>(T))
+    return diagnoseDynamicRangePointerTypeShape(Ctx, FPT->getReturnType(),
+                                                AllowRedecl);
+  if (const auto *AT = dyn_cast<AttributedType>(T)) {
+    llvm::SaveAndRestore<bool> Local(Ctx.AutoPtrAttributed);
+    if (AT->getAttrKind() == attr::PtrAutoAttr)
+      Ctx.AutoPtrAttributed = true;
+    return diagnoseDynamicRangePointerTypeShape(Ctx, AT->getModifiedType(),
+                                                AllowRedecl);
+  }
+
+  // Base walker already handled the Level 0 __terminated_by check.
+  if (const auto *VTT = dyn_cast<ValueTerminatedType>(T))
+    return diagnoseDynamicRangePointerTypeShape(Ctx, VTT->desugar(),
+                                                AllowRedecl);
+
+  // Like the counted_by case, we emit the diagnostic but return true.
+  if (const auto *ATy = dyn_cast<AtomicType>(T)) {
+    if (ATy->getValueType()->isPointerType()) {
+      S.Diag(Ctx.Loc, diag::err_bounds_safety_atomic_unsupported_attribute)
+          << /*ended_by*/ 6;
+      return true;
+    }
+    // Atomic of non-pointer falls through to the leaf check below.
+  }
+
+  if (const auto *CAT = T->getAs<CountAttributedType>()) {
+    if (Ctx.Level == 0) {
+      S.Diag(Ctx.Loc,
+             diag::err_bounds_safety_conflicting_count_range_attributes);
+      return false;
+    }
+    return diagnoseDynamicRangePointerTypeShape(Ctx, CAT->desugar(),
+                                                AllowRedecl);
+  }
+
+  // At Level 0 we diagnose outright conflicts. The AllowRedecl or
+  // no-existing-end-pointer cases pass through to the visitor.
+  if (const auto *DRPT = T->getAs<DynamicRangePointerType>()) {
+    if (Ctx.Level == 0) {
+      if (AllowRedecl || DRPT->getEndPointer() == nullptr)
+        return true;
+      S.Diag(Ctx.Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
+          << /*pointer*/ 1 << /*end*/ 3;
+      return false;
+    }
+    return diagnoseDynamicRangePointerTypeShape(Ctx, DRPT->desugar(),
+                                                AllowRedecl);
+  }
+
+  // Nothing to diagnose here for __ended_by.
+  if (const auto *PT = T->getAs<PointerType>()) {
+    if (Ctx.Level == 0)
+      return true;
+    --Ctx.Level;
+    llvm::SaveAndRestore<bool> Local(Ctx.AutoPtrAttributed, false);
+    return diagnoseDynamicRangePointerTypeShape(Ctx, PT->getPointeeType(),
+                                                AllowRedecl);
+  }
+
+  // Fallback for pointers_only.
+  S.Diag(Ctx.Loc, diag::err_attribute_pointers_only) << Ctx.DiagName << 0;
+  return false;
+}
+
+// Post-construction helpers. Return true if a mismatch diagnostic was emitted.
+static bool diagnoseRedeclCountMismatch(Sema &S, SourceLocation Loc,
+                                        bool OldIsPointer,
+                                        const CountAttributedType *OldTy,
+                                        const CountAttributedType *NewTy) {
+  llvm::FoldingSetNodeID NewID, OldID;
+  if (const Expr *NewCnt = NewTy->getCountExpr())
+    NewCnt->Profile(NewID, S.Context, /*Canonical*/ true);
+  if (const Expr *OldCnt = OldTy->getCountExpr())
+    OldCnt->Profile(OldID, S.Context, /*Canonical*/ true);
+  if (NewID == OldID)
+    return false;
+  S.Diag(Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
+      << /*pointer*/ OldIsPointer << /*count*/ 2;
+  return true;
+}
+
+static bool diagnoseRedeclEndPtrMismatch(Sema &S, SourceLocation Loc,
+                                         const Expr *OldEndPtr,
+                                         const Expr *NewEndPtr) {
+  llvm::FoldingSetNodeID NewID, OldID;
+  NewEndPtr->Profile(NewID, S.Context, /*Canonical*/ true);
+  OldEndPtr->Profile(OldID, S.Context, /*Canonical*/ true);
+  if (NewID == OldID)
+    return false;
+  S.Diag(Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
+      << /*pointer*/ 1 << /*end*/ 3;
+  return true;
+}
+
 template<typename Derived>
 class ConstructDynamicBoundType
     : public TypeVisitor<Derived, QualType> {
@@ -6463,7 +6834,7 @@ public:
   QualType VisitType(const Type *T) {
     if (const auto *PTy = T->getAs<PointerType>())
       return VisitPointerType(PTy);
-    S.Diag(Loc, diag::err_attribute_pointers_only) << DiagName << 0;
+    assert(false && "pre-check should have rejected non-pointer leaf type");
     return QualType();
   }
 
@@ -6498,8 +6869,7 @@ public:
     BoundsSafetyPointerAttributes FAttr = T->getPointerAttributes();
 
     if (FAttr.hasUpperBound() && !AutoPtrAttributed) {
-      S.Diag(Loc, diag::err_bounds_safety_conflicting_count_bound_attributes)
-          << DiagName << (FAttr.hasLowerBound() ? 0 : 1);
+      assert(false && "pre-check should have rejected conflicting count+bound");
       return QualType();
     }
 
@@ -6594,7 +6964,8 @@ public:
 
   QualType VisitValueTerminatedType(const ValueTerminatedType *T) {
     if (Level == 0 && !AutoPtrAttributed) {
-      S.Diag(Loc, diag::err_bounds_safety_terminated_by_wrong_pointer_type);
+      assert(false &&
+             "pre-check should have rejected terminated_by on wrong pointer");
       return QualType();
     }
     QualType NewTy = Visit(T->desugar());
@@ -6620,64 +6991,18 @@ public:
       : ConstructDynamicBoundType(S, Level, DiagName, ArgE, Loc, ScopeCheck,
                                   AllowRedecl),
         CountInBytes(CountInBytes), OrNull(OrNull) {
-    if (!ArgExpr->getType()->isIntegralOrEnumerationType()) {
-      S.Diag(Loc, diag::err_attribute_argument_type_for_bounds_safety_count)
-          << DiagName;
-      // Recover by using the integer literal 0 as the count. If we get to
-      // DefaultLvalueConversion and the count is itself a __counted_by value,
-      // clang will go down a fiery stack overflow.
-      ArgExpr = S.ActOnIntegerConstant(ArgExpr->getBeginLoc(), 0).get();
-    }
+    assert(ArgExpr->getType()->isIntegralOrEnumerationType() &&
+           "pre-check should have rewritten non-integral count to literal 0");
   }
 
   QualType BuildDynamicBoundType(QualType CanonTy) {
-    if (!CountInBytes && CanonTy->isPointerType()) {
-      auto PointeeTy = CanonTy->getPointeeType();
-      // NOTE: We don't error for incomplete types that might be later completed
-      // (e.g. a struct forward declaration). Instead for those
-      // completable-incomplete types we delay checking until the type is used
-      // see `HasCountedByAttrOnIncompletePointee()`. This allows the counted_by
-      // attribute to be used on code that prefers to keep its pointees
-      // incomplete until they need to be used.
-      if (PointeeTy->isAlwaysIncompleteType() || PointeeTy->isFunctionType() ||
-          PointeeTy->isSizelessType() ||
-          PointeeTy->isStructureTypeWithFlexibleArrayMember()) {
-        // Use unspecified pointer attributes for diagnostic purposes.
-        QualType Unsp = S.Context.getBoundsSafetyPointerType(
-            CanonTy, BoundsSafetyPointerAttributes::unspecified());
-
-        auto PD = S.PDiag(diag::err_bounds_safety_counted_by_without_size);
-        PD << Unsp << Unsp->getPointeeType() << OrNull;
-        // Suggest `__sized_by` if the`__counted_by` macro was used.
-        // We intentionally don't suggest a fixit if the attribute is used
-        // directly (i.e. without the macro) because it is not expected that
-        // users will use it.
-        int SuggestFixIt = 0; // Default don't suggest __sized_by
-        if (Loc.isMacroID()) {
-          // FIXME(dliew): Use `AL.MacroII` to get the name. Unfortunately
-          // `AL.MacroII` is not set so we can't simply check the macro name is
-          // what we expect. So instead we have the lexer tell us the contents
-          // of the token and check against that.
-          // rdar://100631458
-          auto MacroName =
-              Lexer::getImmediateMacroName(Loc, S.SourceMgr, S.LangOpts);
-          if (MacroName == "__counted_by") {
-            SuggestFixIt = 1; // Emit text to suggest __sized_by
-            auto MacroLoc = S.SourceMgr.getExpansionLoc(Loc);
-            PD << FixItHint::CreateReplacement(MacroLoc, "__sized_by");
-          } else if (MacroName == "__counted_by_or_null") {
-            SuggestFixIt = 1; // Emit text to suggest __sized_by_or_null
-            auto MacroLoc = S.SourceMgr.getExpansionLoc(Loc);
-            PD << FixItHint::CreateReplacement(MacroLoc, "__sized_by_or_null");
-          }
-        }
-        PD << SuggestFixIt;
-        S.Diag(Loc, PD);
-
-        // Recover by assuming a byte count.
-        CountInBytes = true;
-      }
-    }
+    assert((CountInBytes || !CanonTy->isPointerType() ||
+            !(CanonTy->getPointeeType()->isAlwaysIncompleteType() ||
+              CanonTy->getPointeeType()->isFunctionType() ||
+              CanonTy->getPointeeType()->isSizelessType() ||
+              CanonTy->getPointeeType()
+                  ->isStructureTypeWithFlexibleArrayMember())) &&
+           "pre-check should have flipped CountInBytes for bad pointee");
     QualType Ty = S.BuildCountAttributedType(CanonTy, ArgExpr, CountInBytes,
                                              OrNull, ScopeCheck);
     assert(ConstructedType == nullptr);
@@ -6686,27 +7011,21 @@ public:
   }
 
   QualType DiagnoseConflictingType(const CountAttributedType *T) {
-    if (AllowRedecl) {
-      QualType NewTy = BuildDynamicBoundType(T->desugar());
-      const auto *NewDCPTy = NewTy->getAs<CountAttributedType>();
-      // We don't have a way to distinguish if '__counted_by' is conflicting or has been
-      // actually inherited from function declaration. Thus, we are now permitting
-      // redundant '__counted_by' as long as the resulting count expressions are equivalent
-      // and picking up the later one.
-      llvm::FoldingSetNodeID NewID;
-      llvm::FoldingSetNodeID OldID;
-      if (const auto *NewCnt = NewDCPTy->getCountExpr())
-        NewCnt->Profile(NewID, S.Context, /*Canonical*/ true);
-      if (const auto *OldCnt = T->getCountExpr())
-        OldCnt->Profile(OldID, S.Context, /*Canonical*/ true);
-
-      if (NewID == OldID)
-        return NewTy;
-    }
-
-    S.Diag(Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
-        << /* pointer */ T->isPointerType() << /* count */ 2;
-    return QualType();
+    assert(AllowRedecl &&
+           "pre-check should have rejected !AllowRedecl count conflict");
+    QualType NewTy = BuildDynamicBoundType(T->desugar());
+    const auto *NewDCPTy = NewTy->getAs<CountAttributedType>();
+    // We don't have a way to distinguish if '__counted_by' is conflicting or
+    // has been actually inherited from function declaration. Thus, we are now
+    // permitting redundant '__counted_by' as long as the resulting count
+    // expressions are equivalent and picking up the later one.
+    //
+    // TODO: this call is still in the visitor because it depends on
+    // BuildDynamicBoundType having already run, which constructs the
+    // attribute's new type.
+    if (diagnoseRedeclCountMismatch(S, Loc, T->isPointerType(), T, NewDCPTy))
+      return QualType();
+    return NewTy;
   }
 
   QualType VisitFunctionProtoType(const FunctionProtoType *FPT) {
@@ -6720,18 +7039,18 @@ public:
   }
 
   QualType DiagnoseConflictingType(const DynamicRangePointerType *T) {
-    S.Diag(Loc, diag::err_bounds_safety_conflicting_count_range_attributes);
+    assert(false &&
+           "pre-check should have rejected count+range attribute conflict");
     return QualType();
   }
 
   QualType VisitArrayType(const ArrayType *T) {
     if (Level == 0) {
-      if (T->hasAttr(attr::ArrayDecayDiscardsCountInParameters)) {
+      if (T->hasAttr(attr::ArrayDecayDiscardsCountInParameters))
         return Visit(S.Context.getArrayDecayedType(QualType(T, 0)));
-      } else {
-        S.Diag(Loc, diag::err_bounds_safety_complete_array_with_count);
-        return QualType();
-      }
+      assert(false &&
+             "pre-check should have rejected Level-0 sized array with count");
+      return QualType();
     }
     return TraverseArrayType(T);
   }
@@ -6743,23 +7062,15 @@ public:
     if (NewElementTy.isNull())
       return QualType();
 
-    if (T->getPointeeType() != NewElementTy) {
-      // Count attributes on the element of an array type are not supported yet
-      S.Diag(Loc,
-             diag::err_multiple_coupled_decls_in_bounds_safety_dynamic_count);
-      return QualType();
-    }
-
+    assert(T->getPointeeType() == NewElementTy &&
+           "pre-check should have rejected count on array element");
     return QualType(T, 0);
   }
 
   QualType VisitIncompleteArrayType(const IncompleteArrayType *T) {
     if (Level == 0) {
-      if (CountInBytes) {
-        S.Diag(Loc, diag::err_bounds_safety_sized_by_array) << DiagName;
-        return QualType();
-      }
-
+      assert(!CountInBytes &&
+             "pre-check should have rejected sized_by on incomplete array");
       return BuildDynamicBoundType(QualType(T, 0));
     }
     return TraverseArrayType(T);
@@ -6768,15 +7079,10 @@ public:
   QualType VisitAtomicType(const AtomicType *T) {
     QualType ValTy = T->getValueType();
     if (ValTy->isPointerType()) {
-      if (!AtomicErrorEmitted) {
-        unsigned DiagIndex = CountInBytes ? 3 : 2;
-        if (OrNull)
-          DiagIndex += 2;
-        S.Diag(Loc, diag::err_bounds_safety_atomic_unsupported_attribute)
-            << DiagIndex;
-        AtomicErrorEmitted = true;
-      }
-      // Construct the atomic pointer anyway.
+      AtomicErrorEmitted = true;
+      // Construct the atomic pointer anyway so
+      // `ConstructBoundsSafetyPointerType::VisitAtomicTypeLoc` doesn't emit
+      // the diagnostic again.
       QualType NewValTy = Visit(ValTy);
       return S.Context.getAtomicType(NewValTy);
     }
@@ -6966,14 +7272,10 @@ public:
       assert(EndPtr);
       if (auto OldEndPtr = T->getEndPointer()) {
         assert(AllowRedecl);
-        llvm::FoldingSetNodeID NewID;
-        llvm::FoldingSetNodeID OldID;
-        EndPtr->Profile(NewID, S.Context, /*Canonical*/ true);
-        OldEndPtr->Profile(OldID, S.Context, /*Canonical*/ true);
-
-        if (NewID != OldID) {
-          S.Diag(Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
-              << /* pointer */ 1 << /* end */ 3;
+        // TODO: this call is still in the visitor because it depends on the
+        // recursive Visit(T->desugar()) above having already run, which
+        // constructs the attribute's new type.
+        if (diagnoseRedeclEndPtrMismatch(S, Loc, OldEndPtr, EndPtr)) {
           ConstructedType = nullptr;
           return QualType();
         }
@@ -6991,25 +7293,23 @@ public:
   }
 
   QualType DiagnoseConflictingType(const CountAttributedType *T) {
-    S.Diag(Loc, diag::err_bounds_safety_conflicting_count_range_attributes);
+    assert(false &&
+           "pre-check should have rejected count+range attribute conflict");
     return QualType();
   }
 
   QualType DiagnoseConflictingType(const DynamicRangePointerType *T) {
-    S.Diag(Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
-        << /* pointer */ 1 << /* end */ 3;
+    assert(false && "pre-check should have rejected conflicting range-pointer");
     return QualType();
   }
 
   QualType VisitAtomicType(const AtomicType *T) {
     QualType ValTy = T->getValueType();
     if (ValTy->isPointerType()) {
-      if (!AtomicErrorEmitted) {
-        S.Diag(Loc, diag::err_bounds_safety_atomic_unsupported_attribute)
-            << /*ended_by*/ 6;
-        AtomicErrorEmitted = true;
-      }
-      // Construct the atomic pointer anyway.
+      AtomicErrorEmitted = true;
+      // Construct the atomic pointer anyway so
+      // `ConstructBoundsSafetyPointerType::VisitAtomicTypeLoc` doesn't emit
+      // the diagnostic again.
       QualType NewValTy = Visit(ValTy);
       return S.Context.getAtomicType(NewValTy);
     }
@@ -7722,6 +8022,19 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
       StartPtrInfo = TypeCoupledDeclRefInfo(Info.VD, /*Deref=*/Level != 0);
     }
 
+    LateBoundsAttrDiagContext DiagCtx{*this, DiagName, Loc, Level};
+    if (!diagnoseDynamicBoundTypeShape(DiagCtx, Info.DeclTy))
+      return;
+
+    // Reset Ctx.Level before the second walker call. The base walker decrements
+    // Ctx.Level when it descends through pointers and the range-specific walker
+    // needs to start from the original Level.
+    DiagCtx.Level = Level;
+    DiagCtx.AutoPtrAttributed = false;
+    if (!diagnoseDynamicRangePointerTypeShape(
+            DiagCtx, Info.DeclTy, /*AllowRedecl=*/OriginatesInAPINotes))
+      return;
+
     auto TypeConstructor = ConstructDynamicRangePointerType(
         *this, Level, DiagName, AttrArg, Loc, OriginatesInAPINotes,
         Info.ScopeCheck, StartPtrInfo);
@@ -7729,6 +8042,28 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
     HadAtomicError = TypeConstructor.hadAtomicError();
     ConstructedType = TypeConstructor.getConstructedType();
   } else {
+    LateBoundsAttrDiagContext DiagCtx{*this, DiagName, Loc, Level};
+    if (!diagnoseDynamicBoundTypeShape(DiagCtx, Info.DeclTy))
+      return;
+
+    if (!AttrArg->getType()->isIntegralOrEnumerationType()) {
+      Diag(Loc, diag::err_attribute_argument_type_for_bounds_safety_count)
+          << DiagName;
+      // Recover by using the integer literal 0 as the count. If we get to
+      // DefaultLvalueConversion and the count is itself a __counted_by value,
+      // clang will go down a fiery stack overflow.
+      AttrArg = ActOnIntegerConstant(AttrArg->getBeginLoc(), 0).get();
+    }
+
+    // Reset Ctx.Level before the second walker call for the same reasoning as
+    // above.
+    DiagCtx.Level = Level;
+    DiagCtx.AutoPtrAttributed = false;
+    if (!diagnoseCountAttributedTypeShape(DiagCtx, Info.DeclTy, CountInBytes,
+                                          OrNull,
+                                          /*AllowRedecl=*/OriginatesInAPINotes))
+      return;
+
     auto TypeConstructor = ConstructCountAttributedType(
         *this, Level, DiagName, AttrArg, Loc, CountInBytes, OrNull,
         OriginatesInAPINotes, Info.ScopeCheck);
