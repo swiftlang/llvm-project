@@ -80,6 +80,13 @@ inline const ParmVarDecl *getFunctionOrMethodParam(const Decl *D,
   return nullptr;
 }
 
+/* TO_UPSTREAM(BoundsSafety) ON */
+inline ParmVarDecl *getFunctionOrMethodParam(Decl *D, unsigned Idx) {
+  return const_cast<ParmVarDecl *>(
+      getFunctionOrMethodParam(const_cast<const Decl *>(D), Idx));
+}
+/* TO_UPSTREAM(BoundsSafety) OFF */
+
 inline QualType getFunctionOrMethodParamType(const Decl *D, unsigned Idx) {
   if (const FunctionType *FnTy = D->getFunctionType())
     return cast<FunctionProtoType>(FnTy)->getParamType(Idx);

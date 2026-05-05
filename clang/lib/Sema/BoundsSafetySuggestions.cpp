@@ -490,22 +490,6 @@ bool UnsafeOperationVisitor::FindSingleEntity(
       // Don't support indirect calls for now.
       return false;
     }
-    if (DirectCallDecl->hasAttr<AllocSizeAttr>() &&
-        IsReallySinglePtr(DirectCallDecl->getReturnType())) {
-      // Functions declared like
-      // void * custom_malloc(size_t s) __attribute__((alloc_size(1)))
-      //
-      // are currently are annotated as returning `void *__single` rather
-      // than `void *__sized_by(s)`. To make the right thing happen at call
-      // sites `BoundsSafetyPointerPromotionExpr` is used to generate a pointer
-      // with the appropriate bounds from the `void *__single`. For functions
-      // like this the warning needs to be suppressed because from the user's
-      // perspective the returned value is not actually __single.
-      //
-      // This code path can be deleted once allocating functions are properly
-      // annotated with __sized_by_or_null. rdar://117114186
-      return false;
-    }
 
     assert(IsReallySinglePtr(DirectCallDecl->getReturnType()));
 

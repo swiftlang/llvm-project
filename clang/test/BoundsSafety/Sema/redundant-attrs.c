@@ -41,21 +41,29 @@ char * __null_terminated __null_terminated ptrBoundBound5; // expected-warning{{
 
 int len = 0;
 int * __counted_by(len) __counted_by(len) ptrBoundBound6; // expected-error{{pointer cannot have more than one count attribute}}
+                                                          // expected-note@-1{{conflicting attributes were '__counted_by(len)' and '__counted_by(len)'}}
+                                                          // expected-note@-2{{previous attribute is here}}
 
 struct S1 {
     int size;
     int arrBoundBound[__counted_by(size) __counted_by(size)]; // expected-error{{array cannot have more than one count attribute}}
+                                                              // expected-note@-1{{conflicting attributes were '__counted_by(size)' and '__counted_by(size)'}}
+                                                              // expected-note@-2{{previous attribute is here}}
 };
 struct S2 {
     int size;
     int len;
     int arrBoundBound[__counted_by(size) __counted_by(len)]; // expected-error{{array cannot have more than one count attribute}}
+                                                             // expected-note@-1{{conflicting attributes were '__counted_by(size)' and '__counted_by(len)'}}
+                                                             // expected-note@-2{{previous attribute is here}}
 };
 
 #define intPtr2 int *
 intPtr2 __single __single ptrBoundBound7; // expected-warning{{pointer annotated with __single multiple times. Annotate only once to remove this warning}}
 intPtr2_header __single __single ptrBoundBound7_header; // expected-warning{{pointer annotated with __single multiple times. Annotate only once to remove this warning}}
 int * __counted_by(len) __counted_by(len) ptrBoundBound8; // expected-error{{pointer cannot have more than one count attribute}}
+                                                          // expected-note@-1{{conflicting attributes were '__counted_by(len)' and '__counted_by(len)'}}
+                                                          // expected-note@-2{{previous attribute is here}}
 
 bidiPtr __indexable ptrBoundBoundMismatch; // expected-error{{pointer cannot have more than one bound attribute}}
 bidiPtr2 __indexable ptrBoundBoundMismatch2; // expected-error{{pointer cannot have more than one bound attribute}}

@@ -40,7 +40,7 @@ int *__sized_by(len) byte_frob_body(int len) { return 0; }
 // CHECK-NEXT:| `-ParmVarDecl {{.*}} used len 'int'
 // CHECK-NEXT:|-FunctionDecl {{.*}} byte_frob 'int *__single __sized_by(len)(int)'
 // CHECK-NEXT:| `-ParmVarDecl {{.*}} used len 'int'
-// CHECK-NEXT:|-FunctionDecl {{.*}} alloc_bytes 'void *__single(int)'
+// CHECK-NEXT:|-FunctionDecl {{.*}} alloc_bytes 'void *__single __sized_by_or_null(byte_count)(int)'
 // CHECK-NEXT:| |-ParmVarDecl {{.*}} byte_count 'int'
 // CHECK-NEXT:| `-AllocSizeAttr {{.*}} 1
 // CHECK-NEXT:|-TypedefDecl {{.*}} referenced int_array_t '__array_decay_discards_count_in_parameters int[10]':'int[10]'

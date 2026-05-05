@@ -22,19 +22,19 @@ void Test(unsigned siz) {
 // CHECK: {{^}}        `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK: {{^}}          |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: {{^}}          | |-BoundsSafetyPointerPromotionExpr {{.+}} 'void *__bidi_indexable'
-// CHECK: {{^}}          | | |-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'void *'
+// CHECK: {{^}}          | | |-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'void *__single __sized_by_or_null(function-parameter-0-0)':'void *__single'
 // CHECK: {{^}}          | | |-ImplicitCastExpr {{.+}} 'void *' <BitCast>
 // CHECK: {{^}}          | | | `-BinaryOperator {{.+}} 'char *' '+'
 // CHECK: {{^}}          | | |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
-// CHECK: {{^}}          | | |   | `-OpaqueValueExpr [[ove]] {{.*}} 'void *'
+// CHECK: {{^}}          | | |   | `-OpaqueValueExpr [[ove]] {{.*}} 'void *__single __sized_by_or_null(function-parameter-0-0)':'void *__single'
 // CHECK: {{^}}          | | |   `-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'unsigned int'
 // CHECK: {{^}}          | |-OpaqueValueExpr [[ove_1]]
 // CHECK: {{^}}          | | `-ImplicitCastExpr {{.+}} 'unsigned int' <LValueToRValue>
 // CHECK: {{^}}          | |   `-DeclRefExpr {{.+}} [[var_siz]]
 // CHECK: {{^}}          | `-OpaqueValueExpr [[ove]]
 // CHECK: {{^}}          |   `-CallExpr
-// CHECK: {{^}}          |     |-ImplicitCastExpr {{.+}} 'void *(*__single)(unsigned int)' <FunctionToPointerDecay>
+// CHECK: {{^}}          |     |-ImplicitCastExpr {{.+}} 'void *__single __sized_by_or_null(function-parameter-0-0)(*__single)(unsigned int)' <FunctionToPointerDecay>
 // CHECK: {{^}}          |     | `-DeclRefExpr {{.+}} 'myalloc'
 // CHECK: {{^}}          |     `-OpaqueValueExpr [[ove_1]] {{.*}} 'unsigned int'
 // CHECK: {{^}}          |-OpaqueValueExpr [[ove_1]] {{.*}} 'unsigned int'
-// CHECK: {{^}}          `-OpaqueValueExpr [[ove]] {{.*}} 'void *'
+// CHECK: {{^}}          `-OpaqueValueExpr [[ove]] {{.*}} 'void *__single __sized_by_or_null(function-parameter-0-0)':'void *__single'

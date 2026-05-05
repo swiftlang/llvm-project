@@ -2870,6 +2870,10 @@ public:
       const CountAttributedType *CATTy, Expr *Operand,
       std::variant<bool, BinaryOperatorKind> OpInfo);
 
+  /// Emit fix-it updating BTy to have the same CountAttributedType kind as ATy.
+  void fixCountAttributedTypeKind(Sema::SemaDiagnosticBuilder &D,
+                                  const CountAttributedType *ATy,
+                                  const CountAttributedType *BTy);
 
   /// Used to record or retrieve if a VarDecl/FieldDecl has a BoundsSafety FixIt
   /// emitted on it. The primary use case for this is preventing emitting
@@ -5515,6 +5519,9 @@ public:
   MinSizeAttr *mergeMinSizeAttr(Decl *D, const AttributeCommonInfo &CI);
   OptimizeNoneAttr *mergeOptimizeNoneAttr(Decl *D,
                                           const AttributeCommonInfo &CI);
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  AllocSizeAttr *mergeAllocSizeAttr(NamedDecl *D, const AllocSizeAttr &ASA);
+  /* TO_UPSTREAM(BoundsSafety) OFF */
   InternalLinkageAttr *mergeInternalLinkageAttr(Decl *D, const ParsedAttr &AL);
   InternalLinkageAttr *mergeInternalLinkageAttr(Decl *D,
                                                 const InternalLinkageAttr &AL);
@@ -5617,6 +5624,12 @@ public:
   void checkUnusedDeclAttributes(Declarator &D);
 
   void DiagnoseUnknownAttribute(const ParsedAttr &AL);
+
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  QualType
+  PostProcessBoundsSafetyAllocSizeAttribute(FunctionDecl *EnclosingDecl,
+                                            QualType FTy);
+  /* TO_UPSTREAM(BoundsSafety) OFF */
 
   /// DeclClonePragmaWeak - clone existing decl (maybe definition),
   /// \#pragma weak needs a non-definition decl and source may not have one.

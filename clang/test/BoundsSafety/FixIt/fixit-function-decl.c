@@ -126,7 +126,7 @@ typeof(f18) f18;
 // CHECK: int *__counted_by(b) f19(int *__counted_by(b) a, int b);
 // CHECK: typeof(f19) f20;
 // CHECK: int *__counted_by(b) f20(int *__counted_by(b) a, int b);
-// expected-error@+3{{conflicting '__counted_by' attribute with the previous function declaration}}
+// expected-error@+3 2{{conflicting '__counted_by' attribute with the previous function declaration}}
 int *__counted_by(b) f19(int *__counted_by(b) a, int b);
 typeof(f19) f20;
 int *f20(int *a, int b);

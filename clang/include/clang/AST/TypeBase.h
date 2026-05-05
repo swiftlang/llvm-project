@@ -2694,6 +2694,7 @@ public:
   bool isBidiIndexablePointerType() const;
   bool isUnspecifiedPointerType() const;
   bool isSafePointerType() const;
+  bool isImplicitSafePointerType() const;
   /* TO_UPSTREAM(BoundsSafety) OFF */
   bool isSignableType(const ASTContext &Ctx) const;
   bool isSignablePointerType() const;
@@ -9157,6 +9158,16 @@ inline bool Type::isSafePointerType() const {
          (isSinglePointerType() || isBidiIndexablePointerType() ||
           isIndexablePointerType() || isBoundsAttributedType() ||
           isValueTerminatedType());
+}
+
+inline bool Type::isImplicitSafePointerType() const {
+  if (const auto *AT = this->getAs<AttributedType>()) {
+    if (AT->getAttrKind() == attr::PtrAutoAttr) {
+      return isSafePointerType();
+    }
+    return AT->getEquivalentType()->isImplicitSafePointerType();
+  }
+  return false;
 }
 
 inline bool Type::isPointerTypeWithBounds() const {
