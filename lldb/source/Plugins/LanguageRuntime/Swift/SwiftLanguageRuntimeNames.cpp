@@ -1005,10 +1005,7 @@ static bool ParseLocalDeclName(const swift::Demangle::NodePointer &node,
                                StreamString &identifier,
                                swift::Demangle::Node::Kind &parent_kind,
                                swift::Demangle::Node::Kind &kind) {
-  swift::Demangle::Node::iterator end = node->end();
-  for (swift::Demangle::Node::iterator pos = node->begin(); pos != end; ++pos) {
-    swift::Demangle::NodePointer child = *pos;
-
+  for (auto *child : *node) {
     swift::Demangle::Node::Kind child_kind = child->getKind();
     switch (child_kind) {
     case swift::Demangle::Node::Kind::Number:
@@ -1029,19 +1026,17 @@ static bool ParseFunction(const swift::Demangle::NodePointer &node,
                           StreamString &identifier,
                           swift::Demangle::Node::Kind &parent_kind,
                           swift::Demangle::Node::Kind &kind) {
-  swift::Demangle::Node::iterator end = node->end();
-  swift::Demangle::Node::iterator pos = node->begin();
-  // First child is the function's scope
-  parent_kind = (*pos)->getKind();
-  ++pos;
-  // Second child is either the type (no identifier)
-  if (pos != end) {
-    switch ((*pos)->getKind()) {
+  if (node->getNumChildren() >= 2) {
+    // First child is the function's scope
+    parent_kind = node->getChild(0)->getKind();
+    // Second child is either the type (no identifier)
+    auto *child2 = node->getChild(1);
+    switch (child2->getKind()) {
     case swift::Demangle::Node::Kind::Type:
       break;
 
     case swift::Demangle::Node::Kind::LocalDeclName:
-      if (ParseLocalDeclName(*pos, identifier, parent_kind, kind))
+      if (ParseLocalDeclName(child2, identifier, parent_kind, kind))
         return true;
       else
         return false;
@@ -1052,8 +1047,8 @@ static bool ParseFunction(const swift::Demangle::NodePointer &node,
     case swift::Demangle::Node::Kind::PostfixOperator:
     case swift::Demangle::Node::Kind::PrefixOperator:
     case swift::Demangle::Node::Kind::Identifier:
-      if ((*pos)->hasText())
-        identifier.PutCString((*pos)->getText());
+      if (child2->hasText())
+        identifier.PutCString(child2->getText());
       return true;
     }
   }
@@ -1064,9 +1059,7 @@ static bool ParseGlobal(const swift::Demangle::NodePointer &node,
                         StreamString &identifier,
                         swift::Demangle::Node::Kind &parent_kind,
                         swift::Demangle::Node::Kind &kind) {
-  swift::Demangle::Node::iterator end = node->end();
-  for (swift::Demangle::Node::iterator pos = node->begin(); pos != end; ++pos) {
-    swift::Demangle::NodePointer child = *pos;
+  for (auto *child : *node) {
     if (child) {
       kind = child->getKind();
       switch (child->getKind()) {
