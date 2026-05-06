@@ -14,8 +14,8 @@
 // RUN:   -x c %s -ccc-print-bindings 2>&1 |                    \
 // RUN:   FileCheck %s --check-prefix=CHECK-BINDINGS
 
-// CHECK-BINDINGS: # "x86_64-apple-macos11" - "clang"
-// CHECK-BINDINGS: # "x86_64-apple-macos11" - "clang"
+// CHECK-BINDINGS: # "x86_64-apple-macosx11.0.0" - "clang"
+// CHECK-BINDINGS: # "x86_64-apple-macosx11.0.0" - "clang"
 
 
 // RUN: %clang -target x86_64-apple-macos11 -fdepscan=daemon -c \
