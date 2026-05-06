@@ -226,6 +226,7 @@
 // CHECK-NEXT: TestTypestate (SubjectMatchRule_function_is_member)
 // CHECK-NEXT: TransparentStepping (SubjectMatchRule_function)
 // CHECK-NEXT: TrivialABI (SubjectMatchRule_record)
+// CHECK-NEXT: TypedMemory (SubjectMatchRule_function)
 // CHECK-NEXT: Uninitialized (SubjectMatchRule_variable_is_local)
 // CHECK-NEXT: UnsafeBufferUsage (SubjectMatchRule_function, SubjectMatchRule_field)
 // CHECK-NEXT: UnsafeLateConst (SubjectMatchRule_variable_is_global)
