@@ -17,7 +17,7 @@
 // CHECK: @"OBJC_CLASS_$_NSConstantIntegerNumber.ptrauth" = private constant { ptr, i32, i64, i64 } { ptr @"OBJC_CLASS_$_NSConstantIntegerNumber", i32 2, i64 ptrtoint (ptr @_unnamed_nsconstantintegernumber_ to i64), i64 27361 }, section "llvm.ptrauth"
 // CHECK: @_unnamed_nsconstantintegernumber_ = private constant %struct.__builtin_NSConstantIntegerNumber { ptr @"OBJC_CLASS_$_NSConstantIntegerNumber.ptrauth", ptr @.str, i64 42 }
 // CHECK: @"OBJC_CLASS_$_NSConstantFloatNumber.ptrauth" = private constant { ptr, i32, i64, i64 } { ptr @"OBJC_CLASS_$_NSConstantFloatNumber", i32 2, i64 ptrtoint (ptr @_unnamed_nsconstantfloatnumber_ to i64), i64 27361 }, section "llvm.ptrauth"
-// CHECK: @_unnamed_nsconstantfloatnumber_ = private constant %struct.__builtin_NSConstantFloatNumber { ptr @"OBJC_CLASS_$_NSConstantFloatNumber.ptrauth", float 0x40091EB860000000 }
+// CHECK: @_unnamed_nsconstantfloatnumber_ = private constant %struct.__builtin_NSConstantFloatNumber { ptr @"OBJC_CLASS_$_NSConstantFloatNumber.ptrauth", float 3.140000e+00 }
 // CHECK: @"OBJC_CLASS_$_NSConstantDoubleNumber.ptrauth" = private constant { ptr, i32, i64, i64 } { ptr @"OBJC_CLASS_$_NSConstantDoubleNumber", i32 2, i64 ptrtoint (ptr @_unnamed_nsconstantdoublenumber_ to i64), i64 27361 }, section "llvm.ptrauth"
 // CHECK: @_unnamed_nsconstantdoublenumber_ = private constant %struct.__builtin_NSConstantDoubleNumber { ptr @"OBJC_CLASS_$_NSConstantDoubleNumber.ptrauth", double 3.140000e+00 }
 // CHECK: @__CFConstantStringClassReference.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @__CFConstantStringClassReference, i32 2, i64 ptrtoint (ptr @_unnamed_cfstring_ to i64), i64 27361 }, section "llvm.ptrauth"
