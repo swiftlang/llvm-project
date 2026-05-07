@@ -1,5 +1,10 @@
 // REQUIRES: lld, target-windows
 
+// FIXME: This test isn't compiled with debug info, but linked with `-gdwarf`,
+// causing a PDB to be created on Windows, which only contains the public
+// symbols.
+// XFAIL: target-windows
+
 // Test that `target symbols add <pdb>` works.
 // RUN: %build --compiler=clang-cl --nodefaultlib --output=%t.exe %s
 // RUN: mv %t.pdb %t-renamed.pdb
