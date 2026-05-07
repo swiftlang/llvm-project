@@ -727,3 +727,12 @@ TEST_F(StreamTest, PutSLEB128) {
   EXPECT_EQ("0x6533", TakeValue());
   EXPECT_EQ(6U, bytes);
 }
+
+TEST_F(StreamTest, BoolOperator) {
+  s << true;
+  EXPECT_EQ("true", TakeValue());
+  s << false;
+  EXPECT_EQ("false", TakeValue());
+  s << "x=" << true << " y=" << false;
+  EXPECT_EQ("x=true y=false", TakeValue());
+}
