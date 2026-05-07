@@ -9,6 +9,7 @@ class TestSwiftExplicitModulePrivateTypeGeneric(lldbtest.TestBase):
 
     @swiftTest
     @skipIfWindows
+    @skip(bugnumber="rdar://176408891")
     def test(self):
         """Test frame variable of a generic struct specialized to a
         private type from another explicitly-built module."""
