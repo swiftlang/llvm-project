@@ -331,6 +331,15 @@ static TypeSourceInfo *getTSI(const Decl *D) {
 
 struct TypeLocFinder : public ConstStmtVisitor<TypeLocFinder, TypeLoc> {
   TypeLoc VisitParenExpr(const ParenExpr *E) { return Visit(E->getSubExpr()); }
+  TypeLoc VisitImplicitCastExpr(const ImplicitCastExpr *E) {
+    return Visit(E->getSubExpr());
+  }
+  TypeLoc VisitUnaryDeref(const UnaryOperator *E) {
+    return Visit(E->getSubExpr());
+  }
+  TypeLoc VisitArraySubscriptExpr(const ArraySubscriptExpr *E) {
+    return Visit(E->getBase());
+  }
 
   TypeLoc VisitDeclRefExpr(const DeclRefExpr *E) {
     if (TypeSourceInfo *TSI = getTSI(E->getDecl()))
@@ -361,162 +370,65 @@ struct TypeLocFinder : public ConstStmtVisitor<TypeLocFinder, TypeLoc> {
   }
 };
 
-/* TO_UPSTREAM(BoundsSafety) ON*/
-static SourceRange SourceRangeFor(const CountAttributedType *CATy, Sema &S) {
-  // Note: This implementation relies on `CountAttributedType` being unique.
-  // E.g.:
-  //
-  // struct Foo {
-  //   int count;
-  //   char* __counted_by(count) buffer;
-  //   char* __counted_by(count) buffer2;
-  // };
-  //
-  // The types of `buffer` and `buffer2` are unique. The types being
-  // unique means the SourceLocation of the `counted_by` expression can be used
-  // to find where the attribute was written.
-
-  auto Fallback = CATy->getCountExpr()->getSourceRange();
-  auto CountExprBegin = CATy->getCountExpr()->getBeginLoc();
-
-  // FIXME: We currently don't support the count expression being a macro
-  // itself. E.g.:
-  //
-  // #define ZERO 0
-  // int* __counted_by(ZERO) x;
-  //
-  if (S.SourceMgr.isMacroBodyExpansion(CountExprBegin))
-    return Fallback;
-
-  auto FetchIdentifierTokenFromOffset =
-      [&](ssize_t Offset) -> std::optional<Token> {
-    SourceLocation OffsetLoc = CountExprBegin.getLocWithOffset(Offset);
-    Token Result;
-    if (Lexer::getRawToken(OffsetLoc, Result, S.SourceMgr, S.getLangOpts()))
-      return std::optional<Token>(); // Failed
-
-    if (!Result.isAnyIdentifier())
-      return std::optional<Token>(); // Failed
-
-    return Result; // Success
-  };
-
-  auto CountExprEnd = CATy->getCountExpr()->getEndLoc();
-  auto FindRParenTokenAfter = [&]() -> std::optional<Token> {
-    auto CountExprEndSpelling = S.SourceMgr.getSpellingLoc(CountExprEnd);
-    auto MaybeRParenTok = Lexer::findNextToken(
-        CountExprEndSpelling, S.getSourceManager(), S.getLangOpts());
-
-    if (!MaybeRParenTok.has_value())
-      return std::nullopt;
-
-    if (!MaybeRParenTok->is(tok::r_paren))
-      return std::nullopt;
-
-    return *MaybeRParenTok;
-  };
-
-  // Step back two characters to point at the last character of the attribute
-  // text.
-  //
-  // __counted_by(count)
-  //            ^ ^
-  //            | |
-  //            ---
-  auto MaybeLastAttrCharToken = FetchIdentifierTokenFromOffset(-2);
-  if (!MaybeLastAttrCharToken)
-    return Fallback;
-
-  auto LastAttrCharToken = MaybeLastAttrCharToken.value();
-
-  if (LastAttrCharToken.getLength() > 1) {
-    // Special case: When the character is part of a macro the Token we get
-    // is the whole macro name (e.g. `__counted_by`).
-    if (LastAttrCharToken.getRawIdentifier() !=
-        CATy->getAttributeName(/*WithMacroPrefix=*/true))
-      return Fallback;
-
-    // Found the beginning of the `__counted_by` macro
-    SourceLocation Begin = LastAttrCharToken.getLocation();
-    // Now try to find the closing `)` of the macro.
-    auto MaybeRParenTok = FindRParenTokenAfter();
-    if (!MaybeRParenTok.has_value())
-      return Fallback;
-
-    return SourceRange(Begin, MaybeRParenTok->getLocation());
+static CountAttributedTypeLoc getCountAttributedTypeLoc(TypeLoc TL) {
+  while (!TL.isNull()) {
+    CountAttributedTypeLoc CATL = TL.getAs<CountAttributedTypeLoc>();
+    if (!CATL.isNull())
+      return CATL;
+    if (auto PTL = TL.getAs<PointerTypeLoc>()) {
+      TL = PTL.getPointeeLoc();
+    } else if (auto FTL = TL.getAs<FunctionTypeLoc>()) {
+      TL = FTL.getReturnLoc();
+    } else {
+      break;
+    }
   }
-
-  assert(LastAttrCharToken.getLength() == 1);
-  // The Token we got back is just the last character of the identifier.
-  // This means a macro is not being used and instead the attribute is being
-  // used directly. We need to find the beginning of the identifier. We support
-  // two cases:
-  //
-  // * Non-affixed version. E.g: `counted_by`
-  // * Affixed version. E.g.: `__counted_by__`
-
-  // Try non-affixed version. E.g.:
-  //
-  // __attribute__((counted_by(count)))
-  //                ^          ^
-  //                |          |
-  //                ------------
-
-  // +1 is for `(`
-  const ssize_t NonAffixedSkipCount =
-      CATy->getAttributeName(/*WithMacroPrefix=*/false).size() + 1;
-  auto MaybeNonAffixedBeginToken =
-      FetchIdentifierTokenFromOffset(-NonAffixedSkipCount);
-  if (!MaybeNonAffixedBeginToken)
-    return Fallback;
-
-  auto NonAffixedBeginToken = MaybeNonAffixedBeginToken.value();
-  if (NonAffixedBeginToken.getRawIdentifier() ==
-      CATy->getAttributeName(/*WithMacroPrefix=*/false)) {
-    // Found the beginning of the `counted_by`-like attribute
-    auto SL = NonAffixedBeginToken.getLocation();
-
-    // Now try to find the closing `)` of the attribute
-    auto MaybeRParenTok = FindRParenTokenAfter();
-    if (!MaybeRParenTok.has_value())
-      return Fallback;
-
-    return SourceRange(SL, MaybeRParenTok->getLocation());
-  }
-
-  // Try affixed version. E.g.:
-  //
-  // __attribute__((__counted_by__(count)))
-  //                ^              ^
-  //                |              |
-  //                ----------------
-  std::string AffixedTokenStr =
-      (llvm::Twine("__") + CATy->getAttributeName(/*WithMacroPrefix=*/false) +
-       llvm::Twine("__"))
-          .str();
-  // +1 is for `(`
-  // +4 is for the 4 `_` characters
-  const ssize_t AffixedSkipCount =
-      CATy->getAttributeName(/*WithMacroPrefix=*/false).size() + 1 + 4;
-  auto MaybeAffixedBeginToken =
-      FetchIdentifierTokenFromOffset(-AffixedSkipCount);
-  if (!MaybeAffixedBeginToken)
-    return Fallback;
-
-  auto AffixedBeginToken = MaybeAffixedBeginToken.value();
-  if (AffixedBeginToken.getRawIdentifier() != AffixedTokenStr)
-    return Fallback;
-
-  // Found the beginning of the `__counted_by__`-like like attribute.
-  auto SL = AffixedBeginToken.getLocation();
-  // Now try to find the closing `)` of the attribute
-  auto MaybeRParenTok = FindRParenTokenAfter();
-  if (!MaybeRParenTok.has_value())
-    return Fallback;
-
-  return SourceRange(SL, MaybeRParenTok->getLocation());
+  return {};
 }
-/* TO_UPSTREAM(BoundsSafety) OFF*/
+
+static SourceRange getAttrRangeFromTypeLoc(TypeLoc TL) {
+  CountAttributedTypeLoc CATL = getCountAttributedTypeLoc(TL);
+  if (!CATL.isNull())
+    return CATL.getAttrRange();
+  return {};
+}
+
+Sema::TypeLocSource Sema::TypeLocSource::fromAssignee(const ValueDecl *VD) {
+  if (auto *TSI = getTSI(VD))
+    return TypeLocSource(TSI->getTypeLoc());
+  return {};
+}
+
+Sema::TypeLocSource Sema::TypeLocSource::fromParameter(const CallExpr *Call,
+                                                       unsigned ParamIdx) {
+  TypeLoc CalleeTL = TypeLocFinder().Visit(Call->getCallee());
+  if (auto PTL = CalleeTL.getAs<PointerTypeLoc>())
+    CalleeTL = PTL.getPointeeLoc();
+  if (auto TDTL = CalleeTL.getAs<TypedefTypeLoc>())
+    if (auto *TSI = TDTL.getDecl()->getTypeSourceInfo())
+      CalleeTL = TSI->getTypeLoc();
+  if (auto FTL = CalleeTL.getAs<FunctionTypeLoc>())
+    if (ParamIdx < FTL.getNumParams())
+      return TypeLocSource::fromAssignee(FTL.getParam(ParamIdx));
+  return {};
+}
+
+Sema::TypeLocSource Sema::TypeLocSource::fromExpression(const Expr *E) {
+  if (E)
+    return TypeLocSource(TypeLocFinder().Visit(E));
+  return {};
+}
+
+Sema::TypeLocSource Sema::TypeLocSource::fromReturnType(const FunctionDecl *FD) {
+  if (FD) {
+    if (auto *TSI = FD->getTypeSourceInfo()) {
+      FunctionTypeLoc FTL = TSI->getTypeLoc().getAs<FunctionTypeLoc>();
+      if (!FTL.isNull())
+        return TypeLocSource(FTL.getReturnLoc());
+    }
+  }
+  return {};
+}
 
 static void EmitIncompleteCountedByPointeeNotes(Sema &S,
                                                 const CountAttributedType *CATy,
@@ -541,19 +453,11 @@ static void EmitIncompleteCountedByPointeeNotes(Sema &S,
         << CATy->getPointeeType();
   }
 
-  CountAttributedTypeLoc CATL;
-  if (!TL.isNull())
-    CATL = TL.getAs<CountAttributedTypeLoc>();
+  CountAttributedTypeLoc CATL = getCountAttributedTypeLoc(TL);
 
-  if (CATL.isNull()) {
-    /* TO_UPSTREAM(BoundsSafety) ON*/
-    SourceRange AttrSrcRange = SourceRangeFor(CATy, S);
-    S.Diag(AttrSrcRange.getBegin(),
-           diag::note_counted_by_consider_using_sized_by)
-        << CATy->isOrNull() << AttrSrcRange;
-    /* TO_UPSTREAM(BoundsSafety) OFF*/
+  if (CATL.isNull())
     return;
-  }
+
   SourceRange AttrSrcRange = CATL.getAttrNameRange(S.getASTContext());
 
   StringRef Spelling = CATL.getAttrNameAsWritten(S.getASTContext());
@@ -618,7 +522,8 @@ GetCountedByAttrOnIncompletePointee(QualType Ty, NamedDecl **ND) {
 static bool CheckAssignmentToCountAttrPtrWithIncompletePointeeTy(
     Sema &S, QualType LHSTy, Expr *RHSExpr, AssignmentAction Action,
     SourceLocation Loc, const ValueDecl *Assignee,
-    bool ShowFullyQualifiedAssigneeName) {
+    bool ShowFullyQualifiedAssigneeName,
+    Sema::TypeLocSource TLS) {
   NamedDecl *IncompleteTyDecl = nullptr;
   auto [CATy, PointeeTy] =
       GetCountedByAttrOnIncompletePointee(LHSTy, &IncompleteTyDecl);
@@ -640,9 +545,7 @@ static bool CheckAssignmentToCountAttrPtrWithIncompletePointeeTy(
       << CATy->getAttributeName(/*WithMacroPrefix=*/true) << PointeeTy
       << CATy->isOrNull() << RHSExpr->getSourceRange();
 
-  TypeLoc TL;
-  if (TypeSourceInfo *TSI = getTSI(Assignee))
-    TL = TSI->getTypeLoc();
+  TypeLoc TL = TLS.getTypeLoc();
 
   EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TL);
   return false; // check failed
@@ -650,10 +553,11 @@ static bool CheckAssignmentToCountAttrPtrWithIncompletePointeeTy(
 
 bool Sema::BoundsSafetyCheckAssignmentToCountAttrPtr(
     QualType LHSTy, Expr *RHSExpr, AssignmentAction Action, SourceLocation Loc,
-    const ValueDecl *Assignee, bool ShowFullyQualifiedAssigneeName) {
+    const ValueDecl *Assignee, bool ShowFullyQualifiedAssigneeName,
+    TypeLocSource TLS) {
   return CheckAssignmentToCountAttrPtrWithIncompletePointeeTy(
       *this, LHSTy, RHSExpr, Action, Loc, Assignee,
-      ShowFullyQualifiedAssigneeName);
+      ShowFullyQualifiedAssigneeName, TLS);
 }
 
 bool Sema::BoundsSafetyCheckInitialization(const InitializedEntity &Entity,
@@ -676,7 +580,9 @@ bool Sema::BoundsSafetyCheckInitialization(const InitializedEntity &Entity,
     if (!CheckAssignmentToCountAttrPtrWithIncompletePointeeTy(
             *this, LHSType, RHSExpr, Action, SL,
             dyn_cast_or_null<ValueDecl>(Entity.getDecl()),
-            /*ShowFullQualifiedAssigneeName=*/true)) {
+            /*ShowFullQualifiedAssigneeName=*/true,
+            TypeLocSource::fromAssignee(
+                dyn_cast_or_null<ValueDecl>(Entity.getDecl())))) {
       return false;
     }
   }
@@ -760,17 +666,22 @@ bool Sema::BoundsSafetyCheckResolvedCall(FunctionDecl *FDecl, CallExpr *Call,
       ParamTy = ProtoType->getParamType(ArgIdx);
     }
 
+    // Fetch typeloc directly from param if possible
+    TypeLocSource TLS = TypeLocSource::fromAssignee(ParamVarDecl);
+    if (!ParamVarDecl)
+      TLS = TypeLocSource::fromParameter(Call, ArgIdx);
+
     // Assigning to the parameter type is treated as a "use" of the type.
     if (!BoundsSafetyCheckAssignmentToCountAttrPtr(
             ParamTy, CallArg, AssignmentAction::Passing, CallArg->getBeginLoc(),
-            ParamVarDecl, /*ShowFullQualifiedAssigneeName=*/false))
+            ParamVarDecl, /*ShowFullQualifiedAssigneeName=*/false, TLS))
       ChecksPassed = false;
   }
   return ChecksPassed;
 }
 
 static bool BoundsSafetyCheckFunctionParamOrCountAttrWithIncompletePointeeTy(
-    Sema &S, QualType Ty, const ParmVarDecl *ParamDecl) {
+    Sema &S, QualType Ty, const ParmVarDecl *ParamDecl, Sema::TypeLocSource TLS) {
   NamedDecl *IncompleteTyDecl = nullptr;
   auto [CATy, PointeeTy] =
       GetCountedByAttrOnIncompletePointee(Ty, &IncompleteTyDecl);
@@ -781,17 +692,14 @@ static bool BoundsSafetyCheckFunctionParamOrCountAttrWithIncompletePointeeTy(
   if (ParamDecl)
     ParamName = ParamDecl->getName();
 
-  auto SR = SourceRangeFor(CATy, S);
+  auto TL = TLS.getTypeLoc();
+  SourceRange SR = getAttrRangeFromTypeLoc(TL);
+
   S.Diag(SR.getBegin(),
          diag::err_bounds_safety_counted_by_on_incomplete_type_on_func_def)
       << /*0*/ CATy->getAttributeName(/*WithMacroPrefix*/ true)
       << /*1*/ (ParamDecl ? 1 : 0) << /*2*/ (ParamName.size() > 0)
       << /*3*/ ParamName << /*4*/ Ty << /*5*/ PointeeTy << SR;
-
-  TypeLoc TL;
-  if (ParamDecl)
-    if (TypeSourceInfo *TSI = getTSI(ParamDecl))
-      TL = TSI->getTypeLoc();
 
   EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TL);
   return false;
@@ -802,7 +710,7 @@ bool Sema::BoundsSafetyCheckParamForFunctionDef(const ParmVarDecl *PVD) {
     return true;
 
   return BoundsSafetyCheckFunctionParamOrCountAttrWithIncompletePointeeTy(
-      *this, PVD->getType(), PVD);
+      *this, PVD->getType(), PVD, TypeLocSource::fromAssignee(PVD));
 }
 
 bool Sema::BoundsSafetyCheckReturnTyForFunctionDef(FunctionDecl *FD) {
@@ -810,7 +718,7 @@ bool Sema::BoundsSafetyCheckReturnTyForFunctionDef(FunctionDecl *FD) {
     return true;
 
   return BoundsSafetyCheckFunctionParamOrCountAttrWithIncompletePointeeTy(
-      *this, FD->getReturnType(), nullptr);
+      *this, FD->getReturnType(), nullptr, TypeLocSource::fromReturnType(FD));
 }
 
 static bool
@@ -822,7 +730,12 @@ BoundsSafetyCheckVarDeclCountAttrPtrWithIncompletePointeeTy(Sema &S,
   if (!CATy)
     return true;
 
-  SourceRange SR = SourceRangeFor(CATy, S);
+  TypeLoc TL;
+  if (TypeSourceInfo *TSI = getTSI(VD))
+    TL = TSI->getTypeLoc();
+
+  SourceRange SR = getAttrRangeFromTypeLoc(TL);
+
   S.Diag(SR.getBegin(),
          diag::err_bounds_safety_counted_by_on_incomplete_type_on_var_decl)
       << /*0*/ CATy->getAttributeName(/*WithMacroPrefix=*/true)
@@ -830,10 +743,6 @@ BoundsSafetyCheckVarDeclCountAttrPtrWithIncompletePointeeTy(Sema &S,
                 VarDecl::TentativeDefinition)
       << /*2*/ VD->getName() << /*3*/ VD->getType() << /*4*/ PointeeTy
       << /*5*/ CATy->isOrNull() << SR;
-
-  TypeLoc TL;
-  if (TypeSourceInfo *TSI = getTSI(VD))
-    TL = TSI->getTypeLoc();
 
   EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TL);
   return false;
