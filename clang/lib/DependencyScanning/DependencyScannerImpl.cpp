@@ -526,10 +526,10 @@ void dependencies::initializeScanCompilerInstance(
 std::shared_ptr<CompilerInvocation> dependencies::createScanCompilerInvocation(
     const CompilerInvocation &Invocation,
     const DependencyScanningService &Service,
-    DependencyActionController &Controller, bool DiagGenerationAsCompilation) {
+    DependencyActionController &Controller) {
   auto ScanInvocation = std::make_shared<CompilerInvocation>(Invocation);
 
-  if (!DiagGenerationAsCompilation)
+  if (!Service.getOpts().AsCompilation)
     sanitizeDiagOpts(ScanInvocation->getDiagnosticOpts());
 
   ScanInvocation->getPreprocessorOpts().AllowPCHWithDifferentModulesCachePath =
@@ -631,6 +631,14 @@ dependencies::initializeScanInstanceDependencyCollector(
     CompilerInvocation &Inv, DependencyActionController &Controller,
     PrebuiltModulesAttrsMap PrebuiltModulesASTMap,
     SmallVector<StringRef> &StableDirs) {
+  // FIXME: Find a way to implement this via a DependencyConsumer.
+  if (Service.getOpts().AsCompilation && !DepOutputOpts->OutputFile.empty()) {
+    auto DFG = std::make_shared<ReversePrefixMappingDependencyFileGenerator>(
+        *DepOutputOpts);
+    DFG->initialize(ScanInstance.getInvocation());
+    ScanInstance.addDependencyCollector(std::move(DFG));
+  }
+
   auto MDC = std::make_shared<ModuleDepCollector>(
       Service, std::move(DepOutputOpts), ScanInstance, Consumer, Controller,
       Inv, std::move(PrebuiltModulesASTMap), StableDirs);
@@ -858,8 +866,8 @@ bool DependencyScanningAction::runInvocation(
   Scanned = true;
 
   // Create a compiler instance to handle the actual work.
-  auto ScanInvocation = createScanCompilerInvocation(
-      *OriginalInvocation, Service, Controller, DiagGenerationAsCompilation);
+  auto ScanInvocation =
+      createScanCompilerInvocation(*OriginalInvocation, Service, Controller);
 
   // Quickly discovers and compiles modules for the real scan below.
   std::optional<AsyncModuleCompiles> AsyncCompiles;

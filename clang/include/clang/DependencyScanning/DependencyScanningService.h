@@ -118,6 +118,10 @@ struct DependencyScanningServiceOptions {
   bool FlushModuleCache = true;
   /// Whether the caching VFS should cache missing filesystem entries.
   bool CacheNegativeStats = shouldCacheNegativeStatsDefault();
+  /// Whether the scanner should mimic the behavior of the compilation itself.
+  /// This enables generation of dependency files, and emission of full
+  /// diagnostics.
+  bool AsCompilation = false;
 };
 
 /// The dependency scanning service contains shared configuration and state that

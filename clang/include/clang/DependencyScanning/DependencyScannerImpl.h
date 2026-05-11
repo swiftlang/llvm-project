@@ -33,12 +33,10 @@ public:
       DependencyScanningService &Service, StringRef WorkingDirectory,
       DependencyConsumer &Consumer, DependencyActionController &Controller,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
-      bool DiagGenerationAsCompilation,
       std::optional<StringRef> ModuleName = std::nullopt,
       raw_ostream *VerboseOS = nullptr)
       : Service(Service), WorkingDirectory(WorkingDirectory),
         Consumer(Consumer), Controller(Controller), DepFS(std::move(DepFS)),
-        DiagGenerationAsCompilation(DiagGenerationAsCompilation),
         VerboseOS(VerboseOS) {}
   bool runInvocation(std::string Executable,
                      std::shared_ptr<CompilerInvocation> Invocation,
@@ -54,7 +52,6 @@ private:
   DependencyConsumer &Consumer;
   DependencyActionController &Controller;
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
-  bool DiagGenerationAsCompilation;
   std::optional<StringRef> ModuleName;
   std::optional<CompilerInstance> ScanInstanceStorage;
   std::shared_ptr<ModuleDepCollector> MDC;
@@ -102,8 +99,7 @@ void canonicalizeDefines(PreprocessorOptions &PPOpts);
 std::shared_ptr<CompilerInvocation>
 createScanCompilerInvocation(const CompilerInvocation &Invocation,
                              const DependencyScanningService &Service,
-                             DependencyActionController &Controller,
-                             bool DiagGenerationAsCompilation);
+                             DependencyActionController &Controller);
 
 /// Creates dependency output options to be reported to the dependency consumer,
 /// deducing missing information if necessary.

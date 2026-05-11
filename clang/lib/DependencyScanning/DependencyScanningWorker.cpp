@@ -86,8 +86,7 @@ bool DependencyScanningWorker::computeDependencies(
   }
 
   DependencyScanningAction Action(Service, WorkingDirectory, DepConsumer,
-                                  Controller, DepFS,
-                                  /*DiagGenerationAsCompilation=*/false);
+                                  Controller, DepFS);
 
   const bool Success = llvm::all_of(CommandLines, [&](const auto &Cmd) {
     if (StringRef(Cmd[1]) != "-cc1") {
@@ -113,8 +112,7 @@ bool DependencyScanningWorker::computeDependencies(
 void DependencyScanningWorker::computeDependenciesFromCompilerInvocation(
     std::shared_ptr<CompilerInvocation> Invocation, StringRef WorkingDirectory,
     DependencyConsumer &DepsConsumer, DependencyActionController &Controller,
-    DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
-    bool DiagGenerationAsCompilation) {
+    DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS) {
   DepFS->setCurrentWorkingDirectory(WorkingDirectory);
 
   // Adjust the invocation.
@@ -137,11 +135,8 @@ void DependencyScanningWorker::computeDependenciesFromCompilerInvocation(
     DepFile = Path.str().str();
   }
 
-  // FIXME: EmitDependencyFile should only be set when it's for a real
-  // compilation.
   DependencyScanningAction Action(Service, WorkingDirectory, DepsConsumer,
                                   Controller, DepFS,
-                                  DiagGenerationAsCompilation,
                                   /*ModuleName=*/std::nullopt, VerboseOS);
 
   // Ignore result; we're just collecting dependencies.

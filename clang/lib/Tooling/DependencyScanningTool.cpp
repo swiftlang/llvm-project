@@ -296,14 +296,13 @@ Expected<cas::IncludeTreeRoot>
 DependencyScanningTool::getIncludeTreeFromCompilerInvocation(
     std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
     LookupModuleOutputCallback LookupModuleOutput,
-    DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
-    bool DiagGenerationAsCompilation) {
+    DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS) {
   GetIncludeTree Consumer(*getCAS());
   auto Controller = createIncludeTreeActionController(LookupModuleOutput,
                                                       getCASOpts(), *getCAS());
-  Worker.computeDependenciesFromCompilerInvocation(
-      std::move(Invocation), CWD, Consumer, *Controller, DiagsConsumer,
-      VerboseOS, DiagGenerationAsCompilation);
+  Worker.computeDependenciesFromCompilerInvocation(std::move(Invocation), CWD,
+                                                   Consumer, *Controller,
+                                                   DiagsConsumer, VerboseOS);
   return Consumer.getIncludeTree();
 }
 
@@ -605,15 +604,22 @@ Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(
   // failed, but warnings are ignored and deferred for the main compilation.
   ScanInvocation->getDiagnosticOpts().IgnoreWarnings = true;
 
-  LookupModuleOutputCallback Lookup;
+  // Make the output file path absolute relative to WorkingDirectory.
+  std::string &DepFile = ScanInvocation->getDependencyOutputOpts().OutputFile;
+  if (!DepFile.empty() && !llvm::sys::path::is_absolute(DepFile)) {
+    // FIXME: On Windows, WorkingDirectory is insufficient for making an
+    // absolute path if OutputFile has a root name.
+    llvm::SmallString<128> Path = StringRef(DepFile);
+    llvm::sys::path::make_absolute(WorkingDirectory, Path);
+    DepFile = Path.str().str();
+  }
 
   std::optional<llvm::cas::CASID> Root;
   if (Error E =
           Tool.getIncludeTreeFromCompilerInvocation(
                   std::move(ScanInvocation), WorkingDirectory,
-                  /*LookupModuleOutput=*/nullptr, DiagsConsumer, VerboseOS,
-                  /*DiagGenerationAsCompilation=*/true)
-                    .moveInto(Root))
+                  /*LookupModuleOutput=*/nullptr, DiagsConsumer, VerboseOS)
+              .moveInto(Root))
     return std::move(E);
 
   // Turn off dependency outputs. Should have already been emitted.
@@ -661,8 +667,7 @@ bool CompilerInstanceWithContext::initialize(
       makeInProcessModuleCache(Worker.Service.getModuleCacheEntries());
   CIPtr = std::make_unique<CompilerInstance>(
       createScanCompilerInvocation(*OriginalInvocation, Worker.Service,
-                                   Controller,
-                                   /*DiagGenerationAsCompilation=*/false),
+                                   Controller),
       Worker.PCHContainerOps, std::move(ModCache));
   auto &CI = *CIPtr;
 

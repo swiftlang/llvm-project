@@ -100,8 +100,7 @@ public:
   Expected<cas::IncludeTreeRoot> getIncludeTreeFromCompilerInvocation(
       std::shared_ptr<CompilerInvocation> Invocation, StringRef CWD,
       clang::dependencies::LookupModuleOutputCallback LookupModuleOutput,
-      DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS,
-      bool DiagGenerationAsCompilation);
+      DiagnosticConsumer &DiagsConsumer, raw_ostream *VerboseOS);
 
   /// Given a Clang driver command-line for a translation unit, gather the
   /// modular dependencies and return the information needed for explicit build.

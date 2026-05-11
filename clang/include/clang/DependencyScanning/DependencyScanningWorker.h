@@ -188,7 +188,7 @@ public:
       std::shared_ptr<CompilerInvocation> Invocation,
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
       DependencyActionController &Controller, DiagnosticConsumer &DiagsConsumer,
-      raw_ostream *VerboseOS, bool DiagGenerationAsCompilation);
+      raw_ostream *VerboseOS);
 
   DependencyScanningService &getService() const { return Service; }
 
