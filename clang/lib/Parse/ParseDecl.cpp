@@ -5045,7 +5045,9 @@ void Parser::ParseStructDeclaration(
 
 // TODO: All callers of this function should be moved to
 // `Parser::ParseLexedAttributeList`.
-void Parser::ParseLexedCAttributeList(LateParsedAttrList &LAs, bool EnterScope,
+void Parser::ParseLexedCAttributeList(LateParsedAttrList &LAs,
+                                      // TO_UPSTREAM(BoundsSafety)
+                                      bool EnterScope,
                                       ParsedAttributes *OutAttrs) {
   assert(LAs.parseSoon() &&
          "Attribute list should be marked for immediate parsing.");
@@ -5056,8 +5058,9 @@ void Parser::ParseLexedCAttributeList(LateParsedAttrList &LAs, bool EnterScope,
   LAs.clear();
 }
 
-void Parser::ParseLexedCAttribute(LateParsedAttribute &LA, bool EnterScope,
-                                  ParsedAttributes *OutAttrs) {
+ParsedAttributes Parser::ParseLexedCAttributeTokens(LateParsedAttribute &LA,
+                                                    // TO_UPSTREAM(BoundsSafety)
+                                                    bool EnterScope) {
   // Create a fake EOF so that attribute parsing won't go off the end of the
   // attribute.
   Token AttrEnd;
@@ -5075,9 +5078,6 @@ void Parser::ParseLexedCAttribute(LateParsedAttribute &LA, bool EnterScope,
   // Drop the current token and bring the first cached one. It's the same token
   // as when we entered this function.
   ConsumeAnyToken(/*ConsumeCodeCompletionTok=*/true);
-
-  // TODO: Use `EnterScope`
-  (void)EnterScope;
 
   ParsedAttributes Attrs(AttrFactory);
 
@@ -5113,6 +5113,7 @@ void Parser::ParseLexedCAttribute(LateParsedAttribute &LA, bool EnterScope,
     /* TO_UPSTREAM(BoundsSafety) OFF */
   }
 
+  /* TO_UPSTREAM(BoundsSafety) ON */
   if (LA.MacroII) {
     const auto &SM = PP.getSourceManager();
     CharSourceRange ExpansionRange = SM.getExpansionRange(LA.AttrNameLoc);
@@ -5120,8 +5121,7 @@ void Parser::ParseLexedCAttribute(LateParsedAttribute &LA, bool EnterScope,
       Attrs[i].setMacroIdentifier(LA.MacroII, ExpansionRange.getBegin(),
                                   SM.isInSystemMacro(LA.AttrNameLoc));
   }
-  for (auto *D : LA.Decls)
-    Actions.ActOnFinishDelayedAttribute(getCurScope(), D, Attrs);
+  /* TO_UPSTREAM(BoundsSafety) OFF */
 
   // Due to a parsing error, we either went over the cached tokens or
   // there are still cached tokens left, so we skip the leftover tokens.
@@ -5132,9 +5132,46 @@ void Parser::ParseLexedCAttribute(LateParsedAttribute &LA, bool EnterScope,
   if (Tok.is(tok::eof) && Tok.getEofData() == AttrEnd.getEofData())
     ConsumeAnyToken();
 
-  if (OutAttrs) {
+  return Attrs;
+}
+
+void Parser::ParseLexedCAttribute(LateParsedAttribute &LA,
+                                  // TO_UPSTREAM(BoundsSafety)
+                                  bool EnterScope,
+                                  ParsedAttributes *OutAttrs) {
+  ParsedAttributes Attrs = ParseLexedCAttributeTokens(LA, EnterScope);
+
+  for (Decl *D : LA.Decls)
+    Actions.ActOnFinishDelayedAttribute(getCurScope(), D, Attrs);
+
+  if (OutAttrs)
     OutAttrs->takeAllAppendingFrom(Attrs);
-  }
+}
+
+void Parser::ParseLexedTypeAttribute(LateParsedTypeAttribute &LA,
+                                     // TO_UPSTREAM(BoundsSafety)
+                                     bool EnterScope,
+                                     ParsedAttributes &OutAttrs) {
+  ParsedAttributes Attrs = ParseLexedCAttributeTokens(LA, EnterScope);
+  OutAttrs.takeAllAppendingFrom(Attrs);
+}
+
+void LateParsedTypeAttribute::ParseInto(ParsedAttributes &OutAttrs) {
+  // Delegate to the Parser that created this attribute
+  Self->ParseLexedTypeAttribute(*this, /*EnterScope*/false, OutAttrs);
+}
+
+void Parser::TakeTypeAttrsAppendingFrom(LateParsedAttrList &To,
+                                        LateParsedAttrList &From) {
+  LateParsedAttrList::iterator It =
+      llvm::remove_if(From, [&](LateParsedAttribute *LA) {
+        if (isa<LateParsedTypeAttribute>(LA)) {
+          To.push_back(LA);
+          return true;
+        }
+        return false;
+      });
+  From.erase(It, From.end());
 }
 
 void Parser::ParseStructUnionBody(SourceLocation RecordLoc,

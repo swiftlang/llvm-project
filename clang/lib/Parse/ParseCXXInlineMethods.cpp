@@ -320,6 +320,8 @@ void LateParsedAttribute::ParseLexedAttributes() {
   Self->ParseLexedAttribute(*this, true, false);
 }
 
+void LateParsedTypeAttribute::ParseLexedAttributes() {}
+
 void Parser::LateParsedPragma::ParseLexedPragmas() {
   Self->ParseLexedPragma(*this);
 }
