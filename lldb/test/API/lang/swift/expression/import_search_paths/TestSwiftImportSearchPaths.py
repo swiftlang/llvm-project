@@ -28,10 +28,11 @@ class TestSwiftImportSearchPaths(lldbtest.TestBase):
                     + 'target.experimental.swift-discover-implicit-search-paths '
                     + flag)
         indirect_name = self.platformContext.getFullLibName("Indirect").split(".")[0]
-        indirect = f"hidden/{indirect_name}"
+        indirect_lib = f"hidden/{indirect_name}"
+
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
             self, 'break here', lldb.SBFileSpec('main.swift'),
-            extra_images=['Direct', self.getBuildArtifact(indirect)])
+            extra_images=['Direct', indirect_lib])
 
         types_log = self.getBuildArtifact("types.log")
         self.expect("log enable lldb types -f " + types_log)
