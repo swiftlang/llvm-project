@@ -39,7 +39,7 @@
 # CHECK-NEXT:  1      4     1.00                  U     autizb	x0
 # CHECK-NEXT:  1      4     1.00                  U     pacdzb	x0
 # CHECK-NEXT:  1      4     1.00                  U     autdzb	x0
-# CHECK-NEXT:  1      4     1.00                        xpaci	x0
+# CHECK-NEXT:  1      4     1.00                  U     xpaci	x0
 # CHECK-NEXT:  1      4     1.00                        xpacd	x0
 # CHECK-NEXT:  1      4     1.00                  U     xpaclri
 # CHECK-NEXT:  2      1     1.00                  U     braa	x0, x1
