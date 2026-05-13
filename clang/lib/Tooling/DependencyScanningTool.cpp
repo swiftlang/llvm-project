@@ -559,11 +559,13 @@ llvm::Expected<TranslationUnitDeps>
 CompilerInstanceWithContext::computeDependenciesByNameOrError(
     StringRef ModuleName, const llvm::DenseSet<ModuleID> &AlreadySeen,
     DependencyActionController &Controller) {
+  // FIXME: Make IncludeTreeActionController re-entrant and avoid cloning here.
+  auto ControllerClone = Controller.clone();
   FullDependencyConsumer Consumer(AlreadySeen);
   // We need to clear the DiagnosticOutput so that each by-name lookup
   // has a clean diagnostics buffer.
   DiagPrinterWithOS->DiagnosticOutput.clear();
-  if (computeDependencies(ModuleName, Consumer, Controller))
+  if (computeDependencies(ModuleName, Consumer, *ControllerClone))
     return Consumer.takeTranslationUnitDeps();
   return makeErrorFromDiagnosticsOS(*DiagPrinterWithOS);
 }

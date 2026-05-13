@@ -150,11 +150,11 @@ public:
       clang::dependencies::DependencyScanningWorker &Worker,
       clang::dependencies::LookupModuleOutputCallback LookupModuleOutput);
 
-private:
   std::unique_ptr<clang::dependencies::DependencyActionController>
   createActionController(
       clang::dependencies::LookupModuleOutputCallback LookupModuleOutput);
 
+private:
   dependencies::DependencyScanningWorker Worker;
 
   friend class CompilerInstanceWithContext;
