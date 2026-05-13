@@ -304,6 +304,7 @@ public:
     llvm::raw_string_ostream(wrapped) << "$s" << mangledName << 'D';
     swift::Demangle::Demangler dem;
     auto *node = dem.demangleSymbol(wrapped);
+    bool is_objc_name = false;
     if (!node) {
       // Try `mangledName` as plain ObjC class name. Ex: NSObject, NSView, etc.
       // Since this looking up an ObjC type, the default mangling falvor should
@@ -318,6 +319,7 @@ public:
         return nullptr;
       }
       wrapped = maybeMangled.result();
+      is_objc_name = true;
       LLDB_LOG(GetLog(LLDBLog::Types),
                "[LLDBTypeInfoProvider] using mangled ObjC class name: {0}",
                wrapped);
@@ -342,9 +344,32 @@ public:
     auto ts = swift_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
     if (!ts)
       return nullptr;
-    bool is_imported = true;
     CompilerType clang_type =
         m_runtime.LookupAnonymousClangType(mangled.AsCString());
+    // If this is an objc type consult the ObjC runtime first, as it should be
+    // cheaper than looking for the type in the module and work when the ObjC is
+    // compiled without debug info.
+    if (!clang_type && is_objc_name) {
+      if (auto *process = &m_runtime.GetProcess())
+        if (auto *objc_runtime = SwiftLanguageRuntime::GetObjCRuntime(*process))
+          if (DeclVendor *decl_vendor = objc_runtime->GetDeclVendor()) {
+            auto types = decl_vendor->FindTypes(ConstString(mangledName), 1);
+            if (!types.empty()) {
+              clang_type = types[0];
+              LLDB_LOGV(GetLog(LLDBLog::Types),
+                        "[LLDBTypeInfoProvider] using ObjC runtime decl vendor "
+                        "type for {0}",
+                        mangledName);
+            } else {
+              LLDB_LOG(
+                  GetLog(LLDBLog::Types),
+                  "[LLDBTypeInfoProvider] ObjC runtime failed to find type {0}",
+                  mangledName);
+            }
+          }
+    }
+
+    bool is_imported = true;
     if (!clang_type)
       is_imported =
           ts->IsImportedType(swift_type.GetOpaqueQualType(), &clang_type);

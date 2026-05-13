@@ -1,0 +1,4 @@
+module MyObjCBase {
+  header "MyObjCBase.h"
+  export *
+}
