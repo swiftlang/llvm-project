@@ -53,7 +53,8 @@ public:
 
     ClassDescriptorSP GetSuperclass() override;
 
-    ClassDescriptorSP GetMetaclass() const override;
+    std::unique_ptr<ObjCLanguageRuntime::ClassDescriptor>
+    GetMetaclass() const override;
 
     bool IsValid() override { return m_valid; }
 
