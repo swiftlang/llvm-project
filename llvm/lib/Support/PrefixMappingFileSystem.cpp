@@ -94,18 +94,6 @@ public:
     PREFIX_MAP_PATH(Path, MappedPath)
     return ProxyFileSystem::isLocal(MappedPath, Result);
   }
-
-protected:
-  void printImpl(raw_ostream &OS, PrintType Type,
-                 unsigned IndentLevel) const override {
-    printIndent(OS, IndentLevel);
-    OS << "PrefixMappingFileSystem\n";
-    if (Type == PrintType::Summary)
-      return;
-    getUnderlyingFS().print(
-        OS, Type == PrintType::Contents ? PrintType::Summary : Type,
-        IndentLevel + 1);
-  }
 };
 
 } // namespace
