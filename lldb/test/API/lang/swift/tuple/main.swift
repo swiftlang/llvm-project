@@ -15,6 +15,8 @@ struct HasTuple {
 
 func main() {
   let s = HasTuple()
+  let any_inlined_tuple: Any = (1, 2)
+  let any_boxed_tuple: Any = ("tuple", 42, [1, 2, 3])
   print("break here")
 }
 

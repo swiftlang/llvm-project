@@ -3088,7 +3088,8 @@ Value::ValueType SwiftLanguageRuntime::GetValueType(
     // for a protocol object where does the dynamic data live if the target
     // object is a struct? (for a class, it's easy)
     if (static_type_flags.AllSet(eTypeIsSwift | eTypeIsProtocol) &&
-        dynamic_type_flags.AnySet(eTypeIsStructUnion | eTypeIsEnumeration)) {
+        dynamic_type_flags.AnySet(eTypeIsStructUnion | eTypeIsEnumeration |
+                                  eTypeIsTuple)) {
       lldb::addr_t existential_address;
       bool use_local_buffer = false;
 

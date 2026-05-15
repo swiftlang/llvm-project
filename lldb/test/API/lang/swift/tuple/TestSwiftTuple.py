@@ -31,3 +31,28 @@ class TestSwiftTuple(TestBase):
 
         self.expect("expression s.tup.0", substrs=['123'])
         self.expect("expression s.tup.1()", substrs=['321'])
+
+        options = lldb.SBExpressionOptions()
+        options.SetFetchDynamicValue(lldb.eDynamicCanRunTarget)
+
+        # A tuple that fits in the 3-word inline buffer of an Any.
+        self.expect_expr("any_inlined_tuple", result_type="(Int, Int)",
+                         result_children=[
+                             ValueCheck(value="1"),
+                             ValueCheck(value="2"),
+                         ],
+                         options=options)
+        # A tuple too large/non-trivial to fit inline; the existential
+        # container points to a heap-boxed payload.
+        self.expect_expr("any_boxed_tuple",
+                         result_type="(String, Int, [Int])",
+                         result_children=[
+                             ValueCheck(summary='"tuple"'),
+                             ValueCheck(value="42"),
+                             ValueCheck(children=[
+                                 ValueCheck(value="1"),
+                                 ValueCheck(value="2"),
+                                 ValueCheck(value="3"),
+                             ]),
+                         ],
+                         options=options)
