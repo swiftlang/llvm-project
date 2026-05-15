@@ -6426,6 +6426,8 @@ public:
   StringRef DiagName;
   SourceLocation Loc;
   unsigned Level;
+  Expr *AttrArg;
+  bool ScopeCheck;
   bool AutoPtrAttributed = false;
 };
 
@@ -6499,6 +6501,7 @@ static bool diagnoseDynamicBoundTypeShape(LateBoundsAttrDiagContext &Ctx,
 // - err_bounds_safety_sized_by_array
 // - err_multiple_coupled_decls_in_bounds_safety_dynamic_count
 // - err_bounds_safety_counted_by_without_size
+// - err_bounds_safety_conflicting_pointer_attributes
 static bool diagnoseCountAttributedTypeShape(LateBoundsAttrDiagContext &Ctx,
                                              QualType DeclTy,
                                              bool &CountInBytes, bool OrNull,
@@ -6551,11 +6554,27 @@ static bool diagnoseCountAttributedTypeShape(LateBoundsAttrDiagContext &Ctx,
     // Atomic of non-pointer falls through to the leaf check below.
   }
 
-  // At Level 0 we diagnose or pass through to the visitor's Profile compare
-  // (see TODO in DiagnoseConflictingType).
+  // At Level 0 we either diagnose, or canonicalize and compare for
+  // AllowRedecl.
   if (const auto *CAT = T->getAs<CountAttributedType>()) {
     if (Ctx.Level == 0) {
       if (!AllowRedecl) {
+        S.Diag(Ctx.Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
+            << /*pointer*/ CAT->isPointerType() << /*count*/ 2;
+        return false;
+      }
+      // AllowRedecl: canonicalize the new count expression and compare against
+      // the existing one.
+      ExprResult CanonCount = S.CanonicalizeBoundsCountExpr(
+          Ctx.AttrArg, CountInBytes, OrNull, Ctx.ScopeCheck,
+          CAT->desugar()->isArrayType());
+      if (CanonCount.isInvalid())
+        return false;
+      llvm::FoldingSetNodeID NewID, OldID;
+      CanonCount.get()->Profile(NewID, S.Context, /*Canonical=*/true);
+      if (const Expr *OldCnt = CAT->getCountExpr())
+        OldCnt->Profile(OldID, S.Context, /*Canonical=*/true);
+      if (NewID != OldID) {
         S.Diag(Ctx.Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
             << /*pointer*/ CAT->isPointerType() << /*count*/ 2;
         return false;
@@ -6730,15 +6749,32 @@ static bool diagnoseDynamicRangePointerTypeShape(LateBoundsAttrDiagContext &Ctx,
                                                 AllowRedecl);
   }
 
-  // At Level 0 we diagnose outright conflicts. The AllowRedecl or
-  // no-existing-end-pointer cases pass through to the visitor.
+  // At Level 0 we diagnose outright conflicts, or canonicalize and compare
+  // for AllowRedecl.
   if (const auto *DRPT = T->getAs<DynamicRangePointerType>()) {
     if (Ctx.Level == 0) {
-      if (AllowRedecl || DRPT->getEndPointer() == nullptr)
+      if (DRPT->getEndPointer() == nullptr)
         return true;
-      S.Diag(Ctx.Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
-          << /*pointer*/ 1 << /*end*/ 3;
-      return false;
+      if (!AllowRedecl) {
+        S.Diag(Ctx.Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
+            << /*pointer*/ 1 << /*end*/ 3;
+        return false;
+      }
+      // Canonicalize new end-pointer expression and compare against existing
+      // one
+      ExprResult CanonEnd =
+          S.CanonicalizeRangeEndPtrExpr(Ctx.AttrArg, Ctx.ScopeCheck);
+      if (CanonEnd.isInvalid())
+        return false;
+      llvm::FoldingSetNodeID NewID, OldID;
+      CanonEnd.get()->Profile(NewID, S.Context, /*Canonical=*/true);
+      DRPT->getEndPointer()->Profile(OldID, S.Context, /*Canonical=*/true);
+      if (NewID != OldID) {
+        S.Diag(Ctx.Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
+            << /*pointer*/ 1 << /*end*/ 3;
+        return false;
+      }
+      return true;
     }
     return diagnoseDynamicRangePointerTypeShape(Ctx, DRPT->desugar(),
                                                 AllowRedecl);
@@ -6757,36 +6793,6 @@ static bool diagnoseDynamicRangePointerTypeShape(LateBoundsAttrDiagContext &Ctx,
   // Fallback for pointers_only.
   S.Diag(Ctx.Loc, diag::err_attribute_pointers_only) << Ctx.DiagName << 0;
   return false;
-}
-
-// Post-construction helpers. Return true if a mismatch diagnostic was emitted.
-static bool diagnoseRedeclCountMismatch(Sema &S, SourceLocation Loc,
-                                        bool OldIsPointer,
-                                        const CountAttributedType *OldTy,
-                                        const CountAttributedType *NewTy) {
-  llvm::FoldingSetNodeID NewID, OldID;
-  if (const Expr *NewCnt = NewTy->getCountExpr())
-    NewCnt->Profile(NewID, S.Context, /*Canonical*/ true);
-  if (const Expr *OldCnt = OldTy->getCountExpr())
-    OldCnt->Profile(OldID, S.Context, /*Canonical*/ true);
-  if (NewID == OldID)
-    return false;
-  S.Diag(Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
-      << /*pointer*/ OldIsPointer << /*count*/ 2;
-  return true;
-}
-
-static bool diagnoseRedeclEndPtrMismatch(Sema &S, SourceLocation Loc,
-                                         const Expr *OldEndPtr,
-                                         const Expr *NewEndPtr) {
-  llvm::FoldingSetNodeID NewID, OldID;
-  NewEndPtr->Profile(NewID, S.Context, /*Canonical*/ true);
-  OldEndPtr->Profile(OldID, S.Context, /*Canonical*/ true);
-  if (NewID == OldID)
-    return false;
-  S.Diag(Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
-      << /*pointer*/ 1 << /*end*/ 3;
-  return true;
 }
 
 template<typename Derived>
@@ -7013,19 +7019,9 @@ public:
   QualType DiagnoseConflictingType(const CountAttributedType *T) {
     assert(AllowRedecl &&
            "pre-check should have rejected !AllowRedecl count conflict");
-    QualType NewTy = BuildDynamicBoundType(T->desugar());
-    const auto *NewDCPTy = NewTy->getAs<CountAttributedType>();
-    // We don't have a way to distinguish if '__counted_by' is conflicting or
-    // has been actually inherited from function declaration. Thus, we are now
-    // permitting redundant '__counted_by' as long as the resulting count
-    // expressions are equivalent and picking up the later one.
-    //
-    // TODO: this call is still in the visitor because it depends on
-    // BuildDynamicBoundType having already run, which constructs the
-    // attribute's new type.
-    if (diagnoseRedeclCountMismatch(S, Loc, T->isPointerType(), T, NewDCPTy))
-      return QualType();
-    return NewTy;
+    // Pre-check already verified the canonical count expressions match.
+    // Just build the new type.
+    return BuildDynamicBoundType(T->desugar());
   }
 
   QualType VisitFunctionProtoType(const FunctionProtoType *FPT) {
@@ -7270,15 +7266,10 @@ public:
       Expr *EndPtr = DRPT->getEndPointer();
       auto EndPtrDecls = DRPT->getEndPtrDecls();
       assert(EndPtr);
-      if (auto OldEndPtr = T->getEndPointer()) {
+      if (T->getEndPointer()) {
+        // Pre-check already verified the canonical end-pointer expressions
+        // match.
         assert(AllowRedecl);
-        // TODO: this call is still in the visitor because it depends on the
-        // recursive Visit(T->desugar()) above having already run, which
-        // constructs the attribute's new type.
-        if (diagnoseRedeclEndPtrMismatch(S, Loc, OldEndPtr, EndPtr)) {
-          ConstructedType = nullptr;
-          return QualType();
-        }
       }
 
       // ConstructType was already set while visiting the nested PointerType.
@@ -8022,7 +8013,8 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
       StartPtrInfo = TypeCoupledDeclRefInfo(Info.VD, /*Deref=*/Level != 0);
     }
 
-    LateBoundsAttrDiagContext DiagCtx{*this, DiagName, Loc, Level};
+    LateBoundsAttrDiagContext DiagCtx{*this, DiagName, Loc,
+                                      Level, AttrArg,  Info.ScopeCheck};
     if (!diagnoseDynamicBoundTypeShape(DiagCtx, Info.DeclTy))
       return;
 
@@ -8042,7 +8034,8 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
     HadAtomicError = TypeConstructor.hadAtomicError();
     ConstructedType = TypeConstructor.getConstructedType();
   } else {
-    LateBoundsAttrDiagContext DiagCtx{*this, DiagName, Loc, Level};
+    LateBoundsAttrDiagContext DiagCtx{*this, DiagName, Loc,
+                                      Level, AttrArg,  Info.ScopeCheck};
     if (!diagnoseDynamicBoundTypeShape(DiagCtx, Info.DeclTy))
       return;
 
@@ -8053,6 +8046,9 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
       // DefaultLvalueConversion and the count is itself a __counted_by value,
       // clang will go down a fiery stack overflow.
       AttrArg = ActOnIntegerConstant(AttrArg->getBeginLoc(), 0).get();
+
+      // Walker needs to see the rewritten version of AttrArg.
+      DiagCtx.AttrArg = AttrArg;
     }
 
     // Reset Ctx.Level before the second walker call for the same reasoning as

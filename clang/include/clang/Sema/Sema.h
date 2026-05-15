@@ -16120,6 +16120,17 @@ public:
 
   QualType BuildDynamicRangePointerType(QualType PointerTy, Expr *StartPtr,
                                         Expr *EndPtr, bool ScopeCheck = false);
+
+  /// Canonicalize a count expression the same way BuildCountAttributedType
+  /// does, without constructing the type. Used for redecl comparison.
+  ExprResult CanonicalizeBoundsCountExpr(Expr *CountExpr, bool CountInBytes,
+                                         bool OrNull, bool ScopeCheck,
+                                         bool IsArray);
+
+  /// Canonicalize a range (end-pointer) expression the same way
+  /// BuildDynamicRangePointerType does, without constructing the type or
+  /// mutating any declarations. Used for redecl comparison.
+  ExprResult CanonicalizeRangeEndPtrExpr(Expr *EndPtr, bool ScopeCheck);
   /* TO_UPSTREAM(BoundsSafety) OFF*/
 
   bool BuiltinIsBaseOf(SourceLocation RhsTLoc, QualType LhsT, QualType RhsT);

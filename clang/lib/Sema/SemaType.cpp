@@ -11449,6 +11449,23 @@ QualType Sema::BuildDynamicRangePointerType(QualType PointerTy, Expr *StartPtr,
 }
 /* TO_UPSTREAM(BoundsSafety) OFF */
 
+ExprResult Sema::CanonicalizeBoundsCountExpr(Expr *CountExpr, bool CountInBytes,
+                                             bool OrNull, bool ScopeCheck,
+                                             bool IsArray) {
+  llvm::SmallVector<TypeCoupledDeclRefInfo, 1> Decls;
+  ExprResult R =
+      CountArgChecker(*this, Decls, CountInBytes, OrNull, ScopeCheck, IsArray)
+          .TransformExpr(CountExpr);
+  if (R.isInvalid())
+    return ExprError();
+  return DefaultLvalueConversion(R.get());
+}
+
+ExprResult Sema::CanonicalizeRangeEndPtrExpr(Expr *EndPtr, bool ScopeCheck) {
+  RangeArgChecker RAC(*this, ScopeCheck);
+  return RAC.TransformExpr(EndPtr);
+}
+
 static void
 BuildTypeCoupledDecls(Expr *E,
                       llvm::SmallVectorImpl<TypeCoupledDeclRefInfo> &Decls) {
