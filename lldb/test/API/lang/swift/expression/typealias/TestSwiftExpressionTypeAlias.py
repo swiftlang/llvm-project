@@ -17,7 +17,5 @@ class TestSwiftExpressionTypeAlias(lldbtest.TestBase):
         # FIXME!
         self.expect('expr -d run -- local', substrs=['(Int, Int)'])
         process.Continue()
-        self.expect("frame var associated", substrs=['A'])
-        # FIXME!
-        self.expect("expr associated", error=True,
-                    substrs=['type for typename "$s1a1BV7MyAliasaD" was not found'])
+        self.expect("frame var associated", substrs=['Self as a.MyProtocolBase.MyAlias'])
+        self.expect("expr associated", substrs=['a.B as a.MyProtocolBase.MyAlias'])
