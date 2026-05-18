@@ -371,25 +371,19 @@ AggExprEmitter::WidePointerElemCallback AggExprEmitter::DefaultElemCallback =
 /// then loads the result into DestPtr.
 void AggExprEmitter::EmitAggLoadOfLValue(const Expr *E, bool Checked) {
   /*TO_UPSTREAM(BoundsSafety) ON*/
-  if (CGF.getLangOpts().hasNewBoundsSafetyCheck(
-          clang::LangOptionsBase::BS_CHK_ArraySubscriptAgg)) {
-    // TODO(dliew): Modifying `Checked` should probably be removed.
-    // Calling `EmitCheckedLValue` does two things:
-    //
-    // 1. If `E` is an ArraySubscriptExpr then emits bound checks if UBSan is
-    //    on or if the base pointer has bounds information
-    // 2. Calls `CodeGenFunction::EmitTypeCheck()` in some cases.
-    //
-    // (1.) is already handled by `AggExprEmitter::VisitArraySubscriptExpr()` so
-    // modifying `Checked` isn't need for that. However, (2.) adds UBSan type
-    // checks.
-    //
-    // We should audit this interaction with UBSan to see if its safe to remove
-    // setting `Checked`. (rdar://145257962).
-    Checked |= E->getType()->isPointerTypeWithBounds();
+  // Upstream unconditionally uses EmitCheckedLValue here so that UBSan
+  // null/alignment/array-bounds checks fire for aggregate copies. In
+  // -fbounds-safety mode, however, VisitArraySubscriptExpr already emits
+  // its own bound checks, so doing the same here would duplicate them;
+  // preserve the pre-PR-#190739 gating in that case.
+  if (CGF.getLangOpts().BoundsSafety) {
+    if (CGF.getLangOpts().hasNewBoundsSafetyCheck(
+            clang::LangOptionsBase::BS_CHK_ArraySubscriptAgg))
+      Checked |= E->getType()->isPointerTypeWithBounds();
+    else
+      Checked = E->getType()->isPointerTypeWithBounds();
   } else {
-    // Preserve old buggy behavior
-    Checked = E->getType()->isPointerTypeWithBounds();
+    Checked = true;
   }
   LValue LV = Checked ? CGF.EmitCheckedLValue(E, CodeGenFunction::TCK_Load)
                       : CGF.EmitLValue(E);
