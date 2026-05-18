@@ -190,14 +190,21 @@ __attribute__((availability(domain:feature1, UNAVAIL), availability(domain:featu
 __attribute__((availability(macosx,introduced=10), availability(domain:feature1, AVAIL))) void func19(void);
 
 int *g12 = &g0; // expected-error {{cannot use 'g0' because feature 'feature1' is unavailable in this context}}
+// expected-note@-1 {{annotate 'g12' with the 'feature1' domain availability attribute to silence this error}}
 int g7 = sizeof(g0); // expected-error {{cannot use 'g0' because feature 'feature1' is unavailable in this context}}
+// expected-note@-1 {{annotate 'g7' with the 'feature1' domain availability attribute to silence this error}}
 __attribute__((availability(domain:feature1, AVAIL))) int g6 = sizeof(g0);
 __attribute__((availability(domain:feature1, UNAVAIL))) int g8 = sizeof(g0); // expected-error {{cannot use 'g0' because feature 'feature1' is unavailable in this context}}
+// expected-note@-1 {{annotate 'g8' with the 'feature1' domain availability attribute to silence this error}}
 __attribute__((availability(domain:feature2, AVAIL))) int g9 = sizeof(g0); // expected-error {{cannot use 'g0' because feature 'feature1' is unavailable in this context}}
+// expected-note@-1 {{annotate 'g9' with the 'feature1' domain availability attribute to silence this error}}
 void (*fp0)(void) = func6; // expected-error {{cannot use 'func6' because feature 'feature1' is unavailable in this context}}
+// expected-note@-1 {{annotate 'fp0' with the 'feature1' domain availability attribute to silence this error}}
 void (* __attribute__((availability(domain:feature1, AVAIL))) fp1)(void) = func6;
 void (* __attribute__((availability(domain:feature1, UNAVAIL))) fp2)(void) = func6; // expected-error {{cannot use 'func6' because feature 'feature1' is unavailable in this context}}
+// expected-note@-1 {{annotate 'fp2' with the 'feature1' domain availability attribute to silence this error}}
 void (* __attribute__((availability(domain:feature2, AVAIL))) fp3)(void) = func6; // expected-error {{cannot use 'func6' because feature 'feature1' is unavailable in this context}}
+// expected-note@-1 {{annotate 'fp3' with the 'feature1' domain availability attribute to silence this error}}
 
 void func6(void);
 __attribute__((availability(domain:feature1, AVAIL))) void func6(void); // expected-note {{is incompatible with __attribute__((availability(domain:feature1, 0)))}}
@@ -212,7 +219,9 @@ __attribute__((availability(domain:feature1, AVAIL))) int g2;// redecl-error {{n
 typedef int INT0 __attribute__((availability(domain:feature2, AVAIL)));
 typedef INT0 INT1 __attribute__((availability(domain:feature2, AVAIL)));
 typedef INT0 INT2 __attribute__((availability(domain:feature2, UNAVAIL))); // expected-error {{cannot use 'INT0' because feature 'feature2' is unavailable in this context}}
+// expected-note@-1 {{annotate 'INT2' with the 'feature2' domain availability attribute to silence this error}}
 typedef INT0 INT3 __attribute__((availability(domain:feature1, AVAIL))); // expected-error {{cannot use 'INT0' because feature 'feature2' is unavailable in this context}}
+// expected-note@-1 {{annotate 'INT3' with the 'feature2' domain availability attribute to silence this error}}
 
 enum __attribute__((availability(domain:feature1, AVAIL))) E {
   EA,
@@ -229,10 +238,24 @@ struct __attribute__((availability(domain:feature1, AVAIL))) S1 {
 
 struct S2 {
   struct S0 s0; // expected-error {{cannot use 'S0' because feature 'feature1' is unavailable in this context}}
+  // expected-note@-1 {{annotate 'S2' with the 'feature1' domain availability attribute to silence this error}}
   int i0 __attribute__((availability(domain:feature1, AVAIL))); // expected-error {{feature attributes cannot be applied to struct members}}
 };
 
+struct __attribute__((availability(domain:feature1, AVAIL))) Outer {
+  struct Inner {
+    // In C, a nested struct's semantic DeclContext is the enclosing
+    // file/block scope, not the outer struct, so the walk up from Inner
+    // does not find Outer's feature attribute. It's unclear whether this
+    // should be diagnosed; -Wunguarded-availability shows the same
+    // behavior for platform availability.
+    struct S0 s0; // expected-error {{cannot use 'S0' because feature 'feature1' is unavailable in this context}}
+    // expected-note@-1 {{annotate 'Inner' with the 'feature1' domain availability attribute to silence this error}}
+  } m;
+};
+
 struct S0 g10; // expected-error {{cannot use 'S0' because feature 'feature1' is unavailable in this context}}
+// expected-note@-1 {{annotate 'g10' with the 'feature1' domain availability attribute to silence this error}}
 __attribute__((availability(domain:feature1, AVAIL))) struct S0 g11;
 
 void test0(void) {
@@ -353,6 +376,7 @@ void test3(void) {
 }
 
 void test4(struct S0 *s0) { // expected-error {{cannot use 'S0' because feature 'feature1' is unavailable in this context}}
+  // expected-note@-1 {{annotate 'test4' with the 'feature1' domain availability attribute to silence this error}}
   g11.i0 = 0; // expected-error {{cannot use 'g11' because feature 'feature1' is unavailable in this context}} expected-error {{cannot use 'i0' because feature 'feature1' is unavailable in this context}}
   // expected-note@-1 {{enclose 'g11' in a __builtin_available}}
   // expected-note@-2 {{enclose 'i0' in a __builtin_available}}

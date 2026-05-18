@@ -4307,6 +4307,8 @@ def note_feature_incompatible1 : Note<
 def note_silence_unguarded_availability_domain : Note<
   "enclose %0 in %select{an @available|a __builtin_available}1 check to silence "
   "this warning">;
+def note_silence_unguarded_availability_domain_decl : Note<
+  "annotate %0 with the '%1' domain availability attribute to silence this error">;
 
 def warn_unguarded_availability_unavailable :
   Warning<"%0 is unavailable">,

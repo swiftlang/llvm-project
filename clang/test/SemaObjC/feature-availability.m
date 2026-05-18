@@ -28,18 +28,27 @@ struct __attribute__((availability(domain:feature1, AVAIL))) S1 {};
 
 @interface C0 {
   struct S0 ivar0; // expected-error {{cannot use 'S0' because feature 'feature1' is available in this context}}
+                   // expected-note@-1 {{annotate 'ivar0' with the 'feature1' domain availability attribute to silence this error}}
   struct S1 ivar1; // enabled-error {{cannot use 'S1' because feature 'feature1' is unavailable in this context}}
+                   // enabled-note@-1 {{annotate 'ivar1' with the 'feature1' domain availability attribute to silence this error}}
   struct S1 ivar2 __attribute__((availability(domain:feature1, AVAIL)));
   struct S1 ivar3 __attribute__((availability(domain:feature1, UNAVAIL))); // enabled-error {{cannot use 'S1' because feature 'feature1' is unavailable in this context}}
+                                                                           // enabled-note@-1 {{annotate 'ivar3' with the 'feature1' domain availability attribute to silence this error}}
 }
 @property struct S0 prop0; // expected-error {{cannot use 'S0' because feature 'feature1' is available in this context}}
+                           // expected-note@-1 {{annotate 'prop0' with the 'feature1' domain availability attribute to silence this error}}
 @property struct S1 prop1; // enabled-error {{cannot use 'S1' because feature 'feature1' is unavailable in this context}}
+                           // enabled-note@-1 {{annotate 'prop1' with the 'feature1' domain availability attribute to silence this error}}
 @property struct S1 prop2 __attribute__((availability(domain:feature1, AVAIL)));
 @property struct S1 prop3 __attribute__((availability(domain:feature1, UNAVAIL))); // enabled-error {{cannot use 'S1' because feature 'feature1' is unavailable in this context}}
+                                                                                   // enabled-note@-1 {{annotate 'prop3' with the 'feature1' domain availability attribute to silence this error}}
 -(struct S0)m0; // expected-error {{cannot use 'S0' because feature 'feature1' is available in this context}}
+               // expected-note@-1 {{annotate 'm0' with the 'feature1' domain availability attribute to silence this error}}
 -(struct S1)m1; // enabled-error {{cannot use 'S1' because feature 'feature1' is unavailable in this context}}
+               // enabled-note@-1 {{annotate 'm1' with the 'feature1' domain availability attribute to silence this error}}
 -(struct S1)m2 __attribute__((availability(domain:feature1, AVAIL)));
 -(struct S1)m3 __attribute__((availability(domain:feature1, UNAVAIL))); // enabled-error {{cannot use 'S1' because feature 'feature1' is unavailable in this context}}
+                                                                        // enabled-note@-1 {{annotate 'm3' with the 'feature1' domain availability attribute to silence this error}}
 @end
 
 __attribute__((objc_root_class))
@@ -67,11 +76,13 @@ __attribute__((objc_root_class))
 __attribute__((availability(domain:feature1, AVAIL))) // expected-note 2 {{is incompatible with __attribute__((availability(domain:feature1, 0)))}}
 @interface Base0 {
   struct S0 ivar0; // expected-error {{cannot use 'S0' because feature 'feature1' is available in this context}}
+                   // expected-note@-1 {{annotate 'ivar0' with the 'feature1' domain availability attribute to silence this error}}
   struct S1 ivar1;
   struct S1 ivar2 __attribute__((availability(domain:feature1, AVAIL)));
   struct S1 ivar3 __attribute__((availability(domain:feature1, UNAVAIL))); // expected-error {{cannot merge incompatible feature attribute to this decl}} expected-note {{feature attribute __attribute__((availability(domain:feature1, 1)))}}
 }
 @property struct S0 prop0; // expected-error {{cannot use 'S0' because feature 'feature1' is available in this context}}
+                           // expected-note@-1 {{annotate 'prop0' with the 'feature1' domain availability attribute to silence this error}}
 @property struct S1 prop1;
 @property struct S1 prop2 __attribute__((availability(domain:feature1, AVAIL)));
 @property struct S1 prop3 __attribute__((availability(domain:feature1, UNAVAIL))); // expected-error {{cannot merge incompatible feature attribute to this decl}} expected-note {{feature attribute __attribute__((availability(domain:feature1, 1)))}}
@@ -147,6 +158,7 @@ __attribute__((availability(domain:feature1, UNAVAIL))) // expected-note {{featu
 
 @protocol P0
 @property struct S1 *p0; // enabled-error {{cannot use 'S1' because feature 'feature1' is unavailable in this context}}
+                         // enabled-note@-1 {{annotate 'p0' with the 'feature1' domain availability attribute to silence this error}}
 @end
 
 __attribute__((availability(domain:feature1, AVAIL)))
@@ -206,6 +218,7 @@ __attribute__((availability(domain:feature1, UNAVAIL)))
 @end
 
 void foo(id<P1>); // expected-error {{cannot use 'P1' because feature 'feature1' is available in this context}}
+                  // expected-note@-1 {{annotate 'foo' with the 'feature1' domain availability attribute to silence this error}}
 
 @interface Base8
 @property (copy) id x;

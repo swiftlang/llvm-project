@@ -19,23 +19,41 @@
 #include "clang/Sema/DelayedDiagnostic.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/Sema.h"
+#include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallSet.h"
 #include <utility>
 
 using namespace clang;
 using namespace sema;
 
-static bool isFeatureUseGuarded(const DomainAvailabilityAttr *AA,
-                                const Decl *ContextDecl, ASTContext &Ctx) {
+static bool isFeatureUseGuardedLocally(const DomainAvailabilityAttr *AA,
+                                       const Decl *ContextDecl) {
   for (auto *Attr : ContextDecl->specific_attrs<DomainAvailabilityAttr>())
     if (AA->getDomain() == Attr->getDomain())
       return AA->getUnavailable() == Attr->getUnavailable();
   return false;
 }
 
+static bool isFeatureUseGuarded(const DomainAvailabilityAttr *AA,
+                                const Decl *ContextDecl) {
+  while (ContextDecl) {
+    if (isFeatureUseGuardedLocally(AA, ContextDecl))
+      return true;
+    ContextDecl = dyn_cast_or_null<Decl>(ContextDecl->getDeclContext());
+  }
+  return false;
+}
+
 static void diagnoseDeclFeatureAvailability(const NamedDecl *D,
                                             SourceLocation Loc,
                                             Decl *ContextDecl, Sema &S) {
+  // For field type uses, the context is the FieldDecl. Walk up to the parent
+  // record so the "annotate" note names the record rather than the field.
+  // ObjCIvarDecl inherits from FieldDecl but its parent is an ObjC container,
+  // not a CXXRecordDecl, so skip it here.
+  if (auto *FD = dyn_cast<FieldDecl>(ContextDecl); FD && !isa<ObjCIvarDecl>(FD))
+    ContextDecl = cast<Decl>(FD->getParent());
+
   for (auto *Attr : D->specific_attrs<DomainAvailabilityAttr>()) {
     std::string FeatureUse = Attr->getDomain().str();
     // Skip checking if the feature is always enabled.
@@ -44,9 +62,13 @@ static void diagnoseDeclFeatureAvailability(const NamedDecl *D,
             FeatureAvailKind::AlwaysAvailable)
       continue;
 
-    if (!isFeatureUseGuarded(Attr, ContextDecl, S.Context))
+    if (!isFeatureUseGuarded(Attr, ContextDecl)) {
       S.Diag(Loc, diag::err_unguarded_feature)
           << D << FeatureUse << Attr->getUnavailable();
+      if (auto *ND = dyn_cast<NamedDecl>(ContextDecl))
+        S.Diag(Loc, diag::note_silence_unguarded_availability_domain_decl)
+            << ND << FeatureUse;
+    }
   }
 }
 
@@ -56,7 +78,6 @@ class DiagnoseUnguardedFeatureAvailability
   typedef RecursiveASTVisitor<DiagnoseUnguardedFeatureAvailability> Base;
 
   Sema &SemaRef;
-  const Decl *D;
 
   struct FeatureAvailInfo {
     StringRef Domain;
@@ -65,15 +86,31 @@ class DiagnoseUnguardedFeatureAvailability
 
   SmallVector<const Stmt *, 16> StmtStack;
   SmallVector<FeatureAvailInfo, 4> FeatureStack;
+  SmallVector<llvm::PointerUnion<const Decl *, const CompoundStmt *>, 4>
+      ContextStack;
+
+  struct ContextStackScope {
+    DiagnoseUnguardedFeatureAvailability *Visitor;
+    ContextStackScope(
+        DiagnoseUnguardedFeatureAvailability *V,
+        llvm::PointerUnion<const Decl *, const CompoundStmt *> Entry,
+        bool Active = true)
+        : Visitor(Active ? V : nullptr) {
+      if (Visitor)
+        Visitor->ContextStack.push_back(Entry);
+    }
+    ~ContextStackScope() {
+      if (Visitor)
+        Visitor->ContextStack.pop_back();
+    }
+  };
 
   bool isFeatureUseGuarded(const DomainAvailabilityAttr *Attr) const;
 
   bool isConditionallyGuardedByFeature() const;
 
 public:
-  DiagnoseUnguardedFeatureAvailability(Sema &SemaRef, const Decl *D,
-                                       Decl *Ctx = nullptr)
-      : SemaRef(SemaRef), D(D) {}
+  DiagnoseUnguardedFeatureAvailability(Sema &SemaRef) : SemaRef(SemaRef) {}
 
   void diagnoseDeclFeatureAvailability(const NamedDecl *D, SourceRange Range);
 
@@ -84,6 +121,11 @@ public:
     bool Result = Base::TraverseStmt(S);
     StmtStack.pop_back();
     return Result;
+  }
+
+  bool TraverseCompoundStmt(CompoundStmt *CS) {
+    ContextStackScope Scope(this, CS);
+    return Base::TraverseCompoundStmt(CS);
   }
 
   bool TraverseIfStmt(IfStmt *If);
@@ -116,11 +158,25 @@ public:
 
   bool VisitTypeLoc(TypeLoc Ty);
 
-  void IssueDiagnostics() {
+  bool TraverseDecl(Decl *D) {
+    if (!D)
+      return true;
+    bool PushContext =
+        isa<RecordDecl>(D) || isa<FunctionDecl>(D) ||
+        (isa<FieldDecl>(D) && cast<FieldDecl>(D)->hasInClassInitializer());
+    ContextStackScope Scope(this, D, PushContext);
+    return Base::TraverseDecl(D);
+  }
+
+  void IssueDiagnostics(const Decl *D) {
+    ContextStackScope Scope(this, D);
+
     if (auto *FD = dyn_cast<FunctionDecl>(D))
       TraverseStmt(FD->getBody());
     else if (auto *OMD = dyn_cast<ObjCMethodDecl>(D))
       TraverseStmt(OMD->getBody());
+    else if (auto *BD = dyn_cast<BlockDecl>(D))
+      TraverseStmt(BD->getBody());
   }
 };
 
@@ -184,7 +240,16 @@ bool DiagnoseUnguardedFeatureAvailability::isFeatureUseGuarded(
   for (auto &Info : FeatureStack)
     if (Info.Domain == Domain && Info.Unavailable == Attr->getUnavailable())
       return true;
-  return ::isFeatureUseGuarded(Attr, D, SemaRef.Context);
+  const Decl *CtxDecl = nullptr;
+  for (const auto &Entry : llvm::reverse(ContextStack))
+    if ((CtxDecl = dyn_cast<const Decl *>(Entry)))
+      if (::isFeatureUseGuardedLocally(Attr, CtxDecl))
+        return true;
+  if (CtxDecl)
+    return ::isFeatureUseGuarded(
+        Attr, dyn_cast_or_null<Decl>(CtxDecl->getDeclContext()));
+
+  return false;
 }
 
 /// Returns true if the given statement can be a body-like child of \p Parent.
@@ -259,6 +324,15 @@ void DiagnoseUnguardedFeatureAvailability::diagnoseDeclFeatureAvailability(
 
   if (Attrs.empty())
     return;
+
+  if (const auto *CtxDecl = dyn_cast<const Decl *>(ContextStack.back())) {
+    if (const auto *FD = dyn_cast<FieldDecl>(CtxDecl))
+      CtxDecl = FD->getParent();
+    for (const auto *A : Attrs)
+      SemaRef.Diag(Loc, diag::note_silence_unguarded_availability_domain_decl)
+          << cast<NamedDecl>(CtxDecl) << A->getDomain();
+    return;
+  }
 
   auto FixitDiag =
       SemaRef.Diag(Range.getBegin(),
@@ -362,9 +436,9 @@ void Sema::handleDelayedFeatureAvailabilityCheck(DelayedDiagnostic &DD,
 }
 
 void Sema::DiagnoseUnguardedFeatureAvailabilityViolations(Decl *D) {
-  assert((D->getAsFunction() || isa<ObjCMethodDecl>(D)) &&
-         "function or ObjC method decl expected");
-  DiagnoseUnguardedFeatureAvailability(*this, D).IssueDiagnostics();
+  assert((D->getAsFunction() || isa<ObjCMethodDecl>(D) || isa<BlockDecl>(D)) &&
+         "function, ObjC method, or block decl expected");
+  DiagnoseUnguardedFeatureAvailability(*this).IssueDiagnostics(D);
 }
 
 void Sema::DiagnoseFeatureAvailabilityOfDecl(NamedDecl *D,
@@ -372,8 +446,8 @@ void Sema::DiagnoseFeatureAvailabilityOfDecl(NamedDecl *D,
   if (!Context.hasFeatureAvailabilityAttr(D))
     return;
 
-  if (FunctionScopeInfo *Context = getCurFunctionAvailabilityContext()) {
-    Context->HasPotentialFeatureAvailabilityViolations = true;
+  if (FunctionScopeInfo *FSI = getCurFunctionAvailabilityContext()) {
+    FSI->HasPotentialFeatureAvailabilityViolations = true;
     return;
   }
 
