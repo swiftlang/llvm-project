@@ -8,6 +8,7 @@ class TestSwiftExpressionTypeAlias(lldbtest.TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
+    @skip(bugnumber='rdar://177472657')
     def test(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
