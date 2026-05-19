@@ -7042,11 +7042,9 @@ public:
 
   QualType VisitArrayType(const ArrayType *T) {
     if (Level == 0) {
-      if (T->hasAttr(attr::ArrayDecayDiscardsCountInParameters))
-        return Visit(S.Context.getArrayDecayedType(QualType(T, 0)));
-      assert(false &&
+      assert(T->hasAttr(attr::ArrayDecayDiscardsCountInParameters) &&
              "pre-check should have rejected Level-0 sized array with count");
-      return QualType();
+      return Visit(S.Context.getArrayDecayedType(QualType(T, 0)));
     }
     return TraverseArrayType(T);
   }
@@ -7266,11 +7264,7 @@ public:
       Expr *EndPtr = DRPT->getEndPointer();
       auto EndPtrDecls = DRPT->getEndPtrDecls();
       assert(EndPtr);
-      if (T->getEndPointer()) {
-        // Pre-check already verified the canonical end-pointer expressions
-        // match.
-        assert(AllowRedecl);
-      }
+      assert(!T->getEndPointer() || AllowRedecl);
 
       // ConstructType was already set while visiting the nested PointerType.
       // Reconstruct DRPT by merging started_by and ended_by.
