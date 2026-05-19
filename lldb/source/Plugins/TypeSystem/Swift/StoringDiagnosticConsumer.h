@@ -149,8 +149,14 @@ public:
       }
       return;
     }
-    // FXIME: This is a heuristic.
-    uint16_t len = info.Ranges.size() ? info.Ranges.front().getByteLength() : 0;
+
+    uint16_t len = 0;
+    for (const auto &R : info.Ranges) {
+      if (R.getStart() == source_loc) {
+        len = R.getByteLength();
+        break;
+      }
+    }
     bool in_user_input = false;
     bool hidden = false;
     [&]() {

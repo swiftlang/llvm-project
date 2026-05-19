@@ -1,0 +1,12 @@
+// Test that the caret for a single-character operator is correctly underlined.
+
+// REQUIRES: swift
+// XFAIL: system-windows
+
+// RUN: env LANG=C %lldb --repl 2>&1 < %s | FileCheck %s
+
+let foo = 1
+foo!
+
+// CHECK: {{^[ ]+\^$}}
+// CHECK-NEXT: {{^[ ]+}}error: cannot force unwrap value of non-optional type 'Int'
