@@ -24,7 +24,8 @@ public:
   ScriptedStopHookPythonInterface(ScriptInterpreterPythonImpl &interpreter);
 
   llvm::Expected<StructuredData::GenericSP>
-  CreatePluginObject(llvm::StringRef class_name, lldb::TargetSP target_sp,
+  CreatePluginObject(const ScriptedMetadata &scripted_metadata,
+                     lldb::TargetSP target_sp,
                      const StructuredDataImpl &args_sp) override;
 
   llvm::SmallVector<AbstractMethodRequirement>
