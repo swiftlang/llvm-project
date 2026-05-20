@@ -6430,60 +6430,6 @@ public:
   bool ScopeCheck;
   bool AutoPtrAttributed = false;
 
-  // Pre-check for base class. Return true if and only if no diagnostics are
-  // emitted here.
-  //
-  // Emits:
-  // - err_bounds_safety_conflicting_count_bound_attributes
-  // - err_bounds_safety_terminated_by_wrong_pointer_type
-  bool diagnoseDynamicBoundTypeShape(QualType DeclTy) {
-    const Type *T = DeclTy.split().Ty;
-
-    // Desugar and descend.
-    if (const auto *PT = dyn_cast<ParenType>(T))
-      return diagnoseDynamicBoundTypeShape(PT->getInnerType());
-    if (const auto *MQT = dyn_cast<MacroQualifiedType>(T))
-      return diagnoseDynamicBoundTypeShape(MQT->desugar());
-    if (const auto *FPT = dyn_cast<FunctionProtoType>(T))
-      return diagnoseDynamicBoundTypeShape(FPT->getReturnType());
-    if (const auto *FPT = dyn_cast<FunctionNoProtoType>(T))
-      return diagnoseDynamicBoundTypeShape(FPT->getReturnType());
-    if (const auto *AT = dyn_cast<AttributedType>(T)) {
-      llvm::SaveAndRestore<bool> Local(AutoPtrAttributed);
-      if (AT->getAttrKind() == attr::PtrAutoAttr)
-        AutoPtrAttributed = true;
-      return diagnoseDynamicBoundTypeShape(AT->getModifiedType());
-    }
-
-    if (const auto *VTT = dyn_cast<ValueTerminatedType>(T)) {
-      // A __terminated_by pointer cannot also carry a count or range attribute
-      // unless the terminator was auto-inferred via __ptrauto (see
-      // VisitValueTerminatedType in the visitor for the drop behavior).
-      if (Level == 0 && !AutoPtrAttributed) {
-        S.Diag(Loc, diag::err_bounds_safety_terminated_by_wrong_pointer_type);
-        return false;
-      }
-      return diagnoseDynamicBoundTypeShape(VTT->desugar());
-    }
-
-    // Use getAs to desugar typedefs, elaborated types, etc.
-    if (const auto *PT = T->getAs<PointerType>()) {
-      auto FAttr = PT->getPointerAttributes();
-      if (FAttr.hasUpperBound() && !AutoPtrAttributed) {
-        S.Diag(Loc, diag::err_bounds_safety_conflicting_count_bound_attributes)
-            << DiagName << (FAttr.hasLowerBound() ? 0 : 1);
-        return false;
-      }
-      if (Level == 0)
-        return true;
-      --Level;
-      llvm::SaveAndRestore<bool> Local(AutoPtrAttributed, false);
-      return diagnoseDynamicBoundTypeShape(PT->getPointeeType());
-    }
-
-    return true;
-  }
-
   // Pre-check for counted_by family. Sets CountInBytes = true for pointers
   // whose pointee has unknown size, and AllowRedecl = true when descending
   // into a function-prototype subwalk.
@@ -6525,10 +6471,16 @@ public:
           AT->getModifiedType(), CountInBytes, OrNull, AllowRedecl);
     }
 
-    // Base walker already handled the Level 0 __terminated_by check.
-    if (const auto *VTT = dyn_cast<ValueTerminatedType>(T))
+    // A __terminated_by pointer cannot also carry a count or range attribute
+    // unless the terminator was auto-inferred via __ptrauto.
+    if (const auto *VTT = dyn_cast<ValueTerminatedType>(T)) {
+      if (Level == 0 && !AutoPtrAttributed) {
+        S.Diag(Loc, diag::err_bounds_safety_terminated_by_wrong_pointer_type);
+        return false;
+      }
       return diagnoseCountAttributedTypeShape(VTT->desugar(), CountInBytes,
                                               OrNull, AllowRedecl);
+    }
 
     // An AtomicType wrapping a pointer: emit the diagnostic but return true so
     // the visitor still constructs the atomic type. Its shape prevents
@@ -6624,6 +6576,12 @@ public:
     // attribute to be used on code that prefers to keep its pointees
     // incomplete until they need to be used.
     if (const auto *PT = T->getAs<PointerType>()) {
+      auto FAttr = PT->getPointerAttributes();
+      if (FAttr.hasUpperBound() && !AutoPtrAttributed) {
+        S.Diag(Loc, diag::err_bounds_safety_conflicting_count_bound_attributes)
+            << DiagName << (FAttr.hasLowerBound() ? 0 : 1);
+        return false;
+      }
       if (Level == 0) {
         if (!CountInBytes) {
           QualType PointeeTy = QualType(PT, 0)->getPointeeType();
@@ -6710,9 +6668,15 @@ public:
                                                   AllowRedecl);
     }
 
-    // Base walker already handled the Level 0 __terminated_by check.
-    if (const auto *VTT = dyn_cast<ValueTerminatedType>(T))
+    // A __terminated_by pointer cannot also carry a count or range attribute
+    // unless the terminator was auto-inferred via __ptrauto.
+    if (const auto *VTT = dyn_cast<ValueTerminatedType>(T)) {
+      if (Level == 0 && !AutoPtrAttributed) {
+        S.Diag(Loc, diag::err_bounds_safety_terminated_by_wrong_pointer_type);
+        return false;
+      }
       return diagnoseDynamicRangePointerTypeShape(VTT->desugar(), AllowRedecl);
+    }
 
     // Like the counted_by case, we emit the diagnostic but return true.
     if (const auto *ATy = dyn_cast<AtomicType>(T)) {
@@ -6764,6 +6728,12 @@ public:
 
     // Nothing to diagnose here for __ended_by.
     if (const auto *PT = T->getAs<PointerType>()) {
+      auto FAttr = PT->getPointerAttributes();
+      if (FAttr.hasUpperBound() && !AutoPtrAttributed) {
+        S.Diag(Loc, diag::err_bounds_safety_conflicting_count_bound_attributes)
+            << DiagName << (FAttr.hasLowerBound() ? 0 : 1);
+        return false;
+      }
       if (Level == 0)
         return true;
       --Level;
@@ -7996,14 +7966,6 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
 
     LateBoundsAttrDiagContext DiagCtx{*this, DiagName, Loc,
                                       Level, AttrArg,  Info.ScopeCheck};
-    if (!DiagCtx.diagnoseDynamicBoundTypeShape(Info.DeclTy))
-      return;
-
-    // Reset Ctx.Level before the second walker call. The base walker decrements
-    // Ctx.Level when it descends through pointers and the range-specific walker
-    // needs to start from the original Level.
-    DiagCtx.Level = Level;
-    DiagCtx.AutoPtrAttributed = false;
     if (!DiagCtx.diagnoseDynamicRangePointerTypeShape(
             Info.DeclTy, /*AllowRedecl=*/OriginatesInAPINotes))
       return;
@@ -8017,8 +7979,6 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
   } else {
     LateBoundsAttrDiagContext DiagCtx{*this, DiagName, Loc,
                                       Level, AttrArg,  Info.ScopeCheck};
-    if (!DiagCtx.diagnoseDynamicBoundTypeShape(Info.DeclTy))
-      return;
 
     if (!AttrArg->getType()->isIntegralOrEnumerationType()) {
       Diag(Loc, diag::err_attribute_argument_type_for_bounds_safety_count)
@@ -8032,10 +7992,6 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
       DiagCtx.AttrArg = AttrArg;
     }
 
-    // Reset Ctx.Level before the second walker call for the same reasoning as
-    // above.
-    DiagCtx.Level = Level;
-    DiagCtx.AutoPtrAttributed = false;
     if (!DiagCtx.diagnoseCountAttributedTypeShape(
             Info.DeclTy, CountInBytes, OrNull,
             /*AllowRedecl=*/OriginatesInAPINotes))
