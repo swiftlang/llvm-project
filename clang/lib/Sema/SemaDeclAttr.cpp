@@ -6901,12 +6901,16 @@ public:
     return QualType(T, 0);
   }
 
-  QualType DiagnoseConflictingType(const CountAttributedType *T) { return QualType(); }
-  QualType DiagnoseConflictingType(const DynamicRangePointerType *T) { return QualType(); }
+  QualType HandleConflictingBoundsAttr(const CountAttributedType *T) {
+    return QualType();
+  }
+  QualType HandleConflictingBoundsAttr(const DynamicRangePointerType *T) {
+    return QualType();
+  }
 
   QualType VisitCountAttributedType(const CountAttributedType *T) {
     if (Level == 0) {
-      return getDerived()->DiagnoseConflictingType(T);
+      return getDerived()->HandleConflictingBoundsAttr(T);
     }
 
     QualType PointerTy = Visit(T->desugar());
@@ -6923,7 +6927,7 @@ public:
 
   QualType VisitDynamicRangePointerType(const DynamicRangePointerType *T) {
     if (Level == 0) {
-      return getDerived()->DiagnoseConflictingType(T);
+      return getDerived()->HandleConflictingBoundsAttr(T);
     }
 
     QualType PointerTy = Visit(T->desugar());
@@ -7016,7 +7020,7 @@ public:
     return Ty;
   }
 
-  QualType DiagnoseConflictingType(const CountAttributedType *T) {
+  QualType HandleConflictingBoundsAttr(const CountAttributedType *T) {
     assert(AllowRedecl &&
            "pre-check should have rejected !AllowRedecl count conflict");
     // Pre-check already verified the canonical count expressions match.
@@ -7034,7 +7038,7 @@ public:
     return ConstructDynamicBoundType::VisitFunctionNoProtoType(FPT);
   }
 
-  QualType DiagnoseConflictingType(const DynamicRangePointerType *T) {
+  QualType HandleConflictingBoundsAttr(const DynamicRangePointerType *T) {
     assert(false &&
            "pre-check should have rejected count+range attribute conflict");
     return QualType();
@@ -7277,13 +7281,13 @@ public:
     return BaseClass::VisitDynamicRangePointerType(T);
   }
 
-  QualType DiagnoseConflictingType(const CountAttributedType *T) {
+  QualType HandleConflictingBoundsAttr(const CountAttributedType *T) {
     assert(false &&
            "pre-check should have rejected count+range attribute conflict");
     return QualType();
   }
 
-  QualType DiagnoseConflictingType(const DynamicRangePointerType *T) {
+  QualType HandleConflictingBoundsAttr(const DynamicRangePointerType *T) {
     assert(false && "pre-check should have rejected conflicting range-pointer");
     return QualType();
   }
