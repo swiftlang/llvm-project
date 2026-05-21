@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Breakpoint/Breakpoint.h"
+#include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Breakpoint/BreakpointResolverScripted.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Host/Config.h"

@@ -9,6 +9,7 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Host/Config.h"
 #include "lldb/Target/ExecutionContext.h"
+#include "lldb/Target/Target.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/lldb-enumerations.h"
 

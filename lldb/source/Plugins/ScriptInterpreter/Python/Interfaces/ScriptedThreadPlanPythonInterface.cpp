@@ -8,6 +8,7 @@
 
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Host/Config.h"
+#include "lldb/Target/ThreadPlan.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/lldb-enumerations.h"
 
