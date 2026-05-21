@@ -991,13 +991,6 @@ llvm::Error SwiftLanguageRuntime::RunObjectDescriptionExpr(
   return DumpString(*result_or_err, strm);
 }
 
-static bool IsVariable(ValueObject &object) {
-  if (object.IsSynthetic())
-    return IsVariable(*object.GetNonSyntheticValue());
-
-  return bool(object.GetVariable());
-}
-
 static bool IsSwiftResultVariable(ConstString name) {
   if (name) {
     llvm::StringRef name_sr(name.GetStringRef());
@@ -1120,7 +1113,7 @@ llvm::Error SwiftLanguageRuntime::GetObjectDescription(Stream &str,
 
   std::string expr_string;
 
-  if (::IsVariable(object) || ::IsSwiftResultVariable(object.GetName())) {
+  if (object.GetVariable() || ::IsSwiftResultVariable(object.GetName())) {
     // if the object is a Swift variable, it has two properties:
     // a) its name is something we can refer to in expressions for free
     // b) its type may be something we can't actually talk about in expressions
