@@ -16,7 +16,7 @@ class TestSwiftMetadataCache(TestBase):
         # Call super's setUp().
         TestBase.setUp(self)
 
-        cache_dir = self.getBuildArtifact('swift-metadata-cache')
+        cache_dir = self.getBuildArtifact('$')
         # Set the lldb module cache directory to a directory inside the build
         # artifacts directory so no other tests are interfered with.
         self.runCmd('settings set symbols.swift-metadata-cache-path "%s"' % cache_dir)
