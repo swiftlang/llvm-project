@@ -285,9 +285,8 @@ void TypedMemoryInference::setInferredInfoForCall(const CallExpr *Call,
   assert(Inserted);
 }
 
-std::optional<InferredTypeInfo>
-TypedMemoryInference::getInferredInfoForCall(const ASTContext &Ctx,
-                                             const CallExpr *Call) const {
+std::optional<InferredTypeInfo> TypedMemoryInference::lookupInferredInfoForCall(
+    const ASTContext &Ctx, const CallExpr *Call, bool AllowNonTMOCalls) const {
   if (!Ctx.getLangOpts().TypedMemoryOperations)
     return std::nullopt;
   if (Call->getDependence() != ExprDependence::None)
@@ -296,6 +295,9 @@ TypedMemoryInference::getInferredInfoForCall(const ASTContext &Ctx,
   if (auto Found = InferredTMOCallTypes.find(Call);
       Found != InferredTMOCallTypes.end())
     return Found->second;
+
+  if (AllowNonTMOCalls)
+    return std::nullopt;
 
 #ifndef NDEBUG
   // If we get here something has gone wrong: either we've failed to perform
@@ -720,8 +722,15 @@ void ASTContext::setInferredInfoForCall(const CallExpr *Call,
 }
 
 std::optional<InferredTypeInfo>
+ASTContext::tryGetInferredInfoForCall(const CallExpr *Call) const {
+  return getTMOInference().lookupInferredInfoForCall(*this, Call,
+                                                     /*AllowNonTMOCalls=*/true);
+}
+
+std::optional<InferredTypeInfo>
 ASTContext::getInferredInfoForCall(const CallExpr *Call) const {
-  return getTMOInference().getInferredInfoForCall(*this, Call);
+  return getTMOInference().lookupInferredInfoForCall(
+      *this, Call, /*AllowNonTMOCalls=*/false);
 }
 
 InferredTypeInfo

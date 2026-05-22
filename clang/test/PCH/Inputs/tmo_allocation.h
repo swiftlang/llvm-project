@@ -11,6 +11,15 @@ struct S1 {
   void (*fptr)();
 };
 
+void *non_tmo_function(__SIZE_TYPE__);
+void *in_pch_non_tmo_call() {
+  return non_tmo_function(sizeof(struct S1));
+}
+
+inline void *in_pch_non_tmo_call_inline() {
+  return non_tmo_function(sizeof(struct S1));
+}
+
 void in_pch_function() {
   void *iptr_failed_inference = malloc(1000); // #pch_failed_inference
   // expected-warning@#pch_failed_inference {{could not infer allocation type in call to 'malloc'}}

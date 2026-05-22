@@ -19,6 +19,7 @@
 // RUN: %clang_cc1 -x c -std=c23 -emit-pch -o %t %S/Inputs/tmo_allocation.h
 // RUN: not %clang_cc1 -x c -ftyped-memory-operations -std=c23 -include-pch %t %s 2>&1 | FileCheck --check-prefix=PCH_NO_TMO %s
 // PCH_NO_TMO: Typed Memory Operations Callsite Rewriting was disabled in precompiled file
+
 static void call_in_pch_function(void) {
     in_pch_function();
 }
@@ -92,3 +93,10 @@ void out_of_pch_function() {
 // CHECK: !{!"type-descriptor", !"[[ELEM_ARRAY_DESC]]", !"1384677904", !"\22LayoutSemantics\22: [ \22GenericData\22 ], \22TypeFlags\22: [ ], \22TypeKind\22: \22KindC\22, \22CallsiteFlags\22: [ \22Array\22 ]"}
 // CHECK: !{!"type-descriptor", !"[[PREFIX_HEADER_HPA_DESC]]", !"1384677904", !"\22LayoutSemantics\22: [ \22GenericData\22 ], \22TypeFlags\22: [ ], \22TypeKind\22: \22KindC\22, \22CallsiteFlags\22: [ \22HeaderPrefixedArray\22 ]"}
 // CHECK: !{!"type-descriptor", !"[[ELEM_INDETERMINATE_DESC]]", !"1384677904", !"\22LayoutSemantics\22: [ \22GenericData\22 ], \22TypeFlags\22: [ ], \22TypeKind\22: \22KindC\22, \22CallsiteFlags\22: [ ]"}
+
+// non-tmo-tests
+
+void call_non_tmo_functions() {
+  void *r1 = in_pch_non_tmo_call();
+  void *r2 = in_pch_non_tmo_call_inline();
+}

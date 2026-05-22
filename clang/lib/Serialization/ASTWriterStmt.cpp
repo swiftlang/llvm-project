@@ -1047,8 +1047,9 @@ void ASTStmtWriter::VisitCallExpr(CallExpr *E) {
   CurrentPackingBits.addBit(E->isCoroElideSafe());
   CurrentPackingBits.addBit(E->usesMemberSyntax());
 
+  ASTContext &Ctx = Record.getASTContext();
   std::optional<InferredTypeInfo> TMOInference =
-      Record.getASTContext().getInferredInfoForCall(E);
+      Ctx.tryGetInferredInfoForCall(E);
   CurrentPackingBits.addBit(TMOInference.has_value());
 
   Record.AddSourceLocation(E->getRParenLoc());

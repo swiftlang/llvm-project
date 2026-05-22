@@ -1576,7 +1576,10 @@ public:
   StringRef getTypeSummaryDescription(TypedMemorySummary Summary) const;
 
   std::optional<InferredTypeInfo>
+  tryGetInferredInfoForCall(const CallExpr *Call) const;
+  std::optional<InferredTypeInfo>
   getInferredInfoForCall(const CallExpr *Call) const;
+
   InferredTypeInfo inferTypedMemoryType(const CallExpr *Call,
                                         const Expr &SizeArg,
                                         const CastExpr *ContainingCast) const;
