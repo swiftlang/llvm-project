@@ -224,6 +224,10 @@ if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
     "https://libclc.llvm.org/ for building the runtimes.")
 endif()
 
+# This variable is referenced for generating custom platform support before it can be recognized
+# in SDKSettings. It also helps drive fall-back availability inferences that is often used for platform bringup.
+set(LLVM_SUPPORTED_PLATFORMS "xros" CACHE STRING "Additional supported platfroms")
+
 # Set a shorthand option to enable the GPU build of the 'libc' project.
 option(LIBC_GPU_BUILD "Enable the 'libc' project targeting the GPU" OFF)
 if(LIBC_GPU_BUILD)

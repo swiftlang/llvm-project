@@ -13,6 +13,38 @@ clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
   TARGET ClangOpenCLBuiltinsImpl
   )
 
+# Configure additional platform-specific code that controls things like
+# availability attributes.
+set(TEMPLATE_INCLUDES_INFER_AVAILABILITY_ATTRIBUTE "")
+
+foreach(supported_platform ${LLVM_SUPPORTED_PLATFORMS})
+  if (${CLANG_PLATFORM_${supported_platform}_INFER_UNAVAILABLE})
+    # Generate code that infers availability(unavailable) attribute if a platform
+    # requires that.
+    set(output_file_name "InferUnavailableAvailabilityFromFallbackPlatform_${supported_platform}.def")
+    message(STATUS "Adding platform specific availability attribute code - ${output_file_name}")
+
+    set(PLATFORM_TRIPLE_OS_VALUE
+        "${CLANG_PLATFORM_${supported_platform}_PLATFORM_TRIPLE_OS_VALUE}")
+    set(FALLBACK_PLATFORM_TRIPLE_OS_VALUE
+        "${CLANG_PLATFORM_${supported_platform}_FALLBACK_PLATFORM_TRIPLE_OS_VALUE}")
+    set(PLATFORM_AVAILABILITY_NAME
+        "${CLANG_PLATFORM_${supported_platform}_PLATFORM_AVAILABILITY_NAME}")
+    set(FALLBACK_PLATFORM_AVAILABILITY_NAME
+        "${CLANG_PLATFORM_${supported_platform}_FALLBACK_PLATFORM_AVAILABILITY_NAME}")
+    configure_file(
+      ${CMAKE_CURRENT_SOURCE_DIR}/PlatformTemplates/InferUnavailableAvailabilityFromFallbackPlatform.def.in
+      ${CMAKE_CURRENT_BINARY_DIR}/PlatformTemplates/${output_file_name}
+    )
+    set(TEMPLATE_INCLUDES_INFER_AVAILABILITY_ATTRIBUTE "${TEMPLATE_INCLUDES_INFER_AVAILABILITY_ATTRIBUTE}\n#include \"PlatformTemplates/${output_file_name}\"")
+  endif()
+endforeach()
+
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/InferAvailabilityAttribute.cpp.in
+  ${CMAKE_CURRENT_BINARY_DIR}/InferAvailabilityAttribute.cpp
+)
+
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
   # TO_UPSTREAM(BoundsSafety) ON
@@ -108,6 +140,7 @@ add_clang_library(clangSema
   SemaWasm.cpp
   SemaX86.cpp
   TypeLocBuilder.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/InferAvailabilityAttribute.cpp
 
   DEPENDS
   ClangOpenCLBuiltinsImpl
