@@ -10,6 +10,7 @@
 #define LLVM_CLANG_SERIALIZATION_MODULECACHE_H
 
 #include "clang/Basic/LLVM.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 
 #include <ctime>
 
@@ -64,8 +65,13 @@ public:
 std::shared_ptr<ModuleCache> createCrossProcessModuleCache();
 
 /// Shared implementation of `ModuleCache::maybePrune()`.
+///
+/// If \p OnPrune is non-empty, it is invoked once per file or directory that
+/// is successfully removed from the cache. The path passed to \p OnPrune is
+/// absolute.
 void maybePruneImpl(StringRef Path, time_t PruneInterval, time_t PruneAfter,
-                    bool PruneTopLevel = false);
+                    bool PruneTopLevel = false,
+                    llvm::function_ref<void(StringRef)> OnPrune = {});
 } // namespace clang
 
 #endif
