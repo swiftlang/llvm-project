@@ -10,10 +10,12 @@ from lldbsuite.test import lldbutil
 
 class TestReverseContinueBreakpoints(ReverseTestBase):
     @skipIfRemote
+    @skipIfWindows # rdar://178182243 
     def test_reverse_continue(self):
         self.reverse_continue_internal(async_mode=False)
 
     @skipIfRemote
+    @skipIfWindows # rdar://178182243 
     def test_reverse_continue_async(self):
         self.reverse_continue_internal(async_mode=True)
 
@@ -42,10 +44,12 @@ class TestReverseContinueBreakpoints(ReverseTestBase):
         self.assertEqual(process.GetExitStatus(), 0)
 
     @skipIfRemote
+    @skipIfWindows # rdar://178182243 
     def test_reverse_continue_breakpoint(self):
         self.reverse_continue_breakpoint_internal(async_mode=False)
 
     @skipIfRemote
+    @skipIfWindows # rdar://178182243 
     def test_reverse_continue_breakpoint_async(self):
         self.reverse_continue_breakpoint_internal(async_mode=True)
 
@@ -68,6 +72,7 @@ class TestReverseContinueBreakpoints(ReverseTestBase):
         archs=["x86_64"],
         bugnumber="github.com/llvm/llvm-project/issues/138084",
     )
+    @skipIfWindows # rdar://178182243 
     def test_reverse_continue_skip_breakpoint(self):
         self.reverse_continue_skip_breakpoint_internal(async_mode=False)
 
@@ -77,6 +82,7 @@ class TestReverseContinueBreakpoints(ReverseTestBase):
         archs=["x86_64"],
         bugnumber="github.com/llvm/llvm-project/issues/138084",
     )
+    @skipIfWindows # rdar://178182243 
     def test_reverse_continue_skip_breakpoint_async(self):
         self.reverse_continue_skip_breakpoint_internal(async_mode=True)
 
@@ -101,10 +107,12 @@ class TestReverseContinueBreakpoints(ReverseTestBase):
         )
 
     @skipIfRemote
+    @skipIfWindows # rdar://178182243 
     def test_continue_preserves_direction(self):
         self.continue_preserves_direction_internal(async_mode=False)
 
     @skipIfRemote
+    @skipIfWindows # rdar://178182243 
     def test_continue_preserves_direction_asyhc(self):
         self.continue_preserves_direction_internal(async_mode=True)
 
