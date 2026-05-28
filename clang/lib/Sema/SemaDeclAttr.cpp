@@ -6445,7 +6445,7 @@ public:
   // - err_bounds_safety_counted_by_without_size
   bool diagnoseCountAttributedTypeShape(QualType DeclTy, bool &CountInBytes,
                                         bool OrNull, bool AllowRedecl) {
-    const Type *T = DeclTy.split().Ty;
+    const Type *T = DeclTy.getTypePtr();
 
     // Desugar and descend.
     if (const auto *PT = dyn_cast<ParenType>(T))
@@ -6510,8 +6510,7 @@ public:
         // AllowRedecl: canonicalize the new count expression and compare
         // against the existing one.
         ExprResult CanonCount = S.CanonicalizeBoundsCountExpr(
-            AttrArg, CountInBytes, OrNull, ScopeCheck,
-            CAT->desugar()->isArrayType());
+            AttrArg, CountInBytes, OrNull, ScopeCheck, CAT->isArrayType());
         if (CanonCount.isInvalid())
           return false;
         llvm::FoldingSetNodeID NewID, OldID;
@@ -6545,7 +6544,7 @@ public:
           return diagnoseCountAttributedTypeShape(
               S.Context.getArrayDecayedType(QualType(AT, 0)), CountInBytes,
               OrNull, AllowRedecl);
-        if (isa<IncompleteArrayType>(AT)) {
+        if (AT->isIncompleteArrayType()) {
           if (CountInBytes) {
             S.Diag(Loc, diag::err_bounds_safety_sized_by_array) << DiagName;
             return false;
@@ -6646,7 +6645,7 @@ public:
   // - err_bounds_safety_conflicting_count_range_attributes
   // - err_bounds_safety_conflicting_pointer_attributes
   bool diagnoseDynamicRangePointerTypeShape(QualType DeclTy, bool AllowRedecl) {
-    const Type *T = DeclTy.split().Ty;
+    const Type *T = DeclTy.getTypePtr();
 
     // Desugar and descend.
     if (const auto *PT = dyn_cast<ParenType>(T))
@@ -6977,8 +6976,10 @@ public:
     assert(AllowRedecl &&
            "pre-check should have rejected !AllowRedecl count conflict");
     // Pre-check already verified the canonical count expressions match.
-    // Just build the new type.
-    return BuildDynamicBoundType(T->desugar());
+    QualType NewTy = BuildDynamicBoundType(T->desugar());
+    assert(NewTy->getAs<CountAttributedType>() &&
+           "BuildDynamicBoundType should produce a CountAttributedType");
+    return NewTy;
   }
 
   QualType VisitFunctionProtoType(const FunctionProtoType *FPT) {
