@@ -50,16 +50,70 @@ endif()
 
 umbrella_lit_testsuite_begin(check-compiler-rt)
 
-function(compiler_rt_test_runtime runtime)
-  string(TOUPPER ${runtime} runtime_uppercase)
-  if(COMPILER_RT_HAS_${runtime_uppercase} AND COMPILER_RT_INCLUDE_TESTS)
-    if (${runtime} STREQUAL cfi AND NOT COMPILER_RT_HAS_UBSAN)
-      # CFI tests require diagnostic mode, which is implemented in UBSan.
-    elseif (${runtime} STREQUAL scudo_standalone)
-      add_subdirectory(scudo/standalone)
-    else()
-      add_subdirectory(${runtime})
+set(COMPILER_RT_KNOWN_TEST_SUITES
+    builtins;ctx_profile;fuzzer;interception;lsan;memprof;metadata
+    ;orc;profile;sanitizer_common;shadowcallstack
+    ;ubsan;xray)
+list(APPEND COMPILER_RT_KNOWN_TEST_SUITES ${ALL_SANITIZERS})
+list(REMOVE_DUPLICATES COMPILER_RT_KNOWN_TEST_SUITES)
+list(APPEND COMPILER_RT_KNOWN_TEST_SUITES bounds_safety) # TO_UPSTREAM(BoundsSafety)
+# Sort the list so that's easier to read when emitting errors.
+list(SORT COMPILER_RT_KNOWN_TEST_SUITES)
+
+set(COMPILER_RT_ENABLE_TEST_SUITES "all" CACHE STRING
+    "List of test suites to enable (semicolon-separated), or \"all\" to enable all test suites. Known test suites: ${COMPILER_RT_KNOWN_TEST_SUITES}")
+
+# Validate COMPILER_RT_ENABLE_TEST_SUITES values.
+if(NOT "${COMPILER_RT_ENABLE_TEST_SUITES}" STREQUAL "all")
+  foreach(suite ${COMPILER_RT_ENABLE_TEST_SUITES})
+    if(NOT "${suite}" IN_LIST COMPILER_RT_KNOWN_TEST_SUITES)
+      message(FATAL_ERROR "Unknown test suite '${suite}' in COMPILER_RT_ENABLE_TEST_SUITES. Known test suites are: ${COMPILER_RT_KNOWN_TEST_SUITES}")
     endif()
+  endforeach()
+endif()
+
+function(compiler_rt_test_runtime runtime)
+  cmake_parse_arguments(ARG "NO_COMPILER_RT_HAS_GUARD" "" "" ${ARGN})
+
+  # Validate that the test suite name is known.
+  if(NOT "${runtime}" IN_LIST COMPILER_RT_KNOWN_TEST_SUITES)
+    message(FATAL_ERROR "'${runtime}' is not a known test suite. Known test suites are: ${COMPILER_RT_KNOWN_TEST_SUITES}")
+  endif()
+
+  # If COMPILER_RT_ENABLE_TEST_SUITES is not "all", check that this runtime
+  # is in the enabled list.
+  if(NOT "${COMPILER_RT_ENABLE_TEST_SUITES}" STREQUAL "all")
+    if(NOT "${runtime}" IN_LIST COMPILER_RT_ENABLE_TEST_SUITES)
+      message(STATUS "Skipping compiler-rt ${runtime} test directory")
+      return()
+    endif()
+  endif()
+
+  # FIXME: The old code had this but we should probably remove it
+  # because it's unreachable because `compiler-rt/test` is guarded
+  # by `if(COMPILER_RT_INCLUDE_TESTS)`.
+  if(NOT COMPILER_RT_INCLUDE_TESTS)
+    message(STATUS "Skipping compiler-rt ${runtime} test directory")
+    return()
+  endif()
+
+  if(NOT ARG_NO_COMPILER_RT_HAS_GUARD)
+    string(TOUPPER ${runtime} runtime_uppercase)
+    if(NOT COMPILER_RT_HAS_${runtime_uppercase})
+      message(STATUS "Skipping compiler-rt ${runtime} test directory")
+      return()
+    endif()
+  endif()
+
+  if(${runtime} STREQUAL cfi AND NOT COMPILER_RT_HAS_UBSAN)
+    # CFI tests require diagnostic mode, which is implemented in UBSan.
+    message(STATUS "Skipping ${runtime} test directory")
+  elseif(${runtime} STREQUAL scudo_standalone)
+    message(STATUS "Adding scudo/standalone test directory")
+    add_subdirectory(scudo/standalone)
+  else()
+    message(STATUS "Adding compiler-rt ${runtime} test directory")
+    add_subdirectory(${runtime})
   endif()
 endfunction()
 
@@ -70,7 +124,7 @@ if(COMPILER_RT_CAN_EXECUTE_TESTS)
   # in an independent build. This option is only indended to be used by
   # LLVM_ENABLE_RUNTIMES-based builds.
   if(COMPILER_RT_BUILD_BUILTINS OR COMPILER_RT_TEST_EXTERNAL_BUILTINS)
-    add_subdirectory(builtins)
+    compiler_rt_test_runtime(builtins NO_COMPILER_RT_HAS_GUARD)
   endif()
   if(COMPILER_RT_BUILD_SANITIZERS)
     compiler_rt_test_runtime(interception)
@@ -84,7 +138,7 @@ if(COMPILER_RT_CAN_EXECUTE_TESTS)
       compiler_rt_test_runtime(fuzzer)
 
       # These tests don't need an additional runtime but use asan runtime.
-      add_subdirectory(metadata)
+      compiler_rt_test_runtime(metadata NO_COMPILER_RT_HAS_GUARD)
     endif()
 
     foreach(sanitizer ${COMPILER_RT_SANITIZERS_TO_BUILD})
@@ -108,18 +162,12 @@ if(COMPILER_RT_CAN_EXECUTE_TESTS)
   endif()
   # ShadowCallStack does not yet provide a runtime with compiler-rt, the tests
   # include their own minimal runtime
-  add_subdirectory(shadowcallstack)
+  compiler_rt_test_runtime(shadowcallstack NO_COMPILER_RT_HAS_GUARD)
 
   # TO_UPSTREAM(BoundsSafety)
-  # -fbounds-safety doesn't have a runtime in compiler-rt so guarding with
-  # `COMPILER_RT_HAS_BOUNDS_SAFETY` is unnecessary so that is why
-  # `compiler_rt_test_runtime` is not used here.
-  if(COMPILER_RT_INCLUDE_TESTS)
-    option(COMPILER_RT_TEST_BOUNDS_SAFETY "Include -fbounds-safety runtime tests" ON)
-    if(COMPILER_RT_TEST_BOUNDS_SAFETY)
-      add_subdirectory(bounds_safety)
-    endif()
-  endif()
+  # -fbounds-safety doesn't have a runtime in compiler-rt so there is no
+  # `COMPILER_RT_HAS_BOUNDS_SAFETY` hence the use of `NO_COMPILER_RT_HAS_GUARD`
+  compiler_rt_test_runtime(bounds_safety NO_COMPILER_RT_HAS_GUARD)
 endif()
 
 # Now that we've traversed all the directories and know all the lit testsuites,
