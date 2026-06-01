@@ -1,4 +1,29 @@
 message(STATUS "Trying to enable -fbounds-safety runtime tests")
+
+# Tri-state control over which LLDB the bounds-safety debugger test suites use.
+# Defined before the early `return()` below so it is always available as a cache
+# variable in both the standalone build and the LLVM_ENABLE_RUNTIMES build.
+#   ON   - only the just-built (in-tree) LLDB is considered; warn if unusable.
+#   OFF  - only a system LLDB is considered; the just-built LLDB is excluded.
+#   AUTO - consider both, preferring the just-built LLDB and falling back to the
+#          system one if the just-built LLDB is not usable.
+set(COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB "AUTO" CACHE STRING
+  "Which LLDB the bounds-safety debugger tests use: \
+ON (just-built only, warns if unusable), OFF (system only), \
+AUTO (prefer just-built, fall back to system)")
+set_property(CACHE COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB
+  PROPERTY STRINGS ON OFF AUTO)
+# Canonicalize to upper case so the comparisons below are case-insensitive
+# (e.g. "auto", "On", "off" are all accepted), and reject anything else.
+string(TOUPPER "${COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB}"
+  COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB)
+if(NOT COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB MATCHES "^(ON|OFF|AUTO)$")
+  message(FATAL_ERROR
+    "Invalid COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB="
+    "'${COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB}'. "
+    "Expected one of: ON, OFF, AUTO.")
+endif()
+
 if (NOT APPLE)
   # FIXME: We should support Linux too.
   message(STATUS "Skipping -fbounds-safety runtime tests on non-Apple platforms")
@@ -9,33 +34,78 @@ set(BOUNDS_SAFETY_HOST_TEST_SUITES)
 # Currently no dependencies
 set(BOUNDS_SAFETY_TEST_DEPS "")
 
-# Detect LLDB availability and Python compatibility
-find_program(LLDB_EXECUTABLE lldb HINTS ${LLVM_TOOLS_DIR})
+# Detect LLDB availability and Python compatibility.
+#
+# Build an ordered list of candidate lldb executables according to
+# COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB, then pick the first "usable"
+# one. A candidate is usable when `lldb -P` succeeds AND the Python interpreter
+# used by lit (${Python3_EXECUTABLE}) can import the lldb module from that path.
+# A Python mismatch (e.g. Homebrew Python 3.13 vs an LLDB built for Python 3.11)
+# would otherwise cause a confusing ImportError at test time.
+set(_just_built_lldb "${LLVM_TOOLS_BINARY_DIR}/lldb${CMAKE_EXECUTABLE_SUFFIX}")
+
+# Locate a system lldb once; only used for the OFF and AUTO modes below.
+find_program(_system_lldb lldb)
+
+set(_lldb_candidates "")
+# In ON and AUTO modes the just-built lldb is a (preferred) candidate.
+if(NOT COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB STREQUAL "OFF")
+  list(APPEND _lldb_candidates "${_just_built_lldb}")
+endif()
+# In OFF and AUTO modes a system lldb is a candidate (excluding the just-built
+# one, which OFF must never consider).
+if(NOT COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB STREQUAL "ON"
+   AND _system_lldb AND NOT _system_lldb STREQUAL _just_built_lldb)
+  list(APPEND _lldb_candidates "${_system_lldb}")
+endif()
+
 set(_LLDB_DETECTED FALSE)
 set(_LLDB_PYTHON_COMPATIBLE FALSE)
-if(LLDB_EXECUTABLE)
-  execute_process(
-    COMMAND ${LLDB_EXECUTABLE} -P
-    OUTPUT_VARIABLE BOUNDS_SAFETY_LLDB_PYTHON_PATH
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    RESULT_VARIABLE LLDB_P_RESULT
-  )
-  if(LLDB_P_RESULT EQUAL 0)
-    set(_LLDB_DETECTED TRUE)
-    # Check that the Python interpreter used by lit can import the lldb module.
-    # A mismatch (e.g. Homebrew Python 3.13 vs Xcode LLDB built for Python 3.11)
-    # causes a confusing ImportError at test time.
-    execute_process(
-      COMMAND ${Python3_EXECUTABLE} -c
-        "import sys; sys.path.insert(0, '${BOUNDS_SAFETY_LLDB_PYTHON_PATH}'); import lldb"
-      RESULT_VARIABLE _LLDB_IMPORT_RESULT
-      ERROR_VARIABLE _LLDB_IMPORT_ERROR
-      OUTPUT_QUIET
-    )
-    if(_LLDB_IMPORT_RESULT EQUAL 0)
-      set(_LLDB_PYTHON_COMPATIBLE TRUE)
-    endif()
+foreach(_cand ${_lldb_candidates})
+  if(NOT EXISTS "${_cand}")
+    continue()
   endif()
+  execute_process(
+    COMMAND ${_cand} -P
+    OUTPUT_VARIABLE _cand_py_path
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _cand_p_result
+  )
+  if(NOT _cand_p_result EQUAL 0)
+    continue()
+  endif()
+  set(_LLDB_DETECTED TRUE)
+  # Tear LLDB down with SBDebugger::Terminate() after a successful import. An
+  # assertions-enabled LLDB would otherwise abort at interpreter shutdown.
+  execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c
+      "import sys; sys.path.insert(0, '${_cand_py_path}'); import lldb; lldb.SBDebugger.Terminate()"
+    RESULT_VARIABLE _LLDB_IMPORT_RESULT
+    ERROR_VARIABLE _LLDB_IMPORT_ERROR
+    OUTPUT_QUIET
+  )
+  if(_LLDB_IMPORT_RESULT EQUAL 0)
+    set(BOUNDS_SAFETY_LLDB_PYTHON_PATH "${_cand_py_path}")
+    set(_LLDB_PYTHON_COMPATIBLE TRUE)
+    set(_LLDB_EXECUTABLE "${_cand}")
+    break() # First usable candidate wins (just-built first in AUTO).
+  endif()
+endforeach()
+
+# In ON mode the just-built LLDB is the only candidate. If it isn't usable, warn
+# (rather than error) so we preserve COMPILER_RT_BOUNDS_SAFETY_USE_LLDB's graceful
+# behavior: it then auto-defaults OFF and disables the debugger suites, unless the
+# user explicitly set it ON, in which case the checks below turn this into an error.
+if(COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB STREQUAL "ON" AND
+   NOT _LLDB_PYTHON_COMPATIBLE)
+  message(WARNING
+    "COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB=ON but the just-built LLDB "
+    "(${_just_built_lldb}) is not usable with the Python interpreter used by "
+    "lit (${Python3_EXECUTABLE}).\n"
+    "This usually means the just-built LLDB was not built (is lldb in "
+    "LLVM_ENABLE_PROJECTS and LLDB_ENABLE_PYTHON enabled?) or it targets a "
+    "different Python version than ${Python3_EXECUTABLE}.\n"
+    "Import error: ${_LLDB_IMPORT_ERROR}")
 endif()
 
 # CMake option: defaults to ON if LLDB detected AND the Python interpreter
@@ -65,7 +135,9 @@ if(COMPILER_RT_BOUNDS_SAFETY_USE_LLDB AND NOT _LLDB_PYTHON_COMPATIBLE)
 endif()
 
 if (COMPILER_RT_BOUNDS_SAFETY_USE_LLDB)
-  message(STATUS "Enabled -fbounds-safety tests using LLDB: ${BOUNDS_SAFETY_LLDB_PYTHON_PATH}")
+  message(STATUS "Enabled -fbounds-safety tests using LLDB:\n"
+    "LLDB Python bindings: ${BOUNDS_SAFETY_LLDB_PYTHON_PATH}\n"
+    "LLDB executable: ${_LLDB_EXECUTABLE}")
 else()
   message(STATUS "Disabled -fbounds-safety tests using LLDB")
 endif()

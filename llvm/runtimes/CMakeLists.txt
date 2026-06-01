@@ -543,6 +543,31 @@ if(build_runtimes)
     endif()
   endif()
 
+  # TO_UPSTREAM(BoundsSafety) ON
+  # Ensure a just-built lldb (and its python bindings) are built before the
+  # runtimes configure step runs `lldb -P`, so compiler-rt's bounds-safety tests
+  # can use the in-tree lldb. lldb is already built when it is in
+  # LLVM_ENABLE_PROJECTS.
+  set(_compiler_rt_is_runtime FALSE)
+  if("compiler-rt" IN_LIST LLVM_ENABLE_RUNTIMES)
+    set(_compiler_rt_is_runtime TRUE)
+  else()
+    foreach(target ${LLVM_RUNTIME_TARGETS})
+      if("compiler-rt" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
+        set(_compiler_rt_is_runtime TRUE)
+        break()
+      endif()
+    endforeach()
+  endif()
+  if(_compiler_rt_is_runtime)
+    foreach(dep lldb lldb-python)
+      if(TARGET ${dep})
+        list(APPEND extra_deps ${dep})
+      endif()
+    endforeach()
+  endif()
+  # TO_UPSTREAM(BoundsSafety) OFF
+
   # Forward user-provived system configuration to runtimes for requirement introspection.
   # CMAKE_PREFIX_PATH is the search path for CMake packages.
   if(CMAKE_PREFIX_PATH)
