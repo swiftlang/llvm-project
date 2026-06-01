@@ -26,6 +26,7 @@ endif()
 include(GNUInstallDirs)
 
 option(LLDB_INCLUDE_TESTS "Generate build targets for the LLDB unit tests." ${LLVM_INCLUDE_TESTS})
+option(LLDB_ENABLE_LIBCXX_TESTS "Set to OFF to acknowledge that libc++ is intentionally not built in-tree and silence the missing-libc++ warning." ON)
 
 # BEGIN SWIFT MOD
 set(DEFAULT_LLDB_SWIFT_SUPPORT ON)
