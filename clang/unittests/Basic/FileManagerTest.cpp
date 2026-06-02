@@ -518,9 +518,9 @@ TEST_F(FileManagerTest, TraceCount) {
   FileSystemOptions Opts;
   FileManager Manager(Opts, InstrumentingFS);
 
-  llvm::vfs::Status Status;
-  Manager.getOptionalFileEntryRef("/foo");
-  EXPECT_EQ(InstrumentingFS->NumStatusCalls, 1u);
+  // One status call for "/foo" itself, the other for the parent directory.
+  Manager.getOptionalFileRef("/foo");
+  EXPECT_EQ(InstrumentingFS->NumStatusCalls, 2u);
 
   Manager.getBufferForFile("/foo");
   EXPECT_EQ(InstrumentingFS->NumOpenFileForReadCalls, 1u);
