@@ -39,6 +39,7 @@ class TestSwiftRegex(TestBase):
             patterns=[r"\(_StringProcessing.Regex<.+>\) dslRegex = {"],
         )
 
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(macos_version=["<", "13"])
     def test_swift_regex_expr_desc(self):
