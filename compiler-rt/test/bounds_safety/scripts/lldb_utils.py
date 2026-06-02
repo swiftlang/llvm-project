@@ -1,10 +1,15 @@
 """Shared utilities for bounds-safety test scripts."""
 
+import atexit
 import logging
 import os
 import sys
+import threading
 
 log = logging.getLogger(__name__)
+# Used to serialize `import_lldb`
+_import_lock = threading.Lock()
+_terminate_registered = False
 
 
 class LLDBLaunchError(Exception):
@@ -14,24 +19,47 @@ class LLDBLaunchError(Exception):
 
 def import_lldb(lldb_python_path):
     """Import and return the lldb module, adjusting sys.path if needed.
+
+    Thread-safe: concurrent calls are serialized so the shared sys.path
+    mutation and the one-time process teardown registration cannot race.
     """
-    if lldb_python_path:
-        sys.path.insert(0, lldb_python_path)
-    import lldb
-    # The interpreter running these scripts may already have an unrelated `lldb`
-    # module installed (e.g. one shipped in the toolchain's site-packages for a
-    # different LLDB). Inserting lldb_python_path at the front of sys.path makes
-    # our copy win, but to be sure we didn't silently pick up a different one we
-    # verify the imported module actually lives under lldb_python_path.
-    if lldb_python_path:
-        expected = os.path.realpath(lldb_python_path)
-        actual = os.path.realpath(lldb.__file__)
-        if os.path.commonpath([expected, actual]) != expected:
-            raise LLDBLaunchError(
-                f"imported the wrong lldb module: expected it under '{expected}' but "
-                f"loaded '{lldb.__file__}'. Another lldb may be installed earlier on "
-                "sys.path."
-            )
+    global _terminate_registered
+    with _import_lock:
+        if lldb_python_path:
+            sys.path.insert(0, lldb_python_path)
+        import lldb
+        # The interpreter running these scripts may already have an unrelated
+        # `lldb` module installed (e.g. one shipped in the toolchain's
+        # site-packages for a different LLDB). Inserting lldb_python_path at the
+        # front of sys.path makes our copy win, but to be sure we didn't
+        # silently pick up a different one we verify the imported module
+        # actually lives under lldb_python_path.
+        if lldb_python_path:
+            expected = os.path.realpath(lldb_python_path)
+            actual = os.path.realpath(lldb.__file__)
+            if os.path.commonpath([expected, actual]) != expected:
+                raise LLDBLaunchError(
+                    f"imported the wrong lldb module: expected it under '{expected}' but "
+                    f"loaded '{lldb.__file__}'. Another lldb may be installed earlier on "
+                    "sys.path."
+                )
+
+        if not _terminate_registered:
+            # SBDebugger.Terminate() is the process-global counterpart to the
+            # SBDebugger.Initialize() that the lldb Python module runs at import
+            # time (lldb.py runs `SBDebugger.Initialize()` at module scope),
+            # which registers all plugins. It must run once, at process exit,
+            # after all debuggers are destroyed; otherwise an assertions-enabled
+            # LLDB aborts at shutdown with:
+            #
+            #   Assertion failed: (m_instances.empty() && "forgot to unregister
+            #   plugin?").
+            #
+            # atexit runs before the LLDB library's static plugin-instance
+            # destructors, so registering it here is sufficient.
+            atexit.register(lldb.SBDebugger.Terminate)
+            _terminate_registered = True
+
     return lldb
 
 
@@ -85,12 +113,11 @@ class LLDBProcessContextManager:
             )
 
     def _cleanup(self):
-        """Kill the process (if any) and tear LLDB down cleanly.
+        """Kill the process (if any) and destroy this instance's debugger.
 
-        The Terminate() call is important: without it, an assertions-enabled
-        LLDB (e.g. a just-built in-tree lldb) aborts at interpreter shutdown
-        with "forgot to unregister plugin?", turning a passing test into a
-        spurious failure.
+        The process-global SBDebugger.Terminate() teardown is handled separately
+        via an atexit handler registered in import_lldb(); it must not run here
+        because it is a once-per-process operation.
         """
         if self.process is not None:
             try:
@@ -105,17 +132,6 @@ class LLDBProcessContextManager:
             except Exception:
                 pass
             self.debugger = None
-            try:
-                # Needed to avoid an assertion in LLDB:
-                #
-                # Assertion failed: (m_instances.empty() && "forgot to unregister plugin?").
-                #
-                # FIXME: Technically this shouldn't be here because it prevents
-                # using this class multiple times in a script but right now this
-                # is the most convenient place to put this.
-                self._lldb.SBDebugger.Terminate()
-            except Exception:
-                pass
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._cleanup()
