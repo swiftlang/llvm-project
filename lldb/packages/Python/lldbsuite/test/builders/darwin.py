@@ -78,8 +78,11 @@ class BuilderDarwin(Builder):
             arch = configuration.arch
         if not arch:
             return []
-        vendor, os, version, env = get_triple()
-        if vendor is None or os is None or version is None or env is None:
+        triple = self.getTriple()
+        if not triple:
+            return []
+        _, vendor, os, version, env = split_triple(triple)
+        if vendor is None or os is None or version is None:
             return []
         return [
             'TARGET_SWIFTFLAGS=-target {}-{}-{}{}{}'.format(
