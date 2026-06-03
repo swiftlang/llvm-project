@@ -6447,22 +6447,8 @@ public:
                                         bool OrNull, bool AllowRedecl) {
     const Type *T = DeclTy.getTypePtr();
 
-    // Desugar and descend.
-    if (const auto *PT = dyn_cast<ParenType>(T))
-      return diagnoseCountAttributedTypeShape(PT->getInnerType(), CountInBytes,
-                                              OrNull, AllowRedecl);
-    if (const auto *MQT = dyn_cast<MacroQualifiedType>(T))
-      return diagnoseCountAttributedTypeShape(MQT->desugar(), CountInBytes,
-                                              OrNull, AllowRedecl);
-    // Function prototypes force AllowRedecl=true for the sub-walk.
-    if (const auto *FPT = dyn_cast<FunctionProtoType>(T))
-      return diagnoseCountAttributedTypeShape(FPT->getReturnType(),
-                                              CountInBytes, OrNull,
-                                              /*AllowRedecl=*/true);
-    if (const auto *FPT = dyn_cast<FunctionNoProtoType>(T))
-      return diagnoseCountAttributedTypeShape(FPT->getReturnType(),
-                                              CountInBytes, OrNull,
-                                              /*AllowRedecl=*/true);
+    // Sugar types with special semantics — must be checked before generic
+    // desugar.
     if (const auto *AT = dyn_cast<AttributedType>(T)) {
       llvm::SaveAndRestore<bool> Local(AutoPtrAttributed);
       if (AT->getAttrKind() == attr::PtrAutoAttr)
@@ -6482,25 +6468,9 @@ public:
                                               OrNull, AllowRedecl);
     }
 
-    // An AtomicType wrapping a pointer: emit the diagnostic but return true so
-    // the visitor still constructs the atomic type. Its shape prevents
-    // `ConstructBoundsSafetyPointerType::VisitAtomicTypeLoc` from re-emitting
-    // the same diagnostic.
-    if (const auto *ATy = dyn_cast<AtomicType>(T)) {
-      if (ATy->getValueType()->isPointerType()) {
-        unsigned DiagIndex = CountInBytes ? 3 : 2;
-        if (OrNull)
-          DiagIndex += 2;
-        S.Diag(Loc, diag::err_bounds_safety_atomic_unsupported_attribute)
-            << DiagIndex;
-        return true;
-      }
-      // Atomic of non-pointer falls through to the leaf check below.
-    }
-
     // At Level 0 we either diagnose, or canonicalize and compare for
     // AllowRedecl.
-    if (const auto *CAT = T->getAs<CountAttributedType>()) {
+    if (const auto *CAT = dyn_cast<CountAttributedType>(T)) {
       if (Level == 0) {
         if (!AllowRedecl) {
           S.Diag(Loc, diag::err_bounds_safety_conflicting_pointer_attributes)
@@ -6528,7 +6498,7 @@ public:
                                               OrNull, AllowRedecl);
     }
 
-    if (const auto *DRPT = T->getAs<DynamicRangePointerType>()) {
+    if (const auto *DRPT = dyn_cast<DynamicRangePointerType>(T)) {
       if (Level == 0) {
         S.Diag(Loc, diag::err_bounds_safety_conflicting_count_range_attributes);
         return false;
@@ -6537,7 +6507,41 @@ public:
                                               OrNull, AllowRedecl);
     }
 
-    // Use getAsArrayType to desugar.
+    // Generic desugar for all other sugar types (ParenType, MacroQualifiedType,
+    // ElaboratedType, TypeOfType, etc.)
+    QualType Desugared = DeclTy.getSingleStepDesugaredType(S.Context);
+    if (Desugared != DeclTy)
+      return diagnoseCountAttributedTypeShape(Desugared, CountInBytes, OrNull,
+                                              AllowRedecl);
+
+    // Non-sugar types below — all sugar is already stripped at this point.
+
+    // Function prototypes force AllowRedecl=true for the sub-walk.
+    if (const auto *FPT = dyn_cast<FunctionProtoType>(T))
+      return diagnoseCountAttributedTypeShape(FPT->getReturnType(),
+                                              CountInBytes, OrNull,
+                                              /*AllowRedecl=*/true);
+    if (const auto *FPT = dyn_cast<FunctionNoProtoType>(T))
+      return diagnoseCountAttributedTypeShape(FPT->getReturnType(),
+                                              CountInBytes, OrNull,
+                                              /*AllowRedecl=*/true);
+
+    // An AtomicType wrapping a pointer: emit the diagnostic but return true so
+    // the visitor still constructs the atomic type. Its shape prevents
+    // ConstructBoundsSafetyPointerType::VisitAtomicTypeLoc from re-emitting
+    // the same diagnostic.
+    if (const auto *ATy = dyn_cast<AtomicType>(T)) {
+      if (ATy->getValueType()->isPointerType()) {
+        unsigned DiagIndex = CountInBytes ? 3 : 2;
+        if (OrNull)
+          DiagIndex += 2;
+        S.Diag(Loc, diag::err_bounds_safety_atomic_unsupported_attribute)
+            << DiagIndex;
+        return true;
+      }
+      // Atomic of non-pointer falls through to the leaf check below.
+    }
+
     if (const auto *AT = S.Context.getAsArrayType(DeclTy)) {
       if (Level == 0) {
         if (AT->hasAttr(attr::ArrayDecayDiscardsCountInParameters))
@@ -6574,7 +6578,7 @@ public:
     // see `HasCountedByAttrOnIncompletePointee()`. This allows the counted_by
     // attribute to be used on code that prefers to keep its pointees
     // incomplete until they need to be used.
-    if (const auto *PT = T->getAs<PointerType>()) {
+    if (const auto *PT = dyn_cast<PointerType>(T)) {
       auto FAttr = PT->getPointerAttributes();
       if (FAttr.hasUpperBound() && !AutoPtrAttributed) {
         S.Diag(Loc, diag::err_bounds_safety_conflicting_count_bound_attributes)
@@ -6647,18 +6651,8 @@ public:
   bool diagnoseDynamicRangePointerTypeShape(QualType DeclTy, bool AllowRedecl) {
     const Type *T = DeclTy.getTypePtr();
 
-    // Desugar and descend.
-    if (const auto *PT = dyn_cast<ParenType>(T))
-      return diagnoseDynamicRangePointerTypeShape(PT->getInnerType(),
-                                                  AllowRedecl);
-    if (const auto *MQT = dyn_cast<MacroQualifiedType>(T))
-      return diagnoseDynamicRangePointerTypeShape(MQT->desugar(), AllowRedecl);
-    if (const auto *FPT = dyn_cast<FunctionProtoType>(T))
-      return diagnoseDynamicRangePointerTypeShape(FPT->getReturnType(),
-                                                  AllowRedecl);
-    if (const auto *FPT = dyn_cast<FunctionNoProtoType>(T))
-      return diagnoseDynamicRangePointerTypeShape(FPT->getReturnType(),
-                                                  AllowRedecl);
+    // Sugar types with special semantics — must be checked before generic
+    // desugar.
     if (const auto *AT = dyn_cast<AttributedType>(T)) {
       llvm::SaveAndRestore<bool> Local(AutoPtrAttributed);
       if (AT->getAttrKind() == attr::PtrAutoAttr)
@@ -6677,17 +6671,7 @@ public:
       return diagnoseDynamicRangePointerTypeShape(VTT->desugar(), AllowRedecl);
     }
 
-    // Like the counted_by case, we emit the diagnostic but return true.
-    if (const auto *ATy = dyn_cast<AtomicType>(T)) {
-      if (ATy->getValueType()->isPointerType()) {
-        S.Diag(Loc, diag::err_bounds_safety_atomic_unsupported_attribute)
-            << /*ended_by*/ 6;
-        return true;
-      }
-      // Atomic of non-pointer falls through to the leaf check below.
-    }
-
-    if (const auto *CAT = T->getAs<CountAttributedType>()) {
+    if (const auto *CAT = dyn_cast<CountAttributedType>(T)) {
       if (Level == 0) {
         S.Diag(Loc, diag::err_bounds_safety_conflicting_count_range_attributes);
         return false;
@@ -6697,7 +6681,7 @@ public:
 
     // At Level 0 we diagnose outright conflicts, or canonicalize and compare
     // for AllowRedecl.
-    if (const auto *DRPT = T->getAs<DynamicRangePointerType>()) {
+    if (const auto *DRPT = dyn_cast<DynamicRangePointerType>(T)) {
       if (Level == 0) {
         if (DRPT->getEndPointer() == nullptr)
           return true;
@@ -6706,8 +6690,6 @@ public:
               << /*pointer*/ 1 << /*end*/ 3;
           return false;
         }
-        // Canonicalize new end-pointer expression and compare against existing
-        // one
         ExprResult CanonEnd =
             S.CanonicalizeRangeEndPtrExpr(AttrArg, ScopeCheck);
         if (CanonEnd.isInvalid())
@@ -6725,8 +6707,31 @@ public:
       return diagnoseDynamicRangePointerTypeShape(DRPT->desugar(), AllowRedecl);
     }
 
-    // Nothing to diagnose here for __ended_by.
-    if (const auto *PT = T->getAs<PointerType>()) {
+    // Generic desugar for all other sugar types (ParenType, MacroQualifiedType,
+    // ElaboratedType, TypeOfType, etc.)
+    QualType Desugared = DeclTy.getSingleStepDesugaredType(S.Context);
+    if (Desugared != DeclTy)
+      return diagnoseDynamicRangePointerTypeShape(Desugared, AllowRedecl);
+
+    // Non-sugar types below — all sugar is already stripped at this point.
+    if (const auto *FPT = dyn_cast<FunctionProtoType>(T))
+      return diagnoseDynamicRangePointerTypeShape(FPT->getReturnType(),
+                                                  AllowRedecl);
+    if (const auto *FPT = dyn_cast<FunctionNoProtoType>(T))
+      return diagnoseDynamicRangePointerTypeShape(FPT->getReturnType(),
+                                                  AllowRedecl);
+
+    // Like the counted_by case, we emit the diagnostic but return true.
+    if (const auto *ATy = dyn_cast<AtomicType>(T)) {
+      if (ATy->getValueType()->isPointerType()) {
+        S.Diag(Loc, diag::err_bounds_safety_atomic_unsupported_attribute)
+            << /*ended_by*/ 6;
+        return true;
+      }
+      // Atomic of non-pointer falls through to the leaf check below.
+    }
+
+    if (const auto *PT = dyn_cast<PointerType>(T)) {
       auto FAttr = PT->getPointerAttributes();
       if (FAttr.hasUpperBound() && !AutoPtrAttributed) {
         S.Diag(Loc, diag::err_bounds_safety_conflicting_count_bound_attributes)
