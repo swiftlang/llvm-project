@@ -988,6 +988,72 @@ GetBuiltinAnyObjectNode(swift::Demangle::Demangler &dem) {
   return proto_list_any;
 }
 
+/// Resolve a top-level Swift stdlib C-interop typealias (CInt, CDouble, ...)
+/// to its underlying stdlib type. These aliases live in
+/// stdlib/public/core/CTypes.swift and are not always discoverable through
+/// DWARF or runtime metadata, so handle them as fixed mappings keyed off the
+/// target triple. Returns a Structure demangle node for the underlying type,
+/// or nullptr if \p node is not a known stdlib C-interop alias.
+static swift::Demangle::NodePointer
+ResolveStdlibCInteropAlias(swift::Demangle::Demangler &dem,
+                           swift::Demangle::NodePointer node,
+                           const llvm::Triple &triple) {
+  using namespace swift::Demangle;
+  if (!node || node->getKind() != Node::Kind::TypeAlias)
+    return nullptr;
+  if (node->getNumChildren() < 2)
+    return nullptr;
+  NodePointer module = node->getChild(0);
+  if (!module || !module->hasText() || module->getText() != swift::STDLIB_NAME)
+    return nullptr;
+  NodePointer ident = node->getChild(1);
+  if (!ident || !ident->hasText())
+    return nullptr;
+
+  // Windows on 64-bit x86/arm uses LLP64, where C long is 32 bits; everywhere
+  // else LLDB targets, C long matches the Swift word size (Int / UInt).
+  const bool is_windows_llp64 = triple.isOSWindows() &&
+                                (triple.getArch() == llvm::Triple::x86_64 ||
+                                 triple.getArch() == llvm::Triple::aarch64);
+
+  llvm::StringRef alias = ident->getText();
+  llvm::StringRef underlying =
+      llvm::StringSwitch<llvm::StringRef>(alias)
+          .Case("CChar", "Int8")
+          .Case("CSignedChar", "Int8")
+          .Case("CUnsignedChar", "UInt8")
+          .Case("CShort", "Int16")
+          .Case("CUnsignedShort", "UInt16")
+          .Case("CInt", "Int32")
+          .Case("CUnsignedInt", "UInt32")
+          .Case("CLong", is_windows_llp64 ? "Int32" : "Int")
+          .Case("CUnsignedLong", is_windows_llp64 ? "UInt32" : "UInt")
+          .Case("CLongLong", "Int64")
+          .Case("CUnsignedLongLong", "UInt64")
+          .Case("CInt128", "Int128")
+          .Case("CUnsignedInt128", "UInt128")
+          .Case("CFloat", "Float")
+          .Case("CFloat16", "Float16")
+          .Case("CDouble", "Double")
+          .Case("CChar8", "UInt8")
+          .Case("CChar16", "UInt16")
+          .Case("CBool", "Bool")
+          // CWideChar is UInt16 only on Windows; elsewhere it aliases
+          // Unicode.Scalar, which we don't synthesize here.
+          .Case("CWideChar", triple.isOSWindows() ? "UInt16" : "")
+          .Default("");
+  if (underlying.empty())
+    return nullptr;
+
+  NodePointer mod = dem.createNodeWithAllocatedText(Node::Kind::Module,
+                                                    swift::STDLIB_NAME);
+  NodePointer name = dem.createNode(Node::Kind::Identifier, underlying);
+  NodePointer structure = dem.createNode(Node::Kind::Structure);
+  structure->addChild(mod, dem);
+  structure->addChild(name, dem);
+  return structure;
+}
+
 /// Builds the decl context to look up clang types with.
 static bool
 IsClangImportedType(NodePointer node,
@@ -1031,6 +1097,13 @@ TypeSystemSwiftTypeRef::ResolveTypeAlias(swift::Demangle::Demangler &dem,
   // the builtin AnyObject type.
   if (IsAnyObjectTypeAlias(node))
     return {GetBuiltinAnyObjectNode(dem), {}};
+
+  // Resolve well-known stdlib C-interop typealiases (CInt, CDouble, ...)
+  // without consulting DWARF or the runtime: these aliases come from the
+  // Swift stdlib and have stable per-target underlying types, so keying
+  // them off the triple is sufficient.
+  if (NodePointer resolved = ResolveStdlibCInteropAlias(dem, node, GetTriple()))
+    return {resolved, {}};
 
   using namespace swift::Demangle;
   // Try to look this up as a Swift type alias. For each *Swift*
