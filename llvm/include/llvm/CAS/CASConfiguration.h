@@ -52,7 +52,7 @@ public:
   }
 
   // Get resolved CASPath.
-  void getResolvedCASPath(llvm::SmallVectorImpl<char> &Result) const;
+  LLVM_ABI void getResolvedCASPath(llvm::SmallVectorImpl<char> &Result) const;
 
   // Create CASDatabase from the CASConfiguration.
   LLVM_ABI
@@ -61,10 +61,10 @@ public:
   createDatabases() const;
 
   /// Write CAS configuration file.
-  void writeConfigurationFile(raw_ostream &OS) const;
+  LLVM_ABI void writeConfigurationFile(raw_ostream &OS) const;
 
   /// Create CASConfiguration from config file content.
-  static llvm::Expected<CASConfiguration>
+  LLVM_ABI static llvm::Expected<CASConfiguration>
   createFromConfig(llvm::StringRef Content);
 
   /// Create CASConfiguration from recurively search config file from a path.

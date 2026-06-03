@@ -52,7 +52,7 @@ public:
   static constexpr size_t DefaultNumSubtrieBits = 4;
 
   LLVM_DUMP_METHOD void dump() const;
-  void print(raw_ostream &OS) const;
+  LLVM_ABI void print(raw_ostream &OS) const;
 
 protected:
   /// Result of a lookup. Suitable for an insertion hint. Maybe could be
@@ -82,27 +82,27 @@ protected:
     unsigned B = 0;
   };
 
-  PointerBase find(ArrayRef<uint8_t> Hash) const;
+  LLVM_ABI PointerBase find(ArrayRef<uint8_t> Hash) const;
 
   /// Insert and return the stored content.
-  PointerBase
+  LLVM_ABI PointerBase
   insert(PointerBase Hint, ArrayRef<uint8_t> Hash,
          function_ref<const uint8_t *(void *Mem, ArrayRef<uint8_t> Hash)>
              Constructor);
 
   ThreadSafeHashMappedTrieBase() = delete;
 
-  ThreadSafeHashMappedTrieBase(size_t ContentAllocSize,
-                               size_t ContentAllocAlign, size_t ContentOffset,
-                               std::optional<size_t> NumRootBits = std::nullopt,
-                               std::optional<size_t> NumSubtrieBits = std::nullopt);
+  LLVM_ABI ThreadSafeHashMappedTrieBase(
+      size_t ContentAllocSize, size_t ContentAllocAlign, size_t ContentOffset,
+      std::optional<size_t> NumRootBits = std::nullopt,
+      std::optional<size_t> NumSubtrieBits = std::nullopt);
 
   /// Destructor, which asserts if there's anything to do. Subclasses should
   /// call \a destroyImpl().
   ///
   /// \pre \a destroyImpl() was already called.
-  ~ThreadSafeHashMappedTrieBase();
-  void destroyImpl(function_ref<void (void *ValueMem)> Destructor);
+  LLVM_ABI ~ThreadSafeHashMappedTrieBase();
+  LLVM_ABI void destroyImpl(function_ref<void (void *ValueMem)> Destructor);
 
   ThreadSafeHashMappedTrieBase(ThreadSafeHashMappedTrieBase &&RHS);
 

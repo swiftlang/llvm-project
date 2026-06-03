@@ -52,7 +52,7 @@ public:
   ///
   /// \returns the \p ObjectID associated with the \p Key. It may be different
   /// than \p Value if another value was already associated with this key.
-  Expected<ObjectID> KVPut(ArrayRef<uint8_t> Key, ObjectID Value);
+  LLVM_ABI Expected<ObjectID> KVPut(ArrayRef<uint8_t> Key, ObjectID Value);
 
   /// Associate an \p ObjectID, of the \p OnDiskGraphDB instance, with a key.
   /// An \p ObjectID as a key is equivalent to its digest bytes.
@@ -62,11 +62,11 @@ public:
   ///
   /// \returns the \p ObjectID associated with the \p Key. It may be different
   /// than \p Value if another value was already associated with this key.
-  Expected<ObjectID> KVPut(ObjectID Key, ObjectID Value);
+  LLVM_ABI Expected<ObjectID> KVPut(ObjectID Key, ObjectID Value);
 
   /// \returns the \p ObjectID, of the \p OnDiskGraphDB instance, associated
   /// with the \p Key, or \p std::nullopt if the key does not exist.
-  Expected<std::optional<ObjectID>> KVGet(ArrayRef<uint8_t> Key);
+  LLVM_ABI Expected<std::optional<ObjectID>> KVGet(ArrayRef<uint8_t> Key);
 
   /// Open a \p UnifiedOnDiskCache instance for a directory.
   ///
@@ -109,7 +109,7 @@ public:
   /// was invalid but has been cleared, \c Skipped if validation is not needed,
   /// or an \c Error if validation cannot be performed or if the data is left
   /// in an invalid state because \p AllowRecovery is false.
-  static Expected<ValidationResult>
+  LLVM_ABI_FOR_TEST static Expected<ValidationResult>
   validateIfNeeded(StringRef Path, StringRef HashName, unsigned HashByteSize,
                    bool CheckHash, OnDiskGraphDB::HashingFuncT HashFn,
                    bool AllowRecovery, bool ForceValidation,
@@ -153,11 +153,11 @@ public:
   LLVM_ABI_FOR_TEST static Error
   collectGarbage(StringRef Path, ondisk::OnDiskCASLogger *Logger = nullptr);
 
-  Error collectGarbage();
+  LLVM_ABI_FOR_TEST Error collectGarbage();
 
   LLVM_ABI_FOR_TEST ~UnifiedOnDiskCache();
 
-  Error validateActionCache();
+  LLVM_ABI_FOR_TEST Error validateActionCache();
 
   OnDiskGraphDB *getUpstreamGraphDB() const { return UpstreamGraphDB; }
 
