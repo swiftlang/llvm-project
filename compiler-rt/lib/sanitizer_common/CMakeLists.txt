@@ -4,6 +4,7 @@
 set(SANITIZER_SOURCES_NOTERMINATION
   sanitizer_allocator.cpp
   sanitizer_common.cpp
+  sanitizer_darwin_crashreport.cpp  # TO_UPSTREAM(crashreporter_global)
   sanitizer_deadlock_detector1.cpp
   sanitizer_deadlock_detector2.cpp
   sanitizer_errno.cpp
@@ -139,6 +140,7 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_common_interface.inc
   sanitizer_common_interface_posix.inc
   sanitizer_common_syscalls.inc
+  sanitizer_darwin_crashreport.h  # TO_UPSTREAM(crashreporter_global)
   sanitizer_coverage_interface.inc
   sanitizer_dbghelp.h
   sanitizer_deadlock_detector.h

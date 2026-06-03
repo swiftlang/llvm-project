@@ -19,6 +19,15 @@
 
 namespace __tsan {
 
+#if !SANITIZER_GO && SANITIZER_APPLE
+// TO_UPSTREAM(crashreporter_global)
+// Defined in tsan_mac_crashreport.cpp; populates the Darwin crash-reporter
+// payload from the just-printed report. Walks the report via the public
+// __tsan_get_current_report() / __tsan_get_report_* / __tsan_describe_*
+// interface, so it doesn't depend on internal types here.
+void OnTsanReportPrinted(void);
+#endif
+
 class Decorator: public __sanitizer::SanitizerCommonDecorator {
  public:
   Decorator() : SanitizerCommonDecorator() { }
@@ -359,6 +368,11 @@ void PrintReport(const ReportDesc *rep) {
     DumpProcessMap();
 
   Printf("==================\n");
+
+#if SANITIZER_APPLE
+  // TO_UPSTREAM(crashreporter_global)
+  OnTsanReportPrinted();
+#endif
 }
 
 #else  // #if !SANITIZER_GO

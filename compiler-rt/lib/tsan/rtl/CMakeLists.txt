@@ -64,6 +64,7 @@ if(APPLE)
   list(APPEND TSAN_SOURCES
     tsan_interceptors_mac.cpp
     tsan_interceptors_mach_vm.cpp
+    tsan_mac_crashreport.cpp  # TO_UPSTREAM(crashreporter_global)
     tsan_platform_mac.cpp
     tsan_platform_posix.cpp
     )
