@@ -1110,7 +1110,7 @@ llvm::Error SwiftLanguageRuntime::GetObjectDescription(Stream &str,
   if (GetProcess().GetTarget().GetSwiftUseContextFreePrintObject()) {
     if (auto err = PrintObjectViaPointer(str, object, GetProcess())) {
       LLDB_LOG_ERROR(log, std::move(err),
-                     "stringForPrintObject(_:mangledTypeName) failed: {0}");
+                     "stringForPrintObject(_:mangledTypeName:) failed: {0}");
     } else {
       LLDB_LOG(log, "stringForPrintObject(_:mangledTypeName:) succeeded");
       return llvm::Error::success();
