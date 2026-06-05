@@ -61,6 +61,16 @@ add_host_subdirectory(common
       )
   endif()
 
+add_host_subdirectory(common
+  common/ScriptInterpreterRuntimeLoader.cpp
+  )
+
+if (LLDB_ENABLE_PYTHON)
+  add_host_subdirectory(common
+    common/PythonRuntimeLoader.cpp
+    )
+endif()
+
 if (LLDB_ENABLE_LIBEDIT)
   add_host_subdirectory(common
     common/Editline.cpp
@@ -96,6 +106,11 @@ if (CMAKE_SYSTEM_NAME MATCHES "Windows")
       )
     endif()
 
+  if (LLDB_ENABLE_PYTHON)
+    add_host_subdirectory(windows
+      windows/PythonRuntimeLoaderWindows.cpp
+      )
+  endif()
 else()
   add_host_subdirectory(posix
     posix/DomainSocket.cpp
@@ -128,6 +143,11 @@ else()
       macosx/cfcpp/CFCMutableSet.cpp
       macosx/cfcpp/CFCString.cpp
       )
+    if (LLDB_ENABLE_PYTHON)
+      add_host_subdirectory(macosx
+        macosx/PythonRuntimeLoaderDarwin.cpp
+        )
+    endif()
     if(APPLE_EMBEDDED)
       set_property(SOURCE macosx/Host.mm APPEND PROPERTY
                COMPILE_DEFINITIONS "NO_XPC_SERVICES=1")
@@ -142,6 +162,11 @@ else()
       linux/LibcGlue.cpp
       linux/Support.cpp
       )
+    if (LLDB_ENABLE_PYTHON)
+      add_host_subdirectory(linux
+        linux/PythonRuntimeLoaderLinux.cpp
+        )
+    endif()
     if (CMAKE_SYSTEM_NAME MATCHES "Android")
       add_host_subdirectory(android
         android/HostInfoAndroid.cpp
@@ -219,3 +244,19 @@ add_lldb_library(lldbHost NO_PLUGIN_DEPENDENCIES
     lldbHostMacOSXObjCXX
   )
 
+if (WIN32 AND LLDB_ENABLE_PYTHON)
+  if (DEFINED LLDB_PYTHON_RUNTIME_LIBRARY_FILENAME)
+    target_compile_definitions(lldbHost PRIVATE
+      LLDB_PYTHON_RUNTIME_LIBRARY_FILENAME="${LLDB_PYTHON_RUNTIME_LIBRARY_FILENAME}")
+    message(STATUS "lldbHost: -DLLDB_PYTHON_RUNTIME_LIBRARY_FILENAME=\"${LLDB_PYTHON_RUNTIME_LIBRARY_FILENAME}\"")
+  else()
+    message(STATUS "lldbHost: LLDB_PYTHON_RUNTIME_LIBRARY_FILENAME is NOT defined in this scope")
+  endif()
+  if (DEFINED LLDB_PYTHON_DLL_RELATIVE_PATH)
+    target_compile_definitions(lldbHost PRIVATE
+      LLDB_PYTHON_DLL_RELATIVE_PATH="${LLDB_PYTHON_DLL_RELATIVE_PATH}")
+    message(STATUS "lldbHost: -DLLDB_PYTHON_DLL_RELATIVE_PATH=\"${LLDB_PYTHON_DLL_RELATIVE_PATH}\"")
+  else()
+    message(STATUS "lldbHost: LLDB_PYTHON_DLL_RELATIVE_PATH is NOT defined in this scope")
+  endif()
+endif()

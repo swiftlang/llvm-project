@@ -4084,8 +4084,8 @@ void SelectionDAGBuilder::visitUIToFP(const User &I) {
   EVT DestVT = DAG.getTargetLoweringInfo().getValueType(DAG.getDataLayout(),
                                                         I.getType());
   SDNodeFlags Flags;
-  if (auto *PNI = dyn_cast<PossiblyNonNegInst>(&I))
-    Flags.setNonNeg(PNI->hasNonNeg());
+  Flags.setNonNeg(cast<PossiblyNonNegInst>(&I)->hasNonNeg());
+  Flags.copyFMF(*cast<FPMathOperator>(&I));
 
   setValue(&I, DAG.getNode(ISD::UINT_TO_FP, getCurSDLoc(), DestVT, N, Flags));
 }
@@ -4095,7 +4095,10 @@ void SelectionDAGBuilder::visitSIToFP(const User &I) {
   SDValue N = getValue(I.getOperand(0));
   EVT DestVT = DAG.getTargetLoweringInfo().getValueType(DAG.getDataLayout(),
                                                         I.getType());
-  setValue(&I, DAG.getNode(ISD::SINT_TO_FP, getCurSDLoc(), DestVT, N));
+  SDNodeFlags Flags;
+  Flags.copyFMF(*cast<FPMathOperator>(&I));
+
+  setValue(&I, DAG.getNode(ISD::SINT_TO_FP, getCurSDLoc(), DestVT, N, Flags));
 }
 
 void SelectionDAGBuilder::visitPtrToAddr(const User &I) {

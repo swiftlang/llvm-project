@@ -277,7 +277,7 @@ getDWARFLinkerType(opt::InputArgList &Args) {
                                    inconvertibleErrorCode());
   }
 
-  return DsymutilDWARFLinkerType::Classic;
+  return DsymutilDWARFLinkerType::Parallel;
 }
 
 static Expected<ReproducerMode> getReproducerMode(opt::InputArgList &Args) {

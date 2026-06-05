@@ -132,6 +132,7 @@ private:
   // When a PCH is used this lists the filenames of the included files as they
   // are recorded in the PCH, ordered by \p FileEntry::UID index.
   SmallVector<StringRef> PreIncludedFileNames;
+  llvm::BitVector SeenIncludeFiles;
   SmallVector<cas::IncludeTree::FileList::FileEntry> IncludedFiles;
   SmallVector<cas::ObjectRef> IncludedFileLists;
   std::optional<cas::ObjectRef> PredefinesBufferRef;
@@ -492,26 +493,6 @@ bool IncludeTreeActionController::finalizeModuleInvocation(
 void IncludeTreeBuilder::enteredInclude(Preprocessor &PP, FileID FID) {
   if (hasErrorOccurred())
     return;
-
-  if (!StartedEnteringIncludes) {
-    StartedEnteringIncludes = true;
-
-    if (!PP.getIncludedFiles().empty()) {
-      SmallVector<OptionalFileEntryRef> UIDToFE;
-      PP.getFileManager().GetUniqueIDMapping(UIDToFE);
-
-      // Get the included files (coming from a PCH), and keep track of the
-      // filenames that were recorded in the PCH.
-      for (const FileEntry *FE : PP.getIncludedFiles()) {
-        unsigned UID = FE->getUID();
-        if (UID >= PreIncludedFileNames.size())
-          PreIncludedFileNames.resize(UID + 1);
-        OptionalFileEntryRef FERef = UIDToFE[FE->getUID()];
-        assert(FERef && "No FileEntryRef with given UID");
-        PreIncludedFileNames[UID] = FERef->getName();
-      }
-    }
-  }
 
   std::optional<cas::ObjectRef> FileRef = check(getObjectForFile(PP, FID));
   if (!FileRef)
@@ -942,16 +923,6 @@ Expected<cas::ObjectRef> IncludeTreeBuilder::addToFileList(FileManager &FM,
          static_cast<cas::IncludeTree::FileList::FileSizeTy>(FE.getSize())});
     return FileNode->getRef();
   };
-
-  // Check whether another path coming from the PCH is associated with the same
-  // file.
-  unsigned UID = FE.getUID();
-  if (UID < PreIncludedFileNames.size() && !PreIncludedFileNames[UID].empty() &&
-      PreIncludedFileNames[UID] != Filename) {
-    auto FileNode = addFile(PreIncludedFileNames[UID]);
-    if (!FileNode)
-      return FileNode.takeError();
-  }
 
   return addFile(Filename);
 }
