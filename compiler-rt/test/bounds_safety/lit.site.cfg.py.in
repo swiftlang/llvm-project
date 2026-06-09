@@ -25,7 +25,7 @@ config.apple_target_is_host = @BOUNDS_SAFETY_TEST_APPLE_TARGET_IS_HOST_PYBOOL@
 # things to work.
 config.compiler_rt_obj_root = "@COMPILER_RT_BINARY_DIR@"
 config.clang = "@COMPILER_RT_RESOLVED_TEST_COMPILER@"
-config.python_executable = "@Python3_EXECUTABLE@"
+config.python_executable = "@BOUNDS_SAFETY_PYTHON_EXECUTABLE@"
 # Setup test format.
 import lit
 config.test_format = lit.formats.ShTest(execute_external=False)

@@ -38,10 +38,10 @@ set(BOUNDS_SAFETY_TEST_DEPS "")
 #
 # Build an ordered list of candidate lldb executables according to
 # COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB, then pick the first "usable"
-# one. A candidate is usable when `lldb -P` succeeds AND the Python interpreter
-# used by lit (${Python3_EXECUTABLE}) can import the lldb module from that path.
-# A Python mismatch (e.g. Homebrew Python 3.13 vs an LLDB built for Python 3.11)
-# would otherwise cause a confusing ImportError at test time.
+# one. A candidate is usable when `lldb -P` succeeds AND some Python
+# interpreter from a per-LLDB candidate list can import the lldb module from
+# that path. A Python mismatch (e.g. Homebrew Python 3.13 vs an LLDB built for
+# Python 3.11) would otherwise cause a confusing ImportError at test time.
 set(_just_built_lldb "${LLVM_TOOLS_BINARY_DIR}/lldb${CMAKE_EXECUTABLE_SUFFIX}")
 
 # Locate a system lldb once; only used for the OFF and AUTO modes below.
@@ -59,10 +59,36 @@ if(NOT COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB STREQUAL "ON"
   list(APPEND _lldb_candidates "${_system_lldb}")
 endif()
 
+# Derive the Python interpreter bundled inside the same Xcode `.app` as the
+# given LLDB, using the path printed by `lldb -P`. That output looks like
+#   <App>.app/Contents/SharedFrameworks/LLDB.framework/Resources/Python
+# so walking up four directories yields <App>.app/Contents and the bundled
+# interpreter sits at:
+#   <App>.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/Current/bin/python3
+# Sets <out_var> to that path if it exists, or to the empty string otherwise.
+function(_bounds_safety_xcode_python_from_lldb_resources lldb_resources_path out_var)
+  get_filename_component(_resources_dir         "${lldb_resources_path}"    DIRECTORY)
+  get_filename_component(_lldb_framework_dir    "${_resources_dir}"         DIRECTORY)
+  get_filename_component(_shared_frameworks_dir "${_lldb_framework_dir}"    DIRECTORY)
+  get_filename_component(_xcode_contents_dir    "${_shared_frameworks_dir}" DIRECTORY)
+  set(_candidate
+    "${_xcode_contents_dir}/Developer/Library/Frameworks/Python3.framework/Versions/Current/bin/python3")
+  if(EXISTS "${_candidate}")
+    set(${out_var} "${_candidate}" PARENT_SCOPE)
+  else()
+    set(${out_var} "" PARENT_SCOPE)
+  endif()
+endfunction()
+
 set(_LLDB_DETECTED FALSE)
 set(_LLDB_PYTHON_COMPATIBLE FALSE)
+set(_indent "  ")
+message(STATUS "Detecting LLDB usable for -fbounds-safety tests")
+message(STATUS "${_indent}LLDB candidates: ${_lldb_candidates}")
 foreach(_cand ${_lldb_candidates})
+  message(STATUS "${_indent}Considering LLDB: ${_cand}")
   if(NOT EXISTS "${_cand}")
+    message(STATUS "${_indent}${_indent}not found on disk; skipping")
     continue()
   endif()
   execute_process(
@@ -72,25 +98,61 @@ foreach(_cand ${_lldb_candidates})
     RESULT_VARIABLE _cand_p_result
   )
   if(NOT _cand_p_result EQUAL 0)
+    message(STATUS "${_indent}${_indent}'${_cand} -P' failed (exit ${_cand_p_result}); skipping")
     continue()
   endif()
   set(_LLDB_DETECTED TRUE)
-  # Tear LLDB down with SBDebugger::Terminate() after a successful import. An
-  # assertions-enabled LLDB would otherwise abort at interpreter shutdown.
-  execute_process(
-    COMMAND ${Python3_EXECUTABLE} -c
-      "import sys; sys.path.insert(0, '${_cand_py_path}'); import lldb; lldb.SBDebugger.Terminate()"
-    RESULT_VARIABLE _LLDB_IMPORT_RESULT
-    ERROR_VARIABLE _LLDB_IMPORT_ERROR
-    OUTPUT_QUIET
-  )
-  if(_LLDB_IMPORT_RESULT EQUAL 0)
-    set(BOUNDS_SAFETY_LLDB_PYTHON_PATH "${_cand_py_path}")
-    set(_LLDB_PYTHON_COMPATIBLE TRUE)
-    set(_LLDB_EXECUTABLE "${_cand}")
-    break() # First usable candidate wins (just-built first in AUTO).
+  message(STATUS "${_indent}${_indent}LLDB Python bindings: ${_cand_py_path}")
+
+  # Ordered Python-interpreter candidates for this LLDB; first success wins.
+  # When LLDB is from an Xcode bundle, prefer the Python bundled in the same
+  # bundle: a different-Xcode Python can succeed at `import lldb` accidentally
+  # (when both Xcodes happen to ship the same Python ABI) yet still violate
+  # the requirement that bounds-safety tests run against the Python shipped
+  # alongside this LLDB. ${Python3_EXECUTABLE} is the fallback for non-Xcode
+  # (e.g. just-built) LLDB, where no bundled Python is derivable.
+  _bounds_safety_xcode_python_from_lldb_resources("${_cand_py_path}" _xcode_python)
+  set(_python_candidates "")
+  if(NOT _xcode_python STREQUAL "")
+    list(APPEND _python_candidates "${_xcode_python}")
+  endif()
+  list(APPEND _python_candidates "${Python3_EXECUTABLE}")
+  list(REMOVE_DUPLICATES _python_candidates)
+  message(STATUS "${_indent}${_indent}Python interpreter candidates: ${_python_candidates}")
+
+  foreach(_py ${_python_candidates})
+    message(STATUS "${_indent}${_indent}Trying Python: ${_py}")
+    # Tear LLDB down with SBDebugger::Terminate() after a successful import. An
+    # assertions-enabled LLDB would otherwise abort at interpreter shutdown.
+    execute_process(
+      COMMAND ${_py} -c
+        "import sys; sys.path.insert(0, '${_cand_py_path}'); import lldb; lldb.SBDebugger.Terminate()"
+      RESULT_VARIABLE _LLDB_IMPORT_RESULT
+      ERROR_VARIABLE _LLDB_IMPORT_ERROR
+      OUTPUT_QUIET
+    )
+    if(_LLDB_IMPORT_RESULT EQUAL 0)
+      message(STATUS "${_indent}${_indent}${_indent}lldb import OK")
+      set(BOUNDS_SAFETY_LLDB_PYTHON_PATH "${_cand_py_path}")
+      set(BOUNDS_SAFETY_PYTHON_EXECUTABLE "${_py}")
+      set(_LLDB_PYTHON_COMPATIBLE TRUE)
+      set(_LLDB_EXECUTABLE "${_cand}")
+      break() # First usable Python wins for this LLDB.
+    else()
+      message(STATUS "${_indent}${_indent}${_indent}lldb import FAILED (exit ${_LLDB_IMPORT_RESULT})")
+    endif()
+  endforeach()
+  if(_LLDB_PYTHON_COMPATIBLE)
+    break()
   endif()
 endforeach()
+
+# Fallback so lit.site.cfg.py.in always gets a valid Python path. The
+# LLDB-using suites are gated on COMPILER_RT_BOUNDS_SAFETY_USE_LLDB regardless,
+# so a failing detection above does not need to break configure.
+if(NOT BOUNDS_SAFETY_PYTHON_EXECUTABLE)
+  set(BOUNDS_SAFETY_PYTHON_EXECUTABLE "${Python3_EXECUTABLE}")
+endif()
 
 # In ON mode the just-built LLDB is the only candidate. If it isn't usable, warn
 # (rather than error) so we preserve COMPILER_RT_BOUNDS_SAFETY_USE_LLDB's graceful
@@ -100,12 +162,12 @@ if(COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB STREQUAL "ON" AND
    NOT _LLDB_PYTHON_COMPATIBLE)
   message(WARNING
     "COMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB=ON but the just-built LLDB "
-    "(${_just_built_lldb}) is not usable with the Python interpreter used by "
-    "lit (${Python3_EXECUTABLE}).\n"
+    "(${_just_built_lldb}) is not usable with any of the Python interpreters "
+    "tried (${_python_candidates}).\n"
     "This usually means the just-built LLDB was not built (is lldb in "
     "LLVM_ENABLE_PROJECTS and LLDB_ENABLE_PYTHON enabled?) or it targets a "
-    "different Python version than ${Python3_EXECUTABLE}.\n"
-    "Import error: ${_LLDB_IMPORT_ERROR}")
+    "different Python version than any candidate above.\n"
+    "Last import error: ${_LLDB_IMPORT_ERROR}")
 endif()
 
 # CMake option: defaults to ON if LLDB detected AND the Python interpreter
@@ -122,8 +184,8 @@ endif()
 
 if(COMPILER_RT_BOUNDS_SAFETY_USE_LLDB AND NOT _LLDB_PYTHON_COMPATIBLE)
   message(FATAL_ERROR
-    "COMPILER_RT_BOUNDS_SAFETY_USE_LLDB=ON but the Python interpreter "
-    "used by lit (${Python3_EXECUTABLE}) cannot import the lldb module "
+    "COMPILER_RT_BOUNDS_SAFETY_USE_LLDB=ON but none of the Python interpreters "
+    "tried (${_python_candidates}) could import the lldb module "
     "from ${BOUNDS_SAFETY_LLDB_PYTHON_PATH}.\n"
     "This typically means Python and LLDB were built for different Python "
     "versions. Either:\n"
@@ -131,13 +193,14 @@ if(COMPILER_RT_BOUNDS_SAFETY_USE_LLDB AND NOT _LLDB_PYTHON_COMPATIBLE)
     "(e.g. the one bundled with Xcode), or\n"
     "  - Set COMPILER_RT_BOUNDS_SAFETY_USE_LLDB=OFF to disable debugger "
     "test suites.\n"
-    "Import error: ${_LLDB_IMPORT_ERROR}")
+    "Last import error: ${_LLDB_IMPORT_ERROR}")
 endif()
 
 if (COMPILER_RT_BOUNDS_SAFETY_USE_LLDB)
   message(STATUS "Enabled -fbounds-safety tests using LLDB:\n"
     "LLDB Python bindings: ${BOUNDS_SAFETY_LLDB_PYTHON_PATH}\n"
-    "LLDB executable: ${_LLDB_EXECUTABLE}")
+    "LLDB executable: ${_LLDB_EXECUTABLE}\n"
+    "Python interpreter for LLDB Python bindings: ${BOUNDS_SAFETY_PYTHON_EXECUTABLE}")
 else()
   message(STATUS "Disabled -fbounds-safety tests using LLDB")
 endif()
