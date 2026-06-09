@@ -107,7 +107,7 @@
 // RUN:   -serialize-diagnostic-file %t/t4.dia -Rcompile-job-cache-hit \
 // RUN:   -dependency-file %t/t4.d -o %t/output4.o 2> %t/output4.txt
 // RUN: FileCheck %s --input-file=%t/output4.txt -check-prefix=ERR_DIAG
-// ERR_DIAG: error diagnostic during replay: fatal error: CAS cannot parse root-id 'llvmcas://bad' specified by '-fcas-*' options
+// ERR_DIAG: error constructing virtual filesystem for replay: fatal error: CAS cannot parse root-id 'llvmcas://bad' specified by '-fcas-*' options
 
 // Use relative path to inputs and outputs.
 //--- cdb.json.template
