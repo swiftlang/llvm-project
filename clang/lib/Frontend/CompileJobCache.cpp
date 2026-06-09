@@ -631,9 +631,9 @@ Expected<std::optional<int>> CompileJobCache::replayCachedResult(
   TextDiagnosticPrinter DiagConsumer(DiagOS, Clang.getDiagnosticOpts());
   Clang.createVirtualFileSystem(llvm::vfs::getRealFileSystem(), &DiagConsumer);
   if (DiagConsumer.getNumErrors() != 0)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "error diagnostic during replay: " +
-                                       DiagOS.str());
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "error constructing virtual filesystem for replay: " + DiagOS.str());
   Clang.createDiagnostics(&DiagConsumer, /*ShouldOwnClient=*/false);
   Clang.setVerboseOutputStream(DiagOS);
 
