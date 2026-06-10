@@ -56,7 +56,7 @@
 // O0-NEXT:    ret void
 //
 // O2-LABEL: define dso_local void @foo(
-// O2-SAME: ptr noundef writeonly captures(address) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// O2-SAME: ptr nofree noundef writeonly captures(address) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // O2-NEXT:  [[ENTRY:.*:]]
 // O2-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[LEN]] to i64
 // O2-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds [4 x i8], ptr [[BUF]], i64 [[IDX_EXT]]

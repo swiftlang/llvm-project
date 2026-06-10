@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local void @assign(
-// CHECK-SAME: ptr noundef captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!tbaa ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -23,7 +23,7 @@ void assign(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local void @compound_assign(
-// CHECK-SAME: ptr noundef captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -41,7 +41,7 @@ void compound_assign(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local void @subscript(
-// CHECK-SAME: ptr noundef captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!tbaa ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -58,7 +58,7 @@ void subscript(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local void @nested_assign(
-// CHECK-SAME: ptr noundef captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[P]], align 8, {{!tbaa ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[TMP0]], inttoptr (i64 -1 to ptr), {{!annotation ![0-9]+}}

@@ -127,7 +127,7 @@ int *__indexable ind(int *__indexable p, int index) {
 // CHECK-O0-NEXT:    ret void
 //
 // CHECK-O2-LABEL: define dso_local void @bidi(
-// CHECK-O2-SAME: ptr dead_on_unwind noalias writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]], ptr noundef [[P_COERCE0:%.*]], ptr noundef [[P_COERCE1:%.*]], i32 noundef [[INDEX:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-O2-SAME: ptr dead_on_unwind noalias nofree writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]], ptr noundef [[P_COERCE0:%.*]], ptr noundef [[P_COERCE1:%.*]], i32 noundef [[INDEX:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-O2-NEXT:  [[ENTRY:.*:]]
 // CHECK-O2-NEXT:    [[IDXPROM:%.*]] = sext i32 [[INDEX]] to i64
 // CHECK-O2-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr [4 x i8], ptr [[P_COERCE0]], i64 [[IDXPROM]]

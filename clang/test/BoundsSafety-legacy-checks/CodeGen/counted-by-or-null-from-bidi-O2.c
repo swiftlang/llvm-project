@@ -7,7 +7,7 @@
 
 // TODO: rdar://114446928
 // CHECK-LABEL: define dso_local ptr @foo(
-// CHECK-SAME: ptr noundef readonly captures(none) dead_on_return [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) dead_on_return [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[P]], align 8
 // CHECK-NEXT:    ret ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]]
@@ -17,7 +17,7 @@ int * __counted_by_or_null(len) foo(int * __bidi_indexable p, int len) {
 }
 
 // CHECK-LABEL: define dso_local void @foo_assign(
-// CHECK-SAME: ptr noundef readonly captures(none) dead_on_return [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR1:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) dead_on_return [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR1:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[LEN]] to i64
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[P]], align 8
@@ -54,7 +54,7 @@ void foo_assign(int * __bidi_indexable p, int len) {
 }
 
 // CHECK-LABEL: define dso_local void @bar(
-// CHECK-SAME: ptr dead_on_unwind noalias writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]], ptr noundef [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
+// CHECK-SAME: ptr dead_on_unwind noalias nofree writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]], ptr noundef [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[P]], null, !annotation [[META12:![0-9]+]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[LEN]] to i64
@@ -72,7 +72,7 @@ int * __bidi_indexable bar(int * __counted_by_or_null(len) p, int len) {
 }
 
 // CHECK-LABEL: define dso_local void @bar_assign(
-// CHECK-SAME: ptr noundef readnone captures(none) [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -94,7 +94,7 @@ void ptr_oob(void) {
 }
 
 // CHECK-LABEL: define dso_local void @null_count_neg(
-// CHECK-SAME: ptr dead_on_unwind noalias writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]]) local_unnamed_addr #[[ATTR3]] {
+// CHECK-SAME: ptr dead_on_unwind noalias nofree writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(24) [[AGG_RESULT]], i8 0, i64 24, i1 false)
 // CHECK-NEXT:    ret void
@@ -109,7 +109,7 @@ int *__bidi_indexable null_count_neg(void) {
 }
 
 // CHECK-LABEL: define dso_local void @null_count_too_big(
-// CHECK-SAME: ptr dead_on_unwind noalias writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]]) local_unnamed_addr #[[ATTR3]] {
+// CHECK-SAME: ptr dead_on_unwind noalias nofree writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(24) [[AGG_RESULT]], i8 0, i64 24, i1 false)
 // CHECK-NEXT:    ret void

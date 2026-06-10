@@ -7,7 +7,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local void @f_inout_count(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], ptr noundef readnone captures(none) [[OUT_LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], ptr nofree noundef readnone captures(none) [[OUT_LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -37,7 +37,7 @@ void fail() {
 }
 
 // CHECK-LABEL: define dso_local void @pass_out_len(
-// CHECK-SAME: ptr noundef readnone captures(none) [[ARR:%.*]], ptr noundef readonly captures(none) [[OUT_LEN:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[ARR:%.*]], ptr nofree noundef readonly captures(none) [[OUT_LEN:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[OUT_LEN]], align 4, !tbaa [[INT_TBAA1:![0-9]+]]
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[TMP0]], 0, !annotation [[META6:![0-9]+]]
@@ -53,7 +53,7 @@ void pass_out_len(int *__counted_by(*out_len) arr, int *out_len) {
 }
 
 // CHECK-LABEL: define dso_local void @pass_addr_of_len(
-// CHECK-SAME: ptr noundef readnone captures(none) [[ARR:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[ARR:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[BOUNDSCHECK_NULL:.*]], !annotation [[META6]]

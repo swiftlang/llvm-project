@@ -9,7 +9,7 @@
 
 // All accesses in the loop at in bounds and can be eliminated.
 // CHECK-LABEL: define dso_local void @loop_all_accesses_in_bounds(
-// CHECK-SAME: ptr noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP7_NOT:%.*]] = icmp eq i32 [[N]], 0
 // CHECK-NEXT:    br i1 [[CMP7_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_PREHEADER:.*]]
@@ -27,7 +27,7 @@ void loop_all_accesses_in_bounds(int* __counted_by(n) dst, unsigned n) {
 }
 
 // CHECK-LABEL: define dso_local i32 @loop_access_by_dereference(
-// CHECK-SAME: ptr noundef readonly captures(address) [[A:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(address) [[A:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds [4 x i8], ptr [[A]], i64 [[IDX_EXT]]
@@ -67,7 +67,7 @@ int loop_access_by_dereference(int *__counted_by(n) a, int n) {
 }
 
 // CHECK-LABEL: define dso_local void @loop_all_accesses_in_bounds_variable_start_1(
-// CHECK-SAME: ptr noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[START:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[START:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP7:%.*]] = icmp ult i32 [[START]], [[N]]
 // CHECK-NEXT:    br i1 [[CMP7]], label %[[FOR_BODY_PREHEADER:.*]], label %[[FOR_COND_CLEANUP:.*]]
@@ -92,7 +92,7 @@ void loop_all_accesses_in_bounds_variable_start_1(int* __counted_by(n) dst,
 }
 
 // CHECK-LABEL: define dso_local void @loop_all_accesses_in_bounds_variable_start_2_add(
-// CHECK-SAME: ptr noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[START:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[START:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ADD:%.*]] = add i32 [[START]], 10
 // CHECK-NEXT:    [[CMP9:%.*]] = icmp ult i32 [[ADD]], [[N]]
@@ -119,7 +119,7 @@ void loop_all_accesses_in_bounds_variable_start_2_add(int* __counted_by(n) dst,
 }
 
 // CHECK-LABEL: define dso_local void @loop_all_accesses_in_bounds_variable_start_3_modulo(
-// CHECK-SAME: ptr noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[START:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[START:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[TMP1:%.*]] = urem i32 [[START]], [[N]]
@@ -143,7 +143,7 @@ void loop_all_accesses_in_bounds_variable_start_3_modulo(int* __counted_by(n) ds
 }
 
 // CHECK-LABEL: define dso_local void @loop_all_accesses_in_bounds_variable_start_4_div(
-// CHECK-SAME: ptr noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[START1:%.*]], i32 noundef [[START2:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[START1:%.*]], i32 noundef [[START2:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[DIV:%.*]] = udiv i32 [[START2]], 10
 // CHECK-NEXT:    [[ADD:%.*]] = add i32 [[DIV]], [[START1]]
@@ -173,7 +173,7 @@ void loop_all_accesses_in_bounds_variable_start_4_div(int* __counted_by(n) dst,
 }
 
 // CHECK-LABEL: define dso_local void @loop_all_accesses_in_bounds_len_signed(
-// CHECK-SAME: ptr noundef captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP7:%.*]] = icmp sgt i32 [[LEN]], 0
 // CHECK-NEXT:    br i1 [[CMP7]], label %[[FOR_BODY_PREHEADER:.*]], label %[[FOR_COND_CLEANUP:.*]]
@@ -198,7 +198,7 @@ void loop_all_accesses_in_bounds_len_signed(int* __counted_by(len) buf, int len)
 }
 
 // CHECK-LABEL: define dso_local void @loop_all_accesses_in_bounds_length_ull(
-// CHECK-SAME: ptr noundef captures(none) [[BUF:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR5:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef captures(none) [[BUF:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR5:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP8_NOT:%.*]] = icmp eq i64 [[LEN]], 0
 // CHECK-NEXT:    br i1 [[CMP8_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_LR_PH:.*]]
@@ -230,7 +230,7 @@ void loop_all_accesses_in_bounds_length_ull(int* __counted_by(len) buf, unsigned
 // 1. and 2. together imply that dst + i + 1 does not wrap, hence dst + i + 1 >= dst is true.
 
 // CHECK-LABEL: define dso_local void @loop_accesses_out_of_bounds_eliminate_lower_check(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP8_NOT:%.*]] = icmp eq i32 [[N]], 0
 // CHECK-NEXT:    br i1 [[CMP8_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_LR_PH:.*]]
@@ -263,7 +263,7 @@ void loop_accesses_out_of_bounds_eliminate_lower_check(int* __counted_by(n) dst,
 }
 
 // CHECK-LABEL: define dso_local void @loop_accesses_out_of_bounds_eliminate_lower_check_len_signed(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP7:%.*]] = icmp sgt i32 [[LEN]], 0
 // CHECK-NEXT:    br i1 [[CMP7]], label %[[FOR_BODY_LR_PH:.*]], label %[[FOR_COND_CLEANUP:.*]]
@@ -296,7 +296,7 @@ void loop_accesses_out_of_bounds_eliminate_lower_check_len_signed(int* __counted
 }
 
 // CHECK-LABEL: define dso_local void @loop_accesses_out_of_bounds_eliminate_lower_check_len_ull(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[BUF:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[BUF:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP8_NOT:%.*]] = icmp eq i64 [[LEN]], 0
 // CHECK-NEXT:    br i1 [[CMP8_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_LR_PH:.*]]
@@ -333,7 +333,7 @@ void loop_accesses_out_of_bounds_eliminate_lower_check_len_ull(int* __counted_by
 
 // No checks can be eliminated, as dst + i + 2 may wrap and is out of bounds.
 // CHECK-LABEL: define dso_local void @loop_accesses_out_of_bounds_cannot_eliminate_wrap_check(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP8_NOT:%.*]] = icmp eq i32 [[N]], 0
 // CHECK-NEXT:    br i1 [[CMP8_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_LR_PH:.*]]
@@ -369,7 +369,7 @@ void loop_accesses_out_of_bounds_cannot_eliminate_wrap_check(int* __counted_by(n
 }
 
 // CHECK-LABEL: define dso_local void @loop_accesses_out_of_bounds_cannot_eliminate_wrap_check_signed_len(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP8:%.*]] = icmp sgt i32 [[N]], 0
 // CHECK-NEXT:    br i1 [[CMP8]], label %[[FOR_BODY_LR_PH:.*]], label %[[FOR_COND_CLEANUP:.*]]
@@ -405,7 +405,7 @@ void loop_accesses_out_of_bounds_cannot_eliminate_wrap_check_signed_len(int* __c
 }
 
 // CHECK-LABEL: define dso_local void @loop_accesses_out_of_bounds_cannot_eliminate_wrap_check_ull_len(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i64 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i64 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp eq i64 [[N]], 0
 // CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_LR_PH:.*]]
@@ -453,7 +453,7 @@ void loop_accesses_out_of_bounds_cannot_eliminate_wrap_check_ull_len(int* __coun
 //
 // FIXME: Regressed at the moment, rdar://120485098.
 // CHECK-LABEL: define dso_local void @loop_accesses_eliminate_second_lower_check(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP28_NOT:%.*]] = icmp eq i32 [[N]], 0
 // CHECK-NEXT:    br i1 [[CMP28_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_LR_PH:.*]]
@@ -501,7 +501,7 @@ void loop_accesses_eliminate_second_lower_check(int* __counted_by(n) dst, unsign
 // We can eliminate the checks for dst[i+1], because the earlier checks for
 // dst[i+2] make them redundant.
 // CHECK-LABEL: define dso_local void @loop_accesses_eliminate_later_checks(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -548,7 +548,7 @@ void loop_accesses_eliminate_later_checks(int* __counted_by(n) dst, unsigned n) 
 // The checks for dst[4], dst[3] and dst[2] should be removed, because they are
 // redundant after checking dst[5].
 // CHECK-LABEL: define dso_local void @elim_consecutive_writes(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -594,7 +594,7 @@ void elim_consecutive_writes(int* __counted_by(n) dst, unsigned n) {
 }
 
 // CHECK-LABEL: define dso_local void @elim_consecutive_writes2(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i32 [[IDX]], 3
 // CHECK-NEXT:    br i1 [[CMP]], label %[[IF_THEN:.*]], label %[[IF_END:.*]]
@@ -655,7 +655,7 @@ void elim_consecutive_writes2(int* __counted_by(n) dst, unsigned n, unsigned idx
 
 // TODO
 // CHECK-LABEL: define dso_local void @count_ptr_relations(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[ARG:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARG:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[N]], 0
 // CHECK-NEXT:    br i1 [[CMP]], label %[[RETURN:.*]], label %[[LAND_RHS:.*]]
@@ -711,7 +711,7 @@ void count_ptr_relations(int *__counted_by(n) arg, unsigned n) {
 }
 
 // CHECK-LABEL: define dso_local void @ptrinc0(
-// CHECK-SAME: ptr noundef writeonly captures(none) [[BUF:%.*]], i32 noundef [[INLEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[BUF:%.*]], i32 noundef [[INLEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP5_NOT:%.*]] = icmp eq i32 [[INLEN]], 0
 // CHECK-NEXT:    br i1 [[CMP5_NOT]], label %[[WHILE_END:.*]], label %[[WHILE_BODY_PREHEADER:.*]]
@@ -735,7 +735,7 @@ void ptrinc0(char *__counted_by(inLen) buf,
 
 // TODO rdar://75687730
 // CHECK-LABEL: define dso_local void @ptrinc1(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[BUF:%.*]], i32 noundef [[INLEN:%.*]]) local_unnamed_addr #[[ATTR7]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[BUF:%.*]], i32 noundef [[INLEN:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[INLEN]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw i8, ptr [[BUF]], i64 [[IDX_EXT]]

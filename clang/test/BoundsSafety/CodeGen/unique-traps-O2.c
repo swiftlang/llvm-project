@@ -15,35 +15,35 @@
 
 // This should have 3 traps
 // CHECK-LABEL: define i32 @i_want_to_be_inlined(
-// CHECK-SAME: ptr noundef readonly captures(none) dead_on_return [[PTR:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) dead_on_return [[PTR:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[PTR]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_2_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_2_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_2_0_PTR_SROA_IDX]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_PTR_SROA_IDX]], align 8, !tbaa [[TBAA6:![0-9]+]]
+// CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_PTR_SROA_IDX]], align 8, !tbaa [[TBAA5:![0-9]+]]
 // CHECK-NEXT:    [[IDXPROM:%.*]] = sext i32 [[IDX]] to i64
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr [4 x i8], ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], i64 [[IDXPROM]]
-// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARRAYIDX]], i64 4, !annotation [[META9:![0-9]+]]
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP0]], [[AGG_TEMP_SROA_2_0_COPYLOAD]], !annotation [[META9]]
-// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !prof [[PROF10:![0-9]+]], !annotation [[META9]]
+// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARRAYIDX]], i64 4, !annotation [[META8:![0-9]+]]
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP0]], [[AGG_TEMP_SROA_2_0_COPYLOAD]], !annotation [[META8]]
+// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !prof [[PROF9:![0-9]+]], !annotation [[META8]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META9]]
-// CHECK-NEXT:    unreachable, !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META8]]
+// CHECK-NEXT:    unreachable, !annotation [[META8]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    [[DOTNOT5:%.*]] = icmp ugt ptr [[ARRAYIDX]], [[TMP0]], !annotation [[META9]]
-// CHECK-NEXT:    br i1 [[DOTNOT5]], label %[[TRAP1:.*]], label %[[CONT2:.*]], !prof [[PROF10]], !annotation [[META9]]
+// CHECK-NEXT:    [[DOTNOT5:%.*]] = icmp ugt ptr [[ARRAYIDX]], [[TMP0]], !annotation [[META8]]
+// CHECK-NEXT:    br i1 [[DOTNOT5]], label %[[TRAP1:.*]], label %[[CONT2:.*]], !prof [[PROF9]], !annotation [[META8]]
 // CHECK:       [[TRAP1]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META9]]
-// CHECK-NEXT:    unreachable, !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META8]]
+// CHECK-NEXT:    unreachable, !annotation [[META8]]
 // CHECK:       [[CONT2]]:
-// CHECK-NEXT:    [[DOTNOT6:%.*]] = icmp ult ptr [[ARRAYIDX]], [[AGG_TEMP_SROA_3_0_COPYLOAD]], !annotation [[META11:![0-9]+]]
-// CHECK-NEXT:    br i1 [[DOTNOT6]], label %[[TRAP3:.*]], label %[[CONT4:.*]], !prof [[PROF10]], !annotation [[META11]]
+// CHECK-NEXT:    [[DOTNOT6:%.*]] = icmp ult ptr [[ARRAYIDX]], [[AGG_TEMP_SROA_3_0_COPYLOAD]], !annotation [[META10:![0-9]+]]
+// CHECK-NEXT:    br i1 [[DOTNOT6]], label %[[TRAP3:.*]], label %[[CONT4:.*]], !prof [[PROF9]], !annotation [[META10]]
 // CHECK:       [[TRAP3]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META11]]
-// CHECK-NEXT:    unreachable, !annotation [[META11]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META10]]
+// CHECK-NEXT:    unreachable, !annotation [[META10]]
 // CHECK:       [[CONT4]]:
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA2:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA1:![0-9]+]]
 // CHECK-NEXT:    ret i32 [[TMP1]]
 //
 __attribute__((always_inline)) int i_want_to_be_inlined(
@@ -53,60 +53,60 @@ __attribute__((always_inline)) int i_want_to_be_inlined(
 
 // This should have 6 traps
 // CHECK-LABEL: define i32 @consume(
-// CHECK-SAME: ptr noundef readonly captures(none) dead_on_return [[PTR:%.*]], ptr noundef readonly captures(none) dead_on_return [[PTR2:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) dead_on_return [[PTR:%.*]], ptr nofree noundef readonly captures(none) dead_on_return [[PTR2:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[BYVAL_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[PTR2]], align 8
 // CHECK-NEXT:    [[BYVAL_TEMP_SROA_4_0_PTR2_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR2]], i64 8
 // CHECK-NEXT:    [[BYVAL_TEMP_SROA_4_0_COPYLOAD:%.*]] = load ptr, ptr [[BYVAL_TEMP_SROA_4_0_PTR2_SROA_IDX]], align 8
 // CHECK-NEXT:    [[BYVAL_TEMP_SROA_5_0_PTR2_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR2]], i64 16
-// CHECK-NEXT:    [[BYVAL_TEMP_SROA_5_0_COPYLOAD:%.*]] = load ptr, ptr [[BYVAL_TEMP_SROA_5_0_PTR2_SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[BYVAL_TEMP_SROA_5_0_COPYLOAD:%.*]] = load ptr, ptr [[BYVAL_TEMP_SROA_5_0_PTR2_SROA_IDX]], align 8, !tbaa [[TBAA5]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[IDX]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr [4 x i8], ptr [[BYVAL_TEMP_SROA_0_0_COPYLOAD]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARRAYIDX_I]], i64 4, !annotation [[META9]]
-// CHECK-NEXT:    [[DOTNOT_I:%.*]] = icmp ugt ptr [[TMP0]], [[BYVAL_TEMP_SROA_4_0_COPYLOAD]], !annotation [[META9]]
-// CHECK-NEXT:    br i1 [[DOTNOT_I]], label %[[TRAP_I:.*]], label %[[CONT_I:.*]], !prof [[PROF10]], !annotation [[META9]]
+// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARRAYIDX_I]], i64 4, !annotation [[META8]]
+// CHECK-NEXT:    [[DOTNOT_I:%.*]] = icmp ugt ptr [[TMP0]], [[BYVAL_TEMP_SROA_4_0_COPYLOAD]], !annotation [[META8]]
+// CHECK-NEXT:    br i1 [[DOTNOT_I]], label %[[TRAP_I:.*]], label %[[CONT_I:.*]], !prof [[PROF9]], !annotation [[META8]]
 // CHECK:       [[TRAP_I]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META9]]
-// CHECK-NEXT:    unreachable, !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META8]]
+// CHECK-NEXT:    unreachable, !annotation [[META8]]
 // CHECK:       [[CONT_I]]:
-// CHECK-NEXT:    [[DOTNOT5_I:%.*]] = icmp ugt ptr [[ARRAYIDX_I]], [[TMP0]], !annotation [[META9]]
-// CHECK-NEXT:    br i1 [[DOTNOT5_I]], label %[[TRAP1_I:.*]], label %[[CONT2_I:.*]], !prof [[PROF10]], !annotation [[META9]]
+// CHECK-NEXT:    [[DOTNOT5_I:%.*]] = icmp ugt ptr [[ARRAYIDX_I]], [[TMP0]], !annotation [[META8]]
+// CHECK-NEXT:    br i1 [[DOTNOT5_I]], label %[[TRAP1_I:.*]], label %[[CONT2_I:.*]], !prof [[PROF9]], !annotation [[META8]]
 // CHECK:       [[TRAP1_I]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META9]]
-// CHECK-NEXT:    unreachable, !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META8]]
+// CHECK-NEXT:    unreachable, !annotation [[META8]]
 // CHECK:       [[CONT2_I]]:
-// CHECK-NEXT:    [[DOTNOT6_I:%.*]] = icmp ult ptr [[ARRAYIDX_I]], [[BYVAL_TEMP_SROA_5_0_COPYLOAD]], !annotation [[META11]]
-// CHECK-NEXT:    br i1 [[DOTNOT6_I]], label %[[TRAP3_I:.*]], label %[[I_WANT_TO_BE_INLINED_EXIT:.*]], !prof [[PROF10]], !annotation [[META11]]
+// CHECK-NEXT:    [[DOTNOT6_I:%.*]] = icmp ult ptr [[ARRAYIDX_I]], [[BYVAL_TEMP_SROA_5_0_COPYLOAD]], !annotation [[META10]]
+// CHECK-NEXT:    br i1 [[DOTNOT6_I]], label %[[TRAP3_I:.*]], label %[[I_WANT_TO_BE_INLINED_EXIT:.*]], !prof [[PROF9]], !annotation [[META10]]
 // CHECK:       [[TRAP3_I]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META11]]
-// CHECK-NEXT:    unreachable, !annotation [[META11]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META10]]
+// CHECK-NEXT:    unreachable, !annotation [[META10]]
 // CHECK:       [[I_WANT_TO_BE_INLINED_EXIT]]:
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[PTR]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_2_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_2_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_2_0_PTR_SROA_IDX]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_PTR_SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_PTR_SROA_IDX]], align 8, !tbaa [[TBAA5]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr [4 x i8], ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[ARRAYIDX]], i64 4, !annotation [[META9]]
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP1]], [[AGG_TEMP_SROA_2_0_COPYLOAD]], !annotation [[META9]]
-// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !prof [[PROF10]], !annotation [[META9]]
+// CHECK-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[ARRAYIDX]], i64 4, !annotation [[META8]]
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP1]], [[AGG_TEMP_SROA_2_0_COPYLOAD]], !annotation [[META8]]
+// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !prof [[PROF9]], !annotation [[META8]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META9]]
-// CHECK-NEXT:    unreachable, !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META8]]
+// CHECK-NEXT:    unreachable, !annotation [[META8]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    [[DOTNOT6:%.*]] = icmp ugt ptr [[ARRAYIDX]], [[TMP1]], !annotation [[META9]]
-// CHECK-NEXT:    br i1 [[DOTNOT6]], label %[[TRAP1:.*]], label %[[CONT2:.*]], !prof [[PROF10]], !annotation [[META9]]
+// CHECK-NEXT:    [[DOTNOT6:%.*]] = icmp ugt ptr [[ARRAYIDX]], [[TMP1]], !annotation [[META8]]
+// CHECK-NEXT:    br i1 [[DOTNOT6]], label %[[TRAP1:.*]], label %[[CONT2:.*]], !prof [[PROF9]], !annotation [[META8]]
 // CHECK:       [[TRAP1]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META9]]
-// CHECK-NEXT:    unreachable, !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META8]]
+// CHECK-NEXT:    unreachable, !annotation [[META8]]
 // CHECK:       [[CONT2]]:
-// CHECK-NEXT:    [[DOTNOT7:%.*]] = icmp ult ptr [[ARRAYIDX]], [[AGG_TEMP_SROA_3_0_COPYLOAD]], !annotation [[META11]]
-// CHECK-NEXT:    br i1 [[DOTNOT7]], label %[[TRAP3:.*]], label %[[CONT4:.*]], !prof [[PROF10]], !annotation [[META11]]
+// CHECK-NEXT:    [[DOTNOT7:%.*]] = icmp ult ptr [[ARRAYIDX]], [[AGG_TEMP_SROA_3_0_COPYLOAD]], !annotation [[META10]]
+// CHECK-NEXT:    br i1 [[DOTNOT7]], label %[[TRAP3:.*]], label %[[CONT4:.*]], !prof [[PROF9]], !annotation [[META10]]
 // CHECK:       [[TRAP3]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META11]]
-// CHECK-NEXT:    unreachable, !annotation [[META11]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META10]]
+// CHECK-NEXT:    unreachable, !annotation [[META10]]
 // CHECK:       [[CONT4]]:
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA2]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA1]]
 // CHECK-NEXT:    ret i32 [[TMP2]]
 //
 int consume(int* __bidi_indexable ptr, int* __bidi_indexable ptr2, int idx) {
@@ -122,15 +122,15 @@ int consume(int* __bidi_indexable ptr, int* __bidi_indexable ptr2, int idx) {
 // CHECK: attributes #[[ATTR2]] = { nounwind memory(read, inaccessiblemem: write, target_mem: none) "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // CHECK: attributes #[[ATTR3]] = { nomerge noreturn nounwind }
 //.
-// CHECK: [[META1:![0-9]+]] = !{!"{{.*}}clang version {{.*}}"}
-// CHECK: [[TBAA2]] = !{[[META3:![0-9]+]], [[META3]], i64 0}
-// CHECK: [[META3]] = !{!"int", [[META4:![0-9]+]], i64 0}
-// CHECK: [[META4]] = !{!"omnipotent char", [[META5:![0-9]+]], i64 0}
-// CHECK: [[META5]] = !{!"Simple C/C++ TBAA"}
-// CHECK: [[TBAA6]] = !{[[META7:![0-9]+]], [[META7]], i64 0}
-// CHECK: [[META7]] = !{!"p1 int", [[META8:![0-9]+]], i64 0}
-// CHECK: [[META8]] = !{!"any pointer", [[META4]], i64 0}
-// CHECK: [[META9]] = !{!"bounds-safety-check-ptr-le-upper-bound"}
-// CHECK: [[PROF10]] = !{!"branch_weights", i32 1, i32 1048575}
-// CHECK: [[META11]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
+// CHECK: [[META0:![0-9]+]] = !{!"{{.*}}clang version {{.*}}"}
+// CHECK: [[TBAA1]] = !{[[META2:![0-9]+]], [[META2]], i64 0}
+// CHECK: [[META2]] = !{!"int", [[META3:![0-9]+]], i64 0}
+// CHECK: [[META3]] = !{!"omnipotent char", [[META4:![0-9]+]], i64 0}
+// CHECK: [[META4]] = !{!"Simple C/C++ TBAA"}
+// CHECK: [[TBAA5]] = !{[[META6:![0-9]+]], [[META6]], i64 0}
+// CHECK: [[META6]] = !{!"p1 int", [[META7:![0-9]+]], i64 0}
+// CHECK: [[META7]] = !{!"any pointer", [[META3]], i64 0}
+// CHECK: [[META8]] = !{!"bounds-safety-check-ptr-le-upper-bound"}
+// CHECK: [[PROF9]] = !{!"branch_weights", i32 1, i32 1048575}
+// CHECK: [[META10]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
 //.

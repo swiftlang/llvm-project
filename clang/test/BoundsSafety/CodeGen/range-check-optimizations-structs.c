@@ -10,7 +10,7 @@ struct struct_1 {
 };
 
 // CHECK-LABEL: define dso_local ptr @access_struct_1_all_checks_removable(
-// CHECK-SAME: ptr noundef readonly captures(ret: address, provenance) [[SRC:%.*]], i32 noundef [[SIZE:%.*]], ptr noundef readnone captures(address) [[VALUE:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(ret: address, provenance) [[SRC:%.*]], i32 noundef [[SIZE:%.*]], ptr nofree noundef readnone captures(address) [[VALUE:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp eq i32 [[SIZE]], 0
 // CHECK-NEXT:    br i1 [[CMP26_NOT]], label %[[CLEANUP14:.*]], label %[[FOR_BODY_PREHEADER:.*]]
@@ -45,7 +45,7 @@ struct struct_1 * access_struct_1_all_checks_removable(
 }
 
 // CHECK-LABEL: define dso_local ptr @access_struct_1_checks_needed(
-// CHECK-SAME: ptr noundef readonly captures(address, ret: address, provenance) [[SRC:%.*]], i32 noundef [[SIZE:%.*]], ptr noundef readnone captures(address) [[VALUE:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(address, ret: address, provenance) [[SRC:%.*]], i32 noundef [[SIZE:%.*]], ptr nofree noundef readnone captures(address) [[VALUE:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[SIZE]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [8 x i8], ptr [[SRC]], i64 [[IDX_EXT]]
@@ -91,7 +91,7 @@ struct struct_2 {
 };
 
 // CHECK-LABEL: define dso_local noundef ptr @access_struct_2_all_checks_removable(
-// CHECK-SAME: ptr noundef readonly captures(ret: address, provenance) [[SRC:%.*]], i32 noundef [[SIZE:%.*]], i32 noundef [[A:%.*]], i32 noundef [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(ret: address, provenance) [[SRC:%.*]], i32 noundef [[SIZE:%.*]], i32 noundef [[A:%.*]], i32 noundef [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[CMP40_NOT:%.*]] = icmp eq i32 [[SIZE]], 0
 // CHECK-NEXT:    br i1 [[CMP40_NOT]], label %[[CLEANUP25:.*]], label %[[FOR_BODY_PREHEADER:.*]]
@@ -135,7 +135,7 @@ typedef struct {
 
 // All runtime checks in the loop can be removed.
 // CHECK-LABEL: define dso_local i32 @array_of_structs_all_checks_removable(
-// CHECK-SAME: ptr noundef readonly captures(none) [[ITEMS:%.*]], i32 noundef [[NUMITEMS:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[ITEMS:%.*]], i32 noundef [[NUMITEMS:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[CMP29_NOT:%.*]] = icmp eq i32 [[NUMITEMS]], 0
 // CHECK-NEXT:    br i1 [[CMP29_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_PREHEADER:.*]]

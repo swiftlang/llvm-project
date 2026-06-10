@@ -11,7 +11,7 @@ typedef struct {
 } S;
 
 // CHECK-LABEL: define dso_local void @good_fit(
-// CHECK-SAME: ptr noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -23,7 +23,7 @@ void good_fit(S *s) {
 }
 
 // CHECK-LABEL: define dso_local void @good_fit2(
-// CHECK-SAME: ptr noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -35,7 +35,7 @@ void good_fit2(S *s) {
 }
 
 // CHECK-LABEL: define dso_local void @good_shrink(
-// CHECK-SAME: ptr noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -47,7 +47,7 @@ void good_shrink(S *s) {
 }
 
 // CHECK-LABEL: define dso_local void @good_zero(
-// CHECK-SAME: ptr noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -59,7 +59,7 @@ void good_zero(S *s) {
 }
 
 // CHECK-LABEL: define dso_local void @trap_access_to_count_zero(
-// CHECK-SAME: ptr noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -73,7 +73,7 @@ void trap_access_to_count_zero(S *s) {
 }
 
 // CHECK-LABEL: define dso_local void @trap_len_too_big(
-// CHECK-SAME: ptr noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -86,7 +86,7 @@ void trap_len_too_big(S *s) {
 }
 
 // CHECK-LABEL: define dso_local void @trap_negative_count(
-// CHECK-SAME: ptr noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}

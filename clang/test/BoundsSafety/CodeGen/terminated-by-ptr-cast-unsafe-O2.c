@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local noundef ptr @unsafe_to_null_terminated(
-// CHECK-SAME: ptr noundef readnone returned captures(ret: address, provenance) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone returned captures(ret: address, provenance) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret ptr [[P]]
 //
@@ -15,7 +15,7 @@ const char *__null_terminated unsafe_to_null_terminated(const char *__unsafe_ind
 }
 
 // CHECK-LABEL: define dso_local noundef ptr @null_terminated_to_unsafe(
-// CHECK-SAME: ptr noundef readnone returned captures(ret: address, provenance) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone returned captures(ret: address, provenance) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret ptr [[P]]
 //

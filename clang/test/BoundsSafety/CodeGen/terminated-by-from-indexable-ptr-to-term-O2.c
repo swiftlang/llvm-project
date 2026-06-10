@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local noundef ptr @indexable_indexable(
-// CHECK-SAME: ptr noundef readnone returned captures(address, ret: address, provenance) [[PTR_COERCE0:%.*]], ptr noundef readnone captures(address) [[PTR_COERCE1:%.*]], ptr noundef readonly captures(address) [[PTR_TO_TERM_COERCE0:%.*]], ptr noundef readnone captures(none) [[PTR_TO_TERM_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone returned captures(address, ret: address, provenance) [[PTR_COERCE0:%.*]], ptr nofree noundef readnone captures(address) [[PTR_COERCE1:%.*]], ptr nofree noundef readonly captures(address) [[PTR_TO_TERM_COERCE0:%.*]], ptr nofree noundef readnone captures(none) [[PTR_TO_TERM_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT:%.*]] = icmp ugt ptr [[PTR_COERCE0]], [[PTR_TO_TERM_COERCE0]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -31,7 +31,7 @@ int *__null_terminated indexable_indexable(int *__indexable ptr, int *__indexabl
 }
 
 // CHECK-LABEL: define dso_local ptr @bidi_indexable_single(
-// CHECK-SAME: ptr noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[PTR:%.*]], ptr noundef readonly captures(address) [[PTR_TO_TERM:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[PTR:%.*]], ptr nofree noundef readonly captures(address) [[PTR_TO_TERM:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[PTR]], align 8
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_3_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
@@ -63,7 +63,7 @@ int *__null_terminated bidi_indexable_single(int *__bidi_indexable ptr, int *__s
 }
 
 // CHECK-LABEL: define dso_local noundef ptr @nested_indexable_indexable(
-// CHECK-SAME: ptr noundef readnone returned captures(address, ret: address, provenance) [[PTR_COERCE0:%.*]], ptr noundef readnone captures(address) [[PTR_COERCE1:%.*]], ptr noundef readonly captures(address) [[PTR_TO_TERM_COERCE0:%.*]], ptr noundef readnone captures(none) [[PTR_TO_TERM_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone returned captures(address, ret: address, provenance) [[PTR_COERCE0:%.*]], ptr nofree noundef readnone captures(address) [[PTR_COERCE1:%.*]], ptr nofree noundef readonly captures(address) [[PTR_TO_TERM_COERCE0:%.*]], ptr nofree noundef readnone captures(none) [[PTR_TO_TERM_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT:%.*]] = icmp ugt ptr [[PTR_COERCE0]], [[PTR_TO_TERM_COERCE0]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -88,7 +88,7 @@ int *__single *__terminated_by(-1) nested_indexable_indexable(int *__single *__i
 }
 
 // CHECK-LABEL: define dso_local ptr @nested_bidi_indexable_single(
-// CHECK-SAME: ptr noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable.1") align 8 captures(none) [[PTR:%.*]], ptr noundef readonly captures(address) [[PTR_TO_TERM:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable.1") align 8 captures(none) [[PTR:%.*]], ptr nofree noundef readonly captures(address) [[PTR_TO_TERM:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[PTR]], align 8
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_3_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16

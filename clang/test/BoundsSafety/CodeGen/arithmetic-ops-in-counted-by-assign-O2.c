@@ -7,7 +7,7 @@
 #include <stddef.h>
 
 // CHECK-LABEL: define dso_local void @count_ok(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -18,7 +18,7 @@ void count_ok(int *__counted_by(len - 2) buf, int len) {
 }
 
 // CHECK-LABEL: define dso_local void @negative_count_trap(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -31,7 +31,7 @@ void negative_count_trap(int *__counted_by(len - 2) buf, int len) {
 }
 
 // CHECK-LABEL: define dso_local void @too_big_count_trap(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -44,7 +44,7 @@ void too_big_count_trap(int *__counted_by(len - 2) buf, int len) {
 }
 
 // CHECK-LABEL: define dso_local void @overflow_unsigned_count_trap(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -158,7 +158,7 @@ void overflow_local_unsigned_count_trap(void) {
 }
 
 // CHECK-LABEL: define dso_local void @overflow_unsigned_count_size_ok(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[COUNT:%.*]], i64 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[COUNT:%.*]], i64 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -170,7 +170,7 @@ void overflow_unsigned_count_size_ok(void *__sized_by(count * size) buf, size_t 
 }
 
 // CHECK-LABEL: define dso_local void @overflow_unsigned_count_size_trap2(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[COUNT:%.*]], i64 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR3]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[COUNT:%.*]], i64 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -186,7 +186,7 @@ void overflow_unsigned_count_size_trap2(void *__sized_by(count * size) buf, size
 }
 
 // CHECK-LABEL: define dso_local void @overflow_unsigned_count_size_index_trap(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[COUNT:%.*]], i64 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR3]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[COUNT:%.*]], i64 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}

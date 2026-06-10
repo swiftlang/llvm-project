@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local void @foo(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[COUNT]] to i64
 // CHECK-NEXT:    [[ADD_PTR_IDX:%.*]] = shl nuw nsw i64 [[IDX_EXT]], 2, !annotation [[META5:![0-9]+]]
@@ -31,7 +31,7 @@
 // CHECK-NEXT:    ret void
 //
 // WITHOUT-LABEL: define dso_local void @foo(
-// WITHOUT-SAME: ptr noundef writeonly captures(none) initializes((0, 4)) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// WITHOUT-SAME: ptr nofree noundef writeonly captures(none) initializes((0, 4)) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // WITHOUT-NEXT:  [[ENTRY:.*:]]
 // WITHOUT-NEXT:    store i32 0, ptr [[X]], align 4, !tbaa [[TBAA1:![0-9]+]]
 // WITHOUT-NEXT:    ret void
@@ -47,7 +47,7 @@ void foo(int *__counted_by(count) x, unsigned count) {
 }
 
 // CHECK-LABEL: define dso_local void @bar(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[COUNT]] to i64
 // CHECK-NEXT:    [[ADD_PTR_IDX:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META8]]
@@ -74,7 +74,7 @@ void foo(int *__counted_by(count) x, unsigned count) {
 // CHECK-NEXT:    ret void
 //
 // WITHOUT-LABEL: define dso_local void @bar(
-// WITHOUT-SAME: ptr noundef writeonly captures(none) initializes((4, 8)) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// WITHOUT-SAME: ptr nofree noundef writeonly captures(none) initializes((4, 8)) [[X:%.*]], i32 noundef [[COUNT:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // WITHOUT-NEXT:  [[ENTRY:.*:]]
 // WITHOUT-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[X]], i64 4
 // WITHOUT-NEXT:    store i32 0, ptr [[BOUND_PTR_ARITH]], align 4, !tbaa [[TBAA1]]

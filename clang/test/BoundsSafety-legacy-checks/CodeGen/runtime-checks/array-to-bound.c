@@ -9,7 +9,7 @@
 #include <ptrcheck.h>
 
 // O2-LABEL: define dso_local i32 @foo(
-// O2-SAME: ptr noundef readonly captures(address) [[ARR:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// O2-SAME: ptr nofree noundef readonly captures(address) [[ARR:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // O2-NEXT:  [[ENTRY:.*:]]
 // O2-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 4
 // O2-NEXT:    [[ARRAYIDX:%.*]] = getelementptr i8, ptr [[ARR]], i64 40

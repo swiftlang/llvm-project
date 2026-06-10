@@ -91,7 +91,7 @@ typedef struct {
 } hdr_t;
 
 // CHECK-LABEL: define dso_local void @concat_to_separate_clobals(
-// CHECK-SAME: ptr noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -113,11 +113,11 @@ typedef struct {
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 10
-// CHECK-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59:%.*]] = zext i8 [[TMP3]] to i32
 // CHECK-NEXT:    store i32 [[CONV59]], ptr @a, align 16, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX68:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 8
-// CHECK-NEXT:    [[TMP4:%.*]] = load i8, ptr [[ARRAYIDX68]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP4:%.*]] = load i8, ptr [[ARRAYIDX68]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV75:%.*]] = zext i8 [[TMP4]] to i32
 // CHECK-NEXT:    store i32 [[CONV75]], ptr @b, align 16, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX85:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 9
@@ -132,11 +132,11 @@ typedef struct {
 // CHECK:       [[CONT_1]]:
 // CHECK-NEXT:    [[ADD_PTR50:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 11
 // CHECK-NEXT:    [[ARRAYIDX_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 14
-// CHECK-NEXT:    [[TMP7:%.*]] = load i8, ptr [[ARRAYIDX_1]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP7:%.*]] = load i8, ptr [[ARRAYIDX_1]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59_1:%.*]] = zext i8 [[TMP7]] to i32
 // CHECK-NEXT:    store i32 [[CONV59_1]], ptr getelementptr inbounds nuw (i8, ptr @a, i64 4), align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX68_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 12
-// CHECK-NEXT:    [[TMP8:%.*]] = load i8, ptr [[ARRAYIDX68_1]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP8:%.*]] = load i8, ptr [[ARRAYIDX68_1]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV75_1:%.*]] = zext i8 [[TMP8]] to i32
 // CHECK-NEXT:    store i32 [[CONV75_1]], ptr getelementptr inbounds nuw (i8, ptr @b, i64 4), align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX85_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 13
@@ -151,11 +151,11 @@ typedef struct {
 // CHECK:       [[CONT_2]]:
 // CHECK-NEXT:    [[ADD_PTR50_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 15
 // CHECK-NEXT:    [[ARRAYIDX_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 18
-// CHECK-NEXT:    [[TMP11:%.*]] = load i8, ptr [[ARRAYIDX_2]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP11:%.*]] = load i8, ptr [[ARRAYIDX_2]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59_2:%.*]] = zext i8 [[TMP11]] to i32
 // CHECK-NEXT:    store i32 [[CONV59_2]], ptr getelementptr inbounds nuw (i8, ptr @a, i64 8), align 8, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX68_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 16
-// CHECK-NEXT:    [[TMP12:%.*]] = load i8, ptr [[ARRAYIDX68_2]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP12:%.*]] = load i8, ptr [[ARRAYIDX68_2]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV75_2:%.*]] = zext i8 [[TMP12]] to i32
 // CHECK-NEXT:    store i32 [[CONV75_2]], ptr getelementptr inbounds nuw (i8, ptr @b, i64 8), align 8, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX85_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 17
@@ -170,11 +170,11 @@ typedef struct {
 // CHECK:       [[CONT_3]]:
 // CHECK-NEXT:    [[ADD_PTR50_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 19
 // CHECK-NEXT:    [[ARRAYIDX_3:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 22
-// CHECK-NEXT:    [[TMP15:%.*]] = load i8, ptr [[ARRAYIDX_3]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP15:%.*]] = load i8, ptr [[ARRAYIDX_3]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59_3:%.*]] = zext i8 [[TMP15]] to i32
 // CHECK-NEXT:    store i32 [[CONV59_3]], ptr getelementptr inbounds nuw (i8, ptr @a, i64 12), align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX68_3:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 20
-// CHECK-NEXT:    [[TMP16:%.*]] = load i8, ptr [[ARRAYIDX68_3]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP16:%.*]] = load i8, ptr [[ARRAYIDX68_3]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV75_3:%.*]] = zext i8 [[TMP16]] to i32
 // CHECK-NEXT:    store i32 [[CONV75_3]], ptr getelementptr inbounds nuw (i8, ptr @b, i64 12), align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX85_3:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 21
@@ -206,7 +206,7 @@ struct arrays {
 };
 
 // CHECK-LABEL: define dso_local void @concat_to_arrays_struct_can_remove_arrays_check(
-// CHECK-SAME: ptr noundef writeonly captures(none) [[ARRAYS:%.*]], ptr noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR5:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[ARRAYS:%.*]], ptr nofree noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR5:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -231,11 +231,11 @@ struct arrays {
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 16
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 10
-// CHECK-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59:%.*]] = zext i8 [[TMP3]] to i32
 // CHECK-NEXT:    store i32 [[CONV59]], ptr [[ARRAYS]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX69:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 8
-// CHECK-NEXT:    [[TMP4:%.*]] = load i8, ptr [[ARRAYIDX69]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP4:%.*]] = load i8, ptr [[ARRAYIDX69]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76:%.*]] = zext i8 [[TMP4]] to i32
 // CHECK-NEXT:    store i32 [[CONV76]], ptr [[UPPER]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX88:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 9
@@ -254,11 +254,11 @@ struct arrays {
 // CHECK-NEXT:    [[ADD_PTR50:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 11
 // CHECK-NEXT:    [[ARRAYIDX_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 14
 // CHECK-NEXT:    [[ARRAYIDX61_1:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 4
-// CHECK-NEXT:    [[TMP10:%.*]] = load i8, ptr [[ARRAYIDX_1]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP10:%.*]] = load i8, ptr [[ARRAYIDX_1]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59_1:%.*]] = zext i8 [[TMP10]] to i32
 // CHECK-NEXT:    store i32 [[CONV59_1]], ptr [[ARRAYIDX61_1]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX69_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 12
-// CHECK-NEXT:    [[TMP11:%.*]] = load i8, ptr [[ARRAYIDX69_1]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP11:%.*]] = load i8, ptr [[ARRAYIDX69_1]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76_1:%.*]] = zext i8 [[TMP11]] to i32
 // CHECK-NEXT:    store i32 [[CONV76_1]], ptr [[TMP9]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX88_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 13
@@ -274,12 +274,12 @@ struct arrays {
 // CHECK-NEXT:    [[ADD_PTR50_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 15
 // CHECK-NEXT:    [[ARRAYIDX_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 18
 // CHECK-NEXT:    [[ARRAYIDX61_2:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 8
-// CHECK-NEXT:    [[TMP14:%.*]] = load i8, ptr [[ARRAYIDX_2]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP14:%.*]] = load i8, ptr [[ARRAYIDX_2]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59_2:%.*]] = zext i8 [[TMP14]] to i32
 // CHECK-NEXT:    store i32 [[CONV59_2]], ptr [[ARRAYIDX61_2]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX80_2:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 24
 // CHECK-NEXT:    [[ARRAYIDX69_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 16
-// CHECK-NEXT:    [[TMP15:%.*]] = load i8, ptr [[ARRAYIDX69_2]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP15:%.*]] = load i8, ptr [[ARRAYIDX69_2]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76_2:%.*]] = zext i8 [[TMP15]] to i32
 // CHECK-NEXT:    store i32 [[CONV76_2]], ptr [[ARRAYIDX80_2]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX99_2:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 40
@@ -297,12 +297,12 @@ struct arrays {
 // CHECK-NEXT:    [[ADD_PTR50_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 19
 // CHECK-NEXT:    [[ARRAYIDX_3:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 22
 // CHECK-NEXT:    [[ARRAYIDX61_3:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 12
-// CHECK-NEXT:    [[TMP18:%.*]] = load i8, ptr [[ARRAYIDX_3]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP18:%.*]] = load i8, ptr [[ARRAYIDX_3]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59_3:%.*]] = zext i8 [[TMP18]] to i32
 // CHECK-NEXT:    store i32 [[CONV59_3]], ptr [[ARRAYIDX61_3]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX80_3:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 28
 // CHECK-NEXT:    [[ARRAYIDX69_3:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 20
-// CHECK-NEXT:    [[TMP19:%.*]] = load i8, ptr [[ARRAYIDX69_3]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP19:%.*]] = load i8, ptr [[ARRAYIDX69_3]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76_3:%.*]] = zext i8 [[TMP19]] to i32
 // CHECK-NEXT:    store i32 [[CONV76_3]], ptr [[ARRAYIDX80_3]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX99_3:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 44
@@ -330,7 +330,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_arrays_struct_trap_on_last_iter(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[ARRAYS:%.*]], ptr noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR6:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr nofree noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR6:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -362,11 +362,11 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    br i1 [[OR_COND124]], label %[[CONT121:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT121]]:
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 10
-// CHECK-NEXT:    [[TMP6:%.*]] = load i8, ptr [[ARRAYIDX]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP6:%.*]] = load i8, ptr [[ARRAYIDX]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59:%.*]] = zext i8 [[TMP6]] to i32
 // CHECK-NEXT:    store i32 [[CONV59]], ptr [[ARRAYS]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX69:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 8
-// CHECK-NEXT:    [[TMP7:%.*]] = load i8, ptr [[ARRAYIDX69]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP7:%.*]] = load i8, ptr [[ARRAYIDX69]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76:%.*]] = zext i8 [[TMP7]] to i32
 // CHECK-NEXT:    store i32 [[CONV76]], ptr [[UPPER]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX88:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 9
@@ -383,11 +383,11 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[TMP11:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 36
 // CHECK-NEXT:    [[TMP12:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 20
 // CHECK-NEXT:    [[ARRAYIDX_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 14
-// CHECK-NEXT:    [[TMP13:%.*]] = load i8, ptr [[ARRAYIDX_1]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP13:%.*]] = load i8, ptr [[ARRAYIDX_1]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59_1:%.*]] = zext i8 [[TMP13]] to i32
 // CHECK-NEXT:    store i32 [[CONV59_1]], ptr [[TMP3]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX69_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 12
-// CHECK-NEXT:    [[TMP14:%.*]] = load i8, ptr [[ARRAYIDX69_1]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP14:%.*]] = load i8, ptr [[ARRAYIDX69_1]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76_1:%.*]] = zext i8 [[TMP14]] to i32
 // CHECK-NEXT:    store i32 [[CONV76_1]], ptr [[TMP12]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX88_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 13
@@ -403,12 +403,12 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[ADD_PTR50_1:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 15
 // CHECK-NEXT:    [[ARRAYIDX61_2:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 8
 // CHECK-NEXT:    [[ARRAYIDX_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 18
-// CHECK-NEXT:    [[TMP17:%.*]] = load i8, ptr [[ARRAYIDX_2]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP17:%.*]] = load i8, ptr [[ARRAYIDX_2]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59_2:%.*]] = zext i8 [[TMP17]] to i32
 // CHECK-NEXT:    store i32 [[CONV59_2]], ptr [[ARRAYIDX61_2]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX80_2:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 24
 // CHECK-NEXT:    [[ARRAYIDX69_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 16
-// CHECK-NEXT:    [[TMP18:%.*]] = load i8, ptr [[ARRAYIDX69_2]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP18:%.*]] = load i8, ptr [[ARRAYIDX69_2]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76_2:%.*]] = zext i8 [[TMP18]] to i32
 // CHECK-NEXT:    store i32 [[CONV76_2]], ptr [[ARRAYIDX80_2]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX99_2:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 40
@@ -426,12 +426,12 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[ADD_PTR50_2:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 19
 // CHECK-NEXT:    [[ARRAYIDX61_3:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 12
 // CHECK-NEXT:    [[ARRAYIDX_3:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 22
-// CHECK-NEXT:    [[TMP21:%.*]] = load i8, ptr [[ARRAYIDX_3]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP21:%.*]] = load i8, ptr [[ARRAYIDX_3]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59_3:%.*]] = zext i8 [[TMP21]] to i32
 // CHECK-NEXT:    store i32 [[CONV59_3]], ptr [[ARRAYIDX61_3]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX80_3:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 28
 // CHECK-NEXT:    [[ARRAYIDX69_3:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 20
-// CHECK-NEXT:    [[TMP22:%.*]] = load i8, ptr [[ARRAYIDX69_3]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[TMP22:%.*]] = load i8, ptr [[ARRAYIDX69_3]], align 2, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76_3:%.*]] = zext i8 [[TMP22]] to i32
 // CHECK-NEXT:    store i32 [[CONV76_3]], ptr [[ARRAYIDX80_3]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX99_3:%.*]] = getelementptr i8, ptr [[ARRAYS]], i64 44
@@ -459,7 +459,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_arrays_struct_cannot_remove_arrays_check(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[ARRAYS:%.*]], ptr noundef [[P_BUF:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR5]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr noundef [[P_BUF:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2

@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local { ptr, ptr } @test(
-// CHECK-SAME: ptr noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[P]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_P_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 16

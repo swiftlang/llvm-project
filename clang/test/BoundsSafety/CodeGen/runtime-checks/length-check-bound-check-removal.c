@@ -11,7 +11,7 @@ typedef struct {
 void use(int *, int);
 
 // CHECK-LABEL: define dso_local range(i32 -1, 1) i32 @access1(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[LEN:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 8
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[LEN]], align 8, !tbaa [[TBAA5:![0-9]+]]
@@ -38,7 +38,7 @@ int access1(S *p) {
 }
 
 // CHECK-LABEL: define dso_local range(i32 -1, 1) i32 @access2(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[LEN:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 8
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[LEN]], align 8, !tbaa [[TBAA5]]

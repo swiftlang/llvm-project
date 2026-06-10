@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local void @test(
-// CHECK-SAME: ptr dead_on_unwind noalias writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]], ptr noundef [[P_COERCE0:%.*]], ptr noundef [[P_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr dead_on_unwind noalias nofree writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]], ptr noundef [[P_COERCE0:%.*]], ptr noundef [[P_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    store ptr [[P_COERCE0]], ptr [[AGG_RESULT]], align 8
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw i8, ptr [[AGG_RESULT]], i64 8

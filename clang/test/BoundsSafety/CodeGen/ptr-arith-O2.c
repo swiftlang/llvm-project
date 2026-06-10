@@ -12,7 +12,7 @@ struct T {
 };
 
 // CHECK-LABEL: define dso_local void @foo(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[LEN]] to i64
 // CHECK-NEXT:    [[ADD_PTR3:%.*]] = getelementptr inbounds [4 x i8], ptr [[BUF]], i64 [[IDX_EXT]]

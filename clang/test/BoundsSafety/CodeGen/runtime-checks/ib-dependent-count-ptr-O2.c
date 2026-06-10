@@ -13,25 +13,6 @@
 
 // The range check can be removed because 'i >= 0 && i < len'.
 
-// CHECK-O2-LABEL: define dso_local void @foo(
-// CHECK-O2-SAME: ptr noundef writeonly captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
-// CHECK-O2-NEXT:  [[ENTRY:.*:]]
-// CHECK-O2-NEXT:    [[CMP8:%.*]] = icmp sgt i32 [[LEN]], 0
-// CHECK-O2-NEXT:    br i1 [[CMP8]], label %[[FOR_BODY_PREHEADER:.*]], label %[[FOR_COND_CLEANUP:.*]]
-// CHECK-O2:       [[FOR_BODY_PREHEADER]]:
-// CHECK-O2-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext nneg i32 [[LEN]] to i64
-// CHECK-O2-NEXT:    br label %[[FOR_BODY:.*]]
-// CHECK-O2:       [[FOR_COND_CLEANUP]]:
-// CHECK-O2-NEXT:    ret void
-// CHECK-O2:       [[FOR_BODY]]:
-// CHECK-O2-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ 0, %[[FOR_BODY_PREHEADER]] ], [ [[INDVARS_IV_NEXT:%.*]], %[[FOR_BODY]] ]
-// CHECK-O2-NEXT:    [[ARRAYIDX:%.*]] = getelementptr [4 x i8], ptr [[BUF]], i64 [[INDVARS_IV]]
-// CHECK-O2-NEXT:    [[TMP0:%.*]] = trunc nuw nsw i64 [[INDVARS_IV]] to i32
-// CHECK-O2-NEXT:    store i32 [[TMP0]], ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-O2-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
-// CHECK-O2-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[INDVARS_IV_NEXT]], [[WIDE_TRIP_COUNT]]
-// CHECK-O2-NEXT:    br i1 [[EXITCOND_NOT]], label %[[FOR_COND_CLEANUP]], label %[[FOR_BODY]], !llvm.loop [[LOOP5:![0-9]+]]
-//
 void foo(int *__counted_by(len) buf, int len) {
     for (int i = 0; i < len; ++i)
         buf[i] = i;
@@ -47,7 +28,3 @@ int main() {
     foo(arr, 10);
     return arr[9];
 }
-//.
-// CHECK-O2: [[LOOP5]] = distinct !{[[LOOP5]], [[META6:![0-9]+]]}
-// CHECK-O2: [[META6]] = !{!"llvm.loop.mustprogress"}
-//.

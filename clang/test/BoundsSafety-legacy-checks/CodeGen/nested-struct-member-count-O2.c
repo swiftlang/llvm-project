@@ -16,7 +16,7 @@ struct Outer {
 };
 
 // CHECK-LABEL: define dso_local i8 @access(
-// CHECK-SAME: ptr noundef readonly captures(address) [[BAR:%.*]], i32 noundef [[INDEX:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(address) [[BAR:%.*]], i32 noundef [[INDEX:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[FAM:%.*]] = getelementptr inbounds nuw i8, ptr [[BAR]], i64 8
 // CHECK-NEXT:    [[LEN:%.*]] = getelementptr inbounds nuw i8, ptr [[BAR]], i64 4
@@ -43,7 +43,7 @@ char access(struct Outer *bar, int index) {
 
 
 // CHECK-LABEL: define dso_local ptr @assign(
-// CHECK-SAME: ptr noundef readonly captures(none) dead_on_return [[BAR:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) dead_on_return [[BAR:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[BAR]], align 8
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_2_0_BAR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BAR]], i64 8

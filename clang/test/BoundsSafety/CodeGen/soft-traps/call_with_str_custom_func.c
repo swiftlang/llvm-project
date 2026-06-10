@@ -61,7 +61,7 @@
 // UNOPT-NEXT:    ret i32 [[TMP5]]
 //
 // OPT-LABEL: define dso_local i32 @read(
-// OPT-SAME: ptr noundef readonly captures(none) dead_on_return [[PTR:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// OPT-SAME: ptr nofree noundef readonly captures(none) dead_on_return [[PTR:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // OPT-NEXT:  [[ENTRY:.*:]]
 // OPT-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[PTR]], align 8
 // OPT-NEXT:    [[AGG_TEMP_SROA_2_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8

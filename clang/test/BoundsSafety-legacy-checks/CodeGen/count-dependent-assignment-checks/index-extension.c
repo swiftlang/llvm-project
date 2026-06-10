@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local void @idx_char(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i8 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i8 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -29,7 +29,7 @@ void idx_char(int *__counted_by(n) dst, unsigned n, char idx) {
 }
 
 // CHECK-LABEL: define dso_local void @idx_unsigned_char(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i8 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i8 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -52,7 +52,7 @@ void idx_unsigned_char(int *__counted_by(n) dst, unsigned n, unsigned char idx) 
 }
 
 // CHECK-LABEL: define dso_local void @idx_short_int(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i16 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i16 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -75,7 +75,7 @@ void idx_short_int(int *__counted_by(n) dst, unsigned n, short int idx) {
 }
 
 // CHECK-LABEL: define dso_local void @idx_short_unsigned(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i16 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i16 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -98,7 +98,7 @@ void idx_short_unsigned(int *__counted_by(n) dst, unsigned n, short unsigned idx
 }
 
 // CHECK-LABEL: define dso_local void @idx_int(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -121,7 +121,7 @@ void idx_int(int *__counted_by(n) dst, unsigned n, int idx) {
 }
 
 // CHECK-LABEL: define dso_local void @idx_unsigned(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i32 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -144,7 +144,7 @@ void idx_unsigned(int *__counted_by(n) dst, unsigned n, unsigned idx) {
 }
 
 // CHECK-LABEL: define dso_local void @idx_long_int(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i64 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i64 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -166,7 +166,7 @@ void idx_long_int(int *__counted_by(n) dst, unsigned n, long int idx) {
 }
 
 // CHECK-LABEL: define dso_local void @idx_long_unsigned(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i64 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i64 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]
@@ -188,7 +188,7 @@ void idx_long_unsigned(int *__counted_by(n) dst, unsigned n, long unsigned idx) 
 }
 
 // CHECK-LABEL: define dso_local void @idx_long_unsigned_counted_by_int(
-// CHECK-SAME: ptr noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i64 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[DST:%.*]], i32 noundef [[N:%.*]], i64 noundef [[IDX:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[N]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds [4 x i8], ptr [[DST]], i64 [[IDX_EXT]]

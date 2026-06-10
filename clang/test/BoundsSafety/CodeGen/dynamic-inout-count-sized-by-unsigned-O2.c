@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local void @foo1(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], ptr noundef captures(none) [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], ptr nofree noundef captures(none) [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[SIZE]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CMP33:%.*]] = icmp ugt i32 [[TMP0]], 39, {{!annotation ![0-9]+}}
@@ -23,7 +23,7 @@ void foo1(int *__sized_by(*size) buf, unsigned *size) {
 }
 
 // CHECK-LABEL: define dso_local void @foo2(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], ptr noundef captures(none) [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], ptr nofree noundef captures(none) [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[SIZE]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CMP33:%.*]] = icmp ugt i32 [[TMP0]], 39, {{!annotation ![0-9]+}}
@@ -41,7 +41,7 @@ void foo2(int *__sized_by(*size) buf, unsigned *size) {
 }
 
 // CHECK-LABEL: define dso_local void @bar1(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], ptr noundef captures(none) [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], ptr nofree noundef captures(none) [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[SIZE]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CMP33:%.*]] = icmp ugt i32 [[TMP0]], 39, {{!annotation ![0-9]+}}
@@ -60,7 +60,7 @@ bb:
 }
 
 // CHECK-LABEL: define dso_local void @bar2(
-// CHECK-SAME: ptr noundef readnone captures(none) [[BUF:%.*]], ptr noundef captures(none) [[SIZE:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], ptr nofree noundef captures(none) [[SIZE:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[SIZE]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CMP33:%.*]] = icmp ugt i32 [[TMP0]], 39, {{!annotation ![0-9]+}}

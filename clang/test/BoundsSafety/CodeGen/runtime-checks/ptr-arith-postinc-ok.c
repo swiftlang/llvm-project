@@ -7,7 +7,7 @@
 // RUN: %clang_cc1 -O0 -triple x86_64 -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -emit-llvm %s -o - | FileCheck --check-prefixes O0 %s
 
 // O2-LABEL: define dso_local i32 @foo(
-// O2-SAME: ptr noundef readonly captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// O2-SAME: ptr nofree noundef readonly captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // O2-NEXT:  [[ENTRY:.*:]]
 // O2-NEXT:    [[TMP0:%.*]] = load i32, ptr [[A]], align 4, {{!tbaa ![0-9]+}}
 // O2-NEXT:    ret i32 [[TMP0]]

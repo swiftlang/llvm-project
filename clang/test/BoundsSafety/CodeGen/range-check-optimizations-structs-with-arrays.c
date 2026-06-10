@@ -11,7 +11,7 @@ struct buf {
 };
 
 // CHECK-LABEL: define dso_local void @array_member_access_can_remove(
-// CHECK-SAME: ptr noundef writeonly captures(none) initializes((4, 44)) [[BP:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) initializes((4, 44)) [[BP:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[CONT2_9:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = getelementptr inbounds nuw i8, ptr [[BP]], i64 4
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[BP]], i64 8
@@ -41,7 +41,7 @@ void array_member_access_can_remove(struct buf *bp) {
 }
 
 // CHECK-LABEL: define dso_local void @array_member_access_trap_on_last_iter(
-// CHECK-SAME: ptr noundef writeonly captures(address) initializes((4, 44)) [[BP:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) initializes((4, 44)) [[BP:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[CONT2_9:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = getelementptr inbounds nuw i8, ptr [[BP]], i64 4
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[BP]], i64 44
@@ -89,7 +89,7 @@ struct buf_var_size {
 
 // rdar://128576231
 // CHECK-LABEL: define dso_local void @array_member_access_can_remove_variable(
-// CHECK-SAME: ptr noundef captures(address) [[BP:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef captures(address) [[BP:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[BP]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CMP16_NOT:%.*]] = icmp eq i32 [[TMP0]], 0
@@ -125,7 +125,7 @@ void array_member_access_can_remove_variable(struct buf_var_size *bp) {
 }
 
 // CHECK-LABEL: define dso_local void @array_member_access_cannot_remove_variable(
-// CHECK-SAME: ptr noundef captures(address) [[BP:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR3]] {
+// CHECK-SAME: ptr nofree noundef captures(address) [[BP:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp eq i32 [[N]], 0
 // CHECK-NEXT:    br i1 [[CMP14_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_LR_PH:.*]]

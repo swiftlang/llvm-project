@@ -218,7 +218,7 @@
 // UNOPT-TFR-NEXT:    ret i32 [[TMP11]]
 //
 // OPT-LABEL: define dso_local i32 @read(
-// OPT-SAME: ptr noundef readonly captures(none) dead_on_return [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// OPT-SAME: ptr nofree noundef readonly captures(none) dead_on_return [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // OPT-NEXT:  [[ENTRY:.*:]]
 // OPT-NEXT:    [[TMP0:%.*]] = tail call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 [[IDX]], i32 [[OTHER]]), !nosanitize [[META5:![0-9]+]]
 // OPT-NEXT:    [[TMP1:%.*]] = extractvalue { i32, i1 } [[TMP0]], 1, !nosanitize [[META5]]

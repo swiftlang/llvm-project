@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local noundef ptr @indexable(
-// CHECK-SAME: ptr noundef readonly returned captures(address, ret: address, provenance) [[PTR_COERCE0:%.*]], ptr noundef readnone captures(address) [[PTR_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly returned captures(address, ret: address, provenance) [[PTR_COERCE0:%.*]], ptr nofree noundef readnone captures(address) [[PTR_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[PTR_COERCE0]], [[PTR_COERCE1]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[TMP0]], label %[[TERMINATED_BY_LOOP_COND:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -30,7 +30,7 @@ int *__null_terminated indexable(int *__indexable ptr) {
 }
 
 // CHECK-LABEL: define dso_local ptr @bidi_indexable(
-// CHECK-SAME: ptr noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[PTR:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[PTR:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[PTR]], align 8
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_2_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
@@ -61,7 +61,7 @@ int *__null_terminated bidi_indexable(int *__bidi_indexable ptr) {
 }
 
 // CHECK-LABEL: define dso_local noundef ptr @nested_indexable(
-// CHECK-SAME: ptr noundef readonly returned captures(address, ret: address, provenance) [[PTR_COERCE0:%.*]], ptr noundef readnone captures(address) [[PTR_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly returned captures(address, ret: address, provenance) [[PTR_COERCE0:%.*]], ptr nofree noundef readnone captures(address) [[PTR_COERCE1:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[PTR_COERCE0]], [[PTR_COERCE1]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[TMP0]], label %[[TERMINATED_BY_LOOP_COND:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}

@@ -10,7 +10,7 @@ __attribute__((const)) static int get_const_count() {
 }
 
 // CHECK-LABEL: define dso_local void @test_assign_const_count_ok(
-// CHECK-SAME: ptr noundef readnone captures(none) [[COUNTED_PTR:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[COUNTED_PTR:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -20,7 +20,7 @@ void test_assign_const_count_ok(int *__counted_by(get_const_count()) counted_ptr
 }
 
 // CHECK-LABEL: define dso_local void @test_assign_const_count_fail(
-// CHECK-SAME: ptr noundef readnone captures(none) [[COUNTED_PTR:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[COUNTED_PTR:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -35,7 +35,7 @@ __attribute__((const)) static int get_const_size() {
 }
 
 // CHECK-LABEL: define dso_local void @test_assign_const_size_ok(
-// CHECK-SAME: ptr noundef readnone captures(none) [[SIZED_PTR:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[SIZED_PTR:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -45,7 +45,7 @@ void test_assign_const_size_ok(void *__sized_by(get_const_size()) sized_ptr) {
 }
 
 // CHECK-LABEL: define dso_local void @test_assign_const_size_fail(
-// CHECK-SAME: ptr noundef readnone captures(none) [[SIZED_PTR:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[SIZED_PTR:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
@@ -62,7 +62,7 @@ struct struct_flex {
 };
 
 // CHECK-LABEL: define dso_local void @test_flexible_assign_const_count_ok(
-// CHECK-SAME: ptr noundef readnone captures(none) [[FLEX:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[FLEX:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -72,7 +72,7 @@ void test_flexible_assign_const_count_ok(struct struct_flex *flex) {
 }
 
 // CHECK-LABEL: define dso_local void @test_flexible_assign_const_count_fail(
-// CHECK-SAME: ptr noundef readnone captures(none) [[FLEX:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(none) [[FLEX:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}

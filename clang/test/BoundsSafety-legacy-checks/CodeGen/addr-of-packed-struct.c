@@ -13,7 +13,7 @@ struct __attribute__((packed)) foo {
 };
 
 // CHECK-LABEL: define dso_local nonnull ptr @p(
-// CHECK-SAME: ptr noundef readnone captures(ret: address, provenance) [[S:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(ret: address, provenance) [[S:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw i8, ptr [[S]], i64 4
 // CHECK-NEXT:    ret ptr [[TMP0]]

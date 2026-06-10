@@ -6,7 +6,7 @@
 // RUN: %clang_cc1 -O0 -triple x86_64 -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -emit-llvm %s -o - | FileCheck --check-prefixes O0 %s
 
 // O2-LABEL: define dso_local noundef i32 @foo(
-// O2-SAME: ptr noundef readnone captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// O2-SAME: ptr nofree noundef readnone captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // O2-NEXT:  [[ENTRY:.*:]]
 // O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], {{!annotation ![0-9]+}}
 // O2-NEXT:    unreachable, {{!annotation ![0-9]+}}

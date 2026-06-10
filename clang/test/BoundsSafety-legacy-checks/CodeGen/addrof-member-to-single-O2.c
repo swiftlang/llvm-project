@@ -12,7 +12,7 @@ struct foo {
 };
 
 // CHECK-LABEL: define dso_local noundef ptr @addrof_single_ptr_to_single(
-// CHECK-SAME: ptr noundef readnone returned captures(ret: address, provenance) [[F:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readnone returned captures(ret: address, provenance) [[F:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret ptr [[F]]
 //
@@ -21,7 +21,7 @@ char **addrof_single_ptr_to_single(struct foo *f) {
 }
 
 // CHECK-LABEL: define dso_local nonnull ptr @addrof_single_i_to_single(
-// CHECK-SAME: ptr noundef readnone captures(ret: address, provenance) [[F:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(ret: address, provenance) [[F:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw i8, ptr [[F]], i64 8
 // CHECK-NEXT:    ret ptr [[TMP0]]
@@ -31,7 +31,7 @@ int *addrof_single_i_to_single(struct foo *f) {
 }
 
 // CHECK-LABEL: define dso_local nonnull ptr @addrof_single_l_to_single(
-// CHECK-SAME: ptr noundef readnone captures(ret: address, provenance) [[F:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readnone captures(ret: address, provenance) [[F:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw i8, ptr [[F]], i64 16
 // CHECK-NEXT:    ret ptr [[TMP0]]

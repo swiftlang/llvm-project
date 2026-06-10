@@ -6,7 +6,7 @@
 #include <ptrcheck.h>
 
 // CHECK-LABEL: define dso_local i32 @pre_inc(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -25,7 +25,7 @@ int pre_inc(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @post_inc(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -44,7 +44,7 @@ int post_inc(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @add_one(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -63,7 +63,7 @@ int add_one(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @add_one_swap(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -82,7 +82,7 @@ int add_one_swap(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @assign_add_one(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -101,7 +101,7 @@ int assign_add_one(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @sub_minus_one(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -120,7 +120,7 @@ int sub_minus_one(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @assign_sub_minus_one(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[TMP0]], 0, {{!annotation ![0-9]+}}
@@ -139,7 +139,7 @@ int assign_sub_minus_one(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @add_zero(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    ret i32 [[TMP0]]
@@ -150,7 +150,7 @@ int add_zero(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @add_zero_swap(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    ret i32 [[TMP0]]
@@ -161,7 +161,7 @@ int add_zero_swap(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @add_assign_zero(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    ret i32 [[TMP0]]
@@ -172,7 +172,7 @@ int add_assign_zero(int *__null_terminated p) {
 }
 
 // CHECK-LABEL: define dso_local i32 @subscript_zero(
-// CHECK-SAME: ptr noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[P]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    ret i32 [[TMP0]]

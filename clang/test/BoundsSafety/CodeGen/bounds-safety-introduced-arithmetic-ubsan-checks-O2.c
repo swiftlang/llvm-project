@@ -11,7 +11,7 @@
 
 void f_callee(char *__counted_by(inLen), unsigned long long inLen);
 // UBSAN-LABEL: define dso_local void @f_unsafe_outlen(
-// UBSAN-SAME: ptr noundef [[DEROUT:%.*]], ptr noundef readonly captures(none) [[OUTLEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// UBSAN-SAME: ptr noundef [[DEROUT:%.*]], ptr nofree noundef readonly captures(none) [[OUTLEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // UBSAN-NEXT:  [[ENTRY:.*:]]
 // UBSAN-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUTLEN]], align 8, {{!tbaa ![0-9]+}}
 // UBSAN-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[DEROUT]], i64 [[TMP0]]
@@ -25,7 +25,7 @@ void f_callee(char *__counted_by(inLen), unsigned long long inLen);
 // UBSAN-NEXT:    ret void
 //
 // NOUBSAN-LABEL: define dso_local void @f_unsafe_outlen(
-// NOUBSAN-SAME: ptr noundef [[DEROUT:%.*]], ptr noundef readonly captures(none) [[OUTLEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// NOUBSAN-SAME: ptr noundef [[DEROUT:%.*]], ptr nofree noundef readonly captures(none) [[OUTLEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // NOUBSAN-NEXT:  [[ENTRY:.*:]]
 // NOUBSAN-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUTLEN]], align 8, {{!tbaa ![0-9]+}}
 // NOUBSAN-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[DEROUT]], i64 [[TMP0]]
@@ -43,7 +43,7 @@ void f_unsafe_outlen(char *__unsafe_indexable derOut, unsigned long long *outLen
 }
 
 // UBSAN-LABEL: define dso_local void @f_outlen(
-// UBSAN-SAME: ptr noundef [[DEROUT:%.*]], ptr noundef readonly captures(none) [[OUTLEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// UBSAN-SAME: ptr noundef [[DEROUT:%.*]], ptr nofree noundef readonly captures(none) [[OUTLEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // UBSAN-NEXT:  [[ENTRY:.*:]]
 // UBSAN-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUTLEN]], align 8, {{!tbaa ![0-9]+}}
 // UBSAN-NEXT:    [[CMP:%.*]] = icmp sgt i64 [[TMP0]], -1
@@ -52,7 +52,7 @@ void f_unsafe_outlen(char *__unsafe_indexable derOut, unsigned long long *outLen
 // UBSAN-NEXT:    ret void
 //
 // NOUBSAN-LABEL: define dso_local void @f_outlen(
-// NOUBSAN-SAME: ptr noundef [[DEROUT:%.*]], ptr noundef readonly captures(none) [[OUTLEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// NOUBSAN-SAME: ptr noundef [[DEROUT:%.*]], ptr nofree noundef readonly captures(none) [[OUTLEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // NOUBSAN-NEXT:  [[ENTRY:.*:]]
 // NOUBSAN-NEXT:    [[TMP0:%.*]] = load i64, ptr [[OUTLEN]], align 8, {{!tbaa ![0-9]+}}
 // NOUBSAN-NEXT:    [[CMP:%.*]] = icmp sgt i64 [[TMP0]], -1
@@ -65,7 +65,7 @@ void f_outlen(char *__counted_by(*outLen) derOut, unsigned long long *outLen) {
 }
 
 // UBSAN-LABEL: define dso_local void @f_call_bound_checks(
-// UBSAN-SAME: ptr noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[BUF:%.*]], i64 noundef [[OFFSET:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// UBSAN-SAME: ptr nofree noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[BUF:%.*]], i64 noundef [[OFFSET:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // UBSAN-NEXT:  [[ENTRY:.*:]]
 // UBSAN-NEXT:    [[TMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[BUF]], align 8
 // UBSAN-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[TMP_SROA_0_0_COPYLOAD]], i64 [[OFFSET]]
@@ -102,7 +102,7 @@ void f_outlen(char *__counted_by(*outLen) derOut, unsigned long long *outLen) {
 // UBSAN-NEXT:    ret void
 //
 // NOUBSAN-LABEL: define dso_local void @f_call_bound_checks(
-// NOUBSAN-SAME: ptr noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[BUF:%.*]], i64 noundef [[OFFSET:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// NOUBSAN-SAME: ptr nofree noundef readonly byval(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) [[BUF:%.*]], i64 noundef [[OFFSET:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // NOUBSAN-NEXT:  [[ENTRY:.*:]]
 // NOUBSAN-NEXT:    [[TMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[BUF]], align 8
 // NOUBSAN-NEXT:    [[TMP_SROA_2_0_BUF_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BUF]], i64 8
