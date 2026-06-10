@@ -24,6 +24,9 @@ clangPipeline(
             "TMPDIR": '$WORKSPACE/tmpdir'
         ],
         pre_build_commands: 'rm -rf "$WORKSPACE/tmpdir" && mkdir -p "$WORKSPACE/tmpdir"',
+        // Skip LLDB testing since it is done elsewhere.
+        // Also skip most compiler-rt testing since upstream and the swiftlang fork are
+        // mostly the same so doing lots of testing here would be redundant.
         cmake_flags: [
             "-DLLVM_TARGETS_TO_BUILD=X86;ARM;AArch64",
             "-DLLDB_ENABLE_SWIFT_SUPPORT=OFF",
