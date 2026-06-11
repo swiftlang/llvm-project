@@ -34,7 +34,8 @@ clangPipeline(
             "-DLLDB_ENABLE_LZMA=OFF",
             "-DCOMPILER_RT_INCLUDE_TESTS=ON",
             "-DCOMPILER_RT_ENABLE_TEST_SUITES=builtins;bounds_safety",
-            "-DCOMPILER_RT_BOUNDS_SAFETY_USE_LLDB=ON"
+            "-DCOMPILER_RT_BOUNDS_SAFETY_USE_LLDB=ON",
+            "-DCOMPILER_RT_BOUNDS_SAFETY_USE_JUST_BUILT_LLDB=OFF"
         ]
     ],
     testConfig: [
