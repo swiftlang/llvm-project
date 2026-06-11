@@ -43,14 +43,14 @@
 
 /// Check debug info is correct.
 // RUN: %clang %t/tu.o -o %t/a.out
-// RUN: dsymutil -cas %t/cas %t/a.out -o %t/a.dSYM 2>&1 | FileCheck %s --check-prefix=WARN --allow-empty
-// RUN: dsymutil %t/a.out -o %t/a2.dSYM 2>&1 | FileCheck %s --check-prefix=WARN --allow-empty
+// RUN: dsymutil --linker classic -cas %t/cas %t/a.out -o %t/a.dSYM 2>&1 | FileCheck %s --check-prefix=WARN --allow-empty
+// RUN: dsymutil --linker classic %t/a.out -o %t/a2.dSYM 2>&1 | FileCheck %s --check-prefix=WARN --allow-empty
 // WARN-NOT: warning:
 
 // RUN: echo "bad" > %t/.cas-config
-// RUN: dsymutil -cas %t/cas-empty %t/a.out -o %t/a3.dSYM 2>&1 | FileCheck %s --check-prefix=WARN-CAS --check-prefix=WARN-FILE
+// RUN: dsymutil --linker classic -cas %t/cas-empty %t/a.out -o %t/a3.dSYM 2>&1 | FileCheck %s --check-prefix=WARN-CAS --check-prefix=WARN-FILE
 // WARN-CAS: warning: failed to load CAS object
-// RUN: dsymutil %t/a.out -o %t/a4.dSYM 2>&1 | FileCheck %s --check-prefix=WARN-FILE
+// RUN: dsymutil --linker classic %t/a.out -o %t/a4.dSYM 2>&1 | FileCheck %s --check-prefix=WARN-FILE
 // WARN-FILE: warning:
 // WARN-FILE-SAME: No such file or directory
 

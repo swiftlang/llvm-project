@@ -17,7 +17,7 @@ WARN-SAME: No such file or directory
 RUN: llvm-cas --cas %t/cas --make-blob --data %S/../Inputs/CAS/A.pcm
 
 RUN: dsymutil -cas %t/cas -f -oso-prepend-path=%S/../Inputs/CAS \
-RUN:   -y %t/debug.map -o - \
+RUN:   --linker classic -y %t/debug.map -o - \
 RUN:     | llvm-dwarfdump -v --debug-info - | FileCheck %s
 
 CHECK: DW_TAG_compile_unit
