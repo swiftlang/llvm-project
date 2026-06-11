@@ -16,6 +16,7 @@ set (FILES
   NativeProcessProtocolTest.cpp
   PipeTest.cpp
   ProcessLaunchInfoTest.cpp
+  ProcessRunLockTest.cpp
   SocketAddressTest.cpp
   SocketTest.cpp
   ThreadLauncherTest.cpp
