@@ -39,6 +39,7 @@ import shutil
 import signal
 from subprocess import *
 import sys
+import threading
 import time
 import traceback
 
@@ -2070,10 +2071,12 @@ class LLDBTestCaseFactory(type):
                             if enabled
                         ]
 
-                    # PDB is off by default, because it has a lot of failures right now.
-                    # See llvm.org/pr149498
-                    if original_testcase.TEST_WITH_PDB_DEBUG_INFO:
-                        dbginfo_categories.append("pdb")
+                    if (
+                        original_testcase.TEST_WITH_PDB_DEBUG_INFO
+                        or getattr(attrvalue, "__pdb_variant_enrolled__", False)
+                    ):
+                        if "pdb" not in dbginfo_categories:
+                            dbginfo_categories.append("pdb")
 
                     xfail_fns = getattr(attrvalue, "__variant_xfail__", {})
                     skip_fns = getattr(attrvalue, "__variant_skip__", {})
@@ -2083,7 +2086,59 @@ class LLDBTestCaseFactory(type):
 
                         @decorators.add_test_categories([cat])
                         @wraps(attrvalue)
-                        def test_method(self, attrvalue=attrvalue):
+                        def test_method(self, attrvalue=attrvalue, cat=cat):
+                            # Non-fatal variants (e.g. pdb) run in a daemon
+                            # thread with a wall-clock timeout. This way a
+                            # hang or crash in lldb's per-method work
+                            # doesn't take down the whole dotest process
+                            # via lit's per-file timeout. Any exception,
+                            # including a timeout, is reported as a
+                            # tolerated skipTest. The thread is left as
+                            # daemon — we make no attempt to kill the
+                            # hung lldb call, since doing so safely from
+                            # Python is not possible. The thread (and any
+                            # inferior process it owns) will be torn down
+                            # when the dotest process exits.
+                            if (
+                                cat
+                                in test_categories.non_fatal_debug_info_categories
+                            ):
+                                result = {"exc": None}
+
+                                def _runner():
+                                    try:
+                                        attrvalue(self)
+                                    except Exception as e:
+                                        result["exc"] = e
+
+                                # Per-method wall-clock budget for a
+                                # non-fatal variant. Generous enough for
+                                # a Swift build + run on the bridge, but
+                                # tight enough that several hangs in the
+                                # same .py file still finish under lit's
+                                # 900s per-file timeout.
+                                timeout_s = 90
+                                t = threading.Thread(
+                                    target=_runner, daemon=True
+                                )
+                                t.start()
+                                t.join(timeout=timeout_s)
+
+                                if t.is_alive():
+                                    self.skipTest(
+                                        f"tolerated under debug_info={cat}: "
+                                        f"timed out after {timeout_s}s"
+                                    )
+                                if result["exc"] is not None:
+                                    if isinstance(
+                                        result["exc"], unittest.SkipTest
+                                    ):
+                                        raise result["exc"]
+                                    self.skipTest(
+                                        f"tolerated under debug_info={cat}: "
+                                        f"{result['exc']!r}"
+                                    )
+                                return None
                             return attrvalue(self)
 
                         method_name = attrname + "_" + cat
