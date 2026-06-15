@@ -10,6 +10,8 @@ from lldbsuite.test import lldbutil
 
 
 class AbiTagStructorsTestCase(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     @expectedFailureAll(oslist=["windows"])
     def test_with_structor_linkage_names(self):
         self.build(dictionary={"CXXFLAGS_EXTRAS": "-gstructor-decl-linkage-names"})

@@ -18,6 +18,8 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftInterfaceDSYM(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     @swiftTest
     @skipIf(archs=no_match("x86_64"))
     @skipIf(debug_info=no_match(["dsym"]))

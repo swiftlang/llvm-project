@@ -7,6 +7,8 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestCase(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
+    SHARED_BUILD_TESTCASE = False
+
     @swiftTest
     def test_missing_explicit_modules(self):
         """Test missing explicit Swift modules and fallback to implicit modules."""

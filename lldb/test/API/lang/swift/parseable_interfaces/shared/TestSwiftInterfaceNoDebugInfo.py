@@ -26,6 +26,8 @@ import os.path
 
 
 class TestSwiftInterfaceNoDebugInfo(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     @swiftTest
     def test_swift_interface(self):
         """Test that we load and handle modules that only have textual .swiftinterface files"""

@@ -4,6 +4,8 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftLateDylib(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     @skipUnlessDarwin
     @swiftTest
     @skipIfDarwinEmbedded

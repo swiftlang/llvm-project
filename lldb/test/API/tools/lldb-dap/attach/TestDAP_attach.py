@@ -22,6 +22,8 @@ def spawn_and_wait(program, delay):
 
 @skipIfDarwin  # rdar://164257003
 class TestDAP_attach(lldbdap_testcase.DAPTestCaseBase):
+    SHARED_BUILD_TESTCASE = False
+
     def set_and_hit_breakpoint(self, continueToExit=True):
         source = "main.c"
         breakpoint1_line = line_number(source, "// breakpoint 1")

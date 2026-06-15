@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftFrameworkPaths(lldbtest.TestBase):
+    SHARED_BUILD_TESTCASE = False
 
     @swiftTest
     # Don't run ClangImporter tests if Clangimporter is disabled.

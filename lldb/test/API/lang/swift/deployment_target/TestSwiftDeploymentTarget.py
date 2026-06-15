@@ -21,6 +21,7 @@ import os
 
 class TestSwiftDeploymentTarget(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
+    SHARED_BUILD_TESTCASE = False
 
     @skipUnlessDarwin
     @skipIfDarwinEmbedded # This test uses macOS triples explicitly.

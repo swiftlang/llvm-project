@@ -13,6 +13,8 @@ USE_LIBCPP = "USE_LIBCPP"
 
 
 class TestCoroutineHandle(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     def do_test(self, stdlib_type):
         """Test std::coroutine_handle is displayed correctly."""
         self.build(dictionary={stdlib_type: "1"})

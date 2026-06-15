@@ -6,8 +6,7 @@ import os
 
 
 class TestSwiftDWARFImporter_Swift(lldbtest.TestBase):
-
-    mydir = lldbtest.TestBase.compute_mydir(__file__)
+    SHARED_BUILD_TESTCASE = False
 
     def build(self):
         include = self.getBuildArtifact('include')

@@ -7,6 +7,8 @@ USE_LIBCPP = "USE_LIBCPP"
 
 
 class GenericUnorderedDataFormatterTestCase(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     def setUp(self):
         TestBase.setUp(self)
         self.namespace = "std"

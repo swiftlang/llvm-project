@@ -5,6 +5,7 @@ from lldbsuite.test import lldbutil
 
 
 class ExprDefinitionInDylibTestCase(TestBase):
+    SHARED_BUILD_TESTCASE = False
 
     @skipIfWindows
     def test_with_structor_linkage_names(self):

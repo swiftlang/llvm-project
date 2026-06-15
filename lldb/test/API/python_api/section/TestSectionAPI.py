@@ -9,6 +9,8 @@ from lldbsuite.test import lldbutil
 
 
 class SectionAPITestCase(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     @no_debug_info_test
     @skipIfXmlSupportMissing
     def test_get_target_byte_size(self):

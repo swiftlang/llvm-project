@@ -14,6 +14,7 @@ USE_LIBCPP = "USE_LIBCPP"
 
 
 class GenericListDataFormatterTestCase(TestBase):
+    SHARED_BUILD_TESTCASE = False
     NO_DEBUG_INFO_TESTCASE = True
 
     def do_test_with_run_command(self, stdlib_type):

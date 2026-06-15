@@ -16,6 +16,8 @@ POINTER = "POINTER"
 
 
 class GenericBitsetDataFormatterTestCase(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     def setUp(self):
         TestBase.setUp(self)
         primes = [1] * 1000

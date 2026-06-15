@@ -5,6 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftExplicitModules(lldbtest.TestBase):
+    SHARED_BUILD_TESTCASE = False
 
     @swiftTest
     def test(self):

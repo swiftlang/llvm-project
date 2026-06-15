@@ -11,6 +11,8 @@ from lldbsuite.test import lldbutil
 
 
 class StdU8StringDataFormatterTestCase(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     def do_test(self):
         lldbutil.run_to_source_breakpoint(
             self, "Set break point at this line.", lldb.SBFileSpec("main.cpp")

@@ -22,6 +22,8 @@ import time
 
 @skipIfDarwin # rdar://problem/54322424 Sometimes failing, sometimes truncated output.
 class TestMainExecutable(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     def launch_info(self):
         info = lldb.SBLaunchInfo([])
 

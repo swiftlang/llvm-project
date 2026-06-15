@@ -9,6 +9,7 @@ class TestSwiftStaticFramework(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
+    SHARED_BUILD_TESTCASE = False
 
     @swiftTest
     @skipIf(oslist=no_match(["macosx"]))

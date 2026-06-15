@@ -9,6 +9,8 @@ from lldbsuite.test import lldbutil
 
 
 class TestCase(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     def do_test(self):
         """Test `frame variable` output for `std::shared_ptr` types."""
         (_, process, _, bkpt) = lldbutil.run_to_source_breakpoint(

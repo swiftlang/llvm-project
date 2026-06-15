@@ -8,6 +8,8 @@ USE_LIBCPP = "USE_LIBCPP"
 
 
 class GenericOptionalDataFormatterTestCase(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     def do_test_with_run_command(self, stdlib_type):
         """Test that that file and class static variables display correctly."""
 
