@@ -3351,17 +3351,13 @@ void Parser::DistributeCLateParsedAttrs(Declarator &D, Decl *Dcl,
     LateAttrs->append(DCLateAttrs);
     NestedLevel++;
   }
-  ParseLexedAttributeList(ProtoLateAttrs, /*D=*/nullptr, /*EnterScope=*/false,
+  ParseLexedAttributeList(ProtoLateAttrs, /*D=*/nullptr, /*EnterScope=*/true,
                           /*OnDefinition=*/false);
   /* TO_UPSTREAM(BoundsSafety) OFF */
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */
 void Parser::ParseLexedFunctionReturnTypeBoundsAttrs(Declarator &D, Decl *FD) {
-  std::optional<Sema::ContextRAII> FnContext;
-  if (FunctionDecl *Fn = dyn_cast_or_null<FunctionDecl>(FD))
-    FnContext.emplace(Actions, Fn, /*NewThisContext=*/true);
-
   LateParsedAttrList LateAttrs(/*ParseSoon=*/true);
   DistributeCLateParsedAttrs(D, FD, &LateAttrs);
   assert(LateAttrs.empty() && "stray late attrs before the function chunk");
