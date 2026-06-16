@@ -389,7 +389,7 @@ private:
   void AddDeploymentTarget(llvm::opt::DerivedArgList &Args) const;
 
   void VerifyTripleForSDK(const llvm::opt::ArgList &Args,
-                          const llvm::Triple Triple) const;
+                          const llvm::Triple &Triple) const;
 
 public:
   Darwin(const Driver &D, const llvm::Triple &Triple,
