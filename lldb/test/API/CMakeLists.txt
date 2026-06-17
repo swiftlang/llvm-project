@@ -54,6 +54,20 @@ set(LLDB_TEST_USER_ARGS
   CACHE STRING "Specify additional arguments to pass to test runner. Separate \
 items with \";\". For example: '-C;gcc;-C;clang;-A;i386;-A;x86_64'")
 
+# On Windows, where there is no rpath, the test inferiors need the Swift
+# runtime DLLs (swiftCore, Foundation, FoundationEssentials, ...) on PATH
+# at launch. Pre-bootstrap, those DLLs lived under <sysroot>/usr/bin and
+# the Windows path-augment in lit.cfg.py picked them up implicitly. The
+# bootstrap layout moves the runtime out of the SDK and into a separate
+# install root, so the build that drives the test suite needs to point
+# the runner at the runtime location explicitly.
+set(LLDB_TEST_INFERIOR_RUNTIME_BIN
+  ""
+  CACHE STRING "Directory containing the target platform's runtime DLLs. \
+Used on Windows to populate the test inferior's PATH so dynamically-loaded \
+Swift runtime DLLs resolve. When empty, lit.cfg.py falls back to \
+<sysroot>/usr/bin.")
+
 set(LLDB_TEST_COMMON_ARGS_VAR
   -u CXXFLAGS
   -u CFLAGS

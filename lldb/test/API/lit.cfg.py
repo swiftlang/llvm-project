@@ -183,9 +183,25 @@ if is_configured("shared_libs"):
 # Windows has no rpath: drivers built by API tests link against
 # liblldb.dll and need its directory on PATH at launch.
 if platform.system() == "Windows":
-    config.environment["PATH"] = os.path.pathsep.join(
-        (config.llvm_shlib_dir, config.environment.get("PATH", ""))
-    )
+    win_paths = [config.llvm_shlib_dir]
+    runtime_bin = ""
+    if is_configured("test_inferior_runtime_bin") and config.test_inferior_runtime_bin:
+        runtime_bin = config.test_inferior_runtime_bin
+    else:
+        sysroot = ""
+        if is_configured("cmake_sysroot") and config.cmake_sysroot:
+            sysroot = config.cmake_sysroot
+        elif is_configured("dotest_user_args_str"):
+            for arg in config.dotest_user_args_str.split(";"):
+                if arg.startswith("--sysroot="):
+                    sysroot = arg[len("--sysroot=") :].strip()
+                    break
+        if sysroot:
+            runtime_bin = os.path.join(sysroot, "usr", "bin")
+    if runtime_bin and os.path.isdir(runtime_bin):
+        win_paths.append(runtime_bin)
+    win_paths.append(config.environment.get("PATH", ""))
+    config.environment["PATH"] = os.path.pathsep.join(win_paths)
 
 lldb_use_simulator = lit_config.params.get("lldb-run-with-simulator", None)
 if lldb_use_simulator:
