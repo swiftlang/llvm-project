@@ -119,13 +119,45 @@ private:
 };
 } // namespace lldb_private
 
-/// Determine wether this demangle tree contains an unresolved type alias.
+/// Is this a type (class/struct/enum) declared inside a function? Such types
+/// use a LocalDeclName for their name, e.g. `LocalBox` in:
+///
+///     func f(input: MyAliasedKey) { class LocalBox { var x = 0 } }
+///
+/// Where "MyAliasedKey" is a C typedef to NSString. LocalBox's mangled name
+/// bakes in f's signature, including the Clang swift_newtype alias
+/// "MyAliasedKey" spelled out (not expanded to NSString). The reflection field
+/// descriptor uses that same spelling, so callers must not expand the aliases
+/// inside such a type or the descriptor lookup will miss.
+static bool IsFunctionLocalType(swift::Demangle::NodePointer node) {
+  using Kind = swift::Demangle::Node::Kind;
+  if (!node)
+    return false;
+  switch (node->getKind()) {
+  case Kind::Class:
+  case Kind::Structure:
+  case Kind::Enum:
+    break;
+  default:
+    return false;
+  }
+
+  return node->getNumChildren() == 2 && node->getChild(1) &&
+         node->getChild(1)->getKind() == Kind::LocalDeclName;
+}
+
+/// Determine whether this demangle tree contains an unresolved type alias.
 static bool ContainsUnresolvedTypeAlias(swift::Demangle::NodePointer node) {
   if (!node)
     return false;
 
   if (node->getKind() == swift::Demangle::Node::Kind::TypeAlias)
     return true;
+
+  // A Clang swift_newtype alias in a function-local type's name is part of the
+  // name, not an unresolved type (see IsFunctionLocalType), so don't flag it.
+  if (IsFunctionLocalType(node))
+    return false;
 
   for (swift::Demangle::NodePointer child : *node)
     if (ContainsUnresolvedTypeAlias(child))
@@ -1685,6 +1717,12 @@ TypeSystemSwiftTypeRef::GetCanonicalNode(swift::Demangle::Demangler &dem,
   // preserve all sugar.
   using namespace swift::Demangle;
   node = Canonicalize(dem, node, flavor);
+
+  // Leave function-local types as the compiler wrote them; expanding the
+  // aliases in their name would stop matching the reflection field descriptor
+  // (see IsFunctionLocalType).
+  if (IsFunctionLocalType(node))
+    return node;
 
   llvm::SmallVector<NodePointer, 2> children;
   bool changed = false;
