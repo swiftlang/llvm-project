@@ -5939,7 +5939,7 @@ void CompilerInvocation::visitPaths(
   visitPathsImpl(Callback);
 }
 
-void CowCompilerInvocation::visitPaths(
+void CowCompilerInvocation::visitMutPaths(
     llvm::function_ref<bool(std::string &)> Callback) {
   // Ensure exclusive ownership of every option group, so that visitPathsImpl()
   // doesn't affect any other invocations.

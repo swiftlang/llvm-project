@@ -483,8 +483,7 @@ public:
   /// up front; if the callback only inspects (and does not mutate) the paths,
   /// the const \c visitPaths overload should be used instead to avoid those
   /// per-group copies.
-  void visitPaths(llvm::function_ref<bool(std::string &)> Callback);
-  using CompilerInvocationBase::visitPaths;
+  void visitMutPaths(llvm::function_ref<bool(std::string &)> Callback);
 };
 
 template <class R>

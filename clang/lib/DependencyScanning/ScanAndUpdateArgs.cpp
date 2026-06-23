@@ -177,7 +177,7 @@ void DepscanPrefixMapping::remapInvocationPaths(
   // are in the module context hash, which indirectly impacts the cache key when
   // importing a module. In the future we may change how -fmodule-file-cache-key
   // works when remapping to avoid needing this.
-  Invocation.visitPaths([&Mapper](std::string &Path) {
+  Invocation.visitMutPaths([&Mapper](std::string &Path) {
     Mapper.mapInPlace(Path);
     return false;
   });
