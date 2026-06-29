@@ -55,6 +55,9 @@ public:
 
   lldb::ValueObjectListSP GetVariables() override;
 
+  std::optional<lldb::ValueType>
+  GetValueTypeForVariable(lldb::ValueObjectSP value) override;
+
   lldb::ValueObjectSP
   GetValueObjectForVariableExpression(llvm::StringRef expr, uint32_t options,
                                       Status &status) override;
