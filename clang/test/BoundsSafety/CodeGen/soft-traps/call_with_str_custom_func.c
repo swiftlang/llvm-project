@@ -67,29 +67,29 @@
 // OPT-NEXT:    [[AGG_TEMP_SROA_2_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
 // OPT-NEXT:    [[AGG_TEMP_SROA_2_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_2_0_PTR_SROA_IDX]], align 8
 // OPT-NEXT:    [[AGG_TEMP_SROA_3_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// OPT-NEXT:    [[AGG_TEMP_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_PTR_SROA_IDX]], align 8, !tbaa [[INTPTR_TBAA5:![0-9]+]]
+// OPT-NEXT:    [[AGG_TEMP_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_PTR_SROA_IDX]], align 8, !tbaa [[INTPTR_TBAA6:![0-9]+]]
 // OPT-NEXT:    [[IDXPROM:%.*]] = sext i32 [[IDX]] to i64
 // OPT-NEXT:    [[ARRAYIDX:%.*]] = getelementptr [4 x i8], ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], i64 [[IDXPROM]]
-// OPT-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARRAYIDX]], i64 4, !annotation [[META8:![0-9]+]]
-// OPT-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP0]], [[AGG_TEMP_SROA_2_0_COPYLOAD]], !annotation [[META8]]
-// OPT-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, !annotation [[META8]]
+// OPT-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARRAYIDX]], i64 4, !annotation [[META9:![0-9]+]]
+// OPT-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP0]], [[AGG_TEMP_SROA_2_0_COPYLOAD]], !annotation [[META9]]
+// OPT-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, !annotation [[META9]]
 // OPT:       [[TRAP]]:
-// OPT-NEXT:    tail call preserve_allcc void @custom_func(ptr nonnull @trap.reason) #[[ATTR1:[0-9]+]], !annotation [[META8]]
-// OPT-NEXT:    br label %[[CONT]], !annotation [[META8]]
+// OPT-NEXT:    tail call preserve_allcc void @custom_func(ptr nonnull @trap.reason) #[[ATTR1:[0-9]+]], !annotation [[META9]]
+// OPT-NEXT:    br label %[[CONT]], !annotation [[META9]]
 // OPT:       [[CONT]]:
-// OPT-NEXT:    [[DOTNOT5:%.*]] = icmp ugt ptr [[ARRAYIDX]], [[TMP0]], !annotation [[META8]]
-// OPT-NEXT:    br i1 [[DOTNOT5]], label %[[TRAP1:.*]], label %[[CONT2:.*]], {{!prof ![0-9]+}}, !annotation [[META8]]
+// OPT-NEXT:    [[DOTNOT5:%.*]] = icmp ugt ptr [[ARRAYIDX]], [[TMP0]], !annotation [[META9]]
+// OPT-NEXT:    br i1 [[DOTNOT5]], label %[[TRAP1:.*]], label %[[CONT2:.*]], {{!prof ![0-9]+}}, !annotation [[META9]]
 // OPT:       [[TRAP1]]:
-// OPT-NEXT:    tail call preserve_allcc void @custom_func(ptr nonnull @trap.reason.1) #[[ATTR1]], !annotation [[META8]]
-// OPT-NEXT:    br label %[[CONT2]], !annotation [[META8]]
+// OPT-NEXT:    tail call preserve_allcc void @custom_func(ptr nonnull @trap.reason.1) #[[ATTR1]], !annotation [[META9]]
+// OPT-NEXT:    br label %[[CONT2]], !annotation [[META9]]
 // OPT:       [[CONT2]]:
-// OPT-NEXT:    [[DOTNOT6:%.*]] = icmp ult ptr [[ARRAYIDX]], [[AGG_TEMP_SROA_3_0_COPYLOAD]], !annotation [[META10:![0-9]+]]
-// OPT-NEXT:    br i1 [[DOTNOT6]], label %[[TRAP3:.*]], label %[[CONT4:.*]], {{!prof ![0-9]+}}, !annotation [[META10]]
+// OPT-NEXT:    [[DOTNOT6:%.*]] = icmp ult ptr [[ARRAYIDX]], [[AGG_TEMP_SROA_3_0_COPYLOAD]], !annotation [[META11:![0-9]+]]
+// OPT-NEXT:    br i1 [[DOTNOT6]], label %[[TRAP3:.*]], label %[[CONT4:.*]], {{!prof ![0-9]+}}, !annotation [[META11]]
 // OPT:       [[TRAP3]]:
-// OPT-NEXT:    tail call preserve_allcc void @custom_func(ptr nonnull @trap.reason.2) #[[ATTR1]], !annotation [[META10]]
-// OPT-NEXT:    br label %[[CONT4]], !annotation [[META10]]
+// OPT-NEXT:    tail call preserve_allcc void @custom_func(ptr nonnull @trap.reason.2) #[[ATTR1]], !annotation [[META11]]
+// OPT-NEXT:    br label %[[CONT4]], !annotation [[META11]]
 // OPT:       [[CONT4]]:
-// OPT-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, !tbaa [[INT_TBAA1:![0-9]+]]
+// OPT-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, !tbaa [[INT_TBAA12:![0-9]+]]
 // OPT-NEXT:    ret i32 [[TMP1]]
 //
 int read(int* __bidi_indexable ptr, int idx) {
@@ -109,14 +109,16 @@ int read(int* __bidi_indexable ptr, int idx) {
 // UNOPT: [[META3]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
 //.
 // OPT: [[META0:![0-9]+]] = !{!"{{.*}}clang version {{.*}}"}
-// OPT: [[INT_TBAA1]] = !{[[META2:![0-9]+]], [[META2]], i64 0}
-// OPT: [[META2]] = !{!"int", [[META3:![0-9]+]], i64 0}
-// OPT: [[META3]] = !{!"omnipotent char", [[META4:![0-9]+]], i64 0}
-// OPT: [[META4]] = !{!"Simple C/C++ TBAA"}
-// OPT: [[INTPTR_TBAA5]] = !{[[META6:![0-9]+]], [[META6]], i64 0}
-// OPT: [[META6]] = !{!"p1 int", [[META7:![0-9]+]], i64 0}
-// OPT: [[META7]] = !{!"any pointer", [[META3]], i64 0}
-// OPT: [[META8]] = !{!"bounds-safety-check-ptr-le-upper-bound"}
-// OPT: [[META9:![0-9]+]] = !{!"branch_weights", i32 1, i32 1048575}
-// OPT: [[META10]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
+// OPT: [[META1:![0-9]+]] = !{[[META2:![0-9]+]], [[META3:![0-9]+]], i64 0}
+// OPT: [[META2]] = !{!"__libc_errno", [[META3]], i64 0}
+// OPT: [[META3]] = !{!"int", [[META4:![0-9]+]], i64 0}
+// OPT: [[META4]] = !{!"omnipotent char", [[META5:![0-9]+]], i64 0}
+// OPT: [[META5]] = !{!"Simple C/C++ TBAA"}
+// OPT: [[INTPTR_TBAA6]] = !{[[META7:![0-9]+]], [[META7]], i64 0}
+// OPT: [[META7]] = !{!"p1 int", [[META8:![0-9]+]], i64 0}
+// OPT: [[META8]] = !{!"any pointer", [[META4]], i64 0}
+// OPT: [[META9]] = !{!"bounds-safety-check-ptr-le-upper-bound"}
+// OPT: [[META10:![0-9]+]] = !{!"branch_weights", i32 1, i32 1048575}
+// OPT: [[META11]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
+// OPT: [[INT_TBAA12]] = !{[[META3]], [[META3]], i64 0}
 //.
