@@ -222,17 +222,7 @@ template <> struct DenseMapInfo<VersionTuple> {
     return VersionTuple(0x7FFFFFFE);
   }
   static unsigned getHashValue(const VersionTuple &Value) {
-    unsigned Result = Value.getMajor();
-    if (auto Minor = Value.getMinor())
-      Result = detail::combineHashValue(Result, *Minor);
-    if (auto Subminor = Value.getSubminor())
-      Result = detail::combineHashValue(Result, *Subminor);
-    if (auto Build = Value.getBuild())
-      Result = detail::combineHashValue(Result, *Build);
-    if (auto Subbuild = Value.getSubbuild())
-      Result = detail::combineHashValue(Result, *Subbuild);
-
-    return Result;
+    return hash_value(Value);
   }
 
   static bool isEqual(const VersionTuple &LHS, const VersionTuple &RHS) {
