@@ -286,8 +286,9 @@ FileSystemCache::lookupPath(DiscoveryInstance &DI, StringRef Path,
   while (!Worklist.empty()) {
     assert(Current);
     auto Work = Worklist.pop_back_val();
-    Expected<LookupPathState> Found = lookupRealPathPrefixFrom(DI,
-        LookupPathState(PathStyle, *Current, Work.Remaining));
+    Expected<LookupPathState> Found = lookupRealPathPrefixFrom(
+        DI, LookupPathState(PathStyle, *Current, Work.Remaining),
+        FollowSymlinks);
     if (!Found)
       return createFileError(Path, Found.takeError());
     Current = Found->Entry;
@@ -379,7 +380,8 @@ FileSystemCache::lookupRealPathPrefixFromCached(
 
 Expected<FileSystemCache::LookupPathState>
 FileSystemCache::lookupRealPathPrefixFrom(DiscoveryInstance &DI,
-                                          LookupPathState State) {
+                                          LookupPathState State,
+                                          bool FollowSymlinks) {
   assert(State.Entry);
   bool LoadedRealPath = false;
   while (true) {
@@ -399,7 +401,8 @@ FileSystemCache::lookupRealPathPrefixFrom(DiscoveryInstance &DI,
     // Cache the real path to avoid unnecessary component-by-component stat
     // calls.
     if (!LoadedRealPath) {
-      if (Error E = DI.preloadRealPath(*State.Entry, State.Remaining))
+      if (Error E =
+              DI.preloadRealPath(*State.Entry, State.Remaining, FollowSymlinks))
         return std::move(E);
       LoadedRealPath = true;
       continue;
@@ -407,7 +410,7 @@ FileSystemCache::lookupRealPathPrefixFrom(DiscoveryInstance &DI,
 
     // Read the next component from disk.
     Expected<DirectoryEntry *> Next =
-        DI.requestDirectoryEntry(*State.Entry, State.Name);
+        DI.requestDirectoryEntry(*State.Entry, State.Name, FollowSymlinks);
     if (!Next)
       return Next.takeError();
 
