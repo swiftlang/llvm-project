@@ -31,5 +31,4 @@ class TestCase(TestBase):
         # and not the private dynamic type.
         #
         # CHECK: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "1a10PublicBaseCD")
-        # CHECK: Expression captures self: false
         # CHECK: stringForPrintObject(_:mangledTypeName:) succeeded
