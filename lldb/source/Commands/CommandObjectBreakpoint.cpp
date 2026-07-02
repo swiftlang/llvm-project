@@ -3772,15 +3772,11 @@ protected:
         }
       }
     }
-<<<<<<< HEAD
-    target.DescribeBreakpointOverrides(result.GetOutputStream(), idxs);
-=======
-    target->DescribeBreakpointOverrides(
+    target.DescribeBreakpointOverrides(
         result.GetOutputStream(), idxs,
         GetCommandInterpreter().GetDebugger().GetTerminalWidth(),
         GetCommandInterpreter().GetDebugger().GetUseColor());
 
->>>>>>> 9a896c3f538c (Add a pre-filter to the breakpoint resolver overrides (#198845))
     if (idxs.empty()) {
       result.SetStatus(eReturnStatusSuccessFinishResult);
     } else {

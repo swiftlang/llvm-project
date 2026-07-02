@@ -193,14 +193,6 @@ static constexpr OptionEnumValueElement g_name_match_style[] = {
      "Match the identifier using a regular expression."},
 };
 
-static constexpr OptionEnumValueElement g_plugin_domain_values[] = {
-    {lldb::ePluginDomainKindGlobal, "global",
-     "Apply to all debugger instances."},
-    {lldb::ePluginDomainKindDebugger, "debugger",
-     "Apply to the current debugger instance."},
-    {lldb::ePluginDomainKindTarget, "target", "Apply to the current target."},
-};
-
 static constexpr OptionEnumValueElement g_resolver_mask_values[] = {
     {lldb::eResolverFileAndLine, "file_and_line",
      "Matches file and line breakpoint resolvers."},
@@ -383,7 +375,6 @@ static constexpr CommandObject::ArgumentTableEntry g_argument_table[] = {
     { lldb::eArgTypeProtocol, "protocol", lldb::CompletionType::eNoCompletion, {}, { nullptr, false }, "The name of the protocol." },
     { lldb::eArgTypeExceptionStage, "exception-stage", lldb::CompletionType::eNoCompletion, g_exception_stage, { nullptr, false }, "Specify at which stage of the exception raise to stop." },
     { lldb::eArgTypeNameMatchStyle, "match-style", lldb::CompletionType::eNoCompletion, g_name_match_style, { nullptr, false }, "Specify the kind of match to use when looking up names." },
-    { lldb::eArgTypePluginDomain, "plugin-domain", lldb::CompletionType::eNoCompletion, g_plugin_domain_values, { nullptr, false }, "The domain to apply the plugin operation to." },
     { lldb::eArgTypeBreakpointResolverMask, "resolver-mask", lldb::CompletionType::eNoCompletion, g_resolver_mask_values, { nullptr, false }, "Specify the breakpoint resolver type your override will handle. Can be specified more than once to specify a mask of resolver types." },
     // clang-format on
 };

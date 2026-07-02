@@ -1013,17 +1013,15 @@ void Target::DescribeBreakpointOverrides(Stream &stream,
     if (empty || idx_pos != end) {
       if (print_first) {
 
-        ansi::OutputWordWrappedLines(stream, "ID    Mask    Description\n",
-                                     output_width, use_color);
-        ansi::OutputWordWrappedLines(stream, "----  ------  -----------\n",
-                                     output_width, use_color);
+        stream.PutCString("ID    Mask    Description\n");
+        stream.PutCString("----  ------  -----------\n");
         print_first = false;
       }
       auto content = llvm::formatv("{0,4}  {1,6}  {2}\n", elem.first,
                                    elem.second->DescribeTypeMask(),
                                    elem.second->GetDescription())
                          .str();
-      ansi::OutputWordWrappedLines(stream, content, output_width, use_color);
+      stream.PutCString(content);
       if (!empty)
         idxs.erase(idx_pos);
     }
