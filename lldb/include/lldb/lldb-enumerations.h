@@ -695,6 +695,8 @@ enum CommandArgumentType {
   eArgTypeProtocol,
   eArgTypeExceptionStage,
   eArgTypeNameMatchStyle,
+  eArgTypePluginDomain,
+  eArgTypeBreakpointResolverMask,
   eArgTypeLastArg // Always keep this entry as the last entry in this
                   // enumeration!!
 };
@@ -1476,6 +1478,41 @@ enum NameMatchStyle {
   eNameMatchStyleSelector = eFunctionNameTypeSelector,
   eNameMatchStyleRegex = eFunctionNameTypeSelector << 1
 };
+
+/// Data Inspection Language (DIL) evaluation modes. DIL will only attempt
+/// evaluating expressions that contain tokens allowed by a selected mode.
+enum DILMode {
+  /// Allowed: identifiers, operators: '.'.
+  eDILModeSimple,
+  /// Allowed: identifiers, integers, operators: '.', '->', '*', '&', '[]'.
+  eDILModeLegacy,
+  /// Allowed: everything supported by DIL. \see lldb/docs/dil-expr-lang.ebnf
+  eDILModeFull
+};
+
+/// When the Process plugin can retrieve information about all binaries loaded
+/// in the target process, or given a list of binary load addresses, this enum
+/// specifies how much information needed from the Process plugin; there may be
+/// performance reasons to limit the amount of information returned.
+enum BinaryInformationLevel {
+  eBinaryInformationLevelAddrOnly,
+  eBinaryInformationLevelAddrName,
+  eBinaryInformationLevelAddrNameUUID,
+  eBinaryInformationLevelFull
+};
+
+/// This reflects the BreakpointResolver::ResolverTy, but this is a convenient
+/// enum for making a mask to pass to RegisterOverrideResolver.  It has to be
+/// kept in sync with the ResolverTy.
+FLAGS_ENUM(BreakpointResolverType){
+    eResolverUnknown = 0,          eResolverFileAndLine = (1 << 0),
+    eResolverAddress = (1 << 1),   eResolverName = (1 << 2),
+    eResolverFileRegex = (1 << 3), eResolverPython = (1 << 4),
+    eResolverException = (1 << 5), eResolverLastKnown = eResolverException,
+};
+constexpr unsigned BreakpointResolverAllResolversMask =
+    eResolverFileAndLine | eResolverAddress | eResolverName |
+    eResolverFileRegex | eResolverPython | eResolverException;
 
 } // namespace lldb
 
