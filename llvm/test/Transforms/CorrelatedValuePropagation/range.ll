@@ -720,7 +720,7 @@ true:
 define i8 @test17(i8 %a) {
 ; CHECK-LABEL: @test17(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[C:%.*]] = add i8 [[A:%.*]], 3
+; CHECK-NEXT:    [[C:%.*]] = add nuw nsw i8 [[A:%.*]], 3
 ; CHECK-NEXT:    br label [[DISPATCH:%.*]]
 ; CHECK:       dispatch:
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i8 [[A]], 93
@@ -743,7 +743,7 @@ target93:
 define i8 @test17_2(i8 %a) {
 ; CHECK-LABEL: @test17_2(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[C:%.*]] = add i8 [[A:%.*]], [[A]]
+; CHECK-NEXT:    [[C:%.*]] = add nuw i8 [[A:%.*]], [[A]]
 ; CHECK-NEXT:    br label [[DISPATCH:%.*]]
 ; CHECK:       dispatch:
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i8 [[A]], 93
@@ -813,7 +813,7 @@ target93:
 define i8 @test19(i8 %a) {
 ; CHECK-LABEL: @test19(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[C:%.*]] = add i8 [[A:%.*]], 3
+; CHECK-NEXT:    [[C:%.*]] = add nuw nsw i8 [[A:%.*]], 3
 ; CHECK-NEXT:    br label [[DISPATCH:%.*]]
 ; CHECK:       dispatch:
 ; CHECK-NEXT:    switch i8 [[A]], label [[DISPATCH]] [
