@@ -6517,6 +6517,45 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
 
   Args.AddLastArg(CmdArgs, options::OPT_working_directory);
 
+  if (const char *IdxStorePath = ::getenv("CLANG_PROJECT_INDEX_PATH")) {
+    CmdArgs.push_back("-index-store-path");
+    CmdArgs.push_back(IdxStorePath);
+    if (const char *IdxStoreOptionsEnv =
+            ::getenv("CLANG_PROJECT_INDEX_OPTIONS")) {
+      std::string IdxStoreOptions = IdxStoreOptionsEnv;
+      size_t Start = 0;
+      size_t End = IdxStoreOptions.find(" ");
+      while (true) {
+        // Only allow the application of index arguments through
+        // `CLANG_PROJECT_INDEX_OPTIONS`. Disallow forwarding of arbitrary
+        // arguments.
+        StringRef Option = StringRef(IdxStoreOptions).slice(Start, End);
+        static constexpr options::ID AllowedIndexOptions[] = {
+            options::OPT_index_ignore_system_symbols,
+            options::OPT_index_record_codegen_name,
+            options::OPT_index_ignore_macros,
+            options::OPT_index_ignore_pcms,
+            options::OPT_index_store_compress,
+        };
+        const auto *Allowed =
+            llvm::find_if(AllowedIndexOptions, [&](options::ID ID) {
+              return Option == getDriverOptTable().getOptionPrefixedName(ID);
+            });
+        if (Allowed != std::end(AllowedIndexOptions)) {
+          CmdArgs.push_back(Args.MakeArgString(
+              getDriverOptTable().getOptionPrefixedName(*Allowed)));
+        } else {
+          D.Diag(diag::err_drv_unknown_argument) << Option;
+        }
+        if (End == std::string::npos) {
+          break;
+        }
+        Start = End + 1;
+        End = IdxStoreOptions.find(" ", Start);
+      }
+    }
+  }
+
   if (Args.hasArg(options::OPT_index_store_path)) {
     Args.AddLastArg(CmdArgs, options::OPT_index_store_path);
     Args.AddLastArg(CmdArgs, options::OPT_index_ignore_system_symbols);
@@ -6531,13 +6570,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
     if (isa<CompileJobAction>(JA) && JA.getType() == types::TY_Nothing) {
       Args.AddLastArg(CmdArgs, options::OPT_o);
     }
-  }
-
-  if (const char *IdxStorePath = ::getenv("CLANG_PROJECT_INDEX_PATH")) {
-    CmdArgs.push_back("-index-store-path");
-    CmdArgs.push_back(IdxStorePath);
-    CmdArgs.push_back("-index-ignore-system-symbols");
-    CmdArgs.push_back("-index-record-codegen-name");
   }
 
   // Add preprocessing options like -I, -D, etc. if we are using the
