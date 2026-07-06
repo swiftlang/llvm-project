@@ -6517,6 +6517,38 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
 
   Args.AddLastArg(CmdArgs, options::OPT_working_directory);
 
+  if (const char *IdxStorePath = ::getenv("CLANG_PROJECT_INDEX_PATH")) {
+    CmdArgs.push_back("-index-store-path");
+    CmdArgs.push_back(IdxStorePath);
+    if (const char *IdxStoreOptionsEnv =
+            ::getenv("CLANG_PROJECT_INDEX_OPTIONS")) {
+      std::string IdxStoreOptions = IdxStoreOptionsEnv;
+      size_t Start = 0;
+      size_t End = IdxStoreOptions.find(" ");
+      while (true) {
+        // Only allow the application of index arguments through
+        // `CLANG_PROJECT_INDEX_OPTIONS`. Disallow forwarding of arbitrary
+        // arguments.
+        auto option = IdxStoreOptions.substr(Start, End);
+        if (option == "-index-ignore-system-symbols" ||
+            option == "-index-record-codegen-name" ||
+            option == "-index-unit-output-path" ||
+            option == "-index-ignore-macros" ||
+            option == "-index-ignore-pcms" ||
+            option == "-index-store-compress") {
+          CmdArgs.push_back(Args.MakeArgString(option));
+        } else {
+          D.Diag(diag::err_drv_unknown_argument) << option;
+        }
+        if (End == std::string::npos) {
+          break;
+        }
+        Start = End + 1;
+        End = IdxStoreOptions.find(" ", Start);
+      }
+    }
+  }
+
   if (Args.hasArg(options::OPT_index_store_path)) {
     Args.AddLastArg(CmdArgs, options::OPT_index_store_path);
     Args.AddLastArg(CmdArgs, options::OPT_index_ignore_system_symbols);
@@ -6531,13 +6563,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
     if (isa<CompileJobAction>(JA) && JA.getType() == types::TY_Nothing) {
       Args.AddLastArg(CmdArgs, options::OPT_o);
     }
-  }
-
-  if (const char *IdxStorePath = ::getenv("CLANG_PROJECT_INDEX_PATH")) {
-    CmdArgs.push_back("-index-store-path");
-    CmdArgs.push_back(IdxStorePath);
-    CmdArgs.push_back("-index-ignore-system-symbols");
-    CmdArgs.push_back("-index-record-codegen-name");
   }
 
   // Add preprocessing options like -I, -D, etc. if we are using the
