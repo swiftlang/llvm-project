@@ -2,6 +2,9 @@
 // RUN: %clang_builtins %s %librt -o %t && %run_nomprotect %t
 // REQUIRES: librt_has_enable_execute_stack
 
+// Apple platforms don't allow an executable stack on arm64.
+// UNSUPPORTED: darwin && target={{arm64.*}}
+
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
