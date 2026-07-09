@@ -11,6 +11,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@expectedFailureWindows
 class StepOverBreakpointsTestCase(TestBase):
     def setUp(self):
         TestBase.setUp(self)

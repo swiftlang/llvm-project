@@ -8,6 +8,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteAttachWait(gdbremote_testcase.GdbRemoteTestCaseBase):
     def _set_up_inferior(self):
         self._exe_to_attach = "%s_%d" % (self.testMethodName, os.getpid())

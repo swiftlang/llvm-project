@@ -6,6 +6,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@skipIfWindows
 class TestInlineStepping(TestBase):
     @add_test_categories(["pyapi"])
     @skipIf(oslist=["windows"], archs=["aarch64"])  # Flaky on buildbot

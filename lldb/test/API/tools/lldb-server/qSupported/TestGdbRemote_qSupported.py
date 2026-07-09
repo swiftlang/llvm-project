@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test.lldbdwarf import *
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemote_qSupported(gdbremote_testcase.GdbRemoteTestCaseBase):
     def get_qSupported_dict(self, features=[]):
         self.build()

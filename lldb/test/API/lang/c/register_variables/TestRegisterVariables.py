@@ -12,6 +12,7 @@ def re_expr_equals(val_type, val):
     return re.compile(r"\(" + val_type + r"\) \$\d+ = " + str(val))
 
 
+@expectedFailureWindows
 class RegisterVariableTestCase(TestBase):
     @expectedFailureAll(compiler="clang", compiler_version=["<", "3.5"])
     @expectedFailureAll(

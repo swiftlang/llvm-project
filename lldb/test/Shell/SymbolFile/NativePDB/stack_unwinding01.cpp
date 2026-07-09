@@ -1,3 +1,5 @@
+// https://github.com/swiftlang/llvm-project/issues/9540
+// XFAIL: system-windows
 // clang-format off
 // REQUIRES: lld, target-windows
 

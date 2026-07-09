@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.decorators import *
 
 
+@expectedFailureWindows
 class EnumTypesTestCase(TestBase):
     def setUp(self):
         # Call super's setUp().

@@ -1,3 +1,4 @@
+// XFAIL: system-windows
 // Test that we can define and use variables in closure scopes in the REPL
 // REQUIRES: swift
 

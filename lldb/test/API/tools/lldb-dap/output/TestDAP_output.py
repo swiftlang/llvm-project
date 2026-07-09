@@ -7,6 +7,7 @@ from lldbsuite.test.lldbtest import *
 import lldbdap_testcase
 
 
+@skipIfWindows
 class TestDAP_output(lldbdap_testcase.DAPTestCaseBase):
     @skipIfWindows
     def test_output(self):

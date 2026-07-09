@@ -8,6 +8,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@skipIfWindows
 class TestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

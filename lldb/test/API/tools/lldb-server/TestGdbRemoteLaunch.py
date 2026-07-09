@@ -7,6 +7,8 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class GdbRemoteLaunchTestCase(gdbremote_testcase.GdbRemoteTestCaseBase):
     @skipIfWindows  # No pty support to test any inferior output
     @add_test_categories(["llgs"])

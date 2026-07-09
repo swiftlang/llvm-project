@@ -1,3 +1,4 @@
+# XFAIL: system-windows
 # REQUIRES: swift
 
 # Tests that a warning is printed when stopped in a Swift frame

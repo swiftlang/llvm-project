@@ -5,6 +5,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteKill(gdbremote_testcase.GdbRemoteTestCaseBase):
     def test_attach_commandline_kill_after_initial_stop(self):
         self.build()

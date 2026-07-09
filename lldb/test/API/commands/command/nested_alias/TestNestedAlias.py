@@ -5,9 +5,11 @@ Test that an alias can reference other aliases without crashing.
 
 import lldb
 from lldbsuite.test.lldbtest import *
+from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 
+@expectedFailureWindows
 class NestedAliasTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

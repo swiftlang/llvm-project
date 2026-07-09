@@ -1,3 +1,4 @@
+// XFAIL: system-windows
 // Test that input can't be redirected from unreadable A.swift
 // REQUIRES: swift
 

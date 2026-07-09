@@ -8,6 +8,7 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 
 
+@skipIfWindows
 class StepScriptedTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

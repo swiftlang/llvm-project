@@ -7,6 +7,8 @@ import lldbgdbserverutils
 from gdbremote_testcase import GdbRemoteTestCaseBase
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteExitCode(GdbRemoteTestCaseBase):
     def _test_inferior_exit(self, retval):
         self.build()

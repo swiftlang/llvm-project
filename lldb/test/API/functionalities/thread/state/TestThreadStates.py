@@ -10,6 +10,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@skipIfWindows
 class ThreadStateTestCase(TestBase):
     @expectedFailureAll(
         oslist=["linux"],

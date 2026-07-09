@@ -14,6 +14,8 @@ import struct
 import typing
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class GDBStat(typing.NamedTuple):
     st_dev: int
     st_ino: int

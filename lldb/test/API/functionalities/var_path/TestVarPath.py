@@ -9,6 +9,8 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 
 
+# https://github.com/llvm/llvm-project/issues/62983
+@skipIfWindows
 class TestVarPath(TestBase):
     # If your test case doesn't stress debug info, then
     # set this to true.  That way it won't be run once for

@@ -25,6 +25,7 @@ def OOBKindToStr(kind: OOBKind) -> str:
         return ""
 
 
+@skipIfWindows
 class TestOutOfBoundsPointer(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 

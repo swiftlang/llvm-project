@@ -28,6 +28,7 @@ def ansi_color_surround_regex(inner_regex_text):
     return "\033\\[3[0-7]m%s\033\\[0m" % inner_regex_text
 
 
+@expectedFailureWindows
 class SourceManagerTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

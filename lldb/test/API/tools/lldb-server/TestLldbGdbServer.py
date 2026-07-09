@@ -23,6 +23,8 @@ from lldbsuite.test.lldbdwarf import *
 from lldbsuite.test import lldbutil, lldbplatformutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class LldbGdbServerTestCase(
     gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcodeParser
 ):

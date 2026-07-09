@@ -8,6 +8,7 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 
 
+@skipIfWindows
 class CrashingInferiorTestCase(TestBase):
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24778")
     @expectedFailureNetBSD

@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteAbort(gdbremote_testcase.GdbRemoteTestCaseBase):
     @skipIfWindows  # No signal is sent on Windows.
     # std::abort() on <= API 16 raises SIGSEGV - b.android.com/179836

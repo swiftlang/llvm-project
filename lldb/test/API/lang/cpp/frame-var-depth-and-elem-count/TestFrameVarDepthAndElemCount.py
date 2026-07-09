@@ -4,9 +4,11 @@ together
 """
 import lldb
 from lldbsuite.test.lldbtest import *
+from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 
+@skipIfWindows
 class TestFrameVarDepthAndElemCount(TestBase):
     def test(self):
         """Test that bool types work in the expression parser"""

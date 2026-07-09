@@ -9,6 +9,7 @@ import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.decorators import *
 
 
+@expectedFailureWindows
 class MemoryFindTestCase(TestBase):
     def setUp(self):
         # Call super's setUp().

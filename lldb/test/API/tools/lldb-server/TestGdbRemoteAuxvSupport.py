@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteAuxvSupport(gdbremote_testcase.GdbRemoteTestCaseBase):
     AUXV_SUPPORT_FEATURE_NAME = "qXfer:auxv:read"
 

@@ -1,3 +1,5 @@
+// https://github.com/swiftlang/llvm-project/issues/9539
+// XFAIL: system-windows
 // Runtime checks for exclusive access should be enabled in the REPL.
 // REQUIRES: swift
 

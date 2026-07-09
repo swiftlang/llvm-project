@@ -7,6 +7,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteModuleInfo(gdbremote_testcase.GdbRemoteTestCaseBase):
     @add_test_categories(["llgs"])
     def test_module_info(self):

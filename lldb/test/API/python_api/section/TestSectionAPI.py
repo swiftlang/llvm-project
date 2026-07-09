@@ -8,6 +8,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9705
+@skipIfWindows
 class SectionAPITestCase(TestBase):
     @no_debug_info_test
     @skipIfXmlSupportMissing

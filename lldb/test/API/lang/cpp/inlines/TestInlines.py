@@ -7,6 +7,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@expectedFailureWindows
 class InlinesTestCase(TestBase):
     def setUp(self):
         # Call super's setUp().

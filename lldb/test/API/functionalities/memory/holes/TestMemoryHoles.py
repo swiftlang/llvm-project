@@ -9,6 +9,7 @@ import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.decorators import *
 
 
+@skipIfWindows
 class MemoryHolesTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

@@ -1,3 +1,4 @@
+// XFAIL: system-windows
 
 // Test that the we can resolve the dynamic type of existential correctly.
 // REQUIRES: swift

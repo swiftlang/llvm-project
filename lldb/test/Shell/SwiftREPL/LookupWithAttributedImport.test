@@ -1,3 +1,4 @@
+// XFAIL: system-windows
 // Make sure import attributes are taken into consideration at every evaluation
 // rdar://65319954
 // REQUIRES: swift

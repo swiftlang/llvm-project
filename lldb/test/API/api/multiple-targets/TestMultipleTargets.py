@@ -8,6 +8,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/llvm/llvm-project/issues/116972
+@skipIfWindows
 class TestMultipleTargets(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

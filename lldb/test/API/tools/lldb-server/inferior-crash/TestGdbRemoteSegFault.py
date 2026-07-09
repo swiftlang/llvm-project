@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteSegFault(gdbremote_testcase.GdbRemoteTestCaseBase):
     GDB_REMOTE_STOP_CODE_BAD_ACCESS = 0x91
 

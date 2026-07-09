@@ -7,6 +7,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestStubSetSIDTestCase(gdbremote_testcase.GdbRemoteTestCaseBase):
     def get_stub_sid(self, extra_stub_args=None):
         # Launch debugserver

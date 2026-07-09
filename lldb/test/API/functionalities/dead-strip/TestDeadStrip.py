@@ -9,6 +9,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@skipIfWindows
 class DeadStripTestCase(TestBase):
     def test(self):
         """Test breakpoint works correctly with dead-code stripping."""

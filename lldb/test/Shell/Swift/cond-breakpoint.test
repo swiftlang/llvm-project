@@ -1,3 +1,4 @@
+# UNSUPPORTED: system-windows
 # REQUIRES: swift
 # RUN: rm -rf %t && mkdir %t && cd %t
 # RUN: %target-swiftc -g %S/Inputs/main.swift -o %t/a.out

@@ -9,6 +9,8 @@ import platform
 import re
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestAppleSimulatorOSType(gdbremote_testcase.GdbRemoteTestCaseBase):
     # Number of stderr lines to read from the simctl output.
     READ_LINES = 10

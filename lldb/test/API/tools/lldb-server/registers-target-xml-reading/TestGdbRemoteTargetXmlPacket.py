@@ -7,6 +7,8 @@ import re
 import xml.etree.ElementTree as ET
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteTargetXmlPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
     @llgs_test
     def test_g_target_xml_returns_correct_data(self):

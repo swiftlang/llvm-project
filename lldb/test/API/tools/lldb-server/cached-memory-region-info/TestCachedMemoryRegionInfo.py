@@ -8,6 +8,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class MemoryRegionInfoPacketsCached(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

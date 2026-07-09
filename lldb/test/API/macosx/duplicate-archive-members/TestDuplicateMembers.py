@@ -7,6 +7,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/llvm/llvm-project/commit/ec009994a06338995dfb6431c943b299f9327fd2
+@skipIfWindows
 class BSDArchivesTestCase(TestBase):
     def test(self):
         """Break inside a() and b() defined within libfoo.a."""

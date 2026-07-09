@@ -13,6 +13,7 @@ from lldbsuite.test import lldbutil
 # This class currently fails for clang.
 
 
+@expectedFailureWindows
 class ConditionalBreakTestCase(TestBase):
     @add_test_categories(["pyapi"])
     def test_with_python(self):

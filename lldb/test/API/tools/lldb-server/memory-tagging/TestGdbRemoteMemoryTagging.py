@@ -15,6 +15,8 @@ so it's just a single ptrace call for lldb-server.
 """
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteMemoryTagging(gdbremote_testcase.GdbRemoteTestCaseBase):
     def check_memtags_response(self, packet_name, body, expected):
         self.test_sequence.add_log_lines(

@@ -7,6 +7,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemote_QPassSignals(gdbremote_testcase.GdbRemoteTestCaseBase):
     def expect_signal(self, expected_signo):
         self.test_sequence.add_log_lines(

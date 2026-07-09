@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteExpeditedRegisters(gdbremote_testcase.GdbRemoteTestCaseBase):
     # <rdar://problem/34539270> lldb-server tests not updated to work on ios etc yet
     def gather_expedited_registers(self):

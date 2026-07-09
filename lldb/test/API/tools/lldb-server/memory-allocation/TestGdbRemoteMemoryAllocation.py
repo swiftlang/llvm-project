@@ -7,6 +7,8 @@ supported_linux_archs = ["x86_64", "i386"]
 supported_oses = ["linux", "windows"] + lldbplatformutil.getDarwinOSTriples()
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteMemoryAllocation(gdbremote_testcase.GdbRemoteTestCaseBase):
     def allocate(self, size, permissions):
         self.test_sequence.add_log_lines(

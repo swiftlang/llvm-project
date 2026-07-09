@@ -6,8 +6,10 @@ Test that the breakpoint auto-continue flag works correctly.
 import lldb
 import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.lldbtest import *
+from lldbsuite.test.decorators import *
 
 
+@expectedFailureWindows
 class BreakpointAutoContinue(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

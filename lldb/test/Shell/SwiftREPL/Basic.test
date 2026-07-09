@@ -1,3 +1,5 @@
+// https://github.com/swiftlang/llvm-project/issues/9539
+// XFAIL: system-windows
 // Basic sanity checking of the REPL.
 // REQUIRES: swift
 

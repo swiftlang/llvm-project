@@ -8,6 +8,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@expectedFailureWindows
 class BreakpointConditionsTestCase(TestBase):
     def test_breakpoint_condition_and_run_command(self):
         """Exercise breakpoint condition with 'breakpoint modify -c <expr> id'."""

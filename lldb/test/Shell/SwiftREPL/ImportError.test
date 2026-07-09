@@ -1,3 +1,5 @@
+// https://github.com/swiftlang/llvm-project/issues/9539
+// XFAIL: system-windows
 // Test that importing non-existing module fails.
 // REQUIRES: swift
 

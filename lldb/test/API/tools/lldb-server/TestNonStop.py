@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 import gdbremote_testcase
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase):
     @skipIfWindows  # no SIGSEGV support
     @add_test_categories(["llgs"])

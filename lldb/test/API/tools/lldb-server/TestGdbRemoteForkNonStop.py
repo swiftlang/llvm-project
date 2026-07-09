@@ -4,6 +4,8 @@ from lldbsuite.test.lldbutil import append_to_process_working_directory
 from fork_testbase import GdbRemoteForkTestBase
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteForkNonStop(GdbRemoteForkTestBase):
     def setUp(self):
         GdbRemoteForkTestBase.setUp(self)

@@ -1,3 +1,5 @@
+// https://github.com/swiftlang/llvm-project/issues/9539
+// XFAIL: system-windows
 // rdar://30147367
 // Make sure that single character strings are displayed correctly.
 // REQUIRES: swift

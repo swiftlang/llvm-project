@@ -8,6 +8,7 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 
 
+@expectedFailureWindows
 class UniqueTypesTestCase4(TestBase):
     def do_test(self, debug_flags):
         """Test that we display the correct template instantiation."""

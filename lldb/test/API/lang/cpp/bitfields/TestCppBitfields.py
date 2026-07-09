@@ -6,6 +6,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9072
+@skipIfWindows
 class CppBitfieldsTestCase(TestBase):
     @no_debug_info_test
     @skipIf(oslist=["windows"], bugnumber="github.com/llvm/llvm-project/issues/105019")

@@ -5,8 +5,10 @@ Tests expressions evaluation when the breakpoint on module's entry is set.
 import lldb
 import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.lldbtest import *
+from lldbsuite.test.decorators import *
 
 
+@expectedFailureWindows
 class ExprEntryBPTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

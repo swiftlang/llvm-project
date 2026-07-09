@@ -4,10 +4,13 @@ Test that apropos env doesn't crash trying to touch the process plugin command
 
 
 import lldb
+from lldb.packages.Python.lldbsuite.test.decorators import expectedFailureWindows
 from lldbsuite.test.lldbtest import *
+from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 
+@expectedFailureWindows
 class AproposWithProcessTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

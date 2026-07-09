@@ -7,6 +7,8 @@ import binascii
 import os
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbSaveCore(gdbremote_testcase.GdbRemoteTestCaseBase):
     def coredump_test(self, core_path=None, expect_path=None):
         self.build()

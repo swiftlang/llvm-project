@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 from fork_testbase import GdbRemoteForkTestBase
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteForkResume(GdbRemoteForkTestBase):
     def setUp(self):
         GdbRemoteForkTestBase.setUp(self)

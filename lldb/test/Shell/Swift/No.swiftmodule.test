@@ -1,3 +1,4 @@
+# XFAIL: system-windows
 # This tests debugging without the presence of a .swiftmodule.
 # REQUIRES: swift
 

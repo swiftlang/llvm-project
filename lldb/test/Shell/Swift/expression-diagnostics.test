@@ -1,3 +1,5 @@
+# https://github.com/swiftlang/llvm-project/issues/9620
+# XFAIL: system-windows
 # REQUIRES: swift
 # RUN: rm -rf %t && mkdir %t && cd %t
 # RUN: %target-swiftc -g %S/Inputs/Global.swift

@@ -8,6 +8,7 @@ from lldbsuite.test import lldbplatformutil
 from lldbsuite.test import lldbutil
 
 
+@skipIfWindows
 class CrashingRecursiveInferiorStepTestCase(TestBase):
     def test_recursive_inferior_crashing_step(self):
         """Test that stepping after a crash behaves correctly."""

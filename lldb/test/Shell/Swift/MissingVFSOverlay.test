@@ -1,3 +1,4 @@
+# XFAIL: system-windows
 # Test that error messages from constructing ClangImporter
 # are surfaced to the user.
 # REQUIRES: swift

@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteThreadName(gdbremote_testcase.GdbRemoteTestCaseBase):
     def run_and_check_name(self, expected_name):
         self.test_sequence.add_log_lines(

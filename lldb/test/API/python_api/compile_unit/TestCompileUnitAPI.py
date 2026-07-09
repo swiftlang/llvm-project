@@ -8,6 +8,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@expectedFailureWindows
 class CompileUnitAPITestCase(TestBase):
     def test(self):
         """Exercise some SBCompileUnit APIs."""

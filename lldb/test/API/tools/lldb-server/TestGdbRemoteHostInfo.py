@@ -7,6 +7,8 @@ import lldbgdbserverutils
 from gdbremote_testcase import GdbRemoteTestCaseBase
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteHostInfo(GdbRemoteTestCaseBase):
     KNOWN_HOST_INFO_KEYS = set(
         [

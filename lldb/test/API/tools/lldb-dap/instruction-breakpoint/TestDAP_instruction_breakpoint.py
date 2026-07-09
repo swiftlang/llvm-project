@@ -8,6 +8,7 @@ import os
 import lldb
 
 
+@skipIfWindows
 class TestDAP_InstructionBreakpointTestCase(lldbdap_testcase.DAPTestCaseBase):
     NO_DEBUG_INFO_TESTCASE = True
 

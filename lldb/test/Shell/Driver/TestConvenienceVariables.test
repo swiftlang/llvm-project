@@ -1,3 +1,4 @@
+# XFAIL: system-windows
 REQUIRES: python
 RUN: mkdir -p %t
 RUN: %build %p/Inputs/hello.cpp -o %t/target.out

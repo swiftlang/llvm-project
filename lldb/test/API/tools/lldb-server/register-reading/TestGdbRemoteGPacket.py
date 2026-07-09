@@ -24,6 +24,8 @@ def _extract_register_value(reg_info, reg_bank, byte_order, bytes_per_entry=8):
     return reg_value
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteGPacket(gdbremote_testcase.GdbRemoteTestCaseBase):
     @skipIf(archs=no_match(["x86_64"]))
     def g_returns_correct_data(self, with_suffix):

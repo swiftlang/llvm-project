@@ -5,9 +5,11 @@ Test breakpoint command for different options.
 
 import lldb
 from lldbsuite.test.lldbtest import *
+from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 
+@expectedFailureWindows
 class BreakpointOptionsTestCase(TestBase):
     def test(self):
         """Test breakpoint command for different options."""

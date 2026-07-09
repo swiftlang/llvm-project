@@ -4,8 +4,10 @@ Test SBAddressRange APIs.
 
 import lldb
 from lldbsuite.test.lldbtest import *
+from lldbsuite.test.decorators import *
 
 
+@expectedFailureWindows(bugnumber="https://github.com/swiftlang/llvm-project/issues/9637")
 class AddressRangeTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

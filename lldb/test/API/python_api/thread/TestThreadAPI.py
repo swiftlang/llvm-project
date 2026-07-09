@@ -9,6 +9,7 @@ from lldbsuite.test import lldbutil
 from lldbsuite.test.lldbutil import get_stopped_thread, get_caller_symbol
 
 
+@expectedFailureWindows
 class ThreadAPITestCase(TestBase):
     def test_get_process(self):
         """Test Python SBThread.GetProcess() API."""

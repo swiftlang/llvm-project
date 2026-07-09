@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemote_vCont(gdbremote_testcase.GdbRemoteTestCaseBase):
     def vCont_supports_mode(self, mode, inferior_args=None):
         # Setup the stub and set the gdb remote command stream.

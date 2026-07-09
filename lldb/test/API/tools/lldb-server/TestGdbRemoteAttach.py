@@ -5,6 +5,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteAttach(gdbremote_testcase.GdbRemoteTestCaseBase):
     def test_attach_with_vAttach(self):
         self.build()

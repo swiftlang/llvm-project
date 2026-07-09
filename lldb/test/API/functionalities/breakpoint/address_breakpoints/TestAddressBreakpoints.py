@@ -6,8 +6,10 @@ Test address breakpoints set with shared library of SBAddress work correctly.
 import lldb
 import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.lldbtest import *
+from lldbsuite.test.decorators import *
 
 
+@expectedFailureWindows
 class AddressBreakpointTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

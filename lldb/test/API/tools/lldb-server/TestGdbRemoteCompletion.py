@@ -5,6 +5,8 @@ from lldbsuite.test.decorators import *
 from lldbgdbserverutils import *
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class GdbRemoteCompletionTestCase(gdbremote_testcase.GdbRemoteTestCaseBase):
     def init_lldb_server(self):
         self.debug_monitor_exe = get_lldb_server_exe()

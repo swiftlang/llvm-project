@@ -3,6 +3,8 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import TestBase
 import lldbsuite.test.lldbutil as lldbutil
 
+# https://github.com/swiftlang/llvm-project/issues/9887
+@skipIfWindows
 class TestCase(TestBase):
 
     @skipEmbeddedSwift

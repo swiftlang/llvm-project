@@ -4,6 +4,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteSingleStep(gdbremote_testcase.GdbRemoteTestCaseBase):
     @skipIfWindows  # No pty support to test any inferior std -i/e/o
     @skipIf(triple="^mips")

@@ -10,6 +10,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+# https://github.com/swiftlang/llvm-project/pull/9493
+@skipIfWindows
 class TestBreakpointSameCU(TestBase):
     def test_breakpoint_same_cu(self):
         self.build()

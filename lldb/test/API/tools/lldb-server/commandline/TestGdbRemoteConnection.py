@@ -8,6 +8,8 @@ import lldbsuite.test.lldbplatformutil
 from lldbgdbserverutils import Pipe
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemoteConnection(gdbremote_testcase.GdbRemoteTestCaseBase):
     @skipIfRemote  # reverse connect is not a supported use case for now
     def test_reverse_connect(self):

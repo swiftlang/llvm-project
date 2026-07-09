@@ -11,6 +11,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@expectedFailureWindows(bugnumber="https://github.com/swiftlang/llvm-project/issues/9540")
 class LocalVariablesTestCase(TestBase):
     def setUp(self):
         # Call super's setUp().

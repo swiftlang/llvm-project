@@ -1,3 +1,5 @@
+// https://github.com/swiftlang/llvm-project/issues/9539
+// XFAIL: system-windows
 // XFAIL: powerpc64le
 // SR-10212
 // Test that we can handle errors.

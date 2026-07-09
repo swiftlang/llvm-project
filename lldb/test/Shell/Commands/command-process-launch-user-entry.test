@@ -1,3 +1,5 @@
+# https://github.com/swiftlang/llvm-project/issues/9643
+# XFAIL: system-windows
 # RUN: %clang_host -g %S/Inputs/main.c -o %t
 # RUN: %lldb %t -s %s -o exit | FileCheck %s
 

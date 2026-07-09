@@ -5,6 +5,8 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test.lldbdwarf import *
 
 
+# https://github.com/swiftlang/llvm-project/issues/9101
+@skipIfWindows
 class TestGdbRemote_qMemoryRegion(gdbremote_testcase.GdbRemoteTestCaseBase):
     def test_qRegisterInfo_returns_one_valid_result(self):
         self.build()

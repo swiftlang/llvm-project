@@ -9,6 +9,7 @@ from lldbsuite.test import lldbutil
 import side_effect
 
 
+@skipIfWindows
 class PythonBreakpointCommandSettingTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 

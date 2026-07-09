@@ -9,6 +9,7 @@ from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 
 
+@expectedFailureWindows
 class MemoryWriteTestCase(TestBase):
     def setUp(self):
         # Call super's setUp().

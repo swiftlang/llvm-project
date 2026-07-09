@@ -9,6 +9,8 @@ import os
 import time
 
 
+# https://github.com/llvm/llvm-project/commit/ec009994a06338995dfb6431c943b299f9327fd2
+@skipIfWindows
 class BSDArchivesTestCase(TestBase):
     # If your test case doesn't stress debug info, then
     # set this to true.  That way it won't be run once for
