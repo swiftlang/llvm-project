@@ -1297,7 +1297,12 @@ void State::addPointerBoundInfoFromOverflowCheck(Value *Op, DomTreeNode *DTN) {
 
 void State::addInfoForInductions(BasicBlock &BB) {
   auto *L = LI.getLoopFor(&BB);
-  if (!L || L->getHeader() != &BB)
+  if (!L)
+    return;
+
+  BasicBlock *Header = L->getHeader();
+  BasicBlock *Latch = L->getLoopLatch();
+  if (Header != &BB && Latch != &BB)
     return;
 
   // A is either a phi or a post-increment PN + C with constant step. For the
@@ -1313,8 +1318,13 @@ void State::addInfoForInductions(BasicBlock &BB) {
   if (!match(BB.getTerminator(),
              m_Br(m_c_ICmp(Pred, IndValue, m_Value(B)), m_Value(), m_Value())))
     return;
-  if (PN->getParent() != &BB || PN->getNumIncomingValues() != 2 ||
+  if (PN->getParent() != Header || PN->getNumIncomingValues() != 2 ||
       !SE.isSCEVable(PN->getType()))
+    return;
+
+  // Only use the condition in the latch to inject facts in the header when
+  // comparing a post-inc IV.
+  if (&BB == Latch && !IncStep)
     return;
 
   BasicBlock *InLoopSucc = nullptr;
@@ -1460,9 +1470,9 @@ void State::addInfoForInductions(BasicBlock &BB) {
         DTN, CmpInst::ICMP_SLT, PN, B,
         ConditionTy(CmpInst::ICMP_SLE, StartValue, B)));
 
-  // Try to add condition from header to the dedicated exit blocks. When exiting
-  // either with EQ or NE in the header, we know that the induction value must
-  // be u<= B, as other exits may only exit earlier.
+  // Try to add condition from the header or latch to the dedicated exit
+  // blocks. When exiting either with EQ or NE, we know that the induction value
+  // must be u<= B, as other exits may only exit earlier.
   assert(!StepOffset->isNegative() && "induction must be increasing");
   assert((Pred == CmpInst::ICMP_EQ || Pred == CmpInst::ICMP_NE) &&
          "unsupported predicate");
