@@ -862,6 +862,9 @@ m_WithOverflowInst(const WithOverflowInst *&I) {
   return I;
 }
 
+/// Match a PHI node, capturing it if we match.
+inline bind_ty<PHINode> m_Phi(PHINode *&PN) { return PN; }
+
 /// Match an UndefValue, capturing the value if we match.
 inline bind_ty<UndefValue> m_UndefValue(UndefValue *&U) { return U; }
 
