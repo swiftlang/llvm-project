@@ -33,10 +33,6 @@
 #include "lldb/lldb-types.h"
 #include "llvm/Support/Error.h"
 
-#if defined(LLDB_ENABLE_SWIFT)
-#include "Plugins/TypeSystem/Swift/TypeSystemSwift.h"
-#endif
-
 #include "llvm/ADT/StringRef.h"
 
 #include <cassert>
@@ -229,11 +225,9 @@ bool ValueObjectVariable::UpdateValue() {
 
 #ifdef LLDB_ENABLE_SWIFT
       if (auto type = variable->GetType())
-        if (type->GetForwardCompilerType()
-                .GetTypeSystem()
-                .dyn_cast_or_null<TypeSystemSwift>() &&
-            TypePayloadSwift(type->GetPayload()).IsFixedValueBuffer() &&
-            m_value.GetValueType() == Value::ValueType::FileAddress)
+        if (auto ts = type->GetForwardCompilerType().GetTypeSystem())
+          if (ts->IsFixedValueBufferPayload(type->GetPayload()) &&
+              m_value.GetValueType() == Value::ValueType::FileAddress)
           if (auto process_sp = GetProcessSP())
             if (auto runtime = process_sp->GetLanguageRuntime(
                     compiler_type.GetMinimumLanguage())) {

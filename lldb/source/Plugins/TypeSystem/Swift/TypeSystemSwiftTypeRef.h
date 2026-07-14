@@ -737,7 +737,7 @@ public:
   }
   lldb::TargetWP GetTargetWP() const override { return m_target_wp; }
 
-  void ModulesDidLoad(ModuleList &module_list);
+  void ModulesDidLoad(ModuleList &module_list) override;
 
   /// Forwards to SwiftASTContext.
   UserExpression *GetUserExpression(llvm::StringRef expr,

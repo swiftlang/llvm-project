@@ -21,6 +21,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Expression/Expression.h"
@@ -597,6 +598,37 @@ public:
   bool GetHasForcefullyCompletedTypes() const {
     return m_has_forcefully_completed_types;
   }
+
+  // BEGIN SWIFT
+  //
+  // These are polymorphic hooks used by core LLDB to talk to Swift type
+  // systems without naming the concrete Swift plugin classes (which would
+  // pull the entire Swift compiler into every tool, including lldb-server).
+  // The base-class defaults are harmless no-ops/false; only the Swift type
+  // systems override them.
+
+  /// Update the target triple of this type system. Overridden by
+  /// TypeSystemSwift; a no-op elsewhere.
+  virtual void SetTriple(const SymbolContext &sc, const llvm::Triple triple) {}
+
+  /// Clear any caches that depend on the set of loaded modules. Overridden by
+  /// TypeSystemSwift; a no-op elsewhere.
+  virtual void ClearModuleDependentCaches() {}
+
+  /// Notify a scratch type system that modules were loaded. Overridden only by
+  /// TypeSystemSwiftTypeRefForExpressions; a no-op elsewhere.
+  virtual void ModulesDidLoad(ModuleList &module_list) {}
+
+  /// \return true if \p payload marks a Swift fixed-size (value) buffer.
+  /// Overridden by TypeSystemSwift to decode the Swift type payload; false
+  /// for every other type system. The parameter is Type::Payload (uint32_t),
+  /// spelled as the underlying type here because Type is incomplete in this
+  /// header.
+  virtual bool IsFixedValueBufferPayload(uint32_t payload) {
+    return false;
+  }
+  // END SWIFT
+
 protected:
   SymbolFile *m_sym_file = nullptr;
   /// Used for reporting statistics.
