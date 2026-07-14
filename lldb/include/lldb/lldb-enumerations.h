@@ -715,6 +715,7 @@ enum CommandArgumentType {
   eArgTypeExceptionStage,
   eArgTypeNameMatchStyle,
   eArgTypeBreakpointResolverMask,
+  eArgTypeScriptedExtension,
   eArgTypeLastArg // Always keep this entry as the last entry in this
                   // enumeration!!
 };
@@ -1389,10 +1390,11 @@ enum CompletionType {
   eTypeCategoryNameCompletion = (1ul << 24),
   eCustomCompletion = (1ul << 25),
   eThreadIDCompletion = (1ul << 26),
+  eScriptedExtensionCompletion = (1ul << 27),
   // This last enum element is just for input validation.
   // Add new completions before this element,
   // and then increment eTerminatorCompletion's shift value
-  eTerminatorCompletion = (1ul << 27)
+  eTerminatorCompletion = (1ul << 28)
 };
 
 /// Specifies if children need to be re-computed
