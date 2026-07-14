@@ -185,6 +185,57 @@ public:
 
   virtual DeclVendor *GetDeclVendor() { return nullptr; }
 
+  /// Swift error-handling hooks. These have safe no-op defaults so that core
+  /// components (e.g. ThreadPlanCallFunction / ThreadPlanStepOut) can query the
+  /// language runtime for a process without naming the concrete Swift plugin.
+  /// The Swift language runtime overrides them; all other runtimes use the
+  /// defaults.
+  /// \{
+
+  /// The name of the runtime function used as a backstop to catch errors thrown
+  /// out of an expression. Empty when the runtime has no such backstop.
+  virtual const char *GetErrorBackstopName() { return nullptr; }
+
+  /// The name of the module containing the standard library, used to scope the
+  /// error backstop breakpoint. Empty when not applicable.
+  virtual ConstString GetStandardLibraryName() { return ConstString(); }
+
+  /// Compute the thrown-error value for \p frame_sp, naming the resulting
+  /// persistent variable \p name. Returns an empty ValueObjectSP when there is
+  /// no error value.
+  virtual lldb::ValueObjectSP CalculateErrorValue(lldb::StackFrameSP frame_sp,
+                                                  ConstString name) {
+    return lldb::ValueObjectSP();
+  }
+
+  /// Build a ValueObject for a thrown error given its location \p value.
+  virtual lldb::ValueObjectSP
+  CalculateErrorValueObjectFromValue(Value &value, ConstString name,
+                                     bool persistent) {
+    return lldb::ValueObjectSP();
+  }
+
+  /// Register a global error variable \p name at address \p addr in \p target.
+  virtual void RegisterGlobalError(Target &target, ConstString name,
+                                   lldb::addr_t addr) {}
+
+  /// Capture the location of the error return slot before stepping out of the
+  /// throwing frame \p frame_sp. Sets \p need_to_check_after_return when the
+  /// error address can only be read after the frame has been left.
+  virtual std::optional<Value>
+  GetErrorReturnLocationBeforeReturn(lldb::StackFrameSP frame_sp,
+                                     bool &need_to_check_after_return) {
+    return std::nullopt;
+  }
+
+  /// Read the location of the error return slot after stepping out of the
+  /// throwing frame \p frame_sp.
+  virtual std::optional<Value>
+  GetErrorReturnLocationAfterReturn(lldb::StackFrameSP frame_sp) {
+    return std::nullopt;
+  }
+  /// \}
+
   virtual lldb::BreakpointResolverSP
   CreateExceptionResolver(const lldb::BreakpointSP &bkpt,
                           bool catch_bp, bool throw_bp) = 0;

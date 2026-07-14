@@ -41,7 +41,7 @@
 #include "llvm/Support/ErrorExtras.h"
 
 #ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
+#include "lldb/Core/SwiftDemangle.h"
 #endif
 
 using namespace lldb;
@@ -621,7 +621,7 @@ static llvm::Expected<Value> SwiftAsyncEvaluate_DW_OP_entry_value(
     const DWARFExpression::Delegate *dwarf_cu, Function &func,
     const DataExtractor &opcodes, offset_t &current_offset) {
   auto func_name = func.GetMangled().GetMangledName();
-  if (!SwiftLanguageRuntime::IsAnySwiftAsyncFunctionSymbol(func_name))
+  if (!SwiftDemangle::IsAnySwiftAsyncFunctionSymbol(func_name))
     return llvm::createStringError(
         "SwiftAsyncEvaluate_DW_OP_entry_value: not an async function");
 
@@ -641,7 +641,7 @@ static llvm::Expected<Value> SwiftAsyncEvaluate_DW_OP_entry_value(
                                    "missing async context register opcode");
 
   // Q funclets require an extra level of indirection.
-  if (SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
+  if (SwiftDemangle::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
           func_name)) {
     const uint8_t maybe_op_deref = opcodes.GetU8(&new_offset);
     if (maybe_op_deref != DW_OP_deref)

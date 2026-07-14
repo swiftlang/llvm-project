@@ -95,6 +95,15 @@ TrackedDemangleSymbolAsString(llvm::StringRef symbol, DemangleMode mode,
 bool ExtractFunctionBasenameFromMangled(ConstString mangled,
                                         ConstString &basename, bool &is_method);
 
+/// Return true if \p name is a Swift async function, await resume partial
+/// function, or suspend resume partial function symbol. Pure swift::Demangle,
+/// no runtime required.
+bool IsAnySwiftAsyncFunctionSymbol(llvm::StringRef name);
+
+/// Return true if \p name is a Swift async await resume partial function
+/// symbol. Pure swift::Demangle, no runtime required.
+bool IsSwiftAsyncAwaitResumePartialFunctionSymbol(llvm::StringRef name);
+
 } // namespace SwiftDemangle
 } // namespace lldb_private
 

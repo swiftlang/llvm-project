@@ -566,22 +566,22 @@ public:
 
   /// Error value handling.
   /// \{
-  static lldb::ValueObjectSP CalculateErrorValue(lldb::StackFrameSP frame_sp,
-                                                 ConstString name);
+  lldb::ValueObjectSP CalculateErrorValue(lldb::StackFrameSP frame_sp,
+                                          ConstString name) override;
 
-  lldb::ValueObjectSP CalculateErrorValueObjectFromValue(Value &value,
-                                                         ConstString name,
-                                                         bool persistent);
+  lldb::ValueObjectSP
+  CalculateErrorValueObjectFromValue(Value &value, ConstString name,
+                                     bool persistent) override;
 
   std::optional<Value>
-  GetErrorReturnLocationAfterReturn(lldb::StackFrameSP frame_sp);
+  GetErrorReturnLocationAfterReturn(lldb::StackFrameSP frame_sp) override;
 
   std::optional<Value>
   GetErrorReturnLocationBeforeReturn(lldb::StackFrameSP frame_sp,
-                                     bool &need_to_check_after_return);
+                                     bool &need_to_check_after_return) override;
 
-  static void RegisterGlobalError(Target &target, ConstString name,
-                                  lldb::addr_t addr);
+  void RegisterGlobalError(Target &target, ConstString name,
+                           lldb::addr_t addr) override;
 
   // Provide a quick and yet somewhat reasonable guess as to whether
   // this ValueObject represents something that validly conforms
@@ -589,8 +589,8 @@ public:
   bool IsValidErrorValue(ValueObject &in_value);
   /// \}
 
-  static const char *GetErrorBackstopName();
-  ConstString GetStandardLibraryName();
+  const char *GetErrorBackstopName() override;
+  ConstString GetStandardLibraryName() override;
   static const char *GetStandardLibraryBaseName();
   static const char *GetConcurrencyLibraryBaseName();
 

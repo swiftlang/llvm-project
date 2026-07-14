@@ -264,21 +264,11 @@ bool SwiftLanguageRuntime::IsSwiftAsyncFunctionSymbol(llvm::StringRef name) {
 
 bool SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
     llvm::StringRef name) {
-  if (!IsSwiftMangledName(name))
-    return false;
-  using namespace swift::Demangle;
-  Context ctx;
-  NodePointer node = SwiftLanguageRuntime::DemangleSymbolAsNode(name, ctx);
-  return hasChild(node, Node::Kind::AsyncAwaitResumePartialFunction);
+  return SwiftDemangle::IsSwiftAsyncAwaitResumePartialFunctionSymbol(name);
 }
 
 bool SwiftLanguageRuntime::IsAnySwiftAsyncFunctionSymbol(llvm::StringRef name) {
-  if (!IsSwiftMangledName(name))
-    return false;
-  using namespace swift::Demangle;
-  Context ctx;
-  NodePointer node = SwiftLanguageRuntime::DemangleSymbolAsNode(name, ctx);
-  return IsAnySwiftAsyncFunctionSymbol(node);
+  return SwiftDemangle::IsAnySwiftAsyncFunctionSymbol(name);
 }
 
 bool SwiftLanguageRuntime::IsAnySwiftAsyncFunctionSymbol(

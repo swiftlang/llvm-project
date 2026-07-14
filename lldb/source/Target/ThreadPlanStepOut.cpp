@@ -16,6 +16,7 @@
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/ABI.h"
+#include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StopInfo.h"
@@ -29,7 +30,6 @@
 #include <memory>
 
 #ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #endif // LLDB_ENABLE_SWIFT
 
@@ -221,8 +221,8 @@ void ThreadPlanStepOut::SetupReturnAddress(
     StackFrameSP frame_sp = GetThread().GetStackFrameAtIndex(0);
 #ifdef LLDB_ENABLE_SWIFT
     if (frame_sp->GuessLanguage().name == llvm::dwarf::DW_LNAME_Swift) {
-      auto *swift_runtime 
-          = SwiftLanguageRuntime::Get(m_process.shared_from_this());
+      auto *swift_runtime =
+          m_process.GetLanguageRuntime(eLanguageTypeSwift);
       if (swift_runtime) {
         m_swift_error_return =
             swift_runtime->GetErrorReturnLocationBeforeReturn(
@@ -603,7 +603,7 @@ void ThreadPlanStepOut::CalculateReturnValue() {
   // First check if we have an error return address, and if that pointer
   // contains a valid error return, grab it.
 #ifdef LLDB_ENABLE_SWIFT
-  auto *swift_runtime = SwiftLanguageRuntime::Get(m_process.shared_from_this());
+  auto *swift_runtime = m_process.GetLanguageRuntime(eLanguageTypeSwift);
   if (swift_runtime) {
     // In some ABI's the error is in a memory location in the caller's frame
     // and we need to fetch that location from the frame before we leave the

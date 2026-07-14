@@ -15,6 +15,9 @@
 
 #include "swift/Demangling/Demangle.h"
 
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -140,6 +143,75 @@ swift::Mangle::ManglingFlavor GetManglingFlavor(llvm::StringRef mangled_name) {
   if (mangled_name.starts_with("$e") || mangled_name.starts_with("_$e"))
     return swift::Mangle::ManglingFlavor::Embedded;
   return swift::Mangle::ManglingFlavor::Default;
+}
+
+static swift::Demangle::NodePointer
+childAtPath(swift::Demangle::NodePointer node,
+            llvm::ArrayRef<swift::Demangle::Node::Kind> path) {
+  if (!node || path.empty())
+    return node;
+
+  auto current_step = path.front();
+  for (auto *child : *node)
+    if (child && child->getKind() == current_step)
+      return childAtPath(child, path.drop_front());
+  return nullptr;
+}
+
+static bool hasChild(swift::Demangle::NodePointer node,
+                     swift::Demangle::Node::Kind kind) {
+  return childAtPath(node, {kind});
+}
+
+static bool IsSwiftAsyncFunctionSymbol(swift::Demangle::NodePointer node) {
+  using namespace swift::Demangle;
+  if (!node || !node->hasChildren() || node->getKind() != Node::Kind::Global)
+    return false;
+  if (hasChild(node, Node::Kind::AsyncSuspendResumePartialFunction))
+    return false;
+
+  // Peel off a ProtocolWitness node. If it exists, there will be a single
+  // instance, before Static nodes.
+  if (NodePointer witness = childAtPath(node, Node::Kind::ProtocolWitness))
+    node = witness;
+
+  // Peel off a Static node. If it exists, there will be a single instance.
+  if (NodePointer static_node = childAtPath(node, Node::Kind::Static))
+    node = static_node;
+
+  // Get the {Implicit, Explicit} Closure or Function node.
+  // For nested closures in Swift, the demangle tree is inverted: the
+  // inner-most closure is the top-most closure node.
+  NodePointer func_node = [&] {
+    if (NodePointer func = childAtPath(node, Node::Kind::Function))
+      return func;
+    if (NodePointer implicit = childAtPath(node, Node::Kind::ImplicitClosure))
+      return implicit;
+    return childAtPath(node, Node::Kind::ExplicitClosure);
+  }();
+
+  using Kind = Node::Kind;
+  static const llvm::SmallVector<llvm::SmallVector<Kind>>
+      async_annotation_paths = {
+          {Kind::Type, Kind::FunctionType, Kind::AsyncAnnotation},
+          {Kind::Type, Kind::NoEscapeFunctionType, Kind::AsyncAnnotation},
+          {Kind::Type, Kind::DependentGenericType, Kind::Type,
+           Kind::FunctionType, Kind::AsyncAnnotation},
+      };
+  return llvm::any_of(async_annotation_paths,
+                      [func_node](llvm::ArrayRef<Kind> path) {
+                        return childAtPath(func_node, path);
+                      });
+}
+
+static bool IsAnySwiftAsyncFunctionSymbol(swift::Demangle::NodePointer node) {
+  using namespace swift::Demangle;
+  if (!node || node->getKind() != Node::Kind::Global || !node->getNumChildren())
+    return false;
+  auto marker = node->getFirstChild()->getKind();
+  return (marker == Node::Kind::AsyncSuspendResumePartialFunction) ||
+         (marker == Node::Kind::AsyncAwaitResumePartialFunction) ||
+         IsSwiftAsyncFunctionSymbol(node);
 }
 
 static bool
@@ -427,6 +499,24 @@ bool SwiftDemangle::ExtractFunctionBasenameFromMangled(ConstString mangled,
     }
   }
   return success;
+}
+
+bool SwiftDemangle::IsAnySwiftAsyncFunctionSymbol(llvm::StringRef name) {
+  if (!IsSwiftMangledName(name))
+    return false;
+  swift::Demangle::Context ctx;
+  swift::Demangle::NodePointer node = ctx.demangleSymbolAsNode(name);
+  return ::IsAnySwiftAsyncFunctionSymbol(node);
+}
+
+bool SwiftDemangle::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
+    llvm::StringRef name) {
+  if (!IsSwiftMangledName(name))
+    return false;
+  swift::Demangle::Context ctx;
+  swift::Demangle::NodePointer node = ctx.demangleSymbolAsNode(name);
+  return ::hasChild(node,
+                    swift::Demangle::Node::Kind::AsyncAwaitResumePartialFunction);
 }
 
 #endif // LLDB_ENABLE_SWIFT

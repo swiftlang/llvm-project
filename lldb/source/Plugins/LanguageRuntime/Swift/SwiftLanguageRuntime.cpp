@@ -1572,7 +1572,12 @@ bool SwiftLanguageRuntime::SwiftExceptionPrecondition::EvaluatePrecondition(
     if (!frame_sp)
       return true;
 
-    ValueObjectSP error_valobj_sp = SwiftLanguageRuntime::CalculateErrorValue(
+    auto *runtime =
+        SwiftLanguageRuntime::Get(frame_sp->GetThread()->GetProcess());
+    if (!runtime)
+      return true;
+
+    ValueObjectSP error_valobj_sp = runtime->CalculateErrorValue(
         frame_sp, ConstString("__swift_error_var"));
     if (!error_valobj_sp || error_valobj_sp->GetError().Fail())
       return true;
