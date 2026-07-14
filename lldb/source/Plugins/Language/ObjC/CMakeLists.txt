@@ -1,7 +1,10 @@
-set(SWIFT_LIBS lldbPluginSwiftLanguage)
-if(NOT LLDB_ENABLE_SWIFT_SUPPORT)
-  unset(SWIFT_LIBS)
-endif()
+# The ObjC language plugin has no code references to the Swift language plugin
+# (no swift:: / SwiftLanguage usage in its sources). The former
+# `SWIFT_LIBS = lldbPluginSwiftLanguage` link dep was vestigial, but because core
+# lldbValueObject links lldbPluginObjCLanguage, it dragged lldbPluginSwiftLanguage
+# -> swiftAST -> swiftClangImporter -> the Clang frontend into every tool,
+# including lldb-server (which registers none of those plugins). liblldb still
+# links lldbPluginSwiftLanguage via LLDB_ALL_PLUGINS.
 
 add_lldb_library(lldbPluginObjCLanguage PLUGIN
   ObjCLanguage.cpp
@@ -29,7 +32,6 @@ add_lldb_library(lldbPluginObjCLanguage PLUGIN
     lldbPluginAppleObjCRuntime
     lldbPluginClangCommon
     lldbPluginTypeSystemClang
-    ${SWIFT_LIBS}
   CLANG_LIBS
     clangAST
 )

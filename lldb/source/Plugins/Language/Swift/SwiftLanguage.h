@@ -35,6 +35,10 @@ public:
 
   bool IsTopLevelFunction(Function &function) override;
 
+  void DumpHealthLog(llvm::raw_ostream &stream) override;
+
+  llvm::VersionTuple GetCompilerVersion() override;
+
   std::vector<Language::MethodNameVariant>
   GetMethodNameVariants(ConstString method_name) const override;
 

@@ -56,10 +56,6 @@
 #include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
 #include "Plugins/Language/ObjC/ObjCLanguage.h"
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "swift/Parse/ParseVersion.h"
-#endif // LLDB_ENABLE_SWIFT
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/DJB.h"
@@ -1147,10 +1143,17 @@ static llvm::VersionTuple GetAdjustedVersion(llvm::VersionTuple version) {
 void Module::ReportWarningToolchainMismatch(
     CompileUnit &comp_unit, std::optional<lldb::user_id_t> debugger_id) {
   if (SymbolFile *sym_file = GetSymbolFile()) {
+    // Get the integrated Swift compiler version through the Language plugin so
+    // core Module.cpp does not statically reference swiftParse (which would
+    // force-link the Swift compiler into tools like lldb-server). If the Swift
+    // language plugin is not registered there is nothing to compare against.
+    Language *swift_lang = Language::FindPlugin(eLanguageTypeSwift);
+    if (!swift_lang)
+      return;
     llvm::VersionTuple sym_file_version =
         GetAdjustedVersion(sym_file->GetProducerVersion(comp_unit));
     llvm::VersionTuple swift_version =
-        GetAdjustedVersion(swift::version::getCurrentCompilerVersion());
+        GetAdjustedVersion(swift_lang->GetCompilerVersion());
     if (sym_file_version != swift_version) {
       std::string str = llvm::formatv(
           "{0} was compiled with a different Swift compiler "

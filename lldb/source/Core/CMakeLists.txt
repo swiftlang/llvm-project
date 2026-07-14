@@ -18,7 +18,11 @@ set(LLDB_SWIFT_DEMANGLE_SOURCES)
 set(LLDB_SWIFT_DEMANGLE_LIBS)
 if(LLDB_ENABLE_SWIFT_SUPPORT)
   set(LLDB_SWIFT_DEMANGLE_SOURCES SwiftDemangle.cpp)
-  set(LLDB_SWIFT_DEMANGLE_LIBS swiftDemangling)
+  # swiftDemangling: the leaf demangler used by SwiftDemangle.cpp.
+  # swiftBasic: Module.cpp references swift::version (toolchain-mismatch warning).
+  # Both are near-leaf (swiftBasic depends only on swiftDemangling), so they do
+  # not drag the Swift compiler / ClangImporter into tools that link lldbCore.
+  set(LLDB_SWIFT_DEMANGLE_LIBS swiftDemangling swiftBasic)
 endif()
 # END SWIFT
 
