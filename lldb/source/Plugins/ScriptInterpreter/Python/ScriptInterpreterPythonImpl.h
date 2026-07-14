@@ -92,8 +92,6 @@ public:
 
   lldb::ScriptedProcessInterfaceUP CreateScriptedProcessInterface() override;
 
-  lldb::ScriptedStopHookInterfaceSP CreateScriptedStopHookInterface() override;
-
   lldb::ScriptedHookInterfaceSP CreateScriptedHookInterface() override;
 
   lldb::ScriptedBreakpointInterfaceSP

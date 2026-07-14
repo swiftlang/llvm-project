@@ -22,7 +22,6 @@
 #include "ScriptedHookPythonInterface.h"
 #include "ScriptedPlatformPythonInterface.h"
 #include "ScriptedProcessPythonInterface.h"
-#include "ScriptedStopHookPythonInterface.h"
 #include "ScriptedThreadPlanPythonInterface.h"
 
 namespace lldb_private {

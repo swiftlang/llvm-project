@@ -1739,7 +1739,7 @@ public:
   private:
     llvm::StringRef GetScriptClassName() const;
 
-    lldb::ScriptedStopHookInterfaceSP m_interface_sp;
+    lldb::ScriptedHookInterfaceSP m_interface_sp;
 
     /// Use CreateStopHook to make a new empty stop hook. The GetCommandPointer
     /// and fill it with commands, and SetSpecifier to set the specifier shared

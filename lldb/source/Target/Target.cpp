@@ -39,7 +39,6 @@
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/Interfaces/ScriptedBreakpointInterface.h"
 #include "lldb/Interpreter/Interfaces/ScriptedHookInterface.h"
-#include "lldb/Interpreter/Interfaces/ScriptedStopHookInterface.h"
 #include "lldb/Interpreter/OptionGroupWatchpoint.h"
 #include "lldb/Interpreter/OptionValueEnumeration.h"
 #include "lldb/Interpreter/OptionValues.h"
@@ -4388,7 +4387,7 @@ Status Target::StopHookScripted::SetScriptCallback(
     return error;
   }
 
-  m_interface_sp = script_interp->CreateScriptedStopHookInterface();
+  m_interface_sp = script_interp->CreateScriptedHookInterface();
   if (!m_interface_sp) {
     error = Status::FromErrorStringWithFormat(
         "ScriptedStopHook::%s () - ERROR: %s", __FUNCTION__,
