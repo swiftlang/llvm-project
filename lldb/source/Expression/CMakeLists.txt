@@ -1,4 +1,9 @@
-set(SWIFT_LIBS lldbPluginExpressionParserSwift)
+# lldbExpression no longer references the Swift expression parser plugin (only
+# a comment in UserExpression.cpp mentions SwiftASTContext). liblldb still links
+# lldbPluginExpressionParserSwift via LLDB_ALL_PLUGINS; keeping it out of core
+# lldbExpression stops SwiftASTContext / the Swift compiler from being
+# force-linked into lldb-server, which links lldbExpression but not that plugin.
+set(SWIFT_LIBS)
 set(PLUGIN_DEPENDENCY_ARG)
 if(NOT LLDB_ENABLE_SWIFT_SUPPORT)
   unset(SWIFT_LIBS)

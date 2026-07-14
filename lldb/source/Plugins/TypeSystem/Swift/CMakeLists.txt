@@ -12,6 +12,23 @@ add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
     lldbTarget
     lldbUtility
 
+    ## BEGIN SWIFT
+    # SwiftASTContext.cpp hosts the embedded Swift compiler + ClangImporter, so
+    # this plugin (not core lldbSymbol) owns the Swift/Clang frontend deps. Only
+    # full-lldb consumers that link this plugin (liblldb) pull them in; tools
+    # like lldb-server that don't link it stay free of the frontend.
+    clangAST
+    clangBasic
+    clangFrontend
+    swiftAST
+    swiftASTSectionImporter
+    swiftBasic
+    swiftClangImporter
+    swiftFrontend
+    swiftSIL
+    swiftSerialization
+    ## END SWIFT
+
   LINK_COMPONENTS
     Support
 )
