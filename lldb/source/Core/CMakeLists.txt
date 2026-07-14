@@ -16,6 +16,7 @@ set(LLDB_LIBEDIT_LIBS)
 # the Swift compiler).
 set(LLDB_SWIFT_DEMANGLE_SOURCES)
 set(LLDB_SWIFT_DEMANGLE_LIBS)
+list(APPEND LLVM_OPTIONAL_SOURCES SwiftDemangle.cpp)
 if(LLDB_ENABLE_SWIFT_SUPPORT)
   set(LLDB_SWIFT_DEMANGLE_SOURCES SwiftDemangle.cpp)
   # swiftDemangling: the leaf demangler used by SwiftDemangle.cpp.

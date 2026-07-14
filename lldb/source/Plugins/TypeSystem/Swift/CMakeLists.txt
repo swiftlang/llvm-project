@@ -1,3 +1,7 @@
+# TypeSystemSwiftTypeRef.cpp constructs SwiftPersistentExpressionState and
+# SwiftUserExpression, which live in the ExpressionParser/Swift plugin.
+set_property(DIRECTORY PROPERTY LLDB_TOLERATED_PLUGIN_DEPENDENCIES ExpressionParser)
+
 add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
   LLDBExplicitModuleLoader.cpp
   LLDBImplicitModuleLoader.cpp
@@ -11,6 +15,12 @@ add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
     lldbSymbol
     lldbTarget
     lldbUtility
+    # SwiftPersistentExpressionState / SwiftUserExpression are constructed by
+    # TypeSystemSwiftTypeRef.cpp. This plugin and lldbPluginExpressionParserSwift
+    # reference each other's symbols; declaring the edge here (in addition to the
+    # reverse edge in ExpressionParser/Swift) lets CMake resolve the static-lib
+    # cycle so the single-pass gold linker (-z defs) links liblldb on Linux.
+    lldbPluginExpressionParserSwift
 
     ## BEGIN SWIFT
     # SwiftASTContext.cpp hosts the embedded Swift compiler + ClangImporter, so
