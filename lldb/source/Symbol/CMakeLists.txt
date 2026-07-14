@@ -15,7 +15,10 @@ if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
   set(LLDB_PLUGIN_DEPENDENCIES)
 else()
   set(PLUGIN_DEPENDENCY_ARG)
-  set(LLDB_PLUGIN_DEPENDENCIES lldbPluginSwiftLanguageRuntime)
+  # Symtab.cpp no longer references the Swift language runtime plugin: Swift
+  # symbol demangling now goes through the leaf helper in lldbCore
+  # (SwiftDemangle), which links only swiftDemangling.
+  set(LLDB_PLUGIN_DEPENDENCIES)
 endif()
 
 add_lldb_library(lldbSymbol ${PLUGIN_DEPENDENCY_ARG}

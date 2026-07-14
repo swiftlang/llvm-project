@@ -9,6 +9,19 @@ lldb_tablegen(CorePropertiesEnum.inc -gen-lldb-property-enum-defs
 set(LLDB_CURSES_LIBS)
 set(LLDB_LIBEDIT_LIBS)
 
+# BEGIN SWIFT
+# The leaf Swift demangling helper (SwiftDemangle.cpp) links only the
+# standalone Swift demangling library. This lets core lldb demangle Swift
+# symbols without pulling in the heavy Swift language runtime plugin (and thus
+# the Swift compiler).
+set(LLDB_SWIFT_DEMANGLE_SOURCES)
+set(LLDB_SWIFT_DEMANGLE_LIBS)
+if(LLDB_ENABLE_SWIFT_SUPPORT)
+  set(LLDB_SWIFT_DEMANGLE_SOURCES SwiftDemangle.cpp)
+  set(LLDB_SWIFT_DEMANGLE_LIBS swiftDemangling)
+endif()
+# END SWIFT
+
 if (LLDB_ENABLE_CURSES)
   list(APPEND LLDB_CURSES_LIBS ${PANEL_LIBRARIES} ${CURSES_LIBRARIES})
   if (LLVM_BUILD_STATIC)
@@ -60,6 +73,10 @@ add_lldb_library(lldbCore NO_PLUGIN_DEPENDENCIES
   UserSettingsController.cpp
   Value.cpp
 
+  ## BEGIN SWIFT
+  ${LLDB_SWIFT_DEMANGLE_SOURCES}
+  ## END SWIFT
+
   ADDITIONAL_HEADER_DIRS
     ${LLDB_INCLUDE_DIR}/lldb/Core
   DEPENDS
@@ -81,6 +98,9 @@ add_lldb_library(lldbCore NO_PLUGIN_DEPENDENCIES
     lldbValueObject
     lldbVersion
     ${LLDB_CURSES_LIBS}
+    ## BEGIN SWIFT
+    ${LLDB_SWIFT_DEMANGLE_LIBS}
+    ## END SWIFT
 
   CLANG_LIBS
     clangDriver

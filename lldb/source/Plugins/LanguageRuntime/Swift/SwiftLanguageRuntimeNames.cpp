@@ -16,6 +16,7 @@
 
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
 #include "lldb/Core/DemangledNameInfo.h"
+#include "lldb/Core/SwiftDemangle.h"
 #include "lldb/Symbol/Block.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/VariableList.h"
@@ -29,7 +30,6 @@
 #include "swift/Demangling/Demangle.h"
 #include "swift/Demangling/Demangler.h"
 
-#include "Plugins/Language/Swift/SwiftMangled.h"
 #include "Plugins/Process/Utility/RegisterContext_x86.h"
 #include "Utility/ARM64_DWARF_Registers.h"
 #include "swift/Demangling/ManglingFlavor.h"
@@ -40,7 +40,6 @@ using namespace lldb_private;
 namespace lldb_private {
 
 static const char *g_dollar_tau_underscore = u8"$\u03C4_";
-static const char *g_tau_underscore = g_dollar_tau_underscore + 1;
 
 namespace {
 
@@ -730,16 +729,7 @@ bool SwiftLanguageRuntime::IsSymbolARuntimeThunk(const Symbol &symbol) {
 }
 
 bool SwiftLanguageRuntime::IsSwiftMangledName(llvm::StringRef name) {
-  // Old-style mangling uses a "_T" prefix. This can lead to false positives
-  // with other symbols that just so happen to start with "_T". To prevent this,
-  // only return true for select old-style mangled names. The known cases to are
-  // ObjC classes and protocols. Classes are prefixed with either "_TtC" or
-  // "_TtGC" (generic classes). Protocols are prefixed with "_TtP". Other "_T"
-  // prefixed symbols are not considered to be Swift symbols.
-  if (name.starts_with("_T"))
-    return name.starts_with("_TtC") || name.starts_with("_TtGC") ||
-           name.starts_with("_TtP");
-  return swift::Demangle::isSwiftSymbol(name);
+  return SwiftDemangle::IsSwiftMangledName(name);
 }
 
 void SwiftLanguageRuntime::GetGenericParameterNamesForFunction(
@@ -835,68 +825,13 @@ SwiftLanguageRuntime::DemangleSymbolAsString(llvm::StringRef symbol,
                                              DemangleMode mode, bool tracking,
                                              const SymbolContext *sc,
                                              const ExecutionContext *exe_ctx) {
-  bool did_init = false;
-  llvm::DenseMap<ArchetypePath, llvm::StringRef> dict;
-  swift::Demangle::DemangleOptions options;
-  switch (mode) {
-  case eSimplified:
-    options = swift::Demangle::DemangleOptions::SimplifiedUIDemangleOptions();
-    options.ShowAsyncResumePartial = false;
-    options.ShowClosureSignature = false;
-    break;
-  case eTypeName:
-    options.DisplayModuleNames = true;
-    options.ShowPrivateDiscriminators = false;
-    options.DisplayExtensionContexts = false;
-    options.DisplayLocalNameContexts = false;
-    options.ShowFunctionArgumentTypes = true;
-    break;
-  case eDisplayTypeName:
-    options = swift::Demangle::DemangleOptions::SimplifiedUIDemangleOptions();
-    options.DisplayStdlibModule = false;
-    options.DisplayObjCModule = false;
-    options.QualifyEntities = true;
-    options.DisplayModuleNames = true;
-    options.DisplayLocalNameContexts = false;
-    options.DisplayDebuggerGeneratedModule = false;
-    options.ShowFunctionArgumentTypes = true;
-    options.ShowClosureSignature = false;
-    break;
-  }
-
-  if (sc) {
-    // Resolve generic parameters in the current function.
-    options.GenericParameterName = [&](uint64_t depth, uint64_t index) {
-      if (!did_init) {
-        GetGenericParameterNamesForFunction(
-            *sc, exe_ctx, SwiftLanguageRuntime::GetManglingFlavor(symbol),
-            dict);
-        did_init = true;
-      }
-      auto it = dict.find({depth, index});
-      if (it != dict.end())
-        return it->second.str();
-      return swift::Demangle::genericParameterName(depth, index);
-    };
-  } else {
-    // Print generic parameter names.
-    options.GenericParameterName = [&](uint64_t depth, uint64_t index) {
-      std::string name;
-      {
-        llvm::raw_string_ostream s(name);
-        s << g_tau_underscore << depth << '_' << index;
-      }
-      return name;
-    };
-  }
-  if (tracking) {
-    TrackingNodePrinter printer = TrackingNodePrinter(options);
-    swift::Demangle::demangleSymbolAsString(symbol, printer);
-    return std::pair<std::string, std::optional<DemangledNameInfo>>(
-        printer.takeString(), printer.takeInfo());
-  }
-  return std::pair<std::string, std::optional<DemangledNameInfo>>(
-      swift::Demangle::demangleSymbolAsString(symbol, options), std::nullopt);
+  // Forward to the leaf demangler in lldbCore. The plugin installs the
+  // dynamic generic-parameter-name resolver hook at initialization time (see
+  // SwiftLanguageRuntime::Initialize), so behavior is identical for tools that
+  // load this plugin.
+  return SwiftDemangle::DemangleSymbolAsString(
+      symbol, static_cast<SwiftDemangle::DemangleMode>(mode), tracking, sc,
+      exe_ctx);
 }
 
 std::string SwiftLanguageRuntime::DemangleSymbolAsString(
@@ -1002,182 +937,10 @@ static bool UnpackQualifiedName(const llvm::StringRef &s, llvm::StringRef &decl,
   return !decl.empty() && !basename.empty();
 }
 
-static bool ParseLocalDeclName(const swift::Demangle::NodePointer &node,
-                               StreamString &identifier,
-                               swift::Demangle::Node::Kind &parent_kind,
-                               swift::Demangle::Node::Kind &kind) {
-  for (auto *child : *node) {
-    swift::Demangle::Node::Kind child_kind = child->getKind();
-    switch (child_kind) {
-    case swift::Demangle::Node::Kind::Number:
-      break;
-
-    default:
-      if (child->hasText()) {
-        identifier.PutCString(child->getText());
-        return true;
-      }
-      break;
-    }
-  }
-  return false;
-}
-
-static bool ParseFunction(const swift::Demangle::NodePointer &node,
-                          StreamString &identifier,
-                          swift::Demangle::Node::Kind &parent_kind,
-                          swift::Demangle::Node::Kind &kind) {
-  if (node->getNumChildren() >= 2) {
-    // First child is the function's scope
-    parent_kind = node->getChild(0)->getKind();
-    // Second child is either the type (no identifier)
-    auto *child2 = node->getChild(1);
-    switch (child2->getKind()) {
-    case swift::Demangle::Node::Kind::Type:
-      break;
-
-    case swift::Demangle::Node::Kind::LocalDeclName:
-      if (ParseLocalDeclName(child2, identifier, parent_kind, kind))
-        return true;
-      else
-        return false;
-      break;
-
-    default:
-    case swift::Demangle::Node::Kind::InfixOperator:
-    case swift::Demangle::Node::Kind::PostfixOperator:
-    case swift::Demangle::Node::Kind::PrefixOperator:
-    case swift::Demangle::Node::Kind::Identifier:
-      if (child2->hasText())
-        identifier.PutCString(child2->getText());
-      return true;
-    }
-  }
-  return false;
-}
-
-static bool ParseGlobal(const swift::Demangle::NodePointer &node,
-                        StreamString &identifier,
-                        swift::Demangle::Node::Kind &parent_kind,
-                        swift::Demangle::Node::Kind &kind) {
-  for (auto *child : *node) {
-    if (child) {
-      // Peel off static node.
-      if (child->getKind() == swift::Demangle::Node::Kind::Static &&
-          child->hasChildren())
-        child = child->getFirstChild();
-
-      kind = child->getKind();
-      switch (child->getKind()) {
-      case swift::Demangle::Node::Kind::Allocator:
-        identifier.PutCString("__allocating_init");
-        ParseFunction(child, identifier, parent_kind, kind);
-        return true;
-
-      case swift::Demangle::Node::Kind::Constructor:
-        identifier.PutCString("init");
-        ParseFunction(child, identifier, parent_kind, kind);
-        return true;
-
-      case swift::Demangle::Node::Kind::Deallocator:
-        identifier.PutCString("__deallocating_deinit");
-        ParseFunction(child, identifier, parent_kind, kind);
-        return true;
-
-      case swift::Demangle::Node::Kind::Destructor:
-        identifier.PutCString("deinit");
-        ParseFunction(child, identifier, parent_kind, kind);
-        return true;
-
-      case swift::Demangle::Node::Kind::Getter:
-      case swift::Demangle::Node::Kind::Setter:
-      case swift::Demangle::Node::Kind::Function:
-        return ParseFunction(child, identifier, parent_kind, kind);
-
-      // Ignore these, they decorate a function at the same level, but don't
-      // contain any text
-      case swift::Demangle::Node::Kind::ObjCAttribute:
-        break;
-
-      default:
-        return false;
-      }
-    }
-  }
-  return false;
-}
-
 bool SwiftLanguageRuntime::MethodName::ExtractFunctionBasenameFromMangled(
     ConstString mangled, ConstString &basename, bool &is_method) {
-  bool success = false;
-  swift::Demangle::Node::Kind kind = swift::Demangle::Node::Kind::Global;
-  swift::Demangle::Node::Kind parent_kind = swift::Demangle::Node::Kind::Global;
-  if (mangled) {
-    const char *mangled_cstr = mangled.GetCString();
-    const size_t mangled_cstr_len = mangled.GetLength();
-
-    if (mangled_cstr_len > 3) {
-      llvm::StringRef mangled_ref(mangled_cstr, mangled_cstr_len);
-
-      // Only demangle swift functions
-      // This is a no-op right now for the new mangling, because you
-      // have to demangle the whole name to figure this out anyway.
-      // I'm leaving the test here in case we actually need to do this
-      // only to functions.
-      swift::Demangle::Context ctx;
-      auto *node = SwiftLanguageRuntime::DemangleSymbolAsNode(mangled_ref, ctx);
-      StreamString identifier;
-      if (node) {
-        switch (node->getKind()) {
-        case swift::Demangle::Node::Kind::Global:
-          success = ParseGlobal(node, identifier, parent_kind, kind);
-          break;
-
-        default:
-          break;
-        }
-
-        if (!identifier.GetString().empty()) {
-          basename = ConstString(identifier.GetString());
-        }
-      }
-    }
-  }
-  if (success) {
-    switch (kind) {
-    case swift::Demangle::Node::Kind::Allocator:
-    case swift::Demangle::Node::Kind::Constructor:
-    case swift::Demangle::Node::Kind::Deallocator:
-    case swift::Demangle::Node::Kind::Destructor:
-      is_method = true;
-      break;
-
-    case swift::Demangle::Node::Kind::Getter:
-    case swift::Demangle::Node::Kind::Setter:
-      // don't handle getters and setters right now...
-      return false;
-
-    case swift::Demangle::Node::Kind::Function:
-      switch (parent_kind) {
-      case swift::Demangle::Node::Kind::BoundGenericClass:
-      case swift::Demangle::Node::Kind::BoundGenericEnum:
-      case swift::Demangle::Node::Kind::BoundGenericStructure:
-      case swift::Demangle::Node::Kind::Class:
-      case swift::Demangle::Node::Kind::Enum:
-      case swift::Demangle::Node::Kind::Structure:
-        is_method = true;
-        break;
-
-      default:
-        break;
-      }
-      break;
-
-    default:
-      break;
-    }
-  }
-  return success;
+  return SwiftDemangle::ExtractFunctionBasenameFromMangled(mangled, basename,
+                                                           is_method);
 }
 
 void SwiftLanguageRuntime::MethodName::Parse() {

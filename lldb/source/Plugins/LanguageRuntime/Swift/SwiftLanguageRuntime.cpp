@@ -28,6 +28,7 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Progress.h"
 #include "lldb/Core/Section.h"
+#include "lldb/Core/SwiftDemangle.h"
 #include "lldb/DataFormatters/StringPrinter.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Host/SafeMachO.h"
@@ -3035,6 +3036,14 @@ public:
 };
 
 void SwiftLanguageRuntime::Initialize() {
+  // Install the hook that lets the leaf demangler in lldbCore resolve the
+  // dynamic types bound to a function's generic parameters. This is the one
+  // demangling operation that requires the Swift language runtime (and thus
+  // the Swift compiler), so it lives here in the plugin. Tools that don't load
+  // this plugin (e.g. lldb-server) fall back to the static parameter name.
+  SwiftDemangle::SetGenericParameterNameResolver(
+      &SwiftLanguageRuntime::GetGenericParameterNamesForFunction);
+
   PluginManager::RegisterPlugin(
       GetPluginNameStatic(), "Language runtime for the Swift language",
       CreateInstance,
@@ -3045,6 +3054,7 @@ void SwiftLanguageRuntime::Initialize() {
 }
 
 void SwiftLanguageRuntime::Terminate() {
+  SwiftDemangle::SetGenericParameterNameResolver(nullptr);
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
