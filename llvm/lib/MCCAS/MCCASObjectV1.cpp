@@ -1802,6 +1802,38 @@ MCSymbolIdFragmentRef::materialize(MCCASReader &Reader,
   return sizeof(uint32_t);
 }
 
+Expected<MCPrefAlignFragmentRef>
+MCPrefAlignFragmentRef::create(MCCASBuilder &MB, const MCFragment &F,
+                               unsigned FragmentSize,
+                               ArrayRef<char> FragmentContents) {
+  Expected<Builder> B = Builder::startNode(MB.Schema, KindString);
+  if (!B)
+    return B.takeError();
+
+  B->Data.append(FragmentContents.begin(), FragmentContents.end());
+  uint64_t PadSize = FragmentSize - FragmentContents.size();
+  if (F.getPrefAlignEmitNops()) {
+    if (!MB.Asm.getBackend().writeNopData(MB.FragmentOS, PadSize,
+                                          F.getSubtargetInfo()))
+      reportFatalInternalError("unable to write nop sequence of " +
+                               Twine(PadSize) + " bytes");
+  } else if (F.getPrefAlignFill() == 0) {
+    MB.FragmentOS.write_zeros(PadSize);
+  } else {
+    char B = char(F.getPrefAlignFill());
+    for (uint64_t I = 0; I < PadSize; ++I)
+      MB.FragmentOS << B;
+  }
+  return get(B->build());
+}
+
+Expected<uint64_t>
+MCPrefAlignFragmentRef::materialize(MCCASReader &Reader,
+                                    raw_ostream *Stream) const {
+  *Stream << getData();
+  return getData().size();
+}
+
 #define MCFRAGMENT_NODE_REF(MCFragmentName, MCEnumName, MCEnumIdentifier)      \
   Expected<MCFragmentName##Ref> MCFragmentName##Ref::create(                   \
       MCCASBuilder &MB, const MCFragment &F, unsigned FragmentSize,            \
