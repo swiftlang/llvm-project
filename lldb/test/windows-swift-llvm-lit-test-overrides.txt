@@ -102,12 +102,6 @@ skip lldb-api :: python_api/section/TestSectionAPI.py
 # since https://github.com/swiftlang/llvm-project/pull/9493 relanded
 skip lldb-api :: functionalities/breakpoint/same_cu_name/TestFileBreakpoinsSameCUName.py
 
-# Disable 37 tests: 17 unsupported, 6 usually failed, 14 usually passed (but flaky)
-# https://github.com/swiftlang/llvm-project/issues/9099
-# https://github.com/swiftlang/llvm-project/issues/9100
-# https://github.com/swiftlang/llvm-project/issues/9101
-skip lldb-api :: tools/lldb-server
-
 ### Tests that time out occasionally ###
 
 skip lldb-api :: commands/dwim-print/TestDWIMPrint.py
