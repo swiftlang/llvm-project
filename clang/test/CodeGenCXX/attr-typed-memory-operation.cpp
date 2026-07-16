@@ -332,6 +332,60 @@ void g() {
   C().m();
 }
 
+struct FAMField {
+  void (*f)();
+};
+
+struct FAMType {
+  int foo;
+  struct FAMField xs[];
+};
+
+struct NestedFAMType {
+  int foo;
+  struct FAMType nested;
+};
+
+
+struct FAMTypeWithTrailingStaticField {
+  int foo;
+  struct FAMField xs[];
+  static int static_trailing_field;
+};
+
+void test_fam(int n) {
+  malloc(sizeof(struct FAMType) + sizeof(struct FAMField) * n); // #sizeof_famtype
+  // tmo-remark@#sizeof_famtype {{passing TMO information for type 'struct FAMType' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // tmo-note@#sizeof_famtype {{encoding 'struct FAMType' as 72058697202783686. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 3653227974 }}}
+  // tmo-note@#sizeof_famtype {{inferred header prefixed array of {'struct FAMType':'struct FAMField'} from expression 'sizeof(struct FAMType) + sizeof(struct FAMField) * n'}}
+
+  malloc(sizeof(struct FAMType) + n); // #sizeof_famtype_n
+  // tmo-remark@#sizeof_famtype_n {{passing TMO information for type 'struct FAMType' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // tmo-note@#sizeof_famtype_n {{encoding 'struct FAMType' as 72058697202783686. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 3653227974 }}}
+  // tmo-note@#sizeof_famtype_n {{inferred header prefixed array of {'struct FAMType':'struct FAMField'} from expression 'sizeof(struct FAMType) + n'}}
+
+  malloc(sizeof(struct NestedFAMType) + sizeof(struct FAMField) * n); // #sizeof_nested_famtype
+  // tmo-remark@#sizeof_nested_famtype {{passing TMO information for type 'struct NestedFAMType' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // tmo-note@#sizeof_nested_famtype {{encoding 'struct NestedFAMType' as 72058697566250209. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 4016694497 }}}
+  // tmo-note@#sizeof_nested_famtype {{inferred header prefixed array of {'struct NestedFAMType':'struct FAMField'} from expression 'sizeof(struct NestedFAMType) + sizeof(struct FAMField) * n'}}
+
+  malloc(sizeof(struct NestedFAMType) + n); // #sizeof_nested_famtype_n
+  // tmo-remark@#sizeof_nested_famtype_n {{passing TMO information for type 'struct NestedFAMType' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // tmo-note@#sizeof_nested_famtype_n {{encoding 'struct NestedFAMType' as 72058697566250209. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 4016694497 }}}
+  // tmo-note@#sizeof_nested_famtype_n {{inferred header prefixed array of {'struct NestedFAMType':'struct FAMField'} from expression 'sizeof(struct NestedFAMType) + n'}}
+
+
+  malloc(sizeof(struct FAMTypeWithTrailingStaticField) + sizeof(struct FAMField) * n); // #sizeof_famtype_static
+  // tmo-remark@#sizeof_famtype_static {{passing TMO information for type 'struct FAMTypeWithTrailingStaticField' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // tmo-note@#sizeof_famtype_static {{encoding 'struct FAMTypeWithTrailingStaticField' as 72058697202783686. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 3653227974 }}}
+  // tmo-note@#sizeof_famtype_static {{inferred header prefixed array of {'struct FAMTypeWithTrailingStaticField':'struct FAMField'} from expression 'sizeof(struct FAMTypeWithTrailingStaticField) + sizeof(struct FAMField) * n'}}
+
+  malloc(sizeof(struct FAMTypeWithTrailingStaticField) + n); // #sizeof_famtype_static_n
+  // tmo-remark@#sizeof_famtype_static_n {{passing TMO information for type 'struct FAMTypeWithTrailingStaticField' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // tmo-note@#sizeof_famtype_static_n {{encoding 'struct FAMTypeWithTrailingStaticField' as 72058697202783686. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 3653227974 }}}
+  // tmo-note@#sizeof_famtype_static_n {{inferred header prefixed array of {'struct FAMTypeWithTrailingStaticField':'struct FAMField'} from expression 'sizeof(struct FAMTypeWithTrailingStaticField) + n'}}
+}
+
 // CHECK: !{!"type-descriptor", !"[[LOC1_DESC]]", !"[[LOC1_DESC]]", !"\22LayoutSemantics\22: [ ], \22TypeFlags\22: [ ], \22TypeKind\22: \22KindC\22, \22CallsiteFlags\22: [ ]"}
 // CHECK: !{!"type-descriptor", !"[[GENERICDATA32_DESC]]", !"1384677904", !"\22LayoutSemantics\22: [ \22GenericData\22 ], \22TypeFlags\22: [ ], \22TypeKind\22: \22KindC\22, \22CallsiteFlags\22: [ \22FixedSize\22 ]"}
 // CHECK: !{!"type-descriptor", !"[[S1_DESC]]", !"4009135638", !"\22LayoutSemantics\22: [ \22AnonymousPointer\22, \22GenericData\22 ], \22TypeFlags\22: [ ], \22TypeKind\22: \22KindC\22, \22CallsiteFlags\22: [ \22FixedSize\22 ]"}

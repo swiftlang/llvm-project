@@ -561,6 +561,43 @@ void test_size_vs_cast(void) {
   // expected-note@#size_dom2 {{encoding array of 'struct S2' as 72058145178419728}}
 }
 
+struct FAMField {
+  void (*f)();
+};
+
+struct FAMType {
+  int foo;
+  struct FAMField xs[];
+};
+
+struct NestedFAMType {
+  int foo;
+  struct FAMType nested;
+};
+
+void test_fam(int n) {
+  malloc(sizeof(struct FAMType) + sizeof(struct FAMField) * n); // #sizeof_famtype
+  // expected-remark@#sizeof_famtype {{passing TMO information for type 'struct FAMType' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // expected-note@#sizeof_famtype {{encoding 'struct FAMType' as 72058697202783686. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 3653227974 }}}
+  // expected-note@#sizeof_famtype {{inferred header prefixed array of {'struct FAMType':'struct FAMField'} from expression 'sizeof(struct FAMType) + sizeof(struct FAMField) * n'}}
+
+  malloc(sizeof(struct FAMType) + n); // #sizeof_famtype_n
+  // expected-remark@#sizeof_famtype_n {{passing TMO information for type 'struct FAMType' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // expected-note@#sizeof_famtype_n {{encoding 'struct FAMType' as 72058697202783686. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 3653227974 }}}
+  // expected-note@#sizeof_famtype_n {{inferred header prefixed array of {'struct FAMType':'struct FAMField'} from expression 'sizeof(struct FAMType) + n'}}
+
+  malloc(sizeof(struct NestedFAMType) + sizeof(struct FAMField) * n); // #sizeof_nested_famtype
+  // expected-remark@#sizeof_nested_famtype {{passing TMO information for type 'struct NestedFAMType' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // expected-note@#sizeof_nested_famtype {{encoding 'struct NestedFAMType' as 72058697566250209. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 4016694497 }}}
+  // expected-note@#sizeof_nested_famtype {{inferred header prefixed array of {'struct NestedFAMType':'struct FAMField'} from expression 'sizeof(struct NestedFAMType) + sizeof(struct FAMField) * n'}}
+
+  malloc(sizeof(struct NestedFAMType) + n); // #sizeof_nested_famtype_n
+  // expected-remark@#sizeof_nested_famtype_n {{passing TMO information for type 'struct NestedFAMType' to 'typed_real_malloc' (retargeted from 'malloc')}}
+  // expected-note@#sizeof_nested_famtype_n {{encoding 'struct NestedFAMType' as 72058697566250209. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 4016694497 }}}
+  // expected-note@#sizeof_nested_famtype_n {{inferred header prefixed array of {'struct NestedFAMType':'struct FAMField'} from expression 'sizeof(struct NestedFAMType) + n'}}
+}
+
+
 // CHECK: attributes [[ATTR]] = { allocsize(0) }
 
 // CHECK: !{!"type-descriptor", !"[[LOC1_DESC]]", !"[[LOC1_DESC]]", !"\22LayoutSemantics\22: [ ], \22TypeFlags\22: [ ], \22TypeKind\22: \22KindC\22, \22CallsiteFlags\22: [ ]"}

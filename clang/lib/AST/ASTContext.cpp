@@ -16718,8 +16718,10 @@ ASTContext::findFlexibleArrayElementType(QualType T) const {
   if (!RD || !RD->hasFlexibleArrayMember())
     return std::nullopt;
   const FieldDecl *FlexibleArrayField = nullptr;
-  for (const FieldDecl *FD : RD->fields())
-    FlexibleArrayField = FD;
+  do {
+    for (const FieldDecl *FD : RD->fields())
+      FlexibleArrayField = FD;
+  } while ((RD = FlexibleArrayField->getType()->getAsRecordDecl()));
   assert(FlexibleArrayField);
   const IncompleteArrayType *IAT =
       getAsIncompleteArrayType(FlexibleArrayField->getType());
