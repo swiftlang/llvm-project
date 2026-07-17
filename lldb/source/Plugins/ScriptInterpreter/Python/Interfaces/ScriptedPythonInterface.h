@@ -248,11 +248,17 @@ public:
       // dictionary is passed to the extension initializer which is not used
       // most of the time.
       size_t num_args = sizeof...(Args);
-      if (num_args != arg_info->max_positional_args) {
-        if (num_args != arg_info->max_positional_args - 1)
+      if (arg_info->max_positional_args != PythonCallable::ArgInfo::UNBOUNDED &&
+          num_args != arg_info->max_positional_args) {
+        if (num_args != arg_info->max_positional_args - 1) {
+          // `expected_return_object` starts in an error state; consume it
+          // before we return with a different error, or its destructor
+          // will abort.
+          llvm::consumeError(expected_return_object.takeError());
           return create_error("Passed arguments ({0}) doesn't match the number "
                               "of expected arguments ({1}).",
                               num_args, arg_info->max_positional_args);
+        }
 
         std::apply(
             [&init, &expected_return_object](auto &&...args) {
