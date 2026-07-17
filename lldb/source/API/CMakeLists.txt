@@ -98,6 +98,7 @@ add_lldb_library(liblldb SHARED ${option_framework}
   SBProcessInfo.cpp
   SBProcessInfoList.cpp
   SBProgress.cpp
+  SBProtocolServer.cpp
   SBQueue.cpp
   SBQueueItem.cpp
   SBReproducer.cpp
