@@ -17,7 +17,6 @@ class HitcountResetUponRun(TestBase):
         self.assertEqual(location1.GetHitCount(), 1)
         self.assertEqual(breakpoint.GetHitCount(), 1)
 
-    @skipIfWindows # rdar://178182243
     def test_hitcount_reset_upon_run(self):
         self.build()
 

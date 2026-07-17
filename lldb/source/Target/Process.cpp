@@ -1776,7 +1776,9 @@ llvm::Error Process::ExecuteBreakpointSiteAction(BreakpointSite &site,
                                                  BreakpointAction action,
                                                  bool forbid_delay) {
   // Breakpoints immediately affect running processes, so do not delay them.
-  forbid_delay |= StateIsRunningState(GetPrivateState());
+  forbid_delay |= StateIsRunningState(GetPrivateState()) ||
+                  GetPublicState() == eStateLaunching ||
+                  GetPublicState() == eStateAttaching;
 
   if (forbid_delay)
     if (llvm::Error E = FlushDelayedBreakpoints())
