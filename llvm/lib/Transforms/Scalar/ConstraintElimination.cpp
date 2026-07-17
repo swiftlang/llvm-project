@@ -1939,51 +1939,73 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
                                           ConstraintInfo &Info) {
   LLVM_DEBUG(dbgs() << "Checking " << *CheckInst << "\n");
 
+  auto TryWithConstraint = [&](const ConstraintTy &R) -> std::optional<bool> {
+    if (R.empty() || !R.isValid(Info))
+      return std::nullopt;
+
+    auto &CSToUse = Info.getCS(R.IsSigned);
+
+    // If there was extra information collected during decomposition, apply
+    // it now and remove it immediately once we are done with reasoning
+    // about the constraint.
+    for (auto &Row : R.ExtraInfo)
+      CSToUse.addVariableRow(Row);
+    auto InfoRestorer = make_scope_exit([&]() {
+      for (unsigned I = 0; I < R.ExtraInfo.size(); ++I)
+        CSToUse.popLastConstraint();
+    });
+
+    if (auto ImpliedCondition = R.isImpliedBy(CSToUse)) {
+      if (!DebugCounter::shouldExecute(EliminatedCounter))
+        return std::nullopt;
+
+      LLVM_DEBUG({
+        dbgs() << "Condition ";
+        dumpUnpackedICmp(dbgs(),
+                         *ImpliedCondition ? Pred
+                                           : CmpInst::getInversePredicate(Pred),
+                         A, B);
+        dbgs() << " implied by dominating constraints\n";
+        CSToUse.dump();
+      });
+      return ImpliedCondition;
+    }
+    return std::nullopt;
+  };
+
   // If the constraint has a pre-condition, skip the constraint if it does not
   // hold.
   auto R = Info.getConstraintForSolving(Pred, A, B, true);
-  if (R.empty() || !R.isValid(Info)) {
+  if (R.empty() || !R.isValid(Info))
     R = Info.getConstraintForSolving(Pred, A, B, false);
-    if (R.empty() || !R.isValid(Info)) {
-      LLVM_DEBUG(dbgs() << "   failed to decompose condition\n");
+  if (R.empty() || !R.isValid(Info)) {
+    LLVM_DEBUG(dbgs() << "   failed to decompose condition\n");
 /* TO_UPSTREAM(BoundsSafety) ON*/
-      if (isBoundsSafetyAnnotated(CheckInst)) {
-        annotateMissedReplaceConditions(CheckInst,
-                                        cast<CmpInst>(CheckInst)->isSigned(),
-                                        MaxAnalysisRecursionDepth - 1);
-      }
-/* TO_UPSTREAM(BoundsSafety) OFF*/
-      return std::nullopt;
+    if (isBoundsSafetyAnnotated(CheckInst)) {
+      annotateMissedReplaceConditions(CheckInst,
+                                      cast<CmpInst>(CheckInst)->isSigned(),
+                                      MaxAnalysisRecursionDepth - 1);
     }
-  }
-
-  auto &CSToUse = Info.getCS(R.IsSigned);
-
-  // If there was extra information collected during decomposition, apply
-  // it now and remove it immediately once we are done with reasoning
-  // about the constraint.
-  for (auto &Row : R.ExtraInfo)
-    CSToUse.addVariableRow(Row);
-  auto InfoRestorer = make_scope_exit([&]() {
-    for (unsigned I = 0; I < R.ExtraInfo.size(); ++I)
-      CSToUse.popLastConstraint();
-  });
-
-  if (auto ImpliedCondition = R.isImpliedBy(CSToUse)) {
-    if (!DebugCounter::shouldExecute(EliminatedCounter))
-      return std::nullopt;
-
-    LLVM_DEBUG({
-      dbgs() << "Condition ";
-      dumpUnpackedICmp(
-          dbgs(), *ImpliedCondition ? Pred : CmpInst::getInversePredicate(Pred),
-          A, B);
-      dbgs() << " implied by dominating constraints\n";
-      CSToUse.dump();
-    });
+/* TO_UPSTREAM(BoundsSafety) OFF*/
+  } else if (auto ImpliedCondition = TryWithConstraint(R)) {
     return ImpliedCondition;
   }
 
+  // Additionally, query the signed system for eq/ne predicates if we know about
+  // A or B.
+  if (CmpInst::isEquality(Pred)) {
+    const auto &Value2Index = Info.getValue2Index(/*Signed=*/true);
+    if (!Value2Index.contains(A) && !Value2Index.contains(B))
+      return std::nullopt;
+
+    SmallVector<Value *> NewVariables;
+    auto SR = Info.getConstraint(Pred, A, B, NewVariables,
+                                 /*ShouldDecompose=*/true,
+                                 /*ForceSignedSystem=*/true);
+    if (NewVariables.empty())
+      if (auto ImpliedCondition = TryWithConstraint(SR))
+        return ImpliedCondition;
+  }
   return std::nullopt;
 }
 
