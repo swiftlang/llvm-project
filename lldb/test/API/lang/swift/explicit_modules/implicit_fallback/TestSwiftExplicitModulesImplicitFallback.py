@@ -5,7 +5,6 @@ import lldbsuite.test.lldbtest as lldbtest
 import lldbsuite.test.lldbutil as lldbutil
 
 
-@skipIfWindows
 class TestCase(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
     @skipEmbeddedSwift

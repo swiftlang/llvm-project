@@ -7,7 +7,6 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftAsyncBreakpoints(lldbtest.TestBase):
     @skipEmbeddedSwift
     @swiftTest
-    @skipIfWindows
     @skipIfLinux
     @skipIf(archs=no_match(["arm64", "arm64e", "x86_64"]))
     def test(self):
