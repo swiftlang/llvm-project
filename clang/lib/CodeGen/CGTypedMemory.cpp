@@ -114,8 +114,8 @@ RValue CodeGenFunction::EmitTypedMemoryCall(const CallExpr *E,
       CallArg(RValue::get(ConvertedValue), PropertyDescriptorType);
   CallArgs.insert(CallArgs.begin() + InferredParamIndex + 1, InferredTypeArg);
 
-  const CGFunctionInfo &FnInfo =
-      CGM.getTypes().arrangeFreeFunctionCall(CallArgs, TargetPrototype, false);
+  const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeFreeFunctionCall(
+      CallArgs, TargetPrototype, false, getCurrentFunctionDecl());
   llvm::CallBase *CallOrInvoke = nullptr;
   RValue Call = EmitCall(FnInfo, Callee, ReturnValue, CallArgs, &CallOrInvoke,
                          /*IsMustTail=*/false, E->getExprLoc());
