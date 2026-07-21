@@ -23,8 +23,6 @@ class TestSwiftExplicitModules(lldbtest.TestBase):
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
             self, 'Set breakpoint here', lldb.SBFileSpec('main.swift'))
 
-        self.expect('expression URL(string: "https://lldb.llvm.org")',
-                    error=True)
+        self.expect('expression UUID(uuidString: "E621E1F8-C36C-495A-93FC-0C247A3E6E5F")', error=True)
         self.expect("expression import Foundation")
-        self.expect('expression URL(string: "https://lldb.llvm.org")',
-                    substrs=["https://lldb.llvm.org"])
+        self.expect('expression UUID(uuidString: "E621E1F8-C36C-495A-93FC-0C247A3E6E5F")',substrs=["E621E1F8-C36C-495A-93FC-0C247A3E6E5F"])
