@@ -24,7 +24,6 @@ xfail lldb-shell :: SwiftREPL/OptionalUnowned.test
 xfail lldb-shell :: SwiftREPL/ErrorReturn.test
 xfail lldb-shell :: SwiftREPL/Optional.test
 xfail lldb-shell :: SwiftREPL/RecursiveClass.test
-xfail lldb-shell :: SwiftREPL/SimpleExpressions.test
 xfail lldb-shell :: SwiftREPL/enum-singlecase.test
 
 xfail lldb-api :: source-manager/TestSourceManager.py
