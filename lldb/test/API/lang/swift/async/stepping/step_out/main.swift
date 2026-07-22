@@ -1,3 +1,4 @@
+import _Concurrency
 func work() {
   print("working")
 }

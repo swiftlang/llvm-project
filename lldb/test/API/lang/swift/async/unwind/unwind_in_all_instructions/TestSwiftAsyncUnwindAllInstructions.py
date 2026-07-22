@@ -31,15 +31,18 @@ class TestCase(lldbtest.TestBase):
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
     def set_breakpoints_all_funclets(self, target):
+        # Embedded Swift mangles with an "$e" prefix instead of "$s".
+        prefix = "$e" if self.getVariant("swift_embedded") == "swiftembed" else "$s"
+        base = prefix + "1a12ASYNC___1___4condS2i_tYaF"
         funclet_names = [
-            "$s1a12ASYNC___1___4condS2i_tYaF",
-            "$s1a12ASYNC___1___4condS2i_tYaFTY0_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTQ1_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTY2_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTQ3_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTY4_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTQ5_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTY6_",
+            base,
+            base + "TY0_",
+            base + "TQ1_",
+            base + "TY2_",
+            base + "TQ3_",
+            base + "TY4_",
+            base + "TQ5_",
+            base + "TY6_",
         ]
 
         breakpoints = set()
@@ -62,8 +65,6 @@ class TestCase(lldbtest.TestBase):
                 breakpoints.add(bp.GetID())
         return breakpoints
 
-    unwind_fail_range_cache = dict()
-
     # There are challenges when unwinding Q funclets ("await resume"): LLDB cannot
     # detect the transition point where x22 stops containing the indirect context,
     # and instead contains the direct context.
@@ -73,12 +74,13 @@ class TestCase(lldbtest.TestBase):
     # instructions where this is not true; this function computes a range that
     # includes such instructions, so the test may skip checks while stopped in them.
     def compute_unwind_fail_range(self, function, target):
+        cache = self.unwind_fail_range_cache
         name = function.GetName()
-        if name in TestCase.unwind_fail_range_cache:
-            return TestCase.unwind_fail_range_cache[name]
+        if name in cache:
+            return cache[name]
 
         if "await resume" not in function.GetName():
-            TestCase.unwind_fail_range_cache[name] = range(0)
+            cache[name] = range(0)
             return range(0)
 
         first_pc_after_prologue = function.GetStartAddress()
@@ -120,7 +122,7 @@ class TestCase(lldbtest.TestBase):
             first_bad_instr.GetAddress().GetFileAddress(),
             first_good_instr.GetAddress().GetFileAddress(),
         )
-        TestCase.unwind_fail_range_cache[name] = fail_range
+        cache[name] = fail_range
         return fail_range
 
     def should_skip_Q_funclet(self, thread):
@@ -163,11 +165,13 @@ class TestCase(lldbtest.TestBase):
                 return thread, bpid
         return None, None
 
-    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=["windows"])
     def test(self):
         """Test that the debugger can unwind at all instructions of all funclets"""
+        # Per-test: embedded and regular Swift share demangled funclet names but
+        # differ in address, so this must not leak across variants.
+        self.unwind_fail_range_cache = {}
         self.build()
 
         source_file = lldb.SBFileSpec("main.swift")

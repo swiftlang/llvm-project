@@ -1,3 +1,4 @@
+import _Concurrency
 func syncFunc() {
   print("break here")
 }

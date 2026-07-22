@@ -1,3 +1,5 @@
+import _Concurrency
+
 @main enum entry {
   static func main() async {
     let x = await f() // BREAK HERE

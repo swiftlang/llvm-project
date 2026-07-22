@@ -3856,6 +3856,56 @@ CxxThreadLocalTaskFinder::ComputeTaskAddrLocation(Thread &real_thread) {
   return location;
 }
 
+/// Returns the address of the global variable ActiveTask::Value
+std::optional<addr_t> FindTaskGVLoadAddr(Process &process) {
+  auto concurrency_module =
+      SwiftLanguageRuntime::FindConcurrencyModule(process);
+  if (!concurrency_module)
+    return {};
+
+  SymbolContextList list;
+  concurrency_module->FindSymbolsMatchingRegExAndType(
+      RegularExpression("ActiveTask::Value"), SymbolType::eSymbolTypeAny, list);
+  if (list.IsEmpty())
+    return {};
+  return list[0].GetFunctionOrSymbolAddress().GetLoadAddress(
+      &process.GetTarget());
+}
+
+struct GlobalVarTaskFinder : CachingTaskFinder {
+  llvm::SmallVector<std::optional<lldb::addr_t>>
+  GetTaskAddrForThread(llvm::ArrayRef<Thread *> threads) override {
+    // Multiple threads don't make sense in this storage kind.
+    if (threads.size() > 1)
+      return llvm::SmallVector<std::optional<addr_t>>(threads.size(),
+                                                      std::nullopt);
+    return CachingTaskFinder::GetTaskAddrForThread(threads);
+  }
+
+  llvm::Expected<lldb::addr_t>
+  ComputeTaskAddrLocation(Thread &real_thread) override;
+
+private:
+  std::optional<addr_t> task_gv_load_addr = std::nullopt;
+};
+
+llvm::Expected<lldb::addr_t>
+GlobalVarTaskFinder::ComputeTaskAddrLocation(Thread &thread) {
+  Process &process = *thread.GetProcess();
+  // Try to find the "current task" global variable once, trying on every stop
+  // won't help and is expensive.
+  if (!task_gv_load_addr) {
+    task_gv_load_addr =
+        FindTaskGVLoadAddr(process).value_or(LLDB_INVALID_ADDRESS);
+    LLDB_LOG(
+        GetLog(LLDBLog::OS),
+        "GlobalVarTaskFinder: current task global variable address = {0:x}",
+        *task_gv_load_addr);
+  }
+
+  return *task_gv_load_addr;
+}
+
 /// Lightweight wrapper around TaskStatusRecord pointers, providing:
 ///   * traversal over the embedded linnked list of status records
 ///   * information contained within records
@@ -4100,10 +4150,11 @@ GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
   switch (*info.task_storage_kind) {
   case CurrentTaskStorageKind::pthread_reserved_key:
     return std::make_unique<PthreadReservedKeyTaskFinder>();
+  case CurrentTaskStorageKind::global:
+    return std::make_unique<GlobalVarTaskFinder>();
   case CurrentTaskStorageKind::cxx_thread_local:
     return std::make_unique<CxxThreadLocalTaskFinder>(info.concurrency_module);
   case CurrentTaskStorageKind::pthread_allocated_key:
-  case CurrentTaskStorageKind::global:
   case CurrentTaskStorageKind::last:
     break;
   }

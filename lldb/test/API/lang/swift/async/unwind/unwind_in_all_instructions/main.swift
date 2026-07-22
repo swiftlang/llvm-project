@@ -1,3 +1,4 @@
+import _Concurrency
 func async_work() async {
   print("async working")
 }
