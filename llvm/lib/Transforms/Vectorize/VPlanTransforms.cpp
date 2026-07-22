@@ -6030,10 +6030,9 @@ static VPValue *narrowInterleaveGroupOp(ArrayRef<VPValue *> Members,
     // Narrow interleave group to wide load, as transformed VPlan will only
     // process one original iteration.
     auto *LI = cast<LoadInst>(LoadGroup->getInterleaveGroup()->getInsertPos());
-    auto *L = new VPWidenLoadRecipe(*LI, LoadGroup->getAddr(),
-                                    LoadGroup->getMask(), /*Consecutive=*/true,
-                                    *LoadGroup, LoadGroup->getDebugLoc());
-    L->insertBefore(LoadGroup);
+    auto *L = VPBuilder(LoadGroup).createWidenLoad(
+        *LI, LoadGroup->getAddr(), LoadGroup->getMask(), /*Consecutive=*/true,
+        *LoadGroup, LoadGroup->getDebugLoc());
     NarrowedOps.insert(L);
     return L;
   }
@@ -6193,10 +6192,10 @@ VPlanTransforms::narrowInterleaveGroups(VPlan &Plan,
                                            NarrowedOps, Preheader);
     auto *SI =
         cast<StoreInst>(StoreGroup->getInterleaveGroup()->getInsertPos());
-    auto *S = new VPWidenStoreRecipe(*SI, StoreGroup->getAddr(), Res, nullptr,
-                                     /*Consecutive=*/true, *StoreGroup,
-                                     StoreGroup->getDebugLoc());
-    S->insertBefore(StoreGroup);
+    VPBuilder(StoreGroup)
+        .createWidenStore(*SI, StoreGroup->getAddr(), Res, nullptr,
+                          /*Consecutive=*/true, *StoreGroup,
+                          StoreGroup->getDebugLoc());
     StoreGroup->eraseFromParent();
   }
 
@@ -7365,7 +7364,7 @@ void VPlanTransforms::makeMemOpWideningDecisions(VPlan &Plan, VFRange &Range,
   };
 
   auto ReplaceWith = [&](VPInstruction *VPI, VPRecipeBase *New) {
-    New->insertBefore(VPI);
+    assert(New->getParent() && "New recipe must have been inserted");
     if (VPI->getOpcode() == Instruction::Load)
       VPI->replaceAllUsesWith(New->getVPSingleValue());
     VPI->eraseFromParent();
@@ -7375,7 +7374,8 @@ void VPlanTransforms::makeMemOpWideningDecisions(VPlan &Plan, VFRange &Range,
   };
 
   auto Scalarize = [&](VPInstruction *VPI) {
-    return ReplaceWith(VPI, RecipeBuilder.handleReplication(VPI, Range));
+    return ReplaceWith(VPI, VPBuilder(VPI).insert(
+                                RecipeBuilder.handleReplication(VPI, Range)));
   };
 
   VPBasicBlock *MiddleVPBB = Plan.getMiddleBlock();
@@ -7392,7 +7392,7 @@ void VPlanTransforms::makeMemOpWideningDecisions(VPlan &Plan, VFRange &Range,
           return false;
 
         if (VPHistogramRecipe *Histogram = RecipeBuilder.widenIfHistogram(VPI))
-          return ReplaceWith(VPI, Histogram);
+          return ReplaceWith(VPI, VPBuilder(VPI).insert(Histogram));
 
         return false;
       });
@@ -7435,9 +7435,9 @@ void VPlanTransforms::makeMemOpWideningDecisions(VPlan &Plan, VFRange &Range,
               CostCtx.PSE.getSE()->isLoopInvariant(PtrSCEV, CostCtx.L);
 
           ReplaceWith(VPI,
-                      new VPReplicateRecipe(
+                      VPBuilder(VPI).insert(new VPReplicateRecipe(
                           I, Ptr, /*IsSingleScalar=*/IsSingleScalarLoad,
-                          /*Mask=*/nullptr, *VPI, *VPI, VPI->getDebugLoc()));
+                          /*Mask=*/nullptr, *VPI, *VPI, VPI->getDebugLoc())));
           return true;
         });
   }
@@ -7459,18 +7459,18 @@ void VPlanTransforms::makeMemOpWideningDecisions(VPlan &Plan, VFRange &Range,
         Type *StrideTy =
             Plan.getDataLayout().getIndexType(Ptr->getScalarType());
         VPValue *StrideOne = Plan.getConstantInt(StrideTy, 1);
-        auto *VectorPtr = new VPVectorPointerRecipe(
+        VPBuilder Builder(VPI);
+        auto *VectorPtr = Builder.createVectorPointer(
             Ptr, ScalarTy, StrideOne, vputils::getGEPFlagsForPtr(Ptr),
             VPI->getDebugLoc());
-        VectorPtr->insertBefore(VPI);
         VPRecipeBase *WidenedR;
         if (IsLoad)
-          WidenedR = new VPWidenLoadRecipe(*cast<LoadInst>(I), VectorPtr,
-                                           /*Mask=*/nullptr,
-                                           /*Consecutive=*/true, *VPI,
-                                           VPI->getDebugLoc());
+          WidenedR = Builder.createWidenLoad(*cast<LoadInst>(I), VectorPtr,
+                                             /*Mask=*/nullptr,
+                                             /*Consecutive=*/true, *VPI,
+                                             VPI->getDebugLoc());
         else
-          WidenedR = new VPWidenStoreRecipe(
+          WidenedR = Builder.createWidenStore(
               *cast<StoreInst>(I), VectorPtr, VPI->getOperand(0),
               /*Mask=*/nullptr, /*Consecutive=*/true, *VPI, VPI->getDebugLoc());
         return ReplaceWith(VPI, WidenedR);
