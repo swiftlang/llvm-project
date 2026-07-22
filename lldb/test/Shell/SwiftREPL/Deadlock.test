@@ -1,5 +1,4 @@
 // REQUIRES: swift
-// XFAIL: system-windows
 
 // RUN: %lldb --repl < %s | FileCheck %s
 

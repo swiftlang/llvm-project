@@ -1,5 +1,7 @@
 // Test that subclassing works in the repl.
 // REQUIRES: swift
+// The value of the first expression is not printed; swiftCore reflection gap.
+// XFAIL: system-windows
 
 // RUN: %lldb --repl < %s | FileCheck %s
 
