@@ -169,6 +169,8 @@ LLDB_INVALID_ADDRESS = _lldb.LLDB_INVALID_ADDRESS
 
 LLDB_INVALID_INDEX32 = _lldb.LLDB_INVALID_INDEX32
 
+LLDB_INVALID_INDEX64 = _lldb.LLDB_INVALID_INDEX64
+
 LLDB_INVALID_IVAR_OFFSET = _lldb.LLDB_INVALID_IVAR_OFFSET
 
 LLDB_INVALID_IMAGE_TOKEN = _lldb.LLDB_INVALID_IMAGE_TOKEN
@@ -470,6 +472,30 @@ eScriptLanguageUnknown = _lldb.eScriptLanguageUnknown
 
 eScriptLanguageDefault = _lldb.eScriptLanguageDefault
 
+eScriptedExtensionInvalid = _lldb.eScriptedExtensionInvalid
+
+eScriptedExtensionOperatingSystem = _lldb.eScriptedExtensionOperatingSystem
+
+eScriptedExtensionScriptedPlatform = _lldb.eScriptedExtensionScriptedPlatform
+
+eScriptedExtensionScriptedProcess = _lldb.eScriptedExtensionScriptedProcess
+
+eScriptedExtensionScriptedBreakpointResolver = _lldb.eScriptedExtensionScriptedBreakpointResolver
+
+eScriptedExtensionScriptedThreadPlan = _lldb.eScriptedExtensionScriptedThreadPlan
+
+eScriptedExtensionScriptedFrameProvider = _lldb.eScriptedExtensionScriptedFrameProvider
+
+eScriptedExtensionScriptedHook = _lldb.eScriptedExtensionScriptedHook
+
+eScriptedExtensionScriptedThread = _lldb.eScriptedExtensionScriptedThread
+
+eScriptedExtensionScriptedFrame = _lldb.eScriptedExtensionScriptedFrame
+
+eScriptedExtensionScriptedStackFrameRecognizer = _lldb.eScriptedExtensionScriptedStackFrameRecognizer
+
+kLastScriptedExtension = _lldb.kLastScriptedExtension
+
 eRegisterKindEHFrame = _lldb.eRegisterKindEHFrame
 r"""the register numbers seen in eh_frame"""
 eRegisterKindDWARF = _lldb.eRegisterKindDWARF
@@ -625,6 +651,12 @@ eValueTypeVTable = _lldb.eValueTypeVTable
 r"""virtual function table"""
 eValueTypeVTableEntry = _lldb.eValueTypeVTableEntry
 r"""function pointer in virtual function table"""
+kLastValueType = _lldb.kLastValueType
+
+eValueTypeSyntheticFlag = _lldb.eValueTypeSyntheticFlag
+r"""A flag that indicates if the value type is synthetic or not."""
+kValueTypeFlagsMask = _lldb.kValueTypeFlagsMask
+
 eInputReaderGranularityInvalid = _lldb.eInputReaderGranularityInvalid
 
 eInputReaderGranularityByte = _lldb.eInputReaderGranularityByte
@@ -1154,6 +1186,10 @@ eArgTypeProtocol = _lldb.eArgTypeProtocol
 eArgTypeExceptionStage = _lldb.eArgTypeExceptionStage
 
 eArgTypeNameMatchStyle = _lldb.eArgTypeNameMatchStyle
+
+eArgTypeBreakpointResolverMask = _lldb.eArgTypeBreakpointResolverMask
+
+eArgTypeScriptedExtension = _lldb.eArgTypeScriptedExtension
 
 eArgTypeLastArg = _lldb.eArgTypeLastArg
 
@@ -2054,6 +2090,8 @@ eCustomCompletion = _lldb.eCustomCompletion
 
 eThreadIDCompletion = _lldb.eThreadIDCompletion
 
+eScriptedExtensionCompletion = _lldb.eScriptedExtensionCompletion
+
 eTerminatorCompletion = _lldb.eTerminatorCompletion
 
 eRefetch = _lldb.eRefetch
@@ -2153,6 +2191,22 @@ eNameMatchStyleMethod = _lldb.eNameMatchStyleMethod
 eNameMatchStyleSelector = _lldb.eNameMatchStyleSelector
 
 eNameMatchStyleRegex = _lldb.eNameMatchStyleRegex
+
+eResolverUnknown = _lldb.eResolverUnknown
+
+eResolverFileAndLine = _lldb.eResolverFileAndLine
+
+eResolverAddress = _lldb.eResolverAddress
+
+eResolverName = _lldb.eResolverName
+
+eResolverFileRegex = _lldb.eResolverFileRegex
+
+eResolverPython = _lldb.eResolverPython
+
+eResolverException = _lldb.eResolverException
+
+eResolverLastKnown = _lldb.eResolverLastKnown
 
 class SBAddress(object):
     r"""
@@ -2356,7 +2410,7 @@ class SBAddress(object):
 # Register SBAddress in _lldb:
 _lldb.SBAddress_swigregister(SBAddress)
 cvar = _lldb.cvar
-ValueTypeSyntheticMask = cvar.ValueTypeSyntheticMask
+BreakpointResolverAllResolversMask = cvar.BreakpointResolverAllResolversMask
 
 class SBAddressRange(object):
     r"""API clients can get address range information."""
@@ -3366,6 +3420,16 @@ class SBBreakpointList(object):
     def __iter__(self):
         '''Iterate over all breakpoints in a lldb.SBBreakpointList object.'''
         return lldb_iter(self, 'GetSize', 'GetBreakpointAtIndex')
+
+    def __getitem__(self, idx):
+        '''Get the breakpoint at a given index in an lldb.SBBreakpointList object.'''
+        if not isinstance(idx, int):
+            raise TypeError("unsupported index type: %s" % type(idx))
+        count = len(self)
+        if not (-count <= idx < count):
+            raise IndexError("list index out of range")
+        idx %= count
+        return self.GetBreakpointAtIndex(idx)
 
 
 # Register SBBreakpointList in _lldb:
@@ -7217,6 +7281,16 @@ class SBFileSpecList(object):
       '''Iterate over all FileSpecs in a lldb.SBFileSpecList object.'''
       return lldb_iter(self, 'GetSize', 'GetFileSpecAtIndex')
 
+    def __getitem__(self, idx):
+      '''Get the FileSpec at a given index in an lldb.SBFileSpecList object.'''
+      if not isinstance(idx, int):
+        raise TypeError("unsupported index type: %s" % type(idx))
+      count = len(self)
+      if not (-count <= idx < count):
+        raise IndexError("list index out of range")
+      idx %= count
+      return self.GetFileSpecAtIndex(idx)
+
 
 # Register SBFileSpecList in _lldb:
 _lldb.SBFileSpecList_swigregister(SBFileSpecList)
@@ -9170,6 +9244,19 @@ class SBMemoryRegionInfoList(object):
         self.GetMemoryRegionAtIndex(i, region)
         yield region
 
+    def __getitem__(self, idx):
+      '''Get the memory region at a given index in an lldb.SBMemoryRegionInfoList object.'''
+      if not isinstance(idx, int):
+        raise TypeError("unsupported index type: %s" % type(idx))
+      count = len(self)
+      if not (-count <= idx < count):
+        raise IndexError("list index out of range")
+      idx %= count
+      import lldb
+      region = lldb.SBMemoryRegionInfo()
+      self.GetMemoryRegionAtIndex(idx, region)
+      return region
+
 
 # Register SBMemoryRegionInfoList in _lldb:
 _lldb.SBMemoryRegionInfoList_swigregister(SBMemoryRegionInfoList)
@@ -10097,6 +10184,16 @@ class SBModuleSpecList(object):
     def __iter__(self):
       '''Iterate over all ModuleSpecs in a lldb.SBModuleSpecList object.'''
       return lldb_iter(self, 'GetSize', 'GetSpecAtIndex')
+
+    def __getitem__(self, idx):
+      '''Get the ModuleSpec at a given index in an lldb.SBModuleSpecList object.'''
+      if not isinstance(idx, int):
+        raise TypeError("unsupported index type: %s" % type(idx))
+      count = len(self)
+      if not (-count <= idx < count):
+        raise IndexError("list index out of range")
+      idx %= count
+      return self.GetSpecAtIndex(idx)
 
 
 # Register SBModuleSpecList in _lldb:
@@ -11445,6 +11542,16 @@ class SBProcessInfoList(object):
       '''Iterate over all the process info in a lldb.SBProcessInfoListExtensions object.'''
       return lldb_iter(self, 'GetSize', 'GetProcessInfoAtIndex')
 
+    def __getitem__(self, idx):
+      '''Get the process info at a given index in an lldb.SBProcessInfoList object.'''
+      if not isinstance(idx, int):
+        raise TypeError("unsupported index type: %s" % type(idx))
+      count = len(self)
+      if not (-count <= idx < count):
+        raise IndexError("list index out of range")
+      idx %= count
+      return self.GetProcessInfoAtIndex(idx)
+
 
 # Register SBProcessInfoList in _lldb:
 _lldb.SBProcessInfoList_swigregister(SBProcessInfoList)
@@ -11577,6 +11684,63 @@ class SBProgress(object):
 
 # Register SBProgress in _lldb:
 _lldb.SBProgress_swigregister(SBProgress)
+class SBProtocolServer(object):
+    r"""
+    A server that speaks a debugging protocol.
+
+    Protocol servers are shared across debuggers. Creating a server for a
+    protocol that already has one hands back the existing server.
+    """
+
+    thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
+    __repr__ = _swig_repr
+
+    def __init__(self, *args):
+        r"""
+        __init__(SBProtocolServer self) -> SBProtocolServer
+        __init__(SBProtocolServer self, SBProtocolServer rhs) -> SBProtocolServer
+        """
+        _lldb.SBProtocolServer_swiginit(self, _lldb.new_SBProtocolServer(*args))
+    __swig_destroy__ = _lldb.delete_SBProtocolServer
+
+    @staticmethod
+    def Create(protocol, error):
+        r"""
+        Returns the protocol server for ``protocol``, creating it if this process
+        does not already have one. On failure ``error`` is set.
+        """
+        return _lldb.SBProtocolServer_Create(protocol, error)
+
+    def __nonzero__(self):
+        return _lldb.SBProtocolServer___nonzero__(self)
+    __bool__ = __nonzero__
+
+
+
+    def IsValid(self):
+        r"""IsValid(SBProtocolServer self) -> bool"""
+        return _lldb.SBProtocolServer_IsValid(self)
+
+    def Start(self, connection_uri):
+        r"""
+        Starts listening for clients on ``connection_uri``, which must be an
+        accepting URI such as "listen://[host]:port" or "accept:///path".
+        """
+        return _lldb.SBProtocolServer_Start(self, connection_uri)
+
+    def Stop(self):
+        r"""Stop(SBProtocolServer self) -> SBError"""
+        return _lldb.SBProtocolServer_Stop(self)
+
+    def GetConnectionURI(self):
+        r"""
+        Returns the URI clients can connect to, valid after a successful Start,
+        or nullptr if the server is not listening.
+        """
+        return _lldb.SBProtocolServer_GetConnectionURI(self)
+
+# Register SBProtocolServer in _lldb:
+_lldb.SBProtocolServer_swigregister(SBProtocolServer)
 class SBQueue(object):
     r"""Represents a libdispatch queue in the process."""
 
@@ -12308,6 +12472,16 @@ class SBStringList(object):
     def __len__(self):
         '''Return the number of strings in a lldb.SBStringList object.'''
         return self.GetSize()
+
+    def __getitem__(self, idx):
+        '''Get the string at a given index in an lldb.SBStringList object.'''
+        if not isinstance(idx, int):
+            raise TypeError("unsupported index type: %s" % type(idx))
+        count = len(self)
+        if not (-count <= idx < count):
+            raise IndexError("list index out of range")
+        idx %= count
+        return self.GetStringAtIndex(idx)
 
 
 # Register SBStringList in _lldb:
@@ -13732,6 +13906,18 @@ class SBTarget(object):
         """
         return _lldb.SBTarget_ReadMemory(self, addr, buf, error)
 
+    def AddBreakpointOverride(self, class_name, description, type_mask, args_data, status):
+        r"""
+        Adds a breakpoint override implemented by class_name.  Returns the ID
+        of the new override or LLDB_INVALID_INDEX64 on error.  The type_mask
+        is composed of elements from the lldb::BreakpointResolverType enum.
+        """
+        return _lldb.SBTarget_AddBreakpointOverride(self, class_name, description, type_mask, args_data, status)
+
+    def RemoveBreakpointOverride(self, id):
+        r"""RemoveBreakpointOverride(SBTarget self, uint64_t id) -> bool"""
+        return _lldb.SBTarget_RemoveBreakpointOverride(self, id)
+
     def BreakpointCreateByLocation(self, *args):
         r"""
         BreakpointCreateByLocation(SBTarget self, char const * file, uint32_t line) -> SBBreakpoint
@@ -15009,6 +15195,16 @@ class SBThreadCollection(object):
     def __len__(self):
         '''Return the number of threads in a lldb.SBThreadCollection object.'''
         return self.GetSize()
+
+    def __getitem__(self, idx):
+        '''Get the thread at a given index in an lldb.SBThreadCollection object.'''
+        if not isinstance(idx, int):
+            raise TypeError("unsupported index type: %s" % type(idx))
+        count = len(self)
+        if not (-count <= idx < count):
+            raise IndexError("list index out of range")
+        idx %= count
+        return self.GetThreadAtIndex(idx)
 
 
 # Register SBThreadCollection in _lldb:
@@ -16827,6 +17023,16 @@ class SBTypeList(object):
     def __len__(self):
         '''Return the number of types in a lldb.SBTypeList object.'''
         return self.GetSize()
+
+    def __getitem__(self, idx):
+        '''Get the type at a given index in an lldb.SBTypeList object.'''
+        if not isinstance(idx, int):
+            raise TypeError("unsupported index type: %s" % type(idx))
+        count = len(self)
+        if not (-count <= idx < count):
+            raise IndexError("list index out of range")
+        idx %= count
+        return self.GetTypeAtIndex(idx)
 
 
 # Register SBTypeList in _lldb:
