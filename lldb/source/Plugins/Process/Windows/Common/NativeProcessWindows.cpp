@@ -74,6 +74,8 @@ NativeProcessWindows::NativeProcessWindows(lldb::pid_t pid, int terminal_fd,
   if (E)
     return;
 
+  m_expecting_loader_int3 = true;
+
   SetID(GetDebuggedProcessId());
 
   ProcessInstanceInfo info;

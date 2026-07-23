@@ -13,6 +13,7 @@
 #include <psapi.h>
 
 #include "lldb/Breakpoint/Watchpoint.h"
+#include "lldb/Core/Address.h"
 #include "lldb/Core/IOHandler.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -225,6 +226,9 @@ ProcessWindows::DoAttachToProcessWithID(lldb::pid_t pid,
   Status error = AttachProcess(pid, attach_info, delegate);
   if (error.Success())
     SetID(GetDebuggedProcessId());
+
+  m_expecting_loader_int3 = true;
+
   return error;
 }
 
@@ -291,8 +295,12 @@ Status ProcessWindows::DoDestroy() {
 
 Status ProcessWindows::DoHalt(bool &caused_stop) {
   StateType state = GetPrivateState();
-  if (state != eStateStopped)
-    return HaltProcess(caused_stop);
+  if (state != eStateStopped) {
+    m_pending_halt = true;
+    Status error = HaltProcess(caused_stop);
+    if (error.Fail() || !caused_stop)
+      m_pending_halt = false;
+  }
   caused_stop = false;
   return Status();
 }
@@ -774,7 +782,22 @@ ProcessWindows::OnDebugException(bool first_chance,
 
   ExceptionResult result = ExceptionResult::SendToApplication;
   switch (record.GetExceptionCode()) {
-  case EXCEPTION_BREAKPOINT:
+  case EXCEPTION_BREAKPOINT: {
+    const lldb::addr_t bp_addr = record.GetExceptionAddress();
+    if (m_pending_halt) {
+      m_pending_halt = false;
+    } else if (m_expecting_loader_int3 && first_chance &&
+               m_session_data->m_initial_stop_received &&
+               !GetBreakpointSiteList().FindByAddress(bp_addr) &&
+               IsSystemModuleAddress(bp_addr)) {
+      m_expecting_loader_int3 = false;
+      LLDB_LOG(log,
+               "Skipping expected loader breakpoint at address {0:x} in a "
+               "system module.",
+               bp_addr);
+      return ExceptionResult::MaskException;
+    }
+
     // Handle breakpoints at the first chance.
     result = ExceptionResult::BreakInDebugger;
 
@@ -797,6 +820,7 @@ ProcessWindows::OnDebugException(bool first_chance,
     DrainProcessStdout();
     SetPrivateState(eStateStopped);
     break;
+  }
   case EXCEPTION_SINGLE_STEP:
     result = ExceptionResult::BreakInDebugger;
     DrainProcessStdout();
