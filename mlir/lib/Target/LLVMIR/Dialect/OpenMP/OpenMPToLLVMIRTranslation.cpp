@@ -271,7 +271,7 @@ public:
     // Emit barrier
     builder.SetInsertPoint(linearExitBB->getTerminator());
     return moduleTranslation.getOpenMPBuilder()->createBarrier(
-        builder.saveIP(), llvm::omp::OMPD_barrier);
+        builder, llvm::omp::OMPD_barrier);
   }
 
   // Emit stores for linear variables. Useful in case of SIMD
@@ -1634,8 +1634,8 @@ static LogicalResult createReductionsAndCleanup(
   llvm::UnreachableInst *tempTerminator = builder.CreateUnreachable();
   builder.SetInsertPoint(tempTerminator);
   llvm::OpenMPIRBuilder::InsertPointOrErrorTy contInsertPoint =
-      ompBuilder->createReductions(builder.saveIP(), allocaIP, reductionInfos,
-                                   isByRef, isNowait, isTeamsReduction);
+      ompBuilder->createReductions(builder, allocaIP, reductionInfos, isByRef,
+                                   isNowait, isTeamsReduction);
 
   if (failed(handleError(contInsertPoint, *op)))
     return failure();
@@ -1983,7 +1983,7 @@ static LogicalResult copyFirstPrivateVars(
   if (insertBarrier && !opIsInSingleThread(op)) {
     llvm::OpenMPIRBuilder *ompBuilder = moduleTranslation.getOpenMPBuilder();
     llvm::OpenMPIRBuilder::InsertPointOrErrorTy res =
-        ompBuilder->createBarrier(builder.saveIP(), llvm::omp::OMPD_barrier);
+        ompBuilder->createBarrier(builder, llvm::omp::OMPD_barrier);
     if (failed(handleError(res, *op)))
       return failure();
   }
@@ -4350,7 +4350,6 @@ convertOmpTaskwaitOp(omp::TaskwaitOp twOp, llvm::IRBuilderBase &builder,
   if (failed(checkImplementationStatus(*twOp)))
     return failure();
 
-  moduleTranslation.getOpenMPBuilder()->createTaskwait(builder.saveIP());
   return success();
 }
 
@@ -4506,7 +4505,7 @@ convertOmpWsloop(Operation &opInst, llvm::IRBuilderBase &builder,
                                         loopInfo->getPreheader());
     llvm::OpenMPIRBuilder::InsertPointOrErrorTy afterBarrierIP =
         moduleTranslation.getOpenMPBuilder()->createBarrier(
-            builder.saveIP(), llvm::omp::OMPD_barrier);
+            builder, llvm::omp::OMPD_barrier);
     if (failed(handleError(afterBarrierIP, *loopOp)))
       return failure();
     builder.restoreIP(*afterBarrierIP);
@@ -4703,9 +4702,10 @@ convertOmpParallel(omp::ParallelOp opInst, llvm::IRBuilderBase &builder,
       builder.SetInsertPoint(tempTerminator);
 
       llvm::OpenMPIRBuilder::InsertPointOrErrorTy contInsertPoint =
-          ompBuilder->createReductions(
-              builder.saveIP(), allocaIP, reductionInfos, isByRef,
-              /*IsNoWait=*/false, /*IsTeamsReduction=*/false);
+          ompBuilder->createReductions(builder, allocaIP, reductionInfos,
+                                       isByRef,
+                                       /*IsNoWait=*/false,
+                                       /*IsTeamsReduction=*/false);
       if (!contInsertPoint)
         return contInsertPoint.takeError();
 
@@ -9553,8 +9553,7 @@ LogicalResult OpenMPDialectLLVMIRTranslationInterface::convertOperation(
               return failure();
 
             llvm::OpenMPIRBuilder::InsertPointOrErrorTy afterIP =
-                ompBuilder->createBarrier(builder.saveIP(),
-                                          llvm::omp::OMPD_barrier);
+                ompBuilder->createBarrier(builder, llvm::omp::OMPD_barrier);
             LogicalResult res = handleError(afterIP, *op);
             if (res.succeeded()) {
               // If the barrier generated a cancellation check, the insertion
@@ -9567,7 +9566,7 @@ LogicalResult OpenMPDialectLLVMIRTranslationInterface::convertOperation(
             if (failed(checkImplementationStatus(*op)))
               return failure();
 
-            ompBuilder->createTaskyield(builder.saveIP());
+            ompBuilder->createTaskyield(builder);
             return success();
           })
           .Case([&](omp::FlushOp op) {
@@ -9582,7 +9581,7 @@ LogicalResult OpenMPDialectLLVMIRTranslationInterface::convertOperation(
             //
             // The argument list is discarded so that, flush with a list is
             // treated same as a flush without a list.
-            ompBuilder->createFlush(builder.saveIP());
+            ompBuilder->createFlush(builder);
             return success();
           })
           .Case([&](omp::ParallelOp op) {
