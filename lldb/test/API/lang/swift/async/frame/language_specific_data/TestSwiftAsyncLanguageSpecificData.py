@@ -9,7 +9,6 @@ class TestCase(lldbtest.TestBase):
 
     @no_debug_info_test
     @swiftTest
-    @skipIf(oslist=['windows'])
     def test(self):
         """Test SBFrame.GetLanguageSpecificData() in async functions"""
         self.build()

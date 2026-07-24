@@ -10,7 +10,6 @@ class TestCase(lldbtest.TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
-    @skipIf(oslist=['windows'])
     def test(self):
         """Test step-in to async functions"""
         self.build()

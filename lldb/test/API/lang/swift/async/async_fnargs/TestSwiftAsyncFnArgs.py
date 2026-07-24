@@ -10,7 +10,6 @@ class TestSwiftAsyncFnArgs(lldbtest.TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
-    @skipIf(oslist=['windows',])
     def test(self):
         """Test function arguments in async functions"""
         self.build()
