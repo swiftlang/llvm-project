@@ -22,6 +22,9 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/LLDBLog.h"
+#include "lldb/Utility/Log.h"
+#include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/ValueObject/ValueObject.h"
 #include "lldb/lldb-enumerations.h"
@@ -418,6 +421,53 @@ bool lldb_private::formatters::swift::Data_SummaryProvider(
     count = (int64_t)length_sp->GetValueAsUnsigned(0, &success);
     if (!success) {
       return false;
+    }
+
+    // rdar://182785830 diagnostic. An inline Data can hold at most 14 bytes, so
+    // any larger `length` proves the reflection-derived layout of InlineData
+    // resolved the `length` field to the wrong offset/size. The canonical bad
+    // value is 197121 == 0x00030201 == the buffer bytes [1,2,3,0] read as a
+    // 4-byte int at offset 0. Dump the geometry so the failing CI run explains
+    // itself (part02 runs `log enable lldb types`, so this is captured).
+    if (count < 0 || count > 14) {
+      auto byte_size = [](const ValueObjectSP &v) -> uint64_t {
+        return llvm::expectedToStdOptional(v->GetByteSize()).value_or(0);
+      };
+      StreamString ss;
+      ss.Printf("[rdar182785830] IMPOSSIBLE inline length=%lld (cap 14). "
+                "length{type=%s, byte_size=%llu} "
+                "InlineData{byte_size=%llu, num_children=%u} children=[",
+                (long long)count,
+                length_sp->GetTypeName().AsCString("<null>"),
+                (unsigned long long)byte_size(length_sp),
+                (unsigned long long)byte_size(inline_data_sp),
+                inline_data_sp->GetNumChildrenIgnoringErrors());
+      for (uint32_t i = 0, e = inline_data_sp->GetNumChildrenIgnoringErrors();
+           i < e; ++i) {
+        ValueObjectSP c = inline_data_sp->GetChildAtIndex(i, true);
+        if (!c)
+          continue;
+        ss.Printf("%s%s:off=%llu:size=%llu", i ? ", " : "",
+                  c->GetName().AsCString("<null>"),
+                  (unsigned long long)c->GetByteOffset(),
+                  (unsigned long long)byte_size(c));
+      }
+      ss.PutCString("] raw=");
+      DataExtractor bytes;
+      Status extract_err;
+      if (inline_data_sp->GetData(bytes, extract_err)) {
+        lldb::offset_t off = 0;
+        for (uint64_t i = 0; i < bytes.GetByteSize(); ++i)
+          ss.Printf("%02x ", bytes.GetU8(&off));
+      }
+      // Emit into BOTH the log and the summary itself. The summary is what
+      // dotest prints in the `expect` failure ("Got output: ..."), so this is
+      // guaranteed to reach the console when the test fails, without depending
+      // on a log channel being captured.
+      LLDB_LOG(GetLog(LLDBLog::DataFormatters | LLDBLog::Types), "{0}",
+               ss.GetString());
+      stream.PutCString(ss.GetString());
+      stream.PutCString(" ");
     }
   } else if (representation_case == g_slice) {
     // Grab the associated value from `case slice(InlineSlice)`.

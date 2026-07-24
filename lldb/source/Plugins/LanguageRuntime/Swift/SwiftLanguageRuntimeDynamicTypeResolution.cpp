@@ -1971,6 +1971,7 @@ llvm::Expected<CompilerType> SwiftLanguageRuntime::GetChildCompilerTypeAtIndex(
     uint64_t &language_flags) {
   CompilerType child_type;
   bool found = false;
+  ConstString parent_mangled = type.GetMangledTypeName();
   SwiftRuntimeTypeVisitor visitor(*this, type, valobj, omit_empty_base_classes);
   llvm::Error error = visitor.VisitChildAtIndex(
       idx,
@@ -1985,6 +1986,15 @@ llvm::Expected<CompilerType> SwiftLanguageRuntime::GetChildCompilerTypeAtIndex(
         child_name = get_child_name();
         child_byte_size = child.byte_size;
         child_byte_offset = child.byte_offset;
+        // rdar://182785830: trace the geometry each field resolves to, so a
+        // wrong result for a resilient field (e.g. Data.InlineData.length
+        // resolving to offset 0 / size 4 instead of offset 14 / size 1) is
+        // visible in the types log at the exact moment of resolution.
+        LLDB_LOG(GetLog(LLDBLog::Types),
+                 "[GetChildCompilerTypeAtIndex] {0} field #{1} '{2}' -> "
+                 "byte_offset={3} byte_size={4}",
+                 parent_mangled.GetStringRef(), (unsigned)idx,
+                 child_name, child_byte_offset, child_byte_size);
         child_bitfield_bit_size = child.bitfield_bit_size;
         child_bitfield_bit_offset = child.bitfield_bit_offset;
         child_is_base_class = child.is_base_class;
