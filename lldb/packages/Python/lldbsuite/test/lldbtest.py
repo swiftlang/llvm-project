@@ -2663,6 +2663,7 @@ class TestBase(Base, metaclass=LLDBTestCaseFactory):
             stdout=PIPE,
             stderr=PIPE,
             universal_newlines=True,
+            encoding="utf-8",
         )
         cmd_stdout, cmd_stderr = subproc.communicate(input=output)
         cmd_status = subproc.returncode
