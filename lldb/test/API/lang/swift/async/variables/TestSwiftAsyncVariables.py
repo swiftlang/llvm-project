@@ -10,7 +10,6 @@ class TestSwiftAsyncVariables(lldbtest.TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
-    @skipIf(oslist=['windows'])
     def test(self):
         """Test local variables in async functions"""
         self.build()
