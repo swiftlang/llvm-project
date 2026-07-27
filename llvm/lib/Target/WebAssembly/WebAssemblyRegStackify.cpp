@@ -244,9 +244,12 @@ static void query(const MachineInstr &MI, bool &Read, bool &Write,
     }
   }
 
-  // Check for writes to __stack_pointer global.
+  // Check for writes to __stack_pointer global. A user-declared addrspace(1)
+  // global is a MO_GlobalAddress rather than a MO_ExternalSymbol, and is never
+  // __stack_pointer.
   if ((MI.getOpcode() == WebAssembly::GLOBAL_SET_I32 ||
        MI.getOpcode() == WebAssembly::GLOBAL_SET_I64) &&
+      MI.getOperand(0).isSymbol() &&
       strcmp(MI.getOperand(0).getSymbolName(), "__stack_pointer") == 0)
     StackPointer = true;
 
