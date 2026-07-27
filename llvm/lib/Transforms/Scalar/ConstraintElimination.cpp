@@ -299,7 +299,7 @@ struct ConstraintTy {
 
   unsigned size() const { return Coefficients.size(); }
 
-  unsigned empty() const { return Coefficients.empty(); }
+  bool empty() const { return Coefficients.empty(); }
 
   bool isEq() const { return IsEq; }
 
