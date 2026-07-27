@@ -1018,7 +1018,8 @@ std::optional<std::string> ModuleCacheEntry::computeCacheKey(
     const FunctionImporter::ExportSetTy &ExportList,
     const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
     const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
-    bool Freestanding, const TargetMachineBuilder &TMBuilder) {
+    bool Freestanding, const TargetMachineBuilder &TMBuilder,
+    ArrayRef<std::string> MllvmArgs) {
   if (!Index.modulePaths().count(ModuleID))
     // The module does not have an entry, it can't have a hash at all
     return std::nullopt;
@@ -1035,6 +1036,7 @@ std::optional<std::string> ModuleCacheEntry::computeCacheKey(
   Conf.RelocModel = TMBuilder.RelocModel;
   Conf.CGOptLevel = TMBuilder.CGOptLevel;
   Conf.Freestanding = Freestanding;
+  append_range(Conf.MllvmArgs, MllvmArgs);
   std::string Key =
       computeLTOCacheKey(Conf, Index, ModuleID, ImportList, ExportList,
                          ResolvedODR, DefinedGVSummaries);
@@ -1133,12 +1135,13 @@ std::unique_ptr<ModuleCacheEntry> ThinLTOCodeGenerator::createModuleCacheEntry(
     const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
     const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
     bool Freestanding, const TargetMachineBuilder &TMBuilder,
+    ArrayRef<std::string> MllvmArgs,
     std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger) {
   assert(CacheOptions.Type == CachingOptions::CacheType::CacheDirectory);
 
   std::optional<std::string> Key = ModuleCacheEntry::computeCacheKey(
       Index, ModuleID, ImportList, ExportList, ResolvedODR, DefinedGVSummaries,
-      OptLevel, Freestanding, TMBuilder);
+      OptLevel, Freestanding, TMBuilder, MllvmArgs);
 
   if (!Key)
     return std::make_unique<NullModuleCacheEntry>();
@@ -1156,10 +1159,11 @@ static std::unique_ptr<AsyncModuleCacheEntry> createAsyncModuleCacheEntry(
     const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
     const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
     bool Freestanding, const TargetMachineBuilder &TMBuilder,
+    ArrayRef<std::string> MllvmArgs,
     std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger) {
   std::optional<std::string> Key = ModuleCacheEntry::computeCacheKey(
       Index, ModuleID, ImportList, ExportList, ResolvedODR, DefinedGVSummaries,
-      OptLevel, Freestanding, TMBuilder);
+      OptLevel, Freestanding, TMBuilder, MllvmArgs);
 
   if (!Key)
     return std::make_unique<NullAsyncModuleCacheEntry>();
@@ -1923,7 +1927,7 @@ void ThinLTOCodeGenerator::run() {
           OutputPath, ImportLists[ModuleIdentifier],
           ExportLists[ModuleIdentifier], ResolvedODR[ModuleIdentifier],
           ModuleToDefinedGVSummaries[ModuleIdentifier], OptLevel, Freestanding,
-          TMBuilder,
+          TMBuilder, MllvmArgs,
           [&CacheLogOS](llvm::function_ref<void(raw_ostream & OS)> Log) {
             if (CacheLogging)
               CacheLogOS.applyLocked(Log);
@@ -2167,7 +2171,7 @@ void ThinLTOCodeGenerator::run() {
         auto CacheEntry = createModuleCacheEntry(
             *Index, ModuleIdentifier, OutputPath, ImportLists[ModuleIdentifier],
             ExportList, ResolvedODR[ModuleIdentifier], DefinedGVSummaries,
-            OptLevel, Freestanding, TMBuilder,
+            OptLevel, Freestanding, TMBuilder, MllvmArgs,
             [&CacheLogOS](llvm::function_ref<void(raw_ostream & OS)> Log) {
               if (CacheLogging)
                 CacheLogOS.applyLocked(Log);

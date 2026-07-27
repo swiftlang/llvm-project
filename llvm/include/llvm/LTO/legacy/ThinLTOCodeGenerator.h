@@ -78,7 +78,8 @@ public:
       const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes> &ResolvedODR,
       const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
       bool Freestanding,
-      const ThinLTOCodeGeneratorImpl::TargetMachineBuilder &TMBuilder);
+      const ThinLTOCodeGeneratorImpl::TargetMachineBuilder &TMBuilder,
+      ArrayRef<std::string> MllvmArgs);
 };
 
 /// This class define an interface similar to the LTOCodeGenerator, but adapted
@@ -192,6 +193,7 @@ public:
       const GVSummaryMapTy &DefinedGVSummaries, unsigned OptLevel,
       bool Freestanding,
       const ThinLTOCodeGeneratorImpl::TargetMachineBuilder &TMBuilder,
+      ArrayRef<std::string> MllvmArgs,
       std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger =
           nullptr);
 
