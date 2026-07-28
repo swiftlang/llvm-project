@@ -64,7 +64,8 @@ class TestCase(TestBase):
         thread = process.GetSelectedThread()
 
         self.assertIn(
-            "libswift_Concurrency.", thread.GetSelectedFrame().module.file.basename
+            f"{self.platformContext.shlib_prefix}swift_Concurrency.",
+            thread.GetSelectedFrame().module.file.basename,
         )
 
         frame_idx = -1
