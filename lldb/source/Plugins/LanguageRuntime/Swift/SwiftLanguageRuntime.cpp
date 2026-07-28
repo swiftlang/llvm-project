@@ -329,16 +329,15 @@ FindSymbolForSwiftObject(Process &process, RuntimeKind runtime_kind,
 using CurrentTaskStorageKind = SwiftLanguageRuntime::CurrentTaskStorageKind;
 
 static std::optional<CurrentTaskStorageKind>
-DeriveStorageKind(uint32_t concurrency_version, uint8_t storage_kind_raw) {
-  // Prior to version 3, pthread_reserved_key is assumed.
-  //
-  // FIXME (rdar://183113449): that is Darwin's scheme; every other platform
-  // uses cxx_thread_local. Picking the right one here off Darwin makes the
-  // tasks plugin work on Windows, but it also activates the plugin across the
-  // board, and ProcessWindows does not tolerate the virtual threads it creates
-  // (resuming crashes in Process::Continue). Both have to be fixed together.
+DeriveStorageKind(uint32_t concurrency_version, uint8_t storage_kind_raw,
+                  const llvm::Triple &triple) {
+  // Prior to version 3 the runtime did not report which scheme it uses, so
+  // fall back to the one its threading implementation picks for this platform.
+  // Only Darwin sets SWIFT_THREADING_USE_RESERVED_TLS_KEYS; everywhere else
+  // swift/Threading/Impl/*.h defines SWIFT_THREAD_LOCAL as plain thread_local.
   if (concurrency_version <= 2)
-    return CurrentTaskStorageKind::pthread_reserved_key;
+    return triple.isOSDarwin() ? CurrentTaskStorageKind::pthread_reserved_key
+                               : CurrentTaskStorageKind::cxx_thread_local;
   if (storage_kind_raw == 0 ||
       storage_kind_raw >= static_cast<uint32_t>(CurrentTaskStorageKind::last))
     return std::nullopt;
@@ -358,7 +357,10 @@ SwiftLanguageRuntime::FindConcurrencyInfo(Process &process) {
 
   uint32_t version = *version_word & g_concurrency_version_mask;
   uint8_t storage_kind = *version_word >> g_concurrency_storage_kind_shift;
-  return {version, DeriveStorageKind(version, storage_kind), concurrency_module};
+  return {version,
+          DeriveStorageKind(version, storage_kind,
+                            process.GetTarget().GetArchitecture().GetTriple()),
+          concurrency_module};
 }
 
 static lldb::BreakpointResolverSP
@@ -3693,11 +3695,16 @@ CachingTaskFinder::GetTaskAddrLocations(llvm::ArrayRef<Thread *> threads) {
     if (it != m_tid_to_task_addr_location.end()) {
       addr_locations.push_back(it->second);
 #ifndef NDEBUG
-      // In assert builds, check that caching did not produce incorrect results.
+      // In assert builds, check that caching did not produce incorrect
+      // results. Recomputing can legitimately fail (the concurrency library
+      // may not be resolvable at this point, for instance), which says nothing
+      // about the cached value; only a successful, differing result is a bug.
       llvm::Expected<lldb::addr_t> task_addr_location =
           ComputeTaskAddrLocation(real_thread);
-      assert(task_addr_location);
-      assert(it->second == *task_addr_location);
+      if (task_addr_location)
+        assert(it->second == *task_addr_location);
+      else
+        llvm::consumeError(task_addr_location.takeError());
 #endif
       continue;
     }

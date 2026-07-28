@@ -20,15 +20,6 @@ class TestCase(lldbtest.TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
-    # rdar://183113449: on Windows the concurrency runtime keeps the current
-    # task in a C++ thread_local, but it reports layout version 2, for which
-    # DeriveStorageKind assumes Darwin's pthread_reserved_key scheme. lldb
-    # therefore picks a task finder that cannot see the task and no Task thread
-    # is created. Teaching DeriveStorageKind to pick cxx_thread_local off
-    # Darwin does make this pass, but it also activates the tasks plugin across
-    # the whole suite, and ProcessWindows does not tolerate OS-plugin threads
-    # (resuming crashes in Process::Continue). Both need fixing together.
-    @skipIf(oslist=["windows", "linux"])
     def test_task_thread(self):
         """Test that the plugin presents the running task as a thread."""
         thread = self.run_to_task_thread()
