@@ -6,21 +6,42 @@ import re
 
 
 class TestCase(lldbtest.TestBase):
-    @skipEmbeddedSwift
-    @swiftTest
-    @skipIf(oslist=["windows", "linux"])
-    def test(self):
-        """Test `frame variable` in async functions"""
+    def run_to_task_thread(self):
+        """Stops in an async function and returns the selected Task thread."""
         self.build()
 
         self.runCmd("settings set target.experimental.swift-tasks-plugin-enabled true")
 
         source_file = lldb.SBFileSpec("main.swift")
-        target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
+        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
             self, "BREAK HERE", source_file
         )
+        return thread
 
+    @skipEmbeddedSwift
+    @swiftTest
+    # rdar://183113449: on Windows the concurrency runtime keeps the current
+    # task in a C++ thread_local, but it reports layout version 2, for which
+    # DeriveStorageKind assumes Darwin's pthread_reserved_key scheme. lldb
+    # therefore picks a task finder that cannot see the task and no Task thread
+    # is created. Teaching DeriveStorageKind to pick cxx_thread_local off
+    # Darwin does make this pass, but it also activates the tasks plugin across
+    # the whole suite, and ProcessWindows does not tolerate OS-plugin threads
+    # (resuming crashes in Process::Continue). Both need fixing together.
+    @skipIf(oslist=["windows", "linux"])
+    def test_task_thread(self):
+        """Test that the plugin presents the running task as a thread."""
+        thread = self.run_to_task_thread()
         self.assertRegex(thread.GetName(), r"^Task [1-9]$")
+
+    @skipEmbeddedSwift
+    @swiftTest
+    # Queue names come from libdispatch introspection, which only the Darwin
+    # process plugins implement; ProcessWindows does not report a queue at all.
+    @skipUnlessDarwin
+    def test_queue_name(self):
+        """Test that a Task thread reports its backing thread's queue."""
+        thread = self.run_to_task_thread()
 
         queue_plugin = self.get_queue_from_thread_info_command(False)
         queue_backing = self.get_queue_from_thread_info_command(True)
