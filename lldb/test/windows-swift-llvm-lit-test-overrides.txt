@@ -62,9 +62,6 @@ skip lldb-api :: tools/lldb-server
 
 ### Tests that fail during setup and thus show up as UNRESOLVED ***
 
-# https://github.com/swiftlang/llvm-project/issues/9887
-skip lldb-api :: lang/swift/async/tasks/TestSwiftTaskSelect.py
-
 ### Untriaged ###
 
 skip lldb-shell :: Commands/command-expr-diagnostics.test
