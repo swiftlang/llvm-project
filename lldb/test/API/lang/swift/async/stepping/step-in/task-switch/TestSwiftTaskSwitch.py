@@ -7,7 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestCase(lldbtest.TestBase):
     @skipEmbeddedSwift
     @swiftTest
-    @skipIf(oslist=["windows", "linux"])
+    @skipIfLinux
     @skipIf(macos_version=["<", "26.0"], asan=True) # rdar://138777205
     def test(self):
         """Test conditions for async step-in."""
@@ -24,7 +24,11 @@ class TestCase(lldbtest.TestBase):
         instructions = list(function.GetInstructions(target))
         self.assertGreater(len(instructions), 0)
         # Expected to be a trampoline that tail calls `swift_task_switch`.
-        self.assertIn("swift_task_switch", instructions[-1].GetComment(target))
+        # The tail call is the final instruction. On Windows the callee lives
+        # in another DLL. Scan the tail so both the direct and the indirect form
+        # are accepted.
+        tail_call = " ".join(inst.GetComment(target) for inst in instructions[-4:])
+        self.assertIn("swift_task_switch", tail_call)
 
         # Using the line table, build a set of the non-zero line numbers for
         # this this function - and verify that there is exactly one line.
@@ -33,7 +37,8 @@ class TestCase(lldbtest.TestBase):
         self.assertEqual(lines, {3})
 
         # Required for builds that have debug info.
-        self.runCmd("settings set target.process.thread.step-avoid-libraries libswift_Concurrency.dylib")
+        lib_name = self.platformContext.getFullLibName("swift_Concurrency")
+        self.runCmd(f"settings set target.process.thread.step-avoid-libraries {lib_name}")
         thread.StepInto()
         frame = thread.frame[0]
         # Step in from `main` should progress through to `f`.
