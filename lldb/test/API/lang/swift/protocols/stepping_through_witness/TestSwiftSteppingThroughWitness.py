@@ -4,7 +4,7 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 
-@skipIf(oslist=["windows", "linux"])
+@skipIfLinux
 @skipIfAsan
 class TestSwiftSteppingThroughWitness(TestBase):
 
