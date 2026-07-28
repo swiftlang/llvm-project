@@ -3,7 +3,6 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbtest as lldbtest
 import lldbsuite.test.lldbutil as lldbutil
 
-@skipIf(bugnumber="rdar://162712775")
 class TestSwiftAsyncBacktraceLocals(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
@@ -15,7 +14,8 @@ class TestSwiftAsyncBacktraceLocals(lldbtest.TestBase):
         self.fibo_naumbers = [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
 
     @swiftTest
-    @skipIfWindows
+    @skipEmbeddedSwiftOnWindows
+    @skipIfDarwin  # rdar://162712775: intermittent macOS CI timeout
     @skipIf(archs=no_match(["arm64", "arm64e", "arm64_32", "x86_64"]))
     def test(self):
         """Test async unwind"""
@@ -26,7 +26,8 @@ class TestSwiftAsyncBacktraceLocals(lldbtest.TestBase):
         self.run_fibo_tests(target, process)
 
     @swiftTest
-    @skipIfWindows
+    @skipEmbeddedSwiftOnWindows
+    @skipIfDarwin  # rdar://162712775: intermittent macOS CI timeout
     @skipIf(archs=no_match(["arm64", "arm64e", "arm64_32", "x86_64"]))
     def test_actor(self):
         """Test async unwind"""
