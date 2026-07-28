@@ -710,6 +710,13 @@ ThreadSP ThreadList::GetSelectedThread() {
   std::lock_guard<std::recursive_mutex> guard(GetMutex());
   ThreadSP thread_sp = FindThreadByID(m_selected_tid);
   if (!thread_sp.get()) {
+    for (const ThreadSP &candidate : m_threads) {
+      ThreadSP backing_thread = candidate->GetBackingThread();
+      if (backing_thread && backing_thread->GetID() == m_selected_tid) {
+        m_selected_tid = candidate->GetID();
+        return candidate;
+      }
+    }
     if (m_threads.size() == 0)
       return thread_sp;
     m_selected_tid = m_threads[0]->GetID();
@@ -721,6 +728,16 @@ ThreadSP ThreadList::GetSelectedThread() {
 bool ThreadList::SetSelectedThreadByID(lldb::tid_t tid, bool notify) {
   std::lock_guard<std::recursive_mutex> guard(GetMutex());
   ThreadSP selected_thread_sp(FindThreadByID(tid));
+  if (!selected_thread_sp) {
+    for (const ThreadSP &candidate : m_threads) {
+      ThreadSP backing_thread = candidate->GetBackingThread();
+      if (backing_thread && backing_thread->GetID() == tid) {
+        selected_thread_sp = candidate;
+        tid = candidate->GetID();
+        break;
+      }
+    }
+  }
   if (selected_thread_sp) {
     m_selected_tid = tid;
     selected_thread_sp->SetDefaultFileAndLineToSelectedFrame();
