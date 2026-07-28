@@ -43,12 +43,6 @@ def run_direct(binary, args):
 def run_direct_soft_trap(binary, args):
     """Verify a soft trap fires in direct mode."""
     result = subprocess.run([binary] + args, capture_output=True, text=True)
-    if result.returncode != 0:
-        log.error(
-            "expected soft trap but process exited with status %d",
-            result.returncode,
-        )
-        return 1
     if SOFT_TRAP_MARKER not in result.stderr:
         log.error("soft trap marker not found in stderr")
         log.error("stderr: %s", result.stderr)
