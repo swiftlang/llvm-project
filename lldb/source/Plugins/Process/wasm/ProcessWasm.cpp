@@ -93,6 +93,20 @@ size_t ProcessWasm::ReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
   case WasmAddressType::Memory:
   case WasmAddressType::Object:
     return ProcessGDBRemote::ReadMemory(vm_addr, buf, size, error);
+  case WasmAddressType::Global: {
+    // Globals are not frame-scoped, so the frame index is arbitrary.
+    llvm::Expected<lldb::DataBufferSP> buffer_sp = GetWasmVariable(
+        eWasmTagGlobal, /*frame_index=*/0, wasm_addr.GetOffset());
+    if (!buffer_sp) {
+      error = Status::FromError(buffer_sp.takeError());
+      return 0;
+    }
+
+    const size_t bytes_to_copy =
+        std::min<uint64_t>(size, (*buffer_sp)->GetByteSize());
+    memcpy(buf, (*buffer_sp)->GetBytes(), bytes_to_copy);
+    return bytes_to_copy;
+  }
   case WasmAddressType::Invalid:
     break;
   }
