@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ObjectFileWasm.h"
+#include "Utility/WasmAddress.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
@@ -35,6 +36,8 @@ LLDB_PLUGIN_DEFINE(ObjectFileWasm)
 
 static const uint32_t kWasmHeaderSize =
     sizeof(llvm::wasm::WasmMagic) + sizeof(llvm::wasm::WasmVersion);
+
+static const char *g_global_section_name = "global";
 
 /// Helper to read a 32-bit ULEB using LLDB's DataExtractor.
 static inline llvm::Expected<uint32_t> GetULEB32(DataExtractor &data,
@@ -487,8 +490,8 @@ static llvm::Expected<std::vector<WasmSegment>> ParseData(DataExtractor &data) {
 }
 
 static llvm::Expected<std::vector<Symbol>>
-ParseNames(SectionSP code_section_sp, DataExtractor &name_data,
-           const std::vector<WasmFunction> &functions,
+ParseNames(SectionSP code_section_sp, SectionSP global_section_sp,
+           DataExtractor &name_data, const std::vector<WasmFunction> &functions,
            std::vector<WasmSegment> &segments,
            uint32_t num_imported_functions) {
 
@@ -559,7 +562,32 @@ ParseNames(SectionSP code_section_sp, DataExtractor &name_data,
       }
 
     } break;
-    case llvm::wasm::WASM_NAMES_GLOBAL:
+    case llvm::wasm::WASM_NAMES_GLOBAL: {
+      llvm::Expected<uint32_t> count = GetULEB32(data, c);
+      if (!count)
+        return count.takeError();
+
+      for (uint32_t i = 0; c && i < *count; ++i) {
+        llvm::Expected<uint32_t> idx = GetULEB32(data, c);
+        if (!idx)
+          return idx.takeError();
+        llvm::Expected<std::string> name = GetWasmString(data, c);
+        if (!name)
+          return name.takeError();
+
+        // The symbol's value is the global index; see the synthetic section
+        // created in CreateSections().
+        symbols.emplace_back(symbols.size(), *name, lldb::eSymbolTypeData,
+                             /*external=*/true, /*is_debug=*/false,
+                             /*is_trampoline=*/false,
+                             /*is_artificial=*/false, global_section_sp,
+                             /*value=*/*idx,
+                             /*size=*/0,
+                             /*size_is_valid=*/false,
+                             /*contains_linker_annotations=*/false,
+                             /*flags=*/0);
+      }
+    } break;
     case llvm::wasm::WASM_NAMES_LOCAL:
     default:
       std::optional<lldb::offset_t> offset =
@@ -716,10 +744,28 @@ void ObjectFileWasm::CreateSections(SectionList &unified_section_list) {
   }
 
   if (std::optional<section_info> info = GetSectionInfo("name")) {
+    // Gives global symbols an address: the section contributes the
+    // WasmAddressType::Global tag, the symbol contributes its index. Backed by
+    // no file content, but must have a non-zero size, or SectionLoadList
+    // refuses to assign it a load address. Globals are indexed by u32, so the
+    // section spans that whole range.
+    SectionSP global_section_sp = std::make_shared<Section>(
+        GetModule(),
+        /*obj_file=*/this, eSectionTypeData, ConstString(g_global_section_name),
+        eSectionTypeData,
+        /*file_vm_addr=*/
+        static_cast<lldb::addr_t>(wasm::WasmAddressType::Global) << 62,
+        /*vm_size=*/std::numeric_limits<uint32_t>::max(),
+        /*file_offset=*/0, /*file_size=*/0,
+        /*log2align=*/0, /*flags=*/0);
+    m_sections_up->AddSection(global_section_sp);
+    unified_section_list.AddSection(global_section_sp);
+
     DataExtractor names_data = ReadImageData(info->offset, info->size);
     llvm::Expected<std::vector<Symbol>> symbols = ParseNames(
         m_sections_up->FindSectionByType(lldb::eSectionTypeCode, false),
-        names_data, functions, segments, m_num_imported_functions);
+        global_section_sp, names_data, functions, segments,
+        m_num_imported_functions);
     if (!symbols) {
       LLDB_LOG_ERROR(log, symbols.takeError(),
                      "Failed to parse Wasm names: {0}");
@@ -801,10 +847,16 @@ bool ObjectFileWasm::SetLoadAddress(Target &target, lldb::addr_t load_address,
   const size_t num_sections = section_list->GetSize();
   for (size_t sect_idx = 0; sect_idx < num_sections; ++sect_idx) {
     SectionSP section_sp(section_list->GetSectionAtIndex(sect_idx));
-    if (target.SetSectionLoadAddress(
-            section_sp, load_address | section_sp->GetFileOffset())) {
+
+    // The global section's address is a type tag, not a file offset.
+    lldb::addr_t sect_load_addr;
+    if (section_sp->GetName() == g_global_section_name)
+      sect_load_addr = load_address | section_sp->GetFileAddress();
+    else
+      sect_load_addr = load_address | section_sp->GetFileOffset();
+
+    if (target.SetSectionLoadAddress(section_sp, sect_load_addr))
       ++num_loaded_sections;
-    }
   }
 
   return num_loaded_sections > 0;

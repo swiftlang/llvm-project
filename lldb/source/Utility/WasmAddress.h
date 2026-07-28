@@ -17,7 +17,14 @@ namespace wasm {
 /// Each WebAssembly module has separated address spaces for Code and Memory.
 /// A WebAssembly module also has a Data section which, when the module is
 /// loaded, gets mapped into a region in the module Memory.
-enum WasmAddressType : uint8_t { Memory = 0x00, Object = 0x01, Invalid = 0xff };
+/// Globals are outside of all of these: a Global address holds a global index
+/// in its offset field, and is read with qWasmGlobal rather than from memory.
+enum WasmAddressType : uint8_t {
+  Memory = 0x00,
+  Object = 0x01,
+  Global = 0x02,
+  Invalid = 0xff
+};
 
 /// For the purpose of debugging, we can represent all these separated 32-bit
 /// address spaces with a single virtual 64-bit address space. The
