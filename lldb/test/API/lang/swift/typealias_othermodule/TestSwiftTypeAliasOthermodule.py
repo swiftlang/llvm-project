@@ -3,7 +3,6 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 
-@skipIfWindows  # rdar://177523573
 class TestSwiftTypeAliasOtherModule(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
@@ -21,6 +20,7 @@ class TestSwiftTypeAliasOtherModule(TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
+    @skipIfWindows  # rdar://177523573
     def test_expression(self):
         """Test that type aliases can be imported into expressions from reflection metadata"""
         self.build()
