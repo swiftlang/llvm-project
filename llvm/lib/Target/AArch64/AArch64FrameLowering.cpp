@@ -4479,7 +4479,11 @@ bool AArch64FrameLowering::assignCalleeSavedSpillSlots(
   auto *AFI = MF.getInfo<AArch64FunctionInfo>();
 
   bool UsesWinAAPCS = isTargetWindows(MF);
-  if (UsesWinAAPCS && hasFP(MF) && AFI->hasSwiftAsyncContext()) {
+  // Only the WinCFI path reverses CSI above, which is what places the frame
+  // record at the top of the callee-save area and lets the async context slot
+  // be allocated directly below FP inside the loop. Without that reversal the
+  // slot has to be carved out up front.
+  if (UsesWinAAPCS && !NeedsWinCFI && hasFP(MF) && AFI->hasSwiftAsyncContext()) {
     int FrameIdx = MFI.CreateStackObject(8, Align(16), true);
     AFI->setSwiftAsyncContextFrameIdx(FrameIdx);
     if ((unsigned)FrameIdx < MinCSFrameIndex)
@@ -4548,8 +4552,8 @@ bool AArch64FrameLowering::assignCalleeSavedSpillSlots(
       MaxCSFrameIndex = FrameIdx;
 
     // Grab 8 bytes below FP for the extended asynchronous frame info.
-    if (hasFP(MF) && AFI->hasSwiftAsyncContext() && !UsesWinAAPCS &&
-        Reg == AArch64::FP) {
+    if (hasFP(MF) && AFI->hasSwiftAsyncContext() &&
+        (!UsesWinAAPCS || NeedsWinCFI) && Reg == AArch64::FP) {
       FrameIdx = MFI.CreateStackObject(8, Alignment, true);
       AFI->setSwiftAsyncContextFrameIdx(FrameIdx);
       if ((unsigned)FrameIdx < MinCSFrameIndex)
