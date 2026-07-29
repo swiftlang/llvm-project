@@ -168,6 +168,7 @@ def use_lldb_substitutions(config):
         ),
         "lldb-test",
         "lldb-dap",
+        "lldb-mcp",
         ToolSubst(
             "%build", command="'" + sys.executable + "'", extra_args=build_script_args
         ),
