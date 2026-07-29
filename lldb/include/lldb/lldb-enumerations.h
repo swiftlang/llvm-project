@@ -244,7 +244,9 @@ enum ScriptedExtension {
   eScriptedExtensionScriptedThread,
   eScriptedExtensionScriptedFrame,
   eScriptedExtensionScriptedStackFrameRecognizer,
-  kLastScriptedExtension = eScriptedExtensionScriptedStackFrameRecognizer
+  eScriptedExtensionScriptedCommand,
+  eScriptedExtensionParsedCommand,
+  kLastScriptedExtension = eScriptedExtensionParsedCommand
 };
 
 /// Register numbering types.
