@@ -31,6 +31,7 @@ add_lldb_library(lldbPluginScriptInterpreterPythonInterfaces PLUGIN
   ScriptedBreakpointPythonInterface.cpp
   ScriptedCommandPythonInterface.cpp
   ScriptedStackFrameRecognizerPythonInterface.cpp
+  ScriptedStringSummaryPythonInterface.cpp
   ScriptedThreadPlanPythonInterface.cpp
   ScriptedThreadPythonInterface.cpp
 
