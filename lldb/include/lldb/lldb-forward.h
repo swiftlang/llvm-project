@@ -201,6 +201,7 @@ class ScriptedThreadPlanInterface;
 class ScriptedStackFrameRecognizerInterface;
 class ScriptedStringSummaryInterface;
 class ScriptedSyntheticChildren;
+class ScriptedSyntheticChildrenInterface;
 class SearchFilter;
 class Section;
 class SectionList;
@@ -441,6 +442,8 @@ typedef std::shared_ptr<lldb_private::ScriptedCommandInterface>
     ScriptedCommandInterfaceSP;
 typedef std::shared_ptr<lldb_private::ScriptedStringSummaryInterface>
     ScriptedStringSummaryInterfaceSP;
+typedef std::shared_ptr<lldb_private::ScriptedSyntheticChildrenInterface>
+    ScriptedSyntheticChildrenInterfaceSP;
 typedef std::shared_ptr<lldb_private::Section> SectionSP;
 typedef std::unique_ptr<lldb_private::SectionList> SectionListUP;
 typedef std::weak_ptr<lldb_private::Section> SectionWP;

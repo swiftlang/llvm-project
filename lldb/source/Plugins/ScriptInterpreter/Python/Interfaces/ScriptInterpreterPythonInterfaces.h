@@ -25,6 +25,7 @@
 #include "ScriptedProcessPythonInterface.h"
 #include "ScriptedStackFrameRecognizerPythonInterface.h"
 #include "ScriptedStringSummaryPythonInterface.h"
+#include "ScriptedSyntheticChildrenPythonInterface.h"
 #include "ScriptedThreadPlanPythonInterface.h"
 #include "ScriptedThreadPythonInterface.h"
 

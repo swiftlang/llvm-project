@@ -247,7 +247,8 @@ enum ScriptedExtension {
   eScriptedExtensionScriptedCommand,
   eScriptedExtensionParsedCommand,
   eScriptedExtensionScriptedStringSummary,
-  kLastScriptedExtension = eScriptedExtensionScriptedStringSummary
+  eScriptedExtensionScriptedSyntheticChildren,
+  kLastScriptedExtension = eScriptedExtensionScriptedSyntheticChildren
 };
 
 /// Register numbering types.
