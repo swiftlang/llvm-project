@@ -2885,27 +2885,6 @@ llvm::Triple TypeSystemSwiftTypeRef::GetTriple() const {
   return {};
 }
 
-bool TypeSystemSwiftTypeRef::IsEmbeddedSwift() {
-  llvm::call_once(m_is_embedded_swift_once_flag, [&]() {
-    Module *module = GetModule();
-    if (!module)
-      return;
-    // A Swift module is compiled either entirely as Embedded Swift or not at
-    // all, so the first Swift compile unit has the answer for all of them.
-    const size_t num_compile_units = module->GetNumCompileUnits();
-    for (size_t i = 0; i < num_compile_units; ++i) {
-      lldb::CompUnitSP cu_sp = module->GetCompileUnitAtIndex(i);
-      if (!cu_sp || cu_sp->GetLanguage() != lldb::eLanguageTypeSwift)
-        continue;
-      m_is_embedded_swift = ShouldEnableEmbeddedSwift(cu_sp.get());
-      LLDB_LOGF(GetLog(LLDBLog::Types), "%s::IsEmbeddedSwift() = %d",
-                m_description.c_str(), m_is_embedded_swift);
-      return;
-    }
-  });
-  return m_is_embedded_swift;
-}
-
 void TypeSystemSwiftTypeRef::SetTriple(const SymbolContext &sc,
                                        const llvm::Triple triple) {
   // This function appears to be only called via
