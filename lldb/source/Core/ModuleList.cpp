@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Core/ModuleList.h"
+#include "lldb/Core/DataBufferCAS.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -1690,7 +1691,7 @@ llvm::Expected<ModuleSpec> ModuleList::LoadModuleFromCAS(
       continue;
     }
     auto file_buffer =
-        std::make_shared<DataBufferLLVM>(module_proxy->getMemoryBuffer());
+        std::make_shared<DataBufferCAS>(module_proxy->getMemoryBuffer(), cas);
     FileSpec cas_spec;
     cas_spec.SetDirectory(ConstString(entry.configuration.CASPath));
     cas_spec.SetFilename(ConstString(cas_id));
