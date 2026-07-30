@@ -995,6 +995,16 @@ protected:
   /// Data members.
   /// @{
   std::weak_ptr<TypeSystemSwiftTypeRef> m_typeref_typesystem;
+  // BEGIN CAS
+  /// ObjectStore and ActionCache. Like the CompilerInvocation, SourceMgr and
+  /// DiagEngine below, these must come before the ASTContext so they get
+  /// deallocated *after* it. The ObjectStore owns the memory backing the
+  /// serialized module buffers held by the AST's module loaders, the
+  /// include-tree VFS installed on the SourceMgr, and the PCH handed to
+  /// ClangImporter; releasing it first would leave all of those dangling.
+  std::shared_ptr<llvm::cas::ObjectStore> m_cas;
+  std::shared_ptr<llvm::cas::ActionCache> m_action_cache;
+  // END CAS
   std::unique_ptr<swift::CompilerInvocation> m_compiler_invocation_up;
   std::unique_ptr<swift::SourceManager> m_source_manager_up;
   std::unique_ptr<swift::DiagnosticEngine> m_diagnostic_engine_up;
@@ -1042,9 +1052,6 @@ protected:
       library_load_cache;
   /// A cache for GetCompileUnitImports();
   llvm::DenseSet<std::pair<Module *, lldb::user_id_t>> m_cu_imports;
-  /// ObjectStore and ActionCache;
-  std::shared_ptr<llvm::cas::ObjectStore> m_cas;
-  std::shared_ptr<llvm::cas::ActionCache> m_action_cache;
 
   typedef std::map<Module *, std::vector<lldb::DataBufferSP>> ASTFileDataMap;
   ASTFileDataMap m_ast_file_data_map;
