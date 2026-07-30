@@ -538,13 +538,13 @@ TEST_F(JSONRPCTransportTest, MalformedRequests) {
 TEST_F(JSONRPCTransportTest, MalformedRequestDoesNotDropLaterMessages) {
   InSequence seq;
   std::string messages =
-      "notjson\n" + Encode(Message{Request{1, "foo", std::nullopt}});
+      "notjson\n" + Encode(Message{Req{1, "foo", std::nullopt}});
   ASSERT_THAT_EXPECTED(input.Write(messages.data(), messages.size()),
                        Succeeded());
   EXPECT_CALL(message_handler, OnError(_)).WillOnce([](llvm::Error err) {
     consumeError(std::move(err));
   });
-  EXPECT_CALL(message_handler, Received(Request{1, "foo", std::nullopt}));
+  EXPECT_CALL(message_handler, Received(Req{1, "foo", std::nullopt}));
   ASSERT_THAT_ERROR(Run(), Succeeded());
 }
 
@@ -826,10 +826,10 @@ TEST_F(TransportBinderTest, InBoundAsyncRequestsError) {
 }
 
 TEST_F(TransportBinderTest, InBoundRequestUnknownMethod) {
-  EXPECT_THAT_ERROR(from_remote->Send(Request{4, "nosuch", MyFnParams{1, 2}}),
+  EXPECT_THAT_ERROR(from_remote->Send(Req{4, "nosuch", MyFnParams{1, 2}}),
                     Succeeded());
-  EXPECT_CALL(remote, Received(Response{4, MethodNotFound::kErrorCode,
-                                        "method not found: 'nosuch'"}));
+  EXPECT_CALL(remote, Received(Resp{4, MethodNotFound::kErrorCode,
+                                    "method not found: 'nosuch'"}));
   Run();
 }
 
