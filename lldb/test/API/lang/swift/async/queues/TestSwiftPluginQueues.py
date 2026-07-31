@@ -6,21 +6,35 @@ import re
 
 
 class TestCase(lldbtest.TestBase):
-    @skipEmbeddedSwift
-    @swiftTest
-    @skipIf(oslist=["windows", "linux"])
-    def test(self):
-        """Test `frame variable` in async functions"""
+    def run_to_task_thread(self):
+        """Stops in an async function and returns the selected Task thread."""
         self.build()
 
         self.runCmd("settings set target.experimental.swift-tasks-plugin-enabled true")
 
         source_file = lldb.SBFileSpec("main.swift")
-        target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
+        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
             self, "BREAK HERE", source_file
         )
+        return thread
 
+    @skipEmbeddedSwift
+    @swiftTest
+    # Has never run on Linux; not triaged there.
+    @skipIf(oslist=["linux"])
+    def test_task_thread(self):
+        """Test that the plugin presents the running Task as a thread."""
+        thread = self.run_to_task_thread()
         self.assertRegex(thread.GetName(), r"^Task [1-9]$")
+
+    @skipEmbeddedSwift
+    @swiftTest
+    # Queue names come from libdispatch introspection, which only the Darwin
+    # process plugins implement; ProcessWindows reports no queue at all.
+    @skipUnlessDarwin
+    def test_queue_name(self):
+        """Test that a Task thread reports its backing thread's queue."""
+        thread = self.run_to_task_thread()
 
         queue_plugin = self.get_queue_from_thread_info_command(False)
         queue_backing = self.get_queue_from_thread_info_command(True)

@@ -26,8 +26,6 @@
 using namespace lldb;
 using namespace lldb_private;
 
-using CurrentTaskStorageKind = SwiftLanguageRuntime::CurrentTaskStorageKind;
-
 LLDB_PLUGIN_DEFINE(OperatingSystemSwiftTasks)
 
 void OperatingSystemSwiftTasks::Initialize() {
@@ -127,12 +125,6 @@ OperatingSystem *OperatingSystemSwiftTasks::CreateInstance(Process *process,
     Debugger::ReportWarning(warning, debugger_id, &concurrency_warning_flag);
     return nullptr;
   }
-
-  // Versions 1 and below did not have a storage description field. Assume
-  // pthread_reserved_key.
-  if (concurrency_info.version <= 1)
-    concurrency_info.task_storage_kind =
-        CurrentTaskStorageKind::pthread_reserved_key;
 
   return new OperatingSystemSwiftTasks(*process, concurrency_info);
 }
