@@ -1771,7 +1771,14 @@ static void fixupCalleeSaveRestoreStackOffset(MachineInstr &MI,
 }
 
 static bool isTargetWindows(const MachineFunction &MF) {
-  return MF.getSubtarget<AArch64Subtarget>().isTargetWindows();
+  // UEFI images are PE/COFF and follow the Microsoft ARM64 ABI, so for frame
+  // record layout and Windows CFI they behave exactly like Windows. This keeps
+  // the frame lowering consistent with usesWindowsCFI() (true for COFF here)
+  // and with the MS ABI selected by the UEFI TargetInfo. Broader Windows-only
+  // behaviors (stack probing, TEB-based TLS) still key off the Subtarget's own
+  // isTargetWindows() and remain disabled for UEFI.
+  const AArch64Subtarget &STI = MF.getSubtarget<AArch64Subtarget>();
+  return STI.isTargetWindows() || STI.isTargetUEFI();
 }
 
 static unsigned getStackHazardSize(const MachineFunction &MF) {
