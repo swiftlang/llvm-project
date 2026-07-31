@@ -927,6 +927,10 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
     return false;
   }
   bool found = HasReflectionInfo(obj_file);
+
+  if (found && !m_registered_reflection_images.insert(load_ptr).second)
+    return true;
+
   LLDB_LOGV(GetLog(LLDBLog::Types), "{0} reflection metadata in \"{1}\"",
             found ? "Adding" : "No",
             module_sp->GetObjectName() ? module_sp->GetObjectName()

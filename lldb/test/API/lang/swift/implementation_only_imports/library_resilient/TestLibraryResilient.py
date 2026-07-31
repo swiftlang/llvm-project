@@ -39,7 +39,9 @@ class TestLibraryResilient(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @expectedFailureAll(oslist=["windows"]) # Requires Remote Mirrors support
+    # rdar://183113341: on Windows `expr container.wrapped` fails because swiftc does not export
+    # SomeLibrary.ContainsTwoInts.wrapped.getter from SomeLibrary.dll.
+    @expectedFailureWindows
     def test_implementation_only_import_library(self):
         """Test `@_implementationOnly import` in a resilient library used by the main executable
 
