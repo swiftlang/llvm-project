@@ -10841,8 +10841,8 @@ AArch64TargetLowering::LowerCall(CallLoweringInfo &CLI,
       Callee = DAG.getTargetGlobalAddress(CalledGlobal, DL, PtrVT, 0, OpFlags);
       Callee = DAG.getNode(AArch64ISD::LOADgot, DL, PtrVT, Callee);
     } else if (Subtarget->isTargetCOFF() && CalledGlobal->hasDLLImportStorageClass()) {
-      assert(Subtarget->isTargetWindows() &&
-             "Windows is the only supported COFF target");
+      assert((Subtarget->isTargetWindows() || Subtarget->isTargetUEFI()) &&
+             "COFF is only supported on Windows and UEFI targets");
       Callee = getGOT(G, DAG, AArch64II::MO_DLLIMPORT);
     } else if (!CLI.PAI || !IsTailCall) {
       const GlobalValue *GV = G->getGlobal();
