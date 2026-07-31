@@ -38,12 +38,16 @@ public:
 
 struct CASTestingEnv {
   std::shared_ptr<llvm::cas::ObjectStore> CAS;
-  std::unique_ptr<llvm::cas::ActionCache> Cache;
+  std::shared_ptr<llvm::cas::ActionCache> Cache;
   std::unique_ptr<llvm::unittest::cas::MockEnv> Env;
   std::optional<llvm::unittest::TempDir> Temp;
 };
 
 void setMaxOnDiskCASMappingSize();
+
+/// \returns the path of the libCASPluginTest dynamic library, which implements
+/// the CAS plugin API for testing purposes.
+std::string getCASPluginPath();
 
 // Test fixture for on-disk data base tests.
 class OnDiskCASTest : public ::testing::Test {
@@ -102,7 +106,7 @@ protected:
       Envs.emplace_back(std::move(TD.Env));
     return std::move(TD.CAS);
   }
-  std::unique_ptr<llvm::cas::ActionCache> createActionCache() {
+  std::shared_ptr<llvm::cas::ActionCache> createActionCache() {
     auto TD = GetParam()(++(*NextCASIndex));
     if (TD.Temp)
       Dirs.push_back(std::move(*TD.Temp));

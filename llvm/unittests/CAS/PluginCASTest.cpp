@@ -12,9 +12,9 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "CASTestConfig.h"
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
-#include "llvm/Config/config.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
@@ -22,27 +22,7 @@
 
 using namespace llvm;
 using namespace llvm::cas;
-
-// See llvm/utils/unittest/UnitTestMain/TestMain.cpp
-extern const char *TestMainArgv0;
-
-// Just a reachable symbol to ease resolving of the executable's path.
-static std::string TestStringArg1("plugincas-test-string-arg1");
-
-static std::string getCASPluginPath() {
-  std::string Executable =
-      sys::fs::getMainExecutable(TestMainArgv0, &TestStringArg1);
-  llvm::SmallString<256> PathBuf(sys::path::parent_path(
-      sys::path::parent_path(sys::path::parent_path(Executable))));
-#ifndef _WIN32
-  std::string LibName = "libCASPluginTest";
-  sys::path::append(PathBuf, "lib", LibName + LLVM_PLUGIN_EXT);
-#else
-  std::string LibName = "CASPluginTest";
-  sys::path::append(PathBuf, "bin", LibName + LLVM_PLUGIN_EXT);
-#endif
-  return std::string(PathBuf);
-}
+using namespace llvm::unittest::cas;
 
 TEST(PluginCASTest, isMaterialized) {
   unittest::TempDir Temp("plugin-cas", /*Unique=*/true);

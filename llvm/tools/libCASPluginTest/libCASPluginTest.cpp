@@ -25,10 +25,27 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/ThreadPool.h"
+#include <mutex>
 
 using namespace llvm;
 using namespace llvm::cas;
 using namespace llvm::cas::ondisk;
+
+namespace llvm::cas::ondisk {
+/// Declared in the private "OnDiskCommon.h"; see \c setSmallMaxMappingSize.
+void setMaxMappingSize(uint64_t Size);
+} // namespace llvm::cas::ondisk
+
+/// This plugin exists only for testing, and a test process can create many
+/// instances of it. Keep the on-disk mappings small so that they stay cheap;
+/// the default sizes are measured in gigabytes per instance.
+///
+/// This has to happen inside the plugin: it links its own copy of LLVMCAS, so
+/// the setting the test binary applies to itself does not reach us.
+static void setSmallMaxMappingSize() {
+  static std::once_flag Flag;
+  std::call_once(Flag, [] { setMaxMappingSize(100 * 1024 * 1024); });
+}
 
 static char *copyNewMallocString(StringRef Str) {
   char *c_str = (char *)malloc(Str.size() + 1);
@@ -381,6 +398,7 @@ CASWrapper::downstreamKey(ArrayRef<uint8_t> Key) {
 
 llcas_cas_t llcas_cas_create(llcas_cas_options_t c_opts, char **error) {
   auto &Opts = *unwrap(c_opts);
+  setSmallMaxMappingSize();
   Expected<std::unique_ptr<UnifiedOnDiskCache>> DB = UnifiedOnDiskCache::open(
       Opts.OnDiskPath, /*SizeLimit=*/std::nullopt,
       PluginCASContext::getHashName(), sizeof(HashType));

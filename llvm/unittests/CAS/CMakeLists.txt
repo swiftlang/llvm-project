@@ -61,4 +61,7 @@ add_llvm_unittest(CASTests
   )
 
 target_link_libraries(CASTests PRIVATE LLVMTestingSupport)
-add_dependencies(CASTests CASPluginTest)
+
+if (LLVM_ENABLE_ONDISK_CAS)
+  add_dependencies(CASTests CASPluginTest)
+endif()
