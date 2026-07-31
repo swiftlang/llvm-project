@@ -1,13 +1,18 @@
-//===- llvm/tools/libCASPluginTest/libCASPluginTest.cpp ---------*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// Implementation of the LLVM CAS plugin API, for testing purposes.
-//
+///
+/// \file
+/// Implementation of the LLVM CAS plugin API, for testing purposes.
+///
+/// It is backed by \c UnifiedOnDiskCache and can optionally be given a second
+/// on-disk path via the \c upstream-path option, which it uses to simulate
+/// "uploading"/"downloading" objects to/from a distributed CAS.
+///
 //===----------------------------------------------------------------------===//
 
 #include "llvm-c/CAS/PluginAPI_functions.h"
@@ -18,8 +23,8 @@
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/SHA1.h"
+#include "llvm/Support/ThreadPool.h"
 
 using namespace llvm;
 using namespace llvm::cas;

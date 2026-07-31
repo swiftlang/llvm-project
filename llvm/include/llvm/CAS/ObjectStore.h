@@ -423,8 +423,14 @@ using ObjectStoreCreateFuncTy = Expected<
     const Twine &);
 void registerCASURLScheme(StringRef Prefix, ObjectStoreCreateFuncTy *Func);
 
-/// Create \c ObjectStore and \c ActionCache instances using the plugin
-/// interface.
+/// Create \c ObjectStore and \c ActionCache instances backed by a plugin that
+/// implements the C API in \c "llvm-c/CAS/PluginAPI_functions.h".
+///
+/// \param PluginPath path of the dynamic library to load.
+/// \param OnDiskPath local path that the plugin should use for any on-disk
+/// resources/caches.
+/// \param PluginArgs name/value pairs passed to the plugin as custom options;
+/// they are opaque to the client.
 Expected<std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
 createPluginCASDatabases(
     StringRef PluginPath, StringRef OnDiskPath,

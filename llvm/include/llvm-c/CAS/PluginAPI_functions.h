@@ -1,4 +1,4 @@
-/*===-- llvm-c/CAS/PluginAPI_functions.h - CAS Plugin Functions Interface -===*\
+/*===----------------------------------------------------------------------===*\
 |*                                                                            *|
 |* Part of the LLVM Project, under the Apache License v2.0 with LLVM          *|
 |* Exceptions.                                                                *|
@@ -140,6 +140,19 @@ llcas_cas_set_ondisk_size_limit(llcas_cas_t, int64_t size_limit, char **error);
  * \returns true if there was an error, false otherwise.
  */
 LLCAS_PUBLIC bool llcas_cas_prune_ondisk_data(llcas_cas_t, char **error);
+
+/**
+ * Validate the CAS contents.
+ *
+ * \param check_hash if true, the hash of each object is recomputed and compared
+ * against the one it is stored under.
+ * \param error optional pointer to receive an error message if an error
+ * occurred. If set, the memory it points to needs to be released via
+ * \c llcas_string_dispose.
+ * \returns true if there was an error, false otherwise.
+ */
+LLCAS_PUBLIC bool llcas_cas_validate(llcas_cas_t, bool check_hash,
+                                     char **error);
 
 /**
  * \returns the hash schema name that the plugin is using. The string memory it
@@ -387,6 +400,16 @@ LLCAS_PUBLIC bool llcas_actioncache_put_for_digest(llcas_cas_t,
 LLCAS_PUBLIC void llcas_actioncache_put_for_digest_async(
     llcas_cas_t, llcas_digest_t key, llcas_objectid_t value, bool globally,
     void *ctx_cb, llcas_actioncache_put_cb, llcas_cancellable_t *cancel_tok);
+
+/**
+ * Validate the action cache contents.
+ *
+ * \param error optional pointer to receive an error message if an error
+ * occurred. If set, the memory it points to needs to be released via
+ * \c llcas_string_dispose.
+ * \returns true if there was an error, false otherwise.
+ */
+LLCAS_PUBLIC bool llcas_actioncache_validate(llcas_cas_t, char **error);
 
 LLVM_C_EXTERN_C_END
 

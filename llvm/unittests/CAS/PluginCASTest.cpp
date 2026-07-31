@@ -5,6 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file
+/// Tests the plugin-backed \c ObjectStore and \c ActionCache against the mock
+/// plugin implementation in \c llvm/tools/libCASPluginTest.
+///
+//===----------------------------------------------------------------------===//
 
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
@@ -66,7 +72,8 @@ TEST(PluginCASTest, isMaterialized) {
     ASSERT_THAT_ERROR(CAS->isMaterialized(*ID2Ref).moveInto(IsMaterialized),
                       Succeeded());
     EXPECT_TRUE(IsMaterialized);
-    ASSERT_THAT_ERROR(AC->put(*ID1, *ID2, /*Globally=*/true), Succeeded());
+    ASSERT_THAT_ERROR(AC->put(*ID1, *ID2, /*CanBeDistributed=*/true),
+                      Succeeded());
   }
 
   // Clear "local" cache.
@@ -86,7 +93,7 @@ TEST(PluginCASTest, isMaterialized) {
 
     std::optional<CASID> ID1, ID2;
     ASSERT_THAT_ERROR(CAS->createProxy({}, "1").moveInto(ID1), Succeeded());
-    ASSERT_THAT_ERROR(AC->get(*ID1, /*Globally=*/true).moveInto(ID2),
+    ASSERT_THAT_ERROR(AC->get(*ID1, /*CanBeDistributed=*/true).moveInto(ID2),
                       Succeeded());
     std::optional<ObjectRef> ID2Ref = CAS->getReference(*ID2);
     ASSERT_TRUE(ID2Ref);
