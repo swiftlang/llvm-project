@@ -5705,6 +5705,11 @@ bool TypeSystemSwiftTypeRef::DumpTypeValue(
     case Node::Kind::DependentGenericParamType:
     case Node::Kind::FunctionType:
     case Node::Kind::NoEscapeFunctionType:
+    // A thin function type is the type reflection uses to describe the
+    // function pointer inside of a thick function. It is a scalar just
+    // like all the other function types.
+    case Node::Kind::ThinFunctionType:
+    case Node::Kind::BoundGenericFunction:
     case Node::Kind::CFunctionPointer:
     case Node::Kind::ObjCBlock:
     case Node::Kind::ImplFunctionType: {
