@@ -494,6 +494,14 @@ eScriptedExtensionScriptedFrame = _lldb.eScriptedExtensionScriptedFrame
 
 eScriptedExtensionScriptedStackFrameRecognizer = _lldb.eScriptedExtensionScriptedStackFrameRecognizer
 
+eScriptedExtensionScriptedCommand = _lldb.eScriptedExtensionScriptedCommand
+
+eScriptedExtensionParsedCommand = _lldb.eScriptedExtensionParsedCommand
+
+eScriptedExtensionScriptedStringSummary = _lldb.eScriptedExtensionScriptedStringSummary
+
+eScriptedExtensionScriptedSyntheticChildren = _lldb.eScriptedExtensionScriptedSyntheticChildren
+
 kLastScriptedExtension = _lldb.kLastScriptedExtension
 
 eRegisterKindEHFrame = _lldb.eRegisterKindEHFrame
@@ -17752,6 +17760,11 @@ class SBTypeSummary(object):
     def CreateWithScriptCode(data, options=0):
         r"""CreateWithScriptCode(char const * data, uint32_t options=0) -> SBTypeSummary"""
         return _lldb.SBTypeSummary_CreateWithScriptCode(data, options)
+
+    @staticmethod
+    def CreateWithClassName(data, options=0):
+        r"""CreateWithClassName(char const * data, uint32_t options=0) -> SBTypeSummary"""
+        return _lldb.SBTypeSummary_CreateWithClassName(data, options)
 
     def __init__(self, *args):
         r"""
