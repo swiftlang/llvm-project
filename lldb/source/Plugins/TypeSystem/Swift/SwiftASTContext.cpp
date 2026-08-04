@@ -2593,6 +2593,16 @@ ProcessModule(Module &module, std::string m_description,
   }
 }
 
+/// Matches a subset of the SILOptions that the compiler turns on by default
+/// when embedded swift enabled.
+static void EnableEmbeddedSwift(SwiftASTContext &swift_ast_ctx) {
+  swift_ast_ctx.GetLanguageOptions().enableFeature(swift::Feature::Embedded);
+
+  swift::SILOptions &sil_opts = swift_ast_ctx.GetSILOptions();
+  sil_opts.EnforceExclusivityStatic = true;
+  sil_opts.EnforceExclusivityDynamic = false;
+}
+
 lldb::TypeSystemSP
 SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
                                 TypeSystemSwiftTypeRef &typeref_typesystem) {
@@ -2689,7 +2699,7 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
       module.IsSwiftCxxInteropEnabled();
 
   if (module.IsEmbeddedSwift())
-    swift_ast_sp->GetLanguageOptions().enableFeature(swift::Feature::Embedded);
+    EnableEmbeddedSwift(*swift_ast_sp);
 
   bool found_swift_modules = false;
   SymbolFile *sym_file = module.GetSymbolFile();
@@ -3254,7 +3264,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     auto &lang_opts = swift_ast_sp->GetLanguageOptions();
     lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(cu);
     if (ShouldEnableEmbeddedSwift(cu))
-      lang_opts.enableFeature(swift::Feature::Embedded);
+      EnableEmbeddedSwift(*swift_ast_sp);
   } else {
     // Typesystem fallback context.
     if (!module_sp) {
@@ -3271,7 +3281,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     lang_opts.EnableAccessControl = false;
     lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(cu);
     if (ShouldEnableEmbeddedSwift(cu))
-      lang_opts.enableFeature(swift::Feature::Embedded);
+      EnableEmbeddedSwift(*swift_ast_sp);
   }
   auto defer_log = llvm::scope_exit([swift_ast_sp, repl, playground] {
     swift_ast_sp->LogConfiguration(repl, playground);
