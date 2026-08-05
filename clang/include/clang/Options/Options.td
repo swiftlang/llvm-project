@@ -839,14 +839,19 @@ def embed_dir_EQ : Joined<["--"], "embed-dir=">, Group<Preprocessor_Group>,
     Visibility<[ClangOption, CC1Option]>, MetaVarName<"<dir>">,
     HelpText<"Add directory to embed search path">;
 def MD : Flag<["-"], "MD">, Group<M_Group>,
+    Visibility<[ClangOption, FlangOption]>,
     HelpText<"Write a depfile containing user and system headers">;
 def MMD : Flag<["-"], "MMD">, Group<M_Group>,
+    Visibility<[ClangOption, FlangOption]>,
     HelpText<"Write a depfile containing user headers">;
 def M : Flag<["-"], "M">, Group<M_Group>,
+    Visibility<[ClangOption, FlangOption]>,
     HelpText<"Like -MD, but also implies -E and writes to stdout by default">;
 def MM : Flag<["-"], "MM">, Group<M_Group>,
+    Visibility<[ClangOption, FlangOption]>,
     HelpText<"Like -MMD, but also implies -E and writes to stdout by default">;
 def MF : JoinedOrSeparate<["-"], "MF">, Group<M_Group>,
+    Visibility<[ClangOption, FlangOption]>,
     HelpText<"Write depfile output from -MMD, -MD, -MM, or -M to <file>">,
     MetaVarName<"<file>">;
 def MG : Flag<["-"], "MG">, Group<M_Group>, Visibility<[ClangOption, CC1Option]>,
@@ -858,10 +863,10 @@ def MP : Flag<["-"], "MP">, Group<M_Group>, Visibility<[ClangOption, CC1Option]>
     HelpText<"Create phony target for each dependency (other than main file)">,
     MarshallingInfoFlag<DependencyOutputOpts<"UsePhonyTargets">>;
 def MQ : JoinedOrSeparate<["-"], "MQ">, Group<M_Group>,
-  Visibility<[ClangOption, CC1Option]>,
+  Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
     HelpText<"Specify name of main file output to quote in depfile">;
 def MT : JoinedOrSeparate<["-"], "MT">, Group<M_Group>,
-  Visibility<[ClangOption, CC1Option]>,
+  Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
     HelpText<"Specify name of main file output in depfile">,
     MarshallingInfoStringVector<DependencyOutputOpts<"Targets">>;
 def MV : Flag<["-"], "MV">, Group<M_Group>, Visibility<[ClangOption, CC1Option]>,
@@ -1640,7 +1645,7 @@ def dM : Flag<["-"], "dM">, Group<d_Group>, Visibility<[ClangOption, CC1Option, 
   HelpText<"Print macro definitions in -E mode instead of normal output">;
 def dead__strip : Flag<["-"], "dead_strip">;
 def dependency_file : Separate<["-"], "dependency-file">,
-  Visibility<[ClangOption, CC1Option]>,
+  Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
   HelpText<"Filename (or -) to write dependency output to">,
   MarshallingInfoString<DependencyOutputOpts<"OutputFile">>;
 def dependency_dot : Separate<["-"], "dependency-dot">,
