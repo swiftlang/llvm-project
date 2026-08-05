@@ -17,6 +17,7 @@
 #include "DWARFDIE.h"
 #include "swift/RemoteInspection/DescriptorFinder.h"
 #include "swift/RemoteInspection/TypeRef.h"
+#include "llvm/ADT/StringRef.h"
 
 namespace swift {
 namespace reflection {
@@ -81,6 +82,12 @@ public:
   static bool classof(const DWARFASTParser *Parser) {
     return Parser->GetKind() == Kind::DWARFASTParserSwift;
   }
+
+  /// Returns the value of the boolean `swift.*` DW_TAG_LLVM_annotation named
+  /// \p annotation_name on \p die, or false if the DIE carries no such
+  /// annotation.
+  static bool HasSwiftFlagAnnotation(const DWARFDIE &die,
+                                     llvm::StringRef annotation_name);
 
   /// Returns a field descriptor constructed from DWARF info.
   std::unique_ptr<swift::reflection::FieldDescriptorBase>

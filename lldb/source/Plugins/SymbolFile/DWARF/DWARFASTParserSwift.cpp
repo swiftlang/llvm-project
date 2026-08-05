@@ -47,20 +47,26 @@ DWARFASTParserSwift::DWARFASTParserSwift(
 
 DWARFASTParserSwift::~DWARFASTParserSwift() {}
 
-/// Returns true if the DIE represents a protocol annotated with @_marker.
-static bool IsMarkerProtocol(const DWARFDIE &die) {
-  if (die.Tag() != llvm::dwarf::DW_TAG_structure_type)
-    return false;
+bool DWARFASTParserSwift::HasSwiftFlagAnnotation(
+    const DWARFDIE &die, llvm::StringRef annotation_name) {
   for (DWARFDIE child : die.children()) {
     if (child.Tag() != llvm::dwarf::DW_TAG_LLVM_annotation)
       continue;
     const char *name =
         child.GetAttributeValueAsString(llvm::dwarf::DW_AT_name, nullptr);
-    if (llvm::StringRef(name) == "swift.MarkerProtocol")
+    if (llvm::StringRef(name) == annotation_name)
       return child.GetAttributeValueAsUnsigned(llvm::dwarf::DW_AT_const_value,
                                                0) != 0;
   }
   return false;
+}
+
+/// Returns true if the DIE represents a protocol annotated with @_marker.
+static bool IsMarkerProtocol(const DWARFDIE &die) {
+  if (die.Tag() != llvm::dwarf::DW_TAG_structure_type)
+    return false;
+  return DWARFASTParserSwift::HasSwiftFlagAnnotation(die,
+                                                     "swift.MarkerProtocol");
 }
 
 static llvm::StringRef GetTypedefName(const DWARFDIE &die) {

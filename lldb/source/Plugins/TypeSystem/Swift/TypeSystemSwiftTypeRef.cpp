@@ -398,33 +398,24 @@ TypeSystemSwiftTypeRef::GetBaseName(lldb::opaque_compiler_type_t type) {
   return GetBaseName(node).str();
 }
 
-CompilerType TypeSystemSwiftTypeRef::GetTypeFromTypeMetadataNode(
+std::pair<CompilerType, bool>
+TypeSystemSwiftTypeRef::GetTypeFromTypeMetadataNode(
     llvm::StringRef mangled_name) {
   Demangler dem;
   NodePointer node = dem.demangleSymbol(mangled_name);
+  bool is_full_metadata = false;
   NodePointer type = swift_demangle::NodeAtPath(
       node, {Node::Kind::Global, Node::Kind::TypeMetadata, Node::Kind::Type});
-  if (!type)
+  if (!type) {
     type = swift_demangle::NodeAtPath(
         node,
         {Node::Kind::Global, Node::Kind::FullTypeMetadata, Node::Kind::Type});
+    is_full_metadata = type != nullptr;
+  }
   if (!type)
     return {};
   auto flavor = SwiftLanguageRuntime::GetManglingFlavor(mangled_name);
-  return RemangleAsType(dem, type, flavor);
-}
-
-CompilerType TypeSystemSwiftTypeRef::GetTypeFromValueWitnessTable(
-    llvm::StringRef mangled_name) {
-  Demangler dem;
-  NodePointer node = dem.demangleSymbol(mangled_name);
-  NodePointer type = swift_demangle::NodeAtPath(
-      node,
-      {Node::Kind::Global, Node::Kind::ValueWitnessTable, Node::Kind::Type});
-  if (!type)
-    return {};
-  auto flavor = SwiftLanguageRuntime::GetManglingFlavor(mangled_name);
-  return RemangleAsType(dem, type, flavor);
+  return {RemangleAsType(dem, type, flavor), is_full_metadata};
 }
 
 TypeSP TypeSystemSwiftTypeRef::LookupClangType(StringRef name_ref,

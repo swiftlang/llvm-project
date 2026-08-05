@@ -490,13 +490,10 @@ public:
   static llvm::StringRef GetBaseName(swift::Demangle::NodePointer node);
   std::string GetBaseName(lldb::opaque_compiler_type_t type);
 
-  /// Given a mangled name that mangles a "type metadata for Type", return a
-  /// CompilerType with that Type.
-  CompilerType GetTypeFromTypeMetadataNode(llvm::StringRef mangled_name);
-
-  /// Given a mangled name that mangles a "value witness table for Type",
-  /// return a CompilerType with that Type.
-  CompilerType GetTypeFromValueWitnessTable(llvm::StringRef mangled_name);
+  /// Given a mangled name that mangles a "type metadata for Type", return that
+  /// Type, and whether the name mangles full metadata.
+  std::pair<CompilerType, bool>
+  GetTypeFromTypeMetadataNode(llvm::StringRef mangled_name);
 
   /// Use API notes to determine the swiftified name of \p clang_decl.
   std::string GetSwiftName(const clang::Decl *clang_decl,

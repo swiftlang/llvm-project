@@ -212,8 +212,19 @@ getTypeAndDie(TypeSystemSwiftTypeRef &ts,
   return {{type, die}};
 }
 
+/// Determine the field descriptor kind of \p die, the DIE of a protocol.
+static swift::reflection::FieldDescriptorKind
+getProtocolFieldDescriptorKind(const DWARFDIE &die) {
+  if (DWARFASTParserSwift::HasSwiftFlagAnnotation(die, "swift.ObjCProtocol"))
+    return swift::reflection::FieldDescriptorKind::ObjCProtocol;
+  if (DWARFASTParserSwift::HasSwiftFlagAnnotation(
+          die, "swift.ClassConstrainedProtocol"))
+    return swift::reflection::FieldDescriptorKind::ClassProtocol;
+  return swift::reflection::FieldDescriptorKind::Protocol;
+}
+
 static std::optional<swift::reflection::FieldDescriptorKind>
-getFieldDescriptorKindForDie(CompilerType type) {
+getFieldDescriptorKindForDie(CompilerType type, const DWARFDIE &die) {
   auto type_class = type.GetTypeClass();
   switch (type_class) {
   case lldb::eTypeClassClass:
@@ -224,7 +235,7 @@ getFieldDescriptorKindForDie(CompilerType type) {
     return swift::reflection::FieldDescriptorKind::Enum;
   default:
     if (Flags(type.GetTypeInfo()).AnySet(lldb::eTypeIsProtocol))
-      return swift::reflection::FieldDescriptorKind::Protocol;
+      return getProtocolFieldDescriptorKind(die);
     LLDB_LOG(GetLog(LLDBLog::Types),
              "Could not determine file descriptor kind for type: {0}",
              type.GetMangledTypeName());
@@ -611,7 +622,7 @@ DWARFASTParserSwift::getFieldDescriptor(const swift::reflection::TypeRef *TR) {
   auto [type, die] = *pair;
   if (!die)
     return nullptr;
-  auto kind = getFieldDescriptorKindForDie(type);
+  auto kind = getFieldDescriptorKindForDie(type, die);
   if (!kind)
     return nullptr;
 
