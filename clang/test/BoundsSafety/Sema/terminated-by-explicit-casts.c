@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 
@@ -22,7 +20,7 @@ void dont_inherit(const char *__null_terminated p) {
   // expected-error@+1{{pointers with incompatible terminators casting 'const char *__single __terminated_by(0)' (aka 'const char *__single') to incompatible type 'const char * __terminated_by(42)' (aka 'const char *')}}
   const char *__null_terminated q3 = (const char *__terminated_by(42))p;
 
-  // expected-error@+1{{casting 'const char *__single __terminated_by(0)' (aka 'const char *__single') to incompatible type 'const char *__single' requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
+  // expected-error@+1{{casting 'const char *__single __terminated_by(0)' (aka 'const char *__single') to incompatible type 'const char *__single' (aka 'const char *') requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
   const char *__null_terminated q4 = (const char *__single)p;
 
   // expected-error@+3{{casting 'const char *__single __terminated_by(0)' (aka 'const char *__single') to incompatible type 'const char *__bidi_indexable' requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}

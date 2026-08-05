@@ -6877,10 +6877,8 @@ public:
     }
 
     if (Level == 0) {
-      if (S.getLangOpts().BoundsSafetyAttributes && !S.getLangOpts().BoundsSafety)
-        FAttr.setUnspecified();
-      else
-        FAttr.setSingle();
+      
+      FAttr.setUnspecified();
       QualType QTy = (FAttr != T->getPointerAttributes())
                       ? S.Context.getPointerType(T->getPointeeType(), FAttr)
                       : QualType(T, 0);
@@ -6960,11 +6958,19 @@ public:
     if (T->getAttrKind() == attr::PtrAutoAttr)
       AutoPtrAttributed = true;
 
+    
+    unsigned MyLevel = Level;
+
     QualType NewModTy = Visit(T->getModifiedType());
     if (NewModTy.isNull())
       return QualType();
 
     if (T->getAttrKind() == attr::PtrAutoAttr)
+      return NewModTy;
+
+    
+    if (T->getAttrKind() == attr::PtrSingle && MyLevel == 0 &&
+        !S.getLangOpts().isBoundsSafetyAttributeOnlyMode())
       return NewModTy;
 
     if (NewModTy != T->getModifiedType()) {

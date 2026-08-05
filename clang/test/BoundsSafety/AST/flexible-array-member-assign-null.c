@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc %s | FileCheck %s
 
@@ -16,8 +14,8 @@ void init_null(void) {
 }
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: `-DeclStmt
-// CHECK-NEXT:   `-VarDecl {{.*}} s 'flex_t *__single' cinit
-// CHECK-NEXT:     `-ImplicitCastExpr {{.*}} 'flex_t *__single' <NullToPointer>
+// CHECK-NEXT:   `-VarDecl {{.*}} s 'flex_t *__single':'flex_t *' cinit
+// CHECK-NEXT:     `-ImplicitCastExpr {{.*}} 'flex_t *__single':'flex_t *' <NullToPointer>
 // CHECK-NEXT:       `-IntegerLiteral {{.*}} 'int' 0
 
 
@@ -27,10 +25,9 @@ void init_casted_null(void) {
 }
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: `-DeclStmt
-// CHECK-NEXT:   `-VarDecl {{.*}} s 'flex_t *__single' cinit
-// CHECK-NEXT:     `-ImplicitCastExpr {{.*}} 'flex_t *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT:       `-CStyleCastExpr {{.*}} 'flex_t *' <NullToPointer>
-// CHECK-NEXT:         `-IntegerLiteral {{.*}} 'int' 0
+// CHECK-NEXT:   `-VarDecl {{.*}} s 'flex_t *__single':'flex_t *' cinit
+// CHECK-NEXT:     `-CStyleCastExpr {{.*}} 'flex_t *' <NullToPointer>
+// CHECK-NEXT:       `-IntegerLiteral {{.*}} 'int' 0
 
 
 // CHECK-LABEL: assign_null 'void (void)'
@@ -40,10 +37,10 @@ void assign_null(void) {
 }
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: |-DeclStmt
-// CHECK-NEXT: | `-VarDecl {{.*}} used s 'flex_t *__single'
-// CHECK-NEXT: `-BinaryOperator {{.*}} 'flex_t *__single' '='
-// CHECK-NEXT:   |-DeclRefExpr {{.*}} 'flex_t *__single' lvalue Var {{.*}} 's' 'flex_t *__single'
-// CHECK-NEXT:   `-ImplicitCastExpr {{.*}} 'flex_t *__single' <NullToPointer>
+// CHECK-NEXT: | `-VarDecl {{.*}} used s 'flex_t *__single':'flex_t *'
+// CHECK-NEXT: `-BinaryOperator {{.*}} 'flex_t *__single':'flex_t *' '='
+// CHECK-NEXT:   |-DeclRefExpr {{.*}} 'flex_t *__single':'flex_t *' lvalue Var {{.*}} 's' 'flex_t *__single':'flex_t *'
+// CHECK-NEXT:   `-ImplicitCastExpr {{.*}} 'flex_t *__single':'flex_t *' <NullToPointer>
 // CHECK-NEXT:     `-IntegerLiteral {{.*}} 'int' 0
 
 
@@ -54,9 +51,8 @@ void assign_casted_null(void) {
 }
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: |-DeclStmt
-// CHECK-NEXT: | `-VarDecl {{.*}} used s 'flex_t *__single'
-// CHECK-NEXT: `-BinaryOperator {{.*}} 'flex_t *__single' '='
-// CHECK-NEXT:   |-DeclRefExpr {{.*}} 'flex_t *__single' lvalue Var {{.*}} 's' 'flex_t *__single'
-// CHECK-NEXT:   `-ImplicitCastExpr {{.*}} 'flex_t *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT:     `-CStyleCastExpr {{.*}} 'flex_t *' <NullToPointer>
-// CHECK-NEXT:       `-IntegerLiteral {{.*}} 'int' 0
+// CHECK-NEXT: | `-VarDecl {{.*}} used s 'flex_t *__single':'flex_t *'
+// CHECK-NEXT: `-BinaryOperator {{.*}} 'flex_t *__single':'flex_t *' '='
+// CHECK-NEXT:   |-DeclRefExpr {{.*}} 'flex_t *__single':'flex_t *' lvalue Var {{.*}} 's' 'flex_t *__single':'flex_t *'
+// CHECK-NEXT:   `-CStyleCastExpr {{.*}} 'flex_t *' <NullToPointer>
+// CHECK-NEXT:     `-IntegerLiteral {{.*}} 'int' 0

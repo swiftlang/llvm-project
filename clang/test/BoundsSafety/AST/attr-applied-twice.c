@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -fbounds-safety -ast-dump %s 2>&1 | FileCheck %s
 
 // When processing the type for `b`, the types are processed from the beginning of the declaration,
@@ -18,8 +16,8 @@ void foo() {
 // CHECK: -FunctionDecl {{.*}} foo 'void ()'
 // CHECK-NEXT:  `-CompoundStmt
 // CHECK-NEXT:    |-DeclStmt
-// CHECK-NEXT:    | |-VarDecl {{.*}} a 'int_ptr_t __single':'int *__single'
-// CHECK-NEXT:    | `-VarDecl {{.*}} b 'int_ptr_t __single':'int *__single'
+// CHECK-NEXT:    | |-VarDecl {{.*}} a 'int_ptr_t __single':'int *'
+// CHECK-NEXT:    | `-VarDecl {{.*}} b 'int_ptr_t __single':'int *'
 // CHECK-NEXT:    |-DeclStmt
 // CHECK-NEXT:    | |-VarDecl {{.*}} c 'int_ptr_t __bidi_indexable':'int *__bidi_indexable'
 // CHECK-NEXT:    | `-VarDecl {{.*}} d 'int_ptr_t __bidi_indexable':'int *__bidi_indexable'
@@ -29,4 +27,3 @@ void foo() {
 // CHECK-NEXT:    `-DeclStmt
 // CHECK-NEXT:      |-VarDecl {{.*}} g 'int_ptr_t __indexable':'int *__indexable'
 // CHECK-NEXT:      `-VarDecl {{.*}} h 'int_ptr_t __indexable':'int *__indexable'
-

@@ -225,7 +225,7 @@ namespace {
         Expr::EvalResult R;
         SrcIsNull = SrcExpr.get()->isNullPointerConstant(Self.Context,
             Expr::NPC_ValueDependentIsNotNull);
-        if (DestPTy->isSafePointer() && !SrcPTy &&
+                if (DestType->isSafePointerType() && !SrcPTy &&
             !DestPTy->getPointeeType().isVolatileQualified() &&
             !SrcIsNull) {
           Self.Diag(OpRange.getBegin(), diag::err_bounds_safety_non_to_pointer);
@@ -384,7 +384,15 @@ namespace {
           }
         }
 
-        if (DestPTy->isSafePointer() && !SrcPTy->isSafePointer() &&
+                bool DestIsSafeForUnsafeToSafe = DestType->isSafePointerType();
+        if (DestIsSafeForUnsafeToSafe && !Self.getLangOpts().BoundsSafety &&
+            (DestType->isValueTerminatedType() ||
+             DestType->isBoundsAttributedType()) &&
+            !DestType->hasAttr(attr::PtrSingle)) {
+          
+          DestIsSafeForUnsafeToSafe = false;
+        }
+        if (DestIsSafeForUnsafeToSafe && !SrcType->isSafePointerType() &&
             !SrcIsNull) {
           if (!SrcPTy->isUnsafeIndexable()) {
             // Ensure that the diagnostic says "unsafe indexable" somewhere.
@@ -397,8 +405,9 @@ namespace {
           return;
         }
 
+        
         if (!SrcIsNull && DestPTy->isPointerTypeWithBounds() &&
-            SrcPTy->isSingle() && !SrcType->isBoundsAttributedType()) {
+            SrcType->isSinglePointerType() && !SrcType->isBoundsAttributedType()) {
           if (SrcPTy->getPointeeType()->isIncompleteOrSizelessType()) {
             Self.Diag(OpRange.getBegin(),
                       diag::err_bounds_safety_incomplete_single_to_indexable)
@@ -483,7 +492,10 @@ namespace {
 /* TO_UPSTREAM(BoundsSafety) ON*/
 QualType
 Sema::deduceCastPointerAttributes(QualType ResultType, QualType SrcType) {
-  if (Context.hasSameBoundsSafetyPointerLayout(ResultType, SrcType))
+    bool NeedsSingleInheritance =
+      SrcType->isSinglePointerType() && ResultType->isUnspecifiedPointerType();
+  if (!NeedsSingleInheritance &&
+      Context.hasSameBoundsSafetyPointerLayout(ResultType, SrcType))
     return ResultType;
 
   // We apply the following type attribute inheritance rules.
@@ -522,7 +534,7 @@ Sema::deduceCastPointerAttributes(QualType ResultType, QualType SrcType) {
                                          MergePointeeTy)) {
         // SrcTy is __terminated_by(), update the pointee and inherit the
         // __terminated_by().
-        assert(!DVTT && SPTy->isSingle());
+        assert(!DVTT && SrcTy->isSinglePointerType());
         QualType Ty = Context.getPointerType(
             MergePointeeTy, BoundsSafetyPointerAttributes::single());
         return Context.getValueTerminatedType(Ty, SVTT->getTerminatorExpr());
@@ -532,6 +544,8 @@ Sema::deduceCastPointerAttributes(QualType ResultType, QualType SrcType) {
       BoundsSafetyPointerAttributes DstAttr;
       if (!DPTy->isUnspecified()) {
         DstAttr = DPTy->getPointerAttributes();
+      } else if (!SrcTy.isNull() && SrcTy->isSinglePointerType()) {
+                DstAttr = BoundsSafetyPointerAttributes::single();
       } else if (SPTy) {
         DstAttr = SPTy->getPointerAttributes();
       } else {

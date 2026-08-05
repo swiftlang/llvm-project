@@ -1,5 +1,3 @@
-
-
 // RUN: not %clang_cc1 -fbounds-safety -ast-dump %s 2> /dev/null | FileCheck %s
 // RUN: %clang_cc1 -fbounds-safety -verify %s
 // RUN: not %clang_cc1 -fbounds-safety -ast-dump %s 2> /dev/null | FileCheck %s
@@ -579,6 +577,6 @@ Lbar_sbuf_11:
 void TestError(void) {
     int value = 0;
     int *__single p = &value;
-    // expected-error@+1{{passing 'int *__single' to parameter 'buf' of type 'int *__single __counted_by(len)' (aka 'int *__single') with count value of 5 always fails}}
+    // expected-error@+1{{passing 'int *__single' (aka 'int *') to parameter 'buf' of type 'int *__single __counted_by(len)' (aka 'int *__single') with count value of 5 always fails}}
     Foo(p, 5);
 }

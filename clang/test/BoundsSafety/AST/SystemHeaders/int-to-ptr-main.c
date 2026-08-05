@@ -1,4 +1,3 @@
-
 #include <int-to-ptr-sys.h>
 
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s -verify=both -I %S/include | FileCheck %s --implicit-check-not "GetBoundExpr {{.+}} 'char *__single'" --implicit-check-not "GetBoundExpr {{.+}} 'char *'" --check-prefix RELAXED
@@ -15,14 +14,14 @@ int * func(intptr_t y) {
 // RELAXED: | |-ParmVarDecl [[var_p:0x[^ ]+]]
 // RELAXED: | `-CompoundStmt
 // RELAXED: |   `-ReturnStmt
-// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // RELAXED: |       `-DeclRefExpr {{.+}} [[var_p]]
 //
 // STRICT: |-FunctionDecl [[func_static:0x[^ ]+]] {{.+}} static
 // STRICT: | |-ParmVarDecl [[var_p:0x[^ ]+]]
 // STRICT: | `-CompoundStmt
 // STRICT: |   `-ReturnStmt
-// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // STRICT: |       `-DeclRefExpr {{.+}} [[var_p]]
 
 
@@ -40,14 +39,13 @@ int * func(intptr_t y) {
 // RELAXED: |     |   |-DeclRefExpr {{.+}} [[func_static]]
 // RELAXED: |     |   `-DeclRefExpr {{.+}} [[var_x]]
 // RELAXED: |     `-ReturnStmt
-// RELAXED: |       `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// RELAXED: |         `-CallExpr
-// RELAXED: |           |-ImplicitCastExpr {{.+}} 'int *__single(*__single)(int *__single)' <FunctionToPointerDecay>
-// RELAXED: |           | `-DeclRefExpr {{.+}} [[func_static]]
-// RELAXED: |           `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
-// RELAXED: |             `-CStyleCastExpr {{.+}} 'int *' <IntegralToPointer>
-// RELAXED: |               `-ImplicitCastExpr {{.+}} 'intptr_t':'long' <LValueToRValue>
-// RELAXED: |                 `-DeclRefExpr {{.+}} [[var_x]]
+// RELAXED: |       `-CallExpr {{.+}} 'int *__single':'int *'
+// RELAXED: |         |-ImplicitCastExpr {{.+}} 'int *__single(*__single)(int *__single)' <FunctionToPointerDecay>
+// RELAXED: |         | `-DeclRefExpr {{.+}} [[func_static]]
+// RELAXED: |         `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
+// RELAXED: |           `-CStyleCastExpr {{.+}} 'int *' <IntegralToPointer>
+// RELAXED: |             `-ImplicitCastExpr {{.+}} 'intptr_t':'long' <LValueToRValue>
+// RELAXED: |               `-DeclRefExpr {{.+}} [[var_x]]
 //
 // STRICT: |-FunctionDecl [[func_static_1:0x[^ ]+]] {{.+}} static
 // STRICT: | |-ParmVarDecl [[var_x:0x[^ ]+]]

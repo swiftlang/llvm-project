@@ -57,8 +57,18 @@ QualType clang::desugarForDiagnostic(ASTContext &Context, QualType QT,
       QT = ST->desugar();
       continue;
     }
-    // ...or an attributed type...
     if (const AttributedType *AT = dyn_cast<AttributedType>(Ty)) {
+            if (AT->getAttrKind() == attr::PtrSingle ||
+          AT->getAttrKind() == attr::PtrUnsafeIndexable) {
+        bool DesugarModified = false;
+        QualType NewModifiedTy = desugarForDiagnostic(
+            Context, AT->getModifiedType(), DesugarModified);
+        if (DesugarModified)
+          ShouldAKA = true;
+        QT = Context.getAttributedType(AT->getAttrKind(), NewModifiedTy,
+                                        NewModifiedTy);
+        return QC.apply(Context, QT);
+      }
       QT = AT->desugar();
       continue;
     }

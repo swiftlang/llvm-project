@@ -3929,6 +3929,21 @@ QualType ASTContext::getBoundsSafetyPointerType(QualType PointerTy,
   std::function<QualType(QualType)>
   getBoundsSafetyPointerTypeRecurse = [&](QualType Ty) -> QualType {
     if (const auto *AT = Ty->getAs<AttributedType>()) {
+      
+      if (AT->getAttrKind() == attr::PtrSingle ||
+          AT->getAttrKind() == attr::PtrUnsafeIndexable) {
+        QualType Inner =
+            getBoundsSafetyPointerTypeRecurse(AT->getModifiedType());
+        auto QualsOnT = Ty.getQualifiers();
+        auto QualsOnModifTy = AT->getModifiedType().getQualifiers();
+        Qualifiers::removeCommonQualifiers(QualsOnT, QualsOnModifTy);
+        if (!QualsOnT.empty()) {
+          QualifierCollector QC(QualsOnT);
+          Inner = QC.apply(*this, Inner);
+        }
+        return Inner;
+      }
+
       auto ModifiedTy =
           getBoundsSafetyPointerTypeRecurse(AT->getModifiedType());
       auto EquivalentTy =
@@ -4009,6 +4024,22 @@ QualType ASTContext::mergeBoundsSafetyPointerTypes(
 
   const auto *AT = DstTy->getAs<AttributedType>();
   if (AT && !RecoverPtrAuto) {
+        if (AT->getAttrKind() == attr::PtrSingle ||
+        AT->getAttrKind() == attr::PtrUnsafeIndexable) {
+      QualType Inner = mergeBoundsSafetyPointerTypes(
+          AT->getModifiedType(), SrcTy, MergeFunctor, OrigDstTy);
+      if (Inner.isNull())
+        return QualType();
+      auto QualsOnT = DstTy.getQualifiers();
+      auto QualsOnModifTy = AT->getModifiedType().getQualifiers();
+      Qualifiers::removeCommonQualifiers(QualsOnT, QualsOnModifTy);
+      if (!QualsOnT.empty()) {
+        QualifierCollector QC(QualsOnT);
+        Inner = QC.apply(*this, Inner);
+      }
+      return Inner;
+    }
+
     auto ModifiedTy = mergeBoundsSafetyPointerTypes(
         AT->getModifiedType(), SrcTy, MergeFunctor, OrigDstTy);
     if (ModifiedTy.isNull())
@@ -4119,9 +4150,13 @@ public:
 
   RetTy VisitAttributedType(const AttributedType *T) {
     auto SavedAutoPtrAttr = AutoPtrAttr;
-    QualType ModifiedTy = Visit(T->getModifiedType());
+        QualType ModifiedTy = T->getAttrKind() == attr::PtrSingle
+                              ? T->getModifiedType()
+                              : Visit(T->getModifiedType());
     AutoPtrAttr = SavedAutoPtrAttr;
-    QualType EquivalentTy = Visit(T->getEquivalentType());
+    QualType EquivalentTy = T->getAttrKind() == attr::PtrSingle
+                                ? T->getEquivalentType()
+                                : Visit(T->getEquivalentType());
     QualType NewTy =
         Ctx.getAttributedType(T->getAttrKind(), ModifiedTy, EquivalentTy);
     return {NewTy, false};
@@ -6388,7 +6423,7 @@ QualType ASTContext::getAttributedType(attr::Kind attrKind,
   assert(!attr || attr->getKind() == attrKind);
 
   QualType canon = getCanonicalType(equivalentType);
-	type = new (*this, alignof(AttributedType))
+    type = new (*this, alignof(AttributedType))
       AttributedType(canon, attrKind, attr, modifiedType, equivalentType);
 
   Types.push_back(type);
@@ -7958,8 +7993,10 @@ bool ASTContext::hasCompatibleBoundsSafetyPointerLayout(QualType T1, QualType T2
     if (hasSameType(T1, T2))
       return true;
 
-    const auto *PT1 = T1->getBaseElementTypeUnsafe()->getAs<PointerType>();
-    const auto *PT2 = T2->getBaseElementTypeUnsafe()->getAs<PointerType>();
+    QualType BaseT1 = QualType(T1->getBaseElementTypeUnsafe(), 0);
+    QualType BaseT2 = QualType(T2->getBaseElementTypeUnsafe(), 0);
+    const auto *PT1 = BaseT1->getAs<PointerType>();
+    const auto *PT2 = BaseT2->getAs<PointerType>();
 
     if (!PT1 && !PT2)
       return true;
@@ -7974,14 +8011,14 @@ bool ASTContext::hasCompatibleBoundsSafetyPointerLayout(QualType T1, QualType T2
     }
 
     if (PT1) {
-      if (!PT2 && PT1->isSafePointer())
+      if (!PT2 && BaseT1->isSafePointerType())
         return false;
 
       T1 = PT1->getPointeeType();
     }
 
     if (PT2) {
-      if (!PT1 && PT2->isSafePointer())
+      if (!PT1 && BaseT2->isSafePointerType())
         return false;
       T2 = PT2->getPointeeType();
     }

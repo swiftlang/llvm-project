@@ -2031,10 +2031,63 @@ void TypePrinter::printAttributedBefore(const AttributedType *T,
     spaceBeforePlaceHolder(OS);
   }
 
+  
+  if (T->getAttrKind() == attr::PtrSingle && Policy.CountedByInArrayBracket) {
+    QualType Inner = T->getModifiedType();
+    llvm::SmallVector<QualType, 2> Wrappers;
+    for (;;) {
+      if (Inner->getAs<ValueTerminatedType>()) {
+        Wrappers.push_back(Inner);
+        Inner = Inner->getAs<ValueTerminatedType>()->desugar();
+      } else if (const auto *CAT = Inner->getAs<CountAttributedType>()) {
+        Wrappers.push_back(Inner);
+        Inner = CAT->desugar();
+      } else if (const auto *DRT = Inner->getAs<DynamicRangePointerType>()) {
+        Wrappers.push_back(Inner);
+        Inner = DRT->desugar();
+      } else {
+        break;
+      }
+    }
+
+    printBefore(Inner, OS);
+    OS << "__single";
+
+    for (auto It = Wrappers.rbegin(), E = Wrappers.rend(); It != E; ++It) {
+      QualType W = *It;
+      if (const auto *VTT = W->getAs<ValueTerminatedType>()) {
+        
+        assert(VTT->desugar()->isPointerType());
+        OS << ' ';
+        printTerminatedByAttr(VTT, OS, Policy);
+      } else if (const auto *CAT = W->getAs<CountAttributedType>()) {
+        printCountAttributedImpl(CAT, OS, Policy);
+      } else if (const auto *DRT = W->getAs<DynamicRangePointerType>()) {
+        if (const Expr *EndPtr = DRT->getEndPointer()) {
+          OS << " __ended_by(";
+          EndPtr->printPretty(OS, nullptr, Policy);
+          OS << ')';
+        }
+        if (const Expr *StartPtr = DRT->getStartPointer()) {
+          OS << " /* __started_by(";
+          StartPtr->printPretty(OS, nullptr, Policy);
+          OS << ") */ ";
+        }
+      }
+    }
+
+        return;
+  }
+  
+
   if (T->getAttrKind() == attr::AddressSpace)
     printBefore(T->getEquivalentType(), OS);
   else
     printBefore(T->getModifiedType(), OS);
+
+    if (T->getAttrKind() == attr::PtrUnsafeIndexable) {
+    OS << "__unsafe_indexable";
+  }
 
   if (T->isMSTypeSpec()) {
     switch (T->getAttrKind()) {
@@ -2117,12 +2170,12 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   if (T->getAttrKind() == attr::PtrAutoNullTerminatedAttr)
     return;
 
-  if (T->getAttrKind() == attr::PtrSingle) {
-    OS << "__single";
+    if (T->getAttrKind() == attr::PtrUnsafeIndexable)
     return;
-  }
-  if (T->getAttrKind() == attr::PtrUnsafeIndexable) {
-    OS << "__unsafe_indexable";
+  if (T->getAttrKind() == attr::PtrSingle) {
+    if (Policy.CountedByInArrayBracket)
+      return;
+    OS << "__single";
     return;
   }
   /* TO_UPSTREAM(BoundsSafety) OFF*/

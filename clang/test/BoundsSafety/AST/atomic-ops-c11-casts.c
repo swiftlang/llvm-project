@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fbounds-safety -ast-dump %s 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -ast-dump %s 2>&1 | FileCheck %s
 
@@ -69,7 +68,7 @@ void single(void) {
   // CHECK: DeclStmt {{.+}}
   // CHECK: `-VarDecl {{.+}} p1 '_Atomic(int *__single)' cinit
   // CHECK:   `-ImplicitCastExpr {{.+}} '_Atomic(int *__single)' <NonAtomicToAtomic>
-  // CHECK:     `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
+  // CHECK:     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
   // CHECK:       `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
   // CHECK:         `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue Var {{.+}} 'q1' 'int *__bidi_indexable'
   int *__bidi_indexable q1;
@@ -78,7 +77,7 @@ void single(void) {
   // CHECK: AtomicExpr {{.+}} 'void'
   // CHECK: |-UnaryOperator {{.+}} '_Atomic(int *__single) *__bidi_indexable' prefix '&' cannot overflow
   // CHECK: | `-DeclRefExpr {{.+}} '_Atomic(int *__single)' lvalue Var {{.+}} 'p2' '_Atomic(int *__single)'
-  // CHECK: `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
+  // CHECK: `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
   // CHECK:   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
   // CHECK:     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue Var {{.+}} 'q2' 'int *__bidi_indexable'
   int *_Atomic __single p2;
@@ -89,18 +88,18 @@ void single(void) {
   // CHECK: |-UnaryOperator {{.+}} '_Atomic(int *__single) *__bidi_indexable' prefix '&' cannot overflow
   // CHECK: | `-DeclRefExpr {{.+}} '_Atomic(int *__single)' lvalue Var {{.+}} 'p3' '_Atomic(int *__single)'
   // CHECK: |-IntegerLiteral {{.+}} 'int' 5
-  // CHECK: `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
+  // CHECK: `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
   // CHECK:   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
   // CHECK:     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue Var {{.+}} 'q3' 'int *__bidi_indexable'
   int *_Atomic __single p3;
   int *__bidi_indexable q3;
   __c11_atomic_store(&p3, q3, __ATOMIC_SEQ_CST);
 
-  // CHECK: AtomicExpr {{.+}} 'int *__single'
+  // CHECK: AtomicExpr {{.+}} 'int *__single':'int *'
   // CHECK: |-UnaryOperator {{.+}} '_Atomic(int *__single) *__bidi_indexable' prefix '&' cannot overflow
   // CHECK: | `-DeclRefExpr {{.+}} '_Atomic(int *__single)' lvalue Var {{.+}} 'p4' '_Atomic(int *__single)'
   // CHECK: |-IntegerLiteral {{.+}} 'int' 5
-  // CHECK: `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
+  // CHECK: `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
   // CHECK:   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
   // CHECK:     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue Var {{.+}} 'q4' 'int *__bidi_indexable'
   int *_Atomic __single p4;
@@ -113,9 +112,9 @@ void single(void) {
   // CHECK: |-IntegerLiteral {{.+}} 'int' 5
   // CHECK: |-ImplicitCastExpr {{.+}} 'int *__single*' <BoundsSafetyPointerCast>
   // CHECK: | `-UnaryOperator {{.+}} 'int *__single*__bidi_indexable' prefix '&' cannot overflow
-  // CHECK: |   `-DeclRefExpr {{.+}} 'int *__single' lvalue Var {{.+}} 'q5' 'int *__single'
+  // CHECK: |   `-DeclRefExpr {{.+}} 'int *__single':'int *' lvalue Var {{.+}} 'q5' 'int *__single':'int *'
   // CHECK: |-IntegerLiteral {{.+}} 'int' 5
-  // CHECK: `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
+  // CHECK: `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
   // CHECK:   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
   // CHECK:     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue Var {{.+}} 'r5' 'int *__bidi_indexable'
   int *_Atomic __single p5;

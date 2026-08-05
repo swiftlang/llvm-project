@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -Wno-bounds-safety-single-to-indexable-bounds-truncated -verify %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -Wno-bounds-safety-single-to-indexable-bounds-truncated -x objective-c -fexperimental-bounds-safety-objc -verify %s
 #include <ptrcheck.h>
@@ -55,7 +54,7 @@ void bar(int *ptr, int len) {
 void baz(int *__sized_by(len) ptr1, int *__sized_by(4) ptr2, int len) {
     int *__single sp;
     int *__unsafe_indexable up;
-    // expected-warning@+1{{size value is not statically known: assigning to 'ptr1' of type 'int *__single __sized_by(len)' (aka 'int *__single') from 'int *__single' is invalid for any size greater than 4}}
+    // expected-warning@+1{{size value is not statically known: assigning to 'ptr1' of type 'int *__single __sized_by(len)' (aka 'int *__single') from 'int *__single' (aka 'int *') is invalid for any size greater than 4}}
     ptr1 = sp;
     // expected-note@+1{{size assigned here}}
     len = len;
@@ -88,15 +87,15 @@ void external(struct unsized *__sized_by(size) p, int size);
 void convert_unsized(struct unsized *__single p, int size) {
   // expected-error@+1{{argument of '__sized_by' attribute cannot refer to declaration of a different lifetime}}
   struct unsized *__single __sized_by(size) a = p; // requires explicit __single because of rdar://112196572
-  // expected-warning@+1{{size value is not statically known: passing 'struct unsized *__single' to parameter 'p' of type 'struct unsized *__single __sized_by(size)' (aka 'struct unsized *__single') is invalid for any size greater than 0}}
+  // expected-warning@+1{{size value is not statically known: passing 'struct unsized *__single' (aka 'struct unsized *') to parameter 'p' of type 'struct unsized *__single __sized_by(size)' (aka 'struct unsized *__single') is invalid for any size greater than 0}}
   external(p, size); // expected-note{{size passed here}}
 }
 
 void convert_unsized2(struct unsized *__single p, int size) {
   // expected-note@+1{{size initialized here}}
   int s = size;
-  // expected-warning@+1{{size value is not statically known: initializing 'a' of type 'struct unsized *__single __sized_by(s)' (aka 'struct unsized *__single') with 'struct unsized *__single' is invalid for any size greater than 0}}
+  // expected-warning@+1{{size value is not statically known: initializing 'a' of type 'struct unsized *__single __sized_by(s)' (aka 'struct unsized *__single') with 'struct unsized *__single' (aka 'struct unsized *') is invalid for any size greater than 0}}
   struct unsized *__single __sized_by(s) a = p; // requires explicit __single because of rdar://112196572
-  // expected-warning@+1{{size value is not statically known: passing 'struct unsized *__single' to parameter 'p' of type 'struct unsized *__single __sized_by(size)' (aka 'struct unsized *__single') is invalid for any size greater than 0}}
+  // expected-warning@+1{{size value is not statically known: passing 'struct unsized *__single' (aka 'struct unsized *') to parameter 'p' of type 'struct unsized *__single __sized_by(size)' (aka 'struct unsized *__single') is invalid for any size greater than 0}}
   external(p, size); // expected-note{{size passed here}}
 }

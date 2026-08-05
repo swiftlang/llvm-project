@@ -54,7 +54,8 @@ void funcInSDK2(int * __single __terminated_by(2) safePointer) {
 // RELAXED: | `-CompoundStmt
 // RELAXED: |   |-BinaryOperator {{.+}} 'int *__single __sized_by(2)':'int *__single' '='
 // RELAXED: |   | |-DeclRefExpr {{.+}} [[var_sizedGlobal]]
-// RELAXED: |   | `-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'int *__single __terminated_by(2)':'int *__single'
+// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single __sized_by(2)':'int *__single' <BoundsSafetyPointerCast>
+// RELAXED: |   |   `-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'int *__single __terminated_by(2)':'int *'
 // RELAXED: |   `-BinaryOperator {{.+}} 'int *__single __terminated_by(2)':'int *__single' '='
 // RELAXED: |     |-DeclRefExpr {{.+}} [[var_valueTerminatedGlobal]]
 // RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *__single' <LValueToRValue>
@@ -213,4 +214,3 @@ void funcInSDK4(int * __single __terminated_by(2) safePointer) {
 // MAINCHECK:       | `-DeclRefExpr {{.+}} [[func_funcInSDK4]]
 // MAINCHECK:       `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *__single' <LValueToRValue>
 // MAINCHECK:         `-DeclRefExpr {{.+}} [[var_term]]
-

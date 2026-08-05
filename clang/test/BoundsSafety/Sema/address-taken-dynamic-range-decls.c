@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify %s
 
 #include <ptrcheck.h>
@@ -43,7 +42,7 @@ void test() {
   *ptr_to_end = 0;
 
   fun_out_end(&s.end, &s.start);
-  // expected-error@+1{{type of 'local_end', 'int *__single', is incompatible with parameter of type 'int *__single /* __started_by(*out_start) */ ' (aka 'int *__single')}}
+  // expected-error@+1{{type of 'local_end', 'int *__single' (aka 'int *'), is incompatible with parameter of type 'int *__single /* __started_by(*out_start) */ ' (aka 'int *__single')}}
   fun_out_end(&local_end, &s.start);
   // expected-error@+1{{passing address of 'end' as an indirect parameter; must also pass 'iter' or its address because the type of 'iter', 'int *__single __ended_by(end) /* __started_by(start) */ ' (aka 'int *__single'), refers to 'end'}}
   fun_out_end(&u.end, &u.start);

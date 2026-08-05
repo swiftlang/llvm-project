@@ -571,11 +571,11 @@ char *const __null_terminated quals_nc_to_c(char *__null_terminated p) {
 
 char *__null_terminated single_to_terminated_by(char *__single p) {
   // ubu-warning@+2{{initializing 'char * __terminated_by(0)' (aka 'char *') with an expression of incompatible type 'char *__single' is an unsafe operation}}
-  // bs-error@+1{{initializing 'char *__single __terminated_by(0)' (aka 'char *__single') with an expression of incompatible type 'char *__single' is an unsafe operation; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion}}
+  // bs-error@+1{{initializing 'char *__single __terminated_by(0)' (aka 'char *__single') with an expression of incompatible type 'char *__single' (aka 'char *') is an unsafe operation; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion}}
   char *__null_terminated q = p;
 
   // ubu-warning@+2{{assigning to 'char * __terminated_by(0)' (aka 'char *') from incompatible type 'char *__single' is an unsafe operation}}
-  // bs-error@+1{{assigning to 'char *__single __terminated_by(0)' (aka 'char *__single') from incompatible type 'char *__single' is an unsafe operation; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion}}
+  // bs-error@+1{{assigning to 'char *__single __terminated_by(0)' (aka 'char *__single') from incompatible type 'char *__single' (aka 'char *') is an unsafe operation; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion}}
   q = p;
 
   // ubu-warning@+2{{passing 'char *__single' to parameter of incompatible type 'const char * __terminated_by(0)' (aka 'const char *') is an unsafe operation}}
@@ -583,7 +583,7 @@ char *__null_terminated single_to_terminated_by(char *__single p) {
   nul(p);
 
   // ubu-warning@+2{{returning 'char *__single' from a function with incompatible result type 'char * __terminated_by(0)' (aka 'char *') is an unsafe operation}}
-  // bs-error@+1{{returning 'char *__single' from a function with incompatible result type 'char *__single __terminated_by(0)' (aka 'char *__single') is an unsafe operation; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion}}
+  // bs-error@+1{{returning 'char *__single' (aka 'char *') from a function with incompatible result type 'char *__single __terminated_by(0)' (aka 'char *__single') is an unsafe operation; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion}}
   return p;
 
   // ubu-warning@+2{{casting 'char *__single' to incompatible type 'char * __terminated_by(0)' (aka 'char *') is an unsafe operation}}
@@ -621,23 +621,23 @@ char *__null_terminated indexable_to_terminated_by(char *__indexable p) {
 #endif
 
 char *__null_terminated *__null_terminated nested_to_terminated_by(char *__single *__null_terminated p) {
-  // ubu-warning@+2{{initializing 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') with an expression of incompatible type 'char ** __terminated_by(0)__single' (aka 'char **') that adds '__terminated_by' attribute}}
+  // ubu-warning@+2{{initializing 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') with an expression of incompatible type 'char ** __terminated_by(0)__single' (aka 'char **__single') that adds '__terminated_by' attribute}}
   // bs-error@+1{{initializing 'char *__single __terminated_by(0)*__single __terminated_by(0)' (aka 'char *__single*__single') with an expression of incompatible type 'char *__single*__single __terminated_by(0)' (aka 'char *__single*__single') that adds '__terminated_by' attribute is not allowed}}
   char *__null_terminated *__null_terminated q = p;
 
-  // ubu-warning@+2{{assigning to 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') from incompatible type 'char ** __terminated_by(0)__single' (aka 'char **') that adds '__terminated_by' attribute}}
+  // ubu-warning@+2{{assigning to 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') from incompatible type 'char ** __terminated_by(0)__single' (aka 'char **__single') that adds '__terminated_by' attribute}}
   // bs-error@+1{{assigning to 'char *__single __terminated_by(0)*__single __terminated_by(0)' (aka 'char *__single*__single') from incompatible type 'char *__single*__single __terminated_by(0)' (aka 'char *__single*__single') that adds '__terminated_by' attribute is not allowed}}
   q = p;
 
-  // ubu-warning@+2{{passing 'char ** __terminated_by(0)__single' (aka 'char **') to parameter of incompatible type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that adds '__terminated_by' attribute}}
+  // ubu-warning@+2{{passing 'char ** __terminated_by(0)__single' (aka 'char **__single') to parameter of incompatible type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that adds '__terminated_by' attribute}}
   // bs-error@+1{{passing 'char *__single*__single __terminated_by(0)' (aka 'char *__single*__single') to parameter of incompatible type 'char *__single __terminated_by(0)*__single __terminated_by(0)' (aka 'char *__single*__single') that adds '__terminated_by' attribute is not allowed}}
   nul_nested(p);
 
-  // ubu-warning@+2{{returning 'char ** __terminated_by(0)__single' (aka 'char **') from a function with incompatible result type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that adds '__terminated_by' attribute}}
+  // ubu-warning@+2{{returning 'char ** __terminated_by(0)__single' (aka 'char **__single') from a function with incompatible result type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that adds '__terminated_by' attribute}}
   // bs-error@+1{{returning 'char *__single*__single __terminated_by(0)' (aka 'char *__single*__single') from a function with incompatible result type 'char *__single __terminated_by(0)*__single __terminated_by(0)' (aka 'char *__single*__single') that adds '__terminated_by' attribute is not allowed}}
   return p;
 
-  // ubu-warning@+2{{casting 'char ** __terminated_by(0)__single' (aka 'char **') to incompatible type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that adds '__terminated_by' attribute}}
+  // ubu-warning@+2{{casting 'char ** __terminated_by(0)__single' (aka 'char **__single') to incompatible type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that adds '__terminated_by' attribute}}
   // bs-error@+1{{casting 'char *__single*__single __terminated_by(0)' (aka 'char *__single*__single') to incompatible type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that adds '__terminated_by' attribute is not allowed}}
   (void)((char *__null_terminated *__null_terminated)p);
 }
@@ -649,23 +649,23 @@ void foo_single(char *__single);
 
 char *__single single_from_terminated_by(char *__null_terminated p) {
   // ubu-warning@+2{{initializing 'char *__single' with an expression of incompatible type 'char * __terminated_by(0)' (aka 'char *') requires a linear search for the terminator}}
-  // bs-error@+1{{initializing 'char *__single' with an expression of incompatible type 'char *__single __terminated_by(0)' (aka 'char *__single') requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
+  // bs-error@+1{{initializing 'char *__single' (aka 'char *') with an expression of incompatible type 'char *__single __terminated_by(0)' (aka 'char *__single') requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
   char *__single q = p;
 
   // ubu-warning@+2{{assigning to 'char *__single' from incompatible type 'char * __terminated_by(0)' (aka 'char *') requires a linear search for the terminator}}
-  // bs-error@+1{{assigning to 'char *__single' from incompatible type 'char *__single __terminated_by(0)' (aka 'char *__single') requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
+  // bs-error@+1{{assigning to 'char *__single' (aka 'char *') from incompatible type 'char *__single __terminated_by(0)' (aka 'char *__single') requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
   q = p;
 
   // ubu-warning@+2{{passing 'char * __terminated_by(0)' (aka 'char *') to parameter of incompatible type 'char *__single' requires a linear search for the terminator}}
-  // bs-error@+1{{passing 'char *__single __terminated_by(0)' (aka 'char *__single') to parameter of incompatible type 'char *__single' requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
+  // bs-error@+1{{passing 'char *__single __terminated_by(0)' (aka 'char *__single') to parameter of incompatible type 'char *__single' (aka 'char *') requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
   foo_single(p);
 
   // ubu-warning@+2{{returning 'char * __terminated_by(0)' (aka 'char *') from a function with incompatible result type 'char *__single' requires a linear search for the terminator}}
-  // bs-error@+1{{returning 'char *__single __terminated_by(0)' (aka 'char *__single') from a function with incompatible result type 'char *__single' requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
+  // bs-error@+1{{returning 'char *__single __terminated_by(0)' (aka 'char *__single') from a function with incompatible result type 'char *__single' (aka 'char *') requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
   return p;
 
   // ubu-warning@+2{{casting 'char * __terminated_by(0)' (aka 'char *') to incompatible type 'char *__single' requires a linear search for the terminator}}
-  // bs-error@+1{{casting 'char *__single __terminated_by(0)' (aka 'char *__single') to incompatible type 'char *__single' requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
+  // bs-error@+1{{casting 'char *__single __terminated_by(0)' (aka 'char *__single') to incompatible type 'char *__single' (aka 'char *') requires a linear search for the terminator; use '__null_terminated_to_indexable()' to perform this conversion explicitly}}
   (void)((char *__single)p);
 }
 
@@ -705,23 +705,23 @@ char *__indexable indexable_from_terminated_by(char *__null_terminated p) {
 void bar(char *__single *__null_terminated);
 
 char *__single *__null_terminated nested_from_terminated_by(char *__null_terminated *__null_terminated p) {
-  // ubu-warning@+2{{initializing 'char ** __terminated_by(0)__single' (aka 'char **') with an expression of incompatible type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that discards '__terminated_by' attribute}}
+  // ubu-warning@+2{{initializing 'char ** __terminated_by(0)__single' (aka 'char **__single') with an expression of incompatible type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that discards '__terminated_by' attribute}}
   // bs-error@+1{{initializing 'char *__single*__single __terminated_by(0)' (aka 'char *__single*__single') with an expression of incompatible type 'char *__single __terminated_by(0)*__single __terminated_by(0)' (aka 'char *__single*__single') that discards '__terminated_by' attribute is not allowed}}
   char *__single *__null_terminated q = p;
 
-  // ubu-warning@+2{{assigning to 'char ** __terminated_by(0)__single' (aka 'char **') from incompatible type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that discards '__terminated_by' attribute}}
+  // ubu-warning@+2{{assigning to 'char ** __terminated_by(0)__single' (aka 'char **__single') from incompatible type 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') that discards '__terminated_by' attribute}}
   // bs-error@+1{{assigning to 'char *__single*__single __terminated_by(0)' (aka 'char *__single*__single') from incompatible type 'char *__single __terminated_by(0)*__single __terminated_by(0)' (aka 'char *__single*__single') that discards '__terminated_by' attribute is not allowed}}
   q = p;
 
-  // ubu-warning@+2{{passing 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') to parameter of incompatible type 'char ** __terminated_by(0)__single' (aka 'char **') that discards '__terminated_by' attribute}}
+  // ubu-warning@+2{{passing 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') to parameter of incompatible type 'char ** __terminated_by(0)__single' (aka 'char **__single') that discards '__terminated_by' attribute}}
   // bs-error@+1{{passing 'char *__single __terminated_by(0)*__single __terminated_by(0)' (aka 'char *__single*__single') to parameter of incompatible type 'char *__single*__single __terminated_by(0)' (aka 'char *__single*__single') that discards '__terminated_by' attribute is not allowed}}
   bar(p);
 
-  // ubu-warning@+2{{returning 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') from a function with incompatible result type 'char ** __terminated_by(0)__single' (aka 'char **') that discards '__terminated_by' attribute}}
+  // ubu-warning@+2{{returning 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') from a function with incompatible result type 'char ** __terminated_by(0)__single' (aka 'char **__single') that discards '__terminated_by' attribute}}
   // bs-error@+1{{returning 'char *__single __terminated_by(0)*__single __terminated_by(0)' (aka 'char *__single*__single') from a function with incompatible result type 'char *__single*__single __terminated_by(0)' (aka 'char *__single*__single') that discards '__terminated_by' attribute is not allowed}}
   return p;
 
-  // ubu-warning@+2{{casting 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') to incompatible type 'char ** __terminated_by(0)__single' (aka 'char **') that discards '__terminated_by' attribute}}
+  // ubu-warning@+2{{casting 'char * __terminated_by(0)* __terminated_by(0)' (aka 'char **') to incompatible type 'char ** __terminated_by(0)__single' (aka 'char **__single') that discards '__terminated_by' attribute}}
   // bs-error@+1{{casting 'char *__single __terminated_by(0)*__single __terminated_by(0)' (aka 'char *__single*__single') to incompatible type 'char *__single* __terminated_by(0)' (aka 'char *__single*') that discards '__terminated_by' attribute is not allowed}}
   (void)((char *__single *__null_terminated)p);
 }
@@ -866,7 +866,8 @@ const int *__null_terminated cond_op_different_type(int cond) {
   p = cond ? i : l;
   // bs-error@+1{{conditional expression evaluates values with incompatible pointee types 'const int *__bidi_indexable' and 'const long *__bidi_indexable'; use explicit casts to perform this conversion}}
   nul_int(cond ? i : l);
-  // bs-error@+1{{conditional expression evaluates values with incompatible pointee types 'const int *__bidi_indexable' and 'const long *__bidi_indexable'; use explicit casts to perform this conversion}}
+  // bs-error@+2{{conditional expression evaluates values with incompatible pointee types 'const int *__bidi_indexable' and 'const long *__bidi_indexable'; use explicit casts to perform this conversion}}
+  // bs-error@+1{{non-pointer to safe pointer conversion is not allowed with -fbounds-safety; use '__unsafe_forge_single' or '__unsafe_forge_bidi_indexable'}}
   (void)((const int *__null_terminated) (cond ? i : l));
   // bs-error@+1{{conditional expression evaluates values with incompatible pointee types 'const int *__bidi_indexable' and 'const long *__bidi_indexable'; use explicit casts to perform this conversion}}
   return cond ? i : l;
