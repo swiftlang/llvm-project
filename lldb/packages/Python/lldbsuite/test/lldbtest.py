@@ -1509,6 +1509,23 @@ class Base(unittest.TestCase):
     def getSwiftModuleImporterVariant(self):
         return self.getVariant("swift_module_importer")
 
+    def getSwiftEmbeddedVariant(self):
+        return self.getVariant("swift_embedded")
+
+    def isEmbeddedSwift(self):
+        """Return True when running the embedded Swift variant of this test."""
+        return self.getSwiftEmbeddedVariant() == "swiftembed"
+
+    def swiftMangledName(self, mangled_name):
+        """Return *mangled_name* in the mangling flavor of the current variant.
+
+        Embedded Swift prefixes every mangled symbol with `$e` where regular
+        Swift uses `$s`. A test that hardcodes a mangled name should pass it
+        through here instead of spelling both flavors out."""
+        if self.isEmbeddedSwift() and mangled_name.startswith("$s"):
+            return "$e" + mangled_name[2:]
+        return mangled_name
+
     def build(
         self,
         debug_info=None,

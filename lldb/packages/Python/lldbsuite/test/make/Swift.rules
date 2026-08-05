@@ -164,13 +164,6 @@ ifeq "$(SWIFT_CXX_INTEROP)" "1"
 endif
 
 #----------------------------------------------------------------------
-# SWIFT_EMBEDDED_CONCURRENCY implies SWIFT_EMBEDDED_MODE
-#----------------------------------------------------------------------
-ifeq "$(SWIFT_EMBEDDED_CONCURRENCY)" "1"
-	SWIFT_EMBEDDED_MODE = 1
-endif
-
-#----------------------------------------------------------------------
 # Check if we should compile in Swift embedded mode
 #----------------------------------------------------------------------
 ifeq "$(SWIFT_EMBEDDED_MODE)" "1"
@@ -195,15 +188,26 @@ ifeq "$(SWIFT_EMBEDDED_MODE)" "1"
 endif
 
 #----------------------------------------------------------------------
-# Check if we need embedded Swift concurrency support
+# Check if we need embedded Swift concurrency support.
+#
+# A test whose sources use async/await or actors sets SWIFT_CONCURRENCY := 1.
+# Regular Swift needs nothing extra, so this only has an effect on an embedded
+# build, and it never turns embedded mode on by itself: an embedded-only test
+# sets both SWIFT_CONCURRENCY and SWIFT_EMBEDDED_MODE.
 #----------------------------------------------------------------------
-ifeq "$(SWIFT_EMBEDDED_CONCURRENCY)" "1"
+ifeq "$(SWIFT_EMBEDDED_MODE)" "1"
+ifeq "$(SWIFT_CONCURRENCY)" "1"
+  # Embedded Swift disables the implicit _Concurrency import on every target
+  # except WASI. We inject it via the swift flags so the tests that compile in
+  # both variants can stay unchanged.
+	SWIFTFLAGS += -Xfrontend -import-module -Xfrontend _Concurrency
 	SWIFT_EMBEDDED_LIB_DIR = $(shell dirname $(SWIFTC))/../lib/swift/embedded/$(SWIFT_EMBEDDED_TRIPLE)
 	LD_EXTRAS +=  -Xlinker $(SWIFT_EMBEDDED_LIB_DIR)/libswift_Concurrency.a
 	LD_EXTRAS +=  -Xlinker $(SWIFT_EMBEDDED_LIB_DIR)/libswift_ConcurrencyDefaultExecutor.a
 	LD_EXTRAS +=  -Xlinker $(SWIFT_EMBEDDED_LIB_DIR)/libswiftEmbeddedPlatformSingleThreaded.a
 	LD_EXTRAS += -lc++
 	LD_EXTRAS += -Xlinker -dead_strip
+endif
 endif
 
 #----------------------------------------------------------------------

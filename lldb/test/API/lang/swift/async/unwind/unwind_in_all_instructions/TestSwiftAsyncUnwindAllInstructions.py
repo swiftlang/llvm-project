@@ -32,14 +32,17 @@ class TestCase(lldbtest.TestBase):
 
     def set_breakpoints_all_funclets(self, target):
         funclet_names = [
-            "$s1a12ASYNC___1___4condS2i_tYaF",
-            "$s1a12ASYNC___1___4condS2i_tYaFTY0_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTQ1_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTY2_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTQ3_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTY4_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTQ5_",
-            "$s1a12ASYNC___1___4condS2i_tYaFTY6_",
+            self.swiftMangledName(name)
+            for name in [
+                "$s1a12ASYNC___1___4condS2i_tYaF",
+                "$s1a12ASYNC___1___4condS2i_tYaFTY0_",
+                "$s1a12ASYNC___1___4condS2i_tYaFTQ1_",
+                "$s1a12ASYNC___1___4condS2i_tYaFTY2_",
+                "$s1a12ASYNC___1___4condS2i_tYaFTQ3_",
+                "$s1a12ASYNC___1___4condS2i_tYaFTY4_",
+                "$s1a12ASYNC___1___4condS2i_tYaFTQ5_",
+                "$s1a12ASYNC___1___4condS2i_tYaFTY6_",
+            ]
         ]
 
         breakpoints = set()

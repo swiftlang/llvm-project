@@ -15,9 +15,14 @@ class TestCase(lldbtest.TestBase):
 
         src = lldb.SBFileSpec("main.swift")
         target, _, thread, _ = lldbutil.run_to_source_breakpoint(self, "await f()", src)
-        self.assertEqual(thread.frame[0].function.mangled, "$s1a5entryO4mainyyYaFZ")
+        self.assertEqual(
+            thread.frame[0].function.mangled,
+            self.swiftMangledName("$s1a5entryO4mainyyYaFZ"),
+        )
 
-        sym_ctx_list = target.FindFunctions("$s1a5entryO4mainyyYaFZTQ0_")
+        sym_ctx_list = target.FindFunctions(
+            self.swiftMangledName("$s1a5entryO4mainyyYaFZTQ0_")
+        )
         self.assertEqual(sym_ctx_list.GetSize(), 1)
         function = sym_ctx_list[0].function
         self.assertIsNotNone(function)
