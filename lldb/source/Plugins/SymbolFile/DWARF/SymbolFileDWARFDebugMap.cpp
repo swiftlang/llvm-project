@@ -1657,6 +1657,18 @@ SymbolFileDWARFDebugMap::GetASTData(lldb::LanguageType language) {
   return ast_datas;
 }
 
+// BEGIN CAS
+ModuleList SymbolFileDWARFDebugMap::GetLoadedReferencedModules() {
+  // Unlike GetDebugInfoModules(), this must not parse anything: report the .o
+  // modules that have already been loaded and nothing more.
+  ModuleList oso_modules;
+  for (const CompileUnitInfo &comp_unit_info : m_compile_unit_infos)
+    if (comp_unit_info.oso_sp && comp_unit_info.oso_sp->module_sp)
+      oso_modules.AppendIfNeeded(comp_unit_info.oso_sp->module_sp);
+  return oso_modules;
+}
+// END CAS
+
 ModuleList SymbolFileDWARFDebugMap::GetDebugInfoModules() {
   ModuleList oso_modules;
   ForEachSymbolFile("Parsing modules", [&](SymbolFileDWARF &oso_dwarf) {

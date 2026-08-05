@@ -2827,6 +2827,29 @@ void TypeSystemSwiftTypeRef::ClearModuleDependentCaches() {
   });
 }
 
+// BEGIN CAS
+void TypeSystemSwiftTypeRef::ReleaseCASReferences() {
+  std::lock_guard<std::mutex> guard(m_swift_ast_context_lock);
+  llvm::SmallVector<const char *, 4> keys;
+  for (auto &it : m_swift_ast_context_map) {
+    auto *swift_ast_ctx =
+        llvm::dyn_cast_or_null<SwiftASTContext>(it.second.typesystem.get());
+    if (swift_ast_ctx && swift_ast_ctx->HasCAS())
+      keys.push_back(it.first);
+  }
+  // Erasing the last shared_ptr is not necessarily what destroys the context:
+  // a client still holding a CompilerType keeps it, and thus the CAS, alive.
+  // ModuleList::ReleaseObjectStore() reports such a straggler.
+  for (const char *key : keys) {
+    LLDB_LOG(GetLog(LLDBLog::Types),
+             "{0}::ReleaseCASReferences() -- discarding CAS-backed "
+             "SwiftASTContext '{1}'",
+             m_description, key ? key : "");
+    m_swift_ast_context_map.erase(key);
+  }
+}
+// END CAS
+
 const char *
 TypeSystemSwiftTypeRef::AsMangledName(opaque_compiler_type_t type) const {
   if (IsFrameBoundType(type)) {

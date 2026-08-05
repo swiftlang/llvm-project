@@ -935,8 +935,7 @@ static std::string GetClangModulesCacheProperty() {
 }
 
 void SwiftASTContext::ConfigureDefaultCASStorage(const ModuleSP &module_sp) {
-  llvm::ArrayRef<ModuleList::CAS> all_cas =
-      ModuleList::GetCASStorage(module_sp);
+  std::vector<ModuleList::CAS> all_cas = ModuleList::GetCASStorage(module_sp);
   if (all_cas.empty()) {
     HEALTH_LOG_PRINTF("Did not create CAS: no CAS associated with module");
     return;

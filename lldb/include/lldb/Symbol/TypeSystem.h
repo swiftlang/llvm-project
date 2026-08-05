@@ -92,6 +92,13 @@ public:
   /// removing all the TypeSystems from the TypeSystemMap.
   virtual void Finalize() {}
 
+  // BEGIN CAS
+  /// Drop what this type system holds that keeps a CAS ObjectStore alive. It
+  /// stays alive and usable, so whatever is dropped must be reconstructible on
+  /// demand.
+  virtual void ReleaseCASReferences() {}
+  // END CAS
+
   virtual plugin::dwarf::DWARFASTParser *GetDWARFParser() { return nullptr; }
 
   virtual PDBASTParser *GetPDBParser() { return nullptr; }

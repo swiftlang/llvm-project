@@ -154,6 +154,12 @@ public:
   // Statistics overrides.
   ModuleList GetDebugInfoModules() override;
 
+  // BEGIN CAS
+  /// The .o files backing this debug map are kept alive by this symbol file.
+  /// Only the ones that have already been loaded are reported.
+  ModuleList GetLoadedReferencedModules() override;
+  // END CAS
+
   void
   GetCompileOptions(std::unordered_map<lldb::CompUnitSP, Args> &args) override;
 

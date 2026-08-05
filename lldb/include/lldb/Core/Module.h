@@ -911,6 +911,26 @@ public:
 
   void ClearModuleDependentCaches();
 
+  // BEGIN CAS
+  /// Whether this module's object file is read straight out of a CAS memory
+  /// mapping, in which case the store cannot be released without destroying
+  /// the module.
+  bool WasLoadedFromCAS() const { return m_loaded_from_cas; }
+
+  enum class CASReleaseResult {
+    /// This module was not keeping a CAS alive.
+    NothingToRelease,
+    /// This module let go of its CAS and is still usable.
+    Released,
+    /// This module has to be destroyed to release its CAS.
+    MustBeDestroyed,
+  };
+
+  /// Drop what this module holds that keeps a CAS ObjectStore alive: the CAS
+  /// instances, and any CAS-backed state in its type systems.
+  CASReleaseResult ReleaseCASReferences();
+  // END CAS
+
   void SetTypeSystemMap(const TypeSystemMap &type_system_map) {
     m_type_system_map = type_system_map;
   }
@@ -1162,6 +1182,8 @@ protected:
   /// means that this module has no CAS associated with it.
   std::optional<std::vector<ModuleList::CAS>> m_cas;
   mutable std::mutex m_cas_init_mutex;
+
+  bool m_loaded_from_cas = false;
 
   // END CAS
 

@@ -252,6 +252,13 @@ public:
 
   typedef std::map<ConstString, lldb::ModuleSP> ExternalTypeModuleMap;
 
+  // BEGIN CAS
+  /// The external type modules -- the clang modules this symbol file loaded for
+  /// -gmodules debug info -- are kept alive by this symbol file.
+  ModuleList GetLoadedReferencedModules() override;
+  bool ReleaseCASLoadedModules() override;
+  // END CAS
+
   /// Return the list of Clang modules imported by this SymbolFile.
   const ExternalTypeModuleMap &getExternalTypeModules() const {
     return m_external_type_modules;

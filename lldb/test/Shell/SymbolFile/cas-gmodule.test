@@ -31,6 +31,11 @@
 # CHECK: Initialized CAS at [[CAS]]
 # CHECK: Loading module 'Top' from CAS at
 
+# Destroying the debugger releases the CAS-backed modules, which drops the
+# last references to the CAS. Nothing may still be holding on to it.
+# CHECK: Released CAS at [[CAS]]
+# CHECK: {{[0-9]+}} released, 0 still referenced
+
 # NONCAS-NOT: is not valid CASID
 # NONCAS: Unable to locate module needed for external types
 

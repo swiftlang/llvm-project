@@ -1070,7 +1070,12 @@ bool SymbolFileDWARF::ForEachExternalModule(
     return false;
 
   UpdateExternalModuleListIfNeeded();
-  for (auto &p : m_external_type_modules) {
+  ExternalTypeModuleMap external_type_modules;
+  {
+    std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+    external_type_modules = m_external_type_modules;
+  }
+  for (auto &p : external_type_modules) {
     ModuleSP module = p.second;
     if (!module)
       continue;
@@ -1714,11 +1719,112 @@ bool SymbolFileDWARF::GetFunction(const DWARFDIE &die, SymbolContext &sc) {
 
 lldb::ModuleSP SymbolFileDWARF::GetExternalModule(ConstString name) {
   UpdateExternalModuleListIfNeeded();
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   const auto &pos = m_external_type_modules.find(name);
   if (pos == m_external_type_modules.end())
     return lldb::ModuleSP();
   return pos->second;
 }
+
+// BEGIN CAS
+ModuleList SymbolFileDWARF::GetLoadedReferencedModules() {
+  // Deliberately does not call UpdateExternalModuleListIfNeeded(): this is
+  // asked during teardown, where loading anything new would be pointless.
+  ModuleList result;
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+  auto append = [&result](const ExternalTypeModuleMap &external_type_modules) {
+    for (const auto &entry : external_type_modules)
+      if (entry.second)
+        result.AppendIfNeeded(entry.second);
+  };
+  append(m_external_type_modules);
+
+  // A split-DWARF unit's SymbolFileDWARFDwo imports its own clang modules and
+  // is not owned by any Module, so nothing else would report them.
+  // GetDwoSymbolFile(false) does not go looking for an unopened .dwo.
+  if (m_info)
+    for (size_t idx = 0, end = m_info->GetNumUnits(); idx < end; ++idx)
+      if (DWARFUnit *unit = m_info->GetUnitAtIndex(idx))
+        if (SymbolFileDWARFDwo *dwo_symfile =
+                unit->GetDwoSymbolFile(/*load_all_debug_info=*/false))
+          append(dwo_symfile->getExternalTypeModules());
+  return result;
+}
+
+bool SymbolFileDWARF::ReleaseCASLoadedModules() {
+  // A module can only be given up if nothing was imported out of its clang AST
+  // into an AST that survives. DWARFASTParserClang imports a forward
+  // declaration and completes it lazily out of the source ASTContext, and
+  // nothing re-establishes that link when the module is loaded again -- the
+  // type is already cached in GetDIEToType(). Destroying the source would leave
+  // either a dangling ASTContext or a permanently incomplete type.
+  //
+  // The AST that did the importing is the one GetTypeSystemForLanguage() hands
+  // out, which for a debug map .o belongs to the executable, not to the .o. A
+  // SymbolFileDWARFDwo forwards to its base symbol file, i.e. to this one.
+  ModuleSP importer_module_sp = GetObjectFile()->GetModule();
+  if (SymbolFileDWARFDebugMap *debug_map = GetDebugMapSymfile())
+    if (ObjectFile *debug_map_obj = debug_map->GetObjectFile())
+      importer_module_sp = debug_map_obj->GetModule();
+
+  auto is_imported_from = [&importer_module_sp](Module &loaded_module) -> bool {
+    clang::ASTContext *src_ast = nullptr;
+    loaded_module.ForEachTypeSystem([&](lldb::TypeSystemSP type_system_sp) {
+      if (auto *clang_ts =
+              llvm::dyn_cast_or_null<TypeSystemClang>(type_system_sp.get()))
+        src_ast = &clang_ts->getASTContext();
+      return !src_ast;
+    });
+    // No clang AST was ever built for it, so nothing can have been imported.
+    if (!src_ast)
+      return false;
+
+    bool imported = false;
+    importer_module_sp->ForEachTypeSystem([&](lldb::TypeSystemSP
+                                                 type_system_sp) {
+      if (!type_system_sp)
+        return true;
+      auto *parser = llvm::dyn_cast_or_null<DWARFASTParserClang>(
+          type_system_sp->GetDWARFParser());
+      if (parser && parser->GetClangASTImporter().HasImportedFrom(src_ast))
+        imported = true;
+      return !imported;
+    });
+    return imported;
+  };
+
+  bool released_everything = true;
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+  auto release = [&](SymbolFileDWARF &dwarf) {
+    llvm::SmallVector<ConstString, 4> cas_loaded;
+    for (const auto &entry : dwarf.m_external_type_modules) {
+      if (!entry.second || !entry.second->WasLoadedFromCAS())
+        continue;
+      if (is_imported_from(*entry.second)) {
+        released_everything = false;
+        continue;
+      }
+      cas_loaded.push_back(entry.first);
+    }
+    if (cas_loaded.empty())
+      return;
+    for (ConstString name : cas_loaded)
+      dwarf.m_external_type_modules.erase(name);
+    // Re-run the DW_AT_dwo_name walk on the next access. The entries that were
+    // not erased are left alone by UpdateExternalModuleListIfNeeded().
+    dwarf.m_fetched_external_modules = false;
+  };
+
+  release(*this);
+  if (m_info)
+    for (size_t idx = 0, end = m_info->GetNumUnits(); idx < end; ++idx)
+      if (DWARFUnit *unit = m_info->GetUnitAtIndex(idx))
+        if (SymbolFileDWARFDwo *dwo_symfile =
+                unit->GetDwoSymbolFile(/*load_all_debug_info=*/false))
+          release(*dwo_symfile);
+  return released_everything;
+}
+// END CAS
 
 SymbolFileDWARF *SymbolFileDWARF::GetDIERefSymbolFile(const DIERef &die_ref) {
   // Anytime we get a "lldb::user_id_t" from an lldb_private::SymbolFile API we
@@ -1977,6 +2083,12 @@ SymbolFileDWARF::GetDwoSymbolFileForCompileUnit(
 }
 
 void SymbolFileDWARF::UpdateExternalModuleListIfNeeded() {
+  // BEGIN CAS
+  // m_external_type_modules is written here and read by GetExternalModule() and
+  // ForEachExternalModule(); ReleaseCASLoadedModules() also erases from it, on a
+  // teardown thread. Guard all of them with the module mutex.
+  std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
+  // END CAS
   if (m_fetched_external_modules)
     return;
   m_fetched_external_modules = true;

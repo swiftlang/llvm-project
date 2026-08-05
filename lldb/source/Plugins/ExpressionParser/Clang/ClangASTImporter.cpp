@@ -1054,6 +1054,15 @@ void ClangASTImporter::ForgetSource(clang::ASTContext *dst_ast,
   md->removeOriginsWithContext(src_ast);
 }
 
+// BEGIN CAS
+bool ClangASTImporter::HasImportedFrom(clang::ASTContext *src_ast) const {
+  return llvm::any_of(m_metadata_map, [src_ast](const auto &entry) {
+    return entry.second->m_delegates.contains(src_ast) ||
+           entry.second->hasOriginsWithContext(src_ast);
+  });
+}
+// END CAS
+
 ClangASTImporter::MapCompleter::~MapCompleter() = default;
 
 llvm::Expected<Decl *>

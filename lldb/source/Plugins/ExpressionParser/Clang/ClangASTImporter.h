@@ -243,6 +243,14 @@ public:
   void ForgetDestination(clang::ASTContext *dst_ctx);
   void ForgetSource(clang::ASTContext *dst_ctx, clang::ASTContext *src_ctx);
 
+  // BEGIN CAS
+  /// Whether anything imported through this importer still depends on
+  /// \c src_ctx, either through an importer delegate or through a decl that may
+  /// still have to be completed out of it. If nothing does, destroying
+  /// \c src_ctx leaves nothing dangling behind.
+  bool HasImportedFrom(clang::ASTContext *src_ctx) const;
+  // END CAS
+
   struct DeclOrigin {
     DeclOrigin() = default;
 
@@ -396,6 +404,16 @@ public:
           ++iter;
       }
     }
+
+    // BEGIN CAS
+    /// Whether any DeclOrigin points to the given ASTContext, i.e. whether a
+    /// decl imported from it may still have to be completed out of it.
+    bool hasOriginsWithContext(clang::ASTContext *ctx) const {
+      return llvm::any_of(m_origins, [ctx](const auto &entry) {
+        return entry.second.ctx == ctx;
+      });
+    }
+    // END CAS
 
     /// Returns the DeclOrigin for the given Decl or an invalid DeclOrigin
     /// instance if there no known DeclOrigin for the given Decl.

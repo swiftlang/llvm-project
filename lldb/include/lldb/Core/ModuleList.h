@@ -577,8 +577,10 @@ public:
   /// Find an initialize every CAS associated with \c module_sp.
   static void ConfigureCASStorage(const lldb::ModuleSP &module_sp);
 
-  /// Return a list of all CAS associated with \c module_sp.
-  static llvm::ArrayRef<CAS> GetCASStorage(const lldb::ModuleSP &module_sp);
+  /// Return all CAS associated with \c module_sp. Returns a copy: the caller's
+  /// shared_ptrs keep the stores alive for as long as it uses them, whatever
+  /// ReleaseObjectStore() does to the module in the meantime.
+  static std::vector<CAS> GetCASStorage(const lldb::ModuleSP &module_sp);
 
   /// Return the first CAS associated with \c module_sp whose
   /// ObjectStore resolves \c cas_id. Returns an error if no CAS
@@ -602,6 +604,18 @@ public:
                          llvm::StringRef name_for_diagnostics,
                          const lldb::ModuleSP &nearby, ModuleSpec &module_spec,
                          lldb::ModuleSP &module_sp);
+
+  /// Release every CAS ObjectStore that is no longer referenced.
+  ///
+  /// A module that only looked something up in a CAS lets go of the store and
+  /// is kept. A module that was loaded *out of* a CAS cannot let go, so it is
+  /// removed, along with whatever holds it -- but only if nothing else
+  /// references it. A process that never instantiated a CAS is left untouched.
+  ///
+  /// \return
+  ///    The number of CAS instances still referenced after this call. Each
+  ///    one is logged by path under the "modules" log channel.
+  static size_t ReleaseObjectStore();
   // END CAS
 
   static bool RemoveSharedModule(lldb::ModuleSP &module_sp);

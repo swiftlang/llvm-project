@@ -1822,6 +1822,56 @@ std::vector<DataBufferSP> Module::GetASTData(lldb::LanguageType language) {
 }
 // END SWIFT
 
+// BEGIN CAS
+Module::CASReleaseResult Module::ReleaseCASReferences() {
+  bool loaded_from_cas = false;
+  std::vector<ModuleList::CAS> released;
+  {
+    std::lock_guard<std::mutex> lock(m_cas_init_mutex);
+    loaded_from_cas = m_loaded_from_cas;
+    if (m_cas && !m_cas->empty()) {
+      released = std::move(*m_cas);
+      // Back to uninitialized, not to "no CAS": the configuration search runs
+      // again the next time this module needs one. An engaged but empty m_cas
+      // is a negative result worth keeping, so it is left alone.
+      //
+      // Letting go here, before draining the type systems below, is what keeps
+      // the two consistent: one created in the meantime looks a CAS up afresh
+      // rather than binding this vector after it was meant to be gone.
+      m_cas.reset();
+    }
+  }
+  if (released.empty() && !loaded_from_cas)
+    return CASReleaseResult::NothingToRelease;
+
+  // The type systems hold non-owning aliases into the store's memory, so they
+  // have to let go too. The copy above keeps it mapped until they have. Only
+  // already-created type systems are visited.
+  ForEachTypeSystem([](lldb::TypeSystemSP type_system_sp) {
+    if (type_system_sp)
+      type_system_sp->ReleaseCASReferences();
+    return true;
+  });
+
+  // Let go of the modules read out of the store, so that this module does not
+  // have to be destroyed along with them. Only an already-parsed symbol file is
+  // asked; one that does not exist yet holds nothing.
+  bool released_loaded_modules = true;
+  if (m_did_load_symfile)
+    if (SymbolFile *sym_file = GetSymbolFile())
+      released_loaded_modules = sym_file->ReleaseCASLoadedModules();
+
+  // MustBeDestroyed says releasing the store needs this module gone, not that
+  // the module is now unusable: a DataBufferCAS holds its own reference to the
+  // store, so the object file's bytes stay valid either way. If it turns out
+  // not to be orphaned it is left alone and the store is reported still
+  // referenced.
+  if (loaded_from_cas || !released_loaded_modules)
+    return CASReleaseResult::MustBeDestroyed;
+  return CASReleaseResult::Released;
+}
+// END CAS
+
 uint32_t Module::Hash() {
   std::string identifier;
   llvm::raw_string_ostream id_strm(identifier);

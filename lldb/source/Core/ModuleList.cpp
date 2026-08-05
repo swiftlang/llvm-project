@@ -32,6 +32,7 @@
 #include "lldb/lldb-defines.h"
 #include "lldb/lldb-private-enumerations.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/ThreadPool.h"
@@ -1184,6 +1185,18 @@ public:
 
   std::recursive_mutex &GetMutex() const { return m_list.GetMutex(); }
 
+  // BEGIN CAS
+  /// The modules currently in the list, as weak references so that the snapshot
+  /// itself does not keep any of them alive.
+  std::vector<lldb::ModuleWP> SnapshotModules() const {
+    std::lock_guard<std::recursive_mutex> guard(GetMutex());
+    std::vector<lldb::ModuleWP> modules;
+    for (const ModuleSP &module_sp : m_list.ModulesNoLocking())
+      modules.push_back(module_sp);
+    return modules;
+  }
+  // END CAS
+
 private:
   ModuleSP FindModuleInMap(const Module &module) const {
     if (!module.GetFileSpec().GetFilename())
@@ -1655,15 +1668,16 @@ ModuleList::GetSharedModule(const ModuleSpec &module_spec, ModuleSP &module_sp,
 llvm::Expected<ModuleSpec> ModuleList::LoadModuleFromCAS(
     llvm::StringRef cas_id, llvm::StringRef name_for_diagnostics,
     const ModuleSP &nearby, const UUID &uuid, const ArchSpec &arch) {
-  ConfigureCASStorage(nearby);
   if (!nearby) {
     LLDB_LOG(GetLog(LLDBLog::Modules),
              "Failed to load module '{0}' at '{1}' from CAS: no module",
              name_for_diagnostics, cas_id);
     return ModuleSpec();
   }
-  assert(nearby->m_cas && "ConfigureCASStorage should have populated m_cas");
-  if (nearby->m_cas->empty()) {
+  // A copy, so that a concurrent ReleaseObjectStore() cannot pull the stores
+  // out from under the loop below.
+  std::vector<CAS> all_cas = GetCASStorage(nearby);
+  if (all_cas.empty()) {
     LLDB_LOG(GetLog(LLDBLog::Modules),
              "Failed to load module '{0}' at '{1}' from CAS: no CAS "
              "associated with module",
@@ -1673,7 +1687,7 @@ llvm::Expected<ModuleSpec> ModuleList::LoadModuleFromCAS(
 
   // Try each CAS in turn; return on the first successful resolve.
   llvm::Error errors = llvm::Error::success();
-  for (const auto &entry : *nearby->m_cas) {
+  for (const auto &entry : all_cas) {
     const auto &cas = entry.object_store;
     if (!cas)
       continue;
@@ -1890,38 +1904,50 @@ FindOrCreateInSharedCache(const llvm::cas::CASConfiguration &cas_config,
 void ModuleList::ConfigureCASStorage(const ModuleSP &module_sp) {
   if (!module_sp)
     return;
-  std::lock_guard<std::mutex> module_lock(module_sp->m_cas_init_mutex);
-  std::optional<std::vector<ModuleList::CAS>> &module_cas = module_sp->m_cas;
-  if (module_cas)
-    return; // Already initialized.
+  {
+    std::lock_guard<std::mutex> module_lock(module_sp->m_cas_init_mutex);
+    if (module_sp->m_cas)
+      return; // Already initialized.
+  }
+
+  // Searching for the configurations reaches into the module's symbol file and
+  // so takes the module mutex, and a symbol file asks for a CAS with that mutex
+  // already held. Search without m_cas_init_mutex held, so the two orders
+  // cannot deadlock against each other.
   std::vector<llvm::cas::CASConfiguration> found =
       FindCASConfigurations(module_sp);
-  auto &entries = module_cas.emplace();
-  if (found.empty())
-    return;
-  auto &shared_module_list = GetSharedModuleListInfo();
-  std::scoped_lock<std::mutex> lock(shared_module_list.shared_lock);
-  entries.reserve(found.size());
-  for (auto &cfg : found)
-    entries.push_back(FindOrCreateInSharedCache(cfg, shared_module_list));
+
+  std::vector<CAS> entries;
+  if (!found.empty()) {
+    auto &shared_module_list = GetSharedModuleListInfo();
+    std::scoped_lock<std::mutex> lock(shared_module_list.shared_lock);
+    entries.reserve(found.size());
+    for (auto &cfg : found)
+      entries.push_back(FindOrCreateInSharedCache(cfg, shared_module_list));
+  }
+
+  std::lock_guard<std::mutex> module_lock(module_sp->m_cas_init_mutex);
+  // Another thread may have got there first. Its result is as good as this one:
+  // the shared cache hands out the same instance for the same configuration.
+  if (!module_sp->m_cas)
+    module_sp->m_cas = std::move(entries);
 }
 
-llvm::ArrayRef<ModuleList::CAS>
+std::vector<ModuleList::CAS>
 ModuleList::GetCASStorage(const ModuleSP &module_sp) {
   ConfigureCASStorage(module_sp);
   if (!module_sp)
     return {};
+  // Copied under the lock: ReleaseObjectStore() may reset m_cas concurrently,
+  // and the caller's shared_ptrs have to outlive that.
+  std::lock_guard<std::mutex> lock(module_sp->m_cas_init_mutex);
   assert(module_sp->m_cas && "ConfigureCASStorage should have populated m_cas");
   return *module_sp->m_cas;
 }
 
 bool ModuleList::IsCASID(const ModuleSP &module_sp,
                          llvm::StringRef id) {
-  ConfigureCASStorage(module_sp);
-  if (!module_sp)
-    return false;
-  assert(module_sp->m_cas && "ConfigureCASStorage should have populated m_cas");
-  for (const auto &entry : *module_sp->m_cas) {
+  for (const auto &entry : GetCASStorage(module_sp)) {
     if (!entry.object_store)
       continue;
     auto ref = entry.object_store->parseID(id);
@@ -1934,14 +1960,13 @@ bool ModuleList::IsCASID(const ModuleSP &module_sp,
 
 llvm::Expected<ModuleList::CAS>
 ModuleList::GetCASForID(const ModuleSP &module_sp, llvm::StringRef cas_id) {
-  ConfigureCASStorage(module_sp);
   if (!module_sp)
     return llvm::createStringError("no lldb::Module available");
-  assert(module_sp->m_cas && "ConfigureCASStorage should have populated m_cas");
-  if (module_sp->m_cas->empty())
+  std::vector<CAS> all_cas = GetCASStorage(module_sp);
+  if (all_cas.empty())
     return llvm::createStringError("no CAS associated with module");
   llvm::Error errors = llvm::Error::success();
-  for (const auto &entry : *module_sp->m_cas) {
+  for (const auto &entry : all_cas) {
     if (!entry.object_store)
       continue;
     auto id = entry.object_store->parseID(cas_id);
@@ -1986,11 +2011,186 @@ llvm::Expected<bool> ModuleList::GetSharedModuleFromCAS(
     if (module_sp) {
       std::lock_guard<std::mutex> dest_lock(module_sp->m_cas_init_mutex);
       module_sp->m_cas = nearby->m_cas;
+      // This module's object file is a non-owning alias into the store's
+      // memory, so it cannot outlive the store.
+      module_sp->m_loaded_from_cas = true;
     }
     return true;
   }
 
   return status.takeError();
+}
+
+size_t ModuleList::ReleaseObjectStore() {
+  Log *log = GetLog(LLDBLog::Modules | LLDBLog::Symbols);
+
+  // Bail out before touching any module lifetimes if this process never
+  // instantiated a CAS.
+  {
+    auto &shared_module_list = GetSharedModuleListInfo();
+    std::scoped_lock<std::mutex> lock(shared_module_list.shared_lock);
+    bool any_live = false;
+    for (const auto &entry : shared_module_list.module_list.m_cas_cache) {
+      if (entry.second && !entry.second->object_store.expired()) {
+        any_live = true;
+        break;
+      }
+    }
+    if (!any_live)
+      return 0;
+  }
+
+  // Make every module that keeps a CAS alive let go of it. A module that must
+  // be destroyed for that has to be removed together with everything holding
+  // it, and a module can be held by one of the children of another Module
+  // rather than by the shared list. So walk the whole "is held by" graph
+  // reachable from the shared module list.
+  //
+  // Only unreferenced modules are removed: other debuggers may still be
+  // alive with targets holding these modules.
+  std::vector<ModuleWP> roots = GetSharedModuleList().SnapshotModules();
+
+  llvm::DenseSet<Module *> release_set;
+  llvm::DenseSet<Module *> kept_set;
+  llvm::DenseMap<Module *, llvm::SmallPtrSet<Module *, 4>> held_by;
+
+  // Enumerate what is reachable before touching anything. Only symbol files
+  // that are already parsed are asked: forcing one to load during teardown
+  // would be gratuitous work.
+  auto for_each_held = [](const ModuleSP &module_sp, auto &&fn) {
+    if (!module_sp->m_did_load_symfile)
+      return;
+    if (SymbolFile *sym_file = module_sp->GetSymbolFile())
+      sym_file->GetLoadedReferencedModules().ForEach(
+          [&](const ModuleSP &held_sp) {
+            fn(held_sp);
+            return IterationAction::Continue;
+          });
+  };
+
+  llvm::DenseSet<Module *> visited;
+  std::vector<ModuleWP> reachable;
+  {
+    std::vector<ModuleSP> worklist;
+    for (const ModuleWP &root_wp : roots)
+      if (ModuleSP root_sp = root_wp.lock())
+        if (visited.insert(root_sp.get()).second)
+          worklist.push_back(std::move(root_sp));
+    for (size_t idx = 0; idx < worklist.size(); ++idx) {
+      ModuleSP module_sp = worklist[idx];
+      reachable.push_back(module_sp);
+      for_each_held(module_sp, [&](const ModuleSP &held_sp) {
+        if (visited.insert(held_sp.get()).second)
+          worklist.push_back(held_sp);
+      });
+    }
+  }
+
+  // Now let every one of them go. A module that can let go of the store keeps
+  // its object file, symbol table and DWARF index; one that was read out of the
+  // store cannot, and neither can one that could not give up a module it read
+  // out of the store.
+  for (const ModuleWP &module_wp : reachable) {
+    ModuleSP module_sp = module_wp.lock();
+    if (!module_sp)
+      continue;
+    switch (module_sp->ReleaseCASReferences()) {
+    case Module::CASReleaseResult::NothingToRelease:
+      break;
+    case Module::CASReleaseResult::Released:
+      kept_set.insert(module_sp.get());
+      break;
+    case Module::CASReleaseResult::MustBeDestroyed:
+      release_set.insert(module_sp.get());
+      break;
+    }
+  }
+
+  // Collect the "is held by" edges that survived, so that the propagation below
+  // does not drag in a holder that has already given the module up.
+  for (const ModuleWP &module_wp : reachable) {
+    ModuleSP module_sp = module_wp.lock();
+    if (!module_sp)
+      continue;
+    for_each_held(module_sp, [&](const ModuleSP &held_sp) {
+      held_by[held_sp.get()].insert(module_sp.get());
+    });
+  }
+
+  // Propagate along those edges so that everything still keeping a CAS-backed
+  // module alive joins the set to remove.
+  std::vector<Module *> propagate(release_set.begin(), release_set.end());
+  while (!propagate.empty()) {
+    Module *module = propagate.back();
+    propagate.pop_back();
+    auto pos = held_by.find(module);
+    if (pos == held_by.end())
+      continue;
+    for (Module *holder : pos->second)
+      if (release_set.insert(holder).second)
+        propagate.push_back(holder);
+  }
+
+  // The propagation may have dragged a module that released in place into the
+  // removal set after all.
+  size_t kept_modules = 0;
+  for (Module *module : kept_set)
+    if (!release_set.contains(module))
+      ++kept_modules;
+
+  // Removing a holder can make the module it held unreferenced, so iterate
+  // removing modules until a fixed point is reached.
+  size_t removed_modules = 0;
+  bool made_progress = true;
+  while (made_progress) {
+    made_progress = false;
+    for (const ModuleWP &root_wp : roots) {
+      if (root_wp.expired())
+        continue;
+      {
+        // Scoped so the ModuleSP is gone before the orphan check below, which
+        // an extra reference would defeat.
+        ModuleSP root_sp = root_wp.lock();
+        if (!root_sp || !release_set.contains(root_sp.get()))
+          continue;
+      }
+      if (RemoveSharedModuleIfOrphaned(root_wp)) {
+        ++removed_modules;
+        made_progress = true;
+      }
+    }
+  }
+
+  // Now report: forget the stores that are really gone, and name the ones
+  // that are not. A non-zero result means something still holds a reference.
+  auto &shared_module_list = GetSharedModuleListInfo();
+  std::scoped_lock<std::mutex> lock(shared_module_list.shared_lock);
+  auto &cas_cache = shared_module_list.module_list.m_cas_cache;
+
+  llvm::SmallVector<llvm::cas::CASConfiguration, 4> released;
+  size_t still_referenced = 0;
+  for (const auto &entry : cas_cache) {
+    // A disengaged optional is a negative cache entry for a CAS that failed
+    // to instantiate. Leave it be.
+    if (!entry.second)
+      continue;
+    if (entry.second->object_store.expired() &&
+        entry.second->action_cache.expired()) {
+      released.push_back(entry.first);
+      continue;
+    }
+    ++still_referenced;
+    LLDB_LOG(log, "CAS at {0} is still referenced", entry.first.CASPath);
+  }
+  for (const auto &config : released) {
+    cas_cache.erase(config);
+    LLDB_LOG(log, "Released CAS at {0}", config.CASPath);
+  }
+  LLDB_LOG(log,
+           "Released object stores: {0} module(s) kept, {1} module(s) removed, "
+           "{2} released, {3} still referenced",
+           kept_modules, removed_modules, released.size(), still_referenced);
+  return still_referenced;
 }
 
 bool ModuleList::RemoveSharedModule(lldb::ModuleSP &module_sp) {

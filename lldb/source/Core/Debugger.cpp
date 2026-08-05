@@ -973,6 +973,16 @@ void Debugger::Destroy(DebuggerSP &debugger_sp) {
 
   debugger_sp->Clear();
 
+  // BEGIN CAS
+  // Drop every CAS object store that nothing needs any more, sparing whatever
+  // was only holding one. Modules are cached in the global shared module list
+  // and deliberately outlive the debugger that loaded them, so nothing else
+  // would drop this debugger's reference to a CAS. Without this,
+  // lldb-rpc-server -- which serves many sessions from one process -- would
+  // keep every session's CAS mapped for the life of the process.
+  ModuleList::ReleaseObjectStore();
+  // END CAS
+
   if (g_debugger_list_ptr && g_debugger_list_mutex_ptr) {
     std::lock_guard<std::recursive_mutex> guard(*g_debugger_list_mutex_ptr);
     DebuggerList::iterator pos, end = g_debugger_list_ptr->end();

@@ -116,6 +116,12 @@ public:
   llvm::Triple GetTriple() const;
   void SetTriple(const SymbolContext &sc, const llvm::Triple triple) override;
   void ClearModuleDependentCaches() override;
+  // BEGIN CAS
+  /// A SwiftASTContext's AST is built out of CAS-owned memory, so letting go of
+  /// the store means letting go of the context. Discards every SwiftASTContext
+  /// that holds one; a fresh one is created on the next GetSwiftASTContext().
+  void ReleaseCASReferences() override;
+  // END CAS
   lldb::TargetWP GetTargetWP() const override { return {}; }
 
   /// Return a SwiftASTContext type for type.
