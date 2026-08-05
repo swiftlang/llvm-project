@@ -5,8 +5,9 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestStdlibMarkerProtocols(TestBase):
+    @skipEmbeddedSwiftOnLinux # Linker failure with arc4random_buf
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
-    @skipEmbeddedSwift
     def test(self):
         self.build()
         self.runCmd("settings set symbols.swift-enable-ast-context false")
