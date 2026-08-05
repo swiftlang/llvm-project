@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc %s | FileCheck %s
 
@@ -22,7 +20,7 @@ void single_init() {
 // CHECK:     `-VarDecl [[var_s:0x[^ ]+]]
 // CHECK:       `-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK:         |-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK:         | |-ImplicitCastExpr {{.+}} 'struct flexible *__single' <BoundsSafetyPointerCast>
+// CHECK:         | |-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <BoundsSafetyPointerCast>
 // CHECK:         | | `-PredefinedBoundsCheckExpr {{.+}} 'struct flexible *__bidi_indexable' <FlexibleArrayCountAssign(BasePtr, FamPtr, Count)>
 // CHECK:         | |   |-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'struct flexible *__bidi_indexable'
 // CHECK:         | |   |   | | |-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'struct flexible *__single'
@@ -63,9 +61,9 @@ void single_assign() {
 // CHECK: | `-VarDecl [[var_s_1:0x[^ ]+]]
 // CHECK: `-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK:   |-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK:   | |-BinaryOperator {{.+}} 'struct flexible *__single' '='
+// CHECK:   | |-BinaryOperator {{.+}} 'struct flexible *__single':'struct flexible *' '='
 // CHECK:   | | |-DeclRefExpr {{.+}} [[var_s_1]]
-// CHECK:   | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <BoundsSafetyPointerCast>
+// CHECK:   | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <BoundsSafetyPointerCast>
 // CHECK:   | |   `-PredefinedBoundsCheckExpr {{.+}} 'struct flexible *__bidi_indexable' <FlexibleArrayCountAssign(BasePtr, FamPtr, Count)>
 // CHECK:   | |     |-OpaqueValueExpr [[ove_2:0x[^ ]+]] {{.*}} 'struct flexible *__bidi_indexable'
 // CHECK:   | |     |   | | |-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'struct flexible *__single'
@@ -105,9 +103,9 @@ void single_assign_with_count() {
 // CHECK: |-DeclStmt
 // CHECK: | `-VarDecl [[var_s_2:0x[^ ]+]]
 // CHECK: |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: | |-BinaryOperator {{.+}} 'struct flexible *__single' '='
+// CHECK: | |-BinaryOperator {{.+}} 'struct flexible *__single':'struct flexible *' '='
 // CHECK: | | |-DeclRefExpr {{.+}} [[var_s_2]]
-// CHECK: | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <BoundsSafetyPointerCast>
+// CHECK: | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <BoundsSafetyPointerCast>
 // CHECK: | |   `-PredefinedBoundsCheckExpr {{.+}} 'struct flexible *__bidi_indexable' <FlexibleArrayCountAssign(BasePtr, FamPtr, Count)>
 // CHECK: | |     |-OpaqueValueExpr [[ove_4:0x[^ ]+]] {{.*}} 'struct flexible *__bidi_indexable'
 // CHECK: | |     |   | | |-OpaqueValueExpr [[ove_5:0x[^ ]+]] {{.*}} 'struct flexible *__single'
@@ -138,7 +136,7 @@ void single_assign_with_count() {
 // CHECK: `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK:   |-BinaryOperator {{.+}} 'int' '='
 // CHECK:   | |-MemberExpr {{.+}} ->count
-// CHECK:   | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <LValueToRValue>
+// CHECK:   | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <LValueToRValue>
 // CHECK:   | |   `-DeclRefExpr {{.+}} [[var_s_2]]
 // CHECK:   | `-OpaqueValueExpr [[ove_6]] {{.*}} 'int'
 // CHECK:   |-OpaqueValueExpr [[ove_4]] {{.*}} 'struct flexible *__bidi_indexable'

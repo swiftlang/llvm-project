@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc %s | FileCheck %s
 
@@ -57,7 +55,7 @@ int not_checking_count_single(struct flexible *__single flex) {
 // CHECK: |         | |         | | |     `-MemberExpr {{.+}} ->count
 // CHECK: |         | |         | | |       `-OpaqueValueExpr [[ove_1]] {{.*}} 'struct flexible *__single'
 // CHECK: |         | |         | `-OpaqueValueExpr [[ove_1]]
-// CHECK: |         | |         |   `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <LValueToRValue>
+// CHECK: |         | |         |   `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <LValueToRValue>
 // CHECK: |         | |         |     `-DeclRefExpr {{.+}} [[var_flex]]
 // CHECK: |         | |         `-OpaqueValueExpr [[ove_1]] {{.*}} 'struct flexible *__single'
 // CHECK: |         | `-OpaqueValueExpr [[ove]] {{.*}} lvalue

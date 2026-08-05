@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc %s | FileCheck %s
 
@@ -62,7 +60,7 @@ void test_fam_base_init(void *__bidi_indexable buf) {
 // CHECK: `-CompoundStmt
 // CHECK:   `-DeclStmt
 // CHECK:     `-VarDecl [[var_f_2:0x[^ ]+]]
-// CHECK:       `-ImplicitCastExpr {{.+}} 'flex_t *__single' <BoundsSafetyPointerCast>
+// CHECK:       `-ImplicitCastExpr {{.+}} 'flex_t *__single':'flex_t *' <BoundsSafetyPointerCast>
 // CHECK:         `-ImplicitCastExpr {{.+}} 'flex_t *__bidi_indexable' <BitCast>
 // CHECK:           `-ImplicitCastExpr {{.+}} 'void *__bidi_indexable' <LValueToRValue>
 // CHECK:             `-DeclRefExpr {{.+}} [[var_buf_2]]
@@ -77,14 +75,14 @@ void test_fam_base_init_with_count(void *__bidi_indexable buf) {
 // CHECK: `-CompoundStmt
 // CHECK:   |-DeclStmt
 // CHECK:   | `-VarDecl [[var_f_3:0x[^ ]+]]
-// CHECK:   |   `-ImplicitCastExpr {{.+}} 'flex_t *__single' <BoundsSafetyPointerCast>
+// CHECK:   |   `-ImplicitCastExpr {{.+}} 'flex_t *__single':'flex_t *' <BoundsSafetyPointerCast>
 // CHECK:   |     `-ImplicitCastExpr {{.+}} 'flex_t *__bidi_indexable' <BitCast>
 // CHECK:   |       `-ImplicitCastExpr {{.+}} 'void *__bidi_indexable' <LValueToRValue>
 // CHECK:   |         `-DeclRefExpr {{.+}} [[var_buf_3]]
 // CHECK:   `-BinaryOperator {{.+}} 'int' '='
 // CHECK:     |-MemberExpr {{.+}} .count
 // CHECK:     | `-MemberExpr {{.+}} ->flex
-// CHECK:     |   `-ImplicitCastExpr {{.+}} 'flex_t *__single' <LValueToRValue>
+// CHECK:     |   `-ImplicitCastExpr {{.+}} 'flex_t *__single':'flex_t *' <LValueToRValue>
 // CHECK:     |     `-DeclRefExpr {{.+}} [[var_f_3]]
 // CHECK:     `-IntegerLiteral {{.+}} 10
 
