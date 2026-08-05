@@ -2593,14 +2593,11 @@ ProcessModule(Module &module, std::string m_description,
   }
 }
 
-/// Matches a subset of the SILOptions that the compiler turns on by default
-/// when embedded swift enabled.
+/// Set up \p swift_ast_ctx the same way the compiler sets up an embedded Swift
+/// compilation.
 static void EnableEmbeddedSwift(SwiftASTContext &swift_ast_ctx) {
-  swift_ast_ctx.GetLanguageOptions().enableFeature(swift::Feature::Embedded);
-
-  swift::SILOptions &sil_opts = swift_ast_ctx.GetSILOptions();
-  sil_opts.EnforceExclusivityStatic = true;
-  sil_opts.EnforceExclusivityDynamic = false;
+  swift_ast_ctx.GetCompilerInvocation().setCommonEmbeddedSwiftOptions(
+      swift::CompilerInvocation::EmbeddedSwiftContext::DebuggerExpression);
 }
 
 lldb::TypeSystemSP
