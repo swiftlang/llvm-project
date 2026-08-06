@@ -546,7 +546,7 @@ public:
   bool VisitObjCCompatibleAliasDecl(ObjCCompatibleAliasDecl *D) {
     // An alias declaration requires the underlying class.
     if (auto *Aliased = D->getClassInterface()) {
-      report(D->getLocation(), Aliased);
+      report(D->getBeginLoc(), Aliased);
     }
     return true;
   }
