@@ -1320,7 +1320,7 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
 
       LLDBTypeInfoProvider tip(m_runtime, ts);
       auto cti_or_err = reflection_ctx->GetClassInstanceTypeInfo(
-          *tr, &tip,
+          *tr, &tip, m_flavor,
           ts.GetDescriptorFinder(m_exe_ctx.GetBestExecutionContextScope()));
       if (!cti_or_err)
         return AugmentReflectionError(cti_or_err.takeError());
@@ -1334,15 +1334,16 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
           // The superclass, if any, is an extra child.
           if (!m_hide_superclass &&
               reflection_ctx->LookupSuperclass(
-                  *tr, ts.GetDescriptorFinder(
-                           m_exe_ctx.GetBestExecutionContextScope())))
+                  *tr, m_flavor,
+                  ts.GetDescriptorFinder(
+                      m_exe_ctx.GetBestExecutionContextScope())))
             return rti->getNumFields() + 1;
           return rti->getNumFields();
         }
         if (m_visit_superclass) {
           unsigned depth = 0;
           reflection_ctx->ForEachSuperClassType(
-              &tip,
+              &tip, m_flavor,
               ts.GetDescriptorFinder(m_exe_ctx.GetBestExecutionContextScope()),
               tr, [&](SuperClassType sc) {
                 auto *tr = sc.get_typeref();
@@ -1353,8 +1354,9 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
                   return true;
 
                 if (auto *super_tr = reflection_ctx->LookupSuperclass(
-                        *tr, ts.GetDescriptorFinder(
-                                 m_exe_ctx.GetBestExecutionContextScope())))
+                        *tr, m_flavor,
+                        ts.GetDescriptorFinder(
+                            m_exe_ctx.GetBestExecutionContextScope())))
                   if (auto error = visit_callback(
                           GetTypeFromTypeRef(ts, super_tr, m_flavor), depth,
                           []() -> std::string { return "<base class>"; },
@@ -1384,8 +1386,9 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
           return success;
         }
         if (auto *super_tr = reflection_ctx->LookupSuperclass(
-                *tr, ts.GetDescriptorFinder(
-                         m_exe_ctx.GetBestExecutionContextScope()))) {
+                *tr, m_flavor,
+                ts.GetDescriptorFinder(
+                    m_exe_ctx.GetBestExecutionContextScope()))) {
           auto get_name = []() -> std::string { return "<base class>"; };
           auto get_info = []() -> llvm::Expected<ChildInfo> {
             return ChildInfo();
@@ -1457,7 +1460,7 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
       // If the pointer based super class traversal failed (this may happen
       // when metadata is not present in the binary, for example: embedded
       // Swift), try the typeref based one next.
-      reflection_ctx->ForEachSuperClassType(&tip, desc_finder, tr,
+      reflection_ctx->ForEachSuperClassType(&tip, m_flavor, desc_finder, tr,
                                             superclass_finder);
 
     if (supers.empty() && tr) {
@@ -1465,8 +1468,8 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
                "Couldn't find the type metadata for {0} in instance",
                m_type.GetTypeName());
 
-      auto cti_or_err =
-          reflection_ctx->GetClassInstanceTypeInfo(*tr, &tip, desc_finder);
+      auto cti_or_err = reflection_ctx->GetClassInstanceTypeInfo(
+          *tr, &tip, m_flavor, desc_finder);
       if (!cti_or_err)
         return AugmentReflectionError(cti_or_err.takeError());
       const swift::reflection::TypeInfo *cti = &*cti_or_err;
@@ -1963,6 +1966,8 @@ CompilerType SwiftLanguageRuntime::GetBaseClass(CompilerType class_ty) {
   auto tr_ts = ts_sp->GetTypeSystemSwiftTypeRef();
   if (!tr_ts)
     return {};
+  auto flavor =
+      SwiftLanguageRuntime::GetManglingFlavor(class_ty.GetMangledTypeName());
   auto type_ref_or_err =
       reflection_ctx->GetTypeRef(class_ty.GetMangledTypeName().GetStringRef());
   if (!type_ref_or_err) {
@@ -1971,9 +1976,7 @@ CompilerType SwiftLanguageRuntime::GetBaseClass(CompilerType class_ty) {
     return {};
   }
   auto *super_tr = reflection_ctx->LookupSuperclass(
-      *type_ref_or_err, tr_ts->GetDescriptorFinder());
-  auto flavor =
-      SwiftLanguageRuntime::GetManglingFlavor(class_ty.GetMangledTypeName());
+      *type_ref_or_err, flavor, tr_ts->GetDescriptorFinder());
   return GetTypeFromTypeRef(*tr_ts, super_tr, flavor);
 }
 
@@ -2259,14 +2262,15 @@ SwiftLanguageRuntime::BindGenericPackType(StackFrame &frame,
           });
 
       // Build a TypeRef from the demangle tree.
-      auto type_ref_or_err = reflection_ctx->GetTypeRef(dem, pack_element);
+      auto type_ref_or_err =
+          reflection_ctx->GetTypeRef(dem, pack_element, flavor);
       if (!type_ref_or_err)
         return type_ref_or_err.takeError();
       auto &type_ref = *type_ref_or_err;
 
       // Apply the substitutions.
       auto bound_typeref_or_err = reflection_ctx->ApplySubstitutions(
-          type_ref, substitutions, ts->GetDescriptorFinder());
+          type_ref, substitutions, flavor, ts->GetDescriptorFinder());
       if (!bound_typeref_or_err)
         return bound_typeref_or_err.takeError();
       swift::Demangle::NodePointer node = bound_typeref_or_err->getDemangling(dem);
@@ -2558,7 +2562,7 @@ SwiftLanguageRuntime::GetDynamicTypeAndAddress_ExistentialContainerEmbedded(
 
   auto existential_container =
       reflection_ctx->ReadMetadataAndValueOpaqueExistential(
-          existential_address);
+          existential_address, swift::Mangle::ManglingFlavor::Embedded);
   if (!existential_container)
     return llvm::createStringError(
         llvm::formatv("could not read the existential container at {0:x}",
@@ -3043,6 +3047,8 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_ExistentialMetatype(
   if (!tr_ts)
     return false;
 
+  auto flavor =
+      SwiftLanguageRuntime::GetManglingFlavor(meta_type.GetMangledTypeName());
   auto type_ref_or_err =
       reflection_ctx->ReadTypeFromMetadata(ptr, tr_ts->GetDescriptorFinder());
   if (!type_ref_or_err) {
@@ -3064,8 +3070,6 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_ExistentialMetatype(
   meta->addChild(node, dem);
   wrapped->addChild(meta,dem);
 
-  auto flavor =
-      SwiftLanguageRuntime::GetManglingFlavor(meta_type.GetMangledTypeName());
   meta_type =
       tss->GetTypeSystemSwiftTypeRef()->RemangleAsType(dem, wrapped, flavor);
   class_type_or_name.SetCompilerType(meta_type);
@@ -3191,7 +3195,9 @@ CompilerType SwiftLanguageRuntime::BindGenericTypeParameters(
   if (!tr_ts)
     return unbound_type;
 
-  auto type_ref_or_err = reflection_ctx->GetTypeRef(dem, unbound_node);
+  auto flavor = SwiftLanguageRuntime::GetManglingFlavor(
+      unbound_type.GetMangledTypeName().GetStringRef());
+  auto type_ref_or_err = reflection_ctx->GetTypeRef(dem, unbound_node, flavor);
   if (!type_ref_or_err) {
     LLDB_LOG_ERROR(GetLog(LLDBLog::Expressions | LLDBLog::Types),
                    type_ref_or_err.takeError(),
@@ -3236,7 +3242,7 @@ CompilerType SwiftLanguageRuntime::BindGenericTypeParameters(
 
   // Apply the substitutions.
   auto bound_type_ref_or_err = reflection_ctx->ApplySubstitutions(
-      type_ref, substitutions, tr_ts->GetDescriptorFinder());
+      type_ref, substitutions, flavor, tr_ts->GetDescriptorFinder());
   if (!bound_type_ref_or_err) {
     LLDB_LOG_ERROR(GetLog(LLDBLog::Expressions | LLDBLog::Types),
                    bound_type_ref_or_err.takeError(),
@@ -3245,10 +3251,7 @@ CompilerType SwiftLanguageRuntime::BindGenericTypeParameters(
   }
 
   NodePointer node = bound_type_ref_or_err->getDemangling(dem);
-  return ts->GetTypeSystemSwiftTypeRef()->RemangleAsType(
-      dem, node,
-      SwiftLanguageRuntime::GetManglingFlavor(
-          unbound_type.GetMangledTypeName()));
+  return ts->GetTypeSystemSwiftTypeRef()->RemangleAsType(dem, node, flavor);
 }
 
 llvm::Expected<CompilerType>
@@ -3271,6 +3274,9 @@ SwiftLanguageRuntime::BindGenericTypeParameters(StackFrame &stack_frame,
   NodePointer canonical = TypeSystemSwiftTypeRef::GetStaticSelfType(
       dem, dem.demangleSymbol(mangled_name.GetStringRef()));
   canonical = ts.DesugarNode(dem, canonical);
+
+  auto flavor =
+      SwiftLanguageRuntime::GetManglingFlavor(mangled_name.GetStringRef());
 
   // Build the list of type substitutions.
   swift::reflection::GenericArgumentMap substitutions;
@@ -3299,8 +3305,6 @@ SwiftLanguageRuntime::BindGenericTypeParameters(StackFrame &stack_frame,
 
     substitutions.insert({{depth, index}, &*type_ref_or_err});
   });
-  auto flavor =
-      SwiftLanguageRuntime::GetManglingFlavor(mangled_name.GetStringRef());
 
   // Nothing to do if there are no type parameters.
   auto get_canonical = [&]() {
@@ -3314,7 +3318,7 @@ SwiftLanguageRuntime::BindGenericTypeParameters(StackFrame &stack_frame,
     return get_canonical();
 
   // Build a TypeRef from the demangle tree.
-  auto type_ref_or_err = reflection_ctx->GetTypeRef(dem, canonical);
+  auto type_ref_or_err = reflection_ctx->GetTypeRef(dem, canonical, flavor);
   if (!type_ref_or_err)
     return llvm::joinErrors(
         llvm::createStringError("cannot bind generic parameters"),
@@ -3323,7 +3327,7 @@ SwiftLanguageRuntime::BindGenericTypeParameters(StackFrame &stack_frame,
 
   // Apply the substitutions.
   auto bound_type_ref_or_err = reflection_ctx->ApplySubstitutions(
-      type_ref, substitutions, ts.GetDescriptorFinder());
+      type_ref, substitutions, flavor, ts.GetDescriptorFinder());
   if (!bound_type_ref_or_err)
     return bound_type_ref_or_err.takeError();
   auto &bound_type_ref = *bound_type_ref_or_err;
@@ -3489,8 +3493,8 @@ Value::ValueType SwiftLanguageRuntime::GetValueType(
       if (ThreadSafeReflectionContext reflection_ctx = GetReflectionContext()) {
         std::optional<bool> is_inlined =
             reflection_ctx->IsValueInlinedInExistentialContainer(
-                remote_existential);
-
+                remote_existential,
+                GetManglingFlavor(static_type.GetMangledTypeName()));
 
         // An error has occurred when trying to read value witness table,
         // default to treating it as pointer.
@@ -4314,7 +4318,7 @@ SwiftLanguageRuntime::ResolveTypeAlias(CompilerType alias) {
         substitutions.insert({{0, idx++}, &type_ref});
       }
       auto type_ref_or_err = reflection_ctx->ApplySubstitutions(
-          *type_ref, substitutions, tr_ts->GetDescriptorFinder());
+          *type_ref, substitutions, flavor, tr_ts->GetDescriptorFinder());
       if (!type_ref_or_err) {
         LLDB_LOG_ERRORV(GetLog(LLDBLog::Types), type_ref_or_err.takeError(),
                         "{0}");
