@@ -42,7 +42,9 @@ func a (_ i : Int)
 
 // Class, function
 
-class B
+// "final" matters for embedded Swift because the compiler devirtualizes
+// virtual functions and removes them.
+final class B
 {
   var m_t : Int
   var m_s : S<Int>
@@ -62,7 +64,7 @@ class B
 
 // Generic class, function
 
-class C<T>
+final class C<T>
 {
   var m_t : T
   var m_s : S<T>
@@ -89,7 +91,7 @@ func d<U> (_ i : U)
 
 // Class, generic function
 
-class E
+final class E
 {
   var m_t : Int
   var m_s : S<Int>
@@ -109,7 +111,7 @@ class E
 
 // Generic class, generic function
 
-class F<T>
+final class F<T>
 {
   var m_t : T
   var m_s : S<T>

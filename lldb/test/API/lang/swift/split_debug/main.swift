@@ -9,14 +9,15 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 // -----------------------------------------------------------------------------
-class Class {
+// "final" matters for embedded Swift because the compiler devirtualizes
+// virtual functions and removes them.
+final class Class {
     var c_x : UInt32 = 12345
     var c_y : UInt32 = 6789
 }
 
 func main() {
     var c = Class()
-
     print("hello world") // Break here in main
 }
 

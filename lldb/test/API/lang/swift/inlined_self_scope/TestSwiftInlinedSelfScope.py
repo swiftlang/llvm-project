@@ -18,7 +18,7 @@ class TestSwiftInlinedSelfScope(TestBase):
         )
         return frame
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
     def test_self_scope_in_inlined_frames(self):
         self.build()

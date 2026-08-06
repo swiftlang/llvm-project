@@ -19,6 +19,8 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftFixIts(TestBase):
+    # Embedded Swift: `Optional: Equatable` asserts in IRGen, and
+    # `_swift_beginAccess` is missing from the runtime.
     @skipEmbeddedSwift
     @swiftTest
     def test_swift_fixits(self):
