@@ -68,8 +68,7 @@ public:
   /// Return a reflection context.
   static std::unique_ptr<ReflectionContextInterface> CreateReflectionContext(
       uint8_t pointer_size, std::shared_ptr<swift::remote::MemoryReader> reader,
-      bool objc_interop, SwiftMetadataCache *swift_metadata_cache,
-      swift::Mangle::ManglingFlavor flavor);
+      bool objc_interop, SwiftMetadataCache *swift_metadata_cache);
 
   virtual ~ReflectionContextInterface() = default;
 
@@ -87,8 +86,8 @@ public:
   virtual llvm::Expected<const swift::reflection::TypeRef &>
   GetTypeRef(llvm::StringRef mangled_type_name) = 0;
   virtual llvm::Expected<const swift::reflection::TypeRef &>
-  GetTypeRef(swift::Demangle::Demangler &dem,
-             swift::Demangle::NodePointer node) = 0;
+  GetTypeRef(swift::Demangle::Demangler &dem, swift::Demangle::NodePointer node,
+             swift::Mangle::ManglingFlavor flavor) = 0;
 
   /// Build a TypeRef suitable for use in reflection context queries. This
   /// performs canonical demangling (type alias resolution and
@@ -99,6 +98,7 @@ public:
   GetClassInstanceTypeInfo(
       const swift::reflection::TypeRef &type_ref,
       swift::remote::TypeInfoProvider *provider,
+      swift::Mangle::ManglingFlavor flavor,
       swift::reflection::DescriptorFinder *descriptor_finder) = 0;
   virtual llvm::Expected<const swift::reflection::TypeInfo &>
   GetTypeInfo(CompilerType type, swift::remote::TypeInfoProvider *provider,
@@ -110,6 +110,7 @@ public:
   virtual swift::remote::MemoryReader &GetReader() = 0;
   virtual const swift::reflection::TypeRef *
   LookupSuperclass(const swift::reflection::TypeRef &tr,
+                   swift::Mangle::ManglingFlavor flavor,
                    swift::reflection::DescriptorFinder *descriptor_finder) = 0;
   virtual bool
   ForEachSuperClassType(swift::remote::TypeInfoProvider *tip,
@@ -123,6 +124,7 @@ public:
   /// binary (for example, when debugging embedded Swift programs).
   virtual bool
   ForEachSuperClassType(swift::remote::TypeInfoProvider *tip,
+                        swift::Mangle::ManglingFlavor flavor,
                         swift::reflection::DescriptorFinder *descriptor_finder,
                         const swift::reflection::TypeRef *tr,
                         std::function<bool(SuperClassType)> fn) = 0;
@@ -132,11 +134,6 @@ public:
   ProjectExistentialAndUnwrapClass(
       swift::remote::RemoteAddress existential_addess,
       CompilerType existential_type,
-      swift::reflection::DescriptorFinder *descriptor_finder) = 0;
-  virtual std::optional<int32_t> ProjectEnumValue(
-      swift::remote::RemoteAddress enum_addr,
-      const swift::reflection::TypeRef *enum_type_ref,
-      swift::remote::TypeInfoProvider *provider,
       swift::reflection::DescriptorFinder *descriptor_finder) = 0;
   virtual llvm::Expected<const swift::reflection::TypeRef &>
   LookupTypeWitness(const std::string &MangledTypeName,
@@ -154,15 +151,19 @@ public:
   virtual std::optional<swift::remote::RemoteAbsolutePointer>
   ReadPointer(lldb::addr_t instance_address) = 0;
   virtual std::optional<bool> IsValueInlinedInExistentialContainer(
-      swift::remote::RemoteAddress existential_address) = 0;
+      swift::remote::RemoteAddress existential_address,
+      swift::Mangle::ManglingFlavor flavor) = 0;
   virtual llvm::Expected<const swift::reflection::TypeRef &> ApplySubstitutions(
       const swift::reflection::TypeRef &type_ref,
       swift::reflection::GenericArgumentMap substitutions,
+      swift::Mangle::ManglingFlavor flavor,
       swift::reflection::DescriptorFinder *descriptor_finder) = 0;
   virtual swift::remote::RemoteAbsolutePointer
   StripSignedPointer(swift::remote::RemoteAbsolutePointer pointer) = 0;
   virtual std::optional<swift::remote::RemoteExistential>
-  ReadMetadataAndValueOpaqueExistential(lldb::addr_t existential_address) = 0;
+  ReadMetadataAndValueOpaqueExistential(
+      lldb::addr_t existential_address,
+      swift::Mangle::ManglingFlavor flavor) = 0;
   struct AsyncTaskInfo {
     lldb::addr_t taskAddr = 0;
     bool isChildTask = false;
