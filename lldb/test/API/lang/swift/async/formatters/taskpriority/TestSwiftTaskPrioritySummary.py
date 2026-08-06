@@ -6,6 +6,8 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
 
+    @skipEmbeddedSwiftOnLinux
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
     def test(self):
         """Test summary formatter for TaskPriority."""

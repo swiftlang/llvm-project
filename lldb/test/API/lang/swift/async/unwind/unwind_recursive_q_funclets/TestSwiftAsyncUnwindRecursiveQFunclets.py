@@ -10,6 +10,7 @@ class TestCase(lldbtest.TestBase):
 
     unwind_fail_range_cache = dict()
 
+    @skipEmbeddedSwiftOnLinux
     @swiftTest
     @skipIf(oslist=["windows",])
     @skipIf(archs=["arm64e"])
