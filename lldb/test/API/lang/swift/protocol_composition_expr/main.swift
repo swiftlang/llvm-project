@@ -33,6 +33,11 @@ struct S: P1, P2 {
 func f() {
     let c: any P1 & P2 = C()
     let s: any P1 & P2 = S()
+    // Use func so they aren't optimized out in embedded swift
+    print(c.foo())
+    print(c.bar())
+    print(s.foo())
+    print(s.bar())
     print("break here")
 }
 

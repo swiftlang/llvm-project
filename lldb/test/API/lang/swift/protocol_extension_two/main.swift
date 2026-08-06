@@ -20,4 +20,5 @@ struct Patatino<T> where T : Tinky {
 }
 
 let pat = Patatino<Winky>(x: Winky(x: 23))
+print(pat.baciotto) // Use it so it isn't optimized out in embedded swift.
 pat.f()
