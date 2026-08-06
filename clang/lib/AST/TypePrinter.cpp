@@ -2085,10 +2085,6 @@ void TypePrinter::printAttributedBefore(const AttributedType *T,
   else
     printBefore(T->getModifiedType(), OS);
 
-    if (T->getAttrKind() == attr::PtrUnsafeIndexable) {
-    OS << "__unsafe_indexable";
-  }
-
   if (T->isMSTypeSpec()) {
     switch (T->getAttrKind()) {
     default: return;
@@ -2170,12 +2166,14 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   if (T->getAttrKind() == attr::PtrAutoNullTerminatedAttr)
     return;
 
-    if (T->getAttrKind() == attr::PtrUnsafeIndexable)
-    return;
   if (T->getAttrKind() == attr::PtrSingle) {
     if (Policy.CountedByInArrayBracket)
       return;
     OS << "__single";
+    return;
+  }
+  if (T->getAttrKind() == attr::PtrUnsafeIndexable) {
+    OS << "__unsafe_indexable";
     return;
   }
   /* TO_UPSTREAM(BoundsSafety) OFF*/

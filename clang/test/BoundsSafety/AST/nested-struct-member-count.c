@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc %s 2>&1 | FileCheck %s
 
@@ -62,7 +61,7 @@ struct Outer * assign(void * __bidi_indexable bar, int len) {
 // CHECK:    |-DeclStmt
 // CHECK:    | `-VarDecl [[var_s:0x[^ ]+]]
 // CHECK:    |   `-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK:    |     |-ImplicitCastExpr {{.+}} 'struct Outer *__single' <BoundsSafetyPointerCast>
+// CHECK:    |     |-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <BoundsSafetyPointerCast>
 // CHECK:    |     | `-PredefinedBoundsCheckExpr {{.+}} 'struct Outer *__bidi_indexable' <FlexibleArrayCountAssign(BasePtr, FamPtr, Count)>
 // CHECK:    |     |   |-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'struct Outer *__bidi_indexable'
 // CHECK:    |     |   |-OpaqueValueExpr [[ove_1]] {{.*}} 'struct Outer *__bidi_indexable'
@@ -81,7 +80,7 @@ struct Outer * assign(void * __bidi_indexable bar, int len) {
 // CHECK:    | |-BinaryOperator {{.+}} 'int' '='
 // CHECK:    | | |-MemberExpr {{.+}} .len
 // CHECK:    | | | `-MemberExpr {{.+}} ->hdr
-// CHECK:    | | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single' <LValueToRValue>
+// CHECK:    | | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <LValueToRValue>
 // CHECK:    | | |     `-DeclRefExpr {{.+}} [[var_s]]
 // CHECK:    | | `-OpaqueValueExpr [[ove_2]] {{.*}} 'int'
 // CHECK:    | |-OpaqueValueExpr [[ove_1]] {{.*}} 'struct Outer *__bidi_indexable'
@@ -91,17 +90,16 @@ struct Outer * assign(void * __bidi_indexable bar, int len) {
 // CHECK:        `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK:          |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK:          | |-BoundsSafetyPointerPromotionExpr {{.+}} 'struct Outer *__bidi_indexable'
-// CHECK:          | | |-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'struct Outer *__single'
+// CHECK:          | | |-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'struct Outer *__single':'struct Outer *'
 // CHECK:          | | |-BinaryOperator {{.+}} 'char *' '+'
 // CHECK:          | | | |-ImplicitCastExpr {{.+}} 'char *' <ArrayToPointerDecay>
 // CHECK:          | | | | `-MemberExpr {{.+}} ->fam
-// CHECK:          | | | |   `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct Outer *__single'
+// CHECK:          | | | |   `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct Outer *__single':'struct Outer *'
 // CHECK:          | | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK:          | | |   `-MemberExpr {{.+}} .len
 // CHECK:          | | |     `-MemberExpr {{.+}} ->hdr
-// CHECK:          | | |       `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct Outer *__single'
+// CHECK:          | | |       `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct Outer *__single':'struct Outer *'
 // CHECK:          | `-OpaqueValueExpr [[ove_3]]
-// CHECK:          |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single' <LValueToRValue>
+// CHECK:          |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <LValueToRValue>
 // CHECK:          |     `-DeclRefExpr {{.+}} [[var_s]]
-// CHECK:          `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct Outer *__single'
-
+// CHECK:          `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct Outer *__single':'struct Outer *'

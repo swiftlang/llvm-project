@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc %s 2>&1 | FileCheck %s
 
@@ -38,8 +37,8 @@ void test_system_nt_argument_implicit_3(const char *__null_terminated p);
 // CHECK-NEXT:| `-ParmVarDecl {{.*}} p 'int *__single __terminated_by(0)':'int *__single'
 // CHECK-NEXT:|-FunctionDecl {{.*}} prev {{.*}} test_system_nt_argument_implicit_1 'void (const char *__single __terminated_by(0))'
 // CHECK-NEXT:| `-ParmVarDecl {{.*}} p 'const char *__single __terminated_by(0)':'const char *__single'
-// CHECK-NEXT:|-FunctionDecl {{.*}} prev {{.*}} test_system_nt_argument_implicit_2 'void (const char *__single)'
-// CHECK-NEXT:| `-ParmVarDecl {{.*}} p 'const char *__single'
+// CHECK-NEXT:|-FunctionDecl {{.*}} prev {{.*}} test_system_nt_argument_implicit_2 'void (const char *)'
+// CHECK-NEXT:| `-ParmVarDecl {{.*}} p 'const char *'
 // CHECK-NEXT:|-FunctionDecl {{.*}} prev {{.*}} test_system_nt_argument_implicit_3 'void (const char *__single __terminated_by(0))'
 // CHECK-NEXT:| `-ParmVarDecl {{.*}} p 'const char *__single __terminated_by(0)':'const char *__single'
 

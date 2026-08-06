@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fbounds-safety -ast-dump %s 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -fbounds-safety -ast-dump -x objective-c -fexperimental-bounds-safety-objc %s 2>&1 | FileCheck %s
 
@@ -109,11 +108,11 @@ void bidi_parm(const char *__bidi_indexable bidi_parm);
 // CHECK: ParmVarDecl {{.+}} counted_parm 'const char *__single __counted_by(8)'
 void counted_parm(const char *__counted_by(8) counted_parm);
 
-// CHECK: ParmVarDecl {{.+}} ended_parm 'const char *__single __ended_by(end)'
-// CHECK: ParmVarDecl {{.+}} end 'const char *__single /* __started_by(ended_parm) */ ':'const char *__single'
+// CHECK: ParmVarDecl {{.+}} ended_parm 'const char *__single __ended_by(end)':'const char *__single'
+// CHECK: ParmVarDecl {{.+}} end 'const char *__single /* __started_by(ended_parm) */ ':'const char *'
 void ended_parm_single(const char *__ended_by(end) ended_parm, const char *__single end);
 
-// CHECK: ParmVarDecl {{.+}} ended_parm 'const char *__single __ended_by(end)'
+// CHECK: ParmVarDecl {{.+}} ended_parm 'const char *__single __ended_by(end)':'const char *__single'
 // CHECK: ParmVarDecl {{.+}} end 'const char *__single /* __started_by(ended_parm) */ ':'const char *__single'
 void ended_parm_unspec(const char *__ended_by(end) ended_parm, const char *end);
 

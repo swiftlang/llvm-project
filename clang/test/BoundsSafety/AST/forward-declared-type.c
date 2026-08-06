@@ -230,7 +230,7 @@ void unsizedSizedByToSingle(struct unsized * __sized_by(len) p, int len) {
 // CHECK: | `-CompoundStmt
 // CHECK: |   `-DeclStmt
 // CHECK: |     `-VarDecl [[var_p2_1:0x[^ ]+]]
-// CHECK: |       `-ImplicitCastExpr {{.+}} 'struct unsized *__single' <BoundsSafetyPointerCast>
+// CHECK: |       `-ImplicitCastExpr {{.+}} 'struct unsized *__single':'struct unsized *' <BoundsSafetyPointerCast>
 // CHECK: |         `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK: |           |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: |           | |-BoundsSafetyPointerPromotionExpr {{.+}} 'struct unsized *__bidi_indexable'
@@ -785,4 +785,3 @@ void unsizedSingleToSizedByToBidiVoid(void * p) { // rdar://112462891
 // CHECK:           `-OpaqueValueExpr [[ove_39]] {{.*}} 'int'
     void * __bidi_indexable p3 = p2;
 }
-
