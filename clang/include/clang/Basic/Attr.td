@@ -2754,7 +2754,7 @@ def CountedByOrNull : DeclOrTypeAttr {
   let LateParsed = LateAttrParseExperimentalExt;
   let ParseArgumentsAsUnevaluated = 1;
   let Documentation = [CountedByOrNullDocs];
-  let LangOpts = [COnly];
+  let LangOpts = [CountedBySupported];
   // TO_UPSTREAM(BoundsSafety) OFF
 }
 
@@ -2783,7 +2783,7 @@ def SizedBy : DeclOrTypeAttr {
   let LateParsed = LateAttrParseExperimentalExt;
   let ParseArgumentsAsUnevaluated = 1;
   let Documentation = [SizedByDocs];
-  let LangOpts = [COnly];
+  let LangOpts = [CountedBySupported];
   // TO_UPSTREAM(BoundsSafety) OFF
 }
 
@@ -2799,7 +2799,7 @@ def SizedByOrNull : DeclOrTypeAttr {
   let LateParsed = LateAttrParseExperimentalExt;
   let ParseArgumentsAsUnevaluated = 1;
   let Documentation = [SizedByOrNullDocs];
-  let LangOpts = [COnly];
+  let LangOpts = [CountedBySupported];
   // TO_UPSTREAM(BoundsSafety) OFF
 }
 
