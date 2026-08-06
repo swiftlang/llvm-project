@@ -39,7 +39,7 @@ let Definition = "modulelist", Path = "symbols" in {
     Desc<"Validate all Swift typesystem queries. Used for testing an asserts-enabled LLDB only.">;
   def SwiftTypeSystemFallback
       : Property<"swift-typesystem-compiler-fallback", "Boolean">,
-        DefaultTrue,
+        DefaultFalse,
         Desc<"If a query against reflection metadata / debug info fails, retry "
              "using Swift modules.">;
   def SwiftLoadConformances: Property<"swift-load-conformances", "Boolean">,
