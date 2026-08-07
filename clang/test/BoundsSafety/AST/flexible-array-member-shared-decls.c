@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -fbounds-safety -ast-dump %s 2>&1 | FileCheck %s
 // RN: %clang_cc1 -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -ast-dump %s 2>&1 | FileCheck %s
 
@@ -56,7 +54,7 @@ struct Outer *foo(int len) {
 // CHECK-NEXT: {{^}}|   | `-VarDecl [[var_p:0x[^ ]+]]
 // CHECK-NEXT: {{^}}|   |   `-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK-NEXT: {{^}}|   |     |-BoundsCheckExpr {{.+}} 'p2 <= __builtin_get_pointer_upper_bound(p2) && __builtin_get_pointer_lower_bound(p2) <= p2 && len <= __builtin_get_pointer_upper_bound(p2) - p2 && 0 <= len'
-// CHECK-NEXT: {{^}}|   |     | |-ImplicitCastExpr {{.+}} 'struct Outer *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: {{^}}|   |     | |-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <BoundsSafetyPointerCast>
 // CHECK-NEXT: {{^}}|   |     | | `-PredefinedBoundsCheckExpr {{.+}} 'struct Outer *__bidi_indexable' <FlexibleArrayCountAssign(BasePtr, FamPtr, Count)>
 // CHECK-NEXT: {{^}}|   |     | |   |-OpaqueValueExpr [[ove_2:0x[^ ]+]] {{.*}} 'struct Outer *__bidi_indexable'
 // CHECK:      {{^}}|   |     | |   |   | | |-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'struct Outer *__single __sized_by(16UL + 4UL * len)':'struct Outer *__single'
@@ -135,14 +133,14 @@ struct Outer *foo(int len) {
 // CHECK-NEXT: {{^}}|   |-BinaryOperator {{.+}} 'int' '='
 // CHECK-NEXT: {{^}}|   | |-MemberExpr {{.+}} .len
 // CHECK-NEXT: {{^}}|   | | `-MemberExpr {{.+}} ->hdr
-// CHECK-NEXT: {{^}}|   | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single' <LValueToRValue>
+// CHECK-NEXT: {{^}}|   | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <LValueToRValue>
 // CHECK-NEXT: {{^}}|   | |     `-DeclRefExpr {{.+}} [[var_p]]
 // CHECK-NEXT: {{^}}|   | `-OpaqueValueExpr [[ove_6]] {{.*}} 'int'
 // CHECK:      {{^}}|   |-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK-NEXT: {{^}}|   | |-BinaryOperator {{.+}} 'int *__single __counted_by(len)':'int *__single' '='
 // CHECK-NEXT: {{^}}|   | | |-MemberExpr {{.+}} .ptr
 // CHECK-NEXT: {{^}}|   | | | `-MemberExpr {{.+}} ->hdr
-// CHECK-NEXT: {{^}}|   | | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single' <LValueToRValue>
+// CHECK-NEXT: {{^}}|   | | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <LValueToRValue>
 // CHECK-NEXT: {{^}}|   | | |     `-DeclRefExpr {{.+}} [[var_p]]
 // CHECK-NEXT: {{^}}|   | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(len)':'int *__single' <BoundsSafetyPointerCast>
 // CHECK-NEXT: {{^}}|   | |   `-OpaqueValueExpr [[ove_7]] {{.*}} 'int *__bidi_indexable'
@@ -164,7 +162,7 @@ struct Outer *foo(int len) {
 // CHECK-NEXT: {{^}}|         | | |     `-MemberExpr {{.+}} ->hdr
 // CHECK-NEXT: {{^}}|         | | |       `-OpaqueValueExpr [[ove_8]] {{.*}} 'struct Outer *__single'
 // CHECK:      {{^}}|         | `-OpaqueValueExpr [[ove_8]]
-// CHECK-NEXT: {{^}}|         |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single' <LValueToRValue>
+// CHECK-NEXT: {{^}}|         |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <LValueToRValue>
 // CHECK-NEXT: {{^}}|         |     `-DeclRefExpr {{.+}} [[var_p]]
 // CHECK-NEXT: {{^}}|         `-OpaqueValueExpr [[ove_8]] {{.*}} 'struct Outer *__single'
 
@@ -204,7 +202,7 @@ struct Outer *foo2(int len) {
 // CHECK-NEXT: {{^}}    | `-VarDecl [[var_p_1:0x[^ ]+]]
 // CHECK-NEXT: {{^}}    |   `-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK-NEXT: {{^}}    |     |-BoundsCheckExpr {{.+}} 'p2 <= __builtin_get_pointer_upper_bound(p2) && __builtin_get_pointer_lower_bound(p2) <= p2 && len <= __builtin_get_pointer_upper_bound(p2) - p2 && 0 <= len'
-// CHECK-NEXT: {{^}}    |     | |-ImplicitCastExpr {{.+}} 'struct Outer *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: {{^}}    |     | |-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <BoundsSafetyPointerCast>
 // CHECK-NEXT: {{^}}    |     | | `-PredefinedBoundsCheckExpr {{.+}} 'struct Outer *__bidi_indexable' <FlexibleArrayCountAssign(BasePtr, FamPtr, Count)>
 // CHECK-NEXT: {{^}}    |     | |   |-OpaqueValueExpr [[ove_11:0x[^ ]+]] {{.*}} 'struct Outer *__bidi_indexable'
 // CHECK:      {{^}}    |     | |   |   | | |-OpaqueValueExpr [[ove_12:0x[^ ]+]] {{.*}} 'struct Outer *__single __sized_by(16UL + 4UL * len)':'struct Outer *__single'
@@ -283,7 +281,7 @@ struct Outer *foo2(int len) {
 // CHECK-NEXT: {{^}}    |-BinaryOperator {{.+}} 'int *__single __counted_by(len)':'int *__single' '='
 // CHECK-NEXT: {{^}}    | |-MemberExpr {{.+}} .ptr
 // CHECK-NEXT: {{^}}    | | `-MemberExpr {{.+}} ->hdr
-// CHECK-NEXT: {{^}}    | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single' <LValueToRValue>
+// CHECK-NEXT: {{^}}    | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <LValueToRValue>
 // CHECK-NEXT: {{^}}    | |     `-DeclRefExpr {{.+}} [[var_p_1]]
 // CHECK-NEXT: {{^}}    | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(len)':'int *__single' <BoundsSafetyPointerCast>
 // CHECK-NEXT: {{^}}    |   `-OpaqueValueExpr [[ove_16]] {{.*}} 'int *__bidi_indexable'
@@ -291,7 +289,7 @@ struct Outer *foo2(int len) {
 // CHECK-NEXT: {{^}}    | |-BinaryOperator {{.+}} 'int' '='
 // CHECK-NEXT: {{^}}    | | |-MemberExpr {{.+}} .len
 // CHECK-NEXT: {{^}}    | | | `-MemberExpr {{.+}} ->hdr
-// CHECK-NEXT: {{^}}    | | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single' <LValueToRValue>
+// CHECK-NEXT: {{^}}    | | |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <LValueToRValue>
 // CHECK-NEXT: {{^}}    | | |     `-DeclRefExpr {{.+}} [[var_p_1]]
 // CHECK-NEXT: {{^}}    | | `-OpaqueValueExpr [[ove_15]] {{.*}} 'int'
 // CHECK:      {{^}}    | |-OpaqueValueExpr [[ove_11]] {{.*}} 'struct Outer *__bidi_indexable'
@@ -312,7 +310,6 @@ struct Outer *foo2(int len) {
 // CHECK-NEXT: {{^}}          | | |     `-MemberExpr {{.+}} ->hdr
 // CHECK-NEXT: {{^}}          | | |       `-OpaqueValueExpr [[ove_17]] {{.*}} 'struct Outer *__single'
 // CHECK:      {{^}}          | `-OpaqueValueExpr [[ove_17]]
-// CHECK-NEXT: {{^}}          |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single' <LValueToRValue>
+// CHECK-NEXT: {{^}}          |   `-ImplicitCastExpr {{.+}} 'struct Outer *__single':'struct Outer *' <LValueToRValue>
 // CHECK-NEXT: {{^}}          |     `-DeclRefExpr {{.+}} [[var_p_1]]
 // CHECK-NEXT: {{^}}          `-OpaqueValueExpr [[ove_17]] {{.*}} 'struct Outer *__single'
-

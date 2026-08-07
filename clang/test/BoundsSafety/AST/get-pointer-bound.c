@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc %s 2>&1 | FileCheck %s
 #include <ptrcheck.h>
@@ -47,14 +45,14 @@ void single(int *__single p) {
 // CHECK: |   | `-VarDecl {{.+}} q 'int *__bidi_indexable' cinit
 // CHECK: |   |   `-GetBoundExpr {{.+}} 'int *__bidi_indexable' lower
 // CHECK: |   |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK: |   |       `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// CHECK: |   |         `-DeclRefExpr {{.+}} 'int *__single' lvalue ParmVar {{.+}} 'p' 'int *__single'
+// CHECK: |   |       `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// CHECK: |   |         `-DeclRefExpr {{.+}} 'int *__single':'int *' lvalue ParmVar {{.+}} 'p' 'int *__single':'int *'
 // CHECK: |   `-DeclStmt
 // CHECK: |     `-VarDecl {{.+}} r 'int *__bidi_indexable' cinit
 // CHECK: |       `-GetBoundExpr {{.+}} 'int *__bidi_indexable' upper
 // CHECK: |         `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK: |           `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// CHECK: |             `-DeclRefExpr {{.+}} 'int *__single' lvalue ParmVar {{.+}} 'p' 'int *__single'
+// CHECK: |           `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// CHECK: |             `-DeclRefExpr {{.+}} 'int *__single':'int *' lvalue ParmVar {{.+}} 'p' 'int *__single':'int *'
 
 void array(void) {
     int array[10];
