@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -triple aarch64-none-linux-gnu -target-feature +sve -mvscale-min=4 -mvscale-max=4 -flax-vector-conversions=none -ffreestanding -fsyntax-only -fbounds-safety -verify %s
 // RUN: %clang_cc1 -triple aarch64-none-linux-gnu -target-feature +sve -mvscale-min=4 -mvscale-max=4 -flax-vector-conversions=none -ffreestanding -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 
@@ -13,7 +12,7 @@ oq_struct_t __unsafe_indexable foo();
 
 oq_struct_t test() {
   oq_struct_t local = 0; // expected-note{{pointer 'local' declared here}}
-  // expected-error@+1{{cannot assign to indexable pointer with type 'struct oq_struct *__bidi_indexable' from __single pointer to incomplete type 'oq_struct_t __single' (aka 'struct oq_struct *__single'); consider declaring pointer 'local' as '__single'}}
+  // expected-error@+1{{cannot assign to indexable pointer with type 'struct oq_struct *__bidi_indexable' from __single pointer to incomplete type 'struct oq_struct *__single'; consider declaring pointer 'local' as '__single'}}
   local = __unsafe_forge_single(oq_struct_t, foo());
   return local;
 }
