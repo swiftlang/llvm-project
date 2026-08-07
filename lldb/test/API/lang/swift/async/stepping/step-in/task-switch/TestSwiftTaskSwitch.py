@@ -5,7 +5,6 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestCase(lldbtest.TestBase):
-    @skipEmbeddedSwift  # rdar://183960945 (Fix async tests running in embedded mode)
     @swiftTest
     @skipIf(oslist=["windows", "linux"])
     @skipIf(macos_version=["<", "26.0"], asan=True) # rdar://138777205
@@ -38,7 +37,10 @@ class TestCase(lldbtest.TestBase):
         self.assertEqual(lines, {3})
 
         # Required for builds that have debug info.
+        # Avoid spurious breakpoints when debug info for the concurrency runtime is available.
         self.runCmd("settings set target.process.thread.step-avoid-libraries libswift_Concurrency.dylib")
+        # Same as above, but for embedded swift.
+        self.runCmd("settings set target.process.thread.step-avoid-regexp ^(std::|(::)?swift_)")
         thread.StepInto()
         frame = thread.frame[0]
         # Step in from `main` should progress through to `f`.
