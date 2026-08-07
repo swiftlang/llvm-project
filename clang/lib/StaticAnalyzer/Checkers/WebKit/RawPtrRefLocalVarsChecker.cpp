@@ -426,6 +426,7 @@ public:
       PathDiagnosticLocation BSLoc(Value->getExprLoc(), BR->getSourceManager());
       auto Report = std::make_unique<BasicBugReport>(Bug, Os.str(), BSLoc);
       Report->addRange(Value->getSourceRange());
+      Report->setDeclWithIssue(DeclWithIssue);
       BR->emitReport(std::move(Report));
     } else {
       if (V->hasLocalStorage())
