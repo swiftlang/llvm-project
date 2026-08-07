@@ -20,13 +20,12 @@ from lldbsuite.test.decorators import *
 
 
 class TestCase(TestBase):
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
-    @requireNotEmbeddedSwift
-    def test_po_uninitialized(self):
-        """po reports <uninitialized> before the assignment and the instance's
-        description after it."""
+    def test_uninitialized(self):
+        """po on a not-yet-assigned class reference reports <uninitialized>."""
         self.build()
-        _, process, _, _ = lldbutil.run_to_source_breakpoint(
+        lldbutil.run_to_source_breakpoint(
             self, "break before assignment", lldb.SBFileSpec("main.swift")
         )
 
@@ -36,8 +35,13 @@ class TestCase(TestBase):
         )
         self.expect("po object", substrs=["<uninitialized>"])
 
-        lldbutil.continue_to_source_breakpoint(
-            self, process, "break after assignment", lldb.SBFileSpec("main.swift")
+    @swiftTest
+    @requireNotEmbeddedSwift
+    def test_initialized(self):
+        """Once assigned, po prints the instance's description."""
+        self.build()
+        lldbutil.run_to_source_breakpoint(
+            self, "break after assignment", lldb.SBFileSpec("main.swift")
         )
 
         description = self.frame().FindVariable("object").GetObjectDescription()
