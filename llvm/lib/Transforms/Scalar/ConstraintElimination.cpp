@@ -364,6 +364,10 @@ public:
 
   bool doesHold(CmpInst::Predicate Pred, Value *A, Value *B) const;
 
+  /// Returns true if \p V is known to be non-negative, either because the
+  /// signed system implies it or because ValueTracking can prove it.
+  bool isKnownNonNegative(Value *V) const;
+
   void addFact(CmpInst::Predicate Pred, Value *A, Value *B, unsigned NumIn,
                unsigned NumOut, SmallVectorImpl<StackEntry> &DFSInStack);
 
@@ -942,8 +946,8 @@ ConstraintInfo::getConstraintForSolving(CmpInst::Predicate Pred, Value *Op0,
   // unsigned ones. This increases the reasoning effectiveness in combination
   // with the signed <-> unsigned transfer logic.
   if (CmpInst::isSigned(Pred) &&
-      isKnownNonNegative(Op0, DL, /*Depth=*/MaxAnalysisRecursionDepth - 1) &&
-      isKnownNonNegative(Op1, DL, /*Depth=*/MaxAnalysisRecursionDepth - 1))
+      ::isKnownNonNegative(Op0, DL, /*Depth=*/MaxAnalysisRecursionDepth - 1) &&
+      ::isKnownNonNegative(Op1, DL, /*Depth=*/MaxAnalysisRecursionDepth - 1))
     Pred = ICmpInst::getUnsignedPredicate(Pred);
 
   SmallVector<Value *> NewVariables;
@@ -1006,13 +1010,14 @@ bool ConstraintInfo::doesHold(CmpInst::Predicate Pred, Value *A,
          getCS(R.IsSigned).isConditionImpliedInSubSystem(R.Coefficients);
 }
 
+bool ConstraintInfo::isKnownNonNegative(Value *V) const {
+  return doesHold(CmpInst::ICMP_SGE, V, ConstantInt::get(V->getType(), 0)) ||
+         ::isKnownNonNegative(V, State.DL, /*Depth=*/MaxAnalysisRecursionDepth - 1);
+}
+
 void ConstraintInfo::transferToOtherSystem(
     CmpInst::Predicate Pred, Value *A, Value *B, unsigned NumIn,
     unsigned NumOut, SmallVectorImpl<StackEntry> &DFSInStack) {
-  auto IsKnownNonNegative = [this](Value *V) {
-    return doesHold(CmpInst::ICMP_SGE, V, ConstantInt::get(V->getType(), 0)) ||
-           isKnownNonNegative(V, State.DL, /*Depth=*/MaxAnalysisRecursionDepth - 1);
-  };
   // Check if we can combine facts from the signed and unsigned systems to
   // derive additional facts.
   if (!A->getType()->isIntegerTy())
@@ -1026,7 +1031,7 @@ void ConstraintInfo::transferToOtherSystem(
   case CmpInst::ICMP_ULT:
   case CmpInst::ICMP_ULE:
     //  If B is a signed positive constant, then A >=s 0 and A <s (or <=s) B.
-    if (IsKnownNonNegative(B)) {
+    if (isKnownNonNegative(B)) {
       addFact(CmpInst::ICMP_SGE, A, ConstantInt::get(B->getType(), 0), NumIn,
               NumOut, DFSInStack);
       addFact(ICmpInst::getSignedPredicate(Pred), A, B, NumIn, NumOut,
@@ -1036,7 +1041,7 @@ void ConstraintInfo::transferToOtherSystem(
   case CmpInst::ICMP_UGE:
   case CmpInst::ICMP_UGT:
     //  If A is a signed positive constant, then B >=s 0 and A >s (or >=s) B.
-    if (IsKnownNonNegative(A)) {
+    if (isKnownNonNegative(A)) {
       addFact(CmpInst::ICMP_SGE, B, ConstantInt::get(B->getType(), 0), NumIn,
               NumOut, DFSInStack);
       addFact(ICmpInst::getSignedPredicate(Pred), A, B, NumIn, NumOut,
@@ -1045,7 +1050,7 @@ void ConstraintInfo::transferToOtherSystem(
     break;
   case CmpInst::ICMP_SLT:
   case CmpInst::ICMP_SLE:
-    if (IsKnownNonNegative(A))
+    if (isKnownNonNegative(A))
       addFact(ICmpInst::getUnsignedPredicate(Pred), A, B, NumIn, NumOut,
               DFSInStack);
     break;
@@ -1053,13 +1058,13 @@ void ConstraintInfo::transferToOtherSystem(
     if (doesHold(CmpInst::ICMP_SGE, B, Constant::getAllOnesValue(B->getType())))
       addFact(CmpInst::ICMP_UGE, A, ConstantInt::get(B->getType(), 0), NumIn,
               NumOut, DFSInStack);
-    if (IsKnownNonNegative(B))
+    if (isKnownNonNegative(B))
       addFact(CmpInst::ICMP_UGT, A, B, NumIn, NumOut, DFSInStack);
 
     break;
   }
   case CmpInst::ICMP_SGE:
-    if (IsKnownNonNegative(B))
+    if (isKnownNonNegative(B))
       addFact(CmpInst::ICMP_UGE, A, B, NumIn, NumOut, DFSInStack);
     break;
   }
@@ -2053,6 +2058,18 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
     R = Info.getConstraintForSolving(Pred, A, B, /*ShouldDecompose=*/false);
   if (auto ImpliedCondition = TryWithConstraint(R))
     return ImpliedCondition;
+
+  // For non-negative operands unsigned queries can also be checked against the
+  // signed system.
+  if (CmpInst::isUnsigned(Pred) && A->getType()->isIntegerTy()) {
+    SmallVector<Value *> NewVariables;
+    auto SR = Info.getConstraint(ICmpInst::getSignedPredicate(Pred), A, B,
+                                 NewVariables, /*ShouldDecompose=*/true);
+    if (NewVariables.empty() && !SR.empty() && Info.isKnownNonNegative(A) &&
+        Info.isKnownNonNegative(B))
+      if (auto ImpliedCondition = TryWithConstraint(SR))
+        return ImpliedCondition;
+  }
 
   // Additionally, query the signed system for eq/ne predicates if we know about
   // A or B.
