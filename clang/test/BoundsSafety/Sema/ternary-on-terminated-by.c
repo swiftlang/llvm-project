@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -Wno-bounds-safety-single-to-indexable-bounds-truncated -verify %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -Wno-bounds-safety-single-to-indexable-bounds-truncated -x objective-c -fexperimental-bounds-safety-objc -verify %s
 #include <ptrcheck.h>
@@ -30,7 +29,7 @@ void Test(int sel) {
     char * __single y_single = &c;
     char * __single x_single = &c;
     z_nt = sel ? x_nt : y_single; // expected-error{{conditional expression evaluates values with mismatching __terminated_by attributes 'char *__single __terminated_by(0)' (aka 'char *__single') and 'char *__single'}}
-    z_nt = sel ? x_single : y_nt; // expected-error{{conditional expression evaluates values with mismatching __terminated_by attributes 'char *__single' and 'char *__single __terminated_by(0)' (aka 'char *__single')}}
+    z_nt = sel ? x_single : y_nt; // expected-error{{conditional expression evaluates values with mismatching __terminated_by attributes 'char *__single' (aka 'char *') and 'char *__single __terminated_by(0)' (aka 'char *__single')}}
 
     char * __terminated_by(2) x_2t = __unsafe_forge_terminated_by(char *, x, 2);
     z_nt = sel ? x_2t : y_nt; // expected-error{{conditional expression evaluates values with mismatching __terminated_by attributes 'char *__single __terminated_by(2)' (aka 'char *__single') and 'char *__single __terminated_by(0)' (aka 'char *__single')}}

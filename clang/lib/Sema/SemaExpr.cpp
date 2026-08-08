@@ -12222,8 +12222,21 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
         // `int *__single = (char *__bidi)x`) will first BitCast to
         // `int *__bidi` and then FPC to `int *__single`, which will CodeGen
         // the bounds check correctly.
+        bool NeedsBidiIntermediate =
+            OrigLHSType->isBoundsAttributedType() &&
+            OrigRHSType->isSinglePointerType() &&
+            !Context.hasSameUnqualifiedType(LHSPointer->getPointeeType(),
+                                            RHSPointer->getPointeeType());
+        if (NeedsBidiIntermediate)
+          RHS = ImpCastExprToType(
+              RHS.get(),
+              Context.getPointerType(RHSPointer->getPointeeType(),
+                                     BoundsSafetyPointerAttributes::bidiIndexable()),
+              CK_BoundsSafetyPointerCast);
         auto LHSIntermediateType = Context.getPointerType(
-            LHSPointer->getPointeeType(), RHSFA);
+            LHSPointer->getPointeeType(),
+            NeedsBidiIntermediate ? BoundsSafetyPointerAttributes::bidiIndexable()
+                                  : RHSFA);
         auto Result = CheckAssignmentConstraints(LHSIntermediateType, RHS,
                                                  Kind, ConvertRHS);
         bool SkipNoOp = Kind == CK_NoOp &&

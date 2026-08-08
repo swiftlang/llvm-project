@@ -544,8 +544,10 @@ Sema::deduceCastPointerAttributes(QualType ResultType, QualType SrcType) {
       BoundsSafetyPointerAttributes DstAttr;
       if (!DPTy->isUnspecified()) {
         DstAttr = DPTy->getPointerAttributes();
+      } else if (!OrigDstTy.isNull() && OrigDstTy->isSinglePointerType()) {
+        DstAttr = BoundsSafetyPointerAttributes::single();
       } else if (!SrcTy.isNull() && SrcTy->isSinglePointerType()) {
-                DstAttr = BoundsSafetyPointerAttributes::single();
+        DstAttr = BoundsSafetyPointerAttributes::single();
       } else if (SPTy) {
         DstAttr = SPTy->getPointerAttributes();
       } else {
