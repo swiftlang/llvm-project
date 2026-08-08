@@ -8290,8 +8290,8 @@ bool Sema::CheckDynamicCountSizeForAssignment(
     return true;
 
   Expr *CountExpr = LDCPTy->getCountExpr()->IgnoreParenCasts();
-    if (CountExpr->isValueDependent())
-        return false;
+  if (CountExpr->isValueDependent())
+    return false;
 
   // unsafe/unspecified counts as "bounded" because there shouldn't be a warning
   // in manual adoption mode, else no one would be able to use it. In regular
@@ -8302,8 +8302,7 @@ bool Sema::CheckDynamicCountSizeForAssignment(
                       !RHSTy->isCountAttributedType() &&
                       (!RDRPTy || !RDRPTy->getEndPointer()) &&
                       !RHSTy->isPointerTypeWithBounds() &&
-                      !RHSTy->isUnsafeIndexablePointerType() &&
-                      !RHSTy->isUnspecifiedPointerType();
+                      RHSTy->isSafePointerType();
   if (UnboundedRHS)
     // It might still have a flexible array member
     if (auto *RT = RHSTy->getPointeeType()->getAs<RecordType>())
@@ -8858,10 +8857,11 @@ static bool checkDynamicCountPointerAsParameter(Sema &S, FunctionDecl *FDecl,
               DiagTy = ArgDepInfo.getDecl()->getType();
             }
 
-        S.Diag(Call->getExprLoc(),
-           diag::err_bounds_safety_unsynchronized_indirect_param)
-              << ArgInfo.getDecl() << ArgInfo.isAddrOf() << ArgDepInfo.getDecl()
-              << !ArgDepInfo.isDeref() << IsDependent << DiagTy;
+            S.Diag(Call->getExprLoc(),
+                   diag::err_bounds_safety_unsynchronized_indirect_param)
+                << ArgInfo.getDecl() << ArgInfo.isAddrOf()
+                << ArgDepInfo.getDecl() << !ArgDepInfo.isDeref()
+                << IsDependent << DiagTy;
             return false;
           }
         }
@@ -10417,16 +10417,6 @@ static bool checkConditionalNullPointer(Sema &S, ExprResult &NullExpr,
 }
 
 
-static BoundsSafetyPointerAttributes
-getSugarAwareBoundsSafetyPointerAttributes(QualType T) {
-  if (T->isSinglePointerType())
-    return BoundsSafetyPointerAttributes::single();
-  if (T->isUnsafeIndexablePointerType())
-    return BoundsSafetyPointerAttributes::unsafeIndexable();
-  return T->castAs<PointerType>()->getPointerAttributes();
-}
-
-
 /// Checks compatibility between two pointers and return the resulting
 /// type.
 static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
@@ -10477,9 +10467,9 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
     // 4) __single
     // The operands are considered incompatible if an operand has unsafe pointer
     // type and the other has bounds.
-    
-    auto lFPAttr = getSugarAwareBoundsSafetyPointerAttributes(LHSTy);
-    auto rFPAttr = getSugarAwareBoundsSafetyPointerAttributes(RHSTy);
+
+    auto lFPAttr = *LHSTy->getSugarAwareBoundsSafetyPointerAttributes();
+    auto rFPAttr = *RHSTy->getSugarAwareBoundsSafetyPointerAttributes();
     CompositeFPAttr = BoundsSafetyPointerAttributes::merge(lFPAttr, rFPAttr);
     /* TO_UPSTREAM(BoundsSafety) OFF*/
   }
@@ -10686,9 +10676,9 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
   // we risk doing a BitCast across pointer attributes, which is bad.
   
   BoundsSafetyPointerAttributes lFPAttr =
-      getSugarAwareBoundsSafetyPointerAttributes(LHSTy);
+      *LHSTy->getSugarAwareBoundsSafetyPointerAttributes();
   BoundsSafetyPointerAttributes rFPAttr =
-      getSugarAwareBoundsSafetyPointerAttributes(RHSTy);
+      *RHSTy->getSugarAwareBoundsSafetyPointerAttributes();
   destFPAttr = BoundsSafetyPointerAttributes::merge(lFPAttr, rFPAttr);
 
   // If either type is value terminated, the other also needs to be, meaning
@@ -11544,24 +11534,11 @@ static bool checkBoundsSafetyFunctionPointerForAssignment(Sema &S,
 
   return CheckRemaningParams(LProto) || CheckRemaningParams(RProto);
 }
-/* TO_UPSTREAM(BoundsSafety) OFF*/
 
 
 static bool
 hasCompatibleNestedBoundsSafetyPointerAttributesSugarAware(QualType LHSType,
                                                             QualType RHSType) {
-  auto GetPointerAttrs =
-      [](QualType T) -> std::optional<BoundsSafetyPointerAttributes> {
-    const auto *PT = T->getAs<PointerType>();
-    if (!PT)
-      return std::nullopt;
-    if (T->isSinglePointerType())
-      return BoundsSafetyPointerAttributes::single();
-    if (T->isUnsafeIndexablePointerType())
-      return BoundsSafetyPointerAttributes::unsafeIndexable();
-    return PT->getPointerAttributes();
-  };
-
   const auto *LHSPtr = LHSType->getAs<PointerType>();
   const auto *RHSPtr = RHSType->getAs<PointerType>();
   if (!LHSPtr || !RHSPtr)
@@ -11570,8 +11547,8 @@ hasCompatibleNestedBoundsSafetyPointerAttributesSugarAware(QualType LHSType,
   QualType LPointee = LHSPtr->getPointeeType();
   QualType RPointee = RHSPtr->getPointeeType();
   for (;;) {
-    auto LAttrs = GetPointerAttrs(LPointee);
-    auto RAttrs = GetPointerAttrs(RPointee);
+    auto LAttrs = LPointee->getSugarAwareBoundsSafetyPointerAttributes();
+    auto RAttrs = RPointee->getSugarAwareBoundsSafetyPointerAttributes();
     if (!LAttrs || !RAttrs)
       return true;
     if (!BoundsSafetyPointerAttributes::areCompatible(*LAttrs, *RAttrs))
@@ -11974,7 +11951,6 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
                                                    bool ConvertRHS) {
   QualType RHSType = RHS.get()->getType();
   QualType OrigLHSType = LHSType;
-  
   QualType OrigRHSType = RHSType;
 
   // Get canonical types.  We're not formatting these types, just comparing
@@ -11986,12 +11962,10 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
   if (LHSType == RHSType) {
     Kind = CK_NoOp;
     /* TO_UPSTREAM(BoundsSafety) ON*/
-    
-    bool OuterSingleMismatch = OrigLHSType->isSinglePointerType() !=
-                                OrigRHSType->isSinglePointerType();
     if (getLangOpts().BoundsSafety &&
-        (!Context.canMergeTypeBounds(OrigLHSType, RHS.get()->getType()) ||
-         OuterSingleMismatch)) {
+        (OrigLHSType->isSinglePointerType() !=
+             OrigRHSType->isSinglePointerType() ||
+         !Context.canMergeTypeBounds(OrigLHSType, RHS.get()->getType()))) {
       Kind = CK_BoundsSafetyPointerCast;
     /* TO_UPSTREAM(BoundsSafety) OFF*/
     } else {
@@ -12036,7 +12010,7 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
   // If we have an atomic type, try a non-atomic assignment, then just add an
   // atomic qualification step.
   if (const AtomicType *AtomicTy = dyn_cast<AtomicType>(LHSType)) {
-    
+    /* TO_UPSTREAM(BoundsSafety) ON */
     const AtomicType *OrigAtomicTy = OrigLHSType->getAs<AtomicType>();
     QualType ValueTy =
         OrigAtomicTy ? OrigAtomicTy->getValueType() : AtomicTy->getValueType();
@@ -12298,7 +12272,6 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
       else
         Kind = CK_BitCast;
       /* TO_UPSTREAM(BoundsSafety) ON*/
-      
       if (getLangOpts().BoundsSafety &&
           !hasCompatibleNestedBoundsSafetyPointerAttributesSugarAware(
               OrigLHSType, OrigRHSType))
@@ -12311,7 +12284,6 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
     // int -> T*
     if (RHSType->isIntegerType()) {
       Kind = CK_IntegralToPointer; // FIXME: null?
-      
       return OrigLHSType->isSafePointerType()
                  ? AssignConvertType::IncompatibleIntToSafePointer
                  : AssignConvertType::IntToPointer;
@@ -12946,7 +12918,7 @@ bool Sema::allowBoundsUnsafePointerAssignment(
   // All safe pointers ABI compatible with unsafe pointers (and each other) are
   // __single pointers. Make no exception for ABI incompatible pointer type
   // mismatch.
-    if (!DestTy->isSinglePointerType() && DestSafe)
+  if (!DestTy->isSinglePointerType() && DestSafe)
     return false;
   if (!SourceValue->getType()->isSinglePointerType() && SourceSafe)
     return false;
@@ -14462,7 +14434,7 @@ static bool checkArithmeticBinOpBoundsSafetyPointer(Sema &S, Expr *Base,
     return false;
   }
 
-    if (BaseType->isSinglePointerType() && !BaseType->isBoundsAttributedType()) {
+  if (BaseType->isSinglePointerType() && !BaseType->isBoundsAttributedType()) {
     emitBoundsSafetySinglePointerArithmeticError(S, Base);
     return false;
   }

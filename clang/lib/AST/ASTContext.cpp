@@ -3995,6 +3995,10 @@ static QualType assureMandatorySugarTypesRemain(const ASTContext &Ctx,
           DestTy, DRPT->getStartPointer(), DRPT->getEndPointer(),
           DRPT->getStartPtrDecls(), DRPT->getEndPtrDecls());
     }
+  } else if (SrcTy->hasAttr(attr::PtrSingle)) {
+    if (!DestTy->hasAttr(attr::PtrSingle)) {
+      return Ctx.getAttributedType(attr::PtrSingle, DestTy, DestTy);
+    }
   }
 
   return DestTy;
@@ -4033,11 +4037,19 @@ QualType ASTContext::mergeBoundsSafetyPointerTypes(
       auto QualsOnT = DstTy.getQualifiers();
       auto QualsOnModifTy = AT->getModifiedType().getQualifiers();
       Qualifiers::removeCommonQualifiers(QualsOnT, QualsOnModifTy);
+      bool InnerAlreadyHasAttr = AT->getAttrKind() == attr::PtrSingle
+                                      ? Inner->isSinglePointerType()
+                                      : Inner->isUnsafeIndexablePointerType();
+      bool SrcConveysNoBoundsInfo =
+          SrcTy.isNull() || SrcTy->isUnspecifiedPointerType();
+      QualType NewDstTy = Inner;
+      if (!InnerAlreadyHasAttr && !SrcConveysNoBoundsInfo)
+        NewDstTy = getAttributedType(AT->getAttrKind(), Inner, Inner);
       if (!QualsOnT.empty()) {
         QualifierCollector QC(QualsOnT);
-        Inner = QC.apply(*this, Inner);
+        NewDstTy = QC.apply(*this, NewDstTy);
       }
-      return Inner;
+      return NewDstTy;
     }
 
     auto ModifiedTy = mergeBoundsSafetyPointerTypes(
@@ -4077,6 +4089,7 @@ QualType ASTContext::mergeBoundsSafetyPointerTypes(
       QualifierCollector QC(QualsOnT);
       MergeTy = QC.apply(*this, MergeTy);
     }
+    MergeTy = assureMandatorySugarTypesRemain(*this, MergeTy, DstTy);
   }
   return MergeTy;
 }
@@ -12896,9 +12909,13 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
     // Merge two pointer types, while trying to preserve typedef info
     const PointerType *LHSPointer = LHS->castAs<PointerType>();
     const PointerType *RHSPointer = RHS->castAs<PointerType>();
-    BoundsSafetyPointerAttributes LHSFA = LHSPointer->getPointerAttributes();
-    BoundsSafetyPointerAttributes RHSFA = RHSPointer->getPointerAttributes();
-    if (!BoundsSafetyPointerAttributes::areCompatible(LHSFA, RHSFA))
+    BoundsSafetyPointerAttributes LHSFA =
+        LHS->getSugarAwareBoundsSafetyPointerAttributes().value_or(
+            BoundsSafetyPointerAttributes::unspecified());
+    BoundsSafetyPointerAttributes RHSFA =
+        RHS->getSugarAwareBoundsSafetyPointerAttributes().value_or(
+            BoundsSafetyPointerAttributes::unspecified());
+    if (!BoundsSafetyPointerAttributes::areEquivalentLayouts(LHSFA, RHSFA))
       return {};
     BoundsSafetyPointerAttributes BestFA = LHSFA;
     if (BestFA.isUnspecified())

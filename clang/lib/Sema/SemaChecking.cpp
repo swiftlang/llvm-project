@@ -5411,7 +5411,6 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
     bool IsDBP = ValType->isBoundsAttributedType();
     if (PtrTy || IsDBP) {
       // Check if an AddSub op uses a pointer to __unsafe_indexable pointer.
-      
       if (Form == Arithmetic && (IsDBP || ValType->isSafePointerType())) {
         // Non-AddSub ops require a pointer to an integer, they should have been
         // handled.
@@ -5422,8 +5421,8 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
       }
       // Non-arithmetic ops require a pointer to __unsafe_indexable or __single
       // pointer.
-                if (IsDBP ||
-            (ValType->isSafePointerType() && !ValType->isSinglePointerType())) {
+      if (IsDBP ||
+          (ValType->isSafePointerType() && !ValType->isSinglePointerType())) {
         unsigned DiagIndex;
         if (PtrTy->isIndexable())
           DiagIndex = 0;

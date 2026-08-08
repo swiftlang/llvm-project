@@ -10825,6 +10825,11 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
       if (ObjSize.getQuantity() == 0)
         return true;
 
+      if (SubObj.Invalid &&
+          (Result.isForgeSingle() || Result.isForgeTerminatedBy()) &&
+          !ResultTy->isValueTerminatedType())
+        return true;
+
       ItemCount = APInt(64, 1);
     }
 

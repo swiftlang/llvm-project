@@ -2103,19 +2103,12 @@ NestedNameSpecifier Type::getPrefix() const {
 
 bool Type::hasAttr(attr::Kind AK) const {
   const Type *Cur = this;
-  while (true) {
-    if (const auto *AT = dyn_cast<AttributedType>(Cur)) {
-      if (AT->getAttrKind() == AK)
-        return true;
-      Cur = AT->getEquivalentType().getTypePtr();
-      continue;
-    }
-    
-    QualType Desugared = Cur->getLocallyUnqualifiedSingleStepDesugaredType();
-    if (Desugared.getTypePtr() == Cur)
-      return false;
-    Cur = Desugared.getTypePtr();
+  while (const auto *AT = Cur->getAs<AttributedType>()) {
+    if (AT->getAttrKind() == AK)
+      return true;
+    Cur = AT->getEquivalentType().getTypePtr();
   }
+  return false;
 }
 
 namespace {

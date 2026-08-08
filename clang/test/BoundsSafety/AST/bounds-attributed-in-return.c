@@ -125,7 +125,7 @@ int *__counted_by(count) cb_in_from_indexable(int count, int *__indexable p) {
 // CHECK:       |     |-IntegerLiteral {{.+}} 0
 // CHECK:       |     `-OpaqueValueExpr [[ove_5]] {{.*}} 'int'
 // CHECK:       |-OpaqueValueExpr [[ove_4]]
-// CHECK:       | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// CHECK:       | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // CHECK:       |   `-DeclRefExpr {{.+}} [[var_p_2]]
 // CHECK:       `-OpaqueValueExpr [[ove_5]]
 // CHECK:         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
@@ -169,11 +169,11 @@ int *__counted_by(count) cb_in_from_single(int count, int *__single p) {
 // CHECK:       |     `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK:       |       `-OpaqueValueExpr [[ove_7]] {{.*}} lvalue
 // CHECK:       |-OpaqueValueExpr [[ove_6]]
-// CHECK:       | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// CHECK:       | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // CHECK:       |   `-DeclRefExpr {{.+}} [[var_p_3]]
 // CHECK:       `-OpaqueValueExpr [[ove_7]]
 // CHECK:         `-UnaryOperator {{.+}} cannot overflow
-// CHECK:           `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// CHECK:           `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // CHECK:             `-DeclRefExpr {{.+}} [[var_count_3]]
 int *__counted_by(*count) cb_out_from_single(int *__single count, int *__single p) {
   return p;
@@ -216,7 +216,7 @@ int *__counted_by(*count) cb_out_from_single(int *__single count, int *__single 
 // CHECK:       |-OpaqueValueExpr [[ove_8]]
 // CHECK:       | `-ImplicitCastExpr {{.+}} 'void *__bidi_indexable' <BitCast>
 // CHECK:       |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK:       |     `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// CHECK:       |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // CHECK:       |       `-DeclRefExpr {{.+}} [[var_p_4]]
 // CHECK:       `-OpaqueValueExpr [[ove_9]]
 // CHECK:         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
@@ -261,7 +261,7 @@ void *__sized_by(size) sb_from_single(int size, int *__single p) {
 // CHECK:       |       |-IntegerLiteral {{.+}} 0
 // CHECK:       |       `-OpaqueValueExpr [[ove_11]] {{.*}} 'int'
 // CHECK:       |-OpaqueValueExpr [[ove_10]]
-// CHECK:       | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// CHECK:       | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // CHECK:       |   `-DeclRefExpr {{.+}} [[var_p_5]]
 // CHECK:       `-OpaqueValueExpr [[ove_11]]
 // CHECK:         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
@@ -288,10 +288,10 @@ int *__counted_by_or_null(count) cbn_in_from_single(int count, int *__single p) 
 // CHECK:       |   |-OpaqueValueExpr [[ove_12]] {{.*}} 'int *__single'
 // CHECK:       |   `-OpaqueValueExpr [[ove_13]] {{.*}} 'int *__single'
 // CHECK:       |-OpaqueValueExpr [[ove_12]]
-// CHECK:       | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// CHECK:       | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // CHECK:       |   `-DeclRefExpr {{.+}} [[var_p_6]]
 // CHECK:       `-OpaqueValueExpr [[ove_13]]
-// CHECK:         `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// CHECK:         `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // CHECK:           `-DeclRefExpr {{.+}} [[var_end]]
 int *__ended_by(end) eb_in_from_single(int *__single end, int *__single p) {
   return p;

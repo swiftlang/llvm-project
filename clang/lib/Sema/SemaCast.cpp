@@ -225,7 +225,7 @@ namespace {
         Expr::EvalResult R;
         SrcIsNull = SrcExpr.get()->isNullPointerConstant(Self.Context,
             Expr::NPC_ValueDependentIsNotNull);
-                if (DestType->isSafePointerType() && !SrcPTy &&
+        if (DestType->isSafePointerType() && !SrcPTy &&
             !DestPTy->getPointeeType().isVolatileQualified() &&
             !SrcIsNull) {
           Self.Diag(OpRange.getBegin(), diag::err_bounds_safety_non_to_pointer);
@@ -384,12 +384,11 @@ namespace {
           }
         }
 
-                bool DestIsSafeForUnsafeToSafe = DestType->isSafePointerType();
+        bool DestIsSafeForUnsafeToSafe = DestType->isSafePointerType();
         if (DestIsSafeForUnsafeToSafe && !Self.getLangOpts().BoundsSafety &&
             (DestType->isValueTerminatedType() ||
              DestType->isBoundsAttributedType()) &&
             !DestType->hasAttr(attr::PtrSingle)) {
-          
           DestIsSafeForUnsafeToSafe = false;
         }
         if (DestIsSafeForUnsafeToSafe && !SrcType->isSafePointerType() &&
@@ -405,7 +404,6 @@ namespace {
           return;
         }
 
-        
         if (!SrcIsNull && DestPTy->isPointerTypeWithBounds() &&
             SrcType->isSinglePointerType() && !SrcType->isBoundsAttributedType()) {
           if (SrcPTy->getPointeeType()->isIncompleteOrSizelessType()) {
@@ -492,7 +490,7 @@ namespace {
 /* TO_UPSTREAM(BoundsSafety) ON*/
 QualType
 Sema::deduceCastPointerAttributes(QualType ResultType, QualType SrcType) {
-    bool NeedsSingleInheritance =
+  bool NeedsSingleInheritance =
       SrcType->isSinglePointerType() && ResultType->isUnspecifiedPointerType();
   if (!NeedsSingleInheritance &&
       Context.hasSameBoundsSafetyPointerLayout(ResultType, SrcType))
