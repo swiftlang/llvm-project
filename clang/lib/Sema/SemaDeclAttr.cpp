@@ -6564,21 +6564,47 @@ public:
   }
 
   QualType VisitType(const Type *T) {
-    // Fallback visitor for types that don't have a specific visitor.
+    // Fallback visitor for type classes without a dedicated visitor. This is
+    // where sugar without a dedicated visitor e.g. typedef, __typeof__,
+    // decltype, and using. We handle it once here in a generic way rather than
+    // requiring visitors for every kind of sugar. Note AttributedType has its
+    // own visitor and doesn't go down this path.
+    //
+    // Peel one layer of sugar and re-enter Visit() so that dispatch re-targets
+    // the correct visitor for the underlying type (e.g. VisitPointerType,
+    // VisitIncompleteArrayType, ...) and the Level-0 leaf check re-runs on the
+    // desugared type. Note this only works correctly in the case of nested
+    // typedefs because `ValidateBoundsAttrTypeShape` does some of its own
+    // desugaring (to check for a pointer/array).
+    //
+    // FIXME: Is this the right design? In the case of nested sugar types this
+    // means we will run the same "leaf-check" every time we desugar which is
+    // potentially wasteful. It could also potentially cause problems because it
+    // means if that function emits warnings it has to be done very carefully
+    // (no desugaring) to avoid emitting the same warning every time this
+    // visitor desguars and calls the leaf check again.
+    //
+    // This desugaring and re-running the leaf check is basically here to handle
+    // the checks in `ValidateBoundsAttrTypeShape` that don't desugar
+    // themselves. At the same time we are relying on some of the checks in that
+    // function doing their own desugaring so that running the leaf check on
+    // sugar passes. This seems like a total mess.
+    QualType QT(T, 0);
+    QualType Desugared = QT.getSingleStepDesugaredType(S.Context);
+    if (Desugared != QT)
+      return Visit(Desugared);
 
-    // Handle typedefs and sugar types that wrap a PointerType.
-    if (const auto *PTy = T->getAs<PointerType>())
-      return VisitPointerType(PTy);
-
-    // T is not a pointer (nor sugar for one), so there is no pointer here for
-    // the bounds attribute to attach to. Run the type-shape check to emit the
-    // diagnostic. Reachable when the requested `Level` exceeds the type's
-    // pointer nesting, e.g. an out-of-range level from API Notes.
+    // T is a non-sugar, non-pointer, non-array leaf, so there is no pointer nor
+    // array here for the bounds attribute to attach to. Run the type-shape
+    // check to emit the diagnostic. Reachable when the requested `Level`
+    // exceeds the type's pointer nesting, e.g. an out-of-range level from API
+    // Notes.
     bool Valid = S.ValidateBoundsAttrTypeShape(
-        QualType(T, 0), Loc, SourceRange(Loc), Flags,
+        QT, Loc, SourceRange(Loc), Flags,
         /*FullBoundsSafetyDiagnostics=*/true, DiagName, AllowRedecl,
         AutoPtrAttributed, ArgExpr);
-    assert(!Valid && "non-pointer T should have been rejected");
+    assert(!Valid &&
+           "T should have been rejected because its not an array or pointer");
     (void)Valid;
     return QualType();
   }
