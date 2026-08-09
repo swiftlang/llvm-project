@@ -2501,6 +2501,27 @@ SwiftLanguageRuntime::GetTypeFromMetadataAddressEmbedded(
   return type;
 }
 
+llvm::Expected<const swift::reflection::TypeRef &>
+SwiftLanguageRuntime::GetTypeRefFromMetadataAddress(
+    lldb::addr_t metadata_addr, TypeSystemSwiftTypeRef &ts,
+    swift::Mangle::ManglingFlavor flavor) {
+  ThreadSafeReflectionContext reflection_ctx = GetReflectionContext();
+  if (!reflection_ctx)
+    return llvm::createStringError("no reflection context");
+
+  if (flavor != swift::Mangle::ManglingFlavor::Embedded)
+    return reflection_ctx->ReadTypeFromMetadata(metadata_addr,
+                                                ts.GetDescriptorFinder());
+
+  // Embedded swift path.
+  llvm::Expected<CompilerType> type_or_err =
+      GetTypeFromMetadataAddressEmbedded(metadata_addr, ts);
+  if (!type_or_err)
+    return type_or_err.takeError();
+  return reflection_ctx->GetTypeRef(
+      type_or_err->GetMangledTypeName().GetStringRef());
+}
+
 llvm::Expected<lldb::addr_t>
 SwiftLanguageRuntime::UnwrapClassReferenceIfNeeded(CompilerType type,
                                                    lldb::addr_t addr) {
@@ -3329,6 +3350,9 @@ SwiftLanguageRuntime::BindGenericTypeParameters(StackFrame &stack_frame,
       dem, dem.demangleSymbol(mangled_name.GetStringRef()));
   canonical = ts.DesugarNode(dem, canonical);
 
+  auto flavor =
+      SwiftLanguageRuntime::GetManglingFlavor(mangled_name.GetStringRef());
+
   // Build the list of type substitutions.
   swift::reflection::GenericArgumentMap substitutions;
   ForEachGenericParameter(canonical, [&](unsigned depth, unsigned index) {
@@ -3344,8 +3368,8 @@ SwiftLanguageRuntime::BindGenericTypeParameters(StackFrame &stack_frame,
         GetTypeMetadataForTypeNameAndFrame(mdvar_name.GetString(), stack_frame);
     if (!metadata_location)
       return;
-    auto type_ref_or_err = reflection_ctx->ReadTypeFromMetadata(
-        *metadata_location, ts.GetDescriptorFinder());
+    auto type_ref_or_err =
+        GetTypeRefFromMetadataAddress(*metadata_location, ts, flavor);
     if (!type_ref_or_err) {
       LLDB_LOG_ERRORV(
           GetLog(LLDBLog::Expressions | LLDBLog::Types),
@@ -3356,8 +3380,6 @@ SwiftLanguageRuntime::BindGenericTypeParameters(StackFrame &stack_frame,
 
     substitutions.insert({{depth, index}, &*type_ref_or_err});
   });
-  auto flavor =
-      SwiftLanguageRuntime::GetManglingFlavor(mangled_name.GetStringRef());
 
   // Nothing to do if there are no type parameters.
   auto get_canonical = [&]() {

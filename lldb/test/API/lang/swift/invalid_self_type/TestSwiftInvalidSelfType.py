@@ -5,8 +5,8 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftInvalidSelfType(TestBase):
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
-    @skipEmbeddedSwift
     def test(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
