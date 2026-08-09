@@ -924,6 +924,14 @@ static bool BuildDeclContext(swift::Demangle::NodePointer node,
         {CompilerContextKind::AnyDeclContext, ConstString(type_name)});
     return true;
   }
+
+  case Node::Kind::Extension: {
+    // An Extension node is (extending module, extended type, [generic
+    // signature]).
+    if (node->getNumChildren() < 2)
+      return false;
+    return BuildDeclContext(node->getChild(1), context);
+  }
   default:
     break;
   }
@@ -3047,8 +3055,14 @@ TypeSystemSwiftTypeRef::FindTypeInModule(opaque_compiler_type_t opaque_type) {
 
   swift::Demangle::Demangler dem;
   auto maybe_context = BuildDeclContext(AsMangledName(opaque_type), dem);
-  if (!maybe_context || maybe_context->empty())
+  if (!maybe_context || maybe_context->empty()) {
+    // Bailing out here means no module query is issued at all, which is easy to
+    // mistake for a failed lookup, so make it visible.
+    LLDB_LOGV(GetLog(LLDBLog::Types),
+              "Could not build the decl context of {0}",
+              AsMangledName(opaque_type));
     return {};
+  }
 
   swift::Mangle::ManglingFlavor flavor =
       SwiftLanguageRuntime::GetManglingFlavor(AsMangledName(opaque_type));
