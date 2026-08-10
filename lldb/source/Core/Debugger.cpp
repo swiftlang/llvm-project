@@ -973,6 +973,12 @@ void Debugger::Destroy(DebuggerSP &debugger_sp) {
 
   debugger_sp->Clear();
 
+  // BEGIN CAS
+  // The targets are gone, so let go of the CAS databases this session opened
+  // and stop holding their on-disk storage locked against pruning.
+  ModuleList::ReleaseCASObjectStores();
+  // END CAS
+
   if (g_debugger_list_ptr && g_debugger_list_mutex_ptr) {
     std::lock_guard<std::recursive_mutex> guard(*g_debugger_list_mutex_ptr);
     DebuggerList::iterator pos, end = g_debugger_list_ptr->end();

@@ -1158,10 +1158,16 @@ protected:
 
   // BEGIN CAS
 
-  /// All CAS configurations (+instances) associated with this
-  /// module. An empty optional means uninitialized, an empty vector
-  /// means that this module has no CAS associated with it.
-  std::optional<std::vector<ModuleList::CAS>> m_cas;
+  /// All CAS configurations associated with this module. An empty optional
+  /// means uninitialized, an empty vector means that this module has no CAS
+  /// associated with it.
+  ///
+  /// Only the configurations are kept, not the instances: a module outlives
+  /// the debugger that loaded it, and holding an ObjectStore here would keep
+  /// the on-disk CAS locked against pruning for the life of the process. The
+  /// instances are resolved on demand from the shared cache, which holds them
+  /// weakly.
+  std::optional<std::vector<llvm::cas::CASConfiguration>> m_cas;
   mutable std::mutex m_cas_init_mutex;
 
   // END CAS
