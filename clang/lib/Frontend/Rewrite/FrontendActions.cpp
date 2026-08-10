@@ -244,6 +244,10 @@ public:
     CompilerInstance Instance(
         std::make_shared<CompilerInvocation>(CI.getInvocation()),
         CI.getPCHContainerOperations(), CI.getModuleCachePtr());
+    // Share the CAS with the outer instance, which owns the module cache this
+    // instance loads CAS-backed module files into.
+    if (auto [CAS, ActionCache] = CI.getCASDatabases(); CAS)
+      Instance.setCASDatabases(std::move(CAS), std::move(ActionCache));
     Instance.setVirtualFileSystem(CI.getVirtualFileSystemPtr());
     Instance.createDiagnostics(
         new ForwardingDiagnosticConsumer(CI.getDiagnosticClient()),

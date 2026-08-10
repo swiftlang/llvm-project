@@ -1077,6 +1077,15 @@ public:
             std::shared_ptr<llvm::cas::ActionCache>>
   getOrCreateCASDatabases(DiagnosticsEngine *Diags = nullptr);
 
+  /// Get the CAS databases if they have already been created or set, otherwise
+  /// a pair of null pointers. Unlike \c getOrCreateCASDatabases() this does not
+  /// open a CAS that is not being used.
+  std::pair<std::shared_ptr<llvm::cas::ObjectStore>,
+            std::shared_ptr<llvm::cas::ActionCache>>
+  getCASDatabases() const {
+    return {CAS, ActionCache};
+  }
+
   void setCASDatabases(std::shared_ptr<llvm::cas::ObjectStore> CAS,
                        std::shared_ptr<llvm::cas::ActionCache> Cache);
 };

@@ -1132,6 +1132,11 @@ bool ASTUnit::Parse(std::shared_ptr<PCHContainerOperations> PCHContainerOps,
   auto Clang = std::make_unique<CompilerInstance>(CCInvocation,
                                                   std::move(PCHContainerOps));
 
+  // Reuse the CAS this ASTUnit already has, so that module files the instance
+  // loads out of it keep pointing into a live CAS once the instance is gone.
+  if (CAS && ActionCache)
+    Clang->setCASDatabases(CAS, ActionCache);
+
   // Clean up on error, disengage it if the function returns successfully.
   llvm::scope_exit CleanOnError([&]() {
     // Remove the overridden buffer we used for the preamble.
@@ -1432,6 +1437,14 @@ void ASTUnit::transferASTDataFromCompilerInstance(CompilerInstance &CI) {
     Target = CI.getTargetPtr();
   Reader = CI.getASTReader();
   ModCache = CI.getModuleCachePtr();
+  // Module files in the module cache can point into the CAS they were loaded
+  // from, so take over the CAS the instance opened for itself as well. When
+  // this ASTUnit already has one, the instance was given the same one.
+  if (auto [InstanceCAS, InstanceActionCache] = CI.getCASDatabases();
+      InstanceCAS) {
+    CAS = std::move(InstanceCAS);
+    ActionCache = std::move(InstanceActionCache);
+  }
   HadModuleLoaderFatalFailure = CI.hadModuleLoaderFatalFailure();
   if (Invocation != CI.getInvocationPtr()) {
     // This happens when Parse creates a copy of \c Invocation to modify.

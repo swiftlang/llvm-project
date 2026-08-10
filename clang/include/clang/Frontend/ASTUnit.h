@@ -101,6 +101,8 @@ class ASTUnit {
   IntrusiveRefCntPtr<DiagnosticsEngine>   Diagnostics;
   IntrusiveRefCntPtr<FileManager>         FileMgr;
   IntrusiveRefCntPtr<SourceManager>       SourceMgr;
+  std::shared_ptr<cas::ObjectStore> CAS;
+  std::shared_ptr<cas::ActionCache> ActionCache;
   std::shared_ptr<ModuleCache> ModCache;
   std::unique_ptr<HeaderSearch>           HeaderInfo;
   IntrusiveRefCntPtr<TargetInfo>          Target;
@@ -110,8 +112,6 @@ class ASTUnit {
   std::unique_ptr<HeaderSearchOptions> HSOpts;
   std::shared_ptr<PreprocessorOptions>    PPOpts;
   IntrusiveRefCntPtr<ASTReader> Reader;
-  std::shared_ptr<cas::ObjectStore> CAS;
-  std::shared_ptr<cas::ActionCache> ActionCache;
   bool HadModuleLoaderFatalFailure = false;
   bool StorePreamblesInMemory = false;
 
