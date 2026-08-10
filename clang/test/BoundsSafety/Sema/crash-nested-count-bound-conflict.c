@@ -38,10 +38,12 @@ void ended_bidi(int * __ended_by(e) * __bidi_indexable p, int *e);
 void ended_indexable(int * __ended_by(e) * __indexable p, int *e);
 
 // The same conflict, but with the wide pointer hidden behind sugar (a typedef
-// or __typeof__) so it appears at the outermost level (Level == 0). The
-// non-desugaring leaf check does not see through the sugar, so the conflict is
-// diagnosed here in VisitPointerType instead. This used to trip a reachable
-// assertion (rdar://184349713).
+// or __typeof__) so it appears at the outermost level (Level == 0). The leaf
+// check (ValidateBoundsAttrTypeShape) walks sugar, so it sees the wide pointer
+// through the typedef and diagnoses the conflict directly, exactly once. This
+// used to trip a reachable assertion (rdar://184349713) back when the leaf's
+// pointer check inspected only the top type node and missed the sugar-wrapped
+// wide pointer.
 
 typedef int * __bidi_indexable bidi_ptr_t;
 typedef int * __indexable indexable_ptr_t;
