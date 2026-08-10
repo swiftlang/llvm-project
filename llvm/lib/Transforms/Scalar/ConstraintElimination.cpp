@@ -396,7 +396,6 @@ public:
   /// \p NewVariables.
   ConstraintTy getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
                              SmallVectorImpl<Value *> &NewVariables,
-                             bool ShouldDecompose,
                              bool ForceSignedSystem = false) const;
 
   /// Turns a comparison of the form \p Op0 \p Pred \p Op1 into a vector of
@@ -407,7 +406,7 @@ public:
   /// which increases the effectiveness of the signed <-> unsigned transfer
   /// logic.
   ConstraintTy getConstraintForSolving(CmpInst::Predicate Pred, Value *Op0,
-                                       Value *Op1, bool ShouldDecompose) const;
+                                       Value *Op1) const;
 
   /// Try to add information from \p A \p Pred \p B to the unsigned/signed
   /// system if \p Pred is signed/unsigned.
@@ -837,7 +836,6 @@ static Decomposition decompose(Value *V, const ConstraintInfo &Info,
 ConstraintTy
 ConstraintInfo::getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
                               SmallVectorImpl<Value *> &NewVariables,
-                              bool ShouldDecompose,
                               bool ForceSignedSystem) const {
   assert(NewVariables.empty() && "NewVariables must be empty when passed in");
   assert((!ForceSignedSystem || CmpInst::isEquality(Pred)) &&
@@ -883,14 +881,10 @@ ConstraintInfo::getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
 
   bool IsSigned = ForceSignedSystem || CmpInst::isSigned(Pred);
   auto &Value2Index = getValue2Index(IsSigned);
-  Decomposition ADec = Op0->stripPointerCastsSameRepresentation();
-  Decomposition BDec = Op1->stripPointerCastsSameRepresentation();
-  if (ShouldDecompose) {
-    ADec = decompose(Op0->stripPointerCastsSameRepresentation(), *this,
-                     IsSigned, State);
-    BDec = decompose(Op1->stripPointerCastsSameRepresentation(), *this,
-                     IsSigned, State);
-  }
+  auto ADec = decompose(Op0->stripPointerCastsSameRepresentation(), *this,
+                        IsSigned, State);
+  auto BDec = decompose(Op1->stripPointerCastsSameRepresentation(), *this,
+                        IsSigned, State);
 
   int64_t Offset1 = ADec.Offset;
   int64_t Offset2 = BDec.Offset;
@@ -955,10 +949,9 @@ ConstraintInfo::getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
   return Res;
 }
 
-ConstraintTy
-ConstraintInfo::getConstraintForSolving(CmpInst::Predicate Pred, Value *Op0,
-                                        Value *Op1,
-                                        bool ShouldDecompose) const {
+ConstraintTy ConstraintInfo::getConstraintForSolving(CmpInst::Predicate Pred,
+                                                     Value *Op0,
+                                                     Value *Op1) const {
   Constant *NullC = Constant::getNullValue(Op0->getType());
   // Handle trivially true compares directly to avoid adding V UGE 0 constraints
   // for all variables in the unsigned system.
@@ -980,7 +973,7 @@ ConstraintInfo::getConstraintForSolving(CmpInst::Predicate Pred, Value *Op0,
     Pred = ICmpInst::getUnsignedPredicate(Pred);
 
   SmallVector<Value *> NewVariables;
-  ConstraintTy R = getConstraint(Pred, Op0, Op1, NewVariables, ShouldDecompose);
+  ConstraintTy R = getConstraint(Pred, Op0, Op1, NewVariables);
   if (!NewVariables.empty())
     return {};
   return R;
@@ -1034,7 +1027,7 @@ ConstraintTy::isImpliedBy(const ConstraintSystem &CS) const {
 
 bool ConstraintInfo::doesHold(CmpInst::Predicate Pred, Value *A,
                               Value *B) const {
-  auto R = getConstraintForSolving(Pred, A, B, true);
+  auto R = getConstraintForSolving(Pred, A, B);
   return !R.empty() &&
          getCS(R.IsSigned).isConditionImpliedInSubSystem(R.Coefficients);
 }
@@ -2157,12 +2150,7 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
     return std::nullopt;
   };
 
-  // If the constraint has a pre-condition, skip the constraint if it does not
-  // hold. Try to decompose the operands first; if that does not yield a usable
-  // constraint, retry without decomposition.
-  auto R = Info.getConstraintForSolving(Pred, A, B, /*ShouldDecompose=*/true);
-  if (R.empty())
-    R = Info.getConstraintForSolving(Pred, A, B, /*ShouldDecompose=*/false);
+  auto R = Info.getConstraintForSolving(Pred, A, B);
   if (auto ImpliedCondition = TryWithConstraint(R))
     return ImpliedCondition;
 
@@ -2171,7 +2159,7 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
   if (CmpInst::isUnsigned(Pred) && A->getType()->isIntegerTy()) {
     SmallVector<Value *> NewVariables;
     auto SR = Info.getConstraint(ICmpInst::getSignedPredicate(Pred), A, B,
-                                 NewVariables, /*ShouldDecompose=*/true);
+                                 NewVariables);
     if (NewVariables.empty() && !SR.empty() && Info.isKnownNonNegative(A) &&
         Info.isKnownNonNegative(B))
       if (auto ImpliedCondition = TryWithConstraint(SR))
@@ -2185,7 +2173,6 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
     if (Value2Index.contains(A) || Value2Index.contains(B)) {
       SmallVector<Value *> NewVariables;
       auto SR = Info.getConstraint(Pred, A, B, NewVariables,
-                                   /*ShouldDecompose=*/true,
                                    /*ForceSignedSystem=*/true);
       if (NewVariables.empty())
         if (auto ImpliedCondition = TryWithConstraint(SR))
@@ -2455,8 +2442,7 @@ void ConstraintInfo::addFactImpl(CmpInst::Predicate Pred, Value *A, Value *B,
                                  SmallVectorImpl<StackEntry> &DFSInStack,
                                  bool ForceSignedSystem) {
   SmallVector<Value *> NewVariables;
-  auto R = getConstraint(Pred, A, B, NewVariables, /*ShouldDecompose=*/true,
-                         ForceSignedSystem);
+  auto R = getConstraint(Pred, A, B, NewVariables, ForceSignedSystem);
 
   // TODO: Support non-equality for facts as well.
   if (R.empty() || R.isNe())
@@ -2553,7 +2539,7 @@ tryToSimplifyOverflowMath(IntrinsicInst *II, ConstraintInfo &Info,
                           SmallVectorImpl<Instruction *> &ToRemove) {
   auto DoesConditionHold = [](CmpInst::Predicate Pred, Value *A, Value *B,
                               ConstraintInfo &Info) {
-    auto R = Info.getConstraintForSolving(Pred, A, B, true);
+    auto R = Info.getConstraintForSolving(Pred, A, B);
     if (R.size() < 2)
       return false;
 
