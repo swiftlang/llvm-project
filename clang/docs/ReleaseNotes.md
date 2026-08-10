@@ -1076,6 +1076,10 @@ features cannot lower the translation-unit ABI level;
 - On AArch64 Windows targets, `-mbranch-protection=standard` and `-mbranch-protection=pac-ret`
   now uses the B-key by default.
 
+- Added support for pointer authentication discrimination of C++ virtual table
+  pointers stored in VTTs via the `-fptrauth-vtt-vtable-pointer-discrimination`
+  option.
+
 #### Android Support
 
 #### Windows Support
