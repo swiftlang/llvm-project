@@ -1364,6 +1364,80 @@ void OnDiskGraphDB::getStandalonePath(StringRef Suffix, FileOffset IndexOffset,
   return ::getStandalonePath(RootPath, Suffix, IndexOffset, Path);
 }
 
+namespace {
+/// A MemoryBuffer exposing a subrange of another buffer's bytes, under its own
+/// name.
+class AdoptedMemoryBuffer final : public MemoryBuffer {
+public:
+  AdoptedMemoryBuffer(std::unique_ptr<MemoryBuffer> Buffer, StringRef Name,
+                      uint64_t Offset, uint64_t Size)
+      : Buffer(std::move(Buffer)), Name(Name.str()) {
+    const char *Start = this->Buffer->getBufferStart() + Offset;
+    init(Start, Start + Size, /*RequiresNullTerminator=*/false);
+  }
+
+  StringRef getBufferIdentifier() const final { return Name; }
+
+  BufferKind getBufferKind() const final { return Buffer->getBufferKind(); }
+
+private:
+  std::unique_ptr<MemoryBuffer> Buffer;
+  std::string Name;
+};
+} // end anonymous namespace
+
+std::unique_ptr<MemoryBuffer>
+OnDiskGraphDB::getStandaloneMemoryBuffer(ObjectHandle Node, StringRef Name,
+                                         bool RequiresNullTerminator) const {
+  auto copy = [&]() -> std::unique_ptr<MemoryBuffer> {
+    return MemoryBuffer::getMemBufferCopy(toStringRef(getObjectData(Node)),
+                                          Name);
+  };
+
+  // Only an object with a file to itself can be read back on its own; one in
+  // the shared data pool is a subrange of a file holding unrelated objects.
+  auto SDIMOrRecord = getStandaloneDataOrDataRecord(DataPool, Node);
+  auto **SDIMPtr = std::get_if<const StandaloneDataInMemory *>(&SDIMOrRecord);
+  if (!SDIMPtr)
+    return copy();
+
+  const StandaloneDataInMemory *SDIM = *SDIMPtr;
+  OnDiskContent Content = SDIM->getContent();
+  ArrayRef<char> Data = Content.getData();
+
+  // A plain leaf's file is exactly the data, with no nul after it. The other
+  // kinds have one: a record's own terminator, or the one appended to a
+  // "leaf+0".
+  if (RequiresNullTerminator &&
+      SDIM->SK == TrieRecord::StorageKind::StandaloneLeaf)
+    return copy();
+
+  // Read the file again instead of sharing the database's own mapping, whose
+  // lifetime is tied to it. These files are written once and never modified,
+  // so the second read sees the same bytes. Whether that ends up mapping the
+  // file or copying it is up to MemoryBuffer; either way the result stands
+  // alone.
+  SmallString<256> Path;
+  ::getStandalonePath(RootPath, TrieRecord::getStandaloneFileSuffix(SDIM->SK),
+                      SDIM->IndexOffset, Path);
+  ErrorOr<std::unique_ptr<MemoryBuffer>> Mapped =
+      MemoryBuffer::getFile(Path, /*IsText=*/false,
+                            /*RequiresNullTerminator=*/false,
+                            /*IsVolatile=*/false);
+  if (!Mapped)
+    return copy();
+
+  // Find the data within the file. A leaf's file holds just the data; a
+  // record's also holds its header and refs.
+  uint64_t Offset =
+      Content.Record ? Data.data() - SDIM->Region->getBufferStart() : 0;
+  if (Offset + Data.size() > (*Mapped)->getBufferSize())
+    return copy();
+
+  return std::make_unique<AdoptedMemoryBuffer>(std::move(*Mapped), Name, Offset,
+                                               Data.size());
+}
+
 OnDiskContent StandaloneDataInMemory::getContent() const {
   bool Leaf0 = false;
   bool Leaf = false;

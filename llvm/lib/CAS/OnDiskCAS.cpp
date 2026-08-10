@@ -16,6 +16,7 @@
 #include "llvm/CAS/UnifiedOnDiskCache.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 
 using namespace llvm;
@@ -43,6 +44,10 @@ public:
   Expected<ObjectRef> storeFromFile(StringRef Path) final;
 
   Error exportDataToFile(ObjectHandle Node, StringRef Path) const final;
+
+  std::unique_ptr<MemoryBuffer>
+  getStandaloneMemoryBufferImpl(ObjectHandle Node, StringRef Name,
+                                bool RequiresNullTerminator) final;
 
   void print(raw_ostream &OS) const final;
   Error validate(bool CheckHash) const final;
@@ -199,6 +204,13 @@ Error OnDiskCAS::exportDataToFile(ObjectHandle Node, StringRef Path) const {
     return E;
 
   return Error::success();
+}
+
+std::unique_ptr<MemoryBuffer>
+OnDiskCAS::getStandaloneMemoryBufferImpl(ObjectHandle Node, StringRef Name,
+                                         bool RequiresNullTerminator) {
+  return DB->getStandaloneMemoryBuffer(convertHandle(Node), Name,
+                                       RequiresNullTerminator);
 }
 
 Error OnDiskCAS::forEachRef(ObjectHandle Node,
