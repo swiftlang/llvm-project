@@ -357,7 +357,8 @@ SwiftLanguageRuntime::FindConcurrencyInfo(Process &process) {
 }
 
 static lldb::BreakpointResolverSP
-CreateExceptionResolver(const lldb::BreakpointSP &bkpt, bool catch_bp, bool throw_bp) {
+CreateExceptionResolver(const lldb::BreakpointSP &bkpt, bool catch_bp,
+                        bool throw_bp) {
   BreakpointResolverSP resolver_sp;
 
   static const char *names[] = {"swift_willThrow", "swift_willThrowTypedImpl"};
@@ -501,8 +502,7 @@ void SwiftLanguageRuntime::SetupReflection() {
 
   auto *log = GetLog(LLDBLog::Types);
   if (!exe_module) {
-    LLDB_LOGF(log, "%s: Failed to get executable module",
-              LLVM_PRETTY_FUNCTION);
+    LLDB_LOGF(log, "%s: Failed to get executable module", LLVM_PRETTY_FUNCTION);
     m_initialized_reflection_ctx = false;
     return;
   }
@@ -878,8 +878,7 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
     return false;
   auto &target = GetProcess().GetTarget();
   Address start_address = obj_file->GetBaseAddress();
-  auto load_ptr = static_cast<uintptr_t>(
-      start_address.GetLoadAddress(&target));
+  auto load_ptr = static_cast<uintptr_t>(start_address.GetLoadAddress(&target));
   auto likely_module_names = GetLikelySwiftImageNamesForModule(module_sp);
   if (obj_file->GetType() == ObjectFile::eTypeJIT) {
     auto object_format_type =
@@ -931,8 +930,8 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
   }
 
   if (auto *swift_metadata_cache = GetSwiftMetadataCache())
-      swift_metadata_cache->registerModuleWithReflectionInfoID(module_sp,
-                                                               *info_id);
+    swift_metadata_cache->registerModuleWithReflectionInfoID(module_sp,
+                                                             *info_id);
 
   return true;
 }
@@ -940,9 +939,10 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
 std::string
 SwiftLanguageRuntime::GetObjectDescriptionExpr_Result(ValueObject &object) {
   Log *log(GetLog(LLDBLog::DataFormatters | LLDBLog::Expressions));
-  std::string expr_string
-      = llvm::formatv("Swift._DebuggerSupport.stringForPrintObject({0})",
-                      object.GetName().GetCString()).str();
+  std::string expr_string =
+      llvm::formatv("Swift._DebuggerSupport.stringForPrintObject({0})",
+                    object.GetName().GetCString())
+          .str();
   if (log)
     log->Printf("[GetObjectDescriptionExpr_Result] expression: %s",
                 expr_string.c_str());
@@ -954,10 +954,11 @@ SwiftLanguageRuntime::GetObjectDescriptionExpr_Ref(ValueObject &object) {
   Log *log(GetLog(LLDBLog::DataFormatters | LLDBLog::Expressions));
 
   StreamString expr_string;
-  std::string expr_str
-      = llvm::formatv("Swift._DebuggerSupport.stringForPrintObject(Swift."
-                      "unsafeBitCast({0:x}, to: AnyObject.self))",
-                      object.GetValueAsUnsigned(0)).str();
+  std::string expr_str =
+      llvm::formatv("Swift._DebuggerSupport.stringForPrintObject(Swift."
+                    "unsafeBitCast({0:x}, to: AnyObject.self))",
+                    object.GetValueAsUnsigned(0))
+          .str();
 
   if (log)
     log->Printf("[GetObjectDescriptionExpr_Ref] expression: %s",
@@ -1025,10 +1026,11 @@ std::string SwiftLanguageRuntime::GetObjectDescriptionExpr_Copy(
     return {};
   }
 
-  std::string expr_string
-      = llvm::formatv("Swift._DebuggerSupport.stringForPrintObject(Swift."
-                      "UnsafePointer<{0}>(bitPattern: {1:x})!.pointee)",
-                      static_type.GetTypeName().GetCString(), copy_location).str();
+  std::string expr_string =
+      llvm::formatv("Swift._DebuggerSupport.stringForPrintObject(Swift."
+                    "UnsafePointer<{0}>(bitPattern: {1:x})!.pointee)",
+                    static_type.GetTypeName().GetCString(), copy_location)
+          .str();
   if (log)
     log->Printf("[GetObjectDescriptionExpr_Copy] expression: %s",
                 expr_string.c_str());
@@ -1838,9 +1840,7 @@ protected:
                   base_type_name.GetCString()))
             return base_object_sp;
           base_object_sp = m_backend.GetSyntheticBase(
-              0, base_type, true,
-              Mangled(base_type_name)
-                  .GetDemangledName());
+              0, base_type, true, Mangled(base_type_name).GetDemangledName());
           return base_object_sp;
         } else
           return nullptr;
@@ -2217,8 +2217,8 @@ std::optional<Value> SwiftLanguageRuntime::GetErrorReturnLocationBeforeReturn(
 }
 
 lldb::BreakpointResolverSP
-SwiftLanguageRuntime::CreateExceptionResolver(const lldb::BreakpointSP &bkpt, bool catch_bp,
-                                              bool throw_bp) {
+SwiftLanguageRuntime::CreateExceptionResolver(const lldb::BreakpointSP &bkpt,
+                                              bool catch_bp, bool throw_bp) {
   return ::CreateExceptionResolver(bkpt, catch_bp, throw_bp);
 }
 
@@ -2333,9 +2333,9 @@ private:
   };
 
   std::optional<uint32_t> getReferenceCount(StringRef ObjName,
-                                             ReferenceCountType Type,
-                                             ExecutionContext &exe_ctx,
-                                             StackFrameSP &Frame) {
+                                            ReferenceCountType Type,
+                                            ExecutionContext &exe_ctx,
+                                            StackFrameSP &Frame) {
     std::string Kind;
     switch (Type) {
     case ReferenceCountType::eReferenceStrong:
@@ -3025,7 +3025,7 @@ public:
   CommandObjectLanguageSwiftTaskInfo(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "info",
                             "Print info about the Task being run on the "
-                            "current thread or the Task at the given address."
+                            "current thread or the Task at the given address.",
                             "language swift task info [<address>]") {
     AddSimpleArgumentList(eArgTypeAddress, eArgRepeatOptional);
   }
