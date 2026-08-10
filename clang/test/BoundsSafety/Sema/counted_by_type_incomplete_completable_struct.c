@@ -241,7 +241,7 @@ struct IncompleteStructTy* __counted_by(1) // expected-note 2{{consider using '_
 // expected-error@+1{{cannot apply '__counted_by' attribute to return type 'struct IncompleteStructTy *__single __counted_by(size)' (aka 'struct IncompleteStructTy *__single') on a function definition because the pointee type 'struct IncompleteStructTy' is incomplete}}
 struct IncompleteStructTy* __counted_by(size) // expected-note 2{{consider using '__sized_by' instead of '__counted_by'}}
 consume_param_and_return_cb_single_forge(int size) {
-  // rs-warning@+2{{count value is not statically known: returning 'struct IncompleteStructTy *__single' from a function with result type 'struct IncompleteStructTy *__single __counted_by(size)' (aka 'struct IncompleteStructTy *__single') is invalid for any count other than 0 or 1}}
+  // rs-warning@+2{{count value is not statically known: returning 'struct IncompleteStructTy *__single' (aka 'struct IncompleteStructTy *') from a function with result type 'struct IncompleteStructTy *__single __counted_by(size)' (aka 'struct IncompleteStructTy *__single') is invalid for any count other than 0 or 1}}
   // expected-error@+1{{cannot return '__counted_by' attributed type 'struct IncompleteStructTy *__single __counted_by(size)' (aka 'struct IncompleteStructTy *__single') because the pointee type 'struct IncompleteStructTy' is incomplete}}
   return __unsafe_forge_single(struct IncompleteStructTy*, 0x0);
 }
@@ -265,7 +265,7 @@ struct IncompleteStructTy* __counted_by_or_null(size) // expected-note 2{{consid
 // expected-error@+1{{cannot apply '__counted_by_or_null' attribute to return type 'struct IncompleteStructTy *__single __counted_by_or_null(size)' (aka 'struct IncompleteStructTy *__single') on a function definition because the pointee type 'struct IncompleteStructTy' is incomplete}}
 struct IncompleteStructTy* __counted_by_or_null(size) // expected-note 2{{consider using '__sized_by_or_null' instead of '__counted_by_or_null'}}
 consume_param_and_return_cbon_single_forge(int size) {
-  // rs-warning@+2{{count value is not statically known: returning 'struct IncompleteStructTy *__single' from a function with result type 'struct IncompleteStructTy *__single __counted_by_or_null(size)' (aka 'struct IncompleteStructTy *__single') is invalid for any count other than 0 or 1 unless the pointer is null}}
+  // rs-warning@+2{{count value is not statically known: returning 'struct IncompleteStructTy *__single' (aka 'struct IncompleteStructTy *') from a function with result type 'struct IncompleteStructTy *__single __counted_by_or_null(size)' (aka 'struct IncompleteStructTy *__single') is invalid for any count other than 0 or 1 unless the pointer is null}}
   // expected-error@+1{{cannot return '__counted_by_or_null' attributed type 'struct IncompleteStructTy *__single __counted_by_or_null(size)' (aka 'struct IncompleteStructTy *__single') because the pointee type 'struct IncompleteStructTy' is incomplete}}
   return __unsafe_forge_single(struct IncompleteStructTy*, 0x0);
 }

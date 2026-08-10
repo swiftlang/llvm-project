@@ -4161,14 +4161,47 @@ public:
     return {NewTy, false};
   }
 
+  QualType VisitPtrSingleModifiedType(QualType Ty) {
+    if (const auto *AT = Ty->getAs<AttributedType>()) {
+      if (AT->getAttrKind() != attr::PtrSingle &&
+          AT->getAttrKind() != attr::PtrUnsafeIndexable)
+        return Ty;
+
+      QualType NewModifiedTy =
+          VisitPtrSingleModifiedType(AT->getModifiedType());
+      QualType NewEquivalentTy =
+          VisitPtrSingleModifiedType(AT->getEquivalentType());
+      if (NewModifiedTy == AT->getModifiedType() &&
+          NewEquivalentTy == AT->getEquivalentType())
+        return Ty;
+
+      QualType NewTy = Ctx.getAttributedType(AT->getAttrKind(), NewModifiedTy,
+                                              NewEquivalentTy);
+      return copyQuals(Ty, NewTy);
+    }
+
+    const auto *PtrTy = dyn_cast<PointerType>(Ty.getTypePtr());
+    if (!PtrTy)
+      return Ty;
+
+    QualType OrigPointeeTy = PtrTy->getPointeeType();
+    QualType PointeeTy = VisitPtrSingleModifiedType(OrigPointeeTy);
+    if (PointeeTy == OrigPointeeTy)
+      return Ty;
+
+    QualType NewTy =
+        Ctx.getPointerType(PointeeTy, PtrTy->getPointerAttributes());
+    return copyQuals(Ty, NewTy);
+  }
+
   RetTy VisitAttributedType(const AttributedType *T) {
     auto SavedAutoPtrAttr = AutoPtrAttr;
-        QualType ModifiedTy = T->getAttrKind() == attr::PtrSingle
-                              ? T->getModifiedType()
+    QualType ModifiedTy = T->getAttrKind() == attr::PtrSingle
+                              ? VisitPtrSingleModifiedType(T->getModifiedType())
                               : Visit(T->getModifiedType());
     AutoPtrAttr = SavedAutoPtrAttr;
     QualType EquivalentTy = T->getAttrKind() == attr::PtrSingle
-                                ? T->getEquivalentType()
+                                ? VisitPtrSingleModifiedType(T->getEquivalentType())
                                 : Visit(T->getEquivalentType());
     QualType NewTy =
         Ctx.getAttributedType(T->getAttrKind(), ModifiedTy, EquivalentTy);
@@ -8015,11 +8048,14 @@ bool ASTContext::hasCompatibleBoundsSafetyPointerLayout(QualType T1, QualType T2
       return true;
 
     if (PT1 && PT2) {
+      BoundsSafetyPointerAttributes Attr1 =
+          *BaseT1->getSugarAwareBoundsSafetyPointerAttributes();
+      BoundsSafetyPointerAttributes Attr2 =
+          *BaseT2->getSugarAwareBoundsSafetyPointerAttributes();
       if (!ExactCheck) {
-        if (!BoundsSafetyPointerAttributes::areCompatible(
-                PT1->getPointerAttributes(), PT2->getPointerAttributes()))
+        if (!BoundsSafetyPointerAttributes::areCompatible(Attr1, Attr2))
           return false;
-      } else if (PT1->getPointerAttributes() != PT2->getPointerAttributes())
+      } else if (Attr1 != Attr2)
         return false;
     }
 

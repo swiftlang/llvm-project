@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 
@@ -33,7 +32,7 @@ int *__single ptrSingle13 = __unsafe_forge_single(int *, arr);
 int *__terminated_by(5) ptrTerminated = __unsafe_forge_terminated_by(int *, arr, 5);
 int *__terminated_by(5) ptrTerminated2 = __unsafe_forge_terminated_by(int *, arr, 6); // expected-error{{pointers with incompatible terminators initializing 'int *__single __terminated_by(5)' (aka 'int *__single') with an expression of incompatible type 'int *__single __terminated_by(6)' (aka 'int *__single')}}
 int *__terminated_by(5) ptrTerminated3 = __unsafe_forge_terminated_by(int *, 7, 5);
-// The attribute on cast is missing macro identifer info. 
+// The attribute on cast is missing macro identifer info.
 // expected-error@+2{{'__terminated_by__' attribute requires an integer constant}}
 // expected-error@+1{{initializing 'int *__single __terminated_by(4)' (aka 'int *__single') with an expression of incompatible type 'int *__single' is an unsafe operation; use '__unsafe_terminated_by_from_indexable()' or '__unsafe_forge_terminated_by()' to perform this conversion}}
 int *__terminated_by(4) ptrTerminated4 = __unsafe_forge_terminated_by(int *, arr, len);
@@ -61,7 +60,7 @@ char *__null_terminated ptrNt1 = __unsafe_forge_bidi_indexable(char *, arr, 10);
 char *__null_terminated ptrNt2 = __unsafe_forge_bidi_indexable(char *, arr+12, 10);
 
 // expected-error@+2{{initializer element is not a compile-time constant}}
-// expected-error@+1{{initializing 'char *__single __terminated_by(0)' (aka 'char *__single') with an expression of incompatible type 'char *__single' is an unsafe operation; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion}}
+// expected-error@+1{{initializing 'char *__single __terminated_by(0)' (aka 'char *__single') with an expression of incompatible type 'char *__single' (aka 'char *') is an unsafe operation; use '__unsafe_null_terminated_from_indexable()' or '__unsafe_forge_null_terminated()' to perform this conversion}}
 char *__null_terminated ptrNt3 = __unsafe_forge_single(char *, arr+12);
 
 // expected-error@+1{{initializer element is not a compile-time constant}}

@@ -26402,13 +26402,8 @@ ExprResult Sema::ActOnForgeBidiIndexable(SourceLocation KWLoc,
 
 ExprResult Sema::ActOnForgeSingle(SourceLocation KWLoc, Expr *Addr,
                                   SourceLocation RParenLoc) {
-  QualType ResultType;
-  if (getLangOpts().isBoundsSafetyAttributeOnlyMode()) {
-    ResultType = Context.getAttributedType(attr::PtrSingle, Context.VoidPtrTy,
-                                           Context.VoidPtrTy);
-  } else
-    ResultType = Context.getPointerType(Context.VoidTy,
-                                        BoundsSafetyPointerAttributes::single());
+  QualType ResultType = Context.getAttributedType(
+      attr::PtrSingle, Context.VoidPtrTy, Context.VoidPtrTy);
   return BuildForgePtrExpr(KWLoc, RParenLoc, ResultType, Addr);
 }
 
