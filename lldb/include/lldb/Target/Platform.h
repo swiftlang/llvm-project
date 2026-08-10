@@ -208,7 +208,7 @@ public:
 
   virtual const char *GetHostname();
 
-  virtual ConstString GetFullNameForDylib(ConstString basename);
+  virtual std::string GetFullNameForDylib(llvm::StringRef basename);
 
   virtual llvm::StringRef GetDescription() = 0;
 
