@@ -6516,6 +6516,7 @@ protected:
   bool ScopeCheck;
   bool AllowRedecl;
   bool AutoPtrAttributed = false;
+  bool ShapeCheckedLevelZero = false;
   bool AtomicErrorEmitted = false;
 
 public:
@@ -6528,28 +6529,26 @@ public:
         Level(Level), ScopeCheck(ScopeCheck), AllowRedecl(AllowRedecl) {}
 
   QualType Visit(QualType T) {
-    // Run the leaf check at the level the attr is being applied.
-
-    // Skip the leaf for:
+    // Run the type-shape check (ValidateBoundsAttrTypeShape) once, at the
+    // attribute's target level (Level 0), on the type as written there (its
+    // outermost sugar).
     //
-    // * Function types (transparent containers): the attr targets the return
-    //   type. Firing the leaf on the function type itself would emit a spurious
-    //   "attribute only applies to a pointer" error and abort before reaching
-    //   the return type. VisitFunctionProtoType / VisitFunctionNoProtoType
-    //   recurse on the return type at the same Level, where the leaf fires on
-    //   the actual wrap target.
-    // * AttributedType: it desugars through as a pointer, so the leaf would
-    //   validate the pointee here — then VisitAttributedType peels it (tracking
-    //   PtrAutoAttr via AutoPtrAttributed) and re-Visits the inner pointer at
-    //   the same Level, firing the leaf a second time on the same pointee and
-    //   double-emitting the pointee diagnostic.
-    if (Level == 0 && !T->isFunctionType() &&
-        !isa<AttributedType>(T.getTypePtr()) &&
-        !S.ValidateBoundsAttrTypeShape(T, Loc, SourceRange(Loc), Flags,
-                                       /*FullBoundsSafetyDiagnostics=*/true,
-                                       DiagName, AllowRedecl, AutoPtrAttributed,
-                                       ArgExpr)) {
-      return QualType();
+    // The check walks sugar itself (and derives auto-ptr-ness from the type via
+    // getAsExplicitBoundNode), so a single call covers the whole level -- incl.
+    // typedefs and __ptr_auto / nullability AttributedTypes.
+    // ShapeCheckedLevelZero suppresses a repeat as the visitor then peels that
+    // sugar to reach the structural node for type construction.
+    //
+    // Skip the check for function types (transparent containers): the attr
+    // targets the return type. VisitFunctionProtoType /
+    // VisitFunctionNoProtoType recurse on the return type at the same Level,
+    // where the check fires on the actual wrap target.
+    if (Level == 0 && !ShapeCheckedLevelZero && !T->isFunctionType()) {
+      ShapeCheckedLevelZero = true;
+      if (!S.ValidateBoundsAttrTypeShape(T, Loc, SourceRange(Loc), Flags,
+                                         /*FullBoundsSafetyDiagnostics=*/true,
+                                         DiagName, AllowRedecl, ArgExpr))
+        return QualType();
     }
     SplitQualType SQT = T.split();
     QualType InnerTy = BaseClass::Visit(SQT.Ty);
@@ -6564,45 +6563,28 @@ public:
   }
 
   QualType VisitType(const Type *T) {
-    // Fallback visitor for type classes without a dedicated visitor. This is
-    // where sugar without a dedicated visitor e.g. typedef, __typeof__,
-    // decltype, and using. We handle it once here in a generic way rather than
-    // requiring visitors for every kind of sugar. Note AttributedType has its
-    // own visitor and doesn't go down this path.
-    //
-    // Peel one layer of sugar and re-enter Visit() so that dispatch re-targets
-    // the correct visitor for the underlying type (e.g. VisitPointerType,
-    // VisitIncompleteArrayType, ...) and the Level-0 leaf check re-runs on the
-    // desugared type. Note this only works correctly in the case of nested
-    // typedefs because `ValidateBoundsAttrTypeShape` does some of its own
-    // desugaring (to check for a pointer/array).
-    //
-    // FIXME: Is this the right design? In the case of nested sugar types this
-    // means we will run the same "leaf-check" every time we desugar which is
-    // potentially wasteful. It could also potentially cause problems because it
-    // means if that function emits warnings it has to be done very carefully
-    // (no desugaring) to avoid emitting the same warning every time this
-    // visitor desguars and calls the leaf check again.
-    //
-    // This desugaring and re-running the leaf check is basically here to handle
-    // the checks in `ValidateBoundsAttrTypeShape` that don't desugar
-    // themselves. At the same time we are relying on some of the checks in that
-    // function doing their own desugaring so that running the leaf check on
-    // sugar passes. This seems like a total mess.
+    // Fallback visitor for types without a dedicated visitor (e.g. typedef,
+    // __typeof__, decltype, using, and unsupported types for the attribute).
+    // Note AttributedType has its own visitor and doesn't go down this path.
+
+    // Peel one layer of sugar and re-enter Visit() so dispatch re-targets the
+    // correct visitor for the underlying type (e.g. VisitPointerType,
+    // VisitIncompleteArrayType, ...) to build the type. We could add a
+    // dedicated visitor for each type of sugar but handling it one place here
+    // seems simpler.
     QualType QT(T, 0);
     QualType Desugared = QT.getSingleStepDesugaredType(S.Context);
     if (Desugared != QT)
       return Visit(Desugared);
 
-    // T is a non-sugar, non-pointer, non-array leaf, so there is no pointer nor
+    // T is a non-sugar, non-pointer, non-array type, so there is no pointer nor
     // array here for the bounds attribute to attach to. Run the type-shape
     // check to emit the diagnostic. Reachable when the requested `Level`
     // exceeds the type's pointer nesting, e.g. an out-of-range level from API
     // Notes.
     bool Valid = S.ValidateBoundsAttrTypeShape(
         QT, Loc, SourceRange(Loc), Flags,
-        /*FullBoundsSafetyDiagnostics=*/true, DiagName, AllowRedecl,
-        AutoPtrAttributed, ArgExpr);
+        /*FullBoundsSafetyDiagnostics=*/true, DiagName, AllowRedecl, ArgExpr);
     assert(!Valid &&
            "T should have been rejected because its not an array or pointer");
     (void)Valid;

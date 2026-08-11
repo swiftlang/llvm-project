@@ -2943,11 +2943,13 @@ public:
   /// case is a special exception: it emits an error diagnostic but returns true
   /// so the caller can still constructs the atomic type to avoid additional
   /// diagnostics.
-  bool ValidateBoundsAttrTypeShape(
-      QualType Ty, SourceLocation AttrLoc, SourceRange AttrRange,
-      BoundsAttrFlags &Flags, bool FullBoundsSafetyDiagnostics = false,
-      StringRef AttrSpelling = {}, bool AllowRedecl = false,
-      bool AutoPtrAttributed = false, Expr *AttrArg = nullptr);
+  bool ValidateBoundsAttrTypeShape(QualType Ty, SourceLocation AttrLoc,
+                                   SourceRange AttrRange,
+                                   BoundsAttrFlags &Flags,
+                                   bool FullBoundsSafetyDiagnostics = false,
+                                   StringRef AttrSpelling = {},
+                                   bool AllowRedecl = false,
+                                   Expr *AttrArg = nullptr);
 
   /* TO_UPSTREAM(BoundsSafety) OFF*/
 
