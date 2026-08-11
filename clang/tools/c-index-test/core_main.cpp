@@ -843,6 +843,8 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
           clang_experimental_DepGraphModule_getModuleDeps(Mod);
       CXCStringArray FileDeps =
           clang_experimental_DepGraphModule_getFileDeps(Mod);
+      CXCStringArray DirectoryDeps =
+          clang_experimental_DepGraphModule_getDirectoryDeps(Mod);
       CXCStringArray BuildArguments =
           clang_experimental_DepGraphModule_getBuildArguments(Mod);
       auto Dispose = llvm::make_scope_exit(
@@ -872,6 +874,12 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
         // (mostly) platform-agnostic.
         if (!StringRef(FileName).ends_with("SDKSettings.json"))
           llvm::outs() << "      " << FileName << "\n";
+      if (DirectoryDeps.Count) {
+        llvm::outs() << "    directory-deps:\n";
+        for (const auto &DirName :
+             ArrayRef(DirectoryDeps.Strings, DirectoryDeps.Count))
+          llvm::outs() << "      " << DirName << "\n";
+      }
       CXDepGraphModuleLinkLibrarySet LinkLibs =
           clang_experimental_DepGraphModule_getLinkLibrarySet(Mod);
       size_t NumLinkLibs =
