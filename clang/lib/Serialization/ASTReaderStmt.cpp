@@ -2866,7 +2866,14 @@ void ASTStmtReader::VisitOMPScanDirective(OMPScanDirective *D) {
   VisitOMPExecutableDirective(D);
 }
 
-void ASTStmtReader::VisitOMPOrderedDirective(OMPOrderedDirective *D) {
+void ASTStmtReader::VisitOMPOrderedStandaloneDirective(
+    OMPOrderedStandaloneDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+}
+
+void ASTStmtReader::VisitOMPOrderedBlockAssocDirective(
+    OMPOrderedBlockAssocDirective *D) {
   VisitStmt(D);
   VisitOMPExecutableDirective(D);
 }
@@ -4048,15 +4055,15 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_OMP_ORDERED_STANDALONE_DIRECTIVE: {
       unsigned NumClauses = Record[ASTStmtReader::NumStmtFields];
-      S = OMPOrderedDirective::CreateEmpty(Context, NumClauses,
-                                           /*IsStandalone=*/true, Empty);
+      S = OMPOrderedStandaloneDirective::CreateEmpty(Context, NumClauses,
+                                                     Empty);
       break;
     }
 
     case STMT_OMP_ORDERED_BLOCK_ASSOC_DIRECTIVE: {
       unsigned NumClauses = Record[ASTStmtReader::NumStmtFields];
-      S = OMPOrderedDirective::CreateEmpty(Context, NumClauses,
-                                           /*IsStandalone=*/false, Empty);
+      S = OMPOrderedBlockAssocDirective::CreateEmpty(Context, NumClauses,
+                                                     Empty);
       break;
     }
 
