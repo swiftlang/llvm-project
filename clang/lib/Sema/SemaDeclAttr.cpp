@@ -6531,13 +6531,7 @@ public:
   QualType Visit(QualType T) {
     // Run the type-shape check (ValidateBoundsAttrTypeShape) once, at the
     // attribute's target level (Level 0), on the type as written there (its
-    // outermost sugar).
-    //
-    // The check walks sugar itself (and derives auto-ptr-ness from the type via
-    // getAsExplicitBoundNode), so a single call covers the whole level -- incl.
-    // typedefs and __ptr_auto / nullability AttributedTypes.
-    // ShapeCheckedLevelZero suppresses a repeat as the visitor then peels that
-    // sugar to reach the structural node for type construction.
+    // outermost sugar). The call will handle traversing sugar itself.
     //
     // Skip the check for function types (transparent containers): the attr
     // targets the return type. VisitFunctionProtoType /
