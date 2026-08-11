@@ -64,7 +64,7 @@ class TestSwiftPlaygrounds(TestBase):
         return triple
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin("Apple deployment-target/availability versioning and Mach-O framework bundles")
     @swiftTest
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipIf(debug_info=decorators.no_match("dsym"))
@@ -74,7 +74,7 @@ class TestSwiftPlaygrounds(TestBase):
         self.do_basic_test(True)
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin("Apple deployment-target/availability versioning and Mach-O framework bundles")
     @swiftTest
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipIf(debug_info=decorators.no_match("dsym"))
@@ -84,7 +84,7 @@ class TestSwiftPlaygrounds(TestBase):
         self.do_basic_test(False)
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin("Apple deployment-target/availability versioning and Mach-O framework bundles")
     @swiftTest
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipIf(debug_info=decorators.no_match("dsym"))
@@ -95,7 +95,7 @@ class TestSwiftPlaygrounds(TestBase):
         self.do_concurrency_test()
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin("Apple deployment-target/availability versioning and Mach-O framework bundles")
     @swiftTest
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipIf(debug_info=decorators.no_match("dsym"))

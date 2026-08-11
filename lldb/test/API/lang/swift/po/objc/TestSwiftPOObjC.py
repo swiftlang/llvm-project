@@ -6,7 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftPOObjC(TestBase):
     @requireNotEmbeddedSwift
     #NO_DEBUG_INFO_TESTCASE = True
-    @skipUnlessDarwin
+    @requireObjCInterop
     @swiftTest
     def test(self):
         """Test running po on a Swift object from Objective-C. This

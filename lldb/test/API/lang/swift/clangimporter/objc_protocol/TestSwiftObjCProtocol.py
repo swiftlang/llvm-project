@@ -5,7 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftObjCProtocol(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireObjCInterop
     @swiftTest
     def test(self):
         """Test printing an Objective-C protocol existential member."""

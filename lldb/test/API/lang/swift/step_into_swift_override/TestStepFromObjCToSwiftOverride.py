@@ -7,7 +7,7 @@ class TestStepFromObjCToSwiftOverride(TestBase):
     """Test that you can step from an ObjC method of a class into the swift
        override of one of the methods."""
 
-    @skipUnlessDarwin
+    @requireObjCInterop
     @swiftTest
     @requireNotEmbeddedSwift
     def test(self):

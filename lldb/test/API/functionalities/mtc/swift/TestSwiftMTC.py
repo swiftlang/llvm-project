@@ -14,7 +14,7 @@ import json
 
 class MTCSwiftTestCase(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin("Main Thread Checker")
     @swiftTest
     def test(self):
         self.mtc_dylib_path = findMainThreadCheckerDylib()

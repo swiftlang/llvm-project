@@ -5,7 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftLateDylib(TestBase):
     @requireNotEmbeddedSwift # the embedded test harness appends its own -target, overriding the deployment targets under test
-    @skipUnlessDarwin
+    @requireDarwin("Apple deployment-target triples")
     @swiftTest
     @skipIfDarwinEmbedded
     @skipIf(setting=('symbols.swift-precise-compiler-invocation', 'true'))

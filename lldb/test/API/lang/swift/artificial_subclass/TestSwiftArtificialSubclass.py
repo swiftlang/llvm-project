@@ -6,7 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftArtificialSubclass(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessObjCInterop
+    @requireObjCInterop
     @swiftTest
     def test(self):
         """ Test that displaying an artificial type works correctly"""

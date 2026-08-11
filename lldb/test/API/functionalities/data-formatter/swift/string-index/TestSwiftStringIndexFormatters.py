@@ -78,7 +78,7 @@ class TestCase(TestBase):
         )
 
     @requireNotEmbeddedSwift
-    @skipUnlessFoundation
+    @requireFoundation
     @swiftTest
     def test_swift_string_index_formatters_bridged(self):
         """Test String.Index summary strings for a bridged String."""

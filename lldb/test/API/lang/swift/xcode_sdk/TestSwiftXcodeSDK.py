@@ -32,7 +32,7 @@ class TestSwiftXcodeSDK(lldbtest.TestBase):
         self.assertEqual(precise, expect_precise)
 
     @swiftTest
-    @skipUnlessDarwin
+    @requireDarwin("Xcode SDK detection from DW_AT_LLVM_sdk")
     @skipIfDarwinEmbedded
     def test_decode(self):
         """Test that we can detect an Xcode SDK from the DW_AT_LLVM_sdk attribute."""
@@ -46,7 +46,7 @@ class TestSwiftXcodeSDK(lldbtest.TestBase):
         self.check_log(log, "MacOSX", True)
 
     @swiftTest
-    @skipUnlessDarwin
+    @requireDarwin("Xcode SDK detection from DW_AT_LLVM_sdk")
     @skipIfDarwinEmbedded
     @apple_simulator_test('iphone')
     # FIXME: This test depends on https://reviews.llvm.org/D81980.
@@ -65,7 +65,7 @@ class TestSwiftXcodeSDK(lldbtest.TestBase):
         self.check_log(log, "iPhoneSimulator", True)
 
     @swiftTest
-    @skipUnlessDarwin
+    @requireDarwin("Xcode SDK override via target.sdk-path")
     @skipIfDarwinEmbedded
     def test_override(self):
         """Test that we can override the Xcode SDK using the target setting."""

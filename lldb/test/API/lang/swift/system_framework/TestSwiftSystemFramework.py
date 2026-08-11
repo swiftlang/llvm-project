@@ -10,7 +10,7 @@ class TestSwiftSystemFramework(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipIf(oslist=no_match(["macosx"]))
+    @requireDarwin("ApplicationServices framework", oslist=["macosx"])
     def test_system_framework(self):
         """Make sure no framework paths into /System/Library are added"""
         self.build()

@@ -1251,6 +1251,18 @@ def requireNotDarwin(func):
     return requireNotPlatform(lldbplatform.translate(lldbplatform.darwin_all))(func)
 
 
+def requireFoundation(func):
+    """Mark the item as inherently Foundation-only. This is an alias for
+    requireDarwin."""
+    return requireDarwin(func)
+
+
+def requireObjCInterop(func):
+    """Mark the item as inherently ObjC-only. This is an alias for
+    requireDarwin."""
+    return requireDarwin(func)
+
+
 def requireLinux(func):
     """Mark the item as inherently Linux-only (procfs, Linux-specific syscalls,
     ...). Other targets report UNSUPPORTED."""

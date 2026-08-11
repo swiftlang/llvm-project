@@ -18,7 +18,7 @@ import os
 
 class TestSwiftExpressionObjCContext(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireObjCInterop
     @swiftTest
     def test(self):
         self.build()

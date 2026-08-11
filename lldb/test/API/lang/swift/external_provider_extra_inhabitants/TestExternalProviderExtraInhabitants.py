@@ -8,7 +8,7 @@ from lldbsuite.test.decorators import *
 
 class TestExternalProviderExtraInhabitants(TestBase):
 
-    @skipUnlessDarwin
+    @requireDarwin("CoreGraphics")
     @swiftTest
     def test(self):
         self.build()

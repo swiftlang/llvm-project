@@ -20,7 +20,7 @@ class TestSwiftStaticArchiveTwoSwiftmodules(TestBase):
     @requireNotEmbeddedSwift
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
-    @skipUnlessDarwin
+    @requireDarwin("ld64 -add_ast_path embeds swiftmodules in the Mach-O binary")
     @swiftTest
     def test(self):
         self.build()

@@ -5,7 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftObjCOptionalDict(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireFoundation
     @swiftTest
     def test(self):
         self.build()

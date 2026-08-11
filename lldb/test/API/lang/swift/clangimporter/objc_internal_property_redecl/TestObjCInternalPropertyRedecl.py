@@ -9,7 +9,7 @@ class TestObjCInternalPropertyRedecl(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireObjCInterop
     @swiftTest
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     def test(self):

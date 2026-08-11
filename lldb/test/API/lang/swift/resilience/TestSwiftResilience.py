@@ -23,7 +23,7 @@ def execute_command(command):
 
 class TestSwiftResilience(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin("dSYM/N_AST debug info and Mach-O install_name/@executable_path")
     @swiftTest
     # Because we rename the .swiftmodule files after building the
     # N_AST symbol table entry is out of sync, whereas dsymutil
@@ -35,7 +35,7 @@ class TestSwiftResilience(TestBase):
         self.doTestWithFlavor("a", "a")
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin("dSYM/N_AST debug info and Mach-O install_name/@executable_path")
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
     def test_cross_module_extension_a_b(self):
@@ -44,7 +44,7 @@ class TestSwiftResilience(TestBase):
         self.doTestWithFlavor("a", "b")
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin("dSYM/N_AST debug info and Mach-O install_name/@executable_path")
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
     def test_cross_module_extension_b_a(self):
@@ -53,7 +53,7 @@ class TestSwiftResilience(TestBase):
         self.doTestWithFlavor("b", "a")
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin("dSYM/N_AST debug info and Mach-O install_name/@executable_path")
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
     def test_cross_module_extension_b_b(self):
