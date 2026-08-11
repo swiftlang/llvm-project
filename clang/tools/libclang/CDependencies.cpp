@@ -187,12 +187,28 @@ clang_experimental_DependencyScannerService_create_v1(
     Opts.CacheNegativeStats = *unwrap(WrappedOpts)->CacheNegativeStats;
   if (unwrap(WrappedOpts)->AsyncScanModules)
     Opts.AsyncScanModules = *unwrap(WrappedOpts)->AsyncScanModules;
+  // Enabled by default for the libclang API.
+  Opts.ValidateAgainstInvalidatedPaths = true;
   return wrap(new DependencyScanningService(std::move(Opts)));
 }
 
 void clang_experimental_DependencyScannerService_dispose_v0(
     CXDependencyScannerService Service) {
   delete unwrap(Service);
+}
+
+void clang_experimental_DependencyScannerService_addInvalidatedPaths(
+    CXDependencyScannerService Service, const char *const *Paths,
+    size_t NumPaths) {
+  for (size_t I = 0; I != NumPaths; ++I)
+    unwrap(Service)->addInvalidatedPath(Paths[I]);
+}
+
+void clang_experimental_DependencyScannerService_addInvalidatedDirectories(
+    CXDependencyScannerService Service, const char *const *Directories,
+    size_t NumDirectories) {
+  clang_experimental_DependencyScannerService_addInvalidatedPaths(
+      Service, Directories, NumDirectories);
 }
 
 CXDependencyScannerWorker clang_experimental_DependencyScannerWorker_create_v0(
@@ -408,6 +424,12 @@ clang_experimental_DepGraphModule_getFileDeps(CXDepGraphModule CXDepMod) {
   std::vector<std::string> FileDeps;
   ModDeps.forEachFileDep([&](StringRef File) { FileDeps.emplace_back(File); });
   return unwrap(CXDepMod)->StrMgr.createCStringsOwned(std::move(FileDeps));
+}
+
+CXCStringArray
+clang_experimental_DepGraphModule_getDirectoryDeps(CXDepGraphModule CXDepMod) {
+  const ModuleDeps &ModDeps = *unwrap(CXDepMod)->ModDeps;
+  return unwrap(CXDepMod)->StrMgr.createCStringsRef(ModDeps.DirectoryDeps);
 }
 
 CXCStringArray
