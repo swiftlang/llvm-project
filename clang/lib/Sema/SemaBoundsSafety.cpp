@@ -190,8 +190,8 @@ static std::optional<bool> checkBoundsAttrTypeConflictsAndMisc(
 
   // FIXME: the AtomicType check below still uses `dyn_cast` on the
   // top node. It returns `true` and lets the caller continue, so making it
-  // sugar-walking is only safe once the caller runs the leaf once per level
-  // (the once-per-level guard); until then a sugar-wrapped atomic would
+  // sugar-walking is only safe once the caller runs the type-shape check once
+  // (the ShapeCheckedLevelZero guard); until then a sugar-wrapped atomic would
   // double-emit.
   //
   // An AtomicType wrapping a pointer: emit the diagnostic but return true so
