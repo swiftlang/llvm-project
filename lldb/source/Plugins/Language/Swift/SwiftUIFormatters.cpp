@@ -196,9 +196,13 @@ public:
     if (use_value_property) {
       value_sp = m_backend.GetChildMemberWithName("_value");
     } else {
-      if (auto first_child_sp = location_synth_sp->GetChildAtIndex(0))
+      if (auto first_child_sp = location_synth_sp->GetChildAtIndex(0)) {
         value_sp = first_child_sp->GetValueForExpressionPath(
-            "._data.buffer.value.currentValue");
+            ".data.value._rawLayout.currentValue");
+        if (!value_sp)
+          value_sp = first_child_sp->GetValueForExpressionPath(
+              "._data.buffer.value.currentValue");
+      }
     }
 
     if (value_sp) {
