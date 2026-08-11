@@ -284,11 +284,14 @@ MemoryReaderLocalBufferHolder SwiftLanguageRuntime::PushLocalBuffer(uint64_t loc
 class LLDBTypeInfoProvider : public swift::remote::TypeInfoProvider {
   SwiftLanguageRuntime &m_runtime;
   TypeSystemSwiftTypeRef &m_ts;
+  /// The mangling flavor of the program the type info is being read for.
+  swift::Mangle::ManglingFlavor m_flavor;
 
 public:
   LLDBTypeInfoProvider(SwiftLanguageRuntime &runtime,
-                       TypeSystemSwiftTypeRef &ts)
-      : m_runtime(runtime), m_ts(ts) {}
+                       TypeSystemSwiftTypeRef &ts,
+                       swift::Mangle::ManglingFlavor flavor)
+      : m_runtime(runtime), m_ts(ts), m_flavor(flavor) {}
 
   swift::remote::TypeInfoProvider::IdType getId() override {
     return (void *)((char *)&m_ts + m_runtime.GetGeneration());
@@ -431,9 +434,8 @@ public:
           auto *key = swift_type.GetMangledTypeName().AsCString(nullptr);
           m_runtime.RegisterAnonymousClangType(key, field_type);
         } else {
-          // TODO: The mangling flavor should be threaded through getTypeInfo.
-          swift_type = typesystem.ConvertClangTypeToSwiftType(
-              field_type, swift::Mangle::ManglingFlavor::Default);
+          swift_type =
+              typesystem.ConvertClangTypeToSwiftType(field_type, m_flavor);
         }
         const swift::reflection::TypeRef *typeref = nullptr;
         auto typeref_or_err = m_runtime.GetTypeRef(swift_type, &typesystem);
@@ -1064,7 +1066,7 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
       if (instance != LLDB_INVALID_ADDRESS) {
         auto *desc_finder =
             ts.GetDescriptorFinder(m_exe_ctx.GetBestExecutionContextScope());
-        LLDBTypeInfoProvider tip(m_runtime, ts);
+        LLDBTypeInfoProvider tip(m_runtime, ts, m_flavor);
         ThreadSafeReflectionContext reflection_ctx =
             m_runtime.GetReflectionContext();
         if (reflection_ctx) {
@@ -1322,7 +1324,7 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
               llvm::dyn_cast_or_null<swift::reflection::ObjCClassTypeRef>(tr))
         return visit_objcclass(*obj_tr);
 
-      LLDBTypeInfoProvider tip(m_runtime, ts);
+      LLDBTypeInfoProvider tip(m_runtime, ts, m_flavor);
       auto cti_or_err = reflection_ctx->GetClassInstanceTypeInfo(
           *tr, &tip,
           ts.GetDescriptorFinder(m_exe_ctx.GetBestExecutionContextScope()));
@@ -1445,7 +1447,7 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
       return supers.size() >= 2;
     };
 
-    LLDBTypeInfoProvider tip(m_runtime, ts);
+    LLDBTypeInfoProvider tip(m_runtime, ts, m_flavor);
     lldb::addr_t instance = ::MaskMaybeBridgedPointer(
         m_runtime.GetProcess(), m_valobj->GetPointerValue().address);
 
@@ -1832,7 +1834,7 @@ SwiftLanguageRuntime::ProjectEnum(ValueObject &valobj) {
 
     ThreadSafeReflectionContext reflection_ctx = GetReflectionContext();
     // The indirect enum field should point to a closure context.
-    LLDBTypeInfoProvider tip(*this, ts);
+    LLDBTypeInfoProvider tip(*this, ts, flavor);
     auto ti_or_err = reflection_ctx->GetTypeInfoFromInstance(
         pointer, &tip, ts.GetDescriptorFinder());
     if (!ti_or_err)
@@ -2048,7 +2050,8 @@ bool SwiftLanguageRuntime::ForEachSuperClassType(
   auto &ts = *tr_ts;
 
   ExecutionContext exe_ctx(instance.GetExecutionContextRef());
-  LLDBTypeInfoProvider tip(*this, ts);
+  auto flavor = GetManglingFlavor(instance_type.GetMangledTypeName());
+  LLDBTypeInfoProvider tip(*this, ts, flavor);
   lldb::addr_t pointer = instance.GetPointerValue().address;
   return reflection_ctx->ForEachSuperClassType(&tip, ts.GetDescriptorFinder(),
                                                pointer, fn);
@@ -4244,7 +4247,7 @@ SwiftLanguageRuntime::GetSwiftRuntimeTypeInfo(
       flavor == swift::Mangle::ManglingFlavor::Embedded ? g_debuginfo
                                                         : g_reflection,
       &GetProcess().GetTarget().GetDebugger(), *GetMemoryReader());
-  LLDBTypeInfoProvider provider(*this, ts);
+  LLDBTypeInfoProvider provider(*this, ts, flavor);
   return reflection_ctx->GetTypeInfo(type, &provider,
                                      ts.GetDescriptorFinder(exe_scope));
 }
