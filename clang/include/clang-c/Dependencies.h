@@ -198,6 +198,35 @@ CINDEX_LINKAGE void clang_experimental_DependencyScannerService_dispose_v0(
     CXDependencyScannerService);
 
 /**
+ * Report that \p Paths changed since the last scan. Scanning PCMs depending on
+ * such paths are rebuilt on incremental scans.
+ *
+ * Paths are compared textually, and so must exactly match the paths returned by
+ * \c clang_experimental_DepGraphModule_ functions.
+ *
+ * This function is thread-safe and can be called during scanning. Modules
+ * already validated during the scan will not be invalidated, so paths those
+ * modules depend on transitively must be passed before scanning them.
+ *
+ * Invalidation currently only applies to directories returned by
+ * \c clang_experimental_DepGraphModule_getDirectoryDeps. Services always
+ * validate these against the reported paths instead of the file system.
+ */
+CINDEX_LINKAGE void
+clang_experimental_DependencyScannerService_addInvalidatedPaths(
+    CXDependencyScannerService, const char *const *Paths, size_t NumPaths);
+
+/**
+ * Same as \c clang_experimental_DependencyScannerService_addInvalidatedPaths.
+ *
+ * Deprecated, kept for compatibility with existing clients.
+ */
+CINDEX_LINKAGE void
+clang_experimental_DependencyScannerService_addInvalidatedDirectories(
+    CXDependencyScannerService, const char *const *Directories,
+    size_t NumDirectories);
+
+/**
  * Object encapsulating instance of a dependency scanner worker.
  *
  * The dependency scanner workers are expected to be used in separate worker
@@ -442,6 +471,19 @@ CINDEX_LINKAGE const char *
  */
 CINDEX_LINKAGE CXCStringArray
     clang_experimental_DepGraphModule_getFileDeps(CXDepGraphModule);
+
+/**
+ * \returns the list of directories which this module depends on the listing of.
+ *
+ * If any of these change then the module needs to be rebuilt to have correct
+ * incremental builds. Changes to these directories can be reported via
+ * \c clang_experimental_DependencyScannerService_addInvalidatedPaths.
+ *
+ * The strings are only valid to use while the \c CXDepGraphModule object is
+ * valid.
+ */
+CINDEX_LINKAGE CXCStringArray
+    clang_experimental_DepGraphModule_getDirectoryDeps(CXDepGraphModule);
 
 /**
  * \returns the list of modules which this module direct depends on.

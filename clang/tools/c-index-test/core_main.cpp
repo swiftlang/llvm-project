@@ -170,6 +170,12 @@ static cl::opt<bool> OptimizeCWD(
     "optimize-cwd",
     cl::desc(
         "instruct the scanner to ignore current working directory if safe."));
+static cl::list<std::string> InvalidatedPaths(
+    "invalidated-path",
+    cl::desc("report the given path as changed since the last scan"));
+static cl::list<std::string> InvalidatedDirectories(
+    "invalidated-directory",
+    cl::desc("same as -invalidated-path, through the deprecated API"));
 } // namespace options
 } // anonymous namespace
 
@@ -743,6 +749,20 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
 
   CXDependencyScannerService Service =
       clang_experimental_DependencyScannerService_create_v1(Opts);
+  auto AddInvalidated = [&](ArrayRef<std::string> Paths, auto AddFn) {
+    if (Paths.empty())
+      return;
+    SmallVector<const char *> CPaths;
+    for (const std::string &Path : Paths)
+      CPaths.push_back(Path.c_str());
+    AddFn(Service, CPaths.data(), CPaths.size());
+  };
+  AddInvalidated(
+      options::InvalidatedPaths,
+      clang_experimental_DependencyScannerService_addInvalidatedPaths);
+  AddInvalidated(
+      options::InvalidatedDirectories,
+      clang_experimental_DependencyScannerService_addInvalidatedDirectories);
   CXDependencyScannerWorker Worker =
       clang_experimental_DependencyScannerWorker_create_v0(Service);
   llvm::scope_exit DisposeWorkerAndService([&]() {
@@ -848,6 +868,8 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
           clang_experimental_DepGraphModule_getModuleDeps(Mod);
       CXCStringArray FileDeps =
           clang_experimental_DepGraphModule_getFileDeps(Mod);
+      CXCStringArray DirectoryDeps =
+          clang_experimental_DepGraphModule_getDirectoryDeps(Mod);
       CXCStringArray BuildArguments =
           clang_experimental_DepGraphModule_getBuildArguments(Mod);
       llvm::scope_exit Dispose(
@@ -877,6 +899,12 @@ static int scanDeps(ArrayRef<const char *> Args, std::string WorkingDirectory,
         // (mostly) platform-agnostic.
         if (!StringRef(FileName).ends_with("SDKSettings.json"))
           llvm::outs() << "      " << FileName << "\n";
+      if (DirectoryDeps.Count) {
+        llvm::outs() << "    directory-deps:\n";
+        for (const auto &DirName :
+             ArrayRef(DirectoryDeps.Strings, DirectoryDeps.Count))
+          llvm::outs() << "      " << DirName << "\n";
+      }
       CXDepGraphModuleLinkLibrarySet LinkLibs =
           clang_experimental_DepGraphModule_getLinkLibrarySet(Mod);
       size_t NumLinkLibs =
