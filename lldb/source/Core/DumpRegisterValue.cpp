@@ -48,9 +48,9 @@ static void dump_type_value(lldb_private::CompilerType &fields_type, T value,
       exe_scope, fields_type, lldb_private::ConstString(), data_extractor);
   lldb_private::DumpValueObjectOptions dump_options;
   lldb_private::DumpValueObjectOptions::ChildPrintingDecider decider =
-      [](lldb_private::ConstString varname) {
+      [](llvm::StringRef varname) {
         // Unnamed bit-fields are padding that we don't want to show.
-        return varname.GetLength();
+        return varname.size();
       };
   dump_options.SetChildPrintingDecider(decider).SetHideRootType(true);
 
