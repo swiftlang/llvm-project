@@ -102,7 +102,7 @@ private:
                              // demand for that.
   LazyBool m_virtual_step;   // true if we've just done a "virtual step", i.e.
                              // just moved the inline stack depth.
-  ConstString m_step_into_target;
+  std::string m_step_into_target;
   std::vector<lldb::break_id_t> m_step_in_deep_bps; // Places where we might
                                                     // want to stop when we do a
                                                     // step out.
