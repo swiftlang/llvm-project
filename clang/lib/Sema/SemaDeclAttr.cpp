@@ -6568,6 +6568,27 @@ public:
     // seems simpler.
     QualType QT(T, 0);
     QualType Desugared = QT.getSingleStepDesugaredType(S.Context);
+
+    // Reject a bounds attribute on a function type reached through a *name*
+    // (typedef / __typeof__ / C++ using):
+    //
+    //   reject: typedef int *fn_t(int); fn_t f __counted_by(g);
+    //   allow:  int *__counted_by(n) f(int n);      // direct return
+    //   allow:  int *__counted_by(n) (*fp)(int n);  // function pointer
+    //
+    // Reaching this fallback method means the function type was "named" through
+    // sugar. Other "unnamed" sugar like AttributedType has its own Visitor
+    // method that deliberately doesn't do the check below.
+    if (Level == 0 && Desugared != QT && Desugared->isFunctionType()) {
+      bool Valid = S.ValidateBoundsAttrTypeShape(
+          Desugared, Loc, SourceRange(Loc), Flags,
+          /*FullBoundsSafetyDiagnostics=*/true, DiagName, AllowRedecl, ArgExpr);
+      assert(!Valid &&
+             "function type reached through sugar should be rejected");
+      (void)Valid;
+      return QualType();
+    }
+
     if (Desugared != QT)
       return Visit(Desugared);
 
