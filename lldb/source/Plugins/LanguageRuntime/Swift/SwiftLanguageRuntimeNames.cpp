@@ -714,8 +714,8 @@ static lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
     AddressRange sym_addr_range(sc.symbol->GetAddress(),
                                 sc.symbol->GetByteSize());
     ThreadPlanSP new_plan_sp = std::make_shared<ThreadPlanStepInRange>(
-        thread, sym_addr_range, sc, nullptr, eOnlyDuringStepping, eLazyBoolNo,
-        eLazyBoolNo);
+        thread, sym_addr_range, sc, std::string(), eOnlyDuringStepping,
+        eLazyBoolNo, eLazyBoolNo);
     return new_plan_sp;
   }
   }
