@@ -6,7 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftClangImporterExtraInhabitants(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     def test(self):

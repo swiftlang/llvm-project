@@ -21,7 +21,7 @@ import os
 
 class TestSwiftieFormatting(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireObjCFoundation
     @swiftTest
     def test_swiftie_formatting(self):
         """Test that data formatters honor Swift conventions"""

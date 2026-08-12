@@ -135,7 +135,7 @@ class TestSwiftInterfaceNoDebugInfo(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipUnlessPlatform(["macosx"])
+    @requireMacOS
     def test_prebuilt_cache_location(self):
         """Verify the prebuilt cache path is correct"""
         self.build()

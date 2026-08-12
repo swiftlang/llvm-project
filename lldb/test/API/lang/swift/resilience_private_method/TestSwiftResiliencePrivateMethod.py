@@ -6,7 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftResiliencePrivateMethod(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @swiftTest
     def test(self):
         self.build()

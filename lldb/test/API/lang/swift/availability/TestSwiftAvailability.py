@@ -37,7 +37,7 @@ class TestAvailability(TestBase):
 
     @requireNotEmbeddedSwift # embedded Swift strips functions the program never calls, so f() is not in the binary to call
     @swiftTest
-    @skipIf(oslist=['linux', 'windows'])
+    @requireDarwin
     def testAvailability(self):
         platform_name = lldbplatformutil.getPlatform()
         arch = lldbplatformutil.getArchitecture()

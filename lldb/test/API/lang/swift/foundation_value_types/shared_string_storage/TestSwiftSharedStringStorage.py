@@ -8,7 +8,7 @@ class TestSwiftSharedStringStorage(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipUnlessFoundation
+    @requireObjCFoundation
     def test(self):
         """Non-ASCII strings bridged to NSString/CFString are backed by
         __SharedStringStorage. Check that the data formatter decodes them,

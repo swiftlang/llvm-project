@@ -9,8 +9,8 @@ class TestSwiftNoncopyableFieldReflection(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
-    @skipUnlessDarwin
-    @skipEmbeddedSwift
+    @requireDarwin
+    @requireNotEmbeddedSwift # library evolution cannot be enabled with embedded Swift
     @swiftTest
     def test(self):
         """Test that LLDB surfaces an error when a resilient class

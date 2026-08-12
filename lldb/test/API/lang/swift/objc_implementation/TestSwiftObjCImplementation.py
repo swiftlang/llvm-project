@@ -8,7 +8,7 @@ class TestCase(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipUnlessFoundation
+    @requireObjCFoundation
     def test(self):
         self.build()
         lldbutil.run_to_source_breakpoint(

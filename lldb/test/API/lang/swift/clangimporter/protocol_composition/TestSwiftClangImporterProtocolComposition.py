@@ -5,7 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftClangImporterProtocolComposition(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @swiftTest
     def test(self):
         """Test that protocol composition types can be resolved

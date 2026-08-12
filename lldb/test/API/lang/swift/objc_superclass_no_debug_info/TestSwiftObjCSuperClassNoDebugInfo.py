@@ -6,7 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftObjCSuperClassNoDebugInfo(TestBase):
     @swiftTest
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @requireNotEmbeddedSwift
     def test(self):
         self.build()

@@ -24,7 +24,7 @@ import shutil
 # this should be a perfectly general feature but I could not
 # cause the failure to reproduce against clang, so put it here
 class TestSwiftPathWithColon(TestBase):
-    @skipIf(oslist=['windows'])
+    @requirePOSIX
     @skipIfiOSSimulator
     @swiftTest
     def test_path_with_colon(self):

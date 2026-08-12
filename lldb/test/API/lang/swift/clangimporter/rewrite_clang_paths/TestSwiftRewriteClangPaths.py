@@ -25,7 +25,7 @@ class TestSwiftRewriteClangPaths(TestBase):
     @requireNotEmbeddedSwift
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
-    @skipUnlessDarwin
+    @requireDarwin
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
     def testWithRemap(self):
@@ -34,7 +34,7 @@ class TestSwiftRewriteClangPaths(TestBase):
     @requireNotEmbeddedSwift
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
-    @skipUnlessDarwin
+    @requireDarwin
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
     def testWithoutRemap(self):

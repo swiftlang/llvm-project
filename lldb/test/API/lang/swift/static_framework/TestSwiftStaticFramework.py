@@ -12,7 +12,7 @@ class TestSwiftStaticFramework(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @swiftTest
-    @skipIf(oslist=no_match(["macosx"]))
+    @requireMacOS
     def test_static_framework(self):
         """Make sure LLDB doesn't attempt to import static frameworks"""
         n = 10

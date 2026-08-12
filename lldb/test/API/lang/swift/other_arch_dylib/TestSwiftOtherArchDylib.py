@@ -11,7 +11,7 @@ class TestSwiftOtherArchDylib(TestBase):
 
     @requireNotEmbeddedSwift # the embedded test harness appends its own -target, so the other-arch dylib is never built
     @swiftTest
-    @skipUnlessDarwin
+    @requireDarwin
     @skipIfDarwinEmbedded
     @skipIf(archs=no_match(["arm64"]))
     @skipIf(archs=["arm64e"], bugnumber="the swift.org toolchain cannot produce arm64e binaries")

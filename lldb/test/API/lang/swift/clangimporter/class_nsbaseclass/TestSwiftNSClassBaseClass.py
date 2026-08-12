@@ -8,7 +8,7 @@ class TestSwiftNSClassBaseClass(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     def test(self):
         self.build()
         lldbutil.run_to_source_breakpoint(self, "break here",

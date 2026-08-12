@@ -35,7 +35,7 @@ class TestSwiftDWARFImporterObjC(lldbtest.TestBase):
         shutil.rmtree(include)
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @swiftTest
     def test(self):
         self.runCmd("settings set symbols.use-swift-dwarfimporter true")
@@ -62,7 +62,7 @@ class TestSwiftDWARFImporterObjC(lldbtest.TestBase):
         #self.expect("target var -O proto", substrs=["<ProtoImpl"])
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @swiftTest
     def test_expr(self):
         self.runCmd("settings set symbols.use-swift-dwarfimporter true")
@@ -84,7 +84,7 @@ class TestSwiftDWARFImporterObjC(lldbtest.TestBase):
 
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @swiftTest
     def test_eager_member_completion(self):
         """

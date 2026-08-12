@@ -12,7 +12,7 @@ class TestSwiftLazyFramework(lldbtest.TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
-    @skipIf(oslist=no_match(["macosx"]))
+    @requireMacOS
     # FIXME: Without the ClangImporter, transitive module dependencies can't be
     # fully resolved, so collectLinkLibraries() misses autolinked frameworks.
     # This causes DoLoadImage() to allocate memory while the process is still
@@ -42,7 +42,7 @@ class TestSwiftLazyFramework(lldbtest.TestBase):
         self.expect("image list", substrs=["Lazy.framework/Versions/A/Lazy"])
 
     @swiftTest
-    @skipIf(oslist=no_match(["macosx"]))
+    @requireMacOS
     def test_precise_compiler_invocation(self):
         """In modern LLDB, with precise compiler invocations the expression
            is evaluated in the local context by default."""

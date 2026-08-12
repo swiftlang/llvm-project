@@ -20,7 +20,7 @@ import os
 
 
 class TestSwiftBridgedArray(TestBase):
-    @skipUnlessDarwin
+    @requireObjCFoundation
     @swiftTest
     @expectedFailureAll(bugnumber="<rdar://problem/32024572>")
     def test_swift_bridged_array(self):

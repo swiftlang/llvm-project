@@ -8,7 +8,7 @@ import os
 class TestSwiftMacCatalyst(TestBase):
     @swiftTest
     @skipIf(macos_version=["<", "10.15"])
-    @skipUnlessDarwin
+    @requireDarwin
     @skipIfDarwinEmbedded
     def test_macCatalyst(self):
         """Test the ${arch}-apple-ios-macabi target.

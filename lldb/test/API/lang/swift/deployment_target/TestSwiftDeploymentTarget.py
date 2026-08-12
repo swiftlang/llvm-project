@@ -24,7 +24,7 @@ class TestSwiftDeploymentTarget(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin
     @skipIfDarwinEmbedded # This test uses macOS triples explicitly.
     @skipIf(macos_version=["<", "15.0"])
     @swiftTest
@@ -36,7 +36,7 @@ class TestSwiftDeploymentTarget(TestBase):
         self.expect("expression f", substrs=['i = 23'])
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin
     @skipIfDarwinEmbedded # This test uses macOS triples explicitly.
     @skipIf(macos_version=["<", "15.0"])
     @swiftTest
@@ -50,7 +50,7 @@ class TestSwiftDeploymentTarget(TestBase):
         self.expect("expression self", substrs=['i = 23'])
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin
     @skipIfDarwinEmbedded # This test uses macOS triples explicitly.
     @skipIf(macos_version=["<", "15.0"])
     # FIXME: This config started failing in CI only after switching to
@@ -71,7 +71,7 @@ class TestSwiftDeploymentTarget(TestBase):
 #       CHECK-NOT: SwiftASTContextForExpressions(module: "a", cu: "main.swift")::RegisterSectionModules("a.out"){{.*}} AST Data blobs
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin  # This test uses macOS triples explicitly.
+    @requireDarwin
     @skipIfDarwinEmbedded
     @skipIf(macos_version=["<", "15.0"])
     @swiftTest

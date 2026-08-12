@@ -11,7 +11,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestCase(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipUnlessFoundation
+    @requireObjCFoundation
     def test(self):
         """Test CFUUID object description prints the UUID string."""
         self.build()

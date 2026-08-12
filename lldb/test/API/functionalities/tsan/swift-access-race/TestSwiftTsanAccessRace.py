@@ -27,7 +27,7 @@ class TsanSwiftAccessRaceTestCase(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipIfWindows
+    @requireTSAN
     @skipIfLinux
     @skipUnlessSwiftThreadSanitizer
     @skipIfAsan # This test does not behave reliable with an ASANified LLDB.

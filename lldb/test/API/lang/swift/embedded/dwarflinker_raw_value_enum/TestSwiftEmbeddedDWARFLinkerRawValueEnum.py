@@ -10,7 +10,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftEmbeddedDWARFLinkerRawValueEnum(TestBase):
-    @skipUnlessDarwin
+    @requireDarwin
     @swiftTest
     @skipUnlessEmbeddedSwift
     def test(self):

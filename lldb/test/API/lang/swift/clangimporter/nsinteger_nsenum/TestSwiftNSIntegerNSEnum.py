@@ -22,7 +22,7 @@ class TestSwiftNSIntegerNSEnum(lldbtest.TestBase):
         check(frame.FindVariable('e2'), 'eCase2')
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @swiftTest
     def test_reflection(self):
         self.expect("setting set symbols.swift-enable-ast-context false")
@@ -31,7 +31,7 @@ class TestSwiftNSIntegerNSEnum(lldbtest.TestBase):
     @requireNotEmbeddedSwift
     # Don't run a clangimporter test without ClangImporter.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @swiftTest
     def test_swift_ast(self):
         self.expect("setting set symbols.swift-enable-ast-context true")

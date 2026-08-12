@@ -24,7 +24,7 @@ import os
 
 class TestSwiftBridgedStringVariables(TestBase):
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireObjCFoundation
     @swiftTest
     def test_swift_bridged_string_variables(self):
         """Test that Swift.String formats properly"""

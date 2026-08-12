@@ -16,5 +16,5 @@ lldbinline.MakeInlineTest(
     __file__,
     globals(),
     decorators=[requireNotEmbeddedSwift,
-        swiftTest, skipUnlessDarwin, skipIf(macos_version=["=", "15.0"])],
+        swiftTest, requireObjCFoundation, skipIf(macos_version=["=", "15.0"])],
 )

@@ -11,7 +11,7 @@ import os
 class TestSwiftBridgedMetatype(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipUnlessFoundation
+    @requireObjCFoundation
     def test_swift_bridged_metatype(self):
         """Test the formatting of bridged Swift metatypes"""
         self.build()

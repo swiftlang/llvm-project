@@ -1411,6 +1411,22 @@ def requireNotDarwin(reason: str):
     )
 
 
+def requireObjCFoundation(func):
+    """Mark the item as inherently Foundation-only.
+
+    Platforms which only have FoundationEssentials (Linux and Windows) cannot run these tests.
+
+    This is an alias for requireDarwin.
+    """
+    return requireDarwin(func)
+
+
+def requireSwiftObjCInterop(func):
+    """Mark the item as inherently ObjC-only. This is an alias for
+    requireDarwin."""
+    return requireDarwin(func)
+
+
 def requireLinux(func):
     """Mark the item as inherently Linux-only (procfs, Linux-specific syscalls,
     ...). Other targets report UNSUPPORTED."""
@@ -1452,6 +1468,11 @@ def requireMacOS(func):
     platforms (iOS, tvOS, watchOS, ...).
     """
     return requirePlatform(["macosx"])(func)
+
+
+def requireTSAN(func):
+    """Mark the item as requiring a platform which has TSAN."""
+    return requirePOSIX(func)
 
 
 def requireSignals(func):

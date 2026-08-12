@@ -8,7 +8,7 @@ class TestCase(TestBase):
 
     @swiftTest
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     def test(self):
         """Test that a Swift array of ObjC items prints correctly."""
 

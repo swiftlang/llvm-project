@@ -10,7 +10,7 @@ class TestSwiftMacCatalystFramework(TestBase):
 
     @swiftTest
     @skipIf(macos_version=["<", "26"])
-    @skipUnlessDarwin
+    @requireDarwin
     @skipIfDarwinEmbedded
     def test(self):
         """A macCatalyst (arm64-apple-ios-macabi) executable that loads a plain

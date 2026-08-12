@@ -11,7 +11,7 @@ class TestSwiftTaggedPointer(lldbtest.TestBase):
     @swiftTest
     # This test depends on NSObject, so it is not available on non-Darwin
     # platforms.
-    @skipUnlessDarwin
+    @requireObjCFoundation
     # This test exposes a bug in DWARFImporterForClangTypes, which
     # doesn't do type completion correctly. (rdar://118337109)
     def test(self):

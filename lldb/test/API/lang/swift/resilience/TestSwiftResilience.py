@@ -29,7 +29,7 @@ class TestSwiftResilience(TestBase):
     G_S_SUBSTRS = {"a": ["a = 1", 's1 = "i"'], "b": ["b = 2", "a = 1"]}
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
     def test_cross_module_extension_a_a(self):
@@ -38,7 +38,7 @@ class TestSwiftResilience(TestBase):
         self.doTestWithFlavor("a", "a")
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
     def test_cross_module_extension_a_b(self):
@@ -47,7 +47,7 @@ class TestSwiftResilience(TestBase):
         self.doTestWithFlavor("a", "b")
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
     def test_cross_module_extension_b_a(self):
@@ -56,7 +56,7 @@ class TestSwiftResilience(TestBase):
         self.doTestWithFlavor("b", "a")
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin
     @swiftTest
     @skipIf(debug_info=no_match(["dsym"]))
     def test_cross_module_extension_b_b(self):

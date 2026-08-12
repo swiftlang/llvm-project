@@ -9,7 +9,7 @@ class TestSwiftTripleDetection(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @swiftTest
-    @skipUnlessDarwin
+    @requireDarwin
     @skipIfDarwinEmbedded
     def test(self):
         """Test that an underspecified triple is upgraded with a version number.

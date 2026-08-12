@@ -9,7 +9,7 @@ class TestCase(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     def test(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(

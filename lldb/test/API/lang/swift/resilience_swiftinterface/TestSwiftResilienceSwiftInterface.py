@@ -7,7 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftResilienceSwiftInterface(TestBase):
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireDarwin
     @swiftTest
     def test(self):
         """Test the odd scenario where a user registers a binary

@@ -22,7 +22,7 @@ import os
 class TestSwiftObjCOptionalType(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     def test_swift_objc_optional_type(self):
         """Check formatting for T? and T! when T is an ObjC type"""
         self.build()

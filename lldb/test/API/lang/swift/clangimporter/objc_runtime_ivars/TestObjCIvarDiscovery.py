@@ -25,7 +25,7 @@ class TestObjCIVarDiscovery(TestBase):
     SHARED_BUILD_TESTCASE = False
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @skipIf(debug_info=no_match("dsym"))
     @swiftTest
     def test_nodbg(self):
@@ -34,7 +34,7 @@ class TestObjCIVarDiscovery(TestBase):
         self.do_test(False)
 
     @requireNotEmbeddedSwift
-    @skipUnlessDarwin
+    @requireSwiftObjCInterop
     @skipIf(debug_info=no_match("dsym"))
     @swiftTest
     def test_dbg(self):
