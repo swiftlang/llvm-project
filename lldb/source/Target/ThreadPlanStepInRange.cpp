@@ -38,14 +38,15 @@ uint32_t ThreadPlanStepInRange::s_default_flag_values =
 
 ThreadPlanStepInRange::ThreadPlanStepInRange(
     Thread &thread, const AddressRange &range,
-    const SymbolContext &addr_context, const char *step_into_target,
+    const SymbolContext &addr_context, std::string step_into_target,
     lldb::RunMode stop_others, LazyBool step_in_avoids_code_without_debug_info,
     LazyBool step_out_avoids_code_without_debug_info)
     : ThreadPlanStepRange(ThreadPlan::eKindStepInRange,
                           "Step Range stepping in", thread, range, addr_context,
                           stop_others),
       ThreadPlanShouldStopHere(this), m_step_past_prologue(true),
-      m_virtual_step(eLazyBoolCalculate), m_step_into_target(step_into_target) {
+      m_virtual_step(eLazyBoolCalculate),
+      m_step_into_target(std::move(step_into_target)) {
   SetCallbacks();
   SetFlagsToDefault();
   SetupAvoidNoDebug(step_in_avoids_code_without_debug_info,
@@ -117,7 +118,7 @@ void ThreadPlanStepInRange::GetDescription(Stream *s,
     printed_line_info = true;
   }
 
-  if (m_step_into_target)
+  if (!m_step_into_target.empty())
     s->Format(" targeting {0}", m_step_into_target);
 
   if (!printed_line_info || level == eDescriptionLevelVerbose) {
