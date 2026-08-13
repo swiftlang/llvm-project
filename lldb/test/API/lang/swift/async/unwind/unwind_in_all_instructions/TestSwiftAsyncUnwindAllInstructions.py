@@ -65,7 +65,9 @@ class TestCase(lldbtest.TestBase):
                 breakpoints.add(bp.GetID())
         return breakpoints
 
-    unwind_fail_range_cache = dict()
+    def setUp(self):
+        lldbtest.TestBase.setUp(self)
+        self.unwind_fail_range_cache = {}
 
     # There are challenges when unwinding Q funclets ("await resume"): LLDB cannot
     # detect the transition point where x22 stops containing the indirect context,
@@ -77,11 +79,11 @@ class TestCase(lldbtest.TestBase):
     # includes such instructions, so the test may skip checks while stopped in them.
     def compute_unwind_fail_range(self, function, target):
         name = function.GetName()
-        if name in TestCase.unwind_fail_range_cache:
-            return TestCase.unwind_fail_range_cache[name]
+        if name in self.unwind_fail_range_cache:
+            return self.unwind_fail_range_cache[name]
 
         if "await resume" not in function.GetName():
-            TestCase.unwind_fail_range_cache[name] = range(0)
+            self.unwind_fail_range_cache[name] = range(0)
             return range(0)
 
         first_pc_after_prologue = function.GetStartAddress()
@@ -123,7 +125,7 @@ class TestCase(lldbtest.TestBase):
             first_bad_instr.GetAddress().GetFileAddress(),
             first_good_instr.GetAddress().GetFileAddress(),
         )
-        TestCase.unwind_fail_range_cache[name] = fail_range
+        self.unwind_fail_range_cache[name] = fail_range
         return fail_range
 
     def should_skip_Q_funclet(self, thread):
@@ -166,7 +168,7 @@ class TestCase(lldbtest.TestBase):
                 return thread, bpid
         return None, None
 
-    @skipEmbeddedSwift  # rdar://183960945 (Fix async tests running in embedded mode)
+    @skipEmbeddedSwiftOnLinux
     @swiftTest
     @skipIf(oslist=["windows"])
     def test(self):
