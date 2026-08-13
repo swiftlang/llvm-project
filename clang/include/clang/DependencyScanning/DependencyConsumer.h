@@ -43,6 +43,8 @@ public:
   virtual void handleContextHash(std::string Hash) = 0;
 
   virtual void handleIncludeTreeID(std::string ID) {}
+
+  virtual void finishQuery(StringRef ModuleName, bool Success) {}
 };
 } // namespace clang::dependencies
 
