@@ -661,11 +661,12 @@ protected:
                            bool &unresolved_typealias);
 
   swift::Demangle::NodePointer
-  GetClangTypeNode(CompilerType clang_type, swift::Demangle::Demangler &dem);
+  GetClangTypeNode(CompilerType clang_type, swift::Demangle::Demangler &dem,
+                   swift::Mangle::ManglingFlavor flavor);
 
   swift::Demangle::NodePointer
-  GetClangTypeTypeNode(swift::Demangle::Demangler &dem,
-                       CompilerType clang_type);
+  GetClangTypeTypeNode(swift::Demangle::Demangler &dem, CompilerType clang_type,
+                       swift::Mangle::ManglingFlavor flavor);
 
   virtual ExecutionContextRef
   GetExecutionContextForType(lldb::opaque_compiler_type_t type) {
