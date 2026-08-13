@@ -161,7 +161,15 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
           }
         } break;
         case llvm::dwarf::DW_AT_byte_size:
-          dwarf_byte_size = form_value.Unsigned();
+          // Like DW_AT_linkage_name above, this could be a type with a
+          // DW_AT_specification pointing at the unsubstituted generic type,
+          // whose DW_AT_byte_size is meaningless (it is emitted as 0 because
+          // the size of an unbound generic isn't known). Don't let it
+          // overwrite the size of the referring DIE, which describes the
+          // substituted type. GetAttributes() guarantees that the attributes
+          // of the referring DIE come before those of the specification.
+          if (!dwarf_byte_size)
+            dwarf_byte_size = form_value.Unsigned();
           break;
         case llvm::dwarf::DW_AT_type:
           if (die.Tag() == llvm::dwarf::DW_TAG_const_type)

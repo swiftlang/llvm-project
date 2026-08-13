@@ -7,9 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftExpressionConstantMaterialization(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
-    # In embedded Swift the Swift compiler emits the DW_AT_byte_size
-    # for Optional as 0, which is incorrect.
-    @skipEmbeddedSwift
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
     def test(self):
         """Test constants can be materialized"""
