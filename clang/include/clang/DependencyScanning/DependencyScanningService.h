@@ -9,6 +9,7 @@
 #ifndef LLVM_CLANG_DEPENDENCYSCANNING_DEPENDENCYSCANNINGSERVICE_H
 #define LLVM_CLANG_DEPENDENCYSCANNING_DEPENDENCYSCANNINGSERVICE_H
 
+#include "clang/Basic/AtomicLineLogger.h"
 #include "clang/CAS/CASOptions.h"
 #include "clang/DependencyScanning/DependencyScanningFilesystem.h"
 #include "clang/DependencyScanning/InProcessModuleCache.h"
@@ -122,6 +123,9 @@ struct DependencyScanningServiceOptions {
   /// This enables generation of dependency files, and emission of full
   /// diagnostics.
   bool AsCompilation = false;
+  /// The path to a log file, which logs timing of actions performed by
+  /// the dependency scanner.
+  std::string LogPath;
 };
 
 /// The dependency scanning service contains shared configuration and state that
@@ -146,6 +150,7 @@ public:
   CASOptions getCASOpts() const;
   std::shared_ptr<cas::ObjectStore> getCAS() const;
   std::shared_ptr<cas::ActionCache> getActionCache() const;
+  AtomicLineLogger &getLogger() { return Logger; }
 
 private:
   /// The options customizing dependency scanning behavior.
@@ -154,6 +159,8 @@ private:
   DependencyScanningFilesystemSharedCache SharedCache;
   /// The global module cache entries.
   ModuleCacheEntries ModCacheEntries;
+  /// The logger of dependency scanning actions.
+  AtomicLineLogger Logger;
 };
 
 } // end namespace dependencies
