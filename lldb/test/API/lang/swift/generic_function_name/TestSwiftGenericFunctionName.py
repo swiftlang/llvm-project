@@ -5,7 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftGenericFunction(lldbtest.TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184867789 (Embedded Swift: monomorphized frames have no metadata variable to bind generic parameters from)
     @swiftTest
     def test(self):
         """Test display of generic function names"""

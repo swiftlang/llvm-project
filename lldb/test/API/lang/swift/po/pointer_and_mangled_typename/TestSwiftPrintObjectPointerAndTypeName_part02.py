@@ -15,7 +15,7 @@ class TestCase(TestBase):
     def _filecheck(self, key):
         self.filecheck_log(self.log, __file__, f"-check-prefix=CHECK-{key}")
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184868750 (Embedded Swift: three po test files carry a byte-identical 30-line expectation helper)
     @swiftTest
     def test_enum(self):
         self.build()
@@ -26,7 +26,7 @@ class TestCase(TestBase):
         self._filecheck("ENUM")
         # CHECK-ENUM: stringForPrintObject(UnsafeRawPointer(bitPattern: {{.*}}), mangledTypeName: "1a4EnumOD")
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184868750 (Embedded Swift: three po test files carry a byte-identical 30-line expectation helper)
     @swiftTest
     def test_generic_struct(self):
         self.build()
@@ -37,7 +37,7 @@ class TestCase(TestBase):
         self._filecheck("GEN-STRUCT")
         # CHECK-GEN-STRUCT: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "1a13GenericStructVySSGD")
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184868750 (Embedded Swift: three po test files carry a byte-identical 30-line expectation helper)
     @swiftTest
     def test_generic_class(self):
         self.build()
@@ -48,7 +48,7 @@ class TestCase(TestBase):
         self._filecheck("GEN-CLASS")
         # CHECK-GEN-CLASS: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "1a12GenericClassCySSGD")
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184868750 (Embedded Swift: three po test files carry a byte-identical 30-line expectation helper)
     @swiftTest
     def test_generic_enum(self):
         self.build()

@@ -8,7 +8,7 @@ import platform
 class TestStepIntoOverride(lldbtest.TestBase):
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184867504 (Embedded Swift: DWARF prologue_end precedes argument spills when entry-block lines are zeroed)
     @swiftTest
     def test_swift_stepping(self):
         self.build()
