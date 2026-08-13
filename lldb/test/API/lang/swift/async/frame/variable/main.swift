@@ -4,7 +4,8 @@ func randInt(_ i: Int) async -> Int {
 
 func inner<T>(_ t: T) async {
   // d is dynamically allocated by swift_task_alloc() because its size
-  // is unknown.
+  // is unknown. (Not in embedded Swift, which monomorphizes inner<T> and
+  // stores d inline in the async context.)
   let d = t
   let a = await randInt(30)
   print("break one")
