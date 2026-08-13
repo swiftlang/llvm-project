@@ -776,7 +776,8 @@ struct AsyncModuleCompile : PPCallbacks {
         createVFSFromCompilerInvocation(CI.getInvocation(), CI.getDiagnostics(),
                                         std::move(VFS), Service.getCAS());
     auto DC = std::make_unique<DiagnosticConsumer>();
-    auto MC = makeInProcessModuleCache(Service.getModuleCacheEntries());
+    auto MC = makeInProcessModuleCache(Service.getModuleCacheEntries(),
+                                       Service.getLogger());
     CompilerInstance::ThreadSafeCloneConfig CloneConfig(std::move(VFS), *DC,
                                                         std::move(MC));
     auto ModCI1 = CI.cloneForModuleCompile(SourceLocation(), M, ModuleFileName,
@@ -890,7 +891,8 @@ bool DependencyScanningAction::runInvocation(
   // Quickly discovers and compiles modules for the real scan below.
   std::optional<AsyncModuleCompiles> AsyncCompiles;
   if (Service.getOpts().AsyncScanModules) {
-    auto ModCache = makeInProcessModuleCache(Service.getModuleCacheEntries());
+    auto ModCache = makeInProcessModuleCache(Service.getModuleCacheEntries(),
+                                             Service.getLogger());
     auto ScanInstanceStorage = std::make_unique<CompilerInstance>(
         std::make_shared<CompilerInvocation>(*ScanInvocation), PCHContainerOps,
         std::move(ModCache));
@@ -915,7 +917,9 @@ bool DependencyScanningAction::runInvocation(
     SingleTUWithAsyncModuleCompiles Action(Service, Controller, *AsyncCompiles);
     (void)ScanInstance.ExecuteAction(Action);
   }
-  auto ModCache = makeInProcessModuleCache(Service.getModuleCacheEntries());
+
+  auto ModCache = makeInProcessModuleCache(Service.getModuleCacheEntries(),
+                                           Service.getLogger());
   ScanInstanceStorage.emplace(std::move(ScanInvocation),
                               std::move(PCHContainerOps), std::move(ModCache));
   CompilerInstance &ScanInstance = *ScanInstanceStorage;

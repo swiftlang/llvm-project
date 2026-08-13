@@ -13,6 +13,7 @@
 #include "clang/DependencyScanning/DependencyScannerImpl.h"
 #include "clang/Serialization/ObjectFilePCHContainerReader.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/Support/VirtualFileSystem.h"
 
@@ -96,6 +97,12 @@ bool DependencyScanningWorker::computeDependencies(
           {Cmd.front(), {Cmd.begin() + 1, Cmd.end()}, std::nullopt});
       return true;
     }
+
+    Service.getLogger().log().logArray("starting scanning command:", " ", Cmd);
+    llvm::scope_exit ExitLogging([&] {
+      Service.getLogger().log().logArray("finished scanning command:", " ",
+                                         Cmd);
+    });
 
     auto DiagEngineWithDiagOpts =
         DiagnosticsEngineWithDiagOpts(Cmd, FS, DiagConsumer);
