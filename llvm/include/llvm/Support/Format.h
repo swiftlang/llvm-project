@@ -105,10 +105,10 @@ raw_ostream &operator<<(raw_ostream &OS, format_object<Ts...> Fmt) {
   // affects the Swift compiler because it contains Swift code that
   // interoperates with C++ code that instantiates this template, and Swift's
   // C++ interoperability enables block pointer conversions.
-  auto Print = [&Fmt](char *Buf, size_t Size) -> int {
-    return Fmt.snprint(Buf, Size);
+  auto Print = [&Fmt](char *Buf, size_t Size) -> size_t {
+    return Fmt.print(Buf, Size);
   };
-  OS << function_ref<int(char *, size_t)>(Print);
+  OS << function_ref<size_t(char *, size_t)>(Print);
   return OS;
 }
 
