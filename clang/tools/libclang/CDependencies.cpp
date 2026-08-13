@@ -23,6 +23,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/SerializedDiagnosticPrinter.h"
 #include "clang/Frontend/TextDiagnosticBuffer.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Options/Options.h"
 #include "clang/Tooling/DependencyScanningTool.h"
 #include "llvm/ADT/STLExtras.h"
@@ -331,15 +332,16 @@ enum CXErrorCode clang_experimental_DependencyScannerWorker_getDepGraph(
   if (ModuleName) {
     // FIXME: Tool creates its own worker. Avoid that.
     DependencyScanningTool Tool(Worker->getService());
-    auto MaybeCIWithCtx =
-        CompilerInstanceWithContext::initializeFromCommandline(
-            Tool, WorkingDirectory, Compilation, *Controller,
-            *SerialDiagConsumer);
-
-    if (!MaybeCIWithCtx)
-      return CXError_Failure;
-    Result = MaybeCIWithCtx->computeDependencies(StringRef(ModuleName),
-                                                 DepConsumer, *Controller);
+    bool Delivered = false;
+    auto GetNextName = [&]() -> std::optional<std::string> {
+      if (Delivered)
+        return std::nullopt;
+      Delivered = true;
+      return std::string(ModuleName);
+    };
+    Result = Tool.getByNameDependencies(WorkingDirectory, Compilation,
+                                        *SerialDiagConsumer, *Controller,
+                                        GetNextName, DepConsumer);
     if (!Result)
       return CXError_Failure;
   } else {

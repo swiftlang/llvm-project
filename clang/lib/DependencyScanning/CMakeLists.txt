@@ -13,7 +13,6 @@ add_clang_library(clangDependencyScanning
   DependencyScanningWorker.cpp
   IncludeTreeActionController.cpp
   DependencyScanningUtils.cpp
-  DependencyScannerImpl.cpp
   InProcessModuleCache.cpp
   ModuleDepCollector.cpp
   ScanAndUpdateArgs.cpp

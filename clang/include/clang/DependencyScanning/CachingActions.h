@@ -10,6 +10,7 @@
 #define LLVM_CLANG_DEPENDENCYSCANNING_CACHINGACTIONS_H
 
 #include "clang/DependencyScanning/DependencyScanningUtils.h"
+#include "clang/DependencyScanning/ScanAndUpdateArgs.h"
 
 namespace clang::dependencies {
 
