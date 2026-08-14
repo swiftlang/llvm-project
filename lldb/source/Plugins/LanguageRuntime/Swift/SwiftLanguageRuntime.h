@@ -765,6 +765,13 @@ protected:
   GetTypeFromMetadataAddressEmbedded(lldb::addr_t metadata_addr,
                                      TypeSystemSwiftTypeRef &ts);
 
+  /// Resolves the type whose metadata is at \p metadata_addr, using whichever
+  /// representation \p flavor implies.
+  llvm::Expected<const swift::reflection::TypeRef &>
+  GetTypeRefFromMetadataAddress(lldb::addr_t metadata_addr,
+                                TypeSystemSwiftTypeRef &ts,
+                                swift::Mangle::ManglingFlavor flavor);
+
   /// Resolves the type a "type metadata for T" symbol names, and whether the
   /// symbol names full metadata rather than type metadata.
   llvm::Expected<std::pair<CompilerType, bool>>
