@@ -780,11 +780,12 @@ static void EmitIncompleteCountedByPointeeNotes(Sema &S,
     CATL = TL.getAsAdjusted<CountAttributedTypeLoc>();
 
   if (CATL.isNull()) {
-    // Fall back to pointing to the count expr - not great, but close enough.
-    // This should happen rarely, if ever.
-    S.Diag(CATy->getCountExpr()->getExprLoc(),
+    /* TO_UPSTREAM(BoundsSafety) ON*/
+    SourceRange AttrSrcRange = SourceRangeFor(CATy, S);
+    S.Diag(AttrSrcRange.getBegin(),
            diag::note_counted_by_consider_using_sized_by)
-        << CATy->isOrNull();
+        << CATy->isOrNull() << AttrSrcRange;
+    /* TO_UPSTREAM(BoundsSafety) OFF*/
     return;
   }
   SourceRange AttrSrcRange = CATL.getAttrNameRange(S.getASTContext());
