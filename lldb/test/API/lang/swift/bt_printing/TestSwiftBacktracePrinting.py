@@ -19,7 +19,7 @@ import os
 
 
 class TestSwiftBacktracePrinting(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184867789 (Embedded Swift: monomorphized frames have no metadata variable to bind generic parameters from)
     @swiftTest
     def test_swift_backtrace_printing(self):
         """Test printing Swift backtrace"""
