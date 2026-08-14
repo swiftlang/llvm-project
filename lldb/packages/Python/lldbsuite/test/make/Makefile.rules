@@ -145,7 +145,7 @@ ifeq "$(ARCH)" ""
 endif
 
 # Use -target to pass the triple to the compiler.
-ARCH_CFLAGS := -target $(TRIPLE)
+override ARCH_CFLAGS += -target $(TRIPLE)
 
 #----------------------------------------------------------------------
 # CC defaults to clang.
