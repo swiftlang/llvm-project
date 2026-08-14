@@ -556,21 +556,27 @@ BoundsAttributedTypeLoc::getAttrNameRange(const ASTContext &Ctx) const {
 }
 
 static TypeSourceInfo *getTSI(const Decl *D) {
-  if (const auto *DD = dyn_cast<DeclaratorDecl>(D)) {
+  if (const auto *DD = dyn_cast_or_null<DeclaratorDecl>(D)) {
     return DD->getTypeSourceInfo();
   }
   return nullptr;
 }
 
 struct TypeLocFinder : public ConstStmtVisitor<TypeLocFinder, TypeLoc> {
+  TypeLoc VisitStmt(const Stmt *) { return {}; }
+
   TypeLoc VisitParenExpr(const ParenExpr *E) { return Visit(E->getSubExpr()); }
 
   TypeLoc VisitDeclRefExpr(const DeclRefExpr *E) {
-    return getTSI(E->getDecl())->getTypeLoc();
+    if (TypeSourceInfo *TSI = getTSI(E->getDecl()))
+      return TSI->getTypeLoc();
+    return {};
   }
 
   TypeLoc VisitMemberExpr(const MemberExpr *E) {
-    return getTSI(E->getMemberDecl())->getTypeLoc();
+    if (TypeSourceInfo *TSI = getTSI(E->getMemberDecl()))
+      return TSI->getTypeLoc();
+    return {};
   }
 
   TypeLoc VisitExplicitCastExpr(const ExplicitCastExpr *E) {
@@ -578,13 +584,11 @@ struct TypeLocFinder : public ConstStmtVisitor<TypeLocFinder, TypeLoc> {
   }
 
   TypeLoc VisitCallExpr(const CallExpr *E) {
-    if (const auto *D = E->getCalleeDecl()) {
-      FunctionTypeLoc FTL = getTSI(D)->getTypeLoc().getAs<FunctionTypeLoc>();
-      if (FTL.isNull()) {
-        return FTL;
-      }
+    TypeSourceInfo *TSI = getTSI(E->getCalleeDecl());
+    if (!TSI)
+      return {};
+    if (auto FTL = TSI->getTypeLoc().getAsAdjusted<FunctionTypeLoc>())
       return FTL.getReturnLoc();
-    }
     return {};
   }
 };
@@ -1017,7 +1021,11 @@ static bool BoundsSafetyCheckFunctionParamOrCountAttrWithIncompletePointeeTy(
       << /*1*/ (ParamDecl ? 1 : 0) << /*2*/ (ParamName.size() > 0)
       << /*3*/ ParamName << /*4*/ Ty << /*5*/ PointeeTy << SR;
 
-  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TypeLoc());
+  TypeLoc TL;
+  if (TypeSourceInfo *TSI = getTSI(ParamDecl))
+    TL = TSI->getTypeLoc();
+
+  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TL);
   return false;
 }
 
@@ -1055,7 +1063,11 @@ BoundsSafetyCheckVarDeclCountAttrPtrWithIncompletePointeeTy(Sema &S,
       << /*2*/ VD->getName() << /*3*/ VD->getType() << /*4*/ PointeeTy
       << /*5*/ CATy->isOrNull() << SR;
 
-  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TypeLoc());
+  TypeLoc TL;
+  if (TypeSourceInfo *TSI = getTSI(VD))
+    TL = TSI->getTypeLoc();
+
+  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TL);
   return false;
 }
 

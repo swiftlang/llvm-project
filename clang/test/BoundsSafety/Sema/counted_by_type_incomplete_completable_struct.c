@@ -1,8 +1,3 @@
-// XFAIL: *
-// FIXME(cherry-pick): The pure cherry-pick of llvm/llvm-project#167287 crashes
-// on this pre-existing test in the downstream fork: getTSI() uses dyn_cast on a
-// null Assignee. The XFAIL is removed by the follow-up fix-up commit that makes
-// the TypeLoc lookup null-safe.
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify=expected,rs %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify=expected,rs %s
 #include <ptrcheck.h>
