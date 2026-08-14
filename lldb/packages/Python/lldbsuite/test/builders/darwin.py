@@ -59,20 +59,6 @@ class BuilderDarwin(Builder):
         # Return extra args as a formatted string.
         return ["{}={}".format(key, value) for key, value in args.items()]
 
-    def getArchCFlags(self):
-        triple = self.getTriple()
-        if not triple:
-            return []
-
-        _, _, os, version, _ = split_triple(triple)
-
-        if os == "darwin" or not version:
-            return []
-
-        target_os = "-mtargetos={}{}".format(os, version)
-
-        return ["ARCH_CFLAGS={}".format(target_os)]
-
     def getSwiftTargetFlags(self, arch):
         if not arch:
             arch = configuration.arch

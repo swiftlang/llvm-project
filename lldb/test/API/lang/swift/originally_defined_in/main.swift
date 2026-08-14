@@ -91,6 +91,7 @@ func f() {
     let h = ClassPair(t: Prop(), u: Prop2())
     let i = (A(), F(), Prop())
     let complex = Pair(t: E.t(Pair(t: Prop2(), u: C.D())), u: E.t(Prop()))
+    print("prologue")
     print("break here")
 }
 

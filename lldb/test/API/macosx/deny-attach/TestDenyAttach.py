@@ -11,6 +11,7 @@ class DenyAttachTestCase(TestBase):
     @skipUnlessDarwin
     @skipIfDarwinEmbedded  # PT_DENY_ATTACH attach behavior differs on ios/tvos/etc
     @skipIfAsan  # Attach tests time out inconsistently under asan.
+    @skipIfOutOfTreeDebugserver  # The PT_DENY_ATTACH handling is in debugserver.
     def test_attach_to_deny_attach_process(self):
         """Attaching to a PT_DENY_ATTACH process reports an error, not a crash."""
         self.build()

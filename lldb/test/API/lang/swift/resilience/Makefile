@@ -1,6 +1,8 @@
 EXE=
 all: libmod.a.dylib libmod.b.dylib main.a main.b
 
+export USE_PRIVATE_MODULE_CACHE := YES
+
 include Makefile.rules
 
 libmod.%.dylib: mod.%.swift \
