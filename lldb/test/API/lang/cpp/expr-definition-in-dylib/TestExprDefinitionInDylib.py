@@ -8,11 +8,6 @@ from lldbsuite.test import lldbutil
 class ExprDefinitionInDylibTestCase(TestBase):
     SHARED_BUILD_TESTCASE = False
 
-    @skipIf(
-        compiler="clang",
-        compiler_version=["<", "22"],
-        bugnumber="Required Clang flag not supported",
-    )
     @skipIfWindows
     def test_with_structor_linkage_names(self):
         """
@@ -81,16 +76,7 @@ class ExprDefinitionInDylibTestCase(TestBase):
         Tests that if structor declarations don't have linkage names, we can't
         call ABI-tagged constructors. But non-tagged ones are fine.
         """
-        # In older versions of Clang the -gno-structor-decl-linkage-names
-        # behaviour was the default.
-        if self.expectedCompiler(["clang"]) and self.expectedCompilerVersion(
-            [">=", "22.0"]
-        ):
-            self.build(
-                dictionary={"CXXFLAGS_EXTRAS": "-gno-structor-decl-linkage-names"}
-            )
-        else:
-            self.build()
+        self.build(dictionary={"CXXFLAGS_EXTRAS": "-gno-structor-decl-linkage-names"})
 
         target = self.dbg.CreateTarget(self.getBuildArtifact("a.out"))
         self.assertTrue(target, VALID_TARGET)
