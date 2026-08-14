@@ -773,7 +773,7 @@ static void EmitIncompleteCountedByPointeeNotes(Sema &S,
   // __sized_by(_or_null) doesn't have the complete type restriction.
   CountAttributedTypeLoc CATL;
   if (!TL.isNull())
-    CATL = TL.getAs<CountAttributedTypeLoc>();
+    CATL = TL.getAsAdjusted<CountAttributedTypeLoc>();
 
   if (CATL.isNull()) {
     // Fall back to pointing to the count expr - not great, but close enough.
