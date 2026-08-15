@@ -14,6 +14,7 @@
 #include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "Plugins/TypeSystem/Swift/SwiftDemangle.h"
 #include "Plugins/TypeSystem/Swift/TypeSystemSwiftTypeRef.h"
+#include "swift/Demangling/ManglingMacros.h"
 #include "swift/Strings.h"
 
 using namespace lldb;
@@ -242,7 +243,11 @@ void RegisterSwiftFrameRecognizers(Process &process) {
         Mangled::NamePreference::ePreferDemangledWithoutArguments, false);
   }
   {
-    auto symbol_regex_sp = std::make_shared<RegularExpression>("^\\$s.*");
+    // Match both mangling flavors: "$s" for regular Swift and "$e" for
+    // embedded Swift. The recognizer itself is flavor-agnostic, since it
+    // decides from the demangle tree.
+    auto symbol_regex_sp = std::make_shared<RegularExpression>(
+        "^(\\" MANGLING_PREFIX_STR "|\\" MANGLING_PREFIX_EMBEDDED_STR ").*");
     auto srf_sp = std::make_shared<SwiftHiddenFrameRecognizer>();
     manager.AddRecognizer(srf_sp, module_regex_sp, symbol_regex_sp,
                           Mangled::NamePreference::ePreferMangled, false);
