@@ -1017,7 +1017,7 @@ static bool BoundsSafetyCheckFunctionParamOrCountAttrWithIncompletePointeeTy(
       << /*1*/ (ParamDecl ? 1 : 0) << /*2*/ (ParamName.size() > 0)
       << /*3*/ ParamName << /*4*/ Ty << /*5*/ PointeeTy << SR;
 
-  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl);
+  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TypeLoc());
   return false;
 }
 
@@ -1055,7 +1055,7 @@ BoundsSafetyCheckVarDeclCountAttrPtrWithIncompletePointeeTy(Sema &S,
       << /*2*/ VD->getName() << /*3*/ VD->getType() << /*4*/ PointeeTy
       << /*5*/ CATy->isOrNull() << SR;
 
-  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl);
+  EmitIncompleteCountedByPointeeNotes(S, CATy, IncompleteTyDecl, TypeLoc());
   return false;
 }
 
