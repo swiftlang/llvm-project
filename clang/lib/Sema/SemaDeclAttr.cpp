@@ -8757,9 +8757,14 @@ static void handleCountedByAttrField(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (S.CheckCountedByAttrOnField(FD, CountExpr, CountInBytes, OrNull))
     return;
 
+  TypeLocBuilder TLB;
   QualType CAT = S.BuildCountAttributedArrayOrPointerType(
       FD->getType(), CountExpr, CountInBytes, OrNull);
+  TLB.pushFullCopy(FD->getTypeSourceInfo()->getTypeLoc());
+  CountAttributedTypeLoc CATL = TLB.push<CountAttributedTypeLoc>(CAT);
+  CATL.setAttrRange(AL.getRange());
   FD->setType(CAT);
+  FD->setTypeSourceInfo(TLB.getTypeSourceInfo(S.getASTContext(), CAT));
 }
 
 static void handleFunctionReturnThunksAttr(Sema &S, Decl *D,
