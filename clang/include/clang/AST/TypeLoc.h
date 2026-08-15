@@ -1349,6 +1349,8 @@ public:
 
   StringRef getAttrNameAsWritten(const ASTContext &Ctx) const;
   SourceRange getAttrNameRange(const ASTContext &Ctx) const;
+
+  SourceRange getLocalSourceRange() const { return getAttrRange(); }
 };
 
 class CountAttributedTypeLoc final
