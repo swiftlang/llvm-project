@@ -966,8 +966,8 @@ ConstraintInfo::getConstraintForSolving(CmpInst::Predicate Pred, Value *Op0,
       (Pred == CmpInst::ICMP_UGE && Op1 == NullC)) {
     auto &Value2Index = getValue2Index(false);
     // Return constraint that's trivially true.
-    return ConstraintTy(SmallVector<int64_t, 8>(Value2Index.size(), 0), false,
-                        false, false);
+    return ConstraintTy(SmallVector<int64_t, 8>(Value2Index.size() + 1, 0),
+                        false, false, false);
   }
 
   auto DL = State.DL;
