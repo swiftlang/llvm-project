@@ -3037,7 +3037,7 @@ public:
   CommandObjectLanguageSwiftTaskInfo(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "info",
                             "Print info about the Task being run on the "
-                            "current thread or the Task at the given address."
+                            "current thread or the Task at the given address.",
                             "language swift task info [<address>]") {
     AddSimpleArgumentList(eArgTypeAddress, eArgRepeatOptional);
   }
