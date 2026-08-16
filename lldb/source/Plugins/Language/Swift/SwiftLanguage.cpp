@@ -37,6 +37,8 @@
 #include "ObjCRuntimeSyntheticProvider.h"
 #include "SwiftFormatters.h"
 
+#include "swift/Parse/ParseVersion.h"
+
 #include <functional>
 #include <mutex>
 
@@ -2379,4 +2381,12 @@ Language *SwiftLanguage::CreateInstance(lldb::LanguageType language) {
   default:
     return nullptr;
   }
+}
+
+void SwiftLanguage::DumpHealthLog(llvm::raw_ostream &stream) {
+  DumpSwiftHealthLog(stream);
+}
+
+llvm::VersionTuple SwiftLanguage::GetCompilerVersion() {
+  return swift::version::getCurrentCompilerVersion();
 }

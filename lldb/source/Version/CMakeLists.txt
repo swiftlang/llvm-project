@@ -35,9 +35,19 @@ set_source_files_properties(
 )
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
+# Version.cpp prints the embedded Swift compiler version (swift::version), which
+# lives in the near-leaf swiftBasic (depends only on swiftDemangling), so this
+# does not drag the Swift compiler into tools that link lldbVersion.
+set(LLDB_VERSION_SWIFT_LIBS)
+if(LLDB_ENABLE_SWIFT_SUPPORT)
+  set(LLDB_VERSION_SWIFT_LIBS swiftBasic)
+endif()
+
 add_lldb_library(lldbVersion NO_PLUGIN_DEPENDENCIES
   Version.cpp
   ADDITIONAL_HEADERS
     ${version_inc}
     ${vcs_version_inc}
+  LINK_LIBS
+    ${LLDB_VERSION_SWIFT_LIBS}
 )

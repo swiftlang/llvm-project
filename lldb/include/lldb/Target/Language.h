@@ -25,6 +25,12 @@
 #include "lldb/lldb-private.h"
 #include "lldb/lldb-public.h"
 
+#include "llvm/Support/VersionTuple.h"
+
+namespace llvm {
+class raw_ostream;
+}
+
 namespace lldb_private {
 
 class LanguageProperties : public Properties {
@@ -495,6 +501,21 @@ public:
                              const SymbolContext &sc2) const {
     return {};
   }
+
+  /// Write a language-specific health/diagnostics report (used by the
+  /// swift-healthcheck command). Overridden by the Swift language plugin; a
+  /// no-op for every other language. Routing this through a virtual keeps the
+  /// core swift-healthcheck command from statically naming the Swift language
+  /// plugin, which would force-link the Swift compiler into tools like
+  /// lldb-server.
+  virtual void DumpHealthLog(llvm::raw_ostream &stream) {}
+
+  /// \return the version of the language's compiler that is integrated into
+  /// LLDB, used to warn about toolchain mismatches. Overridden by the Swift
+  /// language plugin; empty for other languages. Routing this through a virtual
+  /// keeps core code from statically referencing swiftParse (which drags the
+  /// Swift compiler into tools like lldb-server).
+  virtual llvm::VersionTuple GetCompilerVersion() { return {}; }
 
   virtual std::optional<bool> GetBooleanFromString(llvm::StringRef str) const;
 

@@ -29,7 +29,7 @@
 #include "llvm/Support/DJB.h"
 
 #ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
+#include "lldb/Core/SwiftDemangle.h"
 #endif // LLDB_ENABLE_SWIFT
 
 using namespace lldb;
@@ -349,14 +349,12 @@ void Symtab::InitNameIndexes() {
             continue;
           }
 #ifdef LLDB_ENABLE_SWIFT
-          else if (SwiftLanguageRuntime::IsSwiftMangledName(
-                       name.GetStringRef())) {
+          else if (SwiftDemangle::IsSwiftMangledName(name.GetStringRef())) {
             lldb_private::ConstString basename;
             bool is_method = false;
             ConstString mangled_name = mangled.GetMangledName();
-            if (SwiftLanguageRuntime::MethodName::
-                    ExtractFunctionBasenameFromMangled(mangled_name, basename,
-                                                       is_method)) {
+            if (SwiftDemangle::ExtractFunctionBasenameFromMangled(
+                    mangled_name, basename, is_method)) {
               if (basename && basename != mangled_name) {
                 if (is_method)
                   method_to_index.Append(basename, value);

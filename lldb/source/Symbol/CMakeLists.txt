@@ -1,12 +1,10 @@
-set(SWIFT_LIBS
-    swiftAST
-    swiftASTSectionImporter
-    swiftBasic
-    swiftClangImporter
-    swiftFrontend
-    swiftSIL
-    swiftSerialization
-)
+# lldbSymbol has no Swift or Clang sources of its own (SWIFT_SOURCES is empty
+# and no .cpp references clang:: / swift::). The Swift compiler libs and the
+# Clang frontend are pulled in by the Swift/Clang *plugins* (which liblldb links
+# via LLDB_ALL_PLUGINS), not by lldbSymbol. Keeping them off lldbSymbol stops
+# them from being force-linked into lldb-server, which links lldbSymbol but none
+# of those plugins.
+set(SWIFT_LIBS)
 list(APPEND LLVM_OPTIONAL_SOURCES ${SWIFT_SOURCES})
 if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
   unset(SWIFT_SOURCES)
@@ -15,7 +13,10 @@ if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
   set(LLDB_PLUGIN_DEPENDENCIES)
 else()
   set(PLUGIN_DEPENDENCY_ARG)
-  set(LLDB_PLUGIN_DEPENDENCIES lldbPluginSwiftLanguageRuntime)
+  # Symtab.cpp no longer references the Swift language runtime plugin: Swift
+  # symbol demangling now goes through the leaf helper in lldbCore
+  # (SwiftDemangle), which links only swiftDemangling.
+  set(LLDB_PLUGIN_DEPENDENCIES)
 endif()
 
 add_lldb_library(lldbSymbol ${PLUGIN_DEPENDENCY_ARG}
@@ -63,9 +64,6 @@ add_lldb_library(lldbSymbol ${PLUGIN_DEPENDENCY_ARG}
   LINK_COMPONENTS
     Support
   LINK_LIBS
-    clangAST
-    clangBasic
-    clangFrontend
     lldbCore
     lldbExpression
     lldbHost

@@ -12,11 +12,10 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
+#include "lldb/Target/Language.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-private.h"
-
-#include "Plugins/Language/Swift/LogChannelSwift.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -52,7 +51,12 @@ void CommandObjectHealthcheck::DoExecute(Args &args,
   }
 
   llvm::raw_fd_ostream temp_stream(temp_fd, true, true);
-  DumpSwiftHealthLog(temp_stream);
+  // Route through the Language plugin so this core command does not statically
+  // reference the Swift language plugin (which would force-link the Swift
+  // compiler into tools like lldb-server). Only present when the Swift language
+  // plugin is registered.
+  if (Language *swift_language = Language::FindPlugin(eLanguageTypeSwift))
+    swift_language->DumpHealthLog(temp_stream);
 
   result.AppendMessageWithFormat("Health check written to %s\n",
                                  temp_path.c_str());

@@ -169,8 +169,16 @@ public:
   virtual std::shared_ptr<const TypeSystemSwiftTypeRef>
   GetTypeSystemSwiftTypeRef() const = 0;
   virtual void SetTriple(const SymbolContext &sc,
-                         const llvm::Triple triple) = 0;
-  virtual void ClearModuleDependentCaches() = 0;
+                         const llvm::Triple triple) override = 0;
+  virtual void ClearModuleDependentCaches() override = 0;
+
+  /// All Swift type systems decode the Swift fixed-value-buffer bit from the
+  /// Type payload. This overrides the no-op default in the TypeSystem base so
+  /// core LLDB can query it without naming any concrete Swift class.
+  bool IsFixedValueBufferPayload(Type::Payload payload) override {
+    return TypePayloadSwift(payload).IsFixedValueBuffer();
+  }
+
   virtual lldb::TargetWP GetTargetWP() const = 0;
 
   virtual bool IsImportedType(lldb::opaque_compiler_type_t type,
