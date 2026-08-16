@@ -2115,7 +2115,8 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     return;
 
   if (T->getAttrKind() == attr::PtrSingle) {
-    OS << "__single";
+    if (!T->getModifiedType()->isSinglePointerType())
+      OS << "__single";
     return;
   }
   if (T->getAttrKind() == attr::PtrUnsafeIndexable) {

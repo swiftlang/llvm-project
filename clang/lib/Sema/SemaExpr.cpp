@@ -10690,6 +10690,9 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
 
   if (lFPAttr != destFPAttr) {
     QualType destType = S.Context.getPointerType(lhptee, destFPAttr);
+    if (destFPAttr.isSingle())
+      destType =
+          S.Context.getAttributedType(attr::PtrSingle, destType, destType);
     SplitQualType Split = LHSTy.getSplitUnqualifiedType();
     destType = S.Context.getQualifiedType(destType, Split.Quals);
 
@@ -26377,9 +26380,11 @@ ExprResult Sema::ActOnForgeSingle(SourceLocation KWLoc, Expr *Addr,
   if (getLangOpts().isBoundsSafetyAttributeOnlyMode()) {
     ResultType = Context.getAttributedType(attr::PtrSingle, Context.VoidPtrTy,
                                            Context.VoidPtrTy);
-  } else
-    ResultType = Context.getPointerType(Context.VoidTy,
-                                        BoundsSafetyPointerAttributes::single());
+  } else {
+    QualType SingleTy = Context.getPointerType(
+        Context.VoidTy, BoundsSafetyPointerAttributes::single());
+    ResultType = Context.getAttributedType(attr::PtrSingle, SingleTy, SingleTy);
+  }
   return BuildForgePtrExpr(KWLoc, RParenLoc, ResultType, Addr);
 }
 
