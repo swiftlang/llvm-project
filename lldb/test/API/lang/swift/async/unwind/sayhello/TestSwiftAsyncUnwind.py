@@ -14,7 +14,6 @@ class TestSwiftAsyncUnwind(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipIf(oslist=['windows',])
     def test(self):
         """Test async unwind"""
         self.build()

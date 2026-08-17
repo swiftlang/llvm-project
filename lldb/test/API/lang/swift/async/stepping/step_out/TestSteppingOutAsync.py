@@ -30,7 +30,6 @@ class TestCase(lldbtest.TestBase):
 
     @skipEmbeddedSwiftOnLinux
     @swiftTest
-    @skipIf(oslist=["windows"])
     def test(self):
         """Test `frame variable` in async functions"""
         self.build()

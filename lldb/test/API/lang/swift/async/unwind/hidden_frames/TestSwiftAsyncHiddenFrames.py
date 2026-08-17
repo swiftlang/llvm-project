@@ -10,7 +10,6 @@ class TestSwiftAsyncHiddenFrames(lldbtest.TestBase):
 
     @skipEmbeddedSwiftOnLinux
     @swiftTest
-    @skipIf(oslist=['windows',])
     def test(self):
         """Test async unwind"""
         self.build()

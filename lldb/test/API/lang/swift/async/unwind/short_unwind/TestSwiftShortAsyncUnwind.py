@@ -10,7 +10,6 @@ class TestSwiftAsyncUnwind(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipIf(oslist=["windows",])
     def test(self):
         """Test async unwinding with short backtraces work properly"""
         self.build()
