@@ -114,6 +114,7 @@ bool ThreadPlanShouldStopHere::DefaultShouldStopHereCallback(
 
   // If we're in a trampoline, don't stop by default.
   if (Target::GetGlobalProperties().GetEnableTrampolineSupport()) {
+    sc = frame->GetSymbolContext(lldb::eSymbolContextFunction);    
     if (sc.function && sc.function->IsGenericTrampoline())
       should_stop_here = false;
   }
