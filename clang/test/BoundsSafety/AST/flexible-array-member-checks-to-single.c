@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc %s | FileCheck %s
 
@@ -20,26 +18,22 @@ void checking_count_single(struct flexible *__single flex) {
 // CHECK: |   |-CallExpr
 // CHECK: |   | |-ImplicitCastExpr {{.+}} 'void (*__single)(struct flexible *__single)' <FunctionToPointerDecay>
 // CHECK: |   | | `-DeclRefExpr {{.+}} [[func_sink]]
-// CHECK: |   | | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <BoundsSafetyPointerCast>
-// CHECK: |   | | |   `-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | | |       | | |-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'struct flexible *__single'
-// CHECK: |   | | `-OpaqueValueExpr [[ove]]
-// CHECK: |   | |   `-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK: |   | |     |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |   | |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | |     | | |-OpaqueValueExpr [[ove_1]] {{.*}} 'struct flexible *__single'
-// CHECK: |   | |     | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK: |   | |     | | | |-ImplicitCastExpr {{.+}} 'int *' <ArrayToPointerDecay>
-// CHECK: |   | |     | | | | `-MemberExpr {{.+}} ->elems
-// CHECK: |   | |     | | | |   `-OpaqueValueExpr [[ove_1]] {{.*}} 'struct flexible *__single'
-// CHECK: |   | |     | | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK: |   | |     | | |   `-MemberExpr {{.+}} ->count
-// CHECK: |   | |     | | |     `-OpaqueValueExpr [[ove_1]] {{.*}} 'struct flexible *__single'
-// CHECK: |   | |     | `-OpaqueValueExpr [[ove_1]]
-// CHECK: |   | |     |   `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <LValueToRValue>
-// CHECK: |   | |     |     `-DeclRefExpr {{.+}} [[var_flex_1]]
-// CHECK: |   | |     `-OpaqueValueExpr [[ove_1]] {{.*}} 'struct flexible *__single'
-// CHECK: |   | `-OpaqueValueExpr [[ove]] {{.*}} 'struct flexible *__bidi_indexable'
+// CHECK: |   | `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <BoundsSafetyPointerCast>
+// CHECK: |   |   `-MaterializeSequenceExpr {{.+}} <Unbind>
+// CHECK: |   |     |-MaterializeSequenceExpr {{.+}} <Bind>
+// CHECK: |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'struct flexible *__bidi_indexable'
+// CHECK: |   |     | | |-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'struct flexible *__single':'struct flexible *'
+// CHECK: |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK: |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <ArrayToPointerDecay>
+// CHECK: |   |     | | | | `-MemberExpr {{.+}} ->elems
+// CHECK: |   |     | | | |   `-OpaqueValueExpr [[ove_1]] {{.*}} 'struct flexible *__single':'struct flexible *'
+// CHECK: |   |     | | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK: |   |     | | |   `-MemberExpr {{.+}} ->count
+// CHECK: |   |     | | |     `-OpaqueValueExpr [[ove_1]] {{.*}} 'struct flexible *__single':'struct flexible *'
+// CHECK: |   |     | `-OpaqueValueExpr [[ove_1]]
+// CHECK: |   |     |   `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <LValueToRValue>
+// CHECK: |   |     |     `-DeclRefExpr {{.+}} [[var_flex_1]]
+// CHECK: |   |     `-OpaqueValueExpr [[ove_1]] {{.*}} 'struct flexible *__single':'struct flexible *'
 
     (void)(struct flexible *__single)flex;
 // CHECK: |   `-CStyleCastExpr {{.+}} 'void' <ToVoid>
@@ -47,18 +41,18 @@ void checking_count_single(struct flexible *__single flex) {
 // CHECK: |       `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK: |         |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'struct flexible *__bidi_indexable'
-// CHECK: |         | | |-OpaqueValueExpr [[ove_2:0x[^ ]+]] {{.*}} 'struct flexible *__single'
+// CHECK: |         | | |-OpaqueValueExpr [[ove_2:0x[^ ]+]] {{.*}} 'struct flexible *__single':'struct flexible *'
 // CHECK: |         | | |-BinaryOperator {{.+}} 'int *' '+'
 // CHECK: |         | | | |-ImplicitCastExpr {{.+}} 'int *' <ArrayToPointerDecay>
 // CHECK: |         | | | | `-MemberExpr {{.+}} ->elems
-// CHECK: |         | | | |   `-OpaqueValueExpr [[ove_2]] {{.*}} 'struct flexible *__single'
+// CHECK: |         | | | |   `-OpaqueValueExpr [[ove_2]] {{.*}} 'struct flexible *__single':'struct flexible *'
 // CHECK: |         | | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK: |         | | |   `-MemberExpr {{.+}} ->count
-// CHECK: |         | | |     `-OpaqueValueExpr [[ove_2]] {{.*}} 'struct flexible *__single'
+// CHECK: |         | | |     `-OpaqueValueExpr [[ove_2]] {{.*}} 'struct flexible *__single':'struct flexible *'
 // CHECK: |         | `-OpaqueValueExpr [[ove_2]]
-// CHECK: |         |   `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <LValueToRValue>
+// CHECK: |         |   `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <LValueToRValue>
 // CHECK: |         |     `-DeclRefExpr {{.+}} [[var_flex_1]]
-// CHECK: |         `-OpaqueValueExpr [[ove_2]] {{.*}} 'struct flexible *__single'
+// CHECK: |         `-OpaqueValueExpr [[ove_2]] {{.*}} 'struct flexible *__single':'struct flexible *'
 
 }
 
@@ -66,31 +60,25 @@ void checking_count_single(struct flexible *__single flex) {
 void checking_count_indexable(struct flexible *__indexable flex) {
 // CHECK: | |-ParmVarDecl [[var_flex_2:0x[^ ]+]]
     sink(flex);
-// CHECK:  |-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK:  | |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: |   |-CallExpr
 // CHECK: |   | |-ImplicitCastExpr {{.+}} 'void (*__single)(struct flexible *__single)' <FunctionToPointerDecay>
 // CHECK: |   | | `-DeclRefExpr {{.+}} [[func_sink]]
-// CHECK: |   | | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <BoundsSafetyPointerCast>
-// CHECK: |   | | |   `-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | | |       | | |-OpaqueValueExpr [[ove_4:0x[^ ]+]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | | `-OpaqueValueExpr [[ove_3]]
-// CHECK: |   | |   `-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK: |   | |     |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |   | |     | |-PredefinedBoundsCheckExpr {{.+}} 'struct flexible *__indexable' <FlexibleArrayCountCast(BasePtr, FamPtr, Count)>
-// CHECK: |   | |     | | |-OpaqueValueExpr [[ove_4]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | |     | | |-OpaqueValueExpr [[ove_4]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | |     | | |-ImplicitCastExpr {{.+}} 'int *' <ArrayToPointerDecay>
-// CHECK: |   | |     | | | `-MemberExpr {{.+}} ->elems
-// CHECK: |   | |     | | |   `-OpaqueValueExpr [[ove_4]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | |     | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK: |   | |     | |   `-MemberExpr {{.+}} ->count
-// CHECK: |   | |     | |     `-OpaqueValueExpr [[ove_4]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | |     | `-OpaqueValueExpr [[ove_4]]
-// CHECK: |   | |     |   `-ImplicitCastExpr {{.+}} 'struct flexible *__indexable' <LValueToRValue>
-// CHECK: |   | |     |     `-DeclRefExpr {{.+}} [[var_flex_2]]
-// CHECK: |   | |     `-OpaqueValueExpr [[ove_4]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   | `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <BoundsSafetyPointerCast>
+// CHECK: |   |   `-MaterializeSequenceExpr {{.+}} <Unbind>
+// CHECK: |   |     |-MaterializeSequenceExpr {{.+}} <Bind>
+// CHECK: |   |     | |-PredefinedBoundsCheckExpr {{.+}} 'struct flexible *__indexable' <FlexibleArrayCountCast(BasePtr, FamPtr, Count)>
+// CHECK: |   |     | | |-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   |     | | |-OpaqueValueExpr [[ove_3]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   |     | | |-ImplicitCastExpr {{.+}} 'int *' <ArrayToPointerDecay>
+// CHECK: |   |     | | | `-MemberExpr {{.+}} ->elems
+// CHECK: |   |     | | |   `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   |     | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK: |   |     | |   `-MemberExpr {{.+}} ->count
+// CHECK: |   |     | |     `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   |     | `-OpaqueValueExpr [[ove_3]]
+// CHECK: |   |     |   `-ImplicitCastExpr {{.+}} 'struct flexible *__indexable' <LValueToRValue>
+// CHECK: |   |     |     `-DeclRefExpr {{.+}} [[var_flex_2]]
+// CHECK: |   |     `-OpaqueValueExpr [[ove_3]] {{.*}} 'struct flexible *__indexable'
 
     (void)(struct flexible *__single)flex;
 // CHECK: |   `-CStyleCastExpr {{.+}} 'void' <ToVoid>
@@ -104,31 +92,25 @@ void checking_count_bidi_indexable(struct flexible *__indexable flex) {
 // CHECK: {{^}}| |-ParmVarDecl [[var_flex_3:0x[^ ]+]]
     sink(flex);
 // CHECK: | `-CompoundStmt
-// CHECK: |   |-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK: |   | |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |   | | |-CallExpr
-// CHECK: |   | | | |-ImplicitCastExpr {{.+}} 'void (*__single)(struct flexible *__single)' <FunctionToPointerDecay>
-// CHECK: |   | | | | `-DeclRefExpr {{.+}} [[func_sink]]
-// CHECK: |   | | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <BoundsSafetyPointerCast>
-// CHECK: |   | | |   `-OpaqueValueExpr [[ove_5:0x[^ ]+]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | | |       | | |-OpaqueValueExpr [[ove_6:0x[^ ]+]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | | `-OpaqueValueExpr [[ove_5]]
-// CHECK: |   | |   `-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK: |   | |     |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |   | |     | |-PredefinedBoundsCheckExpr {{.+}} 'struct flexible *__indexable' <FlexibleArrayCountCast(BasePtr, FamPtr, Count)>
-// CHECK: |   | |     | | |-OpaqueValueExpr [[ove_6]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | |     | | |-OpaqueValueExpr [[ove_6]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | |     | | |-ImplicitCastExpr {{.+}} 'int *' <ArrayToPointerDecay>
-// CHECK: |   | |     | | | `-MemberExpr {{.+}} ->elems
-// CHECK: |   | |     | | |   `-OpaqueValueExpr [[ove_6]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | |     | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK: |   | |     | |   `-MemberExpr {{.+}} ->count
-// CHECK: |   | |     | |     `-OpaqueValueExpr [[ove_6]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | |     | `-OpaqueValueExpr [[ove_6]]
-// CHECK: |   | |     |   `-ImplicitCastExpr {{.+}} 'struct flexible *__indexable' <LValueToRValue>
-// CHECK: |   | |     |     `-DeclRefExpr {{.+}} [[var_flex_3]]
-// CHECK: |   | |     `-OpaqueValueExpr [[ove_6]] {{.*}} 'struct flexible *__indexable'
-// CHECK: |   | `-OpaqueValueExpr [[ove_5]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   |-CallExpr
+// CHECK: |   | |-ImplicitCastExpr {{.+}} 'void (*__single)(struct flexible *__single)' <FunctionToPointerDecay>
+// CHECK: |   | | `-DeclRefExpr {{.+}} [[func_sink]]
+// CHECK: |   | `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <BoundsSafetyPointerCast>
+// CHECK: |   |   `-MaterializeSequenceExpr {{.+}} <Unbind>
+// CHECK: |   |     |-MaterializeSequenceExpr {{.+}} <Bind>
+// CHECK: |   |     | |-PredefinedBoundsCheckExpr {{.+}} 'struct flexible *__indexable' <FlexibleArrayCountCast(BasePtr, FamPtr, Count)>
+// CHECK: |   |     | | |-OpaqueValueExpr [[ove_5:0x[^ ]+]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   |     | | |-OpaqueValueExpr [[ove_5]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   |     | | |-ImplicitCastExpr {{.+}} 'int *' <ArrayToPointerDecay>
+// CHECK: |   |     | | | `-MemberExpr {{.+}} ->elems
+// CHECK: |   |     | | |   `-OpaqueValueExpr [[ove_5]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   |     | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK: |   |     | |   `-MemberExpr {{.+}} ->count
+// CHECK: |   |     | |     `-OpaqueValueExpr [[ove_5]] {{.*}} 'struct flexible *__indexable'
+// CHECK: |   |     | `-OpaqueValueExpr [[ove_5]]
+// CHECK: |   |     |   `-ImplicitCastExpr {{.+}} 'struct flexible *__indexable' <LValueToRValue>
+// CHECK: |   |     |     `-DeclRefExpr {{.+}} [[var_flex_3]]
+// CHECK: |   |     `-OpaqueValueExpr [[ove_5]] {{.*}} 'struct flexible *__indexable'
 
     (void)(struct flexible *__single)flex;
 // CHECK: |   `-CStyleCastExpr {{.+}} 'void' <ToVoid>
@@ -143,49 +125,40 @@ void checking_count_sized_by(struct flexible *__sized_by(size) flex, int size) {
 // CHECK: {{^}}| |-ParmVarDecl [[var_size:0x[^ ]+]]
     sink(flex);
 // CHECK: | `-CompoundStmt
-// CHECK: |   |-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK: |   | |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |   | | |-CallExpr
-// CHECK: |   | | | |-ImplicitCastExpr {{.+}} 'void (*__single)(struct flexible *__single)' <FunctionToPointerDecay>
-// CHECK: |   | | | | `-DeclRefExpr {{.+}} [[func_sink]]
-// CHECK: |   | | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <BoundsSafetyPointerCast>
-// CHECK: |   | | |   `-OpaqueValueExpr [[ove_7:0x[^ ]+]] {{.*}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | | |       | | |-OpaqueValueExpr [[ove_8:0x[^ ]+]] {{.*}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | | |       | | |   | | |-OpaqueValueExpr [[ove_9:0x[^ ]+]] {{.*}} 'struct flexible *__single __sized_by(size)':'struct flexible *__single'
-// CHECK: |   | | |       | | |   | | |   `-OpaqueValueExpr [[ove_10:0x[^ ]+]] {{.*}} 'int'
-// CHECK: |   | | `-OpaqueValueExpr [[ove_7]]
-// CHECK: |   | |   `-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK: |   | |     |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |   | |     | |-PredefinedBoundsCheckExpr {{.+}} 'struct flexible *__bidi_indexable' <FlexibleArrayCountCast(BasePtr, FamPtr, Count)>
-// CHECK: |   | |     | | |-OpaqueValueExpr [[ove_8]] {{.*}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | |     | | |-OpaqueValueExpr [[ove_8]] {{.*}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | |     | | |-ImplicitCastExpr {{.+}} 'int *' <ArrayToPointerDecay>
-// CHECK: |   | |     | | | `-MemberExpr {{.+}} ->elems
-// CHECK: |   | |     | | |   `-OpaqueValueExpr [[ove_8]] {{.*}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | |     | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK: |   | |     | |   `-MemberExpr {{.+}} ->count
-// CHECK: |   | |     | |     `-OpaqueValueExpr [[ove_8]] {{.*}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | |     | `-OpaqueValueExpr [[ove_8]]
-// CHECK: |   | |     |   `-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK: |   | |     |     |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |   | |     |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | |     |     | | |-OpaqueValueExpr [[ove_9]] {{.*}} 'struct flexible *__single __sized_by(size)':'struct flexible *__single'
-// CHECK: |   | |     |     | | |-ImplicitCastExpr {{.+}} 'struct flexible *' <BitCast>
-// CHECK: |   | |     |     | | | `-BinaryOperator {{.+}} 'char *' '+'
-// CHECK: |   | |     |     | | |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
-// CHECK: |   | |     |     | | |   | `-ImplicitCastExpr {{.+}} 'struct flexible *' <BoundsSafetyPointerCast>
-// CHECK: |   | |     |     | | |   |   `-OpaqueValueExpr [[ove_9]] {{.*}} 'struct flexible *__single __sized_by(size)':'struct flexible *__single'
-// CHECK: |   | |     |     | | |   `-OpaqueValueExpr [[ove_10]] {{.*}} 'int'
-// CHECK: |   | |     |     | |-OpaqueValueExpr [[ove_9]]
-// CHECK: |   | |     |     | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single __sized_by(size)':'struct flexible *__single' <LValueToRValue>
-// CHECK: |   | |     |     | |   `-DeclRefExpr {{.+}} [[var_flex_4]]
-// CHECK: |   | |     |     | `-OpaqueValueExpr [[ove_10]]
-// CHECK: |   | |     |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK: |   | |     |     |     `-DeclRefExpr {{.+}} [[var_size]]
-// CHECK: |   | |     |     |-OpaqueValueExpr [[ove_9]] {{.*}} 'struct flexible *__single __sized_by(size)':'struct flexible *__single'
-// CHECK: |   | |     |     `-OpaqueValueExpr [[ove_10]] {{.*}} 'int'
-// CHECK: |   | |     `-OpaqueValueExpr [[ove_8]] {{.*}} 'struct flexible *__bidi_indexable'
-// CHECK: |   | `-OpaqueValueExpr [[ove_7]] {{.*}} 'struct flexible *__bidi_indexable'
+// CHECK: |   |-CallExpr
+// CHECK: |   | |-ImplicitCastExpr {{.+}} 'void (*__single)(struct flexible *__single)' <FunctionToPointerDecay>
+// CHECK: |   | | `-DeclRefExpr {{.+}} [[func_sink]]
+// CHECK: |   | `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <BoundsSafetyPointerCast>
+// CHECK: |   |   `-MaterializeSequenceExpr {{.+}} <Unbind>
+// CHECK: |   |     |-MaterializeSequenceExpr {{.+}} <Bind>
+// CHECK: |   |     | |-PredefinedBoundsCheckExpr {{.+}} 'struct flexible *__bidi_indexable' <FlexibleArrayCountCast(BasePtr, FamPtr, Count)>
+// CHECK: |   |     | | |-OpaqueValueExpr [[ove_6:0x[^ ]+]] {{.*}} 'struct flexible *__bidi_indexable'
+// CHECK: |   |     | | | `-MaterializeSequenceExpr {{.+}} <Unbind>
+// CHECK: |   |     | | |   |-MaterializeSequenceExpr {{.+}} <Bind>
+// CHECK: |   |     | | |   | |-BoundsSafetyPointerPromotionExpr {{.+}} 'struct flexible *__bidi_indexable'
+// CHECK: |   |     | | |   | | |-OpaqueValueExpr [[ove_7:0x[^ ]+]] {{.*}} 'struct flexible *__single __sized_by(size)':'struct flexible *__single'
+// CHECK: |   |     | | |   | | |-ImplicitCastExpr {{.+}} 'struct flexible *' <BitCast>
+// CHECK: |   |     | | |   | | | `-BinaryOperator {{.+}} 'char *' '+'
+// CHECK: |   |     | | |   | | |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK: |   |     | | |   | | |   | `-ImplicitCastExpr {{.+}} 'struct flexible *' <BoundsSafetyPointerCast>
+// CHECK: |   |     | | |   | | |   |   `-OpaqueValueExpr [[ove_7]] {{.*}} 'struct flexible *__single __sized_by(size)':'struct flexible *__single'
+// CHECK: |   |     | | |   | | |   `-OpaqueValueExpr [[ove_8:0x[^ ]+]] {{.*}} 'int'
+// CHECK: |   |     | | |   | |-OpaqueValueExpr [[ove_7]]
+// CHECK: |   |     | | |   | | `-ImplicitCastExpr {{.+}} 'struct flexible *__single __sized_by(size)':'struct flexible *__single' <LValueToRValue>
+// CHECK: |   |     | | |   | |   `-DeclRefExpr {{.+}} [[var_flex_4]]
+// CHECK: |   |     | | |   | `-OpaqueValueExpr [[ove_8]]
+// CHECK: |   |     | | |   |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK: |   |     | | |   |     `-DeclRefExpr {{.+}} [[var_size]]
+// CHECK: |   |     | | |   |-OpaqueValueExpr [[ove_7]] {{.*}} 'struct flexible *__single __sized_by(size)':'struct flexible *__single'
+// CHECK: |   |     | | |   `-OpaqueValueExpr [[ove_8]] {{.*}} 'int'
+// CHECK: |   |     | | |-ImplicitCastExpr {{.+}} 'int *' <ArrayToPointerDecay>
+// CHECK: |   |     | | | `-MemberExpr {{.+}} ->elems
+// CHECK: |   |     | | |   `-OpaqueValueExpr [[ove_6]] {{.*}} 'struct flexible *__bidi_indexable'
+// CHECK: |   |     | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK: |   |     | |   `-MemberExpr {{.+}} ->count
+// CHECK: |   |     | |     `-OpaqueValueExpr [[ove_6]] {{.*}} 'struct flexible *__bidi_indexable'
+// CHECK: |   |     | `-OpaqueValueExpr [[ove_6]] {{.*}} 'struct flexible *__bidi_indexable'
+// CHECK: |   |     `-OpaqueValueExpr [[ove_6]] {{.*}} 'struct flexible *__bidi_indexable'
 
 
     (void)(struct flexible *__single)flex;
@@ -231,7 +204,7 @@ struct flexible *checking_count_single_return(struct flexible *__single flex) {
 // CHECK: |         | | |   `-MemberExpr {{.+}} ->count
 // CHECK: |         | | |     `-OpaqueValueExpr [[ove_13]] {{.*}} 'struct flexible *__single'
 // CHECK: |         | `-OpaqueValueExpr [[ove_13]]
-// CHECK: |         |   `-ImplicitCastExpr {{.+}} 'struct flexible *__single' <LValueToRValue>
+// CHECK: |         |   `-ImplicitCastExpr {{.+}} 'struct flexible *__single':'struct flexible *' <LValueToRValue>
 // CHECK: |         |     `-DeclRefExpr {{.+}} [[var_flex_5]]
 // CHECK: |         `-OpaqueValueExpr [[ove_13]] {{.*}} 'struct flexible *__single'
   return flex;

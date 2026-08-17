@@ -36,15 +36,17 @@ int * __unsafe_indexable funcInSDK2(int * __single __terminated_by(2) safePointe
 // RELAXED: | |-ParmVarDecl [[var_safePointer:0x[^ ]+]]
 // RELAXED: | `-CompoundStmt
 // RELAXED: |   `-ReturnStmt
-// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *__single' <LValueToRValue>
-// RELAXED: |       `-DeclRefExpr {{.+}} [[var_safePointer]]
+// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__unsafe_indexable' <BoundsSafetyPointerCast>
+// RELAXED: |       `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *' <LValueToRValue>
+// RELAXED: |         `-DeclRefExpr {{.+}} [[var_safePointer]]
 
 // STRICT: |-FunctionDecl [[func_funcInSDK2:0x[^ ]+]] {{.+}} funcInSDK2
 // STRICT: | |-ParmVarDecl [[var_safePointer:0x[^ ]+]]
 // STRICT: | `-CompoundStmt
 // STRICT: |   `-ReturnStmt
-// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *__single' <LValueToRValue>
-// STRICT: |       `-DeclRefExpr {{.+}} [[var_safePointer]]
+// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *__unsafe_indexable' <BoundsSafetyPointerCast>
+// STRICT: |       `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *' <LValueToRValue>
+// STRICT: |         `-DeclRefExpr {{.+}} [[var_safePointer]]
 
 int * __single funcInSDK3(int * __unsafe_indexable unsafePointer) {
     return unsafePointer; // strict-error{{returning 'int *__unsafe_indexable' from a function with incompatible result type 'int *__single' casts away '__unsafe_indexable' qualifier; use '__unsafe_forge_single' or '__unsafe_forge_bidi_indexable' to perform this conversion}}
@@ -54,7 +56,7 @@ int * __single funcInSDK3(int * __unsafe_indexable unsafePointer) {
 // RELAXED: | |-ParmVarDecl [[var_unsafePointer_1:0x[^ ]+]]
 // RELAXED: | `-CompoundStmt
 // RELAXED: |   `-ReturnStmt
-// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
+// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
 // RELAXED: |       `-ImplicitCastExpr {{.+}} 'int *__unsafe_indexable' <LValueToRValue>
 // RELAXED: |         `-DeclRefExpr {{.+}} [[var_unsafePointer_1]]
 
@@ -120,14 +122,16 @@ int * __unsafe_indexable funcInSDK5(void) {
 // RELAXED: |-FunctionDecl [[func_funcInSDK5:0x[^ ]+]] {{.+}} funcInSDK5
 // RELAXED: | `-CompoundStmt
 // RELAXED: |   `-ReturnStmt
-// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *__single' <LValueToRValue>
-// RELAXED: |       `-DeclRefExpr {{.+}} [[var_valueTerminatedGlobal]]
+// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__unsafe_indexable' <BoundsSafetyPointerCast>
+// RELAXED: |       `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *__single' <LValueToRValue>
+// RELAXED: |         `-DeclRefExpr {{.+}} [[var_valueTerminatedGlobal]]
 
 // STRICT: |-FunctionDecl [[func_funcInSDK5:0x[^ ]+]] {{.+}} funcInSDK5
 // STRICT: | `-CompoundStmt
 // STRICT: |   `-ReturnStmt
-// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *__single' <LValueToRValue>
-// STRICT: |       `-DeclRefExpr {{.+}} [[var_valueTerminatedGlobal]]
+// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *__unsafe_indexable' <BoundsSafetyPointerCast>
+// STRICT: |       `-ImplicitCastExpr {{.+}} 'int *__single __terminated_by(2)':'int *__single' <LValueToRValue>
+// STRICT: |         `-DeclRefExpr {{.+}} [[var_valueTerminatedGlobal]]
 
 int * __unsafe_indexable funcInSDK6(void) {
     return bidiGlobal;

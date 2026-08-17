@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify=bounds-safety %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify=bounds-safety %s
 
@@ -50,7 +49,7 @@ void bar(int *ptr, int len) {
 void baz(int *__counted_by(len) ptr1, int *__counted_by(1) ptr2, int len) {
   int *__single sp;
   int *__unsafe_indexable up;
-  // bounds-safety-warning@+1{{count value is not statically known: assigning to 'ptr1' of type 'int *__single __counted_by(len)' (aka 'int *__single') from 'int *__single' is invalid for any count other than 0 or 1}}
+  // bounds-safety-warning@+1{{count value is not statically known: assigning to 'ptr1' of type 'int *__single __counted_by(len)' (aka 'int *__single') from 'int *__single' (aka 'int *') is invalid for any count other than 0 or 1}}
   ptr1 = sp;
   // bounds-safety-note@+1{{count assigned here}}
   len = len;
@@ -100,7 +99,7 @@ void bar_nullable(int *ptr, int len) {
 void baz_nullable(int *__counted_by_or_null(len) ptr1, int *__counted_by_or_null(1) ptr2, int len) {
   int *__single sp;
   int *__unsafe_indexable up;
-  // bounds-safety-warning@+1{{count value is not statically known: assigning to 'ptr1' of type 'int *__single __counted_by_or_null(len)' (aka 'int *__single') from 'int *__single' is invalid for any count other than 0 or 1 unless the pointer is null}}
+  // bounds-safety-warning@+1{{count value is not statically known: assigning to 'ptr1' of type 'int *__single __counted_by_or_null(len)' (aka 'int *__single') from 'int *__single' (aka 'int *') is invalid for any count other than 0 or 1 unless the pointer is null}}
   ptr1 = sp;
   // bounds-safety-note@+1{{count assigned here}}
   len = len;

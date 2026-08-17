@@ -6888,16 +6888,13 @@ public:
     }
 
     if (Level == 0) {
-      if (S.getLangOpts().BoundsSafetyAttributes && !S.getLangOpts().BoundsSafety)
-        FAttr.setUnspecified();
-      else
-        FAttr.setSingle();
+      FAttr.setUnspecified();
       QualType QTy = (FAttr != T->getPointerAttributes())
                       ? S.Context.getPointerType(T->getPointeeType(), FAttr)
                       : QualType(T, 0);
       return getDerived()->BuildDynamicBoundType(QTy);
     }
-    Level--;
+    llvm::SaveAndRestore<unsigned> LevelLocal(Level, Level - 1);
     llvm::SaveAndRestore<bool> AutoPtrAttributedLocal(AutoPtrAttributed, false);
     QualType NewPointeeTy = Visit(T->getPointeeType());
     if (NewPointeeTy.isNull())
@@ -6976,6 +6973,10 @@ public:
       return QualType();
 
     if (T->getAttrKind() == attr::PtrAutoAttr)
+      return NewModTy;
+
+    if (T->getAttrKind() == attr::PtrSingle && Level == 0 &&
+        !S.getLangOpts().isBoundsSafetyAttributeOnlyMode())
       return NewModTy;
 
     if (NewModTy != T->getModifiedType()) {
@@ -7070,7 +7071,7 @@ public:
   }
 
   QualType TraverseArrayType(const ArrayType *T) {
-    Level--;
+    llvm::SaveAndRestore<unsigned> LevelLocal(Level, Level - 1);
     llvm::SaveAndRestore<bool> AutoPtrAttributedLocal(AutoPtrAttributed, false);
     QualType NewElementTy = Visit(T->getElementType());
     if (NewElementTy.isNull())

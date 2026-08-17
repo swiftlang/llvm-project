@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify %s
 
 #include <ptrcheck.h>
@@ -228,19 +227,19 @@ void use(void) {
   int **implicit_bidi3 = SINGLE_EXPR;        // no warning
   // Note: This is a different warning than this test is really intended to test
   // but we test it here for completeness.
-  // expected-error@+1{{incompatible pointer types initializing 'int *__single*__bidi_indexable' with an expression of type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single')}}
+  // expected-error@+1{{incompatible pointer types initializing 'int *__single*__bidi_indexable' with an expression of type 'uint64_t **__single' (aka 'unsigned long **__single')}}
   int **implicit_bidi4 = bigger_explicit_single0;
   int **implicit_bidi5 = returns_explicit_single(); // no warning
 
-  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single1'}}
+  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int **__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single1'}}
   int **__bidi_indexable explicit_bidi = explicitly_single1;
   // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single1'}}
   int **__bidi_indexable explicit_bidi2 = implicitly_single1;
-  // expected-warning-re@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  int **__bidi_indexable explicit_bidi3 = SINGLE_EXPR;
-  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single1'}}
-  int **__bidi_indexable explicit_bidi4 = bigger_explicit_single1;
   // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
+  int **__bidi_indexable explicit_bidi3 = SINGLE_EXPR;
+  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'uint64_t **__single' (aka 'unsigned long **__single') results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single1'}}
+  int **__bidi_indexable explicit_bidi4 = bigger_explicit_single1;
+  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int **__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
   int **__bidi_indexable explicit_bidi5 = returns_explicit_single();
   int **__bidi_indexable explicit_bidi6 = (int **__bidi_indexable)explicitly_single2;         // no warning
   int **__bidi_indexable explicit_bidi7 = (int **__bidi_indexable)implicitly_single2;         // no warning
@@ -248,15 +247,15 @@ void use(void) {
   int **__bidi_indexable explicit_bidi9 = (int **__bidi_indexable)bigger_explicit_single2;    // no warning
   int **__bidi_indexable explicit_bidi10 = (int **__bidi_indexable)returns_explicit_single(); // no warning
 
-  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single3'}}
+  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int **__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single3'}}
   int **__indexable explicit_idx = explicitly_single3;
   // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single3'}}
   int **__indexable explicit_idx2 = implicitly_single3;
-  // expected-warning-re@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  int **__indexable explicit_idx3 = SINGLE_EXPR;
-  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single3'}}
-  int **__indexable explicit_idx4 = bigger_explicit_single3;
   // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
+  int **__indexable explicit_idx3 = SINGLE_EXPR;
+  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'uint64_t **__single' (aka 'unsigned long **__single') results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single3'}}
+  int **__indexable explicit_idx4 = bigger_explicit_single3;
+  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int **__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
   int **__indexable explicit_idx5 = returns_explicit_single();
   int **__indexable explicit_idx6 = (int **__indexable)explicitly_single4;         // no warning
   int **__indexable explicit_idx7 = (int **__indexable)implicitly_single4;         // no warning
@@ -264,15 +263,15 @@ void use(void) {
   int **__indexable explicit_idx9 = (int **__indexable)bigger_explicit_single4;    // no warning
   int **__indexable explicit_idx10 = (int **__indexable)returns_explicit_single(); // no warning
 
-  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single5'}}
+  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int **__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single5'}}
   BidiStruct_t bidiStruct = {.field = explicitly_single5};
   // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single5'}}
   BidiStruct_t bidiStruct2 = {.field = implicitly_single5};
-  // expected-warning-re@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  BidiStruct_t bidiStruct3 = {.field = SINGLE_EXPR};
-  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single5'}}
-  BidiStruct_t bidiStruct4 = {.field = bigger_explicit_single5};
   // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
+  BidiStruct_t bidiStruct3 = {.field = SINGLE_EXPR};
+  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'uint64_t **__single' (aka 'unsigned long **__single') results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single5'}}
+  BidiStruct_t bidiStruct4 = {.field = bigger_explicit_single5};
+  // expected-warning@+1{{initializing __bidi_indexable type 'int *__single*__bidi_indexable' with an expression of __single type 'int **__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
   BidiStruct_t bidiStruct5 = {.field = returns_explicit_single()};
   BidiStruct_t bidiStruct6 = {.field = (int **__bidi_indexable)explicitly_single6};         // no warning
   BidiStruct_t bidiStruct7 = {.field = (int **__bidi_indexable)implicitly_single6};         // no warning
@@ -280,15 +279,15 @@ void use(void) {
   BidiStruct_t bidiStruct9 = {.field = (int **__bidi_indexable)bigger_explicit_single6};    // no warning
   BidiStruct_t bidiStruct10 = {.field = (int **__bidi_indexable)returns_explicit_single()}; // no warning
 
-  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single7'}}
+  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int **__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single7'}}
   IdxStruct_t idxStruct = {.field = explicitly_single7};
   // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single7'}}
   IdxStruct_t idxStruct2 = {.field = implicitly_single7};
-  // expected-warning-re@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  IdxStruct_t idxStruct3 = {.field = SINGLE_EXPR};
-  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single7'}}
-  IdxStruct_t idxStruct4 = {.field = bigger_explicit_single7};
   // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
+  IdxStruct_t idxStruct3 = {.field = SINGLE_EXPR};
+  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'uint64_t **__single' (aka 'unsigned long **__single') results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single7'}}
+  IdxStruct_t idxStruct4 = {.field = bigger_explicit_single7};
+  // expected-warning@+1{{initializing __indexable type 'int *__single*__indexable' with an expression of __single type 'int **__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
   IdxStruct_t idxStruct5 = {.field = returns_explicit_single()};
   IdxStruct_t idxStruct6 = {.field = (int **__indexable)explicitly_single8};         // no warning
   IdxStruct_t idxStruct7 = {.field = (int **__indexable)implicitly_single8};         // no warning
@@ -304,19 +303,19 @@ void use(void) {
   implicit_bidi = SINGLE_EXPR;        // no warning
   // Note: This is a different warning than this test is really intended to test
   // but we test it here for completeness.
-  // expected-error@+1{{incompatible pointer types assigning to 'int *__single*__bidi_indexable' from 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single')}}
+  // expected-error@+1{{incompatible pointer types assigning to 'int *__single*__bidi_indexable' from 'uint64_t **__single' (aka 'unsigned long **__single')}}
   implicit_bidi = bigger_explicit_single9;
   implicit_bidi = returns_explicit_single(); // no warning
 
   // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single10'}}
   explicit_bidi = implicitly_single10;
-  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single10'}}
+  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int **__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single10'}}
   explicit_bidi = explicitly_single10;
-  // expected-warning-re@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  explicit_bidi = SINGLE_EXPR;
-  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single10'}}
-  explicit_bidi = bigger_explicit_single10;
   // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
+  explicit_bidi = SINGLE_EXPR;
+  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'uint64_t **__single' (aka 'unsigned long **__single') results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single10'}}
+  explicit_bidi = bigger_explicit_single10;
+  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int **__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
   explicit_bidi = returns_explicit_single();
 
   explicit_bidi = (int **__bidi_indexable)implicitly_single11;       // no warning
@@ -327,13 +326,13 @@ void use(void) {
 
   // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single24'}}
   explicit_idx = implicitly_single24;
-  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single24'}}
+  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int **__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single24'}}
   explicit_idx = explicitly_single24;
-  // expected-warning-re@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  explicit_idx = SINGLE_EXPR;
-  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single24'}}
-  explicit_idx = bigger_explicit_single24;
   // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
+  explicit_idx = SINGLE_EXPR;
+  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'uint64_t **__single' (aka 'unsigned long **__single') results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single24'}}
+  explicit_idx = bigger_explicit_single24;
+  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int **__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
   explicit_idx = returns_explicit_single();
 
   explicit_idx = (int **__indexable)implicitly_single25;       // no warning
@@ -344,13 +343,13 @@ void use(void) {
 
   // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single12'}}
   bidiStruct.field = implicitly_single12;
-  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single12'}}
+  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int **__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single12'}}
   bidiStruct.field = explicitly_single12;
-  // expected-warning-re@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  bidiStruct.field = SINGLE_EXPR;
-  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single12'}}
-  bidiStruct.field = bigger_explicit_single12;
   // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int *__single*__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
+  bidiStruct.field = SINGLE_EXPR;
+  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'uint64_t **__single' (aka 'unsigned long **__single') results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single12'}}
+  bidiStruct.field = bigger_explicit_single12;
+  // expected-warning@+1{{assigning to __bidi_indexable type 'int *__single*__bidi_indexable' from __single type 'int **__single' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
   bidiStruct.field = returns_explicit_single();
   bidiStruct.field = (int **__bidi_indexable)implicitly_single13;       // no warning
   bidiStruct.field = (int **__bidi_indexable)explicitly_single13;       // no warning
@@ -360,13 +359,13 @@ void use(void) {
 
   // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single14'}}
   idxStruct.field = implicitly_single14;
-  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single14'}}
+  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int **__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single14'}}
   idxStruct.field = explicitly_single14;
-  // expected-warning-re@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  idxStruct.field = SINGLE_EXPR;
-  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single14'}}
-  idxStruct.field = bigger_explicit_single14;
   // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int *__single*__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
+  idxStruct.field = SINGLE_EXPR;
+  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'uint64_t **__single' (aka 'unsigned long **__single') results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single14'}}
+  idxStruct.field = bigger_explicit_single14;
+  // expected-warning@+1{{assigning to __indexable type 'int *__single*__indexable' from __single type 'int **__single' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
   idxStruct.field = returns_explicit_single();
   idxStruct.field = (int **__indexable)implicitly_single15;       // no warning
   idxStruct.field = (int **__indexable)explicitly_single15;       // no warning
@@ -379,13 +378,13 @@ void use(void) {
   //--------------------------------------------------------------------------
   // expected-warning@+1{{passing __single type 'int *__single*__single' to parameter of __bidi_indexable type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single16'}}
   take_bidi0(implicitly_single16);
-  // expected-warning@+1{{passing __single type 'int *__single*__single' to parameter of __bidi_indexable type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single16'}}
+  // expected-warning@+1{{passing __single type 'int **__single' to parameter of __bidi_indexable type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single16'}}
   take_bidi1(explicitly_single16);
-  // expected-warning-re@+1{{passing __single type 'int *__single*__single' to parameter of __bidi_indexable type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  take_bidi2(SINGLE_EXPR);
-  // expected-warning@+1{{passing __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') to parameter of __bidi_indexable type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single16'}}
-  take_bidi3(bigger_explicit_single16);
   // expected-warning@+1{{passing __single type 'int *__single*__single' to parameter of __bidi_indexable type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
+  take_bidi2(SINGLE_EXPR);
+  // expected-warning@+1{{passing __single type 'uint64_t **__single' (aka 'unsigned long **__single') to parameter of __bidi_indexable type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single16'}}
+  take_bidi3(bigger_explicit_single16);
+  // expected-warning@+1{{passing __single type 'int **__single' to parameter of __bidi_indexable type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
   take_bidi4(returns_explicit_single());
 
   take_bidi5((int **__bidi_indexable)implicitly_single17);       // no warning
@@ -396,13 +395,13 @@ void use(void) {
 
   // expected-warning@+1{{passing __single type 'int *__single*__single' to parameter of __indexable type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'implicitly_single18'}}
   take_idx0(implicitly_single18);
-  // expected-warning@+1{{passing __single type 'int *__single*__single' to parameter of __indexable type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single18'}}
+  // expected-warning@+1{{passing __single type 'int **__single' to parameter of __indexable type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single18'}}
   take_idx1(explicitly_single18);
-  // expected-warning-re@+1{{passing __single type 'int *__single*__single' to parameter of __indexable type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
-  take_idx2(SINGLE_EXPR);
-  // expected-warning@+1{{passing __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') to parameter of __indexable type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single18'}}
-  take_idx3(bigger_explicit_single18);
   // expected-warning@+1{{passing __single type 'int *__single*__single' to parameter of __indexable type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
+  take_idx2(SINGLE_EXPR);
+  // expected-warning@+1{{passing __single type 'uint64_t **__single' (aka 'unsigned long **__single') to parameter of __indexable type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single18'}}
+  take_idx3(bigger_explicit_single18);
+  // expected-warning@+1{{passing __single type 'int **__single' to parameter of __indexable type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
   take_idx4(returns_explicit_single());
 
   take_idx5((int **__indexable)implicitly_single19);       // no warning
@@ -416,7 +415,7 @@ void use(void) {
 // Implicit conversion on return
 //--------------------------------------------------------------------------
 int **__bidi_indexable warn_ret_bidi_expl(void) {
-  // expected-warning@+1{{returning __single type 'int *__single*__single' from a function with __bidi_indexable result type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single20'}}
+  // expected-warning@+1{{returning __single type 'int **__single' from a function with __bidi_indexable result type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single20'}}
   return explicitly_single20;
 }
 
@@ -426,17 +425,17 @@ int **__bidi_indexable warn_ret_bidi_impl(void) {
 }
 
 int **__bidi_indexable warn_ret_bidi_single_expr(void) {
-  // expected-warning-re@+1{{returning __single type 'int *__single*__single' from a function with __bidi_indexable result type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
+  // expected-warning@+1{{returning __single type 'int *__single*__single' from a function with __bidi_indexable result type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
   return SINGLE_EXPR;
 }
 
 int **__bidi_indexable warn_ret_bidi_bigger_explicit(void) {
-  // expected-warning@+1{{returning __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') from a function with __bidi_indexable result type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single20'}}
+  // expected-warning@+1{{returning __single type 'uint64_t **__single' (aka 'unsigned long **__single') from a function with __bidi_indexable result type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single20'}}
   return bigger_explicit_single20;
 }
 
 int **__bidi_indexable warn_ret_bidi_tail_call_ret_single(void) {
-  // expected-warning@+1{{returning __single type 'int *__single*__single' from a function with __bidi_indexable result type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
+  // expected-warning@+1{{returning __single type 'int **__single' from a function with __bidi_indexable result type 'int *__single*__bidi_indexable' results in a __bidi_indexable pointer that will trap if a non-zero offset is dereferenced}}
   return returns_explicit_single();
 }
 
@@ -461,7 +460,7 @@ int **__bidi_indexable no_warn_ret_bidi_tail_call_ret_single(void) {
 }
 
 int **__indexable warn_ret_idx_expl(void) {
-  // expected-warning@+1{{returning __single type 'int *__single*__single' from a function with __indexable result type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single22'}}
+  // expected-warning@+1{{returning __single type 'int **__single' from a function with __indexable result type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'explicitly_single22'}}
   return explicitly_single22;
 }
 
@@ -471,17 +470,17 @@ int **__indexable warn_ret_idx_impl(void) {
 }
 
 int **__indexable warn_ret_idx_single_expr(void) {
-  // expected-warning-re@+1{{returning __single type 'int *__single*__single' from a function with __indexable result type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced{{$}}}}
+  // expected-warning@+1{{returning __single type 'int *__single*__single' from a function with __indexable result type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
   return SINGLE_EXPR;
 }
 
 int **__indexable warn_ret_idx_bigger_explicit(void) {
-  // expected-warning@+1{{returning __single type 'uint64_t *__single*__single' (aka 'unsigned long *__single*__single') from a function with __indexable result type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single22'}}
+  // expected-warning@+1{{returning __single type 'uint64_t **__single' (aka 'unsigned long **__single') from a function with __indexable result type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced. consider adding '__counted_by' to 'bigger_explicit_single22'}}
   return bigger_explicit_single22;
 }
 
 int **__indexable warn_ret_idx_tail_call_ret_single(void) {
-  // expected-warning@+1{{eturning __single type 'int *__single*__single' from a function with __indexable result type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
+  // expected-warning@+1{{returning __single type 'int **__single' from a function with __indexable result type 'int *__single*__indexable' results in an __indexable pointer that will trap if a non-zero offset is dereferenced}}
   return returns_explicit_single();
 }
 

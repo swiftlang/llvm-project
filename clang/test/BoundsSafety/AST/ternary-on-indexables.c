@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fbounds-safety -Wno-bounds-safety-single-to-indexable-bounds-truncated -ast-dump  %s 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -fbounds-safety -Wno-bounds-safety-single-to-indexable-bounds-truncated -x objective-c -fexperimental-bounds-safety-objc -ast-dump %s 2>&1 | FileCheck %s
 #include <ptrcheck.h>
@@ -68,14 +67,14 @@ void Test(int sel) {
     int *__single y_sg = &a;
     int *__single z_sg = sel ? x_sg : y_sg;
     // CHECK: |-DeclStmt
-    // CHECK: | `-VarDecl {{.*}} z_sg 'int *__single' cinit
-    // CHECK: |   `-ConditionalOperator {{.*}} 'int *__single'
+    // CHECK: | `-VarDecl {{.*}} z_sg 'int *__single':'int *' cinit
+    // CHECK: |   `-ConditionalOperator {{.*}} 'int *__single':'int *'
     // CHECK: |     |-ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
     // CHECK: |     | `-DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'sel' 'int'
-    // CHECK: |     |-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |     | `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
-    // CHECK: |     `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |       `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'y_sg' 'int *__single'
+    // CHECK: |     |-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |     | `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
+    // CHECK: |     `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |       `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'y_sg' 'int *__single':'int *'
 
     int *__unsafe_indexable x_uix = &a;
     int *__unsafe_indexable y_uix = &a;
@@ -139,8 +138,8 @@ void Test(int sel) {
     // CHECK: |   | `-ImplicitCastExpr {{.*}} 'int *__bidi_indexable' <LValueToRValue>
     // CHECK: |   |   `-DeclRefExpr {{.*}} 'int *__bidi_indexable' lvalue Var {{.*}} 'x' 'int *__bidi_indexable'
     // CHECK: |   `-ImplicitCastExpr {{.*}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-    // CHECK: |     `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |       `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'y_sg' 'int *__single'
+    // CHECK: |     `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |       `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'y_sg' 'int *__single':'int *'
     
     z = x ?: y_ix_void;
     // CHECK: |-BinaryOperator {{.*}} 'int *__bidi_indexable' '='
@@ -182,8 +181,8 @@ void Test(int sel) {
     // CHECK: |   |-ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
     // CHECK: |   | `-DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'sel' 'int'
     // CHECK: |   |-ImplicitCastExpr {{.*}} 'int *__indexable' <BoundsSafetyPointerCast>
-    // CHECK: |   | `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |   |   `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
+    // CHECK: |   | `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |   |   `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
     // CHECK: |   `-ImplicitCastExpr {{.*}} 'int *__indexable' <LValueToRValue>
     // CHECK: |     `-DeclRefExpr {{.*}} 'int *__indexable' lvalue Var {{.*}} 'y_ix' 'int *__indexable'
 
@@ -192,16 +191,16 @@ void Test(int sel) {
     // CHECK: | |-DeclRefExpr {{.*}} 'int *__indexable' lvalue Var {{.*}} 'z_ix' 'int *__indexable'
     // CHECK: | `-ImplicitCastExpr {{.*}} 'int *__indexable' <BitCast>
     // CHECK: |   `-BinaryConditionalOperator {{.*}} 'void *__indexable'
-    // CHECK: |     |-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |     | `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
-    // CHECK: |     |-OpaqueValueExpr {{.*}} 'int *__single'
-    // CHECK: |     | `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |     |   `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
+    // CHECK: |     |-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |     | `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
+    // CHECK: |     |-OpaqueValueExpr {{.*}} 'int *__single':'int *'
+    // CHECK: |     | `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |     |   `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
     // CHECK: |     |-ImplicitCastExpr {{.*}} 'void *__indexable' <BitCast>
     // CHECK: |     | `-ImplicitCastExpr {{.*}} 'int *__indexable' <BoundsSafetyPointerCast>
-    // CHECK: |     |   `-OpaqueValueExpr {{.*}} 'int *__single'
-    // CHECK: |     |     `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |     |       `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
+    // CHECK: |     |   `-OpaqueValueExpr {{.*}} 'int *__single':'int *'
+    // CHECK: |     |     `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |     |       `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
     // CHECK: |     `-ImplicitCastExpr {{.*}} 'void *__indexable' <LValueToRValue>
     // CHECK: |       `-DeclRefExpr {{.*}} 'void *__indexable' lvalue Var {{.*}} 'y_ix_void' 'void *__indexable'
 
@@ -214,8 +213,8 @@ void Test(int sel) {
     // CHECK: |       |-ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
     // CHECK: |       | `-DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'sel' 'int'
     // CHECK: |       |-ImplicitCastExpr {{.*}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-    // CHECK: |       | `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |       |   `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
+    // CHECK: |       | `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |       |   `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
     // CHECK: |       `-ImplicitCastExpr {{.*}} 'int *__bidi_indexable' <LValueToRValue>
     // CHECK: |         `-DeclRefExpr {{.*}} 'int *__bidi_indexable' lvalue Var {{.*}} 'y' 'int *__bidi_indexable'
 
@@ -227,8 +226,8 @@ void Test(int sel) {
     // CHECK: |     |-ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
     // CHECK: |     | `-DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'sel' 'int'
     // CHECK: |     |-ImplicitCastExpr {{.*}} 'int *__indexable' <BoundsSafetyPointerCast>
-    // CHECK: |     | `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |     |   `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
+    // CHECK: |     | `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |     |   `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
     // CHECK: |     `-ImplicitCastExpr {{.*}} 'int *__indexable' <LValueToRValue>
     // CHECK: |       `-DeclRefExpr {{.*}} 'int *__indexable' lvalue Var {{.*}} 'y_ix' 'int *__indexable'
 
@@ -239,14 +238,14 @@ void Test(int sel) {
     // CHECK: |-BinaryOperator {{.*}} 'void *__indexable' '='
     // CHECK: | |-DeclRefExpr {{.*}} 'void *__indexable' lvalue Var {{.*}} 'z_ix_void' 'void *__indexable'
     // CHECK: | `-ImplicitCastExpr {{.+}} 'void *__indexable' <BoundsSafetyPointerCast>
-    // CHECK: |   `-ImplicitCastExpr {{.+}} 'void *__single' <BitCast>
-    // CHECK: |     `-ConditionalOperator {{.*}} 'int *__single'
+    // CHECK: |   `-ImplicitCastExpr {{.+}} 'void *' <BitCast>
+    // CHECK: |     `-ConditionalOperator {{.*}} 'int *__single':'int *'
     // CHECK: |       |-ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
     // CHECK: |       | `-DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'sel' 'int'
-    // CHECK: |       |-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |       | `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
-    // CHECK: |       `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |         `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'y_sg' 'int *__single'
+    // CHECK: |       |-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |       | `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
+    // CHECK: |       `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |         `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'y_sg' 'int *__single':'int *'
 
     z_char = sel ? x_ix : y_ix_void;
     // CHECK: |-BinaryOperator {{.*}} 'char *__bidi_indexable' '='
@@ -268,16 +267,16 @@ void Test(int sel) {
     // CHECK: | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
     // CHECK: |   `-ImplicitCastExpr {{.+}} 'char *__indexable' <BitCast>
     // CHECK: |     `-BinaryConditionalOperator {{.*}} 'void *__indexable'
-    // CHECK: |       |-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |       | `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
-    // CHECK: |       |-OpaqueValueExpr {{.*}} 'int *__single'
-    // CHECK: |       | `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |       |   `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
+    // CHECK: |       |-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |       | `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
+    // CHECK: |       |-OpaqueValueExpr {{.*}} 'int *__single':'int *'
+    // CHECK: |       | `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |       |   `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
     // CHECK: |       |-ImplicitCastExpr {{.*}} 'void *__indexable' <BitCast>
     // CHECK: |       | `-ImplicitCastExpr {{.*}} 'int *__indexable' <BoundsSafetyPointerCast>
-    // CHECK: |       |   `-OpaqueValueExpr {{.*}} 'int *__single'
-    // CHECK: |       |     `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |       |       `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
+    // CHECK: |       |   `-OpaqueValueExpr {{.*}} 'int *__single':'int *'
+    // CHECK: |       |     `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |       |       `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
     // CHECK: |       `-ImplicitCastExpr {{.*}} 'void *__indexable' <LValueToRValue>
     // CHECK: |         `-DeclRefExpr {{.*}} 'void *__indexable' lvalue Var {{.*}} 'y_ix_void' 'void *__indexable'
 
@@ -291,8 +290,8 @@ void Test(int sel) {
     // CHECK: |       | `-DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'sel' 'int'
     // CHECK: |       |-ImplicitCastExpr {{.*}} 'void *__indexable' <BitCast>
     // CHECK: |       | `-ImplicitCastExpr {{.*}} 'int *__indexable' <BoundsSafetyPointerCast>
-    // CHECK: |       |   `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |       |     `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'x_sg' 'int *__single'
+    // CHECK: |       |   `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |       |     `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'x_sg' 'int *__single':'int *'
     // CHECK: |       `-ImplicitCastExpr {{.*}} 'void *__indexable' <LValueToRValue>
     // CHECK: |         `-DeclRefExpr {{.*}} 'void *__indexable' lvalue Var {{.*}} 'y_ix_void' 'void *__indexable'
 
@@ -340,8 +339,8 @@ void Test(int sel) {
     // CHECK: |       | `-DeclRefExpr {{.*}} 'void *__indexable' lvalue Var {{.*}} 'x_ix_void' 'void *__indexable'
     // CHECK: |       `-ImplicitCastExpr {{.*}} 'void *__indexable' <BitCast>
     // CHECK: |         `-ImplicitCastExpr {{.*}} 'int *__indexable' <BoundsSafetyPointerCast>
-    // CHECK: |           `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-    // CHECK: |             `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'y_sg' 'int *__single'
+    // CHECK: |           `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+    // CHECK: |             `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'y_sg' 'int *__single':'int *'
 
     z_char = x_ix_void ?: y_ix_void;
     // CHECK: `-BinaryOperator {{.*}} 'char *__bidi_indexable' '='

@@ -5945,7 +5945,7 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     // If the base of the array subscript expression is 'counted_by', it should
     // have been promoted to __bidi_indexable.
     assert(!Ty->isBoundsAttributedType());
-    if (PTy->isSingle()) {
+    if (Ty->isSinglePointerType()) {
       Expr::EvalResult RInt;
       if (!RHSExp->EvaluateAsInt(RInt, Context) || RInt.Val.getInt() != 0) {
         Diag(LLoc, diag::err_bounds_safety_pointer_subscript)
@@ -8291,20 +8291,19 @@ bool Sema::CheckDynamicCountSizeForAssignment(
     return true;
 
   Expr *CountExpr = LDCPTy->getCountExpr()->IgnoreParenCasts();
-	if (CountExpr->isValueDependent())
-		return false;
+  if (CountExpr->isValueDependent())
+    return false;
 
-  auto *RHSPTy = RHSTy->getAs<PointerType>();
-  auto FA =
-      RHSPTy ? RHSPTy->getPointerAttributes() : BoundsSafetyPointerAttributes();
   // unsafe/unspecified counts as "bounded" because there shouldn't be a warning
   // in manual adoption mode, else no one would be able to use it. In regular
   // -fbounds-safety mode, some other part of Sema should have already have
   // complained.
   const auto *RDRPTy = RHSTy->getAs<DynamicRangePointerType>();
-  bool UnboundedRHS = !RHSTy->isCountAttributedType() &&
+  bool UnboundedRHS = RHSTy->isPointerType() &&
+                      !RHSTy->isCountAttributedType() &&
                       (!RDRPTy || !RDRPTy->getEndPointer()) &&
-                      !FA.hasUpperBound() && !FA.isUnsafeOrUnspecified();
+                      !RHSTy->isPointerTypeWithBounds() &&
+                      RHSTy->isSafePointerType();
   if (UnboundedRHS)
     // It might still have a flexible array member
     if (auto *RT = RHSTy->getPointeeType()->getAs<RecordType>())
@@ -8859,10 +8858,11 @@ static bool checkDynamicCountPointerAsParameter(Sema &S, FunctionDecl *FDecl,
               DiagTy = ArgDepInfo.getDecl()->getType();
             }
 
-	    S.Diag(Call->getExprLoc(),
-		   diag::err_bounds_safety_unsynchronized_indirect_param)
-              << ArgInfo.getDecl() << ArgInfo.isAddrOf() << ArgDepInfo.getDecl()
-              << !ArgDepInfo.isDeref() << IsDependent << DiagTy;
+            S.Diag(Call->getExprLoc(),
+                   diag::err_bounds_safety_unsynchronized_indirect_param)
+                << ArgInfo.getDecl() << ArgInfo.isAddrOf()
+                << ArgDepInfo.getDecl() << !ArgDepInfo.isDeref()
+                << IsDependent << DiagTy;
             return false;
           }
         }
@@ -10417,6 +10417,7 @@ static bool checkConditionalNullPointer(Sema &S, ExprResult &NullExpr,
   return false;
 }
 
+
 /// Checks compatibility between two pointers and return the resulting
 /// type.
 static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
@@ -10467,8 +10468,9 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
     // 4) __single
     // The operands are considered incompatible if an operand has unsafe pointer
     // type and the other has bounds.
-    auto lFPAttr = LHSTy->castAs<PointerType>()->getPointerAttributes();
-    auto rFPAttr = RHSTy->castAs<PointerType>()->getPointerAttributes();
+
+    auto lFPAttr = *LHSTy->getSugarAwareBoundsSafetyPointerAttributes();
+    auto rFPAttr = *RHSTy->getSugarAwareBoundsSafetyPointerAttributes();
     CompositeFPAttr = BoundsSafetyPointerAttributes::merge(lFPAttr, rFPAttr);
     /* TO_UPSTREAM(BoundsSafety) OFF*/
   }
@@ -10673,10 +10675,11 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
   BoundsSafetyPointerAttributes destFPAttr;
   // Do -fbounds-safety pointer conversions ahead of any other conversions; otherwise
   // we risk doing a BitCast across pointer attributes, which is bad.
+  
   BoundsSafetyPointerAttributes lFPAttr =
-      LHSTy->castAs<PointerType>()->getPointerAttributes();
+      *LHSTy->getSugarAwareBoundsSafetyPointerAttributes();
   BoundsSafetyPointerAttributes rFPAttr =
-      RHSTy->castAs<PointerType>()->getPointerAttributes();
+      *RHSTy->getSugarAwareBoundsSafetyPointerAttributes();
   destFPAttr = BoundsSafetyPointerAttributes::merge(lFPAttr, rFPAttr);
 
   // If either type is value terminated, the other also needs to be, meaning
@@ -11532,6 +11535,29 @@ static bool checkBoundsSafetyFunctionPointerForAssignment(Sema &S,
 
   return CheckRemaningParams(LProto) || CheckRemaningParams(RProto);
 }
+
+
+static bool
+hasCompatibleNestedBoundsSafetyPointerAttributesSugarAware(QualType LHSType,
+                                                            QualType RHSType) {
+  const auto *LHSPtr = LHSType->getAs<PointerType>();
+  const auto *RHSPtr = RHSType->getAs<PointerType>();
+  if (!LHSPtr || !RHSPtr)
+    return true;
+
+  QualType LPointee = LHSPtr->getPointeeType();
+  QualType RPointee = RHSPtr->getPointeeType();
+  for (;;) {
+    auto LAttrs = LPointee->getSugarAwareBoundsSafetyPointerAttributes();
+    auto RAttrs = RPointee->getSugarAwareBoundsSafetyPointerAttributes();
+    if (!LAttrs || !RAttrs)
+      return true;
+    if (!BoundsSafetyPointerAttributes::areCompatible(*LAttrs, *RAttrs))
+      return false;
+    LPointee = LPointee->getAs<PointerType>()->getPointeeType();
+    RPointee = RPointee->getAs<PointerType>()->getPointeeType();
+  }
+}
 /* TO_UPSTREAM(BoundsSafety) OFF*/
 
 // checkPointerTypesForAssignment - This is a very tricky routine (despite
@@ -11926,6 +11952,7 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
                                                    bool ConvertRHS) {
   QualType RHSType = RHS.get()->getType();
   QualType OrigLHSType = LHSType;
+  QualType OrigRHSType = RHSType;
 
   // Get canonical types.  We're not formatting these types, just comparing
   // them.
@@ -11937,7 +11964,9 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
     Kind = CK_NoOp;
     /* TO_UPSTREAM(BoundsSafety) ON*/
     if (getLangOpts().BoundsSafety &&
-        !Context.canMergeTypeBounds(OrigLHSType, RHS.get()->getType())) {
+        (OrigLHSType->isSinglePointerType() !=
+             OrigRHSType->isSinglePointerType() ||
+         !Context.canMergeTypeBounds(OrigLHSType, RHS.get()->getType()))) {
       Kind = CK_BoundsSafetyPointerCast;
     /* TO_UPSTREAM(BoundsSafety) OFF*/
     } else {
@@ -11982,12 +12011,17 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
   // If we have an atomic type, try a non-atomic assignment, then just add an
   // atomic qualification step.
   if (const AtomicType *AtomicTy = dyn_cast<AtomicType>(LHSType)) {
+    /* TO_UPSTREAM(BoundsSafety) ON */
+    const AtomicType *OrigAtomicTy = OrigLHSType->getAs<AtomicType>();
+    QualType ValueTy =
+        OrigAtomicTy ? OrigAtomicTy->getValueType() : AtomicTy->getValueType();
+    /* TO_UPSTREAM(BoundsSafety) OFF */
     AssignConvertType Result =
-        CheckAssignmentConstraints(AtomicTy->getValueType(), RHS, Kind);
+        CheckAssignmentConstraints(ValueTy, RHS, Kind);
     if (!IsAssignConvertCompatible(Result))
       return Result;
     if (Kind != CK_NoOp && ConvertRHS)
-      RHS = ImpCastExprToType(RHS.get(), AtomicTy->getValueType(), Kind);
+      RHS = ImpCastExprToType(RHS.get(), ValueTy, Kind);
     Kind = CK_NonAtomicToAtomic;
     return Result;
   }
@@ -12135,21 +12169,22 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
       /*TO_UPSTREAM(BoundsSafety) ON*/
       if (getLangOpts().BoundsSafety) {
         bool IsSrcNull = RHS.get()->IgnoreParenCasts()->isNullPointerConstant(Context, Expr::NPC_ValueDependentIsNotNull);
-        if (!IsSrcNull && !RHSType->isSafePointerType() &&
-            !RHS.get()->getType()->isBoundsAttributedType() &&
-            LHSType->isSafePointerType() &&
+        if (!IsSrcNull && !OrigRHSType->isSafePointerType() &&
+            !OrigRHSType->isBoundsAttributedType() &&
+            OrigLHSType->isSafePointerType() &&
             !OrigLHSType->isValueTerminatedType()) {
-          return LHSPointer->isSingle()
+          
+          return OrigLHSType->isSinglePointerType()
                      ? AssignConvertType::IncompatibleUnsafeToSafePointer
                      : AssignConvertType::IncompatibleUnsafeToIndexablePointer;
         }
-        if (!IsSrcNull && RHSPointer->isSingle() &&
+        if (!IsSrcNull && OrigRHSType->isSinglePointerType() &&
             LHSType->isPointerTypeWithBounds() &&
-            !RHS.get()->getType()->isBoundsAttributedType()) {
+            !OrigRHSType->isBoundsAttributedType()) {
           if (RHSPointer->getPointeeType()->isIncompleteOrSizelessType())
             return AssignConvertType::IncompleteSingleToIndexablePointer;
 
-          DiagnoseSingleToWideLosingBounds(LHSType, RHSType, RHS.get());
+          DiagnoseSingleToWideLosingBounds(OrigLHSType, OrigRHSType, RHS.get());
         }
       }
 
@@ -12162,8 +12197,21 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
         // `int *__single = (char *__bidi)x`) will first BitCast to
         // `int *__bidi` and then FPC to `int *__single`, which will CodeGen
         // the bounds check correctly.
+        bool NeedsBidiIntermediate =
+            OrigLHSType->isBoundsAttributedType() &&
+            OrigRHSType->isSinglePointerType() &&
+            !Context.hasSameUnqualifiedType(LHSPointer->getPointeeType(),
+                                            RHSPointer->getPointeeType());
+        if (NeedsBidiIntermediate)
+          RHS = ImpCastExprToType(
+              RHS.get(),
+              Context.getPointerType(RHSPointer->getPointeeType(),
+                                     BoundsSafetyPointerAttributes::bidiIndexable()),
+              CK_BoundsSafetyPointerCast);
         auto LHSIntermediateType = Context.getPointerType(
-            LHSPointer->getPointeeType(), RHSFA);
+            LHSPointer->getPointeeType(),
+            NeedsBidiIntermediate ? BoundsSafetyPointerAttributes::bidiIndexable()
+                                  : RHSFA);
         auto Result = CheckAssignmentConstraints(LHSIntermediateType, RHS,
                                                  Kind, ConvertRHS);
         bool SkipNoOp = Kind == CK_NoOp &&
@@ -12179,8 +12227,8 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
         // cast logic above to be missed which would change the generated AST.
         bool IsSrcNull = RHS.get()->IgnoreParenCasts()->isNullPointerConstant(
             Context, Expr::NPC_ValueDependentIsNotNull);
-        if (!IsSrcNull && RHSPointer->isSingle() &&
-            !RHS.get()->getType()->isBoundsAttributedType()) {
+        if (!IsSrcNull && OrigRHSType->isSinglePointerType() &&
+            !OrigRHSType->isBoundsAttributedType()) {
           bool IsExplicitlyBoundedPointer = LHSType->isPointerTypeWithBounds();
           if (OrigLHSType->hasAttr(attr::PtrAutoAttr)) {
             // We avoid implicitly indexable (i.e. implicit __bidi_indexable
@@ -12199,12 +12247,12 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
         if (Result != AssignConvertType::Compatible)
           return Result;
       } else if (OrigLHSType->isBoundsAttributedType() &&
-                 RHSType->isSinglePointerType()) {
+                 OrigRHSType->isSinglePointerType()) {
         // Single to dynamic bounds pointer should first create an implicit cast
         // to `__bidi_indexable` and then create any necessary cast such as
         // bitcast in the following example. `void *__sized_by(len) dst = (int
         // *__single)src`
-        assert(!RHS.get()->getType()->isBoundsAttributedType());
+        assert(!OrigRHSType->isBoundsAttributedType());
         if (ConvertRHS) {
           QualType BidiRTy = Context.getPointerType(
               RHSPointer->getPointeeType(),
@@ -12224,6 +12272,12 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
         Kind = CK_NoOp;
       else
         Kind = CK_BitCast;
+      /* TO_UPSTREAM(BoundsSafety) ON*/
+      if (getLangOpts().BoundsSafety &&
+          !hasCompatibleNestedBoundsSafetyPointerAttributesSugarAware(
+              OrigLHSType, OrigRHSType))
+        return AssignConvertType::IncompatibleNestedBoundsSafetyPointerAttributes;
+      /* TO_UPSTREAM(BoundsSafety) OFF*/
       return checkPointerTypesForAssignment(*this, LHSType, RHSType,
                                             RHS.get()->getBeginLoc());
     }
@@ -12231,7 +12285,7 @@ AssignConvertType Sema::CheckAssignmentConstraints(QualType LHSType,
     // int -> T*
     if (RHSType->isIntegerType()) {
       Kind = CK_IntegralToPointer; // FIXME: null?
-      return LHSPointer->isSafePointer()
+      return OrigLHSType->isSafePointerType()
                  ? AssignConvertType::IncompatibleIntToSafePointer
                  : AssignConvertType::IntToPointer;
     }
@@ -12855,8 +12909,8 @@ bool Sema::allowBoundsUnsafePointerAssignment(
   if (!SourcePtrTy)
     return false;
 
-  bool DestSafe = DestPtrTy->isSafePointer();
-  bool SourceSafe = SourcePtrTy->isSafePointer();
+  bool DestSafe = DestTy->isSafePointerType();
+  bool SourceSafe = SourceValue->getType()->isSafePointerType();
   // Assignments between unsafe pointers will be allowed regardless, no need to
   // make an exception.
   if (!DestSafe && !SourceSafe)
@@ -12865,9 +12919,9 @@ bool Sema::allowBoundsUnsafePointerAssignment(
   // All safe pointers ABI compatible with unsafe pointers (and each other) are
   // __single pointers. Make no exception for ABI incompatible pointer type
   // mismatch.
-  if (!DestPtrTy->isSingle() && DestSafe)
+  if (!DestTy->isSinglePointerType() && DestSafe)
     return false;
-  if (!SourcePtrTy->isSingle() && SourceSafe)
+  if (!SourceValue->getType()->isSinglePointerType() && SourceSafe)
     return false;
 
   return allowBoundsUnsafeAssignment(AssignmentLoc);
@@ -14381,7 +14435,7 @@ static bool checkArithmeticBinOpBoundsSafetyPointer(Sema &S, Expr *Base,
     return false;
   }
 
-  if (PT->isSingle() && !BaseType->isBoundsAttributedType()) {
+  if (BaseType->isSinglePointerType() && !BaseType->isBoundsAttributedType()) {
     emitBoundsSafetySinglePointerArithmeticError(S, Base);
     return false;
   }
@@ -21255,7 +21309,7 @@ TryFixNestedBoundsSafetyPointerAttributeMismatch(Expr *SrcExpr,
     return std::make_tuple(FixItHint(), nullptr);
 
   StringRef Keyword;
-  if (InnerAttrs.isSingle())
+  if (InnerTy->isSinglePointerType())
     Keyword = "__single ";
   else if (InnerAttrs.isIndexable())
     Keyword = "__indexable ";
@@ -26372,13 +26426,8 @@ ExprResult Sema::ActOnForgeBidiIndexable(SourceLocation KWLoc,
 
 ExprResult Sema::ActOnForgeSingle(SourceLocation KWLoc, Expr *Addr,
                                   SourceLocation RParenLoc) {
-  QualType ResultType;
-  if (getLangOpts().isBoundsSafetyAttributeOnlyMode()) {
-    ResultType = Context.getAttributedType(attr::PtrSingle, Context.VoidPtrTy,
-                                           Context.VoidPtrTy);
-  } else
-    ResultType = Context.getPointerType(Context.VoidTy,
-                                        BoundsSafetyPointerAttributes::single());
+  QualType ResultType = Context.getAttributedType(
+      attr::PtrSingle, Context.VoidPtrTy, Context.VoidPtrTy);
   return BuildForgePtrExpr(KWLoc, RParenLoc, ResultType, Addr);
 }
 
@@ -26688,7 +26737,7 @@ static ExprResult makeBoundExpr(Sema& S, Expr *SubExpr,
   const PointerType *PT = T->getAs<PointerType>();
   if (!PT) {
     Reason = 0;
-  } else if (PT->getPointerAttributes().isUnsafeOrUnspecified()) {
+  } else if (T->isUnsafeIndexablePointerType() || T->isUnspecifiedPointerType()) {
     Reason = 1;
   }
 
@@ -26702,7 +26751,7 @@ static ExprResult makeBoundExpr(Sema& S, Expr *SubExpr,
 
   // must implicitly cast original to bidi_indexable if needed
   if (PT->getPointerAttributes() != FA) {
-    if (!PT->isSafePointerType())
+    if (!T->isSafePointerType())
       return ExprError();
     ExprResult ImpCast = S.ImpCastExprToType(
         SubExpr, RT, CK_BoundsSafetyPointerCast);

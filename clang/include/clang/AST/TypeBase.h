@@ -117,6 +117,9 @@ namespace clang {
 class ASTContext;
 template <typename> class CanQual;
 class CXXRecordDecl;
+/* TO_UPSTREAM(BoundsSafety) ON */
+class BoundsSafetyPointerAttributes;
+/* TO_UPSTREAM(BoundsSafety) OFF */
 class DeclContext;
 class EnumDecl;
 class Expr;
@@ -2705,6 +2708,8 @@ public:
   bool isBidiIndexablePointerType() const;
   bool isUnspecifiedPointerType() const;
   bool isSafePointerType() const;
+  std::optional<BoundsSafetyPointerAttributes>
+  getSugarAwareBoundsSafetyPointerAttributes() const;
   /* TO_UPSTREAM(BoundsSafety) OFF */
   bool isSignableType(const ASTContext &Ctx) const;
   bool isSignablePointerType() const;
@@ -3702,12 +3707,16 @@ public:
     return !(FAttr.isUnsafeIndexable() || FAttr.isUnspecified());
   }
 
-  bool isSingle() const { return FAttr.isSingle(); }
   bool isIndexable() const { return FAttr.isIndexable(); }
   bool isBidiIndexable() const { return FAttr.isBidiIndexable(); }
   bool isUnsafeIndexable() const { return FAttr.isUnsafeIndexable(); }
   bool isUnspecified() const { return FAttr.isUnspecified(); }
 
+private:
+  using Type::isSinglePointerType;
+  using Type::isUnsafeIndexablePointerType;
+
+public:
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getPointeeType(), getPointerAttributes());
   }
@@ -9181,43 +9190,45 @@ inline bool Type::isSignablePointerType() const {
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */
-inline bool Type::isUnsafeIndexablePointerType() const {
+inline std::optional<BoundsSafetyPointerAttributes>
+Type::getSugarAwareBoundsSafetyPointerAttributes() const {
   const auto *PT = dyn_cast<PointerType>(CanonicalType);
   if (!PT)
-    return false;
-  if (PT->isUnsafeIndexable())
-    return true;
-  if (PT->isUnspecified() && hasAttr(attr::PtrUnsafeIndexable))
-    return true;
-  return false;
+    return std::nullopt;
+
+  if (PT->isUnspecified()) {
+    if (hasAttr(attr::PtrSingle))
+      return BoundsSafetyPointerAttributes::single();
+    if (hasAttr(attr::PtrUnsafeIndexable))
+      return BoundsSafetyPointerAttributes::unsafeIndexable();
+  }
+  return PT->getPointerAttributes();
+}
+
+inline bool Type::isUnsafeIndexablePointerType() const {
+  auto Attrs = getSugarAwareBoundsSafetyPointerAttributes();
+  return Attrs && Attrs->isUnsafeIndexable();
 }
 
 inline bool Type::isSinglePointerType() const {
-  const auto *PT = dyn_cast<PointerType>(CanonicalType);
-  if (!PT)
-    return false;
-  if (PT->isSingle())
-    return true;
-  if (PT->isUnspecified() && hasAttr(attr::PtrSingle))
-    return true;
-  return false;
+  auto Attrs = getSugarAwareBoundsSafetyPointerAttributes();
+  return Attrs && Attrs->isSingle();
 }
 
 inline bool Type::isBidiIndexablePointerType() const {
-  const auto *PT = dyn_cast<PointerType>(CanonicalType);
-  return PT && PT->isBidiIndexable();
+  auto Attrs = getSugarAwareBoundsSafetyPointerAttributes();
+  return Attrs && Attrs->isBidiIndexable();
 }
 
 inline bool Type::isIndexablePointerType() const {
-  const auto *PT = dyn_cast<PointerType>(CanonicalType);
-  return PT && PT->isIndexable();
+  auto Attrs = getSugarAwareBoundsSafetyPointerAttributes();
+  return Attrs && Attrs->isIndexable();
 }
 
 inline bool Type::isUnspecifiedPointerType() const {
-  return isPointerType() &&
-         !(isUnsafeIndexablePointerType() || isSinglePointerType() ||
-           isBidiIndexablePointerType() || isIndexablePointerType() ||
-           isBoundsAttributedType() || isValueTerminatedType());
+  auto Attrs = getSugarAwareBoundsSafetyPointerAttributes();
+  return Attrs && Attrs->isUnspecified() && !isBoundsAttributedType() &&
+         !isValueTerminatedType();
 }
 
 inline bool Type::isSafePointerType() const {

@@ -1,4 +1,3 @@
-
 // RUN: not %clang_cc1 -fsyntax-only -fbounds-safety -ast-dump %s | FileCheck %s
 // RUN: not %clang_cc1 -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -ast-dump %s | FileCheck %s
 
@@ -150,14 +149,14 @@ void typeof_autotype2() {
 // CHECK: |   |-DeclStmt
 // CHECK: |   | `-VarDecl [[var_p1_2:0x[^ ]+]]
 // CHECK: |   |   `-ImplicitCastExpr {{.+}} 'char *__unsafe_indexable' <BoundsSafetyPointerCast>
-// CHECK: |   |     `-ImplicitCastExpr {{.+}} 'char *__single _Nullable':'char *__single' <LValueToRValue>
+// CHECK: |   |     `-ImplicitCastExpr {{.+}} 'char *__single _Nullable':'char *' <LValueToRValue>
 // CHECK: |   |       `-DeclRefExpr {{.+}} [[var_p]]
 // CHECK: |   `-DeclStmt
 // CHECK: |     `-VarDecl [[var_p2_2:0x[^ ]+]]
 // CHECK: |       `-ImplicitCastExpr {{.+}} 'char *__unsafe_indexable' <BoundsSafetyPointerCast>
 // CHECK: |         `-UnaryOperator {{.+}} cannot overflow
 // CHECK: |           `-UnaryOperator {{.+}} cannot overflow
-// CHECK: |             `-ImplicitCastExpr {{.+}} 'char *__single _Nullable':'char *__single' <LValueToRValue>
+// CHECK: |             `-ImplicitCastExpr {{.+}} 'char *__single _Nullable':'char *' <LValueToRValue>
 // CHECK: |               `-DeclRefExpr {{.+}} [[var_p]]
 // CHECK: |-FunctionDecl [[func_typeofexpr_typeofexpr:0x[^ ]+]] {{.+}} typeofexpr_typeofexpr
 // CHECK: | `-CompoundStmt
@@ -187,4 +186,3 @@ void typeof_autotype2() {
 // CHECK:     |     `-DeclRefExpr {{.+}} [[var_bar]]
 // CHECK:     `-DeclStmt
 // CHECK:       `-VarDecl [[var_p2_6:0x[^ ]+]]
-

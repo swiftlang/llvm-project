@@ -51,7 +51,7 @@ void Test(void) {
 // CHECK: {{^}}    |     |-OpaqueValueExpr [[ove]]
 // CHECK: {{^}}    |     | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK: {{^}}    |     |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK: {{^}}    |     |     `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// CHECK: {{^}}    |     |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // CHECK: {{^}}    |     |       `-DeclRefExpr {{.+}} [[var_iptr]]
 // CHECK: {{^}}    |     `-OpaqueValueExpr [[ove_1]]
 // CHECK: {{^}}    |       `-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>

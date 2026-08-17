@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -Wno-bounds-safety-init-list %s | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -Wno-bounds-safety-init-list %s | FileCheck %s
 
@@ -417,25 +416,28 @@ void caller_7(int *__bidi_indexable p, int len) {
 // CHECK-NEXT: {{^}}|     | | |-CallExpr
 // CHECK-NEXT: {{^}}|     | | | |-ImplicitCastExpr {{.+}} 'void (*__single)(int *__single __counted_by_or_null(len), int)' <FunctionToPointerDecay>
 // CHECK-NEXT: {{^}}|     | | | | `-DeclRefExpr {{.+}} [[func_foo]]
-// CHECK-NEXT: {{^}}|     | | | |-OpaqueValueExpr [[ove_18:0x[^ ]+]] {{.*}} 'int *__single'
+// CHECK-NEXT: {{^}}|     | | | |-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(len)':'int *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: {{^}}|     | | | | `-OpaqueValueExpr [[ove_18:0x[^ ]+]] {{.*}} 'int *__single':'int *'
+// CHECK-NEXT: {{^}}|     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// CHECK-NEXT: {{^}}|     | | | |     `-DeclRefExpr {{.+}} [[var_p_4]]
 // CHECK:      {{^}}|     | | | `-OpaqueValueExpr [[ove_19:0x[^ ]+]] {{.*}} 'int'
 // CHECK:      {{^}}|     | | `-BinaryOperator {{.+}} 'int' '&&'
 // CHECK-NEXT: {{^}}|     | |   |-BinaryOperator {{.+}} 'int' '&&'
 // CHECK-NEXT: {{^}}|     | |   | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: {{^}}|     | |   | | |-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single'
+// CHECK-NEXT: {{^}}|     | |   | | |-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single':'int *'
 // CHECK:      {{^}}|     | |   | | `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
 // CHECK-NEXT: {{^}}|     | |   | |   `-GetBoundExpr {{.+}} upper
 // CHECK-NEXT: {{^}}|     | |   | |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT: {{^}}|     | |   | |       `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single'
+// CHECK-NEXT: {{^}}|     | |   | |       `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single':'int *'
 // CHECK:      {{^}}|     | |   | `-BinaryOperator {{.+}} 'int' '<='
 // CHECK-NEXT: {{^}}|     | |   |   |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
 // CHECK-NEXT: {{^}}|     | |   |   | `-GetBoundExpr {{.+}} lower
 // CHECK-NEXT: {{^}}|     | |   |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT: {{^}}|     | |   |   |     `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single'
-// CHECK:      {{^}}|     | |   |   `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single'
+// CHECK-NEXT: {{^}}|     | |   |   |     `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single':'int *'
+// CHECK:      {{^}}|     | |   |   `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single':'int *'
 // CHECK:      {{^}}|     | |   `-BinaryOperator {{.+}} 'int' '||'
 // CHECK-NEXT: {{^}}|     | |     |-UnaryOperator {{.+}} cannot overflow
-// CHECK-NEXT: {{^}}|     | |     | `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single'
+// CHECK-NEXT: {{^}}|     | |     | `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single':'int *'
 // CHECK:      {{^}}|     | |     `-BinaryOperator {{.+}} 'int' '&&'
 // CHECK-NEXT: {{^}}|     | |       |-BinaryOperator {{.+}} 'int' '<='
 // CHECK-NEXT: {{^}}|     | |       | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
@@ -444,18 +446,18 @@ void caller_7(int *__bidi_indexable p, int len) {
 // CHECK-NEXT: {{^}}|     | |       |   |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
 // CHECK-NEXT: {{^}}|     | |       |   | `-GetBoundExpr {{.+}} upper
 // CHECK-NEXT: {{^}}|     | |       |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT: {{^}}|     | |       |   |     `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single'
-// CHECK:      {{^}}|     | |       |   `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single'
+// CHECK-NEXT: {{^}}|     | |       |   |     `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single':'int *'
+// CHECK:      {{^}}|     | |       |   `-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single':'int *'
 // CHECK:      {{^}}|     | |       `-BinaryOperator {{.+}} 'int' '<='
 // CHECK-NEXT: {{^}}|     | |         |-IntegerLiteral {{.+}} 0
 // CHECK-NEXT: {{^}}|     | |         `-OpaqueValueExpr [[ove_19]] {{.*}} 'int'
 // CHECK:      {{^}}|     | |-OpaqueValueExpr [[ove_18]]
-// CHECK-NEXT: {{^}}|     | | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// CHECK-NEXT: {{^}}|     | | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // CHECK-NEXT: {{^}}|     | |   `-DeclRefExpr {{.+}} [[var_p_4]]
 // CHECK-NEXT: {{^}}|     | `-OpaqueValueExpr [[ove_19]]
 // CHECK-NEXT: {{^}}|     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK-NEXT: {{^}}|     |     `-DeclRefExpr {{.+}} [[var_len_4]]
-// CHECK-NEXT: {{^}}|     |-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single'
+// CHECK-NEXT: {{^}}|     |-OpaqueValueExpr [[ove_18]] {{.*}} 'int *__single':'int *'
 // CHECK:      {{^}}|     `-OpaqueValueExpr [[ove_19]] {{.*}} 'int'
 void caller_8(int *__single p, int len) {
   foo(p, len);

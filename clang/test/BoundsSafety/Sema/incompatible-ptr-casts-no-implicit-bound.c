@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -verify %s
 // RUN: %clang_cc1 -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 #include <ptrcheck.h>
@@ -47,6 +46,5 @@ void Test () {
 
     // expected-error@+1{{conversion between pointers to functions with incompatible bound attributes}}
     bar_t fp1 = foo;
-    // expected-error@+1{{conversion between pointers to functions with incompatible bound attributes}}
     baz_t fp2 = foo;
 }

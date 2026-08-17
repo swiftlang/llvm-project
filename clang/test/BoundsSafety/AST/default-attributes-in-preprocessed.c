@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -verify -fbounds-safety -isystem %S/SystemHeaders/include %s | FileCheck %s
 // RUN: %clang_cc1 -E -verify -fbounds-safety -isystem %S/SystemHeaders/include -o %t.pp.c %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %t.pp.c | FileCheck %s
@@ -23,5 +21,6 @@ int *__single return_to_single_p(int *p) {
 // CHECK-NEXT:   |-ParmVarDecl {{.*}} used p 'int *__single'
 // CHECK-NEXT:   `-CompoundStmt
 // CHECK-NEXT:     `-ReturnStmt
-// CHECK-NEXT:       `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-// CHECK-NEXT:         `-DeclRefExpr {{.*}} 'int *__single' lvalue ParmVar {{.*}} 'p' 'int *__single'
+// CHECK-NEXT:       `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT:         `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
+// CHECK-NEXT:           `-DeclRefExpr {{.*}} 'int *__single' lvalue ParmVar {{.*}} 'p' 'int *__single'

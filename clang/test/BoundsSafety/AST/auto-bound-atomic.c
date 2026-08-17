@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -fbounds-safety -ast-dump %s 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -ast-dump %s 2>&1 | FileCheck %s
 
@@ -22,9 +21,9 @@ void parm1(int *_Atomic p1);
 void parm2(_Atomic(int *) p2);
 
 void locals(void) {
-  // CHECK: VarDecl {{.+}} l1 '_Atomic(_Atomic(int *__single) *__single)'
+  // CHECK: VarDecl {{.+}} l1 '_Atomic(_Atomic(int *) *__single)'
   int *_Atomic *_Atomic __single l1;
-  // CHECK: VarDecl {{.+}} l2 '_Atomic(_Atomic(int *__single) *__single)'
+  // CHECK: VarDecl {{.+}} l2 '_Atomic(_Atomic(int *) *__single)'
   _Atomic(int *) *_Atomic __single l2;
 
   // CHECK: VarDecl {{.+}} l3 '_Atomic(_Atomic(int *__single) *__unsafe_indexable)'

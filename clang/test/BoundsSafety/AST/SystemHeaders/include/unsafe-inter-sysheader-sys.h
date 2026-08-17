@@ -27,9 +27,9 @@ void funcInSDK(int * unsafePointer) {
 // RELAXED: |-FunctionDecl [[func_funcInSDK:0x[^ ]+]] {{.+}} funcInSDK
 // RELAXED: | |-ParmVarDecl [[var_unsafePointer:0x[^ ]+]]
 // RELAXED: | `-CompoundStmt
-// RELAXED: |   |-BinaryOperator {{.+}} 'int *__single' '='
+// RELAXED: |   |-BinaryOperator {{.+}} 'int *__single':'int *' '='
 // RELAXED: |   | |-DeclRefExpr {{.+}} [[var_safeGlobal]]
-// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
+// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
 // RELAXED: |   |   `-ImplicitCastExpr {{.+}} 'int *' <LValueToRValue>
 // RELAXED: |   |     `-DeclRefExpr {{.+}} [[var_unsafePointer]]
 // RELAXED: |   |-BinaryOperator {{.+}} 'int *' '='
@@ -38,9 +38,8 @@ void funcInSDK(int * unsafePointer) {
 // RELAXED: |   |   `-DeclRefExpr {{.+}} [[var_unsafePointer]]
 // RELAXED: |   |-BinaryOperator {{.+}} 'int *' '='
 // RELAXED: |   | |-DeclRefExpr {{.+}} [[var_unsafePointer]]
-// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// RELAXED: |   |   `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// RELAXED: |   |     `-DeclRefExpr {{.+}} [[var_safeGlobal]]
+// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// RELAXED: |   |   `-DeclRefExpr {{.+}} [[var_safeGlobal]]
 // RELAXED: |   `-BinaryOperator {{.+}} 'int *' '='
 // RELAXED: |     |-DeclRefExpr {{.+}} [[var_unsafePointer]]
 // RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *' <LValueToRValue>
@@ -59,9 +58,8 @@ void funcInSDK(int * unsafePointer) {
 // STRICT: |   |   `-DeclRefExpr {{.+}} [[var_unsafePointer]]
 // STRICT: |   |-BinaryOperator {{.+}} 'int *' '='
 // STRICT: |   | |-DeclRefExpr {{.+}} [[var_unsafePointer]]
-// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// STRICT: |   |   `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// STRICT: |   |     `-DeclRefExpr {{.+}} [[var_safeGlobal]]
+// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// STRICT: |   |   `-DeclRefExpr {{.+}} [[var_safeGlobal]]
 // STRICT: |   `-BinaryOperator {{.+}} 'int *' '='
 // STRICT: |     |-DeclRefExpr {{.+}} [[var_unsafePointer]]
 // STRICT: |     `-ImplicitCastExpr {{.+}} 'int *' <LValueToRValue>
@@ -118,40 +116,38 @@ void funcInSDK3(int * __single safePointer) {
 // RELAXED: |-FunctionDecl [[func_funcInSDK3:0x[^ ]+]] {{.+}} funcInSDK3
 // RELAXED: | |-ParmVarDecl [[var_safePointer:0x[^ ]+]]
 // RELAXED: | `-CompoundStmt
-// RELAXED: |   |-BinaryOperator {{.+}} 'int *__single' '='
+// RELAXED: |   |-BinaryOperator {{.+}} 'int *__single':'int *' '='
 // RELAXED: |   | |-DeclRefExpr {{.+}} [[var_safeGlobal]]
-// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // RELAXED: |   |   `-DeclRefExpr {{.+}} [[var_safePointer]]
 // RELAXED: |   |-BinaryOperator {{.+}} 'int *' '='
 // RELAXED: |   | |-DeclRefExpr {{.+}} [[var_unsafeGlobal]]
-// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// RELAXED: |   |   `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// RELAXED: |   |     `-DeclRefExpr {{.+}} [[var_safePointer]]
-// RELAXED: |   |-BinaryOperator {{.+}} 'int *__single' '='
+// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// RELAXED: |   |   `-DeclRefExpr {{.+}} [[var_safePointer]]
+// RELAXED: |   |-BinaryOperator {{.+}} 'int *__single':'int *' '='
 // RELAXED: |   | |-DeclRefExpr {{.+}} [[var_safePointer]]
-// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // RELAXED: |   |   `-DeclRefExpr {{.+}} [[var_safeGlobal]]
-// RELAXED: |   `-BinaryOperator {{.+}} 'int *__single' '='
+// RELAXED: |   `-BinaryOperator {{.+}} 'int *__single':'int *' '='
 // RELAXED: |     |-DeclRefExpr {{.+}} [[var_safePointer]]
-// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
+// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
 // RELAXED: |       `-ImplicitCastExpr {{.+}} 'int *' <LValueToRValue>
 // RELAXED: |         `-DeclRefExpr {{.+}} [[var_unsafeGlobal]]
 
 // STRICT: |-FunctionDecl [[func_funcInSDK3:0x[^ ]+]] {{.+}} funcInSDK3
 // STRICT: | |-ParmVarDecl [[var_safePointer:0x[^ ]+]]
 // STRICT: | `-CompoundStmt
-// STRICT: |   |-BinaryOperator {{.+}} 'int *__single' '='
+// STRICT: |   |-BinaryOperator {{.+}} 'int *__single':'int *' '='
 // STRICT: |   | |-DeclRefExpr {{.+}} [[var_safeGlobal]]
-// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // STRICT: |   |   `-DeclRefExpr {{.+}} [[var_safePointer]]
 // STRICT: |   |-BinaryOperator {{.+}} 'int *' '='
 // STRICT: |   | |-DeclRefExpr {{.+}} [[var_unsafeGlobal]]
-// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// STRICT: |   |   `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// STRICT: |   |     `-DeclRefExpr {{.+}} [[var_safePointer]]
-// STRICT: |   |-BinaryOperator {{.+}} 'int *__single' '='
+// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// STRICT: |   |   `-DeclRefExpr {{.+}} [[var_safePointer]]
+// STRICT: |   |-BinaryOperator {{.+}} 'int *__single':'int *' '='
 // STRICT: |   | |-DeclRefExpr {{.+}} [[var_safePointer]]
-// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // STRICT: |   |   `-DeclRefExpr {{.+}} [[var_safeGlobal]]
 // STRICT: |   `-ImplicitCastExpr {{.+}} contains-errors <LValueToRValue>
 // STRICT: |     `-RecoveryExpr
@@ -171,17 +167,16 @@ void funcInSDK4(int * __single safePointer) {
 // RELAXED: |   | | |-CallExpr
 // RELAXED: |   | | | |-ImplicitCastExpr {{.+}} 'void (*__single)(int *__single __sized_by(4))' <FunctionToPointerDecay>
 // RELAXED: |   | | | | `-DeclRefExpr {{.+}} [[func_funcWithAnnotation]]
-// RELAXED: |   | | | `-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'int *__single'
+// RELAXED: |   | | | `-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'int *__single':'int *'
 // RELAXED: |   | | `-OpaqueValueExpr [[ove_1]]
-// RELAXED: |   | |   `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// RELAXED: |   | |   `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // RELAXED: |   | |     `-DeclRefExpr {{.+}} [[var_safePointer_1]]
-// RELAXED: |   | `-OpaqueValueExpr [[ove_1]] {{.*}} 'int *__single'
+// RELAXED: |   | `-OpaqueValueExpr [[ove_1]] {{.*}} 'int *__single':'int *'
 // RELAXED: |   `-CallExpr
 // RELAXED: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(int *)' <FunctionToPointerDecay>
 // RELAXED: |     | `-DeclRefExpr {{.+}} [[func_funcWithoutAnnotation]]
-// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// RELAXED: |       `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// RELAXED: |         `-DeclRefExpr {{.+}} [[var_safePointer_1]]
+// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// RELAXED: |       `-DeclRefExpr {{.+}} [[var_safePointer_1]]
 
 // STRICT: |-FunctionDecl [[func_funcInSDK4:0x[^ ]+]] {{.+}} funcInSDK4
 // STRICT: | |-ParmVarDecl [[var_safePointer_1:0x[^ ]+]]
@@ -192,21 +187,21 @@ void funcInSDK4(int * __single safePointer) {
 // STRICT: |   | | | |-CallExpr
 // STRICT: |   | | | | |-ImplicitCastExpr {{.+}} 'void (*__single)(int *__single __sized_by(4))' <FunctionToPointerDecay>
 // STRICT: |   | | | | | `-DeclRefExpr {{.+}} [[func_funcWithAnnotation]]
-// STRICT: |   | | | | `-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'int *__single'
+// STRICT: |   | | | | `-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'int *__single':'int *'
 // STRICT: |   | | | `-BinaryOperator {{.+}} 'int' '&&'
 // STRICT: |   | | |   |-BinaryOperator {{.+}} 'int' '&&'
 // STRICT: |   | | |   | |-BinaryOperator {{.+}} 'int' '<='
-// STRICT: |   | | |   | | |-OpaqueValueExpr [[ove]] {{.*}} 'int *__single'
+// STRICT: |   | | |   | | |-OpaqueValueExpr [[ove]] {{.*}} 'int *__single':'int *'
 // STRICT: |   | | |   | | `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
 // STRICT: |   | | |   | |   `-GetBoundExpr {{.+}} upper
 // STRICT: |   | | |   | |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// STRICT: |   | | |   | |       `-OpaqueValueExpr [[ove]] {{.*}} 'int *__single'
+// STRICT: |   | | |   | |       `-OpaqueValueExpr [[ove]] {{.*}} 'int *__single':'int *'
 // STRICT: |   | | |   | `-BinaryOperator {{.+}} 'int' '<='
 // STRICT: |   | | |   |   |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
 // STRICT: |   | | |   |   | `-GetBoundExpr {{.+}} lower
 // STRICT: |   | | |   |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// STRICT: |   | | |   |   |     `-OpaqueValueExpr [[ove]] {{.*}} 'int *__single'
-// STRICT: |   | | |   |   `-OpaqueValueExpr [[ove]] {{.*}} 'int *__single'
+// STRICT: |   | | |   |   |     `-OpaqueValueExpr [[ove]] {{.*}} 'int *__single':'int *'
+// STRICT: |   | | |   |   `-OpaqueValueExpr [[ove]] {{.*}} 'int *__single':'int *'
 // STRICT: |   | | |   `-BinaryOperator {{.+}} 'int' '&&'
 // STRICT: |   | | |     |-BinaryOperator {{.+}} 'int' '<='
 // STRICT: |   | | |     | |-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} '__ptrdiff_t':'long'
@@ -215,27 +210,26 @@ void funcInSDK4(int * __single safePointer) {
 // STRICT: |   | | |     |   | `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // STRICT: |   | | |     |   |   `-GetBoundExpr {{.+}} upper
 // STRICT: |   | | |     |   |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <BoundsSafetyPointerCast>
-// STRICT: |   | | |     |   |       `-OpaqueValueExpr [[ove]] {{.*}} 'int *__single'
-// STRICT: |   | | |     |   `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// STRICT: |   | | |     |     `-DeclRefExpr {{.+}} 'int *__single' lvalue ParmVar {{.+}} 'safePointer' 'int *__single'
+// STRICT: |   | | |     |   |       `-OpaqueValueExpr [[ove]] {{.*}} 'int *__single':'int *'
+// STRICT: |   | | |     |   `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// STRICT: |   | | |     |     `-DeclRefExpr {{.+}} 'int *__single':'int *' lvalue ParmVar {{.+}} 'safePointer' 'int *__single':'int *'
 // STRICT: |   | | |     `-BinaryOperator {{.+}} 'int' '<='
 // STRICT: |   | | |       |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
 // STRICT: |   | | |       | `-IntegerLiteral {{.+}} 0
 // STRICT: |   | | |       `-OpaqueValueExpr [[ove_1]] {{.*}} '__ptrdiff_t':'long'
 // STRICT: |   | | |-OpaqueValueExpr [[ove]]
-// STRICT: |   | | | `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// STRICT: |   | | | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // STRICT: |   | | |   `-DeclRefExpr {{.+}} [[var_safePointer_1]]
 // STRICT: |   | | `-OpaqueValueExpr [[ove_1]]
 // STRICT: |   | |   `-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
 // STRICT: |   | |     `-IntegerLiteral {{.+}} 4
-// STRICT: |   | |-OpaqueValueExpr [[ove]] {{.*}} 'int *__single'
+// STRICT: |   | |-OpaqueValueExpr [[ove]] {{.*}} 'int *__single':'int *'
 // STRICT: |   | `-OpaqueValueExpr [[ove_1]] {{.*}} '__ptrdiff_t':'long'
 // STRICT: |   `-CallExpr
 // STRICT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(int *)' <FunctionToPointerDecay>
 // STRICT: |     | `-DeclRefExpr {{.+}} [[func_funcWithoutAnnotation]]
-// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// STRICT: |       `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// STRICT: |         `-DeclRefExpr {{.+}} [[var_safePointer_1]]
+// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// STRICT: |       `-DeclRefExpr {{.+}} [[var_safePointer_1]]
 
 void funcInSDK5(int * unsafePointer) {
   funcInSDK(unsafePointer);
@@ -254,7 +248,7 @@ void funcInSDK5(int * unsafePointer) {
 // RELAXED: |   `-CallExpr
 // RELAXED: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(int *__single)' <FunctionToPointerDecay>
 // RELAXED: |     | `-DeclRefExpr {{.+}} [[func_funcInSDK3]]
-// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single' <BoundsSafetyPointerCast>
+// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <BoundsSafetyPointerCast>
 // RELAXED: |       `-ImplicitCastExpr {{.+}} 'int *' <LValueToRValue>
 // RELAXED: |         `-DeclRefExpr {{.+}} [[var_unsafePointer_2]]
 
@@ -282,13 +276,12 @@ void funcInSDK6(int * __single safePointer) {
 // RELAXED: |   |-CallExpr
 // RELAXED: |   | |-ImplicitCastExpr {{.+}} 'void (*__single)(int *)' <FunctionToPointerDecay>
 // RELAXED: |   | | `-DeclRefExpr {{.+}} [[func_funcInSDK]]
-// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// RELAXED: |   |   `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// RELAXED: |   |     `-DeclRefExpr {{.+}} [[var_safePointer_2]]
+// RELAXED: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// RELAXED: |   |   `-DeclRefExpr {{.+}} [[var_safePointer_2]]
 // RELAXED: |   `-CallExpr
 // RELAXED: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(int *__single)' <FunctionToPointerDecay>
 // RELAXED: |     | `-DeclRefExpr {{.+}} [[func_funcInSDK3]]
-// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// RELAXED: |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // RELAXED: |       `-DeclRefExpr {{.+}} [[var_safePointer_2]]
 
 // STRICT: |-FunctionDecl [[func_funcInSDK6:0x[^ ]+]] {{.+}} funcInSDK6
@@ -297,12 +290,10 @@ void funcInSDK6(int * __single safePointer) {
 // STRICT: |   |-CallExpr
 // STRICT: |   | |-ImplicitCastExpr {{.+}} 'void (*__single)(int *)' <FunctionToPointerDecay>
 // STRICT: |   | | `-DeclRefExpr {{.+}} [[func_funcInSDK]]
-// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// STRICT: |   |   `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
-// STRICT: |   |     `-DeclRefExpr {{.+}} [[var_safePointer_2]]
+// STRICT: |   | `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
+// STRICT: |   |   `-DeclRefExpr {{.+}} [[var_safePointer_2]]
 // STRICT: |   `-CallExpr
 // STRICT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(int *__single)' <FunctionToPointerDecay>
 // STRICT: |     | `-DeclRefExpr {{.+}} [[func_funcInSDK3]]
-// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *__single' <LValueToRValue>
+// STRICT: |     `-ImplicitCastExpr {{.+}} 'int *__single':'int *' <LValueToRValue>
 // STRICT: |       `-DeclRefExpr {{.+}} [[var_safePointer_2]]
-

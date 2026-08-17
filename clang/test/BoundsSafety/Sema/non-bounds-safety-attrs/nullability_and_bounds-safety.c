@@ -1,14 +1,12 @@
-
-
 // RUN: %clang_cc1 -triple arm64-apple-ios -fptrauth-intrinsics -fbounds-safety -fsyntax-only -ast-dump %s | FileCheck %s
 // RUN: %clang_cc1 -triple arm64-apple-ios -fptrauth-intrinsics -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -fsyntax-only -ast-dump %s | FileCheck %s
 #include <ptrcheck.h>
 
 int * _Nullable __single global_var1;
-// CHECK: global_var1 'int *__single _Nullable':'int *__single'
+// CHECK: global_var1 'int *__single _Nullable':'int *'
 
 int * __single _Nullable global_var2;
-// CHECK: global_var2 'int *__single _Nullable':'int *__single'
+// CHECK: global_var2 'int *__single _Nullable':'int *'
 
 void f(void) {
   int * _Nullable __bidi_indexable local_var1;
@@ -28,18 +26,18 @@ void f(void) {
 
 struct S {
   int * __single _Nullable member_var1;
-  // CHECK: member_var1 'int *__single _Nullable':'int *__single'
+  // CHECK: member_var1 'int *__single _Nullable':'int *'
 
   int * _Nullable __single member_var2;
-  // CHECK: member_var2 'int *__single _Nullable':'int *__single'
+  // CHECK: member_var2 'int *__single _Nullable':'int *'
 };
 
 union U {
   int * __single _Nullable union_var1;
-  // CHECK: union_var1 'int *__single _Nullable':'int *__single'
+  // CHECK: union_var1 'int *__single _Nullable':'int *'
 
   int * _Nullable __single union_var2;
-  // CHECK: union_var2 'int *__single _Nullable':'int *__single'
+  // CHECK: union_var2 'int *__single _Nullable':'int *'
 };
 
 void foo1(int * _Nonnull __single __counted_by(n) ptr1, unsigned n);

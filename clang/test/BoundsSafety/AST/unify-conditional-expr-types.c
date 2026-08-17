@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -verify %s | FileCheck %s
 #include <ptrcheck.h>
 
@@ -102,7 +100,7 @@ char testFunc2(int pred, char * __counted_by(cc) c, char * __single d, int cc, i
 // CHECK: |   |     |   | |-OpaqueValueExpr [[ove_1]] {{.*}} 'char *__single __counted_by(cc)':'char *__single'
 // CHECK: |   |     |   | `-OpaqueValueExpr [[ove_2]] {{.*}} 'int'
 // CHECK: |   |     |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK: |   |     |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK: |   |     |     `-ImplicitCastExpr {{.+}} 'char *__single':'char *' <LValueToRValue>
 // CHECK: |   |     |       `-DeclRefExpr {{.+}} [[var_d]]
 // CHECK: |   |     `-OpaqueValueExpr [[ove_3]]
 // CHECK: |   |       `-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
@@ -362,7 +360,6 @@ char testFunc6(int pred, char * __bidi_indexable * __indexable c, char * __bidi_
 // CHECK: |       `-OpaqueValueExpr [[ove_19]] {{.*}} '__ptrdiff_t':'long'
 
 char testFunc7(int pred, char * __unsafe_indexable * __single c, char * __single * __indexable d) {
-    // expected-error@+1{{conditional expression evaluates values with incompatible pointee types 'char *__unsafe_indexable*__indexable' and 'char *__single*__indexable'; use explicit casts to perform this conversion}}
     char * __unsafe_indexable *__indexable tmp = pred ? c : d;
     return tmp[9][2];
 }
@@ -517,8 +514,9 @@ char testFunc14(int pred, const char *__single _Nullable __null_terminated c, co
 // CHECK: |   |   `-ConditionalOperator {{.+}} <col:41, col:52> 'const char *__single __terminated_by(0) _Nullable':'const char *__single'
 // CHECK: |   |     |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK: |   |     | `-DeclRefExpr {{.+}} [[var_pred_13]]
-// CHECK: |   |     |-ImplicitCastExpr {{.+}} 'const char *__single __terminated_by(0) _Nullable':'const char *__single' <LValueToRValue>
-// CHECK: |   |     | `-DeclRefExpr {{.+}} [[var_c_10]]
+// CHECK: |   |     |-ImplicitCastExpr {{.+}} 'const char *__single __terminated_by(0)':'const char *__single' <BitCast>
+// CHECK: |   |     | `-ImplicitCastExpr {{.+}} 'const char *__single __terminated_by(0) _Nullable':'const char *' <LValueToRValue>
+// CHECK: |   |     |   `-DeclRefExpr {{.+}} [[var_c_10]]
 // CHECK: |   |     `-ImplicitCastExpr {{.+}} 'const char *__single __terminated_by(0) _Nullable':'const char *__single' <LValueToRValue>
 // CHECK: |   |       `-DeclRefExpr {{.+}} [[var_d_10]]
 // CHECK: |   `-ReturnStmt
@@ -542,8 +540,9 @@ char testFunc15(int pred, const char *__single _Nullable __null_terminated c, co
 // CHECK: |   |   `-ConditionalOperator {{.+}} <col:41, col:52> 'const char *__single __terminated_by(0) _Nullable':'const char *__single'
 // CHECK: |   |     |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK: |   |     | `-DeclRefExpr {{.+}} [[var_pred_14]]
-// CHECK: |   |     |-ImplicitCastExpr {{.+}} 'const char *__single __terminated_by(0) _Nullable':'const char *__single' <LValueToRValue>
-// CHECK: |   |     | `-DeclRefExpr {{.+}} [[var_c_11]]
+// CHECK: |   |     |-ImplicitCastExpr {{.+}} 'const char *__single __terminated_by(0)':'const char *__single' <BitCast>
+// CHECK: |   |     | `-ImplicitCastExpr {{.+}} 'const char *__single __terminated_by(0) _Nullable':'const char *' <LValueToRValue>
+// CHECK: |   |     |   `-DeclRefExpr {{.+}} [[var_c_11]]
 // CHECK: |   |     `-ImplicitCastExpr {{.+}} 'const char *__single __terminated_by(0) _Nullable':'const char *__single' <LValueToRValue>
 // CHECK: |   |       `-DeclRefExpr {{.+}} [[var_d_11]]
 // CHECK: |   `-ReturnStmt
@@ -576,4 +575,3 @@ char testFunc16(int pred, const char * _Nullable __null_terminated c, const char
 // CHECK:         `-UnaryOperator {{.+}} cannot overflow
 // CHECK:           `-ImplicitCastExpr {{.+}} 'const char *__single __terminated_by(0)':'const char *__single' <LValueToRValue>
 // CHECK:             `-DeclRefExpr {{.+}} [[var_foo_11]]
-

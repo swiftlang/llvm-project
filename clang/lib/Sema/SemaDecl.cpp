@@ -11731,8 +11731,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       if (Param->getType()->isCountAttributedType() ||
           Param->getType()->isDynamicRangePointerType())
         continue; // has a dynamic count, no problem
-      auto FA = Param->getType()->getAs<PointerType>()->getPointerAttributes();
-      if (FA.isSingle()) {
+      if (Param->getType()->isSinglePointerType()) {
         Diag(TSInfo->getTypeLoc().getBeginLoc(),
             diag::err_bounds_safety_array_decay_to_single) << TST;
         Diag(TSInfo->getTypeLoc().getBeginLoc(),
@@ -16648,7 +16647,7 @@ static void checkAtomicAutoPointerAttrs(Sema &S, const Decl *D) {
     if (!PtrTy)
       break;
     if (HasAutoAttr && !PtrTy->isUnspecified() && !PtrTy->isUnsafeIndexable() &&
-        !PtrTy->isSingle()) {
+        !Ty->isSinglePointerType()) {
       assert(PtrTy->isIndexable() || PtrTy->isBidiIndexable());
       unsigned DiagIndex = PtrTy->isIndexable() ? 0 : 1;
       S.Diag(D->getBeginLoc(), diag::err_bounds_safety_atomic_unsupported_attribute)

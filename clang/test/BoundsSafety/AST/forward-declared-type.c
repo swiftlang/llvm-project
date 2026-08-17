@@ -230,7 +230,7 @@ void unsizedSizedByToSingle(struct unsized * __sized_by(len) p, int len) {
 // CHECK: | `-CompoundStmt
 // CHECK: |   `-DeclStmt
 // CHECK: |     `-VarDecl [[var_p2_1:0x[^ ]+]]
-// CHECK: |       `-ImplicitCastExpr {{.+}} 'struct unsized *__single' <BoundsSafetyPointerCast>
+// CHECK: |       `-ImplicitCastExpr {{.+}} 'struct unsized *__single':'struct unsized *' <BoundsSafetyPointerCast>
 // CHECK: |         `-MaterializeSequenceExpr {{.+}} <Unbind>
 // CHECK: |           |-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK: |           | |-BoundsSafetyPointerPromotionExpr {{.+}} 'struct unsized *__bidi_indexable'
@@ -582,7 +582,7 @@ void unsizedSingleForgedNull() {
 // CHECK: |   `-DeclStmt
 // CHECK: |     `-VarDecl [[var_p2_10:0x[^ ]+]]
 // CHECK: |       `-ParenExpr
-// CHECK: |         `-CStyleCastExpr {{.+}} 'struct unsized *__single' <BitCast>
+// CHECK: |         `-CStyleCastExpr {{.+}} 'struct unsized *__single':'struct unsized *' <BitCast>
 // CHECK: |           `-ForgePtrExpr
 // CHECK: |             |-ParenExpr
 // CHECK: |             | `-IntegerLiteral {{.+}} 0
@@ -596,7 +596,7 @@ void unsizedSingleForgedDyn(int p) {
 // CHECK: |   `-DeclStmt
 // CHECK: |     `-VarDecl [[var_p2_11:0x[^ ]+]]
 // CHECK: |       `-ParenExpr
-// CHECK: |         `-CStyleCastExpr {{.+}} 'struct unsized *__single' <BitCast>
+// CHECK: |         `-CStyleCastExpr {{.+}} 'struct unsized *__single':'struct unsized *' <BitCast>
 // CHECK: |           `-ForgePtrExpr
 // CHECK: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK: |             | `-ParenExpr
@@ -612,7 +612,7 @@ void unsizedSingleForgedToBidi(int p) {
 // CHECK:       `-VarDecl [[var_p2_12:0x[^ ]+]]
 // CHECK:         `-RecoveryExpr
 // CHECK:           `-ParenExpr
-// CHECK:             `-CStyleCastExpr {{.+}} 'struct unsized *__single' <BitCast>
+// CHECK:             `-CStyleCastExpr {{.+}} 'struct unsized *__single':'struct unsized *' <BitCast>
 // CHECK:               `-ForgePtrExpr
 // CHECK:                 |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK:                 | `-ParenExpr
@@ -634,9 +634,10 @@ void unsizedSingleForgedToSizedBy(int p, int len) {
     int size = len; // expected-note{{size initialized here}}
 // CHECK:    `-DeclStmt
 // CHECK:      `-VarDecl [[var_p2_13:0x[^ ]+]]
-// CHECK:        `-BoundsCheckExpr {{.+}} '(struct unsized *__single)__builtin_unsafe_forge_single((p)) <= __builtin_get_pointer_upper_bound((struct unsized *__single)__builtin_unsafe_forge_single((p))) && __builtin_get_pointer_lower_bound((struct unsized *__single)__builtin_unsafe_forge_single((p))) <= (struct unsized *__single)__builtin_unsafe_forge_single((p)) && size <= (char *)__builtin_get_pointer_upper_bound((struct unsized *__single)__builtin_unsafe_forge_single((p))) - (char *__single)(struct unsized *__single)__builtin_unsafe_forge_single((p)) && 0 <= size'
-// CHECK:          |-ParenExpr
-// CHECK:          | `-OpaqueValueExpr [[ove_32:0x[^ ]+]] {{.*}} 'struct unsized *__single'
+// CHECK:        `-BoundsCheckExpr {{.+}} '((struct unsized *__single)__builtin_unsafe_forge_single((p))) <= __builtin_get_pointer_upper_bound(((struct unsized *__single)__builtin_unsafe_forge_single((p)))) && __builtin_get_pointer_lower_bound(((struct unsized *__single)__builtin_unsafe_forge_single((p)))) <= ((struct unsized *__single)__builtin_unsafe_forge_single((p))) && size <= (char *)__builtin_get_pointer_upper_bound(((struct unsized *__single)__builtin_unsafe_forge_single((p)))) - (char *)((struct unsized *__single)__builtin_unsafe_forge_single((p))) && 0 <= size'
+// CHECK:          |-ImplicitCastExpr {{.+}} 'struct unsized *__single __sized_by(size)':'struct unsized *__single' <BoundsSafetyPointerCast>
+// CHECK:          | `-OpaqueValueExpr [[ove_32:0x[^ ]+]] {{.*}} 'struct unsized *__single':'struct unsized *'
+// CHECK:          |   `-ParenExpr
 // CHECK:          |-BinaryOperator {{.+}} 'int' '&&'
 // CHECK:          | |-BinaryOperator {{.+}} 'int' '&&'
 // CHECK:          | | |-BinaryOperator {{.+}} 'int' '<='
@@ -657,14 +658,15 @@ void unsizedSingleForgedToSizedBy(int p, int len) {
 // CHECK:          |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:          |   |   |   `-ImplicitCastExpr {{.+}} 'struct unsized *__bidi_indexable' <BoundsSafetyPointerCast>
 // CHECK:          |   |   |     `-OpaqueValueExpr [[ove_32]] {{.*}} 'struct unsized *__single'
-// CHECK:          |   |   `-CStyleCastExpr {{.+}} 'char *__single' <BitCast>
-// CHECK:          |   |     `-OpaqueValueExpr [[ove_32]] {{.*}} 'struct unsized *__single'
+// CHECK:          |   |   `-CStyleCastExpr {{.+}} 'char *__single' <BoundsSafetyPointerCast>
+// CHECK:          |   |     `-ImplicitCastExpr {{.+}} 'char *' <BitCast> part_of_explicit_cast
+// CHECK:          |   |       `-OpaqueValueExpr [[ove_32]] {{.*}} 'struct unsized *__single'
 // CHECK:          |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:          |     |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
 // CHECK:          |     | `-IntegerLiteral {{.+}} 0
 // CHECK:          |     `-OpaqueValueExpr [[ove_33]] {{.*}} '__ptrdiff_t':'long'
 // CHECK:          |-OpaqueValueExpr [[ove_32]]
-// CHECK:          | `-CStyleCastExpr {{.+}} 'struct unsized *__single' <BitCast>
+// CHECK:          | `-CStyleCastExpr {{.+}} 'struct unsized *__single':'struct unsized *' <BitCast>
 // CHECK:          |   `-ForgePtrExpr
 // CHECK:          |     |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK:          |     | `-ParenExpr
@@ -673,7 +675,7 @@ void unsizedSingleForgedToSizedBy(int p, int len) {
 // CHECK:            `-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
 // CHECK:              `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK:                `-DeclRefExpr {{.+}} [[var_size_4]]
-    struct unsized * __single __sized_by(size) p2 = __unsafe_forge_single(struct unsized *, p); // expected-warning{{size value is not statically known: initializing 'p2' of type 'struct unsized *__single __sized_by(size)' (aka 'struct unsized *__single') with 'struct unsized *__single' is invalid for any size greater than 0}}
+    struct unsized * __single __sized_by(size) p2 = __unsafe_forge_single(struct unsized *, p); // expected-warning{{size value is not statically known: initializing 'p2' of type 'struct unsized *__single __sized_by(size)' (aka 'struct unsized *__single') with 'struct unsized *__single' (aka 'struct unsized *') is invalid for any size greater than 0}}
 }
 
 // CHECK: |-FunctionDecl [[func_unsizedSingleForgedToBidiVoid:0x[^ ]+]] {{.+}} unsizedSingleForgedToBidiVoid
@@ -684,7 +686,7 @@ void unsizedSingleForgedToBidiVoid(int p) {
 // CHECK: |     `-VarDecl [[var_p2_14:0x[^ ]+]]
 // CHECK: |       `-RecoveryExpr
 // CHECK: |         `-ParenExpr
-// CHECK: |           `-CStyleCastExpr {{.+}} 'void *__single' <NoOp>
+// CHECK: |           `-CStyleCastExpr {{.+}} 'void *__single':'void *' <NoOp>
 // CHECK: |             `-ForgePtrExpr
 // CHECK: |               |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK: |               | `-ParenExpr
@@ -785,4 +787,3 @@ void unsizedSingleToSizedByToBidiVoid(void * p) { // rdar://112462891
 // CHECK:           `-OpaqueValueExpr [[ove_39]] {{.*}} 'int'
     void * __bidi_indexable p3 = p2;
 }
-

@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -fbounds-safety -ast-dump %s 2>&1 | FileCheck %s
 // RUN: %clang_cc1 -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -ast-dump %s 2>&1 | FileCheck %s
 
@@ -46,9 +44,10 @@ void foo(unspecified_ptr_t a_single1,
 // CHECK: |-TypedefDecl {{.*}} referenced unspecified_ptr_t 'int *'
 // CHECK: | `-PointerType {{.*}} 'int *'
 // CHECK: |   `-BuiltinType {{.*}} 'int'
-// CHECK: |-TypedefDecl {{.*}} referenced single_ptr_t 'int *__single'
-// CHECK: | `-PointerType {{.*}} 'int *__single'
-// CHECK: |   `-BuiltinType {{.*}} 'int'
+// CHECK: |-TypedefDecl {{.*}} referenced single_ptr_t 'int *__single':'int *'
+// CHECK: | `-AttributedType {{.*}} 'int *__single' sugar
+// CHECK: |   `-PointerType {{.*}} 'int *'
+// CHECK: |     `-BuiltinType {{.*}} 'int'
 // CHECK: |-TypedefDecl {{.*}} referenced bidi_ptr_t 'int *__bidi_indexable'
 // CHECK: | `-PointerType {{.*}} 'int *__bidi_indexable'
 // CHECK: |   `-BuiltinType {{.*}} 'int'
@@ -63,8 +62,9 @@ void foo(unspecified_ptr_t a_single1,
 // CHECK: | `-PointerType {{.*}} 'single_ptr_t *'
 // CHECK: |   `-TypedefType {{.*}} 'single_ptr_t' sugar
 // CHECK: |     |-Typedef {{.*}} 'single_ptr_t'
-// CHECK: |     `-PointerType {{.*}} 'int *__single'
-// CHECK: |       `-BuiltinType {{.*}} 'int'
+// CHECK: |     `-AttributedType {{.*}} 'int *__single' sugar
+// CHECK: |       `-PointerType {{.*}} 'int *'
+// CHECK: |         `-BuiltinType {{.*}} 'int'
 // CHECK: |-TypedefDecl {{.*}} referenced unspecified_ptr_ptr_t 'unspecified_ptr_t *'
 // CHECK: | `-PointerType {{.*}} 'unspecified_ptr_t *'
 // CHECK: |   `-TypedefType {{.*}} 'unspecified_ptr_t' sugar
@@ -76,14 +76,14 @@ void foo(unspecified_ptr_t a_single1,
 // CHECK: |   `-PointerType {{.*}} 'int *'
 // CHECK: |     `-BuiltinType {{.*}} 'int'
 // CHECK: |-VarDecl {{.*}} g_single1 'int *__single'
-// CHECK: |-VarDecl {{.*}} g_single2 'single_ptr_t':'int *__single'
+// CHECK: |-VarDecl {{.*}} g_single2 'single_ptr_t':'int *'
 // CHECK: |-VarDecl {{.*}} g_bidi 'bidi_ptr_t':'int *__bidi_indexable'
 // CHECK: |-VarDecl {{.*}} g_unsafe 'unsafe_ptr_t':'int *__unsafe_indexable'
 // CHECK: |-VarDecl {{.*}} g_single_single 'int *__single*__single'
 // CHECK: |-VarDecl {{.*}} g_term 'int *__single __terminated_by(0)':'int *__single'
 // CHECK: `-FunctionDecl {{.*}} foo 'void (int *__single, single_ptr_t, bidi_ptr_t, unsafe_ptr_t, int *__single __terminated_by(0))'
 // CHECK:   |-ParmVarDecl {{.*}} a_single1 'int *__single'
-// CHECK:   |-ParmVarDecl {{.*}} a_single2 'single_ptr_t':'int *__single'
+// CHECK:   |-ParmVarDecl {{.*}} a_single2 'single_ptr_t':'int *'
 // CHECK:   |-ParmVarDecl {{.*}} a_bidi 'bidi_ptr_t':'int *__bidi_indexable'
 // CHECK:   |-ParmVarDecl {{.*}} a_unsafe 'unsafe_ptr_t':'int *__unsafe_indexable'
 // CHECK:   |-ParmVarDecl {{.*}} a_term 'int *__single __terminated_by(0)':'int *__single'
@@ -91,13 +91,13 @@ void foo(unspecified_ptr_t a_single1,
 // CHECK:     |-DeclStmt
 // CHECK:     | `-VarDecl {{.*}} l_bidi1 'int *__bidi_indexable'
 // CHECK:     |-DeclStmt
-// CHECK:     | `-VarDecl {{.*}} l_single 'single_ptr_t':'int *__single'
+// CHECK:     | `-VarDecl {{.*}} l_single 'single_ptr_t':'int *'
 // CHECK:     |-DeclStmt
 // CHECK:     | `-VarDecl {{.*}} l_bidi2 'bidi_ptr_t':'int *__bidi_indexable'
 // CHECK:     |-DeclStmt
 // CHECK:     | `-VarDecl {{.*}} l_unsafe 'unsafe_ptr_t':'int *__unsafe_indexable'
 // CHECK:     |-DeclStmt
-// CHECK:     | `-VarDecl {{.*}} l_single2 'unspecified_ptr_t __single':'int *__single'
+// CHECK:     | `-VarDecl {{.*}} l_single2 'unspecified_ptr_t __single':'int *'
 // CHECK:     |-DeclStmt
 // CHECK:     | `-VarDecl {{.*}} l_unsafe2 'unspecified_ptr_t __unsafe_indexable':'int *__unsafe_indexable'
 // CHECK:     |-DeclStmt

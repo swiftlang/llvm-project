@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s 2>&1 | FileCheck %s
 #include <ptrcheck.h>
 
@@ -10,6 +8,7 @@ void foo(void) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types"
 #pragma clang diagnostic ignored "-Wbounds-attributes-implicit-conversion-single-to-explicit-indexable"
+#pragma clang diagnostic ignored "-Wbounds-safety-single-to-indexable-bounds-truncated"
   char *__bidi_indexable b = extern_ptr;
 #pragma clang diagnostic pop
 }
@@ -19,7 +18,7 @@ void foo(void) {
 // warning doesn't break the requirement that the above implicit conversion is
 // split into a BitCast then BoundsSafetyPointerCast.
 
-// CHECK:|-VarDecl {{.*}} used extern_ptr 'int *__single' extern
+// CHECK:|-VarDecl {{.*}} used extern_ptr 'int *__single':'int *' extern
 // CHECK-NEXT:`-FunctionDecl {{.*}} foo 'void (void)'
 // CHECK-NEXT:  `-CompoundStmt {{.*}}
 // CHECK-NEXT:    `-DeclStmt {{.*}}
@@ -28,7 +27,7 @@ void foo(void) {
 // Make sure the `(int* __single) -> (char* __bidi_indexable) gets split into two
 // separate implicit casts.
 // CHECK-NEXT:        `-ImplicitCastExpr {{.*}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT:          `-ImplicitCastExpr {{.*}} 'char *__single' <BitCast>
+// CHECK-NEXT:          `-ImplicitCastExpr {{.*}} 'char *' <BitCast>
 
-// CHECK-NEXT:            `-ImplicitCastExpr {{.*}} 'int *__single' <LValueToRValue>
-// CHECK-NEXT:              `-DeclRefExpr {{.*}} 'int *__single' lvalue Var {{.*}} 'extern_ptr' 'int *__single'
+// CHECK-NEXT:            `-ImplicitCastExpr {{.*}} 'int *__single':'int *' <LValueToRValue>
+// CHECK-NEXT:              `-DeclRefExpr {{.*}} 'int *__single':'int *' lvalue Var {{.*}} 'extern_ptr' 'int *__single':'int *'

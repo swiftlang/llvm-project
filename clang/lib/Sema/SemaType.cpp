@@ -6276,7 +6276,18 @@ namespace {
         Sema::GetTypeFromParser(DS.getRepAsType(), &TInfo);
         assert(TInfo);
         // TO_UPSTREAM(BoundsSafety): initializeFullCopy -> copy
-        TL.getValueLoc().copy(TInfo->getTypeLoc());
+        
+        TypeLoc ValueLoc = TL.getValueLoc();
+        QualType TInfoTy = TInfo->getType();
+        while (ValueLoc.getType() != TInfoTy) {
+          AttributedTypeLoc ATL = ValueLoc.getAs<AttributedTypeLoc>();
+          
+          if (!ATL || ATL.getTypePtr()->getAttrKind() != attr::PtrSingle)
+            break;
+          fillAttributedTypeLoc(ATL, State);
+          ValueLoc = ATL.getModifiedLoc();
+        }
+        ValueLoc.copy(TInfo->getTypeLoc());
       } else {
         TL.setKWLoc(DS.getAtomicSpecLoc());
         // No parens, to indicate this was spelled as an _Atomic qualifier.
@@ -9310,9 +9321,12 @@ public:
                diag::err_bounds_safety_conflicting_pointer_attributes)
             << /* pointer */ 1 << /* bound */ 0;
       } else if (shouldWarnRedundantBoundsSafetyAttribute(state, PAttr)) {
+        
+        auto PrevBoundsAttr = BoundsAttrPrev ? BoundsAttrPrev
+                                             : FAttrFromAttributedType.getBoundsAttr();
         S.Diag(PAttr.getLoc(),
                diag::warn_bounds_safety_duplicate_pointer_attributes)
-            << 1 << BoundsAttrPrev - 1;
+            << 1 << PrevBoundsAttr - 1;
       }
       return {};
     }
@@ -9329,6 +9343,15 @@ public:
     QualType AttrOnlyModeType = GetTypeWithAttrForAttributeOnlyMode(PTy);
     if (!AttrOnlyModeType.isNull()) {
       return AttrOnlyModeType;
+    }
+
+    
+    if (Kind == ParsedAttr::AT_PtrSingle) {
+      BoundsSafetyPointerAttributes RawFAttr = FAttr;
+      RawFAttr.setUnspecified();
+      QualType RawTy = Ctx.getPointerType(PTy->getPointeeType(), RawFAttr);
+      return state.getAttributedType(createSimpleAttr<PtrSingleAttr>(Ctx, PAttr),
+                                      RawTy, RawTy);
     }
 
     return Ctx.getPointerType(PTy->getPointeeType(), FAttr);
@@ -9744,7 +9767,7 @@ static bool HandlePtrTerminatedByTypeAttr(TypeProcessingState &state,
 
     // If the pointer is unspecified, we will add __single attribute later in
     // MakeAutoPointer.
-    if (!PT->isUnspecified() && !PT->isSingle()) {
+    if (!PT->isUnspecified() && !T->isSinglePointerType()) {
       S.Diag(PAttr.getLoc(),
              diag::err_bounds_safety_terminated_by_wrong_pointer_type);
       PAttr.setInvalid();
@@ -11928,7 +11951,7 @@ QualType Sema::BuildAtomicType(QualType T, SourceLocation Loc) {
         DiagIndex = 7;
       } else if (const auto *PT = T->getAs<PointerType>()) {
         BoundsSafetyPointerAttributes FAttr = PT->getPointerAttributes();
-        if (!FAttr.isUnspecified() && !FAttr.isSingle() &&
+        if (!FAttr.isUnspecified() && !T->isSinglePointerType() &&
             !FAttr.isUnsafeIndexable()) {
           assert(FAttr.isIndexable() || FAttr.isBidiIndexable());
           DiagIndex = FAttr.isIndexable() ? 0 : 1;

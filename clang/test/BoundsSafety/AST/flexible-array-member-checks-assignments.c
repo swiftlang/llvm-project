@@ -1,5 +1,3 @@
-
-
 // RUN: %clang_cc1 -ast-dump -fbounds-safety %s | FileCheck %s
 // RUN: %clang_cc1 -ast-dump -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc %s | FileCheck %s
 
@@ -93,7 +91,7 @@ void test_fam_base_init(void *__bidi_indexable buf) {
 // CHECK:       `-VarDecl [[var_f_2:0x[^ ]+]]
 // CHECK:         `-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK:           |-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK:           | |-ImplicitCastExpr {{.+}} 'flex_t *__single' <BoundsSafetyPointerCast>
+// CHECK:           | |-ImplicitCastExpr {{.+}} 'flex_t *__single':'flex_t *' <BoundsSafetyPointerCast>
 // CHECK:           | | `-PredefinedBoundsCheckExpr {{.+}} 'flex_t *__bidi_indexable' <FlexibleArrayCountAssign(BasePtr, FamPtr, Count)>
 // CHECK:           | |   |-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} 'flex_t *__bidi_indexable'
 // CHECK:           | |   |-OpaqueValueExpr [[ove_3]] {{.*}} 'flex_t *__bidi_indexable'
@@ -121,7 +119,7 @@ void test_fam_base_init_with_count(void *__bidi_indexable buf) {
 // CHECK:   |-DeclStmt
 // CHECK:   | `-VarDecl [[var_f_3:0x[^ ]+]]
 // CHECK:   |   `-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK:   |     |-ImplicitCastExpr {{.+}} 'flex_t *__single' <BoundsSafetyPointerCast>
+// CHECK:   |     |-ImplicitCastExpr {{.+}} 'flex_t *__single':'flex_t *' <BoundsSafetyPointerCast>
 // CHECK:   |     | `-PredefinedBoundsCheckExpr {{.+}} 'flex_t *__bidi_indexable' <FlexibleArrayCountAssign(BasePtr, FamPtr, Count)>
 // CHECK:   |     |   |-OpaqueValueExpr [[ove_4:0x[^ ]+]] {{.*}} 'flex_t *__bidi_indexable'
 // CHECK:   |     |   |-OpaqueValueExpr [[ove_4]] {{.*}} 'flex_t *__bidi_indexable'
@@ -140,7 +138,7 @@ void test_fam_base_init_with_count(void *__bidi_indexable buf) {
 // CHECK:     |-BinaryOperator {{.+}} 'int' '='
 // CHECK:     | |-MemberExpr {{.+}} .count
 // CHECK:     | | `-MemberExpr {{.+}} ->flex
-// CHECK:     | |   `-ImplicitCastExpr {{.+}} 'flex_t *__single' <LValueToRValue>
+// CHECK:     | |   `-ImplicitCastExpr {{.+}} 'flex_t *__single':'flex_t *' <LValueToRValue>
 // CHECK:     | |     `-DeclRefExpr {{.+}} [[var_f_3]]
 // CHECK:     | `-OpaqueValueExpr [[ove_5]] {{.*}} 'int'
 // CHECK:     |-OpaqueValueExpr [[ove_4]] {{.*}} 'flex_t *__bidi_indexable'
@@ -159,7 +157,7 @@ void test_fam_base_init_deref_with_count(void *__bidi_indexable buf) {
 // CHECK:   | `-VarDecl [[var_f_4:0x[^ ]+]]
 // CHECK:   |   `-MaterializeSequenceExpr {{.+}} <Bind>
 // CHECK:   |     |-MaterializeSequenceExpr {{.+}} <Unbind>
-// CHECK:   |     | |-ImplicitCastExpr {{.+}} 'flex_t *__single' <BoundsSafetyPointerCast>
+// CHECK:   |     | |-ImplicitCastExpr {{.+}} 'flex_t *__single':'flex_t *' <BoundsSafetyPointerCast>
 // CHECK:   |     | | `-PredefinedBoundsCheckExpr {{.+}} 'flex_t *__bidi_indexable' <FlexibleArrayCountAssign(BasePtr, FamPtr, Count)>
 // CHECK:   |     | |   |-OpaqueValueExpr [[ove_6:0x[^ ]+]] {{.*}} 'flex_t *__bidi_indexable'
 // CHECK:   |     | |   |-OpaqueValueExpr [[ove_6]] {{.*}} 'flex_t *__bidi_indexable'

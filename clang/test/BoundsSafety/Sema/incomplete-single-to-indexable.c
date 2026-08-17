@@ -1,4 +1,3 @@
-
 // RUN: %clang_cc1 -triple aarch64-none-linux-gnu -target-feature +sve -mvscale-min=4 -mvscale-max=4 -flax-vector-conversions=none -ffreestanding -fsyntax-only -fbounds-safety -verify %s
 // RUN: %clang_cc1 -triple aarch64-none-linux-gnu -target-feature +sve -mvscale-min=4 -mvscale-max=4 -flax-vector-conversions=none -ffreestanding -fsyntax-only -fbounds-safety -x objective-c -fexperimental-bounds-safety-objc -verify %s
 

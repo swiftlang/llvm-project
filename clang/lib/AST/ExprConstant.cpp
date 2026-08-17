@@ -10768,8 +10768,12 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
     // There never is a case where you convert from a counted pointer to
     // something else because no lvalue turns into a counted pointer.
 
-    auto ResultPtrTy = E->getType()->getAs<PointerType>();
-    auto ResultFA = ResultPtrTy->getPointerAttributes();
+    QualType ResultTy = E->getType();
+    auto ResultPtrTy = ResultTy->getAs<PointerType>();
+    bool ResultIsUnsafeOrUnspecified = ResultTy->isUnsafeIndexablePointerType() ||
+                                       ResultTy->isUnspecifiedPointerType();
+    bool ResultIsBidiIndexable = ResultTy->isBidiIndexablePointerType();
+    bool ResultIsIndexable = ResultTy->isIndexablePointerType();
 
     // Evaluate the sub-expression and bail out if that didn't work. We do
     // this first because NULL pointers are always valid constants.
@@ -10779,14 +10783,15 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
     auto &SubObj = Result.getLValueDesignator();
     // "from unsafe or unspecified" only works if the destination is also
     // unsafe; we can bail out early if that's not the case
-    auto InputPtrTy = E->getSubExpr()->getType()->getAs<PointerType>();
-    auto InputFA = InputPtrTy->getPointerAttributes();
-    auto InputIsUnsafe = InputFA.isUnsafeOrUnspecified() && !Result.IsNullPtr;
-    if (InputIsUnsafe && !ResultFA.isUnsafeOrUnspecified())
+    QualType InputTy = E->getSubExpr()->getType();
+    bool InputIsUnsafeOrUnspecified = InputTy->isUnsafeIndexablePointerType() ||
+                                      InputTy->isUnspecifiedPointerType();
+    auto InputIsUnsafe = InputIsUnsafeOrUnspecified && !Result.IsNullPtr;
+    if (InputIsUnsafe && !ResultIsUnsafeOrUnspecified)
       return false;
 
     // "to unsafe" and "to bidi indexable" require no other checks.
-    if (ResultFA.isUnsafeOrUnspecified() || ResultFA.isBidiIndexable())
+    if (ResultIsUnsafeOrUnspecified || ResultIsBidiIndexable)
       return true;
 
     // "to indexable" requires that the pointer value is not less than the lower
@@ -10794,7 +10799,7 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
     // upper bound is useless. This gives us a good reason to reject it, which
     // makes the test easy: if the sub-object is invalid, prevent constant
     // evaluation.
-    if (ResultFA.isIndexable()) {
+    if (ResultIsIndexable) {
       return Result.IsNullPtr || SubObj.isValidSubobject();
     }
 
@@ -10826,6 +10831,10 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
       // To zero-sized type also always works.
       auto ObjSize = Info.Ctx.getTypeSizeInChars(PointeeTy);
       if (ObjSize.getQuantity() == 0)
+        return true;
+
+      if ((Result.isForgeSingle() || Result.isForgeTerminatedBy()) &&
+          !ResultTy->isValueTerminatedType())
         return true;
 
       ItemCount = APInt(64, 1);
