@@ -1,13 +1,18 @@
 // REQUIRES: aarch64-registered-target
 // RUN: %clang_cc1 %s -x c++ -std=c++11 -triple aarch64-linux-pauthtest -fptrauth-calls -disable-llvm-passes \
+// RUN:     -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:     -emit-llvm -O0 -o - | FileCheck --check-prefixes=CHECK,DEFAULT %s
 // RUN: %clang_cc1 %s -x c++ -std=c++11 -triple aarch64-linux-pauthtest -fptrauth-calls -fptrauth-vtt-vtable-pointer-discrimination \
+// RUN:     -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:     -disable-llvm-passes -emit-llvm -O0 -o - | FileCheck --check-prefixes=CHECK,DEFAULT %s
 // RUN: %clang_cc1 %s -x c++ -std=c++11 -triple aarch64-linux-pauthtest -fptrauth-calls -fptrauth-vtt-vtable-pointer-discrimination \
+// RUN:     -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:     -fptrauth-vtable-pointer-address-discrimination -disable-llvm-passes -emit-llvm -O0 -o - | FileCheck --check-prefixes=CHECK,ADDRESS %s
 // RUN: %clang_cc1 %s -x c++ -std=c++11 -triple aarch64-linux-pauthtest -fptrauth-calls -fptrauth-vtt-vtable-pointer-discrimination \
+// RUN:     -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:     -fptrauth-vtable-pointer-type-discrimination -disable-llvm-passes -emit-llvm -O0 -o - | FileCheck --check-prefixes=CHECK,TYPE %s
 // RUN: %clang_cc1 %s -x c++ -std=c++11 -triple aarch64-linux-pauthtest -fptrauth-calls -fptrauth-vtt-vtable-pointer-discrimination \
+// RUN:     -mllvm -ptrauth-emit-wrapper-globals=0 \
 // RUN:     -fptrauth-vtable-pointer-address-discrimination -fptrauth-vtable-pointer-type-discrimination \
 // RUN:     -disable-llvm-passes -emit-llvm -O0 -o - | FileCheck --check-prefixes=CHECK,ADDRESSTYPE %s
 
