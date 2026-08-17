@@ -531,9 +531,10 @@ public:
   /// context, which some of the special stdlib builtins do not have.
   lldb::TypeSP FindBuiltinTypeInModule(ConstString mangled_name);
 
-  /// Desugar a CompilerType and resolve type aliases by looking up
-  /// their types in the debug info.
-  CompilerType Canonicalize(CompilerType type);
+  /// Desugar \p type and resolve its type aliases into the form the
+  /// swift::reflection TypeRefBuilder expects, that is, with
+  /// Clang-imported type aliases unresolved.
+  CompilerType CanonicalizeForTypeRefBuilder(CompilerType type);
 
   /// Determine if this type contains a type from a module that looks
   /// like it was JIT-compiled by LLDB.
@@ -596,19 +597,29 @@ protected:
                                  lldb::opaque_compiler_type_t type,
                                  const ExecutionContext *exe_ctx = nullptr);
 
+  /// Desugar a CompilerType and resolve type aliases by looking up
+  /// their types in the debug info.
+  CompilerType Canonicalize(CompilerType type,
+                            bool preserve_clang_type_aliases = false);
+
   /// Desugar to this node and if it is a type alias resolve it by
   /// looking up its type in the debug info.
+  ///
+  /// CanonicalizeForTypeRefBuilder() documents \p
+  /// preserve_clang_type_aliases.
   swift::Demangle::NodePointer
   Canonicalize(swift::Demangle::Demangler &dem,
                swift::Demangle::NodePointer node,
-               swift::Mangle::ManglingFlavor flavor);
+               swift::Mangle::ManglingFlavor flavor,
+               bool preserve_clang_type_aliases = false);
 
   /// Iteratively desugar and resolve all type aliases in \p node by
   /// looking up their types in the debug info.
   swift::Demangle::NodePointer
   GetCanonicalNode(swift::Demangle::Demangler &dem,
                    swift::Demangle::NodePointer node,
-                   swift::Mangle::ManglingFlavor flavor);
+                   swift::Mangle::ManglingFlavor flavor,
+                   bool preserve_clang_type_aliases = false);
 
   /// If \p node is a Struct/Class/Typedef in the __C module, return a
   /// Swiftified node by looking up the name in the corresponding APINotes and
