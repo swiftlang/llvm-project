@@ -17,7 +17,7 @@ class TestCase(lldbtest.TestBase):
         line_entry = frame.GetLineEntry()
         self.assertEqual(linenum, line_entry.GetLine())
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # only fails on CI
     @swiftTest
     @skipIf(oslist=["windows"])
     def test(self):

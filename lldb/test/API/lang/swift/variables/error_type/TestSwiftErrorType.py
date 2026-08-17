@@ -15,7 +15,8 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftErrorType(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwiftOnWindows
+    @skipEmbeddedSwiftOnLinux
     @swiftTest
     def test(self):
         """Test handling of Swift Error types"""

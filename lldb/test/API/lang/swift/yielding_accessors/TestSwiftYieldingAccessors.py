@@ -52,7 +52,7 @@ class TestSwiftStepping(lldbtest.TestBase):
         )
         self.assertEqual(breakpoint.GetNumLocations(), 1, breakpoint)
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128968 (Embedded Swift: stepping through yield_once coroutine accessors lands on the wrong line and loses self)
     @swiftTest
     @skipIf(oslist=["linux"], archs=no_match("x86_64")) # rdar://170532470
     def test_step_over_starting_inside_coroutine(self):
@@ -69,7 +69,7 @@ class TestSwiftStepping(lldbtest.TestBase):
         thread.StepOver()
         self.hit_correct_line(thread, "last main line")
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128968 (Embedded Swift: stepping through yield_once coroutine accessors lands on the wrong line and loses self)
     @swiftTest
     @skipIfWindows # rdar://173245044
     def test_step_in_and_out_callsite(self):

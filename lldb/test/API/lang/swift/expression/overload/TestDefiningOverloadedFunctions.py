@@ -20,7 +20,7 @@ import os
 
 
 class TestDefiningOverloadedFunctions(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128821 (Embedded Swift: an overloaded function defined in one expression is not callable from a later expression)
     @swiftTest
     def test_simple_overload_expressions(self):
         """Test defining overloaded functions"""
