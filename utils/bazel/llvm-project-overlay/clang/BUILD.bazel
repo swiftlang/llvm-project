@@ -2850,6 +2850,7 @@ cc_library(
         ":basic",
         ":scalable_static_analysis_core",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
