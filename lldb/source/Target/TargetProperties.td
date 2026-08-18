@@ -349,9 +349,12 @@ let Definition = "process" in {
   def WarningUnsupportedLanguage: Property<"unsupported-language-warnings", "Boolean">,
     DefaultTrue,
     Desc<"If true, warn when stopped in code that is written in a source language that LLDB does not support.">;
-  def WarningToolchainMismatch: Property<"toolchain-mismatch-warnings", "Boolean">,
-    DefaultTrue,
-    Desc<"If true, warn when stopped in code that was compiled by a Swift compiler different from the one embedded in LLDB.">;
+  def WarningToolchainMismatch
+      : Property<"toolchain-mismatch-warnings", "Boolean">,
+        DefaultTrue,
+        Desc<"If true, warn when a Swift AST context is initialized for code "
+             "that was compiled by a Swift compiler different from the one "
+             "embedded in LLDB.">;
   def StopOnExec: Property<"stop-on-exec", "Boolean">,
     Global,
     DefaultTrue,
