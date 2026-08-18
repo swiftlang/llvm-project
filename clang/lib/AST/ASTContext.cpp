@@ -3937,6 +3937,9 @@ QualType ASTContext::getBoundsSafetyPointerType(QualType PointerTy,
   const auto *PTy = PointerTy->getAs<PointerType>();
   if (!PTy || PointerTy->isBoundsAttributedType())
     return PointerTy;
+  if (const auto *AT = dyn_cast<AttributedType>(PointerTy.getTypePtr()))
+    if (AT->getAttrKind() == attr::PtrSingle)
+      return PointerTy;
   if (PTy->getPointerAttributes() == Attr) {
     if (Attr.isSingle())
       return getAttributedType(attr::PtrSingle, PointerTy, PointerTy);
