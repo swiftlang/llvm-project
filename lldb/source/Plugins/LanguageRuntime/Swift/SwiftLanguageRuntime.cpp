@@ -3875,8 +3875,8 @@ private:
   std::optional<lldb::addr_t> m_tls_file_addr;
 };
 
-// The exported current-task thread-local in the Swift concurrency runtime.
-static constexpr llvm::StringLiteral g_cxx_thread_local_task_symbol =
+// The exported current-task global variable in the Swift concurrency runtime.
+static constexpr llvm::StringLiteral g_current_task_gv_name =
     "_swift_concurrency_currentTask";
 
 CxxThreadLocalTaskFinder::CxxThreadLocalTaskFinder(ModuleSP concurrency_module)
@@ -3885,11 +3885,11 @@ CxxThreadLocalTaskFinder::CxxThreadLocalTaskFinder(ModuleSP concurrency_module)
     return;
 
   const Symbol *symbol = m_concurrency_module->FindFirstSymbolWithNameAndType(
-      ConstString(g_cxx_thread_local_task_symbol));
+      ConstString(g_current_task_gv_name));
   if (!symbol) {
     LLDB_LOG(GetLog(LLDBLog::OS),
              "CxxThreadLocalTaskFinder: could not find current-task symbol {0}",
-             g_cxx_thread_local_task_symbol);
+             g_current_task_gv_name);
     return;
   }
 
@@ -3898,7 +3898,7 @@ CxxThreadLocalTaskFinder::CxxThreadLocalTaskFinder(ModuleSP concurrency_module)
   if (!section || !section->IsThreadSpecific()) {
     LLDB_LOG(GetLog(LLDBLog::OS),
              "CxxThreadLocalTaskFinder: symbol {0} is not thread-local",
-             g_cxx_thread_local_task_symbol);
+             g_current_task_gv_name);
     return;
   }
 
