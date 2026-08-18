@@ -1390,7 +1390,7 @@ inline bool CmpHelperEQ<Pointer>(InterpState &S, CodePtr OpPC, CompareFn Fn) {
     if (P.isZero())
       continue;
     if (P.pointsToLiteral()) {
-      const Expr *E = P.getDeclDesc()->asExpr();
+      const Expr *E = P.getRootExpr();
       if (isa<StringLiteral>(E)) {
         const SourceInfo &Loc = S.Current->getSource(OpPC);
         S.FFDiag(Loc, diag::note_constexpr_literal_comparison);
@@ -1821,9 +1821,8 @@ bool InitGlobalTemp(InterpState &S, uint32_t I,
   assert(Temp);
 
   const Pointer &Ptr = S.P.getGlobal(I);
-  assert(Ptr.getDeclDesc()->asExpr());
-  S.SeenGlobalTemporaries.push_back(
-      std::make_pair(Ptr.getDeclDesc()->asExpr(), Temp));
+  assert(Ptr.getRootExpr());
+  S.SeenGlobalTemporaries.push_back(std::make_pair(Ptr.getRootExpr(), Temp));
 
   Ptr.deref<T>() = S.Stk.pop<T>();
   Ptr.initialize();
@@ -1840,8 +1839,7 @@ inline bool InitGlobalTempComp(InterpState &S,
   assert(Temp);
 
   const Pointer &Ptr = S.Stk.peek<Pointer>();
-  S.SeenGlobalTemporaries.push_back(
-      std::make_pair(Ptr.getDeclDesc()->asExpr(), Temp));
+  S.SeenGlobalTemporaries.push_back(std::make_pair(Ptr.getRootExpr(), Temp));
   return true;
 }
 
@@ -2986,7 +2984,7 @@ bool CastPointerIntegral(InterpState &S, CodePtr OpPC) {
       IntegralKind Kind = IntegralKind::Address;
       const void *PtrVal;
       if (Ptr.isDummy()) {
-        if (const Expr *E = Ptr.getDeclDesc()->asExpr()) {
+        if (const Expr *E = Ptr.getRootExpr()) {
           PtrVal = E;
           if (isa<AddrLabelExpr>(E))
             Kind = IntegralKind::LabelAddress;
