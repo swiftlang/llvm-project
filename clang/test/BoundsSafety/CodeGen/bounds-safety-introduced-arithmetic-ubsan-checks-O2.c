@@ -88,8 +88,8 @@ void f_outlen(char *__counted_by(*outLen) derOut, unsigned long long *outLen) {
 // UBSAN-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[TMP_SROA_3_0_COPYLOAD]], {{!annotation ![0-9]+}}
 // UBSAN-NEXT:    [[CMP27_NOT:%.*]] = icmp ugt ptr [[TMP_SROA_4_0_COPYLOAD]], [[BOUND_PTR_ARITH]], {{!annotation ![0-9]+}}
 // UBSAN-NEXT:    [[OR_COND:%.*]] = select i1 [[CMP_NOT]], i1 true, i1 [[CMP27_NOT]], {{!annotation ![0-9]+}}
-// UBSAN-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[TMP_SROA_3_0_COPYLOAD]] to i64, {{!annotation ![0-9]+}}
-// UBSAN-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[BOUND_PTR_ARITH]] to i64, {{!annotation ![0-9]+}}
+// UBSAN-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[TMP_SROA_3_0_COPYLOAD]] to i64, {{!annotation ![0-9]+}}
+// UBSAN-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[BOUND_PTR_ARITH]] to i64, {{!annotation ![0-9]+}}
 // UBSAN-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // UBSAN-NEXT:    [[CMP44_NOT:%.*]] = icmp ugt i64 [[LEN]], [[SUB_PTR_SUB]], {{!annotation ![0-9]+}}
 // UBSAN-NEXT:    [[OR_COND55:%.*]] = or i1 [[OR_COND]], [[CMP44_NOT]], {{!annotation ![0-9]+}}
@@ -113,8 +113,8 @@ void f_outlen(char *__counted_by(*outLen) derOut, unsigned long long *outLen) {
 // NOUBSAN-NEXT:    [[TMP_SROA_3_0_COPYLOAD:%.*]] = load ptr, ptr [[TMP_SROA_3_0_BUF_SROA_IDX]], align 8
 // NOUBSAN-NEXT:    [[CMP27_NOT:%.*]] = icmp ugt ptr [[TMP_SROA_3_0_COPYLOAD]], [[BOUND_PTR_ARITH]], {{!annotation ![0-9]+}}
 // NOUBSAN-NEXT:    [[OR_COND:%.*]] = select i1 [[CMP_NOT]], i1 true, i1 [[CMP27_NOT]], {{!annotation ![0-9]+}}
-// NOUBSAN-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[TMP_SROA_2_0_COPYLOAD]] to i64, {{!annotation ![0-9]+}}
-// NOUBSAN-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[BOUND_PTR_ARITH]] to i64, {{!annotation ![0-9]+}}
+// NOUBSAN-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[TMP_SROA_2_0_COPYLOAD]] to i64, {{!annotation ![0-9]+}}
+// NOUBSAN-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[BOUND_PTR_ARITH]] to i64, {{!annotation ![0-9]+}}
 // NOUBSAN-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // NOUBSAN-NEXT:    [[CMP44_NOT:%.*]] = icmp ugt i64 [[LEN]], [[SUB_PTR_SUB]], {{!annotation ![0-9]+}}
 // NOUBSAN-NEXT:    [[OR_COND52:%.*]] = or i1 [[OR_COND]], [[CMP44_NOT]], {{!annotation ![0-9]+}}

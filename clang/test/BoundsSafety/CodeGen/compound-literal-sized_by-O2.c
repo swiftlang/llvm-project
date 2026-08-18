@@ -74,8 +74,8 @@ void receive_transparent_union(union TransparentUnion);
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10:![0-9]+]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -114,8 +114,8 @@ void assign_via_ptr(struct sb* ptr, int new_count,
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -150,8 +150,8 @@ void assign_operator(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -184,8 +184,8 @@ void local_var_init(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -197,7 +197,8 @@ void local_var_init(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[NEW_COUNT]] to i64
 // CHECK-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[DOTCOMPOUNDLITERAL_SROA_0_0_INSERT_EXT]], 0
-// CHECK-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// CHECK-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // CHECK-NEXT:    tail call void @consume_sb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR10:[0-9]+]]
 // CHECK-NEXT:    ret void
 //
@@ -222,8 +223,8 @@ void call_arg(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -235,7 +236,8 @@ void call_arg(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[RETVAL_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[NEW_COUNT]] to i64
 // CHECK-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[RETVAL_SROA_0_0_INSERT_EXT]], 0
-// CHECK-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// CHECK-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // CHECK-NEXT:    ret [2 x i64] [[DOTFCA_1_INSERT]]
 //
 struct sb return_sb(int new_count, char* __bidi_indexable new_ptr) {
@@ -259,8 +261,8 @@ struct sb return_sb(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -312,8 +314,8 @@ void assign_via_ptr_nullptr(struct sb* ptr, int new_count) {
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -357,8 +359,8 @@ void assign_via_ptr_nested(struct nested_sb* ptr,
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -402,8 +404,8 @@ void assign_via_ptr_nested_v2(struct nested_sb* ptr,
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp slt i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
@@ -453,8 +455,8 @@ void assign_via_ptr_nested_v3(struct nested_and_outer_sb* ptr,
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -499,8 +501,8 @@ void array_of_struct_init(char* __bidi_indexable new_ptr,
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -576,8 +578,8 @@ void assign_via_ptr_other_data_side_effect_zero_ptr(struct sb_with_other_data* p
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -625,8 +627,8 @@ void call_arg_transparent_union(int new_count,
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -762,10 +764,10 @@ void local_var_init_from_sb(int new_count,
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[NEW_PTR]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[NEW_COUNT]] to i64
 // CHECK-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[DOTCOMPOUNDLITERAL_SROA_0_0_INSERT_EXT]], 0
-// CHECK-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[NEW_PTR]] to i64
+// CHECK-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // CHECK-NEXT:    tail call void @consume_sb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR10]]
 // CHECK-NEXT:    ret void
 //
@@ -786,10 +788,10 @@ void call_arg_from_sb(int new_count,
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[NEW_PTR]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[RETVAL_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[NEW_COUNT]] to i64
 // CHECK-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[RETVAL_SROA_0_0_INSERT_EXT]], 0
-// CHECK-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[NEW_PTR]] to i64
+// CHECK-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // CHECK-NEXT:    ret [2 x i64] [[DOTFCA_1_INSERT]]
 //
 struct sb return_sb_from_sb(int new_count,
@@ -983,8 +985,8 @@ void assign_via_ptr_other_data_side_effect_zero_ptr_from_sb(struct sb_with_other
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]
@@ -1033,8 +1035,8 @@ void call_arg_transparent_union_from_sb(int new_count,
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META6]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[NEW_COUNT]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META6]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META6]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META6]]
 // CHECK-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[NEW_COUNT]], -1, !annotation [[META6]]

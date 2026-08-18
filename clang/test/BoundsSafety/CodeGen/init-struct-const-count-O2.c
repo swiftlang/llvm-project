@@ -31,9 +31,9 @@ void consume_cb(struct cb);
 // SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META5]]
 // SAME-NEXT:    unreachable, !annotation [[META5]]
 // SAME:       [[CONT]]:
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PTR]] to i64, !annotation [[META5]]
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
 // SAME-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PTR]] to i64
 // SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
 // SAME-NEXT:    tail call void @consume_cb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4:[0-9]+]]
 // SAME-NEXT:    ret void
@@ -57,8 +57,8 @@ void init_list_cb(int count_param, int*__counted_by(count_param) ptr) {
 // SAME-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
 // SAME:       [[LAND_RHS]]:
 // SAME-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT_PARAM]] to i64, !annotation [[META5]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9:![0-9]+]]
 // SAME-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META5]]
 // SAME-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
@@ -71,7 +71,8 @@ void init_list_cb(int count_param, int*__counted_by(count_param) ptr) {
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
 // SAME-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// SAME-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // SAME-NEXT:    tail call void @consume_cb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // SAME-NEXT:    ret void
 //
@@ -101,10 +102,10 @@ void init_list_cb_bidi(int count_param, int* __bidi_indexable ptr) {
 // NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META5]]
 // NEW-NEXT:    unreachable, !annotation [[META5]]
 // NEW:       [[CONT]]:
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PTR]] to i64, !annotation [[META5]]
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
 // NEW-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// NEW-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[PTR]] to i64
+// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // NEW-NEXT:    tail call void @consume_cb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4:[0-9]+]]
 // NEW-NEXT:    ret void
 //
@@ -138,8 +139,8 @@ void compound_literal_init_cb(int count_param, int*__counted_by(count_param) ptr
 // NEW-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
 // NEW:       [[LAND_RHS]]:
 // NEW-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT_PARAM]] to i64, !annotation [[META5]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9:![0-9]+]]
 // NEW-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META5]]
 // NEW-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
@@ -152,7 +153,8 @@ void compound_literal_init_cb(int count_param, int*__counted_by(count_param) ptr
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
 // NEW-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// NEW-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // NEW-NEXT:    tail call void @consume_cb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // NEW-NEXT:    ret void
 //
@@ -216,8 +218,8 @@ void init_list_cbon(int count_param, int*__counted_by_or_null(count_param) ptr) 
 // SAME-NEXT:    br i1 [[TOBOOL_NOT]], label %[[CONT:.*]], label %[[LOR_RHS:.*]], !annotation [[META5]]
 // SAME:       [[LOR_RHS]]:
 // SAME-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT_PARAM]] to i64, !annotation [[META5]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
 // SAME-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META5]]
 // SAME-NEXT:    [[CMP32:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
@@ -228,10 +230,10 @@ void init_list_cbon(int count_param, int*__counted_by_or_null(count_param) ptr) 
 // SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
 // SAME-NEXT:    unreachable, !annotation [[META5]]
 // SAME:       [[CONT]]:
-// SAME-NEXT:    [[DOTPRE_PHI:%.*]] = phi i64 [ [[SUB_PTR_RHS_CAST]], %[[LOR_RHS]] ], [ 0, %[[LAND_RHS]] ]
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
 // SAME-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[DOTPRE_PHI]], 1
+// SAME-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // SAME-NEXT:    tail call void @consume_cbon([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // SAME-NEXT:    ret void
 //
@@ -303,8 +305,8 @@ void compound_literal_init_cbon(int count_param, int*__counted_by_or_null(count_
 // NEW-NEXT:    br i1 [[TOBOOL_NOT]], label %[[CONT:.*]], label %[[LOR_RHS:.*]], !annotation [[META5]]
 // NEW:       [[LOR_RHS]]:
 // NEW-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT_PARAM]] to i64, !annotation [[META5]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
 // NEW-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META5]]
 // NEW-NEXT:    [[CMP32:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
@@ -315,10 +317,10 @@ void compound_literal_init_cbon(int count_param, int*__counted_by_or_null(count_
 // NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
 // NEW-NEXT:    unreachable, !annotation [[META5]]
 // NEW:       [[CONT]]:
-// NEW-NEXT:    [[DOTPRE_PHI:%.*]] = phi i64 [ [[SUB_PTR_RHS_CAST]], %[[LOR_RHS]] ], [ 0, %[[LAND_RHS]] ]
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
 // NEW-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[DOTPRE_PHI]], 1
+// NEW-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // NEW-NEXT:    tail call void @consume_cbon([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // NEW-NEXT:    ret void
 //
@@ -351,10 +353,10 @@ void consume_sb(struct sb);
 // SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
 // SAME-NEXT:    unreachable, !annotation [[META5]]
 // SAME:       [[CONT]]:
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PTR]] to i64, !annotation [[META5]]
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
 // SAME-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// SAME-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[PTR]] to i64
+// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // SAME-NEXT:    tail call void @consume_sb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // SAME-NEXT:    ret void
 //
@@ -377,8 +379,8 @@ void init_list_sb(int count_param, char*__sized_by(count_param) ptr) {
 // SAME-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
 // SAME:       [[LAND_RHS]]:
 // SAME-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT_PARAM]] to i64, !annotation [[META5]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
 // SAME-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META5]]
 // SAME-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[COUNT_PARAM]], -1, !annotation [[META5]]
@@ -390,7 +392,8 @@ void init_list_sb(int count_param, char*__sized_by(count_param) ptr) {
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
 // SAME-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// SAME-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // SAME-NEXT:    tail call void @consume_sb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // SAME-NEXT:    ret void
 //
@@ -420,10 +423,10 @@ void init_list_bidi(int count_param, char*__bidi_indexable ptr) {
 // NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
 // NEW-NEXT:    unreachable, !annotation [[META5]]
 // NEW:       [[CONT]]:
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PTR]] to i64, !annotation [[META5]]
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
 // NEW-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// NEW-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[PTR]] to i64
+// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // NEW-NEXT:    tail call void @consume_sb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // NEW-NEXT:    ret void
 //
@@ -457,8 +460,8 @@ void compound_literal_init_sb(int count_param, char*__sized_by(count_param) ptr)
 // NEW-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
 // NEW:       [[LAND_RHS]]:
 // NEW-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT_PARAM]] to i64, !annotation [[META5]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
 // NEW-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META5]]
 // NEW-NEXT:    [[CMP28:%.*]] = icmp sgt i32 [[COUNT_PARAM]], -1, !annotation [[META5]]
@@ -470,7 +473,8 @@ void compound_literal_init_sb(int count_param, char*__sized_by(count_param) ptr)
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
 // NEW-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[SUB_PTR_RHS_CAST]], 1
+// NEW-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // NEW-NEXT:    tail call void @consume_sb([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // NEW-NEXT:    ret void
 //
@@ -534,8 +538,8 @@ void init_list_sbon(int count_param, char*__sized_by_or_null(count_param) ptr) {
 // SAME-NEXT:    br i1 [[TOBOOL_NOT]], label %[[CONT:.*]], label %[[LOR_RHS:.*]], !annotation [[META5]]
 // SAME:       [[LOR_RHS]]:
 // SAME-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT_PARAM]] to i64, !annotation [[META5]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
 // SAME-NEXT:    [[CMP32:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META5]]
 // SAME-NEXT:    [[CMP35:%.*]] = icmp sgt i32 [[COUNT_PARAM]], -1, !annotation [[META5]]
@@ -545,10 +549,10 @@ void init_list_sbon(int count_param, char*__sized_by_or_null(count_param) ptr) {
 // SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
 // SAME-NEXT:    unreachable, !annotation [[META5]]
 // SAME:       [[CONT]]:
-// SAME-NEXT:    [[DOTPRE_PHI:%.*]] = phi i64 [ [[SUB_PTR_RHS_CAST]], %[[LOR_RHS]] ], [ 0, %[[LAND_RHS]] ]
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
 // SAME-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[DOTPRE_PHI]], 1
+// SAME-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// SAME-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // SAME-NEXT:    tail call void @consume_sbon([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // SAME-NEXT:    ret void
 //
@@ -620,8 +624,8 @@ void compound_literal_init_sbon(int count_param, char*__sized_by_or_null(count_p
 // NEW-NEXT:    br i1 [[TOBOOL_NOT]], label %[[CONT:.*]], label %[[LOR_RHS:.*]], !annotation [[META5]]
 // NEW:       [[LOR_RHS]]:
 // NEW-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT_PARAM]] to i64, !annotation [[META5]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
 // NEW-NEXT:    [[CMP32:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META5]]
 // NEW-NEXT:    [[CMP35:%.*]] = icmp sgt i32 [[COUNT_PARAM]], -1, !annotation [[META5]]
@@ -631,10 +635,10 @@ void compound_literal_init_sbon(int count_param, char*__sized_by_or_null(count_p
 // NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
 // NEW-NEXT:    unreachable, !annotation [[META5]]
 // NEW:       [[CONT]]:
-// NEW-NEXT:    [[DOTPRE_PHI:%.*]] = phi i64 [ [[SUB_PTR_RHS_CAST]], %[[LOR_RHS]] ], [ 0, %[[LAND_RHS]] ]
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
 // NEW-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[C_SROA_0_0_INSERT_EXT]], 0
-// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[DOTPRE_PHI]], 1
+// NEW-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
+// NEW-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
 // NEW-NEXT:    tail call void @consume_sbon([2 x i64] [[DOTFCA_1_INSERT]]) #[[ATTR4]]
 // NEW-NEXT:    ret void
 //

@@ -346,8 +346,8 @@ int main() {
 // OPT-REM-NEXT:       other (LLVM IR 'load')
 // OPT-REM-NEXT:       other (LLVM IR 'getelementptr')
 // OPT-REM-NEXT:       other (LLVM IR 'load')
-// OPT-REM-NEXT:       other (LLVM IR 'ptrtoint')
-// OPT-REM-NEXT:       other (LLVM IR 'ptrtoint')
+// OPT-REM-NEXT:       other (LLVM IR 'ptrtoaddr')
+// OPT-REM-NEXT:       other (LLVM IR 'ptrtoaddr')
 // OPT-REM-NEXT:       other (LLVM IR 'sub')
 // OPT-REM-NEXT:       other (LLVM IR 'sdiv')
 // OPT-REM-NEXT: ...

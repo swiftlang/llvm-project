@@ -80,8 +80,8 @@
 // CHECK-O0-NEXT:    [[WIDE_PTR_UB15:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR14]], align 8
 // CHECK-O0-NEXT:    [[WIDE_PTR_LB_ADDR16:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP5]], i32 0, i32 2
 // CHECK-O0-NEXT:    [[WIDE_PTR_LB17:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR16]], align 8
-// CHECK-O0-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR4]] to i64
-// CHECK-O0-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR13]] to i64
+// CHECK-O0-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR4]] to i64
+// CHECK-O0-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR13]] to i64
 // CHECK-O0-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]]
 // CHECK-O0-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4
 // CHECK-O0-NEXT:    [[TMP22:%.*]] = load ptr, ptr [[SAVED_STACK]], align 8
@@ -169,8 +169,8 @@ unsigned long long diff_2d(int m, int n) {
 // CHECK-O0-NEXT:    [[WIDE_PTR_UB15:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR14]], align 8
 // CHECK-O0-NEXT:    [[WIDE_PTR_LB_ADDR16:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.1", ptr [[AGG_TEMP5]], i32 0, i32 2
 // CHECK-O0-NEXT:    [[WIDE_PTR_LB17:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR16]], align 8
-// CHECK-O0-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR4]] to i64
-// CHECK-O0-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR13]] to i64
+// CHECK-O0-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR4]] to i64
+// CHECK-O0-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR13]] to i64
 // CHECK-O0-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]]
 // CHECK-O0-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 60
 // CHECK-O0-NEXT:    [[TMP22:%.*]] = load ptr, ptr [[SAVED_STACK]], align 8
@@ -294,8 +294,8 @@ unsigned long long diff_3d(int m, int n, int l) {
 // CHECK-O0-NEXT:    [[WIDE_PTR_UB25:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR24]], align 8
 // CHECK-O0-NEXT:    [[WIDE_PTR_LB_ADDR26:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP10]], i32 0, i32 2
 // CHECK-O0-NEXT:    [[WIDE_PTR_LB27:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR26]], align 8
-// CHECK-O0-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR9]] to i64
-// CHECK-O0-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR23]] to i64
+// CHECK-O0-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR9]] to i64
+// CHECK-O0-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR23]] to i64
 // CHECK-O0-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]]
 // CHECK-O0-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4
 // CHECK-O0-NEXT:    [[TMP39:%.*]] = load ptr, ptr [[SAVED_STACK]], align 8

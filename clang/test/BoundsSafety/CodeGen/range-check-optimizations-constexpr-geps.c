@@ -301,7 +301,7 @@ void concat_to_separate_clobals(hdr_t *p_buf) {
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_separate_clobals_opaque(
-// CHECK-SAME: ptr noundef [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -316,7 +316,7 @@ void concat_to_separate_clobals(hdr_t *p_buf) {
 // CHECK-NEXT:    br i1 [[CMP140]], label %[[FOR_BODY_LR_PH:.*]], label %[[FOR_COND_CLEANUP:.*]]
 // CHECK:       [[FOR_BODY_LR_PH]]:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br label %[[FOR_BODY:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
@@ -326,7 +326,7 @@ void concat_to_separate_clobals(hdr_t *p_buf) {
 // CHECK-NEXT:    [[I_0141:%.*]] = phi i8 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INC:%.*]], %[[CONT114]] ]
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[PARAMS_SROA_0_0142]], [[ADD_PTR]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND136_NOT138:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PARAMS_SROA_0_0142]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[PARAMS_SROA_0_0142]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp sgt i64 [[SUB_PTR_SUB]], 3, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND137:%.*]] = select i1 [[OR_COND136_NOT138]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -532,7 +532,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_arrays_struct_can_remove_arrays_check_opaque(
-// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr noundef [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR9:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr nofree noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR9:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -547,7 +547,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    br i1 [[CMP150]], label %[[FOR_BODY_LR_PH:.*]], label %[[FOR_COND_CLEANUP:.*]]
 // CHECK:       [[FOR_BODY_LR_PH]]:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 16
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
@@ -561,7 +561,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[I_0151:%.*]] = phi i8 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INC:%.*]], %[[CONT121]] ]
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[PARAMS_SROA_0_0152]], [[ADD_PTR]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND146_NOT148:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PARAMS_SROA_0_0152]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[PARAMS_SROA_0_0152]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp sgt i64 [[SUB_PTR_SUB]], 3, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND147:%.*]] = select i1 [[OR_COND146_NOT148]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -768,7 +768,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_arrays_struct_trap_on_last_iter_opaque(
-// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr noundef [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR9]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr nofree noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR9]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -783,7 +783,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    br i1 [[CMP150]], label %[[FOR_BODY_LR_PH:.*]], label %[[FOR_COND_CLEANUP:.*]]
 // CHECK:       [[FOR_BODY_LR_PH]]:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 16
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
@@ -797,7 +797,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    [[I_0151:%.*]] = phi i8 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INC:%.*]], %[[CONT121]] ]
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[PARAMS_SROA_0_0152]], [[ADD_PTR]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND146_NOT148:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PARAMS_SROA_0_0152]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[PARAMS_SROA_0_0152]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp sgt i64 [[SUB_PTR_SUB]], 3, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND147:%.*]] = select i1 [[OR_COND146_NOT148]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -873,7 +873,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_arrays_struct_cannot_remove_arrays_check(
-// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr noundef [[P_BUF:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR8]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr nofree noundef readonly captures(address) [[P_BUF:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR8]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -887,7 +887,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    br i1 [[CMP149_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_LR_PH:.*]]
 // CHECK:       [[FOR_BODY_LR_PH]]:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 16
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
@@ -901,7 +901,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    [[I_0150:%.*]] = phi i8 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INC:%.*]], %[[CONT121]] ]
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[PARAMS_SROA_0_0151]], [[ADD_PTR]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND146_NOT148:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PARAMS_SROA_0_0151]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[PARAMS_SROA_0_0151]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp sgt i64 [[SUB_PTR_SUB]], 3, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND147:%.*]] = select i1 [[OR_COND146_NOT148]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}

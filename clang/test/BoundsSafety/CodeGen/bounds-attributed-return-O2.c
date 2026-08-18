@@ -20,8 +20,8 @@
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9:![0-9]+]]
 // CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META5]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
@@ -112,7 +112,7 @@ int *__counted_by(count) cb_in_from_cb2(int count, int *__counted_by(len) p, int
 }
 
 // CHECK-LABEL: define noundef ptr @cb_in_from_cbn(
-// CHECK-SAME: i32 noundef [[COUNT:%.*]], ptr noundef returned [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: i32 noundef [[COUNT:%.*]], ptr nofree noundef readnone returned captures(address, ret: address, provenance) [[P:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[P]], null, !annotation [[META13:![0-9]+]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[COUNT]] to i64
@@ -121,8 +121,8 @@ int *__counted_by(count) cb_in_from_cb2(int count, int *__counted_by(len) p, int
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[P]], [[TMP_SROA_9_0]], !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
 // CHECK:       [[LAND_RHS]]:
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[TMP_SROA_9_0]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[P]] to i64, !annotation [[META5]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[TMP_SROA_9_0]] to i64, !annotation [[META5]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[P]] to i64, !annotation [[META5]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
 // CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META5]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[IDX_EXT]], !annotation [[META5]]
@@ -140,7 +140,7 @@ int *__counted_by(count) cb_in_from_cbn(int count, int *__counted_by_or_null(cou
 }
 
 // CHECK-LABEL: define noundef ptr @cb_in_from_cbn2(
-// CHECK-SAME: i32 noundef [[COUNT:%.*]], ptr noundef returned [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: i32 noundef [[COUNT:%.*]], ptr nofree noundef readnone returned captures(address, ret: address, provenance) [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[P]], null, !annotation [[META13]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[LEN]] to i64
@@ -150,8 +150,8 @@ int *__counted_by(count) cb_in_from_cbn(int count, int *__counted_by_or_null(cou
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[COUNT]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[TMP_SROA_9_0]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[P]] to i64, !annotation [[META5]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[TMP_SROA_9_0]] to i64, !annotation [[META5]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[P]] to i64, !annotation [[META5]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
 // CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META5]]
 // CHECK-NEXT:    [[CMP25:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
@@ -215,8 +215,8 @@ int *__counted_by_or_null(count) cbn_in_from_single(int count, int *__single p) 
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
 // CHECK:       [[LAND_RHS]]:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[SIZE]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
 // CHECK-NEXT:    [[CMP32:%.*]] = icmp sge i64 [[SUB_PTR_SUB]], [[CONV]], !annotation [[META5]]
 // CHECK-NEXT:    [[CMP35:%.*]] = icmp sgt i32 [[SIZE]], -1, !annotation [[META5]]

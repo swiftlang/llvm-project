@@ -10,7 +10,7 @@ typedef struct {
 } flex_t;
 
 // CHECK-LABEL: define noundef ptr @set(
-// CHECK-SAME: ptr noundef returned [[FLEX:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef returned captures(address, ret: address, provenance) [[FLEX:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[FLEX]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_CONT:.*]], label %[[BOUNDSCHECK_NOTNULL:.*]], {{!annotation ![0-9]+}}
@@ -24,8 +24,8 @@ typedef struct {
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_3_0:%.*]] = phi ptr [ [[ADD_PTR]], %[[BOUNDSCHECK_NOTNULL]] ], [ null, %[[ENTRY]] ]
 // CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SIZE]] to i64
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[FLEX]], [[AGG_TEMP1_SROA_3_0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[FLEX]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[FLEX]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP67_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP67_NOT]], {{!annotation ![0-9]+}}
@@ -47,7 +47,7 @@ void *set(flex_t *flex, unsigned size) {
 }
 
 // CHECK-LABEL: define noundef ptr @cpy(
-// CHECK-SAME: ptr noundef returned [[DEST:%.*]], ptr noundef [[SRC:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef returned captures(address, ret: address, provenance) [[DEST:%.*]], ptr nofree noundef readonly captures(address) [[SRC:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[DEST]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_CONT:.*]], label %[[BOUNDSCHECK_NOTNULL:.*]], {{!annotation ![0-9]+}}
@@ -71,15 +71,15 @@ void *set(flex_t *flex, unsigned size) {
 // CHECK-NEXT:    [[AGG_TEMP3_SROA_3_0:%.*]] = phi ptr [ [[ADD_PTR9]], %[[BOUNDSCHECK_NOTNULL4]] ], [ null, %[[BOUNDSCHECK_CONT]] ]
 // CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SIZE]] to i64
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[SRC]], [[AGG_TEMP3_SROA_3_0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP3_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[SRC]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP3_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[SRC]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP83_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP83_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP101_NOT:%.*]] = icmp ugt ptr [[DEST]], [[AGG_TEMP1_SROA_3_0]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND191:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP101_NOT]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST153:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST154:%.*]] = ptrtoint ptr [[DEST]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST153:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST154:%.*]] = ptrtoaddr ptr [[DEST]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB155:%.*]] = sub i64 [[SUB_PTR_LHS_CAST153]], [[SUB_PTR_RHS_CAST154]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP156_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB155]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND192:%.*]] = select i1 [[OR_COND191]], i1 true, i1 [[CMP156_NOT]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -101,7 +101,7 @@ void *cpy(flex_t *dest, const flex_t *src, unsigned size) {
 }
 
 // CHECK-LABEL: define ptr @pcpy(
-// CHECK-SAME: ptr noundef [[DEST:%.*]], ptr noundef [[SRC:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef captures(address, ret: address, provenance) [[DEST:%.*]], ptr nofree noundef readonly captures(address) [[SRC:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[DEST]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_CONT:.*]], label %[[BOUNDSCHECK_NOTNULL:.*]], {{!annotation ![0-9]+}}
@@ -125,15 +125,15 @@ void *cpy(flex_t *dest, const flex_t *src, unsigned size) {
 // CHECK-NEXT:    [[AGG_TEMP3_SROA_3_0:%.*]] = phi ptr [ [[ADD_PTR9]], %[[BOUNDSCHECK_NOTNULL4]] ], [ null, %[[BOUNDSCHECK_CONT]] ]
 // CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SIZE]] to i64
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[SRC]], [[AGG_TEMP3_SROA_3_0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP3_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[SRC]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP3_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[SRC]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP83_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP83_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP101_NOT:%.*]] = icmp ugt ptr [[DEST]], [[AGG_TEMP1_SROA_3_0]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND176:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP101_NOT]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST153:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST154:%.*]] = ptrtoint ptr [[DEST]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST153:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST154:%.*]] = ptrtoaddr ptr [[DEST]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB155:%.*]] = sub i64 [[SUB_PTR_LHS_CAST153]], [[SUB_PTR_RHS_CAST154]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP156_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB155]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND177:%.*]] = select i1 [[OR_COND176]], i1 true, i1 [[CMP156_NOT]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -151,7 +151,7 @@ void *__unsafe_indexable pcpy(flex_t *dest, const flex_t *src, unsigned size) {
 }
 
 // CHECK-LABEL: define noundef ptr @move(
-// CHECK-SAME: ptr noundef returned [[DEST:%.*]], ptr noundef [[SRC:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef returned captures(address, ret: address, provenance) [[DEST:%.*]], ptr nofree noundef readonly captures(address) [[SRC:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[DEST]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_CONT:.*]], label %[[BOUNDSCHECK_NOTNULL:.*]], {{!annotation ![0-9]+}}
@@ -175,15 +175,15 @@ void *__unsafe_indexable pcpy(flex_t *dest, const flex_t *src, unsigned size) {
 // CHECK-NEXT:    [[AGG_TEMP3_SROA_3_0:%.*]] = phi ptr [ [[ADD_PTR9]], %[[BOUNDSCHECK_NOTNULL4]] ], [ null, %[[BOUNDSCHECK_CONT]] ]
 // CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SIZE]] to i64
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[SRC]], [[AGG_TEMP3_SROA_3_0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP3_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[SRC]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP3_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[SRC]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP83_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP83_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP101_NOT:%.*]] = icmp ugt ptr [[DEST]], [[AGG_TEMP1_SROA_3_0]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND191:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP101_NOT]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST153:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST154:%.*]] = ptrtoint ptr [[DEST]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST153:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_3_0]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST154:%.*]] = ptrtoaddr ptr [[DEST]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB155:%.*]] = sub i64 [[SUB_PTR_LHS_CAST153]], [[SUB_PTR_RHS_CAST154]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP156_NOT:%.*]] = icmp ult i64 [[SUB_PTR_SUB155]], [[CONV]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND192:%.*]] = select i1 [[OR_COND191]], i1 true, i1 [[CMP156_NOT]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
