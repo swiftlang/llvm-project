@@ -187,6 +187,7 @@ class RichManglingContext;
 class SaveCoreOptions;
 class Scalar;
 class ScriptInterpreter;
+class ScriptInterpreterBridge;
 class ScriptInterpreterLocker;
 class ScriptedFrameInterface;
 class ScriptedFrameProviderInterface;

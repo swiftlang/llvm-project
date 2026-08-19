@@ -133,6 +133,7 @@ add_lldb_library(liblldb SHARED ${option_framework}
   SBVariablesOptions.cpp
   SBWatchpoint.cpp
   SBWatchpointOptions.cpp
+  ScriptInterpreterBridge.cpp
   SystemInitializerFull.cpp
   ${lldb_python_wrapper}
   ${lldb_lua_wrapper}
