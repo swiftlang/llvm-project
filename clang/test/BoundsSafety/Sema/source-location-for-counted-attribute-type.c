@@ -30,16 +30,16 @@ struct CB {
     struct IncompleteTy* __attribute__((__counted_by__(count))) b_direct_affixed;
     // NOTE: In these cases the locations just point to the count expressions as
     // a fallback.
-    // CHECK: [[@LINE+1]]:44: note: consider using '__sized_by' instead of '__counted_by'
+    // CHECK: [[@LINE+1]]:26: note: consider using '__sized_by' instead of '__counted_by'
     struct IncompleteTy* custom_counted_by(count) b_custom_macro;
-    // CHECK: [[@LINE+1]]:46: note: consider using '__sized_by' instead of '__counted_by'
+    // CHECK: [[@LINE+1]]:26: note: consider using '__sized_by' instead of '__counted_by'
     struct IncompleteTy* custom_counted_by__(count) b_custom_macro_underscored;
 
-    // CHECK: [[@LINE+1]]:39: note: consider using '__sized_by' instead of '__counted_by'
+    // CHECK: [[@LINE+1]]:26: note: consider using '__sized_by' instead of '__counted_by'
     struct IncompleteTy* __counted_by(COUNT_ARG) b_macro_macro_arg;
-    // CHECK: [[@LINE+1]]:52: note: consider using '__sized_by' instead of '__counted_by'
+    // CHECK: [[@LINE+1]]:41: note: consider using '__sized_by' instead of '__counted_by'
     struct IncompleteTy* __attribute__((counted_by(COUNT_ARG))) b_direct_non_affixed_macro_arg;
-    // CHECK: [[@LINE+1]]:56: note: consider using '__sized_by' instead of '__counted_by'
+    // CHECK: [[@LINE+1]]:41: note: consider using '__sized_by' instead of '__counted_by'
     struct IncompleteTy* __attribute__((__counted_by__(COUNT_ARG))) b_direct_affixed_macro_arg;
 };
 
@@ -71,16 +71,16 @@ struct CBON {
     struct IncompleteTy* __attribute__((__counted_by_or_null__(count))) b_direct_affixed;
     // NOTE: In these cases the locations just points to the count expressions as
     // a fallback.
-    // CHECK: [[@LINE+1]]:52: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
+    // CHECK: [[@LINE+1]]:26: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
     struct IncompleteTy* custom_counted_by_or_null(count) b_custom_macro;
-    // CHECK: [[@LINE+1]]:54: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
+    // CHECK: [[@LINE+1]]:26: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
     struct IncompleteTy* custom_counted_by_or_null__(count) b_custom_macro_underscored;
 
-    // CHECK: [[@LINE+1]]:47: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
+    // CHECK: [[@LINE+1]]:26: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
     struct IncompleteTy* __counted_by_or_null(COUNT_ARG) b_macro_macro_arg;
-    // CHECK: [[@LINE+1]]:60: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
+    // CHECK: [[@LINE+1]]:41: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
     struct IncompleteTy* __attribute__((counted_by_or_null(COUNT_ARG))) b_direct_non_affixed_macro_arg;
-    // CHECK: [[@LINE+1]]:64: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
+    // CHECK: [[@LINE+1]]:41: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
     struct IncompleteTy* __attribute__((__counted_by_or_null__(COUNT_ARG))) b_direct_affixed_macro_arg;
 };
 

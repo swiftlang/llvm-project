@@ -2771,6 +2771,27 @@ public:
   /// Implementations are in SemaBoundsSafety.cpp
   ///@{
 public:
+  /// Provides a TypeLoc resolved from various syntactic contexts (assignees,
+  /// parameters, expressions, return types). Used to emit precise diagnostics
+  /// with accurate fix-it hints for bounds-safety attribute violations.
+  /// The class itself does nothing more than carry a TypeLoc around, but
+  /// requesting a TypeLocSource value as a parameter serves as an indication
+  /// that the TypeLoc should be provided by one of these helper functions.
+  class TypeLocSource {
+  public:
+    static TypeLocSource fromAssignee(const ValueDecl *VD);
+    static TypeLocSource fromParameter(const CallExpr *Call, unsigned ParamIdx);
+    static TypeLocSource fromExpression(const Expr *E);
+    static TypeLocSource fromReturnType(const FunctionDecl *FD);
+
+    TypeLoc getTypeLoc() const { return TL; }
+
+  private:
+    TypeLocSource() = default;
+    TypeLocSource(TypeLoc TL) : TL(TL) {}
+    TypeLoc TL;
+  };
+
   /// Check if applying the specified attribute variant from the "counted by"
   /// family of attributes to FieldDecl \p FD is semantically valid. If
   /// semantically invalid diagnostics will be emitted explaining the problems.
@@ -2811,7 +2832,8 @@ public:
   bool BoundsSafetyCheckAssignmentToCountAttrPtr(
       QualType LHSTy, Expr *RHSExpr, AssignmentAction Action,
       SourceLocation Loc, const ValueDecl *Assignee,
-      bool ShowFullyQualifiedAssigneeName);
+      bool ShowFullyQualifiedAssigneeName,
+      TypeLocSource TLS);
 
   /// Perform Bounds Safety Semantic checks for initializing a Bounds Safety
   /// pointer.

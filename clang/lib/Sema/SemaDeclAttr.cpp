@@ -8091,6 +8091,33 @@ void Sema::applyPtrCountedByEndedByAttr(Decl *D, unsigned Level,
     Info.ObjCMethod->setReturnType(NewDeclTy);
   } else {
     Info.VD->setType(NewDeclTy);
+    if (auto *DD = dyn_cast<DeclaratorDecl>(Info.VD)) {
+      if (isa<CountAttributedType>(ConstructedType)) {
+        SourceLocation Loc = DD->getTypeSourceInfo()
+                                 ? DD->getTypeSourceInfo()
+                                       ->getTypeLoc()
+                                       .getBeginLoc()
+                                 : DD->getLocation();
+        TypeSourceInfo *NewTSI =
+            Context.getTrivialTypeSourceInfo(NewDeclTy, Loc);
+        TypeLoc TL = NewTSI->getTypeLoc();
+        CountAttributedTypeLoc CATL;
+        while (!TL.isNull()) {
+          CATL = TL.getAs<CountAttributedTypeLoc>();
+          if (!CATL.isNull())
+            break;
+          if (auto PTL = TL.getAs<PointerTypeLoc>())
+            TL = PTL.getPointeeLoc();
+          else if (auto FTL = TL.getAs<FunctionTypeLoc>())
+            TL = FTL.getReturnLoc();
+          else
+            break;
+        }
+        if (!CATL.isNull())
+          CATL.setAttrRange(Range);
+        DD->setTypeSourceInfo(NewTSI);
+      }
+    }
     // Reconstruct implicit cast for initializer after variable type change.
     if (Info.Var && Info.Var->hasInit()) {
       Expr *Init = Info.Var->getInit();
@@ -8919,9 +8946,14 @@ static void handleCountedByAttrField(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (S.CheckCountedByAttrOnField(FD, CountExpr, CountInBytes, OrNull))
     return;
 
+  TypeLocBuilder TLB;
   QualType CAT = S.BuildCountAttributedArrayOrPointerType(
       FD->getType(), CountExpr, CountInBytes, OrNull);
+  TLB.pushFullCopy(FD->getTypeSourceInfo()->getTypeLoc());
+  CountAttributedTypeLoc CATL = TLB.push<CountAttributedTypeLoc>(CAT);
+  CATL.setAttrRange(AL.getRange());
   FD->setType(CAT);
+  FD->setTypeSourceInfo(TLB.getTypeSourceInfo(S.getASTContext(), CAT));
 }
 
 static void handleFunctionReturnThunksAttr(Sema &S, Decl *D,

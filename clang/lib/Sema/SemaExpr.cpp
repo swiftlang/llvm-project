@@ -17567,7 +17567,8 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
 
     BoundsSafetyCheckAssignmentToCountAttrPtr(
         LHSType, RHS.get(), AssignmentAction::Assigning, Loc, Assignee,
-        ShowFullyQualifiedAssigneeName);
+        ShowFullyQualifiedAssigneeName,
+        TypeLocSource::fromExpression(LHSExpr));
   }
 
   // OpenCL v1.2 s6.1.1.1 p2:
