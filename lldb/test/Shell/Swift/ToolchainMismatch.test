@@ -1,7 +1,7 @@
 # REQUIRES: swift
 
-# Tests that a warning is printed when stopped in a Swift frame
-# compiled by a different Swift compiler than the one embedded in LLDB.
+# Tests that a warning is printed when a Swift AST context is initialized for
+# code compiled by a different Swift compiler than the one embedded in LLDB.
 
 # RUN: rm -rf %t && mkdir %t && cd %t
 # RUN: %target-swiftc -g \
@@ -29,6 +29,7 @@
 
 b main
 run
+expression 1
 quit
 
 # The {{ }} avoids accidentally matching the input script!
