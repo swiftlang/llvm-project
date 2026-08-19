@@ -3164,6 +3164,27 @@ void SwiftASTContext::DiscoverImplicitlyTrackedModules(
   }
 }
 
+/// Warn if \p comp_unit was built by a Swift compiler that doesn't match the
+/// one integrated into LLDB.
+static void ReportToolchainMismatch(Module &module, CompileUnit &comp_unit,
+                                    Target &target) {
+  // The debugger driving a scripted process is unrelated to the toolchain that
+  // built the target, so a mismatch is expected and not actionable.
+  if (target.GetProcessLaunchInfo().IsScriptedProcess())
+    return;
+
+  // Before there is a process, the setting only exists in the global
+  // properties.
+  ProcessSP process_sp = target.GetProcessSP();
+  const ProcessProperties &process_properties =
+      process_sp ? *process_sp : Process::GetGlobalProperties();
+  if (!process_properties.GetWarningsToolchainMismatch())
+    return;
+
+  module.ReportWarningToolchainMismatch(comp_unit,
+                                        target.GetDebugger().GetID());
+}
+
 lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     const SymbolContext &sc, TypeSystemSwiftTypeRef &typeref_typesystem,
     bool repl, bool playground, const char *extra_options) {
@@ -3204,6 +3225,13 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
   // -              SwiftASTContext: target=null,     module=non-null.
   ModuleSP module_sp = sc.module_sp;
   TargetSP target_sp = typeref_typesystem.GetTargetWP().lock();
+
+  // Only an expression type system carries a target, so a per-module context
+  // takes it from the symbol context. Without a target there is no debugger to
+  // address, and reporting would consume the module's one-shot flag.
+  Target *warning_target = target_sp ? target_sp.get() : sc.target_sp.get();
+  if (module_sp && swift_context && warning_target)
+    ReportToolchainMismatch(*module_sp, *cu, *warning_target);
 
   // Make an AST but don't set the triple yet. We need to
   // try and detect if we have a iOS simulator.
