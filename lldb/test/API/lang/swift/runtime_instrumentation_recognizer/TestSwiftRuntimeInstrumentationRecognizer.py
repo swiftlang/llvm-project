@@ -5,7 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftRuntimeInstrumentationRecognizer(lldbtest.TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185129217 (Embedded Swift: the Swift runtime instrumentation frame recognizer never fires)
     @swiftTest
     @expectedFailureWindows
     def test(self):

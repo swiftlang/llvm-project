@@ -7,7 +7,7 @@ class TestSwiftExpressionErrorMissingType(TestBase):
     SHARED_BUILD_TESTCASE = False
     NO_DEBUG_INFO_TESTCASE = True
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184841378 (Embedded Swift: module-from-interface builds are missing IS_EMBEDDED_SWIFT_MODULE, breaking import + LLDB expr eval)
     @swiftTest
     def test(self):
         """Test an extra hint inserted by LLDB for missing module imports"""

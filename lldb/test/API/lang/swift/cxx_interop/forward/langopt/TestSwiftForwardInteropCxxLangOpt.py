@@ -8,7 +8,7 @@ from lldbsuite.test.decorators import *
 
 class TestSwiftForwardInteropCxxLangOpt(TestBase):
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128839 (Embedded Swift: a test whose breakpoint is in a linked dylib runs to exit without stopping)
     @swiftTest
     def test_class(self):
         """
