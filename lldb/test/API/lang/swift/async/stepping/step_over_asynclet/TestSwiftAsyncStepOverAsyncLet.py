@@ -12,7 +12,7 @@ class TestCase(lldbtest.TestBase):
         line_entry = frame.GetLineEntry()
         self.assertEqual(linenum, line_entry.GetLine())
 
-    @requireNotEmbeddedSwift
+    @skipEmbeddedSwiftOnLinux
     @swiftTest
     @skipIf(oslist=["windows"])
     def test_nothrow(self):
@@ -32,7 +32,7 @@ class TestCase(lldbtest.TestBase):
             self.assertStopReason(stop_reason, lldb.eStopReasonPlanComplete)
             self.check_is_in_line(thread, expected_line_num)
 
-    @requireNotEmbeddedSwift
+    @skipEmbeddedSwiftOnLinux
     @swiftTest
     @skipIf(oslist=["windows"])
     def test_throw(self):
@@ -44,8 +44,8 @@ class TestCase(lldbtest.TestBase):
             self, "BREAK_THROW", source_file
         )
 
-        # Step over should reach every line in the interval [34, 40]
-        expected_line_nums = range(34, 41)
+        # Step over should reach every line in the interval [34, 41]
+        expected_line_nums = range(34, 42)
         for expected_line_num in expected_line_nums:
             thread.StepOver()
             stop_reason = thread.GetStopReason()

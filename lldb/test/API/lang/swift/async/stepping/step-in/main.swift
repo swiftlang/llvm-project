@@ -1,10 +1,10 @@
-@MainActor func stringNum(_ i: Int) async -> String {
+func stringNum(_ i: Int) async -> String {
   let x = await randInt(i)
   let y = await randInt(i)
   return String(x + y)
 }
 
-@MainActor func randInt(_ i: Int) async -> Int {
+func randInt(_ i: Int) async -> Int {
   return Int.random(in: 1...i)
 }
 

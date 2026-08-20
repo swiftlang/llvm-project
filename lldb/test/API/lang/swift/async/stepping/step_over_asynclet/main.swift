@@ -12,7 +12,7 @@ func foo() async {
     async let timestamp2 = getTimestamp(x:2)
     work()
     let timestamps = await [timestamp1, timestamp2]
-    print(timestamps)
+    print(timestamps[0])
   }
   async let timestamp3 = getTimestamp(x:3)
   work()
@@ -36,8 +36,8 @@ func foo_throwing() async {
     async let timestamp2 = getTimestamp_throwing(x:2)
     work()
     let timestamps = try await [timestamp1, timestamp2]
-    print(timestamps)
-  } catch {print(error)}
+    print(timestamps[0])
+  } catch {print("error")}
   work()
 }
 
