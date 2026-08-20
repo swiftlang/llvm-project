@@ -1695,16 +1695,21 @@ TypeSystemSwiftTypeRef::DesugarNode(swift::Demangle::Demangler &dem,
       dem, node, [&](NodePointer node) { return Desugar(dem, node); });
 }
 
-swift::Demangle::NodePointer
-TypeSystemSwiftTypeRef::Canonicalize(swift::Demangle::Demangler &dem,
-                                     swift::Demangle::NodePointer node,
-                                     swift::Mangle::ManglingFlavor flavor) {
+swift::Demangle::NodePointer TypeSystemSwiftTypeRef::Canonicalize(
+    swift::Demangle::Demangler &dem, swift::Demangle::NodePointer node,
+    swift::Mangle::ManglingFlavor flavor, bool preserve_clang_type_aliases) {
   assert(node);
   node = Desugar(dem, node);
   auto kind = node->getKind();
   switch (kind) {
   case Node::Kind::BoundGenericTypeAlias:
   case Node::Kind::TypeAlias: {
+    if (preserve_clang_type_aliases) {
+      llvm::SmallVector<CompilerContext, 2> decl_context;
+      bool ignore_modules = false;
+      if (IsClangImportedType(node, decl_context, ignore_modules))
+        return node;
+    }
     // Safeguard against cyclic aliases.
     for (unsigned alias_depth = 0; alias_depth < 64; ++alias_depth) {
       auto node_clangtype = ResolveTypeAlias(dem, node, flavor);
@@ -1722,7 +1727,7 @@ TypeSystemSwiftTypeRef::Canonicalize(swift::Demangle::Demangler &dem,
       if (node->getKind() != Node::Kind::BoundGenericTypeAlias &&
           node->getKind() != Node::Kind::TypeAlias)
         // Resolve any type aliases in the resolved type.
-        return GetCanonicalNode(dem, node, flavor);
+        return GetCanonicalNode(dem, node, flavor, preserve_clang_type_aliases);
       // This type alias resolved to another type alias.
     }
     // Hit the safeguard limit.
@@ -1734,7 +1739,9 @@ TypeSystemSwiftTypeRef::Canonicalize(swift::Demangle::Demangler &dem,
   return node;
 }
 
-CompilerType TypeSystemSwiftTypeRef::Canonicalize(CompilerType type) {
+CompilerType
+TypeSystemSwiftTypeRef::Canonicalize(CompilerType type,
+                                     bool preserve_clang_type_aliases) {
   using namespace swift::Demangle;
   auto mangled_name = type.GetMangledTypeName();
   if (!mangled_name)
@@ -1744,16 +1751,21 @@ CompilerType TypeSystemSwiftTypeRef::Canonicalize(CompilerType type) {
   if (!node)
     return {};
   auto flavor = SwiftLanguageRuntime::GetManglingFlavor(mangled_name);
-  NodePointer canonical = GetCanonicalNode(dem, node, flavor);
+  NodePointer canonical =
+      GetCanonicalNode(dem, node, flavor, preserve_clang_type_aliases);
   NodePointer type_node = dem.createNode(Node::Kind::Type);
   type_node->addChild(canonical, dem);
   return RemangleAsType(dem, type_node, flavor);
 }
 
-swift::Demangle::NodePointer
-TypeSystemSwiftTypeRef::GetCanonicalNode(swift::Demangle::Demangler &dem,
-                                         swift::Demangle::NodePointer node,
-                                         swift::Mangle::ManglingFlavor flavor) {
+CompilerType
+TypeSystemSwiftTypeRef::CanonicalizeForTypeRefBuilder(CompilerType type) {
+  return Canonicalize(type, /*preserve_clang_type_aliases=*/true);
+}
+
+swift::Demangle::NodePointer TypeSystemSwiftTypeRef::GetCanonicalNode(
+    swift::Demangle::Demangler &dem, swift::Demangle::NodePointer node,
+    swift::Mangle::ManglingFlavor flavor, bool preserve_clang_type_aliases) {
   if (!node)
     return nullptr;
   // This is a pre-order traversal, which is necessary to resolve
@@ -1763,12 +1775,13 @@ TypeSystemSwiftTypeRef::GetCanonicalNode(swift::Demangle::Demangler &dem,
   // SomeAlias<WhatSomeOtherAliasResolvesTo> because it tries to
   // preserve all sugar.
   using namespace swift::Demangle;
-  node = Canonicalize(dem, node, flavor);
+  node = Canonicalize(dem, node, flavor, preserve_clang_type_aliases);
 
   llvm::SmallVector<NodePointer, 2> children;
   bool changed = false;
   for (NodePointer child : *node) {
-    NodePointer transformed_child = GetCanonicalNode(dem, child, flavor);
+    NodePointer transformed_child =
+        GetCanonicalNode(dem, child, flavor, preserve_clang_type_aliases);
     changed |= (child != transformed_child);
     children.push_back(transformed_child);
   }

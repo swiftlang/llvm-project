@@ -368,8 +368,8 @@ public:
         continue;
       auto member_compiler_type = member_type->GetForwardCompilerType();
 
-      // TypeRefBuilder expects types to be canonical.
-      CompilerType canonical = m_type_system.Canonicalize(member_compiler_type);
+      CompilerType canonical =
+          m_type_system.CanonicalizeForTypeRefBuilder(member_compiler_type);
       if (!canonical) {
         LLDB_LOG(GetLog(LLDBLog::Types), "Could not build canonical type: {0}",
                  member_compiler_type.GetMangledTypeName());
@@ -450,9 +450,8 @@ public:
       if (member_type) {
         CompilerType member_compiler_type =
             member_type->GetForwardCompilerType();
-        // TypeRefBuilder expects types to be canonical.
         CompilerType canonical =
-            m_type_system.Canonicalize(member_compiler_type);
+            m_type_system.CanonicalizeForTypeRefBuilder(member_compiler_type);
         if (!canonical) {
           LLDB_LOG(GetLog(LLDBLog::Types),
                    "Could not build canonical type: {0}",

@@ -5,7 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftCTypeIvar(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
     @skipIf(setting=("symbols.use-swift-clangimporter", "false"))
     def test(self):
@@ -30,7 +30,7 @@ class TestSwiftCTypeIvar(TestBase):
         b = self.frame().FindVariable("b")
         lldbutil.check_variable(
             self,
-            a.GetChildAtIndex(0),
+            b.GetChildAtIndex(0).GetChildAtIndex(0),
             typename="Swift.Optional<Foo.BridgedPtr>",
             value="nil",
         )
