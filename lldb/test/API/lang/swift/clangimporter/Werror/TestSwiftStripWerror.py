@@ -7,7 +7,7 @@ class TestSwiftWerror(TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128839 (Embedded Swift: a test whose breakpoint is in a linked dylib runs to exit without stopping)
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipIfLinux

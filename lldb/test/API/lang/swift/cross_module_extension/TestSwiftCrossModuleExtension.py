@@ -20,7 +20,7 @@ import os
 import os.path
 
 class TestSwiftCrossModuleExtension(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128839 (Embedded Swift: a test whose breakpoint is in a linked dylib runs to exit without stopping)
     @skipUnlessDarwin
     @swiftTest
     def test_cross_module_extension(self):

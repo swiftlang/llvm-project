@@ -4,7 +4,7 @@ from lldbsuite.test.decorators import *
 
 
 class TestCase(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128860 (Embedded Swift: a breakpoint on a property-accessor name resolves zero locations)
     @swiftTest
     def test(self):
         """Test that a breakpoint on a property accessor can be set by name."""

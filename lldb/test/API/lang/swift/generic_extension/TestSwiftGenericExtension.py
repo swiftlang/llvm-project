@@ -17,7 +17,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftGenericExtension(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185129012 (Embedded Swift: expr --bind-generic-types false cannot be honoured in a monomorphized frame)
     @swiftTest
     def test(self):
         self.build()

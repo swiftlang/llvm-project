@@ -20,7 +20,7 @@ import os
 
 
 class TestSwiftTypeLookup(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128964 (Embedded Swift: type lookup emits no doc comments)
     @swiftTest
     def test_swift_type_lookup(self):
         """Test the ability to look for type definitions at the command line"""

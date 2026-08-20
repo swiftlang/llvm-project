@@ -40,7 +40,7 @@ class TestSwiftDifferentClangFlags(TestBase):
     @skipIf(
         debug_info=decorators.no_match("dsym"),
         bugnumber="This test requires a stripped binary and a dSYM")
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128839 (Embedded Swift: a test whose breakpoint is in a linked dylib runs to exit without stopping)
     def test_swift_different_clang_flags(self):
         """Test that we use the right compiler flags when debugging"""
         self.build()
