@@ -6,7 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftExpressionErrorMissingType(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift  # rdar://184841378 (module-from-interface builds are missing IS_EMBEDDED_SWIFT_MODULE)
     @swiftTest
     def test(self):
         """Test an extra hint inserted by LLDB for missing module imports"""
