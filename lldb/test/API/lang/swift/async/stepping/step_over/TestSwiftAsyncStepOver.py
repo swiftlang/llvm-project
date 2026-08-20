@@ -30,14 +30,17 @@ class TestCase(lldbtest.TestBase):
         )
         bkpt.SetEnabled(False) # avoid hitting multiple locations in async breakpoints
 
-        expected_line_nums = [4]  # print(x)
-        expected_line_nums += [5, 6, 7, 8, 5, 6, 7, 8, 5]  # two runs over the loop
-        expected_line_nums += [9, 10]  # if line + if block
+        line_offset = 4 # Line where print(x) is.
+        expected_line_nums = [0]  # print(x)
+        loop = [1, 2, 3, 4]
+        expected_line_nums += loop + loop + [1] # loop header
+        expected_line_nums += [5, 6]  # if line + if block
+
         for expected_line_num in expected_line_nums:
             thread.StepOver()
             stop_reason = thread.GetStopReason()
             self.assertStopReason(stop_reason, lldb.eStopReasonPlanComplete)
-            self.check_is_in_line(thread, expected_line_num)
+            self.check_is_in_line(thread, expected_line_num + line_offset)
             self.check_x_is_available(thread.frames[0])
 
     @skipEmbeddedSwift
