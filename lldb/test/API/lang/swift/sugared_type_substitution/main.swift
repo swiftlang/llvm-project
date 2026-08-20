@@ -8,7 +8,8 @@ func f() -> [Int] {
   }
   let kp = \S.values
   let s = S()
-  print(s[keyPath: kp]) // break here
+  // Array has no CustomStringConvertible conformance in embedded Swift.
+  print(s[keyPath: kp][0][0]) // break here
   return [0]
 }
 
