@@ -21,7 +21,9 @@
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Lex/Lexer.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -590,6 +592,36 @@ SourceRange AttributedTypeLoc::getLocalSourceRange() const {
   // That enclosure doesn't necessarily belong to a single attribute
   // anyway.
   return getAttr() ? getAttr()->getRange() : SourceRange();
+}
+
+// FIXME: for some reason diagnostics highlight the end character, while
+// getSourceText() does not include the end character.
+// Until that's resolved IsForDiagnostics is used to fixup the range.
+static SourceRange getAttrNameRangeImpl(const ASTContext &Ctx,
+                                        SourceLocation Begin,
+                                        bool IsForDiagnostics) {
+  const SourceManager &SM = Ctx.getSourceManager();
+  SourceLocation TokenStart = Begin;
+  while (TokenStart.isMacroID())
+    TokenStart = SM.getImmediateExpansionRange(TokenStart).getBegin();
+  unsigned Offset = IsForDiagnostics ? 1 : 0;
+  SourceLocation End =
+      Lexer::getLocForEndOfToken(TokenStart, Offset, SM, Ctx.getLangOpts());
+  return {TokenStart, End};
+}
+
+StringRef
+BoundsAttributedTypeLoc::getAttrNameAsWritten(const ASTContext &Ctx) const {
+  SourceRange Range =
+      getAttrNameRangeImpl(Ctx, getAttrRange().getBegin(), false);
+  CharSourceRange NameRange = CharSourceRange::getCharRange(Range);
+  return Lexer::getSourceText(NameRange, Ctx.getSourceManager(),
+                              Ctx.getLangOpts());
+}
+
+SourceRange
+BoundsAttributedTypeLoc::getAttrNameRange(const ASTContext &Ctx) const {
+  return getAttrNameRangeImpl(Ctx, getAttrRange().getBegin(), true);
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */
