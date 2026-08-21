@@ -528,6 +528,7 @@ bool Sema::CheckCountedByAttrOnField(FieldDecl *FD, Expr *E, bool CountInBytes,
 
 // FIXME: for some reason diagnostics highlight the end character, while
 // getSourceText() does not include the end character.
+// Until that's resolved IsForDiagnostics is used to fixup the range.
 static SourceRange getAttrNameRangeImpl(const ASTContext &Ctx,
                                         SourceLocation Begin,
                                         bool IsForDiagnostics) {

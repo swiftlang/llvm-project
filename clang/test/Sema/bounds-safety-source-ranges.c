@@ -4,9 +4,9 @@
 #define __counted_by(f)  __attribute__((counted_by(f)))
 
 struct IncompleteTy;
-typedef struct IncompleteTy Incomplete_t; 
+typedef struct IncompleteTy Incomplete_t;
 
-struct Container__cb {
+struct Container_cb {
   int count;
   struct IncompleteTy* buf __counted_by(count);
   Incomplete_t* buf_typedef __counted_by(count);
@@ -15,12 +15,12 @@ struct Container__cb {
 void consume_struct_IncompleteTy(struct IncompleteTy* buf);
 int idx(void);
 
-void test_Container__cb(struct Container__cb* ptr) {
-  struct Container__cb uninit;
+void test_Container_cb(struct Container_cb* ptr) {
+  struct Container_cb uninit;
   uninit.count = 0;
 
   uninit.buf = 0x0;
-  // CHECK: bounds-safety-source-ranges.c:[[@LINE-1]]:14:{[[@LINE-1]]:16-[[@LINE-1]]:19}: error: cannot assign to 'Container__cb::buf' with '__counted_by' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
+  // CHECK: bounds-safety-source-ranges.c:[[@LINE-1]]:14:{[[@LINE-1]]:16-[[@LINE-1]]:19}: error: cannot assign to 'Container_cb::buf' with '__counted_by' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
   // CHECK: bounds-safety-source-ranges.c:11:28:{11:28-11:40}: note: consider using '__sized_by' instead of '__counted_by'
   // CHECK: fix-it:"{{.*}}bounds-safety-source-ranges.c":{11:28-11:40}:"__sized_by"
@@ -36,13 +36,13 @@ void test_Container__cb(struct Container__cb* ptr) {
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
   // CHECK: bounds-safety-source-ranges.c:11:28:{11:28-11:40}: note: consider using '__sized_by' instead of '__counted_by'
   // CHECK: fix-it:"{{.*}}bounds-safety-source-ranges.c":{11:28-11:40}:"__sized_by"
-  
+
   consume_struct_IncompleteTy(uninit.buf);
   // CHECK: bounds-safety-source-ranges.c:[[@LINE-1]]:31:{[[@LINE-1]]:31-[[@LINE-1]]:41}: error: cannot use 'uninit.buf' with '__counted_by' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
   // CHECK: bounds-safety-source-ranges.c:11:28:{11:28-11:40}: note: consider using '__sized_by' instead of '__counted_by'
   // CHECK: fix-it:"{{.*}}bounds-safety-source-ranges.c":{11:28-11:40}:"__sized_by"
-  
+
   consume_struct_IncompleteTy(ptr->buf);
   // CHECK: bounds-safety-source-ranges.c:[[@LINE-1]]:31:{[[@LINE-1]]:31-[[@LINE-1]]:39}: error: cannot use 'ptr->buf' with '__counted_by' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
@@ -54,18 +54,18 @@ void test_Container__cb(struct Container__cb* ptr) {
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
   // CHECK: bounds-safety-source-ranges.c:11:28:{11:28-11:40}: note: consider using '__sized_by' instead of '__counted_by'
   // CHECK: fix-it:"{{.*}}bounds-safety-source-ranges.c":{11:28-11:40}:"__sized_by"
-  
+
   // CHECK: bounds-safety-source-ranges.c:[[@LINE-6]]:19:{[[@LINE-6]]:19-[[@LINE-6]]:29}: error: cannot use 'uninit.buf' with '__counted_by' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
   // CHECK: bounds-safety-source-ranges.c:11:28:{11:28-11:40}: note: consider using '__sized_by' instead of '__counted_by'
   // CHECK: fix-it:"{{.*}}bounds-safety-source-ranges.c":{11:28-11:40}:"__sized_by"
-  
+
   ptr->buf[0] = ptr->buf[1];
   // CHECK: bounds-safety-source-ranges.c:[[@LINE-1]]:3:{[[@LINE-1]]:3-[[@LINE-1]]:11}: error: cannot use 'ptr->buf' with '__counted_by' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
   // CHECK: bounds-safety-source-ranges.c:11:28:{11:28-11:40}: note: consider using '__sized_by' instead of '__counted_by'
   // CHECK: fix-it:"{{.*}}bounds-safety-source-ranges.c":{11:28-11:40}:"__sized_by"
-  
+
   // CHECK: bounds-safety-source-ranges.c:[[@LINE-6]]:17:{[[@LINE-6]]:17-[[@LINE-6]]:25}: error: cannot use 'ptr->buf' with '__counted_by' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
   // CHECK: bounds-safety-source-ranges.c:11:28:{11:28-11:40}: note: consider using '__sized_by' instead of '__counted_by'
@@ -73,16 +73,16 @@ void test_Container__cb(struct Container__cb* ptr) {
 }
 
 
-struct Container__cb___nomacro {
+struct Container_cb_nomacro {
   int count;
   struct IncompleteTy* buf __attribute__((__counted_by__(count)));
 };
 
-void test_Container__cb___nomacro(struct Container__cb___nomacro* ptr) {
-  struct Container__cb___nomacro local;
+void test_Container_cb_nomacro(struct Container_cb_nomacro* ptr) {
+  struct Container_cb_nomacro local;
   local.count = 0;
   local.buf = 0x0;
-  // CHECK: bounds-safety-source-ranges.c:[[@LINE-1]]:13:{[[@LINE-1]]:15-[[@LINE-1]]:18}: error: cannot assign to 'Container__cb___nomacro::buf' with '__counted_by' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
+  // CHECK: bounds-safety-source-ranges.c:[[@LINE-1]]:13:{[[@LINE-1]]:15-[[@LINE-1]]:18}: error: cannot assign to 'Container_cb_nomacro::buf' with '__counted_by' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
   // CHECK: bounds-safety-source-ranges.c:[[@LINE-9]]:43:{[[@LINE-9]]:43-[[@LINE-9]]:57}: note: consider using '__sized_by' instead of '__counted_by'
   // CHECK: fix-it:"{{.*}}bounds-safety-source-ranges.c":{[[@LINE-10]]:43-[[@LINE-10]]:57}:"__sized_by__"
@@ -178,16 +178,16 @@ void test_Containercb(struct Containercb* ptr) {
 }
 
 
-struct Containercbon {
+struct Container_cbon {
   int count;
   struct IncompleteTy* buf __attribute__((counted_by_or_null(count)));
 };
 
-void test_Containercbon(struct Containercbon* ptr) {
-  struct Containercbon local;
+void test_Container_cbon(struct Container_cbon* ptr) {
+  struct Container_cbon local;
   local.count = 0;
   local.buf = 0x0;
-  // CHECK: bounds-safety-source-ranges.c:[[@LINE-1]]:13:{[[@LINE-1]]:15-[[@LINE-1]]:18}: error: cannot assign to 'Containercbon::buf' with '__counted_by_or_null' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
+  // CHECK: bounds-safety-source-ranges.c:[[@LINE-1]]:13:{[[@LINE-1]]:15-[[@LINE-1]]:18}: error: cannot assign to 'Container_cbon::buf' with '__counted_by_or_null' {{.*}} because the pointee type 'struct IncompleteTy' is incomplete
   // CHECK: bounds-safety-source-ranges.c:6:1: note: consider providing a complete definition for 'struct IncompleteTy'
   // CHECK: bounds-safety-source-ranges.c:[[@LINE-9]]:43:{[[@LINE-9]]:43-[[@LINE-9]]:61}: note: consider using '__sized_by_or_null' instead of '__counted_by_or_null'
   // CHECK: fix-it:"{{.*}}bounds-safety-source-ranges.c":{[[@LINE-10]]:43-[[@LINE-10]]:61}:"sized_by_or_null"
