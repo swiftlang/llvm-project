@@ -594,34 +594,28 @@ SourceRange AttributedTypeLoc::getLocalSourceRange() const {
   return getAttr() ? getAttr()->getRange() : SourceRange();
 }
 
-// FIXME: for some reason diagnostics highlight the end character, while
-// getSourceText() does not include the end character.
-// Until that's resolved IsForDiagnostics is used to fixup the range.
-static SourceRange getAttrNameRangeImpl(const ASTContext &Ctx,
-                                        SourceLocation Begin,
-                                        bool IsForDiagnostics) {
+static CharSourceRange getAttrNameRangeImpl(const ASTContext &Ctx,
+                                            SourceLocation Begin) {
   const SourceManager &SM = Ctx.getSourceManager();
   SourceLocation TokenStart = Begin;
   while (TokenStart.isMacroID())
     TokenStart = SM.getImmediateExpansionRange(TokenStart).getBegin();
-  unsigned Offset = IsForDiagnostics ? 1 : 0;
   SourceLocation End =
-      Lexer::getLocForEndOfToken(TokenStart, Offset, SM, Ctx.getLangOpts());
-  return {TokenStart, End};
+      Lexer::getLocForEndOfToken(TokenStart, 0, SM, Ctx.getLangOpts());
+  return CharSourceRange::getCharRange(TokenStart, End);
 }
 
 StringRef
 BoundsAttributedTypeLoc::getAttrNameAsWritten(const ASTContext &Ctx) const {
-  SourceRange Range =
-      getAttrNameRangeImpl(Ctx, getAttrRange().getBegin(), false);
-  CharSourceRange NameRange = CharSourceRange::getCharRange(Range);
+  CharSourceRange NameRange =
+      getAttrNameRangeImpl(Ctx, getAttrRange().getBegin());
   return Lexer::getSourceText(NameRange, Ctx.getSourceManager(),
                               Ctx.getLangOpts());
 }
 
-SourceRange
+CharSourceRange
 BoundsAttributedTypeLoc::getAttrNameRange(const ASTContext &Ctx) const {
-  return getAttrNameRangeImpl(Ctx, getAttrRange().getBegin(), true);
+  return getAttrNameRangeImpl(Ctx, getAttrRange().getBegin());
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */

@@ -533,21 +533,23 @@ static TypeSourceInfo *getTSI(const Decl *D) {
   return nullptr;
 }
 
+static TypeLoc getTypeLocForDecl(const Decl *D) {
+  if (TypeSourceInfo *TSI = getTSI(D))
+    return TSI->getTypeLoc();
+  return {};
+}
+
 struct TypeLocFinder : public ConstStmtVisitor<TypeLocFinder, TypeLoc> {
   TypeLoc VisitStmt(const Stmt *) { return {}; }
 
   TypeLoc VisitParenExpr(const ParenExpr *E) { return Visit(E->getSubExpr()); }
 
   TypeLoc VisitDeclRefExpr(const DeclRefExpr *E) {
-    if (TypeSourceInfo *TSI = getTSI(E->getDecl()))
-      return TSI->getTypeLoc();
-    return {};
+    return getTypeLocForDecl(E->getDecl());
   }
 
   TypeLoc VisitMemberExpr(const MemberExpr *E) {
-    if (TypeSourceInfo *TSI = getTSI(E->getMemberDecl()))
-      return TSI->getTypeLoc();
-    return {};
+    return getTypeLocForDecl(E->getMemberDecl());
   }
 
   TypeLoc VisitExplicitCastExpr(const ExplicitCastExpr *E) {
@@ -759,7 +761,7 @@ static void EmitIncompleteCountedByPointeeNotes(Sema &S,
     /* TO_UPSTREAM(BoundsSafety) OFF*/
     return;
   }
-  SourceRange AttrSrcRange = CATL.getAttrNameRange(S.getASTContext());
+  CharSourceRange AttrSrcRange = CATL.getAttrNameRange(S.getASTContext());
 
   StringRef Spelling = CATL.getAttrNameAsWritten(S.getASTContext());
   StringRef FixedSpelling =
