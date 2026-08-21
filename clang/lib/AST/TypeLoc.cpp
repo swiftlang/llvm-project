@@ -594,10 +594,10 @@ SourceRange AttributedTypeLoc::getLocalSourceRange() const {
   return getAttr() ? getAttr()->getRange() : SourceRange();
 }
 
-static CharSourceRange getAttrNameRangeImpl(const ASTContext &Ctx,
-                                            SourceLocation Begin) {
+CharSourceRange
+BoundsAttributedTypeLoc::getAttrNameRange(const ASTContext &Ctx) const {
   const SourceManager &SM = Ctx.getSourceManager();
-  SourceLocation TokenStart = Begin;
+  SourceLocation TokenStart = getAttrRange().getBegin();
   while (TokenStart.isMacroID())
     TokenStart = SM.getImmediateExpansionRange(TokenStart).getBegin();
   SourceLocation End =
@@ -607,15 +607,8 @@ static CharSourceRange getAttrNameRangeImpl(const ASTContext &Ctx,
 
 StringRef
 BoundsAttributedTypeLoc::getAttrNameAsWritten(const ASTContext &Ctx) const {
-  CharSourceRange NameRange =
-      getAttrNameRangeImpl(Ctx, getAttrRange().getBegin());
-  return Lexer::getSourceText(NameRange, Ctx.getSourceManager(),
+  return Lexer::getSourceText(getAttrNameRange(Ctx), Ctx.getSourceManager(),
                               Ctx.getLangOpts());
-}
-
-CharSourceRange
-BoundsAttributedTypeLoc::getAttrNameRange(const ASTContext &Ctx) const {
-  return getAttrNameRangeImpl(Ctx, getAttrRange().getBegin());
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */
