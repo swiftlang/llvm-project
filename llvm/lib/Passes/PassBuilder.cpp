@@ -971,6 +971,12 @@ Expected<bool> parseEarlyCSEPassOptions(StringRef Params) {
   return PassBuilder::parseSinglePassOption(Params, "memssa", "EarlyCSE");
 }
 
+// TO_UPSTREAM(BoundsSafety)
+Expected<StringRef> parseLoopTrapAnalysisPassOptions(StringRef Params) {
+  Params.consume_front("tag=");
+  return Params;
+}
+
 Expected<bool> parseEntryExitInstrumenterPassOptions(StringRef Params) {
   return PassBuilder::parseSinglePassOption(Params, "post-inline",
                                             "EntryExitInstrumenter");

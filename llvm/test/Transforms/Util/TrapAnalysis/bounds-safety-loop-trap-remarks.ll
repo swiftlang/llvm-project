@@ -3,11 +3,116 @@
 
 ; OPT-REM: --- !Analysis
 ; OPT-REM-NEXT: Pass:            loop-trap-analysis
+; OPT-REM-NEXT: Name:            LoopPrimitives
+; OPT-REM-NEXT: Function:        write_checks
+; OPT-REM-NEXT: Args:
+; OPT-REM-NEXT:   - String:          'Loop '
+; OPT-REM-NEXT:   - LoopHeader:      for.body
+; OPT-REM-NEXT:   - String:          ' depth='
+; OPT-REM-NEXT:   - Depth:           '1'
+; OPT-REM-NEXT:   - String:          ' parent='
+; OPT-REM-NEXT:   - ParentHeader:    '-'
+; OPT-REM-NEXT:   - String:          ' innermost='
+; OPT-REM-NEXT:   - IsInnermost:     'true'
+; OPT-REM-NEXT:   - String:          ' blocks='
+; OPT-REM-NEXT:   - BlockCount:      '2'
+; OPT-REM-NEXT:   - String:          ' trap_exits='
+; OPT-REM-NEXT:   - TrapExitCount:   '1'
+; OPT-REM-NEXT:   - String:          ' cond_trap_edges='
+; OPT-REM-NEXT:   - CondTrapEdgeCount: '1'
+; OPT-REM-NEXT:   - String:          ' hoistable_cond_trap_edges='
+; OPT-REM-NEXT:   - HoistableCondTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_invariant='
+; OPT-REM-NEXT:   - TrapCondInvariant: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_iv_derived='
+; OPT-REM-NEXT:   - TrapCondIVDerived: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_non_iv='
+; OPT-REM-NEXT:   - TrapCondNonIV:   '1'
+; OPT-REM-NEXT:   - String:          ' btc_known='
+; OPT-REM-NEXT:   - BTCKnown:        'false'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTC: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_reload='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCDueToReload: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_other='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCOtherReason: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_store_reload='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCStoreReload: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_call_reload='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCCallReload: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_other_blocker='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCOtherBlocker: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTC: '1'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_reload='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCDueToReload: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_other='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCOtherReason: '1'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_store_reload='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCStoreReload: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_call_reload='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCCallReload: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_other_blocker='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCOtherBlocker: '1'
+; OPT-REM-NEXT:   - String:          ' trap_exits_computable_btc='
+; OPT-REM-NEXT:   - TrapExitsComputableBTC: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_computable_btc='
+; OPT-REM-NEXT:   - NonTrapExitsComputableBTC: '1'
+; OPT-REM-NEXT:   - String:          ' trap_exits_symbolic_btc='
+; OPT-REM-NEXT:   - TrapExitsSymbolicBTC: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_symbolic_btc='
+; OPT-REM-NEXT:   - NonTrapExitsSymbolicBTC: '0'
+; OPT-REM-NEXT: ...
+; OPT-REM-NEXT: --- !Analysis
+; OPT-REM-NEXT: Pass:            loop-trap-analysis
+; OPT-REM-NEXT: Name:            LoopPrimitivesSummary
+; OPT-REM-NEXT: Function:        write_checks
+; OPT-REM-NEXT: Args:
+; OPT-REM-NEXT:   - String:          'Function '
+; OPT-REM-NEXT:   - Function:        write_checks
+; OPT-REM-NEXT:   - String:          ' total_loops='
+; OPT-REM-NEXT:   - TotalLoops:      '1'
+; OPT-REM-NEXT:   - String:          ' innermost='
+; OPT-REM-NEXT:   - Innermost:       '1'
+; OPT-REM-NEXT:   - String:          ' loops_with_traps='
+; OPT-REM-NEXT:   - LoopsWithTraps:  '1'
+; OPT-REM-NEXT:   - String:          ' loops_with_traps_unknown_btc='
+; OPT-REM-NEXT:   - LoopsWithTrapsUnknownBTC: '1'
+; OPT-REM-NEXT:   - String:          ' max_depth='
+; OPT-REM-NEXT:   - MaxDepth:        '1'
+; OPT-REM-NEXT:   - String:          ' depth1='
+; OPT-REM-NEXT:   - Depth1:          '1'
+; OPT-REM-NEXT:   - String:          ' depth2='
+; OPT-REM-NEXT:   - Depth2:          '0'
+; OPT-REM-NEXT:   - String:          ' depth3+='
+; OPT-REM-NEXT:   - Depth3Plus:      '0'
+; OPT-REM-NEXT:   - String:          ' unique_trap_blocks='
+; OPT-REM-NEXT:   - UniqueTrapBlocks: '0'
+; OPT-REM-NEXT:   - String:          ' unique_trap_blocks_reachable_from_loop='
+; OPT-REM-NEXT:   - UniqueTrapBlocksReachableFromLoop: '0'
+; OPT-REM-NEXT:   - String:          ' in_loop_trap_edges='
+; OPT-REM-NEXT:   - InLoopTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' in_loop_hoistable_trap_edges='
+; OPT-REM-NEXT:   - InLoopHoistableTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' out_of_loop_trap_edges='
+; OPT-REM-NEXT:   - OutOfLoopTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_invariant_total='
+; OPT-REM-NEXT:   - TrapCondInvariantTotal: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_iv_derived_total='
+; OPT-REM-NEXT:   - TrapCondIVDerivedTotal: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_non_iv_total='
+; OPT-REM-NEXT:   - TrapCondNonIVTotal: '1'
+; OPT-REM-NEXT: ...
+; OPT-REM-NEXT: --- !Analysis
+; OPT-REM-NEXT: Pass:            loop-trap-analysis
 ; OPT-REM-NEXT: Name:            LoopTrap
 ; OPT-REM-NEXT: Function:        write_checks
 ; OPT-REM-NEXT: Args:
 ; OPT-REM-NEXT:   - String:          'Loop: '
 ; OPT-REM-NEXT:   - String:          for.body
+; OPT-REM-NEXT:   - String:          ' '
+; OPT-REM-NEXT:   - String:          'TrapExits: '
+; OPT-REM-NEXT:   - TrapExitCount:   '1'
 ; OPT-REM-NEXT:   - String:          ' '
 ; OPT-REM-NEXT:   - String:          "cannot be hoisted: \n"
 ; OPT-REM-NEXT:   - String:           |
@@ -17,7 +122,7 @@
 ; OPT-REM-NEXT:   - String:          '  store i32 1, ptr %ptr.ind, align 4'
 ; OPT-REM-NEXT:   - String:          "\n"
 ; OPT-REM-NEXT:   - String:          "Reason:\n"
-; OPT-REM-NEXT:   - String:          "Instruction may write to memory\n"
+; OPT-REM-NEXT:   - String:          "Store.may-write-to-memory\n"
 ; OPT-REM-NEXT: ...
 ; OPT-REM-NEXT: --- !Analysis
 ; OPT-REM-NEXT: Pass:            loop-trap-analysis
@@ -34,6 +139,10 @@
 ; OPT-REM-NEXT:   - String:          'Loops that cannot be hoisted: '
 ; OPT-REM-NEXT:   - CountCannotHoist: '1'
 ; OPT-REM-NEXT:   - String:          "\n"
+; OPT-REM-NEXT:   - String:          'Loops with trap check hoisted to preheader: '
+; OPT-REM-NEXT:   - CountHoisted:    '0'
+; OPT-REM-NEXT:   - String:          "\n"
+; OPT-REM-NEXT: ...
 define void @write_checks(ptr %base, i32 %N) {
 entry:
   %ptr.lb = getelementptr i32, ptr %base, i32 0
@@ -68,11 +177,116 @@ cont6:                                            ; preds = %for.body
 
 ; OPT-REM: --- !Analysis
 ; OPT-REM-NEXT: Pass:            loop-trap-analysis
+; OPT-REM-NEXT: Name:            LoopPrimitives
+; OPT-REM-NEXT: Function:        accumulate_checks
+; OPT-REM-NEXT: Args:
+; OPT-REM-NEXT:   - String:          'Loop '
+; OPT-REM-NEXT:   - LoopHeader:      for.body
+; OPT-REM-NEXT:   - String:          ' depth='
+; OPT-REM-NEXT:   - Depth:           '1'
+; OPT-REM-NEXT:   - String:          ' parent='
+; OPT-REM-NEXT:   - ParentHeader:    '-'
+; OPT-REM-NEXT:   - String:          ' innermost='
+; OPT-REM-NEXT:   - IsInnermost:     'true'
+; OPT-REM-NEXT:   - String:          ' blocks='
+; OPT-REM-NEXT:   - BlockCount:      '2'
+; OPT-REM-NEXT:   - String:          ' trap_exits='
+; OPT-REM-NEXT:   - TrapExitCount:   '1'
+; OPT-REM-NEXT:   - String:          ' cond_trap_edges='
+; OPT-REM-NEXT:   - CondTrapEdgeCount: '1'
+; OPT-REM-NEXT:   - String:          ' hoistable_cond_trap_edges='
+; OPT-REM-NEXT:   - HoistableCondTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_invariant='
+; OPT-REM-NEXT:   - TrapCondInvariant: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_iv_derived='
+; OPT-REM-NEXT:   - TrapCondIVDerived: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_non_iv='
+; OPT-REM-NEXT:   - TrapCondNonIV:   '1'
+; OPT-REM-NEXT:   - String:          ' btc_known='
+; OPT-REM-NEXT:   - BTCKnown:        'false'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTC: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_reload='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCDueToReload: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_other='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCOtherReason: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_store_reload='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCStoreReload: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_call_reload='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCCallReload: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_other_blocker='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCOtherBlocker: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTC: '1'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_reload='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCDueToReload: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_other='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCOtherReason: '1'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_store_reload='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCStoreReload: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_call_reload='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCCallReload: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_other_blocker='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCOtherBlocker: '1'
+; OPT-REM-NEXT:   - String:          ' trap_exits_computable_btc='
+; OPT-REM-NEXT:   - TrapExitsComputableBTC: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_computable_btc='
+; OPT-REM-NEXT:   - NonTrapExitsComputableBTC: '1'
+; OPT-REM-NEXT:   - String:          ' trap_exits_symbolic_btc='
+; OPT-REM-NEXT:   - TrapExitsSymbolicBTC: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_symbolic_btc='
+; OPT-REM-NEXT:   - NonTrapExitsSymbolicBTC: '0'
+; OPT-REM-NEXT: ...
+; OPT-REM-NEXT: --- !Analysis
+; OPT-REM-NEXT: Pass:            loop-trap-analysis
+; OPT-REM-NEXT: Name:            LoopPrimitivesSummary
+; OPT-REM-NEXT: Function:        accumulate_checks
+; OPT-REM-NEXT: Args:
+; OPT-REM-NEXT:   - String:          'Function '
+; OPT-REM-NEXT:   - Function:        accumulate_checks
+; OPT-REM-NEXT:   - String:          ' total_loops='
+; OPT-REM-NEXT:   - TotalLoops:      '1'
+; OPT-REM-NEXT:   - String:          ' innermost='
+; OPT-REM-NEXT:   - Innermost:       '1'
+; OPT-REM-NEXT:   - String:          ' loops_with_traps='
+; OPT-REM-NEXT:   - LoopsWithTraps:  '1'
+; OPT-REM-NEXT:   - String:          ' loops_with_traps_unknown_btc='
+; OPT-REM-NEXT:   - LoopsWithTrapsUnknownBTC: '1'
+; OPT-REM-NEXT:   - String:          ' max_depth='
+; OPT-REM-NEXT:   - MaxDepth:        '1'
+; OPT-REM-NEXT:   - String:          ' depth1='
+; OPT-REM-NEXT:   - Depth1:          '1'
+; OPT-REM-NEXT:   - String:          ' depth2='
+; OPT-REM-NEXT:   - Depth2:          '0'
+; OPT-REM-NEXT:   - String:          ' depth3+='
+; OPT-REM-NEXT:   - Depth3Plus:      '0'
+; OPT-REM-NEXT:   - String:          ' unique_trap_blocks='
+; OPT-REM-NEXT:   - UniqueTrapBlocks: '0'
+; OPT-REM-NEXT:   - String:          ' unique_trap_blocks_reachable_from_loop='
+; OPT-REM-NEXT:   - UniqueTrapBlocksReachableFromLoop: '0'
+; OPT-REM-NEXT:   - String:          ' in_loop_trap_edges='
+; OPT-REM-NEXT:   - InLoopTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' in_loop_hoistable_trap_edges='
+; OPT-REM-NEXT:   - InLoopHoistableTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' out_of_loop_trap_edges='
+; OPT-REM-NEXT:   - OutOfLoopTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_invariant_total='
+; OPT-REM-NEXT:   - TrapCondInvariantTotal: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_iv_derived_total='
+; OPT-REM-NEXT:   - TrapCondIVDerivedTotal: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_non_iv_total='
+; OPT-REM-NEXT:   - TrapCondNonIVTotal: '1'
+; OPT-REM-NEXT: ...
+; OPT-REM-NEXT: --- !Analysis
+; OPT-REM-NEXT: Pass:            loop-trap-analysis
 ; OPT-REM-NEXT: Name:            LoopTrap
 ; OPT-REM-NEXT: Function:        accumulate_checks
 ; OPT-REM-NEXT: Args:
 ; OPT-REM-NEXT:   - String:          'Loop: '
 ; OPT-REM-NEXT:   - String:          for.body
+; OPT-REM-NEXT:   - String:          ' '
+; OPT-REM-NEXT:   - String:          'TrapExits: '
+; OPT-REM-NEXT:   - TrapExitCount:   '1'
 ; OPT-REM-NEXT:   - String:          ' '
 ; OPT-REM-NEXT:   - String:          "can be hoisted\n"
 ; OPT-REM-NEXT: ...
@@ -90,6 +304,9 @@ cont6:                                            ; preds = %for.body
 ; OPT-REM-NEXT:   - String:          "\n"
 ; OPT-REM-NEXT:   - String:          'Loops that cannot be hoisted: '
 ; OPT-REM-NEXT:   - CountCannotHoist: '0'
+; OPT-REM-NEXT:   - String:          "\n"
+; OPT-REM-NEXT:   - String:          'Loops with trap check hoisted to preheader: '
+; OPT-REM-NEXT:   - CountHoisted:    '0'
 ; OPT-REM-NEXT:   - String:          "\n"
 ; OPT-REM-NEXT: ...
 define void @accumulate_checks(ptr %base, i32 %N) {
@@ -125,11 +342,116 @@ trap:                                             ; preds = %for.body
 
 ; OPT-REM: --- !Analysis
 ; OPT-REM-NEXT: Pass:            loop-trap-analysis
+; OPT-REM-NEXT: Name:            LoopPrimitives
+; OPT-REM-NEXT: Function:        trip_count_unknown
+; OPT-REM-NEXT: Args:
+; OPT-REM-NEXT:   - String:          'Loop '
+; OPT-REM-NEXT:   - LoopHeader:      loop
+; OPT-REM-NEXT:   - String:          ' depth='
+; OPT-REM-NEXT:   - Depth:           '1'
+; OPT-REM-NEXT:   - String:          ' parent='
+; OPT-REM-NEXT:   - ParentHeader:    '-'
+; OPT-REM-NEXT:   - String:          ' innermost='
+; OPT-REM-NEXT:   - IsInnermost:     'true'
+; OPT-REM-NEXT:   - String:          ' blocks='
+; OPT-REM-NEXT:   - BlockCount:      '3'
+; OPT-REM-NEXT:   - String:          ' trap_exits='
+; OPT-REM-NEXT:   - TrapExitCount:   '1'
+; OPT-REM-NEXT:   - String:          ' cond_trap_edges='
+; OPT-REM-NEXT:   - CondTrapEdgeCount: '1'
+; OPT-REM-NEXT:   - String:          ' hoistable_cond_trap_edges='
+; OPT-REM-NEXT:   - HoistableCondTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_invariant='
+; OPT-REM-NEXT:   - TrapCondInvariant: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_iv_derived='
+; OPT-REM-NEXT:   - TrapCondIVDerived: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_non_iv='
+; OPT-REM-NEXT:   - TrapCondNonIV:   '1'
+; OPT-REM-NEXT:   - String:          ' btc_known='
+; OPT-REM-NEXT:   - BTCKnown:        'false'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTC: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_reload='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCDueToReload: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_other='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCOtherReason: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_store_reload='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCStoreReload: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_call_reload='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCCallReload: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_unknown_btc_other_blocker='
+; OPT-REM-NEXT:   - TrapExitsUnknownBTCOtherBlocker: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTC: '3'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_reload='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCDueToReload: '2'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_other='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCOtherReason: '1'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_store_reload='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCStoreReload: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_call_reload='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCCallReload: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_unknown_btc_other_blocker='
+; OPT-REM-NEXT:   - NonTrapExitsUnknownBTCOtherBlocker: '3'
+; OPT-REM-NEXT:   - String:          ' trap_exits_computable_btc='
+; OPT-REM-NEXT:   - TrapExitsComputableBTC: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_computable_btc='
+; OPT-REM-NEXT:   - NonTrapExitsComputableBTC: '0'
+; OPT-REM-NEXT:   - String:          ' trap_exits_symbolic_btc='
+; OPT-REM-NEXT:   - TrapExitsSymbolicBTC: '0'
+; OPT-REM-NEXT:   - String:          ' non_trap_exits_symbolic_btc='
+; OPT-REM-NEXT:   - NonTrapExitsSymbolicBTC: '0'
+; OPT-REM-NEXT: ...
+; OPT-REM-NEXT: --- !Analysis
+; OPT-REM-NEXT: Pass:            loop-trap-analysis
+; OPT-REM-NEXT: Name:            LoopPrimitivesSummary
+; OPT-REM-NEXT: Function:        trip_count_unknown
+; OPT-REM-NEXT: Args:
+; OPT-REM-NEXT:   - String:          'Function '
+; OPT-REM-NEXT:   - Function:        trip_count_unknown
+; OPT-REM-NEXT:   - String:          ' total_loops='
+; OPT-REM-NEXT:   - TotalLoops:      '1'
+; OPT-REM-NEXT:   - String:          ' innermost='
+; OPT-REM-NEXT:   - Innermost:       '1'
+; OPT-REM-NEXT:   - String:          ' loops_with_traps='
+; OPT-REM-NEXT:   - LoopsWithTraps:  '1'
+; OPT-REM-NEXT:   - String:          ' loops_with_traps_unknown_btc='
+; OPT-REM-NEXT:   - LoopsWithTrapsUnknownBTC: '1'
+; OPT-REM-NEXT:   - String:          ' max_depth='
+; OPT-REM-NEXT:   - MaxDepth:        '1'
+; OPT-REM-NEXT:   - String:          ' depth1='
+; OPT-REM-NEXT:   - Depth1:          '1'
+; OPT-REM-NEXT:   - String:          ' depth2='
+; OPT-REM-NEXT:   - Depth2:          '0'
+; OPT-REM-NEXT:   - String:          ' depth3+='
+; OPT-REM-NEXT:   - Depth3Plus:      '0'
+; OPT-REM-NEXT:   - String:          ' unique_trap_blocks='
+; OPT-REM-NEXT:   - UniqueTrapBlocks: '0'
+; OPT-REM-NEXT:   - String:          ' unique_trap_blocks_reachable_from_loop='
+; OPT-REM-NEXT:   - UniqueTrapBlocksReachableFromLoop: '0'
+; OPT-REM-NEXT:   - String:          ' in_loop_trap_edges='
+; OPT-REM-NEXT:   - InLoopTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' in_loop_hoistable_trap_edges='
+; OPT-REM-NEXT:   - InLoopHoistableTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' out_of_loop_trap_edges='
+; OPT-REM-NEXT:   - OutOfLoopTrapEdges: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_invariant_total='
+; OPT-REM-NEXT:   - TrapCondInvariantTotal: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_iv_derived_total='
+; OPT-REM-NEXT:   - TrapCondIVDerivedTotal: '0'
+; OPT-REM-NEXT:   - String:          ' trap_cond_non_iv_total='
+; OPT-REM-NEXT:   - TrapCondNonIVTotal: '1'
+; OPT-REM-NEXT: ...
+; OPT-REM-NEXT: --- !Analysis
+; OPT-REM-NEXT: Pass:            loop-trap-analysis
 ; OPT-REM-NEXT: Name:            LoopTrap
 ; OPT-REM-NEXT: Function:        trip_count_unknown
 ; OPT-REM-NEXT: Args:
 ; OPT-REM-NEXT:   - String:          'Loop: '
 ; OPT-REM-NEXT:   - String:          loop
+; OPT-REM-NEXT:   - String:          ' '
+; OPT-REM-NEXT:   - String:          'TrapExits: '
+; OPT-REM-NEXT:   - TrapExitCount:   '1'
 ; OPT-REM-NEXT:   - String:          ' '
 ; OPT-REM-NEXT:   - String:          "cannot be hoisted: \n"
 ; OPT-REM-NEXT:   - String:          "Backedge is not computable.\n"
@@ -148,6 +470,9 @@ trap:                                             ; preds = %for.body
 ; OPT-REM-NEXT:   - String:          "\n"
 ; OPT-REM-NEXT:   - String:          'Loops that cannot be hoisted: '
 ; OPT-REM-NEXT:   - CountCannotHoist: '1'
+; OPT-REM-NEXT:   - String:          "\n"
+; OPT-REM-NEXT:   - String:          'Loops with trap check hoisted to preheader: '
+; OPT-REM-NEXT:   - CountHoisted:    '0'
 ; OPT-REM-NEXT:   - String:          "\n"
 ; OPT-REM-NEXT: ...
 define void @trip_count_unknown(ptr %A, ptr %B, i32 %N, i32 %M) {
