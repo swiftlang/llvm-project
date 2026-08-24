@@ -28,6 +28,7 @@ llvm-dwarfutil
 llvm-exegesis
 llvm-extract
 llvm-extract-bundle-entry
+llvm-gsymutil
 llvm-ifs
 llvm-install-name-tool
 llvm-ir2vec
@@ -89,6 +90,7 @@ interested in.
 * {doc}`llvm-dwarfdump`
 * {doc}`llvm-dwarfutil`
 * {doc}`llvm-extract-bundle-entry`
+* {doc}`llvm-gsymutil`
 * {doc}`llvm-ir2vec`
 * {doc}`llvm-lib`
 * {doc}`llvm-libtool-darwin`
