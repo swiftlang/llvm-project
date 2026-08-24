@@ -30,6 +30,87 @@ static cl::opt<bool> BoundsSafetyTrapsOnly(
     cl::desc(
         "We only check for -fbounds-safety traps if the flag is false we can check "
         "for any hoistable traps."));
+static cl::opt<bool> LTAEmitExplain(
+    "loop-trap-analysis-explain", cl::init(false),
+    cl::desc("Emit the explanatory trap analysis: the refined TrapClass "
+             "classification plus per-loop and per-edge explanatory fields "
+             "(DominatesLatch / IV-update / operand-class). When false "
+             "(default), only the pre-explanation fields and compact TrapClass "
+             "are emitted, so the framework can be A/B compared and reverted "
+             "by toggling this flag alone."));
+
+/// Print a stable, non-empty label for \p BB, so remark args that identify
+/// BasicBlocks stay useful when the BB has no source-level name (numeric IR,
+/// stripped names, or non-C frontends such as swiftc's IRGen).
+///
+/// Preferred: `BB->getName()`. Fallback: `printAsOperand` slot-tracker form
+/// (`%5` etc.), which is parseable and unique within the function. Never
+/// returns empty.
+static std::string bbLabel(const BasicBlock *BB) {
+  if (!BB)
+    return "<null>";
+  if (BB->hasName())
+    return BB->getName().str();
+  std::string S;
+  raw_string_ostream OS(S);
+  BB->printAsOperand(OS, /*PrintType=*/false);
+  return S.empty() ? std::string("<unnamed>") : S;
+}
+
+/// Minimal trap-block predicate for the per-edge explain output: \p BB ends in
+/// `unreachable` immediately preceded by a trap-like terminating call,
+/// identified by its semantic property rather than an intrinsic allowlist: a
+/// `noreturn` call touching only inaccessible memory (the shared property of
+/// @llvm.trap / @llvm.ubsantrap and any future trap intrinsic).
+static bool isTrapEdgeBlock(BasicBlock *BB) {
+  if (!BB || BB->empty())
+    return false;
+  Instruction *Term = BB->getTerminator();
+  if (!isa<UnreachableInst>(Term))
+    return false;
+  if (Term == &BB->front())
+    return false;
+  if (auto *CI = dyn_cast<CallInst>(Term->getPrevNode()))
+    return CI->doesNotReturn() && CI->onlyAccessesInaccessibleMemory();
+  return false;
+}
+
+/// Emit one LoopTrapEdge remark per conditional branch whose one successor is a
+/// trap block (see isTrapEdgeBlock). Gated by -loop-trap-analysis-explain.
+static void emitPerTrapEdge(Function &F, LoopInfo &LI,
+                            OptimizationRemarkEmitter &ORE, StringRef Tag) {
+  std::string Name =
+      Tag.empty() ? std::string("LoopTrapEdge") : ("LoopTrapEdge" + Tag).str();
+  for (BasicBlock &BB : F) {
+    auto *BI = dyn_cast<CondBrInst>(BB.getTerminator());
+    if (!BI)
+      continue;
+    BasicBlock *TrapSucc = nullptr;
+    for (BasicBlock *Succ : BI->successors())
+      if (isTrapEdgeBlock(Succ)) {
+        TrapSucc = Succ;
+        break;
+      }
+    if (!TrapSucc)
+      continue;
+
+    Loop *Innermost = LI.getLoopFor(&BB);
+    bool IsLoopExit = Innermost && !Innermost->contains(TrapSucc);
+
+    OptimizationRemarkAnalysis Rem(REMARK_PASS, Name, BI);
+    Rem << "Function " << NV("Function", F.getName())
+        << " src_bb=" << NV("SourceBB", bbLabel(&BB))
+        << " trap_bb=" << NV("TrapBB", bbLabel(TrapSucc)) << " loop_depth="
+        << NV("LoopDepth", Innermost ? Innermost->getLoopDepth() : 0u)
+        << " loop_header="
+        << NV("LoopHeader",
+              Innermost ? bbLabel(Innermost->getHeader()) : std::string(""))
+        << " is_innermost="
+        << NV("IsInnermost", (bool)(Innermost && Innermost->isInnermost()))
+        << " is_loop_exit=" << NV("IsLoopExit", IsLoopExit);
+    ORE.emit(Rem);
+  }
+}
 
 /// Check for an unreachable instruction that has an edge to any of \p L basic
 /// blocks. if `--use-bounds-safety-traps-only` is used make sure that the trap and
@@ -173,5 +254,14 @@ PreservedAnalyses LoopTrapAnalysisPass::run(Function &F,
   auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
   auto &ORE = AM.getResult<OptimizationRemarkEmitterAnalysis>(F);
   emitRemarks(F, LI, ORE, SE);
+  if (LTAEmitExplain)
+    emitPerTrapEdge(F, LI, ORE, Tag);
   return PreservedAnalyses::all();
+}
+
+void LoopTrapAnalysisPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  OS << "loop-trap-analysis";
+  if (!Tag.empty())
+    OS << "<tag=" << Tag << ">";
 }
