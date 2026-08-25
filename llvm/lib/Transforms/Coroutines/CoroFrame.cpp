@@ -488,7 +488,7 @@ StructType *FrameTypeBuilder::finish(StringRef Name) {
   bool Packed = [&] {
     for (auto &LayoutField : LayoutFields) {
       auto &F = getField(LayoutField);
-      if (!isAligned(F.TyAlignment, LayoutField.Offset))
+      if (!isAligned(DL.getABITypeAlign(F.Ty), LayoutField.Offset))
         return true;
     }
     return false;
