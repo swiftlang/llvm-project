@@ -17773,6 +17773,8 @@ static bool UsefulToPrintExpr(const Expr *E) {
 }
 
 void Sema::DiagnoseStaticAssertDetails(const Expr *E) {
+  // FIXME: Should we also ignore explicit casts?
+  E = E->IgnoreParenImpCasts();
   if (const auto *Op = dyn_cast<BinaryOperator>(E);
       Op && Op->getOpcode() != BO_LOr) {
     const Expr *LHS = Op->getLHS()->IgnoreParenImpCasts();
@@ -17807,6 +17809,8 @@ void Sema::DiagnoseStaticAssertDetails(const Expr *E) {
           << DiagSides[0].ValueString << Op->getOpcodeStr()
           << DiagSides[1].ValueString << Op->getSourceRange();
     }
+  } else if (const auto *RE = dyn_cast<RequiresExpr>(E)) {
+    DiagnoseUnsatisfiedRequiresExpr(RE);
   } else {
     DiagnoseTypeTraitDetails(E);
   }
