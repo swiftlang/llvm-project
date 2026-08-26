@@ -20,7 +20,7 @@ void unsizedSizedByToSizedBy(struct unsized * __sized_by(len) p, int len) {
     int size = len;
 // CHECK: |   `-DeclStmt
 // CHECK: |     `-VarDecl [[var_p2:0x[^ ]+]]
-// CHECK: |       `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && size <= (char *)__builtin_get_pointer_upper_bound(p) - (char *__bidi_indexable)p && 0 <= size'
+// CHECK: |       `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && size <= __builtin_get_pointer_upper_bound(p) - p && 0 <= size'
 // CHECK: |         |-ImplicitCastExpr {{.+}} 'struct unsized *__single __sized_by(size)':'struct unsized *__single' <BoundsSafetyPointerCast>
 // CHECK: |         | `-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} 'struct unsized *__bidi_indexable'
 // CHECK: |         |     | | |-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} 'struct unsized *__single __sized_by(len)':'struct unsized *__single'
@@ -41,11 +41,11 @@ void unsizedSizedByToSizedBy(struct unsized * __sized_by(len) p, int len) {
 // CHECK: |         |   |-BinaryOperator {{.+}} 'int' '<='
 // CHECK: |         |   | |-OpaqueValueExpr [[ove_3:0x[^ ]+]] {{.*}} '__ptrdiff_t':'long'
 // CHECK: |         |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: |         |   |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK: |         |   |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK: |         |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK: |         |   |   |   `-OpaqueValueExpr [[ove]] {{.*}} 'struct unsized *__bidi_indexable'
 // CHECK: |         |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK: |         |   |     `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK: |         |   |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK: |         |   |       `-OpaqueValueExpr [[ove]] {{.*}} 'struct unsized *__bidi_indexable'
 // CHECK: |         |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK: |         |     |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
@@ -95,7 +95,7 @@ void structMemberUnsizedSizedBy(struct unsized * p, int len) {
 // CHECK:   `-CompoundStmt
 // CHECK:     |-DeclStmt
 // CHECK:     | `-VarDecl [[var_bar:0x[^ ]+]]
-// CHECK:     |   `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && 10 <= (char *)__builtin_get_pointer_upper_bound(p) - (char *__single)p && 0 <= 10'
+// CHECK:     |   `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && 10 <= __builtin_get_pointer_upper_bound(p) - p && 0 <= 10'
 // CHECK:     |     |-InitListExpr
 // CHECK:     |     | |-OpaqueValueExpr [[ove_4:0x[^ ]+]] {{.*}} 'int'
 // CHECK:     |     | `-OpaqueValueExpr [[ove_5:0x[^ ]+]] {{.*}} 'struct unsized *__single'
@@ -116,11 +116,11 @@ void structMemberUnsizedSizedBy(struct unsized * p, int len) {
 // CHECK:     |     |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
 // CHECK:     |     |   | | `-OpaqueValueExpr [[ove_4]] {{.*}} 'int'
 // CHECK:     |     |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:     |     |   |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:     |     |   |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:     |     |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:     |     |   |   |   `-ImplicitCastExpr {{.+}} 'struct unsized *__bidi_indexable' <BoundsSafetyPointerCast>
 // CHECK:     |     |   |   |     `-OpaqueValueExpr [[ove_5]] {{.*}} 'struct unsized *__single'
-// CHECK:     |     |   |   `-CStyleCastExpr {{.+}} 'char *__single' <BitCast>
+// CHECK:     |     |   |   `-ImplicitCastExpr {{.+}} 'char *__single' <BitCast>
 // CHECK:     |     |   |     `-OpaqueValueExpr [[ove_5]] {{.*}} 'struct unsized *__single'
 // CHECK:     |     |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:     |     |     |-IntegerLiteral {{.+}} 0
@@ -144,7 +144,7 @@ void structMemberUnsizedSizedBy(struct unsized * p, int len) {
 
 // CHECK:     |-DeclStmt
 // CHECK:     | `-VarDecl [[var_bar2:0x[^ ]+]]
-// CHECK:     |   `-BoundsCheckExpr {{.+}} 'bar.p <= __builtin_get_pointer_upper_bound(bar.p) && __builtin_get_pointer_lower_bound(bar.p) <= bar.p && len <= (char *)__builtin_get_pointer_upper_bound(bar.p) - (char *__bidi_indexable)bar.p && 0 <= len'
+// CHECK:     |   `-BoundsCheckExpr {{.+}} 'bar.p <= __builtin_get_pointer_upper_bound(bar.p) && __builtin_get_pointer_lower_bound(bar.p) <= bar.p && len <= __builtin_get_pointer_upper_bound(bar.p) - bar.p && 0 <= len'
 // CHECK:     |     |-InitListExpr
 // CHECK:     |     | |-OpaqueValueExpr [[ove_6:0x[^ ]+]] {{.*}} 'int'
 // CHECK:     |     | `-ImplicitCastExpr {{.+}} 'struct unsized *__single __sized_by(size)':'struct unsized *__single' <BoundsSafetyPointerCast>
@@ -169,11 +169,11 @@ void structMemberUnsizedSizedBy(struct unsized * p, int len) {
 // CHECK:     |     |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
 // CHECK:     |     |   | | `-OpaqueValueExpr [[ove_6]] {{.*}} 'int'
 // CHECK:     |     |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:     |     |   |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:     |     |   |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:     |     |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:     |     |   |   |   `-OpaqueValueExpr [[ove_7]] {{.*}} 'struct unsized *__bidi_indexable'
 // CHECK:     |     |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK:     |     |   |     `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK:     |     |   |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK:     |     |   |       `-OpaqueValueExpr [[ove_7]] {{.*}} 'struct unsized *__bidi_indexable'
 // CHECK:     |     |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:     |     |     |-IntegerLiteral {{.+}} 0
@@ -279,7 +279,7 @@ void unsizedSizedByToSizedByTypecast(struct unsized * __sized_by(len) p, int len
     int size = len;
 // CHECK:     `-DeclStmt
 // CHECK:       `-VarDecl [[var_p2_3:0x[^ ]+]]
-// CHECK:         `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && size <= (char *)__builtin_get_pointer_upper_bound(p) - (char *__bidi_indexable)p && 0 <= size'
+// CHECK:         `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && size <= __builtin_get_pointer_upper_bound(p) - p && 0 <= size'
 // CHECK:           |-ImplicitCastExpr {{.+}} 'struct other *__single __sized_by(size)':'struct other *__single' <BoundsSafetyPointerCast>
 // CHECK:           | `-OpaqueValueExpr [[ove_18:0x[^ ]+]] {{.*}} 'struct other *__bidi_indexable'
 // CHECK:           |       | | |-OpaqueValueExpr [[ove_19:0x[^ ]+]] {{.*}} 'struct unsized *__single __sized_by(len)':'struct unsized *__single'
@@ -300,11 +300,11 @@ void unsizedSizedByToSizedByTypecast(struct unsized * __sized_by(len) p, int len
 // CHECK:           |   |-BinaryOperator {{.+}} 'int' '<='
 // CHECK:           |   | |-OpaqueValueExpr [[ove_21:0x[^ ]+]] {{.*}} '__ptrdiff_t':'long'
 // CHECK:           |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:           |   |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:           |   |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:           |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:           |   |   |   `-OpaqueValueExpr [[ove_18]] {{.*}} 'struct other *__bidi_indexable'
 // CHECK:           |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK:           |   |     `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK:           |   |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK:           |   |       `-OpaqueValueExpr [[ove_18]] {{.*}} 'struct other *__bidi_indexable'
 // CHECK:           |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:           |     |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
@@ -355,7 +355,7 @@ void voidSizedByToVoidSizedBy(void * __sized_by(len) p, int len) {
 // CHECK:     |   `-DependerDeclsAttr
 // CHECK:     `-DeclStmt
 // CHECK:       `-VarDecl [[var_p2_4:0x[^ ]+]]
-// CHECK:         `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && size <= (char *)__builtin_get_pointer_upper_bound(p) - (char *__bidi_indexable)p && 0 <= size'
+// CHECK:         `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && size <= __builtin_get_pointer_upper_bound(p) - p && 0 <= size'
 // CHECK:           |-ImplicitCastExpr {{.+}} 'void *__single __sized_by(size)':'void *__single' <BoundsSafetyPointerCast>
 // CHECK:           | `-OpaqueValueExpr [[ove_22:0x[^ ]+]] {{.*}} 'void *__bidi_indexable'
 // CHECK:           |     | | |-OpaqueValueExpr [[ove_23:0x[^ ]+]] {{.*}} 'void *__single __sized_by(len)':'void *__single'
@@ -376,11 +376,11 @@ void voidSizedByToVoidSizedBy(void * __sized_by(len) p, int len) {
 // CHECK:           |   |-BinaryOperator {{.+}} 'int' '<='
 // CHECK:           |   | |-OpaqueValueExpr [[ove_25:0x[^ ]+]] {{.*}} '__ptrdiff_t':'long'
 // CHECK:           |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:           |   |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:           |   |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:           |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:           |   |   |   `-OpaqueValueExpr [[ove_22]] {{.*}} 'void *__bidi_indexable'
 // CHECK:           |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK:           |   |     `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK:           |   |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK:           |   |       `-OpaqueValueExpr [[ove_22]] {{.*}} 'void *__bidi_indexable'
 // CHECK:           |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:           |     |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
@@ -511,7 +511,7 @@ void unsizedBidiForgedToSizedBy(struct unsized * __sized_by(len) p, int len) {
     int size = len;
 // CHECK:     `-DeclStmt
 // CHECK:       `-VarDecl [[var_p2_9:0x[^ ]+]]
-// CHECK:         `-BoundsCheckExpr {{.+}} '((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len))) <= __builtin_get_pointer_upper_bound(((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len)))) && __builtin_get_pointer_lower_bound(((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len)))) <= ((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len))) && size <= (char *)__builtin_get_pointer_upper_bound(((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len)))) - (char *__bidi_indexable)((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len))) && 0 <= size'
+// CHECK:         `-BoundsCheckExpr {{.+}} '((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len))) <= __builtin_get_pointer_upper_bound(((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len)))) && __builtin_get_pointer_lower_bound(((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len)))) <= ((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len))) && size <= __builtin_get_pointer_upper_bound(((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len)))) - ((struct unsized *__bidi_indexable)__builtin_unsafe_forge_bidi_indexable((p), (len))) && 0 <= size'
 // CHECK:           |-ImplicitCastExpr {{.+}} 'struct unsized *__single __sized_by(size)':'struct unsized *__single' <BoundsSafetyPointerCast>
 // CHECK:           | `-OpaqueValueExpr [[ove_28:0x[^ ]+]] {{.*}} 'struct unsized *__bidi_indexable'
 // CHECK:           |         | | | |-OpaqueValueExpr [[ove_29:0x[^ ]+]] {{.*}} 'struct unsized *__single __sized_by(len)':'struct unsized *__single'
@@ -532,11 +532,11 @@ void unsizedBidiForgedToSizedBy(struct unsized * __sized_by(len) p, int len) {
 // CHECK:           |   |-BinaryOperator {{.+}} 'int' '<='
 // CHECK:           |   | |-OpaqueValueExpr [[ove_31:0x[^ ]+]] {{.*}} '__ptrdiff_t':'long'
 // CHECK:           |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:           |   |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:           |   |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:           |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:           |   |   |   `-OpaqueValueExpr [[ove_28]] {{.*}} 'struct unsized *__bidi_indexable'
 // CHECK:           |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK:           |   |     `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK:           |   |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK:           |   |       `-OpaqueValueExpr [[ove_28]] {{.*}} 'struct unsized *__bidi_indexable'
 // CHECK:           |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:           |     |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
@@ -634,7 +634,7 @@ void unsizedSingleForgedToSizedBy(int p, int len) {
     int size = len; // expected-note{{size initialized here}}
 // CHECK:    `-DeclStmt
 // CHECK:      `-VarDecl [[var_p2_13:0x[^ ]+]]
-// CHECK:        `-BoundsCheckExpr {{.+}} '(struct unsized *__single)__builtin_unsafe_forge_single((p)) <= __builtin_get_pointer_upper_bound((struct unsized *__single)__builtin_unsafe_forge_single((p))) && __builtin_get_pointer_lower_bound((struct unsized *__single)__builtin_unsafe_forge_single((p))) <= (struct unsized *__single)__builtin_unsafe_forge_single((p)) && size <= (char *)__builtin_get_pointer_upper_bound((struct unsized *__single)__builtin_unsafe_forge_single((p))) - (char *__single)(struct unsized *__single)__builtin_unsafe_forge_single((p)) && 0 <= size'
+// CHECK:        `-BoundsCheckExpr {{.+}} '(struct unsized *__single)__builtin_unsafe_forge_single((p)) <= __builtin_get_pointer_upper_bound((struct unsized *__single)__builtin_unsafe_forge_single((p))) && __builtin_get_pointer_lower_bound((struct unsized *__single)__builtin_unsafe_forge_single((p))) <= (struct unsized *__single)__builtin_unsafe_forge_single((p)) && size <= __builtin_get_pointer_upper_bound((struct unsized *__single)__builtin_unsafe_forge_single((p))) - (struct unsized *__single)__builtin_unsafe_forge_single((p)) && 0 <= size'
 // CHECK:          |-ParenExpr
 // CHECK:          | `-OpaqueValueExpr [[ove_32:0x[^ ]+]] {{.*}} 'struct unsized *__single'
 // CHECK:          |-BinaryOperator {{.+}} 'int' '&&'
@@ -653,11 +653,11 @@ void unsizedSingleForgedToSizedBy(int p, int len) {
 // CHECK:          |   |-BinaryOperator {{.+}} 'int' '<='
 // CHECK:          |   | |-OpaqueValueExpr [[ove_33:0x[^ ]+]] {{.*}} '__ptrdiff_t':'long'
 // CHECK:          |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:          |   |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:          |   |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:          |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:          |   |   |   `-ImplicitCastExpr {{.+}} 'struct unsized *__bidi_indexable' <BoundsSafetyPointerCast>
 // CHECK:          |   |   |     `-OpaqueValueExpr [[ove_32]] {{.*}} 'struct unsized *__single'
-// CHECK:          |   |   `-CStyleCastExpr {{.+}} 'char *__single' <BitCast>
+// CHECK:          |   |   `-ImplicitCastExpr {{.+}} 'char *__single' <BitCast>
 // CHECK:          |   |     `-OpaqueValueExpr [[ove_32]] {{.*}} 'struct unsized *__single'
 // CHECK:          |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:          |     |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
@@ -728,7 +728,7 @@ void unsizedSingleToSizedByToBidiVoid(void * p) { // rdar://112462891
 // CHECK:   `-CompoundStmt
 // CHECK:     |-DeclStmt
 // CHECK:     | `-VarDecl [[var_p2_16:0x[^ ]+]]
-// CHECK:     |   `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && 0 <= (char *)__builtin_get_pointer_upper_bound(p) - (char *__single)p && 0 <= 0'
+// CHECK:     |   `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && 0 <= __builtin_get_pointer_upper_bound(p) - p && 0 <= 0'
 // CHECK:     |     |-ImplicitCastExpr {{.+}} 'void *__single' <LValueToRValue>
 // CHECK:     |     | `-DeclRefExpr {{.+}} [[var_p_13]]
 // CHECK:     |     |-BinaryOperator {{.+}} 'int' '&&'
@@ -747,11 +747,11 @@ void unsizedSingleToSizedByToBidiVoid(void * p) { // rdar://112462891
 // CHECK:     |     |   |-BinaryOperator {{.+}} 'int' '<='
 // CHECK:     |     |   | |-OpaqueValueExpr [[ove_37:0x[^ ]+]] {{.*}} '__ptrdiff_t':'long'
 // CHECK:     |     |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:     |     |   |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:     |     |   |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:     |     |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:     |     |   |   |   `-ImplicitCastExpr {{.+}} 'void *__bidi_indexable' <BoundsSafetyPointerCast>
 // CHECK:     |     |   |   |     `-OpaqueValueExpr [[ove_36]] {{.*}} 'void *__single'
-// CHECK:     |     |   |   `-CStyleCastExpr {{.+}} 'char *__single' <BitCast>
+// CHECK:     |     |   |   `-ImplicitCastExpr {{.+}} 'char *__single' <BitCast>
 // CHECK:     |     |   |     `-OpaqueValueExpr [[ove_36]] {{.*}} 'void *__single'
 // CHECK:     |     |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:     |     |     |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>

@@ -18,7 +18,7 @@ void preincdec_init(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: |         `-ParenExpr
 // CHECK: |           `-BinaryOperator {{.+}} 'char *__single __sized_by(len)':'char *__single' ','
 // CHECK: |             |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |             | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= (char *)__builtin_get_pointer_upper_bound(p + 1UL) - (char *__bidi_indexable)p + 1UL'
+// CHECK: |             | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= __builtin_get_pointer_upper_bound(p + 1UL) - p + 1UL'
 // CHECK: |             | | |-UnaryOperator {{.+}} prefix '--'
 // CHECK: |             | | | `-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} lvalue
 // CHECK: |             | | `-BinaryOperator {{.+}} 'int' '&&'
@@ -40,12 +40,10 @@ void preincdec_init(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: |             | |     |-OpaqueValueExpr [[ove_5:0x[^ ]+]] {{.*}} 'unsigned long long'
 // CHECK: |             | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK: |             | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: |             | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK: |             | |         | `-GetBoundExpr {{.+}} upper
-// CHECK: |             | |         |   `-OpaqueValueExpr [[ove_1]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |             | |         |-GetBoundExpr {{.+}} upper
+// CHECK: |             | |         | `-OpaqueValueExpr [[ove_1]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |             | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK: |             | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <NoOp>
-// CHECK: |             | |             `-OpaqueValueExpr [[ove_1]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |             | |           `-OpaqueValueExpr [[ove_1]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |             | |-OpaqueValueExpr [[ove]]
 // CHECK: |             | | `-DeclRefExpr {{.+}} [[var_len]]
 // CHECK: |             | |-OpaqueValueExpr [[ove_5]]
@@ -98,7 +96,7 @@ void postincdec(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: | `-CompoundStmt
 // CHECK: |   `-BinaryOperator {{.+}} 'unsigned long long' ','
 // CHECK: |     |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |     | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= (char *)__builtin_get_pointer_upper_bound(p + 1UL) - (char *__bidi_indexable)p + 1UL'
+// CHECK: |     | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= __builtin_get_pointer_upper_bound(p + 1UL) - p + 1UL'
 // CHECK: |     | | |-UnaryOperator {{.+}} postfix '++'
 // CHECK: |     | | | `-OpaqueValueExpr [[ove:0x[^ ]+]] {{.*}} lvalue
 // CHECK: |     | | `-BinaryOperator {{.+}} 'int' '&&'
@@ -120,12 +118,10 @@ void postincdec(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: |     | |     |   | `-OpaqueValueExpr [[ove_5:0x[^ ]+]] {{.*}} lvalue
 // CHECK: |     | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK: |     | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: |     | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK: |     | |         | `-GetBoundExpr {{.+}} upper
-// CHECK: |     | |         |   `-OpaqueValueExpr [[ove_1]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |     | |         |-GetBoundExpr {{.+}} upper
+// CHECK: |     | |         | `-OpaqueValueExpr [[ove_1]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |     | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK: |     | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <NoOp>
-// CHECK: |     | |             `-OpaqueValueExpr [[ove_1]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |     | |           `-OpaqueValueExpr [[ove_1]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |     | |-OpaqueValueExpr [[ove]]
 // CHECK: |     | | `-DeclRefExpr {{.+}} [[var_p]]
 // CHECK: |     | |-OpaqueValueExpr [[ove_1]]
@@ -182,7 +178,7 @@ void postincdec_init(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: |         `-ParenExpr
 // CHECK: |           `-BinaryOperator {{.+}} 'char *__single __sized_by(len)':'char *__single' ','
 // CHECK: |             |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |             | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= (char *)__builtin_get_pointer_upper_bound(p + 1UL) - (char *__bidi_indexable)p + 1UL'
+// CHECK: |             | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= __builtin_get_pointer_upper_bound(p + 1UL) - p + 1UL'
 // CHECK: |             | | |-UnaryOperator {{.+}} postfix '--'
 // CHECK: |             | | | `-OpaqueValueExpr [[ove_6:0x[^ ]+]] {{.*}} lvalue
 // CHECK: |             | | `-BinaryOperator {{.+}} 'int' '&&'
@@ -204,12 +200,10 @@ void postincdec_init(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: |             | |     |-OpaqueValueExpr [[ove_11:0x[^ ]+]] {{.*}} 'unsigned long long'
 // CHECK: |             | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK: |             | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: |             | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK: |             | |         | `-GetBoundExpr {{.+}} upper
-// CHECK: |             | |         |   `-OpaqueValueExpr [[ove_7]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |             | |         |-GetBoundExpr {{.+}} upper
+// CHECK: |             | |         | `-OpaqueValueExpr [[ove_7]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |             | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK: |             | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <NoOp>
-// CHECK: |             | |             `-OpaqueValueExpr [[ove_7]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |             | |           `-OpaqueValueExpr [[ove_7]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |             | |-OpaqueValueExpr [[ove_6]]
 // CHECK: |             | | `-DeclRefExpr {{.+}} [[var_len_1]]
 // CHECK: |             | |-OpaqueValueExpr [[ove_11]]
@@ -265,7 +259,7 @@ void compound_assign_init(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: |       `-ParenExpr
 // CHECK: |         `-BinaryOperator {{.+}} 'unsigned long long' ','
 // CHECK: |           |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |           | |-BoundsCheckExpr {{.+}} 'p + 1 <= __builtin_get_pointer_upper_bound(p + 1) && __builtin_get_pointer_lower_bound(p + 1) <= p + 1 && len - 1 <= (char *)__builtin_get_pointer_upper_bound(p + 1) - (char *__bidi_indexable)p + 1'
+// CHECK: |           | |-BoundsCheckExpr {{.+}} 'p + 1 <= __builtin_get_pointer_upper_bound(p + 1) && __builtin_get_pointer_lower_bound(p + 1) <= p + 1 && len - 1 <= __builtin_get_pointer_upper_bound(p + 1) - p + 1'
 // CHECK: |           | | |-CompoundAssignOperator {{.+}} ComputeResultTy='char *__single
 // CHECK: |           | | | |-OpaqueValueExpr [[ove_12:0x[^ ]+]] {{.*}} lvalue
 // CHECK: |           | | | `-OpaqueValueExpr [[ove_13:0x[^ ]+]] {{.*}} 'int'
@@ -289,12 +283,10 @@ void compound_assign_init(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: |           | |     |   `-OpaqueValueExpr [[ove_19:0x[^ ]+]] {{.*}} 'unsigned long long'
 // CHECK: |           | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK: |           | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: |           | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK: |           | |         | `-GetBoundExpr {{.+}} upper
-// CHECK: |           | |         |   `-OpaqueValueExpr [[ove_14]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |           | |         |-GetBoundExpr {{.+}} upper
+// CHECK: |           | |         | `-OpaqueValueExpr [[ove_14]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |           | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK: |           | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <NoOp>
-// CHECK: |           | |             `-OpaqueValueExpr [[ove_14]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |           | |           `-OpaqueValueExpr [[ove_14]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |           | |-OpaqueValueExpr [[ove_13]]
 // CHECK: |           | | `-IntegerLiteral {{.+}} 1
 // CHECK: |           | |-OpaqueValueExpr [[ove_12]]
@@ -361,7 +353,7 @@ void compound_assign_assign(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: |     `-ParenExpr
 // CHECK: |       `-BinaryOperator {{.+}} 'unsigned long long' ','
 // CHECK: |         |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |         | |-BoundsCheckExpr {{.+}} 'p + 1 <= __builtin_get_pointer_upper_bound(p + 1) && __builtin_get_pointer_lower_bound(p + 1) <= p + 1 && len - 1 <= (char *)__builtin_get_pointer_upper_bound(p + 1) - (char *__bidi_indexable)p + 1'
+// CHECK: |         | |-BoundsCheckExpr {{.+}} 'p + 1 <= __builtin_get_pointer_upper_bound(p + 1) && __builtin_get_pointer_lower_bound(p + 1) <= p + 1 && len - 1 <= __builtin_get_pointer_upper_bound(p + 1) - p + 1'
 // CHECK: |         | | |-CompoundAssignOperator {{.+}} ComputeResultTy='char *__single
 // CHECK: |         | | | |-OpaqueValueExpr [[ove_20:0x[^ ]+]] {{.*}} lvalue
 // CHECK: |         | | | `-OpaqueValueExpr [[ove_21:0x[^ ]+]] {{.*}} 'int'
@@ -385,12 +377,10 @@ void compound_assign_assign(char *__sized_by(len) p, unsigned long long len) {
 // CHECK: |         | |     |   `-OpaqueValueExpr [[ove_27:0x[^ ]+]] {{.*}} 'unsigned long long'
 // CHECK: |         | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK: |         | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: |         | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK: |         | |         | `-GetBoundExpr {{.+}} upper
-// CHECK: |         | |         |   `-OpaqueValueExpr [[ove_22]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |         | |         |-GetBoundExpr {{.+}} upper
+// CHECK: |         | |         | `-OpaqueValueExpr [[ove_22]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |         | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK: |         | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <NoOp>
-// CHECK: |         | |             `-OpaqueValueExpr [[ove_22]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |         | |           `-OpaqueValueExpr [[ove_22]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |         | |-OpaqueValueExpr [[ove_21]]
 // CHECK: |         | | `-IntegerLiteral {{.+}} 1
 // CHECK: |         | |-OpaqueValueExpr [[ove_20]]
@@ -491,7 +481,7 @@ void assign_init(char *__sized_by(len) p, unsigned long long len,
 // CHECK: |       `-ParenExpr
 // CHECK: |         `-BinaryOperator {{.+}} 'unsigned long long' ','
 // CHECK: |           |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |           | |-BoundsCheckExpr {{.+}} 'ip <= __builtin_get_pointer_upper_bound(ip) && __builtin_get_pointer_lower_bound(ip) <= ip && ilen <= (char *)__builtin_get_pointer_upper_bound(ip) - (char *__bidi_indexable)ip'
+// CHECK: |           | |-BoundsCheckExpr {{.+}} 'ip <= __builtin_get_pointer_upper_bound(ip) && __builtin_get_pointer_lower_bound(ip) <= ip && ilen <= __builtin_get_pointer_upper_bound(ip) - ip'
 // CHECK: |           | | |-BinaryOperator {{.+}} 'char *__single __sized_by(len)':'char *__single' '='
 // CHECK: |           | | | |-DeclRefExpr {{.+}} [[var_p_5]]
 // CHECK: |           | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(len)':'char *__single' <BoundsSafetyPointerCast>
@@ -512,12 +502,10 @@ void assign_init(char *__sized_by(len) p, unsigned long long len,
 // CHECK: |           | |     |-OpaqueValueExpr [[ove_31:0x[^ ]+]] {{.*}} 'unsigned long long'
 // CHECK: |           | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK: |           | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: |           | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK: |           | |         | `-GetBoundExpr {{.+}} upper
-// CHECK: |           | |         |   `-OpaqueValueExpr [[ove_30]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |           | |         |-GetBoundExpr {{.+}} upper
+// CHECK: |           | |         | `-OpaqueValueExpr [[ove_30]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |           | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK: |           | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <NoOp>
-// CHECK: |           | |             `-OpaqueValueExpr [[ove_30]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |           | |           `-OpaqueValueExpr [[ove_30]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |           | |-OpaqueValueExpr [[ove_30]]
 // CHECK: |           | | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
 // CHECK: |           | |   `-DeclRefExpr {{.+}} [[var_ip]]
@@ -561,7 +549,7 @@ void assign_assign(char *__sized_by(len) p, unsigned long long len,
 // CHECK: |   |       `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK: |   |         `-IntegerLiteral {{.+}} 0
 // CHECK: |   |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |   | |-BoundsCheckExpr {{.+}} '(len = ilen, p = ip) <= __builtin_get_pointer_upper_bound((len = ilen, p = ip)) && __builtin_get_pointer_lower_bound((len = ilen, p = ip)) <= (len = ilen, p = ip) && 0 <= (char *)__builtin_get_pointer_upper_bound((len = ilen, p = ip)) - (char *__single)(len = ilen, p = ip)'
+// CHECK: |   | |-BoundsCheckExpr {{.+}} '(len = ilen, p = ip) <= __builtin_get_pointer_upper_bound((len = ilen, p = ip)) && __builtin_get_pointer_lower_bound((len = ilen, p = ip)) <= (len = ilen, p = ip) && 0 <= __builtin_get_pointer_upper_bound((len = ilen, p = ip)) - (len = ilen, p = ip)'
 // CHECK: |   | | |-BinaryOperator {{.+}} 'char *__single __sized_by(llen)':'char *__single' '='
 // CHECK: |   | | | |-DeclRefExpr {{.+}} [[var_lp_1]]
 // CHECK: |   | | | `-OpaqueValueExpr [[ove_32:0x[^ ]+]] {{.*}} 'char *__single __sized_by(len)':'char *__single'
@@ -583,17 +571,15 @@ void assign_assign(char *__sized_by(len) p, unsigned long long len,
 // CHECK: |   | |     |-OpaqueValueExpr [[ove_35:0x[^ ]+]] {{.*}} 'unsigned long long'
 // CHECK: |   | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK: |   | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: |   | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK: |   | |         | `-GetBoundExpr {{.+}} upper
-// CHECK: |   | |         |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK: |   | |         |     `-OpaqueValueExpr [[ove_32]] {{.*}} 'char *__single __sized_by(len)':'char *__single'
-// CHECK: |   | |         `-CStyleCastExpr {{.+}} 'char *__single' <NoOp>
-// CHECK: |   | |           `-OpaqueValueExpr [[ove_32]] {{.*}} 'char *__single __sized_by(len)':'char *__single'
+// CHECK: |   | |         |-GetBoundExpr {{.+}} upper
+// CHECK: |   | |         | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
+// CHECK: |   | |         |   `-OpaqueValueExpr [[ove_32]] {{.*}} 'char *__single __sized_by(len)':'char *__single'
+// CHECK: |   | |         `-OpaqueValueExpr [[ove_32]] {{.*}} 'char *__single __sized_by(len)':'char *__single'
 // CHECK: |   | |-OpaqueValueExpr [[ove_32]]
 // CHECK: |   | | `-ParenExpr
 // CHECK: |   | |   `-BinaryOperator {{.+}} 'char *__single __sized_by(len)':'char *__single' ','
 // CHECK: |   | |     |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: |   | |     | |-BoundsCheckExpr {{.+}} 'ip <= __builtin_get_pointer_upper_bound(ip) && __builtin_get_pointer_lower_bound(ip) <= ip && ilen <= (char *)__builtin_get_pointer_upper_bound(ip) - (char *__bidi_indexable)ip'
+// CHECK: |   | |     | |-BoundsCheckExpr {{.+}} 'ip <= __builtin_get_pointer_upper_bound(ip) && __builtin_get_pointer_lower_bound(ip) <= ip && ilen <= __builtin_get_pointer_upper_bound(ip) - ip'
 // CHECK: |   | |     | | |-BinaryOperator {{.+}} 'unsigned long long' '='
 // CHECK: |   | |     | | | |-DeclRefExpr {{.+}} [[var_len_6]]
 // CHECK: |   | |     | | | `-OpaqueValueExpr [[ove_33]] {{.*}} 'unsigned long long'
@@ -613,12 +599,10 @@ void assign_assign(char *__sized_by(len) p, unsigned long long len,
 // CHECK: |   | |     | |     |-OpaqueValueExpr [[ove_33]] {{.*}} 'unsigned long long'
 // CHECK: |   | |     | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK: |   | |     | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: |   | |     | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK: |   | |     | |         | `-GetBoundExpr {{.+}} upper
-// CHECK: |   | |     | |         |   `-OpaqueValueExpr [[ove_34]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |   | |     | |         |-GetBoundExpr {{.+}} upper
+// CHECK: |   | |     | |         | `-OpaqueValueExpr [[ove_34]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |   | |     | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK: |   | |     | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <NoOp>
-// CHECK: |   | |     | |             `-OpaqueValueExpr [[ove_34]] {{.*}} 'char *__bidi_indexable'
+// CHECK: |   | |     | |           `-OpaqueValueExpr [[ove_34]] {{.*}} 'char *__bidi_indexable'
 // CHECK: |   | |     | |-OpaqueValueExpr [[ove_33]]
 // CHECK: |   | |     | | `-ImplicitCastExpr {{.+}} 'unsigned long long' <LValueToRValue>
 // CHECK: |   | |     | |   `-DeclRefExpr {{.+}} [[var_ilen_1]]
@@ -681,7 +665,7 @@ char for_cond_inc(char *__sized_by(len) p, unsigned long long len) {
 // CHECK:   |-ForStmt
 // CHECK:   | |-BinaryOperator {{.+}} 'unsigned long long' ','
 // CHECK:   | | |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK:   | | | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= (char *)__builtin_get_pointer_upper_bound(p + 1UL) - (char *__bidi_indexable)p + 1UL'
+// CHECK:   | | | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= __builtin_get_pointer_upper_bound(p + 1UL) - p + 1UL'
 // CHECK:   | | | | |-UnaryOperator {{.+}} postfix '++'
 // CHECK:   | | | | | `-OpaqueValueExpr [[ove_38:0x[^ ]+]] {{.*}} lvalue
 // CHECK:   | | | | `-BinaryOperator {{.+}} 'int' '&&'
@@ -703,12 +687,10 @@ char for_cond_inc(char *__sized_by(len) p, unsigned long long len) {
 // CHECK:   | | | |     |   | `-OpaqueValueExpr [[ove_43:0x[^ ]+]] {{.*}} lvalue
 // CHECK:   | | | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK:   | | | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:   | | | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK:   | | | |         | `-GetBoundExpr {{.+}} upper
-// CHECK:   | | | |         |   `-OpaqueValueExpr [[ove_39]] {{.*}} 'char *__bidi_indexable'
+// CHECK:   | | | |         |-GetBoundExpr {{.+}} upper
+// CHECK:   | | | |         | `-OpaqueValueExpr [[ove_39]] {{.*}} 'char *__bidi_indexable'
 // CHECK:   | | | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK:   | | | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <NoOp>
-// CHECK:   | | | |             `-OpaqueValueExpr [[ove_39]] {{.*}} 'char *__bidi_indexable'
+// CHECK:   | | | |           `-OpaqueValueExpr [[ove_39]] {{.*}} 'char *__bidi_indexable'
 // CHECK:   | | | |-OpaqueValueExpr [[ove_38]]
 // CHECK:   | | | | `-DeclRefExpr {{.+}} [[var_p_7]]
 // CHECK:   | | | |-OpaqueValueExpr [[ove_39]]
@@ -757,7 +739,7 @@ char for_cond_inc(char *__sized_by(len) p, unsigned long long len) {
 // CHECK:   | |   `-IntegerLiteral {{.+}} 0
 // CHECK:   | |-BinaryOperator {{.+}} 'unsigned long long' ','
 // CHECK:   | | |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK:   | | | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= (char *)__builtin_get_pointer_upper_bound(p + 1UL) - (char *__bidi_indexable)p + 1UL'
+// CHECK:   | | | |-BoundsCheckExpr {{.+}} 'p + 1UL <= __builtin_get_pointer_upper_bound(p + 1UL) && __builtin_get_pointer_lower_bound(p + 1UL) <= p + 1UL && len - 1ULL <= __builtin_get_pointer_upper_bound(p + 1UL) - p + 1UL'
 // CHECK:   | | | | |-UnaryOperator {{.+}} postfix '++'
 // CHECK:   | | | | | `-OpaqueValueExpr [[ove_44:0x[^ ]+]] {{.*}} lvalue
 // CHECK:   | | | | `-BinaryOperator {{.+}} 'int' '&&'
@@ -779,12 +761,10 @@ char for_cond_inc(char *__sized_by(len) p, unsigned long long len) {
 // CHECK:   | | | |     |   | `-OpaqueValueExpr [[ove_49:0x[^ ]+]] {{.*}} lvalue
 // CHECK:   | | | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK:   | | | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:   | | | |         |-CStyleCastExpr {{.+}} 'char *' <NoOp>
-// CHECK:   | | | |         | `-GetBoundExpr {{.+}} upper
-// CHECK:   | | | |         |   `-OpaqueValueExpr [[ove_45]] {{.*}} 'char *__bidi_indexable'
+// CHECK:   | | | |         |-GetBoundExpr {{.+}} upper
+// CHECK:   | | | |         | `-OpaqueValueExpr [[ove_45]] {{.*}} 'char *__bidi_indexable'
 // CHECK:   | | | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK:   | | | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <NoOp>
-// CHECK:   | | | |             `-OpaqueValueExpr [[ove_45]] {{.*}} 'char *__bidi_indexable'
+// CHECK:   | | | |           `-OpaqueValueExpr [[ove_45]] {{.*}} 'char *__bidi_indexable'
 // CHECK:   | | | |-OpaqueValueExpr [[ove_44]]
 // CHECK:   | | | | `-DeclRefExpr {{.+}} [[var_p_7]]
 // CHECK:   | | | |-OpaqueValueExpr [[ove_45]]

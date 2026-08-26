@@ -537,7 +537,7 @@ void caller_9(int *__sized_by(*len) *out, int *len){
 // CHECK-NEXT: {{^}}    | |-OpaqueValueExpr [[ove_22]] {{.*}} 'int *__single __sized_by_or_null(count)*__bidi_indexable'
 // CHECK:      {{^}}    | `-OpaqueValueExpr [[ove_23]] {{.*}} 'int *__bidi_indexable'
 // CHECK:      {{^}}    `-ReturnStmt
-// CHECK-NEXT: {{^}}      `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && !p || len <= (char *)__builtin_get_pointer_upper_bound(p) - (char *__bidi_indexable)p && 0 <= len'
+// CHECK-NEXT: {{^}}      `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && !p || len <= __builtin_get_pointer_upper_bound(p) - p && 0 <= len'
 // CHECK-NEXT: {{^}}        |-ImplicitCastExpr {{.+}} 'int *__single __sized_by_or_null(len)':'int *__single' <BoundsSafetyPointerCast>
 // CHECK-NEXT: {{^}}        | `-OpaqueValueExpr [[ove_24:0x[^ ]+]] {{.*}} 'int *__bidi_indexable'
 // CHECK:      {{^}}        |     | | |-OpaqueValueExpr [[ove_25:0x[^ ]+]] {{.*}} 'int *__single __sized_by_or_null(count)':'int *__single'
@@ -562,11 +562,11 @@ void caller_9(int *__sized_by(*len) *out, int *len){
 // CHECK-NEXT: {{^}}        |     | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
 // CHECK-NEXT: {{^}}        |     | | `-OpaqueValueExpr [[ove_27:0x[^ ]+]] {{.*}} 'int'
 // CHECK:      {{^}}        |     | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT: {{^}}        |     |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK-NEXT: {{^}}        |     |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK-NEXT: {{^}}        |     |   | `-GetBoundExpr {{.+}} upper
 // CHECK-NEXT: {{^}}        |     |   |   `-OpaqueValueExpr [[ove_24]] {{.*}} 'int *__bidi_indexable'
 // CHECK:      {{^}}        |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: {{^}}        |     |     `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK-NEXT: {{^}}        |     |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK-NEXT: {{^}}        |     |       `-OpaqueValueExpr [[ove_24]] {{.*}} 'int *__bidi_indexable'
 // CHECK:      {{^}}        |     `-BinaryOperator {{.+}} 'int' '<='
 // CHECK-NEXT: {{^}}        |       |-IntegerLiteral {{.+}} 0
