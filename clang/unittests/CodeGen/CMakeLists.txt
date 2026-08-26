@@ -5,6 +5,7 @@ add_clang_unittest(ClangCodeGenTests
   TBAAMetadataTest.cpp
   CheckTargetFeaturesTest.cpp
   QualTypeMapperTest.cpp
+  VirtualMethodTablesTest.cpp
   CLANG_LIBS
   clangAST
   clangBasic
