@@ -138,7 +138,7 @@ void local_count_size(void) {
 // CHECK:    |-DeclStmt
 // CHECK:    | `-VarDecl [[var_arr_2:0x[^ ]+]]
 // CHECK:    |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK:    | |-BoundsCheckExpr {{.+}} 'size_t':'unsigned long' 'arr <= __builtin_get_pointer_upper_bound(arr) && __builtin_get_pointer_lower_bound(arr) <= arr && 10 * 4 <= (char *)__builtin_get_pointer_upper_bound(arr) - (char *__bidi_indexable)arr'
+// CHECK:    | |-BoundsCheckExpr {{.+}} 'size_t':'unsigned long' 'arr <= __builtin_get_pointer_upper_bound(arr) && __builtin_get_pointer_lower_bound(arr) <= arr && 10 * 4 <= __builtin_get_pointer_upper_bound(arr) - arr'
 // CHECK:    | | |-BinaryOperator {{.+}} 'size_t':'unsigned long' '='
 // CHECK:    | | | |-DeclRefExpr {{.+}} [[var_nelems]]
 // CHECK:    | | | `-OpaqueValueExpr [[ove_5:0x[^ ]+]] {{.*}} 'size_t':'unsigned long'
@@ -160,11 +160,11 @@ void local_count_size(void) {
 // CHECK:    | |     | `-OpaqueValueExpr [[ove_7:0x[^ ]+]] {{.*}} 'size_t':'unsigned long'
 // CHECK:    | |     `-ImplicitCastExpr {{.+}} 'size_t':'unsigned long' <IntegralCast>
 // CHECK:    | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:    | |         |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:    | |         |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:    | |         | `-GetBoundExpr {{.+}} upper
 // CHECK:    | |         |   `-OpaqueValueExpr [[ove_6]] {{.*}} 'void *__bidi_indexable'
 // CHECK:    | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK:    | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK:    | |           `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK:    | |             `-OpaqueValueExpr [[ove_6]] {{.*}} 'void *__bidi_indexable'
 // CHECK:    | |-OpaqueValueExpr [[ove_5]]
 // CHECK:    | | `-ImplicitCastExpr {{.+}} 'size_t':'unsigned long' <IntegralCast>

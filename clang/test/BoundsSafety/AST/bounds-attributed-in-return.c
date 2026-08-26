@@ -184,7 +184,7 @@ int *__counted_by(*count) cb_out_from_single(int *__single count, int *__single 
 // CHECK: |-ParmVarDecl [[var_p_4:0x[^ ]+]]
 // CHECK: `-CompoundStmt
 // CHECK:   `-ReturnStmt
-// CHECK:     `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && size <= (char *)__builtin_get_pointer_upper_bound(p) - (char *__bidi_indexable)p && 0 <= size'
+// CHECK:     `-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && size <= __builtin_get_pointer_upper_bound(p) - p && 0 <= size'
 // CHECK:       |-ImplicitCastExpr {{.+}} 'void *__single __sized_by(size)':'void *__single' <BoundsSafetyPointerCast>
 // CHECK:       | `-OpaqueValueExpr [[ove_8:0x[^ ]+]] {{.*}} 'void *__bidi_indexable'
 // CHECK:       |-BinaryOperator {{.+}} 'int' '&&'
@@ -204,11 +204,11 @@ int *__counted_by(*count) cb_out_from_single(int *__single count, int *__single 
 // CHECK:       |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
 // CHECK:       |   | | `-OpaqueValueExpr [[ove_9:0x[^ ]+]] {{.*}} 'int'
 // CHECK:       |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:       |   |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:       |   |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:       |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:       |   |   |   `-OpaqueValueExpr [[ove_8]] {{.*}} 'void *__bidi_indexable'
 // CHECK:       |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK:       |   |     `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK:       |   |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK:       |   |       `-OpaqueValueExpr [[ove_8]] {{.*}} 'void *__bidi_indexable'
 // CHECK:       |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:       |     |-IntegerLiteral {{.+}} 0

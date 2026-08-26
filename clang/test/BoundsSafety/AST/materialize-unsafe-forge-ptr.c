@@ -35,11 +35,11 @@ void test() {
 // CHECK:           |   |-BinaryOperator {{.+}} 'int' '<='
 // CHECK:           |   | |-OpaqueValueExpr [[ove_1:0x[^ ]+]] {{.*}} '__ptrdiff_t':'long'
 // CHECK:           |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:           |   |   |-CStyleCastExpr {{.+}} 'const char *' <BitCast>
+// CHECK:           |   |   |-ImplicitCastExpr {{.+}} 'const char *' <BitCast>
 // CHECK:           |   |   | `-GetBoundExpr {{.+}} upper
 // CHECK:           |   |   |   `-OpaqueValueExpr [[ove]] {{.*}} 'const void *__bidi_indexable'
 // CHECK:           |   |   `-ImplicitCastExpr {{.+}} 'const char *' <BoundsSafetyPointerCast>
-// CHECK:           |   |     `-CStyleCastExpr {{.+}} 'const char *__bidi_indexable' <BitCast>
+// CHECK:           |   |     `-ImplicitCastExpr {{.+}} 'const char *__bidi_indexable' <BitCast>
 // CHECK:           |   |       `-OpaqueValueExpr [[ove]] {{.*}} 'const void *__bidi_indexable'
 // CHECK:           |   `-BinaryOperator {{.+}} 'int' '<='
 // CHECK:           |     |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>

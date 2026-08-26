@@ -124,15 +124,17 @@ struct AssignedDeclRefResult {
 };
 
 static ExprResult CastToCharPointer(Sema &S, Expr *PointerToCast) {
-  SourceLocation Loc = PointerToCast->getBeginLoc();
   auto PtrTy = PointerToCast->getType()->getAs<PointerType>();
+  if (PtrTy->getPointeeType()->isCharType())
+    return PointerToCast;
   auto SQT = PtrTy->getPointeeType().split();
   SQT.Ty = S.Context.CharTy.getTypePtr();
   QualType QualifiedChar = S.Context.getQualifiedType(SQT);
   QualType CharPtrTy = S.Context.getPointerType(
       QualifiedChar, PtrTy->getPointerAttributes());
-  return S.BuildCStyleCastExpr(
-      Loc, S.Context.getTrivialTypeSourceInfo(CharPtrTy), Loc, PointerToCast);
+  return ImplicitCastExpr::Create(S.Context, CharPtrTy, CK_BitCast, PointerToCast,
+                                  /*BasePath=*/nullptr, VK_PRValue,
+                                  S.CurFPFeatureOverrides());
 }
 
 /// getInnerType - This returns "Level" nested pointee type.
