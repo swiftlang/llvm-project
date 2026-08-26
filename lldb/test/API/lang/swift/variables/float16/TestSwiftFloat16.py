@@ -11,6 +11,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftFloat16(TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @skipIfLinux
     # Float16 is unavailable in the stdlib on x86_64 macOS.
     @skipIf(oslist=["macosx"], archs=["x86_64"])
     def test(self):
