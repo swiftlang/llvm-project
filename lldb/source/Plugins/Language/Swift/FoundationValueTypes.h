@@ -52,6 +52,9 @@ bool Data_SummaryProvider(ValueObject &valobj, Stream &stream,
 bool Decimal_SummaryProvider(ValueObject &valobj, Stream &stream,
                              const TypeSummaryOptions &options);
 
+bool Duration_SummaryProvider(ValueObject &valobj, Stream &stream,
+                              const TypeSummaryOptions &options);
+
 SyntheticChildrenFrontEnd *
 URLComponentsSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                       lldb::ValueObjectSP);

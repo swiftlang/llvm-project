@@ -674,6 +674,22 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
                    ConstString("Foundation.CGFloat"), summary_flags);
   AddStringSummary(swift_category_sp, "${var.native}",
                    ConstString("CoreFoundation.CGFloat"), summary_flags);
+
+  TypeSummaryImpl::Flags duration_flags;
+  duration_flags.SetCascades(true)
+      .SetDontShowChildren(true) 
+      .SetSkipPointers(true)
+      .SetSkipReferences(false)
+      .SetHideItemNames(false)
+      .SetShowMembersOneLiner(false);
+
+  lldb_private::formatters::AddCXXSummary(
+      swift_category_sp,
+      lldb_private::formatters::swift::Duration_SummaryProvider,
+      "Swift.Duration summary provider", 
+      ConstString("^Swift\\.Duration$"),
+      duration_flags, 
+      true);
 }
 
 static void
