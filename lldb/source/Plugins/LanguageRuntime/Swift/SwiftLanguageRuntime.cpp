@@ -2499,15 +2499,62 @@ public:
       : m_reflection_ctx(reflection_ctx) {
     auto task_finder = GetTaskFinder(process);
 
-    for (const ThreadSP &thread : process.GetThreadList().Threads()) {
-      if (!thread)
-        continue;
-      std::optional<lldb::addr_t> maybe_task_addr =
-          task_finder->GetTaskAddrForThread(*thread);
-      if (!maybe_task_addr)
-        continue;
-      int32_t max_nodes = 1000;
-      ExploreTask(*maybe_task_addr, max_nodes);
+    bool used_registry = false;
+    auto &reader = reflection_ctx.GetReader();
+    auto registry_addr = reader.getSymbolAddress("_swift_concurrency_task_registry");
+    if (registry_addr) {
+      bool is_enabled = true;
+      auto enabled_addr = reader.getSymbolAddress("_swift_concurrency_task_registry_enabled");
+      if (enabled_addr) {
+        uint8_t val = 0;
+        if (reader.readInteger(enabled_addr, 1, &val)) {
+          is_enabled = (val != 0);
+        }
+      }
+      
+      if (is_enabled) {
+        auto shard_size_addr = reader.getSymbolAddress("_swift_concurrency_task_registry_shard_size");
+        if (shard_size_addr) {
+          uint8_t pointer_size = reader.getPointerSize().value_or(sizeof(void*));
+          uint64_t shard_size = 0;
+          if (reader.readInteger(shard_size_addr, pointer_size, &shard_size)) {
+            used_registry = true;
+            for (uint32_t i = 0; i < 64; ++i) {
+              auto shard_addr = swift::remote::RemoteAddress(
+                  registry_addr.getAddressData() + (i * shard_size),
+                  registry_addr.getAddressSpace());
+              uint64_t task_addr = 0;
+              if (reader.readInteger(shard_addr, pointer_size, &task_addr)) {
+                while (task_addr) {
+                  int32_t max_nodes = 1000;
+                  ExploreTask(task_addr, max_nodes);
+
+                  auto task_info_expected = m_reflection_ctx.asyncTaskInfo(task_addr, 0, 0);
+                  if (task_info_expected) {
+                    task_addr = task_info_expected->registryNext;
+                  } else {
+                    llvm::consumeError(task_info_expected.takeError());
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (!used_registry) {
+      for (const ThreadSP &thread : process.GetThreadList().Threads()) {
+        if (!thread)
+          continue;
+        std::optional<lldb::addr_t> maybe_task_addr =
+            task_finder->GetTaskAddrForThread(*thread);
+        if (!maybe_task_addr)
+          continue;
+        int32_t max_nodes = 1000;
+        ExploreTask(*maybe_task_addr, max_nodes);
+      }
     }
   }
 

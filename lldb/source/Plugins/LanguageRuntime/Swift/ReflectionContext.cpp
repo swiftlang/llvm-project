@@ -24,6 +24,12 @@ using namespace lldb_private;
 
 namespace {
 
+template <typename T, typename = void>
+struct HasRegistryNext : std::false_type {};
+
+template <typename T>
+struct HasRegistryNext<T, std::void_t<decltype(std::declval<T>().RegistryNext)>> : std::true_type {};
+
 /// The descriptor finder needs to be an instance variable of the
 /// TypeRefBuilder, but we would still want to swap out the descriptor finder,
 /// as they are tied to each type system typeref's symbol file. This class's
@@ -418,6 +424,9 @@ class TargetReflectionContext : public ReflectionContextInterface {
       result.resumeAsyncContext = task_info.ResumeAsyncContext;
       result.runJob = task_info.RunJob;
       result.parentTask = task_info.ParentTask;
+      if constexpr (HasRegistryNext<decltype(task_info)>::value) {
+        result.registryNext = task_info.RegistryNext;
+      }
       for (auto child : task_info.ChildTasks)
         result.childTasks.push_back(child);
       for (auto waiting : task_info.WaitingTasks)
