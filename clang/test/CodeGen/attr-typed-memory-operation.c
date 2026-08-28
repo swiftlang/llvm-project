@@ -1,8 +1,10 @@
-// RUN: %clang_cc1 -Rtmo-remarks -verify -fsyntax-only \
-// RUN:               -ftyped-memory-operations -DTMO=1 -DTMO_REMARKS -triple x86_64-apple-macos -nostdsysteminc -Wno-alloc-size -O0 %s
-// RUN: %clang_cc1    -ftyped-memory-operations -DTMO=1 -triple x86_64-apple-macos -nostdsysteminc -Wno-alloc-size -O0 -disable-llvm-passes -emit-llvm -o - %s | FileCheck --check-prefix=CHECK          %s
-// RUN: %clang_cc1 -fno-typed-memory-operations -DTMO=0 -triple x86_64-apple-macos -nostdsysteminc -Wno-alloc-size -O0 -disable-llvm-passes -emit-llvm -o - %s | FileCheck --check-prefix=CHECK-DISABLED %s
-// RUN: %clang_cc1    -ftyped-memory-operations -DTMO=1 -triple x86_64-apple-macos -nostdsysteminc -Wno-alloc-size -O0 -disable-llvm-passes -emit-llvm -o - %s | FileCheck --check-prefix=CHECK          %s
+// RUN: %clang_cc1 -Rtmo-remarks -Wtyped-memory-inference-conflict -verify=expected -fsyntax-only \
+// RUN:               -ftyped-memory-operations -DTMO=1 -DTMO_REMARKS -triple arm64-apple-macosx -nostdsysteminc -Wno-alloc-size -O0 %s
+// RUN: %clang_cc1 -Rtmo-remarks -Wtyped-memory-inference-conflict -Wtyped-memory-inference-failure -verify=expected,failure -fsyntax-only \
+// RUN:               -ftyped-memory-operations -DTMO=1 -DTMO_REMARKS -triple arm64-apple-macosx -nostdsysteminc -Wno-alloc-size -O0 %s
+// RUN: %clang_cc1    -ftyped-memory-operations -DTMO=1 -triple arm64-apple-macosx -nostdsysteminc -Wno-alloc-size -O0 -disable-llvm-passes -emit-llvm -o - %s | FileCheck --check-prefix=CHECK          %s
+// RUN: %clang_cc1 -fno-typed-memory-operations -DTMO=0 -triple arm64-apple-macosx -nostdsysteminc -Wno-alloc-size -O0 -disable-llvm-passes -emit-llvm -o - %s | FileCheck --check-prefix=CHECK-DISABLED %s
+// RUN: %clang_cc1    -ftyped-memory-operations -DTMO=1 -triple arm64-apple-macosx -nostdsysteminc -Wno-alloc-size -O0 -disable-llvm-passes -emit-llvm -o - %s | FileCheck --check-prefix=CHECK          %s
 
 #if TMO
 _Static_assert(__has_feature(typed_memory_operations), "");
@@ -64,6 +66,8 @@ void f(void);
 void f(void) {
   // Basic codegen tests
   malloc(5); // #alloc1
+  // failure-warning@#alloc1 {{could not infer allocation type in call to 'malloc'}}
+  // failure-note@#alloc1 {{unable to infer allocation type from expression '5'}}
   // CHECK: %call = call ptr @typed_real_malloc(i64 noundef 5, i64 noundef [[LOC1_DESC:[0-9]+]])
   // CHECK-DISABLED: %call = call ptr @malloc(i64 noundef 5)
   malloc(sizeof(int)); // #alloc2
@@ -91,6 +95,8 @@ void f(void) {
   // CHECK: %call4 = call ptr @typed_real_malloc(i64 noundef 28, i64 noundef [[S1_DESC]])
   // CHECK-DISABLED: %call4 = call ptr @malloc(i64 noundef 28)
   my_malloc(5); // #alloc6
+  // failure-warning@#alloc6 {{could not infer allocation type in call to 'my_malloc'}}
+  // failure-note@#alloc6 {{unable to infer allocation type from expression '5'}}
   // CHECK: %call5 = call ptr @typed_malloc(i64 noundef 5, i64 noundef [[LOC2_DESC:[0-9]+]])
   // CHECK-DISABLED: %call5 = call ptr @my_malloc(i64 noundef 5)
   my_malloc(sizeof(int)); // #alloc7
@@ -120,6 +126,8 @@ void f(void) {
 
   // Ordering of argument evaluation
   my_calloc(f1(), f2()); // #alloc11
+  // failure-warning@#alloc11 {{could not infer allocation type in call to 'my_calloc'}}
+  // failure-note@#alloc11 {{unable to infer allocation type from expression 'f2()'}}
   // CHECK: %call10 = call i32 @f1()
   // CHECK: %conv = sext i32 %call10 to i64
   // CHECK: %call11 = call i32 @f2()
@@ -194,14 +202,20 @@ void *unattributed_malloc(__SIZE_TYPE__) _TYPED(size_attributed_typed_malloc, 1)
 
 int attribute_test() {
   size_attributed_malloc(1); // #alloc19
+  // failure-warning@#alloc19 {{could not infer allocation type in call to 'size_attributed_malloc'}}
+  // failure-note@#alloc19 {{unable to infer allocation type from expression '1'}}
   // CHECK: %call = call ptr @typed_malloc(i64 noundef 1, i64 noundef [[LOC4_DESC:[0-9]+]])
   size_attributed_typed_malloc(2, 0); // #alloc20
   // CHECK: %call1 = call ptr @size_attributed_typed_malloc(i64 noundef 2, i64 noundef 0) [[ATTR:#[0-9]+]]
   unattributed_malloc(3); // #alloc21
+  // failure-warning@#alloc21 {{could not infer allocation type in call to 'unattributed_malloc'}}
+  // failure-note@#alloc21 {{unable to infer allocation type from expression '3'}}
   // CHECK: %call2 = call ptr @size_attributed_typed_malloc(i64 noundef 3, i64 noundef [[LOC5_DESC:[0-9]+]]) [[ATTR]]
   typed_malloc(4, 0); // #alloc22
   // CHECK: %call3 = call ptr @typed_malloc(i64 noundef 4, i64 noundef 0)
   malloc(4); // #alloc23
+  // failure-warning@#alloc23 {{could not infer allocation type in call to 'malloc'}}
+  // failure-note@#alloc23 {{unable to infer allocation type from expression '4'}}
   // CHECK: %call4 = call ptr @typed_real_malloc(i64 noundef 4, i64 noundef [[LOC6_DESC:[0-9]+]])
   return 0;
 }
@@ -218,6 +232,8 @@ int genericTest() {
   // expected-note@#alloc25 {{encoding 'struct S1' as 74309672738655766. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 4009135638 }}}
   // CHECK: %call1 = call ptr @typed_real_malloc(i64 noundef 24, i64 noundef [[S1_DESC]])
   malloc(_Generic("foo", int: sizeof(struct S1), char*: 5)); // #alloc26
+  // failure-warning@#alloc26 {{could not infer allocation type in call to 'malloc'}}
+  // failure-note@#alloc26 {{unable to infer allocation type from expression '_Generic("foo", int: sizeof(struct S1), char *: 5)'}}
   // CHECK: %call2 = call ptr @typed_real_malloc(i64 noundef 5, i64 noundef [[LOC7_DESC:[0-9]+]])
   malloc(_Generic("foo", int: 7, char*: sizeof(struct S2))); // #alloc27
   // expected-remark@#alloc27 {{passing TMO information for type 'struct S2' to 'typed_real_malloc' (retargeted from 'malloc')}}
@@ -275,6 +291,7 @@ void test_expression_sizeof() {
 
 void test_conflicting_types() {
   struct S1* s = (struct S1*)malloc(sizeof(struct S2)); // #alloc34
+  // expected-warning@#alloc34 {{size argument of 'malloc' implies allocation type 'struct S2', which conflicts with the cast of the result to 'struct S1'; encoding 'struct S2'}}
   // expected-remark@#alloc34 {{passing TMO information for type 'struct S2' to 'typed_real_malloc' (retargeted from 'malloc')}}
   // expected-note@#alloc34 {{inferred 'struct S2' from expression 'sizeof(struct S2)'}}
   // expected-note@#alloc34 {{encoding 'struct S2' as 72057870300512784. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1384677904 }}}
@@ -359,9 +376,13 @@ void test_explicit_cast_inference(void) {
   // CHECK: %call4 = call ptr @typed_malloc_test_cast(i64 noundef [[LOC:[0-9]+]], i64 noundef [[GENERICDATA64_DESC]])
   // CHECK-DISABLED: %call4 = call ptr @malloc_test_cast
   __UINTPTR_TYPE__ uptr0 = (__UINTPTR_TYPE__)malloc_test_cast(s); // #alloc44
+  // failure-warning@#alloc44 {{could not infer allocation type in call to 'malloc_test_cast'}}
+  // failure-note@#alloc44 {{unable to infer allocation type from expression 's'}}
   // CHECK-NOT: %call5 = call ptr @typed_malloc_test_cast(i64 noundef %[[LOC:[0-9]+]], i64 noundef [[GENERICDATA64_DESC]])
   // CHECK-DISABLED: %call5 = call ptr @malloc_test_cast
   __UINTPTR_TYPE__ uptr1 = (__UINTPTR_TYPE__)malloc_test_cast(s); // #alloc45
+  // failure-warning@#alloc45 {{could not infer allocation type in call to 'malloc_test_cast'}}
+  // failure-note@#alloc45 {{unable to infer allocation type from expression 's'}}
   // CHECK-NOT: %call6 = call ptr @typed_malloc_test_cast(i64 noundef [[LOC:[0-9]+]], i64 noundef [[GENERICDATA64_DESC]])
   // CHECK-DISABLED: %call6 = call ptr @malloc_test_cast
 
@@ -377,6 +398,8 @@ void test_explicit_cast_inference(void) {
   #pragma clang diagnostic ignored "-Wint-to-pointer-cast"
   #pragma clang diagnostic ignored "-Wunused-value"
   (int *)posix_memalign(&vp_s1, 0, s); // #alloc47
+  // failure-warning@#alloc47 {{could not infer allocation type in call to 'posix_memalign'}}
+  // failure-note@#alloc47 {{unable to infer allocation type from expression 's'}}
   #pragma clang diagnostic pop
 
   // CHECK-NOT: %call8 = call i32 @typed_real_posix_memalign(ptr noundef %vp_s1, i64 noundef 0, i64 noundef [[LOC:[0-9]+]], i64 noundef [[GENERICDATA32_DESC]])
@@ -385,6 +408,8 @@ void test_explicit_cast_inference(void) {
   // Check we don't pick up unrelated explicit casts
   void *func(void *p);
   int *r0 = (int *)func(malloc_test_cast(s)); // #alloc48
+  // failure-warning@#alloc48 {{could not infer allocation type in call to 'malloc_test_cast'}}
+  // failure-note@#alloc48 {{unable to infer allocation type from expression 's'}}
   // CHECK-NOT: %call9 = call ptr @typed_malloc_test_cast(i64 noundef [[LOC:[0-9]+]], i64 noundef [[GENERICDATA32_DESC]])
   // CHECK-DISABLED: %call9 = call ptr @malloc_test_cast
 }
@@ -541,6 +566,7 @@ void test_size_vs_cast(void) {
   // expected-note@#cast_dom1 {{encoding array of 'struct S1' as 74309947616562710. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 4009135638 }}}
 
   struct S2 *p2 = (struct S2 *)malloc(sizeof(struct S1) * n); // #size_dom1
+  // expected-warning@#size_dom1 {{size argument of 'malloc' implies allocation type 'struct S1', which conflicts with the cast of the result to 'struct S2'; encoding 'struct S1'}}
   // expected-remark@#size_dom1 {{passing TMO information for array of type 'struct S1' to 'typed_real_malloc' (retargeted from 'malloc')}}
   // expected-note@#size_dom1 {{inferred array of 'struct S1' from expression 'sizeof(struct S1) * n'}}
   // expected-note@#size_dom1 {{encoding array of 'struct S1' as 74309947616562710. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 4009135638 }}}
@@ -556,6 +582,7 @@ void test_size_vs_cast(void) {
   // expected-note@#cast_dom3 {{encoding array of 'struct S1' as 74309947616562710. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 4009135638 }}}
 
   void *p5 = (struct S1 *)malloc(sizeof(struct S2) * n); // #size_dom2
+  // expected-warning@#size_dom2 {{size argument of 'malloc' implies allocation type 'struct S2', which conflicts with the cast of the result to 'struct S1'; encoding 'struct S2'}}
   // expected-remark@#size_dom2 {{passing TMO information for array of type 'struct S2' to 'typed_real_malloc' (retargeted from 'malloc')}}
   // expected-note@#size_dom2 {{inferred array of 'struct S2' from expression 'sizeof(struct S2) * n'}}
   // expected-note@#size_dom2 {{encoding array of 'struct S2' as 72058145178419728}}
@@ -595,6 +622,145 @@ void test_fam(int n) {
   // expected-remark@#sizeof_nested_famtype_n {{passing TMO information for type 'struct NestedFAMType' to 'typed_real_malloc' (retargeted from 'malloc')}}
   // expected-note@#sizeof_nested_famtype_n {{encoding 'struct NestedFAMType' as 72058697566250209. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 4016694497 }}}
   // expected-note@#sizeof_nested_famtype_n {{inferred header prefixed array of {'struct NestedFAMType':'struct FAMField'} from expression 'sizeof(struct NestedFAMType) + n'}}
+}
+
+// _BitInt(64) is accepted as the type descriptor and as the inference parameter.
+
+struct S3 {
+  int a, b, c;
+};
+
+void *typed_signed(__SIZE_TYPE__, _BitInt(64));
+void *alloc_signed(__SIZE_TYPE__) _TYPED(typed_signed, 1);
+
+void *typed_unsigned(__SIZE_TYPE__, unsigned _BitInt(64));
+void *alloc_unsigned(__SIZE_TYPE__) _TYPED(typed_unsigned, 1);
+
+typedef _BitInt(64) descriptor_t;
+void *typed_typedef(__SIZE_TYPE__, descriptor_t);
+void *alloc_typedef(__SIZE_TYPE__) _TYPED(typed_typedef, 1);
+
+void *typed_bitint_size(_BitInt(64), unsigned long long);
+void *alloc_bitint_size(_BitInt(64)) _TYPED(typed_bitint_size, 1);
+
+// CHECK-LABEL: define ptr @use_bitint_descriptors(
+struct S3 *use_bitint_descriptors(__SIZE_TYPE__ n, _BitInt(64) b) {
+  alloc_signed(n * sizeof(struct S3));   // #bitint_signed
+  // expected-remark@#bitint_signed {{passing TMO information for array of type 'struct S3' to 'typed_signed' (retargeted from 'alloc_signed')}}
+  // expected-note@#bitint_signed {{inferred array of 'struct S3' from expression 'n * sizeof(struct S3)'}}
+  // expected-note@#bitint_signed {{encoding array of 'struct S3' as 72058144835799977. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 1042058153 }}}
+  // CHECK: call ptr @typed_signed(i64 noundef %{{.*}}, i64 noundef [[ARRAY_BITINTOBJ_DESC:72058144835799977]])
+  alloc_unsigned(n * sizeof(struct S3)); // #bitint_unsigned
+  // expected-remark@#bitint_unsigned {{passing TMO information for array of type 'struct S3' to 'typed_unsigned' (retargeted from 'alloc_unsigned')}}
+  // expected-note@#bitint_unsigned {{inferred array of 'struct S3' from expression 'n * sizeof(struct S3)'}}
+  // expected-note@#bitint_unsigned {{encoding array of 'struct S3' as 72058144835799977. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 1042058153 }}}
+  // CHECK: call ptr @typed_unsigned(i64 noundef %{{.*}}, i64 noundef [[ARRAY_BITINTOBJ_DESC]])
+  alloc_typedef(n * sizeof(struct S3));  // #bitint_typedef
+  // expected-remark@#bitint_typedef {{passing TMO information for array of type 'struct S3' to 'typed_typedef' (retargeted from 'alloc_typedef')}}
+  // expected-note@#bitint_typedef {{inferred array of 'struct S3' from expression 'n * sizeof(struct S3)'}}
+  // expected-note@#bitint_typedef {{encoding array of 'struct S3' as 72058144835799977. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 1042058153 }}}
+  // CHECK: call ptr @typed_typedef(i64 noundef %{{.*}}, i64 noundef [[ARRAY_BITINTOBJ_DESC]])
+  return alloc_bitint_size(b);                  // #bitint_size
+  // failure-warning@#bitint_size {{could not infer allocation type in call to 'alloc_bitint_size'}}
+  // failure-note@#bitint_size {{unable to infer allocation type from expression 'b'}}
+  // CHECK: call ptr @typed_bitint_size(i64 noundef %{{.*}}, i64 noundef [[LOC_BITINT_DESC:[0-9]+]])
+}
+// A char or unsigned char cast of the result does not override the size
+// argument's inference; any other conflicting cast is diagnosed.
+
+void *as_char(__SIZE_TYPE__ n) {
+  return (char *)my_malloc(n * sizeof(int)); // #as_char
+  // expected-remark@#as_char {{passing TMO information for array of type 'int' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // expected-note@#as_char {{inferred array of 'int' from expression 'n * sizeof(int)'}}
+  // expected-note@#as_char {{encoding array of 'int' as 72058145178419728. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 1384677904 }}}
+}
+
+void *as_unsigned_char(void) {
+  return (unsigned char *)my_malloc(sizeof(struct S3)); // #as_uchar
+  // expected-remark@#as_uchar {{passing TMO information for type 'struct S3' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // expected-note@#as_uchar {{inferred 'struct S3' from expression 'sizeof(struct S3)'}}
+  // expected-note@#as_uchar {{encoding 'struct S3' as 72057869957893033. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1042058153 }}}
+}
+
+void *cast_conflict(void) {
+  return (double *)my_malloc(sizeof(struct S3)); // #cast_conflict
+  // expected-warning@#cast_conflict {{size argument of 'my_malloc' implies allocation type 'struct S3', which conflicts with the cast of the result to 'double'; encoding 'struct S3'}}
+  // expected-remark@#cast_conflict {{passing TMO information for type 'struct S3' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // expected-note@#cast_conflict {{inferred 'struct S3' from expression 'sizeof(struct S3)'}}
+  // expected-note@#cast_conflict {{encoding 'struct S3' as 72057869957893033. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1042058153 }}}
+}
+
+
+struct S3 *decl_before_result(__SIZE_TYPE__ n) {
+  return (struct S3 *)({ // #castOfdecl_before
+    __SIZE_TYPE__ m = n;
+    my_malloc(m); // #decl_before
+  });
+  // expected-remark@#decl_before {{passing TMO information for type 'struct S3' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // expected-note@#decl_before {{encoding 'struct S3' as 72057869957893033. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1042058153 }}}
+  // expected-note@#castOfdecl_before {{inferred 'struct S3' from cast of result from call to '(struct S3 *)({}}
+}
+
+struct S3 *labelled_result(__SIZE_TYPE__ n) {
+  return (struct S3 *)({ // #castOflabelled
+  lbl:
+    my_malloc(n); // #labelled
+  });
+  // expected-remark@#labelled {{passing TMO information for type 'struct S3' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // expected-note@#labelled {{encoding 'struct S3' as 72057869957893033. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1042058153 }}}
+  // expected-note@#castOflabelled {{inferred 'struct S3' from cast of result from call to '(struct S3 *)({}}
+}
+
+struct S3 *attributed_result(__SIZE_TYPE__ n) {
+  return (struct S3 *)({ // #castOfattributed
+    __attribute__((nomerge)) my_malloc(n); // #attributed
+  });
+  // expected-remark@#attributed {{passing TMO information for type 'struct S3' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // expected-note@#attributed {{encoding 'struct S3' as 72057869957893033. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1042058153 }}}
+  // expected-note@#castOfattributed {{inferred 'struct S3' from cast of result from call to '(struct S3 *)({}}
+}
+
+struct S3 *nested_result(__SIZE_TYPE__ n) {
+  return (struct S3 *)({ // #castOfnested
+    ({ my_malloc(n); }); // #nested
+  });
+  // expected-remark@#nested {{passing TMO information for type 'struct S3' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // expected-note@#nested {{encoding 'struct S3' as 72057869957893033. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1042058153 }}}
+  // expected-note@#castOfnested {{inferred 'struct S3' from cast of result from call to '(struct S3 *)({}}
+}
+
+#define RESULT(x) my_malloc(x)
+struct S3 *macro_result(__SIZE_TYPE__ n) {
+  return (struct S3 *)({ RESULT(n); }); // #macro #castOfmacro
+  // expected-remark@#macro {{passing TMO information for type 'struct S3' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // expected-note@#macro {{encoding 'struct S3' as 72057869957893033. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1042058153 }}}
+  // expected-note@#castOfmacro {{inferred 'struct S3' from cast of result from call to '(struct S3 *)({}}
+}
+
+struct S3 *non_result_statement(__SIZE_TYPE__ n, struct S3 *q) {
+  return (struct S3 *)({
+    my_malloc(n /* #non_resultSrc */); // #non_result
+    q;
+  });
+  // failure-warning@#non_result {{could not infer allocation type in call to 'my_malloc'}}
+  // failure-note@#non_resultSrc {{unable to infer allocation type from expression 'n'}}
+}
+
+struct S3 *inner_statement(__SIZE_TYPE__ n, struct S3 *q) {
+  return (struct S3 *)({
+    if (n)
+      my_malloc(n /* #innerSrc */); // #inner
+    q;
+  });
+  // failure-warning@#inner {{could not infer allocation type in call to 'my_malloc'}}
+  // failure-note@#innerSrc {{unable to infer allocation type from expression 'n'}}
+}
+
+void *identity(void *p);
+struct S3 *through_call(__SIZE_TYPE__ n) {
+  return (struct S3 *)identity(({ my_malloc(n /* #through_callSrc */); })); // #through_call
+  // failure-warning@#through_call {{could not infer allocation type in call to 'my_malloc'}}
+  // failure-note@#through_callSrc {{unable to infer allocation type from expression 'n'}}
 }
 
 

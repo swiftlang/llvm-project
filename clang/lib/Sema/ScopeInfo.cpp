@@ -59,7 +59,6 @@ void FunctionScopeInfo::Clear() {
   Blocks.clear();
   ByrefBlockVars.clear();
   AddrLabels.clear();
-  TMOContext.clear();
 }
 
 static const NamedDecl *getBestPropertyDecl(const ObjCPropertyRefExpr *PropE) {

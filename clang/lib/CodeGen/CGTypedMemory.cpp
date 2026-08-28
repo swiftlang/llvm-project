@@ -72,7 +72,8 @@ static llvm::stable_hash GetLocationHash(const CodeGenModule &CGM,
 }
 
 RValue CodeGenFunction::EmitTypedMemoryCall(const CallExpr *E,
-                                            TypedMemoryAttr *TMA,
+                                            const TypedMemoryAttr *TMA,
+                                            const InferredTypeInfo &Info,
                                             ReturnValueSlot ReturnValue) {
   assert(CGM.getLangOpts().TypedMemoryOperations);
   auto *Target = TMA->getRewriteTarget();
@@ -89,7 +90,7 @@ RValue CodeGenFunction::EmitTypedMemoryCall(const CallExpr *E,
   auto *InferredParameter = E->getArg(InferredParamIndex);
 
   TypedMemoryDescriptorBits Descriptor;
-  if (InferredTypeInfo Info = Context.getInferredInfoForCall(E); Info.Type) {
+  if (Info.Type) {
     if (auto PrimaryType = Info.Type->primaryType()) {
       auto TypeDescriptor = Context.getTypedMemoryDescriptor(
           *PrimaryType, OO_None, Info.InferredCallsiteFlags);
@@ -112,7 +113,7 @@ RValue CodeGenFunction::EmitTypedMemoryCall(const CallExpr *E,
       DescriptorId, PropertyDescriptorType, DescriptorParamType,
       InferredParameter->getExprLoc());
   auto InferredTypeArg =
-      CallArg(RValue::get(ConvertedValue), PropertyDescriptorType);
+      CallArg(RValue::get(ConvertedValue), DescriptorParamType);
   CallArgs.insert(CallArgs.begin() + InferredParamIndex + 1, InferredTypeArg);
 
   const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeFreeFunctionCall(

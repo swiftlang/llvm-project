@@ -5615,6 +5615,20 @@ bool CompilerInvocation::CreateFromArgsImpl(
     if (LangOpts.CUDAIsDevice)
       Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
   }
+  auto InvalidTMOLanguageMode = [&LangOpts]() -> const char * {
+    if (!LangOpts.TypedMemoryOperations)
+      return nullptr;
+    if (LangOpts.OpenCL)
+      return "OpenCL";
+    if (LangOpts.HIP)
+      return "HIP";
+    if (LangOpts.CUDA)
+      return "CUDA";
+    return nullptr;
+  };
+  if (const char *InvalidMode = InvalidTMOLanguageMode())
+    Diags.Report(diag::err_drv_unsupported_opt_for_language_mode)
+        << "-ftyped-memory-operations" << InvalidMode;
 
   if (LangOpts.OpenACC && !Res.getFrontendOpts().UseClangIRPipeline &&
       isCodeGenAction(Res.getFrontendOpts().ProgramAction))

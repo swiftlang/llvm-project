@@ -2,7 +2,13 @@
 // RUN: mkdir %t
 // RUN: split-file %s %t
 //
-// RUN: %clang_cc1 -std=c++20 %t/M.cppm -ftyped-memory-operations -fsyntax-only -verify
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++20 %t/M.cppm -ftyped-memory-operations -fsyntax-only -verify
+//
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++20 %t/M.cppm -ftyped-memory-operations -Rtmo-remarks \
+// RUN:   -fsyntax-only 2>&1 | FileCheck %s
+//
+// CHECK: remark: passing TMO information for array of type 'S1' to 'typed' (retargeted from 'alloc')
+// CHECK: remark: passing TMO information for array of type 'int' to 'typed<int>' (retargeted from 'alloc')
 
 //--- foo.h
 
@@ -28,6 +34,23 @@ inline int *alloc_int(int n) {
   return alloc_t<int>(n);
 }
 
+template <class T> struct ModuleAllocator {
+  static T *typed(__SIZE_TYPE__ size, unsigned long long id) {
+    return (T *)test_typed_malloc(size, id);
+  }
+  static T *alloc(__SIZE_TYPE__ size) __attribute__((typed_memory_operation(typed, 1)));
+};
+
+struct ModuleHolder {
+  template <class U> static void *typed(__SIZE_TYPE__ size, unsigned long long id) {
+    return test_typed_malloc(size, id);
+  }
+};
+
+template <class T> struct ModuleSubstitutedAllocator {
+  static void *alloc(__SIZE_TYPE__ size) __attribute__((typed_memory_operation(ModuleHolder::typed<T>, 1)));
+};
+
 
 //--- M.cppm
 // expected-no-diagnostics
@@ -37,10 +60,14 @@ export module M;
 export using ::test_inline_tmo_call;
 export using ::alloc_t;
 export using ::alloc_int;
+export using ::ModuleAllocator;
+export using ::ModuleSubstitutedAllocator;
 
 
 export void test_in_module() {
   test_inline_tmo_call(10);
   alloc_t<S1>(10);
   alloc_int(10);
+  ModuleAllocator<S1>::alloc(sizeof(S1) * 10);
+  ModuleSubstitutedAllocator<int>::alloc(sizeof(int) * 10);
 }

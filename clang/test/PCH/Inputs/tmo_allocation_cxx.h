@@ -82,3 +82,39 @@ template void in_pch_template_function<float>(); //#float_instantiation
 // expected-remark@#tptr5 {{passing TMO information for type 'float' to 'typed_malloc' (retargeted from 'malloc')}}
 // expected-note@#tptr5 {{inferred 'float' from cast of result from call to 'reinterpret_cast<float *>(malloc(100))'}}
 // expected-note@#tptr5 {{encoding 'float' as 72057870300512784. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1384677904 }}}
+
+template <class T> struct InPchAllocator {
+  static T *typed(__SIZE_TYPE__ size, unsigned long long id) {
+    return (T *)typed_malloc(size, id);
+  }
+  static T *alloc(__SIZE_TYPE__ size) _TYPED(typed, 1);
+};
+
+struct InPchHolder {
+  template <class U> static void *typed(__SIZE_TYPE__ size, unsigned long long id) {
+    return typed_malloc(size, id);
+  }
+};
+
+template <class T> struct InPchSubstitutedAllocator {
+  static void *alloc(__SIZE_TYPE__ size) _TYPED(InPchHolder::typed<T>, 1);
+};
+
+// pch_force exists to trigger the instantiation while the pch is built.
+void *pch_typed(__SIZE_TYPE__, unsigned long long);
+void *pch_alloc(__SIZE_TYPE__) _TYPED(pch_typed, 1);
+
+struct PchObj {
+  void *p;
+  int i;
+};
+
+template <class T> T *pch_alloc_t(__SIZE_TYPE__ n) {
+  return (T *)pch_alloc(n * sizeof(T)); // #pch_alloc_t
+  // expected-remark@#pch_alloc_t {{passing TMO information for array of type 'PchObj' to 'pch_typed' (retargeted from 'pch_alloc')}}
+  // expected-note@#pch_alloc_t {{inferred array of 'PchObj' from expression 'n * sizeof(PchObj)'}}
+  // expected-note@#pch_alloc_t {{encoding array of 'PchObj' as 74309946059500724. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 2452073652 }}}
+}
+
+inline PchObj *pch_force(__SIZE_TYPE__ n) { return pch_alloc_t<PchObj>(n); } // #pch_force
+// expected-note@#pch_force {{in instantiation of function template specialization 'pch_alloc_t<PchObj>' requested here}}

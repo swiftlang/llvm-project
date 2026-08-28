@@ -7394,14 +7394,16 @@ RValue CodeGenFunction::EmitCallExpr(const CallExpr *E,
         MD && MD->isImplicitObjectMemberFunction())
       return EmitCXXOperatorMemberCallExpr(CE, MD, ReturnValue, CallOrInvoke);
 
-  auto *CalleeExpr = E->getCallee();
-
-  if (auto *CalleeDecl = CalleeExpr->getReferencedDeclOfCallee()) {
-    if (auto *TMA = CalleeDecl->getAttr<TypedMemoryAttr>())
-      return EmitTypedMemoryCall(E, TMA, ReturnValue);
+  if (getLangOpts().TypedMemoryOperations) {
+    if (const auto *TMA = E->getTypedMemoryAttribute()) {
+      if (std::optional<InferredTypeInfo> Info =
+              getContext().getInferredInfoForCall(E))
+        return EmitTypedMemoryCall(E, TMA, *Info, ReturnValue);
+    }
   }
 
-  CGCallee callee = EmitCallee(E->getCallee());
+  auto *CalleeExpr = E->getCallee();
+  CGCallee callee = EmitCallee(CalleeExpr);
 
   if (callee.isBuiltin()) {
     return EmitBuiltinExpr(callee.getBuiltinDecl(), callee.getBuiltinID(),
@@ -7412,7 +7414,7 @@ RValue CodeGenFunction::EmitCallExpr(const CallExpr *E,
     return EmitCXXPseudoDestructorExpr(callee.getPseudoDestructorExpr());
   }
 
-  return EmitCall(E->getCallee()->getType(), callee, E, ReturnValue,
+  return EmitCall(CalleeExpr->getType(), callee, E, ReturnValue,
                   /*Chain=*/nullptr, CallOrInvoke);
 }
 

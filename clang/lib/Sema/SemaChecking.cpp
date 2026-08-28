@@ -4517,6 +4517,8 @@ void Sema::checkCall(NamedDecl *FDecl, const CallExpr *TheCall,
                      ArrayRef<const Expr *> Args, bool IsMemberFunction,
                      SourceLocation Loc, SourceRange Range,
                      VariadicCallType CallType) {
+  if (TheCall)
+    recordTMOInferenceCandidate(TheCall);
 
   if ((ThisArg && ThisArg->isInstantiationDependent()) ||
       llvm::any_of(Args, [](const Expr *E) {

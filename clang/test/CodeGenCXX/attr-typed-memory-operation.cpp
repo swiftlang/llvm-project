@@ -1,17 +1,17 @@
-// RUN: %clang_cc1 -Rtmo-remarks -fsyntax-only -verify=tmo \
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++23 -Rtmo-remarks -fsyntax-only -verify=tmo \
 // RUN:               -ftyped-memory-operations -DTMO=1 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis %s
-// RUN: %clang_cc1 -Rtmo-remarks -fsyntax-only -verify=tmo,tmowarn -Wtyped-memory-inference-failure \
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++23 -Rtmo-remarks -fsyntax-only -verify=tmo,tmowarn -Wtyped-memory-inference-failure \
 // RUN:               -ftyped-memory-operations -DTMO=1 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis %s
-// RUN: %clang_cc1 -Rtmo-remarks -fsyntax-only -verify=tmo \
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++23 -Rtmo-remarks -fsyntax-only -verify=tmo \
 // RUN:               -ftyped-memory-operations -DTMO=1 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis %s
-// RUN: %clang_cc1 -Rtmo-remarks -fsyntax-only -verify=tmo,tmowarn -Wtyped-memory-inference-failure \
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++23 -Rtmo-remarks -fsyntax-only -verify=tmo,tmowarn -Wtyped-memory-inference-failure \
 // RUN:               -ftyped-memory-operations -DTMO=1 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis %s
-// RUN: %clang_cc1               -fsyntax-only -verify=notmoremarks \
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++23               -fsyntax-only -verify=notmoremarks \
 // RUN:               -ftyped-memory-operations -DTMO=1 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis %s
-// RUN: %clang_cc1               -verify=notmoremarks -fsyntax-only \
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++23               -verify=notmoremarks -fsyntax-only \
 // RUN:             -fno-typed-memory-operations -Rtmo-remarks -DTMO=0 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis %s
-// RUN: %clang_cc1    -ftyped-memory-operations -DTMO=1 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis -emit-llvm -o - %s | FileCheck --check-prefix=CHECK          %s
-// RUN: %clang_cc1 -fno-typed-memory-operations -DTMO=0 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis -emit-llvm -o - %s | FileCheck --check-prefix=CHECK-DISABLED %s
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++23    -ftyped-memory-operations -DTMO=1 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis -emit-llvm -o - %s | FileCheck --check-prefix=CHECK          %s
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++23 -fno-typed-memory-operations -DTMO=0 -nostdsysteminc -O0 -disable-llvm-passes -no-enable-noundef-analysis -emit-llvm -o - %s | FileCheck --check-prefix=CHECK-DISABLED %s
 
 // notmoremarks-no-diagnostics
 #if TMO
@@ -106,7 +106,6 @@ extern "C" void f() {
   malloc(5); // #alloc1
   // tmowarn-warning@#alloc1 {{could not infer allocation type in call to 'malloc'}}
   // tmowarn-note@#alloc1 {{unable to infer allocation type from expression '5'}}
-  // tmo@alloc1 {{unable to infer allocation type from expression '5'}}
   // CHECK: %call = call ptr @typed_real_malloc(i64 5, i64 [[LOC1_DESC:[0-9]+]])
   // CHECK-DISABLED: %call = call ptr @malloc(i64 5)
   malloc(sizeof(int)); // #alloc2
@@ -136,7 +135,6 @@ extern "C" void f() {
   my_malloc(5); // #alloc6
   // tmowarn-warning@#alloc6 {{could not infer allocation type in call to 'my_malloc'}}
   // tmowarn-note@#alloc6 {{unable to infer allocation type from expression '5'}}
-  // tmo@alloc6 {{unable to infer allocation type from expression '5'}}
   // CHECK: %call5 = call ptr @_Z12typed_mallocmy(i64 5, i64 [[LOC2_DESC:[0-9]+]])
   // CHECK-DISABLED: %call5 = call ptr @_Z9my_mallocm(i64 5)
   my_malloc(sizeof(int)); // #alloc7
@@ -306,6 +304,172 @@ extern "C" void f() {
   // CHECK: %call42 = call ptr @typed_real_malloc(i64 40, i64 [[NULLPTRSTRUCT_DESC:74309671971610988]])
 }
 
+void *typed_malloc_ull(unsigned long long size, unsigned long long);
+
+struct S {
+  int a, b, c;
+};
+
+void *free_function(__SIZE_TYPE__ size) TYPED(typed_malloc, 1);
+
+S *via_free_function(__SIZE_TYPE__ n) {
+  return (S *)free_function(n * sizeof(S)); // #free_fn
+  // tmo-remark@#free_fn {{passing TMO information for array of type 'S' to 'typed_malloc' (retargeted from 'free_function')}}
+  // tmo-note@#free_fn {{inferred array of 'S' from expression 'n * sizeof(S)'}}
+  // tmo-note@#free_fn {{encoding array of 'S' as 72058144835799977. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 1042058153 }}}
+}
+// CHECK: call ptr @_Z12typed_mallocmy(i64 %{{.*}}, i64 [[ARRAY_S_DESC:72058144835799977]])
+
+struct StaticMember {
+  static void *alloc(__SIZE_TYPE__ size) TYPED(typed_malloc, 1);
+};
+
+S *via_static_member(__SIZE_TYPE__ n) {
+  return (S *)StaticMember::alloc(n * sizeof(S)); // #static_member
+  // tmo-remark@#static_member {{passing TMO information for array of type 'S' to 'typed_malloc' (retargeted from 'alloc')}}
+  // tmo-note@#static_member {{inferred array of 'S' from expression 'n * sizeof(S)'}}
+  // tmo-note@#static_member {{encoding array of 'S' as 72058144835799977. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 1042058153 }}}
+}
+// CHECK: call ptr @_Z12typed_mallocmy(i64 %{{.*}}, i64 [[ARRAY_S_DESC]])
+
+// A user-defined literal operator.
+void *operator""_alloc(unsigned long long size) TYPED(typed_malloc_ull, 1);
+
+S *via_literal_operator() {
+  return (S *)16_alloc; // #literal_op
+  // tmo-remark@#literal_op {{passing TMO information for type 'S' to 'typed_malloc_ull' (retargeted from 'operator""_alloc')}}
+  // tmo-note@#literal_op {{inferred 'S' from cast of result from call to '(S *)16_alloc'}}
+  // tmo-note@#literal_op {{encoding 'S' as 72057869957893033. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 1042058153 }}}
+}
+// CHECK: call ptr @_Z16typed_malloc_ullyy(i64 16, i64 [[S_DESC:72057869957893033]])
+
+struct Obj {
+  void *p;
+  int i;
+};
+
+void *before_attribute(__SIZE_TYPE__);
+Obj *call_before(__SIZE_TYPE__ n) { return (Obj *)before_attribute(n * sizeof(Obj)); }
+// CHECK: call ptr @_Z16before_attributem(i64 %{{.*}})
+void *before_attribute(__SIZE_TYPE__) TYPED(typed_malloc, 1);
+Obj *call_after(__SIZE_TYPE__ n) {
+  return (Obj *)before_attribute(n * sizeof(Obj)); // #call_after
+  // tmo-remark@#call_after {{passing TMO information for array of type 'Obj' to 'typed_malloc' (retargeted from 'before_attribute')}}
+  // tmo-note@#call_after {{inferred array of 'Obj' from expression 'n * sizeof(Obj)'}}
+  // tmo-note@#call_after {{encoding array of 'Obj' as 74309946059500724. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 2452073652 }}}
+  // CHECK: call ptr @_Z12typed_mallocmy(i64 %{{.*}}, i64 [[ARRAY_OBJ_DESC:74309946059500724]])
+}
+
+void *attributed_later(__SIZE_TYPE__);
+template <class T> T *instantiated_later(__SIZE_TYPE__ n) {
+  return (T *)attributed_later(n * sizeof(T)); // #instantiated_later
+  // tmo-remark@#instantiated_later {{passing TMO information for array of type 'Obj' to 'typed_malloc' (retargeted from 'attributed_later')}}
+  // tmo-note@#instantiated_later {{inferred array of 'Obj' from expression 'n * sizeof(Obj)'}}
+  // tmo-note@#instantiated_later {{encoding array of 'Obj' as 74309946059500724. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 2452073652 }}}
+}
+void *attributed_later(__SIZE_TYPE__) TYPED(typed_malloc, 1);
+Obj *use_instantiated_later(__SIZE_TYPE__ n) {
+  return instantiated_later<Obj>(n); // #use_instantiated_later
+  // tmo-note@#use_instantiated_later {{in instantiation of function template specialization 'instantiated_later<Obj>' requested here}}
+}
+// CHECK: define linkonce_odr ptr @_Z18instantiated_laterI3ObjEPT_m
+// CHECK: call ptr @_Z12typed_mallocmy(i64 %{{.*}}, i64 [[ARRAY_OBJ_DESC]])
+
+void sink(Obj *, int);
+void sink2(int, Obj *);
+
+template <unsigned long N> void takesN(Obj *, char (&)[N]);
+void deduced_nttp(__SIZE_TYPE__ n) {
+  char buf[4];
+  takesN((Obj *)my_malloc(n), buf); // #deduced_nttp
+  // tmo-remark@#deduced_nttp {{passing TMO information for type 'Obj' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // tmo-note@#deduced_nttp {{inferred 'Obj' from cast of result from call to '(Obj *)my_malloc(n)'}}
+  // tmo-note@#deduced_nttp {{encoding 'Obj' as 74309671181593780. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 2452073652 }}}
+  // CHECK: call ptr @_Z12typed_mallocmy(i64 %{{.*}}, i64 [[OBJ_DESC:74309671181593780]])
+}
+
+template <bool D = true> void takesDefaulted(Obj *);
+void defaulted_nttp(__SIZE_TYPE__ n) {
+  takesDefaulted((Obj *)my_malloc(n)); // #defaulted_nttp
+  // tmo-remark@#defaulted_nttp {{passing TMO information for type 'Obj' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // tmo-note@#defaulted_nttp {{inferred 'Obj' from cast of result from call to '(Obj *)my_malloc(n)'}}
+  // tmo-note@#defaulted_nttp {{encoding 'Obj' as 74309671181593780. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 2452073652 }}}
+  // CHECK: call ptr @_Z12typed_mallocmy(i64 %{{.*}}, i64 [[OBJ_DESC]])
+}
+
+template <bool D = true> int defaultedValue();
+void order_allocation_first(__SIZE_TYPE__ n) {
+  sink((Obj *)my_malloc(n), defaultedValue()); // #order_first
+  // tmo-remark@#order_first {{passing TMO information for type 'Obj' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // tmo-note@#order_first {{inferred 'Obj' from cast of result from call to '(Obj *)my_malloc(n)'}}
+  // tmo-note@#order_first {{encoding 'Obj' as 74309671181593780. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 2452073652 }}}
+  // CHECK: call ptr @_Z12typed_mallocmy(i64 %{{.*}}, i64 [[OBJ_DESC]])
+}
+void order_allocation_second(__SIZE_TYPE__ n) {
+  sink2(defaultedValue(), (Obj *)my_malloc(n)); // #order_second
+  // tmo-remark@#order_second {{passing TMO information for type 'Obj' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // tmo-note@#order_second {{inferred 'Obj' from cast of result from call to '(Obj *)my_malloc(n)'}}
+  // tmo-note@#order_second {{encoding 'Obj' as 74309671181593780. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 2452073652 }}}
+  // CHECK: call ptr @_Z12typed_mallocmy(i64 %{{.*}}, i64 [[OBJ_DESC]])
+}
+
+void lambda_default_arg() {
+  auto L = [](Obj *P = (Obj *)my_malloc(sizeof(Obj))) { return P; }; // #lambda_default_arg
+  // tmo-remark@#lambda_default_arg {{passing TMO information for type 'Obj' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // tmo-note@#lambda_default_arg {{inferred 'Obj' from expression 'sizeof(Obj)'}}
+  // tmo-note@#lambda_default_arg {{encoding 'Obj' as 74309671181593780. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 2452073652 }}}
+  // CHECK: call ptr @_Z12typed_mallocmy(i64 16, i64 [[OBJ_DESC]])
+  (void)L();
+}
+
+struct LateParsed {
+  void member(Obj *P = (Obj *)my_malloc(sizeof(Obj))) { (void)P; } // #late_parsed
+  // tmo-remark@#late_parsed {{passing TMO information for type 'Obj' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // tmo-note@#late_parsed {{inferred 'Obj' from expression 'sizeof(Obj)'}}
+  // tmo-note@#late_parsed {{encoding 'Obj' as 74309671181593780. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 2452073652 }}}
+};
+void use_late_parsed() { LateParsed{}.member(); }
+// CHECK: call ptr @_Z12typed_mallocmy(i64 16, i64 [[OBJ_DESC]])
+
+template <class T> struct TemplateDMI { // #template_dmi_decl
+  T *P = (T *)my_malloc(sizeof(T));     // #template_dmi
+  // tmo-remark@#template_dmi {{passing TMO information for type 'Obj' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // tmo-note@#template_dmi {{inferred 'Obj' from expression 'sizeof(Obj)'}}
+  // tmo-note@#template_dmi {{encoding 'Obj' as 74309671181593780. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 2452073652 }}}
+  // tmo-note@#template_dmi_decl {{in instantiation of default member initializer 'TemplateDMI<Obj>::P' requested here}}
+};
+void use_template_dmi() {
+  TemplateDMI<Obj> v; // #template_dmi_use
+  // tmo-note@#template_dmi_use {{in evaluation of exception specification for 'TemplateDMI<Obj>::TemplateDMI' needed here}}
+  (void)v.P;
+}
+
+template <class U> void dependent_cast(__SIZE_TYPE__ n) {
+  U *p = (U *)my_malloc(sizeof(U)); // #dependent_cast
+  // tmo-remark@#dependent_cast {{passing TMO information for type 'Obj' to 'typed_malloc' (retargeted from 'my_malloc')}}
+  // tmo-note@#dependent_cast {{inferred 'Obj' from expression 'sizeof(Obj)'}}
+  // tmo-note@#dependent_cast {{encoding 'Obj' as 74309671181593780. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 2452073652 }}}
+  (void)p;
+}
+void use_dependent_cast(__SIZE_TYPE__ n) {
+  dependent_cast<Obj>(n); // #dependent_cast_use
+  // tmo-note@#dependent_cast_use {{in instantiation of function template specialization 'dependent_cast<Obj>' requested here}}
+}
+// CHECK: define linkonce_odr void @_Z14dependent_castI3ObjEvm
+// CHECK: call ptr @_Z12typed_mallocmy(i64 16, i64 [[OBJ_DESC]])
+
+void unevaluated_operands() {
+  (void)sizeof((Obj *)my_malloc(sizeof(Obj)));
+  (void)noexcept((Obj *)my_malloc(sizeof(Obj)));
+  using T = decltype((Obj *)my_malloc(sizeof(Obj)));
+}
+// CHECK: define void @_Z20unevaluated_operandsv
+// CHECK-NOT: call ptr @_Z12typed_mallocmy
+
+template <class T>
+concept AllocatesObj = requires { (Obj *)my_malloc(sizeof(Obj)); };
+static_assert(AllocatesObj<int>);
+
 class C {
 
   struct I {
@@ -385,6 +549,10 @@ void test_fam(int n) {
   // tmo-note@#sizeof_famtype_static_n {{encoding 'struct FAMTypeWithTrailingStaticField' as 72058697202783686. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "HeaderPrefixedArray" ] }, "TypeHash": 3653227974 }}}
   // tmo-note@#sizeof_famtype_static_n {{inferred header prefixed array of {'struct FAMTypeWithTrailingStaticField':'struct FAMField'} from expression 'sizeof(struct FAMTypeWithTrailingStaticField) + n'}}
 }
+
+// The default member initializer is emitted last, with its own constructor.
+// CHECK: define linkonce_odr ptr @_ZN11TemplateDMII3ObjEC2Ev
+// CHECK: call ptr @_Z12typed_mallocmy(i64 16, i64 [[OBJ_DESC]])
 
 // CHECK: !{!"type-descriptor", !"[[LOC1_DESC]]", !"[[LOC1_DESC]]", !"\22LayoutSemantics\22: [ ], \22TypeFlags\22: [ ], \22TypeKind\22: \22KindC\22, \22CallsiteFlags\22: [ ]"}
 // CHECK: !{!"type-descriptor", !"[[GENERICDATA32_DESC]]", !"1384677904", !"\22LayoutSemantics\22: [ \22GenericData\22 ], \22TypeFlags\22: [ ], \22TypeKind\22: \22KindC\22, \22CallsiteFlags\22: [ \22FixedSize\22 ]"}

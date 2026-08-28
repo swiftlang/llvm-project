@@ -462,8 +462,10 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
   // valid evaluation context available. It is never removed from the
   // evaluation stack.
   ExprEvalContexts.emplace_back(
-      ExpressionEvaluationContext::PotentiallyEvaluated, 0, CleanupInfo{},
-      nullptr, ExpressionEvaluationContextRecord::EK_Other);
+      ExpressionEvaluationContext::PotentiallyEvaluated,
+      /*NumCleanupObjects=*/0, /*ContextHeadTMOIndex=*/0, CleanupInfo{},
+      /*ManglingContextDecl=*/nullptr,
+      ExpressionEvaluationContextRecord::EK_Other);
 
   // Initialization of data sharing attributes stack for OpenMP
   OpenMP().InitDataSharingAttributesStack();
@@ -1557,6 +1559,10 @@ void Sema::ActOnEndOfTranslationUnit() {
   // All dllexport classes should have been processed already.
   assert(DelayedDllExportClasses.empty());
   assert(DelayedDllExportMemberFunctions.empty());
+
+  // All the TMO inference candidates should have been processed already.
+  assert(Diags.hasErrorOccurred() ||
+         TMOCandidates.size() == ExprEvalContexts[0].ContextHeadTMOIndex);
 
   // Remove file scoped decls that turned out to be used.
   UnusedFileScopedDecls.erase(

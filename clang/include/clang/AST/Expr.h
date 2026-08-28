@@ -51,6 +51,7 @@ class CXXOperatorCallExpr;
 class CastExpr;
 class Decl;
 class IdentifierInfo;
+struct InferredTypeInfo;
 class MaterializeTemporaryExpr;
 class NamedDecl;
 class ObjCPropertyRefExpr;
@@ -60,6 +61,7 @@ class StringLiteral;
 class TargetInfo;
 class ValueDecl;
 class WarnUnusedResultAttr;
+class TypedMemoryAttr;
 
 /// A simple array of base specifiers.
 typedef SmallVector<CXXBaseSpecifier *, 4> CXXCastPath;
@@ -3206,6 +3208,8 @@ public:
   const FunctionDecl *getDirectCallee() const {
     return dyn_cast_or_null<FunctionDecl>(getCalleeDecl());
   }
+
+  const TypedMemoryAttr *getTypedMemoryAttribute() const;
 
   /// getNumArgs - Return the number of actual arguments to this call.
   unsigned getNumArgs() const { return NumArgs; }
