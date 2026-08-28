@@ -1001,6 +1001,16 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
 - Fixed a crash when passing one sized implicitly casted vector to a `abs` function. (#GH204777)
 - Fixed a crash when diagnosing an invalid out-of-line definition of a member class template. (#GH201490)
 - Fixed a crash in the parser when a missing semicolon after a tag definition is followed by a template-id not preceded by `::`. (#GH207992)
+||||||| parent of 92efec0854b2 ([AST] Make err_struct_too_large check target-aware (#218749))
+- Fixed a crash in CTAD for type alias templates when the aggregate deduction guide could not be resolved. (#GH206994)
+- Fixed a crash when instantiating an invalid dependent friend destructor declaration in a class template. (#GH210234)
+- Fixed an assertion failure in `-extract-api` when a documentation comment
+  contains invalid UTF-8. (#GH212393)
+- Fixed a crash when generating fake uses for parameters of bodyless destructors with `-fextend-variable-liveness`.
+- Fixed a crash in codegen on 32-bit targets caused by a struct too large to
+  represent in `size_t`. The `err_struct_too_large` check now scales the
+  threshold to the target's `size_t` width instead of using a fixed
+  threshold of `1 << 60` regardless of the target.
 
 ### OpenACC Specific Changes
 
