@@ -2558,8 +2558,8 @@ ExprResult Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
 
     DiagnoseSentinelCalls(OperatorNew, PlacementLParen, CallArgs);
 
-    checkCall(OperatorNew, Proto, /*ThisArg=*/nullptr, CallArgs,
-              /*IsMemberFunction=*/false, StartLoc, Range, CallType);
+    checkCall(OperatorNew, /*TheCall=*/nullptr, Proto, /*ThisArg=*/nullptr,
+              CallArgs, /*IsMemberFunction=*/false, StartLoc, Range, CallType);
 
     // Warn if the type is over-aligned and is being allocated by (unaligned)
     // global operator new.

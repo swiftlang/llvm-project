@@ -3290,9 +3290,10 @@ public:
   /// Handles the checks for format strings, non-POD arguments to vararg
   /// functions, NULL arguments passed to non-NULL parameters, diagnose_if
   /// attributes and AArch64 SME attributes.
-  void checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
-                 const Expr *ThisArg, ArrayRef<const Expr *> Args,
-                 bool IsMemberFunction, SourceLocation Loc, SourceRange Range,
+  void checkCall(NamedDecl *FDecl, const CallExpr *TheCall,
+                 const FunctionProtoType *Proto, const Expr *ThisArg,
+                 ArrayRef<const Expr *> Args, bool IsMemberFunction,
+                 SourceLocation Loc, SourceRange Range,
                  VariadicCallType CallType);
 
   /// Verify that two format strings (as understood by attribute(format) and

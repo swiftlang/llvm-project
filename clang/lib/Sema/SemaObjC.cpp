@@ -1230,9 +1230,9 @@ bool SemaObjC::CheckObjCMethodCall(ObjCMethodDecl *Method, SourceLocation lbrac,
                                   ? VariadicCallType::Method
                                   : VariadicCallType::DoesNotApply;
 
-  SemaRef.checkCall(Method, nullptr, /*ThisArg=*/nullptr, Args,
-                    /*IsMemberFunction=*/false, lbrac, Method->getSourceRange(),
-                    CallType);
+  SemaRef.checkCall(Method, /*TheCall=*/nullptr, /*Proto=*/nullptr,
+                    /*ThisArg=*/nullptr, Args, /*IsMemberFunction=*/false,
+                    lbrac, Method->getSourceRange(), CallType);
 
   SemaRef.CheckTCBEnforcement(lbrac, Method);
 

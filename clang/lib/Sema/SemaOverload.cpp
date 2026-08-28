@@ -15820,7 +15820,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
                             ThisTypeFromDecl);
         }
 
-        checkCall(FnDecl, nullptr, ImplicitThis, ArgsArray,
+        checkCall(FnDecl, TheCall, /*Proto=*/nullptr, ImplicitThis, ArgsArray,
                   isa<CXXMethodDecl>(FnDecl), OpLoc, TheCall->getSourceRange(),
                   VariadicCallType::DoesNotApply);
 

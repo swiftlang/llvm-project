@@ -4507,10 +4507,11 @@ void Sema::checkLifetimeCaptureBy(FunctionDecl *FD, bool IsMemberFunction,
   }
 }
 
-void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
-                     const Expr *ThisArg, ArrayRef<const Expr *> Args,
-                     bool IsMemberFunction, SourceLocation Loc,
-                     SourceRange Range, VariadicCallType CallType) {
+void Sema::checkCall(NamedDecl *FDecl, const CallExpr *TheCall,
+                     const FunctionProtoType *Proto, const Expr *ThisArg,
+                     ArrayRef<const Expr *> Args, bool IsMemberFunction,
+                     SourceLocation Loc, SourceRange Range,
+                     VariadicCallType CallType) {
 
   if ((ThisArg && ThisArg->isInstantiationDependent()) ||
       llvm::any_of(Args, [](const Expr *E) {
@@ -4746,8 +4747,8 @@ void Sema::CheckConstructorCall(FunctionDecl *FDecl, QualType ThisType,
       Loc, FDecl, "'this'", Context.getPointerType(ThisType),
       Context.getPointerType(Ctor->getFunctionObjectParameterType()));
 
-  checkCall(FDecl, Proto, /*ThisArg=*/nullptr, Args, /*IsMemberFunction=*/true,
-            Loc, SourceRange(), CallType);
+  checkCall(FDecl, /*TheCall=*/nullptr, Proto, /*ThisArg=*/nullptr, Args,
+            /*IsMemberFunction=*/true, Loc, SourceRange(), CallType);
 }
 
 bool Sema::CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
@@ -4790,7 +4791,7 @@ bool Sema::CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
                       ThisTypeFromDecl);
   }
 
-  checkCall(FDecl, Proto, ImplicitThis, llvm::ArrayRef(Args, NumArgs),
+  checkCall(FDecl, TheCall, Proto, ImplicitThis, llvm::ArrayRef(Args, NumArgs),
             IsMemberFunction, TheCall->getRParenLoc(),
             TheCall->getCallee()->getSourceRange(), CallType);
 
@@ -4857,7 +4858,7 @@ bool Sema::CheckPointerCall(NamedDecl *NDecl, CallExpr *TheCall,
     CallType = VariadicCallType::Function;
   }
 
-  checkCall(NDecl, Proto, /*ThisArg=*/nullptr,
+  checkCall(NDecl, TheCall, Proto, /*ThisArg=*/nullptr,
             llvm::ArrayRef(TheCall->getArgs(), TheCall->getNumArgs()),
             /*IsMemberFunction=*/false, TheCall->getRParenLoc(),
             TheCall->getCallee()->getSourceRange(), CallType);
@@ -4868,7 +4869,7 @@ bool Sema::CheckPointerCall(NamedDecl *NDecl, CallExpr *TheCall,
 bool Sema::CheckOtherCall(CallExpr *TheCall, const FunctionProtoType *Proto) {
   VariadicCallType CallType = getVariadicCallType(/*FDecl=*/nullptr, Proto,
                                                   TheCall->getCallee());
-  checkCall(/*FDecl=*/nullptr, Proto, /*ThisArg=*/nullptr,
+  checkCall(/*FDecl=*/nullptr, TheCall, Proto, /*ThisArg=*/nullptr,
             llvm::ArrayRef(TheCall->getArgs(), TheCall->getNumArgs()),
             /*IsMemberFunction=*/false, TheCall->getRParenLoc(),
             TheCall->getCallee()->getSourceRange(), CallType);
