@@ -8962,6 +8962,11 @@ def disable_pragma_debug_crash : Flag<["-"], "disable-pragma-debug-crash">,
 def source_date_epoch : Separate<["-"], "source-date-epoch">,
   MetaVarName<"<time since Epoch in seconds>">,
   HelpText<"Time to be used in __DATE__, __TIME__, and __TIMESTAMP__ macros">;
+def fmodules_force_redundant_lookup
+    : Flag<["-"], "fmodules-force-redundant-lookup">,
+      Group<f_Group>,
+      HelpText<"Force redundant module lookup when loading PCM files">,
+      MarshallingInfoFlag<PreprocessorOpts<"ModulesForceRedundantLookup">>;
 
 } // let Visibility = [CC1Option]
 
