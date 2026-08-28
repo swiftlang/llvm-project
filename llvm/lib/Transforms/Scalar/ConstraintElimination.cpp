@@ -1736,6 +1736,35 @@ static bool getConstraintFromMemoryAccess(GetElementPtrInst &GEP,
   return true;
 }
 
+/// Returns true if \p Info implies that \p Op is in \p R, interpreting \p R as
+/// a signed range if \p Signed is set and as an unsigned range otherwise.
+static bool doesHoldInRange(const ConstraintInfo &Info, Value *Op,
+                            const ConstantRange &R, bool Signed) {
+  if (R.isEmptySet() || (Signed ? R.isSignWrappedSet() : R.isWrappedSet()))
+    return false;
+
+  if (R.isFullSet())
+    return true;
+
+  unsigned BitWidth = R.getBitWidth();
+  APInt Min = Signed ? R.getSignedMin() : R.getUnsignedMin();
+  APInt Max = Signed ? R.getSignedMax() : R.getUnsignedMax();
+  APInt MinVal = Signed ? APInt::getSignedMinValue(BitWidth)
+                        : APInt::getMinValue(BitWidth);
+  APInt MaxVal = Signed ? APInt::getSignedMaxValue(BitWidth)
+                        : APInt::getMaxValue(BitWidth);
+  Type *Ty = Op->getType();
+  if (Min != MinVal &&
+      !Info.doesHold(Signed ? CmpInst::ICMP_SGE : CmpInst::ICMP_UGE, Op,
+                     ConstantInt::get(Ty, Min)))
+    return false;
+  if (Max != MaxVal &&
+      !Info.doesHold(Signed ? CmpInst::ICMP_SLE : CmpInst::ICMP_ULE, Op,
+                     ConstantInt::get(Ty, Max)))
+    return false;
+  return true;
+}
+
 void State::addInfoFor(BasicBlock &BB) {
   addBoundsForHeaderInductions(BB);
   addInfoForInductions(BB);
