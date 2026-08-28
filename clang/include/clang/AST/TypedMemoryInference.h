@@ -16,6 +16,7 @@ namespace clang {
 
 class ASTContext;
 class Type;
+class TypedMemoryAttr;
 
 class InferredAllocationType {
 public:
@@ -223,7 +224,7 @@ public:
 
 struct InferredTypeInfo {
   std::optional<InferredAllocationType> Type;
-  const Expr *InferenceSourceExpression;
+  const Expr *InferenceSourceExpression = nullptr;
   TypedMemoryCallsiteFlags InferredCallsiteFlags =
       TypedMemoryCallsiteFlags::None;
 };
@@ -280,6 +281,9 @@ private:
       llvm::DenseMap<uint32_t, std::unique_ptr<std::string>>;
   TypeSummaryDescriptionCacheTy TypeSummaryDescriptionCache;
 };
+
+bool typedMemoryAttrsConflict(const TypedMemoryAttr *First,
+                              const TypedMemoryAttr *Second);
 
 } // namespace clang
 

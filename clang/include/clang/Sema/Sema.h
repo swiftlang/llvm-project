@@ -66,7 +66,6 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaBase.h"
 #include "clang/Sema/SemaConcept.h"
-#include "clang/Sema/TypedMemoryCallsiteContext.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "clang/Sema/Weak.h"
 #include "llvm/ADT/APInt.h"
@@ -214,6 +213,12 @@ class FunctionScopeInfo;
 class LambdaScopeInfo;
 class SemaPPCallbacks;
 class TemplateDeductionInfo;
+
+/// Inference context metadata for a TMO rewrite candidate.
+struct TMOInferenceCandidate {
+  const CallExpr *Call = nullptr;
+  const CastExpr *Cast = nullptr;
+};
 } // namespace sema
 
 // AssignmentAction - This is used by all the assignment diagnostic functions
@@ -5705,9 +5710,14 @@ public:
   bool checkTypedMemorySignature(const AttributeCommonInfo &CI,
                                  const FunctionDecl *Source,
                                  const FunctionDecl *Target,
-                                 ParamIdx InferredParameterIdx);
+                                 ParamIdx InferredParameterIdx,
+                                 bool SkipDependent);
 
   void handleTypedMemoryAttr(Decl *D, const ParsedAttr &AL);
+
+  void
+  instantiateTypedMemoryAttr(const MultiLevelTemplateArgumentList &TemplateArgs,
+                             const TypedMemoryAttr *Attr, Decl *New);
 
   /// Check if IdxExpr is a valid parameter index for a function or
   /// instance method D.  May output an error.
@@ -7281,6 +7291,10 @@ public:
     /// this expression evaluation context.
     unsigned NumCleanupObjects;
 
+    /// The index of the first pending inference candidate in TMOCandidates
+    /// that this expression evaluation context owns.
+    unsigned ContextHeadTMOIndex;
+
     MaybeODRUseExprSet SavedMaybeODRUseExprs;
 
     /// The lambdas that are present within this context, if it
@@ -7383,11 +7397,13 @@ public:
 
     ExpressionEvaluationContextRecord(ExpressionEvaluationContext Context,
                                       unsigned NumCleanupObjects,
+                                      unsigned ContextHeadTMOIndex,
                                       CleanupInfo ParentCleanup,
                                       Decl *ManglingContextDecl,
                                       ExpressionKind ExprContext)
         : Context(Context), ParentCleanup(ParentCleanup),
           NumCleanupObjects(NumCleanupObjects),
+          ContextHeadTMOIndex(ContextHeadTMOIndex),
           ManglingContextDecl(ManglingContextDecl), ExprContext(ExprContext),
           InDiscardedStatement(false), InImmediateFunctionContext(false),
           InImmediateEscalatingFunctionContext(false) {}
@@ -7475,6 +7491,11 @@ public:
   /// ExprCleanupObjects - This is the stack of objects requiring
   /// cleanup that are created by the current full expression.
   SmallVector<ExprWithCleanups::CleanupObject, 8> ExprCleanupObjects;
+
+  /// This is a stack for every candidate in the current evaluation context that
+  /// we are yet to perform TMO inference on. The candidates for the current
+  /// context are in the range [ContextHeadTMOIndex, TMOCandidates.size()).
+  SmallVector<sema::TMOInferenceCandidate, 8> TMOCandidates;
 
   /// Determine whether the use of this declaration is valid, without
   /// emitting diagnostics.
@@ -16537,9 +16558,6 @@ public:
   //===--------------------------------------------------------------------===//
   /// @{
 private:
-  // TMO context information used to track non-function scoped TMO calls, such
-  // as global or declaration scoped initializers and similar.
-  sema::TypedMemoryCallsiteContext NonFunctionTMOContext;
   bool checkTMOGetTypeDescriptor(QualType T, SourceLocation Loc,
                                  SourceRange ArgRange);
 
@@ -16547,21 +16565,21 @@ private:
                                       SourceRange ExpressionRange,
                                       QualType QueriedType);
 
-public:
-  sema::TypedMemoryCallsiteContext &currentTMOContext() {
-    if (auto *EnclosingFunctionScope = getEnclosingFunction())
-      return EnclosingFunctionScope->TMOContext;
-    return NonFunctionTMOContext;
-  }
+  void recordInfoForInferredCall(sema::TMOInferenceCandidate Candidate);
 
+  void drainTMOCandidates(unsigned FirstCandidateIndex);
+
+public:
   // While performing semantic analysis of full expressions or initializers
   // we accumulate all the allocation calls in that expression, and the
   // casts of the results of any such allocation calls. At the end of the
   // expression analysis we perform the TMO inference and diagnostics of any
   // such calls we've encountered.
-  void finalizeOutstandingTMOCandidates() {
-    currentTMOContext().finalizeOutstandingTMOCandidates(*this);
-  }
+  void finalizeOutstandingTMOCandidates();
+
+  void recordTMOInferenceCandidate(const Expr *Call);
+  void recordCastForTMOInference(const CastExpr *Cast);
+  void forwardTMOCandidatesToEnclosingContext();
   /// @}
 };
 

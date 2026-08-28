@@ -2,12 +2,12 @@
 // RUN: mkdir -p %t
 // RUN: split-file %s %t
 //
-// RUN: %clang_cc1 -std=c++17 -x c++ -fmodules \
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++17 -x c++ -fmodules \
 // RUN:   -ftyped-memory-operations -Wtyped-memory-inference-failure -Rtmo-remarks \
 // RUN:   -emit-module -fmodule-name=tmoalloc -fmodule-map-file=%t/tmoalloc.modulemap \
 // RUN:   %t/tmoalloc.modulemap -verify=module -o %t/tmoalloc.pcm
 //
-// RUN: %clang_cc1 -std=c++17 -x c++ -fmodules \
+// RUN: %clang_cc1 -triple arm64-apple-macosx -std=c++17 -x c++ -fmodules \
 // RUN:   -ftyped-memory-operations -Wtyped-memory-inference-failure -Rtmo-remarks \
 // RUN:   -fmodule-map-file=%t/tmoalloc.modulemap -fmodule-file=tmoalloc=%t/tmoalloc.pcm \
 // RUN:   -fsyntax-only -verify %t/tmo-user.cpp
@@ -58,6 +58,23 @@ inline int *alloc_inference_fail(int n) {
   return (int *)r;
 }
 
+template <class T> struct ModuleAllocator {
+  static T *typed(__SIZE_TYPE__ size, unsigned long long id) {
+    return (T *)test_typed_malloc(size, id);
+  }
+  static T *alloc(__SIZE_TYPE__ size) __attribute__((typed_memory_operation(typed, 1)));
+};
+
+struct ModuleHolder {
+  template <class U> static void *typed(__SIZE_TYPE__ size, unsigned long long id) {
+    return test_typed_malloc(size, id);
+  }
+};
+
+template <class T> struct ModuleSubstitutedAllocator {
+  static void *alloc(__SIZE_TYPE__ size) __attribute__((typed_memory_operation(ModuleHolder::typed<T>, 1)));
+};
+
 #endif
 
 //--- tmo-user.cpp
@@ -75,5 +92,16 @@ void test_in_module() {
   test_malloc(10);
   // expected-warning@-1 {{could not infer allocation type in call to 'test_malloc'}}
   // expected-note@-2 {{unable to infer allocation type from expression '10'}}
+}
+
+void test_instantiated_in_user() {
+  ModuleAllocator<S1>::alloc(sizeof(S1) * 10); // #module_allocator
+  // expected-remark@#module_allocator {{passing TMO information for array of type 'S1' to 'typed' (retargeted from 'alloc')}}
+  // expected-note@#module_allocator {{encoding array of 'S1' as 74309947616562710. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 4009135638 }}}
+  // expected-note@#module_allocator {{inferred array of 'S1' from expression 'sizeof(S1) * 10'}}
+  ModuleSubstitutedAllocator<int>::alloc(sizeof(int) * 10); // #module_substituted
+  // expected-remark@#module_substituted {{passing TMO information for array of type 'int' to 'typed<int>' (retargeted from 'alloc')}}
+  // expected-note@#module_substituted {{encoding array of 'int' as 72058145178419728. { "Summary": { "LayoutSemantics": [ "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "Array" ] }, "TypeHash": 1384677904 }}}
+  // expected-note@#module_substituted {{inferred array of 'int' from expression 'sizeof(int) * 10'}}
 }
 

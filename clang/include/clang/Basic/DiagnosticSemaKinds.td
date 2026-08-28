@@ -15364,11 +15364,12 @@ def err_cuda_device_kernel_launch_require_rdc
             "relocatable device code (i.e. requires -fgpu-rdc)">;
 
 // TMO warnings and notes
-def err_tmo_non_function : Error<
-  "the typed_memory_operations attribute can only be applied to functions">;
-
 def err_tmo_invalid_inferred_parameter_type : Error<
   "invalid parameter type for inference at index %0. %1 is not an integer type">;
+
+def err_tmo_dependent_type_descriptor : Error<
+  "typed memory operation %0 cannot take a dependent type %1 as its type "
+  "descriptor parameter; use a 64-bit integer type instead">;
 
 def err_tmo_function_kind_error : Error<
   "%select{untyped|typed}0 memory operation %1 "
@@ -15376,21 +15377,47 @@ def err_tmo_function_kind_error : Error<
      "%Variadic{cannot be a variadic function}|"
      "%InstanceMethod{cannot be an instance method}|"
      "%NoPrototype{must have a prototype}|"
-     "%NotAFunction{must be a function}"
+     "%NotAFunction{must be a function}|"
+     "%OverloadedOperator{cannot be an overloaded operator}|"
+     "%ParameterPack{cannot be a variadic template}"
   "}2">;
+
+def err_tmo_dependent_template_target : Error<
+  "rewrite target %0 cannot be a template specialization that depends on an "
+  "enclosing template">;
 
 def err_tmo_rewrite_target_is_overloaded : Error<
   "typed memory operation %0 has multiple overloads">;
 
-def err_tmo_rewrite_target_type_mismatch : Error<
-  "typed memory operation %0 has incompatible type (%diff{$ vs $|}1,2)">;
+def err_tmo_rewrite_target_no_match : Error<
+  "no overload of %0 has the signature required of a rewrite target for %1">;
+
+def err_tmo_rewrite_target_return_type_mismatch : Error<
+  "rewrite target %0 must return %1 to match %2, but returns %3">;
+
+def err_tmo_rewrite_target_arity_mismatch : Error<
+  "rewrite target %0 must have %1 parameter%s1 to match %2 plus a type "
+  "descriptor, but has %3">;
+
+def err_tmo_rewrite_target_param_type_mismatch : Error<
+  "parameter %0 of rewrite target %1 must have type %2 to match %3, but has "
+  "type %4">;
+
+def err_tmo_rewrite_target_descriptor_type : Error<
+  "type descriptor parameter %0 of rewrite target %1 must be a 64-bit integer "
+  "type, but has type %2">;
 
 def note_tmo_rewrite_target_type_mismatch : Note<
   "rewrite target here">;
 
 def warn_tmo_inference_failed
     : Warning<"could not infer allocation type in call to %0">,
-      InGroup<DiagGroup<"typed-memory-inference-failure">>,
+      InGroup<TypedMemoryInferenceFailure>,
+      DefaultIgnore;
+def warn_tmo_inference_cast_conflict
+    : Warning<"size argument of %0 implies allocation type %1, which conflicts "
+              "with the cast of the result to %2; encoding %1">,
+      InGroup<TypedMemoryInferenceConflict>,
       DefaultIgnore;
 def remark_tmo_passed_type : Remark<
   "passing TMO information for %0%1 to %2%select{ (retargeted from %4)|}3">,

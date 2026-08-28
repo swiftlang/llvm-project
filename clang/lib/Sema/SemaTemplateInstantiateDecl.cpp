@@ -1113,6 +1113,11 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
       continue;
     }
 
+    if (auto *TMA = dyn_cast<TypedMemoryAttr>(TmplAttr)) {
+      instantiateTypedMemoryAttr(TemplateArgs, TMA, New);
+      continue;
+    }
+
     if (auto *A = dyn_cast<CleanupAttr>(TmplAttr)) {
       if (!New->hasAttr<CleanupAttr>()) {
         auto *NewAttr = A->clone(Context);

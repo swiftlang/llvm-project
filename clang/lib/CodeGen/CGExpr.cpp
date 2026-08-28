@@ -7384,9 +7384,10 @@ RValue CodeGenFunction::EmitCallExpr(const CallExpr *E,
 
   auto *CalleeExpr = E->getCallee();
 
-  if (auto *CalleeDecl = CalleeExpr->getReferencedDeclOfCallee()) {
-    if (auto *TMA = CalleeDecl->getAttr<TypedMemoryAttr>())
-      return EmitTypedMemoryCall(E, TMA, ReturnValue);
+  if (const auto *TMA = E->getTypedMemoryAttribute()) {
+    if (std::optional<InferredTypeInfo> Info =
+            getContext().getInferredInfoForCall(E))
+      return EmitTypedMemoryCall(E, TMA, *Info, ReturnValue);
   }
 
   CGCallee callee = EmitCallee(E->getCallee());

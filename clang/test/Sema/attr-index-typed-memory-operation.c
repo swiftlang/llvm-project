@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -ftyped-memory-operations -fsyntax-only -verify %s
+// RUN: %clang_cc1 -triple arm64-apple-macosx -ftyped-memory-operations -fsyntax-only -verify %s
 
 #define _TYPED_ALLOC(rewrite_target, type_param_pos) __attribute__((typed_memory_operation(rewrite_target, type_param_pos)))
 
@@ -35,18 +35,18 @@ void *my_malloc_invalid1(unsigned size) _TYPED_ALLOC(invalid_typed_malloc0, 1);
 void *my_malloc_invalid2(unsigned size) _TYPED_ALLOC(invalid_typed_malloc1, 1);
 // expected-error@-1 {{typed memory operation 'invalid_typed_malloc1' must have a prototype}}
 void *my_malloc_invalid3(unsigned size) _TYPED_ALLOC(invalid_typed_malloc2, 1);
-// expected-error@-1 {{typed memory operation 'invalid_typed_malloc2' has incompatible type ('void *(unsigned int, unsigned long)' vs 'void *(double)')}}
+// expected-error@-1 {{rewrite target 'invalid_typed_malloc2' must have 2 parameters to match 'my_malloc_invalid3' plus a type descriptor, but has 1}}
 void *my_malloc_invalid4(unsigned size) _TYPED_ALLOC(invalid_typed_malloc3, 1);
-// expected-error@-1 {{typed memory operation 'invalid_typed_malloc3' has incompatible type ('void *(unsigned int, unsigned long)' vs 'int (unsigned int)')}}
+// expected-error@-1 {{rewrite target 'invalid_typed_malloc3' must return 'void *' to match 'my_malloc_invalid4', but returns 'int'}}
 // intentionally using the wrong function
 void *my_malloc_invalid5(unsigned size) _TYPED_ALLOC(invalid_typed_malloc3, 1);
-// expected-error@-1 {{typed memory operation 'invalid_typed_malloc3' has incompatible type ('void *(unsigned int, unsigned long)' vs 'int (unsigned int)')}}
+// expected-error@-1 {{rewrite target 'invalid_typed_malloc3' must return 'void *' to match 'my_malloc_invalid5', but returns 'int'}}
 void *my_malloc_invalid6(unsigned size) _TYPED_ALLOC(invalid_typed_malloc3, 1);
-// expected-error@-1 {{typed memory operation 'invalid_typed_malloc3' has incompatible type ('void *(unsigned int, unsigned long)' vs 'int (unsigned int)')}}
+// expected-error@-1 {{rewrite target 'invalid_typed_malloc3' must return 'void *' to match 'my_malloc_invalid6', but returns 'int'}}
 
 void *my_malloc12(__SIZE_TYPE__ size) _TYPED_ALLOC(calloc, 1);
 void *my_malloc13(unsigned size) _TYPED_ALLOC(typed_calloc, 1);
-// expected-error@-1 {{typed memory operation 'typed_calloc' has incompatible type ('void *(unsigned int, unsigned long)' vs 'void *(unsigned int, unsigned int, unsigned long long)')}}
+// expected-error@-1 {{rewrite target 'typed_calloc' must have 2 parameters to match 'my_malloc13' plus a type descriptor, but has 3}}
 
 void *my_calloc1(unsigned count, unsigned size) _TYPED_ALLOC(typed_calloc, 2);
 
