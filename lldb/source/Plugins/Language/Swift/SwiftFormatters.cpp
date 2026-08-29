@@ -2394,3 +2394,165 @@ bool lldb_private::formatters::swift::GLKit_SummaryProvider(
   PrintMatrix(stream, columns, num_elements, num_elements);
   return true;
 }
+
+static bool ReadInt128Storage(ValueObject &valobj, __int128_t &result) {
+  // Verify object
+  if (!valobj.GetCompilerType().IsValid())
+    return false;
+
+  // Capture high/low
+  static constexpr llvm::StringLiteral g_high_name("_high");
+  static constexpr llvm::StringLiteral g_low_name("_low");
+
+  ValueObjectSP high_sp(valobj.GetChildMemberWithName(g_high_name));
+  ValueObjectSP low_sp(valobj.GetChildMemberWithName(g_low_name));
+
+  if (!high_sp || !low_sp)
+    return false;
+
+  bool success = false;
+  int64_t high = high_sp->GetSyntheticValue()->GetValueAsSigned(0, &success);
+  if (!success)
+    return false;
+  uint64_t low = low_sp->GetSyntheticValue()->GetValueAsUnsigned(0, &success);
+  if (!success)
+    return false;
+
+  // Building 128 bit value
+  __uint128_t bits =
+      (static_cast<__uint128_t>(high) << 64) | static_cast<__uint128_t>(low);
+
+  result = static_cast<__int128_t>(bits);
+  return true;
+}
+
+static std::string FormatAttoseconds(__int128_t attosec) {
+  static constexpr __uint128_t ATTO = 1000000000000000000; // 10^18 atto
+  static constexpr __uint128_t kScientificThreshold =
+      1000000000000000; // 1e-3 seconds = 1e15 atto
+  std::string result;
+
+  const bool is_negative = attosec < 0;
+
+  __uint128_t magnitude = static_cast<__uint128_t>(attosec);
+  if (is_negative) {
+    magnitude = ~magnitude + 1;
+    result.push_back('-');
+  }
+
+  if (magnitude == 0)
+    return "0.0";
+
+  // Scientific notation for very small values
+  if (magnitude < kScientificThreshold) {
+    std::string digits;
+
+    __uint128_t temp = magnitude;
+    unsigned magnitude_digits = 0;
+    while (temp > 0) {
+      digits.push_back('0' + static_cast<char>(temp % 10));
+      ++magnitude_digits;
+      temp /= 10;
+    }
+    std::reverse(digits.begin(), digits.end());
+
+    // Remove trailing zeroes
+    while (digits.size() > 1 && digits.back() == '0')
+      digits.pop_back();
+
+    int exponent = static_cast<int>(magnitude_digits) - 1 - 18;
+
+    result.push_back(digits[0]);
+
+    if (digits.size() > 1) {
+      result.push_back('.');
+      result.append(digits.substr(1));
+    }
+
+    result.push_back('e');
+
+    if (exponent < 0) {
+      result.push_back('-');
+      exponent = -exponent;
+    } else {
+      result.push_back('+');
+    }
+
+    if (exponent < 10)
+      result.push_back('0');
+
+    result.append(std::to_string(exponent));
+
+    return result;
+  }
+
+  // Regular decimal notation
+  __uint128_t seconds_128 = magnitude / ATTO;
+  __uint128_t fraction_128 = magnitude % ATTO;
+
+  std::string seconds_str;
+
+  if (seconds_128 == 0) {
+    seconds_str = "0";
+  } else {
+    while (seconds_128 > 0) {
+      char digit = '0' + (seconds_128 % 10);
+      seconds_str.push_back(digit);
+      seconds_128 /= 10;
+    }
+    std::reverse(seconds_str.begin(), seconds_str.end());
+  }
+
+  char fraction_buffer[20];
+  snprintf(fraction_buffer, sizeof(fraction_buffer), "%018llu",
+           (uint64_t)fraction_128);
+
+  std::string fraction_str(fraction_buffer);
+  fraction_str.erase(fraction_str.find_last_not_of('0') + 1, std::string::npos);
+  if (fraction_str.empty())
+    fraction_str = "0";
+
+  result.append(seconds_str);
+  result.push_back('.');
+  result.append(fraction_str);
+
+  return result;
+}
+
+bool lldb_private::formatters::swift::Duration_SummaryProvider(
+    ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
+
+  __int128_t duration;
+  if (!ReadInt128Storage(valobj, duration))
+    return false;
+
+  stream.Printf("%s seconds", FormatAttoseconds(duration).c_str());
+  return true;
+}
+
+static bool ClockInstant_SummaryProvider(ValueObject &valobj, Stream &stream,
+                                         const TypeSummaryOptions &options) {
+
+  static constexpr llvm::StringLiteral g_value_name("_value");
+
+  ValueObjectSP value_sp = valobj.GetChildMemberWithName(g_value_name);
+  if (!value_sp)
+    return false;
+
+  __int128_t attoseconds;
+  if (!ReadInt128Storage(*value_sp, attoseconds))
+    return false;
+
+  stream.Printf("%s seconds", FormatAttoseconds(attoseconds).c_str());
+  return true;
+}
+
+bool lldb_private::formatters::swift::ContinuousClockInstant_SummaryProvider(
+    ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
+  return ClockInstant_SummaryProvider(valobj, stream, options);
+}
+
+bool lldb_private::formatters::swift::SuspendingClockInstant_SummaryProvider(
+    ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
+  return ClockInstant_SummaryProvider(valobj, stream, options);
+}

@@ -105,6 +105,15 @@ bool LegacySIMD_SummaryProvider(ValueObject &valobj, Stream &stream,
 bool GLKit_SummaryProvider(ValueObject &valobj, Stream &stream,
                            const TypeSummaryOptions &options);
 
+bool Duration_SummaryProvider(ValueObject &valobj, Stream &stream,
+                              const TypeSummaryOptions &options);
+
+bool ContinuousClockInstant_SummaryProvider(ValueObject &valobj, Stream &stream,
+                                            const TypeSummaryOptions &options);
+
+bool SuspendingClockInstant_SummaryProvider(ValueObject &valobj, Stream &stream,
+                                            const TypeSummaryOptions &options);
+
 // TODO: this is a transient workaround for the fact that
 // ObjC types are totally opaque in Swift for LLDB
 bool BuiltinObjC_SummaryProvider(ValueObject &valobj, Stream &stream,

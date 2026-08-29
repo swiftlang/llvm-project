@@ -519,6 +519,23 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
                 "Swift.StaticString summary provider",
                 ConstString("Swift.StaticString"), summary_flags);
   AddCXXSummary(swift_category_sp,
+                lldb_private::formatters::swift::Duration_SummaryProvider,
+                "Swift.Duration summary provider",
+                ConstString("Swift.Duration"), summary_flags);
+
+  AddCXXSummary(
+      swift_category_sp,
+      lldb_private::formatters::swift::ContinuousClockInstant_SummaryProvider,
+      "Swift ContinuousClock.Instant summary provider",
+      ConstString("Swift.ContinuousClock.Instant"), summary_flags);
+
+  AddCXXSummary(
+      swift_category_sp,
+      lldb_private::formatters::swift::SuspendingClockInstant_SummaryProvider,
+      "Swift SuspendingClock.Instant summary provider",
+      ConstString("Swift.SuspendingClock.Instant"), summary_flags);
+
+  AddCXXSummary(swift_category_sp,
                 lldb_private::formatters::NSStringSummaryProvider,
                 "Swift.__StringStorage summary provider",
                 "Swift.__StringStorage", summary_flags);
@@ -674,22 +691,6 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
                    ConstString("Foundation.CGFloat"), summary_flags);
   AddStringSummary(swift_category_sp, "${var.native}",
                    ConstString("CoreFoundation.CGFloat"), summary_flags);
-
-  TypeSummaryImpl::Flags duration_flags;
-  duration_flags.SetCascades(true)
-      .SetDontShowChildren(true) 
-      .SetSkipPointers(true)
-      .SetSkipReferences(false)
-      .SetHideItemNames(false)
-      .SetShowMembersOneLiner(false);
-
-  lldb_private::formatters::AddCXXSummary(
-      swift_category_sp,
-      lldb_private::formatters::swift::Duration_SummaryProvider,
-      "Swift.Duration summary provider", 
-      ConstString("^Swift\\.Duration$"),
-      duration_flags, 
-      true);
 }
 
 static void
