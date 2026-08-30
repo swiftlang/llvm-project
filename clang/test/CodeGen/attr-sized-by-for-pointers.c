@@ -606,7 +606,7 @@ size_t test_bdos_of_pointer_multibyte_pointee(struct annotated_sized_ptr_non_byt
 // SANITIZE-WITH-ATTR:       [[CONT8]]:
 // SANITIZE-WITH-ATTR-NEXT:    [[IDXPROM:%.*]] = sext i32 [[INDEX]] to i64
 // SANITIZE-WITH-ATTR-NEXT:    [[COUNT:%.*]] = zext nneg i32 [[DOTCOUNTED_BY_LOAD]] to i64
-// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nsw i64 [[IDXPROM]], 3
+// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nuw nsw i64 [[IDXPROM]], 3
 // SANITIZE-WITH-ATTR-NEXT:    [[RESULT:%.*]] = sub nsw i64 [[COUNT]], [[INDEX_SIZE]]
 // SANITIZE-WITH-ATTR-NEXT:    [[TMP5:%.*]] = icmp sgt i64 [[RESULT]], -1
 // SANITIZE-WITH-ATTR-NEXT:    [[TMP6:%.*]] = icmp sgt i32 [[INDEX]], -1
@@ -899,7 +899,7 @@ void test_pass_dynamic_object_size_of_element_address(struct annotated_volatile_
 // SANITIZE-WITH-ATTR:       [[CONT8]]:
 // SANITIZE-WITH-ATTR-NEXT:    [[IDXPROM:%.*]] = sext i32 [[INDEX]] to i64
 // SANITIZE-WITH-ATTR-NEXT:    [[COUNT:%.*]] = zext nneg i32 [[DOTCOUNTED_BY_LOAD]] to i64
-// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nsw i64 [[IDXPROM]], 2
+// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nuw nsw i64 [[IDXPROM]], 2
 // SANITIZE-WITH-ATTR-NEXT:    [[RESULT:%.*]] = sub nsw i64 [[COUNT]], [[INDEX_SIZE]]
 // SANITIZE-WITH-ATTR-NEXT:    [[TMP5:%.*]] = icmp sgt i64 [[RESULT]], -1
 // SANITIZE-WITH-ATTR-NEXT:    [[TMP6:%.*]] = icmp sgt i32 [[INDEX]], -1

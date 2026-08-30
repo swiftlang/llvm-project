@@ -308,7 +308,7 @@ size_t test_bdos_of_pointer_through_cast(struct annotated_ptr *p, int index) {
 // SANITIZE-WITH-ATTR-NEXT:    [[IDXPROM:%.*]] = sext i32 [[INDEX]] to i64
 // SANITIZE-WITH-ATTR-NEXT:    [[TMP7:%.*]] = shl nsw i64 [[COUNT]], 3
 // SANITIZE-WITH-ATTR-NEXT:    [[ARRAY_SIZE:%.*]] = select i1 [[TMP1]], i64 0, i64 [[TMP7]]
-// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nsw i64 [[IDXPROM]], 3
+// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nuw nsw i64 [[IDXPROM]], 3
 // SANITIZE-WITH-ATTR-NEXT:    [[RESULT:%.*]] = sub nsw i64 [[ARRAY_SIZE]], [[INDEX_SIZE]]
 // SANITIZE-WITH-ATTR-NEXT:    [[TMP8:%.*]] = tail call i64 @llvm.smax.i64(i64 [[RESULT]], i64 0)
 // SANITIZE-WITH-ATTR-NEXT:    ret i64 [[TMP8]]

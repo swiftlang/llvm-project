@@ -658,7 +658,7 @@ size_t test_bdos_of_pointer_multibyte_pointee(struct annotated_sized_ptr_non_byt
 // SANITIZE-WITH-ATTR-NEXT:    [[COUNT:%.*]] = sext i32 [[DOTCOUNTED_BY_LOAD]] to i64
 // SANITIZE-WITH-ATTR-NEXT:    [[IDXPROM:%.*]] = sext i32 [[INDEX]] to i64
 // SANITIZE-WITH-ATTR-NEXT:    [[COUNT_OR_NULL:%.*]] = select i1 [[TMP1]], i64 0, i64 [[COUNT]]
-// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nsw i64 [[IDXPROM]], 3
+// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nuw nsw i64 [[IDXPROM]], 3
 // SANITIZE-WITH-ATTR-NEXT:    [[RESULT:%.*]] = sub nsw i64 [[COUNT_OR_NULL]], [[INDEX_SIZE]]
 // SANITIZE-WITH-ATTR-NEXT:    [[TMP8:%.*]] = tail call i64 @llvm.smax.i64(i64 [[RESULT]], i64 0)
 // SANITIZE-WITH-ATTR-NEXT:    ret i64 [[TMP8]]
@@ -992,7 +992,7 @@ void test_pass_dynamic_object_size_of_element_address(struct annotated_volatile_
 // SANITIZE-WITH-ATTR-NEXT:    [[COUNT:%.*]] = sext i32 [[DOTCOUNTED_BY_LOAD]] to i64
 // SANITIZE-WITH-ATTR-NEXT:    [[IDXPROM:%.*]] = sext i32 [[INDEX]] to i64
 // SANITIZE-WITH-ATTR-NEXT:    [[COUNT_OR_NULL:%.*]] = select i1 [[TMP1]], i64 0, i64 [[COUNT]]
-// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nsw i64 [[IDXPROM]], 2
+// SANITIZE-WITH-ATTR-NEXT:    [[INDEX_SIZE:%.*]] = shl nuw nsw i64 [[IDXPROM]], 2
 // SANITIZE-WITH-ATTR-NEXT:    [[RESULT:%.*]] = sub nsw i64 [[COUNT_OR_NULL]], [[INDEX_SIZE]]
 // SANITIZE-WITH-ATTR-NEXT:    [[TMP8:%.*]] = tail call i64 @llvm.smax.i64(i64 [[RESULT]], i64 0)
 // SANITIZE-WITH-ATTR-NEXT:    ret i64 [[TMP8]]

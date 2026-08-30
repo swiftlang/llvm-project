@@ -285,7 +285,7 @@ define void @mul_ub_nsw_signed(i32 %n) {
 ; CHECK-NEXT:    [[POS:%.*]] = icmp sgt i32 [[N]], 0
 ; CHECK-NEXT:    br i1 [[POS]], label [[MAIN:%.*]], label [[END:%.*]]
 ; CHECK:       main:
-; CHECK-NEXT:    [[ADD:%.*]] = mul nsw i32 [[N]], 2
+; CHECK-NEXT:    [[ADD:%.*]] = mul nuw nsw i32 [[N]], 2
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
