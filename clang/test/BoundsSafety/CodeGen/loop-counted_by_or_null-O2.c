@@ -16,7 +16,7 @@ void use(int *__bidi_indexable q);
 // CHECK-NEXT:    [[CMP3:%.*]] = icmp sgt i32 [[LEN]], 0
 // CHECK-NEXT:    br i1 [[CMP3]], label %[[FOR_BODY_LR_PH:.*]], label %[[FOR_COND_CLEANUP:.*]]
 // CHECK:       [[FOR_BODY_LR_PH]]:
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[P]], null, !annotation [[META9:![0-9]+]]
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[P]], null, !annotation [[META6:![0-9]+]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = zext nneg i32 [[LEN]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[P]], i64 [[IDX_EXT]]
 // CHECK-NEXT:    [[Q_SROA_5_0:%.*]] = select i1 [[DOTNOT]], ptr null, ptr [[ADD_PTR]]
@@ -30,12 +30,12 @@ void use(int *__bidi_indexable q);
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR3:[0-9]+]]
 // CHECK-NEXT:    store ptr [[P]], ptr [[BYVAL_TEMP]], align 8
 // CHECK-NEXT:    store ptr [[Q_SROA_5_0]], ptr [[Q_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 8
-// CHECK-NEXT:    store ptr [[P]], ptr [[Q_SROA_7_0_BYVAL_TEMP_SROA_IDX]], align 8, !tbaa [[INTPTR_TBAA10:![0-9]+]]
-// CHECK-NEXT:    call void @use(ptr nofree noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR3]]
+// CHECK-NEXT:    store ptr [[P]], ptr [[Q_SROA_7_0_BYVAL_TEMP_SROA_IDX]], align 8, !tbaa [[INTPTR_TBAA7:![0-9]+]]
+// CHECK-NEXT:    call void @use(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR3]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR3]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_04]], 1
 // CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i32 [[INC]], [[LEN]]
-// CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[FOR_COND_CLEANUP]], label %[[FOR_BODY]], !llvm.loop [[LOOP13:![0-9]+]]
+// CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[FOR_COND_CLEANUP]], label %[[FOR_BODY]], !llvm.loop [[LOOP10:![0-9]+]]
 //
 void f(int *__counted_by_or_null(len) p, int len) {
   for (int i = 0; i < len; ++i) {
@@ -44,12 +44,12 @@ void f(int *__counted_by_or_null(len) p, int len) {
   }
 }
 //.
-// CHECK: [[META7:![0-9]+]] = !{!"omnipotent char", [[META8:![0-9]+]], i64 0}
-// CHECK: [[META8]] = !{!"Simple C/C++ TBAA"}
-// CHECK: [[META9]] = !{!"bounds-safety-check-ptr-neq-null"}
-// CHECK: [[INTPTR_TBAA10]] = !{[[META11:![0-9]+]], [[META11]], i64 0}
-// CHECK: [[META11]] = !{!"p1 int", [[META12:![0-9]+]], i64 0}
-// CHECK: [[META12]] = !{!"any pointer", [[META7]], i64 0}
-// CHECK: [[LOOP13]] = distinct !{[[LOOP13]], [[META14:![0-9]+]]}
-// CHECK: [[META14]] = !{!"llvm.loop.mustprogress"}
+// CHECK: [[META4:![0-9]+]] = !{!"omnipotent char", [[META5:![0-9]+]], i64 0}
+// CHECK: [[META5]] = !{!"Simple C/C++ TBAA"}
+// CHECK: [[META6]] = !{!"bounds-safety-check-ptr-neq-null"}
+// CHECK: [[INTPTR_TBAA7]] = !{[[META8:![0-9]+]], [[META8]], i64 0}
+// CHECK: [[META8]] = !{!"p1 int", [[META9:![0-9]+]], i64 0}
+// CHECK: [[META9]] = !{!"any pointer", [[META4]], i64 0}
+// CHECK: [[LOOP10]] = distinct !{[[LOOP10]], [[META11:![0-9]+]]}
+// CHECK: [[META11]] = !{!"llvm.loop.mustprogress"}
 //.

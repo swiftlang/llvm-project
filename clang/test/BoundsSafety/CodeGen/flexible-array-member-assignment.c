@@ -10,7 +10,7 @@ typedef struct {
 } flex_t;
 
 // CHECK-LABEL: define void @test(
-// CHECK-SAME: ptr noundef [[FLEX:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[FLEX_BIDI:%.*]]) #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr noundef [[FLEX:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[FLEX_BIDI:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[FLEX_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[FLEX_BIDI_INDIRECT_ADDR:%.*]] = alloca ptr, align 8

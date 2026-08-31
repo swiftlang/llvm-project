@@ -8,7 +8,7 @@ void func(char * __unsafe_indexable ptr, char * __bidi_indexable bidi) {
   funcInSDK(ptr, bidi);
 }
 // CHECK-LABEL: define void @funcInSDK(
-// CHECK-SAME: ptr noundef [[PTR:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[BIDI:%.*]]) #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr noundef [[PTR:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[BIDI:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[BIDI_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -84,8 +84,8 @@ void func(char * __unsafe_indexable ptr, char * __bidi_indexable bidi) {
 // CHECK-NEXT:    [[WIDE_PTR_UB41:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR40]], align 8, !annotation [[META1]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR42:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP37]], i32 0, i32 2, !annotation [[META1]]
 // CHECK-NEXT:    [[WIDE_PTR_LB43:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR42]], align 8, !annotation [[META1]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META1]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META1]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META1]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META1]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // CHECK-NEXT:    [[CMP44:%.*]] = icmp sle i64 5, [[SUB_PTR_SUB]], !annotation [[META1]]
 // CHECK-NEXT:    br i1 [[CMP44]], label [[LAND_RHS45:%.*]], label [[LAND_END:%.*]], !annotation [[META1]]
@@ -113,7 +113,7 @@ void func(char * __unsafe_indexable ptr, char * __bidi_indexable bidi) {
 //
 //
 // CHECK-LABEL: define void @func(
-// CHECK-SAME: ptr noundef [[PTR:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[BIDI:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ptr noundef [[PTR:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[BIDI:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[BIDI_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -122,6 +122,6 @@ void func(char * __unsafe_indexable ptr, char * __bidi_indexable bidi) {
 // CHECK-NEXT:    store ptr [[BIDI]], ptr [[BIDI_INDIRECT_ADDR]], align 8
 // CHECK-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[PTR_ADDR]], align 8
 // CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 8 [[BYVAL_TEMP]], ptr align 8 [[BIDI]], i64 24, i1 false)
-// CHECK-NEXT:    call void @funcInSDK(ptr noundef [[TMP0]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]])
+// CHECK-NEXT:    call void @funcInSDK(ptr noundef [[TMP0]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]])
 // CHECK-NEXT:    ret void
 //

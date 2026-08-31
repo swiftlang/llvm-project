@@ -32,20 +32,20 @@ struct s1 {
 // NOPQ-NEXT:    [[WIDE_PTR_UB:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR]], align 8
 // NOPQ-NEXT:    [[WIDE_PTR_LB_ADDR:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP]], i32 0, i32 2
 // NOPQ-NEXT:    [[WIDE_PTR_LB:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR]], align 8
-// NOPQ-NEXT:    [[TMP6:%.*]] = icmp ne ptr [[WIDE_PTR_PTR]], null, !annotation [[META1:![0-9]+]]
-// NOPQ-NEXT:    br i1 [[TMP6]], label %[[BOUNDSCHECK_NOTNULL:.*]], label %[[BOUNDSCHECK_NULL:.*]], !annotation [[META1]]
+// NOPQ-NEXT:    [[TMP6:%.*]] = icmp ne ptr [[WIDE_PTR_PTR]], null, !annotation [[META4:![0-9]+]]
+// NOPQ-NEXT:    br i1 [[TMP6]], label %[[BOUNDSCHECK_NOTNULL:.*]], label %[[BOUNDSCHECK_NULL:.*]], !annotation [[META4]]
 // NOPQ:       [[BOUNDSCHECK_NOTNULL]]:
-// NOPQ-NEXT:    [[TMP7:%.*]] = icmp ult ptr [[WIDE_PTR_PTR]], [[WIDE_PTR_UB]], !annotation [[META2:![0-9]+]]
-// NOPQ-NEXT:    br i1 [[TMP7]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META2]]
+// NOPQ-NEXT:    [[TMP7:%.*]] = icmp ult ptr [[WIDE_PTR_PTR]], [[WIDE_PTR_UB]], !annotation [[META5:![0-9]+]]
+// NOPQ-NEXT:    br i1 [[TMP7]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // NOPQ:       [[TRAP]]:
-// NOPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META2]]
-// NOPQ-NEXT:    unreachable, !annotation [[META2]]
+// NOPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META5]]
+// NOPQ-NEXT:    unreachable, !annotation [[META5]]
 // NOPQ:       [[CONT]]:
-// NOPQ-NEXT:    [[TMP8:%.*]] = icmp uge ptr [[WIDE_PTR_PTR]], [[WIDE_PTR_LB]], !annotation [[META4:![0-9]+]]
-// NOPQ-NEXT:    br i1 [[TMP8]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, !annotation [[META4]]
+// NOPQ-NEXT:    [[TMP8:%.*]] = icmp uge ptr [[WIDE_PTR_PTR]], [[WIDE_PTR_LB]], !annotation [[META7:![0-9]+]]
+// NOPQ-NEXT:    br i1 [[TMP8]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, !annotation [[META7]]
 // NOPQ:       [[TRAP1]]:
-// NOPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META4]]
-// NOPQ-NEXT:    unreachable, !annotation [[META4]]
+// NOPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META7]]
+// NOPQ-NEXT:    unreachable, !annotation [[META7]]
 // NOPQ:       [[CONT2]]:
 // NOPQ-NEXT:    br label %[[BOUNDSCHECK_NULL]]
 // NOPQ:       [[BOUNDSCHECK_NULL]]:
@@ -72,20 +72,20 @@ struct s1 {
 // OPQ-NEXT:    [[WIDE_PTR_UB:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR]], align 8
 // OPQ-NEXT:    [[WIDE_PTR_LB_ADDR:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP]], i32 0, i32 2
 // OPQ-NEXT:    [[WIDE_PTR_LB:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR]], align 8
-// OPQ-NEXT:    [[TMP6:%.*]] = icmp ne ptr [[WIDE_PTR_PTR]], null, !annotation [[META1:![0-9]+]]
-// OPQ-NEXT:    br i1 [[TMP6]], label %[[BOUNDSCHECK_NOTNULL:.*]], label %[[BOUNDSCHECK_NULL:.*]], !annotation [[META1]]
+// OPQ-NEXT:    [[TMP6:%.*]] = icmp ne ptr [[WIDE_PTR_PTR]], null, !annotation [[META4:![0-9]+]]
+// OPQ-NEXT:    br i1 [[TMP6]], label %[[BOUNDSCHECK_NOTNULL:.*]], label %[[BOUNDSCHECK_NULL:.*]], !annotation [[META4]]
 // OPQ:       [[BOUNDSCHECK_NOTNULL]]:
-// OPQ-NEXT:    [[TMP7:%.*]] = icmp ult ptr [[WIDE_PTR_PTR]], [[WIDE_PTR_UB]], !annotation [[META2:![0-9]+]]
-// OPQ-NEXT:    br i1 [[TMP7]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META2]]
+// OPQ-NEXT:    [[TMP7:%.*]] = icmp ult ptr [[WIDE_PTR_PTR]], [[WIDE_PTR_UB]], !annotation [[META5:![0-9]+]]
+// OPQ-NEXT:    br i1 [[TMP7]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // OPQ:       [[TRAP]]:
-// OPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META2]]
-// OPQ-NEXT:    unreachable, !annotation [[META2]]
+// OPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META5]]
+// OPQ-NEXT:    unreachable, !annotation [[META5]]
 // OPQ:       [[CONT]]:
-// OPQ-NEXT:    [[TMP8:%.*]] = icmp uge ptr [[WIDE_PTR_PTR]], [[WIDE_PTR_LB]], !annotation [[META4:![0-9]+]]
-// OPQ-NEXT:    br i1 [[TMP8]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, !annotation [[META4]]
+// OPQ-NEXT:    [[TMP8:%.*]] = icmp uge ptr [[WIDE_PTR_PTR]], [[WIDE_PTR_LB]], !annotation [[META7:![0-9]+]]
+// OPQ-NEXT:    br i1 [[TMP8]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, !annotation [[META7]]
 // OPQ:       [[TRAP1]]:
-// OPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META4]]
-// OPQ-NEXT:    unreachable, !annotation [[META4]]
+// OPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META7]]
+// OPQ-NEXT:    unreachable, !annotation [[META7]]
 // OPQ:       [[CONT2]]:
 // OPQ-NEXT:    br label %[[BOUNDSCHECK_NULL]]
 // OPQ:       [[BOUNDSCHECK_NULL]]:
@@ -96,7 +96,7 @@ _Bool *f1(struct s1 *p) {
 }
 
 // NOPQ-LABEL: define dso_local i1 @f2(
-// NOPQ-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[I:%.*]]) #[[ATTR0]] {
+// NOPQ-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[I:%.*]]) #[[ATTR0]] {
 // NOPQ-NEXT:  [[ENTRY:.*:]]
 // NOPQ-NEXT:    [[P_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // NOPQ-NEXT:    [[I_ADDR:%.*]] = alloca i32, align 4
@@ -113,24 +113,24 @@ _Bool *f1(struct s1 *p) {
 // NOPQ-NEXT:    [[WIDE_PTR_UB:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR]], align 8
 // NOPQ-NEXT:    [[WIDE_PTR_LB_ADDR:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP]], i32 0, i32 2
 // NOPQ-NEXT:    [[WIDE_PTR_LB:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR]], align 8
-// NOPQ-NEXT:    [[TMP1:%.*]] = icmp ult ptr [[ARRAYIDX]], [[WIDE_PTR_UB]], !annotation [[META2]]
-// NOPQ-NEXT:    br i1 [[TMP1]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META2]]
+// NOPQ-NEXT:    [[TMP1:%.*]] = icmp ult ptr [[ARRAYIDX]], [[WIDE_PTR_UB]], !annotation [[META5]]
+// NOPQ-NEXT:    br i1 [[TMP1]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // NOPQ:       [[TRAP]]:
-// NOPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META2]]
-// NOPQ-NEXT:    unreachable, !annotation [[META2]]
+// NOPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
+// NOPQ-NEXT:    unreachable, !annotation [[META5]]
 // NOPQ:       [[CONT]]:
-// NOPQ-NEXT:    [[TMP2:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], !annotation [[META4]]
-// NOPQ-NEXT:    br i1 [[TMP2]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, !annotation [[META4]]
+// NOPQ-NEXT:    [[TMP2:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], !annotation [[META7]]
+// NOPQ-NEXT:    br i1 [[TMP2]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, !annotation [[META7]]
 // NOPQ:       [[TRAP1]]:
-// NOPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META4]]
-// NOPQ-NEXT:    unreachable, !annotation [[META4]]
+// NOPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META7]]
+// NOPQ-NEXT:    unreachable, !annotation [[META7]]
 // NOPQ:       [[CONT2]]:
 // NOPQ-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
 // NOPQ-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP3]], 0
 // NOPQ-NEXT:    ret i1 [[LOADEDV]]
 //
 // OPQ-LABEL: define dso_local i1 @f2(
-// OPQ-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[I:%.*]]) #[[ATTR0]] {
+// OPQ-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[I:%.*]]) #[[ATTR0]] {
 // OPQ-NEXT:  [[ENTRY:.*:]]
 // OPQ-NEXT:    [[P_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // OPQ-NEXT:    [[I_ADDR:%.*]] = alloca i32, align 4
@@ -147,17 +147,17 @@ _Bool *f1(struct s1 *p) {
 // OPQ-NEXT:    [[WIDE_PTR_UB:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR]], align 8
 // OPQ-NEXT:    [[WIDE_PTR_LB_ADDR:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP]], i32 0, i32 2
 // OPQ-NEXT:    [[WIDE_PTR_LB:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR]], align 8
-// OPQ-NEXT:    [[TMP1:%.*]] = icmp ult ptr [[ARRAYIDX]], [[WIDE_PTR_UB]], !annotation [[META2]]
-// OPQ-NEXT:    br i1 [[TMP1]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META2]]
+// OPQ-NEXT:    [[TMP1:%.*]] = icmp ult ptr [[ARRAYIDX]], [[WIDE_PTR_UB]], !annotation [[META5]]
+// OPQ-NEXT:    br i1 [[TMP1]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // OPQ:       [[TRAP]]:
-// OPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META2]]
-// OPQ-NEXT:    unreachable, !annotation [[META2]]
+// OPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
+// OPQ-NEXT:    unreachable, !annotation [[META5]]
 // OPQ:       [[CONT]]:
-// OPQ-NEXT:    [[TMP2:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], !annotation [[META4]]
-// OPQ-NEXT:    br i1 [[TMP2]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, !annotation [[META4]]
+// OPQ-NEXT:    [[TMP2:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], !annotation [[META7]]
+// OPQ-NEXT:    br i1 [[TMP2]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, !annotation [[META7]]
 // OPQ:       [[TRAP1]]:
-// OPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META4]]
-// OPQ-NEXT:    unreachable, !annotation [[META4]]
+// OPQ-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META7]]
+// OPQ-NEXT:    unreachable, !annotation [[META7]]
 // OPQ:       [[CONT2]]:
 // OPQ-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
 // OPQ-NEXT:    [[LOADEDV:%.*]] = icmp ne i8 [[TMP3]], 0
@@ -379,11 +379,11 @@ _Bool *__bidi_indexable f6(_Bool *__indexable p) {
 }
 
 //.
-// NOPQ: [[META1]] = !{!"bounds-safety-check-ptr-neq-null"}
-// NOPQ: [[META2]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
-// NOPQ: [[META4]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
+// NOPQ: [[META4]] = !{!"bounds-safety-check-ptr-neq-null"}
+// NOPQ: [[META5]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
+// NOPQ: [[META7]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
 //.
-// OPQ: [[META1]] = !{!"bounds-safety-check-ptr-neq-null"}
-// OPQ: [[META2]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
-// OPQ: [[META4]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
+// OPQ: [[META4]] = !{!"bounds-safety-check-ptr-neq-null"}
+// OPQ: [[META5]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
+// OPQ: [[META7]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
 //.

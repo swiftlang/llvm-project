@@ -227,7 +227,7 @@ struct wide_member_t {
   int *__bidi_indexable ptr;
 };
 // CHECK-LABEL: define dso_local void @wide_member_assign(
-// CHECK-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[W:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[W:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[W_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[AGG_TEMP:%.*]] = alloca %"__bounds_safety::wide_ptr.bidi_indexable.1", align 8

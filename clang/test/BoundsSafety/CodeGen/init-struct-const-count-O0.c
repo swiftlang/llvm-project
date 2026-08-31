@@ -86,8 +86,8 @@ void consume_cb(struct cb);
 // SAME-NEXT:    [[WIDE_PTR_UB22:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR21]], align 8, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB_ADDR23:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP18]], i32 0, i32 2, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB24:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR23]], align 8, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META1]]
 // SAME-NEXT:    [[CMP25:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META1]]
@@ -128,7 +128,7 @@ void init_list_cb(int count_param, int*__counted_by(count_param) ptr) {
 }
 
 // SAME-LABEL: define void @init_list_cb_bidi(
-// SAME-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// SAME-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // SAME-NEXT:  [[ENTRY:.*]]:
 // SAME-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // SAME-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -180,8 +180,8 @@ void init_list_cb(int count_param, int*__counted_by(count_param) ptr) {
 // SAME-NEXT:    [[WIDE_PTR_UB22:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR21]], align 8, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB_ADDR23:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP18]], i32 0, i32 2, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB24:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR23]], align 8, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META1]]
 // SAME-NEXT:    [[CMP25:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META1]]
@@ -323,8 +323,8 @@ void init_list_cb_bidi(int count_param, int* __bidi_indexable ptr) {
 // NEW-NEXT:    [[WIDE_PTR_UB22:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR21]], align 8, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB_ADDR23:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP18]], i32 0, i32 2, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB24:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR23]], align 8, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META1]]
 // NEW-NEXT:    [[CMP25:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META1]]
@@ -365,7 +365,7 @@ void compound_literal_init_cb(int count_param, int*__counted_by(count_param) ptr
 }
 
 // LEGACY-LABEL: define void @compound_literal_init_cb_bidi(
-// LEGACY-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// LEGACY-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // LEGACY-NEXT:  [[ENTRY:.*:]]
 // LEGACY-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // LEGACY-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -392,7 +392,7 @@ void compound_literal_init_cb(int count_param, int*__counted_by(count_param) ptr
 // LEGACY-NEXT:    ret void
 //
 // NEW-LABEL: define void @compound_literal_init_cb_bidi(
-// NEW-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// NEW-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // NEW-NEXT:  [[ENTRY:.*]]:
 // NEW-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // NEW-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -444,8 +444,8 @@ void compound_literal_init_cb(int count_param, int*__counted_by(count_param) ptr
 // NEW-NEXT:    [[WIDE_PTR_UB22:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR21]], align 8, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB_ADDR23:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP18]], i32 0, i32 2, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB24:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR23]], align 8, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META1]]
 // NEW-NEXT:    [[CMP25:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META1]]
@@ -588,8 +588,8 @@ void consume_cbon(struct cbon);
 // SAME-NEXT:    [[WIDE_PTR_UB29:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR28]], align 8, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB_ADDR30:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP25]], i32 0, i32 2, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB31:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR30]], align 8, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META1]]
 // SAME-NEXT:    [[CMP32:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META1]]
@@ -633,7 +633,7 @@ void init_list_cbon(int count_param, int*__counted_by_or_null(count_param) ptr) 
 }
 
 // SAME-LABEL: define void @init_list_cbon_bidi(
-// SAME-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// SAME-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // SAME-NEXT:  [[ENTRY:.*]]:
 // SAME-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // SAME-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -696,8 +696,8 @@ void init_list_cbon(int count_param, int*__counted_by_or_null(count_param) ptr) 
 // SAME-NEXT:    [[WIDE_PTR_UB29:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR28]], align 8, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB_ADDR30:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP25]], i32 0, i32 2, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB31:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR30]], align 8, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META1]]
 // SAME-NEXT:    [[CMP32:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META1]]
@@ -879,8 +879,8 @@ void init_list_cbon_bidi(int count_param, int*__bidi_indexable ptr) {
 // NEW-NEXT:    [[WIDE_PTR_UB29:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR28]], align 8, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB_ADDR30:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP25]], i32 0, i32 2, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB31:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR30]], align 8, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META1]]
 // NEW-NEXT:    [[CMP32:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META1]]
@@ -924,7 +924,7 @@ void compound_literal_init_cbon(int count_param, int*__counted_by_or_null(count_
 }
 
 // LEGACY-LABEL: define void @compound_literal_init_cbon_bidi(
-// LEGACY-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// LEGACY-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // LEGACY-NEXT:  [[ENTRY:.*:]]
 // LEGACY-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // LEGACY-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -951,7 +951,7 @@ void compound_literal_init_cbon(int count_param, int*__counted_by_or_null(count_
 // LEGACY-NEXT:    ret void
 //
 // NEW-LABEL: define void @compound_literal_init_cbon_bidi(
-// NEW-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// NEW-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // NEW-NEXT:  [[ENTRY:.*]]:
 // NEW-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // NEW-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -1014,8 +1014,8 @@ void compound_literal_init_cbon(int count_param, int*__counted_by_or_null(count_
 // NEW-NEXT:    [[WIDE_PTR_UB29:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR28]], align 8, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB_ADDR30:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP25]], i32 0, i32 2, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB31:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR30]], align 8, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META1]]
 // NEW-NEXT:    [[CMP32:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META1]]
@@ -1137,8 +1137,8 @@ void consume_sb(struct sb);
 // SAME-NEXT:    [[WIDE_PTR_UB22:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR21]], align 8, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB_ADDR23:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP18]], i32 0, i32 2, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB24:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR23]], align 8, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // SAME-NEXT:    [[CMP25:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META1]]
 // SAME-NEXT:    br i1 [[CMP25]], label %[[LAND_RHS27:.*]], label %[[LAND_END:.*]], !annotation [[META1]]
@@ -1178,7 +1178,7 @@ void init_list_sb(int count_param, char*__sized_by(count_param) ptr) {
 }
 
 // SAME-LABEL: define void @init_list_bidi(
-// SAME-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// SAME-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // SAME-NEXT:  [[ENTRY:.*]]:
 // SAME-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // SAME-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -1230,8 +1230,8 @@ void init_list_sb(int count_param, char*__sized_by(count_param) ptr) {
 // SAME-NEXT:    [[WIDE_PTR_UB22:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR21]], align 8, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB_ADDR23:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP18]], i32 0, i32 2, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB24:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR23]], align 8, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // SAME-NEXT:    [[CMP25:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META1]]
 // SAME-NEXT:    br i1 [[CMP25]], label %[[LAND_RHS27:.*]], label %[[LAND_END:.*]], !annotation [[META1]]
@@ -1372,8 +1372,8 @@ void init_list_bidi(int count_param, char*__bidi_indexable ptr) {
 // NEW-NEXT:    [[WIDE_PTR_UB22:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR21]], align 8, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB_ADDR23:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP18]], i32 0, i32 2, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB24:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR23]], align 8, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // NEW-NEXT:    [[CMP25:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META1]]
 // NEW-NEXT:    br i1 [[CMP25]], label %[[LAND_RHS27:.*]], label %[[LAND_END:.*]], !annotation [[META1]]
@@ -1413,7 +1413,7 @@ void compound_literal_init_sb(int count_param, char*__sized_by(count_param) ptr)
 }
 
 // LEGACY-LABEL: define void @compound_literal_init_sb_bidi(
-// LEGACY-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// LEGACY-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // LEGACY-NEXT:  [[ENTRY:.*:]]
 // LEGACY-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // LEGACY-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -1440,7 +1440,7 @@ void compound_literal_init_sb(int count_param, char*__sized_by(count_param) ptr)
 // LEGACY-NEXT:    ret void
 //
 // NEW-LABEL: define void @compound_literal_init_sb_bidi(
-// NEW-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// NEW-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // NEW-NEXT:  [[ENTRY:.*]]:
 // NEW-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // NEW-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -1492,8 +1492,8 @@ void compound_literal_init_sb(int count_param, char*__sized_by(count_param) ptr)
 // NEW-NEXT:    [[WIDE_PTR_UB22:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR21]], align 8, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB_ADDR23:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP18]], i32 0, i32 2, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB24:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR23]], align 8, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB17]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR20]] to i64, !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // NEW-NEXT:    [[CMP25:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META1]]
 // NEW-NEXT:    br i1 [[CMP25]], label %[[LAND_RHS27:.*]], label %[[LAND_END:.*]], !annotation [[META1]]
@@ -1635,8 +1635,8 @@ void consume_sbon(struct sbon);
 // SAME-NEXT:    [[WIDE_PTR_UB29:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR28]], align 8, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB_ADDR30:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP25]], i32 0, i32 2, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB31:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR30]], align 8, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // SAME-NEXT:    [[CMP32:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META1]]
 // SAME-NEXT:    br i1 [[CMP32]], label %[[LAND_RHS34:.*]], label %[[LAND_END:.*]], !annotation [[META1]]
@@ -1679,7 +1679,7 @@ void init_list_sbon(int count_param, char*__sized_by_or_null(count_param) ptr) {
 }
 
 // SAME-LABEL: define void @init_list_sbon_bidi(
-// SAME-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// SAME-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // SAME-NEXT:  [[ENTRY:.*]]:
 // SAME-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // SAME-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -1742,8 +1742,8 @@ void init_list_sbon(int count_param, char*__sized_by_or_null(count_param) ptr) {
 // SAME-NEXT:    [[WIDE_PTR_UB29:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR28]], align 8, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB_ADDR30:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP25]], i32 0, i32 2, !annotation [[META1]]
 // SAME-NEXT:    [[WIDE_PTR_LB31:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR30]], align 8, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
-// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
+// SAME-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
 // SAME-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // SAME-NEXT:    [[CMP32:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META1]]
 // SAME-NEXT:    br i1 [[CMP32]], label %[[LAND_RHS34:.*]], label %[[LAND_END:.*]], !annotation [[META1]]
@@ -1924,8 +1924,8 @@ void init_list_sbon_bidi(int count_param, char*__bidi_indexable ptr) {
 // NEW-NEXT:    [[WIDE_PTR_UB29:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR28]], align 8, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB_ADDR30:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP25]], i32 0, i32 2, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB31:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR30]], align 8, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // NEW-NEXT:    [[CMP32:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META1]]
 // NEW-NEXT:    br i1 [[CMP32]], label %[[LAND_RHS34:.*]], label %[[LAND_END:.*]], !annotation [[META1]]
@@ -1968,7 +1968,7 @@ void compound_literal_init_sbon(int count_param, char*__sized_by_or_null(count_p
 }
 
 // LEGACY-LABEL: define void @compound_literal_init_sbon_bidi(
-// LEGACY-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// LEGACY-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // LEGACY-NEXT:  [[ENTRY:.*:]]
 // LEGACY-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // LEGACY-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -1995,7 +1995,7 @@ void compound_literal_init_sbon(int count_param, char*__sized_by_or_null(count_p
 // LEGACY-NEXT:    ret void
 //
 // NEW-LABEL: define void @compound_literal_init_sbon_bidi(
-// NEW-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
+// NEW-SAME: i32 noundef [[COUNT_PARAM:%.*]], ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]]) #[[ATTR0]] {
 // NEW-NEXT:  [[ENTRY:.*]]:
 // NEW-NEXT:    [[COUNT_PARAM_ADDR:%.*]] = alloca i32, align 4
 // NEW-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
@@ -2058,8 +2058,8 @@ void compound_literal_init_sbon(int count_param, char*__sized_by_or_null(count_p
 // NEW-NEXT:    [[WIDE_PTR_UB29:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR28]], align 8, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB_ADDR30:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP25]], i32 0, i32 2, !annotation [[META1]]
 // NEW-NEXT:    [[WIDE_PTR_LB31:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR30]], align 8, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
-// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB24]] to i64, !annotation [[META1]]
+// NEW-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR27]] to i64, !annotation [[META1]]
 // NEW-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // NEW-NEXT:    [[CMP32:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META1]]
 // NEW-NEXT:    br i1 [[CMP32]], label %[[LAND_RHS34:.*]], label %[[LAND_END:.*]], !annotation [[META1]]

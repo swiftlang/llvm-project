@@ -85,7 +85,7 @@ void caller_6(int *__counted_by(len) p, int len) {
 }
 
 // CHECK-LABEL: define void @caller_7(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[P]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_9_0_P_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 8
@@ -101,8 +101,8 @@ void caller_6(int *__counted_by(len) p, int len) {
 // CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label [[CONT:%.*]], label [[LOR_RHS:%.*]], !annotation [[META7]]
 // CHECK:       lor.rhs:
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[LEN]] to i64, !annotation [[META7]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_9_0_COPYLOAD]] to i64, !annotation [[META7]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META7]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_9_0_COPYLOAD]] to i64, !annotation [[META7]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META7]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META11:![0-9]+]]
 // CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META7]]
 // CHECK-NEXT:    [[CMP51:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META7]]

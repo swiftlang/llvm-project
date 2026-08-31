@@ -66,7 +66,7 @@
 // OPT: @trap.reason.2 = private unnamed_addr constant [41 x i8] c"indexing below lower bound in 'ptr[tmp]'\00", align 1
 //.
 // UNOPT-LABEL: define i32 @read(
-// UNOPT-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) #[[ATTR0:[0-9]+]] {
+// UNOPT-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) #[[ATTR0:[0-9]+]] {
 // UNOPT-NEXT:  [[ENTRY:.*:]]
 // UNOPT-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // UNOPT-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -121,7 +121,7 @@
 // UNOPT-NEXT:    ret i32 [[TMP11]]
 //
 // UNOPT-TF-LABEL: define i32 @read(
-// UNOPT-TF-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) #[[ATTR0:[0-9]+]] {
+// UNOPT-TF-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) #[[ATTR0:[0-9]+]] {
 // UNOPT-TF-NEXT:  [[ENTRY:.*:]]
 // UNOPT-TF-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // UNOPT-TF-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -176,7 +176,7 @@
 // UNOPT-TF-NEXT:    ret i32 [[TMP11]]
 //
 // UNOPT-TFR-LABEL: define i32 @read(
-// UNOPT-TFR-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) #[[ATTR0:[0-9]+]] {
+// UNOPT-TFR-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) #[[ATTR0:[0-9]+]] {
 // UNOPT-TFR-NEXT:  [[ENTRY:.*:]]
 // UNOPT-TFR-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // UNOPT-TFR-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -231,7 +231,7 @@
 // UNOPT-TFR-NEXT:    ret i32 [[TMP11]]
 //
 // OPT-LABEL: define i32 @read(
-// OPT-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// OPT-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]], i32 noundef [[OTHER:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // OPT-NEXT:  [[ENTRY:.*:]]
 // OPT-NEXT:    [[TMP0:%.*]] = tail call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 [[IDX]], i32 [[OTHER]]), !nosanitize [[META21:![0-9]+]]
 // OPT-NEXT:    [[TMP1:%.*]] = extractvalue { i32, i1 } [[TMP0]], 1, !nosanitize [[META21]]
@@ -379,8 +379,8 @@ void receive_cb(int*__counted_by(count) ptr, int count);
 // UNOPT-NEXT:    [[WIDE_PTR_UB41:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR40]], align 8, !annotation [[META5]]
 // UNOPT-NEXT:    [[WIDE_PTR_LB_ADDR42:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP37]], i32 0, i32 2, !annotation [[META5]]
 // UNOPT-NEXT:    [[WIDE_PTR_LB43:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR42]], align 8, !annotation [[META5]]
-// UNOPT-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META5]]
-// UNOPT-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META5]]
+// UNOPT-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META5]]
+// UNOPT-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META5]]
 // UNOPT-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META5]]
 // UNOPT-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META5]]
 // UNOPT-NEXT:    [[CMP44:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META5]]
@@ -511,8 +511,8 @@ void receive_cb(int*__counted_by(count) ptr, int count);
 // UNOPT-TF-NEXT:    [[WIDE_PTR_UB41:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR40]], align 8, !annotation [[META5]]
 // UNOPT-TF-NEXT:    [[WIDE_PTR_LB_ADDR42:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP37]], i32 0, i32 2, !annotation [[META5]]
 // UNOPT-TF-NEXT:    [[WIDE_PTR_LB43:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR42]], align 8, !annotation [[META5]]
-// UNOPT-TF-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META5]]
-// UNOPT-TF-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META5]]
+// UNOPT-TF-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META5]]
+// UNOPT-TF-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META5]]
 // UNOPT-TF-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META5]]
 // UNOPT-TF-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META5]]
 // UNOPT-TF-NEXT:    [[CMP44:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META5]]
@@ -643,8 +643,8 @@ void receive_cb(int*__counted_by(count) ptr, int count);
 // UNOPT-TFR-NEXT:    [[WIDE_PTR_UB41:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR40]], align 8, !annotation [[META5]]
 // UNOPT-TFR-NEXT:    [[WIDE_PTR_LB_ADDR42:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP37]], i32 0, i32 2, !annotation [[META5]]
 // UNOPT-TFR-NEXT:    [[WIDE_PTR_LB43:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR42]], align 8, !annotation [[META5]]
-// UNOPT-TFR-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META5]]
-// UNOPT-TFR-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META5]]
+// UNOPT-TFR-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META5]]
+// UNOPT-TFR-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META5]]
 // UNOPT-TFR-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META5]]
 // UNOPT-TFR-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META5]]
 // UNOPT-TFR-NEXT:    [[CMP44:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META5]]

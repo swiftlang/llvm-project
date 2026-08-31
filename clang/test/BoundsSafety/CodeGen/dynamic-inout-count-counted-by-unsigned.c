@@ -66,8 +66,8 @@
 // CHECK-NEXT:    [[WIDE_PTR_UB23:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR22]], align 8, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR24:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP19]], i32 0, i32 2, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[WIDE_PTR_LB25:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR24]], align 8, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB18]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR21]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB18]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR21]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP26:%.*]] = icmp sle i64 42, [[SUB_PTR_DIV]], {{!annotation ![0-9]+}}

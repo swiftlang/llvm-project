@@ -152,8 +152,8 @@ int check_upper_bound(void) {
 // CHECK-NEXT:    [[WIDE_PTR_UB42:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR41]], align 8
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR43:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.1", ptr [[AGG_TEMP29]], i32 0, i32 2
 // CHECK-NEXT:    [[WIDE_PTR_LB44:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR43]], align 8
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR24]] to i64
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR40]] to i64
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR24]] to i64
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR40]] to i64
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64 [[SUB_PTR_SUB]], 99
 // CHECK-NEXT:    br i1 [[CMP]], label %[[IF_THEN:.*]], label %[[IF_END:.*]]
@@ -272,8 +272,8 @@ int check_forged_upper_bound(void) {
 // CHECK-NEXT:    [[WIDE_PTR_UB35:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR34]], align 8
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR36:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.1", ptr [[AGG_TEMP22]], i32 0, i32 2
 // CHECK-NEXT:    [[WIDE_PTR_LB37:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR36]], align 8
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR17]] to i64
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR33]] to i64
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR17]] to i64
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR33]] to i64
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64 [[SUB_PTR_SUB]], 99
 // CHECK-NEXT:    br i1 [[CMP]], label %[[IF_THEN:.*]], label %[[IF_END:.*]]
@@ -465,8 +465,8 @@ void int_array_to_void_good(void) {
 // CHECK-NEXT:    [[WIDE_PTR_UB62:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR61]], align 8, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR63:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.1", ptr [[AGG_TEMP51]], i32 0, i32 2, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB64:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR63]], align 8, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR46]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR60]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR46]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR60]] to i64, !annotation [[META2]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META2]]
 // CHECK-NEXT:    [[CMP65:%.*]] = icmp sle i64 40, [[SUB_PTR_SUB]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP65]], label %[[LAND_RHS66:.*]], label %[[LAND_END:.*]], !annotation [[META2]]
@@ -616,8 +616,8 @@ void int_array_to_int_good(void) {
 // CHECK-NEXT:    [[WIDE_PTR_UB41:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR40]], align 8, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR42:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP37]], i32 0, i32 2, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB43:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR42]], align 8, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR32]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR39]] to i64, !annotation [[META2]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META2]]
 // CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META2]]
 // CHECK-NEXT:    [[CMP44:%.*]] = icmp sle i64 10, [[SUB_PTR_DIV]], !annotation [[META2]]

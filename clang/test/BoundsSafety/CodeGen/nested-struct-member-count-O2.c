@@ -42,7 +42,7 @@ char access(struct Outer *bar, int index) {
 
 
 // CHECK-LABEL: define ptr @assign(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[BAR:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[BAR:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[BAR]], align 8
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_2_0_BAR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BAR]], i64 8

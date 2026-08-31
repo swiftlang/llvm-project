@@ -82,7 +82,7 @@ char access(struct Outer *bar, int index) {
 
 
 // CHECK-LABEL: define ptr @assign(
-// CHECK-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[BAR:%.*]], i32 noundef [[LEN:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[BAR:%.*]], i32 noundef [[LEN:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[BAR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[LEN_ADDR:%.*]] = alloca i32, align 4

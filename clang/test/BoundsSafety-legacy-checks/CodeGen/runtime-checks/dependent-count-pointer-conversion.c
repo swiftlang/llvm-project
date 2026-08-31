@@ -46,8 +46,8 @@
 // O0-NEXT:    [[WIDE_PTR_UB3:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR2]], align 8, {{!annotation ![0-9]+}}
 // O0-NEXT:    [[WIDE_PTR_LB_ADDR:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP1]], i32 0, i32 2, {{!annotation ![0-9]+}}
 // O0-NEXT:    [[WIDE_PTR_LB:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR]], align 8, {{!annotation ![0-9]+}}
-// O0-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB]] to i64, {{!annotation ![0-9]+}}
-// O0-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR]] to i64, {{!annotation ![0-9]+}}
+// O0-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB]] to i64, {{!annotation ![0-9]+}}
+// O0-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR]] to i64, {{!annotation ![0-9]+}}
 // O0-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // O0-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, {{!annotation ![0-9]+}}
 // O0-NEXT:    [[CMP:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], {{!annotation ![0-9]+}}

@@ -6,33 +6,33 @@
 
 // TODO: rdar://114446928
 // CHECK-LABEL: define dso_local ptr @foo(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[P]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_2_0_P_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_2_0_P_SROA_IDX]], align 8
-// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], [[AGG_TEMP1_SROA_1_0_COPYLOAD]], !annotation [[META5:![0-9]+]]
+// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], [[AGG_TEMP1_SROA_1_0_COPYLOAD]], !annotation [[META9:![0-9]+]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_P_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 16
 // CHECK-NEXT:    [[AGG_TEMP4_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_P_SROA_IDX]], align 8
-// CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ugt ptr [[AGG_TEMP4_SROA_1_0_COPYLOAD]], [[AGG_TEMP_SROA_0_0_COPYLOAD]], !annotation [[META5]]
-// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[CMP_NOT]], i1 true, i1 [[CMP14_NOT]], !annotation [[META5]]
-// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
+// CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ugt ptr [[AGG_TEMP4_SROA_1_0_COPYLOAD]], [[AGG_TEMP_SROA_0_0_COPYLOAD]], !annotation [[META9]]
+// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[CMP_NOT]], i1 true, i1 [[CMP14_NOT]], !annotation [[META9]]
+// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META9]]
 // CHECK:       [[LAND_RHS]]:
-// CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], null, !annotation [[META5]]
-// CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[CONT:.*]], label %[[LOR_RHS:.*]], !annotation [[META5]]
+// CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], null, !annotation [[META9]]
+// CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[CONT:.*]], label %[[LOR_RHS:.*]], !annotation [[META9]]
 // CHECK:       [[LOR_RHS]]:
-// CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[LEN]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9:![0-9]+]]
-// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META5]]
-// CHECK-NEXT:    [[CMP32:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
-// CHECK-NEXT:    [[CMP35:%.*]] = icmp sgt i32 [[LEN]], -1, !annotation [[META5]]
+// CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[LEN]] to i64, !annotation [[META9]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META9]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META9]]
+// CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10:![0-9]+]]
+// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META9]]
+// CHECK-NEXT:    [[CMP32:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META9]]
+// CHECK-NEXT:    [[CMP35:%.*]] = icmp sgt i32 [[LEN]], -1, !annotation [[META9]]
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP35]], [[CMP32]]
-// CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META5]]
+// CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META9]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6:[0-9]+]], !annotation [[META5]]
-// CHECK-NEXT:    unreachable, !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6:[0-9]+]], !annotation [[META9]]
+// CHECK-NEXT:    unreachable, !annotation [[META9]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]]
 //
@@ -41,33 +41,33 @@ int * __counted_by_or_null(len) foo(int * __bidi_indexable p, int len) {
 }
 
 // CHECK-LABEL: define dso_local void @foo_assign(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[LEN]] to i64
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[P]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_2_0_P_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_2_0_P_SROA_IDX]], align 8
-// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], [[AGG_TEMP1_SROA_1_0_COPYLOAD]], !annotation [[META5]]
+// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], [[AGG_TEMP1_SROA_1_0_COPYLOAD]], !annotation [[META9]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_3_0_P_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 16
 // CHECK-NEXT:    [[AGG_TEMP5_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_3_0_P_SROA_IDX]], align 8
-// CHECK-NEXT:    [[CMP15_NOT:%.*]] = icmp ugt ptr [[AGG_TEMP5_SROA_1_0_COPYLOAD]], [[AGG_TEMP_SROA_0_0_COPYLOAD]], !annotation [[META5]]
-// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[CMP_NOT]], i1 true, i1 [[CMP15_NOT]], !annotation [[META5]]
-// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
+// CHECK-NEXT:    [[CMP15_NOT:%.*]] = icmp ugt ptr [[AGG_TEMP5_SROA_1_0_COPYLOAD]], [[AGG_TEMP_SROA_0_0_COPYLOAD]], !annotation [[META9]]
+// CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[CMP_NOT]], i1 true, i1 [[CMP15_NOT]], !annotation [[META9]]
+// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META9]]
 // CHECK:       [[LAND_RHS]]:
-// CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], null, !annotation [[META5]]
-// CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[CONT:.*]], label %[[LOR_RHS:.*]], !annotation [[META5]]
+// CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], null, !annotation [[META9]]
+// CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[CONT:.*]], label %[[LOR_RHS:.*]], !annotation [[META9]]
 // CHECK:       [[LOR_RHS]]:
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META9]]
-// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META5]]
-// CHECK-NEXT:    [[CMP34:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
-// CHECK-NEXT:    [[CMP37:%.*]] = icmp sgt i32 [[LEN]], -1, !annotation [[META5]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP1_SROA_1_0_COPYLOAD]] to i64, !annotation [[META9]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64, !annotation [[META9]]
+// CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META10]]
+// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[SUB_PTR_SUB]], 2, !annotation [[META9]]
+// CHECK-NEXT:    [[CMP34:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META9]]
+// CHECK-NEXT:    [[CMP37:%.*]] = icmp sgt i32 [[LEN]], -1, !annotation [[META9]]
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP37]], [[CMP34]]
-// CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META5]]
+// CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META9]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META5]]
-// CHECK-NEXT:    unreachable, !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META9]]
+// CHECK-NEXT:    unreachable, !annotation [[META9]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret void
 //
@@ -79,7 +79,7 @@ void foo_assign(int * __bidi_indexable p, int len) {
 // CHECK-LABEL: define dso_local void @bar(
 // CHECK-SAME: ptr dead_on_unwind noalias nofree writable writeonly sret(%"__bounds_safety::wide_ptr.bidi_indexable") align 8 captures(none) initializes((0, 24)) [[AGG_RESULT:%.*]], ptr noundef [[P:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[P]], null, !annotation [[META12:![0-9]+]]
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[P]], null, !annotation [[META13:![0-9]+]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[LEN]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds [4 x i8], ptr [[P]], i64 [[IDX_EXT]]
 // CHECK-NEXT:    [[ADD_PTR_SINK:%.*]] = select i1 [[DOTNOT]], ptr null, ptr [[ADD_PTR]]
@@ -106,8 +106,8 @@ void bar_assign(int * __counted_by_or_null(len) p, int len) {
 // CHECK-LABEL: define dso_local void @ptr_oob(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[TRAP:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META5]]
-// CHECK-NEXT:    unreachable, !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META9]]
+// CHECK-NEXT:    unreachable, !annotation [[META9]]
 //
 void ptr_oob(void) {
   int x;
@@ -147,8 +147,8 @@ int *__bidi_indexable null_count_too_big(void) {
 }
 
 //.
-// CHECK: [[META5]] = !{!"bounds-safety-generic"}
-// CHECK: [[META9]] = !{!"bounds-safety-generic", [[META10:![0-9]+]]}
-// CHECK: [[META10]] = !{!"bounds-safety-missed-optimization-nsw", !"Check can not be removed because the arithmetic operation might wrap in the signed sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
-// CHECK: [[META12]] = !{!"bounds-safety-check-ptr-neq-null"}
+// CHECK: [[META9]] = !{!"bounds-safety-generic"}
+// CHECK: [[META10]] = !{!"bounds-safety-generic", [[META11:![0-9]+]]}
+// CHECK: [[META11]] = !{!"bounds-safety-missed-optimization-nsw", !"Check can not be removed because the arithmetic operation might wrap in the signed sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
+// CHECK: [[META13]] = !{!"bounds-safety-check-ptr-neq-null"}
 //.

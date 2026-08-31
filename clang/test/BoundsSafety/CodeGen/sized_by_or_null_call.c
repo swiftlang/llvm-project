@@ -174,8 +174,8 @@ void caller_2() {
 // CHECK-NEXT:    [[WIDE_PTR_UB62:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR61]], align 8, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR63:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP51]], i32 0, i32 2, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB64:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR63]], align 8, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR46]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR60]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR46]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR60]] to i64, !annotation [[META2]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META2]]
 // CHECK-NEXT:    [[CMP65:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP65]], label %[[LAND_RHS67:.*]], label %[[LAND_END:.*]], !annotation [[META2]]
@@ -401,8 +401,8 @@ void caller_5() {
 // CHECK-NEXT:    [[WIDE_PTR_UB62:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR61]], align 8, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR63:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP51]], i32 0, i32 2, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB64:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR63]], align 8, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR46]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR60]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR46]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR60]] to i64, !annotation [[META2]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META2]]
 // CHECK-NEXT:    [[CMP65:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP65]], label %[[LAND_RHS67:.*]], label %[[LAND_END:.*]], !annotation [[META2]]
@@ -437,7 +437,7 @@ void caller_6(int *__sized_by(len) p, int len) {
 }
 
 // CHECK-LABEL: define void @caller_7(
-// CHECK-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[LEN:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[P:%.*]], i32 noundef [[LEN:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[P_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[LEN_ADDR:%.*]] = alloca i32, align 4
@@ -551,8 +551,8 @@ void caller_6(int *__sized_by(len) p, int len) {
 // CHECK-NEXT:    [[WIDE_PTR_UB62:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR61]], align 8, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR63:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP51]], i32 0, i32 2, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB64:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR63]], align 8, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR46]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR60]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR46]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR60]] to i64, !annotation [[META2]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META2]]
 // CHECK-NEXT:    [[CMP65:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP65]], label %[[LAND_RHS67:.*]], label %[[LAND_END:.*]], !annotation [[META2]]
@@ -672,8 +672,8 @@ void caller_7(int *__bidi_indexable p, int len) {
 // CHECK-NEXT:    [[WIDE_PTR_UB28:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR27]], align 8, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR29:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP14]], i32 0, i32 2, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB30:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR29]], align 8, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR26]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[TMP0]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR26]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[TMP0]] to i64, !annotation [[META2]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META2]]
 // CHECK-NEXT:    [[CMP31:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP31]], label %[[LAND_RHS33:.*]], label %[[LAND_END:.*]], !annotation [[META2]]
@@ -911,8 +911,8 @@ void caller_9(int *__sized_by(*len) *out, int *len){
 // CHECK-NEXT:    [[WIDE_PTR_UB67:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR66]], align 8, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR68:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP56]], i32 0, i32 2, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB69:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR68]], align 8, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB55]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR65]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB55]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR65]] to i64, !annotation [[META2]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META2]]
 // CHECK-NEXT:    [[CMP70:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_SUB]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP70]], label %[[LAND_RHS72:.*]], label %[[LAND_END:.*]], !annotation [[META2]]
@@ -1024,8 +1024,8 @@ void caller_9(int *__sized_by(*len) *out, int *len){
 // CHECK-NEXT:    [[WIDE_PTR_UB140:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR139]], align 8, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR141:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable.0", ptr [[AGG_TEMP129]], i32 0, i32 2, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB142:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR141]], align 8, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST143:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB128]] to i64, !annotation [[META2]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST144:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR138]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST143:%.*]] = ptrtoint ptr [[WIDE_PTR_UB128]] to i64, !annotation [[META2]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST144:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR138]] to i64, !annotation [[META2]]
 // CHECK-NEXT:    [[SUB_PTR_SUB145:%.*]] = sub i64 [[SUB_PTR_LHS_CAST143]], [[SUB_PTR_RHS_CAST144]], !annotation [[META2]]
 // CHECK-NEXT:    [[CMP146:%.*]] = icmp sle i64 [[CONV125]], [[SUB_PTR_SUB145]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP146]], label %[[LAND_RHS148:.*]], label %[[LAND_END151:.*]], !annotation [[META2]]

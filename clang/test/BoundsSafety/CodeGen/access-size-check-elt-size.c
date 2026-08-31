@@ -7,7 +7,7 @@
 
 
 // NEW-LABEL: define i8 @access_uint8(
-// NEW-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0:[0-9]+]] {
+// NEW-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0:[0-9]+]] {
 // NEW-NEXT:  [[ENTRY:.*:]]
 // NEW-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // NEW-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -40,7 +40,7 @@
 // NEW-NEXT:    ret i8 [[TMP3]]
 //
 // LEGACY-LABEL: define i8 @access_uint8(
-// LEGACY-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0:[0-9]+]] {
+// LEGACY-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0:[0-9]+]] {
 // LEGACY-NEXT:  [[ENTRY:.*:]]
 // LEGACY-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // LEGACY-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -77,7 +77,7 @@ uint8_t access_uint8(uint8_t* __bidi_indexable ptr, int idx) {
 }
 
 // NEW-LABEL: define i16 @access_uint16(
-// NEW-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
+// NEW-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
 // NEW-NEXT:  [[ENTRY:.*:]]
 // NEW-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // NEW-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -117,7 +117,7 @@ uint8_t access_uint8(uint8_t* __bidi_indexable ptr, int idx) {
 // NEW-NEXT:    ret i16 [[TMP5]]
 //
 // LEGACY-LABEL: define i16 @access_uint16(
-// LEGACY-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
+// LEGACY-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
 // LEGACY-NEXT:  [[ENTRY:.*:]]
 // LEGACY-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // LEGACY-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -154,7 +154,7 @@ uint16_t access_uint16(uint16_t* __bidi_indexable ptr, int idx) {
 }
 
 // NEW-LABEL: define i32 @access_uint32(
-// NEW-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
+// NEW-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
 // NEW-NEXT:  [[ENTRY:.*:]]
 // NEW-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // NEW-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -194,7 +194,7 @@ uint16_t access_uint16(uint16_t* __bidi_indexable ptr, int idx) {
 // NEW-NEXT:    ret i32 [[TMP5]]
 //
 // LEGACY-LABEL: define i32 @access_uint32(
-// LEGACY-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
+// LEGACY-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
 // LEGACY-NEXT:  [[ENTRY:.*:]]
 // LEGACY-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // LEGACY-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -231,7 +231,7 @@ uint32_t access_uint32(uint32_t* __bidi_indexable ptr, int idx) {
 }
 
 // NEW-LABEL: define i64 @access_uint64(
-// NEW-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
+// NEW-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
 // NEW-NEXT:  [[ENTRY:.*:]]
 // NEW-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // NEW-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4
@@ -271,7 +271,7 @@ uint32_t access_uint32(uint32_t* __bidi_indexable ptr, int idx) {
 // NEW-NEXT:    ret i64 [[TMP5]]
 //
 // LEGACY-LABEL: define i64 @access_uint64(
-// LEGACY-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
+// LEGACY-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[PTR:%.*]], i32 noundef [[IDX:%.*]]) #[[ATTR0]] {
 // LEGACY-NEXT:  [[ENTRY:.*:]]
 // LEGACY-NEXT:    [[PTR_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // LEGACY-NEXT:    [[IDX_ADDR:%.*]] = alloca i32, align 4

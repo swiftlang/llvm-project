@@ -58,7 +58,7 @@ void receive_transparent_union(union TransparentUnion);
 // =============================================================================
 
 // CHECK-LABEL: define void @assign_via_ptr(
-// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -89,7 +89,7 @@ void assign_via_ptr(struct eb* ptr,
 }
 
 // CHECK-LABEL: define void @assign_operator(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr nofree noundef readnone captures(address) [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr nofree noundef readnone captures(address) [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -118,7 +118,7 @@ void assign_operator(char* __bidi_indexable new_start, char* new_end) {
 
 
 // CHECK-LABEL: define void @local_var_init(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr nofree noundef readnone captures(address) [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr nofree noundef readnone captures(address) [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -145,7 +145,7 @@ void local_var_init(char* __bidi_indexable new_start, char* new_end) {
 }
 
 // CHECK-LABEL: define void @call_arg(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -175,7 +175,7 @@ void call_arg(char* __bidi_indexable new_start, char* new_end) {
 }
 
 // CHECK-LABEL: define [2 x i64] @return_eb(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -206,7 +206,7 @@ struct eb return_eb(char* __bidi_indexable new_start, char* new_end) {
 }
 
 // CHECK-LABEL: define void @construct_not_used(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr nofree noundef readnone captures(address) [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr nofree noundef readnone captures(address) [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -255,7 +255,7 @@ void assign_via_ptr_nullptr(struct eb* ptr, char* new_end) {
 }
 
 // CHECK-LABEL: define void @assign_via_ptr_nested(
-// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -291,7 +291,7 @@ void assign_via_ptr_nested(struct nested_eb* ptr,
 }
 
 // CHECK-LABEL: define void @assign_via_ptr_nested_v2(
-// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -327,7 +327,7 @@ void assign_via_ptr_nested_v2(struct nested_eb* ptr,
 }
 
 // CHECK-LABEL: define void @assign_via_ptr_nested_v3(
-// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR0]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -369,7 +369,7 @@ void assign_via_ptr_nested_v3(struct nested_and_outer_eb* ptr,
 }
 
 // CHECK-LABEL: define void @array_of_struct_init(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [2 x [[STRUCT_EB:%.*]]], align 8
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR10]]
@@ -407,7 +407,7 @@ void array_of_struct_init(char* __bidi_indexable new_start, char* new_end) {
 
 
 // CHECK-LABEL: define void @assign_via_ptr_other_data_side_effect(
-// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(none) [[PTR:%.*]], ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX]], align 8
@@ -475,7 +475,7 @@ void assign_via_ptr_other_data_side_effect_zero_ptr(struct eb_with_other_data* p
 }
 
 // CHECK-LABEL: define void @call_arg_transparent_union(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TMP:%.*]] = alloca [[UNION_TRANSPARENTUNION:%.*]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
@@ -500,7 +500,7 @@ void assign_via_ptr_other_data_side_effect_zero_ptr(struct eb_with_other_data* p
 // CHECK-NEXT:    store i32 0, ptr [[OTHER]], align 8, !tbaa [[TBAA19:![0-9]+]]
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw i8, ptr [[AGG_TMP]], i64 20
 // CHECK-NEXT:    store i32 0, ptr [[TMP0]], align 4
-// CHECK-NEXT:    call void @receive_transparent_union(ptr nofree noundef nonnull align 8 dead_on_return dereferenceable(24) [[AGG_TMP]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @receive_transparent_union(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[AGG_TMP]]) #[[ATTR10]]
 // CHECK-NEXT:    ret void
 //
 void call_arg_transparent_union(char* __bidi_indexable new_start,
@@ -515,7 +515,7 @@ void call_arg_transparent_union(char* __bidi_indexable new_start,
 }
 
 // CHECK-LABEL: define void @call_arg_transparent_union_untransparently(
-// CHECK-SAME: ptr nofree noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4]] {
+// CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_START:%.*]], ptr noundef [[NEW_END:%.*]]) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[BYVAL_TEMP:%.*]] = alloca [[UNION_TRANSPARENTUNION:%.*]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_1_0_NEW_START_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_START]], i64 8
@@ -541,7 +541,7 @@ void call_arg_transparent_union(char* __bidi_indexable new_start,
 // CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_3_0_BYVAL_TEMP_SROA_IDX]], align 8
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 20
 // CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX]], align 4, !tbaa [[TBAA20:![0-9]+]]
-// CHECK-NEXT:    call void @receive_transparent_union(ptr nofree noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @receive_transparent_union(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR10]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR10]]
 // CHECK-NEXT:    ret void
 //
@@ -865,7 +865,7 @@ void assign_via_ptr_other_data_side_effect_zero_ptr_from_eb(struct eb_with_other
 // CHECK-NEXT:    store i32 0, ptr [[OTHER]], align 8, !tbaa [[TBAA19]]
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw i8, ptr [[AGG_TMP]], i64 20
 // CHECK-NEXT:    store i32 0, ptr [[TMP0]], align 4
-// CHECK-NEXT:    call void @receive_transparent_union(ptr nofree noundef nonnull align 8 dead_on_return dereferenceable(24) [[AGG_TMP]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @receive_transparent_union(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[AGG_TMP]]) #[[ATTR10]]
 // CHECK-NEXT:    ret void
 //
 void call_arg_transparent_union_from_eb(char* __ended_by(new_end) new_start,
@@ -897,7 +897,7 @@ void call_arg_transparent_union_from_eb(char* __ended_by(new_end) new_start,
 // CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_3_0_BYVAL_TEMP_SROA_IDX]], align 8
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 20
 // CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX]], align 4, !tbaa [[TBAA20]]
-// CHECK-NEXT:    call void @receive_transparent_union(ptr nofree noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @receive_transparent_union(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR10]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR10]]
 // CHECK-NEXT:    ret void
 //

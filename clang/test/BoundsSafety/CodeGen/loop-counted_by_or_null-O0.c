@@ -29,8 +29,8 @@ void use(int *__bidi_indexable q);
 // CHECK:       [[FOR_BODY]]:
 // CHECK-NEXT:    [[TMP2:%.*]] = load ptr, ptr [[P_ADDR]], align 8
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[LEN_ADDR]], align 4
-// CHECK-NEXT:    [[TMP4:%.*]] = icmp ne ptr [[TMP2]], null, !annotation [[META4:![0-9]+]]
-// CHECK-NEXT:    br i1 [[TMP4]], label %[[BOUNDSCHECK_NOTNULL:.*]], label %[[BOUNDSCHECK_NULL:.*]], !annotation [[META4]]
+// CHECK-NEXT:    [[TMP4:%.*]] = icmp ne ptr [[TMP2]], null, !annotation [[META1:![0-9]+]]
+// CHECK-NEXT:    br i1 [[TMP4]], label %[[BOUNDSCHECK_NOTNULL:.*]], label %[[BOUNDSCHECK_NULL:.*]], !annotation [[META1]]
 // CHECK:       [[BOUNDSCHECK_NOTNULL]]:
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[TMP3]] to i64
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds i32, ptr [[TMP2]], i64 [[IDX_EXT]]
@@ -51,13 +51,13 @@ void use(int *__bidi_indexable q);
 // CHECK-NEXT:    br label %[[BOUNDSCHECK_CONT]]
 // CHECK:       [[BOUNDSCHECK_CONT]]:
 // CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 8 [[BYVAL_TEMP]], ptr align 8 [[Q]], i64 24, i1 false)
-// CHECK-NEXT:    call void @use(ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]])
+// CHECK-NEXT:    call void @use(ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]])
 // CHECK-NEXT:    br label %[[FOR_INC:.*]]
 // CHECK:       [[FOR_INC]]:
 // CHECK-NEXT:    [[TMP11:%.*]] = load i32, ptr [[I]], align 4
 // CHECK-NEXT:    [[INC:%.*]] = add nsw i32 [[TMP11]], 1
 // CHECK-NEXT:    store i32 [[INC]], ptr [[I]], align 4
-// CHECK-NEXT:    br label %[[FOR_COND]], !llvm.loop [[LOOP5:![0-9]+]]
+// CHECK-NEXT:    br label %[[FOR_COND]], !llvm.loop [[LOOP2:![0-9]+]]
 // CHECK:       [[FOR_END]]:
 // CHECK-NEXT:    ret void
 //
@@ -68,7 +68,7 @@ void f(int *__counted_by_or_null(len) p, int len) {
   }
 }
 //.
-// CHECK: [[META4]] = !{!"bounds-safety-check-ptr-neq-null"}
-// CHECK: [[LOOP5]] = distinct !{[[LOOP5]], [[META6:![0-9]+]]}
-// CHECK: [[META6]] = !{!"llvm.loop.mustprogress"}
+// CHECK: [[META1]] = !{!"bounds-safety-check-ptr-neq-null"}
+// CHECK: [[LOOP2]] = distinct !{[[LOOP2]], [[META3:![0-9]+]]}
+// CHECK: [[META3]] = !{!"llvm.loop.mustprogress"}
 //.

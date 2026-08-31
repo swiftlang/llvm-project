@@ -9,7 +9,7 @@
 inline void param_with_count(int *__counted_by(len - 2) buf, int len) {}
 
 // CHECK-LABEL: define void @pass_count(
-// CHECK-SAME: ptr nofree noundef align 8 dead_on_return dereferenceable(24) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) #[[ATTR0:[0-9]+]] {
+// CHECK-SAME: ptr nofreeobj noundef align 8 dead_on_return dereferenceable(24) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[BUF_INDIRECT_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[LEN_ADDR:%.*]] = alloca i32, align 4
@@ -87,8 +87,8 @@ inline void param_with_count(int *__counted_by(len - 2) buf, int len) {}
 // CHECK-NEXT:    [[WIDE_PTR_UB43:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR42]], align 8, !annotation [[META1]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR44:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP39]], i32 0, i32 2, !annotation [[META1]]
 // CHECK-NEXT:    [[WIDE_PTR_LB45:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR44]], align 8, !annotation [[META1]]
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR34]] to i64, !annotation [[META1]]
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR41]] to i64, !annotation [[META1]]
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR34]] to i64, !annotation [[META1]]
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR41]] to i64, !annotation [[META1]]
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], !annotation [[META1]]
 // CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = sdiv exact i64 [[SUB_PTR_SUB]], 4, !annotation [[META1]]
 // CHECK-NEXT:    [[CMP46:%.*]] = icmp sle i64 [[CONV]], [[SUB_PTR_DIV]], !annotation [[META1]]
