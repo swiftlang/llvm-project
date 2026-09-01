@@ -6,7 +6,9 @@ from lldbsuite.test import lldbutil
 
 
 class TestSwiftClockInstantSummary(TestBase):
-    @skipEmbeddedSwift
+    # This test is not applicable to Embedded Swift because ContinuousClock
+    # and SuspendingClock are not available there.
+    @requireNotEmbeddedSwift
     @swiftTest
     def test_clock_instant_summary(self):
         self.build()

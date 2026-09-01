@@ -2395,10 +2395,13 @@ bool lldb_private::formatters::swift::GLKit_SummaryProvider(
   return true;
 }
 
-static bool ReadInt128Storage(ValueObject &valobj, __int128_t &result) {
+/// Reads a signed 128-bit integer stored as two members named `_high` and
+/// `_low`, where `_high` contains the upper signed 64 bits and `_low` contains
+/// the lower unsigned 64 bits.
+static std::optional<__int128_t> ReadInt128Storage(ValueObject &valobj) {
   // Verify object
   if (!valobj.GetCompilerType().IsValid())
-    return false;
+    return std::nullopt;
 
   // Capture high/low
   static constexpr llvm::StringLiteral g_high_name("_high");
@@ -2408,22 +2411,23 @@ static bool ReadInt128Storage(ValueObject &valobj, __int128_t &result) {
   ValueObjectSP low_sp(valobj.GetChildMemberWithName(g_low_name));
 
   if (!high_sp || !low_sp)
-    return false;
+    return std::nullopt;
 
   bool success = false;
-  int64_t high = high_sp->GetSyntheticValue()->GetValueAsSigned(0, &success);
+  int64_t high =
+      high_sp->GetSyntheticValue()->GetValueAsSigned(0, &success);
   if (!success)
-    return false;
-  uint64_t low = low_sp->GetSyntheticValue()->GetValueAsUnsigned(0, &success);
+    return std::nullopt;
+
+  uint64_t low =
+      low_sp->GetSyntheticValue()->GetValueAsUnsigned(0, &success);
   if (!success)
-    return false;
+    return std::nullopt;
 
   // Building 128 bit value
-  __uint128_t bits =
-      (static_cast<__uint128_t>(high) << 64) | static_cast<__uint128_t>(low);
+  __uint128_t bits = (static_cast<__uint128_t>(high) << 64) | static_cast<__uint128_t>(low);
 
-  result = static_cast<__int128_t>(bits);
-  return true;
+  return static_cast<__int128_t>(bits);
 }
 
 static std::string FormatAttoseconds(__int128_t attosec) {
@@ -2522,11 +2526,11 @@ static std::string FormatAttoseconds(__int128_t attosec) {
 bool lldb_private::formatters::swift::Duration_SummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
 
-  __int128_t duration;
-  if (!ReadInt128Storage(valobj, duration))
+  std::optional<__int128_t> duration = ReadInt128Storage(valobj);
+  if (!duration)
     return false;
 
-  stream.Printf("%s seconds", FormatAttoseconds(duration).c_str());
+  stream.Printf("%s seconds", FormatAttoseconds(*duration).c_str());
   return true;
 }
 
@@ -2539,11 +2543,11 @@ static bool ClockInstant_SummaryProvider(ValueObject &valobj, Stream &stream,
   if (!value_sp)
     return false;
 
-  __int128_t attoseconds;
-  if (!ReadInt128Storage(*value_sp, attoseconds))
+  std::optional<__int128_t> attoseconds = ReadInt128Storage(*value_sp);
+  if (!attoseconds)
     return false;
 
-  stream.Printf("%s seconds", FormatAttoseconds(attoseconds).c_str());
+  stream.Printf("%s seconds", FormatAttoseconds(*attoseconds).c_str());
   return true;
 }
 
