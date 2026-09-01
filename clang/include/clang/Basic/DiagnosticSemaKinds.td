@@ -15427,7 +15427,13 @@ def err_tmo_invalid_inferred_parameter_type : Error<
   "invalid parameter type for inference at index %0. %1 is not an integer type">;
 
 def err_tmo_function_kind_error : Error<
-  "%select{untyped|typed}0 memory operation %1 %select{cannot be a variadic function|cannot be an instance method|must have a prototype|must be a function}2">;
+  "%select{untyped|typed}0 memory operation %1 "
+  "%enum_select<TMOErrorKind>{"
+     "%Variadic{cannot be a variadic function}|"
+     "%InstanceMethod{cannot be an instance method}|"
+     "%NoPrototype{must have a prototype}|"
+     "%NotAFunction{must be a function}"
+  "}2">;
 
 def err_tmo_rewrite_target_is_overloaded : Error<
   "typed memory operation %0 has multiple overloads">;

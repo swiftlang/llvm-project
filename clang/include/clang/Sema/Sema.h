@@ -5700,6 +5700,13 @@ public:
   /// implementation of std::span or sized_allocation_t in P0901R11.
   bool CheckSpanLikeType(const AttributeCommonInfo &CI, const QualType &Ty);
 
+  /// Check that the Target function for the typed retargeting is valid for
+  /// the source function.
+  bool checkTypedMemorySignature(const AttributeCommonInfo &CI,
+                                 const FunctionDecl *Source,
+                                 const FunctionDecl *Target,
+                                 ParamIdx InferredParameterIdx);
+
   /// Check if IdxExpr is a valid parameter index for a function or
   /// instance method D.  May output an error.
   ///

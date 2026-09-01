@@ -19,6 +19,7 @@
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaObjC.h"
@@ -136,6 +137,73 @@ static void emitTMOInferenceDiagnostics(Sema &S, const Expr *CallExpr,
   assert(InferredType);
   emitTMODescriptorRemarks(S, CallExpr, Callee, RewriteTarget, TypeSourceRange,
                            TypeDescriptor, *InferredType);
+}
+
+static bool typedMemoryTypesAreEquivalentOrDependent(const ASTContext &Context,
+                                                     QualType SourceType,
+                                                     QualType DestinationType) {
+  SourceType = Context.getCanonicalType(SourceType).getUnqualifiedType();
+  DestinationType =
+      Context.getCanonicalType(DestinationType).getUnqualifiedType();
+  if (SourceType->isDependentType() || DestinationType->isDependentType())
+    return true;
+  return SourceType == DestinationType;
+}
+
+bool Sema::checkTypedMemorySignature(const AttributeCommonInfo &CI,
+                                     const FunctionDecl *Source,
+                                     const FunctionDecl *Target,
+                                     ParamIdx InferredParameterIdx) {
+  SourceLocation Loc = CI.getLoc();
+  auto reportTargetTypeMismatchError = [&]() {
+    std::vector<QualType> ExpectedArguments;
+    for (size_t I = 0; I < InferredParameterIdx.getSourceIndex(); I++)
+      ExpectedArguments.push_back(Source->getParamDecl(I)->getType());
+    ExpectedArguments.push_back(Context.getIntTypeForBitwidth(64, false));
+    for (size_t I = InferredParameterIdx.getSourceIndex();
+         I < Source->getNumParams(); I++)
+      ExpectedArguments.push_back(Source->getParamDecl(I)->getType());
+    FunctionProtoType::ExtProtoInfo EPI = {};
+    auto ExpectedType = Context.getFunctionType(Source->getReturnType(),
+                                                ExpectedArguments, EPI);
+    Diag(Loc, diag::err_tmo_rewrite_target_type_mismatch)
+        << Target->getNameInfo().getName() << ExpectedType << Target->getType();
+    Diag(Target->getLocation(), diag::note_tmo_rewrite_target_type_mismatch);
+    return true;
+  };
+
+  if (!typedMemoryTypesAreEquivalentOrDependent(
+          Context, Target->getReturnType(), Source->getReturnType()))
+    return reportTargetTypeMismatchError();
+
+  if (getFunctionOrMethodNumParams(Target) !=
+      getFunctionOrMethodNumParams(Source) + 1)
+    return reportTargetTypeMismatchError();
+
+  auto *TargetTypeDescriptorParam =
+      getFunctionOrMethodParam(Target, InferredParameterIdx.getASTIndex() + 1);
+  auto TargetTypeDescriptorType = TargetTypeDescriptorParam->getType();
+  if (!TargetTypeDescriptorType->isDependentType()) {
+    if (!TargetTypeDescriptorType->isIntegerType() ||
+        Context.getTypeSize(TargetTypeDescriptorType) != 64)
+      return reportTargetTypeMismatchError();
+  }
+
+  size_t SourceParameterIdx = 0;
+  size_t TargetParameterIdx = 0;
+  for (; SourceParameterIdx < getFunctionOrMethodNumParams(Source);
+       SourceParameterIdx++, TargetParameterIdx++) {
+    auto *SourceParamDecl =
+        getFunctionOrMethodParam(Source, SourceParameterIdx);
+    auto *TargetParamDecl =
+        getFunctionOrMethodParam(Target, TargetParameterIdx);
+    if (!typedMemoryTypesAreEquivalentOrDependent(
+            Context, SourceParamDecl->getType(), TargetParamDecl->getType()))
+      return reportTargetTypeMismatchError();
+    if (SourceParameterIdx == InferredParameterIdx.getASTIndex())
+      TargetParameterIdx++;
+  }
+  return false;
 }
 
 void TypedMemoryCallsiteContext::recordInfoForInferredCall(

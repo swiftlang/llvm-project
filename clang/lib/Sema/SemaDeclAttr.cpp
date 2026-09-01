@@ -8928,17 +8928,6 @@ static void handleEnforceTCBAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(AttrTy::Create(S.Context, Argument, AL));
 }
 
-static bool typedMemoryTypesAreEquivalentOrDependent(const ASTContext &Context,
-                                                     QualType SourceType,
-                                                     QualType DestinationType) {
-  SourceType = Context.getCanonicalType(SourceType).getUnqualifiedType();
-  DestinationType =
-      Context.getCanonicalType(DestinationType).getUnqualifiedType();
-  if (SourceType->isDependentType() || DestinationType->isDependentType())
-    return true;
-  return SourceType == DestinationType;
-}
-
 static void handleTypedMemory(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.getLangOpts().TypedMemoryOperations)
     return;
@@ -8946,7 +8935,9 @@ static void handleTypedMemory(Sema &S, Decl *D, const ParsedAttr &AL) {
   FunctionDecl *SourceDecl = D->getAsFunction();
   if (isFunctionOrMethodVariadic(D) || isInstanceMethod(D)) {
     S.Diag(SourceDecl->getBeginLoc(), diag::err_tmo_function_kind_error)
-        << 0 << SourceDecl << (isFunctionOrMethodVariadic(D) ? 0 : 1);
+        << 0 << SourceDecl
+        << (isFunctionOrMethodVariadic(D) ? diag::TMOErrorKind::Variadic
+                                          : diag::TMOErrorKind::InstanceMethod);
     AL.setInvalid();
     return;
   }
@@ -8954,7 +8945,8 @@ static void handleTypedMemory(Sema &S, Decl *D, const ParsedAttr &AL) {
   auto Loc = AL.getLoc();
   if (!SourceDecl) {
     auto *ND = cast<NamedDecl>(D);
-    S.Diag(Loc, diag::err_tmo_function_kind_error) << 0 << ND << 3;
+    S.Diag(Loc, diag::err_tmo_function_kind_error)
+        << 0 << ND << diag::TMOErrorKind::NotAFunction;
     AL.setInvalid();
     return;
   }
@@ -8976,7 +8968,8 @@ static void handleTypedMemory(Sema &S, Decl *D, const ParsedAttr &AL) {
     TargetName = DRE->getNameInfo();
     if (!TargetDecl) {
       S.Diag(Loc, diag::err_tmo_function_kind_error)
-          << DRE->getSourceRange() << 1 << DRE->getNameInfo().getName() << 3;
+          << DRE->getSourceRange() << 1 << DRE->getNameInfo().getName()
+          << diag::TMOErrorKind::NotAFunction;
       AL.setInvalid();
       return;
     }
@@ -8993,7 +8986,8 @@ static void handleTypedMemory(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   } else {
     S.Diag(Loc, diag::err_tmo_function_kind_error)
-        << TargetExpr->getSourceRange() << 1 << TargetExpr << 3;
+        << TargetExpr->getSourceRange() << 1 << TargetExpr
+        << diag::TMOErrorKind::NotAFunction;
     AL.setInvalid();
     return;
   }
@@ -9025,77 +9019,22 @@ static void handleTypedMemory(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   if (!hasFunctionProto(TargetDecl) || isFunctionOrMethodVariadic(TargetDecl) ||
       isInstanceMethod(TargetDecl)) {
-    unsigned MessageSelector = !hasFunctionProto(TargetDecl)            ? 2u
-                               : isFunctionOrMethodVariadic(TargetDecl) ? 1u
-                                                                        : 0u;
+    auto MessageSelector = !hasFunctionProto(TargetDecl)
+                               ? diag::TMOErrorKind::NoPrototype
+                           : isFunctionOrMethodVariadic(TargetDecl)
+                               ? diag::TMOErrorKind::Variadic
+                               : diag::TMOErrorKind::InstanceMethod;
     S.Diag(Loc, diag::err_tmo_function_kind_error)
         << 1 << TargetDecl << MessageSelector;
     AL.setInvalid();
     return;
   }
 
-  auto reportTargetTypeMismatchError = [&]() {
-    std::vector<QualType> ExpectedArguments;
-    for (size_t I = 0; I < InferredParameterIdx.getSourceIndex(); I++)
-      ExpectedArguments.push_back(SourceDecl->getParamDecl(I)->getType());
-    ExpectedArguments.push_back(S.Context.getIntTypeForBitwidth(64, false));
-    for (size_t I = InferredParameterIdx.getSourceIndex();
-         I < SourceDecl->getNumParams(); I++)
-      ExpectedArguments.push_back(SourceDecl->getParamDecl(I)->getType());
-    FunctionProtoType::ExtProtoInfo EPI = {};
-    auto ExpectedType = S.Context.getFunctionType(SourceDecl->getReturnType(),
-                                                  ExpectedArguments, EPI);
-    S.Diag(Loc, diag::err_tmo_rewrite_target_type_mismatch)
-        << TargetDecl->getNameInfo().getName() << ExpectedType
-        << TargetDecl->getType();
-    S.Diag(TargetDecl->getLocation(),
-           diag::note_tmo_rewrite_target_type_mismatch);
+  if (S.checkTypedMemorySignature(AL, SourceDecl, TargetDecl,
+                                  InferredParameterIdx)) {
     AL.setInvalid();
-  };
-
-  if (!typedMemoryTypesAreEquivalentOrDependent(S.Context,
-                                                TargetDecl->getReturnType(),
-                                                SourceDecl->getReturnType())) {
-    reportTargetTypeMismatchError();
     return;
   }
-
-  if (getFunctionOrMethodNumParams(TargetDecl) !=
-      getFunctionOrMethodNumParams(SourceDecl) + 1) {
-    reportTargetTypeMismatchError();
-    return;
-  }
-
-  auto *TargetTypeDescriptorParam = getFunctionOrMethodParam(
-      TargetDecl, InferredParameterIdx.getASTIndex() + 1);
-  auto TargetTypeDescriptorType = TargetTypeDescriptorParam->getType();
-  if (!TargetTypeDescriptorType->isDependentType()) {
-    if (!TargetTypeDescriptorType->isIntegerType() ||
-        S.Context.getTypeSize(TargetTypeDescriptorType) != 64) {
-      reportTargetTypeMismatchError();
-      return;
-    }
-  }
-
-  size_t SourceParameterIdx = 0;
-  size_t TargetParameterIdx = 0;
-  for (; SourceParameterIdx < getFunctionOrMethodNumParams(SourceDecl);
-       SourceParameterIdx++, TargetParameterIdx++) {
-    auto *SourceParamDecl =
-        getFunctionOrMethodParam(SourceDecl, SourceParameterIdx);
-    auto *TargetParamDecl =
-        getFunctionOrMethodParam(TargetDecl, TargetParameterIdx);
-    if (!typedMemoryTypesAreEquivalentOrDependent(S.Context,
-                                                  SourceParamDecl->getType(),
-                                                  TargetParamDecl->getType())) {
-      reportTargetTypeMismatchError();
-      return;
-    }
-    if (SourceParameterIdx == InferredParameterIdx.getASTIndex())
-      TargetParameterIdx++;
-  }
-  if (AL.isInvalid())
-    return;
 
   auto *TMA = ::new (S.Context)
       TypedMemoryAttr(S.Context, AL, TargetDecl, InferredParameterIdx);
