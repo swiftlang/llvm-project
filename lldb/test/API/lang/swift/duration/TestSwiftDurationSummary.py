@@ -6,6 +6,7 @@ from lldbsuite.test import lldbutil
 
 
 class TestSwiftDurationSummary(TestBase):
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
     def test_swift_duration_summary(self):
         self.build()
