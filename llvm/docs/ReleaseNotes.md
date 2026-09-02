@@ -524,6 +524,10 @@ Performance enhancements:
   default and can be disabled with the `LLDB_ENABLE_GITHUB_BUG_REPORTER=OFF` CMake option.
 * The script interpreter plugins are now built as shared libraries by default on Darwin and FreeBSD
   (`LLDB_ENABLE_DYNAMIC_SCRIPTINTERPRETERS=ON`). This can be opted into on Linux also.
+* `platform.plugin.wasm.runtime-args` now precede the port argument on the Wasm
+  runtime's command line instead of following it. A runtime that dispatches on a
+  leading subcommand can therefore name that subcommand through this setting,
+  rather than needing a wrapper script.
 
 #### Deprecated APIs
 
