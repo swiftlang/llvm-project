@@ -26515,7 +26515,6 @@ ExprResult Sema::ActOnBoundsSafetyCall(ExprResult Call) {
     Expr *CountE = ReturnCount.get();
     if (auto *OVE = dyn_cast<OpaqueValueExpr>(CountE))
       CountE = OVE->getSourceExpr();
-    CountE = CountE->IgnoreParenCasts();
     if (CountE && !CountE->isValueDependent()) {
       Expr::EvalResult EvalRes;
       if (CountE->EvaluateAsInt(EvalRes, Context)) {
