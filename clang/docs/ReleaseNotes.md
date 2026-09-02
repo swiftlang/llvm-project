@@ -1016,6 +1016,8 @@ latest release, please see the [Clang Web Site](https://clang.llvm.org) or the
   represent in `size_t`. The `err_struct_too_large` check now scales the
   threshold to the target's `size_t` width instead of using a fixed
   threshold of `1 << 60` regardless of the target.
+- Fixed an assertion failure when instantiating a block that captures
+  `this` via a member access through a dependent base class.
 
 ### OpenACC Specific Changes
 
