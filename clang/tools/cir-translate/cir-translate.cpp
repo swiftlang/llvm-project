@@ -163,6 +163,7 @@ void registerToLLVMTranslation() {
             cir::direct::lowerDirectlyFromCIRToLLVMIR(cirModule, llvmContext);
         if (!llvmModule)
           return mlir::failure();
+        llvmModule->renumberMetadataForAssembly();
         llvmModule->print(output, nullptr);
         return mlir::success();
       },
