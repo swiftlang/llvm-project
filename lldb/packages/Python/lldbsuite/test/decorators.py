@@ -974,6 +974,7 @@ def swiftTest(func):
     """Decorate the item as a Swift test (Darwin/Linux only, no i386)."""
 
     func.__swift_test__ = True
+    func.__pdb_variant_enrolled__ = True
 
     # The OS check is static and can be evaluated at decoration time.
     # Using unittest.skip (which sets __unittest_skip__ on the method) causes
