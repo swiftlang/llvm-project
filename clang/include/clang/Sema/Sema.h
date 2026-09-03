@@ -5707,6 +5707,8 @@ public:
                                  const FunctionDecl *Target,
                                  ParamIdx InferredParameterIdx);
 
+  void handleTypedMemoryAttr(Decl *D, const ParsedAttr &AL);
+
   /// Check if IdxExpr is a valid parameter index for a function or
   /// instance method D.  May output an error.
   ///

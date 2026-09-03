@@ -21,6 +21,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaRISCV.h"
@@ -353,4 +354,117 @@ void TypedMemoryCallsiteContext::recordTMOInferenceCandidate(Sema &S,
     return;
   Calls.push_back(CE);
   ShouldSearchCasts = true;
+}
+
+void Sema::handleTypedMemoryAttr(Decl *D, const ParsedAttr &AL) {
+  if (!getLangOpts().TypedMemoryOperations)
+    return;
+
+  FunctionDecl *SourceDecl = D->getAsFunction();
+  if (isFunctionOrMethodVariadic(D) || isInstanceMethod(D)) {
+    Diag(SourceDecl->getBeginLoc(), diag::err_tmo_function_kind_error)
+        << 0 << SourceDecl
+        << (isFunctionOrMethodVariadic(D) ? diag::TMOErrorKind::Variadic
+                                          : diag::TMOErrorKind::InstanceMethod);
+    AL.setInvalid();
+    return;
+  }
+
+  auto Loc = AL.getLoc();
+  if (!SourceDecl) {
+    auto *ND = cast<NamedDecl>(D);
+    Diag(Loc, diag::err_tmo_function_kind_error)
+        << 0 << ND << diag::TMOErrorKind::NotAFunction;
+    AL.setInvalid();
+    return;
+  }
+  if (AL.getNumArgs() < 2) {
+    Diag(Loc, diag::err_attribute_too_few_arguments) << AL;
+    AL.setInvalid();
+    return;
+  }
+  if (AL.getNumArgs() > 3) {
+    Diag(Loc, diag::err_attribute_too_many_arguments) << AL;
+    AL.setInvalid();
+    return;
+  }
+  Expr *TargetExpr = AL.getArgAsExpr(0);
+  FunctionDecl *TargetDecl = nullptr;
+  DeclarationNameInfo TargetName;
+  if (auto *DRE = dyn_cast<DeclRefExpr>(TargetExpr)) {
+    TargetDecl = dyn_cast<FunctionDecl>(DRE->getDecl());
+    TargetName = DRE->getNameInfo();
+    if (!TargetDecl) {
+      Diag(Loc, diag::err_tmo_function_kind_error)
+          << DRE->getSourceRange() << 1 << DRE->getNameInfo().getName()
+          << diag::TMOErrorKind::NotAFunction;
+      AL.setInvalid();
+      return;
+    }
+  } else if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(TargetExpr)) {
+    TargetDecl = ResolveSingleFunctionTemplateSpecialization(ULE, true);
+    TargetName = ULE->getNameInfo();
+    if (!TargetDecl) {
+      Diag(Loc, diag::err_tmo_rewrite_target_is_overloaded)
+          << TargetName.getName();
+      if (ULE->getType() == Context.OverloadTy)
+        NoteAllOverloadCandidates(ULE);
+      AL.setInvalid();
+      return;
+    }
+  } else {
+    Diag(Loc, diag::err_tmo_function_kind_error)
+        << TargetExpr->getSourceRange() << 1 << TargetExpr
+        << diag::TMOErrorKind::NotAFunction;
+    AL.setInvalid();
+    return;
+  }
+
+  TargetDecl = TargetDecl->getCanonicalDecl();
+  ParamIdx InferredParameterIdx;
+  if (!checkFunctionOrMethodParameterIndex(D, AL, 1, AL.getArgAsExpr(1),
+                                           InferredParameterIdx))
+    return;
+
+  auto *InferredParam =
+      SourceDecl->getParamDecl(InferredParameterIdx.getASTIndex());
+  auto SizeType = InferredParam->getType();
+  auto isIntegerOrDependentNonArrayType = [](QualType QT) -> bool {
+    auto *T = QT->getUnqualifiedDesugaredType();
+    if (T->isIntegerType())
+      return true;
+    if (T->isDependentSizedArrayType())
+      return false;
+    return T->isDependentType();
+  };
+  if (!isIntegerOrDependentNonArrayType(SizeType)) {
+    Diag(Loc, diag::err_tmo_invalid_inferred_parameter_type)
+        << InferredParameterIdx.getSourceIndex() << SizeType
+        << InferredParam->getLocation();
+    AL.setInvalid();
+    return;
+  }
+
+  if (!hasFunctionProto(TargetDecl) || isFunctionOrMethodVariadic(TargetDecl) ||
+      isInstanceMethod(TargetDecl)) {
+    auto MessageSelector = !hasFunctionProto(TargetDecl)
+                               ? diag::TMOErrorKind::NoPrototype
+                           : isFunctionOrMethodVariadic(TargetDecl)
+                               ? diag::TMOErrorKind::Variadic
+                               : diag::TMOErrorKind::InstanceMethod;
+    Diag(Loc, diag::err_tmo_function_kind_error)
+        << 1 << TargetDecl << MessageSelector;
+    AL.setInvalid();
+    return;
+  }
+
+  if (checkTypedMemorySignature(AL, SourceDecl, TargetDecl,
+                                InferredParameterIdx)) {
+    AL.setInvalid();
+    return;
+  }
+
+  auto *TMA = ::new (Context)
+      TypedMemoryAttr(Context, AL, TargetDecl, InferredParameterIdx);
+  D->addAttr(TMA);
 }

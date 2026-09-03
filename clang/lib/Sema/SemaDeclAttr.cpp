@@ -8928,119 +8928,6 @@ static void handleEnforceTCBAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(AttrTy::Create(S.Context, Argument, AL));
 }
 
-static void handleTypedMemory(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!S.getLangOpts().TypedMemoryOperations)
-    return;
-
-  FunctionDecl *SourceDecl = D->getAsFunction();
-  if (isFunctionOrMethodVariadic(D) || isInstanceMethod(D)) {
-    S.Diag(SourceDecl->getBeginLoc(), diag::err_tmo_function_kind_error)
-        << 0 << SourceDecl
-        << (isFunctionOrMethodVariadic(D) ? diag::TMOErrorKind::Variadic
-                                          : diag::TMOErrorKind::InstanceMethod);
-    AL.setInvalid();
-    return;
-  }
-
-  auto Loc = AL.getLoc();
-  if (!SourceDecl) {
-    auto *ND = cast<NamedDecl>(D);
-    S.Diag(Loc, diag::err_tmo_function_kind_error)
-        << 0 << ND << diag::TMOErrorKind::NotAFunction;
-    AL.setInvalid();
-    return;
-  }
-  if (AL.getNumArgs() < 2) {
-    S.Diag(Loc, diag::err_attribute_too_few_arguments) << AL;
-    AL.setInvalid();
-    return;
-  }
-  if (AL.getNumArgs() > 3) {
-    S.Diag(Loc, diag::err_attribute_too_many_arguments) << AL;
-    AL.setInvalid();
-    return;
-  }
-  Expr *TargetExpr = AL.getArgAsExpr(0);
-  FunctionDecl *TargetDecl = nullptr;
-  DeclarationNameInfo TargetName;
-  if (auto *DRE = dyn_cast<DeclRefExpr>(TargetExpr)) {
-    TargetDecl = dyn_cast<FunctionDecl>(DRE->getDecl());
-    TargetName = DRE->getNameInfo();
-    if (!TargetDecl) {
-      S.Diag(Loc, diag::err_tmo_function_kind_error)
-          << DRE->getSourceRange() << 1 << DRE->getNameInfo().getName()
-          << diag::TMOErrorKind::NotAFunction;
-      AL.setInvalid();
-      return;
-    }
-  } else if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(TargetExpr)) {
-    TargetDecl = S.ResolveSingleFunctionTemplateSpecialization(ULE, true);
-    TargetName = ULE->getNameInfo();
-    if (!TargetDecl) {
-      S.Diag(Loc, diag::err_tmo_rewrite_target_is_overloaded)
-          << TargetName.getName();
-      if (ULE->getType() == S.Context.OverloadTy)
-        S.NoteAllOverloadCandidates(ULE);
-      AL.setInvalid();
-      return;
-    }
-  } else {
-    S.Diag(Loc, diag::err_tmo_function_kind_error)
-        << TargetExpr->getSourceRange() << 1 << TargetExpr
-        << diag::TMOErrorKind::NotAFunction;
-    AL.setInvalid();
-    return;
-  }
-
-  TargetDecl = TargetDecl->getCanonicalDecl();
-  ParamIdx InferredParameterIdx;
-  if (!S.checkFunctionOrMethodParameterIndex(D, AL, 1, AL.getArgAsExpr(1),
-                                             InferredParameterIdx))
-    return;
-
-  auto *InferredParam =
-      SourceDecl->getParamDecl(InferredParameterIdx.getASTIndex());
-  auto SizeType = InferredParam->getType();
-  auto isIntegerOrDependentNonArrayType = [](QualType QT) -> bool {
-    auto *T = QT->getUnqualifiedDesugaredType();
-    if (T->isIntegerType())
-      return true;
-    if (T->isDependentSizedArrayType())
-      return false;
-    return T->isDependentType();
-  };
-  if (!isIntegerOrDependentNonArrayType(SizeType)) {
-    S.Diag(Loc, diag::err_tmo_invalid_inferred_parameter_type)
-        << InferredParameterIdx.getSourceIndex() << SizeType
-        << InferredParam->getLocation();
-    AL.setInvalid();
-    return;
-  }
-
-  if (!hasFunctionProto(TargetDecl) || isFunctionOrMethodVariadic(TargetDecl) ||
-      isInstanceMethod(TargetDecl)) {
-    auto MessageSelector = !hasFunctionProto(TargetDecl)
-                               ? diag::TMOErrorKind::NoPrototype
-                           : isFunctionOrMethodVariadic(TargetDecl)
-                               ? diag::TMOErrorKind::Variadic
-                               : diag::TMOErrorKind::InstanceMethod;
-    S.Diag(Loc, diag::err_tmo_function_kind_error)
-        << 1 << TargetDecl << MessageSelector;
-    AL.setInvalid();
-    return;
-  }
-
-  if (S.checkTypedMemorySignature(AL, SourceDecl, TargetDecl,
-                                  InferredParameterIdx)) {
-    AL.setInvalid();
-    return;
-  }
-
-  auto *TMA = ::new (S.Context)
-      TypedMemoryAttr(S.Context, AL, TargetDecl, InferredParameterIdx);
-  D->addAttr(TMA);
-}
-
 template <typename AttrTy, typename ConflictingAttrTy>
 static AttrTy *mergeEnforceTCBAttrImpl(Sema &S, Decl *D, const AttrTy &AL) {
   // Check if the new redeclaration has different leaf-ness in the same TCB.
@@ -10245,7 +10132,7 @@ ProcessDeclAttribute(Sema &S, Decl *D, const ParsedAttr &AL,
     break;
 
   case ParsedAttr::AT_TypedMemory:
-    handleTypedMemory(S, D, AL);
+    S.handleTypedMemoryAttr(D, AL);
     break;
 
   case ParsedAttr::AT_BuiltinAlias:
