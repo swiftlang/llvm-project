@@ -15,6 +15,7 @@
 #include "clang/Driver/ModulesDriver.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/DependencyScanning/CachingActions.h"
 #include "clang/DependencyScanning/DependencyScanningUtils.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -23,6 +24,7 @@
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Types.h"
 #include "clang/Frontend/StandaloneDiagnostic.h"
+#include "clang/Options/Options.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/DirectedGraph.h"
@@ -31,6 +33,7 @@
 #include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/GraphWriter.h"
@@ -39,6 +42,7 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include <optional>
 #include <utility>
 
 namespace deps = clang::dependencies;
@@ -231,6 +235,42 @@ getModuleCachePath(llvm::opt::DerivedArgList &Args) {
 
   return std::nullopt;
 }
+
+static std::optional<std::string>
+getCompileCacheCASPath(llvm::opt::DerivedArgList &Args) {
+  // FIXME: this is all a hack to avoid promoting the experimental CAS options
+  // to driver options until we decide what we want to support here. For now,
+  // you must pass `-Xclang -fcache-compile-job` to enable caching, and
+  // optionally pass `-Xclang -fcas-path -Xclang <PATH>` or set the environment
+  // variable `LLVM_CACHE_CAS_PATH` to configure a CAS path or the default will
+  // be used.
+  bool Cache = false;
+  bool NextIsCASPath = false;
+  std::optional<std::string> CASPath;
+  for (const Arg *A : Args.filtered(options::OPT_Xclang)) {
+    if (NextIsCASPath) {
+      NextIsCASPath = false;
+      CASPath = A->getValue();
+      continue;
+    }
+    if (StringRef(A->getValue()) == "-fcache-compile-job")
+      Cache = true;
+    if (StringRef(A->getValue()) == "-fcas-path")
+      NextIsCASPath = true;
+  }
+
+  if (!Cache)
+    return std::nullopt;
+
+  if (!CASPath)
+    if (const char *Path = getenv("LLVM_CACHE_CAS_PATH"))
+      CASPath = Path;
+  if (!CASPath)
+    CASPath = "auto";
+
+  return CASPath;
+}
+
 
 /// Returns true if a dependency scan can be performed using \p Job.
 static bool isDependencyScannableJob(const Command &Job) {
@@ -473,33 +513,6 @@ static std::string constructPCMPath(const deps::ModuleID &ID,
 }
 
 namespace {
-/// A simple dependency action controller that only provides module lookup for
-/// Clang modules.
-class ModuleLookupController : public deps::DependencyActionController {
-public:
-  ModuleLookupController(StringRef OutputDir) : OutputDir(OutputDir) {}
-
-  std::string lookupModuleOutput(const deps::ModuleDeps &MD,
-                                 deps::ModuleOutputKind Kind) override {
-    if (Kind == deps::ModuleOutputKind::ModuleFile)
-      return constructPCMPath(MD.ID, OutputDir);
-
-    // Driver command lines that trigger lookups for unsupported
-    // ModuleOutputKinds are not supported by the modules driver. Those
-    // command lines should probably be adjusted or rejected in
-    // Driver::handleArguments or Driver::HandleImmediateArgs.
-    llvm::reportFatalInternalError(
-        "call to lookupModuleOutput with unexpected ModuleOutputKind");
-  }
-
-  std::unique_ptr<DependencyActionController> clone() const override {
-    return std::make_unique<ModuleLookupController>(OutputDir);
-  }
-
-private:
-  StringRef OutputDir;
-};
-
 /// The full dependencies for a specific command-line input.
 struct InputDependencies {
   /// The name of the C++20 module provided by this translation unit.
@@ -550,6 +563,20 @@ static SmallVector<std::string, 0> buildCommandLine(const Command &Job) {
   return CommandLine;
 }
 
+// FIXME: this duplicates DependencyScanningTool::createActionController to
+// avoid taking a dependency on libTooling. We should move it somewhere in
+// libDependencyScanning.
+static std::unique_ptr<dependencies::DependencyActionController>
+createActionController(
+    dependencies::DependencyScanningWorker &Worker,
+    dependencies::LookupModuleOutputCallback LookupModuleOutput) {
+  if (auto *IncludeTree = std::get_if<dependencies::IncludeTreeCompilation>(
+          &Worker.getService().getOpts().Compilation))
+    return dependencies::createIncludeTreeActionController(
+        LookupModuleOutput, IncludeTree->CASOpts, *IncludeTree->CAS);
+  return std::make_unique<dependencies::CallbackActionController>(LookupModuleOutput);
+}
+
 /// Performs a dependency scan for a single job.
 ///
 /// \returns a pair containing TranslationUnitDeps on success, or std::nullopt
@@ -558,7 +585,7 @@ static std::pair<std::optional<deps::TranslationUnitDeps>,
                  SmallVector<StandaloneDiagnostic, 0>>
 scanDependenciesForJob(const Command &Job, ScanningWorkerPool &WorkerPool,
                        StringRef WorkingDirectory,
-                       ModuleLookupController &LookupController) {
+                       StringRef ModuleCachePath) {
   StandaloneDiagCollector DiagConsumer;
   std::optional<deps::TranslationUnitDeps> MaybeTUDeps;
 
@@ -567,8 +594,23 @@ scanDependenciesForJob(const Command &Job, ScanningWorkerPool &WorkerPool,
     auto WorkerBundleHandle = WorkerPool.scopedAcquire();
     deps::FullDependencyConsumer DepConsumer(WorkerBundleHandle->SeenModules);
 
+    auto LookupModuleOutput = [ModuleCachePath](const deps::ModuleDeps &MD,
+                                 deps::ModuleOutputKind Kind) -> std::string {
+      if (Kind == deps::ModuleOutputKind::ModuleFile)
+        return constructPCMPath(MD.ID, ModuleCachePath);
+
+      // Driver command lines that trigger lookups for unsupported
+      // ModuleOutputKinds are not supported by the modules driver. Those
+      // command lines should probably be adjusted or rejected in
+      // Driver::handleArguments or Driver::HandleImmediateArgs.
+      llvm::reportFatalInternalError(
+          "call to lookupModuleOutput with unexpected ModuleOutputKind");
+    };
+
+    auto Controller = createActionController(*WorkerBundleHandle->Worker, LookupModuleOutput);
+
     if (WorkerBundleHandle->Worker->computeDependencies(
-            WorkingDirectory, {CC1CommandLine}, DepConsumer, LookupController,
+            WorkingDirectory, {CC1CommandLine}, DepConsumer, *Controller,
             DiagConsumer))
       MaybeTUDeps = DepConsumer.takeTranslationUnitDeps();
   }
@@ -607,7 +649,8 @@ static std::optional<DependencyScanResult> scanDependencies(
     ArrayRef<std::unique_ptr<Command>> Jobs,
     llvm::DenseMap<StringRef, const StdModuleManifest::Module *> ManifestLookup,
     StringRef ModuleCachePath, StringRef WorkingDirectory,
-    DiagnosticsEngine &Diags) {
+    DiagnosticsEngine &Diags,
+    std::optional<std::string> CompileCacheCASPath) {
   llvm::PrettyStackTraceString CrashInfo("Performing module dependency scan.");
 
   // Classify the jobs based on scan eligibility.
@@ -645,7 +688,24 @@ static std::optional<DependencyScanResult> scanDependencies(
   const bool HasStdlibModuleInputs = !StdlibModuleScanIndexByID.empty();
 
   deps::DependencyScanningServiceOptions Opts;
+
+  if (CompileCacheCASPath) {
+    CASOptions CASOpts;
+    CASOpts.CASPath = *CompileCacheCASPath;
+    auto [CAS, Cache] = CASOpts.createDatabases(Diags);
+    if (!CAS || !Cache)
+      return std::nullopt;
+
+    Opts.MakeVFS = [CAS] {
+      auto FS = llvm::vfs::createPhysicalFileSystem();
+      if (CAS)
+        FS = llvm::cas::createCASProvidingFileSystem(CAS, std::move(FS));
+      return FS;
+    };
+    Opts.Compilation = dependencies::IncludeTreeCompilation{CASOpts, CAS, Cache};
+  };
   deps::DependencyScanningService ScanningService(std::move(Opts));
+
 
   std::unique_ptr<llvm::ThreadPoolInterface> ThreadPool;
   std::unique_ptr<ScanningWorkerPool> WorkerPool;
@@ -653,7 +713,6 @@ static std::optional<DependencyScanResult> scanDependencies(
       NumScanInputs, HasStdlibModuleInputs, ScanningService);
 
   StdlibModuleScanScheduler StdlibModuleRegistry(StdlibModuleScanIndexByID);
-  ModuleLookupController LookupController(ModuleCachePath);
 
   // Scan results are indexed by ScanIndex into ScannableJobIndices, not by
   // JobIndex into Jobs. This allows one result slot per scannable job.
@@ -670,7 +729,7 @@ static std::optional<DependencyScanResult> scanDependencies(
     const size_t JobIndex = ScannableJobIndices[ScanIndex];
     const Command &Job = *Jobs[JobIndex];
     auto [MaybeTUDeps, ScanDiags] = scanDependenciesForJob(
-        Job, *WorkerPool, WorkingDirectory, LookupController);
+        Job, *WorkerPool, WorkingDirectory, ModuleCachePath);
 
     // Store diagnostics even for successful scans to also capture any warnings
     // or notes.
@@ -1652,11 +1711,14 @@ void driver::modules::runModulesDriver(
     return;
   }
 
+  const auto MaybeCompileCacheCASPath = getCompileCacheCASPath(C.getArgs());
+
   auto MaybeCWD = C.getDriver().getVFS().getCurrentWorkingDirectory();
   const auto CWD = MaybeCWD ? std::move(*MaybeCWD) : ".";
 
   auto MaybeScanResults = scanDependencies(Jobs, ManifestEntryBySource,
-                                           *MaybeModuleCachePath, CWD, Diags);
+                                           *MaybeModuleCachePath, CWD, Diags,
+                                           MaybeCompileCacheCASPath);
   if (!MaybeScanResults) {
     Diags.Report(diag::err_dependency_scan_failed);
     return;
