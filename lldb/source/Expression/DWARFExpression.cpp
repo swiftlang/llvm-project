@@ -670,13 +670,50 @@ static llvm::Expected<Value> SwiftAsyncEvaluate_DW_OP_entry_value(
     return llvm::createStringError("SwiftAsyncEvaluate_DW_OP_entry_value: "
                                    "missing async context register opcode");
 
-  // Q funclets require an extra level of indirection.
+  // Q funclets access the async context indirectly: the async register holds a
+  // pointer to the context, which the DWARF location dereferences. The CFA
+  // evaluated below already performs that dereference in some cases but not
+  // others, mirroring how SwiftLanguageRuntime builds the async CFA:
+  //   * a frame with no valid FP uses the follow-async-context plan, whose CFA
+  //     is already dereferenced -> the DWARF DW_OP_deref is redundant, consume
+  //     it;
+  //   * a live funclet frame (valid FP) has a dereferenced CFA only within the
+  //     prologue (IsIndirectContext); past the prologue -- where name
+  //     breakpoints land -- the CFA is the raw async register, so the DWARF
+  //     DW_OP_deref must be applied, not consumed.
+  // Consuming it unconditionally reads the local from `async_reg + offset`
+  // instead of `*async_reg + offset`, yielding garbage past the prologue.
   if (SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
           func_name)) {
-    const uint8_t maybe_op_deref = opcodes.GetU8(&new_offset);
-    if (maybe_op_deref != DW_OP_deref)
-      return llvm::createStringError("SwiftAsyncEvaluate_DW_OP_entry_value: "
-                                     "missing DW_OP_deref in Q funclet");
+    RegisterContext *reg_ctx = current_frame.GetRegisterContext().get();
+    lldb::addr_t fp =
+        reg_ctx ? reg_ctx->GetFP(LLDB_INVALID_ADDRESS) : LLDB_INVALID_ADDRESS;
+    bool cfa_is_indirect_context = (fp == LLDB_INVALID_ADDRESS);
+    Target *target = exe_ctx.GetTargetPtr();
+    if (!cfa_is_indirect_context && target) {
+      if (target->GetArchitecture().GetTriple().isArm64e()) {
+        // arm64e uses a continuation-pointer check to build the CFA; preserve
+        // the historical behavior of consuming the deref here.
+        cfa_is_indirect_context = true;
+      } else {
+        // Non-arm64e: indirect only within the funclet prologue (plus one
+        // instruction), matching IsIndirectContext().
+        lldb::addr_t func_load = func.GetAddress().GetLoadAddress(target);
+        lldb::addr_t pc_load =
+            current_frame.GetFrameCodeAddress().GetLoadAddress(target);
+        uint32_t prologue_size = func.GetPrologueByteSize();
+        cfa_is_indirect_context = func_load != LLDB_INVALID_ADDRESS &&
+                                  pc_load != LLDB_INVALID_ADDRESS &&
+                                  pc_load >= func_load &&
+                                  pc_load <= func_load + prologue_size;
+      }
+    }
+    if (cfa_is_indirect_context) {
+      const uint8_t maybe_op_deref = opcodes.GetU8(&new_offset);
+      if (maybe_op_deref != DW_OP_deref)
+        return llvm::createStringError("SwiftAsyncEvaluate_DW_OP_entry_value: "
+                                       "missing DW_OP_deref in Q funclet");
+    }
   }
 
   static const uint8_t cfa_opcode = DW_OP_call_frame_cfa;
