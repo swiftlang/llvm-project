@@ -212,6 +212,8 @@ public:
 
   bool GetSwiftAllowExplicitModules() const;
 
+  void SetSwiftAllowExplicitModules(bool) const;
+
   bool GetSwiftAllowImplicitModules() const;
 
   void SetSwiftAllowImplicitModules(bool) const;
