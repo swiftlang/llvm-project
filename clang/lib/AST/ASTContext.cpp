@@ -3936,9 +3936,16 @@ QualType ASTContext::getValueTerminatedType(QualType T,
 QualType ASTContext::getBoundsSafetyPointerType(QualType PointerTy,
                                              BoundsSafetyPointerAttributes Attr) {
   const auto *PTy = PointerTy->getAs<PointerType>();
-  if (!PTy || PTy->getPointerAttributes() == Attr ||
-      PointerTy->isBoundsAttributedType())
+  if (!PTy || PointerTy->isBoundsAttributedType())
     return PointerTy;
+  if (const auto *AT = PointerTy.getTypePtr()->getAs<AttributedType>())
+    if (AT->getAttrKind() == attr::PtrSingle && Attr.isSingle())
+      return PointerTy;
+  if (PTy->getPointerAttributes() == Attr) {
+    if (Attr.isSingle())
+      return getAttributedType(attr::PtrSingle, PointerTy, PointerTy);
+    return PointerTy;
+  }
 
   std::function<QualType(QualType)>
   getBoundsSafetyPointerTypeRecurse = [&](QualType Ty) -> QualType {
@@ -3963,6 +3970,8 @@ QualType ASTContext::getBoundsSafetyPointerType(QualType PointerTy,
     assert(PointerTy->isPointerType());
     auto QualsOnT = PointerTy.getQualifiers();
     Ty = getPointerType(PointerTy->getPointeeType(), Attr);
+    if (Attr.isSingle())
+      Ty = getAttributedType(attr::PtrSingle, Ty, Ty);
     if (!QualsOnT.empty()) {
       QualifierCollector QC(QualsOnT);
       Ty = QC.apply(*this, Ty);
@@ -6379,7 +6388,7 @@ QualType ASTContext::getAttributedType(attr::Kind attrKind,
   assert(!attr || attr->getKind() == attrKind);
 
   QualType canon = getCanonicalType(equivalentType);
-	type = new (*this, alignof(AttributedType))
+  type = new (*this, alignof(AttributedType))
       AttributedType(canon, attrKind, attr, modifiedType, equivalentType);
 
   Types.push_back(type);
