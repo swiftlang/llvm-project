@@ -7862,6 +7862,11 @@ void TypeLocReader::VisitValueTerminatedTypeLoc(ValueTerminatedTypeLoc TL) {
 }
 /* TO_UPSTREAM(BoundsSafety) OFF */
 
+void TypeLocReader::VisitLateParsedAttrTypeLoc(LateParsedAttrTypeLoc TL) {
+  llvm_unreachable(
+      "should be replaced with a concrete type before serialization");
+}
+
 void TypeLocReader::VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
   // Nothing to do.
 }

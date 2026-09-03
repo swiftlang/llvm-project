@@ -1173,6 +1173,8 @@ DEF_TRAVERSE_TYPE(DynamicRangePointerType, {
 
 DEF_TRAVERSE_TYPE(ValueTerminatedType, { TRY_TO(TraverseType(T->desugar())); })
 /* TO_UPSTREAM(BoundsSafety) OFF */
+DEF_TRAVERSE_TYPE(LateParsedAttrType,
+                  { TRY_TO(TraverseType(T->getWrappedType())); })
 
 DEF_TRAVERSE_TYPE(BTFTagAttributedType,
                   { TRY_TO(TraverseType(T->getWrappedType())); })
@@ -1539,6 +1541,9 @@ DEF_TRAVERSE_TYPELOC(DynamicRangePointerType,
 DEF_TRAVERSE_TYPELOC(ValueTerminatedType,
                      { TRY_TO(TraverseTypeLoc(TL.getOriginalLoc())); })
 /* TO_UPSTREAM(BoundsSafety) OFF */
+
+DEF_TRAVERSE_TYPELOC(LateParsedAttrType,
+                     { TRY_TO(TraverseTypeLoc(TL.getInnerLoc())); })
 
 DEF_TRAVERSE_TYPELOC(BTFTagAttributedType,
                      { TRY_TO(TraverseTypeLoc(TL.getWrappedLoc())); })

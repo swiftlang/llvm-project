@@ -5161,6 +5161,7 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
     case Type::DynamicRangePointer:
     case Type::ValueTerminated:
     /* TO_UPSTREAM(BoundsSafety) OFF */
+    case Type::LateParsedAttr:
       // Keep walking after single level desugaring.
       T = T.getSingleStepDesugaredType(Context);
       break;

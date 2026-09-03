@@ -1771,6 +1771,11 @@ public:
                                        BoundsSafetyPointerAttributes AbiFAttr,
                                        bool ShouldAutoBound);
   /* TO_UPSTREAM(BoundsSafety) OFF */
+  /// Return a placeholder type for a late-parsed type attribute.
+  /// This type wraps another type and holds the LateParsedAttribute
+  /// that will be parsed later.
+  QualType getLateParsedAttrType(QualType Wrapped,
+                                 LateParsedTypeAttribute *LateParsedAttr) const;
 
   /// Return the uniqued reference to a type adjusted from the original
   /// type to a new type.

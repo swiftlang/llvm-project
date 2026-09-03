@@ -156,6 +156,9 @@ static TypeCode getTypeCodeForTypeClass(Type::TypeClass id) {
 #define TYPE_BIT_CODE(CLASS_ID, CODE_ID, CODE_VALUE) \
   case Type::CLASS_ID: return TYPE_##CODE_ID;
 #include "clang/Serialization/TypeBitCodes.def"
+  case Type::LateParsedAttr:
+    llvm_unreachable(
+        "should be replaced with a concrete type before serialization");
   case Type::Builtin:
     llvm_unreachable("shouldn't be serializing a builtin type this way");
   }
@@ -597,6 +600,11 @@ void TypeLocWriter::VisitValueTerminatedTypeLoc(ValueTerminatedTypeLoc TL) {
   // nothing to do
 }
 /* TO_UPSTREAM(BoundsSafety) OFF */
+
+void TypeLocWriter::VisitLateParsedAttrTypeLoc(LateParsedAttrTypeLoc TL) {
+  llvm_unreachable(
+      "should be replaced with a concrete type before serialization");
+}
 
 void TypeLocWriter::VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
   // Nothing to do.
