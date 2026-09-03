@@ -3602,6 +3602,12 @@ ASTReader::ReadControlBlock(ModuleFile &F,
         return Result;
       break;
 
+    case MODULE_DIRECTORY_DEPENDENCIES:
+      if (ASTReadResult Result =
+              ReadDirectoryDependencies(Record, F, ClientLoadCapabilities))
+        return Result;
+      break;
+
     case INPUT_FILE_OFFSETS:
       NumInputs = Record[0];
       NumUserInputs = Record[1];
@@ -4757,6 +4763,32 @@ ASTReader::ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
 
   if (Listener)
     Listener->ReadModuleMapFile(F.ModuleMapPath);
+
+  return Success;
+}
+
+ASTReader::ASTReadResult
+ASTReader::ReadDirectoryDependencies(const RecordData &Record, ModuleFile &F,
+                                     unsigned ClientLoadCapabilities) {
+  unsigned Idx = 0;
+  unsigned N = Record[Idx++];
+  F.DirectoryDependencies.reserve(N);
+  for (unsigned I = 0; I != N; ++I)
+    F.DirectoryDependencies.push_back(ReadPath(F, Record, Idx));
+
+  ModuleCache &ModCache = getModuleManager().getModuleCache();
+  if (F.Kind != MK_ImplicitModule ||
+      !ModCache.needsDirectoryValidation(F.FileName))
+    return Success;
+
+  for (StringRef Dir : F.DirectoryDependencies) {
+    if (!ModCache.isDirectoryInvalidated(Dir))
+      continue;
+    Diag(diag::remark_module_directory_dep_changed) << F.ModuleName << Dir;
+    if (!canRecoverFromOutOfDate(F.FileName, ClientLoadCapabilities))
+      Diag(diag::err_module_directory_dep_changed) << F.ModuleName << Dir;
+    return OutOfDate;
+  }
   return Success;
 }
 
@@ -5180,6 +5212,11 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName, ModuleKind Type,
             M.Mod->FileName);
     }
   }
+
+  ModuleCache &ModCache = getModuleManager().getModuleCache();
+  for (ImportedModule &M : Loaded)
+    if (M.Mod->Kind == MK_ImplicitModule)
+      ModCache.markDirectoriesValidated(M.Mod->FileName);
 
   return Success;
 }

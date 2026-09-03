@@ -621,6 +621,12 @@ LLVM_23 {
     clang_ModuleCache_pruneWithCallback;
 };
 
+LLVM_24 {
+  global:
+    clang_experimental_DepGraphModule_getDirectoryDeps;
+    clang_experimental_DependencyScannerService_addInvalidatedDirectories;
+};
+
 # Example of how to add a new symbol version entry.  If you do add a new symbol
 # version, please update the example to depend on the version you added.
 # LLVM_X {

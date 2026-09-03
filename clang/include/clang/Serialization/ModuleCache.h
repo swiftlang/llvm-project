@@ -11,6 +11,7 @@
 
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/StringRef.h"
 
 #include <ctime>
 
@@ -44,6 +45,20 @@ public:
   /// Updates the timestamp denoting the last time inputs of the module file
   /// were validated.
   virtual void updateModuleTimestamp(StringRef ModuleFilename) = 0;
+
+  /// Whether \p ModuleFilename still needs checking against the directories the
+  /// build system reported as changed. Caches that don't track this return
+  /// false, disabling the check.
+  virtual bool needsDirectoryValidation(StringRef ModuleFilename) {
+    return false;
+  }
+
+  virtual bool isDirectoryInvalidated(StringRef Directory) { return false; }
+
+  /// Record that \p ModuleFilename is up to date with respect to the
+  /// directories the build system reported as changed, so it is not checked
+  /// again.
+  virtual void markDirectoriesValidated(StringRef ModuleFilename) {}
 
   /// Prune module files that haven't been accessed in a long time.
   virtual void maybePrune(StringRef Path, time_t PruneInterval,
