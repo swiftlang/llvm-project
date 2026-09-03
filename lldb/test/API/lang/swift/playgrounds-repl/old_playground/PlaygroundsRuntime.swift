@@ -57,36 +57,36 @@ class LogRecord {
   }
 }
 
-@_silgen_name ("playground_logger_initialize") public func builtin_initialize() {
+@_silgen_name("playground_logger_initialize") public func builtin_initialize() {
 }
 
-@_silgen_name ("playground_log_hidden") public func builtin_log_with_id<T>(_ object : T, _ name : String, _ id : Int, _ sl : Int, _ el : Int, _ sc : Int, _ ec: Int, _ moduleId : Int, _ fileId : Int) -> AnyObject? {
+@_silgen_name("playground_log_hidden") public func builtin_log_with_id<T>(_ object : T, _ name : String, _ id : Int, _ sl : Int, _ el : Int, _ sc : Int, _ ec: Int, _ moduleId : Int, _ fileId : Int) -> AnyObject? {
   let moduleFileId = ModuleFileIdentifier(moduleId:moduleId, fileId:fileId)
   return LogRecord(api:"__builtin_log", object:object, name:name, id:id, range : SourceRange(sl:sl, el:el, sc:sc, ec:ec), moduleFileId:moduleFileId)
 }
 
-@_silgen_name ("playground_log_scope_entry") public func builtin_log_scope_entry(_ sl : Int, _ el : Int, _ sc : Int, _ ec: Int, _ moduleId : Int, _ fileId : Int) -> AnyObject? {
+@_silgen_name("playground_log_scope_entry") public func builtin_log_scope_entry(_ sl : Int, _ el : Int, _ sc : Int, _ ec: Int, _ moduleId : Int, _ fileId : Int) -> AnyObject? {
   let moduleFileId = ModuleFileIdentifier(moduleId:moduleId, fileId:fileId)
   return LogRecord(api:"__builtin_log_scope_entry", range : SourceRange(sl:sl, el:el, sc:sc, ec:ec), moduleFileId:moduleFileId)
 }
 
-@_silgen_name ("playground_log_scope_exit") public func builtin_log_scope_exit(_ sl : Int, _ el : Int, _ sc : Int, _ ec: Int, _ moduleId : Int, _ fileId : Int) -> AnyObject? {
+@_silgen_name("playground_log_scope_exit") public func builtin_log_scope_exit(_ sl : Int, _ el : Int, _ sc : Int, _ ec: Int, _ moduleId : Int, _ fileId : Int) -> AnyObject? {
   let moduleFileId = ModuleFileIdentifier(moduleId:moduleId, fileId:fileId)
   return LogRecord(api:"__builtin_log_scope_exit", range : SourceRange(sl:sl, el:el, sc:sc, ec:ec), moduleFileId:moduleFileId)
 }
 
-@_silgen_name ("playground_log_postprint") public func builtin_postPrint(_ sl : Int, _ el : Int, _ sc : Int, _ ec: Int, _ moduleId : Int, _ fileId : Int) -> AnyObject? {
+@_silgen_name("playground_log_postprint") public func builtin_postPrint(_ sl : Int, _ el : Int, _ sc : Int, _ ec: Int, _ moduleId : Int, _ fileId : Int) -> AnyObject? {
   let moduleFileId = ModuleFileIdentifier(moduleId:moduleId, fileId:fileId)
   return LogRecord(api:"__builtin_postPrint", range : SourceRange(sl:sl, el:el, sc:sc, ec:ec), moduleFileId:moduleFileId)
 }
 
-@_silgen_name ("DVTSendPlaygroundLogData") public func builtin_send_data(_ object:AnyObject?) {
+@_silgen_name("DVTSendPlaygroundLogData") public func builtin_send_data(_ object:AnyObject?) {
   print((object as! LogRecord).text)
   PlaygroundOutput.append((object as! LogRecord).text)
   PlaygroundOutput.append("\n")
 }
 
-@_silgen_name ("GetOutput") public func get_output() -> String {
+@_silgen_name("GetOutput") public func get_output() -> String {
   return PlaygroundOutput
 }
 
