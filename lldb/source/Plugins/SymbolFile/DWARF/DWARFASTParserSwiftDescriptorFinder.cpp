@@ -187,12 +187,13 @@ getTypeAndDie(TypeSystemSwiftTypeRef &ts,
     }
   }
   if (!lldb_type) {
-    std::tie(lldb_type, type) = DWARFASTParserSwift::ResolveTypeAlias(type);
-    if (lldb_type) {
+    auto [alias_lldb_type, alias_type] =
+        DWARFASTParserSwift::ResolveTypeAlias(type);
+    if (alias_lldb_type) {
       auto *dwarf =
-          llvm::cast<SymbolFileDWARF>(lldb_type->GetSymbolFile());
-      auto die = dwarf->GetDIE(lldb_type->GetID());
-      return {{type, die}};
+          llvm::cast<SymbolFileDWARF>(alias_lldb_type->GetSymbolFile());
+      auto die = dwarf->GetDIE(alias_lldb_type->GetID());
+      return {{alias_type, die}};
     }
   }
   if (!lldb_type) {
