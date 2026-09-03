@@ -1,17 +1,19 @@
 import lldb
+import platform
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 
 
-@skipIf(oslist=["windows", "linux"])
+@skipIfLinux
 @skipIfAsan
 class TestSwiftSteppingThroughWitness(TestBase):
 
     def setUp(self):
         TestBase.setUp(self)
+        lib_name = self.platformContext.getFullLibName("swift_Concurrency")
         self.runCmd(
-            "settings set target.process.thread.step-avoid-libraries libswift_Concurrency.dylib"
+            f"settings set target.process.thread.step-avoid-libraries {lib_name}"
         )
 
     @requireNotEmbeddedSwift
