@@ -963,8 +963,9 @@ BuildDeclContext(llvm::StringRef mangled_name,
   return {};
 }
 
-/// Detect the AnyObject type alias.
-static bool IsAnyObjectTypeAlias(swift::Demangle::NodePointer node) {
+/// Detect a Swift stdlib type alias with the given identifier.
+static bool IsStdlibTypeAlias(swift::Demangle::NodePointer node,
+                              llvm::StringRef name) {
   using namespace swift::Demangle;
   if (!node || node->getKind() != Node::Kind::TypeAlias)
     return false;
@@ -974,7 +975,7 @@ static bool IsAnyObjectTypeAlias(swift::Demangle::NodePointer node) {
   if (!module || !module->hasText() || module->getText() != swift::STDLIB_NAME)
     return false;
   NodePointer ident = node->getChild(1);
-  if (!ident || !ident->hasText() || ident->getText() != "AnyObject")
+  if (!ident || !ident->hasText() || ident->getText() != name)
     return false;
   return true;
 }
@@ -1031,7 +1032,7 @@ TypeSystemSwiftTypeRef::ResolveTypeAlias(swift::Demangle::Demangler &dem,
                                          bool prefer_clang_types) {
   // Hardcode that the Swift.AnyObject type alias always resolves to
   // the builtin AnyObject type.
-  if (IsAnyObjectTypeAlias(node))
+  if (IsStdlibTypeAlias(node, "AnyObject"))
     return {GetBuiltinAnyObjectNode(dem), {}};
 
   using namespace swift::Demangle;
@@ -1605,6 +1606,10 @@ static swift::Demangle::NodePointer Desugar(swift::Demangle::Demangler &dem,
     if (node->getNumChildren() != 1)
       return node;
     return node->getFirstChild();
+  case Node::Kind::TypeAlias:
+    if (IsStdlibTypeAlias(node, "Void"))
+      return dem.createNode(Node::Kind::Tuple);
+    return node;
   default:
     return node;
   }
@@ -5858,7 +5863,7 @@ bool TypeSystemSwiftTypeRef::IsTypedefType(opaque_compiler_type_t type) {
     // Sometimes SwiftASTContext returns the resolved AnyObject type.
     Demangler dem;
     NodePointer node = GetDemangledType(dem, AsMangledName(type));
-    if (IsAnyObjectTypeAlias(node))
+    if (IsStdlibTypeAlias(node, "AnyObject"))
       return impl();
   }
 #endif
