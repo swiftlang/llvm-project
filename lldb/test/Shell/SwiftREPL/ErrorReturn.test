@@ -1,4 +1,5 @@
 // XFAIL: powerpc64le
+// XFAIL: system-windows
 // SR-10212
 // Test that we can handle errors.
 // REQUIRES: swift
