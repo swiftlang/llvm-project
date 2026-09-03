@@ -1422,35 +1422,45 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
     return Actions.ActOnFinishFunctionBody(Res, nullptr, false);
   }
 
+  return ParseFunctionBody(Res, BodyScope, &D, BoundsSafetyLateAttrs);
+}
+
+Decl *Parser::ParseFunctionBody(Decl *D, ParseScope &BodyScope,
+                                Declarator *FnDeclarator,
+                                LateParsedAttrList *BoundsSafetyLateAttrs) {
   if (Tok.is(tok::kw_try))
-    return ParseFunctionTryBlock(Res, BodyScope);
+    return ParseFunctionTryBlock(D, BodyScope);
 
   // If we have a colon, then we're probably parsing a C++
   // ctor-initializer.
   if (Tok.is(tok::colon)) {
-    ParseConstructorInitializer(Res);
+    ParseConstructorInitializer(D);
 
     // Recover from error.
     if (!Tok.is(tok::l_brace)) {
       BodyScope.Exit();
-      Actions.ActOnFinishFunctionBody(Res, nullptr);
-      return Res;
+      if (D)
+        D->getAsFunction()->setInvalidDecl();
+      Actions.ActOnFinishFunctionBody(D, nullptr);
+      return D;
     }
   } else
-    Actions.ActOnDefaultCtorInitializers(Res);
+    Actions.ActOnDefaultCtorInitializers(D);
 
   /*TO_UPSTREAM(BoundsSafety) ON*/
   // Late attributes are parsed in the same scope as the function body.
   LateParsedAttrList BoundsSafetyAttrList(true);
-  if (!BoundsSafetyLateAttrs)
-    BoundsSafetyLateAttrs = &BoundsSafetyAttrList;
-  DistributeCLateParsedAttrs(D, Res, BoundsSafetyLateAttrs);
-  if (BoundsSafetyLateAttrs->size() > 0)
-    ParseLexedAttributeList(*BoundsSafetyLateAttrs, /*D=*/nullptr,
-                            /*EnterScope=*/false, /*OnDefinition=*/false);
+  if (FnDeclarator) {
+    if (!BoundsSafetyLateAttrs)
+      BoundsSafetyLateAttrs = &BoundsSafetyAttrList;
+    DistributeCLateParsedAttrs(*FnDeclarator, D, BoundsSafetyLateAttrs);
+    if (BoundsSafetyLateAttrs->size() > 0)
+      ParseLexedAttributeList(*BoundsSafetyLateAttrs, /*D=*/nullptr,
+                              /*EnterScope=*/false, /*OnDefinition=*/false);
+  }
   /*TO_UPSTREAM(BoundsSafety) OFF*/
 
-  return ParseFunctionStatementBody(Res, BodyScope);
+  return ParseFunctionStatementBody(D, BodyScope);
 }
 
 void Parser::SkipFunctionBody() {
