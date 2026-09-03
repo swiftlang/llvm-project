@@ -69,6 +69,7 @@ void ret_values() {
     int size = -1;
     nullable_ret(-1);
     nullable_ret(size);
+    // expected-error@+1{{negative size value of -1 for 'int *__single __sized_by(size)' (aka 'int *__single')}}
     nonnullable_ret(-1);
     nonnullable_ret(size);
     size = 0;

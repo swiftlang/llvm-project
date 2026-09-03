@@ -26581,6 +26581,25 @@ ExprResult Sema::ActOnBoundsSafetyCall(ExprResult Call) {
     ReturnCount = DefaultLvalueConversion(ReturnCount.get());
     if (!ReturnCount.get())
       return ExprError();
+
+    Expr *CountE = ReturnCount.get();
+    if (auto *OVE = dyn_cast<OpaqueValueExpr>(CountE))
+      CountE = OVE->getSourceExpr();
+    if (CountE && !CountE->isValueDependent()) {
+      Expr::EvalResult EvalRes;
+      if (CountE->EvaluateAsInt(EvalRes, Context)) {
+        const llvm::APSInt &CountVal = EvalRes.Val.getInt();
+        if (CountVal < 0 && !DCPT->isOrNull()) {
+          Diag(CallE->getBeginLoc(),
+               diag::err_bounds_safety_dynamic_count_negative)
+             << ResultTy << DCPT->isCountInBytes() << CountVal.getSExtValue()
+             << false << ""
+             << CountE->getSourceRange();
+          return ExprError();
+        }
+      }
+    }
+
     auto *PtrOVE = OpaqueValueExpr::EnsureWrapped(
         Context, ResultExpr, OVEs);
     auto *CountOVE = OpaqueValueExpr::EnsureWrapped(
