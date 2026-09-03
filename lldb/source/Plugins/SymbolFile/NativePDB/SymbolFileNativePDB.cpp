@@ -1834,6 +1834,8 @@ size_t SymbolFileNativePDB::ParseBlocksRecursive(Function &func) {
   for (uint64_t uid : remove_uids) {
     m_inline_sites.erase(uid);
   }
+
+  func.GetBlock(false).SetBlockInfoHasBeenParsed(true, true);
   return count;
 }
 
@@ -2407,6 +2409,7 @@ size_t SymbolFileNativePDB::ParseVariablesForBlock(PdbCompilandSymId block_id) {
     VariableSP variable;
     switch (variable_cvs.kind()) {
     case S_REGREL32:
+    case S_REGREL32_INDIR:
     case S_REGISTER:
     case S_LOCAL:
       variable = GetOrCreateLocalVariable(block_id, child_sym_id, is_param);

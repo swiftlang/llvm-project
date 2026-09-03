@@ -61,6 +61,7 @@ struct DefRangeRegisterRelHeader;
 struct DefRangeSubfieldRegisterHeader;
 struct DefRangeRegisterHeader;
 struct DefRangeFramePointerRelHeader;
+struct DefRangeRegisterRelIndirHeader;
 }
 
 using MCSectionSubPair = std::pair<MCSection *, uint32_t>;
@@ -967,6 +968,10 @@ public:
   virtual void emitCVDefRangeDirective(
       ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
       codeview::DefRangeFramePointerRelHeader DRHdr);
+
+  virtual void emitCVDefRangeDirective(
+      ArrayRef<std::pair<const MCSymbol *, const MCSymbol *>> Ranges,
+      codeview::DefRangeRegisterRelIndirHeader DRHdr);
 
   /// This implements the CodeView '.cv_stringtable' assembler directive.
   virtual void emitCVStringTableDirective() {}
