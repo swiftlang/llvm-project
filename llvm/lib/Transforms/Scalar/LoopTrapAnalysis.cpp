@@ -387,6 +387,29 @@ collectIcmpBoolOperands(Value *V, SmallVectorImpl<Value *> &Operands,
   Operands.push_back(V);
 }
 
+/// True if V is the overflow bit of a checked-arithmetic intrinsic, i.e.
+/// extractvalue(llvm.{s,u}{add,sub,mul}.with.overflow.*, 1). Such a guard is an
+/// overflow check, not an index/bounds comparison.
+static bool isOverflowBit(Value *V) {
+  auto *EV = dyn_cast<ExtractValueInst>(V);
+  if (!EV || EV->getNumIndices() != 1 || EV->getIndices()[0] != 1)
+    return false;
+  auto *II = dyn_cast<IntrinsicInst>(EV->getAggregateOperand());
+  if (!II)
+    return false;
+  switch (II->getIntrinsicID()) {
+  case Intrinsic::sadd_with_overflow:
+  case Intrinsic::uadd_with_overflow:
+  case Intrinsic::ssub_with_overflow:
+  case Intrinsic::usub_with_overflow:
+  case Intrinsic::smul_with_overflow:
+  case Intrinsic::umul_with_overflow:
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// Collect the SCEVUnknown and SCEVAddRecExpr nodes reachable from a SCEV
 namespace {
 struct SCEVNodeCollector {
@@ -608,6 +631,7 @@ struct OperandSCEVInfo {
   bool HasNegativeStrideForLAddRec = false;
   bool HasNonConstantStrideForLAddRec = false;
   bool NotProvenMonotonic = false;
+  bool HasOverflowBitLeaf = false;
 };
 /// Per-edge exit count for the exiting block (not the loop's overall count).
 struct EdgeBTCInfo {
@@ -640,7 +664,11 @@ computeOperandSCEVInfo(Value *Cond, ScalarEvolution &SE, LoopInfo &LI,
   collectIcmpBoolOperands(Cond, LeafOperands, Visited, &LeafICmps);
   R.NumLeafOps = LeafOperands.size();
   for (Value *V : LeafOperands) {
-    if (!V || isa<Constant>(V) || !SE.isSCEVable(V->getType()))
+    if (!V)
+      continue;
+    if (isOverflowBit(V))
+      R.HasOverflowBitLeaf = true;
+    if (isa<Constant>(V) || !SE.isSCEVable(V->getType()))
       continue;
     const SCEV *SC = SE.getSCEV(V);
     if (isa<SCEVCouldNotCompute>(SC))
@@ -1222,6 +1250,8 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
                 RO.HasOpaqueOperandNoInLoopUnknown)
           << " has_outer_loop_addrec_operand="
           << NV("HasOuterLoopAddRecOperand", RO.HasOuterLoopAddRecOperand)
+          << " has_overflow_bit_leaf="
+          << NV("HasOverflowBitLeaf", SF.HasOverflowBitLeaf)
           << " invocation_seq=" << NV("InvocationSeq", InvocationSeq);
     }
     ORE.emit(Rem);
