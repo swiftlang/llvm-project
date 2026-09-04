@@ -581,6 +581,15 @@ AddRequiredAliases(Block *block, lldb_private::StackFrame &stack_frame,
   if (!self_var_sp)
     return llvm::Error::success();
 
+  // Don't inject a `self` without a value. In this case the outer
+  // layer is downgrading the expression method to a freestanding
+  // function.
+  if (lldb::ValueObjectSP valobj_sp =
+          stack_frame.GetValueObjectForFrameVariable(self_var_sp,
+                                                     lldb::eNoDynamicValues))
+    if (valobj_sp->GetError().Fail() && self_var_sp->IsArtificial())
+      return llvm::Error::success();
+
   auto *swift_runtime =
       SwiftLanguageRuntime::Get(stack_frame.GetThread()->GetProcess());
   CompilerType self_type = SwiftExpressionParser::ResolveVariable(
@@ -666,9 +675,11 @@ AddRequiredAliases(Block *block, lldb_private::StackFrame &stack_frame,
     LLDB_LOG(GetLog(LLDBLog::Types | LLDBLog::Expressions),
              "Couldn't get SwiftASTContext type for self type {0}.",
              imported_self_type.GetDisplayTypeName());
-    return llvm::createStringError(
-        "Unable to add the aliases the expression needs because the Swift "
-        "expression parser couldn't get the Swift type for self.");
+    return llvm::joinErrors(
+        llvm::createStringError(
+            "Unable to add the aliases the expression needs because the Swift "
+            "expression parser couldn't get the Swift type for self."),
+        swift_self_type.takeError());
   }
   if (!swift_self_type.get())
     return llvm::createStringError("null self type");
