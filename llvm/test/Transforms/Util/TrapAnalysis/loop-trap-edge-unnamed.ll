@@ -52,4 +52,8 @@ attributes #0 = { cold noreturn nounwind memory(inaccessiblemem: write) }
 ; CHECK-NEXT:   - IsInnermost:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' is_loop_exit='
 ; CHECK-NEXT:   - IsLoopExit:{{ +}}'true'
+; CHECK-NEXT:   - String:{{ +}}' num_leaf_operands='
+; CHECK-NEXT:   - NumLeafOperands:{{ +}}'2'
+; CHECK-NEXT:   - String:{{ +}}' predicate_shape='
+; CHECK-NEXT:   - PredicateShape:{{ +}}SingleICmp
 ; CHECK-NEXT: ...
