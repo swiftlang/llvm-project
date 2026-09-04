@@ -14062,6 +14062,11 @@ def err_bounds_safety_dyn_count_in_assembly : Error<
 def err_bounds_safety_ptrauth_on_indexable_pointer : Error<
   "pointer authentication is currently unsupported on indexable pointers">;
 
+def err_bounds_safety_ptrauth_discards_bounds : Error<
+  "pointer authentication operates on the address only and would discard the "
+  "bounds of %0; cast to '__single' or '__unsafe_indexable' to discard them "
+  "explicitly">;
+
 def err_bounds_safety_auto_dynamic_bound : Error<
   "passing %select{'__counted_by'|'__sized_by'|'__counted_by_or_null'|'__sized_by_or_null'|'__ended_by'|end}0 pointer "
   "as %select{'auto'|'decltype(auto)'|'__auto_type'}1 initializer is not yet supported">;
