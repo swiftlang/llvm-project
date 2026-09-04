@@ -73,6 +73,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/raw_ostream.h"
+#include <limits>
 #include <optional>
 
 // FIXME: we should not need this
@@ -340,6 +341,41 @@ DeriveStorageKind(uint32_t concurrency_version, uint8_t storage_kind_raw) {
   return CurrentTaskStorageKind{storage_kind_raw};
 }
 
+static std::optional<CurrentTaskStorageKind>
+FindPlatformDefinedStorageKind(Process &process, uint32_t concurrency_version) {
+  SymbolContextList symbols;
+  Target &target = process.GetTarget();
+  target.GetImages().FindSymbolsWithNameAndType(
+      ConstString("_swift_concurrency_debug_current_task_storage_kind"),
+      eSymbolTypeAny, symbols);
+
+  SymbolContext context;
+  for (size_t index = 0; index < symbols.GetSize(); ++index) {
+    if (!symbols.GetContextAtIndex(index, context) || !context.symbol ||
+        context.symbol->GetType() == eSymbolTypeUndefined)
+      continue;
+
+    addr_t symbol_addr = context.symbol->GetLoadAddress(&target);
+    if (symbol_addr == LLDB_INVALID_ADDRESS)
+      continue;
+
+    Status error;
+    uint64_t storage_kind_raw = process.ReadUnsignedIntegerFromMemory(
+        symbol_addr, /*width=*/4, /*fail_value=*/0, error);
+    if (error.Fail() ||
+        storage_kind_raw > std::numeric_limits<uint8_t>::max())
+      return std::nullopt;
+
+    auto storage_kind = DeriveStorageKind(
+        concurrency_version, static_cast<uint8_t>(storage_kind_raw));
+    if (storage_kind == CurrentTaskStorageKind::platform_defined)
+      return std::nullopt;
+    return storage_kind;
+  }
+
+  return std::nullopt;
+}
+
 SwiftLanguageRuntime::ConcurrencyInfo
 SwiftLanguageRuntime::FindConcurrencyInfo(Process &process) {
   ModuleSP concurrency_module = FindConcurrencyModule(process);
@@ -352,8 +388,11 @@ SwiftLanguageRuntime::FindConcurrencyInfo(Process &process) {
     return {};
 
   uint32_t version = *version_word & g_concurrency_version_mask;
-  uint8_t storage_kind = *version_word >> g_concurrency_storage_kind_shift;
-  return {version, DeriveStorageKind(version, storage_kind), concurrency_module};
+  uint8_t storage_kind_raw = *version_word >> g_concurrency_storage_kind_shift;
+  auto storage_kind = DeriveStorageKind(version, storage_kind_raw);
+  if (storage_kind == CurrentTaskStorageKind::platform_defined)
+    storage_kind = FindPlatformDefinedStorageKind(process, version);
+  return {version, storage_kind, concurrency_module};
 }
 
 static lldb::BreakpointResolverSP
@@ -4195,6 +4234,7 @@ GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
     return std::make_unique<CxxThreadLocalTaskFinder>(info.concurrency_module);
   case CurrentTaskStorageKind::pthread_allocated_key:
   case CurrentTaskStorageKind::global:
+  case CurrentTaskStorageKind::platform_defined:
   case CurrentTaskStorageKind::last:
     break;
   }

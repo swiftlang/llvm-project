@@ -148,7 +148,8 @@ public:
     global = 2,
     pthread_reserved_key = 3,
     pthread_allocated_key = 4,
-    last = 5,
+    platform_defined = 5,
+    last = 6,
   };
   struct ConcurrencyInfo {
     std::optional<uint32_t> version;
