@@ -68,6 +68,90 @@ static bool isTrapEdgeBlock(BasicBlock *BB) {
          CI->onlyAccessesInaccessibleMemory();
 }
 
+/// Count trap loop-exit edges of Loop
+static unsigned countTrapExits(Loop *L, LoopInfo &LI) {
+  unsigned Count = 0;
+  SmallVector<BasicBlock *, 4> LoopExitBlocks;
+  L->getExitBlocks(LoopExitBlocks);
+  for (auto *BB : LoopExitBlocks) {
+    if (!isTrapEdgeBlock(BB))
+      continue;
+    if (any_of(predecessors(BB), [L, &LI](BasicBlock *PredB) {
+          if (LI.getLoopFor(PredB) != L)
+            return false;
+          auto *TerminatorInst = PredB->getTerminator();
+          return L->contains(PredB) && (isa<CondBrInst>(TerminatorInst) ||
+                                        isa<UncondBrInst>(TerminatorInst) ||
+                                        isa<SwitchInst>(TerminatorInst));
+        }))
+      ++Count;
+  }
+  return Count;
+}
+
+/// Emit one LoopPrimitives remark per loop with a trap exit
+/// and a per-function LoopPrimitivesSummary with loop-depth
+/// for all loops.
+static void emitLoopPrimitives(Function &F, LoopInfo &LI,
+                               OptimizationRemarkEmitter &ORE,
+                               ScalarEvolution &SE) {
+  unsigned TotalLoops = 0;
+  unsigned Innermost = 0;
+  unsigned MaxDepth = 0;
+  unsigned Depth1 = 0, Depth2 = 0, Depth3Plus = 0;
+
+  std::string PrimName = "LoopPrimitives";
+  std::string SumName = "LoopPrimitivesSummary";
+
+  for (auto *L : LI.getLoopsInPreorder()) {
+    ++TotalLoops;
+    bool IsInnermost = L->isInnermost();
+    if (IsInnermost)
+      ++Innermost;
+    unsigned Depth = L->getLoopDepth();
+    if (Depth > MaxDepth)
+      MaxDepth = Depth;
+    if (Depth == 1)
+      ++Depth1;
+    else if (Depth == 2)
+      ++Depth2;
+    else if (Depth >= 3)
+      ++Depth3Plus;
+
+    unsigned TrapExits = countTrapExits(L, LI);
+    // loop-trap-analysis: only loops with a trap exit get a record (trap-free
+    // loops still count toward the summary below).
+    if (TrapExits == 0)
+      continue;
+    bool BTCKnown = !isa<SCEVCouldNotCompute>(SE.getBackedgeTakenCount(L));
+
+    std::string ParentHeader = "-";
+    if (Loop *Parent = L->getParentLoop())
+      ParentHeader = bbLabel(Parent->getHeader());
+
+    OptimizationRemarkAnalysis Rem(REMARK_PASS, PrimName,
+                                   &L->getHeader()->front());
+    Rem << "Loop " << NV("LoopHeader", bbLabel(L->getHeader()))
+        << " depth=" << NV("Depth", Depth)
+        << " parent=" << NV("ParentHeader", ParentHeader)
+        << " innermost=" << NV("IsInnermost", IsInnermost)
+        << " blocks=" << NV("BlockCount", (unsigned)L->getNumBlocks())
+        << " trap_exits=" << NV("TrapExitCount", TrapExits)
+        << " btc_known=" << NV("BTCKnown", BTCKnown);
+    ORE.emit(Rem);
+  }
+
+  OptimizationRemarkAnalysis Sum(REMARK_PASS, SumName, &F);
+  Sum << "Function " << NV("Function", F.getName())
+      << " total_loops=" << NV("TotalLoops", TotalLoops)
+      << " innermost=" << NV("Innermost", Innermost)
+      << " max_depth=" << NV("MaxDepth", MaxDepth)
+      << " depth1=" << NV("Depth1", Depth1)
+      << " depth2=" << NV("Depth2", Depth2)
+      << " depth3+=" << NV("Depth3Plus", Depth3Plus);
+  ORE.emit(Sum);
+}
+
 /// Emit one LoopTrapEdge remark per conditional branch whose one successor is a
 /// trap block
 static void emitPerTrapEdge(Function &F, LoopInfo &LI,
@@ -246,8 +330,10 @@ PreservedAnalyses LoopTrapAnalysisPass::run(Function &F,
   auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
   auto &ORE = AM.getResult<OptimizationRemarkEmitterAnalysis>(F);
   emitRemarks(F, LI, ORE, SE);
-  if (LTAEmitExplain)
+  if (LTAEmitExplain) {
+    emitLoopPrimitives(F, LI, ORE, SE);
     emitPerTrapEdge(F, LI, ORE);
+  }
   return PreservedAnalyses::all();
 }
 

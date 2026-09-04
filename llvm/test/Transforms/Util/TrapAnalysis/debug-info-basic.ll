@@ -44,8 +44,6 @@ exit:
 ; The record's DebugLoc is the trapping branch's !dbg (line 8, col 7).
 
 ; Full LoopTrapEdge record(s), pinned line-by-line.
-
-; Full LoopTrapEdge record(s), pinned line-by-line.
 ; CHECK:      Name:{{ +}}LoopTrapEdge
 ; CHECK-NEXT: DebugLoc:{{ +}}{ File: scan.c, Line: 8, Column: 7 }
 ; CHECK-NEXT: Function:{{ +}}counted_trap
