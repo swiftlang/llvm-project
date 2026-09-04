@@ -16,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/LoopTrapAnalysis.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -107,12 +108,28 @@ static unsigned countTrapExits(Loop *L, LoopInfo &LI) {
   return Count;
 }
 
-/// Emit one LoopPrimitives remark per loop with a trap exit
-/// and a per-function LoopPrimitivesSummary with loop-depth
-/// for all loops.
+// 3-way reason for an unknown-BTC exit. Priority StoreReload > CallReload
+// > Other so buckets are exclusive and total to the unknown-BTC count.
+enum class ReloadReason { StoreReload, CallReload, Other };
+
+// The unknown-BTC breakdown counters emitted on LoopPrimitives are computed by
+// classifyExit / isBlockedByReload; these depend on collectIcmpBoolOperands and
+// SCEVNodeCollector, which are defined below, so forward-declare them here.
+static ReloadReason
+loadReloadCause(LoadInst *Load, Loop *L, AAResults &AA,
+                DenseMap<LoadInst *, ReloadReason> &LoadCache);
+static ReloadReason classifyExit(CondBrInst *BI, Loop *L, ScalarEvolution &SE,
+                                 AAResults &AA,
+                                 DenseMap<LoadInst *, ReloadReason> &LoadCache);
+static bool isBlockedByReload(CondBrInst *BI, Loop *L, ScalarEvolution &SE);
+
+/// Emit one LoopPrimitives remark per loop with a trap exit (trap-free loops
+/// emit none), plus a per-function LoopPrimitivesSummary with loop-depth
+/// tallies over all loops. Gated by -loop-trap-analysis-explain.
 static void emitLoopPrimitives(Function &F, LoopInfo &LI,
                                OptimizationRemarkEmitter &ORE,
-                               ScalarEvolution &SE) {
+                               ScalarEvolution &SE, AAResults &AA,
+                               unsigned InvocationSeq) {
   unsigned TotalLoops = 0;
   unsigned Innermost = 0;
   unsigned MaxDepth = 0;
@@ -143,6 +160,146 @@ static void emitLoopPrimitives(Function &F, LoopInfo &LI,
       continue;
     bool BTCKnown = !isa<SCEVCouldNotCompute>(SE.getBackedgeTakenCount(L));
 
+    // Per-exit SCEV-computability counts. IndVars partial-BTC needs every
+    // exiting block's exit count SCEV-computable; counting unknowns split by
+    // trap-vs-early shows what blocks eligibility.
+    //   trap_exits_unknown_btc      — conditional exits targeting a trap block
+    //                                  whose SE.getExitCount(L, BB) is
+    //                                  SCEVCouldNotCompute
+    //   non_trap_exits_unknown_btc  — same, for exits NOT targeting a trap
+    //
+    // Unknown-BTC exits further split by blocker reason:
+    //   *_due_to_reload  — a cmp operand's SCEV (after select-OR/AND unfold)
+    //                      refers to an in-loop SCEVUnknown: the predicate
+    //                      reloads a value per iteration, so SCEV gives up.
+    //   *_other_reason   — SCEV gave up otherwise (operand not AddRec for L,
+    //                      not invariant, not an in-loop SCEVUnknown — rare;
+    //                      AddRec for a different loop, modular non-unit
+    //                      stride).
+    //
+    // Reload-blocked additionally subdivided by what blocked hoisting the load:
+    //   *_store_reload   — a StoreInst / mem-intrinsic in L may-aliases the
+    //                      load (AA).
+    //   *_call_reload    — a side-effecting CallBase in L may-modifies the
+    //                      load's location (AA), no aliasing store found.
+    //   *_other_blocker  — not a clean store/call match: non-load SCEVUnknown
+    //                      (PHI/select/etc.), or a load with no aliasing
+    //                      writer.
+    // Sums: store_reload + call_reload + other_blocker = trap_exits_unknown_btc
+    //       (same for non-trap).
+    // One ordered, tag-keyed table drives the unknown-BTC breakdown so the set
+    // generalizes: add a counter with a row here, not a local plus an NV line.
+    // Field is the remark tag consumers read; Label is the full inline text
+    // (leading space, trailing '='); the map is seeded in table order so
+    // emission stays deterministic.
+    static const std::pair<StringRef, StringRef> UnknownBTCCounters[] = {
+        {"TrapExitsUnknownBTC", " trap_exits_unknown_btc="},
+        {"TrapExitsUnknownBTCDueToReload", " trap_exits_unknown_btc_reload="},
+        {"TrapExitsUnknownBTCOtherReason", " trap_exits_unknown_btc_other="},
+        {"TrapExitsUnknownBTCStoreReload",
+         " trap_exits_unknown_btc_store_reload="},
+        {"TrapExitsUnknownBTCCallReload",
+         " trap_exits_unknown_btc_call_reload="},
+        {"TrapExitsUnknownBTCOtherBlocker",
+         " trap_exits_unknown_btc_other_blocker="},
+        {"NonTrapExitsUnknownBTC", " non_trap_exits_unknown_btc="},
+        {"NonTrapExitsUnknownBTCDueToReload",
+         " non_trap_exits_unknown_btc_reload="},
+        {"NonTrapExitsUnknownBTCOtherReason",
+         " non_trap_exits_unknown_btc_other="},
+        {"NonTrapExitsUnknownBTCStoreReload",
+         " non_trap_exits_unknown_btc_store_reload="},
+        {"NonTrapExitsUnknownBTCCallReload",
+         " non_trap_exits_unknown_btc_call_reload="},
+        {"NonTrapExitsUnknownBTCOtherBlocker",
+         " non_trap_exits_unknown_btc_other_blocker="},
+    };
+    MapVector<StringRef, unsigned> UnknownBTC;
+    for (const auto &KV : UnknownBTCCounters)
+      UnknownBTC[KV.first] = 0;
+    // SCEV-computable counterparts: cond-trap edges whose per-exit BTC is
+    // computable. These are the edges IndVars *could* fold via predication if
+    // the other gates hold — they bound the achievable reduction from
+    // compiler-side trap-edge work.
+    //
+    // Three-way SCEV bucket per exit, increasing strength:
+    //   *Unknown*    — both Exact and SymbolicMax are CouldNotCompute.
+    //   *Symbolic*   — Exact CouldNotCompute but SymbolicMax known (upper
+    //                  bound).
+    //   *Computable* — Exact known; cleanest case for predication.
+    unsigned TrapExitsComputableBTC = 0;
+    unsigned NonTrapExitsComputableBTC = 0;
+    unsigned TrapExitsSymbolicBTC = 0;
+    unsigned NonTrapExitsSymbolicBTC = 0;
+    {
+      // Cache per-load AA result: several leaf cmp operands (within and across
+      // exits in L) can fan in from the same load; don't re-walk L each time.
+      DenseMap<LoadInst *, ReloadReason> LoadCache;
+
+      SmallVector<BasicBlock *, 4> ExitingBlocks;
+      L->getExitingBlocks(ExitingBlocks);
+      for (BasicBlock *EB : ExitingBlocks) {
+        // Strict attribution: only count this exit if its source-BB's
+        // immediate containing loop is L. Otherwise an inner-loop trap-exit --
+        // whose unreachable successor exits every enclosing loop -- would be
+        // counted at every nesting level's SCEV-bucket counters.
+        if (LI.getLoopFor(EB) != L)
+          continue;
+        auto *BI = dyn_cast<CondBrInst>(EB->getTerminator());
+        if (!BI)
+          continue;
+        BasicBlock *ExitSucc = nullptr;
+        for (BasicBlock *Succ : BI->successors())
+          if (!L->contains(Succ)) {
+            ExitSucc = Succ;
+            break;
+          }
+        if (!ExitSucc)
+          continue;
+        const SCEV *EC = SE.getExitCount(L, EB);
+        bool IsTrap = isTrapEdgeBlock(ExitSucc);
+        if (!isa<SCEVCouldNotCompute>(EC)) {
+          if (IsTrap)
+            ++TrapExitsComputableBTC;
+          else
+            ++NonTrapExitsComputableBTC;
+          continue;
+        }
+        // Exact unknown; check the symbolic-max bucket before fully-unknown
+        // attribution.
+        const SCEV *SymEC =
+            SE.getExitCount(L, EB, ScalarEvolution::SymbolicMaximum);
+        if (!isa<SCEVCouldNotCompute>(SymEC)) {
+          if (IsTrap)
+            ++TrapExitsSymbolicBTC;
+          else
+            ++NonTrapExitsSymbolicBTC;
+          continue;
+        }
+        bool ByReload = isBlockedByReload(BI, L, SE);
+        ReloadReason R = classifyExit(BI, L, SE, AA, LoadCache);
+        if (IsTrap) {
+          ++UnknownBTC["TrapExitsUnknownBTC"];
+          ++UnknownBTC[ByReload ? "TrapExitsUnknownBTCDueToReload"
+                                : "TrapExitsUnknownBTCOtherReason"];
+          ++UnknownBTC[R == ReloadReason::StoreReload
+                           ? "TrapExitsUnknownBTCStoreReload"
+                       : R == ReloadReason::CallReload
+                           ? "TrapExitsUnknownBTCCallReload"
+                           : "TrapExitsUnknownBTCOtherBlocker"];
+        } else {
+          ++UnknownBTC["NonTrapExitsUnknownBTC"];
+          ++UnknownBTC[ByReload ? "NonTrapExitsUnknownBTCDueToReload"
+                                : "NonTrapExitsUnknownBTCOtherReason"];
+          ++UnknownBTC[R == ReloadReason::StoreReload
+                           ? "NonTrapExitsUnknownBTCStoreReload"
+                       : R == ReloadReason::CallReload
+                           ? "NonTrapExitsUnknownBTCCallReload"
+                           : "NonTrapExitsUnknownBTCOtherBlocker"];
+        }
+      }
+    }
+
     std::string ParentHeader = "-";
     if (Loop *Parent = L->getParentLoop())
       ParentHeader = bbLabel(Parent->getHeader());
@@ -156,6 +313,17 @@ static void emitLoopPrimitives(Function &F, LoopInfo &LI,
         << " blocks=" << NV("BlockCount", (unsigned)L->getNumBlocks())
         << " trap_exits=" << NV("TrapExitCount", TrapExits)
         << " btc_known=" << NV("BTCKnown", BTCKnown);
+    for (const auto &[Field, Label] : UnknownBTCCounters)
+      Rem << Label << NV(Field, UnknownBTC[Field]);
+    Rem << " trap_exits_computable_btc="
+        << NV("TrapExitsComputableBTC", TrapExitsComputableBTC)
+        << " non_trap_exits_computable_btc="
+        << NV("NonTrapExitsComputableBTC", NonTrapExitsComputableBTC)
+        << " trap_exits_symbolic_btc="
+        << NV("TrapExitsSymbolicBTC", TrapExitsSymbolicBTC)
+        << " non_trap_exits_symbolic_btc="
+        << NV("NonTrapExitsSymbolicBTC", NonTrapExitsSymbolicBTC)
+        << " invocation_seq=" << NV("InvocationSeq", InvocationSeq);
     ORE.emit(Rem);
   }
 
@@ -780,14 +948,157 @@ static ReloadOpaqueInfo computeReloadOpaqueInfo(
   return R;
 }
 
+// Classify why an in-loop load blocks SCEV, caching the result per-load in
+// LoadCache: several leaf cmp operands (within and across exits in L) can
+// fan in from the same load; don't re-walk L each time.
+static ReloadReason
+loadReloadCause(LoadInst *Load, Loop *L, AAResults &AA,
+                DenseMap<LoadInst *, ReloadReason> &LoadCache) {
+  auto It = LoadCache.find(Load);
+  if (It != LoadCache.end())
+    return It->second;
+  MemoryLocation LoadLoc = MemoryLocation::get(Load);
+  bool SawCallMod = false;
+  ReloadReason Result = ReloadReason::Other;
+  for (BasicBlock *BB : L->blocks()) {
+    for (Instruction &I : *BB) {
+      if (&I == Load)
+        continue;
+      if (auto *SI = dyn_cast<StoreInst>(&I)) {
+        if (LTAEmitExplain ? isModSet(AA.getModRefInfo(SI, LoadLoc))
+                           : !AA.isNoAlias(MemoryLocation::get(SI), LoadLoc)) {
+          Result = ReloadReason::StoreReload;
+          goto done;
+        }
+        continue;
+      }
+      if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
+        if (isModSet(AA.getModRefInfo(MI, LoadLoc))) {
+          Result = ReloadReason::StoreReload;
+          goto done;
+        }
+        continue;
+      }
+      if (auto *CB = dyn_cast<CallBase>(&I)) {
+        if (CB->onlyReadsMemory() || CB->doesNotAccessMemory())
+          continue;
+        if (isModSet(AA.getModRefInfo(CB, LoadLoc)))
+          SawCallMod = true;
+      }
+    }
+  }
+  if (SawCallMod)
+    Result = ReloadReason::CallReload;
+done:
+  LoadCache[Load] = Result;
+  return Result;
+}
+
+// Walk a branch's leaf cmp operands. For each whose SCEV references an
+// in-loop SCEVUnknown, classify the blocker; the exit-level reason is the
+// strongest cause across operands.
+static ReloadReason
+classifyExit(CondBrInst *BI, Loop *L, ScalarEvolution &SE, AAResults &AA,
+             DenseMap<LoadInst *, ReloadReason> &LoadCache) {
+  SmallVector<Value *, 8> Operands;
+  SmallPtrSet<Value *, 16> Visited;
+  collectIcmpBoolOperands(BI->getCondition(), Operands, Visited);
+  ReloadReason Best = ReloadReason::Other;
+  for (Value *V : Operands) {
+    if (!V || isa<Constant>(V))
+      continue;
+    if (!SE.isSCEVable(V->getType()))
+      continue;
+    const SCEV *SC = SE.getSCEV(V);
+    if (isa<SCEVCouldNotCompute>(SC))
+      continue;
+    if (SE.isLoopInvariant(SC, L))
+      continue;
+    if (auto *AR = dyn_cast<SCEVAddRecExpr>(SC))
+      if (AR->getLoop() == L)
+        continue;
+    SCEVNodeCollector Coll;
+    SCEVTraversal<SCEVNodeCollector>(Coll).visitAll(SC);
+    for (const SCEVUnknown *U : Coll.Unknowns) {
+      auto *I = dyn_cast_or_null<Instruction>(U->getValue());
+      if (!I || !L->contains(I->getParent()))
+        continue;
+      if (auto *Load = dyn_cast<LoadInst>(I)) {
+        ReloadReason R = loadReloadCause(Load, L, AA, LoadCache);
+        if (R == ReloadReason::StoreReload)
+          return R;
+        if (R == ReloadReason::CallReload && Best != ReloadReason::CallReload)
+          Best = R;
+      }
+      // Non-load in-loop SCEVUnknown → genuine varying. Stays Other
+      // unless another operand promotes us.
+    }
+  }
+  return Best;
+}
+
+// Legacy bool: did *any* leaf operand reference an in-loop SCEVUnknown?
+// (Superset of the reason buckets.)
+static bool isBlockedByReload(CondBrInst *BI, Loop *L, ScalarEvolution &SE) {
+  SmallVector<Value *, 8> Operands;
+  SmallPtrSet<Value *, 16> Visited;
+  collectIcmpBoolOperands(BI->getCondition(), Operands, Visited);
+  for (Value *V : Operands) {
+    if (!V || isa<Constant>(V))
+      continue;
+    if (!SE.isSCEVable(V->getType()))
+      continue;
+    const SCEV *SC = SE.getSCEV(V);
+    if (isa<SCEVCouldNotCompute>(SC))
+      continue;
+    if (SE.isLoopInvariant(SC, L))
+      continue;
+    if (auto *AR = dyn_cast<SCEVAddRecExpr>(SC))
+      if (AR->getLoop() == L)
+        continue;
+    SCEVNodeCollector Coll;
+    SCEVTraversal<SCEVNodeCollector>(Coll).visitAll(SC);
+    for (const SCEVUnknown *U : Coll.Unknowns) {
+      if (auto *I = dyn_cast_or_null<Instruction>(U->getValue()))
+        if (L->contains(I->getParent()))
+          return true;
+    }
+  }
+  return false;
+}
+
 /// Emit one LoopTrapEdge remark per conditional branch whose one successor is a
 /// trap block
 static void emitPerTrapEdge(Function &F, LoopInfo &LI,
                             OptimizationRemarkEmitter &ORE, ScalarEvolution &SE,
-                            AAResults &AA, const DominatorTree &DT) {
+                            AAResults &AA, const DominatorTree &DT,
+                            unsigned InvocationSeq) {
   std::string Name = "LoopTrapEdge";
   DenseMap<std::pair<Loop *, LoadInst *>, std::tuple<bool, bool, bool>>
       ReloadCache;
+  DenseMap<Loop *, unsigned> UncomputableTrapExits;
+  for (Loop *L : LI.getLoopsInPreorder()) {
+    SmallVector<BasicBlock *, 4> Exiting;
+    L->getExitingBlocks(Exiting);
+    unsigned N = 0;
+    for (BasicBlock *EB : Exiting) {
+      auto *BI = dyn_cast<CondBrInst>(EB->getTerminator());
+      if (!BI)
+        continue;
+      BasicBlock *TrapSucc = nullptr;
+      for (BasicBlock *Succ : BI->successors())
+        if (!L->contains(Succ) && isTrapEdgeBlock(Succ)) {
+          TrapSucc = Succ;
+          break;
+        }
+      if (!TrapSucc)
+        continue;
+      const SCEV *EC = SE.getExitCount(L, EB);
+      if (isa<SCEVCouldNotCompute>(EC))
+        ++N;
+    }
+    UncomputableTrapExits[L] = N;
+  }
   for (BasicBlock &BB : F) {
     auto *BI = dyn_cast<CondBrInst>(BB.getTerminator());
     if (!BI)
@@ -825,6 +1136,8 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
     EdgeBTCInfo BTC = computeEdgeBTC(SE, Innermost, &BB, IsLoopExit);
     if (BTC.Computable)
       SF.NotProvenMonotonic = false;
+    unsigned NUnc = UncomputableTrapExits.lookup(Innermost);
+    bool LoopHasOtherUnknownBTCTrap = BTC.Computable ? (NUnc > 0) : (NUnc > 1);
 
     // Out-of-loop / structural-redundancy fields.
     bool IsEntryProx = isEntryProximate(F, &BB, DT, LI);
@@ -875,6 +1188,8 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
         << NV("HasNegativeStrideForLAddRec", SF.HasNegativeStrideForLAddRec)
         << " edge_btc_computable=" << NV("EdgeBTCComputable", BTC.Computable)
         << " edge_btc_symbolic=" << NV("EdgeBTCSymbolic", BTC.Symbolic)
+        << " loop_has_other_unknown_btc_trap="
+        << NV("LoopHasOtherUnknownBTCTrap", LoopHasOtherUnknownBTCTrap)
         << " predicate_shape="
         << NV("PredicateShape", trapPredicateShapeName(PredShape).str())
         << " is_entry_proximate=" << NV("IsEntryProximate", IsEntryProx);
@@ -906,7 +1221,8 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
           << NV("HasOpaqueOperandNoInLoopUnknown",
                 RO.HasOpaqueOperandNoInLoopUnknown)
           << " has_outer_loop_addrec_operand="
-          << NV("HasOuterLoopAddRecOperand", RO.HasOuterLoopAddRecOperand);
+          << NV("HasOuterLoopAddRecOperand", RO.HasOuterLoopAddRecOperand)
+          << " invocation_seq=" << NV("InvocationSeq", InvocationSeq);
     }
     ORE.emit(Rem);
   }
@@ -1094,8 +1410,9 @@ PreservedAnalyses LoopTrapAnalysisPass::run(Function &F,
   if (LTAEmitExplain) {
     auto &AA = AM.getResult<AAManager>(F);
     auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
-    emitLoopPrimitives(F, LI, ORE, SE);
-    emitPerTrapEdge(F, LI, ORE, SE, AA, DT);
+    unsigned Seq = ++InvocationCount[&F];
+    emitLoopPrimitives(F, LI, ORE, SE, AA, Seq);
+    emitPerTrapEdge(F, LI, ORE, SE, AA, DT, Seq);
   }
   return PreservedAnalyses::all();
 }
