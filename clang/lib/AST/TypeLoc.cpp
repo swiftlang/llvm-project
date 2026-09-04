@@ -21,7 +21,9 @@
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Lex/Lexer.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -592,8 +594,21 @@ SourceRange AttributedTypeLoc::getLocalSourceRange() const {
   return getAttr() ? getAttr()->getRange() : SourceRange();
 }
 
-SourceRange CountAttributedTypeLoc::getLocalSourceRange() const {
-  return getCountExpr() ? getCountExpr()->getSourceRange() : SourceRange();
+CharSourceRange
+BoundsAttributedTypeLoc::getAttrNameRange(const ASTContext &Ctx) const {
+  const SourceManager &SM = Ctx.getSourceManager();
+  SourceLocation TokenStart = getAttrRange().getBegin();
+  while (TokenStart.isMacroID())
+    TokenStart = SM.getImmediateExpansionRange(TokenStart).getBegin();
+  SourceLocation End =
+      Lexer::getLocForEndOfToken(TokenStart, 0, SM, Ctx.getLangOpts());
+  return CharSourceRange::getCharRange(TokenStart, End);
+}
+
+StringRef
+BoundsAttributedTypeLoc::getAttrNameAsWritten(const ASTContext &Ctx) const {
+  return Lexer::getSourceText(getAttrNameRange(Ctx), Ctx.getSourceManager(),
+                              Ctx.getLangOpts());
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */

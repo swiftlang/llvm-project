@@ -589,7 +589,7 @@ void TypeLocWriter::VisitAttributedTypeLoc(AttributedTypeLoc TL) {
 }
 
 void TypeLocWriter::VisitCountAttributedTypeLoc(CountAttributedTypeLoc TL) {
-  // Nothing to do
+  addSourceRange(TL.getAttrRange());
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */
