@@ -299,12 +299,15 @@ ifneq "$(SWIFT_WMO)" "1"
 	$(PYTHON) $(THIS_FILE_DIR)/gen-output-map.py $(filter %.swift,$^) $(patsubst %,$(BUILDDIR)/%,$(SWIFT_OBJECTS)) >$(BUILDDIR)/$(MODULENAME)-output-file-map.json
 endif
 	@echo "### Compiling" $(filter %.swift,$^)
+# Run with SWIFT_DUMP_DRIVER_INVOCATION=YES to see invocation.
+ifeq "$(SWIFT_DUMP_DRIVER_INVOCATION)" "YES"
 	@echo "### Swift driver expanded incovation will be:"
 	$(SWIFTC) -emit-object $(filter %.swift,$^) $(SWIFTC_OUTPUT) \
 	  $(SWIFTFLAGS) $(SWIFT_HFLAGS) $(PARSE_AS_LIBRARY) \
 	  -module-name $(MODULENAME) \
           -emit-module-path $(BUILDDIR)/$(MODULENAME).swiftmodule \
 	  $(SWIFT_INTERFACE_FLAGS) -###
+endif
 	@echo "### Swift driver invocation:"
 	$(SWIFTC) -emit-object $(filter %.swift,$^) $(SWIFTC_OUTPUT) \
 	  $(SWIFTFLAGS) $(SWIFT_HFLAGS) $(PARSE_AS_LIBRARY) \
