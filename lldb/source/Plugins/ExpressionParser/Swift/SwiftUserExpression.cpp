@@ -356,6 +356,16 @@ static llvm::Error AddVariableInfo(
   if (!variable_sp || !variable_sp->GetType())
     return llvm::Error::success();
 
+  // Stash diagnostics for missing locations.
+  Status variable_status;
+  if (lldb::ValueObjectSP valobj_sp =
+          stack_frame_sp->GetValueObjectForFrameVariable(
+              variable_sp, lldb::eNoDynamicValues)) {
+    variable_status = valobj_sp->GetError().Clone();
+    if (variable_status.Fail() && variable_sp->IsArtificial())
+      return llvm::Error::success();
+  }
+
   CompilerType target_type;
   bool should_not_bind_generic_types =
       !SwiftASTManipulator::ShouldBindGenericTypes(bind_generic_types);
@@ -449,16 +459,6 @@ static llvm::Error AddVariableInfo(
                   static_cast<void *>(swift_type.getPointer()),
                   static_cast<void *>(*ast_context.GetASTContext()), s.c_str());
     }
-
-  // Stash diagnostics for missing locations.
-  Status variable_status;
-  if (lldb::ValueObjectSP valobj_sp =
-          stack_frame_sp->GetValueObjectForFrameVariable(
-              variable_sp, lldb::eNoDynamicValues)) {
-    variable_status = valobj_sp->GetError().Clone();
-    if (variable_status.Fail() && variable_sp->IsArtificial())
-      return llvm::Error::success();
-  }
 
   // A one-off clone of variable_sp with the type replaced by target_type.
   auto patched_variable_sp = std::make_shared<lldb_private::Variable>(
