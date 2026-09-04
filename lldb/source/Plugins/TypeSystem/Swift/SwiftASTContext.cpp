@@ -9343,11 +9343,10 @@ bool SwiftASTContext::IsImportedType(opaque_compiler_type_t type,
                                .getAsOpaquePtr());
         } else if (const clang::TypeDecl *type_decl =
                        llvm::dyn_cast<clang::TypeDecl>(clang_decl)) {
+          clang::ASTContext &ast_ctx = type_decl->getASTContext();
           *original_type = CompilerType(
-              TypeSystemClang::GetASTContext(&type_decl->getASTContext())
-                  ->weak_from_this(),
-              clang::QualType::getFromOpaquePtr(type_decl->getTypeForDecl())
-                  .getAsOpaquePtr());
+              TypeSystemClang::GetASTContext(&ast_ctx)->weak_from_this(),
+              ast_ctx.getTypeDeclType(type_decl).getAsOpaquePtr());
         } else {
           // TODO: any more cases that we care about?
           *original_type = CompilerType();
