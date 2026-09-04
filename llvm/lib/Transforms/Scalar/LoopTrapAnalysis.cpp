@@ -18,7 +18,9 @@
 #include "llvm/Transforms/Scalar/LoopTrapAnalysis.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
@@ -54,6 +56,13 @@ static cl::opt<unsigned> EntryProximityDepth(
     "loop-trap-entry-proximity-depth", cl::init(3),
     cl::desc("Maximum dominator depth from function entry at which a "
              "trap edge is classified IsEntryProximate (default 3)."));
+static cl::opt<bool> LTAEmitLoadAlias(
+    "loop-load-alias", cl::init(false),
+    cl::desc("Opt-in: for each load in an INNERMOST loop that is may-clobbered "
+             "by an in-loop writer (store / memcpy / call), emit a "
+             "LoopLoadAlias record naming the first such writer. Clobbered "
+             "loads only (hoistable loads are omitted). Off by default; "
+             "enable selectively as it emits one record per clobbered load."));
 
 /// Print a stable, non-empty label for \p BB, so remark args that identify
 /// BasicBlocks stay useful when the BB has no source-level name .
@@ -561,12 +570,224 @@ static DominanceInfo computeDominanceInfo(ScalarEvolution &SE,
   return R;
 }
 
+/// Human-readable TBAA access-type name for an instruction, or "" if none.
+static StringRef tbaaTypeName(const Instruction *I) {
+  AAMDNodes AAMD = I->getAAMetadata();
+  if (const MDNode *TBAA = AAMD.TBAA) {
+    const MDNode *AccessType = TBAA;
+    if (TBAA->getNumOperands() >= 2)
+      if (auto *AT = dyn_cast<MDNode>(TBAA->getOperand(1)))
+        AccessType = AT;
+    if (AccessType->getNumOperands() >= 1)
+      if (auto *Name = dyn_cast<MDString>(AccessType->getOperand(0)))
+        return Name->getString();
+  }
+  if (AAMD.TBAAStruct)
+    return "struct-copy";
+  return "";
+}
+
+/// Short kind tag for a reload-blocking writer.
+static StringRef writerKind(const Instruction *I) {
+  if (isa<MemCpyInst>(I))
+    return "memcpy";
+  if (isa<MemMoveInst>(I))
+    return "memmove";
+  if (isa<MemSetInst>(I))
+    return "memset";
+  if (isa<MemIntrinsic>(I))
+    return "mem-intrinsic";
+  if (isa<StoreInst>(I))
+    return "store";
+  if (isa<CallBase>(I))
+    return "call";
+  return "writer";
+}
+
+/// Cached (Loop, Load) query: do in-loop stores / mem-intrinsics / calls
+/// may-alias the load? Tracked separately so the consumer can distinguish
+/// scalar-store from struct-copy (mem-intrinsic) aliasing.
+static std::tuple<bool, bool, bool> loadAliasFlags(
+    LoadInst *Load, Loop *L, AAResults &AA,
+    DenseMap<std::pair<Loop *, LoadInst *>, std::tuple<bool, bool, bool>>
+        &ReloadCache) {
+  auto Key = std::make_pair(L, Load);
+  auto It = ReloadCache.find(Key);
+  if (It != ReloadCache.end())
+    return It->second;
+  bool Store = false, MemI = false, Call = false;
+  MemoryLocation LoadLoc = MemoryLocation::get(Load);
+  for (BasicBlock *BB : L->blocks()) {
+    for (Instruction &I : *BB) {
+      if (&I == Load)
+        continue;
+      if (auto *SI = dyn_cast<StoreInst>(&I)) {
+        if (LTAEmitExplain ? isModSet(AA.getModRefInfo(SI, LoadLoc))
+                           : !AA.isNoAlias(MemoryLocation::get(SI), LoadLoc))
+          Store = true;
+      } else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
+        if (isModSet(AA.getModRefInfo(MI, LoadLoc)))
+          MemI = true;
+      } else if (auto *CB = dyn_cast<CallBase>(&I)) {
+        if (CB->onlyReadsMemory() || CB->doesNotAccessMemory())
+          continue;
+        if (isModSet(AA.getModRefInfo(CB, LoadLoc)))
+          Call = true;
+      }
+      if (Store && MemI && Call)
+        break;
+    }
+    if (Store && MemI && Call)
+      break;
+  }
+  auto Out = std::make_tuple(Store, MemI, Call);
+  ReloadCache[Key] = Out;
+  return Out;
+}
+
+/// First in-loop store / mem-intrinsic that may-alias the load, or null.
+static Instruction *firstAliasingStore(LoadInst *Load, Loop *L, AAResults &AA) {
+  MemoryLocation LoadLoc = MemoryLocation::get(Load);
+  for (BasicBlock *BB : L->blocks())
+    for (Instruction &I : *BB) {
+      if (&I == Load)
+        continue;
+      if (auto *SI = dyn_cast<StoreInst>(&I)) {
+        if (LTAEmitExplain ? isModSet(AA.getModRefInfo(SI, LoadLoc))
+                           : !AA.isNoAlias(MemoryLocation::get(SI), LoadLoc))
+          return &I;
+      } else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
+        if (isModSet(AA.getModRefInfo(MI, LoadLoc)))
+          return &I;
+      }
+    }
+  return nullptr;
+}
+
+/// Like firstAliasingStore but also considers side-effecting calls (used by
+/// the flag-gated LoopLoadAlias annotation).
+static Instruction *firstAliasingWriter(LoadInst *Load, Loop *L,
+                                        AAResults &AA) {
+  MemoryLocation LoadLoc = MemoryLocation::get(Load);
+  for (BasicBlock *BB : L->blocks())
+    for (Instruction &I : *BB) {
+      if (&I == Load)
+        continue;
+      if (auto *SI = dyn_cast<StoreInst>(&I)) {
+        if (LTAEmitExplain ? isModSet(AA.getModRefInfo(SI, LoadLoc))
+                           : !AA.isNoAlias(MemoryLocation::get(SI), LoadLoc))
+          return &I;
+      } else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
+        if (isModSet(AA.getModRefInfo(MI, LoadLoc)))
+          return &I;
+      } else if (auto *CB = dyn_cast<CallBase>(&I)) {
+        if (CB->onlyReadsMemory() || CB->doesNotAccessMemory())
+          continue;
+        if (isModSet(AA.getModRefInfo(CB, LoadLoc)))
+          return &I;
+      }
+    }
+  return nullptr;
+}
+
+namespace {
+/// Reload / opaque-operand classification: why an in-loop unknown operand
+/// blocks the trip count. Only in-loop SCEVUnknown operands contribute.
+struct ReloadOpaqueInfo {
+  bool HasStoreReload = false;
+  bool HasMemIntrinsicReload = false;
+  bool HasCallReload = false;
+  bool HasUnaliasedLoadOperand = false;
+  bool HasInLoopPhiOperand = false;
+  bool HasInLoopFreezeOperand = false;
+  bool HasInLoopSelectOperand = false;
+  bool HasOtherInLoopUnknownOperand = false;
+  bool HasOpaqueOperandNoInLoopUnknown = false;
+  bool HasOuterLoopAddRecOperand = false;
+  Instruction *ReloadStore = nullptr;
+  LoadInst *ReloadLoad = nullptr;
+};
+} // anonymous namespace
+
+/// Classify each in-loop opaque operand of trap predicate Cond: AA-based reload
+/// (store / mem-intrinsic / call) vs phi / freeze / select / other, plus the
+/// outer-loop-AddRec and opaque-without-in-loop-unknown buckets.
+static ReloadOpaqueInfo computeReloadOpaqueInfo(
+    Value *Cond, ScalarEvolution &SE, LoopInfo &LI, Loop *Innermost,
+    AAResults &AA,
+    DenseMap<std::pair<Loop *, LoadInst *>, std::tuple<bool, bool, bool>>
+        &ReloadCache) {
+  ReloadOpaqueInfo R;
+  SmallVector<Value *, 8> LeafOperands;
+  SmallPtrSet<Value *, 16> Visited;
+  collectIcmpBoolOperands(Cond, LeafOperands, Visited);
+  for (Value *V : LeafOperands) {
+    if (!V || isa<Constant>(V) || !SE.isSCEVable(V->getType()))
+      continue;
+    const SCEV *SC = SE.getSCEV(V);
+    if (isa<SCEVCouldNotCompute>(SC))
+      continue;
+    SCEVNodeCollector Coll;
+    SCEVTraversal<SCEVNodeCollector>(Coll).visitAll(SC);
+    // Opaque w.r.t. L: non-invariant and not an innermost-loop AddRec.
+    bool OpIsOpaqueForL = false;
+    if (Innermost) {
+      OpIsOpaqueForL = !SE.isLoopInvariant(SC, Innermost);
+      if (auto *AR = dyn_cast<SCEVAddRecExpr>(SC))
+        if (AR->getLoop() == Innermost)
+          OpIsOpaqueForL = false;
+    }
+    bool OpHasInLoopUnknown = false;
+    for (const SCEVUnknown *U : Coll.Unknowns) {
+      auto *I = dyn_cast_or_null<Instruction>(U->getValue());
+      if (!I || !Innermost || !Innermost->contains(I->getParent()))
+        continue;
+      OpHasInLoopUnknown = true;
+      if (auto *Load = dyn_cast<LoadInst>(I)) {
+        auto [SAlias, MAlias, CAlias] =
+            loadAliasFlags(Load, Innermost, AA, ReloadCache);
+        if (SAlias)
+          R.HasStoreReload = true;
+        if (MAlias)
+          R.HasMemIntrinsicReload = true;
+        if (CAlias)
+          R.HasCallReload = true;
+        if ((SAlias || MAlias) && !R.ReloadStore) {
+          R.ReloadStore = firstAliasingStore(Load, Innermost, AA);
+          R.ReloadLoad = Load;
+        }
+        if (!SAlias && !MAlias && !CAlias)
+          R.HasUnaliasedLoadOperand = true;
+      } else if (isa<PHINode>(I)) {
+        R.HasInLoopPhiOperand = true;
+      } else {
+        R.HasOtherInLoopUnknownOperand = true;
+        if (isa<FreezeInst>(I))
+          R.HasInLoopFreezeOperand = true;
+        else if (isa<SelectInst>(I))
+          R.HasInLoopSelectOperand = true;
+      }
+    }
+    if (Innermost)
+      for (const SCEVAddRecExpr *AR : Coll.AddRecs)
+        if (AR->getLoop() != Innermost) {
+          R.HasOuterLoopAddRecOperand = true;
+          break;
+        }
+    if (OpIsOpaqueForL && !OpHasInLoopUnknown)
+      R.HasOpaqueOperandNoInLoopUnknown = true;
+  }
+  return R;
+}
+
 /// Emit one LoopTrapEdge remark per conditional branch whose one successor is a
 /// trap block
 static void emitPerTrapEdge(Function &F, LoopInfo &LI,
                             OptimizationRemarkEmitter &ORE, ScalarEvolution &SE,
-                            const DominatorTree &DT) {
+                            AAResults &AA, const DominatorTree &DT) {
   std::string Name = "LoopTrapEdge";
+  DenseMap<std::pair<Loop *, LoadInst *>, std::tuple<bool, bool, bool>>
+      ReloadCache;
   for (BasicBlock &BB : F) {
     auto *BI = dyn_cast<CondBrInst>(BB.getTerminator());
     if (!BI)
@@ -610,6 +831,24 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
 
     DominanceInfo Dom = computeDominanceInfo(SE, DT, Innermost, &BB);
 
+    ReloadOpaqueInfo RO = computeReloadOpaqueInfo(BI->getCondition(), SE, LI,
+                                                  Innermost, AA, ReloadCache);
+    unsigned ReloadStoreLine = 0, ReloadLoadLine = 0;
+    StringRef ReloadStoreTBAA, ReloadStoreKind, ReloadLoadTBAA, ReloadLoadName;
+    if (RO.ReloadStore) {
+      if (const DebugLoc &DL = RO.ReloadStore->getDebugLoc())
+        ReloadStoreLine = DL.getLine();
+      ReloadStoreTBAA = tbaaTypeName(RO.ReloadStore);
+      ReloadStoreKind = writerKind(RO.ReloadStore);
+    }
+    if (RO.ReloadLoad) {
+      ReloadLoadTBAA = tbaaTypeName(RO.ReloadLoad);
+      if (const DebugLoc &DL = RO.ReloadLoad->getDebugLoc())
+        ReloadLoadLine = DL.getLine();
+      if (Value *Ptr = RO.ReloadLoad->getPointerOperand())
+        ReloadLoadName = Ptr->getName();
+    }
+
     OptimizationRemarkAnalysis Rem(REMARK_PASS, Name, BI);
     Rem << "Function " << NV("Function", F.getName())
         << " src_bb=" << NV("SourceBB", bbLabel(&BB))
@@ -642,9 +881,71 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
     if (LTAEmitExplain) {
       Rem << " dominates_latch=" << NV("DominatesLatch", Dom.DominatesLatch)
           << " loop_latch_btc_computable="
-          << NV("LoopLatchBTCComputable", Dom.LoopLatchBTCComputable);
+          << NV("LoopLatchBTCComputable", Dom.LoopLatchBTCComputable)
+          << " has_store_reload=" << NV("HasStoreReload", RO.HasStoreReload)
+          << " has_mem_intrinsic_reload="
+          << NV("HasMemIntrinsicReload", RO.HasMemIntrinsicReload)
+          << " reload_store_line=" << NV("ReloadStoreLine", ReloadStoreLine)
+          << " reload_store_kind=" << NV("ReloadStoreKind", ReloadStoreKind)
+          << " reload_store_tbaa=" << NV("ReloadStoreTBAA", ReloadStoreTBAA)
+          << " reload_load_tbaa=" << NV("ReloadLoadTBAA", ReloadLoadTBAA)
+          << " reload_load_name=" << NV("ReloadLoadName", ReloadLoadName)
+          << " reload_load_line=" << NV("ReloadLoadLine", ReloadLoadLine)
+          << " has_call_reload=" << NV("HasCallReload", RO.HasCallReload)
+          << " has_unaliased_load_operand="
+          << NV("HasUnaliasedLoadOperand", RO.HasUnaliasedLoadOperand)
+          << " has_in_loop_phi_operand="
+          << NV("HasInLoopPhiOperand", RO.HasInLoopPhiOperand)
+          << " has_in_loop_freeze_operand="
+          << NV("HasInLoopFreezeOperand", RO.HasInLoopFreezeOperand)
+          << " has_in_loop_select_operand="
+          << NV("HasInLoopSelectOperand", RO.HasInLoopSelectOperand)
+          << " has_other_in_loop_unknown_operand="
+          << NV("HasOtherInLoopUnknownOperand", RO.HasOtherInLoopUnknownOperand)
+          << " has_opaque_operand_no_in_loop_unknown="
+          << NV("HasOpaqueOperandNoInLoopUnknown",
+                RO.HasOpaqueOperandNoInLoopUnknown)
+          << " has_outer_loop_addrec_operand="
+          << NV("HasOuterLoopAddRecOperand", RO.HasOuterLoopAddRecOperand);
     }
     ORE.emit(Rem);
+  }
+  // Flag-gated per-load alias annotation: for each load in an INNERMOST loop
+  // may-clobbered by an in-loop writer (store / memcpy / call), emit a
+  // LoopLoadAlias record naming the first such writer. Clobbered loads only.
+  if (LTAEmitLoadAlias) {
+    std::string LName = "LoopLoadAlias";
+    for (Loop *L : LI.getLoopsInPreorder()) {
+      if (!L->isInnermost())
+        continue;
+      for (BasicBlock *BB : L->blocks())
+        for (Instruction &I : *BB) {
+          auto *Load = dyn_cast<LoadInst>(&I);
+          if (!Load)
+            continue;
+          Instruction *W = firstAliasingWriter(Load, L, AA);
+          if (!W)
+            continue;
+          unsigned LoadLine = 0, WLine = 0;
+          if (const DebugLoc &DL = Load->getDebugLoc())
+            LoadLine = DL.getLine();
+          if (const DebugLoc &DL = W->getDebugLoc())
+            WLine = DL.getLine();
+          StringRef LoadName;
+          if (Value *P = Load->getPointerOperand())
+            LoadName = P->getName();
+          OptimizationRemarkAnalysis Rem(REMARK_PASS, LName, Load);
+          Rem << "Function " << NV("Function", F.getName())
+              << " load_name=" << NV("LoadName", LoadName)
+              << " load_line=" << NV("LoadLine", LoadLine)
+              << " load_tbaa=" << NV("LoadTBAA", tbaaTypeName(Load))
+              << " loop_header=" << NV("LoopHeader", bbLabel(L->getHeader()))
+              << " writer_kind=" << NV("WriterKind", writerKind(W))
+              << " writer_line=" << NV("WriterLine", WLine)
+              << " writer_tbaa=" << NV("WriterTBAA", tbaaTypeName(W));
+          ORE.emit(Rem);
+        }
+    }
   }
 }
 
@@ -791,9 +1092,10 @@ PreservedAnalyses LoopTrapAnalysisPass::run(Function &F,
   auto &ORE = AM.getResult<OptimizationRemarkEmitterAnalysis>(F);
   emitRemarks(F, LI, ORE, SE);
   if (LTAEmitExplain) {
+    auto &AA = AM.getResult<AAManager>(F);
     auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
     emitLoopPrimitives(F, LI, ORE, SE);
-    emitPerTrapEdge(F, LI, ORE, SE, DT);
+    emitPerTrapEdge(F, LI, ORE, SE, AA, DT);
   }
   return PreservedAnalyses::all();
 }
