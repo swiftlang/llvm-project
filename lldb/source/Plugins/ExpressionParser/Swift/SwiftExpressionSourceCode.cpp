@@ -619,7 +619,10 @@ func $__lldb_expr(_ $__lldb_arg : UnsafeMutablePointer<Any>) {
 static llvm::StringRef getAvailabilityName(const llvm::Triple &triple) {
     swift::LangOptions lang_options;
   lang_options.setTarget(triple);
-  return swift::platformString(swift::targetPlatform(lang_options));
+  if (auto platform = swift::targetPlatform(lang_options)) {
+    return swift::platformString(*platform);
+  }
+  return llvm::StringRef();
 }
 
 uint32_t SwiftExpressionSourceCode::GetNumBodyLines() {
