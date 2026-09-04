@@ -65,20 +65,21 @@ TEST_F(TestTypeSystemMap, GetScratchTypeSystemForLanguage) {
 }
 
 namespace {
-/// A TypeSystem that claims only the single language it was constructed for, so
-/// that registering two of them yields two distinct scratch instances.
+/// A TypeSystem that claims only the single language it was assigned, so that
+/// registering two of them yields two distinct scratch instances.
 class MockTypeSystem : public TypeSystemClang {
 public:
-  explicit MockTypeSystem(lldb::LanguageType language)
-      : TypeSystemClang("mock", llvm::Triple("x86_64-apple-macosx")),
-        m_language(language) {}
+  MockTypeSystem()
+      : TypeSystemClang("mock", llvm::Triple("x86_64-apple-macosx")) {}
 
   bool SupportsLanguage(lldb::LanguageType language) override {
     return language == m_language;
   }
 
+  void SetLanguage(lldb::LanguageType language) { m_language = language; }
+
 private:
-  lldb::LanguageType m_language;
+  lldb::LanguageType m_language = lldb::eLanguageTypeUnknown;
 };
 
 /// Fortran77 (0x0007) and Fortran90 (0x0008) are adjacent in LanguageType order
@@ -106,15 +107,22 @@ TEST_F(TestTypeSystemMap, GetScratchTypeSystemsIsOrderedByLanguage) {
   ArchSpec arch("x86_64-apple-macosx-");
   Platform::SetHostPlatform(PlatformRemoteMacOSX::CreateInstance(true, &arch));
 
-  // Create the Fortran90 mock first so that it lands at the lower address. The
-  // order in memory is then the reverse of the order of the languages, and an
-  // implementation that deduplicates by sorting on pointer identity returns the
-  // two the wrong way round.
-  g_fortran90_type_system =
-      std::make_shared<MockTypeSystem>(lldb::eLanguageTypeFortran90);
-  g_fortran77_type_system =
-      std::make_shared<MockTypeSystem>(lldb::eLanguageTypeFortran77);
-  ASSERT_LT(g_fortran90_type_system.get(), g_fortran77_type_system.get());
+  // Assign Fortran90 to whichever instance ends up at the lower address (the
+  // allocator gives no guarantee about the relative order of two make_shared
+  // calls, so this has to be measured rather than assumed). The order in
+  // memory is then the reverse of the order of the languages, and an
+  // implementation that deduplicates by sorting on pointer identity returns
+  // the two the wrong way round.
+  auto ts_a = std::make_shared<MockTypeSystem>();
+  auto ts_b = std::make_shared<MockTypeSystem>();
+  if (ts_a.get() > ts_b.get())
+    std::swap(ts_a, ts_b);
+  ASSERT_LT(ts_a.get(), ts_b.get());
+
+  ts_a->SetLanguage(lldb::eLanguageTypeFortran90);
+  ts_b->SetLanguage(lldb::eLanguageTypeFortran77);
+  g_fortran90_type_system = ts_a;
+  g_fortran77_type_system = ts_b;
 
   LanguageSet fortran77;
   fortran77.Insert(lldb::eLanguageTypeFortran77);
