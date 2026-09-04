@@ -80,6 +80,8 @@ attributes #0 = { cold noreturn nounwind memory(inaccessiblemem: write) }
 ; CHECK-NEXT:   - IsEntryProximate:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' dominates_latch='
 ; CHECK-NEXT:   - DominatesLatch:{{ +}}'true'
+; CHECK-NEXT:   - String:{{ +}}' has_dominating_non_trap_exit='
+; CHECK-NEXT:   - HasDominatingNonTrapExit:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' loop_latch_btc_computable='
 ; CHECK-NEXT:   - LoopLatchBTCComputable:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' has_store_reload='

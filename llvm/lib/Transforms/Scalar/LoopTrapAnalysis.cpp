@@ -1143,7 +1143,12 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
   DenseMap<std::pair<Loop *, LoadInst *>, std::tuple<bool, bool, bool>>
       ReloadCache;
   DenseMap<Loop *, unsigned> UncomputableTrapExits;
+  // Per-loop latch-dominating exits whose out-of-loop successor is not a trap
+  // block. Such an exit gates the trap edges it dominates (see the per-edge
+  // HasDominatingNonTrapExit): the loop may leave via it before the trap runs.
+  DenseMap<Loop *, SmallVector<BasicBlock *, 4>> NonTrapDomExits;
   for (Loop *L : LI.getLoopsInPreorder()) {
+    BasicBlock *Latch = L->getLoopLatch();
     SmallVector<BasicBlock *, 4> Exiting;
     L->getExitingBlocks(Exiting);
     unsigned N = 0;
@@ -1151,17 +1156,18 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
       auto *BI = dyn_cast<CondBrInst>(EB->getTerminator());
       if (!BI)
         continue;
-      BasicBlock *TrapSucc = nullptr;
+      bool ToTrap = false, ToNonTrap = false;
       for (BasicBlock *Succ : BI->successors())
-        if (!L->contains(Succ) && isTrapEdgeBlock(Succ)) {
-          TrapSucc = Succ;
-          break;
+        if (!L->contains(Succ)) {
+          if (isTrapEdgeBlock(Succ))
+            ToTrap = true;
+          else
+            ToNonTrap = true;
         }
-      if (!TrapSucc)
-        continue;
-      const SCEV *EC = SE.getExitCount(L, EB);
-      if (isa<SCEVCouldNotCompute>(EC))
+      if (ToTrap && isa<SCEVCouldNotCompute>(SE.getExitCount(L, EB)))
         ++N;
+      if (ToNonTrap && Latch && DT.dominates(EB, Latch))
+        NonTrapDomExits[L].push_back(EB);
     }
     UncomputableTrapExits[L] = N;
   }
@@ -1209,6 +1215,20 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
     bool IsEntryProx = isEntryProximate(F, &BB, DT, LI);
 
     DominanceInfo Dom = computeDominanceInfo(SE, DT, Innermost, &BB);
+
+    // This trap edge cannot be hoisted if a non-trap exit that dominates the
+    // latch also dominates it (the loop may leave via that exit first). A trap
+    // that instead dominates the exit stays hoistable.
+    bool HasDominatingNonTrapExit = false;
+    if (Innermost) {
+      auto It = NonTrapDomExits.find(Innermost);
+      if (It != NonTrapDomExits.end())
+        for (BasicBlock *EB : It->second)
+          if (EB != &BB && DT.dominates(EB, &BB)) {
+            HasDominatingNonTrapExit = true;
+            break;
+          }
+    }
 
     ReloadOpaqueInfo RO = computeReloadOpaqueInfo(BI->getCondition(), SE, LI,
                                                   Innermost, AA, ReloadCache);
@@ -1261,6 +1281,8 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
         << " is_entry_proximate=" << NV("IsEntryProximate", IsEntryProx);
     if (LTAEmitExplain) {
       Rem << " dominates_latch=" << NV("DominatesLatch", Dom.DominatesLatch)
+          << " has_dominating_non_trap_exit="
+          << NV("HasDominatingNonTrapExit", HasDominatingNonTrapExit)
           << " loop_latch_btc_computable="
           << NV("LoopLatchBTCComputable", Dom.LoopLatchBTCComputable)
           << " has_store_reload=" << NV("HasStoreReload", RO.HasStoreReload)
