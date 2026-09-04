@@ -5,6 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// LoopTrapAnalysis emits machine-readable opt-remark records describing each
+// conditional branch to a trap block (a bounds/overflow check lowered to
+// br+@llvm.trap). Under -loop-trap-analysis-explain, each LoopTrapEdge record
+// carries the edge's position within its loop (loop header, depth, whether the
+// edge exits the loop, and whether the loop is innermost) so a consumer can
+// classify it from the fields alone.
+//
+//===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/LoopTrapAnalysis.h"
 #include "llvm/ADT/StringExtras.h"
@@ -12,6 +21,7 @@
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Remarks/BoundsSafetyOptRemarks.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -30,6 +40,69 @@ static cl::opt<bool> BoundsSafetyTrapsOnly(
     cl::desc(
         "We only check for -fbounds-safety traps if the flag is false we can check "
         "for any hoistable traps."));
+static cl::opt<bool> LTAEmitExplain(
+    "loop-trap-analysis-explain", cl::init(false),
+    cl::desc("Emit the per-trap-edge explain analysis: one LoopTrapEdge remark "
+             "per conditional branch to a trap block. Off by default, so the "
+             "base remark output is unchanged."));
+
+/// Print a stable, non-empty label for \p BB, so remark args that identify
+/// BasicBlocks stay useful when the BB has no source-level name .
+static std::string bbLabel(const BasicBlock *BB) {
+  if (BB->hasName())
+    return BB->getName().str();
+  std::string S;
+  raw_string_ostream OS(S);
+  BB->printAsOperand(OS, /*PrintType=*/false);
+  return S;
+}
+
+/// Minimal trap-block predicate for the per-edge explain output.
+static bool isTrapEdgeBlock(BasicBlock *BB) {
+  Instruction *Term = BB->getTerminator();
+  if (!isa<UnreachableInst>(Term) || Term == &BB->front())
+    return false;
+  auto *CI = dyn_cast<CallInst>(Term->getPrevNode());
+  // Trap intrinsic: noreturn and accesses inaccessible memory.
+  return isa_and_nonnull<IntrinsicInst>(CI) && CI->doesNotReturn() &&
+         CI->onlyAccessesInaccessibleMemory();
+}
+
+/// Emit one LoopTrapEdge remark per conditional branch whose one successor is a
+/// trap block
+static void emitPerTrapEdge(Function &F, LoopInfo &LI,
+                            OptimizationRemarkEmitter &ORE) {
+  std::string Name = "LoopTrapEdge";
+  for (BasicBlock &BB : F) {
+    auto *BI = dyn_cast<CondBrInst>(BB.getTerminator());
+    if (!BI)
+      continue;
+    BasicBlock *TrapSucc = nullptr;
+    for (BasicBlock *Succ : BI->successors())
+      if (isTrapEdgeBlock(Succ)) {
+        TrapSucc = Succ;
+        break;
+      }
+    if (!TrapSucc)
+      continue;
+
+    Loop *Innermost = LI.getLoopFor(&BB);
+    bool IsLoopExit = Innermost && !Innermost->contains(TrapSucc);
+
+    OptimizationRemarkAnalysis Rem(REMARK_PASS, Name, BI);
+    Rem << "Function " << NV("Function", F.getName())
+        << " src_bb=" << NV("SourceBB", bbLabel(&BB))
+        << " trap_bb=" << NV("TrapBB", bbLabel(TrapSucc)) << " loop_depth="
+        << NV("LoopDepth", Innermost ? Innermost->getLoopDepth() : 0u)
+        << " loop_header="
+        << NV("LoopHeader",
+              Innermost ? bbLabel(Innermost->getHeader()) : std::string(""))
+        << " is_innermost="
+        << NV("IsInnermost", (bool)(Innermost && Innermost->isInnermost()))
+        << " is_loop_exit=" << NV("IsLoopExit", IsLoopExit);
+    ORE.emit(Rem);
+  }
+}
 
 /// Check for an unreachable instruction that has an edge to any of \p L basic
 /// blocks. if `--use-bounds-safety-traps-only` is used make sure that the trap and
@@ -173,5 +246,12 @@ PreservedAnalyses LoopTrapAnalysisPass::run(Function &F,
   auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
   auto &ORE = AM.getResult<OptimizationRemarkEmitterAnalysis>(F);
   emitRemarks(F, LI, ORE, SE);
+  if (LTAEmitExplain)
+    emitPerTrapEdge(F, LI, ORE);
   return PreservedAnalyses::all();
+}
+
+void LoopTrapAnalysisPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  OS << "loop-trap-analysis";
 }
