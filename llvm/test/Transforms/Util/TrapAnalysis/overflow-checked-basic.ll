@@ -1,41 +1,19 @@
-; A trap edge whose guard is the overflow bit of a checked-arithmetic intrinsic
-; (extractvalue(llvm.{s,u}{add,sub,mul}.with.overflow, 1)) is classified as
-; OverflowCheck rather than an index/bounds comparison; a plain icmp-guarded edge
-; on the same loop shape keeps its normal class. Gated by
-; -loop-trap-analysis-explain.
+; A NotProvenMonotonic trap edge whose index IV is derived from the VALUE result
+; of a checked-arithmetic intrinsic (extractvalue(llvm.sadd.with.overflow, 0),
+; i.e. Swift's checked `+`) gets an -OverflowChecked suffix, marking that SCEV's
+; missing no-wrap could be recovered by proving the checked add cannot overflow
+; (e.g. by IndVars after hoisting). A plain (unchecked) IV of the same shape
+; keeps its class. Gated by -loop-trap-analysis-explain.
 
 ; RUN: opt -passes='loop-trap-analysis' -loop-trap-analysis-explain -disable-output \
 ; RUN:   -pass-remarks-output=%t.yaml %s
 ; RUN: FileCheck --input-file=%t.yaml %s
 
 
-; The in-loop trap exit is guarded by the overflow bit of a checked add ->
-; OverflowCheck.
-define void @overflow_inc(i64 %n) {
-entry:
-  br label %body
-
-body:
-  %iv = phi i64 [ 0, %entry ], [ %iv.next, %latch ]
-  %ov = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %iv, i64 1)
-  %bit = extractvalue { i64, i1 } %ov, 1
-  br i1 %bit, label %trap, label %latch
-
-trap:
-  call void @llvm.trap()
-  unreachable
-
-latch:
-  %iv.next = extractvalue { i64, i1 } %ov, 0
-  %done = icmp eq i64 %iv.next, %n
-  br i1 %done, label %exit, label %body
-
-exit:
-  ret void
-}
-
-; The same loop shape guarded by a plain bounds icmp is not reclassified.
-define void @bounds_check(ptr %base, i64 %n) {
+; The IV is advanced by a checked add with a variable step, so the AddRec is
+; affine but SCEV cannot prove no-wrap / a trip count -> NotProvenMonotonic, and
+; the index traces to extractvalue(sadd.with.overflow, 0) -> OverflowChecked.
+define void @checked_step(ptr %base, i64 %n, i64 %step) {
 entry:
   br label %body
 
@@ -49,7 +27,31 @@ trap:
   unreachable
 
 latch:
-  %iv.next = add nuw nsw i64 %iv, 1
+  %ov = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %iv, i64 %step)
+  %iv.next = extractvalue { i64, i1 } %ov, 0
+  %e = icmp eq i64 %iv.next, %n
+  br i1 %e, label %exit, label %body
+
+exit:
+  ret void
+}
+
+; The same loop shape with a plain (unchecked) variable-step add is NOT tagged.
+define void @plain_step(ptr %base, i64 %n, i64 %step) {
+entry:
+  br label %body
+
+body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %latch ]
+  %cmp = icmp ult i64 %iv, %n
+  br i1 %cmp, label %latch, label %trap
+
+trap:
+  call void @llvm.trap()
+  unreachable
+
+latch:
+  %iv.next = add i64 %iv, %step
   %e = icmp eq i64 %iv.next, %n
   br i1 %e, label %exit, label %body
 
@@ -59,10 +61,10 @@ exit:
 
 ; Full LoopTrapEdge record(s), pinned line-by-line.
 ; CHECK:      Name:{{ +}}LoopTrapEdge
-; CHECK-NEXT: Function:{{ +}}overflow_inc
+; CHECK-NEXT: Function:{{ +}}checked_step
 ; CHECK-NEXT: Args:
 ; CHECK-NEXT:   - String:{{ +}}'Function '
-; CHECK-NEXT:   - Function:{{ +}}overflow_inc
+; CHECK-NEXT:   - Function:{{ +}}checked_step
 ; CHECK-NEXT:   - String:{{ +}}' src_bb='
 ; CHECK-NEXT:   - SourceBB:{{ +}}body
 ; CHECK-NEXT:   - String:{{ +}}' trap_bb='
@@ -76,33 +78,33 @@ exit:
 ; CHECK-NEXT:   - String:{{ +}}' is_loop_exit='
 ; CHECK-NEXT:   - IsLoopExit:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' num_leaf_operands='
-; CHECK-NEXT:   - NumLeafOperands:{{ +}}'1'
+; CHECK-NEXT:   - NumLeafOperands:{{ +}}'2'
 ; CHECK-NEXT:   - String:{{ +}}' is_affine='
-; CHECK-NEXT:   - IsAffine:{{ +}}'false'
+; CHECK-NEXT:   - IsAffine:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' has_in_loop_unknown='
-; CHECK-NEXT:   - HasInLoopUnknown:{{ +}}'true'
+; CHECK-NEXT:   - HasInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_non_unit_stride_for_l_addrec='
-; CHECK-NEXT:   - HasNonUnitStrideForLAddRec:{{ +}}'false'
+; CHECK-NEXT:   - HasNonUnitStrideForLAddRec:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' has_non_constant_stride_for_l_addrec='
-; CHECK-NEXT:   - HasNonConstantStrideForLAddRec:{{ +}}'false'
+; CHECK-NEXT:   - HasNonConstantStrideForLAddRec:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' not_proven_monotonic='
-; CHECK-NEXT:   - NotProvenMonotonic:{{ +}}'false'
+; CHECK-NEXT:   - NotProvenMonotonic:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' has_negative_stride_for_l_addrec='
 ; CHECK-NEXT:   - HasNegativeStrideForLAddRec:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' edge_btc_computable='
-; CHECK-NEXT:   - EdgeBTCComputable:{{ +}}'true'
+; CHECK-NEXT:   - EdgeBTCComputable:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' edge_btc_symbolic='
 ; CHECK-NEXT:   - EdgeBTCSymbolic:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' loop_has_other_unknown_btc_trap='
 ; CHECK-NEXT:   - LoopHasOtherUnknownBTCTrap:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' predicate_shape='
-; CHECK-NEXT:   - PredicateShape:{{ +}}OtherMulti
+; CHECK-NEXT:   - PredicateShape:{{ +}}SingleICmp
 ; CHECK-NEXT:   - String:{{ +}}' is_entry_proximate='
 ; CHECK-NEXT:   - IsEntryProximate:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' dominates_latch='
 ; CHECK-NEXT:   - DominatesLatch:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' loop_latch_btc_computable='
-; CHECK-NEXT:   - LoopLatchBTCComputable:{{ +}}'true'
+; CHECK-NEXT:   - LoopLatchBTCComputable:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_store_reload='
 ; CHECK-NEXT:   - HasStoreReload:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_mem_intrinsic_reload='
@@ -130,13 +132,13 @@ exit:
 ; CHECK-NEXT:   - String:{{ +}}' has_in_loop_select_operand='
 ; CHECK-NEXT:   - HasInLoopSelectOperand:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_other_in_loop_unknown_operand='
-; CHECK-NEXT:   - HasOtherInLoopUnknownOperand:{{ +}}'true'
+; CHECK-NEXT:   - HasOtherInLoopUnknownOperand:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_opaque_operand_no_in_loop_unknown='
 ; CHECK-NEXT:   - HasOpaqueOperandNoInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_outer_loop_addrec_operand='
 ; CHECK-NEXT:   - HasOuterLoopAddRecOperand:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_overflow_bit_leaf='
-; CHECK-NEXT:   - HasOverflowBitLeaf:{{ +}}'true'
+; CHECK-NEXT:   - HasOverflowBitLeaf:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_checked_arith_value_operand='
 ; CHECK-NEXT:   - HasCheckedArithValueOperand:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' invocation_seq='
@@ -144,10 +146,10 @@ exit:
 ; CHECK-NEXT: ...
 ;
 ; CHECK:      Name:{{ +}}LoopTrapEdge
-; CHECK-NEXT: Function:{{ +}}bounds_check
+; CHECK-NEXT: Function:{{ +}}plain_step
 ; CHECK-NEXT: Args:
 ; CHECK-NEXT:   - String:{{ +}}'Function '
-; CHECK-NEXT:   - Function:{{ +}}bounds_check
+; CHECK-NEXT:   - Function:{{ +}}plain_step
 ; CHECK-NEXT:   - String:{{ +}}' src_bb='
 ; CHECK-NEXT:   - SourceBB:{{ +}}body
 ; CHECK-NEXT:   - String:{{ +}}' trap_bb='
@@ -167,15 +169,15 @@ exit:
 ; CHECK-NEXT:   - String:{{ +}}' has_in_loop_unknown='
 ; CHECK-NEXT:   - HasInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_non_unit_stride_for_l_addrec='
-; CHECK-NEXT:   - HasNonUnitStrideForLAddRec:{{ +}}'false'
+; CHECK-NEXT:   - HasNonUnitStrideForLAddRec:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' has_non_constant_stride_for_l_addrec='
-; CHECK-NEXT:   - HasNonConstantStrideForLAddRec:{{ +}}'false'
+; CHECK-NEXT:   - HasNonConstantStrideForLAddRec:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' not_proven_monotonic='
-; CHECK-NEXT:   - NotProvenMonotonic:{{ +}}'false'
+; CHECK-NEXT:   - NotProvenMonotonic:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' has_negative_stride_for_l_addrec='
 ; CHECK-NEXT:   - HasNegativeStrideForLAddRec:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' edge_btc_computable='
-; CHECK-NEXT:   - EdgeBTCComputable:{{ +}}'true'
+; CHECK-NEXT:   - EdgeBTCComputable:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' edge_btc_symbolic='
 ; CHECK-NEXT:   - EdgeBTCSymbolic:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' loop_has_other_unknown_btc_trap='
@@ -187,7 +189,7 @@ exit:
 ; CHECK-NEXT:   - String:{{ +}}' dominates_latch='
 ; CHECK-NEXT:   - DominatesLatch:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' loop_latch_btc_computable='
-; CHECK-NEXT:   - LoopLatchBTCComputable:{{ +}}'true'
+; CHECK-NEXT:   - LoopLatchBTCComputable:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_store_reload='
 ; CHECK-NEXT:   - HasStoreReload:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_mem_intrinsic_reload='

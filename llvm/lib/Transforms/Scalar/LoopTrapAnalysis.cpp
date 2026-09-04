@@ -410,6 +410,38 @@ static bool isOverflowBit(Value *V) {
   }
 }
 
+/// True if V is, transitively within L, computed from the VALUE result of
+/// a checked-arithmetic intrinsic: extractvalue(llvm.{s,u}{add,sub,mul}.
+/// with.overflow.*, 0). Such a trapping index is an affine recurrence whose
+/// no-wrap SCEV could not prove because it comes from a checked add; IndVars
+/// could recover nsw/nuw by proving the add cannot overflow.
+static bool tracesToCheckedArithValue(Value *V, Loop *L,
+                                      SmallPtrSetImpl<Value *> &Visited,
+                                      int Depth = 0) {
+  auto *I = dyn_cast_or_null<Instruction>(V);
+  if (!I || Depth > 12 || !L->contains(I->getParent()) ||
+      !Visited.insert(V).second)
+    return false;
+  if (auto *EV = dyn_cast<ExtractValueInst>(I))
+    if (EV->getNumIndices() == 1 && EV->getIndices()[0] == 0)
+      if (auto *II = dyn_cast<IntrinsicInst>(EV->getAggregateOperand()))
+        switch (II->getIntrinsicID()) {
+        case Intrinsic::sadd_with_overflow:
+        case Intrinsic::uadd_with_overflow:
+        case Intrinsic::ssub_with_overflow:
+        case Intrinsic::usub_with_overflow:
+        case Intrinsic::smul_with_overflow:
+        case Intrinsic::umul_with_overflow:
+          return true;
+        default:
+          break;
+        }
+  for (Value *Op : I->operands())
+    if (tracesToCheckedArithValue(Op, L, Visited, Depth + 1))
+      return true;
+  return false;
+}
+
 /// Collect the SCEVUnknown and SCEVAddRecExpr nodes reachable from a SCEV
 namespace {
 struct SCEVNodeCollector {
@@ -632,6 +664,7 @@ struct OperandSCEVInfo {
   bool HasNonConstantStrideForLAddRec = false;
   bool NotProvenMonotonic = false;
   bool HasOverflowBitLeaf = false;
+  bool HasCheckedArithValueOperand = false;
 };
 /// Per-edge exit count for the exiting block (not the loop's overall count).
 struct EdgeBTCInfo {
@@ -668,6 +701,11 @@ computeOperandSCEVInfo(Value *Cond, ScalarEvolution &SE, LoopInfo &LI,
       continue;
     if (isOverflowBit(V))
       R.HasOverflowBitLeaf = true;
+    if (Innermost) {
+      SmallPtrSet<Value *, 16> Seen;
+      if (tracesToCheckedArithValue(V, Innermost, Seen))
+        R.HasCheckedArithValueOperand = true;
+    }
     if (isa<Constant>(V) || !SE.isSCEVable(V->getType()))
       continue;
     const SCEV *SC = SE.getSCEV(V);
@@ -1252,6 +1290,8 @@ static void emitPerTrapEdge(Function &F, LoopInfo &LI,
           << NV("HasOuterLoopAddRecOperand", RO.HasOuterLoopAddRecOperand)
           << " has_overflow_bit_leaf="
           << NV("HasOverflowBitLeaf", SF.HasOverflowBitLeaf)
+          << " has_checked_arith_value_operand="
+          << NV("HasCheckedArithValueOperand", SF.HasCheckedArithValueOperand)
           << " invocation_seq=" << NV("InvocationSeq", InvocationSeq);
     }
     ORE.emit(Rem);
