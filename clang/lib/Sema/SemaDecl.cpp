@@ -31,6 +31,7 @@
 #include "clang/AST/Randstruct.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypedMemoryInference.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/DiagnosticComment.h"
 #include "clang/Basic/HLSLRuntime.h"
@@ -4734,23 +4735,13 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
 
   auto *OldTypedMemoryAttr = Old->getAttr<TypedMemoryAttr>();
   auto *NewTypedMemoryAttr = New->getAttr<TypedMemoryAttr>();
-  if (OldTypedMemoryAttr && NewTypedMemoryAttr) {
-    if (OldTypedMemoryAttr->getRewriteTarget() !=
-        NewTypedMemoryAttr->getRewriteTarget()) {
-      Diag(NewTypedMemoryAttr->getLocation(),
-           diag::err_incompatible_duplicate_attribute)
-          << NewTypedMemoryAttr;
-      Diag(OldTypedMemoryAttr->getLocation(), diag::note_conflicting_attribute);
-      return true;
-    }
-    if (OldTypedMemoryAttr->getInferredParameterIdx() !=
-        NewTypedMemoryAttr->getInferredParameterIdx()) {
-      Diag(NewTypedMemoryAttr->getLocation(),
-           diag::err_incompatible_duplicate_attribute)
-          << NewTypedMemoryAttr;
-      Diag(OldTypedMemoryAttr->getLocation(), diag::note_conflicting_attribute);
-      return true;
-    }
+  if (OldTypedMemoryAttr && NewTypedMemoryAttr &&
+      typedMemoryAttrsConflict(OldTypedMemoryAttr, NewTypedMemoryAttr)) {
+    Diag(NewTypedMemoryAttr->getLocation(),
+         diag::err_incompatible_duplicate_attribute)
+        << NewTypedMemoryAttr;
+    Diag(OldTypedMemoryAttr->getLocation(), diag::note_conflicting_attribute);
+    return true;
   }
 
   /*TO_UPSTREAM(BoundsSafety) ON */

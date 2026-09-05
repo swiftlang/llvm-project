@@ -7384,7 +7384,6 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     DiagCompat(Fn->getExprLoc(), diag_compat::adl_only_template_id)
         << ULE->getName();
   }
-  currentTMOContext().recordTMOInferenceCandidate(*this, Call.get());
 
   if (LangOpts.OpenMP)
     Call = OpenMP().ActOnOpenMPCall(Call, Scope, LParenLoc, ArgExprs, RParenLoc,
@@ -19940,6 +19939,8 @@ ExprResult Sema::ActOnStmtExprResult(ExprResult ER) {
   if (ER.isInvalid())
     return ExprError();
 
+  forwardTMOCandidatesToEnclosingContext();
+
   // Do function/array conversion on the last expression, but not
   // lvalue-to-rvalue.  However, initialize an unqualified type.
   ER = DefaultFunctionArrayConversion(ER.get());
@@ -22494,7 +22495,8 @@ void
 Sema::PushExpressionEvaluationContext(
     ExpressionEvaluationContext NewContext, Decl *LambdaContextDecl,
     ExpressionEvaluationContextRecord::ExpressionKind ExprContext) {
-  ExprEvalContexts.emplace_back(NewContext, ExprCleanupObjects.size(), Cleanup,
+  ExprEvalContexts.emplace_back(NewContext, ExprCleanupObjects.size(),
+                                TMOCandidates.size(), Cleanup,
                                 LambdaContextDecl, ExprContext);
 
   // Discarded statements and immediate contexts nested in other
@@ -23063,6 +23065,8 @@ void Sema::PopExpressionEvaluationContext() {
   }
 
   DiagnoseMisalignedMembers();
+
+  drainTMOCandidates(Rec.ContextHeadTMOIndex);
 
   // Pop the current expression evaluation context off the stack.
   ExprEvalContexts.pop_back();

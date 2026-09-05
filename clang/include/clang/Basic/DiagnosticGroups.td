@@ -2081,6 +2081,14 @@ def ExperimentalOption : DiagGroup<"experimental-option">;
 def UnguardedBuiltinUsageAMDGPU : DiagGroup<"amdgpu-unguarded-builtin-usage">;
 
 def TMODiagnosticRemarks : DiagGroup<"tmo-remarks">;
+
+// Warnings related to typed memory operations
+def TypedMemoryInferenceFailure : DiagGroup<"typed-memory-inference-failure">;
+def TypedMemoryInferenceConflict : DiagGroup<"typed-memory-inference-conflict">;
+def TypedMemoryOperations : DiagGroup<"typed-memory-operations",
+                                      [TypedMemoryInferenceFailure,
+                                       TypedMemoryInferenceConflict]>;
+
 def AvailableVisibleAMDGPU : DiagGroup<"amdgpu-av">;
 
 def DynamicDebugging : DiagGroup<"dynamic-debugging">;

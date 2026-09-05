@@ -17,6 +17,7 @@
 #include "clang/AST/TypedMemoryTypeDescriptor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticSema.h"
+#include "clang/Basic/Module.h"
 #include "llvm/ADT/STLExtras.h"
 #include <variant>
 
@@ -146,6 +147,35 @@ std::string InferredAllocationType::describe(const ASTContext &Ctx) const {
   llvm::raw_string_ostream OS(Result);
   print(OS, Ctx.getPrintingPolicy());
   return Result;
+}
+
+const TypedMemoryAttr *CallExpr::getTypedMemoryAttribute() const {
+  const auto *Callee = dyn_cast_or_null<FunctionDecl>(getCalleeDecl());
+  if (!Callee)
+    return nullptr;
+  const TypedMemoryAttr *Attribute = Callee->getAttr<TypedMemoryAttr>();
+  // A call inside a template definition can bound to a call without a TMO
+  // attribute, but then the function can be redeclared with the attribute
+  // present, but prior to it being instantiated, so we'll look for that here.
+  for (const FunctionDecl *LaterDeclaration = Callee->getMostRecentDecl();
+       !Attribute && LaterDeclaration && LaterDeclaration != Callee;
+       LaterDeclaration = LaterDeclaration->getPreviousDecl()) {
+    // A private module fragment is not visible to an importer.
+    const Module *Owner = LaterDeclaration->getOwningModule();
+    if (Owner && Owner->isPrivateModule())
+      continue;
+    Attribute = LaterDeclaration->getAttr<TypedMemoryAttr>();
+  }
+  return Attribute;
+}
+
+bool clang::typedMemoryAttrsConflict(const TypedMemoryAttr *First,
+                                     const TypedMemoryAttr *Second) {
+  const FunctionDecl *FirstTarget = First->getRewriteTarget();
+  const FunctionDecl *SecondTarget = Second->getRewriteTarget();
+  if (FirstTarget->getCanonicalDecl() != SecondTarget->getCanonicalDecl())
+    return true;
+  return First->getInferredParameterIdx() != Second->getInferredParameterIdx();
 }
 
 TypedMemoryInference &ASTContext::getTMOInference() const {
@@ -695,13 +725,8 @@ void ASTContext::setInferredInfoForCall(const CallExpr *Call,
 }
 
 std::optional<InferredTypeInfo>
-ASTContext::tryGetInferredInfoForCall(const CallExpr *Call) const {
-  return getTMOInference().lookupInferredInfoForCall(*this, Call);
-}
-
-InferredTypeInfo
 ASTContext::getInferredInfoForCall(const CallExpr *Call) const {
-  return *getTMOInference().lookupInferredInfoForCall(*this, Call);
+  return getTMOInference().lookupInferredInfoForCall(*this, Call);
 }
 
 InferredTypeInfo

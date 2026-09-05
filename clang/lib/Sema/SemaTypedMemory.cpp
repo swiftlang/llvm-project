@@ -21,10 +21,13 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
+#include "clang/Sema/Overload.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaRISCV.h"
+#include "clang/Sema/Template.h"
+#include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -140,131 +143,185 @@ static void emitTMOInferenceDiagnostics(Sema &S, const Expr *CallExpr,
                            TypeDescriptor, *InferredType);
 }
 
-static bool typedMemoryTypesAreEquivalentOrDependent(const ASTContext &Context,
-                                                     QualType SourceType,
-                                                     QualType DestinationType) {
+static void diagnoseTMOCastConflict(Sema &S, const CallExpr *Call,
+                                    const FunctionDecl *Callee,
+                                    QualType InferredType, const CastExpr *Cast,
+                                    const Expr *InferenceSource) {
+  if (!Cast)
+    return;
+
+  if (InferenceSource == Cast->IgnoreImplicit())
+    return;
+
+  QualType CastType = Cast->getType();
+  if (!CastType->isAnyPointerType())
+    return;
+
+  QualType CastTarget = CastType->getPointeeType();
+  ASTContext &Ctx = S.getASTContext();
+  if (CastTarget->isArrayType())
+    CastTarget = Ctx.getBaseElementType(CastTarget);
+  if (CastTarget->isVoidType() || CastTarget->isDependentType() ||
+      InferredType->isDependentType())
+    return;
+
+  if (CastTarget->isCharType())
+    return;
+
+  if (Ctx.hasSameUnqualifiedType(CastTarget, InferredType))
+    return;
+
+  S.Diag(Call->getBeginLoc(), diag::warn_tmo_inference_cast_conflict)
+      << Callee << InferredType << CastTarget << Cast->getSourceRange();
+}
+
+static bool typedMemoryTypesAreEquivalent(const ASTContext &Context,
+                                          QualType SourceType,
+                                          QualType DestinationType) {
   SourceType = Context.getCanonicalType(SourceType).getUnqualifiedType();
   DestinationType =
       Context.getCanonicalType(DestinationType).getUnqualifiedType();
-  if (SourceType->isDependentType() || DestinationType->isDependentType())
-    return true;
   return SourceType == DestinationType;
 }
 
 bool Sema::checkTypedMemorySignature(const AttributeCommonInfo &CI,
                                      const FunctionDecl *Source,
                                      const FunctionDecl *Target,
-                                     ParamIdx InferredParameterIdx) {
+                                     ParamIdx InferredParameterIdx,
+                                     bool SkipDependent) {
   SourceLocation Loc = CI.getLoc();
-  auto reportTargetTypeMismatchError = [&]() {
-    std::vector<QualType> ExpectedArguments;
-    for (size_t I = 0; I < InferredParameterIdx.getSourceIndex(); I++)
-      ExpectedArguments.push_back(Source->getParamDecl(I)->getType());
-    ExpectedArguments.push_back(Context.getIntTypeForBitwidth(64, false));
-    for (size_t I = InferredParameterIdx.getSourceIndex();
-         I < Source->getNumParams(); I++)
-      ExpectedArguments.push_back(Source->getParamDecl(I)->getType());
-    FunctionProtoType::ExtProtoInfo EPI = {};
-    auto ExpectedType = Context.getFunctionType(Source->getReturnType(),
-                                                ExpectedArguments, EPI);
-    Diag(Loc, diag::err_tmo_rewrite_target_type_mismatch)
-        << Target->getNameInfo().getName() << ExpectedType << Target->getType();
+  auto RejectTarget = [&]() {
     Diag(Target->getLocation(), diag::note_tmo_rewrite_target_type_mismatch);
     return true;
   };
+  auto TypesMatch = [&](QualType SourceType, QualType TargetType) {
+    if (SkipDependent &&
+        (SourceType->isDependentType() || TargetType->isDependentType()))
+      return true;
+    return typedMemoryTypesAreEquivalent(Context, SourceType, TargetType);
+  };
 
-  if (!typedMemoryTypesAreEquivalentOrDependent(
-          Context, Target->getReturnType(), Source->getReturnType()))
-    return reportTargetTypeMismatchError();
-
-  if (getFunctionOrMethodNumParams(Target) !=
-      getFunctionOrMethodNumParams(Source) + 1)
-    return reportTargetTypeMismatchError();
-
-  auto *TargetTypeDescriptorParam =
-      getFunctionOrMethodParam(Target, InferredParameterIdx.getASTIndex() + 1);
-  auto TargetTypeDescriptorType = TargetTypeDescriptorParam->getType();
-  if (!TargetTypeDescriptorType->isDependentType()) {
-    if (!TargetTypeDescriptorType->isIntegerType() ||
-        Context.getTypeSize(TargetTypeDescriptorType) != 64)
-      return reportTargetTypeMismatchError();
+  if (!TypesMatch(Source->getReturnType(), Target->getReturnType())) {
+    Diag(Loc, diag::err_tmo_rewrite_target_return_type_mismatch)
+        << Target << Source->getReturnType() << Source
+        << Target->getReturnType();
+    return RejectTarget();
   }
 
-  size_t SourceParameterIdx = 0;
-  size_t TargetParameterIdx = 0;
-  for (; SourceParameterIdx < getFunctionOrMethodNumParams(Source);
+  unsigned ExpectedParamCount = getFunctionOrMethodNumParams(Source) + 1;
+  if (getFunctionOrMethodNumParams(Target) != ExpectedParamCount) {
+    Diag(Loc, diag::err_tmo_rewrite_target_arity_mismatch)
+        << Target << ExpectedParamCount << Source
+        << getFunctionOrMethodNumParams(Target);
+    return RejectTarget();
+  }
+
+  const ParmVarDecl *DescriptorParam =
+      getFunctionOrMethodParam(Target, InferredParameterIdx.getASTIndex() + 1);
+  QualType DescriptorType = DescriptorParam->getType();
+  if (DescriptorType->isDependentType()) {
+    Diag(DescriptorParam->getLocation(),
+         diag::err_tmo_dependent_type_descriptor)
+        << Target << DescriptorType;
+    return true;
+  }
+  if (!DescriptorType->isIntegerType() ||
+      Context.getTypeSize(DescriptorType) != 64) {
+    Diag(Loc, diag::err_tmo_rewrite_target_descriptor_type)
+        << InferredParameterIdx.getSourceIndex() + 1 << Target
+        << DescriptorType;
+    return RejectTarget();
+  }
+
+  unsigned TargetParameterIdx = 0;
+  for (unsigned SourceParameterIdx = 0;
+       SourceParameterIdx != getFunctionOrMethodNumParams(Source);
        SourceParameterIdx++, TargetParameterIdx++) {
-    auto *SourceParamDecl =
+    const ParmVarDecl *SourceParam =
         getFunctionOrMethodParam(Source, SourceParameterIdx);
-    auto *TargetParamDecl =
+    const ParmVarDecl *TargetParam =
         getFunctionOrMethodParam(Target, TargetParameterIdx);
-    if (!typedMemoryTypesAreEquivalentOrDependent(
-            Context, SourceParamDecl->getType(), TargetParamDecl->getType()))
-      return reportTargetTypeMismatchError();
+    if (!TypesMatch(SourceParam->getType(), TargetParam->getType())) {
+      Diag(Loc, diag::err_tmo_rewrite_target_param_type_mismatch)
+          << TargetParameterIdx + 1 << Target << SourceParam->getType()
+          << Source << TargetParam->getType();
+      return RejectTarget();
+    }
     if (SourceParameterIdx == InferredParameterIdx.getASTIndex())
       TargetParameterIdx++;
   }
   return false;
 }
 
-void TypedMemoryCallsiteContext::recordInfoForInferredCall(
-    Sema &S, const CallExpr *Call) {
-  if (S.CurContext->isDependentContext())
+void Sema::recordInfoForInferredCall(TMOInferenceCandidate Candidate) {
+  if (!getLangOpts().TypedMemoryOperations)
     return;
 
-  if (!S.getLangOpts().TypedMemoryOperations)
+  const CallExpr *Call = Candidate.Call;
+  const auto *TMA = Call->getTypedMemoryAttribute();
+  if (!TMA)
     return;
-
   const FunctionDecl *CalleeDecl = Call->getDirectCallee();
   if (!CalleeDecl)
     return;
-  const TypedMemoryAttr *TMA = CalleeDecl->getAttr<TypedMemoryAttr>();
-  if (!TMA)
-    return;
   FunctionDecl *Target = TMA->getRewriteTarget();
-  unsigned InferredParamIndex = TMA->getInferredParameterIdx().getLLVMIndex();
-  const Expr *InferredParameter = Call->getArg(InferredParamIndex);
-  const CastExpr *CastExpr = nullptr;
-  if (auto FoundCast = Casts.find(Call); FoundCast != Casts.end())
-    CastExpr = FoundCast->second;
-  InferredTypeInfo InferredInfo = S.getASTContext().inferTypedMemoryType(
-      Call, *InferredParameter, CastExpr);
+  const Expr *InferredParameter =
+      Call->getArg(TMA->getInferredParameterIdx().getLLVMIndex());
+
+  if (Call->getDependence() != ExprDependence::None)
+    return;
+  MarkFunctionReferenced(Call->getExprLoc(), Target);
+
+  const CastExpr *CastExpr = Candidate.Cast;
+  if (CastExpr && CastExpr->getDependence() != ExprDependence::None) {
+    // FIXME: maybe just discard?
+    // CastExpr = nullptr;
+    return;
+  }
+
+  InferredTypeInfo InferredInfo =
+      getASTContext().inferTypedMemoryType(Call, *InferredParameter, CastExpr);
 
   std::optional<QualType> PrimaryType;
   if (InferredInfo.Type)
     PrimaryType = InferredInfo.Type->primaryType();
-  emitTMOInferenceDiagnostics(S, Call, CalleeDecl, PrimaryType, InferredInfo,
-                              Target);
+  if (PrimaryType)
+    diagnoseTMOCastConflict(*this, Call, CalleeDecl, *PrimaryType, CastExpr,
+                            InferredInfo.InferenceSourceExpression);
+  emitTMOInferenceDiagnostics(*this, Call, CalleeDecl, PrimaryType,
+                              InferredInfo, Target);
 }
 
-void TypedMemoryCallsiteContext::finalizeOutstandingTMOCandidates(Sema &S) {
-  if (!S.getLangOpts().TypedMemoryOperations)
+void Sema::drainTMOCandidates(unsigned FirstCandidateIndex) {
+  assert(FirstCandidateIndex <= TMOCandidates.size());
+  if (!getLangOpts().TypedMemoryOperations)
     return;
-  if (auto *EnclosingFunctionScope = S.getEnclosingFunction()) {
-    // Don't clear any TMO tracking information when finishing a statement
-    // expression as we may be casting the result. This is suboptimal as it
-    // means we'll maintain this across multiple substatements, but for now
-    // this is fine.
-    if (EnclosingFunctionScope->CompoundScopes.size() &&
-        EnclosingFunctionScope->CompoundScopes.back().IsStmtExpr)
-      return;
-  }
 
-  ShouldSearchCasts = false;
+  for (unsigned I = FirstCandidateIndex; I != TMOCandidates.size(); ++I)
+    recordInfoForInferredCall(TMOCandidates[I]);
 
-  for (const CallExpr *Call : Calls)
-    recordInfoForInferredCall(S, Call);
-
-  Calls.clear();
-  Casts.clear();
+  TMOCandidates.truncate(FirstCandidateIndex);
 }
 
-void TypedMemoryCallsiteContext::recordCastForTMOInference(
-    Sema &S, const CastExpr *Cast) {
-  if (!S.getLangOpts().TypedMemoryOperations)
+void Sema::finalizeOutstandingTMOCandidates() {
+  if (!getLangOpts().TypedMemoryOperations)
+    return;
+  drainTMOCandidates(currentEvaluationContext().ContextHeadTMOIndex);
+}
+
+void Sema::forwardTMOCandidatesToEnclosingContext() {
+  if (!getLangOpts().TypedMemoryOperations)
+    return;
+  assert(ExprEvalContexts.size() > 1 &&
+         "ActOnStartStmtExpr always pushes a context to cede to");
+  currentEvaluationContext().ContextHeadTMOIndex = TMOCandidates.size();
+}
+
+void Sema::recordCastForTMOInference(const CastExpr *Cast) {
+  if (!getLangOpts().TypedMemoryOperations)
     return;
 
-  if (S.CurContext->isDependentContext())
+  if (TMOCandidates.empty())
     return;
 
   if (Cast->getType()->isVoidPointerType())
@@ -282,12 +339,15 @@ void TypedMemoryCallsiteContext::recordCastForTMOInference(
     PotentialCall = PotentialCall->IgnoreParens();
     PotentialCall = PotentialCall->IgnoreImplicit();
     PotentialCall = PotentialCall->IgnoreCasts();
-    if (auto *OpaqueValue = dyn_cast<OpaqueValueExpr>(PotentialCall))
-      PotentialCall = OpaqueValue->getSourceExpr();
+    if (auto *OpaqueValue = dyn_cast<OpaqueValueExpr>(PotentialCall)) {
+      if (const Expr *Source = OpaqueValue->getSourceExpr())
+        PotentialCall = Source;
+    }
     if (auto *SE = dyn_cast<StmtExpr>(PotentialCall)) {
       const CompoundStmt *SubStmt = SE->getSubStmt();
-      if (auto *LastExpr = dyn_cast_or_null<Expr>(SubStmt->body_back()))
-        PotentialCall = LastExpr;
+      if (const auto *Last = dyn_cast_or_null<ValueStmt>(SubStmt->body_back()))
+        if (const Expr *LastExpr = Last->getExprStmt())
+          PotentialCall = LastExpr;
     }
   } while (LastPotentialCall != PotentialCall);
 
@@ -295,14 +355,17 @@ void TypedMemoryCallsiteContext::recordCastForTMOInference(
   if (!Call)
     return;
 
-  const FunctionDecl *Callee = Call->getDirectCallee();
-  if (!Callee || !Callee->getAttr<TypedMemoryAttr>())
+  if (!Call->getTypedMemoryAttribute())
     return;
-  assert(ShouldSearchCasts);
-  // We prioritize the deepest non-implicit, non-void* cast
-  auto [It, Inserted] = Casts.try_emplace(Call, Cast);
-  if (!Inserted && It->second->getType()->isVoidPointerType())
-    It->second = Cast;
+
+  // We prioritize the first, i.e. deepest, non-implicit, non-void* cast.
+  for (TMOInferenceCandidate &Candidate : llvm::reverse(TMOCandidates)) {
+    if (Candidate.Call != Call)
+      continue;
+    if (!Candidate.Cast)
+      Candidate.Cast = Cast;
+    return;
+  }
 }
 
 void Sema::emitTMODiagnosticsForTypeQuery(SourceLocation QueryLocation,
@@ -338,39 +401,109 @@ bool Sema::checkTMOGetTypeDescriptor(QualType T, SourceLocation Loc,
   return false;
 }
 
-void TypedMemoryCallsiteContext::recordTMOInferenceCandidate(Sema &S,
-                                                             const Expr *Call) {
-  if (!S.getLangOpts().TypedMemoryOperations)
+void Sema::recordTMOInferenceCandidate(const Expr *Call) {
+  if (!getLangOpts().TypedMemoryOperations)
     return;
-  if (S.CurContext->isDependentContext())
+  // Unevaluated contexts definitionally don't produce a call, so there's no
+  // reason to perform analysis.
+  if (currentEvaluationContext().isUnevaluated())
+    return;
+
+  if (CurContext->isDependentContext())
+    return;
+
+  if (const VarDecl *Initialized =
+          currentEvaluationContext().DeclForInitializer;
+      Initialized && Initialized->isTemplated())
+    return;
+
+  if (RebuildingImmediateInvocation)
     return;
   const auto *CE = dyn_cast_or_null<CallExpr>(Call);
   if (!CE)
     return;
-  auto *CalleeDecl = CE->getDirectCallee();
-  if (!CalleeDecl)
+  if (!CE->getTypedMemoryAttribute())
     return;
-  if (!CalleeDecl->hasAttr<TypedMemoryAttr>())
-    return;
-  Calls.push_back(CE);
-  ShouldSearchCasts = true;
+  TMOCandidates.push_back(TMOInferenceCandidate{CE});
+}
+
+static bool hasParameterPack(const FunctionDecl *FD) {
+  return llvm::any_of(FD->parameters(), [](const ParmVarDecl *Param) {
+    return Param->isParameterPack();
+  });
+}
+
+static QualType descriptorPlaceholderType(ASTContext &Context) {
+  if (Context.getTypeSize(Context.UnsignedLongLongTy) == 64)
+    return Context.UnsignedLongLongTy;
+  if (QualType Exact = Context.getIntTypeForBitwidth(64, /*Signed=*/false);
+      !Exact.isNull())
+    return Exact;
+  return Context.getBitIntType(/*IsUnsigned=*/true, 64);
+}
+
+static FunctionDecl *resolveTypedMemoryTarget(Sema &S,
+                                              UnresolvedLookupExpr *ULE,
+                                              const FunctionDecl *SourceDecl,
+                                              ParamIdx InferredParameterIdx,
+                                              SourceLocation Loc) {
+  SmallVector<Expr *, 8> Args;
+  auto addPlaceholder = [&](QualType T) {
+    ExprValueKind ValueKind = VK_PRValue;
+    if (const auto *Ref = T->getAs<ReferenceType>()) {
+      ValueKind = isa<RValueReferenceType>(Ref) ? VK_XValue : VK_LValue;
+      T = Ref->getPointeeType();
+    }
+    Args.push_back(new (S.Context) OpaqueValueExpr(Loc, T, ValueKind));
+  };
+
+  QualType DescriptorPlaceholder = descriptorPlaceholderType(S.Context);
+
+  unsigned InferredIdx = InferredParameterIdx.getASTIndex();
+  for (unsigned I = 0, E = SourceDecl->getNumParams(); I != E; ++I) {
+    addPlaceholder(SourceDecl->getParamDecl(I)->getType());
+    if (I == InferredIdx)
+      addPlaceholder(DescriptorPlaceholder);
+  }
+
+  OverloadCandidateSet Candidates(Loc, OverloadCandidateSet::CSK_Normal);
+  S.AddOverloadedCallCandidates(ULE, Args, Candidates);
+  OverloadCandidateSet::iterator Best;
+  OverloadingResult Result = Candidates.BestViableFunction(S, Loc, Best);
+  if (Result == OR_Success || Result == OR_Deleted) {
+    // The TMO redirection target must be accessible by the source declaration
+    Sema::AccessResult Access =
+        S.CheckUnresolvedLookupAccess(ULE, Best->FoundDecl);
+    bool Unusable = S.DiagnoseUseOfDecl(Best->Function, Loc);
+    if (Access == Sema::AR_inaccessible || Unusable)
+      return nullptr;
+    if (Result == OR_Success)
+      return Best->Function;
+  }
+
+  if (ULE->isTypeDependent()) {
+    S.Diag(Loc, diag::err_tmo_dependent_template_target)
+        << ULE->getNameInfo().getName() << ULE->getSourceRange();
+    return nullptr;
+  }
+
+  if (Result == OR_Ambiguous)
+    S.Diag(Loc, diag::err_tmo_rewrite_target_is_overloaded)
+        << ULE->getNameInfo().getName();
+  else
+    S.Diag(Loc, diag::err_tmo_rewrite_target_no_match)
+        << ULE->getNameInfo().getName() << SourceDecl;
+  if (ULE->getType() == S.Context.OverloadTy)
+    S.NoteAllOverloadCandidates(ULE);
+  return nullptr;
 }
 
 void Sema::handleTypedMemoryAttr(Decl *D, const ParsedAttr &AL) {
   if (!getLangOpts().TypedMemoryOperations)
     return;
 
-  FunctionDecl *SourceDecl = D->getAsFunction();
-  if (isFunctionOrMethodVariadic(D) || isInstanceMethod(D)) {
-    Diag(SourceDecl->getBeginLoc(), diag::err_tmo_function_kind_error)
-        << 0 << SourceDecl
-        << (isFunctionOrMethodVariadic(D) ? diag::TMOErrorKind::Variadic
-                                          : diag::TMOErrorKind::InstanceMethod);
-    AL.setInvalid();
-    return;
-  }
-
   auto Loc = AL.getLoc();
+  FunctionDecl *SourceDecl = D->getAsFunction();
   if (!SourceDecl) {
     auto *ND = cast<NamedDecl>(D);
     Diag(Loc, diag::err_tmo_function_kind_error)
@@ -378,16 +511,48 @@ void Sema::handleTypedMemoryAttr(Decl *D, const ParsedAttr &AL) {
     AL.setInvalid();
     return;
   }
-  if (AL.getNumArgs() < 2) {
-    Diag(Loc, diag::err_attribute_too_few_arguments) << AL;
+  // There are a number of cases we simply do not permit to be subject to TMO:
+  // * K & R declarations have synthesized parameters that we can't reason
+  //   about.
+  // * Variadic functions and functions with packs: conservative but has not yet
+  //   proven to be a problem.
+  // * Instance methods: again conservative, as yet has not seemed to be a
+  //   problem.
+  // * Overloaded operators: intentionally not supported, because it results in
+  //   downstream sema weirdness due to different AST nodes being involved, and
+  //   has extremely questionable value.
+  if (!SourceDecl->hasWrittenPrototype() || isFunctionOrMethodVariadic(D) ||
+      hasParameterPack(SourceDecl) || isInstanceMethod(D) ||
+      SourceDecl->isOverloadedOperator()) {
+    auto MessageSelector =
+        !SourceDecl->hasWrittenPrototype() ? diag::TMOErrorKind::NoPrototype
+        : isFunctionOrMethodVariadic(D)    ? diag::TMOErrorKind::Variadic
+        : hasParameterPack(SourceDecl)     ? diag::TMOErrorKind::ParameterPack
+        : SourceDecl->isOverloadedOperator()
+            ? diag::TMOErrorKind::OverloadedOperator
+            : diag::TMOErrorKind::InstanceMethod;
+    Diag(SourceDecl->getBeginLoc(), diag::err_tmo_function_kind_error)
+        << 0 << SourceDecl << MessageSelector;
     AL.setInvalid();
     return;
   }
-  if (AL.getNumArgs() > 3) {
-    Diag(Loc, diag::err_attribute_too_many_arguments) << AL;
+
+  ParamIdx InferredParameterIdx;
+  if (!checkFunctionOrMethodParameterIndex(D, AL, 1, AL.getArgAsExpr(1),
+                                           InferredParameterIdx))
+    return;
+
+  auto *InferredParam =
+      SourceDecl->getParamDecl(InferredParameterIdx.getASTIndex());
+  auto SizeType = InferredParam->getType();
+  if (!SizeType->getUnqualifiedDesugaredType()->isIntegerType()) {
+    Diag(Loc, diag::err_tmo_invalid_inferred_parameter_type)
+        << InferredParameterIdx.getSourceIndex() << SizeType
+        << InferredParam->getLocation();
     AL.setInvalid();
     return;
   }
+
   Expr *TargetExpr = AL.getArgAsExpr(0);
   FunctionDecl *TargetDecl = nullptr;
   DeclarationNameInfo TargetName;
@@ -402,13 +567,10 @@ void Sema::handleTypedMemoryAttr(Decl *D, const ParsedAttr &AL) {
       return;
     }
   } else if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(TargetExpr)) {
-    TargetDecl = ResolveSingleFunctionTemplateSpecialization(ULE, true);
     TargetName = ULE->getNameInfo();
+    TargetDecl = resolveTypedMemoryTarget(*this, ULE, SourceDecl,
+                                          InferredParameterIdx, Loc);
     if (!TargetDecl) {
-      Diag(Loc, diag::err_tmo_rewrite_target_is_overloaded)
-          << TargetName.getName();
-      if (ULE->getType() == Context.OverloadTy)
-        NoteAllOverloadCandidates(ULE);
       AL.setInvalid();
       return;
     }
@@ -421,45 +583,34 @@ void Sema::handleTypedMemoryAttr(Decl *D, const ParsedAttr &AL) {
   }
 
   TargetDecl = TargetDecl->getCanonicalDecl();
-  ParamIdx InferredParameterIdx;
-  if (!checkFunctionOrMethodParameterIndex(D, AL, 1, AL.getArgAsExpr(1),
-                                           InferredParameterIdx))
-    return;
 
-  auto *InferredParam =
-      SourceDecl->getParamDecl(InferredParameterIdx.getASTIndex());
-  auto SizeType = InferredParam->getType();
-  auto isIntegerOrDependentNonArrayType = [](QualType QT) -> bool {
-    auto *T = QT->getUnqualifiedDesugaredType();
-    if (T->isIntegerType())
-      return true;
-    if (T->isDependentSizedArrayType())
-      return false;
-    return T->isDependentType();
-  };
-  if (!isIntegerOrDependentNonArrayType(SizeType)) {
-    Diag(Loc, diag::err_tmo_invalid_inferred_parameter_type)
-        << InferredParameterIdx.getSourceIndex() << SizeType
-        << InferredParam->getLocation();
+  std::optional<unsigned> ErrorKind;
+  if (!TargetDecl->hasWrittenPrototype())
+    ErrorKind = diag::TMOErrorKind::NoPrototype;
+  else if (isFunctionOrMethodVariadic(TargetDecl))
+    ErrorKind = diag::TMOErrorKind::Variadic;
+  else if (hasParameterPack(TargetDecl))
+    ErrorKind = diag::TMOErrorKind::ParameterPack;
+  else if (isInstanceMethod(TargetDecl))
+    ErrorKind = diag::TMOErrorKind::InstanceMethod;
+
+  if (ErrorKind) {
+    Diag(Loc, diag::err_tmo_function_kind_error)
+        << 1 << TargetDecl << *ErrorKind;
     AL.setInvalid();
     return;
   }
 
-  if (!hasFunctionProto(TargetDecl) || isFunctionOrMethodVariadic(TargetDecl) ||
-      isInstanceMethod(TargetDecl)) {
-    auto MessageSelector = !hasFunctionProto(TargetDecl)
-                               ? diag::TMOErrorKind::NoPrototype
-                           : isFunctionOrMethodVariadic(TargetDecl)
-                               ? diag::TMOErrorKind::Variadic
-                               : diag::TMOErrorKind::InstanceMethod;
-    Diag(Loc, diag::err_tmo_function_kind_error)
-        << 1 << TargetDecl << MessageSelector;
+  if (TargetDecl->getPrimaryTemplate() && TargetDecl->isTemplated()) {
+    Diag(Loc, diag::err_tmo_dependent_template_target)
+        << TargetName.getName() << TargetExpr->getSourceRange();
     AL.setInvalid();
     return;
   }
 
   if (checkTypedMemorySignature(AL, SourceDecl, TargetDecl,
-                                InferredParameterIdx)) {
+                                InferredParameterIdx,
+                                /*SkipDependent=*/true)) {
     AL.setInvalid();
     return;
   }
@@ -467,4 +618,75 @@ void Sema::handleTypedMemoryAttr(Decl *D, const ParsedAttr &AL) {
   auto *TMA = ::new (Context)
       TypedMemoryAttr(Context, AL, TargetDecl, InferredParameterIdx);
   D->addAttr(TMA);
+}
+
+static bool hasDependentSpecializationArguments(const FunctionDecl *FD) {
+  const TemplateArgumentList *Args = FD->getTemplateSpecializationArgs();
+  return Args && llvm::any_of(Args->asArray(), [](const TemplateArgument &Arg) {
+           return Arg.isDependent();
+         });
+}
+
+// FindInstantiatedDecl only maps a member of the enclosing template, so a
+// specialization of a template declared outside it is rebuilt here instead.
+static FunctionDecl *
+substituteTypedMemoryTarget(Sema &S,
+                            const MultiLevelTemplateArgumentList &TemplateArgs,
+                            FunctionDecl *Target, SourceLocation Loc) {
+  FunctionTemplateDecl *Template = Target->getPrimaryTemplate();
+  const TemplateArgumentList *Args = Target->getTemplateSpecializationArgs();
+  if (!Template || !Args)
+    return nullptr;
+
+  // Not the arguments as written: a candidate selected by overload resolution
+  // carries no written form, and the resolved list is complete where some were
+  // deduced.
+  TemplateArgumentListInfo Resolved;
+  for (const TemplateArgument &Argument : Args->asArray())
+    Resolved.addArgument(
+        S.getTrivialTemplateArgumentLoc(Argument, QualType(), Loc));
+
+  TemplateArgumentListInfo Substituted;
+  if (S.SubstTemplateArguments(Resolved.arguments(), TemplateArgs, Substituted))
+    return nullptr;
+
+  FunctionDecl *Specialization = nullptr;
+  sema::TemplateDeductionInfo Info(Loc);
+  if (S.DeduceTemplateArguments(Template, &Substituted, Specialization, Info,
+                                /*IsAddressOfFunction=*/true) !=
+      TemplateDeductionResult::Success)
+    return nullptr;
+  return Specialization;
+}
+
+// Instantiate a concrete typed memory attribute for the instantiation of a
+// a dependent TMO attributed function.
+void Sema::instantiateTypedMemoryAttr(
+    const MultiLevelTemplateArgumentList &TemplateArgs,
+    const TypedMemoryAttr *Attr, Decl *New) {
+  if (New->hasAttr<TypedMemoryAttr>())
+    return;
+  FunctionDecl *NewSource = New->getAsFunction();
+  if (!NewSource)
+    return;
+  FunctionDecl *Target = Attr->getRewriteTarget();
+  FunctionDecl *NewTarget = nullptr;
+  if (hasDependentSpecializationArguments(Target)) {
+    NewTarget = substituteTypedMemoryTarget(*this, TemplateArgs, Target,
+                                            Attr->getLocation());
+  } else {
+    NamedDecl *Instantiated =
+        FindInstantiatedDecl(Attr->getLocation(), Target, TemplateArgs);
+    NewTarget = dyn_cast_or_null<FunctionDecl>(Instantiated);
+  }
+  if (!NewTarget)
+    return;
+  ParamIdx InferredParameterIdx = Attr->getInferredParameterIdx();
+  if (checkTypedMemorySignature(*Attr, NewSource, NewTarget,
+                                InferredParameterIdx,
+                                /*SkipDependent=*/New->isTemplated()))
+    return;
+  New->addAttr(::new (getASTContext()) TypedMemoryAttr(
+      getASTContext(), *Attr, NewTarget->getCanonicalDecl(),
+      InferredParameterIdx));
 }

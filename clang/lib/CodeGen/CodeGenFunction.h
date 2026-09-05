@@ -4753,7 +4753,8 @@ public:
                             llvm::CallBase **CallOrInvoke = nullptr);
   CGCallee EmitCallee(const Expr *E);
 
-  RValue EmitTypedMemoryCall(const CallExpr *E, TypedMemoryAttr *TMA,
+  RValue EmitTypedMemoryCall(const CallExpr *E, const TypedMemoryAttr *TMA,
+                             const InferredTypeInfo &Info,
                              ReturnValueSlot ReturnValue);
   CGCallee EmitCallee(const FunctionDecl *FD);
 
