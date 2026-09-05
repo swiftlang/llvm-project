@@ -36,6 +36,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorExtras.h"
 
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-forward.h"
@@ -2334,6 +2335,17 @@ SwiftLanguageRuntime::BindGenericPackType(StackFrame &frame,
         return bound_typeref_or_err.takeError();
       swift::Demangle::NodePointer node = bound_typeref_or_err->getDemangling(dem);
       CompilerType type = ts->RemangleAsType(dem, node, flavor);
+      // RemangleAsType() rejects demangle trees that the remangler cannot
+      // handle. This happens when the type metadata that was read out of the
+      // type pack isn't actually type metadata, for example because the
+      // metadata pack variable in the frame hasn't been initialized at the
+      // current PC yet. Reporting this as an error is much better than
+      // silently building a pack type with a hole in it.
+      if (!type)
+        return llvm::createStringErrorV(
+            "cannot decode pack_expansion type: failed to remangle the "
+            "substituted type for element {0}/{1} of the pack",
+            j, *count);
 
       // Add the substituted type to the tuple.
       elements.push_back({{}, type});
@@ -2351,9 +2363,18 @@ SwiftLanguageRuntime::BindGenericPackType(StackFrame &frame,
       using Kind = Node::Kind;
       auto *dem_sil_pack_type =
           swift_demangle::ChildAtPath(global, {Kind::TypeMangling, Kind::Type});
+      if (!dem_sil_pack_type)
+        return llvm::createStringErrorV(
+            "cannot decode pack_expansion type: failed to demangle the "
+            "expanded SILPackType \"{0}\"",
+            sil_pack_type.GetMangledTypeName());
       return dem_sil_pack_type;
     }
-    return CreatePackType(dem, *ts, elements);
+    if (auto *pack = CreatePackType(dem, *ts, elements))
+      return pack;
+    return llvm::createStringErrorV(
+        "cannot decode pack_expansion type: failed to build the expanded pack "
+        "type");
   };
 
   swift::Demangle::Context dem_ctx;
