@@ -45,7 +45,7 @@ lldb_private::formatters::swift::SwiftOptionalSummaryProvider::GetName() {
   return "Swift.Optional summary provider";
 }
 
-/// If this ValueObject is an Optional<T> with the Some(T) case selected,
+/// If this ValueObject is an Optional<T> with the some(T) case selected,
 /// retrieve the value of the Some case.
 ///
 /// Returns {} on error, nullptr on .none, and a ValueObject on .some.
@@ -262,7 +262,7 @@ bool lldb_private::formatters::swift::SwiftOptionalSummaryProvider::
 
   ValueObjectSP some = *maybe_some;
   if (!some)
-    return true;
+    return false;
 
   lldb_private::Flags some_flags(some->GetCompilerType().GetTypeInfo());
 
