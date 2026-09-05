@@ -83,7 +83,8 @@ public:
   ///          cannot be accessed, or nullptr if the path was accessed but there
   ///          was a subsequent filesystem modification.
   Expected<FileSystemCache::DirectoryEntry *>
-  preloadRealPath(DirectoryEntry &From, StringRef Remaining);
+  preloadRealPath(DirectoryEntry &From, StringRef Remaining,
+                  bool FollowSymlinks);
 
   ErrorOr<vfs::Status> statusAndFileID(const Twine &Path,
                                        std::optional<CASID> &FileID,
@@ -197,10 +198,12 @@ public:
   ~DiscoveryInstanceImpl();
 
 private:
-  Expected<DirectoryEntry *> requestDirectoryEntry(DirectoryEntry &Parent,
-                                                   StringRef Name) override;
+  Expected<DirectoryEntry *>
+  requestDirectoryEntry(DirectoryEntry &Parent, StringRef Name,
+                        bool FollowSymlinks) override;
   Error requestSymlinkTarget(DirectoryEntry &Symlink) override;
-  Error preloadRealPath(DirectoryEntry &Parent, StringRef Remaining) override;
+  Error preloadRealPath(DirectoryEntry &Parent, StringRef Remaining,
+                        bool FollowSymlinks) override;
   void trackNonRealPathEntry(DirectoryEntry &Entry) override;
 
 private:
@@ -548,7 +551,8 @@ CachingOnDiskFileSystemImpl::getDirectoryIterator(const Twine &Path) {
 
 Expected<FileSystemCache::DirectoryEntry *>
 CachingOnDiskFileSystemImpl::preloadRealPath(DirectoryEntry &From,
-                                             StringRef Remaining) {
+                                             StringRef Remaining,
+                                             bool FollowSymlinks) {
   auto BypassSandbox = sys::sandbox::scopedDisable();
 
   PathStorage RemainingStorage(Remaining);
@@ -562,11 +566,12 @@ CachingOnDiskFileSystemImpl::preloadRealPath(DirectoryEntry &From,
   // on Darwin when running clang-scan-deps (looks like allocation traffic in
   // ::open on stat failures). This may be platform- or even
   // OS-version-dependent though.
+  sys::fs::file_status ExpectedRealPathStatus;
   {
-    sys::fs::file_status Status;
-    if (std::error_code EC = sys::fs::status(ExpectedRealPath, Status))
+    if (std::error_code EC = sys::fs::status(
+            ExpectedRealPath, ExpectedRealPathStatus, FollowSymlinks))
       return errorCodeToError(EC);
-    if (!sys::fs::exists(Status))
+    if (!sys::fs::exists(ExpectedRealPathStatus))
       return errorCodeToError(
           std::make_error_code(std::errc::no_such_file_or_directory));
 
@@ -575,8 +580,13 @@ CachingOnDiskFileSystemImpl::preloadRealPath(DirectoryEntry &From,
 
   SmallString<256> RealPath;
   if (std::error_code EC = sys::fs::real_path(ExpectedRealPath, RealPath,
-      /* expand_tilde */false))
-    return errorCodeToError(EC);
+                                              /* expand_tilde */ false)) {
+    if (ExpectedRealPathStatus.type() == sys::fs::file_type::symlink_file) {
+      RealPath = ExpectedRealPath;
+    } else {
+      return errorCodeToError(EC);
+    }
+  }
 
   SmallString<256> RealTreePath = StringRef(llvm::cas::getTreePath(RealPath,
       Cache->getPathStyle()));
@@ -786,7 +796,8 @@ DiscoveryInstanceImpl::~DiscoveryInstanceImpl() {}
 
 Expected<FileSystemCache::DirectoryEntry *>
 DiscoveryInstanceImpl::requestDirectoryEntry(DirectoryEntry &Parent,
-                                             StringRef Name) {
+                                             StringRef Name,
+                                             bool FollowSymlinks) {
   if (!LookupOnDisk)
     return nullptr;
 
@@ -809,7 +820,7 @@ DiscoveryInstanceImpl::requestDirectoryEntry(DirectoryEntry &Parent,
     // that we hit F_GETPATH non-determinism for a hard link on Darwin. We need
     // to get the realpath of Parent + Name, which may be different from the
     // realpath of the path that's ultimately being looked up.
-    auto RP = FS.preloadRealPath(Parent, Name);
+    auto RP = FS.preloadRealPath(Parent, Name, FollowSymlinks);
     if (!RP)
       return RP.takeError();
     if (*RP)
@@ -846,10 +857,11 @@ Error DiscoveryInstanceImpl::requestSymlinkTarget(DirectoryEntry &Symlink) {
 }
 
 Error DiscoveryInstanceImpl::preloadRealPath(DirectoryEntry &Parent,
-                                             StringRef Remaining) {
+                                             StringRef Remaining,
+                                             bool FollowSymlinks) {
   if (LookupOnDisk && !ComputedRealPath) {
     ComputedRealPath = true;
-    auto Entry = FS.preloadRealPath(Parent, Remaining);
+    auto Entry = FS.preloadRealPath(Parent, Remaining, FollowSymlinks);
     if (Entry)
       RealPath = *Entry;
     return Entry.takeError();

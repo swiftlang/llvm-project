@@ -127,14 +127,16 @@ public:
     /// Request a directory entry. The first parameter is the parent to look
     /// under, the second is the name of the entry.
     virtual Expected<DirectoryEntry *>
-    requestDirectoryEntry(DirectoryEntry &Parent, StringRef Name) = 0;
+    requestDirectoryEntry(DirectoryEntry &Parent, StringRef Name,
+                          bool FollowSymlinks) = 0;
 
     /// Request target of (lazy) symlink be filled in.
     virtual Error requestSymlinkTarget(DirectoryEntry &Symlink) = 0;
 
     /// Request a real path. The discovery instance should ensure this does
     /// minimal work if called multiple times during a single lookup.
-    virtual Error preloadRealPath(DirectoryEntry &Parent, StringRef Remaining) {
+    virtual Error preloadRealPath(DirectoryEntry &Parent, StringRef Remaining,
+                                  bool FollowSymlinks) {
       return Error::success();
     }
 
@@ -217,7 +219,8 @@ public:
   /// Look up a directory entry in the CAS, navigating through real paths but
   /// returning early on a symlink.
   Expected<LookupPathState> lookupRealPathPrefixFrom(DiscoveryInstance &DI,
-                                                     LookupPathState State);
+                                                     LookupPathState State,
+                                                     bool FollowSymlinks);
 
   /// Lookup \p Path, knowing that \a sys::fs::real_path() was called and
   /// failed.

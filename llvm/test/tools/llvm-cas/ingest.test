@@ -42,3 +42,7 @@ CHECK-NODE-REFS: llvmcas://
 // Test exporting the entire tree.
 RUN: llvm-cas --cas %t/new-cas --fcas-plugin-path %llvmshlibdir/libCASPluginTest%pluginext --upstream-cas %t/cas --import @%t/cas.id > %t/plugin.id
 RUN: llvm-cas --cas %t/new-cas --fcas-plugin-path %llvmshlibdir/libCASPluginTest%pluginext --ls-tree-recursive @%t/plugin.id | FileCheck %s
+
+RUN: llvm-cas --cas %t/cas --ingest %S/Inputs/broken_symlink > %t/cas-symlink.id
+RUN: llvm-cas --cas %t/cas --ls-tree-recursive @%t/cas.id | FileCheck %s --check-prefix=CHECK-SYMLINK
+CHECK-SYMLINK: broken_symlink -> missing
