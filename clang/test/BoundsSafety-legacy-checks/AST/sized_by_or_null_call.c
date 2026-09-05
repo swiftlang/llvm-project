@@ -542,7 +542,7 @@ void caller_9(int *__sized_by(*len) *out, int *len){
 // CHECK: {{^}}    | |-OpaqueValueExpr [[ove_22]] {{.*}} 'int *__single __sized_by_or_null(count)*__bidi_indexable'
 // CHECK: {{^}}    | `-OpaqueValueExpr [[ove_23]] {{.*}} 'int *__bidi_indexable'
 // CHECK: {{^}}    |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK: {{^}}    | |-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && !p || len <= (char *)__builtin_get_pointer_upper_bound(p) - (char *__bidi_indexable)p && 0 <= len'
+// CHECK: {{^}}    | |-BoundsCheckExpr {{.+}} 'p <= __builtin_get_pointer_upper_bound(p) && __builtin_get_pointer_lower_bound(p) <= p && !p || len <= __builtin_get_pointer_upper_bound(p) - p && 0 <= len'
 // CHECK: {{^}}    | | |-BinaryOperator {{.+}} 'int *__single __sized_by_or_null(count)':'int *__single' '='
 // CHECK: {{^}}    | | | |-DeclRefExpr {{.+}} [[var_p_5]]
 // CHECK: {{^}}    | | | `-ImplicitCastExpr {{.+}} 'int *__single __sized_by_or_null(count)':'int *__single' <BoundsSafetyPointerCast>
@@ -569,11 +569,11 @@ void caller_9(int *__sized_by(*len) *out, int *len){
 // CHECK: {{^}}    | |       | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
 // CHECK: {{^}}    | |       | | `-OpaqueValueExpr [[ove_27:0x[^ ]+]] {{.*}} 'int'
 // CHECK: {{^}}    | |       | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK: {{^}}    | |       |   |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK: {{^}}    | |       |   |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK: {{^}}    | |       |   | `-GetBoundExpr {{.+}} upper
 // CHECK: {{^}}    | |       |   |   `-OpaqueValueExpr [[ove_24]] {{.*}} 'int *__bidi_indexable'
 // CHECK: {{^}}    | |       |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK: {{^}}    | |       |     `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK: {{^}}    | |       |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK: {{^}}    | |       |       `-OpaqueValueExpr [[ove_24]] {{.*}} 'int *__bidi_indexable'
 // CHECK: {{^}}    | |       `-BinaryOperator {{.+}} 'int' '<='
 // CHECK: {{^}}    | |         |-IntegerLiteral {{.+}} 0

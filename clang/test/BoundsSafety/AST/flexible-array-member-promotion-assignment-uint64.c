@@ -157,7 +157,7 @@ void promote_to_sized_by(struct flexible *flex) {
 // CHECK:   |-DeclStmt
 // CHECK:   | `-VarDecl [[var_s_1:0x[^ ]+]]
 // CHECK:   |   |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK:   |   | |-BoundsCheckExpr {{.+}} 'flex <= __builtin_get_pointer_upper_bound(flex) && __builtin_get_pointer_lower_bound(flex) <= flex && sizeof(struct flexible) + sizeof(int) * flex->count <= (char *)__builtin_get_pointer_upper_bound(flex) - (char *__bidi_indexable)flex'
+// CHECK:   |   | |-BoundsCheckExpr {{.+}} 'flex <= __builtin_get_pointer_upper_bound(flex) && __builtin_get_pointer_lower_bound(flex) <= flex && sizeof(struct flexible) + sizeof(int) * flex->count <= __builtin_get_pointer_upper_bound(flex) - flex'
 // CHECK:   |   | | |-BinaryOperator {{.+}} 'unsigned long long' '='
 // CHECK:   |   | | | |-DeclRefExpr {{.+}} [[var_siz]]
 // CHECK:   |   | | | `-OpaqueValueExpr [[ove_6:0x[^ ]+]] {{.*}} 'unsigned long long'
@@ -178,11 +178,11 @@ void promote_to_sized_by(struct flexible *flex) {
 // CHECK:   |   | |     |-OpaqueValueExpr [[ove_6]] {{.*}} 'unsigned long long'
 // CHECK:   |   | |     `-ImplicitCastExpr {{.+}} 'unsigned long long' <IntegralCast>
 // CHECK:   |   | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK:   |   | |         |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK:   |   | |         |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK:   |   | |         | `-GetBoundExpr {{.+}} upper
 // CHECK:   |   | |         |   `-OpaqueValueExpr [[ove_7]] {{.*}} 'struct flexible *__bidi_indexable'
 // CHECK:   |   | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK:   |   | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK:   |   | |           `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK:   |   | |             `-OpaqueValueExpr [[ove_7]] {{.*}} 'struct flexible *__bidi_indexable'
 // CHECK:   |   | |-OpaqueValueExpr [[ove_6]]
 // CHECK:   |   | | `-BinaryOperator {{.+}} 'unsigned long long' '+'
