@@ -767,6 +767,9 @@ Expected<cas::IncludeTreeRoot> IncludeTreeBuilder::finishIncludeTree(
           M, ScanInstance.getLangOpts().APINotesModules,
           ScanInstance.getAPINotesOpts().ModuleSearchPaths);
       for (auto File : Notes) {
+        if (auto FileRef = addToFileList(ScanInstance.getFileManager(), File);
+            !FileRef)
+          return FileRef.takeError();
         if (auto Buf =
                 ScanInstance.getSourceManager().getMemoryBufferForFileOrNone(
                     File)) {
