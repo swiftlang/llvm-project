@@ -8,7 +8,7 @@ class TestSwiftAsyncHiddenFrames(lldbtest.TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
 
-    @skipEmbeddedSwift  # rdar://183960945 (Fix async tests running in embedded mode)
+    @skipEmbeddedSwiftOnLinux
     @swiftTest
     @skipIf(oslist=['windows',])
     def test(self):

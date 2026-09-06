@@ -3115,10 +3115,6 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_ExistentialMetatype(
   if (ptr == LLDB_INVALID_ADDRESS || ptr == 0)
     return false;
 
-  ThreadSafeReflectionContext reflection_ctx = GetReflectionContext();
-  if (!reflection_ctx)
-    return false;
-
   auto tss = meta_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
   if (!tss)
     return false;
@@ -3129,18 +3125,36 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_ExistentialMetatype(
 
   auto flavor =
       SwiftLanguageRuntime::GetManglingFlavor(meta_type.GetMangledTypeName());
-  auto type_ref_or_err =
-      reflection_ctx->ReadTypeFromMetadata(ptr, tr_ts->GetDescriptorFinder());
-  if (!type_ref_or_err) {
-    LLDB_LOG_ERRORV(GetLog(LLDBLog::Types), type_ref_or_err.takeError(), "{0}");
-    return false;
-  }
-
-  const swift::reflection::TypeRef &type_ref = *type_ref_or_err;
 
   using namespace swift::Demangle;
   Demangler dem;
-  NodePointer node = type_ref.getDemangling(dem);
+  NodePointer node = nullptr;
+  if (flavor == swift::Mangle::ManglingFlavor::Default) {
+    ThreadSafeReflectionContext reflection_ctx = GetReflectionContext();
+    if (!reflection_ctx)
+      return false;
+
+    auto type_ref_or_err =
+        reflection_ctx->ReadTypeFromMetadata(ptr, tr_ts->GetDescriptorFinder());
+    if (!type_ref_or_err) {
+      LLDB_LOG_ERRORV(
+          GetLog(LLDBLog::Types), type_ref_or_err.takeError(),
+          "[GetDynamicTypeAndAddress_ExistentialMetatype] failed {0}");
+      return false;
+    }
+    node = type_ref_or_err->getDemangling(dem);
+  } else {
+    auto type_or_err = GetTypeFromMetadataAddressEmbedded(ptr, *tr_ts);
+    if (!type_or_err) {
+      LLDB_LOG_ERRORV(GetLog(LLDBLog::Types), type_or_err.takeError(),
+                      "[GetDynamicTypeAndAddress_ExistentialMetatype] Embedded "
+                      " failed {0}");
+      return false;
+    }
+    node = swift_demangle::GetDemangledTypeMangling(
+        dem, type_or_err->GetMangledTypeName().GetStringRef());
+  }
+
   // Wrap the resolved type in a metatype again for the data formatter to
   // recognize.
   if (!node || node->getKind() != Node::Kind::Type)
@@ -3148,10 +3162,9 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_ExistentialMetatype(
   NodePointer wrapped = dem.createNode(Node::Kind::Type);
   NodePointer meta = dem.createNode(Node::Kind::Metatype);
   meta->addChild(node, dem);
-  wrapped->addChild(meta,dem);
+  wrapped->addChild(meta, dem);
 
-  meta_type =
-      tss->GetTypeSystemSwiftTypeRef()->RemangleAsType(dem, wrapped, flavor);
+  meta_type = tr_ts->RemangleAsType(dem, wrapped, flavor);
   class_type_or_name.SetCompilerType(meta_type);
   address.SetRawAddress(ptr);
   value_type = Value::ValueType::LoadAddress;

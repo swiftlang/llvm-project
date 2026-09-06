@@ -31,7 +31,7 @@ class TestSwiftExprInProtocolExtension(TestBase):
         self.continue_to_bkpt(self.process, bkpt)
         self.target.BreakpointDelete(bkpt.GetID())
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184869028 (Embedded Swift: self is unavailable in a static protocol extension frame after mandatory specialization)
     @swiftTest
     def test_protocol_extension(self):
         """Tests that swift expressions in protocol extension functions behave correctly"""

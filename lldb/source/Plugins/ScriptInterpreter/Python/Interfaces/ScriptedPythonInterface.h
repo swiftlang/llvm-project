@@ -21,6 +21,7 @@
 #include "lldb/Host/Config.h"
 #include "lldb/Interpreter/Interfaces/ScriptedInterface.h"
 #include "lldb/Utility/DataBufferHeap.h"
+#include "lldb/Utility/Policy.h"
 
 #include "../PythonDataObjects.h"
 #include "../SWIGPythonBridge.h"
@@ -198,6 +199,10 @@ public:
       else
         return create_error("Missing scripting object.");
     }
+
+    std::optional<PolicyStack::Guard> policy_guard;
+    if (!UserCanRunDirectly())
+      policy_guard = PolicyStack::Get().PushScriptedExtensionCall();
 
     Locker py_lock(&m_interpreter, Locker::AcquireLock | Locker::NoSTDIN,
                    Locker::FreeLock);
@@ -412,6 +417,10 @@ public:
       return ErrorWithMessage<T>(caller_signature, "missing script class name",
                                  error);
 
+    std::optional<PolicyStack::Guard> policy_guard;
+    if (!UserCanRunDirectly())
+      policy_guard = PolicyStack::Get().PushScriptedExtensionCall();
+
     Locker py_lock(&m_interpreter, Locker::AcquireLock | Locker::NoSTDIN,
                    Locker::FreeLock);
 
@@ -535,6 +544,10 @@ protected:
     if (!m_object_instance_sp)
       return ErrorWithMessage<T>(caller_signature, "python object ill-formed",
                                  error);
+
+    std::optional<PolicyStack::Guard> policy_guard;
+    if (!UserCanRunDirectly())
+      policy_guard = PolicyStack::Get().PushScriptedExtensionCall();
 
     Locker py_lock(&m_interpreter, Locker::AcquireLock | Locker::NoSTDIN,
                    Locker::FreeLock);

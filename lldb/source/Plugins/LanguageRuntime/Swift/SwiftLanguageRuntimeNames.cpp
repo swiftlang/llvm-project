@@ -742,6 +742,135 @@ bool SwiftLanguageRuntime::IsSwiftMangledName(llvm::StringRef name) {
   return swift::Demangle::isSwiftSymbol(name);
 }
 
+/// The demangle options for rendering a Swift type name for display to a user.
+static swift::Demangle::DemangleOptions GetDisplayTypeNameDemangleOptions() {
+  auto options =
+      swift::Demangle::DemangleOptions::SimplifiedUIDemangleOptions();
+  options.DisplayStdlibModule = false;
+  options.DisplayObjCModule = false;
+  options.QualifyEntities = true;
+  options.DisplayModuleNames = true;
+  options.DisplayLocalNameContexts = false;
+  options.DisplayDebuggerGeneratedModule = false;
+  options.ShowFunctionArgumentTypes = true;
+  options.ShowClosureSignature = false;
+  return options;
+}
+
+/// Collects the archetypes from the monomorphized generic function's mangled
+/// name.
+static void GetGenericParameterNamesFromSpecialization(
+    llvm::StringRef mangled_name,
+    llvm::DenseMap<SwiftLanguageRuntime::ArchetypePath, llvm::StringRef>
+        &dict) {
+  using namespace swift::Demangle;
+  Log *log = GetLog(LLDBLog::Types);
+  if (mangled_name.empty())
+    return;
+
+  Context ctx;
+  NodePointer global =
+      SwiftLanguageRuntime::DemangleSymbolAsNode(mangled_name, ctx);
+  if (!global || global->getKind() != Node::Kind::Global)
+    return;
+
+  // A specialization is mangled as the specialized entity followed by a
+  // specialization node that holds the substitutions, so both are children of
+  // the Global node.
+  // kind=Global
+  //   kind=GenericSpecialization
+  //     kind=SpecializationPassID, index=5
+  //     kind=GenericSpecializationParam
+  //       kind=Type → kind=Structure { Module "Swift", Identifier "String" }
+  //     kind=GenericSpecializationParam
+  //       kind=Type → kind=Structure { Module "Swift", Identifier "Int" }
+  //   kind=Function
+  //     kind=Module, text="m2"
+  //     kind=Identifier, text="g"
+  //     kind=LabelList
+  //       kind=Type → DependentGenericType
+  //         DependentGenericSignature → DependentGenericParamCount, index=2
+  //           Type → FunctionType → ArgumentTuple → Type →
+  //           BoundGenericStructure Type → Structure { Module "m2", Identifier
+  //           "Pair" } TypeList
+  //             Type → DependentGenericParamType { Index 0, Index 0 }   ← A
+  //             Type → DependentGenericParamType { Index 0, Index 1 }   ← B
+  NodePointer specialization = nullptr;
+  NodePointer entity = nullptr;
+  for (NodePointer child : *global) {
+    switch (child->getKind()) {
+    case Node::Kind::GenericSpecialization:
+    case Node::Kind::GenericSpecializationNotReAbstracted:
+    case Node::Kind::GenericSpecializationInResilienceDomain:
+      if (specialization) {
+        LLDB_LOG(log,
+                 "[GenericParamsFromSpecialization] {0}: more than one "
+                 "specialization node",
+                 mangled_name);
+        return;
+      }
+      specialization = child;
+      break;
+    default:
+      if (entity) {
+        LLDB_LOG(log,
+                 "[GenericParamsFromSpecialization] {0}: more than one entity "
+                 "node",
+                 mangled_name);
+        return;
+      }
+      entity = child;
+      break;
+    }
+  }
+  if (!specialization || !entity)
+    return;
+
+  llvm::SmallVector<NodePointer, 4> substitutions;
+  for (NodePointer child : *specialization)
+    if (child->getKind() == Node::Kind::GenericSpecializationParam) {
+      if (!child->hasChildren()) {
+        LLDB_LOG(log,
+                 "[GenericParamsFromSpecialization] {0}: substitution {1} has "
+                 "no type child",
+                 mangled_name, substitutions.size());
+        return;
+      }
+      substitutions.push_back(child->getFirstChild());
+    }
+  if (substitutions.empty()) {
+    LLDB_LOG(log,
+             "[GenericParamsFromSpecialization] {0}: specialization node "
+             "carries no substitutions",
+             mangled_name);
+    return;
+  }
+
+  // Build the depth/index-sorted list of the entity's generic parameters.
+  std::map<std::pair<unsigned, unsigned>, unsigned> param_idx;
+  SwiftLanguageRuntime::ForEachGenericParameter(
+      entity,
+      [&](unsigned depth, unsigned index) { param_idx[{depth, index}] = 0; });
+  if (param_idx.size() != substitutions.size()) {
+    LLDB_LOG(log,
+             "[GenericParamsFromSpecialization] {0}: entity mentions {1} "
+             "generic parameters but the signature has {2} substitutions.",
+             mangled_name, param_idx.size(), substitutions.size());
+    return;
+  }
+
+  DemangleOptions options = GetDisplayTypeNameDemangleOptions();
+
+  unsigned i = 0;
+  for (auto &param : param_idx) {
+    std::string name = nodeToString(substitutions[i++], options);
+    if (name.empty()) {
+      continue;
+    }
+    dict.insert({param.first, ConstString(name).GetStringRef()});
+  }
+}
+
 void SwiftLanguageRuntime::GetGenericParameterNamesForFunction(
     const SymbolContext &const_sc, const ExecutionContext *exe_ctx,
     swift::Mangle::ManglingFlavor flavor,
@@ -828,6 +957,13 @@ void SwiftLanguageRuntime::GetGenericParameterNamesForFunction(
     }
     dict.insert({{depth, index}, type_name.GetStringRef()});
   }
+
+  // A monomorphized generic function has no archetypes and therefore no
+  // $τ_<depth>_<index> variables at all. Fall back to the substitutions
+  // recorded in the mangled name of the specialization.
+  if (dict.empty() && sc.function)
+    GetGenericParameterNamesFromSpecialization(
+        sc.function->GetMangled().GetMangledName().GetStringRef(), dict);
 }
 
 std::pair<std::string, std::optional<DemangledNameInfo>>
@@ -852,15 +988,7 @@ SwiftLanguageRuntime::DemangleSymbolAsString(llvm::StringRef symbol,
     options.ShowFunctionArgumentTypes = true;
     break;
   case eDisplayTypeName:
-    options = swift::Demangle::DemangleOptions::SimplifiedUIDemangleOptions();
-    options.DisplayStdlibModule = false;
-    options.DisplayObjCModule = false;
-    options.QualifyEntities = true;
-    options.DisplayModuleNames = true;
-    options.DisplayLocalNameContexts = false;
-    options.DisplayDebuggerGeneratedModule = false;
-    options.ShowFunctionArgumentTypes = true;
-    options.ShowClosureSignature = false;
+    options = GetDisplayTypeNameDemangleOptions();
     break;
   }
 

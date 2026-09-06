@@ -2222,6 +2222,9 @@ void SwiftASTContext::ApplyDiagnosticOptions() {
 
 void SwiftASTContext::RemapClangImporterOptions(
     const PathMappingList &path_map) {
+  if (path_map.IsEmpty())
+    return;
+
   auto &options = GetClangImporterOptions();
   ConstString remapped;
   if (path_map.RemapPath(ConstString(options.BridgingHeader), remapped)) {
@@ -2794,12 +2797,15 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
   else
     swift_ast_sp->AddUserClangArgs(Target::GetGlobalProperties());
 
-  // Apply source path remappings found in the module's dSYM.
-  swift_ast_sp->RemapClangImporterOptions(module.GetSourceMappingList());
-
-  // Apply source path remappings found in the target settings.
-  if (target)
-    swift_ast_sp->RemapClangImporterOptions(target->GetSourcePathMap());
+  // Collect the source path remappings found in the module's dSYM and
+  // in the target settings, then apply them in one go.
+  {
+    PathMappingList path_map;
+    path_map.Append(module.GetSourceMappingList(), /*notify=*/false);
+    if (target)
+      path_map.Append(target->GetSourcePathMap(), /*notify=*/false);
+    swift_ast_sp->RemapClangImporterOptions(path_map);
+  }
   swift_ast_sp->FilterClangImporterOptions(
       swift_ast_sp->GetClangImporterOptions().ExtraArgs, swift_ast_sp.get());
 
@@ -3158,6 +3164,27 @@ void SwiftASTContext::DiscoverImplicitlyTrackedModules(
   }
 }
 
+/// Warn if \p comp_unit was built by a Swift compiler that doesn't match the
+/// one integrated into LLDB.
+static void ReportToolchainMismatch(Module &module, CompileUnit &comp_unit,
+                                    Target &target) {
+  // The debugger driving a scripted process is unrelated to the toolchain that
+  // built the target, so a mismatch is expected and not actionable.
+  if (target.GetProcessLaunchInfo().IsScriptedProcess())
+    return;
+
+  // Before there is a process, the setting only exists in the global
+  // properties.
+  ProcessSP process_sp = target.GetProcessSP();
+  const ProcessProperties &process_properties =
+      process_sp ? *process_sp : Process::GetGlobalProperties();
+  if (!process_properties.GetWarningsToolchainMismatch())
+    return;
+
+  module.ReportWarningToolchainMismatch(comp_unit,
+                                        target.GetDebugger().GetID());
+}
+
 lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     const SymbolContext &sc, TypeSystemSwiftTypeRef &typeref_typesystem,
     bool repl, bool playground, const char *extra_options) {
@@ -3198,6 +3225,13 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
   // -              SwiftASTContext: target=null,     module=non-null.
   ModuleSP module_sp = sc.module_sp;
   TargetSP target_sp = typeref_typesystem.GetTargetWP().lock();
+
+  // Only an expression type system carries a target, so a per-module context
+  // takes it from the symbol context. Without a target there is no debugger to
+  // address, and reporting would consume the module's one-shot flag.
+  Target *warning_target = target_sp ? target_sp.get() : sc.target_sp.get();
+  if (module_sp && swift_context && warning_target)
+    ReportToolchainMismatch(*module_sp, *cu, *warning_target);
 
   // Make an AST but don't set the triple yet. We need to
   // try and detect if we have a iOS simulator.
@@ -3280,10 +3314,12 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     sdk_path_override = true;
   }
 
-  // Get the precise SDK from the symbol context.
+  ModuleSP exe_module_sp =
+      target_sp ? target_sp->GetExecutableModule() : ModuleSP();
+
   std::optional<XcodeSDK> sdk;
-  if (cu)
-    if (auto platform_sp = Platform::GetHostPlatform()) {
+  if (auto platform_sp = Platform::GetHostPlatform()) {
+    if (cu) {
       auto sdk_or_err = platform_sp->GetSDKPathFromDebugInfo(*cu);
       if (!sdk_or_err) {
         llvm::handleAllErrors(
@@ -3299,13 +3335,26 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
         LOG_PRINTF(GetLog(LLDBLog::Types), "Using precise SDK: %s",
                    sdk->GetString().str().c_str());
       }
+    } else if (module_sp || exe_module_sp) {
+      // There is no CU, fall back to the SDK of a prevailing module (via either
+      // the symbol context, or the executable). This avoids using a default
+      // SDK, which can cause problems when when debugging a binary built
+      // against non-default SDK.
+      auto &module = *(module_sp ? module_sp : exe_module_sp);
+      if (auto sdk_or_err = platform_sp->GetSDKPathFromDebugInfo(module)) {
+        sdk = sdk_or_err->first;
+        LLDB_LOG(GetLog(LLDBLog::Types), "Using SDK from module: {0} -- {1}",
+                 sdk->GetString(), module_sp->GetFileSpec().GetFilename());
+      } else {
+        LLDB_LOG_ERROR(GetLog(LLDBLog::Types), sdk_or_err.takeError(),
+                       "Could not determine SDK from module: {0}");
+      }
     }
+  }
   // Derive the triple next.
 
   // First, prime the compiler with the options from the main executable:
   bool got_serialized_options = false;
-  ModuleSP exe_module_sp =
-      target_sp ? target_sp->GetExecutableModule() : ModuleSP();
 
   // If we're debugging a testsuite, then treat the main test bundle
   // as the executable.
@@ -3348,7 +3397,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
       LOG_PRINTF(GetLog(LLDBLog::Types), "REPL: prefer target triple.");
       preferred_arch = target_arch;
       preferred_triple = target_triple;
-    } else if (!sdk_path_override && !sdk && target_arch) {
+    } else if (!sdk_path_override && !cu && target_arch) {
       LOG_PRINTF(GetLog(LLDBLog::Types),
                  "No Swift debug info: prefer target triple.");
       if (!target_arch.IsCompatibleMatch(module_arch))
@@ -3592,14 +3641,19 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     }
   }
 
-  // Apply source path remappings found in each module's dSYM.
-  for (ModuleSP module : modules.Modules())
-    if (module)
-      swift_ast_sp->RemapClangImporterOptions(module->GetSourceMappingList());
-
-  // Apply source path remappings found in the target settings.
-  if (target_sp)
-    swift_ast_sp->RemapClangImporterOptions(target_sp->GetSourcePathMap());
+  // Collect the source path remappings found in each module's dSYM
+  // and in the target settings, then apply them in one go. The
+  // expectation is that there are orders of magnitude more modules
+  // than path remappings.
+  {
+    PathMappingList path_map;
+    for (ModuleSP module : modules.Modules())
+      if (module)
+        path_map.Append(module->GetSourceMappingList(), /*notify=*/false);
+    if (target_sp)
+      path_map.Append(target_sp->GetSourcePathMap(), /*notify=*/false);
+    swift_ast_sp->RemapClangImporterOptions(path_map);
+  }
   swift_ast_sp->FilterClangImporterOptions(
       swift_ast_sp->GetClangImporterOptions().ExtraArgs, swift_ast_sp.get());
 
@@ -5487,6 +5541,7 @@ static SwiftASTContext::TypeOrDecl DeclToTypeOrDecl(swift::Decl *decl) {
     case swift::DeclKind::Missing:
     case swift::DeclKind::MissingMember:
     case swift::DeclKind::Using:
+    case swift::DeclKind::HiddenTypeLayoutInfo:
       break;
 
     case swift::DeclKind::InfixOperator:

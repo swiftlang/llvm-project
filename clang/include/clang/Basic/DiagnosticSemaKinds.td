@@ -3510,18 +3510,23 @@ def err_callback_callee_is_variadic : Error<
 def err_callback_implicit_this_not_available : Error<
   "'callback' argument at position %0 references unavailable implicit 'this'">;
 
-def err_capture_by_attribute_multiple : Error<
-  "multiple 'lifetime_capture' attributes specified">;
 def err_capture_by_attribute_no_entity : Error<
   "'lifetime_capture_by' attribute specifies no capturing entity">;
 def err_capture_by_implicit_this_not_available : Error<
   "'lifetime_capture_by' argument references unavailable implicit 'this'">;
+def err_capture_by_this_attr_without_implicit_this : Error<
+  "'lifetime_capture_by_this' attribute requires an implicit object parameter">;
 def err_capture_by_attribute_argument_unknown : Error<
   "'lifetime_capture_by' attribute argument %0 is not a known function parameter"
   "; must be a function parameter, 'this', 'global' or 'unknown'">;
 def err_capture_by_references_itself : Error<"'lifetime_capture_by' argument references itself">;
 def err_capture_by_param_uses_reserved_name : Error<
-  "parameter cannot be named '%select{global|unknown}0' while using 'lifetime_capture_by(%select{global|unknown}0)'">;
+  "parameter cannot be named '%0' while using 'lifetime_capture_by(%0)'">;
+def err_capture_by_attribute_multiple : Error<
+  "multiple '%0' attributes specified">;
+def warn_deprecated_capture_by_special_entity : Warning<
+  "'lifetime_capture_by(%0)' is deprecated; use '%1' instead">,
+  InGroup<DeprecatedAttributes>;
 
 def err_init_method_bad_return_type : Error<
   "init methods must return an object pointer type, not %0">;
@@ -3605,6 +3610,12 @@ def err_invalid_collection_element : Error<
 def err_box_literal_collection : Error<
   "%select{string|character|boolean|numeric}0 literal must be prefixed by '@' "
   "in a collection">;
+def err_objc_literal_nonconstant_at_file_scope : Error<
+  "%select{an array|a dictionary|a numeric literal|a boxed expression|}0 "
+  "literal can only be used at file scope if %select{its contents are all "
+  "also constant literals|its contents are all also constant literals and "
+  "its keys are string literals|constant|constant}0">;
+
 def warn_objc_literal_comparison : Warning<
   "direct comparison of %select{an array literal|a dictionary literal|"
   "a numeric literal|a boxed expression|}0 has undefined behavior">,
@@ -6974,8 +6985,13 @@ def warn_superclass_variable_sized_type_not_at_end : Warning<
 
 def err_count_attr_param_not_in_same_struct : Error<
   "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null}1' field %0 isn't within the same struct as the annotated %select{pointer|flexible array}2">;
+/* TO_UPSTREAM(BoundsSafety) ON */
+// `ended_by` is downstream only.
+// FIXME: Stating `or C99 flexible array members` is only partially true.
+// In `-fbounds-safety` we also support it on arrays too.
 def err_count_attr_not_on_ptr_or_flexible_array_member : Error<
-  "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null}0' only applies to pointers%select{ or C99 flexible array members|||}0%select{|; did you mean to use 'counted_by'?}1">;
+  "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null|ended_by}0' only applies to pointers%select{ or C99 flexible array members||||}0%select{|; did you mean to use 'counted_by'?}1">;
+/* TO_UPSTREAM(BoundsSafety) OFF */
 def err_counted_by_attr_on_array_not_flexible_array_member : Error<
   "'counted_by' on arrays only applies to C99 flexible array members">;
 def err_counted_by_attr_refer_to_itself : Error<
@@ -6986,14 +7002,19 @@ def err_count_attr_argument_not_integer : Error<
   "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null}0' requires a non-boolean integer type argument">;
 def err_count_attr_only_support_simple_decl_reference : Error<
   "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null}0' argument must be a simple declaration reference">;
+/* TO_UPSTREAM(BoundsSafety) ON */
+// `ended_by` in %select is downstream only
 def err_count_attr_in_union : Error<
-  "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null}0' cannot be applied to a union member">;
+  "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null|ended_by}0' cannot be applied to a union member">;
+/* TO_UPSTREAM(BoundsSafety) OFF */
 def err_count_attr_refer_to_union : Error<
   "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null}0' argument cannot refer to a union member">;
 def note_flexible_array_counted_by_attr_field : Note<
   "field %0 declared here">;
+/* TO_UPSTREAM(BoundsSafety) ON */
+// `ended_by` in %select is downstream only
 def err_counted_by_attr_pointee_unknown_size : Error<
-  "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null}4' %select{cannot|should not}3 be applied to %select{"
+  "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null|ended_by}4' %select{cannot|should not}3 be applied to %select{"
     "a pointer with pointee|" // pointer
     "an array with element}0" // array
   " of unknown size because %1 is %select{"
@@ -7005,6 +7026,7 @@ def err_counted_by_attr_pointee_unknown_size : Error<
     "%select{|. This will be an error in a future compiler version}3"
     ""
   "}2">;
+/* TO_UPSTREAM(BoundsSafety) OFF */
 def err_counted_by_on_incomplete_type_on_assign : Error <
   "cannot %select{"
     "assign to %select{object|'%1'}2 with|" // AA_Assigning,
@@ -8149,6 +8171,17 @@ def ext_gnu_ptr_func_arith : Extension<
   "arithmetic on%select{ a|}0 pointer%select{|s}0 to%select{ the|}2 function "
   "type%select{|s}2 %1%select{| and %3}2 is a GNU extension">,
   InGroup<GNUPointerArith>;
+def ext_gnu_counted_by_void_ptr
+    : Extension<
+          "'%select{counted_by|sized_by|counted_by_or_null|sized_by_or_null}0' "
+          "on a pointer to void is a GNU extension, treated as "
+          "'%select{sized_by|sized_by|sized_by_or_null|sized_by_or_null}0'">,
+      InGroup<GNUPointerArith>;
+def note_gnu_counted_by_void_ptr_use_sized_by
+    : Note<"use "
+           "'%select{__sized_by|__sized_by|__sized_by_or_null|__sized_by_or_"
+           "null}0' "
+           "to suppress this warning">;
 def err_readonly_message_assignment : Error<
   "assigning to 'readonly' return result of an Objective-C message not allowed">;
 def ext_c2y_increment_complex : Extension<
@@ -12921,8 +12954,6 @@ def err_attribute_invalid_argument_expression_for_pointer_bounds_attribute : Err
 def err_invalid_decl_kind_bounds_safety_dynamic_count : Error<
   "count expression %select{on struct field|in function declaration}0 may only "
   "reference %select{other fields of the same struct|parameters of that function}0">;
-def err_invalid_decl_kind_bounds_safety_union_count : Error<
-  "cannot use %0 on union fields">;
 def err_multiple_coupled_decls_in_bounds_safety_dynamic_count : Error<
   "multiple coupled declarations in a -fbounds-safety attribute are not supported yet">;
 def err_attribute_argument_type_for_bounds_safety_count : Error<
@@ -13217,9 +13248,6 @@ def err_bounds_safety_flexible_array_member_record_pointer_arithmetic : Error<
   "member">;
 def err_bounds_safety_member_reference_null_base : Error<
   "base of member reference is a null pointer">;
-def err_bounds_safety_counted_by_without_size : Error<
-  "cannot apply '__counted_by%select{|_or_null}2' attribute to %0 because %1 has unknown size"
-  "%select{|; did you mean to use '__sized_by%select{|_or_null}2' instead?}3">;
 def err_bounds_safety_counted_by_on_incomplete_type_on_use : Error <
   "cannot %select{"
     "use '%1'|" // Generic expr

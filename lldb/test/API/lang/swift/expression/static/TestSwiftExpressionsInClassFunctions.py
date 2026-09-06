@@ -20,7 +20,7 @@ import os
 
 
 class TestSwiftExpressionsInClassFunctions(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184869028 (Embedded Swift: self is unavailable in a static protocol extension frame after mandatory specialization)
     @swiftTest
     def test_expressions_in_class_functions(self):
         """Test expressions in class func contexts"""

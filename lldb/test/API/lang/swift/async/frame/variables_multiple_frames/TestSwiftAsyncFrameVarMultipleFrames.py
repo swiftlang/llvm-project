@@ -67,7 +67,8 @@ class TestCase(lldbtest.TestBase):
             myvar = frame.FindVariable("myvar")
             lldbutil.check_variable(self, myvar, False, value=expected_value)
 
-    @skipEmbeddedSwift  # rdar://183960945 (Fix async tests running in embedded mode)
+    @skipEmbeddedSwiftOnLinux
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
     @skipIf(oslist=["windows"])
     def test(self):
@@ -98,7 +99,8 @@ class TestCase(lldbtest.TestBase):
 
         # Now stop at the Q funclet right after the await to ASYNC___1
         target.DeleteAllBreakpoints()
-        target.BreakpointCreateByName("$s1a12ASYNC___2___SiyYaFTQ0_")
+        target.BreakpointCreateByName(
+            self.swiftMangledName("$s1a12ASYNC___2___SiyYaFTQ0_"))
         process.Continue()
         async_frames = process.GetSelectedThread().frames
         self.check_cfas(async_frames, process)

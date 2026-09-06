@@ -1,0 +1,53 @@
+{
+  "triple": "arm64-apple-macosx",
+  "uuid": "8E2C4F1A-6B93-4D57-9A08-1C3E5B7D9F26",
+  "type": "executable",
+  "sections": [
+    {
+      "user_id": 100,
+      "name": "TEXT",
+      "type": "code",
+      "address": 4294967296,
+      "size": 16384,
+      "file_offset": 0,
+      "file_size": 16384,
+      "alignment": 2,
+      "flags": 514,
+      "read": true,
+      "write": false,
+      "execute": true
+    }
+  ],
+  "symbols": [
+    {
+      "name": "$s1a12reportAndDies5NeverOyF",
+      "type": "code",
+      "size": 16,
+      "address": 4294971392
+    },
+    {
+      "name": "$s1a7doPanicyys6UInt32VF",
+      "type": "code",
+      "size": 24,
+      "address": 4294971408
+    },
+    {
+      "name": "$s1a12waitCompleteySbSbF",
+      "type": "code",
+      "size": 12,
+      "address": 4294971432
+    },
+    {
+      "name": "$s1a10asyncDecoyyyYaF",
+      "type": "code",
+      "size": 16,
+      "address": 4294971444
+    },
+    {
+      "name": "$s1a6calleryyF",
+      "type": "code",
+      "size": 24,
+      "address": 4294971460
+    }
+  ]
+}

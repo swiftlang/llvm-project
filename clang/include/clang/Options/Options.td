@@ -1046,7 +1046,11 @@ def allowable__client : Separate<["-"], "allowable_client">;
 def ansi : Flag<["-", "--"], "ansi">, Group<CompileOnly_Group>;
 def arch__errors__fatal : Flag<["-"], "arch_errors_fatal">;
 def arch : Separate<["-"], "arch">, Flags<[NoXarchOption]>;
+
+// Ignored option for gcc compatibility - not used for anything.
+// -arch_only is passed to libtool through --static-lib-target-arch-only
 def arch__only : Separate<["-"], "arch_only">;
+
 def autocomplete : Joined<["--"], "autocomplete=">;
 def bind__at__load : Flag<["-"], "bind_at_load">;
 def bundle__loader : Separate<["-"], "bundle_loader">;
@@ -1350,6 +1354,28 @@ defm cuda_short_ptr : BoolFOption<"cuda-short-ptr",
 
 def emit_static_lib : Flag<["--"], "emit-static-lib">,
   HelpText<"Enable linker job to emit a static library.">;
+
+// Options controlling the static library tool. Most of these are specific
+// to Apple's libtool.
+def static_lib_target_arch_only : Flag<["--"],
+  "static-lib-target-arch-only">,
+  Visibility<[ClangOption]>,
+  HelpText<"Restrict the static library to the target architecture, ignoring "
+           "other architectures present in universal inputs (Darwin only)">;
+defm static_lib_deterministic : BoolOptionWithoutMarshalling<"",
+  "static-lib-deterministic",
+  PosFlag<SetTrue, [], [ClangOption],
+          "Set static library member metadata to fixed values so that "
+          "identical inputs produce identical output (default)">,
+  NegFlag<SetFalse, [], [ClangOption]>, BothFlags<[]>, ["--"]>;
+defm static_lib_warn_no_symbols : BoolOptionWithoutMarshalling<"",
+  "static-lib-warn-no-symbols",
+  PosFlag<SetTrue, [], [ClangOption],
+          "Warn about static library members that define no symbols">,
+  NegFlag<SetFalse, [], [ClangOption]>, BothFlags<[]>, ["--"]>;
+def Xstatic_lib_tool : Separate<["-"], "Xstatic-lib-tool">,
+  Visibility<[ClangOption]>,
+  HelpText<"Pass <arg> to the static library tool">, MetaVarName<"<arg>">;
 
 def mprintf_kind_EQ : Joined<["-"], "mprintf-kind=">, Group<m_Group>,
   HelpText<"Specify the printf lowering scheme (AMDGPU only), allowed values are "
@@ -2215,6 +2241,26 @@ defm constant_cfstrings : BoolFOption<"constant-cfstrings",
           "Disable creation of CodeFoundation-type constant strings">,
   PosFlag<SetFalse>>;
 def fconstant_string_class_EQ : Joined<["-"], "fconstant-string-class=">, Group<f_Group>;
+defm objc_constant_literals : BoolFOption<"objc-constant-literals",
+  LangOpts<"ObjCConstantLiterals">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option], "Enable">,
+  NegFlag<SetFalse, [], [], "Disable">,
+  BothFlags<[NoArgumentUnused], [ClangOption], " compile-time constant ObjC literals">>;
+def fconstant_array_class_EQ : Joined<["-"], "fconstant-array-class=">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  MarshallingInfoString<LangOpts<"ObjCConstantArrayClass">>;
+def fconstant_dictionary_class_EQ : Joined<["-"], "fconstant-dictionary-class=">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  MarshallingInfoString<LangOpts<"ObjCConstantDictionaryClass">>;
+def fconstant_integer_number_class_EQ : Joined<["-"], "fconstant-integer-number-class=">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  MarshallingInfoString<LangOpts<"ObjCConstantIntegerNumberClass">>;
+def fconstant_float_number_class_EQ : Joined<["-"], "fconstant-float-number-class=">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  MarshallingInfoString<LangOpts<"ObjCConstantFloatNumberClass">>;
+def fconstant_double_number_class_EQ : Joined<["-"], "fconstant-double-number-class=">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  MarshallingInfoString<LangOpts<"ObjCConstantDoubleNumberClass">>;
 def fconstexpr_depth_EQ : Joined<["-"], "fconstexpr-depth=">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Set the maximum depth of recursive constexpr function calls">,
@@ -3727,6 +3773,21 @@ def ffeature_availability_EQ : Joined<["-"], "ffeature-availability=">, Group<f_
   Visibility<[CC1Option]>,
   HelpText<"feature availability">,
   MarshallingInfoStringVector<LangOpts<"FeatureAvailability">>;
+defm constant_nsnumber_literals : BoolFOption<"constant-nsnumber-literals",
+  LangOpts<"ConstantNSNumberLiterals">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option], "Enable">,
+  NegFlag<SetFalse, [], [], "Disable">,
+  BothFlags<[NoArgumentUnused], [ClangOption], " compile-time constant NSNumber literals">>;
+defm constant_nsarray_literals : BoolFOption<"constant-nsarray-literals",
+  LangOpts<"ConstantNSArrayLiterals">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option], "Enable">,
+  NegFlag<SetFalse, [], [], "Disable">,
+  BothFlags<[NoArgumentUnused], [ClangOption], " compile-time constant NSArray literals">>;
+defm constant_nsdictionary_literals : BoolFOption<"constant-nsdictionary-literals",
+  LangOpts<"ConstantNSDictionaryLiterals">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option], "Enable">,
+  NegFlag<SetFalse, [], [], "Disable">,
+  BothFlags<[NoArgumentUnused], [ClangOption], " compile-time constant NSDictionary literals">>;
 def fno_common : Flag<["-"], "fno-common">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>,
     HelpText<"Compile common globals like normal definitions">;
@@ -8936,6 +8997,11 @@ def disable_pragma_debug_crash : Flag<["-"], "disable-pragma-debug-crash">,
 def source_date_epoch : Separate<["-"], "source-date-epoch">,
   MetaVarName<"<time since Epoch in seconds>">,
   HelpText<"Time to be used in __DATE__, __TIME__, and __TIMESTAMP__ macros">;
+def fmodules_force_redundant_lookup
+    : Flag<["-"], "fmodules-force-redundant-lookup">,
+      Group<f_Group>,
+      HelpText<"Force redundant module lookup when loading PCM files">,
+      MarshallingInfoFlag<PreprocessorOpts<"ModulesForceRedundantLookup">>;
 
 } // let Visibility = [CC1Option]
 

@@ -485,10 +485,18 @@ StructType *FrameTypeBuilder::finish(StringRef Name) {
 
   // We need to produce a packed struct type if there's a field whose
   // assigned offset isn't a multiple of its natural type alignment.
+  //
+  // Test against the field type's real ABI alignment rather than F.TyAlignment.
+  // addField deliberately lowers TyAlignment below the type's ABI alignment for
+  // spills that exceed MaxFrameAlignment, and emits the spill accesses at that
+  // reduced alignment. But the struct body still holds the original type, so if
+  // we left the struct unpacked DataLayout would re-impose the ABI alignment we
+  // just decided to ignore, and its element offsets would no longer match the
+  // ones we assigned here.
   bool Packed = [&] {
     for (auto &LayoutField : LayoutFields) {
       auto &F = getField(LayoutField);
-      if (!isAligned(F.TyAlignment, LayoutField.Offset))
+      if (!isAligned(DL.getABITypeAlign(F.Ty), LayoutField.Offset))
         return true;
     }
     return false;

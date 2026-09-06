@@ -4401,7 +4401,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   }
 
   // Determine whether we should infer _Nonnull on pointer types.
-  std::optional<NullabilityKind> inferNullability;
+  NullabilityKindOrNone inferNullability = std::nullopt;
   bool inferNullabilityCS = false;
   bool inferNullabilityInnerOnly = false;
   bool inferNullabilityInnerOnlyComplete = false;
@@ -11136,6 +11136,23 @@ QualType Sema::BuildDynamicRangePointerType(QualType PointerTy, Expr *StartPtr,
                           : ArrayRef<TypeCoupledDeclRefInfo>());
 }
 /* TO_UPSTREAM(BoundsSafety) OFF */
+
+ExprResult Sema::CanonicalizeBoundsCountExpr(Expr *CountExpr, bool CountInBytes,
+                                             bool OrNull, bool ScopeCheck,
+                                             bool IsArray) {
+  llvm::SmallVector<TypeCoupledDeclRefInfo, 1> Decls;
+  ExprResult R =
+      CountArgChecker(*this, Decls, CountInBytes, OrNull, ScopeCheck, IsArray)
+          .TransformExpr(CountExpr);
+  if (R.isInvalid())
+    return ExprError();
+  return DefaultLvalueConversion(R.get());
+}
+
+ExprResult Sema::CanonicalizeRangeEndPtrExpr(Expr *EndPtr, bool ScopeCheck) {
+  RangeArgChecker RAC(*this, ScopeCheck);
+  return RAC.TransformExpr(EndPtr);
+}
 
 static void
 BuildTypeCoupledDecls(Expr *E,

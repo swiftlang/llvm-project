@@ -32,6 +32,8 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 
+#include "swift/Demangling/ManglingMacros.h"
+
 #include "llvm/DebugInfo/DWARF/DWARFAddressRange.h"
 
 #include "clang/AST/DeclObjC.h"
@@ -254,7 +256,8 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
   if (!compiler_type && die.Tag() == llvm::dwarf::DW_TAG_typedef) {
     // Handle Archetypes, which are typedefs to RawPointerType.
     llvm::StringRef typedef_name = GetTypedefName(die);
-    if (typedef_name.starts_with("$sBp")) {
+    if (typedef_name.starts_with(MANGLING_PREFIX_STR "Bp") ||
+        typedef_name.starts_with(MANGLING_PREFIX_EMBEDDED_STR "Bp")) {
       preferred_name = name;
       compiler_type = m_swift_typesystem.GetTypeFromMangledTypename(
           ConstString(typedef_name));

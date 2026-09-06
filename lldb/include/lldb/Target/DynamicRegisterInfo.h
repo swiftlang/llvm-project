@@ -20,10 +20,6 @@
 namespace lldb_private {
 
 class DynamicRegisterInfo {
-protected:
-  DynamicRegisterInfo(DynamicRegisterInfo &) = default;
-  DynamicRegisterInfo &operator=(DynamicRegisterInfo &) = default;
-
 public:
   struct Register {
     ConstString name;
@@ -45,6 +41,9 @@ public:
   };
 
   DynamicRegisterInfo() = default;
+  DynamicRegisterInfo(DynamicRegisterInfo &) = default;
+  DynamicRegisterInfo &operator=(DynamicRegisterInfo &) = default;
+
 
   static std::unique_ptr<DynamicRegisterInfo>
   Create(const StructuredData::Dictionary &dict, const ArchSpec &arch);

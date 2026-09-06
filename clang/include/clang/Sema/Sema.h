@@ -2848,6 +2848,32 @@ public:
                                     SourceRange Range, StringRef DiagName,
                                     bool OriginatesInAPINotes = false,
                                     bool InInstantiatedTemplate = false);
+
+  struct BoundsAttrFlags {
+    bool CountInBytes = false;
+    bool OrNull = false;
+    bool IsEndedBy = false;
+  };
+  static BoundsAttrFlags getBoundsAttrFlags(AttributeCommonInfo::Kind K);
+  static BoundsAttributedType::BoundsAttrKind
+  getBoundsAttrKind(const BoundsAttrFlags &);
+
+  /// Validates that a type is eligible for an "externally counted" bounds
+  /// attribute (counted_by/sized_by/ended_by). When building with
+  /// `getLangOpts().hasBoundsSafetyAttributes()` a larger set of
+  /// diagnostics required by the -fbounds-safety programming model are used.
+  ///
+  /// \returns true if the type is valid, false on error. The atomic-of-pointer
+  /// case is a special exception: it emits an error diagnostic but returns true
+  /// so the caller can still construct the atomic type to avoid additional
+  /// diagnostics.
+  bool ValidateBoundsAttrTypeShape(QualType Ty, SourceLocation AttrLoc,
+                                   SourceRange AttrRange,
+                                   BoundsAttrFlags &Flags,
+                                   StringRef AttrSpelling = {},
+                                   bool AllowRedecl = false,
+                                   Expr *AttrArg = nullptr);
+
   /* TO_UPSTREAM(BoundsSafety) OFF*/
 
 
@@ -3032,13 +3058,13 @@ public:
   };
 
   /// Given a function and its FormatAttr or FormatMatchesAttr info, attempts to
-  /// populate the FomatStringInfo parameter with the attribute's correct
+  /// populate the FormatStringInfo parameter with the attribute's correct
   /// format_idx and firstDataArg. Returns true when the format fits the
   /// function and the FormatStringInfo has been populated.
   static bool getFormatStringInfo(const Decl *Function, unsigned FormatIdx,
                                   unsigned FirstArg, FormatStringInfo *FSI);
   static bool getFormatStringInfo(unsigned FormatIdx, unsigned FirstArg,
-                                  bool IsCXXMember, bool IsVariadic,
+                                  bool HasImplicitThisParam, bool IsVariadic,
                                   FormatStringInfo *FSI);
 
   // Used by C++ template instantiation.
@@ -5567,7 +5593,7 @@ public:
     // In C++ the implicit 'this' function parameter also counts.
     // Parameters are counted from one.
     bool HP = hasFunctionProto(D);
-    bool HasImplicitThisParam = isInstanceMethod(D);
+    bool HasImplicitThisParam = hasImplicitObjectParameter(D);
     bool IV = HP && isFunctionOrMethodVariadic(D);
     unsigned NumParams =
         (HP ? getFunctionOrMethodNumParams(D) : 0) + HasImplicitThisParam;
@@ -15825,6 +15851,17 @@ public:
 
   QualType BuildDynamicRangePointerType(QualType PointerTy, Expr *StartPtr,
                                         Expr *EndPtr, bool ScopeCheck = false);
+
+  /// Canonicalize a count expression the same way BuildCountAttributedType
+  /// does, without constructing the type. Used for redecl comparison.
+  ExprResult CanonicalizeBoundsCountExpr(Expr *CountExpr, bool CountInBytes,
+                                         bool OrNull, bool ScopeCheck,
+                                         bool IsArray);
+
+  /// Canonicalize a range (end-pointer) expression the same way
+  /// BuildDynamicRangePointerType does, without constructing the type or
+  /// mutating any declarations. Used for redecl comparison.
+  ExprResult CanonicalizeRangeEndPtrExpr(Expr *EndPtr, bool ScopeCheck);
   /* TO_UPSTREAM(BoundsSafety) OFF*/
 
   bool BuiltinIsBaseOf(SourceLocation RhsTLoc, QualType LhsT, QualType RhsT);

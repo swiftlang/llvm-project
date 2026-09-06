@@ -424,7 +424,7 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
   if (TC.getTriple().isOSAIX()) {
     if (Arg *ProfileSampleUseArg = getLastProfileSampleUseArg(Args))
       D.Diag(diag::err_drv_unsupported_opt_for_target)
-          << ProfileSampleUseArg->getSpelling() << TC.getTriple().str();
+          << ProfileSampleUseArg->getSpelling() << TC.getTripleString();
   }
 
   if (ProfileGenerateArg) {
@@ -1330,7 +1330,7 @@ static void renderRemarksOptions(const ArgList &Args, ArgStringList &CmdArgs,
           !JA.isDeviceOffloading(Action::OFK_Host)) {
         llvm::sys::path::replace_extension(F, "");
         F += Action::GetOffloadingFileNamePrefix(JA.getOffloadingDeviceKind(),
-                                                 Triple.normalize());
+                                                 Triple.str());
         F += "-";
         F += JA.getOffloadingArch();
       }
@@ -4331,6 +4331,32 @@ static void RenderObjCOptions(const ToolChain &TC, const Driver &D,
 
   if (Args.hasArg(options::OPT_fobjc_disable_direct_methods_for_testing))
     CmdArgs.push_back("-fobjc-disable-direct-methods-for-testing");
+
+  // Forward constant literal flags to cc1.
+  if (types::isObjC(Input.getType())) {
+    bool EnableConstantLiterals =
+        Args.hasFlag(options::OPT_fobjc_constant_literals,
+                     options::OPT_fno_objc_constant_literals,
+                     /*default=*/true) &&
+        Runtime.hasConstantLiteralClasses();
+    if (EnableConstantLiterals)
+      CmdArgs.push_back("-fobjc-constant-literals");
+    if (Args.hasFlag(options::OPT_fconstant_nsnumber_literals,
+                     options::OPT_fno_constant_nsnumber_literals,
+                     /*default=*/true) &&
+        EnableConstantLiterals)
+      CmdArgs.push_back("-fconstant-nsnumber-literals");
+    if (Args.hasFlag(options::OPT_fconstant_nsarray_literals,
+                     options::OPT_fno_constant_nsarray_literals,
+                     /*default=*/true) &&
+        EnableConstantLiterals)
+      CmdArgs.push_back("-fconstant-nsarray-literals");
+    if (Args.hasFlag(options::OPT_fconstant_nsdictionary_literals,
+                     options::OPT_fno_constant_nsdictionary_literals,
+                     /*default=*/true) &&
+        EnableConstantLiterals)
+      CmdArgs.push_back("-fconstant-nsdictionary-literals");
+  }
 }
 
 static void RenderDiagnosticsOptions(const Driver &D, const ArgList &Args,
@@ -5311,12 +5337,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
 
   if (IsOpenMPDevice) {
     // We have to pass the triple of the host if compiling for an OpenMP device.
-    std::string NormalizedTriple =
-        C.getSingleOffloadToolChain<Action::OFK_Host>()
-            ->getTriple()
-            .normalize();
+    const llvm::Triple &HostTriple =
+        C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple();
     CmdArgs.push_back("-aux-triple");
-    CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
+    CmdArgs.push_back(HostTriple.str().c_str());
   }
 
   if (Triple.isOSWindows() && (Triple.getArch() == llvm::Triple::arm ||
@@ -6743,6 +6767,28 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
 
   if (Arg *A = Args.getLastArg(options::OPT_fconstant_string_class_EQ)) {
     CmdArgs.push_back("-fconstant-string-class");
+    CmdArgs.push_back(A->getValue());
+  }
+
+  if (Arg *A = Args.getLastArg(options::OPT_fconstant_array_class_EQ)) {
+    CmdArgs.push_back("-fconstant-array-class");
+    CmdArgs.push_back(A->getValue());
+  }
+  if (Arg *A = Args.getLastArg(options::OPT_fconstant_dictionary_class_EQ)) {
+    CmdArgs.push_back("-fconstant-dictionary-class");
+    CmdArgs.push_back(A->getValue());
+  }
+  if (Arg *A =
+          Args.getLastArg(options::OPT_fconstant_integer_number_class_EQ)) {
+    CmdArgs.push_back("-fconstant-integer-number-class");
+    CmdArgs.push_back(A->getValue());
+  }
+  if (Arg *A = Args.getLastArg(options::OPT_fconstant_float_number_class_EQ)) {
+    CmdArgs.push_back("-fconstant-float-number-class");
+    CmdArgs.push_back(A->getValue());
+  }
+  if (Arg *A = Args.getLastArg(options::OPT_fconstant_double_number_class_EQ)) {
+    CmdArgs.push_back("-fconstant-double-number-class");
     CmdArgs.push_back(A->getValue());
   }
 

@@ -5,7 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftGenericFunction(lldbtest.TestBase):
-    @skipEmbeddedSwift # rdar://184867789 (Embedded Swift: monomorphized frames have no metadata variable to bind generic parameters from)
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
     def test(self):
         """Test display of generic function names"""
@@ -25,7 +25,10 @@ class TestSwiftGenericFunction(lldbtest.TestBase):
         stream = lldb.SBStream()
         bkpt.GetLocationAtIndex(0).GetDescription(stream, 1)
         desc = stream.GetData()
-        self.assertIn("C.f<T>(_:_:)", desc)
+        if self.isEmbeddedSwift():
+            self.assertIn("specialized C.f<Int>(_:_:)", desc)
+        else:
+            self.assertIn("C.f<T>(_:_:)", desc)
 
         # Demangling only:
         fs = target.FindFunctions("f")

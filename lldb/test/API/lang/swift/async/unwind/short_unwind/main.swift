@@ -1,5 +1,6 @@
+func foo() async throws {}
 func work() async -> Int {
-  try? await Task.sleep(for: .seconds(3))  // BREAK HERE
+  try? await foo()  // BREAK HERE
   return 10
 }
 func foo_should_step_over() async -> Int {

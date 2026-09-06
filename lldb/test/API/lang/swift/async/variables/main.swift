@@ -2,9 +2,9 @@ import Swift
 func use<T>(_ t: T) {}
 func sink<T>(_ t: T) {}
 
-func split() async {}
+nonisolated(nonsending) func split() async {}
 
-func f(_ xs: [Int?]) async {
+nonisolated(nonsending) func f(_ xs: [Int?]) async {
   for x in xs {
     let x = x!
     sink(x) // break here

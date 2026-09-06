@@ -1,0 +1,65 @@
+# a.waitComplete(Swift.Bool) -> Swift.Bool is sync and its last instruction is a
+# `bl`, so its return address (0x100001034) is one past its end -- the first byte
+# of a.asyncDecoy() async -> ().  Resolving that return address without backing it
+# up by one names asyncDecoy, so the Swift language runtime hands out an async
+# unwind plan (CFA from x22) for a sync frame, and a.caller() is lost.
+#
+# Symbol names and address ranges are in binary.json.  Code layout:
+#
+#   0x100001000  reportAndDie  stp/mov, str x9,[x8] <- pc, b .
+#   0x100001010  doPanic       stp/mov, bl reportAndDie, nop, ldp/ret
+#   0x100001028  waitComplete  stp/mov, bl doPanic           ends 0x100001034
+#   0x100001034  asyncDecoy    async, never executed
+#   0x100001044  caller        stp/mov, bl waitComplete, nop, ldp/ret
+#
+# Two constraints on the addresses:
+#
+#  - The code must sit past the end of binary.json itself.  The TEXT section
+#    declares file_offset 0, so at low section offsets lldb reads instruction
+#    bytes out of the json file rather than from this corefile, and instruction
+#    emulation then derives a useless UnwindPlan from json text.
+#  - The nop after each bl keeps return addresses inside the function body
+#    instead of on its epilogue, which emulation reads as a torn-down frame.
+
+cpu: arm64
+threads:
+  - regsets:
+    - flavor: gpr
+      registers: [{name: sp,  value: 0x000000016fdfef00},
+                  {name: fp,  value: 0x000000016fdfef00},
+                  {name: lr,  value: 0x000000010000101c},
+                  {name: pc,  value: 0x0000000100001008},
+                  {name: x22, value: 0x000000016fdfd000}]
+
+memory-regions:
+  # Frame-pointer chain.  Each frame stores {saved fp, saved lr} at its own fp.
+  - addr: 0x16fdfef00
+    UInt64: [
+      # reportAndDie's frame
+      0x000000016fdfef10,   # -> doPanic's fp
+      0x000000010000101c,   # return into doPanic, at its nop
+      # doPanic's frame
+      0x000000016fdfef20,   # -> waitComplete's fp
+      0x0000000100001034,   # waitComplete's end == asyncDecoy's start
+      # waitComplete's frame
+      0x000000016fdfef30,   # -> caller's fp
+      0x0000000100001050,   # return into caller, at its nop
+      # caller's frame: zeroed, to end the backtrace here
+      0x0000000000000000,
+      0x0000000000000000
+    ]
+
+  # The async context register has to point at readable memory, otherwise the
+  # buggy path bails out before building a plan.
+  - addr: 0x16fdfd000
+    UInt64: [ 0x0000000000000000, 0x0000000000000000 ]
+
+  # Instructions, so lldb can derive unwind plans by emulation.
+  - addr: 0x100001000
+    UInt32: [
+      0xa9bf7bfd, 0x910003fd, 0xf9000109, 0x14000000,                          # reportAndDie
+      0xa9bf7bfd, 0x910003fd, 0x97fffffa, 0xd503201f, 0xa8c17bfd, 0xd65f03c0,  # doPanic
+      0xa9bf7bfd, 0x910003fd, 0x97fffff8,                                      # waitComplete
+      0xa9bf7bfd, 0x910003fd, 0xa8c17bfd, 0xd65f03c0,                          # asyncDecoy
+      0xa9bf7bfd, 0x910003fd, 0x97fffff7, 0xd503201f, 0xa8c17bfd, 0xd65f03c0   # caller
+    ]

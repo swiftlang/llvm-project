@@ -205,9 +205,10 @@ bool CommandObject::CheckRequirements(CommandReturnObject &result) {
 
     if (flags & eCommandTryTargetAPILock) {
       Target *target = m_exe_ctx.GetTargetPtr();
-      if (target)
-        m_api_locker =
-            std::unique_lock<std::recursive_mutex>(target->GetAPIMutex());
+      if (target) {
+        m_api_mutex = target->GetAPIMutex();
+        m_api_locker = std::unique_lock<TargetAPIMutex>(m_api_mutex);
+      }
     }
   }
 

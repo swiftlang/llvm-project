@@ -19,7 +19,7 @@ import os
 
 
 class TestSwiftBacktracePrinting(TestBase):
-    @skipEmbeddedSwift # rdar://184867789 (Embedded Swift: monomorphized frames have no metadata variable to bind generic parameters from)
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
     def test_swift_backtrace_printing(self):
         """Test printing Swift backtrace"""
@@ -30,5 +30,8 @@ class TestSwiftBacktracePrinting(TestBase):
         self.expect("bt", substrs=['h<Int>',
                                    'g<String, Int>', 'pair', # FIXME: values are still wrong!
                                    'arg1=12', 'arg2="Hello world"'])
-        self.expect("breakpoint set -p other", substrs=['g<U, T>'])
+        if self.isEmbeddedSwift():
+            self.expect("breakpoint set -p other", substrs=['g<String, Int>'])
+        else:
+            self.expect("breakpoint set -p other", substrs=['g<U, T>'])
 

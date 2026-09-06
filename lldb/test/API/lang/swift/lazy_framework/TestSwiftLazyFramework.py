@@ -10,7 +10,7 @@ class TestSwiftLazyFramework(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184839637 (Type lookup searches the frame's module, not the type's owning module)
     @swiftTest
     @requireMacOS
     # FIXME: Without the ClangImporter, transitive module dependencies can't be

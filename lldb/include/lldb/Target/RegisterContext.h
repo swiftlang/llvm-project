@@ -226,6 +226,8 @@ public:
 
   void SetStopID(uint32_t stop_id) { m_stop_id = stop_id; }
 
+  uint32_t GetConcreteFrameIndex() const { return m_concrete_frame_idx; }
+
 protected:
   /// Indicates that this frame is currently executing code,
   /// that the PC value is not a return-pc but an actual executing

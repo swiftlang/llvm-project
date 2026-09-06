@@ -3072,7 +3072,7 @@ public:
   CommandObjectLanguageSwiftTaskInfo(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "info",
                             "Print info about the Task being run on the "
-                            "current thread or the Task at the given address."
+                            "current thread or the Task at the given address.",
                             "language swift task info [<address>]") {
     AddSimpleArgumentList(eArgTypeAddress, eArgRepeatOptional);
   }
@@ -3551,10 +3551,18 @@ SwiftLanguageRuntime::GetRuntimeUnwindPlan(ProcessSP process_sp,
   Address pc;
   pc.SetLoadAddress(regctx->GetPC(), &target);
   SymbolContext sc;
-  if (pc.IsValid())
-    if (!pc.CalculateSymbolContext(&sc, eSymbolContextFunction |
-                                            eSymbolContextSymbol))
-      return UnwindPlanSP();
+  behaves_like_zeroth_frame = regctx->GetConcreteFrameIndex() == 0;
+
+  {
+    Address pc_for_lookup = pc;
+    // If a PC is a return address, it may point to a different function.
+    if (!behaves_like_zeroth_frame)
+      pc_for_lookup.Slide(-1);
+    if (pc_for_lookup.IsValid())
+      if (!pc_for_lookup.CalculateSymbolContext(&sc, eSymbolContextFunction |
+                                                         eSymbolContextSymbol))
+        return UnwindPlanSP();
+  }
 
   Address func_start_addr;
   ConstString mangled_name;
@@ -3922,9 +3930,9 @@ private:
   std::optional<lldb::addr_t> m_tls_file_addr;
 };
 
-// (anonymous namespace)::ActiveTask::Value in the Swift concurrency runtime.
+// The exported current-task thread-local in the Swift concurrency runtime.
 static constexpr llvm::StringLiteral g_cxx_thread_local_task_symbol =
-    "_ZN12_GLOBAL__N_110ActiveTask5ValueE";
+    "_swift_concurrency_currentTask";
 
 CxxThreadLocalTaskFinder::CxxThreadLocalTaskFinder(ModuleSP concurrency_module)
     : m_concurrency_module(std::move(concurrency_module)) {

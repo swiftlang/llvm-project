@@ -98,6 +98,7 @@ template<typename T>
 struct unique_ptr {
   ~unique_ptr();
   T &operator*();
+  T *operator->();
   T *get() const;
 };
 
@@ -114,6 +115,7 @@ struct optional {
   template<typename U>
   optional(optional<U>&& __t);
 
+  T *operator->();
   T &operator*() &;
   T &&operator*() &&;
   T &value() &;

@@ -8,7 +8,6 @@ class TestCase(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
-    unwind_fail_range_cache = dict()
 
     @skipEmbeddedSwiftOnLinux
     @swiftTest

@@ -5062,7 +5062,7 @@ LinkageInfo Type::getLinkageAndVisibility() const {
   return LinkageComputer{}.getTypeLinkageAndVisibility(this);
 }
 
-std::optional<NullabilityKind> Type::getNullability() const {
+NullabilityKindOrNone Type::getNullability() const {
   QualType Type(this, 0);
   while (const auto *AT = Type->getAs<AttributedType>()) {
     // Check whether this is an attributed type with nullability
@@ -5228,7 +5228,7 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   llvm_unreachable("bad type kind!");
 }
 
-std::optional<NullabilityKind> AttributedType::getImmediateNullability() const {
+NullabilityKindOrNone AttributedType::getImmediateNullability() const {
   if (getAttrKind() == attr::TypeNonNull)
     return NullabilityKind::NonNull;
   if (getAttrKind() == attr::TypeNullable)
@@ -5240,8 +5240,7 @@ std::optional<NullabilityKind> AttributedType::getImmediateNullability() const {
   return std::nullopt;
 }
 
-std::optional<NullabilityKind>
-AttributedType::stripOuterNullability(QualType &T) {
+NullabilityKindOrNone AttributedType::stripOuterNullability(QualType &T) {
   QualType AttrTy = T;
   if (auto MacroTy = dyn_cast<MacroQualifiedType>(T))
     AttrTy = MacroTy->getUnderlyingType();

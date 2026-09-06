@@ -12,7 +12,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftCrossModuleExtensionSelf(TestBase):
-    @skipEmbeddedSwift # 6.4.x only
+    @requireNotEmbeddedSwift # library evolution cannot be enabled with embedded Swift
     @swiftTest
     def test_unusable_self_does_not_break_frame(self):
         self.build()

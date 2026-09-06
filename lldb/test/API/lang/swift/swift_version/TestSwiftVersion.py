@@ -21,7 +21,7 @@ import os.path
 import time
 
 class TestSwiftVersion(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185129232 (Embedded Swift: calling an initializer in an expression across -swift-version modules yields no value)
     @skipUnlessDarwin
     @swiftTest
     def test_cross_module_extension(self):

@@ -29,7 +29,11 @@
 // WITH-APINOTES-NEXT:   - Name: top
 // WITH-APINOTES-NEXT:     Availability: none
 // WITH-APINOTES-NEXT:     AvailabilityMsg: "don't use this"
+// WITH-APINOTES: Top.apinotes
 // WITHOUT-APINOTES-NOT: APINotes:
+
+// Ensure subsequent builds use the API notes captured in CAS.
+// RUN: rm %t/Top.apinotes
 
 // Build the include-tree commands
 // RUN: %clang @%t/Top.rsp 2>&1 | FileCheck %s -check-prefix=CACHE_MISS

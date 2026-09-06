@@ -626,7 +626,7 @@ void HexagonToolChain::AddCXXStdlibLibArgs(const ArgList &Args,
     const Arg *A = Args.getLastArg(options::OPT_unwindlib_EQ);
     if (A) {
       getDriver().Diag(diag::err_drv_unsupported_unwind_for_platform)
-          << A->getValue() << getTriple().normalize();
+          << A->getValue() << getTripleString();
       return;
     }
   }

@@ -1403,12 +1403,6 @@ public:
   ///     pre-computed.
   void PrintWarningOptimization(const SymbolContext &sc);
 
-#ifdef LLDB_ENABLE_SWIFT
-  /// Print a user-visible warning about Swift CUs compiled with a
-  /// different Swift compiler than the one embedded in LLDB.
-  void PrintWarningToolchainMismatch(const SymbolContext &sc);
-#endif
-
   /// Print a user-visible warning about a function written in a
   /// language that this version of LLDB doesn't support.
   ///

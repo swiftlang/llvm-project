@@ -1208,14 +1208,10 @@ llvm::Value *CodeGenFunction::emitCountedByPointerSize(
         getContext().getTypeSizeInChars(ElementTy->getPointeeType());
 
     if (ElementSize.isZero()) {
-      // This might be a __sized_by on a 'void *', which counts bytes, not
-      // elements.
+      // This might be a __sized_by (or __counted_by) on a
+      // 'void *', which counts bytes, not elements.
       auto *CAT = ElementTy->getAs<CountAttributedType>();
-      if (!CAT || (CAT->getKind() != CountAttributedType::SizedBy &&
-                   CAT->getKind() != CountAttributedType::SizedByOrNull))
-        // Okay, not sure what it is now.
-        // FIXME: Should this be an assert?
-        return std::optional<CharUnits>();
+      assert(CAT && "must have an CountAttributedType");
 
       ElementSize = CharUnits::One();
     }
@@ -1670,7 +1666,7 @@ static llvm::Value *EmitX86BitTestIntrinsic(CodeGenFunction &CGF,
       CGF.getLLVMContext(),
       CGF.getContext().getTypeSize(E->getArg(1)->getType()));
   llvm::FunctionType *FTy =
-      llvm::FunctionType::get(CGF.Int8Ty, {CGF.UnqualPtrTy, IntType}, false);
+      llvm::FunctionType::get(CGF.Int8Ty, {CGF.DefaultPtrTy, IntType}, false);
 
   llvm::InlineAsm *IA =
       llvm::InlineAsm::get(FTy, Asm, Constraints, /*hasSideEffects=*/true);
