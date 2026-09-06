@@ -31,12 +31,11 @@ static cl::opt<cl::boolOrDefault>
                         "option will default to what the target prefers."),
                cl::init(cl::boolOrDefault::BOU_UNSET));
 
-static Error runCodeGenPipelineLegacy(TargetMachine &TM, Module &M,
-                                      raw_pwrite_stream &OS,
-                                      std::unique_ptr<ToolOutputFile> &DwoOS,
-                                      CodeGenFileType CGFT,
-                                      bool PrintPipelinePasses,
-                                      bool DisableVerify) {
+static Error
+runCodeGenPipelineLegacy(TargetMachine &TM, Module &M, raw_pwrite_stream &OS,
+                         std::unique_ptr<ToolOutputFile> &DwoOS,
+                         raw_pwrite_stream *CasIDOS, CodeGenFileType CGFT,
+                         bool PrintPipelinePasses, bool DisableVerify) {
   legacy::PassManager CodeGenPasses;
   CodeGenPasses.add(
       createTargetTransformInfoWrapperPass(TM.getTargetIRAnalysis()));
@@ -50,7 +49,7 @@ static Error runCodeGenPipelineLegacy(TargetMachine &TM, Module &M,
                                     Options.MCOptions.ABIName, Options.VecLib));
 
   if (TM.addPassesToEmitFile(CodeGenPasses, OS, DwoOS ? &DwoOS->os() : nullptr,
-                             CGFT, DisableVerify))
+                             CGFT, DisableVerify, nullptr, CasIDOS))
     return createStringError("Failed to construct CodeGen pipeline");
   CodeGenPasses.run(M);
 
@@ -97,8 +96,8 @@ static Error runCodeGenPipelineNewPM(TargetMachine &TM, Module &M,
 Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
                                raw_pwrite_stream &OS,
                                std::unique_ptr<ToolOutputFile> &DwoOS,
-                               CodeGenFileType CGFT, bool PrintPipelinePasses,
-                               bool DisableVerify,
+                               raw_pwrite_stream *CasIDOS, CodeGenFileType CGFT,
+                               bool PrintPipelinePasses, bool DisableVerify,
                                IntrusiveRefCntPtr<vfs::FileSystem> VFS) {
   if (ForceNewPM == cl::boolOrDefault::BOU_TRUE ||
       (TM.shouldDefaultToNewPM() &&
@@ -106,6 +105,6 @@ Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
     return runCodeGenPipelineNewPM(TM, M, OS, DwoOS, CGFT, DisableVerify, VFS);
   }
 
-  return runCodeGenPipelineLegacy(TM, M, OS, DwoOS, CGFT, PrintPipelinePasses,
-                                  DisableVerify);
+  return runCodeGenPipelineLegacy(TM, M, OS, DwoOS, CasIDOS, CGFT,
+                                  PrintPipelinePasses, DisableVerify);
 }
