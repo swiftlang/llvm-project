@@ -249,7 +249,7 @@ define void @loop_latch_not_executed_constant_bound(i32 %y, i1 %c) {
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    call void @use(i1 true)
-; CHECK-NEXT:    [[X_NEXT]] = add i32 [[X]], 1
+; CHECK-NEXT:    [[X_NEXT]] = add nuw nsw i32 [[X]], 1
 ; CHECK-NEXT:    br label [[LOOP_HEADER]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    [[C_4:%.*]] = icmp ugt i32 [[Y:%.*]], 10
