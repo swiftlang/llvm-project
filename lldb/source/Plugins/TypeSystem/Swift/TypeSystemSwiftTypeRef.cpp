@@ -5803,6 +5803,9 @@ bool TypeSystemSwiftTypeRef::DumpTypeValue(
       LLVM_FALLTHROUGH;
     case Node::Kind::BuiltinTypeName:
     case Node::Kind::DependentGenericParamType:
+    // An unbound associated type such as `τ_0_0.Element`. Just like a bare
+    // generic parameter this is an opaque archetype, so print its raw value.
+    case Node::Kind::DependentMemberType:
     case Node::Kind::FunctionType:
     case Node::Kind::NoEscapeFunctionType:
     case Node::Kind::CFunctionPointer:
