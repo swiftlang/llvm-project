@@ -839,6 +839,14 @@ static Module *prepareToBuildModule(CompilerInstance &CI,
   if (auto CacheKey = CI.getCompileJobCacheKey())
     M->setModuleCacheKey(CacheKey->toString());
 
+  StringRef OriginalModuleMap = CI.getFrontendOpts().OriginalModuleMap;
+  if (!OriginalModuleMap.empty()) {
+    M->PresumedModuleMapFile = OriginalModuleMap.str();
+    StringRef ModuleDirectory = llvm::sys::path::parent_path(OriginalModuleMap);
+    if (auto Dir = CI.getFileManager().getOptionalDirectoryRef(ModuleDirectory))
+      M->Directory = *Dir;
+  }
+
   // If we're being run from the command-line, the module build stack will not
   // have been filled in yet, so complete it now in order to allow us to detect
   // module cycles.
