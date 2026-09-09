@@ -1826,6 +1826,27 @@ bool SwiftASTContext::HasNonexistentExplicitModule(
   return false;
 }
 
+bool SwiftASTContext::HasNonexistentExplicitSwiftModule() {
+  if (!m_explicit_swift_module_map)
+    return false;
+  for (auto &entry : *m_explicit_swift_module_map) {
+    const auto &info = entry.getValue();
+    // For CAS modules the content lives in the object store keyed by
+    // moduleCacheKey rather than on disk; check the effective location.
+    StringRef path = info.moduleCacheKey ? StringRef(*info.moduleCacheKey)
+                                         : StringRef(info.modulePath);
+    if (path.empty())
+      continue;
+    if (!IsModuleAvailable(path)) {
+      HEALTH_LOG_PRINTF(
+          "Nonexistent explicit Swift module file in module map: %s",
+          path.str().c_str());
+      return true;
+    }
+  }
+  return false;
+}
+
 namespace {
 void RemoveExplicitModules(std::vector<std::string> &args) {
   llvm::erase_if(args, [](const std::string &arg) {
@@ -1948,6 +1969,26 @@ void SwiftASTContext::AddExtraClangArgs(
         });
     ConfigureModuleValidation(importer_options.ExtraArgs);
   });
+
+  // The explicit Swift module map is consulted independently of the Clang
+  // arguments handled below. In particular the DirectClangCC1ModuleBuild path
+  // returns early and would skip the HasNonexistentExplicitModule() check. If
+  // any explicitly-referenced Swift module file no longer exists (e.g. its SDK
+  // was deleted, see TestMissingSDK), drop the explicit Swift module map here
+  // so the standard library is loaded implicitly from LLDB's own resource dir
+  // instead of failing on the dead explicit path.
+  if (HasNonexistentExplicitSwiftModule()) {
+    m_downgraded_to_implicit_modules = true;
+    m_has_explicit_modules = false;
+    m_explicit_swift_module_map.reset();
+    // Disable explicit modules (and allow implicit) globally so that ALL
+    // SwiftASTContexts - including the expression scratch context created
+    // later - fall back to implicit module loading, which finds the standard
+    // library in LLDB's own resource dir instead of failing on the dead
+    // explicit module path. Mirrors the retry path in LoadOneModule().
+    Target::GetGlobalProperties().SetSwiftAllowExplicitModules(false);
+    Target::GetGlobalProperties().SetSwiftAllowImplicitModules(true);
+  }
 
   if (!ExtraArgs.empty()) {
     // Detect cc1 flags.  When DirectClangCC1ModuleBuild is on then the
