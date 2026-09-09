@@ -9,7 +9,7 @@ class TestCase(lldbtest.TestBase):
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
 
-    @skipEmbeddedSwiftOnLinux
+    @skipEmbeddedSwift
     @swiftTest
     @skipIf(oslist=["windows",])
     @skipIf(archs=["arm64e"])
