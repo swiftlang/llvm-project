@@ -1818,9 +1818,6 @@ SwiftExpressionParser::Parse(DiagnosticManager &diagnostic_manager,
             retry = true;
             return;
           }
-          // There are no fallback contexts in REPL and playgrounds.
-          if (repl || playground)
-            return;
           // The fatal error causes a new compiler to be instantiated on retry.
           m_swift_ast_ctx.RaiseFatalError(MIE.message());
         },

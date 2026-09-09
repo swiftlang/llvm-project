@@ -4585,24 +4585,29 @@ SwiftASTContext::GetModule(const SourceModule &module, bool *cached) {
     return *module_decl;
   }
 
-  ThreadSafeASTContext ast = GetASTContext();
-  if (!ast) {
-    LOG_PRINTF(GetLog(LLDBLog::Types), "(\"%s\") invalid ASTContext",
-               module.path.front().GetCString());
+  swift::ASTContext *raw_ast = nullptr;
+  {
+    ThreadSafeASTContext ast = GetASTContext();
+    if (!ast) {
+      LOG_PRINTF(GetLog(LLDBLog::Types), "(\"%s\") invalid ASTContext",
+                 module.path.front().GetCString());
 
-    return llvm::createStringError("invalid swift::ASTContext");
-  }
+      return llvm::createStringError("invalid swift::ASTContext");
+    }
 
-  if (HasFatalErrors()) {
-    return llvm::createStringError(
-        llvm::formatv("failed to get module \"{0}\" from AST context:\n"
-                      "AST context is in a fatal error state",
-                      module_name));
+    if (HasFatalErrors()) {
+      return llvm::createStringError(
+          llvm::formatv("failed to get module \"{0}\" from AST context:\n"
+                        "AST context is in a fatal error state",
+                        module_name));
+    }
+
+    raw_ast = *ast;
   }
 
   // Create a diagnostic consumer for the diagnostics produced by the import.
   auto import_diags = getScopedDiagnosticConsumer();
-  swift::ModuleDecl *module_decl = ast->getModuleByName(module_name);
+  swift::ModuleDecl *module_decl = raw_ast->getModuleByName(module_name);
 
   // Error handling.
   if (import_diags->HasErrors()) {
