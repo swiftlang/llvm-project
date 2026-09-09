@@ -62,6 +62,10 @@ public:
   virtual void OnDebugString(const std::string &string);
   virtual void OnDebuggerError(const Status &error, uint32_t type);
 
+  static bool IsSystemDLL(llvm::StringRef path);
+
+  bool IsSystemModuleAddress(lldb::addr_t addr);
+
 protected:
   Status DetachProcess();
 
