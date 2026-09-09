@@ -931,7 +931,7 @@ define void @signed_gt_exit_unsigned_fact(i64 %n) {
 ; CHECK-NEXT:    [[STOP:%.*]] = icmp eq i64 [[IV]], 4
 ; CHECK-NEXT:    br i1 [[STOP]], label %[[EXIT:.*]], label %[[LOOP_LATCH]]
 ; CHECK:       [[LOOP_LATCH]]:
-; CHECK-NEXT:    [[IV_NEXT]] = add nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
 ; CHECK-NEXT:    [[EC:%.*]] = icmp sgt i64 [[IV_NEXT]], [[N]]
 ; CHECK-NEXT:    br i1 [[EC]], label %[[EXIT]], label %[[LOOP_HEADER]]
 ; CHECK:       [[EXIT]]:
