@@ -2525,7 +2525,9 @@ public:
                   registry_addr.getAddressSpace());
               uint64_t task_addr = 0;
               if (reader.readInteger(shard_addr, pointer_size, &task_addr)) {
-                while (task_addr) {
+                int32_t nodes = 0;
+                int32_t max_registry_nodes = 10000;
+                while (task_addr && nodes++ < max_registry_nodes) {
                   int32_t max_nodes = 1000;
                   ExploreTask(task_addr, max_nodes);
 
