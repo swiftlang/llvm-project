@@ -440,7 +440,8 @@ void SwiftLanguageRuntime::ProcessModulesToAdd() {
   modules_to_add_snapshot.ForEach(
       [&](const ModuleSP &module_sp) -> IterationAction {
         if (module_sp) {
-          AddModuleToReflectionContext(module_sp);
+          if (!AddModuleToReflectionContext(module_sp))
+            m_modules_to_add.AppendIfNeeded(module_sp);
           progress.Increment(
               ++completion, module_sp->GetFileSpec().GetFilename().GetString());
         }
@@ -889,6 +890,29 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
   }
 
   if (load_ptr == 0 || load_ptr == LLDB_INVALID_ADDRESS) {
+    // The queued ModuleSP can be a stale duplicate (Windows, secondary DLL)
+    // whose sections aren't load-registered. Re-register via the target's
+    // mapped module of the same UUID.
+    UUID uuid = module_sp->GetUUID();
+    if (uuid.IsValid()) {
+      ModuleSP mapped;
+      target.GetImages().ForEach([&](const ModuleSP &m) -> IterationAction {
+        if (m && m.get() != module_sp.get() && m->GetUUID() == uuid) {
+          if (ObjectFile *mof = m->GetObjectFile())
+            if (mof->GetBaseAddress().GetLoadAddress(&target) !=
+                LLDB_INVALID_ADDRESS) {
+              mapped = m;
+              return IterationAction::Stop;
+            }
+        }
+        return IterationAction::Continue;
+      });
+      if (mapped)
+        return AddModuleToReflectionContext(mapped);
+    }
+  }
+
+  if (load_ptr == 0 || load_ptr == LLDB_INVALID_ADDRESS) {
     if (obj_file->GetType() != ObjectFile::eTypeJIT)
       LLDB_LOG(GetLog(LLDBLog::Types),
                "{0}: failed to get start address for \"{1}\".", __FUNCTION__,
@@ -898,6 +922,10 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
     return false;
   }
   bool found = HasReflectionInfo(obj_file);
+
+  if (found && !m_registered_reflection_images.insert(load_ptr).second)
+    return true;
+
   LLDB_LOGV(GetLog(LLDBLog::Types), "{0} reflection metadata in \"{1}\"",
             found ? "Adding" : "No",
             module_sp->GetObjectName() ? module_sp->GetObjectName()
