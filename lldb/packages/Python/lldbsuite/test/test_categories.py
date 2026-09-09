@@ -20,6 +20,8 @@ debug_info_categories = {
     "gmodules": False,
 }
 
+non_fatal_debug_info_categories = {"pdb"}
+
 swift_module_importer_categories = {
     "clang": True,
     "noclang": True,
