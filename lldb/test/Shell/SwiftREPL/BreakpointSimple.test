@@ -1,5 +1,7 @@
 // Test that we can set breakpoints in the REPL.
 // REQUIRES: swift
+// Flaky on Windows and Linux
+// UNSUPPORTED: system-windows, system-linux
 // RUN: %lldb --repl < %s | FileCheck %s
 
 func foo() -> Int {
