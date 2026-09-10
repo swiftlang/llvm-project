@@ -311,20 +311,21 @@ FindSymbolForSwiftObject(Process &process, RuntimeKind runtime_kind,
 
   SymbolContextList sc_list;
   image->FindSymbolsWithNameAndType(ConstString(object), sym_type, sc_list);
-  if (sc_list.GetSize() != 1)
+  if (sc_list.GetSize() == 0)
     return {};
 
-  SymbolContext SwiftObject_Class;
-  if (!sc_list.GetContextAtIndex(0, SwiftObject_Class))
-    return {};
-  if (!SwiftObject_Class.symbol)
-    return {};
-  lldb::addr_t addr =
-      SwiftObject_Class.symbol->GetAddress().GetLoadAddress(&target);
-  if (addr && addr != LLDB_INVALID_ADDRESS)
-    return addr;
-
-  return {};
+  std::optional<lldb::addr_t> unique_addr;
+  for (const SymbolContext &sc : sc_list) {
+    if (!sc.symbol)
+      return {};
+    lldb::addr_t addr = sc.symbol->GetAddress().GetLoadAddress(&target);
+    if (!addr || addr == LLDB_INVALID_ADDRESS)
+      return {};
+    if (unique_addr && *unique_addr != addr)
+      return {};
+    unique_addr = addr;
+  }
+  return unique_addr;
 }
 
 using CurrentTaskStorageKind = SwiftLanguageRuntime::CurrentTaskStorageKind;
