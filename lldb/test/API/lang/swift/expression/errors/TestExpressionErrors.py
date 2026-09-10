@@ -41,6 +41,7 @@ class TestExpressionErrors(TestBase):
         self.assertTrue(func.IsValid(), "Couldn't find the function for %s"%(name))
         self.assertEqual(func.GetCanThrow(), expected,  "GetCanThrow was wrong for %s"%name)
 
+    @skipEmbeddedSwift
     @swiftTest
     def test_swift_expression_errors(self):
         """Tests that swift expressions that throw report the errors correctly"""
