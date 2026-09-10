@@ -8,6 +8,7 @@ class TestSwiftFoundationTypeNotification(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
+    @requireNotEmbeddedSwift
     @swiftTest
     def test(self):
         self.build()
