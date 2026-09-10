@@ -5288,6 +5288,23 @@ static swift::Type ConvertSILFunctionTypesToASTFunctionTypes(swift::Type t) {
   });
 }
 
+/// Reconstruct a Swift type from a mangled type name.
+///
+/// This wraps swift::Demangle::getTypeForMangling(), which decodes the
+/// outermost type as if it appeared in a generic requirement. A mangled
+/// existential such as $s4main1P_pD ("any P") is therefore handed back as the
+/// bare constraint type ProtocolType "P" instead of an ExistentialType. LLDB
+/// only ever reconstructs the types of values, so re-wrap constraint types in
+/// an ExistentialType to get the same type the Swift compiler would produce
+/// for the equivalent source code.
+static swift::Type GetTypeForMangling(swift::ASTContext &ast_ctx,
+                                      llvm::StringRef mangled_name) {
+  swift::Type type = swift::Demangle::getTypeForMangling(ast_ctx, mangled_name);
+  if (type && type->isConstraintType())
+    return swift::ExistentialType::get(type);
+  return type;
+}
+
 CompilerType
 SwiftASTContext::GetTypeFromMangledTypename(ConstString mangled_typename) {
   if (llvm::isa<SwiftASTContextForExpressions>(this))
@@ -5413,8 +5430,7 @@ SwiftASTContext::ReconstructType(ConstString mangled_typename) {
 
   // Avoid type reconstruction compiling additional implicit modules.
   DisableImplicitImportsRAII no_imports(*this);
-  found_type = swift::Demangle::getTypeForMangling(
-                   **ast_ctx, mangled_typename.GetStringRef())
+  found_type = GetTypeForMangling(**ast_ctx, mangled_typename.GetStringRef())
                    .getPointer();
   assert(!found_type || &found_type->getASTContext() == *ast_ctx);
 
@@ -5425,8 +5441,7 @@ SwiftASTContext::ReconstructType(ConstString mangled_typename) {
     auto adjusted =
         GetTypeSystemSwiftTypeRef()->AdjustTypeForOriginallyDefinedInModule(
             mangled_typename);
-    found_type =
-        swift::Demangle::getTypeForMangling(**ast_ctx, adjusted).getPointer();
+    found_type = GetTypeForMangling(**ast_ctx, adjusted).getPointer();
   }
   // Objective-C classes sometimes have private subclasses that are invisible
   // to the Swift compiler because they are declared and defined in a .m file.
