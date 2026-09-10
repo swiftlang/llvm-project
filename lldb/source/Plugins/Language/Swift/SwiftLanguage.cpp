@@ -717,6 +717,12 @@ LoadFoundationValueTypesFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
       "Notification.Name summary provider",
       ConstString("Foundation.Notification.Name"),
       TypeSummaryImpl::Flags(summary_flags).SetDontShowChildren(true));
+  lldb_private::formatters::AddCXXSummary(
+      swift_category_sp,
+      lldb_private::formatters::swift::NotificationName_SummaryProvider,
+      "Notification.Name summary provider",
+      ConstString("Foundation.NSNotification.Name"),
+      TypeSummaryImpl::Flags(summary_flags).SetDontShowChildren(true));
 
   lldb_private::formatters::AddCXXSummary(
       swift_category_sp, lldb_private::formatters::swift::URL_SummaryProvider,

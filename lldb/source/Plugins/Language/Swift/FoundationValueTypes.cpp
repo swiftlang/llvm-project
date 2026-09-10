@@ -75,8 +75,11 @@ bool lldb_private::formatters::swift::Date_SummaryProvider(
 bool lldb_private::formatters::swift::NotificationName_SummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
   static ConstString g__rawValue("_rawValue");
+  static ConstString g_rawValue("rawValue");
 
   ValueObjectSP underlying_name_sp(valobj.GetChildAtNamePath({g__rawValue}));
+  if (!underlying_name_sp)
+    underlying_name_sp = valobj.GetChildAtNamePath({g_rawValue});
 
   if (!underlying_name_sp)
     return false;
