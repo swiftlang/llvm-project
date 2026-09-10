@@ -104,6 +104,11 @@ arrangeFreeFunctionCall(CodeGenModule &CGM, CanQualType returnType,
 ImplicitCXXConstructorArgs
 getImplicitCXXConstructorArgs(CodeGenModule &CGM, const CXXConstructorDecl *D);
 
+/// Emit what the Itanium C++ ABI emits alongside a definition of the virtual
+/// method \p MD, for a client that defines \p MD's body itself rather than
+/// through a C++ definition.
+void emitVirtualMethodTables(CodeGenModule &CGM, const CXXMethodDecl *MD);
+
 llvm::Value *
 getCXXDestructorImplicitParam(CodeGenModule &CGM, llvm::BasicBlock *InsertBlock,
                               llvm::BasicBlock::iterator InsertPoint,
