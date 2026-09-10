@@ -72,5 +72,9 @@ do
 }
 catch (let e)
 {
-    print (e, true)
+    print ("caught an error")
 }
+
+// Embedded Swift drops a method that is never called, and this one is looked
+// up by name, so keep a use of it around.
+ClassError("unused").SomeMethod(0)
