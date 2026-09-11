@@ -5055,34 +5055,32 @@ void Parser::ParseStructDeclaration(
   }
 }
 
-ParsedAttributes Parser::ParseLexedCAttributeTokens(LateParsedAttribute &LA,
-                                                    // TO_UPSTREAM(BoundsSafety)
-                                                    bool EnterScope) {
+ParsedAttributes Parser::ParseLexedAttributeTokens(LateParsedAttribute &LPA,
+                                                   // TO_UPSTREAM(BoundsSafety)
+                                                   bool EnterScope) {
   // Create a fake EOF so that attribute parsing won't go off the end of the
   // attribute.
   Token AttrEnd;
   AttrEnd.startToken();
   AttrEnd.setKind(tok::eof);
   AttrEnd.setLocation(Tok.getLocation());
-  AttrEnd.setEofData(LA.Toks.data());
-  LA.Toks.push_back(AttrEnd);
+  AttrEnd.setEofData(LPA.Toks.data());
+  LPA.Toks.push_back(AttrEnd);
 
   // Append the current token at the end of the new token stream so that it
   // doesn't get lost.
-  LA.Toks.push_back(Tok);
-  PP.EnterTokenStream(LA.Toks, /*DisableMacroExpansion=*/true,
+  LPA.Toks.push_back(Tok);
+  PP.EnterTokenStream(LPA.Toks, /*DisableMacroExpansion=*/true,
                       /*IsReinject=*/true);
+
   // Drop the current token and bring the first cached one. It's the same token
   // as when we entered this function.
   ConsumeAnyToken(/*ConsumeCodeCompletionTok=*/true);
 
   ParsedAttributes Attrs(AttrFactory);
 
-  assert(LA.Decls.size() <= 1 &&
-         "late field attribute expects to have at most one declaration.");
-
   /* TO_UPSTREAM(BoundsSafety) ON */
-  Decl *D = LA.Decls.empty() ? nullptr : LA.Decls[0];
+  Decl *D = LPA.Decls.empty() ? nullptr : LPA.Decls[0];
 
   // If the Decl is on a function, add function parameters to the scope.
   {
@@ -5098,9 +5096,9 @@ ParsedAttributes Parser::ParseLexedCAttributeTokens(LateParsedAttribute &LA,
     // Dispatch based on the attribute and parse it
     /* TO_UPSTREAM(BoundsSafety) ON */
     // NestedTypeLevel is not passed in upstream
-    ParseGNUAttributeArgs(&LA.AttrName, LA.AttrNameLoc, Attrs, nullptr, nullptr,
-                          SourceLocation(), ParsedAttr::Form::GNU(), nullptr,
-                          LA.NestedTypeLevel);
+    ParseGNUAttributeArgs(&LPA.AttrName, LPA.AttrNameLoc, Attrs, nullptr,
+                          nullptr, SourceLocation(), ParsedAttr::Form::GNU(),
+                          nullptr, LPA.NestedTypeLevel);
     /* TO_UPSTREAM(BoundsSafety) OFF */
 
     /* TO_UPSTREAM(BoundsSafety) ON */
@@ -5111,12 +5109,12 @@ ParsedAttributes Parser::ParseLexedCAttributeTokens(LateParsedAttribute &LA,
   }
 
   /* TO_UPSTREAM(BoundsSafety) ON */
-  if (LA.MacroII) {
+  if (LPA.MacroII) {
     const auto &SM = PP.getSourceManager();
-    CharSourceRange ExpansionRange = SM.getExpansionRange(LA.AttrNameLoc);
+    CharSourceRange ExpansionRange = SM.getExpansionRange(LPA.AttrNameLoc);
     for (unsigned i = 0; i < Attrs.size(); ++i)
-      Attrs[i].setMacroIdentifier(LA.MacroII, ExpansionRange.getBegin(),
-                                  SM.isInSystemMacro(LA.AttrNameLoc));
+      Attrs[i].setMacroIdentifier(LPA.MacroII, ExpansionRange.getBegin(),
+                                  SM.isInSystemMacro(LPA.AttrNameLoc));
   }
   /* TO_UPSTREAM(BoundsSafety) OFF */
 
@@ -5136,7 +5134,10 @@ void Parser::ParseLexedTypeAttribute(LateParsedTypeAttribute &LA,
                                      // TO_UPSTREAM(BoundsSafety)
                                      bool EnterScope,
                                      ParsedAttributes &OutAttrs) {
-  ParsedAttributes Attrs = ParseLexedCAttributeTokens(LA, EnterScope);
+  assert(LA.Decls.size() <= 1 &&
+         "late field attribute expects to have at most one declaration.");
+
+  ParsedAttributes Attrs = ParseLexedAttributeTokens(LA, EnterScope);
   OutAttrs.takeAllAppendingFrom(Attrs);
 }
 
