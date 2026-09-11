@@ -73,6 +73,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/raw_ostream.h"
+#include <limits>
 #include <optional>
 
 // FIXME: we should not need this
@@ -225,6 +226,7 @@ ModuleSP SwiftLanguageRuntime::FindConcurrencyModule(Process &process) {
 // swift/stdlib/public/Concurrency/Debug.h.
 static constexpr uint32_t g_concurrency_version_mask = 0x00FFFFFF;
 static constexpr uint32_t g_concurrency_storage_kind_shift = 24;
+static constexpr uint8_t g_concurrency_storage_kind_deferred_mask = 0x80;
 
 static std::optional<uint32_t>
 FindConcurrencyVersionWord(Process &process, Module &concurrency_module) {
@@ -340,6 +342,40 @@ DeriveStorageKind(uint32_t concurrency_version, uint8_t storage_kind_raw) {
   return CurrentTaskStorageKind{storage_kind_raw};
 }
 
+static std::optional<CurrentTaskStorageKind>
+FindDeferredStorageKind(Process &process, uint32_t concurrency_version) {
+  SymbolContextList symbols;
+  Target &target = process.GetTarget();
+  target.GetImages().FindSymbolsWithNameAndType(
+      ConstString("_swift_concurrency_debug_current_task_storage_kind"),
+      eSymbolTypeAny, symbols);
+
+  SymbolContext context;
+  for (size_t index = 0; index < symbols.GetSize(); ++index) {
+    if (!symbols.GetContextAtIndex(index, context) || !context.symbol ||
+        context.symbol->GetType() == eSymbolTypeUndefined)
+      continue;
+
+    addr_t symbol_addr = context.symbol->GetLoadAddress(&target);
+    if (symbol_addr == LLDB_INVALID_ADDRESS)
+      continue;
+
+    Status error;
+    uint64_t storage_kind_raw = process.ReadUnsignedIntegerFromMemory(
+        symbol_addr, /*width=*/4, /*fail_value=*/0, error);
+    if (error.Fail() ||
+        storage_kind_raw > std::numeric_limits<uint8_t>::max())
+      return std::nullopt;
+
+    uint8_t concrete_storage_kind = static_cast<uint8_t>(storage_kind_raw);
+    if (concrete_storage_kind & g_concurrency_storage_kind_deferred_mask)
+      return std::nullopt;
+    return DeriveStorageKind(concurrency_version, concrete_storage_kind);
+  }
+
+  return std::nullopt;
+}
+
 SwiftLanguageRuntime::ConcurrencyInfo
 SwiftLanguageRuntime::FindConcurrencyInfo(Process &process) {
   ModuleSP concurrency_module = FindConcurrencyModule(process);
@@ -352,8 +388,16 @@ SwiftLanguageRuntime::FindConcurrencyInfo(Process &process) {
     return {};
 
   uint32_t version = *version_word & g_concurrency_version_mask;
-  uint8_t storage_kind = *version_word >> g_concurrency_storage_kind_shift;
-  return {version, DeriveStorageKind(version, storage_kind), concurrency_module};
+  uint8_t storage_kind_raw = *version_word >> g_concurrency_storage_kind_shift;
+  std::optional<CurrentTaskStorageKind> storage_kind;
+  if (version >= 3 &&
+      (storage_kind_raw & g_concurrency_storage_kind_deferred_mask)) {
+    if (storage_kind_raw == g_concurrency_storage_kind_deferred_mask)
+      storage_kind = FindDeferredStorageKind(process, version);
+  } else {
+    storage_kind = DeriveStorageKind(version, storage_kind_raw);
+  }
+  return {version, storage_kind, concurrency_module};
 }
 
 static lldb::BreakpointResolverSP
