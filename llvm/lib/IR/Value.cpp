@@ -1188,8 +1188,7 @@ void ValueHandleBase::AddToUseList() {
   }
 
   // Okay, reallocation did happen.  Fix the Prev Pointers.
-  for (DenseMap<Value*, ValueHandleBase*>::iterator I = Handles.begin(),
-       E = Handles.end(); I != E; ++I) {
+  for (auto I = Handles.begin(), E = Handles.end(); I != E; ++I) {
     assert(I->second && I->first == I->second->getValPtr() &&
            "List invariant broken!");
     I->second->setPrevPtr(&I->second);
