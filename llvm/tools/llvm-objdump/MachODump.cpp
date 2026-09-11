@@ -2332,6 +2332,10 @@ static void printCPUType(uint32_t cputype, uint32_t cpusubtype) {
       outs() << "    cputype CPU_TYPE_ARM64\n";
       outs() << "    cpusubtype CPU_SUBTYPE_ARM64E\n";
       break;
+    case MachO::CPU_SUBTYPE_ARM64E_X1:
+      outs() << "    cputype CPU_TYPE_ARM64\n";
+      outs() << "    cpusubtype CPU_SUBTYPE_ARM64E_X1\n";
+      break;
     default:
       printUnknownCPUType(cputype, cpusubtype);
       break;
@@ -8376,6 +8380,9 @@ static void PrintMachHeader(uint32_t magic, uint32_t cputype,
         break;
       case MachO::CPU_SUBTYPE_ARM64E:
         outs() << "          E";
+        break;
+      case MachO::CPU_SUBTYPE_ARM64E_X1:
+        outs() << "       E.X1";
         break;
       default:
         outs() << format(" %10d", cpusubtype & ~MachO::CPU_SUBTYPE_MASK);

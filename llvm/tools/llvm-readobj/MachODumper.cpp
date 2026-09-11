@@ -173,6 +173,7 @@ const EnumEntry<uint32_t> MachOHeaderCpuSubtypesARM64[] = {
     LLVM_READOBJ_ENUM_ENT(MachO, CPU_SUBTYPE_ARM64_ALL),
     LLVM_READOBJ_ENUM_ENT(MachO, CPU_SUBTYPE_ARM64_V8),
     LLVM_READOBJ_ENUM_ENT(MachO, CPU_SUBTYPE_ARM64E),
+    LLVM_READOBJ_ENUM_ENT(MachO, CPU_SUBTYPE_ARM64E_X1),
 };
 
 const EnumEntry<uint32_t> MachOHeaderCpuSubtypesSPARC[] = {

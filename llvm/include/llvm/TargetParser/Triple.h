@@ -149,6 +149,7 @@ public:
     ARMSubArch_v4t,
 
     AArch64SubArch_arm64e,
+    AArch64SubArch_arm64e_x1,
     AArch64SubArch_arm64ec,
 
     KalimbaSubArch_v3,
@@ -1129,6 +1130,11 @@ public:
   bool isArm64e() const {
     return getArch() == Triple::aarch64 &&
            getSubArch() == Triple::AArch64SubArch_arm64e;
+  }
+
+  bool isArm64e_x1() const {
+    return getArch() == Triple::aarch64 &&
+           getSubArch() == Triple::AArch64SubArch_arm64e_x1;
   }
 
   // Tests whether the target is N32.
