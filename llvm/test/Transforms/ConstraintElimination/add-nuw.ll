@@ -427,7 +427,7 @@ define i1 @test_add_nuw_zext(i8 %N, i4 %idx) {
 ; CHECK-LABEL: @test_add_nuw_zext(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i4 [[IDX:%.*]] to i8
-; CHECK-NEXT:    [[ADD:%.*]] = add nuw i8 [[IDX_EXT]], 1
+; CHECK-NEXT:    [[ADD:%.*]] = add nuw nsw i8 [[IDX_EXT]], 1
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ule i4 [[IDX]], 3
 ; CHECK-NEXT:    br i1 [[C_1]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
