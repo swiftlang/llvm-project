@@ -78,6 +78,11 @@ bool lldb_private::formatters::swift::NotificationName_SummaryProvider(
   static ConstString g_rawValue("rawValue");
 
   ValueObjectSP underlying_name_sp(valobj.GetChildAtNamePath({g__rawValue}));
+  // On Darwin, NSNotification.Name is imported from Objective-C and uses the
+  // underscored `_rawValue` property. On non-Darwin platforms,
+  // Notification.Name is a native Swift struct declared in
+  // swift-corelibs-foundation, which uses the non-underscored `rawValue`
+  // property instead.
   if (!underlying_name_sp)
     underlying_name_sp = valobj.GetChildAtNamePath({g_rawValue});
 
