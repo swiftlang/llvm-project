@@ -5281,7 +5281,7 @@ static swift::Type ConvertSILFunctionTypesToASTFunctionTypes(swift::Type t) {
       // FIXME: Verify ExtInfo state is correct, not working by accident.
       swift::FunctionType::ExtInfo info;
       return swift::Type(
-          swift::FunctionType::get({}, t->getASTContext().TheEmptyTupleType,
+          swift::FunctionType::get({}, {}, t->getASTContext().TheEmptyTupleType,
                                    info));
     }
     return std::nullopt;
