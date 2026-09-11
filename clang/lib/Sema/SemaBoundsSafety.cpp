@@ -347,13 +347,18 @@ bool Sema::ValidateBoundsAttrTypeShape(QualType Ty, SourceLocation AttrLoc,
     InvalidTypeKind = CountedByInvalidPointeeTypeKind::FUNCTION;
   } else if (!Flags.CountInBytes &&
              PointeeTy->isStructureTypeWithFlexibleArrayMember()) {
-    if (Ty->isArrayType() && !getLangOpts().BoundsSafety) {
+    if (Ty->isArrayType()) {
       // This is a workaround for the Linux kernel that has already adopted
       // `counted_by` on a FAM where the pointee is a struct with a FAM. This
       // should be an error because computing the bounds of the array cannot
       // be done correctly without manually traversing every struct object in
       // the array at runtime. To allow the code to be built this error is
       // downgraded to a warning.
+
+      // FIXME: This is also a workaround for other projects that are using
+      // __counted_by on a FAM where the array element is also a FAM
+      // (rdar://186580568). We need to make this a hard error
+      // (rdar://187230108).
       ShouldWarn = true;
     }
     InvalidTypeKind = CountedByInvalidPointeeTypeKind::FLEXIBLE_ARRAY_MEMBER;
