@@ -1159,6 +1159,11 @@ features cannot lower the translation-unit ABI level;
   `__builtin_bcdshift`, `__builtin_bcdshiftround`, `__builtin_bcdtruncate`,
   `__builtin_bcdunsignedtruncate`, and `__builtin_bcdunsignedshift`.
 
+- Clang now provides device-side definitions of `__cxa_pure_virtual()` and
+  `__cxa_deleted_virtual()`; previously, any (potential) call to a pure/deleted
+  virtual function that could not be optimised out would cause the program to
+  fail to assemble. This is now fixed. (#GH49183) (#GH67533)
+
 #### AIX Support
 
 - Implemented the `ifunc` attribute with Function Multi-Versioning (FMV) /
