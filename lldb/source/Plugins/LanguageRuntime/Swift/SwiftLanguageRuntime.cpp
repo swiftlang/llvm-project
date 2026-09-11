@@ -2519,7 +2519,8 @@ public:
           uint64_t shard_size = 0;
           if (reader.readInteger(shard_size_addr, pointer_size, &shard_size)) {
             used_registry = true;
-            for (uint32_t i = 0; i < 64; ++i) {
+            const uint32_t task_registry_shard_count = 64;
+            for (uint32_t i = 0; i < task_registry_shard_count; ++i) {
               auto shard_addr = swift::remote::RemoteAddress(
                   registry_addr.getRawAddress() + (i * shard_size),
                   registry_addr.getAddressSpace());
