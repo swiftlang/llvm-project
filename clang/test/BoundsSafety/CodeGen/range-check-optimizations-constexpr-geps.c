@@ -51,32 +51,32 @@ int read_from_global_array_can_remove_checks() {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @opaque(i32 noundef 4) {{#[0-9]+}}
 // CHECK-NEXT:    [[CMP9:%.*]] = icmp sgt i32 [[CALL]], 0
-// CHECK-NEXT:    br i1 [[CMP9]], label %[[FOR_BODY:.*]], label %[[FOR_COND_CLEANUP:.*]]
+// CHECK-NEXT:    br i1 [[CMP9]], label %[[CONT3:.*]], label %[[FOR_COND_CLEANUP:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
-// CHECK-NEXT:    [[RES_0_LCSSA:%.*]] = phi i32 [ 0, %[[ENTRY]] ], [ [[ADD:%.*]], %[[CONT3:.*]] ]
+// CHECK-NEXT:    [[RES_0_LCSSA:%.*]] = phi i32 [ 0, %[[ENTRY]] ], [ [[TMP0:%.*]], %[[CONT3]] ], [ [[ADD_1:%.*]], %[[CONT3_1:.*]] ], [ [[ADD_2:%.*]], %[[CONT3_2:.*]] ], [ [[ADD_3:%.*]], %[[CONT3_3:.*]] ]
 // CHECK-NEXT:    ret i32 [[RES_0_LCSSA]]
-// CHECK:       [[FOR_BODY]]:
-// CHECK-NEXT:    [[I_011:%.*]] = phi i8 [ [[INC:%.*]], %[[CONT3]] ], [ 0, %[[ENTRY]] ]
-// CHECK-NEXT:    [[RES_010:%.*]] = phi i32 [ [[ADD]], %[[CONT3]] ], [ 0, %[[ENTRY]] ]
-// CHECK-NEXT:    [[IDXPROM:%.*]] = zext i8 [[I_011]] to i64
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr [4 x i8], ptr @a, i64 [[IDXPROM]]
-// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARRAYIDX]], i64 4, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], getelementptr inbounds nuw (i8, ptr @a, i64 16), {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP1]], [[TMP2]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP3:%.*]] = icmp uge ptr [[ARRAYIDX]], @a, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND4:%.*]] = and i1 [[TMP3]], [[OR_COND]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND4]], label %[[CONT3]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
-// CHECK:       [[TRAP]]:
+// CHECK:       [[CONT3]]:
+// CHECK-NEXT:    [[TMP0]] = load i32, ptr @a, align 16, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[CALL]], 1
+// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[FOR_COND_CLEANUP]], label %[[CONT3_1]]
+// CHECK:       [[CONT3_1]]:
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr getelementptr inbounds nuw (i8, ptr @a, i64 4), align 4, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD_1]] = add nsw i32 [[TMP1]], [[TMP0]]
+// CHECK-NEXT:    [[TMP2:%.*]] = icmp ugt i32 [[CALL]], 2
+// CHECK-NEXT:    br i1 [[TMP2]], label %[[CONT3_2]], label %[[FOR_COND_CLEANUP]]
+// CHECK:       [[CONT3_2]]:
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr getelementptr inbounds nuw (i8, ptr @a, i64 8), align 8, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD_2]] = add nsw i32 [[TMP3]], [[ADD_1]]
+// CHECK-NEXT:    [[DOTNOT13:%.*]] = icmp eq i32 [[CALL]], 3
+// CHECK-NEXT:    br i1 [[DOTNOT13]], label %[[FOR_COND_CLEANUP]], label %[[CONT3_3]]
+// CHECK:       [[CONT3_3]]:
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr getelementptr inbounds nuw (i8, ptr @a, i64 12), align 4, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD_3]] = add nsw i32 [[TMP4]], [[ADD_2]]
+// CHECK-NEXT:    [[TMP5:%.*]] = icmp ugt i32 [[CALL]], 4
+// CHECK-NEXT:    br i1 [[TMP5]], label %[[FOR_BODY_4:.*]], label %[[FOR_COND_CLEANUP]]
+// CHECK:       [[FOR_BODY_4]]:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
-// CHECK:       [[CONT3]]:
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ADD]] = add nsw i32 [[TMP4]], [[RES_010]]
-// CHECK-NEXT:    [[INC]] = add i8 [[I_011]], 1, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CONV:%.*]] = zext i8 [[INC]] to i32
-// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ugt i32 [[CALL]], [[CONV]]
-// CHECK-NEXT:    br i1 [[CMP]], label %[[FOR_BODY]], label %[[FOR_COND_CLEANUP]], {{!llvm.loop ![0-9]+}}
 //
 int read_from_global_array_can_remove_checks_opaque() {
   // opaque bound: unlike the non-opaque version above, the trip count is not
@@ -108,32 +108,32 @@ int read_from_global_array_trap_last_iter() {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @opaque(i32 noundef 5) {{#[0-9]+}}
 // CHECK-NEXT:    [[CMP9:%.*]] = icmp sgt i32 [[CALL]], 0
-// CHECK-NEXT:    br i1 [[CMP9]], label %[[FOR_BODY:.*]], label %[[FOR_COND_CLEANUP:.*]]
+// CHECK-NEXT:    br i1 [[CMP9]], label %[[CONT3:.*]], label %[[FOR_COND_CLEANUP:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
-// CHECK-NEXT:    [[RES_0_LCSSA:%.*]] = phi i32 [ 0, %[[ENTRY]] ], [ [[ADD:%.*]], %[[CONT3:.*]] ]
+// CHECK-NEXT:    [[RES_0_LCSSA:%.*]] = phi i32 [ 0, %[[ENTRY]] ], [ [[TMP0:%.*]], %[[CONT3]] ], [ [[ADD_1:%.*]], %[[CONT3_1:.*]] ], [ [[ADD_2:%.*]], %[[CONT3_2:.*]] ], [ [[ADD_3:%.*]], %[[CONT3_3:.*]] ]
 // CHECK-NEXT:    ret i32 [[RES_0_LCSSA]]
-// CHECK:       [[FOR_BODY]]:
-// CHECK-NEXT:    [[I_011:%.*]] = phi i8 [ [[INC:%.*]], %[[CONT3]] ], [ 0, %[[ENTRY]] ]
-// CHECK-NEXT:    [[RES_010:%.*]] = phi i32 [ [[ADD]], %[[CONT3]] ], [ 0, %[[ENTRY]] ]
-// CHECK-NEXT:    [[IDXPROM:%.*]] = zext i8 [[I_011]] to i64
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr [4 x i8], ptr @a, i64 [[IDXPROM]]
-// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARRAYIDX]], i64 4, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], getelementptr inbounds nuw (i8, ptr @a, i64 16), {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP1]], [[TMP2]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP3:%.*]] = icmp uge ptr [[ARRAYIDX]], @a, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND4:%.*]] = and i1 [[TMP3]], [[OR_COND]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND4]], label %[[CONT3]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
-// CHECK:       [[TRAP]]:
+// CHECK:       [[CONT3]]:
+// CHECK-NEXT:    [[TMP0]] = load i32, ptr @a, align 16, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[CALL]], 1
+// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[FOR_COND_CLEANUP]], label %[[CONT3_1]]
+// CHECK:       [[CONT3_1]]:
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr getelementptr inbounds nuw (i8, ptr @a, i64 4), align 4, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD_1]] = add nsw i32 [[TMP1]], [[TMP0]]
+// CHECK-NEXT:    [[TMP2:%.*]] = icmp ugt i32 [[CALL]], 2
+// CHECK-NEXT:    br i1 [[TMP2]], label %[[CONT3_2]], label %[[FOR_COND_CLEANUP]]
+// CHECK:       [[CONT3_2]]:
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr getelementptr inbounds nuw (i8, ptr @a, i64 8), align 8, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD_2]] = add nsw i32 [[TMP3]], [[ADD_1]]
+// CHECK-NEXT:    [[DOTNOT13:%.*]] = icmp eq i32 [[CALL]], 3
+// CHECK-NEXT:    br i1 [[DOTNOT13]], label %[[FOR_COND_CLEANUP]], label %[[CONT3_3]]
+// CHECK:       [[CONT3_3]]:
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr getelementptr inbounds nuw (i8, ptr @a, i64 12), align 4, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD_3]] = add nsw i32 [[TMP4]], [[ADD_2]]
+// CHECK-NEXT:    [[TMP5:%.*]] = icmp ugt i32 [[CALL]], 4
+// CHECK-NEXT:    br i1 [[TMP5]], label %[[FOR_BODY_4:.*]], label %[[FOR_COND_CLEANUP]]
+// CHECK:       [[FOR_BODY_4]]:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
-// CHECK:       [[CONT3]]:
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ADD]] = add nsw i32 [[TMP4]], [[RES_010]]
-// CHECK-NEXT:    [[INC]] = add i8 [[I_011]], 1, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CONV:%.*]] = zext i8 [[INC]] to i32
-// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ugt i32 [[CALL]], [[CONV]]
-// CHECK-NEXT:    br i1 [[CMP]], label %[[FOR_BODY]], label %[[FOR_COND_CLEANUP]], {{!llvm.loop ![0-9]+}}
 //
 int read_from_global_array_trap_last_iter_opaque() {
   // opaque bound: unlike the non-opaque version above (which folds to an
@@ -151,32 +151,32 @@ int read_from_global_array_trap_last_iter_opaque() {
 // CHECK-SAME: i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR5:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
 // CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp eq i32 [[N]], 0
-// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY:.*]]
+// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[CONT3:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
-// CHECK-NEXT:    [[RES_0_LCSSA:%.*]] = phi i32 [ 0, %[[ENTRY]] ], [ [[ADD:%.*]], %[[CONT3:.*]] ]
+// CHECK-NEXT:    [[RES_0_LCSSA:%.*]] = phi i32 [ 0, %[[ENTRY]] ], [ [[TMP0:%.*]], %[[CONT3]] ], [ [[ADD_1:%.*]], %[[CONT3_1:.*]] ], [ [[ADD_2:%.*]], %[[CONT3_2:.*]] ], [ [[ADD_3:%.*]], %[[CONT3_3:.*]] ]
 // CHECK-NEXT:    ret i32 [[RES_0_LCSSA]]
-// CHECK:       [[FOR_BODY]]:
-// CHECK-NEXT:    [[I_011:%.*]] = phi i8 [ [[INC:%.*]], %[[CONT3]] ], [ 0, %[[ENTRY]] ]
-// CHECK-NEXT:    [[RES_010:%.*]] = phi i32 [ [[ADD]], %[[CONT3]] ], [ 0, %[[ENTRY]] ]
-// CHECK-NEXT:    [[IDXPROM:%.*]] = zext i8 [[I_011]] to i64
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr [4 x i8], ptr @a, i64 [[IDXPROM]]
-// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARRAYIDX]], i64 4, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], getelementptr inbounds nuw (i8, ptr @a, i64 16), {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP0]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP1]], [[TMP2]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP3:%.*]] = icmp uge ptr [[ARRAYIDX]], @a, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND4:%.*]] = and i1 [[TMP3]], [[OR_COND]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND4]], label %[[CONT3]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
-// CHECK:       [[TRAP]]:
+// CHECK:       [[CONT3]]:
+// CHECK-NEXT:    [[TMP0]] = load i32, ptr @a, align 16, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[N]], 1
+// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[FOR_COND_CLEANUP]], label %[[CONT3_1]]
+// CHECK:       [[CONT3_1]]:
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr getelementptr inbounds nuw (i8, ptr @a, i64 4), align 4, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD_1]] = add nsw i32 [[TMP1]], [[TMP0]]
+// CHECK-NEXT:    [[TMP2:%.*]] = icmp ugt i32 [[N]], 2
+// CHECK-NEXT:    br i1 [[TMP2]], label %[[CONT3_2]], label %[[FOR_COND_CLEANUP]]
+// CHECK:       [[CONT3_2]]:
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr getelementptr inbounds nuw (i8, ptr @a, i64 8), align 8, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD_2]] = add nsw i32 [[TMP3]], [[ADD_1]]
+// CHECK-NEXT:    [[DOTNOT13:%.*]] = icmp eq i32 [[N]], 3
+// CHECK-NEXT:    br i1 [[DOTNOT13]], label %[[FOR_COND_CLEANUP]], label %[[CONT3_3]]
+// CHECK:       [[CONT3_3]]:
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr getelementptr inbounds nuw (i8, ptr @a, i64 12), align 4, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD_3]] = add nsw i32 [[TMP4]], [[ADD_2]]
+// CHECK-NEXT:    [[TMP5:%.*]] = icmp ugt i32 [[N]], 4
+// CHECK-NEXT:    br i1 [[TMP5]], label %[[FOR_BODY_4:.*]], label %[[FOR_COND_CLEANUP]]
+// CHECK:       [[FOR_BODY_4]]:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
-// CHECK:       [[CONT3]]:
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ADD]] = add nsw i32 [[TMP4]], [[RES_010]]
-// CHECK-NEXT:    [[INC]] = add i8 [[I_011]], 1, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CONV:%.*]] = zext i8 [[INC]] to i32
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i32 [[N]], [[CONV]]
-// CHECK-NEXT:    br i1 [[CMP]], label %[[FOR_BODY]], label %[[FOR_COND_CLEANUP]], {{!llvm.loop ![0-9]+}}
 //
 int read_from_global_array_cannot_rename(unsigned n) {
     int res = 0;
@@ -301,7 +301,7 @@ void concat_to_separate_clobals(hdr_t *p_buf) {
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_separate_clobals_opaque(
-// CHECK-SAME: ptr noundef [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -316,17 +316,17 @@ void concat_to_separate_clobals(hdr_t *p_buf) {
 // CHECK-NEXT:    br i1 [[CMP140]], label %[[FOR_BODY_LR_PH:.*]], label %[[FOR_COND_CLEANUP:.*]]
 // CHECK:       [[FOR_BODY_LR_PH]]:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br label %[[FOR_BODY:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
 // CHECK-NEXT:    ret void
 // CHECK:       [[FOR_BODY]]:
-// CHECK-NEXT:    [[PARAMS_SROA_0_0142:%.*]] = phi ptr [ [[BOUND_PTR_ARITH]], %[[FOR_BODY_LR_PH]] ], [ [[ADD_PTR50:%.*]], %[[CONT114:.*]] ]
-// CHECK-NEXT:    [[I_0141:%.*]] = phi i8 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INC:%.*]], %[[CONT114]] ]
+// CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INDVARS_IV_NEXT:%.*]], %[[CONT114:.*]] ]
+// CHECK-NEXT:    [[PARAMS_SROA_0_0142:%.*]] = phi ptr [ [[BOUND_PTR_ARITH]], %[[FOR_BODY_LR_PH]] ], [ [[ADD_PTR50:%.*]], %[[CONT114]] ]
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[PARAMS_SROA_0_0142]], [[ADD_PTR]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND136_NOT138:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PARAMS_SROA_0_0142]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[PARAMS_SROA_0_0142]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp sgt i64 [[SUB_PTR_SUB]], 3, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND137:%.*]] = select i1 [[OR_COND136_NOT138]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -336,56 +336,45 @@ void concat_to_separate_clobals(hdr_t *p_buf) {
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ADD_PTR50]] = getelementptr inbounds nuw i8, ptr [[PARAMS_SROA_0_0142]], i64 4
-// CHECK-NEXT:    [[IDXPROM:%.*]] = zext i8 [[I_0141]] to i64
-// CHECK-NEXT:    [[ARRAYIDX60:%.*]] = getelementptr [4 x i8], ptr @a, i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX60:%.*]] = getelementptr [4 x i8], ptr @a, i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP3:%.*]] = getelementptr i8, ptr [[ARRAYIDX60]], i64 4, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP4:%.*]] = icmp ule ptr [[TMP3]], getelementptr inbounds nuw (i8, ptr @a, i64 16), {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[ARRAYIDX60]], [[TMP3]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND117:%.*]] = and i1 [[TMP4]], [[TMP5]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP6:%.*]] = icmp uge ptr [[ARRAYIDX60]], @a, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND118:%.*]] = and i1 [[TMP6]], [[OR_COND117]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND118]], label %[[CONT63:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP3]], getelementptr inbounds nuw (i8, ptr @a, i64 16), {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP]], label %[[CONT63:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT63]]:
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr i8, ptr [[PARAMS_SROA_0_0142]], i64 3
-// CHECK-NEXT:    [[TMP7:%.*]] = load i8, ptr [[ARRAYIDX]], align 1, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[CONV59:%.*]] = zext i8 [[TMP7]] to i32
+// CHECK-NEXT:    [[TMP4:%.*]] = load i8, ptr [[ARRAYIDX]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[CONV59:%.*]] = zext i8 [[TMP4]] to i32
 // CHECK-NEXT:    store i32 [[CONV59]], ptr [[ARRAYIDX60]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX77:%.*]] = getelementptr [4 x i8], ptr @b, i64 [[IDXPROM]]
-// CHECK-NEXT:    [[TMP8:%.*]] = getelementptr i8, ptr [[ARRAYIDX77]], i64 4, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP9:%.*]] = icmp ule ptr [[TMP8]], getelementptr inbounds nuw (i8, ptr @b, i64 16), {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP10:%.*]] = icmp ule ptr [[ARRAYIDX77]], [[TMP8]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND120:%.*]] = and i1 [[TMP9]], [[TMP10]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND120]], label %[[CONT80:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[ARRAYIDX77:%.*]] = getelementptr [4 x i8], ptr @b, i64 [[INDVARS_IV]]
+// CHECK-NEXT:    [[TMP5:%.*]] = getelementptr i8, ptr [[ARRAYIDX77]], i64 4, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT144:%.*]] = icmp ugt ptr [[TMP5]], getelementptr inbounds nuw (i8, ptr @b, i64 16), {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[DOTNOT144]], label %[[TRAP]], label %[[CONT80:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT80]]:
 // CHECK-NEXT:    [[ARRAYIDX68:%.*]] = getelementptr i8, ptr [[PARAMS_SROA_0_0142]], i64 1
-// CHECK-NEXT:    [[TMP11:%.*]] = load i8, ptr [[ARRAYIDX68]], align 1, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[CONV75:%.*]] = zext i8 [[TMP11]] to i32
+// CHECK-NEXT:    [[TMP6:%.*]] = load i8, ptr [[ARRAYIDX68]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[CONV75:%.*]] = zext i8 [[TMP6]] to i32
 // CHECK-NEXT:    store i32 [[CONV75]], ptr [[ARRAYIDX77]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX94:%.*]] = getelementptr [4 x i8], ptr @c, i64 [[IDXPROM]]
-// CHECK-NEXT:    [[TMP12:%.*]] = getelementptr i8, ptr [[ARRAYIDX94]], i64 4, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP13:%.*]] = icmp ule ptr [[TMP12]], getelementptr inbounds nuw (i8, ptr @c, i64 16), {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP14:%.*]] = icmp ule ptr [[ARRAYIDX94]], [[TMP12]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND123:%.*]] = and i1 [[TMP13]], [[TMP14]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND123]], label %[[CONT97:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[ARRAYIDX94:%.*]] = getelementptr [4 x i8], ptr @c, i64 [[INDVARS_IV]]
+// CHECK-NEXT:    [[TMP7:%.*]] = getelementptr i8, ptr [[ARRAYIDX94]], i64 4, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT145:%.*]] = icmp ugt ptr [[TMP7]], getelementptr inbounds nuw (i8, ptr @c, i64 16), {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[DOTNOT145]], label %[[TRAP]], label %[[CONT97:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT97]]:
 // CHECK-NEXT:    [[ARRAYIDX85:%.*]] = getelementptr i8, ptr [[PARAMS_SROA_0_0142]], i64 2
-// CHECK-NEXT:    [[TMP15:%.*]] = load i8, ptr [[ARRAYIDX85]], align 1, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[CONV92:%.*]] = zext i8 [[TMP15]] to i32
+// CHECK-NEXT:    [[TMP8:%.*]] = load i8, ptr [[ARRAYIDX85]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[CONV92:%.*]] = zext i8 [[TMP8]] to i32
 // CHECK-NEXT:    store i32 [[CONV92]], ptr [[ARRAYIDX94]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX111:%.*]] = getelementptr [4 x i8], ptr @d, i64 [[IDXPROM]]
-// CHECK-NEXT:    [[TMP16:%.*]] = getelementptr i8, ptr [[ARRAYIDX111]], i64 4, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP17:%.*]] = icmp ule ptr [[TMP16]], getelementptr inbounds nuw (i8, ptr @d, i64 16), {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP18:%.*]] = icmp ule ptr [[ARRAYIDX111]], [[TMP16]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND126:%.*]] = and i1 [[TMP17]], [[TMP18]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND126]], label %[[CONT114]], label %[[TRAP]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[ARRAYIDX111:%.*]] = getelementptr [4 x i8], ptr @d, i64 [[INDVARS_IV]]
+// CHECK-NEXT:    [[TMP9:%.*]] = getelementptr i8, ptr [[ARRAYIDX111]], i64 4, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT146:%.*]] = icmp ugt ptr [[TMP9]], getelementptr inbounds nuw (i8, ptr @d, i64 16), {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[DOTNOT146]], label %[[TRAP]], label %[[CONT114]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT114]]:
-// CHECK-NEXT:    [[TMP19:%.*]] = load i8, ptr [[PARAMS_SROA_0_0142]], align 1, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[CONV109:%.*]] = zext i8 [[TMP19]] to i32
+// CHECK-NEXT:    [[TMP10:%.*]] = load i8, ptr [[PARAMS_SROA_0_0142]], align 1, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[CONV109:%.*]] = zext i8 [[TMP10]] to i32
 // CHECK-NEXT:    store i32 [[CONV109]], ptr [[ARRAYIDX111]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[INC]] = add i8 [[I_0141]], 1, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CONV4:%.*]] = zext i8 [[INC]] to i32
+// CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
+// CHECK-NEXT:    [[TMP11:%.*]] = trunc nuw nsw i64 [[INDVARS_IV_NEXT]] to i32
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @opaque(i32 noundef 4) {{#[0-9]+}}
-// CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[CALL]], [[CONV4]]
+// CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[CALL]], [[TMP11]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[FOR_BODY]], label %[[FOR_COND_CLEANUP]], {{!llvm.loop ![0-9]+}}
 //
 void concat_to_separate_clobals_opaque(hdr_t *p_buf) {
@@ -532,7 +521,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_arrays_struct_can_remove_arrays_check_opaque(
-// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr noundef [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR9:[0-9]+]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr nofree noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR9:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -547,7 +536,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    br i1 [[CMP150]], label %[[FOR_BODY_LR_PH:.*]], label %[[FOR_COND_CLEANUP:.*]]
 // CHECK:       [[FOR_BODY_LR_PH]]:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 16
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
@@ -557,11 +546,11 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK:       [[FOR_COND_CLEANUP]]:
 // CHECK-NEXT:    ret void
 // CHECK:       [[FOR_BODY]]:
-// CHECK-NEXT:    [[PARAMS_SROA_0_0152:%.*]] = phi ptr [ [[BOUND_PTR_ARITH]], %[[FOR_BODY_LR_PH]] ], [ [[ADD_PTR50:%.*]], %[[CONT121:.*]] ]
-// CHECK-NEXT:    [[I_0151:%.*]] = phi i8 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INC:%.*]], %[[CONT121]] ]
+// CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INDVARS_IV_NEXT:%.*]], %[[CONT121:.*]] ]
+// CHECK-NEXT:    [[PARAMS_SROA_0_0152:%.*]] = phi ptr [ [[BOUND_PTR_ARITH]], %[[FOR_BODY_LR_PH]] ], [ [[ADD_PTR50:%.*]], %[[CONT121]] ]
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[PARAMS_SROA_0_0152]], [[ADD_PTR]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND146_NOT148:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PARAMS_SROA_0_0152]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[PARAMS_SROA_0_0152]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp sgt i64 [[SUB_PTR_SUB]], 3, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND147:%.*]] = select i1 [[OR_COND146_NOT148]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -571,8 +560,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ADD_PTR50]] = getelementptr inbounds nuw i8, ptr [[PARAMS_SROA_0_0152]], i64 4
-// CHECK-NEXT:    [[IDXPROM:%.*]] = zext i8 [[I_0151]] to i64
-// CHECK-NEXT:    [[ARRAYIDX61:%.*]] = getelementptr [4 x i8], ptr [[ARRAYS]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX61:%.*]] = getelementptr [4 x i8], ptr [[ARRAYS]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP3:%.*]] = getelementptr i8, ptr [[ARRAYIDX61]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP4:%.*]] = icmp ule ptr [[TMP3]], [[UPPER]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[ARRAYIDX61]], [[TMP3]], {{!annotation ![0-9]+}}
@@ -585,7 +573,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[TMP7:%.*]] = load i8, ptr [[ARRAYIDX]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59:%.*]] = zext i8 [[TMP7]] to i32
 // CHECK-NEXT:    store i32 [[CONV59]], ptr [[ARRAYIDX61]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX80:%.*]] = getelementptr [4 x i8], ptr [[UPPER]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX80:%.*]] = getelementptr [4 x i8], ptr [[UPPER]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP8:%.*]] = getelementptr i8, ptr [[ARRAYIDX80]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP9:%.*]] = icmp ule ptr [[TMP8]], [[UPPER78]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP10:%.*]] = icmp ule ptr [[ARRAYIDX80]], [[TMP8]], {{!annotation ![0-9]+}}
@@ -596,7 +584,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[TMP11:%.*]] = load i8, ptr [[ARRAYIDX69]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76:%.*]] = zext i8 [[TMP11]] to i32
 // CHECK-NEXT:    store i32 [[CONV76]], ptr [[ARRAYIDX80]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX99:%.*]] = getelementptr [4 x i8], ptr [[UPPER78]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX99:%.*]] = getelementptr [4 x i8], ptr [[UPPER78]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP12:%.*]] = getelementptr i8, ptr [[ARRAYIDX99]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP13:%.*]] = icmp ule ptr [[TMP12]], [[UPPER97]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP14:%.*]] = icmp ule ptr [[ARRAYIDX99]], [[TMP12]], {{!annotation ![0-9]+}}
@@ -607,7 +595,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[TMP15:%.*]] = load i8, ptr [[ARRAYIDX88]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV95:%.*]] = zext i8 [[TMP15]] to i32
 // CHECK-NEXT:    store i32 [[CONV95]], ptr [[ARRAYIDX99]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX118:%.*]] = getelementptr [4 x i8], ptr [[UPPER97]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX118:%.*]] = getelementptr [4 x i8], ptr [[UPPER97]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP16:%.*]] = getelementptr i8, ptr [[ARRAYIDX118]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP17:%.*]] = icmp ule ptr [[TMP16]], [[UPPER116]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP18:%.*]] = icmp ule ptr [[ARRAYIDX118]], [[TMP16]], {{!annotation ![0-9]+}}
@@ -617,10 +605,10 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[TMP19:%.*]] = load i8, ptr [[PARAMS_SROA_0_0152]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV114:%.*]] = zext i8 [[TMP19]] to i32
 // CHECK-NEXT:    store i32 [[CONV114]], ptr [[ARRAYIDX118]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[INC]] = add i8 [[I_0151]], 1, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CONV4:%.*]] = zext i8 [[INC]] to i32
+// CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
+// CHECK-NEXT:    [[TMP20:%.*]] = trunc nuw i64 [[INDVARS_IV_NEXT]] to i32
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @opaque(i32 noundef 4) {{#[0-9]+}}
-// CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[CALL]], [[CONV4]]
+// CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[CALL]], [[TMP20]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[FOR_BODY]], label %[[FOR_COND_CLEANUP]], {{!llvm.loop ![0-9]+}}
 //
 void concat_to_arrays_struct_can_remove_arrays_check_opaque(struct arrays *arrays, hdr_t *p_buf) {
@@ -768,7 +756,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_arrays_struct_trap_on_last_iter_opaque(
-// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr noundef [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR9]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr nofree noundef readonly captures(address) [[P_BUF:%.*]]) local_unnamed_addr #[[ATTR9]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -783,7 +771,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    br i1 [[CMP150]], label %[[FOR_BODY_LR_PH:.*]], label %[[FOR_COND_CLEANUP:.*]]
 // CHECK:       [[FOR_BODY_LR_PH]]:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 16
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
@@ -793,11 +781,11 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK:       [[FOR_COND_CLEANUP]]:
 // CHECK-NEXT:    ret void
 // CHECK:       [[FOR_BODY]]:
-// CHECK-NEXT:    [[PARAMS_SROA_0_0152:%.*]] = phi ptr [ [[BOUND_PTR_ARITH]], %[[FOR_BODY_LR_PH]] ], [ [[ADD_PTR50:%.*]], %[[CONT121:.*]] ]
-// CHECK-NEXT:    [[I_0151:%.*]] = phi i8 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INC:%.*]], %[[CONT121]] ]
+// CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INDVARS_IV_NEXT:%.*]], %[[CONT121:.*]] ]
+// CHECK-NEXT:    [[PARAMS_SROA_0_0152:%.*]] = phi ptr [ [[BOUND_PTR_ARITH]], %[[FOR_BODY_LR_PH]] ], [ [[ADD_PTR50:%.*]], %[[CONT121]] ]
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[PARAMS_SROA_0_0152]], [[ADD_PTR]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND146_NOT148:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PARAMS_SROA_0_0152]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[PARAMS_SROA_0_0152]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp sgt i64 [[SUB_PTR_SUB]], 3, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND147:%.*]] = select i1 [[OR_COND146_NOT148]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -807,8 +795,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ADD_PTR50]] = getelementptr inbounds nuw i8, ptr [[PARAMS_SROA_0_0152]], i64 4
-// CHECK-NEXT:    [[IDXPROM:%.*]] = zext i8 [[I_0151]] to i64
-// CHECK-NEXT:    [[ARRAYIDX61:%.*]] = getelementptr [4 x i8], ptr [[ARRAYS]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX61:%.*]] = getelementptr [4 x i8], ptr [[ARRAYS]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP3:%.*]] = getelementptr i8, ptr [[ARRAYIDX61]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP4:%.*]] = icmp ule ptr [[TMP3]], [[UPPER]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[ARRAYIDX61]], [[TMP3]], {{!annotation ![0-9]+}}
@@ -821,7 +808,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    [[TMP7:%.*]] = load i8, ptr [[ARRAYIDX]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59:%.*]] = zext i8 [[TMP7]] to i32
 // CHECK-NEXT:    store i32 [[CONV59]], ptr [[ARRAYIDX61]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX80:%.*]] = getelementptr [4 x i8], ptr [[UPPER]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX80:%.*]] = getelementptr [4 x i8], ptr [[UPPER]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP8:%.*]] = getelementptr i8, ptr [[ARRAYIDX80]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP9:%.*]] = icmp ule ptr [[TMP8]], [[UPPER78]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP10:%.*]] = icmp ule ptr [[ARRAYIDX80]], [[TMP8]], {{!annotation ![0-9]+}}
@@ -832,7 +819,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    [[TMP11:%.*]] = load i8, ptr [[ARRAYIDX69]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76:%.*]] = zext i8 [[TMP11]] to i32
 // CHECK-NEXT:    store i32 [[CONV76]], ptr [[ARRAYIDX80]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX99:%.*]] = getelementptr [4 x i8], ptr [[UPPER78]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX99:%.*]] = getelementptr [4 x i8], ptr [[UPPER78]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP12:%.*]] = getelementptr i8, ptr [[ARRAYIDX99]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP13:%.*]] = icmp ule ptr [[TMP12]], [[UPPER97]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP14:%.*]] = icmp ule ptr [[ARRAYIDX99]], [[TMP12]], {{!annotation ![0-9]+}}
@@ -843,7 +830,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    [[TMP15:%.*]] = load i8, ptr [[ARRAYIDX88]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV95:%.*]] = zext i8 [[TMP15]] to i32
 // CHECK-NEXT:    store i32 [[CONV95]], ptr [[ARRAYIDX99]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX118:%.*]] = getelementptr [4 x i8], ptr [[UPPER97]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX118:%.*]] = getelementptr [4 x i8], ptr [[UPPER97]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP16:%.*]] = getelementptr i8, ptr [[ARRAYIDX118]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP17:%.*]] = icmp ule ptr [[TMP16]], [[UPPER116]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP18:%.*]] = icmp ule ptr [[ARRAYIDX118]], [[TMP16]], {{!annotation ![0-9]+}}
@@ -853,10 +840,10 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    [[TMP19:%.*]] = load i8, ptr [[PARAMS_SROA_0_0152]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV114:%.*]] = zext i8 [[TMP19]] to i32
 // CHECK-NEXT:    store i32 [[CONV114]], ptr [[ARRAYIDX118]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[INC]] = add i8 [[I_0151]], 1, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CONV4:%.*]] = zext i8 [[INC]] to i32
+// CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
+// CHECK-NEXT:    [[TMP20:%.*]] = trunc nuw i64 [[INDVARS_IV_NEXT]] to i32
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @opaque(i32 noundef 5) {{#[0-9]+}}
-// CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[CALL]], [[CONV4]]
+// CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[CALL]], [[TMP20]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[FOR_BODY]], label %[[FOR_COND_CLEANUP]], {{!llvm.loop ![0-9]+}}
 //
 void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr_t *p_buf) {
@@ -873,7 +860,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 }
 
 // CHECK-LABEL: define dso_local void @concat_to_arrays_struct_cannot_remove_arrays_check(
-// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr noundef [[P_BUF:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR8]] {
+// CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARRAYS:%.*]], ptr nofree noundef readonly captures(address) [[P_BUF:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR8]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[PAYLOAD:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 4
 // CHECK-NEXT:    [[OFFSET:%.*]] = getelementptr inbounds nuw i8, ptr [[P_BUF]], i64 2
@@ -887,21 +874,22 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    br i1 [[CMP149_NOT]], label %[[FOR_COND_CLEANUP:.*]], label %[[FOR_BODY_LR_PH:.*]]
 // CHECK:       [[FOR_BODY_LR_PH]]:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 16
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
 // CHECK-NEXT:    [[UPPER116:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 64
+// CHECK-NEXT:    [[ZEXT:%.*]] = zext i32 [[N]] to i64
 // CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br label %[[FOR_BODY:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
 // CHECK-NEXT:    ret void
 // CHECK:       [[FOR_BODY]]:
-// CHECK-NEXT:    [[PARAMS_SROA_0_0151:%.*]] = phi ptr [ [[BOUND_PTR_ARITH]], %[[FOR_BODY_LR_PH]] ], [ [[ADD_PTR50:%.*]], %[[CONT121:.*]] ]
-// CHECK-NEXT:    [[I_0150:%.*]] = phi i8 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INC:%.*]], %[[CONT121]] ]
+// CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INDVARS_IV_NEXT:%.*]], %[[CONT121:.*]] ]
+// CHECK-NEXT:    [[PARAMS_SROA_0_0151:%.*]] = phi ptr [ [[BOUND_PTR_ARITH]], %[[FOR_BODY_LR_PH]] ], [ [[ADD_PTR50:%.*]], %[[CONT121]] ]
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[PARAMS_SROA_0_0151]], [[ADD_PTR]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND146_NOT148:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[PARAMS_SROA_0_0151]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[PARAMS_SROA_0_0151]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp sgt i64 [[SUB_PTR_SUB]], 3, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND147:%.*]] = select i1 [[OR_COND146_NOT148]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
@@ -911,8 +899,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ADD_PTR50]] = getelementptr inbounds nuw i8, ptr [[PARAMS_SROA_0_0151]], i64 4
-// CHECK-NEXT:    [[IDXPROM:%.*]] = zext i8 [[I_0150]] to i64
-// CHECK-NEXT:    [[ARRAYIDX61:%.*]] = getelementptr [4 x i8], ptr [[ARRAYS]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX61:%.*]] = getelementptr [4 x i8], ptr [[ARRAYS]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP3:%.*]] = getelementptr i8, ptr [[ARRAYIDX61]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP4:%.*]] = icmp ule ptr [[TMP3]], [[UPPER]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[ARRAYIDX61]], [[TMP3]], {{!annotation ![0-9]+}}
@@ -925,7 +912,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    [[TMP7:%.*]] = load i8, ptr [[ARRAYIDX]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV59:%.*]] = zext i8 [[TMP7]] to i32
 // CHECK-NEXT:    store i32 [[CONV59]], ptr [[ARRAYIDX61]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX80:%.*]] = getelementptr [4 x i8], ptr [[UPPER]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX80:%.*]] = getelementptr [4 x i8], ptr [[UPPER]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP8:%.*]] = getelementptr i8, ptr [[ARRAYIDX80]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP9:%.*]] = icmp ule ptr [[TMP8]], [[UPPER78]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP10:%.*]] = icmp ule ptr [[ARRAYIDX80]], [[TMP8]], {{!annotation ![0-9]+}}
@@ -936,7 +923,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    [[TMP11:%.*]] = load i8, ptr [[ARRAYIDX69]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV76:%.*]] = zext i8 [[TMP11]] to i32
 // CHECK-NEXT:    store i32 [[CONV76]], ptr [[ARRAYIDX80]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX99:%.*]] = getelementptr [4 x i8], ptr [[UPPER78]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX99:%.*]] = getelementptr [4 x i8], ptr [[UPPER78]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP12:%.*]] = getelementptr i8, ptr [[ARRAYIDX99]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP13:%.*]] = icmp ule ptr [[TMP12]], [[UPPER97]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP14:%.*]] = icmp ule ptr [[ARRAYIDX99]], [[TMP12]], {{!annotation ![0-9]+}}
@@ -947,7 +934,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    [[TMP15:%.*]] = load i8, ptr [[ARRAYIDX88]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV95:%.*]] = zext i8 [[TMP15]] to i32
 // CHECK-NEXT:    store i32 [[CONV95]], ptr [[ARRAYIDX99]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ARRAYIDX118:%.*]] = getelementptr [4 x i8], ptr [[UPPER97]], i64 [[IDXPROM]]
+// CHECK-NEXT:    [[ARRAYIDX118:%.*]] = getelementptr [4 x i8], ptr [[UPPER97]], i64 [[INDVARS_IV]]
 // CHECK-NEXT:    [[TMP16:%.*]] = getelementptr i8, ptr [[ARRAYIDX118]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP17:%.*]] = icmp ule ptr [[TMP16]], [[UPPER116]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[TMP18:%.*]] = icmp ule ptr [[ARRAYIDX118]], [[TMP16]], {{!annotation ![0-9]+}}
@@ -957,10 +944,9 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    [[TMP19:%.*]] = load i8, ptr [[PARAMS_SROA_0_0151]], align 1, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[CONV114:%.*]] = zext i8 [[TMP19]] to i32
 // CHECK-NEXT:    store i32 [[CONV114]], ptr [[ARRAYIDX118]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[INC]] = add i8 [[I_0150]], 1, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CONV4:%.*]] = zext i8 [[INC]] to i32
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i32 [[N]], [[CONV4]]
-// CHECK-NEXT:    br i1 [[CMP]], label %[[FOR_BODY]], label %[[FOR_COND_CLEANUP]], {{!llvm.loop ![0-9]+}}
+// CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
+// CHECK-NEXT:    [[TMP20:%.*]] = icmp samesign ult i64 [[INDVARS_IV_NEXT]], [[ZEXT]]
+// CHECK-NEXT:    br i1 [[TMP20]], label %[[FOR_BODY]], label %[[FOR_COND_CLEANUP]], {{!llvm.loop ![0-9]+}}
 //
 void concat_to_arrays_struct_cannot_remove_arrays_check(struct arrays *arrays, hdr_t *p_buf, unsigned n) {
   uint8_t *params = p_buf->payload + 3;
