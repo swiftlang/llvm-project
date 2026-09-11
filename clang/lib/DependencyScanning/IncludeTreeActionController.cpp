@@ -102,7 +102,8 @@ private:
   Expected<cas::ObjectRef>
   getObjectForFileNonCached(FileManager &FM, const SrcMgr::FileInfo &FI);
   Expected<cas::ObjectRef> getObjectForBuffer(const SrcMgr::FileInfo &FI);
-  Expected<cas::ObjectRef> addToFileList(FileManager &FM, FileEntryRef FE);
+  Expected<cas::ObjectRef> addToFileList(FileManager &FM, FileEntryRef FE,
+                                         bool UseRequestedName = false);
   Expected<cas::IncludeTree> getCASTreeForFileIncludes(FilePPState &&PPState);
   Expected<cas::IncludeTree::File> createIncludeFile(StringRef Filename,
                                                      cas::ObjectRef Contents);
@@ -759,7 +760,8 @@ IncludeTreeBuilder::finishIncludeTree(CompilerInstance &ScanInstance,
           M, ScanInstance.getLangOpts().APINotesModules,
           ScanInstance.getAPINotesOpts().ModuleSearchPaths);
       for (auto File : Notes) {
-        if (auto FileRef = addToFileList(ScanInstance.getFileManager(), File);
+        if (auto FileRef = addToFileList(ScanInstance.getFileManager(), File,
+                                         /*UseRequestedName=*/true);
             !FileRef)
           return FileRef.takeError();
         if (auto Buf =
@@ -896,9 +898,11 @@ IncludeTreeBuilder::getObjectForBuffer(const SrcMgr::FileInfo &FI) {
 }
 
 Expected<cas::ObjectRef> IncludeTreeBuilder::addToFileList(FileManager &FM,
-                                                           FileEntryRef FE) {
+                                                           FileEntryRef FE,
+                                                           bool UseRequestedName) {
   SmallString<128> PathStorage;
-  StringRef Filename = FE.getName();
+  StringRef Filename =
+      UseRequestedName ? FE.getNameAsRequested() : FE.getName();
   // Apply -working-directory to relative paths. This option causes filesystem
   // lookups to use absolute paths, so make paths in the include-tree filesystem
   // absolute to match.

@@ -3464,6 +3464,7 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       }
 
       if (!ImportedCASKey.empty()) {
+        ImportedFile = llvm::sys::path::filename(ImportedFile).str();
         if (!Listener) {
           Diag(diag::err_ast_file_not_found)
               << moduleKindForDiagnostic(ImportedKind) << ImportedFile << true
