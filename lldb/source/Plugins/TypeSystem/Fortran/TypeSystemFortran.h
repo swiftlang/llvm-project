@@ -133,6 +133,15 @@ public:
     return false;
   };
 
+  bool IsBoundsSafetyIndexable(lldb::opaque_compiler_type_t type) override {
+    return false;
+  }
+
+  bool
+  IsBoundsSafetyBidiIndexable(lldb::opaque_compiler_type_t type) override {
+    return false;
+  }
+
   bool IsScopedEnumerationType(lldb::opaque_compiler_type_t type) override {
     return false;
   }
@@ -198,7 +207,9 @@ public:
     return ConstString();
   }
 
-  ConstString GetDisplayTypeName(lldb::opaque_compiler_type_t type) override {
+  ConstString
+  GetDisplayTypeName(lldb::opaque_compiler_type_t type,
+                     const SymbolContext *sc = nullptr) override {
     return ConstString();
   }
 
@@ -280,6 +291,12 @@ public:
     return 0;
   }
 
+  std::optional<uint64_t>
+  GetByteStride(lldb::opaque_compiler_type_t type,
+                ExecutionContextScope *exe_scope) override {
+    return std::nullopt;
+  }
+
   lldb::Encoding GetEncoding(lldb::opaque_compiler_type_t type) override {
     return lldb::eEncodingInvalid;
   }
@@ -300,7 +317,8 @@ public:
     return lldb::eBasicTypeUnsignedInt;
   }
 
-  uint32_t GetNumFields(lldb::opaque_compiler_type_t type) override {
+  uint32_t GetNumFields(lldb::opaque_compiler_type_t type,
+                        ExecutionContext *exe_ctx = nullptr) override {
     return 0;
   }
 
@@ -353,16 +371,15 @@ public:
 
   llvm::Expected<uint32_t>
   GetIndexOfChildWithName(lldb::opaque_compiler_type_t type,
-                          llvm::StringRef name,
+                          llvm::StringRef name, ExecutionContext *exe_ctx,
                           bool omit_empty_base_classes) override {
     return 0;
   }
 
-  size_t
-  GetIndexOfChildMemberWithName(lldb::opaque_compiler_type_t type,
-                                llvm::StringRef name,
-                                bool omit_empty_base_classes,
-                                std::vector<uint32_t> &child_indexes) override {
+  size_t GetIndexOfChildMemberWithName(
+      lldb::opaque_compiler_type_t type, llvm::StringRef name,
+      ExecutionContext *exe_ctx, bool omit_empty_base_classes,
+      std::vector<uint32_t> &child_indexes) override {
     return 0;
   }
 
@@ -376,14 +393,16 @@ public:
                      lldb::Format format, const DataExtractor &data,
                      lldb::offset_t data_offset, size_t data_byte_size,
                      uint32_t bitfield_bit_size, uint32_t bitfield_bit_offset,
-                     ExecutionContextScope *exe_scope) override {
+                     ExecutionContextScope *exe_scope,
+                     bool is_base_class) override {
     return false;
   }
 
   /// Dump the type to stdout.
   void DumpTypeDescription(
       lldb::opaque_compiler_type_t type,
-      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull) override {}
+      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull,
+      ExecutionContextScope *exe_scope = nullptr) override {}
 
   /// Print a description of the type to a stream. The exact implementation
   /// varies, but the expectation is that eDescriptionLevelFull returns a
@@ -391,7 +410,8 @@ public:
   /// does a dump of the underlying AST if applicable.
   void DumpTypeDescription(
       lldb::opaque_compiler_type_t type, Stream &s,
-      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull) override {}
+      lldb::DescriptionLevel level = lldb::eDescriptionLevelFull,
+      ExecutionContextScope *exe_scope = nullptr) override {}
 
   /// Dump a textual representation of the internal TypeSystem state to the
   /// given stream.
