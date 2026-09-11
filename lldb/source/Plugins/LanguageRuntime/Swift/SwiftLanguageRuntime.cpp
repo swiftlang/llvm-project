@@ -2497,70 +2497,76 @@ class TaskExplorer {
 public:
   TaskExplorer(ReflectionContextInterface &reflection_ctx, Process &process)
       : m_reflection_ctx(reflection_ctx) {
-    auto task_finder = GetTaskFinder(process);
+    for (lldb::addr_t task_addr : FindTaskAddrs(process)) {
+      int32_t max_nodes = 1000;
+      ExploreTask(task_addr, max_nodes);
+    }
+  }
 
-    bool used_registry = false;
-    auto &reader = reflection_ctx.GetReader();
+private:
+  std::vector<lldb::addr_t> FindTaskAddrs(Process &process) {
+    if (std::optional<std::vector<lldb::addr_t>> addrs_from_registry = FindTaskAddrsFromRegistry())
+      return *addrs_from_registry;
+    return FindTaskAddrsFromThreadList(process);
+  }
+
+  std::optional<std::vector<lldb::addr_t>> FindTaskAddrsFromRegistry() {
+    auto &reader = m_reflection_ctx.GetReader();
     auto registry_addr = reader.getSymbolAddress("_swift_concurrency_task_registry");
-    if (registry_addr) {
-      bool is_enabled = true;
-      auto enabled_addr = reader.getSymbolAddress("_swift_concurrency_task_registry_enabled");
-      if (enabled_addr) {
-        uint8_t val = 0;
-        if (reader.readInteger(enabled_addr, 1, &val)) {
-          is_enabled = (val != 0);
-        }
-      }
-      
-      if (is_enabled) {
-        auto shard_size_addr = reader.getSymbolAddress("_swift_concurrency_task_registry_shard_size");
-        if (shard_size_addr) {
-          uint8_t pointer_size = reader.getPointerSize().value_or(sizeof(void*));
-          uint64_t shard_size = 0;
-          if (reader.readInteger(shard_size_addr, pointer_size, &shard_size)) {
-            used_registry = true;
-            const uint32_t task_registry_shard_count = 64;
-            for (uint32_t i = 0; i < task_registry_shard_count; ++i) {
-              auto shard_addr = swift::remote::RemoteAddress(
-                  registry_addr.getRawAddress() + (i * shard_size),
-                  registry_addr.getAddressSpace());
-              uint64_t task_addr = 0;
-              if (reader.readInteger(shard_addr, pointer_size, &task_addr)) {
-                int32_t nodes = 0;
-                int32_t max_registry_nodes = 10000;
-                while (task_addr && nodes++ < max_registry_nodes) {
-                  int32_t max_nodes = 1000;
-                  ExploreTask(task_addr, max_nodes);
+    if (!registry_addr) return std::nullopt;
 
-                  auto task_info_expected = m_reflection_ctx.asyncTaskInfo(task_addr, 0, 0);
-                  if (task_info_expected) {
-                    task_addr = task_info_expected->registryNext;
-                  } else {
-                    llvm::consumeError(task_info_expected.takeError());
-                    break;
-                  }
-                }
-              }
-            }
+    auto enabled_addr = reader.getSymbolAddress("_swift_concurrency_task_registry_enabled");
+    if (enabled_addr) {
+      uint8_t val = 0;
+      if (reader.readInteger(enabled_addr, 1, &val) && val == 0)
+        return std::nullopt;
+    }
+
+    auto shard_size_addr = reader.getSymbolAddress("_swift_concurrency_task_registry_shard_size");
+    if (!shard_size_addr) return std::nullopt;
+
+    uint8_t pointer_size = reader.getPointerSize().value_or(sizeof(void*));
+    uint64_t shard_size = 0;
+    if (!reader.readInteger(shard_size_addr, pointer_size, &shard_size)) return std::nullopt;
+
+    std::vector<lldb::addr_t> task_addrs;
+    const uint32_t task_registry_shard_count = 64;
+    for (uint32_t i = 0; i < task_registry_shard_count; ++i) {
+      auto shard_addr = swift::remote::RemoteAddress(
+          registry_addr.getRawAddress() + (i * shard_size),
+          registry_addr.getAddressSpace());
+      uint64_t task_addr = 0;
+      if (reader.readInteger(shard_addr, pointer_size, &task_addr)) {
+        int32_t nodes = 0;
+        int32_t max_registry_nodes = 10000;
+        while (task_addr && nodes++ < max_registry_nodes) {
+          task_addrs.push_back(task_addr);
+          auto task_info_expected = m_reflection_ctx.asyncTaskInfo(task_addr, 0, 0);
+          if (task_info_expected) {
+            task_addr = task_info_expected->registryNext;
+          } else {
+            llvm::consumeError(task_info_expected.takeError());
+            break;
           }
         }
       }
     }
-
-    if (!used_registry) {
-      for (const ThreadSP &thread : process.GetThreadList().Threads()) {
-        if (!thread)
-          continue;
-        std::optional<lldb::addr_t> maybe_task_addr =
-            task_finder->GetTaskAddrForThread(*thread);
-        if (!maybe_task_addr)
-          continue;
-        int32_t max_nodes = 1000;
-        ExploreTask(*maybe_task_addr, max_nodes);
-      }
-    }
+    return task_addrs;
   }
 
+  std::vector<lldb::addr_t> FindTaskAddrsFromThreadList(Process &process) {
+    std::vector<lldb::addr_t> task_addrs;
+    auto task_finder = GetTaskFinder(process);
+    for (const ThreadSP &thread : process.GetThreadList().Threads()) {
+      if (!thread) continue;
+      if (std::optional<lldb::addr_t> maybe_task_addr = task_finder->GetTaskAddrForThread(*thread)) {
+        task_addrs.push_back(*maybe_task_addr);
+      }
+    }
+    return task_addrs;
+  }
+
+public:
   /// Returns a range containing all root Tasks discovered.
   auto GetRootTasks() const {
     auto filtered =
