@@ -65,7 +65,7 @@ int test_pair_in_block(size_t n, void *__sized_by(n) buf) {
 // CHECK-NEXT: {{^}}                |       `-ImplicitCastExpr {{.+}} 'struct accumulator *__single(*__single)(void)' <FunctionToPointerDecay>
 // CHECK-NEXT: {{^}}                |         `-DeclRefExpr {{.+}} [[func_new_accumulator]]
 // CHECK-NEXT: {{^}}                |-MaterializeSequenceExpr {{.+}} <Bind>
-// CHECK-NEXT: {{^}}                | |-BoundsCheckExpr {{.+}} 'buf <= __builtin_get_pointer_upper_bound(buf) && __builtin_get_pointer_lower_bound(buf) <= buf && n <= (char *)__builtin_get_pointer_upper_bound(buf) - (char *__bidi_indexable)buf'
+// CHECK-NEXT: {{^}}                | |-BoundsCheckExpr {{.+}} 'buf <= __builtin_get_pointer_upper_bound(buf) && __builtin_get_pointer_lower_bound(buf) <= buf && n <= __builtin_get_pointer_upper_bound(buf) - buf'
 // CHECK-NEXT: {{^}}                | | |-BinaryOperator {{.+}} 'size_t':'unsigned long' '='
 // CHECK-NEXT: {{^}}                | | | |-MemberExpr {{.+}} ->total_size
 // CHECK-NEXT: {{^}}                | | | | `-ImplicitCastExpr {{.+}} 'struct accumulator *__bidi_indexable' <LValueToRValue>
@@ -89,11 +89,11 @@ int test_pair_in_block(size_t n, void *__sized_by(n) buf) {
 // CHECK-NEXT: {{^}}                | |     |-OpaqueValueExpr [[ove]] {{.*}} 'size_t':'unsigned long'
 // CHECK:      {{^}}                | |     `-ImplicitCastExpr {{.+}} 'size_t':'unsigned long' <IntegralCast>
 // CHECK-NEXT: {{^}}                | |       `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT: {{^}}                | |         |-CStyleCastExpr {{.+}} 'char *' <BitCast>
+// CHECK-NEXT: {{^}}                | |         |-ImplicitCastExpr {{.+}} 'char *' <BitCast>
 // CHECK-NEXT: {{^}}                | |         | `-GetBoundExpr {{.+}} upper
 // CHECK-NEXT: {{^}}                | |         |   `-OpaqueValueExpr [[ove_1]] {{.*}} 'void *__bidi_indexable'
 // CHECK:      {{^}}                | |         `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: {{^}}                | |           `-CStyleCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
+// CHECK-NEXT: {{^}}                | |           `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BitCast>
 // CHECK-NEXT: {{^}}                | |             `-OpaqueValueExpr [[ove_1]] {{.*}} 'void *__bidi_indexable'
 // CHECK:      {{^}}                | |-OpaqueValueExpr [[ove]]
 // CHECK-NEXT: {{^}}                | | `-ImplicitCastExpr {{.+}} 'size_t':'unsigned long' <LValueToRValue>
