@@ -7317,7 +7317,8 @@ def note_counted_by_consider_using_sized_by : Note<
 
 def warn_counted_by_attr_elt_type_unknown_size :
   Warning<err_counted_by_attr_pointee_unknown_size.Summary>,
-  InGroup<BoundsSafetyCountedByEltTyUnknownSize>;
+  InGroup<BoundsSafetyCountedByEltTyUnknownSize>,
+  DefaultError;
 
 // __builtin_counted_by_ref diagnostics:
 def err_builtin_counted_by_ref_invalid_arg
