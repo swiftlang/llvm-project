@@ -124,8 +124,8 @@
 // CHECK-NEXT:    [[WIDE_PTR_UB35:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR34]], align 8, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR36:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP31]], i32 0, i32 2, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[WIDE_PTR_LB37:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR36]], align 8, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_UB30]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR33]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB30]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR33]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB:%.*]] = sub i64 [[SUB_PTR_LHS_CAST]], [[SUB_PTR_RHS_CAST]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp ule i64 [[SUB]], [[SUB_PTR_SUB]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br label %[[LAND_END]], {{!annotation ![0-9]+}}
@@ -248,8 +248,8 @@
 // CHECK-NEXT:    [[WIDE_PTR_UB97:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR96]], align 8, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR98:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP93]], i32 0, i32 2, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[WIDE_PTR_LB99:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR98]], align 8, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_LHS_CAST100:%.*]] = ptrtoint ptr [[WIDE_PTR_UB92]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[SUB_PTR_RHS_CAST101:%.*]] = ptrtoint ptr [[WIDE_PTR_PTR95]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_LHS_CAST100:%.*]] = ptrtoaddr ptr [[WIDE_PTR_UB92]] to i64, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[SUB_PTR_RHS_CAST101:%.*]] = ptrtoaddr ptr [[WIDE_PTR_PTR95]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[SUB_PTR_SUB102:%.*]] = sub i64 [[SUB_PTR_LHS_CAST100]], [[SUB_PTR_RHS_CAST101]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP103:%.*]] = icmp ule i64 [[SUB63]], [[SUB_PTR_SUB102]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br label %[[LAND_END105]], {{!annotation ![0-9]+}}
