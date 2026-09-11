@@ -20346,6 +20346,14 @@ ExprResult Sema::ActOnBlockStmtExpr(SourceLocation CaretLoc,
                           NonTrivialCUnionContext::FunctionReturn,
                           NTCUK_Destruct | NTCUK_Copy);
 
+  /*TO_UPSTREAM(BoundsSafety) ON*/
+  // A block body has its own CFG and ParentMap, so it is analyzed here rather
+  // than from the enclosing declaration's traversal, which deliberately does
+  // not descend into it. Run while CurContext is still the BlockDecl.
+  if (LangOpts.BoundsSafety)
+    DynamicCountPointerAssignmentAnalysis(*this, BD).run();
+  /*TO_UPSTREAM(BoundsSafety) OFF*/
+
   PopDeclContext();
 
   // Set the captured variables on the block.

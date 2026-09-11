@@ -139,6 +139,16 @@ class AstNode(object):
 		
 		if len(tokens) == 2 and tokens[-1] == "<<<NULL>>>":
 			tokens.append('0')
+
+		# Some lines carry a sub-kind before the address, e.g. `capture ParmVar
+		# 0x...` under a BlockDecl or `cleanup Block 0x...` under an
+		# ExprWithCleanups. Fold it into the kind so that the address stays in
+		# the position the node classes expect.
+		if (len(tokens) > 3 and not tokens[2].startswith("0x")
+		    and tokens[3].startswith("0x")):
+			tokens[1] += " " + tokens[2]
+			del tokens[2]
+
 		return (next(iter, None), cls.new(line_n, tokens))
 
 	@classmethod
@@ -165,9 +175,14 @@ class MemberNode(AstNode):
 
 class FuncDeclNode(AstNode):
 	def __init__(self, n, indent, kind, addr, begin, paren, *remainder):
-		type = remainder[-1]
-		name = remainder[-2]
-		super(FuncDeclNode, self).__init__(n, indent, kind, addr, *remainder[:-2])
+		# The type is the last quoted token. Trailing markers such as
+		# `external-linkage` or `implicit-inline` may follow it, so the type and
+		# the name cannot be taken from the end of the line.
+		rem = list(remainder)
+		type_idx = max(i for i, t in enumerate(rem) if t.startswith("'"))
+		type = rem[type_idx]
+		name = rem[type_idx - 1]
+		super(FuncDeclNode, self).__init__(n, indent, kind, addr, *rem[:type_idx - 1])
 		self.type = type
 		self.name = name
 

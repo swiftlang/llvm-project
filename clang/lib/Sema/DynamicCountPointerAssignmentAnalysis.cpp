@@ -2094,6 +2094,11 @@ public:
   }
   bool TraverseUnaryOperator(UnaryOperator *E);
   bool TraverseStmtExpr(StmtExpr *E) { return true; }
+  /// A block body is in neither the enclosing decl's CFG nor its ParentMap
+  /// (BlockExpr has no children), so descending into it here would register
+  /// assignments that cannot then be rewritten. Sema::ActOnBlockStmtExpr runs
+  /// the analysis on each block separately instead.
+  bool TraverseBlockExpr(BlockExpr *E) { return true; }
   bool TraverseOpaqueValueExpr(OpaqueValueExpr *E) {
     return TraverseStmt(E->getSourceExpr());
   }
@@ -3339,9 +3344,41 @@ void CheckCountAttributedDeclAssignments::HandleVarInit(VarDecl *VD) {
 // The bounds check will load all dependent decls and verify if the dynamic
 // bound pointer has enough bytes.
 bool CheckCountAttributedDeclAssignments::TraverseReturnStmt(ReturnStmt *S) {
-  const auto *FD = cast<FunctionDecl>(AC.getDecl());
+  /// This pass only runs in -fbounds-safety, on a function body, an
+  /// Objective-C method body, or a block body.
+  QualType RetTy;
+  const Decl *D = AC.getDecl();
+  if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
+    RetTy = FD->getReturnType();
+  } else if (const auto *MD = dyn_cast<ObjCMethodDecl>(D)) {
+    RetTy = MD->getReturnType();
+  } else if (const auto *BD = dyn_cast<BlockDecl>(D)) {
+    /// XXX: Bounds attributes on blocks aren't yet properly supported.
+    /// A bounds attribute is silently dropped on block return type.
+#ifndef NDEBUG
+    /// getSignatureAsWritten() holds only what the user wrote: the whole function
+    /// type when the parameter list was written (^int *(void){}), or just the
+    /// return type when it was omitted (^int *{}).
+    QualType BlockRetTy;
+    if (const TypeSourceInfo *TSI = BD->getSignatureAsWritten()) {
+      QualType SigTy = TSI->getType();
+      if (const auto *FT = SigTy->getAs<FunctionType>())
+        BlockRetTy = FT->getReturnType();
+      else
+        BlockRetTy = SigTy;
+    }
+    /// It should be diagnosed in the parser.
+    /// The assertion below is a tripwire for whoever wires that up: once a
+    /// block return type can carry a bounds attribute, this early return
+    /// silently skips the return size check and needs to handle it instead.
+    assert((BlockRetTy.isNull() || !isa<BoundsAttributedType>(BlockRetTy)) &&
+           "bounds attributes on block return types are not yet supported");
+#endif
+    return BaseVisitor::TraverseReturnStmt(S);
+  } else {
+    llvm_unreachable("unexpected decl kind");
+  }
 
-  QualType RetTy = FD->getReturnType();
   const auto *RetBATy = RetTy->getAs<BoundsAttributedType>();
   if (!RetBATy)
     return BaseVisitor::TraverseReturnStmt(S);
