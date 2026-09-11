@@ -336,6 +336,7 @@ bool Sema::ValidateBoundsAttrTypeShape(QualType Ty, SourceLocation AttrLoc,
       // Emit a warning that this is a GNU extension.
       Diag(AttrLoc, diag::ext_gnu_counted_by_void_ptr) << Kind;
       Diag(AttrLoc, diag::note_gnu_counted_by_void_ptr_use_sized_by) << Kind;
+      assert(!Ty->isArrayType() && "sized_by is not allowed on arrays");
       Flags.CountInBytes = true;
       return true;
     }
@@ -369,9 +370,10 @@ bool Sema::ValidateBoundsAttrTypeShape(QualType Ty, SourceLocation AttrLoc,
                           << (ShouldWarn ? 1 : 0) << Kind << AttrRange;
     if (ShouldWarn)
       return true;
-    if (getLangOpts().hasBoundsSafetyAttributes()) {
+    if (getLangOpts().hasBoundsSafetyAttributes() && !Ty->isArrayType()) {
       // Under BoundsSafety, recover by switching to byte count so that
       // type construction can proceed and emit follow-up diagnostics.
+      // We don't do this for arrays because `__sized_by` is not allowed.
       Flags.CountInBytes = true;
       return true;
     }
