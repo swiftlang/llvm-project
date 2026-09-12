@@ -267,51 +267,39 @@ bool lldb_private::formatters::swift::Measurement_SummaryProvider(
 
 bool lldb_private::formatters::swift::UUID_SummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
-  static ConstString g_uuid("uuid");
-
-  ValueObjectSP uuid_sp(valobj.GetChildAtNamePath({g_uuid}));
-  if (!uuid_sp)
+  // A UUID is 16 bytes stored in network order at offset 0, but the spelling of
+  // the storage has changed over time: it used to be a `uuid` property of the
+  // tuple type uuid_t, and is now a `_storage` property of type
+  // InlineArray<16, UInt8>. Read the bytes of the value itself to stay
+  // agnostic of that.
+  ValueObjectSP valobj_sp = valobj.GetNonSyntheticValue();
+  if (!valobj_sp)
     return false;
 
-  if (uuid_sp->GetNumChildrenIgnoringErrors() < 16)
+  // Since the bytes are interpreted positionally, verify that the storage is
+  // still one of the two known shapes. A third layout would otherwise be
+  // formatted as a plausible-looking but wrong UUID.
+  ValueObjectSP storage_sp = valobj_sp->GetChildAtIndex(0);
+  if (!storage_sp)
+    return false;
+  llvm::StringRef storage_name = storage_sp->GetName().GetStringRef();
+  if (storage_name != "uuid" && storage_name != "_storage")
     return false;
 
-  ValueObjectSP children[] = {
-      uuid_sp->GetChildAtIndex(0, true),  uuid_sp->GetChildAtIndex(1, true),
-      uuid_sp->GetChildAtIndex(2, true),  uuid_sp->GetChildAtIndex(3, true),
-      uuid_sp->GetChildAtIndex(4, true),  uuid_sp->GetChildAtIndex(5, true),
-      uuid_sp->GetChildAtIndex(6, true),  uuid_sp->GetChildAtIndex(7, true),
-      uuid_sp->GetChildAtIndex(8, true),  uuid_sp->GetChildAtIndex(9, true),
-      uuid_sp->GetChildAtIndex(10, true), uuid_sp->GetChildAtIndex(11, true),
-      uuid_sp->GetChildAtIndex(12, true), uuid_sp->GetChildAtIndex(13, true),
-      uuid_sp->GetChildAtIndex(14, true), uuid_sp->GetChildAtIndex(15, true)};
+  DataExtractor data;
+  Status error;
+  if (!valobj_sp->GetData(data, error) || error.Fail())
+    return false;
 
-  for (ValueObjectSP &child : children) {
-    if (!child)
-      return false;
-    child = child->GetQualifiedRepresentationIfAvailable(
-        lldb::eDynamicDontRunTarget, true);
-  }
+  const uint8_t *bytes = data.PeekData(0, 16);
+  if (!bytes)
+    return false;
 
-  const char *separator = "-";
-  stream.Printf("%2.2X%2.2X%2.2X%2.2X%s%2.2X%2.2X%s%2.2X%2.2X%s%2.2X%2.2X%s%2."
-                "2X%2.2X%2.2X%2.2X%2.2X%2.2X",
-                (uint8_t)children[0]->GetValueAsUnsigned(0),
-                (uint8_t)children[1]->GetValueAsUnsigned(0),
-                (uint8_t)children[2]->GetValueAsUnsigned(0),
-                (uint8_t)children[3]->GetValueAsUnsigned(0), separator,
-                (uint8_t)children[4]->GetValueAsUnsigned(0),
-                (uint8_t)children[5]->GetValueAsUnsigned(0), separator,
-                (uint8_t)children[6]->GetValueAsUnsigned(0),
-                (uint8_t)children[7]->GetValueAsUnsigned(0), separator,
-                (uint8_t)children[8]->GetValueAsUnsigned(0),
-                (uint8_t)children[9]->GetValueAsUnsigned(0), separator,
-                (uint8_t)children[10]->GetValueAsUnsigned(0),
-                (uint8_t)children[11]->GetValueAsUnsigned(0),
-                (uint8_t)children[12]->GetValueAsUnsigned(0),
-                (uint8_t)children[13]->GetValueAsUnsigned(0),
-                (uint8_t)children[14]->GetValueAsUnsigned(0),
-                (uint8_t)children[15]->GetValueAsUnsigned(0));
+  stream.Printf("%2.2X%2.2X%2.2X%2.2X-%2.2X%2.2X-%2.2X%2.2X-%2.2X%2.2X-%2.2X%2."
+                "2X%2.2X%2.2X%2.2X%2.2X",
+                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5],
+                bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11],
+                bytes[12], bytes[13], bytes[14], bytes[15]);
 
   return true;
 }
