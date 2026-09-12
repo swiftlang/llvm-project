@@ -1885,7 +1885,10 @@ SwiftLanguageRuntime::ProjectEnum(ValueObject &valobj) {
 
   // Prepare to project the enum to get the active case.
   MemoryReaderLocalBufferHolder holder;
-  auto [addr, address_type] = valobj.GetAddressOf(false);
+  // Storage for the Scalar case below.
+  uint64_t scalar_storage = 0;
+  auto [addr, address_type] =
+      valobj.GetAddressOf(/*scalar_is_load_address=*/false);
   if (addr == LLDB_INVALID_ADDRESS || addr == 0) {
     Value &value = valobj.GetValue();
     switch (value.GetValueType()) {
@@ -1902,8 +1905,9 @@ SwiftLanguageRuntime::ProjectEnum(ValueObject &valobj) {
       break;
     }
     case Value::ValueType::Scalar: {
-      addr = value.GetScalar().ULongLong(LLDB_INVALID_ADDRESS);
-      holder = PushLocalBuffer((uint64_t)&addr, sizeof(addr));
+      scalar_storage = value.GetScalar().ULongLong(LLDB_INVALID_ADDRESS);
+      addr = (uint64_t)&scalar_storage;
+      holder = PushLocalBuffer(addr, sizeof(scalar_storage));
       break;
     }
     }
@@ -3499,7 +3503,7 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_Value(
       bound_type.GetByteSize(exe_ctx.GetBestExecutionContextScope()));
   if (!size)
     return false;
-  auto [val_address, address_type] = in_value.GetAddressOf(true);
+  auto [val_address, address_type] = in_value.GetAddressOf(false);
   // If we couldn't find a load address, but the value object has a local
   // buffer, use that.
   if (val_address == LLDB_INVALID_ADDRESS && address_type == eAddressTypeHost) {
@@ -3519,7 +3523,16 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress_Value(
     local_buffer = in_value_buffer;
     return true;
   }
-  if (*size && (!val_address || val_address == LLDB_INVALID_ADDRESS))
+  if (val_address == LLDB_INVALID_ADDRESS) {
+    if (*size) {
+      return false;
+    }
+    // This is a zero-sized type so there is nothing to read. Report it as load
+    // address (this is safe because val_address is LLDB_INVALID_ADDRESS) so the
+    // generic type parameters are still bound.
+    address_type = eAddressTypeLoad;
+  }
+  if (*size && !val_address)
     return false;
 
   value_type = Value::GetValueTypeFromAddressType(address_type);
