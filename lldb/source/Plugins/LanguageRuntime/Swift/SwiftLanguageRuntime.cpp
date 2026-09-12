@@ -2535,20 +2535,23 @@ private:
       auto shard_addr = swift::remote::RemoteAddress(
           registry_addr.getRawAddress() + (i * shard_size),
           registry_addr.getAddressSpace());
+      
       uint64_t task_addr = 0;
-      if (reader.readInteger(shard_addr, pointer_size, &task_addr)) {
-        int32_t nodes = 0;
-        int32_t max_registry_nodes = 10000;
-        while (task_addr && nodes++ < max_registry_nodes) {
-          task_addrs.push_back(task_addr);
-          auto task_info_expected = m_reflection_ctx.asyncTaskInfo(task_addr, 0, 0);
-          if (task_info_expected) {
-            task_addr = task_info_expected->registryNext;
-          } else {
-            llvm::consumeError(task_info_expected.takeError());
-            break;
-          }
+      if (!reader.readInteger(shard_addr, pointer_size, &task_addr))
+        continue;
+
+      int32_t nodes = 0;
+      int32_t max_registry_nodes = 10000;
+      while (task_addr && nodes++ < max_registry_nodes) {
+        task_addrs.push_back(task_addr);
+        
+        auto task_info_expected = m_reflection_ctx.asyncTaskInfo(task_addr, 0, 0);
+        if (!task_info_expected) {
+          llvm::consumeError(task_info_expected.takeError());
+          break;
         }
+        
+        task_addr = task_info_expected->registryNext;
       }
     }
     return task_addrs;
