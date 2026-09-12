@@ -336,6 +336,7 @@ bool Sema::ValidateBoundsAttrTypeShape(QualType Ty, SourceLocation AttrLoc,
       // Emit a warning that this is a GNU extension.
       Diag(AttrLoc, diag::ext_gnu_counted_by_void_ptr) << Kind;
       Diag(AttrLoc, diag::note_gnu_counted_by_void_ptr_use_sized_by) << Kind;
+      assert(!Ty->isArrayType() && "sized_by is not allowed on arrays");
       Flags.CountInBytes = true;
       return true;
     }
@@ -346,13 +347,18 @@ bool Sema::ValidateBoundsAttrTypeShape(QualType Ty, SourceLocation AttrLoc,
     InvalidTypeKind = CountedByInvalidPointeeTypeKind::FUNCTION;
   } else if (!Flags.CountInBytes &&
              PointeeTy->isStructureTypeWithFlexibleArrayMember()) {
-    if (Ty->isArrayType() && !getLangOpts().BoundsSafety) {
+    if (Ty->isArrayType()) {
       // This is a workaround for the Linux kernel that has already adopted
       // `counted_by` on a FAM where the pointee is a struct with a FAM. This
       // should be an error because computing the bounds of the array cannot
       // be done correctly without manually traversing every struct object in
       // the array at runtime. To allow the code to be built this error is
       // downgraded to a warning.
+
+      // FIXME: This is also a workaround for other projects that are using
+      // __counted_by on a FAM where the array element is also a FAM
+      // (rdar://186580568). We need to make this a hard error
+      // (rdar://187230108).
       ShouldWarn = true;
     }
     InvalidTypeKind = CountedByInvalidPointeeTypeKind::FLEXIBLE_ARRAY_MEMBER;
@@ -369,9 +375,10 @@ bool Sema::ValidateBoundsAttrTypeShape(QualType Ty, SourceLocation AttrLoc,
                           << (ShouldWarn ? 1 : 0) << Kind << AttrRange;
     if (ShouldWarn)
       return true;
-    if (getLangOpts().hasBoundsSafetyAttributes()) {
+    if (getLangOpts().hasBoundsSafetyAttributes() && !Ty->isArrayType()) {
       // Under BoundsSafety, recover by switching to byte count so that
       // type construction can proceed and emit follow-up diagnostics.
+      // We don't do this for arrays because `__sized_by` is not allowed.
       Flags.CountInBytes = true;
       return true;
     }
