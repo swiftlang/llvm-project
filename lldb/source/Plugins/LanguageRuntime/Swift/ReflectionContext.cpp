@@ -24,6 +24,7 @@ using namespace lldb_private;
 
 namespace {
 
+
 /// The descriptor finder needs to be an instance variable of the
 /// TypeRefBuilder, but we would still want to swap out the descriptor finder,
 /// as they are tied to each type system typeref's symbol file. This class's
@@ -418,6 +419,7 @@ class TargetReflectionContext : public ReflectionContextInterface {
       result.resumeAsyncContext = task_info.ResumeAsyncContext;
       result.runJob = task_info.RunJob;
       result.parentTask = task_info.ParentTask;
+      result.registryNext = task_info.RegistryNext;
       for (auto child : task_info.ChildTasks)
         result.childTasks.push_back(child);
       for (auto waiting : task_info.WaitingTasks)

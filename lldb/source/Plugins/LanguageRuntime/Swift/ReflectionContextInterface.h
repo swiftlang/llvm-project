@@ -182,6 +182,7 @@ public:
     lldb::addr_t resumeAsyncContext = LLDB_INVALID_ADDRESS;
     lldb::addr_t runJob = LLDB_INVALID_ADDRESS;
     lldb::addr_t parentTask = 0; // Use the same default as RemoteInspection.
+    lldb::addr_t registryNext = 0;
     std::vector<lldb::addr_t> childTasks;
     std::vector<lldb::addr_t> waitingTasks;
     std::vector<lldb::addr_t> asyncBacktracePcs;
