@@ -22,6 +22,8 @@ def execute_command(command):
 
 
 class TestSwiftResilience(TestBase):
+    SHARED_BUILD_TESTCASE = False
+
     # The flavors of mod store the fields of S in a different order, so the
     # rendering of a value of type S identifies the library that is really
     # loaded, independently of the one the executable was built against.
