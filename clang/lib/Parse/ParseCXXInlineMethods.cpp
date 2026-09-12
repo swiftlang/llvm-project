@@ -718,22 +718,6 @@ void Parser::ParseLexedAttributeList(LateParsedAttrList &LAs, Decl *D,
 void Parser::ParseLexedAttribute(LateParsedAttribute &LPA, bool EnterScope,
                                  bool OnDefinition,
                                  ParsedAttributes *OutAttrs) {
-  // Create a fake EOF so that attribute parsing won't go off the end of the
-  // attribute.
-  Token AttrEnd;
-  AttrEnd.startToken();
-  AttrEnd.setKind(tok::eof);
-  AttrEnd.setLocation(Tok.getLocation());
-  AttrEnd.setEofData(LPA.Toks.data());
-  LPA.Toks.push_back(AttrEnd);
-
-  // Append the current token at the end of the new token stream so that it
-  // doesn't get lost.
-  LPA.Toks.push_back(Tok);
-  PP.EnterTokenStream(LPA.Toks, true, /*IsReinject=*/true);
-  // Consume the previously pushed token.
-  ConsumeAnyToken(/*ConsumeCodeCompletionTok=*/true);
-
   ParsedAttributes Attrs(AttrFactory);
 
   if (LPA.Decls.size() > 0) {
@@ -760,52 +744,23 @@ void Parser::ParseLexedAttribute(LateParsedAttribute &LPA, bool EnterScope,
       Actions.ActOnReenterFunctionContext(Actions.CurScope, D);
     }
 
-    ParseGNUAttributeArgs(&LPA.AttrName, LPA.AttrNameLoc, Attrs,
-                          /*EndLoc=*/nullptr, /*ScopeName=*/nullptr,
-                          SourceLocation(), ParsedAttr::Form::GNU(),
-                          /*D=*/nullptr,
-                          // TO_UPSTREAM(BoundsSafety)
-                          LPA.NestedTypeLevel);
+    ParsedAttributes Parsed =
+        ParseLexedAttributeTokens(LPA, /*EnterScope=*/false);
+    Attrs.takeAllAppendingFrom(Parsed);
 
     if (HasFuncScope)
       Actions.ActOnExitFunctionContext();
-  } else if (OutAttrs) {
-    // A late C attribute may be parsed without a decl, in which case the
-    // parsed attribute is collected into OutAttrs.
-    ParseGNUAttributeArgs(&LPA.AttrName, LPA.AttrNameLoc, Attrs,
-                          /*EndLoc=*/nullptr, /*ScopeName=*/nullptr,
-                          SourceLocation(), ParsedAttr::Form::GNU(),
-                          /*D=*/nullptr,
-                          // TO_UPSTREAM(BoundsSafety)
-                          LPA.NestedTypeLevel);
   } else {
-    Diag(Tok, diag::warn_attribute_no_decl) << LPA.AttrName.getName();
+    Diag(LPA.AttrNameLoc, diag::warn_attribute_no_decl)
+        << LPA.AttrName.getName();
   }
 
   if (OnDefinition && !Attrs.empty() && !Attrs.begin()->isCXX11Attribute() &&
       Attrs.begin()->isKnownToGCC())
     Diag(Tok, diag::warn_attribute_on_function_definition) << &LPA.AttrName;
 
-  /* TO_UPSTREAM(BoundsSafety) ON */
-  if (LPA.MacroII) {
-    const auto &SM = PP.getSourceManager();
-    CharSourceRange ExpansionRange = SM.getExpansionRange(LPA.AttrNameLoc);
-    for (unsigned i = 0; i < Attrs.size(); ++i)
-      Attrs[i].setMacroIdentifier(LPA.MacroII, ExpansionRange.getBegin(),
-                                  SM.isInSystemMacro(LPA.AttrNameLoc));
-  }
-  /* TO_UPSTREAM(BoundsSafety) OFF */
-
   for (auto *D : LPA.Decls)
     Actions.ActOnFinishDelayedAttribute(getCurScope(), D, Attrs);
-
-  // Due to a parsing error, we either went over the cached tokens or
-  // there are still cached tokens left, so we skip the leftover tokens.
-  while (Tok.isNot(tok::eof))
-    ConsumeAnyToken();
-
-  if (Tok.is(tok::eof) && Tok.getEofData() == AttrEnd.getEofData())
-    ConsumeAnyToken();
 
   if (OutAttrs)
     OutAttrs->takeAllAppendingFrom(Attrs);
