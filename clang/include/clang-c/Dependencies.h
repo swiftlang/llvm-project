@@ -190,6 +190,22 @@ CINDEX_LINKAGE void clang_experimental_DependencyScannerService_dispose_v0(
     CXDependencyScannerService);
 
 /**
+ * Report that the listing of \p Directories changed since the last scan, so
+ * that scanning modules depending on them are rebuilt on incremental scans.
+ *
+ * Pass the values a previous scan reported via
+ * \c clang_experimental_DepGraphModule_getDirectoryDeps. Matching is lexical,
+ * so do not resolve symlinks.
+ *
+ * Additive and thread-safe. Must be called before scanning anything that
+ * depends on the reported directories.
+ */
+CINDEX_LINKAGE void
+clang_experimental_DependencyScannerService_addInvalidatedDirectories(
+    CXDependencyScannerService, const char *const *Directories,
+    size_t NumDirectories);
+
+/**
  * Object encapsulating instance of a dependency scanner worker.
  *
  * The dependency scanner workers are expected to be used in separate worker
@@ -434,6 +450,19 @@ CINDEX_LINKAGE const char *
  */
 CINDEX_LINKAGE CXCStringArray
     clang_experimental_DepGraphModule_getFileDeps(CXDepGraphModule);
+
+/**
+ * \returns the list of directories which this module depends on the listing of.
+ *
+ * If any of these change then the module needs to be rebuilt to have correct
+ * incremental builds. Changes to these directories can be reported via
+ * \c clang_experimental_DependencyScannerService_addInvalidatedDirectories.
+ *
+ * The strings are only valid to use while the \c CXDepGraphModule object is
+ * valid.
+ */
+CINDEX_LINKAGE CXCStringArray
+    clang_experimental_DepGraphModule_getDirectoryDeps(CXDepGraphModule);
 
 /**
  * \returns the list of modules which this module direct depends on.
