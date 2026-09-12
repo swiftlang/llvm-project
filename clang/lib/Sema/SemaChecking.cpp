@@ -1809,6 +1809,40 @@ static bool checkPointerAuthValue(Sema &S, Expr *&Arg, PointerAuthOpKind OpKind,
   QualType ExpectedTy;
   if (AllowsPointer(OpKind) && Arg->getType()->isPointerType()) {
     ExpectedTy = Arg->getType().getUnqualifiedType();
+    /* TO_UPSTREAM(BoundsSafety) ON */
+    // These builtins take a raw pointer. Reject wide pointers here until the
+    // correct behaviour is decided
+    // (https://github.com/swiftlang/llvm-project/issues/14140).
+    if (ExpectedTy->isPointerTypeWithBounds()) {
+      // `&expr` is an accepted operand form, not an exception: taking an
+      // address is the natural way to derive a discriminator. The wide pointer
+      // it yields has its bounds fields synthesised at the use site and then
+      // immediately discarded by the builtin, so nothing the program is holding
+      // is lost. This admits `&wide_ptr[0]` as well, as a consequence of
+      // allowing `&` wholesale rather than as a separately designed hatch.
+      const auto *AddrOf = dyn_cast<UnaryOperator>(Arg->IgnoreParenImpCasts());
+      if (!AddrOf || AddrOf->getOpcode() != UO_AddrOf) {
+        S.Diag(Arg->getExprLoc(),
+               diag::err_bounds_safety_ptrauth_discards_bounds)
+            << ExpectedTy << Arg->getSourceRange();
+        return true;
+      }
+      // Pick a raw-layout pointer as the target type so the conversion below
+      // (convertArgumentToType) turns the argument into a scalar, the way every
+      // other callee taking a raw pointer gets an implicit
+      // CK_BoundsSafetyPointerCast. Leaving the argument's own type here would
+      // otherwise let a wide pointer -- an aggregate -- reach CodeGen, tripping
+      // EmitScalarExpr().
+      //
+      // Unspecified rather than __single, to match the default return type of
+      // builtin declarations. Without special handling, pointer-returning
+      // builtins are all unspecified, so a bounded result needs
+      // __unsafe_forge_*. Typing the result __single would also trip an
+      // assertion in BoundsSafetySuggestions.cpp.
+      ExpectedTy = S.Context.getBoundsSafetyPointerType(
+          ExpectedTy, BoundsSafetyPointerAttributes::unspecified());
+    }
+    /* TO_UPSTREAM(BoundsSafety) OFF */
   } else if (AllowsPointer(OpKind) && Arg->getType()->isNullPtrType()) {
     ExpectedTy = S.Context.VoidPtrTy;
   } else if (AllowsInteger(OpKind) &&
@@ -1829,7 +1863,7 @@ static bool checkPointerAuthValue(Sema &S, Expr *&Arg, PointerAuthOpKind OpKind,
   }
 
   // Convert to that type.  This should just be an lvalue-to-rvalue
-  // conversion.
+  // conversion, or a cast from a wide pointer (rvalue) to a raw pointer type.
   if (convertArgumentToType(S, Arg, ExpectedTy))
     return true;
 
