@@ -347,11 +347,15 @@ add_lit_testsuite(check-lldb "Running lldb lit test suite"
     lldb-unit-test-deps)
 
 # BEGIN SWIFT MOD
+# lldb-unit-test-deps is what builds LLDBUnitTests; the filter selects
+# Swift-specific unit tests as well as API and Shell tests.
 add_lit_testsuite(check-lldb-swift
   "Running swift tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS "--filter=[sS]wift"
-  DEPENDS lldb-test-deps)
+  DEPENDS
+    lldb-test-deps
+    lldb-unit-test-deps)
 # END SWIFT MOD
 
 if(LLDB_BUILT_STANDALONE)
