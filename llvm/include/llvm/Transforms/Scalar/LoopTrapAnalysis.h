@@ -9,13 +9,18 @@
 #ifndef LLVM_TRANSFORMS_SCALAR_LoopTrapAnalysis_H
 #define LLVM_TRANSFORMS_SCALAR_LoopTrapAnalysis_H
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
 
-struct LoopTrapAnalysisPass : public OptionalPassInfoMixin<LoopTrapAnalysisPass> {
+struct LoopTrapAnalysisPass
+    : public OptionalPassInfoMixin<LoopTrapAnalysisPass> {
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
+
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName);
 };
 
 } // end namespace llvm
