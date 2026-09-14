@@ -102,6 +102,7 @@ add_orc_rt_unittest(BedrockTests
   bedrock/sps/NativeDylibManagerSPSCITest.cpp
   bedrock/sps/SimpleNativeMemoryMapSPSCITest.cpp
   bedrock/sps/SimpleRemoteCATest.cpp
+  bedrock/sps/SocketSimpleRemoteCATest.cpp
 
   bedrock/sys/CPUFeaturesTest.cpp
   bedrock/sys/TargetTripleTest.cpp

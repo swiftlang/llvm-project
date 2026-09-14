@@ -18,6 +18,7 @@ set(ORC_RT_BEDROCK_SOURCES
   sps/NativeDylibManagerSPSCI.cpp
   sps/SimpleNativeMemoryMapSPSCI.cpp
   sps/SimpleRemoteCA.cpp
+  sps/SocketSimpleRemoteCA.cpp
   sps/StandaloneMachOUnwindInfoRegistrarSPSCI.cpp
   )
 
