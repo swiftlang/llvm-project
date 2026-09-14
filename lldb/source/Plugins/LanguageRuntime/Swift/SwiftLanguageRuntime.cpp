@@ -3091,6 +3091,20 @@ private:
   CommandOptions m_options;
 };
 
+/// Deduce the mangling flavor from the code the frame is stopped in.
+static swift::Mangle::ManglingFlavor
+GetManglingFlavorForFrame(StackFrame *frame) {
+  if (!frame)
+    return swift::Mangle::ManglingFlavor::Default;
+  // Deliberately not resolving eSymbolContextBlock: for an inlined block
+  // GetFunctionName() returns the demangled inline info name, which carries no
+  // flavor prefix.
+  ConstString name =
+      frame->GetSymbolContext(eSymbolContextFunction | eSymbolContextSymbol)
+          .GetFunctionName(Mangled::ePreferMangled);
+  return SwiftLanguageRuntime::GetManglingFlavor(name.GetStringRef());
+}
+
 class CommandObjectLanguageSwiftTaskInfo final : public CommandObjectParsed {
 public:
   CommandObjectLanguageSwiftTaskInfo(CommandInterpreter &interpreter)
@@ -3148,10 +3162,8 @@ private:
       return;
     }
 
-    // TypeMangling for "Swift.UnsafeCurrentTask"
-    // TODO: figure out if this need to be updated to support embedded swift.
-    CompilerType task_type =
-        ts->GetTypeFromMangledTypename(ConstString("$sSctD"));
+    CompilerType task_type = ts->GetUnsafeCurrentTaskType(
+        GetManglingFlavorForFrame(m_exe_ctx.GetFramePtr()));
     auto task_sp = ValueObject::CreateValueObjectFromAddress(
         task_name, task_addr, m_exe_ctx, task_type, false);
     if (auto synthetic_sp = task_sp->GetSyntheticValue())
