@@ -172,7 +172,25 @@ private:
                                          const ExceptionRecord &record);
 
   Status CacheLoadedModules();
+
+  /// Record that \p file_spec is mapped at \p base_addr.
+  void AddLoadedModule(const lldb_private::FileSpec &file_spec,
+                       lldb::addr_t base_addr);
+  /// Drop the mapping at \p base_addr. \return the module's file spec if this
+  /// was the last mapping of that file, an empty FileSpec otherwise.
+  lldb_private::FileSpec RemoveLoadedModule(lldb::addr_t base_addr);
+
+  /// The loaded modules to report to the client, one entry per file. The same
+  /// file can be mapped more than once (see m_module_addresses); the mapping
+  /// the program runs from is the one the loader established first, so the
+  /// first address seen for a file wins.
   std::map<lldb_private::FileSpec, lldb::addr_t> m_loaded_modules;
+
+  /// Every image mapping, keyed by base address -- the identity an
+  /// UNLOAD_DLL_DEBUG_EVENT carries. Needed to tell which file a given unload
+  /// refers to, and to keep a second mapping of an already-loaded file from
+  /// taking the entry in m_loaded_modules with it when it goes away.
+  std::map<lldb::addr_t, lldb_private::FileSpec> m_module_addresses;
 
   /// Set whenever an OS DLL load/unload event has been seen since the last stop
   /// reply.

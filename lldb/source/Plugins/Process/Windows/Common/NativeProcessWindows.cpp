@@ -356,6 +356,37 @@ Status NativeProcessWindows::RemoveBreakpoint(lldb::addr_t addr,
   return RemoveSoftwareBreakpoint(addr);
 }
 
+void NativeProcessWindows::AddLoadedModule(const FileSpec &file_spec,
+                                           addr_t base_addr) {
+  m_module_addresses[base_addr] = file_spec;
+  // First mapping of a file wins: see m_loaded_modules.
+  m_loaded_modules.try_emplace(file_spec, base_addr);
+}
+
+FileSpec NativeProcessWindows::RemoveLoadedModule(addr_t base_addr) {
+  auto addr_it = m_module_addresses.find(base_addr);
+  if (addr_it == m_module_addresses.end())
+    return {};
+
+  FileSpec file_spec = addr_it->second;
+  m_module_addresses.erase(addr_it);
+
+  auto module_it = m_loaded_modules.find(file_spec);
+  if (module_it == m_loaded_modules.end() || module_it->second != base_addr)
+    return {}; // A different mapping of this file is the reported one.
+
+  // Fall back on any other mapping of the same file that is still around
+  // before declaring the module unloaded.
+  for (const auto &[addr, spec] : m_module_addresses)
+    if (spec == file_spec) {
+      module_it->second = addr;
+      return {};
+    }
+
+  m_loaded_modules.erase(module_it);
+  return file_spec;
+}
+
 Status NativeProcessWindows::CacheLoadedModules() {
   Status error;
   if (!m_loaded_modules.empty())
@@ -374,7 +405,7 @@ Status NativeProcessWindows::CacheLoadedModules() {
 
         FileSpec file_spec(path);
         FileSystem::Instance().Resolve(file_spec);
-        m_loaded_modules[file_spec] = (addr_t)me.modBaseAddr;
+        AddLoadedModule(file_spec, (addr_t)me.modBaseAddr);
       } while (Module32Next(snapshot.get(), &me));
     }
 
@@ -490,7 +521,7 @@ void NativeProcessWindows::OnDebuggerConnected(lldb::addr_t image_base) {
     FileSpec exe = info.GetExecutableFile();
     if (exe) {
       FileSystem::Instance().Resolve(exe);
-      m_loaded_modules[exe] = image_base;
+      AddLoadedModule(exe, image_base);
     }
   }
 
@@ -740,7 +771,7 @@ DllEventAction NativeProcessWindows::OnLoadDll(const ModuleSpec &module_spec,
   FileSpec resolved = module_spec.GetFileSpec();
   if (resolved) {
     FileSystem::Instance().Resolve(resolved);
-    m_loaded_modules[resolved] = module_addr;
+    AddLoadedModule(resolved, module_addr);
   }
   m_pending_library_events = true;
 
@@ -777,15 +808,7 @@ DllEventAction NativeProcessWindows::OnUnloadDll(lldb::addr_t module_addr,
   Log *log = GetLog(WindowsLog::Process);
   llvm::sys::ScopedLock lock(m_mutex);
 
-  FileSpec unloaded_spec;
-  for (auto it = m_loaded_modules.begin(); it != m_loaded_modules.end();) {
-    if (it->second == module_addr) {
-      unloaded_spec = it->first;
-      it = m_loaded_modules.erase(it);
-    } else {
-      ++it;
-    }
-  }
+  FileSpec unloaded_spec = RemoveLoadedModule(module_addr);
   m_pending_library_events = true;
 
   if (!m_initial_stop_seen || !m_client_supports_libraries_read)
