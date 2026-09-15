@@ -512,7 +512,9 @@ public:
     }
   }
 };
+} // namespace
 
+namespace clang {
 class ConstraintSatisfactionChecker {
   Sema &S;
   const NamedDecl *Template;
@@ -615,10 +617,6 @@ private:
   EvaluateAtomicConstraint(const Expr *AtomicExpr,
                            const MultiLevelTemplateArgumentList &MLTAL);
 
-  UnsignedOrNone EvaluateFoldExpandedConstraintSize(
-      const FoldExpandedConstraint &FE,
-      const MultiLevelTemplateArgumentList &MLTAL);
-
   // XXX: It is SLOW! Use it very carefully.
   std::optional<MultiLevelTemplateArgumentList> SubstitutionInTemplateArguments(
       const NormalizedConstraintWithParamMapping &Constraint,
@@ -663,7 +661,7 @@ public:
                       const MultiLevelTemplateArgumentList &MLTAL);
 };
 
-} // namespace
+} // namespace clang
 
 ExprResult ConstraintSatisfactionChecker::EvaluateAtomicConstraint(
     const Expr *AtomicExpr, const MultiLevelTemplateArgumentList &MLTAL) {
@@ -911,31 +909,6 @@ ExprResult ConstraintSatisfactionChecker::Evaluate(
   return PMCache.cache(EvaluateSlow(Constraint, MLTAL));
 }
 
-UnsignedOrNone
-ConstraintSatisfactionChecker::EvaluateFoldExpandedConstraintSize(
-    const FoldExpandedConstraint &FE,
-    const MultiLevelTemplateArgumentList &MLTAL) {
-
-  Expr *Pattern = const_cast<Expr *>(FE.getPattern());
-
-  SmallVector<UnexpandedParameterPack, 2> Unexpanded;
-  S.collectUnexpandedParameterPacks(Pattern, Unexpanded);
-  assert(!Unexpanded.empty() && "Pack expansion without parameter packs?");
-  bool Expand = true;
-  bool RetainExpansion = false;
-  UnsignedOrNone NumExpansions(std::nullopt);
-  if (S.CheckParameterPacksForExpansion(
-          Pattern->getExprLoc(), Pattern->getSourceRange(), Unexpanded, MLTAL,
-          /*FailOnPackProducingTemplates=*/false, Expand, RetainExpansion,
-          NumExpansions, /*Diagnose=*/false) ||
-      !Expand || RetainExpansion)
-    return std::nullopt;
-
-  if (NumExpansions && S.getLangOpts().BracketDepth < *NumExpansions)
-    return std::nullopt;
-  return NumExpansions;
-}
-
 ExprResult ConstraintSatisfactionChecker::EvaluateSlow(
     const FoldExpandedConstraint &Constraint,
     const MultiLevelTemplateArgumentList &MLTAL) {
@@ -956,9 +929,15 @@ ExprResult ConstraintSatisfactionChecker::EvaluateSlow(
     return ExprError();
   }
 
-  ExprResult Out;
-  UnsignedOrNone NumExpansions =
-      EvaluateFoldExpandedConstraintSize(Constraint, *SubstitutedArgs);
+  UnsignedOrNone NumExpansions(std::nullopt);
+  {
+    Sema::InstantiatingTemplate InstTemplate(
+        S, TemplateNameLoc,
+        Sema::InstantiatingTemplate::ConstraintSubstitution{},
+        const_cast<NamedDecl *>(Template), Constraint.getSourceRange());
+    NumExpansions = S.EvaluateFoldExpandedConstraintSize(
+        Constraint.getPattern(), *SubstitutedArgs);
+  }
   if (!NumExpansions)
     return ExprEmpty();
 
@@ -967,6 +946,7 @@ ExprResult ConstraintSatisfactionChecker::EvaluateSlow(
     return ExprEmpty();
   }
 
+  ExprResult Out;
   for (unsigned I = 0; I < *NumExpansions; I++) {
     Sema::ArgPackSubstIndexRAII SubstIndex(S, I);
     Satisfaction.IsSatisfied = false;
@@ -2047,7 +2027,7 @@ void Sema::DiagnoseUnsatisfiedConstraint(
                                   ConstraintExpr->getBeginLoc(), First);
 }
 
-namespace {
+namespace clang {
 
 class SubstituteParameterMappings {
   Sema &SemaRef;
@@ -2084,6 +2064,8 @@ public:
 
   bool substitute(NormalizedConstraint &N);
 };
+
+} // namespace clang
 
 void SubstituteParameterMappings::buildParameterMapping(
     NormalizedConstraintWithParamMapping &N) {
@@ -2376,8 +2358,6 @@ bool SubstituteParameterMappings::substitute(NormalizedConstraint &N) {
   }
   llvm_unreachable("Unknown ConstraintKind enum");
 }
-
-} // namespace
 
 NormalizedConstraint *NormalizedConstraint::fromAssociatedConstraints(
     Sema &S, const NamedDecl *D, ArrayRef<AssociatedConstraint> ACs) {
