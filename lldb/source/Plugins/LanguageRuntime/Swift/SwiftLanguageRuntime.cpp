@@ -420,6 +420,26 @@ ThreadSafeReflectionContext SwiftLanguageRuntime::GetReflectionContext() {
   return {m_reflection_ctx.get(), m_reflection_ctx_mutex};
 }
 
+/// A module that is not loaded into the process yet has no load address, so its
+/// reflection metadata cannot be read. That is the state of every library the
+/// target preloaded as a dependency of the executable before the dynamic loader
+/// reported it, and this runtime seeds its work list from the target's module
+/// list. Such a module has to stay queued: a module dropped here is never
+/// looked at again, and every later type lookup that needs it fails with "Could
+/// not find reflection metadata for type".
+static bool ShouldRetryAddingToReflectionContext(Target &target,
+                                                 const ModuleSP &module_sp) {
+  if (!module_sp)
+    return false;
+  ObjectFile *obj_file = module_sp->GetObjectFile();
+  // A JIT object file is registered from its in-memory sections, and a module
+  // without an object file will never be registered at all.
+  if (!obj_file || obj_file->GetType() == ObjectFile::eTypeJIT)
+    return false;
+  lldb::addr_t load_addr = obj_file->GetBaseAddress().GetLoadAddress(&target);
+  return load_addr == 0 || load_addr == LLDB_INVALID_ADDRESS;
+}
+
 void SwiftLanguageRuntime::ProcessModulesToAdd() {
   // A snapshot of the modules to be processed. This is necessary because
   // AddModuleToReflectionContext may recursively call into this function again.
@@ -440,7 +460,9 @@ void SwiftLanguageRuntime::ProcessModulesToAdd() {
   modules_to_add_snapshot.ForEach(
       [&](const ModuleSP &module_sp) -> IterationAction {
         if (module_sp) {
-          AddModuleToReflectionContext(module_sp);
+          if (!AddModuleToReflectionContext(module_sp) &&
+              ShouldRetryAddingToReflectionContext(target, module_sp))
+            m_modules_to_add.AppendIfNeeded(module_sp);
           progress.Increment(
               ++completion, module_sp->GetFileSpec().GetFilename().str());
         }
