@@ -160,7 +160,10 @@ public:
   static LanguageSet GetSupportedLanguagesForTypes();
   /// Returns true if the given flag is present in the given compile unit.
   static bool CheckFlagInCU(CompileUnit *cu, const char *flag);
-  static bool ShouldEnableCXXInterop(CompileUnit *cu);
+  /// Determine whether C++ interop should be enabled. A scratch context has no
+  /// compile unit, so \p fallback_module is consulted in that case.
+  static bool ShouldEnableCXXInterop(CompileUnit *cu,
+                                     Module *fallback_module = nullptr);
   static bool ShouldEnableEmbeddedSwift(CompileUnit *cu);
 
   virtual SwiftASTContextSP
