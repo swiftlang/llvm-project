@@ -994,6 +994,7 @@ features cannot lower the translation-unit ABI level;
 - Fixed an ODR-merging error in modules, where class-scope `using enum` declarations were not recognized as matching across module
   boundaries.  (#GH207066)
 - Fixed a crash when constant evaluation accessed a base class or member of an object wrapped in `_Atomic`. (#GH203328)
+- Fixed a CTAD bug when combining with concepts. (#GH124715)
 
 #### Bug Fixes to AST Handling
 
