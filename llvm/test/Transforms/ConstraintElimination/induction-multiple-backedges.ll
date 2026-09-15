@@ -17,7 +17,7 @@ define void @same_backedge_value(i64 %n, i1 %c) {
 ; CHECK:       [[BODY]]:
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    call void @use(i1 true)
-; CHECK-NEXT:    [[IV_NEXT]] = add nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
 ; CHECK-NEXT:    br i1 [[C]], label %[[LATCH_A]], label %[[LATCH_B]]
 ; CHECK:       [[LATCH_A]]:
 ; CHECK-NEXT:    br label %[[LOOP]]

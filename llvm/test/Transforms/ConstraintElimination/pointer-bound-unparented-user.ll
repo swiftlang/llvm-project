@@ -43,7 +43,7 @@ define void @bounds_for_loop(ptr %dst, ptr %src, i64 %x, i64 %y) {
 ; CHECK-NEXT:    [[LD_6:%.*]] = load i16, ptr [[SRC_X]], align 2
 ; CHECK-NEXT:    [[EXT_1:%.*]] = zext i16 [[LD_6]] to i32
 ; CHECK-NEXT:    store i32 [[EXT_1]], ptr [[DST_Y]], align 4
-; CHECK-NEXT:    [[IV_NEXT]] = add nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
 ; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds i32, ptr [[SRC]], i64 [[IV_NEXT]]
 ; CHECK-NEXT:    [[LD_7:%.*]] = load i32, ptr [[GEP]], align 4
 ; CHECK-NEXT:    store i32 [[LD_7]], ptr [[DST_X]], align 4
