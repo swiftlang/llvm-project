@@ -1532,11 +1532,11 @@ private:
                                ParsedAttributes &OutAttrs);
 
   /// Parse cached tokens for a late-parsed attribute and return the parsed
-  /// attributes. Shared implementation used by both ParseLexedCAttribute and
+  /// attributes. Shared implementation used by both ParseLexedAttribute and
   /// ParseLexedTypeAttribute.
-  ParsedAttributes ParseLexedCAttributeTokens(LateParsedAttribute &LA,
-                                              // TO_UPSTREAM(BoundsSafety)
-                                              bool EnterScope);
+  ParsedAttributes ParseLexedAttributeTokens(LateParsedAttribute &LPA,
+                                             // TO_UPSTREAM(BoundsSafety)
+                                             bool EnterScope);
 
   /// Helper function to move LateParsedTypeAttribute pointers from one list
   /// to another. Filters type attributes from \p From and appends them to \p
