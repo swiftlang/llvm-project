@@ -137,6 +137,17 @@ ifeq "$(USESWIFTDRIVER)" "1"
 		SWIFTFLAGS += -sdk "$(SWIFTSDKROOT)"
 	endif
 	SWIFTFLAGS += -tools-directory "$(shell dirname $(CC))"
+	# `-tools-directory` also directs the swift driver to look up
+	# `swift-frontend` there. In a unified LLVM+Swift build that directory
+	# contains a partial Swift install (produced by
+	# LLVM_EXTERNAL_PROJECTS=swift) whose lib/swift is missing modules like
+	# `_Concurrency` that live in the full standalone stdlib. On non-Windows
+	# hosts pin the resource-dir to the stdlib next to $(SWIFTC) so module
+	# lookup uses the complete build tree regardless of which swift-frontend
+	# runs. Windows already sets -resource-dir above.
+	ifneq "$(OS)" "Windows_NT"
+		SWIFTFLAGS += -resource-dir "$(shell dirname $(SWIFTC))/../lib/swift"
+	endif
 endif
 
 #----------------------------------------------------------------------
