@@ -134,3 +134,24 @@ llvm::Value *CodeGen::getCXXDestructorImplicitParam(
   return CGM.getCXXABI().getCXXDestructorImplicitParam(
       CGF, D, Type, ForVirtualBase, Delegating);
 }
+
+void CodeGen::emitVirtualMethodTables(CodeGenModule &CGM,
+                                      const CXXMethodDecl *MD) {
+  if (!MD->isVirtual())
+    return;
+
+  // The vtable, VTT, and RTTI are emitted with the key function's definition.
+  const CXXRecordDecl *RD = MD->getParent();
+  if (CGM.getContext().getCurrentKeyFunction(RD) == MD->getCanonicalDecl()) {
+    CGM.noteClientDefinedKeyFunction(RD);
+    CGM.EmitVTable(const_cast<CXXRecordDecl *>(RD));
+  }
+
+  // A method's adjusting thunks are emitted with its definition.
+  if (const auto *DD = dyn_cast<CXXDestructorDecl>(MD)) {
+    CGM.getVTables().EmitThunks(GlobalDecl(DD, Dtor_Complete));
+    CGM.getVTables().EmitThunks(GlobalDecl(DD, Dtor_Deleting));
+  } else {
+    CGM.getVTables().EmitThunks(GlobalDecl(MD));
+  }
+}
