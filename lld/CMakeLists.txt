@@ -177,6 +177,18 @@ if (LLD_DEFAULT_LD_LLD_IS_MINGW)
   add_definitions("-DLLD_DEFAULT_LD_LLD_IS_MINGW=1")
 endif()
 
+set(LLD_ALL_LINKERS "COFF;ELF;MachO;MinGW;Wasm")
+set(LLD_LINKERS_TO_BUILD "all" CACHE STRING
+  "Semicolon-separated list of linker flavors to build (${LLD_ALL_LINKERS}), or \"all\".")
+if(LLD_LINKERS_TO_BUILD STREQUAL "all")
+  set(LLD_LINKERS_TO_BUILD ${LLD_ALL_LINKERS})
+endif()
+
+# Validate: MinGW depends on COFF
+if("MinGW" IN_LIST LLD_LINKERS_TO_BUILD AND NOT "COFF" IN_LIST LLD_LINKERS_TO_BUILD)
+  message(FATAL_ERROR "LLD MinGW linker requires COFF. Add COFF to LLD_LINKERS_TO_BUILD.")
+endif()
+
 if (MSVC)
   add_definitions(-wd4530) # Suppress 'warning C4530: C++ exception handler used, but unwind semantics are not enabled.'
   add_definitions(-wd4062) # Suppress 'warning C4062: enumerator X in switch of enum Y is not handled' from system header.
@@ -186,6 +198,12 @@ include_directories(BEFORE
   ${CMAKE_CURRENT_BINARY_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   )
+
+# Propagate enabled flavors to C++ via compile definitions (used in lld.cpp).
+foreach(linker ${LLD_LINKERS_TO_BUILD})
+  string(TOUPPER ${linker} upper)
+  add_definitions(-DLLD_ENABLE_${upper}=1)
+endforeach()
 
 add_subdirectory(Common)
 add_subdirectory(tools/lld)
@@ -200,11 +218,15 @@ if (LLVM_INCLUDE_TESTS)
 endif()
 
 add_subdirectory(docs)
-add_subdirectory(COFF)
-add_subdirectory(ELF)
-add_subdirectory(MachO)
-add_subdirectory(MinGW)
-add_subdirectory(wasm)
+
+# Add subdirectories for enabled linker flavors.
+foreach(linker ${LLD_LINKERS_TO_BUILD})
+  if(linker STREQUAL "Wasm")
+    add_subdirectory(wasm)
+  else()
+    add_subdirectory(${linker})
+  endif()
+endforeach()
 
 add_custom_target(lld-headers)
 set_target_properties(lld-headers PROPERTIES FOLDER "Misc")
