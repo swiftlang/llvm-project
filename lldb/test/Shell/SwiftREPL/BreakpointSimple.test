@@ -1,5 +1,7 @@
 // Test that we can set breakpoints in the REPL.
 // REQUIRES: swift
+// rdar://187473575 (BreakpointSimple.test is flaky in CI on all platforms)
+// UNSUPPORTED: true
 // RUN: %lldb --repl < %s | FileCheck %s
 
 func foo() -> Int {
